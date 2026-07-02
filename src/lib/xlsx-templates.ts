@@ -37,7 +37,7 @@ function buildInstructions(): XLSX.WorkSheet {
     ["Thank you for subscribing to an annual AetherForge AI plan."],
     [""],
     ["This workbook is your personal command centre for monitoring your own"],
-    ["performance and transactions alongside your Zenith-Mode AI reports."],
+    ["performance and transactions alongside your Apex-Mode AI reports."],
     [""],
     ["HOW TO USE THIS WORKBOOK"],
     ["1. Portfolio Tracker — your current holdings are pre-loaded. Update the"],

@@ -34,7 +34,7 @@ export const LOGO_MARK_SVG = `
 </svg>
 `;
 
-// AI-generated Zenith bot mascots (cartoon geeks deep in thought).
+// AI-generated Apex bot mascots (cartoon geeks deep in thought).
 export const BOT_STOCK_MASCOT =
   "https://storage.googleapis.com/totalum-live-bucket/aetherforgeai/files/bot-stock-mascot-1782977793991.png?GoogleAccessId=totalum-live%40totalum-live.iam.gserviceaccount.com&Expires=2413697794&Signature=0FlB7hip7LmTDUSK3Nhu%2Bdevd6MUTW9TEHdnmFN82sMHHpoxhZ1MV2itaG8LX78hnFkC46BMyFkm7nxEgtGmB9wLiyYBFtCCZukEgIN8Mdtl3wK4QEJF683Ijp%2BVo5Afpy5kybcZlT8dcjZCX1sT9ht2gigk%2BAR3hlLoDZxwq4L1FEJfpzvCQRmT17Mv5gxUtb0rZ6s8LwzgN18QvnkfiOLkS6AXY%2BqlRMvN5DikCA1p9xyO%2FBBnvw5t1Gc6ajrhhqrwQUhMhK53gdpNuY3QsMwOjGkAjTRJd3fzbpAnowJ70AgN3fP2VgOW6O0BNGV5x265oOLEmnN9JhzpywMAcg%3D%3D";
 

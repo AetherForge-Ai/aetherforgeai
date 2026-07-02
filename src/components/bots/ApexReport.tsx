@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Shared renderer for a ZenithReport object. Used both in the marketing demo
+ * Shared renderer for a ApexReport object. Used both in the marketing demo
  * modals (isDemo reports) and in the subscriber dashboard (live reports).
  * Presentational only — it never fetches; the parent supplies the report.
  */
@@ -9,7 +9,7 @@
 import * as React from "react";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatPercent } from "@/lib/portfolio";
-import type { ZenithReport, TickerAnalysis, MomentumPoint } from "@/lib/zenith";
+import type { ApexReport, TickerAnalysis, MomentumPoint } from "@/lib/apex";
 
 function signalTone(signal: TickerAnalysis["signal"]): string {
   switch (signal) {
@@ -150,14 +150,14 @@ function RichText({ text }: { text: string }) {
   );
 }
 
-export function ZenithReportView({ report }: { report: ZenithReport }) {
+export function ApexReportView({ report }: { report: ApexReport }) {
   return (
     <div className="space-y-5">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Badge className="bg-primary/15 text-primary border-primary/30" variant="outline">
-            ⚡ Zenith State
+            ⚡ Apex State
           </Badge>
           <Badge variant="outline" className="border-border/60 text-muted-foreground">
             {report.marketLabel}
@@ -279,4 +279,4 @@ export function ZenithReportView({ report }: { report: ZenithReport }) {
   );
 }
 
-export default ZenithReportView;
+export default ApexReportView;

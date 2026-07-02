@@ -207,7 +207,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* The two Zenith bots — core of the product */}
+        {/* The two Apex bots — core of the product */}
         <BotShowcase />
 
         {/* Institutional Edge */}

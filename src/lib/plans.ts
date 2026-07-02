@@ -1,5 +1,5 @@
 /**
- * AetherForge Zenith subscription plans — single source of truth.
+ * AetherForge Apex subscription plans — single source of truth.
  *
  * Pure module (safe on client and server). The Stripe price IDs and payment
  * links below were created in the connected Stripe account via the setup script
@@ -8,8 +8,28 @@
  * agree on what each plan unlocks.
  */
 
-export type PlanKey = "weekly" | "monthly" | "yearly" | "dual_yearly";
+export type PlanKey = "free" | "weekly" | "monthly" | "yearly" | "dual_yearly";
 export type BotAccess = "single" | "both";
+
+/** Free-trial tier — no Stripe price, activated instantly with just an email. */
+export const FREE_PLAN = {
+  key: "free" as const,
+  name: "Apex Free Trial",
+  tagline: "Run the full engine — free, forever",
+  /** Tickers a free member can monitor across both bots. */
+  tickerLimit: 3,
+  /** Free members can run BOTH the stock and crypto monitors. */
+  botAccess: "both" as const,
+  /** Free trials stay active for this many days before a gentle nudge to upgrade. */
+  durationDays: 3650,
+  features: [
+    "1 full SuperGrok 4.3 ULTRA ADVANCED report engine",
+    "Monitor up to 3 tickers — stocks or crypto",
+    "Reports delivered to your email + dashboard",
+    "Download every report as a PDF",
+    "Share-price alerts with execution instructions",
+  ],
+};
 
 export interface Plan {
   key: PlanKey;
@@ -35,8 +55,8 @@ export interface Plan {
   features: string[];
 }
 
-const ZENITH_FEATURES = [
-  "SuperGrok 4.3 ULTRA ADVANCED Zenith-State reports",
+const APEX_FEATURES = [
+  "SuperGrok 4.3 ULTRA ADVANCED Apex-State reports",
   "7-day short-term predictions",
   "3 forward pathways — safe · medium-risk · volatile",
   "12-month momentum & continuation graphs",
@@ -46,8 +66,8 @@ const ZENITH_FEATURES = [
 export const PLANS: Plan[] = [
   {
     key: "weekly",
-    name: "Zenith Weekly",
-    tagline: "Try the full Zenith engine",
+    name: "Apex Weekly",
+    tagline: "Try the full Apex engine",
     price: 15.99,
     interval: "week",
     intervalLabel: "week",
@@ -56,11 +76,11 @@ export const PLANS: Plan[] = [
     durationDays: 7,
     priceId: "price_1TofCc8sKftsmAmpP0HNkyXk",
     paymentLink: "https://buy.stripe.com/test_fZudR3d2tc7f5TF9Qm2ZO00",
-    features: ["Monitors up to 5 tickers", "One bot — Stock OR Crypto", ...ZENITH_FEATURES],
+    features: ["Monitors up to 5 tickers", "One bot — Stock OR Crypto", ...APEX_FEATURES],
   },
   {
     key: "monthly",
-    name: "Zenith Monthly",
+    name: "Apex Monthly",
     tagline: "For the active investor",
     price: 49.99,
     interval: "month",
@@ -71,11 +91,11 @@ export const PLANS: Plan[] = [
     priceId: "price_1TofCd8sKftsmAmpsBSVKDOD",
     paymentLink: "https://buy.stripe.com/test_8x200d2nP2wF0zl5A62ZO01",
     featured: true,
-    features: ["Monitors up to 10 tickers", "One bot — Stock OR Crypto", ...ZENITH_FEATURES],
+    features: ["Monitors up to 10 tickers", "One bot — Stock OR Crypto", ...APEX_FEATURES],
   },
   {
     key: "yearly",
-    name: "Zenith Yearly",
+    name: "Apex Yearly",
     tagline: "Best value for one market",
     price: 399.99,
     interval: "year",
@@ -85,11 +105,11 @@ export const PLANS: Plan[] = [
     durationDays: 365,
     priceId: "price_1TofCe8sKftsmAmpYG3am28l",
     paymentLink: "https://buy.stripe.com/test_dRmdR36E58V32Ht8Mi2ZO02",
-    features: ["Monitors up to 20 tickers", "One bot — Stock OR Crypto", ...ZENITH_FEATURES],
+    features: ["Monitors up to 20 tickers", "One bot — Stock OR Crypto", ...APEX_FEATURES],
   },
   {
     key: "dual_yearly",
-    name: "Zenith Dual",
+    name: "Apex Dual",
     tagline: "Both markets. Maximum edge.",
     price: 599.99,
     interval: "year",
@@ -102,7 +122,7 @@ export const PLANS: Plan[] = [
     features: [
       "Monitors up to 20 tickers per bot",
       "BOTH bots — Stock AND Crypto",
-      ...ZENITH_FEATURES,
+      ...APEX_FEATURES,
     ],
   },
 ];
@@ -117,6 +137,7 @@ export function planByPriceId(priceId?: string | null): Plan | undefined {
 
 /** Human label for a plan key (falls back gracefully for legacy values). */
 export function planLabel(key?: string | null): string {
+  if (key === "free") return FREE_PLAN.name;
   const p = planByKey(key);
   if (p) return p.name;
   if (key === "none" || !key) return "Free account";

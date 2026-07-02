@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { TICKER_DIRECTORY, lookupTicker } from "@/lib/market";
-import { CRYPTO_DIRECTORY } from "@/lib/zenith";
+import { CRYPTO_DIRECTORY } from "@/lib/apex";
 import type { Stock } from "@/lib/portfolio";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";

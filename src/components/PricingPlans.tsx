@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import { useSession } from "@/lib/auth-client";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Check, Loader2, Sparkles, LineChart, Bitcoin } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Check, Loader2, Sparkles, LineChart, Bitcoin, Gift, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
-import { PLANS, type Plan, type PlanKey } from "@/lib/plans";
+import { PLANS, FREE_PLAN, type Plan, type PlanKey } from "@/lib/plans";
 
 type BotChoice = "stock" | "crypto";
 
@@ -24,6 +25,32 @@ export function PricingPlans() {
   const { data: session } = useSession();
   const [bot, setBot] = useState<BotChoice>("stock");
   const [checkoutKey, setCheckoutKey] = useState<PlanKey | null>(null);
+  const [email, setEmail] = useState("");
+  const [startingFree, setStartingFree] = useState(false);
+
+  async function handleFreeTrial() {
+    // Already signed in → activate instantly and land on the dashboard.
+    if (session?.user) {
+      setStartingFree(true);
+      console.log("[pricing] Activating free trial for existing user");
+      const res = await api.post("/api/free-trial/activate", {});
+      if (res.ok) {
+        toast.success("Free trial activated — welcome aboard!");
+        window.location.href = "/dashboard";
+      } else {
+        const msg = typeof res.error === "string" ? res.error : res.error?.message || "Could not start your free trial.";
+        console.error("[pricing] free-trial activation failed:", res.error);
+        toast.error(msg);
+        setStartingFree(false);
+      }
+      return;
+    }
+    // Not signed in → send them to register, carrying the plan + prefilled email.
+    const trimmed = email.trim();
+    const params = new URLSearchParams({ plan: "free", redirect: "/dashboard" });
+    if (trimmed) params.set("email", trimmed);
+    router.push(`/register?${params.toString()}`);
+  }
 
   async function handleSubscribe(plan: Plan) {
     if (!session?.user) {
@@ -49,6 +76,71 @@ export function PricingPlans() {
 
   return (
     <div className="mx-auto max-w-6xl">
+      {/* Free trial — start with just an email */}
+      <div className="mb-10 overflow-hidden rounded-3xl border border-primary/40 bg-gradient-to-br from-primary/12 via-card/60 to-gold/10 p-6 sm:p-8 shadow-glow">
+        <div className="grid items-center gap-6 lg:grid-cols-[1.4fr_1fr]">
+          <div>
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/15 px-3 py-1 text-xs font-semibold text-primary ring-1 ring-primary/25">
+              <Gift className="size-3.5" /> Free forever · No card required
+            </div>
+            <h3 className="mt-3 font-display text-2xl font-bold sm:text-3xl">{FREE_PLAN.name}</h3>
+            <p className="mt-1 text-sm text-muted-foreground">{FREE_PLAN.tagline}</p>
+            <ul className="mt-4 grid gap-2 sm:grid-cols-2">
+              {FREE_PLAN.features.map((f) => (
+                <li key={f} className="flex items-start gap-2 text-sm text-muted-foreground">
+                  <span className="mt-0.5 grid size-4 shrink-0 place-items-center rounded-full bg-primary/15 text-primary">
+                    <Check className="size-2.5" />
+                  </span>
+                  <span>{f}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="rounded-2xl border border-border/60 bg-background/50 p-5">
+            <p className="text-sm font-medium">Start your free trial</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {session?.user
+                ? "You're signed in — activate instantly."
+                : "Enter your email and create a free account in seconds."}
+            </p>
+            <div className="mt-4 space-y-3">
+              {!session?.user && (
+                <Input
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="h-11"
+                />
+              )}
+              <Button
+                onClick={handleFreeTrial}
+                disabled={startingFree}
+                className="h-11 w-full font-semibold"
+              >
+                {startingFree ? (
+                  <>
+                    <Loader2 className="mr-2 size-4 animate-spin" /> Activating…
+                  </>
+                ) : (
+                  <>
+                    {session?.user ? "Activate free trial" : "Sign up free"}
+                    <ArrowRight className="ml-1.5 size-4" />
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Paid plans heading */}
+      <div className="mb-6 text-center">
+        <h3 className="font-display text-xl font-bold">Or go pro</h3>
+        <p className="text-sm text-muted-foreground">Higher ticker limits, more monitors and premium briefings.</p>
+      </div>
+
       {/* Bot selector — applies to the single-bot plans */}
       <div className="flex flex-col items-center gap-3">
         <p className="text-sm text-muted-foreground">
@@ -141,7 +233,7 @@ export function PricingPlans() {
       </div>
 
       <p className="mt-8 text-center text-xs text-muted-foreground">
-        Every plan includes SuperGrok 4.3 ULTRA ADVANCED Zenith-State reports · Secure checkout via Stripe · Cancel
+        Every plan includes SuperGrok 4.3 ULTRA ADVANCED Apex-State reports · Secure checkout via Stripe · Cancel
         anytime · Test card <span className="font-mono">4242 4242 4242 4242</span>
       </p>
     </div>

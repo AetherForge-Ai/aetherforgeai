@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signUp } from "@/lib/auth-client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,6 +22,15 @@ export default function RegisterPage() {
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Prefill the email when arriving from the pricing free-trial CTA (?email=...).
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const presetEmail = params.get("email");
+    if (presetEmail) {
+      setFormData((prev) => ({ ...prev, email: presetEmail }));
+    }
+  }, []);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,9 +63,20 @@ export default function RegisterPage() {
         return;
       }
 
+      // If the user came from the free-trial CTA (?plan=free), activate it now so
+      // they land on the dashboard already subscribed to the free tier.
+      const search = new URLSearchParams(window.location.search);
+      if (search.get("plan") === "free") {
+        console.log("[register] Activating free trial after signup");
+        const activation = await api.post("/api/free-trial/activate", {});
+        if (!activation.ok) {
+          console.error("[register] Free-trial activation failed:", activation.error);
+        }
+      }
+
       // Use window.location for a full page reload to ensure session cookie is picked up.
       // Honor a ?redirect= param (e.g. coming from pricing), otherwise land on the dashboard.
-      const redirectTo = new URLSearchParams(window.location.search).get("redirect") || "/dashboard";
+      const redirectTo = search.get("redirect") || "/dashboard";
       window.location.href = redirectTo;
     } catch (err: any) {
       console.error("Registration error:", err);

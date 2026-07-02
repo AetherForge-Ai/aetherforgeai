@@ -1,7 +1,7 @@
 /**
- * Zenith report engine.
+ * Apex report engine.
  *
- * Produces the structured "Ultra Advanced Zenith-State" report shown in the
+ * Produces the structured "Ultra Advanced Apex-State" report shown in the
  * marketing demo modals (fake-but-realistic data) and in the subscriber
  * dashboard (built from the user's real holdings). Pure module — safe on
  * client and server. No Math.random at import time; a small seeded RNG keeps
@@ -43,7 +43,7 @@ export interface TickerAnalysis {
   note: string;
 }
 
-export interface ZenithReport {
+export interface ApexReport {
   bot: BotKind;
   title: string;
   marketLabel: string;
@@ -225,8 +225,8 @@ function assembleReport(
   bot: BotKind,
   tickers: TickerAnalysis[],
   isDemo: boolean,
-  portfolio?: ZenithReport["portfolio"]
-): ZenithReport {
+  portfolio?: ApexReport["portfolio"]
+): ApexReport {
   const sorted = [...tickers].sort((a, b) => b.changePct - a.changePct);
   const topGainers = sorted
     .filter((t) => t.changePct > 0)
@@ -238,7 +238,7 @@ function assembleReport(
   const marketLabel = bot === "crypto" ? "BTC · ETH · Global digital assets" : "NZX · ASX · Global equities";
 
   const executiveSummary =
-    `**Zenith State engaged.** SuperGrok 4.3 has orchestrated a full multi-timeframe sweep across ${tickers.length} monitored ${bot === "crypto" ? "assets" : "tickers"} on ${marketLabel}. ` +
+    `**Apex State engaged.** SuperGrok 4.3 has orchestrated a full multi-timeframe sweep across ${tickers.length} monitored ${bot === "crypto" ? "assets" : "tickers"} on ${marketLabel}. ` +
     `Aggregate 7-day bias is **${strong.length >= weak.length ? "constructive" : "defensive"}** — ${strong.length} names screen as accumulate-or-better and ${weak.length} flag elevated risk. ` +
     `Each asset below carries a 12-month continuation graph, day-by-day short-term projections and three forward pathways (safe / medium-risk / volatile). ` +
     `_Informational market intelligence only — not personalised financial advice._`;
@@ -271,7 +271,7 @@ function assembleReport(
     bot,
     title: bot === "crypto" ? "Crypto Market Intelligence Monitor" : "Stock Market Intelligence Monitor",
     marketLabel,
-    generatedLabel: isDemo ? "Sample report · illustrative data" : "Live Zenith run",
+    generatedLabel: isDemo ? "Sample report · illustrative data" : "Live Apex run",
     isDemo,
     executiveSummary,
     topGainers,
@@ -283,7 +283,7 @@ function assembleReport(
 }
 
 /** Marketing demo — realistic but illustrative data for unsubscribed visitors. */
-export function buildDemoReport(bot: BotKind): ZenithReport {
+export function buildDemoReport(bot: BotKind): ApexReport {
   const universe = bot === "crypto" ? DEMO_CRYPTO : DEMO_STOCKS;
   const priceFor = (ticker: string) => {
     if (bot === "crypto") return CRYPTO_DIRECTORY.find((c) => c.ticker === ticker)?.price ?? 100;
@@ -304,12 +304,12 @@ export interface LiveHolding {
 }
 
 /** Live subscriber report built from the user's real monitored holdings. */
-export function buildLiveReport(bot: BotKind, holdings: LiveHolding[], seedSalt = "live"): ZenithReport {
+export function buildLiveReport(bot: BotKind, holdings: LiveHolding[], seedSalt = "live"): ApexReport {
   const tickers = holdings
     .filter((h) => h.ticker)
     .map((h) => synthesizeTicker(h.ticker, h.name || h.ticker, Math.max(0.01, h.price || 1), bot, seedSalt));
 
-  let portfolio: ZenithReport["portfolio"] | undefined;
+  let portfolio: ApexReport["portfolio"] | undefined;
   const priced = holdings.filter((h) => h.shares && h.price);
   if (priced.length) {
     const value = priced.reduce((s, h) => s + (h.shares || 0) * (h.price || 0), 0);

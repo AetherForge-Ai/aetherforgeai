@@ -11,7 +11,8 @@ import {
 } from "@/lib/portfolio";
 import { StockDialog } from "@/components/dashboard/StockDialog";
 import { AnalysisPanel } from "@/components/dashboard/AnalysisPanel";
-import { ZenithBots } from "@/components/dashboard/ZenithBots";
+import { ReportCenter } from "@/components/dashboard/ReportCenter";
+import { PriceAlerts } from "@/components/dashboard/PriceAlerts";
 import { YearlyToolkit } from "@/components/dashboard/YearlyToolkit";
 import { planLabel } from "@/lib/plans";
 import { Button } from "@/components/ui/button";
@@ -298,9 +299,19 @@ export function PortfolioDashboard({
         </div>
       </div>
 
-      {/* Zenith bots */}
+      {/* Report Center — run the full SuperGrok report engine */}
       <div className="mt-6">
-        <ZenithBots botAccess={subscription.botAccess} />
+        <ReportCenter
+          botAccess={subscription.botAccess}
+          monitoredCount={summary.holdingsCount}
+          tickerLimit={subscription.tickerLimit}
+          onHoldingsChanged={loadStocks}
+        />
+      </div>
+
+      {/* Share-price alerts with execution instructions */}
+      <div className="mt-6">
+        <PriceAlerts stocks={stocks} />
       </div>
 
       {/* Annual-member Excel toolkit */}

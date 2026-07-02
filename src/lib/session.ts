@@ -13,7 +13,7 @@ export interface AppUser {
   image?: string | null;
   stripe_customer_id?: string | null;
   subscription_status?: "active" | "canceled" | "past_due" | "none" | null;
-  subscription_plan?: "weekly" | "monthly" | "yearly" | "dual_yearly" | "none" | null;
+  subscription_plan?: "free" | "weekly" | "monthly" | "yearly" | "dual_yearly" | "none" | null;
   subscription_started_at?: string | null;
   subscription_expires_at?: string | null;
   ticker_limit?: number | null;

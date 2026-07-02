@@ -3,13 +3,13 @@ import { z } from "zod";
 import { getCurrentUser, isStripeConfigured, hasActiveSubscription } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
 import { referencePrice, simulateTick } from "@/lib/market";
-import { buildLiveReport, type LiveHolding, type BotKind } from "@/lib/zenith";
+import { buildLiveReport, type LiveHolding, type BotKind } from "@/lib/apex";
 
 const schema = z.object({ bot: z.enum(["stock", "crypto"]) });
 
 /**
  * POST /api/bot/run
- * Runs a Zenith-Mode monitor for the logged-in subscriber and returns a live
+ * Runs a Apex-Mode monitor for the logged-in subscriber and returns a live
  * report built from their real holdings for the requested asset class.
  *
  * Access rules:
