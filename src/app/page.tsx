@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { SiteHeader } from "@/components/SiteHeader";
 import { BrandLogo } from "@/components/BrandLogo";
+import { BotShowcase } from "@/components/bots/BotShowcase";
 import { Button } from "@/components/ui/button";
 import {
   ArrowRight,
@@ -131,15 +132,17 @@ export default function LandingPage() {
               </div>
 
               <h1 className="mt-5 font-display text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
-                Intelligent Market
+                Institutional-Grade
                 <br />
-                <span className="text-gradient">Analysis, for you.</span>
+                <span className="text-gradient">Market Intelligence.</span>
+                <br />
+                Built for New Zealand.
               </h1>
 
               <p className="mt-5 max-w-lg text-base leading-relaxed text-muted-foreground sm:text-lg">
-                AetherForge AI turns your holdings into an intelligent dashboard — real-time gains and
-                losses, allocation insight, and an AI analyst that reads your positions and answers
-                your questions.
+                The multi-asset sentinel that turns raw NZX, ASX and global market data into clear,
+                actionable intelligence — previously reserved for professional traders and family
+                offices.
               </p>
 
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -215,6 +218,56 @@ export default function LandingPage() {
         <div className="mt-6">
           <TickerTape />
         </div>
+
+        {/* The two Zenith bots — core of the product */}
+        <BotShowcase />
+
+        {/* Institutional Edge */}
+        <section className="mx-auto max-w-5xl px-4 py-16 sm:px-6 lg:px-8">
+          <div className="relative overflow-hidden rounded-3xl border border-border/70 bg-card/40 p-8 sm:p-12">
+            <div className="pointer-events-none absolute -right-24 -top-24 size-72 rounded-full bg-primary/10 blur-3xl" aria-hidden />
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">Institutional Edge</p>
+            <h2 className="mt-3 max-w-2xl font-display text-3xl font-bold tracking-tight sm:text-4xl">
+              The clarity previously reserved for professional traders and family offices.
+            </h2>
+
+            <div className="mt-8 grid gap-6 text-sm leading-relaxed text-muted-foreground md:grid-cols-2">
+              <p>
+                AetherForge compiles institutional-grade data tables, tracks your portfolio&apos;s profit &amp; loss in
+                real time, and synthesises global news into a single, coherent picture. Every monitored company or coin
+                is projected across multiple timeframes, rendered in clean visual charts, ranked to surface the day&apos;s
+                top gainers, and distilled into data-backed observations you can actually act on.
+              </p>
+              <p>
+                Existing solutions are fragmented — generic screeners bolted onto generic feeds, lacking any real depth
+                on NZX and ASX. AetherForge is the New Zealand–focused, multi-asset sentinel built to close that gap,
+                turning scattered market noise into decisive intelligence, without ever crossing into unlicensed
+                financial advice.
+              </p>
+            </div>
+
+            <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {[
+                "Institutional-grade data tables",
+                "Real-time portfolio P&L tracking",
+                "Global news synthesis",
+                "Multi-timeframe projections",
+                "Visual continuation charts",
+                "Top-gainer identification",
+              ].map((item) => (
+                <div key={item} className="flex items-center gap-2 rounded-xl border border-border/60 bg-background/40 px-4 py-3">
+                  <ShieldCheck className="size-4 shrink-0 text-primary" />
+                  <span className="text-sm">{item}</span>
+                </div>
+              ))}
+            </div>
+
+            <p className="mt-8 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+              The result: institutional-quality clarity on your own holdings — delivered straight to your dashboard, at a
+              fraction of the cost.
+            </p>
+          </div>
+        </section>
 
         {/* Features */}
         <section id="features" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">

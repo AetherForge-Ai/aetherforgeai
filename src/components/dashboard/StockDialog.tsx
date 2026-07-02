@@ -15,8 +15,12 @@ import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { TICKER_DIRECTORY, lookupTicker } from "@/lib/market";
+import { CRYPTO_DIRECTORY } from "@/lib/zenith";
 import type { Stock } from "@/lib/portfolio";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+
+type AssetType = "stock" | "crypto";
 
 interface StockDialogProps {
   open: boolean;
@@ -26,6 +30,7 @@ interface StockDialogProps {
 }
 
 export function StockDialog({ open, onOpenChange, editing, onSaved }: StockDialogProps) {
+  const [assetType, setAssetType] = useState<AssetType>("stock");
   const [ticker, setTicker] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [sector, setSector] = useState("");
@@ -37,6 +42,7 @@ export function StockDialog({ open, onOpenChange, editing, onSaved }: StockDialo
 
   useEffect(() => {
     if (open) {
+      setAssetType((editing?.asset_type as AssetType) ?? "stock");
       setTicker(editing?.ticker ?? "");
       setCompanyName(editing?.company_name ?? "");
       setSector(editing?.sector ?? "");
@@ -48,6 +54,14 @@ export function StockDialog({ open, onOpenChange, editing, onSaved }: StockDialo
   // Auto-fill company + sector when a known ticker is typed (add mode only)
   function handleTickerBlur() {
     if (isEdit) return;
+    if (assetType === "crypto") {
+      const coin = CRYPTO_DIRECTORY.find((c) => c.ticker === ticker.trim().toUpperCase());
+      if (coin) {
+        if (!companyName) setCompanyName(coin.name);
+        if (!sector) setSector("Digital Assets");
+      }
+      return;
+    }
     const info = lookupTicker(ticker);
     if (info) {
       if (!companyName) setCompanyName(info.name);
@@ -67,6 +81,7 @@ export function StockDialog({ open, onOpenChange, editing, onSaved }: StockDialo
     setSaving(true);
     const payload = {
       ticker: t,
+      asset_type: assetType,
       company_name: companyName.trim() || undefined,
       sector: sector.trim() || undefined,
       shares: sharesNum,
@@ -106,12 +121,35 @@ export function StockDialog({ open, onOpenChange, editing, onSaved }: StockDialo
         </DialogHeader>
 
         <div className="space-y-4 py-1">
+          {/* Asset class */}
           <div className="space-y-2">
-            <Label htmlFor="ticker">Ticker symbol</Label>
+            <Label>Asset class</Label>
+            <div className="grid grid-cols-2 gap-2">
+              {(["stock", "crypto"] as AssetType[]).map((a) => (
+                <button
+                  key={a}
+                  type="button"
+                  disabled={isEdit}
+                  onClick={() => setAssetType(a)}
+                  className={cn(
+                    "rounded-lg border px-3 py-2 text-sm font-medium capitalize transition-colors disabled:opacity-60",
+                    assetType === a
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border/60 text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {a === "stock" ? "Stock / share" : "Crypto"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="ticker">{assetType === "crypto" ? "Coin symbol" : "Ticker symbol"}</Label>
             <Input
               id="ticker"
               list="ticker-suggestions"
-              placeholder="e.g. AAPL"
+              placeholder={assetType === "crypto" ? "e.g. BTC" : "e.g. AAPL"}
               value={ticker}
               disabled={isEdit}
               onChange={(e) => setTicker(e.target.value.toUpperCase())}
@@ -119,7 +157,7 @@ export function StockDialog({ open, onOpenChange, editing, onSaved }: StockDialo
               className="uppercase"
             />
             <datalist id="ticker-suggestions">
-              {TICKER_DIRECTORY.map((t) => (
+              {(assetType === "crypto" ? CRYPTO_DIRECTORY : TICKER_DIRECTORY).map((t) => (
                 <option key={t.ticker} value={t.ticker}>
                   {t.name}
                 </option>

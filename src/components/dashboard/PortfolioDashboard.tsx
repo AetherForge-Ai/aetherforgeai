@@ -11,6 +11,8 @@ import {
 } from "@/lib/portfolio";
 import { StockDialog } from "@/components/dashboard/StockDialog";
 import { AnalysisPanel } from "@/components/dashboard/AnalysisPanel";
+import { ZenithBots } from "@/components/dashboard/ZenithBots";
+import { planLabel } from "@/lib/plans";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -36,7 +38,38 @@ import {
   Pencil,
   Trash2,
   PieChart,
+  CalendarClock,
+  BadgeCheck,
 } from "lucide-react";
+
+export interface DashboardSubscription {
+  status?: string | null;
+  plan?: string | null;
+  startedAt?: string | null;
+  expiresAt?: string | null;
+  tickerLimit?: number | null;
+  botAccess: "stock" | "crypto" | "both" | "none";
+}
+
+function fmtDate(iso?: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-NZ", { day: "numeric", month: "short", year: "numeric" });
+}
+
+function botAccessLabel(access: DashboardSubscription["botAccess"]): string {
+  switch (access) {
+    case "both":
+      return "Stock + Crypto bots";
+    case "stock":
+      return "Stock bot";
+    case "crypto":
+      return "Crypto bot";
+    default:
+      return "No bot access";
+  }
+}
 
 const SECTOR_COLORS = [
   "var(--primary)",
@@ -92,7 +125,13 @@ function StatCard({
   );
 }
 
-export function PortfolioDashboard({ userName }: { userName: string }) {
+export function PortfolioDashboard({
+  userName,
+  subscription,
+}: {
+  userName: string;
+  subscription: DashboardSubscription;
+}) {
   const [stocks, setStocks] = useState<Stock[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -219,6 +258,47 @@ export function PortfolioDashboard({ userName }: { userName: string }) {
           }`}
           icon={Layers}
         />
+      </div>
+
+      {/* Subscription summary */}
+      <div className="mt-6 rounded-3xl border border-border/70 bg-gradient-to-br from-primary/8 to-card/50 p-6">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <BadgeCheck className="size-3.5 text-primary" /> Plan
+            </div>
+            <p className="mt-1.5 font-display text-lg font-bold">{planLabel(subscription.plan)}</p>
+            <p className="text-xs text-muted-foreground">{botAccessLabel(subscription.botAccess)}</p>
+          </div>
+          <div>
+            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <Layers className="size-3.5 text-primary" /> Ticker limit
+            </div>
+            <p className="mt-1.5 font-display text-lg font-bold">
+              {subscription.tickerLimit ? `${subscription.tickerLimit} per bot` : "—"}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Status: <span className="capitalize">{subscription.status || "none"}</span>
+            </p>
+          </div>
+          <div>
+            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <CalendarClock className="size-3.5 text-primary" /> Purchased
+            </div>
+            <p className="mt-1.5 font-display text-lg font-bold">{fmtDate(subscription.startedAt)}</p>
+          </div>
+          <div>
+            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <CalendarClock className="size-3.5 text-primary" /> Expires
+            </div>
+            <p className="mt-1.5 font-display text-lg font-bold">{fmtDate(subscription.expiresAt)}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Zenith bots */}
+      <div className="mt-6">
+        <ZenithBots botAccess={subscription.botAccess} />
       </div>
 
       {/* Holdings + allocation */}

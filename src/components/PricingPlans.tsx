@@ -1,191 +1,149 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/lib/auth-client";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Check, Loader2, Sparkles } from "lucide-react";
+import { Check, Loader2, Sparkles, LineChart, Bitcoin } from "lucide-react";
 import { toast } from "sonner";
+import { PLANS, type Plan, type PlanKey } from "@/lib/plans";
 
-interface StripePrice {
-  id: string;
-  amount: number;
-  currency: string;
-  interval: string | null;
-  nickname: string | null;
-}
-interface StripeProduct {
-  id: string;
-  name: string;
-  description: string | null;
-  prices: StripePrice[];
-}
+type BotChoice = "stock" | "crypto";
 
-const PERKS = [
-  "Unlimited portfolio holdings",
-  "Real-time gains & losses tracking",
-  "Sector allocation & risk breakdown",
-  "One-click AI research reports",
-  "Unlimited AI market assistant chat",
-  "Private, per-user data isolation",
-  "Manage billing anytime",
-];
+function priceParts(price: number): { dollars: string; cents: string } {
+  const dollars = Math.floor(price);
+  const cents = Math.round((price - dollars) * 100)
+    .toString()
+    .padStart(2, "0");
+  return { dollars: dollars.toString(), cents };
+}
 
 export function PricingPlans() {
   const router = useRouter();
   const { data: session } = useSession();
-  const [interval, setInterval] = useState<"month" | "year">("month");
-  const [product, setProduct] = useState<StripeProduct | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [checkoutLoading, setCheckoutLoading] = useState(false);
-  const [billingReady, setBillingReady] = useState(true);
+  const [bot, setBot] = useState<BotChoice>("stock");
+  const [checkoutKey, setCheckoutKey] = useState<PlanKey | null>(null);
 
-  useEffect(() => {
-    (async () => {
-      const res = await api.get<StripeProduct[]>("/api/stripe/products");
-      if (res.ok && res.data && res.data.length > 0) {
-        // Prefer the subscription product with both intervals
-        const withRecurring = res.data.find((p) => p.prices.some((pr) => pr.interval));
-        setProduct(withRecurring || res.data[0]);
-        setBillingReady(true);
-      } else {
-        console.warn("[pricing] Stripe products unavailable:", res.error);
-        setBillingReady(false);
-      }
-      setLoading(false);
-    })();
-  }, []);
-
-  const monthly = product?.prices.find((p) => p.interval === "month");
-  const yearly = product?.prices.find((p) => p.interval === "year");
-  const active = interval === "month" ? monthly : yearly;
-
-  const displayPrice = active ? (active.amount / 100).toFixed(active.amount % 100 === 0 ? 0 : 2) : interval === "month" ? "19" : "180";
-  const perMonthYearly = yearly ? (yearly.amount / 1200).toFixed(2) : "15.00";
-
-  async function handleSubscribe() {
+  async function handleSubscribe(plan: Plan) {
     if (!session?.user) {
       router.push("/register?redirect=/pricing");
       return;
     }
-    if (!active?.id) {
-      toast.error("Billing isn't configured yet. Please add a Stripe key to enable checkout.");
-      return;
-    }
-    setCheckoutLoading(true);
+    setCheckoutKey(plan.key);
+    console.log(`[pricing] Starting checkout for ${plan.key}`, { bot });
     const res = await api.post<{ url: string }>("/api/stripe/checkout", {
-      priceId: active.id,
-      plan: interval === "month" ? "monthly" : "yearly",
+      priceId: plan.priceId,
+      plan: plan.key,
+      bot: plan.botAccess === "both" ? undefined : bot,
     });
     if (res.ok && res.data?.url) {
       window.location.href = res.data.url;
     } else {
+      const msg = typeof res.error === "string" ? res.error : res.error?.message || "Could not start checkout.";
       console.error("[pricing] checkout failed:", res.error);
-      toast.error("Could not start checkout. Please try again.");
-      setCheckoutLoading(false);
+      toast.error(msg);
+      setCheckoutKey(null);
     }
   }
 
   return (
-    <div className="mx-auto max-w-5xl">
-      {/* Interval toggle */}
-      <div className="flex justify-center">
+    <div className="mx-auto max-w-6xl">
+      {/* Bot selector — applies to the single-bot plans */}
+      <div className="flex flex-col items-center gap-3">
+        <p className="text-sm text-muted-foreground">
+          Choose which monitor to activate on the single-bot plans:
+        </p>
         <div className="inline-flex items-center rounded-full border border-border/70 bg-card/60 p-1">
           <button
-            onClick={() => setInterval("month")}
-            className={`rounded-full px-5 py-2 text-sm font-medium transition-colors ${
-              interval === "month" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+            onClick={() => setBot("stock")}
+            className={`flex items-center gap-2 rounded-full px-5 py-2 text-sm font-medium transition-colors ${
+              bot === "stock" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            Monthly
+            <LineChart className="size-4" /> Stock bot
           </button>
           <button
-            onClick={() => setInterval("year")}
+            onClick={() => setBot("crypto")}
             className={`flex items-center gap-2 rounded-full px-5 py-2 text-sm font-medium transition-colors ${
-              interval === "year" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+              bot === "crypto" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            Yearly
-            <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-400">
-              Save 21%
-            </span>
+            <Bitcoin className="size-4" /> Crypto bot
           </button>
         </div>
       </div>
 
-      <div className="mt-10 grid gap-6 md:grid-cols-[1fr_1.15fr]">
-        {/* Free / starter context card */}
-        <div className="rounded-3xl border border-border/70 bg-card/40 p-8">
-          <h3 className="font-display text-xl font-semibold">Why AetherForge Pro?</h3>
-          <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-            AetherForge is a single, focused plan — no tiers, no upsells. One subscription unlocks the entire
-            platform: the analytics dashboard, AI research, and your personal market assistant.
-          </p>
-          <div className="mt-6 space-y-3">
-            {PERKS.map((perk) => (
-              <div key={perk} className="flex items-start gap-3 text-sm">
-                <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-primary/15 text-primary">
-                  <Check className="size-3" />
-                </span>
-                {perk}
+      <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+        {PLANS.map((plan) => {
+          const { dollars, cents } = priceParts(plan.price);
+          const loading = checkoutKey === plan.key;
+          const isDual = plan.botAccess === "both";
+          return (
+            <div
+              key={plan.key}
+              className={`relative flex flex-col overflow-hidden rounded-3xl border p-6 ${
+                plan.featured
+                  ? "border-primary/40 bg-gradient-to-b from-primary/12 to-card/60 shadow-glow"
+                  : "border-border/70 bg-card/40"
+              }`}
+            >
+              {plan.featured && (
+                <div className="absolute right-5 top-5 inline-flex items-center gap-1 rounded-full bg-primary/15 px-2.5 py-1 text-[11px] font-semibold text-primary ring-1 ring-primary/25">
+                  <Sparkles className="size-3" /> Popular
+                </div>
+              )}
+
+              <h3 className="font-display text-lg font-bold">{plan.name}</h3>
+              <p className="mt-1 text-xs text-muted-foreground">{plan.tagline}</p>
+
+              <div className="mt-5 flex items-end gap-1">
+                <span className="text-lg font-semibold text-muted-foreground">$</span>
+                <span className="tnum font-display text-4xl font-extrabold leading-none">{dollars}</span>
+                <span className="tnum text-lg font-semibold">.{cents}</span>
+                <span className="mb-0.5 text-xs text-muted-foreground">/ {plan.intervalLabel}</span>
               </div>
-            ))}
-          </div>
-        </div>
 
-        {/* Pro plan card */}
-        <div className="relative overflow-hidden rounded-3xl border border-primary/35 bg-gradient-to-b from-primary/12 to-card/60 p-8 shadow-glow">
-          <div className="absolute right-6 top-6 inline-flex items-center gap-1.5 rounded-full bg-primary/15 px-3 py-1 text-xs font-semibold text-primary ring-1 ring-primary/25">
-            <Sparkles className="size-3" /> Full access
-          </div>
+              <div className="mt-2 text-xs font-medium text-primary">
+                {isDual ? "Stock + Crypto bots included" : `Applies to your ${bot} bot`}
+              </div>
 
-          <h3 className="font-display text-2xl font-bold">AetherForge Pro</h3>
-          <p className="mt-1.5 text-sm text-muted-foreground">Everything, for serious investors.</p>
+              <ul className="mt-5 flex-1 space-y-2.5">
+                {plan.features.map((f) => (
+                  <li key={f} className="flex items-start gap-2 text-sm text-muted-foreground">
+                    <span className="mt-0.5 grid size-4 shrink-0 place-items-center rounded-full bg-primary/15 text-primary">
+                      <Check className="size-2.5" />
+                    </span>
+                    <span>{f}</span>
+                  </li>
+                ))}
+              </ul>
 
-          <div className="mt-6 flex items-end gap-2">
-            {loading ? (
-              <div className="h-12 w-40 animate-pulse rounded-lg bg-muted/50" />
-            ) : (
-              <>
-                <span className="tnum font-display text-5xl font-extrabold">${displayPrice}</span>
-                <span className="mb-1.5 text-muted-foreground">/ {interval === "month" ? "month" : "year"}</span>
-              </>
-            )}
-          </div>
-          {interval === "year" && !loading && (
-            <p className="mt-1 text-xs text-emerald-400">
-              Just ${perMonthYearly}/mo billed annually — 2 months free
-            </p>
-          )}
-
-          <Button
-            onClick={handleSubscribe}
-            disabled={checkoutLoading || loading}
-            size="lg"
-            className="mt-7 h-12 w-full text-base font-semibold shadow-glow"
-          >
-            {checkoutLoading ? (
-              <>
-                <Loader2 className="mr-2 size-4 animate-spin" /> Redirecting…
-              </>
-            ) : session?.user ? (
-              "Subscribe now"
-            ) : (
-              "Get started"
-            )}
-          </Button>
-
-          {!billingReady && (
-            <p className="mt-3 text-center text-xs text-amber-400/90">
-              Checkout activates once a Stripe key is added to the project.
-            </p>
-          )}
-          <p className="mt-3 text-center text-xs text-muted-foreground">
-            Secure checkout via Stripe · Cancel anytime
-          </p>
-        </div>
+              <Button
+                onClick={() => handleSubscribe(plan)}
+                disabled={loading}
+                className="mt-6 w-full font-semibold"
+                variant={plan.featured ? "default" : "outline"}
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 size-4 animate-spin" /> Redirecting…
+                  </>
+                ) : session?.user ? (
+                  "Subscribe"
+                ) : (
+                  "Get started"
+                )}
+              </Button>
+            </div>
+          );
+        })}
       </div>
+
+      <p className="mt-8 text-center text-xs text-muted-foreground">
+        Every plan includes SuperGrok 4.3 ULTRA ADVANCED Zenith-State reports · Secure checkout via Stripe · Cancel
+        anytime · Test card <span className="font-mono">4242 4242 4242 4242</span>
+      </p>
     </div>
   );
 }

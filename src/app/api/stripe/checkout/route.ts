@@ -3,10 +3,13 @@ import { z } from "zod";
 import { stripe, APP_URL } from "@/lib/stripe";
 import { getCurrentUser } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
+import { planByPriceId, planByKey } from "@/lib/plans";
 
 const schema = z.object({
   priceId: z.string().min(1, "Price ID is required"),
-  plan: z.enum(["monthly", "yearly"]).optional(),
+  plan: z.enum(["weekly", "monthly", "yearly", "dual_yearly"]).optional(),
+  // Which bot the buyer wants for a single-bot plan. Ignored for "both" plans.
+  bot: z.enum(["stock", "crypto"]).optional(),
 });
 
 function serializeError(err: unknown) {
@@ -30,7 +33,22 @@ export async function POST(req: Request) {
     if (!parsed.success) {
       return NextResponse.json({ ok: false, error: parsed.error.flatten() }, { status: 400 });
     }
-    const { priceId, plan } = parsed.data;
+    const { priceId, bot } = parsed.data;
+
+    // Resolve the plan from the price id (authoritative) or the passed key.
+    const planDef = planByPriceId(priceId) || planByKey(parsed.data.plan);
+    if (!planDef) {
+      return NextResponse.json({ ok: false, error: "Unknown plan / price id" }, { status: 400 });
+    }
+
+    // For single-bot plans a bot choice is required; dual plans unlock both.
+    const botAccess = planDef.botAccess === "both" ? "both" : bot === "crypto" ? "crypto" : "stock";
+    const meta = {
+      userId: user._id,
+      plan: planDef.key,
+      ticker_limit: String(planDef.tickerLimit),
+      bot_access: botAccess,
+    };
 
     // Ensure a Stripe customer for this user
     let customerId = user.stripe_customer_id || undefined;
@@ -50,8 +68,8 @@ export async function POST(req: Request) {
       customer: customerId,
       line_items: [{ price: priceId, quantity: 1 }],
       client_reference_id: user._id,
-      metadata: { userId: user._id, plan: plan || "monthly" },
-      subscription_data: { metadata: { userId: user._id, plan: plan || "monthly" } },
+      metadata: meta,
+      subscription_data: { metadata: meta },
       success_url: `${APP_URL}/stripe/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${APP_URL}/pricing`,
       allow_promotion_codes: true,

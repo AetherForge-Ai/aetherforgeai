@@ -30,6 +30,10 @@ export default async function SettingsPage() {
           image: user.image,
           subscription_status: user.subscription_status,
           subscription_plan: user.subscription_plan,
+          subscription_started_at: user.subscription_started_at,
+          subscription_expires_at: user.subscription_expires_at,
+          ticker_limit: user.ticker_limit,
+          bot_access: user.bot_access ?? "none",
           hasCustomer: !!user.stripe_customer_id,
           stripeConfigured: isStripeConfigured(),
         }}

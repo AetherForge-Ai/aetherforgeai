@@ -6,6 +6,7 @@
 export interface Stock {
   _id: string;
   ticker: string;
+  asset_type?: "stock" | "crypto";
   company_name?: string;
   sector?: string;
   shares: number;

@@ -246,6 +246,11 @@ export const auth = betterAuth({
   //
   // ============================================================================
   user: {
+    // Allow users to update their email from Settings. No verification email is
+    // sent (email delivery isn't configured), so the change applies directly.
+    changeEmail: {
+      enabled: true,
+    },
     additionalFields: {
       stripe_customer_id: {
         type: "string",

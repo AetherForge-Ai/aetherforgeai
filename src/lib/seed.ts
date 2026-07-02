@@ -1,19 +1,29 @@
 import "server-only";
 import { totalumSdk } from "@/lib/totalum";
-import { lookupTicker, referencePrice } from "@/lib/market";
+import { referencePrice } from "@/lib/market";
 
 /**
  * Sample starter holdings seeded once for each brand-new user so their
  * dashboard is populated on first visit. Purchase prices are set relative to
  * current reference prices to produce a realistic mix of gains and losses.
  */
-const STARTER_HOLDINGS: { ticker: string; shares: number; costFactor: number }[] = [
-  { ticker: "AAPL", shares: 25, costFactor: 0.82 }, // gain
-  { ticker: "NVDA", shares: 40, costFactor: 0.61 }, // strong gain
-  { ticker: "MSFT", shares: 12, costFactor: 0.9 }, // gain
-  { ticker: "TSLA", shares: 15, costFactor: 1.18 }, // loss
-  { ticker: "AMZN", shares: 18, costFactor: 0.94 }, // small gain
-  { ticker: "JPM", shares: 20, costFactor: 1.05 }, // small loss
+const STARTER_HOLDINGS: {
+  ticker: string;
+  asset_type: "stock" | "crypto";
+  company_name: string;
+  sector: string;
+  shares: number;
+  current: number;
+  costFactor: number;
+}[] = [
+  // NZ-focused equities
+  { ticker: "AIR.NZ", asset_type: "stock", company_name: "Air New Zealand", sector: "Industrials", shares: 5000, current: 0.68, costFactor: 0.91 },
+  { ticker: "FPH.NZ", asset_type: "stock", company_name: "Fisher & Paykel Healthcare", sector: "Healthcare", shares: 120, current: 36.8, costFactor: 0.83 },
+  { ticker: "MEL.NZ", asset_type: "stock", company_name: "Meridian Energy", sector: "Utilities", shares: 800, current: 6.15, costFactor: 1.06 },
+  { ticker: "SPK.NZ", asset_type: "stock", company_name: "Spark New Zealand", sector: "Telecom", shares: 900, current: 4.2, costFactor: 1.12 },
+  // Digital assets
+  { ticker: "BTC", asset_type: "crypto", company_name: "Bitcoin", sector: "Digital Assets", shares: 0.12, current: 96850, costFactor: 0.78 },
+  { ticker: "ETH", asset_type: "crypto", company_name: "Ethereum", sector: "Digital Assets", shares: 2, current: 3420, costFactor: 0.86 },
 ];
 
 /**
@@ -29,13 +39,14 @@ export async function seedStarterPortfolioIfNeeded(userId: string): Promise<bool
     console.log(`[seed] Seeding starter portfolio for user ${userId}`);
 
     for (const h of STARTER_HOLDINGS) {
-      const info = lookupTicker(h.ticker);
-      const current = referencePrice(h.ticker, info?.price ?? 100);
-      const purchase_price = Number((current * h.costFactor).toFixed(2));
+      // Prefer a known reference price; fall back to the item's own current price.
+      const current = referencePrice(h.ticker, h.current);
+      const purchase_price = Number((current * h.costFactor).toFixed(current < 5 ? 4 : 2));
       await totalumSdk.crud.createRecord("stock", {
         ticker: h.ticker,
-        company_name: info?.name || h.ticker,
-        sector: info?.sector || "Other",
+        asset_type: h.asset_type,
+        company_name: h.company_name,
+        sector: h.sector,
         shares: h.shares,
         purchase_price,
         current_price: current,

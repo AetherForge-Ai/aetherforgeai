@@ -25,7 +25,17 @@ export default async function DashboardPage() {
         subscription_plan: user.subscription_plan,
       }}
     >
-      <PortfolioDashboard userName={user.name} />
+      <PortfolioDashboard
+        userName={user.name}
+        subscription={{
+          status: user.subscription_status,
+          plan: user.subscription_plan,
+          startedAt: user.subscription_started_at,
+          expiresAt: user.subscription_expires_at,
+          tickerLimit: user.ticker_limit,
+          botAccess: user.bot_access ?? "none",
+        }}
+      />
     </AppShell>
   );
 }

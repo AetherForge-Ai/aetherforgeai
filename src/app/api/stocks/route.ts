@@ -7,6 +7,7 @@ import { seedStarterPortfolioIfNeeded } from "@/lib/seed";
 
 const createSchema = z.object({
   ticker: z.string().min(1, "Ticker is required").max(12),
+  asset_type: z.enum(["stock", "crypto"]).optional(),
   shares: z.number().positive("Shares must be greater than 0"),
   purchase_price: z.number().positive("Purchase price must be greater than 0"),
   company_name: z.string().optional(),
@@ -64,8 +65,9 @@ export async function POST(req: Request) {
 
     const record = {
       ticker,
+      asset_type: parsed.data.asset_type || "stock",
       company_name: parsed.data.company_name || info?.name || ticker,
-      sector: parsed.data.sector || info?.sector || "Other",
+      sector: parsed.data.sector || info?.sector || (parsed.data.asset_type === "crypto" ? "Digital Assets" : "Other"),
       shares: parsed.data.shares,
       purchase_price,
       current_price: referencePrice(ticker, purchase_price),

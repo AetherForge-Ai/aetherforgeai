@@ -18,6 +18,22 @@ import { NextResponse } from "next/server";
 import { stripe, STRIPE_WEBHOOK_SECRET, cryptoProvider } from "@/lib/stripe";
 import Stripe from "stripe";
 import { totalumSdk } from "@/lib/totalum";
+import { planByPriceId, planByKey } from "@/lib/plans";
+
+type SubscriptionPatch = {
+  subscription_status?: string;
+  subscription_plan?: string;
+  stripe_customer_id?: string;
+  subscription_started_at?: string;
+  subscription_expires_at?: string;
+  ticker_limit?: number;
+  bot_access?: string;
+};
+
+function unixToIso(unix?: number | null): string | undefined {
+  if (!unix || !isFinite(unix)) return undefined;
+  return new Date(unix * 1000).toISOString();
+}
 
 /** Map a Stripe subscription status to our app status. */
 function mapStatus(status: Stripe.Subscription.Status): "active" | "past_due" | "canceled" | "none" {
@@ -43,10 +59,7 @@ async function findUserIdByCustomer(customerId: string | null): Promise<string |
   }
 }
 
-async function updateUserSubscription(
-  userId: string,
-  patch: { subscription_status?: string; subscription_plan?: string; stripe_customer_id?: string }
-) {
+async function updateUserSubscription(userId: string, patch: SubscriptionPatch) {
   try {
     await totalumSdk.crud.editRecordById("user", userId, patch);
     console.log(`[webhook] Updated user ${userId} subscription:`, patch);
@@ -64,14 +77,45 @@ async function syncSubscription(subscription: Stripe.Subscription) {
     return;
   }
 
-  const interval = subscription.items?.data?.[0]?.price?.recurring?.interval;
-  const plan = interval === "year" ? "yearly" : interval === "month" ? "monthly" : (subscription.metadata?.plan as string) || "monthly";
+  // Resolve the app plan from the purchased price id (authoritative — works for
+  // Payment Links too), falling back to the plan key in metadata.
+  const priceId = subscription.items?.data?.[0]?.price?.id;
+  const planDef = planByPriceId(priceId) || planByKey(subscription.metadata?.plan as string);
+  const active = mapStatus(subscription.status) === "active";
 
-  await updateUserSubscription(userId, {
+  // Prefer real Stripe billing-period bounds; fall back to plan durationDays.
+  const sub = subscription as unknown as { current_period_start?: number; current_period_end?: number };
+  const item0 = subscription.items?.data?.[0] as unknown as { current_period_start?: number; current_period_end?: number } | undefined;
+  const startUnix = sub.current_period_start ?? item0?.current_period_start;
+  const endUnix = sub.current_period_end ?? item0?.current_period_end;
+
+  const startedAt = unixToIso(startUnix) ?? new Date().toISOString();
+  const expiresAt =
+    unixToIso(endUnix) ??
+    (planDef ? new Date(Date.now() + planDef.durationDays * 86400_000).toISOString() : undefined);
+
+  // Bot access: prefer explicit metadata; else derive from the plan def.
+  const botAccess =
+    (subscription.metadata?.bot_access as string) ||
+    (planDef?.botAccess === "both" ? "both" : "stock");
+  const tickerLimit = Number(subscription.metadata?.ticker_limit) || planDef?.tickerLimit;
+
+  const patch: SubscriptionPatch = {
     subscription_status: mapStatus(subscription.status),
-    subscription_plan: mapStatus(subscription.status) === "active" ? plan : "none",
+    subscription_plan: active ? planDef?.key ?? "none" : "none",
     ...(customerId ? { stripe_customer_id: customerId } : {}),
-  });
+  };
+
+  if (active) {
+    patch.subscription_started_at = startedAt;
+    if (expiresAt) patch.subscription_expires_at = expiresAt;
+    patch.bot_access = botAccess;
+    if (tickerLimit) patch.ticker_limit = tickerLimit;
+  } else {
+    patch.bot_access = "none";
+  }
+
+  await updateUserSubscription(userId, patch);
 }
 
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
@@ -92,9 +136,18 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
   // Fallback: at least mark active if we have a user
   if (userId) {
+    const planDef = planByKey(session.metadata?.plan as string);
     await updateUserSubscription(userId, {
       subscription_status: "active",
-      subscription_plan: (session.metadata?.plan as string) || "monthly",
+      subscription_plan: planDef?.key ?? "monthly",
+      subscription_started_at: new Date().toISOString(),
+      ...(planDef
+        ? {
+            subscription_expires_at: new Date(Date.now() + planDef.durationDays * 86400_000).toISOString(),
+            ticker_limit: Number(session.metadata?.ticker_limit) || planDef.tickerLimit,
+            bot_access: (session.metadata?.bot_access as string) || (planDef.botAccess === "both" ? "both" : "stock"),
+          }
+        : {}),
       ...(customerId ? { stripe_customer_id: customerId } : {}),
     });
   }
@@ -115,7 +168,11 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
   const customerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer?.id;
   const userId = (subscription.metadata?.userId as string) || (await findUserIdByCustomer(customerId ?? null));
   if (userId) {
-    await updateUserSubscription(userId, { subscription_status: "canceled", subscription_plan: "none" });
+    await updateUserSubscription(userId, {
+      subscription_status: "canceled",
+      subscription_plan: "none",
+      bot_access: "none",
+    });
   }
 }
 
