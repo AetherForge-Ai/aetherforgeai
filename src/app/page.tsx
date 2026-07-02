@@ -46,7 +46,7 @@ const FEATURES = [
   {
     icon: Bot,
     title: "AI market assistant",
-    desc: "Ask anything about your holdings or the broader market. Aurum answers grounded in your real positions.",
+    desc: "Ask anything about your holdings or the broader market. AetherForge answers grounded in your real positions.",
   },
   {
     icon: ShieldCheck,
@@ -62,7 +62,7 @@ const FEATURES = [
 
 const STEPS = [
   { n: "01", t: "Create your account", d: "Sign up in seconds and secure your private workspace." },
-  { n: "02", t: "Choose a plan", d: "Go monthly or yearly with Aurum Pro — cancel anytime." },
+  { n: "02", t: "Choose a plan", d: "Go monthly or yearly with AetherForge Pro — cancel anytime." },
   { n: "03", t: "Build your portfolio", d: "Add your holdings and watch your dashboard come alive." },
   { n: "04", t: "Get AI insight", d: "Generate reports and chat with your market analyst." },
 ];
@@ -127,17 +127,17 @@ export default function LandingPage() {
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary/70" />
                   <span className="relative inline-flex size-2 rounded-full bg-primary" />
                 </span>
-                AI-powered stock analysis
+                AI-powered market intelligence
               </div>
 
               <h1 className="mt-5 font-display text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
-                Your portfolio,
+                Intelligent Market
                 <br />
-                <span className="text-gradient">clearly understood.</span>
+                <span className="text-gradient">Analysis, for you.</span>
               </h1>
 
               <p className="mt-5 max-w-lg text-base leading-relaxed text-muted-foreground sm:text-lg">
-                Aurum Capital turns your holdings into an intelligent dashboard — real-time gains and
+                AetherForge AI turns your holdings into an intelligent dashboard — real-time gains and
                 losses, allocation insight, and an AI analyst that reads your positions and answers
                 your questions.
               </p>
@@ -219,7 +219,7 @@ export default function LandingPage() {
         {/* Features */}
         <section id="features" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-2xl text-center">
-            <p className="text-sm font-semibold uppercase tracking-wider text-primary">Everything you need</p>
+            <p className="text-sm font-semibold uppercase tracking-wider text-primary">Intelligent Market Analysis</p>
             <h2 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">
               A trading desk for your own money
             </h2>
@@ -281,7 +281,7 @@ export default function LandingPage() {
               Ready to see your portfolio clearly?
             </h2>
             <p className="mx-auto mt-3 max-w-xl text-muted-foreground">
-              Join Aurum Capital and put an AI analyst to work on your investments today.
+              Join AetherForge AI and put an AI analyst to work on your investments today.
             </p>
             <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
               <Button asChild size="lg" className="h-12 px-8 text-base font-semibold shadow-glow">
@@ -306,7 +306,7 @@ export default function LandingPage() {
               <Link href="/terms-of-service" className="hover:text-foreground">Terms</Link>
             </div>
             <p className="text-xs text-muted-foreground">
-              © {new Date().getFullYear()} Aurum Capital. For informational purposes only.
+              © {new Date().getFullYear()} AetherForge AI. For informational purposes only.
             </p>
           </div>
         </footer>

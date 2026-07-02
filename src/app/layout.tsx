@@ -25,9 +25,9 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Aurum Capital — Intelligent Portfolio Analysis",
+  title: "AetherForge AI — Intelligent Market Analysis",
   description:
-    "Track your portfolio, measure gains and losses in real time, and get AI-powered stock market analysis. Professional-grade investing insight.",
+    "AetherForge AI delivers intelligent market analysis: track your portfolio, measure gains and losses in real time, and get AI-powered research on every position. Professional-grade investing insight.",
 };
 
 // SUPER IMPORTANT: NOT EDIT THE FOLLOWING 2 LINES TO FORCE NEXT.JS TO RENDER DYNAMICALLY

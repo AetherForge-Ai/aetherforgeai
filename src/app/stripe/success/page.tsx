@@ -38,7 +38,7 @@ function SuccessContent() {
         <div className="mx-auto mt-8 grid size-16 place-items-center rounded-2xl bg-emerald-500/15 text-emerald-400">
           <CheckCircle2 className="size-8" />
         </div>
-        <h1 className="mt-6 font-display text-3xl font-bold">Welcome to Aurum Pro</h1>
+        <h1 className="mt-6 font-display text-3xl font-bold">Welcome to AetherForge Pro</h1>
         <p className="mt-3 text-sm text-muted-foreground">
           Your subscription is active. You now have full access to the analytics dashboard, AI
           research, and your market assistant.

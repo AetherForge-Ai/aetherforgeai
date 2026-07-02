@@ -1,5 +1,5 @@
 /**
- * Central asset registry for Aurum Capital.
+ * Central asset registry for AetherForge AI.
  * All logos / icons / illustrative marks are referenced from here.
  */
 

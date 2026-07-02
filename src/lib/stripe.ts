@@ -58,9 +58,9 @@ export const cryptoProvider = Stripe.createSubtleCryptoProvider();
  */
 export const PRODUCTS_AVAILABLE: StripeProduct[] = [
   {
-    name: "Aurum Pro",
+    name: "AetherForge Pro",
     description:
-      "Full access to Aurum Capital: unlimited holdings, live portfolio analytics, AI research reports, and the AI market assistant.",
+      "Full access to AetherForge AI: unlimited holdings, live portfolio analytics, AI research reports, and the AI market assistant.",
     type: "subscription",
     prices: [
       {

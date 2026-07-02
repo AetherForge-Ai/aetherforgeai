@@ -9,7 +9,7 @@ interface BrandLogoProps {
 }
 
 /**
- * Aurum Capital brand lockup — candlestick "A" mark + wordmark.
+ * AetherForge AI brand lockup — candlestick mark + wordmark.
  */
 export function BrandLogo({
   className,
@@ -29,7 +29,7 @@ export function BrandLogo({
       />
       {showWordmark && (
         <span className={cn("font-display text-[1.05rem] font-bold tracking-tight leading-none", wordmarkClassName)}>
-          Aurum<span className="text-primary">.</span>
+          AetherForge<span className="text-primary"> AI</span>
         </span>
       )}
     </span>

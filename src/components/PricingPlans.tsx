@@ -117,9 +117,9 @@ export function PricingPlans() {
       <div className="mt-10 grid gap-6 md:grid-cols-[1fr_1.15fr]">
         {/* Free / starter context card */}
         <div className="rounded-3xl border border-border/70 bg-card/40 p-8">
-          <h3 className="font-display text-xl font-semibold">Why Aurum Pro?</h3>
+          <h3 className="font-display text-xl font-semibold">Why AetherForge Pro?</h3>
           <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-            Aurum is a single, focused plan — no tiers, no upsells. One subscription unlocks the entire
+            AetherForge is a single, focused plan — no tiers, no upsells. One subscription unlocks the entire
             platform: the analytics dashboard, AI research, and your personal market assistant.
           </p>
           <div className="mt-6 space-y-3">
@@ -140,7 +140,7 @@ export function PricingPlans() {
             <Sparkles className="size-3" /> Full access
           </div>
 
-          <h3 className="font-display text-2xl font-bold">Aurum Pro</h3>
+          <h3 className="font-display text-2xl font-bold">AetherForge Pro</h3>
           <p className="mt-1.5 text-sm text-muted-foreground">Everything, for serious investors.</p>
 
           <div className="mt-6 flex items-end gap-2">

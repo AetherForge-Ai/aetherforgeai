@@ -152,7 +152,7 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
               {isActive ? <Crown className="size-5" /> : <Sparkles className="size-5" />}
             </span>
             <div>
-              <p className="font-semibold">{isActive ? "Aurum Pro" : "Free account"}</p>
+              <p className="font-semibold">{isActive ? "AetherForge Pro" : "Free account"}</p>
               <p className="text-sm text-muted-foreground">
                 {isActive
                   ? `${user.subscription_plan === "yearly" ? "Yearly" : "Monthly"} plan · active`
@@ -189,7 +189,7 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
           ) : (
             <Button asChild className="font-semibold shadow-glow">
               <Link href="/pricing">
-                <Sparkles className="mr-2 size-4" /> Upgrade to Aurum Pro
+                <Sparkles className="mr-2 size-4" /> Upgrade to AetherForge Pro
               </Link>
             </Button>
           )}

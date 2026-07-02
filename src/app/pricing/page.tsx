@@ -2,7 +2,7 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { PricingPlans } from "@/components/PricingPlans";
 
 export const metadata = {
-  title: "Pricing — Aurum Capital",
+  title: "Pricing — AetherForge AI",
   description: "Simple, transparent pricing. One plan, full access. Monthly or yearly.",
 };
 
@@ -19,7 +19,7 @@ export default function PricingPage() {
               One plan. <span className="text-gradient">Full access.</span>
             </h1>
             <p className="mt-4 text-muted-foreground">
-              Unlock the entire Aurum platform — analytics, AI research, and your market assistant.
+              Unlock the entire AetherForge AI platform — analytics, AI research, and your market assistant.
               Choose monthly flexibility or save with yearly.
             </p>
           </div>

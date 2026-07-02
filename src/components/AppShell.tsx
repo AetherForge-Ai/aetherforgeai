@@ -70,7 +70,7 @@ function PlanCard({ user }: { user: ShellUser }) {
         ) : (
           <Sparkles className="size-4 text-primary" />
         )}
-        <span className="text-sm font-semibold">{isActive ? "Aurum Pro" : "Free account"}</span>
+        <span className="text-sm font-semibold">{isActive ? "AetherForge Pro" : "Free account"}</span>
       </div>
       <p className="mt-1 text-xs text-muted-foreground">
         {isActive
