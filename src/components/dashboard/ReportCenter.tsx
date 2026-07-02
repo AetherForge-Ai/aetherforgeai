@@ -35,6 +35,7 @@ interface PastReport {
   marketLabel: string;
   executiveSummary: string;
   emailed: string;
+  aiEnhanced: boolean;
   generatedAt: string;
   pdfUrl: string | null;
 }
@@ -77,6 +78,7 @@ export function ReportCenter({
   const [running, setRunning] = React.useState<BotKind | null>(null);
   const [report, setReport] = React.useState<ApexReport | null>(null);
   const [lastPdfUrl, setLastPdfUrl] = React.useState<string | null>(null);
+  const [lastAiEnhanced, setLastAiEnhanced] = React.useState(false);
   const [open, setOpen] = React.useState(false);
   const [history, setHistory] = React.useState<PastReport[]>([]);
 
@@ -136,10 +138,13 @@ export function ReportCenter({
     }
     setRunning(kind);
     console.log(`[ReportCenter] Running ${kind} report`);
-    const res = await api.post<{ report: ApexReport; pdfUrl: string | null; emailed: boolean; monitored: number }>(
-      "/api/reports",
-      { bot: kind }
-    );
+    const res = await api.post<{
+      report: ApexReport;
+      pdfUrl: string | null;
+      emailed: boolean;
+      aiEnhanced: boolean;
+      monitored: number;
+    }>("/api/reports", { bot: kind });
     setRunning(null);
 
     if (!res.ok || !res.data?.report) {
@@ -150,6 +155,7 @@ export function ReportCenter({
     }
     setReport(res.data.report);
     setLastPdfUrl(res.data.pdfUrl);
+    setLastAiEnhanced(!!res.data.aiEnhanced);
     setOpen(true);
     toast.success(
       res.data.emailed
@@ -294,6 +300,11 @@ export function ReportCenter({
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="truncate text-sm font-medium">{r.title}</span>
+                    {r.aiEnhanced && (
+                      <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">
+                        <Sparkles className="mr-1 size-3" /> Grok 4.3
+                      </Badge>
+                    )}
                     {r.emailed === "yes" && (
                       <Badge variant="outline" className="border-emerald-500/30 text-emerald-400">
                         <Mail className="mr-1 size-3" /> Emailed
@@ -323,7 +334,14 @@ export function ReportCenter({
           <DialogHeader>
             <div className="flex flex-wrap items-center justify-between gap-2 pr-6">
               <div>
-                <DialogTitle>{report?.title ?? "Apex report"}</DialogTitle>
+                <div className="flex items-center gap-2">
+                  <DialogTitle>{report?.title ?? "Apex report"}</DialogTitle>
+                  {lastAiEnhanced && (
+                    <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">
+                      <Sparkles className="mr-1 size-3" /> Grok 4.3 enhanced
+                    </Badge>
+                  )}
+                </div>
                 <DialogDescription>
                   Live intelligence built from your holdings — a copy has been emailed to you.
                 </DialogDescription>

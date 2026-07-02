@@ -76,6 +76,7 @@ export async function POST(req: Request) {
     const report = buildLiveReport(bot, holdings, `${user._id}:${bot}:${Date.now()}`);
 
     // Optional Grok narrative enhancement — never fatal.
+    let aiEnhanced = false;
     if (isGrokConfigured() && holdings.length) {
       try {
         const lines = holdings
@@ -98,6 +99,7 @@ export async function POST(req: Request) {
         });
         if (narrative && narrative.length > 40) {
           report.executiveSummary = narrative;
+          aiEnhanced = true;
           console.log(`[api/reports] Grok narrative applied for user ${user._id}`);
         }
       } catch (grokErr) {
@@ -129,7 +131,7 @@ export async function POST(req: Request) {
 
     const now = new Date();
     const generatedAtLabel = nzDateLabel(now);
-    const html = renderReportHtml(report, { userName: user.name, generatedAtLabel, alerts });
+    const html = renderReportHtml(report, { userName: user.name, generatedAtLabel, alerts, aiEnhanced });
 
     // Render the PDF.
     let pdfFileName: string | null = null;
@@ -175,6 +177,7 @@ export async function POST(req: Request) {
         executive_summary: report.executiveSummary,
         payload: JSON.stringify(report),
         emailed: emailed ? "yes" : "no",
+        ai_enhanced: aiEnhanced ? "yes" : "no",
         generated_at: now.toISOString(),
         ...(pdfFileName ? { pdf_file: { name: pdfFileName } } : {}),
       });
@@ -186,7 +189,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       ok: true,
-      data: { report, pdfUrl, reportId, emailed, monitored: holdings.length, generatedAtLabel },
+      data: { report, pdfUrl, reportId, emailed, aiEnhanced, monitored: holdings.length, generatedAtLabel },
     });
   } catch (err: any) {
     console.error("[api/reports] POST error:", err);
@@ -213,6 +216,7 @@ export async function GET() {
       marketLabel: r.market_label,
       executiveSummary: r.executive_summary,
       emailed: r.emailed,
+      aiEnhanced: r.ai_enhanced === "yes",
       generatedAt: r.generated_at || r.createdAt,
       pdfUrl: r.pdf_file?.url ?? null,
     }));

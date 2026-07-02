@@ -190,6 +190,8 @@ export interface RenderReportOptions {
   userName?: string;
   generatedAtLabel: string;
   alerts?: ReportAlert[];
+  /** True when the executive summary was rewritten by the Grok 4.3 narrative engine. */
+  aiEnhanced?: boolean;
 }
 
 export function renderReportHtml(report: ApexReport, opts: RenderReportOptions): string {
@@ -259,7 +261,15 @@ export function renderReportHtml(report: ApexReport, opts: RenderReportOptions):
 
         ${portfolio}
 
-        <div style="background:#f8fafc;border:1px solid ${LINE};border-radius:10px;padding:14px;margin:16px 0;font-size:13px;line-height:1.6;color:${INK}">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin:16px 0 6px">
+          <h3 style="font-size:14px;margin:0;color:${INK}">Executive summary</h3>
+          ${
+            opts.aiEnhanced
+              ? `<span style="display:inline-block;padding:2px 9px;border-radius:999px;background:${BLUE}1a;color:${BLUE};font-size:11px;font-weight:600">✨ Enhanced by Grok 4.3</span>`
+              : ""
+          }
+        </div>
+        <div style="background:#f8fafc;border:1px solid ${LINE};border-radius:10px;padding:14px;margin:0 0 16px;font-size:13px;line-height:1.6;color:${INK}">
           ${rich(report.executiveSummary)}
         </div>
 
