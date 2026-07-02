@@ -44,6 +44,15 @@ function SuccessContent() {
           research, and your market assistant.
         </p>
 
+        <div className="mt-5 rounded-2xl border border-[var(--gold)]/30 bg-[var(--gold)]/10 p-4 text-left">
+          <p className="text-sm font-semibold text-[var(--gold)]">Annual member perk</p>
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+            On an annual plan? Head to your dashboard to download your Professional Investor Toolkit —
+            working Excel Portfolio Tracker &amp; Transactions spreadsheets pre-filled with your
+            holdings.
+          </p>
+        </div>
+
         <Button asChild size="lg" className="mt-7 h-12 w-full font-semibold shadow-glow">
           <Link href="/dashboard">
             Go to dashboard <ArrowRight className="ml-2 size-4" />

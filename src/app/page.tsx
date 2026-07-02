@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { SiteHeader } from "@/components/SiteHeader";
 import { BrandLogo } from "@/components/BrandLogo";
+import { MarketTicker } from "@/components/MarketTicker";
 import { BotShowcase } from "@/components/bots/BotShowcase";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,19 +15,6 @@ import {
   PieChart,
   Zap,
 } from "lucide-react";
-
-const TICKERS = [
-  { s: "AAPL", p: "229.87", c: "+1.24%" },
-  { s: "NVDA", p: "131.26", c: "+2.81%" },
-  { s: "MSFT", p: "441.58", c: "-0.42%" },
-  { s: "TSLA", p: "342.68", c: "+3.10%" },
-  { s: "AMZN", p: "201.44", c: "+0.87%" },
-  { s: "META", p: "594.12", c: "-1.05%" },
-  { s: "GOOGL", p: "178.35", c: "+0.66%" },
-  { s: "AVGO", p: "176.90", c: "+1.92%" },
-  { s: "LLY", p: "782.50", c: "+0.54%" },
-  { s: "V", p: "312.09", c: "-0.21%" },
-];
 
 const FEATURES = [
   {
@@ -68,26 +56,6 @@ const STEPS = [
   { n: "04", t: "Get AI insight", d: "Generate reports and chat with your market analyst." },
 ];
 
-function TickerTape() {
-  const row = [...TICKERS, ...TICKERS];
-  return (
-    <div className="relative overflow-hidden border-y border-border/60 bg-card/40 py-3">
-      <div className="animate-ticker flex w-max gap-8">
-        {row.map((t, i) => {
-          const up = t.c.startsWith("+");
-          return (
-            <span key={i} className="flex items-center gap-2 whitespace-nowrap text-sm">
-              <span className="font-display font-semibold">{t.s}</span>
-              <span className="tnum text-muted-foreground">{t.p}</span>
-              <span className={`tnum text-xs ${up ? "text-emerald-400" : "text-red-400"}`}>{t.c}</span>
-            </span>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 function HeroChart() {
   // Decorative area chart (SVG) for the hero mockup
   return (
@@ -119,8 +87,11 @@ export default function LandingPage() {
       <div className="relative">
         <SiteHeader />
 
+        {/* Live market ticker banners — near the top of the page */}
+        <MarketTicker className="border-b border-border/60" />
+
         {/* Hero */}
-        <section className="mx-auto max-w-7xl px-4 pt-16 pb-10 sm:px-6 sm:pt-24 lg:px-8">
+        <section className="mx-auto max-w-7xl px-4 pt-12 pb-10 sm:px-6 sm:pt-16 lg:px-8">
           <div className="grid items-center gap-12 lg:grid-cols-2">
             <div className="animate-float-up">
               <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
@@ -214,10 +185,6 @@ export default function LandingPage() {
             </div>
           </div>
         </section>
-
-        <div className="mt-6">
-          <TickerTape />
-        </div>
 
         {/* The two Zenith bots — core of the product */}
         <BotShowcase />
@@ -349,18 +316,44 @@ export default function LandingPage() {
 
         {/* Footer */}
         <footer className="border-t border-border/60">
-          <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-6 px-4 py-10 sm:flex-row sm:px-6 lg:px-8">
-            <BrandLogo />
-            <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
-              <Link href="/pricing" className="hover:text-foreground">Pricing</Link>
-              <Link href="/login" className="hover:text-foreground">Log in</Link>
-              <Link href="/register" className="hover:text-foreground">Sign up</Link>
-              <Link href="/privacy-policy" className="hover:text-foreground">Privacy</Link>
-              <Link href="/terms-of-service" className="hover:text-foreground">Terms</Link>
+          <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+            <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-start sm:justify-between">
+              <div className="max-w-sm text-center sm:text-left">
+                <BrandLogo animated markClassName="size-11" wordmarkClassName="text-lg" />
+                <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                  New Zealand–owned and operated multi-asset market intelligence. Turning NZX, ASX and
+                  global market data into decisive clarity.
+                </p>
+                <a
+                  href="https://www.aetherforgeai.co.nz"
+                  className="mt-3 inline-block font-display text-sm font-semibold text-primary hover:underline"
+                >
+                  www.aetherforgeai.co.nz
+                </a>
+              </div>
+
+              <div className="grid grid-cols-2 gap-x-10 gap-y-2 text-sm text-muted-foreground sm:grid-cols-2">
+                <Link href="/pricing" className="hover:text-foreground">Pricing</Link>
+                <Link href="/privacy-policy" className="hover:text-foreground">AI Privacy Act</Link>
+                <Link href="/login" className="hover:text-foreground">Log in</Link>
+                <Link href="/terms-of-service" className="hover:text-foreground">Terms &amp; Conditions</Link>
+                <Link href="/register" className="hover:text-foreground">Sign up</Link>
+                <Link href="/ai-disclaimer" className="hover:text-foreground">AI Disclaimer</Link>
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground">
-              © {new Date().getFullYear()} AetherForge AI. For informational purposes only.
-            </p>
+
+            <div className="mt-10 border-t border-border/50 pt-6 text-center text-xs leading-relaxed text-muted-foreground">
+              <p>
+                © {new Date().getFullYear()} AetherForge AI — New Zealand owned &amp; operated. For
+                informational purposes only.
+              </p>
+              <p className="mx-auto mt-2 max-w-3xl">
+                AetherForge AI provides general market information and AI-generated analysis. It is
+                <strong className="font-semibold text-foreground/80"> not licensed financial advice</strong> under the
+                Financial Markets Conduct Act 2013. Always seek advice from a licensed financial adviser before making
+                investment decisions.
+              </p>
+            </div>
           </div>
         </footer>
       </div>

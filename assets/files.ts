@@ -3,14 +3,26 @@
  * All logos / icons / illustrative marks are referenced from here.
  */
 
-// Inline SVG brand mark (an "A" formed by an ascending candlestick chart).
+// Inline SVG brand mark — a hexagonal "forge" emblem enclosing an ascending
+// candlestick chart that reads as an "A" (AetherForge), crowned with a spark.
+// Uses currentColor + a local gradient so it glows in the brand's primary hue.
 export const LOGO_MARK_SVG = `
-<svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-  <rect x="6"  y="22" width="4" height="12" rx="1.5" fill="currentColor" opacity="0.55"/>
-  <rect x="14" y="15" width="4" height="19" rx="1.5" fill="currentColor" opacity="0.75"/>
-  <rect x="22" y="9"  width="4" height="25" rx="1.5" fill="currentColor"/>
-  <rect x="30" y="4"  width="4" height="30" rx="1.5" fill="currentColor" opacity="0.9"/>
-  <path d="M4 34h32" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" opacity="0.35"/>
+<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <defs>
+    <linearGradient id="afMarkGrad" x1="8" y1="6" x2="40" y2="44" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="currentColor" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="currentColor" stop-opacity="0.5"/>
+    </linearGradient>
+  </defs>
+  <path d="M24 3.5 40.6 13v22L24 44.5 7.4 35V13L24 3.5Z" fill="currentColor" fill-opacity="0.08"
+        stroke="url(#afMarkGrad)" stroke-width="2" stroke-linejoin="round"/>
+  <rect x="14.6" y="26" width="3.4" height="9"  rx="1.4" fill="currentColor" fill-opacity="0.5"/>
+  <rect x="22.3" y="20" width="3.4" height="15" rx="1.4" fill="currentColor" fill-opacity="0.8"/>
+  <rect x="30" y="14" width="3.4" height="21" rx="1.4" fill="currentColor"/>
+  <path d="M12.5 24 L24 12 L35.5 24" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+        stroke-linejoin="round" fill="none" opacity="0.85"/>
+  <path d="M24 7 25.5 10.3 28.8 11.8 25.5 13.3 24 16.6 22.5 13.3 19.2 11.8 22.5 10.3 24 7Z"
+        fill="currentColor"/>
 </svg>
 `;
 

@@ -1,320 +1,209 @@
-import { Card, CardContent } from "@/components/ui/card";
-import Link from "next/link";
+import { LegalShell, LegalSection } from "@/components/legal/LegalShell";
+
+export const metadata = {
+  title: "Terms & Conditions — AetherForge AI",
+  description:
+    "The terms and conditions governing your use of AetherForge AI, a New Zealand–owned market-intelligence service.",
+};
+
+const UPDATED = "2 July 2026";
 
 export default function TermsOfService() {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950">
-      <div className="container mx-auto px-4 py-16 max-w-4xl">
-        <div className="mb-8">
-          <Link
-            href="/"
-            className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
-          >
-            ← Back to home
-          </Link>
-        </div>
+    <LegalShell
+      title="Terms & Conditions"
+      subtitle="These Terms & Conditions govern your access to and use of AetherForge AI. AetherForge AI is a New Zealand–owned and operated service, and these terms are governed by New Zealand law, including the Consumer Guarantees Act 1993, the Fair Trading Act 1986 and the Contract and Commercial Law Act 2017."
+      updated={UPDATED}
+    >
+      <LegalSection heading="1. Agreement to these terms">
+        <p>
+          By creating an account or otherwise accessing or using AetherForge AI (the &quot;Service&quot;)
+          at www.aetherforgeai.co.nz, you agree to be bound by these Terms &amp; Conditions. If you do
+          not agree, you must not use the Service. If you are using the Service on behalf of an
+          organisation, you confirm you have authority to bind that organisation.
+        </p>
+      </LegalSection>
 
-        <Card className="shadow-xl border-0">
-          <CardContent className="p-8 md:p-12">
-            <h1 className="text-3xl md:text-4xl font-bold mb-8">
-              Terms of Service
-            </h1>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-8">
-              Last updated: {new Date().toLocaleDateString()}
-            </p>
+      <LegalSection heading="2. The service we provide">
+        <p>
+          AetherForge AI provides AI-generated market intelligence, portfolio-monitoring tools, data
+          tables, charts and related informational content covering New Zealand (NZX), Australian (ASX)
+          and global markets, including digital assets. Features available to you depend on your
+          subscription plan.
+        </p>
+        <p>
+          <strong className="text-foreground/90">
+            The Service provides general information only and does not constitute financial,
+            investment, legal, tax or accounting advice.
+          </strong>{" "}
+          Please read our{" "}
+          <a href="/ai-disclaimer" className="text-primary hover:underline">
+            AI Disclaimer
+          </a>{" "}
+          carefully — it forms part of these terms.
+        </p>
+      </LegalSection>
 
-            <div className="space-y-8 text-gray-700 dark:text-gray-300">
-              <section>
-                <h2 className="text-2xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-                  1. Acceptance of Terms
-                </h2>
-                <p className="leading-relaxed">
-                  By accessing and using this website and its services
-                  (&apos;Service&apos;), you accept and agree to be bound by
-                  the terms and provisions of this agreement. If you do not
-                  agree to abide by the above, please do not use this Service.
-                </p>
-              </section>
+      <LegalSection heading="3. Eligibility">
+        <p>
+          You must be at least 18 years old and able to form a legally binding contract to use the
+          Service. By using AetherForge AI you confirm that you meet these requirements.
+        </p>
+      </LegalSection>
 
-              <section>
-                <h2 className="text-2xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-                  2. Description of Service
-                </h2>
-                <p className="leading-relaxed">
-                  This Service provides a web-based platform with various
-                  features and functionalities as described on our website. The
-                  specific features available may vary based on your
-                  subscription plan.
-                </p>
-              </section>
+      <LegalSection heading="4. Your account">
+        <p>To access certain features you must register for an account. You agree to:</p>
+        <ul className="list-disc space-y-1.5 pl-5">
+          <li>provide accurate, current and complete information;</li>
+          <li>keep your login credentials secure and confidential;</li>
+          <li>accept responsibility for all activity that occurs under your account; and</li>
+          <li>notify us promptly of any unauthorised use of your account.</li>
+        </ul>
+      </LegalSection>
 
-              <section>
-                <h2 className="text-2xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-                  3. User Accounts
-                </h2>
-                <div className="space-y-3">
-                  <p className="leading-relaxed">
-                    To use certain features of the Service, you must register
-                    for an account. When you register for an account, you agree
-                    to:
-                  </p>
-                  <ul className="list-disc list-inside space-y-1 ml-4">
-                    <li>Provide accurate, current, and complete information</li>
-                    <li>
-                      Maintain and update your information to keep it accurate
-                      and complete
-                    </li>
-                    <li>Maintain the security of your account credentials</li>
-                    <li>
-                      Accept responsibility for all activities that occur under
-                      your account
-                    </li>
-                    <li>
-                      Notify us immediately of any unauthorized use of your
-                      account
-                    </li>
-                  </ul>
-                </div>
-              </section>
+      <LegalSection heading="5. Subscriptions, billing & payment">
+        <p>
+          Paid features are offered on weekly, monthly and yearly subscription plans. Prices are shown
+          on our pricing page and are stated in the applicable currency. Payments are processed securely
+          by Stripe; by subscribing you authorise us (through Stripe) to charge your chosen payment
+          method on a recurring basis until you cancel.
+        </p>
+        <ul className="list-disc space-y-1.5 pl-5">
+          <li>Subscriptions renew automatically at the end of each billing period unless cancelled.</li>
+          <li>You may cancel at any time; cancellation takes effect at the end of the current paid period.</li>
+          <li>
+            We may change plan features or pricing on reasonable notice; changes will not affect the
+            period you have already paid for.
+          </li>
+        </ul>
+        <p>
+          Because the Service is a digital product supplied and accessed immediately, subscription fees
+          are generally non-refundable except where a refund is required by the Consumer Guarantees Act
+          1993 or other New Zealand law. Nothing in these terms limits your rights under that Act.
+        </p>
+      </LegalSection>
 
-              <section>
-                <h2 className="text-2xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-                  4. Subscription and Payment
-                </h2>
-                <div className="space-y-3">
-                  <p className="leading-relaxed">
-                    Some aspects of our Service are provided on a subscription
-                    basis. By subscribing, you agree to:
-                  </p>
-                  <ul className="list-disc list-inside space-y-1 ml-4">
-                    <li>
-                      Pay all applicable fees as described in our pricing plans
-                    </li>
-                    <li>
-                      Provide current, complete, and accurate billing
-                      information
-                    </li>
-                    <li>
-                      Authorize us to charge your payment method on a recurring
-                      basis
-                    </li>
-                    <li>
-                      Be responsible for all charges incurred under your account
-                    </li>
-                  </ul>
-                  <p className="leading-relaxed mt-3">
-                    Subscription fees are non-refundable except as required by
-                    law. We reserve the right to change our subscription plans
-                    or adjust pricing with 30 days&apos; notice.
-                  </p>
-                </div>
-              </section>
+      <LegalSection heading="6. Annual member toolkit">
+        <p>
+          Customers on an annual plan may download our professional Excel investor toolkit (Portfolio
+          Tracker and Transactions spreadsheets). These files are provided for your own personal
+          record-keeping. You may use and modify them for your own purposes but must not resell or
+          redistribute them. The figures they contain reflect the data you enter and are your
+          responsibility.
+        </p>
+      </LegalSection>
 
-              <section>
-                <h2 className="text-2xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-                  5. User Responsibilities and Conduct
-                </h2>
-                <div className="space-y-3">
-                  <p className="leading-relaxed">
-                    You agree to use the Service only for lawful purposes and in
-                    accordance with these Terms. You agree not to:
-                  </p>
-                  <ul className="list-disc list-inside space-y-1 ml-4">
-                    <li>
-                      Use the Service in any way that violates any applicable
-                      laws or regulations
-                    </li>
-                    <li>
-                      Create passes that contain false, misleading, or
-                      fraudulent information
-                    </li>
-                    <li>
-                      Impersonate any person or entity or misrepresent your
-                      affiliation
-                    </li>
-                    <li>
-                      Upload or transmit viruses or any other type of malicious
-                      code
-                    </li>
-                    <li>
-                      Attempt to gain unauthorized access to any portion of the
-                      Service
-                    </li>
-                    <li>Interfere with or disrupt the Service or servers</li>
-                    <li>
-                      Use the Service to send spam or unsolicited communications
-                    </li>
-                    <li>Violate the privacy rights of others</li>
-                  </ul>
-                </div>
-              </section>
+      <LegalSection heading="7. Acceptable use">
+        <p>You agree to use the Service lawfully and not to:</p>
+        <ul className="list-disc space-y-1.5 pl-5">
+          <li>breach any applicable law or regulation, including New Zealand financial markets law;</li>
+          <li>attempt to gain unauthorised access to the Service or other users&apos; data;</li>
+          <li>introduce viruses or malicious code, or interfere with or disrupt the Service;</li>
+          <li>scrape, resell, or redistribute our content or reports without our written consent;</li>
+          <li>misrepresent your identity or your affiliation with any person or entity; or</li>
+          <li>use the Service to provide regulated financial advice to third parties.</li>
+        </ul>
+      </LegalSection>
 
-              <section>
-                <h2 className="text-2xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-                  6. Intellectual Property Rights
-                </h2>
-                <div className="space-y-3">
-                  <h3 className="text-lg font-medium mb-2">
-                    Our Intellectual Property
-                  </h3>
-                  <p className="leading-relaxed">
-                    The Service and its original content, features, and
-                    functionality are owned by us and are protected by
-                    international copyright, trademark, patent, trade secret,
-                    and other intellectual property laws.
-                  </p>
+      <LegalSection heading="8. Intellectual property">
+        <p>
+          The Service and all of its content, software, branding and AI-generated outputs (excluding
+          your own data) are owned by AetherForge AI or its licensors and are protected by New Zealand
+          and international intellectual-property laws. We grant you a limited, non-exclusive,
+          non-transferable licence to use the Service for your own personal or internal business
+          purposes. You retain ownership of the portfolio data you input, and grant us a licence to use
+          it solely to provide the Service to you.
+        </p>
+      </LegalSection>
 
-                  <h3 className="text-lg font-medium mb-2 mt-4">
-                    Your Content
-                  </h3>
-                  <p className="leading-relaxed">
-                    You retain ownership of any content you create using our
-                    Service. By using our Service, you grant us a worldwide,
-                    non-exclusive, royalty-free license to use, reproduce, and
-                    display your content solely for the purpose of providing the
-                    Service to you.
-                  </p>
-                </div>
-              </section>
+      <LegalSection heading="9. Consumer guarantees & fair trading">
+        <p>
+          Where you acquire the Service as a consumer, the Consumer Guarantees Act 1993 provides
+          guarantees that cannot be excluded, including that services will be provided with reasonable
+          care and skill. Nothing in these terms is intended to limit or exclude those guarantees, or to
+          mislead you in a way that would breach the Fair Trading Act 1986.
+        </p>
+        <p>
+          If you acquire the Service for the purposes of a business, you agree that the Consumer
+          Guarantees Act does not apply, to the extent permitted by section 43 of that Act.
+        </p>
+      </LegalSection>
 
-              <section>
-                <h2 className="text-2xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-                  7. Privacy
-                </h2>
-                <p className="leading-relaxed">
-                  Your use of our Service is also governed by our Privacy
-                  Policy. Please review our Privacy Policy, which also governs
-                  the Site and informs users of our data collection practices.
-                </p>
-              </section>
+      <LegalSection heading="10. Disclaimers">
+        <p>
+          To the fullest extent permitted by law and subject to the guarantees described in section 9,
+          the Service is provided on an &quot;as is&quot; and &quot;as available&quot; basis. We do not
+          warrant that the Service, its AI-generated analysis, or any market data will be accurate,
+          complete, uninterrupted, error-free or fit for any particular investment purpose. Market data
+          may be delayed, simulated or estimated. You are solely responsible for any decisions you make.
+        </p>
+      </LegalSection>
 
-              <section>
-                <h2 className="text-2xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-                  8. Disclaimers
-                </h2>
-                <div className="space-y-3">
-                  <p className="leading-relaxed uppercase font-medium">
-                    The Service is provided on an &aposAS IS&apos and &aposAS
-                    AVAILABLE&apos basis without warranties of any kind, either
-                    express or implied, including but not limited to:
-                  </p>
-                  <ul className="list-disc list-inside space-y-1 ml-4">
-                    <li>Warranties of merchantability</li>
-                    <li>Fitness for a particular purpose</li>
-                    <li>Non-infringement</li>
-                    <li>
-                      That the Service will be uninterrupted or error-free
-                    </li>
-                    <li>That defects will be corrected</li>
-                    <li>
-                      That the Service is free of viruses or harmful components
-                    </li>
-                  </ul>
-                </div>
-              </section>
+      <LegalSection heading="11. Limitation of liability">
+        <p>
+          To the maximum extent permitted by New Zealand law, AetherForge AI will not be liable for any
+          indirect, incidental, special or consequential loss, or for any loss of profits, trading
+          losses, investment losses, revenue, data or goodwill, arising out of or in connection with
+          your use of (or inability to use) the Service. Where our liability cannot be excluded but can
+          be limited, our total aggregate liability is limited to the amount you paid us for the Service
+          in the twelve months preceding the event giving rise to the claim. Nothing in these terms
+          limits liability that cannot lawfully be limited.
+        </p>
+      </LegalSection>
 
-              <section>
-                <h2 className="text-2xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-                  9. Limitation of Liability
-                </h2>
-                <p className="leading-relaxed uppercase font-medium">
-                  To the maximum extent permitted by law, we shall not be
-                  liable for any indirect, incidental, special,
-                  consequential, or punitive damages, or any loss of profits or
-                  revenues, whether incurred directly or indirectly, or any loss
-                  of data, use, goodwill, or other intangible losses resulting
-                  from:
-                </p>
-                <ul className="list-disc list-inside space-y-1 ml-4 mt-3">
-                  <li>Your use or inability to use the Service</li>
-                  <li>Any unauthorized access to or use of our servers</li>
-                  <li>
-                    Any interruption or cessation of transmission to or from the
-                    Service
-                  </li>
-                  <li>
-                    Any bugs, viruses, or similar harmful code transmitted
-                    through the Service
-                  </li>
-                  <li>Any errors or omissions in any content</li>
-                </ul>
-              </section>
+      <LegalSection heading="12. Indemnity">
+        <p>
+          You agree to indemnify AetherForge AI against any claims, losses, liabilities and reasonable
+          costs arising from your breach of these terms, your misuse of the Service, or your breach of
+          any law.
+        </p>
+      </LegalSection>
 
-              <section>
-                <h2 className="text-2xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-                  10. Indemnification
-                </h2>
-                <p className="leading-relaxed">
-                  You agree to defend, indemnify, and hold harmless us and our
-                  affiliates, officers, directors, employees, and agents
-                  from and against any claims, liabilities, damages, judgments,
-                  awards, losses, costs, expenses, or fees arising out of or
-                  relating to your violation of these Terms or your use of the
-                  Service.
-                </p>
-              </section>
+      <LegalSection heading="13. Suspension & termination">
+        <p>
+          We may suspend or terminate your access to the Service if you breach these terms, if required
+          by law, or to protect the Service or other users. You may stop using the Service and close
+          your account at any time. Provisions that by their nature should survive termination (such as
+          intellectual property, disclaimers, limitation of liability and indemnity) will continue to
+          apply.
+        </p>
+      </LegalSection>
 
-              <section>
-                <h2 className="text-2xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-                  11. Termination
-                </h2>
-                <p className="leading-relaxed">
-                  We may terminate or suspend your account and bar access to the
-                  Service immediately, without prior notice or liability, under
-                  our sole discretion, for any reason whatsoever, including
-                  without limitation if you breach the Terms. Upon termination,
-                  your right to use the Service will cease immediately.
-                </p>
-              </section>
+      <LegalSection heading="14. Privacy">
+        <p>
+          We handle your personal information in accordance with the Privacy Act 2020 and our{" "}
+          <a href="/privacy-policy" className="text-primary hover:underline">
+            Privacy Policy
+          </a>
+          , which forms part of these terms.
+        </p>
+      </LegalSection>
 
-              <section>
-                <h2 className="text-2xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-                  12. Governing Law
-                </h2>
-                <p className="leading-relaxed">
-                  These Terms shall be governed and construed in accordance with
-                  the laws of [Your Jurisdiction], without regard to its
-                  conflict of law provisions. Our failure to enforce any right
-                  or provision of these Terms will not be considered a waiver of
-                  those rights.
-                </p>
-              </section>
+      <LegalSection heading="15. Governing law & disputes">
+        <p>
+          These terms are governed by the laws of New Zealand, and you submit to the non-exclusive
+          jurisdiction of the New Zealand courts. We encourage you to contact us first so we can try to
+          resolve any dispute informally.
+        </p>
+      </LegalSection>
 
-              <section>
-                <h2 className="text-2xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-                  13. Changes to Terms
-                </h2>
-                <p className="leading-relaxed">
-                  We reserve the right, at our sole discretion, to modify or
-                  replace these Terms at any time. If a revision is material, we
-                  will provide at least 30 days notice prior to any new terms
-                  taking effect.
-                </p>
-              </section>
+      <LegalSection heading="16. Changes to these terms">
+        <p>
+          We may update these terms from time to time. If a change is material we will give reasonable
+          notice through the Service. Your continued use after changes take effect constitutes
+          acceptance of the updated terms.
+        </p>
+      </LegalSection>
 
-              <section>
-                <h2 className="text-2xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-                  14. Contact Information
-                </h2>
-                <p className="leading-relaxed">
-                  If you have any questions about these Terms, please contact us
-                  at:
-                </p>
-                <p className="mt-3">
-                  Please use the contact information provided on our website.
-                </p>
-              </section>
-
-              <section className="pt-8 border-t border-gray-200 dark:border-gray-700">
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  By using this Service, you acknowledge that you have read,
-                  understood, and agree to be bound by these Terms of Service.
-                </p>
-              </section>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+      <LegalSection heading="17. Contact">
+        <p>
+          Questions about these terms can be sent to{" "}
+          <a href="mailto:support@aetherforgeai.co.nz" className="text-primary hover:underline">
+            support@aetherforgeai.co.nz
+          </a>
+          .
+        </p>
+      </LegalSection>
+    </LegalShell>
   );
 }

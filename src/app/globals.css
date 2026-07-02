@@ -164,8 +164,30 @@ button {
   from { transform: translateX(0); }
   to { transform: translateX(-50%); }
 }
+@keyframes ticker-scroll-reverse {
+  from { transform: translateX(-50%); }
+  to { transform: translateX(0); }
+}
 .animate-ticker {
   animation: ticker-scroll 40s linear infinite;
+}
+.animate-ticker-slow {
+  animation: ticker-scroll 60s linear infinite;
+}
+.animate-ticker-reverse {
+  animation: ticker-scroll-reverse 52s linear infinite;
+}
+.ticker-row:hover {
+  animation-play-state: paused;
+}
+
+/* Animated brand-mark glow */
+@keyframes logo-pulse {
+  0%, 100% { filter: drop-shadow(0 0 3px oklch(0.78 0.155 165 / 0.35)); }
+  50% { filter: drop-shadow(0 0 10px oklch(0.78 0.155 165 / 0.75)); }
+}
+.animate-logo-pulse {
+  animation: logo-pulse 3.5s ease-in-out infinite;
 }
 
 @keyframes float-up {

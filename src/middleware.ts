@@ -31,6 +31,7 @@ const publicRoutes = [
   "/pricing",
   "/privacy-policy",
   "/terms-of-service",
+  "/ai-disclaimer",
 
   //stripe routes here
   "/stripe/demo",

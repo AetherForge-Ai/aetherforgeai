@@ -1,265 +1,208 @@
-import { Card, CardContent } from "@/components/ui/card";
-import Link from "next/link";
+import { LegalShell, LegalSection } from "@/components/legal/LegalShell";
+
+export const metadata = {
+  title: "AI Privacy Policy — AetherForge AI",
+  description:
+    "How AetherForge AI collects, uses and protects your personal information under the New Zealand Privacy Act 2020.",
+};
+
+const UPDATED = "2 July 2026";
 
 export default function PrivacyPolicy() {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950">
-      <div className="container mx-auto px-4 py-16 max-w-4xl">
-        <div className="mb-8">
-          <Link
-            href="/"
-            className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+    <LegalShell
+      title="Privacy Policy"
+      subtitle="This policy explains how AetherForge AI collects, uses, discloses and protects your personal information in accordance with the Privacy Act 2020 (New Zealand) and its thirteen Information Privacy Principles (IPPs). AetherForge AI is a New Zealand–owned and operated service."
+      updated={UPDATED}
+    >
+      <LegalSection heading="1. Who we are">
+        <p>
+          AetherForge AI (&quot;AetherForge AI&quot;, &quot;we&quot;, &quot;us&quot; or &quot;our&quot;) operates the
+          website <strong className="text-foreground/90">www.aetherforgeai.co.nz</strong> and provides
+          AI-generated market intelligence and portfolio-monitoring tools. We are the &quot;agency&quot;
+          responsible for your personal information under the Privacy Act 2020.
+        </p>
+        <p>
+          We are committed to protecting your privacy and handling your personal information openly,
+          transparently and in accordance with the thirteen Information Privacy Principles.
+        </p>
+      </LegalSection>
+
+      <LegalSection heading="2. Personal information we collect (IPP 1, 2, 3 & 4)">
+        <p>
+          We only collect personal information that is necessary for our lawful functions and
+          activities, and we collect it directly from you wherever possible, by lawful and fair means:
+        </p>
+        <ul className="list-disc space-y-1.5 pl-5">
+          <li>
+            <strong className="text-foreground/90">Account information</strong> — your name and email
+            address when you register, and authentication details managed by our sign-in provider.
+          </li>
+          <li>
+            <strong className="text-foreground/90">Portfolio data</strong> — the tickers, share
+            quantities, purchase prices and notes you choose to add to monitor your own holdings.
+          </li>
+          <li>
+            <strong className="text-foreground/90">Billing information</strong> — subscription plan,
+            status and payment identifiers. Card details are processed directly by Stripe and are never
+            stored on our servers.
+          </li>
+          <li>
+            <strong className="text-foreground/90">Technical information</strong> — IP address, browser
+            and device type, and usage analytics collected automatically to keep the service secure and
+            reliable.
+          </li>
+        </ul>
+        <p>
+          When we collect personal information from you, we take reasonable steps to ensure you are
+          aware of why it is being collected, who will receive it, and that you have a right to access
+          and correct it.
+        </p>
+      </LegalSection>
+
+      <LegalSection heading="3. How we use your information (IPP 10)">
+        <p>We use your personal information only for the purposes for which it was collected, including to:</p>
+        <ul className="list-disc space-y-1.5 pl-5">
+          <li>create, secure and manage your account;</li>
+          <li>generate AI market-intelligence reports based on the holdings you add;</li>
+          <li>process subscription payments and manage your plan;</li>
+          <li>send you service updates, security notices and daily briefings you have subscribed to;</li>
+          <li>respond to your support enquiries; and</li>
+          <li>maintain, protect and improve the security and performance of the service.</li>
+        </ul>
+        <p>
+          We will not use your personal information for a new, unrelated purpose without your consent,
+          unless permitted under the Privacy Act 2020.
+        </p>
+      </LegalSection>
+
+      <LegalSection heading="4. Artificial intelligence & automated processing">
+        <p>
+          AetherForge AI uses third-party large-language-model providers to generate market analysis.
+          The holdings and prompts you submit may be transmitted to these AI providers solely to
+          produce your reports. We do not use your personal financial data to train third-party AI
+          models, and we do not make automated decisions that produce legal or similarly significant
+          effects about you. AI-generated content is informational only — see our{" "}
+          <a href="/ai-disclaimer" className="text-primary hover:underline">
+            AI Disclaimer
+          </a>
+          .
+        </p>
+      </LegalSection>
+
+      <LegalSection heading="5. Disclosure of your information (IPP 11)">
+        <p>We do not sell your personal information. We may disclose it only:</p>
+        <ul className="list-disc space-y-1.5 pl-5">
+          <li>
+            to trusted service providers who help us operate the service (for example hosting, payment
+            processing with Stripe, and AI analysis), bound by confidentiality obligations;
+          </li>
+          <li>where you have authorised the disclosure;</li>
+          <li>
+            where required or authorised by law, including to comply with a lawful request from a New
+            Zealand court, regulator or enforcement agency; or
+          </li>
+          <li>
+            in connection with a business restructure, merger or sale, where the recipient agrees to
+            protect your information consistently with this policy.
+          </li>
+        </ul>
+      </LegalSection>
+
+      <LegalSection heading="6. Sending information overseas (IPP 12)">
+        <p>
+          Some of our service providers (including cloud hosting and AI providers) are located outside
+          New Zealand. Where we disclose personal information overseas, we take reasonable steps to
+          ensure it is protected by comparable safeguards to those under the Privacy Act 2020, or we
+          rely on an exception permitted by IPP 12 (such as your authorisation).
+        </p>
+      </LegalSection>
+
+      <LegalSection heading="7. Storage & security (IPP 5)">
+        <p>
+          We take reasonable technical and organisational measures to protect your personal information
+          against loss, unauthorised access, use, modification or disclosure. This includes encryption
+          in transit, access controls, and scoping every portfolio, report and conversation to your own
+          account. No system is completely secure, but if a notifiable privacy breach occurs we will
+          notify affected individuals and the Office of the Privacy Commissioner as required by the
+          Privacy Act 2020.
+        </p>
+      </LegalSection>
+
+      <LegalSection heading="8. Retention (IPP 9)">
+        <p>
+          We keep your personal information only for as long as it is required for the purposes set out
+          in this policy or as required by law. When information is no longer needed, we securely delete
+          or de-identify it. You may delete your holdings at any time, and you may request deletion of
+          your account.
+        </p>
+      </LegalSection>
+
+      <LegalSection heading="9. Your right to access & correct (IPP 6 & 7)">
+        <p>
+          Under the Privacy Act 2020 you have the right to request access to the personal information we
+          hold about you, and to request correction of any information that is inaccurate, out of date,
+          incomplete or misleading. You can update much of your information directly in your account
+          settings, or contact us to make a request. We will respond within the timeframes required by
+          the Act (generally 20 working days).
+        </p>
+      </LegalSection>
+
+      <LegalSection heading="10. Accuracy (IPP 8)">
+        <p>
+          Before using or disclosing your personal information, we take reasonable steps to ensure it is
+          accurate, up to date, complete, relevant and not misleading. Please help us by keeping your
+          account details current.
+        </p>
+      </LegalSection>
+
+      <LegalSection heading="11. Unique identifiers (IPP 13)">
+        <p>
+          We assign internal account identifiers solely to operate the service. We do not require you to
+          disclose unique identifiers assigned by other agencies (such as an IRD number) and we do not
+          use such identifiers as our own.
+        </p>
+      </LegalSection>
+
+      <LegalSection heading="12. Cookies & analytics">
+        <p>
+          We use essential cookies to keep you signed in and to secure the service, and limited
+          analytics to understand usage. You can control cookies through your browser settings, although
+          disabling essential cookies may affect functionality.
+        </p>
+      </LegalSection>
+
+      <LegalSection heading="13. Complaints & contact">
+        <p>
+          If you have a question, wish to exercise your privacy rights, or want to make a complaint about
+          how we have handled your personal information, please contact our Privacy Officer at{" "}
+          <a href="mailto:privacy@aetherforgeai.co.nz" className="text-primary hover:underline">
+            privacy@aetherforgeai.co.nz
+          </a>
+          . We take privacy complaints seriously and will work with you to resolve them.
+        </p>
+        <p>
+          If you are not satisfied with our response, you have the right to complain to the Office of the
+          Privacy Commissioner (New Zealand):{" "}
+          <a
+            href="https://www.privacy.org.nz"
+            className="text-primary hover:underline"
+            target="_blank"
+            rel="noopener noreferrer"
           >
-            ← Back to home
-          </Link>
-        </div>
+            www.privacy.org.nz
+          </a>{" "}
+          · 0800 803 909.
+        </p>
+      </LegalSection>
 
-        <Card className="shadow-xl border-0">
-          <CardContent className="p-8 md:p-12">
-            <h1 className="text-3xl md:text-4xl font-bold mb-8">
-              Privacy Policy
-            </h1>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-8">
-              Last updated: {new Date().toLocaleDateString()}
-            </p>
-
-            <div className="space-y-8 text-gray-700 dark:text-gray-300">
-              <section>
-                <h2 className="text-2xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-                  1. Introduction
-                </h2>
-                <p className="leading-relaxed">
-                  We are committed to protecting your personal
-                  information and your right to privacy. This Privacy Policy
-                  explains how we collect, use, disclose, and safeguard your
-                  information when you use our service.
-                </p>
-              </section>
-
-              <section>
-                <h2 className="text-2xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-                  2. Information We Collect
-                </h2>
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="text-lg font-medium mb-2">
-                      Personal Information
-                    </h3>
-                    <p className="leading-relaxed">
-                      When you register for an account, we collect:
-                    </p>
-                    <ul className="list-disc list-inside mt-2 space-y-1 ml-4">
-                      <li>Name</li>
-                      <li>Email address</li>
-                      <li>
-                        Google account information (when using Google Sign-In)
-                      </li>
-                      <li>Organization details</li>
-                    </ul>
-                  </div>
-
-                  <div>
-                    <h3 className="text-lg font-medium mb-2">
-                      Automatically Collected Information
-                    </h3>
-                    <p className="leading-relaxed">
-                      We automatically collect certain information when you use
-                      our service:
-                    </p>
-                    <ul className="list-disc list-inside mt-2 space-y-1 ml-4">
-                      <li>IP address</li>
-                      <li>Browser type and version</li>
-                      <li>Device information</li>
-                      <li>Usage data and analytics</li>
-                    </ul>
-                  </div>
-                </div>
-              </section>
-
-              <section>
-                <h2 className="text-2xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-                  3. How We Use Your Information
-                </h2>
-                <p className="leading-relaxed mb-3">
-                  We use your information to:
-                </p>
-                <ul className="list-disc list-inside space-y-1 ml-4">
-                  <li>Provide and maintain our service</li>
-                  <li>Create and manage your account</li>
-                  <li>Send you important updates and notifications</li>
-                  <li>Respond to your inquiries and support requests</li>
-                  <li>Monitor and analyze usage patterns</li>
-                  <li>Improve our service and develop new features</li>
-                  <li>Comply with legal obligations</li>
-                </ul>
-              </section>
-
-              <section>
-                <h2 className="text-2xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-                  4. Data Sharing and Disclosure
-                </h2>
-                <p className="leading-relaxed mb-3">
-                  We may share your information in the following situations:
-                </p>
-                <ul className="list-disc list-inside space-y-1 ml-4">
-                  <li>
-                    <strong>With your consent:</strong> We may share your
-                    information for any purpose with your explicit consent
-                  </li>
-                  <li>
-                    <strong>Service providers:</strong> We share data with
-                    third-party vendors who assist in providing our services
-                  </li>
-                  <li>
-                    <strong>Legal requirements:</strong> We may disclose
-                    information if required by law or valid legal process
-                  </li>
-                  <li>
-                    <strong>Business transfers:</strong> In connection with any
-                    merger, sale, or acquisition
-                  </li>
-                  <li>
-                    <strong>Protection of rights:</strong> To protect our
-                    rights, privacy, safety, or property
-                  </li>
-                </ul>
-              </section>
-
-              <section>
-                <h2 className="text-2xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-                  5. Third-Party Services
-                </h2>
-                <p className="leading-relaxed">
-                  We use the following third-party services that may collect
-                  information:
-                </p>
-                <ul className="list-disc list-inside mt-2 space-y-1 ml-4">
-                  <li>
-                    <strong>Google Sign-In:</strong> For authentication services
-                  </li>
-                  <li>
-                    <strong>Payment processors:</strong> For handling
-                    subscription payments
-                  </li>
-                  <li>
-                    <strong>Analytics services:</strong> To understand service
-                    usage
-                  </li>
-                </ul>
-                <p className="mt-3 leading-relaxed">
-                  These services have their own privacy policies governing the
-                  use of your information.
-                </p>
-              </section>
-
-              <section>
-                <h2 className="text-2xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-                  6. Data Security
-                </h2>
-                <p className="leading-relaxed">
-                  We implement appropriate technical and organizational security
-                  measures to protect your personal information. However, no
-                  method of transmission over the Internet or electronic storage
-                  is 100% secure, and we cannot guarantee absolute security.
-                </p>
-              </section>
-
-              <section>
-                <h2 className="text-2xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-                  7. Data Retention
-                </h2>
-                <p className="leading-relaxed">
-                  We retain your personal information for as long as necessary
-                  to provide our services and fulfill the purposes outlined in
-                  this Privacy Policy. We will also retain and use your
-                  information to comply with legal obligations, resolve
-                  disputes, and enforce our agreements.
-                </p>
-              </section>
-
-              <section>
-                <h2 className="text-2xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-                  8. Your Rights
-                </h2>
-                <p className="leading-relaxed mb-3">
-                  Depending on your location, you may have the following rights:
-                </p>
-                <ul className="list-disc list-inside space-y-1 ml-4">
-                  <li>
-                    <strong>Access:</strong> Request access to your personal
-                    information
-                  </li>
-                  <li>
-                    <strong>Correction:</strong> Request correction of
-                    inaccurate information
-                  </li>
-                  <li>
-                    <strong>Deletion:</strong> Request deletion of your personal
-                    information
-                  </li>
-                  <li>
-                    <strong>Portability:</strong> Request a copy of your data in
-                    a portable format
-                  </li>
-                  <li>
-                    <strong>Objection:</strong> Object to certain processing of
-                    your information
-                  </li>
-                </ul>
-              </section>
-
-              <section>
-                <h2 className="text-2xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-                  9. Children&aposs Privacy
-                </h2>
-                <p className="leading-relaxed">
-                  Our service is not intended for children under 13 years of
-                  age. We do not knowingly collect personal information from
-                  children under 13. If you are a parent or guardian and believe
-                  your child has provided us with personal information, please
-                  contact us.
-                </p>
-              </section>
-
-              <section>
-                <h2 className="text-2xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-                  10. International Data Transfers
-                </h2>
-                <p className="leading-relaxed">
-                  Your information may be transferred to and processed in
-                  countries other than your country of residence. These
-                  countries may have data protection laws that are different
-                  from the laws of your country.
-                </p>
-              </section>
-
-              <section>
-                <h2 className="text-2xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-                  11. Updates to This Policy
-                </h2>
-                <p className="leading-relaxed">
-                  We may update this Privacy Policy from time to time. We will
-                  notify you of any changes by posting the new Privacy Policy on
-                  this page and updating the &aposLast updated&apos date.
-                </p>
-              </section>
-
-              <section>
-                <h2 className="text-2xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-                  12. Contact Us
-                </h2>
-                <p className="leading-relaxed">
-                  If you have any questions about this Privacy Policy or our
-                  data practices, please contact us at:
-                </p>
-                <p className="mt-3">
-                  Please use the contact information provided on our website.
-                </p>
-              </section>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+      <LegalSection heading="14. Changes to this policy">
+        <p>
+          We may update this policy from time to time to reflect changes in our practices or the law. The
+          &quot;last updated&quot; date above shows when it was last revised, and material changes will be
+          notified through the service.
+        </p>
+      </LegalSection>
+    </LegalShell>
   );
 }

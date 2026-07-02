@@ -6,29 +6,40 @@ interface BrandLogoProps {
   markClassName?: string;
   showWordmark?: boolean;
   wordmarkClassName?: string;
+  /** Adds an animated glow pulse to the mark for hero / standout placements. */
+  animated?: boolean;
 }
 
 /**
- * AetherForge AI brand lockup — candlestick mark + wordmark.
+ * AetherForge AI brand lockup — hexagonal forge mark + gradient wordmark.
+ * Pass `animated` for a pulsing glow on prominent placements (hero, headers).
  */
 export function BrandLogo({
   className,
   markClassName,
   showWordmark = true,
   wordmarkClassName,
+  animated = false,
 }: BrandLogoProps) {
   return (
     <span className={cn("inline-flex items-center gap-2.5", className)}>
       <span
         className={cn(
-          "grid place-items-center rounded-xl bg-primary/12 text-primary ring-1 ring-primary/25 shadow-glow",
+          "relative grid place-items-center rounded-xl text-primary ring-1 ring-primary/30 shadow-glow",
+          "bg-gradient-to-br from-primary/18 via-primary/8 to-transparent",
           "size-9 p-1.5",
+          animated && "animate-logo-pulse",
           markClassName
         )}
         dangerouslySetInnerHTML={{ __html: LOGO_MARK_SVG }}
       />
       {showWordmark && (
-        <span className={cn("font-display text-[1.05rem] font-bold tracking-tight leading-none", wordmarkClassName)}>
+        <span
+          className={cn(
+            "font-display text-[1.05rem] font-bold tracking-tight leading-none",
+            wordmarkClassName
+          )}
+        >
           AetherForge<span className="text-primary"> AI</span>
         </span>
       )}

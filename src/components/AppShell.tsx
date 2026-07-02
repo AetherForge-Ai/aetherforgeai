@@ -5,6 +5,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "@/lib/auth-client";
 import { BrandLogo } from "@/components/BrandLogo";
+import { MarketTicker } from "@/components/MarketTicker";
+import { planLabel } from "@/lib/plans";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -74,7 +76,7 @@ function PlanCard({ user }: { user: ShellUser }) {
       </div>
       <p className="mt-1 text-xs text-muted-foreground">
         {isActive
-          ? `${user.subscription_plan === "yearly" ? "Yearly" : "Monthly"} plan · active`
+          ? `${planLabel(user.subscription_plan)} · active`
           : "Upgrade to unlock the full experience."}
       </p>
       {!isActive && (
@@ -161,6 +163,9 @@ export function AppShell({ user, children }: { user: ShellUser; children: ReactN
               </SheetContent>
             </Sheet>
           </div>
+
+          {/* Live market ticker banner across the top of the dashboard */}
+          <MarketTicker compact />
 
           <div className="w-full flex-1">{children}</div>
         </div>

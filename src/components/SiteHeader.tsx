@@ -14,7 +14,7 @@ export function SiteHeader() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="mt-3 flex h-14 items-center justify-between rounded-2xl border border-border/70 glass px-4 shadow-lg">
           <Link href="/" className="shrink-0">
-            <BrandLogo />
+            <BrandLogo animated />
           </Link>
 
           <nav className="hidden items-center gap-7 md:flex">

@@ -12,6 +12,7 @@ import {
 import { StockDialog } from "@/components/dashboard/StockDialog";
 import { AnalysisPanel } from "@/components/dashboard/AnalysisPanel";
 import { ZenithBots } from "@/components/dashboard/ZenithBots";
+import { YearlyToolkit } from "@/components/dashboard/YearlyToolkit";
 import { planLabel } from "@/lib/plans";
 import { Button } from "@/components/ui/button";
 import {
@@ -198,6 +199,7 @@ export function PortfolioDashboard({
   }
 
   const gainTone = summary.totalGain >= 0 ? "up" : "down";
+  const isYearly = subscription.plan === "yearly" || subscription.plan === "dual_yearly";
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
@@ -300,6 +302,13 @@ export function PortfolioDashboard({
       <div className="mt-6">
         <ZenithBots botAccess={subscription.botAccess} />
       </div>
+
+      {/* Annual-member Excel toolkit */}
+      {isYearly && (
+        <div className="mt-6">
+          <YearlyToolkit />
+        </div>
+      )}
 
       {/* Holdings + allocation */}
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.6fr_1fr]">
