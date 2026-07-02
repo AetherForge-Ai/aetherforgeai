@@ -158,6 +158,11 @@ button {
   .shadow-glow {
     box-shadow: 0 0 0 1px oklch(0.78 0.155 165 / 18%), 0 18px 50px -18px oklch(0.78 0.155 165 / 45%);
   }
+
+  /* Brand-mark tile glow, tuned to the shield's blue so the logo reads cohesively */
+  .shadow-brand {
+    box-shadow: 0 0 0 1px oklch(0.62 0.16 255 / 20%), 0 12px 34px -14px oklch(0.55 0.18 255 / 55%);
+  }
 }
 
 @keyframes ticker-scroll {
@@ -183,8 +188,8 @@ button {
 
 /* Animated brand-mark glow */
 @keyframes logo-pulse {
-  0%, 100% { filter: drop-shadow(0 0 3px oklch(0.78 0.155 165 / 0.35)); }
-  50% { filter: drop-shadow(0 0 10px oklch(0.78 0.155 165 / 0.75)); }
+  0%, 100% { filter: drop-shadow(0 0 3px oklch(0.62 0.17 255 / 0.4)); }
+  50% { filter: drop-shadow(0 0 11px oklch(0.62 0.19 255 / 0.8)); }
 }
 .animate-logo-pulse {
   animation: logo-pulse 3.5s ease-in-out infinite;

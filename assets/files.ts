@@ -3,9 +3,17 @@
  * All logos / icons / illustrative marks are referenced from here.
  */
 
-// Inline SVG brand mark — a hexagonal "forge" emblem enclosing an ascending
-// candlestick chart that reads as an "A" (AetherForge), crowned with a spark.
-// Uses currentColor + a local gradient so it glows in the brand's primary hue.
+// ── Official business logo (Forge Intelligence Limited / AetherForge AI) ──
+// The customer's real shield emblem, cleanly cropped onto a transparent
+// background and served as an optimized static asset from /public/brand.
+// Use LOGO_MARK_IMG anywhere the brand mark is shown.
+export const LOGO_MARK_IMG = "/brand/aetherforge-mark.png";
+// Full-colour shield on a brand-navy tile (favicon / social / PWA icon).
+export const LOGO_ICON_IMG = "/brand/aetherforge-icon-512.png";
+export const FAVICON_IMG = "/brand/favicon-32.png";
+
+// Legacy inline SVG fallback mark (kept for reference; superseded by the real
+// logo above). A hexagonal "forge" emblem enclosing an ascending candlestick.
 export const LOGO_MARK_SVG = `
 <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
   <defs>
@@ -34,6 +42,9 @@ export const BOT_CRYPTO_MASCOT =
   "https://storage.googleapis.com/totalum-live-bucket/aetherforgeai/files/bot-crypto-mascot-1782977811833.png?GoogleAccessId=totalum-live%40totalum-live.iam.gserviceaccount.com&Expires=2413697812&Signature=NQbejmQ0gQ3b0nj%2F%2B0XVT5eBAyd%2BhLW21yy%2FnW1%2BrvMuWW1fZdk%2FheETvto52URvIiz97vCmMCsNojcVbYVCOhsajhpkSg%2FkOFSjVS8HWWVyqzlGzA5JShFTUbD1ZcYqAQUfyqNG8HnhOzniPXfIF%2B%2FkR6KI7BHhSVZ2VthslZyV0QL01bJYZUcUBwoPfg3k6ZUrxyHqSWPVEx%2F%2BZgPAXS1DwjjNzFeGjEcTfddOgg43QMiDhruRLMsAYl12zaCPEGzw8VHGW5W3ZFFBzl%2BIinb0oRAFRMw%2BTd7w5%2F68vNBLhvpSazOgp%2BBYFgnYqk6Ovd7kOj6SzBG2037bunRiXg%3D%3D";
 
 export const files = {
+  logoMarkImg: LOGO_MARK_IMG,
+  logoIconImg: LOGO_ICON_IMG,
+  faviconImg: FAVICON_IMG,
   logoMarkSvg: LOGO_MARK_SVG,
   botStockMascot: BOT_STOCK_MASCOT,
   botCryptoMascot: BOT_CRYPTO_MASCOT,

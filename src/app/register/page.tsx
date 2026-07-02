@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { BrandLogo } from "@/components/BrandLogo";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -64,7 +65,10 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 bg-gradient-to-br from-background to-muted/20">
+    <div className="min-h-screen flex flex-col items-center justify-center gap-6 px-4 bg-gradient-to-br from-background to-muted/20">
+      <Link href="/" className="transition-opacity hover:opacity-90">
+        <BrandLogo animated markClassName="size-12" wordmarkClassName="text-xl" />
+      </Link>
       <Card className="w-full max-w-md shadow-xl border-2">
         <CardHeader className="space-y-2 text-center pb-6">
           <CardTitle className="text-3xl font-bold tracking-tight">Create Account</CardTitle>

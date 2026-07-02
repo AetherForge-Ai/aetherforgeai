@@ -28,6 +28,20 @@ export const metadata: Metadata = {
   title: "AetherForge AI — Intelligent Market Analysis",
   description:
     "AetherForge AI delivers intelligent market analysis: track your portfolio, measure gains and losses in real time, and get AI-powered research on every position. Professional-grade investing insight.",
+  icons: {
+    icon: [
+      { url: "/brand/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/brand/aetherforge-icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/brand/aetherforge-icon-512.png" }],
+  },
+  openGraph: {
+    title: "AetherForge AI — Intelligent Market Analysis",
+    description:
+      "New Zealand–owned market intelligence for NZX, ASX and global markets. Track your portfolio and get AI-powered research on every position.",
+    images: [{ url: "/brand/aetherforge-icon-512.png", width: 512, height: 512, alt: "AetherForge AI" }],
+    type: "website",
+  },
 };
 
 // SUPER IMPORTANT: NOT EDIT THE FOLLOWING 2 LINES TO FORCE NEXT.JS TO RENDER DYNAMICALLY

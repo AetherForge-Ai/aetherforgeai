@@ -1,4 +1,4 @@
-import { LOGO_MARK_SVG } from "../../assets/files";
+import { LOGO_MARK_IMG } from "../../assets/files";
 import { cn } from "@/lib/utils";
 
 interface BrandLogoProps {
@@ -11,8 +11,10 @@ interface BrandLogoProps {
 }
 
 /**
- * AetherForge AI brand lockup — hexagonal forge mark + gradient wordmark.
- * Pass `animated` for a pulsing glow on prominent placements (hero, headers).
+ * AetherForge AI brand lockup — the official Forge Intelligence shield mark
+ * (blue + gold) paired with the gradient wordmark. The colourful shield sits in
+ * a subtle navy tile so it reads clearly on any dark surface. Pass `animated`
+ * for a pulsing glow on prominent placements (hero, headers).
  */
 export function BrandLogo({
   className,
@@ -25,14 +27,20 @@ export function BrandLogo({
     <span className={cn("inline-flex items-center gap-2.5", className)}>
       <span
         className={cn(
-          "relative grid place-items-center rounded-xl text-primary ring-1 ring-primary/30 shadow-glow",
-          "bg-gradient-to-br from-primary/18 via-primary/8 to-transparent",
-          "size-9 p-1.5",
+          "relative grid place-items-center rounded-xl ring-1 ring-white/10 shadow-brand",
+          "bg-gradient-to-br from-white/[0.07] via-white/[0.02] to-transparent",
+          "size-9 p-1",
           animated && "animate-logo-pulse",
           markClassName
         )}
-        dangerouslySetInnerHTML={{ __html: LOGO_MARK_SVG }}
-      />
+      >
+        <img
+          src={LOGO_MARK_IMG}
+          alt="AetherForge AI"
+          className="h-full w-full object-contain drop-shadow-[0_1px_4px_rgba(40,110,220,0.35)]"
+          draggable={false}
+        />
+      </span>
       {showWordmark && (
         <span
           className={cn(

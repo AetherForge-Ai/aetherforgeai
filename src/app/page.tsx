@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { SiteHeader } from "@/components/SiteHeader";
 import { BrandLogo } from "@/components/BrandLogo";
+import { LOGO_MARK_IMG } from "../../assets/files";
 import { MarketTicker } from "@/components/MarketTicker";
 import { BotShowcase } from "@/components/bots/BotShowcase";
 import { Button } from "@/components/ui/button";
@@ -94,6 +95,26 @@ export default function LandingPage() {
         <section className="mx-auto max-w-7xl px-4 pt-12 pb-10 sm:px-6 sm:pt-16 lg:px-8">
           <div className="grid items-center gap-12 lg:grid-cols-2">
             <div className="animate-float-up">
+              {/* Standout brand emblem — the official Forge Intelligence shield */}
+              <div className="mb-6 flex items-center gap-4">
+                <span className="relative grid size-16 place-items-center rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.08] via-white/[0.02] to-transparent shadow-brand animate-logo-pulse sm:size-[4.5rem]">
+                  <img
+                    src={LOGO_MARK_IMG}
+                    alt="AetherForge AI shield emblem"
+                    className="h-[78%] w-[78%] object-contain drop-shadow-[0_2px_10px_rgba(40,110,220,0.45)]"
+                    draggable={false}
+                  />
+                </span>
+                <div className="leading-tight">
+                  <p className="font-display text-xl font-extrabold tracking-tight sm:text-2xl">
+                    AetherForge<span className="text-primary"> AI</span>
+                  </p>
+                  <p className="mt-0.5 text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+                    Forge Intelligence Ltd
+                  </p>
+                </div>
+              </div>
+
               <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
                 <span className="relative flex size-2">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary/70" />
