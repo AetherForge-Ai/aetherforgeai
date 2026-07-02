@@ -16,7 +16,7 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { stripe, APP_URL } from "@/lib/stripe";
+import { stripe, getRequestBaseUrl } from "@/lib/stripe";
 
 function serializeError(err: unknown) {
   const e = err as any;
@@ -51,7 +51,7 @@ export async function POST(req: Request) {
     // Create customer portal session
     const session = await stripe.billingPortal.sessions.create({
       customer: customerId,
-      return_url: returnUrl || `${APP_URL}/account`,
+      return_url: returnUrl || `${getRequestBaseUrl(req)}/account`,
     });
 
     return NextResponse.json({

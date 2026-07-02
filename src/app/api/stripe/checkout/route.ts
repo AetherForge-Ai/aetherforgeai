@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { stripe, APP_URL } from "@/lib/stripe";
+import { stripe, getRequestBaseUrl } from "@/lib/stripe";
 import { getCurrentUser } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
 import { planByPriceId, planByKey } from "@/lib/plans";
@@ -63,6 +63,7 @@ export async function POST(req: Request) {
       console.log(`[api/stripe/checkout] Created Stripe customer ${customerId} for user ${user._id}`);
     }
 
+    const baseUrl = getRequestBaseUrl(req);
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       customer: customerId,
@@ -70,8 +71,8 @@ export async function POST(req: Request) {
       client_reference_id: user._id,
       metadata: meta,
       subscription_data: { metadata: meta },
-      success_url: `${APP_URL}/stripe/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${APP_URL}/pricing`,
+      success_url: `${baseUrl}/stripe/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${baseUrl}/pricing`,
       allow_promotion_codes: true,
     });
 

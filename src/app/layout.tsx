@@ -24,7 +24,13 @@ const jetbrainsMono = JetBrains_Mono({
   weight: ["400", "500", "600"],
 });
 
+// Canonical public site URL. Uses the configured app URL when present, otherwise
+// the production custom domain — so Open Graph / canonical links resolve absolutely.
+const siteUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.aetherforgeai.co.nz";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
+  alternates: { canonical: "/" },
   title: "AetherForge AI — Intelligent Market Analysis",
   description:
     "AetherForge AI delivers intelligent market analysis: track your portfolio, measure gains and losses in real time, and get AI-powered research on every position. Professional-grade investing insight.",
@@ -41,6 +47,8 @@ export const metadata: Metadata = {
       "New Zealand–owned market intelligence for NZX, ASX and global markets. Track your portfolio and get AI-powered research on every position.",
     images: [{ url: "/brand/aetherforge-icon-512.png", width: 512, height: 512, alt: "AetherForge AI" }],
     type: "website",
+    url: siteUrl,
+    siteName: "AetherForge AI",
   },
 };
 

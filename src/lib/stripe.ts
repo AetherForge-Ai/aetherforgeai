@@ -159,3 +159,28 @@ if (!STRIPE_WEBHOOK_SECRET && stripeSecretKey) {
  * Get the public-facing app URL
  */
 export const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+
+/**
+ * Resolve the base URL to use for Stripe redirect URLs from the incoming request.
+ *
+ * This keeps the user on whichever host they are actually browsing — the default
+ * *.totalum-project.com subdomain OR a custom domain like https://www.aetherforgeai.co.nz —
+ * so Stripe Checkout success/cancel redirects never bounce them to a different origin.
+ *
+ * Falls back to the configured APP_URL when host headers are unavailable.
+ */
+export function getRequestBaseUrl(req: Request): string {
+  try {
+    const host = req.headers.get("x-forwarded-host") || req.headers.get("host");
+    if (host) {
+      const proto = req.headers.get("x-forwarded-proto") || (host.startsWith("localhost") ? "http" : "https");
+      return `${proto}://${host}`;
+    }
+    // Some environments only expose the full URL on the request.
+    const origin = new URL(req.url).origin;
+    if (origin && !origin.startsWith("null")) return origin;
+  } catch (err) {
+    console.error("[stripe] getRequestBaseUrl failed, falling back to APP_URL:", err);
+  }
+  return APP_URL;
+}

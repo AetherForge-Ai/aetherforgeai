@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { stripe, APP_URL } from "@/lib/stripe";
+import { stripe, getRequestBaseUrl } from "@/lib/stripe";
 import { getCurrentUser } from "@/lib/session";
 
 /**
@@ -7,7 +7,7 @@ import { getCurrentUser } from "@/lib/session";
  * Opens the Stripe Customer Portal for the logged-in user to manage billing,
  * update payment methods, and cancel/upgrade their subscription.
  */
-export async function POST() {
+export async function POST(req: Request) {
   try {
     const user = await getCurrentUser();
     if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
@@ -21,7 +21,7 @@ export async function POST() {
 
     const session = await stripe.billingPortal.sessions.create({
       customer: user.stripe_customer_id,
-      return_url: `${APP_URL}/settings`,
+      return_url: `${getRequestBaseUrl(req)}/settings`,
     });
 
     return NextResponse.json({ ok: true, data: { url: session.url } });

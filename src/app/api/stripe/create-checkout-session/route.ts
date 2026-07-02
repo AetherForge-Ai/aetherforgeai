@@ -17,7 +17,7 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { stripe, APP_URL } from "@/lib/stripe";
+import { stripe, getRequestBaseUrl } from "@/lib/stripe";
 
 function serializeError(err: unknown) {
   const e = err as any;
@@ -52,6 +52,8 @@ export async function POST(req: Request) {
 
     const { priceId, mode, savePaymentMethod, customerEmail, metadata } = parsed.data;
 
+    const baseUrl = getRequestBaseUrl(req);
+
     // Build checkout session parameters
     const sessionParams: any = {
       mode,
@@ -61,8 +63,8 @@ export async function POST(req: Request) {
           quantity: 1,
         },
       ],
-      success_url: `${APP_URL}/stripe/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${APP_URL}/stripe/cancel`,
+      success_url: `${baseUrl}/stripe/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${baseUrl}/stripe/cancel`,
       metadata: metadata || {},
     };
 
