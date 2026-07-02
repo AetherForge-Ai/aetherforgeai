@@ -218,7 +218,7 @@ export function ChatAssistant() {
           </Button>
         </form>
         <p className="mt-2 text-center text-[11px] text-muted-foreground">
-          AI responses are informational only and not financial advice.
+          Powered by Grok 4.3 · AI responses are informational only and not financial advice.
         </p>
       </div>
     </div>

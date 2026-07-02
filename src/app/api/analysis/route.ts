@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
 import { buildPortfolioContext, ANALYST_SYSTEM_PROMPT } from "@/lib/ai-context";
+import { createGrokChatCompletion, type GrokMessage } from "@/lib/grok";
 import type { Stock } from "@/lib/portfolio";
 
 /**
@@ -31,29 +32,25 @@ export async function POST() {
 
     const context = buildPortfolioContext(stocks);
 
-    const chatBody = {
-      messages: [
-        { role: "system", content: ANALYST_SYSTEM_PROMPT },
-        {
-          role: "user",
-          content:
-            `Write a professional portfolio analysis report based on the data below.\n\n` +
-            `Structure it with these Markdown sections:\n` +
-            `## Executive Summary\n## Performance\n## Diversification & Concentration\n## Key Observations\n## Suggested Focus Areas\n\n` +
-            `Keep it insightful and specific to the numbers. End with a one-line disclaimer.\n\n` +
-            `PORTFOLIO DATA:\n${context}`,
-        },
-      ],
-      model: "gpt-4.1-mini",
-      max_tokens: 900,
-      temperature: 0.6,
-    };
+    const messages: GrokMessage[] = [
+      { role: "system", content: ANALYST_SYSTEM_PROMPT },
+      {
+        role: "user",
+        content:
+          `Write a professional portfolio analysis report based on the data below.\n\n` +
+          `Structure it with these Markdown sections:\n` +
+          `## Executive Summary\n## Performance\n## Diversification & Concentration\n## Key Observations\n## Suggested Focus Areas\n\n` +
+          `Keep it insightful and specific to the numbers. End with a one-line disclaimer.\n\n` +
+          `PORTFOLIO DATA:\n${context}`,
+      },
+    ];
 
-    console.log(`[api/analysis] Generating report for user ${user._id} (${stocks.length} holdings)`);
-    const ai = await totalumSdk.openai.createChatCompletion(chatBody as any);
-    const report =
-      (ai as any)?.data?.choices?.[0]?.message?.content ||
-      "Unable to generate a report right now. Please try again.";
+    console.log(`[api/analysis] Generating Grok report for user ${user._id} (${stocks.length} holdings)`);
+    const report = await createGrokChatCompletion({
+      messages,
+      maxTokens: 1600,
+      temperature: 0.6,
+    });
 
     return NextResponse.json({ ok: true, data: { report } });
   } catch (err: any) {

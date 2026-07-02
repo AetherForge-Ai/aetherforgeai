@@ -38,7 +38,7 @@ export function AnalysisPanel({ holdingsCount }: { holdingsCount: number }) {
           <div>
             <h2 className="font-display text-lg font-bold">AI research report</h2>
             <p className="text-xs text-muted-foreground">
-              A grounded analysis of your current holdings, powered by Aurum AI.
+              A grounded analysis of your current holdings, powered by Grok 4.3.
             </p>
           </div>
         </div>

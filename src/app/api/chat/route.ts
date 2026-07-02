@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
 import { buildPortfolioContext, ANALYST_SYSTEM_PROMPT } from "@/lib/ai-context";
+import { createGrokChatCompletion, type GrokMessage } from "@/lib/grok";
 import type { Stock } from "@/lib/portfolio";
 
 const postSchema = z.object({
@@ -65,28 +66,27 @@ export async function POST(req: Request) {
     });
     const history = ((historyRes?.data as any[]) || [])
       .reverse()
-      .map((m) => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.content }));
+      .map((m) => ({
+        role: m.role === "assistant" ? "assistant" : "user",
+        content: m.content,
+      })) as GrokMessage[];
 
-    const chatBody = {
-      messages: [
-        {
-          role: "system",
-          content:
-            `${ANALYST_SYSTEM_PROMPT}\n\n` +
-            `The user's name is ${user.name}. Here is their live portfolio context — use it to answer questions:\n\n${context}`,
-        },
-        ...history,
-      ],
-      model: "gpt-4.1-mini",
-      max_tokens: 700,
+    const messages: GrokMessage[] = [
+      {
+        role: "system",
+        content:
+          `${ANALYST_SYSTEM_PROMPT}\n\n` +
+          `The user's name is ${user.name}. Here is their live portfolio context — use it to answer questions:\n\n${context}`,
+      },
+      ...history,
+    ];
+
+    console.log(`[api/chat] Generating Grok reply for user ${user._id}`);
+    const reply = await createGrokChatCompletion({
+      messages,
+      maxTokens: 1000,
       temperature: 0.7,
-    };
-
-    console.log(`[api/chat] Generating reply for user ${user._id}`);
-    const ai = await totalumSdk.openai.createChatCompletion(chatBody as any);
-    const reply =
-      (ai as any)?.data?.choices?.[0]?.message?.content ||
-      "Sorry, I couldn't generate a response right now. Please try again.";
+    });
 
     // Persist the assistant reply
     const saved = await totalumSdk.crud.createRecord("chat_message", {
