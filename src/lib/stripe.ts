@@ -58,52 +58,22 @@ export const cryptoProvider = Stripe.createSubtleCryptoProvider();
  */
 export const PRODUCTS_AVAILABLE: StripeProduct[] = [
   {
-    name: "Premium E-Book",
-    description: "This is a demo one-time purchase product",
-    type: "one_time",
-    prices: [
-      {
-        amount: 2999, // $29.99
-        currency: "usd",
-        nickname: "One-time purchase",
-      },
-    ],
-  },
-  {
-    name: "Pro Plan",
-    description: "Full access to all premium features",
+    name: "Aurum Pro",
+    description:
+      "Full access to Aurum Capital: unlimited holdings, live portfolio analytics, AI research reports, and the AI market assistant.",
     type: "subscription",
     prices: [
       {
-        amount: 999, // $9.99/month
+        amount: 1900, // $19.00/month
         currency: "usd",
         interval: "month",
         nickname: "Monthly",
       },
       {
-        amount: 9999, // $99.99/year (saves ~17%)
+        amount: 18000, // $180.00/year (2 months free)
         currency: "usd",
         interval: "year",
-        nickname: "Yearly (Save 17%)",
-      },
-    ],
-  },
-  {
-    name: "Business Plan",
-    description: "Advanced features for teams and businesses",
-    type: "subscription",
-    prices: [
-      {
-        amount: 2999, // $29.99/month
-        currency: "usd",
-        interval: "month",
-        nickname: "Monthly",
-      },
-      {
-        amount: 29999, // $299.99/year (saves ~17%)
-        currency: "usd",
-        interval: "year",
-        nickname: "Yearly (Save 17%)",
+        nickname: "Yearly (Save 21%)",
       },
     ],
   },

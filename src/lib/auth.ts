@@ -247,7 +247,23 @@ export const auth = betterAuth({
   // ============================================================================
   user: {
     additionalFields: {
-      // Add your custom user fields here (see examples above)
+      stripe_customer_id: {
+        type: "string",
+        required: false,
+        input: false,
+      },
+      subscription_status: {
+        type: "string",
+        required: false,
+        defaultValue: "none",
+        input: false,
+      },
+      subscription_plan: {
+        type: "string",
+        required: false,
+        defaultValue: "none",
+        input: false,
+      },
     },
   },
 });
@@ -255,3 +271,17 @@ export const auth = betterAuth({
 // Base types from Better Auth
 export type Session = typeof auth.$Infer.Session;
 export type User = Session["user"];
+
+// Extended user with subscription/billing fields (from additionalFields above)
+export interface ExtendedUser {
+  id: string;
+  email: string;
+  name: string;
+  image?: string | null;
+  emailVerified: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  stripe_customer_id?: string | null;
+  subscription_status?: "active" | "canceled" | "past_due" | "none" | null;
+  subscription_plan?: "monthly" | "yearly" | "none" | null;
+}

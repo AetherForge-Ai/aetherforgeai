@@ -52,8 +52,10 @@ export default function RegisterPage() {
         return;
       }
 
-      // Use window.location for a full page reload to ensure session cookie is picked up
-      window.location.href = "/";
+      // Use window.location for a full page reload to ensure session cookie is picked up.
+      // Honor a ?redirect= param (e.g. coming from pricing), otherwise land on the dashboard.
+      const redirectTo = new URLSearchParams(window.location.search).get("redirect") || "/dashboard";
+      window.location.href = redirectTo;
     } catch (err: any) {
       console.error("Registration error:", err);
       setError(err.message || "Error registering. The email might already be in use.");

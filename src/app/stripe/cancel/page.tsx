@@ -1,47 +1,38 @@
 "use client";
 
 /**
- * Stripe Cancel Page
- *
- * This page is shown when a user cancels the checkout process.
+ * Stripe Cancel Page — shown when a user backs out of checkout.
  */
 
 import { Button } from "@/components/ui/button";
+import { BrandLogo } from "@/components/BrandLogo";
+import { XCircle, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
 export default function StripeCancelPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8 text-center">
-        <div className="mb-6">
-          <div className="mx-auto w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center">
-            <svg
-              className="w-8 h-8 text-yellow-600"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </div>
+    <div className="relative flex min-h-screen items-center justify-center bg-grid px-4">
+      <div className="pointer-events-none absolute inset-0 bg-aurora" />
+      <div className="relative w-full max-w-md rounded-3xl border border-border/70 bg-card/60 p-8 text-center backdrop-blur-xl">
+        <div className="flex justify-center">
+          <BrandLogo />
         </div>
-
-        <h1 className="text-3xl font-bold mb-4 text-gray-900">Checkout Canceled</h1>
-        <p className="text-gray-600 mb-6">
-          You have canceled the checkout process. No charges have been made.
+        <div className="mx-auto mt-8 grid size-16 place-items-center rounded-2xl bg-amber-500/15 text-amber-400">
+          <XCircle className="size-8" />
+        </div>
+        <h1 className="mt-6 font-display text-3xl font-bold">Checkout canceled</h1>
+        <p className="mt-3 text-sm text-muted-foreground">
+          No charges were made. You can pick up where you left off whenever you're ready.
         </p>
 
-        <div className="space-y-3">
-          <Button asChild className="w-full">
-            <Link href="/stripe/demo">Try Again</Link>
+        <div className="mt-7 space-y-3">
+          <Button asChild size="lg" className="h-12 w-full font-semibold">
+            <Link href="/pricing">View plans again</Link>
           </Button>
-          <Button asChild variant="outline" className="w-full">
-            <Link href="/">Return to Home</Link>
+          <Button asChild variant="ghost" className="w-full">
+            <Link href="/">
+              <ArrowLeft className="mr-2 size-4" /> Back to home
+            </Link>
           </Button>
         </div>
       </div>

@@ -6,8 +6,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-body);
+  --font-display: var(--font-display);
+  --font-mono: var(--font-mono-custom);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -43,84 +44,143 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
-:root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.45 0.18 230);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.92 0.06 150);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.64 0.15 259.5);
-  --chart-1: oklch(0.64 0.15 259.5);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.55 0.12 100);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.64 0.15 259.5);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.64 0.15 259.5);
-}
-
+/*
+  Aurum Capital — dark fintech theme.
+  Deep slate canvas, emerald "signal" accent for markets/gains, warm gold highlight.
+  Dark-only app: :root mirrors .dark so there is no flash of light UI.
+*/
+:root,
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.7 0.15 259.5);
-  --primary-foreground: oklch(0.145 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.25 0.02 259.5);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.7 0.15 259.5);
-  --chart-1: oklch(0.7 0.15 259.5);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.6 0.12 100);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.7 0.15 259.5);
-  --sidebar-primary-foreground: oklch(0.145 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.7 0.15 259.5);
+  --radius: 0.75rem;
+
+  --background: oklch(0.165 0.014 250);
+  --foreground: oklch(0.965 0.004 240);
+
+  --card: oklch(0.205 0.016 250);
+  --card-foreground: oklch(0.965 0.004 240);
+
+  --popover: oklch(0.19 0.016 250);
+  --popover-foreground: oklch(0.965 0.004 240);
+
+  --primary: oklch(0.78 0.155 165);
+  --primary-foreground: oklch(0.19 0.03 165);
+
+  --secondary: oklch(0.27 0.018 250);
+  --secondary-foreground: oklch(0.965 0.004 240);
+
+  --muted: oklch(0.25 0.014 250);
+  --muted-foreground: oklch(0.7 0.012 250);
+
+  --accent: oklch(0.3 0.03 200);
+  --accent-foreground: oklch(0.965 0.004 240);
+
+  --destructive: oklch(0.63 0.21 22);
+  --destructive-foreground: oklch(0.98 0.01 20);
+
+  --border: oklch(1 0 0 / 9%);
+  --input: oklch(1 0 0 / 13%);
+  --ring: oklch(0.78 0.155 165);
+
+  /* Signal palette — used across charts and decorative gradients */
+  --gold: oklch(0.82 0.14 85);
+  --chart-1: oklch(0.78 0.155 165);
+  --chart-2: oklch(0.72 0.13 200);
+  --chart-3: oklch(0.82 0.14 85);
+  --chart-4: oklch(0.68 0.17 300);
+  --chart-5: oklch(0.7 0.19 25);
+
+  --sidebar: oklch(0.185 0.015 250);
+  --sidebar-foreground: oklch(0.965 0.004 240);
+  --sidebar-primary: oklch(0.78 0.155 165);
+  --sidebar-primary-foreground: oklch(0.19 0.03 165);
+  --sidebar-accent: oklch(0.27 0.018 250);
+  --sidebar-accent-foreground: oklch(0.965 0.004 240);
+  --sidebar-border: oklch(1 0 0 / 9%);
+  --sidebar-ring: oklch(0.78 0.155 165);
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    color-scheme: dark;
+  }
   body {
     @apply bg-background text-foreground;
+    font-feature-settings: "ss01", "cv01";
   }
 }
 
 button {
   cursor: pointer;
 }
+
+@layer utilities {
+  /* Tabular numerals for all financial figures */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-family: var(--font-mono-custom), ui-monospace, monospace;
+  }
+
+  .font-display {
+    font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  }
+
+  /* Atmospheric radial grid backdrop */
+  .bg-grid {
+    background-image:
+      linear-gradient(to right, oklch(1 0 0 / 3.5%) 1px, transparent 1px),
+      linear-gradient(to bottom, oklch(1 0 0 / 3.5%) 1px, transparent 1px);
+    background-size: 56px 56px;
+  }
+
+  .bg-aurora {
+    background:
+      radial-gradient(60% 55% at 78% 8%, oklch(0.78 0.155 165 / 16%) 0%, transparent 60%),
+      radial-gradient(45% 45% at 12% 20%, oklch(0.72 0.13 200 / 12%) 0%, transparent 55%),
+      radial-gradient(50% 50% at 50% 100%, oklch(0.82 0.14 85 / 8%) 0%, transparent 60%);
+  }
+
+  .glass {
+    background: oklch(0.22 0.016 250 / 65%);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
+
+  .text-gradient {
+    background: linear-gradient(105deg, var(--foreground) 0%, var(--primary) 55%, var(--gold) 110%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .shadow-glow {
+    box-shadow: 0 0 0 1px oklch(0.78 0.155 165 / 18%), 0 18px 50px -18px oklch(0.78 0.155 165 / 45%);
+  }
+}
+
+@keyframes ticker-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.animate-ticker {
+  animation: ticker-scroll 40s linear infinite;
+}
+
+@keyframes float-up {
+  0% { opacity: 0; transform: translateY(14px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.animate-float-up {
+  animation: float-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Thin custom scrollbars in dark surfaces */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: oklch(1 0 0 / 12%) transparent;
+}
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-thumb { background: oklch(1 0 0 / 12%); border-radius: 999px; }
+*::-webkit-scrollbar-track { background: transparent; }

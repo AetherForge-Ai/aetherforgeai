@@ -19,34 +19,104 @@ import { stripe, STRIPE_WEBHOOK_SECRET, cryptoProvider } from "@/lib/stripe";
 import Stripe from "stripe";
 import { totalumSdk } from "@/lib/totalum";
 
-async function handleCustomerCreated(customer: Stripe.Customer) {
-  console.log("Customer created:", customer.id);
-  // TODO: implement any database operations using TotalumSDK if needed
+/** Map a Stripe subscription status to our app status. */
+function mapStatus(status: Stripe.Subscription.Status): "active" | "past_due" | "canceled" | "none" {
+  if (status === "active" || status === "trialing") return "active";
+  if (status === "past_due" || status === "unpaid") return "past_due";
+  if (status === "canceled" || status === "incomplete_expired") return "canceled";
+  return "none";
 }
 
-async function handleCustomerUpdated(customer: Stripe.Customer) {
-  console.log("Customer updated:", customer.id);
-  // TODO: implement any database operations using TotalumSDK if needed
+/** Resolve our internal user _id from a Stripe customer id. */
+async function findUserIdByCustomer(customerId: string | null): Promise<string | null> {
+  if (!customerId) return null;
+  try {
+    const res = await totalumSdk.crud.query("user", {
+      _filter: { stripe_customer_id: customerId },
+      _limit: 1,
+    });
+    const rows = (res?.data as any[]) || [];
+    return rows[0]?._id ?? null;
+  } catch (err) {
+    console.error("[webhook] findUserIdByCustomer error:", err);
+    return null;
+  }
 }
 
-async function handleCustomerDeleted(customer: Stripe.Customer) {
-  console.log("Customer deleted:", customer.id);
-  // TODO: implement any database operations using TotalumSDK if needed
+async function updateUserSubscription(
+  userId: string,
+  patch: { subscription_status?: string; subscription_plan?: string; stripe_customer_id?: string }
+) {
+  try {
+    await totalumSdk.crud.editRecordById("user", userId, patch);
+    console.log(`[webhook] Updated user ${userId} subscription:`, patch);
+  } catch (err) {
+    console.error(`[webhook] Failed to update user ${userId}:`, err);
+    throw err;
+  }
+}
+
+async function syncSubscription(subscription: Stripe.Subscription) {
+  const customerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer?.id;
+  const userId = (subscription.metadata?.userId as string) || (await findUserIdByCustomer(customerId));
+  if (!userId) {
+    console.warn("[webhook] No user found for subscription", subscription.id);
+    return;
+  }
+
+  const interval = subscription.items?.data?.[0]?.price?.recurring?.interval;
+  const plan = interval === "year" ? "yearly" : interval === "month" ? "monthly" : (subscription.metadata?.plan as string) || "monthly";
+
+  await updateUserSubscription(userId, {
+    subscription_status: mapStatus(subscription.status),
+    subscription_plan: mapStatus(subscription.status) === "active" ? plan : "none",
+    ...(customerId ? { stripe_customer_id: customerId } : {}),
+  });
+}
+
+async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
+  console.log("Checkout completed:", session.id);
+  const userId = (session.metadata?.userId as string) || (session.client_reference_id as string) || null;
+  const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id ?? null;
+
+  if (session.mode === "subscription" && session.subscription) {
+    const subId = typeof session.subscription === "string" ? session.subscription : session.subscription.id;
+    try {
+      const subscription = await stripe.subscriptions.retrieve(subId);
+      await syncSubscription(subscription);
+      return;
+    } catch (err) {
+      console.error("[webhook] Failed to retrieve subscription:", err);
+    }
+  }
+
+  // Fallback: at least mark active if we have a user
+  if (userId) {
+    await updateUserSubscription(userId, {
+      subscription_status: "active",
+      subscription_plan: (session.metadata?.plan as string) || "monthly",
+      ...(customerId ? { stripe_customer_id: customerId } : {}),
+    });
+  }
 }
 
 async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
   console.log("Subscription created:", subscription.id);
-  // TODO: implement any database operations using TotalumSDK if needed
+  await syncSubscription(subscription);
 }
 
 async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
   console.log("Subscription updated:", subscription.id);
-  // TODO: Update subscription in your database using TotalumSDK
+  await syncSubscription(subscription);
 }
 
 async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
   console.log("Subscription deleted:", subscription.id);
-  // TODO: implement any database operations using TotalumSDK if needed
+  const customerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer?.id;
+  const userId = (subscription.metadata?.userId as string) || (await findUserIdByCustomer(customerId ?? null));
+  if (userId) {
+    await updateUserSubscription(userId, { subscription_status: "canceled", subscription_plan: "none" });
+  }
 }
 
 async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent) {
@@ -108,16 +178,8 @@ export async function POST(req: Request) {
 
     // Handle the event
     switch (event.type) {
-      case "customer.created":
-        await handleCustomerCreated(event.data.object as Stripe.Customer);
-        break;
-
-      case "customer.updated":
-        await handleCustomerUpdated(event.data.object as Stripe.Customer);
-        break;
-
-      case "customer.deleted":
-        await handleCustomerDeleted(event.data.object as Stripe.Customer);
+      case "checkout.session.completed":
+        await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
         break;
 
       case "customer.subscription.created":
