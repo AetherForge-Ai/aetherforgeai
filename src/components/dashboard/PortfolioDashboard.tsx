@@ -15,6 +15,12 @@ import { ReportCenter } from "@/components/dashboard/ReportCenter";
 import { PriceAlerts } from "@/components/dashboard/PriceAlerts";
 import { YearlyToolkit } from "@/components/dashboard/YearlyToolkit";
 import { planLabel } from "@/lib/plans";
+import { computePortfolioMetrics } from "@/lib/analytics";
+import { MarketSnapshot } from "@/components/dashboard/MarketSnapshot";
+import { TopMovers } from "@/components/dashboard/TopMovers";
+import { ProjectionsPanel } from "@/components/dashboard/ProjectionsPanel";
+import { ActionableIntelligence } from "@/components/dashboard/ActionableIntelligence";
+import { NewsFeed } from "@/components/dashboard/NewsFeed";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -42,6 +48,10 @@ import {
   PieChart,
   CalendarClock,
   BadgeCheck,
+  Zap,
+  HeartPulse,
+  Activity,
+  Gauge,
 } from "lucide-react";
 
 export interface DashboardSubscription {
@@ -127,6 +137,28 @@ function StatCard({
   );
 }
 
+function MiniMetric({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+        <Icon className="size-4" />
+      </span>
+      <div className="min-w-0">
+        <p className="text-[0.68rem] uppercase tracking-wide text-muted-foreground">{label}</p>
+        <p className="tnum font-display text-lg font-bold leading-tight">{value}</p>
+      </div>
+    </div>
+  );
+}
+
 export function PortfolioDashboard({
   userName,
   subscription,
@@ -158,6 +190,7 @@ export function PortfolioDashboard({
   }, [loadStocks]);
 
   const summary = useMemo(() => computeSummary(stocks), [stocks]);
+  const metrics = useMemo(() => computePortfolioMetrics(stocks), [stocks]);
 
   async function handleRefreshPrices() {
     setRefreshing(true);
@@ -229,38 +262,62 @@ export function PortfolioDashboard({
         </div>
       </div>
 
-      {/* Stat cards */}
+      {/* KPI cards */}
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          label="Total value"
+          label="Portfolio value"
           value={formatCurrency(summary.totalValue)}
           sub={`Cost basis ${formatCurrency(summary.totalCost)}`}
           icon={Wallet}
         />
         <StatCard
-          label="Total gain / loss"
+          label="Unrealized P&L"
           value={formatCurrency(summary.totalGain)}
           sub={formatPercent(summary.totalGainPct)}
           icon={summary.totalGain >= 0 ? TrendingUp : TrendingDown}
           tone={gainTone}
         />
         <StatCard
-          label="Best performer"
-          value={summary.bestPerformer ? summary.bestPerformer.ticker : "—"}
+          label="7-Day alpha potential"
+          value={`${metrics.alphaPotentialPct >= 0 ? "+" : ""}${metrics.alphaPotentialPct.toFixed(2)}%`}
           sub={
-            summary.bestPerformer ? formatPercent(summary.bestPerformer.gainPct) : "No holdings yet"
+            summary.holdingsCount
+              ? `${formatCurrency(metrics.alphaPotentialValue)} projected move`
+              : "Add holdings to project"
           }
-          icon={Trophy}
-          tone={summary.bestPerformer && summary.bestPerformer.gain >= 0 ? "up" : "neutral"}
+          icon={Zap}
+          tone={metrics.alphaPotentialPct >= 0 ? "up" : "down"}
         />
         <StatCard
-          label="Holdings"
-          value={String(summary.holdingsCount)}
-          sub={`${summary.sectorAllocation.length} sector${
-            summary.sectorAllocation.length === 1 ? "" : "s"
-          }`}
-          icon={Layers}
+          label="Portfolio health"
+          value={summary.holdingsCount ? `${metrics.healthScore}/100` : "—"}
+          sub={summary.holdingsCount ? metrics.healthLabel : "No holdings yet"}
+          icon={HeartPulse}
+          tone={
+            !summary.holdingsCount
+              ? "neutral"
+              : metrics.healthScore >= 55
+                ? "up"
+                : metrics.healthScore >= 38
+                  ? "neutral"
+                  : "down"
+          }
         />
+      </div>
+
+      {/* Risk / quality metrics strip */}
+      {summary.holdingsCount > 0 && (
+        <div className="mt-4 grid grid-cols-2 gap-4 rounded-2xl border border-border/70 bg-card/40 p-4 sm:grid-cols-4">
+          <MiniMetric icon={Activity} label="Ann. volatility" value={`${metrics.volatility.toFixed(1)}%`} />
+          <MiniMetric icon={Gauge} label="Sharpe ratio" value={metrics.sharpe.toFixed(2)} />
+          <MiniMetric icon={PieChart} label="Diversification" value={`${metrics.diversification}%`} />
+          <MiniMetric icon={Trophy} label="Win rate" value={`${metrics.winRate}%`} />
+        </div>
+      )}
+
+      {/* Actionable intelligence — SELL/BUY signals + pathways (prominent) */}
+      <div className="mt-6">
+        <ActionableIntelligence stocks={stocks} />
       </div>
 
       {/* Subscription summary */}
@@ -491,9 +548,29 @@ export function PortfolioDashboard({
         </div>
       </div>
 
+      {/* Market snapshot — NZX | ASX | US */}
+      <div className="mt-8">
+        <MarketSnapshot />
+      </div>
+
+      {/* Top movers */}
+      <div className="mt-6">
+        <TopMovers />
+      </div>
+
+      {/* 7-day projections with technical indicators */}
+      <div className="mt-6">
+        <ProjectionsPanel />
+      </div>
+
       {/* AI Report */}
       <div className="mt-6">
         <AnalysisPanel holdingsCount={summary.holdingsCount} />
+      </div>
+
+      {/* Market news */}
+      <div className="mt-6">
+        <NewsFeed />
       </div>
 
       <StockDialog
