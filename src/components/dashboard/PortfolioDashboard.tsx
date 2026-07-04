@@ -15,6 +15,7 @@ import { ReportCenter } from "@/components/dashboard/ReportCenter";
 import { PriceAlerts } from "@/components/dashboard/PriceAlerts";
 import { YearlyToolkit } from "@/components/dashboard/YearlyToolkit";
 import { planLabel } from "@/lib/plans";
+import { checkTickerQuota, limitScope, resolveTickerLimit } from "@/lib/entitlements";
 import { computePortfolioMetrics } from "@/lib/analytics";
 import { MarketSnapshot } from "@/components/dashboard/MarketSnapshot";
 import { TopMovers } from "@/components/dashboard/TopMovers";
@@ -59,6 +60,7 @@ import {
   LineChart,
   Bitcoin,
   Lock,
+  Sparkles,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -179,7 +181,10 @@ export function PortfolioDashboard({
   const [bot, setBot] = useState<AssetClass>(defaultBot);
   const [watchlistSignal, setWatchlistSignal] = useState(0);
 
-  const [stocks, setStocks] = useState<Stock[]>([]);
+  // We load ALL holdings (both bots) so we can enforce the plan's ticker quota
+  // correctly — the free tier counts stocks + crypto together. The active bot's
+  // holdings are derived below.
+  const [allStocks, setAllStocks] = useState<Stock[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -187,22 +192,51 @@ export function PortfolioDashboard({
   const [deleteTarget, setDeleteTarget] = useState<Stock | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  const stocks = useMemo(
+    () => allStocks.filter((s) => (s.asset_type || "stock") === bot),
+    [allStocks, bot]
+  );
+
   const canUseBot = useCallback(
     (b: AssetClass) => subscription.botAccess === "both" || subscription.botAccess === b,
     [subscription.botAccess]
   );
 
+  // Plan entitlements — how many tickers the member may monitor and how usage
+  // is counted (free = across both bots; paid = per bot).
+  const planUser = useMemo(
+    () => ({ ticker_limit: subscription.tickerLimit, subscription_plan: subscription.plan }),
+    [subscription.tickerLimit, subscription.plan]
+  );
+  const tickerLimit = useMemo(() => resolveTickerLimit(planUser), [planUser]);
+  const scope = useMemo(() => limitScope(subscription.plan), [subscription.plan]);
+  const quota = useMemo(
+    () => checkTickerQuota(planUser, allStocks, bot),
+    [planUser, allStocks, bot]
+  );
+  const atLimit = !quota.allowed;
+  const holdingCounts = useMemo(
+    () => ({
+      stock: allStocks.filter((s) => (s.asset_type || "stock") === "stock").length,
+      crypto: allStocks.filter((s) => s.asset_type === "crypto").length,
+      total: allStocks.length,
+    }),
+    [allStocks]
+  );
+  // Tickers counted against the limit for the current bot/scope.
+  const monitoredForLimit = scope === "total" ? holdingCounts.total : stocks.length;
+
   const loadStocks = useCallback(async () => {
     setLoading(true);
-    const res = await api.get<Stock[]>(`/api/stocks?asset_type=${bot}`);
+    const res = await api.get<Stock[]>(`/api/stocks`);
     if (res.ok && res.data) {
-      setStocks(res.data);
+      setAllStocks(res.data);
     } else {
       console.error("[dashboard] Failed to load stocks:", res.error);
       toast.error("Could not load your portfolio.");
     }
     setLoading(false);
-  }, [bot]);
+  }, []);
 
   useEffect(() => {
     loadStocks();
@@ -238,8 +272,8 @@ export function PortfolioDashboard({
     console.log("[dashboard] Refreshing market prices…");
     const res = await api.post<Stock[]>("/api/stocks/refresh", {});
     if (res.ok && res.data) {
-      // The refresh endpoint returns all holdings; keep only the active bot's.
-      setStocks(res.data.filter((s) => (s.asset_type || "stock") === bot));
+      // The refresh endpoint returns all holdings; the active bot's are derived.
+      setAllStocks(res.data);
       toast.success("Prices updated");
     } else {
       console.error("[dashboard] Refresh failed:", res.error);
@@ -249,6 +283,11 @@ export function PortfolioDashboard({
   }
 
   function openAdd() {
+    // Gate on the plan's ticker quota before opening the add dialog.
+    if (atLimit) {
+      toast.error(quota.message);
+      return;
+    }
     setEditing(null);
     setDialogOpen(true);
   }
@@ -307,10 +346,63 @@ export function PortfolioDashboard({
             )}
             Refresh prices
           </Button>
-          <Button onClick={openAdd} className="font-semibold shadow-glow">
-            <Plus className="mr-2 size-4" /> Add holding
-          </Button>
+          {atLimit ? (
+            <Button asChild className="font-semibold shadow-glow">
+              <Link href="/pricing">
+                <Sparkles className="mr-2 size-4" /> Upgrade to add more
+              </Link>
+            </Button>
+          ) : (
+            <Button onClick={openAdd} className="font-semibold shadow-glow">
+              <Plus className="mr-2 size-4" /> Add holding
+            </Button>
+          )}
         </div>
+      </div>
+
+      {/* Plan quota banner — shows how many monitored tickers remain, and nudges
+          free/low-tier members to upgrade once they hit their limit. */}
+      <div
+        className={cn(
+          "mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-5 py-3.5",
+          atLimit
+            ? "border-[var(--gold)]/40 bg-[var(--gold)]/10"
+            : "border-border/60 bg-card/40"
+        )}
+      >
+        <div className="flex items-center gap-2.5 text-sm">
+          <span
+            className={cn(
+              "grid size-8 place-items-center rounded-lg",
+              atLimit ? "bg-[var(--gold)]/15 text-[var(--gold)]" : "bg-primary/12 text-primary"
+            )}
+          >
+            <Layers className="size-4" />
+          </span>
+          <div>
+            <p className="font-medium">
+              {planLabel(subscription.plan)} ·{" "}
+              <span className="tnum">
+                {monitoredForLimit}/{tickerLimit}
+              </span>{" "}
+              {scope === "total" ? "tickers monitored" : `${bot} tickers monitored`}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {atLimit
+                ? "You've reached your plan's monitoring limit — upgrade or remove a holding to add more."
+                : scope === "total"
+                  ? "Your plan monitors tickers across both bots combined."
+                  : "Each bot gets its own ticker allowance on your plan."}
+            </p>
+          </div>
+        </div>
+        {subscription.plan === "free" && (
+          <Button asChild size="sm" variant={atLimit ? "default" : "outline"} className="font-semibold">
+            <Link href="/pricing">
+              <Sparkles className="mr-1.5 size-3.5" /> Upgrade plan
+            </Link>
+          </Button>
+        )}
       </div>
 
       {/* Bot switcher — Stock ⇄ Crypto */}
@@ -419,7 +511,7 @@ export function PortfolioDashboard({
               <Layers className="size-3.5 text-primary" /> Ticker limit
             </div>
             <p className="mt-1.5 font-display text-lg font-bold">
-              {subscription.tickerLimit ? `${subscription.tickerLimit} per bot` : "—"}
+              {tickerLimit} {scope === "total" ? "across both bots" : "per bot"}
             </p>
             <p className="text-xs text-muted-foreground">
               Status: <span className="capitalize">{subscription.status || "none"}</span>
@@ -444,8 +536,10 @@ export function PortfolioDashboard({
       <div className="mt-6">
         <ReportCenter
           botAccess={subscription.botAccess}
-          monitoredCount={summary.holdingsCount}
-          tickerLimit={subscription.tickerLimit}
+          plan={subscription.plan}
+          scope={scope}
+          counts={holdingCounts}
+          tickerLimit={tickerLimit}
           onHoldingsChanged={loadStocks}
         />
       </div>

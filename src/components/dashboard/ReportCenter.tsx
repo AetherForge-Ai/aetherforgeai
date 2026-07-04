@@ -66,12 +66,16 @@ function fmtDate(iso?: string | null): string {
 
 export function ReportCenter({
   botAccess,
-  monitoredCount,
+  plan,
+  scope,
+  counts,
   tickerLimit,
   onHoldingsChanged,
 }: {
   botAccess: BotAccess;
-  monitoredCount: number;
+  plan?: string | null;
+  scope: "total" | "perBot";
+  counts: { stock: number; crypto: number; total: number };
   tickerLimit?: number | null;
   onHoldingsChanged: () => void;
 }) {
@@ -91,6 +95,10 @@ export function ReportCenter({
 
   const canRun = (kind: BotKind) => botAccess === "both" || botAccess === kind;
 
+  // Tickers counted against the plan limit for the currently selected add-type.
+  const usedForType = scope === "total" ? counts.total : counts[assetType];
+  const atLimit = typeof tickerLimit === "number" && usedForType >= tickerLimit;
+
   const loadHistory = React.useCallback(async () => {
     const res = await api.get<PastReport[]>("/api/reports");
     if (res.ok && res.data) setHistory(res.data);
@@ -109,6 +117,11 @@ export function ReportCenter({
     if (!t) return toast.error("Enter a ticker symbol.");
     if (!(s > 0)) return toast.error("Shares must be greater than 0.");
     if (!(p > 0)) return toast.error("Purchase price must be greater than 0.");
+    if (atLimit) {
+      return toast.error(
+        `You've reached your plan's limit of ${tickerLimit} monitored ${scope === "total" ? "tickers" : assetType + " tickers"}. Upgrade to add more.`
+      );
+    }
 
     setAdding(true);
     console.log("[ReportCenter] Adding holding", { t, s, p, assetType });
@@ -181,10 +194,10 @@ export function ReportCenter({
         </div>
         <div className="text-right text-xs text-muted-foreground">
           <div className="font-display text-lg font-bold text-foreground">
-            {monitoredCount}
+            {usedForType}
             {tickerLimit ? <span className="text-sm text-muted-foreground"> / {tickerLimit}</span> : null}
           </div>
-          tickers monitored
+          {scope === "total" ? "tickers monitored" : `${assetType} tickers`}
         </div>
       </div>
 
@@ -235,11 +248,29 @@ export function ReportCenter({
           </Label>
           <Input id="rc-price" type="number" min="0" step="any" placeholder="150.00" value={price} onChange={(e) => setPrice(e.target.value)} />
         </div>
-        <Button type="submit" disabled={adding} className="font-semibold">
-          {adding ? <Loader2 className="size-4 animate-spin" /> : <Plus className="mr-1 size-4" />}
-          Add
-        </Button>
+        {atLimit ? (
+          <Button asChild variant="outline" className="font-semibold">
+            <Link href="/pricing">
+              <Lock className="mr-1 size-4" /> Upgrade
+            </Link>
+          </Button>
+        ) : (
+          <Button type="submit" disabled={adding} className="font-semibold">
+            {adding ? <Loader2 className="size-4 animate-spin" /> : <Plus className="mr-1 size-4" />}
+            Add
+          </Button>
+        )}
       </form>
+      {atLimit && (
+        <p className="mt-2 text-xs text-[var(--gold)]">
+          You&apos;ve reached your {plan === "free" ? "free plan" : "plan"}&apos;s limit of {tickerLimit}{" "}
+          monitored {scope === "total" ? "tickers" : `${assetType} tickers`}.{" "}
+          <Link href="/pricing" className="font-semibold underline">
+            Upgrade
+          </Link>{" "}
+          to monitor more.
+        </p>
+      )}
 
       {/* Run buttons */}
       <div className="mt-5 grid gap-4 md:grid-cols-2">

@@ -5,6 +5,7 @@ import { totalumSdk } from "@/lib/totalum";
 import { lookupTicker, normalizeTicker, referencePrice } from "@/lib/market";
 import { seedStarterPortfolioIfNeeded } from "@/lib/seed";
 import { fetchLivePrice, isLiveDataConfigured, fetchCryptoQuotes } from "@/lib/market-data";
+import { checkTickerQuota } from "@/lib/entitlements";
 
 const createSchema = z.object({
   ticker: z.string().min(1, "Ticker is required").max(12),
@@ -72,6 +73,29 @@ export async function POST(req: Request) {
     const assetType = parsed.data.asset_type || "stock";
     const info = lookupTicker(ticker);
     const purchase_price = parsed.data.purchase_price;
+
+    // Enforce the plan's ticker quota (FREE = 3 across both bots; paid = per bot).
+    // Never trust the client — this is the authoritative gate, so a free member
+    // cannot add unlimited holdings by calling the API directly.
+    const existing = await totalumSdk.crud.query("stock", {
+      _filter: { user: user._id },
+      _limit: 1000,
+    });
+    const held = (existing?.data as any[]) || [];
+    const quota = checkTickerQuota(user, held, assetType);
+    if (!quota.allowed) {
+      console.log(
+        `[api/stocks] Quota reached for user ${user._id}: ${quota.used}/${quota.limit} (${quota.scope}) — blocking add of ${ticker}`
+      );
+      return NextResponse.json(
+        {
+          ok: false,
+          error: quota.message,
+          data: { code: "ticker_limit", used: quota.used, limit: quota.limit, scope: quota.scope },
+        },
+        { status: 403 }
+      );
+    }
 
     // Prefer a live quote when available; else use the curated reference price.
     // Crypto uses CoinGecko (no key); stocks use Twelve Data (needs a key).
