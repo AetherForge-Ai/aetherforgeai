@@ -151,3 +151,115 @@ export async function fetchLivePrice(ticker: string): Promise<number | null> {
   const quotes = await fetchLiveQuotes([ticker]);
   return quotes[ticker.toUpperCase()]?.price ?? null;
 }
+
+/* ============================ Crypto (CoinGecko) ========================= */
+
+/**
+ * CoinGecko provides real-time crypto prices with NO API KEY on the free tier,
+ * so the Crypto Bot is always live. Symbol → CoinGecko id mapping for our
+ * universe; unknown symbols are lower-cased as a best-effort id guess.
+ */
+const COINGECKO_IDS: Record<string, string> = {
+  BTC: "bitcoin",
+  ETH: "ethereum",
+  SOL: "solana",
+  BNB: "binancecoin",
+  XRP: "ripple",
+  ADA: "cardano",
+  AVAX: "avalanche-2",
+  DOGE: "dogecoin",
+  LINK: "chainlink",
+  DOT: "polkadot",
+  MATIC: "matic-network",
+  LTC: "litecoin",
+  UNI: "uniswap",
+  ATOM: "cosmos",
+  NEAR: "near",
+  APT: "aptos",
+  ARB: "arbitrum",
+  OP: "optimism",
+};
+
+function coingeckoId(ticker: string): string {
+  const t = ticker.toUpperCase().replace(/-?USD[T]?$/, "");
+  return COINGECKO_IDS[t] ?? t.toLowerCase();
+}
+
+/** Crypto is live without a key, but allow disabling via env if ever needed. */
+export function isCryptoLiveConfigured(): boolean {
+  return process.env.CRYPTO_DATA_DISABLED !== "1";
+}
+
+const CRYPTO_CACHE = new Map<string, LiveQuote>();
+let cryptoStamp = 0;
+
+/**
+ * Fetch live crypto quotes from CoinGecko. Returns a map keyed by the ORIGINAL
+ * ticker (e.g. "BTC"). Returns {} on any error so callers fall back to the
+ * deterministic engine.
+ */
+export async function fetchCryptoQuotes(tickers: string[]): Promise<Record<string, LiveQuote>> {
+  if (!tickers.length || !isCryptoLiveConfigured()) return {};
+  const unique = Array.from(new Set(tickers.map((t) => t.toUpperCase())));
+
+  // Serve from cache when fresh.
+  if (CRYPTO_CACHE.size && Date.now() - cryptoStamp <= TTL_MS && unique.every((t) => CRYPTO_CACHE.get(t))) {
+    return Object.fromEntries(unique.map((t) => [t, CRYPTO_CACHE.get(t)!]));
+  }
+
+  // idMap: coingecko id -> internal ticker
+  const idMap = new Map<string, string>();
+  unique.forEach((t) => idMap.set(coingeckoId(t), t));
+  const ids = Array.from(idMap.keys()).join(",");
+
+  const out: Record<string, LiveQuote> = {};
+  try {
+    const url = `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(
+      ids
+    )}&vs_currencies=usd&include_24hr_change=true`;
+    const headers: Record<string, string> = { Accept: "application/json" };
+    if (process.env.COINGECKO_API_KEY) headers["x-cg-demo-api-key"] = process.env.COINGECKO_API_KEY;
+
+    const res = await fetch(url, { headers });
+    if (!res.ok) {
+      console.error(`[market-data] CoinGecko HTTP ${res.status} for [${ids}]`);
+      return {};
+    }
+    const json = (await res.json()) as Record<string, { usd?: number; usd_24h_change?: number }>;
+    for (const [id, q] of Object.entries(json)) {
+      const internal = idMap.get(id);
+      if (!internal || !q) continue;
+      const price = Number(q.usd);
+      const changePct = Number(q.usd_24h_change ?? 0);
+      if (isFinite(price) && price > 0) {
+        out[internal] = { price, changePct: isFinite(changePct) ? changePct : 0 };
+      }
+    }
+    if (Object.keys(out).length) {
+      Object.entries(out).forEach(([t, v]) => CRYPTO_CACHE.set(t, v));
+      cryptoStamp = Date.now();
+    }
+    console.log(`[market-data] CoinGecko quotes fetched: ${Object.keys(out).length}/${unique.length} coins`);
+  } catch (err) {
+    console.error("[market-data] fetchCryptoQuotes failed (falling back to deterministic engine):", err);
+    return {};
+  }
+  return out;
+}
+
+/**
+ * Unified live-quote fetch by asset class. Stocks use Twelve Data (needs a key);
+ * crypto uses CoinGecko (no key). Both fall back gracefully to `{}`.
+ */
+export async function fetchQuotesForAssetClass(
+  tickers: string[],
+  assetClass: "stock" | "crypto"
+): Promise<Record<string, LiveQuote>> {
+  if (assetClass === "crypto") return fetchCryptoQuotes(tickers);
+  return isLiveDataConfigured() ? fetchLiveQuotes(tickers) : {};
+}
+
+/** Live availability for an asset class (drives the Live/Simulated badge). */
+export function isLiveConfiguredFor(assetClass: "stock" | "crypto"): boolean {
+  return assetClass === "crypto" ? isCryptoLiveConfigured() : isLiveDataConfigured();
+}

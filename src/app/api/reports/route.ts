@@ -8,7 +8,7 @@ import { renderReportHtml, type ReportAlert } from "@/lib/report-html";
 import { createGrokChatCompletion, isGrokConfigured } from "@/lib/grok";
 import { analyzeSecurity, type SecurityIntel } from "@/lib/market-intel";
 import { computePortfolioMetrics, buildActionableIntelligence } from "@/lib/analytics";
-import { fetchLiveQuotes, isLiveDataConfigured } from "@/lib/market-data";
+import { fetchQuotesForAssetClass, isLiveConfiguredFor } from "@/lib/market-data";
 import type { Stock } from "@/lib/portfolio";
 
 const schema = z.object({ bot: z.enum(["stock", "crypto"]) });
@@ -65,9 +65,10 @@ export async function POST(req: Request) {
     const limit = user.ticker_limit && user.ticker_limit > 0 ? user.ticker_limit : rows.length;
     const scoped = rows.slice(0, limit);
 
-    // Live quotes when a market-data key is configured; falls back to simulation.
-    const live = isLiveDataConfigured()
-      ? await fetchLiveQuotes(scoped.map((r) => String(r.ticker)))
+    // Live quotes for this asset class — stocks via Twelve Data (needs a key),
+    // crypto via CoinGecko (no key). Falls back to simulation on any miss.
+    const live = isLiveConfiguredFor(bot)
+      ? await fetchQuotesForAssetClass(scoped.map((r) => String(r.ticker)), bot)
       : {};
     const usedLive = Object.keys(live).length > 0;
 

@@ -12,7 +12,8 @@
  * seeded RNG keeps output stable across renders so charts never jump.
  */
 
-export type MarketCode = "NZX" | "ASX" | "US";
+export type MarketCode = "NZX" | "ASX" | "US" | "CRYPTO";
+export type AssetClass = "stock" | "crypto";
 
 export interface UniverseEntry {
   ticker: string;
@@ -20,6 +21,11 @@ export interface UniverseEntry {
   sector: string;
   market: MarketCode;
   basePrice: number;
+}
+
+/** Which asset class a market code belongs to. */
+export function assetClassForMarket(market: MarketCode): AssetClass {
+  return market === "CRYPTO" ? "crypto" : "stock";
 }
 
 export interface SeriesPoint {
@@ -33,6 +39,7 @@ export interface SecurityIntel {
   name: string;
   sector: string;
   market: MarketCode;
+  assetClass: AssetClass;
   currency: "NZD" | "AUD" | "USD";
   price: number;
   change1d: number; // %
@@ -50,6 +57,8 @@ export interface SecurityIntel {
   bbPosition: number; // 0-100 position within the Bollinger band
   sma20: number;
   vsSma20: number; // % price is above/below its 20-day SMA
+  sma50: number;
+  vsSma50: number; // % price is above/below its 50-day SMA
   signal: "Strong Buy" | "Buy" | "Hold" | "Reduce" | "Sell";
   score: number; // 0-100 conviction score
   reasoning: string;
@@ -99,7 +108,37 @@ export const MARKET_UNIVERSE: UniverseEntry[] = [
   { ticker: "PLTR", name: "Palantir Technologies", sector: "Technology", market: "US", basePrice: 66.5 },
 ];
 
-const UNIVERSE_MAP: Record<string, UniverseEntry> = MARKET_UNIVERSE.reduce(
+/* --------------------------- Crypto universe ---------------------------- */
+
+// Digital-asset universe (all quoted in USD). Same technical engine as equities,
+// with a higher volatility profile reflecting 24/7 crypto markets.
+export const CRYPTO_UNIVERSE: UniverseEntry[] = [
+  { ticker: "BTC", name: "Bitcoin", sector: "Store of Value", market: "CRYPTO", basePrice: 96850 },
+  { ticker: "ETH", name: "Ethereum", sector: "Smart Contract", market: "CRYPTO", basePrice: 3420 },
+  { ticker: "SOL", name: "Solana", sector: "Smart Contract", market: "CRYPTO", basePrice: 198.4 },
+  { ticker: "BNB", name: "BNB", sector: "Exchange", market: "CRYPTO", basePrice: 712 },
+  { ticker: "XRP", name: "XRP", sector: "Payments", market: "CRYPTO", basePrice: 2.31 },
+  { ticker: "ADA", name: "Cardano", sector: "Smart Contract", market: "CRYPTO", basePrice: 0.98 },
+  { ticker: "AVAX", name: "Avalanche", sector: "Smart Contract", market: "CRYPTO", basePrice: 41.2 },
+  { ticker: "DOGE", name: "Dogecoin", sector: "Meme", market: "CRYPTO", basePrice: 0.38 },
+  { ticker: "LINK", name: "Chainlink", sector: "Oracle", market: "CRYPTO", basePrice: 24.7 },
+  { ticker: "DOT", name: "Polkadot", sector: "Interoperability", market: "CRYPTO", basePrice: 8.15 },
+  { ticker: "MATIC", name: "Polygon", sector: "Layer 2", market: "CRYPTO", basePrice: 0.62 },
+  { ticker: "LTC", name: "Litecoin", sector: "Payments", market: "CRYPTO", basePrice: 108.5 },
+  { ticker: "UNI", name: "Uniswap", sector: "DeFi", market: "CRYPTO", basePrice: 13.4 },
+  { ticker: "ATOM", name: "Cosmos", sector: "Interoperability", market: "CRYPTO", basePrice: 7.9 },
+  { ticker: "NEAR", name: "NEAR Protocol", sector: "Smart Contract", market: "CRYPTO", basePrice: 5.6 },
+  { ticker: "APT", name: "Aptos", sector: "Smart Contract", market: "CRYPTO", basePrice: 9.8 },
+  { ticker: "ARB", name: "Arbitrum", sector: "Layer 2", market: "CRYPTO", basePrice: 0.84 },
+  { ticker: "OP", name: "Optimism", sector: "Layer 2", market: "CRYPTO", basePrice: 1.72 },
+];
+
+/** The universe for a given asset class. */
+export function universeFor(assetClass: AssetClass): UniverseEntry[] {
+  return assetClass === "crypto" ? CRYPTO_UNIVERSE : MARKET_UNIVERSE;
+}
+
+const UNIVERSE_MAP: Record<string, UniverseEntry> = [...MARKET_UNIVERSE, ...CRYPTO_UNIVERSE].reduce(
   (acc, e) => {
     acc[e.ticker] = e;
     return acc;
@@ -148,10 +187,10 @@ function round(v: number, dp = 2): number {
  * Deterministic daily close series of `days` sessions, ending exactly at
  * `basePrice`. Uses a mild drift + volatility random walk seeded per ticker.
  */
-function dailySeries(ticker: string, basePrice: number, days = 140): number[] {
+function dailySeries(ticker: string, basePrice: number, days = 140, volScale = 1): number[] {
   const rnd = mulberry32(hashSeed(MARKET_EPOCH + "|" + ticker));
-  const drift = (rnd() - 0.45) * 0.6; // total trend over the window
-  const vol = 0.012 + rnd() * 0.02; // daily volatility 1.2%–3.2%
+  const drift = (rnd() - 0.45) * 0.6 * volScale; // total trend over the window
+  const vol = (0.012 + rnd() * 0.02) * volScale; // daily volatility (scaled for crypto)
   const start = basePrice / (1 + drift);
   const out: number[] = [];
   let price = start;
@@ -238,38 +277,55 @@ function clamp(v: number, lo: number, hi: number): number {
 /* ------------------------------ Projection ------------------------------ */
 
 /**
- * 7-day forward projection: linear regression on the last 20 sessions blended
- * with an RSI-driven mean-reversion nudge. Returns the projected path and a
- * confidence score derived from how cleanly the recent trend fits a line.
+ * 7-day forward projection via **Ridge regression** (L2-regularized least
+ * squares) on the last 30 sessions, blended with an RSI-driven mean-reversion
+ * nudge. The time feature is standardised so the ridge penalty `lambda` is
+ * scale-free; the penalty shrinks the trend toward flat when the recent tape is
+ * noisy, which is materially more robust than plain OLS on volatile (esp.
+ * crypto) series. Confidence is derived from the ridge fit's R².
+ *
+ * Closed form (centred/standardised x, so intercept = mean(y)):
+ *   b_z = Σ(z·y') / (Σ(z²) + lambda)      where z = (x − x̄)/σ_x, y' = y − ȳ
  */
-function projectForward(series: number[], rsi: number): { path: number[]; pct: number; confidence: number } {
-  const window = series.slice(-20);
+function projectForward(
+  series: number[],
+  rsi: number,
+  opts: { lambda?: number; volScale?: number } = {}
+): { path: number[]; pct: number; confidence: number } {
+  const lambda = opts.lambda ?? 2.5; // ridge penalty (on standardised time units)
+  const volScale = opts.volScale ?? 1;
+  const window = series.slice(-30);
   const n = window.length;
-  const xs = window.map((_, i) => i);
-  const meanX = average(xs);
+  const meanX = (n - 1) / 2;
   const meanY = average(window);
-  let num = 0;
-  let den = 0;
-  xs.forEach((x, i) => {
-    num += (x - meanX) * (window[i] - meanY);
-    den += (x - meanX) ** 2;
-  });
-  const slope = den === 0 ? 0 : num / den;
 
-  // R² as a confidence proxy for the linear fit.
+  // Standardise the time axis so the penalty is independent of window length.
+  const sigmaX = Math.sqrt(window.reduce((s, _, i) => s + (i - meanX) ** 2, 0) / n) || 1;
+
+  let sZY = 0;
+  let sZZ = 0;
+  window.forEach((y, i) => {
+    const z = (i - meanX) / sigmaX;
+    sZY += z * (y - meanY);
+    sZZ += z * z;
+  });
+  const slopeZ = sZZ + lambda === 0 ? 0 : sZY / (sZZ + lambda); // price per 1σ of time
+  const dailySlope = slopeZ / sigmaX; // price move per session
+
+  // R² of the ridge fit as a confidence proxy.
   let ssRes = 0;
   let ssTot = 0;
-  xs.forEach((x, i) => {
-    const pred = meanY + slope * (x - meanX);
-    ssRes += (window[i] - pred) ** 2;
-    ssTot += (window[i] - meanY) ** 2;
+  window.forEach((y, i) => {
+    const pred = meanY + slopeZ * ((i - meanX) / sigmaX);
+    ssRes += (y - pred) ** 2;
+    ssTot += (y - meanY) ** 2;
   });
-  const r2 = ssTot === 0 ? 0 : 1 - ssRes / ssTot;
+  const r2 = ssTot === 0 ? 0 : clamp(1 - ssRes / ssTot, 0, 1);
 
   // Mean-reversion: overbought (RSI>70) drags the slope down, oversold lifts it.
   const reversion = (50 - rsi) / 50; // +ve when oversold
   const last = series[series.length - 1];
-  const adjSlope = slope * 0.8 + last * 0.004 * reversion;
+  const adjSlope = dailySlope * 0.8 + last * 0.004 * reversion;
 
   const path: number[] = [];
   let p = last;
@@ -278,7 +334,9 @@ function projectForward(series: number[], rsi: number): { path: number[]; pct: n
     path.push(round(p, last < 5 ? 4 : 2));
   }
   const pct = round(((path[path.length - 1] - last) / last) * 100, 2);
-  const confidence = Math.round(clamp(45 + r2 * 45 + (10 - Math.abs(pct)) * 0.5, 40, 96));
+  // Crypto tolerates larger projected swings before confidence is discounted.
+  const swingBudget = 10 * volScale;
+  const confidence = Math.round(clamp(45 + r2 * 45 + (swingBudget - Math.abs(pct)) * 0.5, 40, 96));
   return { path, pct, confidence };
 }
 
@@ -357,18 +415,31 @@ function deriveSignal(input: {
 const CACHE = new Map<string, SecurityIntel>();
 
 /** Full technical intelligence for one ticker. Overridable current price. */
-export function analyzeSecurity(ticker: string, priceOverride?: number, nameOverride?: string): SecurityIntel {
-  const key = `${ticker}|${priceOverride ?? ""}`;
+export function analyzeSecurity(
+  ticker: string,
+  priceOverride?: number,
+  nameOverride?: string,
+  marketOverride?: MarketCode
+): SecurityIntel {
+  const key = `${ticker}|${priceOverride ?? ""}|${marketOverride ?? ""}`;
   const cached = CACHE.get(key);
   if (cached) return cached;
 
   const entry = UNIVERSE_MAP[ticker];
   const base = priceOverride ?? entry?.basePrice ?? 100;
-  const market: MarketCode = entry?.market ?? (ticker.endsWith(".NZ") ? "NZX" : ticker.endsWith(".AX") ? "ASX" : "US");
+  const market: MarketCode =
+    entry?.market ??
+    marketOverride ??
+    (ticker.endsWith(".NZ") ? "NZX" : ticker.endsWith(".AX") ? "ASX" : "US");
+  const assetClass = assetClassForMarket(market);
   const name = nameOverride ?? entry?.name ?? ticker;
-  const sector = entry?.sector ?? "General";
+  const sector = entry?.sector ?? (assetClass === "crypto" ? "Digital Assets" : "General");
 
-  const series = dailySeries(ticker, base);
+  // Crypto swings ~2.2x harder than equities — feed that into the synthetic
+  // series and the ridge projection so signals reflect 24/7 volatility.
+  const volScale = assetClass === "crypto" ? 2.2 : 1;
+
+  const series = dailySeries(ticker, base, 140, volScale);
   const last = series[series.length - 1];
   const prev = series[series.length - 2] ?? last;
   const wk = series[series.length - 8] ?? last;
@@ -379,7 +450,9 @@ export function analyzeSecurity(ticker: string, priceOverride?: number, nameOver
   const boll = computeBollinger(series);
   const sma20 = sma(series, 20);
   const vsSma20 = round(((last - sma20) / sma20) * 100, 2);
-  const projection = projectForward(series, rsi);
+  const sma50 = sma(series, 50);
+  const vsSma50 = round(((last - sma50) / sma50) * 100, 2);
+  const projection = projectForward(series, rsi, { volScale });
 
   const macdSignal: SecurityIntel["macdSignal"] =
     macd.histogram > 0.001 ? "Bullish" : macd.histogram < -0.001 ? "Bearish" : "Neutral";
@@ -408,6 +481,7 @@ export function analyzeSecurity(ticker: string, priceOverride?: number, nameOver
     name,
     sector,
     market,
+    assetClass,
     currency: currencyForMarket(market),
     price: round(last, dp),
     change1d: round(((last - prev) / prev) * 100, 2),
@@ -425,6 +499,8 @@ export function analyzeSecurity(ticker: string, priceOverride?: number, nameOver
     bbPosition: boll.position,
     sma20: round(sma20, dp),
     vsSma20,
+    sma50: round(sma50, dp),
+    vsSma50,
     signal,
     score,
     reasoning,
@@ -435,29 +511,45 @@ export function analyzeSecurity(ticker: string, priceOverride?: number, nameOver
 
 /* ------------------------------ Aggregations ---------------------------- */
 
-let ALL_INTEL: SecurityIntel[] | null = null;
-function allIntel(): SecurityIntel[] {
-  if (!ALL_INTEL) ALL_INTEL = MARKET_UNIVERSE.map((e) => analyzeSecurity(e.ticker));
-  return ALL_INTEL;
+const ALL_INTEL: Partial<Record<AssetClass, SecurityIntel[]>> = {};
+function allIntel(assetClass: AssetClass = "stock"): SecurityIntel[] {
+  if (!ALL_INTEL[assetClass]) {
+    ALL_INTEL[assetClass] = universeFor(assetClass).map((e) => analyzeSecurity(e.ticker));
+  }
+  return ALL_INTEL[assetClass]!;
 }
 
 /**
- * Analyse the whole universe, optionally anchoring each security to a live price
- * (from the market-data provider). With no overrides this returns the cached
- * deterministic set. Keyed by the internal ticker (e.g. "BHP.AX").
+ * Analyse a whole universe, optionally anchoring each security to a live price
+ * (from the market-data / CoinGecko provider). With no overrides this returns
+ * the cached deterministic set. Keyed by the internal ticker (e.g. "BHP.AX").
  */
-export function analyzeUniverse(priceOverrides?: Record<string, number>): SecurityIntel[] {
-  if (!priceOverrides || !Object.keys(priceOverrides).length) return allIntel();
-  return MARKET_UNIVERSE.map((e) => {
+export function analyzeUniverse(
+  priceOverrides?: Record<string, number>,
+  assetClass: AssetClass = "stock"
+): SecurityIntel[] {
+  if (!priceOverrides || !Object.keys(priceOverrides).length) return allIntel(assetClass);
+  return universeFor(assetClass).map((e) => {
     const live = priceOverrides[e.ticker] ?? priceOverrides[e.ticker.toUpperCase()];
     return analyzeSecurity(e.ticker, live && live > 0 ? live : undefined);
   });
 }
 
+/** The market columns present for an asset class (NZX/ASX/US, or CRYPTO). */
+export function marketsForAssetClass(assetClass: AssetClass): MarketCode[] {
+  return assetClass === "crypto" ? ["CRYPTO"] : ["NZX", "ASX", "US"];
+}
+
 /** Snapshot grouped by market, each sorted by 1-day change (desc). */
-export function getMarketSnapshot(list: SecurityIntel[] = allIntel()): Record<MarketCode, SecurityIntel[]> {
-  const group = (m: MarketCode) => list.filter((s) => s.market === m).sort((a, b) => b.change1d - a.change1d);
-  return { NZX: group("NZX"), ASX: group("ASX"), US: group("US") };
+export function getMarketSnapshot(
+  list: SecurityIntel[] = allIntel()
+): Partial<Record<MarketCode, SecurityIntel[]>> {
+  const markets = Array.from(new Set(list.map((s) => s.market)));
+  const out: Partial<Record<MarketCode, SecurityIntel[]>> = {};
+  for (const m of markets) {
+    out[m] = list.filter((s) => s.market === m).sort((a, b) => b.change1d - a.change1d);
+  }
+  return out;
 }
 
 export type MoverWindow = "1d" | "7d" | "30d";
@@ -508,8 +600,24 @@ const NEWS_POOL: NewsItem[] = [
   { headline: "Auckland Airport passenger volumes recover to 92% of pre-2020 levels", source: "NZ Herald", market: "NZX", impact: "Bullish", relevance: 66, time: "11h ago" },
 ];
 
-export function getMarketNews(): NewsItem[] {
-  return [...NEWS_POOL].sort((a, b) => b.relevance - a.relevance);
+const CRYPTO_NEWS_POOL: NewsItem[] = [
+  { headline: "Spot Bitcoin ETFs log record weekly net inflows as institutional demand accelerates", source: "CoinDesk", market: "CRYPTO", impact: "Bullish", relevance: 95, time: "1h ago" },
+  { headline: "Ethereum staking yield firms above 4% as validator queue clears post-upgrade", source: "The Block", market: "CRYPTO", impact: "Bullish", relevance: 88, time: "2h ago" },
+  { headline: "Solana network hits new daily transaction high; DeFi TVL rotates higher", source: "Blockworks", market: "CRYPTO", impact: "Bullish", relevance: 84, time: "3h ago" },
+  { headline: "Bitcoin funding rates cool from overheated levels, easing squeeze risk", source: "Glassnode", market: "CRYPTO", impact: "Neutral", relevance: 80, time: "4h ago" },
+  { headline: "US regulator signals clearer digital-asset custody framework for banks", source: "Reuters", market: "CRYPTO", impact: "Bullish", relevance: 82, time: "5h ago" },
+  { headline: "Stablecoin market cap expands as on-chain settlement volumes climb", source: "Kaiko", market: "CRYPTO", impact: "Bullish", relevance: 74, time: "6h ago" },
+  { headline: "Layer-2 activity surges; Arbitrum and Optimism fees drop on throughput gains", source: "L2Beat", market: "CRYPTO", impact: "Bullish", relevance: 70, time: "7h ago" },
+  { headline: "Long-dormant BTC supply stays put — long-term holder conviction intact", source: "CryptoQuant", market: "CRYPTO", impact: "Bullish", relevance: 72, time: "8h ago" },
+  { headline: "Macro: softer US dollar and cooling yields lift risk appetite across digital assets", source: "Bloomberg", market: "Global", impact: "Bullish", relevance: 78, time: "2h ago" },
+  { headline: "Options desks note elevated BTC implied volatility into month-end expiry", source: "Deribit Insights", market: "CRYPTO", impact: "Neutral", relevance: 64, time: "9h ago" },
+  { headline: "Memecoin froth cools as capital rotates toward large-cap majors", source: "Messari", market: "CRYPTO", impact: "Bearish", relevance: 58, time: "10h ago" },
+  { headline: "Corporate treasuries add BTC to balance sheets, citing diversification", source: "CoinTelegraph", market: "CRYPTO", impact: "Bullish", relevance: 68, time: "11h ago" },
+];
+
+export function getMarketNews(assetClass: AssetClass = "stock"): NewsItem[] {
+  const pool = assetClass === "crypto" ? CRYPTO_NEWS_POOL : NEWS_POOL;
+  return [...pool].sort((a, b) => b.relevance - a.relevance);
 }
 
 /** Format a price with its market currency (compact, NZ locale). */

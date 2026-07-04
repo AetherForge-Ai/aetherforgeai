@@ -14,10 +14,14 @@ import { ArrowUpDown, Globe } from "lucide-react";
 
 type SortKey = "change1d" | "price" | "ticker";
 
-const COLUMNS: { code: MarketCode; label: string; sub: string }[] = [
+const STOCK_COLUMNS: { code: MarketCode; label: string; sub: string }[] = [
   { code: "NZX", label: "NZX", sub: "New Zealand" },
   { code: "ASX", label: "ASX", sub: "Australia" },
   { code: "US", label: "US", sub: "United States" },
+];
+
+const CRYPTO_COLUMNS: { code: MarketCode; label: string; sub: string }[] = [
+  { code: "CRYPTO", label: "Crypto", sub: "Digital assets · 24/7" },
 ];
 
 function MarketColumn({ code, label, sub, rows }: { code: MarketCode; label: string; sub: string; rows: SecurityIntel[] }) {
@@ -86,8 +90,9 @@ function MarketColumn({ code, label, sub, rows }: { code: MarketCode; label: str
 }
 
 export function MarketSnapshot() {
-  const { universe, live } = useMarketIntel();
+  const { universe, live, bot } = useMarketIntel();
   const snapshot = useMemo(() => getMarketSnapshot(universe ?? undefined), [universe]);
+  const columns = bot === "crypto" ? CRYPTO_COLUMNS : STOCK_COLUMNS;
   return (
     <section>
       <div className="mb-4 flex items-center gap-3">
@@ -106,12 +111,16 @@ export function MarketSnapshot() {
               {live ? "● Live" : "Simulated"}
             </span>
           </div>
-          <p className="text-xs text-muted-foreground">Cross-market intelligence · NZX · ASX · US</p>
+          <p className="text-xs text-muted-foreground">
+            {bot === "crypto"
+              ? "Real-time digital-asset intelligence · CoinGecko"
+              : "Cross-market intelligence · NZX · ASX · US"}
+          </p>
         </div>
       </div>
-      <div className="grid gap-4 lg:grid-cols-3">
-        {COLUMNS.map((c) => (
-          <MarketColumn key={c.code} code={c.code} label={c.label} sub={c.sub} rows={snapshot[c.code]} />
+      <div className={cn("grid gap-4", bot === "crypto" ? "lg:grid-cols-1" : "lg:grid-cols-3")}>
+        {columns.map((c) => (
+          <MarketColumn key={c.code} code={c.code} label={c.label} sub={c.sub} rows={snapshot[c.code] ?? []} />
         ))}
       </div>
     </section>

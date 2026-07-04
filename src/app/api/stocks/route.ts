@@ -4,7 +4,7 @@ import { getCurrentUser } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
 import { lookupTicker, normalizeTicker, referencePrice } from "@/lib/market";
 import { seedStarterPortfolioIfNeeded } from "@/lib/seed";
-import { fetchLivePrice, isLiveDataConfigured } from "@/lib/market-data";
+import { fetchLivePrice, isLiveDataConfigured, fetchCryptoQuotes } from "@/lib/market-data";
 
 const createSchema = z.object({
   ticker: z.string().min(1, "Ticker is required").max(12),
@@ -15,8 +15,8 @@ const createSchema = z.object({
   sector: z.string().optional(),
 });
 
-// GET /api/stocks — list the current user's holdings
-export async function GET() {
+// GET /api/stocks?asset_type=stock|crypto — list the current user's holdings
+export async function GET(req: Request) {
   try {
     const user = await getCurrentUser();
     if (!user) {
@@ -27,17 +27,25 @@ export async function GET() {
     // isn't empty. Guarded by the user's `onboarded` flag.
     const seeded = await seedStarterPortfolioIfNeeded(user._id);
 
+    const assetType = new URL(req.url).searchParams.get("asset_type");
+
     const result = await totalumSdk.crud.query("stock", {
       _filter: { user: user._id },
       _sort: { createdAt: "desc" },
       _limit: 500,
     });
 
-    const stocks = (result?.data as any[]) || [];
+    let stocks = (result?.data as any[]) || [];
+    // Legacy rows without asset_type are treated as stock.
+    if (assetType === "stock" || assetType === "crypto") {
+      stocks = stocks.filter((s) => (s.asset_type || "stock") === assetType);
+    }
     if (seeded) {
       console.log(`[api/stocks] Seeded starter portfolio; now ${stocks.length} holdings`);
     }
-    console.log(`[api/stocks] GET returned ${stocks.length} holdings for user ${user._id}`);
+    console.log(
+      `[api/stocks] GET returned ${stocks.length} holdings for user ${user._id} (filter: ${assetType || "all"})`
+    );
 
     return NextResponse.json({ ok: true, data: stocks });
   } catch (err: any) {
@@ -61,19 +69,25 @@ export async function POST(req: Request) {
     }
 
     const ticker = normalizeTicker(parsed.data.ticker);
+    const assetType = parsed.data.asset_type || "stock";
     const info = lookupTicker(ticker);
     const purchase_price = parsed.data.purchase_price;
 
-    // Prefer a live quote when a market-data key is configured; else use the
-    // curated reference price. Never fatal — falls back on any error.
+    // Prefer a live quote when available; else use the curated reference price.
+    // Crypto uses CoinGecko (no key); stocks use Twelve Data (needs a key).
+    // Never fatal — falls back on any error.
     let current_price = referencePrice(ticker, purchase_price);
-    if (isLiveDataConfigured()) {
-      try {
+    try {
+      if (assetType === "crypto") {
+        const quotes = await fetchCryptoQuotes([ticker]);
+        const live = quotes[ticker.toUpperCase()]?.price;
+        if (live && live > 0) current_price = live;
+      } else if (isLiveDataConfigured()) {
         const livePrice = await fetchLivePrice(ticker);
         if (livePrice && livePrice > 0) current_price = livePrice;
-      } catch (err) {
-        console.error(`[api/stocks] Live price lookup failed for ${ticker} (non-fatal):`, err);
       }
+    } catch (err) {
+      console.error(`[api/stocks] Live price lookup failed for ${ticker} (non-fatal):`, err);
     }
 
     const record = {

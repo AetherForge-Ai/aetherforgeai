@@ -88,6 +88,7 @@ function ProjectionChart({ sel }: { sel: SecurityIntel }) {
             ]}
           />
           <ReferenceLine y={sel.sma20} stroke="var(--gold)" strokeDasharray="4 4" strokeOpacity={0.5} />
+          <ReferenceLine y={sel.sma50} stroke="oklch(0.7 0.14 250)" strokeDasharray="2 4" strokeOpacity={0.55} />
           <Line type="monotone" dataKey="actual" stroke="var(--primary)" strokeWidth={2.2} dot={false} connectNulls />
           <Line
             type="monotone"
@@ -179,6 +180,7 @@ export function ProjectionsPanel() {
               <span className="flex items-center gap-1.5"><span className="h-0.5 w-4 bg-primary" /> Price (30d)</span>
               <span className="flex items-center gap-1.5"><span className="h-0.5 w-4 border-t-2 border-dashed" style={{ borderColor: "var(--chart-4)" }} /> Projection (7d)</span>
               <span className="flex items-center gap-1.5"><span className="h-0.5 w-4 border-t-2 border-dashed" style={{ borderColor: "var(--gold)" }} /> SMA20</span>
+              <span className="flex items-center gap-1.5"><span className="h-0.5 w-4 border-t-2 border-dashed" style={{ borderColor: "oklch(0.7 0.14 250)" }} /> SMA50</span>
             </div>
           </div>
 

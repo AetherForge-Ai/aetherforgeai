@@ -13,9 +13,16 @@
 import type { Stock } from "@/lib/portfolio";
 import {
   analyzeSecurity,
-  MARKET_UNIVERSE,
+  universeFor,
+  type AssetClass,
+  type MarketCode,
   type SecurityIntel,
 } from "@/lib/market-intel";
+
+/** Market override for a holding — crypto anchors to the CRYPTO engine. */
+function marketOverrideFor(s: Stock): MarketCode | undefined {
+  return s.asset_type === "crypto" ? "CRYPTO" : undefined;
+}
 
 const RISK_FREE_ANNUAL = 0.045; // ~NZ/US short-rate blend
 const TRADING_DAYS = 252;
@@ -114,7 +121,12 @@ export function enrichHoldings(stocks: Stock[]): HoldingIntel[] {
   const totalValue = withValue.reduce((sum, w) => sum + w.marketValue, 0);
 
   return withValue.map(({ s, marketValue }) => {
-    const intel = analyzeSecurity(s.ticker, Number(s.current_price) || undefined, s.company_name);
+    const intel = analyzeSecurity(
+      s.ticker,
+      Number(s.current_price) || undefined,
+      s.company_name,
+      marketOverrideFor(s)
+    );
     const shares = Number(s.shares) || 0;
     const cost = shares * (Number(s.purchase_price) || 0);
     const gain = marketValue - cost;
@@ -208,7 +220,10 @@ function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
 }
 
-export function buildActionableIntelligence(stocks: Stock[]): ActionableIntelligence {
+export function buildActionableIntelligence(
+  stocks: Stock[],
+  assetClass: AssetClass = "stock"
+): ActionableIntelligence {
   const holdings = enrichHoldings(stocks);
   const heldTickers = new Set(holdings.map((h) => h.stock.ticker.toUpperCase()));
 
@@ -227,9 +242,11 @@ export function buildActionableIntelligence(stocks: Stock[]): ActionableIntellig
       urgency: h.intel.signal === "Sell" || h.weight >= 15 ? "high" : "medium",
     }));
 
-  // BUY candidates — high-conviction names NOT already held.
-  const buyCandidates: BuyCandidate[] = MARKET_UNIVERSE.filter((e) => !heldTickers.has(e.ticker.toUpperCase()))
-    .map((e) => analyzeSecurity(e.ticker))
+  // BUY candidates — high-conviction names NOT already held, drawn from the
+  // universe matching the active bot (equities or crypto).
+  const buyCandidates: BuyCandidate[] = universeFor(assetClass)
+    .filter((e) => !heldTickers.has(e.ticker.toUpperCase()))
+    .map((e) => analyzeSecurity(e.ticker, undefined, undefined, e.market))
     .filter((i) => i.signal === "Strong Buy" || i.signal === "Buy")
     .sort((a, b) => b.score * (b.confidence / 100) - a.score * (a.confidence / 100))
     .slice(0, 5)

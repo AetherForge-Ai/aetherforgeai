@@ -22,6 +22,9 @@ import { ProjectionsPanel } from "@/components/dashboard/ProjectionsPanel";
 import { ActionableIntelligence } from "@/components/dashboard/ActionableIntelligence";
 import { NewsFeed } from "@/components/dashboard/NewsFeed";
 import { MarketIntelProvider } from "@/components/dashboard/MarketIntelContext";
+import { WatchlistPanel } from "@/components/dashboard/WatchlistPanel";
+import { GlobalSearch } from "@/components/dashboard/GlobalSearch";
+import type { AssetClass, UniverseEntry } from "@/lib/market-intel";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -53,7 +56,11 @@ import {
   HeartPulse,
   Activity,
   Gauge,
+  LineChart,
+  Bitcoin,
+  Lock,
 } from "lucide-react";
+import Link from "next/link";
 
 export interface DashboardSubscription {
   status?: string | null;
@@ -167,6 +174,11 @@ export function PortfolioDashboard({
   userName: string;
   subscription: DashboardSubscription;
 }) {
+  // Active bot (Stock or Crypto). Defaults to the only bot the plan unlocks.
+  const defaultBot: AssetClass = subscription.botAccess === "crypto" ? "crypto" : "stock";
+  const [bot, setBot] = useState<AssetClass>(defaultBot);
+  const [watchlistSignal, setWatchlistSignal] = useState(0);
+
   const [stocks, setStocks] = useState<Stock[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -175,8 +187,14 @@ export function PortfolioDashboard({
   const [deleteTarget, setDeleteTarget] = useState<Stock | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  const canUseBot = useCallback(
+    (b: AssetClass) => subscription.botAccess === "both" || subscription.botAccess === b,
+    [subscription.botAccess]
+  );
+
   const loadStocks = useCallback(async () => {
-    const res = await api.get<Stock[]>("/api/stocks");
+    setLoading(true);
+    const res = await api.get<Stock[]>(`/api/stocks?asset_type=${bot}`);
     if (res.ok && res.data) {
       setStocks(res.data);
     } else {
@@ -184,11 +202,33 @@ export function PortfolioDashboard({
       toast.error("Could not load your portfolio.");
     }
     setLoading(false);
-  }, []);
+  }, [bot]);
 
   useEffect(() => {
     loadStocks();
   }, [loadStocks]);
+
+  // Global-search pick: switch to the matching bot and track the symbol.
+  async function handleSearchPick(assetClass: AssetClass, entry: UniverseEntry) {
+    if (!canUseBot(assetClass)) {
+      toast.error(`Your plan does not include the ${assetClass} bot. Upgrade to unlock it.`);
+      return;
+    }
+    if (assetClass !== bot) setBot(assetClass);
+    const res = await api.post("/api/watchlist", {
+      ticker: entry.ticker,
+      asset_type: assetClass,
+      name: entry.name,
+      market: entry.market,
+    });
+    if (res.ok) {
+      toast.success(`${entry.ticker.replace(/\.(NZ|AX)$/, "")} added to your watchlist`);
+      setWatchlistSignal((n) => n + 1);
+    } else {
+      console.error("[dashboard] Watchlist add failed:", res.error);
+      toast.error("Could not add to watchlist.");
+    }
+  }
 
   const summary = useMemo(() => computeSummary(stocks), [stocks]);
   const metrics = useMemo(() => computePortfolioMetrics(stocks), [stocks]);
@@ -198,7 +238,8 @@ export function PortfolioDashboard({
     console.log("[dashboard] Refreshing market prices…");
     const res = await api.post<Stock[]>("/api/stocks/refresh", {});
     if (res.ok && res.data) {
-      setStocks(res.data);
+      // The refresh endpoint returns all holdings; keep only the active bot's.
+      setStocks(res.data.filter((s) => (s.asset_type || "stock") === bot));
       toast.success("Prices updated");
     } else {
       console.error("[dashboard] Refresh failed:", res.error);
@@ -236,16 +277,24 @@ export function PortfolioDashboard({
   const gainTone = summary.totalGain >= 0 ? "up" : "down";
   const isYearly = subscription.plan === "yearly" || subscription.plan === "dual_yearly";
 
+  const BOTS: { key: AssetClass; label: string; icon: React.ElementType }[] = [
+    { key: "stock", label: "Stock Bot", icon: LineChart },
+    { key: "crypto", label: "Crypto Bot", icon: Bitcoin },
+  ];
+
   return (
-    <MarketIntelProvider>
+    <MarketIntelProvider bot={bot}>
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
       {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-sm text-muted-foreground">Welcome back, {userName.split(" ")[0]}</p>
-          <h1 className="mt-1 font-display text-3xl font-bold tracking-tight">Portfolio overview</h1>
+          <h1 className="mt-1 font-display text-3xl font-bold tracking-tight">
+            {bot === "crypto" ? "Crypto portfolio" : "Stock portfolio"} overview
+          </h1>
         </div>
         <div className="flex items-center gap-2">
+          <GlobalSearch onPick={handleSearchPick} />
           <Button
             variant="outline"
             onClick={handleRefreshPrices}
@@ -262,6 +311,39 @@ export function PortfolioDashboard({
             <Plus className="mr-2 size-4" /> Add holding
           </Button>
         </div>
+      </div>
+
+      {/* Bot switcher — Stock ⇄ Crypto */}
+      <div className="mt-5 inline-flex rounded-xl border border-border/70 bg-card/50 p-1">
+        {BOTS.map((b) => {
+          const active = bot === b.key;
+          const unlocked = canUseBot(b.key);
+          const Icon = b.icon;
+          if (!unlocked) {
+            return (
+              <Link
+                key={b.key}
+                href="/pricing"
+                className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-muted-foreground/70 transition-colors hover:text-foreground"
+                title={`Unlock the ${b.label} on a higher plan`}
+              >
+                <Lock className="size-4" /> {b.label}
+              </Link>
+            );
+          }
+          return (
+            <button
+              key={b.key}
+              onClick={() => setBot(b.key)}
+              className={cn(
+                "flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors",
+                active ? "bg-primary text-primary-foreground shadow-glow" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Icon className="size-4" /> {b.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* KPI cards */}
@@ -319,7 +401,7 @@ export function PortfolioDashboard({
 
       {/* Actionable intelligence — SELL/BUY signals + pathways (prominent) */}
       <div className="mt-6">
-        <ActionableIntelligence stocks={stocks} />
+        <ActionableIntelligence stocks={stocks} assetClass={bot} />
       </div>
 
       {/* Subscription summary */}
@@ -550,7 +632,12 @@ export function PortfolioDashboard({
         </div>
       </div>
 
-      {/* Market snapshot — NZX | ASX | US */}
+      {/* Watchlist — tracked symbols for the active bot */}
+      <div className="mt-6">
+        <WatchlistPanel bot={bot} reloadSignal={watchlistSignal} />
+      </div>
+
+      {/* Market snapshot — NZX | ASX | US (or Crypto) */}
       <div className="mt-8">
         <MarketSnapshot />
       </div>
@@ -580,6 +667,7 @@ export function PortfolioDashboard({
         onOpenChange={setDialogOpen}
         editing={editing}
         onSaved={loadStocks}
+        defaultAssetType={bot}
       />
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>

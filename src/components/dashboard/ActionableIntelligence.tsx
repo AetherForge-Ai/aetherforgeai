@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import type { Stock } from "@/lib/portfolio";
 import { buildActionableIntelligence } from "@/lib/analytics";
-import { formatMarketPrice } from "@/lib/market-intel";
+import { formatMarketPrice, type AssetClass } from "@/lib/market-intel";
 import { cn } from "@/lib/utils";
 import { pctClass, fmtPct, SignalBadge, MarketChip } from "@/components/dashboard/intel-ui";
 import { AlertTriangle, ArrowDownRight, ArrowUpRight, Shield, Scale, Rocket } from "lucide-react";
@@ -20,8 +20,14 @@ const PATHWAY_TONE = {
   "High Risk": "border-orange-500/30 bg-orange-500/5",
 } as const;
 
-export function ActionableIntelligence({ stocks }: { stocks: Stock[] }) {
-  const intel = useMemo(() => buildActionableIntelligence(stocks), [stocks]);
+export function ActionableIntelligence({
+  stocks,
+  assetClass = "stock",
+}: {
+  stocks: Stock[];
+  assetClass?: AssetClass;
+}) {
+  const intel = useMemo(() => buildActionableIntelligence(stocks, assetClass), [stocks, assetClass]);
   const { actionRequired, sellRecommendations, buyCandidates, pathways } = intel;
 
   return (

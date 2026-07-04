@@ -27,10 +27,11 @@ interface StockDialogProps {
   onOpenChange: (open: boolean) => void;
   editing?: Stock | null;
   onSaved: () => void;
+  defaultAssetType?: AssetType;
 }
 
-export function StockDialog({ open, onOpenChange, editing, onSaved }: StockDialogProps) {
-  const [assetType, setAssetType] = useState<AssetType>("stock");
+export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAssetType = "stock" }: StockDialogProps) {
+  const [assetType, setAssetType] = useState<AssetType>(defaultAssetType);
   const [ticker, setTicker] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [sector, setSector] = useState("");
@@ -42,7 +43,7 @@ export function StockDialog({ open, onOpenChange, editing, onSaved }: StockDialo
 
   useEffect(() => {
     if (open) {
-      setAssetType((editing?.asset_type as AssetType) ?? "stock");
+      setAssetType((editing?.asset_type as AssetType) ?? defaultAssetType);
       setTicker(editing?.ticker ?? "");
       setCompanyName(editing?.company_name ?? "");
       setSector(editing?.sector ?? "");
