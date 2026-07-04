@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
 import { lookupTicker, normalizeTicker, referencePrice } from "@/lib/market";
 import { seedStarterPortfolioIfNeeded } from "@/lib/seed";
+import { fetchLivePrice, isLiveDataConfigured } from "@/lib/market-data";
 
 const createSchema = z.object({
   ticker: z.string().min(1, "Ticker is required").max(12),
@@ -63,6 +64,18 @@ export async function POST(req: Request) {
     const info = lookupTicker(ticker);
     const purchase_price = parsed.data.purchase_price;
 
+    // Prefer a live quote when a market-data key is configured; else use the
+    // curated reference price. Never fatal — falls back on any error.
+    let current_price = referencePrice(ticker, purchase_price);
+    if (isLiveDataConfigured()) {
+      try {
+        const livePrice = await fetchLivePrice(ticker);
+        if (livePrice && livePrice > 0) current_price = livePrice;
+      } catch (err) {
+        console.error(`[api/stocks] Live price lookup failed for ${ticker} (non-fatal):`, err);
+      }
+    }
+
     const record = {
       ticker,
       asset_type: parsed.data.asset_type || "stock",
@@ -70,7 +83,7 @@ export async function POST(req: Request) {
       sector: parsed.data.sector || info?.sector || (parsed.data.asset_type === "crypto" ? "Digital Assets" : "Other"),
       shares: parsed.data.shares,
       purchase_price,
-      current_price: referencePrice(ticker, purchase_price),
+      current_price,
       user: user._id,
     };
 

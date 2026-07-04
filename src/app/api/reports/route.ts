@@ -6,6 +6,10 @@ import { referencePrice, simulateTick } from "@/lib/market";
 import { buildLiveReport, type LiveHolding, type BotKind } from "@/lib/apex";
 import { renderReportHtml, type ReportAlert } from "@/lib/report-html";
 import { createGrokChatCompletion, isGrokConfigured } from "@/lib/grok";
+import { analyzeSecurity, type SecurityIntel } from "@/lib/market-intel";
+import { computePortfolioMetrics, buildActionableIntelligence } from "@/lib/analytics";
+import { fetchLiveQuotes, isLiveDataConfigured } from "@/lib/market-data";
+import type { Stock } from "@/lib/portfolio";
 
 const schema = z.object({ bot: z.enum(["stock", "crypto"]) });
 
@@ -61,9 +65,21 @@ export async function POST(req: Request) {
     const limit = user.ticker_limit && user.ticker_limit > 0 ? user.ticker_limit : rows.length;
     const scoped = rows.slice(0, limit);
 
-    const holdings: LiveHolding[] = scoped.map((r) => {
+    // Live quotes when a market-data key is configured; falls back to simulation.
+    const live = isLiveDataConfigured()
+      ? await fetchLiveQuotes(scoped.map((r) => String(r.ticker)))
+      : {};
+    const usedLive = Object.keys(live).length > 0;
+
+    const priceFor = (r: any): number => {
+      const q = live[String(r.ticker).toUpperCase()];
+      if (q?.price) return q.price;
       const ref = referencePrice(r.ticker, Number(r.current_price) || Number(r.purchase_price) || 1);
-      const price = simulateTick(ref);
+      return simulateTick(ref);
+    };
+
+    const holdings: LiveHolding[] = scoped.map((r) => {
+      const price = priceFor(r);
       return {
         ticker: r.ticker,
         name: r.company_name || r.ticker,
@@ -73,6 +89,24 @@ export async function POST(req: Request) {
       };
     });
 
+    // Stock[] view (live-priced) for the technical + actionable-intelligence layer.
+    const stockObjs: Stock[] = scoped.map((r, i) => ({
+      _id: String(r._id ?? i),
+      ticker: r.ticker,
+      asset_type: (r.asset_type || "stock") as "stock" | "crypto",
+      company_name: r.company_name || r.ticker,
+      sector: r.sector || undefined,
+      shares: Number(r.shares) || 0,
+      purchase_price: Number(r.purchase_price) || 0,
+      current_price: holdings[i]?.price ?? (Number(r.current_price) || 0),
+    }));
+
+    const technicals: SecurityIntel[] = stockObjs.map((s) =>
+      analyzeSecurity(s.ticker, s.current_price || undefined, s.company_name)
+    );
+    const metrics = computePortfolioMetrics(stockObjs);
+    const intelligence = buildActionableIntelligence(stockObjs);
+
     const report = buildLiveReport(bot, holdings, `${user._id}:${bot}:${Date.now()}`);
 
     // Optional Grok narrative enhancement — never fatal.
@@ -80,20 +114,25 @@ export async function POST(req: Request) {
     if (isGrokConfigured() && holdings.length) {
       try {
         const lines = holdings
-          .map((h) => `${h.ticker}: $${h.price.toFixed(2)} (held ${h.shares}, cost $${(h.purchasePrice || 0).toFixed(2)})`)
+          .map((h, i) => {
+            const t = technicals[i];
+            return `${h.ticker}: $${h.price.toFixed(2)} (held ${h.shares}, cost $${(h.purchasePrice || 0).toFixed(2)}) — signal ${t?.signal ?? "n/a"}, RSI ${t?.rsi ?? "n/a"}, MACD ${t?.macdSignal ?? "n/a"}, 7d proj ${t ? (t.projected7dPct >= 0 ? "+" : "") + t.projected7dPct + "%" : "n/a"} @ ${t?.confidence ?? "n/a"}% conf`;
+          })
           .join("\n");
+        const sells = intelligence.sellRecommendations.map((r) => r.ticker).join(", ") || "none";
+        const buys = intelligence.buyCandidates.map((b) => b.ticker).join(", ") || "none";
         const narrative = await createGrokChatCompletion({
-          maxTokens: 500,
+          maxTokens: 900,
           temperature: 0.6,
           messages: [
             {
               role: "system",
               content:
-                "You are AetherForge, an elite market-intelligence analyst. Write a punchy, professional 2-3 sentence executive summary of a portfolio's short-term outlook. Use **bold** for key phrases. End with a one-line italic (_..._) disclaimer that this is informational only, not financial advice.",
+                "You are AetherForge, an elite institutional market-intelligence analyst. Write a rich, professional 4-6 sentence executive summary of a portfolio's short-term (7-day) outlook. Reference the technical posture (RSI/MACD/projection), overall portfolio health, and the single most important action. Use **bold** for key phrases. End with a one-line italic (_..._) disclaimer that this is informational only, not financial advice.",
             },
             {
               role: "user",
-              content: `Market: ${report.marketLabel}. Holdings:\n${lines}\n\nWrite the executive summary now.`,
+              content: `Market: ${report.marketLabel}.\nPortfolio metrics: health ${metrics.healthScore}/100 (${metrics.healthLabel}), annualised volatility ${metrics.volatility}%, Sharpe ${metrics.sharpe}, 7-day alpha potential ${metrics.alphaPotentialPct}%.\nSELL flags: ${sells}. High-conviction BUY candidates: ${buys}.\nHoldings:\n${lines}\n\nWrite the executive summary now.`,
             },
           ],
         });
@@ -131,7 +170,16 @@ export async function POST(req: Request) {
 
     const now = new Date();
     const generatedAtLabel = nzDateLabel(now);
-    const html = renderReportHtml(report, { userName: user.name, generatedAtLabel, alerts, aiEnhanced });
+    const html = renderReportHtml(report, {
+      userName: user.name,
+      generatedAtLabel,
+      alerts,
+      aiEnhanced,
+      technicals,
+      metrics,
+      intelligence,
+    });
+    console.log(`[api/reports] Report built for user ${user._id} (pricing: ${usedLive ? "live" : "simulated"})`);
 
     // Render the PDF.
     let pdfFileName: string | null = null;

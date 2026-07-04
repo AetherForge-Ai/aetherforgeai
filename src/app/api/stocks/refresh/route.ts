@@ -2,11 +2,13 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
 import { simulateTick } from "@/lib/market";
+import { fetchLiveQuotes, isLiveDataConfigured } from "@/lib/market-data";
 
 /**
  * POST /api/stocks/refresh
- * Simulates a market tick: applies a bounded random walk to every holding's
- * current price and persists it. Returns the updated holdings.
+ * Refreshes every holding's current price. When a live market-data key is
+ * configured, real quotes are used; otherwise a bounded random-walk tick keeps
+ * the demo tape moving. Persists and returns the updated holdings.
  */
 export async function POST() {
   try {
@@ -19,10 +21,17 @@ export async function POST() {
     });
     const stocks = (result?.data as any[]) || [];
 
+    // Live quotes when configured — falls back to {} on any error.
+    const live = isLiveDataConfigured()
+      ? await fetchLiveQuotes(stocks.map((s) => String(s.ticker)))
+      : {};
+    const usedLive = Object.keys(live).length > 0;
+
     const updates = await Promise.all(
       stocks.map(async (s) => {
         const base = Number(s.current_price) || Number(s.purchase_price) || 0;
-        const next = simulateTick(base);
+        const quote = live[String(s.ticker).toUpperCase()];
+        const next = quote?.price ?? simulateTick(base);
         try {
           await totalumSdk.crud.editRecordById("stock", s._id, { current_price: next });
         } catch (err) {
@@ -33,7 +42,9 @@ export async function POST() {
       })
     );
 
-    console.log(`[api/stocks/refresh] Updated ${updates.length} prices for user ${user._id}`);
+    console.log(
+      `[api/stocks/refresh] Updated ${updates.length} prices for user ${user._id} (source: ${usedLive ? "live" : "simulated"})`
+    );
     return NextResponse.json({ ok: true, data: updates });
   } catch (err: any) {
     console.error("[api/stocks/refresh] error:", err);

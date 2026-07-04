@@ -11,6 +11,8 @@
  */
 
 import type { ApexReport, TickerAnalysis, MomentumPoint } from "@/lib/apex";
+import type { SecurityIntel } from "@/lib/market-intel";
+import type { ActionableIntelligence, PortfolioMetrics } from "@/lib/analytics";
 
 export interface ReportAlert {
   ticker: string;
@@ -186,12 +188,141 @@ function alertsBlock(alerts: ReportAlert[]): string {
     </table>`;
 }
 
+/* ---------------------- Technical-intelligence blocks ------------------- */
+
+const SIG_COLOR: Record<SecurityIntel["signal"], string> = {
+  "Strong Buy": GREEN,
+  Buy: "#0d9488",
+  Hold: "#0284c7",
+  Reduce: "#d97706",
+  Sell: RED,
+};
+
+function metricsStrip(m: PortfolioMetrics): string {
+  const cell = (label: string, value: string, color = INK) =>
+    `<td style="width:25%;padding:12px;border:1px solid ${LINE};text-align:center">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:${MUTE}">${esc(label)}</div>
+      <div style="font-size:18px;font-weight:700;color:${color}">${esc(value)}</div>
+    </td>`;
+  return `<h3 style="font-size:14px;margin:18px 0 8px;color:${INK}">Portfolio risk &amp; quality metrics</h3>
+    <table width="100%" style="border-collapse:collapse"><tr>
+      ${cell("Ann. volatility", `${m.volatility.toFixed(1)}%`)}
+      ${cell("Sharpe ratio", m.sharpe.toFixed(2))}
+      ${cell("Health score", `${m.healthScore}/100 · ${m.healthLabel}`, m.healthScore >= 55 ? GREEN : m.healthScore >= 38 ? INK : RED)}
+      ${cell("7-day alpha", pct(m.alphaPotentialPct), pctColor(m.alphaPotentialPct))}
+    </tr></table>`;
+}
+
+function technicalsTable(techs: SecurityIntel[]): string {
+  if (!techs.length) return "";
+  const rows = techs
+    .map((t) => {
+      const dp = t.price < 5 ? 4 : 2;
+      const sc = SIG_COLOR[t.signal];
+      return `<tr>
+        <td style="padding:7px;border:1px solid ${LINE};font-weight:600">${esc(t.ticker)}</td>
+        <td style="padding:7px;border:1px solid ${LINE};font-family:monospace">$${t.price.toFixed(dp)}</td>
+        <td style="padding:7px;border:1px solid ${LINE};color:${t.rsi >= 70 ? RED : t.rsi <= 30 ? GREEN : INK}">${t.rsi.toFixed(0)}</td>
+        <td style="padding:7px;border:1px solid ${LINE};color:${t.macdSignal === "Bullish" ? GREEN : t.macdSignal === "Bearish" ? RED : MUTE}">${esc(t.macdSignal)}</td>
+        <td style="padding:7px;border:1px solid ${LINE}">${t.bbPosition.toFixed(0)}%</td>
+        <td style="padding:7px;border:1px solid ${LINE};color:${pctColor(t.vsSma20)}">${pct(t.vsSma20)}</td>
+        <td style="padding:7px;border:1px solid ${LINE};color:${pctColor(t.projected7dPct)};font-weight:600">${pct(t.projected7dPct)} <span style="color:${MUTE};font-weight:400">(${t.confidence}%)</span></td>
+        <td style="padding:7px;border:1px solid ${LINE}"><span style="color:${sc};font-weight:600">${esc(t.signal)}</span></td>
+      </tr>`;
+    })
+    .join("");
+  return `<h2 style="font-size:16px;color:${INK};margin:26px 0 8px">Technical indicators &amp; 7-day projection</h2>
+    <table width="100%" style="border-collapse:collapse;font-size:11px">
+      <tr style="background:${NAVY};color:#fff">
+        <th style="padding:7px;text-align:left">Ticker</th>
+        <th style="padding:7px;text-align:left">Price</th>
+        <th style="padding:7px;text-align:left">RSI</th>
+        <th style="padding:7px;text-align:left">MACD</th>
+        <th style="padding:7px;text-align:left">BB%</th>
+        <th style="padding:7px;text-align:left">vs SMA20</th>
+        <th style="padding:7px;text-align:left">7d proj (conf)</th>
+        <th style="padding:7px;text-align:left">Signal</th>
+      </tr>
+      ${rows}
+    </table>`;
+}
+
+function intelligenceBlock(intel: ActionableIntelligence): string {
+  const sells = intel.sellRecommendations.length
+    ? intel.sellRecommendations
+        .map(
+          (r) => `<li style="margin:6px 0;font-size:12px">
+            <strong style="color:${RED}">${esc(r.ticker)}</strong>
+            <span style="color:${SIG_COLOR[r.signal]};font-weight:600">· ${esc(r.signal)}</span>
+            <span style="color:${MUTE}">(${r.weight}% wt)</span><br/>
+            <span style="color:${MUTE};font-size:11px;line-height:1.4">${esc(r.reasoning)}</span>
+          </li>`
+        )
+        .join("")
+    : `<li style="color:${MUTE};font-size:12px">No current holdings trigger a sell signal.</li>`;
+
+  const buys = intel.buyCandidates.length
+    ? intel.buyCandidates
+        .map(
+          (c) => `<li style="margin:6px 0;font-size:12px">
+            <strong style="color:${GREEN}">${esc(c.ticker)}</strong>
+            <span style="color:${MUTE}">· ${esc(c.market)} · ${esc(c.sector)}</span>
+            <span style="color:${SIG_COLOR[c.signal]};font-weight:600">${esc(c.signal)}</span>
+            <span style="color:${pctColor(c.projected7dPct)}">${pct(c.projected7dPct)}</span>
+            <span style="color:${MUTE}">(${c.confidence}%)</span>
+          </li>`
+        )
+        .join("")
+    : `<li style="color:${MUTE};font-size:12px">No fresh buy signals this session.</li>`;
+
+  const pathways = intel.pathways
+    .map(
+      (p) => `<td style="padding:10px;border:1px solid ${LINE};vertical-align:top;width:33%">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:${MUTE}">${esc(p.risk)} · ${p.probability}%</div>
+        <div style="font-weight:700;font-size:14px;color:${INK}">${esc(p.name)}</div>
+        <div style="font-size:16px;font-weight:700;color:${pctColor(p.targetPct)}">${pct(p.targetPct)}</div>
+        <ul style="padding-left:16px;margin:6px 0 0;font-size:10px;color:${MUTE};line-height:1.4">
+          ${p.steps.map((s) => `<li>${esc(s)}</li>`).join("")}
+        </ul>
+      </td>`
+    )
+    .join("");
+
+  const banner = intel.actionRequired
+    ? `<div style="background:${RED}12;border:1px solid ${RED}55;border-radius:8px;padding:12px 14px;margin:8px 0 14px">
+        <strong style="color:${RED}">⚠ Immediate action required</strong>
+        <span style="color:${INK};font-size:12px"> — ${intel.sellRecommendations.length} holding(s) flag elevated downside risk.</span>
+      </div>`
+    : "";
+
+  return `<h2 style="font-size:16px;color:${INK};margin:26px 0 8px">Actionable intelligence</h2>
+    ${banner}
+    <table width="100%" style="border-collapse:separate;border-spacing:0"><tr>
+      <td style="width:50%;vertical-align:top;padding-right:8px">
+        <h3 style="font-size:13px;margin:4px 0;color:${RED}">▼ SELL recommendations (from holdings)</h3>
+        <ul style="padding-left:16px;margin:0">${sells}</ul>
+      </td>
+      <td style="width:50%;vertical-align:top;padding-left:8px">
+        <h3 style="font-size:13px;margin:4px 0;color:${GREEN}">▲ High-conviction BUY candidates (not held)</h3>
+        <ul style="padding-left:16px;margin:0">${buys}</ul>
+      </td>
+    </tr></table>
+    <h3 style="font-size:13px;margin:16px 0 6px;color:${INK}">Three forward pathways</h3>
+    <table width="100%" style="border-collapse:collapse"><tr>${pathways}</tr></table>`;
+}
+
 export interface RenderReportOptions {
   userName?: string;
   generatedAtLabel: string;
   alerts?: ReportAlert[];
   /** True when the executive summary was rewritten by the Grok 4.3 narrative engine. */
   aiEnhanced?: boolean;
+  /** Per-holding technical intelligence (RSI/MACD/BB/SMA + projection + signal). */
+  technicals?: SecurityIntel[];
+  /** Explicit SELL/BUY signals + forward pathways derived from holdings. */
+  intelligence?: ActionableIntelligence;
+  /** Portfolio risk/quality metrics. */
+  metrics?: PortfolioMetrics;
 }
 
 export function renderReportHtml(report: ApexReport, opts: RenderReportOptions): string {
@@ -261,6 +392,8 @@ export function renderReportHtml(report: ApexReport, opts: RenderReportOptions):
 
         ${portfolio}
 
+        ${opts.metrics ? metricsStrip(opts.metrics) : ""}
+
         <div style="display:flex;align-items:center;justify-content:space-between;margin:16px 0 6px">
           <h3 style="font-size:14px;margin:0;color:${INK}">Executive summary</h3>
           ${
@@ -287,7 +420,11 @@ export function renderReportHtml(report: ApexReport, opts: RenderReportOptions):
         <h3 style="font-size:14px;margin:18px 0 8px">Global news synthesis</h3>
         <ul style="padding-left:18px;margin:0;font-size:13px;list-style:none">${news}</ul>
 
+        ${opts.intelligence ? intelligenceBlock(opts.intelligence) : ""}
+
         ${alertsBlock(opts.alerts || [])}
+
+        ${opts.technicals ? technicalsTable(opts.technicals) : ""}
 
         <h2 style="font-size:16px;color:${INK};margin:26px 0 4px">Per-${report.bot === "crypto" ? "asset" : "ticker"} intelligence (${report.tickers.length})</h2>
         ${tickers || `<p style="color:${MUTE};font-size:13px">Add holdings to your portfolio to populate this section.</p>`}

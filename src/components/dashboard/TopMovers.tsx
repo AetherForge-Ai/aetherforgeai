@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { getTopMovers, formatMarketPrice, type MoverWindow, type SecurityIntel } from "@/lib/market-intel";
 import { cn } from "@/lib/utils";
 import { pctClass, fmtPct, MarketChip } from "@/components/dashboard/intel-ui";
+import { useMarketIntel } from "@/components/dashboard/MarketIntelContext";
 import { TrendingUp, TrendingDown, Flame } from "lucide-react";
 
 const WINDOWS: { key: MoverWindow; label: string }[] = [
@@ -35,7 +36,8 @@ function MoverRow({ s, w }: { s: SecurityIntel; w: MoverWindow }) {
 
 export function TopMovers() {
   const [w, setW] = useState<MoverWindow>("1d");
-  const { gainers, losers } = useMemo(() => getTopMovers(w), [w]);
+  const { universe } = useMarketIntel();
+  const { gainers, losers } = useMemo(() => getTopMovers(w, 6, universe ?? undefined), [w, universe]);
 
   return (
     <section className="rounded-3xl border border-border/70 bg-card/50 p-6">

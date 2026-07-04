@@ -9,6 +9,7 @@ import {
 } from "@/lib/market-intel";
 import { cn } from "@/lib/utils";
 import { SignalBadge, pctClass, fmtPct } from "@/components/dashboard/intel-ui";
+import { useMarketIntel } from "@/components/dashboard/MarketIntelContext";
 import { ArrowUpDown, Globe } from "lucide-react";
 
 type SortKey = "change1d" | "price" | "ticker";
@@ -85,16 +86,27 @@ function MarketColumn({ code, label, sub, rows }: { code: MarketCode; label: str
 }
 
 export function MarketSnapshot() {
-  const snapshot = useMemo(() => getMarketSnapshot(), []);
+  const { universe, live } = useMarketIntel();
+  const snapshot = useMemo(() => getMarketSnapshot(universe ?? undefined), [universe]);
   return (
     <section>
       <div className="mb-4 flex items-center gap-3">
         <span className="grid size-9 place-items-center rounded-lg bg-primary/12 text-primary">
           <Globe className="size-4" />
         </span>
-        <div>
-          <h2 className="font-display text-lg font-bold">Market snapshot</h2>
-          <p className="text-xs text-muted-foreground">Live cross-market intelligence · NZX · ASX · US</p>
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <h2 className="font-display text-lg font-bold">Market snapshot</h2>
+            <span
+              className={cn(
+                "rounded-full px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wider",
+                live ? "bg-emerald-500/15 text-emerald-300" : "bg-muted text-muted-foreground"
+              )}
+            >
+              {live ? "● Live" : "Simulated"}
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground">Cross-market intelligence · NZX · ASX · US</p>
         </div>
       </div>
       <div className="grid gap-4 lg:grid-cols-3">

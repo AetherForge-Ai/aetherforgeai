@@ -21,6 +21,7 @@ import { TopMovers } from "@/components/dashboard/TopMovers";
 import { ProjectionsPanel } from "@/components/dashboard/ProjectionsPanel";
 import { ActionableIntelligence } from "@/components/dashboard/ActionableIntelligence";
 import { NewsFeed } from "@/components/dashboard/NewsFeed";
+import { MarketIntelProvider } from "@/components/dashboard/MarketIntelContext";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -236,6 +237,7 @@ export function PortfolioDashboard({
   const isYearly = subscription.plan === "yearly" || subscription.plan === "dual_yearly";
 
   return (
+    <MarketIntelProvider>
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
       {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -611,5 +613,6 @@ export function PortfolioDashboard({
         </AlertDialogContent>
       </AlertDialog>
     </div>
+    </MarketIntelProvider>
   );
 }

@@ -441,18 +441,34 @@ function allIntel(): SecurityIntel[] {
   return ALL_INTEL;
 }
 
+/**
+ * Analyse the whole universe, optionally anchoring each security to a live price
+ * (from the market-data provider). With no overrides this returns the cached
+ * deterministic set. Keyed by the internal ticker (e.g. "BHP.AX").
+ */
+export function analyzeUniverse(priceOverrides?: Record<string, number>): SecurityIntel[] {
+  if (!priceOverrides || !Object.keys(priceOverrides).length) return allIntel();
+  return MARKET_UNIVERSE.map((e) => {
+    const live = priceOverrides[e.ticker] ?? priceOverrides[e.ticker.toUpperCase()];
+    return analyzeSecurity(e.ticker, live && live > 0 ? live : undefined);
+  });
+}
+
 /** Snapshot grouped by market, each sorted by 1-day change (desc). */
-export function getMarketSnapshot(): Record<MarketCode, SecurityIntel[]> {
-  const all = allIntel();
-  const group = (m: MarketCode) => all.filter((s) => s.market === m).sort((a, b) => b.change1d - a.change1d);
+export function getMarketSnapshot(list: SecurityIntel[] = allIntel()): Record<MarketCode, SecurityIntel[]> {
+  const group = (m: MarketCode) => list.filter((s) => s.market === m).sort((a, b) => b.change1d - a.change1d);
   return { NZX: group("NZX"), ASX: group("ASX"), US: group("US") };
 }
 
 export type MoverWindow = "1d" | "7d" | "30d";
 
-export function getTopMovers(window: MoverWindow, count = 6): { gainers: SecurityIntel[]; losers: SecurityIntel[] } {
+export function getTopMovers(
+  window: MoverWindow,
+  count = 6,
+  list: SecurityIntel[] = allIntel()
+): { gainers: SecurityIntel[]; losers: SecurityIntel[] } {
   const key = window === "1d" ? "change1d" : window === "7d" ? "change7d" : "change30d";
-  const sorted = [...allIntel()].sort((a, b) => (b[key] as number) - (a[key] as number));
+  const sorted = [...list].sort((a, b) => (b[key] as number) - (a[key] as number));
   return {
     gainers: sorted.slice(0, count),
     losers: sorted.slice(-count).reverse(),
@@ -460,8 +476,8 @@ export function getTopMovers(window: MoverWindow, count = 6): { gainers: Securit
 }
 
 /** Highest-conviction 7-day projected movers across the whole universe. */
-export function getProjectionLeaders(count = 6): SecurityIntel[] {
-  return [...allIntel()]
+export function getProjectionLeaders(count = 6, list: SecurityIntel[] = allIntel()): SecurityIntel[] {
+  return [...list]
     .sort((a, b) => b.projected7dPct * (b.confidence / 100) - a.projected7dPct * (a.confidence / 100))
     .slice(0, count);
 }

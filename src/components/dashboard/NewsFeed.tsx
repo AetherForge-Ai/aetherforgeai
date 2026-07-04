@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
-import { getMarketNews, type NewsItem } from "@/lib/market-intel";
+import { type NewsItem } from "@/lib/market-intel";
+import { useMarketIntel } from "@/components/dashboard/MarketIntelContext";
 import { cn } from "@/lib/utils";
 import { Newspaper } from "lucide-react";
 
@@ -12,7 +12,7 @@ const IMPACT_STYLES: Record<NewsItem["impact"], string> = {
 };
 
 export function NewsFeed() {
-  const news = useMemo(() => getMarketNews(), []);
+  const { news } = useMarketIntel();
 
   return (
     <section className="rounded-3xl border border-border/70 bg-card/50 p-6">

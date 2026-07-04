@@ -8,6 +8,7 @@ import {
 } from "@/lib/market-intel";
 import { cn } from "@/lib/utils";
 import { pctClass, fmtPct, SignalBadge, MarketChip } from "@/components/dashboard/intel-ui";
+import { useMarketIntel } from "@/components/dashboard/MarketIntelContext";
 import { LineChart, TrendingUp } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -104,8 +105,9 @@ function ProjectionChart({ sel }: { sel: SecurityIntel }) {
 }
 
 export function ProjectionsPanel() {
-  const leaders = useMemo(() => getProjectionLeaders(7), []);
-  const [selected, setSelected] = useState<string>(leaders[0]?.ticker ?? "");
+  const { universe } = useMarketIntel();
+  const leaders = useMemo(() => getProjectionLeaders(7, universe ?? undefined), [universe]);
+  const [selected, setSelected] = useState<string>("");
   const sel = leaders.find((l) => l.ticker === selected) ?? leaders[0];
 
   if (!sel) return null;
