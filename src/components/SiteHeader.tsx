@@ -21,9 +21,9 @@ export function SiteHeader() {
             <a href="/#features" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
               Features
             </a>
-            <a href="/#how" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
+            <Link href="/how-it-works" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
               How it works
-            </a>
+            </Link>
             <Link href="/pricing" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
               Pricing
             </Link>

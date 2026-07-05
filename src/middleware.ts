@@ -31,6 +31,7 @@ const publicRoutes = [
   "/forgot-password",
   "/reset-password",
   "/pricing",
+  "/how-it-works",
   "/privacy-policy",
   "/terms-of-service",
   "/ai-disclaimer",

@@ -208,7 +208,9 @@ export default function LandingPage() {
         </section>
 
         {/* The two Apex bots — core of the product */}
-        <BotShowcase />
+        <div id="bots">
+          <BotShowcase />
+        </div>
 
         {/* Institutional Edge */}
         <section className="mx-auto max-w-5xl px-4 py-16 sm:px-6 lg:px-8">
@@ -354,6 +356,7 @@ export default function LandingPage() {
               </div>
 
               <div className="grid grid-cols-2 gap-x-10 gap-y-2 text-sm text-muted-foreground sm:grid-cols-2">
+                <Link href="/how-it-works" className="hover:text-foreground">How it works</Link>
                 <Link href="/pricing" className="hover:text-foreground">Pricing</Link>
                 <Link href="/privacy-policy" className="hover:text-foreground">AI Privacy Act</Link>
                 <Link href="/login" className="hover:text-foreground">Log in</Link>
