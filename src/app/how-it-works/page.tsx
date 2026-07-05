@@ -31,7 +31,8 @@ export const metadata: Metadata = {
 const BOTS = [
   {
     icon: TrendingUp,
-    name: "Stock Market Intelligence Monitor",
+    name: "Stox",
+    subtitle: "Stock Market Intelligence Monitor",
     accent: "from-emerald-500/20 via-teal-500/10 to-transparent",
     ring: "border-emerald-500/30",
     desc: "Sweeps the entire NZX and ASX plus global equities — compiling institutional-grade market tables, top-mover boards and 12-month continuation graphs for every ticker you hold.",
@@ -39,7 +40,8 @@ const BOTS = [
   },
   {
     icon: Bitcoin,
-    name: "Crypto Market Intelligence Monitor",
+    name: "Koins",
+    subtitle: "Crypto Market Intelligence Monitor",
     accent: "from-amber-500/20 via-orange-500/10 to-transparent",
     ring: "border-amber-500/30",
     desc: "Tracks the top 100 cryptocurrencies and the broader digital-asset market — synthesising funding, flows, worldwide news and sentiment into clear 7-day projections and forward pathways.",
@@ -140,6 +142,7 @@ export default function HowItWorksPage() {
                     <bot.icon className="size-6 text-primary" />
                   </div>
                   <h3 className="mt-5 font-display text-xl font-bold">{bot.name}</h3>
+                  <p className="text-sm font-medium text-primary/90">{bot.subtitle}</p>
                   <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{bot.desc}</p>
                   <div className="mt-5 flex flex-wrap gap-2">
                     {bot.tags.map((t) => (

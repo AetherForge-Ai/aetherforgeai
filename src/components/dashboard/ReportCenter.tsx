@@ -54,17 +54,19 @@ interface ReportsResponse {
   };
 }
 
-const DEFS: { kind: BotKind; name: string; mascot: string; accent: string; market: string }[] = [
+const DEFS: { kind: BotKind; name: string; subtitle: string; mascot: string; accent: string; market: string }[] = [
   {
     kind: "stock",
-    name: "Stock Market Intelligence Monitor",
+    name: "Stox",
+    subtitle: "Stock Market Intelligence Monitor",
     mascot: BOT_STOCK_MASCOT,
     accent: "from-emerald-500/15 to-transparent",
     market: "NZX · ASX · Global equities",
   },
   {
     kind: "crypto",
-    name: "Crypto Market Intelligence Monitor",
+    name: "Koins",
+    subtitle: "Crypto Market Intelligence Monitor",
     mascot: BOT_CRYPTO_MASCOT,
     accent: "from-amber-500/15 to-transparent",
     market: "BTC · ETH · Digital assets",
@@ -369,7 +371,9 @@ export function ReportCenter({
               <div className="flex items-start gap-4">
                 <img src={b.mascot} alt={`${b.name} mascot`} className="h-14 w-14 shrink-0 rounded-xl object-cover ring-1 ring-border/60" />
                 <div className="min-w-0">
-                  <h3 className="text-sm font-semibold leading-tight">{b.name}</h3>
+                  <h3 className="text-sm font-semibold leading-tight">
+                    {b.name} <span className="font-normal text-muted-foreground">· {b.subtitle}</span>
+                  </h3>
                   <p className="mt-1 text-xs text-muted-foreground">{b.market}</p>
                 </div>
               </div>

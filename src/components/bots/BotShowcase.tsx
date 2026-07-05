@@ -28,6 +28,7 @@ import { BOT_STOCK_MASCOT, BOT_CRYPTO_MASCOT } from "../../../assets/files";
 interface BotDef {
   kind: BotKind;
   name: string;
+  subtitle: string;
   mascot: string;
   blurb: string;
   accent: string; // tailwind gradient classes
@@ -37,7 +38,8 @@ interface BotDef {
 const BOTS: BotDef[] = [
   {
     kind: "stock",
-    name: "Stock Market Intelligence Monitor",
+    name: "Stox",
+    subtitle: "Stock Market Intelligence Monitor",
     mascot: BOT_STOCK_MASCOT,
     blurb:
       "Sweeps NZX, ASX and global equities in Apex Mode — compiling institutional-grade tables, top-gainer boards and 12-month continuation graphs for every ticker you monitor.",
@@ -46,7 +48,8 @@ const BOTS: BotDef[] = [
   },
   {
     kind: "crypto",
-    name: "Crypto Market Intelligence Monitor",
+    name: "Koins",
+    subtitle: "Crypto Market Intelligence Monitor",
     mascot: BOT_CRYPTO_MASCOT,
     blurb:
       "Tracks BTC, ETH and the broader digital-asset market in Apex Mode — synthesising funding, flows and sentiment into clear 7-day projections and three forward pathways.",
@@ -75,6 +78,7 @@ function BotCard({ bot, onOpen }: { bot: BotDef; onOpen: () => void }) {
             ⚡ Apex Mode
           </Badge>
           <h3 className="text-lg font-semibold leading-tight tracking-tight">{bot.name}</h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">{bot.subtitle}</p>
           <div className="mt-2 flex flex-wrap gap-1.5">
             {bot.tags.map((t) => (
               <span key={t} className="rounded-md border border-border/60 bg-background/40 px-2 py-0.5 text-[11px] text-muted-foreground">
@@ -135,7 +139,10 @@ export function BotShowcase() {
                     className="h-16 w-16 shrink-0 rounded-xl object-cover ring-1 ring-border/60"
                   />
                   <div>
-                    <DialogTitle className="text-left text-lg">{activeBot.name}</DialogTitle>
+                    <DialogTitle className="text-left text-lg">
+                      {activeBot.name}{" "}
+                      <span className="text-sm font-normal text-muted-foreground">· {activeBot.subtitle}</span>
+                    </DialogTitle>
                     <DialogDescription className="text-left">
                       Sample Apex-State report — illustrative data, real subscriber layout. This is what lands in your
                       dashboard when the bot runs.

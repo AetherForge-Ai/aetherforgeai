@@ -269,7 +269,7 @@ function assembleReport(
 
   return {
     bot,
-    title: bot === "crypto" ? "Crypto Market Intelligence Monitor" : "Stock Market Intelligence Monitor",
+    title: bot === "crypto" ? "Koins · Crypto Market Intelligence Monitor" : "Stox · Stock Market Intelligence Monitor",
     marketLabel,
     generatedLabel: isDemo ? "Sample report · illustrative data" : "Live Apex run",
     isDemo,
