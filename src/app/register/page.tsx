@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signUp } from "@/lib/auth-client";
-import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -63,20 +62,15 @@ export default function RegisterPage() {
         return;
       }
 
-      // If the user came from the free-trial CTA (?plan=free), activate it now so
-      // they land on the dashboard already subscribed to the free tier.
+      // NOTE: the free tier is NO LONGER auto-activated on signup. Free members
+      // get a ONE-TIME "Zenith" trial report at /free-trial instead of permanent
+      // dashboard access, so we simply route them there after creating the account.
       const search = new URLSearchParams(window.location.search);
-      if (search.get("plan") === "free") {
-        console.log("[register] Activating free trial after signup");
-        const activation = await api.post("/api/free-trial/activate", {});
-        if (!activation.ok) {
-          console.error("[register] Free-trial activation failed:", activation.error);
-        }
-      }
 
       // Use window.location for a full page reload to ensure session cookie is picked up.
-      // Honor a ?redirect= param (e.g. coming from pricing), otherwise land on the dashboard.
-      const redirectTo = search.get("redirect") || "/dashboard";
+      // Honor a ?redirect= param; free-trial signups default straight to the trial.
+      const redirectTo =
+        search.get("redirect") || (search.get("plan") === "free" ? "/free-trial" : "/dashboard");
       window.location.href = redirectTo;
     } catch (err: any) {
       console.error("Registration error:", err);

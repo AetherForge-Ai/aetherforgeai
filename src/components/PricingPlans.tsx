@@ -28,26 +28,17 @@ export function PricingPlans() {
   const [email, setEmail] = useState("");
   const [startingFree, setStartingFree] = useState(false);
 
-  async function handleFreeTrial() {
-    // Already signed in → activate instantly and land on the dashboard.
+  function handleFreeTrial() {
+    // Already signed in → open the one-time ZENITH trial dashboard.
     if (session?.user) {
       setStartingFree(true);
-      console.log("[pricing] Activating free trial for existing user");
-      const res = await api.post("/api/free-trial/activate", {});
-      if (res.ok) {
-        toast.success("Free trial activated — welcome aboard!");
-        window.location.href = "/dashboard";
-      } else {
-        const msg = typeof res.error === "string" ? res.error : res.error?.message || "Could not start your free trial.";
-        console.error("[pricing] free-trial activation failed:", res.error);
-        toast.error(msg);
-        setStartingFree(false);
-      }
+      console.log("[pricing] Opening one-time free-trial experience");
+      router.push("/free-trial");
       return;
     }
-    // Not signed in → send them to register, carrying the plan + prefilled email.
+    // Not signed in → register first, then land straight on the trial dashboard.
     const trimmed = email.trim();
-    const params = new URLSearchParams({ plan: "free", redirect: "/dashboard" });
+    const params = new URLSearchParams({ plan: "free", redirect: "/free-trial" });
     if (trimmed) params.set("email", trimmed);
     router.push(`/register?${params.toString()}`);
   }

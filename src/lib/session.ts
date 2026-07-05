@@ -18,6 +18,9 @@ export interface AppUser {
   subscription_expires_at?: string | null;
   ticker_limit?: number | null;
   bot_access?: BotAccessValue | null;
+  /** "yes" once the user has consumed their one-time free-trial Zenith report. */
+  trial_used?: "yes" | "no" | null;
+  trial_used_at?: string | null;
 }
 
 /**
@@ -52,6 +55,8 @@ export async function getCurrentUser(): Promise<AppUser | null> {
       subscription_expires_at: record?.subscription_expires_at ?? null,
       ticker_limit: typeof record?.ticker_limit === "number" ? record.ticker_limit : null,
       bot_access: record?.bot_access ?? "none",
+      trial_used: record?.trial_used ?? "no",
+      trial_used_at: record?.trial_used_at ?? null,
     };
   } catch (err) {
     console.error("[session] getCurrentUser error:", err);
@@ -64,7 +69,30 @@ export function isStripeConfigured(): boolean {
   return !!process.env.STRIPE_SECRET_KEY;
 }
 
-/** True when the user has an active paid subscription. */
+/** True when the user has an active subscription of ANY tier (incl. legacy free). */
 export function hasActiveSubscription(user: AppUser | null): boolean {
   return user?.subscription_status === "active";
+}
+
+/** The paid (non-free) subscription tiers. */
+const PAID_PLANS = ["weekly", "monthly", "yearly", "dual_yearly"];
+
+/**
+ * True only for an active PAID subscription (excludes the free tier).
+ * This is the gate that separates the permanent dashboard (paying members) from
+ * the one-time free-trial experience (signed-up but not yet paying).
+ */
+export function hasPaidSubscription(user: AppUser | null): boolean {
+  return user?.subscription_status === "active" && PAID_PLANS.includes(user?.subscription_plan || "");
+}
+
+/**
+ * Eligibility for the ONE-TIME free-trial "Zenith" report: the user must be
+ * signed in, NOT on an active PAID subscription, and must NOT have already
+ * consumed their single trial run.
+ */
+export function isTrialEligible(user: AppUser | null): boolean {
+  if (!user) return false;
+  if (hasPaidSubscription(user)) return false;
+  return user.trial_used !== "yes";
 }
