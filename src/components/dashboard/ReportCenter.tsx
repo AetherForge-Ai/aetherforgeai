@@ -261,22 +261,22 @@ export function ReportCenter({
                 type="button"
                 onClick={() => setAssetType(a)}
                 className={cn(
-                  "rounded-md px-2.5 py-1.5 text-xs font-medium capitalize transition-colors",
+                  "rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
                   assetType === a ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
                 )}
               >
-                {a}
+                {a === "stock" ? "Stox" : "Koins"}
               </button>
             ))}
           </div>
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="rc-ticker" className="text-xs">
-            {assetType === "crypto" ? "Coin" : "Ticker"}
+            {assetType === "crypto" ? "Currency" : "Ticker"}
           </Label>
           <Input
             id="rc-ticker"
-            placeholder={assetType === "crypto" ? "BTC" : "AAPL"}
+            placeholder={assetType === "crypto" ? "BTC" : "AAPL / BHP.AX / AIR.NZ"}
             value={ticker}
             onChange={(e) => setTicker(e.target.value.toUpperCase())}
             className="uppercase"
@@ -284,15 +284,15 @@ export function ReportCenter({
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="rc-shares" className="text-xs">
-            Shares held
+            {assetType === "crypto" ? "Amount held" : "Shares held"}
           </Label>
-          <Input id="rc-shares" type="number" min="0" step="any" placeholder="10" value={shares} onChange={(e) => setShares(e.target.value)} />
+          <Input id="rc-shares" type="number" min="0" step="any" placeholder={assetType === "crypto" ? "0.25" : "10"} value={shares} onChange={(e) => setShares(e.target.value)} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="rc-price" className="text-xs">
-            Purchase price
+            {assetType === "crypto" ? "Buy price (US$)" : "Purchase price"}
           </Label>
-          <Input id="rc-price" type="number" min="0" step="any" placeholder="150.00" value={price} onChange={(e) => setPrice(e.target.value)} />
+          <Input id="rc-price" type="number" min="0" step="any" placeholder={assetType === "crypto" ? "42000.00" : "150.00"} value={price} onChange={(e) => setPrice(e.target.value)} />
         </div>
         {atLimit ? (
           <Button asChild variant="outline" className="font-semibold">

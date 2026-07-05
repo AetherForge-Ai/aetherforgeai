@@ -40,6 +40,47 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
   const [saving, setSaving] = useState(false);
 
   const isEdit = !!editing;
+  const isCrypto = assetType === "crypto";
+
+  // Bot-aware copy: Stox (stocks) vs Koins (crypto). Stocks use exchange
+  // suffixes (.AX / .NZ / US); crypto is entered and displayed in US dollars.
+  const copy = isCrypto
+    ? {
+        symbolLabel: "Currency type",
+        symbolPlaceholder: "e.g. BTC",
+        symbolHint: "Enter the currency symbol — BTC for Bitcoin, ETH for Ethereum, SOL for Solana.",
+        amountLabel: "Currency amount",
+        amountPlaceholder: "0.25",
+        priceLabel: "Price when purchased (US$)",
+        pricePlaceholder: "42000.00",
+        priceHint: "Crypto is tracked in US dollars — enter the USD price you paid per coin.",
+        nameLabel: "Coin name (optional)",
+        namePlaceholder: "Bitcoin",
+        sectorLabel: "Category (optional)",
+        sectorPlaceholder: "Digital Assets",
+        description: "Enter a currency and the amount you hold — all crypto values are shown in US dollars.",
+        symbolRequired: "Currency type is required.",
+        amountInvalid: "Currency amount must be greater than 0.",
+        priceInvalid: "Purchase price (US$) must be greater than 0.",
+      }
+    : {
+        symbolLabel: "Ticker",
+        symbolPlaceholder: "e.g. AAPL, BHP.AX, AIR.NZ",
+        symbolHint: "Use the exchange suffix: .AX for ASX (Australia), .NZ for NZX (New Zealand), no suffix for US listings.",
+        amountLabel: "# of Shares owned",
+        amountPlaceholder: "10",
+        priceLabel: "Price purchased at ($)",
+        pricePlaceholder: "150.00",
+        priceHint: "",
+        nameLabel: "Company (optional)",
+        namePlaceholder: "Apple Inc.",
+        sectorLabel: "Sector (optional)",
+        sectorPlaceholder: "Technology",
+        description: "Enter a ticker and we'll fill in the rest automatically.",
+        symbolRequired: "Ticker symbol is required.",
+        amountInvalid: "Shares owned must be greater than 0.",
+        priceInvalid: "Purchase price must be greater than 0.",
+      };
 
   useEffect(() => {
     if (open) {
@@ -75,9 +116,9 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
     const sharesNum = Number(shares);
     const priceNum = Number(purchasePrice);
 
-    if (!t) return toast.error("Ticker symbol is required.");
-    if (!(sharesNum > 0)) return toast.error("Shares must be greater than 0.");
-    if (!(priceNum > 0)) return toast.error("Purchase price must be greater than 0.");
+    if (!t) return toast.error(copy.symbolRequired);
+    if (!(sharesNum > 0)) return toast.error(copy.amountInvalid);
+    if (!(priceNum > 0)) return toast.error(copy.priceInvalid);
 
     setSaving(true);
     const payload = {
@@ -116,8 +157,10 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
           </DialogTitle>
           <DialogDescription>
             {isEdit
-              ? "Update the shares or purchase price for this position."
-              : "Enter a ticker and we'll fill in the rest automatically."}
+              ? isCrypto
+                ? "Update the amount or purchase price (US$) for this position."
+                : "Update the shares or purchase price for this position."
+              : copy.description}
           </DialogDescription>
         </DialogHeader>
 
@@ -139,26 +182,27 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
                       : "border-border/60 text-muted-foreground hover:text-foreground"
                   )}
                 >
-                  {a === "stock" ? "Stock / share" : "Crypto"}
+                  {a === "stock" ? "Stox · Stocks" : "Koins · Crypto"}
                 </button>
               ))}
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="ticker">{assetType === "crypto" ? "Coin symbol" : "Ticker symbol"}</Label>
+            <Label htmlFor="ticker">{copy.symbolLabel}</Label>
             <Input
               id="ticker"
               list="ticker-suggestions"
-              placeholder={assetType === "crypto" ? "e.g. BTC" : "e.g. AAPL"}
+              placeholder={copy.symbolPlaceholder}
               value={ticker}
               disabled={isEdit}
               onChange={(e) => setTicker(e.target.value.toUpperCase())}
               onBlur={handleTickerBlur}
               className="uppercase"
             />
+            <p className="text-xs leading-relaxed text-muted-foreground">{copy.symbolHint}</p>
             <datalist id="ticker-suggestions">
-              {(assetType === "crypto" ? CRYPTO_DIRECTORY : TICKER_DIRECTORY).map((t) => (
+              {(isCrypto ? CRYPTO_DIRECTORY : TICKER_DIRECTORY).map((t) => (
                 <option key={t.ticker} value={t.ticker}>
                   {t.name}
                 </option>
@@ -168,46 +212,49 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label htmlFor="shares">Shares</Label>
+              <Label htmlFor="shares">{copy.amountLabel}</Label>
               <Input
                 id="shares"
                 type="number"
                 min="0"
                 step="any"
-                placeholder="10"
+                placeholder={copy.amountPlaceholder}
                 value={shares}
                 onChange={(e) => setShares(e.target.value)}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="price">Purchase price</Label>
+              <Label htmlFor="price">{copy.priceLabel}</Label>
               <Input
                 id="price"
                 type="number"
                 min="0"
                 step="any"
-                placeholder="150.00"
+                placeholder={copy.pricePlaceholder}
                 value={purchasePrice}
                 onChange={(e) => setPurchasePrice(e.target.value)}
               />
             </div>
           </div>
+          {copy.priceHint && (
+            <p className="-mt-1 text-xs leading-relaxed text-muted-foreground">{copy.priceHint}</p>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label htmlFor="company">Company (optional)</Label>
+              <Label htmlFor="company">{copy.nameLabel}</Label>
               <Input
                 id="company"
-                placeholder="Apple Inc."
+                placeholder={copy.namePlaceholder}
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="sector">Sector (optional)</Label>
+              <Label htmlFor="sector">{copy.sectorLabel}</Label>
               <Input
                 id="sector"
-                placeholder="Technology"
+                placeholder={copy.sectorPlaceholder}
                 value={sector}
                 onChange={(e) => setSector(e.target.value)}
               />
