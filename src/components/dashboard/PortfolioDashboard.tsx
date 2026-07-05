@@ -19,6 +19,7 @@ import { StockDialog } from "@/components/dashboard/StockDialog";
 import { AnalysisPanel } from "@/components/dashboard/AnalysisPanel";
 import { ReportCenter } from "@/components/dashboard/ReportCenter";
 import { PriceAlerts } from "@/components/dashboard/PriceAlerts";
+import { PreciousMetals } from "@/components/dashboard/PreciousMetals";
 import { YearlyToolkit } from "@/components/dashboard/YearlyToolkit";
 import { planLabel } from "@/lib/plans";
 import { checkTickerQuota, limitScope, resolveTickerLimit } from "@/lib/entitlements";
@@ -178,9 +179,12 @@ function MiniMetric({
 export function PortfolioDashboard({
   userName,
   subscription,
+  metalsEntitled,
 }: {
   userName: string;
   subscription: DashboardSubscription;
+  /** Precious-metals bonus is unlocked for active paying members (or demo mode). */
+  metalsEntitled: boolean;
 }) {
   // Active bot (Stock or Crypto). Defaults to the only bot the plan unlocks.
   const defaultBot: AssetClass = subscription.botAccess === "crypto" ? "crypto" : "stock";
@@ -768,6 +772,11 @@ export function PortfolioDashboard({
             </>
           )}
         </div>
+      </div>
+
+      {/* Precious Metals — bonus for active paying members (gold & silver) */}
+      <div className="mt-6">
+        <PreciousMetals entitled={metalsEntitled} plan={subscription.plan} />
       </div>
 
       {/* Watchlist — tracked symbols for the active bot */}

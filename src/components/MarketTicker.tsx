@@ -1,14 +1,20 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 /**
  * MarketTicker — several banner rows "flicking through" current market share
- * prices, scrolling in alternating directions. NZ-first (NZX + ASX) plus the
- * major global indices and digital assets, so the home page and dashboard feel
- * live. Prices seed from a curated snapshot and drift gently on the client so
- * the tape animates without any external market-data key.
+ * prices, scrolling in alternating directions. Three rows sourced from:
+ *   • NZX 50   → nzx.com/markets/NZSX
+ *   • ASX 200  → asx.com.au/markets/company/TLX
+ *   • Crypto   → cmcmarkets.com/en-nz/lp/cryptocurrencies
+ *
+ * On mount it pulls current prices from `/api/ticker` (crypto is live via
+ * CoinGecko; equities live when a market-data key is set) and then drifts them
+ * gently on the client so the tape keeps animating between refreshes. A curated
+ * snapshot seeds the rows so the banner is never empty before the fetch lands.
  */
 
 interface Quote {
@@ -18,6 +24,12 @@ interface Quote {
   change: number; // percent
   currency?: string;
 }
+
+const SOURCES = {
+  nzx: "https://www.nzx.com/markets/NZSX",
+  asx: "https://www.asx.com.au/markets/company/TLX",
+  crypto: "https://www.cmcmarkets.com/en-nz/lp/cryptocurrencies",
+};
 
 // NZX 50 constituents (prices in NZD).
 const NZX: Quote[] = [
@@ -37,6 +49,7 @@ const NZX: Quote[] = [
 
 // ASX heavyweights (prices in AUD).
 const ASX: Quote[] = [
+  { symbol: "TLX.AX", name: "Telix Pharmaceuticals", price: 26.4, change: 1.82 },
   { symbol: "BHP.AX", name: "BHP Group", price: 40.12, change: 0.94 },
   { symbol: "CBA.AX", name: "Commonwealth Bank", price: 158.7, change: -0.52 },
   { symbol: "CSL.AX", name: "CSL Limited", price: 236.5, change: 1.31 },
@@ -49,18 +62,20 @@ const ASX: Quote[] = [
   { symbol: "TLS.AX", name: "Telstra Group", price: 4.05, change: 0.5 },
 ];
 
-// Global indices, majors & digital assets (USD).
-const GLOBAL: Quote[] = [
+// Cryptocurrencies (USD) — seed snapshot, replaced by live CoinGecko prices.
+const CRYPTO: Quote[] = [
   { symbol: "BTC", name: "Bitcoin", price: 96850, change: 2.14 },
   { symbol: "ETH", name: "Ethereum", price: 3420, change: 1.58 },
   { symbol: "SOL", name: "Solana", price: 198.4, change: 3.42 },
   { symbol: "XRP", name: "XRP", price: 2.31, change: -1.05 },
-  { symbol: "AAPL", name: "Apple", price: 229.87, change: 0.74 },
-  { symbol: "NVDA", name: "NVIDIA", price: 131.26, change: 2.61 },
-  { symbol: "MSFT", name: "Microsoft", price: 441.58, change: -0.44 },
-  { symbol: "TSLA", name: "Tesla", price: 342.68, change: 1.88 },
-  { symbol: "NZD/USD", name: "Kiwi Dollar", price: 0.601, change: -0.22 },
-  { symbol: "AUD/USD", name: "Aussie Dollar", price: 0.655, change: 0.14 },
+  { symbol: "BNB", name: "BNB", price: 612, change: 0.74 },
+  { symbol: "ADA", name: "Cardano", price: 0.92, change: -0.66 },
+  { symbol: "DOGE", name: "Dogecoin", price: 0.38, change: 4.12 },
+  { symbol: "AVAX", name: "Avalanche", price: 41.2, change: 1.9 },
+  { symbol: "LINK", name: "Chainlink", price: 22.8, change: 2.35 },
+  { symbol: "DOT", name: "Polkadot", price: 8.4, change: -0.42 },
+  { symbol: "LTC", name: "Litecoin", price: 108.5, change: 0.58 },
+  { symbol: "MATIC", name: "Polygon", price: 0.62, change: 1.14 },
 ];
 
 function formatPrice(q: Quote): string {
@@ -128,11 +143,38 @@ interface MarketTickerProps {
   compact?: boolean;
 }
 
+interface TickerFeed {
+  rows: { nzx: Quote[]; asx: Quote[]; crypto: Quote[] };
+  live: { crypto: boolean; equities: boolean };
+}
+
 export function MarketTicker({ className, compact = false }: MarketTickerProps) {
-  // Seed once, then drift on an interval so the tape feels live.
+  // Seed from the snapshot, then hydrate from /api/ticker and drift on an
+  // interval so the tape keeps feeling live between refreshes.
   const [nzx, setNzx] = useState(NZX);
   const [asx, setAsx] = useState(ASX);
-  const [global, setGlobal] = useState(GLOBAL);
+  const [crypto, setCrypto] = useState(CRYPTO);
+  const [live, setLive] = useState<{ crypto: boolean; equities: boolean }>({ crypto: false, equities: false });
+
+  // Pull current prices from the live feed on mount (crypto is always live).
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const res = await api.get<TickerFeed>("/api/ticker");
+      if (active && res.ok && res.data?.rows) {
+        setNzx(res.data.rows.nzx?.length ? res.data.rows.nzx : NZX);
+        setAsx(res.data.rows.asx?.length ? res.data.rows.asx : ASX);
+        setCrypto(res.data.rows.crypto?.length ? res.data.rows.crypto : CRYPTO);
+        setLive(res.data.live ?? { crypto: false, equities: false });
+        console.log("[ticker] Live feed loaded:", res.data.live);
+      } else if (!res.ok) {
+        console.error("[ticker] Feed fetch failed, using snapshot:", res.error);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const drift = useMemo(
     () => (list: Quote[]) =>
@@ -149,14 +191,14 @@ export function MarketTicker({ className, compact = false }: MarketTickerProps) 
     const id = setInterval(() => {
       setNzx((l) => drift(l));
       setAsx((l) => drift(l));
-      setGlobal((l) => drift(l));
+      setCrypto((l) => drift(l));
     }, 3200);
     return () => clearInterval(id);
   }, [drift]);
 
   if (compact) {
-    // Dashboard: a single dense NZX+ASX+global blend row.
-    const blend = [...NZX.slice(0, 6), ...ASX.slice(0, 5), ...GLOBAL.slice(0, 5)];
+    // Dashboard: a single dense NZX+ASX+crypto blend row.
+    const blend = [...nzx.slice(0, 6), ...asx.slice(0, 5), ...crypto.slice(0, 5)];
     return (
       <div className={cn("w-full border-y border-border/50", className)}>
         <TickerRow quotes={blend} animationClass="animate-ticker" label="Live Markets" />
@@ -168,7 +210,27 @@ export function MarketTicker({ className, compact = false }: MarketTickerProps) 
     <div className={cn("w-full", className)}>
       <TickerRow quotes={nzx} animationClass="animate-ticker" label="NZX 50" />
       <TickerRow quotes={asx} animationClass="animate-ticker-reverse" label="ASX 200" />
-      <TickerRow quotes={global} animationClass="animate-ticker-slow" label="Global · Crypto" />
+      <TickerRow quotes={crypto} animationClass="animate-ticker-slow" label="Crypto" />
+      {/* Source attribution — where the tape's data is sourced from. */}
+      <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 border-b border-border/40 bg-background/60 px-3 py-1.5 text-[0.6rem] text-muted-foreground">
+        <span className="inline-flex items-center gap-1">
+          <span className={cn("size-1.5 rounded-full", live.crypto ? "bg-emerald-400" : "bg-muted-foreground/50")} />
+          Data:
+        </span>
+        <a href={SOURCES.nzx} target="_blank" rel="noopener noreferrer" className="hover:text-foreground hover:underline">
+          NZX 50
+        </a>
+        <a href={SOURCES.asx} target="_blank" rel="noopener noreferrer" className="hover:text-foreground hover:underline">
+          ASX 200
+        </a>
+        <a href={SOURCES.crypto} target="_blank" rel="noopener noreferrer" className="hover:text-foreground hover:underline">
+          CMC Markets · Crypto
+        </a>
+        <span className="text-muted-foreground/70">
+          {live.crypto ? "Crypto live" : "Snapshot"}
+          {live.equities ? " · Equities live" : ""}
+        </span>
+      </div>
     </div>
   );
 }

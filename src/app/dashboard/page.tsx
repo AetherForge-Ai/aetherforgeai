@@ -1,5 +1,10 @@
 import { redirect } from "next/navigation";
-import { getCurrentUser, isStripeConfigured, hasActiveSubscription } from "@/lib/session";
+import {
+  getCurrentUser,
+  isStripeConfigured,
+  hasActiveSubscription,
+  hasPaidSubscription,
+} from "@/lib/session";
 import { AppShell } from "@/components/AppShell";
 import { PortfolioDashboard } from "@/components/dashboard/PortfolioDashboard";
 
@@ -14,6 +19,10 @@ export default async function DashboardPage() {
   if (isStripeConfigured() && !hasActiveSubscription(user)) {
     redirect("/pricing");
   }
+
+  // Precious-metals bonus: free for active PAYING members (in demo mode — no
+  // Stripe key — it's open to everyone so testers aren't locked out).
+  const metalsEntitled = !isStripeConfigured() || hasPaidSubscription(user);
 
   return (
     <AppShell
@@ -35,6 +44,7 @@ export default async function DashboardPage() {
           tickerLimit: user.ticker_limit,
           botAccess: user.bot_access ?? "none",
         }}
+        metalsEntitled={metalsEntitled}
       />
     </AppShell>
   );
