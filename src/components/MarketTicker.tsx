@@ -137,6 +137,91 @@ function TickerRow({
   );
 }
 
+interface MetalSpot {
+  usdPerOz: number;
+  nzdPerOz: number;
+}
+interface MetalsSpotFeed {
+  gold: MetalSpot;
+  silver: MetalSpot;
+  live: boolean;
+}
+
+function fmtOz(nzd: number): string {
+  return nzd.toLocaleString("en-NZ", { maximumFractionDigits: nzd >= 1000 ? 0 : 2 });
+}
+
+/**
+ * MetalsSpotBanner — a dedicated bar shown directly beneath the Crypto row on
+ * the home page, displaying the current-day Gold & Silver spot prices (NZD/oz,
+ * with the global USD/oz benchmark). Pulls from the PUBLIC /api/metals/spot
+ * endpoint so any visitor sees live precious-metal prices.
+ */
+function MetalsSpotBanner() {
+  const [spot, setSpot] = useState<MetalsSpotFeed | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const res = await api.get<MetalsSpotFeed>("/api/metals/spot");
+      if (active && res.ok && res.data) {
+        setSpot(res.data);
+        console.log("[metals-banner] Spot loaded:", res.data.live ? "live" : "est", res.data);
+      } else if (!res.ok) {
+        console.error("[metals-banner] Spot fetch failed:", res.error);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const items: { key: string; name: string; dot: string; text: string; s?: MetalSpot }[] = [
+    { key: "gold", name: "Gold", dot: "bg-[var(--gold,#f5b301)]", text: "text-[var(--gold,#f5b301)]", s: spot?.gold },
+    { key: "silver", name: "Silver", dot: "bg-slate-300", text: "text-slate-200", s: spot?.silver },
+  ];
+
+  return (
+    <div className="flex items-center overflow-hidden border-b border-border/40 bg-gradient-to-r from-[var(--gold,#f5b301)]/8 via-card/40 to-slate-400/8">
+      <span className="z-10 shrink-0 border-r border-border/50 bg-background/80 px-3 py-1.5 font-display text-[0.62rem] font-bold uppercase tracking-[0.18em] text-[var(--gold,#f5b301)]/90 backdrop-blur">
+        Metals
+      </span>
+      <div className="flex flex-1 flex-wrap items-center justify-center gap-x-8 gap-y-1 px-4 py-1.5">
+        {items.map((it) => (
+          <span key={it.key} className="inline-flex items-center gap-2 whitespace-nowrap">
+            <span className={cn("size-2 rounded-full", it.dot)} aria-hidden="true" />
+            <span className={cn("font-display text-[0.8rem] font-semibold tracking-tight", it.text)}>
+              {it.name}
+            </span>
+            {it.s ? (
+              <>
+                <span className="tnum text-[0.8rem] font-medium text-foreground/90">
+                  NZ${fmtOz(it.s.nzdPerOz)}
+                  <span className="text-muted-foreground">/oz</span>
+                </span>
+                <span className="tnum text-[0.68rem] text-muted-foreground">
+                  US${fmtOz(it.s.usdPerOz)}
+                </span>
+              </>
+            ) : (
+              <span className="text-[0.75rem] text-muted-foreground">Loading…</span>
+            )}
+          </span>
+        ))}
+        <span
+          className={cn(
+            "rounded-full px-2 py-0.5 text-[0.58rem] font-bold uppercase tracking-wide",
+            spot?.live ? "bg-emerald-500/15 text-emerald-400" : "bg-muted text-muted-foreground"
+          )}
+          title={spot?.live ? "Live spot price" : "Estimated (live feed unavailable)"}
+        >
+          {spot ? (spot.live ? "Live" : "Est.") : "…"}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 interface MarketTickerProps {
   className?: string;
   /** Show all three banner rows (home) or a single compact row (dashboard). */
@@ -211,6 +296,8 @@ export function MarketTicker({ className, compact = false }: MarketTickerProps) 
       <TickerRow quotes={nzx} animationClass="animate-ticker" label="NZX 50" />
       <TickerRow quotes={asx} animationClass="animate-ticker-reverse" label="ASX 200" />
       <TickerRow quotes={crypto} animationClass="animate-ticker-slow" label="Crypto" />
+      {/* Precious-metals spot bar — Gold & Silver, directly under Crypto. */}
+      <MetalsSpotBanner />
       {/* Source attribution — where the tape's data is sourced from. */}
       <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 border-b border-border/40 bg-background/60 px-3 py-1.5 text-[0.6rem] text-muted-foreground">
         <span className="inline-flex items-center gap-1">
