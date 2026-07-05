@@ -3,6 +3,14 @@
  * Safe to import on client and server (no server-only deps).
  */
 
+import {
+  currencyForTicker,
+  convertCurrency,
+  BASELINE_FX_TO_NZD,
+  type CurrencyCode,
+  type FxRatesToNZD,
+} from "@/lib/currency";
+
 export interface Stock {
   _id: string;
   ticker: string;
@@ -17,52 +25,72 @@ export interface Stock {
 }
 
 export interface HoldingMetrics extends Stock {
-  costBasis: number; // shares * purchase_price
-  marketValue: number; // shares * current_price
-  gain: number; // marketValue - costBasis
+  currency: CurrencyCode; // native currency of this holding (NZD/AUD/USD)
+  costBasis: number; // shares * purchase_price, in NATIVE currency
+  marketValue: number; // shares * current_price, in NATIVE currency
+  gain: number; // marketValue - costBasis, in NATIVE currency
   gainPct: number; // gain / costBasis * 100
-  weight: number; // % of total portfolio market value
+  baseValue: number; // market value converted into the portfolio base currency
+  weight: number; // % of total portfolio value (base-currency weighted)
 }
 
 export interface PortfolioSummary {
   holdings: HoldingMetrics[];
-  totalValue: number;
-  totalCost: number;
-  totalGain: number;
+  baseCurrency: CurrencyCode; // currency all totals are expressed in
+  totalValue: number; // in base currency
+  totalCost: number; // in base currency
+  totalGain: number; // in base currency
   totalGainPct: number;
   bestPerformer: HoldingMetrics | null;
   worstPerformer: HoldingMetrics | null;
-  sectorAllocation: { sector: string; value: number; weight: number }[];
+  sectorAllocation: { sector: string; value: number; weight: number }[]; // value in base currency
   holdingsCount: number;
 }
 
-export function computeSummary(stocks: Stock[]): PortfolioSummary {
+export interface SummaryOptions {
+  /** Currency all totals are aggregated into (NZD for Stox, USD for Koins). */
+  baseCurrency?: CurrencyCode;
+  /** Live FX rates (1 unit → NZD). Defaults to the baseline table. */
+  fxToNZD?: FxRatesToNZD;
+}
+
+export function computeSummary(stocks: Stock[], opts: SummaryOptions = {}): PortfolioSummary {
+  const baseCurrency = opts.baseCurrency ?? "USD";
+  const fx = opts.fxToNZD ?? BASELINE_FX_TO_NZD;
+
   const enriched = stocks.map((s) => {
     const shares = Number(s.shares) || 0;
     const purchase = Number(s.purchase_price) || 0;
     const current = Number(s.current_price) || purchase;
-    const costBasis = shares * purchase;
-    const marketValue = shares * current;
+    const currency = currencyForTicker(s.ticker, s.asset_type === "crypto" ? "crypto" : "stock");
+    const costBasis = shares * purchase; // native
+    const marketValue = shares * current; // native
     const gain = marketValue - costBasis;
     const gainPct = costBasis > 0 ? (gain / costBasis) * 100 : 0;
     return {
       ...s,
       current_price: current,
+      currency,
       costBasis,
       marketValue,
       gain,
       gainPct,
+      baseValue: convertCurrency(marketValue, currency, baseCurrency, fx),
       weight: 0,
     } as HoldingMetrics;
   });
 
-  const totalValue = enriched.reduce((sum, h) => sum + h.marketValue, 0);
-  const totalCost = enriched.reduce((sum, h) => sum + h.costBasis, 0);
+  // Totals in base currency (native values converted per-holding).
+  const totalValue = enriched.reduce((sum, h) => sum + h.baseValue, 0);
+  const totalCost = enriched.reduce(
+    (sum, h) => sum + convertCurrency(h.costBasis, h.currency, baseCurrency, fx),
+    0
+  );
   const totalGain = totalValue - totalCost;
   const totalGainPct = totalCost > 0 ? (totalGain / totalCost) * 100 : 0;
 
   enriched.forEach((h) => {
-    h.weight = totalValue > 0 ? (h.marketValue / totalValue) * 100 : 0;
+    h.weight = totalValue > 0 ? (h.baseValue / totalValue) * 100 : 0;
   });
 
   const sorted = [...enriched].sort((a, b) => b.gainPct - a.gainPct);
@@ -72,7 +100,7 @@ export function computeSummary(stocks: Stock[]): PortfolioSummary {
   const sectorMap: Record<string, number> = {};
   enriched.forEach((h) => {
     const sector = h.sector || "Other";
-    sectorMap[sector] = (sectorMap[sector] || 0) + h.marketValue;
+    sectorMap[sector] = (sectorMap[sector] || 0) + h.baseValue;
   });
   const sectorAllocation = Object.entries(sectorMap)
     .map(([sector, value]) => ({
@@ -84,6 +112,7 @@ export function computeSummary(stocks: Stock[]): PortfolioSummary {
 
   return {
     holdings: enriched,
+    baseCurrency,
     totalValue,
     totalCost,
     totalGain,

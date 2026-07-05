@@ -4,11 +4,17 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import {
   computeSummary,
-  formatCurrency,
   formatPercent,
   formatNumber,
   type Stock,
 } from "@/lib/portfolio";
+import {
+  formatMoney,
+  baseCurrencyForBot,
+  BASELINE_FX_TO_NZD,
+  CURRENCY_META,
+  type FxRatesToNZD,
+} from "@/lib/currency";
 import { StockDialog } from "@/components/dashboard/StockDialog";
 import { AnalysisPanel } from "@/components/dashboard/AnalysisPanel";
 import { ReportCenter } from "@/components/dashboard/ReportCenter";
@@ -181,6 +187,28 @@ export function PortfolioDashboard({
   const [bot, setBot] = useState<AssetClass>(defaultBot);
   const [watchlistSignal, setWatchlistSignal] = useState(0);
 
+  // Live FX rates (1 unit → NZD) so AUD (.AX) / USD holdings convert into the
+  // Stox NZD "Total Worth". Falls back to the baseline table if the feed misses.
+  const [fxToNZD, setFxToNZD] = useState<FxRatesToNZD>(BASELINE_FX_TO_NZD);
+  // Base currency all totals are aggregated in: NZD for Stox, USD for Koins.
+  const baseCurrency = useMemo(() => baseCurrencyForBot(bot), [bot]);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const res = await api.get<{ ratesToNZD: FxRatesToNZD; live: boolean }>("/api/fx");
+      if (active && res.ok && res.data?.ratesToNZD) {
+        console.log("[dashboard] FX rates loaded:", res.data.live ? "live" : "baseline", res.data.ratesToNZD);
+        setFxToNZD(res.data.ratesToNZD);
+      } else if (!res.ok) {
+        console.error("[dashboard] FX fetch failed, using baseline:", res.error);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   // We load ALL holdings (both bots) so we can enforce the plan's ticker quota
   // correctly — the free tier counts stocks + crypto together. The active bot's
   // holdings are derived below.
@@ -264,7 +292,10 @@ export function PortfolioDashboard({
     }
   }
 
-  const summary = useMemo(() => computeSummary(stocks), [stocks]);
+  const summary = useMemo(
+    () => computeSummary(stocks, { baseCurrency, fxToNZD }),
+    [stocks, baseCurrency, fxToNZD]
+  );
   const metrics = useMemo(() => computePortfolioMetrics(stocks), [stocks]);
 
   async function handleRefreshPrices() {
@@ -441,14 +472,14 @@ export function PortfolioDashboard({
       {/* KPI cards */}
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          label="Portfolio value"
-          value={formatCurrency(summary.totalValue)}
-          sub={`Cost basis ${formatCurrency(summary.totalCost)}`}
+          label={`Total worth · ${baseCurrency}`}
+          value={formatMoney(summary.totalValue, baseCurrency)}
+          sub={`Cost basis ${formatMoney(summary.totalCost, baseCurrency)}`}
           icon={Wallet}
         />
         <StatCard
           label="Unrealized P&L"
-          value={formatCurrency(summary.totalGain)}
+          value={formatMoney(summary.totalGain, baseCurrency)}
           sub={formatPercent(summary.totalGainPct)}
           icon={summary.totalGain >= 0 ? TrendingUp : TrendingDown}
           tone={gainTone}
@@ -458,7 +489,7 @@ export function PortfolioDashboard({
           value={`${metrics.alphaPotentialPct >= 0 ? "+" : ""}${metrics.alphaPotentialPct.toFixed(2)}%`}
           sub={
             summary.holdingsCount
-              ? `${formatCurrency(metrics.alphaPotentialValue)} projected move`
+              ? `${formatMoney(metrics.alphaPotentialValue, baseCurrency)} projected move`
               : "Add holdings to project"
           }
           icon={Zap}
@@ -612,7 +643,15 @@ export function PortfolioDashboard({
                               {h.ticker.slice(0, 4)}
                             </span>
                             <div className="min-w-0">
-                              <p className="font-semibold">{h.ticker}</p>
+                              <div className="flex items-center gap-1.5">
+                                <p className="font-semibold">{h.ticker}</p>
+                                <span
+                                  className="rounded bg-muted/60 px-1.5 py-0.5 text-[0.6rem] font-semibold uppercase tracking-wide text-muted-foreground"
+                                  title={CURRENCY_META[h.currency].label}
+                                >
+                                  {h.currency}
+                                </span>
+                              </div>
                               <p className="truncate text-xs text-muted-foreground">
                                 {h.company_name || h.sector || "—"}
                               </p>
@@ -623,13 +662,18 @@ export function PortfolioDashboard({
                           {formatNumber(h.shares)}
                         </td>
                         <td className="tnum px-3 py-3.5 text-right text-muted-foreground">
-                          {formatCurrency(h.purchase_price)}
+                          {formatMoney(h.purchase_price, h.currency)}
                         </td>
                         <td className="tnum px-3 py-3.5 text-right">
-                          {formatCurrency(h.current_price)}
+                          {formatMoney(h.current_price, h.currency)}
                         </td>
                         <td className="tnum px-3 py-3.5 text-right font-medium">
-                          {formatCurrency(h.marketValue)}
+                          {formatMoney(h.marketValue, h.currency)}
+                          {h.currency !== baseCurrency && (
+                            <span className="block text-[0.68rem] font-normal text-muted-foreground">
+                              ≈ {formatMoney(h.baseValue, baseCurrency)}
+                            </span>
+                          )}
                         </td>
                         <td className="px-3 py-3.5 text-right">
                           <span
@@ -638,7 +682,7 @@ export function PortfolioDashboard({
                               up ? "text-emerald-400" : "text-rose-400"
                             )}
                           >
-                            {formatCurrency(h.gain)}
+                            {formatMoney(h.gain, h.currency)}
                           </span>
                           <span
                             className={cn(
@@ -713,7 +757,7 @@ export function PortfolioDashboard({
                     />
                     <span className="min-w-0 flex-1 truncate text-sm">{s.sector}</span>
                     <span className="tnum text-sm text-muted-foreground">
-                      {formatCurrency(s.value, { compact: true })}
+                      {formatMoney(s.value, baseCurrency, { compact: true })}
                     </span>
                     <span className="tnum w-12 text-right text-sm font-medium">
                       {s.weight.toFixed(1)}%

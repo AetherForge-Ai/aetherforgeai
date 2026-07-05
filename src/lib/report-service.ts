@@ -7,6 +7,7 @@ import { createGrokChatCompletion, isGrokConfigured } from "@/lib/grok";
 import { analyzeSecurity, type SecurityIntel } from "@/lib/market-intel";
 import { computePortfolioMetrics, buildActionableIntelligence } from "@/lib/analytics";
 import { fetchQuotesForAssetClass, isLiveConfiguredFor } from "@/lib/market-data";
+import { getFxSnapshot } from "@/lib/fx";
 import type { Stock } from "@/lib/portfolio";
 
 /**
@@ -106,7 +107,16 @@ export async function generateReportForUser(
   const metrics = computePortfolioMetrics(stockObjs);
   const intelligence = buildActionableIntelligence(stockObjs);
 
-  const report = buildLiveReport(bot, holdings, `${user._id}:${bot}:${context}:${Date.now()}`);
+  // FX rates so AUD (.AX) / USD holdings convert into the Stox NZD total.
+  const fx = await getFxSnapshot();
+  console.log(
+    `[report-service] FX for report (${fx.live ? "live" : "baseline"}): 1 AUD=${fx.ratesToNZD.AUD.toFixed(3)} NZD, 1 USD=${fx.ratesToNZD.USD.toFixed(3)} NZD`
+  );
+
+  const report = buildLiveReport(bot, holdings, {
+    seedSalt: `${user._id}:${bot}:${context}:${Date.now()}`,
+    fxToNZD: fx.ratesToNZD,
+  });
 
   // Optional Grok narrative enhancement — never fatal.
   let aiEnhanced = false;

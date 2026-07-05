@@ -10,9 +10,19 @@
  * Pure module — no imports beyond the report type.
  */
 
-import type { ApexReport, TickerAnalysis, MomentumPoint } from "@/lib/apex";
+import type {
+  ApexReport,
+  TickerAnalysis,
+  MomentumPoint,
+  MarketMoversGroup,
+  ProjectionRow,
+  RegionalNewsGroup,
+  DirectRecommendation,
+  PathwayPlan,
+} from "@/lib/apex";
 import type { SecurityIntel } from "@/lib/market-intel";
 import type { ActionableIntelligence, PortfolioMetrics } from "@/lib/analytics";
+import type { CurrencyCode } from "@/lib/currency";
 
 export interface ReportAlert {
   ticker: string;
@@ -51,6 +61,21 @@ function rich(text: string): string {
 
 function money(v: number): string {
   return "$" + (v ?? 0).toLocaleString("en-NZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+const CUR_SYMBOL: Record<CurrencyCode, string> = { NZD: "NZ$", AUD: "AU$", USD: "US$" };
+
+/** Currency-aware money (e.g. "AU$1,234.50"). Sub-$5 prices show more precision. */
+function moneyC(v: number, currency: CurrencyCode): string {
+  const sym = CUR_SYMBOL[currency] ?? "$";
+  const val = v ?? 0;
+  return (
+    sym +
+    val.toLocaleString("en-NZ", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: Math.abs(val) > 0 && Math.abs(val) < 5 ? 4 : 2,
+    })
+  );
 }
 
 function pct(v: number): string {
@@ -247,68 +272,151 @@ function technicalsTable(techs: SecurityIntel[]): string {
     </table>`;
 }
 
-function intelligenceBlock(intel: ActionableIntelligence): string {
-  const sells = intel.sellRecommendations.length
-    ? intel.sellRecommendations
-        .map(
-          (r) => `<li style="margin:6px 0;font-size:12px">
-            <strong style="color:${RED}">${esc(r.ticker)}</strong>
-            <span style="color:${SIG_COLOR[r.signal]};font-weight:600">· ${esc(r.signal)}</span>
-            <span style="color:${MUTE}">(${r.weight}% wt)</span><br/>
-            <span style="color:${MUTE};font-size:11px;line-height:1.4">${esc(r.reasoning)}</span>
-          </li>`
-        )
-        .join("")
-    : `<li style="color:${MUTE};font-size:12px">No current holdings trigger a sell signal.</li>`;
+/* ------------------- Advanced multi-timeframe sweep blocks -------------- */
 
-  const buys = intel.buyCandidates.length
-    ? intel.buyCandidates
-        .map(
-          (c) => `<li style="margin:6px 0;font-size:12px">
-            <strong style="color:${GREEN}">${esc(c.ticker)}</strong>
-            <span style="color:${MUTE}">· ${esc(c.market)} · ${esc(c.sector)}</span>
-            <span style="color:${SIG_COLOR[c.signal]};font-weight:600">${esc(c.signal)}</span>
-            <span style="color:${pctColor(c.projected7dPct)}">${pct(c.projected7dPct)}</span>
-            <span style="color:${MUTE}">(${c.confidence}%)</span>
-          </li>`
-        )
-        .join("")
-    : `<li style="color:${MUTE};font-size:12px">No fresh buy signals this session.</li>`;
+/** Top-10 movers per exchange, across the 24h / 7d / 1-month windows. */
+function marketMoversBlock(groups: MarketMoversGroup[]): string {
+  if (!groups.length) return "";
+  const groupHtml = groups
+    .map((g) => {
+      const cols = g.windows
+        .map((w) => {
+          const rows = w.movers
+            .map(
+              (m, i) => `<tr>
+                <td style="padding:4px 6px;border-bottom:1px solid ${LINE};font-size:11px">
+                  <span style="color:${MUTE};font-size:10px">${i + 1}.</span>
+                  <strong style="color:${INK}">${esc(m.ticker)}</strong>
+                </td>
+                <td style="padding:4px 6px;border-bottom:1px solid ${LINE};text-align:right;font-size:11px;color:${pctColor(m.changePct)};font-weight:600">${pct(m.changePct)}</td>
+              </tr>`
+            )
+            .join("");
+          return `<td style="vertical-align:top;width:33%;padding:0 6px">
+            <div style="font-size:11px;font-weight:700;color:${BLUE};margin:0 0 4px">${esc(w.window)}</div>
+            <table width="100%" style="border-collapse:collapse">${rows || `<tr><td style="font-size:11px;color:${MUTE}">—</td></tr>`}</table>
+          </td>`;
+        })
+        .join("");
+      return `<div style="margin:10px 0 4px">
+        <div style="font-size:13px;font-weight:700;color:${INK};margin:0 0 6px">${esc(g.label)}</div>
+        <table width="100%" style="border-collapse:separate;border-spacing:0"><tr>${cols}</tr></table>
+      </div>`;
+    })
+    .join("");
+  return `<h2 style="font-size:16px;color:${INK};margin:26px 0 4px">Full multi-timeframe mover sweep · Top 10</h2>
+    <div style="font-size:12px;color:${MUTE};margin:0 0 4px">Biggest share-price gainers across each exchange over the last 24 hours, 7 days and month.</div>
+    ${groupHtml}`;
+}
 
-  const pathways = intel.pathways
+/** The top-10 highest-conviction 7-day forward projections. */
+function projectionLeadersBlock(rows: ProjectionRow[]): string {
+  if (!rows.length) return "";
+  const body = rows
     .map(
-      (p) => `<td style="padding:10px;border:1px solid ${LINE};vertical-align:top;width:33%">
-        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:${MUTE}">${esc(p.risk)} · ${p.probability}%</div>
-        <div style="font-weight:700;font-size:14px;color:${INK}">${esc(p.name)}</div>
-        <div style="font-size:16px;font-weight:700;color:${pctColor(p.targetPct)}">${pct(p.targetPct)}</div>
-        <ul style="padding-left:16px;margin:6px 0 0;font-size:10px;color:${MUTE};line-height:1.4">
-          ${p.steps.map((s) => `<li>${esc(s)}</li>`).join("")}
-        </ul>
-      </td>`
+      (r, i) => `<tr>
+        <td style="padding:6px 7px;border:1px solid ${LINE};font-size:11px"><span style="color:${MUTE}">${i + 1}.</span> <strong>${esc(r.ticker)}</strong> <span style="color:${MUTE}">· ${esc(r.name)}</span></td>
+        <td style="padding:6px 7px;border:1px solid ${LINE};font-size:11px;text-align:center">${esc(r.market)}</td>
+        <td style="padding:6px 7px;border:1px solid ${LINE};font-family:monospace;font-size:11px;text-align:right">${moneyC(r.price, r.currency)}</td>
+        <td style="padding:6px 7px;border:1px solid ${LINE};font-size:12px;text-align:right;color:${pctColor(r.projected7dPct)};font-weight:700">${pct(r.projected7dPct)}</td>
+        <td style="padding:6px 7px;border:1px solid ${LINE};font-size:11px;text-align:right;color:${MUTE}">${r.confidence}%</td>
+      </tr>`
     )
     .join("");
+  return `<h2 style="font-size:16px;color:${INK};margin:26px 0 8px">Next 7 days · Top-10 projected movers</h2>
+    <table width="100%" style="border-collapse:collapse">
+      <tr style="background:${NAVY};color:#fff;font-size:11px">
+        <th style="padding:6px 7px;text-align:left">Security</th>
+        <th style="padding:6px 7px;text-align:center">Market</th>
+        <th style="padding:6px 7px;text-align:right">Price</th>
+        <th style="padding:6px 7px;text-align:right">7-day proj.</th>
+        <th style="padding:6px 7px;text-align:right">Conf.</th>
+      </tr>
+      ${body}
+    </table>`;
+}
 
-  const banner = intel.actionRequired
-    ? `<div style="background:${RED}12;border:1px solid ${RED}55;border-radius:8px;padding:12px 14px;margin:8px 0 14px">
-        <strong style="color:${RED}">⚠ Immediate action required</strong>
-        <span style="color:${INK};font-size:12px"> — ${intel.sellRecommendations.length} holding(s) flag elevated downside risk.</span>
+/** News broadcasts / press releases grouped by region (NZ, AU, US, Global). */
+function regionalNewsBlock(groups: RegionalNewsGroup[]): string {
+  if (!groups.length) return "";
+  const blocks = groups
+    .map((g) => {
+      const items = g.items
+        .map((n) => {
+          const c = n.impact === "Bullish" ? GREEN : n.impact === "Bearish" ? RED : MUTE;
+          return `<li style="margin:4px 0;font-size:12px">${esc(n.headline)}
+            <span style="color:${MUTE};font-size:11px">· ${esc(n.source)} · ${esc(n.time)}</span>
+            <span style="color:${c};float:right;font-size:11px;font-weight:600">${esc(n.impact)}</span></li>`;
+        })
+        .join("");
+      return `<div style="margin:8px 0">
+        <h3 style="font-size:13px;margin:6px 0 2px;color:${INK}">${esc(g.region)}</h3>
+        <ul style="padding-left:18px;margin:0;list-style:none">${items}</ul>
+      </div>`;
+    })
+    .join("");
+  return `<h2 style="font-size:16px;color:${INK};margin:26px 0 4px">News &amp; press-release watch · NZ · AU · US</h2>
+    ${blocks}`;
+}
+
+const ACTION_COLOR: Record<DirectRecommendation["action"], string> = {
+  SELL: RED,
+  TRIM: "#d97706",
+  HOLD: "#0284c7",
+  BUY: "#0d9488",
+  ACCUMULATE: GREEN,
+};
+
+/** Direct, plain-English buy/sell/hold instructions on specific securities. */
+function directRecommendationsBlock(recs: DirectRecommendation[]): string {
+  if (!recs.length) return "";
+  const row = (r: DirectRecommendation) => {
+    const c = ACTION_COLOR[r.action];
+    return `<li style="margin:8px 0;font-size:12px;line-height:1.5">
+      <span style="display:inline-block;min-width:78px;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;color:${c};background:${c}1a;border:1px solid ${c}44;text-align:center">${esc(r.action)}</span>
+      <strong style="color:${INK}">&nbsp;${esc(r.ticker)}</strong>
+      <span style="color:${MUTE}">· ${moneyC(r.price, r.currency)}</span>
+      <div style="color:${INK};margin-top:2px">${esc(r.detail)}</div>
+    </li>`;
+  };
+  const held = recs.filter((r) => r.held);
+  const fresh = recs.filter((r) => !r.held);
+  const urgent = held.some((r) => r.action === "SELL" || r.action === "TRIM");
+  const banner = urgent
+    ? `<div style="background:${RED}12;border:1px solid ${RED}55;border-radius:8px;padding:10px 14px;margin:6px 0 12px">
+        <strong style="color:${RED}">⚠ Action required</strong>
+        <span style="color:${INK};font-size:12px"> — one or more holdings are projected to weaken. Direct exit/trim guidance below.</span>
       </div>`
     : "";
-
-  return `<h2 style="font-size:16px;color:${INK};margin:26px 0 8px">Actionable intelligence</h2>
+  return `<h2 style="font-size:16px;color:${INK};margin:26px 0 8px">Direct recommendations — build &amp; protect wealth</h2>
     ${banner}
-    <table width="100%" style="border-collapse:separate;border-spacing:0"><tr>
-      <td style="width:50%;vertical-align:top;padding-right:8px">
-        <h3 style="font-size:13px;margin:4px 0;color:${RED}">▼ SELL recommendations (from holdings)</h3>
-        <ul style="padding-left:16px;margin:0">${sells}</ul>
-      </td>
-      <td style="width:50%;vertical-align:top;padding-left:8px">
-        <h3 style="font-size:13px;margin:4px 0;color:${GREEN}">▲ High-conviction BUY candidates (not held)</h3>
-        <ul style="padding-left:16px;margin:0">${buys}</ul>
-      </td>
-    </tr></table>
-    <h3 style="font-size:13px;margin:16px 0 6px;color:${INK}">Three forward pathways</h3>
-    <table width="100%" style="border-collapse:collapse"><tr>${pathways}</tr></table>`;
+    ${held.length ? `<h3 style="font-size:13px;margin:6px 0;color:${INK}">On your holdings</h3><ul style="padding-left:2px;margin:0;list-style:none">${held.map(row).join("")}</ul>` : ""}
+    ${fresh.length ? `<h3 style="font-size:13px;margin:14px 0 6px;color:${GREEN}">New high-conviction opportunities (not yet held)</h3><ul style="padding-left:2px;margin:0;list-style:none">${fresh.map(row).join("")}</ul>` : ""}`;
+}
+
+/** Three forward pathways with steps + the single recommended route. */
+function pathwayPlanBlock(plan: PathwayPlan): string {
+  if (!plan.pathways.length) return "";
+  const cols = plan.pathways
+    .map((p) => {
+      const rec = p.recommended;
+      return `<td style="padding:12px;border:2px solid ${rec ? BLUE : LINE};border-radius:8px;vertical-align:top;width:33%;background:${rec ? BLUE + "0a" : "#fff"}">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:${MUTE}">${esc(p.risk)} · ${p.probability}% odds</div>
+        <div style="font-weight:700;font-size:14px;color:${INK}">${esc(p.name)}${rec ? ` <span style="color:${BLUE};font-size:10px;font-weight:700">★ RECOMMENDED</span>` : ""}</div>
+        <div style="font-size:16px;font-weight:700;color:${pctColor(p.targetPct)}">${pct(p.targetPct)} <span style="font-size:10px;color:${MUTE};font-weight:400">7-day target</span></div>
+        <div style="font-size:11px;color:${MUTE};margin:4px 0 6px;line-height:1.4">${esc(p.summary)}</div>
+        <ol style="padding-left:16px;margin:0;font-size:11px;color:${INK};line-height:1.5">
+          ${p.steps.map((s) => `<li style="margin:3px 0">${esc(s)}</li>`).join("")}
+        </ol>
+      </td>`;
+    })
+    .join("");
+  return `<h2 style="font-size:16px;color:${INK};margin:26px 0 8px">Three pathways forward — with step-by-step plan</h2>
+    <div style="background:${BLUE}0f;border:1px solid ${BLUE}44;border-radius:8px;padding:12px 14px;margin:0 0 12px">
+      <strong style="color:${BLUE}">★ Recommended route: ${esc(plan.recommendedName)}</strong>
+      <div style="color:${INK};font-size:12px;line-height:1.5;margin-top:3px">${esc(plan.recommendationNote)}</div>
+    </div>
+    <table width="100%" style="border-collapse:separate;border-spacing:6px 0"><tr>${cols}</tr></table>`;
 }
 
 export interface RenderReportOptions {
@@ -350,19 +458,24 @@ export function renderReportHtml(report: ApexReport, opts: RenderReportOptions):
     ? `<table width="100%" style="border-collapse:collapse;margin:14px 0">
         <tr>
           <td style="width:33%;padding:12px;border:1px solid ${LINE};border-radius:8px">
-            <div style="font-size:11px;color:${MUTE}">Portfolio Value</div>
-            <div style="font-size:18px;font-weight:700;color:${INK}">${money(report.portfolio.value)}</div>
+            <div style="font-size:11px;color:${MUTE}">Total Worth · ${esc(report.portfolio.currency)}</div>
+            <div style="font-size:18px;font-weight:700;color:${INK}">${moneyC(report.portfolio.value, report.portfolio.currency)}</div>
           </td>
           <td style="width:33%;padding:12px;border:1px solid ${LINE}">
             <div style="font-size:11px;color:${MUTE}">Profit &amp; Loss</div>
-            <div style="font-size:18px;font-weight:700;color:${pctColor(report.portfolio.pnl)}">${report.portfolio.pnl >= 0 ? "+" : ""}${money(report.portfolio.pnl)}</div>
+            <div style="font-size:18px;font-weight:700;color:${pctColor(report.portfolio.pnl)}">${report.portfolio.pnl >= 0 ? "+" : ""}${moneyC(report.portfolio.pnl, report.portfolio.currency)}</div>
           </td>
           <td style="width:33%;padding:12px;border:1px solid ${LINE}">
             <div style="font-size:11px;color:${MUTE}">Return</div>
             <div style="font-size:18px;font-weight:700;color:${pctColor(report.portfolio.pnlPct)}">${pct(report.portfolio.pnlPct)}</div>
           </td>
         </tr>
-      </table>`
+      </table>
+      ${
+        report.portfolio.currency === "NZD"
+          ? `<div style="font-size:11px;color:${MUTE};margin:-6px 0 8px">Total worth is aggregated in NZD — Australian (.AX) holdings are shown in AUD and US holdings in USD on their individual cards, then converted to NZD here.</div>`
+          : ""
+      }`
     : "";
 
   const tickers = report.tickers.map((t) => tickerBlock(t)).join("");
@@ -417,10 +530,20 @@ export function renderReportHtml(report: ApexReport, opts: RenderReportOptions):
           </td>
         </tr></table>
 
-        <h3 style="font-size:14px;margin:18px 0 8px">Global news synthesis</h3>
-        <ul style="padding-left:18px;margin:0;font-size:13px;list-style:none">${news}</ul>
+        ${marketMoversBlock(report.marketMovers)}
 
-        ${opts.intelligence ? intelligenceBlock(opts.intelligence) : ""}
+        ${projectionLeadersBlock(report.projectionLeaders)}
+
+        ${
+          report.regionalNews && report.regionalNews.length
+            ? regionalNewsBlock(report.regionalNews)
+            : `<h3 style="font-size:14px;margin:18px 0 8px">Global news synthesis</h3>
+               <ul style="padding-left:18px;margin:0;font-size:13px;list-style:none">${news}</ul>`
+        }
+
+        ${directRecommendationsBlock(report.directRecommendations)}
+
+        ${pathwayPlanBlock(report.pathwayPlan)}
 
         ${alertsBlock(opts.alerts || [])}
 

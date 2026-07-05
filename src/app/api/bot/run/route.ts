@@ -4,6 +4,7 @@ import { getCurrentUser, isStripeConfigured, hasActiveSubscription } from "@/lib
 import { totalumSdk } from "@/lib/totalum";
 import { referencePrice, simulateTick } from "@/lib/market";
 import { buildLiveReport, type LiveHolding, type BotKind } from "@/lib/apex";
+import { getFxSnapshot } from "@/lib/fx";
 
 const schema = z.object({ bot: z.enum(["stock", "crypto"]) });
 
@@ -69,7 +70,11 @@ export async function POST(req: Request) {
       };
     });
 
-    const report = buildLiveReport(bot, holdings, `${user._id}:${bot}`);
+    const fx = await getFxSnapshot();
+    const report = buildLiveReport(bot, holdings, {
+      seedSalt: `${user._id}:${bot}`,
+      fxToNZD: fx.ratesToNZD,
+    });
     console.log(`[api/bot/run] user ${user._id} ran ${bot} bot over ${holdings.length} holdings`);
 
     return NextResponse.json({

@@ -8,8 +8,15 @@
 
 import * as React from "react";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency, formatPercent } from "@/lib/portfolio";
-import type { ApexReport, TickerAnalysis, MomentumPoint } from "@/lib/apex";
+import { formatPercent } from "@/lib/portfolio";
+import { formatMoney } from "@/lib/currency";
+import type {
+  ApexReport,
+  TickerAnalysis,
+  MomentumPoint,
+  DirectRecommendation,
+  PortfolioPathway,
+} from "@/lib/apex";
 
 function signalTone(signal: TickerAnalysis["signal"]): string {
   switch (signal) {
@@ -150,6 +157,227 @@ function RichText({ text }: { text: string }) {
   );
 }
 
+function actionTone(action: DirectRecommendation["action"]): string {
+  switch (action) {
+    case "SELL":
+      return "bg-rose-500/15 text-rose-400 border-rose-500/30";
+    case "TRIM":
+      return "bg-amber-500/15 text-amber-300 border-amber-500/30";
+    case "HOLD":
+      return "bg-sky-500/15 text-sky-300 border-sky-500/30";
+    case "BUY":
+      return "bg-teal-500/15 text-teal-300 border-teal-500/30";
+    case "ACCUMULATE":
+      return "bg-emerald-500/15 text-emerald-400 border-emerald-500/30";
+  }
+}
+
+/** Full multi-timeframe mover sweep — Top 10 per exchange, 3 windows. */
+function MarketMoversSection({ report }: { report: ApexReport }) {
+  if (!report.marketMovers?.length) return null;
+  return (
+    <div className="rounded-xl border border-border/60 bg-card/40 p-4">
+      <div className="text-sm font-semibold">Full multi-timeframe mover sweep · Top 10</div>
+      <p className="mb-3 text-xs text-muted-foreground">
+        Biggest share-price gainers on each exchange over 24 hours, 7 days and the last month.
+      </p>
+      <div className="space-y-4">
+        {report.marketMovers.map((g) => (
+          <div key={g.market}>
+            <div className="mb-1.5 text-xs font-semibold text-primary">{g.label}</div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              {g.windows.map((w) => (
+                <div key={w.window} className="rounded-lg border border-border/50 bg-background/40 p-2">
+                  <div className="mb-1 text-[11px] font-medium text-muted-foreground">{w.window}</div>
+                  <ul className="space-y-0.5">
+                    {w.movers.map((m, i) => (
+                      <li key={m.ticker} className="flex items-center justify-between text-[11px]">
+                        <span className="truncate">
+                          <span className="text-muted-foreground/60">{i + 1}.</span>{" "}
+                          <span className="font-medium">{m.ticker}</span>
+                        </span>
+                        <span className={pctTone(m.changePct)}>{formatPercent(m.changePct)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Top-10 highest-conviction 7-day forward projections. */
+function ProjectionLeadersSection({ report }: { report: ApexReport }) {
+  if (!report.projectionLeaders?.length) return null;
+  return (
+    <div className="rounded-xl border border-border/60 bg-card/40 p-4">
+      <div className="mb-2 text-sm font-semibold">Next 7 days · Top-10 projected movers</div>
+      <div className="space-y-1">
+        {report.projectionLeaders.map((r, i) => (
+          <div key={r.ticker} className="flex items-center justify-between gap-2 text-sm">
+            <span className="min-w-0 truncate text-muted-foreground">
+              <span className="text-muted-foreground/60">{i + 1}.</span>{" "}
+              <span className="font-medium text-foreground">{r.ticker}</span>
+              <span className="text-muted-foreground/70"> · {r.market}</span>
+            </span>
+            <span className="flex shrink-0 items-center gap-2">
+              <span className="font-mono text-xs text-muted-foreground">{formatMoney(r.price, r.currency)}</span>
+              <span className={`font-mono ${pctTone(r.projected7dPct)}`}>{formatPercent(r.projected7dPct)}</span>
+              <span className="text-[11px] text-muted-foreground/70">{r.confidence}%</span>
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** News broadcasts / press releases grouped by region. */
+function RegionalNewsSection({ report }: { report: ApexReport }) {
+  if (!report.regionalNews?.length) return null;
+  return (
+    <div className="rounded-xl border border-border/60 bg-card/40 p-4">
+      <div className="mb-2 text-sm font-semibold">News &amp; press-release watch · NZ · AU · US</div>
+      <div className="space-y-3">
+        {report.regionalNews.map((g) => (
+          <div key={g.region}>
+            <div className="mb-1 text-xs font-semibold text-foreground">{g.region}</div>
+            <ul className="space-y-1">
+              {g.items.map((n, i) => (
+                <li key={i} className="flex items-center justify-between gap-3 text-sm">
+                  <span className="text-muted-foreground">
+                    {n.headline}{" "}
+                    <span className="text-muted-foreground/60">
+                      · {n.source} · {n.time}
+                    </span>
+                  </span>
+                  <Badge
+                    variant="outline"
+                    className={
+                      n.impact === "Bullish"
+                        ? "border-emerald-500/30 text-emerald-400"
+                        : n.impact === "Bearish"
+                          ? "border-rose-500/30 text-rose-400"
+                          : "border-border/60 text-muted-foreground"
+                    }
+                  >
+                    {n.impact}
+                  </Badge>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Direct, plain-English buy/sell/hold instructions. */
+function DirectRecommendationsSection({ report }: { report: ApexReport }) {
+  const recs = report.directRecommendations;
+  if (!recs?.length) return null;
+  const held = recs.filter((r) => r.held);
+  const fresh = recs.filter((r) => !r.held);
+  const urgent = held.some((r) => r.action === "SELL" || r.action === "TRIM");
+
+  const Row = ({ r }: { r: DirectRecommendation }) => (
+    <li className="rounded-lg border border-border/50 bg-background/40 p-2.5 text-sm">
+      <div className="flex items-center gap-2">
+        <Badge variant="outline" className={actionTone(r.action)}>
+          {r.action}
+        </Badge>
+        <span className="font-semibold">{r.ticker}</span>
+        <span className="text-xs text-muted-foreground">· {formatMoney(r.price, r.currency)}</span>
+      </div>
+      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{r.detail}</p>
+    </li>
+  );
+
+  return (
+    <div className="rounded-xl border border-border/60 bg-card/40 p-4">
+      <div className="text-sm font-semibold">Direct recommendations — build &amp; protect wealth</div>
+      {urgent && (
+        <div className="mt-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
+          ⚠ Action required — one or more holdings are projected to weaken. Direct exit/trim guidance below.
+        </div>
+      )}
+      {held.length > 0 && (
+        <>
+          <div className="mt-3 mb-1.5 text-xs font-semibold text-foreground">On your holdings</div>
+          <ul className="grid gap-1.5">
+            {held.map((r) => (
+              <Row key={r.ticker} r={r} />
+            ))}
+          </ul>
+        </>
+      )}
+      {fresh.length > 0 && (
+        <>
+          <div className="mt-3 mb-1.5 text-xs font-semibold text-emerald-400">
+            New high-conviction opportunities (not yet held)
+          </div>
+          <ul className="grid gap-1.5">
+            {fresh.map((r) => (
+              <Row key={r.ticker} r={r} />
+            ))}
+          </ul>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Three forward pathways with steps + the recommended route. */
+function PathwayPlanSection({ report }: { report: ApexReport }) {
+  const plan = report.pathwayPlan;
+  if (!plan?.pathways?.length) return null;
+
+  const Card = ({ p }: { p: PortfolioPathway }) => (
+    <div
+      className={`rounded-xl border p-3 ${
+        p.recommended ? "border-primary/50 bg-primary/5" : "border-border/60 bg-background/40"
+      }`}
+    >
+      <div className="flex items-center justify-between text-[10px] uppercase tracking-wide text-muted-foreground">
+        <span>
+          {p.risk} · {p.probability}%
+        </span>
+        {p.recommended && <span className="font-bold text-primary">★ Recommended</span>}
+      </div>
+      <div className="mt-0.5 text-sm font-semibold">{p.name}</div>
+      <div className={`text-base font-bold ${pctTone(p.targetPct)}`}>
+        {formatPercent(p.targetPct)} <span className="text-[10px] font-normal text-muted-foreground">7-day target</span>
+      </div>
+      <p className="mt-1 text-[11px] leading-snug text-muted-foreground">{p.summary}</p>
+      <ol className="mt-2 list-decimal space-y-1 pl-4 text-[11px] leading-snug text-foreground/90">
+        {p.steps.map((s, i) => (
+          <li key={i}>{s}</li>
+        ))}
+      </ol>
+    </div>
+  );
+
+  return (
+    <div className="rounded-xl border border-border/60 bg-card/40 p-4">
+      <div className="text-sm font-semibold">Three pathways forward — with step-by-step plan</div>
+      <div className="mt-2 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2">
+        <div className="text-xs font-semibold text-primary">★ Recommended route: {plan.recommendedName}</div>
+        <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{plan.recommendationNote}</p>
+      </div>
+      <div className="mt-3 grid gap-2 md:grid-cols-3">
+        {plan.pathways.map((p) => (
+          <Card key={p.name} p={p} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function ApexReportView({ report }: { report: ApexReport }) {
   return (
     <div className="space-y-5">
@@ -173,24 +401,34 @@ export function ApexReportView({ report }: { report: ApexReport }) {
 
       {/* Portfolio snapshot (live only) */}
       {report.portfolio && (
-        <div className="grid grid-cols-3 gap-2">
-          <div className="rounded-lg border border-border/60 bg-card/40 p-3">
-            <div className="text-[11px] text-muted-foreground">Portfolio Value</div>
-            <div className="mt-0.5 text-lg font-semibold">{formatCurrency(report.portfolio.value)}</div>
-          </div>
-          <div className="rounded-lg border border-border/60 bg-card/40 p-3">
-            <div className="text-[11px] text-muted-foreground">Profit &amp; Loss</div>
-            <div className={`mt-0.5 text-lg font-semibold ${pctTone(report.portfolio.pnl)}`}>
-              {report.portfolio.pnl >= 0 ? "+" : ""}
-              {formatCurrency(report.portfolio.pnl)}
+        <div>
+          <div className="grid grid-cols-3 gap-2">
+            <div className="rounded-lg border border-border/60 bg-card/40 p-3">
+              <div className="text-[11px] text-muted-foreground">Total Worth · {report.portfolio.currency}</div>
+              <div className="mt-0.5 text-lg font-semibold">
+                {formatMoney(report.portfolio.value, report.portfolio.currency)}
+              </div>
+            </div>
+            <div className="rounded-lg border border-border/60 bg-card/40 p-3">
+              <div className="text-[11px] text-muted-foreground">Profit &amp; Loss</div>
+              <div className={`mt-0.5 text-lg font-semibold ${pctTone(report.portfolio.pnl)}`}>
+                {report.portfolio.pnl >= 0 ? "+" : ""}
+                {formatMoney(report.portfolio.pnl, report.portfolio.currency)}
+              </div>
+            </div>
+            <div className="rounded-lg border border-border/60 bg-card/40 p-3">
+              <div className="text-[11px] text-muted-foreground">Return</div>
+              <div className={`mt-0.5 text-lg font-semibold ${pctTone(report.portfolio.pnlPct)}`}>
+                {formatPercent(report.portfolio.pnlPct)}
+              </div>
             </div>
           </div>
-          <div className="rounded-lg border border-border/60 bg-card/40 p-3">
-            <div className="text-[11px] text-muted-foreground">Return</div>
-            <div className={`mt-0.5 text-lg font-semibold ${pctTone(report.portfolio.pnlPct)}`}>
-              {formatPercent(report.portfolio.pnlPct)}
-            </div>
-          </div>
+          {report.portfolio.currency === "NZD" && (
+            <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground/80">
+              Total worth is aggregated in NZD — Australian (.AX) holdings display in AUD and US holdings in USD, then
+              convert to NZD here.
+            </p>
+          )}
         </div>
       )}
 
@@ -233,31 +471,47 @@ export function ApexReportView({ report }: { report: ApexReport }) {
         </div>
       </div>
 
-      {/* News synthesis */}
-      <div className="rounded-xl border border-border/60 bg-card/40 p-4">
-        <div className="text-sm font-semibold mb-2">Global news synthesis</div>
-        <ul className="space-y-1.5">
-          {report.newsSynthesis.map((n, i) => (
-            <li key={i} className="flex items-center justify-between gap-3 text-sm">
-              <span className="text-muted-foreground">
-                {n.headline} <span className="text-muted-foreground/60">· {n.source}</span>
-              </span>
-              <Badge
-                variant="outline"
-                className={
-                  n.impact === "Bullish"
-                    ? "border-emerald-500/30 text-emerald-400"
-                    : n.impact === "Bearish"
-                      ? "border-rose-500/30 text-rose-400"
-                      : "border-border/60 text-muted-foreground"
-                }
-              >
-                {n.impact}
-              </Badge>
-            </li>
-          ))}
-        </ul>
-      </div>
+      {/* Full multi-timeframe mover sweep (NZX / ASX / US · 3 windows) */}
+      <MarketMoversSection report={report} />
+
+      {/* Top-10 projected movers over the next 7 days */}
+      <ProjectionLeadersSection report={report} />
+
+      {/* Regional news / press-release watch (falls back to global synthesis) */}
+      {report.regionalNews && report.regionalNews.length ? (
+        <RegionalNewsSection report={report} />
+      ) : (
+        <div className="rounded-xl border border-border/60 bg-card/40 p-4">
+          <div className="text-sm font-semibold mb-2">Global news synthesis</div>
+          <ul className="space-y-1.5">
+            {report.newsSynthesis.map((n, i) => (
+              <li key={i} className="flex items-center justify-between gap-3 text-sm">
+                <span className="text-muted-foreground">
+                  {n.headline} <span className="text-muted-foreground/60">· {n.source}</span>
+                </span>
+                <Badge
+                  variant="outline"
+                  className={
+                    n.impact === "Bullish"
+                      ? "border-emerald-500/30 text-emerald-400"
+                      : n.impact === "Bearish"
+                        ? "border-rose-500/30 text-rose-400"
+                        : "border-border/60 text-muted-foreground"
+                  }
+                >
+                  {n.impact}
+                </Badge>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Direct recommendations (sell/trim/buy/hold) */}
+      <DirectRecommendationsSection report={report} />
+
+      {/* Three forward pathways + recommended route */}
+      <PathwayPlanSection report={report} />
 
       {/* Per-ticker deep analysis */}
       <div>
