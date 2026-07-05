@@ -28,6 +28,8 @@ const publicRoutes = [
   "/",
   "/login",
   "/register",
+  "/forgot-password",
+  "/reset-password",
   "/pricing",
   "/privacy-policy",
   "/terms-of-service",
