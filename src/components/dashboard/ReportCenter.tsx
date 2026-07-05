@@ -23,7 +23,8 @@ import type { ApexReport, BotKind } from "@/lib/apex";
 import { BOT_STOCK_MASCOT, BOT_CRYPTO_MASCOT } from "../../../assets/files";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { Loader2, Lock, Play, FileDown, Mail, Plus, FileText, Sparkles } from "lucide-react";
+import { checkReportQuota, formatDuration, reportCadence } from "@/lib/entitlements";
+import { Loader2, Lock, Play, FileDown, Mail, Plus, FileText, Sparkles, Clock, Zap } from "lucide-react";
 
 type BotAccess = "stock" | "crypto" | "both" | "none";
 type AssetType = "stock" | "crypto";
@@ -36,8 +37,21 @@ interface PastReport {
   executiveSummary: string;
   emailed: string;
   aiEnhanced: boolean;
+  trigger?: string;
   generatedAt: string;
   pdfUrl: string | null;
+}
+
+interface ReportsResponse {
+  reports: PastReport[];
+  quota: {
+    allowed: boolean;
+    waitMs: number;
+    nextAllowedAt: string | null;
+    lastReportAt: string | null;
+    cadenceLabel: string;
+    cadenceUnit: "day" | "week";
+  };
 }
 
 const DEFS: { kind: BotKind; name: string; mascot: string; accent: string; market: string }[] = [
@@ -85,6 +99,9 @@ export function ReportCenter({
   const [lastAiEnhanced, setLastAiEnhanced] = React.useState(false);
   const [open, setOpen] = React.useState(false);
   const [history, setHistory] = React.useState<PastReport[]>([]);
+  const [lastReportAt, setLastReportAt] = React.useState<string | null>(null);
+  // Live clock so the "next report unlocks in…" countdown ticks down on screen.
+  const [now, setNow] = React.useState<number>(() => Date.now());
 
   // Inline quick-add holding form
   const [assetType, setAssetType] = React.useState<AssetType>("stock");
@@ -99,15 +116,31 @@ export function ReportCenter({
   const usedForType = scope === "total" ? counts.total : counts[assetType];
   const atLimit = typeof tickerLimit === "number" && usedForType >= tickerLimit;
 
+  // Report cadence — recomputed live against `now` so the countdown ticks.
+  const cadence = reportCadence(plan);
+  const reportQuota = checkReportQuota(plan, lastReportAt, now);
+  const reportLocked = !reportQuota.allowed;
+
   const loadHistory = React.useCallback(async () => {
-    const res = await api.get<PastReport[]>("/api/reports");
-    if (res.ok && res.data) setHistory(res.data);
-    else console.error("[ReportCenter] Failed to load report history:", res.error);
+    const res = await api.get<ReportsResponse>("/api/reports");
+    if (res.ok && res.data) {
+      setHistory(res.data.reports || []);
+      setLastReportAt(res.data.quota?.lastReportAt ?? null);
+    } else {
+      console.error("[ReportCenter] Failed to load report history:", res.error);
+    }
   }, []);
 
   React.useEffect(() => {
     loadHistory();
   }, [loadHistory]);
+
+  // Tick the countdown once a minute (only while a report is locked).
+  React.useEffect(() => {
+    if (!reportLocked) return;
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, [reportLocked]);
 
   async function addHolding(e: React.FormEvent) {
     e.preventDefault();
@@ -149,6 +182,10 @@ export function ReportCenter({
       toast.error("Your plan does not include this monitor.");
       return;
     }
+    if (reportLocked) {
+      toast.error(`You've used your ${cadence.label}. Next report unlocks in ${formatDuration(reportQuota.waitMs)}.`);
+      return;
+    }
     setRunning(kind);
     console.log(`[ReportCenter] Running ${kind} report`);
     const res = await api.post<{
@@ -157,19 +194,26 @@ export function ReportCenter({
       emailed: boolean;
       aiEnhanced: boolean;
       monitored: number;
+      nextAllowedAt: string | null;
     }>("/api/reports", { bot: kind });
     setRunning(null);
 
     if (!res.ok || !res.data?.report) {
+      // Cadence limit → friendly countdown message; other errors → raw message.
       const msg = typeof res.error === "string" ? res.error : res.error?.message || "Failed to generate the report.";
       console.error("[ReportCenter] run failed:", res.error);
       toast.error(msg);
+      // Refresh so the countdown reflects the server's authoritative state.
+      loadHistory();
       return;
     }
     setReport(res.data.report);
     setLastPdfUrl(res.data.pdfUrl);
     setLastAiEnhanced(!!res.data.aiEnhanced);
     setOpen(true);
+    // Start the countdown immediately from this run.
+    setLastReportAt(new Date().toISOString());
+    setNow(Date.now());
     toast.success(
       res.data.emailed
         ? `Report ready — emailed to you and saved below.`
@@ -272,8 +316,48 @@ export function ReportCenter({
         </p>
       )}
 
+      {/* Report cadence status */}
+      <div
+        className={cn(
+          "mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border p-4",
+          reportLocked
+            ? "border-[var(--gold)]/40 bg-[var(--gold)]/10"
+            : "border-emerald-500/30 bg-emerald-500/10"
+        )}
+      >
+        <div className="flex items-center gap-3">
+          <span
+            className={cn(
+              "flex size-9 items-center justify-center rounded-xl",
+              reportLocked ? "bg-[var(--gold)]/20 text-[var(--gold)]" : "bg-emerald-500/20 text-emerald-400"
+            )}
+          >
+            {reportLocked ? <Clock className="size-5" /> : <Zap className="size-5" />}
+          </span>
+          <div>
+            <p className="text-sm font-semibold">
+              {reportLocked ? "Next report unlocks in " : "Report ready to run"}
+              {reportLocked && (
+                <span className="text-[var(--gold)]">{formatDuration(reportQuota.waitMs)}</span>
+              )}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Your plan includes <span className="font-medium text-foreground">{cadence.label}</span>
+              {reportLocked ? " — upgrade for more frequent reports." : " (stock or crypto)."}
+            </p>
+          </div>
+        </div>
+        {reportLocked && (plan === "free" || plan === "weekly") && (
+          <Button asChild size="sm" variant="outline" className="border-[var(--gold)]/40">
+            <Link href="/pricing">
+              <Zap className="mr-1 size-4" /> Upgrade
+            </Link>
+          </Button>
+        )}
+      </div>
+
       {/* Run buttons */}
-      <div className="mt-5 grid gap-4 md:grid-cols-2">
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
         {DEFS.map((b) => {
           const unlocked = canRun(b.kind);
           const busy = running === b.kind;
@@ -290,7 +374,17 @@ export function ReportCenter({
                 </div>
               </div>
               <div className="mt-4">
-                {unlocked ? (
+                {!unlocked ? (
+                  <Button asChild variant="outline" className="w-full">
+                    <Link href="/pricing">
+                      <Lock className="mr-1 size-4" /> Unlock this monitor
+                    </Link>
+                  </Button>
+                ) : reportLocked ? (
+                  <Button variant="outline" className="w-full" disabled>
+                    <Clock className="mr-1 size-4" /> Next report in {formatDuration(reportQuota.waitMs)}
+                  </Button>
+                ) : (
                   <Button className="w-full" onClick={() => runReport(b.kind)} disabled={busy || running !== null}>
                     {busy ? (
                       <>
@@ -301,12 +395,6 @@ export function ReportCenter({
                         <Play className="mr-1 size-4" /> Run full report
                       </>
                     )}
-                  </Button>
-                ) : (
-                  <Button asChild variant="outline" className="w-full">
-                    <Link href="/pricing">
-                      <Lock className="mr-1 size-4" /> Unlock this monitor
-                    </Link>
                   </Button>
                 )}
               </div>
@@ -339,6 +427,11 @@ export function ReportCenter({
                     {r.emailed === "yes" && (
                       <Badge variant="outline" className="border-emerald-500/30 text-emerald-400">
                         <Mail className="mr-1 size-3" /> Emailed
+                      </Badge>
+                    )}
+                    {r.trigger === "scheduled" && (
+                      <Badge variant="outline" className="border-violet-400/30 text-violet-300">
+                        <Clock className="mr-1 size-3" /> 9am briefing
                       </Badge>
                     )}
                   </div>

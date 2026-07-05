@@ -66,3 +66,86 @@ export function checkTickerQuota(
       `Upgrade your plan or remove a holding to add more.`;
   return { allowed, used, limit, scope, message };
 }
+
+/* -------------------------------------------------------------------------- */
+/*  Report cadence — how often a plan may run a full SuperGrok report          */
+/* -------------------------------------------------------------------------- */
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const WEEK_MS = 7 * DAY_MS;
+
+export type CadenceUnit = "day" | "week";
+
+export interface ReportCadence {
+  unit: CadenceUnit;
+  /** Minimum spacing between two full reports, in ms. */
+  ms: number;
+  /** e.g. "1 report per week". */
+  label: string;
+  /** e.g. "per week". */
+  perLabel: string;
+}
+
+/**
+ * How frequently a plan can run a full report (one report across BOTH bots per
+ * window — "either a stock or a crypto report", per the plan copy):
+ *  - Free & Apex Weekly → one report per week.
+ *  - Apex Monthly / Yearly / Dual → one report per day.
+ */
+export function reportCadence(plan?: string | null): ReportCadence {
+  const daily = plan === "monthly" || plan === "yearly" || plan === "dual_yearly";
+  return daily
+    ? { unit: "day", ms: DAY_MS, label: "1 report per day", perLabel: "per day" }
+    : { unit: "week", ms: WEEK_MS, label: "1 report per week", perLabel: "per week" };
+}
+
+export interface ReportQuota {
+  allowed: boolean;
+  /** ms until the next report unlocks (0 when allowed now). */
+  waitMs: number;
+  /** ISO timestamp when the next report unlocks, or null when allowed now. */
+  nextAllowedAt: string | null;
+  lastReportAt: string | null;
+  cadence: ReportCadence;
+}
+
+/**
+ * Decides whether the user may run another full report, given when their last
+ * one was generated. Pure + client/server-safe so the dashboard countdown and
+ * the server-side gate agree exactly.
+ */
+export function checkReportQuota(
+  plan: string | null | undefined,
+  lastReportAtIso: string | null | undefined,
+  now: number = Date.now()
+): ReportQuota {
+  const cadence = reportCadence(plan);
+  const last = lastReportAtIso ? new Date(lastReportAtIso).getTime() : NaN;
+  if (!lastReportAtIso || Number.isNaN(last)) {
+    return { allowed: true, waitMs: 0, nextAllowedAt: null, lastReportAt: null, cadence };
+  }
+  const nextMs = last + cadence.ms;
+  const waitMs = Math.max(0, nextMs - now);
+  return {
+    allowed: waitMs <= 0,
+    waitMs,
+    nextAllowedAt: waitMs > 0 ? new Date(nextMs).toISOString() : null,
+    lastReportAt: lastReportAtIso,
+    cadence,
+  };
+}
+
+/** Human "2d 4h 15m" / "3h 2m" / "< 1m" duration for countdowns. */
+export function formatDuration(ms: number): string {
+  if (ms <= 0) return "now";
+  const totalMin = Math.floor(ms / 60000);
+  const days = Math.floor(totalMin / (60 * 24));
+  const hours = Math.floor((totalMin % (60 * 24)) / 60);
+  const mins = totalMin % 60;
+  const parts: string[] = [];
+  if (days) parts.push(`${days}d`);
+  if (hours) parts.push(`${hours}h`);
+  if (mins && !days) parts.push(`${mins}m`);
+  if (!parts.length) return "< 1m";
+  return parts.join(" ");
+}
