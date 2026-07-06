@@ -64,7 +64,7 @@ function MarketColumn({ code, label, sub, rows }: { code: MarketCode; label: str
         </button>
       </div>
       <div className="divide-y divide-border/40">
-        {sorted.map((r) => {
+        {sorted.slice(0, 12).map((r) => {
           const up = r.change1d >= 0;
           return (
             <div key={r.ticker} className="flex items-center gap-2 px-4 py-2.5 transition-colors hover:bg-background/40">

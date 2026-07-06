@@ -11,7 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, Bot, Settings, LogOut, Menu, Sparkles, Crown, Compass, Sparkle } from "lucide-react";
+import { toast } from "sonner";
+import { LayoutDashboard, Bot, Settings, LogOut, Menu, Sparkles, Crown, Compass, Sparkle, FileSpreadsheet, Download, Loader2 } from "lucide-react";
 
 export interface ShellUser {
   name: string;
@@ -95,6 +96,81 @@ function PlanCard({ user }: { user: ShellUser }) {
   );
 }
 
+/**
+ * Investor Toolkit — annual-member perk, now living in the sidebar.
+ * A compact card that downloads the pre-filled Excel toolkit. Only rendered for
+ * yearly / dual_yearly subscribers; the endpoint enforces the same entitlement.
+ */
+function SidebarToolkit({ user }: { user: ShellUser }) {
+  const isYearly = user.subscription_plan === "yearly" || user.subscription_plan === "dual_yearly";
+  const [downloading, setDownloading] = useState(false);
+  if (!isYearly) return null;
+
+  async function handleDownload() {
+    setDownloading(true);
+    console.log("[toolkit] Requesting Excel toolkit download…");
+    try {
+      const res = await fetch("/api/downloads/toolkit", { method: "GET" });
+      if (!res.ok) {
+        let message = "Could not generate your toolkit.";
+        try {
+          const body = (await res.json()) as { ok: boolean; error?: string };
+          if (body?.error) message = body.error;
+        } catch {
+          /* non-JSON error body — keep default message */
+        }
+        console.error("[toolkit] Download failed:", res.status, message);
+        toast.error(message);
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "AetherForge-AI-Investor-Toolkit.xlsx";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      console.log("[toolkit] Download started");
+      toast.success("Your Excel toolkit is downloading");
+    } catch (err) {
+      console.error("[toolkit] Unexpected download error:", err);
+      toast.error("Something went wrong preparing your toolkit.");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-[var(--gold)]/30 bg-gradient-to-br from-[var(--gold)]/10 to-card/50 p-4">
+      <div className="flex items-center gap-2">
+        <FileSpreadsheet className="size-4 text-[var(--gold)]" />
+        <span className="text-sm font-semibold">Investor Toolkit</span>
+      </div>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Your Excel Portfolio Tracker &amp; Transactions ledger, pre-filled with your holdings.
+      </p>
+      <Button
+        onClick={handleDownload}
+        disabled={downloading}
+        size="sm"
+        className="mt-3 h-8 w-full text-xs font-semibold"
+      >
+        {downloading ? (
+          <>
+            <Loader2 className="mr-1.5 size-3.5 animate-spin" /> Preparing…
+          </>
+        ) : (
+          <>
+            <Download className="mr-1.5 size-3.5" /> Download .xlsx
+          </>
+        )}
+      </Button>
+    </div>
+  );
+}
+
 function UserFooter({ user }: { user: ShellUser }) {
   return (
     <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-card/40 px-3 py-2.5">
@@ -137,6 +213,7 @@ export function AppShell({ user, children }: { user: ShellUser; children: ReactN
             <NavLinks pathname={pathname} />
           </div>
           <div className="space-y-3">
+            <SidebarToolkit user={user} />
             <PlanCard user={user} />
             <UserFooter user={user} />
           </div>
@@ -164,6 +241,7 @@ export function AppShell({ user, children }: { user: ShellUser; children: ReactN
                   <NavLinks pathname={pathname} onNavigate={() => setMobileOpen(false)} />
                 </div>
                 <div className="mt-6 space-y-3">
+                  <SidebarToolkit user={user} />
                   <PlanCard user={user} />
                   <UserFooter user={user} />
                 </div>

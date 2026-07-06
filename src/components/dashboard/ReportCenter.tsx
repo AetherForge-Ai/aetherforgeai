@@ -1,21 +1,23 @@
 "use client";
 
 /**
- * Report Center — the heart of the subscriber (and free-trial) dashboard.
+ * Report Center — the master intelligence desk at the foot of the dashboard.
  *
- *  1. A simple inline form to enter holdings (ticker, shares, purchase price).
- *  2. "Run full SuperGrok 4.3 ULTRA ADVANCED report" buttons per unlocked bot.
+ *  1. "Run full SuperGrok 4.3 ULTRA ADVANCED report" buttons per unlocked bot
+ *     (Stox + Koins), plus the Totalum Master Portfolio Architect that unifies
+ *     stocks, crypto & metals into one strategy.
  *     Running calls POST /api/reports, which emails the report + PDF, persists it
  *     and returns it for immediate inline display.
- *  3. A history list of past reports, each downloadable as a PDF.
+ *  2. A history list of past reports, each downloadable as a PDF.
+ *
+ * NOTE: adding holdings now lives entirely in the Transaction Center (buy/sell),
+ * so the old inline "Add ticker" form has been removed from here.
  */
 
 import * as React from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ApexReportView } from "@/components/bots/ApexReport";
@@ -24,10 +26,9 @@ import { BOT_STOCK_MASCOT, BOT_CRYPTO_MASCOT } from "../../../assets/files";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { checkReportQuota, formatDuration, reportCadence } from "@/lib/entitlements";
-import { Loader2, Lock, Play, FileDown, Mail, Plus, FileText, Sparkles, Clock, Zap } from "lucide-react";
+import { Loader2, Lock, Play, FileDown, Mail, FileText, Sparkles, Clock, Zap, Compass, ArrowRight } from "lucide-react";
 
 type BotAccess = "stock" | "crypto" | "both" | "none";
-type AssetType = "stock" | "crypto";
 
 interface PastReport {
   _id: string;
@@ -86,14 +87,14 @@ export function ReportCenter({
   scope,
   counts,
   tickerLimit,
-  onHoldingsChanged,
 }: {
   botAccess: BotAccess;
   plan?: string | null;
   scope: "total" | "perBot";
   counts: { stock: number; crypto: number; total: number };
   tickerLimit?: number | null;
-  onHoldingsChanged: () => void;
+  /** Retained for API compatibility with the dashboard; holdings are edited in the Transaction Center now. */
+  onHoldingsChanged?: () => void;
 }) {
   const [running, setRunning] = React.useState<BotKind | null>(null);
   const [report, setReport] = React.useState<ApexReport | null>(null);
@@ -105,18 +106,7 @@ export function ReportCenter({
   // Live clock so the "next report unlocks in…" countdown ticks down on screen.
   const [now, setNow] = React.useState<number>(() => Date.now());
 
-  // Inline quick-add holding form
-  const [assetType, setAssetType] = React.useState<AssetType>("stock");
-  const [ticker, setTicker] = React.useState("");
-  const [shares, setShares] = React.useState("");
-  const [price, setPrice] = React.useState("");
-  const [adding, setAdding] = React.useState(false);
-
   const canRun = (kind: BotKind) => botAccess === "both" || botAccess === kind;
-
-  // Tickers counted against the plan limit for the currently selected add-type.
-  const usedForType = scope === "total" ? counts.total : counts[assetType];
-  const atLimit = typeof tickerLimit === "number" && usedForType >= tickerLimit;
 
   // Report cadence — recomputed live against `now` so the countdown ticks.
   const cadence = reportCadence(plan);
@@ -143,41 +133,6 @@ export function ReportCenter({
     const id = setInterval(() => setNow(Date.now()), 60_000);
     return () => clearInterval(id);
   }, [reportLocked]);
-
-  async function addHolding(e: React.FormEvent) {
-    e.preventDefault();
-    const t = ticker.trim().toUpperCase();
-    const s = Number(shares);
-    const p = Number(price);
-    if (!t) return toast.error("Enter a ticker symbol.");
-    if (!(s > 0)) return toast.error("Shares must be greater than 0.");
-    if (!(p > 0)) return toast.error("Purchase price must be greater than 0.");
-    if (atLimit) {
-      return toast.error(
-        `You've reached your plan's limit of ${tickerLimit} monitored ${scope === "total" ? "tickers" : assetType + " tickers"}. Upgrade to add more.`
-      );
-    }
-
-    setAdding(true);
-    console.log("[ReportCenter] Adding holding", { t, s, p, assetType });
-    const res = await api.post("/api/stocks", {
-      ticker: t,
-      asset_type: assetType,
-      shares: s,
-      purchase_price: p,
-    });
-    setAdding(false);
-    if (res.ok) {
-      toast.success(`${t} added`);
-      setTicker("");
-      setShares("");
-      setPrice("");
-      onHoldingsChanged();
-    } else {
-      console.error("[ReportCenter] Add holding failed:", res.error);
-      toast.error(typeof res.error === "string" ? res.error : "Could not add holding.");
-    }
-  }
 
   async function runReport(kind: BotKind) {
     if (!canRun(kind)) {
@@ -235,88 +190,18 @@ export function ReportCenter({
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground">
-            Enter your holdings, then run the full SuperGrok 4.3 ULTRA ADVANCED report — delivered to your inbox and here.
+            Run the full SuperGrok 4.3 ULTRA ADVANCED report for Stox, Koins or the Totalum Master Architect —
+            delivered to your inbox and here.
           </p>
         </div>
         <div className="text-right text-xs text-muted-foreground">
           <div className="font-display text-lg font-bold text-foreground">
-            {usedForType}
-            {tickerLimit ? <span className="text-sm text-muted-foreground"> / {tickerLimit}</span> : null}
+            {counts.total}
+            {tickerLimit ? <span className="text-sm text-muted-foreground"> / {tickerLimit}{scope === "perBot" ? " per bot" : ""}</span> : null}
           </div>
-          {scope === "total" ? "tickers monitored" : `${assetType} tickers`}
+          tickers monitored
         </div>
       </div>
-
-      {/* Quick add holding */}
-      <form
-        onSubmit={addHolding}
-        className="mt-5 grid gap-3 rounded-2xl border border-border/60 bg-background/40 p-4 sm:grid-cols-[auto_1fr_1fr_1fr_auto] sm:items-end"
-      >
-        <div className="space-y-1.5">
-          <Label className="text-xs">Type</Label>
-          <div className="inline-flex rounded-lg border border-border/60 p-0.5">
-            {(["stock", "crypto"] as AssetType[]).map((a) => (
-              <button
-                key={a}
-                type="button"
-                onClick={() => setAssetType(a)}
-                className={cn(
-                  "rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
-                  assetType === a ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {a === "stock" ? "Stox" : "Koins"}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="rc-ticker" className="text-xs">
-            {assetType === "crypto" ? "Currency" : "Ticker"}
-          </Label>
-          <Input
-            id="rc-ticker"
-            placeholder={assetType === "crypto" ? "BTC" : "AAPL / BHP.AX / AIR.NZ"}
-            value={ticker}
-            onChange={(e) => setTicker(e.target.value.toUpperCase())}
-            className="uppercase"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="rc-shares" className="text-xs">
-            {assetType === "crypto" ? "Amount held" : "Shares held"}
-          </Label>
-          <Input id="rc-shares" type="number" min="0" step="any" placeholder={assetType === "crypto" ? "0.25" : "10"} value={shares} onChange={(e) => setShares(e.target.value)} />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="rc-price" className="text-xs">
-            {assetType === "crypto" ? "Buy price (US$)" : "Purchase price"}
-          </Label>
-          <Input id="rc-price" type="number" min="0" step="any" placeholder={assetType === "crypto" ? "42000.00" : "150.00"} value={price} onChange={(e) => setPrice(e.target.value)} />
-        </div>
-        {atLimit ? (
-          <Button asChild variant="outline" className="font-semibold">
-            <Link href="/pricing">
-              <Lock className="mr-1 size-4" /> Upgrade
-            </Link>
-          </Button>
-        ) : (
-          <Button type="submit" disabled={adding} className="font-semibold">
-            {adding ? <Loader2 className="size-4 animate-spin" /> : <Plus className="mr-1 size-4" />}
-            Add
-          </Button>
-        )}
-      </form>
-      {atLimit && (
-        <p className="mt-2 text-xs text-[var(--gold)]">
-          You&apos;ve reached your {plan === "free" ? "free plan" : "plan"}&apos;s limit of {tickerLimit}{" "}
-          monitored {scope === "total" ? "tickers" : `${assetType} tickers`}.{" "}
-          <Link href="/pricing" className="font-semibold underline">
-            Upgrade
-          </Link>{" "}
-          to monitor more.
-        </p>
-      )}
 
       {/* Report cadence status */}
       <div
@@ -407,6 +292,34 @@ export function ReportCenter({
         })}
       </div>
 
+      {/* Totalum Master Portfolio Architect — unifies Stox + Koins + metals */}
+      <Link
+        href="/totalum"
+        className="group relative mt-4 flex flex-col gap-4 overflow-hidden rounded-2xl border border-primary/30 bg-gradient-to-br from-violet-500/12 via-primary/10 to-transparent p-5 transition-all hover:border-primary/50 hover:shadow-glow sm:flex-row sm:items-center sm:justify-between"
+      >
+        <div className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-primary/15 blur-3xl" />
+        <div className="relative flex items-start gap-4">
+          <div className="grid size-11 shrink-0 place-items-center rounded-xl bg-primary/15 text-primary ring-1 ring-primary/25">
+            <Compass className="size-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold">Totalum · Master Portfolio Architect</h3>
+              <span className="rounded-md bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                Pro
+              </span>
+            </div>
+            <p className="mt-1 max-w-xl text-sm text-muted-foreground">
+              Combines Stox &amp; Koins with your precious metals into one strategy — allocation, rebalancing,
+              scenarios, stress tests and a Chief Strategist AI.
+            </p>
+          </div>
+        </div>
+        <span className="relative inline-flex items-center gap-1.5 self-start rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground sm:self-auto">
+          Open Totalum <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+        </span>
+      </Link>
+
       {/* Report history */}
       <div className="mt-6">
         <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
@@ -414,7 +327,7 @@ export function ReportCenter({
         </div>
         {history.length === 0 ? (
           <p className="rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground">
-            No reports yet — add your holdings above and run your first report.
+            No reports yet — add holdings in the Transaction Center above, then run your first report.
           </p>
         ) : (
           <ul className="divide-y divide-border/50 overflow-hidden rounded-xl border border-border/60">

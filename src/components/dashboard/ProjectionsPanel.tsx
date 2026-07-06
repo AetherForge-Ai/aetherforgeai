@@ -107,7 +107,10 @@ function ProjectionChart({ sel }: { sel: SecurityIntel }) {
 
 export function ProjectionsPanel() {
   const { universe } = useMarketIntel();
-  const leaders = useMemo(() => getProjectionLeaders(7, universe ?? undefined), [universe]);
+  // Analyse the whole NZX + ASX (+ US) universe and surface the 10 best-conviction
+  // 7-day projected movers.
+  const leaders = useMemo(() => getProjectionLeaders(10, universe ?? undefined), [universe]);
+  const analysedCount = universe?.length ?? 0;
   const [selected, setSelected] = useState<string>("");
   const sel = leaders.find((l) => l.ticker === selected) ?? leaders[0];
 
@@ -121,14 +124,16 @@ export function ProjectionsPanel() {
         </span>
         <div>
           <h2 className="font-display text-lg font-bold">7-day projections</h2>
-          <p className="text-xs text-muted-foreground">Regression + technical model · next 7 sessions</p>
+          <p className="text-xs text-muted-foreground">
+            Regression + technical model{analysedCount ? ` · ${analysedCount} NZX & ASX securities analysed` : ""} · 10 best · next 7 sessions
+          </p>
         </div>
       </div>
 
       <div className="mt-5 grid gap-6 lg:grid-cols-[1fr_1.5fr]">
         {/* Leaders list */}
         <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Top projected movers</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Top 10 projected movers</p>
           {leaders.map((l) => {
             const active = l.ticker === sel.ticker;
             return (
@@ -204,6 +209,18 @@ export function ProjectionsPanel() {
               tone={sel.vsSma20 >= 0 ? "up" : "down"}
               hint={sel.vsSma20 >= 0 ? "Above trend" : "Below trend"}
             />
+          </div>
+
+          {/* Plain-English reasoning for the projection */}
+          <div className="mt-4 rounded-xl border border-primary/25 bg-primary/8 p-3.5">
+            <p className="flex items-center gap-1.5 text-[0.65rem] font-semibold uppercase tracking-wide text-primary">
+              <TrendingUp className="size-3.5" /> Why this projection
+            </p>
+            <p className="mt-1.5 text-sm leading-relaxed text-foreground/90">{sel.reasoning}</p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Projected <span className={cn("font-semibold", pctClass(sel.projected7dPct))}>{fmtPct(sel.projected7dPct)}</span> over
+              the next 7 sessions at {sel.confidence}% model confidence · conviction score {sel.score}/100.
+            </p>
           </div>
         </div>
       </div>

@@ -8,9 +8,9 @@ import { useMarketIntel } from "@/components/dashboard/MarketIntelContext";
 import { TrendingUp, TrendingDown, Flame } from "lucide-react";
 
 const WINDOWS: { key: MoverWindow; label: string }[] = [
-  { key: "1d", label: "1 Day" },
-  { key: "7d", label: "7 Day" },
-  { key: "30d", label: "30 Day" },
+  { key: "1d", label: "24 Hrs" },
+  { key: "7d", label: "7 Days" },
+  { key: "30d", label: "1 Month" },
 ];
 
 function changeFor(s: SecurityIntel, w: MoverWindow): number {

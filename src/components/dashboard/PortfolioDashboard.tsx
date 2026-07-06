@@ -21,7 +21,6 @@ import { AnalysisPanel } from "@/components/dashboard/AnalysisPanel";
 import { ReportCenter } from "@/components/dashboard/ReportCenter";
 import { PriceAlerts } from "@/components/dashboard/PriceAlerts";
 import { PreciousMetals } from "@/components/dashboard/PreciousMetals";
-import { YearlyToolkit } from "@/components/dashboard/YearlyToolkit";
 import { planLabel } from "@/lib/plans";
 import { checkTickerQuota, limitScope, resolveTickerLimit } from "@/lib/entitlements";
 import { computePortfolioMetrics } from "@/lib/analytics";
@@ -69,8 +68,9 @@ import {
   Bitcoin,
   Lock,
   Sparkles,
-  Compass,
-  ArrowRight,
+  Coins,
+  Landmark,
+  Newspaper,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -88,6 +88,16 @@ function fmtDate(iso?: string | null): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "—";
   return d.toLocaleDateString("en-NZ", { day: "numeric", month: "short", year: "numeric" });
+}
+
+/** Derive the listing exchange for a holding from its ticker suffix. */
+function exchangeForTicker(ticker: string, assetType?: string | null): string {
+  if ((assetType || "stock") === "crypto") return "Crypto";
+  const t = (ticker || "").toUpperCase();
+  if (t.endsWith(".NZ")) return "NZX";
+  if (t.endsWith(".AX")) return "ASX";
+  if (t.endsWith(".L")) return "LSE";
+  return "NASDAQ";
 }
 
 function botAccessLabel(access: DashboardSubscription["botAccess"]): string {
@@ -222,6 +232,9 @@ export function PortfolioDashboard({
   const [allStocks, setAllStocks] = useState<Stock[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  // Cash (NZD) + precious-metals value (NZD) power the "Totals owned" strip.
+  const [cashBalance, setCashBalance] = useState(0);
+  const [metalsValueNZD, setMetalsValueNZD] = useState(0);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Stock | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Stock | null>(null);
@@ -273,9 +286,47 @@ export function PortfolioDashboard({
     setLoading(false);
   }, []);
 
+  // Cash balance (NZD) from the transaction ledger.
+  const loadCash = useCallback(async () => {
+    const res = await api.get<{ cashBalance: number }>("/api/transactions");
+    if (res.ok && res.data) {
+      setCashBalance(res.data.cashBalance ?? 0);
+    } else {
+      console.error("[dashboard] Failed to load cash balance:", res.error);
+    }
+  }, []);
+
+  // Precious-metals total value (NZD) from live spot × ounces held.
+  const loadMetals = useCallback(async () => {
+    const res = await api.get<{
+      metals: { metal: "gold" | "silver"; ounces: number }[];
+      spot: { gold: { nzdPerOz: number }; silver: { nzdPerOz: number } };
+    }>("/api/metals");
+    if (res.ok && res.data?.spot) {
+      const { metals, spot } = res.data;
+      const total = (metals || []).reduce(
+        (sum, m) => sum + m.ounces * (spot[m.metal]?.nzdPerOz ?? 0),
+        0
+      );
+      setMetalsValueNZD(total);
+    } else {
+      // Not entitled / no metals — simply contributes 0 to the totals.
+      setMetalsValueNZD(0);
+    }
+  }, []);
+
   useEffect(() => {
     loadStocks();
-  }, [loadStocks]);
+    loadCash();
+    loadMetals();
+  }, [loadStocks, loadCash, loadMetals]);
+
+  // Called whenever holdings or cash change (transactions, edits, deletes).
+  const handleDataChanged = useCallback(() => {
+    loadStocks();
+    loadCash();
+    loadMetals();
+  }, [loadStocks, loadCash, loadMetals]);
 
   // Global-search pick: switch to the matching bot and track the symbol.
   async function handleSearchPick(assetClass: AssetClass, entry: UniverseEntry) {
@@ -304,6 +355,25 @@ export function PortfolioDashboard({
     [stocks, baseCurrency, fxToNZD]
   );
   const metrics = useMemo(() => computePortfolioMetrics(stocks), [stocks]);
+
+  // Cross-bot totals, all expressed in NZD for the "Totals owned" strip.
+  const stockHoldings = useMemo(
+    () => allStocks.filter((s) => (s.asset_type || "stock") === "stock"),
+    [allStocks]
+  );
+  const cryptoHoldings = useMemo(
+    () => allStocks.filter((s) => s.asset_type === "crypto"),
+    [allStocks]
+  );
+  const stockTotalNZD = useMemo(
+    () => computeSummary(stockHoldings, { baseCurrency: "NZD", fxToNZD }).totalValue,
+    [stockHoldings, fxToNZD]
+  );
+  const cryptoTotalNZD = useMemo(
+    () => computeSummary(cryptoHoldings, { baseCurrency: "NZD", fxToNZD }).totalValue,
+    [cryptoHoldings, fxToNZD]
+  );
+  const netWorthNZD = stockTotalNZD + cryptoTotalNZD + cashBalance + metalsValueNZD;
 
   async function handleRefreshPrices() {
     setRefreshing(true);
@@ -344,7 +414,7 @@ export function PortfolioDashboard({
     if (res.ok) {
       toast.success(`${deleteTarget.ticker} removed`);
       setDeleteTarget(null);
-      loadStocks();
+      handleDataChanged();
     } else {
       console.error("[dashboard] Delete failed:", res.error);
       toast.error("Could not remove holding.");
@@ -352,7 +422,6 @@ export function PortfolioDashboard({
   }
 
   const gainTone = summary.totalGain >= 0 ? "up" : "down";
-  const isYearly = subscription.plan === "yearly" || subscription.plan === "dual_yearly";
 
   const BOTS: { key: AssetClass; label: string; icon: React.ElementType }[] = [
     { key: "stock", label: "Stock Bot", icon: LineChart },
@@ -398,86 +467,139 @@ export function PortfolioDashboard({
         </div>
       </div>
 
-      {/* Plan quota banner — shows how many monitored tickers remain, and nudges
-          free/low-tier members to upgrade once they hit their limit. */}
-      <div
-        className={cn(
-          "mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-5 py-3.5",
-          atLimit
-            ? "border-[var(--gold)]/40 bg-[var(--gold)]/10"
-            : "border-border/60 bg-card/40"
-        )}
-      >
-        <div className="flex items-center gap-2.5 text-sm">
-          <span
-            className={cn(
-              "grid size-8 place-items-center rounded-lg",
-              atLimit ? "bg-[var(--gold)]/15 text-[var(--gold)]" : "bg-primary/12 text-primary"
-            )}
-          >
-            <Layers className="size-4" />
-          </span>
+      {/* ───────────────────────── 1 · Active subscription plan details ───────────────────────── */}
+      <div className="mt-6 rounded-3xl border border-border/70 bg-gradient-to-br from-primary/8 to-card/50 p-6">
+        <div className="flex items-center gap-2 text-sm font-semibold">
+          <BadgeCheck className="size-4 text-primary" /> Your subscription
+        </div>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div>
-            <p className="font-medium">
-              {planLabel(subscription.plan)} ·{" "}
-              <span className="tnum">
-                {monitoredForLimit}/{tickerLimit}
-              </span>{" "}
-              {scope === "total" ? "tickers monitored" : `${bot} tickers monitored`}
+            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <BadgeCheck className="size-3.5 text-primary" /> Plan
+            </div>
+            <p className="mt-1.5 font-display text-lg font-bold">{planLabel(subscription.plan)}</p>
+            <p className="text-xs text-muted-foreground">{botAccessLabel(subscription.botAccess)}</p>
+          </div>
+          <div>
+            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <Layers className="size-3.5 text-primary" /> Ticker limit
+            </div>
+            <p className="mt-1.5 font-display text-lg font-bold">
+              {tickerLimit} {scope === "total" ? "across both bots" : "per bot"}
             </p>
             <p className="text-xs text-muted-foreground">
-              {atLimit
-                ? "You've reached your plan's monitoring limit — upgrade or remove a holding to add more."
-                : scope === "total"
-                  ? "Your plan monitors tickers across both bots combined."
-                  : "Each bot gets its own ticker allowance on your plan."}
+              Status: <span className="capitalize">{subscription.status || "none"}</span>
             </p>
           </div>
+          <div>
+            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <CalendarClock className="size-3.5 text-primary" /> Purchased
+            </div>
+            <p className="mt-1.5 font-display text-lg font-bold">{fmtDate(subscription.startedAt)}</p>
+          </div>
+          <div>
+            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <CalendarClock className="size-3.5 text-primary" /> Expires
+            </div>
+            <p className="mt-1.5 font-display text-lg font-bold">{fmtDate(subscription.expiresAt)}</p>
+          </div>
         </div>
-        {subscription.plan === "free" && (
-          <Button asChild size="sm" variant={atLimit ? "default" : "outline"} className="font-semibold">
-            <Link href="/pricing">
-              <Sparkles className="mr-1.5 size-3.5" /> Upgrade plan
-            </Link>
-          </Button>
-        )}
-      </div>
 
-      {/* Bot switcher — Stock ⇄ Crypto */}
-      <div className="mt-5 inline-flex rounded-xl border border-border/70 bg-card/50 p-1">
-        {BOTS.map((b) => {
-          const active = bot === b.key;
-          const unlocked = canUseBot(b.key);
-          const Icon = b.icon;
-          if (!unlocked) {
-            return (
-              <Link
-                key={b.key}
-                href="/pricing"
-                className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-muted-foreground/70 transition-colors hover:text-foreground"
-                title={`Unlock the ${b.label} on a higher plan`}
-              >
-                <Lock className="size-4" /> {b.label}
-              </Link>
-            );
-          }
-          return (
-            <button
-              key={b.key}
-              onClick={() => setBot(b.key)}
+        {/* Ticker-quota status line */}
+        <div
+          className={cn(
+            "mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-5 py-3.5",
+            atLimit ? "border-[var(--gold)]/40 bg-[var(--gold)]/10" : "border-border/60 bg-background/30"
+          )}
+        >
+          <div className="flex items-center gap-2.5 text-sm">
+            <span
               className={cn(
-                "flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors",
-                active ? "bg-primary text-primary-foreground shadow-glow" : "text-muted-foreground hover:text-foreground"
+                "grid size-8 place-items-center rounded-lg",
+                atLimit ? "bg-[var(--gold)]/15 text-[var(--gold)]" : "bg-primary/12 text-primary"
               )}
             >
-              <Icon className="size-4" /> {b.label}
-            </button>
-          );
-        })}
+              <Layers className="size-4" />
+            </span>
+            <div>
+              <p className="font-medium">
+                {planLabel(subscription.plan)} ·{" "}
+                <span className="tnum">
+                  {monitoredForLimit}/{tickerLimit}
+                </span>{" "}
+                {scope === "total" ? "tickers monitored" : `${bot} tickers monitored`}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {atLimit
+                  ? "You've reached your plan's monitoring limit — upgrade or remove a holding to add more."
+                  : scope === "total"
+                    ? "Your plan monitors tickers across both bots combined."
+                    : "Each bot gets its own ticker allowance on your plan."}
+              </p>
+            </div>
+          </div>
+          {subscription.plan === "free" && (
+            <Button asChild size="sm" variant={atLimit ? "default" : "outline"} className="font-semibold">
+              <Link href="/pricing">
+                <Sparkles className="mr-1.5 size-3.5" /> Upgrade plan
+              </Link>
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* ───────────────────────── 2 · Market news ───────────────────────── */}
+      <div className="mt-8">
+        <div className="mb-4 flex items-center gap-3">
+          <span className="grid size-9 place-items-center rounded-lg bg-primary/12 text-primary">
+            <Newspaper className="size-4" />
+          </span>
+          <h2 className="font-display text-lg font-bold">Market news</h2>
+        </div>
+        <NewsFeed />
+      </div>
+
+      {/* ───────────────────────── 3 · Portfolio overview ───────────────────────── */}
+      <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-display text-xl font-bold tracking-tight">
+          {bot === "crypto" ? "Crypto" : "Stock"} portfolio overview
+        </h2>
+        {/* Bot switcher — Stock ⇄ Crypto */}
+        <div className="inline-flex rounded-xl border border-border/70 bg-card/50 p-1">
+          {BOTS.map((b) => {
+            const active = bot === b.key;
+            const unlocked = canUseBot(b.key);
+            const Icon = b.icon;
+            if (!unlocked) {
+              return (
+                <Link
+                  key={b.key}
+                  href="/pricing"
+                  className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-muted-foreground/70 transition-colors hover:text-foreground"
+                  title={`Unlock the ${b.label} on a higher plan`}
+                >
+                  <Lock className="size-4" /> {b.label}
+                </Link>
+              );
+            }
+            return (
+              <button
+                key={b.key}
+                onClick={() => setBot(b.key)}
+                className={cn(
+                  "flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors",
+                  active ? "bg-primary text-primary-foreground shadow-glow" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Icon className="size-4" /> {b.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* KPI cards */}
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label={`Total worth · ${baseCurrency}`}
           value={formatMoney(summary.totalValue, baseCurrency)}
@@ -529,257 +651,227 @@ export function PortfolioDashboard({
         </div>
       )}
 
-      {/* Actionable intelligence — SELL/BUY signals + pathways (prominent) */}
-      <div className="mt-6">
-        <ActionableIntelligence stocks={stocks} assetClass={bot} />
-      </div>
-
-      {/* Subscription summary */}
-      <div className="mt-6 rounded-3xl border border-border/70 bg-gradient-to-br from-primary/8 to-card/50 p-6">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* ───────────────────────── 4 · Totals owned (Stocks · Crypto · Cash · Metals) ───────────────────────── */}
+      <div className="mt-8 rounded-3xl border border-border/70 bg-gradient-to-br from-primary/8 to-card/50 p-6">
+        <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              <BadgeCheck className="size-3.5 text-primary" /> Plan
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <Landmark className="size-4 text-primary" /> Totals owned
             </div>
-            <p className="mt-1.5 font-display text-lg font-bold">{planLabel(subscription.plan)}</p>
-            <p className="text-xs text-muted-foreground">{botAccessLabel(subscription.botAccess)}</p>
+            <p className="text-xs text-muted-foreground">Everything you hold, valued live in NZD</p>
           </div>
-          <div>
-            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              <Layers className="size-3.5 text-primary" /> Ticker limit
-            </div>
-            <p className="mt-1.5 font-display text-lg font-bold">
-              {tickerLimit} {scope === "total" ? "across both bots" : "per bot"}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Status: <span className="capitalize">{subscription.status || "none"}</span>
-            </p>
-          </div>
-          <div>
-            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              <CalendarClock className="size-3.5 text-primary" /> Purchased
-            </div>
-            <p className="mt-1.5 font-display text-lg font-bold">{fmtDate(subscription.startedAt)}</p>
-          </div>
-          <div>
-            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              <CalendarClock className="size-3.5 text-primary" /> Expires
-            </div>
-            <p className="mt-1.5 font-display text-lg font-bold">{fmtDate(subscription.expiresAt)}</p>
+          <div className="text-right">
+            <p className="text-[0.68rem] uppercase tracking-wide text-muted-foreground">Total net worth · NZD</p>
+            <p className="tnum font-display text-2xl font-bold text-primary">{formatMoney(netWorthNZD, "NZD")}</p>
           </div>
         </div>
-      </div>
-
-      {/* Report Center — run the full SuperGrok report engine */}
-      <div className="mt-6">
-        <ReportCenter
-          botAccess={subscription.botAccess}
-          plan={subscription.plan}
-          scope={scope}
-          counts={holdingCounts}
-          tickerLimit={tickerLimit}
-          onHoldingsChanged={loadStocks}
-        />
-      </div>
-
-      {/* Share-price alerts with execution instructions */}
-      <div className="mt-6">
-        <PriceAlerts stocks={stocks} />
-      </div>
-
-      {/* Annual-member Excel toolkit */}
-      {isYearly && (
-        <div className="mt-6">
-          <YearlyToolkit />
+        <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            label="Stocks · NZD"
+            value={formatMoney(stockTotalNZD, "NZD")}
+            sub={`${stockHoldings.length} position${stockHoldings.length === 1 ? "" : "s"}`}
+            icon={LineChart}
+          />
+          <StatCard
+            label="Crypto · NZD"
+            value={formatMoney(cryptoTotalNZD, "NZD")}
+            sub={`${cryptoHoldings.length} coin${cryptoHoldings.length === 1 ? "" : "s"}`}
+            icon={Bitcoin}
+          />
+          <StatCard
+            label="Cash · NZD"
+            value={formatMoney(cashBalance, "NZD")}
+            sub="Available to invest"
+            icon={Wallet}
+          />
+          <StatCard
+            label="Metals · NZD"
+            value={formatMoney(metalsValueNZD, "NZD")}
+            sub={metalsEntitled ? "Gold & silver at spot" : "Bonus for paid members"}
+            icon={Coins}
+          />
         </div>
-      )}
 
-      {/* Holdings + allocation */}
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1.6fr_1fr]">
-        {/* Holdings table */}
-        <div className="rounded-3xl border border-border/70 bg-card/50">
-          <div className="flex items-center justify-between border-b border-border/60 px-6 py-4">
-            <h2 className="font-display text-lg font-bold">Your holdings</h2>
-            <span className="text-xs text-muted-foreground">{summary.holdingsCount} positions</span>
-          </div>
-
-          {loading ? (
-            <div className="space-y-3 p-6">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="h-12 animate-pulse rounded-lg bg-muted/40" />
+        {/* Sector allocation for the active bot */}
+        {summary.sectorAllocation.length > 0 && (
+          <div className="mt-5 rounded-2xl border border-border/60 bg-background/30 p-5">
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <PieChart className="size-4 text-primary" /> {bot === "crypto" ? "Crypto" : "Stock"} allocation
+            </div>
+            <div className="mt-4 flex h-3 overflow-hidden rounded-full bg-muted/40">
+              {summary.sectorAllocation.map((s, i) => (
+                <div
+                  key={s.sector}
+                  style={{
+                    width: `${s.weight}%`,
+                    backgroundColor: SECTOR_COLORS[i % SECTOR_COLORS.length],
+                  }}
+                  title={`${s.sector} · ${s.weight.toFixed(1)}%`}
+                />
               ))}
             </div>
-          ) : summary.holdings.length === 0 ? (
-            <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
-              <span className="grid size-14 place-items-center rounded-2xl bg-primary/10 text-primary">
-                <Wallet className="size-7" />
-              </span>
-              <p className="mt-4 font-medium">Your portfolio is empty</p>
-              <p className="mt-1 max-w-xs text-sm text-muted-foreground">
-                Add your first holding to start tracking gains, losses, and allocation.
-              </p>
-              <Button onClick={openAdd} className="mt-5 font-semibold">
-                <Plus className="mr-2 size-4" /> Add your first holding
-              </Button>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                    <th className="px-6 py-3 font-medium">Asset</th>
-                    <th className="px-3 py-3 text-right font-medium">Shares</th>
-                    <th className="px-3 py-3 text-right font-medium">Avg cost</th>
-                    <th className="px-3 py-3 text-right font-medium">Price</th>
-                    <th className="px-3 py-3 text-right font-medium">Value</th>
-                    <th className="px-3 py-3 text-right font-medium">Gain/Loss</th>
-                    <th className="px-6 py-3 text-right font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {summary.holdings.map((h) => {
-                    const up = h.gain >= 0;
-                    return (
-                      <tr
-                        key={h._id}
-                        className="border-b border-border/40 transition-colors last:border-0 hover:bg-background/40"
-                      >
-                        <td className="px-6 py-3.5">
-                          <div className="flex items-center gap-3">
-                            <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/12 font-display text-xs font-bold text-primary">
-                              {h.ticker.slice(0, 4)}
-                            </span>
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-1.5">
-                                <p className="font-semibold">{h.ticker}</p>
-                                <span
-                                  className="rounded bg-muted/60 px-1.5 py-0.5 text-[0.6rem] font-semibold uppercase tracking-wide text-muted-foreground"
-                                  title={CURRENCY_META[h.currency].label}
-                                >
-                                  {h.currency}
-                                </span>
-                              </div>
-                              <p className="truncate text-xs text-muted-foreground">
-                                {h.company_name || h.sector || "—"}
-                              </p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="tnum px-3 py-3.5 text-right text-muted-foreground">
-                          {formatNumber(h.shares)}
-                        </td>
-                        <td className="tnum px-3 py-3.5 text-right text-muted-foreground">
-                          {formatMoney(h.purchase_price, h.currency)}
-                        </td>
-                        <td className="tnum px-3 py-3.5 text-right">
-                          {formatMoney(h.current_price, h.currency)}
-                        </td>
-                        <td className="tnum px-3 py-3.5 text-right font-medium">
-                          {formatMoney(h.marketValue, h.currency)}
-                          {h.currency !== baseCurrency && (
-                            <span className="block text-[0.68rem] font-normal text-muted-foreground">
-                              ≈ {formatMoney(h.baseValue, baseCurrency)}
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-3 py-3.5 text-right">
-                          <span
-                            className={cn(
-                              "tnum font-medium",
-                              up ? "text-emerald-400" : "text-rose-400"
-                            )}
-                          >
-                            {formatMoney(h.gain, h.currency)}
-                          </span>
-                          <span
-                            className={cn(
-                              "tnum ml-1 block text-xs",
-                              up ? "text-emerald-400/80" : "text-rose-400/80"
-                            )}
-                          >
-                            {formatPercent(h.gainPct)}
-                          </span>
-                        </td>
-                        <td className="px-6 py-3.5">
-                          <div className="flex items-center justify-end gap-1">
-                            <button
-                              onClick={() => openEdit(h)}
-                              className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
-                              aria-label={`Edit ${h.ticker}`}
-                            >
-                              <Pencil className="size-4" />
-                            </button>
-                            <button
-                              onClick={() => setDeleteTarget(h)}
-                              className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/15 hover:text-destructive"
-                              aria-label={`Delete ${h.ticker}`}
-                            >
-                              <Trash2 className="size-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-        {/* Sector allocation */}
-        <div className="rounded-3xl border border-border/70 bg-card/50 p-6">
-          <div className="flex items-center gap-3">
-            <span className="grid size-9 place-items-center rounded-lg bg-primary/12 text-primary">
-              <PieChart className="size-4" />
-            </span>
-            <h2 className="font-display text-lg font-bold">Allocation</h2>
-          </div>
-
-          {summary.sectorAllocation.length === 0 ? (
-            <p className="mt-6 text-sm text-muted-foreground">
-              Allocation appears once you add holdings.
-            </p>
-          ) : (
-            <>
-              {/* Stacked bar */}
-              <div className="mt-6 flex h-3 overflow-hidden rounded-full bg-muted/40">
-                {summary.sectorAllocation.map((s, i) => (
-                  <div
-                    key={s.sector}
-                    style={{
-                      width: `${s.weight}%`,
-                      backgroundColor: SECTOR_COLORS[i % SECTOR_COLORS.length],
-                    }}
-                    title={`${s.sector} · ${s.weight.toFixed(1)}%`}
+            <div className="mt-4 grid gap-2.5 sm:grid-cols-2">
+              {summary.sectorAllocation.map((s, i) => (
+                <div key={s.sector} className="flex items-center gap-3">
+                  <span
+                    className="size-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: SECTOR_COLORS[i % SECTOR_COLORS.length] }}
                   />
-                ))}
-              </div>
-              <div className="mt-5 space-y-3">
-                {summary.sectorAllocation.map((s, i) => (
-                  <div key={s.sector} className="flex items-center gap-3">
-                    <span
-                      className="size-2.5 shrink-0 rounded-full"
-                      style={{ backgroundColor: SECTOR_COLORS[i % SECTOR_COLORS.length] }}
-                    />
-                    <span className="min-w-0 flex-1 truncate text-sm">{s.sector}</span>
-                    <span className="tnum text-sm text-muted-foreground">
-                      {formatMoney(s.value, baseCurrency, { compact: true })}
-                    </span>
-                    <span className="tnum w-12 text-right text-sm font-medium">
-                      {s.weight.toFixed(1)}%
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
+                  <span className="min-w-0 flex-1 truncate text-sm">{s.sector}</span>
+                  <span className="tnum text-sm text-muted-foreground">
+                    {formatMoney(s.value, baseCurrency, { compact: true })}
+                  </span>
+                  <span className="tnum w-12 text-right text-sm font-medium">{s.weight.toFixed(1)}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Transaction Center — buy/sell/deposit/withdraw with realized P&L + cash */}
-      <div className="mt-6">
-        <TransactionCenter holdings={allStocks} onChanged={loadStocks} />
+      {/* ───────────────────────── 5 · Holdings table ───────────────────────── */}
+      <div className="mt-8 rounded-3xl border border-border/70 bg-card/50">
+        <div className="flex items-center justify-between border-b border-border/60 px-6 py-4">
+          <h2 className="font-display text-lg font-bold">Your holdings</h2>
+          <span className="text-xs text-muted-foreground">{summary.holdingsCount} positions</span>
+        </div>
+
+        {loading ? (
+          <div className="space-y-3 p-6">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="h-12 animate-pulse rounded-lg bg-muted/40" />
+            ))}
+          </div>
+        ) : summary.holdings.length === 0 ? (
+          <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
+            <span className="grid size-14 place-items-center rounded-2xl bg-primary/10 text-primary">
+              <Wallet className="size-7" />
+            </span>
+            <p className="mt-4 font-medium">Your portfolio is empty</p>
+            <p className="mt-1 max-w-xs text-sm text-muted-foreground">
+              Buy your first shares in the Transaction Center below to start tracking gains, losses, and allocation.
+            </p>
+            <Button onClick={openAdd} className="mt-5 font-semibold">
+              <Plus className="mr-2 size-4" /> Add your first holding
+            </Button>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                  <th className="px-6 py-3 font-medium">Ticker</th>
+                  <th className="px-3 py-3 font-medium">Company name</th>
+                  <th className="px-3 py-3 font-medium">Exchange</th>
+                  <th className="px-3 py-3 text-right font-medium"># shares</th>
+                  <th className="px-3 py-3 text-right font-medium">Price paid / share</th>
+                  <th className="px-3 py-3 text-right font-medium">Current price / share</th>
+                  <th className="px-3 py-3 text-right font-medium">Market value</th>
+                  <th className="px-3 py-3 text-right font-medium">Gain / Loss</th>
+                  <th className="px-6 py-3 text-right font-medium sr-only">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {summary.holdings.map((h) => {
+                  const up = h.gain >= 0;
+                  const exchange = exchangeForTicker(h.ticker, h.asset_type);
+                  return (
+                    <tr
+                      key={h._id}
+                      className="border-b border-border/40 transition-colors last:border-0 hover:bg-background/40"
+                    >
+                      {/* Ticker */}
+                      <td className="px-6 py-3.5">
+                        <div className="flex items-center gap-3">
+                          <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/12 font-display text-xs font-bold text-primary">
+                            {h.ticker.replace(/\.(NZ|AX|L)$/, "").slice(0, 4)}
+                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <p className="font-semibold">{h.ticker.replace(/\.(NZ|AX|L)$/, "")}</p>
+                            <span
+                              className="rounded bg-muted/60 px-1.5 py-0.5 text-[0.6rem] font-semibold uppercase tracking-wide text-muted-foreground"
+                              title={CURRENCY_META[h.currency].label}
+                            >
+                              {h.currency}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+                      {/* Company name */}
+                      <td className="px-3 py-3.5">
+                        <p className="max-w-[16rem] truncate text-muted-foreground">
+                          {h.company_name || h.sector || "—"}
+                        </p>
+                      </td>
+                      {/* Exchange */}
+                      <td className="px-3 py-3.5">
+                        <span className="rounded-md border border-border/60 bg-background/40 px-2 py-0.5 text-[0.7rem] font-semibold text-muted-foreground">
+                          {exchange}
+                        </span>
+                      </td>
+                      {/* # shares */}
+                      <td className="tnum px-3 py-3.5 text-right text-muted-foreground">
+                        {formatNumber(h.shares)}
+                      </td>
+                      {/* Price paid / share */}
+                      <td className="tnum px-3 py-3.5 text-right text-muted-foreground">
+                        {formatMoney(h.purchase_price, h.currency)}
+                      </td>
+                      {/* Current price / share */}
+                      <td className="tnum px-3 py-3.5 text-right">
+                        {formatMoney(h.current_price, h.currency)}
+                      </td>
+                      {/* Current total market value */}
+                      <td className="tnum px-3 py-3.5 text-right font-medium">
+                        {formatMoney(h.marketValue, h.currency)}
+                        {h.currency !== baseCurrency && (
+                          <span className="block text-[0.68rem] font-normal text-muted-foreground">
+                            ≈ {formatMoney(h.baseValue, baseCurrency)}
+                          </span>
+                        )}
+                      </td>
+                      {/* Gain / Loss */}
+                      <td className="px-3 py-3.5 text-right">
+                        <span className={cn("tnum font-medium", up ? "text-emerald-400" : "text-rose-400")}>
+                          {formatMoney(h.gain, h.currency)}
+                        </span>
+                        <span
+                          className={cn("tnum ml-1 block text-xs", up ? "text-emerald-400/80" : "text-rose-400/80")}
+                        >
+                          {formatPercent(h.gainPct)}
+                        </span>
+                      </td>
+                      {/* Actions */}
+                      <td className="px-6 py-3.5">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => openEdit(h)}
+                            className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+                            aria-label={`Edit ${h.ticker}`}
+                          >
+                            <Pencil className="size-4" />
+                          </button>
+                          <button
+                            onClick={() => setDeleteTarget(h)}
+                            className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/15 hover:text-destructive"
+                            aria-label={`Delete ${h.ticker}`}
+                          >
+                            <Trash2 className="size-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* ───────────────────────── 6 · Transaction centre (buy / sell / cash) ───────────────────────── */}
+      <div className="mt-8">
+        <TransactionCenter holdings={allStocks} onChanged={handleDataChanged} />
       </div>
 
       {/* Precious Metals — bonus for active paying members (gold & silver) */}
@@ -787,71 +879,56 @@ export function PortfolioDashboard({
         <PreciousMetals entitled={metalsEntitled} plan={subscription.plan} />
       </div>
 
-      {/* Totalum — the master architect that unifies stocks + crypto + metals */}
+      {/* Actionable intelligence — SELL/BUY signals + pathways */}
       <div className="mt-6">
-        <Link
-          href="/totalum"
-          className="group relative flex flex-col gap-4 overflow-hidden rounded-2xl border border-primary/30 bg-gradient-to-br from-violet-500/12 via-primary/10 to-transparent p-5 transition-all hover:border-primary/50 hover:shadow-glow sm:flex-row sm:items-center sm:justify-between"
-        >
-          <div className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-primary/15 blur-3xl" />
-          <div className="relative flex items-start gap-4">
-            <div className="grid size-11 shrink-0 place-items-center rounded-xl bg-primary/15 text-primary ring-1 ring-primary/25">
-              <Compass className="size-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-semibold">Totalum · Master Portfolio Architect</h3>
-                <span className="rounded-md bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
-                  Pro
-                </span>
-              </div>
-              <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-                Unify your stocks, crypto & precious metals into one strategy — allocation, rebalancing, scenarios,
-                stress tests and a Chief Strategist AI.
-              </p>
-            </div>
-          </div>
-          <span className="relative inline-flex items-center gap-1.5 self-start rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground sm:self-auto">
-            Open Totalum <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
-          </span>
-        </Link>
+        <ActionableIntelligence stocks={stocks} assetClass={bot} />
       </div>
 
-      {/* Watchlist — tracked symbols for the active bot */}
-      <div className="mt-6">
-        <WatchlistPanel bot={bot} reloadSignal={watchlistSignal} />
-      </div>
-
-      {/* Market snapshot — NZX | ASX | US (or Crypto) */}
+      {/* ───────────────────────── 7 · Market snapshot ───────────────────────── */}
       <div className="mt-8">
         <MarketSnapshot />
       </div>
 
-      {/* Top movers */}
+      {/* ───────────────────────── 8 · Top movers (24h · 7d · 1 month) ───────────────────────── */}
       <div className="mt-6">
         <TopMovers />
       </div>
 
-      {/* 7-day projections with technical indicators */}
+      {/* ───────────────────────── 9 · 7-day projections (50 NZX + 200 ASX → 10 best) ───────────────────────── */}
       <div className="mt-6">
         <ProjectionsPanel />
       </div>
 
-      {/* AI Report */}
+      {/* ───────────────────────── 10 · Watchlist & share-price alerts ───────────────────────── */}
+      <div className="mt-6">
+        <WatchlistPanel bot={bot} reloadSignal={watchlistSignal} />
+      </div>
+      <div className="mt-6">
+        <PriceAlerts stocks={stocks} />
+      </div>
+
+      {/* AI report companion */}
       <div className="mt-6">
         <AnalysisPanel holdingsCount={summary.holdingsCount} />
       </div>
 
-      {/* Market news */}
-      <div className="mt-6">
-        <NewsFeed />
+      {/* ───────────────────────── 11 · Report Center (Totalum + Stox + Koins) — at the bottom ───────────────────────── */}
+      <div className="mt-8">
+        <ReportCenter
+          botAccess={subscription.botAccess}
+          plan={subscription.plan}
+          scope={scope}
+          counts={holdingCounts}
+          tickerLimit={tickerLimit}
+          onHoldingsChanged={handleDataChanged}
+        />
       </div>
 
       <StockDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         editing={editing}
-        onSaved={loadStocks}
+        onSaved={handleDataChanged}
         defaultAssetType={bot}
       />
 
