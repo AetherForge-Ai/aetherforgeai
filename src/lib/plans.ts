@@ -56,7 +56,7 @@ export interface Plan {
 }
 
 const APEX_FEATURES = [
-  "SuperGrok 4.3 ULTRA ADVANCED Apex-State reports",
+  "SuperGrok 4.3 Ultra Advanced ZENITH State reports",
   "7-day short-term predictions",
   "3 forward pathways — safe · medium-risk · volatile",
   "12-month momentum & continuation graphs",

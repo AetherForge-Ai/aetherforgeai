@@ -423,8 +423,10 @@ export interface RenderReportOptions {
   userName?: string;
   generatedAtLabel: string;
   alerts?: ReportAlert[];
-  /** True when the executive summary was rewritten by the Grok 4.3 narrative engine. */
+  /** True when the executive summary was rewritten by the ZENITH State narrative engine. */
   aiEnhanced?: boolean;
+  /** AI engine label, e.g. "SuperGrok 4.3 · Ultra Advanced ZENITH State". */
+  engine?: string;
   /** Per-holding technical intelligence (RSI/MACD/BB/SMA + projection + signal). */
   technicals?: SecurityIntel[];
   /** Explicit SELL/BUY signals + forward pathways derived from holdings. */
@@ -496,7 +498,7 @@ export function renderReportHtml(report: ApexReport, opts: RenderReportOptions):
 
       <div style="padding:24px 28px">
         <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">
-          <span style="display:inline-block;padding:3px 10px;border-radius:999px;background:${BLUE}1a;color:${BLUE};font-size:12px;font-weight:600">⚡ Apex State</span>
+          <span style="display:inline-block;padding:3px 10px;border-radius:999px;background:${BLUE}1a;color:${BLUE};font-size:12px;font-weight:600">⚡ ${esc(opts.engine || report.engine || "Ultra Advanced ZENITH State")}</span>
           <span style="font-size:12px;color:${MUTE}">${esc(opts.generatedAtLabel)}</span>
         </div>
 
@@ -511,7 +513,7 @@ export function renderReportHtml(report: ApexReport, opts: RenderReportOptions):
           <h3 style="font-size:14px;margin:0;color:${INK}">Executive summary</h3>
           ${
             opts.aiEnhanced
-              ? `<span style="display:inline-block;padding:2px 9px;border-radius:999px;background:${BLUE}1a;color:${BLUE};font-size:11px;font-weight:600">✨ Enhanced by Grok 4.3</span>`
+              ? `<span style="display:inline-block;padding:2px 9px;border-radius:999px;background:${BLUE}1a;color:${BLUE};font-size:11px;font-weight:600">✨ Authored in ZENITH State · SuperGrok 4.3</span>`
               : ""
           }
         </div>

@@ -385,7 +385,7 @@ export function ApexReportView({ report }: { report: ApexReport }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Badge className="bg-primary/15 text-primary border-primary/30" variant="outline">
-            ⚡ Apex State
+            ⚡ {report.engine || "Ultra Advanced ZENITH State"}
           </Badge>
           <Badge variant="outline" className="border-border/60 text-muted-foreground">
             {report.marketLabel}

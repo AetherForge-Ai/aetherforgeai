@@ -3,7 +3,7 @@ import { totalumSdk } from "@/lib/totalum";
 import { referencePrice, simulateTick } from "@/lib/market";
 import { buildLiveReport, type LiveHolding, type BotKind } from "@/lib/apex";
 import { renderReportHtml, type ReportAlert } from "@/lib/report-html";
-import { createGrokChatCompletion, isGrokConfigured } from "@/lib/grok";
+import { createZenithCompletion, isZenithConfigured } from "@/lib/grok";
 import { analyzeSecurity, type SecurityIntel } from "@/lib/market-intel";
 import { computePortfolioMetrics, buildActionableIntelligence } from "@/lib/analytics";
 import { fetchQuotesForAssetClass, isLiveConfiguredFor } from "@/lib/market-data";
@@ -118,9 +118,12 @@ export async function generateReportForUser(
     fxToNZD: fx.ratesToNZD,
   });
 
-  // Optional Grok narrative enhancement — never fatal.
+  // SuperGrok 4.3 · Ultra Advanced ZENITH State narrative — every bot's report is
+  // authored in this state whenever the owner's Grok key is configured. Non-fatal:
+  // if Grok is unavailable the report still ships with its deterministic summary.
+  const botLabel = bot === "crypto" ? "Koins (crypto)" : "Stox (equities)";
   let aiEnhanced = false;
-  if (isGrokConfigured() && holdings.length) {
+  if (isZenithConfigured() && holdings.length) {
     try {
       const lines = holdings
         .map((h, i) => {
@@ -130,28 +133,31 @@ export async function generateReportForUser(
         .join("\n");
       const sells = intelligence.sellRecommendations.map((r) => r.ticker).join(", ") || "none";
       const buys = intelligence.buyCandidates.map((b) => b.ticker).join(", ") || "none";
-      const narrative = await createGrokChatCompletion({
-        maxTokens: 900,
-        temperature: 0.6,
+      console.log(`[report-service] Running ${report.engine} narrative for ${botLabel} · user ${user._id}`);
+      const narrative = await createZenithCompletion({
+        maxTokens: 1100,
         messages: [
           {
-            role: "system",
-            content:
-              "You are AetherForge, an elite institutional market-intelligence analyst. Write a rich, professional 4-6 sentence executive summary of a portfolio's short-term (7-day) outlook. Reference the technical posture (RSI/MACD/projection), overall portfolio health, and the single most important action. Use **bold** for key phrases. End with a one-line italic (_..._) disclaimer that this is informational only, not financial advice.",
-          },
-          {
             role: "user",
-            content: `Market: ${report.marketLabel}.\nPortfolio metrics: health ${metrics.healthScore}/100 (${metrics.healthLabel}), annualised volatility ${metrics.volatility}%, Sharpe ${metrics.sharpe}, 7-day alpha potential ${metrics.alphaPotentialPct}%.\nSELL flags: ${sells}. High-conviction BUY candidates: ${buys}.\nHoldings:\n${lines}\n\nWrite the executive summary now.`,
+            content:
+              `You are the ${botLabel} bot producing this member's report in ULTRA ADVANCED ZENITH STATE. ` +
+              `Write a rich, professional 5-7 sentence executive summary of the portfolio's short-term (7-day) outlook. ` +
+              `Reference the technical posture (RSI/MACD/projection), overall portfolio health, cross-timeframe momentum, and the single most important action to take now. ` +
+              `Use **bold** for the highest-signal phrases.\n\n` +
+              `Market: ${report.marketLabel}.\n` +
+              `Portfolio metrics: health ${metrics.healthScore}/100 (${metrics.healthLabel}), annualised volatility ${metrics.volatility}%, Sharpe ${metrics.sharpe}, 7-day alpha potential ${metrics.alphaPotentialPct}%.\n` +
+              `SELL flags: ${sells}. High-conviction BUY candidates: ${buys}.\n` +
+              `Holdings:\n${lines}\n\nWrite the ZENITH executive summary now.`,
           },
         ],
       });
       if (narrative && narrative.length > 40) {
         report.executiveSummary = narrative;
         aiEnhanced = true;
-        console.log(`[report-service] Grok narrative applied for user ${user._id}`);
+        console.log(`[report-service] ZENITH narrative applied for user ${user._id}`);
       }
     } catch (grokErr) {
-      console.error("[report-service] Grok enhancement failed (non-fatal):", grokErr);
+      console.error("[report-service] ZENITH narrative failed (non-fatal):", grokErr);
     }
   }
 
@@ -184,6 +190,7 @@ export async function generateReportForUser(
     generatedAtLabel,
     alerts,
     aiEnhanced,
+    engine: report.engine,
     technicals,
     metrics,
     intelligence,
@@ -238,6 +245,7 @@ export async function generateReportForUser(
       payload: JSON.stringify(report),
       emailed: emailed ? "yes" : "no",
       ai_enhanced: aiEnhanced ? "yes" : "no",
+      ai_engine: report.engine,
       generated_at: now.toISOString(),
       trigger: context,
       ...(pdfFileName ? { pdf_file: { name: pdfFileName } } : {}),

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
 import { buildPortfolioContext, ANALYST_SYSTEM_PROMPT } from "@/lib/ai-context";
-import { createGrokChatCompletion, type GrokMessage } from "@/lib/grok";
+import { createZenithCompletion, type GrokMessage } from "@/lib/grok";
 import type { Stock } from "@/lib/portfolio";
 
 /**
@@ -45,8 +45,8 @@ export async function POST() {
       },
     ];
 
-    console.log(`[api/analysis] Generating Grok report for user ${user._id} (${stocks.length} holdings)`);
-    const report = await createGrokChatCompletion({
+    console.log(`[api/analysis] Generating ZENITH report for user ${user._id} (${stocks.length} holdings)`);
+    const report = await createZenithCompletion({
       messages,
       maxTokens: 1600,
       temperature: 0.6,

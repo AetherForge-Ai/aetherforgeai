@@ -186,7 +186,7 @@ export function ReportCenter({
           <div className="flex items-center gap-2">
             <h2 className="font-display text-lg font-bold">Report Center</h2>
             <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">
-              <Sparkles className="mr-1 size-3" /> Apex State
+              <Sparkles className="mr-1 size-3" /> Ultra Advanced ZENITH State
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground">
@@ -376,7 +376,7 @@ export function ReportCenter({
             <div className="flex flex-wrap items-center justify-between gap-2 pr-6">
               <div>
                 <div className="flex items-center gap-2">
-                  <DialogTitle>{report?.title ?? "Apex report"}</DialogTitle>
+                  <DialogTitle>{report?.title ?? "ZENITH report"}</DialogTitle>
                   {lastAiEnhanced && (
                     <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">
                       <Sparkles className="mr-1 size-3" /> Grok 4.3 enhanced

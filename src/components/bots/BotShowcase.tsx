@@ -75,7 +75,7 @@ function BotCard({ bot, onOpen }: { bot: BotDef; onOpen: () => void }) {
         </div>
         <div className="min-w-0">
           <Badge variant="outline" className="mb-2 border-primary/30 bg-primary/10 text-primary">
-            ⚡ Apex Mode
+            ⚡ ZENITH State
           </Badge>
           <h3 className="text-lg font-semibold leading-tight tracking-tight">{bot.name}</h3>
           <p className="mt-0.5 text-xs text-muted-foreground">{bot.subtitle}</p>
@@ -92,7 +92,7 @@ function BotCard({ bot, onOpen }: { bot: BotDef; onOpen: () => void }) {
       <p className="mt-4 text-sm leading-relaxed text-muted-foreground">{bot.blurb}</p>
 
       <Button onClick={onOpen} className="mt-5 w-full" variant="secondary">
-        View a sample Apex report
+        View a sample ZENITH report
       </Button>
     </div>
   );
@@ -113,7 +113,7 @@ export function BotShowcase() {
       <div className="text-center">
         <p className="text-sm font-medium uppercase tracking-[0.2em] text-primary">The core of AetherForge</p>
         <h2 className="mt-3 text-3xl font-bold tracking-tight md:text-4xl">
-          Two Ultra-Advanced AI bots. One Apex State.
+          Two Ultra-Advanced AI bots. One Ultra Advanced ZENITH State.
         </h2>
         <p className="mx-auto mt-4 max-w-2xl text-muted-foreground">
           Powered by SuperGrok 4.3, each monitor runs an exhaustive multi-timeframe sweep and delivers the finished
@@ -144,7 +144,7 @@ export function BotShowcase() {
                       <span className="text-sm font-normal text-muted-foreground">· {activeBot.subtitle}</span>
                     </DialogTitle>
                     <DialogDescription className="text-left">
-                      Sample Apex-State report — illustrative data, real subscriber layout. This is what lands in your
+                      Sample ZENITH State report — illustrative data, real subscriber layout. This is what lands in your
                       dashboard when the bot runs.
                     </DialogDescription>
                   </div>
@@ -157,7 +157,7 @@ export function BotShowcase() {
 
               <div className="mt-4 flex flex-col items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 p-5 text-center">
                 <p className="text-sm font-medium">
-                  Unlock live Apex reports on your own {activeBot.kind === "crypto" ? "coins" : "tickers"}.
+                  Unlock live ZENITH reports on your own {activeBot.kind === "crypto" ? "coins" : "tickers"}.
                 </p>
                 <Button asChild className="w-full sm:w-auto">
                   <Link href="/pricing">Choose a plan &amp; activate this bot</Link>

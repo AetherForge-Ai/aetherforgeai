@@ -17,9 +17,28 @@ function esc(s: string): string {
   return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c] || c));
 }
 
+/** Minimal Markdown → HTML for the ZENITH narrative (**bold**, _italic_, paragraphs). */
+function rich(md: string): string {
+  return md
+    .split(/\n{2,}/)
+    .map((p) => {
+      const html = esc(p.trim())
+        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+        .replace(/_(.+?)_/g, "<em>$1</em>")
+        .replace(/\n/g, "<br/>");
+      return `<p style="margin:0 0 10px">${html}</p>`;
+    })
+    .join("");
+}
+
 export function renderTotalumReport(
   synthesis: TotalumSynthesis,
-  opts: { memberName?: string; strategy?: StrategyBlueprint | null } = {}
+  opts: {
+    memberName?: string;
+    strategy?: StrategyBlueprint | null;
+    aiNarrative?: string;
+    engine?: string;
+  } = {}
 ): string {
   const s = synthesis;
   const gainColor = s.totalGainNZD >= 0 ? "#059669" : "#dc2626";
@@ -153,11 +172,24 @@ export function renderTotalumReport(
       <div class="muted">${esc(opts.memberName || "Member")}</div>
       <div class="muted">${esc(date)}</div>
       <div class="muted">Spot ${s.metalsLive ? "live" : "est."} · base currency NZD</div>
+      <div style="margin-top:6px"><span style="display:inline-block;padding:3px 10px;border-radius:999px;background:#eef2ff;color:#6366f1;font-size:11px;font-weight:700">⚡ ${esc(opts.engine || "Ultra Advanced ZENITH State")}</span></div>
     </div>
   </header>
 
   <h1>Total Portfolio Intelligence Report</h1>
   <p class="muted">A unified cross-asset view of your equities, crypto and precious metals — synthesised into allocation, risk, scenarios and strategy.</p>
+
+  ${
+    opts.aiNarrative
+      ? `<section>
+    <h2>ZENITH Executive Briefing</h2>
+    <div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:12px;padding:16px 18px;font-size:14px;line-height:1.65;color:#0f172a">
+      ${rich(opts.aiNarrative)}
+    </div>
+    <p class="sub" style="margin-top:6px">Authored by the Totalum Master Architect in ${esc(opts.engine || "Ultra Advanced ZENITH State")}.</p>
+  </section>`
+      : ""
+  }
 
   <div class="kpis">
     <div class="kpi"><div class="l">Total wealth</div><div class="v">${nzd(s.totalValueNZD)}</div></div>

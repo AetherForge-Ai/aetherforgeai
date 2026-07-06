@@ -9,8 +9,14 @@ import "server-only";
  *   XAI_MODEL    — optional, defaults to "grok-4.3"
  */
 
+import {
+  ZENITH_MODEL_DEFAULT,
+  ZENITH_SYSTEM_DIRECTIVE,
+  ZENITH_TUNING,
+} from "@/lib/zenith";
+
 const XAI_ENDPOINT = "https://api.x.ai/v1/chat/completions";
-const DEFAULT_MODEL = "grok-4.3";
+const DEFAULT_MODEL = ZENITH_MODEL_DEFAULT;
 
 export interface GrokMessage {
   role: "system" | "user" | "assistant";
@@ -26,6 +32,40 @@ export interface GrokCompletionOptions {
 
 export function isGrokConfigured(): boolean {
   return !!process.env.XAI_API_KEY;
+}
+
+/** ZENITH State is available whenever the owner's Grok key is configured. */
+export function isZenithConfigured(): boolean {
+  return isGrokConfigured();
+}
+
+/**
+ * Run a completion in SuperGrok 4.3 ULTRA ADVANCED ZENITH STATE.
+ *
+ * This is the single entry point every bot uses for its report narratives: it
+ * prepends the ZENITH operating directive to the caller's messages, pins the
+ * ZENITH model (grok-4.3 unless XAI_MODEL overrides) and applies deep, decisive
+ * default tuning. Callers still pass their own task-specific system/user turns.
+ */
+export async function createZenithCompletion({
+  messages,
+  maxTokens,
+  temperature,
+}: {
+  messages: GrokMessage[];
+  maxTokens?: number;
+  temperature?: number;
+}): Promise<string> {
+  const zenithMessages: GrokMessage[] = [
+    { role: "system", content: ZENITH_SYSTEM_DIRECTIVE },
+    ...messages,
+  ];
+  return createGrokChatCompletion({
+    messages: zenithMessages,
+    model: process.env.XAI_MODEL || ZENITH_MODEL_DEFAULT,
+    maxTokens: maxTokens ?? ZENITH_TUNING.maxTokens,
+    temperature: temperature ?? ZENITH_TUNING.temperature,
+  });
 }
 
 /**

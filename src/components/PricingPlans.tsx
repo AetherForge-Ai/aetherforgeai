@@ -224,7 +224,7 @@ export function PricingPlans() {
       </div>
 
       <p className="mt-8 text-center text-xs text-muted-foreground">
-        Every plan includes SuperGrok 4.3 ULTRA ADVANCED Apex-State reports · Secure checkout via Stripe · Cancel
+        Every plan includes SuperGrok 4.3 Ultra Advanced ZENITH State reports · Secure checkout via Stripe · Cancel
         anytime · Test card <span className="font-mono">4242 4242 4242 4242</span>
       </p>
     </div>

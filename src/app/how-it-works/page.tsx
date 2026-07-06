@@ -25,7 +25,7 @@ import {
 export const metadata: Metadata = {
   title: "How It Works — AetherForge AI",
   description:
-    "How AetherForge AI turns NZX, ASX, US market and global crypto data into institutional-grade, plain-English intelligence — powered by SuperGrok 4.3 in full Apex State.",
+    "How AetherForge AI turns NZX, ASX, US market and global crypto data into institutional-grade, plain-English intelligence — powered by SuperGrok 4.3 in full Ultra Advanced ZENITH State.",
 };
 
 const BOTS = [
@@ -65,8 +65,8 @@ const STEPS = [
   {
     n: "03",
     icon: FileBarChart,
-    title: "Receive daily Apex reports",
-    body: "The Stock and Crypto monitors analyse your holdings and deliver a full Apex-State Portfolio Intelligence Report — to your dashboard and your inbox, downloadable as a PDF.",
+    title: "Receive daily ZENITH reports",
+    body: "The Stock and Crypto monitors analyse your holdings and deliver a full Ultra Advanced ZENITH State Portfolio Intelligence Report — to your dashboard and your inbox, downloadable as a PDF.",
   },
   {
     n: "04",
@@ -97,7 +97,7 @@ export default function HowItWorksPage() {
         {/* Hero */}
         <section className="mx-auto max-w-5xl px-4 pt-16 pb-10 text-center sm:px-6 lg:px-8">
           <p className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-primary">
-            <LineChart className="size-3.5" /> Powered by SuperGrok 4.3 · Apex State
+            <LineChart className="size-3.5" /> Powered by SuperGrok 4.3 · Ultra Advanced ZENITH State
           </p>
           <h1 className="mt-6 font-display text-4xl font-bold tracking-tight sm:text-5xl">
             How AetherForge AI works
@@ -123,7 +123,7 @@ export default function HowItWorksPage() {
         <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
           <div className="mx-auto mb-10 max-w-2xl text-center">
             <h2 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">
-              Two ultra-advanced bots, one Apex State
+              Two ultra-advanced bots, one Ultra Advanced ZENITH State
             </h2>
             <p className="mt-3 text-muted-foreground">
               Built from the ground up and running on SuperGrok 4.3, each monitor is an institutional-grade
@@ -190,7 +190,7 @@ export default function HowItWorksPage() {
             <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-end">
               <div>
                 <p className="text-sm font-semibold uppercase tracking-wider text-primary">
-                  Apex Portfolio Intelligence Report
+                  ZENITH State Portfolio Intelligence Report
                 </p>
                 <h2 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">
                   What lands in your inbox

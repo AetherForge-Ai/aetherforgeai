@@ -23,7 +23,7 @@ import "server-only";
  */
 
 import { totalumSdk } from "@/lib/totalum";
-import { createGrokChatCompletion, isGrokConfigured } from "@/lib/grok";
+import { createZenithCompletion, isZenithConfigured } from "@/lib/grok";
 import { analyzeSecurity, type MarketCode } from "@/lib/market-intel";
 import { fetchQuotesForAssetClass } from "@/lib/market-data";
 import {
@@ -563,7 +563,7 @@ function fallbackSummary(report: TrialReport): string {
 /* ----------------------------- Grok layer ------------------------------- */
 
 async function enhanceWithGrok(report: TrialReport): Promise<boolean> {
-  if (!isGrokConfigured() || !report.tickers.length) return false;
+  if (!isZenithConfigured() || !report.tickers.length) return false;
   try {
     const lines = report.tickers
       .map(
@@ -578,7 +578,7 @@ async function enhanceWithGrok(report: TrialReport): Promise<boolean> {
           ? `NZX/ASX gainers: ${report.stockMovers.gainers.slice(0, 5).map((m) => `${m.symbol} ${m.changePct}%`).join(", ")}.`
           : "";
 
-    const narrative = await createGrokChatCompletion({
+    const narrative = await createZenithCompletion({
       maxTokens: 1100,
       temperature: 0.55,
       messages: [
@@ -597,7 +597,7 @@ async function enhanceWithGrok(report: TrialReport): Promise<boolean> {
       report.executiveSummary = narrative;
       // Ask a second, cheap pass for 4 crisp key findings.
       try {
-        const kf = await createGrokChatCompletion({
+        const kf = await createZenithCompletion({
           maxTokens: 400,
           temperature: 0.5,
           messages: [
