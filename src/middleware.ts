@@ -32,6 +32,7 @@ const publicRoutes = [
   "/reset-password",
   "/pricing",
   "/how-it-works",
+  "/how-to-maximize-results",
   "/privacy-policy",
   "/terms-of-service",
   "/ai-disclaimer",

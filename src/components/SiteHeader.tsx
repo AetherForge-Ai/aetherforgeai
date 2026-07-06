@@ -24,6 +24,9 @@ export function SiteHeader() {
             <Link href="/how-it-works" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
               How it works
             </Link>
+            <Link href="/how-to-maximize-results" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
+              Maximize results
+            </Link>
             <Link href="/pricing" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
               Pricing
             </Link>

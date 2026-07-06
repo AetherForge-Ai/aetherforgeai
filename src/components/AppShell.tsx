@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, Bot, Settings, LogOut, Menu, Sparkles, Crown, Compass } from "lucide-react";
+import { LayoutDashboard, Bot, Settings, LogOut, Menu, Sparkles, Crown, Compass, Sparkle } from "lucide-react";
 
 export interface ShellUser {
   name: string;
@@ -25,6 +25,7 @@ const NAV = [
   { href: "/dashboard", label: "Portfolio", icon: LayoutDashboard },
   { href: "/totalum", label: "Totalum", icon: Compass, pro: true },
   { href: "/chat", label: "AI Assistant", icon: Bot },
+  { href: "/how-to-maximize-results", label: "Maximize Results", icon: Sparkle },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

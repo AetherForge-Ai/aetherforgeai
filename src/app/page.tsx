@@ -363,6 +363,7 @@ export default function LandingPage() {
 
               <div className="grid grid-cols-2 gap-x-10 gap-y-2 text-sm text-muted-foreground sm:grid-cols-2">
                 <Link href="/how-it-works" className="hover:text-foreground">How it works</Link>
+                <Link href="/how-to-maximize-results" className="hover:text-foreground">Maximize results</Link>
                 <Link href="/pricing" className="hover:text-foreground">Pricing</Link>
                 <Link href="/privacy-policy" className="hover:text-foreground">AI Privacy Act</Link>
                 <Link href="/login" className="hover:text-foreground">Log in</Link>
