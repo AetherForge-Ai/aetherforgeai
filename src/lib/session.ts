@@ -21,6 +21,8 @@ export interface AppUser {
   /** "yes" once the user has consumed their one-time free-trial Zenith report. */
   trial_used?: "yes" | "no" | null;
   trial_used_at?: string | null;
+  /** Investable cash balance in NZD, adjusted by buy/sell/deposit/withdraw. */
+  cash_balance?: number | null;
 }
 
 /**
@@ -57,6 +59,7 @@ export async function getCurrentUser(): Promise<AppUser | null> {
       bot_access: record?.bot_access ?? "none",
       trial_used: record?.trial_used ?? "no",
       trial_used_at: record?.trial_used_at ?? null,
+      cash_balance: typeof record?.cash_balance === "number" ? record.cash_balance : 0,
     };
   } catch (err) {
     console.error("[session] getCurrentUser error:", err);

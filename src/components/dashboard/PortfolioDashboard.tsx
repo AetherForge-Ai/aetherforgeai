@@ -16,6 +16,7 @@ import {
   type FxRatesToNZD,
 } from "@/lib/currency";
 import { StockDialog } from "@/components/dashboard/StockDialog";
+import { TransactionCenter } from "@/components/dashboard/TransactionCenter";
 import { AnalysisPanel } from "@/components/dashboard/AnalysisPanel";
 import { ReportCenter } from "@/components/dashboard/ReportCenter";
 import { PriceAlerts } from "@/components/dashboard/PriceAlerts";
@@ -774,6 +775,11 @@ export function PortfolioDashboard({
             </>
           )}
         </div>
+      </div>
+
+      {/* Transaction Center — buy/sell/deposit/withdraw with realized P&L + cash */}
+      <div className="mt-6">
+        <TransactionCenter holdings={allStocks} onChanged={loadStocks} />
       </div>
 
       {/* Precious Metals — bonus for active paying members (gold & silver) */}
