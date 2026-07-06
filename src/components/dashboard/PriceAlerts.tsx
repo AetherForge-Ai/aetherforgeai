@@ -91,6 +91,13 @@ export function PriceAlerts({ stocks }: { stocks: Stock[] }) {
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const [form, setForm] = React.useState<FormState>(EMPTY_FORM);
   const [deleteId, setDeleteId] = React.useState<string | null>(null);
+  const [deleting, setDeleting] = React.useState(false);
+
+  // Ticker of the alert queued for deletion (for a clearer confirm message).
+  const deleteTarget = React.useMemo(
+    () => alerts.find((a) => a._id === deleteId) ?? null,
+    [alerts, deleteId]
+  );
 
   const load = React.useCallback(async () => {
     const res = await api.get<PriceAlert[]>("/api/alerts");
@@ -170,16 +177,22 @@ export function PriceAlerts({ stocks }: { stocks: Stock[] }) {
   }
 
   async function confirmDelete() {
-    if (!deleteId) return;
+    if (!deleteId || deleting) return;
     const id = deleteId;
-    setDeleteId(null);
+    console.log("[PriceAlerts] deleting alert", id);
+    setDeleting(true);
+    // Optimistically remove from the list so it disappears instantly.
+    setAlerts((prev) => prev.filter((a) => a._id !== id));
     const res = await api.delete(`/api/alerts/${id}`);
+    setDeleting(false);
+    setDeleteId(null);
     if (res.ok) {
       toast.success("Alert removed");
       load();
     } else {
       console.error("[PriceAlerts] delete failed:", res.error);
-      toast.error("Could not remove the alert.");
+      toast.error(typeof res.error === "string" ? res.error : "Could not remove the alert.");
+      load(); // restore the real server state if the delete failed
     }
   }
 
@@ -223,35 +236,17 @@ export function PriceAlerts({ stocks }: { stocks: Stock[] }) {
                   a.triggered ? "border-rose-500/40 bg-rose-500/5" : "border-border/60 bg-background/40"
                 )}
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="font-display text-base font-bold">{a.ticker}</span>
-                    {a.triggered ? (
-                      <Badge className="bg-rose-500/15 text-rose-400 hover:bg-rose-500/15">
-                        <TriangleAlert className="mr-1 size-3" /> Sell-out hit
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="border-emerald-500/30 text-emerald-400">
-                        <ShieldCheck className="mr-1 size-3" /> Watching
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => openEdit(a)}
-                      className="grid size-7 place-items-center rounded-md text-muted-foreground hover:bg-primary/10 hover:text-primary"
-                      aria-label={`Edit ${a.ticker} alert`}
-                    >
-                      <Pencil className="size-3.5" />
-                    </button>
-                    <button
-                      onClick={() => setDeleteId(a._id)}
-                      className="grid size-7 place-items-center rounded-md text-muted-foreground hover:bg-destructive/15 hover:text-destructive"
-                      aria-label={`Delete ${a.ticker} alert`}
-                    >
-                      <Trash2 className="size-3.5" />
-                    </button>
-                  </div>
+                <div className="flex items-center gap-2">
+                  <span className="font-display text-base font-bold">{a.ticker}</span>
+                  {a.triggered ? (
+                    <Badge className="bg-rose-500/15 text-rose-400 hover:bg-rose-500/15">
+                      <TriangleAlert className="mr-1 size-3" /> Sell-out hit
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="border-emerald-500/30 text-emerald-400">
+                      <ShieldCheck className="mr-1 size-3" /> Watching
+                    </Badge>
+                  )}
                 </div>
 
                 <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
@@ -285,6 +280,27 @@ export function PriceAlerts({ stocks }: { stocks: Stock[] }) {
                     {a.instructions}
                   </p>
                 )}
+
+                <div className="mt-4 flex items-center gap-2 border-t border-border/50 pt-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 font-medium"
+                    onClick={() => openEdit(a)}
+                    aria-label={`Edit ${a.ticker} alert`}
+                  >
+                    <Pencil className="mr-1.5 size-3.5" /> Edit
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 border-destructive/30 font-medium text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    onClick={() => setDeleteId(a._id)}
+                    aria-label={`Remove ${a.ticker} alert`}
+                  >
+                    <Trash2 className="mr-1.5 size-3.5" /> Remove
+                  </Button>
+                </div>
               </li>
             ))}
           </ul>
@@ -380,17 +396,26 @@ export function PriceAlerts({ stocks }: { stocks: Stock[] }) {
       </Dialog>
 
       {/* Delete confirm (lightweight) */}
-      <Dialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
+      <Dialog open={!!deleteId} onOpenChange={(o) => !o && !deleting && setDeleteId(null)}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Remove alert?</DialogTitle>
-            <DialogDescription>This stops monitoring this rule. You can recreate it anytime.</DialogDescription>
+            <DialogTitle>
+              Remove {deleteTarget ? `${deleteTarget.ticker} ` : ""}alert?
+            </DialogTitle>
+            <DialogDescription>
+              This stops monitoring this rule. You can recreate it anytime.
+            </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteId(null)}>
+            <Button variant="outline" onClick={() => setDeleteId(null)} disabled={deleting}>
               Cancel
             </Button>
-            <Button className="bg-destructive text-white hover:bg-destructive/90" onClick={confirmDelete}>
+            <Button
+              className="bg-destructive text-white hover:bg-destructive/90"
+              onClick={confirmDelete}
+              disabled={deleting}
+            >
+              {deleting ? <Loader2 className="mr-1 size-4 animate-spin" /> : <Trash2 className="mr-1 size-4" />}
               Remove
             </Button>
           </DialogFooter>
