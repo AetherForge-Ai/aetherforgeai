@@ -242,6 +242,82 @@ export async function applyTransaction(user: AppUser, input: TransactionInput): 
   return { transaction: rec?.data, cashBalance: newCash, realizedNZD, holdingId };
 }
 
+export type MetalKey = "gold" | "silver";
+
+export interface MetalTradeResult {
+  transaction: any;
+  cashBalance: number; // NZD after the movement
+  realizedNZD: number; // realized P&L booked (sells only)
+}
+
+/**
+ * Record a precious-metals buy/sell in the SAME ledger + cash system used by
+ * stocks & crypto. Metals are priced in NZD per troy ounce, so no FX is needed.
+ * This is what keeps the Transaction Center and the cash balance coherent across
+ * every asset class — a gold/silver buy now debits cash and shows in the ledger,
+ * exactly like a share purchase. Throws (never silently swallows) on any failure.
+ */
+export async function recordMetalTrade(
+  user: AppUser,
+  input: {
+    side: "buy" | "sell";
+    metal: MetalKey;
+    ounces: number;
+    pricePerOzNZD: number;
+    avgCostNZD?: number; // sells only — for realized P&L vs the cost paid
+    fees?: number;
+    notes?: string;
+    executedAt?: Date;
+  }
+): Promise<MetalTradeResult> {
+  const currentCash = typeof user.cash_balance === "number" ? user.cash_balance : 0;
+  const ounces = Number(input.ounces) || 0;
+  const price = Number(input.pricePerOzNZD) || 0;
+  const fees = Math.max(0, Number(input.fees) || 0);
+  if (ounces <= 0) throw new Error("Ounces must be greater than 0");
+  if (price <= 0) throw new Error("Price per ounce must be greater than 0");
+
+  const gross = ounces * price;
+  const ticker = input.metal === "gold" ? "GOLD" : "SILVER";
+  const assetName = input.metal === "gold" ? "Gold bullion" : "Silver bullion";
+  const executedAt = input.executedAt || new Date();
+  const notes = (input.notes || "").slice(0, 500);
+
+  // `total` is the signed cash impact (buys debit, sells credit).
+  let total: number;
+  let realizedNZD = 0;
+  if (input.side === "buy") {
+    total = round(-(gross + fees));
+  } else {
+    total = round(gross - fees);
+    const avg = Number(input.avgCostNZD) || 0;
+    realizedNZD = round(ounces * (price - avg) - fees);
+  }
+  const newCash = round(currentCash + total);
+
+  await totalumSdk.crud.editRecordById("user", user._id, { cash_balance: newCash });
+  console.log(
+    `[transactions] METAL ${input.side} ${ounces}oz ${ticker} @ ${price} NZD → cash ${newCash}, realized ${realizedNZD}`
+  );
+
+  const rec = await totalumSdk.crud.createRecord("transaction", {
+    type: input.side,
+    ticker,
+    asset_name: assetName,
+    asset_type: "metal",
+    quantity: round(ounces, 6),
+    price: round(price, 4),
+    fees: round(fees),
+    total,
+    realized_pnl: realizedNZD,
+    currency: "NZD",
+    notes,
+    executed_at: executedAt,
+    user: user._id,
+  });
+  return { transaction: rec?.data, cashBalance: newCash, realizedNZD };
+}
+
 export interface TransactionRow {
   _id: string;
   type: TxType;

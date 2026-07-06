@@ -239,6 +239,9 @@ export function PortfolioDashboard({
   const [editing, setEditing] = useState<Stock | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Stock | null>(null);
   const [deleting, setDeleting] = useState(false);
+  // Bumped whenever a metals buy/sell happens so the Transaction Center reloads
+  // its ledger + cash cards in step with the top-level totals.
+  const [ledgerSignal, setLedgerSignal] = useState(0);
 
   const stocks = useMemo(
     () => allStocks.filter((s) => (s.asset_type || "stock") === bot),
@@ -327,6 +330,13 @@ export function PortfolioDashboard({
     loadCash();
     loadMetals();
   }, [loadStocks, loadCash, loadMetals]);
+
+  // Metals buy/sell also moves cash + writes the ledger — reload the top-level
+  // totals AND signal the Transaction Center to refresh its ledger/cash cards.
+  const handleMetalsChanged = useCallback(() => {
+    handleDataChanged();
+    setLedgerSignal((n) => n + 1);
+  }, [handleDataChanged]);
 
   // Global-search pick: switch to the matching bot and track the symbol.
   async function handleSearchPick(assetClass: AssetClass, entry: UniverseEntry) {
@@ -871,12 +881,12 @@ export function PortfolioDashboard({
 
       {/* ───────────────────────── 6 · Transaction centre (buy / sell / cash) ───────────────────────── */}
       <div className="mt-8">
-        <TransactionCenter holdings={allStocks} onChanged={handleDataChanged} />
+        <TransactionCenter holdings={allStocks} onChanged={handleDataChanged} reloadSignal={ledgerSignal} />
       </div>
 
       {/* Precious Metals — bonus for active paying members (gold & silver) */}
       <div className="mt-6">
-        <PreciousMetals entitled={metalsEntitled} plan={subscription.plan} />
+        <PreciousMetals entitled={metalsEntitled} plan={subscription.plan} onChanged={handleMetalsChanged} />
       </div>
 
       {/* Actionable intelligence — SELL/BUY signals + pathways */}

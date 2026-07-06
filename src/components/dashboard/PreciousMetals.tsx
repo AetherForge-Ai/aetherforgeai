@@ -20,7 +20,6 @@ import {
   Coins,
   Gem,
   Plus,
-  Trash2,
   Loader2,
   TrendingUp,
   TrendingDown,
@@ -28,6 +27,9 @@ import {
   Sparkles,
   RefreshCw,
   BadgeCheck,
+  Minus,
+  Check,
+  X,
 } from "lucide-react";
 
 type MetalKey = "gold" | "silver";
@@ -62,12 +64,22 @@ const METAL_META: Record<MetalKey, { label: string; icon: React.ElementType; col
  * Members log their gold / silver holdings in troy ounces and the price/oz they
  * paid; today's value is computed live from the current-day spot price (NZD).
  */
-export function PreciousMetals({ entitled, plan }: { entitled: boolean; plan?: string | null }) {
+export function PreciousMetals({
+  entitled,
+  plan,
+  onChanged,
+}: {
+  entitled: boolean;
+  plan?: string | null;
+  /** Called after any buy/sell so the parent can refresh cash + the ledger. */
+  onChanged?: () => void;
+}) {
   const [metals, setMetals] = useState<MetalHolding[]>([]);
   const [spot, setSpot] = useState<MetalsSpot | null>(null);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [sellingId, setSellingId] = useState<string | null>(null);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
 
   // Add-form state.
   const [metal, setMetal] = useState<MetalKey>("gold");
@@ -122,26 +134,41 @@ export function PreciousMetals({ entitled, plan }: { entitled: boolean; plan?: s
     });
     setAdding(false);
     if (res.ok) {
-      toast.success(`${METAL_META[metal].label} added to your metals portfolio`);
+      const cost = oz * pp;
+      toast.success(
+        `Bought ${oz} oz ${METAL_META[metal].label} · ${formatMoney(cost, "NZD")} debited from cash`
+      );
       setOunces("");
       setPrice("");
       load();
+      onChanged?.(); // refresh cash balance + the Transaction Center ledger
     } else {
       console.error("[metals] Add failed:", res.error);
       toast.error(typeof res.error === "string" ? res.error : "Could not add your metal holding.");
     }
   }
 
-  async function handleDelete(id: string) {
-    setDeletingId(id);
-    const res = await api.delete(`/api/metals/${id}`);
-    setDeletingId(null);
-    if (res.ok) {
-      toast.success("Metal holding removed");
+  // Selling at spot credits cash, books realized P&L and logs it in the ledger.
+  async function handleSell(id: string) {
+    setSellingId(id);
+    setConfirmId(null);
+    const res = await api.delete<{ cashBalance: number; realizedNZD: number; proceeds: number }>(
+      `/api/metals/${id}`
+    );
+    setSellingId(null);
+    if (res.ok && res.data) {
+      const { proceeds, realizedNZD } = res.data;
+      toast.success(
+        `Sold at spot · ${formatMoney(proceeds, "NZD")} added to cash` +
+          (typeof realizedNZD === "number"
+            ? ` · ${realizedNZD >= 0 ? "+" : ""}${formatMoney(realizedNZD, "NZD")} realized`
+            : "")
+      );
       setMetals((prev) => prev.filter((m) => m._id !== id));
+      onChanged?.(); // refresh cash balance + the Transaction Center ledger
     } else {
-      console.error("[metals] Delete failed:", res.error);
-      toast.error("Could not remove holding.");
+      console.error("[metals] Sell failed:", res.error);
+      toast.error(typeof res.error === "string" ? res.error : "Could not sell holding.");
     }
   }
 
@@ -273,9 +300,13 @@ export function PreciousMetals({ entitled, plan }: { entitled: boolean; plan?: s
           </div>
           <Button type="submit" disabled={adding} className="font-semibold">
             {adding ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Plus className="mr-2 size-4" />}
-            Add
+            Buy
           </Button>
         </form>
+        <p className="mt-2 px-1 text-[0.7rem] text-muted-foreground">
+          Buying debits your cash balance and logs the purchase in the Transaction Center. Selling credits cash at
+          today's spot price and books your realized gain/loss.
+        </p>
 
         {/* Holdings table */}
         {loading ? (
@@ -345,18 +376,43 @@ export function PreciousMetals({ entitled, plan }: { entitled: boolean; plan?: s
                         </span>
                       </td>
                       <td className="py-3.5 pl-3 text-right">
-                        <button
-                          onClick={() => handleDelete(h._id)}
-                          disabled={deletingId === h._id}
-                          className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/15 hover:text-destructive"
-                          aria-label={`Remove ${meta.label}`}
-                        >
-                          {deletingId === h._id ? (
-                            <Loader2 className="size-4 animate-spin" />
-                          ) : (
-                            <Trash2 className="size-4" />
-                          )}
-                        </button>
+                        {confirmId === h._id ? (
+                          <div className="flex items-center justify-end gap-1.5">
+                            <span className="mr-1 hidden text-xs text-muted-foreground sm:inline">
+                              Sell for {formatMoney(value, "NZD")}?
+                            </span>
+                            <button
+                              onClick={() => handleSell(h._id)}
+                              disabled={sellingId === h._id}
+                              className="inline-flex items-center gap-1 rounded-lg bg-emerald-500/15 px-2 py-1 text-xs font-semibold text-emerald-400 transition-colors hover:bg-emerald-500/25"
+                              aria-label={`Confirm sell ${meta.label}`}
+                            >
+                              {sellingId === h._id ? (
+                                <Loader2 className="size-3.5 animate-spin" />
+                              ) : (
+                                <Check className="size-3.5" />
+                              )}
+                              Confirm
+                            </button>
+                            <button
+                              onClick={() => setConfirmId(null)}
+                              disabled={sellingId === h._id}
+                              className="grid size-7 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted"
+                              aria-label="Cancel"
+                            >
+                              <X className="size-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setConfirmId(h._id)}
+                            disabled={sellingId === h._id}
+                            className="inline-flex items-center gap-1 rounded-lg border border-border/60 px-2.5 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:border-rose-500/40 hover:bg-rose-500/10 hover:text-rose-400"
+                            aria-label={`Sell ${meta.label}`}
+                          >
+                            <Minus className="size-3.5" /> Sell
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );

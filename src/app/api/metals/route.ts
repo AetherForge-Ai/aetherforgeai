@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getCurrentUser, isStripeConfigured, hasPaidSubscription, type AppUser } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
 import { getMetalsSpot } from "@/lib/metals";
+import { recordMetalTrade } from "@/lib/transactions";
 
 export const dynamic = "force-dynamic";
 
@@ -85,7 +86,19 @@ export async function POST(req: Request) {
     const result = await totalumSdk.crud.createRecord("precious_metal", record);
     console.log(`[api/metals] POST created ${parsed.data.metal} holding for user ${user._id}`);
 
-    return NextResponse.json({ ok: true, data: result?.data ?? record });
+    // Buying metal debits cash and logs the movement in the Transaction Center,
+    // exactly like a share/crypto purchase. Metals are priced in NZD/oz.
+    const trade = await recordMetalTrade(user, {
+      side: "buy",
+      metal: parsed.data.metal,
+      ounces: parsed.data.ounces,
+      pricePerOzNZD: parsed.data.purchase_price_per_oz,
+    });
+
+    return NextResponse.json({
+      ok: true,
+      data: { metal: result?.data ?? record, cashBalance: trade.cashBalance, transaction: trade.transaction },
+    });
   } catch (err: any) {
     console.error("[api/metals] POST error:", err);
     return NextResponse.json({ ok: false, error: err?.message || "Failed to add metal" }, { status: 500 });

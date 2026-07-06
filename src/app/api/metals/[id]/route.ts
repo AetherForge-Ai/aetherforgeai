@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser, isStripeConfigured, hasPaidSubscription, type AppUser } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
+import { getMetalsSpot, type MetalKey } from "@/lib/metals";
+import { recordMetalTrade } from "@/lib/transactions";
 
 export const dynamic = "force-dynamic";
 
@@ -56,7 +58,9 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
   }
 }
 
-// DELETE /api/metals/[id] — remove a metal holding
+// DELETE /api/metals/[id] — SELL a metal holding at today's spot price.
+// Selling credits cash, books realized P&L against the price paid, logs the
+// movement in the Transaction Center, then removes the (now-closed) holding.
 export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await ctx.params;
@@ -69,12 +73,42 @@ export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string 
     const owned = await loadOwnedMetal(id, user._id);
     if (!owned) return NextResponse.json({ ok: false, error: "Holding not found" }, { status: 404 });
 
-    await totalumSdk.crud.deleteRecordById("precious_metal", id);
-    console.log(`[api/metals/${id}] DELETE for user ${user._id}`);
+    const metal = owned.metal as MetalKey;
+    const ounces = Number(owned.ounces) || 0;
+    const avgCost = Number(owned.purchase_price_per_oz) || 0;
 
-    return NextResponse.json({ ok: true, data: { _id: id } });
+    // Resolve today's spot (NZD/oz) as the sale price.
+    const spot = await getMetalsSpot();
+    const spotNZD = spot[metal]?.nzdPerOz || 0;
+
+    // Credit cash + log the sell BEFORE removing the holding, so a failure never
+    // deletes the record without recording the proceeds.
+    const trade = await recordMetalTrade(user, {
+      side: "sell",
+      metal,
+      ounces,
+      pricePerOzNZD: spotNZD,
+      avgCostNZD: avgCost,
+      notes: "Sold at spot",
+    });
+
+    await totalumSdk.crud.deleteRecordById("precious_metal", id);
+    console.log(
+      `[api/metals/${id}] SOLD ${ounces}oz ${metal} @ ${spotNZD} NZD for user ${user._id} → cash ${trade.cashBalance}, realized ${trade.realizedNZD}`
+    );
+
+    return NextResponse.json({
+      ok: true,
+      data: {
+        _id: id,
+        cashBalance: trade.cashBalance,
+        realizedNZD: trade.realizedNZD,
+        proceeds: Math.abs(trade.transaction?.total ?? ounces * spotNZD),
+        pricePerOzNZD: spotNZD,
+      },
+    });
   } catch (err: any) {
     console.error("[api/metals/[id]] DELETE error:", err);
-    return NextResponse.json({ ok: false, error: err?.message || "Failed to delete metal" }, { status: 500 });
+    return NextResponse.json({ ok: false, error: err?.message || "Failed to sell metal" }, { status: 500 });
   }
 }

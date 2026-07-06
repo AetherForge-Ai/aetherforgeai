@@ -124,11 +124,14 @@ function CashCard({
 export function TransactionCenter({
   holdings,
   onChanged,
+  reloadSignal,
 }: {
   /** Current holdings (both bots) — used to power the Sell picker. */
   holdings: Stock[];
   /** Called after any trade so the parent can reload holdings + prices. */
   onChanged: () => void;
+  /** Increment to force a ledger reload (e.g. after a metals buy/sell elsewhere). */
+  reloadSignal?: number;
 }) {
   const [ledger, setLedger] = useState<Ledger | null>(null);
   const [loading, setLoading] = useState(true);
@@ -148,7 +151,7 @@ export function TransactionCenter({
 
   useEffect(() => {
     load();
-  }, [load]);
+  }, [load, reloadSignal]);
 
   function openMode(m: TxType) {
     setMode(m);
