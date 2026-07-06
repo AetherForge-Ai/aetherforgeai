@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, Bot, Settings, LogOut, Menu, Sparkles, Crown } from "lucide-react";
+import { LayoutDashboard, Bot, Settings, LogOut, Menu, Sparkles, Crown, Compass } from "lucide-react";
 
 export interface ShellUser {
   name: string;
@@ -23,6 +23,7 @@ export interface ShellUser {
 
 const NAV = [
   { href: "/dashboard", label: "Portfolio", icon: LayoutDashboard },
+  { href: "/totalum", label: "Totalum", icon: Compass, pro: true },
   { href: "/chat", label: "AI Assistant", icon: Bot },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
@@ -55,6 +56,11 @@ function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () 
           >
             <item.icon className="size-4" />
             {item.label}
+            {"pro" in item && item.pro && (
+              <span className="ml-auto rounded-md bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                Pro
+              </span>
+            )}
           </Link>
         );
       })}

@@ -4,6 +4,7 @@ import { BrandLogo } from "@/components/BrandLogo";
 import { LOGO_MARK_IMG } from "../../assets/files";
 import { MarketTicker } from "@/components/MarketTicker";
 import { BotShowcase } from "@/components/bots/BotShowcase";
+import { TotalumShowcase } from "@/components/bots/TotalumShowcase";
 import { Button } from "@/components/ui/button";
 import {
   ArrowRight,
@@ -210,6 +211,11 @@ export default function LandingPage() {
         {/* The two Apex bots — core of the product */}
         <div id="bots">
           <BotShowcase />
+        </div>
+
+        {/* Totalum — the master architect that unifies both bots + metals */}
+        <div id="totalum">
+          <TotalumShowcase />
         </div>
 
         {/* Institutional Edge */}

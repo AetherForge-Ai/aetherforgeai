@@ -68,6 +68,8 @@ import {
   Bitcoin,
   Lock,
   Sparkles,
+  Compass,
+  ArrowRight,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -777,6 +779,36 @@ export function PortfolioDashboard({
       {/* Precious Metals — bonus for active paying members (gold & silver) */}
       <div className="mt-6">
         <PreciousMetals entitled={metalsEntitled} plan={subscription.plan} />
+      </div>
+
+      {/* Totalum — the master architect that unifies stocks + crypto + metals */}
+      <div className="mt-6">
+        <Link
+          href="/totalum"
+          className="group relative flex flex-col gap-4 overflow-hidden rounded-2xl border border-primary/30 bg-gradient-to-br from-violet-500/12 via-primary/10 to-transparent p-5 transition-all hover:border-primary/50 hover:shadow-glow sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-primary/15 blur-3xl" />
+          <div className="relative flex items-start gap-4">
+            <div className="grid size-11 shrink-0 place-items-center rounded-xl bg-primary/15 text-primary ring-1 ring-primary/25">
+              <Compass className="size-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-semibold">Totalum · Master Portfolio Architect</h3>
+                <span className="rounded-md bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                  Pro
+                </span>
+              </div>
+              <p className="mt-1 max-w-xl text-sm text-muted-foreground">
+                Unify your stocks, crypto & precious metals into one strategy — allocation, rebalancing, scenarios,
+                stress tests and a Chief Strategist AI.
+              </p>
+            </div>
+          </div>
+          <span className="relative inline-flex items-center gap-1.5 self-start rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground sm:self-auto">
+            Open Totalum <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+          </span>
+        </Link>
       </div>
 
       {/* Watchlist — tracked symbols for the active bot */}
