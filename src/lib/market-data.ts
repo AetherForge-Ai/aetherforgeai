@@ -11,6 +11,8 @@
  * break pricing, reports or the dashboard.
  */
 
+import { fetchYahooQuotes, yahooEquitySymbol, yahooCryptoSymbol } from "@/lib/yahoo-finance";
+
 export interface LiveQuote {
   price: number;
   changePct: number; // last-session % change
@@ -18,8 +20,14 @@ export interface LiveQuote {
 
 const PROVIDER = (process.env.MARKET_DATA_PROVIDER || "twelvedata").toLowerCase();
 
+/**
+ * Equities are ALWAYS live-capable now: when no paid `MARKET_DATA_API_KEY` is
+ * set we fall back to the keyless Yahoo Finance feed (NZX / ASX / US), so this
+ * returns true unconditionally. It stays a function so callers keep gating
+ * live-fetch attempts through one place.
+ */
 export function isLiveDataConfigured(): boolean {
-  return !!process.env.MARKET_DATA_API_KEY;
+  return true;
 }
 
 /* ------------------------------ Symbol mapping -------------------------- */
@@ -102,10 +110,20 @@ async function fetchTwelveBatch(
  * ticker (e.g. "BHP.AX"). Returns {} when no key is configured or on any error.
  */
 export async function fetchLiveQuotes(tickers: string[]): Promise<Record<string, LiveQuote>> {
-  const key = process.env.MARKET_DATA_API_KEY;
-  if (!key || !tickers.length) return {};
-
+  if (!tickers.length) return {};
   const unique = Array.from(new Set(tickers.map((t) => t.toUpperCase())));
+
+  const key = process.env.MARKET_DATA_API_KEY;
+
+  // DEFAULT (no paid key, or provider explicitly "yahoo"): keyless Yahoo Finance
+  // gives genuine live quotes for NZX (.NZ), ASX (.AX) and US symbols.
+  if (!key || PROVIDER === "yahoo") {
+    const map = Object.fromEntries(unique.map((t) => [t, yahooEquitySymbol(t)]));
+    const yq = await fetchYahooQuotes(map);
+    const out: Record<string, LiveQuote> = {};
+    for (const [t, q] of Object.entries(yq)) out[t] = { price: q.price, changePct: q.changePct };
+    return out;
+  }
 
   // Serve from cache when every requested ticker is already fresh.
   const cached = readCache();
@@ -241,8 +259,24 @@ export async function fetchCryptoQuotes(tickers: string[]): Promise<Record<strin
     }
     console.log(`[market-data] CoinGecko quotes fetched: ${Object.keys(out).length}/${unique.length} coins`);
   } catch (err) {
-    console.error("[market-data] fetchCryptoQuotes failed (falling back to deterministic engine):", err);
-    return {};
+    console.error("[market-data] fetchCryptoQuotes failed (falling back to Yahoo):", err);
+  }
+
+  // Yahoo fallback — if CoinGecko is rate-limited or down, get live crypto from
+  // Yahoo (BTC → BTC-USD) so the feed stays accurate instead of going stale.
+  if (!Object.keys(out).length) {
+    try {
+      const map = Object.fromEntries(unique.map((t) => [t, yahooCryptoSymbol(t)]));
+      const yq = await fetchYahooQuotes(map);
+      for (const [t, q] of Object.entries(yq)) out[t] = { price: q.price, changePct: q.changePct };
+      if (Object.keys(out).length) {
+        Object.entries(out).forEach(([t, v]) => CRYPTO_CACHE.set(t, v));
+        cryptoStamp = Date.now();
+        console.log(`[market-data] Yahoo crypto fallback fetched: ${Object.keys(out).length}/${unique.length} coins`);
+      }
+    } catch (err) {
+      console.error("[market-data] Yahoo crypto fallback failed:", err);
+    }
   }
   return out;
 }

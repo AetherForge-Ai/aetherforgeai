@@ -38,8 +38,8 @@ export interface MetalsSpot {
  * Roughly mid-2026 levels; the live feed overrides these on every fetch.
  */
 const BASELINE_USD_PER_OZ: Record<MetalKey, number> = {
-  gold: 4100,
-  silver: 60,
+  gold: 4160,
+  silver: 62,
 };
 
 const SYMBOL: Record<MetalKey, string> = { gold: "XAU", silver: "XAG" };
