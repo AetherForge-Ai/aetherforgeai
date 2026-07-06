@@ -20,6 +20,12 @@ export interface LiveQuote {
 
 const PROVIDER = (process.env.MARKET_DATA_PROVIDER || "twelvedata").toLowerCase();
 
+// Max symbols to pull from the keyless Yahoo fallback in a single call (one HTTP
+// request each). Bounds serverless CPU time and Yahoo rate-limit exposure when
+// Twelve Data is exhausted. User-facing sets are tiny; only the full universe
+// scan approaches this ceiling.
+const YAHOO_FALLBACK_MAX = 120;
+
 /**
  * Equities are ALWAYS live-capable now: when no paid `MARKET_DATA_API_KEY` is
  * set we fall back to the keyless Yahoo Finance feed (NZX / ASX / US), so this
@@ -106,8 +112,26 @@ async function fetchTwelveBatch(
 }
 
 /**
+ * Keyless Yahoo Finance equity quotes for a set of tickers. Genuine live prices
+ * for NZX (.NZ), ASX (.AX) and US symbols with NO API key and no daily limits —
+ * used both as the default provider and as the resilient fallback whenever
+ * Twelve Data returns nothing (e.g. its 800-credit/day free quota is exhausted).
+ */
+async function fetchYahooEquityQuotes(tickers: string[]): Promise<Record<string, LiveQuote>> {
+  if (!tickers.length) return {};
+  const map = Object.fromEntries(tickers.map((t) => [t, yahooEquitySymbol(t)]));
+  const yq = await fetchYahooQuotes(map);
+  const out: Record<string, LiveQuote> = {};
+  for (const [t, q] of Object.entries(yq)) out[t] = { price: q.price, changePct: q.changePct };
+  return out;
+}
+
+/**
  * Fetch live quotes for a set of tickers. Returns a map keyed by the ORIGINAL
- * ticker (e.g. "BHP.AX"). Returns {} when no key is configured or on any error.
+ * ticker (e.g. "BHP.AX"). Always attempts a genuine live quote: Twelve Data first
+ * (when a key is set), with keyless Yahoo Finance filling any ticker Twelve Data
+ * could not return. Returns {} only when EVERY source fails for EVERY ticker, so
+ * callers fall back to the deterministic engine as a last resort.
  */
 export async function fetchLiveQuotes(tickers: string[]): Promise<Record<string, LiveQuote>> {
   if (!tickers.length) return {};
@@ -117,23 +141,17 @@ export async function fetchLiveQuotes(tickers: string[]): Promise<Record<string,
 
   // DEFAULT (no paid key, or provider explicitly "yahoo"): keyless Yahoo Finance
   // gives genuine live quotes for NZX (.NZ), ASX (.AX) and US symbols.
-  if (!key || PROVIDER === "yahoo") {
-    const map = Object.fromEntries(unique.map((t) => [t, yahooEquitySymbol(t)]));
-    const yq = await fetchYahooQuotes(map);
-    const out: Record<string, LiveQuote> = {};
-    for (const [t, q] of Object.entries(yq)) out[t] = { price: q.price, changePct: q.changePct };
-    return out;
+  if (!key || PROVIDER === "yahoo" || PROVIDER !== "twelvedata") {
+    if (key && PROVIDER !== "yahoo" && PROVIDER !== "twelvedata") {
+      console.error(`[market-data] Unsupported MARKET_DATA_PROVIDER "${PROVIDER}" — using keyless Yahoo Finance.`);
+    }
+    return fetchYahooEquityQuotes(unique);
   }
 
   // Serve from cache when every requested ticker is already fresh.
   const cached = readCache();
   if (cached && unique.every((t) => cached[t])) {
     return Object.fromEntries(unique.map((t) => [t, cached[t]]));
-  }
-
-  if (PROVIDER !== "twelvedata") {
-    console.error(`[market-data] Unsupported MARKET_DATA_PROVIDER "${PROVIDER}" — falling back to deterministic engine.`);
-    return {};
   }
 
   const out: Record<string, LiveQuote> = {};
@@ -150,16 +168,43 @@ export async function fetchLiveQuotes(tickers: string[]): Promise<Record<string,
       fetchTwelveBatch(key, groups.AU, "Australia", out),
       fetchTwelveBatch(key, groups.NZ, "New Zealand", out),
     ]);
-
-    // Refresh the cache with whatever we successfully fetched.
-    if (Object.keys(out).length) {
-      Object.entries(out).forEach(([t, q]) => CACHE.set(t, q));
-      cacheStamp = Date.now();
-    }
-    console.log(`[market-data] Live quotes fetched: ${Object.keys(out).length}/${unique.length} tickers`);
+    console.log(`[market-data] Twelve Data quotes fetched: ${Object.keys(out).length}/${unique.length} tickers`);
   } catch (err) {
-    console.error("[market-data] fetchLiveQuotes failed (falling back to deterministic engine):", err);
-    return {};
+    console.error("[market-data] Twelve Data fetch failed (falling back to Yahoo Finance):", err);
+  }
+
+  // Yahoo fallback — fill in every ticker Twelve Data could not return (rate
+  // limits, exhausted daily credits, unsupported symbols). This keeps equity
+  // prices genuinely LIVE instead of decaying to stale snapshots / synthetics.
+  // Yahoo is one request per symbol, so we cap the fallback batch to protect
+  // the serverless CPU budget and stay within Yahoo's rate limits. The small,
+  // user-facing sets (portfolio holdings, ticker banner, price alerts) are far
+  // below the cap and are always filled; only the very large market-intel
+  // universe scan is truncated, and only when Twelve Data is unavailable.
+  const missing = unique.filter((t) => !out[t]);
+  if (missing.length) {
+    const batch = missing.slice(0, YAHOO_FALLBACK_MAX);
+    if (missing.length > YAHOO_FALLBACK_MAX) {
+      console.warn(
+        `[market-data] Yahoo fallback capped at ${YAHOO_FALLBACK_MAX}/${missing.length} tickers; the remainder stay on the deterministic engine this request.`
+      );
+    }
+    try {
+      const yahoo = await fetchYahooEquityQuotes(batch);
+      const filled = Object.keys(yahoo).length;
+      if (filled) {
+        Object.assign(out, yahoo);
+        console.log(`[market-data] Yahoo equity fallback filled ${filled}/${batch.length} tickers`);
+      }
+    } catch (err) {
+      console.error("[market-data] Yahoo equity fallback failed:", err);
+    }
+  }
+
+  // Refresh the cache with whatever we successfully fetched (from either source).
+  if (Object.keys(out).length) {
+    Object.entries(out).forEach(([t, q]) => CACHE.set(t, q));
+    cacheStamp = Date.now();
   }
   return out;
 }
@@ -188,7 +233,10 @@ const COINGECKO_IDS: Record<string, string> = {
   DOGE: "dogecoin",
   LINK: "chainlink",
   DOT: "polkadot",
-  MATIC: "matic-network",
+  // Polygon migrated MATIC → POL; the legacy "matic-network" id now returns an
+  // empty quote on CoinGecko, so we track the live POL token id instead.
+  MATIC: "polygon-ecosystem-token",
+  POL: "polygon-ecosystem-token",
   LTC: "litecoin",
   UNI: "uniswap",
   ATOM: "cosmos",
@@ -262,17 +310,24 @@ export async function fetchCryptoQuotes(tickers: string[]): Promise<Record<strin
     console.error("[market-data] fetchCryptoQuotes failed (falling back to Yahoo):", err);
   }
 
-  // Yahoo fallback — if CoinGecko is rate-limited or down, get live crypto from
-  // Yahoo (BTC → BTC-USD) so the feed stays accurate instead of going stale.
-  if (!Object.keys(out).length) {
+  // Yahoo fallback — fill any coin CoinGecko could not price (rate limits, or a
+  // retired/renamed coin id) so the feed stays live PER-COIN instead of only
+  // when the entire CoinGecko call fails. This is what keeps one dead symbol
+  // from silently decaying to its stale snapshot while the rest are live.
+  const missing = unique.filter((t) => !out[t]);
+  if (missing.length) {
     try {
-      const map = Object.fromEntries(unique.map((t) => [t, yahooCryptoSymbol(t)]));
+      const map = Object.fromEntries(missing.map((t) => [t, yahooCryptoSymbol(t)]));
       const yq = await fetchYahooQuotes(map);
-      for (const [t, q] of Object.entries(yq)) out[t] = { price: q.price, changePct: q.changePct };
-      if (Object.keys(out).length) {
+      let filled = 0;
+      for (const [t, q] of Object.entries(yq)) {
+        out[t] = { price: q.price, changePct: q.changePct };
+        filled++;
+      }
+      if (filled) {
         Object.entries(out).forEach(([t, v]) => CRYPTO_CACHE.set(t, v));
         cryptoStamp = Date.now();
-        console.log(`[market-data] Yahoo crypto fallback fetched: ${Object.keys(out).length}/${unique.length} coins`);
+        console.log(`[market-data] Yahoo crypto fallback filled ${filled}/${missing.length} coins`);
       }
     } catch (err) {
       console.error("[market-data] Yahoo crypto fallback failed:", err);

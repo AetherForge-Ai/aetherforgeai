@@ -75,7 +75,7 @@ const CRYPTO: Quote[] = [
   { symbol: "LINK", name: "Chainlink", price: 7.949, change: -1.31 },
   { symbol: "DOT", name: "Polkadot", price: 0.868, change: -1.28 },
   { symbol: "LTC", name: "Litecoin", price: 44.9, change: -1.8 },
-  { symbol: "MATIC", name: "Polygon", price: 0.2182, change: 2.57 },
+  { symbol: "MATIC", name: "Polygon (POL)", price: 0.0748, change: 0.6 },
 ];
 
 function formatPrice(q: Quote): string {
