@@ -23,8 +23,13 @@ export interface YahooQuote {
 }
 
 const BASE = "https://query1.finance.yahoo.com/v8/finance/chart";
+const SEARCH_BASE = "https://query1.finance.yahoo.com/v1/finance/search";
 const TTL_MS = 60_000; // 1 minute
 const CONCURRENCY = 8;
+
+// Yahoo blocks requests without a browser-like UA.
+const UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36";
 
 const CACHE = new Map<string, { quote: YahooQuote; at: number }>();
 
@@ -36,12 +41,7 @@ async function fetchOne(yahooSymbol: string): Promise<YahooQuote | null> {
   try {
     const url = `${BASE}/${encodeURIComponent(yahooSymbol)}?interval=1d&range=1d`;
     const res = await fetch(url, {
-      headers: {
-        // Yahoo blocks requests without a browser-like UA.
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36",
-        Accept: "application/json",
-      },
+      headers: { "User-Agent": UA, Accept: "application/json" },
     });
     if (!res.ok) {
       console.error(`[yahoo] HTTP ${res.status} for ${yahooSymbol}`);
@@ -116,4 +116,86 @@ export function yahooEquitySymbol(ticker: string): string {
 export function yahooCryptoSymbol(ticker: string): string {
   const t = ticker.toUpperCase().replace(/-?USDT?$/, "");
   return `${t}-USD`;
+}
+
+/** Convenience: fetch a single symbol's live quote (or null). */
+export async function fetchYahooQuote(symbol: string): Promise<YahooQuote | null> {
+  return fetchOne(yahooEquitySymbol(symbol));
+}
+
+/* ============================ Symbol search ============================= */
+
+export interface YahooSymbolMatch {
+  symbol: string; // Yahoo symbol, e.g. "CBA.AX", "FPH.NZ", "AAPL"
+  name: string; // company name
+  exchange: string; // raw Yahoo exchange code
+  exchangeLabel: string; // friendly market label: ASX / NZX / NASDAQ / NYSE
+}
+
+/**
+ * Markets the owner asked to cover: ASX (Australia), NZX (New Zealand), the
+ * NASDAQ tiers, and NYSE (which — together with NASDAQ — lists every Dow Jones
+ * Industrial Average component). Any other exchange (Frankfurt, OTC, etc.) is
+ * filtered out so the picker only surfaces the requested universes.
+ */
+const EXCHANGE_LABELS: Record<string, string> = {
+  ASX: "ASX",
+  NZE: "NZX",
+  NMS: "NASDAQ",
+  NAS: "NASDAQ",
+  NGM: "NASDAQ",
+  NCM: "NASDAQ",
+  NYQ: "NYSE",
+};
+
+const SEARCH_TTL_MS = 5 * 60_000; // 5 minutes
+const SEARCH_CACHE = new Map<string, { at: number; results: YahooSymbolMatch[] }>();
+
+/**
+ * Live keyless symbol search across ASX / NZX / NASDAQ / NYSE. Returns matching
+ * equities (symbol + company name + market label). Cached briefly and degrades
+ * to an empty list on any failure so the picker never breaks.
+ */
+export async function searchYahooSymbols(query: string, limit = 12): Promise<YahooSymbolMatch[]> {
+  const q = (query || "").trim();
+  if (!q) return [];
+
+  const key = q.toLowerCase();
+  const cached = SEARCH_CACHE.get(key);
+  if (cached && Date.now() - cached.at <= SEARCH_TTL_MS) return cached.results.slice(0, limit);
+
+  try {
+    const url = `${SEARCH_BASE}?q=${encodeURIComponent(q)}&quotesCount=30&newsCount=0&listsCount=0&enableFuzzyQuery=false`;
+    const res = await fetch(url, { headers: { "User-Agent": UA, Accept: "application/json" } });
+    if (!res.ok) {
+      console.error(`[yahoo] search HTTP ${res.status} for "${q}"`);
+      return [];
+    }
+    const json = (await res.json()) as { quotes?: Array<Record<string, any>> };
+    const quotes = json?.quotes ?? [];
+
+    const results: YahooSymbolMatch[] = [];
+    const seen = new Set<string>();
+    for (const item of quotes) {
+      if (item?.quoteType !== "EQUITY") continue;
+      const label = EXCHANGE_LABELS[String(item.exchange)];
+      if (!label) continue; // only ASX / NZX / NASDAQ / NYSE
+      const symbol = String(item.symbol || "").toUpperCase();
+      if (!symbol || seen.has(symbol)) continue;
+      seen.add(symbol);
+      results.push({
+        symbol,
+        name: String(item.longname || item.shortname || symbol),
+        exchange: String(item.exchange),
+        exchangeLabel: label,
+      });
+    }
+
+    SEARCH_CACHE.set(key, { at: Date.now(), results });
+    console.log(`[yahoo] search "${q}" → ${results.length} ASX/NZX/NASDAQ/NYSE matches`);
+    return results.slice(0, limit);
+  } catch (err) {
+    console.error(`[yahoo] search failed for "${q}":`, err);
+    return [];
+  }
 }

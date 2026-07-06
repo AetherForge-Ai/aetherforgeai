@@ -25,16 +25,10 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { BellRing, Plus, Loader2, Trash2, Pencil, TriangleAlert, ShieldCheck } from "lucide-react";
+import { TickerSearch, type TickerMatch } from "@/components/dashboard/TickerSearch";
+import { BellRing, Plus, Loader2, Trash2, Pencil, TriangleAlert, ShieldCheck, TrendingUp, TrendingDown } from "lucide-react";
 
 export interface PriceAlert {
   _id: string;
@@ -83,6 +77,19 @@ function num(v: string): number | null {
   return v.trim() === "" || isNaN(n) ? null : n;
 }
 
+// Currency-aware price formatter for the live quote read-out.
+function priceWithCurrency(n: number, currency?: string | null): string {
+  const body = n.toLocaleString("en-NZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return currency ? `${body} ${currency}` : `$${body}`;
+}
+
+interface LiveQuote {
+  symbol: string;
+  price: number | null;
+  currency: string | null;
+  changePct: number | null;
+}
+
 export function PriceAlerts({ stocks }: { stocks: Stock[] }) {
   const [alerts, setAlerts] = React.useState<PriceAlert[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -92,6 +99,12 @@ export function PriceAlerts({ stocks }: { stocks: Stock[] }) {
   const [form, setForm] = React.useState<FormState>(EMPTY_FORM);
   const [deleteId, setDeleteId] = React.useState<string | null>(null);
   const [deleting, setDeleting] = React.useState(false);
+
+  // Selected company + live quote shown inside the add/edit dialog.
+  const [selectedName, setSelectedName] = React.useState("");
+  const [quote, setQuote] = React.useState<LiveQuote | null>(null);
+  const [quoteLoading, setQuoteLoading] = React.useState(false);
+  const quoteSeq = React.useRef(0);
 
   // Ticker of the alert queued for deletion (for a clearer confirm message).
   const deleteTarget = React.useMemo(
@@ -110,20 +123,46 @@ export function PriceAlerts({ stocks }: { stocks: Stock[] }) {
     load();
   }, [load]);
 
+  // Fetch the live price for a symbol and show it inside the dialog. When the
+  // hard sell-out field is still empty we seed a sensible floor (10% below).
+  const fetchQuote = React.useCallback(async (symbol: string, seedFloor: boolean) => {
+    const sym = symbol.trim().toUpperCase();
+    if (!sym) {
+      setQuote(null);
+      return;
+    }
+    const id = ++quoteSeq.current;
+    setQuoteLoading(true);
+    setQuote(null);
+    const res = await api.get<LiveQuote>(`/api/tickers/quote?symbol=${encodeURIComponent(sym)}`);
+    if (id !== quoteSeq.current) return; // superseded by a newer pick
+    setQuoteLoading(false);
+    if (res.ok && res.data) {
+      setQuote(res.data);
+      if (seedFloor && res.data.price != null) {
+        const floor = (res.data.price * 0.9).toFixed(2);
+        setForm((f) => (f.hardSellPrice.trim() ? f : { ...f, hardSellPrice: floor }));
+      }
+    } else {
+      console.error("[PriceAlerts] quote fetch failed:", res.error);
+      setQuote(null);
+    }
+  }, []);
+
   function openAdd() {
     setEditingId(null);
-    const first = stocks[0];
-    setForm({
-      ...EMPTY_FORM,
-      ticker: first?.ticker ?? "",
-      stockId: first?._id ?? "",
-      hardSellPrice: first ? (first.purchase_price * 0.9).toFixed(2) : "",
-    });
+    setSelectedName("");
+    setQuote(null);
+    setQuoteLoading(false);
+    setForm({ ...EMPTY_FORM });
     setOpen(true);
   }
 
   function openEdit(a: PriceAlert) {
     setEditingId(a._id);
+    const holding = stocks.find((s) => s._id === a.stockId || s.ticker === a.ticker);
+    setSelectedName(holding?.company_name ?? "");
+    setQuote(null);
     setForm({
       ticker: a.ticker,
       stockId: a.stockId ?? "",
@@ -135,16 +174,24 @@ export function PriceAlerts({ stocks }: { stocks: Stock[] }) {
       instructions: a.instructions ?? "",
     });
     setOpen(true);
+    if (a.ticker) fetchQuote(a.ticker, false);
   }
 
-  function onPickHolding(stockId: string) {
+  // Pick a company from the searchable directory (ASX / NZX / NASDAQ / NYSE).
+  function handlePickSymbol(m: TickerMatch) {
+    const owned = stocks.find((s) => s.ticker.toUpperCase() === m.symbol.toUpperCase());
+    setForm((f) => ({ ...f, ticker: m.symbol, stockId: owned?._id ?? "" }));
+    setSelectedName(m.name);
+    fetchQuote(m.symbol, true);
+  }
+
+  // Quick-pick one of the user's existing holdings.
+  function handlePickHolding(stockId: string) {
     const s = stocks.find((x) => x._id === stockId);
-    setForm((f) => ({
-      ...f,
-      stockId,
-      ticker: s?.ticker ?? f.ticker,
-      hardSellPrice: f.hardSellPrice || (s ? (s.purchase_price * 0.9).toFixed(2) : ""),
-    }));
+    if (!s) return;
+    setForm((f) => ({ ...f, stockId, ticker: s.ticker }));
+    setSelectedName(s.company_name ?? "");
+    fetchQuote(s.ticker, true);
   }
 
   async function save(e: React.FormEvent) {
@@ -317,34 +364,81 @@ export function PriceAlerts({ stocks }: { stocks: Stock[] }) {
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={save} className="space-y-4">
-            {stocks.length > 0 ? (
-              <div className="space-y-1.5">
-                <Label>Holding</Label>
-                <Select value={form.stockId} onValueChange={onPickHolding}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choose a holding" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {stocks.map((s) => (
-                      <SelectItem key={s._id} value={s._id}>
-                        {s.ticker} — {s.company_name || s.ticker}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            ) : (
-              <div className="space-y-1.5">
-                <Label htmlFor="al-ticker">Ticker</Label>
-                <Input
-                  id="al-ticker"
-                  value={form.ticker}
-                  onChange={(e) => setForm({ ...form, ticker: e.target.value.toUpperCase() })}
-                  placeholder="AAPL"
-                  className="uppercase"
-                />
-              </div>
-            )}
+            <div className="space-y-1.5">
+              <Label>Company / ticker</Label>
+              <TickerSearch value={form.ticker} label={selectedName} onSelect={handlePickSymbol} />
+              <p className="text-[11px] text-muted-foreground">
+                Search the full ASX, NZX, NASDAQ & NYSE (incl. all Dow Jones) universe by name or ticker.
+              </p>
+
+              {/* Live company + price read-out for the chosen symbol. */}
+              {form.ticker && (
+                <div className="mt-1 flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-muted/30 px-3 py-2.5">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-display text-sm font-bold">{form.ticker}</span>
+                      {selectedName ? (
+                        <span className="truncate text-xs text-muted-foreground">{selectedName}</span>
+                      ) : null}
+                    </div>
+                    <span className="text-[11px] text-muted-foreground">Live current price</span>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    {quoteLoading ? (
+                      <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                        <Loader2 className="size-3.5 animate-spin" /> Fetching…
+                      </span>
+                    ) : quote && quote.price != null ? (
+                      <>
+                        <div className="tnum text-sm font-bold">
+                          {priceWithCurrency(quote.price, quote.currency)}
+                        </div>
+                        {quote.changePct != null && (
+                          <div
+                            className={cn(
+                              "flex items-center justify-end gap-1 text-[11px] font-medium",
+                              quote.changePct >= 0 ? "text-emerald-500" : "text-rose-500"
+                            )}
+                          >
+                            {quote.changePct >= 0 ? (
+                              <TrendingUp className="size-3" />
+                            ) : (
+                              <TrendingDown className="size-3" />
+                            )}
+                            {quote.changePct >= 0 ? "+" : ""}
+                            {quote.changePct.toFixed(2)}%
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">Price unavailable</span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Quick-pick from the user's own holdings. */}
+              {stocks.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  <span className="w-full text-[11px] font-medium text-muted-foreground">Your holdings</span>
+                  {stocks.map((s) => (
+                    <button
+                      key={s._id}
+                      type="button"
+                      onClick={() => handlePickHolding(s._id)}
+                      className={cn(
+                        "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                        form.ticker.toUpperCase() === s.ticker.toUpperCase()
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border/60 text-muted-foreground hover:border-primary/40 hover:text-foreground"
+                      )}
+                    >
+                      {s.ticker}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">

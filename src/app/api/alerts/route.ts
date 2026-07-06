@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
 import { referencePrice } from "@/lib/market";
+import { fetchLiveQuotes } from "@/lib/market-data";
 
 const createSchema = z.object({
   stockId: z.string().optional(),
@@ -28,8 +29,23 @@ export async function GET() {
       _limit: 200,
     });
     const rows = (res?.data as any[]) || [];
+
+    // Prefer genuine live Yahoo quotes for the "Current" price; fall back to the
+    // deterministic reference price if a symbol can't be resolved live.
+    const tickers = Array.from(
+      new Set(rows.map((r) => String(r.ticker || "").toUpperCase()).filter(Boolean))
+    );
+    const live = await fetchLiveQuotes(tickers).catch((err) => {
+      console.error("[api/alerts] live quote fetch failed (using reference prices):", err);
+      return {} as Record<string, { price: number; changePct: number }>;
+    });
+
     const alerts = rows.map((a) => {
-      const currentPrice = referencePrice(a.ticker, Number(a.hard_sell_price) || 1);
+      const liveHit = live[String(a.ticker || "").toUpperCase()];
+      const currentPrice =
+        liveHit && liveHit.price > 0
+          ? liveHit.price
+          : referencePrice(a.ticker, Number(a.hard_sell_price) || 1);
       const triggered =
         typeof a.hard_sell_price === "number" && a.hard_sell_price > 0 && currentPrice <= a.hard_sell_price;
       return {
