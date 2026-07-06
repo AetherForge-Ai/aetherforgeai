@@ -1,14 +1,23 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, isStripeConfigured, hasActiveSubscription } from "@/lib/session";
-import { totalumSdk } from "@/lib/totalum";
-import { buildToolkitWorkbook } from "@/lib/xlsx-templates";
-import type { Stock } from "@/lib/portfolio";
+import { TOOLKIT_XLSX_BASE64, TOOLKIT_FILE_NAME } from "@/lib/toolkit-file";
 
 export const dynamic = "force-dynamic";
 
 const YEARLY_PLANS = new Set(["yearly", "dual_yearly"]);
 
-// GET /api/downloads/toolkit — streams the professional Excel investor toolkit.
+// Decode the embedded workbook once at module load (Workers-safe: atob is global).
+function decodeToolkit(): Uint8Array {
+  const binary = atob(TOOLKIT_XLSX_BASE64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
+// GET /api/downloads/toolkit — streams the professional Excel investor toolkit
+// (Ultra Advanced Portfolio Tracker — Stocks + Crypto, NZD).
 // Gated to signed-in customers on an annual (yearly / dual_yearly) plan.
 export async function GET() {
   try {
@@ -35,32 +44,16 @@ export async function GET() {
       );
     }
 
-    // Load the customer's holdings so the workbook is pre-filled.
-    let holdings: Stock[] = [];
-    try {
-      const result = await totalumSdk.crud.query("stock", {
-        _filter: { user: user._id },
-        _sort: { createdAt: "desc" },
-        _limit: 500,
-      });
-      holdings = ((result?.data as any[]) || []) as Stock[];
-    } catch (err) {
-      console.error("[downloads/toolkit] Failed to load holdings, generating blank toolkit:", err);
-      holdings = [];
-    }
+    console.log(`[downloads/toolkit] Streaming toolkit "${TOOLKIT_FILE_NAME}" for user ${user._id}`);
 
-    console.log(
-      `[downloads/toolkit] Generating toolkit for user ${user._id} with ${holdings.length} holdings`
-    );
-
-    const bytes = buildToolkitWorkbook(holdings);
+    const bytes = decodeToolkit();
 
     return new NextResponse(bytes as unknown as BodyInit, {
       status: 200,
       headers: {
         "Content-Type":
           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "Content-Disposition": 'attachment; filename="AetherForge-AI-Investor-Toolkit.xlsx"',
+        "Content-Disposition": `attachment; filename="${TOOLKIT_FILE_NAME}"`,
         "Cache-Control": "no-store",
       },
     });
