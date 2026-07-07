@@ -4,8 +4,59 @@ import { getCurrentUser } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
 import { lookupTicker, normalizeTicker, referencePrice } from "@/lib/market";
 import { seedStarterPortfolioIfNeeded } from "@/lib/seed";
-import { fetchLivePrice, isLiveDataConfigured, fetchCryptoQuotes } from "@/lib/market-data";
+import { fetchLivePrice, fetchLiveQuotes, isLiveDataConfigured, fetchCryptoQuotes } from "@/lib/market-data";
 import { checkTickerQuota } from "@/lib/entitlements";
+
+/**
+ * Overlay genuine LIVE prices onto a user's holdings and persist any that moved.
+ * Equities use Twelve Data → Yahoo fallback; crypto uses CoinGecko → Yahoo. This
+ * is what keeps the portfolio valuation accurate the instant the dashboard loads
+ * — instead of valuing positions at whatever `current_price` was last stored
+ * (e.g. a seeded SOL at $198.40). Fully non-fatal: on any failure the stored
+ * price is kept, so a data-provider outage can never break the portfolio load.
+ */
+async function overlayLivePrices(holdings: any[]): Promise<void> {
+  if (!holdings.length) return;
+  const equityTickers = holdings
+    .filter((s) => (s.asset_type || "stock") !== "crypto")
+    .map((s) => String(s.ticker));
+  const cryptoTickers = holdings
+    .filter((s) => (s.asset_type || "stock") === "crypto")
+    .map((s) => String(s.ticker));
+
+  try {
+    const [equityQuotes, cryptoQuotes] = await Promise.all([
+      isLiveDataConfigured() && equityTickers.length ? fetchLiveQuotes(equityTickers) : Promise.resolve({}),
+      cryptoTickers.length ? fetchCryptoQuotes(cryptoTickers) : Promise.resolve({}),
+    ]);
+    const live: Record<string, { price: number }> = { ...equityQuotes, ...cryptoQuotes };
+    if (!Object.keys(live).length) {
+      console.warn("[api/stocks] No live quotes available — serving stored prices for this load.");
+      return;
+    }
+
+    let updated = 0;
+    await Promise.all(
+      holdings.map(async (s) => {
+        const quote = live[String(s.ticker).toUpperCase()];
+        if (!quote || !(quote.price > 0)) return;
+        const prev = Number(s.current_price) || 0;
+        // Overlay onto the object we return so the FIRST render is already live.
+        s.current_price = quote.price;
+        if (Math.abs(prev - quote.price) < 1e-9) return; // unchanged — skip the write
+        try {
+          await totalumSdk.crud.editRecordById("stock", s._id, { current_price: quote.price });
+          updated++;
+        } catch (err) {
+          console.error(`[api/stocks] Failed to persist live price for ${s._id} (${s.ticker}):`, err);
+        }
+      })
+    );
+    console.log(`[api/stocks] Live price overlay applied (${updated} holdings re-priced & persisted).`);
+  } catch (err) {
+    console.error("[api/stocks] Live price overlay failed (serving stored prices):", err);
+  }
+}
 
 const createSchema = z.object({
   ticker: z.string().min(1, "Ticker is required").max(12),
@@ -37,6 +88,12 @@ export async function GET(req: Request) {
     });
 
     let stocks = (result?.data as any[]) || [];
+
+    // Re-price EVERY holding with live market data before returning, so the
+    // portfolio value the dashboard renders is accurate on first paint (not the
+    // last-stored/seeded price). Persists any that moved. Non-fatal on failure.
+    await overlayLivePrices(stocks);
+
     // Legacy rows without asset_type are treated as stock.
     if (assetType === "stock" || assetType === "crypto") {
       stocks = stocks.filter((s) => (s.asset_type || "stock") === assetType);
