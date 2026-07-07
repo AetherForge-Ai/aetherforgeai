@@ -676,26 +676,36 @@ export function PortfolioDashboard({
           </div>
         </div>
         <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {/* CASH BAL — the anchor. Debited on every buy (stocks/crypto/metals),
+              credited on every sell. Deliberately styled to stand out. */}
+          <div className="relative overflow-hidden rounded-2xl border border-primary/40 bg-gradient-to-br from-primary/20 via-primary/10 to-card/40 p-5 shadow-glow">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wide text-primary">Cash Bal</span>
+              <span className="grid size-8 place-items-center rounded-lg bg-primary/20 text-primary">
+                <Wallet className="size-4" />
+              </span>
+            </div>
+            <p className="tnum mt-3 font-display text-3xl font-bold text-primary">
+              {formatMoney(cashBalance, "NZD")}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Cash available · falls on every buy, rises on every sell
+            </p>
+          </div>
           <StatCard
-            label="Stocks · NZD"
+            label="Value in Stocks · NZD"
             value={formatMoney(stockTotalNZD, "NZD")}
             sub={`${stockHoldings.length} position${stockHoldings.length === 1 ? "" : "s"}`}
             icon={LineChart}
           />
           <StatCard
-            label="Crypto · NZD"
+            label="Value in Crypto · NZD"
             value={formatMoney(cryptoTotalNZD, "NZD")}
             sub={`${cryptoHoldings.length} coin${cryptoHoldings.length === 1 ? "" : "s"}`}
             icon={Bitcoin}
           />
           <StatCard
-            label="Cash · NZD"
-            value={formatMoney(cashBalance, "NZD")}
-            sub="Available to invest"
-            icon={Wallet}
-          />
-          <StatCard
-            label="Metals · NZD"
+            label="Value in Metals · NZD"
             value={formatMoney(metalsValueNZD, "NZD")}
             sub={metalsEntitled ? "Gold & silver at spot" : "Bonus for paid members"}
             icon={Coins}
