@@ -7,6 +7,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { BOT_TOTALUM_AVATAR } from "../../../assets/files";
 import {
   Compass,
   Layers,
@@ -34,10 +35,20 @@ export function TotalumShowcase() {
         <div className="pointer-events-none absolute -right-24 -top-24 size-80 rounded-full bg-primary/15 blur-3xl" aria-hidden />
 
         <div className="relative">
-          <Badge variant="outline" className="mb-4 border-primary/30 bg-primary/15 text-primary">
-            <Crown className="mr-1 size-3.5" /> The Master Architect
-          </Badge>
-          <h2 className="max-w-3xl font-display text-3xl font-bold tracking-tight sm:text-4xl">
+          <div className="flex items-center gap-4">
+            <div className="relative shrink-0">
+              <div className="absolute inset-0 rounded-full bg-primary/25 blur-xl" aria-hidden />
+              <img
+                src={BOT_TOTALUM_AVATAR}
+                alt="Totalum the Architect avatar"
+                className="relative size-20 rounded-2xl object-cover ring-1 ring-primary/30 sm:size-24"
+              />
+            </div>
+            <Badge variant="outline" className="border-primary/30 bg-primary/15 text-primary">
+              <Crown className="mr-1 size-3.5" /> The Master Architect
+            </Badge>
+          </div>
+          <h2 className="mt-5 max-w-3xl font-display text-3xl font-bold tracking-tight sm:text-4xl">
             Meet <span className="text-gradient">Totalum</span> — Your Master Portfolio Architect
           </h2>
           <p className="mt-4 max-w-2xl text-muted-foreground">

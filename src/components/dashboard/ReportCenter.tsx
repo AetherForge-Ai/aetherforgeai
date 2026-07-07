@@ -22,11 +22,11 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ApexReportView } from "@/components/bots/ApexReport";
 import type { ApexReport, BotKind } from "@/lib/apex";
-import { BOT_STOCK_MASCOT, BOT_CRYPTO_MASCOT } from "../../../assets/files";
+import { BOT_STOX_AVATAR, BOT_KOINS_AVATAR, BOT_TOTALUM_AVATAR } from "../../../assets/files";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { checkReportQuota, formatDuration, reportCadence } from "@/lib/entitlements";
-import { Loader2, Lock, Play, FileDown, Mail, FileText, Sparkles, Clock, Zap, Compass, ArrowRight } from "lucide-react";
+import { Loader2, Lock, Play, FileDown, Mail, FileText, Sparkles, Clock, Zap, ArrowRight } from "lucide-react";
 
 type BotAccess = "stock" | "crypto" | "both" | "none";
 
@@ -60,7 +60,7 @@ const DEFS: { kind: BotKind; name: string; subtitle: string; mascot: string; acc
     kind: "stock",
     name: "Stox",
     subtitle: "Stock Market Intelligence Monitor",
-    mascot: BOT_STOCK_MASCOT,
+    mascot: BOT_STOX_AVATAR,
     accent: "from-emerald-500/15 to-transparent",
     market: "NZX · ASX · Global equities",
   },
@@ -68,7 +68,7 @@ const DEFS: { kind: BotKind; name: string; subtitle: string; mascot: string; acc
     kind: "crypto",
     name: "Koins",
     subtitle: "Crypto Market Intelligence Monitor",
-    mascot: BOT_CRYPTO_MASCOT,
+    mascot: BOT_KOINS_AVATAR,
     accent: "from-amber-500/15 to-transparent",
     market: "BTC · ETH · Digital assets",
   },
@@ -254,7 +254,23 @@ export function ReportCenter({
               className={`relative overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br ${b.accent} p-5`}
             >
               <div className="flex items-start gap-4">
-                <img src={b.mascot} alt={`${b.name} mascot`} className="h-14 w-14 shrink-0 rounded-xl object-cover ring-1 ring-border/60" />
+                <div className="relative h-14 w-14 shrink-0">
+                  {/* Grooving glow that pulses under the avatar while it dances */}
+                  {busy && (
+                    <span
+                      className="animate-avatar-glow pointer-events-none absolute inset-0 rounded-full bg-primary/40 blur-md"
+                      aria-hidden
+                    />
+                  )}
+                  <img
+                    src={b.mascot}
+                    alt={`${b.name} avatar`}
+                    className={cn(
+                      "relative h-14 w-14 rounded-xl object-cover ring-1 ring-border/60",
+                      busy && "animate-avatar-dance"
+                    )}
+                  />
+                </div>
                 <div className="min-w-0">
                   <h3 className="text-sm font-semibold leading-tight">
                     {b.name} <span className="font-normal text-muted-foreground">· {b.subtitle}</span>
@@ -299,9 +315,11 @@ export function ReportCenter({
       >
         <div className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-primary/15 blur-3xl" />
         <div className="relative flex items-start gap-4">
-          <div className="grid size-11 shrink-0 place-items-center rounded-xl bg-primary/15 text-primary ring-1 ring-primary/25">
-            <Compass className="size-5" />
-          </div>
+          <img
+            src={BOT_TOTALUM_AVATAR}
+            alt="Totalum the Architect avatar"
+            className="size-11 shrink-0 rounded-xl object-cover ring-1 ring-primary/25"
+          />
           <div>
             <div className="flex items-center gap-2">
               <h3 className="font-semibold">Totalum · Master Portfolio Architect</h3>

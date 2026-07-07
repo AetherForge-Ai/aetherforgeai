@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { ApexReportView } from "@/components/bots/ApexReport";
 import { buildDemoReport, type BotKind } from "@/lib/apex";
-import { BOT_STOCK_MASCOT, BOT_CRYPTO_MASCOT } from "../../../assets/files";
+import { BOT_STOX_AVATAR, BOT_KOINS_AVATAR } from "../../../assets/files";
 
 interface BotDef {
   kind: BotKind;
@@ -40,7 +40,7 @@ const BOTS: BotDef[] = [
     kind: "stock",
     name: "Stox",
     subtitle: "Stock Market Intelligence Monitor",
-    mascot: BOT_STOCK_MASCOT,
+    mascot: BOT_STOX_AVATAR,
     blurb:
       "Sweeps NZX, ASX and global equities in Apex Mode — compiling institutional-grade tables, top-gainer boards and 12-month continuation graphs for every ticker you monitor.",
     accent: "from-emerald-500/20 via-teal-500/10 to-transparent",
@@ -50,7 +50,7 @@ const BOTS: BotDef[] = [
     kind: "crypto",
     name: "Koins",
     subtitle: "Crypto Market Intelligence Monitor",
-    mascot: BOT_CRYPTO_MASCOT,
+    mascot: BOT_KOINS_AVATAR,
     blurb:
       "Tracks BTC, ETH and the broader digital-asset market in Apex Mode — synthesising funding, flows and sentiment into clear 7-day projections and three forward pathways.",
     accent: "from-amber-500/20 via-orange-500/10 to-transparent",

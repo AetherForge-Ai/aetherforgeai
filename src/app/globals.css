@@ -204,6 +204,38 @@ button {
   animation: float-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* ── Bot-avatar "little dance" while a report is generating ──
+   A bouncy, wiggly hop that gives the Stox / Koins / Totalum avatars some
+   personality while the report compiles. Purely cosmetic. Respects reduced
+   motion via the media query below. */
+@keyframes avatar-dance {
+  0%   { transform: translateY(0)    rotate(0deg)   scale(1); }
+  15%  { transform: translateY(-6px) rotate(-7deg)  scale(1.04); }
+  30%  { transform: translateY(0)    rotate(0deg)   scale(1); }
+  45%  { transform: translateY(-6px) rotate(7deg)   scale(1.04); }
+  60%  { transform: translateY(0)    rotate(0deg)   scale(1); }
+  75%  { transform: translateY(-3px) rotate(-4deg)  scale(1.02); }
+  90%  { transform: translateY(-3px) rotate(4deg)   scale(1.02); }
+  100% { transform: translateY(0)    rotate(0deg)   scale(1); }
+}
+.animate-avatar-dance {
+  animation: avatar-dance 0.9s ease-in-out infinite;
+  transform-origin: bottom center;
+  will-change: transform;
+}
+/* A soft glowing ring that pulses under a dancing avatar. */
+@keyframes avatar-groove-glow {
+  0%, 100% { opacity: 0.35; transform: scale(0.9); }
+  50%      { opacity: 0.85; transform: scale(1.12); }
+}
+.animate-avatar-glow {
+  animation: avatar-groove-glow 0.9s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-avatar-dance,
+  .animate-avatar-glow { animation: none; }
+}
+
 /* Thin custom scrollbars in dark surfaces */
 * {
   scrollbar-width: thin;

@@ -50,6 +50,8 @@ import type {
   StrategyBlueprint,
   GoalKey,
 } from "@/lib/totalum-engine";
+import { cn } from "@/lib/utils";
+import { BOT_TOTALUM_AVATAR } from "../../../assets/files";
 
 /* ------------------------------------------------------------------ *
  * Formatting helpers
@@ -694,7 +696,25 @@ export function TotalumConsole({ entitled, memberName }: { entitled: boolean; me
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <div className="flex items-start justify-between gap-4">
-        <div>
+        <div className="flex items-start gap-4">
+          <div className="relative hidden size-16 shrink-0 sm:block">
+            {loading && (
+              <span
+                className="animate-avatar-glow pointer-events-none absolute inset-0 rounded-full bg-primary/40 blur-md"
+                aria-hidden
+              />
+            )}
+            <img
+              src={BOT_TOTALUM_AVATAR}
+              alt="Totalum the Architect avatar"
+              title="Totalum the Architect"
+              className={cn(
+                "relative size-16 rounded-2xl object-cover ring-1 ring-primary/25",
+                loading && "animate-avatar-dance"
+              )}
+            />
+          </div>
+          <div>
           <div className="flex items-center gap-2">
             <Badge className="border-primary/30 bg-primary/15 text-primary" variant="outline">
               <Crown className="mr-1 size-3.5" /> Totalum · Master Architect
@@ -709,6 +729,7 @@ export function TotalumConsole({ entitled, memberName }: { entitled: boolean; me
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             One unified command centre across your equities, crypto and precious metals — synthesis, strategy, scenarios and risk.
           </p>
+          </div>
         </div>
       </div>
 

@@ -41,6 +41,16 @@ export const BOT_STOCK_MASCOT =
 export const BOT_CRYPTO_MASCOT =
   "https://storage.googleapis.com/totalum-live-bucket/aetherforgeai/files/bot-crypto-mascot-1782977811833.png?GoogleAccessId=totalum-live%40totalum-live.iam.gserviceaccount.com&Expires=2413697812&Signature=NQbejmQ0gQ3b0nj%2F%2B0XVT5eBAyd%2BhLW21yy%2FnW1%2BrvMuWW1fZdk%2FheETvto52URvIiz97vCmMCsNojcVbYVCOhsajhpkSg%2FkOFSjVS8HWWVyqzlGzA5JShFTUbD1ZcYqAQUfyqNG8HnhOzniPXfIF%2B%2FkR6KI7BHhSVZ2VthslZyV0QL01bJYZUcUBwoPfg3k6ZUrxyHqSWPVEx%2F%2BZgPAXS1DwjjNzFeGjEcTfddOgg43QMiDhruRLMsAYl12zaCPEGzw8VHGW5W3ZFFBzl%2BIinb0oRAFRMw%2BTd7w5%2F68vNBLhvpSazOgp%2BBYFgnYqk6Ovd7kOj6SzBG2037bunRiXg%3D%3D";
 
+// ── Bot avatars (cartoon characters that represent each agent) ──
+// Cartoon-styled, in-character avatars served as optimized static assets from
+// /public/brand. Stox & Koins are geeks in gangster garb (fedora, pinstripes,
+// gold chain); Totalum the Architect is a business-man in a sharp tailored
+// suit. These are the "little avatars" shown on the dashboard, report center
+// and showcases — and the ones that dance while a report generates.
+export const BOT_STOX_AVATAR = "/brand/bot-stox.png";
+export const BOT_KOINS_AVATAR = "/brand/bot-koins.png";
+export const BOT_TOTALUM_AVATAR = "/brand/bot-totalum.png";
+
 export const files = {
   logoMarkImg: LOGO_MARK_IMG,
   logoIconImg: LOGO_ICON_IMG,
@@ -48,6 +58,9 @@ export const files = {
   logoMarkSvg: LOGO_MARK_SVG,
   botStockMascot: BOT_STOCK_MASCOT,
   botCryptoMascot: BOT_CRYPTO_MASCOT,
+  botStoxAvatar: BOT_STOX_AVATAR,
+  botKoinsAvatar: BOT_KOINS_AVATAR,
+  botTotalumAvatar: BOT_TOTALUM_AVATAR,
 } as const;
 
 export default files;
