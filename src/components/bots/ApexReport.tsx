@@ -17,6 +17,7 @@ import type {
   DirectRecommendation,
   PortfolioPathway,
 } from "@/lib/apex";
+import type { BriefingOutlookRow } from "@/lib/briefing";
 
 function signalTone(signal: TickerAnalysis["signal"]): string {
   switch (signal) {
@@ -378,6 +379,175 @@ function PathwayPlanSection({ report }: { report: ApexReport }) {
   );
 }
 
+function convTone(level: string): string {
+  return level === "High"
+    ? "text-emerald-600 border-emerald-500/40 bg-emerald-500/10"
+    : level === "Moderate"
+    ? "text-blue-600 border-blue-500/40 bg-blue-500/10"
+    : level === "Speculative"
+    ? "text-red-600 border-red-500/40 bg-red-500/10"
+    : "text-muted-foreground border-border/60 bg-muted/40";
+}
+
+function OutlookRow({ r }: { r: BriefingOutlookRow }) {
+  const { base, bull, bear } = r.outlook;
+  const Cell = ({ label, lo, hi, prob, tone }: { label: string; lo: number; hi: number; prob: number; tone: string }) => (
+    <td className="border-t border-border/50 px-2 py-1.5 text-center">
+      <div className={`text-[11px] font-semibold ${tone}`}>
+        {lo >= 0 ? "+" : ""}
+        {lo}% … {hi >= 0 ? "+" : ""}
+        {hi}%
+      </div>
+      <div className="text-[9px] text-muted-foreground">
+        {label} · {prob}%
+      </div>
+    </td>
+  );
+  return (
+    <tr>
+      <td className="border-t border-border/50 px-2 py-1.5">
+        <div className="text-xs font-semibold">{r.ticker}</div>
+        <div className="text-[9px] text-muted-foreground">
+          {r.regime} · <span className={convTone(r.conviction).split(" ")[0]}>{r.conviction}</span>
+        </div>
+      </td>
+      <Cell label="Bear" lo={bear.lowPct} hi={bear.highPct} prob={bear.probability} tone="text-red-600" />
+      <Cell label="Base" lo={base.lowPct} hi={base.highPct} prob={base.probability} tone="text-foreground" />
+      <Cell label="Bull" lo={bull.lowPct} hi={bull.highPct} prob={bull.probability} tone="text-emerald-600" />
+    </tr>
+  );
+}
+
+function BriefingSection({ report }: { report: ApexReport }) {
+  const b = report.briefing;
+  if (!b) return null;
+  const biasTone =
+    b.overall.bias === "Constructive"
+      ? "text-emerald-600 border-emerald-500/40 bg-emerald-500/10"
+      : b.overall.bias === "Defensive"
+      ? "text-red-600 border-red-500/40 bg-red-500/10"
+      : "text-muted-foreground border-border/60 bg-muted/40";
+  const sentTone =
+    b.sentiment.label === "Bullish"
+      ? "text-emerald-600 border-emerald-500/40 bg-emerald-500/10"
+      : b.sentiment.label === "Bearish"
+      ? "text-red-600 border-red-500/40 bg-red-500/10"
+      : "text-muted-foreground border-border/60 bg-muted/40";
+
+  return (
+    <div className="rounded-xl border border-border/60 bg-card/40 p-4">
+      <div className="flex items-center justify-between">
+        <div className="text-sm font-semibold">🎯 7-Day Intelligence Briefing</div>
+        <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Probabilistic · evidence-based</span>
+      </div>
+
+      {/* Overall conviction chips */}
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        <Badge variant="outline" className={biasTone}>
+          {b.overall.bias} bias
+        </Badge>
+        <Badge variant="outline" className={convTone(b.overall.level)}>
+          {b.overall.level} conviction
+        </Badge>
+        <Badge variant="outline" className="border-border/60 text-muted-foreground">
+          Net {b.overall.score}/100
+        </Badge>
+        <Badge variant="outline" className={sentTone}>
+          Sentiment {b.sentiment.label} {b.sentiment.score}/100
+        </Badge>
+      </div>
+      <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">{b.overall.reason}</p>
+
+      {/* Executive summary */}
+      <div className="mt-3 rounded-lg border border-border/50 bg-background/40 p-3">
+        <RichText text={b.executiveSummary} />
+      </div>
+
+      {/* Highlights */}
+      {b.highlights.length ? (
+        <div className="mt-3">
+          <div className="text-xs font-semibold">Highlights</div>
+          <ul className="mt-1 space-y-1 text-[11px] leading-snug">
+            {b.highlights.map((h, i) => (
+              <li key={i}>
+                <RichText text={h} />
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      <div className="mt-3 grid gap-3 md:grid-cols-2">
+        {/* Key observations */}
+        <div>
+          <div className="text-xs font-semibold">Key observations</div>
+          <ul className="mt-1 list-disc space-y-1 pl-4 text-[11px] leading-snug text-muted-foreground">
+            {b.keyObservations.map((o, i) => (
+              <li key={i}>{o}</li>
+            ))}
+          </ul>
+        </div>
+        {/* Risks */}
+        <div>
+          <div className="text-xs font-semibold">Risks — next 7 days</div>
+          <ul className="mt-1 list-disc space-y-1 pl-4 text-[11px] leading-snug text-muted-foreground">
+            {b.risks.map((r, i) => (
+              <li key={i}>{r}</li>
+            ))}
+          </ul>
+        </div>
+      </div>
+
+      {/* Catalysts */}
+      <div className="mt-3">
+        <div className="text-xs font-semibold">Catalysts — next 7 days</div>
+        {b.catalysts.length ? (
+          <ul className="mt-1 space-y-1 text-[11px] leading-snug">
+            {b.catalysts.map((e, i) => (
+              <li key={i} className="flex flex-wrap items-baseline gap-x-2">
+                <span className="min-w-[70px] text-muted-foreground">{e.dateLabel}</span>
+                <span className="font-semibold">{e.title}</span>
+                <span className={e.importance === "High" ? "text-red-600" : "text-blue-600"}>
+                  · {e.region} · {e.importance}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-1 text-[11px] text-muted-foreground">No top-tier scheduled macro events in the next 7 days.</p>
+        )}
+      </div>
+
+      {/* Probabilistic outlook table */}
+      {b.outlook.length ? (
+        <div className="mt-3 overflow-x-auto">
+          <div className="text-xs font-semibold">Probabilistic 7-day outlook</div>
+          <div className="mt-0.5 text-[10px] text-muted-foreground">
+            Expected % move over the next 7 sessions — volatility-scaled ranges, not point targets.
+          </div>
+          <table className="mt-1 w-full border-collapse text-xs">
+            <thead>
+              <tr className="text-[9px] uppercase tracking-wide text-muted-foreground">
+                <td className="px-2 py-1">Ticker</td>
+                <td className="px-2 py-1 text-center">Bear</td>
+                <td className="px-2 py-1 text-center">Base</td>
+                <td className="px-2 py-1 text-center">Bull</td>
+              </tr>
+            </thead>
+            <tbody>
+              {b.outlook.map((r) => (
+                <OutlookRow key={r.ticker} r={r} />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+
+      <p className="mt-3 border-t border-border/50 pt-2 text-[9px] leading-relaxed text-muted-foreground">{b.disclaimer}</p>
+    </div>
+  );
+}
+
 export function ApexReportView({ report }: { report: ApexReport }) {
   return (
     <div className="space-y-5">
@@ -470,6 +640,9 @@ export function ApexReportView({ report }: { report: ApexReport }) {
           </ul>
         </div>
       </div>
+
+      {/* 7-day probabilistic intelligence briefing */}
+      <BriefingSection report={report} />
 
       {/* Full multi-timeframe mover sweep (NZX / ASX / US · 3 windows) */}
       <MarketMoversSection report={report} />

@@ -28,6 +28,7 @@ import {
   type FxRatesToNZD,
 } from "./currency";
 import { ZENITH_STATE_LABEL } from "./zenith";
+import type { IntelligenceBriefing } from "./briefing";
 
 export type BotKind = "stock" | "crypto";
 
@@ -153,6 +154,12 @@ export interface ApexReport {
   regionalNews: RegionalNewsGroup[];
   directRecommendations: DirectRecommendation[];
   pathwayPlan: PathwayPlan;
+  /**
+   * Concise, high-signal intelligence briefing + probabilistic 7-day outlook.
+   * Optional: attached by the server report pipeline (report-service / bot run)
+   * once technicals, the economic calendar and news sentiment are available.
+   */
+  briefing?: IntelligenceBriefing;
 }
 
 /* --------------------------------- RNG ---------------------------------- */

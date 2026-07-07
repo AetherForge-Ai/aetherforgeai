@@ -4,8 +4,11 @@ import { referencePrice, simulateTick } from "@/lib/market";
 import { buildLiveReport, type LiveHolding, type BotKind } from "@/lib/apex";
 import { renderReportHtml, type ReportAlert } from "@/lib/report-html";
 import { createZenithCompletion, isZenithConfigured } from "@/lib/grok";
-import { analyzeSecurity, type SecurityIntel } from "@/lib/market-intel";
+import { analyzeSecurity, getMarketNews, type SecurityIntel } from "@/lib/market-intel";
 import { computePortfolioMetrics, buildActionableIntelligence } from "@/lib/analytics";
+import { getUpcomingEvents } from "@/lib/econ-calendar";
+import { scoreHeadlines } from "@/lib/news-sentiment";
+import { buildIntelligenceBriefing } from "@/lib/briefing";
 import { fetchQuotesForAssetClass, isLiveConfiguredFor } from "@/lib/market-data";
 import { getFxSnapshot } from "@/lib/fx";
 import type { Stock } from "@/lib/portfolio";
@@ -118,6 +121,29 @@ export async function generateReportForUser(
     fxToNZD: fx.ratesToNZD,
   });
 
+  // ---- Intelligence briefing + probabilistic 7-day outlook -------------
+  // Scheduled macro catalysts for the next 7 days (deterministic, no key).
+  const econEvents = getUpcomingEvents(bot);
+  // News-sentiment read — built-in OpenAI with keyword fallback (non-fatal;
+  // scoreHeadlines never throws, it degrades to the keyword classifier).
+  const newsAssetLabel = bot === "crypto" ? "cryptocurrencies" : "New Zealand & Australian equities";
+  const headlines = getMarketNews(bot)
+    .slice(0, 16)
+    .map((nws) => ({ headline: nws.headline, source: nws.source }));
+  const sentiment = await scoreHeadlines(headlines, newsAssetLabel);
+  const briefing = buildIntelligenceBriefing({
+    bot,
+    marketLabel: report.marketLabel,
+    technicals,
+    events: econEvents,
+    sentiment,
+  });
+  console.log(
+    `[report-service] Briefing assembled for user ${user._id}: ${briefing.outlook.length} outlook rows, ` +
+      `${econEvents.length} catalysts, sentiment ${sentiment.label} (${sentiment.method}), overall ${briefing.overall.level}/${briefing.overall.bias}`
+  );
+  report.briefing = briefing;
+
   // SuperGrok 4.3 · Ultra Advanced ZENITH State narrative — every bot's report is
   // authored in this state whenever the owner's Grok key is configured. Non-fatal:
   // if Grok is unavailable the report still ships with its deterministic summary.
@@ -128,11 +154,20 @@ export async function generateReportForUser(
       const lines = holdings
         .map((h, i) => {
           const t = technicals[i];
-          return `${h.ticker}: $${h.price.toFixed(2)} (held ${h.shares}, cost $${(h.purchasePrice || 0).toFixed(2)}) — signal ${t?.signal ?? "n/a"}, RSI ${t?.rsi ?? "n/a"}, MACD ${t?.macdSignal ?? "n/a"}, 7d proj ${t ? (t.projected7dPct >= 0 ? "+" : "") + t.projected7dPct + "%" : "n/a"} @ ${t?.confidence ?? "n/a"}% conf`;
+          if (!t) return `${h.ticker}: $${h.price.toFixed(2)} — no technical read`;
+          const base = `${t.outlook.base.lowPct >= 0 ? "+" : ""}${t.outlook.base.lowPct}% to ${t.outlook.base.highPct >= 0 ? "+" : ""}${t.outlook.base.highPct}%`;
+          return (
+            `${h.ticker}: $${h.price.toFixed(2)} (held ${h.shares}, cost $${(h.purchasePrice || 0).toFixed(2)}) — ` +
+            `signal ${t.signal}, ${t.conviction} conviction, regime ${t.regime}, RSI ${t.rsi}, MACD ${t.macdSignal}, ` +
+            `7d base-case range ${base} (${t.outlook.base.probability}% odds) @ ${t.confidence}% confidence`
+          );
         })
         .join("\n");
       const sells = intelligence.sellRecommendations.map((r) => r.ticker).join(", ") || "none";
       const buys = intelligence.buyCandidates.map((b) => b.ticker).join(", ") || "none";
+      const catalystLine = econEvents.length
+        ? econEvents.map((e) => `${e.title} (${e.dateLabel})`).join("; ")
+        : "no top-tier scheduled catalysts";
       console.log(`[report-service] Running ${report.engine} narrative for ${botLabel} · user ${user._id}`);
       const narrative = await createZenithCompletion({
         maxTokens: 1100,
@@ -141,10 +176,14 @@ export async function generateReportForUser(
             role: "user",
             content:
               `You are the ${botLabel} bot producing this member's report in ULTRA ADVANCED ZENITH STATE. ` +
-              `Write a rich, professional 5-7 sentence executive summary of the portfolio's short-term (7-day) outlook. ` +
-              `Reference the technical posture (RSI/MACD/projection), overall portfolio health, cross-timeframe momentum, and the single most important action to take now. ` +
-              `Use **bold** for the highest-signal phrases.\n\n` +
+              `Write a rich, professional 3-5 sentence executive summary of the portfolio's short-term (7-day) outlook. ` +
+              `Be strictly evidence-based and PROBABILISTIC — speak in expected ranges and likelihoods, and NEVER give a single-point price target. ` +
+              `Reference the technical posture (RSI/MACD/regime), overall conviction, the week's catalysts, news sentiment, and the single most important action to take now. ` +
+              `Close by stating this is informational intelligence, not financial advice. Use **bold** for the highest-signal phrases.\n\n` +
               `Market: ${report.marketLabel}.\n` +
+              `Overall read: ${briefing.overall.bias} bias, ${briefing.overall.level} conviction, net ${briefing.overall.score}/100.\n` +
+              `News sentiment: ${sentiment.label} (${sentiment.score}/100, ${sentiment.method} model).\n` +
+              `Catalysts next 7 days: ${catalystLine}.\n` +
               `Portfolio metrics: health ${metrics.healthScore}/100 (${metrics.healthLabel}), annualised volatility ${metrics.volatility}%, Sharpe ${metrics.sharpe}, 7-day alpha potential ${metrics.alphaPotentialPct}%.\n` +
               `SELL flags: ${sells}. High-conviction BUY candidates: ${buys}.\n` +
               `Holdings:\n${lines}\n\nWrite the ZENITH executive summary now.`,
@@ -153,6 +192,9 @@ export async function generateReportForUser(
       });
       if (narrative && narrative.length > 40) {
         report.executiveSummary = narrative;
+        // Keep the briefing's headline summary in lock-step with the report.
+        briefing.executiveSummary = narrative;
+        briefing.aiSummary = true;
         aiEnhanced = true;
         console.log(`[report-service] ZENITH narrative applied for user ${user._id}`);
       }

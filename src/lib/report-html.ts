@@ -23,6 +23,7 @@ import type {
 import type { SecurityIntel } from "@/lib/market-intel";
 import type { ActionableIntelligence, PortfolioMetrics } from "@/lib/analytics";
 import type { CurrencyCode } from "@/lib/currency";
+import type { IntelligenceBriefing, BriefingOutlookRow } from "@/lib/briefing";
 
 export interface ReportAlert {
   ticker: string;
@@ -419,6 +420,101 @@ function pathwayPlanBlock(plan: PathwayPlan): string {
     <table width="100%" style="border-collapse:separate;border-spacing:6px 0"><tr>${cols}</tr></table>`;
 }
 
+/* ----------------------- 7-Day Intelligence Briefing -------------------- */
+
+function convColor(level: string): string {
+  return level === "High" ? GREEN : level === "Moderate" ? BLUE : level === "Speculative" ? RED : MUTE;
+}
+function biasColor(bias: string): string {
+  return bias === "Constructive" ? GREEN : bias === "Defensive" ? RED : MUTE;
+}
+function sgn(x: number): string {
+  return `${x >= 0 ? "+" : ""}${x}%`;
+}
+
+function outlookRow(r: BriefingOutlookRow): string {
+  const { base, bull, bear } = r.outlook;
+  const cell = (label: string, lo: number, hi: number, prob: number, color: string) =>
+    `<td style="padding:7px 8px;border-top:1px solid ${LINE};text-align:center">
+       <div style="font-size:12px;color:${color};font-weight:700">${sgn(lo)} … ${sgn(hi)}</div>
+       <div style="font-size:10px;color:${MUTE}">${label} · ${prob}%</div>
+     </td>`;
+  return `<tr>
+    <td style="padding:7px 8px;border-top:1px solid ${LINE}">
+      <div style="font-weight:700;color:${INK};font-size:12px">${esc(r.ticker)}</div>
+      <div style="font-size:10px;color:${MUTE}">${esc(r.regime)} · <span style="color:${convColor(r.conviction)}">${esc(r.conviction)} conv.</span></div>
+    </td>
+    ${cell("Bear", bear.lowPct, bear.highPct, bear.probability, RED)}
+    ${cell("Base", base.lowPct, base.highPct, base.probability, INK)}
+    ${cell("Bull", bull.lowPct, bull.highPct, bull.probability, GREEN)}
+  </tr>`;
+}
+
+function briefingBlock(b: IntelligenceBriefing): string {
+  const obs = b.keyObservations.map((o) => `<li style="margin:4px 0;color:${MUTE}">${esc(o)}</li>`).join("");
+  const risks = b.risks.map((r) => `<li style="margin:4px 0;color:${MUTE}">${esc(r)}</li>`).join("");
+  const catalysts = b.catalysts.length
+    ? b.catalysts
+        .map((e) => {
+          const c = e.importance === "High" ? RED : BLUE;
+          return `<li style="margin:5px 0">
+            <span style="display:inline-block;min-width:74px;color:${MUTE};font-size:11px">${esc(e.dateLabel)}</span>
+            <strong style="color:${INK}">${esc(e.title)}</strong>
+            <span style="color:${c};font-size:11px"> · ${esc(e.region)} · ${esc(e.importance)}</span>
+            <div style="font-size:11px;color:${MUTE};margin:1px 0 0 74px">${esc(e.note)}</div>
+          </li>`;
+        })
+        .join("")
+    : `<li style="color:${MUTE};font-size:12px">No top-tier scheduled macro events in the next 7 days.</li>`;
+  const highlights = b.highlights.length
+    ? b.highlights.map((h) => `<li style="margin:4px 0;color:${INK}">${rich(h)}</li>`).join("")
+    : "";
+  const rows = b.outlook.map((r) => outlookRow(r)).join("");
+
+  return `
+  <div style="margin:22px 0 6px;border:1px solid ${LINE};border-radius:12px;overflow:hidden">
+    <div style="background:${NAVY};padding:12px 16px;color:#fff;display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:15px;font-weight:800">🎯 7-Day Intelligence Briefing</span>
+      <span style="font-size:11px;color:#cbd5e1">Probabilistic · evidence-based</span>
+    </div>
+    <div style="padding:14px 16px">
+      <!-- Overall conviction -->
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+        <span style="display:inline-block;padding:4px 11px;border-radius:999px;background:${biasColor(b.overall.bias)}1a;color:${biasColor(b.overall.bias)};font-size:12px;font-weight:700">${esc(b.overall.bias)} bias</span>
+        <span style="display:inline-block;padding:4px 11px;border-radius:999px;background:${convColor(b.overall.level)}1a;color:${convColor(b.overall.level)};font-size:12px;font-weight:700">${esc(b.overall.level)} conviction</span>
+        <span style="display:inline-block;padding:4px 11px;border-radius:999px;background:#f1f5f9;color:${INK};font-size:12px;font-weight:700">Net ${b.overall.score}/100</span>
+        <span style="display:inline-block;padding:4px 11px;border-radius:999px;background:${b.sentiment.label === "Bullish" ? GREEN : b.sentiment.label === "Bearish" ? RED : MUTE}1a;color:${b.sentiment.label === "Bullish" ? GREEN : b.sentiment.label === "Bearish" ? RED : MUTE};font-size:12px;font-weight:700">Sentiment ${esc(b.sentiment.label)} ${b.sentiment.score}/100</span>
+      </div>
+      <div style="font-size:12px;color:${MUTE};margin:-4px 0 14px">${esc(b.overall.reason)}</div>
+
+      ${highlights ? `<h3 style="font-size:13px;margin:12px 0 6px;color:${INK}">Highlights</h3><ul style="padding-left:18px;margin:0;font-size:12px;list-style:none">${highlights}</ul>` : ""}
+
+      <h3 style="font-size:13px;margin:16px 0 6px;color:${INK}">Key observations</h3>
+      <ul style="padding-left:18px;margin:0;font-size:12px">${obs}</ul>
+
+      <h3 style="font-size:13px;margin:16px 0 6px;color:${INK}">Catalysts — next 7 days</h3>
+      <ul style="padding-left:6px;margin:0;list-style:none;font-size:12px">${catalysts}</ul>
+
+      <h3 style="font-size:13px;margin:16px 0 6px;color:${INK}">Risks — next 7 days</h3>
+      <ul style="padding-left:18px;margin:0;font-size:12px">${risks}</ul>
+
+      <h3 style="font-size:13px;margin:16px 0 6px;color:${INK}">Probabilistic 7-day outlook</h3>
+      <div style="font-size:11px;color:${MUTE};margin-bottom:6px">Expected % move over the next 7 sessions per ticker — volatility-scaled ranges, not point targets.</div>
+      <table width="100%" style="border-collapse:collapse;font-size:12px">
+        <tr style="background:#f8fafc">
+          <td style="padding:6px 8px;font-size:10px;color:${MUTE};text-transform:uppercase;letter-spacing:.04em">Ticker</td>
+          <td style="padding:6px 8px;font-size:10px;color:${MUTE};text-align:center">Bear</td>
+          <td style="padding:6px 8px;font-size:10px;color:${MUTE};text-align:center">Base</td>
+          <td style="padding:6px 8px;font-size:10px;color:${MUTE};text-align:center">Bull</td>
+        </tr>
+        ${rows || `<tr><td colspan="4" style="padding:8px;color:${MUTE}">Add holdings to populate the outlook.</td></tr>`}
+      </table>
+
+      <div style="font-size:10px;color:${MUTE};line-height:1.6;margin-top:12px;border-top:1px solid ${LINE};padding-top:10px">${esc(b.disclaimer)}</div>
+    </div>
+  </div>`;
+}
+
 export interface RenderReportOptions {
   userName?: string;
   generatedAtLabel: string;
@@ -531,6 +627,8 @@ export function renderReportHtml(report: ApexReport, opts: RenderReportOptions):
             <ul style="padding-left:18px;margin:0;font-size:13px">${observations}</ul>
           </td>
         </tr></table>
+
+        ${report.briefing ? briefingBlock(report.briefing) : ""}
 
         ${marketMoversBlock(report.marketMovers)}
 

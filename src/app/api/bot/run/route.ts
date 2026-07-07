@@ -5,6 +5,10 @@ import { totalumSdk } from "@/lib/totalum";
 import { referencePrice, simulateTick } from "@/lib/market";
 import { buildLiveReport, type LiveHolding, type BotKind } from "@/lib/apex";
 import { getFxSnapshot } from "@/lib/fx";
+import { analyzeSecurity, getMarketNews, type SecurityIntel } from "@/lib/market-intel";
+import { getUpcomingEvents } from "@/lib/econ-calendar";
+import { scoreHeadlines } from "@/lib/news-sentiment";
+import { buildIntelligenceBriefing } from "@/lib/briefing";
 
 const schema = z.object({ bot: z.enum(["stock", "crypto"]) });
 
@@ -76,6 +80,34 @@ export async function POST(req: Request) {
       fxToNZD: fx.ratesToNZD,
     });
     console.log(`[api/bot/run] user ${user._id} ran ${bot} bot over ${holdings.length} holdings`);
+
+    // Attach the 7-day probabilistic intelligence briefing. Every source is
+    // non-fatal: technicals are deterministic, the calendar is scheduled and
+    // scoreHeadlines degrades to a keyword classifier — so the briefing can
+    // never make the report worse than the base bot.
+    try {
+      const technicals: SecurityIntel[] = scoped.map((r) =>
+        analyzeSecurity(r.ticker, Number(r.current_price) || undefined, r.company_name || r.ticker)
+      );
+      const econEvents = getUpcomingEvents(bot);
+      const newsAssetLabel = bot === "crypto" ? "cryptocurrencies" : "New Zealand & Australian equities";
+      const headlines = getMarketNews(bot)
+        .slice(0, 16)
+        .map((n) => ({ headline: n.headline, source: n.source }));
+      const sentiment = await scoreHeadlines(headlines, newsAssetLabel);
+      report.briefing = buildIntelligenceBriefing({
+        bot,
+        marketLabel: report.marketLabel,
+        technicals,
+        events: econEvents,
+        sentiment,
+      });
+      console.log(
+        `[api/bot/run] briefing attached: ${technicals.length} technicals, ${econEvents.length} events, sentiment ${sentiment.label} (${sentiment.method})`
+      );
+    } catch (briefErr) {
+      console.error("[api/bot/run] briefing build failed (non-fatal):", briefErr);
+    }
 
     return NextResponse.json({
       ok: true,
