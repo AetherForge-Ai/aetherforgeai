@@ -26,6 +26,7 @@ function isAllowedOrigin(origin: string, request: NextRequest): boolean {
 // Public routes that don't require authentication
 const publicRoutes = [
   "/",
+  "/about",
   "/login",
   "/register",
   "/forgot-password",

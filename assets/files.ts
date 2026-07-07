@@ -34,6 +34,15 @@ export const LOGO_MARK_SVG = `
 </svg>
 `;
 
+// ── About page imagery ──
+// Serene New Zealand rural landscape at golden hour (rolling hills / farmland)
+// — used as the cinematic hero backdrop on the About page.
+export const ABOUT_HERO_IMG =
+  "https://images.unsplash.com/photo-1444080748397-f442aa95c3e5?auto=format&fit=crop&w=2000&q=80";
+// Warm, approachable portrait for the founder's "Our Story" section.
+export const FOUNDER_PORTRAIT_IMG =
+  "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=900&q=80";
+
 // AI-generated Apex bot mascots (cartoon geeks deep in thought).
 export const BOT_STOCK_MASCOT =
   "https://storage.googleapis.com/totalum-live-bucket/aetherforgeai/files/bot-stock-mascot-1782977793991.png?GoogleAccessId=totalum-live%40totalum-live.iam.gserviceaccount.com&Expires=2413697794&Signature=0FlB7hip7LmTDUSK3Nhu%2Bdevd6MUTW9TEHdnmFN82sMHHpoxhZ1MV2itaG8LX78hnFkC46BMyFkm7nxEgtGmB9wLiyYBFtCCZukEgIN8Mdtl3wK4QEJF683Ijp%2BVo5Afpy5kybcZlT8dcjZCX1sT9ht2gigk%2BAR3hlLoDZxwq4L1FEJfpzvCQRmT17Mv5gxUtb0rZ6s8LwzgN18QvnkfiOLkS6AXY%2BqlRMvN5DikCA1p9xyO%2FBBnvw5t1Gc6ajrhhqrwQUhMhK53gdpNuY3QsMwOjGkAjTRJd3fzbpAnowJ70AgN3fP2VgOW6O0BNGV5x265oOLEmnN9JhzpywMAcg%3D%3D";
@@ -56,6 +65,8 @@ export const files = {
   logoIconImg: LOGO_ICON_IMG,
   faviconImg: FAVICON_IMG,
   logoMarkSvg: LOGO_MARK_SVG,
+  aboutHeroImg: ABOUT_HERO_IMG,
+  founderPortraitImg: FOUNDER_PORTRAIT_IMG,
   botStockMascot: BOT_STOCK_MASCOT,
   botCryptoMascot: BOT_CRYPTO_MASCOT,
   botStoxAvatar: BOT_STOX_AVATAR,
