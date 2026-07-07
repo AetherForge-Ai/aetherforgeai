@@ -1,5 +1,6 @@
 import { SiteHeader } from "@/components/SiteHeader";
 import { PricingPlans } from "@/components/PricingPlans";
+import { DisclaimerNotice } from "@/components/legal/DisclaimerNotice";
 
 export const metadata = {
   title: "Pricing — AetherForge AI",
@@ -26,6 +27,10 @@ export default function PricingPage() {
 
           <div className="mt-14">
             <PricingPlans />
+          </div>
+
+          <div className="mx-auto mt-14 max-w-3xl">
+            <DisclaimerNotice variant="full" />
           </div>
         </section>
       </div>

@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { signOut } from "@/lib/auth-client";
 import { BrandLogo } from "@/components/BrandLogo";
 import { MarketTicker } from "@/components/MarketTicker";
+import { DisclaimerNotice } from "@/components/legal/DisclaimerNotice";
 import { planLabel } from "@/lib/plans";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
@@ -253,6 +254,9 @@ export function AppShell({ user, children }: { user: ShellUser; children: ReactN
           <MarketTicker compact />
 
           <div className="w-full flex-1">{children}</div>
+
+          {/* Persistent NZ financial disclaimer across every authenticated page */}
+          <DisclaimerNotice variant="bar" />
         </div>
       </div>
     </div>
