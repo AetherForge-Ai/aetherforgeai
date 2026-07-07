@@ -11,7 +11,7 @@
  * break pricing, reports or the dashboard.
  */
 
-import { fetchYahooQuotes, yahooEquitySymbol, yahooCryptoSymbol } from "@/lib/yahoo-finance";
+import { fetchYahooQuotes, fetchYahooNames, yahooEquitySymbol, yahooCryptoSymbol } from "@/lib/yahoo-finance";
 
 export interface LiveQuote {
   price: number;
@@ -351,4 +351,63 @@ export async function fetchQuotesForAssetClass(
 /** Live availability for an asset class (drives the Live/Simulated badge). */
 export function isLiveConfiguredFor(assetClass: "stock" | "crypto"): boolean {
   return assetClass === "crypto" ? isCryptoLiveConfigured() : isLiveDataConfigured();
+}
+
+/* ============================ Company-name resolution ==================== */
+
+/** Human names for the crypto universe (CoinGecko's price endpoint omits names). */
+const CRYPTO_NAMES: Record<string, string> = {
+  BTC: "Bitcoin",
+  ETH: "Ethereum",
+  SOL: "Solana",
+  BNB: "BNB",
+  XRP: "XRP",
+  ADA: "Cardano",
+  AVAX: "Avalanche",
+  DOGE: "Dogecoin",
+  LINK: "Chainlink",
+  DOT: "Polkadot",
+  MATIC: "Polygon (POL)",
+  POL: "Polygon",
+  LTC: "Litecoin",
+  UNI: "Uniswap",
+  ATOM: "Cosmos",
+  NEAR: "NEAR Protocol",
+  APT: "Aptos",
+  ARB: "Arbitrum",
+  OP: "Optimism",
+};
+
+/**
+ * Resolve human company/instrument names for a set of tickers so the dashboard
+ * never shows a bare symbol (e.g. "WOR.AX") where a name belongs. Equities are
+ * named from the keyless Yahoo feed (NZX / ASX / US); crypto uses a curated map.
+ * Returns a map keyed by the ORIGINAL ticker; unresolved tickers are simply
+ * omitted so callers keep whatever they already had. Never throws.
+ */
+export async function resolveCompanyNames(
+  tickers: Array<{ ticker: string; asset_type?: string }>
+): Promise<Record<string, string>> {
+  if (!tickers.length) return {};
+  const out: Record<string, string> = {};
+
+  const equities = tickers.filter((t) => (t.asset_type || "stock") !== "crypto").map((t) => t.ticker.toUpperCase());
+  const cryptos = tickers.filter((t) => (t.asset_type || "stock") === "crypto").map((t) => t.ticker.toUpperCase());
+
+  for (const c of cryptos) {
+    const name = CRYPTO_NAMES[c.replace(/-?USD[T]?$/, "")];
+    if (name) out[c] = name;
+  }
+
+  if (equities.length) {
+    try {
+      const map = Object.fromEntries(Array.from(new Set(equities)).map((t) => [t, yahooEquitySymbol(t)]));
+      const names = await fetchYahooNames(map);
+      Object.assign(out, names);
+    } catch (err) {
+      console.error("[market-data] resolveCompanyNames (equities) failed:", err);
+    }
+  }
+
+  return out;
 }

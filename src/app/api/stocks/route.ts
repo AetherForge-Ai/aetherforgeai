@@ -4,7 +4,13 @@ import { getCurrentUser } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
 import { lookupTicker, normalizeTicker, referencePrice } from "@/lib/market";
 import { seedStarterPortfolioIfNeeded } from "@/lib/seed";
-import { fetchLivePrice, fetchLiveQuotes, isLiveDataConfigured, fetchCryptoQuotes } from "@/lib/market-data";
+import {
+  fetchLivePrice,
+  fetchLiveQuotes,
+  isLiveDataConfigured,
+  fetchCryptoQuotes,
+  resolveCompanyNames,
+} from "@/lib/market-data";
 import { checkTickerQuota } from "@/lib/entitlements";
 
 /**
@@ -58,6 +64,55 @@ async function overlayLivePrices(holdings: any[]): Promise<void> {
   }
 }
 
+/**
+ * A holding "needs a real name" when its `company_name` is empty or merely
+ * echoes the ticker — e.g. a manually-added "WOR.AX" that was stored as
+ * company_name "WOR.AX" (or "WOR"). These are exactly the rows the dashboard
+ * renders as a bare symbol instead of the company they represent.
+ */
+function needsCompanyName(h: any): boolean {
+  const name = String(h.company_name || "").trim();
+  if (!name) return true;
+  const ticker = String(h.ticker || "").trim().toUpperCase();
+  const bare = ticker.replace(/\.(NZ|AX|L)$/, "");
+  const upper = name.toUpperCase();
+  return upper === ticker || upper === bare;
+}
+
+/**
+ * Backfill genuine company names onto holdings that are missing one (or whose
+ * name just echoes the ticker), then persist so the fix is permanent. This is
+ * what turns "WOR.AX" into "Worley Limited" on the dashboard. Fully non-fatal:
+ * on any failure the existing value is kept.
+ */
+async function overlayCompanyNames(holdings: any[]): Promise<void> {
+  const missing = holdings.filter(needsCompanyName);
+  if (!missing.length) return;
+
+  try {
+    const names = await resolveCompanyNames(
+      missing.map((h) => ({ ticker: String(h.ticker), asset_type: h.asset_type }))
+    );
+    let updated = 0;
+    await Promise.all(
+      missing.map(async (h) => {
+        const resolved = names[String(h.ticker).toUpperCase()];
+        if (!resolved || resolved === h.company_name) return;
+        h.company_name = resolved; // reflect on the first render immediately
+        try {
+          await totalumSdk.crud.editRecordById("stock", h._id, { company_name: resolved });
+          updated++;
+        } catch (err) {
+          console.error(`[api/stocks] Failed to persist company_name for ${h._id} (${h.ticker}):`, err);
+        }
+      })
+    );
+    console.log(`[api/stocks] Company-name backfill applied (${updated}/${missing.length} holdings named).`);
+  } catch (err) {
+    console.error("[api/stocks] Company-name backfill failed (serving stored names):", err);
+  }
+}
+
 const createSchema = z.object({
   ticker: z.string().min(1, "Ticker is required").max(12),
   asset_type: z.enum(["stock", "crypto"]).optional(),
@@ -92,7 +147,9 @@ export async function GET(req: Request) {
     // Re-price EVERY holding with live market data before returning, so the
     // portfolio value the dashboard renders is accurate on first paint (not the
     // last-stored/seeded price). Persists any that moved. Non-fatal on failure.
-    await overlayLivePrices(stocks);
+    // In parallel, backfill real company names onto any holding stored as a bare
+    // ticker (e.g. "WOR.AX" → "Worley Limited"). Both are independent + non-fatal.
+    await Promise.all([overlayLivePrices(stocks), overlayCompanyNames(stocks)]);
 
     // Legacy rows without asset_type are treated as stock.
     if (assetType === "stock" || assetType === "crypto") {
@@ -171,10 +228,24 @@ export async function POST(req: Request) {
       console.error(`[api/stocks] Live price lookup failed for ${ticker} (non-fatal):`, err);
     }
 
+    // Resolve a real company name up-front: client value → curated directory →
+    // live provider (Yahoo for equities / curated map for crypto). Only falls
+    // back to the bare ticker if every source is unavailable. Non-fatal.
+    let company_name = parsed.data.company_name || info?.name || "";
+    if (!company_name) {
+      try {
+        const names = await resolveCompanyNames([{ ticker, asset_type: assetType }]);
+        company_name = names[ticker.toUpperCase()] || "";
+      } catch (err) {
+        console.error(`[api/stocks] Name resolution failed for ${ticker} (non-fatal):`, err);
+      }
+    }
+    if (!company_name) company_name = ticker;
+
     const record = {
       ticker,
       asset_type: parsed.data.asset_type || "stock",
-      company_name: parsed.data.company_name || info?.name || ticker,
+      company_name,
       sector: parsed.data.sector || info?.sector || (parsed.data.asset_type === "crypto" ? "Digital Assets" : "Other"),
       shares: parsed.data.shares,
       purchase_price,

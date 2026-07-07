@@ -20,6 +20,23 @@ export interface YahooQuote {
   price: number;
   changePct: number; // vs previous close, %
   currency: string;
+  name?: string; // resolved company/instrument name (from chart meta), when available
+}
+
+/**
+ * Clean a raw Yahoo instrument name into a human company name.
+ * Yahoo `longName` is already clean ("Worley Limited"); `shortName` can carry
+ * listing noise ("WORLEY FPO [WOR]"), so we strip the trailing "[TICKER]" tag
+ * and common share-class tokens (FPO / ORD / CDI …) when we fall back to it.
+ */
+function cleanInstrumentName(raw: unknown): string | undefined {
+  const s = String(raw ?? "").trim();
+  if (!s) return undefined;
+  const cleaned = s
+    .replace(/\s*\[[^\]]*\]\s*$/, "") // drop trailing "[WOR]"
+    .replace(/\s+\b(FPO|ORD|CDI|NPV|NVS|REIT|UNITS?|STAPLED)\b\.?$/i, "")
+    .trim();
+  return cleaned || s;
 }
 
 const BASE = "https://query1.finance.yahoo.com/v8/finance/chart";
@@ -62,6 +79,7 @@ async function fetchOne(yahooSymbol: string): Promise<YahooQuote | null> {
       price,
       changePct: isFinite(changePct) ? changePct : 0,
       currency: typeof meta.currency === "string" ? meta.currency : "USD",
+      name: cleanInstrumentName(meta.longName) ?? cleanInstrumentName(meta.shortName),
     };
     CACHE.set(yahooSymbol, { quote, at: Date.now() });
     return quote;
@@ -104,6 +122,23 @@ export async function fetchYahooQuotes(map: Record<string, string>): Promise<Rec
     if (q) out[internal] = q;
   }
   console.log(`[yahoo] Resolved ${Object.keys(out).length}/${entries.length} quotes`);
+  return out;
+}
+
+/**
+ * Resolve human company/instrument names for a set of internal tickers.
+ * @param map internalTicker → yahooSymbol (e.g. { "WOR.AX": "WOR.AX", BTC: "BTC-USD" })
+ * @returns internalTicker → company name (only tickers Yahoo could name are included)
+ * Reuses the same quote fetch (and its cache), so this adds no extra HTTP cost
+ * when prices were just fetched for the same symbols.
+ */
+export async function fetchYahooNames(map: Record<string, string>): Promise<Record<string, string>> {
+  const quotes = await fetchYahooQuotes(map);
+  const out: Record<string, string> = {};
+  for (const [internal, q] of Object.entries(quotes)) {
+    if (q.name) out[internal] = q.name;
+  }
+  console.log(`[yahoo] Resolved names for ${Object.keys(out).length}/${Object.keys(map).length} tickers`);
   return out;
 }
 
