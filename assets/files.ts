@@ -40,8 +40,11 @@ export const LOGO_MARK_SVG = `
 export const ABOUT_HERO_IMG =
   "https://images.unsplash.com/photo-1444080748397-f442aa95c3e5?auto=format&fit=crop&w=2000&q=80";
 // The founder's real portrait — shown in the "Our Story" section of the About page.
+// The original passport-blue background was AI-retouched into a soft navy→emerald
+// studio backdrop (with a gentle vignette) so it blends with the site palette;
+// the face, glasses and shirt are preserved exactly.
 export const FOUNDER_PORTRAIT_IMG =
-  "https://storage.googleapis.com/totalum-live-bucket/aetherforgeai/files/me.jpg?GoogleAccessId=totalum-live%40totalum-live.iam.gserviceaccount.com&Expires=2098804682&Signature=NTahwc19sDZ3fY9WcuaONDjzqDrA%2BJeSXfjF%2FXQccxcsr63dwR3GbvsZuH5jX8zYXW5qdg%2FXr9p2iOSFHXXi%2FHYipI5KVa9D2ewYhKqwLKYiwQgAGcmWOxJIOhxul91UZ%2B%2BuT72dPt9Ozrlk2wQg9GYlsq0j4qgG9oKqrdtcIXSPMr%2FqCndQSNBp825ck592QALkozTEPQ2EXh8haRkAwPZ38JB9fZeKgusNo04i7ayeTzRhMASs%2B9rbxXV%2F2PGvoaG8SbfuRUx1B45K5e6VdiuW2Z83ptZcGuNPCA7WvSmxfing8QfwffSf5bAmapsGGIvBCW0wnboYcaZRZOJfPg%3D%3D";
+  "https://storage.googleapis.com/totalum-live-bucket/aetherforgeai/files/founder-portrait-navy-1783445071851.jpeg?GoogleAccessId=totalum-live%40totalum-live.iam.gserviceaccount.com&Expires=2414165072&Signature=dH%2FOwDzGSS%2F7k3YWzhUA4kV2Sy6FdzWuSYsvkhsmubPuTQn2iPdL5uHkUdCK3%2B999xbFxtFKKCDFsOKKuxk5KcVjZMpVEK36aHK%2FdsL%2BNXJbP2VrqYIvsQ5C0gzOhYxhaCke3qcnx3y1ErY7xnnXSclO6hCJKG4u4fLw%2BRhaCGMp8RrGj9u3D%2Bwf8hVUMCOG6Otv5BcIuaGAqpLEA9PcRL67gyFYxsYGiBNwRP6Ta1%2FEDnsuDz5Do%2B4mdbod6o13nCmMmxtrTYYCxhovXUmGQISIXvTWpCFWBQv4oZCLnyLajqAfFbK96lT%2B5nqKOv0csveFXEA1VyOmz4bEox0KVg%3D%3D";
 
 // AI-generated Apex bot mascots (cartoon geeks deep in thought).
 export const BOT_STOCK_MASCOT =
