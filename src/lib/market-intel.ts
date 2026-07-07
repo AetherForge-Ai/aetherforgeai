@@ -34,6 +34,42 @@ export interface SeriesPoint {
   projected?: boolean;
 }
 
+/** Market regime derived from trend + volatility structure. */
+export type MarketRegime =
+  | "Trending Up"
+  | "Trending Down"
+  | "Range-Bound"
+  | "High Volatility";
+
+/** Explicit conviction bucket for a signal (how much to trust it). */
+export type ConvictionLevel = "High" | "Moderate" | "Low" | "Speculative";
+
+/**
+ * One scenario in a probabilistic 7-day outlook. Ranges are % moves over the
+ * next 7 sessions, derived from the security's OWN recent realised volatility
+ * (scaled to a 7-day horizon) and centred on the model's drift — never a single
+ * point target. `probability` is the modelled chance this scenario plays out.
+ */
+export interface OutlookCase {
+  label: "Base" | "Bull" | "Bear";
+  lowPct: number; // lower bound of the % move range
+  highPct: number; // upper bound of the % move range
+  lowPrice: number; // price at the low bound
+  highPrice: number; // price at the high bound
+  probability: number; // 0-100
+}
+
+/** Volatility-scaled, regime-aware 7-day probabilistic outlook. */
+export interface ProbabilisticOutlook {
+  horizonDays: number; // 7
+  expectedPct: number; // central (drift) estimate, %
+  sigma7Pct: number; // 1σ 7-day move, %
+  regime: MarketRegime;
+  base: OutlookCase; // ~50% interquartile band
+  bull: OutlookCase; // upside tail
+  bear: OutlookCase; // downside tail
+}
+
 export interface SecurityIntel {
   ticker: string;
   name: string;
@@ -59,8 +95,20 @@ export interface SecurityIntel {
   vsSma20: number; // % price is above/below its 20-day SMA
   sma50: number;
   vsSma50: number; // % price is above/below its 50-day SMA
+  // Volatility & structure
+  atrPct: number; // 14-period Average True Range as % of price (volatility)
+  realizedVolPct: number; // annualised realised volatility, %
+  dailyVolPct: number; // 1-day realised volatility, %
+  regime: MarketRegime; // trend/volatility regime classification
+  support: number; // nearest structural support below price
+  resistance: number; // nearest structural resistance above price
+  pivot: number; // classic floor-trader pivot (H+L+C)/3
+  // Forward view
+  outlook: ProbabilisticOutlook; // base/bull/bear ranges + probabilities
   signal: "Strong Buy" | "Buy" | "Hold" | "Reduce" | "Sell";
   score: number; // 0-100 conviction score
+  conviction: ConvictionLevel; // explicit conviction bucket
+  convictionReason: string; // short why for the conviction level
   reasoning: string;
 }
 
@@ -741,6 +789,185 @@ function projectForward(
   return { path, pct, confidence };
 }
 
+/* -------------------------- Volatility & structure ---------------------- */
+
+/**
+ * ATR-style volatility on a close-only series: the mean absolute session-to-
+ * session move over `period` sessions, expressed as a % of the latest price.
+ * (True ATR needs intraday high/low; on close-only data the absolute close-to-
+ * close change is the standard, well-behaved proxy.)
+ */
+function computeATRpct(series: number[], period = 14): number {
+  if (series.length < 2) return 0;
+  const slice = series.slice(-(period + 1));
+  let sum = 0;
+  let n = 0;
+  for (let i = 1; i < slice.length; i++) {
+    sum += Math.abs(slice[i] - slice[i - 1]);
+    n++;
+  }
+  const atr = n ? sum / n : 0;
+  const last = series[series.length - 1] || 1;
+  return round((atr / last) * 100, 2);
+}
+
+/**
+ * Realised volatility from daily log-returns over `lookback` sessions.
+ * Returns both the 1-day σ and the annualised σ (×√252), in %.
+ */
+function computeRealizedVol(series: number[], lookback = 30): { daily: number; annual: number } {
+  const slice = series.slice(-(lookback + 1));
+  if (slice.length < 3) return { daily: 1, annual: 16 };
+  const rets: number[] = [];
+  for (let i = 1; i < slice.length; i++) {
+    if (slice[i - 1] > 0) rets.push(Math.log(slice[i] / slice[i - 1]));
+  }
+  const sd = stddev(rets); // fractional daily σ
+  return {
+    daily: round(sd * 100, 2),
+    annual: round(sd * Math.sqrt(252) * 100, 1),
+  };
+}
+
+/**
+ * Nearest structural support/resistance from recent swing pivots, plus the
+ * classic floor-trader pivot. Swings are local extrema (a close higher/lower
+ * than its 2 neighbours either side) over the last ~60 sessions; support is the
+ * highest swing-low below price, resistance the lowest swing-high above it.
+ */
+function computeLevels(
+  series: number[],
+  price: number
+): { support: number; resistance: number; pivot: number } {
+  const win = series.slice(-60);
+  const highs: number[] = [];
+  const lows: number[] = [];
+  for (let i = 2; i < win.length - 2; i++) {
+    const v = win[i];
+    if (v >= win[i - 1] && v >= win[i - 2] && v >= win[i + 1] && v >= win[i + 2]) highs.push(v);
+    if (v <= win[i - 1] && v <= win[i - 2] && v <= win[i + 1] && v <= win[i + 2]) lows.push(v);
+  }
+  const recent = series.slice(-20);
+  const hi = Math.max(...recent);
+  const lo = Math.min(...recent);
+  const close = series[series.length - 1];
+  const pivot = (hi + lo + close) / 3;
+
+  const supportsBelow = lows.filter((l) => l < price);
+  const resistAbove = highs.filter((h) => h > price);
+  // Fall back to the recent low/high, then to a volatility-implied band.
+  const atr = (computeATRpct(series) / 100) * price;
+  const support = supportsBelow.length
+    ? Math.max(...supportsBelow)
+    : lo < price
+      ? lo
+      : round(price - 2 * atr, price < 5 ? 4 : 2);
+  const resistance = resistAbove.length
+    ? Math.min(...resistAbove)
+    : hi > price
+      ? hi
+      : round(price + 2 * atr, price < 5 ? 4 : 2);
+
+  const dp = price < 5 ? 4 : 2;
+  return { support: round(support, dp), resistance: round(resistance, dp), pivot: round(pivot, dp) };
+}
+
+/** Classify the trend/volatility regime from trend alignment + realised vol. */
+function deriveRegime(input: {
+  vsSma20: number;
+  vsSma50: number;
+  dailyVolPct: number;
+  projected7dPct: number;
+  assetClass: AssetClass;
+}): MarketRegime {
+  const { vsSma20, vsSma50, dailyVolPct, projected7dPct, assetClass } = input;
+  // Volatility that is high relative to the asset class dominates the label.
+  const volHot = assetClass === "crypto" ? dailyVolPct > 5 : dailyVolPct > 2.6;
+  if (volHot) return "High Volatility";
+  const trendUp = vsSma20 > 1.2 && vsSma50 > 0 && projected7dPct > 0.4;
+  const trendDown = vsSma20 < -1.2 && vsSma50 < 0 && projected7dPct < -0.4;
+  if (trendUp) return "Trending Up";
+  if (trendDown) return "Trending Down";
+  return "Range-Bound";
+}
+
+/**
+ * Build a volatility-scaled, regime-aware probabilistic 7-day outlook. Models
+ * the 7-day return as roughly Normal(drift, σ7): the Base case is the ~50%
+ * interquartile band (drift ± 0.674σ7); Bull/Bear are the tails out to the
+ * ~10th/90th percentiles (±1.282σ7). Tail probabilities are skewed by the
+ * signal score so a stronger regime tilts the odds — never a point target.
+ */
+function buildOutlook(input: {
+  price: number;
+  projected7dPct: number;
+  dailyVolPct: number;
+  score: number;
+  regime: MarketRegime;
+}): ProbabilisticOutlook {
+  const { price, projected7dPct: drift, dailyVolPct, score, regime } = input;
+  const dp = price < 5 ? 4 : 2;
+  const sigma7 = Math.max(0.6, dailyVolPct * Math.sqrt(7)); // 1σ 7-day move, %
+  const IQR = 0.674 * sigma7; // 25th–75th percentile half-width
+  const TAIL = 1.282 * sigma7; // ~10th/90th percentile
+
+  // Directional skew from the signal score (−1 bearish … +1 bullish).
+  const bias = clamp((score - 50) / 50, -1, 1);
+  const bullProb = Math.round(clamp(25 + bias * 12, 12, 40));
+  const bearProb = 50 - bullProb; // Base is fixed at ~50%
+  const baseProb = 50;
+
+  const toPrice = (pct: number) => round(price * (1 + pct / 100), dp);
+  const mk = (label: OutlookCase["label"], lo: number, hi: number, prob: number): OutlookCase => ({
+    label,
+    lowPct: round(lo, 2),
+    highPct: round(hi, 2),
+    lowPrice: toPrice(lo),
+    highPrice: toPrice(hi),
+    probability: prob,
+  });
+
+  return {
+    horizonDays: 7,
+    expectedPct: round(drift, 2),
+    sigma7Pct: round(sigma7, 2),
+    regime,
+    base: mk("Base", drift - IQR, drift + IQR, baseProb),
+    bull: mk("Bull", drift + IQR, drift + TAIL, bullProb),
+    bear: mk("Bear", drift - TAIL, drift - IQR, bearProb),
+  };
+}
+
+/**
+ * Explicit conviction bucket: how much to trust the signal. Driven by the
+ * distance of the score from neutral (edge), the projection confidence, and the
+ * regime — a hot-volatility regime caps conviction at "Speculative".
+ */
+function deriveConviction(input: {
+  score: number;
+  confidence: number;
+  regime: MarketRegime;
+}): { level: ConvictionLevel; reason: string } {
+  const { score, confidence, regime } = input;
+  const edge = Math.abs(score - 50); // 0 (neutral) … 48 (extreme)
+  if (regime === "High Volatility" || confidence < 48) {
+    return {
+      level: "Speculative",
+      reason:
+        regime === "High Volatility"
+          ? "elevated realised volatility widens the outcome range — size positions small"
+          : "low model confidence in the current tape",
+    };
+  }
+  if (edge >= 20 && confidence >= 68) {
+    return { level: "High", reason: `strong directional edge (score ${score}/100) with ${confidence}% model confidence` };
+  }
+  if (edge >= 10 && confidence >= 55) {
+    return { level: "Moderate", reason: `a moderate edge (score ${score}/100) confirmed across indicators` };
+  }
+  return { level: "Low", reason: "signals are mixed with no decisive edge this week" };
+}
+
 /* ------------------------------ Signal logic ---------------------------- */
 
 function deriveSignal(input: {
@@ -858,6 +1085,11 @@ export function analyzeSecurity(
   const macdSignal: SecurityIntel["macdSignal"] =
     macd.histogram > 0.001 ? "Bullish" : macd.histogram < -0.001 ? "Bearish" : "Neutral";
 
+  // Volatility & structural levels.
+  const atrPct = computeATRpct(series);
+  const vol = computeRealizedVol(series, 30);
+  const levels = computeLevels(series, last);
+
   const { signal, score, reasoning } = deriveSignal({
     rsi,
     macdHistogram: macd.histogram,
@@ -865,6 +1097,22 @@ export function analyzeSecurity(
     projected7dPct: projection.pct,
     bbPosition: boll.position,
   });
+
+  const regime = deriveRegime({
+    vsSma20,
+    vsSma50,
+    dailyVolPct: vol.daily,
+    projected7dPct: projection.pct,
+    assetClass,
+  });
+  const outlook = buildOutlook({
+    price: last,
+    projected7dPct: projection.pct,
+    dailyVolPct: vol.daily,
+    score,
+    regime,
+  });
+  const conviction = deriveConviction({ score, confidence: projection.confidence, regime });
 
   const dp = last < 5 ? 4 : 2;
   const history: SeriesPoint[] = series.slice(-30).map((p, i) => ({
@@ -902,8 +1150,18 @@ export function analyzeSecurity(
     vsSma20,
     sma50: round(sma50, dp),
     vsSma50,
+    atrPct,
+    realizedVolPct: vol.annual,
+    dailyVolPct: vol.daily,
+    regime,
+    support: levels.support,
+    resistance: levels.resistance,
+    pivot: levels.pivot,
+    outlook,
     signal,
     score,
+    conviction: conviction.level,
+    convictionReason: conviction.reason,
     reasoning,
   };
   CACHE.set(key, intel);
