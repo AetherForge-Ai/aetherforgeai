@@ -3,7 +3,6 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
 import { lookupTicker, normalizeTicker, referencePrice } from "@/lib/market";
-import { seedStarterPortfolioIfNeeded } from "@/lib/seed";
 import {
   fetchLivePrice,
   fetchLiveQuotes,
@@ -130,9 +129,10 @@ export async function GET(req: Request) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
 
-    // First-visit onboarding: seed a starter portfolio so the dashboard
-    // isn't empty. Guarded by the user's `onboarded` flag.
-    const seeded = await seedStarterPortfolioIfNeeded(user._id);
+    // NOTE: brand-new accounts start with an EMPTY portfolio. We deliberately do
+    // NOT auto-seed sample holdings — injecting tickers the user never bought
+    // corrupts their real portfolio, cash balance and P&L. The dashboard shows a
+    // friendly empty state prompting them to add their first holding instead.
 
     const assetType = new URL(req.url).searchParams.get("asset_type");
 
@@ -154,9 +154,6 @@ export async function GET(req: Request) {
     // Legacy rows without asset_type are treated as stock.
     if (assetType === "stock" || assetType === "crypto") {
       stocks = stocks.filter((s) => (s.asset_type || "stock") === assetType);
-    }
-    if (seeded) {
-      console.log(`[api/stocks] Seeded starter portfolio; now ${stocks.length} holdings`);
     }
     console.log(
       `[api/stocks] GET returned ${stocks.length} holdings for user ${user._id} (filter: ${assetType || "all"})`
