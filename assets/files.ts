@@ -39,9 +39,9 @@ export const LOGO_MARK_SVG = `
 // — used as the cinematic hero backdrop on the About page.
 export const ABOUT_HERO_IMG =
   "https://images.unsplash.com/photo-1444080748397-f442aa95c3e5?auto=format&fit=crop&w=2000&q=80";
-// Warm, approachable portrait for the founder's "Our Story" section.
+// The founder's real portrait — shown in the "Our Story" section of the About page.
 export const FOUNDER_PORTRAIT_IMG =
-  "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=900&q=80";
+  "https://storage.googleapis.com/totalum-live-bucket/aetherforgeai/files/me.jpg?GoogleAccessId=totalum-live%40totalum-live.iam.gserviceaccount.com&Expires=2098804682&Signature=NTahwc19sDZ3fY9WcuaONDjzqDrA%2BJeSXfjF%2FXQccxcsr63dwR3GbvsZuH5jX8zYXW5qdg%2FXr9p2iOSFHXXi%2FHYipI5KVa9D2ewYhKqwLKYiwQgAGcmWOxJIOhxul91UZ%2B%2BuT72dPt9Ozrlk2wQg9GYlsq0j4qgG9oKqrdtcIXSPMr%2FqCndQSNBp825ck592QALkozTEPQ2EXh8haRkAwPZ38JB9fZeKgusNo04i7ayeTzRhMASs%2B9rbxXV%2F2PGvoaG8SbfuRUx1B45K5e6VdiuW2Z83ptZcGuNPCA7WvSmxfing8QfwffSf5bAmapsGGIvBCW0wnboYcaZRZOJfPg%3D%3D";
 
 // AI-generated Apex bot mascots (cartoon geeks deep in thought).
 export const BOT_STOCK_MASCOT =
