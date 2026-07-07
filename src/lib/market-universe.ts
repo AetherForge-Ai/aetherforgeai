@@ -221,15 +221,22 @@ export function buildCryptoMoverBoards(coins: CoinMarket[]): CryptoMoverBoards {
   };
 }
 
-/* ============================ STOCKS (NZX / ASX) ======================== */
-
-/** The NZX + ASX universe (drops the US names) — the trial's stock scope. */
-export const NZX_ASX_UNIVERSE = MARKET_UNIVERSE.filter((e) => e.market === "NZX" || e.market === "ASX");
+/* ==================== STOCKS (NZX / ASX / DOW / NASDAQ) ================= */
 
 /**
- * Sweep the entire NZX + ASX universe. Live Twelve Data quotes are overlaid
- * where available; every name is then run through the deterministic technical
- * engine so the report always has a full-market movers board + signals.
+ * The full stock universe swept by the ZENITH engine — the complete NZX + ASX
+ * boards plus the Dow Jones 30 and Nasdaq-100 US constituents. This is the
+ * "consider all stocks across ASX, NZX, DOW JONES and NASDAQ" scope.
+ */
+export const NZX_ASX_UNIVERSE = MARKET_UNIVERSE.filter(
+  (e) => e.market === "NZX" || e.market === "ASX" || e.market === "US"
+);
+
+/**
+ * Sweep the entire NZX + ASX + US (Dow/Nasdaq) universe. Live Twelve Data
+ * quotes are overlaid where available; every name is then run through the
+ * deterministic technical engine so the report always has a full-market
+ * movers board + signals across all four exchanges.
  */
 export async function fetchStockUniverse(): Promise<{ intel: SecurityIntel[]; boards: StockMoverBoards }> {
   const tickers = NZX_ASX_UNIVERSE.map((e) => e.ticker);

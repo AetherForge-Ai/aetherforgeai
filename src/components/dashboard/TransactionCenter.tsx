@@ -15,8 +15,9 @@ import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
 import { formatMoney, currencyForTicker, type CurrencyCode } from "@/lib/currency";
 import { formatNumber, type Stock } from "@/lib/portfolio";
-import { TICKER_DIRECTORY, lookupTicker } from "@/lib/market";
+import { lookupTicker } from "@/lib/market";
 import { CRYPTO_DIRECTORY } from "@/lib/apex";
+import { TickerSearch } from "@/components/dashboard/TickerSearch";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -531,23 +532,41 @@ function TransactionDialog({
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="tx-ticker">Ticker</Label>
-                <Input
-                  id="tx-ticker"
-                  list="tx-ticker-suggestions"
-                  placeholder={assetType === "crypto" ? "e.g. BTC" : "e.g. NVDA, BHP.AX, AIR.NZ"}
-                  value={ticker}
-                  onChange={(e) => setTicker(e.target.value.toUpperCase())}
-                  onBlur={handleBuyTickerBlur}
-                  className="uppercase"
-                />
-                <datalist id="tx-ticker-suggestions">
-                  {(assetType === "crypto" ? CRYPTO_DIRECTORY : TICKER_DIRECTORY).map((t) => (
-                    <option key={t.ticker} value={t.ticker}>
-                      {t.name}
-                    </option>
-                  ))}
-                </datalist>
+                <Label htmlFor="tx-ticker">Company / Ticker</Label>
+                {assetType === "crypto" ? (
+                  <>
+                    <Input
+                      id="tx-ticker"
+                      list="tx-ticker-suggestions"
+                      placeholder="e.g. BTC, ETH, SOL"
+                      value={ticker}
+                      onChange={(e) => setTicker(e.target.value.toUpperCase())}
+                      onBlur={handleBuyTickerBlur}
+                      className="uppercase"
+                    />
+                    <datalist id="tx-ticker-suggestions">
+                      {CRYPTO_DIRECTORY.map((t) => (
+                        <option key={t.ticker} value={t.ticker}>
+                          {t.name}
+                        </option>
+                      ))}
+                    </datalist>
+                  </>
+                ) : (
+                  <>
+                    <TickerSearch
+                      value={ticker}
+                      label={assetName}
+                      onSelect={(m) => {
+                        setTicker(m.symbol.toUpperCase());
+                        setAssetName(m.name);
+                      }}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Every ASX, NZX, NASDAQ &amp; NYSE company — search by name or ticker.
+                    </p>
+                  </>
+                )}
               </div>
             </>
           )}

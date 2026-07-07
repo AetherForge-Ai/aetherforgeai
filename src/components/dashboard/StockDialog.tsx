@@ -14,8 +14,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
-import { TICKER_DIRECTORY, lookupTicker } from "@/lib/market";
+import { lookupTicker } from "@/lib/market";
 import { CRYPTO_DIRECTORY } from "@/lib/apex";
+import { TickerSearch } from "@/components/dashboard/TickerSearch";
 import type { Stock } from "@/lib/portfolio";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -190,24 +191,39 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
 
           <div className="space-y-2">
             <Label htmlFor="ticker">{copy.symbolLabel}</Label>
-            <Input
-              id="ticker"
-              list="ticker-suggestions"
-              placeholder={copy.symbolPlaceholder}
-              value={ticker}
-              disabled={isEdit}
-              onChange={(e) => setTicker(e.target.value.toUpperCase())}
-              onBlur={handleTickerBlur}
-              className="uppercase"
-            />
+            {isCrypto || isEdit ? (
+              <>
+                <Input
+                  id="ticker"
+                  list="ticker-suggestions"
+                  placeholder={copy.symbolPlaceholder}
+                  value={ticker}
+                  disabled={isEdit}
+                  onChange={(e) => setTicker(e.target.value.toUpperCase())}
+                  onBlur={handleTickerBlur}
+                  className="uppercase"
+                />
+                {isCrypto && (
+                  <datalist id="ticker-suggestions">
+                    {CRYPTO_DIRECTORY.map((t) => (
+                      <option key={t.ticker} value={t.ticker}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </datalist>
+                )}
+              </>
+            ) : (
+              <TickerSearch
+                value={ticker}
+                label={companyName}
+                onSelect={(m) => {
+                  setTicker(m.symbol.toUpperCase());
+                  setCompanyName(m.name);
+                }}
+              />
+            )}
             <p className="text-xs leading-relaxed text-muted-foreground">{copy.symbolHint}</p>
-            <datalist id="ticker-suggestions">
-              {(isCrypto ? CRYPTO_DIRECTORY : TICKER_DIRECTORY).map((t) => (
-                <option key={t.ticker} value={t.ticker}>
-                  {t.name}
-                </option>
-              ))}
-            </datalist>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
