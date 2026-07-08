@@ -76,6 +76,10 @@ export const PROOF_CRYPTO_IMG =
   "https://storage.googleapis.com/totalum-live-bucket/aetherforgeai/files/3.jpg?GoogleAccessId=totalum-live%40totalum-live.iam.gserviceaccount.com&Expires=2098838545&Signature=EuNVt%2F2C2Mxw%2Fwm1E77K7P1E5QKfP3%2FMs%2BJWzx3GOmJaFadc%2Bz5ptwPVduKHCtXc5V1KdMQ6Ha2p4kZH5VtAiEi53pf4NeF4nC3cpK4gVW0qvv%2F6Nz7fGWLqGUElebhhtmfMNcpW%2FqRySfX1ca%2Fixp2S8eEZexyria%2FEnI1DNHPb%2BjRpwI0a1xifhNv40QJaja2EC9B6a1elBM0bGV4Za81%2BRYiK2uQ4O04OolLdsu4vG%2FcqpujuH4nYzUYw19nonXtwUZ8EAI1blTQFAFQXde5i3w3J22t2%2F9lLc0dxtUCdNXtPnaElrrjZ%2Fq7bGMZr13DyPigNzCh%2F20a6coWmgg%3D%3D";
 export const PROOF_STOCK_IMG =
   "https://storage.googleapis.com/totalum-live-bucket/aetherforgeai/files/4.jpg?GoogleAccessId=totalum-live%40totalum-live.iam.gserviceaccount.com&Expires=2098838551&Signature=4oycUu6BnKIFaNpiHJrX3ywWX0WaWs6qTy2KfydqgCKJkCnZm7CQ9o6JwVoXBCgWDwdFPOWDt8qX9MJ%2FBKg2WqlLKqyflsv9nspLruij048JOfupQkMmdaHnnJCwt1j4HoYeYj0HSnyHypp%2F42qnubOzs%2BpcswNa%2BIa1BiQtPmDX4f9a6g04eNYcw3%2FZj11qyytkAu4ATzQQPy0XaWKD9EC8ShYhNEWSzYiDRfLb%2Fy83Yav8%2B6F47pYSspv2YPFvPHIsS9X1FST%2F92vM3hys4CNHtc0eNBo%2FzqNh5DCNN%2BCH5baC79Y3RltUn1IWUZT1d3nxH%2BKIpxblNrxcWHHcGw%3D%3D";
+// Final shot of the day — 3:47pm, 8 Jul 2026. Stock book at NZ$56,871.96 with
+// unrealised P&L NZ$1,836.51; total net worth NZ$101,931.77, the day's high.
+export const PROOF_CLOSE_IMG =
+  "https://storage.googleapis.com/totalum-live-bucket/aetherforgeai/files/3.47.jpg?GoogleAccessId=totalum-live%40totalum-live.iam.gserviceaccount.com&Expires=2098842603&Signature=rFWpkQYWNRDvIqspS%2B0s%2B8J1DrK4CO3Kilq46IFFTWjbFfMMmCuCVGufiq7PLIkdWBElCL02xD2LxW%2FR7otjwQLaLMBwrdJ3R4M9ik7M2cK27%2FLrz71N%2FOyBYGDgN1uoNAaf7wC9f4ujfbWS6meU%2B81ZLxRMQ%2FITuBDv1deh6CBE2i4ZQ0spBCm2wuZmgJAtmMTDPctBjr3QQt519VBhItRMaZd%2BAc%2BNGKpavjmxENHh%2FTkbDaTZoieIojX8PSUCLJndLpJVOFOk2d%2BO6xKa7vOWxU9HY6uj2RGvVDl6DoZstDQlh3kRlGmJhA41%2B3AP6F2PrSeVEfKMr8fKVpsvhw%3D%3D";
 
 export const files = {
   logoMarkImg: LOGO_MARK_IMG,
@@ -93,6 +97,7 @@ export const files = {
   proofNetworthImg: PROOF_NETWORTH_IMG,
   proofCryptoImg: PROOF_CRYPTO_IMG,
   proofStockImg: PROOF_STOCK_IMG,
+  proofCloseImg: PROOF_CLOSE_IMG,
 } as const;
 
 export default files;

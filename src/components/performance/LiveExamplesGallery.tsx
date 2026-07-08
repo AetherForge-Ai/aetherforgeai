@@ -7,6 +7,7 @@ import {
   PROOF_NETWORTH_IMG,
   PROOF_CRYPTO_IMG,
   PROOF_STOCK_IMG,
+  PROOF_CLOSE_IMG,
 } from "../../../assets/files";
 
 type Proof = {
@@ -63,6 +64,17 @@ const PROOFS: Proof[] = [
       "Stocks, crypto, metals and cash tracked simultaneously for one complete, real-time picture.",
       "The same health, volatility, Sharpe and win-rate analytics applied across your equities book.",
       "Three timestamped snapshots, one clear upward line — proof the numbers are live, not static marketing.",
+    ],
+  },
+  {
+    src: PROOF_CLOSE_IMG,
+    alt: "Live portfolio bot performance proof — total net worth NZ$101,931 with NZ$1,836 unrealised profit, tracked today 8 July 2026 at 3:47pm",
+    title: "3:47pm — Net Worth NZ$101,931, the Day's High With +NZ$1,836 in Profit",
+    badge: "Captured today · 8/7/2026 · 3:47pm",
+    points: [
+      "The portfolio kept climbing: net worth ticked up again to NZ$101,931.77 — the highest reading of the day.",
+      "Unrealised profit of +NZ$1,836.51 on the stock book, with a standout Sharpe ratio of 2.96 and a 100% win rate on open positions.",
+      "From NZ$100,429 this morning to NZ$101,931 now — the same portfolio, tracked live and rising through the session.",
     ],
   },
 ];
