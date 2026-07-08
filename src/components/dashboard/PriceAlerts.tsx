@@ -90,9 +90,9 @@ interface LiveQuote {
   changePct: number | null;
 }
 
-export function PriceAlerts({ stocks }: { stocks: Stock[] }) {
+export function PriceAlerts({ stocks, preview = false }: { stocks: Stock[]; preview?: boolean }) {
   const [alerts, setAlerts] = React.useState<PriceAlert[]>([]);
-  const [loading, setLoading] = React.useState(true);
+  const [loading, setLoading] = React.useState(!preview);
   const [open, setOpen] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [editingId, setEditingId] = React.useState<string | null>(null);
@@ -113,11 +113,12 @@ export function PriceAlerts({ stocks }: { stocks: Stock[] }) {
   );
 
   const load = React.useCallback(async () => {
+    if (preview) return; // guest preview: no live alerts fetch
     const res = await api.get<PriceAlert[]>("/api/alerts");
     if (res.ok && res.data) setAlerts(res.data);
     else console.error("[PriceAlerts] load failed:", res.error);
     setLoading(false);
-  }, []);
+  }, [preview]);
 
   React.useEffect(() => {
     load();

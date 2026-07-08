@@ -87,6 +87,7 @@ export function ReportCenter({
   scope,
   counts,
   tickerLimit,
+  preview = false,
 }: {
   botAccess: BotAccess;
   plan?: string | null;
@@ -95,6 +96,8 @@ export function ReportCenter({
   tickerLimit?: number | null;
   /** Retained for API compatibility with the dashboard; holdings are edited in the Transaction Center now. */
   onHoldingsChanged?: () => void;
+  /** Guest preview — read-only, no network calls. */
+  preview?: boolean;
 }) {
   const [running, setRunning] = React.useState<BotKind | null>(null);
   const [report, setReport] = React.useState<ApexReport | null>(null);
@@ -114,6 +117,7 @@ export function ReportCenter({
   const reportLocked = !reportQuota.allowed;
 
   const loadHistory = React.useCallback(async () => {
+    if (preview) return; // guest preview: no live report history fetch
     const res = await api.get<ReportsResponse>("/api/reports");
     if (res.ok && res.data) {
       setHistory(res.data.reports || []);
@@ -121,7 +125,7 @@ export function ReportCenter({
     } else {
       console.error("[ReportCenter] Failed to load report history:", res.error);
     }
-  }, []);
+  }, [preview]);
 
   React.useEffect(() => {
     loadHistory();

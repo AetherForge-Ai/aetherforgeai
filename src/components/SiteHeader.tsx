@@ -36,6 +36,9 @@ export function SiteHeader() {
             <Link href="/pricing" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
               Pricing
             </Link>
+            <Link href="/dashboard" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
+              Dashboard
+            </Link>
           </nav>
 
           <div className="flex items-center gap-2">

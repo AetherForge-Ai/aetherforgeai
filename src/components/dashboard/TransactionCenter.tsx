@@ -126,6 +126,7 @@ export function TransactionCenter({
   holdings,
   onChanged,
   reloadSignal,
+  preview = false,
 }: {
   /** Current holdings (both bots) — used to power the Sell picker. */
   holdings: Stock[];
@@ -133,13 +134,16 @@ export function TransactionCenter({
   onChanged: () => void;
   /** Increment to force a ledger reload (e.g. after a metals buy/sell elsewhere). */
   reloadSignal?: number;
+  /** Guest preview — read-only, no network calls. */
+  preview?: boolean;
 }) {
   const [ledger, setLedger] = useState<Ledger | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!preview);
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<TxType>("buy");
 
   const load = useCallback(async () => {
+    if (preview) return; // guest preview: no live ledger fetch
     setLoading(true);
     const res = await api.get<Ledger>("/api/transactions");
     if (res.ok && res.data) {
@@ -148,7 +152,7 @@ export function TransactionCenter({
       console.error("[transaction-center] Failed to load ledger:", res.error);
     }
     setLoading(false);
-  }, []);
+  }, [preview]);
 
   useEffect(() => {
     load();

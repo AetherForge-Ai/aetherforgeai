@@ -25,10 +25,18 @@ interface WatchItem {
   market: string;
 }
 
-export function WatchlistPanel({ bot, reloadSignal = 0 }: { bot: AssetClass; reloadSignal?: number }) {
+export function WatchlistPanel({
+  bot,
+  reloadSignal = 0,
+  preview = false,
+}: {
+  bot: AssetClass;
+  reloadSignal?: number;
+  preview?: boolean;
+}) {
   const { universe } = useMarketIntel();
   const [items, setItems] = React.useState<WatchItem[]>([]);
-  const [loading, setLoading] = React.useState(true);
+  const [loading, setLoading] = React.useState(!preview);
   const [ticker, setTicker] = React.useState("");
   const [adding, setAdding] = React.useState(false);
 
@@ -39,12 +47,13 @@ export function WatchlistPanel({ bot, reloadSignal = 0 }: { bot: AssetClass; rel
   }, [universe]);
 
   const load = React.useCallback(async () => {
+    if (preview) return; // guest preview: no live watchlist fetch
     setLoading(true);
     const res = await api.get<WatchItem[]>(`/api/watchlist?asset_type=${bot}`);
     if (res.ok && res.data) setItems(res.data);
     else console.error("[WatchlistPanel] load failed:", res.error);
     setLoading(false);
-  }, [bot]);
+  }, [bot, preview]);
 
   React.useEffect(() => {
     load();

@@ -32,6 +32,7 @@ import { NewsFeed } from "@/components/dashboard/NewsFeed";
 import { MarketIntelProvider } from "@/components/dashboard/MarketIntelContext";
 import { WatchlistPanel } from "@/components/dashboard/WatchlistPanel";
 import { GlobalSearch } from "@/components/dashboard/GlobalSearch";
+import { LockedSection } from "@/components/dashboard/LockedSection";
 import type { AssetClass, UniverseEntry } from "@/lib/market-intel";
 import { Button } from "@/components/ui/button";
 import {
@@ -189,15 +190,31 @@ function MiniMetric({
   );
 }
 
+// Representative demo portfolio shown to logged-out visitors so the gated
+// sections render with believable, populated data behind the lock overlays
+// (never empty). No network calls are made in preview mode.
+const PREVIEW_STOCKS: Stock[] = [
+  { _id: "demo-peb", ticker: "PEB.NZ", asset_type: "stock", company_name: "Pacific Edge", sector: "Healthcare", shares: 20000, purchase_price: 0.30, current_price: 0.37 },
+  { _id: "demo-sto", ticker: "STO.AX", asset_type: "stock", company_name: "Santos", sector: "Energy", shares: 500, purchase_price: 7.2, current_price: 7.85 },
+  { _id: "demo-cdw", ticker: "CDW", asset_type: "stock", company_name: "CDW Corporation", sector: "Technology", shares: 40, purchase_price: 210, current_price: 235 },
+  { _id: "demo-sol", ticker: "SOL", asset_type: "crypto", company_name: "Solana", sector: "Layer 1", shares: 45, purchase_price: 175, current_price: 208 },
+  { _id: "demo-ada", ticker: "ADA", asset_type: "crypto", company_name: "Cardano", sector: "Layer 1", shares: 8000, purchase_price: 0.55, current_price: 0.62 },
+];
+const PREVIEW_CASH_NZD = 12480.55;
+const PREVIEW_METALS_NZD = 14808.0;
+
 export function PortfolioDashboard({
   userName,
   subscription,
   metalsEntitled,
+  preview = false,
 }: {
   userName: string;
   subscription: DashboardSubscription;
   /** Precious-metals bonus is unlocked for active paying members (or demo mode). */
   metalsEntitled: boolean;
+  /** Guest preview — dashboard is visible but the member sections are locked. */
+  preview?: boolean;
 }) {
   // Active bot (Stock or Crypto). Defaults to the only bot the plan unlocks.
   const defaultBot: AssetClass = subscription.botAccess === "crypto" ? "crypto" : "stock";
@@ -229,12 +246,12 @@ export function PortfolioDashboard({
   // We load ALL holdings (both bots) so we can enforce the plan's ticker quota
   // correctly — the free tier counts stocks + crypto together. The active bot's
   // holdings are derived below.
-  const [allStocks, setAllStocks] = useState<Stock[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [allStocks, setAllStocks] = useState<Stock[]>(preview ? PREVIEW_STOCKS : []);
+  const [loading, setLoading] = useState(!preview);
   const [refreshing, setRefreshing] = useState(false);
   // Cash (NZD) + precious-metals value (NZD) power the "Totals owned" strip.
-  const [cashBalance, setCashBalance] = useState(0);
-  const [metalsValueNZD, setMetalsValueNZD] = useState(0);
+  const [cashBalance, setCashBalance] = useState(preview ? PREVIEW_CASH_NZD : 0);
+  const [metalsValueNZD, setMetalsValueNZD] = useState(preview ? PREVIEW_METALS_NZD : 0);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Stock | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Stock | null>(null);
@@ -319,10 +336,11 @@ export function PortfolioDashboard({
   }, []);
 
   useEffect(() => {
+    if (preview) return; // guest preview uses seeded demo data — no network calls
     loadStocks();
     loadCash();
     loadMetals();
-  }, [loadStocks, loadCash, loadMetals]);
+  }, [preview, loadStocks, loadCash, loadMetals]);
 
   // Called whenever holdings or cash change (transactions, edits, deletes).
   const handleDataChanged = useCallback(() => {
@@ -438,18 +456,46 @@ export function PortfolioDashboard({
     { key: "crypto", label: "Crypto Bot", icon: Bitcoin },
   ];
 
+  // In guest preview, the named member sections are shown but locked behind an
+  // overlay; otherwise they render normally.
+  const Gate = ({
+    title,
+    description,
+    children,
+  }: {
+    title: string;
+    description?: string;
+    children: React.ReactNode;
+  }) =>
+    preview ? (
+      <LockedSection title={title} description={description}>
+        {children}
+      </LockedSection>
+    ) : (
+      <>{children}</>
+    );
+
   return (
     <MarketIntelProvider bot={bot}>
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
       {/* Header */}
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-sm text-muted-foreground">Welcome back, {userName.split(" ")[0]}</p>
-          <h1 className="mt-1 font-display text-3xl font-bold tracking-tight">
+      <div className="flex flex-wrap items-end justify-between gap-3 sm:gap-4">
+        <div className="min-w-0">
+          <p className="text-sm text-muted-foreground">
+            {preview ? "Live preview" : `Welcome back, ${userName.split(" ")[0]}`}
+          </p>
+          <h1 className="mt-1 font-display text-2xl font-bold tracking-tight sm:text-3xl">
             {bot === "crypto" ? "Crypto portfolio" : "Stock portfolio"} overview
           </h1>
         </div>
-        <div className="flex items-center gap-2">
+        {preview ? (
+          <Button asChild className="font-semibold shadow-glow">
+            <Link href="/register">
+              <Sparkles className="mr-2 size-4" /> Create free account
+            </Link>
+          </Button>
+        ) : (
+        <div className="flex flex-wrap items-center gap-2">
           <GlobalSearch onPick={handleSearchPick} />
           <Button
             variant="outline"
@@ -475,9 +521,37 @@ export function PortfolioDashboard({
             </Button>
           )}
         </div>
+        )}
       </div>
 
-      {/* ───────────────────────── 1 · Active subscription plan details ───────────────────────── */}
+      {/* ───────────────────────── 1 · Preview banner (guests) OR subscription details ───────────────────────── */}
+      {preview ? (
+        <div className="mt-6 overflow-hidden rounded-3xl border border-primary/30 bg-gradient-to-br from-primary/12 via-card/50 to-card/50 p-6 shadow-glow sm:p-7">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+                <Sparkles className="size-4" /> You're viewing a live preview
+              </div>
+              <h2 className="mt-2 font-display text-xl font-bold tracking-tight sm:text-2xl">
+                Create a free account to unlock your dashboard
+              </h2>
+              <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-muted-foreground">
+                Explore everything below. Your portfolio overview, holdings, transaction centre,
+                alerts and report centre are member features — sign up to activate them and start
+                tracking live across NZX, ASX, US equities, crypto &amp; metals.
+              </p>
+            </div>
+            <div className="flex shrink-0 flex-col gap-2 sm:w-auto">
+              <Button asChild className="font-semibold shadow-glow">
+                <Link href="/register">Create free account</Link>
+              </Button>
+              <Button asChild variant="outline" className="font-semibold">
+                <Link href="/login">Sign in</Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : (
       <div className="mt-6 rounded-3xl border border-border/70 bg-gradient-to-br from-primary/8 to-card/50 p-6">
         <div className="flex items-center gap-2 text-sm font-semibold">
           <BadgeCheck className="size-4 text-primary" /> Your subscription
@@ -557,6 +631,7 @@ export function PortfolioDashboard({
           )}
         </div>
       </div>
+      )}
 
       {/* ───────────────────────── 2 · Market news ───────────────────────── */}
       <div className="mt-8">
@@ -569,9 +644,14 @@ export function PortfolioDashboard({
         <NewsFeed />
       </div>
 
-      {/* ───────────────────────── 3 · Portfolio overview ───────────────────────── */}
-      <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="font-display text-xl font-bold tracking-tight">
+      {/* ───────────────────────── 3 · Portfolio overview (gated for guests) ───────────────────────── */}
+      <div className="mt-8">
+      <Gate
+        title="Stock Portfolio Overview"
+        description="Your live KPIs — total worth, unrealised P&L, 7-day alpha, portfolio health, Sharpe & win rate."
+      >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-display text-lg font-bold tracking-tight sm:text-xl">
           {bot === "crypto" ? "Crypto" : "Stock"} portfolio overview
         </h2>
         {/* Bot switcher — Stock ⇄ Crypto */}
@@ -660,6 +740,8 @@ export function PortfolioDashboard({
           <MiniMetric icon={Trophy} label="Win rate" value={`${metrics.winRate}%`} />
         </div>
       )}
+      </Gate>
+      </div>
 
       {/* ───────────────────────── 4 · Totals owned (Stocks · Crypto · Cash · Metals) ───────────────────────── */}
       <div className="mt-8 rounded-3xl border border-border/70 bg-gradient-to-br from-primary/8 to-card/50 p-6">
@@ -749,8 +831,13 @@ export function PortfolioDashboard({
         )}
       </div>
 
-      {/* ───────────────────────── 5 · Holdings table ───────────────────────── */}
-      <div className="mt-8 rounded-3xl border border-border/70 bg-card/50">
+      {/* ───────────────────────── 5 · Holdings table (gated for guests) ───────────────────────── */}
+      <div className="mt-8">
+      <Gate
+        title="Your Holdings"
+        description="Track every position live — shares, cost, current price, market value and gain/loss."
+      >
+      <div className="rounded-3xl border border-border/70 bg-card/50">
         <div className="flex items-center justify-between border-b border-border/60 px-6 py-4">
           <h2 className="font-display text-lg font-bold">Your holdings</h2>
           <span className="text-xs text-muted-foreground">{summary.holdingsCount} positions</span>
@@ -888,10 +975,22 @@ export function PortfolioDashboard({
           </div>
         )}
       </div>
+      </Gate>
+      </div>
 
-      {/* ───────────────────────── 6 · Transaction centre (buy / sell / cash) ───────────────────────── */}
+      {/* ───────────────────────── 6 · Transaction centre (buy / sell / cash) — gated for guests ───────────────────────── */}
       <div className="mt-8">
-        <TransactionCenter holdings={allStocks} onChanged={handleDataChanged} reloadSignal={ledgerSignal} />
+      <Gate
+        title="Transaction Centre"
+        description="Buy, sell, deposit and withdraw — a full ledger of your cash and trades across every asset."
+      >
+        <TransactionCenter
+          holdings={allStocks}
+          onChanged={handleDataChanged}
+          reloadSignal={ledgerSignal}
+          preview={preview}
+        />
+      </Gate>
       </div>
 
       {/* Precious Metals — bonus for active paying members (gold & silver) */}
@@ -919,12 +1018,19 @@ export function PortfolioDashboard({
         <ProjectionsPanel />
       </div>
 
-      {/* ───────────────────────── 10 · Watchlist & share-price alerts ───────────────────────── */}
+      {/* ───────────────────────── 10 · Watchlist & share-price alerts (gated for guests) ───────────────────────── */}
       <div className="mt-6">
-        <WatchlistPanel bot={bot} reloadSignal={watchlistSignal} />
+      <Gate
+        title="Alerts"
+        description="Set live share-price alerts and a watchlist so you never miss a move on the tickers you follow."
+      >
+      <div>
+        <WatchlistPanel bot={bot} reloadSignal={watchlistSignal} preview={preview} />
       </div>
       <div className="mt-6">
-        <PriceAlerts stocks={stocks} />
+        <PriceAlerts stocks={stocks} preview={preview} />
+      </div>
+      </Gate>
       </div>
 
       {/* AI report companion */}
@@ -932,8 +1038,12 @@ export function PortfolioDashboard({
         <AnalysisPanel holdingsCount={summary.holdingsCount} />
       </div>
 
-      {/* ───────────────────────── 11 · Report Center (Totalum + Stox + Koins) — at the bottom ───────────────────────── */}
+      {/* ───────────────────────── 11 · Report Center (Totalum + Stox + Koins) — gated for guests ───────────────────────── */}
       <div className="mt-8">
+      <Gate
+        title="Report Centre"
+        description="Generate full PDF portfolio reports with market intelligence, indicators and AI insight — emailed to you."
+      >
         <ReportCenter
           botAccess={subscription.botAccess}
           plan={subscription.plan}
@@ -941,7 +1051,9 @@ export function PortfolioDashboard({
           counts={holdingCounts}
           tickerLimit={tickerLimit}
           onHoldingsChanged={handleDataChanged}
+          preview={preview}
         />
+      </Gate>
       </div>
 
       <StockDialog

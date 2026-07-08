@@ -172,6 +172,30 @@ function SidebarToolkit({ user }: { user: ShellUser }) {
   );
 }
 
+/** Sidebar panel shown to logged-out visitors previewing the dashboard. */
+function GuestPanel() {
+  return (
+    <div className="rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/10 to-card/50 p-4">
+      <div className="flex items-center gap-2">
+        <Sparkles className="size-4 text-primary" />
+        <span className="text-sm font-semibold">Live preview</span>
+      </div>
+      <p className="mt-1 text-xs text-muted-foreground">
+        You&apos;re exploring AetherForge as a guest. Create a free account to unlock your portfolio,
+        alerts and reports.
+      </p>
+      <div className="mt-3 space-y-2">
+        <Button asChild size="sm" className="h-8 w-full text-xs font-semibold shadow-glow">
+          <Link href="/register">Create free account</Link>
+        </Button>
+        <Button asChild size="sm" variant="outline" className="h-8 w-full text-xs font-semibold">
+          <Link href="/login">Sign in</Link>
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function UserFooter({ user }: { user: ShellUser }) {
   return (
     <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-card/40 px-3 py-2.5">
@@ -197,7 +221,16 @@ function UserFooter({ user }: { user: ShellUser }) {
   );
 }
 
-export function AppShell({ user, children }: { user: ShellUser; children: ReactNode }) {
+export function AppShell({
+  user,
+  children,
+  guest = false,
+}: {
+  user: ShellUser;
+  children: ReactNode;
+  /** Logged-out preview — swaps the account footer for sign-up CTAs. */
+  guest?: boolean;
+}) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -214,9 +247,15 @@ export function AppShell({ user, children }: { user: ShellUser; children: ReactN
             <NavLinks pathname={pathname} />
           </div>
           <div className="space-y-3">
-            <SidebarToolkit user={user} />
-            <PlanCard user={user} />
-            <UserFooter user={user} />
+            {guest ? (
+              <GuestPanel />
+            ) : (
+              <>
+                <SidebarToolkit user={user} />
+                <PlanCard user={user} />
+                <UserFooter user={user} />
+              </>
+            )}
           </div>
         </aside>
 
@@ -242,9 +281,15 @@ export function AppShell({ user, children }: { user: ShellUser; children: ReactN
                   <NavLinks pathname={pathname} onNavigate={() => setMobileOpen(false)} />
                 </div>
                 <div className="mt-6 space-y-3">
-                  <SidebarToolkit user={user} />
-                  <PlanCard user={user} />
-                  <UserFooter user={user} />
+                  {guest ? (
+                    <GuestPanel />
+                  ) : (
+                    <>
+                      <SidebarToolkit user={user} />
+                      <PlanCard user={user} />
+                      <UserFooter user={user} />
+                    </>
+                  )}
                 </div>
               </SheetContent>
             </Sheet>
