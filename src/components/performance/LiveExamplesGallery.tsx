@@ -1,14 +1,29 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { X, Clock, ShieldCheck, CheckCircle2, ChevronLeft, ChevronRight, Maximize2 } from "lucide-react";
+import {
+  X,
+  Clock,
+  ShieldCheck,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Maximize2,
+  FolderOpen,
+  CalendarDays,
+} from "lucide-react";
 import {
   PROOF_TRANSACTIONS_IMG,
   PROOF_NETWORTH_IMG,
   PROOF_CRYPTO_IMG,
   PROOF_STOCK_IMG,
   PROOF_CLOSE_IMG,
+  PROOF_OVERVIEW_IMG,
+  PROOF_HOLDINGS_IMG,
 } from "../../../assets/files";
+
+// The dated "folder" all of today's captures live under.
+const TODAY_LABEL = "8/7/2026";
 
 type Proof = {
   src: string;
@@ -77,6 +92,28 @@ const PROOFS: Proof[] = [
       "From NZ$100,429 this morning to NZ$101,931 now — the same portfolio, tracked live and rising through the session.",
     ],
   },
+  {
+    src: PROOF_OVERVIEW_IMG,
+    alt: "AI trading bot accurate NZX and ASX portfolio overview today — total net worth NZ$102,421 with live news sentiment and Sharpe ratio",
+    title: "New Day High — NZ$102,421 Net Worth, With Live News Sentiment Scoring",
+    badge: "Captured today · late session",
+    points: [
+      "Net worth pushed to a fresh high of NZ$102,421.30 — the stock book alone now worth NZ$57,331.02.",
+      "Live news headlines are auto-scored for relevance and tagged Bullish or Bearish, so context arrives with the numbers.",
+      "The full command centre in one view: worth, unrealised P&L, 7-day alpha, health, volatility, Sharpe, diversification and win rate.",
+    ],
+  },
+  {
+    src: PROOF_HOLDINGS_IMG,
+    alt: "Live portfolio bot performance proof — full NZX and ASX holdings table with per-share cost, current price and gain-loss today",
+    title: "The Full Holdings Book — Every Position, Priced Live to the Cent",
+    badge: "Captured today · late session",
+    points: [
+      "A complete, itemised holdings table: ticker, company, exchange, shares, cost, live price, market value and gain/loss per line.",
+      "Stock allocation bar and totals across cash, stocks, crypto and metals — the same NZ$102,421 net worth, fully broken down.",
+      "Nothing hidden or rounded away: this is the exact position detail the bot works from, shown just as you'd see it.",
+    ],
+  },
 ];
 
 export function LiveExamplesGallery() {
@@ -109,6 +146,29 @@ export function LiveExamplesGallery() {
 
   return (
     <>
+      {/* Dated "folder" header — every capture below belongs to today's batch. */}
+      <div className="mb-6 flex flex-wrap items-center gap-4 rounded-2xl border border-primary/25 bg-primary/5 px-5 py-4 backdrop-blur">
+        <span className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-primary/30 bg-primary/10 text-primary">
+          <FolderOpen className="size-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="font-display text-lg font-bold tracking-tight text-foreground sm:text-xl">
+              {TODAY_LABEL}
+            </h3>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-[11px] font-semibold text-primary">
+              <CalendarDays className="size-3" /> Today&apos;s captures
+            </span>
+          </div>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            {PROOFS.length} live, unedited snapshots — all taken today and grouped in one dated folder.
+          </p>
+        </div>
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-card/50 px-3 py-1.5 text-xs font-semibold text-muted-foreground">
+          <Clock className="size-3.5 text-primary" /> {PROOFS.length} snapshots
+        </span>
+      </div>
+
       {/* Masonry-style responsive gallery. Balanced 2-column layout on desktop. */}
       <div className="grid gap-6 md:grid-cols-2">
         {PROOFS.map((p, i) => (

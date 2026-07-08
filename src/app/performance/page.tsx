@@ -159,12 +159,12 @@ export default function PerformancePage() {
           <div className="mx-auto mt-12 flex max-w-3xl flex-col items-center gap-3 rounded-3xl border border-primary/20 bg-gradient-to-br from-primary/10 via-card/40 to-card/40 p-8 text-center">
             <LineChart className="size-8 text-primary" />
             <p className="font-display text-xl font-bold sm:text-2xl">
-              One portfolio, tracked live: NZ$100,429 → NZ$101,240 → NZ$101,645 → NZ$101,931
+              One portfolio, tracked live: NZ$100,429 → NZ$101,645 → NZ$101,931 → NZ$102,421
             </p>
             <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
-              Five timestamped snapshots from a single day — the portfolio climbing steadily to a
-              NZ$101,931 high by 3:47pm, roughly a{" "}
-              <span className="font-semibold text-primary">NZ$1,500 increase</span> captured in real
+              Seven timestamped snapshots from a single day — the portfolio climbing steadily to a
+              NZ$102,421 high, roughly a{" "}
+              <span className="font-semibold text-primary">NZ$2,000 increase</span> captured in real
               time, every number checkable against the live market as it happened.
             </p>
           </div>

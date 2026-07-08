@@ -80,6 +80,12 @@ export const PROOF_STOCK_IMG =
 // unrealised P&L NZ$1,836.51; total net worth NZ$101,931.77, the day's high.
 export const PROOF_CLOSE_IMG =
   "https://storage.googleapis.com/totalum-live-bucket/aetherforgeai/files/3.47.jpg?GoogleAccessId=totalum-live%40totalum-live.iam.gserviceaccount.com&Expires=2098842603&Signature=rFWpkQYWNRDvIqspS%2B0s%2B8J1DrK4CO3Kilq46IFFTWjbFfMMmCuCVGufiq7PLIkdWBElCL02xD2LxW%2FR7otjwQLaLMBwrdJ3R4M9ik7M2cK27%2FLrz71N%2FOyBYGDgN1uoNAaf7wC9f4ujfbWS6meU%2B81ZLxRMQ%2FITuBDv1deh6CBE2i4ZQ0spBCm2wuZmgJAtmMTDPctBjr3QQt519VBhItRMaZd%2BAc%2BNGKpavjmxENHh%2FTkbDaTZoieIojX8PSUCLJndLpJVOFOk2d%2BO6xKa7vOWxU9HY6uj2RGvVDl6DoZstDQlh3kRlGmJhA41%2B3AP6F2PrSeVEfKMr8fKVpsvhw%3D%3D";
+// Later-in-day shots — total net worth ticked up again to NZ$102,421.30 with the
+// stock book at NZ$57,331.02. The holdings-table view shows the full equities book.
+export const PROOF_OVERVIEW_IMG =
+  "https://storage.googleapis.com/totalum-live-bucket/aetherforgeai/files/5.jpg?GoogleAccessId=totalum-live%40totalum-live.iam.gserviceaccount.com&Expires=2098850771&Signature=EdEEqctyfKf6tKovgkjegxDT79i2QWT6pwR7rCYwkW6b0pSzI76%2FHE6E2A3iXRjOMZmWmEqrFL9D0QEuvP92BEGy47b8%2FCMD92Uxfi%2F3cSWebUmeCQ%2BhL8yLQkbhdRAAb1AopD0iSr6RJpBzWnq6q9at1lEXuQtUSa0EVL0svZILQVWs8xziLOIDZ8itDGg%2B6UbsusyuhFdtDjlSwNOYTxPaBmKWg6k0O8nOjvtqOTBxKSZvkj6009v7O97HUIZtCPNEoWpwonCd4Oi7%2Ff%2Fr9OdyVfayU2xM8JCfilWmsE59B50Ya6dkba3w2VDraTtviktM2t1nnda9AHQL1uirRg%3D%3D";
+export const PROOF_HOLDINGS_IMG =
+  "https://storage.googleapis.com/totalum-live-bucket/aetherforgeai/files/6.jpg?GoogleAccessId=totalum-live%40totalum-live.iam.gserviceaccount.com&Expires=2098850779&Signature=4%2FpBPwiUgkQrD7Eovp%2B4X%2B44lsVVK5iOfx65CeUcCuKc2yIQjJEHcnEX5pLmXaRsQlMjPwlOUlEFpHXmfbFW30Nrr%2FPwJgXqmdP6tfRWmdy2WxwCC0b2XdwNOiL9hE74wiK0YJ6Ibma8na4bid%2BXPxovMxvMGKAscNNkUeoOGCVJLG0UQd4RO9WFVky%2FgJ6tInm7FL0XpdgY26ZJJn4mzRQKpcNnNpgbHJkI%2BHVO1o5hAgNIjWzVCsqtr9LbPnU4QHea6zhu0DMnwkHzDf%2BJLKYkUDM%2FOG6kVKlGvWgEuqtT9rhJuzrRIL0i4y4qFL2sXTobC0UN3bRit8LcrffBLg%3D%3D";
 
 export const files = {
   logoMarkImg: LOGO_MARK_IMG,
@@ -98,6 +104,8 @@ export const files = {
   proofCryptoImg: PROOF_CRYPTO_IMG,
   proofStockImg: PROOF_STOCK_IMG,
   proofCloseImg: PROOF_CLOSE_IMG,
+  proofOverviewImg: PROOF_OVERVIEW_IMG,
+  proofHoldingsImg: PROOF_HOLDINGS_IMG,
 } as const;
 
 export default files;
