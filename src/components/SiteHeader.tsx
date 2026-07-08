@@ -24,6 +24,9 @@ export function SiteHeader() {
             <Link href="/about" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
               About
             </Link>
+            <Link href="/performance" className="text-sm font-medium text-primary transition-colors hover:text-primary/80">
+              Live results
+            </Link>
             <Link href="/how-it-works" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
               How it works
             </Link>

@@ -63,6 +63,20 @@ export const BOT_STOX_AVATAR = "/brand/bot-stox.png";
 export const BOT_KOINS_AVATAR = "/brand/bot-koins.png";
 export const BOT_TOTALUM_AVATAR = "/brand/bot-totalum.png";
 
+// ── Live Results & Performance Proof page ──
+// Real, unedited dashboard screenshots captured on 2026-07-08 by the owner and
+// stored as static Totalum assets. They document a single multi-asset portfolio
+// (NZX · ASX · US equities · crypto · gold) being tracked live through the day.
+// Sequence 1→4 tells the timestamped story used on the /performance page.
+export const PROOF_TRANSACTIONS_IMG =
+  "https://storage.googleapis.com/totalum-live-bucket/aetherforgeai/files/1.jpg?GoogleAccessId=totalum-live%40totalum-live.iam.gserviceaccount.com&Expires=2098838530&Signature=jxUM%2Fc9%2FiqIUmuNfCWcmsNrMXXd%2FIW6INW3QxRMX%2BqbO%2FgqagMbB%2FqPUjjYNS21Yr%2Fz%2Fjf4b3MHxDpa9LuuNa9i%2BajVBvsXNdjiU4ggKBOeyxkW90pTJ0fSUcEmYI2UxwaMAEuLGMMm2NvZAECh5EWWWaTnxW4A3AeVwynufxKqbVdgcEOS79drWgtGqOE%2BFimjrgTp91VhgW07lB6X91ibUiHj14owb9zB2CMHMXAhJE2UirT%2BAPtYhywnd6HMouYJ3Hym9uk7zqNemppNTcPYcJc8CGtKzljg62X51BJ9KmWdHwjYGNgCq2L4hhYdliFAAtPFU4BYweoqBW9JP7w%3D%3D";
+export const PROOF_NETWORTH_IMG =
+  "https://storage.googleapis.com/totalum-live-bucket/aetherforgeai/files/2.jpg?GoogleAccessId=totalum-live%40totalum-live.iam.gserviceaccount.com&Expires=2098838537&Signature=ahL%2BFd%2Bq8ojV0MtDcI9A7sk2R5HRDwkd1uLQDigRwujJk%2F%2ByA6FD2EGax2vQXp0RBboCpOM%2FBJQc4UfhvNjF6ZHQMnf%2BuMAD0ApU3UwpHLEXo6WmJ9PXlIgBftRzZDISEmH4CVG9UVdrUmB7F3T%2B542D7Cj8D0PYbXGe5DF8t%2Fpzrh5Rqk%2FrMai581rN2GBnWJwRmI%2F7qgYCj9SZFQCe1GZXlwN6ZpaJFrpVey0JjD76sKK10tSnT5xR7sjyZkHurpaOygibTEPbpHVq%2FXrsaGt3ql7zXa8EQ3u0ikWB%2FxjlBbTJOersgH23zg4fWeyqLsMcttcNSsSEQ98nKDiE8g%3D%3D";
+export const PROOF_CRYPTO_IMG =
+  "https://storage.googleapis.com/totalum-live-bucket/aetherforgeai/files/3.jpg?GoogleAccessId=totalum-live%40totalum-live.iam.gserviceaccount.com&Expires=2098838545&Signature=EuNVt%2F2C2Mxw%2Fwm1E77K7P1E5QKfP3%2FMs%2BJWzx3GOmJaFadc%2Bz5ptwPVduKHCtXc5V1KdMQ6Ha2p4kZH5VtAiEi53pf4NeF4nC3cpK4gVW0qvv%2F6Nz7fGWLqGUElebhhtmfMNcpW%2FqRySfX1ca%2Fixp2S8eEZexyria%2FEnI1DNHPb%2BjRpwI0a1xifhNv40QJaja2EC9B6a1elBM0bGV4Za81%2BRYiK2uQ4O04OolLdsu4vG%2FcqpujuH4nYzUYw19nonXtwUZ8EAI1blTQFAFQXde5i3w3J22t2%2F9lLc0dxtUCdNXtPnaElrrjZ%2Fq7bGMZr13DyPigNzCh%2F20a6coWmgg%3D%3D";
+export const PROOF_STOCK_IMG =
+  "https://storage.googleapis.com/totalum-live-bucket/aetherforgeai/files/4.jpg?GoogleAccessId=totalum-live%40totalum-live.iam.gserviceaccount.com&Expires=2098838551&Signature=4oycUu6BnKIFaNpiHJrX3ywWX0WaWs6qTy2KfydqgCKJkCnZm7CQ9o6JwVoXBCgWDwdFPOWDt8qX9MJ%2FBKg2WqlLKqyflsv9nspLruij048JOfupQkMmdaHnnJCwt1j4HoYeYj0HSnyHypp%2F42qnubOzs%2BpcswNa%2BIa1BiQtPmDX4f9a6g04eNYcw3%2FZj11qyytkAu4ATzQQPy0XaWKD9EC8ShYhNEWSzYiDRfLb%2Fy83Yav8%2B6F47pYSspv2YPFvPHIsS9X1FST%2F92vM3hys4CNHtc0eNBo%2FzqNh5DCNN%2BCH5baC79Y3RltUn1IWUZT1d3nxH%2BKIpxblNrxcWHHcGw%3D%3D";
+
 export const files = {
   logoMarkImg: LOGO_MARK_IMG,
   logoIconImg: LOGO_ICON_IMG,
@@ -75,6 +89,10 @@ export const files = {
   botStoxAvatar: BOT_STOX_AVATAR,
   botKoinsAvatar: BOT_KOINS_AVATAR,
   botTotalumAvatar: BOT_TOTALUM_AVATAR,
+  proofTransactionsImg: PROOF_TRANSACTIONS_IMG,
+  proofNetworthImg: PROOF_NETWORTH_IMG,
+  proofCryptoImg: PROOF_CRYPTO_IMG,
+  proofStockImg: PROOF_STOCK_IMG,
 } as const;
 
 export default files;

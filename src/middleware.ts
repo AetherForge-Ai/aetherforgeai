@@ -27,6 +27,7 @@ function isAllowedOrigin(origin: string, request: NextRequest): boolean {
 const publicRoutes = [
   "/",
   "/about",
+  "/performance",
   "/login",
   "/register",
   "/forgot-password",
