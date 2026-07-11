@@ -145,6 +145,94 @@ export async function fetchYahooNames(map: Record<string, string>): Promise<Reco
   return out;
 }
 
+/* ============================ Real price history ======================== */
+
+const SPARK_BASE = "https://query1.finance.yahoo.com/v8/finance/spark";
+const HIST_TTL_MS = 10 * 60_000; // 10 minutes — real daily closes only change once a day
+const HIST_CHUNK = 45; // symbols per batched spark request
+const HIST_CACHE = new Map<string, { closes: number[]; at: number }>();
+
+/**
+ * Batched REAL daily-close history via Yahoo's keyless `spark` endpoint. One HTTP
+ * request returns the close series for up to ~45 symbols at once, so the full
+ * market universe is covered in a handful of requests (versus one-per-symbol).
+ *
+ * This is what makes the dashboard's signals and 7-day projections reflect the
+ * stock's ACTUAL recent behaviour (real momentum, real trend) instead of a
+ * synthetic seeded walk — so "top performers" are genuinely the strong movers
+ * and the lists change as the market moves.
+ *
+ * @param map internalTicker → yahooSymbol
+ * @returns internalTicker → array of real daily closes (oldest→newest), only for
+ *          symbols Yahoo returned a usable series for.
+ */
+export async function fetchYahooHistories(
+  map: Record<string, string>,
+  range = "6mo",
+  interval = "1d"
+): Promise<Record<string, number[]>> {
+  const entries = Object.entries(map);
+  if (!entries.length) return {};
+
+  const out: Record<string, number[]> = {};
+  const stale: [string, string][] = [];
+
+  // Serve fresh entries from cache; collect the rest for fetching.
+  for (const [internal, ySym] of entries) {
+    const cached = HIST_CACHE.get(ySym);
+    if (cached && Date.now() - cached.at <= HIST_TTL_MS) {
+      out[internal] = cached.closes;
+    } else {
+      stale.push([internal, ySym]);
+    }
+  }
+  if (!stale.length) return out;
+
+  // Chunk the stale symbols into batched spark requests.
+  const chunks: [string, string][][] = [];
+  for (let i = 0; i < stale.length; i += HIST_CHUNK) chunks.push(stale.slice(i, i + HIST_CHUNK));
+
+  await mapLimited(chunks, CONCURRENCY, async (chunk) => {
+    const symbols = chunk.map(([, y]) => y).join(",");
+    try {
+      const url = `${SPARK_BASE}?symbols=${encodeURIComponent(symbols)}&range=${range}&interval=${interval}`;
+      const res = await fetch(url, { headers: { "User-Agent": UA, Accept: "application/json" } });
+      if (!res.ok) {
+        console.error(`[yahoo] spark HTTP ${res.status} for ${chunk.length} symbols`);
+        return;
+      }
+      const json = (await res.json()) as Record<string, any>;
+      // query1 returns a flat map keyed by symbol; some hosts wrap in spark.result.
+      const bySymbol: Record<string, any> = {};
+      if (json?.spark?.result && Array.isArray(json.spark.result)) {
+        for (const r of json.spark.result) {
+          const resp = r?.response?.[0];
+          const closes = resp?.indicators?.quote?.[0]?.close;
+          if (r?.symbol && Array.isArray(closes)) bySymbol[r.symbol] = { close: closes };
+        }
+      } else {
+        Object.assign(bySymbol, json);
+      }
+
+      for (const [internal, ySym] of chunk) {
+        const node = bySymbol[ySym];
+        const raw = node?.close;
+        if (!Array.isArray(raw)) continue;
+        const closes = raw.map((v: any) => Number(v)).filter((v: number) => isFinite(v) && v > 0);
+        if (closes.length >= 40) {
+          out[internal] = closes;
+          HIST_CACHE.set(ySym, { closes, at: Date.now() });
+        }
+      }
+    } catch (err) {
+      console.error(`[yahoo] spark fetch failed for a chunk of ${chunk.length}:`, err);
+    }
+  });
+
+  console.log(`[yahoo] Real histories resolved for ${Object.keys(out).length}/${entries.length} tickers`);
+  return out;
+}
+
 /** Map an internal equity ticker to its Yahoo symbol (identical: AIR.NZ, BHP.AX, AAPL). */
 export function yahooEquitySymbol(ticker: string): string {
   return ticker.toUpperCase();

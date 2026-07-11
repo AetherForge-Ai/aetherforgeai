@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import {
-  getProjectionMovers,
+  getTopPerformers,
   formatMarketPrice,
   type AssetClass,
   type SecurityIntel,
@@ -126,9 +126,10 @@ export function ProjectionsPanel({
 }) {
   const { universe, refresh, refreshing, lastUpdated } = useMarketIntel();
   // Analyse the whole cross-market universe (NZX, ASX, Dow Jones, NASDAQ) and
-  // surface the 15 strongest short-term movers overall — ranked by projected
-  // strength weighted by model confidence.
-  const leaders = useMemo(() => getProjectionMovers(15, universe ?? undefined), [universe]);
+  // surface the 15 strongest projected TOP PERFORMERS overall — led by the best
+  // conviction-weighted 7-day upside blended with real recent momentum, all from
+  // live price action.
+  const leaders = useMemo(() => getTopPerformers(15, universe ?? undefined), [universe]);
   const analysedCount = universe?.length ?? 0;
   const [selected, setSelected] = useState<string>("");
   const sel = leaders.find((l) => l.ticker === selected) ?? leaders[0];
@@ -151,9 +152,9 @@ export function ProjectionsPanel({
             <LineChart className="size-4" />
           </span>
           <div>
-            <h2 className="font-display text-lg font-bold">7-day projections</h2>
+            <h2 className="font-display text-lg font-bold">Projected top performers</h2>
             <p className="text-xs text-muted-foreground">
-              Cross-market model · NZX, ASX, Dow Jones &amp; NASDAQ{analysedCount ? ` · ${analysedCount} securities analysed` : ""} · top 15 movers · next 7 sessions
+              Cross-market model · NZX, ASX, Dow Jones &amp; NASDAQ{analysedCount ? ` · ${analysedCount} securities analysed` : ""} · top 15 · next 7 sessions
             </p>
           </div>
         </div>
@@ -173,7 +174,7 @@ export function ProjectionsPanel({
         {/* Leaders list */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Top 15 projected movers</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Top 15 performers</p>
             {lastUpdated && <p className="text-[0.6rem] text-muted-foreground">Updated {lastUpdated}</p>}
           </div>
           <div className="max-h-[26rem] space-y-2 overflow-y-auto pr-1">

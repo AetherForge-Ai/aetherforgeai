@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { analyzeUniverse, universeFor, getMarketNews, type AssetClass } from "@/lib/market-intel";
-import { fetchQuotesForAssetClass, isLiveConfiguredFor } from "@/lib/market-data";
+import {
+  fetchQuotesForAssetClass,
+  fetchHistoriesForAssetClass,
+  isLiveConfiguredFor,
+} from "@/lib/market-data";
 
 export const dynamic = "force-dynamic";
 
@@ -17,25 +21,35 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const assetClass: AssetClass = url.searchParams.get("bot") === "crypto" ? "crypto" : "stock";
 
+    const tickers = universeFor(assetClass).map((e) => e.ticker);
     let overrides: Record<string, number> = {};
+    let histories: Record<string, number[]> = {};
     let live = false;
 
     if (isLiveConfiguredFor(assetClass)) {
-      try {
-        const quotes = await fetchQuotesForAssetClass(
-          universeFor(assetClass).map((e) => e.ticker),
-          assetClass
-        );
-        overrides = Object.fromEntries(Object.entries(quotes).map(([t, q]) => [t, q.price]));
-        live = Object.keys(overrides).length > 0;
-      } catch (err) {
-        console.error("[api/market] Live quote fetch failed (using deterministic engine):", err);
-      }
+      // Fetch live intraday quotes AND real recent daily-close histories in
+      // parallel. The histories are what make signals + 7-day projections track
+      // each security's ACTUAL momentum (so the lists reflect real performance
+      // and change as the market moves), while quotes pin the latest price.
+      const [quotes, hist] = await Promise.all([
+        fetchQuotesForAssetClass(tickers, assetClass).catch((err) => {
+          console.error("[api/market] Live quote fetch failed:", err);
+          return {} as Awaited<ReturnType<typeof fetchQuotesForAssetClass>>;
+        }),
+        fetchHistoriesForAssetClass(tickers, assetClass).catch((err) => {
+          console.error("[api/market] History fetch failed:", err);
+          return {} as Record<string, number[]>;
+        }),
+      ]);
+      overrides = Object.fromEntries(Object.entries(quotes).map(([t, q]) => [t, q.price]));
+      histories = hist;
+      live = Object.keys(overrides).length > 0 || Object.keys(histories).length > 0;
     }
 
-    const universe = analyzeUniverse(overrides, assetClass);
+    const universe = analyzeUniverse(overrides, assetClass, histories);
     console.log(
-      `[api/market] Served ${universe.length} ${assetClass} securities (source: ${live ? "live" : "deterministic"})`
+      `[api/market] Served ${universe.length} ${assetClass} securities ` +
+        `(source: ${live ? "live" : "deterministic"}, ${Object.keys(overrides).length} quotes, ${Object.keys(histories).length} real histories)`
     );
 
     return NextResponse.json({

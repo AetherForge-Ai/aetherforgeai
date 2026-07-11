@@ -1056,11 +1056,30 @@ export function analyzeSecurity(
   ticker: string,
   priceOverride?: number,
   nameOverride?: string,
-  marketOverride?: MarketCode
+  marketOverride?: MarketCode,
+  /**
+   * REAL recent daily-close series (oldest→newest) from the live provider. When
+   * supplied with enough points, ALL technical intelligence — RSI, MACD, SMAs,
+   * realised change (1d/7d/30d) and the 7-day ridge projection — is computed from
+   * the security's ACTUAL price action instead of the synthetic seeded walk. This
+   * is what makes signals and projections track real momentum and change as the
+   * market moves.
+   */
+  seriesOverride?: number[]
 ): SecurityIntel {
+  // Real-series analyses are never cached (the series changes intraday and the
+  // key would churn); deterministic/price-only analyses keep the fast cache.
+  const cleanReal =
+    seriesOverride && seriesOverride.length >= 40
+      ? seriesOverride.filter((p) => isFinite(p) && p > 0)
+      : undefined;
+  const useReal = !!cleanReal && cleanReal.length >= 40;
+
   const key = `${ticker}|${priceOverride ?? ""}|${marketOverride ?? ""}`;
-  const cached = CACHE.get(key);
-  if (cached) return cached;
+  if (!useReal) {
+    const cached = CACHE.get(key);
+    if (cached) return cached;
+  }
 
   const entry = UNIVERSE_MAP[ticker];
   const base = priceOverride ?? entry?.basePrice ?? 100;
@@ -1076,7 +1095,17 @@ export function analyzeSecurity(
   // series and the ridge projection so signals reflect 24/7 volatility.
   const volScale = assetClass === "crypto" ? 2.2 : 1;
 
-  const series = dailySeries(ticker, base, 140, volScale);
+  // Prefer the REAL close series; pin its final point to the live intraday price
+  // when one is supplied so the analysis and the ticker quote stay consistent.
+  let series: number[];
+  if (useReal && cleanReal) {
+    series =
+      priceOverride && priceOverride > 0
+        ? [...cleanReal.slice(0, -1), priceOverride]
+        : cleanReal;
+  } else {
+    series = dailySeries(ticker, base, 140, volScale);
+  }
   const last = series[series.length - 1];
   const prev = series[series.length - 2] ?? last;
   const wk = series[series.length - 8] ?? last;
@@ -1173,7 +1202,7 @@ export function analyzeSecurity(
     convictionReason: conviction.reason,
     reasoning,
   };
-  CACHE.set(key, intel);
+  if (!useReal) CACHE.set(key, intel);
   return intel;
 }
 
@@ -1211,17 +1240,32 @@ export const LIVE_COVERAGE_FLOOR = 0.4;
  */
 export function analyzeUniverse(
   priceOverrides?: Record<string, number>,
-  assetClass: AssetClass = "stock"
+  assetClass: AssetClass = "stock",
+  /**
+   * REAL daily-close histories keyed by internal ticker (from the live provider).
+   * When present, each security is analysed from its actual price action, so the
+   * whole board (signals, projections, movers) reflects genuine momentum. A
+   * ticker counts as "live data present" if it has EITHER a live price OR a real
+   * history — either is enough to keep it in the self-cleaning set.
+   */
+  historyOverrides?: Record<string, number[]>
 ): SecurityIntel[] {
   const universe = universeFor(assetClass);
-  if (!priceOverrides || !Object.keys(priceOverrides).length) return allIntel(assetClass);
+  const hasPrices = !!priceOverrides && Object.keys(priceOverrides).length > 0;
+  const hasHist = !!historyOverrides && Object.keys(historyOverrides).length > 0;
+  if (!hasPrices && !hasHist) return allIntel(assetClass);
 
   const priced = universe.map((e) => {
-    const raw = priceOverrides[e.ticker] ?? priceOverrides[e.ticker.toUpperCase()];
-    return { ticker: e.ticker, live: raw && raw > 0 ? raw : undefined };
+    const raw = priceOverrides?.[e.ticker] ?? priceOverrides?.[e.ticker.toUpperCase()];
+    const series = historyOverrides?.[e.ticker] ?? historyOverrides?.[e.ticker.toUpperCase()];
+    const live = raw && raw > 0 ? raw : undefined;
+    // Fall back to the last real close as the "current" price when no intraday
+    // quote came through — a genuine live figure either way.
+    const price = live ?? (series && series.length ? series[series.length - 1] : undefined);
+    return { ticker: e.ticker, price, series, hasData: live !== undefined || (series?.length ?? 0) >= 40 };
   });
 
-  const liveCount = priced.filter((p) => p.live !== undefined).length;
+  const liveCount = priced.filter((p) => p.hasData).length;
   const strict = liveCount >= Math.max(1, Math.floor(universe.length * LIVE_COVERAGE_FLOOR));
   if (!strict) {
     console.warn(
@@ -1230,8 +1274,8 @@ export function analyzeUniverse(
   }
 
   return priced
-    .filter((p) => (strict ? p.live !== undefined : true))
-    .map((p) => analyzeSecurity(p.ticker, p.live));
+    .filter((p) => (strict ? p.hasData : true))
+    .map((p) => analyzeSecurity(p.ticker, p.price, undefined, undefined, p.series));
 }
 
 /** The market columns present for an asset class (NZX/ASX/US, or CRYPTO). */
@@ -1287,6 +1331,25 @@ export function getProjectionMovers(count = 15, list: SecurityIntel[] = allIntel
         Math.abs(a.projected7dPct) * (a.confidence / 100)
     )
     .slice(0, count);
+}
+
+/**
+ * "Projected Top Performers" — the strongest UPSIDE names across the universe,
+ * leading with genuine outperformers. Ranked by a blend of the conviction-
+ * weighted forward 7-day projection and real recent momentum (30-day and 7-day
+ * change), all now computed from REAL price action. So the list surfaces stocks
+ * that are actually performing well AND are projected to keep rising — not weak
+ * names — and it re-ranks as the market moves.
+ */
+export function getTopPerformers(count = 15, list: SecurityIntel[] = allIntel()): SecurityIntel[] {
+  return [...list]
+    .map((s) => ({
+      s,
+      rank: s.projected7dPct * (s.confidence / 100) + s.change30d * 0.05 + s.change7d * 0.08,
+    }))
+    .sort((a, b) => b.rank - a.rank)
+    .slice(0, count)
+    .map((x) => x.s);
 }
 
 /* --------------------------------- News --------------------------------- */

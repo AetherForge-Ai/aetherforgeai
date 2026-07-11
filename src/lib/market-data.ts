@@ -11,7 +11,13 @@
  * break pricing, reports or the dashboard.
  */
 
-import { fetchYahooQuotes, fetchYahooNames, yahooEquitySymbol, yahooCryptoSymbol } from "@/lib/yahoo-finance";
+import {
+  fetchYahooQuotes,
+  fetchYahooNames,
+  fetchYahooHistories,
+  yahooEquitySymbol,
+  yahooCryptoSymbol,
+} from "@/lib/yahoo-finance";
 
 export interface LiveQuote {
   price: number;
@@ -351,6 +357,31 @@ export async function fetchQuotesForAssetClass(
 /** Live availability for an asset class (drives the Live/Simulated badge). */
 export function isLiveConfiguredFor(assetClass: "stock" | "crypto"): boolean {
   return assetClass === "crypto" ? isCryptoLiveConfigured() : isLiveDataConfigured();
+}
+
+/**
+ * Fetch REAL recent daily-close histories (keyless Yahoo `spark`, batched) for a
+ * set of tickers, keyed by the ORIGINAL internal ticker. These real series are
+ * what drive genuine technical signals and 7-day projections — so the dashboard
+ * lists reflect each security's ACTUAL momentum and change as the market moves,
+ * instead of a frozen synthetic walk. Never throws; returns {} on total failure
+ * so the engine falls back to its deterministic series.
+ */
+export async function fetchHistoriesForAssetClass(
+  tickers: string[],
+  assetClass: "stock" | "crypto"
+): Promise<Record<string, number[]>> {
+  if (!tickers.length) return {};
+  const unique = Array.from(new Set(tickers.map((t) => t.toUpperCase())));
+  const map = Object.fromEntries(
+    unique.map((t) => [t, assetClass === "crypto" ? yahooCryptoSymbol(t) : yahooEquitySymbol(t)])
+  );
+  try {
+    return await fetchYahooHistories(map);
+  } catch (err) {
+    console.error("[market-data] fetchHistoriesForAssetClass failed:", err);
+    return {};
+  }
 }
 
 /* ============================ Company-name resolution ==================== */
