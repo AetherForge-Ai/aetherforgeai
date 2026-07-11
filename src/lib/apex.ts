@@ -361,8 +361,8 @@ const MOVER_WINDOWS: { window: string; key: keyof SecurityIntel }[] = [
  * the 24-hour, 7-day and 1-month windows. Stocks yield NZX/ASX/US groups;
  * crypto yields a single digital-assets group.
  */
-function buildMarketMovers(bot: BotKind): MarketMoversGroup[] {
-  const list = analyzeUniverse(undefined, bot);
+function buildMarketMovers(bot: BotKind, overrides?: Record<string, number>): MarketMoversGroup[] {
+  const list = analyzeUniverse(overrides, bot);
   const markets = marketsForAssetClass(bot);
   return markets.map((m) => {
     const inMarket = list.filter((s) => s.market === m);
@@ -388,8 +388,8 @@ function buildMarketMovers(bot: BotKind): MarketMoversGroup[] {
 }
 
 /** The top-10 highest-conviction 7-day forward projections across the sweep. */
-function buildProjectionLeaders(bot: BotKind): ProjectionRow[] {
-  const list = analyzeUniverse(undefined, bot);
+function buildProjectionLeaders(bot: BotKind, overrides?: Record<string, number>): ProjectionRow[] {
+  const list = analyzeUniverse(overrides, bot);
   return getProjectionLeaders(10, list).map((s) => ({
     ticker: s.ticker,
     name: s.name,
@@ -629,7 +629,8 @@ function assembleReport(
   bot: BotKind,
   tickers: TickerAnalysis[],
   isDemo: boolean,
-  extras: ReportExtras
+  extras: ReportExtras,
+  marketOverrides?: Record<string, number>
 ): ApexReport {
   const sorted = [...tickers].sort((a, b) => b.changePct - a.changePct);
   const topGainers = sorted
@@ -685,8 +686,8 @@ function assembleReport(
     newsSynthesis,
     tickers,
     portfolio: extras.portfolio,
-    marketMovers: buildMarketMovers(bot),
-    projectionLeaders: buildProjectionLeaders(bot),
+    marketMovers: buildMarketMovers(bot, marketOverrides),
+    projectionLeaders: buildProjectionLeaders(bot, marketOverrides),
     regionalNews: buildRegionalNews(bot),
     directRecommendations: extras.directRecommendations,
     pathwayPlan: extras.pathwayPlan,
@@ -791,6 +792,13 @@ export interface BuildLiveReportOptions {
   seedSalt?: string;
   /** Live FX rates (1 unit → NZD). Falls back to the baseline table. */
   fxToNZD?: FxRatesToNZD;
+  /**
+   * Live prices for the whole market universe (internal ticker → price). When
+   * supplied, the report's Top-Movers and 7-day projection boards are built from
+   * genuine live quotes AND automatically exclude any delisted/renamed name that
+   * no longer returns a live price. Omit for the deterministic engine.
+   */
+  marketOverrides?: Record<string, number>;
 }
 
 /** Live subscriber report built from the user's real monitored holdings. */
@@ -799,7 +807,7 @@ export function buildLiveReport(
   holdings: LiveHolding[],
   options: BuildLiveReportOptions = {}
 ): ApexReport {
-  const { seedSalt = "live", fxToNZD = BASELINE_FX_TO_NZD } = options;
+  const { seedSalt = "live", fxToNZD = BASELINE_FX_TO_NZD, marketOverrides } = options;
 
   const tickers = holdings
     .filter((h) => h.ticker)
@@ -810,5 +818,5 @@ export function buildLiveReport(
   const pathwayPlan = buildPathwayPlan(analyzable, directRecommendations, bot);
   const portfolio = computePortfolio(bot, analyzable, fxToNZD);
 
-  return assembleReport(bot, tickers, false, { portfolio, directRecommendations, pathwayPlan });
+  return assembleReport(bot, tickers, false, { portfolio, directRecommendations, pathwayPlan }, marketOverrides);
 }

@@ -20,6 +20,7 @@ import {
   MARKET_UNIVERSE,
   analyzeSecurity,
   currencyForMarket,
+  LIVE_COVERAGE_FLOOR,
   type SecurityIntel,
   type MarketCode,
 } from "@/lib/market-intel";
@@ -251,7 +252,20 @@ export async function fetchStockUniverse(): Promise<{ intel: SecurityIntel[]; bo
   }
   const liveCount = Object.keys(live).length;
 
-  const intel: SecurityIntel[] = NZX_ASX_UNIVERSE.map((e) => {
+  // SELF-CLEANING: once we have healthy live coverage, sweep ONLY the names that
+  // returned a genuine live quote — so any delisted / acquired / renamed ticker
+  // (no live price) drops out of the report's movers board instead of appearing
+  // on stale synthetic data. If coverage collapses (feed outage) we keep the full
+  // universe so the report is never empty.
+  const strict = liveCount >= Math.max(1, Math.floor(NZX_ASX_UNIVERSE.length * LIVE_COVERAGE_FLOOR));
+  const activeUniverse = strict
+    ? NZX_ASX_UNIVERSE.filter((e) => {
+        const p = live[e.ticker.toUpperCase()]?.price;
+        return typeof p === "number" && p > 0;
+      })
+    : NZX_ASX_UNIVERSE;
+
+  const intel: SecurityIntel[] = activeUniverse.map((e) => {
     const q = live[e.ticker.toUpperCase()];
     return analyzeSecurity(e.ticker, q?.price ?? e.basePrice, e.name, e.market);
   });

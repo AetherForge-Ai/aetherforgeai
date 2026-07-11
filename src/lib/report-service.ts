@@ -4,7 +4,7 @@ import { referencePrice, simulateTick } from "@/lib/market";
 import { buildLiveReport, type LiveHolding, type BotKind } from "@/lib/apex";
 import { renderReportHtml, type ReportAlert } from "@/lib/report-html";
 import { createZenithCompletion, isZenithConfigured } from "@/lib/grok";
-import { analyzeSecurity, getMarketNews, type SecurityIntel } from "@/lib/market-intel";
+import { analyzeSecurity, getMarketNews, universeFor, type SecurityIntel } from "@/lib/market-intel";
 import { computePortfolioMetrics, buildActionableIntelligence } from "@/lib/analytics";
 import { getUpcomingEvents } from "@/lib/econ-calendar";
 import { scoreHeadlines } from "@/lib/news-sentiment";
@@ -116,9 +116,28 @@ export async function generateReportForUser(
     `[report-service] FX for report (${fx.live ? "live" : "baseline"}): 1 AUD=${fx.ratesToNZD.AUD.toFixed(3)} NZD, 1 USD=${fx.ratesToNZD.USD.toFixed(3)} NZD`
   );
 
+  // Live prices for the WHOLE market universe so the report's Top-Movers and
+  // 7-day projection boards are built from genuine live quotes — and so any
+  // delisted / acquired / renamed name (no live price) is dropped automatically
+  // rather than appearing on stale synthetic data.
+  let marketOverrides: Record<string, number> = {};
+  try {
+    const universeTickers = universeFor(bot).map((e) => e.ticker);
+    const universeQuotes = await fetchQuotesForAssetClass(universeTickers, bot);
+    marketOverrides = Object.fromEntries(
+      Object.entries(universeQuotes).map(([t, q]) => [t, q.price])
+    );
+    console.log(
+      `[report-service] Universe live sweep: ${Object.keys(marketOverrides).length}/${universeTickers.length} ${bot} names priced live`
+    );
+  } catch (err) {
+    console.error("[report-service] Universe live sweep failed (movers board on deterministic engine):", err);
+  }
+
   const report = buildLiveReport(bot, holdings, {
     seedSalt: `${user._id}:${bot}:${context}:${Date.now()}`,
     fxToNZD: fx.ratesToNZD,
+    marketOverrides,
   });
 
   // ---- Intelligence briefing + probabilistic 7-day outlook -------------

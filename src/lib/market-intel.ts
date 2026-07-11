@@ -138,9 +138,7 @@ export const MARKET_UNIVERSE: UniverseEntry[] = [
   { ticker: "SKC.NZ", name: "SkyCity Entertainment", sector: "Consumer Discretionary", market: "NZX", basePrice: 1.28 },
   { ticker: "PCT.NZ", name: "Precinct Properties", sector: "Real Estate", market: "NZX", basePrice: 1.16 },
   { ticker: "ARG.NZ", name: "Argosy Property", sector: "Real Estate", market: "NZX", basePrice: 1.02 },
-  { ticker: "GMT.NZ", name: "Goodman Property Trust", sector: "Real Estate", market: "NZX", basePrice: 2.05 },
   { ticker: "THL.NZ", name: "Tourism Holdings", sector: "Consumer Discretionary", market: "NZX", basePrice: 2.42 },
-  { ticker: "FRE.NZ", name: "Freightways", sector: "Logistics", market: "NZX", basePrice: 9.85 },
   { ticker: "TRA.NZ", name: "Turners Automotive Group", sector: "Consumer Discretionary", market: "NZX", basePrice: 5.35 },
   { ticker: "HLG.NZ", name: "Hallenstein Glasson", sector: "Consumer Discretionary", market: "NZX", basePrice: 8.15 },
   { ticker: "BGP.NZ", name: "Briscoe Group", sector: "Consumer Discretionary", market: "NZX", basePrice: 6.24 },
@@ -148,7 +146,6 @@ export const MARKET_UNIVERSE: UniverseEntry[] = [
   { ticker: "NZX.NZ", name: "NZX Limited", sector: "Financials", market: "NZX", basePrice: 1.42 },
   { ticker: "RYM.NZ", name: "Ryman Healthcare", sector: "Real Estate", market: "NZX", basePrice: 3.28 },
   { ticker: "OCA.NZ", name: "Oceania Healthcare", sector: "Real Estate", market: "NZX", basePrice: 0.62 },
-  { ticker: "ARV.NZ", name: "Arvida Group", sector: "Real Estate", market: "NZX", basePrice: 1.35 },
   { ticker: "PFI.NZ", name: "Property for Industry", sector: "Real Estate", market: "NZX", basePrice: 2.16 },
   { ticker: "KPG.NZ", name: "Kiwi Property Group", sector: "Real Estate", market: "NZX", basePrice: 0.88 },
   { ticker: "SPG.NZ", name: "Stride Property Group", sector: "Real Estate", market: "NZX", basePrice: 1.12 },
@@ -175,10 +172,8 @@ export const MARKET_UNIVERSE: UniverseEntry[] = [
   { ticker: "TWR.NZ", name: "Tower", sector: "Financials", market: "NZX", basePrice: 1.28 },
   { ticker: "STU.NZ", name: "Steel & Tube Holdings", sector: "Materials", market: "NZX", basePrice: 1.05 },
   { ticker: "SKL.NZ", name: "Skellerup Holdings", sector: "Industrials", market: "NZX", basePrice: 5.15 },
-  { ticker: "SPY.NZ", name: "Smartpay Holdings", sector: "Technology", market: "NZX", basePrice: 0.98 },
   { ticker: "CVT.NZ", name: "Comvita", sector: "Consumer Staples", market: "NZX", basePrice: 2.35 },
   { ticker: "MHJ.NZ", name: "Michael Hill International", sector: "Consumer Discretionary", market: "NZX", basePrice: 0.62 },
-  { ticker: "RBD.NZ", name: "Restaurant Brands NZ", sector: "Consumer Discretionary", market: "NZX", basePrice: 3.85 },
   { ticker: "CDI.NZ", name: "CDL Investments NZ", sector: "Real Estate", market: "NZX", basePrice: 0.82 },
   { ticker: "MPG.NZ", name: "Metroglass Holdings", sector: "Materials", market: "NZX", basePrice: 0.28 },
   // ASX (AUD)
@@ -234,7 +229,6 @@ export const MARKET_UNIVERSE: UniverseEntry[] = [
   { ticker: "JBH.AX", name: "JB Hi-Fi", sector: "Consumer Discretionary", market: "ASX", basePrice: 88.4 },
   { ticker: "HVN.AX", name: "Harvey Norman Holdings", sector: "Consumer Discretionary", market: "ASX", basePrice: 4.95 },
   { ticker: "NXT.AX", name: "NextDC", sector: "Technology", market: "ASX", basePrice: 17.6 },
-  { ticker: "ALU.AX", name: "Altium", sector: "Technology", market: "ASX", basePrice: 68.5 },
   { ticker: "TNE.AX", name: "TechnologyOne", sector: "Technology", market: "ASX", basePrice: 24.8 },
   { ticker: "CAR.AX", name: "CAR Group", sector: "Communication Services", market: "ASX", basePrice: 38.4 },
   { ticker: "SEK.AX", name: "SEEK", sector: "Communication Services", market: "ASX", basePrice: 24.2 },
@@ -253,7 +247,6 @@ export const MARKET_UNIVERSE: UniverseEntry[] = [
   { ticker: "TWE.AX", name: "Treasury Wine Estates", sector: "Consumer Staples", market: "ASX", basePrice: 11.6 },
   { ticker: "A2M.AX", name: "The a2 Milk Company", sector: "Consumer Staples", market: "ASX", basePrice: 6.05 },
   { ticker: "MTS.AX", name: "Metcash", sector: "Consumer Staples", market: "ASX", basePrice: 3.42 },
-  { ticker: "IPL.AX", name: "Incitec Pivot", sector: "Materials", market: "ASX", basePrice: 3.05 },
   { ticker: "ORA.AX", name: "Orora", sector: "Materials", market: "ASX", basePrice: 2.28 },
   { ticker: "JHX.AX", name: "James Hardie Industries", sector: "Materials", market: "ASX", basePrice: 52.4 },
   { ticker: "BSL.AX", name: "BlueScope Steel", sector: "Materials", market: "ASX", basePrice: 21.6 },
@@ -272,23 +265,15 @@ export const MARKET_UNIVERSE: UniverseEntry[] = [
   { ticker: "PRU.AX", name: "Perseus Mining", sector: "Materials", market: "ASX", basePrice: 2.65 },
   { ticker: "WGX.AX", name: "Westgold Resources", sector: "Materials", market: "ASX", basePrice: 2.95 },
   { ticker: "RSG.AX", name: "Resolute Mining", sector: "Materials", market: "ASX", basePrice: 0.68 },
-  { ticker: "SLR.AX", name: "Silver Lake Resources", sector: "Materials", market: "ASX", basePrice: 1.45 },
-  { ticker: "DEG.AX", name: "De Grey Mining", sector: "Materials", market: "ASX", basePrice: 1.85 },
   { ticker: "BGL.AX", name: "Bellevue Gold", sector: "Materials", market: "ASX", basePrice: 1.35 },
   { ticker: "CMM.AX", name: "Capricorn Metals", sector: "Materials", market: "ASX", basePrice: 6.15 },
-  { ticker: "RED.AX", name: "Red 5", sector: "Materials", market: "ASX", basePrice: 0.42 },
-  { ticker: "AGG.AX", name: "AngloGold Ashanti", sector: "Materials", market: "ASX", basePrice: 42.5 },
-  { ticker: "OZL.AX", name: "OZ Minerals", sector: "Materials", market: "ASX", basePrice: 28.2 },
   { ticker: "CXO.AX", name: "Core Lithium", sector: "Materials", market: "ASX", basePrice: 0.12 },
   { ticker: "LTR.AX", name: "Liontown Resources", sector: "Materials", market: "ASX", basePrice: 0.85 },
-  { ticker: "AKE.AX", name: "Allkem", sector: "Materials", market: "ASX", basePrice: 9.85 },
-  { ticker: "SYA.AX", name: "Sayona Mining", sector: "Materials", market: "ASX", basePrice: 0.04 },
   { ticker: "PDN.AX", name: "Paladin Energy", sector: "Energy", market: "ASX", basePrice: 8.45 },
   { ticker: "BOE.AX", name: "Boss Energy", sector: "Energy", market: "ASX", basePrice: 3.25 },
   { ticker: "DYL.AX", name: "Deep Yellow", sector: "Energy", market: "ASX", basePrice: 1.35 },
   { ticker: "MP1.AX", name: "Megaport", sector: "Technology", market: "ASX", basePrice: 8.65 },
   { ticker: "APX.AX", name: "Appen", sector: "Technology", market: "ASX", basePrice: 2.15 },
-  { ticker: "LNK.AX", name: "Link Administration", sector: "Technology", market: "ASX", basePrice: 2.28 },
   { ticker: "IRE.AX", name: "Iress", sector: "Technology", market: "ASX", basePrice: 8.95 },
   { ticker: "DTL.AX", name: "Data#3", sector: "Technology", market: "ASX", basePrice: 7.85 },
   { ticker: "PNV.AX", name: "PolyNovo", sector: "Healthcare", market: "ASX", basePrice: 2.15 },
@@ -315,7 +300,6 @@ export const MARKET_UNIVERSE: UniverseEntry[] = [
   { ticker: "AVH.AX", name: "Avita Medical", sector: "Healthcare", market: "ASX", basePrice: 3.15 },
   { ticker: "NEC.AX", name: "Nine Entertainment", sector: "Communication Services", market: "ASX", basePrice: 1.42 },
   { ticker: "SXL.AX", name: "Southern Cross Media", sector: "Communication Services", market: "ASX", basePrice: 0.85 },
-  { ticker: "SWM.AX", name: "Seven West Media", sector: "Communication Services", market: "ASX", basePrice: 0.18 },
   { ticker: "TPG.AX", name: "TPG Telecom", sector: "Telecom", market: "ASX", basePrice: 4.85 },
   { ticker: "UNI.AX", name: "Universal Store Holdings", sector: "Consumer Discretionary", market: "ASX", basePrice: 6.85 },
   { ticker: "CNU.AX", name: "Chorus", sector: "Telecom", market: "ASX", basePrice: 7.65 },
@@ -323,22 +307,16 @@ export const MARKET_UNIVERSE: UniverseEntry[] = [
   { ticker: "MND.AX", name: "Monadelphous Group", sector: "Industrials", market: "ASX", basePrice: 14.2 },
   { ticker: "WOR.AX", name: "Worley", sector: "Industrials", market: "ASX", basePrice: 14.85 },
   { ticker: "ALQ.AX", name: "ALS Limited", sector: "Industrials", market: "ASX", basePrice: 14.6 },
-  { ticker: "SVW.AX", name: "Seven Group Holdings", sector: "Industrials", market: "ASX", basePrice: 42.5 },
   { ticker: "DOW.AX", name: "Downer EDI", sector: "Industrials", market: "ASX", basePrice: 5.85 },
-  { ticker: "CIM.AX", name: "CIMIC Group", sector: "Industrials", market: "ASX", basePrice: 22.4 },
   { ticker: "LLC.AX", name: "Lendlease Group", sector: "Real Estate", market: "ASX", basePrice: 6.85 },
   { ticker: "CWY.AX", name: "Cleanaway Waste Management", sector: "Industrials", market: "ASX", basePrice: 2.85 },
   { ticker: "REH.AX", name: "Reece", sector: "Industrials", market: "ASX", basePrice: 24.6 },
   { ticker: "RWC.AX", name: "Reliance Worldwide", sector: "Industrials", market: "ASX", basePrice: 5.15 },
   { ticker: "GWA.AX", name: "GWA Group", sector: "Industrials", market: "ASX", basePrice: 2.65 },
   { ticker: "FBU.AX", name: "Fletcher Building", sector: "Materials", market: "ASX", basePrice: 2.98 },
-  { ticker: "CSR.AX", name: "CSR", sector: "Materials", market: "ASX", basePrice: 8.95 },
-  { ticker: "BLD.AX", name: "Boral", sector: "Materials", market: "ASX", basePrice: 6.15 },
-  { ticker: "ABC.AX", name: "Adbri", sector: "Materials", market: "ASX", basePrice: 3.15 },
   { ticker: "NUF.AX", name: "Nufarm", sector: "Materials", market: "ASX", basePrice: 4.35 },
   { ticker: "ELD.AX", name: "Elders", sector: "Consumer Staples", market: "ASX", basePrice: 8.65 },
   { ticker: "GNC.AX", name: "GrainCorp", sector: "Consumer Staples", market: "ASX", basePrice: 8.85 },
-  { ticker: "IFL.AX", name: "Insignia Financial", sector: "Financials", market: "ASX", basePrice: 3.15 },
   { ticker: "PNI.AX", name: "Pinnacle Investment Management", sector: "Financials", market: "ASX", basePrice: 20.4 },
   { ticker: "GQG.AX", name: "GQG Partners", sector: "Financials", market: "ASX", basePrice: 2.45 },
   { ticker: "CGF.AX", name: "Challenger", sector: "Financials", market: "ASX", basePrice: 6.85 },
@@ -359,15 +337,11 @@ export const MARKET_UNIVERSE: UniverseEntry[] = [
   { ticker: "CIP.AX", name: "Centuria Industrial REIT", sector: "Real Estate", market: "ASX", basePrice: 3.05 },
   { ticker: "COF.AX", name: "Centuria Office REIT", sector: "Real Estate", market: "ASX", basePrice: 1.25 },
   { ticker: "INA.AX", name: "Ingenia Communities Group", sector: "Real Estate", market: "ASX", basePrice: 5.15 },
-  { ticker: "NSR.AX", name: "National Storage REIT", sector: "Real Estate", market: "ASX", basePrice: 2.35 },
   { ticker: "RGN.AX", name: "Region Group", sector: "Real Estate", market: "ASX", basePrice: 2.25 },
-  { ticker: "ABP.AX", name: "Abacus Group", sector: "Real Estate", market: "ASX", basePrice: 1.25 },
   { ticker: "ASK.AX", name: "Abacus Storage King", sector: "Real Estate", market: "ASX", basePrice: 1.15 },
   { ticker: "QUB.AX", name: "Qube Holdings", sector: "Industrials", market: "ASX", basePrice: 3.85 },
   { ticker: "AIA.AX", name: "Auckland International Airport", sector: "Industrials", market: "ASX", basePrice: 6.95 },
-  { ticker: "ATL.AX", name: "Apollo Tourism & Leisure", sector: "Consumer Discretionary", market: "ASX", basePrice: 0.55 },
   { ticker: "SGR.AX", name: "The Star Entertainment Group", sector: "Consumer Discretionary", market: "ASX", basePrice: 0.28 },
-  { ticker: "CWN.AX", name: "Crown Resorts", sector: "Consumer Discretionary", market: "ASX", basePrice: 13.1 },
   { ticker: "ORI.AX", name: "Orica", sector: "Materials", market: "ASX", basePrice: 17.8 },
   { ticker: "IPH.AX", name: "IPH Limited", sector: "Industrials", market: "ASX", basePrice: 5.65 },
   { ticker: "SIQ.AX", name: "Smartgroup Corporation", sector: "Industrials", market: "ASX", basePrice: 8.15 },
@@ -380,7 +354,6 @@ export const MARKET_UNIVERSE: UniverseEntry[] = [
   { ticker: "CTD.AX", name: "Corporate Travel Management", sector: "Consumer Discretionary", market: "ASX", basePrice: 13.2 },
   { ticker: "EVT.AX", name: "EVT Limited", sector: "Consumer Discretionary", market: "ASX", basePrice: 11.4 },
   { ticker: "APE.AX", name: "Eagers Automotive", sector: "Consumer Discretionary", market: "ASX", basePrice: 10.8 },
-  { ticker: "DHG.AX", name: "Domain Holdings Australia", sector: "Communication Services", market: "ASX", basePrice: 3.45 },
   { ticker: "PXA.AX", name: "PEXA Group", sector: "Technology", market: "ASX", basePrice: 13.6 },
   { ticker: "LFS.AX", name: "Latitude Group Holdings", sector: "Financials", market: "ASX", basePrice: 1.25 },
   { ticker: "HLI.AX", name: "Helia Group", sector: "Financials", market: "ASX", basePrice: 4.35 },
@@ -393,13 +366,10 @@ export const MARKET_UNIVERSE: UniverseEntry[] = [
   { ticker: "IMD.AX", name: "Imdex", sector: "Industrials", market: "ASX", basePrice: 2.65 },
   { ticker: "EMR.AX", name: "Emerald Resources", sector: "Materials", market: "ASX", basePrice: 3.85 },
   { ticker: "VAU.AX", name: "Vault Minerals", sector: "Materials", market: "ASX", basePrice: 0.42 },
-  { ticker: "AIC.AX", name: "Australian Iron Companies", sector: "Materials", market: "ASX", basePrice: 0.85 },
-  { ticker: "GOR.AX", name: "Gold Road Resources", sector: "Materials", market: "ASX", basePrice: 2.05 },
   { ticker: "RMS.AX", name: "Ramelius Resources", sector: "Materials", market: "ASX", basePrice: 2.25 },
   { ticker: "AMI.AX", name: "Aurelia Metals", sector: "Materials", market: "ASX", basePrice: 0.18 },
   { ticker: "AGY.AX", name: "Argosy Minerals", sector: "Materials", market: "ASX", basePrice: 0.08 },
   { ticker: "GL1.AX", name: "Global Lithium Resources", sector: "Materials", market: "ASX", basePrice: 0.35 },
-  { ticker: "PLL.AX", name: "Piedmont Lithium", sector: "Materials", market: "ASX", basePrice: 0.15 },
   { ticker: "WR1.AX", name: "Winsome Resources", sector: "Materials", market: "ASX", basePrice: 0.45 },
   { ticker: "MAD.AX", name: "Mader Group", sector: "Industrials", market: "ASX", basePrice: 6.15 },
   { ticker: "SLC.AX", name: "Superloop", sector: "Telecom", market: "ASX", basePrice: 1.95 },
@@ -409,9 +379,7 @@ export const MARKET_UNIVERSE: UniverseEntry[] = [
   { ticker: "PPE.AX", name: "PeopleIN", sector: "Industrials", market: "ASX", basePrice: 1.05 },
   { ticker: "AD8.AX", name: "Audinate Group", sector: "Technology", market: "ASX", basePrice: 8.45 },
   { ticker: "BVS.AX", name: "Bravura Solutions", sector: "Technology", market: "ASX", basePrice: 1.85 },
-  { ticker: "CGL.AX", name: "Citadel Group", sector: "Technology", market: "ASX", basePrice: 2.85 },
   { ticker: "PPS.AX", name: "Praemium", sector: "Technology", market: "ASX", basePrice: 0.65 },
-  { ticker: "RUL.AX", name: "RPMGlobal Holdings", sector: "Technology", market: "ASX", basePrice: 2.45 },
   { ticker: "WBT.AX", name: "Weebit Nano", sector: "Technology", market: "ASX", basePrice: 2.85 },
   { ticker: "BRN.AX", name: "BrainChip Holdings", sector: "Technology", market: "ASX", basePrice: 0.25 },
   { ticker: "4DX.AX", name: "4DMedical", sector: "Healthcare", market: "ASX", basePrice: 0.55 },
@@ -424,8 +392,6 @@ export const MARKET_UNIVERSE: UniverseEntry[] = [
   { ticker: "EBR.AX", name: "EBR Systems", sector: "Healthcare", market: "ASX", basePrice: 1.35 },
   { ticker: "SHV.AX", name: "Select Harvests", sector: "Consumer Staples", market: "ASX", basePrice: 4.15 },
   { ticker: "BGA.AX", name: "Bega Cheese", sector: "Consumer Staples", market: "ASX", basePrice: 4.85 },
-  { ticker: "CGC.AX", name: "Costa Group Holdings", sector: "Consumer Staples", market: "ASX", basePrice: 3.15 },
-  { ticker: "TGR.AX", name: "Tassal Group", sector: "Consumer Staples", market: "ASX", basePrice: 4.85 },
   { ticker: "AAC.AX", name: "Australian Agricultural Company", sector: "Consumer Staples", market: "ASX", basePrice: 1.45 },
   { ticker: "IGL.AX", name: "IVE Group", sector: "Industrials", market: "ASX", basePrice: 2.35 },
   // ===================== US (USD) — Dow Jones 30 + Nasdaq-100 =====================
@@ -507,7 +473,6 @@ export const MARKET_UNIVERSE: UniverseEntry[] = [
   { ticker: "WDAY", name: "Workday, Inc.", sector: "Technology", market: "US", basePrice: 258.3 },
   { ticker: "SNPS", name: "Synopsys, Inc.", sector: "Technology", market: "US", basePrice: 485.6 },
   { ticker: "CDNS", name: "Cadence Design Systems", sector: "Technology", market: "US", basePrice: 302.4 },
-  { ticker: "ANSS", name: "ANSYS, Inc.", sector: "Technology", market: "US", basePrice: 338.9 },
   { ticker: "ROP", name: "Roper Technologies", sector: "Technology", market: "US", basePrice: 542.7 },
   { ticker: "ADSK", name: "Autodesk, Inc.", sector: "Technology", market: "US", basePrice: 298.5 },
   { ticker: "ADP", name: "Automatic Data Processing", sector: "Technology", market: "US", basePrice: 302.1 },
@@ -1179,19 +1144,50 @@ function allIntel(assetClass: AssetClass = "stock"): SecurityIntel[] {
 }
 
 /**
- * Analyse a whole universe, optionally anchoring each security to a live price
- * (from the market-data / CoinGecko provider). With no overrides this returns
- * the cached deterministic set. Keyed by the internal ticker (e.g. "BHP.AX").
+ * Minimum share of a universe that must return a genuine live quote before we
+ * switch to "live-only" mode (dropping tickers with no live price). Below this
+ * we assume a transient data-feed outage and keep the full set. Shared with the
+ * report sweep so both paths clean delisted names on the same rule.
+ */
+export const LIVE_COVERAGE_FLOOR = 0.4;
+
+/**
+ * Analyse a whole universe, anchoring each security to a live price (from the
+ * market-data / CoinGecko provider). With no overrides this returns the cached
+ * deterministic set. Keyed by the internal ticker (e.g. "BHP.AX").
+ *
+ * SELF-CLEANING: when live prices are supplied we return ONLY the securities
+ * that came back with a genuine live quote today, so any delisted / suspended /
+ * renamed ticker (no live price) is automatically dropped from every list
+ * (snapshot, top movers, projection leaders). This is what keeps a name that
+ * stops trading — e.g. an ASX company that gets acquired — from lingering in the
+ * lists on stale synthetic data. Guarded: if live coverage collapses (a
+ * transient data-feed outage), we fall back to the full deterministic set so the
+ * dashboard can never go blank.
  */
 export function analyzeUniverse(
   priceOverrides?: Record<string, number>,
   assetClass: AssetClass = "stock"
 ): SecurityIntel[] {
+  const universe = universeFor(assetClass);
   if (!priceOverrides || !Object.keys(priceOverrides).length) return allIntel(assetClass);
-  return universeFor(assetClass).map((e) => {
-    const live = priceOverrides[e.ticker] ?? priceOverrides[e.ticker.toUpperCase()];
-    return analyzeSecurity(e.ticker, live && live > 0 ? live : undefined);
+
+  const priced = universe.map((e) => {
+    const raw = priceOverrides[e.ticker] ?? priceOverrides[e.ticker.toUpperCase()];
+    return { ticker: e.ticker, live: raw && raw > 0 ? raw : undefined };
   });
+
+  const liveCount = priced.filter((p) => p.live !== undefined).length;
+  const strict = liveCount >= Math.max(1, Math.floor(universe.length * LIVE_COVERAGE_FLOOR));
+  if (!strict) {
+    console.warn(
+      `[market-intel] Live coverage low (${liveCount}/${universe.length}); keeping full ${assetClass} set to avoid a blank board.`
+    );
+  }
+
+  return priced
+    .filter((p) => (strict ? p.live !== undefined : true))
+    .map((p) => analyzeSecurity(p.ticker, p.live));
 }
 
 /** The market columns present for an asset class (NZX/ASX/US, or CRYPTO). */
