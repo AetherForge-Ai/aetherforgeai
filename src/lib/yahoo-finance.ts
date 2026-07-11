@@ -187,9 +187,86 @@ const SEARCH_TTL_MS = 5 * 60_000; // 5 minutes
 const SEARCH_CACHE = new Map<string, { at: number; results: YahooSymbolMatch[] }>();
 
 /**
+ * Directly probe ONE Yahoo symbol via the chart endpoint. Returns a match only
+ * if it's a live equity on a covered exchange (ASX / NZX / NASDAQ / NYSE).
+ *
+ * This is the safety net that guarantees an exact ASX/NZX ticker always resolves.
+ * Yahoo's name-search ranks globally and frequently buries or omits the primary
+ * antipodean listing — e.g. searching "WBC" surfaces Westpac's German and
+ * preference-share lines but NOT the ordinary `WBC.AX` — so a bare ticker would
+ * otherwise appear "missing" from the picker.
+ */
+async function probeSymbol(symbol: string): Promise<YahooSymbolMatch | null> {
+  try {
+    const url = `${BASE}/${encodeURIComponent(symbol)}?interval=1d&range=1d`;
+    const res = await fetch(url, { headers: { "User-Agent": UA, Accept: "application/json" } });
+    if (!res.ok) return null;
+    const json = (await res.json()) as {
+      chart?: { result?: Array<{ meta?: Record<string, any> }> };
+    };
+    const meta = json?.chart?.result?.[0]?.meta;
+    if (!meta) return null;
+
+    const price = Number(meta.regularMarketPrice);
+    if (!isFinite(price) || price <= 0) return null; // delisted / no data
+
+    const label = EXCHANGE_LABELS[String(meta.exchangeName)];
+    if (!label) return null; // only ASX / NZX / NASDAQ / NYSE
+
+    const sym = String(meta.symbol || symbol).toUpperCase();
+    return {
+      symbol: sym,
+      name: cleanInstrumentName(meta.longName) ?? cleanInstrumentName(meta.shortName) ?? sym,
+      exchange: String(meta.exchangeName),
+      exchangeLabel: label,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Yahoo's name/keyword search — good for company names ("Commonwealth", "Apple"). */
+async function nameSearch(q: string): Promise<YahooSymbolMatch[]> {
+  try {
+    const url = `${SEARCH_BASE}?q=${encodeURIComponent(q)}&quotesCount=40&newsCount=0&listsCount=0&enableFuzzyQuery=false`;
+    const res = await fetch(url, { headers: { "User-Agent": UA, Accept: "application/json" } });
+    if (!res.ok) {
+      console.error(`[yahoo] search HTTP ${res.status} for "${q}"`);
+      return [];
+    }
+    const json = (await res.json()) as { quotes?: Array<Record<string, any>> };
+    const out: YahooSymbolMatch[] = [];
+    for (const item of json?.quotes ?? []) {
+      if (item?.quoteType !== "EQUITY") continue;
+      const label = EXCHANGE_LABELS[String(item.exchange)];
+      if (!label) continue; // only ASX / NZX / NASDAQ / NYSE
+      const symbol = String(item.symbol || "").toUpperCase();
+      if (!symbol) continue;
+      out.push({
+        symbol,
+        name: cleanInstrumentName(item.longname || item.shortname) ?? symbol,
+        exchange: String(item.exchange),
+        exchangeLabel: label,
+      });
+    }
+    return out;
+  } catch (err) {
+    console.error(`[yahoo] name search failed for "${q}":`, err);
+    return [];
+  }
+}
+
+/**
  * Live keyless symbol search across ASX / NZX / NASDAQ / NYSE. Returns matching
  * equities (symbol + company name + market label). Cached briefly and degrades
  * to an empty list on any failure so the picker never breaks.
+ *
+ * Combines two strategies so nothing that trades on the four covered exchanges
+ * goes missing:
+ *   1. Direct ticker probe — if the query looks like a bare ticker we hit the
+ *      quote endpoint for its `.AX` (ASX), `.NZ` (NZX) and bare (US) listings and
+ *      surface any that are live. These lead the list (exact-symbol intent).
+ *   2. Name/keyword search — Yahoo's fuzzy lookup for company-name queries.
  */
 export async function searchYahooSymbols(query: string, limit = 12): Promise<YahooSymbolMatch[]> {
   const q = (query || "").trim();
@@ -199,38 +276,32 @@ export async function searchYahooSymbols(query: string, limit = 12): Promise<Yah
   const cached = SEARCH_CACHE.get(key);
   if (cached && Date.now() - cached.at <= SEARCH_TTL_MS) return cached.results.slice(0, limit);
 
-  try {
-    const url = `${SEARCH_BASE}?q=${encodeURIComponent(q)}&quotesCount=30&newsCount=0&listsCount=0&enableFuzzyQuery=false`;
-    const res = await fetch(url, { headers: { "User-Agent": UA, Accept: "application/json" } });
-    if (!res.ok) {
-      console.error(`[yahoo] search HTTP ${res.status} for "${q}"`);
-      return [];
-    }
-    const json = (await res.json()) as { quotes?: Array<Record<string, any>> };
-    const quotes = json?.quotes ?? [];
-
-    const results: YahooSymbolMatch[] = [];
-    const seen = new Set<string>();
-    for (const item of quotes) {
-      if (item?.quoteType !== "EQUITY") continue;
-      const label = EXCHANGE_LABELS[String(item.exchange)];
-      if (!label) continue; // only ASX / NZX / NASDAQ / NYSE
-      const symbol = String(item.symbol || "").toUpperCase();
-      if (!symbol || seen.has(symbol)) continue;
-      seen.add(symbol);
-      results.push({
-        symbol,
-        name: String(item.longname || item.shortname || symbol),
-        exchange: String(item.exchange),
-        exchangeLabel: label,
-      });
-    }
-
-    SEARCH_CACHE.set(key, { at: Date.now(), results });
-    console.log(`[yahoo] search "${q}" → ${results.length} ASX/NZX/NASDAQ/NYSE matches`);
-    return results.slice(0, limit);
-  } catch (err) {
-    console.error(`[yahoo] search failed for "${q}":`, err);
-    return [];
+  // Build direct-probe candidates for ticker-shaped queries.
+  const probes: string[] = [];
+  const bare = q.toUpperCase();
+  if (/^[A-Z0-9]{1,6}\.(AX|NZ)$/i.test(q)) {
+    probes.push(bare); // user already typed a suffix (WBC.AX)
+  } else if (/^[A-Z0-9]{1,6}$/i.test(q)) {
+    probes.push(`${bare}.AX`, `${bare}.NZ`, bare); // ASX, NZX, then US
   }
+
+  const [probeResults, named] = await Promise.all([
+    Promise.all(probes.map(probeSymbol)),
+    nameSearch(q),
+  ]);
+
+  // Merge: exact ticker hits first, then name matches. De-dupe by symbol.
+  const results: YahooSymbolMatch[] = [];
+  const seen = new Set<string>();
+  for (const m of [...probeResults.filter((x): x is YahooSymbolMatch => !!x), ...named]) {
+    if (seen.has(m.symbol)) continue;
+    seen.add(m.symbol);
+    results.push(m);
+  }
+
+  SEARCH_CACHE.set(key, { at: Date.now(), results });
+  console.log(
+    `[yahoo] search "${q}" → ${results.length} matches (${probeResults.filter(Boolean).length} direct, ${named.length} named)`,
+  );
+  return results.slice(0, limit);
 }
