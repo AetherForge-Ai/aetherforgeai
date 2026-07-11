@@ -222,7 +222,13 @@ function clamp(v: number, lo: number, hi: number): number {
 
 export function buildActionableIntelligence(
   stocks: Stock[],
-  assetClass: AssetClass = "stock"
+  assetClass: AssetClass = "stock",
+  /**
+   * Live-analysed universe (from /api/market). When supplied, BUY candidates are
+   * drawn from these LIVE-priced securities so the "High-Conviction Buys" list
+   * changes as the market moves — instead of the frozen deterministic set.
+   */
+  liveUniverse?: SecurityIntel[] | null
 ): ActionableIntelligence {
   const holdings = enrichHoldings(stocks);
   const heldTickers = new Set(holdings.map((h) => h.stock.ticker.toUpperCase()));
@@ -242,14 +248,19 @@ export function buildActionableIntelligence(
       urgency: h.intel.signal === "Sell" || h.weight >= 15 ? "high" : "medium",
     }));
 
-  // BUY candidates — high-conviction names NOT already held, drawn from the
-  // universe matching the active bot (equities or crypto).
-  const buyCandidates: BuyCandidate[] = universeFor(assetClass)
-    .filter((e) => !heldTickers.has(e.ticker.toUpperCase()))
-    .map((e) => analyzeSecurity(e.ticker, undefined, undefined, e.market))
+  // BUY candidates — high-conviction names NOT already held. When a LIVE universe
+  // is supplied (dashboard), we rank the live-priced securities so the list moves
+  // with the market; otherwise we fall back to the deterministic engine.
+  const candidatePool: SecurityIntel[] =
+    liveUniverse && liveUniverse.length
+      ? liveUniverse
+      : universeFor(assetClass).map((e) => analyzeSecurity(e.ticker, undefined, undefined, e.market));
+
+  const buyCandidates: BuyCandidate[] = candidatePool
+    .filter((i) => !heldTickers.has(i.ticker.toUpperCase()))
     .filter((i) => i.signal === "Strong Buy" || i.signal === "Buy")
     .sort((a, b) => b.score * (b.confidence / 100) - a.score * (a.confidence / 100))
-    .slice(0, 5)
+    .slice(0, 6)
     .map((i) => ({
       ticker: i.ticker,
       name: i.name,

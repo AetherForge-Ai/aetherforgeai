@@ -24,7 +24,7 @@ import { PreciousMetals } from "@/components/dashboard/PreciousMetals";
 import { planLabel } from "@/lib/plans";
 import { checkTickerQuota, limitScope, resolveTickerLimit } from "@/lib/entitlements";
 import { computePortfolioMetrics } from "@/lib/analytics";
-import { MarketSnapshot } from "@/components/dashboard/MarketSnapshot";
+import { AllMarkets } from "@/components/dashboard/AllMarkets";
 import { TopMovers } from "@/components/dashboard/TopMovers";
 import { ProjectionsPanel } from "@/components/dashboard/ProjectionsPanel";
 import { ActionableIntelligence } from "@/components/dashboard/ActionableIntelligence";
@@ -1000,12 +1000,12 @@ export function PortfolioDashboard({
 
       {/* Actionable intelligence — SELL/BUY signals + pathways */}
       <div className="mt-6">
-        <ActionableIntelligence stocks={stocks} assetClass={bot} />
+        <ActionableIntelligence stocks={stocks} assetClass={bot} onBought={handleDataChanged} />
       </div>
 
-      {/* ───────────────────────── 7 · Market snapshot ───────────────────────── */}
+      {/* ───────────────────────── 7 · ALL Markets — live cross-exchange browser ───────────────────────── */}
       <div className="mt-8">
-        <MarketSnapshot />
+        <AllMarkets onBought={handleDataChanged} />
       </div>
 
       {/* ───────────────────────── 8 · Top movers (24h · 7d · 1 month) ───────────────────────── */}
@@ -1013,9 +1013,9 @@ export function PortfolioDashboard({
         <TopMovers />
       </div>
 
-      {/* ───────────────────────── 9 · 7-day projections (50 NZX + 200 ASX → 10 best) ───────────────────────── */}
+      {/* ───────────────────────── 9 · 7-day projections (NZX + ASX + Dow + NASDAQ → top 15) ───────────────────────── */}
       <div className="mt-6">
-        <ProjectionsPanel />
+        <ProjectionsPanel assetClass={bot} onBought={handleDataChanged} />
       </div>
 
       {/* ───────────────────────── 10 · Watchlist & share-price alerts (gated for guests) ───────────────────────── */}

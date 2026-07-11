@@ -2,14 +2,26 @@
 
 import { useMemo, useState } from "react";
 import {
-  getProjectionLeaders,
+  getProjectionMovers,
   formatMarketPrice,
+  type AssetClass,
   type SecurityIntel,
 } from "@/lib/market-intel";
 import { cn } from "@/lib/utils";
-import { pctClass, fmtPct, SignalBadge, MarketChip } from "@/components/dashboard/intel-ui";
+import { pctClass, fmtPct, SignalBadge, ExchangeChip } from "@/components/dashboard/intel-ui";
 import { useMarketIntel } from "@/components/dashboard/MarketIntelContext";
-import { LineChart, TrendingUp } from "lucide-react";
+import { BuyDialog, type BuyTarget } from "@/components/dashboard/BuyDialog";
+import { Button } from "@/components/ui/button";
+import {
+  LineChart,
+  TrendingUp,
+  TrendingDown,
+  RefreshCw,
+  Loader2,
+  ShoppingCart,
+  ArrowUp,
+  ArrowDown,
+} from "lucide-react";
 import {
   ResponsiveContainer,
   LineChart as RLineChart,
@@ -105,60 +117,99 @@ function ProjectionChart({ sel }: { sel: SecurityIntel }) {
   );
 }
 
-export function ProjectionsPanel() {
-  const { universe } = useMarketIntel();
-  // Analyse the whole NZX + ASX (+ US) universe and surface the 10 best-conviction
-  // 7-day projected movers.
-  const leaders = useMemo(() => getProjectionLeaders(10, universe ?? undefined), [universe]);
+export function ProjectionsPanel({
+  assetClass = "stock",
+  onBought,
+}: {
+  assetClass?: AssetClass;
+  onBought?: () => void;
+}) {
+  const { universe, refresh, refreshing, lastUpdated } = useMarketIntel();
+  // Analyse the whole cross-market universe (NZX, ASX, Dow Jones, NASDAQ) and
+  // surface the 15 strongest short-term movers overall — ranked by projected
+  // strength weighted by model confidence.
+  const leaders = useMemo(() => getProjectionMovers(15, universe ?? undefined), [universe]);
   const analysedCount = universe?.length ?? 0;
   const [selected, setSelected] = useState<string>("");
   const sel = leaders.find((l) => l.ticker === selected) ?? leaders[0];
+
+  const [buyTarget, setBuyTarget] = useState<BuyTarget | null>(null);
+  const [buyOpen, setBuyOpen] = useState(false);
+
+  function openBuy(s: SecurityIntel) {
+    setBuyTarget({ ticker: s.ticker, name: s.name, assetType: assetClass, price: s.price });
+    setBuyOpen(true);
+  }
 
   if (!sel) return null;
 
   return (
     <section className="rounded-3xl border border-border/70 bg-card/50 p-6">
-      <div className="flex items-center gap-3">
-        <span className="grid size-9 place-items-center rounded-lg bg-primary/12 text-primary">
-          <LineChart className="size-4" />
-        </span>
-        <div>
-          <h2 className="font-display text-lg font-bold">7-day projections</h2>
-          <p className="text-xs text-muted-foreground">
-            Regression + technical model{analysedCount ? ` · ${analysedCount} NZX & ASX securities analysed` : ""} · 10 best · next 7 sessions
-          </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="grid size-9 place-items-center rounded-lg bg-primary/12 text-primary">
+            <LineChart className="size-4" />
+          </span>
+          <div>
+            <h2 className="font-display text-lg font-bold">7-day projections</h2>
+            <p className="text-xs text-muted-foreground">
+              Cross-market model · NZX, ASX, Dow Jones &amp; NASDAQ{analysedCount ? ` · ${analysedCount} securities analysed` : ""} · top 15 movers · next 7 sessions
+            </p>
+          </div>
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 gap-1.5 px-3 text-xs"
+          onClick={() => refresh()}
+          disabled={refreshing}
+        >
+          {refreshing ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
+          Refresh
+        </Button>
       </div>
 
       <div className="mt-5 grid gap-6 lg:grid-cols-[1fr_1.5fr]">
         {/* Leaders list */}
         <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Top 10 projected movers</p>
-          {leaders.map((l) => {
-            const active = l.ticker === sel.ticker;
-            return (
-              <button
-                key={l.ticker}
-                onClick={() => setSelected(l.ticker)}
-                className={cn(
-                  "flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors",
-                  active ? "border-primary/50 bg-primary/8" : "border-border/60 bg-background/30 hover:bg-background/50"
-                )}
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-display text-sm font-semibold">{l.ticker.replace(/\.(NZ|AX)$/, "")}</span>
-                    <MarketChip market={l.market} />
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Top 15 projected movers</p>
+            {lastUpdated && <p className="text-[0.6rem] text-muted-foreground">Updated {lastUpdated}</p>}
+          </div>
+          <div className="max-h-[26rem] space-y-2 overflow-y-auto pr-1">
+            {leaders.map((l, i) => {
+              const active = l.ticker === sel.ticker;
+              const up = l.projected7dPct >= 0;
+              return (
+                <button
+                  key={l.ticker}
+                  onClick={() => setSelected(l.ticker)}
+                  className={cn(
+                    "flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors",
+                    active ? "border-primary/50 bg-primary/8" : "border-border/60 bg-background/30 hover:bg-background/50"
+                  )}
+                >
+                  <span className="tnum grid size-6 shrink-0 place-items-center rounded-md bg-muted/50 text-[0.62rem] font-bold text-muted-foreground">
+                    {i + 1}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-display text-sm font-semibold">{l.ticker.replace(/\.(NZ|AX)$/, "")}</span>
+                      <ExchangeChip ticker={l.ticker} market={l.market} />
+                    </div>
+                    <p className="truncate text-[0.66rem] text-muted-foreground">{l.name}</p>
                   </div>
-                  <p className="truncate text-[0.66rem] text-muted-foreground">{l.name}</p>
-                </div>
-                <div className="text-right">
-                  <p className={cn("tnum text-sm font-bold", pctClass(l.projected7dPct))}>{fmtPct(l.projected7dPct)}</p>
-                  <p className="text-[0.62rem] text-muted-foreground">{l.confidence}% conf.</p>
-                </div>
-              </button>
-            );
-          })}
+                  <div className="text-right">
+                    <p className={cn("tnum flex items-center justify-end gap-0.5 text-sm font-bold", pctClass(l.projected7dPct))}>
+                      {up ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />}
+                      {fmtPct(l.projected7dPct)}
+                    </p>
+                    <p className="text-[0.62rem] text-muted-foreground">{l.confidence}% conf.</p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Selected detail */}
@@ -167,15 +218,32 @@ export function ProjectionsPanel() {
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="font-display text-xl font-bold">{sel.ticker.replace(/\.(NZ|AX)$/, "")}</h3>
+                <ExchangeChip ticker={sel.ticker} market={sel.market} />
                 <SignalBadge signal={sel.signal} />
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[0.62rem] font-bold uppercase tracking-wide",
+                    sel.projected7dPct >= 0
+                      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                      : "border-rose-500/30 bg-rose-500/10 text-rose-300"
+                  )}
+                >
+                  {sel.projected7dPct >= 0 ? <TrendingUp className="size-3" /> : <TrendingDown className="size-3" />}
+                  {sel.projected7dPct >= 0 ? "Upside" : "Downside"}
+                </span>
               </div>
               <p className="text-xs text-muted-foreground">{sel.name} · {sel.sector}</p>
             </div>
-            <div className="text-right">
-              <p className="tnum font-display text-lg font-bold">{formatMarketPrice(sel.price, sel.currency)}</p>
-              <p className={cn("tnum text-xs font-semibold", pctClass(sel.projected7dPct))}>
-                <TrendingUp className="mr-0.5 inline size-3" /> {fmtPct(sel.projected7dPct)} projected · {sel.confidence}% confidence
-              </p>
+            <div className="flex items-center gap-3">
+              <div className="text-right">
+                <p className="tnum font-display text-lg font-bold">{formatMarketPrice(sel.price, sel.currency)}</p>
+                <p className={cn("tnum text-xs font-semibold", pctClass(sel.projected7dPct))}>
+                  {fmtPct(sel.projected7dPct)} projected · {sel.confidence}% confidence
+                </p>
+              </div>
+              <Button size="sm" className="h-9 gap-1.5 px-3 font-semibold shadow-glow" onClick={() => openBuy(sel)}>
+                <ShoppingCart className="size-4" /> Buy
+              </Button>
             </div>
           </div>
 
@@ -224,6 +292,16 @@ export function ProjectionsPanel() {
           </div>
         </div>
       </div>
+
+      <BuyDialog
+        open={buyOpen}
+        onOpenChange={setBuyOpen}
+        target={buyTarget}
+        onDone={() => {
+          setBuyOpen(false);
+          onBought?.();
+        }}
+      />
     </section>
   );
 }

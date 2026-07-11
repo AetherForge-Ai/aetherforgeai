@@ -21,6 +21,7 @@ export interface YahooQuote {
   changePct: number; // vs previous close, %
   currency: string;
   name?: string; // resolved company/instrument name (from chart meta), when available
+  volume?: number; // regular-market session volume, when available
 }
 
 /**
@@ -75,11 +76,13 @@ async function fetchOne(yahooSymbol: string): Promise<YahooQuote | null> {
     if (!isFinite(price) || price <= 0) return null;
 
     const changePct = prevClose > 0 ? ((price - prevClose) / prevClose) * 100 : 0;
+    const vol = Number(meta.regularMarketVolume);
     const quote: YahooQuote = {
       price,
       changePct: isFinite(changePct) ? changePct : 0,
       currency: typeof meta.currency === "string" ? meta.currency : "USD",
       name: cleanInstrumentName(meta.longName) ?? cleanInstrumentName(meta.shortName),
+      volume: isFinite(vol) && vol > 0 ? vol : undefined,
     };
     CACHE.set(yahooSymbol, { quote, at: Date.now() });
     return quote;

@@ -1,12 +1,25 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { Stock } from "@/lib/portfolio";
 import { buildActionableIntelligence } from "@/lib/analytics";
 import { formatMarketPrice, type AssetClass } from "@/lib/market-intel";
 import { cn } from "@/lib/utils";
-import { pctClass, fmtPct, SignalBadge, MarketChip } from "@/components/dashboard/intel-ui";
-import { AlertTriangle, ArrowDownRight, ArrowUpRight, Shield, Scale, Rocket } from "lucide-react";
+import { pctClass, fmtPct, SignalBadge, ExchangeChip } from "@/components/dashboard/intel-ui";
+import { useMarketIntel } from "@/components/dashboard/MarketIntelContext";
+import { BuyDialog, type BuyTarget } from "@/components/dashboard/BuyDialog";
+import { Button } from "@/components/ui/button";
+import {
+  AlertTriangle,
+  ArrowDownRight,
+  ArrowUpRight,
+  Shield,
+  Scale,
+  Rocket,
+  RefreshCw,
+  Loader2,
+  ShoppingCart,
+} from "lucide-react";
 
 const PATHWAY_ICON = {
   "Low Risk": Shield,
@@ -23,12 +36,26 @@ const PATHWAY_TONE = {
 export function ActionableIntelligence({
   stocks,
   assetClass = "stock",
+  onBought,
 }: {
   stocks: Stock[];
   assetClass?: AssetClass;
+  onBought?: () => void;
 }) {
-  const intel = useMemo(() => buildActionableIntelligence(stocks, assetClass), [stocks, assetClass]);
+  const { universe, refresh, refreshing, lastUpdated } = useMarketIntel();
+  const intel = useMemo(
+    () => buildActionableIntelligence(stocks, assetClass, universe),
+    [stocks, assetClass, universe]
+  );
   const { actionRequired, sellRecommendations, buyCandidates, pathways } = intel;
+
+  const [buyTarget, setBuyTarget] = useState<BuyTarget | null>(null);
+  const [buyOpen, setBuyOpen] = useState(false);
+
+  function openBuy(c: (typeof buyCandidates)[number]) {
+    setBuyTarget({ ticker: c.ticker, name: c.name, assetType: assetClass, price: c.price });
+    setBuyOpen(true);
+  }
 
   return (
     <section className="space-y-5">
@@ -109,9 +136,25 @@ export function ActionableIntelligence({
 
         {/* BUY candidates */}
         <div className="rounded-2xl border border-border/70 bg-card/40 p-5">
-          <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-emerald-300">
-            <ArrowUpRight className="size-4" /> High-conviction BUY candidates
-            <span className="text-xs font-normal text-muted-foreground">(not held)</span>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-sm font-semibold text-emerald-300">
+              <ArrowUpRight className="size-4" /> High-conviction BUY candidates
+              <span className="text-xs font-normal text-muted-foreground">(not held)</span>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 gap-1.5 px-2.5 text-xs"
+              onClick={() => refresh()}
+              disabled={refreshing}
+            >
+              {refreshing ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="size-3.5" />
+              )}
+              Refresh
+            </Button>
           </div>
           {buyCandidates.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">No fresh buy signals right now.</p>
@@ -122,7 +165,7 @@ export function ActionableIntelligence({
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5">
                       <span className="font-display text-sm font-bold">{c.ticker.replace(/\.(NZ|AX)$/, "")}</span>
-                      <MarketChip market={c.market} />
+                      <ExchangeChip ticker={c.ticker} market={c.market} />
                       <SignalBadge signal={c.signal} />
                     </div>
                     <div className="text-right">
@@ -133,9 +176,21 @@ export function ActionableIntelligence({
                     </div>
                   </div>
                   <p className="mt-1.5 text-[0.72rem] leading-relaxed text-muted-foreground">{c.reasoning}</p>
+                  <div className="mt-2.5 flex justify-end">
+                    <Button
+                      size="sm"
+                      className="h-7 gap-1.5 px-3 text-xs font-semibold shadow-glow"
+                      onClick={() => openBuy(c)}
+                    >
+                      <ShoppingCart className="size-3.5" /> Buy
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
+          )}
+          {lastUpdated && (
+            <p className="mt-3 text-right text-[0.62rem] text-muted-foreground">Updated {lastUpdated}</p>
           )}
         </div>
       </div>
@@ -183,6 +238,16 @@ export function ActionableIntelligence({
           Informational market intelligence only — not personalised financial advice.
         </p>
       </div>
+
+      <BuyDialog
+        open={buyOpen}
+        onOpenChange={setBuyOpen}
+        target={buyTarget}
+        onDone={() => {
+          setBuyOpen(false);
+          onBought?.();
+        }}
+      />
     </section>
   );
 }

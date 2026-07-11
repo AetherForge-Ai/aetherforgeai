@@ -552,6 +552,50 @@ export function universeFor(assetClass: AssetClass): UniverseEntry[] {
   return assetClass === "crypto" ? CRYPTO_UNIVERSE : MARKET_UNIVERSE;
 }
 
+/* ----------------------- User-facing exchange buckets ------------------- */
+
+/**
+ * The 30 Dow Jones Industrial Average constituents. Used to split the single
+ * "US" market code into the two headline indices ("Dow Jones" vs "NASDAQ") for
+ * the ALL Markets selector and the projection exchange chips.
+ */
+export const DOW_JONES_TICKERS: ReadonlySet<string> = new Set([
+  "AAPL", "AMGN", "AMZN", "AXP", "BA", "CAT", "CRM", "CSCO", "CVX", "DIS",
+  "GS", "HD", "HON", "IBM", "JNJ", "JPM", "KO", "MCD", "MMM", "MRK",
+  "MSFT", "NKE", "NVDA", "PG", "SHW", "TRV", "UNH", "V", "VZ", "WMT",
+]);
+
+/** The four user-facing equity exchanges the dashboard surfaces. */
+export type Exchange = "NZX" | "ASX" | "DOW" | "NASDAQ";
+
+export const EXCHANGE_META: Record<
+  Exchange,
+  { label: string; sub: string; currency: "NZD" | "AUD" | "USD" }
+> = {
+  NZX: { label: "NZX", sub: "New Zealand Exchange", currency: "NZD" },
+  ASX: { label: "ASX", sub: "Australian Securities Exchange", currency: "AUD" },
+  DOW: { label: "Dow Jones", sub: "Dow Jones Industrial Average · 30", currency: "USD" },
+  NASDAQ: { label: "NASDAQ", sub: "Nasdaq listed", currency: "USD" },
+};
+
+export const EXCHANGES: Exchange[] = ["NZX", "ASX", "DOW", "NASDAQ"];
+
+/**
+ * Resolve which user-facing exchange a ticker belongs to. NZX / ASX map by
+ * their suffix-derived market; a US listing is bucketed into Dow Jones when it
+ * is a Dow constituent, otherwise NASDAQ.
+ */
+export function resolveExchange(ticker: string, market: MarketCode): Exchange {
+  if (market === "NZX") return "NZX";
+  if (market === "ASX") return "ASX";
+  return DOW_JONES_TICKERS.has(ticker.toUpperCase()) ? "DOW" : "NASDAQ";
+}
+
+/** All universe entries listed on a given user-facing exchange. */
+export function entriesForExchange(ex: Exchange): UniverseEntry[] {
+  return MARKET_UNIVERSE.filter((e) => resolveExchange(e.ticker, e.market) === ex);
+}
+
 const UNIVERSE_MAP: Record<string, UniverseEntry> = [...MARKET_UNIVERSE, ...CRYPTO_UNIVERSE].reduce(
   (acc, e) => {
     acc[e.ticker] = e;
@@ -1226,6 +1270,22 @@ export function getTopMovers(
 export function getProjectionLeaders(count = 6, list: SecurityIntel[] = allIntel()): SecurityIntel[] {
   return [...list]
     .sort((a, b) => b.projected7dPct * (b.confidence / 100) - a.projected7dPct * (a.confidence / 100))
+    .slice(0, count);
+}
+
+/**
+ * Top short-term projected movers in EITHER direction across the whole universe
+ * (NZX + ASX + Dow Jones + NASDAQ), ranked by conviction-weighted absolute
+ * projected 7-day move. Surfaces the strongest up- AND down-moves so the
+ * dashboard's overall "Projected Movers" ranking reflects real market breadth.
+ */
+export function getProjectionMovers(count = 15, list: SecurityIntel[] = allIntel()): SecurityIntel[] {
+  return [...list]
+    .sort(
+      (a, b) =>
+        Math.abs(b.projected7dPct) * (b.confidence / 100) -
+        Math.abs(a.projected7dPct) * (a.confidence / 100)
+    )
     .slice(0, count);
 }
 
