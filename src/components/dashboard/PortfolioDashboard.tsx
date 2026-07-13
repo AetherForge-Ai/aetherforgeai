@@ -33,6 +33,7 @@ import { OpenMarketSnapshot } from "@/components/dashboard/OpenMarketSnapshot";
 import { AnimatedMoney } from "@/components/dashboard/AnimatedMoney";
 import { TopMovers } from "@/components/dashboard/TopMovers";
 import { MarketWidePerformers } from "@/components/dashboard/MarketWidePerformers";
+import { CryptoMarketSection } from "@/components/dashboard/crypto/CryptoMarketSection";
 import { ActionableIntelligence } from "@/components/dashboard/ActionableIntelligence";
 import { NewsFeed } from "@/components/dashboard/NewsFeed";
 import { MarketIntelProvider } from "@/components/dashboard/MarketIntelContext";
@@ -1170,6 +1171,13 @@ export function PortfolioDashboard({
       <div className="mt-6">
         <ActionableIntelligence stocks={stocks} assetClass={bot} onBought={handleDataChanged} />
       </div>
+
+      {/* ───────────────────────── 6.5 · Crypto Market terminal (Crypto Bot only) — live top 500 + fixed Projected Performers ───────────────────────── */}
+      {bot === "crypto" && (
+        <div className="mt-8">
+          <CryptoMarketSection />
+        </div>
+      )}
 
       {/* ───────────────────────── 7 · ALL Markets — live cross-exchange browser + Open Market Snapshot ───────────────────────── */}
       <div className="mt-8 grid gap-4 lg:grid-cols-2">
