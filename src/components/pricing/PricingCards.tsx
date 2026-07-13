@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import {
   PRICING_TIERS,
   planByKey,
+  buildPaymentLinkUrl,
   SALES_EMAIL,
   ANNUAL_SAVINGS_PCT,
   type PricingTier,
@@ -63,7 +64,24 @@ export function PricingCards() {
     }
 
     setLoadingTier(tier.id);
-    console.log(`[pricing] Checkout ${tier.id} (${period})`, { priceId: plan.priceId, bot });
+
+    // Preferred path: the owner's shareable Stripe Payment Link. We tag it with
+    // the signed-in user's id (client_reference_id) + email so the webhook can
+    // attach the subscription to their account. Bot choice matters only for the
+    // single-bot Starter tier.
+    const paymentUrl = buildPaymentLinkUrl(plan, {
+      userId: session.user.id,
+      email: session.user.email,
+      bot: plan.botAccess === "both" ? undefined : bot,
+    });
+    if (paymentUrl) {
+      console.log(`[pricing] Payment Link → ${tier.id} (${period})`, { plan: plan.key, bot });
+      window.location.href = paymentUrl;
+      return;
+    }
+
+    // Fallback: dynamic Checkout Session (used if a plan has no payment link).
+    console.log(`[pricing] Checkout session ${tier.id} (${period})`, { priceId: plan.priceId, bot });
     const res = await api.post<{ url: string }>("/api/stripe/checkout", {
       priceId: plan.priceId,
       // Bot choice only matters for single-bot tiers (Starter); ignored otherwise.

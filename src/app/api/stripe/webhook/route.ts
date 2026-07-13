@@ -18,7 +18,7 @@ import { NextResponse } from "next/server";
 import { stripe, STRIPE_WEBHOOK_SECRET, cryptoProvider } from "@/lib/stripe";
 import Stripe from "stripe";
 import { totalumSdk } from "@/lib/totalum";
-import { planByPriceId, planByKey } from "@/lib/plans";
+import { planByPriceId, planByKey, parsePaymentLinkRef } from "@/lib/plans";
 
 type SubscriptionPatch = {
   subscription_status?: string;
@@ -69,9 +69,17 @@ async function updateUserSubscription(userId: string, patch: SubscriptionPatch) 
   }
 }
 
-async function syncSubscription(subscription: Stripe.Subscription) {
+async function syncSubscription(
+  subscription: Stripe.Subscription,
+  overrides?: { userId?: string | null; botAccess?: "stock" | "crypto" | null }
+) {
   const customerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer?.id;
-  const userId = (subscription.metadata?.userId as string) || (await findUserIdByCustomer(customerId));
+  // Resolution order: explicit override (Payment Link client_reference_id) →
+  // subscription metadata (dynamic Checkout Session) → customer lookup.
+  const userId =
+    overrides?.userId ||
+    (subscription.metadata?.userId as string) ||
+    (await findUserIdByCustomer(customerId));
   if (!userId) {
     console.warn("[webhook] No user found for subscription", subscription.id);
     return;
@@ -94,8 +102,11 @@ async function syncSubscription(subscription: Stripe.Subscription) {
     unixToIso(endUnix) ??
     (planDef ? new Date(Date.now() + planDef.durationDays * 86400_000).toISOString() : undefined);
 
-  // Bot access: prefer explicit metadata; else derive from the plan def.
+  // Bot access: prefer explicit override (Payment Link bot hint) → metadata →
+  // derive from the plan def.
   const botAccess =
+    (planDef?.botAccess === "both" ? "both" : undefined) ||
+    overrides?.botAccess ||
     (subscription.metadata?.bot_access as string) ||
     (planDef?.botAccess === "both" ? "both" : "stock");
   const tickerLimit = Number(subscription.metadata?.ticker_limit) || planDef?.tickerLimit;
@@ -120,14 +131,17 @@ async function syncSubscription(subscription: Stripe.Subscription) {
 
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   console.log("Checkout completed:", session.id);
-  const userId = (session.metadata?.userId as string) || (session.client_reference_id as string) || null;
+  // Payment Links carry the user (and single-bot choice) in client_reference_id;
+  // dynamic Checkout Sessions carry it in metadata.userId.
+  const ref = parsePaymentLinkRef(session.client_reference_id);
+  const userId = (session.metadata?.userId as string) || ref.userId || null;
   const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id ?? null;
 
   if (session.mode === "subscription" && session.subscription) {
     const subId = typeof session.subscription === "string" ? session.subscription : session.subscription.id;
     try {
       const subscription = await stripe.subscriptions.retrieve(subId);
-      await syncSubscription(subscription);
+      await syncSubscription(subscription, { userId, botAccess: ref.bot });
       return;
     } catch (err) {
       console.error("[webhook] Failed to retrieve subscription:", err);

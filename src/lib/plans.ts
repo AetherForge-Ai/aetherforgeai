@@ -155,7 +155,7 @@ export const PLANS: Plan[] = [
     botAccess: "single",
     durationDays: 30,
     priceId: "price_1TsjfH9sOmzarzYkYpuvCfuA",
-    paymentLink: "",
+    paymentLink: "https://buy.stripe.com/7sYaER8YDdwj8a3bPF1440l",
     features: ["Up to 25 holdings", "One bot — Stox OR Koins", "15 AI research reports / month"],
   },
   {
@@ -169,7 +169,7 @@ export const PLANS: Plan[] = [
     botAccess: "single",
     durationDays: 365,
     priceId: "price_1TsjfH9sOmzarzYkj43Mf2Zh",
-    paymentLink: "",
+    paymentLink: "https://buy.stripe.com/4gM8wJdeT8bZ1LFg5V1440k",
     features: ["Up to 25 holdings", "One bot — Stox OR Koins", "15 AI research reports / month"],
   },
   {
@@ -183,7 +183,7 @@ export const PLANS: Plan[] = [
     botAccess: "both",
     durationDays: 30,
     priceId: "price_1TsjfI9sOmzarzYkiDEzedgi",
-    paymentLink: "",
+    paymentLink: "https://buy.stripe.com/aFa6oBa2H9g3eyraLB1440j",
     featured: true,
     features: ["Up to 75 holdings", "Both Stox + Koins", "Unlimited AI research reports", "Full Totalum architect"],
   },
@@ -198,7 +198,7 @@ export const PLANS: Plan[] = [
     botAccess: "both",
     durationDays: 365,
     priceId: "price_1TsjfI9sOmzarzYkyyURWr4E",
-    paymentLink: "",
+    paymentLink: "https://buy.stripe.com/7sYbIVgr5fEr0HBg5V1440i",
     featured: true,
     features: ["Up to 75 holdings", "Both Stox + Koins", "Unlimited AI research reports", "Full Totalum architect"],
   },
@@ -213,7 +213,7 @@ export const PLANS: Plan[] = [
     botAccess: "both",
     durationDays: 30,
     priceId: "price_1TsjfJ9sOmzarzYkM1QYb3tU",
-    paymentLink: "",
+    paymentLink: "https://buy.stripe.com/fZu4gt6QvfEr61V5rh1440h",
     features: ["Unlimited holdings", "Everything in Pro", "API access + up to 5 team seats"],
   },
   {
@@ -227,7 +227,7 @@ export const PLANS: Plan[] = [
     botAccess: "both",
     durationDays: 365,
     priceId: "price_1TsjfJ9sOmzarzYkRBYlUacp",
-    paymentLink: "",
+    paymentLink: "https://buy.stripe.com/4gMbIV3Ej9g38a34nd1440g",
     features: ["Unlimited holdings", "Everything in Pro", "API access + up to 5 team seats"],
   },
 ];
@@ -346,6 +346,41 @@ export const PRICE_CURRENCY = "NZD";
 
 export function planByKey(key?: string | null): Plan | undefined {
   return PLANS.find((p) => p.key === key);
+}
+
+/**
+ * Build a shareable Stripe Payment Link URL for a plan, associated with the
+ * signed-in user. Stripe attaches `client_reference_id` to the resulting
+ * Checkout Session (read back in the webhook to resolve the user) and
+ * pre-fills the email. For single-bot plans (Starter) the chosen bot is
+ * encoded into the reference as `<userId>__bot-stock|crypto` so the webhook
+ * can grant the right entitlement — the dashboard bot-switcher can change it
+ * later. Returns null if the plan has no payment link configured.
+ */
+export function buildPaymentLinkUrl(
+  plan: Plan | undefined,
+  opts: { userId: string; email?: string | null; bot?: "stock" | "crypto" }
+): string | null {
+  if (!plan?.paymentLink) return null;
+  const ref =
+    plan.botAccess === "single" && opts.bot ? `${opts.userId}__bot-${opts.bot}` : opts.userId;
+  const params = new URLSearchParams({ client_reference_id: ref });
+  if (opts.email) params.set("prefilled_email", opts.email);
+  const sep = plan.paymentLink.includes("?") ? "&" : "?";
+  return `${plan.paymentLink}${sep}${params.toString()}`;
+}
+
+/**
+ * Parse a Payment Link `client_reference_id` back into the internal user id
+ * and (optional) single-bot choice. Mirrors buildPaymentLinkUrl().
+ */
+export function parsePaymentLinkRef(
+  ref?: string | null
+): { userId: string | null; bot: "stock" | "crypto" | null } {
+  if (!ref) return { userId: null, bot: null };
+  const [userId, botPart] = ref.split("__bot-");
+  const bot = botPart === "stock" || botPart === "crypto" ? (botPart as "stock" | "crypto") : null;
+  return { userId: userId || null, bot };
 }
 
 export function planByPriceId(priceId?: string | null): Plan | undefined {
