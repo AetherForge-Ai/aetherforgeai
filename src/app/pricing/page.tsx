@@ -37,7 +37,7 @@ function PricingSchema() {
     "@type": "Offer",
     name: `AetherForge AI — ${t.name}`,
     price: (t.monthlyPrice ?? 0).toFixed(2),
-    priceCurrency: "USD",
+    priceCurrency: "NZD",
     category: t.subtitle,
     ...(t.monthlyPlanKey ? { availability: "https://schema.org/InStock" } : {}),
   }));
@@ -53,7 +53,7 @@ function PricingSchema() {
       "@type": "AggregateOffer",
       lowPrice: "0.00",
       highPrice: "199.00",
-      priceCurrency: "USD",
+      priceCurrency: "NZD",
       offerCount: offers.length,
       offers,
     },

@@ -84,9 +84,10 @@ export function PricingCards() {
     if (tier.cta.kind === "register") {
       router.push("/register");
     } else if (tier.cta.kind === "sales") {
-      window.location.href = `mailto:${SALES_EMAIL}?subject=${encodeURIComponent(
-        "AetherForge Ultimate — enquiry"
-      )}`;
+      // Ultimate enquiries use the subject "Ultimate"; any other sales CTA uses
+      // "Sale <plan name>" so the inbox can be triaged at a glance.
+      const subject = tier.id === "ultimate" ? "Ultimate" : `Sale ${tier.name}`;
+      window.location.href = `mailto:${SALES_EMAIL}?subject=${encodeURIComponent(subject)}`;
     } else {
       void startCheckout(tier);
     }
@@ -261,7 +262,7 @@ export function PricingCards() {
       </div>
 
       <p className="mt-8 text-center text-xs text-muted-foreground">
-        All prices in USD · Secure Stripe checkout · Cancel anytime · Paid plans include a 14-day Pro trial
+        All prices in NZD · Secure Stripe checkout · Cancel anytime · Paid plans include a 14-day Pro trial
       </p>
     </div>
   );

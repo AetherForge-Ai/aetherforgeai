@@ -90,7 +90,7 @@ async function main() {
     };
 
     const product = await stripe.products.create({
-      name: `AetherForge ${def.name}`,
+      name: `AetherForge ${def.name} (NZD)`,
       description: def.description,
       metadata: meta,
     });
@@ -98,18 +98,18 @@ async function main() {
     const monthly = await stripe.prices.create({
       product: product.id,
       unit_amount: def.monthly,
-      currency: "usd",
+      currency: "nzd",
       recurring: { interval: "month" },
-      nickname: `${def.name} Monthly`,
+      nickname: `${def.name} Monthly (NZD)`,
       metadata: { ...meta, plan: `${def.tier}_monthly` },
     });
 
     const yearly = await stripe.prices.create({
       product: product.id,
       unit_amount: def.yearly,
-      currency: "usd",
+      currency: "nzd",
       recurring: { interval: "year" },
-      nickname: `${def.name} Annual`,
+      nickname: `${def.name} Annual (NZD)`,
       metadata: { ...meta, plan: `${def.tier}_yearly` },
     });
 

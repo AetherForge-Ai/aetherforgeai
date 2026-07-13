@@ -154,7 +154,7 @@ export const PLANS: Plan[] = [
     tickerLimit: 25,
     botAccess: "single",
     durationDays: 30,
-    priceId: "price_1TsjEb9sOmzarzYkmXlKQStz",
+    priceId: "price_1TsjfH9sOmzarzYkYpuvCfuA",
     paymentLink: "",
     features: ["Up to 25 holdings", "One bot — Stox OR Koins", "15 AI research reports / month"],
   },
@@ -168,7 +168,7 @@ export const PLANS: Plan[] = [
     tickerLimit: 25,
     botAccess: "single",
     durationDays: 365,
-    priceId: "price_1TsjEc9sOmzarzYkt7p2QVRu",
+    priceId: "price_1TsjfH9sOmzarzYkj43Mf2Zh",
     paymentLink: "",
     features: ["Up to 25 holdings", "One bot — Stox OR Koins", "15 AI research reports / month"],
   },
@@ -182,7 +182,7 @@ export const PLANS: Plan[] = [
     tickerLimit: 75,
     botAccess: "both",
     durationDays: 30,
-    priceId: "price_1TsjEc9sOmzarzYk25wD2UxB",
+    priceId: "price_1TsjfI9sOmzarzYkiDEzedgi",
     paymentLink: "",
     featured: true,
     features: ["Up to 75 holdings", "Both Stox + Koins", "Unlimited AI research reports", "Full Totalum architect"],
@@ -197,7 +197,7 @@ export const PLANS: Plan[] = [
     tickerLimit: 75,
     botAccess: "both",
     durationDays: 365,
-    priceId: "price_1TsjEd9sOmzarzYkHmr6FBrz",
+    priceId: "price_1TsjfI9sOmzarzYkyyURWr4E",
     paymentLink: "",
     featured: true,
     features: ["Up to 75 holdings", "Both Stox + Koins", "Unlimited AI research reports", "Full Totalum architect"],
@@ -212,7 +212,7 @@ export const PLANS: Plan[] = [
     tickerLimit: 100000,
     botAccess: "both",
     durationDays: 30,
-    priceId: "price_1TsjEd9sOmzarzYkQsfhWMul",
+    priceId: "price_1TsjfJ9sOmzarzYkM1QYb3tU",
     paymentLink: "",
     features: ["Unlimited holdings", "Everything in Pro", "API access + up to 5 team seats"],
   },
@@ -226,7 +226,7 @@ export const PLANS: Plan[] = [
     tickerLimit: 100000,
     botAccess: "both",
     durationDays: 365,
-    priceId: "price_1TsjEd9sOmzarzYkKSXijmZc",
+    priceId: "price_1TsjfJ9sOmzarzYkRBYlUacp",
     paymentLink: "",
     features: ["Unlimited holdings", "Everything in Pro", "API access + up to 5 team seats"],
   },
@@ -247,7 +247,7 @@ export interface PricingTier {
   name: string;
   subtitle: string;
   badge?: string;
-  /** Display price in whole dollars (USD). null for the free tier. */
+  /** Display price in whole dollars (NZD). null for the free tier. */
   monthlyPrice: number | null;
   yearlyPrice: number | null;
   /** Plan keys used to look up the Stripe price for checkout (null for free/sales). */
@@ -339,7 +339,10 @@ export const PRICING_TIERS: PricingTier[] = [
 ];
 
 /** Sales contact used by the Ultimate "Talk to Sales" CTA. */
-export const SALES_EMAIL = "sales@aetherforgeai.co.nz";
+export const SALES_EMAIL = "admin@aetherforgeai.co.nz";
+
+/** All new-tier Stripe prices are provisioned in NZD. */
+export const PRICE_CURRENCY = "NZD";
 
 export function planByKey(key?: string | null): Plan | undefined {
   return PLANS.find((p) => p.key === key);
