@@ -63,6 +63,11 @@ export async function POST(req: Request) {
       console.log(`[api/stripe/checkout] Created Stripe customer ${customerId} for user ${user._id}`);
     }
 
+    // New public tiers (Starter/Pro/Ultimate) advertise a 14-day Pro trial.
+    const isNewPaidTier = /^(starter|pro|ultimate)_(monthly|yearly)$/.test(planDef.key);
+    const subscriptionData: Record<string, unknown> = { metadata: meta };
+    if (isNewPaidTier) subscriptionData.trial_period_days = 14;
+
     const baseUrl = getRequestBaseUrl(req);
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
@@ -70,7 +75,7 @@ export async function POST(req: Request) {
       line_items: [{ price: priceId, quantity: 1 }],
       client_reference_id: user._id,
       metadata: meta,
-      subscription_data: { metadata: meta },
+      subscription_data: subscriptionData as any,
       success_url: `${baseUrl}/stripe/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${baseUrl}/pricing`,
       allow_promotion_codes: true,

@@ -93,7 +93,11 @@ export interface ReportCadence {
  *  - Apex Monthly / Yearly / Dual → one report per day.
  */
 export function reportCadence(plan?: string | null): ReportCadence {
-  const daily = plan === "monthly" || plan === "yearly" || plan === "dual_yearly";
+  // Legacy Apex paid plans + all new public tiers (Starter/Pro/Ultimate,
+  // monthly or annual) get daily report generation. Free stays weekly.
+  const isNewPaidTier =
+    !!plan && /^(starter|pro|ultimate)_(monthly|yearly)$/.test(plan);
+  const daily = plan === "monthly" || plan === "yearly" || plan === "dual_yearly" || isNewPaidTier;
   return daily
     ? { unit: "day", ms: DAY_MS, label: "1 report per day", perLabel: "per day" }
     : { unit: "week", ms: WEEK_MS, label: "1 report per week", perLabel: "per week" };
