@@ -102,13 +102,13 @@ async function syncSubscription(
     unixToIso(endUnix) ??
     (planDef ? new Date(Date.now() + planDef.durationDays * 86400_000).toISOString() : undefined);
 
-  // Bot access: prefer explicit override (Payment Link bot hint) → metadata →
-  // derive from the plan def.
+  // Bot access: "both"-plans always unlock both bots. For single-bot plans,
+  // prefer the explicit override (Payment Link bot hint) → subscription
+  // metadata → default to stock.
   const botAccess =
-    (planDef?.botAccess === "both" ? "both" : undefined) ||
-    overrides?.botAccess ||
-    (subscription.metadata?.bot_access as string) ||
-    (planDef?.botAccess === "both" ? "both" : "stock");
+    planDef?.botAccess === "both"
+      ? "both"
+      : overrides?.botAccess || (subscription.metadata?.bot_access as string) || "stock";
   const tickerLimit = Number(subscription.metadata?.ticker_limit) || planDef?.tickerLimit;
 
   const patch: SubscriptionPatch = {
@@ -140,7 +140,34 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   if (session.mode === "subscription" && session.subscription) {
     const subId = typeof session.subscription === "string" ? session.subscription : session.subscription.id;
     try {
-      const subscription = await stripe.subscriptions.retrieve(subId);
+      let subscription = await stripe.subscriptions.retrieve(subId);
+
+      // Payment Links create a subscription WITHOUT our identity metadata (the
+      // user only rides along on the session's client_reference_id). Stamp it
+      // onto the subscription now so every future lifecycle event — renewals,
+      // cancellations, failed payments — can resolve the user + entitlements
+      // directly from subscription.metadata, exactly like a dynamic Checkout.
+      if (userId && !subscription.metadata?.userId) {
+        const priceId = subscription.items?.data?.[0]?.price?.id;
+        const planDef = planByPriceId(priceId);
+        const botAccess =
+          planDef?.botAccess === "both" ? "both" : ref.bot || (subscription.metadata?.bot_access as string) || "stock";
+        const stamped: Record<string, string> = {
+          userId,
+          plan: planDef?.key ?? (subscription.metadata?.plan as string) ?? "",
+          ticker_limit: planDef ? String(planDef.tickerLimit) : (subscription.metadata?.ticker_limit as string) ?? "",
+          bot_access: botAccess,
+        };
+        try {
+          subscription = await stripe.subscriptions.update(subId, { metadata: stamped });
+          console.log(`[webhook] Stamped identity on subscription ${subId}:`, stamped);
+        } catch (stampErr) {
+          // Non-fatal: fall back to the in-memory overrides for this sync.
+          console.error("[webhook] Failed to stamp subscription metadata:", stampErr);
+          subscription.metadata = { ...(subscription.metadata || {}), ...stamped };
+        }
+      }
+
       await syncSubscription(subscription, { userId, botAccess: ref.bot });
       return;
     } catch (err) {
