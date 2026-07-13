@@ -194,8 +194,8 @@ export function MarketsExplorer({
         </p>
       </div>
 
-      {/* Table */}
-      <div className="min-h-0 flex-1 overflow-y-auto px-1 pb-2">
+      {/* Table — scrolls on BOTH axes so wide rows never push the page sideways on mobile */}
+      <div className="min-h-0 flex-1 overflow-auto px-1 pb-2">
         <table className="w-full text-sm">
           <thead className="sticky top-0 z-10 bg-card">
             <tr className="border-b border-border/60">

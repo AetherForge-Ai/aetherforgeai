@@ -1,6 +1,6 @@
 // src/app/layout.tsx
 import React from "react";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Sora, Manrope, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { ScriptExecutor } from "@/components/ScriptExecutor";
@@ -50,6 +50,17 @@ export const metadata: Metadata = {
     url: siteUrl,
     siteName: "AetherForge AI",
   },
+};
+
+// Mobile viewport — makes the app scale correctly on phones. We keep pinch-to-zoom
+// enabled (no maximumScale / userScalable:false) for accessibility, and use
+// viewportFit "cover" so the layout extends nicely into notch / safe-area insets.
+// This does NOT affect the desktop experience.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#22252d",
 };
 
 // SUPER IMPORTANT: NOT EDIT THE FOLLOWING 2 LINES TO FORCE NEXT.JS TO RENDER DYNAMICALLY

@@ -107,6 +107,11 @@
   html {
     color-scheme: dark;
     scroll-behavior: smooth;
+    /* Stop mobile browsers from silently re-scaling text on orientation change */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    /* No grey flash box when tapping links/buttons on touch devices */
+    -webkit-tap-highlight-color: transparent;
   }
   /* Offset in-page anchor targets so the sticky header never covers them */
   [id] {
@@ -115,6 +120,34 @@
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "ss01", "cv01";
+    /* A stray wide element (table, ticker, chart) must never make the WHOLE page
+       scroll sideways on a phone. `clip` — unlike `hidden` — still allows
+       position: sticky to work, so the sidebar/headers keep sticking. */
+    overflow-x: clip;
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Mobile touch refinements — phones & small tablets only (≤ md, 767px).
+   The desktop layout is deliberately left 100% untouched by everything here.
+
+   iOS Safari auto-zooms the viewport whenever you tap a form control whose
+   font-size is under 16px, and then leaves the page awkwardly scrolled and
+   off-centre. Forcing every control to 16px below the md breakpoint removes
+   that zoom-on-tap entirely while keeping the compact desktop sizing.
+   ────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  input,
+  select,
+  textarea,
+  [contenteditable="true"] {
+    font-size: 16px;
+  }
+  /* Comfortable minimum tap target on the smallest tappable controls */
+  a,
+  button,
+  [role="button"] {
+    touch-action: manipulation;
   }
 }
 

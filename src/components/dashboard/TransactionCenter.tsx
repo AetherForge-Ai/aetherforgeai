@@ -629,8 +629,8 @@ function AllTransactionsDialog({
           </div>
         </div>
 
-        {/* Table */}
-        <div className="flex-1 overflow-y-auto px-6 py-2">
+        {/* Table — scrolls on BOTH axes so wide rows never push the modal sideways on mobile */}
+        <div className="flex-1 overflow-auto px-6 py-2">
           <table className="w-full text-sm">
             <thead className="sticky top-0 z-10 bg-card">
               <tr className="border-b border-border/60">
