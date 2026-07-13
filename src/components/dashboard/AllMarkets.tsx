@@ -47,7 +47,7 @@ export function AllMarkets({ onBought }: { onBought?: () => void }) {
 
       {/* ALL Markets modal */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="flex max-h-[90vh] max-w-4xl flex-col gap-0 overflow-hidden p-6">
+        <DialogContent className="flex max-h-[90vh] w-[90vw] max-w-[112rem] flex-col gap-0 overflow-hidden p-6">
           <DialogHeader className="pb-2">
             <DialogTitle className="flex items-center gap-2 font-display text-xl">
               <Globe className="size-5 text-primary" /> ALL Markets
