@@ -6,6 +6,7 @@ import "./globals.css";
 import { ScriptExecutor } from "@/components/ScriptExecutor";
 import { DevToolsHandler } from "@/components/DevToolsHandler";
 import { GlobalErrorCatcher } from "@/components/GlobalErrorCatcher";
+import { GoogleTag } from "@/components/GoogleTag";
 import { Toaster } from "@/components/ui/sonner";
 
 const sora = Sora({
@@ -73,6 +74,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body
         className={`${sora.variable} ${manrope.variable} ${jetbrainsMono.variable} font-sans antialiased`}
       >
+        {/* Google tag (gtag.js) — injected on every page/route */}
+        <GoogleTag />
         <GlobalErrorCatcher />
         <ScriptExecutor />
         <DevToolsHandler />
