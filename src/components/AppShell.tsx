@@ -13,7 +13,7 @@ import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/s
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { LayoutDashboard, Bot, Settings, LogOut, Menu, Sparkles, Crown, Compass, Sparkle, FileSpreadsheet, Download, Loader2 } from "lucide-react";
+import { LayoutDashboard, Bot, Settings, LogOut, Menu, Sparkles, Crown, Compass, Sparkle, FileSpreadsheet, Download, Loader2, LineChart } from "lucide-react";
 
 export interface ShellUser {
   name: string;
@@ -25,6 +25,9 @@ export interface ShellUser {
 
 const NAV = [
   { href: "/dashboard", label: "Portfolio", icon: LayoutDashboard },
+  // Stock Markets is a primary destination — pulled to the top and visually
+  // emphasised (larger, bolder, highlighted) so users never miss it.
+  { href: "/markets", label: "Stock Markets", icon: LineChart, highlight: true },
   { href: "/totalum", label: "Totalum", icon: Compass, pro: true },
   { href: "/chat", label: "AI Assistant", icon: Bot },
   { href: "/how-to-maximize-results", label: "Maximize Results", icon: Sparkle },
@@ -45,20 +48,29 @@ function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () 
     <nav className="space-y-1">
       {NAV.map((item) => {
         const active = pathname === item.href || pathname.startsWith(item.href + "/");
+        const highlight = "highlight" in item && item.highlight;
         return (
           <Link
             key={item.href}
             href={item.href}
             onClick={onNavigate}
             className={cn(
-              "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+              "flex items-center gap-3 rounded-xl px-3 transition-colors",
+              highlight ? "py-3 text-[0.95rem] font-bold" : "py-2.5 text-sm font-medium",
               active
                 ? "bg-primary/12 text-primary ring-1 ring-primary/20"
+                : highlight
+                ? "bg-primary/8 text-foreground ring-1 ring-primary/20 hover:bg-primary/12 hover:text-primary"
                 : "text-muted-foreground hover:bg-card hover:text-foreground"
             )}
           >
-            <item.icon className="size-4" />
+            <item.icon className={cn(highlight ? "size-5 text-primary" : "size-4")} />
             {item.label}
+            {highlight && (
+              <span className="ml-auto rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-300">
+                Live
+              </span>
+            )}
             {"pro" in item && item.pro && (
               <span className="ml-auto rounded-md bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
                 Pro

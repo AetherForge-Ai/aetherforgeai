@@ -33,6 +33,15 @@ import {
   Receipt,
   ArrowDownToLine,
   ArrowUpFromLine,
+  FolderOpen,
+  Search,
+  Download,
+  X,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 type TxType = "buy" | "sell" | "deposit" | "withdraw";
@@ -140,6 +149,7 @@ export function TransactionCenter({
   const [ledger, setLedger] = useState<Ledger | null>(null);
   const [loading, setLoading] = useState(!preview);
   const [open, setOpen] = useState(false);
+  const [allOpen, setAllOpen] = useState(false);
   const [mode, setMode] = useState<TxType>("buy");
 
   const load = useCallback(async () => {
@@ -235,10 +245,27 @@ export function TransactionCenter({
         />
       </div>
 
-      {/* Recent ledger */}
+      {/* Recent ledger — compact 5-row summary; full history lives in the modal */}
       <div className="px-6 pb-6">
-        <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
-          <Receipt className="size-4 text-primary" /> Recent transactions
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-sm font-semibold">
+            <Receipt className="size-4 text-primary" /> Recent transactions
+            {ledger && ledger.transactions.length > 0 && (
+              <span className="text-xs font-normal text-muted-foreground">
+                · showing latest {Math.min(5, ledger.transactions.length)} of {ledger.transactions.length}
+              </span>
+            )}
+          </div>
+          {ledger && ledger.transactions.length > 0 && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setAllOpen(true)}
+              className="h-8 gap-1.5 font-semibold"
+            >
+              <FolderOpen className="size-4" /> View all transactions
+            </Button>
+          )}
         </div>
         {loading ? (
           <div className="space-y-2">
@@ -271,7 +298,7 @@ export function TransactionCenter({
                 </tr>
               </thead>
               <tbody>
-                {ledger.transactions.map((t) => {
+                {ledger.transactions.slice(0, 5).map((t) => {
                   const meta = TYPE_META[t.type];
                   const Icon = meta.icon;
                   const cur = (t.currency as CurrencyCode) || NZD;
@@ -348,7 +375,384 @@ export function TransactionCenter({
         cash={cash}
         onDone={handleDone}
       />
+
+      <AllTransactionsDialog
+        open={allOpen}
+        onOpenChange={setAllOpen}
+        transactions={ledger?.transactions ?? []}
+      />
     </div>
+  );
+}
+
+/* ------------------------------------------ full-history "sub-folder" modal */
+
+type TxSortKey = "date" | "type" | "ticker" | "quantity" | "price" | "total" | "realized";
+const PAGE_SIZE = 12;
+
+/** Full ISO → yyyy-mm-dd for CSV, and a display date/time helper. */
+function csvDate(iso?: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
+}
+
+/**
+ * Large, spacious "sub-folder" view of the COMPLETE transaction history.
+ * Sortable + searchable + type-filtered, paginated for long ledgers, with a
+ * one-click CSV export. Closes on ESC (Radix Dialog default) or the X button.
+ */
+function AllTransactionsDialog({
+  open,
+  onOpenChange,
+  transactions,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  transactions: TransactionRow[];
+}) {
+  const [query, setQuery] = useState("");
+  const [typeFilter, setTypeFilter] = useState<"all" | TxType>("all");
+  const [sortKey, setSortKey] = useState<TxSortKey>("date");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [page, setPage] = useState(0);
+
+  // Reset paging/search whenever the modal (re)opens.
+  useEffect(() => {
+    if (open) {
+      setPage(0);
+      setQuery("");
+      setTypeFilter("all");
+      setSortKey("date");
+      setSortDir("desc");
+    }
+  }, [open]);
+
+  function toggleSort(key: TxSortKey) {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else {
+      setSortKey(key);
+      setSortDir(key === "type" || key === "ticker" ? "asc" : "desc");
+    }
+    setPage(0);
+  }
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    let rows = transactions;
+    if (typeFilter !== "all") rows = rows.filter((t) => t.type === typeFilter);
+    if (q) {
+      rows = rows.filter(
+        (t) =>
+          (t.ticker || "").toLowerCase().includes(q) ||
+          (t.asset_name || "").toLowerCase().includes(q) ||
+          (t.notes || "").toLowerCase().includes(q) ||
+          t.type.toLowerCase().includes(q)
+      );
+    }
+    const dir = sortDir === "asc" ? 1 : -1;
+    const val = (t: TransactionRow): number | string => {
+      switch (sortKey) {
+        case "date":
+          return new Date(t.executed_at || t.createdAt || 0).getTime();
+        case "type":
+          return t.type;
+        case "ticker":
+          return (t.ticker || t.asset_name || "").toLowerCase();
+        case "quantity":
+          return t.quantity ?? 0;
+        case "price":
+          return t.price ?? 0;
+        case "total":
+          return t.total ?? 0;
+        case "realized":
+          return t.realized_pnl ?? 0;
+      }
+    };
+    return [...rows].sort((a, b) => {
+      const av = val(a);
+      const bv = val(b);
+      if (typeof av === "string" && typeof bv === "string") return av.localeCompare(bv) * dir;
+      return ((av as number) - (bv as number)) * dir;
+    });
+  }, [transactions, query, typeFilter, sortKey, sortDir]);
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount - 1);
+  const pageRows = filtered.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE);
+
+  // Build + download a CSV of the CURRENT filtered/sorted view.
+  function exportCsv() {
+    const headers = [
+      "Date",
+      "Type",
+      "Ticker",
+      "Asset name",
+      "Asset type",
+      "Quantity",
+      "Price",
+      "Fees",
+      "Cash impact",
+      "Realized P&L",
+      "Currency",
+      "Notes",
+    ];
+    const esc = (v: unknown) => {
+      const s = String(v ?? "");
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const lines = filtered.map((t) =>
+      [
+        csvDate(t.executed_at || t.createdAt),
+        t.type,
+        t.ticker || "",
+        t.asset_name || "",
+        t.asset_type || "",
+        t.quantity ?? "",
+        t.price ?? "",
+        t.fees ?? "",
+        t.total ?? "",
+        t.realized_pnl ?? "",
+        t.currency || "NZD",
+        t.notes || "",
+      ]
+        .map(esc)
+        .join(",")
+    );
+    const csv = [headers.join(","), ...lines].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `transactions-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    console.log(`[transaction-center] Exported ${filtered.length} transactions to CSV`);
+    toast.success(`Exported ${filtered.length} transaction${filtered.length === 1 ? "" : "s"} to CSV`);
+  }
+
+  const SortHead = ({ label, k, align = "right" }: { label: string; k: TxSortKey; align?: "left" | "right" }) => (
+    <button
+      onClick={() => toggleSort(k)}
+      className={cn(
+        "flex w-full items-center gap-1 text-xs font-medium uppercase tracking-wide text-muted-foreground transition-colors hover:text-foreground",
+        align === "right" ? "justify-end" : "justify-start"
+      )}
+    >
+      {label}
+      {sortKey === k ? (
+        sortDir === "asc" ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />
+      ) : (
+        <ArrowUpDown className="size-3 opacity-40" />
+      )}
+    </button>
+  );
+
+  const FILTERS: { key: "all" | TxType; label: string }[] = [
+    { key: "all", label: "All" },
+    { key: "buy", label: "Buys" },
+    { key: "sell", label: "Sells" },
+    { key: "deposit", label: "Deposits" },
+    { key: "withdraw", label: "Withdrawals" },
+  ];
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        showCloseButton={false}
+        className="flex h-[90vh] max-h-[90vh] w-[95vw] max-w-[95vw] flex-col gap-0 overflow-hidden p-0 sm:max-w-[90vw]"
+      >
+        {/* Header */}
+        <DialogHeader className="flex-row items-center justify-between space-y-0 border-b border-border/60 px-6 py-4">
+          <div className="flex items-center gap-3">
+            <span className="grid size-10 place-items-center rounded-xl bg-primary/12 text-primary">
+              <FolderOpen className="size-5" />
+            </span>
+            <div>
+              <DialogTitle className="font-display text-xl">All transactions</DialogTitle>
+              <DialogDescription>
+                Your complete ledger — search, sort, filter and export the full history.
+              </DialogDescription>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={exportCsv} className="gap-1.5 font-semibold">
+              <Download className="size-4" /> Export CSV
+            </Button>
+            <button
+              onClick={() => onOpenChange(false)}
+              className="grid size-9 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/15 hover:text-destructive"
+              aria-label="Close"
+            >
+              <X className="size-5" />
+            </button>
+          </div>
+        </DialogHeader>
+
+        {/* Toolbar: search + type filters */}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 px-6 py-3">
+          <div className="relative w-full max-w-xs">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search ticker, asset or notes…"
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setPage(0);
+              }}
+              className="pl-9"
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {FILTERS.map((f) => {
+              const active = typeFilter === f.key;
+              return (
+                <button
+                  key={f.key}
+                  onClick={() => {
+                    setTypeFilter(f.key);
+                    setPage(0);
+                  }}
+                  className={cn(
+                    "rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors",
+                    active
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border/60 bg-background/40 text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {f.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Table */}
+        <div className="flex-1 overflow-y-auto px-6 py-2">
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 z-10 bg-card">
+              <tr className="border-b border-border/60">
+                <th className="py-2.5 pr-3 text-left"><SortHead label="Type" k="type" align="left" /></th>
+                <th className="py-2.5 pr-3 text-left"><SortHead label="Asset" k="ticker" align="left" /></th>
+                <th className="py-2.5 px-3"><SortHead label="Qty" k="quantity" /></th>
+                <th className="py-2.5 px-3"><SortHead label="Price" k="price" /></th>
+                <th className="py-2.5 px-3"><SortHead label="Cash impact" k="total" /></th>
+                <th className="hidden py-2.5 px-3 md:table-cell"><SortHead label="Realized" k="realized" /></th>
+                <th className="py-2.5 pl-3"><SortHead label="Date" k="date" /></th>
+              </tr>
+            </thead>
+            <tbody>
+              {pageRows.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-16 text-center text-sm text-muted-foreground">
+                    No transactions match your filters.
+                  </td>
+                </tr>
+              ) : (
+                pageRows.map((t) => {
+                  const meta = TYPE_META[t.type];
+                  const Icon = meta.icon;
+                  const cur = (t.currency as CurrencyCode) || NZD;
+                  const isTrade = t.type === "buy" || t.type === "sell";
+                  const total = t.total ?? 0;
+                  return (
+                    <tr key={t._id} className="border-b border-border/30 last:border-0 hover:bg-background/40">
+                      <td className="py-3 pr-3">
+                        <span
+                          className={cn(
+                            "inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-semibold",
+                            meta.cls
+                          )}
+                        >
+                          <Icon className="size-3" /> {meta.label}
+                        </span>
+                      </td>
+                      <td className="py-3 pr-3">
+                        {isTrade ? (
+                          <div className="min-w-0">
+                            <p className="font-semibold">{t.ticker}</p>
+                            <p className="max-w-[14rem] truncate text-xs text-muted-foreground">
+                              {t.asset_name || "—"}
+                            </p>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">{t.asset_name || "Cash"}</span>
+                        )}
+                      </td>
+                      <td className="tnum py-3 px-3 text-right text-muted-foreground">
+                        {isTrade ? formatNumber(t.quantity || 0) : "—"}
+                      </td>
+                      <td className="tnum py-3 px-3 text-right text-muted-foreground">
+                        {isTrade ? formatMoney(t.price || 0, cur) : "—"}
+                      </td>
+                      <td
+                        className={cn(
+                          "tnum py-3 px-3 text-right font-medium",
+                          total >= 0 ? "text-emerald-400" : "text-rose-400"
+                        )}
+                      >
+                        {total >= 0 ? "+" : ""}
+                        {formatMoney(total, NZD)}
+                      </td>
+                      <td className="tnum hidden py-3 px-3 text-right md:table-cell">
+                        {t.type === "sell" && typeof t.realized_pnl === "number" ? (
+                          <span className={t.realized_pnl >= 0 ? "text-emerald-400" : "text-rose-400"}>
+                            {t.realized_pnl >= 0 ? "+" : ""}
+                            {formatMoney(t.realized_pnl, NZD)}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      <td className="tnum py-3 pl-3 text-right text-xs text-muted-foreground">
+                        {fmtDateTime(t.executed_at || t.createdAt)}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Footer: count + pagination */}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 px-6 py-3">
+          <p className="text-xs text-muted-foreground">
+            {filtered.length} transaction{filtered.length === 1 ? "" : "s"}
+            {typeFilter !== "all" || query ? " (filtered)" : ""}
+          </p>
+          {pageCount > 1 && (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 w-8 p-0"
+                disabled={safePage === 0}
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                aria-label="Previous page"
+              >
+                <ChevronLeft className="size-4" />
+              </Button>
+              <span className="tnum text-xs text-muted-foreground">
+                Page {safePage + 1} of {pageCount}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 w-8 p-0"
+                disabled={safePage >= pageCount - 1}
+                onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+                aria-label="Next page"
+              >
+                <ChevronRight className="size-4" />
+              </Button>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

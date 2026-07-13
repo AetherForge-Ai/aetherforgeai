@@ -26,7 +26,7 @@ import { checkTickerQuota, limitScope, resolveTickerLimit } from "@/lib/entitlem
 import { computePortfolioMetrics } from "@/lib/analytics";
 import { AllMarkets } from "@/components/dashboard/AllMarkets";
 import { TopMovers } from "@/components/dashboard/TopMovers";
-import { ProjectionsPanel } from "@/components/dashboard/ProjectionsPanel";
+import { MarketWidePerformers } from "@/components/dashboard/MarketWidePerformers";
 import { ActionableIntelligence } from "@/components/dashboard/ActionableIntelligence";
 import { NewsFeed } from "@/components/dashboard/NewsFeed";
 import { MarketIntelProvider } from "@/components/dashboard/MarketIntelContext";
@@ -72,6 +72,9 @@ import {
   Coins,
   Landmark,
   Newspaper,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -202,6 +205,17 @@ const PREVIEW_STOCKS: Stock[] = [
 ];
 const PREVIEW_CASH_NZD = 12480.55;
 const PREVIEW_METALS_NZD = 14808.0;
+
+/** Sortable columns of the Current Holdings table. */
+type HoldingSortKey =
+  | "ticker"
+  | "company"
+  | "shares"
+  | "purchase_price"
+  | "current_price"
+  | "marketValue"
+  | "gain"
+  | "weight";
 
 export function PortfolioDashboard({
   userName,
@@ -383,6 +397,76 @@ export function PortfolioDashboard({
     [stocks, baseCurrency, fxToNZD]
   );
   const metrics = useMemo(() => computePortfolioMetrics(stocks), [stocks]);
+
+  // Sortable holdings table — default to largest positions (weight) first.
+  const [holdingSort, setHoldingSort] = useState<{ key: HoldingSortKey; dir: "asc" | "desc" }>({
+    key: "weight",
+    dir: "desc",
+  });
+  const toggleHoldingSort = useCallback((key: HoldingSortKey) => {
+    setHoldingSort((s) =>
+      s.key === key
+        ? { key, dir: s.dir === "asc" ? "desc" : "asc" }
+        : { key, dir: key === "ticker" || key === "company" ? "asc" : "desc" }
+    );
+  }, []);
+  const sortedHoldings = useMemo(() => {
+    const { key, dir } = holdingSort;
+    const mult = dir === "asc" ? 1 : -1;
+    const val = (h: (typeof summary.holdings)[number]): number | string => {
+      switch (key) {
+        case "ticker":
+          return h.ticker.toLowerCase();
+        case "company":
+          return (h.company_name || h.sector || "").toLowerCase();
+        case "shares":
+          return h.shares;
+        case "purchase_price":
+          return h.purchase_price;
+        case "current_price":
+          return h.current_price;
+        case "marketValue":
+          return h.baseValue; // compare in a single base currency so it's apples-to-apples
+        case "gain":
+          return h.gainPct;
+        case "weight":
+          return h.weight;
+      }
+    };
+    return [...summary.holdings].sort((a, b) => {
+      const av = val(a);
+      const bv = val(b);
+      if (typeof av === "string" && typeof bv === "string") return av.localeCompare(bv) * mult;
+      return ((av as number) - (bv as number)) * mult;
+    });
+  }, [summary.holdings, holdingSort]);
+
+  // Sortable table header cell for the Current Holdings table.
+  const HoldingHead = ({
+    label,
+    k,
+    align = "right",
+  }: {
+    label: string;
+    k: HoldingSortKey;
+    align?: "left" | "right";
+  }) => (
+    <button
+      onClick={() => toggleHoldingSort(k)}
+      className={cn(
+        "flex w-full items-center gap-1 font-medium uppercase tracking-wide transition-colors hover:text-foreground",
+        holdingSort.key === k ? "text-foreground" : "text-muted-foreground",
+        align === "right" ? "justify-end" : "justify-start"
+      )}
+    >
+      {label}
+      {holdingSort.key === k ? (
+        holdingSort.dir === "asc" ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />
+      ) : (
+        <ArrowUpDown className="size-3 opacity-40" />
+      )}
+    </button>
+  );
 
   // Cross-bot totals, all expressed in NZD for the "Totals owned" strip.
   const stockHoldings = useMemo(
@@ -867,19 +951,20 @@ export function PortfolioDashboard({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                  <th className="px-6 py-3 font-medium">Ticker</th>
-                  <th className="px-3 py-3 font-medium">Company name</th>
+                  <th className="px-6 py-3"><HoldingHead label="Ticker" k="ticker" align="left" /></th>
+                  <th className="px-3 py-3"><HoldingHead label="Company name" k="company" align="left" /></th>
                   <th className="px-3 py-3 font-medium">Exchange</th>
-                  <th className="px-3 py-3 text-right font-medium"># shares</th>
-                  <th className="px-3 py-3 text-right font-medium">Price paid / share</th>
-                  <th className="px-3 py-3 text-right font-medium">Current price / share</th>
-                  <th className="px-3 py-3 text-right font-medium">Market value</th>
-                  <th className="px-3 py-3 text-right font-medium">Gain / Loss</th>
+                  <th className="px-3 py-3"><HoldingHead label="# shares" k="shares" /></th>
+                  <th className="px-3 py-3"><HoldingHead label="Price paid / share" k="purchase_price" /></th>
+                  <th className="px-3 py-3"><HoldingHead label="Current price / share" k="current_price" /></th>
+                  <th className="px-3 py-3"><HoldingHead label="Market value" k="marketValue" /></th>
+                  <th className="px-3 py-3"><HoldingHead label="% of Portfolio" k="weight" /></th>
+                  <th className="px-3 py-3"><HoldingHead label="Gain / Loss" k="gain" /></th>
                   <th className="px-6 py-3 text-right font-medium sr-only">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {summary.holdings.map((h) => {
+                {sortedHoldings.map((h) => {
                   const up = h.gain >= 0;
                   const exchange = exchangeForTicker(h.ticker, h.asset_type);
                   return (
@@ -936,6 +1021,18 @@ export function PortfolioDashboard({
                             ≈ {formatMoney(h.baseValue, baseCurrency)}
                           </span>
                         )}
+                      </td>
+                      {/* % of Portfolio — this holding's share of total portfolio value */}
+                      <td className="px-3 py-3.5 text-right">
+                        <div className="flex flex-col items-end gap-1">
+                          <span className="tnum font-medium">{h.weight.toFixed(1)}%</span>
+                          <span className="h-1 w-16 overflow-hidden rounded-full bg-muted/50">
+                            <span
+                              className="block h-full rounded-full bg-primary/70"
+                              style={{ width: `${Math.min(100, Math.max(2, h.weight))}%` }}
+                            />
+                          </span>
+                        </div>
                       </td>
                       {/* Gain / Loss */}
                       <td className="px-3 py-3.5 text-right">
@@ -1013,9 +1110,9 @@ export function PortfolioDashboard({
         <TopMovers />
       </div>
 
-      {/* ───────────────────────── 9 · 7-day projections (NZX + ASX + Dow + NASDAQ → top 15) ───────────────────────── */}
+      {/* ───────────────────────── 9 · Projected top performers — MARKET-WIDE (Crypto + NZX + ASX + Dow + NASDAQ) ───────────────────────── */}
       <div className="mt-6">
-        <ProjectionsPanel assetClass={bot} onBought={handleDataChanged} />
+        <MarketWidePerformers onBought={handleDataChanged} />
       </div>
 
       {/* ───────────────────────── 10 · Watchlist & share-price alerts (gated for guests) ───────────────────────── */}
