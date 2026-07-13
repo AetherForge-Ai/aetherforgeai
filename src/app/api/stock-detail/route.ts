@@ -24,11 +24,16 @@ export async function GET(req: Request) {
     }
 
     const ySymbol = yahooEquitySymbol(raw);
-    console.log(`[api/stock-detail] Loading detail for ${ySymbol}`);
+    // Optional range so lightweight views (e.g. the Holdings 7-day chart) can
+    // fetch a short daily series instead of the full 6-month history.
+    const rangeParam = (url.searchParams.get("range") || "6mo").trim();
+    const allowedRanges = new Set(["5d", "1mo", "3mo", "6mo", "1y"]);
+    const range = allowedRanges.has(rangeParam) ? rangeParam : "6mo";
+    console.log(`[api/stock-detail] Loading detail for ${ySymbol} (range=${range})`);
 
     const [quote, histories] = await Promise.all([
       fetchYahooQuote(ySymbol),
-      fetchYahooHistories({ [raw]: ySymbol }, "6mo", "1d"),
+      fetchYahooHistories({ [raw]: ySymbol }, range, "1d"),
     ]);
 
     if (!quote) {

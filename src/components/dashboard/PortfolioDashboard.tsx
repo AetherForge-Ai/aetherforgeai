@@ -16,6 +16,10 @@ import {
   type FxRatesToNZD,
 } from "@/lib/currency";
 import { StockDialog } from "@/components/dashboard/StockDialog";
+import {
+  HoldingChartDialog,
+  type HoldingChartTarget,
+} from "@/components/dashboard/HoldingChartDialog";
 import { TransactionCenter } from "@/components/dashboard/TransactionCenter";
 import { AnalysisPanel } from "@/components/dashboard/AnalysisPanel";
 import { ReportCenter } from "@/components/dashboard/ReportCenter";
@@ -272,6 +276,8 @@ export function PortfolioDashboard({
   const [editing, setEditing] = useState<Stock | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Stock | null>(null);
   const [deleting, setDeleting] = useState(false);
+  // Holding "last 7 days" chart popup — opened by clicking a ticker in the table.
+  const [chartTarget, setChartTarget] = useState<HoldingChartTarget | null>(null);
   // Bumped whenever a metals buy/sell happens so the Transaction Center reloads
   // its ledger + cash cards in step with the top-level totals.
   const [ledgerSignal, setLedgerSignal] = useState(0);
@@ -1019,14 +1025,32 @@ export function PortfolioDashboard({
                       key={h._id}
                       className="border-b border-border/40 transition-colors last:border-0 hover:bg-background/40"
                     >
-                      {/* Ticker */}
+                      {/* Ticker — click to open the last-7-days performance chart */}
                       <td className="px-6 py-3.5">
-                        <div className="flex items-center gap-3">
-                          <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/12 font-display text-xs font-bold text-primary">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setChartTarget({
+                              ticker: h.ticker,
+                              symbol: h.ticker.replace(/\.(NZ|AX|L)$/, ""),
+                              name: h.company_name || h.sector || h.ticker,
+                              exchange,
+                              currency: h.currency,
+                              purchasePrice: h.purchase_price,
+                              currentPrice: h.current_price,
+                            })
+                          }
+                          className="group/tk flex items-center gap-3 rounded-lg text-left transition-colors hover:text-primary"
+                          title={`View last 7 days of ${h.ticker.replace(/\.(NZ|AX|L)$/, "")}`}
+                        >
+                          <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/12 font-display text-xs font-bold text-primary transition-colors group-hover/tk:bg-primary/20">
                             {h.ticker.replace(/\.(NZ|AX|L)$/, "").slice(0, 4)}
                           </span>
                           <div className="flex items-center gap-1.5">
-                            <p className="font-semibold">{h.ticker.replace(/\.(NZ|AX|L)$/, "")}</p>
+                            <p className="font-semibold underline-offset-4 group-hover/tk:underline">
+                              {h.ticker.replace(/\.(NZ|AX|L)$/, "")}
+                            </p>
+                            <LineChart className="size-3.5 text-muted-foreground opacity-0 transition-opacity group-hover/tk:opacity-100" />
                             <span
                               className="rounded bg-muted/60 px-1.5 py-0.5 text-[0.6rem] font-semibold uppercase tracking-wide text-muted-foreground"
                               title={CURRENCY_META[h.currency].label}
@@ -1034,7 +1058,7 @@ export function PortfolioDashboard({
                               {h.currency}
                             </span>
                           </div>
-                        </div>
+                        </button>
                       </td>
                       {/* Company name */}
                       <td className="px-3 py-3.5">
@@ -1207,6 +1231,13 @@ export function PortfolioDashboard({
         editing={editing}
         onSaved={handleDataChanged}
         defaultAssetType={bot}
+      />
+
+      {/* Last-7-days performance chart for a clicked holding ticker */}
+      <HoldingChartDialog
+        open={!!chartTarget}
+        onOpenChange={(o) => !o && setChartTarget(null)}
+        target={chartTarget}
       />
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
