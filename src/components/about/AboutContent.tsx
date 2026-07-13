@@ -734,38 +734,40 @@ export function AboutContent() {
                   <h3 className="font-display text-lg font-bold text-[#0F172A]">Email us</h3>
                   <div className="mt-4 space-y-3">
                     <a
-                      href="mailto:helloaetherForgeAI@gmail.com"
+                      href="mailto:hello@aetherforgeai.co.nz"
                       className="group flex items-center gap-3 rounded-xl border border-[#0F172A]/8 bg-[#F8FAFC] px-4 py-3.5 transition-all hover:border-[#059669]/40 hover:bg-white"
                     >
                       <span className="grid size-10 place-items-center rounded-lg bg-[#059669]/10 text-[#059669]">
                         <Mail className="size-5" />
                       </span>
-                      <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-[#0F172A]">
-                        helloaetherForgeAI@gmail.com
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[11px] font-bold uppercase tracking-[0.14em] text-[#059669]">
+                          Enquiries &amp; sign-up
+                        </span>
+                        <span className="block truncate text-[15px] font-semibold text-[#0F172A]">
+                          hello@aetherforgeai.co.nz
+                        </span>
                       </span>
                       <ArrowRight className="size-4 text-[#94A3B8] transition-transform group-hover:translate-x-0.5 group-hover:text-[#059669]" />
                     </a>
                     <a
-                      href="mailto:forgeintelligence@outlook.com"
+                      href="mailto:admin@aetherforgeai.co.nz"
                       className="group flex items-center gap-3 rounded-xl border border-[#0F172A]/8 bg-[#F8FAFC] px-4 py-3.5 transition-all hover:border-[#059669]/40 hover:bg-white"
                     >
                       <span className="grid size-10 place-items-center rounded-lg bg-[#059669]/10 text-[#059669]">
                         <Mail className="size-5" />
                       </span>
-                      <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-[#0F172A]">
-                        forgeintelligence@outlook.com
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[11px] font-bold uppercase tracking-[0.14em] text-[#94A3B8]">
+                          Accounts &amp; support
+                        </span>
+                        <span className="block truncate text-[15px] font-semibold text-[#0F172A]">
+                          admin@aetherforgeai.co.nz
+                        </span>
                       </span>
                       <ArrowRight className="size-4 text-[#94A3B8] transition-transform group-hover:translate-x-0.5 group-hover:text-[#059669]" />
                     </a>
                   </div>
-                  <p
-                    className="mt-4 rounded-xl px-4 py-3 text-sm leading-relaxed"
-                    style={{ backgroundColor: "rgba(176,137,79,0.1)", color: "#7A5A22" }}
-                  >
-                    We are currently setting up professional{" "}
-                    <strong className="font-semibold">@aetherforgeai.co.nz</strong> email addresses and will
-                    update these details very soon.
-                  </p>
                 </div>
               </Reveal>
 
@@ -793,8 +795,8 @@ export function AboutContent() {
                   >
                     <Sparkles className="mt-0.5 size-4 shrink-0" />
                     <span>
-                      Our freephone line is currently being connected and will be up and running within the
-                      next <strong className="font-semibold">2–3 days</strong>. Thank you for your patience!
+                      Our freephone line is <strong className="font-semibold">up and running now</strong> —
+                      call us free from anywhere in New Zealand. We&apos;d love to hear from you.
                     </span>
                   </p>
                 </div>

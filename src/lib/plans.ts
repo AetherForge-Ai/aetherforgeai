@@ -338,8 +338,8 @@ export const PRICING_TIERS: PricingTier[] = [
   },
 ];
 
-/** Sales contact used by the Ultimate "Talk to Sales" CTA. */
-export const SALES_EMAIL = "admin@aetherforgeai.co.nz";
+/** Enquiries / sign-up contact used by the Ultimate "Talk to Sales" CTA. */
+export const SALES_EMAIL = "hello@aetherforgeai.co.nz";
 
 /** All new-tier Stripe prices are provisioned in NZD. */
 export const PRICE_CURRENCY = "NZD";
