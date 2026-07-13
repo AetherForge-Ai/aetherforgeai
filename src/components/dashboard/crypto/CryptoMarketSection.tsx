@@ -46,7 +46,7 @@ export function CryptoMarketSection() {
             <p className="text-xs text-muted-foreground">
               {loading && coins.length === 0
                 ? "Loading live market data…"
-                : `Live data on the top ${coins.length || 500} cryptocurrencies by market cap`}
+                : `Live Swyftx data on the top ${coins.length || 500} cryptocurrencies by market cap`}
             </p>
           </div>
         </div>

@@ -40,6 +40,7 @@ import {
   fmtPct,
   pctColor,
   fmtShortDate,
+  GENERIC_COIN_ICON,
   CHART_RANGES,
   RANGE_TO_DAYS,
   type ChartRange,
@@ -169,7 +170,17 @@ export function CoinDetailModal({
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={detail.image} alt={detail.name} className="size-9 rounded-full" />
+                <img
+                  src={detail.image}
+                  alt={detail.name}
+                  className="size-9 rounded-full"
+                  onError={(e) => {
+                    const t = e.currentTarget;
+                    if (t.dataset.fb) return;
+                    t.dataset.fb = "1";
+                    t.src = GENERIC_COIN_ICON;
+                  }}
+                />
                 <div>
                   <DialogTitle className="flex items-center gap-2 font-display text-xl">
                     {detail.name}
@@ -404,7 +415,7 @@ export function CoinDetailModal({
               )}
 
               <p className="mt-4 text-center text-[0.62rem] text-muted-foreground">
-                Data via CoinGecko (may be delayed up to ~60s)
+                Data via Swyftx (may be delayed up to ~60s)
               </p>
             </>
           )}

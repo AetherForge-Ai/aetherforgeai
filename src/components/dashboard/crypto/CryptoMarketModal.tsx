@@ -26,6 +26,7 @@ import {
   fmtCompactUsd,
   fmtPct,
   pctColor,
+  GENERIC_COIN_ICON,
   SORT_OPTIONS,
   FILTER_OPTIONS,
   type SortKey,
@@ -213,7 +214,7 @@ export function CryptoMarketModal({
         {/* Footer / attribution */}
         <div className="flex items-center justify-between gap-2 border-t border-border/60 px-4 py-2 text-[0.62rem] text-muted-foreground sm:px-6">
           <span className="inline-flex items-center gap-1">
-            <Info className="size-3" /> Data via CoinGecko (may be delayed up to ~60s)
+            <Info className="size-3" /> Data via Swyftx (may be delayed up to ~60s)
           </span>
           <span className="tnum">
             Showing {total} of {coins.length} coins
@@ -234,7 +235,18 @@ function Row({ coin, top, onClick }: { coin: CoinMarket; top: number; onClick: (
       <span className="tnum text-xs text-muted-foreground">{coin.rank}</span>
       <span className="flex min-w-0 items-center gap-2 text-left">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={coin.image} alt="" className="size-6 shrink-0 rounded-full" loading="lazy" />
+        <img
+          src={coin.image}
+          alt=""
+          className="size-6 shrink-0 rounded-full"
+          loading="lazy"
+          onError={(e) => {
+            const t = e.currentTarget;
+            if (t.dataset.fb) return;
+            t.dataset.fb = "1";
+            t.src = GENERIC_COIN_ICON;
+          }}
+        />
         <span className="min-w-0">
           <span className="block truncate font-medium leading-tight">{coin.name}</span>
           <span className="block text-[0.66rem] uppercase text-muted-foreground">{coin.symbol}</span>

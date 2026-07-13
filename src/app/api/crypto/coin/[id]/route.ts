@@ -3,14 +3,14 @@
  * Rich single-coin metadata for the Coin Detail modal.
  */
 import { NextResponse } from "next/server";
-import { fetchCoinDetail } from "@/lib/crypto-coingecko";
+import { getCoinDetail } from "@/lib/crypto-source";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   try {
-    const detail = await fetchCoinDetail(id);
+    const detail = await getCoinDetail(id);
     return NextResponse.json({ ok: true, data: detail });
   } catch (err: any) {
     console.error(`[api/crypto/coin/${id}] error:`, err);

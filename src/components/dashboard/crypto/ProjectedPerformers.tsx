@@ -26,6 +26,7 @@ import {
   fmtCompactUsd,
   fmtPct,
   pctColor,
+  GENERIC_COIN_ICON,
   type RankedPerformer,
 } from "@/lib/crypto-market";
 import {
@@ -160,7 +161,18 @@ export function ProjectedPerformers({
                   <span className="tnum text-xs font-semibold text-emerald-400">{i + 1}</span>
                   <span className="flex min-w-0 items-center gap-2 text-left">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={c.image} alt="" className="size-6 shrink-0 rounded-full" loading="lazy" />
+                    <img
+                      src={c.image}
+                      alt=""
+                      className="size-6 shrink-0 rounded-full"
+                      loading="lazy"
+                      onError={(e) => {
+                        const t = e.currentTarget;
+                        if (t.dataset.fb) return;
+                        t.dataset.fb = "1";
+                        t.src = GENERIC_COIN_ICON;
+                      }}
+                    />
                     <span className="min-w-0">
                       <span className="block truncate font-medium leading-tight">{c.name}</span>
                       <span className="block text-[0.64rem] uppercase text-muted-foreground">{c.symbol}</span>
@@ -181,7 +193,7 @@ export function ProjectedPerformers({
             )}
           </div>
           <div className="border-t border-border/60 px-4 py-2 text-center text-[0.62rem] text-muted-foreground sm:px-6">
-            Data via CoinGecko (may be delayed up to ~60s)
+            Data via Swyftx (may be delayed up to ~60s)
           </div>
         </DialogContent>
       </Dialog>
@@ -205,7 +217,18 @@ function PerformerCard({
     >
       <span className="tnum w-4 shrink-0 text-center text-xs font-bold text-muted-foreground">{rank}</span>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={coin.image} alt="" className="size-8 shrink-0 rounded-full" loading="lazy" />
+      <img
+        src={coin.image}
+        alt=""
+        className="size-8 shrink-0 rounded-full"
+        loading="lazy"
+        onError={(e) => {
+          const t = e.currentTarget;
+          if (t.dataset.fb) return;
+          t.dataset.fb = "1";
+          t.src = GENERIC_COIN_ICON;
+        }}
+      />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold leading-tight">{coin.name}</p>
         <p className="text-[0.64rem] uppercase text-muted-foreground">{coin.symbol}</p>

@@ -3,7 +3,7 @@
  * Price/volume series for the Coin Detail interactive chart.
  */
 import { NextResponse } from "next/server";
-import { fetchCoinChart } from "@/lib/crypto-coingecko";
+import { getCoinChart } from "@/lib/crypto-source";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +11,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   const { id } = await ctx.params;
   const days = new URL(req.url).searchParams.get("days") || "7";
   try {
-    const chart = await fetchCoinChart(id, days);
+    const chart = await getCoinChart(id, days);
     return NextResponse.json({ ok: true, data: chart });
   } catch (err: any) {
     console.error(`[api/crypto/chart/${id}] error:`, err);

@@ -155,6 +155,22 @@ export function pctColor(n: number | null | undefined): string {
   return n > 0 ? "text-emerald-400" : "text-rose-400";
 }
 
+/**
+ * Coin logo URL from a ticker symbol.
+ *
+ * Swyftx's market endpoints don't return logos, so we resolve them from a
+ * reliable symbol-keyed public icon CDN. Components add an onError fallback to a
+ * generic coin glyph for the handful of tickers the CDN doesn't cover.
+ */
+export const GENERIC_COIN_ICON =
+  "https://cdn.jsdelivr.net/gh/atomiclabs/cryptocurrency-icons@0.18.1/svg/color/generic.svg";
+
+export function coinLogo(symbol: string | null | undefined): string {
+  const s = (symbol || "").toLowerCase().trim();
+  if (!s) return GENERIC_COIN_ICON;
+  return `https://assets.coincap.io/assets/icons/${s}@2x.png`;
+}
+
 /** Short date like "12 Mar 2021" from an ISO string. */
 export function fmtShortDate(iso: string | null | undefined): string {
   if (!iso) return "—";
