@@ -112,6 +112,17 @@
     text-size-adjust: 100%;
     /* No grey flash box when tapping links/buttons on touch devices */
     -webkit-tap-highlight-color: transparent;
+    /* Clip horizontal overflow at the ROOT — not only on <body>. Body-only clip
+       is leaky on iOS Safari (it can still touch-pan an oversized layout, which
+       is exactly the "scrolls far off the page" symptom the user hit). Verified
+       live in-browser that `clip` keeps overflow-y computing to `visible`, so the
+       viewport stays the scroll container and the sticky sidebar / top bars keep
+       working. No-op on desktop where content already fits — computer view is
+       unchanged. */
+    overflow-x: clip;
+    /* Kill iOS horizontal rubber-band / scroll-chaining past the page edge */
+    overscroll-behavior-x: none;
+    max-width: 100%;
   }
   /* Offset in-page anchor targets so the sticky header never covers them */
   [id] {
@@ -122,8 +133,11 @@
     font-feature-settings: "ss01", "cv01";
     /* A stray wide element (table, ticker, chart) must never make the WHOLE page
        scroll sideways on a phone. `clip` — unlike `hidden` — still allows
-       position: sticky to work, so the sidebar/headers keep sticking. */
+       position: sticky to work, so the sidebar/headers keep sticking. Paired with
+       the same rule on <html> above for full iOS coverage. */
     overflow-x: clip;
+    overscroll-behavior-x: none;
+    max-width: 100%;
   }
 }
 
