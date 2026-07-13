@@ -734,7 +734,7 @@ export function AboutContent() {
                   <h3 className="font-display text-lg font-bold text-[#0F172A]">Email us</h3>
                   <div className="mt-4 space-y-3">
                     <a
-                      href="mailto:hello@aetherforgeai.co.nz"
+                      href="mailto:lukas@aetherforgeai.co.nz"
                       className="group flex items-center gap-3 rounded-xl border border-[#0F172A]/8 bg-[#F8FAFC] px-4 py-3.5 transition-all hover:border-[#059669]/40 hover:bg-white"
                     >
                       <span className="grid size-10 place-items-center rounded-lg bg-[#059669]/10 text-[#059669]">
@@ -745,7 +745,7 @@ export function AboutContent() {
                           Enquiries &amp; sign-up
                         </span>
                         <span className="block truncate text-[15px] font-semibold text-[#0F172A]">
-                          hello@aetherforgeai.co.nz
+                          lukas@aetherforgeai.co.nz
                         </span>
                       </span>
                       <ArrowRight className="size-4 text-[#94A3B8] transition-transform group-hover:translate-x-0.5 group-hover:text-[#059669]" />

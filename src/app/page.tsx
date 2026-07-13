@@ -149,6 +149,18 @@ export default function LandingPage() {
                 </Button>
               </div>
 
+              <Link
+                href="/performance"
+                className="group mt-4 inline-flex items-center gap-2 text-sm font-semibold text-emerald-400 hover:text-emerald-300"
+              >
+                <span className="relative flex size-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/80" />
+                  <span className="relative inline-flex size-2 rounded-full bg-emerald-400" />
+                </span>
+                Check out real results of how it works — see it live
+                <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
+              </Link>
+
               <div className="mt-8 flex items-center gap-6 text-sm text-muted-foreground">
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="size-4 text-primary" /> Bank-grade privacy
@@ -206,6 +218,47 @@ export default function LandingPage() {
               </div>
             </div>
           </div>
+        </section>
+
+        {/* ─── Attention banner: real, live results ─── */}
+        <section className="mx-auto max-w-7xl px-4 pb-4 sm:px-6 lg:px-8">
+          <Link
+            href="/performance"
+            className="group relative block overflow-hidden rounded-3xl border border-emerald-400/40 bg-gradient-to-r from-emerald-500/15 via-primary/10 to-emerald-500/15 p-[1.5px] shadow-glow transition-all hover:border-emerald-400/70 hover:shadow-[0_0_45px_-8px_rgba(16,185,129,0.5)]"
+          >
+            {/* animated shimmer sweep */}
+            <span className="pointer-events-none absolute inset-0 -translate-x-full animate-shimmer-sweep bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+            <div className="relative flex flex-col items-center gap-4 rounded-[calc(1.5rem-1.5px)] bg-card/70 px-6 py-6 text-center backdrop-blur-sm sm:flex-row sm:justify-between sm:gap-6 sm:px-8 sm:text-left">
+              <div className="flex items-center gap-4">
+                <span className="relative grid size-12 shrink-0 place-items-center rounded-2xl bg-emerald-500/15 ring-1 ring-emerald-400/30">
+                  <TrendingUp className="size-6 text-emerald-400" />
+                  <span className="absolute -right-1 -top-1 flex size-3.5">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/80" />
+                    <span className="relative inline-flex size-3.5 rounded-full bg-emerald-400 ring-2 ring-card" />
+                  </span>
+                </span>
+                <div>
+                  <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/40 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-[0.16em] text-emerald-300">
+                    <span className="relative flex size-1.5">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400" />
+                      <span className="relative inline-flex size-1.5 rounded-full bg-emerald-400" />
+                    </span>
+                    Live &amp; real
+                  </div>
+                  <h2 className="mt-1.5 font-display text-xl font-bold tracking-tight sm:text-2xl">
+                    Check out the <span className="text-gradient">real results</span> of how it works
+                  </h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    See our AI&apos;s live, verifiable performance and calls in action — no cherry-picking.
+                  </p>
+                </div>
+              </div>
+              <span className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-emerald-500 px-5 py-3 text-sm font-semibold text-emerald-950 shadow-glow transition-transform group-hover:scale-[1.03]">
+                View live results
+                <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
+              </span>
+            </div>
+          </Link>
         </section>
 
         {/* The two Apex bots — core of the product */}
