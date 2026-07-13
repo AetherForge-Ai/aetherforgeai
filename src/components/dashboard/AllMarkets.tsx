@@ -41,7 +41,7 @@ export function AllMarkets({ onBought }: { onBought?: () => void }) {
           </p>
         </div>
         <span className="hidden shrink-0 items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-transform group-hover:scale-[1.03] sm:inline-flex">
-          <Layers className="size-4" /> Open Market Snapshot
+          <Layers className="size-4" /> Search Markets
         </span>
       </button>
 

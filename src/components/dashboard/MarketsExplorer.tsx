@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
 import { EXCHANGES, EXCHANGE_META, formatMarketPrice, type Exchange } from "@/lib/market-intel";
 import { BuyDialog, type BuyTarget } from "@/components/dashboard/BuyDialog";
+import { StockDetailDialog, type DetailTarget } from "@/components/dashboard/StockDetailDialog";
 import { cn } from "@/lib/utils";
 import {
   Search,
@@ -16,6 +17,7 @@ import {
   ArrowUpDown,
   ShoppingCart,
   Radio,
+  Clock,
 } from "lucide-react";
 
 export interface MarketRow {
@@ -27,7 +29,11 @@ export interface MarketRow {
   currency: "NZD" | "AUD" | "USD";
   price: number;
   changePct: number;
+  changeAbs: number;
+  dayHigh: number | null;
+  dayLow: number | null;
   volume: number | null;
+  marketCap: number | null;
   live: boolean;
 }
 
@@ -43,12 +49,28 @@ export interface MarketPayload {
   rows: MarketRow[];
 }
 
-type SortKey = "symbol" | "price" | "changePct" | "volume";
+type SortKey = "symbol" | "price" | "changePct" | "volume" | "marketCap";
 
 const volFmt = new Intl.NumberFormat("en-NZ", { notation: "compact", maximumFractionDigits: 1 });
 
 function fmtVolume(v: number | null): string {
   return v && v > 0 ? volFmt.format(v) : "—";
+}
+
+/** Compact market-cap / currency figure, e.g. "$1.2T", "$948.6B". */
+function fmtCap(v: number | null, currency: string): string {
+  if (!v || v <= 0) return "—";
+  const sym = currency === "USD" ? "$" : currency === "AUD" ? "A$" : "NZ$";
+  const abs = Math.abs(v);
+  const unit = abs >= 1e12 ? ["T", 1e12] : abs >= 1e9 ? ["B", 1e9] : abs >= 1e6 ? ["M", 1e6] : ["", 1];
+  return `${sym}${(v / (unit[1] as number)).toFixed(abs >= 1e9 ? 2 : 1)}${unit[0]}`;
+}
+
+/** A signed price move like "+0.42" / "−1.18" (session change in absolute terms). */
+function fmtAbs(v: number, price: number): string {
+  const dp = price < 5 ? 4 : 2;
+  const sign = v > 0 ? "+" : v < 0 ? "−" : "";
+  return `${sign}${Math.abs(v).toFixed(dp)}`;
 }
 
 function fmtTime(iso: string): string {
@@ -85,24 +107,36 @@ export function MarketsExplorer({
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [buyTarget, setBuyTarget] = useState<BuyTarget | null>(null);
   const [buyOpen, setBuyOpen] = useState(false);
+  const [detailTarget, setDetailTarget] = useState<DetailTarget | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
 
-  const load = useCallback(async (ex: Exchange) => {
-    setLoading(true);
-    console.log(`[markets-explorer] Loading live list for ${ex}…`);
+  // `silent` refresh keeps the current rows on screen (no skeleton flash) — used
+  // by the 30–60s auto-refresh so prices update seamlessly, live-ticker style.
+  const load = useCallback(async (ex: Exchange, silent = false) => {
+    if (!silent) setLoading(true);
+    console.log(`[markets-explorer] Loading live list for ${ex}…${silent ? " (auto)" : ""}`);
     const res = await api.get<MarketPayload>(`/api/all-markets?exchange=${ex}&t=${Date.now()}`);
     if (res.ok && res.data) {
       setData(res.data);
       console.log(`[markets-explorer] ${ex}: ${res.data.liveCount}/${res.data.total} live`);
     } else {
       console.error("[markets-explorer] Load failed:", res.error);
-      setData(null);
+      if (!silent) setData(null);
     }
-    setLoading(false);
+    if (!silent) setLoading(false);
   }, []);
 
   // Load whenever active + exchange changes.
   useEffect(() => {
     if (active) load(exchange);
+  }, [active, exchange, load]);
+
+  // Auto-refresh live prices every 45s while the browser is open — no skeleton
+  // flash, just fresh numbers. Paused when the modal/section is inactive.
+  useEffect(() => {
+    if (!active) return;
+    const id = setInterval(() => load(exchange, true), 45_000);
+    return () => clearInterval(id);
   }, [active, exchange, load]);
 
   function toggleSort(key: SortKey) {
@@ -123,6 +157,7 @@ export function MarketsExplorer({
     return [...filtered].sort((a, b) => {
       if (sortKey === "symbol") return a.symbol.localeCompare(b.symbol) * dir;
       if (sortKey === "volume") return ((a.volume ?? 0) - (b.volume ?? 0)) * dir;
+      if (sortKey === "marketCap") return ((a.marketCap ?? 0) - (b.marketCap ?? 0)) * dir;
       return ((a[sortKey] as number) - (b[sortKey] as number)) * dir;
     });
   }, [data, query, sortKey, sortDir]);
@@ -130,6 +165,17 @@ export function MarketsExplorer({
   function openBuy(r: MarketRow) {
     setBuyTarget({ ticker: r.ticker, name: r.name, assetType: "stock", price: r.price });
     setBuyOpen(true);
+  }
+
+  function openDetail(r: MarketRow) {
+    setDetailTarget({
+      symbol: r.symbol,
+      ticker: r.ticker,
+      name: r.name,
+      exchange: r.exchange,
+      currency: r.currency,
+    });
+    setDetailOpen(true);
   }
 
   const SortHead = ({ label, k, align = "right" }: { label: string; k: SortKey; align?: "left" | "right" }) => (
@@ -188,10 +234,17 @@ export function MarketsExplorer({
             className="pl-9"
           />
         </div>
-        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Radio className="size-3.5 text-emerald-400" />
-          {data ? `${rows.length} of ${data.total} · ${data.liveCount} live · ${fmtTime(data.asOf)}` : "—"}
-        </p>
+        <div className="flex flex-col items-end gap-0.5">
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Radio className="size-3.5 text-emerald-400" />
+            {data ? `${rows.length} of ${data.total} · ${data.liveCount} live · ${fmtTime(data.asOf)}` : "—"}
+          </p>
+          {exchange === "NZX" && (
+            <p className="flex items-center gap-1 text-[0.62rem] text-muted-foreground/80">
+              <Clock className="size-3" /> NZX quotes may be delayed ~20 min
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Table — scrolls on BOTH axes so wide rows never push the page sideways on mobile */}
@@ -205,7 +258,14 @@ export function MarketsExplorer({
               </th>
               <th className="py-2.5 px-3"><SortHead label="Price" k="price" /></th>
               <th className="py-2.5 px-3"><SortHead label="Change" k="changePct" /></th>
+              <th className="hidden py-2.5 px-3 lg:table-cell text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                High
+              </th>
+              <th className="hidden py-2.5 px-3 lg:table-cell text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Low
+              </th>
               <th className="hidden py-2.5 px-3 md:table-cell"><SortHead label="Volume" k="volume" /></th>
+              <th className="hidden py-2.5 px-3 xl:table-cell"><SortHead label="Mkt Cap" k="marketCap" /></th>
               <th className="py-2.5 pl-3 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Buy
               </th>
@@ -215,14 +275,14 @@ export function MarketsExplorer({
             {loading ? (
               [...Array(12)].map((_, i) => (
                 <tr key={i} className="border-b border-border/30">
-                  <td colSpan={6} className="py-2">
+                  <td colSpan={9} className="py-2">
                     <div className="h-8 animate-pulse rounded-lg bg-muted/40" />
                   </td>
                 </tr>
               ))
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={6} className="py-12 text-center text-sm text-muted-foreground">
+                <td colSpan={9} className="py-12 text-center text-sm text-muted-foreground">
                   No tickers match “{query}”.
                 </td>
               </tr>
@@ -233,7 +293,14 @@ export function MarketsExplorer({
                   <tr key={r.ticker} className="border-b border-border/30 last:border-0 hover:bg-background/40">
                     <td className="py-2.5 pr-3">
                       <div className="flex items-center gap-2">
-                        <span className="font-display font-semibold">{r.symbol}</span>
+                        {/* Clickable ticker → detailed stock view (chart, stats, AI) */}
+                        <button
+                          onClick={() => openDetail(r)}
+                          className="font-display font-semibold text-primary underline-offset-4 transition-colors hover:text-primary hover:underline"
+                          title={`View ${r.symbol} details`}
+                        >
+                          {r.symbol}
+                        </button>
                         {!r.live && (
                           <span className="rounded bg-muted/60 px-1 py-0.5 text-[0.55rem] font-semibold uppercase text-muted-foreground">
                             ref
@@ -258,9 +325,22 @@ export function MarketsExplorer({
                         {up ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />}
                         {Math.abs(r.changePct).toFixed(2)}%
                       </span>
+                      {/* Absolute session move ($) beneath the % — both requested */}
+                      <span className={cn("tnum block text-[0.62rem]", up ? "text-emerald-400/70" : "text-rose-400/70")}>
+                        {r.live ? fmtAbs(r.changeAbs, r.price) : "—"}
+                      </span>
+                    </td>
+                    <td className="tnum hidden py-2.5 px-3 text-right text-muted-foreground lg:table-cell">
+                      {r.dayHigh ? formatMarketPrice(r.dayHigh, r.currency) : "—"}
+                    </td>
+                    <td className="tnum hidden py-2.5 px-3 text-right text-muted-foreground lg:table-cell">
+                      {r.dayLow ? formatMarketPrice(r.dayLow, r.currency) : "—"}
                     </td>
                     <td className="tnum hidden py-2.5 px-3 text-right text-muted-foreground md:table-cell">
                       {fmtVolume(r.volume)}
+                    </td>
+                    <td className="tnum hidden py-2.5 px-3 text-right text-muted-foreground xl:table-cell">
+                      {fmtCap(r.marketCap, r.currency)}
                     </td>
                     <td className="py-2.5 pl-3 text-right">
                       <Button size="sm" variant="outline" className="h-8 px-2.5" onClick={() => openBuy(r)}>
@@ -284,6 +364,15 @@ export function MarketsExplorer({
           setBuyOpen(false);
           onBought?.();
         }}
+      />
+
+      {/* Detailed stock view — chart, key stats & Stox AI analysis pane */}
+      <StockDetailDialog
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        target={detailTarget}
+        canBuy={!!onBought}
+        onBought={onBought}
       />
     </div>
   );

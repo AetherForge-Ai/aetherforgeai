@@ -25,6 +25,8 @@ import { planLabel } from "@/lib/plans";
 import { checkTickerQuota, limitScope, resolveTickerLimit } from "@/lib/entitlements";
 import { computePortfolioMetrics } from "@/lib/analytics";
 import { AllMarkets } from "@/components/dashboard/AllMarkets";
+import { OpenMarketSnapshot } from "@/components/dashboard/OpenMarketSnapshot";
+import { AnimatedMoney } from "@/components/dashboard/AnimatedMoney";
 import { TopMovers } from "@/components/dashboard/TopMovers";
 import { MarketWidePerformers } from "@/components/dashboard/MarketWidePerformers";
 import { ActionableIntelligence } from "@/components/dashboard/ActionableIntelligence";
@@ -356,6 +358,22 @@ export function PortfolioDashboard({
     loadMetals();
   }, [preview, loadStocks, loadCash, loadMetals]);
 
+  // Live net-worth updates — silently re-price holdings every 60s so the totals
+  // fluctuate with the market (AnimatedMoney tweens each change smoothly). No
+  // toast, no spinner; skipped in guest preview and when nothing is held.
+  useEffect(() => {
+    if (preview) return;
+    const id = setInterval(async () => {
+      if (document.hidden) return; // don't poll a backgrounded tab
+      const res = await api.post<Stock[]>("/api/stocks/refresh", {});
+      if (res.ok && res.data) {
+        setAllStocks(res.data);
+        console.log("[dashboard] Live re-price tick applied");
+      }
+    }, 60_000);
+    return () => clearInterval(id);
+  }, [preview]);
+
   // Called whenever holdings or cash change (transactions, edits, deletes).
   const handleDataChanged = useCallback(() => {
     loadStocks();
@@ -485,7 +503,9 @@ export function PortfolioDashboard({
     () => computeSummary(cryptoHoldings, { baseCurrency: "NZD", fxToNZD }).totalValue,
     [cryptoHoldings, fxToNZD]
   );
-  const netWorthNZD = stockTotalNZD + cryptoTotalNZD + cashBalance + metalsValueNZD;
+  // Live market value of everything held (excludes idle cash) + full net worth.
+  const holdingsValueNZD = stockTotalNZD + cryptoTotalNZD + metalsValueNZD;
+  const netWorthNZD = holdingsValueNZD + cashBalance;
 
   async function handleRefreshPrices() {
     setRefreshing(true);
@@ -836,9 +856,30 @@ export function PortfolioDashboard({
             </div>
             <p className="text-xs text-muted-foreground">Everything you hold, valued live in NZD</p>
           </div>
-          <div className="text-right">
-            <p className="text-[0.68rem] uppercase tracking-wide text-muted-foreground">Total net worth · NZD</p>
-            <p className="tnum font-display text-2xl font-bold text-primary">{formatMoney(netWorthNZD, "NZD")}</p>
+          {/* Live-updating market value + net worth — animates as prices move */}
+          <div className="flex items-end gap-6">
+            <div className="text-right">
+              <p className="text-[0.68rem] uppercase tracking-wide text-muted-foreground">Holdings value · NZD</p>
+              <AnimatedMoney
+                value={holdingsValueNZD}
+                currency="NZD"
+                className="font-display text-lg font-bold text-foreground"
+              />
+            </div>
+            <div className="text-right">
+              <p className="flex items-center justify-end gap-1.5 text-[0.68rem] uppercase tracking-wide text-muted-foreground">
+                <span className="relative flex size-1.5">
+                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400/70" />
+                  <span className="relative inline-flex size-1.5 rounded-full bg-emerald-400" />
+                </span>
+                Total net worth · NZD
+              </p>
+              <AnimatedMoney
+                value={netWorthNZD}
+                currency="NZD"
+                className="font-display text-2xl font-bold text-primary"
+              />
+            </div>
           </div>
         </div>
         <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -851,12 +892,18 @@ export function PortfolioDashboard({
                 <Wallet className="size-4" />
               </span>
             </div>
-            <p className="tnum mt-3 font-display text-3xl font-bold text-primary">
-              {formatMoney(cashBalance, "NZD")}
-            </p>
+            <AnimatedMoney
+              value={cashBalance}
+              currency="NZD"
+              className="mt-3 block font-display text-3xl font-bold text-primary"
+            />
             <p className="mt-1 text-xs text-muted-foreground">
               Cash available · falls on every buy, rises on every sell
             </p>
+            <div className="mt-3 flex items-center justify-between border-t border-primary/20 pt-2 text-xs">
+              <span className="text-muted-foreground">Holdings value</span>
+              <AnimatedMoney value={holdingsValueNZD} currency="NZD" className="font-semibold text-foreground" />
+            </div>
           </div>
           <StatCard
             label="Value in Stocks · NZD"
@@ -1100,9 +1147,10 @@ export function PortfolioDashboard({
         <ActionableIntelligence stocks={stocks} assetClass={bot} onBought={handleDataChanged} />
       </div>
 
-      {/* ───────────────────────── 7 · ALL Markets — live cross-exchange browser ───────────────────────── */}
-      <div className="mt-8">
+      {/* ───────────────────────── 7 · ALL Markets — live cross-exchange browser + Open Market Snapshot ───────────────────────── */}
+      <div className="mt-8 grid gap-4 lg:grid-cols-2">
         <AllMarkets onBought={handleDataChanged} />
+        <OpenMarketSnapshot onBought={handleDataChanged} />
       </div>
 
       {/* ───────────────────────── 8 · Top movers (24h · 7d · 1 month) ───────────────────────── */}

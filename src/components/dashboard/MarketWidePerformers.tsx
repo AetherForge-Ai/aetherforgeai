@@ -4,93 +4,72 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import {
   getTopPerformers,
-  formatMarketPrice,
+  resolveExchange,
+  EXCHANGE_META,
+  EXCHANGES,
   type SecurityIntel,
+  type Exchange,
 } from "@/lib/market-intel";
-import { pctClass, fmtPct, SignalBadge, ExchangeChip } from "@/components/dashboard/intel-ui";
-import { BuyDialog, type BuyTarget } from "@/components/dashboard/BuyDialog";
+import { pctClass, fmtPct } from "@/components/dashboard/intel-ui";
+import {
+  StockDetailDialog,
+  type DetailTarget,
+} from "@/components/dashboard/StockDetailDialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
   Rocket,
   RefreshCw,
   Loader2,
-  ShoppingCart,
   ArrowUp,
   ArrowDown,
-  TrendingUp,
   Info,
+  ChevronDown,
+  Sparkles,
+  Gauge,
 } from "lucide-react";
 
 /**
- * Projected Top Performers — a MARKET-WIDE scan, not just the user's holdings.
+ * Projected Top Performers — an AI-generated, MARKET-WIDE projection surface.
  *
- * It merges the fully-analysed universes of BOTH asset classes and surfaces the
- * strongest projected movers across the entire market:
- *   • Entire crypto market (major coins by market cap + momentum)
- *   • Entire NZX   • Entire ASX   • Dow Jones components   • NASDAQ growth/tech
+ * Presented as a collapsible section with FOUR exchange sub-tabs
+ * (NZX · ASX · NASDAQ · Dow Jones). Each tab lists the Top 20 predicted
+ * performers on that exchange in a rich table: Rank, Ticker (clickable →
+ * detailed view), Company, Predicted performance (% upside), Confidence and a
+ * short "key reasons" AI summary.
  *
- * DATA SOURCES (already live — keyless, server-side):
- *   • Stocks → GET /api/market?bot=stock  → Yahoo Finance daily closes & quotes
- *   • Crypto → GET /api/market?bot=crypto → CoinGecko markets + Yahoo histories
- * To swap in a different provider later, change those two routes only; this
- * component just consumes the analysed `SecurityIntel[]` they return, so the UI
- * never has to change. Ranking/projection lives in src/lib/market-intel.ts
- * (getTopPerformers → conviction-weighted 7-day upside blended with real momentum).
+ * DATA SOURCE (live — keyless, server-side):
+ *   • GET /api/market?bot=stock → Yahoo Finance daily closes & quotes, analysed
+ *     into SecurityIntel[]. Ranking/projection lives in src/lib/market-intel.ts
+ *     (getTopPerformers → conviction-weighted 7-day upside blended with momentum,
+ *     surfaced through the Stox/Koins quant engine).
+ * US securities are bucketed into Dow Jones vs NASDAQ via resolveExchange().
  */
 
-type MarketFilter = "all" | "crypto" | "NZX" | "ASX" | "US";
-
-const FILTERS: { key: MarketFilter; label: string }[] = [
-  { key: "all", label: "All markets" },
-  { key: "crypto", label: "Crypto" },
-  { key: "NZX", label: "NZX" },
-  { key: "ASX", label: "ASX" },
-  { key: "US", label: "US · Dow & NASDAQ" },
-];
-
-/** Friendly market label for a security. */
-function marketLabel(s: SecurityIntel): string {
-  if (s.market === "CRYPTO") return "Crypto";
-  if (s.market === "US") return "US";
-  return s.market; // NZX / ASX
-}
-
-function matchesFilter(s: SecurityIntel, f: MarketFilter): boolean {
-  if (f === "all") return true;
-  if (f === "crypto") return s.market === "CRYPTO";
-  return s.market === f;
-}
+const TAB_ORDER: Exchange[] = ["NZX", "ASX", "NASDAQ", "DOW"];
 
 export function MarketWidePerformers({ onBought }: { onBought?: () => void }) {
   const [universe, setUniverse] = useState<SecurityIntel[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [filter, setFilter] = useState<MarketFilter>("all");
+  const [expanded, setExpanded] = useState(true);
+  const [tab, setTab] = useState<Exchange>("NZX");
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
-  const [buyTarget, setBuyTarget] = useState<BuyTarget | null>(null);
-  const [buyOpen, setBuyOpen] = useState(false);
+  const [detailTarget, setDetailTarget] = useState<DetailTarget | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
 
   const load = useCallback(async (manual: boolean) => {
     if (manual) setRefreshing(true);
     else setLoading(true);
-    console.log("[market-wide] Scanning crypto + NZX + ASX + Dow + NASDAQ…");
-    // Pull BOTH asset classes in parallel and merge into one cross-market pool.
+    console.log("[market-wide] Scanning NZX + ASX + NASDAQ + Dow projections…");
     const ts = Date.now();
-    const [stockRes, cryptoRes] = await Promise.all([
-      api.get<{ universe: SecurityIntel[] }>(`/api/market?bot=stock&t=${ts}`),
-      api.get<{ universe: SecurityIntel[] }>(`/api/market?bot=crypto&t=${ts}`),
-    ]);
-    const merged: SecurityIntel[] = [
-      ...(stockRes.ok && stockRes.data ? stockRes.data.universe : []),
-      ...(cryptoRes.ok && cryptoRes.data ? cryptoRes.data.universe : []),
-    ];
-    if (merged.length > 0) {
-      setUniverse(merged);
+    const stockRes = await api.get<{ universe: SecurityIntel[] }>(`/api/market?bot=stock&t=${ts}`);
+    if (stockRes.ok && stockRes.data && stockRes.data.universe.length > 0) {
+      setUniverse(stockRes.data.universe);
       setLastUpdated(new Date().toISOString());
-      console.log(`[market-wide] Merged ${merged.length} securities across all markets`);
+      console.log(`[market-wide] Analysed ${stockRes.data.universe.length} securities across exchanges`);
     } else {
-      console.error("[market-wide] No market data returned", stockRes.error, cryptoRes.error);
+      console.error("[market-wide] No market data returned", stockRes.error);
     }
     setLoading(false);
     setRefreshing(false);
@@ -100,15 +79,29 @@ export function MarketWidePerformers({ onBought }: { onBought?: () => void }) {
     load(false);
   }, [load]);
 
-  // Top 10 projected performers within the active market filter.
+  // Top 20 projected performers on the active exchange.
   const leaders = useMemo(() => {
-    const pool = universe.filter((s) => matchesFilter(s, filter));
-    return getTopPerformers(10, pool);
-  }, [universe, filter]);
+    const pool = universe.filter((s) => resolveExchange(s.ticker, s.market) === tab);
+    return getTopPerformers(20, pool);
+  }, [universe, tab]);
 
-  function openBuy(s: SecurityIntel) {
-    setBuyTarget({ ticker: s.ticker, name: s.name, assetType: s.assetClass, price: s.price });
-    setBuyOpen(true);
+  // Per-exchange counts for the tab labels.
+  const counts = useMemo(() => {
+    const c: Record<Exchange, number> = { NZX: 0, ASX: 0, DOW: 0, NASDAQ: 0 };
+    for (const s of universe) c[resolveExchange(s.ticker, s.market)] += 1;
+    return c;
+  }, [universe]);
+
+  function openDetail(s: SecurityIntel) {
+    const exchange = resolveExchange(s.ticker, s.market);
+    setDetailTarget({
+      symbol: s.ticker.replace(/\.(NZ|AX|L)$/i, ""),
+      ticker: s.ticker,
+      name: s.name,
+      exchange,
+      currency: s.currency,
+    });
+    setDetailOpen(true);
   }
 
   const updated = lastUpdated
@@ -117,25 +110,43 @@ export function MarketWidePerformers({ onBought }: { onBought?: () => void }) {
 
   return (
     <section className="rounded-3xl border border-border/70 bg-card/50 p-6">
-      {/* Header */}
+      {/* Header — click to collapse/expand the whole section */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          className="flex flex-1 items-center gap-3 text-left"
+          aria-expanded={expanded}
+        >
           <span className="grid size-9 place-items-center rounded-lg bg-primary/12 text-primary">
             <Rocket className="size-4" />
           </span>
           <div>
-            <h2 className="font-display text-lg font-bold">Projected top performers</h2>
+            <h2 className="flex items-center gap-2 font-display text-lg font-bold">
+              Projected top performers
+              <span className="flex items-center gap-1 rounded-full bg-primary/12 px-2 py-0.5 text-[0.58rem] font-bold uppercase tracking-wider text-primary">
+                <Sparkles className="size-3" /> AI-generated
+              </span>
+            </h2>
             <p className="text-xs text-muted-foreground">
-              Market-wide scan · Crypto · NZX · ASX · Dow Jones &amp; NASDAQ
-              {universe.length ? ` · ${universe.length} securities` : ""}
+              Top 20 predicted movers per exchange · NZX · ASX · NASDAQ · Dow Jones
+              {universe.length ? ` · ${universe.length} securities analysed` : ""}
             </p>
           </div>
-        </div>
+          <ChevronDown
+            className={cn(
+              "ml-1 size-5 shrink-0 text-muted-foreground transition-transform",
+              expanded && "rotate-180"
+            )}
+          />
+        </button>
         <Button
           variant="outline"
           size="sm"
           className="h-8 gap-1.5 px-3 text-xs"
-          onClick={() => load(true)}
+          onClick={(e) => {
+            e.stopPropagation();
+            load(true);
+          }}
           disabled={refreshing || loading}
         >
           {refreshing ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
@@ -143,125 +154,138 @@ export function MarketWidePerformers({ onBought }: { onBought?: () => void }) {
         </Button>
       </div>
 
-      {/* Market filter */}
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        {FILTERS.map((f) => {
-          const active = filter === f.key;
-          return (
-            <button
-              key={f.key}
-              onClick={() => setFilter(f.key)}
-              className={cn(
-                "rounded-xl border px-3 py-1.5 text-xs font-semibold transition-colors",
-                active
-                  ? "border-primary bg-primary/10 text-primary"
-                  : "border-border/60 bg-background/40 text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {f.label}
-            </button>
-          );
-        })}
-        {updated && <span className="ml-auto text-[0.6rem] text-muted-foreground">Updated {updated}</span>}
-      </div>
-
-      {/* Cards */}
-      <div className="mt-5">
-        {loading ? (
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {[...Array(6)].map((_, i) => (
-              <div key={i} className="h-40 animate-pulse rounded-2xl bg-muted/40" />
-            ))}
-          </div>
-        ) : leaders.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border/60 py-12 text-center text-sm text-muted-foreground">
-            No projected movers found for this market right now.
-          </div>
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {leaders.map((s, i) => {
-              const up = s.projected7dPct >= 0;
+      {expanded && (
+        <>
+          {/* Exchange sub-tabs */}
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            {TAB_ORDER.map((ex) => {
+              const active = tab === ex;
               return (
-                <div
-                  key={s.ticker}
-                  className="flex flex-col rounded-2xl border border-border/60 bg-background/40 p-4 transition-colors hover:border-primary/40"
+                <button
+                  key={ex}
+                  onClick={() => setTab(ex)}
+                  className={cn(
+                    "rounded-xl border px-3 py-1.5 text-xs font-semibold transition-colors",
+                    active
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border/60 bg-background/40 text-muted-foreground hover:text-foreground"
+                  )}
                 >
-                  {/* Top row: rank + symbol + market */}
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="tnum grid size-6 shrink-0 place-items-center rounded-md bg-primary/12 text-[0.62rem] font-bold text-primary">
-                        {i + 1}
-                      </span>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-display text-sm font-bold">
-                            {s.ticker.replace(/\.(NZ|AX)$/, "")}
-                          </span>
-                          <ExchangeChip ticker={s.ticker} market={s.market} />
-                        </div>
-                        <p className="max-w-[11rem] truncate text-[0.66rem] text-muted-foreground">{s.name}</p>
-                      </div>
-                    </div>
-                    <SignalBadge signal={s.signal} />
-                  </div>
-
-                  {/* Price + projected upside */}
-                  <div className="mt-3 flex items-end justify-between">
-                    <div>
-                      <p className="text-[0.6rem] uppercase tracking-wide text-muted-foreground">Current</p>
-                      <p className="tnum font-display text-base font-bold">
-                        {formatMarketPrice(s.price, s.currency)}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[0.6rem] uppercase tracking-wide text-muted-foreground">7-day projected</p>
-                      <p className={cn("tnum flex items-center justify-end gap-0.5 font-display text-base font-bold", pctClass(s.projected7dPct))}>
-                        {up ? <ArrowUp className="size-3.5" /> : <ArrowDown className="size-3.5" />}
-                        {fmtPct(s.projected7dPct)}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Rationale */}
-                  <p className="mt-3 line-clamp-3 flex-1 text-[0.72rem] leading-relaxed text-muted-foreground">
-                    {s.reasoning}
-                  </p>
-
-                  {/* Footer: market + confidence + buy */}
-                  <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-3">
-                    <div className="flex items-center gap-2 text-[0.62rem] text-muted-foreground">
-                      <span className="rounded bg-muted/50 px-1.5 py-0.5 font-semibold uppercase tracking-wide">
-                        {marketLabel(s)}
-                      </span>
-                      <span className="flex items-center gap-0.5">
-                        <TrendingUp className="size-3" /> {s.confidence}% conf.
-                      </span>
-                    </div>
-                    <Button size="sm" className="h-8 gap-1.5 px-3 font-semibold shadow-glow" onClick={() => openBuy(s)}>
-                      <ShoppingCart className="size-3.5" /> Buy
-                    </Button>
-                  </div>
-                </div>
+                  {EXCHANGE_META[ex].label}
+                  {counts[ex] ? (
+                    <span className="ml-1.5 text-[0.6rem] opacity-70">{counts[ex]}</span>
+                  ) : null}
+                </button>
               );
             })}
+            {updated && <span className="ml-auto text-[0.6rem] text-muted-foreground">Updated {updated}</span>}
           </div>
-        )}
-      </div>
 
-      {/* Disclaimer */}
-      <p className="mt-5 flex items-center justify-center gap-1.5 text-center text-[0.68rem] text-muted-foreground">
-        <Info className="size-3.5 shrink-0" />
-        Projections are illustrative and for informational purposes only. Not financial advice.
-      </p>
+          {/* Top-20 table for the active exchange */}
+          <div className="mt-4 overflow-hidden rounded-2xl border border-border/60">
+            {loading ? (
+              <div className="space-y-px">
+                {[...Array(8)].map((_, i) => (
+                  <div key={i} className="h-11 animate-pulse bg-muted/30" />
+                ))}
+              </div>
+            ) : leaders.length === 0 ? (
+              <div className="py-12 text-center text-sm text-muted-foreground">
+                No projected movers available for {EXCHANGE_META[tab].label} right now.
+              </div>
+            ) : (
+              <div className="max-h-[32rem] overflow-y-auto">
+                <table className="w-full border-collapse text-sm">
+                  <thead className="sticky top-0 z-10 bg-card/95 backdrop-blur">
+                    <tr className="border-b border-border/60 text-left text-[0.62rem] uppercase tracking-wide text-muted-foreground">
+                      <th className="w-10 px-3 py-2 text-center">#</th>
+                      <th className="px-3 py-2">Ticker</th>
+                      <th className="hidden px-3 py-2 sm:table-cell">Company</th>
+                      <th className="px-3 py-2 text-right">Projected</th>
+                      <th className="px-3 py-2 text-right">Confidence</th>
+                      <th className="hidden px-3 py-2 lg:table-cell">Key reasons</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {leaders.map((s, i) => {
+                      const up = s.projected7dPct >= 0;
+                      return (
+                        <tr
+                          key={s.ticker}
+                          className="border-b border-border/40 transition-colors last:border-0 hover:bg-primary/5"
+                        >
+                          <td className="px-3 py-2.5 text-center">
+                            <span className="tnum grid size-6 place-items-center rounded-md bg-primary/12 text-[0.62rem] font-bold text-primary">
+                              {i + 1}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <button
+                              onClick={() => openDetail(s)}
+                              className="font-display text-sm font-bold text-primary hover:underline"
+                            >
+                              {s.ticker.replace(/\.(NZ|AX|L)$/i, "")}
+                            </button>
+                            <p className="max-w-[9rem] truncate text-[0.62rem] text-muted-foreground sm:hidden">
+                              {s.name}
+                            </p>
+                          </td>
+                          <td className="hidden max-w-[16rem] truncate px-3 py-2.5 text-muted-foreground sm:table-cell">
+                            {s.name}
+                          </td>
+                          <td className="px-3 py-2.5 text-right">
+                            <span
+                              className={cn(
+                                "tnum inline-flex items-center justify-end gap-0.5 font-semibold",
+                                pctClass(s.projected7dPct)
+                              )}
+                            >
+                              {up ? <ArrowUp className="size-3.5" /> : <ArrowDown className="size-3.5" />}
+                              {fmtPct(s.projected7dPct)}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <Gauge className="size-3 text-muted-foreground" />
+                              <div className="h-1.5 w-12 overflow-hidden rounded-full bg-muted/50">
+                                <div
+                                  className="h-full bg-primary/70"
+                                  style={{ width: `${Math.max(0, Math.min(100, s.confidence))}%` }}
+                                />
+                              </div>
+                              <span className="tnum w-8 text-right text-xs font-semibold">{s.confidence}%</span>
+                            </div>
+                          </td>
+                          <td className="hidden max-w-[22rem] px-3 py-2.5 lg:table-cell">
+                            <p className="line-clamp-2 text-[0.72rem] leading-relaxed text-muted-foreground">
+                              {s.reasoning}
+                            </p>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
 
-      <BuyDialog
-        open={buyOpen}
-        onOpenChange={setBuyOpen}
-        target={buyTarget}
-        onDone={() => {
-          setBuyOpen(false);
-          onBought?.();
-        }}
+          {/* Disclaimer */}
+          <p className="mt-4 flex items-center justify-center gap-1.5 text-center text-[0.68rem] text-muted-foreground">
+            <Info className="size-3.5 shrink-0" />
+            AI-generated projections for informational purposes only — illustrative, not a guarantee
+            of future performance and not financial advice.
+          </p>
+        </>
+      )}
+
+      {/* Detailed stock view (chart + stats + Stox AI pane), opened on ticker click */}
+      <StockDetailDialog
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        target={detailTarget}
+        canBuy={!!onBought}
+        onBought={onBought}
       />
     </section>
   );

@@ -20,7 +20,11 @@ export interface AllMarketsRow {
   currency: "NZD" | "AUD" | "USD";
   price: number;
   changePct: number;
+  changeAbs: number; // absolute currency move vs previous close
+  dayHigh: number | null; // session high
+  dayLow: number | null; // session low
   volume: number | null;
+  marketCap: number | null; // where Yahoo exposes it
   live: boolean; // true when this row came from a genuine live quote
 }
 
@@ -66,7 +70,11 @@ export async function GET(req: Request) {
         currency: meta.currency,
         price: live ? q!.price : e.basePrice,
         changePct: live ? Number(q!.changePct.toFixed(2)) : 0,
+        changeAbs: live ? Number(q!.changeAbs.toFixed(4)) : 0,
+        dayHigh: live && typeof q!.dayHigh === "number" ? q!.dayHigh : null,
+        dayLow: live && typeof q!.dayLow === "number" ? q!.dayLow : null,
         volume: live && typeof q!.volume === "number" ? q!.volume : null,
+        marketCap: live && typeof q!.marketCap === "number" ? q!.marketCap : null,
         live,
       };
     });

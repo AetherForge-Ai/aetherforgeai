@@ -19,9 +19,19 @@ import "server-only";
 export interface YahooQuote {
   price: number;
   changePct: number; // vs previous close, %
+  changeAbs: number; // vs previous close, absolute currency move
+  prevClose: number; // previous session close
   currency: string;
   name?: string; // resolved company/instrument name (from chart meta), when available
   volume?: number; // regular-market session volume, when available
+  dayHigh?: number; // session high, when available
+  dayLow?: number; // session low, when available
+  open?: number; // session open, when available
+  fiftyTwoWeekHigh?: number; // 52-week high, when available
+  fiftyTwoWeekLow?: number; // 52-week low, when available
+  marketCap?: number; // market capitalisation, when Yahoo exposes it on chart meta
+  exchangeLabel?: string; // friendly exchange label (ASX / NZX / NASDAQ / NYSE), when resolvable
+  exchangeTimezone?: string; // IANA timezone of the listing exchange, when available
 }
 
 /**
@@ -77,12 +87,28 @@ async function fetchOne(yahooSymbol: string): Promise<YahooQuote | null> {
 
     const changePct = prevClose > 0 ? ((price - prevClose) / prevClose) * 100 : 0;
     const vol = Number(meta.regularMarketVolume);
+    // Optional structural stats — all present on the chart `meta` for equities.
+    const num = (v: unknown): number | undefined => {
+      const n = Number(v);
+      return isFinite(n) && n > 0 ? n : undefined;
+    };
     const quote: YahooQuote = {
       price,
       changePct: isFinite(changePct) ? changePct : 0,
+      changeAbs: isFinite(price - prevClose) ? price - prevClose : 0,
+      prevClose: prevClose > 0 ? prevClose : price,
       currency: typeof meta.currency === "string" ? meta.currency : "USD",
       name: cleanInstrumentName(meta.longName) ?? cleanInstrumentName(meta.shortName),
       volume: isFinite(vol) && vol > 0 ? vol : undefined,
+      dayHigh: num(meta.regularMarketDayHigh),
+      dayLow: num(meta.regularMarketDayLow),
+      open: num(meta.regularMarketOpen ?? meta.open),
+      fiftyTwoWeekHigh: num(meta.fiftyTwoWeekHigh),
+      fiftyTwoWeekLow: num(meta.fiftyTwoWeekLow),
+      marketCap: num(meta.marketCap),
+      exchangeLabel: EXCHANGE_LABELS[String(meta.exchangeName)],
+      exchangeTimezone:
+        typeof meta.exchangeTimezoneName === "string" ? meta.exchangeTimezoneName : undefined,
     };
     CACHE.set(yahooSymbol, { quote, at: Date.now() });
     return quote;

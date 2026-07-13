@@ -1,6 +1,7 @@
 "use client";
 
 import { MarketsExplorer } from "@/components/dashboard/MarketsExplorer";
+import { OpenMarketSnapshot } from "@/components/dashboard/OpenMarketSnapshot";
 import { LineChart, Globe } from "lucide-react";
 
 /**
@@ -27,6 +28,11 @@ export function MarketsPageContent({ preview = false }: { preview?: boolean }) {
             Search, sort and filter the whole market.
           </p>
         </div>
+      </div>
+
+      {/* Quick cross-market pulse — prominent near the top of the page */}
+      <div className="mt-6">
+        <OpenMarketSnapshot onBought={preview ? undefined : () => window.location.reload()} />
       </div>
 
       {/* Live browser */}
