@@ -12,11 +12,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2 } from "lucide-react";
+import { Loader2, Check } from "lucide-react";
 import { api } from "@/lib/api";
 import { lookupTicker } from "@/lib/market";
-import { CRYPTO_DIRECTORY } from "@/lib/apex";
 import { TickerSearch } from "@/components/dashboard/TickerSearch";
+import { CryptoSearch } from "@/components/dashboard/CryptoSearch";
 import type { Stock } from "@/lib/portfolio";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -39,6 +39,10 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
   const [shares, setShares] = useState("");
   const [purchasePrice, setPurchasePrice] = useState("");
   const [saving, setSaving] = useState(false);
+  // True once we've auto-filled the "amount paid" with the live price, so we can
+  // show a confirmation hint. Cleared as soon as the user edits it by hand.
+  const [pricePrefilled, setPricePrefilled] = useState(false);
+  const [priceLoading, setPriceLoading] = useState(false);
 
   const isEdit = !!editing;
   const isCrypto = assetType === "crypto";
@@ -49,7 +53,7 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
     ? {
         symbolLabel: "Currency type",
         symbolPlaceholder: "e.g. BTC",
-        symbolHint: "Enter the currency symbol — BTC for Bitcoin, ETH for Ethereum, SOL for Solana.",
+        symbolHint: "Pick a coin from the live list — its current buy price fills in automatically below.",
         amountLabel: "Currency amount",
         amountPlaceholder: "0.25",
         priceLabel: "Price when purchased (US$)",
@@ -67,7 +71,7 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
     : {
         symbolLabel: "Ticker",
         symbolPlaceholder: "e.g. AAPL, BHP.AX, AIR.NZ",
-        symbolHint: "Use the exchange suffix: .AX for ASX (Australia), .NZ for NZX (New Zealand), no suffix for US listings.",
+        symbolHint: "Search any ASX, NZX, NASDAQ or NYSE company — we'll fill in the current market price for you.",
         amountLabel: "# of Shares owned",
         amountPlaceholder: "10",
         priceLabel: "Price purchased at ($)",
@@ -91,24 +95,42 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
       setSector(editing?.sector ?? "");
       setShares(editing ? String(editing.shares) : "");
       setPurchasePrice(editing ? String(editing.purchase_price) : "");
+      setPricePrefilled(false);
+      setPriceLoading(false);
     }
   }, [open, editing]);
 
-  // Auto-fill company + sector when a known ticker is typed (add mode only)
-  function handleTickerBlur() {
-    if (isEdit) return;
-    if (assetType === "crypto") {
-      const coin = CRYPTO_DIRECTORY.find((c) => c.ticker === ticker.trim().toUpperCase());
-      if (coin) {
-        if (!companyName) setCompanyName(coin.name);
-        if (!sector) setSector("Digital Assets");
-      }
-      return;
+  // Selecting a crypto from the picker fills the name/category AND auto-fills the
+  // "amount paid" with the coin's live USD price (the picker already carries it).
+  function handleCryptoSelect(coin: { symbol: string; name: string; price: number }) {
+    setTicker(coin.symbol.toUpperCase());
+    setCompanyName(coin.name);
+    setSector((s) => s || "Digital Assets");
+    if (coin.price > 0) {
+      setPurchasePrice(String(coin.price));
+      setPricePrefilled(true);
     }
-    const info = lookupTicker(ticker);
-    if (info) {
-      if (!companyName) setCompanyName(info.name);
-      if (!sector) setSector(info.sector);
+  }
+
+  // Selecting a stock fills the company name, then fetches its live quote so the
+  // "price purchased at" field is pre-populated with the current market price.
+  async function handleStockSelect(m: { symbol: string; name: string }) {
+    const sym = m.symbol.toUpperCase();
+    setTicker(sym);
+    setCompanyName(m.name);
+    const info = lookupTicker(sym);
+    if (info && !sector) setSector(info.sector);
+
+    setPriceLoading(true);
+    setPricePrefilled(false);
+    const res = await api.get<{ price: number | null }>(`/api/tickers/quote?symbol=${encodeURIComponent(sym)}`);
+    setPriceLoading(false);
+    if (res.ok && res.data?.price && res.data.price > 0) {
+      setPurchasePrice(String(res.data.price));
+      setPricePrefilled(true);
+      console.log(`[dashboard] Auto-filled live price for ${sym}: ${res.data.price}`);
+    } else {
+      console.warn(`[dashboard] No live quote for ${sym} — leaving price blank for manual entry.`);
     }
   }
 
@@ -191,37 +213,13 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
 
           <div className="space-y-2">
             <Label htmlFor="ticker">{copy.symbolLabel}</Label>
-            {isCrypto || isEdit ? (
-              <>
-                <Input
-                  id="ticker"
-                  list="ticker-suggestions"
-                  placeholder={copy.symbolPlaceholder}
-                  value={ticker}
-                  disabled={isEdit}
-                  onChange={(e) => setTicker(e.target.value.toUpperCase())}
-                  onBlur={handleTickerBlur}
-                  className="uppercase"
-                />
-                {isCrypto && (
-                  <datalist id="ticker-suggestions">
-                    {CRYPTO_DIRECTORY.map((t) => (
-                      <option key={t.ticker} value={t.ticker}>
-                        {t.name}
-                      </option>
-                    ))}
-                  </datalist>
-                )}
-              </>
+            {isEdit ? (
+              // Ticker is locked once a holding exists — only amount/price are editable.
+              <Input id="ticker" value={ticker} disabled className="uppercase" />
+            ) : isCrypto ? (
+              <CryptoSearch value={ticker} label={companyName} onSelect={handleCryptoSelect} />
             ) : (
-              <TickerSearch
-                value={ticker}
-                label={companyName}
-                onSelect={(m) => {
-                  setTicker(m.symbol.toUpperCase());
-                  setCompanyName(m.name);
-                }}
-              />
+              <TickerSearch value={ticker} label={companyName} onSelect={handleStockSelect} />
             )}
             <p className="text-xs leading-relaxed text-muted-foreground">{copy.symbolHint}</p>
           </div>
@@ -240,7 +238,10 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="price">{copy.priceLabel}</Label>
+              <Label htmlFor="price" className="flex items-center gap-1.5">
+                {copy.priceLabel}
+                {priceLoading && <Loader2 className="size-3 animate-spin text-muted-foreground" />}
+              </Label>
               <Input
                 id="price"
                 type="number"
@@ -248,12 +249,21 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
                 step="any"
                 placeholder={copy.pricePlaceholder}
                 value={purchasePrice}
-                onChange={(e) => setPurchasePrice(e.target.value)}
+                onChange={(e) => {
+                  setPurchasePrice(e.target.value);
+                  setPricePrefilled(false);
+                }}
               />
             </div>
           </div>
-          {copy.priceHint && (
-            <p className="-mt-1 text-xs leading-relaxed text-muted-foreground">{copy.priceHint}</p>
+          {pricePrefilled ? (
+            <p className="-mt-1 flex items-center gap-1.5 text-xs leading-relaxed text-emerald-500">
+              <Check className="size-3.5" /> Filled with the current live price — edit it if you paid a different amount.
+            </p>
+          ) : (
+            copy.priceHint && (
+              <p className="-mt-1 text-xs leading-relaxed text-muted-foreground">{copy.priceHint}</p>
+            )
           )}
 
           <div className="grid grid-cols-2 gap-3">

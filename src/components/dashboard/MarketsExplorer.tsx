@@ -7,6 +7,9 @@ import { api } from "@/lib/api";
 import { EXCHANGES, EXCHANGE_META, formatMarketPrice, type Exchange } from "@/lib/market-intel";
 import { BuyDialog, type BuyTarget } from "@/components/dashboard/BuyDialog";
 import { StockDetailDialog, type DetailTarget } from "@/components/dashboard/StockDetailDialog";
+import { CoinDetailModal } from "@/components/dashboard/crypto/CoinDetailModal";
+import { useCryptoMarkets } from "@/hooks/useCryptoMarkets";
+import { fmtPrice } from "@/lib/crypto-market";
 import { cn } from "@/lib/utils";
 import {
   Search,
@@ -18,6 +21,7 @@ import {
   ShoppingCart,
   Radio,
   Clock,
+  Bitcoin,
 } from "lucide-react";
 
 export interface MarketRow {
@@ -50,6 +54,32 @@ export interface MarketPayload {
 }
 
 type SortKey = "symbol" | "price" | "changePct" | "volume" | "marketCap";
+
+/** A tab is either a stock exchange or the live crypto universe. */
+type Tab = Exchange | "CRYPTO";
+
+/**
+ * Normalized row rendered by the table — stock rows (from /api/all-markets) and
+ * crypto rows (from the top-500 Swyftx universe) are both mapped into this shape
+ * so a single table, sort and search cover every asset class.
+ */
+interface DisplayRow {
+  key: string;
+  ticker: string; // internal ticker used for a Buy (e.g. BHP.AX or BTC)
+  symbol: string; // display symbol
+  name: string;
+  currency: "NZD" | "AUD" | "USD";
+  price: number;
+  changePct: number;
+  changeAbs: number;
+  dayHigh: number | null;
+  dayLow: number | null;
+  volume: number | null;
+  marketCap: number | null;
+  live: boolean;
+  exchange?: Exchange; // stock rows only — needed to open the stock detail view
+  coinId?: string; // crypto rows only — opens the coin detail modal
+}
 
 const volFmt = new Intl.NumberFormat("en-NZ", { notation: "compact", maximumFractionDigits: 1 });
 
@@ -99,7 +129,7 @@ export function MarketsExplorer({
   active?: boolean;
   className?: string;
 }) {
-  const [exchange, setExchange] = useState<Exchange>("NASDAQ");
+  const [tab, setTab] = useState<Tab>("NASDAQ");
   const [data, setData] = useState<MarketPayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState("");
@@ -109,6 +139,14 @@ export function MarketsExplorer({
   const [buyOpen, setBuyOpen] = useState(false);
   const [detailTarget, setDetailTarget] = useState<DetailTarget | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [coinId, setCoinId] = useState<string | null>(null);
+  const [coinOpen, setCoinOpen] = useState(false);
+
+  const isCryptoTab = tab === "CRYPTO";
+
+  // Live top-500 crypto universe (Swyftx-priced) — only fetches while the crypto
+  // tab is active. Shares the same cached store as the Crypto Market terminal.
+  const crypto = useCryptoMarkets(active && isCryptoTab);
 
   // `silent` refresh keeps the current rows on screen (no skeleton flash) — used
   // by the 30–60s auto-refresh so prices update seamlessly, live-ticker style.
@@ -126,18 +164,24 @@ export function MarketsExplorer({
     if (!silent) setLoading(false);
   }, []);
 
-  // Load whenever active + exchange changes.
+  // Load stock exchange data whenever active + a stock tab is selected. (Crypto
+  // is handled by the useCryptoMarkets hook above.)
   useEffect(() => {
-    if (active) load(exchange);
-  }, [active, exchange, load]);
+    if (active && !isCryptoTab) load(tab as Exchange);
+  }, [active, tab, isCryptoTab, load]);
 
-  // Auto-refresh live prices every 45s while the browser is open — no skeleton
-  // flash, just fresh numbers. Paused when the modal/section is inactive.
+  // Auto-refresh live stock prices every 45s while the browser is open — no
+  // skeleton flash, just fresh numbers. Paused when inactive or on the crypto tab.
   useEffect(() => {
-    if (!active) return;
-    const id = setInterval(() => load(exchange, true), 45_000);
+    if (!active || isCryptoTab) return;
+    const id = setInterval(() => load(tab as Exchange, true), 45_000);
     return () => clearInterval(id);
-  }, [active, exchange, load]);
+  }, [active, tab, isCryptoTab, load]);
+
+  function refresh() {
+    if (isCryptoTab) crypto.refresh();
+    else load(tab as Exchange);
+  }
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -147,8 +191,44 @@ export function MarketsExplorer({
     }
   }
 
-  const rows = useMemo(() => {
-    const all = data?.rows ?? [];
+  // Normalize the active data source (stock exchange OR crypto) into DisplayRow[].
+  const rows = useMemo<DisplayRow[]>(() => {
+    let all: DisplayRow[];
+    if (isCryptoTab) {
+      all = crypto.coins.map((c) => ({
+        key: c.id,
+        ticker: c.symbol.toUpperCase(),
+        symbol: c.symbol.toUpperCase(),
+        name: c.name,
+        currency: "USD",
+        price: c.price,
+        changePct: c.change24h ?? 0,
+        changeAbs: (c.price * (c.change24h ?? 0)) / 100,
+        dayHigh: c.high24h,
+        dayLow: c.low24h,
+        volume: c.volume24h ?? null,
+        marketCap: c.marketCap ?? null,
+        live: true,
+        coinId: c.id,
+      }));
+    } else {
+      all = (data?.rows ?? []).map((r) => ({
+        key: r.ticker,
+        ticker: r.ticker,
+        symbol: r.symbol,
+        name: r.name,
+        currency: r.currency,
+        price: r.price,
+        changePct: r.changePct,
+        changeAbs: r.changeAbs,
+        dayHigh: r.dayHigh,
+        dayLow: r.dayLow,
+        volume: r.volume,
+        marketCap: r.marketCap,
+        live: r.live,
+        exchange: r.exchange,
+      }));
+    }
     const q = query.trim().toLowerCase();
     const filtered = q
       ? all.filter((r) => r.symbol.toLowerCase().includes(q) || r.name.toLowerCase().includes(q))
@@ -160,19 +240,34 @@ export function MarketsExplorer({
       if (sortKey === "marketCap") return ((a.marketCap ?? 0) - (b.marketCap ?? 0)) * dir;
       return ((a[sortKey] as number) - (b[sortKey] as number)) * dir;
     });
-  }, [data, query, sortKey, sortDir]);
+  }, [isCryptoTab, crypto.coins, data, query, sortKey, sortDir]);
 
-  function openBuy(r: MarketRow) {
-    setBuyTarget({ ticker: r.ticker, name: r.name, assetType: "stock", price: r.price });
+  // Live-price formatter — crypto needs micro-price precision, stocks are currency-aware.
+  const showPrice = (r: DisplayRow) => (r.coinId ? fmtPrice(r.price) : formatMarketPrice(r.price, r.currency));
+
+  // Unified loading + status across both data sources.
+  const loadingRows = isCryptoTab ? crypto.loading : loading;
+  const total = isCryptoTab ? crypto.coins.length : data?.total ?? 0;
+  const liveCount = isCryptoTab ? crypto.coins.length : data?.liveCount ?? 0;
+  const asOf = isCryptoTab ? crypto.lastUpdated?.toISOString() ?? "" : data?.asOf ?? "";
+  const hasData = isCryptoTab ? crypto.coins.length > 0 : !!data;
+
+  function openBuy(r: DisplayRow) {
+    setBuyTarget({ ticker: r.ticker, name: r.name, assetType: r.coinId ? "crypto" : "stock", price: r.price });
     setBuyOpen(true);
   }
 
-  function openDetail(r: MarketRow) {
+  function openDetail(r: DisplayRow) {
+    if (r.coinId) {
+      setCoinId(r.coinId);
+      setCoinOpen(true);
+      return;
+    }
     setDetailTarget({
       symbol: r.symbol,
       ticker: r.ticker,
       name: r.name,
-      exchange: r.exchange,
+      exchange: r.exchange ?? (tab as Exchange),
       currency: r.currency,
     });
     setDetailOpen(true);
@@ -197,14 +292,14 @@ export function MarketsExplorer({
 
   return (
     <div className={cn("flex min-h-0 flex-col", className)}>
-      {/* Exchange selector */}
+      {/* Exchange / asset-class selector */}
       <div className="flex flex-wrap items-center gap-2 border-b border-border/60 px-1 pb-3">
         {EXCHANGES.map((ex) => {
-          const activeEx = ex === exchange;
+          const activeEx = ex === tab;
           return (
             <button
               key={ex}
-              onClick={() => setExchange(ex)}
+              onClick={() => setTab(ex)}
               className={cn(
                 "rounded-xl border px-3.5 py-2 text-sm font-semibold transition-colors",
                 activeEx
@@ -216,9 +311,21 @@ export function MarketsExplorer({
             </button>
           );
         })}
+        {/* Crypto — the live top-500 coin universe, USD-priced via Swyftx */}
+        <button
+          onClick={() => setTab("CRYPTO")}
+          className={cn(
+            "flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-sm font-semibold transition-colors",
+            isCryptoTab
+              ? "border-primary bg-primary text-primary-foreground shadow-glow"
+              : "border-border/60 bg-background/40 text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <Bitcoin className="size-4" /> Crypto
+        </button>
         <div className="ml-auto flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => load(exchange)} disabled={loading}>
-            {loading ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+          <Button variant="outline" size="sm" onClick={refresh} disabled={loadingRows}>
+            {loadingRows ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
           </Button>
         </div>
       </div>
@@ -237,11 +344,16 @@ export function MarketsExplorer({
         <div className="flex flex-col items-end gap-0.5">
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <Radio className="size-3.5 text-emerald-400" />
-            {data ? `${rows.length} of ${data.total} · ${data.liveCount} live · ${fmtTime(data.asOf)}` : "—"}
+            {hasData ? `${rows.length} of ${total} · ${liveCount} live${asOf ? ` · ${fmtTime(asOf)}` : ""}` : "—"}
           </p>
-          {exchange === "NZX" && (
+          {tab === "NZX" && (
             <p className="flex items-center gap-1 text-[0.62rem] text-muted-foreground/80">
               <Clock className="size-3" /> NZX quotes may be delayed ~20 min
+            </p>
+          )}
+          {isCryptoTab && (
+            <p className="flex items-center gap-1 text-[0.62rem] text-muted-foreground/80">
+              <Bitcoin className="size-3" /> Live crypto prices via Swyftx · USD
             </p>
           )}
         </div>
@@ -272,7 +384,7 @@ export function MarketsExplorer({
             </tr>
           </thead>
           <tbody>
-            {loading ? (
+            {loadingRows && rows.length === 0 ? (
               [...Array(12)].map((_, i) => (
                 <tr key={i} className="border-b border-border/30">
                   <td colSpan={9} className="py-2">
@@ -283,14 +395,14 @@ export function MarketsExplorer({
             ) : rows.length === 0 ? (
               <tr>
                 <td colSpan={9} className="py-12 text-center text-sm text-muted-foreground">
-                  No tickers match “{query}”.
+                  {query ? `No tickers match “${query}”.` : "No market data available right now."}
                 </td>
               </tr>
             ) : (
               rows.map((r) => {
                 const up = r.changePct >= 0;
                 return (
-                  <tr key={r.ticker} className="border-b border-border/30 last:border-0 hover:bg-background/40">
+                  <tr key={r.key} className="border-b border-border/30 last:border-0 hover:bg-background/40">
                     <td className="py-2.5 pr-3">
                       <div className="flex items-center gap-2">
                         {/* Clickable ticker → detailed stock view (chart, stats, AI) */}
@@ -313,7 +425,7 @@ export function MarketsExplorer({
                       {r.name}
                     </td>
                     <td className="tnum py-2.5 px-3 text-right font-medium">
-                      {formatMarketPrice(r.price, r.currency)}
+                      {showPrice(r)}
                     </td>
                     <td className="py-2.5 px-3 text-right">
                       <span
@@ -331,10 +443,10 @@ export function MarketsExplorer({
                       </span>
                     </td>
                     <td className="tnum hidden py-2.5 px-3 text-right text-muted-foreground lg:table-cell">
-                      {r.dayHigh ? formatMarketPrice(r.dayHigh, r.currency) : "—"}
+                      {r.dayHigh ? (r.coinId ? fmtPrice(r.dayHigh) : formatMarketPrice(r.dayHigh, r.currency)) : "—"}
                     </td>
                     <td className="tnum hidden py-2.5 px-3 text-right text-muted-foreground lg:table-cell">
-                      {r.dayLow ? formatMarketPrice(r.dayLow, r.currency) : "—"}
+                      {r.dayLow ? (r.coinId ? fmtPrice(r.dayLow) : formatMarketPrice(r.dayLow, r.currency)) : "—"}
                     </td>
                     <td className="tnum hidden py-2.5 px-3 text-right text-muted-foreground md:table-cell">
                       {fmtVolume(r.volume)}
@@ -374,6 +486,9 @@ export function MarketsExplorer({
         canBuy={!!onBought}
         onBought={onBought}
       />
+
+      {/* Detailed crypto view — live chart, metrics & Koins AI analysis */}
+      <CoinDetailModal coinId={coinId} open={coinOpen} onOpenChange={setCoinOpen} />
     </div>
   );
 }
