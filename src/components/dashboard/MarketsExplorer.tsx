@@ -343,7 +343,7 @@ export function MarketsExplorer({
         </div>
         <div className="flex flex-col items-end gap-0.5">
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Radio className="size-3.5 text-emerald-400" />
+            <Radio className="size-3.5 text-emerald-600" />
             {hasData ? `${rows.length} of ${total} · ${liveCount} live${asOf ? ` · ${fmtTime(asOf)}` : ""}` : "—"}
           </p>
           {tab === "NZX" && (
@@ -431,14 +431,14 @@ export function MarketsExplorer({
                       <span
                         className={cn(
                           "tnum inline-flex items-center justify-end gap-0.5 font-semibold",
-                          up ? "text-emerald-400" : "text-rose-400"
+                          up ? "text-emerald-600" : "text-rose-600"
                         )}
                       >
                         {up ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />}
                         {Math.abs(r.changePct).toFixed(2)}%
                       </span>
                       {/* Absolute session move ($) beneath the % — both requested */}
-                      <span className={cn("tnum block text-[0.62rem]", up ? "text-emerald-400/70" : "text-rose-400/70")}>
+                      <span className={cn("tnum block text-[0.62rem]", up ? "text-emerald-600/70" : "text-rose-600/70")}>
                         {r.live ? fmtAbs(r.changeAbs, r.price) : "—"}
                       </span>
                     </td>

@@ -365,7 +365,7 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
                   }}
                   className={cn(
                     priceLocked &&
-                      "cursor-not-allowed border-emerald-500/40 bg-emerald-500/5 pr-8 text-emerald-300"
+                      "cursor-not-allowed border-emerald-500/40 bg-emerald-500/5 pr-8 text-emerald-700"
                   )}
                 />
                 {priceLocked && (

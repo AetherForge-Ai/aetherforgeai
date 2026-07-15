@@ -17,7 +17,7 @@ export default function StripeCancelPage() {
         <div className="flex justify-center">
           <BrandLogo />
         </div>
-        <div className="mx-auto mt-8 grid size-16 place-items-center rounded-2xl bg-amber-500/15 text-amber-400">
+        <div className="mx-auto mt-8 grid size-16 place-items-center rounded-2xl bg-amber-500/15 text-amber-600">
           <XCircle className="size-8" />
         </div>
         <h1 className="mt-6 font-display text-3xl font-bold">Checkout canceled</h1>

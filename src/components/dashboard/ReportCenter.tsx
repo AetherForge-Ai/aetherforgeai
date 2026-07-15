@@ -220,7 +220,7 @@ export function ReportCenter({
           <span
             className={cn(
               "flex size-9 items-center justify-center rounded-xl",
-              reportLocked ? "bg-[var(--gold)]/20 text-[var(--gold)]" : "bg-emerald-500/20 text-emerald-400"
+              reportLocked ? "bg-[var(--gold)]/20 text-[var(--gold)]" : "bg-emerald-500/20 text-emerald-600"
             )}
           >
             {reportLocked ? <Clock className="size-5" /> : <Zap className="size-5" />}
@@ -364,12 +364,12 @@ export function ReportCenter({
                       </Badge>
                     )}
                     {r.emailed === "yes" && (
-                      <Badge variant="outline" className="border-emerald-500/30 text-emerald-400">
+                      <Badge variant="outline" className="border-emerald-500/30 text-emerald-600">
                         <Mail className="mr-1 size-3" /> Emailed
                       </Badge>
                     )}
                     {r.trigger === "scheduled" && (
-                      <Badge variant="outline" className="border-violet-400/30 text-violet-300">
+                      <Badge variant="outline" className="border-violet-400/30 text-violet-700">
                         <Clock className="mr-1 size-3" /> 9am briefing
                       </Badge>
                     )}

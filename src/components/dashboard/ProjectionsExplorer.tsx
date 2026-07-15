@@ -286,7 +286,7 @@ export function ProjectionsExplorer() {
             <TrendingUp className="size-3.5" />
             Next 7 days
             {live && (
-              <span className="ml-1 inline-flex items-center gap-1 text-emerald-400">
+              <span className="ml-1 inline-flex items-center gap-1 text-emerald-600">
                 <span className="relative flex size-1.5">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400" />
                   <span className="relative inline-flex size-1.5 rounded-full bg-emerald-400" />
@@ -364,7 +364,7 @@ export function ProjectionsExplorer() {
       ) : error ? (
         <div className="grid place-items-center rounded-2xl border border-rose-500/30 bg-rose-500/5 py-16 text-center">
           <div className="max-w-sm space-y-3">
-            <p className="text-sm text-rose-300">{error}</p>
+            <p className="text-sm text-rose-700">{error}</p>
             <Button variant="outline" size="sm" onClick={() => load(true)}>
               <RefreshCw className="size-4" /> Try again
             </Button>

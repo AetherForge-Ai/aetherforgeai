@@ -50,8 +50,8 @@ function Indicator({
       <p
         className={cn(
           "tnum mt-1 font-display text-base font-bold",
-          tone === "up" && "text-emerald-400",
-          tone === "down" && "text-rose-400"
+          tone === "up" && "text-emerald-600",
+          tone === "down" && "text-rose-600"
         )}
       >
         {value}
@@ -225,8 +225,8 @@ export function ProjectionsPanel({
                   className={cn(
                     "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[0.62rem] font-bold uppercase tracking-wide",
                     sel.projected7dPct >= 0
-                      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
-                      : "border-rose-500/30 bg-rose-500/10 text-rose-300"
+                      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700"
+                      : "border-rose-500/30 bg-rose-500/10 text-rose-700"
                   )}
                 >
                   {sel.projected7dPct >= 0 ? <TrendingUp className="size-3" /> : <TrendingDown className="size-3" />}

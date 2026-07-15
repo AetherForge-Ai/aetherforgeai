@@ -69,7 +69,7 @@ export function TopMovers() {
 
       <div className="mt-5 grid gap-6 md:grid-cols-2">
         <div>
-          <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-emerald-400">
+          <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-emerald-600">
             <TrendingUp className="size-3.5" /> Gainers
           </div>
           <div className="divide-y divide-border/40">
@@ -79,7 +79,7 @@ export function TopMovers() {
           </div>
         </div>
         <div>
-          <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-rose-400">
+          <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-rose-600">
             <TrendingDown className="size-3.5" /> Losers
           </div>
           <div className="divide-y divide-border/40">

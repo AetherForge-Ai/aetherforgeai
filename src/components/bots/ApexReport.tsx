@@ -22,20 +22,20 @@ import type { BriefingOutlookRow } from "@/lib/briefing";
 function signalTone(signal: TickerAnalysis["signal"]): string {
   switch (signal) {
     case "Strong Buy":
-      return "bg-emerald-500/15 text-emerald-400 border-emerald-500/30";
+      return "bg-emerald-500/15 text-emerald-600 border-emerald-500/30";
     case "Accumulate":
       return "bg-teal-500/15 text-teal-300 border-teal-500/30";
     case "Hold":
-      return "bg-sky-500/15 text-sky-300 border-sky-500/30";
+      return "bg-sky-500/15 text-sky-700 border-sky-500/30";
     case "Watch":
-      return "bg-amber-500/15 text-amber-300 border-amber-500/30";
+      return "bg-amber-500/15 text-amber-700 border-amber-500/30";
     case "Reduce":
-      return "bg-rose-500/15 text-rose-300 border-rose-500/30";
+      return "bg-rose-500/15 text-rose-700 border-rose-500/30";
   }
 }
 
 function pctTone(v: number): string {
-  return v > 0 ? "text-emerald-400" : v < 0 ? "text-rose-400" : "text-muted-foreground";
+  return v > 0 ? "text-emerald-600" : v < 0 ? "text-rose-600" : "text-muted-foreground";
 }
 
 /** Compact 12-month momentum / continuation line chart (SVG, no deps). */
@@ -161,15 +161,15 @@ function RichText({ text }: { text: string }) {
 function actionTone(action: DirectRecommendation["action"]): string {
   switch (action) {
     case "SELL":
-      return "bg-rose-500/15 text-rose-400 border-rose-500/30";
+      return "bg-rose-500/15 text-rose-600 border-rose-500/30";
     case "TRIM":
-      return "bg-amber-500/15 text-amber-300 border-amber-500/30";
+      return "bg-amber-500/15 text-amber-700 border-amber-500/30";
     case "HOLD":
-      return "bg-sky-500/15 text-sky-300 border-sky-500/30";
+      return "bg-sky-500/15 text-sky-700 border-sky-500/30";
     case "BUY":
       return "bg-teal-500/15 text-teal-300 border-teal-500/30";
     case "ACCUMULATE":
-      return "bg-emerald-500/15 text-emerald-400 border-emerald-500/30";
+      return "bg-emerald-500/15 text-emerald-600 border-emerald-500/30";
   }
 }
 
@@ -260,9 +260,9 @@ function RegionalNewsSection({ report }: { report: ApexReport }) {
                     variant="outline"
                     className={
                       n.impact === "Bullish"
-                        ? "border-emerald-500/30 text-emerald-400"
+                        ? "border-emerald-500/30 text-emerald-600"
                         : n.impact === "Bearish"
-                          ? "border-rose-500/30 text-rose-400"
+                          ? "border-rose-500/30 text-rose-600"
                           : "border-border/60 text-muted-foreground"
                     }
                   >
@@ -303,7 +303,7 @@ function DirectRecommendationsSection({ report }: { report: ApexReport }) {
     <div className="rounded-xl border border-border/60 bg-card/40 p-4">
       <div className="text-sm font-semibold">Direct recommendations — build &amp; protect wealth</div>
       {urgent && (
-        <div className="mt-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
+        <div className="mt-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-700">
           ⚠ Action required — one or more holdings are projected to weaken. Direct exit/trim guidance below.
         </div>
       )}
@@ -319,7 +319,7 @@ function DirectRecommendationsSection({ report }: { report: ApexReport }) {
       )}
       {fresh.length > 0 && (
         <>
-          <div className="mt-3 mb-1.5 text-xs font-semibold text-emerald-400">
+          <div className="mt-3 mb-1.5 text-xs font-semibold text-emerald-600">
             New high-conviction opportunities (not yet held)
           </div>
           <ul className="grid gap-1.5">
@@ -563,7 +563,7 @@ export function ApexReportView({ report }: { report: ApexReport }) {
         </div>
         <Badge
           variant="outline"
-          className={report.isDemo ? "border-amber-500/40 text-amber-300 bg-amber-500/10" : "border-emerald-500/40 text-emerald-300 bg-emerald-500/10"}
+          className={report.isDemo ? "border-amber-500/40 text-amber-700 bg-amber-500/10" : "border-emerald-500/40 text-emerald-700 bg-emerald-500/10"}
         >
           {report.generatedLabel}
         </Badge>
@@ -620,7 +620,7 @@ export function ApexReportView({ report }: { report: ApexReport }) {
                   <span className="text-muted-foreground">
                     <span className="font-medium text-foreground">{g.ticker}</span> · {g.name}
                   </span>
-                  <span className="text-emerald-400 font-mono">+{g.changePct}%</span>
+                  <span className="text-emerald-600 font-mono">+{g.changePct}%</span>
                 </li>
               ))}
             </ul>
@@ -666,9 +666,9 @@ export function ApexReportView({ report }: { report: ApexReport }) {
                   variant="outline"
                   className={
                     n.impact === "Bullish"
-                      ? "border-emerald-500/30 text-emerald-400"
+                      ? "border-emerald-500/30 text-emerald-600"
                       : n.impact === "Bearish"
-                        ? "border-rose-500/30 text-rose-400"
+                        ? "border-rose-500/30 text-rose-600"
                         : "border-border/60 text-muted-foreground"
                   }
                 >

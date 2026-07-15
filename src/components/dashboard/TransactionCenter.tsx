@@ -82,10 +82,10 @@ function fmtDateTime(iso?: string): string {
 }
 
 const TYPE_META: Record<TxType, { label: string; icon: React.ElementType; cls: string }> = {
-  buy: { label: "Buy", icon: Plus, cls: "bg-emerald-500/15 text-emerald-400" },
-  sell: { label: "Sell", icon: Minus, cls: "bg-rose-500/15 text-rose-400" },
-  deposit: { label: "Deposit", icon: ArrowDownToLine, cls: "bg-sky-500/15 text-sky-400" },
-  withdraw: { label: "Withdraw", icon: ArrowUpFromLine, cls: "bg-amber-500/15 text-amber-400" },
+  buy: { label: "Buy", icon: Plus, cls: "bg-emerald-500/15 text-emerald-600" },
+  sell: { label: "Sell", icon: Minus, cls: "bg-rose-500/15 text-rose-600" },
+  deposit: { label: "Deposit", icon: ArrowDownToLine, cls: "bg-sky-500/15 text-sky-600" },
+  withdraw: { label: "Withdraw", icon: ArrowUpFromLine, cls: "bg-amber-500/15 text-amber-600" },
 };
 
 /** A KPI tile matching the dashboard's card language. */
@@ -109,8 +109,8 @@ function CashCard({
         <span
           className={cn(
             "grid size-8 place-items-center rounded-lg",
-            tone === "up" && "bg-emerald-500/15 text-emerald-400",
-            tone === "down" && "bg-rose-500/15 text-rose-400",
+            tone === "up" && "bg-emerald-500/15 text-emerald-600",
+            tone === "down" && "bg-rose-500/15 text-rose-600",
             tone === "neutral" && "bg-primary/12 text-primary"
           )}
         >
@@ -120,8 +120,8 @@ function CashCard({
       <p
         className={cn(
           "tnum mt-3 font-display text-2xl font-bold",
-          tone === "up" && "text-emerald-400",
-          tone === "down" && "text-rose-400"
+          tone === "up" && "text-emerald-600",
+          tone === "down" && "text-rose-600"
         )}
       >
         {value}
@@ -335,7 +335,7 @@ export function TransactionCenter({
                       <td
                         className={cn(
                           "tnum px-4 py-2.5 text-right font-medium",
-                          total >= 0 ? "text-emerald-400" : "text-rose-400"
+                          total >= 0 ? "text-emerald-600" : "text-rose-600"
                         )}
                       >
                         {total >= 0 ? "+" : ""}
@@ -343,7 +343,7 @@ export function TransactionCenter({
                       </td>
                       <td className="tnum px-4 py-2.5 text-right">
                         {t.type === "sell" && typeof t.realized_pnl === "number" ? (
-                          <span className={t.realized_pnl >= 0 ? "text-emerald-400" : "text-rose-400"}>
+                          <span className={t.realized_pnl >= 0 ? "text-emerald-600" : "text-rose-600"}>
                             {t.realized_pnl >= 0 ? "+" : ""}
                             {formatMoney(t.realized_pnl, NZD)}
                           </span>
@@ -690,7 +690,7 @@ function AllTransactionsDialog({
                       <td
                         className={cn(
                           "tnum py-3 px-3 text-right font-medium",
-                          total >= 0 ? "text-emerald-400" : "text-rose-400"
+                          total >= 0 ? "text-emerald-600" : "text-rose-600"
                         )}
                       >
                         {total >= 0 ? "+" : ""}
@@ -698,7 +698,7 @@ function AllTransactionsDialog({
                       </td>
                       <td className="tnum hidden py-3 px-3 text-right md:table-cell">
                         {t.type === "sell" && typeof t.realized_pnl === "number" ? (
-                          <span className={t.realized_pnl >= 0 ? "text-emerald-400" : "text-rose-400"}>
+                          <span className={t.realized_pnl >= 0 ? "text-emerald-600" : "text-rose-600"}>
                             {t.realized_pnl >= 0 ? "+" : ""}
                             {formatMoney(t.realized_pnl, NZD)}
                           </span>
@@ -1111,7 +1111,7 @@ function TransactionDialog({
             <span
               className={cn(
                 "tnum font-semibold",
-                estimate >= 0 ? "text-emerald-400" : "text-rose-400"
+                estimate >= 0 ? "text-emerald-600" : "text-rose-600"
               )}
             >
               {estimate >= 0 ? "+" : ""}

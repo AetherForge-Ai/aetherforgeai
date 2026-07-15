@@ -19,7 +19,7 @@ export function MarketsPageContent({ preview = false }: { preview?: boolean }) {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h1 className="font-display text-2xl font-bold">Stock Markets</h1>
-            <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wider text-emerald-300">
+            <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wider text-emerald-700">
               ● Live
             </span>
           </div>

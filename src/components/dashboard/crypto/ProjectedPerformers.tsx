@@ -64,7 +64,7 @@ export function ProjectedPerformers({
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <span className="grid size-9 place-items-center rounded-xl bg-emerald-500/12 text-emerald-400">
+          <span className="grid size-9 place-items-center rounded-xl bg-emerald-500/12 text-emerald-600">
             <TrendingUp className="size-4.5" />
           </span>
           <div>
@@ -107,7 +107,7 @@ export function ProjectedPerformers({
 
       {/* Broad-market-down honesty banner */}
       {top8.marketBroadlyDown && !loading && (
-        <div className="mt-3 flex items-start gap-2 rounded-xl border border-amber-500/25 bg-amber-500/8 px-3 py-2 text-[0.72rem] text-amber-300/90">
+        <div className="mt-3 flex items-start gap-2 rounded-xl border border-amber-500/25 bg-amber-500/8 px-3 py-2 text-[0.72rem] text-amber-700/90">
           <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
           The market is broadly negative right now — these are the strongest relative names from the full 500-coin scan, not absolute gainers.
         </div>
@@ -158,7 +158,7 @@ export function ProjectedPerformers({
                   }}
                   className="grid w-full grid-cols-[36px_minmax(120px,1.5fr)_repeat(3,minmax(72px,1fr))_110px_100px_36px] items-center gap-2 border-b border-border/40 px-4 py-2 text-sm transition hover:bg-primary/5 sm:px-6"
                 >
-                  <span className="tnum text-xs font-semibold text-emerald-400">{i + 1}</span>
+                  <span className="tnum text-xs font-semibold text-emerald-600">{i + 1}</span>
                   <span className="flex min-w-0 items-center gap-2 text-left">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img

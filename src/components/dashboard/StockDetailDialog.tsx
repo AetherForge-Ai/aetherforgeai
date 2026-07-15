@@ -205,7 +205,7 @@ export function StockDetailDialog({
                       <p
                         className={cn(
                           "tnum mt-1 flex items-center gap-1 text-sm font-semibold",
-                          up ? "text-emerald-400" : "text-rose-400"
+                          up ? "text-emerald-600" : "text-rose-600"
                         )}
                       >
                         {up ? <ArrowUp className="size-4" /> : <ArrowDown className="size-4" />}
@@ -232,7 +232,7 @@ export function StockDetailDialog({
                               <stop offset="100%" stopColor={stroke} stopOpacity={0} />
                             </linearGradient>
                           </defs>
-                          <CartesianGrid strokeDasharray="3 3" stroke="oklch(1 0 0 / 6%)" vertical={false} />
+                          <CartesianGrid strokeDasharray="3 3" stroke="oklch(0 0 0 / 8%)" vertical={false} />
                           <XAxis dataKey="i" hide />
                           <YAxis
                             domain={["dataMin", "dataMax"]}

@@ -98,7 +98,7 @@ export default function LandingPage() {
             <div className="animate-float-up">
               {/* Standout brand emblem — the official Forge Intelligence shield */}
               <div className="mb-6 flex items-center gap-4">
-                <span className="relative grid size-16 place-items-center rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.08] via-white/[0.02] to-transparent shadow-brand animate-logo-pulse sm:size-[4.5rem]">
+                <span className="relative grid size-16 place-items-center rounded-2xl border border-border/70 bg-gradient-to-br from-white via-white to-slate-50 shadow-brand animate-logo-pulse sm:size-[4.5rem]">
                   <img
                     src={LOGO_MARK_IMG}
                     alt="AetherForge AI shield emblem"
@@ -139,19 +139,19 @@ export default function LandingPage() {
               </p>
 
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <Button asChild size="lg" className="h-12 px-6 text-base font-semibold shadow-glow">
+                <Button asChild size="lg" className="h-12 px-7 text-base font-semibold shadow-glow">
                   <Link href="/register">
-                    Start free <ArrowRight className="ml-1 size-4" />
+                    Sign up free <ArrowRight className="ml-1 size-4" />
                   </Link>
                 </Button>
-                <Button asChild size="lg" variant="outline" className="h-12 px-6 text-base">
-                  <Link href="/pricing">View pricing</Link>
+                <Button asChild size="lg" variant="outline" className="h-12 border-slate-300 px-7 text-base font-semibold">
+                  <Link href="/login">Log in</Link>
                 </Button>
               </div>
 
               <Link
                 href="/performance"
-                className="group mt-4 inline-flex items-center gap-2 text-sm font-semibold text-emerald-400 hover:text-emerald-300"
+                className="group mt-4 inline-flex items-center gap-2 text-sm font-semibold text-emerald-600 hover:text-emerald-700"
               >
                 <span className="relative flex size-2">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/80" />
@@ -173,14 +173,14 @@ export default function LandingPage() {
 
             {/* Hero mockup card */}
             <div className="animate-float-up [animation-delay:120ms]">
-              <div className="relative rounded-3xl border border-border/70 glass p-5 shadow-2xl">
+              <div className="relative rounded-3xl border border-border/70 glass p-5 shadow-soft">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs uppercase tracking-wider text-muted-foreground">Total value</p>
                     <p className="tnum mt-1 text-3xl font-bold">$248,930.44</p>
                   </div>
                   <div className="rounded-xl bg-emerald-500/10 px-3 py-2 text-right ring-1 ring-emerald-500/25">
-                    <p className="tnum text-lg font-semibold text-emerald-400">+18.6%</p>
+                    <p className="tnum text-lg font-semibold text-emerald-600">+18.6%</p>
                     <p className="text-[11px] text-muted-foreground">all time</p>
                   </div>
                 </div>
@@ -210,7 +210,7 @@ export default function LandingPage() {
                       </div>
                       <div className="text-right">
                         <p className="tnum text-sm font-semibold">{r.v}</p>
-                        <p className={`tnum text-xs ${r.up ? "text-emerald-400" : "text-red-400"}`}>{r.c}</p>
+                        <p className={`tnum text-xs ${r.up ? "text-emerald-600" : "text-red-600"}`}>{r.c}</p>
                       </div>
                     </div>
                   ))}
@@ -253,14 +253,14 @@ export default function LandingPage() {
             <div className="relative flex flex-col items-center gap-4 rounded-[calc(1.5rem-1.5px)] bg-card/70 px-6 py-6 text-center backdrop-blur-sm sm:flex-row sm:justify-between sm:gap-6 sm:px-8 sm:text-left">
               <div className="flex items-center gap-4">
                 <span className="relative grid size-12 shrink-0 place-items-center rounded-2xl bg-emerald-500/15 ring-1 ring-emerald-400/30">
-                  <TrendingUp className="size-6 text-emerald-400" />
+                  <TrendingUp className="size-6 text-emerald-600" />
                   <span className="absolute -right-1 -top-1 flex size-3.5">
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/80" />
                     <span className="relative inline-flex size-3.5 rounded-full bg-emerald-400 ring-2 ring-card" />
                   </span>
                 </span>
                 <div>
-                  <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/40 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-[0.16em] text-emerald-300">
+                  <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/40 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-[0.16em] text-emerald-700">
                     <span className="relative flex size-1.5">
                       <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400" />
                       <span className="relative inline-flex size-1.5 rounded-full bg-emerald-400" />

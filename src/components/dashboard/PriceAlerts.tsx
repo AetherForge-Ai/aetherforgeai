@@ -287,11 +287,11 @@ export function PriceAlerts({ stocks, preview = false }: { stocks: Stock[]; prev
                 <div className="flex items-center gap-2">
                   <span className="font-display text-base font-bold">{a.ticker}</span>
                   {a.triggered ? (
-                    <Badge className="bg-rose-500/15 text-rose-400 hover:bg-rose-500/15">
+                    <Badge className="bg-rose-500/15 text-rose-600 hover:bg-rose-500/15">
                       <TriangleAlert className="mr-1 size-3" /> Sell-out hit
                     </Badge>
                   ) : (
-                    <Badge variant="outline" className="border-emerald-500/30 text-emerald-400">
+                    <Badge variant="outline" className="border-emerald-500/30 text-emerald-600">
                       <ShieldCheck className="mr-1 size-3" /> Watching
                     </Badge>
                   )}

@@ -221,7 +221,7 @@ export function TrialExperience({ userName }: { userName?: string }) {
                 >
                   <span className="shrink-0">
                     {done ? (
-                      <ShieldCheck className="size-4 text-emerald-400" />
+                      <ShieldCheck className="size-4 text-emerald-600" />
                     ) : active ? (
                       <Loader2 className="size-4 animate-spin text-primary" />
                     ) : (
@@ -332,7 +332,7 @@ export function TrialExperience({ userName }: { userName?: string }) {
                 type="button"
                 onClick={() => removeRow(row.id)}
                 disabled={rows.length <= 1}
-                className="grid size-9 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:text-rose-400 disabled:opacity-30"
+                className="grid size-9 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:text-rose-600 disabled:opacity-30"
                 aria-label="Remove ticker"
               >
                 <Trash2 className="size-4" />
@@ -390,7 +390,7 @@ export function TrialExperience({ userName }: { userName?: string }) {
       </div>
 
       {error && (
-        <div className="mt-5 rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">
+        <div className="mt-5 rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-700">
           {error}
         </div>
       )}

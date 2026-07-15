@@ -122,7 +122,7 @@ function DesktopLinks({ pathname }: { pathname: string }) {
             <span className="flex items-center gap-1.5">
               {item.label}
               {item.highlight && (
-                <span className="rounded bg-emerald-500/15 px-1.5 py-px text-[9px] font-bold uppercase tracking-wide text-emerald-400">
+                <span className="rounded bg-emerald-500/15 px-1.5 py-px text-[9px] font-bold uppercase tracking-wide text-emerald-600">
                   Live
                 </span>
               )}
@@ -242,7 +242,7 @@ function MobileDrawer({ pathname, loggedIn }: { pathname: string; loggedIn: bool
                 <item.icon className="size-4" />
                 {item.label}
                 {item.highlight && (
-                  <span className="ml-auto rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-400">
+                  <span className="ml-auto rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-600">
                     Live
                   </span>
                 )}

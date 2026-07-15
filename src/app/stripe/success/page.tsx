@@ -35,7 +35,7 @@ function SuccessContent() {
         <div className="flex justify-center">
           <BrandLogo />
         </div>
-        <div className="mx-auto mt-8 grid size-16 place-items-center rounded-2xl bg-emerald-500/15 text-emerald-400">
+        <div className="mx-auto mt-8 grid size-16 place-items-center rounded-2xl bg-emerald-500/15 text-emerald-600">
           <CheckCircle2 className="size-8" />
         </div>
         <h1 className="mt-6 font-display text-3xl font-bold">Welcome to AetherForge Pro</h1>

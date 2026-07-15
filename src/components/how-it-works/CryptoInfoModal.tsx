@@ -86,7 +86,7 @@ export function CryptoInfoModal({
         <DialogContent className="max-h-[88vh] w-full overflow-y-auto border-border/70 bg-card/95 backdrop-blur-xl sm:max-w-2xl">
           <DialogHeader>
             <div className="mb-1 flex size-12 items-center justify-center rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/20 to-transparent">
-              <Bitcoin className="size-6 text-amber-400" />
+              <Bitcoin className="size-6 text-amber-600" />
             </div>
             <DialogTitle className="font-display text-2xl font-bold">
               Cryptocurrency, explained simply

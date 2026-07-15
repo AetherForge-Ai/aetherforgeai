@@ -168,8 +168,8 @@ function StatCard({
         <span
           className={cn(
             "grid size-8 place-items-center rounded-lg",
-            tone === "up" && "bg-emerald-500/15 text-emerald-400",
-            tone === "down" && "bg-rose-500/15 text-rose-400",
+            tone === "up" && "bg-emerald-500/15 text-emerald-600",
+            tone === "down" && "bg-rose-500/15 text-rose-600",
             tone === "neutral" && "bg-primary/12 text-primary"
           )}
         >
@@ -179,8 +179,8 @@ function StatCard({
       <p
         className={cn(
           "tnum mt-3 font-display text-2xl font-bold",
-          tone === "up" && "text-emerald-400",
-          tone === "down" && "text-rose-400"
+          tone === "up" && "text-emerald-600",
+          tone === "down" && "text-rose-600"
         )}
       >
         {value}
@@ -1131,11 +1131,11 @@ export function PortfolioDashboard({
                       </td>
                       {/* Gain / Loss */}
                       <td className="px-3 py-3.5 text-right">
-                        <span className={cn("tnum font-medium", up ? "text-emerald-400" : "text-rose-400")}>
+                        <span className={cn("tnum font-medium", up ? "text-emerald-600" : "text-rose-600")}>
                           {formatMoney(h.gain, h.currency)}
                         </span>
                         <span
-                          className={cn("tnum ml-1 block text-xs", up ? "text-emerald-400/80" : "text-rose-400/80")}
+                          className={cn("tnum ml-1 block text-xs", up ? "text-emerald-600/80" : "text-rose-600/80")}
                         >
                           {formatPercent(h.gainPct)}
                         </span>

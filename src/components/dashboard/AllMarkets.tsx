@@ -32,7 +32,7 @@ export function AllMarkets({ onBought }: { onBought?: () => void }) {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h2 className="font-display text-lg font-bold">ALL Markets</h2>
-            <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wider text-emerald-300">
+            <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wider text-emerald-700">
               ● Live
             </span>
           </div>

@@ -174,8 +174,8 @@ export function HoldingChartDialog({
                     className={cn(
                       "rounded-xl px-3 py-2 text-right ring-1",
                       up
-                        ? "bg-emerald-500/10 text-emerald-400 ring-emerald-500/25"
-                        : "bg-rose-500/10 text-rose-400 ring-rose-500/25"
+                        ? "bg-emerald-500/10 text-emerald-600 ring-emerald-500/25"
+                        : "bg-rose-500/10 text-rose-600 ring-rose-500/25"
                     )}
                   >
                     <p className="tnum flex items-center gap-1 text-lg font-semibold">
@@ -198,7 +198,7 @@ export function HoldingChartDialog({
                           <stop offset="100%" stopColor={stroke} stopOpacity={0} />
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="oklch(1 0 0 / 6%)" vertical={false} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="oklch(0 0 0 / 8%)" vertical={false} />
                       <XAxis
                         dataKey="label"
                         tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
@@ -249,7 +249,7 @@ export function HoldingChartDialog({
                   <p
                     className={cn(
                       "tnum mt-0.5 text-sm font-semibold",
-                      sevenDayChange ? (up ? "text-emerald-400" : "text-rose-400") : ""
+                      sevenDayChange ? (up ? "text-emerald-600" : "text-rose-600") : ""
                     )}
                   >
                     {sevenDayChange
@@ -265,7 +265,7 @@ export function HoldingChartDialog({
                   <p
                     className={cn(
                       "tnum mt-0.5 text-sm font-semibold",
-                      posUp ? "text-emerald-400" : "text-rose-400"
+                      posUp ? "text-emerald-600" : "text-rose-600"
                     )}
                   >
                     {posUp ? "+" : "−"}

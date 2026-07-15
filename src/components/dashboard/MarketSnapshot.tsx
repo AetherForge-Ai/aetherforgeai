@@ -46,7 +46,7 @@ function MarketColumn({ code, label, sub, rows }: { code: MarketCode; label: str
             <span
               className={cn(
                 "tnum rounded px-1.5 py-0.5 text-[0.7rem] font-semibold",
-                avg >= 0 ? "bg-emerald-500/12 text-emerald-400" : "bg-rose-500/12 text-rose-400"
+                avg >= 0 ? "bg-emerald-500/12 text-emerald-600" : "bg-rose-500/12 text-rose-600"
               )}
             >
               {fmtPct(avg)}
@@ -105,7 +105,7 @@ export function MarketSnapshot() {
             <span
               className={cn(
                 "rounded-full px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wider",
-                live ? "bg-emerald-500/15 text-emerald-300" : "bg-muted text-muted-foreground"
+                live ? "bg-emerald-500/15 text-emerald-700" : "bg-muted text-muted-foreground"
               )}
             >
               {live ? "● Live" : "Simulated"}

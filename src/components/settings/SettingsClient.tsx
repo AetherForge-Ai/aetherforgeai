@@ -266,7 +266,7 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
             className={cn(
               "rounded-full px-3 py-1 text-xs font-semibold",
               isActive
-                ? "bg-emerald-500/15 text-emerald-400"
+                ? "bg-emerald-500/15 text-emerald-600"
                 : "bg-muted text-muted-foreground"
             )}
           >
@@ -295,7 +295,7 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
 
         <div className="mt-5">
           {!user.stripeConfigured ? (
-            <p className="rounded-xl bg-amber-500/10 px-4 py-3 text-sm text-amber-400/90">
+            <p className="rounded-xl bg-amber-500/10 px-4 py-3 text-sm text-amber-600/90">
               Billing isn't configured yet. Add a Stripe key to the project to enable subscriptions.
             </p>
           ) : user.hasCustomer ? (
@@ -384,7 +384,7 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
                         className={cn(
                           "shrink-0 rounded-full px-2 py-0.5 text-[0.62rem] font-semibold uppercase",
                           isUpgrade
-                            ? "bg-emerald-500/15 text-emerald-400"
+                            ? "bg-emerald-500/15 text-emerald-600"
                             : "bg-muted text-muted-foreground"
                         )}
                       >
@@ -399,7 +399,7 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
 
                     <ul className="mt-2 space-y-1">
                       <li className="flex items-center gap-1.5 text-[0.72rem] text-muted-foreground">
-                        <Check className="size-3 text-emerald-400" />
+                        <Check className="size-3 text-emerald-600" />
                         {plan.tickerLimit} tickers · {plan.botAccess === "both" ? "both bots" : "one bot"}
                       </li>
                     </ul>

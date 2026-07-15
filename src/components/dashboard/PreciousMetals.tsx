@@ -242,7 +242,7 @@ export function PreciousMetals({
                   <span
                     className={cn(
                       "rounded-full px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wide",
-                      spot?.live ? "bg-emerald-500/15 text-emerald-400" : "bg-muted text-muted-foreground"
+                      spot?.live ? "bg-emerald-500/15 text-emerald-600" : "bg-muted text-muted-foreground"
                     )}
                     title={spot?.live ? "Live spot price" : "Fallback price (live feed unavailable)"}
                   >
@@ -368,10 +368,10 @@ export function PreciousMetals({
                       <td className="tnum px-3 py-3.5 text-right">{formatMoney(spotPerOz, "NZD")}</td>
                       <td className="tnum px-3 py-3.5 text-right font-medium">{formatMoney(value, "NZD")}</td>
                       <td className="px-3 py-3.5 text-right">
-                        <span className={cn("tnum font-medium", up ? "text-emerald-400" : "text-rose-400")}>
+                        <span className={cn("tnum font-medium", up ? "text-emerald-600" : "text-rose-600")}>
                           {up ? "+" : ""}{formatMoney(gain, "NZD")}
                         </span>
-                        <span className={cn("tnum block text-xs", up ? "text-emerald-400/80" : "text-rose-400/80")}>
+                        <span className={cn("tnum block text-xs", up ? "text-emerald-600/80" : "text-rose-600/80")}>
                           {up ? "+" : ""}{gainPct.toFixed(2)}%
                         </span>
                       </td>
@@ -384,7 +384,7 @@ export function PreciousMetals({
                             <button
                               onClick={() => handleSell(h._id)}
                               disabled={sellingId === h._id}
-                              className="inline-flex items-center gap-1 rounded-lg bg-emerald-500/15 px-2 py-1 text-xs font-semibold text-emerald-400 transition-colors hover:bg-emerald-500/25"
+                              className="inline-flex items-center gap-1 rounded-lg bg-emerald-500/15 px-2 py-1 text-xs font-semibold text-emerald-600 transition-colors hover:bg-emerald-500/25"
                               aria-label={`Confirm sell ${meta.label}`}
                             >
                               {sellingId === h._id ? (
@@ -407,7 +407,7 @@ export function PreciousMetals({
                           <button
                             onClick={() => setConfirmId(h._id)}
                             disabled={sellingId === h._id}
-                            className="inline-flex items-center gap-1 rounded-lg border border-border/60 px-2.5 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:border-rose-500/40 hover:bg-rose-500/10 hover:text-rose-400"
+                            className="inline-flex items-center gap-1 rounded-lg border border-border/60 px-2.5 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:border-rose-500/40 hover:bg-rose-500/10 hover:text-rose-600"
                             aria-label={`Sell ${meta.label}`}
                           >
                             <Minus className="size-3.5" /> Sell
@@ -430,7 +430,7 @@ export function PreciousMetals({
                       {formatMoney(totals.value, "NZD")}
                     </td>
                     <td className="px-3 py-3.5 text-right">
-                      <span className={cn("tnum font-bold", totals.gain >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                      <span className={cn("tnum font-bold", totals.gain >= 0 ? "text-emerald-600" : "text-rose-600")}>
                         {totals.gain >= 0 ? (
                           <TrendingUp className="mr-1 inline size-3.5" />
                         ) : (

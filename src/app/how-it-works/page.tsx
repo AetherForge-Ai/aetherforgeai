@@ -249,7 +249,7 @@ const BUY_GUIDES = [
   {
     icon: Building2,
     title: "How to buy & sell shares",
-    color: "text-emerald-400",
+    color: "text-emerald-600",
     steps: [
       "Open an account with a broker like Sharesies, Tiger Trade or Interactive Brokers and verify your identity.",
       "Deposit funds from your bank, then search for a company by its ticker (e.g. FPH.NZ, AAPL).",
@@ -260,7 +260,7 @@ const BUY_GUIDES = [
   {
     icon: Coins,
     title: "How to buy cryptocurrency",
-    color: "text-amber-400",
+    color: "text-amber-600",
     steps: [
       "Create an account on an exchange such as Easy Crypto, Kraken or Coinbase and complete verification.",
       "Deposit NZD (or your local currency) via bank transfer or card.",
@@ -271,7 +271,7 @@ const BUY_GUIDES = [
   {
     icon: Landmark,
     title: "How to buy gold & silver",
-    color: "text-yellow-400",
+    color: "text-yellow-600",
     steps: [
       "Choose physical bullion (bars/coins) from a dealer like the NZ Mint, MyGold or BullionStar.",
       "Compare the price against the live spot rate plus the dealer's premium.",
@@ -579,7 +579,7 @@ export default function HowItWorksPage() {
 
           {/* Stocks */}
           <div className="mb-3 flex items-center gap-2">
-            <Building2 className="size-5 text-emerald-400" />
+            <Building2 className="size-5 text-emerald-600" />
             <h3 className="font-display text-xl font-bold">Shares & ETFs</h3>
           </div>
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
@@ -590,7 +590,7 @@ export default function HowItWorksPage() {
 
           {/* Crypto */}
           <div className="mb-3 mt-12 flex items-center gap-2">
-            <Bitcoin className="size-5 text-amber-400" />
+            <Bitcoin className="size-5 text-amber-600" />
             <h3 className="font-display text-xl font-bold">Cryptocurrency</h3>
           </div>
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -601,7 +601,7 @@ export default function HowItWorksPage() {
 
           {/* Metals */}
           <div className="mb-3 mt-12 flex items-center gap-2">
-            <Coins className="size-5 text-yellow-400" />
+            <Coins className="size-5 text-yellow-600" />
             <h3 className="font-display text-xl font-bold">Gold & Silver</h3>
           </div>
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -660,7 +660,7 @@ export default function HowItWorksPage() {
             <div className="rounded-3xl border border-border/70 bg-card/40 p-8">
               <div className="flex items-center gap-3">
                 <div className="flex size-12 items-center justify-center rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/20 to-transparent">
-                  <History className="size-6 text-emerald-400" />
+                  <History className="size-6 text-emerald-600" />
                 </div>
                 <div>
                   <h3 className="font-display text-xl font-bold">History of stock trading</h3>
@@ -678,7 +678,7 @@ export default function HowItWorksPage() {
             <div className="rounded-3xl border border-border/70 bg-card/40 p-8">
               <div className="flex items-center gap-3">
                 <div className="flex size-12 items-center justify-center rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/20 to-transparent">
-                  <Layers className="size-6 text-amber-400" />
+                  <Layers className="size-6 text-amber-600" />
                 </div>
                 <div>
                   <h3 className="font-display text-xl font-bold">Cryptocurrency &amp; its value</h3>

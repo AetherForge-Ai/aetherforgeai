@@ -78,7 +78,7 @@ const ADVANTAGES = [
 
 export default function PerformancePage() {
   return (
-    <div className="relative min-h-screen bg-[#0B1426] bg-grid">
+    <div className="relative min-h-screen bg-background bg-grid">
       <div className="pointer-events-none absolute inset-0 bg-aurora" />
       <div className="relative">
         <SiteHeader />

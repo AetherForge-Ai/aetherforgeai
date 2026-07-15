@@ -42,7 +42,7 @@ export default async function FreeTrialPage() {
 
       {alreadyUsed ? (
         <div className="mx-auto max-w-2xl px-4 py-20 text-center sm:px-6">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-400 ring-1 ring-emerald-500/25">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-600 ring-1 ring-emerald-500/25">
             <CheckCircle2 className="size-3.5" /> Trial complete
           </span>
           <h1 className="mt-4 font-display text-3xl font-bold sm:text-4xl">You&apos;ve used your one-time ZENITH report</h1>

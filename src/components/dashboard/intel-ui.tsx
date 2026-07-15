@@ -3,7 +3,7 @@ import { EXCHANGE_META, resolveExchange, type SecurityIntel } from "@/lib/market
 
 /** Colour class for a signed percentage. */
 export function pctClass(v: number): string {
-  return v > 0 ? "text-emerald-400" : v < 0 ? "text-rose-400" : "text-muted-foreground";
+  return v > 0 ? "text-emerald-600" : v < 0 ? "text-rose-600" : "text-muted-foreground";
 }
 
 export function fmtPct(v: number): string {
@@ -12,11 +12,11 @@ export function fmtPct(v: number): string {
 }
 
 const SIGNAL_STYLES: Record<SecurityIntel["signal"], string> = {
-  "Strong Buy": "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
-  Buy: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-  Hold: "bg-amber-500/12 text-amber-300 border-amber-500/25",
+  "Strong Buy": "bg-emerald-500/15 text-emerald-700 border-emerald-500/30",
+  Buy: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
+  Hold: "bg-amber-500/12 text-amber-700 border-amber-500/25",
   Reduce: "bg-orange-500/12 text-orange-300 border-orange-500/25",
-  Sell: "bg-rose-500/15 text-rose-300 border-rose-500/30",
+  Sell: "bg-rose-500/15 text-rose-700 border-rose-500/30",
 };
 
 export function SignalBadge({ signal, className }: { signal: SecurityIntel["signal"]; className?: string }) {

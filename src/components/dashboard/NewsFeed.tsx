@@ -6,9 +6,9 @@ import { cn } from "@/lib/utils";
 import { Newspaper } from "lucide-react";
 
 const IMPACT_STYLES: Record<NewsItem["impact"], string> = {
-  Bullish: "bg-emerald-500/15 text-emerald-300",
-  Bearish: "bg-rose-500/15 text-rose-300",
-  Neutral: "bg-amber-500/12 text-amber-300",
+  Bullish: "bg-emerald-500/15 text-emerald-700",
+  Bearish: "bg-rose-500/15 text-rose-700",
+  Neutral: "bg-amber-500/12 text-amber-700",
 };
 
 export function NewsFeed() {

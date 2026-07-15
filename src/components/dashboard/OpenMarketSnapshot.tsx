@@ -65,7 +65,7 @@ const idxNumFmt = new Intl.NumberFormat("en-US", {
 
 function pctClass(v: number | null | undefined) {
   if (v == null) return "text-muted-foreground";
-  return v >= 0 ? "text-emerald-400" : "text-rose-400";
+  return v >= 0 ? "text-emerald-600" : "text-rose-600";
 }
 
 /** A compact clickable mover row inside a gainers/losers list. */
@@ -167,15 +167,15 @@ function ExchangeCard({
           <div className="h-full bg-rose-500/70" style={{ width: `${decPct}%` }} />
         </div>
         <div className="mt-1 flex justify-between text-[0.6rem] text-muted-foreground">
-          <span className="text-emerald-400">{s.breadth.advancers} up</span>
-          <span className="text-rose-400">{s.breadth.decliners} down</span>
+          <span className="text-emerald-600">{s.breadth.advancers} up</span>
+          <span className="text-rose-600">{s.breadth.decliners} down</span>
         </div>
       </div>
 
       {/* Movers */}
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
-          <p className="mb-1 flex items-center gap-1 text-[0.6rem] font-bold uppercase tracking-wide text-emerald-400">
+          <p className="mb-1 flex items-center gap-1 text-[0.6rem] font-bold uppercase tracking-wide text-emerald-600">
             <TrendingUp className="size-3" /> Top gainers
           </p>
           <div className="space-y-0.5">
@@ -189,7 +189,7 @@ function ExchangeCard({
           </div>
         </div>
         <div>
-          <p className="mb-1 flex items-center gap-1 text-[0.6rem] font-bold uppercase tracking-wide text-rose-400">
+          <p className="mb-1 flex items-center gap-1 text-[0.6rem] font-bold uppercase tracking-wide text-rose-600">
             <ArrowDown className="size-3" /> Top losers
           </p>
           <div className="space-y-0.5">
@@ -259,13 +259,13 @@ export function OpenMarketSnapshot({ onBought }: { onBought?: () => void }) {
         onClick={() => setOpen(true)}
         className="group flex w-full items-center gap-4 rounded-3xl border border-primary/30 bg-gradient-to-br from-emerald-500/10 via-card/60 to-card/50 p-6 text-left shadow-glow transition-colors hover:border-primary/50"
       >
-        <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-emerald-500/15 text-emerald-400">
+        <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-emerald-500/15 text-emerald-600">
           <Activity className="size-6" />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h2 className="font-display text-lg font-bold">Open Market Snapshot</h2>
-            <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wider text-emerald-300">
+            <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wider text-emerald-700">
               ● Live
             </span>
           </div>
@@ -284,7 +284,7 @@ export function OpenMarketSnapshot({ onBought }: { onBought?: () => void }) {
           <DialogHeader className="flex-row items-start justify-between gap-3 border-b border-border/60 px-5 py-4 sm:px-6">
             <div>
               <DialogTitle className="flex items-center gap-2 font-display text-xl">
-                <Activity className="size-5 text-emerald-400" /> Open Market Snapshot
+                <Activity className="size-5 text-emerald-600" /> Open Market Snapshot
               </DialogTitle>
               <DialogDescription>
                 Live overview of NZX · ASX · Dow Jones · NASDAQ. Click any ticker for the full view.

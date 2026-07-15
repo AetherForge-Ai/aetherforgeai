@@ -41,15 +41,15 @@ function fmtPct(v: number): string {
   return `${v > 0 ? "+" : ""}${(v ?? 0).toFixed(2)}%`;
 }
 function pctClass(v: number): string {
-  return v > 0 ? "text-emerald-400" : v < 0 ? "text-rose-400" : "text-muted-foreground";
+  return v > 0 ? "text-emerald-600" : v < 0 ? "text-rose-600" : "text-muted-foreground";
 }
 
 const SIGNAL_STYLE: Record<TrialTickerAnalysis["signal"], string> = {
-  "Strong Buy": "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30",
-  Accumulate: "bg-cyan-500/15 text-cyan-300 ring-cyan-500/30",
-  Hold: "bg-violet-500/15 text-violet-300 ring-violet-500/30",
-  Watch: "bg-amber-500/15 text-amber-300 ring-amber-500/30",
-  Reduce: "bg-rose-500/15 text-rose-400 ring-rose-500/30",
+  "Strong Buy": "bg-emerald-500/15 text-emerald-600 ring-emerald-500/30",
+  Accumulate: "bg-cyan-500/15 text-cyan-700 ring-cyan-500/30",
+  Hold: "bg-violet-500/15 text-violet-700 ring-violet-500/30",
+  Watch: "bg-amber-500/15 text-amber-700 ring-amber-500/30",
+  Reduce: "bg-rose-500/15 text-rose-600 ring-rose-500/30",
 };
 
 /* ------------------------------ small bits ------------------------------ */
@@ -126,7 +126,7 @@ function MomentumChart({ t }: { t: TrialTickerAnalysis }) {
 
 function PredictionPill({ p }: { p: ForwardPrediction }) {
   const Icon = p.direction === "up" ? ArrowUpRight : p.direction === "down" ? ArrowDownRight : Minus;
-  const tone = p.direction === "up" ? "text-emerald-400" : p.direction === "down" ? "text-rose-400" : "text-muted-foreground";
+  const tone = p.direction === "up" ? "text-emerald-600" : p.direction === "down" ? "text-rose-600" : "text-muted-foreground";
   return (
     <div className="flex-1 rounded-xl border border-border/60 bg-background/40 p-3">
       <div className="flex items-center justify-between text-[0.62rem] uppercase tracking-wide text-muted-foreground">
@@ -240,14 +240,14 @@ export function TrialReportView({
   email: string;
   emailed: boolean;
 }) {
-  const accent = report.bot === "crypto" ? "text-cyan-300" : "text-violet-300";
+  const accent = report.bot === "crypto" ? "text-cyan-700" : "text-violet-700";
 
   return (
     <div className="space-y-6">
       {/* Delivery banner */}
       <div className="flex flex-col gap-3 rounded-3xl border border-emerald-500/30 bg-emerald-500/10 p-5 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-emerald-500/20 text-emerald-400">
+          <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-emerald-500/20 text-emerald-600">
             <Mail className="size-5" />
           </span>
           <div>
@@ -280,14 +280,14 @@ export function TrialReportView({
       {/* Header card */}
       <div className="overflow-hidden rounded-3xl border border-border/70 bg-gradient-to-br from-card/70 via-card/40 to-background/60 p-6">
         <div className="flex flex-wrap items-center gap-2">
-          <span className={cn("inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold ring-1", report.bot === "crypto" ? "bg-cyan-500/15 text-cyan-300 ring-cyan-500/30" : "bg-violet-500/15 text-violet-300 ring-violet-500/30")}>
+          <span className={cn("inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold ring-1", report.bot === "crypto" ? "bg-cyan-500/15 text-cyan-700 ring-cyan-500/30" : "bg-violet-500/15 text-violet-700 ring-violet-500/30")}>
             <Sparkles className="size-3" /> {report.mode}
           </span>
-          <span className={cn("inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ring-1", report.dataLive ? "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30" : "bg-amber-500/15 text-amber-300 ring-amber-500/30")}>
+          <span className={cn("inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ring-1", report.dataLive ? "bg-emerald-500/15 text-emerald-600 ring-emerald-500/30" : "bg-amber-500/15 text-amber-700 ring-amber-500/30")}>
             {report.dataLive ? "● Live data" : "◐ Modelled"}
           </span>
           {report.aiEnhanced && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-violet-500/15 px-3 py-1 text-xs font-semibold text-violet-300 ring-1 ring-violet-500/30">
+            <span className="inline-flex items-center gap-1 rounded-full bg-violet-500/15 px-3 py-1 text-xs font-semibold text-violet-700 ring-1 ring-violet-500/30">
               ✨ Grok 4.3
             </span>
           )}
@@ -330,27 +330,27 @@ export function TrialReportView({
       {report.bot === "crypto" && report.cryptoMovers && (
         <div>
           <h3 className="mb-3 flex items-center gap-2 font-display text-lg font-bold">
-            <TrendingUp className="size-5 text-emerald-400" /> Top movers · top 100 cryptocurrencies
+            <TrendingUp className="size-5 text-emerald-600" /> Top movers · top 100 cryptocurrencies
           </h3>
           <div className="grid gap-4 md:grid-cols-2">
-            <MoverList title="Top gainers · 24h" entries={report.cryptoMovers.gainers24h} accent="bg-emerald-500/10 text-emerald-400" />
-            <MoverList title="Top losers · 24h" entries={report.cryptoMovers.losers24h} accent="bg-rose-500/10 text-rose-400" />
-            <MoverList title="Momentum leaders · 7d" entries={report.cryptoMovers.gainers7d} accent="bg-cyan-500/10 text-cyan-300" />
-            <MoverList title="Trend leaders · 30d" entries={report.cryptoMovers.gainers30d} accent="bg-violet-500/10 text-violet-300" />
+            <MoverList title="Top gainers · 24h" entries={report.cryptoMovers.gainers24h} accent="bg-emerald-500/10 text-emerald-600" />
+            <MoverList title="Top losers · 24h" entries={report.cryptoMovers.losers24h} accent="bg-rose-500/10 text-rose-600" />
+            <MoverList title="Momentum leaders · 7d" entries={report.cryptoMovers.gainers7d} accent="bg-cyan-500/10 text-cyan-700" />
+            <MoverList title="Trend leaders · 30d" entries={report.cryptoMovers.gainers30d} accent="bg-violet-500/10 text-violet-700" />
           </div>
         </div>
       )}
       {report.bot === "stock" && report.stockMovers && (
         <div>
           <h3 className="mb-3 flex items-center gap-2 font-display text-lg font-bold">
-            <TrendingUp className="size-5 text-emerald-400" /> NZX + ASX market movers
+            <TrendingUp className="size-5 text-emerald-600" /> NZX + ASX market movers
             <span className="text-xs font-normal text-muted-foreground">
               ({report.stockMovers.universeSize} names · {report.stockMovers.live ? "live" : "modelled"})
             </span>
           </h3>
           <div className="grid gap-4 md:grid-cols-2">
-            <MoverList title="Top gainers" entries={report.stockMovers.gainers} accent="bg-emerald-500/10 text-emerald-400" />
-            <MoverList title="Top losers" entries={report.stockMovers.losers} accent="bg-rose-500/10 text-rose-400" />
+            <MoverList title="Top gainers" entries={report.stockMovers.gainers} accent="bg-emerald-500/10 text-emerald-600" />
+            <MoverList title="Top losers" entries={report.stockMovers.losers} accent="bg-rose-500/10 text-rose-600" />
           </div>
         </div>
       )}
@@ -395,7 +395,7 @@ export function TrialReportView({
           </h3>
           <ul className="mt-3 divide-y divide-border/50">
             {report.news.map((n, i) => {
-              const tone = n.impact === "Bullish" ? "text-emerald-400" : n.impact === "Bearish" ? "text-rose-400" : "text-muted-foreground";
+              const tone = n.impact === "Bullish" ? "text-emerald-600" : n.impact === "Bearish" ? "text-rose-600" : "text-muted-foreground";
               const inner = (
                 <>
                   <div className="flex items-start justify-between gap-3">

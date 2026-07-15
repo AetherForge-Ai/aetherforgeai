@@ -72,7 +72,7 @@ export function ActionableIntelligence({
       {/* Immediate action banner */}
       {actionRequired ? (
         <div className="flex items-start gap-3 rounded-2xl border border-rose-500/40 bg-rose-500/10 px-5 py-4">
-          <AlertTriangle className="mt-0.5 size-5 shrink-0 text-rose-400" />
+          <AlertTriangle className="mt-0.5 size-5 shrink-0 text-rose-600" />
           <div>
             <p className="font-display font-bold text-rose-200">Immediate action required</p>
             <p className="text-sm text-rose-200/80">
@@ -84,7 +84,7 @@ export function ActionableIntelligence({
         </div>
       ) : stocks.length > 0 ? (
         <div className="flex items-start gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/8 px-5 py-4">
-          <Shield className="mt-0.5 size-5 shrink-0 text-emerald-400" />
+          <Shield className="mt-0.5 size-5 shrink-0 text-emerald-600" />
           <div>
             <p className="font-display font-bold text-emerald-200">No urgent exits</p>
             <p className="text-sm text-emerald-200/80">
@@ -98,7 +98,7 @@ export function ActionableIntelligence({
       <div className="grid gap-5 lg:grid-cols-2">
         {/* SELL recommendations */}
         <div className="rounded-2xl border border-border/70 bg-card/40 p-5">
-          <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-rose-300">
+          <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-rose-700">
             <ArrowDownRight className="size-4" /> SELL recommendations
             <span className="text-xs font-normal text-muted-foreground">(from your holdings)</span>
           </div>
@@ -115,7 +115,7 @@ export function ActionableIntelligence({
                       <span className="font-display text-sm font-bold">{r.ticker.replace(/\.(NZ|AX)$/, "")}</span>
                       <SignalBadge signal={r.signal} />
                       {r.urgency === "high" && (
-                        <span className="rounded-full bg-rose-500/20 px-2 py-0.5 text-[0.6rem] font-bold uppercase text-rose-300">
+                        <span className="rounded-full bg-rose-500/20 px-2 py-0.5 text-[0.6rem] font-bold uppercase text-rose-700">
                           Urgent
                         </span>
                       )}
@@ -137,7 +137,7 @@ export function ActionableIntelligence({
         {/* BUY candidates */}
         <div className="rounded-2xl border border-border/70 bg-card/40 p-5">
           <div className="mb-3 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 text-sm font-semibold text-emerald-300">
+            <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700">
               <ArrowUpRight className="size-4" /> High-conviction BUY candidates
               <span className="text-xs font-normal text-muted-foreground">(not held)</span>
             </div>
