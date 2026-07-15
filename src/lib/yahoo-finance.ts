@@ -175,7 +175,11 @@ export async function fetchYahooNames(map: Record<string, string>): Promise<Reco
 
 const SPARK_BASE = "https://query1.finance.yahoo.com/v8/finance/spark";
 const HIST_TTL_MS = 10 * 60_000; // 10 minutes — real daily closes only change once a day
-const HIST_CHUNK = 45; // symbols per batched spark request
+// Symbols per batched spark request. Yahoo's spark endpoint rejects large symbol
+// lists with HTTP 400 (empirically it 400s at ~25 symbols), so we keep the batch
+// at 20 — the largest size that returns 200 reliably. At 45 EVERY request 400'd,
+// silently starving both live quotes and real histories back to synthetic seeds.
+const HIST_CHUNK = 20; // symbols per batched spark request (Yahoo caps ~20)
 const HIST_CACHE = new Map<string, { closes: number[]; at: number }>();
 
 /**
@@ -256,6 +260,94 @@ export async function fetchYahooHistories(
   });
 
   console.log(`[yahoo] Real histories resolved for ${Object.keys(out).length}/${entries.length} tickers`);
+  return out;
+}
+
+/**
+ * BATCHED live quotes via Yahoo's keyless `spark` endpoint — one HTTP request
+ * prices up to ~45 symbols at once (latest intraday close + previous close for
+ * the % change), so the ENTIRE market universe (~400 tickers) is priced live in
+ * a handful of requests instead of one-request-per-symbol.
+ *
+ * This is what lets every ticker (e.g. NASDAQ `LIN`) show its genuine live price
+ * even when the paid provider is rate-limited: previously the per-symbol Yahoo
+ * fallback was capped to protect the CPU budget, so tickers past the cap decayed
+ * to their stale synthetic seed. Batching removes that cost, so nothing is left
+ * on synthetic data. Reuses (and warms) the same 60s single-quote CACHE, and
+ * degrades to `{}` on any failure so pricing can never break.
+ *
+ * @param map internalTicker → yahooSymbol (e.g. { LIN: "LIN", "BHP.AX": "BHP.AX" })
+ * @returns internalTicker → { price, changePct } for every symbol Yahoo priced.
+ */
+export async function fetchYahooQuotesBatched(
+  map: Record<string, string>
+): Promise<Record<string, { price: number; changePct: number }>> {
+  const entries = Object.entries(map);
+  if (!entries.length) return {};
+
+  const out: Record<string, { price: number; changePct: number }> = {};
+  const stale: [string, string][] = [];
+
+  // Serve fresh entries straight from the single-quote cache (populated by
+  // fetchOne / this function) so a repeat scan within the TTL costs nothing.
+  for (const [internal, ySym] of entries) {
+    const c = CACHE.get(ySym);
+    if (c && Date.now() - c.at <= TTL_MS) {
+      out[internal] = { price: c.quote.price, changePct: c.quote.changePct };
+    } else {
+      stale.push([internal, ySym]);
+    }
+  }
+  if (!stale.length) return out;
+
+  const chunks: [string, string][][] = [];
+  for (let i = 0; i < stale.length; i += HIST_CHUNK) chunks.push(stale.slice(i, i + HIST_CHUNK));
+
+  await mapLimited(chunks, CONCURRENCY, async (chunk) => {
+    const symbols = chunk.map(([, y]) => y).join(",");
+    try {
+      // range=1d&interval=5m → an intraday close series; the last finite point is
+      // the most recent traded price, and `chartPreviousClose` drives the change%.
+      const url = `${SPARK_BASE}?symbols=${encodeURIComponent(symbols)}&range=1d&interval=5m`;
+      const res = await fetch(url, { headers: { "User-Agent": UA, Accept: "application/json" } });
+      if (!res.ok) {
+        console.error(`[yahoo] live-batch HTTP ${res.status} for ${chunk.length} symbols`);
+        return;
+      }
+      const json = (await res.json()) as Record<string, any>;
+      // query1 returns a flat map keyed by symbol; some hosts wrap in spark.result.
+      const bySymbol: Record<string, any> = {};
+      if (json?.spark?.result && Array.isArray(json.spark.result)) {
+        for (const r of json.spark.result) {
+          const resp = r?.response?.[0];
+          if (r?.symbol) {
+            bySymbol[r.symbol] = {
+              close: resp?.indicators?.quote?.[0]?.close,
+              chartPreviousClose: resp?.meta?.chartPreviousClose ?? resp?.meta?.previousClose,
+            };
+          }
+        }
+      } else {
+        Object.assign(bySymbol, json);
+      }
+
+      for (const [internal, ySym] of chunk) {
+        const node = bySymbol[ySym];
+        if (!node) continue;
+        const raw = Array.isArray(node.close) ? node.close : [];
+        const closes = raw.map((v: any) => Number(v)).filter((v: number) => isFinite(v) && v > 0);
+        const price = closes.length ? closes[closes.length - 1] : NaN;
+        if (!isFinite(price) || price <= 0) continue;
+        const prevClose = Number(node.chartPreviousClose ?? node.previousClose ?? price);
+        const changePct = prevClose > 0 ? ((price - prevClose) / prevClose) * 100 : 0;
+        out[internal] = { price, changePct: isFinite(changePct) ? changePct : 0 };
+      }
+    } catch (err) {
+      console.error(`[yahoo] live-batch fetch failed for a chunk of ${chunk.length}:`, err);
+    }
+  });
+
+  console.log(`[yahoo] Batched live quotes resolved for ${Object.keys(out).length}/${entries.length} tickers`);
   return out;
 }
 

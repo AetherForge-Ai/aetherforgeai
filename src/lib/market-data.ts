@@ -17,6 +17,7 @@ import {
   fetchYahooHistories,
   yahooEquitySymbol,
   yahooCryptoSymbol,
+  fetchYahooQuotesBatched,
 } from "@/lib/yahoo-finance";
 
 export interface LiveQuote {
@@ -26,11 +27,12 @@ export interface LiveQuote {
 
 const PROVIDER = (process.env.MARKET_DATA_PROVIDER || "twelvedata").toLowerCase();
 
-// Max symbols to pull from the keyless Yahoo fallback in a single call (one HTTP
-// request each). Bounds serverless CPU time and Yahoo rate-limit exposure when
-// Twelve Data is exhausted. User-facing sets are tiny; only the full universe
-// scan approaches this ceiling.
-const YAHOO_FALLBACK_MAX = 120;
+// Max symbols to pull from the keyless Yahoo fallback in a single call. The
+// fallback is now BATCHED (~45 symbols per HTTP request via the spark endpoint),
+// so pricing the full ~400-ticker universe costs only a handful of requests —
+// the ceiling is a generous safety valve, high enough that no ticker is ever
+// left on its stale synthetic seed when Twelve Data is exhausted.
+const YAHOO_FALLBACK_MAX = 600;
 
 /**
  * Equities are ALWAYS live-capable now: when no paid `MARKET_DATA_API_KEY` is
@@ -126,7 +128,9 @@ async function fetchTwelveBatch(
 async function fetchYahooEquityQuotes(tickers: string[]): Promise<Record<string, LiveQuote>> {
   if (!tickers.length) return {};
   const map = Object.fromEntries(tickers.map((t) => [t, yahooEquitySymbol(t)]));
-  const yq = await fetchYahooQuotes(map);
+  // Batched spark request (~45 symbols each) — prices the whole universe live in
+  // a handful of HTTP calls, so no ticker is left on its stale synthetic seed.
+  const yq = await fetchYahooQuotesBatched(map);
   const out: Record<string, LiveQuote> = {};
   for (const [t, q] of Object.entries(yq)) out[t] = { price: q.price, changePct: q.changePct };
   return out;
