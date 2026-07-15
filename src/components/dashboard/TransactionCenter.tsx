@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -25,6 +25,9 @@ import {
   Plus,
   Minus,
   Loader2,
+  Lock,
+  CalendarDays,
+  Info,
   Wallet,
   PiggyBank,
   TrendingUp,
@@ -73,6 +76,14 @@ interface Ledger {
 }
 
 const NZD: CurrencyCode = "NZD";
+
+/** Local yyyy-mm-dd for "today" — the boundary that flips the live-price lock on/off. */
+function todayISO(): string {
+  const d = new Date();
+  // Use local date parts so "today" matches the user's calendar, not UTC.
+  const off = d.getTimezoneOffset() * 60000;
+  return new Date(d.getTime() - off).toISOString().slice(0, 10);
+}
 
 function fmtDateTime(iso?: string): string {
   if (!iso) return "—";
@@ -774,6 +785,7 @@ function TransactionDialog({
   onDone: (ledger: Ledger) => void;
 }) {
   const isTrade = mode === "buy" || mode === "sell";
+  const todayStr = useMemo(() => todayISO(), []);
   const [assetType, setAssetType] = useState<AssetType>("stock");
   const [ticker, setTicker] = useState("");
   const [assetName, setAssetName] = useState("");
@@ -783,6 +795,24 @@ function TransactionDialog({
   const [amount, setAmount] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  // BUY: the transaction date drives the price logic — today ⇒ live price locked;
+  // any past date ⇒ the price field stays fully editable for the amount actually paid.
+  const [executedDate, setExecutedDate] = useState(todayStr);
+  const [priceLoading, setPriceLoading] = useState(false);
+  // True when the date is today but no live price could be fetched (market closed /
+  // invalid ticker / provider down) — we then UNLOCK the field for manual entry.
+  const [liveUnavailable, setLiveUnavailable] = useState(false);
+
+  const isToday = executedDate === todayStr;
+  // Lock the Share Price to the live market price only for a BUY dated today AND
+  // when a live quote is actually available. Otherwise the field stays editable so
+  // the user is never blocked (past dates, or a today with no live quote).
+  const priceLocked = mode === "buy" && isToday && !liveUnavailable;
+
+  // Keep the latest ticker in a ref so the date handler always fetches for the
+  // current selection without re-creating callbacks.
+  const tickerRef = useRef(ticker);
+  tickerRef.current = ticker;
 
   // Reset the form whenever the dialog (re)opens for a given mode.
   useEffect(() => {
@@ -795,8 +825,12 @@ function TransactionDialog({
       setFees("");
       setAmount("");
       setNotes("");
+      // New buy defaults to today ⇒ the price locks to live once a ticker is chosen.
+      setExecutedDate(todayStr);
+      setPriceLoading(false);
+      setLiveUnavailable(false);
     }
-  }, [open, mode]);
+  }, [open, mode, todayStr]);
 
   // Sell mode: the holding currently selected in the picker (for max qty + prefill).
   const selectedHolding = useMemo(() => {
@@ -819,9 +853,55 @@ function TransactionDialog({
     if (assetType === "crypto") {
       const coin = CRYPTO_DIRECTORY.find((c) => c.ticker === t);
       if (coin && !assetName) setAssetName(coin.name);
+      // Crypto ticker typed by hand — lock to today's live price if the date is today.
+      if (isToday) void lockToLivePrice(t, "crypto");
     } else {
       const info = lookupTicker(t);
       if (info && !assetName) setAssetName(info.name);
+    }
+  }
+
+  /** Fetch the live price for a symbol via the shared quote endpoint (null if none). */
+  async function fetchLivePrice(sym: string, type: AssetType): Promise<number | null> {
+    const res = await api.get<{ price: number | null }>(
+      `/api/tickers/quote?symbol=${encodeURIComponent(sym)}&type=${type}`
+    );
+    return res.ok && res.data?.price && res.data.price > 0 ? res.data.price : null;
+  }
+
+  /** Lock the Share Price field to today's live price (or unlock for manual entry). */
+  async function lockToLivePrice(sym: string, type: AssetType) {
+    setPriceLoading(true);
+    setLiveUnavailable(false);
+    const live = await fetchLivePrice(sym, type);
+    setPriceLoading(false);
+    if (live != null) {
+      setPrice(String(live));
+      setLiveUnavailable(false);
+      console.log(`[transaction-center] Locked ${sym} to today's live price: ${live}`);
+    } else {
+      // Edge case — market closed / invalid ticker / provider outage. Never block the
+      // user: unlock the field so they can type the price manually.
+      setLiveUnavailable(true);
+      console.warn(`[transaction-center] No live price for ${sym} today — unlocking for manual entry.`);
+    }
+  }
+
+  // Changing the date flips the price behaviour on the fly (BUY only).
+  function handleDateChange(v: string) {
+    setExecutedDate(v);
+    const sym = tickerRef.current.trim().toUpperCase();
+    const nowToday = v === todayStr;
+    if (!sym) {
+      // No ticker yet — the price logic applies once one is chosen.
+      setLiveUnavailable(false);
+      return;
+    }
+    if (nowToday) {
+      void lockToLivePrice(sym, assetType);
+    } else {
+      // Past date → unlock and let the user type the exact historical price.
+      setLiveUnavailable(false);
     }
   }
 
@@ -846,6 +926,10 @@ function TransactionDialog({
       const t = ticker.trim().toUpperCase();
       const q = Number(quantity);
       const p = Number(price);
+      if (mode === "buy") {
+        if (!executedDate) return toast.error("Date is required");
+        if (executedDate > todayStr) return toast.error("Date can't be in the future");
+      }
       if (!t) return toast.error("Ticker is required");
       if (!(q > 0)) return toast.error("Quantity must be greater than 0");
       if (!(p > 0)) return toast.error("Price must be greater than 0");
@@ -870,6 +954,8 @@ function TransactionDialog({
       payload.quantity = Number(quantity);
       payload.price = Number(price);
       if (Number(fees) > 0) payload.fees = Number(fees);
+      // Record the chosen transaction date (buy). yyyy-mm-dd → server stores as Date.
+      if (mode === "buy" && executedDate) payload.executed_at = executedDate;
     } else {
       payload.amount = Number(amount);
     }
@@ -916,6 +1002,30 @@ function TransactionDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-1">
+          {/* BUY: the transaction date is the FIRST thing entered — it governs the price */}
+          {mode === "buy" && (
+            <div className="space-y-2">
+              <Label htmlFor="tx-date" className="flex items-center gap-1.5 font-semibold">
+                <CalendarDays className="size-3.5 text-primary" /> Date
+                <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="tx-date"
+                type="date"
+                max={todayStr}
+                value={executedDate}
+                onChange={(e) => handleDateChange(e.target.value)}
+                className="font-medium"
+              />
+              <p className="flex items-start gap-1.5 text-xs leading-relaxed text-muted-foreground">
+                <Info className="mt-0.5 size-3 shrink-0" />
+                {isToday
+                  ? "Today selected — the share price below locks to the live market price automatically."
+                  : "Past date — enter the exact price you paid below. Pick today to auto-fill the live price."}
+              </p>
+            </div>
+          )}
+
           {/* BUY: asset class + free ticker input */}
           {mode === "buy" && (
             <>
@@ -966,8 +1076,11 @@ function TransactionDialog({
                       value={ticker}
                       label={assetName}
                       onSelect={(m) => {
-                        setTicker(m.symbol.toUpperCase());
+                        const sym = m.symbol.toUpperCase();
+                        setTicker(sym);
                         setAssetName(m.name);
+                        // Today's date ⇒ immediately lock the price to the live quote.
+                        if (isToday) void lockToLivePrice(sym, "stock");
                       }}
                     />
                     <p className="text-xs text-muted-foreground">
@@ -1044,18 +1157,55 @@ function TransactionDialog({
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="tx-price">Price / unit ({currency})</Label>
-                  <Input
-                    id="tx-price"
-                    type="number"
-                    min="0"
-                    step="any"
-                    placeholder="150.00"
-                    value={price}
-                    onChange={(e) => setPrice(e.target.value)}
-                  />
+                  <Label htmlFor="tx-price" className="flex items-center gap-1.5">
+                    Price / unit ({currency})
+                    {priceLoading && <Loader2 className="size-3 animate-spin text-muted-foreground" />}
+                    {priceLocked && !priceLoading && <Lock className="size-3 text-emerald-500" />}
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      id="tx-price"
+                      type="number"
+                      min="0"
+                      step="any"
+                      placeholder={priceLoading ? "Fetching live price…" : "150.00"}
+                      value={price}
+                      disabled={priceLocked}
+                      aria-readonly={priceLocked}
+                      title={priceLocked ? "Locked to today's live market price" : undefined}
+                      onChange={(e) => setPrice(e.target.value)}
+                      className={cn(
+                        priceLocked &&
+                          "cursor-not-allowed border-emerald-500/40 bg-emerald-500/5 pr-8 text-emerald-700"
+                      )}
+                    />
+                    {priceLocked && (
+                      <Lock className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-emerald-500/70" />
+                    )}
+                  </div>
                 </div>
               </div>
+
+              {/* BUY: contextual explanation of why the price is (or isn't) locked */}
+              {mode === "buy" &&
+                (priceLocked ? (
+                  <p className="-mt-1 flex items-start gap-1.5 text-xs leading-relaxed text-emerald-600">
+                    <Lock className="mt-0.5 size-3.5 shrink-0" />
+                    <span>
+                      <strong>Locked to today&apos;s live price.</strong> Because the date is today, this is the
+                      current market price and can&apos;t be edited. Pick an earlier date to enter the price you paid.
+                    </span>
+                  </p>
+                ) : isToday && liveUnavailable ? (
+                  <p className="-mt-1 flex items-start gap-1.5 text-xs leading-relaxed text-amber-600">
+                    <Info className="mt-0.5 size-3.5 shrink-0" />
+                    <span>
+                      We couldn&apos;t fetch a live price right now (the market may be closed or the ticker is
+                      unrecognised). Enter the price you paid manually.
+                    </span>
+                  </p>
+                ) : null)}
+
               <div className="space-y-2">
                 <Label htmlFor="tx-fees">Fees ({currency}) — optional</Label>
                 <Input
@@ -1124,7 +1274,7 @@ function TransactionDialog({
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancel
           </Button>
-          <Button onClick={submit} disabled={saving} className="font-semibold">
+          <Button onClick={submit} disabled={saving || priceLoading} className="font-semibold">
             {saving ? (
               <>
                 <Loader2 className="mr-2 size-4 animate-spin" /> Recording…
