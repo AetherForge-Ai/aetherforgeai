@@ -84,13 +84,20 @@ function HeroChart() {
 
 export default function LandingPage() {
   return (
-    <div className="relative min-h-screen bg-grid">
+    <div className="chrome-dark relative min-h-screen bg-background bg-grid">
       <div className="pointer-events-none absolute inset-0 bg-aurora" />
       <div className="relative">
         <SiteHeader />
 
-        {/* Live market ticker banners — near the top of the page */}
+        {/* Live market ticker banners — near the top of the page (dark chrome) */}
         <MarketTicker className="border-b border-border/60" />
+
+        {/* Light content sheet floating inside the dark frame — the main viewing
+            area keeps the light theme, with the nav/ticker/footer dark around it. */}
+        <div className="mx-auto w-full max-w-7xl px-2 py-4 sm:px-4 sm:py-5 lg:px-6">
+          <div className="content-light relative overflow-hidden rounded-2xl bg-background text-foreground shadow-[0_10px_44px_-16px_rgba(0,0,0,0.55)] ring-1 ring-black/5">
+            <div className="pointer-events-none absolute inset-0 bg-aurora" />
+            <div className="relative">
 
         {/* Hero */}
         <section className="mx-auto max-w-7xl px-4 pt-12 pb-10 sm:px-6 sm:pt-16 lg:px-8">
@@ -418,7 +425,12 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Footer */}
+            </div>
+          </div>
+        </div>
+        {/* /Light content sheet */}
+
+        {/* Footer (dark chrome) */}
         <footer className="border-t border-border/60">
           <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
             <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-start sm:justify-between">

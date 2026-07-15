@@ -290,7 +290,7 @@ export function TopNav() {
   const pathname = usePathname();
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border/60 bg-background/80 backdrop-blur-xl">
+    <header className="chrome-dark sticky top-0 z-50 w-full border-b border-border/60 bg-background/85 text-foreground backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         {/* Left: mobile menu + brand */}
         <div className="flex items-center gap-2">

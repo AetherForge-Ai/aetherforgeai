@@ -103,6 +103,104 @@
   --sidebar-ring: #10b981;
 }
 
+/* ──────────────────────────────────────────────────────────────────────────
+   Scoped "dark chrome" frame.
+   The app is a light theme, but the outer shell — top navigation bar, the
+   market ticker, the footer/disclaimer and the canvas gutter around the main
+   content — is intentionally rendered on the OLD deep-navy dark surface, so the
+   light content "sheet" floats inside a dark frame. This class simply re-points
+   the semantic tokens to their dark values for its subtree; every child that
+   already uses `bg-background` / `text-foreground` / `border-border` etc. flips
+   automatically with ZERO markup changes. Radix popovers/menus/sheets/dialogs
+   portal to <body> (light :root), so they stay light and readable on their own.
+   ────────────────────────────────────────────────────────────────────────── */
+.chrome-dark {
+  color-scheme: dark;
+
+  --background: #0f172a; /* slate-900 navy frame */
+  --foreground: #f8fafc; /* near-white ink */
+
+  --card: #1e293b; /* slate-800 raised chrome */
+  --card-foreground: #f8fafc;
+
+  --popover: #1e293b;
+  --popover-foreground: #f8fafc;
+
+  --primary: #34d399; /* emerald-400 — brighter, reads on dark */
+  --primary-foreground: #052e1c;
+
+  --secondary: #1e293b;
+  --secondary-foreground: #f8fafc;
+
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8; /* slate-400 — inactive nav links */
+
+  --accent: #134e4a; /* teal-900 hover tint */
+  --accent-foreground: #99f6e4;
+
+  --destructive: #f87171; /* red-400 */
+  --destructive-foreground: #450a0a;
+
+  --border: rgba(255, 255, 255, 0.10); /* faint white hairlines */
+  --input: rgba(255, 255, 255, 0.16);
+  --ring: #34d399;
+
+  --gold: #fbbf24; /* amber-400 — brighter on dark */
+
+  --sidebar: #0f172a;
+  --sidebar-foreground: #f8fafc;
+  --sidebar-primary: #34d399;
+  --sidebar-primary-foreground: #052e1c;
+  --sidebar-accent: #1e293b;
+  --sidebar-accent-foreground: #f8fafc;
+  --sidebar-border: rgba(255, 255, 255, 0.10);
+  --sidebar-ring: #34d399;
+}
+
+/* Dark-frame grid hairlines: navy-on-navy is invisible, so use faint white. */
+.chrome-dark.bg-grid,
+.chrome-dark .bg-grid {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+}
+
+/* Reset to the LIGHT palette for the main content sheet that sits inside the
+   dark frame — keeps the "main viewing part of the site" exactly as it is now,
+   regardless of the dark chrome wrapping it. Mirrors the :root light tokens. */
+.content-light {
+  color-scheme: light;
+
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --primary: #059669;
+  --primary-foreground: #ffffff;
+  --secondary: #f1f5f9;
+  --secondary-foreground: #0f172a;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --accent: #ecfdf5;
+  --accent-foreground: #065f46;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --border: #e2e8f0;
+  --input: #cbd5e1;
+  --ring: #10b981;
+  --gold: #d97706;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #0f172a;
+  --sidebar-primary: #059669;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f1f5f9;
+  --sidebar-accent-foreground: #0f172a;
+  --sidebar-border: #e2e8f0;
+  --sidebar-ring: #10b981;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
