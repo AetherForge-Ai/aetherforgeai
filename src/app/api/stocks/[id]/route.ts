@@ -8,6 +8,7 @@ const updateSchema = z.object({
   ticker: z.string().min(1).max(12).optional(),
   shares: z.number().positive().optional(),
   purchase_price: z.number().positive().optional(),
+  purchase_date: z.string().optional(),
   current_price: z.number().positive().optional(),
   company_name: z.string().optional(),
   sector: z.string().optional(),

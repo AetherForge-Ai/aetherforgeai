@@ -30,10 +30,13 @@ const publicRoutes = [
   "/performance",
   "/dashboard", // logged-out visitors get a locked, read-only preview (page handles guest vs member)
   "/markets", // full-page Stock Markets browser — read-only preview for guests
+  "/projections", // Top-50 weekly projections per market — read-only preview for guests
   "/login",
   "/register",
   "/forgot-password",
   "/reset-password",
+  "/verify-email", // email-verification landing page (success/error handling)
+  "/logout", // signs the user out then shows a confirmation screen
   "/pricing",
   "/how-it-works",
   "/how-to-maximize-results",

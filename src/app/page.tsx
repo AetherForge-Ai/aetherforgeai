@@ -220,6 +220,28 @@ export default function LandingPage() {
           </div>
         </section>
 
+        {/* ─── Trust strip: credibility markers, scannable at a glance ─── */}
+        <section className="mx-auto max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-2 gap-3 rounded-2xl border border-border/60 bg-card/40 p-4 sm:grid-cols-4 sm:gap-4 sm:p-5">
+            {[
+              { icon: LineChart, stat: "NZX · ASX · Dow · Nasdaq", label: "Live multi-market coverage" },
+              { icon: TrendingUp, stat: "Real-time", label: "Prices, P/L & projections" },
+              { icon: ShieldCheck, stat: "Bank-grade", label: "Private & secure by design" },
+              { icon: Sparkles, stat: "Cancel anytime", label: "No lock-in, transparent pricing" },
+            ].map((t) => (
+              <div key={t.label} className="flex items-center gap-3">
+                <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/15">
+                  <t.icon className="size-5" />
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate font-display text-sm font-bold tracking-tight">{t.stat}</p>
+                  <p className="truncate text-xs text-muted-foreground">{t.label}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
         {/* ─── Attention banner: real, live results ─── */}
         <section className="mx-auto max-w-7xl px-4 pb-4 sm:px-6 lg:px-8">
           <Link

@@ -117,6 +117,7 @@ const createSchema = z.object({
   asset_type: z.enum(["stock", "crypto"]).optional(),
   shares: z.number().positive("Shares must be greater than 0"),
   purchase_price: z.number().positive("Purchase price must be greater than 0"),
+  purchase_date: z.string().optional(),
   company_name: z.string().optional(),
   sector: z.string().optional(),
 });
@@ -246,6 +247,9 @@ export async function POST(req: Request) {
       sector: parsed.data.sector || info?.sector || (parsed.data.asset_type === "crypto" ? "Digital Assets" : "Other"),
       shares: parsed.data.shares,
       purchase_price,
+      // Persist the purchase date (defaults to today when the client omits it), so
+      // the holdings table can show + sort by it and P&L reflects the real entry day.
+      purchase_date: parsed.data.purchase_date || new Date().toISOString().slice(0, 10),
       current_price,
       user: user._id,
     };

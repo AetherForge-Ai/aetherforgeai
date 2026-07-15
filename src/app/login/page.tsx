@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { signIn } from "@/lib/auth-client";
+import { useSearchParams } from "next/navigation";
+import { signIn, sendVerificationEmail } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,9 +10,9 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import Link from "next/link";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { BrandLogo } from "@/components/BrandLogo";
+import { MailWarning, Loader2 } from "lucide-react";
 
 function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const redirect = searchParams.get("redirect") || "/dashboard";
 
@@ -20,10 +20,16 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  // Set when login is blocked because the email isn't verified yet — we then
+  // surface a dedicated panel with a "resend verification" action.
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [resendState, setResendState] = useState<"idle" | "sending" | "sent" | "error">("idle");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setNeedsVerification(false);
+    setResendState("idle");
     setLoading(true);
 
     try {
@@ -34,7 +40,18 @@ function LoginForm() {
 
       // Check if login was successful
       if (result.error) {
-        setError(result.error.message || "Error signing in. Please check your credentials.");
+        const status = (result.error as any)?.status;
+        const message = result.error.message || "";
+        // Better Auth returns 403 (or a "not verified" message) when
+        // requireEmailVerification blocks an unverified account. It also
+        // automatically re-sends the verification email in that case.
+        if (status === 403 || /verif/i.test(message)) {
+          console.log(`[login] Blocked: ${email} has not verified their email yet.`);
+          setNeedsVerification(true);
+          setResendState("sent");
+        } else {
+          setError(message || "Error signing in. Please check your credentials.");
+        }
         setLoading(false);
         return;
       }
@@ -48,6 +65,20 @@ function LoginForm() {
       console.error("Login error:", err);
       setError(err.message || "Error signing in. Please check your credentials.");
       setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    if (!email) return;
+    setResendState("sending");
+    try {
+      const res = await sendVerificationEmail({ email, callbackURL: "/verify-email" });
+      if ((res as any)?.error) throw new Error((res as any).error.message || "Failed to resend");
+      setResendState("sent");
+      console.log(`[login] Verification email re-sent to ${email}`);
+    } catch (err) {
+      console.error("[login] Resend verification failed:", err);
+      setResendState("error");
     }
   };
 
@@ -68,6 +99,35 @@ function LoginForm() {
             {error && (
               <Alert variant="destructive" className="animate-in fade-in slide-in-from-top-2">
                 <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            {needsVerification && (
+              <Alert className="border-amber-500/40 bg-amber-500/10 animate-in fade-in slide-in-from-top-2">
+                <MailWarning className="size-4 text-amber-500" />
+                <AlertDescription className="space-y-3">
+                  <p className="text-sm text-foreground">
+                    Please verify your email before signing in. We&apos;ve sent a fresh verification
+                    link to <span className="font-semibold">{email}</span> — check your inbox (and spam folder).
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-9"
+                    onClick={handleResend}
+                    disabled={resendState === "sending"}
+                  >
+                    {resendState === "sending" ? (
+                      <><Loader2 className="size-3.5 animate-spin" /> Sending…</>
+                    ) : resendState === "sent" ? (
+                      "Resend link again"
+                    ) : resendState === "error" ? (
+                      "Try resending again"
+                    ) : (
+                      "Resend verification email"
+                    )}
+                  </Button>
+                </AlertDescription>
               </Alert>
             )}
             <div className="space-y-2">

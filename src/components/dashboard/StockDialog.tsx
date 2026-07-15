@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Check } from "lucide-react";
+import { Loader2, Check, Lock, CalendarDays, Info } from "lucide-react";
 import { api } from "@/lib/api";
 import { lookupTicker } from "@/lib/market";
 import { TickerSearch } from "@/components/dashboard/TickerSearch";
@@ -31,57 +31,78 @@ interface StockDialogProps {
   defaultAssetType?: AssetType;
 }
 
+/** Local yyyy-mm-dd for "today" — the boundary that flips the price lock on/off. */
+function todayISO(): string {
+  const d = new Date();
+  // Use local date parts so "today" matches the user's calendar, not UTC.
+  const off = d.getTimezoneOffset() * 60000;
+  return new Date(d.getTime() - off).toISOString().slice(0, 10);
+}
+
 export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAssetType = "stock" }: StockDialogProps) {
+  const todayStr = useMemo(() => todayISO(), []);
+
   const [assetType, setAssetType] = useState<AssetType>(defaultAssetType);
   const [ticker, setTicker] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [sector, setSector] = useState("");
   const [shares, setShares] = useState("");
   const [purchasePrice, setPurchasePrice] = useState("");
+  // Purchase date drives the price logic: today ⇒ live price locked; past ⇒ editable.
+  const [purchaseDate, setPurchaseDate] = useState(todayStr);
   const [saving, setSaving] = useState(false);
-  // True once we've auto-filled the "amount paid" with the live price, so we can
-  // show a confirmation hint. Cleared as soon as the user edits it by hand.
+  // True once we've auto-filled the "amount paid" with the live price (past dates),
+  // so we can show a confirmation hint. Cleared as soon as the user edits it by hand.
   const [pricePrefilled, setPricePrefilled] = useState(false);
   const [priceLoading, setPriceLoading] = useState(false);
+  // True when the date is today but no live price could be fetched (market closed /
+  // invalid ticker / provider down) — we then UNLOCK the field for manual entry.
+  const [liveUnavailable, setLiveUnavailable] = useState(false);
 
   const isEdit = !!editing;
   const isCrypto = assetType === "crypto";
+  const isToday = purchaseDate === todayStr;
+  // The price is locked to the live market price only when: date is today AND we
+  // actually have (or are fetching) a live quote. If live data is unavailable we
+  // fall back to a manual, editable field so the user is never blocked.
+  const priceLocked = isToday && !liveUnavailable;
 
-  // Bot-aware copy: Stox (stocks) vs Koins (crypto). Stocks use exchange
-  // suffixes (.AX / .NZ / US); crypto is entered and displayed in US dollars.
+  // Keep the latest ticker in a ref so the date handler always fetches for the
+  // current selection without re-creating callbacks.
+  const tickerRef = useRef(ticker);
+  tickerRef.current = ticker;
+
   const copy = isCrypto
     ? {
         symbolLabel: "Currency type",
-        symbolPlaceholder: "e.g. BTC",
         symbolHint: "Pick a coin from the live list — its current buy price fills in automatically below.",
         amountLabel: "Currency amount",
         amountPlaceholder: "0.25",
-        priceLabel: "Price when purchased (US$)",
+        priceLabel: "Paid for (US$ / coin)",
         pricePlaceholder: "42000.00",
         priceHint: "Crypto is tracked in US dollars — enter the USD price you paid per coin.",
         nameLabel: "Coin name (optional)",
         namePlaceholder: "Bitcoin",
         sectorLabel: "Category (optional)",
         sectorPlaceholder: "Digital Assets",
-        description: "Enter a currency and the amount you hold — all crypto values are shown in US dollars.",
+        description: "Choose the purchase date first, then pick a coin and the amount you hold.",
         symbolRequired: "Currency type is required.",
         amountInvalid: "Currency amount must be greater than 0.",
         priceInvalid: "Purchase price (US$) must be greater than 0.",
       }
     : {
         symbolLabel: "Ticker",
-        symbolPlaceholder: "e.g. AAPL, BHP.AX, AIR.NZ",
         symbolHint: "Search any ASX, NZX, NASDAQ or NYSE company — we'll fill in the current market price for you.",
         amountLabel: "# of Shares owned",
         amountPlaceholder: "10",
-        priceLabel: "Price purchased at ($)",
+        priceLabel: "Paid for ($ / share)",
         pricePlaceholder: "150.00",
-        priceHint: "",
+        priceHint: "Enter the price you paid per share on the purchase date.",
         nameLabel: "Company (optional)",
         namePlaceholder: "Apple Inc.",
         sectorLabel: "Sector (optional)",
         sectorPlaceholder: "Technology",
-        description: "Enter a ticker and we'll fill in the rest automatically.",
+        description: "Choose the purchase date first, then enter a ticker and we'll do the rest.",
         symbolRequired: "Ticker symbol is required.",
         amountInvalid: "Shares owned must be greater than 0.",
         priceInvalid: "Purchase price must be greater than 0.",
@@ -95,25 +116,64 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
       setSector(editing?.sector ?? "");
       setShares(editing ? String(editing.shares) : "");
       setPurchasePrice(editing ? String(editing.purchase_price) : "");
+      // New holdings default to today (⇒ live-price lock). Editing keeps the stored
+      // date; legacy rows without one fall back to today.
+      setPurchaseDate(editing?.purchase_date ? String(editing.purchase_date).slice(0, 10) : todayStr);
       setPricePrefilled(false);
       setPriceLoading(false);
+      // When editing an existing holding we never want the stored purchase price to
+      // be overwritten as "locked to live" on open — keep it editable unless the user
+      // actively re-selects today. So mark live as unavailable for edits until acted on.
+      setLiveUnavailable(!!editing);
     }
-  }, [open, editing]);
+  }, [open, editing, defaultAssetType, todayStr]);
 
-  // Selecting a crypto from the picker fills the name/category AND auto-fills the
-  // "amount paid" with the coin's live USD price (the picker already carries it).
-  function handleCryptoSelect(coin: { symbol: string; name: string; price: number }) {
-    setTicker(coin.symbol.toUpperCase());
-    setCompanyName(coin.name);
-    setSector((s) => s || "Digital Assets");
-    if (coin.price > 0) {
-      setPurchasePrice(String(coin.price));
-      setPricePrefilled(true);
+  /** Fetch the live price for a symbol. Crypto can pass a price already in hand. */
+  async function fetchLivePrice(sym: string, type: AssetType, carried?: number): Promise<number | null> {
+    if (type === "crypto" && carried && carried > 0) return carried;
+    const res = await api.get<{ price: number | null }>(
+      `/api/tickers/quote?symbol=${encodeURIComponent(sym)}&type=${type}`
+    );
+    return res.ok && res.data?.price && res.data.price > 0 ? res.data.price : null;
+  }
+
+  /** Lock the "paid for" field to today's live price (or unlock for manual entry). */
+  async function lockToLivePrice(sym: string, type: AssetType, carried?: number) {
+    setPriceLoading(true);
+    setLiveUnavailable(false);
+    const live = await fetchLivePrice(sym, type, carried);
+    setPriceLoading(false);
+    if (live != null) {
+      setPurchasePrice(String(live));
+      setPricePrefilled(false);
+      setLiveUnavailable(false);
+      console.log(`[dashboard] Locked ${sym} to today's live price: ${live}`);
+    } else {
+      // Edge case — market closed / invalid ticker / provider outage. Never block
+      // the user: unlock the field so they can type the amount manually.
+      setLiveUnavailable(true);
+      console.warn(`[dashboard] No live price for ${sym} today — unlocking for manual entry.`);
     }
   }
 
-  // Selecting a stock fills the company name, then fetches its live quote so the
-  // "price purchased at" field is pre-populated with the current market price.
+  // Selecting a crypto: fill name/category, then either lock to live (today) or
+  // prefill the current price as an editable suggestion (past date).
+  function handleCryptoSelect(coin: { symbol: string; name: string; price: number }) {
+    const sym = coin.symbol.toUpperCase();
+    setTicker(sym);
+    setCompanyName(coin.name);
+    setSector((s) => s || "Digital Assets");
+    if (isToday) {
+      void lockToLivePrice(sym, "crypto", coin.price);
+    } else if (coin.price > 0) {
+      setPurchasePrice(String(coin.price));
+      setPricePrefilled(true);
+      setLiveUnavailable(false);
+    }
+  }
+
+  // Selecting a stock: fill the company/sector, then fetch its live quote and either
+  // lock it (today) or offer it as an editable suggestion (past date).
   async function handleStockSelect(m: { symbol: string; name: string }) {
     const sym = m.symbol.toUpperCase();
     setTicker(sym);
@@ -121,16 +181,38 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
     const info = lookupTicker(sym);
     if (info && !sector) setSector(info.sector);
 
+    if (isToday) {
+      await lockToLivePrice(sym, "stock");
+      return;
+    }
+    // Past date — suggest the current price but keep it fully editable.
     setPriceLoading(true);
-    setPricePrefilled(false);
-    const res = await api.get<{ price: number | null }>(`/api/tickers/quote?symbol=${encodeURIComponent(sym)}`);
+    setLiveUnavailable(false);
+    const live = await fetchLivePrice(sym, "stock");
     setPriceLoading(false);
-    if (res.ok && res.data?.price && res.data.price > 0) {
-      setPurchasePrice(String(res.data.price));
+    if (live != null) {
+      setPurchasePrice(String(live));
       setPricePrefilled(true);
-      console.log(`[dashboard] Auto-filled live price for ${sym}: ${res.data.price}`);
+      console.log(`[dashboard] Suggested live price for ${sym}: ${live}`);
+    }
+  }
+
+  // Changing the date flips the price behaviour on the fly.
+  function handleDateChange(v: string) {
+    setPurchaseDate(v);
+    const sym = tickerRef.current.trim().toUpperCase();
+    const nowToday = v === todayStr;
+    if (!sym) {
+      // No ticker yet — price logic applies once one is chosen.
+      setLiveUnavailable(false);
+      return;
+    }
+    if (nowToday) {
+      void lockToLivePrice(sym, assetType);
     } else {
-      console.warn(`[dashboard] No live quote for ${sym} — leaving price blank for manual entry.`);
+      // Past date → unlock and let the user type the exact historical price.
+      setLiveUnavailable(false);
+      setPricePrefilled(false);
     }
   }
 
@@ -140,6 +222,8 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
     const priceNum = Number(purchasePrice);
 
     if (!t) return toast.error(copy.symbolRequired);
+    if (!purchaseDate) return toast.error("Purchase date is required.");
+    if (purchaseDate > todayStr) return toast.error("Purchase date can't be in the future.");
     if (!(sharesNum > 0)) return toast.error(copy.amountInvalid);
     if (!(priceNum > 0)) return toast.error(copy.priceInvalid);
 
@@ -151,6 +235,7 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
       sector: sector.trim() || undefined,
       shares: sharesNum,
       purchase_price: priceNum,
+      purchase_date: purchaseDate,
     };
 
     console.log(`[dashboard] ${isEdit ? "Updating" : "Creating"} stock`, payload);
@@ -179,16 +264,34 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
             {isEdit ? "Edit holding" : "Add a holding"}
           </DialogTitle>
           <DialogDescription>
-            {isEdit
-              ? isCrypto
-                ? "Update the amount or purchase price (US$) for this position."
-                : "Update the shares or purchase price for this position."
-              : copy.description}
+            {isEdit ? "Update the date, amount or purchase price for this position." : copy.description}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-1">
-          {/* Asset class */}
+          {/* 1 · Purchase date — the very first field; it governs the price logic */}
+          <div className="space-y-2">
+            <Label htmlFor="purchase-date" className="flex items-center gap-1.5 font-semibold">
+              <CalendarDays className="size-3.5 text-primary" /> Purchase date
+              <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="purchase-date"
+              type="date"
+              max={todayStr}
+              value={purchaseDate}
+              onChange={(e) => handleDateChange(e.target.value)}
+              className="font-medium"
+            />
+            <p className="flex items-start gap-1.5 text-xs leading-relaxed text-muted-foreground">
+              <Info className="mt-0.5 size-3 shrink-0" />
+              {isToday
+                ? "Today selected — the price below locks to the live market price automatically."
+                : "Past date — enter the exact price you paid below. Pick today to auto-fill the live price."}
+            </p>
+          </div>
+
+          {/* 2 · Asset class */}
           <div className="space-y-2">
             <Label>Asset class</Label>
             <div className="grid grid-cols-2 gap-2">
@@ -211,10 +314,11 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
             </div>
           </div>
 
+          {/* 3 · Ticker / coin picker */}
           <div className="space-y-2">
             <Label htmlFor="ticker">{copy.symbolLabel}</Label>
             {isEdit ? (
-              // Ticker is locked once a holding exists — only amount/price are editable.
+              // Ticker is locked once a holding exists — only date/amount/price change.
               <Input id="ticker" value={ticker} disabled className="uppercase" />
             ) : isCrypto ? (
               <CryptoSearch value={ticker} label={companyName} onSelect={handleCryptoSelect} />
@@ -224,6 +328,7 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
             <p className="text-xs leading-relaxed text-muted-foreground">{copy.symbolHint}</p>
           </div>
 
+          {/* 4 · Amount + price paid */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="shares">{copy.amountLabel}</Label>
@@ -241,31 +346,61 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
               <Label htmlFor="price" className="flex items-center gap-1.5">
                 {copy.priceLabel}
                 {priceLoading && <Loader2 className="size-3 animate-spin text-muted-foreground" />}
+                {priceLocked && !priceLoading && <Lock className="size-3 text-emerald-500" />}
               </Label>
-              <Input
-                id="price"
-                type="number"
-                min="0"
-                step="any"
-                placeholder={copy.pricePlaceholder}
-                value={purchasePrice}
-                onChange={(e) => {
-                  setPurchasePrice(e.target.value);
-                  setPricePrefilled(false);
-                }}
-              />
+              <div className="relative">
+                <Input
+                  id="price"
+                  type="number"
+                  min="0"
+                  step="any"
+                  placeholder={priceLoading ? "Fetching live price…" : copy.pricePlaceholder}
+                  value={purchasePrice}
+                  disabled={priceLocked}
+                  aria-readonly={priceLocked}
+                  title={priceLocked ? "Locked to today's live market price" : undefined}
+                  onChange={(e) => {
+                    setPurchasePrice(e.target.value);
+                    setPricePrefilled(false);
+                  }}
+                  className={cn(
+                    priceLocked &&
+                      "cursor-not-allowed border-emerald-500/40 bg-emerald-500/5 pr-8 text-emerald-300"
+                  )}
+                />
+                {priceLocked && (
+                  <Lock className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-emerald-500/70" />
+                )}
+              </div>
             </div>
           </div>
-          {pricePrefilled ? (
+
+          {/* Contextual price hint */}
+          {priceLocked ? (
+            <p className="-mt-1 flex items-start gap-1.5 text-xs leading-relaxed text-emerald-500">
+              <Lock className="mt-0.5 size-3.5 shrink-0" />
+              <span>
+                <strong>Locked to today&apos;s live price.</strong> Because the purchase date is today, this is the
+                current market price and can&apos;t be edited. Pick an earlier date to enter a price manually.
+              </span>
+            </p>
+          ) : isToday && liveUnavailable ? (
+            <p className="-mt-1 flex items-start gap-1.5 text-xs leading-relaxed text-amber-500">
+              <Info className="mt-0.5 size-3.5 shrink-0" />
+              <span>
+                We couldn&apos;t fetch a live price right now (the market may be closed or the ticker is
+                unrecognised). Enter the amount you paid manually.
+              </span>
+            </p>
+          ) : pricePrefilled ? (
             <p className="-mt-1 flex items-center gap-1.5 text-xs leading-relaxed text-emerald-500">
               <Check className="size-3.5" /> Filled with the current live price — edit it if you paid a different amount.
             </p>
           ) : (
-            copy.priceHint && (
-              <p className="-mt-1 text-xs leading-relaxed text-muted-foreground">{copy.priceHint}</p>
-            )
+            <p className="-mt-1 text-xs leading-relaxed text-muted-foreground">{copy.priceHint}</p>
           )}
 
+          {/* 5 · Name + sector */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="company">{copy.nameLabel}</Label>
@@ -292,7 +427,7 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={saving} className="font-semibold">
+          <Button onClick={handleSubmit} disabled={saving || priceLoading} className="font-semibold">
             {saving ? (
               <>
                 <Loader2 className="mr-2 size-4 animate-spin" /> Saving…

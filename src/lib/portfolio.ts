@@ -20,6 +20,8 @@ export interface Stock {
   shares: number;
   purchase_price: number;
   current_price: number;
+  /** ISO date (yyyy-mm-dd) the holding was purchased. Absent on legacy rows. */
+  purchase_date?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }

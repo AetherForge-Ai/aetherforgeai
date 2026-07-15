@@ -29,9 +29,9 @@ export const {
   resetPassword,   // Call: resetPassword({ token, newPassword })
 
   // ===========================================================================
-  // EMAIL VERIFICATION - Uncomment when emailVerification is enabled in auth.ts
+  // EMAIL VERIFICATION - Enabled (emailVerification is active in auth.ts)
   // ===========================================================================
-  // sendVerificationEmail,  // Call: sendVerificationEmail({ email, callbackURL: "/verify-email" })
+  sendVerificationEmail, // Call: sendVerificationEmail({ email, callbackURL: "/verify-email" })
 } = authClient;
 
 // ===========================================================================

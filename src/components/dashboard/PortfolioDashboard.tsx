@@ -40,6 +40,7 @@ import { MarketIntelProvider } from "@/components/dashboard/MarketIntelContext";
 import { WatchlistPanel } from "@/components/dashboard/WatchlistPanel";
 import { GlobalSearch } from "@/components/dashboard/GlobalSearch";
 import { LockedSection } from "@/components/dashboard/LockedSection";
+import { CollapsibleSection } from "@/components/dashboard/CollapsibleSection";
 import type { AssetClass, UniverseEntry } from "@/lib/market-intel";
 import { Button } from "@/components/ui/button";
 import {
@@ -82,6 +83,8 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
+  Compass,
+  Radar,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -102,6 +105,15 @@ function fmtDate(iso?: string | null): string {
 }
 
 /** Derive the listing exchange for a holding from its ticker suffix. */
+// Compact, readable purchase date (e.g. "15 Jul 2026"). Legacy rows without a
+// stored date render an em-dash so the column never looks broken.
+function formatHoldingDate(iso?: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-NZ", { day: "2-digit", month: "short", year: "numeric" });
+}
+
 function exchangeForTicker(ticker: string, assetType?: string | null): string {
   if ((assetType || "stock") === "crypto") return "Crypto";
   const t = (ticker || "").toUpperCase();
@@ -217,6 +229,7 @@ const PREVIEW_METALS_NZD = 14808.0;
 type HoldingSortKey =
   | "ticker"
   | "company"
+  | "date"
   | "shares"
   | "purchase_price"
   | "current_price"
@@ -444,6 +457,9 @@ export function PortfolioDashboard({
           return h.ticker.toLowerCase();
         case "company":
           return (h.company_name || h.sector || "").toLowerCase();
+        case "date":
+          // Undated (legacy) rows sort to the bottom on desc / top on asc.
+          return h.purchase_date ? new Date(h.purchase_date).getTime() : 0;
         case "shares":
           return h.shares;
         case "purchase_price":
@@ -1006,6 +1022,7 @@ export function PortfolioDashboard({
               <thead>
                 <tr className="border-b border-border/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
                   <th className="px-6 py-3"><HoldingHead label="Ticker" k="ticker" align="left" /></th>
+                  <th className="px-3 py-3"><HoldingHead label="Purchase date" k="date" align="left" /></th>
                   <th className="px-3 py-3"><HoldingHead label="Company name" k="company" align="left" /></th>
                   <th className="px-3 py-3 font-medium">Exchange</th>
                   <th className="px-3 py-3"><HoldingHead label="# shares" k="shares" /></th>
@@ -1060,6 +1077,12 @@ export function PortfolioDashboard({
                             </span>
                           </div>
                         </button>
+                      </td>
+                      {/* Purchase date */}
+                      <td className="px-3 py-3.5">
+                        <span className="tnum whitespace-nowrap text-sm text-muted-foreground">
+                          {formatHoldingDate(h.purchase_date)}
+                        </span>
                       </td>
                       {/* Company name */}
                       <td className="px-3 py-3.5">
@@ -1167,9 +1190,16 @@ export function PortfolioDashboard({
         <PreciousMetals entitled={metalsEntitled} plan={subscription.plan} onChanged={handleMetalsChanged} />
       </div>
 
-      {/* Actionable intelligence — SELL/BUY signals + pathways */}
+      {/* ───────────────────────── 6 · Actionable intelligence — SELL/BUY signals + pathways (modular window) ───────────────────────── */}
       <div className="mt-6">
-        <ActionableIntelligence stocks={stocks} assetClass={bot} onBought={handleDataChanged} />
+        <CollapsibleSection
+          title="Actionable Intelligence"
+          subtitle="Live SELL / BUY signals and the pathways behind them"
+          icon={Radar}
+          defaultOpen
+        >
+          <ActionableIntelligence stocks={stocks} assetClass={bot} onBought={handleDataChanged} />
+        </CollapsibleSection>
       </div>
 
       {/* ───────────────────────── 6.5 · Crypto Market terminal (Crypto Bot only) — live top 500 + fixed Projected Performers ───────────────────────── */}
@@ -1179,20 +1209,24 @@ export function PortfolioDashboard({
         </div>
       )}
 
-      {/* ───────────────────────── 7 · ALL Markets — live cross-exchange browser + Open Market Snapshot ───────────────────────── */}
-      <div className="mt-8 grid gap-4 lg:grid-cols-2">
-        <AllMarkets onBought={handleDataChanged} />
-        <OpenMarketSnapshot onBought={handleDataChanged} />
-      </div>
-
-      {/* ───────────────────────── 8 · Top movers (24h · 7d · 1 month) ───────────────────────── */}
+      {/* ───────────────────────── 7 · Market Insights — one modular window: cross-exchange browser, snapshot, movers & projected performers ───────────────────────── */}
       <div className="mt-6">
-        <TopMovers />
-      </div>
-
-      {/* ───────────────────────── 9 · Projected top performers — MARKET-WIDE (Crypto + NZX + ASX + Dow + NASDAQ) ───────────────────────── */}
-      <div className="mt-6">
-        <MarketWidePerformers onBought={handleDataChanged} />
+        <CollapsibleSection
+          title="Market Insights"
+          subtitle="Cross-exchange browser, open-market snapshot, top movers & projected performers"
+          icon={Compass}
+        >
+          <div className="grid gap-4 lg:grid-cols-2">
+            <AllMarkets onBought={handleDataChanged} />
+            <OpenMarketSnapshot onBought={handleDataChanged} />
+          </div>
+          <div className="mt-8">
+            <TopMovers />
+          </div>
+          <div className="mt-8">
+            <MarketWidePerformers onBought={handleDataChanged} />
+          </div>
+        </CollapsibleSection>
       </div>
 
       {/* ───────────────────────── 10 · Watchlist & share-price alerts (gated for guests) ───────────────────────── */}
