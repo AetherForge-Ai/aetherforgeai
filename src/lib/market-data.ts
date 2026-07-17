@@ -19,6 +19,7 @@ import {
   yahooCryptoSymbol,
   fetchYahooQuotesBatched,
 } from "@/lib/yahoo-finance";
+import { fetchGoogleCryptoQuotes, googleCryptoSymbol } from "@/lib/google-finance";
 
 export interface LiveQuote {
   price: number;
@@ -341,6 +342,30 @@ export async function fetchCryptoQuotes(tickers: string[]): Promise<Record<strin
       }
     } catch (err) {
       console.error("[market-data] Yahoo crypto fallback failed:", err);
+    }
+  }
+
+  // Google Finance fallback — LAST RESORT. If a coin is STILL unpriced after
+  // both CoinGecko and Yahoo (rate limits, a retired/renamed id, an outage),
+  // scrape its Google Finance quote page: Google always surfaces a current live
+  // crypto price, so nothing is left on its stale synthetic seed.
+  const stillMissing = unique.filter((t) => !out[t]);
+  if (stillMissing.length) {
+    try {
+      const map = Object.fromEntries(stillMissing.map((t) => [t, googleCryptoSymbol(t)]));
+      const gq = await fetchGoogleCryptoQuotes(map);
+      let filled = 0;
+      for (const [t, q] of Object.entries(gq)) {
+        out[t] = { price: q.price, changePct: q.changePct };
+        filled++;
+      }
+      if (filled) {
+        Object.entries(out).forEach(([t, v]) => CRYPTO_CACHE.set(t, v));
+        cryptoStamp = Date.now();
+        console.log(`[market-data] Google Finance crypto fallback filled ${filled}/${stillMissing.length} coins`);
+      }
+    } catch (err) {
+      console.error("[market-data] Google Finance crypto fallback failed:", err);
     }
   }
   return out;
