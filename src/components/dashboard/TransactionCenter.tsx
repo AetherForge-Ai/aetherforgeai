@@ -19,6 +19,7 @@ import { lookupTicker } from "@/lib/market";
 import { CRYPTO_DIRECTORY } from "@/lib/apex";
 import { TickerSearch } from "@/components/dashboard/TickerSearch";
 import { cn } from "@/lib/utils";
+import { keepDialogOpenOnPortalInteraction, keepDialogOpenWhilePopoverOpen } from "@/lib/dialog-guards";
 import { toast } from "sonner";
 import {
   ArrowLeftRight,
@@ -1027,7 +1028,16 @@ function TransactionDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent
+        className="sm:max-w-md"
+        // The Buy/Sell form nests a Popover-based ticker search (and a native
+        // date picker) whose dropdowns render in a portal OUTSIDE this dialog's
+        // DOM subtree. Without these guards, clicking a search result — or the
+        // cmdk item unmounting on select — is misread by Radix as an "outside"
+        // click and dismisses the whole dialog.
+        onInteractOutside={keepDialogOpenOnPortalInteraction}
+        onEscapeKeyDown={keepDialogOpenWhilePopoverOpen}
+      >
         <DialogHeader>
           <DialogTitle className="font-display text-xl">{titles[mode]}</DialogTitle>
           <DialogDescription>{descriptions[mode]}</DialogDescription>

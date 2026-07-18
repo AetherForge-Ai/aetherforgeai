@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { keepDialogOpenOnPortalInteraction, keepDialogOpenWhilePopoverOpen } from "@/lib/dialog-guards";
 import { TickerSearch, type TickerMatch } from "@/components/dashboard/TickerSearch";
 import { BellRing, Plus, Loader2, Trash2, Pencil, TriangleAlert, ShieldCheck, TrendingUp, TrendingDown } from "lucide-react";
 
@@ -357,7 +358,12 @@ export function PriceAlerts({ stocks, preview = false }: { stocks: Stock[]; prev
 
       {/* Add / edit dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        <DialogContent
+          className="max-h-[90vh] overflow-y-auto sm:max-w-lg"
+          // Keep the dialog open when interacting with the portaled ticker search.
+          onInteractOutside={keepDialogOpenOnPortalInteraction}
+          onEscapeKeyDown={keepDialogOpenWhilePopoverOpen}
+        >
           <DialogHeader>
             <DialogTitle>{editingId ? "Edit alert" : "New price alert"}</DialogTitle>
             <DialogDescription>

@@ -20,6 +20,7 @@ import { CryptoSearch } from "@/components/dashboard/CryptoSearch";
 import type { Stock } from "@/lib/portfolio";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { keepDialogOpenOnPortalInteraction, keepDialogOpenWhilePopoverOpen } from "@/lib/dialog-guards";
 
 type AssetType = "stock" | "crypto";
 
@@ -258,7 +259,13 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent
+        className="sm:max-w-md"
+        // Keep the dialog open when interacting with the portaled ticker search /
+        // date picker dropdowns (see dialog-guards for the why).
+        onInteractOutside={keepDialogOpenOnPortalInteraction}
+        onEscapeKeyDown={keepDialogOpenWhilePopoverOpen}
+      >
         <DialogHeader>
           <DialogTitle className="font-display text-xl">
             {isEdit ? "Edit holding" : "Add a holding"}
