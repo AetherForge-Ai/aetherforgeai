@@ -20,6 +20,7 @@ import {
   fetchYahooQuotesBatched,
 } from "@/lib/yahoo-finance";
 import { fetchGoogleCryptoQuotes, googleCryptoSymbol } from "@/lib/google-finance";
+import { fetchSpotPrices as fetchSwyftxSpot } from "@/lib/crypto-swyftx";
 
 export interface LiveQuote {
   price: number;
@@ -284,46 +285,61 @@ export async function fetchCryptoQuotes(tickers: string[]): Promise<Record<strin
     return Object.fromEntries(unique.map((t) => [t, CRYPTO_CACHE.get(t)!]));
   }
 
-  // idMap: coingecko id -> internal ticker
-  const idMap = new Map<string, string>();
-  unique.forEach((t) => idMap.set(coingeckoId(t), t));
-  const ids = Array.from(idMap.keys()).join(",");
-
   const out: Record<string, LiveQuote> = {};
-  try {
-    const url = `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(
-      ids
-    )}&vs_currencies=usd&include_24hr_change=true`;
-    const headers: Record<string, string> = { Accept: "application/json" };
-    if (process.env.COINGECKO_API_KEY) headers["x-cg-demo-api-key"] = process.env.COINGECKO_API_KEY;
 
-    const res = await fetch(url, { headers });
-    if (!res.ok) {
-      console.error(`[market-data] CoinGecko HTTP ${res.status} for [${ids}]`);
-      return {};
-    }
-    const json = (await res.json()) as Record<string, { usd?: number; usd_24h_change?: number }>;
-    for (const [id, q] of Object.entries(json)) {
-      const internal = idMap.get(id);
-      if (!internal || !q) continue;
-      const price = Number(q.usd);
-      const changePct = Number(q.usd_24h_change ?? 0);
-      if (isFinite(price) && price > 0) {
-        out[internal] = { price, changePct: isFinite(changePct) ? changePct : 0 };
-      }
+  // 1) Swyftx FIRST — the user's own exchange, authenticated with SWYFTX_API_KEY.
+  //    It's the most reliable source and, unlike keyless CoinGecko, never rate-
+  //    limits us, so the Buy/Sell price lock ALWAYS resolves to a live price.
+  try {
+    const sx = await fetchSwyftxSpot(unique);
+    for (const [t, q] of Object.entries(sx)) {
+      if (q.price > 0) out[t] = { price: q.price, changePct: q.changePct };
     }
     if (Object.keys(out).length) {
-      Object.entries(out).forEach(([t, v]) => CRYPTO_CACHE.set(t, v));
-      cryptoStamp = Date.now();
+      console.log(`[market-data] Swyftx priced ${Object.keys(out).length}/${unique.length} coins`);
     }
-    console.log(`[market-data] CoinGecko quotes fetched: ${Object.keys(out).length}/${unique.length} coins`);
   } catch (err) {
-    console.error("[market-data] fetchCryptoQuotes failed (falling back to Yahoo):", err);
+    console.error("[market-data] Swyftx crypto spot failed (falling back to CoinGecko):", err);
   }
 
-  // Yahoo fallback — fill any coin CoinGecko could not price (rate limits, or a
+  // 2) CoinGecko — fill only the coins Swyftx could not price.
+  const cgMissing = unique.filter((t) => !out[t]);
+  if (cgMissing.length) {
+    // idMap: coingecko id -> internal ticker
+    const idMap = new Map<string, string>();
+    cgMissing.forEach((t) => idMap.set(coingeckoId(t), t));
+    const ids = Array.from(idMap.keys()).join(",");
+    try {
+      const url = `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(
+        ids
+      )}&vs_currencies=usd&include_24hr_change=true`;
+      const headers: Record<string, string> = { Accept: "application/json" };
+      if (process.env.COINGECKO_API_KEY) headers["x-cg-demo-api-key"] = process.env.COINGECKO_API_KEY;
+
+      const res = await fetch(url, { headers });
+      if (res.ok) {
+        const json = (await res.json()) as Record<string, { usd?: number; usd_24h_change?: number }>;
+        for (const [id, q] of Object.entries(json)) {
+          const internal = idMap.get(id);
+          if (!internal || !q) continue;
+          const price = Number(q.usd);
+          const changePct = Number(q.usd_24h_change ?? 0);
+          if (isFinite(price) && price > 0) {
+            out[internal] = { price, changePct: isFinite(changePct) ? changePct : 0 };
+          }
+        }
+        console.log(`[market-data] CoinGecko filled ${Object.keys(out).length}/${unique.length} coins (cumulative)`);
+      } else {
+        console.error(`[market-data] CoinGecko HTTP ${res.status} for [${ids}]`);
+      }
+    } catch (err) {
+      console.error("[market-data] CoinGecko crypto fetch failed (falling back to Yahoo):", err);
+    }
+  }
+
+  // 3) Yahoo fallback — fill any coin still unpriced (rate limits, or a
   // retired/renamed coin id) so the feed stays live PER-COIN instead of only
-  // when the entire CoinGecko call fails. This is what keeps one dead symbol
+  // when the entire upstream call fails. This is what keeps one dead symbol
   // from silently decaying to its stale snapshot while the rest are live.
   const missing = unique.filter((t) => !out[t]);
   if (missing.length) {
@@ -367,6 +383,13 @@ export async function fetchCryptoQuotes(tickers: string[]): Promise<Record<strin
     } catch (err) {
       console.error("[market-data] Google Finance crypto fallback failed:", err);
     }
+  }
+
+  // Persist whatever we resolved (covers the common Swyftx-only path, which no
+  // fallback stage touches) so repeat lookups within the TTL are instant.
+  if (Object.keys(out).length) {
+    Object.entries(out).forEach(([t, v]) => CRYPTO_CACHE.set(t, v));
+    cryptoStamp = Date.now();
   }
   return out;
 }

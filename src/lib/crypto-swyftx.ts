@@ -248,6 +248,43 @@ export async function fetchTop500(): Promise<CoinMarket[]> {
   return coins;
 }
 
+/* ---------------------------- Spot price lookup -------------------------- */
+
+/**
+ * Live USD spot price + 24h change for specific tickers (e.g. ["BTC","ETH"]).
+ *
+ * This is the PRIMARY source for the Buy/Sell price lock: Swyftx is the user's
+ * own exchange and — authenticated with `SWYFTX_API_KEY` — never rate-limits us
+ * the way keyless CoinGecko does, so a live crypto price always resolves. Keyed
+ * by UPPERCASE ticker; any ticker Swyftx can't price is simply omitted so the
+ * caller can fall back per-coin. Never throws.
+ */
+export async function fetchSpotPrices(
+  tickers: string[]
+): Promise<Record<string, { price: number; changePct: number }>> {
+  const wanted = Array.from(new Set(tickers.map((t) => t.toUpperCase()))).filter(Boolean);
+  const out: Record<string, { price: number; changePct: number }> = {};
+  if (!wanted.length) return out;
+  try {
+    const [basic, rates] = await Promise.all([getBasic(), getUsdRates()]);
+    const byCode = new Map<string, SxBasic>();
+    for (const b of basic) if (b?.code) byCode.set(b.code.toUpperCase(), b);
+    for (const code of wanted) {
+      const b = byCode.get(code);
+      if (!b) continue;
+      const rate = rates[String(b.id)];
+      const price = rate ? num(rate.midPrice) : null;
+      if (price != null && price > 0) {
+        out[code] = { price, changePct: num(rate.dailyPriceChange) ?? 0 };
+      }
+    }
+    console.log(`[crypto-swyftx] fetchSpotPrices → ${Object.keys(out).length}/${wanted.length} priced`);
+  } catch (err) {
+    console.error("[crypto-swyftx] fetchSpotPrices failed:", err);
+  }
+  return out;
+}
+
 /* ------------------------------ Coin detail ------------------------------ */
 
 function normalizeText(s: string | undefined | null): string {
