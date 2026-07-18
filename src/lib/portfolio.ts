@@ -14,7 +14,7 @@ import {
 export interface Stock {
   _id: string;
   ticker: string;
-  asset_type?: "stock" | "crypto";
+  asset_type?: "stock" | "crypto" | "metal";
   company_name?: string;
   sector?: string;
   shares: number;
@@ -64,7 +64,7 @@ export function computeSummary(stocks: Stock[], opts: SummaryOptions = {}): Port
     const shares = Number(s.shares) || 0;
     const purchase = Number(s.purchase_price) || 0;
     const current = Number(s.current_price) || purchase;
-    const currency = currencyForTicker(s.ticker, s.asset_type === "crypto" ? "crypto" : "stock");
+    const currency = currencyForTicker(s.ticker, s.asset_type || "stock");
     const costBasis = shares * purchase; // native
     const marketValue = shares * current; // native
     const gain = marketValue - costBasis;

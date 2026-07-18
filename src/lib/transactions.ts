@@ -19,9 +19,23 @@ import { currencyForTicker, convertCurrency } from "@/lib/currency";
 import { getFxSnapshot } from "@/lib/fx";
 import { normalizeTicker, lookupTicker, referencePrice } from "@/lib/market";
 import { fetchLivePrice, isLiveDataConfigured, fetchCryptoQuotes } from "@/lib/market-data";
+import { getMetalsSpot } from "@/lib/metals";
 
 export type TxType = "buy" | "sell" | "deposit" | "withdraw";
-export type TxAssetType = "stock" | "crypto";
+export type TxAssetType = "stock" | "crypto" | "metal";
+
+/** Map a metal holding's ticker (GOLD/SILVER) to the spot-price key. */
+function metalKeyForTicker(ticker: string): MetalKey | null {
+  const t = (ticker || "").toUpperCase();
+  if (t === "GOLD") return "gold";
+  if (t === "SILVER") return "silver";
+  return null;
+}
+
+/** Human-friendly default company name for a precious-metal holding. */
+function metalName(ticker: string): string {
+  return metalKeyForTicker(ticker) === "gold" ? "Gold bullion" : "Silver bullion";
+}
 
 export interface TransactionInput {
   type: TxType;
@@ -152,6 +166,14 @@ export async function applyTransaction(user: AppUser, input: TransactionInput): 
           const quotes = await fetchCryptoQuotes([ticker]);
           const live = quotes[ticker.toUpperCase()]?.price;
           if (live && live > 0) current_price = live;
+        } else if (assetType === "metal") {
+          // Gold/silver price live at the NZD spot per troy ounce.
+          const key = metalKeyForTicker(ticker);
+          if (key) {
+            const spot = await getMetalsSpot();
+            const live = spot[key]?.nzdPerOz;
+            if (live && live > 0) current_price = live;
+          }
         } else if (isLiveDataConfigured()) {
           const live = await fetchLivePrice(ticker);
           if (live && live > 0) current_price = live;
@@ -163,8 +185,12 @@ export async function applyTransaction(user: AppUser, input: TransactionInput): 
       const created = await totalumSdk.crud.createRecord("stock", {
         ticker,
         asset_type: assetType,
-        company_name: input.asset_name || info?.name || ticker,
-        sector: input.sector || info?.sector || (assetType === "crypto" ? "Digital Assets" : "Other"),
+        company_name:
+          input.asset_name || (assetType === "metal" ? metalName(ticker) : info?.name) || ticker,
+        sector:
+          input.sector ||
+          info?.sector ||
+          (assetType === "crypto" ? "Digital Assets" : assetType === "metal" ? "Precious Metals" : "Other"),
         shares: round(quantity, 6),
         purchase_price: round(avgWithFees, 6),
         current_price,

@@ -48,7 +48,15 @@ import {
 } from "lucide-react";
 
 type TxType = "buy" | "sell" | "deposit" | "withdraw";
-type AssetType = "stock" | "crypto";
+type AssetType = "stock" | "crypto" | "metal";
+
+/** Buyable asset classes shown in the Buy dialog — metals expand to Gold + Silver. */
+const BUY_ASSETS: { key: string; label: string; assetType: AssetType; ticker?: string; name?: string }[] = [
+  { key: "stock", label: "Stox · Stocks", assetType: "stock" },
+  { key: "crypto", label: "Koins · Crypto", assetType: "crypto" },
+  { key: "gold", label: "Gold", assetType: "metal", ticker: "GOLD", name: "Gold bullion" },
+  { key: "silver", label: "Silver", assetType: "metal", ticker: "SILVER", name: "Silver bullion" },
+];
 
 interface TransactionRow {
   _id: string;
@@ -804,6 +812,9 @@ function TransactionDialog({
   const [liveUnavailable, setLiveUnavailable] = useState(false);
 
   const isToday = executedDate === todayStr;
+  const isMetal = assetType === "metal";
+  // Which Buy asset-class chip is active (metals are keyed by their ticker).
+  const selectedAssetKey = isMetal ? ticker.toLowerCase() : assetType;
   // Lock the Share Price to the live market price only for a BUY dated today AND
   // when a live quote is actually available. Otherwise the field stays editable so
   // the user is never blocked (past dates, or a today with no live quote).
@@ -858,6 +869,27 @@ function TransactionDialog({
     } else {
       const info = lookupTicker(t);
       if (info && !assetName) setAssetName(info.name);
+    }
+  }
+
+  /**
+   * Pick a Buy asset class. Stocks/crypto just switch the class; Gold & Silver
+   * additionally pin the ticker (GOLD/SILVER) and lock to today's live NZD spot,
+   * since a metal's symbol is fixed. Clears any half-entered ticker on switch.
+   */
+  function chooseBuyAsset(opt: (typeof BUY_ASSETS)[number]) {
+    setAssetType(opt.assetType);
+    setLiveUnavailable(false);
+    if (opt.assetType === "metal" && opt.ticker) {
+      setTicker(opt.ticker);
+      setAssetName(opt.name || "");
+      if (isToday) void lockToLivePrice(opt.ticker, "metal");
+      else setPrice("");
+    } else {
+      // Switching to stock/crypto — reset the fixed metal selection.
+      setTicker("");
+      setAssetName("");
+      setPrice("");
     }
   }
 
@@ -1032,26 +1064,36 @@ function TransactionDialog({
               <div className="space-y-2">
                 <Label>Asset class</Label>
                 <div className="grid grid-cols-2 gap-2">
-                  {(["stock", "crypto"] as AssetType[]).map((a) => (
+                  {BUY_ASSETS.map((opt) => (
                     <button
-                      key={a}
+                      key={opt.key}
                       type="button"
-                      onClick={() => setAssetType(a)}
+                      onClick={() => chooseBuyAsset(opt)}
                       className={cn(
                         "rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
-                        assetType === a
+                        selectedAssetKey === opt.key
                           ? "border-primary bg-primary/10 text-primary"
                           : "border-border/60 text-muted-foreground hover:text-foreground"
                       )}
                     >
-                      {a === "stock" ? "Stox · Stocks" : "Koins · Crypto"}
+                      {opt.label}
                     </button>
                   ))}
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="tx-ticker">Company / Ticker</Label>
-                {assetType === "crypto" ? (
+                <Label htmlFor="tx-ticker">
+                  {isMetal ? "Metal" : "Company / Ticker"}
+                </Label>
+                {isMetal ? (
+                  <div className="flex items-center justify-between rounded-lg border border-primary/40 bg-primary/5 px-3 py-2.5">
+                    <span className="flex items-center gap-2 text-sm font-semibold">
+                      <span>{ticker === "GOLD" ? "🥇" : "🥈"}</span>
+                      {assetName || (ticker === "GOLD" ? "Gold bullion" : "Silver bullion")}
+                    </span>
+                    <span className="text-xs text-muted-foreground">Live NZD spot / troy oz</span>
+                  </div>
+                ) : assetType === "crypto" ? (
                   <>
                     <Input
                       id="tx-ticker"

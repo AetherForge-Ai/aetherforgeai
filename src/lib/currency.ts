@@ -39,11 +39,17 @@ export const CURRENCY_META: Record<CurrencyCode, { symbol: string; label: string
 
 /**
  * Resolve the native currency for a holding from its ticker + asset type.
+ * Precious metals (GOLD/SILVER) are always priced in NZD per troy ounce.
  * Crypto is always USD. Stocks derive from the exchange suffix.
  */
-export function currencyForTicker(ticker: string, assetType: AssetType = "stock"): CurrencyCode {
-  if (assetType === "crypto") return "USD";
+export function currencyForTicker(
+  ticker: string,
+  assetType: AssetType | "metal" = "stock"
+): CurrencyCode {
   const t = (ticker || "").trim().toUpperCase();
+  // Gold & silver are tracked in NZD/oz regardless of how they're categorised.
+  if (assetType === "metal" || t === "GOLD" || t === "SILVER") return "NZD";
+  if (assetType === "crypto") return "USD";
   if (t.endsWith(".NZ") || t.endsWith(".NZX")) return "NZD";
   if (t.endsWith(".AX") || t.endsWith(".ASX")) return "AUD";
   return "USD"; // US listings carry no suffix

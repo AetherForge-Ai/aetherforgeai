@@ -116,6 +116,7 @@ function formatHoldingDate(iso?: string | null): string {
 
 function exchangeForTicker(ticker: string, assetType?: string | null): string {
   if ((assetType || "stock") === "crypto") return "Crypto";
+  if ((assetType || "stock") === "metal") return "Metals";
   const t = (ticker || "").toUpperCase();
   if (t.endsWith(".NZ")) return "NZX";
   if (t.endsWith(".AX")) return "ASX";
@@ -436,6 +437,24 @@ export function PortfolioDashboard({
   );
   const metrics = useMemo(() => computePortfolioMetrics(stocks), [stocks]);
 
+  // Gold & silver bought through the Buy/Sell window are stored in the `stock`
+  // table as `asset_type:"metal"`. They must surface in the Holdings table
+  // regardless of which bot (Stox/Koins) is active, so the table uses its own
+  // summary that folds the active bot's positions together with all metals.
+  const metalStocks = useMemo(
+    () => allStocks.filter((s) => (s.asset_type || "stock") === "metal"),
+    [allStocks]
+  );
+  const tableStocks = useMemo(() => {
+    // Avoid double-listing if the active bot ever coincided with metals.
+    const seen = new Set(stocks.map((s) => s._id));
+    return [...stocks, ...metalStocks.filter((m) => !seen.has(m._id))];
+  }, [stocks, metalStocks]);
+  const tableSummary = useMemo(
+    () => computeSummary(tableStocks, { baseCurrency, fxToNZD }),
+    [tableStocks, baseCurrency, fxToNZD]
+  );
+
   // Sortable holdings table — default to largest positions (weight) first.
   const [holdingSort, setHoldingSort] = useState<{ key: HoldingSortKey; dir: "asc" | "desc" }>({
     key: "weight",
@@ -451,7 +470,7 @@ export function PortfolioDashboard({
   const sortedHoldings = useMemo(() => {
     const { key, dir } = holdingSort;
     const mult = dir === "asc" ? 1 : -1;
-    const val = (h: (typeof summary.holdings)[number]): number | string => {
+    const val = (h: (typeof tableSummary.holdings)[number]): number | string => {
       switch (key) {
         case "ticker":
           return h.ticker.toLowerCase();
@@ -474,13 +493,13 @@ export function PortfolioDashboard({
           return h.weight;
       }
     };
-    return [...summary.holdings].sort((a, b) => {
+    return [...tableSummary.holdings].sort((a, b) => {
       const av = val(a);
       const bv = val(b);
       if (typeof av === "string" && typeof bv === "string") return av.localeCompare(bv) * mult;
       return ((av as number) - (bv as number)) * mult;
     });
-  }, [summary.holdings, holdingSort]);
+  }, [tableSummary.holdings, holdingSort]);
 
   // Sortable table header cell for the Current Holdings table.
   const HoldingHead = ({
@@ -526,8 +545,15 @@ export function PortfolioDashboard({
     () => computeSummary(cryptoHoldings, { baseCurrency: "NZD", fxToNZD }).totalValue,
     [cryptoHoldings, fxToNZD]
   );
+  // Gold/silver positions bought via the Buy/Sell window (stored in `stock`).
+  const metalStockTotalNZD = useMemo(
+    () => computeSummary(metalStocks, { baseCurrency: "NZD", fxToNZD }).totalValue,
+    [metalStocks, fxToNZD]
+  );
   // Live market value of everything held (excludes idle cash) + full net worth.
-  const holdingsValueNZD = stockTotalNZD + cryptoTotalNZD + metalsValueNZD;
+  // `metalsValueNZD` = the precious_metal bonus store; `metalStockTotalNZD` =
+  // metals traded through the ledger — distinct records, so no double-count.
+  const holdingsValueNZD = stockTotalNZD + cryptoTotalNZD + metalsValueNZD + metalStockTotalNZD;
   const netWorthNZD = holdingsValueNZD + cashBalance;
 
   async function handleRefreshPrices() {
@@ -942,8 +968,14 @@ export function PortfolioDashboard({
           />
           <StatCard
             label="Value in Metals · NZD"
-            value={formatMoney(metalsValueNZD, "NZD")}
-            sub={metalsEntitled ? "Gold & silver at spot" : "Bonus for paid members"}
+            value={formatMoney(metalsValueNZD + metalStockTotalNZD, "NZD")}
+            sub={
+              metalStocks.length > 0
+                ? `${metalStocks.length} bullion position${metalStocks.length === 1 ? "" : "s"} + spot`
+                : metalsEntitled
+                  ? "Gold & silver at spot"
+                  : "Bonus for paid members"
+            }
             icon={Coins}
           />
         </div>
@@ -994,7 +1026,7 @@ export function PortfolioDashboard({
       <div className="rounded-3xl border border-border/70 bg-card/50">
         <div className="flex items-center justify-between border-b border-border/60 px-6 py-4">
           <h2 className="font-display text-lg font-bold">Your holdings</h2>
-          <span className="text-xs text-muted-foreground">{summary.holdingsCount} positions</span>
+          <span className="text-xs text-muted-foreground">{tableSummary.holdingsCount} positions</span>
         </div>
 
         {loading ? (
@@ -1003,7 +1035,7 @@ export function PortfolioDashboard({
               <div key={i} className="h-12 animate-pulse rounded-lg bg-muted/40" />
             ))}
           </div>
-        ) : summary.holdings.length === 0 ? (
+        ) : tableSummary.holdings.length === 0 ? (
           <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
             <span className="grid size-14 place-items-center rounded-2xl bg-primary/10 text-primary">
               <Wallet className="size-7" />

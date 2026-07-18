@@ -9,7 +9,7 @@ const tradeSchema = z.object({
   type: z.enum(["buy", "sell", "deposit", "withdraw"]),
   ticker: z.string().max(12).optional(),
   asset_name: z.string().max(120).optional(),
-  asset_type: z.enum(["stock", "crypto"]).optional(),
+  asset_type: z.enum(["stock", "crypto", "metal"]).optional(),
   sector: z.string().max(80).optional(),
   quantity: z.number().positive().optional(),
   price: z.number().positive().optional(),

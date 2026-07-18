@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
 import { simulateTick } from "@/lib/market";
 import { fetchLiveQuotes, isLiveDataConfigured, fetchCryptoQuotes } from "@/lib/market-data";
+import { getMetalsSpot } from "@/lib/metals";
 
 /**
  * POST /api/stocks/refresh
@@ -21,15 +22,24 @@ export async function POST() {
     });
     const stocks = (result?.data as any[]) || [];
 
-    // Split by asset class: equities → Twelve Data, crypto → CoinGecko.
-    const equityTickers = stocks.filter((s) => (s.asset_type || "stock") !== "crypto").map((s) => String(s.ticker));
+    // Split by asset class: equities → Twelve Data/Yahoo, crypto → Swyftx, metals → spot.
+    const equityTickers = stocks
+      .filter((s) => (s.asset_type || "stock") === "stock")
+      .map((s) => String(s.ticker));
     const cryptoTickers = stocks.filter((s) => (s.asset_type || "stock") === "crypto").map((s) => String(s.ticker));
+    const hasMetals = stocks.some((s) => (s.asset_type || "stock") === "metal");
 
-    const [equityQuotes, cryptoQuotes] = await Promise.all([
+    const [equityQuotes, cryptoQuotes, metalsSpot] = await Promise.all([
       isLiveDataConfigured() && equityTickers.length ? fetchLiveQuotes(equityTickers) : Promise.resolve({}),
       cryptoTickers.length ? fetchCryptoQuotes(cryptoTickers) : Promise.resolve({}),
+      hasMetals ? getMetalsSpot() : Promise.resolve(null),
     ]);
     const live: Record<string, { price: number; changePct: number }> = { ...equityQuotes, ...cryptoQuotes };
+    // Gold/silver re-price to the live NZD spot per troy ounce.
+    if (metalsSpot) {
+      live.GOLD = { price: metalsSpot.gold.nzdPerOz, changePct: 0 };
+      live.SILVER = { price: metalsSpot.silver.nzdPerOz, changePct: 0 };
+    }
     const usedLive = Object.keys(live).length > 0;
 
     const updates = await Promise.all(

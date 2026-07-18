@@ -1,14 +1,16 @@
 import { NextResponse } from "next/server";
 import { fetchYahooQuote } from "@/lib/yahoo-finance";
 import { fetchCryptoQuotes } from "@/lib/market-data";
+import { getMetalsSpot } from "@/lib/metals";
 
 export const dynamic = "force-dynamic";
 
 /**
- * GET /api/tickers/quote?symbol=CBA.AX&type=stock|crypto — live price for a chosen symbol.
- * Equities use Yahoo Finance (keyless); crypto uses the Swyftx-primary crypto feed.
- * Returns { symbol, price, currency, changePct }. `price` is null when the quote
- * can't be resolved (never throws) — the caller falls back to manual entry.
+ * GET /api/tickers/quote?symbol=CBA.AX&type=stock|crypto|metal — live price for a chosen symbol.
+ * Equities use Yahoo Finance (keyless); crypto uses the Swyftx-primary crypto feed;
+ * metals (GOLD/SILVER) use the live NZD spot per troy ounce. Returns
+ * { symbol, price, currency, changePct }. `price` is null when the quote can't be
+ * resolved (never throws) — the caller falls back to manual entry.
  */
 export async function GET(req: Request) {
   try {
@@ -16,6 +18,18 @@ export async function GET(req: Request) {
     const symbol = (searchParams.get("symbol") || "").trim().toUpperCase();
     const type = (searchParams.get("type") || "stock").trim().toLowerCase();
     if (!symbol) return NextResponse.json({ ok: false, error: "Missing symbol" }, { status: 400 });
+
+    // Metal path — gold/silver live at the NZD spot per troy ounce.
+    if (type === "metal") {
+      const spot = await getMetalsSpot();
+      const key = symbol === "GOLD" ? "gold" : symbol === "SILVER" ? "silver" : null;
+      const price = key ? spot[key].nzdPerOz : null;
+      console.log(`[api/tickers/quote] (metal) ${symbol} → ${price ? `NZ$${price.toFixed(2)}/oz` : "no quote"}`);
+      return NextResponse.json({
+        ok: true,
+        data: { symbol, price, currency: price ? "NZD" : null, changePct: null },
+      });
+    }
 
     // Crypto path — priced from the same Swyftx-primary source as the rest of the app.
     if (type === "crypto") {
