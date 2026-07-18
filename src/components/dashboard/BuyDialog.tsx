@@ -55,6 +55,8 @@ export function BuyDialog({
   const [date, setDate] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const [priceLoading, setPriceLoading] = useState(false);
+  const [priceEdited, setPriceEdited] = useState(false);
 
   // Reset + prefill whenever the dialog opens for a new target.
   useEffect(() => {
@@ -64,9 +66,48 @@ export function BuyDialog({
       setAmount("");
       setShares("");
       setNotes("");
+      setPriceEdited(false);
       setDate(new Date().toISOString().slice(0, 10));
     }
   }, [open, target]);
+
+  // Always anchor a crypto buy to the FRESHEST live price at open time. The price
+  // passed in from a list can be a few seconds stale (or, for a coin the caller
+  // couldn't price, missing entirely), so we re-fetch the current Swyftx price so
+  // the "Live price" is always real. Skipped once the user overrides the price.
+  useEffect(() => {
+    if (!open || !target || assetType !== "crypto" || !ticker) return;
+    let cancelled = false;
+    (async () => {
+      setPriceLoading(true);
+      const res = await api.get<{ symbol: string; price: number }>(
+        `/api/crypto/price?symbol=${encodeURIComponent(displaySymbol)}`
+      );
+      if (cancelled) return;
+      setPriceLoading(false);
+      if (res.ok && res.data && res.data.price > 0) {
+        const live = res.data.price;
+        console.log(`[buy-dialog] Live crypto price for ${displaySymbol}: ${live}`);
+        // Don't clobber a price the user has already typed over.
+        if (priceEdited) return;
+        setPrice(String(live));
+        // If the user already entered a dollar amount while the fetch was in
+        // flight, re-derive shares off the fresh live price so the two stay in sync.
+        setAmount((a) => {
+          const amt = Number(a) || 0;
+          if (amt > 0) setShares(String(+(amt / live).toFixed(6)));
+          return a;
+        });
+      } else {
+        console.error(`[buy-dialog] Could not fetch live price for ${displaySymbol}:`, res.error);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Intentionally only re-run when the dialog opens for a new coin.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, ticker, assetType]);
 
   const priceNum = Number(price) || 0;
   const amountNum = Number(amount) || 0;
@@ -87,6 +128,7 @@ export function BuyDialog({
   // Editing price keeps the dollar amount fixed and re-derives shares.
   function onPriceChange(v: string) {
     setPrice(v);
+    setPriceEdited(true);
     const p = Number(v) || 0;
     if (p > 0 && amountNum > 0) setShares(String(+(amountNum / p).toFixed(6)));
   }
@@ -146,9 +188,17 @@ export function BuyDialog({
               <p className="text-xs text-muted-foreground">{target?.name || "Selected security"}</p>
             </div>
             <div className="text-right">
-              <p className="text-[0.62rem] uppercase tracking-wide text-muted-foreground">Live price</p>
+              <p className="flex items-center justify-end gap-1 text-[0.62rem] uppercase tracking-wide text-muted-foreground">
+                {priceLoading && <Loader2 className="size-3 animate-spin" />} Live price
+              </p>
               <p className="tnum font-display text-lg font-bold text-primary">
-                {priceNum > 0 ? formatMoney(priceNum, currency) : "—"}
+                {priceNum > 0 ? (
+                  formatMoney(priceNum, currency)
+                ) : priceLoading ? (
+                  <span className="text-sm font-medium text-muted-foreground">Fetching…</span>
+                ) : (
+                  "—"
+                )}
               </p>
             </div>
           </div>

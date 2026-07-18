@@ -200,11 +200,14 @@ async function getSparkMap(codes: string[]): Promise<Record<string, { series: nu
 export async function fetchTop500(): Promise<CoinMarket[]> {
   const [basic, rates] = await Promise.all([getBasic(), getUsdRates()]);
 
-  // Keep tradable cryptos with a live USD price and a real rank; drop fiat.
+  // Keep tradable cryptos with a POSITIVE live USD price and a real rank; drop
+  // fiat. Swyftx still lists delisted / rebranded assets (e.g. XMR, MATIC→POL,
+  // RNDR→RENDER) in `basic` but prices them at 0 in live-rates — excluding those
+  // ensures every coin the user can open a Buy on always shows a live price.
   const rows = basic
     .filter((b) => b && b.code && !FIAT_DENY.has(b.code.toUpperCase()) && b.rank > 0)
-    .map((b) => ({ b, rate: rates[String(b.id)] }))
-    .filter((x) => x.rate && num(x.rate.midPrice) != null)
+    .map((b) => ({ b, rate: rates[String(b.id)], mid: rates[String(b.id)] ? num(rates[String(b.id)].midPrice) : null }))
+    .filter((x) => x.rate && x.mid != null && x.mid > 0)
     .sort((a, b) => a.b.rank - b.b.rank)
     .slice(0, 500);
 
