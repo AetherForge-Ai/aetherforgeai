@@ -13,6 +13,7 @@ import { totalumSdk } from "@/lib/totalum";
 import { getMetalsSpot } from "@/lib/metals";
 import { getFxSnapshot } from "@/lib/fx";
 import type { Stock } from "@/lib/portfolio";
+import type { ApexReport, BotKind } from "@/lib/apex";
 import {
   buildSynthesis,
   type MetalHolding,
@@ -40,4 +41,110 @@ export async function loadTotalumSynthesis(userId: string): Promise<TotalumSynth
     spot,
     fxToNZD: fx.ratesToNZD,
   });
+}
+
+/* ------------------------ Report-findings ingestion --------------------- */
+
+/** One concrete BUY drawn from a bot's latest full report. */
+export interface ReportBuy {
+  ticker: string;
+  name: string;
+  market: string; // "Stox (equities)" | "Koins (crypto)"
+  projected7dPct: number;
+  reason: string;
+}
+
+/** The latest Stox + Koins report findings, distilled for the Architect. */
+export interface ReportFindings {
+  hasStox: boolean;
+  hasKoins: boolean;
+  /** Buy list combined across both reports (specific tickers to BUY). */
+  buys: ReportBuy[];
+  /** Rich, AI-ready context block summarising both reports. */
+  contextBlock: string;
+}
+
+function stripMd(s: string): string {
+  return (s || "").replace(/\*\*/g, "").replace(/_/g, "").trim();
+}
+
+function summariseReport(bot: BotKind, report: ApexReport, generatedAt: string): { text: string; buys: ReportBuy[] } {
+  const label = bot === "crypto" ? "KOINS (crypto)" : "STOX (equities)";
+  const marketTag = bot === "crypto" ? "Koins (crypto)" : "Stox (equities)";
+
+  const leaders = (report.projectionLeaders || [])
+    .slice(0, 8)
+    .map((p) => `${p.ticker} ${p.projected7dPct >= 0 ? "+" : ""}${p.projected7dPct}% (${p.signal})`)
+    .join(", ") || "none";
+
+  const recBuys = (report.directRecommendations || []).filter(
+    (r) => !r.held && (r.action === "BUY" || r.action === "ACCUMULATE")
+  );
+  const buys: ReportBuy[] = recBuys.map((r) => ({
+    ticker: r.ticker,
+    name: r.name,
+    market: marketTag,
+    projected7dPct: r.projected7dPct,
+    reason: stripMd(r.detail),
+  }));
+  const buyLine =
+    recBuys
+      .map((r) => `${r.ticker} (${r.projected7dPct >= 0 ? "+" : ""}${r.projected7dPct}% 7d)`)
+      .join(", ") || "none flagged";
+
+  const exec = stripMd(report.executiveSummary || "").slice(0, 420);
+
+  const text = [
+    `${label} FULL REPORT — latest, generated ${generatedAt}:`,
+    exec ? `- Executive read: ${exec}` : "",
+    `- Top 7-day projected leaders: ${leaders}`,
+    `- Specific BUY recommendations: ${buyLine}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  return { text, buys };
+}
+
+/**
+ * Loads the member's latest Stox AND Koins full reports and distils their
+ * projections + specific BUY recommendations so the Totalum Architect can factor
+ * BOTH report systems into a more specific, in-depth strategic plan. Non-fatal:
+ * on any read/parse failure the affected side is simply reported as absent.
+ */
+export async function loadReportFindings(userId: string): Promise<ReportFindings> {
+  const loadOne = async (bot: BotKind): Promise<{ text: string; buys: ReportBuy[] } | null> => {
+    try {
+      const res = await totalumSdk.crud.query("report", {
+        _filter: { user: userId, bot },
+        _sort: { createdAt: "desc" },
+        _limit: 1,
+      });
+      const row = (res?.data as any[])?.[0];
+      if (!row?.payload) return null;
+      const report = JSON.parse(row.payload) as ApexReport;
+      const when = row.generated_at || row.createdAt || "recently";
+      return summariseReport(bot, report, when);
+    } catch (err) {
+      console.error(`[totalum] Failed to load ${bot} report findings (non-fatal):`, err);
+      return null;
+    }
+  };
+
+  const [stox, koins] = await Promise.all([loadOne("stock"), loadOne("crypto")]);
+
+  const buys = [...(stox?.buys || []), ...(koins?.buys || [])];
+  const sections: string[] = [];
+  if (stox) sections.push(stox.text);
+  if (koins) sections.push(koins.text);
+
+  const contextBlock = sections.length
+    ? `LATEST FULL-REPORT FINDINGS (ingested from the member's own Stox & Koins reports):\n\n${sections.join("\n\n")}`
+    : "No Stox or Koins full reports have been generated yet — encourage the member to run both so the Architect can factor their projections and specific buys into the plan.";
+
+  console.log(
+    `[totalum] Report findings ingested for user ${userId}: Stox=${!!stox}, Koins=${!!koins}, ${buys.length} specific buys`
+  );
+
+  return { hasStox: !!stox, hasKoins: !!koins, buys, contextBlock };
 }

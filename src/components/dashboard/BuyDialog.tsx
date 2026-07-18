@@ -127,9 +127,9 @@ export function BuyDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 font-display text-xl">
+      <DialogContent className="flex max-h-[calc(100dvh-1.5rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
+        <DialogHeader className="shrink-0 border-b border-border/60 px-5 py-4 sm:px-6">
+          <DialogTitle className="flex items-center gap-2 font-display text-lg sm:text-xl">
             <ShoppingCart className="size-5 text-primary" /> Buy {displaySymbol || "position"}
           </DialogTitle>
           <DialogDescription>
@@ -138,7 +138,7 @@ export function BuyDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-1">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4 sm:px-6">
           {/* Ticker + live price banner */}
           <div className="flex items-center justify-between rounded-xl border border-primary/25 bg-primary/8 px-4 py-3">
             <div>
@@ -261,7 +261,7 @@ export function BuyDialog({
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="shrink-0 gap-2 border-t border-border/60 bg-background px-5 py-4 sm:px-6">
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancel
           </Button>

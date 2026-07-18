@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
-import { loadTotalumSynthesis } from "@/lib/totalum-service";
+import { loadTotalumSynthesis, loadReportFindings } from "@/lib/totalum-service";
 import { isTotalumEntitled } from "../route";
 import { createGrokChatCompletion, isGrokConfigured, type GrokMessage } from "@/lib/grok";
 import type { TotalumSynthesis } from "@/lib/totalum-engine";
+import type { ReportFindings } from "@/lib/totalum-service";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,8 @@ You orchestrate the member's ENTIRE cross-asset book — NZX/ASX/global equities
 You think holistically across asset classes: allocation, diversification, concentration, correlation, drawdown risk, hedging and rebalancing toward the member's goals.
 Speak like a seasoned Chief Investment Strategist briefing a private client: decisive, concrete, numerate. Always ground statements in the portfolio snapshot provided and cite real figures from it (all values are NZD).
 When asked "what if" questions (e.g. a crypto crash), reason from the asset-class weights and the stress-test / scenario figures given.
+You are also fed the member's LATEST FULL-REPORT FINDINGS from BOTH report systems — the Stox Full Report (NZX/ASX/NASDAQ/DOW equities) and the Koins Full Report (the complete crypto market). Factor the projections and specific BUY recommendations from BOTH into a more specific, in-depth strategic plan.
+MANDATORY SPECIFICITY: whenever you suggest BUYS, explicitly NAME the specific tickers/coins to buy and give concrete, structured reasoning for each — drawn from the Stox and Koins report findings and the portfolio snapshot above. Never give vague or generic advice.
 Format in clean Markdown: short paragraphs, **bold** key numbers, bullet lists for actions. Keep replies focused (a few hundred words max).
 End with a one-line, non-legalese reminder that this is portfolio intelligence, not personalised financial advice.`;
 
@@ -69,10 +72,28 @@ function buildStrategistContext(s: TotalumSynthesis): string {
   return lines.join("\n");
 }
 
+/** Renders the combined Stox + Koins specific-BUY list for grounding replies. */
+function buyBlock(findings: ReportFindings): string {
+  if (!findings.buys.length) return "";
+  const top = findings.buys
+    .slice()
+    .sort((a, b) => b.projected7dPct - a.projected7dPct)
+    .slice(0, 6);
+  const lines = top.map(
+    (b) =>
+      `- **${b.ticker}** — ${b.name} · _${b.market}_ · projected **${b.projected7dPct >= 0 ? "+" : ""}${b.projected7dPct}%** (7d)${
+        b.reason ? ` — ${b.reason}` : ""
+      }`
+  );
+  return ["", "**Specific BUYS drawn from your latest Stox & Koins reports:**", ...lines].join("\n");
+}
+
 /** Deterministic fallback answer when the AI provider is not configured. */
-function deterministicReply(message: string, s: TotalumSynthesis): string {
+function deterministicReply(message: string, s: TotalumSynthesis, findings: ReportFindings): string {
   if (s.isEmpty) {
-    return "You don't have any holdings yet. Add equities in **Stox**, coins in **Koins**, and gold/silver in the **Precious Metals** tracker — then I can synthesise a unified strategy across your whole book.\n\n_Portfolio intelligence, not personalised financial advice._";
+    return `You don't have any holdings yet. Add equities in **Stox**, coins in **Koins**, and gold/silver in the **Precious Metals** tracker — then I can synthesise a unified strategy across your whole book.${buyBlock(
+      findings
+    )}\n\n_Portfolio intelligence, not personalised financial advice._`;
   }
   const top = s.classAllocation[0];
   const worstStress = [...s.stressTests].sort((a, b) => a.impactNZD - b.impactNZD)[0];
@@ -85,6 +106,7 @@ function deterministicReply(message: string, s: TotalumSynthesis): string {
       ? `- **Biggest downside stress:** ${worstStress.name} would cost **${nzd(Math.abs(worstStress.impactNZD))}** (${worstStress.impactPct}%).`
       : "",
     s.concentrationRisks[0] ? `- **Watch:** ${s.concentrationRisks[0].note}` : "",
+    buyBlock(findings),
     "",
     "Use the **Strategy Builder** above to pick a goal and get an exact rebalancing plan, or the **Scenario Simulator** to see bull/base/bear pathways.",
     "",
@@ -112,15 +134,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: parsed.error.flatten() }, { status: 400 });
     }
 
-    const synthesis = await loadTotalumSynthesis(user._id);
-    const context = buildStrategistContext(synthesis);
+    const [synthesis, findings] = await Promise.all([
+      loadTotalumSynthesis(user._id),
+      loadReportFindings(user._id),
+    ]);
+    const context = `${buildStrategistContext(synthesis)}\n\n${findings.contextBlock}`;
 
     // Graceful deterministic fallback when no AI key is configured.
     if (!isGrokConfigured()) {
       console.log("[api/totalum/chat] Grok not configured — returning deterministic strategist reply");
       return NextResponse.json({
         ok: true,
-        data: { reply: deterministicReply(parsed.data.message, synthesis), source: "deterministic" },
+        data: { reply: deterministicReply(parsed.data.message, synthesis, findings), source: "deterministic" },
       });
     }
 
@@ -142,7 +167,7 @@ export async function POST(req: Request) {
       reply = await createGrokChatCompletion({ messages, maxTokens: 1100, temperature: 0.6 });
     } catch (aiErr) {
       console.error("[api/totalum/chat] Grok call failed, falling back deterministically:", aiErr);
-      reply = deterministicReply(parsed.data.message, synthesis);
+      reply = deterministicReply(parsed.data.message, synthesis, findings);
       return NextResponse.json({ ok: true, data: { reply, source: "fallback" } });
     }
 

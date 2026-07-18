@@ -103,7 +103,7 @@ export function CryptoMarketModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[92vh] w-[97vw] max-w-6xl flex-col gap-0 overflow-hidden p-0">
+      <DialogContent className="flex h-[92dvh] max-h-[92dvh] w-[97vw] max-w-6xl flex-col gap-0 overflow-hidden p-0">
         {/* Header */}
         <DialogHeader className="border-b border-border/60 px-5 py-4 sm:px-6">
           <div className="flex flex-wrap items-center justify-between gap-3">

@@ -31,14 +31,15 @@ import {
   ChevronRight,
 } from "lucide-react";
 
-interface MarketPayload {
-  bot: "stock" | "crypto";
+interface ProjectionsPayload {
   live: boolean;
-  universe: SecurityIntel[];
-  news: unknown[];
+  combined: SecurityIntel[];
+  stockUniverse: SecurityIntel[];
+  cryptoUniverse: SecurityIntel[];
+  scanned: { stocks: number; crypto: number };
 }
 
-type TabKey = "NZX" | "ASX" | "DOW" | "NASDAQ" | "CRYPTO";
+type TabKey = "ALL" | "NZX" | "ASX" | "DOW" | "NASDAQ" | "CRYPTO";
 
 interface TabDef {
   key: TabKey;
@@ -47,12 +48,19 @@ interface TabDef {
 }
 
 const TABS: TabDef[] = [
+  { key: "ALL", label: "All Markets", sub: "Top 50 combined" },
   { key: "NZX", label: "NZX", sub: "New Zealand" },
   { key: "ASX", label: "ASX", sub: "Australia" },
   { key: "DOW", label: "Dow Jones", sub: "US blue-chip" },
   { key: "NASDAQ", label: "Nasdaq", sub: "US tech & growth" },
-  { key: "CRYPTO", label: "Crypto", sub: "Digital assets" },
+  { key: "CRYPTO", label: "Crypto", sub: "Entire crypto market" },
 ];
+
+/** Readable market label for a security (NZX · ASX · Dow Jones · NASDAQ · Crypto). */
+function marketLabelFor(s: SecurityIntel): string {
+  if (s.market === "CRYPTO") return "Crypto";
+  return EXCHANGE_META[resolveExchange(s.ticker, s.market)].label;
+}
 
 /** Confidence meter — a compact 0–100 conviction bar. */
 function Confidence({ value }: { value: number }) {
@@ -108,9 +116,11 @@ function MethodologyModal() {
           <div>
             <p className="font-semibold text-foreground">Ranking &amp; confidence</p>
             <p>
-              Each market&apos;s Top 50 is ordered by the conviction-weighted projected move
-              (projection × model confidence), so the strongest, most reliable signals surface
-              first. Confidence reflects how strongly the indicators agree.
+              The <span className="font-medium text-foreground">All Markets</span> view scans every
+              market — NASDAQ, Dow Jones, NZX, ASX and the entire crypto market — and ranks the Top 50
+              strictly by projected 7-day % increase, highest to lowest, each labelled by its market.
+              Each single-market tab is ordered by the conviction-weighted projected move (projection ×
+              model confidence). Confidence reflects how strongly the indicators agree.
             </p>
           </div>
           <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-xs text-amber-200/90">
@@ -127,8 +137,9 @@ function MethodologyModal() {
   );
 }
 
-function ProjectionRow({ rank, s }: { rank: number; s: SecurityIntel }) {
+function ProjectionRow({ rank, s, showMarket = false }: { rank: number; s: SecurityIntel; showMarket?: boolean }) {
   const [open, setOpen] = useState(false);
+  const colSpan = showMarket ? 9 : 8;
   return (
     <>
       <tr className="group border-b border-border/40 transition-colors hover:bg-card/50">
@@ -150,6 +161,13 @@ function ProjectionRow({ rank, s }: { rank: number; s: SecurityIntel }) {
             <span className="font-display text-sm font-bold tracking-tight">{s.ticker}</span>
           </div>
         </td>
+        {showMarket && (
+          <td className="px-2 py-3">
+            <span className="whitespace-nowrap rounded-md border border-border/60 bg-muted/30 px-2 py-0.5 text-[11px] font-semibold text-foreground/80">
+              {marketLabelFor(s)}
+            </span>
+          </td>
+        )}
         <td className="hidden max-w-[220px] px-2 py-3 sm:table-cell">
           <span className="block truncate text-sm text-muted-foreground">{s.name}</span>
         </td>
@@ -180,7 +198,7 @@ function ProjectionRow({ rank, s }: { rank: number; s: SecurityIntel }) {
       </tr>
       {open && (
         <tr className="border-b border-border/40 bg-card/30">
-          <td colSpan={8} className="px-4 py-4">
+          <td colSpan={colSpan} className="px-4 py-4">
             <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
               <div>
                 <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-primary">
@@ -221,29 +239,28 @@ function ProjectionRow({ rank, s }: { rank: number; s: SecurityIntel }) {
 export function ProjectionsExplorer() {
   const [stockUniverse, setStockUniverse] = useState<SecurityIntel[]>([]);
   const [cryptoUniverse, setCryptoUniverse] = useState<SecurityIntel[]>([]);
+  const [combined, setCombined] = useState<SecurityIntel[]>([]);
   const [live, setLive] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [active, setActive] = useState<TabKey>("NZX");
+  const [active, setActive] = useState<TabKey>("ALL");
 
   const load = useCallback(async (isRefresh: boolean) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
     setError(null);
-    console.log("[projections] Fetching stock + crypto universes…");
+    console.log("[projections] Fetching combined all-markets sweep…");
     try {
-      const [stockRes, cryptoRes] = await Promise.all([
-        api.get<MarketPayload>("/api/market?bot=stock"),
-        api.get<MarketPayload>("/api/market?bot=crypto"),
-      ]);
-      if (!stockRes.ok || !stockRes.data) throw new Error(stockRes.error?.toString() || "Failed to load stock projections");
-      if (!cryptoRes.ok || !cryptoRes.data) throw new Error(cryptoRes.error?.toString() || "Failed to load crypto projections");
-      setStockUniverse(stockRes.data.universe || []);
-      setCryptoUniverse(cryptoRes.data.universe || []);
-      setLive(!!stockRes.data.live || !!cryptoRes.data.live);
+      const res = await api.get<ProjectionsPayload>("/api/projections");
+      if (!res.ok || !res.data) throw new Error(res.error?.toString() || "Failed to load projections");
+      setStockUniverse(res.data.stockUniverse || []);
+      setCryptoUniverse(res.data.cryptoUniverse || []);
+      setCombined(res.data.combined || []);
+      setLive(!!res.data.live);
       console.log(
-        `[projections] Loaded ${stockRes.data.universe?.length || 0} equities + ${cryptoRes.data.universe?.length || 0} crypto (live: ${stockRes.data.live})`
+        `[projections] Loaded ${res.data.scanned?.stocks || 0} equities + ${res.data.scanned?.crypto || 0} crypto ` +
+          `→ ${res.data.combined?.length || 0} combined (live: ${res.data.live})`
       );
     } catch (err) {
       console.error("[projections] Load failed:", err);
@@ -258,9 +275,12 @@ export function ProjectionsExplorer() {
     load(false);
   }, [load]);
 
-  // Pre-compute each market's Top 50 (conviction-weighted projected leaders).
+  // Pre-compute each tab's list. "All Markets" is the server-ranked Top 50 across
+  // every market combined (strictly highest → lowest projected %); each exchange
+  // tab is its own conviction-weighted Top 50; Crypto spans the ENTIRE market.
   const listsByTab = useMemo(() => {
     const out: Record<TabKey, SecurityIntel[]> = {
+      ALL: combined,
       NZX: [],
       ASX: [],
       DOW: [],
@@ -273,9 +293,10 @@ export function ProjectionsExplorer() {
     }
     out.CRYPTO = getProjectionLeaders(50, cryptoUniverse);
     return out;
-  }, [stockUniverse, cryptoUniverse]);
+  }, [combined, stockUniverse, cryptoUniverse]);
 
   const activeList = listsByTab[active];
+  const showMarket = active === "ALL";
 
   return (
     <div className="space-y-6 py-6">
@@ -299,8 +320,10 @@ export function ProjectionsExplorer() {
             Weekly Market <span className="text-gradient">Projections</span>
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-            The Top 50 highest-conviction 7-day projected movers across each market — ranked by our
-            institutional technical-analysis engine, with the reasoning behind every call.
+            <span className="font-medium text-foreground">All Markets</span> ranks the Top 50 highest
+            projected 7-day movers across <span className="font-medium text-foreground">every market
+            combined</span> — NASDAQ, Dow Jones, NZX, ASX and the entire crypto market — sorted strictly
+            highest to lowest and labelled by market. Switch tabs for a single market&apos;s Top 50.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -382,6 +405,7 @@ export function ProjectionsExplorer() {
                 <tr className="border-b border-border/60 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
                   <th className="py-2.5 pl-3 pr-2 text-center font-semibold">Rank</th>
                   <th className="px-2 py-2.5 font-semibold">Ticker</th>
+                  {showMarket && <th className="px-2 py-2.5 font-semibold">Market</th>}
                   <th className="hidden px-2 py-2.5 font-semibold sm:table-cell">Name</th>
                   <th className="px-2 py-2.5 text-right font-semibold">Price</th>
                   <th className="px-2 py-2.5 text-right font-semibold">Projected 7d</th>
@@ -392,7 +416,7 @@ export function ProjectionsExplorer() {
               </thead>
               <tbody>
                 {activeList.map((s, i) => (
-                  <ProjectionRow key={`${s.market}-${s.ticker}`} rank={i + 1} s={s} />
+                  <ProjectionRow key={`${s.market}-${s.ticker}`} rank={i + 1} s={s} showMarket={showMarket} />
                 ))}
               </tbody>
             </table>

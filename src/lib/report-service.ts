@@ -10,6 +10,7 @@ import { getUpcomingEvents } from "@/lib/econ-calendar";
 import { scoreHeadlines } from "@/lib/news-sentiment";
 import { buildIntelligenceBriefing } from "@/lib/briefing";
 import { fetchQuotesForAssetClass, isLiveConfiguredFor } from "@/lib/market-data";
+import { fetchCryptoMarketIntel } from "@/lib/koins-market";
 import { getFxSnapshot } from "@/lib/fx";
 import type { Stock } from "@/lib/portfolio";
 
@@ -134,10 +135,26 @@ export async function generateReportForUser(
     console.error("[report-service] Universe live sweep failed (movers board on deterministic engine):", err);
   }
 
+  // Koins full-market parity: when running the crypto bot, drive the report's
+  // movers / 7-day projections / buy candidates from the COMPLETE live crypto
+  // market (top-500 via Swyftx → CoinGecko) — the entire cryptocurrency market,
+  // never the 18-name core and never any NZX / ASX / NASDAQ / DOW equity data.
+  let universeIntel: SecurityIntel[] | undefined;
+  if (bot === "crypto") {
+    const cryptoIntel = await fetchCryptoMarketIntel();
+    if (cryptoIntel.length) {
+      universeIntel = cryptoIntel;
+      console.log(`[report-service] Koins full-market intel: ${cryptoIntel.length} coins feeding the report`);
+    } else {
+      console.error("[report-service] Koins full-market intel empty — falling back to core crypto universe");
+    }
+  }
+
   const report = buildLiveReport(bot, holdings, {
     seedSalt: `${user._id}:${bot}:${context}:${Date.now()}`,
     fxToNZD: fx.ratesToNZD,
     marketOverrides,
+    universeIntel,
   });
 
   // ---- Intelligence briefing + probabilistic 7-day outlook -------------
@@ -184,6 +201,18 @@ export async function generateReportForUser(
         .join("\n");
       const sells = intelligence.sellRecommendations.map((r) => r.ticker).join(", ") || "none";
       const buys = intelligence.buyCandidates.map((b) => b.ticker).join(", ") || "none";
+      // Full-market BUY candidates + top projected leaders drawn from the report's
+      // own sweep (the ENTIRE crypto market for Koins) — fed to the narrative so
+      // it can name specific tickers to BUY with concrete, data-grounded reasons.
+      const marketBuys =
+        report.directRecommendations
+          .filter((r) => !r.held && (r.action === "BUY" || r.action === "ACCUMULATE"))
+          .map((r) => `${r.ticker} (${r.projected7dPct >= 0 ? "+" : ""}${r.projected7dPct}% proj 7d)`)
+          .join(", ") || "none";
+      const topProjected = report.projectionLeaders
+        .slice(0, 6)
+        .map((p) => `${p.ticker} ${p.projected7dPct >= 0 ? "+" : ""}${p.projected7dPct}% (${p.signal})`)
+        .join(", ");
       const catalystLine = econEvents.length
         ? econEvents.map((e) => `${e.title} (${e.dateLabel})`).join("; ")
         : "no top-tier scheduled catalysts";
@@ -195,17 +224,23 @@ export async function generateReportForUser(
             role: "user",
             content:
               `You are the ${botLabel} bot producing this member's report in ULTRA ADVANCED ZENITH STATE. ` +
-              `Write a rich, professional 3-5 sentence executive summary of the portfolio's short-term (7-day) outlook. ` +
+              (bot === "crypto"
+                ? `This is a PURE cryptocurrency report covering the COMPLETE crypto market — never reference NZX, ASX, NASDAQ, DOW or any equities. `
+                : `This is a PURE equities report covering NZX, ASX, NASDAQ and DOW JONES — never reference crypto. `) +
+              `Write a rich, professional 4-6 sentence executive summary of the portfolio's short-term (7-day) outlook. ` +
               `Be strictly evidence-based and PROBABILISTIC — speak in expected ranges and likelihoods, and NEVER give a single-point price target. ` +
               `Reference the technical posture (RSI/MACD/regime), overall conviction, the week's catalysts, news sentiment, and the single most important action to take now. ` +
-              `Close by stating this is informational intelligence, not financial advice. Use **bold** for the highest-signal phrases.\n\n` +
+              `MANDATORY: explicitly NAME specific ${bot === "crypto" ? "coins/tickers" : "tickers"} to BUY right now, each with a one-line, data-grounded reason (projection, signal or momentum). Never give vague or generic advice — always be concrete and specific. ` +
+              `Close by stating this is informational intelligence, not financial advice. Use **bold** for the highest-signal phrases and ticker names.\n\n` +
               `Market: ${report.marketLabel}.\n` +
               `Overall read: ${briefing.overall.bias} bias, ${briefing.overall.level} conviction, net ${briefing.overall.score}/100.\n` +
               `News sentiment: ${sentiment.label} (${sentiment.score}/100, ${sentiment.method} model).\n` +
               `Catalysts next 7 days: ${catalystLine}.\n` +
               `Portfolio metrics: health ${metrics.healthScore}/100 (${metrics.healthLabel}), annualised volatility ${metrics.volatility}%, Sharpe ${metrics.sharpe}, 7-day alpha potential ${metrics.alphaPotentialPct}%.\n` +
-              `SELL flags: ${sells}. High-conviction BUY candidates: ${buys}.\n` +
-              `Holdings:\n${lines}\n\nWrite the ZENITH executive summary now.`,
+              `SELL flags (held): ${sells}. High-conviction BUY candidates (held): ${buys}.\n` +
+              `SPECIFIC BUY candidates from the full-market sweep — name these explicitly: ${marketBuys}.\n` +
+              `Top 7-day projected leaders across the market: ${topProjected}.\n` +
+              `Holdings:\n${lines}\n\nWrite the ZENITH executive summary now — and be sure to name specific tickers to BUY.`,
           },
         ],
       });

@@ -8,10 +8,17 @@ import { checkReportQuota } from "@/lib/entitlements";
 
 const schema = z.object({ bot: z.enum(["stock", "crypto"]) });
 
-/** Most recent report timestamp for a user (ISO), or null if they have none. */
-async function lastReportAt(userId: string): Promise<string | null> {
+/**
+ * Most recent report timestamp for a user AND a specific bot (ISO), or null.
+ *
+ * The daily allowance is now PER report system: one full Stox report per day AND
+ * one full Koins report per day, tracked independently. Filtering by `bot` is
+ * what makes the two allowances independent — running Stox never consumes the
+ * Koins allowance and vice-versa.
+ */
+async function lastReportAt(userId: string, bot: BotKind): Promise<string | null> {
   const res = await totalumSdk.crud.query("report", {
-    _filter: { user: userId },
+    _filter: { user: userId, bot },
     _sort: { createdAt: "desc" },
     _limit: 1,
   });
@@ -57,18 +64,20 @@ export async function POST(req: Request) {
       }
     }
 
-    // Cadence gate — one report per plan window (across BOTH bots). Authoritative:
-    // the client countdown is cosmetic; this is what actually blocks over-use.
-    const previous = await lastReportAt(user._id);
+    // Cadence gate — one report per plan window, PER BOT (independent Stox &
+    // Koins allowances). Authoritative: the client countdown is cosmetic; this is
+    // what actually blocks over-use.
+    const previous = await lastReportAt(user._id, bot);
     const quota = checkReportQuota(user.subscription_plan, previous);
     if (!quota.allowed) {
+      const botLabel = bot === "crypto" ? "Koins" : "Stox";
       console.log(
-        `[api/reports] Cadence reached for user ${user._id} (${quota.cadence.label}) — next at ${quota.nextAllowedAt}`
+        `[api/reports] Cadence reached for user ${user._id} · ${botLabel} (${quota.cadence.label}) — next at ${quota.nextAllowedAt}`
       );
       return NextResponse.json(
         {
           ok: false,
-          error: `You've used your ${quota.cadence.label} allowance. Your next full report unlocks soon — upgrade your plan for more frequent reports.`,
+          error: `You've used your ${botLabel} ${quota.cadence.label} allowance. Your next full ${botLabel} report unlocks soon — your other report system is tracked separately.`,
           data: {
             code: "report_cadence",
             nextAllowedAt: quota.nextAllowedAt,
@@ -135,22 +144,33 @@ export async function GET() {
       pdfUrl: r.pdf_file?.url ?? null,
     }));
 
-    const lastAt = reports[0]?.generatedAt || null;
-    const quota = checkReportQuota(user.subscription_plan, lastAt);
+    // Independent per-bot allowances — derive each bot's most-recent report from
+    // the fetched history so Stox and Koins each get their own countdown.
+    const lastFor = (b: BotKind) => reports.find((r) => r.bot === b)?.generatedAt || null;
+    const buildQuota = (b: BotKind) => {
+      const q = checkReportQuota(user.subscription_plan, lastFor(b));
+      return {
+        allowed: q.allowed,
+        waitMs: q.waitMs,
+        nextAllowedAt: q.nextAllowedAt,
+        lastReportAt: q.lastReportAt,
+        cadenceLabel: q.cadence.label,
+        cadenceUnit: q.cadence.unit,
+      };
+    };
+    const stockQuota = buildQuota("stock");
+    const cryptoQuota = buildQuota("crypto");
 
-    console.log(`[api/reports] GET returned ${reports.length} reports for user ${user._id}`);
+    console.log(
+      `[api/reports] GET returned ${reports.length} reports for user ${user._id} ` +
+        `(Stox allowed=${stockQuota.allowed}, Koins allowed=${cryptoQuota.allowed})`
+    );
     return NextResponse.json({
       ok: true,
       data: {
         reports,
-        quota: {
-          allowed: quota.allowed,
-          waitMs: quota.waitMs,
-          nextAllowedAt: quota.nextAllowedAt,
-          lastReportAt: quota.lastReportAt,
-          cadenceLabel: quota.cadence.label,
-          cadenceUnit: quota.cadence.unit,
-        },
+        // Per report-system allowance (Stox + Koins tracked independently).
+        quota: { stock: stockQuota, crypto: cryptoQuota },
       },
     });
   } catch (err: any) {

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
-import { loadTotalumSynthesis } from "@/lib/totalum-service";
+import { loadTotalumSynthesis, loadReportFindings } from "@/lib/totalum-service";
 import { isTotalumEntitled } from "../route";
 import { renderTotalumReport } from "@/lib/totalum-report-html";
 import { buildStrategy, type GoalKey } from "@/lib/totalum-engine";
@@ -34,7 +34,10 @@ export async function GET(req: Request) {
     const goalParam = url.searchParams.get("goal");
     const goal = (GOALS.includes(goalParam as GoalKey) ? goalParam : "balanced_growth") as GoalKey;
 
-    const synthesis = await loadTotalumSynthesis(user._id);
+    const [synthesis, findings] = await Promise.all([
+      loadTotalumSynthesis(user._id),
+      loadReportFindings(user._id),
+    ]);
     const strategy = synthesis.isEmpty ? null : buildStrategy(synthesis, goal);
 
     // ZENITH State cross-asset briefing from the Totalum Master Architect (non-fatal).
@@ -44,22 +47,37 @@ export async function GET(req: Request) {
         const alloc = synthesis.classAllocation
           .map((c) => `${c.label} ${c.weight.toFixed(1)}% (${c.positions} pos)`)
           .join(", ");
+        const buyLines = findings.buys
+          .slice()
+          .sort((a, b) => b.projected7dPct - a.projected7dPct)
+          .slice(0, 8)
+          .map(
+            (b) =>
+              `- ${b.ticker} (${b.name}) [${b.market}] projected ${b.projected7dPct >= 0 ? "+" : ""}${b.projected7dPct}% 7d${
+                b.reason ? ` — ${b.reason}` : ""
+              }`
+          )
+          .join("\n");
         console.log(`[api/totalum/report] Running ${ZENITH_STATE_LABEL} briefing for user ${user._id}`);
         aiNarrative = await createZenithCompletion({
-          maxTokens: 900,
+          maxTokens: 1000,
           messages: [
             {
               role: "user",
               content:
                 `You are Totalum, the cross-asset Master Portfolio Architect, briefing this member in ULTRA ADVANCED ZENITH STATE. ` +
-                `Write a decisive 4-6 sentence executive briefing on the whole portfolio's posture and the single most important rebalancing move. ` +
-                `Reference diversification, concentration and the chosen goal. Use **bold** for the highest-signal phrases.\n\n` +
+                `Write a decisive 5-7 sentence executive briefing on the whole portfolio's posture and the single most important rebalancing move. ` +
+                `Reference diversification, concentration and the chosen goal. Use **bold** for the highest-signal phrases.\n` +
+                `You are given the LATEST FULL-REPORT FINDINGS from BOTH the Stox (NZX/ASX/NASDAQ/DOW equities) and Koins (complete crypto market) Full Reports — factor their projections and specific BUY calls into a more specific, in-depth plan.\n` +
+                `MANDATORY: when you suggest BUYS, explicitly NAME the specific tickers/coins to buy with concrete reasoning drawn from the findings below. Never give vague or generic advice.\n\n` +
                 `Total wealth: NZ$${Math.round(synthesis.totalValueNZD).toLocaleString()}. Unrealised P/L: NZ$${Math.round(synthesis.totalGainNZD).toLocaleString()}.\n` +
                 `Diversification: ${synthesis.diversificationScore}/100. Concentration: ${synthesis.concentrationLabel} (HHI ${synthesis.hhi}).\n` +
                 `Expected annual return/vol: ${synthesis.expectedAnnualReturnPct}% / ${synthesis.expectedAnnualVolPct}%.\n` +
                 `Allocation: ${alloc}.\n` +
                 `Selected goal: ${goal.replace(/_/g, " ")}${strategy ? ` → recommended strategy "${strategy.name}" (${strategy.projectedReturnPct}% return @ ${strategy.projectedVolPct}% vol)` : ""}.\n\n` +
-                `Write the ZENITH briefing now.`,
+                `${findings.contextBlock}\n` +
+                (buyLines ? `\nSPECIFIC BUY CANDIDATES (combined Stox + Koins):\n${buyLines}\n` : "") +
+                `\nWrite the ZENITH briefing now, naming specific tickers to BUY.`,
             },
           ],
         });

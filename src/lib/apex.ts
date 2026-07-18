@@ -361,8 +361,15 @@ const MOVER_WINDOWS: { window: string; key: keyof SecurityIntel }[] = [
  * the 24-hour, 7-day and 1-month windows. Stocks yield NZX/ASX/US groups;
  * crypto yields a single digital-assets group.
  */
-function buildMarketMovers(bot: BotKind, overrides?: Record<string, number>): MarketMoversGroup[] {
-  const list = analyzeUniverse(overrides, bot);
+function buildMarketMovers(
+  bot: BotKind,
+  overrides?: Record<string, number>,
+  universeIntel?: SecurityIntel[]
+): MarketMoversGroup[] {
+  // When a full-market intel set is supplied (e.g. the complete live crypto
+  // market for a Koins report), the movers board is built from it directly —
+  // never the deterministic core universe. Pure to the bot's own asset class.
+  const list = universeIntel && universeIntel.length ? universeIntel : analyzeUniverse(overrides, bot);
   const markets = marketsForAssetClass(bot);
   return markets.map((m) => {
     const inMarket = list.filter((s) => s.market === m);
@@ -388,8 +395,12 @@ function buildMarketMovers(bot: BotKind, overrides?: Record<string, number>): Ma
 }
 
 /** The top-10 highest-conviction 7-day forward projections across the sweep. */
-function buildProjectionLeaders(bot: BotKind, overrides?: Record<string, number>): ProjectionRow[] {
-  const list = analyzeUniverse(overrides, bot);
+function buildProjectionLeaders(
+  bot: BotKind,
+  overrides?: Record<string, number>,
+  universeIntel?: SecurityIntel[]
+): ProjectionRow[] {
+  const list = universeIntel && universeIntel.length ? universeIntel : analyzeUniverse(overrides, bot);
   return getProjectionLeaders(10, list).map((s) => ({
     ticker: s.ticker,
     name: s.name,
@@ -434,7 +445,11 @@ interface AnalyzableHolding {
  * short list of high-conviction new buy candidates. Sells surface first so the
  * user sees the most urgent action (e.g. "Sell CPU.AX …") at the top.
  */
-function buildDirectRecommendations(holdings: AnalyzableHolding[], bot: BotKind): DirectRecommendation[] {
+function buildDirectRecommendations(
+  holdings: AnalyzableHolding[],
+  bot: BotKind,
+  universeIntel?: SecurityIntel[]
+): DirectRecommendation[] {
   const held = new Set(holdings.map((h) => h.ticker.toUpperCase()));
 
   const fromHoldings: DirectRecommendation[] = holdings.map((h) => {
@@ -487,13 +502,23 @@ function buildDirectRecommendations(holdings: AnalyzableHolding[], bot: BotKind)
     }
   });
 
-  // High-conviction buy candidates the user does NOT already own.
-  const buyCandidates: DirectRecommendation[] = universeFor(bot)
-    .filter((e) => !held.has(e.ticker.toUpperCase()))
-    .map((e) => analyzeSecurity(e.ticker, undefined, e.name, e.market))
+  // High-conviction buy candidates the user does NOT already own. When a
+  // full-market intel set is supplied (e.g. the complete live crypto market),
+  // buy candidates are screened across the ENTIRE market rather than the small
+  // deterministic core — so Koins names specific coins to BUY from the whole
+  // cryptocurrency market, at parity with Stox. We surface up to 6 named buys so
+  // every report gives concrete, specific BUY instructions (never vague advice).
+  const candidatePool: SecurityIntel[] =
+    universeIntel && universeIntel.length
+      ? universeIntel.filter((i) => !held.has(i.ticker.toUpperCase()))
+      : universeFor(bot)
+          .filter((e) => !held.has(e.ticker.toUpperCase()))
+          .map((e) => analyzeSecurity(e.ticker, undefined, e.name, e.market));
+
+  const buyCandidates: DirectRecommendation[] = candidatePool
     .filter((i) => i.signal === "Strong Buy" || i.signal === "Buy")
     .sort((a, b) => b.score * (b.confidence / 100) - a.score * (a.confidence / 100))
-    .slice(0, 3)
+    .slice(0, 6)
     .map((i) => ({
       action: (i.signal === "Strong Buy" ? "ACCUMULATE" : "BUY") as "ACCUMULATE" | "BUY",
       ticker: i.ticker,
@@ -630,7 +655,8 @@ function assembleReport(
   tickers: TickerAnalysis[],
   isDemo: boolean,
   extras: ReportExtras,
-  marketOverrides?: Record<string, number>
+  marketOverrides?: Record<string, number>,
+  universeIntel?: SecurityIntel[]
 ): ApexReport {
   const sorted = [...tickers].sort((a, b) => b.changePct - a.changePct);
   const topGainers = sorted
@@ -686,8 +712,8 @@ function assembleReport(
     newsSynthesis,
     tickers,
     portfolio: extras.portfolio,
-    marketMovers: buildMarketMovers(bot, marketOverrides),
-    projectionLeaders: buildProjectionLeaders(bot, marketOverrides),
+    marketMovers: buildMarketMovers(bot, marketOverrides, universeIntel),
+    projectionLeaders: buildProjectionLeaders(bot, marketOverrides, universeIntel),
     regionalNews: buildRegionalNews(bot),
     directRecommendations: extras.directRecommendations,
     pathwayPlan: extras.pathwayPlan,
@@ -799,6 +825,15 @@ export interface BuildLiveReportOptions {
    * no longer returns a live price. Omit for the deterministic engine.
    */
   marketOverrides?: Record<string, number>;
+  /**
+   * Pre-computed full-market technical intel for the WHOLE addressable universe
+   * of this bot's asset class. When supplied it becomes the single source of
+   * truth for the report's Top-Movers, 7-day projection board AND buy
+   * candidates — replacing the deterministic core universe. Koins passes the
+   * COMPLETE live crypto market here so the report covers the entire
+   * cryptocurrency market and never mixes in NZX / ASX / NASDAQ / DOW data.
+   */
+  universeIntel?: SecurityIntel[];
 }
 
 /** Live subscriber report built from the user's real monitored holdings. */
@@ -807,16 +842,23 @@ export function buildLiveReport(
   holdings: LiveHolding[],
   options: BuildLiveReportOptions = {}
 ): ApexReport {
-  const { seedSalt = "live", fxToNZD = BASELINE_FX_TO_NZD, marketOverrides } = options;
+  const { seedSalt = "live", fxToNZD = BASELINE_FX_TO_NZD, marketOverrides, universeIntel } = options;
 
   const tickers = holdings
     .filter((h) => h.ticker)
     .map((h) => synthesizeTicker(h.ticker, h.name || h.ticker, Math.max(0.01, h.price || 1), bot, seedSalt));
 
   const analyzable = toAnalyzable(bot, holdings);
-  const directRecommendations = buildDirectRecommendations(analyzable, bot);
+  const directRecommendations = buildDirectRecommendations(analyzable, bot, universeIntel);
   const pathwayPlan = buildPathwayPlan(analyzable, directRecommendations, bot);
   const portfolio = computePortfolio(bot, analyzable, fxToNZD);
 
-  return assembleReport(bot, tickers, false, { portfolio, directRecommendations, pathwayPlan }, marketOverrides);
+  return assembleReport(
+    bot,
+    tickers,
+    false,
+    { portfolio, directRecommendations, pathwayPlan },
+    marketOverrides,
+    universeIntel
+  );
 }

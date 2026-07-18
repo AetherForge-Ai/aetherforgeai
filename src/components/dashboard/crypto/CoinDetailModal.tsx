@@ -155,7 +155,7 @@ export function CoinDetailModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[92vh] w-[96vw] max-w-4xl flex-col gap-0 overflow-hidden p-0">
+      <DialogContent className="flex max-h-[92dvh] w-[96vw] max-w-4xl flex-col gap-0 overflow-hidden p-0">
         {/* Header */}
         <DialogHeader className="border-b border-border/60 px-5 py-4 sm:px-6">
           {loading || !detail ? (

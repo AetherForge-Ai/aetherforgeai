@@ -43,16 +43,20 @@ interface PastReport {
   pdfUrl: string | null;
 }
 
+interface BotQuota {
+  allowed: boolean;
+  waitMs: number;
+  nextAllowedAt: string | null;
+  lastReportAt: string | null;
+  cadenceLabel: string;
+  cadenceUnit: "day" | "week";
+}
+
 interface ReportsResponse {
   reports: PastReport[];
-  quota: {
-    allowed: boolean;
-    waitMs: number;
-    nextAllowedAt: string | null;
-    lastReportAt: string | null;
-    cadenceLabel: string;
-    cadenceUnit: "day" | "week";
-  };
+  // Independent per report-system allowances — Stox and Koins are tracked
+  // separately (one full report each per plan window).
+  quota: { stock: BotQuota; crypto: BotQuota };
 }
 
 const DEFS: { kind: BotKind; name: string; subtitle: string; mascot: string; accent: string; market: string }[] = [
@@ -62,7 +66,7 @@ const DEFS: { kind: BotKind; name: string; subtitle: string; mascot: string; acc
     subtitle: "Stock Market Intelligence Monitor",
     mascot: BOT_STOX_AVATAR,
     accent: "from-emerald-500/15 to-transparent",
-    market: "NZX · ASX · Global equities",
+    market: "NZX · ASX · NASDAQ · Dow Jones",
   },
   {
     kind: "crypto",
@@ -70,7 +74,7 @@ const DEFS: { kind: BotKind; name: string; subtitle: string; mascot: string; acc
     subtitle: "Crypto Market Intelligence Monitor",
     mascot: BOT_KOINS_AVATAR,
     accent: "from-amber-500/15 to-transparent",
-    market: "BTC · ETH · Digital assets",
+    market: "Complete cryptocurrency market",
   },
 ];
 
@@ -105,23 +109,31 @@ export function ReportCenter({
   const [lastAiEnhanced, setLastAiEnhanced] = React.useState(false);
   const [open, setOpen] = React.useState(false);
   const [history, setHistory] = React.useState<PastReport[]>([]);
-  const [lastReportAt, setLastReportAt] = React.useState<string | null>(null);
+  // Independent per-bot last-report timestamps → independent countdowns.
+  const [lastReportAt, setLastReportAt] = React.useState<{ stock: string | null; crypto: string | null }>({
+    stock: null,
+    crypto: null,
+  });
   // Live clock so the "next report unlocks in…" countdown ticks down on screen.
   const [now, setNow] = React.useState<number>(() => Date.now());
 
   const canRun = (kind: BotKind) => botAccess === "both" || botAccess === kind;
 
-  // Report cadence — recomputed live against `now` so the countdown ticks.
+  // Report cadence — recomputed live against `now` so the countdowns tick. Each
+  // bot has its OWN quota so Stox and Koins unlock independently.
   const cadence = reportCadence(plan);
-  const reportQuota = checkReportQuota(plan, lastReportAt, now);
-  const reportLocked = !reportQuota.allowed;
+  const quotaFor = (kind: BotKind) => checkReportQuota(plan, lastReportAt[kind], now);
+  const anyLocked = (["stock", "crypto"] as BotKind[]).some((k) => !quotaFor(k).allowed);
 
   const loadHistory = React.useCallback(async () => {
     if (preview) return; // guest preview: no live report history fetch
     const res = await api.get<ReportsResponse>("/api/reports");
     if (res.ok && res.data) {
       setHistory(res.data.reports || []);
-      setLastReportAt(res.data.quota?.lastReportAt ?? null);
+      setLastReportAt({
+        stock: res.data.quota?.stock?.lastReportAt ?? null,
+        crypto: res.data.quota?.crypto?.lastReportAt ?? null,
+      });
     } else {
       console.error("[ReportCenter] Failed to load report history:", res.error);
     }
@@ -131,20 +143,22 @@ export function ReportCenter({
     loadHistory();
   }, [loadHistory]);
 
-  // Tick the countdown once a minute (only while a report is locked).
+  // Tick the countdown once a minute (only while at least one report is locked).
   React.useEffect(() => {
-    if (!reportLocked) return;
+    if (!anyLocked) return;
     const id = setInterval(() => setNow(Date.now()), 60_000);
     return () => clearInterval(id);
-  }, [reportLocked]);
+  }, [anyLocked]);
 
   async function runReport(kind: BotKind) {
     if (!canRun(kind)) {
       toast.error("Your plan does not include this monitor.");
       return;
     }
-    if (reportLocked) {
-      toast.error(`You've used your ${cadence.label}. Next report unlocks in ${formatDuration(reportQuota.waitMs)}.`);
+    const kindQuota = quotaFor(kind);
+    if (!kindQuota.allowed) {
+      const label = kind === "crypto" ? "Koins" : "Stox";
+      toast.error(`You've used your ${label} ${cadence.label}. Next ${label} report unlocks in ${formatDuration(kindQuota.waitMs)}.`);
       return;
     }
     setRunning(kind);
@@ -172,8 +186,9 @@ export function ReportCenter({
     setLastPdfUrl(res.data.pdfUrl);
     setLastAiEnhanced(!!res.data.aiEnhanced);
     setOpen(true);
-    // Start the countdown immediately from this run.
-    setLastReportAt(new Date().toISOString());
+    // Start THIS bot's countdown immediately from this run — the other bot's
+    // allowance is untouched.
+    setLastReportAt((prev) => ({ ...prev, [kind]: new Date().toISOString() }));
     setNow(Date.now());
     toast.success(
       res.data.emailed
@@ -207,11 +222,11 @@ export function ReportCenter({
         </div>
       </div>
 
-      {/* Report cadence status */}
+      {/* Report cadence status — one independent allowance per report system */}
       <div
         className={cn(
           "mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border p-4",
-          reportLocked
+          anyLocked
             ? "border-[var(--gold)]/40 bg-[var(--gold)]/10"
             : "border-emerald-500/30 bg-emerald-500/10"
         )}
@@ -220,25 +235,37 @@ export function ReportCenter({
           <span
             className={cn(
               "flex size-9 items-center justify-center rounded-xl",
-              reportLocked ? "bg-[var(--gold)]/20 text-[var(--gold)]" : "bg-emerald-500/20 text-emerald-600"
+              anyLocked ? "bg-[var(--gold)]/20 text-[var(--gold)]" : "bg-emerald-500/20 text-emerald-600"
             )}
           >
-            {reportLocked ? <Clock className="size-5" /> : <Zap className="size-5" />}
+            {anyLocked ? <Clock className="size-5" /> : <Zap className="size-5" />}
           </span>
           <div>
             <p className="text-sm font-semibold">
-              {reportLocked ? "Next report unlocks in " : "Report ready to run"}
-              {reportLocked && (
-                <span className="text-[var(--gold)]">{formatDuration(reportQuota.waitMs)}</span>
-              )}
+              One full <span className="text-foreground">Stox</span> report{" "}
+              <span className="text-muted-foreground">and</span> one full{" "}
+              <span className="text-foreground">Koins</span> report per {cadence.unit}
             </p>
-            <p className="text-xs text-muted-foreground">
-              Your plan includes <span className="font-medium text-foreground">{cadence.label}</span>
-              {reportLocked ? " — upgrade for more frequent reports." : " (stock or crypto)."}
+            <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+              {(["stock", "crypto"] as BotKind[]).map((k) => {
+                const q = quotaFor(k);
+                const label = k === "crypto" ? "Koins" : "Stox";
+                return (
+                  <span key={k} className="inline-flex items-center gap-1">
+                    <span className="font-medium text-foreground">{label}:</span>
+                    {q.allowed ? (
+                      <span className="text-emerald-600">ready to run</span>
+                    ) : (
+                      <span className="text-[var(--gold)]">unlocks in {formatDuration(q.waitMs)}</span>
+                    )}
+                  </span>
+                );
+              })}
+              <span className="text-muted-foreground/70">· tracked independently</span>
             </p>
           </div>
         </div>
-        {reportLocked && (plan === "free" || plan === "weekly") && (
+        {anyLocked && (plan === "free" || plan === "weekly") && (
           <Button asChild size="sm" variant="outline" className="border-[var(--gold)]/40">
             <Link href="/pricing">
               <Zap className="mr-1 size-4" /> Upgrade
@@ -252,6 +279,8 @@ export function ReportCenter({
         {DEFS.map((b) => {
           const unlocked = canRun(b.kind);
           const busy = running === b.kind;
+          const botQuota = quotaFor(b.kind);
+          const botLocked = !botQuota.allowed;
           return (
             <div
               key={b.kind}
@@ -289,9 +318,9 @@ export function ReportCenter({
                       <Lock className="mr-1 size-4" /> Unlock this monitor
                     </Link>
                   </Button>
-                ) : reportLocked ? (
+                ) : botLocked ? (
                   <Button variant="outline" className="w-full" disabled>
-                    <Clock className="mr-1 size-4" /> Next report in {formatDuration(reportQuota.waitMs)}
+                    <Clock className="mr-1 size-4" /> Next {b.name} report in {formatDuration(botQuota.waitMs)}
                   </Button>
                 ) : (
                   <Button className="w-full" onClick={() => runReport(b.kind)} disabled={busy || running !== null}>
@@ -301,7 +330,7 @@ export function ReportCenter({
                       </>
                     ) : (
                       <>
-                        <Play className="mr-1 size-4" /> Run full report
+                        <Play className="mr-1 size-4" /> Run full {b.name} report
                       </>
                     )}
                   </Button>
