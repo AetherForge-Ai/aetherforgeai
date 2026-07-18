@@ -5,7 +5,7 @@ import { totalumSdk } from "@/lib/totalum";
 
 const schema = z.object({
   name: z.string().min(1, "Name is required").max(120).optional(),
-  image: z.string().url().optional().or(z.literal("")),
+  image: z.string().url().or(z.literal("")).nullable().optional(),
 });
 
 // GET /api/profile — current user profile + subscription info
