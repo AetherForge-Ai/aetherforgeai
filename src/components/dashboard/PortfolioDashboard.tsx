@@ -287,6 +287,15 @@ export function PortfolioDashboard({
   // Cash (NZD) + precious-metals value (NZD) power the "Totals owned" strip.
   const [cashBalance, setCashBalance] = useState(preview ? PREVIEW_CASH_NZD : 0);
   const [metalsValueNZD, setMetalsValueNZD] = useState(preview ? PREVIEW_METALS_NZD : 0);
+  // Raw precious_metal holdings (from /api/metals) so we can surface them in the
+  // main Transaction Center Sell/Remove list and unify the two systems.
+  const [preciousMetalHoldings, setPreciousMetalHoldings] = useState<
+    { _id: string; metal: "gold" | "silver"; ounces: number; purchase_price_per_oz: number }[]
+  >([]);
+  const [metalSpot, setMetalSpot] = useState<{
+    gold: { nzdPerOz: number };
+    silver: { nzdPerOz: number };
+  } | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Stock | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Stock | null>(null);
@@ -354,21 +363,33 @@ export function PortfolioDashboard({
   }, []);
 
   // Precious-metals total value (NZD) from live spot × ounces held.
+  // Also keeps the full holding list so Transaction Center Sell/Remove can show
+  // Gold & Silver bought via the dedicated Precious Metals section.
   const loadMetals = useCallback(async () => {
     const res = await api.get<{
-      metals: { metal: "gold" | "silver"; ounces: number }[];
+      metals: {
+        _id: string;
+        metal: "gold" | "silver";
+        ounces: number;
+        purchase_price_per_oz: number;
+      }[];
       spot: { gold: { nzdPerOz: number }; silver: { nzdPerOz: number } };
     }>("/api/metals");
     if (res.ok && res.data?.spot) {
       const { metals, spot } = res.data;
-      const total = (metals || []).reduce(
+      const list = metals || [];
+      const total = list.reduce(
         (sum, m) => sum + m.ounces * (spot[m.metal]?.nzdPerOz ?? 0),
         0
       );
       setMetalsValueNZD(total);
+      setPreciousMetalHoldings(list);
+      setMetalSpot(spot);
     } else {
       // Not entitled / no metals — simply contributes 0 to the totals.
       setMetalsValueNZD(0);
+      setPreciousMetalHoldings([]);
+      setMetalSpot(null);
     }
   }, []);
 
@@ -445,6 +466,42 @@ export function PortfolioDashboard({
     () => allStocks.filter((s) => (s.asset_type || "stock") === "metal"),
     [allStocks]
   );
+
+  // Precious-metal holdings from the dedicated /api/metals table, mapped into
+  // the same Stock shape so the Transaction Center Sell/Remove picker can show
+  // them alongside ordinary positions. Marked with metalSourceId so the sell
+  // path knows to call DELETE /api/metals/[id] instead of the normal sell.
+  const preciousAsStocks = useMemo((): (Stock & { metalSourceId?: string })[] => {
+    if (!preciousMetalHoldings.length) return [];
+    return preciousMetalHoldings.map((m) => {
+      const ticker = m.metal === "gold" ? "GOLD" : "SILVER";
+      const spot = metalSpot?.[m.metal]?.nzdPerOz ?? m.purchase_price_per_oz;
+      return {
+        _id: `pm-${m._id}`, // prefix so it never collides with a real stock _id
+        ticker,
+        asset_type: "metal" as const,
+        company_name: m.metal === "gold" ? "Gold bullion" : "Silver bullion",
+        shares: m.ounces,
+        purchase_price: m.purchase_price_per_oz,
+        current_price: spot,
+        metalSourceId: m._id, // original precious_metal record id
+      };
+    });
+  }, [preciousMetalHoldings, metalSpot]);
+
+  // Combined list for Transaction Center (main holdings + precious metals).
+  // Prefer the precious_metal source when both systems somehow have the same metal
+  // so selling goes through the correct API.
+  const transactionHoldings = useMemo(() => {
+    const fromStocks = allStocks.filter((s) => {
+      // Drop any main-table metal rows that would duplicate a precious_metal entry.
+      if ((s.asset_type || "stock") !== "metal") return true;
+      const t = s.ticker.toUpperCase();
+      return !preciousAsStocks.some((pm) => pm.ticker === t);
+    });
+    return [...fromStocks, ...preciousAsStocks];
+  }, [allStocks, preciousAsStocks]);
+
   const tableStocks = useMemo(() => {
     // Avoid double-listing if the active bot ever coincided with metals.
     const seen = new Set(stocks.map((s) => s._id));
@@ -1209,7 +1266,7 @@ export function PortfolioDashboard({
         description="Buy, sell, deposit and withdraw — a full ledger of your cash and trades across every asset."
       >
         <TransactionCenter
-          holdings={allStocks}
+          holdings={transactionHoldings}
           onChanged={handleDataChanged}
           reloadSignal={ledgerSignal}
           preview={preview}
