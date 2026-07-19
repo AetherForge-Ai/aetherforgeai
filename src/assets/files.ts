@@ -11,9 +11,6 @@ export const LOGO_MARK_IMG = "/brand/aetherforge-mark.png";
 // Full-colour shield on a brand-navy tile (favicon / social / PWA icon).
 export const LOGO_ICON_IMG = "/brand/aetherforge-icon-512.png";
 export const FAVICON_IMG = "/brand/favicon-32.png";
-// Legal business name lockup — full "FORGE INTELLIGENCE" wordmark + shield
-// (Forge Intelligence Ltd). Use in footers / legal placements.
-export const FORGE_INTELLIGENCE_LOGO_IMG = "/brand/forge-intelligence-logo.png";
 
 // Legacy inline SVG fallback mark (kept for reference; superseded by the real
 // logo above). A hexagonal "forge" emblem enclosing an ascending candlestick.
