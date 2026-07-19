@@ -136,49 +136,44 @@ export function ActionableIntelligence({
             </p>
           </div>
         </div>
-      ) : stocks.length > 0 ? (
-        <div className="flex items-start gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/8 px-5 py-4">
+      ) : (
+        <div className="flex items-start gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-5 py-4">
           <Shield className="mt-0.5 size-5 shrink-0 text-emerald-600" />
           <div>
             <p className="font-display font-bold text-emerald-200">No urgent exits</p>
             <p className="text-sm text-emerald-200/80">
               None of your current holdings trigger a SELL signal this session. Consider the BUY candidates below to
-              deploy capital.
+              improve diversification and capture momentum.
             </p>
           </div>
         </div>
-      ) : null}
+      )}
 
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
         {/* SELL recommendations */}
         <div className="rounded-2xl border border-border/70 bg-card/40 p-5">
-          <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-rose-700">
-            <ArrowDownRight className="size-4" /> SELL recommendations
-            <span className="text-xs font-normal text-muted-foreground">(from your holdings)</span>
+          <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-rose-600">
+            <ArrowDownRight className="size-4" /> SELL / Reduce recommendations
           </div>
           {sellRecommendations.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">
-              No holdings currently flag a sell signal. 🎯
-            </p>
+            <p className="py-6 text-center text-sm text-muted-foreground">No holdings flagged for reduction.</p>
           ) : (
             <div className="space-y-3">
               {sellRecommendations.map((r) => (
                 <div key={r.ticker} className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-3">
                   <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       <span className="font-display text-sm font-bold">{r.ticker.replace(/\.(NZ|AX)$/, "")}</span>
                       <SignalBadge signal={r.signal} />
                       {r.urgency === "high" && (
-                        <span className="rounded-full bg-rose-500/20 px-2 py-0.5 text-[0.6rem] font-bold uppercase text-rose-700">
-                          Urgent
+                        <span className="rounded bg-rose-500/20 px-1.5 py-0.5 text-[0.6rem] font-semibold uppercase tracking-wide text-rose-300">
+                          High urgency
                         </span>
                       )}
                     </div>
                     <div className="text-right">
-                      <p className="tnum text-sm font-medium">{formatMarketPrice(r.price, "USD")}</p>
-                      <p className="text-[0.62rem] text-muted-foreground">
-                        {r.weight}% wt · <span className={pctClass(r.gainPct)}>{fmtPct(r.gainPct)}</span> P&amp;L
-                      </p>
+                      <p className="tnum text-sm font-medium">{formatMarketPrice(r.price, "NZD")}</p>
+                      <p className={cn("text-[0.62rem]", pctClass(r.gainPct))}>{fmtPct(r.gainPct)} unrealised</p>
                     </div>
                   </div>
                   <p className="mt-1.5 text-[0.72rem] leading-relaxed text-muted-foreground">{r.reasoning}</p>
@@ -235,65 +230,55 @@ export function ActionableIntelligence({
                   <div className="mt-2.5 flex justify-end">
                     <Button
                       size="sm"
-                      className="h-7 gap-1.5 px-3 text-xs font-semibold shadow-glow"
+                      className="h-7 gap-1.5 px-2.5 text-xs"
                       onClick={() => openBuy(c)}
                     >
-                      <ShoppingCart className="size-3.5" /> Buy
+                      <ShoppingCart className="size-3.5" />
+                      Buy
                     </Button>
                   </div>
                 </div>
               ))}
             </div>
           )}
-          {lastUpdated && (
-            <p className="mt-3 text-right text-[0.62rem] text-muted-foreground">Updated {lastUpdated}</p>
-          )}
         </div>
       </div>
 
-      {/* Forward pathways */}
-      <div>
-        <p className="mb-3 text-sm font-semibold">Three forward pathways</p>
-        <div className="grid gap-4 md:grid-cols-3">
-          {pathways.map((p) => {
-            const Icon = PATHWAY_ICON[p.risk];
-            return (
-              <div key={p.name} className={cn("rounded-2xl border p-5", PATHWAY_TONE[p.risk])}>
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-2 font-display font-bold">
-                    <Icon className="size-4" /> {p.name}
-                  </span>
-                  <span className="rounded-full border border-border/60 px-2 py-0.5 text-[0.62rem] font-semibold text-muted-foreground">
-                    {p.risk}
-                  </span>
-                </div>
-                <div className="mt-3 flex items-end gap-3">
-                  <div>
-                    <p className="text-[0.62rem] uppercase text-muted-foreground">7-day target</p>
-                    <p className={cn("tnum font-display text-xl font-bold", pctClass(p.targetPct))}>{fmtPct(p.targetPct)}</p>
-                  </div>
-                  <div>
-                    <p className="text-[0.62rem] uppercase text-muted-foreground">Probability</p>
-                    <p className="tnum font-display text-xl font-bold">{p.probability}%</p>
-                  </div>
-                </div>
-                <p className="mt-3 text-[0.72rem] text-muted-foreground">{p.summary}</p>
-                <ul className="mt-3 space-y-1.5">
-                  {p.steps.map((s, i) => (
-                    <li key={i} className="flex gap-2 text-[0.72rem] text-foreground/80">
-                      <span className="mt-1 size-1.5 shrink-0 rounded-full bg-primary" />
-                      {s}
-                    </li>
-                  ))}
-                </ul>
+      {/* Pathways */}
+      <div className="grid gap-3 md:grid-cols-3">
+        {pathways.map((p) => {
+          const Icon = PATHWAY_ICON[p.risk];
+          return (
+            <div
+              key={p.name}
+              className={cn("rounded-2xl border p-4", PATHWAY_TONE[p.risk])}
+            >
+              <div className="mb-2 flex items-center gap-2">
+                <Icon className="size-4 text-foreground/80" />
+                <span className="font-display text-sm font-bold">{p.name}</span>
               </div>
-            );
-          })}
-        </div>
-        <p className="mt-3 text-[0.68rem] italic text-muted-foreground">
-          Informational market intelligence only — not personalised financial advice.
-        </p>
+              <p className="text-[0.7rem] text-muted-foreground">{p.summary}</p>
+              <p className="mt-2 tnum text-lg font-bold">
+                <span className={pctClass(p.targetPct)}>{fmtPct(p.targetPct)}</span>
+                <span className="ml-1 text-xs font-normal text-muted-foreground">· {p.probability}% conf.</span>
+              </p>
+              <ul className="mt-2 space-y-1">
+                {p.steps.map((step, i) => (
+                  <li key={i} className="text-[0.68rem] leading-relaxed text-muted-foreground">
+                    {i + 1}. {step}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })}
       </div>
+
+      {lastUpdated && (
+        <p className="text-center text-[0.65rem] text-muted-foreground">
+          Universe updated {new Date(lastUpdated).toLocaleString()}
+        </p>
+      )}
 
       <BuyDialog
         open={buyOpen}
