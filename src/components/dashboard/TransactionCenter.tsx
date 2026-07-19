@@ -151,14 +151,17 @@ function CashCard({
   );
 }
 
+/** Holding that may originate from the dedicated precious_metal table. */
+type SellableHolding = Stock & { metalSourceId?: string };
+
 export function TransactionCenter({
   holdings,
   onChanged,
   reloadSignal,
   preview = false,
 }: {
-  /** Current holdings (both bots) — used to power the Sell picker. */
-  holdings: Stock[];
+  /** Current holdings (both bots + precious metals) — used to power the Sell picker. */
+  holdings: SellableHolding[];
   /** Called after any trade so the parent can reload holdings + prices. */
   onChanged: () => void;
   /** Increment to force a ledger reload (e.g. after a metals buy/sell elsewhere). */
@@ -789,7 +792,7 @@ function TransactionDialog({
   open: boolean;
   onOpenChange: (o: boolean) => void;
   mode: TxType;
-  holdings: Stock[];
+  holdings: SellableHolding[];
   cash: number;
   onDone: (ledger: Ledger) => void;
 }) {
@@ -845,17 +848,25 @@ function TransactionDialog({
   }, [open, mode, todayStr]);
 
   // Sell mode: the holding currently selected in the picker (for max qty + prefill).
+  // Prefer exact _id match when available so multiple GOLD/SILVER lots can be distinguished.
   const selectedHolding = useMemo(() => {
     if (mode !== "sell") return null;
+    const byId = holdings.find((h) => h._id === ticker || h.metalSourceId === ticker);
+    if (byId) return byId;
     return holdings.find((h) => h.ticker.toUpperCase() === ticker.trim().toUpperCase()) || null;
   }, [mode, holdings, ticker]);
 
-  // When a sell target is chosen, prefill current price and asset name.
-  function chooseHolding(h: Stock) {
-    setTicker(h.ticker);
+  // When a sell target is chosen, prefill current price, asset name and quantity.
+  // Precious-metal holdings default to full quantity; the user can lower it for a partial sell.
+  function chooseHolding(h: SellableHolding) {
+    setTicker(h.metalSourceId || h.ticker); // use metalSourceId as the key when present
     setAssetType((h.asset_type as AssetType) || "stock");
     setAssetName(h.company_name || h.ticker);
     setPrice(h.current_price ? String(h.current_price) : "");
+    // Pre-fill full quantity for metals — user can reduce it for a partial sale.
+    if (h.asset_type === "metal" || h.metalSourceId) {
+      setQuantity(String(h.shares || 0));
+    }
   }
 
   function handleBuyTickerBlur() {
@@ -963,13 +974,13 @@ function TransactionDialog({
         if (!executedDate) return toast.error("Date is required");
         if (executedDate > todayStr) return toast.error("Date can't be in the future");
       }
-      if (!t) return toast.error("Ticker is required");
+      if (!t && !(selectedHolding?.metalSourceId)) return toast.error("Ticker is required");
       if (!(q > 0)) return toast.error("Quantity must be greater than 0");
-      if (!(p > 0)) return toast.error("Price must be greater than 0");
+      if (!(p > 0) && !(selectedHolding?.metalSourceId)) return toast.error("Price must be greater than 0");
       if (mode === "sell") {
         if (!selectedHolding) return toast.error("Select a holding you own to sell");
         if (q > (selectedHolding.shares || 0) + 1e-6) {
-          return toast.error(`You only hold ${formatNumber(selectedHolding.shares || 0)} of ${t}`);
+          return toast.error(`You only hold ${formatNumber(selectedHolding.shares || 0)} of ${selectedHolding.ticker}`);
         }
       }
     } else {
@@ -979,9 +990,78 @@ function TransactionDialog({
     }
 
     setSaving(true);
+
+    // ── Precious-metal sell (from the dedicated precious_metal table) ──────
+    // Supports full or partial sales at today's live NZD spot.
+    //   DELETE /api/metals/[id]?ounces=X  → sell X oz (omit ounces for full sell)
+    // Cash, realized P&L and the ledger stay in sync with the metals section.
+    if (mode === "sell" && selectedHolding?.metalSourceId) {
+      const metalId = selectedHolding.metalSourceId;
+      const sellQty = Number(quantity);
+      const held = selectedHolding.shares || 0;
+      if (!(sellQty > 0)) {
+        setSaving(false);
+        return toast.error("Quantity must be greater than 0");
+      }
+      if (sellQty > held + 1e-6) {
+        setSaving(false);
+        return toast.error(`You only hold ${formatNumber(held)} oz of ${selectedHolding.ticker}`);
+      }
+
+      // Pass ounces so the API can do a partial sell when qty < held.
+      const url = `/api/metals/${metalId}?ounces=${encodeURIComponent(String(sellQty))}`;
+      console.log(
+        `[transaction-center] Selling ${sellQty} oz ${selectedHolding.ticker} (held ${held}) via ${url}`
+      );
+      const res = await api.delete<{
+        cashBalance: number;
+        realizedNZD?: number;
+        proceeds?: number;
+        pricePerOzNZD?: number;
+        soldOunces?: number;
+        remainingOunces?: number;
+        partial?: boolean;
+      }>(url);
+      setSaving(false);
+
+      if (res.ok) {
+        const sold = res.data?.soldOunces ?? sellQty;
+        const remaining = res.data?.remainingOunces ?? 0;
+        const proceeds = res.data?.proceeds;
+        const partial = res.data?.partial ?? sold < held - 1e-6;
+        toast.success(
+          proceeds != null
+            ? `${partial ? "Partially sold" : "Sold"} ${formatNumber(sold)} oz ${selectedHolding.ticker} · ${formatMoney(proceeds, "NZD")}${
+                remaining > 0 ? ` · ${formatNumber(remaining)} oz remaining` : ""
+              }`
+            : `Sold ${formatNumber(sold)} oz ${selectedHolding.ticker}`
+        );
+        onOpenChange(false);
+        // Reload ledger so cash + realized cards update.
+        const ledgerRes = await api.get<Ledger>("/api/transactions");
+        if (ledgerRes.ok && ledgerRes.data) {
+          onDone(ledgerRes.data);
+        } else {
+          // Fallback: still notify parent so holdings refresh.
+          onDone({
+            transactions: [],
+            cashBalance: res.data?.cashBalance ?? cash,
+            realizedYtd: 0,
+            realizedTotal: 0,
+            realizedYtdCount: 0,
+          });
+        }
+      } else {
+        console.error("[transaction-center] Metal sell failed:", res.error);
+        toast.error(typeof res.error === "string" ? res.error : "Could not sell metal holding.");
+      }
+      return;
+    }
+
+    // ── Normal buy / sell / deposit / withdraw ────────────────────────────
     const payload: Record<string, unknown> = { type: mode, notes: notes.trim() || undefined };
     if (isTrade) {
-      payload.ticker = ticker.trim().toUpperCase();
+      payload.ticker = (selectedHolding?.ticker || ticker).trim().toUpperCase();
       payload.asset_type = assetType;
       payload.asset_name = assetName.trim() || undefined;
       payload.quantity = Number(quantity);
@@ -1144,7 +1224,7 @@ function TransactionDialog({
             </>
           )}
 
-          {/* SELL: pick from owned holdings */}
+          {/* SELL: pick from owned holdings (stocks, crypto AND gold/silver) */}
           {mode === "sell" && (
             <div className="space-y-2">
               <Label>Holding to sell</Label>
@@ -1156,6 +1236,9 @@ function TransactionDialog({
                 <div className="max-h-40 space-y-1.5 overflow-y-auto pr-1">
                   {holdings.map((h) => {
                     const active = selectedHolding?._id === h._id;
+                    const isMetalHolding = h.asset_type === "metal" || !!h.metalSourceId;
+                    const unit = isMetalHolding ? "oz" : "";
+                    const icon = h.ticker === "GOLD" ? "🥇" : h.ticker === "SILVER" ? "🥈" : null;
                     return (
                       <button
                         key={h._id}
@@ -1169,16 +1252,32 @@ function TransactionDialog({
                         )}
                       >
                         <span className="flex items-center gap-2">
+                          {icon && <span>{icon}</span>}
                           <span className="font-semibold">{h.ticker}</span>
                           <span className="text-xs text-muted-foreground">{h.company_name || ""}</span>
+                          {h.metalSourceId && (
+                            <span className="rounded bg-[var(--gold)]/15 px-1.5 py-0.5 text-[0.65rem] font-medium text-[var(--gold)]">
+                              Metal
+                            </span>
+                          )}
                         </span>
                         <span className="tnum text-xs text-muted-foreground">
-                          {formatNumber(h.shares)} @ {formatMoney(h.current_price, currencyForTicker(h.ticker, (h.asset_type as AssetType) || "stock"))}
+                          {formatNumber(h.shares)}{unit ? ` ${unit}` : ""} @{" "}
+                          {formatMoney(
+                            h.current_price,
+                            currencyForTicker(h.ticker, (h.asset_type as AssetType) || "stock")
+                          )}
                         </span>
                       </button>
                     );
                   })}
                 </div>
+              )}
+              {selectedHolding?.metalSourceId && (
+                <p className="flex items-start gap-1.5 text-xs leading-relaxed text-muted-foreground">
+                  <Info className="mt-0.5 size-3 shrink-0" />
+                  Sold at today&apos;s live NZD spot price. Lower the quantity below to sell only part of your holding — the rest stays in your metals portfolio.
+                </p>
               )}
             </div>
           )}
@@ -1188,13 +1287,17 @@ function TransactionDialog({
             <>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label htmlFor="tx-qty">Quantity</Label>
+                  <Label htmlFor="tx-qty">
+                    {selectedHolding?.metalSourceId || (mode === "buy" && isMetal)
+                      ? "Ounces"
+                      : "Quantity"}
+                  </Label>
                   <Input
                     id="tx-qty"
                     type="number"
                     min="0"
                     step="any"
-                    placeholder="10"
+                    placeholder={selectedHolding?.metalSourceId || isMetal ? "e.g. 2.5" : "10"}
                     value={quantity}
                     onChange={(e) => setQuantity(e.target.value)}
                   />
@@ -1205,6 +1308,9 @@ function TransactionDialog({
                       className="text-[11px] font-medium text-primary hover:underline"
                     >
                       Sell all · {formatNumber(selectedHolding.shares || 0)}
+                      {selectedHolding.metalSourceId || selectedHolding.asset_type === "metal"
+                        ? " oz"
+                        : ""}
                     </button>
                   )}
                 </div>
