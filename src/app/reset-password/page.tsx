@@ -6,6 +6,7 @@ import { resetPassword } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -120,27 +121,27 @@ function ResetPasswordForm() {
                 )}
                 <div className="space-y-2">
                   <Label htmlFor="password" className="text-sm font-semibold">New Password</Label>
-                  <Input
+                  <PasswordInput
                     id="password"
-                    type="password"
                     placeholder="At least 6 characters"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     minLength={6}
+                    autoComplete="new-password"
                     className="h-11 transition-all focus:ring-2"
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="confirm" className="text-sm font-semibold">Confirm New Password</Label>
-                  <Input
+                  <PasswordInput
                     id="confirm"
-                    type="password"
                     placeholder="Re-enter your new password"
                     value={confirm}
                     onChange={(e) => setConfirm(e.target.value)}
                     required
                     minLength={6}
+                    autoComplete="new-password"
                     className="h-11 transition-all focus:ring-2"
                   />
                 </div>
