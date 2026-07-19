@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, DollarSign, TrendingUp, ShoppingCart } from "lucide-react";
+import { Loader2, DollarSign, TrendingUp, ShoppingCart, Wallet, AlertTriangle } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatMoney, currencyForTicker, type CurrencyCode } from "@/lib/currency";
 import { formatNumber } from "@/lib/portfolio";
@@ -32,6 +32,9 @@ export interface BuyTarget {
  * editable). Confirming records a real BUY transaction — which adds the holding,
  * re-averages cost, debits cash and recalculates every portfolio metric — then
  * closes and refreshes the dashboard.
+ *
+ * Cash balance is loaded on open and shown so the user can see exactly how much
+ * buying power they have before committing.
  */
 export function BuyDialog({
   open,
@@ -58,6 +61,10 @@ export function BuyDialog({
   const [priceLoading, setPriceLoading] = useState(false);
   const [priceEdited, setPriceEdited] = useState(false);
 
+  // Cash balance (NZD) — loaded every time the dialog opens.
+  const [cashBalance, setCashBalance] = useState<number | null>(null);
+  const [cashLoading, setCashLoading] = useState(false);
+
   // Reset + prefill whenever the dialog opens for a new target.
   useEffect(() => {
     if (open && target) {
@@ -70,6 +77,28 @@ export function BuyDialog({
       setDate(new Date().toISOString().slice(0, 10));
     }
   }, [open, target]);
+
+  // Load cash balance when the dialog opens.
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    (async () => {
+      setCashLoading(true);
+      const res = await api.get<{ cashBalance: number }>("/api/transactions");
+      if (cancelled) return;
+      setCashLoading(false);
+      if (res.ok && res.data && typeof res.data.cashBalance === "number") {
+        setCashBalance(res.data.cashBalance);
+        console.log(`[buy-dialog] Cash balance: ${res.data.cashBalance} NZD`);
+      } else {
+        console.error("[buy-dialog] Could not load cash balance:", res.error);
+        setCashBalance(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
 
   // Always anchor a crypto buy to the FRESHEST live price at open time. The price
   // passed in from a list can be a few seconds stale (or, for a coin the caller
@@ -136,11 +165,23 @@ export function BuyDialog({
   const totalCost = useMemo(() => sharesNum * priceNum, [sharesNum, priceNum]);
   const valid = amountNum > 0 && sharesNum > 0 && priceNum > 0;
 
+  // Remaining cash after this purchase (NZD). Note: asset currency may differ
+  // from NZD cash — we still compare against cashBalance for a clear UI signal.
+  const remainingCash =
+    cashBalance != null && totalCost > 0 ? cashBalance - totalCost : cashBalance;
+  const exceedsCash =
+    cashBalance != null && totalCost > 0 && totalCost > cashBalance + 1e-6;
+
   async function confirm() {
     if (!ticker) return toast.error("No ticker selected");
     if (!(priceNum > 0)) return toast.error("Enter a valid price per share");
     if (!(amountNum > 0)) return toast.error("Enter the dollar amount to invest");
     if (!(sharesNum > 0)) return toast.error("Number of shares must be greater than 0");
+    if (exceedsCash) {
+      return toast.error(
+        `Insufficient cash — you have ${formatMoney(cashBalance ?? 0, "NZD")} available`
+      );
+    }
 
     setSaving(true);
     const payload = {
@@ -175,12 +216,61 @@ export function BuyDialog({
             <ShoppingCart className="size-5 text-primary" /> Buy {displaySymbol || "position"}
           </DialogTitle>
           <DialogDescription>
-            {target?.name ? `${target.name} · ` : ""}Enter the dollar amount to invest — we'll work out the
-            shares and add it straight to your portfolio.
+            {target?.name ? `${target.name} · ` : ""}Enter the dollar amount to invest — we&apos;ll work out the
+            shares and debit your cash balance.
           </DialogDescription>
         </DialogHeader>
 
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4 sm:px-6">
+          {/* Cash balance — money the purchase comes off */}
+          <div
+            className={cn(
+              "flex items-center justify-between rounded-xl border px-4 py-3",
+              exceedsCash
+                ? "border-rose-500/40 bg-rose-500/10"
+                : "border-emerald-500/30 bg-emerald-500/10"
+            )}
+          >
+            <div className="flex items-center gap-2.5">
+              <span
+                className={cn(
+                  "grid size-9 place-items-center rounded-lg",
+                  exceedsCash ? "bg-rose-500/15 text-rose-500" : "bg-emerald-500/15 text-emerald-600"
+                )}
+              >
+                <Wallet className="size-4" />
+              </span>
+              <div>
+                <p className="text-[0.65rem] font-medium uppercase tracking-wide text-muted-foreground">
+                  Available cash
+                </p>
+                <p className="tnum font-display text-lg font-bold">
+                  {cashLoading ? (
+                    <span className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
+                      <Loader2 className="size-3.5 animate-spin" /> Loading…
+                    </span>
+                  ) : cashBalance != null ? (
+                    formatMoney(cashBalance, "NZD")
+                  ) : (
+                    "—"
+                  )}
+                </p>
+              </div>
+            </div>
+            {cashBalance != null && !cashLoading && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (cashBalance > 0) onAmountChange(String(+cashBalance.toFixed(2)));
+                }}
+                disabled={!(cashBalance > 0)}
+                className="rounded-lg border border-border/60 bg-background/50 px-2.5 py-1.5 text-xs font-semibold text-primary transition-colors hover:border-primary/40 hover:bg-primary/10 disabled:opacity-40"
+              >
+                Use all
+              </button>
+            )}
+          </div>
+
           {/* Ticker + live price banner */}
           <div className="flex items-center justify-between rounded-xl border border-primary/25 bg-primary/8 px-4 py-3">
             <div>
@@ -219,7 +309,10 @@ export function BuyDialog({
                 placeholder="1000.00"
                 value={amount}
                 onChange={(e) => onAmountChange(e.target.value)}
-                className="h-12 pl-9 text-lg font-semibold"
+                className={cn(
+                  "h-12 pl-9 text-lg font-semibold",
+                  exceedsCash && "border-rose-500/50 focus-visible:ring-rose-500/40"
+                )}
                 autoFocus
               />
             </div>
@@ -236,6 +329,12 @@ export function BuyDialog({
                 </button>
               ))}
             </div>
+            {exceedsCash && (
+              <p className="flex items-center gap-1.5 text-xs font-medium text-rose-500">
+                <AlertTriangle className="size-3.5 shrink-0" />
+                Exceeds available cash by {formatMoney(totalCost - (cashBalance ?? 0), "NZD")}
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -294,19 +393,34 @@ export function BuyDialog({
           {/* Summary before confirming */}
           <div className="rounded-xl border border-border/60 bg-background/40 p-3.5">
             <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">You'll buy</span>
+              <span className="text-muted-foreground">You&apos;ll buy</span>
               <span className="tnum font-semibold">
                 {sharesNum > 0 ? formatNumber(sharesNum) : "—"} {displaySymbol}
               </span>
             </div>
             <div className="mt-1.5 flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Est. total cost</span>
-              <span className="tnum font-semibold">
+              <span className={cn("tnum font-semibold", exceedsCash && "text-rose-500")}>
                 {totalCost > 0 ? formatMoney(totalCost, currency) : "—"}
               </span>
             </div>
+            <div className="mt-1.5 flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Cash after purchase</span>
+              <span
+                className={cn(
+                  "tnum font-semibold",
+                  remainingCash != null && remainingCash < 0 ? "text-rose-500" : "text-emerald-600"
+                )}
+              >
+                {remainingCash != null && totalCost > 0
+                  ? formatMoney(remainingCash, "NZD")
+                  : cashBalance != null
+                    ? formatMoney(cashBalance, "NZD")
+                    : "—"}
+              </span>
+            </div>
             <p className="mt-2 flex items-center gap-1.5 text-[0.68rem] text-muted-foreground">
-              <TrendingUp className="size-3" /> Adds the holding, re-averages cost & debits your cash balance.
+              <TrendingUp className="size-3" /> Adds the holding, re-averages cost &amp; debits your cash balance.
             </p>
           </div>
         </div>
@@ -315,7 +429,11 @@ export function BuyDialog({
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancel
           </Button>
-          <Button onClick={confirm} disabled={saving || !valid} className={cn("font-semibold shadow-glow")}>
+          <Button
+            onClick={confirm}
+            disabled={saving || !valid || exceedsCash}
+            className={cn("font-semibold shadow-glow")}
+          >
             {saving ? (
               <>
                 <Loader2 className="mr-2 size-4 animate-spin" /> Buying…
