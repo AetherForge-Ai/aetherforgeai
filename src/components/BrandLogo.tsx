@@ -12,10 +12,9 @@ interface BrandLogoProps {
 
 /**
  * AetherForge AI brand lockup — the official Forge Intelligence shield mark
- * (blue + gold) paired with the geometric wordmark. Styled to match the
- * official FORGE INTELLIGENCE logo typography (bold geometric sans, tight
- * tracking on the primary name). Pass `animated` for a pulsing glow on
- * prominent placements (hero, headers).
+ * (blue + gold) paired with the gradient wordmark. The colourful shield sits in
+ * a subtle navy tile so it reads clearly on any dark surface. Pass `animated`
+ * for a pulsing glow on prominent placements (hero, headers).
  */
 export function BrandLogo({
   className,
@@ -25,13 +24,12 @@ export function BrandLogo({
   animated = false,
 }: BrandLogoProps) {
   return (
-    <span className={cn("inline-flex items-center gap-3", className)}>
+    <span className={cn("inline-flex items-center gap-2.5", className)}>
       <span
         className={cn(
           "relative grid place-items-center rounded-xl ring-1 ring-white/10 shadow-brand",
           "bg-gradient-to-br from-white/[0.07] via-white/[0.02] to-transparent",
-          // Slightly larger default mark so the shield reads clearly in the top nav
-          "size-11 p-1.5",
+          "size-9 p-1",
           animated && "animate-logo-pulse",
           markClassName
         )}
@@ -46,9 +44,7 @@ export function BrandLogo({
       {showWordmark && (
         <span
           className={cn(
-            // Match the official FORGE INTELLIGENCE lockup: geometric display
-            // sans, heavy weight, tight tracking on the primary name.
-            "font-display text-[1.2rem] font-extrabold tracking-[-0.02em] leading-none",
+            "font-display text-[1.05rem] font-bold tracking-tight leading-none",
             wordmarkClassName
           )}
         >
