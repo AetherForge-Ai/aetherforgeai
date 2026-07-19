@@ -260,11 +260,17 @@ export function buildActionableIntelligence(
           ...universeFor("crypto").map((e) => analyzeSecurity(e.ticker, undefined, undefined, e.market)),
         ];
 
+  // Rank by highest projected 7-day growth first (the best upside), with
+  // conviction score as a tie-breaker. Show the top 20 across all markets.
   const buyCandidates: BuyCandidate[] = candidatePool
     .filter((i) => !heldTickers.has(i.ticker.toUpperCase()))
     .filter((i) => i.signal === "Strong Buy" || i.signal === "Buy")
-    .sort((a, b) => b.score * (b.confidence / 100) - a.score * (a.confidence / 100))
-    .slice(0, 10)
+    .sort((a, b) => {
+      const growthDiff = (b.projected7dPct ?? 0) - (a.projected7dPct ?? 0);
+      if (Math.abs(growthDiff) > 0.01) return growthDiff;
+      return b.score * (b.confidence / 100) - a.score * (a.confidence / 100);
+    })
+    .slice(0, 20)
     .map((i) => ({
       ticker: i.ticker,
       name: i.name,
