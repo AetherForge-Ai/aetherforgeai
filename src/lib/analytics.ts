@@ -248,19 +248,23 @@ export function buildActionableIntelligence(
       urgency: h.intel.signal === "Sell" || h.weight >= 15 ? "high" : "medium",
     }));
 
-  // BUY candidates — high-conviction names NOT already held. When a LIVE universe
-  // is supplied (dashboard), we rank the live-priced securities so the list moves
-  // with the market; otherwise we fall back to the deterministic engine.
+  // BUY candidates — high-conviction names NOT already held, ranked across the
+  // FULL investable universe (NZX + ASX + Dow Jones + NASDAQ + Crypto) when a
+  // combined live universe is supplied. Falls back to BOTH deterministic
+  // universes only when no live data is available.
   const candidatePool: SecurityIntel[] =
     liveUniverse && liveUniverse.length
       ? liveUniverse
-      : universeFor(assetClass).map((e) => analyzeSecurity(e.ticker, undefined, undefined, e.market));
+      : [
+          ...universeFor("stock").map((e) => analyzeSecurity(e.ticker, undefined, undefined, e.market)),
+          ...universeFor("crypto").map((e) => analyzeSecurity(e.ticker, undefined, undefined, e.market)),
+        ];
 
   const buyCandidates: BuyCandidate[] = candidatePool
     .filter((i) => !heldTickers.has(i.ticker.toUpperCase()))
     .filter((i) => i.signal === "Strong Buy" || i.signal === "Buy")
     .sort((a, b) => b.score * (b.confidence / 100) - a.score * (a.confidence / 100))
-    .slice(0, 6)
+    .slice(0, 10)
     .map((i) => ({
       ticker: i.ticker,
       name: i.name,
