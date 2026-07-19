@@ -6,6 +6,7 @@ import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -483,22 +484,22 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
           <div className="mt-3 grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="current-password">Current password</Label>
-              <Input
+              <PasswordInput
                 id="current-password"
-                type="password"
                 placeholder="••••••••"
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
+                autoComplete="current-password"
               />
             </div>
             <div className="space-y-2">
               <Label htmlFor="new-password">New password</Label>
-              <Input
+              <PasswordInput
                 id="new-password"
-                type="password"
                 placeholder="At least 8 characters"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
+                autoComplete="new-password"
               />
             </div>
           </div>
