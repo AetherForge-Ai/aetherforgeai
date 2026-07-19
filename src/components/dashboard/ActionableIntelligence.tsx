@@ -1,13 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Stock } from "@/lib/portfolio";
 import { buildActionableIntelligence } from "@/lib/analytics";
-import { formatMarketPrice, type AssetClass } from "@/lib/market-intel";
+import { formatMarketPrice, type AssetClass, type SecurityIntel } from "@/lib/market-intel";
 import { cn } from "@/lib/utils";
 import { pctClass, fmtPct, SignalBadge, ExchangeChip } from "@/components/dashboard/intel-ui";
 import { useMarketIntel } from "@/components/dashboard/MarketIntelContext";
 import { BuyDialog, type BuyTarget } from "@/components/dashboard/BuyDialog";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import {
   AlertTriangle,
@@ -42,10 +43,54 @@ export function ActionableIntelligence({
   assetClass?: AssetClass;
   onBought?: () => void;
 }) {
-  const { universe, refresh, refreshing, lastUpdated } = useMarketIntel();
+  const { universe, refresh, refreshing, lastUpdated, bot } = useMarketIntel();
+
+  // Also load the OTHER bot's universe so BUY candidates span NZX + ASX +
+  // Dow Jones + NASDAQ + Crypto, not just the active bot.
+  const [otherUniverse, setOtherUniverse] = useState<SecurityIntel[] | null>(null);
+  const [otherLoading, setOtherLoading] = useState(false);
+
+  const loadOtherUniverse = useCallback(async () => {
+    const otherBot: AssetClass = bot === "crypto" ? "stock" : "crypto";
+    setOtherLoading(true);
+    try {
+      const res = await api.get<{ live: boolean; universe: SecurityIntel[] }>(
+        `/api/market?bot=${otherBot}&t=${Date.now()}`
+      );
+      if (res.ok && res.data?.universe) {
+        setOtherUniverse(res.data.universe);
+        console.log(
+          `[actionable-intel] Loaded ${res.data.universe.length} ${otherBot} securities for cross-market BUY list`
+        );
+      } else {
+        console.error("[actionable-intel] Failed to load other universe:", res.error);
+      }
+    } finally {
+      setOtherLoading(false);
+    }
+  }, [bot]);
+
+  useEffect(() => {
+    loadOtherUniverse();
+  }, [loadOtherUniverse]);
+
+  // Combined universe: active bot (from context) + the other bot.
+  const combinedUniverse = useMemo(() => {
+    const map = new Map<string, SecurityIntel>();
+    for (const item of universe || []) {
+      map.set(item.ticker.toUpperCase(), item);
+    }
+    for (const item of otherUniverse || []) {
+      if (!map.has(item.ticker.toUpperCase())) {
+        map.set(item.ticker.toUpperCase(), item);
+      }
+    }
+    return map.size > 0 ? Array.from(map.values()) : null;
+  }, [universe, otherUniverse]);
+
   const intel = useMemo(
-    () => buildActionableIntelligence(stocks, assetClass, universe),
-    [stocks, assetClass, universe]
+    () => buildActionableIntelligence(stocks, assetClass, combinedUniverse),
+    [stocks, assetClass, combinedUniverse]
   );
   const { actionRequired, sellRecommendations, buyCandidates, pathways } = intel;
 
@@ -53,8 +98,15 @@ export function ActionableIntelligence({
   const [buyOpen, setBuyOpen] = useState(false);
 
   function openBuy(c: (typeof buyCandidates)[number]) {
-    setBuyTarget({ ticker: c.ticker, name: c.name, assetType: assetClass, price: c.price });
+    // Route the Buy dialog to the correct asset class from the candidate's market.
+    const type: AssetClass = c.market === "CRYPTO" ? "crypto" : "stock";
+    setBuyTarget({ ticker: c.ticker, name: c.name, assetType: type, price: c.price });
     setBuyOpen(true);
+  }
+
+  function handleRefresh() {
+    refresh();
+    loadOtherUniverse();
   }
 
   return (
@@ -65,7 +117,9 @@ export function ActionableIntelligence({
         </span>
         <div>
           <h2 className="font-display text-lg font-bold">Actionable intelligence</h2>
-          <p className="text-xs text-muted-foreground">Explicit signals derived from your holdings + the model</p>
+          <p className="text-xs text-muted-foreground">
+            Explicit signals from your holdings + the full NZX · ASX · Dow Jones · NASDAQ · Crypto universe
+          </p>
         </div>
       </div>
 
@@ -139,16 +193,18 @@ export function ActionableIntelligence({
           <div className="mb-3 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700">
               <ArrowUpRight className="size-4" /> High-conviction BUY candidates
-              <span className="text-xs font-normal text-muted-foreground">(not held)</span>
+              <span className="text-xs font-normal text-muted-foreground">
+                (not held · NZX · ASX · DJIA · NASDAQ · Crypto)
+              </span>
             </div>
             <Button
               variant="outline"
               size="sm"
               className="h-7 gap-1.5 px-2.5 text-xs"
-              onClick={() => refresh()}
-              disabled={refreshing}
+              onClick={handleRefresh}
+              disabled={refreshing || otherLoading}
             >
-              {refreshing ? (
+              {refreshing || otherLoading ? (
                 <Loader2 className="size-3.5 animate-spin" />
               ) : (
                 <RefreshCw className="size-3.5" />
