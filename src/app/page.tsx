@@ -18,6 +18,15 @@ import {
   Zap,
 } from "lucide-react";
 
+/** Official X (Twitter) mark — lucide dropped brand icons. */
+function XLogo({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden className={className}>
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.727-8.835L1.254 2.25H8.08l4.253 5.622L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
+    </svg>
+  );
+}
+
 const FEATURES = [
   {
     icon: Wallet,
@@ -445,6 +454,16 @@ export default function LandingPage() {
                   className="mt-3 inline-block font-display text-sm font-semibold text-primary hover:underline"
                 >
                   www.aetherforgeai.co.nz
+                </a>
+                <a
+                  href="https://x.com/aetherforgeAi_"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="AetherForge AI on X"
+                  className="mt-3 inline-flex items-center gap-2 rounded-lg border border-border/60 bg-background/40 px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+                >
+                  <XLogo className="size-3.5" />
+                  @aetherforgeAi_
                 </a>
               </div>
 
