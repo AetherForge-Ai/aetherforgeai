@@ -58,10 +58,18 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
   }
 }
 
-// DELETE /api/metals/[id] — SELL a metal holding at today's spot price.
-// Selling credits cash, books realized P&L against the price paid, logs the
-// movement in the Transaction Center, then removes the (now-closed) holding.
-export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+/**
+ * DELETE /api/metals/[id] — SELL a metal holding at today's spot price.
+ *
+ * Supports partial sales via query param:
+ *   DELETE /api/metals/[id]              → sell entire holding
+ *   DELETE /api/metals/[id]?ounces=2.5   → sell 2.5 oz only; remainder stays
+ *
+ * Selling credits cash, books realized P&L against the price paid, and logs the
+ * movement in the Transaction Center. If the remaining balance is effectively
+ * zero the record is removed; otherwise ounces are reduced in place.
+ */
+export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await ctx.params;
     const user = await getCurrentUser();
@@ -74,28 +82,67 @@ export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string 
     if (!owned) return NextResponse.json({ ok: false, error: "Holding not found" }, { status: 404 });
 
     const metal = owned.metal as MetalKey;
-    const ounces = Number(owned.ounces) || 0;
+    const heldOunces = Number(owned.ounces) || 0;
     const avgCost = Number(owned.purchase_price_per_oz) || 0;
+
+    if (heldOunces <= 0) {
+      return NextResponse.json({ ok: false, error: "No ounces left to sell" }, { status: 400 });
+    }
+
+    // Optional partial quantity from ?ounces=
+    const url = new URL(req.url);
+    const ouncesParam = url.searchParams.get("ounces");
+    let sellOunces = heldOunces;
+    if (ouncesParam != null && ouncesParam !== "") {
+      const requested = Number(ouncesParam);
+      if (!isFinite(requested) || requested <= 0) {
+        return NextResponse.json({ ok: false, error: "ounces must be a positive number" }, { status: 400 });
+      }
+      if (requested > heldOunces + 1e-9) {
+        return NextResponse.json(
+          { ok: false, error: `You only hold ${heldOunces} oz of ${metal}` },
+          { status: 400 }
+        );
+      }
+      sellOunces = requested;
+    }
 
     // Resolve today's spot (NZD/oz) as the sale price.
     const spot = await getMetalsSpot();
     const spotNZD = spot[metal]?.nzdPerOz || 0;
+    if (!(spotNZD > 0)) {
+      return NextResponse.json({ ok: false, error: "Could not resolve live spot price" }, { status: 502 });
+    }
 
-    // Credit cash + log the sell BEFORE removing the holding, so a failure never
-    // deletes the record without recording the proceeds.
+    const isPartial = sellOunces < heldOunces - 1e-9;
+    const remaining = Math.max(0, heldOunces - sellOunces);
+
+    // Credit cash + log the sell BEFORE mutating the holding, so a failure never
+    // changes the record without recording the proceeds.
     const trade = await recordMetalTrade(user, {
       side: "sell",
       metal,
-      ounces,
+      ounces: sellOunces,
       pricePerOzNZD: spotNZD,
       avgCostNZD: avgCost,
-      notes: "Sold at spot",
+      notes: isPartial ? `Partial sell ${sellOunces} oz at spot` : "Sold at spot",
     });
 
-    await totalumSdk.crud.deleteRecordById("precious_metal", id);
-    console.log(
-      `[api/metals/${id}] SOLD ${ounces}oz ${metal} @ ${spotNZD} NZD for user ${user._id} → cash ${trade.cashBalance}, realized ${trade.realizedNZD}`
-    );
+    if (remaining <= 1e-9) {
+      // Fully closed — remove the record.
+      await totalumSdk.crud.deleteRecordById("precious_metal", id);
+      console.log(
+        `[api/metals/${id}] SOLD ALL ${sellOunces}oz ${metal} @ ${spotNZD} NZD for user ${user._id} → cash ${trade.cashBalance}, realized ${trade.realizedNZD}`
+      );
+    } else {
+      // Partial — reduce ounces in place (cost basis per oz stays the same).
+      await totalumSdk.crud.editRecordById("precious_metal", id, { ounces: remaining });
+      console.log(
+        `[api/metals/${id}] PARTIAL SELL ${sellOunces}oz ${metal} @ ${spotNZD} NZD (remaining ${remaining}oz) for user ${user._id} → cash ${trade.cashBalance}, realized ${trade.realizedNZD}`
+      );
+    }
+
+    const proceeds = Math.abs(trade.transaction?.total ?? sellOunces * spotNZD);
 
     return NextResponse.json({
       ok: true,
@@ -103,8 +150,11 @@ export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string 
         _id: id,
         cashBalance: trade.cashBalance,
         realizedNZD: trade.realizedNZD,
-        proceeds: Math.abs(trade.transaction?.total ?? ounces * spotNZD),
+        proceeds,
         pricePerOzNZD: spotNZD,
+        soldOunces: sellOunces,
+        remainingOunces: remaining <= 1e-9 ? 0 : remaining,
+        partial: isPartial,
       },
     });
   } catch (err: any) {
