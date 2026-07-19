@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { SiteHeader } from "@/components/SiteHeader";
 import { BrandLogo } from "@/components/BrandLogo";
-import { LOGO_MARK_IMG } from "../../assets/files";
+import { LOGO_MARK_IMG, FORGE_INTELLIGENCE_LOGO_IMG } from "../../assets/files";
 import { MarketTicker } from "@/components/MarketTicker";
 import { BotShowcase } from "@/components/bots/BotShowcase";
 import { TotalumShowcase } from "@/components/bots/TotalumShowcase";
@@ -114,19 +114,19 @@ export default function LandingPage() {
             <div className="animate-float-up">
               {/* Standout brand emblem — the official Forge Intelligence shield */}
               <div className="mb-6 flex items-center gap-4">
-                <span className="relative grid size-16 place-items-center rounded-2xl border border-border/70 bg-gradient-to-br from-white via-white to-slate-50 shadow-brand animate-logo-pulse sm:size-[4.5rem]">
+                <span className="relative grid size-[4.75rem] place-items-center rounded-2xl border border-border/70 bg-gradient-to-br from-white via-white to-slate-50 shadow-brand animate-logo-pulse sm:size-20">
                   <img
                     src={LOGO_MARK_IMG}
                     alt="AetherForge AI shield emblem"
-                    className="h-[78%] w-[78%] object-contain drop-shadow-[0_2px_10px_rgba(40,110,220,0.45)]"
+                    className="h-[80%] w-[80%] object-contain drop-shadow-[0_2px_10px_rgba(40,110,220,0.45)]"
                     draggable={false}
                   />
                 </span>
                 <div className="leading-tight">
-                  <p className="font-display text-xl font-extrabold tracking-tight sm:text-2xl">
+                  <p className="font-display text-2xl font-extrabold tracking-[-0.02em] sm:text-3xl">
                     AetherForge<span className="text-primary"> AI</span>
                   </p>
-                  <p className="mt-0.5 text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+                  <p className="mt-1 text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
                     Forge Intelligence Ltd
                   </p>
                 </div>
@@ -444,7 +444,7 @@ export default function LandingPage() {
           <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
             <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-start sm:justify-between">
               <div className="max-w-sm text-center sm:text-left">
-                <BrandLogo animated markClassName="size-11" wordmarkClassName="text-lg" />
+                <BrandLogo animated markClassName="size-12" wordmarkClassName="text-xl" />
                 <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
                   New Zealand–owned and operated multi-asset market intelligence. Turning NZX, ASX and
                   global market data into decisive clarity.
@@ -481,12 +481,19 @@ export default function LandingPage() {
               </div>
             </div>
 
-            <div className="mt-10 border-t border-border/50 pt-6 text-center text-xs leading-relaxed text-muted-foreground">
-              <p>
-                © {new Date().getFullYear()} AetherForge AI — New Zealand owned &amp; operated. For
-                informational purposes only.
+            {/* Legal business name — Forge Intelligence Ltd */}
+            <div className="mt-10 flex flex-col items-center border-t border-border/50 pt-8">
+              <img
+                src={FORGE_INTELLIGENCE_LOGO_IMG}
+                alt="Forge Intelligence"
+                className="h-12 w-auto object-contain opacity-90 sm:h-14"
+                draggable={false}
+              />
+              <p className="mt-3 text-center text-xs leading-relaxed text-muted-foreground">
+                © {new Date().getFullYear()} Forge Intelligence Ltd trading as AetherForge AI — New Zealand owned
+                &amp; operated. For informational purposes only.
               </p>
-              <p className="mx-auto mt-2 max-w-3xl">
+              <p className="mx-auto mt-2 max-w-3xl text-center text-xs leading-relaxed text-muted-foreground">
                 AetherForge AI provides general market information and AI-generated analysis. It is
                 <strong className="font-semibold text-foreground/80"> not licensed financial advice</strong> under the
                 Financial Markets Conduct Act 2013. Always seek advice from a licensed financial adviser before making
