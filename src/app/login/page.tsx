@@ -6,6 +6,7 @@ import { signIn, sendVerificationEmail } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -152,13 +153,13 @@ function LoginForm() {
                   Forgot password?
                 </Link>
               </div>
-              <Input
+              <PasswordInput
                 id="password"
-                type="password"
                 placeholder="Enter your password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                autoComplete="current-password"
                 className="h-11 transition-all focus:ring-2"
               />
             </div>
