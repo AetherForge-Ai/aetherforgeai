@@ -21,6 +21,15 @@ import {
 import { api } from "@/lib/api";
 import { LOGO_MARK_IMG, ABOUT_HERO_IMG, FOUNDER_PORTRAIT_IMG } from "../../../assets/files";
 
+/** Official X (Twitter) mark — lucide dropped brand icons. */
+function XLogo({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden className={className}>
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.727-8.835L1.254 2.25H8.08l4.253 5.622L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
+    </svg>
+  );
+}
+
 /* -------------------------------------------------------------------------- */
 /*  Brand palette (self-contained light theme for this marketing page)        */
 /*  navy #0F172A · emerald #059669 · off-white #F8FAFC · bronze/gold #B0894F  */
@@ -805,20 +814,32 @@ export function AboutContent() {
               <Reveal delay={80}>
                 <div className="rounded-3xl border border-[#0F172A]/8 bg-white p-6 shadow-sm sm:p-8">
                   <h3 className="font-display text-lg font-bold text-[#0F172A]">Follow along</h3>
-                  <a
-                    href="https://www.facebook.com/profile.php?id=61591701002008"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-4 inline-flex items-center gap-3 rounded-xl border border-[#0F172A]/8 bg-[#F8FAFC] px-4 py-3 transition-all hover:border-[#059669]/40 hover:bg-white"
-                  >
-                    <span className="grid size-10 place-items-center rounded-lg bg-[#0F172A] text-white">
-                      <Facebook className="size-5" />
-                    </span>
-                    <span className="text-[15px] font-semibold text-[#0F172A]">Our new Facebook page</span>
-                  </a>
+                  <div className="mt-4 flex flex-col gap-3">
+                    <a
+                      href="https://x.com/aetherforgeAi_"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-3 rounded-xl border border-[#0F172A]/8 bg-[#F8FAFC] px-4 py-3 transition-all hover:border-[#059669]/40 hover:bg-white"
+                    >
+                      <span className="grid size-10 place-items-center rounded-lg bg-[#0F172A] text-white">
+                        <XLogo className="size-5" />
+                      </span>
+                      <span className="text-[15px] font-semibold text-[#0F172A]">@aetherforgeAi_ on X</span>
+                    </a>
+                    <a
+                      href="https://www.facebook.com/profile.php?id=61591701002008"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-3 rounded-xl border border-[#0F172A]/8 bg-[#F8FAFC] px-4 py-3 transition-all hover:border-[#059669]/40 hover:bg-white"
+                    >
+                      <span className="grid size-10 place-items-center rounded-lg bg-[#0F172A] text-white">
+                        <Facebook className="size-5" />
+                      </span>
+                      <span className="text-[15px] font-semibold text-[#0F172A]">Our Facebook page</span>
+                    </a>
+                  </div>
                   <p className="mt-4 text-sm leading-relaxed text-[#64748B]">
-                    Our Facebook page has only just been created — follow along as we grow! Other social
-                    channels (Instagram, LinkedIn, X) will follow in due course.
+                    Follow us on X and Facebook for market updates, product news and what we&apos;re building next.
                   </p>
                   <p className="mt-3 flex items-start gap-2 text-sm leading-relaxed text-[#64748B]">
                     <MapPin className="mt-0.5 size-4 shrink-0 text-[#94A3B8]" />
@@ -852,6 +873,16 @@ export function AboutContent() {
               <p className="mt-4 text-sm leading-relaxed text-white/60">
                 AetherForge AI — Helping New Zealanders take control of their financial future.
               </p>
+              <a
+                href="https://x.com/aetherforgeAi_"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="AetherForge AI on X"
+                className="mt-4 inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-sm font-medium text-white/80 transition-colors hover:border-white/30 hover:text-white"
+              >
+                <XLogo className="size-3.5" />
+                @aetherforgeAi_
+              </a>
             </div>
 
             <nav className="grid grid-cols-2 gap-x-10 gap-y-2.5 text-sm">
