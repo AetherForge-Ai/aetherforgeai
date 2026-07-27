@@ -1,2 +1,26 @@
-// File is empty
-// Start typing to add content...
+{
+  "name": "aetherforge-koins",
+  "version": "1.0.0",
+  "description": "AetherForge Koins — Self-hosted crypto market intelligence bot. Own it. Run it yourself.",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "report": "tsx src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": ["crypto", "bitcoin", "ethereum", "market-intelligence", "aetherforge"],
+  "author": "Forge Intelligence Ltd",
+  "license": "UNLICENSED",
+  "private": true,
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "csv-parse": "^5.5.6"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsx": "^4.16.0",
+    "typescript": "^5.5.0"
+  }
+}
