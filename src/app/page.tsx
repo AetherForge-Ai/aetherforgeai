@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { SiteHeader } from "@/components/SiteHeader";
 import { BrandLogo } from "@/components/BrandLogo";
-import { LOGO_MARK_IMG } from "../../assets/files";
+import { LOGO_MARK_IMG, BOT_STOX_AVATAR, BOT_KOINS_AVATAR } from "../../assets/files";
 import { MarketTicker } from "@/components/MarketTicker";
 import { BotShowcase } from "@/components/bots/BotShowcase";
 import { TotalumShowcase } from "@/components/bots/TotalumShowcase";
@@ -21,8 +21,8 @@ import {
 /** Official X (Twitter) mark — lucide dropped brand icons. */
 function XLogo({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden className={className}>
-      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.727-8.835L1.254 2.25H8.08l4.253 5.622L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
     </svg>
   );
 }
@@ -137,74 +137,51 @@ export default function LandingPage() {
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary/70" />
                   <span className="relative inline-flex size-2 rounded-full bg-primary" />
                 </span>
-                AI-powered market intelligence
+                Live NZX · ASX · Crypto intelligence
               </div>
 
-              <h1 className="mt-5 font-display text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
-                Institutional-Grade
-                <br />
-                <span className="text-gradient">Market Intelligence.</span>
-                <br />
-                Built for New Zealand.
+              <h1 className="mt-5 font-display text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-[3.25rem] lg:leading-[1.1]">
+                Institutional-grade market intelligence,{" "}
+                <span className="text-gradient">built for you</span>
               </h1>
 
-              <p className="mt-5 max-w-lg text-base leading-relaxed text-muted-foreground sm:text-lg">
-                The multi-asset sentinel that turns raw NZX, ASX and global market data into clear,
-                actionable intelligence — previously reserved for professional traders and family
-                offices.
+              <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+                Track your real portfolio, surface the highest-impact opportunities, and get
+                AI-powered research on every position — without the noise of a traditional trading
+                desk.
               </p>
 
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <Button asChild size="lg" className="h-12 px-7 text-base font-semibold shadow-glow">
+              <div className="mt-8 flex flex-wrap items-center gap-3">
+                <Button asChild size="lg" className="h-12 px-7 text-base shadow-glow">
                   <Link href="/register">
-                    Sign up free <ArrowRight className="ml-1 size-4" />
+                    Start free
+                    <ArrowRight className="size-4" />
                   </Link>
                 </Button>
-                <Button asChild size="lg" variant="outline" className="h-12 border-slate-300 px-7 text-base font-semibold">
-                  <Link href="/login">Log in</Link>
+                <Button asChild size="lg" variant="outline" className="h-12 px-7 text-base">
+                  <Link href="/performance">See live results</Link>
                 </Button>
-              </div>
-
-              <Link
-                href="/performance"
-                className="group mt-4 inline-flex items-center gap-2 text-sm font-semibold text-emerald-600 hover:text-emerald-700"
-              >
-                <span className="relative flex size-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/80" />
-                  <span className="relative inline-flex size-2 rounded-full bg-emerald-400" />
-                </span>
-                Check out real results of how it works — see it live
-                <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
-              </Link>
-
-              <div className="mt-8 flex items-center gap-6 text-sm text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="size-4 text-primary" /> Bank-grade privacy
-                </div>
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="size-4 text-primary" /> Real-time P/L
-                </div>
               </div>
             </div>
 
             {/* Hero mockup card */}
-            <div className="animate-float-up [animation-delay:120ms]">
-              <div className="relative rounded-3xl border border-border/70 glass p-5 shadow-soft">
-                <div className="flex items-center justify-between">
+            <div className="relative animate-float-up" style={{ animationDelay: "120ms" }}>
+              <div className="absolute -inset-4 rounded-3xl bg-gradient-to-br from-primary/20 via-transparent to-amber-400/10 blur-2xl" />
+              <div className="relative overflow-hidden rounded-3xl border border-border/70 bg-card p-5 shadow-xl sm:p-6">
+                <div className="mb-4 flex items-center justify-between">
                   <div>
-                    <p className="text-xs uppercase tracking-wider text-muted-foreground">Total value</p>
-                    <p className="tnum mt-1 text-3xl font-bold">$248,930.44</p>
+                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      Portfolio value
+                    </p>
+                    <p className="mt-0.5 font-display text-2xl font-bold tracking-tight">
+                      NZ$128,450
+                    </p>
                   </div>
-                  <div className="rounded-xl bg-emerald-500/10 px-3 py-2 text-right ring-1 ring-emerald-500/25">
-                    <p className="tnum text-lg font-semibold text-emerald-600">+18.6%</p>
-                    <p className="text-[11px] text-muted-foreground">all time</p>
-                  </div>
+                  <span className="rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                    +12.4%
+                  </span>
                 </div>
-
-                <div className="mt-4 rounded-2xl border border-border/60 bg-background/40 p-3">
-                  <HeroChart />
-                </div>
-
+                <HeroChart />
                 <div className="mt-4 space-y-2">
                   {[
                     { s: "NVDA", n: "NVIDIA Corp.", v: "$62,400", c: "+42.1%", up: true },
@@ -268,12 +245,8 @@ export default function LandingPage() {
             <span className="pointer-events-none absolute inset-0 -translate-x-full animate-shimmer-sweep bg-gradient-to-r from-transparent via-white/10 to-transparent" />
             <div className="relative flex flex-col items-center gap-4 rounded-[calc(1.5rem-1.5px)] bg-card/70 px-6 py-6 text-center backdrop-blur-sm sm:flex-row sm:justify-between sm:gap-6 sm:px-8 sm:text-left">
               <div className="flex items-center gap-4">
-                <span className="relative grid size-12 shrink-0 place-items-center rounded-2xl bg-emerald-500/15 ring-1 ring-emerald-400/30">
-                  <TrendingUp className="size-6 text-emerald-600" />
-                  <span className="absolute -right-1 -top-1 flex size-3.5">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/80" />
-                    <span className="relative inline-flex size-3.5 rounded-full bg-emerald-400 ring-2 ring-card" />
-                  </span>
+                <span className="relative grid size-12 shrink-0 place-items-center rounded-2xl bg-emerald-500/15 text-emerald-700 ring-1 ring-emerald-400/30">
+                  <TrendingUp className="size-6" />
                 </span>
                 <div>
                   <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/40 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-[0.16em] text-emerald-700">
@@ -299,6 +272,71 @@ export default function LandingPage() {
           </Link>
         </section>
 
+        {/* ─── Lifetime Offer · Own Stox or Koins Forever ─── */}
+        <section className="mx-auto max-w-7xl px-4 pb-6 sm:px-6 lg:px-8">
+          <div className="relative overflow-hidden rounded-3xl border border-amber-400/35 bg-gradient-to-br from-amber-500/10 via-primary/5 to-violet-500/10 p-[1.5px] shadow-[0_0_40px_-12px_rgba(217,119,6,0.35)]">
+            <div className="relative overflow-hidden rounded-[calc(1.5rem-1.5px)] bg-card/80 px-5 py-6 backdrop-blur-sm sm:px-8 sm:py-7">
+              {/* subtle gold accent line */}
+              <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-400/60 to-transparent" />
+
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between lg:gap-8">
+                {/* Copy */}
+                <div className="min-w-0 flex-1">
+                  <div className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/40 bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-[0.16em] text-amber-800">
+                    <Sparkles className="size-3 text-amber-600" />
+                    Limited Special · One-time
+                  </div>
+                  <h2 className="mt-2.5 font-display text-xl font-bold tracking-tight sm:text-2xl">
+                    Own Stox or Koins Forever —{" "}
+                    <span className="text-gradient">One-Time $300</span>
+                  </h2>
+                  <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-muted-foreground">
+                    Get the complete self-hosted AI market intelligence bot delivered as a
+                    downloadable package. Add your own portfolio and run it yourself.
+                  </p>
+                </div>
+
+                {/* Two bot mini-cards */}
+                <div className="flex shrink-0 flex-col gap-2.5 sm:flex-row sm:gap-3">
+                  <Link
+                    href="/own-the-bots"
+                    className="group flex items-center gap-3 rounded-2xl border border-border/70 bg-background/80 px-3.5 py-3 transition-all hover:border-emerald-500/50 hover:bg-emerald-500/5 hover:shadow-md"
+                  >
+                    <img
+                      src={BOT_STOX_AVATAR}
+                      alt="Stox"
+                      className="size-11 rounded-xl object-cover ring-1 ring-emerald-500/20"
+                      draggable={false}
+                    />
+                    <div className="min-w-0">
+                      <p className="font-display text-sm font-bold leading-none">Stox</p>
+                      <p className="mt-1 text-[11px] text-muted-foreground">Stock Market Intelligence</p>
+                    </div>
+                    <ArrowRight className="ml-1 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-emerald-600" />
+                  </Link>
+
+                  <Link
+                    href="/own-the-bots"
+                    className="group flex items-center gap-3 rounded-2xl border border-border/70 bg-background/80 px-3.5 py-3 transition-all hover:border-amber-500/50 hover:bg-amber-500/5 hover:shadow-md"
+                  >
+                    <img
+                      src={BOT_KOINS_AVATAR}
+                      alt="Koins"
+                      className="size-11 rounded-xl object-cover ring-1 ring-amber-500/20"
+                      draggable={false}
+                    />
+                    <div className="min-w-0">
+                      <p className="font-display text-sm font-bold leading-none">Koins</p>
+                      <p className="mt-1 text-[11px] text-muted-foreground">Crypto Market Intelligence</p>
+                    </div>
+                    <ArrowRight className="ml-1 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-amber-600" />
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* The two Apex bots — core of the product */}
         <div id="bots">
           <BotShowcase />
@@ -317,41 +355,9 @@ export default function LandingPage() {
             <h2 className="mt-3 max-w-2xl font-display text-3xl font-bold tracking-tight sm:text-4xl">
               The clarity previously reserved for professional traders and family offices.
             </h2>
-
-            <div className="mt-8 grid gap-6 text-sm leading-relaxed text-muted-foreground md:grid-cols-2">
-              <p>
-                AetherForge compiles institutional-grade data tables, tracks your portfolio&apos;s profit &amp; loss in
-                real time, and synthesises global news into a single, coherent picture. Every monitored company or coin
-                is projected across multiple timeframes, rendered in clean visual charts, ranked to surface the day&apos;s
-                top gainers, and distilled into data-backed observations you can actually act on.
-              </p>
-              <p>
-                Existing solutions are fragmented — generic screeners bolted onto generic feeds, lacking any real depth
-                on NZX and ASX. AetherForge is the New Zealand–focused, multi-asset sentinel built to close that gap,
-                turning scattered market noise into decisive intelligence, without ever crossing into unlicensed
-                financial advice.
-              </p>
-            </div>
-
-            <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {[
-                "Institutional-grade data tables",
-                "Real-time portfolio P&L tracking",
-                "Global news synthesis",
-                "Multi-timeframe projections",
-                "Visual continuation charts",
-                "Top-gainer identification",
-              ].map((item) => (
-                <div key={item} className="flex items-center gap-2 rounded-xl border border-border/60 bg-background/40 px-4 py-3">
-                  <ShieldCheck className="size-4 shrink-0 text-primary" />
-                  <span className="text-sm">{item}</span>
-                </div>
-              ))}
-            </div>
-
-            <p className="mt-8 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-              The result: institutional-quality clarity on your own holdings — delivered straight to your dashboard, at a
-              fraction of the cost.
+            <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted-foreground">
+              AetherForge compresses hours of market research into decisive, actionable intelligence
+              — so you can focus on the decisions that actually move the needle.
             </p>
           </div>
         </section>
@@ -359,25 +365,21 @@ export default function LandingPage() {
         {/* Features */}
         <section id="features" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-2xl text-center">
-            <p className="text-sm font-semibold uppercase tracking-wider text-primary">Intelligent Market Analysis</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">Capabilities</p>
             <h2 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">
-              A trading desk for your own money
+              Everything you need to stay ahead of the tape
             </h2>
-            <p className="mt-4 text-muted-foreground">
-              Purpose-built tools that turn raw holdings into clear, actionable insight.
-            </p>
           </div>
-
-          <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {FEATURES.map((f) => (
               <div
                 key={f.title}
-                className="group rounded-2xl border border-border/70 bg-card/50 p-6 transition-all hover:-translate-y-1 hover:border-primary/40 hover:shadow-glow"
+                className="rounded-2xl border border-border/60 bg-card/50 p-6 transition-colors hover:border-primary/30"
               >
-                <div className="grid size-11 place-items-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20 transition-colors group-hover:bg-primary/15">
+                <span className="grid size-11 place-items-center rounded-xl bg-primary/10 text-primary">
                   <f.icon className="size-5" />
-                </div>
-                <h3 className="mt-4 font-display text-lg font-semibold">{f.title}</h3>
+                </span>
+                <h3 className="mt-4 font-display text-lg font-bold">{f.title}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{f.desc}</p>
               </div>
             ))}
@@ -386,46 +388,39 @@ export default function LandingPage() {
 
         {/* How it works */}
         <section id="how" className="mx-auto max-w-7xl px-4 py-10 pb-24 sm:px-6 lg:px-8">
-          <div className="rounded-3xl border border-border/70 bg-card/40 p-8 sm:p-12">
-            <div className="flex flex-col items-start justify-between gap-6 sm:flex-row sm:items-end">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-wider text-primary">How it works</p>
-                <h2 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">
-                  From sign-up to insight in minutes
-                </h2>
+          <div className="mx-auto max-w-2xl text-center">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">Simple path</p>
+            <h2 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">
+              Four steps to institutional clarity
+            </h2>
+          </div>
+          <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {STEPS.map((s) => (
+              <div key={s.n} className="relative rounded-2xl border border-border/60 bg-card/40 p-6">
+                <span className="font-display text-3xl font-extrabold text-primary/30">{s.n}</span>
+                <h3 className="mt-3 font-display text-lg font-bold">{s.t}</h3>
+                <p className="mt-2 text-sm text-muted-foreground">{s.d}</p>
               </div>
-              <Button asChild variant="outline">
-                <Link href="/register">
-                  Create account <ArrowRight className="ml-1 size-4" />
-                </Link>
-              </Button>
-            </div>
-
-            <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-              {STEPS.map((s) => (
-                <div key={s.n} className="relative">
-                  <span className="font-display text-4xl font-extrabold text-primary/25">{s.n}</span>
-                  <h3 className="mt-2 font-semibold">{s.t}</h3>
-                  <p className="mt-1.5 text-sm text-muted-foreground">{s.d}</p>
-                </div>
-              ))}
-            </div>
+            ))}
           </div>
         </section>
 
-        {/* CTA */}
+        {/* Final CTA */}
         <section className="mx-auto max-w-7xl px-4 pb-24 sm:px-6 lg:px-8">
-          <div className="relative overflow-hidden rounded-3xl border border-primary/25 bg-gradient-to-br from-primary/15 via-card/60 to-card/60 px-8 py-14 text-center shadow-glow sm:px-12">
-            <LineChart className="mx-auto size-10 text-primary" />
-            <h2 className="mt-4 font-display text-3xl font-bold tracking-tight sm:text-4xl">
-              Ready to see your portfolio clearly?
+          <div className="relative overflow-hidden rounded-3xl border border-border/70 bg-gradient-to-br from-primary/10 via-card to-amber-500/5 px-8 py-14 text-center sm:px-12">
+            <h2 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">
+              Ready to take control of your market intelligence?
             </h2>
-            <p className="mx-auto mt-3 max-w-xl text-muted-foreground">
-              Join AetherForge AI and put an AI analyst to work on your investments today.
+            <p className="mx-auto mt-4 max-w-xl text-muted-foreground">
+              Join New Zealand investors who use AetherForge to cut through the noise and act with
+              confidence.
             </p>
-            <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-              <Button asChild size="lg" className="h-12 px-8 text-base font-semibold shadow-glow">
-                <Link href="/register">Get started free</Link>
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+              <Button asChild size="lg" className="h-12 px-8 text-base shadow-glow">
+                <Link href="/register">
+                  Create free account
+                  <ArrowRight className="size-4" />
+                </Link>
               </Button>
               <Button asChild size="lg" variant="outline" className="h-12 px-8 text-base">
                 <Link href="/login">I have an account</Link>
@@ -473,6 +468,7 @@ export default function LandingPage() {
                 <Link href="/how-it-works" className="hover:text-foreground">How it works</Link>
                 <Link href="/how-to-maximize-results" className="hover:text-foreground">Maximize results</Link>
                 <Link href="/pricing" className="hover:text-foreground">Pricing</Link>
+                <Link href="/own-the-bots" className="hover:text-foreground">Own the bots</Link>
                 <Link href="/privacy-policy" className="hover:text-foreground">AI Privacy Act</Link>
                 <Link href="/login" className="hover:text-foreground">Log in</Link>
                 <Link href="/terms-of-service" className="hover:text-foreground">Terms &amp; Conditions</Link>
