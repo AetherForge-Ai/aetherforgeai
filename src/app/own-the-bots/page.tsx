@@ -37,23 +37,23 @@ const KOINS_STRIPE = "https://buy.stripe.com/6oU6oB2Af63Raib2f51440n";
 const RECEIVE_ITEMS = [
   {
     icon: Download,
-    title: "Full bot package",
-    desc: "The complete AI intelligence engine delivered as a downloadable archive — ready to run on your own machine.",
+    title: "Protected binary package",
+    desc: "The complete AI intelligence engine delivered as a compiled, protected build — not readable source code. Includes double-click launchers for Windows and Mac/Linux.",
   },
   {
     icon: FolderKey,
     title: "Clear setup instructions",
-    desc: "Step-by-step guide covering installation, configuration and first launch so you are productive in minutes.",
+    desc: "Step-by-step guide (HOW-TO-USE) covering install and first launch — you are generating reports in minutes, no coding required.",
   },
   {
     icon: Wallet,
     title: "Your portfolio, your data",
-    desc: "Load your own holdings (shares, average cost, crypto quantities). Everything stays on your computer.",
+    desc: "Load your own holdings (shares, average cost, crypto quantities) via a simple CSV. Everything stays on your computer.",
   },
   {
     icon: HardDrive,
     title: "Self-hosted & offline-capable",
-    desc: "Once downloaded you control the environment. No ongoing subscription required to keep the bot running.",
+    desc: "Runs entirely on your machine — no account, no server connection and no subscription required to keep it running.",
   },
 ];
 
@@ -96,8 +96,8 @@ export default function OwnTheBotsPage() {
                 </h1>
                 <p className="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
                   One-time $300 purchase. Receive the complete self-hosted AI market intelligence
-                  bot as a downloadable package. Add your own portfolio and run it independently —
-                  no subscription required.
+                  bot as a protected, compiled package — the same engine that powers this site.
+                  Add your own portfolio and run it independently, offline, with no subscription.
                 </p>
               </section>
 
@@ -268,9 +268,10 @@ export default function OwnTheBotsPage() {
                   <div className="mt-8 flex items-start gap-3 rounded-2xl border border-border/60 bg-muted/40 px-4 py-3.5 text-sm text-muted-foreground">
                     <Lock className="mt-0.5 size-4 shrink-0 text-primary" />
                     <p>
-                      After purchase you receive a download link and setup instructions by email.
-                      The package is yours to keep and run offline. This is informational market
-                      intelligence software — not personalised financial advice.
+                      The instant your payment clears you are taken to a secure confirmation page
+                      where your protected package downloads automatically — plus you can
+                      re-download any time. The package is yours to keep and run offline. This is
+                      informational market intelligence software — not personalised financial advice.
                     </p>
                   </div>
                 </div>
