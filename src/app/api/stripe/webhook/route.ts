@@ -15,7 +15,7 @@
  */
 
 import { NextResponse } from "next/server";
-import { stripe, STRIPE_WEBHOOK_SECRET, cryptoProvider } from "@/lib/stripe";
+import { stripe, STRIPE_WEBHOOK_SECRETS, cryptoProvider } from "@/lib/stripe";
 import Stripe from "stripe";
 import { totalumSdk } from "@/lib/totalum";
 import { planByPriceId, planByKey, parsePaymentLinkRef } from "@/lib/plans";
@@ -251,23 +251,37 @@ export async function POST(req: Request) {
 
     let event: Stripe.Event;
 
-    // Verify webhook signature using async method for Cloudflare Workers compatibility
-    if (STRIPE_WEBHOOK_SECRET) {
-      try {
-        event = await stripe.webhooks.constructEventAsync(
-          body,
-          signature,
-          STRIPE_WEBHOOK_SECRET,
-          undefined,
-          cryptoProvider
+    // Verify webhook signature using async method for Cloudflare Workers compatibility.
+    // Try every configured signing secret (preview + production endpoints have
+    // different secrets) and accept the event if ANY of them validates.
+    if (STRIPE_WEBHOOK_SECRETS.length) {
+      let verified: Stripe.Event | null = null;
+      let lastError = "";
+      for (const secret of STRIPE_WEBHOOK_SECRETS) {
+        try {
+          verified = await stripe.webhooks.constructEventAsync(
+            body,
+            signature,
+            secret,
+            undefined,
+            cryptoProvider
+          );
+          break;
+        } catch (err: any) {
+          lastError = err?.message || "signature mismatch";
+        }
+      }
+      if (!verified) {
+        console.error(
+          `Webhook signature verification failed against ${STRIPE_WEBHOOK_SECRETS.length} secret(s):`,
+          lastError
         );
-      } catch (err: any) {
-        console.error("Webhook signature verification failed:", err.message);
         return NextResponse.json(
-          { error: `Webhook signature verification failed: ${err.message}` },
+          { error: `Webhook signature verification failed: ${lastError}` },
           { status: 400 }
         );
       }
+      event = verified;
     } else {
       // For development without webhook secret
       console.warn("⚠️  Webhook signature verification skipped (no STRIPE_WEBHOOK_SECRET)");

@@ -143,11 +143,38 @@ export async function createProductsInStripe() {
 }
 
 /**
- * Get Stripe webhook signing secret
+ * Get Stripe webhook signing secret (primary).
  */
 export const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
 
-if (!STRIPE_WEBHOOK_SECRET && stripeSecretKey) {
+/**
+ * All configured webhook signing secrets.
+ *
+ * The app can be reached on more than one live host — e.g. the Totalum preview
+ * subdomain AND the custom production domain (https://www.aetherforgeai.co.nz).
+ * Each host has its own Stripe webhook endpoint, and every endpoint has a
+ * DIFFERENT signing secret. With a single secret, deliveries from the "other"
+ * endpoint would fail signature verification and silently drop subscription
+ * activations. To be robust we verify against every known secret and accept the
+ * event if ANY of them validates the signature.
+ *
+ * Secrets are collected from STRIPE_WEBHOOK_SECRET (which may itself be a
+ * comma/space separated list) plus STRIPE_WEBHOOK_SECRET_2..3, de-duplicated.
+ */
+export const STRIPE_WEBHOOK_SECRETS: string[] = Array.from(
+  new Set(
+    [
+      process.env.STRIPE_WEBHOOK_SECRET,
+      process.env.STRIPE_WEBHOOK_SECRET_2,
+      process.env.STRIPE_WEBHOOK_SECRET_3,
+    ]
+      .flatMap((v) => (v ? v.split(/[,\s]+/) : []))
+      .map((s) => s.trim())
+      .filter(Boolean)
+  )
+);
+
+if (!STRIPE_WEBHOOK_SECRETS.length && stripeSecretKey) {
   console.warn(
     "⚠️  STRIPE_WEBHOOK_SECRET is not set. " +
     "Webhook signature verification will be skipped. " +
