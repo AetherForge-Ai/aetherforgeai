@@ -719,17 +719,6 @@ export function PortfolioDashboard({
             )}
             Refresh prices
           </Button>
-          {atLimit ? (
-            <Button asChild className="font-semibold shadow-glow">
-              <Link href="/pricing">
-                <Sparkles className="mr-2 size-4" /> Upgrade to add more
-              </Link>
-            </Button>
-          ) : (
-            <Button onClick={openAdd} className="font-semibold shadow-glow">
-              <Plus className="mr-2 size-4" /> Add holding
-            </Button>
-          )}
         </div>
         )}
       </div>
