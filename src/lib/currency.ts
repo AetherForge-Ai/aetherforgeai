@@ -96,6 +96,28 @@ export function formatMoney(
   }
 }
 
+/**
+ * Convert an NZD amount into its USD equivalent using the "1 unit → NZD" table.
+ * All of AetherForge's plan/product prices are billed in NZD; this powers the
+ * "≈ US$X" reference shown alongside every price.
+ */
+export function nzdToUsd(nzd: number, rates: FxRatesToNZD = BASELINE_FX_TO_NZD): number {
+  return convertCurrency(nzd, "NZD", "USD", rates);
+}
+
+/**
+ * Format the USD equivalent of an NZD price as an approximate secondary label,
+ * e.g. "≈ US$41". Defaults to whole dollars since it's an FX reference that
+ * naturally drifts; pass `decimals` for finer precision.
+ */
+export function formatUsdApprox(
+  nzd: number,
+  rates: FxRatesToNZD = BASELINE_FX_TO_NZD,
+  opts: { decimals?: number } = {}
+): string {
+  return `≈ ${formatMoney(nzdToUsd(nzd, rates), "USD", { decimals: opts.decimals ?? 0 })}`;
+}
+
 /** Short signed percent, e.g. "+2.4%". */
 export function formatSignedPercent(value: number, decimals = 2): string {
   const s = value.toFixed(decimals);

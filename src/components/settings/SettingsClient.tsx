@@ -13,6 +13,8 @@ import { toast } from "sonner";
 import { Loader2, User, CreditCard, Crown, ExternalLink, Sparkles, ShieldCheck, Mail, KeyRound, ArrowUpCircle, Check, Zap, CalendarClock } from "lucide-react";
 import Link from "next/link";
 import { PLANS, planByKey, planLabel, type Plan } from "@/lib/plans";
+import { formatUsdApprox } from "@/lib/currency";
+import { useFxRates } from "@/hooks/useFxRates";
 
 interface SettingsUser {
   name: string;
@@ -75,6 +77,8 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
   // Rank plans by price so we can label each option as an upgrade or a change.
   const currentPrice = currentPlan?.price ?? 0;
   const preferredBot: "stock" | "crypto" = user.bot_access === "crypto" ? "crypto" : "stock";
+  // Live NZD→USD rate so each NZ$ plan price shows its US$ equivalent.
+  const { rates: fx } = useFxRates();
   // Other paid plans the member can switch to from their current subscription.
   const switchOptions = PLANS.filter((p) => p.key !== user.subscription_plan);
 
@@ -394,8 +398,11 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
                     </div>
 
                     <p className="mt-2 tnum">
-                      <span className="font-display text-xl font-bold">${plan.price}</span>
+                      <span className="font-display text-xl font-bold">NZ${plan.price}</span>
                       <span className="text-xs text-muted-foreground"> / {plan.intervalLabel}</span>
+                    </p>
+                    <p className="tnum text-[0.7rem] font-medium text-muted-foreground/90">
+                      {formatUsdApprox(plan.price, fx)} / {plan.intervalLabel} today
                     </p>
 
                     <ul className="mt-2 space-y-1">

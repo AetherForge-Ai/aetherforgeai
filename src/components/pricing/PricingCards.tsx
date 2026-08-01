@@ -16,6 +16,8 @@ import {
   type PricingTier,
   type PlanKey,
 } from "@/lib/plans";
+import { formatUsdApprox } from "@/lib/currency";
+import { useFxRates } from "@/hooks/useFxRates";
 import {
   Check,
   Loader2,
@@ -45,6 +47,8 @@ export function PricingCards() {
   const [period, setPeriod] = useState<BillingPeriod>("monthly");
   const [bot, setBot] = useState<BotChoice>("stock");
   const [loadingTier, setLoadingTier] = useState<string | null>(null);
+  // Live NZD→USD rate so each NZ$ price shows its US$ equivalent underneath.
+  const { rates: fx } = useFxRates();
 
   const annual = period === "annual";
 
@@ -216,28 +220,34 @@ export function PricingCards() {
               <div className="mt-5">
                 {isFree ? (
                   <div className="flex items-end gap-1">
-                    <span className="font-display text-4xl font-extrabold leading-none">$0</span>
+                    <span className="text-lg font-semibold text-muted-foreground">NZ$</span>
+                    <span className="font-display text-4xl font-extrabold leading-none">0</span>
                     <span className="mb-0.5 text-sm text-muted-foreground">forever</span>
                   </div>
                 ) : (
                   <>
                     <div className="flex items-end gap-1">
-                      <span className="text-lg font-semibold text-muted-foreground">$</span>
+                      <span className="text-lg font-semibold text-muted-foreground">NZ$</span>
                       <span className="tnum font-display text-4xl font-extrabold leading-none">
                         {money(price ?? 0)}
                       </span>
                       <span className="mb-0.5 text-sm text-muted-foreground">/{annual ? "yr" : "mo"}</span>
                     </div>
+                    {/* Live US$ equivalent of the NZD price. */}
+                    <p className="mt-1 text-xs font-medium text-muted-foreground/90">
+                      {formatUsdApprox(price ?? 0, fx)}
+                      <span className="text-muted-foreground/70"> /{annual ? "yr" : "mo"} today</span>
+                    </p>
                     <p className="mt-1.5 text-xs text-muted-foreground">
                       {annual ? (
                         <>
                           Billed annually · Save ~{ANNUAL_SAVINGS_PCT}% ·{" "}
                           <span className="font-medium text-foreground/80">
-                            ~${monthlyEquivalent(price ?? 0)}/mo
+                            ~NZ${monthlyEquivalent(price ?? 0)}/mo
                           </span>
                         </>
                       ) : (
-                        <>or ${money(tier.yearlyPrice ?? 0)}/yr · Save ~{ANNUAL_SAVINGS_PCT}% annually</>
+                        <>or NZ${money(tier.yearlyPrice ?? 0)}/yr · Save ~{ANNUAL_SAVINGS_PCT}% annually</>
                       )}
                     </p>
                   </>
@@ -280,7 +290,8 @@ export function PricingCards() {
       </div>
 
       <p className="mt-8 text-center text-xs text-muted-foreground">
-        All prices in NZD · Secure Stripe checkout · Cancel anytime · Paid plans include a 14-day Pro trial
+        All prices in NZD — billed in NZD. US$ amounts are indicative at today&apos;s exchange rate ·
+        Secure Stripe checkout · Cancel anytime · Paid plans include a 14-day Pro trial
       </p>
     </div>
   );

@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { getFxSnapshot } from "@/lib/fx";
+import { formatUsdApprox } from "@/lib/currency";
 import { SiteHeader } from "@/components/SiteHeader";
 import { BrandLogo } from "@/components/BrandLogo";
 import { Button } from "@/components/ui/button";
@@ -18,12 +20,12 @@ import {
 } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Own Stox or Koins Forever — One-Time $300 | AetherForge AI",
+  title: "Own Stox or Koins Forever — One-Time NZ$300 | AetherForge AI",
   description:
-    "Get the complete self-hosted AI market intelligence bot as a downloadable package. Choose Stox (NZX/ASX stocks) or Koins (crypto). One-time $300 purchase — full control, your portfolio, run independently.",
+    "Get the complete self-hosted AI market intelligence bot as a downloadable package. Choose Stox (NZX/ASX stocks) or Koins (crypto). One-time NZ$300 purchase — full control, your portfolio, run independently.",
   alternates: { canonical: "/own-the-bots" },
   openGraph: {
-    title: "Own Stox or Koins Forever — One-Time $300 | AetherForge AI",
+    title: "Own Stox or Koins Forever — One-Time NZ$300 | AetherForge AI",
     description:
       "Complete self-hosted AI market intelligence bots. Stox for stocks or Koins for crypto. One-time purchase, lifetime ownership.",
     url: "/own-the-bots",
@@ -57,7 +59,14 @@ const RECEIVE_ITEMS = [
   },
 ];
 
-export default function OwnTheBotsPage() {
+/** The self-hosted bots are a one-time NZ$300 purchase (billed in NZD via Stripe). */
+const BOT_PRICE_NZD = 300;
+
+export default async function OwnTheBotsPage() {
+  // Resolve a live NZD→USD rate so the NZ$300 price can show its US$ equivalent.
+  const fx = await getFxSnapshot();
+  const botPriceUsd = formatUsdApprox(BOT_PRICE_NZD, fx.ratesToNZD);
+
   return (
     <div className="chrome-dark relative min-h-screen bg-background bg-grid">
       <div className="pointer-events-none absolute inset-0 bg-aurora" />
@@ -95,7 +104,7 @@ export default function OwnTheBotsPage() {
                   <span className="text-gradient">Koins</span> Forever
                 </h1>
                 <p className="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-                  One-time $300 purchase. Receive the complete self-hosted AI market intelligence
+                  One-time NZ$300 purchase ({botPriceUsd} today). Receive the complete self-hosted AI market intelligence
                   bot as a protected, compiled package — the same engine that powers this site.
                   Add your own portfolio and run it independently, offline, with no subscription.
                 </p>
@@ -149,9 +158,10 @@ export default function OwnTheBotsPage() {
                       <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                           <p className="font-display text-2xl font-extrabold tracking-tight">
-                            $300 <span className="text-base font-semibold text-muted-foreground">one-time</span>
+                            NZ$300 <span className="text-base font-semibold text-muted-foreground">one-time</span>
                           </p>
-                          <p className="text-xs text-muted-foreground">AUD · lifetime ownership</p>
+                          <p className="text-xs font-medium text-muted-foreground/90">{botPriceUsd} today</p>
+                          <p className="text-xs text-muted-foreground">NZD · lifetime ownership</p>
                         </div>
                         <Button
                           asChild
@@ -212,9 +222,10 @@ export default function OwnTheBotsPage() {
                       <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                           <p className="font-display text-2xl font-extrabold tracking-tight">
-                            $300 <span className="text-base font-semibold text-muted-foreground">one-time</span>
+                            NZ$300 <span className="text-base font-semibold text-muted-foreground">one-time</span>
                           </p>
-                          <p className="text-xs text-muted-foreground">AUD · lifetime ownership</p>
+                          <p className="text-xs font-medium text-muted-foreground/90">{botPriceUsd} today</p>
+                          <p className="text-xs text-muted-foreground">NZD · lifetime ownership</p>
                         </div>
                         <Button
                           asChild
