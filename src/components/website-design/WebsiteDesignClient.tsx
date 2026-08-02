@@ -1,9 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { WEBSITE_DESIGN_LIVE_SHOT } from "../../../assets/files";
 import { formatUsdApprox } from "@/lib/currency";
 import { useFxRates } from "@/hooks/useFxRates";
+import { api } from "@/lib/api";
+import {
+  WELCOME_LETTER_TEMPLATE,
+  WELCOME_EMAIL_TEMPLATE,
+} from "@/lib/website-design-content";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -28,6 +33,13 @@ import {
   ExternalLink,
   Facebook,
   Linkedin,
+  Loader2,
+  UploadCloud,
+  Copy,
+  CheckCircle2,
+  FileText,
+  Paperclip,
+  Send,
 } from "lucide-react";
 
 /* -------------------------------------------------------------------------- */
@@ -165,6 +177,620 @@ const PROCESS = [
 ];
 
 /* -------------------------------------------------------------------------- */
+/*  Enquiry form options (values MUST match the Totalum table option values)   */
+/* -------------------------------------------------------------------------- */
+
+const PACKAGE_OPTIONS: { value: string; label: string }[] = [
+  { value: "standard_professional", label: "Standard Professional" },
+  { value: "premium_business", label: "Premium Business (includes Customer Login Portal)" },
+  { value: "ultimate_custom", label: "Ultimate Custom (fully tailored + AI + dual portals)" },
+  { value: "not_sure", label: "Not sure yet — please advise" },
+];
+
+const STYLE_OPTIONS: { value: string; label: string }[] = [
+  { value: "executive_minimal", label: "Executive Minimal" },
+  { value: "modern_professional", label: "Modern Professional" },
+  { value: "warm_elegant", label: "Warm Elegant" },
+  { value: "bold_creative", label: "Bold Creative" },
+  { value: "luxury_dark_mode", label: "Luxury Dark Mode" },
+  { value: "clean_tech_saas", label: "Clean Tech / SaaS" },
+  { value: "portfolio_agency", label: "Portfolio / Agency Showcase" },
+  { value: "ecommerce_focused", label: "E-commerce Focused" },
+  { value: "custom_other", label: "Custom / Other (please describe)" },
+];
+
+const FEATURE_OPTIONS: { value: string; label: string }[] = [
+  { value: "ai_chatbot", label: "AI Chatbot" },
+  { value: "customer_login_portal", label: "Customer Login Portal" },
+  { value: "staff_login_portal", label: "Staff Login Portal" },
+  { value: "online_booking", label: "Online Booking / Appointments" },
+  { value: "ecommerce_payments", label: "E-commerce / Payments" },
+  { value: "blog_news", label: "Blog / News Section" },
+  { value: "other", label: "Other (please specify)" },
+];
+
+const BUDGET_OPTIONS: { value: string; label: string }[] = [
+  { value: "under_1500", label: "Under $1,500" },
+  { value: "1500_3000", label: "$1,500 – $3,000" },
+  { value: "3000_6000", label: "$3,000 – $6,000" },
+  { value: "6000_plus", label: "$6,000+" },
+  { value: "prefer_discuss", label: "Prefer to discuss" },
+];
+
+const MAX_FILE_BYTES = 8 * 1024 * 1024; // 8MB per file
+const MAX_FILES = 6;
+
+type EnquiryState = {
+  full_name: string;
+  email: string;
+  phone: string;
+  company_name: string;
+  website_purpose: string;
+  interested_package: string;
+  design_styles: string[];
+  custom_style_note: string;
+  required_features: string[];
+  other_feature_note: string;
+  budget_range: string;
+  timeline: string;
+  additional_notes: string;
+};
+
+const EMPTY_ENQUIRY: EnquiryState = {
+  full_name: "",
+  email: "",
+  phone: "",
+  company_name: "",
+  website_purpose: "",
+  interested_package: "",
+  design_styles: [],
+  custom_style_note: "",
+  required_features: [],
+  other_feature_note: "",
+  budget_range: "",
+  timeline: "",
+  additional_notes: "",
+};
+
+/** Read a File into raw base64 (no data-URL prefix) for JSON transport. */
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result || "");
+      const comma = result.indexOf(",");
+      resolve(comma >= 0 ? result.slice(comma + 1) : result);
+    };
+    reader.onerror = () => reject(reader.error || new Error("Could not read file"));
+    reader.readAsDataURL(file);
+  });
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Shared field primitives — keep the warm identity consistent                */
+/* -------------------------------------------------------------------------- */
+
+const LABEL_CLASS =
+  "mb-2 block text-sm font-medium tracking-wide text-[#4A4237]";
+const FIELD_CLASS =
+  "w-full rounded-xl border border-[#E0D2BB] bg-[#FFFDF9] px-4 py-3 text-[15px] text-[#2B2724] placeholder:text-[#B0A48F] outline-none transition-colors focus:border-[#9A7B44] focus:ring-2 focus:ring-[#C8A96A]/30";
+
+function RequiredMark() {
+  return <span className="text-[#C57B57]"> *</span>;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Enquiry form                                                               */
+/* -------------------------------------------------------------------------- */
+
+function EnquiryForm() {
+  const [form, setForm] = useState<EnquiryState>(EMPTY_ENQUIRY);
+  const [files, setFiles] = useState<File[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const set = <K extends keyof EnquiryState>(key: K, value: EnquiryState[K]) =>
+    setForm((f) => ({ ...f, [key]: value }));
+
+  const toggleInArray = (key: "design_styles" | "required_features", value: string) =>
+    setForm((f) => {
+      const arr = f[key];
+      return {
+        ...f,
+        [key]: arr.includes(value) ? arr.filter((v) => v !== value) : [...arr, value],
+      };
+    });
+
+  const onPickFiles = (list: FileList | null) => {
+    if (!list) return;
+    setError(null);
+    const incoming = Array.from(list);
+    const merged = [...files];
+    for (const file of incoming) {
+      if (file.size > MAX_FILE_BYTES) {
+        setError(`"${file.name}" is larger than 8MB. Please attach a smaller file.`);
+        continue;
+      }
+      if (merged.length >= MAX_FILES) {
+        setError(`You can attach up to ${MAX_FILES} files.`);
+        break;
+      }
+      if (!merged.some((f) => f.name === file.name && f.size === file.size)) {
+        merged.push(file);
+      }
+    }
+    setFiles(merged);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const removeFile = (idx: number) => setFiles((prev) => prev.filter((_, i) => i !== idx));
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    // Client-side validation of the three required fields.
+    if (!form.full_name.trim()) return setError("Please enter your full name.");
+    if (!form.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim()))
+      return setError("Please enter a valid email address.");
+    if (!form.interested_package)
+      return setError("Please choose the package you're most interested in.");
+
+    setSubmitting(true);
+    console.log("[EnquiryForm] Submitting enquiry…", { package: form.interested_package, files: files.length });
+    try {
+      const attachments = await Promise.all(
+        files.map(async (file) => ({
+          filename: file.name,
+          contentType: file.type || "application/octet-stream",
+          base64: await fileToBase64(file),
+        }))
+      );
+
+      const res = await api.post<{ id: string | null }>("/api/website-design/enquiry", {
+        ...form,
+        full_name: form.full_name.trim(),
+        email: form.email.trim(),
+        attachments,
+      });
+
+      if (!res.ok) {
+        console.error("[EnquiryForm] Submission failed:", res.error);
+        setError(typeof res.error === "string" ? res.error : "Something went wrong. Please try again or email us directly.");
+        return;
+      }
+
+      console.log("[EnquiryForm] Enquiry submitted successfully", res.data);
+      setSubmitted(true);
+      setForm(EMPTY_ENQUIRY);
+      setFiles([]);
+    } catch (err) {
+      console.error("[EnquiryForm] Unexpected submission error:", err);
+      setError("Something went wrong sending your enquiry. Please try again, or email us directly.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (submitted) {
+    return (
+      <div className="rounded-[1.6rem] border border-[#C8A96A]/60 bg-[#FFFDF9] p-10 text-center shadow-[0_30px_60px_-30px_rgba(154,123,68,0.5)] sm:p-14">
+        <span className="mx-auto grid size-16 place-items-center rounded-full bg-[#C8A96A]/18 text-[#9A7B44]">
+          <CheckCircle2 className="size-8" />
+        </span>
+        <h3
+          className="mt-6 text-3xl text-[#211E1B]"
+          style={{ fontFamily: "var(--font-studio-serif), serif", fontWeight: 600 }}
+        >
+          Thank you.
+        </h3>
+        <p className="mx-auto mt-4 max-w-xl text-lg font-light leading-relaxed text-[#5C5346]">
+          Your enquiry has been received. You will receive a formal welcome email shortly, and I will
+          personally review your details within one business day.
+        </p>
+        <button
+          onClick={() => setSubmitted(false)}
+          className="mt-8 inline-flex items-center gap-2 rounded-full border border-[#CDBEA3] px-6 py-3 text-sm font-medium text-[#4A4237] transition-colors hover:border-[#9A7B44] hover:text-[#9A7B44]"
+        >
+          Submit another enquiry
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      className="rounded-[1.6rem] border border-[#E6D9C4] bg-[#FFFDF9] p-6 shadow-[0_30px_60px_-32px_rgba(43,39,36,0.3)] sm:p-9"
+      noValidate
+    >
+      <div className="grid gap-5 sm:grid-cols-2">
+        {/* 1 — Full name */}
+        <div>
+          <label htmlFor="wd-name" className={LABEL_CLASS}>
+            Full Name<RequiredMark />
+          </label>
+          <input
+            id="wd-name"
+            type="text"
+            autoComplete="name"
+            className={FIELD_CLASS}
+            placeholder="Jane Doe"
+            value={form.full_name}
+            onChange={(e) => set("full_name", e.target.value)}
+            required
+          />
+        </div>
+
+        {/* 2 — Email */}
+        <div>
+          <label htmlFor="wd-email" className={LABEL_CLASS}>
+            Email Address<RequiredMark />
+          </label>
+          <input
+            id="wd-email"
+            type="email"
+            autoComplete="email"
+            className={FIELD_CLASS}
+            placeholder="you@company.com"
+            value={form.email}
+            onChange={(e) => set("email", e.target.value)}
+            required
+          />
+        </div>
+
+        {/* 3 — Phone */}
+        <div>
+          <label htmlFor="wd-phone" className={LABEL_CLASS}>
+            Phone Number
+          </label>
+          <input
+            id="wd-phone"
+            type="tel"
+            autoComplete="tel"
+            className={FIELD_CLASS}
+            placeholder="+64 …"
+            value={form.phone}
+            onChange={(e) => set("phone", e.target.value)}
+          />
+        </div>
+
+        {/* 4 — Company */}
+        <div>
+          <label htmlFor="wd-company" className={LABEL_CLASS}>
+            Company / Business Name
+          </label>
+          <input
+            id="wd-company"
+            type="text"
+            autoComplete="organization"
+            className={FIELD_CLASS}
+            placeholder="Your business"
+            value={form.company_name}
+            onChange={(e) => set("company_name", e.target.value)}
+          />
+        </div>
+      </div>
+
+      {/* 5 — Purpose */}
+      <div className="mt-5">
+        <label htmlFor="wd-purpose" className={LABEL_CLASS}>
+          What is the main purpose of your website?
+        </label>
+        <textarea
+          id="wd-purpose"
+          rows={4}
+          className={`${FIELD_CLASS} resize-y`}
+          placeholder="Tell me what you'd like your website to achieve — the impression, the audience, and the outcomes that matter most."
+          value={form.website_purpose}
+          onChange={(e) => set("website_purpose", e.target.value)}
+        />
+      </div>
+
+      {/* 6 — Package (single choice, required) */}
+      <fieldset className="mt-7">
+        <legend className={LABEL_CLASS}>
+          Which package are you most interested in?<RequiredMark />
+        </legend>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {PACKAGE_OPTIONS.map((opt) => {
+            const active = form.interested_package === opt.value;
+            return (
+              <label
+                key={opt.value}
+                className={[
+                  "flex cursor-pointer items-start gap-3 rounded-xl border p-4 text-sm transition-colors",
+                  active
+                    ? "border-[#9A7B44] bg-[#C8A96A]/12 text-[#2B2724]"
+                    : "border-[#E0D2BB] bg-[#FFFDF9] text-[#5C5346] hover:border-[#C8A96A]/70",
+                ].join(" ")}
+              >
+                <input
+                  type="radio"
+                  name="interested_package"
+                  value={opt.value}
+                  checked={active}
+                  onChange={() => set("interested_package", opt.value)}
+                  className="mt-0.5 size-4 accent-[#9A7B44]"
+                />
+                <span className="font-light leading-snug">{opt.label}</span>
+              </label>
+            );
+          })}
+        </div>
+      </fieldset>
+
+      {/* 7 — Design styles (multiple) */}
+      <fieldset className="mt-7">
+        <legend className={LABEL_CLASS}>Preferred Design Style(s)</legend>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {STYLE_OPTIONS.map((opt) => {
+            const active = form.design_styles.includes(opt.value);
+            return (
+              <label
+                key={opt.value}
+                className={[
+                  "flex cursor-pointer items-center gap-3 rounded-xl border p-3 text-sm transition-colors",
+                  active
+                    ? "border-[#9A7B44] bg-[#C8A96A]/12 text-[#2B2724]"
+                    : "border-[#E0D2BB] bg-[#FFFDF9] text-[#5C5346] hover:border-[#C8A96A]/70",
+                ].join(" ")}
+              >
+                <input
+                  type="checkbox"
+                  checked={active}
+                  onChange={() => toggleInArray("design_styles", opt.value)}
+                  className="size-4 accent-[#9A7B44]"
+                />
+                <span className="font-light leading-snug">{opt.label}</span>
+              </label>
+            );
+          })}
+        </div>
+        {form.design_styles.includes("custom_other") && (
+          <input
+            type="text"
+            className={`${FIELD_CLASS} mt-3`}
+            placeholder="Please describe your custom / other style…"
+            value={form.custom_style_note}
+            onChange={(e) => set("custom_style_note", e.target.value)}
+          />
+        )}
+      </fieldset>
+
+      {/* 8 — Features (multiple) */}
+      <fieldset className="mt-7">
+        <legend className={LABEL_CLASS}>Do you require any of the following features?</legend>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {FEATURE_OPTIONS.map((opt) => {
+            const active = form.required_features.includes(opt.value);
+            return (
+              <label
+                key={opt.value}
+                className={[
+                  "flex cursor-pointer items-center gap-3 rounded-xl border p-3 text-sm transition-colors",
+                  active
+                    ? "border-[#9A7B44] bg-[#C8A96A]/12 text-[#2B2724]"
+                    : "border-[#E0D2BB] bg-[#FFFDF9] text-[#5C5346] hover:border-[#C8A96A]/70",
+                ].join(" ")}
+              >
+                <input
+                  type="checkbox"
+                  checked={active}
+                  onChange={() => toggleInArray("required_features", opt.value)}
+                  className="size-4 accent-[#9A7B44]"
+                />
+                <span className="font-light leading-snug">{opt.label}</span>
+              </label>
+            );
+          })}
+        </div>
+        {form.required_features.includes("other") && (
+          <input
+            type="text"
+            className={`${FIELD_CLASS} mt-3`}
+            placeholder="Please specify the other feature you need…"
+            value={form.other_feature_note}
+            onChange={(e) => set("other_feature_note", e.target.value)}
+          />
+        )}
+      </fieldset>
+
+      <div className="mt-7 grid gap-5 sm:grid-cols-2">
+        {/* 9 — Budget (single) */}
+        <div>
+          <label htmlFor="wd-budget" className={LABEL_CLASS}>
+            Approximate Budget Range
+          </label>
+          <select
+            id="wd-budget"
+            className={FIELD_CLASS}
+            value={form.budget_range}
+            onChange={(e) => set("budget_range", e.target.value)}
+          >
+            <option value="">Select a range…</option>
+            {BUDGET_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* 10 — Timeline */}
+        <div>
+          <label htmlFor="wd-timeline" className={LABEL_CLASS}>
+            Ideal Timeline
+          </label>
+          <input
+            id="wd-timeline"
+            type="text"
+            className={FIELD_CLASS}
+            placeholder="e.g. Within 6–8 weeks"
+            value={form.timeline}
+            onChange={(e) => set("timeline", e.target.value)}
+          />
+        </div>
+      </div>
+
+      {/* 11 — Additional notes */}
+      <div className="mt-5">
+        <label htmlFor="wd-notes" className={LABEL_CLASS}>
+          Any additional notes or special requirements
+        </label>
+        <textarea
+          id="wd-notes"
+          rows={4}
+          className={`${FIELD_CLASS} resize-y`}
+          placeholder="Anything else you'd like me to know…"
+          value={form.additional_notes}
+          onChange={(e) => set("additional_notes", e.target.value)}
+        />
+      </div>
+
+      {/* 12 — File upload */}
+      <div className="mt-5">
+        <label className={LABEL_CLASS}>
+          File Upload{" "}
+          <span className="font-light text-[#8A7E6E]">(optional — logo, brand guidelines, or reference images)</span>
+        </label>
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          className="flex w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[#CDBEA3] bg-[#FBF6EE] px-4 py-8 text-center transition-colors hover:border-[#9A7B44] hover:bg-[#F3E9D8]"
+        >
+          <UploadCloud className="size-7 text-[#9A7B44]" />
+          <span className="text-sm font-medium text-[#4A4237]">Click to upload files</span>
+          <span className="text-xs font-light text-[#8A7E6E]">Up to {MAX_FILES} files · 8MB each · images or PDFs</span>
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept="image/*,.pdf,.doc,.docx"
+          className="hidden"
+          onChange={(e) => onPickFiles(e.target.files)}
+        />
+        {files.length > 0 && (
+          <ul className="mt-3 space-y-2">
+            {files.map((file, idx) => (
+              <li
+                key={`${file.name}-${idx}`}
+                className="flex items-center justify-between gap-3 rounded-lg border border-[#E6D9C4] bg-[#FBF6EE] px-3 py-2 text-sm"
+              >
+                <span className="flex min-w-0 items-center gap-2 text-[#4A4237]">
+                  <Paperclip className="size-4 shrink-0 text-[#9A7B44]" />
+                  <span className="truncate font-light">{file.name}</span>
+                  <span className="shrink-0 text-xs text-[#8A7E6E]">
+                    {(file.size / 1024 / 1024).toFixed(1)}MB
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => removeFile(idx)}
+                  className="grid size-6 shrink-0 place-items-center rounded-full text-[#8A7E6E] transition-colors hover:bg-[#EFE4D2] hover:text-[#C57B57]"
+                  aria-label={`Remove ${file.name}`}
+                >
+                  <X className="size-4" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {error && (
+        <p className="mt-6 rounded-xl border border-[#C57B57]/40 bg-[#C57B57]/10 px-4 py-3 text-sm font-medium text-[#A65438]">
+          {error}
+        </p>
+      )}
+
+      <button
+        type="submit"
+        disabled={submitting}
+        className="mt-8 inline-flex w-full items-center justify-center gap-2.5 rounded-full bg-[#2B2724] px-8 py-4 text-sm font-medium tracking-wide text-[#F7F1E8] transition-colors hover:bg-[#9A7B44] disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
+      >
+        {submitting ? (
+          <>
+            <Loader2 className="size-4 animate-spin" /> Sending…
+          </>
+        ) : (
+          <>
+            Submit Enquiry <Send className="size-4" />
+          </>
+        )}
+      </button>
+      <p className="mt-4 text-xs font-light leading-relaxed text-[#8A7E6E]">
+        Your details are used only to prepare your proposal and are never shared. Fields marked
+        <span className="text-[#C57B57]"> *</span> are required.
+      </p>
+    </form>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Copy-ready onboarding resource card                                        */
+/* -------------------------------------------------------------------------- */
+
+function ResourceCard({
+  icon: Icon,
+  title,
+  description,
+  content,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
+  content: string;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2200);
+    } catch (err) {
+      console.error("[ResourceCard] Clipboard copy failed:", err);
+    }
+  };
+
+  return (
+    <div className="flex h-full flex-col rounded-[1.4rem] border border-[#E6D9C4] bg-[#FFFDF9] p-6 sm:p-7">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <span className="grid size-11 place-items-center rounded-xl bg-[#C8A96A]/15 text-[#9A7B44]">
+            <Icon className="size-5" />
+          </span>
+          <div>
+            <h3
+              className="text-xl text-[#211E1B]"
+              style={{ fontFamily: "var(--font-studio-serif), serif", fontWeight: 600 }}
+            >
+              {title}
+            </h3>
+            <p className="text-xs font-light text-[#8A7E6E]">{description}</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={copy}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[#CDBEA3] px-3.5 py-2 text-xs font-medium text-[#4A4237] transition-colors hover:border-[#9A7B44] hover:text-[#9A7B44]"
+        >
+          {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+          {copied ? "Copied" : "Copy"}
+        </button>
+      </div>
+      <pre className="mt-5 max-h-80 overflow-auto whitespace-pre-wrap rounded-xl border border-[#EFE4D2] bg-[#FBF6EE] p-4 text-[13px] font-light leading-relaxed text-[#4A4237]" style={{ fontFamily: "var(--font-studio-sans), ui-sans-serif, system-ui, sans-serif" }}>
+        {content}
+      </pre>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Component                                                                  */
 /* -------------------------------------------------------------------------- */
 
@@ -188,6 +814,7 @@ export function WebsiteDesignClient() {
     { href: "#work", label: "Work" },
     { href: "#services", label: "Services" },
     { href: "#packages", label: "Packages" },
+    { href: "#enquire", label: "Enquire" },
     { href: "#contact", label: "Contact" },
   ];
 
@@ -224,7 +851,7 @@ export function WebsiteDesignClient() {
               </a>
             ))}
             <a
-              href="#packages"
+              href="#enquire"
               className="inline-flex items-center gap-1.5 rounded-full bg-[#2B2724] px-5 py-2.5 text-sm font-medium text-[#F7F1E8] transition-colors hover:bg-[#9A7B44]"
             >
               Start your project <ArrowRight className="size-3.5" />
@@ -254,7 +881,7 @@ export function WebsiteDesignClient() {
                 </a>
               ))}
               <a
-                href="#packages"
+                href="#enquire"
                 onClick={() => setMenuOpen(false)}
                 className="mt-2 inline-flex items-center justify-center gap-1.5 rounded-full bg-[#2B2724] px-5 py-3 text-sm font-medium text-[#F7F1E8]"
               >
@@ -628,22 +1255,49 @@ export function WebsiteDesignClient() {
       </section>
 
       {/* ------------------------------------------------------------------ */}
-      {/*  Contact                                                           */}
+      {/*  Enquiry form                                                      */}
+      {/* ------------------------------------------------------------------ */}
+      <section id="enquire" className="border-y border-[#E6D9C4]/70 bg-[#FBF6EE]">
+        <div className="mx-auto max-w-4xl px-6 py-20 md:py-28">
+          <div className="mx-auto max-w-2xl text-center">
+            <span className="text-xs font-medium uppercase tracking-[0.2em] text-[#9A7B44]">
+              Start your project
+            </span>
+            <h2
+              className="mt-4 text-4xl leading-tight text-[#211E1B] sm:text-5xl"
+              style={{ fontFamily: "var(--font-studio-serif), serif", fontWeight: 600 }}
+            >
+              Tell me about your vision.
+            </h2>
+            <p className="mt-5 text-lg font-light leading-relaxed text-[#5C5346]">
+              Share a few details and I&apos;ll personally review them within one business day, then
+              reply with a clear, tailored proposal. No obligation — just a considered starting point.
+            </p>
+          </div>
+
+          <div className="mt-12">
+            <EnquiryForm />
+          </div>
+        </div>
+      </section>
+
+      {/* ------------------------------------------------------------------ */}
+      {/*  Contact details                                                   */}
       {/* ------------------------------------------------------------------ */}
       <section id="contact" className="border-t border-[#E6D9C4]/70 bg-[#2B2724] text-[#F2E9DA]">
         <div className="mx-auto max-w-4xl px-6 py-20 text-center md:py-28">
           <span className="text-xs font-medium uppercase tracking-[0.2em] text-[#C8A96A]">
-            Let&apos;s begin
+            Contact
           </span>
           <h2
             className="mt-4 text-4xl leading-tight text-[#FBF6EE] sm:text-5xl"
             style={{ fontFamily: "var(--font-studio-serif), serif", fontWeight: 600 }}
           >
-            Ready to build something exceptional?
+            Prefer to reach out directly?
           </h2>
           <p className="mx-auto mt-5 max-w-xl text-lg font-light leading-relaxed text-[#C9BCA6]">
-            Tell me about your business and what you have in mind. I reply personally, and I&apos;d
-            love to help you make a genuinely lasting impression.
+            I reply personally to every message. Email me, or connect on any of the channels below —
+            I&apos;d love to help you make a genuinely lasting impression.
           </p>
 
           <a
@@ -684,6 +1338,44 @@ export function WebsiteDesignClient() {
             >
               <Linkedin className="size-5" />
             </a>
+          </div>
+        </div>
+      </section>
+
+      {/* ------------------------------------------------------------------ */}
+      {/*  Client onboarding resources (copy-ready text blocks)              */}
+      {/* ------------------------------------------------------------------ */}
+      <section id="resources" className="border-t border-[#E6D9C4]/70 bg-[#F7F1E8]">
+        <div className="mx-auto max-w-6xl px-6 py-20 md:py-24">
+          <div className="mx-auto max-w-2xl text-center">
+            <span className="text-xs font-medium uppercase tracking-[0.2em] text-[#9A7B44]">
+              Client Onboarding Resources
+            </span>
+            <h2
+              className="mt-4 text-4xl leading-tight text-[#211E1B] sm:text-5xl"
+              style={{ fontFamily: "var(--font-studio-serif), serif", fontWeight: 600 }}
+            >
+              Ready-to-use welcome content.
+            </h2>
+            <p className="mt-5 text-lg font-light leading-relaxed text-[#5C5346]">
+              Two polished, partnership-focused templates you can copy in one click — a formal
+              welcome letter, and the complete welcome email it lives inside.
+            </p>
+          </div>
+
+          <div className="mt-12 grid gap-6 lg:grid-cols-2">
+            <ResourceCard
+              icon={FileText}
+              title="Formal Welcome Letter"
+              description="The letter that goes inside the welcome email"
+              content={WELCOME_LETTER_TEMPLATE}
+            />
+            <ResourceCard
+              icon={Mail}
+              title="Full Welcome Email"
+              description="Complete email, with the formal letter inside"
+              content={WELCOME_EMAIL_TEMPLATE}
+            />
           </div>
         </div>
       </section>
