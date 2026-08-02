@@ -45,6 +45,7 @@ const publicRoutes = [
   "/ai-disclaimer",
   "/free-trial",
   "/own-the-bots",
+  "/website-design", // standalone website-design services landing (own visual identity)
 
   //stripe routes here
   "/stripe/demo",
