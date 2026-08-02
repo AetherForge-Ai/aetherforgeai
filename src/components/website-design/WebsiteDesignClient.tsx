@@ -6,10 +6,6 @@ import { formatUsdApprox } from "@/lib/currency";
 import { useFxRates } from "@/hooks/useFxRates";
 import { api } from "@/lib/api";
 import {
-  WELCOME_LETTER_TEMPLATE,
-  WELCOME_EMAIL_TEMPLATE,
-} from "@/lib/website-design-content";
-import {
   ArrowRight,
   ArrowUpRight,
   Check,
@@ -35,9 +31,7 @@ import {
   Linkedin,
   Loader2,
   UploadCloud,
-  Copy,
   CheckCircle2,
-  FileText,
   Paperclip,
   Send,
 } from "lucide-react";
@@ -387,8 +381,7 @@ function EnquiryForm() {
           Thank you.
         </h3>
         <p className="mx-auto mt-4 max-w-xl text-lg font-light leading-relaxed text-[#5C5346]">
-          Your enquiry has been received. You will receive a formal welcome email shortly, and I will
-          personally review your details within one business day.
+          Your request has been passed on to Admin and someone will be in touch with you shortly.
         </p>
         <button
           onClick={() => setSubmitted(false)}
@@ -727,66 +720,6 @@ function EnquiryForm() {
         <span className="text-[#C57B57]"> *</span> are required.
       </p>
     </form>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-/*  Copy-ready onboarding resource card                                        */
-/* -------------------------------------------------------------------------- */
-
-function ResourceCard({
-  icon: Icon,
-  title,
-  description,
-  content,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  title: string;
-  description: string;
-  content: string;
-}) {
-  const [copied, setCopied] = useState(false);
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(content);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2200);
-    } catch (err) {
-      console.error("[ResourceCard] Clipboard copy failed:", err);
-    }
-  };
-
-  return (
-    <div className="flex h-full flex-col rounded-[1.4rem] border border-[#E6D9C4] bg-[#FFFDF9] p-6 sm:p-7">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <span className="grid size-11 place-items-center rounded-xl bg-[#C8A96A]/15 text-[#9A7B44]">
-            <Icon className="size-5" />
-          </span>
-          <div>
-            <h3
-              className="text-xl text-[#211E1B]"
-              style={{ fontFamily: "var(--font-studio-serif), serif", fontWeight: 600 }}
-            >
-              {title}
-            </h3>
-            <p className="text-xs font-light text-[#8A7E6E]">{description}</p>
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={copy}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[#CDBEA3] px-3.5 py-2 text-xs font-medium text-[#4A4237] transition-colors hover:border-[#9A7B44] hover:text-[#9A7B44]"
-        >
-          {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-          {copied ? "Copied" : "Copy"}
-        </button>
-      </div>
-      <pre className="mt-5 max-h-80 overflow-auto whitespace-pre-wrap rounded-xl border border-[#EFE4D2] bg-[#FBF6EE] p-4 text-[13px] font-light leading-relaxed text-[#4A4237]" style={{ fontFamily: "var(--font-studio-sans), ui-sans-serif, system-ui, sans-serif" }}>
-        {content}
-      </pre>
-    </div>
   );
 }
 
@@ -1338,44 +1271,6 @@ export function WebsiteDesignClient() {
             >
               <Linkedin className="size-5" />
             </a>
-          </div>
-        </div>
-      </section>
-
-      {/* ------------------------------------------------------------------ */}
-      {/*  Client onboarding resources (copy-ready text blocks)              */}
-      {/* ------------------------------------------------------------------ */}
-      <section id="resources" className="border-t border-[#E6D9C4]/70 bg-[#F7F1E8]">
-        <div className="mx-auto max-w-6xl px-6 py-20 md:py-24">
-          <div className="mx-auto max-w-2xl text-center">
-            <span className="text-xs font-medium uppercase tracking-[0.2em] text-[#9A7B44]">
-              Client Onboarding Resources
-            </span>
-            <h2
-              className="mt-4 text-4xl leading-tight text-[#211E1B] sm:text-5xl"
-              style={{ fontFamily: "var(--font-studio-serif), serif", fontWeight: 600 }}
-            >
-              Ready-to-use welcome content.
-            </h2>
-            <p className="mt-5 text-lg font-light leading-relaxed text-[#5C5346]">
-              Two polished, partnership-focused templates you can copy in one click — a formal
-              welcome letter, and the complete welcome email it lives inside.
-            </p>
-          </div>
-
-          <div className="mt-12 grid gap-6 lg:grid-cols-2">
-            <ResourceCard
-              icon={FileText}
-              title="Formal Welcome Letter"
-              description="The letter that goes inside the welcome email"
-              content={WELCOME_LETTER_TEMPLATE}
-            />
-            <ResourceCard
-              icon={Mail}
-              title="Full Welcome Email"
-              description="Complete email, with the formal letter inside"
-              content={WELCOME_EMAIL_TEMPLATE}
-            />
           </div>
         </div>
       </section>

@@ -1,11 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { totalumSdk } from "@/lib/totalum";
-import {
-  STUDIO_EMAIL,
-  STUDIO_NAME,
-  buildWelcomeEmailHtml,
-} from "@/lib/website-design-content";
+import { STUDIO_EMAIL, STUDIO_NAME } from "@/lib/website-design-content";
 
 /**
  * Public enquiry endpoint for the standalone /website-design services page.
@@ -15,11 +11,13 @@ import {
  * and managed from the Totalum back-office. On success we:
  *   1. Upload any attached files to Totalum storage.
  *   2. Create the enquiry record.
- *   3. Send the prospect a warm, formal welcome email.
- *   4. Send an internal notification to the studio inbox.
+ *   3. Send an internal notification to the admin inbox (subject "Website
+ *      Enquiry") containing every detail the person entered.
  *
- * Steps 3 & 4 are best-effort: if email delivery fails the lead is still saved
- * and the user still gets a success response (the error is logged, not hidden).
+ * The prospect is NOT emailed here — the full Welcome Package is only delivered
+ * after a successful Stripe payment (see /api/stripe/webhook). Step 3 is
+ * best-effort: if email delivery fails the lead is still saved and the user
+ * still gets a success response (the error is logged, not hidden).
  */
 
 /** Optional single attachment sent from the browser as base64. */
@@ -164,28 +162,17 @@ export async function POST(req: Request) {
     }
     console.log(`[api/website-design/enquiry] Stored enquiry ${created?.data?._id ?? "(no id)"}`);
 
-    // 3) Welcome email to the prospect (best-effort) ----------------------------
-    try {
-      await totalumSdk.email.sendEmail({
-        to: [d.email],
-        subject: `Welcome to ${STUDIO_NAME} — Your Enquiry Has Been Received`,
-        fromName: STUDIO_NAME,
-        replyTo: STUDIO_EMAIL,
-        html: buildWelcomeEmailHtml(d.full_name),
-      });
-      console.log(`[api/website-design/enquiry] Welcome email sent to ${d.email}`);
-    } catch (mailErr) {
-      console.error("[api/website-design/enquiry] Welcome email failed:", mailErr);
-    }
-
-    // 4) Internal notification to the studio inbox (best-effort) -----------------
+    // 3) Notification to admin inbox with all form details (best-effort) ---------
+    //    NOTE: The prospect is intentionally NOT sent a welcome email here. The
+    //    full Welcome Package is only sent AFTER a successful Stripe payment (see
+    //    src/app/api/stripe/webhook/route.ts). On enquiry we only notify admin.
     try {
       const attachmentsLine = uploadedFiles.length
         ? `${uploadedFiles.length} file(s) attached — view them on the enquiry record in Totalum.`
         : "No files attached.";
       await totalumSdk.email.sendEmail({
         to: [STUDIO_EMAIL],
-        subject: `New Website Design enquiry — ${d.full_name}`,
+        subject: `Website Enquiry`,
         fromName: `${STUDIO_NAME} · Enquiries`,
         replyTo: d.email,
         html: `
