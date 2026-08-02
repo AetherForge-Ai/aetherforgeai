@@ -72,6 +72,8 @@ type PackageTier = {
   name: string;
   tagline: string;
   priceNzd: number;
+  /** Optional glyph shown right after the figure, e.g. "+" for "from" pricing. */
+  priceSuffix?: string;
   priceNote: string;
   paymentLink: string;
   ctaLabel: string;
@@ -85,9 +87,9 @@ const PACKAGES: PackageTier[] = [
     key: "standard",
     name: "Standard Professional",
     tagline: "A clean, polished company website that earns instant trust.",
-    priceNzd: 1500,
+    priceNzd: 2500,
     priceNote: "one-time · complete build",
-    paymentLink: "https://buy.stripe.com/bJedR34In4ZN2PJ1b11440o",
+    paymentLink: "https://buy.stripe.com/9B66oB3EjfEr61Vg5V1440r",
     ctaLabel: "Begin the Standard build",
     features: [
       { icon: Layout, label: "Multi-page site — Home, About Us, Expertise, Contact" },
@@ -101,9 +103,9 @@ const PACKAGES: PackageTier[] = [
     key: "premium",
     name: "Premium Business",
     tagline: "Everything polished, plus a private, members-only experience.",
-    priceNzd: 3500,
+    priceNzd: 4500,
     priceNote: "one-time · complete build",
-    paymentLink: "https://buy.stripe.com/dRm4gta2H4ZNeyr6vl1440p",
+    paymentLink: "https://buy.stripe.com/5kQfZb8YD0Jx4XR1b11440s",
     ctaLabel: "Begin the Premium build",
     featured: true,
     ribbon: "Most popular",
@@ -118,9 +120,10 @@ const PACKAGES: PackageTier[] = [
     key: "ultimate",
     name: "Ultimate Custom",
     tagline: "A fully bespoke build — no limits, tailored entirely to your brief.",
-    priceNzd: 7500,
-    priceNote: "project deposit · fully bespoke",
-    paymentLink: "https://buy.stripe.com/9B63cpeiXbobeyrdXN1440q",
+    priceNzd: 8000,
+    priceSuffix: "+",
+    priceNote: "starting price · fully bespoke",
+    paymentLink: "https://buy.stripe.com/14A9ANeiXgIvbmff1R1440t",
     ctaLabel: "Commission an Ultimate build",
     ribbon: "Bespoke",
     features: [
@@ -529,10 +532,14 @@ export function WebsiteDesignClient() {
                       style={{ fontFamily: "var(--font-studio-serif), serif", fontWeight: 700 }}
                     >
                       {pkg.priceNzd.toLocaleString("en-NZ")}
+                      {pkg.priceSuffix && (
+                        <span className="text-[#9A7B44]">{pkg.priceSuffix}</span>
+                      )}
                     </span>
                   </div>
                   <p className="mt-2 text-sm font-light text-[#8A7E6E]">
-                    {formatUsdApprox(pkg.priceNzd, fx)} today · {pkg.priceNote}
+                    {formatUsdApprox(pkg.priceNzd, fx)}
+                    {pkg.priceSuffix ? "+" : ""} today · {pkg.priceNote}
                   </p>
                 </div>
 
