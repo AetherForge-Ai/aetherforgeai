@@ -745,6 +745,7 @@ export function WebsiteDesignClient() {
 
   const nav = [
     { href: "#work", label: "Work" },
+    { href: "/website-design/showcase", label: "Showcase" },
     { href: "#services", label: "Services" },
     { href: "#packages", label: "Packages" },
     { href: "#enquire", label: "Enquire" },
@@ -982,6 +983,22 @@ export function WebsiteDesignClient() {
               >
                 Preview without leaving <ArrowUpRight className="size-4" />
               </button>
+            </div>
+
+            <div className="mt-8 rounded-2xl border border-[#E6D9C4] bg-[#FFFDF9] p-5">
+              <p className="text-sm font-medium text-[#4A4237]">
+                Prefer to see a range of styles?
+              </p>
+              <p className="mt-1 text-sm font-light text-[#5C5346]">
+                Browse a showcase of five example websites — service, hospitality, portfolio,
+                community and product brands — each explorable live.
+              </p>
+              <a
+                href="/website-design/showcase"
+                className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#9A7B44] px-6 py-3 text-sm font-medium text-[#FFFDF9] transition-colors hover:bg-[#816231]"
+              >
+                Explore the design showcase <ArrowUpRight className="size-4" />
+              </a>
             </div>
           </div>
         </div>
