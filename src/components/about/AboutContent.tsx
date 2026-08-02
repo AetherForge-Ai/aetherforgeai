@@ -15,13 +15,12 @@ import {
   Sparkles,
   Send,
   CheckCircle2,
-  Facebook,
   Quote,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { LOGO_MARK_IMG, ABOUT_HERO_IMG, FOUNDER_PORTRAIT_IMG } from "../../../assets/files";
 
-/** Official X (Twitter) mark — lucide dropped brand icons. */
+/* ---- Official brand marks (lucide dropped brand icons) ---- */
 function XLogo({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden className={className}>
@@ -29,6 +28,44 @@ function XLogo({ className }: { className?: string }) {
     </svg>
   );
 }
+
+function FacebookLogo({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden className={className}>
+      <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+    </svg>
+  );
+}
+
+function LinkedInLogo({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden className={className}>
+      <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.225 0z" />
+    </svg>
+  );
+}
+
+/** Canonical social profiles — one source of truth for every surface. */
+const SOCIAL_LINKS = [
+  {
+    label: "X",
+    handle: "@aetherforgeAi_ on X",
+    href: "https://x.com/aetherforgeAi_",
+    Icon: XLogo,
+  },
+  {
+    label: "Facebook",
+    handle: "Our Facebook page",
+    href: "https://www.facebook.com/profile.php?id=61591701002008",
+    Icon: FacebookLogo,
+  },
+  {
+    label: "LinkedIn",
+    handle: "Connect on LinkedIn",
+    href: "https://www.linkedin.com/in/aether-forge-ai-27659b423/",
+    Icon: LinkedInLogo,
+  },
+] as const;
 
 /* -------------------------------------------------------------------------- */
 /*  Brand palette (self-contained light theme for this marketing page)        */
@@ -815,31 +852,26 @@ export function AboutContent() {
                 <div className="rounded-3xl border border-[#0F172A]/8 bg-white p-6 shadow-sm sm:p-8">
                   <h3 className="font-display text-lg font-bold text-[#0F172A]">Follow along</h3>
                   <div className="mt-4 flex flex-col gap-3">
-                    <a
-                      href="https://x.com/aetherforgeAi_"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-3 rounded-xl border border-[#0F172A]/8 bg-[#F8FAFC] px-4 py-3 transition-all hover:border-[#059669]/40 hover:bg-white"
-                    >
-                      <span className="grid size-10 place-items-center rounded-lg bg-[#0F172A] text-white">
-                        <XLogo className="size-5" />
-                      </span>
-                      <span className="text-[15px] font-semibold text-[#0F172A]">@aetherforgeAi_ on X</span>
-                    </a>
-                    <a
-                      href="https://www.facebook.com/profile.php?id=61591701002008"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-3 rounded-xl border border-[#0F172A]/8 bg-[#F8FAFC] px-4 py-3 transition-all hover:border-[#059669]/40 hover:bg-white"
-                    >
-                      <span className="grid size-10 place-items-center rounded-lg bg-[#0F172A] text-white">
-                        <Facebook className="size-5" />
-                      </span>
-                      <span className="text-[15px] font-semibold text-[#0F172A]">Our Facebook page</span>
-                    </a>
+                    {SOCIAL_LINKS.map(({ label, handle, href, Icon }) => (
+                      <a
+                        key={label}
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`AetherForge AI on ${label}`}
+                        className="group/social inline-flex items-center gap-3 rounded-xl border border-[#0F172A]/8 bg-[#F8FAFC] px-4 py-3 transition-all hover:border-[#059669]/40 hover:bg-white hover:shadow-sm"
+                      >
+                        <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-[#0F172A] text-white transition-colors group-hover/social:bg-[#059669]">
+                          <Icon className="size-5" />
+                        </span>
+                        <span className="min-w-0 flex-1 text-[15px] font-semibold text-[#0F172A]">{handle}</span>
+                        <ArrowRight className="size-4 shrink-0 text-[#94A3B8] transition-transform group-hover/social:translate-x-0.5 group-hover/social:text-[#059669]" />
+                      </a>
+                    ))}
                   </div>
                   <p className="mt-4 text-sm leading-relaxed text-[#64748B]">
-                    Follow us on X and Facebook for market updates, product news and what we&apos;re building next.
+                    Follow us on X, Facebook and LinkedIn for market updates, product news and what
+                    we&apos;re building next.
                   </p>
                   <p className="mt-3 flex items-start gap-2 text-sm leading-relaxed text-[#64748B]">
                     <MapPin className="mt-0.5 size-4 shrink-0 text-[#94A3B8]" />
@@ -873,16 +905,21 @@ export function AboutContent() {
               <p className="mt-4 text-sm leading-relaxed text-white/60">
                 AetherForge AI — Helping New Zealanders take control of their financial future.
               </p>
-              <a
-                href="https://x.com/aetherforgeAi_"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="AetherForge AI on X"
-                className="mt-4 inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-sm font-medium text-white/80 transition-colors hover:border-white/30 hover:text-white"
-              >
-                <XLogo className="size-3.5" />
-                @aetherforgeAi_
-              </a>
+              <div className="mt-5 flex items-center justify-center gap-2.5 sm:justify-start">
+                {SOCIAL_LINKS.map(({ label, href, Icon }) => (
+                  <a
+                    key={label}
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`AetherForge AI on ${label}`}
+                    title={label}
+                    className="grid size-10 place-items-center rounded-full border border-white/15 bg-white/5 text-white/80 transition-all hover:-translate-y-0.5 hover:border-[#34D399]/50 hover:bg-[#34D399]/15 hover:text-white"
+                  >
+                    <Icon className="size-4" />
+                  </a>
+                ))}
+              </div>
             </div>
 
             <nav className="grid grid-cols-2 gap-x-10 gap-y-2.5 text-sm">
