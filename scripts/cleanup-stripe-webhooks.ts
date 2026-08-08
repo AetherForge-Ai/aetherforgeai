@@ -1,8 +1,12 @@
 #!/usr/bin/env ts-node
 /**
- * Keep only the webhook endpoint pointing at the current NEXT_PUBLIC_APP_URL
- * (the custom domain) and delete any stale ones (e.g. old preview URLs) so
- * events don't double-fire to dead endpoints.
+ * Keep only the STABLE production webhook endpoint (the apex custom domain) and
+ * delete any stale ones — e.g. old ephemeral preview URLs
+ * (temporal-link-preview-*.totalum-project.com) that change on every deploy and
+ * leave dead endpoints behind, which makes Stripe email "webhook is failing".
+ *
+ * IMPORTANT: we keep the apex host (no "www.") because www.aetherforgeai.co.nz
+ * 301-redirects to the apex and Stripe does not follow redirects.
  */
 import * as fs from "fs";
 import * as path from "path";
@@ -20,9 +24,12 @@ function loadEnv(): Record<string, string> {
   return env;
 }
 
+// Stable apex production host — never the ephemeral preview URL.
+const PROD_URL = "https://aetherforgeai.co.nz";
+
 async function main() {
   const env = loadEnv();
-  const keep = `${env.NEXT_PUBLIC_APP_URL}/api/stripe/webhook`;
+  const keep = `${PROD_URL}/api/stripe/webhook`;
   const s = new Stripe(env.STRIPE_SECRET_KEY, { apiVersion: "2025-09-30.clover", typescript: true });
   const list = await s.webhookEndpoints.list({ limit: 100 });
   console.log("Live webhooks found:");

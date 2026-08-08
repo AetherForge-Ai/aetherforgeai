@@ -44,7 +44,10 @@ const ENABLED_EVENTS = [
 ];
 
 // Production custom domain the live buttons/redirects use.
-const PROD_URL = "https://www.aetherforgeai.co.nz";
+// MUST be the apex host (no "www.") — www.aetherforgeai.co.nz issues a 301
+// redirect to the apex, and Stripe does NOT follow redirects on webhook
+// deliveries, so a www endpoint fails every delivery. Register the apex directly.
+const PROD_URL = "https://aetherforgeai.co.nz";
 
 function upsertEnvVar(content, key, value) {
   const re = new RegExp(`^${key}=.*$`, "m");
