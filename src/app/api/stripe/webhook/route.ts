@@ -6,7 +6,6 @@
  * - Subscription lifecycle (created, updated, deleted)
  * - Payment intents (succeeded, failed)
  * - Invoices
- * - One-time Website Design package purchases (Payment Links)
  *
  * Events to subscribe to:
  * - customer.created, customer.updated, customer.deleted
@@ -20,11 +19,6 @@ import { stripe, STRIPE_WEBHOOK_SECRETS, cryptoProvider } from "@/lib/stripe";
 import Stripe from "stripe";
 import { totalumSdk } from "@/lib/totalum";
 import { planByPriceId, planByKey, parsePaymentLinkRef } from "@/lib/plans";
-import {
-  STUDIO_NAME,
-  STUDIO_EMAIL,
-  buildWelcomeEmailHtml,
-} from "@/lib/website-design-content";
 
 type SubscriptionPatch = {
   subscription_status?: string;
@@ -34,16 +28,6 @@ type SubscriptionPatch = {
   subscription_expires_at?: string;
   ticker_limit?: number;
   bot_access?: string;
-};
-
-/** Friendly labels for the Website Design packages (metadata.package values). */
-const WEBSITE_DESIGN_PACKAGE_LABELS: Record<string, string> = {
-  standard: "Standard Professional",
-  premium: "Premium Business",
-  ultimate: "Ultimate Custom",
-  standard_professional: "Standard Professional",
-  premium_business: "Premium Business",
-  ultimate_custom: "Ultimate Custom",
 };
 
 function unixToIso(unix?: number | null): string | undefined {
@@ -82,79 +66,6 @@ async function updateUserSubscription(userId: string, patch: SubscriptionPatch) 
   } catch (err) {
     console.error(`[webhook] Failed to update user ${userId}:`, err);
     throw err;
-  }
-}
-
-/**
- * A customer has just paid for a Website Design package through a Stripe
- * Payment Link. Deliver the complete Welcome Package email (the formal welcome
- * letter presented as a beautiful branded email) to the customer, and notify
- * the studio so the owner knows a paid project has started.
- *
- * This is the ONLY place the full Welcome Package is sent — never on a mere
- * enquiry. It is best-effort: any email failure is logged, not thrown, so the
- * webhook still returns 200 and Stripe does not retry indefinitely.
- */
-async function handleWebsiteDesignPurchase(session: Stripe.Checkout.Session) {
-  const customerEmail =
-    session.customer_details?.email || session.customer_email || null;
-  const customerName =
-    session.customer_details?.name || (session.metadata?.full_name as string) || "there";
-  const packageKey = (session.metadata?.package as string) || "";
-  const packageLabel = WEBSITE_DESIGN_PACKAGE_LABELS[packageKey] || "Website Design";
-  const amount =
-    typeof session.amount_total === "number"
-      ? `${(session.amount_total / 100).toLocaleString("en-NZ", {
-          style: "currency",
-          currency: (session.currency || "nzd").toUpperCase(),
-        })}`
-      : "—";
-
-  console.log(
-    `[webhook] Website Design purchase — package="${packageLabel}" · email=${customerEmail ?? "(none)"} · amount=${amount}`
-  );
-
-  // 1) Send the full Welcome Package email to the paying customer.
-  if (customerEmail) {
-    try {
-      await totalumSdk.email.sendEmail({
-        to: [customerEmail],
-        subject: `Welcome to ${STUDIO_NAME} — Your Website Design Package`,
-        fromName: STUDIO_NAME,
-        replyTo: STUDIO_EMAIL,
-        html: buildWelcomeEmailHtml(customerName),
-      });
-      console.log(`[webhook] Welcome Package email sent to ${customerEmail}`);
-    } catch (mailErr) {
-      console.error("[webhook] Failed to send Welcome Package email:", mailErr);
-    }
-  } else {
-    console.warn("[webhook] Website Design purchase had no customer email — Welcome Package not sent");
-  }
-
-  // 2) Notify the studio inbox that a paid project has begun.
-  try {
-    await totalumSdk.email.sendEmail({
-      to: [STUDIO_EMAIL],
-      subject: `New Website Design payment — ${packageLabel}`,
-      fromName: `${STUDIO_NAME} · Payments`,
-      ...(customerEmail ? { replyTo: customerEmail } : {}),
-      html: `
-        <div style="font-family:Arial,Helvetica,sans-serif;color:#2B2724;max-width:640px;margin:0 auto;">
-          <h2 style="color:#9A7B44;">A Website Design package has been paid</h2>
-          <table style="border-collapse:collapse;width:100%;font-size:14px;">
-            <tr><td style="padding:6px 10px;font-weight:bold;">Package</td><td style="padding:6px 10px;">${packageLabel}</td></tr>
-            <tr><td style="padding:6px 10px;font-weight:bold;">Amount</td><td style="padding:6px 10px;">${amount}</td></tr>
-            <tr><td style="padding:6px 10px;font-weight:bold;">Customer</td><td style="padding:6px 10px;">${customerName}</td></tr>
-            <tr><td style="padding:6px 10px;font-weight:bold;">Email</td><td style="padding:6px 10px;">${customerEmail ?? "—"}</td></tr>
-            <tr><td style="padding:6px 10px;font-weight:bold;">Stripe session</td><td style="padding:6px 10px;">${session.id}</td></tr>
-          </table>
-          <p style="font-size:13px;color:#8A7E6E;margin-top:16px;">The customer has automatically been sent the full Welcome Package email.</p>
-        </div>`,
-    });
-    console.log(`[webhook] Studio payment notification sent to ${STUDIO_EMAIL}`);
-  } catch (mailErr) {
-    console.error("[webhook] Failed to send studio payment notification:", mailErr);
   }
 }
 
@@ -220,14 +131,6 @@ async function syncSubscription(
 
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   console.log("Checkout completed:", session.id);
-
-  // Website Design one-time purchases are tagged via the Payment Link metadata
-  // {kind:"website_design"}. These are NOT platform subscriptions — deliver the
-  // Welcome Package email and stop here.
-  if (session.metadata?.kind === "website_design") {
-    await handleWebsiteDesignPurchase(session);
-    return;
-  }
 
   // Payment Links carry the user (and single-bot choice) in client_reference_id;
   // dynamic Checkout Sessions carry it in metadata.userId.

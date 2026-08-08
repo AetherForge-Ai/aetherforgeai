@@ -87,10 +87,6 @@ export const PROOF_OVERVIEW_IMG =
 export const PROOF_HOLDINGS_IMG =
   "https://storage.googleapis.com/totalum-live-bucket/aetherforgeai/files/6.jpg?GoogleAccessId=totalum-live%40totalum-live.iam.gserviceaccount.com&Expires=2098850779&Signature=4%2FpBPwiUgkQrD7Eovp%2B4X%2B44lsVVK5iOfx65CeUcCuKc2yIQjJEHcnEX5pLmXaRsQlMjPwlOUlEFpHXmfbFW30Nrr%2FPwJgXqmdP6tfRWmdy2WxwCC0b2XdwNOiL9hE74wiK0YJ6Ibma8na4bid%2BXPxovMxvMGKAscNNkUeoOGCVJLG0UQd4RO9WFVky%2FgJ6tInm7FL0XpdgY26ZJJn4mzRQKpcNnNpgbHJkI%2BHVO1o5hAgNIjWzVCsqtr9LbPnU4QHea6zhu0DMnwkHzDf%2BJLKYkUDM%2FOG6kVKlGvWgEuqtT9rhJuzrRIL0i4y4qFL2sXTobC0UN3bRit8LcrffBLg%3D%3D";
 
-// Live screenshot of the owner's own production site (aetherforgeai.co.nz),
-// used on the standalone Website Design page as a "real work" showcase.
-export const WEBSITE_DESIGN_LIVE_SHOT = "/website-design/aetherforge-live.jpeg";
-
 export const files = {
   logoMarkImg: LOGO_MARK_IMG,
   logoIconImg: LOGO_ICON_IMG,
@@ -110,7 +106,6 @@ export const files = {
   proofCloseImg: PROOF_CLOSE_IMG,
   proofOverviewImg: PROOF_OVERVIEW_IMG,
   proofHoldingsImg: PROOF_HOLDINGS_IMG,
-  websiteDesignLiveShot: WEBSITE_DESIGN_LIVE_SHOT,
 } as const;
 
 export default files;

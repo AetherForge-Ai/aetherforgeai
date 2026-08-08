@@ -35,7 +35,6 @@ import {
   Sparkles,
   FileSpreadsheet,
   ChevronDown,
-  PenTool,
 } from "lucide-react";
 
 /**
@@ -51,7 +50,6 @@ const NAV_LINKS: { href: string; label: string; icon: React.ComponentType<{ clas
   { href: "/projections", label: "Projections", icon: TrendingUp },
   { href: "/chat", label: "AI Assistant", icon: Bot },
   { href: "/pricing", label: "Pricing", icon: Tag },
-  { href: "/website-design", label: "Website Design", icon: PenTool },
 ];
 
 function initials(name: string) {

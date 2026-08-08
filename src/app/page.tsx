@@ -5,7 +5,6 @@ import {
   LOGO_MARK_IMG,
   BOT_STOX_AVATAR,
   BOT_KOINS_AVATAR,
-  WEBSITE_DESIGN_LIVE_SHOT,
 } from "../../assets/files";
 import { MarketTicker } from "@/components/MarketTicker";
 import { BotShowcase } from "@/components/bots/BotShowcase";
@@ -21,17 +20,6 @@ import {
   TrendingUp,
   PieChart,
   Zap,
-  Globe,
-  PenTool,
-  Palette,
-  Code2,
-  MonitorSmartphone,
-  Store,
-  Utensils,
-  Scissors,
-  Hammer,
-  ShoppingCart,
-  Rocket,
   Check,
 } from "lucide-react";
 
@@ -386,149 +374,6 @@ export default function LandingPage() {
                     </div>
                     <ArrowRight className="ml-1 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-amber-600" />
                   </Link>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ─── Advertising Window · Website Design service ─── */}
-        <section className="mx-auto max-w-7xl px-4 pb-10 sm:px-6 lg:px-8">
-          <div className="relative overflow-hidden rounded-[1.75rem] border border-amber-500/40 bg-gradient-to-br from-[#2B2724] via-[#3a332b] to-[#231f1b] p-[1.5px] shadow-[0_0_55px_-14px_rgba(200,169,106,0.55)]">
-            {/* warm gold aura */}
-            <div
-              aria-hidden
-              className="pointer-events-none absolute inset-0"
-              style={{
-                background:
-                  "radial-gradient(55% 60% at 82% 12%, rgba(200,169,106,0.28), transparent 60%), radial-gradient(45% 50% at 6% 92%, rgba(197,123,87,0.18), transparent 60%)",
-              }}
-            />
-            {/* shimmer sweep to draw the eye */}
-            <span className="pointer-events-none absolute inset-0 -translate-x-full animate-shimmer-sweep bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-
-            <div className="relative grid items-center gap-8 rounded-[calc(1.75rem-1.5px)] bg-[#221e1a]/60 px-6 py-8 backdrop-blur-sm sm:px-9 sm:py-10 lg:grid-cols-[1.05fr_0.95fr] lg:gap-10">
-              {/* ── Copy ── */}
-              <div>
-                <div className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/40 bg-amber-500/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-amber-300">
-                  <PenTool className="size-3 text-amber-300" />
-                  Website Design Studio
-                </div>
-
-                <h2 className="mt-4 font-display text-3xl font-extrabold leading-[1.1] tracking-tight text-[#FBF6EE] sm:text-4xl">
-                  Need a website?{" "}
-                  <span className="bg-gradient-to-r from-amber-300 via-amber-200 to-[#e7cf9c] bg-clip-text text-transparent">
-                    We build stunning ones
-                  </span>{" "}
-                  for everyone.
-                </h2>
-
-                <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-[#D6C8B2]">
-                  From small businesses and tradies to cafés, salons, online stores and ambitious
-                  startups — we design and build beautiful, fast, fully responsive websites. Secure
-                  customer portals, integrated AI chatbots and advanced custom builds, all crafted to
-                  a studio standard.
-                </p>
-
-                {/* Who we cater to */}
-                <div className="mt-6 flex flex-wrap gap-2">
-                  {[
-                    { icon: Store, label: "Small businesses" },
-                    { icon: Utensils, label: "Cafés & restaurants" },
-                    { icon: Scissors, label: "Salons & beauty" },
-                    { icon: Hammer, label: "Tradies & services" },
-                    { icon: ShoppingCart, label: "Online stores" },
-                    { icon: Rocket, label: "Startups & agencies" },
-                  ].map((a) => (
-                    <span
-                      key={a.label}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/25 bg-[#FBF6EE]/[0.06] px-3 py-1.5 text-xs font-medium text-[#E9DDC8]"
-                    >
-                      <a.icon className="size-3.5 text-amber-300" />
-                      {a.label}
-                    </span>
-                  ))}
-                </div>
-
-                {/* What's included */}
-                <ul className="mt-6 grid gap-2.5 sm:grid-cols-2">
-                  {[
-                    { icon: Palette, label: "Custom, on-brand design" },
-                    { icon: MonitorSmartphone, label: "Fully responsive on every device" },
-                    { icon: ShieldCheck, label: "Secure customer & staff portals" },
-                    { icon: Bot, label: "Integrated AI chatbots" },
-                    { icon: Code2, label: "Advanced custom functionality" },
-                    { icon: Sparkles, label: "SEO-ready, built to convert" },
-                  ].map((f) => (
-                    <li key={f.label} className="flex items-center gap-2.5 text-sm text-[#E4D7C1]">
-                      <span className="grid size-6 shrink-0 place-items-center rounded-lg bg-amber-500/15 text-amber-300 ring-1 ring-amber-400/25">
-                        <Check className="size-3.5" />
-                      </span>
-                      {f.label}
-                    </li>
-                  ))}
-                </ul>
-
-                <div className="mt-8 flex flex-wrap items-center gap-3">
-                  <Link
-                    href="/website-design"
-                    className="group inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-300 px-6 py-3.5 text-sm font-bold text-[#2B2724] shadow-[0_10px_30px_-8px_rgba(200,169,106,0.6)] transition-transform hover:scale-[1.03]"
-                  >
-                    Explore Website Design
-                    <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
-                  </Link>
-                  <Link
-                    href="/website-design#enquire"
-                    className="inline-flex items-center gap-2 rounded-xl border border-amber-300/40 px-6 py-3.5 text-sm font-semibold text-[#F2E9DA] transition-colors hover:border-amber-300 hover:bg-amber-300/10"
-                  >
-                    Get a free quote
-                  </Link>
-                </div>
-              </div>
-
-              {/* ── Framed "advertising window" showing a real live site ── */}
-              <div className="relative">
-                <div
-                  aria-hidden
-                  className="absolute -inset-3 rounded-[1.6rem] bg-gradient-to-br from-amber-400/25 via-transparent to-[#C57B57]/20 blur-2xl"
-                />
-                <figure className="relative overflow-hidden rounded-2xl border border-amber-300/25 bg-[#100e0c] shadow-2xl">
-                  {/* browser window chrome */}
-                  <div className="flex items-center gap-2 border-b border-white/10 bg-[#1b1815] px-4 py-2.5">
-                    <span className="size-2.5 rounded-full bg-[#C57B57]/80" />
-                    <span className="size-2.5 rounded-full bg-amber-400/80" />
-                    <span className="size-2.5 rounded-full bg-emerald-400/70" />
-                    <span className="ml-3 inline-flex items-center gap-1.5 truncate rounded-md bg-white/5 px-2.5 py-1 text-[11px] font-medium text-[#D6C8B2]">
-                      <Globe className="size-3 text-amber-300" />
-                      yourbusiness.co.nz
-                    </span>
-                  </div>
-                  {/* live site screenshot */}
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={WEBSITE_DESIGN_LIVE_SHOT}
-                    alt="A live, production website designed and built by our studio"
-                    className="block w-full"
-                    draggable={false}
-                  />
-                  <figcaption className="flex items-center justify-between gap-3 border-t border-white/10 bg-[#1b1815] px-4 py-3">
-                    <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-300">
-                      <Sparkles className="size-3.5" /> Real site we built
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-[#E9DDC8]">
-                      Design that converts <ArrowRight className="size-3.5 text-amber-300" />
-                    </span>
-                  </figcaption>
-                </figure>
-
-                {/* floating price tag */}
-                <div className="absolute -bottom-4 -left-3 rotate-[-4deg] rounded-xl border border-amber-300/40 bg-[#FBF6EE] px-4 py-2 shadow-xl sm:-left-5">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#9A7B44]">
-                    From
-                  </p>
-                  <p className="font-display text-lg font-extrabold leading-none text-[#2B2724]">
-                    NZ$2,500
-                  </p>
                 </div>
               </div>
             </div>
