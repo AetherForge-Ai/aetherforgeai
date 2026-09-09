@@ -116,16 +116,22 @@ export function BotShowcase() {
           3 Genius AI bots to do the Thinking for You
         </h2>
         <p className="mx-auto mt-4 max-w-2xl text-muted-foreground">
-          Powered by SuperGrok 4.6, STOX monitors the Stock Market, KOINS monitors the Crypto Currency World, and The Headmaster will make an investment plan and strategy with You, tailored to What your Individual needs require. Then using Koins and Stox indepth Ultra Advanced Analysis and Reports on everything that is relative to your portfolio, Manage your Investment Portfolio with the minimal amout of work required from you, leaving you free time to do other things.,  
+          Powered by SuperGrok 4.6, STOX monitors the Stock Market, KOINS monitors the Crypto Currency World, and The Headmaster will make an investment plan and strategy with You, tailored to What your Individual needs require. Then using Koins and Stox indepth Ultra Advanced Analysis and Reports on everything that is relative to your portfolio, Manage your Investment Portfolio with the minimal amout of work required from you, leaving you free time to do other things.  
           
         </p>
       </div>
 
-      <div className="mt-12 grid gap-6 md:grid-cols-2">
+      <div className="mt-12 grid gap-6 md:grid-cols-3">
         {BOTS.map((bot) => (
           <BotCard key={bot.kind} bot={bot} onOpen={() => setOpenKind(bot.kind)} />
         ))}
-      </div>
+              <div className="group relative overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-sky-500/20 via-indigo-500/10 to-transparent p-6 transition-all hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5">
+          <Badge variant="outline" className="mb-4 border-primary/30 bg-primary/10 text-primary">✦ Portfolio Strategy AI</Badge>
+          <h3 className="text-lg font-semibold tracking-tight">The Headmaster</h3>
+          <p className="mt-3 text-sm leading-relaxed text-muted-foreground">Builds an investment plan and strategy tailored to your individual needs, then turns Stox and Koins intelligence into clear portfolio action.</p>
+          <Button asChild className="mt-5 w-full" variant="secondary"><Link href="/pricing">Meet The Headmaster</Link></Button>
+        </div>
+</div>
 
       <Dialog open={openKind !== null} onOpenChange={(o) => !o && setOpenKind(null)}>
         <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
