@@ -113,11 +113,11 @@ export function BotShowcase() {
       <div className="text-center">
         <p className="text-sm font-medium uppercase tracking-[0.2em] text-primary">The core of AetherForge</p>
         <h2 className="mt-3 text-3xl font-bold tracking-tight md:text-4xl">
-          Two Ultra-Advanced AI bots. One Ultra Advanced ZENITH State.
+          3 Genius AI bots to do the Thinking for You
         </h2>
         <p className="mx-auto mt-4 max-w-2xl text-muted-foreground">
-          Powered by SuperGrok 4.3, each monitor runs an exhaustive multi-timeframe sweep and delivers the finished
-          intelligence straight into your dashboard. Open one to preview exactly what a subscriber receives.
+          Powered by SuperGrok 4.6, STOX monitors the Stock Market, KOINS monitors the Crypto Currency World, and The Headmaster will make an investment plan and strategy with You, tailored to What your Individual needs require. Then using Koins and Stox indepth Ultra Advanced Analysis and Reports on everything that is relative to your portfolio, Manage your Investment Portfolio with the minimal amout of work required from you, leaving you free time to do other things.,  
+          
         </p>
       </div>
 
