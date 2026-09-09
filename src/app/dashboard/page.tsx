@@ -1,3 +1,66 @@
-import {AppShell} from "@/components/AppShell";
-const news=[{title:"Markets in focus",description:"Live market context across equities, crypto and precious metals.",image:"/brand/home-hero-portfolio.png"},{title:"Gold and silver watch",description:"Precious metals remain investment, currency and safe haven assets.",image:"/brand/precious-metals-trolley.png"},{title:"Stox intelligence",description:"Stock signals and risk context for NZX, ASX and global equities.",image:"/brand/bot-stox.png"},{title:"Koins intelligence",description:"Crypto momentum, downside and market structure in one clear view.",image:"/brand/bot-koins.png"},{title:"Portfolio strategy",description:"Headmaster turns goals and holdings into a practical strategy.",image:"/brand/bot-headmaster.jpg"},{title:"Data-backed decisions",description:"AetherForge keeps research calm, explainable and actionable.",image:"/brand/home-hero-portfolio.png"}];
-export default function DashboardPage(){return <AppShell><main className="mx-auto max-w-7xl space-y-10 p-6"><header><p className="text-sm font-semibold uppercase tracking-widest text-primary">Dashboard</p><h1 className="text-4xl font-bold">Latest News</h1></header><section className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">{news.map(n=><article key={n.title} className="overflow-hidden rounded-2xl border bg-card shadow-sm"><img src={n.image} alt="" className="h-36 w-full object-cover"/><div className="p-5"><h2 className="text-lg font-bold">{n.title}</h2><p className="mt-3 text-sm leading-relaxed text-muted-foreground">{n.description}</p></div></article>)}</section></main></AppShell>}
+import { redirect } from "next/navigation";
+import {
+  getCurrentUser,
+  isStripeConfigured,
+  hasActiveSubscription,
+  hasPaidSubscription,
+} from "@/lib/session";
+import { AppShell } from "@/components/AppShell";
+import { PortfolioDashboard } from "@/components/dashboard/PortfolioDashboard";
+
+export const dynamic = "force-dynamic";
+
+export default async function DashboardPage() {
+  const user = await getCurrentUser();
+
+  if (!user) {
+    return (
+      <AppShell guest user={{ name: "Guest", email: "Sign in to activate your account" }}>
+        <PortfolioDashboard
+          preview
+          userName="Guest"
+          subscription={{
+            status: null,
+            plan: null,
+            startedAt: null,
+            expiresAt: null,
+            tickerLimit: null,
+            botAccess: "none",
+          }}
+          metalsEntitled={false}
+        />
+      </AppShell>
+    );
+  }
+
+  if (isStripeConfigured() && !hasActiveSubscription(user)) {
+    redirect("/pricing");
+  }
+
+  const metalsEntitled = !isStripeConfigured() || hasPaidSubscription(user);
+
+  return (
+    <AppShell
+      user={{
+        name: user.name,
+        email: user.email,
+        image: user.image,
+        subscription_status: user.subscription_status,
+        subscription_plan: user.subscription_plan,
+      }}
+    >
+      <PortfolioDashboard
+        userName={user.name}
+        subscription={{
+          status: user.subscription_status,
+          plan: user.subscription_plan,
+          startedAt: user.subscription_started_at,
+          expiresAt: user.subscription_expires_at,
+          tickerLimit: user.ticker_limit,
+          botAccess: user.bot_access ?? "none",
+        }}
+        metalsEntitled={metalsEntitled}
+      />
+    </AppShell>
+  );
+}
