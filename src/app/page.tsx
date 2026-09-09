@@ -5,6 +5,7 @@ import {
   LOGO_MARK_IMG,
   BOT_STOX_AVATAR,
   BOT_KOINS_AVATAR,
+  HERO_PORTFOLIO_SNAPSHOT_IMG,
 } from "../../assets/files";
 import { MarketTicker } from "@/components/MarketTicker";
 import { BotShowcase } from "@/components/bots/BotShowcase";
@@ -110,30 +111,6 @@ const STEPS = [
   { n: "04", t: "Get AI insight", d: "Generate reports and chat with your market analyst." },
 ];
 
-function HeroChart() {
-  // Decorative area chart (SVG) for the hero mockup
-  return (
-    <svg viewBox="0 0 400 160" className="h-40 w-full" preserveAspectRatio="none">
-      <defs>
-        <linearGradient id="area" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="oklch(0.78 0.155 165)" stopOpacity="0.35" />
-          <stop offset="100%" stopColor="oklch(0.78 0.155 165)" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path
-        d="M0,120 C40,110 60,70 100,80 C140,90 160,40 200,55 C240,68 260,30 300,38 C340,46 360,20 400,15 L400,160 L0,160 Z"
-        fill="url(#area)"
-      />
-      <path
-        d="M0,120 C40,110 60,70 100,80 C140,90 160,40 200,55 C240,68 260,30 300,38 C340,46 360,20 400,15"
-        fill="none"
-        stroke="oklch(0.78 0.155 165)"
-        strokeWidth="2.5"
-      />
-    </svg>
-  );
-}
-
 export default function LandingPage() {
   return (
     <div className="chrome-dark relative min-h-screen bg-background bg-grid">
@@ -184,14 +161,17 @@ export default function LandingPage() {
               </div>
 
               <h1 className="mt-5 font-display text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-[3.25rem] lg:leading-[1.1]">
-                Institutional-grade market intelligence,{" "}
-                <span className="text-gradient">built for you</span>
+                100% Real Data Backed{" "}
+                <span className="text-gradient">Market Intelligence</span>{" "}
+                tailored for You
               </h1>
 
               <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-                Track your real portfolio, surface the highest-impact opportunities, and get
-                AI-powered research on every position — without the noise of a traditional trading
-                desk.
+                Track your real portfolio on our platform. AetherForge AI monitors the{" "}
+                <strong className="font-semibold text-foreground">NZX, ASX, NASDAQ, Dow Jones,
+                crypto markets and precious metals</strong>, with live prices displayed 24/7. Add
+                your holdings and purchase price in your dashboard, then view instant analysis —
+                P&amp;L, cash balance, shares, amount invested and total portfolio value.
               </p>
 
               <div className="mt-8 flex flex-wrap items-center gap-3">
@@ -207,50 +187,16 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* Hero mockup card */}
+            {/* Hero mockup card — real dashboard screenshot */}
             <div className="relative animate-float-up" style={{ animationDelay: "120ms" }}>
               <div className="absolute -inset-4 rounded-3xl bg-gradient-to-br from-primary/20 via-transparent to-amber-400/10 blur-2xl" />
-              <div className="relative overflow-hidden rounded-3xl border border-border/70 bg-card p-5 shadow-xl sm:p-6">
-                <div className="mb-4 flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                      Portfolio value
-                    </p>
-                    <p className="mt-0.5 font-display text-2xl font-bold tracking-tight">
-                      NZ$128,450
-                    </p>
-                  </div>
-                  <span className="rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-                    +12.4%
-                  </span>
-                </div>
-                <HeroChart />
-                <div className="mt-4 space-y-2">
-                  {[
-                    { s: "NVDA", n: "NVIDIA Corp.", v: "$62,400", c: "+42.1%", up: true },
-                    { s: "AAPL", n: "Apple Inc.", v: "$41,220", c: "+11.3%", up: true },
-                    { s: "TSLA", n: "Tesla, Inc.", v: "$18,940", c: "-6.4%", up: false },
-                  ].map((r) => (
-                    <div
-                      key={r.s}
-                      className="flex items-center justify-between rounded-xl border border-border/50 bg-card/50 px-3 py-2.5"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="grid size-9 place-items-center rounded-lg bg-primary/10 font-display text-xs font-bold text-primary">
-                          {r.s.slice(0, 2)}
-                        </div>
-                        <div>
-                          <p className="text-sm font-semibold leading-none">{r.s}</p>
-                          <p className="mt-1 text-xs text-muted-foreground">{r.n}</p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="tnum text-sm font-semibold">{r.v}</p>
-                        <p className={`tnum text-xs ${r.up ? "text-emerald-600" : "text-red-600"}`}>{r.c}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+              <div className="relative overflow-hidden rounded-3xl border border-border/70 bg-card shadow-xl">
+                <img
+                  src={HERO_PORTFOLIO_SNAPSHOT_IMG}
+                  alt="AetherForge AI dashboard — real portfolio value, P&L and live holdings"
+                  className="w-full object-cover"
+                  draggable={false}
+                />
               </div>
             </div>
           </div>

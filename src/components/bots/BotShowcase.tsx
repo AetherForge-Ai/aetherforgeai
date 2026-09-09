@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { ApexReportView } from "@/components/bots/ApexReport";
 import { buildDemoReport, type BotKind } from "@/lib/apex";
-import { BOT_STOX_AVATAR, BOT_KOINS_AVATAR } from "../../../assets/files";
+import { BOT_STOX_AVATAR, BOT_KOINS_AVATAR, BOT_HEADMASTER_AVATAR } from "../../../assets/files";
 
 interface BotDef {
   kind: BotKind;
@@ -125,12 +125,26 @@ export function BotShowcase() {
         {BOTS.map((bot) => (
           <BotCard key={bot.kind} bot={bot} onOpen={() => setOpenKind(bot.kind)} />
         ))}
-              <div className="group relative overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-sky-500/20 via-indigo-500/10 to-transparent p-6 transition-all hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5">
-          <Badge variant="outline" className="mb-4 border-primary/30 bg-primary/10 text-primary">✦ Portfolio Strategy AI</Badge>
-          <h3 className="text-lg font-semibold tracking-tight">The Headmaster</h3>
-          <p className="mt-3 text-sm leading-relaxed text-muted-foreground">Builds an investment plan and strategy tailored to your individual needs, then turns Stox and Koins intelligence into clear portfolio action.</p>
-          <Button asChild className="mt-5 w-full" variant="secondary"><Link href="/pricing">Meet The Headmaster</Link></Button>
-        </div>
+          <div className="group relative overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-sky-500/20 via-indigo-500/10 to-transparent p-6 transition-all hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5">
+            <div className="flex items-start gap-4">
+              <div className="relative shrink-0">
+                <div className="absolute inset-0 rounded-full bg-primary/20 blur-xl" aria-hidden />
+                <img
+                  src={BOT_HEADMASTER_AVATAR}
+                  alt="The Headmaster avatar"
+                  className="relative h-24 w-24 rounded-2xl object-cover ring-1 ring-border/60"
+                  loading="lazy"
+                />
+              </div>
+              <div className="min-w-0">
+                <Badge variant="outline" className="mb-2 border-primary/30 bg-primary/10 text-primary">✦ Portfolio Strategy AI</Badge>
+                <h3 className="text-lg font-semibold leading-tight tracking-tight">The Headmaster</h3>
+                <p className="mt-0.5 text-xs text-muted-foreground">Portfolio Planning and Strategies</p>
+              </div>
+            </div>
+            <p className="mt-4 text-sm leading-relaxed text-muted-foreground">Builds an investment plan and strategy tailored to your individual needs, then turns Stox and Koins intelligence into clear portfolio action.</p>
+            <Button asChild className="mt-5 w-full" variant="secondary"><Link href="/pricing">Meet The Headmaster</Link></Button>
+          </div>
 </div>
 
       <Dialog open={openKind !== null} onOpenChange={(o) => !o && setOpenKind(null)}>

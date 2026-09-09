@@ -34,6 +34,12 @@ export const LOGO_MARK_SVG = `
 </svg>
 `;
 
+// ── Homepage hero mockup ──
+// Real portfolio-dashboard screenshot (user-supplied) shown in the hero card
+// on the homepage in place of the old hand-coded mock stats panel.
+export const HERO_PORTFOLIO_SNAPSHOT_IMG =
+  "https://storage.googleapis.com/totalum-live-bucket/aetherforgeai/files/pic_for_homepage_aetherforge_ai.jpg?GoogleAccessId=totalum-live%40totalum-live.iam.gserviceaccount.com&Expires=2104334076&Signature=LjBWdjJm4dBQ70VO24HGzqoN7q5BWV%2BVyZxPLWuQrUZuh6Qgd596VAMQCuqY6YK96d%2Bc0fUK1hWU%2BpKCFabHGfTeWyuHaXw1jJvdMCT1oprYLjKHWhBSPavu6W4f4JZhXGqyIxAtileCjL9xmXUZYtXhDGaheDd3sJG%2Bk6UBozbWUiuJMc%2B2qXATnME%2BBdRnX2AW65O9asVPIYieKlDZv8OLu4GLkW76QenetoZnlIrIhHVi1ngitKN6toFZHy%2FMNpEe6ec9E7sax0umKH3DyZSa1n2HxfrexjZfGj4SucIf1ErxlWO7RCL4kDh3VWtLLI0aA7AuTuR0f%2BW8QiN8iQ%3D%3D";
+
 // ── About page imagery ──
 // Serene New Zealand rural landscape at golden hour (rolling hills / farmland)
 // — used as the cinematic hero backdrop on the About page.
@@ -95,6 +101,7 @@ export const files = {
   faviconImg: FAVICON_IMG,
   logoMarkSvg: LOGO_MARK_SVG,
   aboutHeroImg: ABOUT_HERO_IMG,
+  heroPortfolioSnapshotImg: HERO_PORTFOLIO_SNAPSHOT_IMG,
   founderPortraitImg: FOUNDER_PORTRAIT_IMG,
   botStockMascot: BOT_STOCK_MASCOT,
   botCryptoMascot: BOT_CRYPTO_MASCOT,
