@@ -1,3 +1,237 @@
-import{createElement as e}from"react";import Link from"next/link";import{SiteHeader}from"@/components/SiteHeader";import{MarketTicker}from"@/components/MarketTicker";
-const b=[["Stox","/brand/bot-stox.png"],["Koins","/brand/bot-koins.png"],["Headmaster","/brand/bot-headmaster.jpg"]],s=[["Create Your Account","Sign up in seconds, Choose a Plan - Go monthly or yearly, cancel anytime"],["Add your holdings","Enter into Dashboard section your current Stock Market or Crypto Market Investments, Enter Your Precious Metals Investment"],["Meet the AI bots","Go to The Headmaster AI bot, Set Your Goals, Create a Strategy suitable to Your Needs and Requirements"],["Use Stox and Koins","Generate daily reports using Stox and Koins AI bots, they monitor the entire markets, Analyze ALL of the REAL LIVE Data, and make Data Backed Short Term Predictions that will help you navigate your way towards achieving your Goals set with The Headmaster"]],n=["Markets today","Stocks briefing","Crypto briefing","Precious metals"],F="Focused real-data analysis.",q=(x,j)=>e("div",{key:x[0]},j!=null&&e("b",null,"0"+(j+1)),e("h3",null,x[0]),e("p",null,x[1])),i=x=>e("div",{key:x[0]},e("img",{src:x[1],alt:x[0]}),e("h3",null,x[0]));
-export default function LandingPage(){return e("div",null,e(SiteHeader),e(MarketTicker),e("main",null,e("section",{className:"hero"},e("div",null,e("h1",null,"Data Backed Market Intelligence straight to You"),e("p",null,"SuperGrok 4.6 powers the reasoning.")),e("img",{src:"/brand/home-hero-portfolio.png",alt:"AetherForge AI portfolio dashboard"})),e("h2",null,"3 Genius AI bots to do the Thinking for You"),e("section",null,e("h2",null,"Meet The Headmaster"),b.map(i)),e("section",null,e("h2",null,"Simple path"),s.map(q)),e("section",null,e("img",{src:"/brand/precious-metals-trolley.png",alt:"AI bot moving gold and silver"}),e("h2",null,"Gold and silver for the moments markets forget"),e("p",null,"Precious metals are investment, currency and safe haven in one. Gold XAU and Silver XAG live market price.")),e("section",null,e("h2",null,"Dashboard Latest News"),e("div",{style:{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:16}},n.map(x=>q([x,F])))),e(Link,{href:"/register"},"Start free")))}
+import Link from "next/link";
+import { SiteHeader } from "@/components/SiteHeader";
+import { MarketTicker } from "@/components/MarketTicker";
+import { Button } from "@/components/ui/button";
+import { ArrowRight } from "lucide-react";
+
+const BOTS = [
+  {
+    name: "Stox",
+    role: "Stock markets",
+    img: "/brand/bot-stox.png",
+    blurb: "STOX monitors the Stock Market with Ultra Advanced analysis and reports tied to your portfolio.",
+  },
+  {
+    name: "Koins",
+    role: "Crypto markets",
+    img: "/brand/bot-koins.png",
+    blurb: "KOINS monitors the Crypto Currency World and surfaces what matters for your holdings.",
+  },
+  {
+    name: "The Headmaster",
+    role: "Goals & strategy",
+    img: "/brand/bot-headmaster.jpg",
+    blurb: "The Headmaster builds an investment plan and strategy with you, tailored to what your individual needs require.",
+  },
+] as const;
+
+const STEPS = [
+  {
+    title: "Create Your Account",
+    body: "Sign up in seconds, Choose a Plan - Go monthly or yearly, cancel anytime",
+  },
+  {
+    title: "Add your holdings",
+    body: "Enter into Dashboard section your current Stock Market or Crypto Market Investments, Enter Your Precious Metals Investment",
+  },
+  {
+    title: "Meet the AI bots",
+    body: "Go to The Headmaster AI bot, Set Your Goals, Create a Strategy suitable to Your Needs and Requirements",
+  },
+  {
+    title: "Use Stox and Koins",
+    body: "Generate daily reports using Stox and Koins AI bots, they monitor the entire markets, Analyze ALL of the REAL LIVE Data, and make Data Backed Short Term Predictions that will help you navigate your way towards achieving your Goals set with The Headmaster",
+  },
+] as const;
+
+export default function LandingPage() {
+  return (
+    <div className="min-h-screen flex flex-col">
+      <SiteHeader />
+      <MarketTicker />
+      <main className="flex-1">
+        <div className="chrome-dark relative min-h-screen bg-background bg-grid">
+          <div className="pointer-events-none absolute inset-0 bg-aurora" />
+          <div className="relative">
+            {/* Hero */}
+            <section className="mx-auto max-w-7xl px-4 pt-12 pb-10 sm:px-6 sm:pt-16 lg:px-8">
+              <div className="grid items-center gap-12 lg:grid-cols-2">
+                <div>
+                  <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+                    Live NZX · ASX · Crypto · Metals intelligence
+                  </div>
+                  <h1 className="mt-5 font-display text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-[3.25rem] lg:leading-[1.1]">
+                    Data Backed Market Intelligence straight to You
+                  </h1>
+                  <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+                    Powered by SuperGrok 4.6. Track stocks, crypto and precious metals,
+                    then let Stox, Koins and The Headmaster turn live data into a plan
+                    you can actually use.
+                  </p>
+                  <div className="mt-8 flex flex-wrap items-center gap-3">
+                    <Button asChild className="h-12 px-7 text-base shadow-glow">
+                      <Link href="/register">
+                        Start free
+                        <ArrowRight className="size-4" />
+                      </Link>
+                    </Button>
+                    <Button asChild variant="outline" className="h-12 px-7 text-base">
+                      <Link href="/dashboard">Open Dashboard</Link>
+                    </Button>
+                  </div>
+                </div>
+                <div className="relative">
+                  <div className="absolute -inset-4 rounded-3xl bg-gradient-to-br from-primary/20 via-transparent to-amber-400/10 blur-2xl" />
+                  <img
+                    src="/brand/home-hero-portfolio.png"
+                    alt="Stock Portfolio Overview dashboard"
+                    className="relative w-full h-auto rounded-3xl border border-border/70 bg-card shadow-xl"
+                  />
+                </div>
+              </div>
+            </section>
+
+            {/* Three bots — one tidy section */}
+            <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
+              <div className="mx-auto max-w-3xl text-center">
+                <p className="font-display text-xs font-bold uppercase tracking-[0.2em] text-primary">
+                  The core of AetherForge
+                </p>
+                <h2 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">
+                  3 Genius AI bots to do the Thinking for You
+                </h2>
+                <p className="mt-4 text-base leading-relaxed text-muted-foreground sm:text-lg">
+                  Powered by SuperGrok 4.6, STOX monitors the Stock Market, KOINS monitors
+                  the Crypto Currency World, and The Headmaster will make an investment
+                  plan and strategy with You, tailored to What your Individual needs
+                  require. Then using Koins and Stox indepth Ultra Advanced Analysis and
+                  Reports on everything that is relative to your portfolio, Manage your
+                  Investment Portfolio with the minimal amout of work required from you,
+                  leaving you free time to do other things.
+                </p>
+              </div>
+              <div className="mt-10 grid gap-5 sm:grid-cols-3">
+                {BOTS.map((bot) => (
+                  <article
+                    key={bot.name}
+                    className="flex h-full flex-col rounded-3xl border border-border/70 bg-card/60 p-5 shadow-sm"
+                  >
+                    <img
+                      src={bot.img}
+                      alt={`${bot.name} avatar`}
+                      className="mx-auto size-24 rounded-2xl object-cover ring-1 ring-border/60"
+                    />
+                    <h3 className="mt-4 text-center font-display text-lg font-bold">
+                      {bot.name}
+                    </h3>
+                    <p className="mt-1 text-center text-xs font-semibold uppercase tracking-wider text-primary">
+                      {bot.role}
+                    </p>
+                    <p className="mt-3 flex-1 text-center text-sm leading-relaxed text-muted-foreground">
+                      {bot.blurb}
+                    </p>
+                  </article>
+                ))}
+              </div>
+            </section>
+
+            {/* Precious metals — replaces Institutional Edge / Capabilities */}
+            <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
+              <div className="grid items-center gap-10 lg:grid-cols-2">
+                <img
+                  src="/brand/precious-metals-trolley.png"
+                  alt="Gold and silver bars on a trolley headed for the melting cauldron"
+                  className="w-full h-auto rounded-3xl border border-border/70 shadow-xl"
+                />
+                <div>
+                  <p className="font-display text-xs font-bold uppercase tracking-[0.2em] text-amber-500">
+                    Precious metals
+                  </p>
+                  <h2 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">
+                    Gold and silver — investment, currency, and a safe haven
+                  </h2>
+                  <p className="mt-4 text-base leading-relaxed text-muted-foreground sm:text-lg">
+                    AetherForge AI understands how much precious metals mean to the
+                    world — as investments, as a globally accepted currency, and in
+                    times of need as safe investments. We surface daily live Silver and
+                    Gold prices with inclines and declines so you can track the metals
+                    that matter.
+                  </p>
+                  <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-amber-600">
+                        Gold · XAU
+                      </p>
+                      <p className="mt-1 font-display text-xl font-bold">Live daily price</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Inclines &amp; declines shown on your Dashboard
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-slate-400/30 bg-slate-400/10 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-300">
+                        Silver · XAG
+                      </p>
+                      <p className="mt-1 font-display text-xl font-bold">Live daily price</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Inclines &amp; declines shown on your Dashboard
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* Simple path */}
+            <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
+              <div className="mx-auto max-w-2xl text-center">
+                <p className="font-display text-xs font-bold uppercase tracking-[0.2em] text-primary">
+                  Simple path
+                </p>
+                <h2 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">
+                  Four steps to get started
+                </h2>
+              </div>
+              <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                {STEPS.map((step, idx) => (
+                  <article
+                    key={step.title}
+                    className="flex h-full flex-col rounded-3xl border border-border/70 bg-card/60 p-5"
+                  >
+                    <span className="font-display text-sm font-bold text-primary">
+                      {String(idx + 1).padStart(2, "0")}
+                    </span>
+                    <h3 className="mt-3 font-display text-lg font-bold leading-snug">
+                      {step.title}
+                    </h3>
+                    <p className="mt-2 flex-1 text-sm leading-relaxed text-muted-foreground">
+                      {step.body}
+                    </p>
+                  </article>
+                ))}
+              </div>
+            </section>
+
+            {/* CTA */}
+            <section className="mx-auto max-w-7xl px-4 pb-20 sm:px-6 lg:px-8">
+              <div className="rounded-3xl border border-primary/30 bg-primary/10 px-6 py-12 text-center sm:px-10">
+                <h2 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">
+                  Ready to take care of your Portfolio?
+                </h2>
+                <p className="mx-auto mt-3 max-w-xl text-muted-foreground">
+                  Create your account, add your holdings, and let the bots do the heavy
+                  thinking.
+                </p>
+                <Button asChild className="mt-8 h-12 px-8 text-base shadow-glow">
+                  <Link href="/register">
+                    Start free
+                    <ArrowRight className="size-4" />
+                  </Link>
+                </Button>
+              </div>
+            </section>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
