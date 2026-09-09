@@ -89,8 +89,8 @@ const STEPS = [
   {
     n: "05",
     icon: KeySquare,
-    title: "Run Totalum — The Architect",
-    body: "Let Totalum build a personalised plan across your whole portfolio, tuned to your goals and risk tolerance — equities and crypto considered together.",
+    title: "Run The Headmaster — Portfolio Planning and Strategies",
+    body: "Let The Headmaster build a personalised plan across your whole portfolio, tuned to your goals and risk tolerance — equities and crypto considered together.",
   },
   {
     n: "06",
@@ -531,7 +531,7 @@ export default function HowItWorksPage() {
               Two specialised AI bots
             </h2>
             <p className="mt-3 text-muted-foreground">
-              Choose the right analyst for the job — or run both and let Totalum unify them.
+              Choose the right analyst for the job — or run both and let The Headmaster unify them.
             </p>
           </div>
           <div className="grid gap-6 md:grid-cols-2">

@@ -38,7 +38,7 @@ const GROUPS: Group[] = [
     rows: [
       { label: "Stox (NZX, ASX & Global Equities)", cells: ["Choose one", "Choose one", true, true] },
       { label: "Koins (Crypto Intelligence)", cells: ["Choose one", "Choose one", true, true] },
-      { label: "Totalum Master Portfolio Architect", cells: [false, "Basic", true, true] },
+      { label: "The Headmaster · Portfolio Planning and Strategies", cells: [false, "Basic", true, true] },
     ],
   },
   {

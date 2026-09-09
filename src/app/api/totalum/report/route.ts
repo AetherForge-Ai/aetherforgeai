@@ -25,7 +25,7 @@ export async function GET(req: Request) {
 
     if (!isTotalumEntitled(user)) {
       return NextResponse.json(
-        { ok: false, error: "Totalum is a Pro feature for active paying members." },
+        { ok: false, error: "The Headmaster is a Pro feature for active paying members." },
         { status: 403 }
       );
     }
@@ -40,7 +40,7 @@ export async function GET(req: Request) {
     ]);
     const strategy = synthesis.isEmpty ? null : buildStrategy(synthesis, goal);
 
-    // ZENITH State cross-asset briefing from the Totalum Master Architect (non-fatal).
+    // ZENITH State cross-asset briefing from The Headmaster (non-fatal).
     let aiNarrative: string | undefined;
     if (!synthesis.isEmpty && isZenithConfigured()) {
       try {
@@ -65,7 +65,7 @@ export async function GET(req: Request) {
             {
               role: "user",
               content:
-                `You are Totalum, the cross-asset Master Portfolio Architect, briefing this member in ULTRA ADVANCED ZENITH STATE. ` +
+                `You are The Headmaster, the cross-asset Portfolio Planning and Strategies agent, briefing this member in ULTRA ADVANCED ZENITH STATE. ` +
                 `Write a decisive 5-7 sentence executive briefing on the whole portfolio's posture and the single most important rebalancing move. ` +
                 `Reference diversification, concentration and the chosen goal. Use **bold** for the highest-signal phrases.\n` +
                 `You are given the LATEST FULL-REPORT FINDINGS from BOTH the Stox (NZX/ASX/NASDAQ/DOW equities) and Koins (complete crypto market) Full Reports — factor their projections and specific BUY calls into a more specific, in-depth plan.\n` +
@@ -98,7 +98,7 @@ export async function GET(req: Request) {
       status: 200,
       headers: {
         "Content-Type": "text/html; charset=utf-8",
-        "Content-Disposition": `inline; filename="totalum-intelligence-report.html"`,
+        "Content-Disposition": `inline; filename="headmaster-intelligence-report.html"`,
       },
     });
   } catch (err: any) {

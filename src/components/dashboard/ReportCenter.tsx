@@ -4,7 +4,7 @@
  * Report Center — the master intelligence desk at the foot of the dashboard.
  *
  *  1. "Run full SuperGrok 4.3 ULTRA ADVANCED report" buttons per unlocked bot
- *     (Stox + Koins), plus the Totalum Master Portfolio Architect that unifies
+ *     (Stox + Koins), plus The Headmaster (Portfolio Planning and Strategies) that unifies
  *     stocks, crypto & metals into one strategy.
  *     Running calls POST /api/reports, which emails the report + PDF, persists it
  *     and returns it for immediate inline display.
@@ -22,7 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ApexReportView } from "@/components/bots/ApexReport";
 import type { ApexReport, BotKind } from "@/lib/apex";
-import { BOT_STOX_AVATAR, BOT_KOINS_AVATAR, BOT_TOTALUM_AVATAR } from "../../../assets/files";
+import { BOT_STOX_AVATAR, BOT_KOINS_AVATAR, BOT_HEADMASTER_AVATAR } from "../../../assets/files";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { checkReportQuota, formatDuration, reportCadence } from "@/lib/entitlements";
@@ -209,7 +209,7 @@ export function ReportCenter({
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground">
-            Run the full SuperGrok 4.3 ULTRA ADVANCED report for Stox, Koins or the Totalum Master Architect —
+            Run the full SuperGrok 4.3 ULTRA ADVANCED report for Stox, Koins or The Headmaster —
             delivered to your inbox and here.
           </p>
         </div>
@@ -341,21 +341,21 @@ export function ReportCenter({
         })}
       </div>
 
-      {/* Totalum Master Portfolio Architect — unifies Stox + Koins + metals */}
+      {/* The Headmaster · Portfolio Planning and Strategies — unifies Stox + Koins + metals */}
       <Link
-        href="/totalum"
+        href="/headmaster"
         className="group relative mt-4 flex flex-col gap-4 overflow-hidden rounded-2xl border border-primary/30 bg-gradient-to-br from-violet-500/12 via-primary/10 to-transparent p-5 transition-all hover:border-primary/50 hover:shadow-glow sm:flex-row sm:items-center sm:justify-between"
       >
         <div className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-primary/15 blur-3xl" />
         <div className="relative flex items-start gap-4">
           <img
-            src={BOT_TOTALUM_AVATAR}
-            alt="Totalum the Architect avatar"
+            src={BOT_HEADMASTER_AVATAR}
+            alt="The Headmaster avatar"
             className="size-11 shrink-0 rounded-xl object-cover ring-1 ring-primary/25"
           />
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="font-semibold">Totalum · Master Portfolio Architect</h3>
+              <h3 className="font-semibold">The Headmaster · Portfolio Planning and Strategies</h3>
               <span className="rounded-md bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
                 Pro
               </span>
@@ -367,7 +367,7 @@ export function ReportCenter({
           </div>
         </div>
         <span className="relative inline-flex items-center gap-1.5 self-start rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground sm:self-auto">
-          Open Totalum <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+          Open The Headmaster <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
         </span>
       </Link>
 

@@ -291,7 +291,7 @@ export default async function OwnTheBotsPage() {
               {/* ─── Secondary CTA ─── */}
               <section className="mx-auto max-w-3xl px-4 pb-20 text-center sm:px-6">
                 <p className="text-sm text-muted-foreground">
-                  Prefer the full cloud platform with ongoing updates and Totalum?
+                  Prefer the full cloud platform with ongoing updates and The Headmaster?
                 </p>
                 <Button asChild variant="outline" className="mt-3">
                   <Link href="/pricing">

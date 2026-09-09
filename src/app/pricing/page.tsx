@@ -47,7 +47,7 @@ function PricingSchema() {
     "@type": "Product",
     name: "AetherForge AI",
     description:
-      "Institutional-grade market intelligence for NZX, ASX and crypto investors — portfolio analytics, AI research reports and the Totalum Master Portfolio Architect.",
+      "Institutional-grade market intelligence for NZX, ASX and crypto investors — portfolio analytics, AI research reports and The Headmaster for Portfolio Planning and Strategies.",
     brand: { "@type": "Brand", name: "AetherForge AI" },
     offers: {
       "@type": "AggregateOffer",

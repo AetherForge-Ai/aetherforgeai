@@ -177,7 +177,7 @@ function AccountMenu({ user }: { user: ExtendedUser }) {
           <Link href="/dashboard"><LayoutDashboard className="size-4" /> Dashboard</Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <Link href="/totalum"><Compass className="size-4" /> Totalum <span className="ml-auto rounded bg-primary/15 px-1.5 py-px text-[9px] font-bold uppercase text-primary">Pro</span></Link>
+          <Link href="/headmaster"><Compass className="size-4" /> The Headmaster <span className="ml-auto rounded bg-primary/15 px-1.5 py-px text-[9px] font-bold uppercase text-primary">Pro</span></Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link href="/settings"><Settings className="size-4" /> Account &amp; Settings</Link>

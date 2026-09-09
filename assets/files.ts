@@ -56,12 +56,14 @@ export const BOT_CRYPTO_MASCOT =
 // ── Bot avatars (cartoon characters that represent each agent) ──
 // Cartoon-styled, in-character avatars served as optimized static assets from
 // /public/brand. Stox & Koins are geeks in gangster garb (fedora, pinstripes,
-// gold chain); Totalum the Architect is a business-man in a sharp tailored
-// suit. These are the "little avatars" shown on the dashboard, report center
+// gold chain); The Headmaster is an academic in a gown, glasses and mortarboard.
+// These are the "little avatars" shown on the dashboard, report center
 // and showcases — and the ones that dance while a report generates.
 export const BOT_STOX_AVATAR = "/brand/bot-stox.png";
 export const BOT_KOINS_AVATAR = "/brand/bot-koins.png";
-export const BOT_TOTALUM_AVATAR = "/brand/bot-totalum.png";
+export const BOT_HEADMASTER_AVATAR = "/brand/bot-headmaster.jpg";
+/** @deprecated Legacy alias — the bot is now "The Headmaster". Same image. */
+export const BOT_TOTALUM_AVATAR = BOT_HEADMASTER_AVATAR;
 
 // ── Live Results & Performance Proof page ──
 // Real, unedited dashboard screenshots captured on 2026-07-08 by the owner and
@@ -98,6 +100,7 @@ export const files = {
   botCryptoMascot: BOT_CRYPTO_MASCOT,
   botStoxAvatar: BOT_STOX_AVATAR,
   botKoinsAvatar: BOT_KOINS_AVATAR,
+  botHeadmasterAvatar: BOT_HEADMASTER_AVATAR,
   botTotalumAvatar: BOT_TOTALUM_AVATAR,
   proofTransactionsImg: PROOF_TRANSACTIONS_IMG,
   proofNetworthImg: PROOF_NETWORTH_IMG,

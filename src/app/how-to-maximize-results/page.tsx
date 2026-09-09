@@ -27,7 +27,7 @@ import {
 export const metadata: Metadata = {
   title: "How to Maximize Results with AetherForge AI",
   description:
-    "The complete framework for extracting maximum clarity, consistency and edge from Stox, Koins and Totalum — build an accurate portfolio, run daily briefings, and follow a disciplined weekly routine.",
+    "The complete framework for extracting maximum clarity, consistency and edge from Stox, Koins and The Headmaster — build an accurate portfolio, run daily briefings, and follow a disciplined weekly routine.",
 };
 
 /* ---------------------------------------------------------------- data */
@@ -71,16 +71,16 @@ const SECTIONS = [
     icon: Compass,
     accent: "from-violet-500/15",
     ring: "border-violet-500/25",
-    title: "Activate Totalum for Portfolio-Level Strategy",
-    tag: "The Master Architect",
-    lead: "Totalum is your master architect. Use it to see the big picture across every asset class.",
+    title: "Activate The Headmaster for Portfolio-Level Strategy",
+    tag: "Portfolio Planning and Strategies",
+    lead: "The Headmaster runs your Portfolio Planning and Strategies. Use it to see the big picture across every asset class.",
     points: [
       "Generate a Total Portfolio Intelligence Report at least once per week.",
-      "Use the Strategy Builder — tell Totalum your goals (e.g. “Aggressive growth with 30% crypto” or “Balanced income + growth”).",
+      "Use the Strategy Builder — tell The Headmaster your goals (e.g. “Aggressive growth with 30% crypto” or “Balanced income + growth”).",
       "Run Scenario Simulations (bull / base / bear) before making large allocation changes.",
-      "Use Totalum’s rebalancing suggestions to reduce concentration risk and improve diversification.",
+      "Use The Headmaster’s rebalancing suggestions to reduce concentration risk and improve diversification.",
     ],
-    tip: "Totalum shines when your portfolio mixes assets (stocks + crypto + metals). It sees connections individual bots might miss.",
+    tip: "The Headmaster shines when your portfolio mixes assets (stocks + crypto + metals). It sees connections individual bots might miss.",
   },
   {
     n: "04",
@@ -93,7 +93,7 @@ const SECTIONS = [
     points: [
       "Set alerts at key technical levels suggested in Stox / Koins reports.",
       "Use alerts for both entry and exit points.",
-      "Combine alerts with Totalum’s scenario pathways for higher-conviction trades.",
+      "Combine alerts with The Headmaster’s scenario pathways for higher-conviction trades.",
       "Review and adjust alerts weekly as market conditions change.",
     ],
     tip: null,
@@ -108,10 +108,10 @@ const SECTIONS = [
     lead: "The users who achieve the best results follow a repeatable process:",
     points: [
       "Morning Ritual — check overnight moves + run Stox / Koins reports.",
-      "Review Totalum — look at overall portfolio health and strategy alignment.",
+      "Review The Headmaster — look at overall portfolio health and strategy alignment.",
       "Check Alerts — act only on levels you pre-planned.",
       "Document Everything — use the Excel tracker religiously.",
-      "Weekly Review — generate a full Totalum report and assess performance vs plan.",
+      "Weekly Review — generate a full Headmaster report and assess performance vs plan.",
       "Risk First — never risk more than you are comfortable losing on any single idea.",
     ],
     tip: null,
@@ -126,16 +126,16 @@ const MISTAKES = [
   "Not updating cost basis after averaging in or out.",
   "Trading emotionally instead of following the data.",
   "Skipping the Excel transaction log.",
-  "Over-leveraging or ignoring Totalum’s risk warnings.",
+  "Over-leveraging or ignoring The Headmaster’s risk warnings.",
 ];
 
 const ROUTINE: { day: string; action: string; tools: string; time: string; icon: any }[] = [
-  { day: "Monday", action: "Full portfolio review + Totalum report", tools: "Totalum", time: "20–30 min", icon: Compass },
+  { day: "Monday", action: "Full portfolio review + Headmaster report", tools: "The Headmaster", time: "20–30 min", icon: Compass },
   { day: "Daily", action: "Morning Stox + Koins briefing", tools: "Stox + Koins", time: "10 min", icon: TrendingUp },
   { day: "Daily", action: "Check & action price alerts", tools: "Alerts", time: "5 min", icon: BellRing },
   { day: "Wednesday", action: "Mid-week re-check + adjust alerts", tools: "All bots", time: "15 min", icon: Gauge },
-  { day: "Friday", action: "Weekly performance review", tools: "Totalum + Excel", time: "25 min", icon: FileSpreadsheet },
-  { day: "Sunday", action: "Plan the week ahead", tools: "Totalum", time: "15 min", icon: CalendarClock },
+  { day: "Friday", action: "Weekly performance review", tools: "Headmaster + Excel", time: "25 min", icon: FileSpreadsheet },
+  { day: "Sunday", action: "Plan the week ahead", tools: "The Headmaster", time: "15 min", icon: CalendarClock },
 ];
 
 /* ---------------------------------------------------------------- page */
@@ -159,7 +159,7 @@ export default function MaximizeResultsPage() {
             Turn market intelligence into disciplined, high-performance trading decisions. AetherForge AI gives
             you institutional-grade tools — how you use them determines your results. Follow the framework below
             to extract maximum clarity, consistency and edge from <strong>Stox</strong>, <strong>Koins</strong>{" "}
-            and <strong>Totalum</strong>.
+            and <strong>The Headmaster</strong>.
           </p>
 
           <div className="mx-auto mt-6 flex max-w-2xl items-start gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-left">
@@ -176,8 +176,8 @@ export default function MaximizeResultsPage() {
               <Link href="/dashboard">Open your dashboard</Link>
             </Button>
             <Button asChild size="lg" variant="outline" className="h-12 px-8 text-base">
-              <Link href="/totalum">
-                Explore Totalum <ArrowRight className="ml-1 size-4" />
+              <Link href="/headmaster">
+                Explore The Headmaster <ArrowRight className="ml-1 size-4" />
               </Link>
             </Button>
           </div>
@@ -353,7 +353,7 @@ export default function MaximizeResultsPage() {
                 process makes it profitable.
               </p>
               <p className="mx-auto mt-4 max-w-2xl font-display text-lg font-semibold">
-                Stay disciplined. Stay data-driven. Use every tool — Stox, Koins, Totalum, alerts and the Excel
+                Stay disciplined. Stay data-driven. Use every tool — Stox, Koins, The Headmaster, alerts and the Excel
                 tracker — together as one integrated system.
               </p>
               <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
@@ -380,10 +380,10 @@ export default function MaximizeResultsPage() {
                   <Bitcoin className="size-4 text-primary" /> Koins
                 </Link>
                 <Link
-                  href="/totalum"
+                  href="/headmaster"
                   className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-background/50 px-4 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
                 >
-                  <Compass className="size-4 text-primary" /> Totalum
+                  <Compass className="size-4 text-primary" /> The Headmaster
                 </Link>
               </div>
             </div>
@@ -424,7 +424,7 @@ export default function MaximizeResultsPage() {
                 <Link href="/how-it-works" className="hover:text-foreground">How it works</Link>
                 <Link href="/how-to-maximize-results" className="hover:text-foreground">Maximize results</Link>
                 <Link href="/pricing" className="hover:text-foreground">Pricing</Link>
-                <Link href="/totalum" className="hover:text-foreground">Totalum</Link>
+                <Link href="/headmaster" className="hover:text-foreground">The Headmaster</Link>
                 <Link href="/privacy-policy" className="hover:text-foreground">AI Privacy Act</Link>
                 <Link href="/ai-disclaimer" className="hover:text-foreground">AI Disclaimer</Link>
               </div>

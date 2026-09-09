@@ -385,8 +385,8 @@ export default function LandingPage() {
           <BotShowcase />
         </div>
 
-        {/* Totalum — the master architect that unifies both bots + metals */}
-        <div id="totalum">
+        {/* The Headmaster — Portfolio Planning and Strategies across both bots + metals */}
+        <div id="headmaster">
           <TotalumShowcase />
         </div>
 

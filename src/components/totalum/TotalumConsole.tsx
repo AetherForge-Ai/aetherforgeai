@@ -1,7 +1,8 @@
 "use client";
 
 /**
- * Totalum Console — the Master Portfolio Architect's cockpit.
+ * The Headmaster Console — Portfolio Planning and Strategies cockpit.
+ * (File/component name kept as TotalumConsole for API/route stability.)
  *
  * Unifies the member's equities (Stox), crypto (Koins) and precious metals into
  * one NZD wealth system, then surfaces:
@@ -51,7 +52,7 @@ import type {
   GoalKey,
 } from "@/lib/totalum-engine";
 import { cn } from "@/lib/utils";
-import { BOT_TOTALUM_AVATAR } from "../../../assets/files";
+import { BOT_HEADMASTER_AVATAR } from "../../../assets/files";
 
 /* ------------------------------------------------------------------ *
  * Formatting helpers
@@ -100,11 +101,11 @@ function LockedUpsell() {
           <Crown className="mr-1 size-3.5" /> Pro Agent
         </Badge>
         <h1 className="text-3xl font-bold tracking-tight md:text-4xl">
-          Meet <span className="text-primary">Totalum</span> — Your Master Portfolio Architect
+          Meet <span className="text-primary">The Headmaster</span> — Portfolio Planning and Strategies
         </h1>
         <p className="mt-4 max-w-2xl text-muted-foreground">
           The ultimate AI agent that orchestrates <strong>Stox</strong> and <strong>Koins</strong> into a unified
-          wealth-building system. Totalum sees your entire book — stocks, crypto and precious metals — and engineers
+          wealth-building system. The Headmaster sees your entire book — stocks, crypto and precious metals — and engineers
           the allocation, strategy and risk controls to grow and protect it.
         </p>
 
@@ -121,7 +122,7 @@ function LockedUpsell() {
         <div className="mt-8 flex flex-col items-start gap-3 sm:flex-row sm:items-center">
           <Button asChild size="lg" className="font-semibold">
             <Link href="/pricing">
-              <Lock className="mr-1.5 size-4" /> Unlock Totalum with Pro
+              <Lock className="mr-1.5 size-4" /> Unlock The Headmaster with Pro
             </Link>
           </Button>
           <p className="text-xs text-muted-foreground">
@@ -394,7 +395,7 @@ function StrategyTab({ initialSynthesis }: { initialSynthesis: TotalumSynthesis 
           <div className="max-w-md">
             <h3 className="text-sm font-semibold">Describe your objective</h3>
             <p className="mt-1 text-xs text-muted-foreground">
-              Pick a goal and Totalum engineers a target allocation, entry/exit rules, risk parameters and an exact
+              Pick a goal and The Headmaster engineers a target allocation, entry/exit rules, risk parameters and an exact
               rebalancing plan for your current book.
             </p>
           </div>
@@ -595,7 +596,7 @@ function StrategistTab() {
         {messages.length === 0 && (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Ask Totalum anything about your unified portfolio — allocation, risk, rebalancing or scenario planning.
+              Ask The Headmaster anything about your unified portfolio — allocation, risk, rebalancing or scenario planning.
             </p>
             <div className="flex flex-wrap gap-2">
               {SUGGESTIONS.map((q) => (
@@ -705,9 +706,9 @@ export function TotalumConsole({ entitled, memberName }: { entitled: boolean; me
               />
             )}
             <img
-              src={BOT_TOTALUM_AVATAR}
-              alt="Totalum the Architect avatar"
-              title="Totalum the Architect"
+              src={BOT_HEADMASTER_AVATAR}
+              alt="The Headmaster avatar"
+              title="The Headmaster · Portfolio Planning and Strategies"
               className={cn(
                 "relative size-16 rounded-2xl object-cover ring-1 ring-primary/25",
                 loading && "animate-avatar-dance"
@@ -717,7 +718,7 @@ export function TotalumConsole({ entitled, memberName }: { entitled: boolean; me
           <div>
           <div className="flex items-center gap-2">
             <Badge className="border-primary/30 bg-primary/15 text-primary" variant="outline">
-              <Crown className="mr-1 size-3.5" /> Totalum · Master Architect
+              <Crown className="mr-1 size-3.5" /> The Headmaster · Portfolio Planning and Strategies
             </Badge>
             {synthesis && (
               <Badge variant="secondary" className="text-[11px]">
@@ -725,7 +726,7 @@ export function TotalumConsole({ entitled, memberName }: { entitled: boolean; me
               </Badge>
             )}
           </div>
-          <h1 className="mt-3 text-2xl font-bold tracking-tight md:text-3xl">Portfolio Architect</h1>
+          <h1 className="mt-3 text-2xl font-bold tracking-tight md:text-3xl">Portfolio Planning and Strategies</h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             One unified command centre across your equities, crypto and precious metals — synthesis, strategy, scenarios and risk.
           </p>
@@ -753,7 +754,7 @@ export function TotalumConsole({ entitled, memberName }: { entitled: boolean; me
           <Layers className="mx-auto size-8 text-muted-foreground" />
           <h3 className="mt-3 text-lg font-semibold">Your unified book is empty</h3>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-            Add equities in Stox, coins in Koins, and gold/silver in the Precious Metals tracker. Totalum will then
+            Add equities in Stox, coins in Koins, and gold/silver in the Precious Metals tracker. The Headmaster will then
             synthesise your full cross-asset strategy here.
           </p>
           <Button asChild className="mt-4">

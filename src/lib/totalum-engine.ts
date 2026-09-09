@@ -1,9 +1,9 @@
 /**
- * Totalum — cross-asset portfolio synthesis, optimisation, scenario & stress engine.
+ * The Headmaster — cross-asset portfolio synthesis, optimisation, scenario & stress engine.
  *
  * This is the deterministic brain behind AetherForge's third flagship agent,
- * "Totalum — the Master Portfolio Architect". Where Stox reasons about equities
- * and Koins about crypto, Totalum unifies EVERYTHING the member owns — NZX/ASX/US
+ * "The Headmaster — Portfolio Planning and Strategies". Where Stox reasons about
+ * equities and Koins about crypto, The Headmaster unifies EVERYTHING the member owns — NZX/ASX/US
  * equities, digital assets and physical precious metals — into a single NZD-based
  * wealth system and then reasons across it:
  *

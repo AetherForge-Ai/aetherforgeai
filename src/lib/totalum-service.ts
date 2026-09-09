@@ -1,7 +1,7 @@
 import "server-only";
 
 /**
- * Server-side glue for Totalum: loads a member's full cross-asset book
+ * Server-side glue for The Headmaster: loads a member's full cross-asset book
  * (equities + crypto from `stock`, physical metals from `precious_metal`),
  * resolves live metals spot + FX, and runs the pure `totalum-engine` synthesis.
  *
@@ -54,7 +54,7 @@ export interface ReportBuy {
   reason: string;
 }
 
-/** The latest Stox + Koins report findings, distilled for the Architect. */
+/** The latest Stox + Koins report findings, distilled for The Headmaster. */
 export interface ReportFindings {
   hasStox: boolean;
   hasKoins: boolean;
@@ -108,7 +108,7 @@ function summariseReport(bot: BotKind, report: ApexReport, generatedAt: string):
 
 /**
  * Loads the member's latest Stox AND Koins full reports and distils their
- * projections + specific BUY recommendations so the Totalum Architect can factor
+ * projections + specific BUY recommendations so The Headmaster can factor
  * BOTH report systems into a more specific, in-depth strategic plan. Non-fatal:
  * on any read/parse failure the affected side is simply reported as absent.
  */
@@ -140,7 +140,7 @@ export async function loadReportFindings(userId: string): Promise<ReportFindings
 
   const contextBlock = sections.length
     ? `LATEST FULL-REPORT FINDINGS (ingested from the member's own Stox & Koins reports):\n\n${sections.join("\n\n")}`
-    : "No Stox or Koins full reports have been generated yet — encourage the member to run both so the Architect can factor their projections and specific buys into the plan.";
+    : "No Stox or Koins full reports have been generated yet — encourage the member to run both so The Headmaster can factor their projections and specific buys into the plan.";
 
   console.log(
     `[totalum] Report findings ingested for user ${userId}: Stox=${!!stox}, Koins=${!!koins}, ${buys.length} specific buys`

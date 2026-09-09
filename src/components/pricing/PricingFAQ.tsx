@@ -22,12 +22,12 @@ const FAQS: { q: string; a: string }[] = [
     a: "Paid plans start with a 14-day Pro trial, so you can explore the full experience before you're charged. If you're ever billed in error or something isn't right, reach out and we'll make it right — we don't believe in trapping customers.",
   },
   {
-    q: "What is included in Totalum?",
-    a: "Totalum is our Master Portfolio Architect — the cross-asset intelligence layer that looks at your entire portfolio (equities and crypto together), models strategy, runs risk and stress tests, and maps forward pathways. Starter includes basic Totalum insights; Pro and Ultimate unlock the full architect.",
+    q: "What is included with The Headmaster?",
+    a: "The Headmaster handles Portfolio Planning and Strategies — the cross-asset intelligence layer that looks at your entire portfolio (equities and crypto together), models strategy, runs risk and stress tests, and maps forward pathways. Starter includes basic Headmaster insights; Pro and Ultimate unlock the full planner.",
   },
   {
     q: "Is there a difference between Stox and Koins?",
-    a: "Yes. Stox is our equities engine covering NZX, ASX and global markets, while Koins is our dedicated crypto-intelligence engine. On Free and Starter you choose one; on Pro and Ultimate you get full access to both, working together through Totalum.",
+    a: "Yes. Stox is our equities engine covering NZX, ASX and global markets, while Koins is our dedicated crypto-intelligence engine. On Free and Starter you choose one; on Pro and Ultimate you get full access to both, working together through The Headmaster.",
   },
   {
     q: "Can I try Pro before committing?",

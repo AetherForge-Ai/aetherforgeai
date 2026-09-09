@@ -2,7 +2,7 @@
  * SuperGrok 4.3 — ULTRA ADVANCED ZENITH STATE.
  *
  * The single source of truth for the AI reporting engine's identity, operating
- * directive and tuning. Every bot (Stox, Koins and the Totalum Master Architect)
+ * directive and tuning. Every bot (Stox, Koins and The Headmaster)
  * generates its reports in this state, powered by the owner's own Grok key.
  *
  * PURE / ISOMORPHIC — no `server-only`, no secrets, no side effects. Safe to

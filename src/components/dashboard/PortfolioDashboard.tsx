@@ -1327,7 +1327,7 @@ export function PortfolioDashboard({
         <AnalysisPanel holdingsCount={summary.holdingsCount} />
       </div>
 
-      {/* ───────────────────────── 11 · Report Center (Totalum + Stox + Koins) — gated for guests ───────────────────────── */}
+      {/* ───────────────────────── 11 · Report Center (The Headmaster + Stox + Koins) — gated for guests ───────────────────────── */}
       <div className="mt-8">
       <Gate
         title="Report Centre"

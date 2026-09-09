@@ -7,7 +7,7 @@ import { buildStrategy, type GoalKey } from "@/lib/totalum-engine";
 export const dynamic = "force-dynamic";
 
 /**
- * Totalum is a PRO feature — the master architect that unifies Stox + Koins +
+ * The Headmaster (Portfolio Planning and Strategies) is a PRO feature — it unifies Stox + Koins +
  * metals. It's reserved for active paying members (upsell path for everyone
  * else). In demo mode (no Stripe key) it's open so testers aren't locked out.
  */
@@ -38,7 +38,7 @@ export async function GET() {
     if (!isTotalumEntitled(user)) {
       console.log(`[api/totalum] GET blocked — user ${user._id} is not a Pro member`);
       return NextResponse.json(
-        { ok: false, error: "Totalum is a Pro feature for active paying members.", data: { code: "not_entitled" } },
+        { ok: false, error: "The Headmaster is a Pro feature for active paying members.", data: { code: "not_entitled" } },
         { status: 403 }
       );
     }
@@ -59,7 +59,7 @@ export async function POST(req: Request) {
 
     if (!isTotalumEntitled(user)) {
       return NextResponse.json(
-        { ok: false, error: "Totalum is a Pro feature for active paying members.", data: { code: "not_entitled" } },
+        { ok: false, error: "The Headmaster is a Pro feature for active paying members.", data: { code: "not_entitled" } },
         { status: 403 }
       );
     }

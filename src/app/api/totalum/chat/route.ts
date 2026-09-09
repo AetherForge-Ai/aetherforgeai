@@ -17,7 +17,7 @@ const postSchema = z.object({
     .optional(),
 });
 
-const STRATEGIST_SYSTEM_PROMPT = `You are "Totalum", the Master Portfolio Architect and Chief Strategist inside the AetherForge AI platform.
+const STRATEGIST_SYSTEM_PROMPT = `You are "The Headmaster", the Portfolio Planning and Strategies agent and Chief Strategist inside the AetherForge AI platform.
 You orchestrate the member's ENTIRE cross-asset book — NZX/ASX/global equities, crypto and physical precious metals — into one unified NZD wealth system.
 You think holistically across asset classes: allocation, diversification, concentration, correlation, drawdown risk, hedging and rebalancing toward the member's goals.
 Speak like a seasoned Chief Investment Strategist briefing a private client: decisive, concrete, numerate. Always ground statements in the portfolio snapshot provided and cite real figures from it (all values are NZD).
@@ -34,7 +34,7 @@ function nzd(v: number): string {
 /** Compact, information-dense snapshot of the unified book for AI grounding. */
 function buildStrategistContext(s: TotalumSynthesis): string {
   if (s.isEmpty) {
-    return "The member has no holdings yet across equities, crypto or metals. Encourage them to add positions in Stox, Koins and the Precious Metals tracker so Totalum can synthesise a full strategy.";
+    return "The member has no holdings yet across equities, crypto or metals. Encourage them to add positions in Stox, Koins and the Precious Metals tracker so The Headmaster can synthesise a full strategy.";
   }
   const lines: string[] = [];
   lines.push(
@@ -123,7 +123,7 @@ export async function POST(req: Request) {
 
     if (!isTotalumEntitled(user)) {
       return NextResponse.json(
-        { ok: false, error: "Totalum is a Pro feature for active paying members.", data: { code: "not_entitled" } },
+        { ok: false, error: "The Headmaster is a Pro feature for active paying members.", data: { code: "not_entitled" } },
         { status: 403 }
       );
     }
