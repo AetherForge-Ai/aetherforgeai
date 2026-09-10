@@ -145,7 +145,7 @@ export default function LandingPage() {
                       alt={`${bot.name} avatar`}
                       className="mx-auto h-28 w-auto object-contain drop-shadow-[0_10px_18px_rgba(0,0,0,0.45)]"
                     />
-                    <h3 className="mt-4 text-center font-display text-lg font-bold">
+                    <h3 className="mt-4 text-center font-display text-lg font-bold text-amber-400">
                       {bot.name}
                     </h3>
                     <p className="mt-1 text-center text-xs font-semibold uppercase tracking-wider text-primary">
