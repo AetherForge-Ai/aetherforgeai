@@ -53,7 +53,7 @@ export function DashboardSectionTitle({
           />
         </div>
       ) : null}
-      <h2 className="font-display text-center text-xl font-bold uppercase tracking-wide text-foreground underline decoration-2 underline-offset-8 sm:text-2xl">
+      <h2 className="font-display text-center text-xl font-bold uppercase tracking-wide text-amber-400 underline decoration-amber-400 decoration-2 underline-offset-8 sm:text-2xl">
         {title}
       </h2>
     </div>
