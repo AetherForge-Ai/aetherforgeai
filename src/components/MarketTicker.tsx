@@ -89,14 +89,14 @@ function TickerCell({ q }: { q: Quote }) {
   const up = q.change >= 0;
   return (
     <span className="inline-flex items-center gap-2 px-4 py-0.5 whitespace-nowrap">
-      <span className="font-display text-[0.78rem] font-semibold tracking-tight text-foreground/90">
+      <span className="font-display text-[0.78rem] font-semibold tracking-tight text-emerald-300">
         {q.symbol}
       </span>
-      <span className="tnum text-[0.78rem] text-muted-foreground">{formatPrice(q)}</span>
+      <span className="tnum text-[0.78rem] text-zinc-100">{formatPrice(q)}</span>
       <span
         className={cn(
           "tnum inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[0.7rem] font-semibold",
-          up ? "bg-primary/12 text-primary" : "bg-destructive/15 text-destructive"
+          up ? "bg-emerald-500/20 text-emerald-300" : "bg-rose-500/20 text-rose-300"
         )}
       >
         <span aria-hidden="true">{up ? "▲" : "▼"}</span>
@@ -119,8 +119,8 @@ function TickerRow({
   // Duplicate the row so the -50% translate loops seamlessly.
   const doubled = [...quotes, ...quotes];
   return (
-    <div className="relative flex items-center overflow-hidden border-b border-border/40 bg-card/40">
-      <span className="z-10 shrink-0 border-r border-border/50 bg-background/80 px-3 py-1.5 font-display text-[0.62rem] font-bold uppercase tracking-[0.18em] text-primary/80 backdrop-blur">
+    <div className="relative flex items-center overflow-hidden border-b border-emerald-500/20 bg-zinc-950">
+      <span className="z-10 shrink-0 border-r border-emerald-500/20 bg-zinc-950 px-3 py-1.5 font-display text-[0.62rem] font-bold uppercase tracking-[0.18em] text-emerald-300 backdrop-blur">
         {label}
       </span>
       <div className="relative flex-1 overflow-hidden">
@@ -130,8 +130,8 @@ function TickerRow({
           ))}
         </div>
         {/* Edge fades */}
-        <div className="pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-card/80 to-transparent" />
-        <div className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-card/80 to-transparent" />
+        <div className="pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-zinc-950 to-transparent" />
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-zinc-950 to-transparent" />
       </div>
     </div>
   );
@@ -182,8 +182,8 @@ function MetalsSpotBanner() {
   ];
 
   return (
-    <div className="flex items-center overflow-hidden border-b border-border/40 bg-gradient-to-r from-[var(--gold,#f5b301)]/8 via-card/40 to-slate-400/8">
-      <span className="z-10 shrink-0 border-r border-border/50 bg-background/80 px-3 py-1.5 font-display text-[0.62rem] font-bold uppercase tracking-[0.18em] text-[var(--gold,#f5b301)]/90 backdrop-blur">
+    <div className="flex items-center overflow-hidden border-b border-emerald-500/20 bg-zinc-950">
+      <span className="z-10 shrink-0 border-r border-emerald-500/20 bg-zinc-950 px-3 py-1.5 font-display text-[0.62rem] font-bold uppercase tracking-[0.18em] text-emerald-300 backdrop-blur">
         Metals
       </span>
       <div className="flex flex-1 flex-wrap items-center justify-center gap-x-8 gap-y-1 px-4 py-1.5">
@@ -195,7 +195,7 @@ function MetalsSpotBanner() {
             </span>
             {it.s ? (
               <>
-                <span className="tnum text-[0.8rem] font-medium text-foreground/90">
+                <span className="tnum text-[0.8rem] font-medium text-zinc-100">
                   NZ${fmtOz(it.s.nzdPerOz)}
                   <span className="text-muted-foreground">/oz</span>
                 </span>
@@ -303,7 +303,7 @@ export function MarketTicker({ className, compact = false }: MarketTickerProps) 
       {/* Precious-metals spot bar — Gold & Silver, directly under Crypto. */}
       <MetalsSpotBanner />
       {/* Source attribution — where the tape's data is sourced from. */}
-      <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 border-b border-border/40 bg-background/60 px-3 py-1.5 text-[0.6rem] text-muted-foreground">
+      <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 border-b border-emerald-500/20 bg-zinc-950 px-3 py-1.5 text-[0.6rem] text-muted-foreground">
         <span className="inline-flex items-center gap-1">
           <span className={cn("size-1.5 rounded-full", live.crypto ? "bg-emerald-400" : "bg-muted-foreground/50")} />
           Data:
