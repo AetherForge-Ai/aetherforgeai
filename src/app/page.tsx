@@ -29,18 +29,46 @@ const STEPS = [
   {
     title: "Create Your Account",
     body: "Sign up in seconds, Choose a Plan - Go monthly or yearly, cancel anytime",
+    sitter: {
+      name: "Stox",
+      img: "/brand/bot-stox.png",
+      // perched left, slight lean
+      wrap: "left-1 -rotate-6",
+      imgClass: "h-28 w-28",
+    },
   },
   {
     title: "Add your holdings",
     body: "Enter into Dashboard section your current Stock Market or Crypto Market Investments, Enter Your Precious Metals Investment",
+    sitter: {
+      name: "Smitty",
+      img: "/brand/bot-smitty.png",
+      // tall full-body, mid-right
+      wrap: "right-2 rotate-3",
+      imgClass: "h-36 w-auto",
+    },
   },
   {
     title: "Meet the AI bots",
     body: "Go to The Headmaster AI bot, Set Your Goals, Create a Strategy suitable to Your Needs and Requirements",
+    sitter: {
+      name: "The Headmaster",
+      img: "/brand/bot-headmaster.jpg",
+      // centered, mild lean the other way
+      wrap: "left-1/2 -translate-x-1/2 -rotate-3",
+      imgClass: "h-28 w-28",
+    },
   },
   {
     title: "Use Stox and Koins",
     body: "Generate daily reports using Stox and Koins AI bots, they monitor the entire markets, Analyze ALL of the REAL LIVE Data, and make Data Backed Short Term Predictions that will help you navigate your way towards achieving your Goals set with The Headmaster",
+    sitter: {
+      name: "Koins",
+      img: "/brand/bot-koins.png",
+      // right edge, stronger tilt
+      wrap: "right-0 rotate-8",
+      imgClass: "h-28 w-28",
+    },
   },
 ] as const;
 
@@ -75,7 +103,7 @@ export default function LandingPage() {
                         <ArrowRight className="size-4" />
                       </Link>
                     </Button>
-                    <Button asChild variant="outline" className="h-12 px-7 text-base">
+                    <Button asChild variant="outline" className="h-12 px-7 text-base border-white/40 bg-white/10 text-white hover:bg-white/20 hover:text-white">
                       <Link href="/dashboard">Open Dashboard</Link>
                     </Button>
                   </div>
@@ -150,9 +178,13 @@ export default function LandingPage() {
                   <p className="font-display text-xs font-bold uppercase tracking-[0.22em] text-amber-400">
                     Ultra Advanced · Precious metals
                   </p>
-                  <div className="mt-4 flex items-center gap-3">
-                    <img src="/brand/bot-smitty.png" alt="Smitty" className="size-14 rounded-full border border-amber-400/40 object-cover shadow-md" />
-                    <div>
+                  <div className="mt-4 flex items-end gap-4">
+                    <img
+                      src="/brand/bot-smitty.png"
+                      alt="Smitty"
+                      className="-mt-8 h-[7.875rem] w-[5.25rem] shrink-0 self-start rounded-2xl border border-amber-400/40 object-cover object-top shadow-md"
+                    />
+                    <div className="pb-1">
                       <p className="font-display text-lg font-bold text-amber-300">Smitty</p>
                       <p className="text-xs font-semibold uppercase tracking-wider text-[#a89c86]">Precious Metals Manager</p>
                     </div>
@@ -172,7 +204,7 @@ export default function LandingPage() {
                       <p className="text-xs font-semibold uppercase tracking-wider text-amber-600">
                         Gold · XAU
                       </p>
-                      <p className="mt-1 font-display text-xl font-bold">Live daily price</p>
+                      <p className="mt-1 font-display text-xl font-bold text-white">Live daily price</p>
                       <p className="mt-1 text-sm text-muted-foreground">
                         Inclines &amp; declines shown on your Dashboard
                       </p>
@@ -181,7 +213,7 @@ export default function LandingPage() {
                       <p className="text-xs font-semibold uppercase tracking-wider text-slate-300">
                         Silver · XAG
                       </p>
-                      <p className="mt-1 font-display text-xl font-bold">Live daily price</p>
+                      <p className="mt-1 font-display text-xl font-bold text-white">Live daily price</p>
                       <p className="mt-1 text-sm text-muted-foreground">
                         Inclines &amp; declines shown on your Dashboard
                       </p>
@@ -201,19 +233,30 @@ export default function LandingPage() {
                   Four steps to get started
                 </h2>
               </div>
-              <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="mt-20 grid gap-x-5 gap-y-20 sm:grid-cols-2 lg:grid-cols-4">
                 {STEPS.map((step, idx) => (
                   <article
                     key={step.title}
-                    className="flex h-full flex-col rounded-3xl border border-border/70 bg-card/60 p-5"
+                    className="relative flex h-full flex-col overflow-visible rounded-3xl border border-border/70 bg-card/60 p-5 pt-12"
                   >
-                    <span className="font-display text-sm font-bold text-primary">
+                    {/* Avatar perched on the card — legs hang over the top edge */}
+                    <div
+                      className={`pointer-events-none absolute top-0 z-10 -translate-y-[58%] ${step.sitter.wrap}`}
+                      aria-hidden
+                    >
+                      <img
+                        src={step.sitter.img}
+                        alt=""
+                        className={`${step.sitter.imgClass} max-w-none object-contain object-bottom drop-shadow-[0_12px_18px_rgba(0,0,0,0.55)]`}
+                      />
+                    </div>
+                    <span className="relative z-0 font-display text-sm font-bold text-primary">
                       {String(idx + 1).padStart(2, "0")}
                     </span>
-                    <h3 className="mt-3 font-display text-lg font-bold leading-snug text-primary">
+                    <h3 className="relative z-0 mt-3 font-display text-lg font-bold leading-snug text-primary">
                       {step.title}
                     </h3>
-                    <p className="mt-2 flex-1 text-sm leading-relaxed text-muted-foreground">
+                    <p className="relative z-0 mt-2 flex-1 text-sm leading-relaxed text-muted-foreground">
                       {step.body}
                     </p>
                   </article>
@@ -224,7 +267,7 @@ export default function LandingPage() {
             {/* CTA */}
             <section className="mx-auto max-w-7xl px-4 pb-20 sm:px-6 lg:px-8">
               <div className="rounded-3xl border border-primary/30 bg-primary/10 px-6 py-12 text-center sm:px-10">
-                <h2 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">
+                <h2 className="font-display text-3xl font-bold tracking-tight text-white sm:text-4xl">
                   Ready to take care of your Portfolio?
                 </h2>
                 <p className="mx-auto mt-3 max-w-xl text-muted-foreground">
