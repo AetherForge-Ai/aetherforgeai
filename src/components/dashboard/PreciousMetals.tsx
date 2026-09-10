@@ -18,7 +18,6 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { DashboardSectionTitle } from "@/components/dashboard/DashboardSectionTitle";
 import {
   Coins,
   Gem,
@@ -207,69 +206,144 @@ export function PreciousMetals({
   /* ------------------------------- Entitled ------------------------------- */
   return (
     <div className="rounded-3xl border border-border/70 bg-card/50">
-      {/* Title + refresh — old icon/badge/subtitle chrome removed */}
-      <div className="border-b border-border/60 px-4 pt-5 sm:px-6">
-        <DashboardSectionTitle
-          title="Precious Metals Overview"
-          avatarSrc="/brand/bot-smitty-dashboard.png"
-          avatarAlt="Smitty the blacksmith with gold and silver trolley"
-          avatarPose="push"
-          avatarSize="lg"
-        />
-        <div className="mb-4 flex justify-end">
-          <Button variant="outline" size="sm" onClick={load} disabled={loading}>
-            {loading ? <Loader2 className="mr-2 size-4 animate-spin" /> : <RefreshCw className="mr-2 size-4" />}
-            Refresh spot
-          </Button>
+      {/* Title above Smitty; Smitty centered between open gold/silver windows */}
+      <div className="relative border-b border-border/60 px-4 pt-5 sm:px-6">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1" />
+          <h2 className="font-display text-center text-xl font-bold uppercase tracking-wide text-amber-400 underline decoration-amber-400 decoration-2 underline-offset-8 sm:text-2xl">
+            Precious Metals Overview
+          </h2>
+          <div className="flex min-w-0 flex-1 justify-end">
+            <Button variant="outline" size="sm" onClick={load} disabled={loading}>
+              {loading ? <Loader2 className="mr-2 size-4 animate-spin" /> : <RefreshCw className="mr-2 size-4" />}
+              Refresh spot
+            </Button>
+          </div>
+        </div>
+
+        <div className="relative mx-auto mt-2 max-w-4xl pb-4">
+          {/* Raised spot cards — open toward the center where Smitty stands */}
+          <div className="grid grid-cols-1 items-stretch gap-4 pt-28 sm:grid-cols-2 sm:gap-0 sm:pt-32">
+            {/* GOLD — open on the right (center) edge */}
+            {(() => {
+              const m = "gold" as MetalKey;
+              const meta = METAL_META[m];
+              const Icon = meta.icon;
+              const s = spot?.[m];
+              return (
+                <div
+                  key={m}
+                  className={cn(
+                    "relative z-10 min-h-[150px] overflow-visible border p-4 sm:-mt-6",
+                    meta.ring,
+                    "rounded-2xl sm:rounded-r-none sm:border-r-0 sm:pr-10",
+                  )}
+                >
+                  <div className="relative z-10 flex max-w-[58%] flex-col">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Icon className={cn("size-5", meta.color)} />
+                      <span className="font-display text-base font-bold">{meta.label} spot</span>
+                      <span
+                        className={cn(
+                          "rounded-full px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wide",
+                          spot?.live ? "bg-emerald-500/15 text-emerald-600" : "bg-muted text-muted-foreground",
+                        )}
+                        title={spot?.live ? "Live spot price" : "Fallback price (live feed unavailable)"}
+                      >
+                        {spot?.live ? "Live" : "Est."}
+                      </span>
+                    </div>
+                    <p className="tnum mt-3 font-display text-2xl font-bold">
+                      {s ? `${formatMoney(s.nzdPerOz, "NZD")}` : "—"}
+                      <span className="ml-1 text-sm font-medium text-muted-foreground">/oz</span>
+                    </p>
+                    <p className="tnum mt-0.5 text-xs text-muted-foreground">
+                      {s ? `${formatMoney(s.usdPerOz, "USD")}/oz global spot` : "Loading spot…"}
+                    </p>
+                  </div>
+                  {/* Messy gold pile spilling toward the open center */}
+                  <div className="pointer-events-none absolute -bottom-2 -right-2 z-0 h-32 w-36 rotate-6 sm:-right-4 sm:h-40 sm:w-44">
+                    <Image
+                      src="/brand/gold-bricks-messy.png"
+                      alt=""
+                      fill
+                      className="object-contain object-bottom drop-shadow-md"
+                      sizes="176px"
+                    />
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* SILVER — open on the left (center) edge; bricks left, text right */}
+            {(() => {
+              const m = "silver" as MetalKey;
+              const meta = METAL_META[m];
+              const Icon = meta.icon;
+              const s = spot?.[m];
+              return (
+                <div
+                  key={m}
+                  className={cn(
+                    "relative z-10 min-h-[150px] overflow-visible border p-4 sm:-mt-6",
+                    meta.ring,
+                    "rounded-2xl sm:rounded-l-none sm:border-l-0 sm:pl-10",
+                  )}
+                >
+                  {/* Messy silver pile on the open (left/center) side */}
+                  <div className="pointer-events-none absolute -bottom-2 -left-2 z-0 h-32 w-36 -rotate-6 sm:-left-4 sm:h-40 sm:w-44">
+                    <Image
+                      src="/brand/silver-bricks-messy.png"
+                      alt=""
+                      fill
+                      className="object-contain object-bottom drop-shadow-md"
+                      sizes="176px"
+                    />
+                  </div>
+                  <div className="relative z-10 ml-auto flex max-w-[58%] flex-col text-right">
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <span
+                        className={cn(
+                          "rounded-full px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wide",
+                          spot?.live ? "bg-emerald-500/15 text-emerald-600" : "bg-muted text-muted-foreground",
+                        )}
+                        title={spot?.live ? "Live spot price" : "Fallback price (live feed unavailable)"}
+                      >
+                        {spot?.live ? "Live" : "Est."}
+                      </span>
+                      <span className="font-display text-base font-bold">{meta.label} spot</span>
+                      <Icon className={cn("size-5", meta.color)} />
+                    </div>
+                    <p className="tnum mt-3 font-display text-2xl font-bold">
+                      {s ? `${formatMoney(s.nzdPerOz, "NZD")}` : "—"}
+                      <span className="ml-1 text-sm font-medium text-muted-foreground">/oz</span>
+                    </p>
+                    <p className="tnum mt-0.5 text-xs text-muted-foreground">
+                      {s ? `${formatMoney(s.usdPerOz, "USD")}/oz global spot` : "Loading spot…"}
+                    </p>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Smitty layered over the top/center of both open windows */}
+          <div className="pointer-events-none absolute left-1/2 top-0 z-20 w-36 -translate-x-1/2 sm:w-44">
+            <div className="relative mx-auto aspect-square w-full">
+              <Image
+                src="/brand/bot-smitty-dashboard.png"
+                alt="Smitty throwing gold and silver bricks into the spot windows"
+                fill
+                className="object-contain object-bottom drop-shadow-lg"
+                sizes="176px"
+                priority={false}
+              />
+            </div>
+          </div>
         </div>
       </div>
 
       <div className="p-6">
-        {/* Live spot price cards */}
-        <div className="grid gap-4 sm:grid-cols-2">
-          {(["gold", "silver"] as MetalKey[]).map((m) => {
-            const meta = METAL_META[m];
-            const Icon = meta.icon;
-            const s = spot?.[m];
-            return (
-              <div key={m} className={cn("relative overflow-hidden rounded-2xl border p-4", meta.ring)}>
-                <div className="relative z-10 flex max-w-[65%] flex-col">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <Icon className={cn("size-5", meta.color)} />
-                      <span className="font-display text-base font-bold">{meta.label} spot</span>
-                    </div>
-                    <span
-                      className={cn(
-                        "rounded-full px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wide",
-                        spot?.live ? "bg-emerald-500/15 text-emerald-600" : "bg-muted text-muted-foreground"
-                      )}
-                      title={spot?.live ? "Live spot price" : "Fallback price (live feed unavailable)"}
-                    >
-                      {spot?.live ? "Live" : "Est."}
-                    </span>
-                  </div>
-                  <p className="tnum mt-3 font-display text-2xl font-bold">
-                    {s ? `${formatMoney(s.nzdPerOz, "NZD")}` : "—"}
-                    <span className="ml-1 text-sm font-medium text-muted-foreground">/oz</span>
-                  </p>
-                  <p className="tnum mt-0.5 text-xs text-muted-foreground">
-                    {s ? `${formatMoney(s.usdPerOz, "USD")}/oz global spot` : "Loading spot…"}
-                  </p>
-                </div>
-                <div className="pointer-events-none absolute -bottom-1 -right-1 h-28 w-28 sm:h-36 sm:w-36 opacity-95">
-                  <Image
-                    src={m === "gold" ? "/brand/gold-bricks-stack.png" : "/brand/silver-bricks-stack.png"}
-                    alt=""
-                    fill
-                    className="object-contain object-bottom"
-                    sizes="144px"
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </div>
 
         {/* Add form */}
         <form
