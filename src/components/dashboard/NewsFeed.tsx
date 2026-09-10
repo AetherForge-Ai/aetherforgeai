@@ -4,7 +4,7 @@ import { useState } from "react";
 import { type NewsItem } from "@/lib/market-intel";
 import { useMarketIntel } from "@/components/dashboard/MarketIntelContext";
 import { cn } from "@/lib/utils";
-import { ExternalLink, Newspaper } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -19,34 +19,23 @@ const IMPACT_STYLES: Record<NewsItem["impact"], string> = {
   Neutral: "bg-amber-500/12 text-amber-700 dark:text-amber-300",
 };
 
+/** News card grid only — section title is rendered by the parent dashboard. */
 export function NewsFeed() {
   const { news } = useMarketIntel();
   const [active, setActive] = useState<NewsItem | null>(null);
 
   return (
-    <section className="rounded-3xl border border-border/70 bg-card/50 p-6">
-      <div className="flex items-center gap-3">
-        <span className="grid size-9 place-items-center rounded-lg bg-primary/12 text-primary">
-          <Newspaper className="size-4" />
-        </span>
-        <div>
-          <h2 className="font-display text-lg font-bold text-white">Market news</h2>
-          <p className="text-xs text-muted-foreground">
-            Curated &amp; impact-scored for NZ/AU investors — tap a card for the full story
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <section>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {news.map((n, i) => (
           <button
             key={`${n.headline}-${i}`}
             type="button"
             onClick={() => setActive(n)}
-            className="flex h-full flex-col overflow-hidden rounded-2xl border border-border/70 bg-card/80 p-4 text-left shadow-sm transition hover:border-primary/50 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+            className="flex flex-col overflow-hidden rounded-2xl border border-border/70 bg-card text-left shadow-sm transition hover:border-primary/50 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
           >
             {n.imageUrl ? (
-              <div className="mb-3 overflow-hidden rounded-xl border border-border/50">
+              <div className="overflow-hidden border-b border-border/50">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={n.imageUrl}
@@ -57,38 +46,40 @@ export function NewsFeed() {
               </div>
             ) : null}
 
-            <div className="flex items-start justify-between gap-2">
-              <span
-                className={cn(
-                  "rounded-full px-2.5 py-1 text-[0.66rem] font-semibold",
-                  IMPACT_STYLES[n.impact],
-                )}
-              >
-                {n.impact}
-              </span>
-              <span className="text-[0.66rem] tabular-nums text-muted-foreground">{n.time}</span>
-            </div>
-
-            <h3 className="mt-3 text-sm font-semibold leading-snug text-white">{n.headline}</h3>
-
-            <p className="mt-3 line-clamp-3 text-xs leading-relaxed text-muted-foreground">
-              {n.summary}
-            </p>
-
-            <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-              {n.source} · {n.market}
-            </p>
-
-            <div className="mt-auto flex items-end justify-between gap-2 pt-4">
-              <div className="flex flex-col">
-                <span className="font-display text-lg font-bold leading-none text-primary">
-                  {n.relevance}
+            <div className="flex flex-col gap-2 p-3">
+              <div className="flex items-start justify-between gap-2">
+                <span
+                  className={cn(
+                    "rounded-full px-2.5 py-1 text-[0.66rem] font-semibold",
+                    IMPACT_STYLES[n.impact],
+                  )}
+                >
+                  {n.impact}
                 </span>
-                <span className="mt-1 text-[0.55rem] uppercase tracking-wider text-muted-foreground">
-                  relevance
-                </span>
+                <span className="text-[0.66rem] tabular-nums text-muted-foreground">{n.time}</span>
               </div>
-              <span className="text-[0.66rem] font-semibold text-primary">Read article →</span>
+
+              <h3 className="text-sm font-semibold leading-snug text-foreground">{n.headline}</h3>
+
+              <p className="line-clamp-3 text-xs leading-relaxed text-muted-foreground">
+                {n.summary}
+              </p>
+
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                {n.source} · {n.market}
+              </p>
+
+              <div className="flex items-end justify-between gap-2 pt-1">
+                <div className="flex flex-col">
+                  <span className="font-display text-lg font-bold leading-none text-primary">
+                    {n.relevance}
+                  </span>
+                  <span className="mt-1 text-[0.55rem] uppercase tracking-wider text-muted-foreground">
+                    relevance
+                  </span>
+                </div>
+                <span className="text-[0.66rem] font-semibold text-primary">Read article →</span>
+              </div>
             </div>
           </button>
         ))}
@@ -112,7 +103,7 @@ export function NewsFeed() {
                     {active.source} · {active.market} · {active.time}
                   </span>
                 </div>
-                <DialogTitle className="font-display text-left text-xl font-bold leading-snug text-white">
+                <DialogTitle className="font-display text-left text-xl font-bold leading-snug text-foreground">
                   {active.headline}
                 </DialogTitle>
                 <DialogDescription className="sr-only">
