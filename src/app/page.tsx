@@ -8,19 +8,19 @@ const BOTS = [
   {
     name: "Stox",
     role: "Stock markets",
-    img: "/brand/bot-stox.png",
+    img: "/brand/bot-stox-fullbody.png",
     blurb: "STOX monitors the Stock Market with Ultra Advanced analysis and reports tied to your portfolio.",
   },
   {
     name: "Koins",
     role: "Crypto markets",
-    img: "/brand/bot-koins.png",
+    img: "/brand/bot-koins-fullbody.png",
     blurb: "KOINS monitors the Crypto Currency World and surfaces what matters for your holdings.",
   },
   {
     name: "The Headmaster",
     role: "Goals & strategy",
-    img: "/brand/bot-headmaster.jpg",
+    img: "/brand/bot-headmaster-fullbody.png",
     blurb: "The Headmaster builds an investment plan and strategy with you, tailored to what your individual needs require.",
   },
 ] as const;
@@ -143,7 +143,7 @@ export default function LandingPage() {
                     <img
                       src={bot.img}
                       alt={`${bot.name} avatar`}
-                      className="mx-auto size-24 rounded-2xl object-cover ring-1 ring-border/60"
+                      className="mx-auto h-28 w-auto object-contain drop-shadow-[0_10px_18px_rgba(0,0,0,0.45)]"
                     />
                     <h3 className="mt-4 text-center font-display text-lg font-bold">
                       {bot.name}
