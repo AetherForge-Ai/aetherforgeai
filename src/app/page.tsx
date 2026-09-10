@@ -60,7 +60,7 @@ export default function LandingPage() {
                   <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
                     Live NZX · ASX · Crypto · Metals intelligence
                   </div>
-                  <h1 className="mt-5 font-display text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-[3.25rem] lg:leading-[1.1]">
+                  <h1 className="mt-5 font-display text-4xl font-extrabold tracking-tight text-primary sm:text-5xl lg:text-[3.25rem] lg:leading-[1.1]">
                     Data Backed Market Intelligence straight to You
                   </h1>
                   <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
@@ -137,6 +137,9 @@ export default function LandingPage() {
 
             {/* Precious metals — replaces Institutional Edge / Capabilities */}
             <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
+              <h2 className="mb-8 text-center font-display text-4xl font-extrabold tracking-tight text-amber-400 sm:text-5xl">
+                Precious Metals
+              </h2>
               <div className="grid items-center gap-10 lg:grid-cols-2">
                 <img
                   src="/brand/precious-metals-trolley.png"
@@ -144,8 +147,8 @@ export default function LandingPage() {
                   className="w-full h-auto rounded-3xl border border-border/70 shadow-xl"
                 />
                 <div>
-                  <p className="font-display text-xs font-bold uppercase tracking-[0.2em] text-amber-500">
-                    Precious metals
+                  <p className="font-display text-xs font-bold uppercase tracking-[0.22em] text-amber-400">
+                    Ultra Advanced · Precious metals
                   </p>
                   <h2 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">
                     Gold and silver — investment, currency, and a safe haven
@@ -200,7 +203,7 @@ export default function LandingPage() {
                     <span className="font-display text-sm font-bold text-primary">
                       {String(idx + 1).padStart(2, "0")}
                     </span>
-                    <h3 className="mt-3 font-display text-lg font-bold leading-snug">
+                    <h3 className="mt-3 font-display text-lg font-bold leading-snug text-primary">
                       {step.title}
                     </h3>
                     <p className="mt-2 flex-1 text-sm leading-relaxed text-muted-foreground">
