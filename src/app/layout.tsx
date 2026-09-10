@@ -1,7 +1,7 @@
 // src/app/layout.tsx
 import React from "react";
 import type { Metadata, Viewport } from "next";
-import { Sora, Manrope, JetBrains_Mono } from "next/font/google";
+import { Sora, Manrope, JetBrains_Mono, Cormorant_Garamond } from "next/font/google";
 import "./globals.css";
 import { ScriptExecutor } from "@/components/ScriptExecutor";
 import { DevToolsHandler } from "@/components/DevToolsHandler";
@@ -23,6 +23,11 @@ const jetbrainsMono = JetBrains_Mono({
   variable: "--font-mono-custom",
   subsets: ["latin"],
   weight: ["400", "500", "600"],
+});
+const cormorant = Cormorant_Garamond({
+  variable: "--font-hero",
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
 });
 
 // Canonical public site URL. Uses the configured app URL when present, otherwise
@@ -72,7 +77,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body
-        className={`${sora.variable} ${manrope.variable} ${jetbrainsMono.variable} font-sans antialiased`}
+        className={`${sora.variable} ${manrope.variable} ${jetbrainsMono.variable} ${cormorant.variable} font-sans antialiased`}
       >
         {/* Google tag (gtag.js) — injected on every page/route */}
         <GoogleTag />
