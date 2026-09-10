@@ -214,6 +214,7 @@ export function PreciousMetals({
           avatarSrc="/brand/bot-smitty-holdings.png"
           avatarAlt="Smitty the blacksmith with gold and silver trolley"
           avatarPose="push"
+          avatarSize="lg"
         />
         <div className="mb-4 flex justify-end">
           <Button variant="outline" size="sm" onClick={load} disabled={loading}>
