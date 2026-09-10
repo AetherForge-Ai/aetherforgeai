@@ -42,8 +42,8 @@ const STEPS = [
     sitter: {
       name: "Smitty",
       img: "/brand/bot-smitty-holdings.png",
-      wrap: "left-1/2 -translate-x-1/2",
-      imgClass: "h-44 w-auto",
+      wrap: "left-2",
+      imgClass: "h-44 w-auto origin-bottom-left",
       place: "bottom" as const,
     },
   },
@@ -249,7 +249,7 @@ export default function LandingPage() {
                     <div
                       className={`pointer-events-none absolute z-10 ${
                         "place" in step.sitter && step.sitter.place === "bottom"
-                          ? `bottom-0 translate-y-[55%] ${step.sitter.wrap}`
+                          ? `bottom-0 translate-y-[48%] ${step.sitter.wrap}`
                           : `top-0 -translate-y-[62%] ${step.sitter.wrap}`
                       }`}
                       aria-hidden
