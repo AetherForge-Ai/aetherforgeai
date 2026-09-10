@@ -84,7 +84,7 @@ export default function LandingPage() {
                   <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
                     Live NZX · ASX · Crypto · Metals intelligence
                   </div>
-                  <h1 className="mt-5 font-[family-name:var(--font-hero)] text-4xl font-semibold tracking-[0.01em] text-amber-400 sm:text-5xl lg:text-[3.35rem] lg:leading-[1.15]">
+                  <h1 className="mt-5 font-display text-4xl font-extrabold tracking-tight text-amber-400 sm:text-5xl lg:text-[3.25rem] lg:leading-[1.1]">
                     Data Backed Market Intelligence straight to You
                   </h1>
                   <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
