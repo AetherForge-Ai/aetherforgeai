@@ -10,6 +10,8 @@ type Props = {
   avatarAlt?: string;
   /** lean = back against title; flip = slight bounce/offset for “flipping coins” feel */
   avatarPose?: "lean" | "flip" | "push";
+  /** md = default; lg = ~2× for metals / hero section titles */
+  avatarSize?: "md" | "lg";
   className?: string;
 };
 
@@ -22,6 +24,7 @@ export function DashboardSectionTitle({
   avatarSrc,
   avatarAlt = "",
   avatarPose = "lean",
+  avatarSize = "md",
   className,
 }: Props) {
   const poseClass =
@@ -31,16 +34,21 @@ export function DashboardSectionTitle({
         ? "translate-x-1"
         : "rotate-[-4deg] -translate-x-1 translate-y-0.5";
 
+  const sizeClass =
+    avatarSize === "lg"
+      ? "relative h-32 w-32 shrink-0 sm:h-40 sm:w-40"
+      : "relative h-16 w-16 shrink-0 sm:h-20 sm:w-20";
+
   return (
     <div className={cn("mb-5 flex items-end justify-center gap-3 sm:gap-4", className)}>
       {avatarSrc ? (
-        <div className={cn("relative h-16 w-16 shrink-0 sm:h-20 sm:w-20", poseClass)}>
+        <div className={cn(sizeClass, poseClass)}>
           <Image
             src={avatarSrc}
             alt={avatarAlt}
             fill
             className="object-contain object-bottom drop-shadow-md"
-            sizes="80px"
+            sizes={avatarSize === "lg" ? "160px" : "80px"}
             priority={false}
           />
         </div>
