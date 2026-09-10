@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
@@ -16,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { DashboardSectionTitle } from "@/components/dashboard/DashboardSectionTitle";
 import {
   Coins,
   Gem,
@@ -186,7 +189,7 @@ export function PreciousMetals({
           <Lock className="size-7" />
         </span>
         <h2 className="mt-4 font-display text-xl font-bold">
-          Precious Metals Portfolio {HeaderBadge}
+          Precious Metals Overview
         </h2>
         <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
           Track your gold &amp; silver alongside your shares — valued live against today's spot
@@ -204,25 +207,20 @@ export function PreciousMetals({
   /* ------------------------------- Entitled ------------------------------- */
   return (
     <div className="rounded-3xl border border-border/70 bg-card/50">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 px-6 py-4">
-        <div className="flex items-center gap-3">
-          <span className="grid size-9 place-items-center rounded-lg bg-[var(--gold)]/12 text-[var(--gold)]">
-            <Coins className="size-4" />
-          </span>
-          <div>
-            <h2 className="font-display text-lg font-bold">
-              Precious Metals Portfolio {HeaderBadge}
-            </h2>
-            <p className="text-xs text-muted-foreground">
-              Gold &amp; silver valued live at today's spot price · all figures in NZD
-            </p>
-          </div>
+      {/* Title + refresh — old icon/badge/subtitle chrome removed */}
+      <div className="border-b border-border/60 px-4 pt-5 sm:px-6">
+        <DashboardSectionTitle
+          title="Precious Metals Overview"
+          avatarSrc="/brand/bot-smitty-holdings.png"
+          avatarAlt="Smitty the blacksmith with gold and silver trolley"
+          avatarPose="push"
+        />
+        <div className="mb-4 flex justify-end">
+          <Button variant="outline" size="sm" onClick={load} disabled={loading}>
+            {loading ? <Loader2 className="mr-2 size-4 animate-spin" /> : <RefreshCw className="mr-2 size-4" />}
+            Refresh spot
+          </Button>
         </div>
-        <Button variant="outline" size="sm" onClick={load} disabled={loading}>
-          {loading ? <Loader2 className="mr-2 size-4 animate-spin" /> : <RefreshCw className="mr-2 size-4" />}
-          Refresh spot
-        </Button>
       </div>
 
       <div className="p-6">
@@ -233,29 +231,40 @@ export function PreciousMetals({
             const Icon = meta.icon;
             const s = spot?.[m];
             return (
-              <div key={m} className={cn("rounded-2xl border p-4", meta.ring)}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Icon className={cn("size-5", meta.color)} />
-                    <span className="font-display text-base font-bold">{meta.label} spot</span>
+              <div key={m} className={cn("relative overflow-hidden rounded-2xl border p-4", meta.ring)}>
+                <div className="relative z-10 flex max-w-[70%] flex-col">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <Icon className={cn("size-5", meta.color)} />
+                      <span className="font-display text-base font-bold">{meta.label} spot</span>
+                    </div>
+                    <span
+                      className={cn(
+                        "rounded-full px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wide",
+                        spot?.live ? "bg-emerald-500/15 text-emerald-600" : "bg-muted text-muted-foreground"
+                      )}
+                      title={spot?.live ? "Live spot price" : "Fallback price (live feed unavailable)"}
+                    >
+                      {spot?.live ? "Live" : "Est."}
+                    </span>
                   </div>
-                  <span
-                    className={cn(
-                      "rounded-full px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wide",
-                      spot?.live ? "bg-emerald-500/15 text-emerald-600" : "bg-muted text-muted-foreground"
-                    )}
-                    title={spot?.live ? "Live spot price" : "Fallback price (live feed unavailable)"}
-                  >
-                    {spot?.live ? "Live" : "Est."}
-                  </span>
+                  <p className="tnum mt-3 font-display text-2xl font-bold">
+                    {s ? `${formatMoney(s.nzdPerOz, "NZD")}` : "—"}
+                    <span className="ml-1 text-sm font-medium text-muted-foreground">/oz</span>
+                  </p>
+                  <p className="tnum mt-0.5 text-xs text-muted-foreground">
+                    {s ? `${formatMoney(s.usdPerOz, "USD")}/oz global spot` : "Loading spot…"}
+                  </p>
                 </div>
-                <p className="tnum mt-3 font-display text-2xl font-bold">
-                  {s ? `${formatMoney(s.nzdPerOz, "NZD")}` : "—"}
-                  <span className="ml-1 text-sm font-medium text-muted-foreground">/oz</span>
-                </p>
-                <p className="tnum mt-0.5 text-xs text-muted-foreground">
-                  {s ? `${formatMoney(s.usdPerOz, "USD")}/oz global spot` : "Loading spot…"}
-                </p>
+                <div className="pointer-events-none absolute bottom-1 right-1 h-20 w-20 sm:h-24 sm:w-24">
+                  <Image
+                    src={m === "gold" ? "/brand/gold-bricks-stack.png" : "/brand/silver-bricks-stack.png"}
+                    alt=""
+                    fill
+                    className="object-contain object-bottom"
+                    sizes="96px"
+                  />
+                </div>
               </div>
             );
           })}

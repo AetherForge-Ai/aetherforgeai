@@ -36,6 +36,7 @@ import { MarketWidePerformers } from "@/components/dashboard/MarketWidePerformer
 import { CryptoMarketSection } from "@/components/dashboard/crypto/CryptoMarketSection";
 import { ActionableIntelligence } from "@/components/dashboard/ActionableIntelligence";
 import { NewsFeed } from "@/components/dashboard/NewsFeed";
+import { DashboardSectionTitle } from "@/components/dashboard/DashboardSectionTitle";
 import { MarketIntelProvider } from "@/components/dashboard/MarketIntelContext";
 import { WatchlistPanel } from "@/components/dashboard/WatchlistPanel";
 import { GlobalSearch } from "@/components/dashboard/GlobalSearch";
@@ -458,6 +459,26 @@ export function PortfolioDashboard({
   );
   const metrics = useMemo(() => computePortfolioMetrics(stocks), [stocks]);
 
+  // Dedicated overviews (stock + crypto shown separately — no bot toggle)
+  const stockOnly = useMemo(
+    () => allStocks.filter((s) => (s.asset_type || "stock") === "stock"),
+    [allStocks]
+  );
+  const cryptoOnly = useMemo(
+    () => allStocks.filter((s) => s.asset_type === "crypto"),
+    [allStocks]
+  );
+  const stockOverviewSummary = useMemo(
+    () => computeSummary(stockOnly, { baseCurrency: "NZD", fxToNZD }),
+    [stockOnly, fxToNZD]
+  );
+  const stockOverviewMetrics = useMemo(() => computePortfolioMetrics(stockOnly), [stockOnly]);
+  const cryptoOverviewSummary = useMemo(
+    () => computeSummary(cryptoOnly, { baseCurrency: "USD", fxToNZD }),
+    [cryptoOnly, fxToNZD]
+  );
+  const cryptoOverviewMetrics = useMemo(() => computePortfolioMetrics(cryptoOnly), [cryptoOnly]);
+
   // Gold & silver bought through the Buy/Sell window are stored in the `stock`
   // table as `asset_type:"metal"`. They must surface in the Holdings table
   // regardless of which bot (Stox/Koins) is active, so the table uses its own
@@ -661,11 +682,6 @@ export function PortfolioDashboard({
 
   const gainTone = summary.totalGain >= 0 ? "up" : "down";
 
-  const BOTS: { key: AssetClass; label: string; icon: React.ElementType }[] = [
-    { key: "stock", label: "Stock Bot", icon: LineChart },
-    { key: "crypto", label: "Crypto Bot", icon: Bitcoin },
-  ];
-
   // In guest preview, the named member sections are shown but locked behind an
   // overlay; otherwise they render normally.
   const Gate = ({
@@ -694,9 +710,6 @@ export function PortfolioDashboard({
           <p className="text-sm text-muted-foreground">
             {preview ? "Live preview" : `Welcome back, ${userName.split(" ")[0]}`}
           </p>
-          <h1 className="mt-1 font-display text-2xl font-bold tracking-tight sm:text-3xl">
-            {bot === "crypto" ? "Crypto portfolio" : "Stock portfolio"} overview
-          </h1>
         </div>
         {preview ? (
           <Button asChild className="font-semibold shadow-glow">
@@ -750,196 +763,154 @@ export function PortfolioDashboard({
             </div>
           </div>
         </div>
-      ) : (
-      <div className="mt-6 rounded-3xl border border-border/70 bg-gradient-to-br from-primary/8 to-card/50 p-6">
-        <div className="flex items-center gap-2 text-sm font-semibold">
-          <BadgeCheck className="size-4 text-primary" /> Your subscription
-        </div>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              <BadgeCheck className="size-3.5 text-primary" /> Plan
-            </div>
-            <p className="mt-1.5 font-display text-lg font-bold">{planLabel(subscription.plan)}</p>
-            <p className="text-xs text-muted-foreground">{botAccessLabel(subscription.botAccess)}</p>
-          </div>
-          <div>
-            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              <Layers className="size-3.5 text-primary" /> Ticker limit
-            </div>
-            <p className="mt-1.5 font-display text-lg font-bold">
-              {tickerLimit} {scope === "total" ? "across both bots" : "per bot"}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Status: <span className="capitalize">{subscription.status || "none"}</span>
-            </p>
-          </div>
-          <div>
-            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              <CalendarClock className="size-3.5 text-primary" /> Purchased
-            </div>
-            <p className="mt-1.5 font-display text-lg font-bold">{fmtDate(subscription.startedAt)}</p>
-          </div>
-          <div>
-            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              <CalendarClock className="size-3.5 text-primary" /> Expires
-            </div>
-            <p className="mt-1.5 font-display text-lg font-bold">{fmtDate(subscription.expiresAt)}</p>
-          </div>
-        </div>
-
-        {/* Ticker-quota status line */}
-        <div
-          className={cn(
-            "mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-5 py-3.5",
-            atLimit ? "border-[var(--gold)]/40 bg-[var(--gold)]/10" : "border-border/60 bg-background/30"
-          )}
-        >
-          <div className="flex items-center gap-2.5 text-sm">
-            <span
-              className={cn(
-                "grid size-8 place-items-center rounded-lg",
-                atLimit ? "bg-[var(--gold)]/15 text-[var(--gold)]" : "bg-primary/12 text-primary"
-              )}
-            >
-              <Layers className="size-4" />
-            </span>
-            <div>
-              <p className="font-medium">
-                {planLabel(subscription.plan)} ·{" "}
-                <span className="tnum">
-                  {monitoredForLimit}/{tickerLimit}
-                </span>{" "}
-                {scope === "total" ? "tickers monitored" : `${bot} tickers monitored`}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {atLimit
-                  ? "You've reached your plan's monitoring limit — upgrade or remove a holding to add more."
-                  : scope === "total"
-                    ? "Your plan monitors tickers across both bots combined."
-                    : "Each bot gets its own ticker allowance on your plan."}
-              </p>
-            </div>
-          </div>
-          {subscription.plan === "free" && (
-            <Button asChild size="sm" variant={atLimit ? "default" : "outline"} className="font-semibold">
-              <Link href="/pricing">
-                <Sparkles className="mr-1.5 size-3.5" /> Upgrade plan
-              </Link>
-            </Button>
-          )}
-        </div>
-      </div>
-      )}
+      ) : null}
 
       {/* ───────────────────────── 2 · Market news ───────────────────────── */}
       <div className="mt-8">
-        <div className="mb-4 flex items-center gap-3">
-          <span className="grid size-9 place-items-center rounded-lg bg-primary/12 text-primary">
-            <Newspaper className="size-4" />
-          </span>
-          <h2 className="font-display text-lg font-bold">Market news</h2>
-        </div>
+        <DashboardSectionTitle title="Market News" />
         <NewsFeed />
       </div>
 
-      {/* ───────────────────────── 3 · Portfolio overview (gated for guests) ───────────────────────── */}
-      <div className="mt-8">
+      {/* ───────────────────────── 3 · Stock portfolio overview ───────────────────────── */}
+      <div className="mt-10">
       <Gate
         title="Stock Portfolio Overview"
         description="Your live KPIs — total worth, unrealised P&L, 7-day alpha, portfolio health, Sharpe & win rate."
       >
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="font-display text-lg font-bold tracking-tight sm:text-xl">
-          {bot === "crypto" ? "Crypto" : "Stock"} portfolio overview
-        </h2>
-        {/* Bot switcher — Stock ⇄ Crypto */}
-        <div className="inline-flex rounded-xl border border-border/70 bg-card/50 p-1">
-          {BOTS.map((b) => {
-            const active = bot === b.key;
-            const unlocked = canUseBot(b.key);
-            const Icon = b.icon;
-            if (!unlocked) {
-              return (
-                <Link
-                  key={b.key}
-                  href="/pricing"
-                  className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-muted-foreground/70 transition-colors hover:text-foreground"
-                  title={`Unlock the ${b.label} on a higher plan`}
-                >
-                  <Lock className="size-4" /> {b.label}
-                </Link>
-              );
-            }
-            return (
-              <button
-                key={b.key}
-                onClick={() => setBot(b.key)}
-                className={cn(
-                  "flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors",
-                  active ? "bg-primary text-primary-foreground shadow-glow" : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <Icon className="size-4" /> {b.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+        <DashboardSectionTitle
+          title="Stock Portfolio Overview"
+          avatarSrc="/brand/bot-stox-fullbody.png"
+          avatarAlt="Stox AI bot"
+          avatarPose="lean"
+        />
 
-      {/* KPI cards */}
-      <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* KPI cards — stocks */}
+      <div className="mt-2 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          label={`Total worth · ${baseCurrency}`}
-          value={formatMoney(summary.totalValue, baseCurrency)}
-          sub={`Cost basis ${formatMoney(summary.totalCost, baseCurrency)}`}
+          label="Total worth · NZD"
+          value={formatMoney(stockOverviewSummary.totalValue, "NZD")}
+          sub={`Cost basis ${formatMoney(stockOverviewSummary.totalCost, "NZD")}`}
           icon={Wallet}
         />
         <StatCard
           label="Unrealized P&L"
-          value={formatMoney(summary.totalGain, baseCurrency)}
-          sub={formatPercent(summary.totalGainPct)}
-          icon={summary.totalGain >= 0 ? TrendingUp : TrendingDown}
-          tone={gainTone}
+          value={formatMoney(stockOverviewSummary.totalGain, "NZD")}
+          sub={formatPercent(stockOverviewSummary.totalGainPct)}
+          icon={stockOverviewSummary.totalGain >= 0 ? TrendingUp : TrendingDown}
+          tone={stockOverviewSummary.totalGain >= 0 ? "up" : "down"}
         />
         <StatCard
           label="7-Day alpha potential"
-          value={`${metrics.alphaPotentialPct >= 0 ? "+" : ""}${metrics.alphaPotentialPct.toFixed(2)}%`}
+          value={`${stockOverviewMetrics.alphaPotentialPct >= 0 ? "+" : ""}${stockOverviewMetrics.alphaPotentialPct.toFixed(2)}%`}
           sub={
-            summary.holdingsCount
-              ? `${formatMoney(metrics.alphaPotentialValue, baseCurrency)} projected move`
+            stockOverviewSummary.holdingsCount
+              ? `${formatMoney(stockOverviewMetrics.alphaPotentialValue, "NZD")} projected move`
               : "Add holdings to project"
           }
           icon={Zap}
-          tone={metrics.alphaPotentialPct >= 0 ? "up" : "down"}
+          tone={stockOverviewMetrics.alphaPotentialPct >= 0 ? "up" : "down"}
         />
         <StatCard
           label="Portfolio health"
-          value={summary.holdingsCount ? `${metrics.healthScore}/100` : "—"}
-          sub={summary.holdingsCount ? metrics.healthLabel : "No holdings yet"}
+          value={stockOverviewSummary.holdingsCount ? `${stockOverviewMetrics.healthScore}/100` : "—"}
+          sub={stockOverviewSummary.holdingsCount ? stockOverviewMetrics.healthLabel : "No holdings yet"}
           icon={HeartPulse}
           tone={
-            !summary.holdingsCount
+            !stockOverviewSummary.holdingsCount
               ? "neutral"
-              : metrics.healthScore >= 55
+              : stockOverviewMetrics.healthScore >= 55
                 ? "up"
-                : metrics.healthScore >= 38
+                : stockOverviewMetrics.healthScore >= 38
                   ? "neutral"
                   : "down"
           }
         />
       </div>
 
-      {/* Risk / quality metrics strip */}
-      {summary.holdingsCount > 0 && (
+      {stockOverviewSummary.holdingsCount > 0 && (
         <div className="mt-4 grid grid-cols-2 gap-4 rounded-2xl border border-border/70 bg-card/40 p-4 sm:grid-cols-4">
-          <MiniMetric icon={Activity} label="Ann. volatility" value={`${metrics.volatility.toFixed(1)}%`} />
-          <MiniMetric icon={Gauge} label="Sharpe ratio" value={metrics.sharpe.toFixed(2)} />
-          <MiniMetric icon={PieChart} label="Diversification" value={`${metrics.diversification}%`} />
-          <MiniMetric icon={Trophy} label="Win rate" value={`${metrics.winRate}%`} />
+          <MiniMetric icon={Activity} label="Ann. volatility" value={`${stockOverviewMetrics.volatility.toFixed(1)}%`} />
+          <MiniMetric icon={Gauge} label="Sharpe ratio" value={stockOverviewMetrics.sharpe.toFixed(2)} />
+          <MiniMetric icon={PieChart} label="Diversification" value={`${stockOverviewMetrics.diversification}%`} />
+          <MiniMetric icon={Trophy} label="Win rate" value={`${stockOverviewMetrics.winRate}%`} />
         </div>
       )}
       </Gate>
+      </div>
+
+      {/* ───────────────────────── 3b · Crypto currency overview ───────────────────────── */}
+      <div className="mt-10">
+      <Gate
+        title="Crypto Currency Overview"
+        description="Live crypto KPIs and market terminal — total worth, unrealised P&L, health and projected movers."
+      >
+        <DashboardSectionTitle
+          title="Crypto Currency Overview"
+          avatarSrc="/brand/bot-stox-fullbody.png"
+          avatarAlt="Stox AI bot flipping coins"
+          avatarPose="flip"
+        />
+
+      <div className="mt-2 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          label="Total worth · USD"
+          value={formatMoney(cryptoOverviewSummary.totalValue, "USD")}
+          sub={`Cost basis ${formatMoney(cryptoOverviewSummary.totalCost, "USD")}`}
+          icon={Wallet}
+        />
+        <StatCard
+          label="Unrealized P&L"
+          value={formatMoney(cryptoOverviewSummary.totalGain, "USD")}
+          sub={formatPercent(cryptoOverviewSummary.totalGainPct)}
+          icon={cryptoOverviewSummary.totalGain >= 0 ? TrendingUp : TrendingDown}
+          tone={cryptoOverviewSummary.totalGain >= 0 ? "up" : "down"}
+        />
+        <StatCard
+          label="7-Day alpha potential"
+          value={`${cryptoOverviewMetrics.alphaPotentialPct >= 0 ? "+" : ""}${cryptoOverviewMetrics.alphaPotentialPct.toFixed(2)}%`}
+          sub={
+            cryptoOverviewSummary.holdingsCount
+              ? `${formatMoney(cryptoOverviewMetrics.alphaPotentialValue, "USD")} projected move`
+              : "Add coins to project"
+          }
+          icon={Zap}
+          tone={cryptoOverviewMetrics.alphaPotentialPct >= 0 ? "up" : "down"}
+        />
+        <StatCard
+          label="Portfolio health"
+          value={cryptoOverviewSummary.holdingsCount ? `${cryptoOverviewMetrics.healthScore}/100` : "—"}
+          sub={cryptoOverviewSummary.holdingsCount ? cryptoOverviewMetrics.healthLabel : "No holdings yet"}
+          icon={HeartPulse}
+          tone={
+            !cryptoOverviewSummary.holdingsCount
+              ? "neutral"
+              : cryptoOverviewMetrics.healthScore >= 55
+                ? "up"
+                : cryptoOverviewMetrics.healthScore >= 38
+                  ? "neutral"
+                  : "down"
+          }
+        />
+      </div>
+
+      {cryptoOverviewSummary.holdingsCount > 0 && (
+        <div className="mt-4 grid grid-cols-2 gap-4 rounded-2xl border border-border/70 bg-card/40 p-4 sm:grid-cols-4">
+          <MiniMetric icon={Activity} label="Ann. volatility" value={`${cryptoOverviewMetrics.volatility.toFixed(1)}%`} />
+          <MiniMetric icon={Gauge} label="Sharpe ratio" value={cryptoOverviewMetrics.sharpe.toFixed(2)} />
+          <MiniMetric icon={PieChart} label="Diversification" value={`${cryptoOverviewMetrics.diversification}%`} />
+          <MiniMetric icon={Trophy} label="Win rate" value={`${cryptoOverviewMetrics.winRate}%`} />
+        </div>
+      )}
+
+      <div className="mt-6">
+        <CryptoMarketSection />
+      </div>
+      </Gate>
+      </div>
+
+      {/* ───────────────────────── 3c · Precious metals (moved up for page flow) ───────────────────────── */}
+      <div className="mt-10">
+        <PreciousMetals entitled={metalsEntitled} plan={subscription.plan} onChanged={handleMetalsChanged} />
       </div>
 
       {/* ───────────────────────── 4 · Totals owned (Stocks · Crypto · Cash · Metals) ───────────────────────── */}
@@ -1263,10 +1234,6 @@ export function PortfolioDashboard({
       </Gate>
       </div>
 
-      {/* Precious Metals — bonus for active paying members (gold & silver) */}
-      <div className="mt-6">
-        <PreciousMetals entitled={metalsEntitled} plan={subscription.plan} onChanged={handleMetalsChanged} />
-      </div>
 
       {/* ───────────────────────── 6 · Actionable intelligence — SELL/BUY signals + pathways (modular window) ───────────────────────── */}
       <div className="mt-6">
@@ -1280,12 +1247,6 @@ export function PortfolioDashboard({
         </CollapsibleSection>
       </div>
 
-      {/* ───────────────────────── 6.5 · Crypto Market terminal (Crypto Bot only) — live top 500 + fixed Projected Performers ───────────────────────── */}
-      {bot === "crypto" && (
-        <div className="mt-8">
-          <CryptoMarketSection />
-        </div>
-      )}
 
       {/* ───────────────────────── 7 · Market Insights — one modular window: cross-exchange browser, snapshot, movers & projected performers ───────────────────────── */}
       <div className="mt-6">
