@@ -142,19 +142,26 @@ export default function LandingPage() {
               </h2>
               <div className="grid items-center gap-10 lg:grid-cols-2">
                 <img
-                  src="/brand/precious-metals-trolley.png"
-                  alt="Gold and silver bars on a trolley headed for the melting cauldron"
+                  src="/brand/precious-metals-smitty.png"
+                  alt="Smitty, AetherForge Precious Metals Manager, with gold and silver at the forge"
                   className="w-full h-auto rounded-3xl border border-border/70 shadow-xl"
                 />
                 <div>
                   <p className="font-display text-xs font-bold uppercase tracking-[0.22em] text-amber-400">
                     Ultra Advanced · Precious metals
                   </p>
+                  <div className="mt-4 flex items-center gap-3">
+                    <img src="/brand/bot-smitty.png" alt="Smitty" className="size-14 rounded-full border border-amber-400/40 object-cover shadow-md" />
+                    <div>
+                      <p className="font-display text-lg font-bold text-amber-300">Smitty</p>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-[#a89c86]">Precious Metals Manager</p>
+                    </div>
+                  </div>
                   <h2 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">
                     Gold and silver — investment, currency, and a safe haven
                   </h2>
                   <p className="mt-4 text-base leading-relaxed text-muted-foreground sm:text-lg">
-                    AetherForge AI understands how much precious metals mean to the
+                    Meet Smitty — AetherForge AI's Precious Metals Manager. He understands how much precious metals mean to the
                     world — as investments, as a globally accepted currency, and in
                     times of need as safe investments. We surface daily live Silver and
                     Gold prices with inclines and declines so you can track the metals
