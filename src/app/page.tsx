@@ -75,7 +75,7 @@ export default function LandingPage() {
                         <ArrowRight className="size-4" />
                       </Link>
                     </Button>
-                    <Button asChild variant="outline" className="h-12 px-7 text-base">
+                    <Button asChild variant="outline" className="h-12 px-7 text-base border-white/40 bg-white/10 text-white hover:bg-white/20 hover:text-white">
                       <Link href="/dashboard">Open Dashboard</Link>
                     </Button>
                   </div>
@@ -172,7 +172,7 @@ export default function LandingPage() {
                       <p className="text-xs font-semibold uppercase tracking-wider text-amber-600">
                         Gold · XAU
                       </p>
-                      <p className="mt-1 font-display text-xl font-bold">Live daily price</p>
+                      <p className="mt-1 font-display text-xl font-bold text-white">Live daily price</p>
                       <p className="mt-1 text-sm text-muted-foreground">
                         Inclines &amp; declines shown on your Dashboard
                       </p>
@@ -181,7 +181,7 @@ export default function LandingPage() {
                       <p className="text-xs font-semibold uppercase tracking-wider text-slate-300">
                         Silver · XAG
                       </p>
-                      <p className="mt-1 font-display text-xl font-bold">Live daily price</p>
+                      <p className="mt-1 font-display text-xl font-bold text-white">Live daily price</p>
                       <p className="mt-1 text-sm text-muted-foreground">
                         Inclines &amp; declines shown on your Dashboard
                       </p>
@@ -224,7 +224,7 @@ export default function LandingPage() {
             {/* CTA */}
             <section className="mx-auto max-w-7xl px-4 pb-20 sm:px-6 lg:px-8">
               <div className="rounded-3xl border border-primary/30 bg-primary/10 px-6 py-12 text-center sm:px-10">
-                <h2 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">
+                <h2 className="font-display text-3xl font-bold tracking-tight text-white sm:text-4xl">
                   Ready to take care of your Portfolio?
                 </h2>
                 <p className="mx-auto mt-3 max-w-xl text-muted-foreground">
