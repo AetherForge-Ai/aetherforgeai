@@ -211,7 +211,7 @@ export function PreciousMetals({
       <div className="border-b border-border/60 px-4 pt-5 sm:px-6">
         <DashboardSectionTitle
           title="Precious Metals Overview"
-          avatarSrc="/brand/bot-smitty-holdings.png"
+          avatarSrc="/brand/bot-smitty-dashboard.png"
           avatarAlt="Smitty the blacksmith with gold and silver trolley"
           avatarPose="push"
           avatarSize="lg"
@@ -233,7 +233,7 @@ export function PreciousMetals({
             const s = spot?.[m];
             return (
               <div key={m} className={cn("relative overflow-hidden rounded-2xl border p-4", meta.ring)}>
-                <div className="relative z-10 flex max-w-[70%] flex-col">
+                <div className="relative z-10 flex max-w-[65%] flex-col">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <Icon className={cn("size-5", meta.color)} />
@@ -257,13 +257,13 @@ export function PreciousMetals({
                     {s ? `${formatMoney(s.usdPerOz, "USD")}/oz global spot` : "Loading spot…"}
                   </p>
                 </div>
-                <div className="pointer-events-none absolute bottom-1 right-1 h-20 w-20 sm:h-24 sm:w-24">
+                <div className="pointer-events-none absolute -bottom-1 -right-1 h-28 w-28 sm:h-36 sm:w-36 opacity-95">
                   <Image
                     src={m === "gold" ? "/brand/gold-bricks-stack.png" : "/brand/silver-bricks-stack.png"}
                     alt=""
                     fill
                     className="object-contain object-bottom"
-                    sizes="96px"
+                    sizes="144px"
                   />
                 </div>
               </div>
