@@ -31,10 +31,9 @@ const STEPS = [
     body: "Sign up in seconds, Choose a Plan - Go monthly or yearly, cancel anytime",
     sitter: {
       name: "Stox",
-      img: "/brand/bot-stox.png",
-      // perched left, slight lean
-      wrap: "left-1 -rotate-6",
-      imgClass: "h-28 w-28",
+      img: "/brand/bot-stox-fullbody.png",
+      wrap: "left-0 -rotate-6",
+      imgClass: "h-36 w-auto",
     },
   },
   {
@@ -42,10 +41,9 @@ const STEPS = [
     body: "Enter into Dashboard section your current Stock Market or Crypto Market Investments, Enter Your Precious Metals Investment",
     sitter: {
       name: "Smitty",
-      img: "/brand/bot-smitty.png",
-      // tall full-body, mid-right
-      wrap: "right-2 rotate-3",
-      imgClass: "h-36 w-auto",
+      img: "/brand/bot-smitty-sitter.png",
+      wrap: "right-1 rotate-2",
+      imgClass: "h-40 w-auto",
     },
   },
   {
@@ -53,10 +51,9 @@ const STEPS = [
     body: "Go to The Headmaster AI bot, Set Your Goals, Create a Strategy suitable to Your Needs and Requirements",
     sitter: {
       name: "The Headmaster",
-      img: "/brand/bot-headmaster.jpg",
-      // centered, mild lean the other way
-      wrap: "left-1/2 -translate-x-1/2 -rotate-3",
-      imgClass: "h-28 w-28",
+      img: "/brand/bot-headmaster-fullbody.png",
+      wrap: "left-1/2 -translate-x-1/2 -rotate-2",
+      imgClass: "h-40 w-auto",
     },
   },
   {
@@ -64,10 +61,9 @@ const STEPS = [
     body: "Generate daily reports using Stox and Koins AI bots, they monitor the entire markets, Analyze ALL of the REAL LIVE Data, and make Data Backed Short Term Predictions that will help you navigate your way towards achieving your Goals set with The Headmaster",
     sitter: {
       name: "Koins",
-      img: "/brand/bot-koins.png",
-      // right edge, stronger tilt
-      wrap: "right-0 rotate-8",
-      imgClass: "h-28 w-28",
+      img: "/brand/bot-koins-fullbody.png",
+      wrap: "right-0 rotate-7",
+      imgClass: "h-36 w-auto",
     },
   },
 ] as const;
@@ -178,27 +174,29 @@ export default function LandingPage() {
                   <p className="font-display text-xs font-bold uppercase tracking-[0.22em] text-amber-400">
                     Ultra Advanced · Precious metals
                   </p>
-                  <div className="mt-4 flex items-end gap-4">
-                    <img
-                      src="/brand/bot-smitty.png"
-                      alt="Smitty"
-                      className="-mt-8 h-[7.875rem] w-[5.25rem] shrink-0 self-start rounded-2xl border border-amber-400/40 object-cover object-top shadow-md"
-                    />
-                    <div className="pb-1">
+                  <div className="mt-5 flex flex-col gap-5 sm:flex-row sm:items-end sm:gap-6">
+                    <div className="min-w-0 flex-1 order-2 sm:order-1">
                       <p className="font-display text-lg font-bold text-amber-300">Smitty</p>
-                      <p className="text-xs font-semibold uppercase tracking-wider text-[#a89c86]">Precious Metals Manager</p>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-[#a89c86]">
+                        Precious Metals Manager
+                      </p>
+                      <h2 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">
+                        Gold and silver — investment, currency, and a safe haven
+                      </h2>
+                      <p className="mt-4 text-base leading-relaxed text-muted-foreground sm:text-lg">
+                        Meet Smitty — AetherForge AI&apos;s Precious Metals Manager. He understands how much precious metals mean to the
+                        world — as investments, as a globally accepted currency, and in
+                        times of need as safe investments. We surface daily live Silver and
+                        Gold prices with inclines and declines so you can track the metals
+                        that matter.
+                      </p>
                     </div>
+                    <img
+                      src="/brand/bot-smitty-fullbody.png"
+                      alt="Smitty leaning on a stack of gold bars"
+                      className="order-1 mx-auto h-56 w-auto shrink-0 drop-shadow-[0_18px_28px_rgba(0,0,0,0.55)] sm:order-2 sm:mx-0 sm:h-64"
+                    />
                   </div>
-                  <h2 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">
-                    Gold and silver — investment, currency, and a safe haven
-                  </h2>
-                  <p className="mt-4 text-base leading-relaxed text-muted-foreground sm:text-lg">
-                    Meet Smitty — AetherForge AI's Precious Metals Manager. He understands how much precious metals mean to the
-                    world — as investments, as a globally accepted currency, and in
-                    times of need as safe investments. We surface daily live Silver and
-                    Gold prices with inclines and declines so you can track the metals
-                    that matter.
-                  </p>
                   <div className="mt-6 grid gap-3 sm:grid-cols-2">
                     <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4">
                       <p className="text-xs font-semibold uppercase tracking-wider text-amber-600">
@@ -237,17 +235,17 @@ export default function LandingPage() {
                 {STEPS.map((step, idx) => (
                   <article
                     key={step.title}
-                    className="relative flex h-full flex-col overflow-visible rounded-3xl border border-border/70 bg-card/60 p-5 pt-12"
+                    className="relative flex h-full flex-col overflow-visible rounded-3xl border border-border/70 bg-card/60 p-5 pt-14"
                   >
                     {/* Avatar perched on the card — legs hang over the top edge */}
                     <div
-                      className={`pointer-events-none absolute top-0 z-10 -translate-y-[58%] ${step.sitter.wrap}`}
+                      className={`pointer-events-none absolute top-0 z-10 -translate-y-[62%] ${step.sitter.wrap}`}
                       aria-hidden
                     >
                       <img
                         src={step.sitter.img}
                         alt=""
-                        className={`${step.sitter.imgClass} max-w-none object-contain object-bottom drop-shadow-[0_12px_18px_rgba(0,0,0,0.55)]`}
+                        className={`${step.sitter.imgClass} max-w-none object-contain object-bottom drop-shadow-[0_16px_24px_rgba(0,0,0,0.6)]`}
                       />
                     </div>
                     <span className="relative z-0 font-display text-sm font-bold text-primary">
