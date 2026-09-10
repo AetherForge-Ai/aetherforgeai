@@ -84,7 +84,7 @@ export default function LandingPage() {
                   <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
                     Live NZX · ASX · Crypto · Metals intelligence
                   </div>
-                  <h1 className="mt-5 font-display text-4xl font-extrabold tracking-tight text-primary sm:text-5xl lg:text-[3.25rem] lg:leading-[1.1]">
+                  <h1 className="mt-5 font-display text-4xl font-extrabold tracking-tight text-amber-400 sm:text-5xl lg:text-[3.25rem] lg:leading-[1.1]">
                     Data Backed Market Intelligence straight to You
                   </h1>
                   <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
@@ -199,19 +199,19 @@ export default function LandingPage() {
                   </div>
                   <div className="mt-6 grid gap-3 sm:grid-cols-2">
                     <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-amber-600">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-amber-400">
                         Gold · XAU
                       </p>
-                      <p className="mt-1 font-display text-xl font-bold text-white">Live daily price</p>
+                      <p className="mt-1 font-display text-xl font-bold text-amber-400">Live Daily Prices</p>
                       <p className="mt-1 text-sm text-muted-foreground">
                         Inclines &amp; declines shown on your Dashboard
                       </p>
                     </div>
                     <div className="rounded-2xl border border-slate-400/30 bg-slate-400/10 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-300">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-amber-400">
                         Silver · XAG
                       </p>
-                      <p className="mt-1 font-display text-xl font-bold text-white">Live daily price</p>
+                      <p className="mt-1 font-display text-xl font-bold text-amber-400">Live Daily Prices</p>
                       <p className="mt-1 text-sm text-muted-foreground">
                         Inclines &amp; declines shown on your Dashboard
                       </p>
