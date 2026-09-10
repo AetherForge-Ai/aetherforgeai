@@ -208,10 +208,10 @@ export default function LandingPage() {
                       </p>
                     </div>
                     <div className="rounded-2xl border border-slate-400/30 bg-slate-400/10 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-amber-400">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-300">
                         Silver · XAG
                       </p>
-                      <p className="mt-1 font-display text-xl font-bold text-amber-400">Live Daily Prices</p>
+                      <p className="mt-1 font-display text-xl font-bold text-slate-200">Live Daily Prices</p>
                       <p className="mt-1 text-sm text-muted-foreground">
                         Inclines &amp; declines shown on your Dashboard
                       </p>
