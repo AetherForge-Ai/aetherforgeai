@@ -846,8 +846,8 @@ export function PortfolioDashboard({
       >
         <DashboardSectionTitle
           title="Crypto Currency Overview"
-          avatarSrc="/brand/bot-stox-fullbody.png"
-          avatarAlt="Stox AI bot flipping coins"
+          avatarSrc="/brand/bot-koins-fullbody.png"
+          avatarAlt="Koins AI bot"
           avatarPose="flip"
         />
 
