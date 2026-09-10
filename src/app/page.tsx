@@ -41,9 +41,10 @@ const STEPS = [
     body: "Enter into Dashboard section your current Stock Market or Crypto Market Investments, Enter Your Precious Metals Investment",
     sitter: {
       name: "Smitty",
-      img: "/brand/bot-smitty-sitter.png",
-      wrap: "right-1 rotate-2",
-      imgClass: "h-40 w-auto",
+      img: "/brand/bot-smitty-holdings.png",
+      wrap: "left-1/2 -translate-x-1/2",
+      imgClass: "h-44 w-auto",
+      place: "bottom" as const,
     },
   },
   {
@@ -240,11 +241,17 @@ export default function LandingPage() {
                 {STEPS.map((step, idx) => (
                   <article
                     key={step.title}
-                    className="relative flex h-full flex-col overflow-visible rounded-3xl border border-border/70 bg-card/60 p-5 pt-14"
+                    className={`relative flex h-full flex-col overflow-visible rounded-3xl border border-border/70 bg-card/60 p-5 ${
+                      "place" in step.sitter && step.sitter.place === "bottom" ? "pb-28 pt-5" : "pt-14"
+                    }`}
                   >
-                    {/* Avatar perched on the card — legs hang over the top edge */}
+                    {/* Avatar: top perch or standing under the card */}
                     <div
-                      className={`pointer-events-none absolute top-0 z-10 -translate-y-[62%] ${step.sitter.wrap}`}
+                      className={`pointer-events-none absolute z-10 ${
+                        "place" in step.sitter && step.sitter.place === "bottom"
+                          ? `bottom-0 translate-y-[55%] ${step.sitter.wrap}`
+                          : `top-0 -translate-y-[62%] ${step.sitter.wrap}`
+                      }`}
                       aria-hidden
                     >
                       <img
