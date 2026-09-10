@@ -159,45 +159,29 @@ export default function LandingPage() {
               </div>
             </section>
 
-            {/* Precious metals — replaces Institutional Edge / Capabilities */}
+            {/* Precious metals */}
             <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
-              <h2 className="mb-8 text-center font-display text-4xl font-extrabold tracking-tight text-amber-400 sm:text-5xl">
+              <h2 className="text-center font-display text-4xl font-extrabold tracking-tight text-amber-400 sm:text-5xl">
                 Precious Metals
               </h2>
-              <div className="grid items-center gap-10 lg:grid-cols-2">
-                <img
-                  src="/brand/precious-metals-smitty.png"
-                  alt="Smitty, AetherForge Precious Metals Manager, with gold and silver at the forge"
-                  className="w-full h-auto rounded-3xl border border-border/70 shadow-xl"
-                />
-                <div>
-                  <p className="font-display text-xs font-bold uppercase tracking-[0.22em] text-amber-400">
-                    Ultra Advanced · Precious metals
-                  </p>
-                  <div className="mt-5 flex flex-col gap-5 sm:flex-row sm:items-end sm:gap-6">
-                    <div className="min-w-0 flex-1 order-2 sm:order-1">
-                      <p className="font-display text-lg font-bold text-amber-300">Smitty</p>
-                      <p className="text-xs font-semibold uppercase tracking-wider text-[#a89c86]">
-                        Precious Metals Manager
-                      </p>
-                      <h2 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">
-                        Gold and silver — investment, currency, and a safe haven
-                      </h2>
-                      <p className="mt-4 text-base leading-relaxed text-muted-foreground sm:text-lg">
-                        Meet Smitty — AetherForge AI&apos;s Precious Metals Manager. He understands how much precious metals mean to the
-                        world — as investments, as a globally accepted currency, and in
-                        times of need as safe investments. We surface daily live Silver and
-                        Gold prices with inclines and declines so you can track the metals
-                        that matter.
-                      </p>
-                    </div>
-                    <img
-                      src="/brand/bot-smitty-fullbody.png"
-                      alt="Smitty leaning on a stack of gold bars"
-                      className="order-1 mx-auto h-56 w-auto shrink-0 drop-shadow-[0_18px_28px_rgba(0,0,0,0.55)] sm:order-2 sm:mx-0 sm:h-64"
-                    />
-                  </div>
-                  <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              <div className="mt-4 mb-8 text-center">
+                <p className="font-display text-3xl font-bold tracking-tight text-amber-300 sm:text-4xl">
+                  Smitty
+                </p>
+                <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-[#a89c86]">
+                  Precious Metals Manager
+                </p>
+              </div>
+
+              <div className="grid items-start gap-8 lg:grid-cols-2 lg:gap-10">
+                {/* Large forge image + Au/Ag cards centred under it */}
+                <div className="flex flex-col">
+                  <img
+                    src="/brand/precious-metals-smitty.png"
+                    alt="Smitty, AetherForge Precious Metals Manager, with gold and silver at the forge"
+                    className="w-full h-auto rounded-3xl border border-border/70 shadow-xl"
+                  />
+                  <div className="mx-auto mt-6 grid w-full max-w-xl gap-3 sm:grid-cols-2">
                     <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4">
                       <p className="text-xs font-semibold uppercase tracking-wider text-amber-400">
                         Gold · XAU
@@ -217,6 +201,27 @@ export default function LandingPage() {
                       </p>
                     </div>
                   </div>
+                </div>
+
+                {/* Copy + cutout, top-aligned with large image */}
+                <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:gap-6">
+                  <div className="min-w-0 flex-1 order-2 sm:order-1">
+                    <h3 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">
+                      Gold and silver — investment, currency, and a safe haven
+                    </h3>
+                    <p className="mt-4 text-base leading-relaxed text-muted-foreground sm:text-lg">
+                      Meet Smitty — AetherForge AI&apos;s Precious Metals Manager. He understands how much precious metals mean to the
+                      world — as investments, as a globally accepted currency, and in
+                      times of need as safe investments. We surface daily live Silver and
+                      Gold prices with inclines and declines so you can track the metals
+                      that matter.
+                    </p>
+                  </div>
+                  <img
+                    src="/brand/bot-smitty-fullbody.png"
+                    alt="Smitty leaning on a stack of gold bars"
+                    className="order-1 mx-auto h-56 w-auto shrink-0 drop-shadow-[0_18px_28px_rgba(0,0,0,0.55)] sm:order-2 sm:mx-0 sm:h-64"
+                  />
                 </div>
               </div>
             </section>
