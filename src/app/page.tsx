@@ -150,9 +150,13 @@ export default function LandingPage() {
                   <p className="font-display text-xs font-bold uppercase tracking-[0.22em] text-amber-400">
                     Ultra Advanced · Precious metals
                   </p>
-                  <div className="mt-4 flex items-center gap-3">
-                    <img src="/brand/bot-smitty.png" alt="Smitty" className="size-14 rounded-full border border-amber-400/40 object-cover shadow-md" />
-                    <div>
+                  <div className="mt-4 flex items-end gap-4">
+                    <img
+                      src="/brand/bot-smitty.png"
+                      alt="Smitty"
+                      className="-mt-8 h-[7.875rem] w-[5.25rem] shrink-0 self-start rounded-2xl border border-amber-400/40 object-cover object-top shadow-md"
+                    />
+                    <div className="pb-1">
                       <p className="font-display text-lg font-bold text-amber-300">Smitty</p>
                       <p className="text-xs font-semibold uppercase tracking-wider text-[#a89c86]">Precious Metals Manager</p>
                     </div>
