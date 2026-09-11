@@ -7,16 +7,22 @@ import { PourAnimation } from "./PourAnimation";
 import { PersonalGuideChat } from "./PersonalGuideChat";
 import "./personal-guide.css";
 
-const STORAGE_KEY = "af-personal-guide-v1";
+const STORAGE_KEY = "af-help-assistant-v2";
 const DELAY_MS = 15_000;
 
-type Phase = "idle" | "pour" | "chat" | "dismissed";
+type Phase =
+  | "idle"
+  | "pour"
+  | "risen"
+  | "window"
+  | "jump"
+  | "chat"
+  | "dismissed";
 
 /**
- * Homepage-only lead-capture Personal Guide.
- * Appears after 15s on `/`, once per browser session (sessionStorage).
- * Skipped for signed-in members (not disruptive on dashboard / logged-in home).
- * prefers-reduced-motion: skip pour, show chat immediately.
+ * Homepage Help Assistant — lead capture + site how-to.
+ * Sequence: 15s wait → dense gold/silver pour → pool → avatar rises →
+ * chat window appears bottom-left → avatar jumps onto the title bar.
  */
 export function PersonalGuide() {
   const pathname = usePathname();
@@ -73,16 +79,51 @@ export function PersonalGuide() {
     return () => window.clearTimeout(timer);
   }, [pathname, session, isPending]);
 
-  const onPourDone = useCallback(() => setPhase("chat"), []);
+  const onAssembled = useCallback(() => {
+    setPhase("risen");
+  }, []);
+
+  // Hold the finished avatar mid-page, then open the chat window.
+  useEffect(() => {
+    if (phase !== "risen") return;
+    const t = window.setTimeout(() => setPhase("window"), 800);
+    return () => window.clearTimeout(t);
+  }, [phase]);
+
+  // After the window is visible, jump into the title bar.
+  useEffect(() => {
+    if (phase !== "window") return;
+    const t = window.setTimeout(() => setPhase("jump"), 450);
+    return () => window.clearTimeout(t);
+  }, [phase]);
+
+  useEffect(() => {
+    if (phase !== "jump") return;
+    const t = window.setTimeout(() => setPhase("chat"), 850);
+    return () => window.clearTimeout(t);
+  }, [phase]);
 
   if (pathname !== "/" || phase === "idle" || phase === "dismissed") {
     return null;
   }
 
+  const showStanding = phase === "pour" || phase === "risen" || phase === "window";
+  const showJump = phase === "jump";
+  const showChat =
+    phase === "window" || phase === "jump" || phase === "chat";
+
   return (
     <>
-      {phase === "pour" && <PourAnimation onDone={onPourDone} />}
-      {phase === "chat" && <PersonalGuideChat onDismiss={dismiss} />}
+      {showStanding && <PourAnimation onAssembled={onAssembled} />}
+      {showJump && (
+        <PourAnimation onAssembled={() => {}} jumping avatarOnly />
+      )}
+      {showChat && (
+        <PersonalGuideChat
+          onDismiss={dismiss}
+          showSeatedCharacter={phase === "chat"}
+        />
+      )}
     </>
   );
 }

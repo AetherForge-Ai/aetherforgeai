@@ -1,60 +1,95 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 280" fill="none" role="img" aria-label="Personal Guide character">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 280" fill="none" role="img" aria-label="Help Assistant character">
   <defs>
-    <linearGradient id="goldBody" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#FDE68A"/>
-      <stop offset="45%" stop-color="#F59E0B"/>
+    <linearGradient id="goldBody" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0%" stop-color="#FFF7D6"/>
+      <stop offset="35%" stop-color="#F5C542"/>
+      <stop offset="70%" stop-color="#D97706"/>
+      <stop offset="100%" stop-color="#92400E"/>
+    </linearGradient>
+    <linearGradient id="goldFace" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FEF3C7"/>
+      <stop offset="55%" stop-color="#F59E0B"/>
       <stop offset="100%" stop-color="#B45309"/>
     </linearGradient>
     <linearGradient id="diamond" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#ECFEFF"/>
-      <stop offset="50%" stop-color="#67E8F9"/>
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="40%" stop-color="#A5F3FC"/>
       <stop offset="100%" stop-color="#0891B2"/>
     </linearGradient>
     <linearGradient id="tux" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#1f2937"/>
+      <stop offset="0%" stop-color="#374151"/>
       <stop offset="100%" stop-color="#030712"/>
     </linearGradient>
+    <linearGradient id="silver" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#F8FAFC"/>
+      <stop offset="100%" stop-color="#94A3B8"/>
+    </linearGradient>
+    <filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="1.2" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
   </defs>
-  <!-- legs dangling -->
-  <path d="M78 198 L70 255 L82 255 L88 200 Z" fill="url(#tux)"/>
-  <path d="M122 198 L118 255 L130 255 L132 200 Z" fill="url(#tux)"/>
-  <ellipse cx="76" cy="258" rx="14" ry="6" fill="#111827"/>
-  <ellipse cx="124" cy="258" rx="14" ry="6" fill="#111827"/>
-  <!-- tuxedo body -->
-  <path d="M55 110 C55 95 70 88 100 88 C130 88 145 95 145 110 L148 198 C148 210 138 218 100 218 C62 218 52 210 52 198 Z" fill="url(#tux)"/>
-  <!-- gold/diamond torso shine under lapels -->
-  <path d="M88 120 L100 205 L112 120 Z" fill="url(#goldBody)" opacity="0.95"/>
-  <path d="M94 128 L100 155 L106 128 Z" fill="url(#diamond)" opacity="0.85"/>
+
+  <!-- dangling legs (sit pose) -->
+  <path d="M76 196 C72 220 68 242 66 258" stroke="url(#tux)" stroke-width="18" stroke-linecap="round"/>
+  <path d="M124 196 C128 220 132 242 134 258" stroke="url(#tux)" stroke-width="18" stroke-linecap="round"/>
+  <ellipse cx="66" cy="262" rx="15" ry="6" fill="#111827"/>
+  <ellipse cx="134" cy="262" rx="15" ry="6" fill="#111827"/>
+  <!-- gold shin gleam -->
+  <path d="M70 210 L68 240" stroke="url(#goldBody)" stroke-width="3" stroke-linecap="round" opacity="0.55"/>
+  <path d="M130 210 L132 240" stroke="url(#diamond)" stroke-width="3" stroke-linecap="round" opacity="0.55"/>
+
+  <!-- tuxedo torso -->
+  <path d="M54 108 C54 94 70 86 100 86 C130 86 146 94 146 108 L150 196 C150 210 138 220 100 220 C62 220 50 210 50 196 Z" fill="url(#tux)"/>
+  <!-- gold/diamond chest under shirt -->
+  <path d="M86 118 L100 208 L114 118 Z" fill="url(#goldBody)"/>
+  <path d="M94 126 L100 168 L106 126 Z" fill="url(#diamond)" opacity="0.9"/>
+  <!-- white shirt strip -->
+  <path d="M96 118 L100 200 L104 118 Z" fill="#F8FAFC" opacity="0.85"/>
   <!-- lapels -->
-  <path d="M70 112 L88 120 L78 175 L58 140 Z" fill="#0b1220"/>
-  <path d="M130 112 L112 120 L122 175 L142 140 Z" fill="#0b1220"/>
+  <path d="M68 110 L90 120 L80 178 L56 138 Z" fill="#0b1220"/>
+  <path d="M132 110 L110 120 L120 178 L144 138 Z" fill="#0b1220"/>
+  <!-- gold lapel piping -->
+  <path d="M70 112 L88 121" stroke="#F59E0B" stroke-width="1.5" opacity="0.7"/>
+  <path d="M130 112 L112 121" stroke="#F59E0B" stroke-width="1.5" opacity="0.7"/>
   <!-- bow tie -->
-  <path d="M86 118 L100 126 L114 118 L100 132 Z" fill="#F59E0B"/>
-  <circle cx="100" cy="125" r="4" fill="#FDE68A"/>
+  <path d="M84 116 L100 128 L116 116 L100 134 Z" fill="#F59E0B"/>
+  <circle cx="100" cy="126" r="4.5" fill="#FEF3C7"/>
+  <path d="M100 122 L100 130" stroke="#B45309" stroke-width="1"/>
+
   <!-- arms -->
-  <path d="M55 120 C40 135 38 165 48 185" stroke="#111827" stroke-width="16" stroke-linecap="round"/>
-  <path d="M145 120 C160 135 162 165 152 185" stroke="#111827" stroke-width="16" stroke-linecap="round"/>
-  <circle cx="48" cy="188" r="10" fill="url(#goldBody)"/>
-  <circle cx="152" cy="188" r="10" fill="url(#goldBody)"/>
-  <!-- diamond cuff accents -->
-  <path d="M48 180 L52 188 L48 196 L44 188 Z" fill="url(#diamond)"/>
-  <path d="M152 180 L156 188 L152 196 L148 188 Z" fill="url(#diamond)"/>
-  <!-- head -->
-  <ellipse cx="100" cy="62" rx="36" ry="40" fill="url(#goldBody)"/>
-  <!-- diamond cheek sparkles -->
-  <path d="M72 70 L76 78 L72 86 L68 78 Z" fill="url(#diamond)"/>
-  <path d="M128 70 L132 78 L128 86 L124 78 Z" fill="url(#diamond)"/>
-  <!-- cheeky big smile -->
-  <path d="M78 72 Q100 98 122 72" stroke="#7C2D12" stroke-width="4" fill="#FEF3C7"/>
-  <path d="M84 76 Q100 92 116 76" fill="#FBBF24"/>
-  <!-- eyes -->
-  <ellipse cx="86" cy="55" rx="7" ry="9" fill="#111827"/>
-  <ellipse cx="114" cy="55" rx="7" ry="9" fill="#111827"/>
-  <circle cx="88" cy="52" r="2.5" fill="#fff"/>
-  <circle cx="116" cy="52" r="2.5" fill="#fff"/>
+  <path d="M54 118 C38 136 36 168 46 188" stroke="url(#tux)" stroke-width="15" stroke-linecap="round"/>
+  <path d="M146 118 C162 136 164 168 154 188" stroke="url(#tux)" stroke-width="15" stroke-linecap="round"/>
+  <!-- gold hands -->
+  <circle cx="46" cy="192" r="11" fill="url(#goldBody)" filter="url(#softGlow)"/>
+  <circle cx="154" cy="192" r="11" fill="url(#goldBody)" filter="url(#softGlow)"/>
+  <path d="M46 184 L50 192 L46 200 L42 192 Z" fill="url(#diamond)"/>
+  <path d="M154 184 L158 192 L154 200 L150 192 Z" fill="url(#diamond)"/>
+
+  <!-- head — gold with diamond facets, clear professional features -->
+  <ellipse cx="100" cy="58" rx="38" ry="42" fill="url(#goldFace)" filter="url(#softGlow)"/>
+  <!-- forehead diamond facet -->
+  <path d="M100 28 L112 48 L100 44 L88 48 Z" fill="url(#diamond)" opacity="0.85"/>
+  <!-- cheek diamonds -->
+  <path d="M68 62 L74 72 L68 82 L62 72 Z" fill="url(#diamond)"/>
+  <path d="M132 62 L138 72 L132 82 L126 72 Z" fill="url(#diamond)"/>
+  <!-- silver hair sheen -->
+  <path d="M70 40 Q100 22 130 40" stroke="url(#silver)" stroke-width="4" stroke-linecap="round" opacity="0.55"/>
+
+  <!-- eyes — clear, professional, friendly -->
+  <ellipse cx="84" cy="56" rx="9" ry="10" fill="#FFFBEB"/>
+  <ellipse cx="116" cy="56" rx="9" ry="10" fill="#FFFBEB"/>
+  <circle cx="85" cy="57" r="4.5" fill="#1e293b"/>
+  <circle cx="117" cy="57" r="4.5" fill="#1e293b"/>
+  <circle cx="87" cy="55" r="1.6" fill="#fff"/>
+  <circle cx="119" cy="55" r="1.6" fill="#fff"/>
   <!-- brows -->
-  <path d="M76 42 Q86 36 94 42" stroke="#92400E" stroke-width="3" stroke-linecap="round"/>
-  <path d="M106 42 Q114 36 124 42" stroke="#92400E" stroke-width="3" stroke-linecap="round"/>
-  <!-- hair / top sheen -->
-  <path d="M70 40 Q100 18 130 40 Q118 28 100 26 Q82 28 70 40 Z" fill="#B45309"/>
+  <path d="M74 46 Q84 42 94 46" stroke="#92400E" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M106 46 Q116 42 126 46" stroke="#92400E" stroke-width="2.2" stroke-linecap="round"/>
+
+  <!-- cheeky professional smile -->
+  <path d="M80 72 Q100 92 120 72" stroke="#7C2D12" stroke-width="3.5" fill="#FEF3C7"/>
+  <path d="M86 74 Q100 88 114 74" fill="#FBBF24"/>
+  <!-- nose -->
+  <path d="M100 60 L96 70 L104 70 Z" fill="#B45309" opacity="0.55"/>
 </svg>
