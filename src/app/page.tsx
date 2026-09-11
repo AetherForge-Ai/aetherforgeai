@@ -3,6 +3,7 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { MarketTicker } from "@/components/MarketTicker";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
+import { PersonalGuide } from "@/components/personal-guide";
 
 const BOTS = [
   {
@@ -72,6 +73,7 @@ const STEPS = [
 export default function LandingPage() {
   return (
     <div className="min-h-screen flex flex-col">
+      <PersonalGuide />
       <SiteHeader />
       <MarketTicker />
       <main className="flex-1">

@@ -8,11 +8,35 @@ import { Fragment, ReactNode } from "react";
 
 function renderInline(text: string, keyBase: string): ReactNode[] {
   const nodes: ReactNode[] = [];
-  // Split on **bold** and `code`
-  const regex = /(\*\*[^*]+\*\*|`[^`]+`)/g;
+  // Split on [links](url), **bold**, and `code`
+  const regex = /(\[[^\]]+\]\([^)]+\)|\*\*[^*]+\*\*|`[^`]+`)/g;
   const parts = text.split(regex);
   parts.forEach((part, i) => {
     if (!part) return;
+    const link = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+    if (link) {
+      const href = link[2];
+      const safe =
+        href.startsWith("/") ||
+        href.startsWith("https://") ||
+        href.startsWith("http://") ||
+        href.startsWith("mailto:");
+      if (safe) {
+        nodes.push(
+          <a
+            key={`${keyBase}-a-${i}`}
+            href={href}
+            className="font-semibold text-primary underline underline-offset-2 hover:opacity-90"
+            {...(href.startsWith("http")
+              ? { target: "_blank", rel: "noopener noreferrer" }
+              : {})}
+          >
+            {link[1]}
+          </a>
+        );
+        return;
+      }
+    }
     if (part.startsWith("**") && part.endsWith("**")) {
       nodes.push(
         <strong key={`${keyBase}-b-${i}`} className="font-semibold text-foreground">
