@@ -16,15 +16,21 @@ const SUGGESTIONS = [
   "Start free — what do I get?",
 ];
 
-export function PersonalGuideChat({ onDismiss }: { onDismiss: () => void }) {
+const WELCOME =
+  "Hello — I'm your **Help Assistant**. I can show you how AetherForge works, how Stox, Koins, The Headmaster and Smitty help you track markets, and how to get going on the free plan. Ready to [start free](" +
+  PERSONAL_GUIDE_SIGNUP_URL +
+  ") anytime!";
+
+export function PersonalGuideChat({
+  onDismiss,
+  showSeatedCharacter = true,
+}: {
+  onDismiss: () => void;
+  /** When false, the window is visible but the avatar hasn't landed yet. */
+  showSeatedCharacter?: boolean;
+}) {
   const [messages, setMessages] = useState<Msg[]>([
-    {
-      role: "assistant",
-      content:
-        "Kia ora — I’m your **Personal Guide**. I can show you how AetherForge works, how Stox, Koins, The Headmaster and Smitty help you track markets, and how to get going on the free plan. Ready to [start free](" +
-        PERSONAL_GUIDE_SIGNUP_URL +
-        ") anytime!",
-    },
+    { role: "assistant", content: WELCOME },
   ]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -50,7 +56,6 @@ export function PersonalGuideChat({ onDismiss }: { onDismiss: () => void }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: content,
-          // Prior turns only — API appends the new user message itself
           history: messages.slice(-8).map((m) => ({
             role: m.role,
             content: m.content.slice(0, 2000),
@@ -85,9 +90,9 @@ export function PersonalGuideChat({ onDismiss }: { onDismiss: () => void }) {
         {
           role: "assistant",
           content:
-            "I couldn’t reach the forge just now. You can still [start free](" +
+            "I couldn't reach the forge just now. You can still [start free](" +
             PERSONAL_GUIDE_SIGNUP_URL +
-            ") — I’ll be right here when you’re back.",
+            ") — I'll be right here when you're back.",
         },
       ]);
     } finally {
@@ -97,30 +102,33 @@ export function PersonalGuideChat({ onDismiss }: { onDismiss: () => void }) {
 
   return (
     <div
-      className="fixed bottom-4 left-3 z-[70] flex w-[min(100%-1.5rem,22rem)] flex-col overflow-hidden rounded-2xl border border-amber-400/40 bg-[#06261a]/95 shadow-[0_0_0_1px_rgba(245,158,11,0.25),0_20px_50px_rgba(0,0,0,0.55)] backdrop-blur-md sm:left-4"
+      className="fixed bottom-4 left-3 z-[70] flex w-[min(100%-1.5rem,22rem)] flex-col overflow-visible rounded-2xl border border-amber-400/40 bg-[#06261a]/95 shadow-[0_0_0_1px_rgba(245,158,11,0.25),0_20px_50px_rgba(0,0,0,0.55)] backdrop-blur-md sm:left-4"
       style={{ height: "50vh", maxHeight: "28rem" }}
       role="dialog"
-      aria-label="Personal Guide chat"
+      aria-label="Help Assistant chat"
     >
-      {/* Title bar with dangling character */}
-      <div className="relative border-b border-amber-400/30 bg-gradient-to-r from-[#0a3d2a] via-[#0f4f35] to-[#0a3d2a] px-3 pb-2 pt-3">
+      <div className="relative overflow-visible rounded-t-2xl border-b border-amber-400/30 bg-gradient-to-r from-[#0a3d2a] via-[#0f4f35] to-[#0a3d2a] px-3 pb-2 pt-3">
         <button
           type="button"
           onClick={onDismiss}
-          className="absolute right-2 top-2 rounded-md p-1 text-amber-100/70 hover:bg-white/10 hover:text-amber-50"
-          aria-label="Dismiss Personal Guide"
+          className="absolute right-2 top-2 z-10 rounded-md p-1 text-amber-100/70 hover:bg-white/10 hover:text-amber-50"
+          aria-label="Dismiss Help Assistant"
         >
           <X className="size-4" />
         </button>
         <div className="flex items-end gap-2 pr-8">
-          <img
-            src="/brand/bot-personal-guide.svg"
-            alt=""
-            className="relative -mb-5 h-16 w-auto shrink-0 drop-shadow-[0_8px_12px_rgba(0,0,0,0.5)]"
-          />
+          {showSeatedCharacter ? (
+            <img
+              src="/brand/bot-personal-guide.svg"
+              alt=""
+              className="pg-seat relative -mb-6 -mt-10 h-20 w-auto shrink-0 drop-shadow-[0_8px_12px_rgba(0,0,0,0.5)] sm:h-24"
+            />
+          ) : (
+            <div className="relative -mb-6 -mt-10 h-20 w-14 shrink-0 sm:h-24" />
+          )}
           <div className="min-w-0 pb-1">
             <p className="font-display text-sm font-bold tracking-wide text-amber-300">
-              Personal Guide
+              Help Assistant
             </p>
             <p className="truncate text-[11px] text-emerald-100/70">
               Friendly site help · not financial advice
@@ -129,7 +137,10 @@ export function PersonalGuideChat({ onDismiss }: { onDismiss: () => void }) {
         </div>
       </div>
 
-      <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-3 py-3">
+      <div
+        ref={scrollRef}
+        className="flex-1 space-y-3 overflow-y-auto rounded-b-2xl px-3 py-3"
+      >
         {messages.map((m, i) => (
           <div
             key={i}
@@ -157,7 +168,7 @@ export function PersonalGuideChat({ onDismiss }: { onDismiss: () => void }) {
         {sending && (
           <div className="flex items-center gap-2 text-xs text-emerald-100/70">
             <Loader2 className="size-3.5 animate-spin text-amber-300" />
-            Personal Guide is thinking…
+            Help Assistant is thinking…
           </div>
         )}
         {messages.length <= 1 && (
@@ -176,7 +187,7 @@ export function PersonalGuideChat({ onDismiss }: { onDismiss: () => void }) {
         )}
       </div>
 
-      <div className="border-t border-amber-400/25 bg-[#041f16] p-2">
+      <div className="rounded-b-2xl border-t border-amber-400/25 bg-[#041f16] p-2">
         <form
           onSubmit={(e) => {
             e.preventDefault();
