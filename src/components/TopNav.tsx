@@ -145,21 +145,38 @@ function AccountMenu({ user }: { user: ExtendedUser }) {
   const plan = String(user.subscription_plan || "");
   const isYearly = plan === "yearly" || plan === "dual_yearly";
   const [busy, setBusy] = useState(false);
+  // Controlled + non-modal so opening mid-page does not scroll-lock / jump the sticky
+  // header and instantly dismiss the menu. Stays open until the avatar is clicked again
+  // (minimize), Escape, or a menu action is chosen.
+  const [open, setOpen] = useState(false);
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={setOpen} modal={false}>
       <DropdownMenuTrigger asChild>
-        <button className="flex items-center gap-2 rounded-full border border-border/70 bg-card/60 py-1 pl-1 pr-2 transition-colors hover:border-primary/50">
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-haspopup="menu"
+          className="flex items-center gap-2 rounded-full border border-border/70 bg-card/60 py-1 pl-1 pr-2 transition-colors hover:border-primary/50"
+        >
           <Avatar className="size-8">
             {user.image ? <AvatarImage src={user.image} alt={user.name} /> : null}
             <AvatarFallback className="bg-primary/15 text-xs font-semibold text-primary">
               {initials(user.name)}
             </AvatarFallback>
           </Avatar>
-          <ChevronDown className="size-4 text-muted-foreground" />
+          <ChevronDown className={`size-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-64">
+      <DropdownMenuContent
+        align="end"
+        className="z-[100] w-64"
+        onCloseAutoFocus={(e) => e.preventDefault()}
+        onInteractOutside={(e) => {
+          // Keep open while scrolling or tapping the page; only the trigger / Escape / item closes it.
+          e.preventDefault();
+        }}
+      >
         <div className="px-2 py-2">
           <p className="truncate text-sm font-semibold">{user.name}</p>
           <p className="truncate text-xs text-muted-foreground">{user.email}</p>
@@ -292,7 +309,7 @@ export function TopNav() {
   const pathname = usePathname();
 
   return (
-    <header className="chrome-dark sticky top-0 z-50 w-full border-b border-border/60 bg-background/85 text-foreground backdrop-blur-xl">
+    <header className="chrome-dark sticky top-0 z-[60] w-full border-b border-border/60 bg-background/85 text-foreground backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         {/* Left: mobile menu + brand */}
         <div className="flex items-center gap-2">
