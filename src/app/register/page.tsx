@@ -11,11 +11,14 @@ import Link from "next/link";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { BrandLogo } from "@/components/BrandLogo";
 import { MailCheck, ShieldCheck, Loader2, Inbox } from "lucide-react";
+import { COUNTRIES } from "@/lib/countries";
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
     email: "",
-    name: "",
+    firstName: "",
+    lastName: "",
+    country: "",
     password: "",
     confirmPassword: "",
   });
@@ -46,6 +49,18 @@ export default function RegisterPage() {
       return;
     }
 
+    if (!formData.firstName.trim() || !formData.lastName.trim()) {
+      setError("First and last name are required");
+      setLoading(false);
+      return;
+    }
+
+    if (!formData.country.trim()) {
+      setError("Please select the country you live in");
+      setLoading(false);
+      return;
+    }
+
     if (formData.password.length < 6) {
       setError("Password must be at least 6 characters long");
       setLoading(false);
@@ -53,13 +68,17 @@ export default function RegisterPage() {
     }
 
     try {
+      const fullName = `${formData.firstName.trim()} ${formData.lastName.trim()}`;
       const result = await signUp.email({
         email: formData.email,
         password: formData.password,
-        name: formData.name,
+        name: fullName,
+        first_name: formData.firstName.trim(),
+        last_name: formData.lastName.trim(),
+        country: formData.country.trim(),
         // Where Better Auth sends the browser after the verification link is clicked.
         callbackURL: "/verify-email",
-      });
+      } as any);
 
       if (result.error) {
         console.error("[register] Sign-up error:", result.error);
@@ -202,17 +221,52 @@ export default function RegisterPage() {
                 className="h-11 transition-all focus:ring-2"
               />
             </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="firstName" className="text-sm font-semibold">First name</Label>
+                <Input
+                  id="firstName"
+                  type="text"
+                  placeholder="First"
+                  value={formData.firstName}
+                  onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                  required
+                  autoComplete="given-name"
+                  className="h-11 transition-all focus:ring-2"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="lastName" className="text-sm font-semibold">Last name</Label>
+                <Input
+                  id="lastName"
+                  type="text"
+                  placeholder="Last"
+                  value={formData.lastName}
+                  onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                  required
+                  autoComplete="family-name"
+                  className="h-11 transition-all focus:ring-2"
+                />
+              </div>
+            </div>
             <div className="space-y-2">
-              <Label htmlFor="name" className="text-sm font-semibold">Full Name</Label>
-              <Input
-                id="name"
-                type="text"
-                placeholder="Your name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              <Label htmlFor="country" className="text-sm font-semibold">Country</Label>
+              <select
+                id="country"
                 required
-                className="h-11 transition-all focus:ring-2"
-              />
+                value={formData.country}
+                onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                className="flex h-11 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <option value="" disabled>
+                  Select the country you live in
+                </option>
+                {COUNTRIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="password" className="text-sm font-semibold">Password</Label>

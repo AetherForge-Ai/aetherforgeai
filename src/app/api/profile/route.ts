@@ -3,12 +3,34 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
 
+const imageSchema = z
+  .string()
+  .max(900_000, "Image is too large — try a smaller photo")
+  .refine(
+    (v) =>
+      v === "" ||
+      v.startsWith("data:image/") ||
+      /^https?:\/\//i.test(v),
+    "Image must be a URL or an uploaded image",
+  )
+  .nullable()
+  .optional();
+
 const schema = z.object({
   name: z.string().min(1, "Name is required").max(120).optional(),
-  image: z.string().url().or(z.literal("")).nullable().optional(),
+  first_name: z.string().min(1, "First name is required").max(60).optional(),
+  last_name: z.string().min(1, "Last name is required").max(60).optional(),
+  country: z.string().min(1, "Country is required").max(80).optional(),
+  phone: z.string().max(40).optional().nullable(),
+  secondary_email: z
+    .string()
+    .email("Enter a valid backup email")
+    .or(z.literal(""))
+    .nullable()
+    .optional(),
+  image: imageSchema,
 });
 
-// GET /api/profile — current user profile + subscription info
 export async function GET() {
   try {
     const user = await getCurrentUser();
@@ -20,7 +42,6 @@ export async function GET() {
   }
 }
 
-// PUT /api/profile — update display name / avatar
 export async function PUT(req: Request) {
   try {
     const user = await getCurrentUser();
@@ -33,8 +54,23 @@ export async function PUT(req: Request) {
     }
 
     const patch: Record<string, unknown> = {};
-    if (parsed.data.name !== undefined) patch.name = parsed.data.name;
+    if (parsed.data.first_name !== undefined) patch.first_name = parsed.data.first_name.trim();
+    if (parsed.data.last_name !== undefined) patch.last_name = parsed.data.last_name.trim();
+    if (parsed.data.country !== undefined) patch.country = parsed.data.country.trim();
+    if (parsed.data.phone !== undefined) patch.phone = (parsed.data.phone || "").trim() || null;
+    if (parsed.data.secondary_email !== undefined) {
+      patch.secondary_email = (parsed.data.secondary_email || "").trim() || null;
+    }
     if (parsed.data.image !== undefined) patch.image = parsed.data.image || null;
+
+    const first = (patch.first_name as string | undefined) ?? user.first_name ?? "";
+    const last = (patch.last_name as string | undefined) ?? user.last_name ?? "";
+    if (parsed.data.name !== undefined) {
+      patch.name = parsed.data.name.trim();
+    } else if (parsed.data.first_name !== undefined || parsed.data.last_name !== undefined) {
+      const combined = `${first} ${last}`.trim();
+      if (combined) patch.name = combined;
+    }
 
     if (Object.keys(patch).length > 0) {
       await totalumSdk.crud.editRecordById("user", user._id, patch);

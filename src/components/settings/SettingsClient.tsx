@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
@@ -10,16 +10,29 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { Loader2, User, CreditCard, Crown, ExternalLink, Sparkles, ShieldCheck, Mail, KeyRound, ArrowUpCircle, Check, Zap, CalendarClock } from "lucide-react";
+import { Loader2, User, CreditCard, Crown, ExternalLink, Sparkles, ShieldCheck, Mail, KeyRound, ArrowUpCircle, Check, Zap, CalendarClock, Camera } from "lucide-react";
 import Link from "next/link";
 import { PLANS, planByKey, planLabel, type Plan } from "@/lib/plans";
 import { formatUsdApprox } from "@/lib/currency";
 import { useFxRates } from "@/hooks/useFxRates";
+import { COUNTRIES } from "@/lib/countries";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface SettingsUser {
   name: string;
   email: string;
   image?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  country?: string | null;
+  phone?: string | null;
+  secondary_email?: string | null;
   subscription_status?: string | null;
   subscription_plan?: string | null;
   subscription_started_at?: string | null;
@@ -53,10 +66,53 @@ function initials(name: string) {
     .toUpperCase();
 }
 
+
+/** Resize + compress a picked image to a JPEG data URL suitable for profile storage. */
+async function fileToAvatarDataUrl(file: File): Promise<string> {
+  if (!file.type.startsWith("image/")) {
+    throw new Error("Please choose an image file.");
+  }
+  if (file.size > 8 * 1024 * 1024) {
+    throw new Error("Image must be under 8 MB.");
+  }
+  const bitmap = await createImageBitmap(file);
+  const max = 512;
+  const scale = Math.min(1, max / Math.max(bitmap.width, bitmap.height));
+  const w = Math.max(1, Math.round(bitmap.width * scale));
+  const h = Math.max(1, Math.round(bitmap.height * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Could not process image.");
+  ctx.drawImage(bitmap, 0, 0, w, h);
+  bitmap.close();
+  let quality = 0.86;
+  let dataUrl = canvas.toDataURL("image/jpeg", quality);
+  while (dataUrl.length > 700_000 && quality > 0.45) {
+    quality -= 0.08;
+    dataUrl = canvas.toDataURL("image/jpeg", quality);
+  }
+  if (dataUrl.length > 900_000) {
+    throw new Error("Image is still too large after compression — try another photo.");
+  }
+  return dataUrl;
+}
+
 export function SettingsClient({ user }: { user: SettingsUser }) {
-  const [name, setName] = useState(user.name);
+  const split = (user.name || "").trim().split(/\s+/);
+  const inferredFirst = user.first_name || split[0] || "";
+  const inferredLast = user.last_name || (split.length > 1 ? split.slice(1).join(" ") : "");
+
+  const [firstName, setFirstName] = useState(inferredFirst);
+  const [lastName, setLastName] = useState(inferredLast);
+  const [country, setCountry] = useState(user.country || "");
+  const [phone, setPhone] = useState(user.phone || "");
+  const [secondaryEmail, setSecondaryEmail] = useState(user.secondary_email || "");
   const [image, setImage] = useState(user.image ?? "");
   const [savingProfile, setSavingProfile] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const fileRef = useRef<HTMLInputElement | null>(null);
   const [portalLoading, setPortalLoading] = useState(false);
 
   // Plan switching (with automatic proration)
@@ -81,6 +137,24 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
   const { rates: fx } = useFxRates();
   // Other paid plans the member can switch to from their current subscription.
   const switchOptions = PLANS.filter((p) => p.key !== user.subscription_plan);
+
+  const displayName = `${firstName} ${lastName}`.trim() || user.name;
+
+  async function onPickAvatar(file: File | null) {
+    if (!file) return;
+    setUploadingAvatar(true);
+    try {
+      const dataUrl = await fileToAvatarDataUrl(file);
+      setImage(dataUrl);
+      toast.success("Photo ready — click Save changes to keep it.");
+    } catch (err: any) {
+      console.error("[settings] Avatar upload failed:", err);
+      toast.error(err?.message || "Could not use that image.");
+    } finally {
+      setUploadingAvatar(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
 
   async function changeEmail() {
     const email = newEmail.trim().toLowerCase();
@@ -124,11 +198,20 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
   }
 
   async function saveProfile() {
-    if (!name.trim()) return toast.error("Name cannot be empty.");
+    if (!firstName.trim()) return toast.error("First name is required.");
+    if (!lastName.trim()) return toast.error("Last name is required.");
+    if (!country.trim()) return toast.error("Please select your country.");
+    if (secondaryEmail.trim() && !secondaryEmail.includes("@")) {
+      return toast.error("Enter a valid backup email, or leave it blank.");
+    }
     setSavingProfile(true);
     console.log("[settings] Saving profile…");
     const res = await api.put("/api/profile", {
-      name: name.trim(),
+      first_name: firstName.trim(),
+      last_name: lastName.trim(),
+      country: country.trim(),
+      phone: phone.trim() || null,
+      secondary_email: secondaryEmail.trim() || null,
       image: image.trim() || null,
     });
     setSavingProfile(false);
@@ -195,26 +278,109 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
           <h2 className="font-display text-lg font-bold">Profile</h2>
         </div>
 
-        <div className="mt-6 flex items-center gap-4">
-          <Avatar className="size-16">
-            {image ? <AvatarImage src={image} alt={name} /> : null}
-            <AvatarFallback className="bg-primary/15 text-lg font-semibold text-primary">
-              {initials(name || "U")}
-            </AvatarFallback>
-          </Avatar>
-          <div className="text-sm">
+        <div className="mt-6 flex flex-wrap items-center gap-4">
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => onPickAvatar(e.target.files?.[0] ?? null)}
+          />
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            disabled={uploadingAvatar}
+            className="group relative rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+            aria-label="Upload profile photo"
+          >
+            <Avatar className="size-20 ring-2 ring-border/70 transition group-hover:ring-primary/50">
+              {image ? <AvatarImage src={image} alt={displayName} /> : null}
+              <AvatarFallback className="bg-primary/15 text-lg font-semibold text-primary">
+                {initials(displayName || "U")}
+              </AvatarFallback>
+            </Avatar>
+            <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/45 text-white opacity-0 transition group-hover:opacity-100">
+              {uploadingAvatar ? (
+                <Loader2 className="size-5 animate-spin" />
+              ) : (
+                <Camera className="size-5" />
+              )}
+            </span>
+          </button>
+          <div className="min-w-0 flex-1 text-sm">
             <p className="font-medium">{user.email}</p>
             <p className="text-muted-foreground">Signed in</p>
+            <button
+              type="button"
+              className="mt-2 text-xs font-semibold text-primary hover:underline"
+              onClick={() => fileRef.current?.click()}
+              disabled={uploadingAvatar}
+            >
+              {uploadingAvatar ? "Processing photo…" : "Upload an avatar from your device"}
+            </button>
           </div>
         </div>
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="name">Display name</Label>
-            <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
+            <Label htmlFor="first-name">First name</Label>
+            <Input
+              id="first-name"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              required
+              autoComplete="given-name"
+            />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="last-name">Last name</Label>
+            <Input
+              id="last-name"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              required
+              autoComplete="family-name"
+            />
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <Label htmlFor="country">Country</Label>
+            <Select value={country || undefined} onValueChange={setCountry}>
+              <SelectTrigger id="country" className="w-full">
+                <SelectValue placeholder="Select the country you live in" />
+              </SelectTrigger>
+              <SelectContent className="max-h-72">
+                {COUNTRIES.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="phone">Cell phone number (optional)</Label>
+            <Input
+              id="phone"
+              type="tel"
+              placeholder="+64 …"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              autoComplete="tel"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="secondary-email">Secondary backup email</Label>
+            <Input
+              id="secondary-email"
+              type="email"
+              placeholder="backup@example.com"
+              value={secondaryEmail}
+              onChange={(e) => setSecondaryEmail(e.target.value)}
+              autoComplete="email"
+            />
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <Label htmlFor="email">Primary email</Label>
             <Input id="email" value={user.email} disabled />
           </div>
           <div className="space-y-2 sm:col-span-2">
@@ -222,14 +388,18 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
             <Input
               id="image"
               placeholder="https://…"
-              value={image}
+              value={image.startsWith("data:image/") ? "" : image}
               onChange={(e) => setImage(e.target.value)}
             />
+            <p className="text-xs text-muted-foreground">
+              Paste an image link, or click your profile picture above to upload from your device.
+              {image.startsWith("data:image/") ? " A device photo is ready to save." : ""}
+            </p>
           </div>
         </div>
 
         <div className="mt-6 flex justify-end">
-          <Button onClick={saveProfile} disabled={savingProfile} className="font-semibold">
+          <Button onClick={saveProfile} disabled={savingProfile || uploadingAvatar} className="font-semibold">
             {savingProfile ? (
               <>
                 <Loader2 className="mr-2 size-4 animate-spin" /> Saving…

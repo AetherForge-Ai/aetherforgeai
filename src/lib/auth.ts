@@ -338,6 +338,32 @@ export const auth = betterAuth({
         defaultValue: "none",
         input: false,
       },
+      // Profile fields — also add matching snake_case columns on the Totalum user table.
+      first_name: {
+        type: "string",
+        required: false,
+        input: true,
+      },
+      last_name: {
+        type: "string",
+        required: false,
+        input: true,
+      },
+      country: {
+        type: "string",
+        required: false,
+        input: true,
+      },
+      phone: {
+        type: "string",
+        required: false,
+        input: true,
+      },
+      secondary_email: {
+        type: "string",
+        required: false,
+        input: true,
+      },
     },
   },
 });
@@ -357,5 +383,10 @@ export interface ExtendedUser {
   updatedAt: Date;
   stripe_customer_id?: string | null;
   subscription_status?: "active" | "canceled" | "past_due" | "none" | null;
-  subscription_plan?: "monthly" | "yearly" | "none" | null;
+  subscription_plan?: "monthly" | "yearly" | "none" |"null;
+  first_name?: string | null;
+  last_name?: string | null;
+  country?: string | null;
+  phone?: string | null;
+  secondary_email?: string | null;
 }
