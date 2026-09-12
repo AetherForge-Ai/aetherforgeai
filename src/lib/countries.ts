@@ -17,7 +17,7 @@ export const COUNTRIES = [
   "Philippines",
   "Thailand",
   "Vietnam",
-  "Gurmany",
+  "Germany",
   "France",
   "Netherlands",
   "Belgium",
