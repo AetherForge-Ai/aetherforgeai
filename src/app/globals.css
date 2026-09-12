@@ -1,6 +1,25 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+
+/* Grift — licensed local webfont for homepage headlines */
+@font-face {
+  font-family: "Grift";
+  src: url("/fonts/grift/grift-regular.otf") format("opentype"),
+       url("/fonts/grift/grift-regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Grift";
+  src: url("/fonts/grift/grift-black.otf") format("opentype"),
+       url("/fonts/grift/grift-black.ttf") format("truetype");
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -8,6 +27,7 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-body);
   --font-display: var(--font-display);
+  --font-grift: "Grift", ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-mono-custom);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -280,6 +300,19 @@ button {
   .font-display {
     font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
   }
+
+  .font-grift {
+    font-family: "Grift", ui-sans-serif, system-ui, sans-serif;
+  }
+  .font-grift-black {
+    font-family: "Grift", ui-sans-serif, system-ui, sans-serif;
+    font-weight: 900;
+  }
+  .font-grift-regular {
+    font-family: "Grift", ui-sans-serif, system-ui, sans-serif;
+    font-weight: 400;
+  }
+
 
   /* Atmospheric radial grid backdrop — faint navy hairlines on the light canvas */
   .bg-grid {
