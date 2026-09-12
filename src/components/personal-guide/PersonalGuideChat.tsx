@@ -102,7 +102,7 @@ export function PersonalGuideChat({
 
   return (
     <div
-      className="fixed bottom-4 left-3 z-[70] flex w-[min(100%-1.5rem,22rem)] flex-col overflow-visible rounded-2xl border border-amber-400/40 bg-[#06261a]/95 shadow-[0_0_0_1px_rgba(245,158,11,0.25),0_20px_50px_rgba(0,0,0,0.55)] backdrop-blur-md sm:left-4"
+      className="pg-chat-in fixed bottom-4 left-3 z-[70] flex w-[min(100%-1.5rem,22rem)] flex-col overflow-visible rounded-2xl border border-amber-400/40 bg-[#06261a]/95 shadow-[0_0_0_1px_rgba(245,158,11,0.25),0_20px_50px_rgba(0,0,0,0.55)] backdrop-blur-md sm:left-4"
       style={{ height: "50vh", maxHeight: "28rem" }}
       role="dialog"
       aria-label="Help Assistant chat"

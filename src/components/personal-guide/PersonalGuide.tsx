@@ -7,27 +7,21 @@ import { PourAnimation } from "./PourAnimation";
 import { PersonalGuideChat } from "./PersonalGuideChat";
 import "./personal-guide.css";
 
-const STORAGE_KEY = "af-help-assistant-v2";
+const STORAGE_KEY = "af-help-assistant-v3";
 const DELAY_MS = 15_000;
 
-type Phase =
-  | "idle"
-  | "pour"
-  | "risen"
-  | "window"
-  | "jump"
-  | "chat"
-  | "dismissed";
+type Phase = "idle" | "pour" | "chat" | "dismissed";
 
 /**
  * Homepage Help Assistant — lead capture + site how-to.
- * Sequence: 15s wait → dense gold/silver pour → pool → avatar rises →
- * chat window appears bottom-left → avatar jumps onto the title bar.
+ * Sequence: 15s wait → dense gold dust pour from header to bottom →
+ * dust builds into the open chat window → Help Assistant seated on title bar.
  */
 export function PersonalGuide() {
   const pathname = usePathname();
   const { data: session, isPending } = useSession();
   const [phase, setPhase] = useState<Phase>("idle");
+  const [showPour, setShowPour] = useState(false);
 
   const dismiss = useCallback(() => {
     try {
@@ -36,11 +30,13 @@ export function PersonalGuide() {
       /* ignore */
     }
     setPhase("dismissed");
+    setShowPour(false);
   }, []);
 
   useEffect(() => {
     if (pathname !== "/") {
       setPhase("idle");
+      setShowPour(false);
       return;
     }
 
@@ -73,56 +69,33 @@ export function PersonalGuide() {
       } catch {
         /* ignore */
       }
-      setPhase(reduced ? "chat" : "pour");
+      if (reduced) {
+        setPhase("chat");
+        setShowPour(false);
+      } else {
+        setPhase("pour");
+        setShowPour(true);
+      }
     }, DELAY_MS);
 
     return () => window.clearTimeout(timer);
   }, [pathname, session, isPending]);
 
-  const onAssembled = useCallback(() => {
-    setPhase("risen");
+  const onBuilt = useCallback(() => {
+    setPhase("chat");
+    // Let the canvas fade out while the real window takes over
+    window.setTimeout(() => setShowPour(false), 420);
   }, []);
-
-  // Hold the finished avatar mid-page, then open the chat window.
-  useEffect(() => {
-    if (phase !== "risen") return;
-    const t = window.setTimeout(() => setPhase("window"), 800);
-    return () => window.clearTimeout(t);
-  }, [phase]);
-
-  // After the window is visible, jump into the title bar.
-  useEffect(() => {
-    if (phase !== "window") return;
-    const t = window.setTimeout(() => setPhase("jump"), 450);
-    return () => window.clearTimeout(t);
-  }, [phase]);
-
-  useEffect(() => {
-    if (phase !== "jump") return;
-    const t = window.setTimeout(() => setPhase("chat"), 850);
-    return () => window.clearTimeout(t);
-  }, [phase]);
 
   if (pathname !== "/" || phase === "idle" || phase === "dismissed") {
     return null;
   }
 
-  const showStanding = phase === "pour" || phase === "risen" || phase === "window";
-  const showJump = phase === "jump";
-  const showChat =
-    phase === "window" || phase === "jump" || phase === "chat";
-
   return (
     <>
-      {showStanding && <PourAnimation onAssembled={onAssembled} />}
-      {showJump && (
-        <PourAnimation onAssembled={() => {}} jumping avatarOnly />
-      )}
-      {showChat && (
-        <PersonalGuideChat
-          onDismiss={dismiss}
-          showSeatedCharacter={phase === "chat"}
-        />
+      {showPour && <PourAnimation onBuilt={onBuilt} />}
+      {phase === "chat" && (
+        <PersonalGuideChat onDismiss={dismiss} showSeatedCharacter />
       )}
     </>
   );
