@@ -87,7 +87,7 @@ export default function LandingPage() {
                   <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
                     Live NZX · ASX · Crypto · Metals intelligence
                   </div>
-                  <h1 className="mt-5 font-display text-4xl font-extrabold tracking-tight text-amber-400 sm:text-5xl lg:text-[3.25rem] lg:leading-[1.1]">
+                  <h1 className="mt-5 font-grift-black text-4xl tracking-tight text-amber-400 sm:text-5xl lg:text-[3.25rem] lg:leading-[1.1]">
                     Data Backed Market Intelligence straight to You
                   </h1>
                   <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
@@ -124,7 +124,7 @@ export default function LandingPage() {
                 <p className="font-display text-xs font-bold uppercase tracking-[0.2em] text-primary">
                   The core of AetherForge
                 </p>
-                <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-amber-400 sm:text-4xl">
+                <h2 className="mt-3 font-grift-black text-3xl tracking-tight text-amber-400 sm:text-4xl">
                   3 Genius AI bots to do the Thinking for You
                 </h2>
                 <p className="mt-4 text-base leading-relaxed text-muted-foreground sm:text-lg">
@@ -164,11 +164,11 @@ export default function LandingPage() {
 
             {/* Precious metals */}
             <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
-              <h2 className="text-center font-display text-4xl font-extrabold tracking-tight text-amber-400 sm:text-5xl">
+              <h2 className="text-center font-grift-black text-4xl tracking-tight text-amber-400 sm:text-5xl">
                 Precious Metals
               </h2>
               <div className="mt-4 mb-8 text-center">
-                <p className="font-display text-3xl font-bold tracking-tight text-amber-300 sm:text-4xl">
+                <p className="font-grift-black text-3xl tracking-tight text-amber-300 sm:text-4xl">
                   Smitty
                 </p>
                 <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-[#a89c86]">
@@ -214,8 +214,7 @@ export default function LandingPage() {
                     </h3>
                     <p className="mt-4 text-base leading-relaxed text-muted-foreground sm:text-lg">
                       Meet Smitty — AetherForge AI&apos;s Precious Metals Manager. He understands how much precious metals mean to the
-                      world — as investments, as a globally accepted currency, and in
-                      times of need as safe investments. We surface daily live Silver and
+                      world. We surface daily live Silver and
                       Gold prices with inclines and declines so you can track the metals
                       that matter.
                     </p>
@@ -232,7 +231,7 @@ export default function LandingPage() {
             {/* How to get started */}
             <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
               <div className="mx-auto max-w-2xl text-center">
-                <h2 className="font-display text-3xl font-bold tracking-tight text-amber-400 sm:text-4xl">
+                <h2 className="font-grift-black text-3xl tracking-tight text-amber-400 sm:text-4xl">
                   Heres how to get started
                 </h2>
               </div>
@@ -262,7 +261,7 @@ export default function LandingPage() {
                     <span className="relative z-0 font-display text-sm font-bold text-primary">
                       {String(idx + 1).padStart(2, "0")}
                     </span>
-                    <h3 className="relative z-0 mt-3 font-display text-lg font-bold leading-snug text-primary">
+                    <h3 className="relative z-0 mt-3 font-grift-regular text-lg leading-snug text-amber-400">
                       {step.title}
                     </h3>
                     <p className="relative z-0 mt-2 flex-1 text-sm leading-relaxed text-muted-foreground">
@@ -276,7 +275,7 @@ export default function LandingPage() {
             {/* CTA */}
             <section className="mx-auto max-w-7xl px-4 pb-20 sm:px-6 lg:px-8">
               <div className="rounded-3xl border border-primary/30 bg-primary/10 px-6 py-12 text-center sm:px-10">
-                <h2 className="font-display text-3xl font-bold tracking-tight text-white sm:text-4xl">
+                <h2 className="font-grift-black text-3xl tracking-tight text-amber-400 sm:text-4xl">
                   Ready to take care of your Portfolio?
                 </h2>
                 <p className="mx-auto mt-3 max-w-xl text-muted-foreground">
