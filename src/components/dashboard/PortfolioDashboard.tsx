@@ -240,11 +240,14 @@ type HoldingSortKey =
   | "gain"
   | "weight";
 
+export type DashboardView = "home" | "stocks" | "crypto" | "metals";
+
 export function PortfolioDashboard({
   userName,
   subscription,
   metalsEntitled,
   preview = false,
+  view = "home",
 }: {
   userName: string;
   subscription: DashboardSubscription;
@@ -252,6 +255,8 @@ export function PortfolioDashboard({
   metalsEntitled: boolean;
   /** Guest preview — dashboard is visible but the member sections are locked. */
   preview?: boolean;
+  /** home = totals + hub cards; stocks/crypto/metals = full hub pages. */
+  view?: DashboardView;
 }) {
   // Active bot (Stock or Crypto). Defaults to the only bot the plan unlocks.
   const defaultBot: AssetClass = subscription.botAccess === "crypto" ? "crypto" : "stock";
