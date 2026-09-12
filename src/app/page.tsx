@@ -124,7 +124,7 @@ export default function LandingPage() {
                 <p className="font-display text-xs font-bold uppercase tracking-[0.2em] text-primary">
                   The core of AetherForge
                 </p>
-                <h2 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">
+                <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-amber-400 sm:text-4xl">
                   3 Genius AI bots to do the Thinking for You
                 </h2>
                 <p className="mt-4 text-base leading-relaxed text-muted-foreground sm:text-lg">
