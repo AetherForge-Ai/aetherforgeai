@@ -86,6 +86,8 @@ import {
   ArrowUpDown,
   Compass,
   ArrowLeft,
+  FileSpreadsheet,
+  Bell,
   Radar,
 } from "lucide-react";
 import Link from "next/link";
@@ -784,16 +786,43 @@ export function PortfolioDashboard({
           >
             <ArrowLeft className="size-4" /> Back to Dashboard
           </Link>
-          <h1 className="mt-3 font-grift-black text-3xl tracking-tight text-amber-400 sm:text-4xl">
-            {isStocksHub
-              ? "Stock Portfolio Overview"
-              : isCryptoHub
-                ? "Crypto Portfolio Overview"
-                : "Metals Portfolio Overview"}
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Holdings, AI reports, high-conviction buys &amp; sells, price alerts, market insights and watchlist.
-          </p>
+          <div className="mt-4 flex flex-wrap items-end justify-between gap-4">
+            <div className="min-w-0">
+              <h1 className="font-grift-black text-3xl tracking-tight text-amber-400 sm:text-4xl">
+                {isStocksHub
+                  ? "Stock Portfolio Overview"
+                  : isCryptoHub
+                    ? "Crypto Portfolio Overview"
+                    : "Metals Portfolio Overview"}
+              </h1>
+              <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+                Your positions first, then AI reports, high-conviction buys &amp; sells, share-price alerts,
+                market insights and watchlist — in one professional workspace.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-amber-400/30 bg-amber-400/5 px-4 py-3 text-right">
+              <p className="text-[0.65rem] font-semibold uppercase tracking-wide text-amber-600/90">
+                {isStocksHub ? "Stocks · NZD" : isCryptoHub ? "Crypto · NZD" : "Metals · NZD"}
+              </p>
+              <p className="font-display text-2xl font-bold text-foreground">
+                {formatMoney(
+                  isStocksHub
+                    ? stockTotalNZD
+                    : isCryptoHub
+                      ? cryptoTotalNZD
+                      : metalsValueNZD + metalStockTotalNZD,
+                  "NZD",
+                )}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {isStocksHub
+                  ? `${stockHoldings.length} position${stockHoldings.length === 1 ? "" : "s"}`
+                  : isCryptoHub
+                    ? `${cryptoHoldings.length} coin${cryptoHoldings.length === 1 ? "" : "s"}`
+                    : "Gold & silver"}
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1116,8 +1145,23 @@ export function PortfolioDashboard({
       </div>
 
       {/* ───────────────────────── 3c · Precious metals (moved up for page flow) ───────────────────────── */}
-      <div className={cn("mt-10", !(isMetalsHub) && "hidden")}>
+      <div className={cn("mt-10 space-y-6", !(isMetalsHub) && "hidden")}>
         <PreciousMetals entitled={metalsEntitled} plan={subscription.plan} onChanged={handleMetalsChanged} />
+        <HoldingsOwnedTable
+          title="Metals you own"
+          emptyLabel="No metal positions yet"
+          emptyHint="Buy gold or silver in this hub — they'll list here so you can see where the money is."
+          holdings={computeSummary(
+            [...metalStocks, ...preciousAsStocks.filter((pm) => !metalStocks.some((m) => m.ticker === pm.ticker))],
+            { baseCurrency: "NZD", fxToNZD },
+          ).holdings}
+          baseCurrency="NZD"
+          loading={loading}
+          onAdd={openAdd}
+          onEdit={openEdit}
+          onDelete={setDeleteTarget}
+          onOpenChart={setChartTarget}
+        />
       </div>
 
       {/* ───────────────────────── 5 · Holdings table (gated for guests) ───────────────────────── */}
@@ -1317,79 +1361,106 @@ export function PortfolioDashboard({
           reloadSignal={ledgerSignal}
           preview={preview}
         />
-      </Gate>
+  
+      {/* ──── Hub intelligence suite (stock / crypto / metals overview pages) ──── */}
+      <div className={cn("mt-10 space-y-5", isHome && "hidden")}>
+        <div className="border-b border-border/50 pb-3">
+          <h2 className="font-grift-black text-2xl tracking-tight text-amber-400">Portfolio intelligence</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            AI reports, high-conviction buys &amp; sells, alerts, insights and your watchlist for this book.
+          </p>
+        </div>
+
+        <div>
+          <Gate
+            title="Report Centre"
+            description="AI bot reports generated for your portfolio — Headmaster, Stox and Koins."
+          >
+            <CollapsibleSection
+              title="AI Report Centre"
+              subtitle="Reports your bots have generated so far — run new ones any time"
+              icon={FileSpreadsheet}
+              defaultOpen
+            >
+              <ReportCenter
+                botAccess={subscription.botAccess}
+                plan={subscription.plan}
+                scope={scope}
+                counts={holdingCounts}
+                tickerLimit={tickerLimit}
+                onHoldingsChanged={handleDataChanged}
+                preview={preview}
+              />
+            </CollapsibleSection>
+          </Gate>
+        </div>
+
+        <div>
+          <CollapsibleSection
+            title="High-conviction buys & sells"
+            subtitle="Actionable intelligence — SELL signals from holdings and BUY candidates not yet held"
+            icon={Radar}
+            defaultOpen
+          >
+            <ActionableIntelligence
+              stocks={isCryptoHub ? cryptoOnly : isMetalsHub ? metalStocks : stockOnly}
+              assetClass={isCryptoHub ? "crypto" : "stock"}
+              onBought={handleDataChanged}
+            />
+          </CollapsibleSection>
+        </div>
+
+        <div>
+          <Gate
+            title="Alerts"
+            description="Live share-price alerts and watchlist for the tickers you follow."
+          >
+            <CollapsibleSection
+              title="Watchlist & share-price alerts"
+              subtitle="Never miss a move on the names you track"
+              icon={Bell}
+              defaultOpen
+            >
+              <div className="space-y-6">
+                <WatchlistPanel
+                  bot={isCryptoHub ? "crypto" : "stock"}
+                  reloadSignal={watchlistSignal}
+                  preview={preview}
+                />
+                <PriceAlerts
+                  stocks={isCryptoHub ? cryptoOnly : isMetalsHub ? metalStocks : stockOnly}
+                  preview={preview}
+                />
+              </div>
+            </CollapsibleSection>
+          </Gate>
+        </div>
+
+        <div>
+          <CollapsibleSection
+            title="Market Insights"
+            subtitle="Cross-exchange browser, open-market snapshot, top movers and projected performers"
+            icon={Compass}
+          >
+            <div className="grid gap-4 lg:grid-cols-2">
+              <AllMarkets onBought={handleDataChanged} />
+              <OpenMarketSnapshot onBought={handleDataChanged} />
+            </div>
+            <div className="mt-8">
+              <TopMovers />
+            </div>
+            <div className="mt-8">
+              <MarketWidePerformers onBought={handleDataChanged} />
+            </div>
+          </CollapsibleSection>
+        </div>
+
+        <div>
+          <AnalysisPanel holdingsCount={isCryptoHub ? cryptoOverviewSummary.holdingsCount : isStocksHub ? stockOverviewSummary.holdingsCount : metalStocks.length} />
+        </div>
       </div>
 
-
-      {/* ───────────────────────── 6 · Actionable intelligence — SELL/BUY signals + pathways (modular window) ───────────────────────── */}
-      <div className={cn("mt-6", !(!isHome) && "hidden")}>
-        <CollapsibleSection
-          title="Actionable Intelligence"
-          subtitle="Live SELL / BUY signals and the pathways behind them"
-          icon={Radar}
-          defaultOpen
-        >
-          <ActionableIntelligence stocks={stocks} assetClass={bot} onBought={handleDataChanged} />
-        </CollapsibleSection>
-      </div>
-
-
-      {/* ───────────────────────── 7 · Market Insights — one modular window: cross-exchange browser, snapshot, movers & projected performers ───────────────────────── */}
-      <div className={cn("mt-6", !(!isHome) && "hidden")}>
-        <CollapsibleSection
-          title="Market Insights"
-          subtitle="Cross-exchange browser, open-market snapshot, top movers & projected performers"
-          icon={Compass}
-        >
-          <div className="grid gap-4 lg:grid-cols-2">
-            <AllMarkets onBought={handleDataChanged} />
-            <OpenMarketSnapshot onBought={handleDataChanged} />
-          </div>
-          <div className="mt-8">
-            <TopMovers />
-          </div>
-          <div className="mt-8">
-            <MarketWidePerformers onBought={handleDataChanged} />
-          </div>
-        </CollapsibleSection>
-      </div>
-
-      {/* ───────────────────────── 10 · Watchlist & share-price alerts (gated for guests) ───────────────────────── */}
-      <div className={cn("mt-6", !(!isHome) && "hidden")}>
-      <Gate
-        title="Alerts"
-        description="Set live share-price alerts and a watchlist so you never miss a move on the tickers you follow."
-      >
-      <div>
-        <WatchlistPanel bot={bot} reloadSignal={watchlistSignal} preview={preview} />
-      </div>
-      <div className="mt-6">
-        <PriceAlerts stocks={stocks} preview={preview} />
-      </div>
-      </Gate>
-      </div>
-
-      {/* AI report companion */}
-      <div className={cn("mt-6", !(!isHome) && "hidden")}>
-        <AnalysisPanel holdingsCount={summary.holdingsCount} />
-      </div>
-
-      {/* ───────────────────────── 11 · Report Center (The Headmaster + Stox + Koins) — gated for guests ───────────────────────── */}
-      <div className={cn("mt-8", !(!isHome) && "hidden")}>
-      <Gate
-        title="Report Centre"
-        description="Generate full PDF portfolio reports with market intelligence, indicators and AI insight — emailed to you."
-      >
-        <ReportCenter
-          botAccess={subscription.botAccess}
-          plan={subscription.plan}
-          scope={scope}
-          counts={holdingCounts}
-          tickerLimit={tickerLimit}
-          onHoldingsChanged={handleDataChanged}
-          preview={preview}
-        />
-      </Gate>
+     </Gate>
       </div>
 
       <StockDialog
