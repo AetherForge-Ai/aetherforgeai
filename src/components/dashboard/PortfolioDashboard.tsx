@@ -35,7 +35,6 @@ import { TopMovers } from "@/components/dashboard/TopMovers";
 import { MarketWidePerformers } from "@/components/dashboard/MarketWidePerformers";
 import { CryptoMarketSection } from "@/components/dashboard/crypto/CryptoMarketSection";
 import { ActionableIntelligence } from "@/components/dashboard/ActionableIntelligence";
-import { NewsFeed } from "@/components/dashboard/NewsFeed";
 import { DashboardSectionTitle } from "@/components/dashboard/DashboardSectionTitle";
 import { MarketIntelProvider } from "@/components/dashboard/MarketIntelContext";
 import { WatchlistPanel } from "@/components/dashboard/WatchlistPanel";
@@ -765,10 +764,25 @@ export function PortfolioDashboard({
         </div>
       ) : null}
 
-      {/* ───────────────────────── 2 · Market news ───────────────────────── */}
+            {/* ───────────────────────── 2 · Market news (teaser → full page) ───────────────────────── */}
       <div className="mt-8">
         <DashboardSectionTitle title="Market News" />
-        <NewsFeed />
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border/70 bg-card/60 px-4 py-4 sm:px-5">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-foreground">
+              Headlines across stocks, crypto and metals — impact, relevance and source links.
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Open the full Market News page for the complete feed.
+            </p>
+          </div>
+          <Button asChild className="shrink-0 font-semibold">
+            <Link href="/market-news">
+              <Newspaper className="size-4" />
+              Open Market News
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {/* ───────────────────────── 3 · Stock portfolio overview ───────────────────────── */}

@@ -27,6 +27,7 @@ import {
   TrendingUp,
   Bot,
   Tag,
+  Newspaper,
   Settings,
   Compass,
   LogOut,
@@ -46,6 +47,7 @@ import {
 const NAV_LINKS: { href: string; label: string; icon: React.ComponentType<{ className?: string }>; highlight?: boolean }[] = [
   { href: "/", label: "Home", icon: Home },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/market-news", label: "Market News", icon: Newspaper },
   { href: "/markets", label: "Stock Markets", icon: LineChart, highlight: true },
   { href: "/projections", label: "Projections", icon: TrendingUp },
   { href: "/chat", label: "AI Assistant", icon: Bot },
