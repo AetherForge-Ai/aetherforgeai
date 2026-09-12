@@ -34,6 +34,7 @@ import { AnimatedMoney } from "@/components/dashboard/AnimatedMoney";
 import { TopMovers } from "@/components/dashboard/TopMovers";
 import { MarketWidePerformers } from "@/components/dashboard/MarketWidePerformers";
 import { CryptoMarketSection } from "@/components/dashboard/crypto/CryptoMarketSection";
+import { HoldingsOwnedTable } from "@/components/dashboard/HoldingsOwnedTable";
 import { ActionableIntelligence } from "@/components/dashboard/ActionableIntelligence";
 import { DashboardSectionTitle } from "@/components/dashboard/DashboardSectionTitle";
 import { MarketIntelProvider } from "@/components/dashboard/MarketIntelContext";
@@ -827,6 +828,19 @@ export function PortfolioDashboard({
           <MiniMetric icon={Trophy} label="Win rate" value={`${stockOverviewMetrics.winRate}%`} />
         </div>
       )}
+
+      <HoldingsOwnedTable
+        title="Stocks you own"
+        emptyLabel="No stocks in this portfolio yet"
+        emptyHint="Buy shares in the Transaction Centre below — they'll show here under Stock Portfolio Overview."
+        holdings={stockOverviewSummary.holdings}
+        baseCurrency="NZD"
+        loading={loading}
+        onAdd={openAdd}
+        onEdit={openEdit}
+        onDelete={setDeleteTarget}
+        onOpenChart={setChartTarget}
+      />
       </Gate>
       </div>
 
@@ -893,6 +907,19 @@ export function PortfolioDashboard({
           <MiniMetric icon={Trophy} label="Win rate" value={`${cryptoOverviewMetrics.winRate}%`} />
         </div>
       )}
+
+      <HoldingsOwnedTable
+        title="Crypto you own"
+        emptyLabel="No crypto in this portfolio yet"
+        emptyHint="Buy coins in the Transaction Centre — they'll show here so you can see where the money is."
+        holdings={cryptoOverviewSummary.holdings}
+        baseCurrency="USD"
+        loading={loading}
+        onAdd={openAdd}
+        onEdit={openEdit}
+        onDelete={setDeleteTarget}
+        onOpenChart={setChartTarget}
+      />
 
       <div className="mt-6">
         <CryptoMarketSection />
