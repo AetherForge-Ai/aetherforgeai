@@ -278,10 +278,7 @@ export default function LandingPage() {
                 <h2 className="font-grift-black text-3xl tracking-tight text-amber-400 sm:text-4xl">
                   Ready to take care of your Portfolio?
                 </h2>
-                <p className="mx-auto mt-3 max-w-xl text-muted-foreground">
-                  Create your account, add your holdings, and let the bots do the heavy
-                  thinking.
-                </p>
+
                 <Button asChild className="mt-8 h-12 px-8 text-base shadow-glow">
                   <Link href="/register">
                     Start free
