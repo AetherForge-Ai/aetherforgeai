@@ -29,7 +29,7 @@ const BOTS = [
 const STEPS = [
   {
     title: "Create Your Account",
-    body: "Sign up in seconds, Choose a Plan - Go monthly or yearly, cancel anytime",
+    body: "Sign up and get started for FREE right now. See for your self how this works before you decide if you want to signup",
     sitter: {
       name: "Stox",
       img: "/brand/bot-stox-fullbody.png",
@@ -124,7 +124,7 @@ export default function LandingPage() {
                 <p className="font-display text-xs font-bold uppercase tracking-[0.2em] text-primary">
                   The core of AetherForge
                 </p>
-                <h2 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">
+                <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-amber-400 sm:text-4xl">
                   3 Genius AI bots to do the Thinking for You
                 </h2>
                 <p className="mt-4 text-base leading-relaxed text-muted-foreground sm:text-lg">
@@ -229,14 +229,11 @@ export default function LandingPage() {
               </div>
             </section>
 
-            {/* Simple path */}
+            {/* How to get started */}
             <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
               <div className="mx-auto max-w-2xl text-center">
-                <p className="font-display text-xs font-bold uppercase tracking-[0.2em] text-primary">
-                  Simple path
-                </p>
-                <h2 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">
-                  Four steps to get started
+                <h2 className="font-display text-3xl font-bold tracking-tight text-amber-400 sm:text-4xl">
+                  Heres how to get started
                 </h2>
               </div>
               <div className="mt-20 grid gap-x-5 gap-y-20 sm:grid-cols-2 lg:grid-cols-4">

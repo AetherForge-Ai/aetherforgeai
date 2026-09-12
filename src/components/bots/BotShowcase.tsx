@@ -112,7 +112,7 @@ export function BotShowcase() {
     <section className="mx-auto max-w-6xl px-4 py-20 md:py-28">
       <div className="text-center">
         <p className="text-sm font-medium uppercase tracking-[0.2em] text-primary">The core of AetherForge</p>
-        <h2 className="mt-3 text-3xl font-bold tracking-tight md:text-4xl">
+        <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-amber-400 md:text-4xl">
           3 Genius AI bots to do the Thinking for You
         </h2>
         <p className="mx-auto mt-4 max-w-2xl text-muted-foreground">
