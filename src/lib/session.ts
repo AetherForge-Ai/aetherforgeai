@@ -23,6 +23,11 @@ export interface AppUser {
   trial_used_at?: string | null;
   /** Investable cash balance in NZD, adjusted by buy/sell/deposit/withdraw. */
   cash_balance?: number | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  country?: string | null;
+  phone?: string | null;
+  secondary_email?: string | null;
 }
 
 /**
@@ -60,6 +65,11 @@ export async function getCurrentUser(): Promise<AppUser | null> {
       trial_used: record?.trial_used ?? "no",
       trial_used_at: record?.trial_used_at ?? null,
       cash_balance: typeof record?.cash_balance === "number" ? record.cash_balance : 0,
+      first_name: record?.first_name ?? (session.user as any).first_name ?? null,
+      last_name: record?.last_name ?? (session.user as any).last_name ?? null,
+      country: record?.country ?? (session.user as any).country ?? null,
+      phone: record?.phone ?? (session.user as any).phone ?? null,
+      secondary_email: record?.secondary_email ?? (session.user as any).secondary_email ?? null,
     };
   } catch (err) {
     console.error("[session] getCurrentUser error:", err);
