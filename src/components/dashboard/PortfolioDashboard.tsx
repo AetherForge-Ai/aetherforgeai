@@ -79,7 +79,6 @@ import {
   Sparkles,
   Coins,
   Landmark,
-  Newspaper,
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
@@ -763,27 +762,6 @@ export function PortfolioDashboard({
           </div>
         </div>
       ) : null}
-
-            {/* ───────────────────────── 2 · Market news (teaser → full page) ───────────────────────── */}
-      <div className="mt-8">
-        <DashboardSectionTitle title="Market News" />
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border/70 bg-card/60 px-4 py-4 sm:px-5">
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-foreground">
-              Headlines across stocks, crypto and metals — impact, relevance and source links.
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Open the full Market News page for the complete feed.
-            </p>
-          </div>
-          <Button asChild className="shrink-0 font-semibold">
-            <Link href="/market-news">
-              <Newspaper className="size-4" />
-              Open Market News
-            </Link>
-          </Button>
-        </div>
-      </div>
 
       {/* ───────────────────────── 3 · Stock portfolio overview ───────────────────────── */}
       <div className="mt-10">
