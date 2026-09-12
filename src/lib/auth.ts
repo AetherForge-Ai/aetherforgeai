@@ -383,7 +383,7 @@ export interface ExtendedUser {
   updatedAt: Date;
   stripe_customer_id?: string | null;
   subscription_status?: "active" | "canceled" | "past_due" | "none" | null;
-  subscription_plan?: "monthly" | "yearly" | "none" |"null;
+  subscription_plan?: "monthly" | "yearly" | "none" | null;
   first_name?: string | null;
   last_name?: string | null;
   country?: string | null;
