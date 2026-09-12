@@ -39,6 +39,7 @@ import { ActionableIntelligence } from "@/components/dashboard/ActionableIntelli
 import { DashboardSectionTitle } from "@/components/dashboard/DashboardSectionTitle";
 import { MarketIntelProvider } from "@/components/dashboard/MarketIntelContext";
 import { WatchlistPanel } from "@/components/dashboard/WatchlistPanel";
+import { OverviewHubCard } from "@/components/dashboard/OverviewHubCard";
 import { GlobalSearch } from "@/components/dashboard/GlobalSearch";
 import { LockedSection } from "@/components/dashboard/LockedSection";
 import { CollapsibleSection } from "@/components/dashboard/CollapsibleSection";
@@ -84,6 +85,7 @@ import {
   ArrowDown,
   ArrowUpDown,
   Compass,
+  ArrowLeft,
   Radar,
 } from "lucide-react";
 import Link from "next/link";
@@ -683,6 +685,11 @@ export function PortfolioDashboard({
 
   // In guest preview, the named member sections are shown but locked behind an
   // overlay; otherwise they render normally.
+  const isHome = view === "home";
+  const isStocksHub = view === "stocks";
+  const isCryptoHub = view === "crypto";
+  const isMetalsHub = view === "metals";
+
   const Gate = ({
     title,
     description,
@@ -764,182 +771,35 @@ export function PortfolioDashboard({
         </div>
       ) : null}
 
-      {/* ───────────────────────── 3 · Stock portfolio overview ───────────────────────── */}
-      <div className="mt-10">
-      <Gate
-        title="Stock Portfolio Overview"
-        description="Your live KPIs — total worth, unrealised P&L, 7-day alpha, portfolio health, Sharpe & win rate."
-      >
-        <DashboardSectionTitle
-          title="Stock Portfolio Overview"
-          avatarSrc="/brand/bot-stox-fullbody.png"
-          avatarAlt="Stox AI bot"
-          avatarPose="lean"
-        />
-
-      {/* KPI cards — stocks */}
-      <div className="mt-2 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          label="Total worth · NZD"
-          value={formatMoney(stockOverviewSummary.totalValue, "NZD")}
-          sub={`Cost basis ${formatMoney(stockOverviewSummary.totalCost, "NZD")}`}
-          icon={Wallet}
-        />
-        <StatCard
-          label="Unrealized P&L"
-          value={formatMoney(stockOverviewSummary.totalGain, "NZD")}
-          sub={formatPercent(stockOverviewSummary.totalGainPct)}
-          icon={stockOverviewSummary.totalGain >= 0 ? TrendingUp : TrendingDown}
-          tone={stockOverviewSummary.totalGain >= 0 ? "up" : "down"}
-        />
-        <StatCard
-          label="7-Day alpha potential"
-          value={`${stockOverviewMetrics.alphaPotentialPct >= 0 ? "+" : ""}${stockOverviewMetrics.alphaPotentialPct.toFixed(2)}%`}
-          sub={
-            stockOverviewSummary.holdingsCount
-              ? `${formatMoney(stockOverviewMetrics.alphaPotentialValue, "NZD")} projected move`
-              : "Add holdings to project"
-          }
-          icon={Zap}
-          tone={stockOverviewMetrics.alphaPotentialPct >= 0 ? "up" : "down"}
-        />
-        <StatCard
-          label="Portfolio health"
-          value={stockOverviewSummary.holdingsCount ? `${stockOverviewMetrics.healthScore}/100` : "—"}
-          sub={stockOverviewSummary.holdingsCount ? stockOverviewMetrics.healthLabel : "No holdings yet"}
-          icon={HeartPulse}
-          tone={
-            !stockOverviewSummary.holdingsCount
-              ? "neutral"
-              : stockOverviewMetrics.healthScore >= 55
-                ? "up"
-                : stockOverviewMetrics.healthScore >= 38
-                  ? "neutral"
-                  : "down"
-          }
-        />
-      </div>
-
-      {stockOverviewSummary.holdingsCount > 0 && (
-        <div className="mt-4 grid grid-cols-2 gap-4 rounded-2xl border border-border/70 bg-card/40 p-4 sm:grid-cols-4">
-          <MiniMetric icon={Activity} label="Ann. volatility" value={`${stockOverviewMetrics.volatility.toFixed(1)}%`} />
-          <MiniMetric icon={Gauge} label="Sharpe ratio" value={stockOverviewMetrics.sharpe.toFixed(2)} />
-          <MiniMetric icon={PieChart} label="Diversification" value={`${stockOverviewMetrics.diversification}%`} />
-          <MiniMetric icon={Trophy} label="Win rate" value={`${stockOverviewMetrics.winRate}%`} />
+      {!isHome && (
+        <div className="mt-4">
+          <Link
+            href="/dashboard"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition hover:text-foreground"
+          >
+            <ArrowLeft className="size-4" /> Back to Dashboard
+          </Link>
+          <h1 className="mt-3 font-grift-black text-3xl tracking-tight text-amber-400 sm:text-4xl">
+            {isStocksHub
+              ? "Stock Portfolio Overview"
+              : isCryptoHub
+                ? "Crypto Portfolio Overview"
+                : "Metals Portfolio Overview"}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Holdings, AI reports, high-conviction buys &amp; sells, price alerts, market insights and watchlist.
+          </p>
         </div>
       )}
-
-      <HoldingsOwnedTable
-        title="Stocks you own"
-        emptyLabel="No stocks in this portfolio yet"
-        emptyHint="Buy shares in the Transaction Centre below — they'll show here under Stock Portfolio Overview."
-        holdings={stockOverviewSummary.holdings}
-        baseCurrency="NZD"
-        loading={loading}
-        onAdd={openAdd}
-        onEdit={openEdit}
-        onDelete={setDeleteTarget}
-        onOpenChart={setChartTarget}
-      />
-      </Gate>
-      </div>
-
-      {/* ───────────────────────── 3b · Crypto currency overview ───────────────────────── */}
-      <div className="mt-10">
-      <Gate
-        title="Crypto Currency Overview"
-        description="Live crypto KPIs and market terminal — total worth, unrealised P&L, health and projected movers."
-      >
-        <DashboardSectionTitle
-          title="Crypto Currency Overview"
-          avatarSrc="/brand/bot-koins-fullbody.png"
-          avatarAlt="Koins AI bot"
-          avatarPose="flip"
-        />
-
-      <div className="mt-2 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          label="Total worth · USD"
-          value={formatMoney(cryptoOverviewSummary.totalValue, "USD")}
-          sub={`Cost basis ${formatMoney(cryptoOverviewSummary.totalCost, "USD")}`}
-          icon={Wallet}
-        />
-        <StatCard
-          label="Unrealized P&L"
-          value={formatMoney(cryptoOverviewSummary.totalGain, "USD")}
-          sub={formatPercent(cryptoOverviewSummary.totalGainPct)}
-          icon={cryptoOverviewSummary.totalGain >= 0 ? TrendingUp : TrendingDown}
-          tone={cryptoOverviewSummary.totalGain >= 0 ? "up" : "down"}
-        />
-        <StatCard
-          label="7-Day alpha potential"
-          value={`${cryptoOverviewMetrics.alphaPotentialPct >= 0 ? "+" : ""}${cryptoOverviewMetrics.alphaPotentialPct.toFixed(2)}%`}
-          sub={
-            cryptoOverviewSummary.holdingsCount
-              ? `${formatMoney(cryptoOverviewMetrics.alphaPotentialValue, "USD")} projected move`
-              : "Add coins to project"
-          }
-          icon={Zap}
-          tone={cryptoOverviewMetrics.alphaPotentialPct >= 0 ? "up" : "down"}
-        />
-        <StatCard
-          label="Portfolio health"
-          value={cryptoOverviewSummary.holdingsCount ? `${cryptoOverviewMetrics.healthScore}/100` : "—"}
-          sub={cryptoOverviewSummary.holdingsCount ? cryptoOverviewMetrics.healthLabel : "No holdings yet"}
-          icon={HeartPulse}
-          tone={
-            !cryptoOverviewSummary.holdingsCount
-              ? "neutral"
-              : cryptoOverviewMetrics.healthScore >= 55
-                ? "up"
-                : cryptoOverviewMetrics.healthScore >= 38
-                  ? "neutral"
-                  : "down"
-          }
-        />
-      </div>
-
-      {cryptoOverviewSummary.holdingsCount > 0 && (
-        <div className="mt-4 grid grid-cols-2 gap-4 rounded-2xl border border-border/70 bg-card/40 p-4 sm:grid-cols-4">
-          <MiniMetric icon={Activity} label="Ann. volatility" value={`${cryptoOverviewMetrics.volatility.toFixed(1)}%`} />
-          <MiniMetric icon={Gauge} label="Sharpe ratio" value={cryptoOverviewMetrics.sharpe.toFixed(2)} />
-          <MiniMetric icon={PieChart} label="Diversification" value={`${cryptoOverviewMetrics.diversification}%`} />
-          <MiniMetric icon={Trophy} label="Win rate" value={`${cryptoOverviewMetrics.winRate}%`} />
-        </div>
-      )}
-
-      <HoldingsOwnedTable
-        title="Crypto you own"
-        emptyLabel="No crypto in this portfolio yet"
-        emptyHint="Buy coins in the Transaction Centre — they'll show here so you can see where the money is."
-        holdings={cryptoOverviewSummary.holdings}
-        baseCurrency="USD"
-        loading={loading}
-        onAdd={openAdd}
-        onEdit={openEdit}
-        onDelete={setDeleteTarget}
-        onOpenChart={setChartTarget}
-      />
-
-      <div className="mt-6">
-        <CryptoMarketSection />
-      </div>
-      </Gate>
-      </div>
-
-      {/* ───────────────────────── 3c · Precious metals (moved up for page flow) ───────────────────────── */}
-      <div className="mt-10">
-        <PreciousMetals entitled={metalsEntitled} plan={subscription.plan} onChanged={handleMetalsChanged} />
-      </div>
 
       {/* ───────────────────────── 4 · Totals owned (Stocks · Crypto · Cash · Metals) ───────────────────────── */}
-      <div className="mt-8 rounded-3xl border border-border/70 bg-gradient-to-br from-primary/8 to-card/50 p-6">
+      <div className={cn("mt-8 rounded-3xl border border-border/70 bg-gradient-to-br from-primary/8 to-card/50 p-6", !isHome && "hidden")}>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              <Landmark className="size-4 text-primary" /> Totals owned
+            <div>
+              <h2 className="font-grift-black text-3xl tracking-tight text-amber-400 sm:text-4xl">Totals owned</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Everything you hold, valued live in NZD</p>
             </div>
-            <p className="text-xs text-muted-foreground">Everything you hold, valued live in NZD</p>
           </div>
           {/* Live-updating market value + net worth — animates as prices move */}
           <div className="flex items-end gap-6">
@@ -1053,8 +913,210 @@ export function PortfolioDashboard({
         )}
       </div>
 
+
+      <div className={cn("mt-8 grid grid-cols-1 gap-4 md:grid-cols-3", !isHome && "hidden")}>
+        <OverviewHubCard
+          href="/dashboard/stocks"
+          title="Stock Portfolio Overview"
+          subtitle="Equities across NZX · ASX · US markets"
+          value={formatMoney(stockTotalNZD, "NZD")}
+          meta={`${stockHoldings.length} position${stockHoldings.length === 1 ? "" : "s"} · open for holdings, reports & intel`}
+          icon={LineChart}
+          avatarSrc="/brand/bot-stox-fullbody.png"
+        />
+        <OverviewHubCard
+          href="/dashboard/crypto"
+          title="Crypto Portfolio Overview"
+          subtitle="Coins valued live · institutional terminal"
+          value={formatMoney(cryptoTotalNZD, "NZD")}
+          meta={`${cryptoHoldings.length} coin${cryptoHoldings.length === 1 ? "" : "s"} · open for holdings, reports & intel`}
+          icon={Bitcoin}
+          avatarSrc="/brand/bot-koins-fullbody.png"
+          accent="violet"
+        />
+        <OverviewHubCard
+          href="/dashboard/metals"
+          title="Metals Portfolio Overview"
+          subtitle="Gold & silver at spot · Smitty"
+          value={formatMoney(metalsValueNZD + metalStockTotalNZD, "NZD")}
+          meta="Bullion & metal positions · open for holdings, reports & intel"
+          icon={Coins}
+          avatarSrc="/brand/bot-smitty-fullbody.png"
+          accent="amber"
+        />
+      </div>
+
+
+      {/* ───────────────────────── 3 · Stock portfolio overview ───────────────────────── */}
+      <div className={cn("mt-10", !(isStocksHub) && "hidden")}>
+      <Gate
+        title="Stock Portfolio Overview"
+        description="Your live KPIs — total worth, unrealised P&L, 7-day alpha, portfolio health, Sharpe & win rate."
+      >
+        <DashboardSectionTitle
+          title="Stock Portfolio Overview"
+          avatarSrc="/brand/bot-stox-fullbody.png"
+          avatarAlt="Stox AI bot"
+          avatarPose="lean"
+        />
+
+      {/* KPI cards — stocks */}
+      <div className="mt-2 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          label="Total worth · NZD"
+          value={formatMoney(stockOverviewSummary.totalValue, "NZD")}
+          sub={`Cost basis ${formatMoney(stockOverviewSummary.totalCost, "NZD")}`}
+          icon={Wallet}
+        />
+        <StatCard
+          label="Unrealized P&L"
+          value={formatMoney(stockOverviewSummary.totalGain, "NZD")}
+          sub={formatPercent(stockOverviewSummary.totalGainPct)}
+          icon={stockOverviewSummary.totalGain >= 0 ? TrendingUp : TrendingDown}
+          tone={stockOverviewSummary.totalGain >= 0 ? "up" : "down"}
+        />
+        <StatCard
+          label="7-Day alpha potential"
+          value={`${stockOverviewMetrics.alphaPotentialPct >= 0 ? "+" : ""}${stockOverviewMetrics.alphaPotentialPct.toFixed(2)}%`}
+          sub={
+            stockOverviewSummary.holdingsCount
+              ? `${formatMoney(stockOverviewMetrics.alphaPotentialValue, "NZD")} projected move`
+              : "Add holdings to project"
+          }
+          icon={Zap}
+          tone={stockOverviewMetrics.alphaPotentialPct >= 0 ? "up" : "down"}
+        />
+        <StatCard
+          label="Portfolio health"
+          value={stockOverviewSummary.holdingsCount ? `${stockOverviewMetrics.healthScore}/100` : "—"}
+          sub={stockOverviewSummary.holdingsCount ? stockOverviewMetrics.healthLabel : "No holdings yet"}
+          icon={HeartPulse}
+          tone={
+            !stockOverviewSummary.holdingsCount
+              ? "neutral"
+              : stockOverviewMetrics.healthScore >= 55
+                ? "up"
+                : stockOverviewMetrics.healthScore >= 38
+                  ? "neutral"
+                  : "down"
+          }
+        />
+      </div>
+
+      {stockOverviewSummary.holdingsCount > 0 && (
+        <div className="mt-4 grid grid-cols-2 gap-4 rounded-2xl border border-border/70 bg-card/40 p-4 sm:grid-cols-4">
+          <MiniMetric icon={Activity} label="Ann. volatility" value={`${stockOverviewMetrics.volatility.toFixed(1)}%`} />
+          <MiniMetric icon={Gauge} label="Sharpe ratio" value={stockOverviewMetrics.sharpe.toFixed(2)} />
+          <MiniMetric icon={PieChart} label="Diversification" value={`${stockOverviewMetrics.diversification}%`} />
+          <MiniMetric icon={Trophy} label="Win rate" value={`${stockOverviewMetrics.winRate}%`} />
+        </div>
+      )}
+
+      <HoldingsOwnedTable
+        title="Stocks you own"
+        emptyLabel="No stocks in this portfolio yet"
+        emptyHint="Buy shares in the Transaction Centre below — they'll show here under Stock Portfolio Overview."
+        holdings={stockOverviewSummary.holdings}
+        baseCurrency="NZD"
+        loading={loading}
+        onAdd={openAdd}
+        onEdit={openEdit}
+        onDelete={setDeleteTarget}
+        onOpenChart={setChartTarget}
+      />
+      </Gate>
+      </div>
+
+      {/* ───────────────────────── 3b · Crypto currency overview ───────────────────────── */}
+      <div className={cn("mt-10", !(isCryptoHub) && "hidden")}>
+      <Gate
+        title="Crypto Currency Overview"
+        description="Live crypto KPIs and market terminal — total worth, unrealised P&L, health and projected movers."
+      >
+        <DashboardSectionTitle
+          title="Crypto Currency Overview"
+          avatarSrc="/brand/bot-koins-fullbody.png"
+          avatarAlt="Koins AI bot"
+          avatarPose="flip"
+        />
+
+      <div className="mt-2 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          label="Total worth · USD"
+          value={formatMoney(cryptoOverviewSummary.totalValue, "USD")}
+          sub={`Cost basis ${formatMoney(cryptoOverviewSummary.totalCost, "USD")}`}
+          icon={Wallet}
+        />
+        <StatCard
+          label="Unrealized P&L"
+          value={formatMoney(cryptoOverviewSummary.totalGain, "USD")}
+          sub={formatPercent(cryptoOverviewSummary.totalGainPct)}
+          icon={cryptoOverviewSummary.totalGain >= 0 ? TrendingUp : TrendingDown}
+          tone={cryptoOverviewSummary.totalGain >= 0 ? "up" : "down"}
+        />
+        <StatCard
+          label="7-Day alpha potential"
+          value={`${cryptoOverviewMetrics.alphaPotentialPct >= 0 ? "+" : ""}${cryptoOverviewMetrics.alphaPotentialPct.toFixed(2)}%`}
+          sub={
+            cryptoOverviewSummary.holdingsCount
+              ? `${formatMoney(cryptoOverviewMetrics.alphaPotentialValue, "USD")} projected move`
+              : "Add coins to project"
+          }
+          icon={Zap}
+          tone={cryptoOverviewMetrics.alphaPotentialPct >= 0 ? "up" : "down"}
+        />
+        <StatCard
+          label="Portfolio health"
+          value={cryptoOverviewSummary.holdingsCount ? `${cryptoOverviewMetrics.healthScore}/100` : "—"}
+          sub={cryptoOverviewSummary.holdingsCount ? cryptoOverviewMetrics.healthLabel : "No holdings yet"}
+          icon={HeartPulse}
+          tone={
+            !cryptoOverviewSummary.holdingsCount
+              ? "neutral"
+              : cryptoOverviewMetrics.healthScore >= 55
+                ? "up"
+                : cryptoOverviewMetrics.healthScore >= 38
+                  ? "neutral"
+                  : "down"
+          }
+        />
+      </div>
+
+      {cryptoOverviewSummary.holdingsCount > 0 && (
+        <div className="mt-4 grid grid-cols-2 gap-4 rounded-2xl border border-border/70 bg-card/40 p-4 sm:grid-cols-4">
+          <MiniMetric icon={Activity} label="Ann. volatility" value={`${cryptoOverviewMetrics.volatility.toFixed(1)}%`} />
+          <MiniMetric icon={Gauge} label="Sharpe ratio" value={cryptoOverviewMetrics.sharpe.toFixed(2)} />
+          <MiniMetric icon={PieChart} label="Diversification" value={`${cryptoOverviewMetrics.diversification}%`} />
+          <MiniMetric icon={Trophy} label="Win rate" value={`${cryptoOverviewMetrics.winRate}%`} />
+        </div>
+      )}
+
+      <HoldingsOwnedTable
+        title="Crypto you own"
+        emptyLabel="No crypto in this portfolio yet"
+        emptyHint="Buy coins in the Transaction Centre — they'll show here so you can see where the money is."
+        holdings={cryptoOverviewSummary.holdings}
+        baseCurrency="USD"
+        loading={loading}
+        onAdd={openAdd}
+        onEdit={openEdit}
+        onDelete={setDeleteTarget}
+        onOpenChart={setChartTarget}
+      />
+
+      <div className="mt-6">
+        <CryptoMarketSection />
+      </div>
+      </Gate>
+      </div>
+
+      {/* ───────────────────────── 3c · Precious metals (moved up for page flow) ───────────────────────── */}
+      <div className={cn("mt-10", !(isMetalsHub) && "hidden")}>
+        <PreciousMetals entitled={metalsEntitled} plan={subscription.plan} onChanged={handleMetalsChanged} />
+      </div>
+
       {/* ───────────────────────── 5 · Holdings table (gated for guests) ───────────────────────── */}
-      <div className="mt-8">
+      <div className={cn("mt-8", !(false) && "hidden")}>
       <Gate
         title="Your Holdings"
         description="Track every position live — shares, cost, current price, market value and gain/loss."
@@ -1239,7 +1301,7 @@ export function PortfolioDashboard({
       </div>
 
       {/* ───────────────────────── 6 · Transaction centre (buy / sell / cash) — gated for guests ───────────────────────── */}
-      <div className="mt-8">
+      <div className={cn("mt-8", !(isHome) && "hidden")}>
       <Gate
         title="Transaction Centre"
         description="Buy, sell, deposit and withdraw — a full ledger of your cash and trades across every asset."
@@ -1255,7 +1317,7 @@ export function PortfolioDashboard({
 
 
       {/* ───────────────────────── 6 · Actionable intelligence — SELL/BUY signals + pathways (modular window) ───────────────────────── */}
-      <div className="mt-6">
+      <div className={cn("mt-6", !(!isHome) && "hidden")}>
         <CollapsibleSection
           title="Actionable Intelligence"
           subtitle="Live SELL / BUY signals and the pathways behind them"
@@ -1268,7 +1330,7 @@ export function PortfolioDashboard({
 
 
       {/* ───────────────────────── 7 · Market Insights — one modular window: cross-exchange browser, snapshot, movers & projected performers ───────────────────────── */}
-      <div className="mt-6">
+      <div className={cn("mt-6", !(!isHome) && "hidden")}>
         <CollapsibleSection
           title="Market Insights"
           subtitle="Cross-exchange browser, open-market snapshot, top movers & projected performers"
@@ -1288,7 +1350,7 @@ export function PortfolioDashboard({
       </div>
 
       {/* ───────────────────────── 10 · Watchlist & share-price alerts (gated for guests) ───────────────────────── */}
-      <div className="mt-6">
+      <div className={cn("mt-6", !(!isHome) && "hidden")}>
       <Gate
         title="Alerts"
         description="Set live share-price alerts and a watchlist so you never miss a move on the tickers you follow."
@@ -1303,12 +1365,12 @@ export function PortfolioDashboard({
       </div>
 
       {/* AI report companion */}
-      <div className="mt-6">
+      <div className={cn("mt-6", !(!isHome) && "hidden")}>
         <AnalysisPanel holdingsCount={summary.holdingsCount} />
       </div>
 
       {/* ───────────────────────── 11 · Report Center (The Headmaster + Stox + Koins) — gated for guests ───────────────────────── */}
-      <div className="mt-8">
+      <div className={cn("mt-8", !(!isHome) && "hidden")}>
       <Gate
         title="Report Centre"
         description="Generate full PDF portfolio reports with market intelligence, indicators and AI insight — emailed to you."
