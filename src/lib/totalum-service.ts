@@ -2,8 +2,9 @@ import "server-only";
 
 /**
  * Server-side glue for The Headmaster: loads a member's full cross-asset book
- * (equities + crypto from `stock`, physical metals from `precious_metal`),
- * resolves live metals spot + FX, and runs the pure `totalum-engine` synthesis.
+ * (equities + crypto from `stock`, physical metals from `precious_metal`, plus
+ * ledger `cash_balance`), resolves live metals spot + FX, and runs the pure
+ * `totalum-engine` synthesis. Cash-only books are valid (not empty).
  *
  * Kept separate from the route so both the synthesis endpoint and the Chief
  * Strategist chat endpoint share exactly the same portfolio picture.
@@ -21,18 +22,27 @@ import {
 } from "@/lib/totalum-engine";
 
 export async function loadTotalumSynthesis(userId: string): Promise<TotalumSynthesis> {
-  const [stocksRes, metalsRes, spot, fx] = await Promise.all([
+  const [stocksRes, metalsRes, userRes, spot, fx] = await Promise.all([
     totalumSdk.crud.query("stock", { _filter: { user: userId }, _limit: 500 }),
     totalumSdk.crud.query("precious_metal", { _filter: { user: userId }, _limit: 200 }),
+    totalumSdk.crud.getRecordById("user", userId).catch((err: unknown) => {
+      console.error("[totalum] Failed to load user cash_balance (non-fatal):", err);
+      return null;
+    }),
     getMetalsSpot(),
     getFxSnapshot(),
   ]);
 
   const stocks = ((stocksRes?.data as any[]) || []) as Stock[];
   const metals = ((metalsRes?.data as any[]) || []) as MetalHolding[];
+  const userRec = (userRes as any)?.data ?? userRes;
+  const cashBalanceNZD =
+    typeof userRec?.cash_balance === "number" && isFinite(userRec.cash_balance)
+      ? Math.max(0, userRec.cash_balance)
+      : 0;
 
   console.log(
-    `[totalum] Synthesising user ${userId}: ${stocks.length} securities, ${metals.length} metal holdings (spot live=${spot.live}, fx live=${fx.live})`
+    `[totalum] Synthesising user ${userId}: ${stocks.length} securities, ${metals.length} metal holdings, cash NZ$${Math.round(cashBalanceNZD)} (spot live=${spot.live}, fx live=${fx.live})`
   );
 
   return buildSynthesis({
@@ -40,6 +50,7 @@ export async function loadTotalumSynthesis(userId: string): Promise<TotalumSynth
     metals,
     spot,
     fxToNZD: fx.ratesToNZD,
+    cashBalanceNZD,
   });
 }
 
@@ -74,7 +85,7 @@ function summariseReport(bot: BotKind, report: ApexReport, generatedAt: string):
 
   const leaders = (report.projectionLeaders || [])
     .slice(0, 8)
-    .map((p) => `${p.ticker} ${p.projected7dPct >= 0 ? "+" : ""}${p.projected7dPct}% (${p.signal})`)
+    .map((p) => `${p.ticker} ${p.projected7dPct >= 0 ? "+" : ""}${p.projected7dPct}% (${p.signal}) @ ${p.confidence}% conf`)
     .join(", ") || "none";
 
   const recBuys = (report.directRecommendations || []).filter(
@@ -89,8 +100,11 @@ function summariseReport(bot: BotKind, report: ApexReport, generatedAt: string):
   }));
   const buyLine =
     recBuys
-      .map((r) => `${r.ticker} (${r.projected7dPct >= 0 ? "+" : ""}${r.projected7dPct}% 7d)`)
-      .join(", ") || "none flagged";
+      .map(
+        (r) =>
+          `${r.action} ${r.ticker} (${r.name}) ${r.projected7dPct >= 0 ? "+" : ""}${r.projected7dPct}% 7d — ${stripMd(r.detail).slice(0, 120)}`
+      )
+      .join("; ") || "none flagged";
 
   const exec = stripMd(report.executiveSummary || "").slice(0, 420);
 
@@ -98,7 +112,7 @@ function summariseReport(bot: BotKind, report: ApexReport, generatedAt: string):
     `${label} FULL REPORT — latest, generated ${generatedAt}:`,
     exec ? `- Executive read: ${exec}` : "",
     `- Top 7-day projected leaders: ${leaders}`,
-    `- Specific BUY recommendations: ${buyLine}`,
+    `- Specific ticker-level BUY/ACCUMULATE list (use these when cash is available to deploy): ${buyLine}`,
   ]
     .filter(Boolean)
     .join("\n");
@@ -139,8 +153,8 @@ export async function loadReportFindings(userId: string): Promise<ReportFindings
   if (koins) sections.push(koins.text);
 
   const contextBlock = sections.length
-    ? `LATEST FULL-REPORT FINDINGS (ingested from the member's own Stox & Koins reports):\n\n${sections.join("\n\n")}`
-    : "No Stox or Koins full reports have been generated yet — encourage the member to run both so The Headmaster can factor their projections and specific buys into the plan.";
+    ? `LATEST FULL-REPORT FINDINGS (ingested from the member's own Stox & Koins reports — prefer these named tickers when deploying cash):\n\n${sections.join("\n\n")}`
+    : "No Stox or Koins full reports have been generated yet — encourage the member to run both (even with cash-only / empty holdings) so The Headmaster can factor their ticker-level BUY lists into the plan.";
 
   console.log(
     `[totalum] Report findings ingested for user ${userId}: Stox=${!!stox}, Koins=${!!koins}, ${buys.length} specific buys`

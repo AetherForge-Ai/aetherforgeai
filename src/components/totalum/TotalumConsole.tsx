@@ -73,9 +73,11 @@ function gainClass(v: number): string {
 }
 
 const GOALS: { key: GoalKey; name: string; risk: string }[] = [
-  { key: "aggressive_growth", name: "Aggressive Growth", risk: "High Risk" },
+  { key: "conservative_growth", name: "Conservative Growth", risk: "Low-Moderate" },
   { key: "balanced_growth", name: "Balanced Growth", risk: "Balanced" },
   { key: "income_growth", name: "Income + Growth", risk: "Moderate" },
+  { key: "aggressive_growth", name: "Aggressive Growth", risk: "High Risk" },
+  { key: "high_risk_high_reward", name: "High Risk High Reward", risk: "Very High Risk" },
   { key: "capital_preservation", name: "Capital Preservation", risk: "Low Risk" },
   { key: "preservation_crypto", name: "Preservation + Crypto", risk: "Low-Moderate" },
 ];
@@ -521,7 +523,8 @@ function StrategyTab({ initialSynthesis }: { initialSynthesis: TotalumSynthesis 
 
       {initialSynthesis.isEmpty && (
         <p className="text-sm text-muted-foreground">
-          Add holdings in Stox, Koins and the Precious Metals tracker to unlock a personalised rebalancing plan.
+          Deposit cash in the Transaction Center and/or add equities, crypto or metals — cash alone is enough to unlock a
+          personalised rebalancing and deployment plan.
         </p>
       )}
     </div>
@@ -754,8 +757,8 @@ export function TotalumConsole({ entitled, memberName }: { entitled: boolean; me
           <Layers className="mx-auto size-8 text-muted-foreground" />
           <h3 className="mt-3 text-lg font-semibold">Your unified book is empty</h3>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-            Add equities in Stox, coins in Koins, and gold/silver in the Precious Metals tracker. The Headmaster will then
-            synthesise your full cross-asset strategy here.
+            Deposit cash in the Transaction Center, or add equities in Stox, coins in Koins, and gold/silver in Precious
+            Metals. Cash alone is enough — The Headmaster will then synthesise a deployment plan into named tickers.
           </p>
           <Button asChild className="mt-4">
             <Link href="/dashboard">Go to your dashboard</Link>

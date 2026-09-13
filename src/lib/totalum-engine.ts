@@ -54,6 +54,12 @@ export interface SynthesisInput {
   spot: MetalsSpotLite;
   /** Live FX (1 unit → NZD); defaults to the baseline table. */
   fxToNZD?: FxRatesToNZD;
+  /**
+   * Member cash balance in NZD (from the Transaction Ledger). When present and
+   * > 0 it is included as a Cash sleeve so cash-only / cash-heavy books are
+   * synthesised and Strategy Builder works without requiring holdings.
+   */
+  cashBalanceNZD?: number;
 }
 
 /* ------------------------------------------------------------------ *
@@ -130,7 +136,9 @@ export type GoalKey =
   | "balanced_growth"
   | "income_growth"
   | "capital_preservation"
-  | "preservation_crypto";
+  | "preservation_crypto"
+  | "conservative_growth"
+  | "high_risk_high_reward";
 
 export interface ModelPortfolio {
   key: GoalKey;
@@ -192,6 +200,12 @@ export interface TotalumSynthesis {
   metalsLive: boolean;
   asOf: string;
   spot: { goldNzdPerOz: number; silverNzdPerOz: number };
+  /** Ledger cash in NZD (0 when none). Included in totalValueNZD when > 0. */
+  cashBalanceNZD: number;
+  /**
+   * True only when the book has no securities, no metals AND no cash.
+   * Cash-only members are NOT empty — Strategy Builder and Strategist work.
+   */
   isEmpty: boolean;
 }
 
@@ -243,6 +257,20 @@ export const MODEL_PORTFOLIOS: ModelPortfolio[] = [
     description: "Capital-preservation backbone with a deliberate asymmetric crypto sleeve.",
     riskLabel: "Low-Moderate",
     targets: { equities: 40, crypto: 10, metals: 35, cash: 15 },
+  },
+  {
+    key: "conservative_growth",
+    name: "Conservative Growth",
+    description: "Steady compounding with a large cash buffer — suited to cash-heavy books deploying gradually.",
+    riskLabel: "Low-Moderate",
+    targets: { equities: 45, crypto: 5, metals: 20, cash: 30 },
+  },
+  {
+    key: "high_risk_high_reward",
+    name: "High Risk High Reward",
+    description: "Maximum asymmetric upside — concentrate into equities & crypto, minimal cash buffer.",
+    riskLabel: "Very High Risk",
+    targets: { equities: 40, crypto: 50, metals: 5, cash: 5 },
   },
 ];
 
@@ -322,6 +350,23 @@ export function buildSynthesis(input: SynthesisInput): TotalumSynthesis {
     });
   });
 
+  // Ledger cash (NZD) — dry powder. Cash-only books are synthesised so Strategy
+  // Builder / Strategist work without requiring holdings first.
+  const cashBalanceNZD = round(Math.max(0, Number(input.cashBalanceNZD) || 0));
+  if (cashBalanceNZD > 0) {
+    positions.push({
+      key: "cash_nzd",
+      label: "Cash (NZD)",
+      sublabel: "Transaction ledger",
+      assetClass: "cash",
+      valueNZD: cashBalanceNZD,
+      costNZD: cashBalanceNZD,
+      gainNZD: 0,
+      gainPct: 0,
+      weight: 0,
+    });
+  }
+
   const totalValueNZD = round(positions.reduce((s, p) => s + p.valueNZD, 0));
   const totalCostNZD = round(positions.reduce((s, p) => s + p.costNZD, 0));
   const totalGainNZD = round(totalValueNZD - totalCostNZD);
@@ -332,8 +377,8 @@ export function buildSynthesis(input: SynthesisInput): TotalumSynthesis {
   });
   positions.sort((a, b) => b.valueNZD - a.valueNZD);
 
-  // Asset-class allocation.
-  const classKeys: AssetClassKey[] = ["equities", "crypto", "metals"];
+  // Asset-class allocation (includes cash when present).
+  const classKeys: AssetClassKey[] = ["equities", "crypto", "metals", "cash"];
   const classAllocation: ClassAllocation[] = classKeys
     .map((key) => {
       const inClass = positions.filter((p) => p.assetClass === key);
@@ -349,7 +394,7 @@ export function buildSynthesis(input: SynthesisInput): TotalumSynthesis {
         positions: inClass.length,
       };
     })
-    .filter((c) => c.positions > 0);
+    .filter((c) => c.valueNZD > 0);
 
   // Herfindahl concentration index over individual positions (0-10000).
   const hhi = round(
@@ -362,7 +407,7 @@ export function buildSynthesis(input: SynthesisInput): TotalumSynthesis {
   // Diversification score: reward multiple classes + low HHI.
   const classCount = classAllocation.length;
   const hhiScore = clamp(100 - (hhi - 1000) / 60, 0, 100);
-  const classScore = clamp((classCount / 3) * 100, 0, 100);
+  const classScore = clamp((classCount / 4) * 100, 0, 100);
   const diversificationScore = round(clamp(0.65 * hhiScore + 0.35 * classScore, 0, 100), 0);
 
   // Concentration risks — single names >25% and asset classes >70%.
@@ -378,6 +423,16 @@ export function buildSynthesis(input: SynthesisInput): TotalumSynthesis {
     }
   });
   classAllocation.forEach((c) => {
+    // Cash overweight is dry powder to deploy — surface as medium guidance, not a shock risk.
+    if (c.assetClass === "cash" && c.weight >= 70) {
+      concentrationRisks.push({
+        label: `${c.label} class`,
+        weight: c.weight,
+        note: `${c.weight.toFixed(1)}% of the portfolio is cash — deploy into named Stox/Koins BUY tickers per your goal, keeping a deliberate buffer.`,
+        severity: "medium",
+      });
+      return;
+    }
     if (c.weight >= 70) {
       concentrationRisks.push({
         label: `${c.label} class`,
@@ -432,7 +487,9 @@ export function buildSynthesis(input: SynthesisInput): TotalumSynthesis {
     metalsLive: spot.live,
     asOf: spot.asOf,
     spot: { goldNzdPerOz: round(spot.gold.nzdPerOz), silverNzdPerOz: round(spot.silver.nzdPerOz) },
-    isEmpty: positions.length === 0,
+    cashBalanceNZD,
+    // Empty only when there is nothing to plan with — cash alone is enough.
+    isEmpty: totalValueNZD <= 0,
   };
 }
 
@@ -563,7 +620,7 @@ export function buildStrategy(synthesis: TotalumSynthesis, goal: GoalKey): Strat
   const model = modelByKey(goal) ?? MODEL_PORTFOLIOS[1];
   const total = synthesis.totalValueNZD;
 
-  // Current weights by class (cash currently 0 — members hold no tracked cash).
+  // Current weights by class (cash included when the ledger has a balance).
   const current: Record<AssetClassKey, number> = { equities: 0, crypto: 0, metals: 0, cash: 0 };
   synthesis.classAllocation.forEach((c) => {
     current[c.assetClass] = c.weight;
@@ -645,6 +702,10 @@ function riskParamsForGoal(goal: GoalKey): StrategyBlueprint["riskParameters"] {
       return { maxPositionWeight: 12, stopLossPct: 6, cashBufferPct: 25, rebalanceCadence: "Semi-annual" };
     case "preservation_crypto":
       return { maxPositionWeight: 15, stopLossPct: 8, cashBufferPct: 15, rebalanceCadence: "Quarterly" };
+    case "conservative_growth":
+      return { maxPositionWeight: 12, stopLossPct: 7, cashBufferPct: 30, rebalanceCadence: "Quarterly" };
+    case "high_risk_high_reward":
+      return { maxPositionWeight: 30, stopLossPct: 15, cashBufferPct: 5, rebalanceCadence: "Monthly" };
   }
 }
 
@@ -698,6 +759,30 @@ function rulesForGoal(
         ],
         exitRules: [
           "Take profits on crypto into strength to keep the sleeve within its target weight.",
+          ...common.exit,
+        ],
+      };
+    case "conservative_growth":
+      return {
+        entryRules: [
+          "Deploy cash gradually into quality equities and a metals ballast — never all-in at once.",
+          "Prefer named BUY/ACCUMULATE tickers from Stox & Koins with measured conviction.",
+          ...common.entry,
+        ],
+        exitRules: [
+          "Protect the cash buffer first; trim risk assets when they exceed target weights.",
+          ...common.exit,
+        ],
+      };
+    case "high_risk_high_reward":
+      return {
+        entryRules: [
+          "Concentrate into the highest-conviction named tickers from Stox & Koins sweeps.",
+          "Accept elevated volatility — size positions so a severe drawdown is survivable.",
+          ...common.entry,
+        ],
+        exitRules: [
+          "Use tight trailing stops; rotate quickly out of broken momentum names.",
           ...common.exit,
         ],
       };

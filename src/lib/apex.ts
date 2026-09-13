@@ -448,7 +448,8 @@ interface AnalyzableHolding {
 function buildDirectRecommendations(
   holdings: AnalyzableHolding[],
   bot: BotKind,
-  universeIntel?: SecurityIntel[]
+  universeIntel?: SecurityIntel[],
+  opts?: { cashBalanceNZD?: number; cashHeavy?: boolean }
 ): DirectRecommendation[] {
   const held = new Set(holdings.map((h) => h.ticker.toUpperCase()));
 
@@ -506,8 +507,11 @@ function buildDirectRecommendations(
   // full-market intel set is supplied (e.g. the complete live crypto market),
   // buy candidates are screened across the ENTIRE market rather than the small
   // deterministic core — so Koins names specific coins to BUY from the whole
-  // cryptocurrency market, at parity with Stox. We surface up to 6 named buys so
-  // every report gives concrete, specific BUY instructions (never vague advice).
+  // cryptocurrency market, at parity with Stox. We surface up to 8 named buys so
+  // every report — especially cash-only / cash-heavy books — gives concrete,
+  // specific BUY/ACCUMULATE instructions (never vague class-only advice).
+  const cashHeavy = !!opts?.cashHeavy || holdings.length === 0;
+  const buyLimit = cashHeavy ? 8 : 6;
   const candidatePool: SecurityIntel[] =
     universeIntel && universeIntel.length
       ? universeIntel.filter((i) => !held.has(i.ticker.toUpperCase()))
@@ -518,18 +522,28 @@ function buildDirectRecommendations(
   const buyCandidates: DirectRecommendation[] = candidatePool
     .filter((i) => i.signal === "Strong Buy" || i.signal === "Buy")
     .sort((a, b) => b.score * (b.confidence / 100) - a.score * (a.confidence / 100))
-    .slice(0, 6)
-    .map((i) => ({
-      action: (i.signal === "Strong Buy" ? "ACCUMULATE" : "BUY") as "ACCUMULATE" | "BUY",
-      ticker: i.ticker,
-      name: i.name,
-      currency: i.currency as CurrencyCode,
-      price: i.price,
-      projected7dPct: i.projected7dPct,
-      held: false,
-      urgency: "low" as const,
-      detail: `Open a position in ${i.ticker} (${i.name}) — screens ${i.signal} with a ${i.projected7dPct > 0 ? "+" : ""}${i.projected7dPct}% 7-day projection at ${i.confidence}% confidence.`,
-    }));
+    .slice(0, buyLimit)
+    .map((i) => {
+      const action = (i.signal === "Strong Buy" ? "ACCUMULATE" : "BUY") as "ACCUMULATE" | "BUY";
+      const cashAvail = Math.max(0, opts?.cashBalanceNZD || 0);
+      const deploy =
+        cashHeavy && cashAvail > 0
+          ? ` Deploy dry powder (cash NZ$${Math.round(cashAvail)} available) with a measured starter size.`
+          : cashHeavy
+            ? " Prioritise this name for first capital when cash is deposited."
+            : "";
+      return {
+        action,
+        ticker: i.ticker,
+        name: i.name,
+        currency: i.currency as CurrencyCode,
+        price: i.price,
+        projected7dPct: i.projected7dPct,
+        held: false,
+        urgency: (cashHeavy ? "medium" : "low") as "medium" | "low",
+        detail: `${action === "ACCUMULATE" ? "Accumulate" : "Buy"} **${i.ticker}** (${i.name}, ${i.market}) — screens **${i.signal}** with a ${i.projected7dPct > 0 ? "+" : ""}${i.projected7dPct}% 7-day projection at **${i.confidence}%** conviction.${deploy}`,
+      };
+    });
 
   const urgencyRank = { high: 0, medium: 1, low: 2 } as const;
   return [...fromHoldings, ...buyCandidates].sort(
@@ -576,7 +590,13 @@ function buildPathwayPlan(
   // manageable risk → balanced; otherwise balanced as the sensible default.
   let recommendedName: string;
   let recommendationNote: string;
-  if (sells.length > strongs.length && sells.length > 0) {
+  if (holdings.length === 0 && buys.length > 0) {
+    recommendedName = "Balanced Growth";
+    recommendationNote = `Cash-ready / empty holdings — deploy into named BUY/ACCUMULATE tickers (${buys
+      .slice(0, 3)
+      .map((b) => b.ticker)
+      .join(", ")}) with a measured starter size. Keep a cash buffer and scale in on strength.`;
+  } else if (sells.length > strongs.length && sells.length > 0) {
     recommendedName = "Capital Preservation";
     recommendationNote = `${sells.length} holding${sells.length > 1 ? "s" : ""} flag downside risk this week — the recommended route is to de-risk first, lock in gains and rotate into quality before adding exposure.`;
   } else if (strongs.length >= 1 || alpha > 0) {
@@ -669,22 +689,49 @@ function assembleReport(
   const marketLabel = bot === "crypto" ? "BTC · ETH · Global digital assets" : "NZX · ASX · Global equities";
 
   const sweepLabel = bot === "crypto" ? "the complete digital-asset market" : "the complete NZX, ASX and US exchanges";
+  const buyNames = extras.directRecommendations
+    .filter((r) => !r.held && (r.action === "BUY" || r.action === "ACCUMULATE"))
+    .slice(0, 4)
+    .map((r) => r.ticker);
   const executiveSummary =
-    `**Ultra Advanced ZENITH State engaged.** SuperGrok 4.3 has orchestrated a full multi-timeframe sweep across ${sweepLabel}, ranking Top-10 movers over 24 hours, 7 days and the last month, projecting the next 7 days for the highest-conviction names and cross-referencing regional news. ` +
-    `Your ${tickers.length} monitored ${bot === "crypto" ? "coins" : "tickers"} were analysed against that backdrop — aggregate 7-day bias is **${strong.length >= weak.length ? "constructive" : "defensive"}** (${strong.length} accumulate-or-better, ${weak.length} elevated risk). ` +
-    `Below: portfolio standings, direct buy/sell recommendations and three forward pathways with a recommended route to maximise portfolio wealth. ` +
-    `_Informational market intelligence only — not personalised financial advice._`;
+    tickers.length === 0
+      ? `**Ultra Advanced ZENITH State engaged.** SuperGrok 4.3 swept ${sweepLabel} for Top-10 movers and 7-day projection leaders. ` +
+        `Your book has **no monitored ${bot === "crypto" ? "coins" : "tickers"} yet** — this report leads with a concrete **BUY/ACCUMULATE** list` +
+        (buyNames.length ? ` led by **${buyNames.join(", ")}**` : "") +
+        ` so cash can be deployed with conviction and specific markets named. ` +
+        `_Informational market intelligence only — not personalised financial advice._`
+      : `**Ultra Advanced ZENITH State engaged.** SuperGrok 4.3 has orchestrated a full multi-timeframe sweep across ${sweepLabel}, ranking Top-10 movers over 24 hours, 7 days and the last month, projecting the next 7 days for the highest-conviction names and cross-referencing regional news. ` +
+        `Your ${tickers.length} monitored ${bot === "crypto" ? "coins" : "tickers"} were analysed against that backdrop — aggregate 7-day bias is **${strong.length >= weak.length ? "constructive" : "defensive"}** (${strong.length} accumulate-or-better, ${weak.length} elevated risk). ` +
+        (buyNames.length
+          ? `Priority new buys this week: **${buyNames.join(", ")}**. `
+          : "") +
+        `Below: portfolio standings, direct buy/sell recommendations and three forward pathways with a recommended route to maximise portfolio wealth. ` +
+        `_Informational market intelligence only — not personalised financial advice._`;
 
-  const keyObservations = [
-    `${strong.length} of ${tickers.length} ${bot === "crypto" ? "assets" : "holdings"} carry a positive momentum signal into the week.`,
-    topGainers[0]
-      ? `${topGainers[0].ticker} leads the session (+${topGainers[0].changePct}%) and tops the gainer board.`
-      : `No standout session gainers — the tape is consolidating.`,
-    bot === "crypto"
-      ? "Cross-asset correlation remains elevated; BTC dominance is the primary risk driver."
-      : "Sector rotation favours defensives; watch NZX yield names into the print.",
-    "Volatile-pathway probabilities are contained, keeping tail risk secondary to the base case.",
-  ];
+  const keyObservations =
+    tickers.length === 0
+      ? [
+          `Empty holdings — leading with ${buyNames.length} named BUY/ACCUMULATE candidates from the full-market sweep.`,
+          buyNames[0]
+            ? `Top deploy candidate: **${buyNames[0]}** — see Direct Recommendations for conviction and projected 7-day move.`
+            : "Run again once live market data is available to refresh the BUY board.",
+          bot === "crypto"
+            ? "Koins screened the complete crypto market — use the BUY list to put cash to work in specific coins."
+            : "Stox screened NZX / ASX / US equities — use the BUY list to put cash to work in specific tickers.",
+          "Keep a cash buffer; scale into positions in 2–3 tranches rather than a single fill.",
+        ]
+      : [
+          `${strong.length} of ${tickers.length} ${bot === "crypto" ? "assets" : "holdings"} carry a positive momentum signal into the week.`,
+          topGainers[0]
+            ? `${topGainers[0].ticker} leads the session (+${topGainers[0].changePct}%) and tops the gainer board.`
+            : `No standout session gainers — the tape is consolidating.`,
+          buyNames.length
+            ? `Fresh capital candidates: ${buyNames.join(", ")}.`
+            : bot === "crypto"
+              ? "Cross-asset correlation remains elevated; BTC dominance is the primary risk driver."
+              : "Sector rotation favours defensives; watch NZX yield names into the print.",
+          "Volatile-pathway probabilities are contained, keeping tail risk secondary to the base case.",
+        ];
 
   const newsSynthesis =
     bot === "crypto"
@@ -834,6 +881,8 @@ export interface BuildLiveReportOptions {
    * cryptocurrency market and never mixes in NZX / ASX / NASDAQ / DOW data.
    */
   universeIntel?: SecurityIntel[];
+  /** Member ledger cash (NZD) — when present, BUY lists emphasise deploying dry powder. */
+  cashBalanceNZD?: number;
 }
 
 /** Live subscriber report built from the user's real monitored holdings. */
@@ -842,16 +891,29 @@ export function buildLiveReport(
   holdings: LiveHolding[],
   options: BuildLiveReportOptions = {}
 ): ApexReport {
-  const { seedSalt = "live", fxToNZD = BASELINE_FX_TO_NZD, marketOverrides, universeIntel } = options;
+  const {
+    seedSalt = "live",
+    fxToNZD = BASELINE_FX_TO_NZD,
+    marketOverrides,
+    universeIntel,
+    cashBalanceNZD = 0,
+  } = options;
 
   const tickers = holdings
     .filter((h) => h.ticker)
     .map((h) => synthesizeTicker(h.ticker, h.name || h.ticker, Math.max(0.01, h.price || 1), bot, seedSalt));
 
   const analyzable = toAnalyzable(bot, holdings);
-  const directRecommendations = buildDirectRecommendations(analyzable, bot, universeIntel);
-  const pathwayPlan = buildPathwayPlan(analyzable, directRecommendations, bot);
   const portfolio = computePortfolio(bot, analyzable, fxToNZD);
+  const bookValue = (portfolio?.value || 0) + Math.max(0, cashBalanceNZD);
+  const cashHeavy =
+    analyzable.length === 0 ||
+    (cashBalanceNZD > 0 && bookValue > 0 && cashBalanceNZD / bookValue >= 0.4);
+  const directRecommendations = buildDirectRecommendations(analyzable, bot, universeIntel, {
+    cashBalanceNZD,
+    cashHeavy,
+  });
+  const pathwayPlan = buildPathwayPlan(analyzable, directRecommendations, bot);
 
   return assembleReport(
     bot,

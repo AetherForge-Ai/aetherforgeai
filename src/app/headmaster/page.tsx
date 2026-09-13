@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import {
   getCurrentUser,
   isStripeConfigured,
-  hasActiveSubscription,
   hasPaidSubscription,
 } from "@/lib/session";
 import { AppShell } from "@/components/AppShell";
@@ -18,12 +17,9 @@ export default async function HeadmasterPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login?redirect=/headmaster");
 
-  // Any active member can reach the page; the console itself renders a polished
-  // Pro upsell for non-paying members (in demo mode — no Stripe key — it's open).
-  if (isStripeConfigured() && !hasActiveSubscription(user)) {
-    redirect("/pricing");
-  }
-
+  // Any logged-in member can open Headmaster anytime — with cash, stocks, crypto,
+  // metals, or any mix (including cash-only). The console shows a Pro upsell when
+  // not entitled; demo mode (no Stripe key) keeps the console open.
   const entitled = !isStripeConfigured() || hasPaidSubscription(user);
   console.log(`[headmaster] Rendering console for user ${user._id} (entitled=${entitled})`);
 
