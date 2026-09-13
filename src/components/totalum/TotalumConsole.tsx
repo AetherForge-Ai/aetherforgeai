@@ -73,8 +73,9 @@ function gainClass(v: number): string {
 }
 
 const GOALS: { key: GoalKey; name: string; risk: string }[] = [
-  { key: "aggressive_growth", name: "Aggressive Growth", risk: "High Risk" },
+  { key: "aggressive_growth", name: "High Risk / High Reward", risk: "High Risk" },
   { key: "balanced_growth", name: "Balanced Growth", risk: "Balanced" },
+  { key: "conservative_growth", name: "Conservative Growth", risk: "Conservative" },
   { key: "income_growth", name: "Income + Growth", risk: "Moderate" },
   { key: "capital_preservation", name: "Capital Preservation", risk: "Low Risk" },
   { key: "preservation_crypto", name: "Preservation + Crypto", risk: "Low-Moderate" },
@@ -366,6 +367,10 @@ function StressTab({ s }: { s: TotalumSynthesis }) {
  * ------------------------------------------------------------------ */
 
 function StrategyTab({ initialSynthesis }: { initialSynthesis: TotalumSynthesis }) {
+  const cashOnly =
+    !initialSynthesis.isEmpty &&
+    initialSynthesis.positions.length > 0 &&
+    initialSynthesis.positions.every((p) => p.assetClass === "cash");
   const [goal, setGoal] = React.useState<GoalKey>("balanced_growth");
   const [strategy, setStrategy] = React.useState<StrategyBlueprint | null>(null);
   const [loading, setLoading] = React.useState(false);
@@ -519,10 +524,26 @@ function StrategyTab({ initialSynthesis }: { initialSynthesis: TotalumSynthesis 
         </>
       )}
 
-      {initialSynthesis.isEmpty && (
-        <p className="text-sm text-muted-foreground">
-          Add holdings in Stox, Koins and the Precious Metals tracker to unlock a personalised rebalancing plan.
-        </p>
+      {initialSynthesis.isEmpty ? (
+        <Card className="border-amber-400/30 bg-amber-400/5 p-4">
+          <p className="text-sm font-semibold text-amber-400">No cash or holdings yet</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Deposit cash in the Transaction Ledger (or buy holdings) first - then pick an overview goal
+            below to build your plan and strategy.
+          </p>
+          <Button asChild size="sm" className="mt-3" variant="outline">
+            <Link href="/dashboard/cash">Go to Cash / Transactions</Link>
+          </Button>
+        </Card>
+      ) : (
+        <Card className="border-primary/25 bg-primary/5 p-4">
+          <p className="text-sm font-semibold text-primary">Overview goal required</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Choose how you want capital deployed — e.g. Conservative Growth or High Risk / High Reward.
+            If you only hold cash today, The Headmaster will turn that cash into a buy plan across
+            equities, crypto and metals for your goal.
+          </p>
+        </Card>
       )}
     </div>
   );

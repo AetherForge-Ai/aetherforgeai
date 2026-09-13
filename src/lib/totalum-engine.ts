@@ -54,6 +54,8 @@ export interface SynthesisInput {
   spot: MetalsSpotLite;
   /** Live FX (1 unit → NZD); defaults to the baseline table. */
   fxToNZD?: FxRatesToNZD;
+  /** Investable NZD cash from the Transaction Ledger (deposit/buy/sell). */
+  cashNZD?: number;
 }
 
 /* ------------------------------------------------------------------ *
@@ -128,6 +130,7 @@ export interface StressTest {
 export type GoalKey =
   | "aggressive_growth"
   | "balanced_growth"
+  | "conservative_growth"
   | "income_growth"
   | "capital_preservation"
   | "preservation_crypto";
@@ -211,10 +214,17 @@ const CMA: Record<AssetClassKey, { ret: number; vol: number }> = {
 export const MODEL_PORTFOLIOS: ModelPortfolio[] = [
   {
     key: "aggressive_growth",
-    name: "Aggressive Growth",
+    name: "High Risk / High Reward",
     description: "Maximum compounding — heavy risk-asset tilt, small metals hedge.",
-    riskLabel: "High Risk",
+    riskLabel: "High Risk / High Reward",
     targets: { equities: 45, crypto: 45, metals: 5, cash: 5 },
+  },
+  {
+    key: "conservative_growth",
+    name: "Conservative Growth",
+    description: "Steady compounding with lower volatility — quality equities, metals ballast, larger cash buffer.",
+    riskLabel: "Conservative",
+    targets: { equities: 45, crypto: 5, metals: 25, cash: 25 },
   },
   {
     key: "balanced_growth",
@@ -322,6 +332,23 @@ export function buildSynthesis(input: SynthesisInput): TotalumSynthesis {
     });
   });
 
+  // Cash from the Transaction Ledger — deployable dry powder for Strategy Builder
+  // even when the member has not bought any holdings yet.
+  const cashNZD = Math.max(0, Number(input.cashNZD) || 0);
+  if (cashNZD > 0) {
+    positions.push({
+      key: "cash_nzd",
+      label: "Cash",
+      sublabel: "NZD ledger / deployable",
+      assetClass: "cash",
+      valueNZD: round(cashNZD),
+      costNZD: round(cashNZD),
+      gainNZD: 0,
+      gainPct: 0,
+      weight: 0,
+    });
+  }
+
   const totalValueNZD = round(positions.reduce((s, p) => s + p.valueNZD, 0));
   const totalCostNZD = round(positions.reduce((s, p) => s + p.costNZD, 0));
   const totalGainNZD = round(totalValueNZD - totalCostNZD);
@@ -333,7 +360,7 @@ export function buildSynthesis(input: SynthesisInput): TotalumSynthesis {
   positions.sort((a, b) => b.valueNZD - a.valueNZD);
 
   // Asset-class allocation.
-  const classKeys: AssetClassKey[] = ["equities", "crypto", "metals"];
+  const classKeys: AssetClassKey[] = ["equities", "crypto", "metals", "cash"];
   const classAllocation: ClassAllocation[] = classKeys
     .map((key) => {
       const inClass = positions.filter((p) => p.assetClass === key);
@@ -362,7 +389,7 @@ export function buildSynthesis(input: SynthesisInput): TotalumSynthesis {
   // Diversification score: reward multiple classes + low HHI.
   const classCount = classAllocation.length;
   const hhiScore = clamp(100 - (hhi - 1000) / 60, 0, 100);
-  const classScore = clamp((classCount / 3) * 100, 0, 100);
+  const classScore = clamp((classCount / 4) * 100, 0, 100);
   const diversificationScore = round(clamp(0.65 * hhiScore + 0.35 * classScore, 0, 100), 0);
 
   // Concentration risks — single names >25% and asset classes >70%.
@@ -563,7 +590,7 @@ export function buildStrategy(synthesis: TotalumSynthesis, goal: GoalKey): Strat
   const model = modelByKey(goal) ?? MODEL_PORTFOLIOS[1];
   const total = synthesis.totalValueNZD;
 
-  // Current weights by class (cash currently 0 — members hold no tracked cash).
+  // Current weights by class (includes NZD cash from the Transaction Ledger when present).
   const current: Record<AssetClassKey, number> = { equities: 0, crypto: 0, metals: 0, cash: 0 };
   synthesis.classAllocation.forEach((c) => {
     current[c.assetClass] = c.weight;

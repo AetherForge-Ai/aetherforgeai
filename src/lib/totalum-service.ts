@@ -21,18 +21,21 @@ import {
 } from "@/lib/totalum-engine";
 
 export async function loadTotalumSynthesis(userId: string): Promise<TotalumSynthesis> {
-  const [stocksRes, metalsRes, spot, fx] = await Promise.all([
+  const [stocksRes, metalsRes, userRes, spot, fx] = await Promise.all([
     totalumSdk.crud.query("stock", { _filter: { user: userId }, _limit: 500 }),
     totalumSdk.crud.query("precious_metal", { _filter: { user: userId }, _limit: 200 }),
+    totalumSdk.crud.getRecordById("user", userId),
     getMetalsSpot(),
     getFxSnapshot(),
   ]);
 
   const stocks = ((stocksRes?.data as any[]) || []) as Stock[];
   const metals = ((metalsRes?.data as any[]) || []) as MetalHolding[];
+  const userRec = (userRes?.data as any) || {};
+  const cashNZD = typeof userRec.cash_balance === "number" ? userRec.cash_balance : 0;
 
   console.log(
-    `[totalum] Synthesising user ${userId}: ${stocks.length} securities, ${metals.length} metal holdings (spot live=${spot.live}, fx live=${fx.live})`
+    `[totalum] Synthesising user ${userId}: ${stocks.length} securities, ${metals.length} metal holdings, cash NZD ${cashNZD} (spot live=${spot.live}, fx live=${fx.live})`
   );
 
   return buildSynthesis({
@@ -40,6 +43,7 @@ export async function loadTotalumSynthesis(userId: string): Promise<TotalumSynth
     metals,
     spot,
     fxToNZD: fx.ratesToNZD,
+    cashNZD,
   });
 }
 

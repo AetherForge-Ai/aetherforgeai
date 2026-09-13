@@ -12,6 +12,7 @@ export const dynamic = "force-dynamic";
 const GOALS: GoalKey[] = [
   "aggressive_growth",
   "balanced_growth",
+  "conservative_growth",
   "income_growth",
   "capital_preservation",
   "preservation_crypto",
