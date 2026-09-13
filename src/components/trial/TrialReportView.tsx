@@ -288,7 +288,7 @@ export function TrialReportView({
           </span>
           {report.aiEnhanced && (
             <span className="inline-flex items-center gap-1 rounded-full bg-violet-500/15 px-3 py-1 text-xs font-semibold text-violet-700 ring-1 ring-violet-500/30">
-              ✨ Grok 4.3
+              ✨ Grok 4.6
             </span>
           )}
         </div>
@@ -424,7 +424,7 @@ export function TrialReportView({
 
       <p className="rounded-2xl border border-border/50 bg-background/30 p-4 text-center text-xs leading-relaxed text-muted-foreground">
         This was your one-time complimentary ZENITH report. Informational market intelligence only — not financial advice.
-        Predictions are model-derived from real market data and are not guarantees. Powered by SuperGrok 4.3.
+        Predictions are model-derived from real market data and are not guarantees. Powered by SuperGrok 4.6.
       </p>
     </div>
   );

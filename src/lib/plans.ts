@@ -35,7 +35,7 @@ export const FREE_PLAN = {
   /** Free trials stay active for this many days before a gentle nudge to upgrade. */
   durationDays: 3650,
   features: [
-    "1 full SuperGrok 4.3 ULTRA ADVANCED report engine",
+    "1 full SuperGrok 4.6 ULTRA ADVANCED report engine",
     "Monitor up to 8 tickers — stocks or crypto",
     "Reports delivered to your email + dashboard",
     "Download every report as a PDF",
@@ -68,7 +68,7 @@ export interface Plan {
 }
 
 const APEX_FEATURES = [
-  "SuperGrok 4.3 Ultra Advanced ZENITH State reports",
+  "SuperGrok 4.6 Ultra Advanced ZENITH State reports",
   "7-day short-term predictions",
   "3 forward pathways — safe · medium-risk · volatile",
   "12-month momentum & continuation graphs",

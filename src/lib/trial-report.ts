@@ -14,7 +14,7 @@ import "server-only";
  *          history per selected ticker.
  *   2. Builds per-ticker deep analysis + fact-based forward predictions grounded
  *      in the real numbers, integrating the user's own holdings (shares/avg price).
- *   3. Asks Grok 4.3 for an ULTRA executive summary + key findings (non-fatal).
+ *   3. Asks Grok 4.6 for an ULTRA executive summary + key findings (non-fatal).
  *   4. Renders the Zenith HTML → PDF, emails it (PDF attached), and persists both
  *      a `report` record and a `free_trial_run` record.
  *

@@ -521,7 +521,7 @@ export interface RenderReportOptions {
   alerts?: ReportAlert[];
   /** True when the executive summary was rewritten by the ZENITH State narrative engine. */
   aiEnhanced?: boolean;
-  /** AI engine label, e.g. "SuperGrok 4.3 · Ultra Advanced ZENITH State". */
+  /** AI engine label, e.g. "SuperGrok 4.6 · Ultra Advanced ZENITH State". */
   engine?: string;
   /** Per-holding technical intelligence (RSI/MACD/BB/SMA + projection + signal). */
   technicals?: SecurityIntel[];
@@ -609,7 +609,7 @@ export function renderReportHtml(report: ApexReport, opts: RenderReportOptions):
           <h3 style="font-size:14px;margin:0;color:${INK}">Executive summary</h3>
           ${
             opts.aiEnhanced
-              ? `<span style="display:inline-block;padding:2px 9px;border-radius:999px;background:${BLUE}1a;color:${BLUE};font-size:11px;font-weight:600">✨ Authored in ZENITH State · SuperGrok 4.3</span>`
+              ? `<span style="display:inline-block;padding:2px 9px;border-radius:999px;background:${BLUE}1a;color:${BLUE};font-size:11px;font-weight:600">✨ Authored in ZENITH State · SuperGrok 4.6</span>`
               : ""
           }
         </div>
@@ -654,7 +654,7 @@ export function renderReportHtml(report: ApexReport, opts: RenderReportOptions):
 
         <p style="font-size:11px;color:${MUTE};line-height:1.6;border-top:1px solid ${LINE};padding-top:14px;margin-top:22px">
           AetherForge AI delivers informational market intelligence only. Nothing here is personalised financial advice,
-          a recommendation, or an offer to buy or sell any security or digital asset. Powered by SuperGrok 4.3. Always do your own research.
+          a recommendation, or an offer to buy or sell any security or digital asset. Powered by SuperGrok 4.6. Always do your own research.
         </p>
       </div>
 
