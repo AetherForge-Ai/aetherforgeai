@@ -3,7 +3,6 @@
 import type { ComponentType } from "react";
 import Link from "next/link";
 import { AnimatedMoney } from "@/components/dashboard/AnimatedMoney";
-import { Bot3DAvatar } from "@/components/bots/Bot3DAvatar";
 import { IndexMarketCard } from "@/components/dashboard/IndexMarketCard";
 import { formatMoney } from "@/lib/currency";
 import { cn } from "@/lib/utils";
@@ -122,15 +121,20 @@ function OverviewCard({
               aria-hidden
               className="absolute inset-x-0 bottom-0 mx-auto h-16 w-auto object-contain opacity-90"
             />
-            <Bot3DAvatar
-              bot={bot}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={poster}
               alt=""
-              className="relative mx-auto h-32 w-28"
-              poster={poster}
+              className="relative mx-auto h-32 w-auto object-contain object-bottom"
             />
           </div>
         ) : (
-          <Bot3DAvatar bot={bot} alt="" className="h-36 w-28" poster={poster} />
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={poster}
+            alt=""
+            className="h-36 w-auto object-contain object-bottom"
+          />
         )}
       </div>
       <span className="relative z-10 mt-2 inline-flex items-center gap-1 text-[0.7rem] font-semibold text-primary">
@@ -286,7 +290,6 @@ export function DashboardHomeGrid({
           metricLabel="Metals value · NZD"
           metricValue={formatMoney(metalsTotalNZD, "NZD")}
           hint="Smitty with live gold & silver at the forge"
-          sceneSrc="/brand/precious-metals-trolley.png"
         />
         <LedgerCard
           href="/dashboard/transactions"
