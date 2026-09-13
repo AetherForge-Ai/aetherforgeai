@@ -1570,6 +1570,7 @@ export function PortfolioDashboard({
         </AlertDialogContent>
       </AlertDialog>
     </div>
+    </div>
     </MarketIntelProvider>
   );
 }
