@@ -6,6 +6,7 @@ type ModelViewerProps = React.HTMLAttributes<HTMLElement> & {
   poster?: string;
   exposure?: string | number;
   "camera-controls"?: boolean;
+  orientation?: string;
   "camera-orbit"?: string;
   "field-of-view"?: string;
   "min-camera-orbit"?: string;

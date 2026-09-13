@@ -5,14 +5,14 @@ import { cn } from "@/lib/utils";
 
 type Props = {
   className?: string;
-  /** Which trolley / forge prop plate to keep behind 3D Smitty */
+  /** Trolley / forge prop plate behind 3D Smitty */
   sceneSrc?: string;
   alt?: string;
 };
 
 /**
- * Homepage Precious Metals hero: keep the gold/silver trolley (or forge) scene,
- * overlay the 3D Smitty avatar so only the character is swapped.
+ * Homepage Precious Metals hero: keep the gold/silver trolley scene,
+ * overlay upright 3D Smitty so only the character is 3D.
  */
 export function SmittyForgeScene({
   className,
@@ -34,13 +34,14 @@ export function SmittyForgeScene({
         className="block h-auto w-full object-cover"
       />
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-black/10" />
-      <div className="absolute bottom-0 left-1/2 flex h-[78%] w-[52%] max-w-md -translate-x-1/2 items-end justify-center sm:w-[46%]">
+      <div className="absolute bottom-0 left-1/2 flex h-[82%] w-[55%] max-w-md -translate-x-1/2 items-end justify-center sm:w-[48%]">
         <Bot3DAvatar
           bot="smitty"
           alt={alt}
           className="h-full w-full"
           mediaClassName="drop-shadow-[0_18px_28px_rgba(0,0,0,0.55)]"
           autoRotate
+          enable3d
         />
       </div>
     </div>

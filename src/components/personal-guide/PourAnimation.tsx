@@ -264,7 +264,7 @@ export function PourAnimation({ onBuilt }: Props) {
   return (
     <canvas
       ref={canvasRef}
-      className="pointer-events-none fixed inset-0 z-[60]"
+      className="pointer-events-none fixed inset-y-0 left-0 z-[45] w-[min(100%,18rem)] overflow-hidden"
       aria-hidden
     />
   );
