@@ -900,6 +900,26 @@ export function PortfolioDashboard({
       />
       )}
 
+      {/* Full Report Center directly under the home window tiles */}
+      {(isHome || isBots || isStocks || isCrypto) && (
+      <div id="dash-report-centre" className="mt-8 scroll-mt-24">
+      <Gate
+        title="Report Centre"
+        description="Generate full PDF portfolio reports with market intelligence, indicators and AI insight — emailed to you."
+      >
+        <ReportCenter
+          botAccess={subscription.botAccess}
+          plan={subscription.plan}
+          scope={scope}
+          counts={holdingCounts}
+          tickerLimit={tickerLimit}
+          onHoldingsChanged={handleDataChanged}
+          preview={preview}
+        />
+      </Gate>
+      </div>
+      )}
+
       {(isTransactions || isCash) && (
         <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-2xl border border-primary/40 bg-gradient-to-br from-primary/15 via-card/70 to-card/50 p-4">
@@ -1509,22 +1529,7 @@ export function PortfolioDashboard({
       </div>
 
       {/* ───────────────────────── 11 · Report Center (The Headmaster + Stox + Koins) — gated for guests ───────────────────────── */}
-      <div id="dash-report-centre" className={cn("mt-8 scroll-mt-24", !(isHome || isBots || isStocks || isCrypto) && "hidden")}>
-      <Gate
-        title="Report Centre"
-        description="Generate full PDF portfolio reports with market intelligence, indicators and AI insight — emailed to you."
-      >
-        <ReportCenter
-          botAccess={subscription.botAccess}
-          plan={subscription.plan}
-          scope={scope}
-          counts={holdingCounts}
-          tickerLimit={tickerLimit}
-          onHoldingsChanged={handleDataChanged}
-          preview={preview}
-        />
-      </Gate>
-      </div>
+
 
       <StockDialog
         open={dialogOpen}
