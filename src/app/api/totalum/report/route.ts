@@ -39,11 +39,12 @@ export async function GET(req: Request) {
       loadTotalumSynthesis(user._id),
       loadReportFindings(user._id),
     ]);
-    const strategy = synthesis.isEmpty ? null : buildStrategy(synthesis, goal);
+    const strategy =
+      synthesis.totalValueNZD > 0 ? buildStrategy(synthesis, goal) : null;
 
     // ZENITH State cross-asset briefing from The Headmaster (non-fatal).
     let aiNarrative: string | undefined;
-    if (!synthesis.isEmpty && isZenithConfigured()) {
+    if (synthesis.totalValueNZD > 0 && isZenithConfigured()) {
       try {
         const alloc = synthesis.classAllocation
           .map((c) => `${c.label} ${c.weight.toFixed(1)}% (${c.positions} pos)`)

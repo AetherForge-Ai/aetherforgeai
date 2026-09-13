@@ -34,7 +34,11 @@ function nzd(v: number): string {
 /** Compact, information-dense snapshot of the unified book for AI grounding. */
 function buildStrategistContext(s: TotalumSynthesis): string {
   if (s.isEmpty) {
-    return "The member has no holdings yet across equities, crypto or metals. Encourage them to add positions in Stox, Koins and the Precious Metals tracker so The Headmaster can synthesise a full strategy.";
+    return "The member has no cash and no holdings yet. Encourage them to deposit NZD cash in the Transaction Ledger and/or add equities (Stox), crypto (Koins), or precious metals — The Headmaster works with any mix, including cash-only.";
+  }
+  const cashOnly = s.positions.length > 0 && s.positions.every((p) => p.assetClass === "cash");
+  if (cashOnly) {
+    return `The member is cash-only with NZ$${s.totalValueNZD.toLocaleString("en-NZ")} deployable. Help them pick an overview goal (Conservative Growth, High Risk/High Reward, etc.) and suggest concrete Stox/Koins/metals buys that deploy that cash — they do NOT need existing holdings to plan.`;
   }
   const lines: string[] = [];
   lines.push(
@@ -91,9 +95,11 @@ function buyBlock(findings: ReportFindings): string {
 /** Deterministic fallback answer when the AI provider is not configured. */
 function deterministicReply(message: string, s: TotalumSynthesis, findings: ReportFindings): string {
   if (s.isEmpty) {
-    return `You don't have any holdings yet. Add equities in **Stox**, coins in **Koins**, and gold/silver in the **Precious Metals** tracker — then I can synthesise a unified strategy across your whole book.${buyBlock(
-      findings
-    )}\n\n_Portfolio intelligence, not personalised financial advice._`;
+    return `You don't have cash or holdings yet. Deposit NZD in the **Transaction Ledger** (Dashboard → Cash) and/or add equities in **Stox**, crypto in **Koins**, or metals — then I can build a plan. Headmaster works anytime with **cash alone**, stocks alone, crypto alone, or any mix.`;
+  }
+  const cashOnly = s.positions.length > 0 && s.positions.every((p) => p.assetClass === "cash");
+  if (cashOnly) {
+    return `You're cash-only with **NZ$${s.totalValueNZD.toLocaleString("en-NZ")}** ready to deploy. Pick an overview goal (e.g. Conservative Growth or High Risk / High Reward) and I'll turn that cash into a concrete buy plan across equities, crypto and metals — no existing holdings required.`;
   }
   const top = s.classAllocation[0];
   const worstStress = [...s.stressTests].sort((a, b) => a.impactNZD - b.impactNZD)[0];
