@@ -18,6 +18,11 @@ type Props = {
   cameraControls?: boolean;
   /** Optional override poster (defaults to the bot's fullbody PNG) */
   poster?: string;
+  /**
+   * Use the TripoSR GLB. Default true.
+   * Pass false to force the polished 2D poster.
+   */
+  enable3d?: boolean;
 };
 
 let modelViewerLoader: Promise<void> | null = null;
@@ -69,6 +74,7 @@ function usePrefersReducedMotion(): boolean {
 
 /**
  * Renders a TripoSR GLB bot avatar via Google model-viewer, with PNG poster fallback.
+ * TripoSR meshes often import lying on their back — orientation rolls them upright.
  */
 export function Bot3DAvatar({
   bot,
@@ -78,6 +84,7 @@ export function Bot3DAvatar({
   autoRotate = true,
   cameraControls = false,
   poster,
+  enable3d = true,
 }: Props) {
   const posterSrc = poster ?? BOT_3D_POSTER[bot];
   const src = BOT_3D_GLB[bot];
@@ -86,6 +93,7 @@ export function Bot3DAvatar({
   const [failed, setFailed] = React.useState(false);
 
   React.useEffect(() => {
+    if (!enable3d) return;
     let cancelled = false;
     ensureModelViewer()
       .then(() => {
@@ -97,12 +105,12 @@ export function Bot3DAvatar({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [enable3d]);
 
-  const showPoster = failed || reducedMotion || !ready;
+  const showPoster = !enable3d || failed || reducedMotion || !ready;
 
   return (
-    <div className={cn("relative overflow-hidden", className)}>
+    <div className={cn("relative", className)}>
       {showPoster ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -117,19 +125,31 @@ export function Bot3DAvatar({
           src={src}
           alt={alt}
           poster={posterSrc}
-          exposure="1.05"
-          shadow-intensity="0.4"
-          camera-orbit="0deg 75deg 2.4m"
-          field-of-view="28deg"
+          exposure="1.15"
+          shadow-intensity="0.55"
+          // TripoSR GLBs from T-pose photos often load on their side / back.
+          // Rotate so the character stands upright facing the camera.
+          orientation="-90deg 0deg 0deg"
+          camera-orbit="0deg 75deg 105%"
+          min-camera-orbit="auto auto 60%"
+          max-camera-orbit="auto auto 200%"
+          field-of-view="30deg"
           interaction-prompt="none"
           auto-rotate={autoRotate || undefined}
           auto-rotate-delay={0}
-          rotation-per-second="18deg"
+          rotation-per-second="16deg"
           camera-controls={cameraControls || undefined}
-          loading="lazy"
+          loading="eager"
           reveal="auto"
           className={cn("h-full w-full bg-transparent", mediaClassName)}
-          style={{ width: "100%", height: "100%", backgroundColor: "transparent" }}
+          style={{
+            width: "100%",
+            height: "100%",
+            minHeight: "100%",
+            backgroundColor: "transparent",
+            // Keep the canvas from spilling weirdly
+            display: "block",
+          }}
         />
       )}
     </div>
