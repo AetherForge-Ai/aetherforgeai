@@ -15,6 +15,8 @@ const GOALS: GoalKey[] = [
   "income_growth",
   "capital_preservation",
   "preservation_crypto",
+  "conservative_growth",
+  "high_risk_high_reward",
 ];
 
 // GET /api/totalum/report?goal=balanced_growth — downloadable HTML intelligence report
@@ -69,8 +71,8 @@ export async function GET(req: Request) {
                 `Write a decisive 5-7 sentence executive briefing on the whole portfolio's posture and the single most important rebalancing move. ` +
                 `Reference diversification, concentration and the chosen goal. Use **bold** for the highest-signal phrases.\n` +
                 `You are given the LATEST FULL-REPORT FINDINGS from BOTH the Stox (NZX/ASX/NASDAQ/DOW equities) and Koins (complete crypto market) Full Reports — factor their projections and specific BUY calls into a more specific, in-depth plan.\n` +
-                `MANDATORY: when you suggest BUYS, explicitly NAME the specific tickers/coins to buy with concrete reasoning drawn from the findings below. Never give vague or generic advice.\n\n` +
-                `Total wealth: NZ$${Math.round(synthesis.totalValueNZD).toLocaleString()}. Unrealised P/L: NZ$${Math.round(synthesis.totalGainNZD).toLocaleString()}.\n` +
+                `MANDATORY: when you suggest BUYS, explicitly NAME the specific tickers/coins to buy with concrete reasoning and conviction drawn from the findings below. If cash is available, lead with a ticker-level BUY/ACCUMULATE deployment list — not class allocation alone. Never give vague or generic advice.\n\n` +
+                `Total wealth: NZ$${Math.round(synthesis.totalValueNZD).toLocaleString()}. Cash: NZ$${Math.round(synthesis.cashBalanceNZD).toLocaleString()}. Unrealised P/L: NZ$${Math.round(synthesis.totalGainNZD).toLocaleString()}.\n` +
                 `Diversification: ${synthesis.diversificationScore}/100. Concentration: ${synthesis.concentrationLabel} (HHI ${synthesis.hhi}).\n` +
                 `Expected annual return/vol: ${synthesis.expectedAnnualReturnPct}% / ${synthesis.expectedAnnualVolPct}%.\n` +
                 `Allocation: ${alloc}.\n` +

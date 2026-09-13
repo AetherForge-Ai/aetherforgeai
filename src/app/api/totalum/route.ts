@@ -23,6 +23,8 @@ const GOALS: [GoalKey, ...GoalKey[]] = [
   "income_growth",
   "capital_preservation",
   "preservation_crypto",
+  "conservative_growth",
+  "high_risk_high_reward",
 ];
 
 const postSchema = z.object({
@@ -72,9 +74,10 @@ export async function POST(req: Request) {
 
     const synthesis = await loadTotalumSynthesis(user._id);
     const goal: GoalKey = parsed.data.goal ?? "balanced_growth";
-    const strategy = buildStrategy(synthesis, goal);
+    // Cash-only / any funded book builds a strategy; truly empty books return null.
+    const strategy = synthesis.isEmpty ? null : buildStrategy(synthesis, goal);
 
-    console.log(`[api/totalum] POST built strategy '${goal}' for user ${user._id}`);
+    console.log(`[api/totalum] POST built strategy '${goal}' for user ${user._id} (empty=${synthesis.isEmpty}, cash=${synthesis.cashBalanceNZD})`);
     return NextResponse.json({ ok: true, data: { synthesis, strategy } });
   } catch (err: any) {
     console.error("[api/totalum] POST error:", err);

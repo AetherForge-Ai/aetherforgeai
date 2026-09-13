@@ -133,7 +133,13 @@ async function handle(req: Request) {
       }
       try {
         const out = await generateReportForUser(
-          { _id: u._id, name: u.name, email: u.email, ticker_limit: u.ticker_limit },
+          {
+            _id: u._id,
+            name: u.name,
+            email: u.email,
+            ticker_limit: u.ticker_limit,
+            cash_balance: typeof u.cash_balance === "number" ? u.cash_balance : 0,
+          },
           bot,
           "scheduled"
         );
