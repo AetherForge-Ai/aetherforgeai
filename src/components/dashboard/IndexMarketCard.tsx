@@ -7,14 +7,7 @@ import { ArrowDown, ArrowUp, Loader2 } from "lucide-react";
 
 type ExchangeKey = "NZX" | "ASX" | "NASDAQ" | "DOW";
 
-type Props = {
-  /** Display title on the card (e.g. NZSX) */
-  title: string;
-  exchange: ExchangeKey;
-  className?: string;
-};
-
-type SnapshotMover = {
+export type SnapshotMover = {
   ticker: string;
   symbol: string;
   name: string;
@@ -22,7 +15,7 @@ type SnapshotMover = {
   changePct: number;
 };
 
-type ExchangeSnapshot = {
+export type ExchangeSnapshot = {
   exchange: string;
   label: string;
   index: {
@@ -36,6 +29,17 @@ type ExchangeSnapshot = {
   topLosers: SnapshotMover[];
 };
 
+type Props = {
+  /** Display title on the card (e.g. NZSX) */
+  title: string;
+  exchange: ExchangeKey;
+  className?: string;
+  /** When provided by the parent, skip a per-card network fetch. */
+  snapshot?: ExchangeSnapshot | null;
+  /** Parent is still loading the shared snapshot. */
+  snapshotLoading?: boolean;
+};
+
 const idxFmt = new Intl.NumberFormat("en-US", {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
@@ -43,13 +47,24 @@ const idxFmt = new Intl.NumberFormat("en-US", {
 
 /**
  * One of the four index windows on the dashboard home grid.
- * Loads live headline index + breadth + a top mover from /api/market-snapshot.
+ * Prefer a shared snapshot from DashboardHomeGrid (one fetch for all four).
  */
-export function IndexMarketCard({ title, exchange, className }: Props) {
-  const [snap, setSnap] = useState<ExchangeSnapshot | null>(null);
-  const [loading, setLoading] = useState(true);
+export function IndexMarketCard({
+  title,
+  exchange,
+  className,
+  snapshot,
+  snapshotLoading,
+}: Props) {
+  const controlled = snapshot !== undefined;
+  const [snap, setSnap] = useState<ExchangeSnapshot | null>(snapshot ?? null);
+  const [loading, setLoading] = useState(!controlled && snapshotLoading !== false);
 
   useEffect(() => {
+    if (controlled) {
+      setSnap(snapshot ?? null);
+      return;
+    }
     let active = true;
     (async () => {
       setLoading(true);
@@ -58,17 +73,16 @@ export function IndexMarketCard({ title, exchange, className }: Props) {
       );
       if (!active) return;
       if (res.ok && res.data?.exchanges) {
-        const found =
-          res.data.exchanges.find((e) => e.exchange === exchange) ?? null;
-        setSnap(found);
+        setSnap(res.data.exchanges.find((e) => e.exchange === exchange) ?? null);
       }
       setLoading(false);
     })();
     return () => {
       active = false;
     };
-  }, [exchange]);
+  }, [exchange, controlled, snapshot]);
 
+  const busy = controlled ? !!snapshotLoading && !snap : loading;
   const idx = snap?.index;
   const up = (idx?.changePct ?? 0) >= 0;
   const gainer = snap?.topGainers?.[0];
@@ -85,7 +99,7 @@ export function IndexMarketCard({ title, exchange, className }: Props) {
         {title}
       </h3>
 
-      {loading ? (
+      {busy ? (
         <div className="mt-6 flex flex-1 items-center justify-center text-muted-foreground">
           <Loader2 className="size-5 animate-spin" />
         </div>
