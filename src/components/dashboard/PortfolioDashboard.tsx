@@ -374,6 +374,7 @@ export function PortfolioDashboard({
   }, []);
 
   // Cash balance (NZD) from the transaction ledger.
+  /** Cash + recent rows from /api/transactions — same ledger as the Transactions page. */
   const loadCash = useCallback(async () => {
     const res = await api.get<{
       cashBalance: number;
@@ -893,6 +894,31 @@ export function PortfolioDashboard({
         metalsPositions={preciousMetalHoldings.length + metalStocks.length}
         recentLedger={recentLedger}
       />
+      )}
+
+      {(isTransactions || isCash) && (
+        <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-2xl border border-primary/40 bg-gradient-to-br from-primary/15 via-card/70 to-card/50 p-4">
+            <p className="font-grift-black text-sm uppercase tracking-wide text-amber-400">Cash Bal</p>
+            <AnimatedMoney value={cashBalance} currency="NZD" className="tnum mt-2 font-display text-xl font-bold text-emerald-600" />
+            <p className="mt-1 text-[0.7rem] text-muted-foreground">From Transaction Ledger</p>
+          </div>
+          <div className="rounded-2xl border border-border/70 bg-card/70 p-4">
+            <p className="font-grift-black text-sm uppercase tracking-wide text-amber-400">Value in Stocks NZD</p>
+            <AnimatedMoney value={stockTotalNZD} currency="NZD" className="tnum mt-2 font-display text-xl font-bold text-emerald-600" />
+            <p className="mt-1 text-[0.7rem] text-muted-foreground">Live holdings from stock buys</p>
+          </div>
+          <div className="rounded-2xl border border-border/70 bg-card/70 p-4">
+            <p className="font-grift-black text-sm uppercase tracking-wide text-amber-400">Value in Crypto NZD</p>
+            <AnimatedMoney value={cryptoTotalNZD} currency="NZD" className="tnum mt-2 font-display text-xl font-bold text-emerald-600" />
+            <p className="mt-1 text-[0.7rem] text-muted-foreground">Live holdings from crypto buys</p>
+          </div>
+          <div className="rounded-2xl border border-border/70 bg-card/70 p-4">
+            <p className="font-grift-black text-sm uppercase tracking-wide text-amber-400">Value in Metals NZD</p>
+            <AnimatedMoney value={metalsValueNZD + metalStockTotalNZD} currency="NZD" className="tnum mt-2 font-display text-xl font-bold text-emerald-600" />
+            <p className="mt-1 text-[0.7rem] text-muted-foreground">Live holdings from metals trades</p>
+          </div>
+        </div>
       )}
 
       {isCash ? (

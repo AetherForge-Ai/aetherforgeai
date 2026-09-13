@@ -251,6 +251,14 @@ export function DashboardHomeGrid({
         />
       </div>
 
+      <p className="text-center text-[0.7rem] text-muted-foreground sm:text-left">
+        Cash Bal and the value boxes update from the same Transaction Ledger as{" "}
+        <Link href="/dashboard/transactions" className="font-semibold text-primary underline-offset-2 hover:underline">
+          Transactions
+        </Link>
+        {" "}— every buy, sell, deposit and withdraw.
+      </p>
+
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <OverviewCard
           title="Stock Portfolio Overview"
