@@ -48,7 +48,7 @@ function nzDateLabel(d: Date): string {
 }
 
 /**
- * Builds a full SuperGrok 4.3 ULTRA ADVANCED report from the user's holdings for
+ * Builds a full SuperGrok 4.6 ULTRA ADVANCED report from the user's holdings for
  * one asset class, renders a PDF, emails it (PDF attached), persists a `report`
  * record and returns everything for inline display. Shared by:
  *  - POST /api/reports (manual, dashboard-triggered)
@@ -188,7 +188,7 @@ export async function generateReportForUser(
   );
   report.briefing = briefing;
 
-  // SuperGrok 4.3 · Ultra Advanced ZENITH State narrative — every bot's report is
+  // SuperGrok 4.6 · Ultra Advanced ZENITH State narrative — every bot's report is
   // authored in this state whenever the owner's Grok key is configured. Non-fatal:
   // if Grok is unavailable the report still ships with its deterministic summary.
   const botLabel = bot === "crypto" ? "Koins (crypto)" : "Stox (equities)";

@@ -3,7 +3,7 @@
 /**
  * Report Center — the master intelligence desk at the foot of the dashboard.
  *
- *  1. "Run full SuperGrok 4.3 ULTRA ADVANCED report" buttons per unlocked bot
+ *  1. "Run full SuperGrok 4.6 ULTRA ADVANCED report" buttons per unlocked bot
  *     (Stox + Koins), plus The Headmaster (Portfolio Planning and Strategies) that unifies
  *     stocks, crypto & metals into one strategy.
  *     Running calls POST /api/reports, which emails the report + PDF, persists it
@@ -209,7 +209,7 @@ export function ReportCenter({
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground">
-            Run the full SuperGrok 4.3 ULTRA ADVANCED report for Stox, Koins or The Headmaster —
+            Run the full SuperGrok 4.6 ULTRA ADVANCED report for Stox, Koins or The Headmaster —
             delivered to your inbox and here.
           </p>
         </div>
@@ -389,7 +389,7 @@ export function ReportCenter({
                     <span className="truncate text-sm font-medium">{r.title}</span>
                     {r.aiEnhanced && (
                       <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">
-                        <Sparkles className="mr-1 size-3" /> Grok 4.3
+                        <Sparkles className="mr-1 size-3" /> Grok 4.6
                       </Badge>
                     )}
                     {r.emailed === "yes" && (
@@ -430,7 +430,7 @@ export function ReportCenter({
                   <DialogTitle>{report?.title ?? "ZENITH report"}</DialogTitle>
                   {lastAiEnhanced && (
                     <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">
-                      <Sparkles className="mr-1 size-3" /> Grok 4.3 enhanced
+                      <Sparkles className="mr-1 size-3" /> Grok 4.6 enhanced
                     </Badge>
                   )}
                 </div>
