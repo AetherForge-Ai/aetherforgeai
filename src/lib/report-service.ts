@@ -23,6 +23,8 @@ export interface ReportRecipient {
   name?: string | null;
   email: string;
   ticker_limit?: number | null;
+  /** Ledger cash (NZD) — used so empty/cash-heavy books still get ticker BUY lists. */
+  cash_balance?: number | null;
 }
 
 export interface GeneratedReport {
@@ -150,11 +152,17 @@ export async function generateReportForUser(
     }
   }
 
+  const cashBalanceNZD =
+    typeof user.cash_balance === "number" && isFinite(user.cash_balance)
+      ? Math.max(0, user.cash_balance)
+      : 0;
+
   const report = buildLiveReport(bot, holdings, {
     seedSalt: `${user._id}:${bot}:${context}:${Date.now()}`,
     fxToNZD: fx.ratesToNZD,
     marketOverrides,
     universeIntel,
+    cashBalanceNZD,
   });
 
   // ---- Intelligence briefing + probabilistic 7-day outlook -------------
@@ -185,7 +193,8 @@ export async function generateReportForUser(
   // if Grok is unavailable the report still ships with its deterministic summary.
   const botLabel = bot === "crypto" ? "Koins (crypto)" : "Stox (equities)";
   let aiEnhanced = false;
-  if (isZenithConfigured() && holdings.length) {
+  const hasMarketBuys = report.directRecommendations.some((r) => !r.held && (r.action === "BUY" || r.action === "ACCUMULATE"));
+  if (isZenithConfigured() && (holdings.length > 0 || cashBalanceNZD > 0 || hasMarketBuys)) {
     try {
       const lines = holdings
         .map((h, i) => {
@@ -227,11 +236,14 @@ export async function generateReportForUser(
               (bot === "crypto"
                 ? `This is a PURE cryptocurrency report covering the COMPLETE crypto market — never reference NZX, ASX, NASDAQ, DOW or any equities. `
                 : `This is a PURE equities report covering NZX, ASX, NASDAQ and DOW JONES — never reference crypto. `) +
-              `Write a rich, professional 4-6 sentence executive summary of the portfolio's short-term (7-day) outlook. ` +
+              `Write a rich, professional 4-6 sentence executive summary of the short-term (7-day) outlook. ` +
               `Be strictly evidence-based and PROBABILISTIC — speak in expected ranges and likelihoods, and NEVER give a single-point price target. ` +
-              `Reference the technical posture (RSI/MACD/regime), overall conviction, the week's catalysts, news sentiment, and the single most important action to take now. ` +
-              `MANDATORY: explicitly NAME specific ${bot === "crypto" ? "coins/tickers" : "tickers"} to BUY right now, each with a one-line, data-grounded reason (projection, signal or momentum). Never give vague or generic advice — always be concrete and specific. ` +
-              `Close by stating this is informational intelligence, not financial advice. Use **bold** for the highest-signal phrases and ticker names.\n\n` +
+              `Reference technical posture (RSI/MACD/regime), conviction/confidence %, catalysts, news sentiment, and the single most important action now. ` +
+              `MANDATORY: explicitly NAME specific ${bot === "crypto" ? "coins/tickers" : "tickers"} (with market) to BUY or ACCUMULATE right now, each with a one-line data-grounded reason and conviction. ` +
+              (holdings.length === 0 || cashBalanceNZD > 0
+                ? `The member has ${holdings.length === 0 ? "empty holdings" : "positions"} and NZ$${Math.round(cashBalanceNZD)} cash — lead with a concrete ticker-level deployment list, not class allocation alone. `
+                : "") +
+              `Never give vague or generic advice. Close with an italic disclaimer that this is informational intelligence, not financial advice. Use **bold** for highest-signal phrases and ticker names.\n\n` +
               `Market: ${report.marketLabel}.\n` +
               `Overall read: ${briefing.overall.bias} bias, ${briefing.overall.level} conviction, net ${briefing.overall.score}/100.\n` +
               `News sentiment: ${sentiment.label} (${sentiment.score}/100, ${sentiment.method} model).\n` +
@@ -240,7 +252,10 @@ export async function generateReportForUser(
               `SELL flags (held): ${sells}. High-conviction BUY candidates (held): ${buys}.\n` +
               `SPECIFIC BUY candidates from the full-market sweep — name these explicitly: ${marketBuys}.\n` +
               `Top 7-day projected leaders across the market: ${topProjected}.\n` +
-              `Holdings:\n${lines}\n\nWrite the ZENITH executive summary now — and be sure to name specific tickers to BUY.`,
+              (holdings.length
+                ? `Holdings:\n${lines}\n\n`
+                : `Holdings: none — cash NZ$${Math.round(cashBalanceNZD)} available to deploy.\n\n`) +
+              `Write the ZENITH executive summary now — name specific tickers to BUY/ACCUMULATE with conviction.`,
           },
         ],
       });

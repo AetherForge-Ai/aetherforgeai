@@ -23,7 +23,7 @@ You think holistically across asset classes: allocation, diversification, concen
 Speak like a seasoned Chief Investment Strategist briefing a private client: decisive, concrete, numerate. Always ground statements in the portfolio snapshot provided and cite real figures from it (all values are NZD).
 When asked "what if" questions (e.g. a crypto crash), reason from the asset-class weights and the stress-test / scenario figures given.
 You are also fed the member's LATEST FULL-REPORT FINDINGS from BOTH report systems — the Stox Full Report (NZX/ASX/NASDAQ/DOW equities) and the Koins Full Report (the complete crypto market). Factor the projections and specific BUY recommendations from BOTH into a more specific, in-depth strategic plan.
-MANDATORY SPECIFICITY: whenever you suggest BUYS, explicitly NAME the specific tickers/coins to buy and give concrete, structured reasoning for each — drawn from the Stox and Koins report findings and the portfolio snapshot above. Never give vague or generic advice.
+MANDATORY SPECIFICITY: whenever you suggest BUYS, explicitly NAME the specific tickers/coins to buy (with market) and give concrete, structured reasoning plus conviction for each — drawn from the Stox and Koins report findings and the portfolio snapshot above. When the member has cash (cash-only or cash-heavy), lead with a concrete ticker-level BUY/ACCUMULATE deployment list — not just asset-class allocation. Never give vague or generic advice.
 Format in clean Markdown: short paragraphs, **bold** key numbers, bullet lists for actions. Keep replies focused (a few hundred words max).
 End with a one-line, non-legalese reminder that this is portfolio intelligence, not personalised financial advice.`;
 
@@ -34,16 +34,24 @@ function nzd(v: number): string {
 /** Compact, information-dense snapshot of the unified book for AI grounding. */
 function buildStrategistContext(s: TotalumSynthesis): string {
   if (s.isEmpty) {
-    return "The member has no cash and no holdings yet. Encourage them to deposit NZD cash in the Transaction Ledger and/or add equities (Stox), crypto (Koins), or precious metals — The Headmaster works with any mix, including cash-only.";
-  }
-  const cashOnly = s.positions.length > 0 && s.positions.every((p) => p.assetClass === "cash");
-  if (cashOnly) {
-    return `The member is cash-only with NZ$${s.totalValueNZD.toLocaleString("en-NZ")} deployable. Help them pick an overview goal (Conservative Growth, High Risk/High Reward, etc.) and suggest concrete Stox/Koins/metals buys that deploy that cash — they do NOT need existing holdings to plan.`;
+    return (
+      "The member's unified book is empty — no equities, crypto, metals OR cash yet. " +
+      "Encourage them to deposit cash in the Transaction Center and/or add positions in Stox, Koins and the Precious Metals tracker. " +
+      "Cash alone is enough to start Strategy Builder and deploy into named BUY tickers from Stox/Koins reports."
+    );
   }
   const lines: string[] = [];
+  const cashW = s.classAllocation.find((c) => c.assetClass === "cash")?.weight ?? 0;
+  const heldSecurities = s.positions.filter((p) => p.assetClass !== "cash").length;
   lines.push(
     `UNIFIED PORTFOLIO (base currency NZD, as of ${s.asOf}):`,
     `- Total value: ${nzd(s.totalValueNZD)} | cost ${nzd(s.totalCostNZD)} | P/L ${nzd(s.totalGainNZD)} (${s.totalGainPct.toFixed(2)}%)`,
+    `- Cash balance: ${nzd(s.cashBalanceNZD)} (${cashW.toFixed(1)}% of book)` +
+      (s.cashBalanceNZD > 0 && heldSecurities === 0
+        ? " — CASH-ONLY book: prioritise concrete ticker-level BUY/ACCUMULATE lists from Stox & Koins findings"
+        : s.cashBalanceNZD > 0 && cashW >= 40
+          ? " — CASH-HEAVY: name specific tickers to deploy dry powder into"
+          : ""),
     `- Diversification score: ${s.diversificationScore}/100 (${s.concentrationLabel}, HHI ${s.hhi})`,
     `- Expected: ≈${s.expectedAnnualReturnPct}% annual return at ≈${s.expectedAnnualVolPct}% volatility`,
     "",
@@ -95,11 +103,9 @@ function buyBlock(findings: ReportFindings): string {
 /** Deterministic fallback answer when the AI provider is not configured. */
 function deterministicReply(message: string, s: TotalumSynthesis, findings: ReportFindings): string {
   if (s.isEmpty) {
-    return `You don't have cash or holdings yet. Deposit NZD in the **Transaction Ledger** (Dashboard → Cash) and/or add equities in **Stox**, crypto in **Koins**, or metals — then I can build a plan. Headmaster works anytime with **cash alone**, stocks alone, crypto alone, or any mix.`;
-  }
-  const cashOnly = s.positions.length > 0 && s.positions.every((p) => p.assetClass === "cash");
-  if (cashOnly) {
-    return `You're cash-only with **NZ$${s.totalValueNZD.toLocaleString("en-NZ")}** ready to deploy. Pick an overview goal (e.g. Conservative Growth or High Risk / High Reward) and I'll turn that cash into a concrete buy plan across equities, crypto and metals — no existing holdings required.`;
+    return `Your unified book is empty — no cash, equities, crypto or metals yet. **Deposit cash** in the Transaction Center and/or add positions in **Stox**, **Koins**, and the **Precious Metals** tracker. Cash alone is enough for me to build a deployment plan into named BUY tickers.${buyBlock(
+      findings
+    )}\n\n_Portfolio intelligence, not personalised financial advice._`;
   }
   const top = s.classAllocation[0];
   const worstStress = [...s.stressTests].sort((a, b) => a.impactNZD - b.impactNZD)[0];
