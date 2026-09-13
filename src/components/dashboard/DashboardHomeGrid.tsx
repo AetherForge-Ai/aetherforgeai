@@ -6,7 +6,7 @@ import { AnimatedMoney } from "@/components/dashboard/AnimatedMoney";
 import { IndexMarketCard } from "@/components/dashboard/IndexMarketCard";
 import { formatMoney } from "@/lib/currency";
 import { cn } from "@/lib/utils";
-import { ArrowRight, BookOpen, Coins, Landmark, Wallet } from "lucide-react";
+import { ArrowRight, BookOpen, Coins, Landmark, Wallet, Sparkles, Bot, GraduationCap } from "lucide-react";
 
 type LedgerRow = {
   type?: string;
@@ -296,6 +296,65 @@ export function DashboardHomeGrid({
           rows={recentLedger}
           cashBalance={cashBalance}
         />
+      </div>
+
+      
+      {/* Run the AI bots — Stox, Koins, The Headmaster */}
+      <div className="rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 via-card/70 to-card/50 p-4 sm:p-5">
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <p className="font-grift-black text-sm uppercase tracking-wide text-amber-400 sm:text-base">
+              Run the AI bots
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Generate Stox &amp; Koins market reports, or open The Headmaster to build your plan and strategy.
+            </p>
+          </div>
+          <Link
+            href="/dashboard/bots"
+            className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
+          >
+            Open bot desk <ArrowRight className="size-3.5" />
+          </Link>
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <Link
+            href="/dashboard/bots#dash-report-centre"
+            className="flex flex-col rounded-xl border border-border/70 bg-card/80 p-4 transition-colors hover:border-primary/45"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/brand/bot-stox-fullbody.png" alt="" className="mx-auto h-24 w-auto object-contain" />
+            <p className="mt-2 font-grift-black text-center text-sm uppercase text-amber-400">Stox</p>
+            <p className="mt-1 text-center text-xs text-muted-foreground">Run stock-market ULTRA reports</p>
+            <span className="mt-3 inline-flex items-center justify-center gap-1 text-[0.7rem] font-semibold text-primary">
+              <Bot className="size-3.5" /> Run Stox
+            </span>
+          </Link>
+          <Link
+            href="/dashboard/bots#dash-report-centre"
+            className="flex flex-col rounded-xl border border-border/70 bg-card/80 p-4 transition-colors hover:border-primary/45"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/brand/bot-koins-fullbody.png" alt="" className="mx-auto h-24 w-auto object-contain" />
+            <p className="mt-2 font-grift-black text-center text-sm uppercase text-amber-400">Koins</p>
+            <p className="mt-1 text-center text-xs text-muted-foreground">Run crypto-market ULTRA reports</p>
+            <span className="mt-3 inline-flex items-center justify-center gap-1 text-[0.7rem] font-semibold text-primary">
+              <Sparkles className="size-3.5" /> Run Koins
+            </span>
+          </Link>
+          <Link
+            href="/headmaster"
+            className="flex flex-col rounded-xl border border-primary/40 bg-primary/5 p-4 transition-colors hover:border-primary/60"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/brand/bot-headmaster-fullbody.png" alt="" className="mx-auto h-24 w-auto object-contain" />
+            <p className="mt-2 font-grift-black text-center text-sm uppercase text-amber-400">The Headmaster</p>
+            <p className="mt-1 text-center text-xs text-muted-foreground">Create your plan &amp; strategy</p>
+            <span className="mt-3 inline-flex items-center justify-center gap-1 text-[0.7rem] font-semibold text-primary">
+              <GraduationCap className="size-3.5" /> Open Headmaster
+            </span>
+          </Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
