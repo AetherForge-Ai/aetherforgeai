@@ -98,6 +98,7 @@ export type DashboardView =
   | "crypto"
   | "metals"
   | "transactions"
+  | "bots"
   | "nzsx"
   | "asx"
   | "nasdaq"
@@ -742,6 +743,7 @@ export function PortfolioDashboard({
 
 
   const isHome = view === "home";
+  const isBots = view === "bots";
   const isCash = view === "cash";
   const isStocks = view === "stocks";
   const isCrypto = view === "crypto";
@@ -770,7 +772,9 @@ export function PortfolioDashboard({
             ? "Dow Jones"
             : "";
   const pageTitle =
-    view === "cash"
+    view === "bots"
+      ? "Run AI Bots"
+      : view === "cash"
       ? "Cash Balance"
       : view === "stocks"
         ? "Stock Portfolio Overview"
@@ -1505,7 +1509,7 @@ export function PortfolioDashboard({
       </div>
 
       {/* ───────────────────────── 11 · Report Center (The Headmaster + Stox + Koins) — gated for guests ───────────────────────── */}
-      <div className={cn("mt-8", !(isStocks || isCrypto) && "hidden")}>
+      <div id="dash-report-centre" className={cn("mt-8 scroll-mt-24", !(isHome || isBots || isStocks || isCrypto) && "hidden")}>
       <Gate
         title="Report Centre"
         description="Generate full PDF portfolio reports with market intelligence, indicators and AI insight — emailed to you."
