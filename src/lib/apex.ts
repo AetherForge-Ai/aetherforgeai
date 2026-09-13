@@ -140,7 +140,7 @@ export interface ApexReport {
   marketLabel: string;
   generatedLabel: string;
   isDemo: boolean;
-  /** AI engine that produced this report, e.g. "SuperGrok 4.3 · Ultra Advanced ZENITH State". */
+  /** AI engine that produced this report, e.g. "SuperGrok 4.6 · Ultra Advanced ZENITH State". */
   engine: string;
   executiveSummary: string;
   topGainers: { ticker: string; name: string; changePct: number }[];
@@ -695,12 +695,12 @@ function assembleReport(
     .map((r) => r.ticker);
   const executiveSummary =
     tickers.length === 0
-      ? `**Ultra Advanced ZENITH State engaged.** SuperGrok 4.3 swept ${sweepLabel} for Top-10 movers and 7-day projection leaders. ` +
+      ? `**Ultra Advanced ZENITH State engaged.** SuperGrok 4.6 swept ${sweepLabel} for Top-10 movers and 7-day projection leaders. ` +
         `Your book has **no monitored ${bot === "crypto" ? "coins" : "tickers"} yet** — this report leads with a concrete **BUY/ACCUMULATE** list` +
         (buyNames.length ? ` led by **${buyNames.join(", ")}**` : "") +
         ` so cash can be deployed with conviction and specific markets named. ` +
         `_Informational market intelligence only — not personalised financial advice._`
-      : `**Ultra Advanced ZENITH State engaged.** SuperGrok 4.3 has orchestrated a full multi-timeframe sweep across ${sweepLabel}, ranking Top-10 movers over 24 hours, 7 days and the last month, projecting the next 7 days for the highest-conviction names and cross-referencing regional news. ` +
+      : `**Ultra Advanced ZENITH State engaged.** SuperGrok 4.6 has orchestrated a full multi-timeframe sweep across ${sweepLabel}, ranking Top-10 movers over 24 hours, 7 days and the last month, projecting the next 7 days for the highest-conviction names and cross-referencing regional news. ` +
         `Your ${tickers.length} monitored ${bot === "crypto" ? "coins" : "tickers"} were analysed against that backdrop — aggregate 7-day bias is **${strong.length >= weak.length ? "constructive" : "defensive"}** (${strong.length} accumulate-or-better, ${weak.length} elevated risk). ` +
         (buyNames.length
           ? `Priority new buys this week: **${buyNames.join(", ")}**. `

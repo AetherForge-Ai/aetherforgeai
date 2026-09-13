@@ -46,7 +46,7 @@ const CRYPTO_STAGES = [
   "Pulling 12-month price history for your assets…",
   "Scanning worldwide crypto news wires…",
   "Running ZENITH momentum & mean-reversion models…",
-  "Grok 4.3 composing your ULTRA executive briefing…",
+  "Grok 4.6 composing your ULTRA executive briefing…",
   "Rendering PDF & dispatching to your inbox…",
 ];
 const STOCK_STAGES = [
@@ -55,7 +55,7 @@ const STOCK_STAGES = [
   "Pulling 12-month price history for your tickers…",
   "Computing RSI / MACD / momentum signals…",
   "Running ZENITH forward-projection models…",
-  "Grok 4.3 composing your ULTRA executive briefing…",
+  "Grok 4.6 composing your ULTRA executive briefing…",
   "Rendering PDF & dispatching to your inbox…",
 ];
 

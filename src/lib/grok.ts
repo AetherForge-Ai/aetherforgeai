@@ -6,7 +6,7 @@ import "server-only";
  *
  * Configure via env:
  *   XAI_API_KEY  — required, your xAI secret key (starts with "xai-")
- *   XAI_MODEL    — optional, defaults to "grok-4.3"
+ *   XAI_MODEL    — optional, defaults to "grok-4.6"
  */
 
 import {
@@ -40,11 +40,11 @@ export function isZenithConfigured(): boolean {
 }
 
 /**
- * Run a completion in SuperGrok 4.3 ULTRA ADVANCED ZENITH STATE.
+ * Run a completion in SuperGrok 4.6 ULTRA ADVANCED ZENITH STATE.
  *
  * This is the single entry point every bot uses for its report narratives: it
  * prepends the ZENITH operating directive to the caller's messages, pins the
- * ZENITH model (grok-4.3 unless XAI_MODEL overrides) and applies deep, decisive
+ * ZENITH model (grok-4.6 unless XAI_MODEL overrides) and applies deep, decisive
  * default tuning. Callers still pass their own task-specific system/user turns.
  */
 export async function createZenithCompletion({

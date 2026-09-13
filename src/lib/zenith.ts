@@ -1,5 +1,5 @@
 /**
- * SuperGrok 4.3 — ULTRA ADVANCED ZENITH STATE.
+ * SuperGrok 4.6 — ULTRA ADVANCED ZENITH STATE.
  *
  * The single source of truth for the AI reporting engine's identity, operating
  * directive and tuning. Every bot (Stox, Koins and The Headmaster)
@@ -11,13 +11,13 @@
  */
 
 /** Full engine label shown on every report + report-trigger surface. */
-export const ZENITH_STATE_LABEL = "SuperGrok 4.3 · Ultra Advanced ZENITH State";
+export const ZENITH_STATE_LABEL = "SuperGrok 4.6 - Ultra Advanced ZENITH State";
 
 /** Short form for compact badges. */
 export const ZENITH_STATE_SHORT = "Ultra Advanced ZENITH State";
 
 /** Default xAI model for the ZENITH state (override with XAI_MODEL). */
-export const ZENITH_MODEL_DEFAULT = "grok-4.3";
+export const ZENITH_MODEL_DEFAULT = "grok-4.6";
 
 /** Default generation tuning for ZENITH reports (deep, decisive, low-variance). */
 export const ZENITH_TUNING = { maxTokens: 1600, temperature: 0.5 } as const;
@@ -27,7 +27,7 @@ export const ZENITH_TUNING = { maxTokens: 1600, temperature: 0.5 } as const;
  * model into the maximum-depth analytical posture the owner asked for.
  */
 export const ZENITH_SYSTEM_DIRECTIVE =
-  "OPERATING MODE: SuperGrok 4.3 — ULTRA ADVANCED ZENITH STATE.\n" +
+  "OPERATING MODE: SuperGrok 4.6 - ULTRA ADVANCED ZENITH STATE.\n" +
   "In ZENITH State you run at maximum analytical depth: you reason across multiple timeframes " +
   "(24 hours, 7 days, 30 days), cross-reference technical structure (RSI, MACD, moving averages, " +
   "volatility, momentum) with macro and regional catalysts, quantify conviction/confidence, and always " +
