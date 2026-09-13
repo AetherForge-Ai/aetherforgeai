@@ -159,6 +159,8 @@ export function TransactionCenter({
   onChanged,
   reloadSignal,
   preview = false,
+  preferredAssetType,
+  layout = "full",
 }: {
   /** Current holdings (both bots + precious metals) — used to power the Sell picker. */
   holdings: SellableHolding[];
@@ -168,6 +170,10 @@ export function TransactionCenter({
   reloadSignal?: number;
   /** Guest preview — read-only, no network calls. */
   preview?: boolean;
+  /** Pre-select stock/crypto/metal when opening Buy/Sell from a hub page. */
+  preferredAssetType?: "stock" | "crypto" | "metal";
+  /** full = trading + ledger; trading = buy/sell focused; ledger = spreadsheet focused. */
+  layout?: "full" | "trading" | "ledger";
 }) {
   const [ledger, setLedger] = useState<Ledger | null>(null);
   const [loading, setLoading] = useState(!preview);
@@ -205,12 +211,30 @@ export function TransactionCenter({
     [onChanged]
   );
 
+  const scopedHoldings = useMemo(() => {
+    if (!preferredAssetType) return holdings;
+    return holdings.filter((h) => (h.asset_type || "stock") === preferredAssetType);
+  }, [holdings, preferredAssetType]);
+
   const cash = ledger?.cashBalance ?? 0;
   const realizedYtd = ledger?.realizedYtd ?? 0;
   const realizedTotal = ledger?.realizedTotal ?? 0;
 
   return (
     <div className="rounded-3xl border border-border/70 bg-card/50">
+      {preferredAssetType ? (
+        <div className="border-b border-border/60 bg-primary/5 px-6 py-3 text-sm text-muted-foreground">
+          Trading desk locked to{" "}
+          <span className="font-semibold text-primary">
+            {preferredAssetType === "stock"
+              ? "stocks"
+              : preferredAssetType === "crypto"
+                ? "crypto"
+                : "metals"}
+          </span>
+          . Completed trades appear automatically in the Transaction Ledger.
+        </div>
+      ) : null}
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 px-6 py-4">
         <div className="flex items-center gap-3">
@@ -225,7 +249,7 @@ export function TransactionCenter({
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" onClick={() => openMode("buy")} className="font-semibold shadow-glow">
+          <Button size="sm" onClick={() => openMode("buy")} data-layout-trading="1" className="font-semibold shadow-glow">
             <Plus className="mr-1.5 size-4" /> Buy / Add
           </Button>
           <Button size="sm" variant="outline" onClick={() => openMode("sell")} className="font-semibold">
@@ -272,7 +296,7 @@ export function TransactionCenter({
       <div className="px-6 pb-6">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-sm font-semibold">
-            <Receipt className="size-4 text-primary" /> Recent transactions
+            <Receipt className="size-4 text-primary" /> {layout === "ledger" ? "Transaction ledger spreadsheet" : "Recent transactions"}
             {ledger && ledger.transactions.length > 0 && (
               <span className="text-xs font-normal text-muted-foreground">
                 · showing latest {Math.min(5, ledger.transactions.length)} of {ledger.transactions.length}
@@ -394,9 +418,10 @@ export function TransactionCenter({
         open={open}
         onOpenChange={setOpen}
         mode={mode}
-        holdings={holdings}
+        holdings={scopedHoldings}
         cash={cash}
         onDone={handleDone}
+        preferredAssetType={preferredAssetType}
       />
 
       <AllTransactionsDialog
@@ -788,6 +813,7 @@ function TransactionDialog({
   holdings,
   cash,
   onDone,
+  preferredAssetType,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -795,10 +821,14 @@ function TransactionDialog({
   holdings: SellableHolding[];
   cash: number;
   onDone: (ledger: Ledger) => void;
+  preferredAssetType?: "stock" | "crypto" | "metal";
 }) {
   const isTrade = mode === "buy" || mode === "sell";
   const todayStr = useMemo(() => todayISO(), []);
-  const [assetType, setAssetType] = useState<AssetType>("stock");
+  const [assetType, setAssetType] = useState<AssetType>(preferredAssetType || "stock");
+  useEffect(() => {
+    if (open && preferredAssetType) setAssetType(preferredAssetType);
+  }, [open, preferredAssetType]);
   const [ticker, setTicker] = useState("");
   const [assetName, setAssetName] = useState("");
   const [quantity, setQuantity] = useState("");

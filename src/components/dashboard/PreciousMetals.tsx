@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { Bot3DAvatar } from "@/components/bots/Bot3DAvatar";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -330,13 +331,11 @@ export function PreciousMetals({
           {/* Smitty layered over the top/center of both open windows */}
           <div className="pointer-events-none absolute left-1/2 top-0 z-20 w-36 -translate-x-1/2 sm:w-44">
             <div className="relative mx-auto aspect-square w-full">
-              <Image
-                src="/brand/bot-smitty-dashboard.png"
+              <Bot3DAvatar
+                bot="smitty"
                 alt="Smitty throwing gold and silver bricks into the spot windows"
-                fill
-                className="object-contain object-bottom drop-shadow-lg"
-                sizes="176px"
-                priority={false}
+                className="h-full w-full drop-shadow-lg"
+                poster="/brand/bot-smitty-dashboard.png"
               />
             </div>
           </div>

@@ -71,6 +71,24 @@ export const BOT_HEADMASTER_AVATAR = "/brand/bot-headmaster.jpg";
 /** @deprecated Legacy alias — the bot is now "The Headmaster". Same image. */
 export const BOT_TOTALUM_AVATAR = BOT_HEADMASTER_AVATAR;
 
+/** TripoSR GLB full-body avatars (public/brand/3d). */
+export const BOT_3D_GLB = {
+  stox: "/brand/3d/stox.glb",
+  koins: "/brand/3d/koins.glb",
+  headmaster: "/brand/3d/headmaster.glb",
+  smitty: "/brand/3d/smitty.glb",
+} as const;
+
+export type Bot3DId = keyof typeof BOT_3D_GLB;
+
+/** PNG posters / reduced-motion fallbacks for 3D avatars. */
+export const BOT_3D_POSTER = {
+  stox: "/brand/bot-stox-fullbody.png",
+  koins: "/brand/bot-koins-fullbody.png",
+  headmaster: "/brand/bot-headmaster-fullbody.png",
+  smitty: "/brand/bot-smitty-fullbody.png",
+} as const;
+
 // ── Live Results & Performance Proof page ──
 // Real, unedited dashboard screenshots captured on 2026-07-08 by the owner and
 // stored as static Totalum assets. They document a single multi-asset portfolio

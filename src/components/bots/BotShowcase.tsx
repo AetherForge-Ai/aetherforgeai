@@ -24,12 +24,15 @@ import {
 import { ApexReportView } from "@/components/bots/ApexReport";
 import { buildDemoReport, type BotKind } from "@/lib/apex";
 import { BOT_STOX_AVATAR, BOT_KOINS_AVATAR, BOT_HEADMASTER_AVATAR } from "../../../assets/files";
+import { Bot3DAvatar } from "@/components/bots/Bot3DAvatar";
+import type { Bot3DId } from "@/assets/files";
 
 interface BotDef {
   kind: BotKind;
   name: string;
   subtitle: string;
   mascot: string;
+  bot3d: Bot3DId;
   blurb: string;
   accent: string; // tailwind gradient classes
   tags: string[];
@@ -41,6 +44,7 @@ const BOTS: BotDef[] = [
     name: "Stox",
     subtitle: "Stock Market Intelligence Monitor",
     mascot: BOT_STOX_AVATAR,
+    bot3d: "stox",
     blurb:
       "Sweeps NZX, ASX and global equities in Apex Mode — compiling institutional-grade tables, top-gainer boards and 12-month continuation graphs for every ticker you monitor.",
     accent: "from-emerald-500/20 via-teal-500/10 to-transparent",
@@ -51,6 +55,7 @@ const BOTS: BotDef[] = [
     name: "Koins",
     subtitle: "Crypto Market Intelligence Monitor",
     mascot: BOT_KOINS_AVATAR,
+    bot3d: "koins",
     blurb:
       "Tracks BTC, ETH and the broader digital-asset market in Apex Mode — synthesising funding, flows and sentiment into clear 7-day projections and three forward pathways.",
     accent: "from-amber-500/20 via-orange-500/10 to-transparent",
@@ -66,11 +71,11 @@ function BotCard({ bot, onOpen }: { bot: BotDef; onOpen: () => void }) {
       <div className="flex items-start gap-4">
         <div className="relative shrink-0">
           <div className="absolute inset-0 rounded-full bg-primary/20 blur-xl" aria-hidden />
-          <img
-            src={bot.mascot}
+          <Bot3DAvatar
+            bot={bot.bot3d}
             alt={`${bot.name} mascot`}
-            className="relative h-24 w-24 rounded-2xl object-cover ring-1 ring-border/60"
-            loading="lazy"
+            className="relative h-24 w-24 rounded-2xl ring-1 ring-border/60"
+            poster={bot.mascot}
           />
         </div>
         <div className="min-w-0">
@@ -129,11 +134,11 @@ export function BotShowcase() {
             <div className="flex items-start gap-4">
               <div className="relative shrink-0">
                 <div className="absolute inset-0 rounded-full bg-primary/20 blur-xl" aria-hidden />
-                <img
-                  src={BOT_HEADMASTER_AVATAR}
+                <Bot3DAvatar
+                  bot="headmaster"
                   alt="The Headmaster avatar"
-                  className="relative h-24 w-24 rounded-2xl object-cover ring-1 ring-border/60"
-                  loading="lazy"
+                  className="relative h-24 w-24 rounded-2xl ring-1 ring-border/60"
+                  poster={BOT_HEADMASTER_AVATAR}
                 />
               </div>
               <div className="min-w-0">
@@ -153,10 +158,12 @@ export function BotShowcase() {
             <>
               <DialogHeader>
                 <div className="flex items-center gap-4">
-                  <img
-                    src={activeBot.mascot}
+                  <Bot3DAvatar
+                    bot={activeBot.bot3d}
                     alt={`${activeBot.name} mascot`}
-                    className="h-16 w-16 shrink-0 rounded-xl object-cover ring-1 ring-border/60"
+                    className="h-16 w-16 shrink-0 rounded-xl ring-1 ring-border/60"
+                    poster={activeBot.mascot}
+                    autoRotate={false}
                   />
                   <div>
                     <DialogTitle className="text-left text-lg">
