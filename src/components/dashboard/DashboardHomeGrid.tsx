@@ -1,12 +1,16 @@
 "use client";
 
-import type { ComponentType } from "react";
+import { useEffect, useState, type ComponentType } from "react";
+import { api } from "@/lib/api";
 import Link from "next/link";
 import { AnimatedMoney } from "@/components/dashboard/AnimatedMoney";
-import { IndexMarketCard } from "@/components/dashboard/IndexMarketCard";
+import {
+  IndexMarketCard,
+  type ExchangeSnapshot,
+} from "@/components/dashboard/IndexMarketCard";
 import { formatMoney } from "@/lib/currency";
 import { cn } from "@/lib/utils";
-import { ArrowRight, BookOpen, Coins, Landmark, Wallet, Sparkles, Bot, GraduationCap } from "lucide-react";
+import { ArrowRight, BookOpen, Coins, Landmark, Wallet } from "lucide-react";
 
 type LedgerRow = {
   type?: string;
@@ -116,6 +120,8 @@ function OverviewCard({
           <div className="relative h-36 w-full max-w-[11rem]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
+            loading="lazy"
+            decoding="async"
               src={sceneSrc}
               alt=""
               aria-hidden
@@ -123,6 +129,8 @@ function OverviewCard({
             />
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
+            loading="lazy"
+            decoding="async"
               src={poster}
               alt=""
               className="relative mx-auto h-32 w-auto object-contain object-bottom"
@@ -131,6 +139,8 @@ function OverviewCard({
         ) : (
           // eslint-disable-next-line @next/next/no-img-element
           <img
+            loading="lazy"
+            decoding="async"
             src={poster}
             alt=""
             className="h-36 w-auto object-contain object-bottom"
@@ -206,6 +216,67 @@ function LedgerCard({
 /**
  * Dashboard home 4×3 grid. Every window links to its own detail page.
  */
+
+/** Shared client cache so remounts / navigations paint market tiles instantly. */
+const SNAPSHOT_TTL_MS = 45_000;
+let snapshotCache: { at: number; exchanges: ExchangeSnapshot[] } | null = null;
+let snapshotInflight: Promise<ExchangeSnapshot[]> | null = null;
+
+async function loadMarketSnapshots(): Promise<ExchangeSnapshot[]> {
+  const now = Date.now();
+  if (snapshotCache && now - snapshotCache.at < SNAPSHOT_TTL_MS) {
+    return snapshotCache.exchanges;
+  }
+  if (snapshotInflight) return snapshotInflight;
+  snapshotInflight = (async () => {
+    const res = await api.get<{ asOf: string; exchanges: ExchangeSnapshot[] }>(
+      "/api/market-snapshot"
+    );
+    const exchanges = res.ok && res.data?.exchanges ? res.data.exchanges : [];
+    snapshotCache = { at: Date.now(), exchanges };
+    snapshotInflight = null;
+    return exchanges;
+  })().catch((err) => {
+    snapshotInflight = null;
+    throw err;
+  });
+  return snapshotInflight;
+}
+
+function useSharedMarketSnapshots() {
+  const [exchanges, setExchanges] = useState<ExchangeSnapshot[]>(
+    () => snapshotCache?.exchanges ?? []
+  );
+  const [loading, setLoading] = useState(() => !snapshotCache);
+
+  useEffect(() => {
+    let alive = true;
+    const warm = snapshotCache && Date.now() - snapshotCache.at < SNAPSHOT_TTL_MS;
+    if (warm && snapshotCache) {
+      setExchanges(snapshotCache.exchanges);
+      setLoading(false);
+    }
+    loadMarketSnapshots()
+      .then((list) => {
+        if (!alive) return;
+        setExchanges(list);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (!alive) return;
+        setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const byExchange = (key: string) =>
+    exchanges.find((e) => e.exchange === key) ?? null;
+
+  return { byExchange, loading };
+}
+
 export function DashboardHomeGrid({
   cashBalance,
   stockTotalNZD,
@@ -217,6 +288,8 @@ export function DashboardHomeGrid({
   recentLedger = [],
   className,
 }: Props) {
+  const { byExchange, loading: marketsLoading } = useSharedMarketSnapshots();
+
   return (
     <div className={cn("mt-6 space-y-4", className)}>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -268,7 +341,7 @@ export function DashboardHomeGrid({
           title="Stock Portfolio Overview"
           href="/dashboard/stocks"
           bot="stox"
-          poster="/brand/bot-stox-fullbody.png"
+          poster="/brand/bot-stox.png"
           metricLabel="Market value · NZD"
           metricValue={formatMoney(stockTotalNZD, "NZD")}
           hint="Stox watches NZX · ASX · US equities for you"
@@ -277,7 +350,7 @@ export function DashboardHomeGrid({
           title="Crypto Portfolio Overview"
           href="/dashboard/crypto"
           bot="koins"
-          poster="/brand/bot-koins-fullbody.png"
+          poster="/brand/bot-koins.png"
           metricLabel="Market value · NZD"
           metricValue={formatMoney(cryptoTotalNZD, "NZD")}
           hint="Koins tracks BTC, ETH and your coin book"
@@ -286,7 +359,7 @@ export function DashboardHomeGrid({
           title="Precious Metals Overview"
           href="/dashboard/metals"
           bot="smitty"
-          poster="/brand/bot-smitty-fullbody.png"
+          poster="/brand/precious-metals-smitty.png"
           metricLabel="Metals value · NZD"
           metricValue={formatMoney(metalsTotalNZD, "NZD")}
           hint="Smitty with live gold & silver at the forge"
@@ -299,76 +372,20 @@ export function DashboardHomeGrid({
       </div>
 
       
-      {/* Run the AI bots — Stox, Koins, The Headmaster */}
-      <div className="rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 via-card/70 to-card/50 p-4 sm:p-5">
-        <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-          <div>
-            <p className="font-grift-black text-sm uppercase tracking-wide text-amber-400 sm:text-base">
-              Run the AI bots
-            </p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Generate Stox &amp; Koins market reports, or open The Headmaster to build your plan and strategy.
-            </p>
-          </div>
-          <Link
-            href="/dashboard/bots"
-            className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
-          >
-            Open bot desk <ArrowRight className="size-3.5" />
-          </Link>
-        </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <Link
-            href="/dashboard/bots#dash-report-centre"
-            className="flex flex-col rounded-xl border border-border/70 bg-card/80 p-4 transition-colors hover:border-primary/45"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/brand/bot-stox-fullbody.png" alt="" className="mx-auto h-24 w-auto object-contain" />
-            <p className="mt-2 font-grift-black text-center text-sm uppercase text-amber-400">Stox</p>
-            <p className="mt-1 text-center text-xs text-muted-foreground">Run stock-market ULTRA reports</p>
-            <span className="mt-3 inline-flex items-center justify-center gap-1 text-[0.7rem] font-semibold text-primary">
-              <Bot className="size-3.5" /> Run Stox
-            </span>
-          </Link>
-          <Link
-            href="/dashboard/bots#dash-report-centre"
-            className="flex flex-col rounded-xl border border-border/70 bg-card/80 p-4 transition-colors hover:border-primary/45"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/brand/bot-koins-fullbody.png" alt="" className="mx-auto h-24 w-auto object-contain" />
-            <p className="mt-2 font-grift-black text-center text-sm uppercase text-amber-400">Koins</p>
-            <p className="mt-1 text-center text-xs text-muted-foreground">Run crypto-market ULTRA reports</p>
-            <span className="mt-3 inline-flex items-center justify-center gap-1 text-[0.7rem] font-semibold text-primary">
-              <Sparkles className="size-3.5" /> Run Koins
-            </span>
-          </Link>
-          <Link
-            href="/headmaster"
-            className="flex flex-col rounded-xl border border-primary/40 bg-primary/5 p-4 transition-colors hover:border-primary/60"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/brand/bot-headmaster-fullbody.png" alt="" className="mx-auto h-24 w-auto object-contain" />
-            <p className="mt-2 font-grift-black text-center text-sm uppercase text-amber-400">The Headmaster</p>
-            <p className="mt-1 text-center text-xs text-muted-foreground">Create your plan &amp; strategy</p>
-            <span className="mt-3 inline-flex items-center justify-center gap-1 text-[0.7rem] font-semibold text-primary">
-              <GraduationCap className="size-3.5" /> Open Headmaster
-            </span>
-          </Link>
-        </div>
-      </div>
+
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Link href="/dashboard/markets/nzsx" className="block transition-opacity hover:opacity-95">
-          <IndexMarketCard title="NZSX" exchange="NZX" />
+          <IndexMarketCard title="NZSX" exchange="NZX" snapshot={byExchange("NZX")} snapshotLoading={marketsLoading} />
         </Link>
         <Link href="/dashboard/markets/asx" className="block transition-opacity hover:opacity-95">
-          <IndexMarketCard title="ASX" exchange="ASX" />
+          <IndexMarketCard title="ASX" exchange="ASX" snapshot={byExchange("ASX")} snapshotLoading={marketsLoading} />
         </Link>
         <Link href="/dashboard/markets/nasdaq" className="block transition-opacity hover:opacity-95">
-          <IndexMarketCard title="NASDAQ" exchange="NASDAQ" />
+          <IndexMarketCard title="NASDAQ" exchange="NASDAQ" snapshot={byExchange("NASDAQ")} snapshotLoading={marketsLoading} />
         </Link>
         <Link href="/dashboard/markets/dow" className="block transition-opacity hover:opacity-95">
-          <IndexMarketCard title="Dow Jones" exchange="DOW" />
+          <IndexMarketCard title="Dow Jones" exchange="DOW" snapshot={byExchange("DOW")} snapshotLoading={marketsLoading} />
         </Link>
       </div>
     </div>

@@ -9,6 +9,14 @@ import { fetchYahooQuotes, yahooEquitySymbol, type YahooQuote } from "@/lib/yaho
 
 export const dynamic = "force-dynamic";
 
+/** In-process cache — four dashboard tiles share one response for ~45s. */
+const SNAPSHOT_MEM_TTL_MS = 45_000;
+let snapshotMem: { at: number; body: unknown } | null = null;
+
+/** Cap constituents per exchange so the home tiles stay snappy (Yahoo batch). */
+const MAX_CONSTITUENTS = 48;
+
+
 /** Headline index for each user-facing exchange. */
 const INDEX_SYMBOL: Record<Exchange, string> = {
   NZX: "^NZ50", // S&P/NZX 50
@@ -63,6 +71,16 @@ export interface ExchangeSnapshot {
  */
 export async function GET() {
   try {
+    const now = Date.now();
+    if (snapshotMem && now - snapshotMem.at < SNAPSHOT_MEM_TTL_MS) {
+      return NextResponse.json(snapshotMem.body, {
+        headers: {
+          "Cache-Control": "public, s-maxage=45, stale-while-revalidate=120",
+          "X-Snapshot-Cache": "HIT",
+        },
+      });
+    }
+
     // One combined index request for all four headline indices.
     const indexMap: Record<string, string> = {};
     for (const ex of EXCHANGES) indexMap[ex] = INDEX_SYMBOL[ex];
@@ -77,7 +95,7 @@ export async function GET() {
     const snapshots = await Promise.all(
       EXCHANGES.map(async (exchange): Promise<ExchangeSnapshot> => {
         const meta = EXCHANGE_META[exchange];
-        const entries = entriesForExchange(exchange);
+        const entries = entriesForExchange(exchange).slice(0, MAX_CONSTITUENTS);
 
         // Live quotes for the whole exchange universe (cached 60s upstream).
         const map: Record<string, string> = {};
@@ -152,11 +170,18 @@ export async function GET() {
         snapshots.map((s) => `${s.exchange}:${s.liveCount}`).join(" ")
     );
 
-    return NextResponse.json({
+    const body = {
       ok: true,
       data: {
         asOf: new Date().toISOString(),
         exchanges: snapshots,
+      },
+    };
+    snapshotMem = { at: Date.now(), body };
+    return NextResponse.json(body, {
+      headers: {
+        "Cache-Control": "public, s-maxage=45, stale-while-revalidate=120",
+        "X-Snapshot-Cache": "MISS",
       },
     });
   } catch (err: any) {
