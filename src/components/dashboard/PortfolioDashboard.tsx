@@ -964,8 +964,7 @@ export function PortfolioDashboard({
       >
         <DashboardSectionTitle
           title="Stock Portfolio Overview"
-          avatarBot="stox"
-                    avatarSrc="/brand/bot-stox-fullbody.png"
+          avatarSrc="/brand/bot-stox-fullbody.png"
           avatarAlt="Stox AI bot"
           avatarPose="lean"
         />
@@ -1045,8 +1044,7 @@ export function PortfolioDashboard({
       >
         <DashboardSectionTitle
           title="Crypto Currency Overview"
-          avatarBot="koins"
-                    avatarSrc="/brand/bot-koins-fullbody.png"
+          avatarSrc="/brand/bot-koins-fullbody.png"
           avatarAlt="Koins AI bot"
           avatarPose="flip"
         />
