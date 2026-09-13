@@ -40,6 +40,8 @@ import { DashboardSectionTitle } from "@/components/dashboard/DashboardSectionTi
 import { MarketIntelProvider } from "@/components/dashboard/MarketIntelContext";
 import { WatchlistPanel } from "@/components/dashboard/WatchlistPanel";
 import { GlobalSearch } from "@/components/dashboard/GlobalSearch";
+import { DashboardHomeGrid } from "@/components/dashboard/DashboardHomeGrid";
+import { IndexMarketCard } from "@/components/dashboard/IndexMarketCard";
 import { LockedSection } from "@/components/dashboard/LockedSection";
 import { CollapsibleSection } from "@/components/dashboard/CollapsibleSection";
 import type { AssetClass, UniverseEntry } from "@/lib/market-intel";
@@ -80,6 +82,7 @@ import {
   Sparkles,
   Coins,
   Landmark,
+  ArrowLeft,
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
@@ -87,6 +90,18 @@ import {
   Radar,
 } from "lucide-react";
 import Link from "next/link";
+
+export type DashboardView =
+  | "home"
+  | "cash"
+  | "stocks"
+  | "crypto"
+  | "metals"
+  | "transactions"
+  | "nzsx"
+  | "asx"
+  | "nasdaq"
+  | "dow";
 
 export interface DashboardSubscription {
   status?: string | null;
@@ -243,6 +258,7 @@ export function PortfolioDashboard({
   subscription,
   metalsEntitled,
   preview = false,
+  view = "home",
 }: {
   userName: string;
   subscription: DashboardSubscription;
@@ -250,6 +266,8 @@ export function PortfolioDashboard({
   metalsEntitled: boolean;
   /** Guest preview — dashboard is visible but the member sections are locked. */
   preview?: boolean;
+  /** Which dashboard window/page to render. */
+  view?: DashboardView;
 }) {
   // Active bot (Stock or Crypto). Defaults to the only bot the plan unlocks.
   const defaultBot: AssetClass = subscription.botAccess === "crypto" ? "crypto" : "stock";
@@ -286,6 +304,9 @@ export function PortfolioDashboard({
   const [refreshing, setRefreshing] = useState(false);
   // Cash (NZD) + precious-metals value (NZD) power the "Totals owned" strip.
   const [cashBalance, setCashBalance] = useState(preview ? PREVIEW_CASH_NZD : 0);
+  const [recentLedger, setRecentLedger] = useState<
+    { type?: string; ticker?: string | null; amount?: number | null; executed_at?: string | null; notes?: string | null }[]
+  >([]);
   const [metalsValueNZD, setMetalsValueNZD] = useState(preview ? PREVIEW_METALS_NZD : 0);
   // Raw precious_metal holdings (from /api/metals) so we can surface them in the
   // main Transaction Center Sell/Remove list and unify the two systems.
@@ -354,9 +375,27 @@ export function PortfolioDashboard({
 
   // Cash balance (NZD) from the transaction ledger.
   const loadCash = useCallback(async () => {
-    const res = await api.get<{ cashBalance: number }>("/api/transactions");
+    const res = await api.get<{
+      cashBalance: number;
+      transactions?: {
+        type?: string;
+        ticker?: string;
+        total?: number;
+        amount?: number;
+        executed_at?: string;
+        notes?: string;
+      }[];
+    }>("/api/transactions");
     if (res.ok && res.data) {
       setCashBalance(res.data.cashBalance ?? 0);
+      const rows = (res.data.transactions || []).slice(0, 6).map((r) => ({
+        type: r.type,
+        ticker: r.ticker ?? null,
+        amount: r.total ?? r.amount ?? null,
+        executed_at: r.executed_at ?? null,
+        notes: r.notes ?? null,
+      }));
+      setRecentLedger(rows);
     } else {
       console.error("[dashboard] Failed to load cash balance:", res.error);
     }
@@ -700,15 +739,70 @@ export function PortfolioDashboard({
       <>{children}</>
     );
 
+
+  const isHome = view === "home";
+  const isCash = view === "cash";
+  const isStocks = view === "stocks";
+  const isCrypto = view === "crypto";
+  const isMetals = view === "metals";
+  const isTransactions = view === "transactions";
+  const isMarket =
+    view === "nzsx" || view === "asx" || view === "nasdaq" || view === "dow";
+  const marketExchange =
+    view === "nzsx"
+      ? ("NZX" as const)
+      : view === "asx"
+        ? ("ASX" as const)
+        : view === "nasdaq"
+          ? ("NASDAQ" as const)
+          : view === "dow"
+            ? ("DOW" as const)
+            : null;
+  const marketTitle =
+    view === "nzsx"
+      ? "NZSX"
+      : view === "asx"
+        ? "ASX"
+        : view === "nasdaq"
+          ? "NASDAQ"
+          : view === "dow"
+            ? "Dow Jones"
+            : "";
+  const pageTitle =
+    view === "cash"
+      ? "Cash Balance"
+      : view === "stocks"
+        ? "Stock Portfolio Overview"
+        : view === "crypto"
+          ? "Crypto Portfolio Overview"
+          : view === "metals"
+            ? "Precious Metals Overview"
+            : view === "transactions"
+              ? "Transaction Ledger"
+              : isMarket
+                ? marketTitle
+                : "Welcome to your Dashboard";
+
   return (
     <MarketIntelProvider bot={bot}>
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-      {/* Header */}
-      <div className="flex flex-wrap items-end justify-between gap-3 sm:gap-4">
+      {/* Header — matches dashboard home mock */}
+      <div className="flex flex-wrap items-start justify-between gap-3 sm:gap-4">
         <div className="min-w-0">
           <p className="text-sm text-muted-foreground">
             {preview ? "Live preview" : `Welcome back, ${userName.split(" ")[0]}`}
           </p>
+          {!isHome ? (
+            <Link
+              href="/dashboard"
+              className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:underline"
+            >
+              <ArrowLeft className="size-4" /> Back to Dashboard
+            </Link>
+          ) : null}
+          <h1 className="mt-2 font-grift-black text-2xl uppercase tracking-wide text-amber-400 sm:text-3xl lg:text-4xl">
+            {pageTitle}
+          </h1>
         </div>
         {preview ? (
           <Button asChild className="font-semibold shadow-glow">
@@ -717,20 +811,44 @@ export function PortfolioDashboard({
             </Link>
           </Button>
         ) : (
-        <div className="flex flex-wrap items-center gap-2">
-          <GlobalSearch onPick={handleSearchPick} />
-          <Button
-            variant="outline"
-            onClick={handleRefreshPrices}
-            disabled={refreshing || stocks.length === 0}
-          >
-            {refreshing ? (
-              <Loader2 className="mr-2 size-4 animate-spin" />
-            ) : (
-              <RefreshCw className="mr-2 size-4" />
-            )}
-            Refresh prices
-          </Button>
+        <div className="flex flex-col items-stretch gap-3 sm:items-end">
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <GlobalSearch onPick={handleSearchPick} />
+            <Button
+              variant="outline"
+              onClick={handleRefreshPrices}
+              disabled={refreshing || stocks.length === 0}
+            >
+              {refreshing ? (
+                <Loader2 className="mr-2 size-4 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-2 size-4" />
+              )}
+              Refresh prices
+            </Button>
+          </div>
+          <div className="flex flex-wrap items-end justify-end gap-6">
+            <div className="text-right">
+              <p className="text-[0.68rem] font-semibold uppercase tracking-wide text-foreground">
+                Holdings value
+              </p>
+              <AnimatedMoney
+                value={holdingsValueNZD}
+                currency="NZD"
+                className="tnum font-display text-xl font-bold text-emerald-600 sm:text-2xl"
+              />
+            </div>
+            <div className="text-right">
+              <p className="text-[0.68rem] font-semibold uppercase tracking-wide text-foreground">
+                Total net worth
+              </p>
+              <AnimatedMoney
+                value={netWorthNZD}
+                currency="NZD"
+                className="tnum font-display text-xl font-bold text-emerald-600 sm:text-2xl"
+              />
+            </div>
+          </div>
         </div>
         )}
       </div>
@@ -764,15 +882,64 @@ export function PortfolioDashboard({
         </div>
       ) : null}
 
+      {isHome && (
+      <DashboardHomeGrid
+        cashBalance={cashBalance}
+        stockTotalNZD={stockTotalNZD}
+        cryptoTotalNZD={cryptoTotalNZD}
+        metalsTotalNZD={metalsValueNZD + metalStockTotalNZD}
+        stockPositions={stockHoldings.length}
+        cryptoPositions={cryptoHoldings.length}
+        metalsPositions={preciousMetalHoldings.length + metalStocks.length}
+        recentLedger={recentLedger}
+      />
+      )}
+
+      {isCash ? (
+        <div className="mt-8 grid gap-4 sm:grid-cols-2">
+          <div className="rounded-2xl border border-primary/40 bg-gradient-to-br from-primary/15 via-card/70 to-card/50 p-6">
+            <p className="font-grift-black text-sm uppercase tracking-wide text-amber-400">Cash Bal</p>
+            <AnimatedMoney value={cashBalance} currency="NZD" className="tnum mt-3 font-display text-3xl font-bold text-emerald-600" />
+            <p className="mt-2 text-sm text-muted-foreground">Available for buys across stocks, crypto and metals.</p>
+          </div>
+          <div className="rounded-2xl border border-border/70 bg-card/70 p-6">
+            <p className="font-grift-black text-sm uppercase tracking-wide text-amber-400">Net worth</p>
+            <AnimatedMoney value={netWorthNZD} currency="NZD" className="tnum mt-3 font-display text-3xl font-bold text-emerald-600" />
+            <p className="mt-2 text-sm text-muted-foreground">Cash plus live holdings value.</p>
+          </div>
+        </div>
+      ) : null}
+
+      {isMarket && marketExchange ? (
+        <div className="mt-8 space-y-4">
+          <IndexMarketCard title={marketTitle} exchange={marketExchange} className="min-h-[16rem]" />
+          <div className="rounded-2xl border border-border/70 bg-card/60 p-4">
+            <h2 className="font-grift-black text-lg uppercase tracking-wide text-amber-400">
+              {marketTitle} market terminal
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Live index, breadth and movers for this exchange. Use ALL Markets for the full cross-exchange browser.
+            </p>
+            <div className="mt-4">
+              <OpenMarketSnapshot onBought={handleDataChanged} />
+            </div>
+            <div className="mt-4">
+              <AllMarkets onBought={handleDataChanged} />
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {/* ───────────────────────── 3 · Stock portfolio overview ───────────────────────── */}
-      <div className="mt-10">
+      <div id="dash-stock-overview" className={cn("mt-10 scroll-mt-24", !isStocks && "hidden")}>
       <Gate
         title="Stock Portfolio Overview"
         description="Your live KPIs — total worth, unrealised P&L, 7-day alpha, portfolio health, Sharpe & win rate."
       >
         <DashboardSectionTitle
           title="Stock Portfolio Overview"
-          avatarSrc="/brand/bot-stox-fullbody.png"
+          avatarBot="stox"
+                    avatarSrc="/brand/bot-stox-fullbody.png"
           avatarAlt="Stox AI bot"
           avatarPose="lean"
         />
@@ -845,14 +1012,15 @@ export function PortfolioDashboard({
       </div>
 
       {/* ───────────────────────── 3b · Crypto currency overview ───────────────────────── */}
-      <div className="mt-10">
+      <div id="dash-crypto-overview" className={cn("mt-10 scroll-mt-24", !isCrypto && "hidden")}>
       <Gate
         title="Crypto Currency Overview"
         description="Live crypto KPIs and market terminal — total worth, unrealised P&L, health and projected movers."
       >
         <DashboardSectionTitle
           title="Crypto Currency Overview"
-          avatarSrc="/brand/bot-koins-fullbody.png"
+          avatarBot="koins"
+                    avatarSrc="/brand/bot-koins-fullbody.png"
           avatarAlt="Koins AI bot"
           avatarPose="flip"
         />
@@ -928,12 +1096,12 @@ export function PortfolioDashboard({
       </div>
 
       {/* ───────────────────────── 3c · Precious metals (moved up for page flow) ───────────────────────── */}
-      <div className="mt-10">
+      <div id="dash-metals-overview" className={cn("mt-10 scroll-mt-24", !isMetals && "hidden")}>
         <PreciousMetals entitled={metalsEntitled} plan={subscription.plan} onChanged={handleMetalsChanged} />
       </div>
 
       {/* ───────────────────────── 4 · Totals owned (Stocks · Crypto · Cash · Metals) ───────────────────────── */}
-      <div className="mt-8 rounded-3xl border border-border/70 bg-gradient-to-br from-primary/8 to-card/50 p-6">
+      <div className={cn("mt-8 rounded-3xl border border-border/70 bg-gradient-to-br from-primary/8 to-card/50 p-6", (isHome || isMarket || isTransactions) && "hidden")}>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold">
@@ -1054,7 +1222,7 @@ export function PortfolioDashboard({
       </div>
 
       {/* ───────────────────────── 5 · Holdings table (gated for guests) ───────────────────────── */}
-      <div className="mt-8">
+      <div className={cn("mt-8", !isStocks && "hidden")}>
       <Gate
         title="Your Holdings"
         description="Track every position live — shares, cost, current price, market value and gain/loss."
@@ -1239,7 +1407,7 @@ export function PortfolioDashboard({
       </div>
 
       {/* ───────────────────────── 6 · Transaction centre (buy / sell / cash) — gated for guests ───────────────────────── */}
-      <div className="mt-8">
+      <div className={cn("mt-8", !(isCash || isTransactions || isStocks || isCrypto) && "hidden")}>
       <Gate
         title="Transaction Centre"
         description="Buy, sell, deposit and withdraw — a full ledger of your cash and trades across every asset."
@@ -1249,13 +1417,17 @@ export function PortfolioDashboard({
           onChanged={handleDataChanged}
           reloadSignal={ledgerSignal}
           preview={preview}
+          preferredAssetType={
+            isStocks ? "stock" : isCrypto ? "crypto" : undefined
+          }
+          layout={isTransactions ? "ledger" : isCash ? "full" : "trading"}
         />
       </Gate>
       </div>
 
 
       {/* ───────────────────────── 6 · Actionable intelligence — SELL/BUY signals + pathways (modular window) ───────────────────────── */}
-      <div className="mt-6">
+      <div className={cn("mt-6", !(isStocks || isCrypto) && "hidden")}>
         <CollapsibleSection
           title="Actionable Intelligence"
           subtitle="Live SELL / BUY signals and the pathways behind them"
@@ -1268,7 +1440,7 @@ export function PortfolioDashboard({
 
 
       {/* ───────────────────────── 7 · Market Insights — one modular window: cross-exchange browser, snapshot, movers & projected performers ───────────────────────── */}
-      <div className="mt-6">
+      <div className={cn("mt-6", !(isStocks || isCrypto) && "hidden")}>
         <CollapsibleSection
           title="Market Insights"
           subtitle="Cross-exchange browser, open-market snapshot, top movers & projected performers"
@@ -1288,6 +1460,7 @@ export function PortfolioDashboard({
       </div>
 
       {/* ───────────────────────── 10 · Watchlist & share-price alerts (gated for guests) ───────────────────────── */}
+      <div className={cn("mt-6", !(isStocks || isCrypto) && "hidden")}>
       <div className="mt-6">
       <Gate
         title="Alerts"
@@ -1308,7 +1481,7 @@ export function PortfolioDashboard({
       </div>
 
       {/* ───────────────────────── 11 · Report Center (The Headmaster + Stox + Koins) — gated for guests ───────────────────────── */}
-      <div className="mt-8">
+      <div className={cn("mt-8", !(isStocks || isCrypto) && "hidden")}>
       <Gate
         title="Report Centre"
         description="Generate full PDF portfolio reports with market intelligence, indicators and AI insight — emailed to you."

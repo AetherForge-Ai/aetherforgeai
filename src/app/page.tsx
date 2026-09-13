@@ -4,24 +4,27 @@ import { MarketTicker } from "@/components/MarketTicker";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import { PersonalGuide } from "@/components/personal-guide";
+import { Bot3DAvatar } from "@/components/bots/Bot3DAvatar";
+import { SmittyForgeScene } from "@/components/bots/SmittyForgeScene";
+import type { Bot3DId } from "@/assets/files";
 
 const BOTS = [
   {
     name: "Stox",
     role: "Stock markets",
-    img: "/brand/bot-stox-fullbody.png",
+    bot: "stox" as Bot3DId,
     blurb: "STOX monitors the Stock Market with Ultra Advanced analysis and reports tied to your portfolio.",
   },
   {
     name: "Koins",
     role: "Crypto markets",
-    img: "/brand/bot-koins-fullbody.png",
+    bot: "koins" as Bot3DId,
     blurb: "KOINS monitors the Crypto Currency World and surfaces what matters for your holdings.",
   },
   {
     name: "The Headmaster",
     role: "Goals & strategy",
-    img: "/brand/bot-headmaster-fullbody.png",
+    bot: "headmaster" as Bot3DId,
     blurb: "The Headmaster builds an investment plan and strategy with you, tailored to what your individual needs require.",
   },
 ] as const;
@@ -32,9 +35,9 @@ const STEPS = [
     body: "Sign up and get started for FREE right now. See for your self how this works before you decide if you want to signup",
     sitter: {
       name: "Stox",
-      img: "/brand/bot-stox-fullbody.png",
+      bot: "stox" as Bot3DId,
       wrap: "left-0 -rotate-6",
-      imgClass: "h-36 w-auto",
+      boxClass: "h-36 w-28",
     },
   },
   {
@@ -42,9 +45,9 @@ const STEPS = [
     body: "Enter into Dashboard section your current Stock Market or Crypto Market Investments, Enter Your Precious Metals Investment",
     sitter: {
       name: "Smitty",
-      img: "/brand/bot-smitty-holdings.png",
+      bot: "smitty" as Bot3DId,
       wrap: "left-2",
-      imgClass: "h-44 w-auto origin-bottom-left",
+      boxClass: "h-44 w-32 origin-bottom-left",
       place: "bottom" as const,
     },
   },
@@ -53,9 +56,9 @@ const STEPS = [
     body: "Go to The Headmaster AI bot, Set Your Goals, Create a Strategy suitable to Your Needs and Requirements",
     sitter: {
       name: "The Headmaster",
-      img: "/brand/bot-headmaster-fullbody.png",
+      bot: "headmaster" as Bot3DId,
       wrap: "left-1/2 -translate-x-1/2 -rotate-2",
-      imgClass: "h-40 w-auto",
+      boxClass: "h-40 w-28",
     },
   },
   {
@@ -63,9 +66,9 @@ const STEPS = [
     body: "Generate daily reports using Stox and Koins AI bots, they monitor the entire markets, Analyze ALL of the REAL LIVE Data, and make Data Backed Short Term Predictions that will help you navigate your way towards achieving your Goals set with The Headmaster",
     sitter: {
       name: "Koins",
-      img: "/brand/bot-koins-fullbody.png",
+      bot: "koins" as Bot3DId,
       wrap: "right-0 rotate-7",
-      imgClass: "h-36 w-auto",
+      boxClass: "h-36 w-28",
     },
   },
 ] as const;
@@ -143,10 +146,10 @@ export default function LandingPage() {
                     key={bot.name}
                     className="flex h-full flex-col rounded-3xl border border-border/70 bg-card/60 p-5 shadow-sm"
                   >
-                    <img
-                      src={bot.img}
+                    <Bot3DAvatar
+                      bot={bot.bot}
                       alt={`${bot.name} avatar`}
-                      className="mx-auto h-28 w-auto object-contain drop-shadow-[0_10px_18px_rgba(0,0,0,0.45)]"
+                      className="mx-auto h-28 w-24 drop-shadow-[0_10px_18px_rgba(0,0,0,0.45)]"
                     />
                     <h3 className="mt-4 text-center font-display text-lg font-bold text-amber-400">
                       {bot.name}
@@ -179,11 +182,7 @@ export default function LandingPage() {
               <div className="grid items-start gap-8 lg:grid-cols-2 lg:gap-10">
                 {/* Large forge image + Au/Ag cards centred under it */}
                 <div className="flex flex-col">
-                  <img
-                    src="/brand/precious-metals-smitty.png"
-                    alt="Smitty, AetherForge Precious Metals Manager, with gold and silver at the forge"
-                    className="w-full h-auto rounded-3xl border border-border/70 shadow-xl"
-                  />
+                  <SmittyForgeScene />
                   <div className="mx-auto mt-6 grid w-full max-w-xl gap-3 sm:grid-cols-2">
                     <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4">
                       <p className="text-xs font-semibold uppercase tracking-wider text-amber-400">
@@ -219,10 +218,10 @@ export default function LandingPage() {
                       that matter.
                     </p>
                   </div>
-                  <img
-                    src="/brand/bot-smitty-fullbody.png"
+                  <Bot3DAvatar
+                    bot="smitty"
                     alt="Smitty leaning on a stack of gold bars"
-                    className="order-1 mx-auto h-56 w-auto shrink-0 drop-shadow-[0_18px_28px_rgba(0,0,0,0.55)] sm:order-2 sm:mx-0 sm:h-64"
+                    className="order-1 mx-auto h-56 w-40 shrink-0 drop-shadow-[0_18px_28px_rgba(0,0,0,0.55)] sm:order-2 sm:mx-0 sm:h-64 sm:w-44"
                   />
                 </div>
               </div>
@@ -252,10 +251,10 @@ export default function LandingPage() {
                       }`}
                       aria-hidden
                     >
-                      <img
-                        src={step.sitter.img}
+                      <Bot3DAvatar
+                        bot={step.sitter.bot}
                         alt=""
-                        className={`${step.sitter.imgClass} max-w-none object-contain object-bottom drop-shadow-[0_16px_24px_rgba(0,0,0,0.6)]`}
+                        className={`${step.sitter.boxClass} max-w-none drop-shadow-[0_16px_24px_rgba(0,0,0,0.6)]`}
                       />
                     </div>
                     <span className="relative z-0 font-display text-sm font-bold text-primary">

@@ -2,11 +2,15 @@
 
 import Image from "next/image";
 import { cn } from "@/lib/utils";
+import { Bot3DAvatar } from "@/components/bots/Bot3DAvatar";
+import type { Bot3DId } from "@/assets/files";
 
 type Props = {
   title: string;
   /** Optional mascot standing beside / leaning on the title */
   avatarSrc?: string;
+  /** When set, renders the 3D GLB avatar instead of a flat PNG */
+  avatarBot?: Bot3DId;
   avatarAlt?: string;
   /** lean = back against title; flip = slight bounce/offset for “flipping coins” feel */
   avatarPose?: "lean" | "flip" | "push";
@@ -22,6 +26,7 @@ type Props = {
 export function DashboardSectionTitle({
   title,
   avatarSrc,
+  avatarBot,
   avatarAlt = "",
   avatarPose = "lean",
   avatarSize = "md",
@@ -41,16 +46,25 @@ export function DashboardSectionTitle({
 
   return (
     <div className={cn("mb-5 flex items-end justify-center gap-3 sm:gap-4", className)}>
-      {avatarSrc ? (
+      {avatarBot || avatarSrc ? (
         <div className={cn(sizeClass, poseClass)}>
-          <Image
-            src={avatarSrc}
-            alt={avatarAlt}
-            fill
-            className="object-contain object-bottom drop-shadow-md"
-            sizes={avatarSize === "lg" ? "160px" : "80px"}
-            priority={false}
-          />
+          {avatarBot ? (
+            <Bot3DAvatar
+              bot={avatarBot}
+              alt={avatarAlt}
+              className="h-full w-full"
+              poster={avatarSrc}
+            />
+          ) : (
+            <Image
+              src={avatarSrc!}
+              alt={avatarAlt}
+              fill
+              className="object-contain object-bottom drop-shadow-md"
+              sizes={avatarSize === "lg" ? "160px" : "80px"}
+              priority={false}
+            />
+          )}
         </div>
       ) : null}
       <h2 className="font-display text-center text-xl font-bold uppercase tracking-wide text-amber-400 underline decoration-amber-400 decoration-2 underline-offset-8 sm:text-2xl">
