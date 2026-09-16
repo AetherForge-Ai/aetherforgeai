@@ -26,7 +26,7 @@ import { BOT_STOX_AVATAR, BOT_KOINS_AVATAR, BOT_HEADMASTER_AVATAR } from "../../
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { checkReportQuota, formatDuration, reportCadence } from "@/lib/entitlements";
-import { Loader2, Lock, Play, FileDown, Mail, FileText, Sparkles, Clock, Zap, ArrowRight } from "lucide-react";
+import { Loader2, Lock, Play, FileDown, Mail, FileText, Sparkles, Clock, Zap, ArrowRight, ChevronDown } from "lucide-react";
 
 type BotAccess = "stock" | "crypto" | "both" | "none";
 
@@ -108,6 +108,7 @@ export function ReportCenter({
   const [lastPdfUrl, setLastPdfUrl] = React.useState<string | null>(null);
   const [lastAiEnhanced, setLastAiEnhanced] = React.useState(false);
   const [open, setOpen] = React.useState(false);
+  const [reportsMinimized, setReportsMinimized] = React.useState(true);
   const [history, setHistory] = React.useState<PastReport[]>([]);
   // Independent per-bot last-report timestamps → independent countdowns.
   const [lastReportAt, setLastReportAt] = React.useState<{ stock: string | null; crypto: string | null }>({
@@ -371,11 +372,37 @@ export function ReportCenter({
         </span>
       </Link>
 
-      {/* Report history */}
-      <div className="mt-6">
-        <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
-          <FileText className="size-4 text-primary" /> Your reports
-        </div>
+      {/* Report history - minimizable so it does not dominate the page */}
+      <div className="mt-6 overflow-hidden rounded-xl border border-border/60">
+        <button
+          type="button"
+          onClick={() => setReportsMinimized((m) => !m)}
+          aria-expanded={!reportsMinimized}
+          className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-semibold hover:bg-card/60"
+        >
+          <FileText className="size-4 shrink-0 text-primary" />
+          <span>Your reports</span>
+          <span className="rounded-full border border-border/60 bg-card/50 px-2 py-0.5 text-[0.65rem] font-semibold text-muted-foreground">
+            {history.length}
+          </span>
+          <span className="ml-auto text-xs font-medium text-muted-foreground">
+            {reportsMinimized ? "Expand" : "Minimize"}
+          </span>
+          <ChevronDown
+            className={cn(
+              "size-4 shrink-0 text-muted-foreground transition-transform duration-300",
+              !reportsMinimized && "rotate-180"
+            )}
+          />
+        </button>
+        <div
+          className={cn(
+            "grid transition-all duration-300 ease-out",
+            reportsMinimized ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100"
+          )}
+        >
+          <div className="overflow-hidden">
+            <div className="border-t border-border/60 px-4 pb-4 pt-2">
         {history.length === 0 ? (
           <p className="rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground">
             No reports yet — deposit cash or add holdings in the Transaction Center above, then run Stox, Koins or The Headmaster.
@@ -418,6 +445,9 @@ export function ReportCenter({
             ))}
           </ul>
         )}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Inline report modal */}
