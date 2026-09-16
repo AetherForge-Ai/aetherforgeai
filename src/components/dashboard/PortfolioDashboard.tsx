@@ -1454,6 +1454,18 @@ export function PortfolioDashboard({
       </Gate>
       </div>
 
+
+      {/* Share Price Alerts — directly under Your Holdings */}
+      <div className={cn("mt-6", !(isStocks || isCrypto) && "hidden")}>
+        <Gate
+          title="Share Price Alerts"
+          description="Set live share-price alerts so you never miss a move on the tickers you hold or follow."
+        >
+          <PriceAlerts stocks={stocks} preview={preview} />
+        </Gate>
+      </div>
+
+
       {/* ───────────────────────── 6 · Transaction centre (buy / sell / cash) — gated for guests ───────────────────────── */}
       <div className={cn("mt-8", !(isCash || isTransactions || isStocks || isCrypto) && "hidden")}>
       <Gate
@@ -1507,18 +1519,15 @@ export function PortfolioDashboard({
         </CollapsibleSection>
       </div>
 
-      {/* ───────────────────────── 10 · Watchlist & share-price alerts (gated for guests) ───────────────────────── */}
+      {/* ───────────────────────── 10 · Watchlist (gated for guests) ───────────────────────── */}
       <div className={cn("mt-6", !(isStocks || isCrypto) && "hidden")}>
       <div className="mt-6">
       <Gate
-        title="Alerts"
-        description="Set live share-price alerts and a watchlist so you never miss a move on the tickers you follow."
+        title="Watchlist"
+        description="Track tickers you follow — add names to your watchlist so you never lose sight of them."
       >
       <div>
         <WatchlistPanel bot={bot} reloadSignal={watchlistSignal} preview={preview} />
-      </div>
-      <div className="mt-6">
-        <PriceAlerts stocks={stocks} preview={preview} />
       </div>
       </Gate>
       </div>
