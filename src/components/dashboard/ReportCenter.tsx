@@ -108,7 +108,7 @@ export function ReportCenter({
   const [lastPdfUrl, setLastPdfUrl] = React.useState<string | null>(null);
   const [lastAiEnhanced, setLastAiEnhanced] = React.useState(false);
   const [open, setOpen] = React.useState(false);
-  const [reportsMinimized, setReportsMinimized] = useState(true);
+  const [reportsMinimized, setReportsMinimized] = React.useState(true);
   const [history, setHistory] = React.useState<PastReport[]>([]);
   // Independent per-bot last-report timestamps → independent countdowns.
   const [lastReportAt, setLastReportAt] = React.useState<{ stock: string | null; crypto: string | null }>({
