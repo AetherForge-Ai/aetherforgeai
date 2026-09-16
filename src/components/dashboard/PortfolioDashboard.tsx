@@ -900,8 +900,8 @@ export function PortfolioDashboard({
       />
       )}
 
-      {/* Full Report Center directly under the home window tiles */}
-      {(isHome || isBots || isStocks || isCrypto) && (
+      {/* Report Center under home window tiles / bots desk (not on stocks/crypto hubs) */}
+      {(isHome || isBots) && (
       <div id="dash-report-centre" className="mt-8 scroll-mt-24">
       <Gate
         title="Report Centre"
@@ -1539,6 +1539,27 @@ export function PortfolioDashboard({
 
       {/* ───────────────────────── 11 · Report Center (The Headmaster + Stox + Koins) — gated for guests ───────────────────────── */}
 
+
+
+      {/* Report Centre at foot of stocks/crypto overview — generators first, reports list below (minimizable) */}
+      {(isStocks || isCrypto) && (
+      <div id="dash-report-centre-hub" className="mt-10 scroll-mt-24">
+      <Gate
+        title="Report Centre"
+        description="Generate full PDF portfolio reports with market intelligence, indicators and AI insight — emailed to you."
+      >
+        <ReportCenter
+          botAccess={subscription.botAccess}
+          plan={subscription.plan}
+          scope={scope}
+          counts={holdingCounts}
+          tickerLimit={tickerLimit}
+          onHoldingsChanged={handleDataChanged}
+          preview={preview}
+        />
+      </Gate>
+      </div>
+      )}
 
       <StockDialog
         open={dialogOpen}
