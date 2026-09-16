@@ -20,6 +20,7 @@ import {
   RefreshCw,
   Loader2,
   ShoppingCart,
+  ChevronDown,
 } from "lucide-react";
 
 const PATHWAY_ICON = {
@@ -96,6 +97,7 @@ export function ActionableIntelligence({
 
   const [buyTarget, setBuyTarget] = useState<BuyTarget | null>(null);
   const [buyOpen, setBuyOpen] = useState(false);
+  const [buysMinimized, setBuysMinimized] = useState(false);
 
   function openBuy(c: (typeof buyCandidates)[number]) {
     // Route the Buy dialog to the correct asset class from the candidate's market.
@@ -118,7 +120,7 @@ export function ActionableIntelligence({
         <div>
           <h2 className="font-display text-lg font-bold">Actionable intelligence</h2>
           <p className="text-xs text-muted-foreground">
-            Explicit signals from your holdings + the full NZX · ASX · Dow Jones · NASDAQ · Crypto universe
+            Explicit signals from your holdings + the full NZX  -  ASX  -  Dow Jones  -  NASDAQ  -  Crypto universe
           </p>
         </div>
       </div>
@@ -158,7 +160,7 @@ export function ActionableIntelligence({
           </div>
           {sellRecommendations.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">
-              No holdings currently flag a sell signal. 🎯
+              No holdings currently flag a sell signal.
             </p>
           ) : (
             <div className="space-y-3">
@@ -177,7 +179,7 @@ export function ActionableIntelligence({
                     <div className="text-right">
                       <p className="tnum text-sm font-medium">{formatMarketPrice(r.price, "USD")}</p>
                       <p className="text-[0.62rem] text-muted-foreground">
-                        {r.weight}% wt · <span className={pctClass(r.gainPct)}>{fmtPct(r.gainPct)}</span> P&amp;L
+                        {r.weight}% wt  -  <span className={pctClass(r.gainPct)}>{fmtPct(r.gainPct)}</span> P&amp;L
                       </p>
                     </div>
                   </div>
@@ -188,19 +190,37 @@ export function ActionableIntelligence({
           )}
         </div>
 
-        {/* BUY candidates */}
-        <div className="rounded-2xl border border-border/70 bg-card/40 p-5">
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700">
-              <ArrowUpRight className="size-4" /> High-conviction BUY candidates
-              <span className="text-xs font-normal text-muted-foreground">
-                (not held · NZX · ASX · DJIA · NASDAQ · Crypto)
+        {/* BUY candidates - minimizable */}
+        <div className="overflow-hidden rounded-2xl border border-border/70 bg-card/40">
+          <div className="flex items-center gap-2 px-4 py-3 sm:px-5">
+            <button
+              type="button"
+              onClick={() => setBuysMinimized((m) => !m)}
+              aria-expanded={!buysMinimized}
+              className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm font-semibold text-emerald-700"
+            >
+              <ArrowUpRight className="size-4 shrink-0" />
+              <span className="truncate">High-conviction BUY candidates</span>
+              <span className="hidden text-xs font-normal text-muted-foreground sm:inline">
+                (not held - NZX - ASX - DJIA - NASDAQ - Crypto)
               </span>
-            </div>
+              <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[0.65rem] font-semibold text-emerald-700">
+                {buyCandidates.length}
+              </span>
+              <span className="ml-auto shrink-0 text-xs font-medium text-muted-foreground">
+                {buysMinimized ? "Expand" : "Minimize"}
+              </span>
+              <ChevronDown
+                className={cn(
+                  "size-4 shrink-0 text-muted-foreground transition-transform duration-300",
+                  !buysMinimized && "rotate-180"
+                )}
+              />
+            </button>
             <Button
               variant="outline"
               size="sm"
-              className="h-7 gap-1.5 px-2.5 text-xs"
+              className="h-7 shrink-0 gap-1.5 px-2.5 text-xs"
               onClick={handleRefresh}
               disabled={refreshing || otherLoading}
             >
@@ -212,42 +232,70 @@ export function ActionableIntelligence({
               Refresh
             </Button>
           </div>
-          {buyCandidates.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">No fresh buy signals right now.</p>
-          ) : (
-            <div className="space-y-3">
-              {buyCandidates.map((c) => (
-                <div key={c.ticker} className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-display text-sm font-bold">{c.ticker.replace(/\.(NZ|AX)$/, "")}</span>
-                      <ExchangeChip ticker={c.ticker} market={c.market} />
-                      <SignalBadge signal={c.signal} />
-                    </div>
-                    <div className="text-right">
-                      <p className="tnum text-sm font-medium">{formatMarketPrice(c.price, c.currency)}</p>
-                      <p className="text-[0.62rem] text-muted-foreground">
-                        <span className={pctClass(c.projected7dPct)}>{fmtPct(c.projected7dPct)}</span> · {c.confidence}% conf.
-                      </p>
-                    </div>
+
+          <div
+            className={cn(
+              "grid transition-all duration-300 ease-out",
+              buysMinimized ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100"
+            )}
+          >
+            <div className="overflow-hidden">
+              <div className="border-t border-border/60 px-4 pb-4 pt-3 sm:px-5 sm:pb-5">
+                {buyCandidates.length === 0 ? (
+                  <p className="py-6 text-center text-sm text-muted-foreground">
+                    No fresh buy signals right now.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {buyCandidates.map((c) => (
+                      <div
+                        key={c.ticker}
+                        className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-display text-sm font-bold">
+                              {c.ticker.replace(/\.(NZ|AX)$/, "")}
+                            </span>
+                            <ExchangeChip ticker={c.ticker} market={c.market} />
+                            <SignalBadge signal={c.signal} />
+                          </div>
+                          <div className="text-right">
+                            <p className="tnum text-sm font-medium">
+                              {formatMarketPrice(c.price, c.currency)}
+                            </p>
+                            <p className="text-[0.62rem] text-muted-foreground">
+                              <span className={pctClass(c.projected7dPct)}>
+                                {fmtPct(c.projected7dPct)}
+                              </span>{" "}
+                              - {c.confidence}% conf.
+                            </p>
+                          </div>
+                        </div>
+                        <p className="mt-1.5 text-[0.72rem] leading-relaxed text-muted-foreground">
+                          {c.reasoning}
+                        </p>
+                        <div className="mt-2.5 flex justify-end">
+                          <Button
+                            size="sm"
+                            className="h-7 gap-1.5 px-3 text-xs font-semibold shadow-glow"
+                            onClick={() => openBuy(c)}
+                          >
+                            <ShoppingCart className="size-3.5" /> Buy
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <p className="mt-1.5 text-[0.72rem] leading-relaxed text-muted-foreground">{c.reasoning}</p>
-                  <div className="mt-2.5 flex justify-end">
-                    <Button
-                      size="sm"
-                      className="h-7 gap-1.5 px-3 text-xs font-semibold shadow-glow"
-                      onClick={() => openBuy(c)}
-                    >
-                      <ShoppingCart className="size-3.5" /> Buy
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                )}
+                {lastUpdated && (
+                  <p className="mt-3 text-right text-[0.62rem] text-muted-foreground">
+                    Updated {lastUpdated}
+                  </p>
+                )}
+              </div>
             </div>
-          )}
-          {lastUpdated && (
-            <p className="mt-3 text-right text-[0.62rem] text-muted-foreground">Updated {lastUpdated}</p>
-          )}
+          </div>
         </div>
       </div>
 
@@ -291,7 +339,7 @@ export function ActionableIntelligence({
           })}
         </div>
         <p className="mt-3 text-[0.68rem] italic text-muted-foreground">
-          Informational market intelligence only — not personalised financial advice.
+          Informational market intelligence only - not personalised financial advice.
         </p>
       </div>
 
