@@ -4,6 +4,7 @@ import { ReactNode } from "react";
 import { TopNav } from "@/components/TopNav";
 import { MarketTicker } from "@/components/MarketTicker";
 import { DisclaimerNotice } from "@/components/legal/DisclaimerNotice";
+import { PortfolioCoach } from "@/components/portfolio-coach";
 
 export interface ShellUser {
   name: string;
@@ -48,6 +49,9 @@ export function AppShell({
 
         {/* Persistent NZ financial disclaimer across every authenticated page */}
         <DisclaimerNotice variant="bar" />
+
+        {/* Logged-in Portfolio Execution Coach (minimized FAB by default) */}
+        <PortfolioCoach />
       </div>
     </div>
   );
