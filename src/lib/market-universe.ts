@@ -168,30 +168,61 @@ function classifyImpact(text: string): NewsHeadline["impact"] {
   return "Neutral";
 }
 
-/** Real, worldwide crypto news from CryptoCompare (free, no key required). */
+/**
+ * Real worldwide crypto news. Prefers CryptoCompare when
+ * CRYPTOCOMPARE_API_KEY is set; otherwise uses CoinDesk + CoinTelegraph RSS
+ * (same sources as loadMarketNews) so trial reports stay live without a key.
+ */
 export async function fetchCryptoNews(limit = 12): Promise<NewsHeadline[]> {
   return cached(`cc-news-${limit}`, TTL_MS * 2, async () => {
     try {
-      const url = "https://min-api.cryptocompare.com/data/v2/news/?lang=EN&sortOrder=latest";
-      const res = await fetch(url, { headers: { Accept: "application/json" } });
-      if (!res.ok) {
-        console.error(`[market-universe] CryptoCompare news HTTP ${res.status}`);
-        return [];
+      const key = process.env.CRYPTOCOMPARE_API_KEY || process.env.CRYPTO_COMPARE_API_KEY;
+      if (key) {
+        const url =
+          "https://min-api.cryptocompare.com/data/v2/news/?lang=EN&sortOrder=latest" +
+          `&api_key=${encodeURIComponent(key)}`;
+        const res = await fetch(url, { headers: { Accept: "application/json" } });
+        if (res.ok) {
+          const json = (await res.json()) as { Data?: any[] };
+          const rows = Array.isArray(json.Data) ? json.Data : [];
+          if (rows.length) {
+            const items = rows.slice(0, limit).map((n) => {
+              const title = String(n.title || "");
+              const body = String(n.body || "");
+              return {
+                title,
+                source: String(n.source_info?.name || n.source || "Crypto Wire"),
+                url: String(n.url || n.guid || ""),
+                publishedAt: n.published_on
+                  ? new Date(Number(n.published_on) * 1000).toISOString()
+                  : new Date().toISOString(),
+                snippet: body.slice(0, 180),
+                impact: classifyImpact(`${title} ${body}`),
+              } as NewsHeadline;
+            });
+            console.log(`[market-universe] Fetched ${items.length} live crypto news items (CryptoCompare)`);
+            return items;
+          }
+        } else {
+          console.error(`[market-universe] CryptoCompare news HTTP ${res.status}`);
+        }
       }
-      const json = (await res.json()) as { Data?: any[] };
-      const items = (json.Data || []).slice(0, limit).map((n) => {
-        const title = String(n.title || "");
-        const body = String(n.body || "");
-        return {
-          title,
-          source: String(n.source_info?.name || n.source || "Crypto Wire"),
-          url: String(n.url || n.guid || ""),
-          publishedAt: n.published_on ? new Date(Number(n.published_on) * 1000).toISOString() : new Date().toISOString(),
-          snippet: body.slice(0, 180),
-          impact: classifyImpact(`${title} ${body}`),
-        } as NewsHeadline;
-      });
-      console.log(`[market-universe] Fetched ${items.length} live crypto news items`);
+
+      // Keyless RSS fallback — CoinDesk + CoinTelegraph.
+      const { loadMarketNews } = await import("@/lib/market-news");
+      const live = await loadMarketNews("crypto");
+      const items = live.slice(0, limit).map(
+        (n) =>
+          ({
+            title: n.headline,
+            source: n.source,
+            url: n.url,
+            publishedAt: new Date().toISOString(),
+            snippet: n.summary.slice(0, 180),
+            impact: n.impact,
+          }) as NewsHeadline
+      );
+      console.log(`[market-universe] Fetched ${items.length} live crypto news items (RSS via market-news)`);
       return items;
     } catch (err) {
       console.error("[market-universe] fetchCryptoNews failed:", err);
