@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { analyzeUniverse, universeFor, getMarketNews, type AssetClass } from "@/lib/market-intel";
+import { loadMarketNews } from "@/lib/market-news";
 import {
   fetchQuotesForAssetClass,
   fetchHistoriesForAssetClass,
@@ -47,14 +48,18 @@ export async function GET(req: Request) {
     }
 
     const universe = analyzeUniverse(overrides, assetClass, histories);
+    const news = await loadMarketNews(assetClass).catch((err) => {
+      console.error("[api/market] Live news fetch failed — curated fallback:", err);
+      return getMarketNews(assetClass);
+    });
     console.log(
       `[api/market] Served ${universe.length} ${assetClass} securities ` +
-        `(source: ${live ? "live" : "deterministic"}, ${Object.keys(overrides).length} quotes, ${Object.keys(histories).length} real histories)`
+        `(source: ${live ? "live" : "deterministic"}, ${Object.keys(overrides).length} quotes, ${Object.keys(histories).length} real histories, ${news.length} headlines)`
     );
 
     return NextResponse.json({
       ok: true,
-      data: { bot: assetClass, live, universe, news: getMarketNews(assetClass) },
+      data: { bot: assetClass, live, universe, news },
     });
   } catch (err: any) {
     console.error("[api/market] GET error:", err);

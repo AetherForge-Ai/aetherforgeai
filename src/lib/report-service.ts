@@ -5,6 +5,7 @@ import { buildLiveReport, type LiveHolding, type BotKind } from "@/lib/apex";
 import { renderReportHtml, type ReportAlert } from "@/lib/report-html";
 import { createZenithCompletion, isZenithConfigured } from "@/lib/grok";
 import { analyzeSecurity, getMarketNews, universeFor, type SecurityIntel } from "@/lib/market-intel";
+import { loadMarketNews } from "@/lib/market-news";
 import { computePortfolioMetrics, buildActionableIntelligence } from "@/lib/analytics";
 import { getUpcomingEvents } from "@/lib/econ-calendar";
 import { scoreHeadlines } from "@/lib/news-sentiment";
@@ -171,7 +172,8 @@ export async function generateReportForUser(
   // News-sentiment read — built-in OpenAI with keyword fallback (non-fatal;
   // scoreHeadlines never throws, it degrades to the keyword classifier).
   const newsAssetLabel = bot === "crypto" ? "cryptocurrencies" : "New Zealand & Australian equities";
-  const headlines = getMarketNews(bot)
+  const liveNews = await loadMarketNews(bot).catch(() => getMarketNews(bot));
+  const headlines = liveNews
     .slice(0, 16)
     .map((nws) => ({ headline: nws.headline, source: nws.source }));
   const sentiment = await scoreHeadlines(headlines, newsAssetLabel);

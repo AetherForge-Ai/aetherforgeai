@@ -6,6 +6,7 @@ import { referencePrice, simulateTick } from "@/lib/market";
 import { buildLiveReport, type LiveHolding, type BotKind } from "@/lib/apex";
 import { getFxSnapshot } from "@/lib/fx";
 import { analyzeSecurity, getMarketNews, type SecurityIntel } from "@/lib/market-intel";
+import { loadMarketNews } from "@/lib/market-news";
 import { getUpcomingEvents } from "@/lib/econ-calendar";
 import { scoreHeadlines } from "@/lib/news-sentiment";
 import { buildIntelligenceBriefing } from "@/lib/briefing";
@@ -91,7 +92,8 @@ export async function POST(req: Request) {
       );
       const econEvents = getUpcomingEvents(bot);
       const newsAssetLabel = bot === "crypto" ? "cryptocurrencies" : "New Zealand & Australian equities";
-      const headlines = getMarketNews(bot)
+      const liveNews = await loadMarketNews(bot).catch(() => getMarketNews(bot));
+      const headlines = liveNews
         .slice(0, 16)
         .map((n) => ({ headline: n.headline, source: n.source }));
       const sentiment = await scoreHeadlines(headlines, newsAssetLabel);
