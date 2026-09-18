@@ -24,8 +24,6 @@ import {
   Home,
   LayoutDashboard,
   LineChart,
-  TrendingUp,
-  Bot,
   Tag,
   Newspaper,
   Trophy,
@@ -49,13 +47,10 @@ import {
 const NAV_LINKS: { href: string; label: string; icon: React.ComponentType<{ className?: string }>; highlight?: boolean }[] = [
   { href: "/", label: "Home", icon: Home },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/dashboard/bots", label: "AI Bots", icon: Bot },
-  { href: "/headmaster", label: "Headmaster", icon: GraduationCap },
-  { href: "/market-news", label: "Market News", icon: Newspaper },
+  { href: "/headmaster", label: "The Headmaster", icon: GraduationCap },
   { href: "/performance", label: "Live Results", icon: Trophy },
+  { href: "/market-news", label: "Market News", icon: Newspaper },
   { href: "/markets", label: "Stock Markets", icon: LineChart, highlight: true },
-  { href: "/projections", label: "Projections", icon: TrendingUp },
-  { href: "/chat", label: "AI Assistant", icon: Bot },
   { href: "/pricing", label: "Pricing", icon: Tag },
 ];
 
