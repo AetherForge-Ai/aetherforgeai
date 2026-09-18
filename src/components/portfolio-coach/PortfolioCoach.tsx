@@ -82,11 +82,6 @@ export function PortfolioCoach() {
       setPhase("built");
       setShowRise(false);
     } else {
-      try {
-        sessionStorage.setItem(RISE_KEY, "1");
-      } catch {
-        /* ignore */
-      }
       setPhase("rise");
       setShowRise(true);
     }
@@ -113,9 +108,29 @@ export function PortfolioCoach() {
   }, []);
 
   const onBuilt = useCallback(() => {
+    try {
+      sessionStorage.setItem(RISE_KEY, "1");
+    } catch {
+      /* ignore */
+    }
     setPhase("built");
     window.setTimeout(() => setShowRise(false), 420);
   }, []);
+
+  // Parent-level failsafe if the canvas never reports built.
+  useEffect(() => {
+    if (phase !== "rise") return;
+    const t = window.setTimeout(() => {
+      try {
+        sessionStorage.setItem(RISE_KEY, "1");
+      } catch {
+        /* ignore */
+      }
+      setPhase("built");
+      setShowRise(false);
+    }, 5000);
+    return () => window.clearTimeout(t);
+  }, [phase]);
 
   if (isPending || !hydrated || !allowed || !userId) {
     return null;
