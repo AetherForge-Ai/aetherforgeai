@@ -8,6 +8,7 @@ import { DevToolsHandler } from "@/components/DevToolsHandler";
 import { GlobalErrorCatcher } from "@/components/GlobalErrorCatcher";
 import { GoogleTag } from "@/components/GoogleTag";
 import { Toaster } from "@/components/ui/sonner";
+import { PortfolioCoach } from "@/components/portfolio-coach";
 
 const sora = Sora({
   variable: "--font-display",
@@ -82,6 +83,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <div className="min-h-screen flex flex-col">
           <main className="flex-1">{children}</main>
         </div>
+        <PortfolioCoach />
         <Toaster position="top-center" richColors />
       </body>
     </html>

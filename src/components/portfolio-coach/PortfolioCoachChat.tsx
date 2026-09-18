@@ -39,6 +39,38 @@ const WELCOME =
   "Open the paperclip to attach a recent report, or ask for the next step.\n\n" +
   "_Educational / execution help — not personalised financial advice._";
 
+const CHAT_KEY_PREFIX = "af-portfolio-coach-chat-v1:";
+
+function chatStorageKey(userId: string) {
+  return CHAT_KEY_PREFIX + userId;
+}
+
+function loadMessages(userId: string): Msg[] {
+  try {
+    const raw = localStorage.getItem(chatStorageKey(userId));
+    if (!raw) return [{ role: "assistant", content: WELCOME }];
+    const parsed = JSON.parse(raw) as Msg[];
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      return [{ role: "assistant", content: WELCOME }];
+    }
+    return parsed.filter(
+      (m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string"
+    );
+  } catch {
+    return [{ role: "assistant", content: WELCOME }];
+  }
+}
+
+function saveMessages(userId: string, messages: Msg[]) {
+  try {
+    // Cap history so localStorage stays small.
+    const trimmed = messages.slice(-80);
+    localStorage.setItem(chatStorageKey(userId), JSON.stringify(trimmed));
+  } catch {
+    /* ignore quota */
+  }
+}
+
 function botLabel(bot?: string) {
   if (bot === "crypto") return "Koins";
   if (bot === "stock") return "Stox";
@@ -47,12 +79,17 @@ function botLabel(bot?: string) {
 
 export function PortfolioCoachChat({
   onMinimize,
+  userId,
 }: {
   onMinimize: () => void;
+  /** Stable per-member key so chat history follows across the site. */
+  userId: string;
 }) {
-  const [messages, setMessages] = useState<Msg[]>([
-    { role: "assistant", content: WELCOME },
-  ]);
+  const [messages, setMessages] = useState<Msg[]>(() =>
+    typeof window === "undefined"
+      ? [{ role: "assistant", content: WELCOME }]
+      : loadMessages(userId)
+  );
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [reports, setReports] = useState<ReportItem[]>([]);
@@ -73,6 +110,18 @@ export function PortfolioCoachChat({
       behavior: "smooth",
     });
   }, [messages, sending, attachOpen]);
+
+  // Persist chat so it survives navigation and full page reloads while logged in.
+  useEffect(() => {
+    saveMessages(userId, messages);
+  }, [userId, messages]);
+
+  // If the signed-in member changes, reload that member's thread.
+  useEffect(() => {
+    setMessages(loadMessages(userId));
+    setSelectedIds([]);
+  }, [userId]);
+
 
   useEffect(() => {
     let cancelled = false;
