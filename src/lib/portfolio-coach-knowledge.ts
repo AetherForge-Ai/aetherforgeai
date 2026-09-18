@@ -153,6 +153,13 @@ Steps:
 3. Open **The Headmaster** (/headmaster) for goals, strategy builder and strategist chat when entitled.
 4. Return here and execute the resulting steps via Transaction Center, alerts and holdings.
 
+## Entry cards (logged-in Assistant Guide)
+When the member arrives via an entry card, answer that topic first in professional plain English:
+1. **Portfolio looking how it should?** — Dashboard overview: cash, total value, stocks, crypto, metals. Use Headmaster / book context. If empty, guide deposit / add holdings.
+2. **Current portfolio shape** — asset-class / sector mix vs The Headmaster plan when context exists; note gaps calmly.
+3. **Run Stox or Koins** — they may open Report Center (`/dashboard#report-center`); confirm generators are at the foot of the dashboard / hubs.
+4. **Match The Headmaster strategy** — walk dashboard moves to align the book; help tweak how they use Stox/Koins suggestions. Advisory only: recommendations ≠ fills; AetherForge does not place trades.
+
 ## Alignment checklist (use often)
 After each coaching turn that involves action, suggest the member verify:
 1. Cash balance is correct.

@@ -4,11 +4,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ChevronDown,
+  Compass,
   FileText,
+  LayoutDashboard,
   Loader2,
   Minimize2,
   Paperclip,
+  PieChart,
   Send,
+  Sparkles,
   X,
 } from "lucide-react";
 import { Markdown } from "@/components/Markdown";
@@ -26,44 +30,105 @@ type ReportItem = {
   pdfUrl?: string | null;
 };
 
-const SUGGESTIONS = [
-  "What is my next execution step?",
-  "How do I buy / add a holding?",
-  "How do I set a share-price alert?",
-  "Explain NZX vs ASX simply",
+type BookSnapshot = {
+  asOf?: string;
+  totalValueNZD?: number;
+  cashBalanceNZD?: number;
+  diversificationScore?: number;
+  concentrationLabel?: string;
+  classAllocation?: { label: string; weight: number; valueNZD?: number }[];
+  isEmpty?: boolean;
+};
+
+type EntryCard = {
+  id: string;
+  title: string;
+  subtitle: string;
+  icon: React.ComponentType<{ className?: string }>;
+  /** If set, card navigates instead of chatting. */
+  href?: string;
+  /** Prompt sent to the Assistant Guide when the card is clicked. */
+  prompt?: string;
+  /** Build overview from live book snapshot when available. */
+  kind?: "overview" | "chat" | "navigate";
+};
+
+const ENTRY_CARDS: EntryCard[] = [
+  {
+    id: "portfolio-overview",
+    title: "Is Your Portfolio looking how it should?",
+    subtitle: "Dashboard overview — cash, totals, stocks, crypto, metals",
+    icon: LayoutDashboard,
+    kind: "overview",
+    prompt:
+      "Is my portfolio looking how it should? Please give a clear Dashboard Overview of cash, totals, stocks, crypto and metals, using my current book context.",
+  },
+  {
+    id: "portfolio-shape",
+    title: "Your Current Portfolio Shape",
+    subtitle: "Sectors and asset mix vs The Headmaster plan",
+    icon: PieChart,
+    kind: "chat",
+    prompt:
+      "Show my current portfolio shape — sectors and asset mix — and compare it to The Headmaster plan/strategy. Use Headmaster context when available.",
+  },
+  {
+    id: "run-stox-koins",
+    title: "Run Stox or Koins",
+    subtitle: "Open Report Center to generate AI bot reports",
+    icon: Sparkles,
+    kind: "navigate",
+    href: "/dashboard#report-center",
+  },
+  {
+    id: "match-headmaster",
+    title: "Match The Headmaster strategy",
+    subtitle: "Walk through alignment moves · advisory only",
+    icon: Compass,
+    kind: "chat",
+    prompt:
+      "Help me match The Headmaster strategy. Walk me through the moves to align my portfolio with that plan, and how to tweak Stox/Koins report suggestions on the dashboard. Keep it advisory — recommendations are not fills, and AetherForge does not place trades.",
+  },
 ];
 
 const WELCOME =
-  "Hello — I am your **Assistant Guide**.\n\n" +
-  "I help you turn **The Headmaster** plans and **Stox / Koins** reports into clear dashboard steps: cash, buys, sells, alerts and transactions.\n\n" +
-  "Open the paperclip to attach a recent report, or ask for the next step.\n\n" +
-  "_Educational / execution help — not personalised financial advice._";
+  "Welcome — I'm your **Assistant Guide**. Choose a card below, or type a question.";
 
 const CHAT_KEY_PREFIX = "af-portfolio-coach-chat-v1:";
+const REPORT_CENTER_HREF = "/dashboard#report-center";
 
 function chatStorageKey(userId: string) {
   return CHAT_KEY_PREFIX + userId;
 }
 
-function loadMessages(userId: string): Msg[] {
+function loadMessages(userId: string): { messages: Msg[]; showCards: boolean } {
+  const welcome: Msg[] = [{ role: "assistant", content: WELCOME }];
   try {
     const raw = localStorage.getItem(chatStorageKey(userId));
-    if (!raw) return [{ role: "assistant", content: WELCOME }];
+    if (!raw) return { messages: welcome, showCards: true };
     const parsed = JSON.parse(raw) as Msg[];
     if (!Array.isArray(parsed) || parsed.length === 0) {
-      return [{ role: "assistant", content: WELCOME }];
+      return { messages: welcome, showCards: true };
     }
-    return parsed.filter(
-      (m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string"
+    const filtered = parsed.filter(
+      (m) =>
+        m &&
+        (m.role === "user" || m.role === "assistant") &&
+        typeof m.content === "string"
     );
+    if (filtered.length === 0) return { messages: welcome, showCards: true };
+    // Fresh / welcome-only thread → show entry cards (refresh welcome copy).
+    if (filtered.length === 1 && filtered[0].role === "assistant") {
+      return { messages: welcome, showCards: true };
+    }
+    return { messages: filtered, showCards: false };
   } catch {
-    return [{ role: "assistant", content: WELCOME }];
+    return { messages: welcome, showCards: true };
   }
 }
 
 function saveMessages(userId: string, messages: Msg[]) {
   try {
-    // Cap history so localStorage stays small.
     const trimmed = messages.slice(-80);
     localStorage.setItem(chatStorageKey(userId), JSON.stringify(trimmed));
   } catch {
@@ -77,6 +142,50 @@ function botLabel(bot?: string) {
   return "Report";
 }
 
+function nzd(v: number | undefined | null): string {
+  return `NZ$${Math.round(v || 0).toLocaleString()}`;
+}
+
+function formatBookSnapshot(s: BookSnapshot): string {
+  if (s.isEmpty) {
+    return (
+      "**Dashboard overview**\n\n" +
+      "Your book looks empty so far — no cash, stocks, crypto or metals recorded yet.\n\n" +
+      "Next: deposit cash or add holdings in the **Transaction Center**, then ask me again for a fresh read."
+    );
+  }
+  const alloc = (s.classAllocation || [])
+    .slice(0, 8)
+    .map((c) => {
+      const value =
+        c.valueNZD != null ? ` · ${nzd(c.valueNZD)}` : "";
+      return `- **${c.label}**: ${c.weight.toFixed(0)}%${value}`;
+    })
+    .join("\n");
+
+  const bits = [
+    "**Dashboard overview**" +
+      (s.asOf ? ` _(as of ${s.asOf})_` : ""),
+    "",
+    `- **Total value:** ${nzd(s.totalValueNZD)}`,
+    `- **Cash:** ${nzd(s.cashBalanceNZD)}`,
+  ];
+  if (s.diversificationScore != null) {
+    bits.push(
+      `- **Diversification:** ${s.diversificationScore}/100` +
+        (s.concentrationLabel ? ` (${s.concentrationLabel})` : "")
+    );
+  }
+  if (alloc) {
+    bits.push("", "**Asset mix**", alloc);
+  }
+  bits.push(
+    "",
+    "_Snapshot from your live book. Educational / execution help — not personalised financial advice._"
+  );
+  return bits.join("\n");
+}
+
 export function PortfolioCoachChat({
   onMinimize,
   userId,
@@ -85,11 +194,18 @@ export function PortfolioCoachChat({
   /** Stable per-member key so chat history follows across the site. */
   userId: string;
 }) {
-  const [messages, setMessages] = useState<Msg[]>(() =>
-    typeof window === "undefined"
-      ? [{ role: "assistant", content: WELCOME }]
-      : loadMessages(userId)
-  );
+  const initial = useMemo(() => {
+    if (typeof window === "undefined") {
+      return {
+        messages: [{ role: "assistant" as const, content: WELCOME }],
+        showCards: true,
+      };
+    }
+    return loadMessages(userId);
+  }, [userId]);
+
+  const [messages, setMessages] = useState<Msg[]>(() => initial.messages);
+  const [showCards, setShowCards] = useState(() => initial.showCards);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [reports, setReports] = useState<ReportItem[]>([]);
@@ -97,6 +213,7 @@ export function PortfolioCoachChat({
   const [attachOpen, setAttachOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [headmasterPlan, setHeadmasterPlan] = useState<string>("");
+  const [bookSnapshot, setBookSnapshot] = useState<BookSnapshot | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const selectedReports = useMemo(
@@ -109,66 +226,161 @@ export function PortfolioCoachChat({
       top: scrollRef.current.scrollHeight,
       behavior: "smooth",
     });
-  }, [messages, sending, attachOpen]);
+  }, [messages, sending, attachOpen, showCards]);
 
-  // Persist chat so it survives navigation and full page reloads while logged in.
   useEffect(() => {
     saveMessages(userId, messages);
   }, [userId, messages]);
 
-  // If the signed-in member changes, reload that member's thread.
   useEffect(() => {
-    setMessages(loadMessages(userId));
+    const loaded = loadMessages(userId);
+    setMessages(loaded.messages);
+    setShowCards(loaded.showCards);
     setSelectedIds([]);
   }, [userId]);
 
-
   useEffect(() => {
     let cancelled = false;
+
+    function applySynthesis(s: BookSnapshot) {
+      setBookSnapshot(s);
+      if (s.isEmpty) {
+        setHeadmasterPlan(
+          "Headmaster snapshot: book is empty. Guide the member to deposit cash and add holdings first."
+        );
+        return;
+      }
+      const alloc = (s.classAllocation || [])
+        .slice(0, 6)
+        .map((c) => `${c.label} ${c.weight.toFixed(0)}%`)
+        .join(" · ");
+      const bits = [
+        `Latest Headmaster book value about ${nzd(s.totalValueNZD)}` +
+          (s.asOf ? ` (as of ${s.asOf})` : "") +
+          ".",
+        `Cash about ${nzd(s.cashBalanceNZD)}.`,
+        s.diversificationScore != null
+          ? `Diversification ${s.diversificationScore}/100 (${s.concentrationLabel || "n/a"}).`
+          : "",
+        alloc ? `Allocation: ${alloc}.` : "",
+      ].filter(Boolean);
+      setHeadmasterPlan(bits.join("\n"));
+    }
+
+    async function loadLedgerFallback() {
+      try {
+        const [stocksRes, txRes, metalsRes] = await Promise.all([
+          fetch("/api/stocks", { credentials: "include" }),
+          fetch("/api/transactions", { credentials: "include" }),
+          fetch("/api/metals", { credentials: "include" }),
+        ]);
+        const stocksJson = (await stocksRes.json()) as {
+          ok?: boolean;
+          data?: {
+            asset_type?: string;
+            current_value?: number;
+            market_value?: number;
+            value_nzd?: number;
+            quantity?: number;
+            current_price?: number;
+            price?: number;
+          }[];
+        };
+        const txJson = (await txRes.json()) as {
+          ok?: boolean;
+          data?: { cashBalance?: number };
+        };
+        const metalsJson = (await metalsRes.json()) as {
+          ok?: boolean;
+          data?: {
+            metals?: {
+              metal?: string;
+              ounces?: number;
+              value_nzd?: number;
+              current_value_nzd?: number;
+            }[];
+            spot?: { goldNZD?: number; silverNZD?: number };
+          };
+        };
+
+        if (cancelled) return;
+
+        const holdings = stocksJson.ok && Array.isArray(stocksJson.data) ? stocksJson.data : [];
+        const cash = txJson.ok ? Number(txJson.data?.cashBalance || 0) : 0;
+        let stockVal = 0;
+        let cryptoVal = 0;
+        for (const h of holdings) {
+          const qty = Number(h.quantity || 0);
+          const px = Number(h.current_price ?? h.price ?? 0);
+          const v = Number(
+            h.value_nzd ?? h.current_value ?? h.market_value ?? qty * px
+          );
+          if ((h.asset_type || "stock") === "crypto") cryptoVal += v;
+          else stockVal += v;
+        }
+
+        let metalsVal = 0;
+        if (metalsJson.ok && metalsJson.data?.metals) {
+          const spot = metalsJson.data.spot;
+          for (const m of metalsJson.data.metals) {
+            const direct = Number(m.value_nzd ?? m.current_value_nzd ?? 0);
+            if (direct > 0) {
+              metalsVal += direct;
+              continue;
+            }
+            const oz = Number(m.ounces || 0);
+            const metal = (m.metal || "").toLowerCase();
+            const px =
+              metal.includes("silver")
+                ? Number(spot?.silverNZD || 0)
+                : Number(spot?.goldNZD || 0);
+            metalsVal += oz * px;
+          }
+        }
+
+        const total = cash + stockVal + cryptoVal + metalsVal;
+        const isEmpty = total <= 0 && holdings.length === 0;
+        const classes: { label: string; weight: number; valueNZD: number }[] = [];
+        const pushClass = (label: string, valueNZD: number) => {
+          if (valueNZD <= 0 && label !== "Cash") return;
+          classes.push({
+            label,
+            valueNZD,
+            weight: total > 0 ? (valueNZD / total) * 100 : 0,
+          });
+        };
+        pushClass("Cash", cash);
+        pushClass("Stocks", stockVal);
+        pushClass("Crypto", cryptoVal);
+        pushClass("Metals", metalsVal);
+
+        applySynthesis({
+          asOf: new Date().toISOString().slice(0, 10),
+          totalValueNZD: total,
+          cashBalanceNZD: cash,
+          classAllocation: classes,
+          isEmpty,
+        });
+      } catch {
+        /* ledger fallback optional */
+      }
+    }
+
     (async () => {
       try {
-        // Prefetch live book snapshot for optional client context.
-        // Full Headmaster grounding is also loaded server-side in /api/portfolio-coach.
         const res = await fetch("/api/totalum", { credentials: "include" });
         const json = (await res.json()) as {
           ok?: boolean;
-          data?: {
-            synthesis?: {
-              asOf?: string;
-              totalValueNZD?: number;
-              cashBalanceNZD?: number;
-              diversificationScore?: number;
-              concentrationLabel?: string;
-              classAllocation?: { label: string; weight: number }[];
-              isEmpty?: boolean;
-            };
-          };
+          data?: { synthesis?: BookSnapshot };
         };
-        if (cancelled || !json.ok || !json.data?.synthesis) return;
-        const s = json.data.synthesis;
-        if (s.isEmpty) {
-          setHeadmasterPlan(
-            "Headmaster snapshot: book is empty. Guide the member to deposit cash and add holdings first."
-          );
+        if (cancelled) return;
+        if (json.ok && json.data?.synthesis) {
+          applySynthesis(json.data.synthesis);
           return;
         }
-        const alloc = (s.classAllocation || [])
-          .slice(0, 6)
-          .map((c) => `${c.label} ${c.weight.toFixed(0)}%`)
-          .join(" · ");
-        const bits = [
-          `Latest Headmaster book value about NZ$${Math.round(s.totalValueNZD || 0).toLocaleString()}` +
-            (s.asOf ? ` (as of ${s.asOf})` : "") +
-            ".",
-          `Cash about NZ$${Math.round(s.cashBalanceNZD || 0).toLocaleString()}.`,
-          s.diversificationScore != null
-            ? `Diversification ${s.diversificationScore}/100 (${s.concentrationLabel || "n/a"}).`
-            : "",
-          alloc ? `Allocation: ${alloc}.` : "",
-        ].filter(Boolean);
-        setHeadmasterPlan(bits.join("\n"));
+        await loadLedgerFallback();
       } catch {
-        /* Headmaster may be locked — coach still works */
+        await loadLedgerFallback();
       }
     })();
     return () => {
@@ -206,29 +418,54 @@ export function PortfolioCoachChat({
 
   function toggleReport(id: string) {
     setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : prev.length >= 3 ? prev : [...prev, id]
+      prev.includes(id)
+        ? prev.filter((x) => x !== id)
+        : prev.length >= 3
+          ? prev
+          : [...prev, id]
     );
   }
 
-  async function send(text: string) {
+  async function send(text: string, opts?: { prependAssistant?: string }) {
     const content = text.trim();
     if (!content || sending) return;
+    setShowCards(false);
     setInput("");
-    setMessages((prev) => [...prev, { role: "user", content }]);
-    setSending(true);
     setAttachOpen(false);
 
+    if (opts?.prependAssistant) {
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: opts.prependAssistant! },
+        { role: "user", content },
+      ]);
+    } else {
+      setMessages((prev) => [...prev, { role: "user", content }]);
+    }
+    setSending(true);
+
     try {
+      const historyForApi = (
+        opts?.prependAssistant
+          ? [
+              ...messages,
+              { role: "assistant" as const, content: opts.prependAssistant },
+            ]
+          : messages
+      )
+        .slice(-8)
+        .map((m) => ({
+          role: m.role,
+          content: m.content.slice(0, 2000),
+        }));
+
       const res = await fetch("/api/portfolio-coach", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: content,
-          history: messages.slice(-8).map((m) => ({
-            role: m.role,
-            content: m.content.slice(0, 2000),
-          })),
+          history: historyForApi,
           headmasterPlan: headmasterPlan || undefined,
           attachedReports: selectedReports.map((r) => ({
             id: r._id,
@@ -271,6 +508,25 @@ export function PortfolioCoachChat({
     } finally {
       setSending(false);
     }
+  }
+
+  function handleCard(card: EntryCard) {
+    if (card.href) {
+      setShowCards(false);
+      return;
+    }
+    if (card.kind === "overview") {
+      const snapshot = bookSnapshot
+        ? formatBookSnapshot(bookSnapshot)
+        : undefined;
+      void send(
+        card.prompt ||
+          "Is my portfolio looking how it should? Please give a clear Dashboard Overview.",
+        snapshot ? { prependAssistant: snapshot } : undefined
+      );
+      return;
+    }
+    if (card.prompt) void send(card.prompt);
   }
 
   return (
@@ -375,25 +631,59 @@ export function PortfolioCoachChat({
           </div>
         ))}
 
+        {showCards && messages.length <= 1 && !sending ? (
+          <div className="grid gap-2 pt-0.5">
+            {ENTRY_CARDS.map((card) => {
+              const Icon = card.icon;
+              const className = cn(
+                "flex w-full items-start gap-2.5 rounded-xl border px-3 py-2.5 text-left transition",
+                "border-amber-400/25 bg-[#0c3a28]/80 hover:border-amber-400/45 hover:bg-[#0f4f35]/70"
+              );
+              const inner = (
+                <>
+                  <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-amber-400/15 text-amber-300">
+                    <Icon className="size-4" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[13px] font-semibold leading-snug text-amber-50">
+                      {card.title}
+                    </span>
+                    <span className="mt-0.5 block text-[11px] leading-snug text-emerald-100/65">
+                      {card.subtitle}
+                    </span>
+                  </span>
+                </>
+              );
+              if (card.href) {
+                return (
+                  <Link
+                    key={card.id}
+                    href={card.href}
+                    className={className}
+                    onClick={() => setShowCards(false)}
+                  >
+                    {inner}
+                  </Link>
+                );
+              }
+              return (
+                <button
+                  key={card.id}
+                  type="button"
+                  onClick={() => handleCard(card)}
+                  className={className}
+                >
+                  {inner}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+
         {sending && (
           <div className="flex items-center gap-2 text-xs text-emerald-100/70">
             <Loader2 className="size-3.5 animate-spin text-amber-300" />
             Assistant Guide is preparing the next steps…
-          </div>
-        )}
-
-        {messages.length <= 1 && (
-          <div className="flex flex-wrap gap-1.5 pt-1">
-            {SUGGESTIONS.map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => send(s)}
-                className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2.5 py-1 text-[11px] text-amber-100 hover:bg-amber-400/20"
-              >
-                {s}
-              </button>
-            ))}
           </div>
         )}
 
@@ -413,7 +703,8 @@ export function PortfolioCoachChat({
               </button>
             </div>
             <p className="mb-2 text-[10px] leading-relaxed text-emerald-100/55">
-              Select up to three recent reports. Their summaries are sent with your next message.
+              Select up to three recent reports. Their summaries are sent with
+              your next message.
             </p>
             {reportsLoading ? (
               <div className="flex items-center gap-2 py-3 text-xs text-emerald-100/70">
@@ -423,7 +714,10 @@ export function PortfolioCoachChat({
             ) : reports.length === 0 ? (
               <p className="py-2 text-[11px] text-emerald-100/65">
                 No Stox or Koins reports yet. Run one from the{" "}
-                <Link href="/dashboard" className="text-amber-300 hover:underline">
+                <Link
+                  href={REPORT_CENTER_HREF}
+                  className="text-amber-300 hover:underline"
+                >
                   Report Center
                 </Link>
                 .
@@ -500,7 +794,7 @@ export function PortfolioCoachChat({
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask for the next dashboard step…"
+            placeholder="Or type a question…"
             className="h-9 flex-1 rounded-xl border border-amber-400/25 bg-[#0a2f22] px-3 text-sm text-emerald-50 placeholder:text-emerald-100/40 focus:border-amber-400/50 focus:outline-none"
             maxLength={2000}
           />
