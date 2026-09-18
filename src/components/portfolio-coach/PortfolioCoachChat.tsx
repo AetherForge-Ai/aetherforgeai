@@ -34,7 +34,7 @@ const SUGGESTIONS = [
 ];
 
 const WELCOME =
-  "Hello — I am your **Portfolio Execution Coach**.\n\n" +
+  "Hello — I am your **Assistant Guide**.\n\n" +
   "I help you turn **The Headmaster** plans and **Stox / Koins** reports into clear dashboard steps: cash, buys, sells, alerts and transactions.\n\n" +
   "Open the paperclip to attach a recent report, or ask for the next step.\n\n" +
   "_Educational / execution help — not personalised financial advice._";
@@ -278,7 +278,7 @@ export function PortfolioCoachChat({
       className="pg-chat-in fixed bottom-4 right-3 z-[70] flex w-[min(100%-1.5rem,24rem)] flex-col overflow-hidden rounded-2xl border border-amber-400/40 bg-[#06261a]/96 shadow-[0_0_0_1px_rgba(245,158,11,0.25),0_22px_56px_rgba(0,0,0,0.55)] backdrop-blur-md sm:right-5"
       style={{ height: "min(70vh, 34rem)" }}
       role="dialog"
-      aria-label="Portfolio Execution Coach"
+      aria-label="Assistant Guide"
     >
       {/* Header */}
       <div className="relative shrink-0 border-b border-amber-400/30 bg-gradient-to-r from-[#0a3d2a] via-[#0f4f35] to-[#0a3d2a] px-3 pb-3 pt-3">
@@ -287,7 +287,7 @@ export function PortfolioCoachChat({
             type="button"
             onClick={onMinimize}
             className="rounded-md p-1.5 text-amber-100/70 hover:bg-white/10 hover:text-amber-50"
-            aria-label="Minimize Portfolio Coach"
+            aria-label="Minimize Assistant Guide"
           >
             <Minimize2 className="size-4" />
           </button>
@@ -295,7 +295,7 @@ export function PortfolioCoachChat({
             type="button"
             onClick={onMinimize}
             className="rounded-md p-1.5 text-amber-100/70 hover:bg-white/10 hover:text-amber-50"
-            aria-label="Close Portfolio Coach"
+            aria-label="Close Assistant Guide"
           >
             <X className="size-4" />
           </button>
@@ -309,10 +309,10 @@ export function PortfolioCoachChat({
           />
           <div className="min-w-0">
             <p className="font-display text-sm font-bold tracking-wide text-amber-300">
-              Portfolio Coach
+              Assistant Guide
             </p>
             <p className="truncate text-[11px] text-emerald-100/70">
-              Execute plans · align your dashboard
+              Keeps your portfolio on track
             </p>
           </div>
         </div>
@@ -378,7 +378,7 @@ export function PortfolioCoachChat({
         {sending && (
           <div className="flex items-center gap-2 text-xs text-emerald-100/70">
             <Loader2 className="size-3.5 animate-spin text-amber-300" />
-            Portfolio Coach is preparing the next steps…
+            Assistant Guide is preparing the next steps…
           </div>
         )}
 

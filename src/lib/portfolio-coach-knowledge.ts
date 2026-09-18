@@ -276,7 +276,7 @@ export function portfolioCoachFallbackReply(userMessage: string): string {
   }
 
   return (
-    `I am your **Portfolio Execution Coach**.\n\n` +
+    `I am your **Assistant Guide**.\n\n` +
     `I can help you:\n` +
     `- Turn Headmaster plans into dashboard steps\n` +
     `- Buy / add, sell / remove, and manage cash\n` +
