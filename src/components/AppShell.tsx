@@ -49,7 +49,7 @@ export function AppShell({
         {/* Persistent NZ financial disclaimer across every authenticated page */}
         <DisclaimerNotice variant="bar" />
 
-        {/* Logged-in Portfolio Execution Coach (minimized FAB by default) */}
+        {/* Logged-in Assistant Guide (minimized FAB by default; rise entrance) */}
       </div>
     </div>
   );
