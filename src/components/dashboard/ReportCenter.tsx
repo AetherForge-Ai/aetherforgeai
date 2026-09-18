@@ -117,6 +117,24 @@ export function ReportCenter({
   });
   // Live clock so the "next report unlocks in…" countdown ticks down on screen.
   const [now, setNow] = React.useState<number>(() => Date.now());
+  const sectionRef = React.useRef<HTMLElement | null>(null);
+
+  // Stable anchor for Assistant Guide "Run Stox or Koins" → /dashboard#report-center
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const scrollToAnchor = () => {
+      if (window.location.hash !== "#report-center") return;
+      sectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+    scrollToAnchor();
+    window.addEventListener("hashchange", scrollToAnchor);
+    // Dashboard may hydrate after first paint
+    const t = window.setTimeout(scrollToAnchor, 350);
+    return () => {
+      window.removeEventListener("hashchange", scrollToAnchor);
+      window.clearTimeout(t);
+    };
+  }, []);
 
   const canRun = (kind: BotKind) => botAccess === "both" || botAccess === kind;
 
@@ -200,7 +218,11 @@ export function ReportCenter({
   }
 
   return (
-    <section className="rounded-3xl border border-border/70 bg-gradient-to-br from-primary/8 to-card/50 p-6">
+    <section
+      id="report-center"
+      ref={sectionRef}
+      className="scroll-mt-24 rounded-3xl border border-border/70 bg-gradient-to-br from-primary/8 to-card/50 p-6"
+    >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
