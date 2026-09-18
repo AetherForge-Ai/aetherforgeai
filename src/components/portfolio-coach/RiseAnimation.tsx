@@ -10,20 +10,19 @@ type Props = {
 };
 
 type Particle = {
-  x: number,
+  x: number;
   y: number;
-  vx: number,
+  vx: number;
   vy: number;
   r: number;
-  life: number;
   settled: boolean;
   hue: number;
 };
 
 /**
- * Opposite of Help Assistant PourAnimation: gold dust suddenly flies UP from
- * the bottom-right floor into a pile that becomes the Assistant Guide FAB
- * (or open chat). Canvas is a right-side strip; pointer-events-none.
+ * Opposite of Help Assistant PourAnimation: gold dust bursts UP from the
+ * bottom-right floor, arcs (fountain), and piles into the Assistant Guide FAB
+ * (or open chat). Always calls onBuilt within a failsafe timeout.
  */
 export function RiseAnimation({ onBuilt, buildOpenChat = false }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -38,6 +37,21 @@ export function RiseAnimation({ onBuilt, buildOpenChat = false }: Props) {
     let raf = 0;
     let running = true;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const onBuiltRef = { current: onBuilt };
+    onBuiltRef.current = onBuilt;
+
+    const finish = () => {
+      if (builtRef.current) return;
+      builtRef.current = true;
+      onBuiltRef.current();
+    };
+
+    // Hard failsafe — never leave the user stuck without the chatbot.
+    const failsafe = window.setTimeout(() => {
+      finish();
+      running = false;
+      if (canvas) canvas.style.opacity = "0";
+    }, 4500);
 
     const resize = () => {
       const w = window.innerWidth;
@@ -51,9 +65,7 @@ export function RiseAnimation({ onBuilt, buildOpenChat = false }: Props) {
     resize();
     window.addEventListener("resize", resize);
 
-    // Target geometry — matches PortfolioCoach FAB / PortfolioCoachChat
-    // FAB: bottom-4 right-3/5, pill ~210×56; chat: bottom-4 right-3/5, ~384×min(70vh,34rem)
-    const rightPad = window.innerWidth >= 640 ? 20 : 12; // sm:right-5 vs right-3
+    const rightPad = window.innerWidth >= 640 ? 20 : 12;
     let targetW: number;
     let targetH: number;
     let targetR: number;
@@ -67,66 +79,32 @@ export function RiseAnimation({ onBuilt, buildOpenChat = false }: Props) {
       targetR = 28;
     }
     const targetX = window.innerWidth - rightPad - targetW;
-    const targetY = window.innerHeight - targetH - 16; // bottom-4
+    const targetY = window.innerHeight - targetH - 16;
 
-    const COUNT = 1800;
+    const COUNT = 1400;
     const particles: Particle[] = [];
-    const spawnX0 = window.innerWidth - 150;
-    const spawnX1 = window.innerWidth - 28;
-    const floorY = window.innerHeight - 6;
+    const spawnX0 = window.innerWidth - 160;
+    const spawnX1 = window.innerWidth - 24;
+    const floorY = window.innerHeight - 8;
 
     for (let i = 0; i < COUNT; i++) {
       particles.push({
         x: spawnX0 + Math.random() * (spawnX1 - spawnX0),
-        y: floorY + Math.random() * 18,
-        vx: (Math.random() - 0.5) * 0.7,
-        // Negative gravity / upward burst from the floor
-        vy: -(2.2 + Math.random() * 3.4),
-        r: 0.8 + Math.random() * 2.2,
-        life: Math.random(),
+        y: floorY - Math.random() * 10,
+        vx: (Math.random() - 0.5) * 1.2,
+        // Strong upward burst, then normal gravity pulls them into an arc.
+        vy: -(4.5 + Math.random() * 5.5),
+        r: 0.8 + Math.random() * 2.1,
         settled: false,
         hue: 38 + Math.random() * 18,
       });
     }
 
     let released = 0;
-    const releasePerFrame = 36;
+    const releasePerFrame = 48;
     let frame = 0;
     let pileFill = 0;
     let fadeOut = 0;
-
-    const pointInRoundedRect = (px: number, py: number) => {
-      const x = Math.max(targetX + targetR, Math.min(px, targetX + targetW - targetR));
-      const y = Math.max(targetY + targetR, Math.min(py, targetY + targetH - targetR));
-      if (
-        px >= targetX + targetR &&
-        px <= targetX + targetW - targetR &&
-        py >= targetY &&
-        py <= targetY + targetH
-      ) {
-        return true;
-      }
-      if (
-        py >= targetY + targetR &&
-        py <= targetY + targetH - targetR &&
-        px >= targetX &&
-        px <= targetX + targetW
-      ) {
-        return true;
-      }
-      const corners = [
-        [targetX + targetR, targetY + targetR],
-        [targetX + targetW - targetR, targetY + targetR],
-        [targetX + targetR, targetY + targetH - targetR],
-        [targetX + targetW - targetR, targetY + targetH - targetR],
-      ] as const;
-      for (const [cx, cy] of corners) {
-        const dx = px - cx;
-        const dy = py - cy;
-        if (dx * dx + dy * dy <= targetR * targetR) return true;
-      }
-      return false;
-    };
 
     const draw = () => {
       if (!running) return;
@@ -135,7 +113,7 @@ export function RiseAnimation({ onBuilt, buildOpenChat = false }: Props) {
       const h = window.innerHeight;
       ctx.clearRect(0, 0, w, h);
 
-      // Ember / vent glow on the bottom-right floor (opposite of pour sieve)
+      // Floor vent glow (bottom-right)
       const ventX = w - 144;
       const ventY = h - 18;
       const ventGrad = ctx.createLinearGradient(ventX, ventY, ventX, ventY + 12);
@@ -159,65 +137,63 @@ export function RiseAnimation({ onBuilt, buildOpenChat = false }: Props) {
       }
 
       let settledCount = 0;
-      const ceiling = Math.max(48, targetY - 8);
+      const midTargetX = targetX + targetW * 0.5;
+      const midTargetY = targetY + targetH * 0.55;
 
       for (let i = 0; i < released; i++) {
         const p = particles[i];
         if (!p.settled) {
-          p.vy -= 0.045; // negative gravity (accelerate upward)
-          p.x += p.vx + Math.sin(frame * 0.04 + i) * 0.15;
+          // Normal gravity after the upward burst (fountain arc).
+          p.vy += 0.14;
+          p.x += p.vx + Math.sin(frame * 0.05 + i) * 0.12;
           p.y += p.vy;
 
-          // Soft funnel toward right-side target as they rise
-          if (p.y < h * 0.72) {
-            const targetPX = targetX + targetW * (0.2 + (i % 70) / 100);
-            p.vx += (targetPX - p.x) * 0.01;
-            p.vx *= 0.98;
-            // Ease vertical toward target band
-            const midY = targetY + targetH * 0.55;
-            p.vy += (midY - p.y) * 0.0025;
+          // Funnel toward FAB / chat as they peak and fall.
+          if (p.vy > -1.5 || p.y < h * 0.75) {
+            p.vx += (midTargetX - p.x) * 0.012;
+            p.vx *= 0.97;
+            p.vy += (midTargetY - p.y) * 0.004;
           }
 
-          // Cap at a soft ceiling then settle into silhouette
-          if (p.y - p.r <= ceiling && pileFill < 0.12) {
-            p.y = ceiling + p.r;
-            p.vy *= -0.15;
-            p.vx *= 0.4;
-          }
-
-          if (pileFill > 0.15 && pointInRoundedRect(p.x, p.y - 12)) {
-            const tx = targetX + targetR + Math.random() * (targetW - targetR * 2);
-            const ty = targetY + targetR + Math.random() * (targetH - targetR * 2);
-            p.x += (tx - p.x) * 0.12;
-            p.y += (ty - p.y) * 0.12;
-            if (Math.abs(tx - p.x) < 3 && Math.abs(ty - p.y) < 3) {
+          // Snap / settle into the silhouette once near it.
+          const nearX = p.x > targetX - 30 && p.x < targetX + targetW + 30;
+          const nearY = p.y > targetY - 40 && p.y < targetY + targetH + 50;
+          if (nearX && nearY && (p.vy > 0 || pileFill > 0.1)) {
+            const tx = targetX + 6 + ((i * 47) % Math.max(1, targetW - 12));
+            const ty = targetY + 6 + ((i * 31) % Math.max(1, targetH - 12));
+            p.x += (tx - p.x) * 0.18;
+            p.y += (ty - p.y) * 0.18;
+            if (Math.hypot(tx - p.x, ty - p.y) < 5 || pileFill > 0.45) {
               p.settled = true;
               p.vx = 0;
               p.vy = 0;
+              p.x = tx;
+              p.y = ty;
             }
           }
 
-          // Eventually settle when upward energy fades near target
-          if (
-            !p.settled &&
-            pileFill > 0.05 &&
-            p.y < targetY + targetH + 40 &&
-            Math.abs(p.vy) < 0.35
-          ) {
+          // Floor catch — if they fall past the vent, kick them back up once.
+          if (!p.settled && p.y > floorY + 4) {
+            p.y = floorY;
+            p.vy = -(2.2 + Math.random() * 2.5);
+            p.vx += (midTargetX - p.x) * 0.02;
+          }
+
+          // Off-screen safety: settle into target
+          if (!p.settled && (p.y < -40 || p.x < 0 || p.x > w + 40)) {
             p.settled = true;
+            p.x = targetX + 6 + ((i * 47) % Math.max(1, targetW - 12));
+            p.y = targetY + 6 + ((i * 31) % Math.max(1, targetH - 12));
             p.vx = 0;
             p.vy = 0;
           }
         } else {
           settledCount += 1;
-          if (pileFill > 0.05) {
-            const tx = targetX + 4 + ((i * 47) % Math.max(1, targetW - 8));
-            const fillH = targetH * Math.min(1, pileFill);
-            // Fill from bottom of silhouette upward (rising pile)
-            const ty = targetY + targetH - 4 - ((i * 31) % Math.max(1, fillH));
-            p.x += (tx - p.x) * 0.08;
-            p.y += (ty - p.y) * 0.08;
-          }
+          const tx = targetX + 4 + ((i * 47) % Math.max(1, targetW - 8));
+          const fillH = Math.max(8, targetH * Math.min(1, Math.max(0.15, pileFill)));
+          const ty = targetY + targetH - 4 - ((i * 31) % Math.max(1, fillH));
+          p.x += (tx - p.x) * 0.1;
+          p.y += (ty - p.y) * 0.1;
         }
 
         const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 2.2);
@@ -230,15 +206,13 @@ export function RiseAnimation({ onBuilt, buildOpenChat = false }: Props) {
         ctx.fill();
       }
 
-      const settleRatio = settledCount / COUNT;
-      // Also advance fill once enough particles have risen into the column
-      let inColumn = 0;
-      for (let i = 0; i < released; i++) {
-        const p = particles[i];
-        if (p.y < h * 0.85 && p.x > targetX - 40) inColumn += 1;
+      const settleRatio = settledCount / Math.max(1, released);
+      // Advance fill once a meaningful share has settled, or after enough frames.
+      if (settleRatio > 0.12 || frame > 90) {
+        pileFill = Math.min(1, pileFill + 0.018);
       }
-      if (settleRatio > 0.18 || inColumn / COUNT > 0.35) {
-        pileFill = Math.min(1, pileFill + 0.014);
+      if (frame > 160) {
+        pileFill = Math.min(1, pileFill + 0.03);
       }
 
       if (pileFill > 0.08) {
@@ -256,14 +230,7 @@ export function RiseAnimation({ onBuilt, buildOpenChat = false }: Props) {
         ctx.strokeStyle = `rgba(251, 191, 36, ${0.25 + pileFill * 0.55})`;
         ctx.lineWidth = 1.5;
         const drawH = targetH * Math.max(0.12, pileFill);
-        roundRect(
-          ctx,
-          targetX,
-          targetY + targetH - drawH,
-          targetW,
-          drawH,
-          targetR
-        );
+        roundRect(ctx, targetX, targetY + targetH - drawH, targetW, drawH, targetR);
         ctx.fill();
         ctx.stroke();
 
@@ -281,16 +248,16 @@ export function RiseAnimation({ onBuilt, buildOpenChat = false }: Props) {
       }
 
       if (pileFill >= 1 && !builtRef.current) {
-        builtRef.current = true;
+        finish();
         fadeOut = 0.001;
-        onBuilt();
       }
 
       if (builtRef.current) {
-        fadeOut = Math.min(1, fadeOut + 0.035);
+        fadeOut = Math.min(1, fadeOut + 0.04);
         canvas.style.opacity = String(1 - fadeOut);
         if (fadeOut >= 1) {
           running = false;
+          window.clearTimeout(failsafe);
           return;
         }
       }
@@ -302,6 +269,7 @@ export function RiseAnimation({ onBuilt, buildOpenChat = false }: Props) {
 
     return () => {
       running = false;
+      window.clearTimeout(failsafe);
       window.cancelAnimationFrame(raf);
       window.removeEventListener("resize", resize);
     };
@@ -310,7 +278,7 @@ export function RiseAnimation({ onBuilt, buildOpenChat = false }: Props) {
   return (
     <canvas
       ref={canvasRef}
-      className="pointer-events-none fixed inset-y-0 right-0 z-[45] w-[min(100%,22rem)] overflow-hidden"
+      className="pointer-events-none fixed inset-0 z-[45]"
       aria-hidden
     />
   );
