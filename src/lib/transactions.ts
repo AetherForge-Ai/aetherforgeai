@@ -20,6 +20,18 @@ import { getFxSnapshot } from "@/lib/fx";
 import { normalizeTicker, lookupTicker, referencePrice } from "@/lib/market";
 import { fetchLivePrice, isLiveDataConfigured, fetchCryptoQuotes } from "@/lib/market-data";
 import { getMetalsSpot } from "@/lib/metals";
+import {
+  checkFillSanity,
+  aucklandDateTimeISO,
+  ADVISORY_NOTE,
+  type PriceSource,
+  type ExecutionStatus,
+  type OrderSizing,
+} from "@/lib/fill-integrity";
+import { canonicalCryptoId } from "@/lib/crypto-ids";
+import { venueForTicker, fifoApplySell, type FifoLot } from "@/lib/ledger-schema";
+import { logLedgerAudit, appendAuditNote } from "@/lib/ledger-audit";
+import { feedEntryForTicker } from "@/lib/feed-mapping";
 
 export type TxType = "buy" | "sell" | "deposit" | "withdraw";
 export type TxAssetType = "stock" | "crypto" | "metal";
@@ -45,13 +57,32 @@ export interface TransactionInput {
   asset_type?: TxAssetType;
   sector?: string;
   quantity?: number; // units traded
-  price?: number; // native price per unit
+  price?: number; // native price per unit (= fill_price)
   fees?: number; // native fees
   // Cash fields (deposit / withdraw)
   amount?: number; // NZD
   // Common
   notes?: string;
   executed_at?: string; // ISO; defaults to now
+  // Ledger fill-integrity extensions
+  execution_status?: ExecutionStatus; // idea|paper|filled — recommendations must NOT be filled
+  price_source?: PriceSource;
+  signal_price?: number;
+  mark_price?: number;
+  price_as_at?: string;
+  order_sizing?: OrderSizing;
+  notional_native?: number;
+  cash_or_notional?: number; // crypto implied-price check
+  cash_nzd?: number;
+  broker?: string;
+  soft_override_confirmed?: boolean;
+  typed_live_override?: string;
+  prior_close?: number;
+  session_close_date?: string;
+  trade_date?: string; // yyyy-mm-dd Pacific/Auckland
+  fx_rate?: number;
+  fx_source?: string;
+  fx_timestamp?: string;
 }
 
 export interface TransactionResult {
@@ -133,6 +164,103 @@ export async function applyTransaction(user: AppUser, input: TransactionInput): 
   if (quantity <= 0) throw new Error("Quantity must be greater than 0");
   if (price <= 0) throw new Error("Price must be greater than 0");
 
+  // Recommendations / ideas must NOT book as filled trades or realized P&L.
+  const executionStatus = input.execution_status || "filled";
+  if (executionStatus === "idea" || executionStatus === "paper") {
+    const notes = appendAuditNote(
+      input.notes,
+      `${executionStatus.toUpperCase()} recorded — not a broker fill. ${ADVISORY_NOTE}`
+    );
+    const rec = await totalumSdk.crud.createRecord("transaction", {
+      type: input.type,
+      ticker,
+      asset_name: input.asset_name || lookupTicker(ticker)?.name || ticker,
+      asset_type: assetType,
+      quantity: round(quantity, 6),
+      price: round(price, 6),
+      fill_price: round(price, 6),
+      fees: round(fees),
+      total: 0,
+      realized_pnl: 0,
+      realized_price_pnl_nzd: 0,
+      realized_fx_pnl_nzd: 0,
+      realized_pnl_nzd: 0,
+      currency: currencyForTicker(ticker, assetType),
+      fill_currency: currencyForTicker(ticker, assetType),
+      execution_status: executionStatus,
+      price_source: input.price_source || "bot_signal",
+      signal_price: input.signal_price ?? price,
+      mark_price: input.mark_price ?? null,
+      order_sizing: input.order_sizing || "units",
+      instrument_type: assetType === "crypto" ? "crypto" : assetType === "metal" ? "metal" : "equity",
+      venue: venueForTicker(ticker, assetType),
+      asset_id: assetType === "crypto" ? canonicalCryptoId(ticker) : (feedEntryForTicker(ticker)?.providerId || ticker),
+      trade_datetime: aucklandDateTimeISO(executedAt),
+      notes,
+      executed_at: executedAt,
+      user: user._id,
+    });
+    logLedgerAudit({
+      action: `record_${executionStatus}`,
+      ticker,
+      userId: user._id,
+      after: { quantity, price, executionStatus },
+    });
+    console.log(`[transactions] ${executionStatus.toUpperCase()} ${ticker} — no cash/holdings mutation`);
+    return { transaction: rec?.data, cashBalance: currentCash, realizedNZD: 0, holdingId: null };
+  }
+
+  // Resolve live spot for fill sanity (same currency as fill).
+  let liveSpot: number | null = null;
+  try {
+    if (assetType === "crypto") {
+      const quotes = await fetchCryptoQuotes([ticker]);
+      liveSpot = quotes[ticker.toUpperCase()]?.price ?? null;
+    } else if (assetType === "metal") {
+      const key = metalKeyForTicker(ticker);
+      if (key) {
+        const spot = await getMetalsSpot();
+        liveSpot = spot[key]?.nzdPerOz ?? null;
+      }
+    } else if (isLiveDataConfigured()) {
+      liveSpot = (await fetchLivePrice(ticker)) || null;
+    }
+  } catch (err) {
+    console.error(`[transactions] Live spot for sanity check failed (${ticker}):`, err);
+  }
+
+  const sanity = checkFillSanity({
+    ticker,
+    quantity,
+    fillPrice: price,
+    liveSpot,
+    cashOrNotional: input.cash_or_notional ?? input.notional_native ?? null,
+    fees,
+    cashNzd: input.cash_nzd ?? null,
+    fillCurrency: currencyForTicker(ticker, assetType),
+    assetType: assetType === "metal" ? "metal" : assetType,
+    typedLiveOverride: input.typed_live_override,
+    softOverrideConfirmed: !!input.soft_override_confirmed,
+    priceSource: input.price_source || "user_fill",
+    priorClose: input.prior_close,
+    tradeDate: input.trade_date,
+    sessionCloseDate: input.session_close_date,
+  });
+  if (sanity.blocked) {
+    logLedgerAudit({
+      action: "fill_blocked",
+      ticker,
+      userId: user._id,
+      meta: { code: sanity.code, message: sanity.message, liveSpot, price, quantity },
+    });
+    throw new Error(sanity.message || `Fill blocked for ${ticker}`);
+  }
+
+  // Never silently copy mark/signal onto fill — require explicit price_source.
+  if (input.price_source === "bot_signal") {
+    throw new Error(`${ticker}: bot_signal cannot be fill_price. ${ADVISORY_NOTE}`);
+  }
+
   const currency = currencyForTicker(ticker, assetType);
   const fx = await getFxSnapshot();
   const rates = fx.ratesToNZD;
@@ -203,18 +331,55 @@ export async function applyTransaction(user: AppUser, input: TransactionInput): 
     const newCash = round(currentCash - costNZD);
     await totalumSdk.crud.editRecordById("user", user._id, { cash_balance: newCash });
 
+    const feed = feedEntryForTicker(ticker);
+    const fxRate = input.fx_rate ?? rates[currency] ?? 1;
+    const auditNotes = appendAuditNote(
+      notes,
+      `FILLED buy qty=${quantity} fill=${price} ${currency} live=${liveSpot ?? "n/a"} source=${input.price_source || "user_fill"}. ${ADVISORY_NOTE}`
+    );
+    logLedgerAudit({
+      action: "fill_buy",
+      ticker,
+      userId: user._id,
+      quote: liveSpot ? { source: assetType === "crypto" ? "crypto" : "equity", price: liveSpot, as_at: new Date().toISOString() } : undefined,
+      after: { quantity, fill_price: price, cash_nzd: -costNZD, fx_rate: fxRate },
+    });
     const rec = await totalumSdk.crud.createRecord("transaction", {
       type: "buy",
       ticker,
       asset_name: input.asset_name || holding?.company_name || lookupTicker(ticker)?.name || ticker,
       asset_type: assetType,
+      instrument_type: assetType === "crypto" ? "crypto" : assetType === "metal" ? "metal" : "equity",
+      venue: venueForTicker(ticker, assetType),
+      asset_id: assetType === "crypto" ? canonicalCryptoId(ticker) : (feed?.providerId || ticker),
       quantity: round(quantity, 6),
       price: round(price, 6),
+      fill_price: round(price, 6),
+      fill_currency: currency,
+      signal_price: input.signal_price ?? null,
+      mark_price: liveSpot,
+      price_source: input.price_source || "user_fill",
+      price_as_at: input.price_as_at || new Date().toISOString(),
+      trade_datetime: aucklandDateTimeISO(executedAt),
+      execution_status: "filled",
+      order_sizing: input.order_sizing || "units",
+      notional_native: round(quantity * price, 6),
+      native_notional: round(quantity * price, 6),
+      fees_native: round(fees),
+      fees_nzd: round(convertCurrency(fees, currency, "NZD", rates)),
+      fx_rate: fxRate,
+      fx_timestamp: input.fx_timestamp || new Date().toISOString(),
+      fx_source: input.fx_source || "fx_snapshot",
+      cash_nzd: round(-costNZD),
+      realized_pnl: 0,
+      realized_price_pnl_nzd: 0,
+      realized_fx_pnl_nzd: 0,
+      realized_pnl_nzd: 0,
+      broker: input.broker || null,
       fees: round(fees),
       total: round(-costNZD),
-      realized_pnl: 0,
       currency,
-      notes,
+      notes: auditNotes,
       executed_at: executedAt,
       user: user._id,
       ...(holdingId ? { stock: holdingId } : {}),
@@ -232,7 +397,21 @@ export async function applyTransaction(user: AppUser, input: TransactionInput): 
   const proceedsNative = quantity * price - fees;
   const realizedNative = quantity * (price - avgCost) - fees;
   const proceedsNZD = round(convertCurrency(proceedsNative, currency, "NZD", rates));
-  const realizedNZD = round(convertCurrency(realizedNative, currency, "NZD", rates));
+  // FIFO-style split: price P&L at sell FX; FX P&L vs lot FX (legacy avg uses buy FX ≈ current if unknown).
+  const sellFx = input.fx_rate ?? rates[currency] ?? 1;
+  const lotFx = Number(holding.fx_rate) || sellFx;
+  const fifo = fifoApplySell(
+    [{ qty: quantity, fillPrice: avgCost, fillCurrency: currency, fxRate: lotFx, tradeDatetime: String(holding.purchase_date || "") }],
+    quantity,
+    price,
+    sellFx
+  );
+  const realizedPriceNZD = fifo.realized_price_pnl_nzd;
+  const realizedFxNZD = fifo.realized_fx_pnl_nzd;
+  const realizedNZD = round(realizedPriceNZD + realizedFxNZD);
+  // Keep legacy native→NZD path as sanity floor when FIFO fx identical
+  const legacyRealizedNZD = round(convertCurrency(realizedNative, currency, "NZD", rates));
+  const realizedBooked = Math.abs(sellFx - lotFx) < 1e-9 ? legacyRealizedNZD : realizedNZD;
 
   const remaining = heldShares - quantity;
   let holdingId: string | null = holding._id;
@@ -258,14 +437,25 @@ export async function applyTransaction(user: AppUser, input: TransactionInput): 
     price: round(price, 6),
     fees: round(fees),
     total: round(proceedsNZD),
-    realized_pnl: realizedNZD,
+    realized_pnl: realizedBooked,
+    realized_price_pnl_nzd: Math.abs(sellFx - lotFx) < 1e-9 ? legacyRealizedNZD : realizedPriceNZD,
+    realized_fx_pnl_nzd: Math.abs(sellFx - lotFx) < 1e-9 ? 0 : realizedFxNZD,
+    realized_pnl_nzd: realizedBooked,
+    fill_price: round(price, 6),
+    fill_currency: currency,
+    execution_status: "filled",
+    price_source: input.price_source || "user_fill",
+    trade_datetime: aucklandDateTimeISO(executedAt),
+    mark_price: liveSpot,
+    fx_rate: sellFx,
+    cash_nzd: round(proceedsNZD),
     currency,
     notes,
     executed_at: executedAt,
     user: user._id,
     ...(holdingId ? { stock: holdingId } : {}),
   });
-  return { transaction: rec?.data, cashBalance: newCash, realizedNZD, holdingId };
+  return { transaction: rec?.data, cashBalance: newCash, realizedNZD: realizedBooked, holdingId };
 }
 
 export type MetalKey = "gold" | "silver";

@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, DollarSign, TrendingUp, ShoppingCart, Wallet, AlertTriangle } from "lucide-react";
 import { api } from "@/lib/api";
+import { checkFillSanity, ADVISORY_NOTE } from "@/lib/fill-integrity-client";
 import { formatMoney, currencyForTicker, type CurrencyCode } from "@/lib/currency";
 import { formatNumber } from "@/lib/portfolio";
 import { cn } from "@/lib/utils";
@@ -60,6 +61,7 @@ export function BuyDialog({
   const [saving, setSaving] = useState(false);
   const [priceLoading, setPriceLoading] = useState(false);
   const [priceEdited, setPriceEdited] = useState(false);
+  const [liveSpotRef, setLiveSpotRef] = useState<number | null>(null);
 
   // Cash balance (NZD) — loaded every time the dialog opens.
   const [cashBalance, setCashBalance] = useState<number | null>(null);
@@ -74,6 +76,7 @@ export function BuyDialog({
       setShares("");
       setNotes("");
       setPriceEdited(false);
+      if (target.price && target.price > 0) setLiveSpotRef(target.price);
       setDate(new Date().toISOString().slice(0, 10));
     }
   }, [open, target]);
@@ -116,6 +119,7 @@ export function BuyDialog({
       setPriceLoading(false);
       if (res.ok && res.data && res.data.price > 0) {
         const live = res.data.price;
+        setLiveSpotRef(live);
         console.log(`[buy-dialog] Live crypto price for ${displaySymbol}: ${live}`);
         // Don't clobber a price the user has already typed over.
         if (priceEdited) return;
@@ -163,6 +167,20 @@ export function BuyDialog({
   }
 
   const totalCost = useMemo(() => sharesNum * priceNum, [sharesNum, priceNum]);
+  const fillSanity = useMemo(
+    () =>
+      checkFillSanity({
+        ticker: (ticker || "").toUpperCase(),
+        quantity: sharesNum,
+        fillPrice: priceNum,
+        liveSpot: liveSpotRef,
+        cashOrNotional: amountNum > 0 ? amountNum : null,
+        assetType: assetType === "crypto" ? "crypto" : "stock",
+        fillCurrency: currency,
+        priceSource: "user_fill",
+      }),
+    [ticker, sharesNum, priceNum, liveSpotRef, amountNum, assetType, currency]
+  );
   const valid = amountNum > 0 && sharesNum > 0 && priceNum > 0;
 
   // Remaining cash after this purchase (NZD). Note: asset currency may differ
@@ -183,6 +201,27 @@ export function BuyDialog({
       );
     }
 
+    // Client-side fill sanity (server also enforces). Never inflate qty to fix tiny price.
+    const sanity = checkFillSanity({
+      ticker: ticker.toUpperCase(),
+      quantity: sharesNum,
+      fillPrice: priceNum,
+      liveSpot: liveSpotRef && liveSpotRef > 0 ? liveSpotRef : null,
+      cashOrNotional: amountNum > 0 ? amountNum : null,
+      assetType: assetType === "crypto" ? "crypto" : "stock",
+      fillCurrency: currency,
+      priceSource: "user_fill",
+    });
+    // Soft mismatch when user edited price away from the fetched live banner value
+    // is handled server-side with live re-fetch; here we block hard absurdities if
+    // amount/qty imply a wild price vs the displayed live price field.
+    if (sanity.blocked && sanity.code === "hard_mismatch") {
+      return toast.error(sanity.message || "Fill price blocked");
+    }
+    if (sanity.blocked && sanity.code === "implied_mismatch") {
+      return toast.error(sanity.message || "Implied price blocked");
+    }
+
     setSaving(true);
     const payload = {
       type: "buy" as const,
@@ -191,6 +230,9 @@ export function BuyDialog({
       asset_name: target?.name || undefined,
       quantity: +sharesNum.toFixed(6),
       price: +priceNum.toFixed(6),
+      cash_or_notional: amountNum > 0 ? amountNum : undefined,
+      execution_status: "filled" as const,
+      price_source: "user_fill" as const,
       notes: notes.trim() || undefined,
       executed_at: date ? new Date(date).toISOString() : undefined,
     };
@@ -217,7 +259,7 @@ export function BuyDialog({
           </DialogTitle>
           <DialogDescription>
             {target?.name ? `${target.name} · ` : ""}Enter the dollar amount to invest — we&apos;ll work out the
-            shares and debit your cash balance.
+            shares and debit your cash balance. AetherForge does not execute trades. Fill prices must match your broker.
           </DialogDescription>
         </DialogHeader>
 
@@ -333,6 +375,12 @@ export function BuyDialog({
               <p className="flex items-center gap-1.5 text-xs font-medium text-rose-500">
                 <AlertTriangle className="size-3.5 shrink-0" />
                 Exceeds available cash by {formatMoney(totalCost - (cashBalance ?? 0), "NZD")}
+                </p>
+              )}
+            {fillSanity.blocked && (
+              <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-700 dark:text-rose-300">
+                {fillSanity.message || "Fill price is more than 15% from live spot."}
+
               </p>
             )}
           </div>

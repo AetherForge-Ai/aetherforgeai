@@ -13,6 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
+import { LedgerRepairPanel } from "@/components/dashboard/LedgerRepairPanel";
+import { ADVISORY_NOTE } from "@/lib/fill-integrity-client";
 import { formatMoney, currencyForTicker, type CurrencyCode } from "@/lib/currency";
 import { formatNumber, type Stock } from "@/lib/portfolio";
 import { lookupTicker } from "@/lib/market";
@@ -221,6 +223,11 @@ export function TransactionCenter({
   const realizedTotal = ledger?.realizedTotal ?? 0;
 
   return (
+    <>
+    <div className="mb-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+      {ADVISORY_NOTE} Realized P&amp;L splits Price vs FX; mark price is unrealized only.
+    </div>
+    <div className="mb-4"><LedgerRepairPanel /></div>
     <div className="rounded-3xl border border-border/70 bg-card/50">
       {preferredAssetType ? (
         <div className="border-b border-border/60 bg-primary/5 px-6 py-3 text-sm text-muted-foreground">
@@ -273,7 +280,7 @@ export function TransactionCenter({
           icon={Wallet}
         />
         <CashCard
-          label="Realized P&L · YTD"
+          label="Realized P&L (Price+FX) · YTD"
           value={formatMoney(realizedYtd, NZD)}
           sub={
             ledger?.realizedYtdCount
@@ -430,6 +437,7 @@ export function TransactionCenter({
         transactions={ledger?.transactions ?? []}
       />
     </div>
+    </>
   );
 }
 
@@ -533,16 +541,32 @@ function AllTransactionsDialog({
   function exportCsv() {
     const headers = [
       "Date",
+      "DateTime_NZ",
+      "ExecutionStatus",
       "Type",
       "Ticker",
-      "Asset name",
-      "Asset type",
+      "AssetName",
+      "AssetType",
+      "AssetId",
       "Quantity",
-      "Price",
-      "Fees",
-      "Cash impact",
-      "Realized P&L",
-      "Currency",
+      "FillPrice",
+      "FillCurrency",
+      "PriceSource",
+      "PriceAsAt",
+      "SignalPrice",
+      "MarkPriceAtExport",
+      "FeesNative",
+      "FeesNZD",
+      "NativeNotional",
+      "FxRate",
+      "FxSource",
+      "CashNZD",
+      "RealizedPricePnlNZD",
+      "RealizedFxPnlNZD",
+      "RealizedPnlNZD",
+      "OrderSizing",
+      "NotionalNative",
+      "Broker",
       "Notes",
     ];
     const esc = (v: unknown) => {
@@ -552,16 +576,32 @@ function AllTransactionsDialog({
     const lines = filtered.map((t) =>
       [
         csvDate(t.executed_at || t.createdAt),
+        (t as any).trade_datetime || csvDate(t.executed_at || t.createdAt),
+        (t as any).execution_status || "filled",
         t.type,
         t.ticker || "",
         t.asset_name || "",
         t.asset_type || "",
+        (t as any).asset_id || "",
         t.quantity ?? "",
-        t.price ?? "",
-        t.fees ?? "",
-        t.total ?? "",
-        t.realized_pnl ?? "",
-        t.currency || "NZD",
+        (t as any).fill_price ?? t.price ?? "",
+        (t as any).fill_currency || t.currency || "NZD",
+        (t as any).price_source || "user_fill",
+        (t as any).price_as_at || "",
+        (t as any).signal_price ?? "",
+        (t as any).mark_price ?? "",
+        (t as any).fees_native ?? t.fees ?? "",
+        (t as any).fees_nzd ?? "",
+        (t as any).native_notional ?? ((t.quantity || 0) * (t.price || 0)),
+        (t as any).fx_rate ?? "",
+        (t as any).fx_source || "",
+        (t as any).cash_nzd ?? t.total ?? "",
+        (t as any).realized_price_pnl_nzd ?? "",
+        (t as any).realized_fx_pnl_nzd ?? "",
+        (t as any).realized_pnl_nzd ?? t.realized_pnl ?? "",
+        (t as any).order_sizing || "units",
+        (t as any).notional_native ?? "",
+        (t as any).broker || "",
         t.notes || "",
       ]
         .map(esc)

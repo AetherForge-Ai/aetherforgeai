@@ -21,6 +21,7 @@ import type { Stock } from "@/lib/portfolio";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { keepDialogOpenOnPortalInteraction, keepDialogOpenWhilePopoverOpen } from "@/lib/dialog-guards";
+import { checkFillSanity, ADVISORY_NOTE } from "@/lib/fill-integrity-client";
 
 type AssetType = "stock" | "crypto";
 
@@ -228,6 +229,21 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
     if (!(sharesNum > 0)) return toast.error(copy.amountInvalid);
     if (!(priceNum > 0)) return toast.error(copy.priceInvalid);
 
+    const cashNotional = sharesNum * priceNum;
+    const sanity = checkFillSanity({
+      ticker: t,
+      quantity: sharesNum,
+      fillPrice: priceNum,
+      liveSpot: priceLocked && priceNum > 0 ? priceNum : null,
+      cashOrNotional: assetType === "crypto" ? cashNotional : null,
+      assetType,
+      priceSource: priceLocked ? "live_quote" : "user_fill",
+      tradeDate: purchaseDate,
+    });
+    if (sanity.blocked && (sanity.code === "hard_mismatch" || sanity.code === "implied_mismatch")) {
+      return toast.error(sanity.message || "Fill blocked");
+    }
+
     setSaving(true);
     const payload = {
       ticker: t,
@@ -237,6 +253,10 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
       shares: sharesNum,
       purchase_price: priceNum,
       purchase_date: purchaseDate,
+      execution_status: "filled" as const,
+      price_source: priceLocked ? ("live_quote" as const) : ("user_fill" as const),
+      cash_or_notional: assetType === "crypto" ? cashNotional : undefined,
+      notes: ADVISORY_NOTE,
     };
 
     console.log(`[dashboard] ${isEdit ? "Updating" : "Creating"} stock`, payload);
@@ -271,7 +291,7 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
             {isEdit ? "Edit holding" : "Add a holding"}
           </DialogTitle>
           <DialogDescription>
-            {isEdit ? "Update the date, amount or purchase price for this position." : copy.description}
+            {isEdit ? "Update the date, amount or purchase price for this position." : copy.description}{" "}AetherForge does not execute trades. Fill prices must match your broker.
           </DialogDescription>
         </DialogHeader>
 

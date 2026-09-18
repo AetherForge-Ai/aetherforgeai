@@ -34,7 +34,7 @@ const FIAT_DENY = new Set(["AUD", "USD", "NZD", "EUR", "GBP"]);
  * Cloudflare Worker per-request sub-request ceiling. Coins beyond this still
  * show full price / 24h / market-cap / volume data — just no inline sparkline.
  */
-const SPARK_LIMIT = 40;
+const SPARK_LIMIT = 12; // keep under CF Worker subrequest limits
 const SPARK_CONCURRENCY = 8;
 
 /* ------------------------------ Access token ----------------------------- */
@@ -211,9 +211,15 @@ export async function fetchTop500(): Promise<CoinMarket[]> {
     .sort((a, b) => a.b.rank - b.b.rank)
     .slice(0, 500);
 
-  // Enrich the leaders with real 7-day sparklines.
+  // Enrich leaders with sparklines — NEVER fail the whole markets list if
+  // getBars rate-limits or CF subrequest caps trip (was blanking Crypto tab).
   const topCodes = rows.slice(0, SPARK_LIMIT).map((x) => x.b.code.toUpperCase());
-  const spark = await getSparkMap(topCodes);
+  let spark: Record<string, { series: number[]; change7d: number }> = {};
+  try {
+    spark = await getSparkMap(topCodes);
+  } catch (err) {
+    console.error("[crypto-swyftx] spark enrichment failed (serving prices without sparklines):", err);
+  }
 
   const coins: CoinMarket[] = rows.map(({ b, rate }) => {
     const code = b.code.toUpperCase();
