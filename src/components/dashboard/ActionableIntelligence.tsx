@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { pctClass, fmtPct, SignalBadge, ExchangeChip } from "@/components/dashboard/intel-ui";
 import { useMarketIntel } from "@/components/dashboard/MarketIntelContext";
 import { BuyDialog, type BuyTarget } from "@/components/dashboard/BuyDialog";
+import { RecommendationActions } from "@/components/dashboard/RecommendationActions";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import {
@@ -343,6 +344,20 @@ export function ActionableIntelligence({
         </p>
       </div>
 
+      {buyOpen && buyTarget && (
+        <div className="mb-2">
+          <RecommendationActions
+            target={{
+              ticker: buyTarget.ticker,
+              name: buyTarget.name,
+              assetType: (buyTarget as any).assetType === "crypto" || (buyTarget as any).asset_type === "crypto" ? "crypto" : "stock",
+              signalPrice: buyTarget.price,
+              livePrice: buyTarget.price,
+            }}
+            onDone={() => {}}
+          />
+        </div>
+      )}
       <BuyDialog
         open={buyOpen}
         onOpenChange={setBuyOpen}

@@ -234,6 +234,7 @@ export async function fetchLivePrice(ticker: string): Promise<number | null> {
  * so the Crypto Bot is always live. Symbol → CoinGecko id mapping for our
  * universe; unknown symbols are lower-cased as a best-effort id guess.
  */
+/** Canonical IDs live in crypto-ids.ts (APT→aptos, UNI→uniswap, ARB→arbitrum, OP→optimism, SOL→solana). */
 const COINGECKO_IDS: Record<string, string> = {
   BTC: "bitcoin",
   ETH: "ethereum",

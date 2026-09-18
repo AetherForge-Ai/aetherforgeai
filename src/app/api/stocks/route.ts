@@ -11,6 +11,11 @@ import {
   resolveCompanyNames,
 } from "@/lib/market-data";
 import { checkTickerQuota } from "@/lib/entitlements";
+import { checkFillSanity, ADVISORY_NOTE, aucklandDateTimeISO } from "@/lib/fill-integrity";
+import { canonicalCryptoId } from "@/lib/crypto-ids";
+import { venueForTicker } from "@/lib/ledger-schema";
+import { feedEntryForTicker } from "@/lib/feed-mapping";
+import { logLedgerAudit, appendAuditNote } from "@/lib/ledger-audit";
 
 /**
  * Overlay genuine LIVE prices onto a user's holdings and persist any that moved.
@@ -120,6 +125,15 @@ const createSchema = z.object({
   purchase_date: z.string().optional(),
   company_name: z.string().optional(),
   sector: z.string().optional(),
+  execution_status: z.enum(["idea", "paper", "filled"]).optional(),
+  price_source: z.enum(["user_fill", "broker_import", "session_close", "live_quote", "bot_signal"]).optional(),
+  cash_or_notional: z.number().optional(),
+  soft_override_confirmed: z.boolean().optional(),
+  typed_live_override: z.string().optional(),
+  broker: z.string().max(80).optional(),
+  notes: z.string().max(2000).optional(),
+  prior_close: z.number().optional(),
+  session_close_date: z.string().optional(),
 });
 
 // GET /api/stocks?asset_type=stock|crypto — list the current user's holdings
@@ -224,6 +238,55 @@ export async function POST(req: Request) {
       }
     } catch (err) {
       console.error(`[api/stocks] Live price lookup failed for ${ticker} (non-fatal):`, err);
+    }
+
+    const executionStatus = parsed.data.execution_status || "filled";
+    if (executionStatus === "idea" || executionStatus === "paper") {
+      // Ideas/paper from Stox/Koins/Headmaster — no filled ledger, no realized P&L.
+      const feed = feedEntryForTicker(ticker);
+      const record = {
+        ticker,
+        asset_type: assetType,
+        instrument_type: assetType === "crypto" ? "crypto" : "equity",
+        venue: venueForTicker(ticker, assetType),
+        asset_id: assetType === "crypto" ? canonicalCryptoId(ticker) : (feed?.providerId || ticker),
+        company_name: parsed.data.company_name || info?.name || ticker,
+        sector: parsed.data.sector || info?.sector || (assetType === "crypto" ? "Digital Assets" : "Other"),
+        shares: parsed.data.shares,
+        purchase_price: purchase_price,
+        fill_price: purchase_price,
+        current_price,
+        mark_price: current_price,
+        purchase_date: parsed.data.purchase_date || null,
+        execution_status: executionStatus,
+        price_source: parsed.data.price_source || "bot_signal",
+        signal_price: purchase_price,
+        notes: appendAuditNote(parsed.data.notes, `${executionStatus} holding — not a broker fill. ${ADVISORY_NOTE}`),
+        user: user._id,
+      };
+      const result = await totalumSdk.crud.createRecord("stock", record);
+      logLedgerAudit({ action: `holding_${executionStatus}`, ticker, userId: user._id, after: record as any });
+      return NextResponse.json({ ok: true, data: result?.data || record });
+    }
+
+    const sanity = checkFillSanity({
+      ticker,
+      quantity: parsed.data.shares,
+      fillPrice: purchase_price,
+      liveSpot: current_price > 0 ? current_price : null,
+      cashOrNotional: parsed.data.cash_or_notional,
+      assetType,
+      fillCurrency: assetType === "crypto" ? "USD" : undefined,
+      typedLiveOverride: parsed.data.typed_live_override,
+      softOverrideConfirmed: !!parsed.data.soft_override_confirmed,
+      priceSource: parsed.data.price_source || "user_fill",
+      priorClose: parsed.data.prior_close,
+      tradeDate: parsed.data.purchase_date,
+      sessionCloseDate: parsed.data.session_close_date,
+    });
+    if (sanity.blocked) {
+      logLedgerAudit({ action: "holding_fill_blocked", ticker, userId: user._id, meta: { message: sanity.message } });
+      return NextResponse.json({ ok: false, error: sanity.message, data: { code: sanity.code, ...sanity } }, { status: 400 });
     }
 
     // Resolve a real company name up-front: client value → curated directory →
