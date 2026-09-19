@@ -616,13 +616,13 @@ export function PortfolioCoachChat({
                 "max-w-[92%] rounded-2xl px-3 py-2 text-sm leading-relaxed",
                 m.role === "user"
                   ? "bg-amber-400 text-amber-950"
-                  : "border border-amber-400/25 bg-[#0c3a28] text-emerald-50"
+                  : "border border-amber-400/25 bg-[#0c3a28] text-amber-200"
               )}
             >
               {m.role === "assistant" ? (
                 <Markdown
                   content={m.content}
-                  className="prose-invert text-sm [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_a]:text-amber-300 [&_ol]:my-2 [&_ul]:my-2"
+                  className="text-sm text-amber-200 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_a]:text-amber-300 [&_a]:underline [&_ol]:my-2 [&_ul]:my-2 [&_p]:text-amber-200 [&_li]:text-amber-200 [&_strong]:text-amber-100 [&_h2]:text-amber-100 [&_h3]:text-amber-100 [&_h4]:text-amber-200 [&_code]:text-amber-100 [&_hr]:border-amber-400/30"
                 />
               ) : (
                 <p className="whitespace-pre-wrap">{m.content}</p>
@@ -681,7 +681,7 @@ export function PortfolioCoachChat({
         ) : null}
 
         {sending && (
-          <div className="flex items-center gap-2 text-xs text-emerald-100/70">
+          <div className="flex items-center gap-2 text-xs text-amber-200/80">
             <Loader2 className="size-3.5 animate-spin text-amber-300" />
             Assistant Guide is preparing the next steps…
           </div>
@@ -795,7 +795,7 @@ export function PortfolioCoachChat({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Or type a question…"
-            className="h-9 flex-1 rounded-xl border border-amber-400/25 bg-[#0a2f22] px-3 text-sm text-emerald-50 placeholder:text-emerald-100/40 focus:border-amber-400/50 focus:outline-none"
+            className="h-9 flex-1 rounded-xl border border-amber-400/25 bg-[#0a2f22] px-3 text-sm text-amber-100 placeholder:text-amber-200/55 focus:border-amber-400/50 focus:outline-none"
             maxLength={2000}
           />
           <button
