@@ -13,7 +13,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
-import { LedgerRepairPanel } from "@/components/dashboard/LedgerRepairPanel";
 import { ADVISORY_NOTE } from "@/lib/fill-integrity-client";
 import { formatMoney, currencyForTicker, type CurrencyCode } from "@/lib/currency";
 import { formatNumber, type Stock } from "@/lib/portfolio";
@@ -227,7 +226,6 @@ export function TransactionCenter({
     <div className="mb-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
       {ADVISORY_NOTE} Realized P&amp;L splits Price vs FX; mark price is unrealized only.
     </div>
-    <div className="mb-4"><LedgerRepairPanel /></div>
     <div className="rounded-3xl border border-border/70 bg-card/50">
       {preferredAssetType ? (
         <div className="border-b border-border/60 bg-primary/5 px-6 py-3 text-sm text-muted-foreground">

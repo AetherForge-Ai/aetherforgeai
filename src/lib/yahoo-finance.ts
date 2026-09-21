@@ -81,8 +81,17 @@ async function fetchOne(yahooSymbol: string): Promise<YahooQuote | null> {
     const meta = json?.chart?.result?.[0]?.meta;
     if (!meta) return null;
 
-    const price = Number(meta.regularMarketPrice);
-    const prevClose = Number(meta.chartPreviousClose ?? meta.previousClose ?? price);
+    const prevCloseRaw = Number(meta.chartPreviousClose ?? meta.previousClose);
+    const livePrice = Number(meta.regularMarketPrice);
+    // When the exchange is shut, regularMarketPrice can be missing/0 — fall back
+    // to the last official session close so callers never see a blank quote.
+    const price =
+      isFinite(livePrice) && livePrice > 0
+        ? livePrice
+        : isFinite(prevCloseRaw) && prevCloseRaw > 0
+          ? prevCloseRaw
+          : NaN;
+    const prevClose = isFinite(prevCloseRaw) && prevCloseRaw > 0 ? prevCloseRaw : price;
     if (!isFinite(price) || price <= 0) return null;
 
     const changePct = prevClose > 0 ? ((price - prevClose) / prevClose) * 100 : 0;
@@ -263,29 +272,99 @@ export async function fetchYahooHistories(
   return out;
 }
 
+/** Positive finite number helper for Yahoo spark / chart nodes. */
+function positiveNum(v: unknown): number | undefined {
+  const n = Number(v);
+  return isFinite(n) && n > 0 ? n : undefined;
+}
+
+export type YahooBatchedQuote = {
+  price: number;
+  changePct: number;
+  /** "live" = last traded/intraday print; "close" = last official session close. */
+  asOf: "live" | "close";
+};
+
 /**
- * BATCHED live quotes via Yahoo's keyless `spark` endpoint — one HTTP request
- * prices up to ~45 symbols at once (latest intraday close + previous close for
- * the % change), so the ENTIRE market universe (~400 tickers) is priced live in
- * a handful of requests instead of one-request-per-symbol.
+ * Resolve a usable price from a Yahoo spark node.
+ * Prefer the latest intraday print when the session has bars; otherwise fall
+ * back to fullday / previous / chart previous close so closed markets never
+ * return blank junk.
+ */
+function resolveSparkQuote(node: any): YahooBatchedQuote | null {
+  if (!node) return null;
+  const raw = Array.isArray(node.close) ? node.close : [];
+  const closes = raw.map((v: any) => Number(v)).filter((v: number) => isFinite(v) && v > 0);
+  const intraday = closes.length ? closes[closes.length - 1] : undefined;
+  const fullday = positiveNum(node.fulldayPrice);
+  const regular = positiveNum(node.regularMarketPrice);
+  const prevClose =
+    positiveNum(node.chartPreviousClose) ?? positiveNum(node.previousClose);
+  const sessionClose = fullday ?? regular ?? prevClose;
+  const price = intraday ?? sessionClose;
+  if (price === undefined) return null;
+  const basis = prevClose ?? (closes.length >= 2 ? closes[closes.length - 2] : price);
+  const changePct = basis > 0 ? ((price - basis) / basis) * 100 : 0;
+  const asOf: "live" | "close" = intraday !== undefined ? "live" : "close";
+  return { price, changePct: isFinite(changePct) ? changePct : 0, asOf };
+}
+
+function parseSparkBySymbol(json: Record<string, any>): Record<string, any> {
+  const bySymbol: Record<string, any> = {};
+  if (json?.spark?.result && Array.isArray(json.spark.result)) {
+    for (const r of json.spark.result) {
+      const resp = r?.response?.[0];
+      if (r?.symbol) {
+        bySymbol[r.symbol] = {
+          close: resp?.indicators?.quote?.[0]?.close,
+          chartPreviousClose: resp?.meta?.chartPreviousClose ?? resp?.meta?.previousClose,
+          previousClose: resp?.meta?.previousClose,
+          fulldayPrice: resp?.meta?.regularMarketPrice ?? resp?.meta?.chartPreviousClose,
+          regularMarketPrice: resp?.meta?.regularMarketPrice,
+        };
+      }
+    }
+  } else {
+    Object.assign(bySymbol, json);
+  }
+  return bySymbol;
+}
+
+function warmQuoteCache(ySym: string, q: YahooBatchedQuote): void {
+  const prevClose =
+    q.asOf === "close"
+      ? q.price
+      : q.changePct !== 0
+        ? q.price / (1 + q.changePct / 100)
+        : q.price;
+  CACHE.set(ySym, {
+    quote: {
+      price: q.price,
+      changePct: q.changePct,
+      changeAbs: q.price - prevClose,
+      prevClose,
+      currency: "USD",
+    },
+    at: Date.now(),
+  });
+}
+
+/**
+ * BATCHED live-or-close quotes via Yahoo spark.
+ * Prefer intraday prints (1d/5m); if bars are empty (market closed / holiday),
+ * fall back to fullday/previous close, then a 5d/1d daily pass. Always returns
+ * a usable price when Yahoo has any official print — never blank junk.
  *
- * This is what lets every ticker (e.g. NASDAQ `LIN`) show its genuine live price
- * even when the paid provider is rate-limited: previously the per-symbol Yahoo
- * fallback was capped to protect the CPU budget, so tickers past the cap decayed
- * to their stale synthetic seed. Batching removes that cost, so nothing is left
- * on synthetic data. Reuses (and warms) the same 60s single-quote CACHE, and
- * degrades to `{}` on any failure so pricing can never break.
- *
- * @param map internalTicker → yahooSymbol (e.g. { LIN: "LIN", "BHP.AX": "BHP.AX" })
- * @returns internalTicker → { price, changePct } for every symbol Yahoo priced.
+ * @param map internalTicker → yahooSymbol
+ * @returns internalTicker → { price, changePct, asOf }
  */
 export async function fetchYahooQuotesBatched(
   map: Record<string, string>
-): Promise<Record<string, { price: number; changePct: number }>> {
+): Promise<Record<string, YahooBatchedQuote>> {
   const entries = Object.entries(map);
   if (!entries.length) return {};
 
-  const out: Record<string, { price: number; changePct: number }> = {};
+  const out: Record<string, YahooBatchedQuote> = {};
   const stale: [string, string][] = [];
 
   // Serve fresh entries straight from the single-quote cache (populated by
@@ -293,59 +372,67 @@ export async function fetchYahooQuotesBatched(
   for (const [internal, ySym] of entries) {
     const c = CACHE.get(ySym);
     if (c && Date.now() - c.at <= TTL_MS) {
-      out[internal] = { price: c.quote.price, changePct: c.quote.changePct };
+      out[internal] = { price: c.quote.price, changePct: c.quote.changePct, asOf: "live" };
     } else {
       stale.push([internal, ySym]);
     }
   }
   if (!stale.length) return out;
 
-  const chunks: [string, string][][] = [];
-  for (let i = 0; i < stale.length; i += HIST_CHUNK) chunks.push(stale.slice(i, i + HIST_CHUNK));
-
-  await mapLimited(chunks, CONCURRENCY, async (chunk) => {
+  const ingestChunk = async (
+    chunk: [string, string][],
+    range: string,
+    interval: string,
+    forceClose: boolean
+  ) => {
     const symbols = chunk.map(([, y]) => y).join(",");
     try {
-      // range=1d&interval=5m → an intraday close series; the last finite point is
-      // the most recent traded price, and `chartPreviousClose` drives the change%.
-      const url = `${SPARK_BASE}?symbols=${encodeURIComponent(symbols)}&range=1d&interval=5m`;
+      // 1d/5m → live intraday prints when the session has bars.
+      // 5d/1d → last official daily closes when markets are shut / bars empty.
+      const url = `${SPARK_BASE}?symbols=${encodeURIComponent(symbols)}&range=${range}&interval=${interval}`;
       const res = await fetch(url, { headers: { "User-Agent": UA, Accept: "application/json" } });
       if (!res.ok) {
-        console.error(`[yahoo] live-batch HTTP ${res.status} for ${chunk.length} symbols`);
+        console.error(`[yahoo] live-batch HTTP ${res.status} for ${chunk.length} symbols (${range}/${interval})`);
         return;
       }
       const json = (await res.json()) as Record<string, any>;
-      // query1 returns a flat map keyed by symbol; some hosts wrap in spark.result.
-      const bySymbol: Record<string, any> = {};
-      if (json?.spark?.result && Array.isArray(json.spark.result)) {
-        for (const r of json.spark.result) {
-          const resp = r?.response?.[0];
-          if (r?.symbol) {
-            bySymbol[r.symbol] = {
-              close: resp?.indicators?.quote?.[0]?.close,
-              chartPreviousClose: resp?.meta?.chartPreviousClose ?? resp?.meta?.previousClose,
-            };
-          }
-        }
-      } else {
-        Object.assign(bySymbol, json);
-      }
+      const bySymbol = parseSparkBySymbol(json);
 
       for (const [internal, ySym] of chunk) {
+        if (out[internal]) continue;
         const node = bySymbol[ySym];
-        if (!node) continue;
-        const raw = Array.isArray(node.close) ? node.close : [];
-        const closes = raw.map((v: any) => Number(v)).filter((v: number) => isFinite(v) && v > 0);
-        const price = closes.length ? closes[closes.length - 1] : NaN;
-        if (!isFinite(price) || price <= 0) continue;
-        const prevClose = Number(node.chartPreviousClose ?? node.previousClose ?? price);
-        const changePct = prevClose > 0 ? ((price - prevClose) / prevClose) * 100 : 0;
-        out[internal] = { price, changePct: isFinite(changePct) ? changePct : 0 };
+        const resolved = resolveSparkQuote(node);
+        if (!resolved) continue;
+        const quote: YahooBatchedQuote = forceClose
+          ? { ...resolved, asOf: "close" }
+          : resolved;
+        out[internal] = quote;
+        warmQuoteCache(ySym, quote);
       }
     } catch (err) {
-      console.error(`[yahoo] live-batch fetch failed for a chunk of ${chunk.length}:`, err);
+      console.error(`[yahoo] live-batch fetch failed for a chunk of ${chunk.length} (${range}/${interval}):`, err);
     }
+  };
+
+  const chunks: [string, string][][] = [];
+  for (let i = 0; i < stale.length; i += HIST_CHUNK) chunks.push(stale.slice(i, i + HIST_CHUNK));
+
+  // Pass 1: intraday (live when open; often still has prior-session bars when closed).
+  await mapLimited(chunks, CONCURRENCY, async (chunk) => {
+    await ingestChunk(chunk, "1d", "5m", false);
   });
+
+  // Pass 2: daily closes for anything still blank (weekend / holiday / empty bars).
+  const stillMissing = stale.filter(([internal]) => !out[internal]);
+  if (stillMissing.length) {
+    const missChunks: [string, string][][] = [];
+    for (let i = 0; i < stillMissing.length; i += HIST_CHUNK) {
+      missChunks.push(stillMissing.slice(i, i + HIST_CHUNK));
+    }
+    await mapLimited(missChunks, CONCURRENCY, async (chunk) => {
+      await ingestChunk(chunk, "5d", "1d", true);
+    });
+  }
 
   console.log(`[yahoo] Batched live quotes resolved for ${Object.keys(out).length}/${entries.length} tickers`);
   return out;

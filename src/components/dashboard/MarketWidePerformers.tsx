@@ -6,7 +6,8 @@ import {
   getTopPerformers,
   resolveExchange,
   EXCHANGE_META,
-  EXCHANGES,
+  formatMarketPrice,
+  priceSessionLabel,
   type SecurityIntel,
   type Exchange,
 } from "@/lib/market-intel";
@@ -39,10 +40,10 @@ import {
  * short "key reasons" AI summary.
  *
  * DATA SOURCE (live — keyless, server-side):
- *   • GET /api/market?bot=stock → Yahoo Finance daily closes & quotes, analysed
- *     into SecurityIntel[]. Ranking/projection lives in src/lib/market-intel.ts
- *     (getTopPerformers → conviction-weighted 7-day upside blended with momentum,
- *     surfaced through the Stox/Koins quant engine).
+ *   • GET /api/market?bot=stock → Twelve Data / Yahoo Finance quotes + daily
+ *     closes, analysed into SecurityIntel[]. Each row always carries a usable
+ *     last/live price (session close when the exchange is shut). Ranking lives
+ *     in src/lib/market-intel.ts (getTopPerformers).
  * US securities are bucketed into Dow Jones vs NASDAQ via resolveExchange().
  */
 
@@ -81,9 +82,16 @@ export function MarketWidePerformers({ onBought }: { onBought?: () => void }) {
 
   // Top 20 projected performers on the active exchange.
   const leaders = useMemo(() => {
-    const pool = universe.filter((s) => resolveExchange(s.ticker, s.market) === tab);
-    return getTopPerformers(20, pool);
+    const pool = universe.filter(
+      (s) => resolveExchange(s.ticker, s.market) === tab && Number.isFinite(s.price) && s.price > 0
+    );
+    // If every row somehow lacked a price, fall back to the unfiltered pool so
+    // the section never goes blank — the price cell still handles "—".
+    const ranked = getTopPerformers(20, pool.length ? pool : universe.filter((s) => resolveExchange(s.ticker, s.market) === tab));
+    return ranked;
   }, [universe, tab]);
+
+  const sessionLabel = priceSessionLabel(tab);
 
   // Per-exchange counts for the tab labels.
   const counts = useMemo(() => {
@@ -178,7 +186,10 @@ export function MarketWidePerformers({ onBought }: { onBought?: () => void }) {
                 </button>
               );
             })}
-            {updated && <span className="ml-auto text-[0.6rem] text-muted-foreground">Updated {updated}</span>}
+            <span className="ml-auto text-[0.6rem] text-muted-foreground">
+              Prices: {sessionLabel}
+              {updated ? ` · Updated ${updated}` : ""}
+            </span>
           </div>
 
           {/* Top-20 table for the active exchange */}
@@ -191,7 +202,7 @@ export function MarketWidePerformers({ onBought }: { onBought?: () => void }) {
               </div>
             ) : leaders.length === 0 ? (
               <div className="py-12 text-center text-sm text-muted-foreground">
-                No projected movers available for {EXCHANGE_META[tab].label} right now.
+                No projected movers with usable price data for {EXCHANGE_META[tab].label} right now.
               </div>
             ) : (
               <div className="max-h-[32rem] overflow-y-auto">
@@ -201,6 +212,8 @@ export function MarketWidePerformers({ onBought }: { onBought?: () => void }) {
                       <th className="w-10 px-3 py-2 text-center">#</th>
                       <th className="px-3 py-2">Ticker</th>
                       <th className="hidden px-3 py-2 sm:table-cell">Company</th>
+                      <th className="px-3 py-2 text-right">Price</th>
+                      <th className="hidden px-3 py-2 text-right md:table-cell">Change</th>
                       <th className="px-3 py-2 text-right">Projected</th>
                       <th className="px-3 py-2 text-right">Confidence</th>
                       <th className="hidden px-3 py-2 lg:table-cell">Key reasons</th>
@@ -232,6 +245,25 @@ export function MarketWidePerformers({ onBought }: { onBought?: () => void }) {
                           </td>
                           <td className="hidden max-w-[16rem] truncate px-3 py-2.5 text-muted-foreground sm:table-cell">
                             {s.name}
+                          </td>
+                          <td className="px-3 py-2.5 text-right">
+                            {s.price > 0 ? (
+                              <div className="leading-tight">
+                                <p className="tnum text-sm font-semibold">
+                                  {formatMarketPrice(s.price, s.currency)}
+                                </p>
+                                <p className="text-[0.58rem] font-medium uppercase tracking-wide text-muted-foreground">
+                                  {sessionLabel}
+                                </p>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </td>
+                          <td className="hidden px-3 py-2.5 text-right md:table-cell">
+                            <span className={cn("tnum text-xs font-semibold", pctClass(s.change1d))}>
+                              {fmtPct(s.change1d)}
+                            </span>
                           </td>
                           <td className="px-3 py-2.5 text-right">
                             <span
@@ -273,8 +305,8 @@ export function MarketWidePerformers({ onBought }: { onBought?: () => void }) {
           {/* Disclaimer */}
           <p className="mt-4 flex items-center justify-center gap-1.5 text-center text-[0.68rem] text-muted-foreground">
             <Info className="size-3.5 shrink-0" />
-            AI-generated projections for informational purposes only — illustrative, not a guarantee
-            of future performance and not financial advice.
+            Prices show the live last trade when the exchange is open, otherwise the last official
+            session close. AI projections are illustrative only — not financial advice.
           </p>
         </>
       )}

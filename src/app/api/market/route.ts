@@ -44,6 +44,16 @@ export async function GET(req: Request) {
       ]);
       overrides = Object.fromEntries(Object.entries(quotes).map(([t, q]) => [t, q.price]));
       histories = hist;
+      // When a market is closed (or a quote batch skipped a symbol), pin any
+      // missing ticker to its last real daily close so Top 20 / movers never
+      // render blank price cells.
+      for (const [t, series] of Object.entries(histories)) {
+        if (overrides[t] && overrides[t]! > 0) continue;
+        const last = series?.[series.length - 1];
+        if (typeof last === "number" && isFinite(last) && last > 0) {
+          overrides[t] = last;
+        }
+      }
       live = Object.keys(overrides).length > 0 || Object.keys(histories).length > 0;
     }
 

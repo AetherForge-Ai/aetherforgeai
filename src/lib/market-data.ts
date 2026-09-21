@@ -25,6 +25,8 @@ import { fetchSpotPrices as fetchSwyftxSpot } from "@/lib/crypto-swyftx";
 export interface LiveQuote {
   price: number;
   changePct: number; // last-session % change
+  /** Present when the feed could tell live vs last session close. */
+  asOf?: "live" | "close";
 }
 
 const PROVIDER = (process.env.MARKET_DATA_PROVIDER || "twelvedata").toLowerCase();
@@ -74,7 +76,9 @@ interface TwelveQuote {
   symbol?: string;
   close?: string | number;
   price?: string | number;
+  previous_close?: string | number;
   percent_change?: string | number;
+  is_market_open?: boolean | string;
   code?: number; // error responses carry a numeric code
   status?: string;
 }
@@ -113,10 +117,22 @@ async function fetchTwelveBatch(
     if (!q || q.code || q.status === "error") continue;
     const internal = symbolMap.get(sym) ?? symbolMap.get(sym.toUpperCase());
     if (!internal) continue;
-    const price = Number(q.close ?? q.price);
+    const close = Number(q.close ?? q.price);
+    const prev = Number(q.previous_close);
+    // Prefer session close/last trade; if those are blank when the market is
+    // shut, previous_close is still a valid official last print.
+    const price =
+      isFinite(close) && close > 0 ? close : isFinite(prev) && prev > 0 ? prev : NaN;
     const changePct = Number(q.percent_change ?? 0);
     if (isFinite(price) && price > 0) {
-      out[internal] = { price, changePct: isFinite(changePct) ? changePct : 0 };
+      const openFlag = q.is_market_open;
+      const marketOpen =
+        openFlag === true || openFlag === "true" || openFlag === "1";
+      out[internal] = {
+        price,
+        changePct: isFinite(changePct) ? changePct : 0,
+        asOf: marketOpen ? "live" : "close",
+      };
     }
   }
 }
@@ -134,7 +150,9 @@ async function fetchYahooEquityQuotes(tickers: string[]): Promise<Record<string,
   // a handful of HTTP calls, so no ticker is left on its stale synthetic seed.
   const yq = await fetchYahooQuotesBatched(map);
   const out: Record<string, LiveQuote> = {};
-  for (const [t, q] of Object.entries(yq)) out[t] = { price: q.price, changePct: q.changePct };
+  for (const [t, q] of Object.entries(yq)) {
+    out[t] = { price: q.price, changePct: q.changePct, asOf: q.asOf };
+  }
   return out;
 }
 

@@ -581,6 +581,37 @@ export const EXCHANGE_META: Record<
 export const EXCHANGES: Exchange[] = ["NZX", "ASX", "DOW", "NASDAQ"];
 
 /**
+ * Whether an exchange is in regular continuous trading right now.
+ * Used to label performer prices as "Live" vs "At close" when the feed does
+ * not carry an explicit asOf flag (NZX / ASX / US cash sessions only).
+ */
+export function isExchangeRegularSession(ex: Exchange, now = new Date()): boolean {
+  const tz =
+    ex === "NZX" ? "Pacific/Auckland" : ex === "ASX" ? "Australia/Sydney" : "America/New_York";
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(now);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  const weekday = get("weekday");
+  if (weekday === "Sat" || weekday === "Sun") return false;
+  const hour = Number(get("hour"));
+  const minute = Number(get("minute"));
+  const mins = hour * 60 + minute;
+  if (ex === "NZX") return mins >= 10 * 60 && mins < 16 * 60 + 45; // 10:00–16:45 NZ
+  if (ex === "ASX") return mins >= 10 * 60 && mins < 16 * 60; // 10:00–16:00 AU
+  return mins >= 9 * 60 + 30 && mins < 16 * 60; // 09:30–16:00 ET
+}
+
+/** Short label for a price print on an exchange. */
+export function priceSessionLabel(ex: Exchange, now = new Date()): "Live" | "At close" {
+  return isExchangeRegularSession(ex, now) ? "Live" : "At close";
+}
+
+/**
  * Resolve which user-facing exchange a ticker belongs to. NZX / ASX map by
  * their suffix-derived market; a US listing is bucketed into Dow Jones when it
  * is a Dow constituent, otherwise NASDAQ.
