@@ -143,7 +143,8 @@ function botLabel(bot?: string) {
 }
 
 function nzd(v: number | undefined | null): string {
-  return `NZ$${Math.round(v || 0).toLocaleString()}`;
+  if (v == null || Number.isNaN(Number(v))) return "NZ$…";
+  return `NZ$${Math.round(Number(v)).toLocaleString()}`;
 }
 
 function formatBookSnapshot(s: BookSnapshot): string {
@@ -214,6 +215,7 @@ export function PortfolioCoachChat({
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [headmasterPlan, setHeadmasterPlan] = useState<string>("");
   const [bookSnapshot, setBookSnapshot] = useState<BookSnapshot | null>(null);
+  const [bookLoading, setBookLoading] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const selectedReports = useMemo(
@@ -241,9 +243,11 @@ export function PortfolioCoachChat({
 
   useEffect(() => {
     let cancelled = false;
+    setBookLoading(true);
 
     function applySynthesis(s: BookSnapshot) {
       setBookSnapshot(s);
+      setBookLoading(false);
       if (s.isEmpty) {
         setHeadmasterPlan(
           "Headmaster snapshot: book is empty. Guide the member to deposit cash and add holdings first."
@@ -363,6 +367,8 @@ export function PortfolioCoachChat({
         });
       } catch {
         /* ledger fallback optional */
+      } finally {
+        if (!cancelled) setBookLoading(false);
       }
     }
 
@@ -382,7 +388,7 @@ export function PortfolioCoachChat({
       } catch {
         await loadLedgerFallback();
       }
-    })();
+    })().finally(() => { if (!cancelled) setBookLoading(false); });
     return () => {
       cancelled = true;
     };
@@ -516,13 +522,24 @@ export function PortfolioCoachChat({
       return;
     }
     if (card.kind === "overview") {
-      const snapshot = bookSnapshot
-        ? formatBookSnapshot(bookSnapshot)
-        : undefined;
+      if (bookLoading || !bookSnapshot) {
+        void send(
+          card.prompt ||
+            "Is my portfolio looking how it should? Please give a clear Dashboard Overview.",
+          {
+            prependAssistant:
+              "**Dashboard overview**\n\n" +
+              "Still loading your ledger and portfolio — I will not guess cash as NZ$0 while that is in flight. " +
+              "Ask again in a moment for a live read, or wait for the book snapshot to finish loading.",
+          }
+        );
+        return;
+      }
+      const snapshot = formatBookSnapshot(bookSnapshot);
       void send(
         card.prompt ||
           "Is my portfolio looking how it should? Please give a clear Dashboard Overview.",
-        snapshot ? { prependAssistant: snapshot } : undefined
+        { prependAssistant: snapshot }
       );
       return;
     }

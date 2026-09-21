@@ -139,7 +139,7 @@ export function checkReportQuota(
   };
 }
 
-/** Human "2d 4h 15m" / "3h 2m" / "< 1m" duration for countdowns. */
+/** Plain-English wait copy for report cooldowns (NZ English). */
 export function formatDuration(ms: number): string {
   if (ms <= 0) return "now";
   const totalMin = Math.floor(ms / 60000);
@@ -147,9 +147,12 @@ export function formatDuration(ms: number): string {
   const hours = Math.floor((totalMin % (60 * 24)) / 60);
   const mins = totalMin % 60;
   const parts: string[] = [];
-  if (days) parts.push(`${days}d`);
-  if (hours) parts.push(`${hours}h`);
-  if (mins && !days) parts.push(`${mins}m`);
-  if (!parts.length) return "< 1m";
-  return parts.join(" ");
+  if (days) parts.push(days === 1 ? "1 day" : `${days} days`);
+  if (hours) parts.push(hours === 1 ? "1 hour" : `${hours} hours`);
+  // Show minutes when under a day, or when hours are zero (e.g. "2 days 5 minutes").
+  if (mins && days === 0) parts.push(mins === 1 ? "1 minute" : `${mins} minutes`);
+  if (!parts.length) return "less than a minute";
+  if (parts.length === 1) return parts[0];
+  if (parts.length === 2) return `${parts[0]} and ${parts[1]}`;
+  return `${parts[0]}, ${parts[1]} and ${parts[2]}`;
 }

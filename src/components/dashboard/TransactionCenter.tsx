@@ -899,23 +899,29 @@ function TransactionDialog({
   const tickerRef = useRef(ticker);
   tickerRef.current = ticker;
 
-  // Reset the form whenever the dialog (re)opens for a given mode.
+  // Reset only on open edge or mode change — never on ledger/holdings refresh.
+  const wasDialogOpen = useRef(false);
+  const lastModeRef = useRef(mode);
   useEffect(() => {
-    if (open) {
-      setAssetType("stock");
-      setTicker("");
-      setAssetName("");
-      setQuantity("");
-      setPrice("");
-      setFees("");
-      setAmount("");
-      setNotes("");
-      // New buy defaults to today ⇒ the price locks to live once a ticker is chosen.
-      setExecutedDate(todayStr);
-      setPriceLoading(false);
-      setLiveUnavailable(false);
-    }
-  }, [open, mode, todayStr]);
+    const openedNow = open && !wasDialogOpen.current;
+    const modeChangedWhileOpen = open && lastModeRef.current !== mode;
+    wasDialogOpen.current = open;
+    lastModeRef.current = mode;
+    if (!open) return;
+    if (!openedNow && !modeChangedWhileOpen) return;
+    setAssetType(preferredAssetType || "stock");
+    setTicker("");
+    setAssetName("");
+    setQuantity("");
+    setPrice("");
+    setFees("");
+    setAmount("");
+    setNotes("");
+    // New buy defaults to today ⇒ the price locks to live once a ticker is chosen.
+    setExecutedDate(todayStr);
+    setPriceLoading(false);
+    setLiveUnavailable(false);
+  }, [open, mode, todayStr, preferredAssetType]);
 
   // Sell mode: the holding currently selected in the picker (for max qty + prefill).
   // Prefer exact _id match when available so multiple GOLD/SILVER lots can be distinguished.

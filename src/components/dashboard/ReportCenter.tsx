@@ -177,7 +177,7 @@ export function ReportCenter({
     const kindQuota = quotaFor(kind);
     if (!kindQuota.allowed) {
       const label = kind === "crypto" ? "Koins" : "Stox";
-      toast.error(`You've used your ${label} ${cadence.label}. Next ${label} report unlocks in ${formatDuration(kindQuota.waitMs)}.`);
+      toast.error(`You've already run your ${label} ${cadence.label}. You can run the next ${label} report in ${formatDuration(kindQuota.waitMs)}.`);
       return;
     }
     setRunning(kind);
@@ -279,7 +279,7 @@ export function ReportCenter({
                     {q.allowed ? (
                       <span className="text-emerald-600">ready to run</span>
                     ) : (
-                      <span className="text-[var(--gold)]">unlocks in {formatDuration(q.waitMs)}</span>
+                      <span className="text-[var(--gold)]">available again in {formatDuration(q.waitMs)}</span>
                     )}
                   </span>
                 );
@@ -343,7 +343,7 @@ export function ReportCenter({
                   </Button>
                 ) : botLocked ? (
                   <Button variant="outline" className="w-full" disabled>
-                    <Clock className="mr-1 size-4" /> Next {b.name} report in {formatDuration(botQuota.waitMs)}
+                    <Clock className="mr-1 size-4" /> {b.name} available again in {formatDuration(botQuota.waitMs)}
                   </Button>
                 ) : (
                   <Button className="w-full" onClick={() => runReport(b.kind)} disabled={busy || running !== null}>

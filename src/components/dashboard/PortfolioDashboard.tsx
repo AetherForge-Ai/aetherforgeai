@@ -254,6 +254,31 @@ type HoldingSortKey =
   | "gain"
   | "weight";
 
+
+/** Stable gate wrapper — MUST live outside the dashboard component so React
+ *  does not treat it as a new component type on every parent render (which
+ *  remounts children and wipes open Buy/Add dialog state on ledger refresh). */
+function DashboardGate({
+  preview,
+  title,
+  description,
+  children,
+}: {
+  preview: boolean;
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  if (preview) {
+    return (
+      <LockedSection title={title} description={description}>
+        {children}
+      </LockedSection>
+    );
+  }
+  return <>{children}</>;
+}
+
 export function PortfolioDashboard({
   userName,
   subscription,
@@ -722,24 +747,9 @@ export function PortfolioDashboard({
 
   const gainTone = summary.totalGain >= 0 ? "up" : "down";
 
-  // In guest preview, the named member sections are shown but locked behind an
-  // overlay; otherwise they render normally.
-  const Gate = ({
-    title,
-    description,
-    children,
-  }: {
-    title: string;
-    description?: string;
-    children: React.ReactNode;
-  }) =>
-    preview ? (
-      <LockedSection title={title} description={description}>
-        {children}
-      </LockedSection>
-    ) : (
-      <>{children}</>
-    );
+  const Gate = (props: { title: string; description?: string; children: React.ReactNode }) => (
+    <DashboardGate preview={preview} {...props} />
+  );
 
 
   const isHome = view === "home";

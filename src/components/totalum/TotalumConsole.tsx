@@ -415,7 +415,7 @@ function StrategyTab({ initialSynthesis }: { initialSynthesis: TotalumSynthesis 
               </SelectContent>
             </Select>
             <Button onClick={() => build(goal)} disabled={loading}>
-              {loading ? "Building…" : "Build strategy"}
+              {loading ? "Building…" : strategy ? "Rebuild strategy" : "Build strategy"}
             </Button>
           </div>
         </div>
@@ -436,6 +436,46 @@ function StrategyTab({ initialSynthesis }: { initialSynthesis: TotalumSynthesis 
 
       {strategy && !loading && (
         <>
+          <Card className="border-emerald-500/30 bg-emerald-500/10 p-4">
+            <div className="flex flex-wrap items-start gap-3">
+              <span className="grid size-9 place-items-center rounded-xl bg-emerald-500/20 text-emerald-600">
+                <Compass className="size-5" />
+              </span>
+              <div className="min-w-0 flex-1 space-y-1">
+                <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+                  Strategy ready
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  The Headmaster has built <span className="font-medium text-foreground">{strategy.name}</span> for your
+                  current book. Review the allocation and rules below, then pick a next step.
+                </p>
+                <div className="flex flex-wrap gap-2 pt-2">
+                  <Button asChild size="sm" variant="default">
+                    <a href={`/api/totalum/report?goal=${goal}`} target="_blank" rel="noopener noreferrer">
+                      <Download className="mr-1.5 size-3.5" /> Download intelligence report
+                    </a>
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const el = document.querySelector('[data-totalum-tab="strategist"]');
+                      if (el instanceof HTMLElement) el.click();
+                    }}
+                  >
+                    Ask the Chief Strategist
+                  </Button>
+                  <Button type="button" size="sm" variant="ghost" onClick={() => build(goal)} disabled={loading}>
+                    Rebuild with this goal
+                  </Button>
+                </div>
+              </div>
+              <Badge variant="outline" className="border-emerald-500/40 text-emerald-700 dark:text-emerald-400">
+                Ready
+              </Badge>
+            </div>
+          </Card>
           <Card className="p-5">
             <div className="flex items-center gap-2">
               <Compass className="size-4 text-primary" />
@@ -773,7 +813,7 @@ export function TotalumConsole({ entitled, memberName }: { entitled: boolean; me
             <TabsTrigger value="scenarios">Scenarios</TabsTrigger>
             <TabsTrigger value="stress">Stress</TabsTrigger>
             <TabsTrigger value="strategy">Strategy</TabsTrigger>
-            <TabsTrigger value="strategist">Strategist</TabsTrigger>
+            <TabsTrigger data-totalum-tab="strategist" value="strategist">Strategist</TabsTrigger>
           </TabsList>
           <TabsContent value="synthesis" className="mt-6">
             <SynthesisTab s={synthesis} />

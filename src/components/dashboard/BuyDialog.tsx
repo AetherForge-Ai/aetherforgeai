@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -58,6 +58,7 @@ export function BuyDialog({
   const [price, setPrice] = useState("");
   const [date, setDate] = useState("");
   const [notes, setNotes] = useState("");
+  const [fees, setFees] = useState("");
   const [saving, setSaving] = useState(false);
   const [priceLoading, setPriceLoading] = useState(false);
   const [priceEdited, setPriceEdited] = useState(false);
@@ -67,18 +68,28 @@ export function BuyDialog({
   const [cashBalance, setCashBalance] = useState<number | null>(null);
   const [cashLoading, setCashLoading] = useState(false);
 
-  // Reset + prefill whenever the dialog opens for a new target.
+  // Reset + prefill only when the dialog opens or the ticker changes —
+  // never when the parent re-creates the target object on a ledger refresh
+  // (that was wiping in-progress edits and closing the modal).
+  const wasOpenRef = useRef(false);
+  const lastTickerRef = useRef<string>("");
   useEffect(() => {
-    if (open && target) {
-      const p = target.price && target.price > 0 ? target.price : 0;
-      setPrice(p ? String(p) : "");
-      setAmount("");
-      setShares("");
-      setNotes("");
-      setPriceEdited(false);
-      if (target.price && target.price > 0) setLiveSpotRef(target.price);
-      setDate(new Date().toISOString().slice(0, 10));
-    }
+    const tickerKey = target?.ticker || "";
+    const openedNow = open && !wasOpenRef.current;
+    const tickerChanged = open && tickerKey && tickerKey !== lastTickerRef.current;
+    wasOpenRef.current = open;
+    if (open && tickerKey) lastTickerRef.current = tickerKey;
+    if (!open || !target) return;
+    if (!openedNow && !tickerChanged) return;
+    const p = target.price && target.price > 0 ? target.price : 0;
+    setPrice(p ? String(p) : "");
+    setAmount("");
+    setShares("");
+    setNotes("");
+    setFees("");
+    setPriceEdited(false);
+    if (target.price && target.price > 0) setLiveSpotRef(target.price);
+    setDate(new Date().toISOString().slice(0, 10));
   }, [open, target]);
 
   // Load cash balance when the dialog opens.
@@ -166,7 +177,8 @@ export function BuyDialog({
     if (p > 0 && amountNum > 0) setShares(String(+(amountNum / p).toFixed(6)));
   }
 
-  const totalCost = useMemo(() => sharesNum * priceNum, [sharesNum, priceNum]);
+  const feesNum = Number(fees) || 0;
+  const totalCost = useMemo(() => sharesNum * priceNum + feesNum, [sharesNum, priceNum, feesNum]);
   const fillSanity = useMemo(
     () =>
       checkFillSanity({
@@ -233,6 +245,7 @@ export function BuyDialog({
       cash_or_notional: amountNum > 0 ? amountNum : undefined,
       execution_status: "filled" as const,
       price_source: "user_fill" as const,
+      fees: Number(fees) > 0 ? Number(fees) : undefined,
       notes: notes.trim() || undefined,
       executed_at: date ? new Date(date).toISOString() : undefined,
     };
@@ -472,6 +485,23 @@ export function BuyDialog({
             </p>
           </div>
         </div>
+
+        
+          <div className="space-y-2">
+            <Label htmlFor="buy-fees">Fees ({currency}) — optional</Label>
+            <Input
+              id="buy-fees"
+              type="number"
+              min="0"
+              step="any"
+              placeholder="0.00"
+              value={fees}
+              onChange={(e) => setFees(e.target.value)}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Brokerage or exchange fees for this fill. Paper/idea flows keep fees for reference without booking realised P&amp;L.
+            </p>
+          </div>
 
         <DialogFooter className="shrink-0 gap-2 border-t border-border/60 bg-background px-5 py-4 sm:px-6">
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>

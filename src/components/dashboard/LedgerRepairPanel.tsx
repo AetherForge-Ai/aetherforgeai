@@ -41,7 +41,8 @@ export function LedgerRepairPanel({ active = true }: { active?: boolean }) {
       return;
     }
     setFlags(res.data.flags || []);
-    setExamples(res.data.known_examples || []);
+    // known_examples are synthetic fixtures for engineers — do not surface in the UI.
+    setExamples([]);
   }, []);
 
   useEffect(() => {
@@ -70,7 +71,8 @@ export function LedgerRepairPanel({ active = true }: { active?: boolean }) {
     void load();
   }
 
-  const rows = [...flags, ...examples];
+  // Hide synthetic known_bad_example rows from end users — keep real flags only.
+  const rows = flags.filter((f) => f.kind !== "known_bad_example");
 
   return (
     <div className="space-y-3 rounded-2xl border border-border/60 bg-card/50 p-4">

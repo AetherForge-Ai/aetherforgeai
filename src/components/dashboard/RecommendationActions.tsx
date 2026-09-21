@@ -32,6 +32,7 @@ export function RecommendationActions({
 }) {
   const [fill, setFill] = useState("");
   const [qty, setQty] = useState("");
+  const [fees, setFees] = useState("");
   const [busy, setBusy] = useState<"idea" | "paper" | "filled" | null>(null);
 
   async function save(status: "idea" | "paper" | "filled") {
@@ -55,6 +56,7 @@ export function RecommendationActions({
         signal_price: target.signalPrice,
         mark_price: target.livePrice,
         cash_or_notional: qtyNum * fillNum,
+        fees: Number(fees) > 0 ? Number(fees) : undefined,
         notes: `User confirmed broker fill. Signal was ${target.signalPrice ?? "n/a"}. ${ADVISORY_NOTE}`,
       });
       setBusy(null);
@@ -74,7 +76,10 @@ export function RecommendationActions({
       purchase_price: price,
       execution_status: status,
       price_source: "bot_signal",
-      notes: `${status} from recommendation. ${ADVISORY_NOTE}`,
+      notes: `${status} from recommendation.` +
+        (Number(fees) > 0 ? ` Fees (reference): ${Number(fees)}.` : "") +
+        ` ${ADVISORY_NOTE}`,
+      fees: Number(fees) > 0 ? Number(fees) : undefined,
     });
     setBusy(null);
     if (!res.ok) return toast.error(typeof res.error === "string" ? res.error : "Could not save");
@@ -102,6 +107,19 @@ export function RecommendationActions({
           <Label className="text-xs">Quantity</Label>
           <Input value={qty} onChange={(e) => setQty(e.target.value)} placeholder="Qty" inputMode="decimal" />
         </div>
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs" htmlFor="rec-fees">Fees (optional)</Label>
+        <Input
+          id="rec-fees"
+          value={fees}
+          onChange={(e) => setFees(e.target.value)}
+          placeholder="Brokerage / exchange fee"
+          inputMode="decimal"
+        />
+        <p className="text-[11px] text-muted-foreground">
+          Same fees field for idea, paper and filled. Filled trades book fees into cost; idea/paper keep them as reference only (no realised P&amp;L).
+        </p>
       </div>
       <Button type="button" size="sm" disabled={!!busy} onClick={() => void save("filled")}>
         <CheckCircle2 className="mr-1.5 size-3.5" /> I filled this
