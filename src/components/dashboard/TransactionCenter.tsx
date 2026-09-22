@@ -1456,13 +1456,19 @@ function TransactionDialog({
           {/* Cash amount */}
           {!isTrade && (
             <div className="space-y-2">
-              <Label htmlFor="tx-amount">Amount (NZD)</Label>
+              <Label htmlFor="tx-amount">Amount (NZD cash)</Label>
               <Input
                 id="tx-amount"
                 type="number"
                 min="0"
                 step="any"
-                placeholder="1000.00"
+                placeholder={
+                  mode === "withdraw" && cash > 0
+                    ? (+cash.toFixed(2)).toString()
+                    : cash > 0
+                      ? Math.min(100, +cash.toFixed(2)).toFixed(2)
+                      : "0.00"
+                }
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
               />

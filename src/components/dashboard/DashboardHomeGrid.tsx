@@ -29,6 +29,8 @@ type Props = {
   cryptoPositions: number;
   metalsPositions: number;
   recentLedger?: LedgerRow[];
+  /** True while cash/holdings are still loading — never flash NZ$0 as real data. */
+  balancesLoading?: boolean;
   className?: string;
 };
 
@@ -39,6 +41,7 @@ function BalanceCard({
   sub,
   icon: Icon,
   highlight,
+  loading,
 }: {
   title: string;
   href: string;
@@ -46,6 +49,7 @@ function BalanceCard({
   sub?: string;
   icon: ComponentType<{ className?: string }>;
   highlight?: boolean;
+  loading?: boolean;
 }) {
   return (
     <Link
@@ -63,11 +67,19 @@ function BalanceCard({
         </h3>
         <Icon className="size-4 shrink-0 text-primary/80" />
       </div>
-      <AnimatedMoney
-        value={value}
-        currency="NZD"
-        className="tnum mt-3 font-display text-xl font-bold text-emerald-600 sm:text-2xl"
-      />
+      {loading ? (
+        <div
+          className="mt-3 h-8 w-32 animate-pulse rounded-md bg-muted/50"
+          aria-hidden
+          aria-label="Loading balance"
+        />
+      ) : (
+        <AnimatedMoney
+          value={value}
+          currency="NZD"
+          className="tnum mt-3 font-display text-xl font-bold text-emerald-600 sm:text-2xl"
+        />
+      )}
       {sub ? (
         <p className="mt-auto pt-2 text-xs text-muted-foreground">{sub}</p>
       ) : (
@@ -158,10 +170,12 @@ function LedgerCard({
   href,
   rows,
   cashBalance,
+  loading,
 }: {
   href: string;
   rows: LedgerRow[];
   cashBalance: number;
+  loading?: boolean;
 }) {
   const latest = rows.slice(0, 4);
   return (
@@ -178,9 +192,13 @@ function LedgerCard({
       <p className="mt-2 text-[0.7rem] uppercase tracking-wider text-muted-foreground">
         Cash on hand
       </p>
-      <p className="tnum font-display text-lg font-bold text-emerald-600">
-        {formatMoney(cashBalance, "NZD")}
-      </p>
+      {loading ? (
+        <div className="mt-1 h-7 w-28 animate-pulse rounded-md bg-muted/50" aria-hidden />
+      ) : (
+        <p className="tnum font-display text-lg font-bold text-emerald-600">
+          {formatMoney(cashBalance, "NZD")}
+        </p>
+      )}
 
       <ul className="mt-3 flex-1 space-y-1.5">
         {latest.length === 0 ? (
@@ -286,6 +304,7 @@ export function DashboardHomeGrid({
   cryptoPositions,
   metalsPositions,
   recentLedger = [],
+  balancesLoading = false,
   className,
 }: Props) {
   const { byExchange, loading: marketsLoading } = useSharedMarketSnapshots();
@@ -300,6 +319,7 @@ export function DashboardHomeGrid({
           sub="Available for buys · NZD"
           icon={Wallet}
           highlight
+          loading={balancesLoading}
         />
         <BalanceCard
           title="Value in Stocks NZD"
@@ -307,6 +327,7 @@ export function DashboardHomeGrid({
           value={stockTotalNZD}
           sub={`${stockPositions} position${stockPositions === 1 ? "" : "s"}`}
           icon={Landmark}
+          loading={balancesLoading}
         />
         <BalanceCard
           title="Value in Crypto NZD"
@@ -314,6 +335,7 @@ export function DashboardHomeGrid({
           value={cryptoTotalNZD}
           sub={`${cryptoPositions} coin${cryptoPositions === 1 ? "" : "s"}`}
           icon={Coins}
+          loading={balancesLoading}
         />
         <BalanceCard
           title="Value in Metals NZD"
@@ -325,6 +347,7 @@ export function DashboardHomeGrid({
               : "Gold & silver spot sleeve"
           }
           icon={Coins}
+          loading={balancesLoading}
         />
       </div>
 
@@ -343,7 +366,7 @@ export function DashboardHomeGrid({
           bot="stox"
           poster="/brand/bot-stox.png"
           metricLabel="Market value · NZD"
-          metricValue={formatMoney(stockTotalNZD, "NZD")}
+          metricValue={balancesLoading ? "…" : formatMoney(stockTotalNZD, "NZD")}
           hint="Stox watches NZX · ASX · US equities for you"
         />
         <OverviewCard
@@ -352,7 +375,7 @@ export function DashboardHomeGrid({
           bot="koins"
           poster="/brand/bot-koins.png"
           metricLabel="Market value · NZD"
-          metricValue={formatMoney(cryptoTotalNZD, "NZD")}
+          metricValue={balancesLoading ? "…" : formatMoney(cryptoTotalNZD, "NZD")}
           hint="Koins tracks BTC, ETH and your coin book"
         />
         <OverviewCard
@@ -361,13 +384,14 @@ export function DashboardHomeGrid({
           bot="smitty"
           poster="/brand/precious-metals-smitty.png"
           metricLabel="Metals value · NZD"
-          metricValue={formatMoney(metalsTotalNZD, "NZD")}
+          metricValue={balancesLoading ? "…" : formatMoney(metalsTotalNZD, "NZD")}
           hint="Smitty with live gold & silver at the forge"
         />
         <LedgerCard
           href="/dashboard/transactions"
           rows={recentLedger}
           cashBalance={cashBalance}
+          loading={balancesLoading}
         />
       </div>
 

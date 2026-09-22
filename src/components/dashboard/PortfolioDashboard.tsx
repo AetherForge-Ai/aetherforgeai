@@ -300,6 +300,13 @@ export function PortfolioDashboard({
   const [bot, setBot] = useState<AssetClass>(defaultBot);
   const [watchlistSignal, setWatchlistSignal] = useState(0);
 
+  // Keep the active bot in step with the hub page so crypto alerts/holdings
+  // receive crypto positions (not leftover stock filters) on /dashboard/crypto.
+  useEffect(() => {
+    if (view === "crypto") setBot("crypto");
+    else if (view === "stocks") setBot("stock");
+  }, [view]);
+
   // Live FX rates (1 unit → NZD) so AUD (.AX) / USD holdings convert into the
   // Stox NZD "Total Worth". Falls back to the baseline table if the feed misses.
   const [fxToNZD, setFxToNZD] = useState<FxRatesToNZD>(BASELINE_FX_TO_NZD);
@@ -328,6 +335,9 @@ export function PortfolioDashboard({
   const [allStocks, setAllStocks] = useState<Stock[]>(preview ? PREVIEW_STOCKS : []);
   const [loading, setLoading] = useState(!preview);
   const [refreshing, setRefreshing] = useState(false);
+  // Separate from holdings `loading` so KPIs never flash NZ$0 before cash/metals land.
+  const [cashLoaded, setCashLoaded] = useState(!!preview);
+  const [metalsLoaded, setMetalsLoaded] = useState(!!preview);
   // Cash (NZD) + precious-metals value (NZD) power the "Totals owned" strip.
   const [cashBalance, setCashBalance] = useState(preview ? PREVIEW_CASH_NZD : 0);
   const [recentLedger, setRecentLedger] = useState<
@@ -426,6 +436,7 @@ export function PortfolioDashboard({
     } else {
       console.error("[dashboard] Failed to load cash balance:", res.error);
     }
+    setCashLoaded(true);
   }, []);
 
   // Precious-metals total value (NZD) from live spot × ounces held.
@@ -457,6 +468,7 @@ export function PortfolioDashboard({
       setPreciousMetalHoldings([]);
       setMetalSpot(null);
     }
+    setMetalsLoaded(true);
   }, []);
 
   useEffect(() => {
@@ -698,6 +710,8 @@ export function PortfolioDashboard({
   // metals traded through the ledger — distinct records, so no double-count.
   const holdingsValueNZD = stockTotalNZD + cryptoTotalNZD + metalsValueNZD + metalStockTotalNZD;
   const netWorthNZD = holdingsValueNZD + cashBalance;
+  // Gate KPI/cash UI until cash + holdings + metals have resolved (preview skips).
+  const balancesReady = preview || (cashLoaded && !loading && metalsLoaded);
 
   async function handleRefreshPrices() {
     setRefreshing(true);
@@ -907,6 +921,7 @@ export function PortfolioDashboard({
         cryptoPositions={cryptoHoldings.length}
         metalsPositions={preciousMetalHoldings.length + metalStocks.length}
         recentLedger={recentLedger}
+        balancesLoading={!balancesReady}
       />
       )}
 
@@ -934,22 +949,38 @@ export function PortfolioDashboard({
         <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-2xl border border-primary/40 bg-gradient-to-br from-primary/15 via-card/70 to-card/50 p-4">
             <p className="font-grift-black text-sm uppercase tracking-wide text-amber-400">Cash Bal</p>
-            <AnimatedMoney value={cashBalance} currency="NZD" className="tnum mt-2 font-display text-xl font-bold text-emerald-600" />
+            {!balancesReady ? (
+              <div className="mt-2 h-7 w-28 animate-pulse rounded-md bg-muted/50" aria-hidden />
+            ) : (
+              <AnimatedMoney value={cashBalance} currency="NZD" className="tnum mt-2 font-display text-xl font-bold text-emerald-600" />
+            )}
             <p className="mt-1 text-[0.7rem] text-muted-foreground">From Transaction Ledger</p>
           </div>
           <div className="rounded-2xl border border-border/70 bg-card/70 p-4">
             <p className="font-grift-black text-sm uppercase tracking-wide text-amber-400">Value in Stocks NZD</p>
-            <AnimatedMoney value={stockTotalNZD} currency="NZD" className="tnum mt-2 font-display text-xl font-bold text-emerald-600" />
+            {!balancesReady ? (
+              <div className="mt-2 h-7 w-28 animate-pulse rounded-md bg-muted/50" aria-hidden />
+            ) : (
+              <AnimatedMoney value={stockTotalNZD} currency="NZD" className="tnum mt-2 font-display text-xl font-bold text-emerald-600" />
+            )}
             <p className="mt-1 text-[0.7rem] text-muted-foreground">Live holdings from stock buys</p>
           </div>
           <div className="rounded-2xl border border-border/70 bg-card/70 p-4">
             <p className="font-grift-black text-sm uppercase tracking-wide text-amber-400">Value in Crypto NZD</p>
-            <AnimatedMoney value={cryptoTotalNZD} currency="NZD" className="tnum mt-2 font-display text-xl font-bold text-emerald-600" />
+            {!balancesReady ? (
+              <div className="mt-2 h-7 w-28 animate-pulse rounded-md bg-muted/50" aria-hidden />
+            ) : (
+              <AnimatedMoney value={cryptoTotalNZD} currency="NZD" className="tnum mt-2 font-display text-xl font-bold text-emerald-600" />
+            )}
             <p className="mt-1 text-[0.7rem] text-muted-foreground">Live holdings from crypto buys</p>
           </div>
           <div className="rounded-2xl border border-border/70 bg-card/70 p-4">
             <p className="font-grift-black text-sm uppercase tracking-wide text-amber-400">Value in Metals NZD</p>
-            <AnimatedMoney value={metalsValueNZD + metalStockTotalNZD} currency="NZD" className="tnum mt-2 font-display text-xl font-bold text-emerald-600" />
+            {!balancesReady ? (
+              <div className="mt-2 h-7 w-28 animate-pulse rounded-md bg-muted/50" aria-hidden />
+            ) : (
+              <AnimatedMoney value={metalsValueNZD + metalStockTotalNZD} currency="NZD" className="tnum mt-2 font-display text-xl font-bold text-emerald-600" />
+            )}
             <p className="mt-1 text-[0.7rem] text-muted-foreground">Live holdings from metals trades</p>
           </div>
         </div>
@@ -959,12 +990,20 @@ export function PortfolioDashboard({
         <div className="mt-8 grid gap-4 sm:grid-cols-2">
           <div className="rounded-2xl border border-primary/40 bg-gradient-to-br from-primary/15 via-card/70 to-card/50 p-6">
             <p className="font-grift-black text-sm uppercase tracking-wide text-amber-400">Cash Bal</p>
-            <AnimatedMoney value={cashBalance} currency="NZD" className="tnum mt-3 font-display text-3xl font-bold text-emerald-600" />
+            {!balancesReady ? (
+              <div className="mt-3 h-9 w-36 animate-pulse rounded-md bg-muted/50" aria-hidden />
+            ) : (
+              <AnimatedMoney value={cashBalance} currency="NZD" className="tnum mt-3 font-display text-3xl font-bold text-emerald-600" />
+            )}
             <p className="mt-2 text-sm text-muted-foreground">Available for buys across stocks, crypto and metals.</p>
           </div>
           <div className="rounded-2xl border border-border/70 bg-card/70 p-6">
             <p className="font-grift-black text-sm uppercase tracking-wide text-amber-400">Net worth</p>
-            <AnimatedMoney value={netWorthNZD} currency="NZD" className="tnum mt-3 font-display text-3xl font-bold text-emerald-600" />
+            {!balancesReady ? (
+              <div className="mt-3 h-9 w-36 animate-pulse rounded-md bg-muted/50" aria-hidden />
+            ) : (
+              <AnimatedMoney value={netWorthNZD} currency="NZD" className="tnum mt-3 font-display text-3xl font-bold text-emerald-600" />
+            )}
             <p className="mt-2 text-sm text-muted-foreground">Cash plus live holdings value.</p>
           </div>
         </div>
@@ -1171,11 +1210,15 @@ export function PortfolioDashboard({
           <div className="flex items-end gap-6">
             <div className="text-right">
               <p className="text-[0.68rem] uppercase tracking-wide text-muted-foreground">Holdings value · NZD</p>
-              <AnimatedMoney
-                value={holdingsValueNZD}
-                currency="NZD"
-                className="font-display text-lg font-bold text-foreground"
-              />
+              {!balancesReady ? (
+                <div className="mt-1 ml-auto h-6 w-24 animate-pulse rounded-md bg-muted/50" aria-hidden />
+              ) : (
+                <AnimatedMoney
+                  value={holdingsValueNZD}
+                  currency="NZD"
+                  className="font-display text-lg font-bold text-foreground"
+                />
+              )}
             </div>
             <div className="text-right">
               <p className="flex items-center justify-end gap-1.5 text-[0.68rem] uppercase tracking-wide text-muted-foreground">
@@ -1185,11 +1228,15 @@ export function PortfolioDashboard({
                 </span>
                 Total net worth · NZD
               </p>
-              <AnimatedMoney
-                value={netWorthNZD}
-                currency="NZD"
-                className="font-display text-2xl font-bold text-primary"
-              />
+              {!balancesReady ? (
+                <div className="mt-1 ml-auto h-8 w-32 animate-pulse rounded-md bg-muted/50" aria-hidden />
+              ) : (
+                <AnimatedMoney
+                  value={netWorthNZD}
+                  currency="NZD"
+                  className="font-display text-2xl font-bold text-primary"
+                />
+              )}
             </div>
           </div>
         </div>
@@ -1203,11 +1250,15 @@ export function PortfolioDashboard({
                 <Wallet className="size-4" />
               </span>
             </div>
-            <AnimatedMoney
-              value={cashBalance}
-              currency="NZD"
-              className="mt-3 block font-display text-3xl font-bold text-primary"
-            />
+            {!balancesReady ? (
+              <div className="mt-3 h-9 w-40 animate-pulse rounded-md bg-primary/15" aria-hidden />
+            ) : (
+              <AnimatedMoney
+                value={cashBalance}
+                currency="NZD"
+                className="mt-3 block font-display text-3xl font-bold text-primary"
+              />
+            )}
             <p className="mt-1 text-xs text-muted-foreground">
               Cash available · falls on every buy, rises on every sell
             </p>
@@ -1465,13 +1516,21 @@ export function PortfolioDashboard({
       </div>
 
 
-      {/* Share Price Alerts — directly under Your Holdings */}
+      {/* Share / crypto price alerts — directly under Your Holdings */}
       <div className={cn("mt-6", !(isStocks || isCrypto) && "hidden")}>
         <Gate
-          title="Share Price Alerts"
-          description="Set live share-price alerts so you never miss a move on the tickers you hold or follow."
+          title={isCrypto ? "Crypto Price Alerts" : "Share Price Alerts"}
+          description={
+            isCrypto
+              ? "Set live crypto price alerts so you never miss a move on the coins you hold or follow."
+              : "Set live share-price alerts so you never miss a move on the tickers you hold or follow."
+          }
         >
-          <PriceAlerts stocks={stocks} preview={preview} />
+          <PriceAlerts
+            stocks={isCrypto ? cryptoOnly : stockOnly}
+            assetType={isCrypto ? "crypto" : "stock"}
+            preview={preview}
+          />
         </Gate>
       </div>
 

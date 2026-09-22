@@ -34,7 +34,7 @@ async function lastReportAt(userId: string, bot: BotKind): Promise<string | null
  * persists it and returns it for inline dashboard display.
  *
  * Enforces the plan's report cadence: Free & Apex Weekly → 1 report / week;
- * Apex Monthly / Yearly / Dual → 1 report / day.
+ * Apex Monthly / Yearly / Dual → 1 report / Pacific/Auckland calendar day.
  */
 export async function POST(req: Request) {
   try {

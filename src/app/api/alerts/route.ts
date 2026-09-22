@@ -3,11 +3,13 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
 import { referencePrice } from "@/lib/market";
-import { fetchLiveQuotes } from "@/lib/market-data";
+import { fetchLiveQuotes, fetchCryptoQuotes } from "@/lib/market-data";
+import { CRYPTO_DIRECTORY } from "@/lib/apex";
 
 const createSchema = z.object({
   stockId: z.string().optional(),
   ticker: z.string().min(1).max(12),
+  assetType: z.enum(["stock", "crypto"]).optional(),
   trimPct: z.number().nullable().optional(),
   trimTriggerDipPct: z.number().nullable().optional(),
   hardSellPrice: z.number().nullable().optional(),
@@ -16,6 +18,22 @@ const createSchema = z.object({
   instructions: z.string().optional(),
   status: z.enum(["active", "triggered", "paused"]).optional(),
 });
+
+const CRYPTO_TICKERS = new Set(CRYPTO_DIRECTORY.map((c) => c.ticker.toUpperCase()));
+
+function inferAssetType(
+  ticker: string,
+  stored: string | null | undefined,
+  holdingType: string | null | undefined
+): "stock" | "crypto" {
+  const s = (stored || "").toLowerCase();
+  if (s === "crypto" || s === "stock") return s;
+  const h = (holdingType || "").toLowerCase();
+  if (h === "crypto" || h === "stock") return h as "stock" | "crypto";
+  const t = ticker.toUpperCase();
+  if (CRYPTO_TICKERS.has(t) || CRYPTO_TICKERS.has(t.replace(/-USD$/, ""))) return "crypto";
+  return "stock";
+}
 
 /** GET /api/alerts — list the current user's price alerts (with live prices). */
 export async function GET() {
@@ -30,18 +48,44 @@ export async function GET() {
     });
     const rows = (res?.data as any[]) || [];
 
-    // Prefer genuine live Yahoo quotes for the "Current" price; fall back to the
-    // deterministic reference price if a symbol can't be resolved live.
-    const tickers = Array.from(
-      new Set(rows.map((r) => String(r.ticker || "").toUpperCase()).filter(Boolean))
-    );
-    const live = await fetchLiveQuotes(tickers).catch((err) => {
-      console.error("[api/alerts] live quote fetch failed (using reference prices):", err);
-      return {} as Record<string, { price: number; changePct: number }>;
+    // Classify tickers via stored asset_type + the user's holdings so crypto
+    // alerts get Swyftx/CoinGecko prices (not Yahoo equity quotes).
+    const holdingsRes = await totalumSdk.crud
+      .query("stock", { _filter: { user: user._id }, _limit: 500 })
+      .catch(() => null);
+    const holdingTypeByTicker = new Map<string, string>();
+    for (const h of ((holdingsRes as any)?.data as any[]) || []) {
+      const t = String(h.ticker || "").toUpperCase();
+      if (t) holdingTypeByTicker.set(t, h.asset_type || "stock");
+    }
+
+    const classified = rows.map((a) => {
+      const ticker = String(a.ticker || "").toUpperCase();
+      const assetType = inferAssetType(ticker, a.asset_type, holdingTypeByTicker.get(ticker));
+      return { a, ticker, assetType };
     });
 
-    const alerts = rows.map((a) => {
-      const liveHit = live[String(a.ticker || "").toUpperCase()];
+    const equityTickers = classified.filter((c) => c.assetType === "stock").map((c) => c.ticker);
+    const cryptoTickers = classified.filter((c) => c.assetType === "crypto").map((c) => c.ticker);
+
+    const [liveEquity, liveCrypto] = await Promise.all([
+      equityTickers.length
+        ? fetchLiveQuotes(equityTickers).catch((err) => {
+            console.error("[api/alerts] equity quote fetch failed:", err);
+            return {} as Record<string, { price: number; changePct: number }>;
+          })
+        : Promise.resolve({} as Record<string, { price: number; changePct: number }>),
+      cryptoTickers.length
+        ? fetchCryptoQuotes(cryptoTickers).catch((err) => {
+            console.error("[api/alerts] crypto quote fetch failed:", err);
+            return {} as Record<string, { price: number; changePct: number }>;
+          })
+        : Promise.resolve({} as Record<string, { price: number; changePct: number }>),
+    ]);
+
+    const alerts = classified.map(({ a, ticker, assetType }) => {
+      const liveHit =
+        assetType === "crypto" ? liveCrypto[ticker] : liveEquity[ticker];
       const currentPrice =
         liveHit && liveHit.price > 0
           ? liveHit.price
@@ -52,6 +96,7 @@ export async function GET() {
         _id: a._id,
         ticker: a.ticker,
         stockId: typeof a.stock === "string" ? a.stock : a.stock?._id ?? null,
+        assetType,
         trimPct: a.trim_pct ?? null,
         trimTriggerDipPct: a.trim_trigger_dip_pct ?? null,
         hardSellPrice: a.hard_sell_price ?? null,
@@ -87,6 +132,7 @@ export async function POST(req: Request) {
     const record: Record<string, unknown> = {
       user: user._id,
       ticker: d.ticker.trim().toUpperCase(),
+      asset_type: d.assetType || "stock",
       trim_pct: d.trimPct ?? null,
       trim_trigger_dip_pct: d.trimTriggerDipPct ?? null,
       hard_sell_price: d.hardSellPrice ?? null,
@@ -97,9 +143,20 @@ export async function POST(req: Request) {
     };
     if (d.stockId) record.stock = d.stockId;
 
-    const saved = await totalumSdk.crud.createRecord("price_alert", record);
-    console.log(`[api/alerts] Created alert for ${record.ticker} (user ${user._id})`);
-    return NextResponse.json({ ok: true, data: saved?.data ?? record });
+    let saved;
+    try {
+      saved = await totalumSdk.crud.createRecord("price_alert", record);
+    } catch (err: any) {
+      // Older Totalum schemas may not have asset_type yet — persist without it.
+      console.warn("[api/alerts] create with asset_type failed, retrying without:", err?.message || err);
+      const { asset_type: _drop, ...rest } = record;
+      saved = await totalumSdk.crud.createRecord("price_alert", rest);
+    }
+    console.log(`[api/alerts] Created alert for ${record.ticker} (${record.asset_type}) user ${user._id}`);
+    return NextResponse.json({
+      ok: true,
+      data: { ...(saved?.data ?? record), assetType: d.assetType || "stock" },
+    });
   } catch (err: any) {
     console.error("[api/alerts] POST error:", err);
     return NextResponse.json({ ok: false, error: err?.message || "Failed to create alert" }, { status: 500 });

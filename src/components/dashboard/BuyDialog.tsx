@@ -102,8 +102,18 @@ export function BuyDialog({
       if (cancelled) return;
       setCashLoading(false);
       if (res.ok && res.data && typeof res.data.cashBalance === "number") {
-        setCashBalance(res.data.cashBalance);
-        console.log(`[buy-dialog] Cash balance: ${res.data.cashBalance} NZD`);
+        const bal = res.data.cashBalance;
+        setCashBalance(bal);
+        console.log(`[buy-dialog] Cash balance: ${bal} NZD`);
+        // Prefill from available NZD cash when the desk currency is NZD and the
+        // amount is still blank — never seed a phantom US$1,000 suggestion.
+        setAmount((prev) => {
+          if (prev.trim() !== "") return prev;
+          if (!(bal > 0)) return prev;
+          const deskCcy = ticker ? currencyForTicker(ticker, assetType) : "NZD";
+          if (deskCcy !== "NZD") return prev;
+          return String(+bal.toFixed(2));
+        });
       } else {
         console.error("[buy-dialog] Could not load cash balance:", res.error);
         setCashBalance(null);
@@ -348,10 +358,10 @@ export function BuyDialog({
             </div>
           </div>
 
-          {/* Dollar amount invested — the prominent field */}
+          {/* Dollar amount invested — the prominent field (desk cash is NZD) */}
           <div className="space-y-2">
             <Label htmlFor="buy-amount" className="text-sm font-semibold">
-              Dollar amount invested ({currency})
+              Amount to invest ({currency === "NZD" ? "NZD cash" : currency})
             </Label>
             <div className="relative">
               <DollarSign className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-primary" />
@@ -361,7 +371,11 @@ export function BuyDialog({
                 min="0"
                 step="any"
                 inputMode="decimal"
-                placeholder="1000.00"
+                placeholder={
+                  cashBalance != null && cashBalance > 0 && currency === "NZD"
+                    ? (+cashBalance.toFixed(2)).toString()
+                    : "0.00"
+                }
                 value={amount}
                 onChange={(e) => onAmountChange(e.target.value)}
                 className={cn(
@@ -371,16 +385,22 @@ export function BuyDialog({
                 autoFocus
               />
             </div>
-            {/* Quick-fill chips */}
+            {/* Quick-fill chips — never suggest more than available NZD cash */}
             <div className="flex flex-wrap gap-2">
-              {[500, 1000, 2500, 5000].map((v) => (
+              {(cashBalance != null && cashBalance > 0
+                ? [25, 50, 100, 250, 500, 1000, 2500]
+                    .map((v) => Math.min(v, +cashBalance.toFixed(2)))
+                    .filter((v, i, arr) => v > 0 && arr.indexOf(v) === i)
+                    .slice(0, 5)
+                : []
+              ).map((v) => (
                 <button
                   key={v}
                   type="button"
                   onClick={() => onAmountChange(String(v))}
                   className="rounded-lg border border-border/60 bg-background/40 px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
                 >
-                  {formatMoney(v, currency, { compact: true })}
+                  {formatMoney(v, currency === "NZD" ? "NZD" : currency, { compact: true })}
                 </button>
               ))}
             </div>

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Price Alerts — per-holding share-price notifications with execution instructions.
+ * Price Alerts — per-holding share / crypto price notifications with execution instructions.
  *
  * Each alert captures a trim rule (e.g. "trim 25% at a 6-7% dip"), a hard sell-out
  * price, a take-profit band (e.g. 12-15%) and free-text execution instructions.
@@ -29,12 +29,15 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { keepDialogOpenOnPortalInteraction, keepDialogOpenWhilePopoverOpen } from "@/lib/dialog-guards";
 import { TickerSearch, type TickerMatch } from "@/components/dashboard/TickerSearch";
+import { CryptoSearch } from "@/components/dashboard/CryptoSearch";
+import type { CoinMarket } from "@/lib/crypto-market";
 import { BellRing, Plus, Loader2, Trash2, Pencil, TriangleAlert, ShieldCheck, TrendingUp, TrendingDown } from "lucide-react";
 
 export interface PriceAlert {
   _id: string;
   ticker: string;
   stockId: string | null;
+  assetType?: "stock" | "crypto";
   trimPct: number | null;
   trimTriggerDipPct: number | null;
   hardSellPrice: number | null;
@@ -91,7 +94,17 @@ interface LiveQuote {
   changePct: number | null;
 }
 
-export function PriceAlerts({ stocks, preview = false }: { stocks: Stock[]; preview?: boolean }) {
+export function PriceAlerts({
+  stocks,
+  assetType = "stock",
+  preview = false,
+}: {
+  stocks: Stock[];
+  /** Hub context — stock desk vs crypto desk. */
+  assetType?: "stock" | "crypto";
+  preview?: boolean;
+}) {
+  const isCrypto = assetType === "crypto";
   const [alerts, setAlerts] = React.useState<PriceAlert[]>([]);
   const [loading, setLoading] = React.useState(!preview);
   const [open, setOpen] = React.useState(false);
@@ -116,10 +129,22 @@ export function PriceAlerts({ stocks, preview = false }: { stocks: Stock[]; prev
   const load = React.useCallback(async () => {
     if (preview) return; // guest preview: no live alerts fetch
     const res = await api.get<PriceAlert[]>("/api/alerts");
-    if (res.ok && res.data) setAlerts(res.data);
-    else console.error("[PriceAlerts] load failed:", res.error);
+    if (res.ok && res.data) {
+      const holdingTickers = new Set(stocks.map((s) => s.ticker.toUpperCase()));
+      setAlerts(
+        res.data.filter((a) => {
+          const at = (a.assetType || "").toLowerCase();
+          if (at === "crypto" || at === "stock") return at === assetType;
+          const tick = String(a.ticker || "").toUpperCase();
+          if (holdingTickers.has(tick)) return true;
+          // Untyped legacy alerts: equities with exchange suffix stay on the stock hub.
+          if (assetType === "stock") return /\.(AX|NZ|L)$/i.test(tick);
+          return false;
+        })
+      );
+    } else console.error("[PriceAlerts] load failed:", res.error);
     setLoading(false);
-  }, [preview]);
+  }, [preview, stocks, assetType]);
 
   React.useEffect(() => {
     load();
@@ -136,7 +161,9 @@ export function PriceAlerts({ stocks, preview = false }: { stocks: Stock[]; prev
     const id = ++quoteSeq.current;
     setQuoteLoading(true);
     setQuote(null);
-    const res = await api.get<LiveQuote>(`/api/tickers/quote?symbol=${encodeURIComponent(sym)}`);
+    const res = await api.get<LiveQuote>(
+      `/api/tickers/quote?symbol=${encodeURIComponent(sym)}&type=${assetType}`
+    );
     if (id !== quoteSeq.current) return; // superseded by a newer pick
     setQuoteLoading(false);
     if (res.ok && res.data) {
@@ -149,7 +176,7 @@ export function PriceAlerts({ stocks, preview = false }: { stocks: Stock[]; prev
       console.error("[PriceAlerts] quote fetch failed:", res.error);
       setQuote(null);
     }
-  }, []);
+  }, [assetType]);
 
   function openAdd() {
     setEditingId(null);
@@ -179,12 +206,21 @@ export function PriceAlerts({ stocks, preview = false }: { stocks: Stock[]; prev
     if (a.ticker) fetchQuote(a.ticker, false);
   }
 
-  // Pick a company from the searchable directory (ASX / NZX / NASDAQ / NYSE).
+  // Pick a company from the searchable equity directory (ASX / NZX / NASDAQ / NYSE).
   function handlePickSymbol(m: TickerMatch) {
     const owned = stocks.find((s) => s.ticker.toUpperCase() === m.symbol.toUpperCase());
     setForm((f) => ({ ...f, ticker: m.symbol, stockId: owned?._id ?? "" }));
     setSelectedName(m.name);
     fetchQuote(m.symbol, true);
+  }
+
+  // Pick a coin from the live crypto universe.
+  function handlePickCoin(c: CoinMarket) {
+    const sym = (c.symbol || "").toUpperCase();
+    const owned = stocks.find((s) => s.ticker.toUpperCase() === sym);
+    setForm((f) => ({ ...f, ticker: sym, stockId: owned?._id ?? "" }));
+    setSelectedName(c.name);
+    fetchQuote(sym, true);
   }
 
   // Quick-pick one of the user's existing holdings.
@@ -203,6 +239,7 @@ export function PriceAlerts({ stocks, preview = false }: { stocks: Stock[]; prev
     const body = {
       ticker: form.ticker.trim().toUpperCase(),
       stockId: form.stockId || undefined,
+      assetType,
       trimPct: num(form.trimPct),
       trimTriggerDipPct: num(form.trimTriggerDipPct),
       hardSellPrice: num(form.hardSellPrice),
@@ -253,7 +290,9 @@ export function PriceAlerts({ stocks, preview = false }: { stocks: Stock[]; prev
             <BellRing className="size-4" />
           </span>
           <div>
-            <h2 className="font-display text-lg font-bold">Share-price alerts</h2>
+            <h2 className="font-display text-lg font-bold">
+              {isCrypto ? "Crypto price alerts" : "Share-price alerts"}
+            </h2>
             <p className="text-sm text-muted-foreground">
               Set trim, hard sell-out and take-profit rules with execution instructions.
             </p>
@@ -372,10 +411,16 @@ export function PriceAlerts({ stocks, preview = false }: { stocks: Stock[]; prev
           </DialogHeader>
           <form onSubmit={save} className="space-y-4">
             <div className="space-y-1.5">
-              <Label>Company / ticker</Label>
-              <TickerSearch value={form.ticker} label={selectedName} onSelect={handlePickSymbol} />
+              <Label>{isCrypto ? "Coin / ticker" : "Company / ticker"}</Label>
+              {isCrypto ? (
+                <CryptoSearch value={form.ticker} label={selectedName} onSelect={handlePickCoin} />
+              ) : (
+                <TickerSearch value={form.ticker} label={selectedName} onSelect={handlePickSymbol} />
+              )}
               <p className="text-[11px] text-muted-foreground">
-                Search the full ASX, NZX, NASDAQ & NYSE (incl. all Dow Jones) universe by name or ticker.
+                {isCrypto
+                  ? "Search the live crypto universe by name or ticker (BTC, ETH, SOL…)."
+                  : "Search the full ASX, NZX, NASDAQ & NYSE (incl. all Dow Jones) universe by name or ticker."}
               </p>
 
               {/* Live company + price read-out for the chosen symbol. */}

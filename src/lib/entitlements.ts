@@ -89,8 +89,8 @@ export interface ReportCadence {
 /**
  * How frequently a plan can run a full report (one report across BOTH bots per
  * window — "either a stock or a crypto report", per the plan copy):
- *  - Free & Apex Weekly → one report per week.
- *  - Apex Monthly / Yearly / Dual → one report per day.
+ *  - Free & Apex Weekly → one report per week (rolling 7 days).
+ *  - Apex Monthly / Yearly / Dual → one report per Pacific/Auckland calendar day.
  */
 export function reportCadence(plan?: string | null): ReportCadence {
   // Legacy Apex paid plans + all new public tiers (Starter/Pro/Ultimate,
@@ -113,10 +113,41 @@ export interface ReportQuota {
   cadence: ReportCadence;
 }
 
+/** Auckland calendar date yyyy-mm-dd (Pacific/Auckland). Client + server safe. */
+export function aucklandYmd(ms: number = Date.now()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Pacific/Auckland",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(ms));
+}
+
+/**
+ * UTC ms of the next Pacific/Auckland midnight after `nowMs`.
+ * Used so a morning report unlocks again at NZ midnight — not a rolling 24h lock.
+ */
+export function nextAucklandMidnightMs(nowMs: number = Date.now()): number {
+  const today = aucklandYmd(nowMs);
+  let lo = nowMs;
+  let hi = nowMs + 40 * 60 * 60 * 1000; // must cross midnight within ~40h (DST-safe)
+  while (hi - lo > 250) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (aucklandYmd(mid) === today) lo = mid;
+    else hi = mid;
+  }
+  return hi;
+}
+
 /**
  * Decides whether the user may run another full report, given when their last
  * one was generated. Pure + client/server-safe so the dashboard countdown and
  * the server-side gate agree exactly.
+ *
+ * Daily plans use Pacific/Auckland *calendar days* (one Stox + one Koins report
+ * per NZ day). That keeps morning runs from locking the desk until ~9am next
+ * day under a rolling 24h window, while still blocking same-day spam.
+ * Weekly plans keep a rolling 7-day window.
  */
 export function checkReportQuota(
   plan: string | null | undefined,
@@ -128,7 +159,19 @@ export function checkReportQuota(
   if (!lastReportAtIso || Number.isNaN(last)) {
     return { allowed: true, waitMs: 0, nextAllowedAt: null, lastReportAt: null, cadence };
   }
-  const nextMs = last + cadence.ms;
+
+  let nextMs: number;
+  if (cadence.unit === "day") {
+    // Same Auckland calendar day → wait until NZ midnight; otherwise allowed now.
+    if (aucklandYmd(last) === aucklandYmd(now)) {
+      nextMs = nextAucklandMidnightMs(now);
+    } else {
+      nextMs = now; // already past the NZ day boundary
+    }
+  } else {
+    nextMs = last + cadence.ms;
+  }
+
   const waitMs = Math.max(0, nextMs - now);
   return {
     allowed: waitMs <= 0,
