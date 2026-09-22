@@ -20,7 +20,7 @@ import { CryptoSearch } from "@/components/dashboard/CryptoSearch";
 import type { Stock } from "@/lib/portfolio";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { keepDialogOpenOnPortalInteraction, keepDialogOpenWhilePopoverOpen } from "@/lib/dialog-guards";
+import { keepDialogOpenOnPortalInteraction, keepDialogOpenWhilePopoverOpen, guardDialogOpenChange } from "@/lib/dialog-guards";
 import { checkFillSanity, ADVISORY_NOTE } from "@/lib/fill-integrity-client";
 
 type AssetType = "stock" | "crypto";
@@ -282,14 +282,23 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(next) => guardDialogOpenChange(next, onOpenChange)}>
       <DialogContent
         className="sm:max-w-md"
         // Keep the dialog open when interacting with the portaled ticker search /
         // date picker dropdowns (see dialog-guards for the why).
-        onInteractOutside={keepDialogOpenOnPortalInteraction}
-        onPointerDownOutside={keepDialogOpenOnPortalInteraction}
-        onFocusOutside={keepDialogOpenOnPortalInteraction}
+        onInteractOutside={(e) => {
+          e.preventDefault();
+          keepDialogOpenOnPortalInteraction(e);
+        }}
+        onPointerDownOutside={(e) => {
+          e.preventDefault();
+          keepDialogOpenOnPortalInteraction(e);
+        }}
+        onFocusOutside={(e) => {
+          e.preventDefault();
+          keepDialogOpenOnPortalInteraction(e);
+        }}
         onEscapeKeyDown={keepDialogOpenWhilePopoverOpen}
       >
         <DialogHeader>

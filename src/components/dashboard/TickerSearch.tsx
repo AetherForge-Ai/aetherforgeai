@@ -65,8 +65,9 @@ export function TickerSearch({
   const [loading, setLoading] = React.useState(false);
   const seq = React.useRef(0);
 
-  // Debounced, race-safe live search. Mark dialog search guard for the whole
-  // lifecycle so async completion cannot dismiss a parent Buy/Add dialog.
+  // Debounced, race-safe live search. Keep the dialog search guard armed for the
+  // WHOLE popover lifetime (not cleared on fetch settle) so holdings soft-refresh
+  // / live-price hydrate cannot dismiss Buy/Add after "Searching markets…".
   React.useEffect(() => {
     const q = query.trim();
     if (q.length < 1) {
@@ -75,7 +76,7 @@ export function TickerSearch({
       return;
     }
     setLoading(true);
-    markDialogSearchGuard(12_000);
+    markDialogSearchGuard(30_000);
     const id = ++seq.current;
     const t = setTimeout(async () => {
       try {
@@ -89,7 +90,8 @@ export function TickerSearch({
       } finally {
         if (id === seq.current) {
           setLoading(false);
-          clearDialogSearchGuard(900);
+          // Re-arm (do NOT clear) — guard stays until the popover closes.
+          markDialogSearchGuard(30_000);
         }
       }
     }, 280);
@@ -104,15 +106,31 @@ export function TickerSearch({
     requestAnimationFrame(() => {
       setOpen(false);
       setQuery("");
+      clearDialogSearchGuard(900);
     });
   }
 
   function handleOpenChange(next: boolean) {
     // Never let popover open-state thrash remount the parent Dialog; only toggle
-    // this local popover. Closing still marks a brief guard for the dismiss race.
-    if (!next) markDialogSelectGuard(450);
+    // this local popover. Arm search guard on open; brief select+grace on close.
+    if (next) {
+      markDialogSearchGuard(30_000);
+    } else {
+      markDialogSelectGuard(450);
+      clearDialogSearchGuard(900);
+    }
     setOpen(next);
   }
+
+  // If the component unmounts mid-search (parent remount), drop the body flag
+  // after a short grace so we do not permanently block other dialogs.
+  React.useEffect(() => {
+    return () => {
+      // Soft release — leave a brief select guard for any in-flight dismiss race.
+      markDialogSelectGuard(400);
+      clearDialogSearchGuard(400);
+    };
+  }, []);
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange} modal={false}>
@@ -138,7 +156,7 @@ export function TickerSearch({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="z-[60] w-[--radix-popover-trigger-width] p-0"
+        className="pointer-events-auto z-[60] w-[--radix-popover-trigger-width] p-0"
         align="start"
         onOpenAutoFocus={(e) => e.preventDefault()}
         onCloseAutoFocus={(e) => e.preventDefault()}

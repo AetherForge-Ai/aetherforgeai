@@ -46,13 +46,15 @@ export function CryptoSearch({
   // Only auto-fetch the universe once the picker is opened.
   const { coins, loading } = useCryptoMarkets(open);
 
+  // Keep the dialog search guard for the whole popover lifetime (same as
+  // TickerSearch) — do not clear on fetch settle or holdings re-renders will
+  // dismiss the parent Buy/Add dialog.
   React.useEffect(() => {
     if (!open) {
       clearDialogSearchGuard(400);
       return;
     }
-    if (loading) markDialogSearchGuard(12_000);
-    else clearDialogSearchGuard(750);
+    markDialogSearchGuard(30_000);
   }, [open, loading]);
 
   const results = React.useMemo(() => {
@@ -74,7 +76,11 @@ export function CryptoSearch({
   }
 
   function handleOpenChange(next: boolean) {
-    if (!next) markDialogSelectGuard(450);
+    if (next) markDialogSearchGuard(30_000);
+    else {
+      markDialogSelectGuard(450);
+      clearDialogSearchGuard(900);
+    }
     setOpen(next);
   }
 
@@ -102,7 +108,7 @@ export function CryptoSearch({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="z-[60] w-[--radix-popover-trigger-width] p-0"
+        className="pointer-events-auto z-[60] w-[--radix-popover-trigger-width] p-0"
         align="start"
         onOpenAutoFocus={(e) => e.preventDefault()}
         onCloseAutoFocus={(e) => e.preventDefault()}

@@ -6,8 +6,10 @@
  * dialog's DOM subtree, so clicking a result — or a cmdk item unmounting on
  * select — is misread by Radix as an "outside" click and the whole dialog
  * dismisses itself. Async search completion (loading → results swap) can also
- * fire a spurious onOpenChange(false). These helpers keep the dialog open in
- * exactly those cases.
+ * fire a spurious onOpenChange(false). On holdings accounts, live-price hydrate
+ * / soft-refresh re-renders the dashboard mid-search and the same race shows up
+ * as "Searching markets…" → Buy/Add vanishes. These helpers keep the dialog open
+ * in exactly those cases.
  *
  * Usage:
  *   <DialogContent
@@ -46,10 +48,23 @@ function isGuardFlag(key: "afDialogSelectGuard" | "afDialogSearchGuard"): boolea
   return ds?.[key] === "1";
 }
 
+/** True while a ticker/coin search popover is mounted or a search guard is armed. */
+export function isDialogSearchActive(): boolean {
+  if (typeof document === "undefined") return false;
+  if (isGuardFlag("afDialogSearchGuard") || isGuardFlag("afDialogSelectGuard")) return true;
+  return !!(
+    document.querySelector("[data-radix-popper-content-wrapper]") ||
+    document.querySelector("[cmdk-root]") ||
+    document.querySelector("[data-slot='popover-content']")
+  );
+}
+
 /**
  * Prevent the dialog from closing when the outside interaction actually lands on
  * a portaled popover/command element, or on a node that has already been removed
  * from the DOM (the classic "select a cmdk item → dialog closes" race).
+ * Also swallows ALL outside interactions while a search is in flight / popover
+ * is open — holdings soft-refresh can orphan event targets mid-search.
  * Wire to onInteractOutside, onPointerDownOutside and onFocusOutside.
  */
 export function keepDialogOpenOnPortalInteraction(e: {
@@ -57,7 +72,12 @@ export function keepDialogOpenOnPortalInteraction(e: {
   preventDefault: () => void;
 }) {
   const t = e.target as HTMLElement | null;
-  if (isPortalTarget(t) || isGuardFlag("afDialogSearchGuard") || isGuardFlag("afDialogSelectGuard")) {
+  if (
+    isPortalTarget(t) ||
+    isGuardFlag("afDialogSearchGuard") ||
+    isGuardFlag("afDialogSelectGuard") ||
+    isDialogSearchActive()
+  ) {
     e.preventDefault();
   }
 }
@@ -67,12 +87,7 @@ export function keepDialogOpenOnPortalInteraction(e: {
  * (leaving the parent dialog and the user's half-filled form intact).
  */
 export function keepDialogOpenWhilePopoverOpen(e: { preventDefault: () => void }) {
-  if (
-    typeof document !== "undefined" &&
-    (document.querySelector("[data-radix-popper-content-wrapper]") ||
-      document.querySelector("[cmdk-root]") ||
-      isGuardFlag("afDialogSearchGuard"))
-  ) {
+  if (isDialogSearchActive()) {
     e.preventDefault();
   }
 }
@@ -93,18 +108,14 @@ export function guardDialogOpenChange(
     onOpenChange(true);
     return;
   }
+  void opts;
   if (typeof document === "undefined") {
     onOpenChange(false);
     return;
   }
-  const popoverOpen =
-    !!document.querySelector("[data-radix-popper-content-wrapper]") ||
-    !!document.querySelector("[cmdk-root]") ||
-    !!document.querySelector("[data-slot='popover-content']");
-  if (popoverOpen) return;
-
-  void opts;
-  if (isGuardFlag("afDialogSearchGuard") || isGuardFlag("afDialogSelectGuard")) return;
+  // Hard block: never dismiss while search popover / guard is active — even if
+  // the portal briefly unmounted during a holdings re-render race.
+  if (isDialogSearchActive()) return;
 
   onOpenChange(false);
 }
@@ -121,11 +132,13 @@ export function markDialogSelectGuard(ms = 450) {
 
 /**
  * Keep the parent Dialog open for the full ticker/coin search lifecycle
- * (debounce → fetch → results/error). Call when search starts; pass a short
- * grace when it settles so async completion cannot dismiss the dialog.
+ * (popover open → debounce → fetch → results/error → popover close).
+ * Call when the popover opens or search starts; prefer clearDialogSearchGuard
+ * only when the popover fully closes (not on every fetch settle — that left a
+ * race on holdings soft-refresh after "Searching markets…").
  */
 let searchGuardTimer: number | null = null;
-export function markDialogSearchGuard(ms = 8000) {
+export function markDialogSearchGuard(ms = 30_000) {
   if (typeof document === "undefined") return;
   const body = document.body as HTMLElement & { dataset: DOMStringMap };
   body.dataset.afDialogSearchGuard = "1";
@@ -145,4 +158,15 @@ export function clearDialogSearchGuard(graceMs = 750) {
     delete body.dataset.afDialogSearchGuard;
     searchGuardTimer = null;
   }, graceMs);
+}
+
+/** Drop the search guard immediately (popover closed, no grace needed). */
+export function releaseDialogSearchGuard() {
+  if (typeof document === "undefined") return;
+  if (searchGuardTimer != null) {
+    window.clearTimeout(searchGuardTimer);
+    searchGuardTimer = null;
+  }
+  const body = document.body as HTMLElement & { dataset: DOMStringMap };
+  delete body.dataset.afDialogSearchGuard;
 }

@@ -89,6 +89,18 @@ interface Ledger {
 
 const NZD: CurrencyCode = "NZD";
 
+/**
+ * Survive parent remounts during holdings live-price hydrate / soft-refresh.
+ * Round-4 stopped the DashboardGate alias remount, but a slow /api/stocks live
+ * overlay on existing-holdings accounts can still tear down TransactionCenter
+ * mid ticker-search; without sticky open the Buy/Add dialog resets to closed
+ * right after "Searching markets…". Empty accounts load instantly so they never
+ * hit this race (hence 1T PASS / TT FAIL).
+ */
+let stickyTxOpen = false;
+let stickyTxMode: TxType = "buy";
+
+
 /** Local yyyy-mm-dd for "today" — the boundary that flips the live-price lock on/off. */
 function todayISO(): string {
   const d = new Date();
@@ -180,10 +192,27 @@ export function TransactionCenter({
 }) {
   const [ledger, setLedger] = useState<Ledger | null>(null);
   const [loading, setLoading] = useState(!preview);
-  const [open, setOpen] = useState(false);
+  const [open, setOpenRaw] = useState(stickyTxOpen);
   const [allOpen, setAllOpen] = useState(false);
-  const [mode, setMode] = useState<TxType>("buy");
+  const [mode, setModeRaw] = useState<TxType>(stickyTxMode);
   const [deepLinkAsset, setDeepLinkAsset] = useState<"stock" | "crypto" | "metal" | null>(null);
+
+  const setOpen = useCallback((next: boolean) => {
+    stickyTxOpen = next;
+    setOpenRaw(next);
+  }, []);
+  const setMode = useCallback((next: TxType) => {
+    stickyTxMode = next;
+    setModeRaw(next);
+  }, []);
+
+  // Re-hydrate sticky open after an unexpected remount (holdings hydrate race).
+  useEffect(() => {
+    if (stickyTxOpen && !open) {
+      setOpenRaw(true);
+      setModeRaw(stickyTxMode);
+    }
+  }, [open]);
 
   const load = useCallback(async () => {
     if (preview) return; // guest preview: no live ledger fetch
@@ -237,10 +266,16 @@ export function TransactionCenter({
     [onChanged]
   );
 
+  // Freeze the holdings snapshot while Buy/Add is open so live-price soft-refresh
+  // cannot re-render the dialog tree mid ticker-search on holdings accounts.
+  const holdingsFrozenRef = useRef(holdings);
+  if (!open) holdingsFrozenRef.current = holdings;
+  const holdingsForDialog = open ? holdingsFrozenRef.current : holdings;
+
   const scopedHoldings = useMemo(() => {
-    if (!preferredAssetType) return holdings;
-    return holdings.filter((h) => (h.asset_type || "stock") === preferredAssetType);
-  }, [holdings, preferredAssetType]);
+    if (!preferredAssetType) return holdingsForDialog;
+    return holdingsForDialog.filter((h) => (h.asset_type || "stock") === preferredAssetType);
+  }, [holdingsForDialog, preferredAssetType]);
 
   const effectivePreferredAsset = deepLinkAsset || preferredAssetType;
   const cash = ledger?.cashBalance ?? 0;
@@ -939,7 +974,9 @@ function TransactionDialog({
   tickerRef.current = ticker;
 
   // Reset only on open edge or mode change — never on ledger/holdings refresh.
-  const wasDialogOpen = useRef(false);
+  // Init from current `open` so a sticky remount (holdings hydrate) does not look
+  // like a fresh open and wipe the in-progress Buy/Add form.
+  const wasDialogOpen = useRef(open);
   const lastModeRef = useRef(mode);
   useEffect(() => {
     const openedNow = open && !wasDialogOpen.current;
@@ -1274,10 +1311,21 @@ function TransactionDialog({
         // date picker) whose dropdowns render in a portal OUTSIDE this dialog's
         // DOM subtree. Without these guards, clicking a search result — or the
         // cmdk item unmounting on select — is misread by Radix as an "outside"
-        // click and dismisses the whole dialog.
-        onInteractOutside={keepDialogOpenOnPortalInteraction}
-        onPointerDownOutside={keepDialogOpenOnPortalInteraction}
-        onFocusOutside={keepDialogOpenOnPortalInteraction}
+        // click and dismisses the whole dialog. Always preventDefault on outside
+        // events: holdings live-price hydrate can orphan targets mid-search even
+        // when the portal selectors miss a frame (round-4 Gate fix was not enough).
+        onInteractOutside={(e) => {
+          e.preventDefault();
+          keepDialogOpenOnPortalInteraction(e);
+        }}
+        onPointerDownOutside={(e) => {
+          e.preventDefault();
+          keepDialogOpenOnPortalInteraction(e);
+        }}
+        onFocusOutside={(e) => {
+          e.preventDefault();
+          keepDialogOpenOnPortalInteraction(e);
+        }}
         onEscapeKeyDown={keepDialogOpenWhilePopoverOpen}
       >
         <DialogHeader>
