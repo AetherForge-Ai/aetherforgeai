@@ -10,6 +10,8 @@ import {
 } from "@/components/dashboard/PortfolioDashboard";
 import { resolveDisplayName, resolveGreetingName } from "@/lib/user-display";
 
+// Greeting: live session name/email only — never cached/placeholder "Test".
+
 export async function renderDashboardView(view: DashboardView) {
   const user = await getCurrentUser();
 

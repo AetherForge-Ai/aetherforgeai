@@ -80,7 +80,7 @@ function BalanceCard({
           className="tnum mt-3 font-display text-xl font-bold text-emerald-600 sm:text-2xl"
         />
       )}
-      {sub ? (
+      {sub && !loading ? (
         <p className="mt-auto pt-2 text-xs text-muted-foreground">{sub}</p>
       ) : (
         <span className="mt-auto" />
@@ -325,7 +325,11 @@ export function DashboardHomeGrid({
           title="Value in Stocks NZD"
           href="/dashboard/stocks"
           value={stockTotalNZD}
-          sub={`${stockPositions} position${stockPositions === 1 ? "" : "s"}`}
+          sub={
+            balancesLoading
+              ? "Loading positions…"
+              : `${stockPositions} position${stockPositions === 1 ? "" : "s"}`
+          }
           icon={Landmark}
           loading={balancesLoading}
         />
@@ -333,7 +337,11 @@ export function DashboardHomeGrid({
           title="Value in Crypto NZD"
           href="/dashboard/crypto"
           value={cryptoTotalNZD}
-          sub={`${cryptoPositions} coin${cryptoPositions === 1 ? "" : "s"}`}
+          sub={
+            balancesLoading
+              ? "Loading positions…"
+              : `${cryptoPositions} coin${cryptoPositions === 1 ? "" : "s"}`
+          }
           icon={Coins}
           loading={balancesLoading}
         />
@@ -342,9 +350,11 @@ export function DashboardHomeGrid({
           href="/dashboard/metals"
           value={metalsTotalNZD}
           sub={
-            metalsPositions > 0
-              ? `${metalsPositions} metal holding${metalsPositions === 1 ? "" : "s"}`
-              : "Gold & silver spot sleeve"
+            balancesLoading
+              ? "Loading positions…"
+              : metalsPositions > 0
+                ? `${metalsPositions} metal holding${metalsPositions === 1 ? "" : "s"}`
+                : "Gold & silver spot sleeve"
           }
           icon={Coins}
           loading={balancesLoading}

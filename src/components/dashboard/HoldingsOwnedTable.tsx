@@ -172,7 +172,7 @@ export function HoldingsOwnedTable({
       <div className="flex items-center justify-between border-b border-border/60 px-6 py-4">
         <h3 className="font-display text-base font-bold">{title}</h3>
         <span className="text-xs text-muted-foreground">
-          {holdings.length} position{holdings.length === 1 ? "" : "s"}
+          {loading ? "…" : `${holdings.length} position${holdings.length === 1 ? "" : "s"}`}
         </span>
       </div>
 

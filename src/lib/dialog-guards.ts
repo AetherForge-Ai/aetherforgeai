@@ -5,7 +5,9 @@
  * picker have a nasty UX bug: those dropdowns render in a PORTAL outside the
  * dialog's DOM subtree, so clicking a result — or a cmdk item unmounting on
  * select — is misread by Radix as an "outside" click and the whole dialog
- * dismisses itself. These helpers keep the dialog open in exactly those cases.
+ * dismisses itself. Async search completion (loading → results swap) can also
+ * fire a spurious onOpenChange(false). These helpers keep the dialog open in
+ * exactly those cases.
  *
  * Usage:
  *   <DialogContent
@@ -34,6 +36,16 @@ function isPortalTarget(t: HTMLElement | null): boolean {
   return false;
 }
 
+function bodyDataset(): DOMStringMap | null {
+  if (typeof document === "undefined") return null;
+  return (document.body as HTMLElement & { dataset: DOMStringMap }).dataset;
+}
+
+function isGuardFlag(key: "afDialogSelectGuard" | "afDialogSearchGuard"): boolean {
+  const ds = bodyDataset();
+  return ds?.[key] === "1";
+}
+
 /**
  * Prevent the dialog from closing when the outside interaction actually lands on
  * a portaled popover/command element, or on a node that has already been removed
@@ -45,7 +57,9 @@ export function keepDialogOpenOnPortalInteraction(e: {
   preventDefault: () => void;
 }) {
   const t = e.target as HTMLElement | null;
-  if (isPortalTarget(t)) e.preventDefault();
+  if (isPortalTarget(t) || isGuardFlag("afDialogSearchGuard") || isGuardFlag("afDialogSelectGuard")) {
+    e.preventDefault();
+  }
 }
 
 /**
@@ -56,7 +70,8 @@ export function keepDialogOpenWhilePopoverOpen(e: { preventDefault: () => void }
   if (
     typeof document !== "undefined" &&
     (document.querySelector("[data-radix-popper-content-wrapper]") ||
-      document.querySelector("[cmdk-root]"))
+      document.querySelector("[cmdk-root]") ||
+      isGuardFlag("afDialogSearchGuard"))
   ) {
     e.preventDefault();
   }
@@ -64,9 +79,10 @@ export function keepDialogOpenWhilePopoverOpen(e: { preventDefault: () => void }
 
 /**
  * Wrap Dialog `onOpenChange` so a close request is ignored while a portaled
- * ticker/coin search popover is still open (or just closed via select).
- * MarketsExplorer avoids this by selecting the ticker before opening Buy;
- * Transaction Center embeds the search inside the dialog and needs this guard.
+ * ticker/coin search popover is still open, a search is in flight, or a select
+ * just happened. MarketsExplorer avoids this by selecting the ticker before
+ * opening Buy; Transaction Center embeds the search inside the dialog and needs
+ * this guard.
  */
 export function guardDialogOpenChange(
   next: boolean,
@@ -87,17 +103,14 @@ export function guardDialogOpenChange(
     !!document.querySelector("[data-slot='popover-content']");
   if (popoverOpen) return;
 
-  // Brief grace after a cmdk select — the portal may already be unmounted but
-  // Radix still emits onOpenChange(false) from the outside-click race.
   void opts;
-  const marked = (document.body as HTMLElement & { dataset: DOMStringMap }).dataset;
-  if (marked.afDialogSelectGuard === "1") return;
+  if (isGuardFlag("afDialogSearchGuard") || isGuardFlag("afDialogSelectGuard")) return;
 
   onOpenChange(false);
 }
 
 /** Call from ticker/coin pick handlers so the parent dialog survives the select race. */
-export function markDialogSelectGuard(ms = 200) {
+export function markDialogSelectGuard(ms = 450) {
   if (typeof document === "undefined") return;
   const body = document.body as HTMLElement & { dataset: DOMStringMap };
   body.dataset.afDialogSelectGuard = "1";
@@ -106,3 +119,30 @@ export function markDialogSelectGuard(ms = 200) {
   }, ms);
 }
 
+/**
+ * Keep the parent Dialog open for the full ticker/coin search lifecycle
+ * (debounce → fetch → results/error). Call when search starts; pass a short
+ * grace when it settles so async completion cannot dismiss the dialog.
+ */
+let searchGuardTimer: number | null = null;
+export function markDialogSearchGuard(ms = 8000) {
+  if (typeof document === "undefined") return;
+  const body = document.body as HTMLElement & { dataset: DOMStringMap };
+  body.dataset.afDialogSearchGuard = "1";
+  if (searchGuardTimer != null) window.clearTimeout(searchGuardTimer);
+  searchGuardTimer = window.setTimeout(() => {
+    delete body.dataset.afDialogSearchGuard;
+    searchGuardTimer = null;
+  }, ms);
+}
+
+export function clearDialogSearchGuard(graceMs = 750) {
+  if (typeof document === "undefined") return;
+  if (searchGuardTimer != null) window.clearTimeout(searchGuardTimer);
+  const body = document.body as HTMLElement & { dataset: DOMStringMap };
+  body.dataset.afDialogSearchGuard = "1";
+  searchGuardTimer = window.setTimeout(() => {
+    delete body.dataset.afDialogSearchGuard;
+    searchGuardTimer = null;
+  }, graceMs);
+}

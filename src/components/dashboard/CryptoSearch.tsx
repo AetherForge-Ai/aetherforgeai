@@ -22,7 +22,11 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { Check, ChevronsUpDown, Loader2, Search } from "lucide-react";
-import { markDialogSelectGuard } from "@/lib/dialog-guards";
+import {
+  clearDialogSearchGuard,
+  markDialogSearchGuard,
+  markDialogSelectGuard,
+} from "@/lib/dialog-guards";
 import { useCryptoMarkets } from "@/hooks/useCryptoMarkets";
 import { coinLogo, fmtPrice, fmtPct, pctColor, GENERIC_COIN_ICON, type CoinMarket } from "@/lib/crypto-market";
 
@@ -42,6 +46,15 @@ export function CryptoSearch({
   // Only auto-fetch the universe once the picker is opened.
   const { coins, loading } = useCryptoMarkets(open);
 
+  React.useEffect(() => {
+    if (!open) {
+      clearDialogSearchGuard(400);
+      return;
+    }
+    if (loading) markDialogSearchGuard(12_000);
+    else clearDialogSearchGuard(750);
+  }, [open, loading]);
+
   const results = React.useMemo(() => {
     const q = query.trim().toLowerCase();
     const base = q
@@ -52,6 +65,7 @@ export function CryptoSearch({
 
   function pick(c: CoinMarket) {
     markDialogSelectGuard();
+    markDialogSearchGuard(900);
     onSelect(c);
     requestAnimationFrame(() => {
       setOpen(false);
@@ -59,8 +73,13 @@ export function CryptoSearch({
     });
   }
 
+  function handleOpenChange(next: boolean) {
+    if (!next) markDialogSelectGuard(450);
+    setOpen(next);
+  }
+
   return (
-    <Popover open={open} onOpenChange={setOpen} modal>
+    <Popover open={open} onOpenChange={handleOpenChange} modal={false}>
       <PopoverTrigger asChild>
         <Button
           type="button"
@@ -83,7 +102,7 @@ export function CryptoSearch({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-[--radix-popover-trigger-width] p-0"
+        className="z-[60] w-[--radix-popover-trigger-width] p-0"
         align="start"
         onOpenAutoFocus={(e) => e.preventDefault()}
         onCloseAutoFocus={(e) => e.preventDefault()}

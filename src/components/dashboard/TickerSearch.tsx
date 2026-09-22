@@ -7,6 +7,10 @@
  * ASX, NZX, NASDAQ and NYSE (the last two cover every Dow Jones component).
  * Selecting a result reports back the Yahoo symbol + company name so the caller
  * can fetch a live price. Server-driven, so cmdk's built-in filtering is off.
+ *
+ * When embedded inside a Dialog (Transaction Centre), Popover is non-modal and
+ * search/select guards keep the parent dialog open through the async search
+ * lifecycle — align with the Markets path (select ticker without dismissing Buy).
  */
 
 import * as React from "react";
@@ -24,7 +28,11 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { Check, ChevronsUpDown, Loader2, Search } from "lucide-react";
-import { markDialogSelectGuard } from "@/lib/dialog-guards";
+import {
+  clearDialogSearchGuard,
+  markDialogSearchGuard,
+  markDialogSelectGuard,
+} from "@/lib/dialog-guards";
 
 export interface TickerMatch {
   symbol: string;
@@ -57,7 +65,8 @@ export function TickerSearch({
   const [loading, setLoading] = React.useState(false);
   const seq = React.useRef(0);
 
-  // Debounced, race-safe live search.
+  // Debounced, race-safe live search. Mark dialog search guard for the whole
+  // lifecycle so async completion cannot dismiss a parent Buy/Add dialog.
   React.useEffect(() => {
     const q = query.trim();
     if (q.length < 1) {
@@ -66,22 +75,30 @@ export function TickerSearch({
       return;
     }
     setLoading(true);
+    markDialogSearchGuard(12_000);
     const id = ++seq.current;
     const t = setTimeout(async () => {
-      const res = await api.get<TickerMatch[]>(`/api/tickers/search?q=${encodeURIComponent(q)}`);
-      if (id !== seq.current) return; // a newer keystroke won
-      if (res.ok && res.data) setResults(res.data);
-      else {
-        console.error("[TickerSearch] search failed:", res.error);
-        setResults([]);
+      try {
+        const res = await api.get<TickerMatch[]>(`/api/tickers/search?q=${encodeURIComponent(q)}`);
+        if (id !== seq.current) return; // a newer keystroke won
+        if (res.ok && res.data) setResults(res.data);
+        else {
+          console.error("[TickerSearch] search failed:", res.error);
+          setResults([]);
+        }
+      } finally {
+        if (id === seq.current) {
+          setLoading(false);
+          clearDialogSearchGuard(900);
+        }
       }
-      setLoading(false);
     }, 280);
     return () => clearTimeout(t);
   }, [query]);
 
   function pick(m: TickerMatch) {
     markDialogSelectGuard();
+    markDialogSearchGuard(900);
     onSelect(m);
     // Defer popover close so the parent Dialog's outside-click race settles first.
     requestAnimationFrame(() => {
@@ -90,8 +107,15 @@ export function TickerSearch({
     });
   }
 
+  function handleOpenChange(next: boolean) {
+    // Never let popover open-state thrash remount the parent Dialog; only toggle
+    // this local popover. Closing still marks a brief guard for the dismiss race.
+    if (!next) markDialogSelectGuard(450);
+    setOpen(next);
+  }
+
   return (
-    <Popover open={open} onOpenChange={setOpen} modal>
+    <Popover open={open} onOpenChange={handleOpenChange} modal={false}>
       <PopoverTrigger asChild>
         <Button
           type="button"
@@ -114,7 +138,7 @@ export function TickerSearch({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-[--radix-popover-trigger-width] p-0"
+        className="z-[60] w-[--radix-popover-trigger-width] p-0"
         align="start"
         onOpenAutoFocus={(e) => e.preventDefault()}
         onCloseAutoFocus={(e) => e.preventDefault()}

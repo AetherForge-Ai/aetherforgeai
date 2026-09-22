@@ -1261,6 +1261,8 @@ function TransactionDialog({
   };
 
   function handleDialogOpenChange(next: boolean) {
+    // Keep Buy/Add open through ticker search start/complete/error. Explicit
+    // Cancel / success still call onOpenChange(false) directly and always win.
     guardDialogOpenChange(next, onOpenChange);
   }
 

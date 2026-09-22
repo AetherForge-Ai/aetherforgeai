@@ -166,36 +166,6 @@ const SECTOR_COLORS = [
 ];
 
 
-type KpiSnap = { cash: number; holdings: number; metals: number; netWorth: number };
-
-function readKpiSnap(): KpiSnap | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = sessionStorage.getItem("af.kpiSnapshotNZD");
-    if (!raw) return null;
-    const j = JSON.parse(raw) as KpiSnap;
-    if (
-      typeof j?.cash === "number" &&
-      typeof j?.holdings === "number" &&
-      typeof j?.metals === "number" &&
-      typeof j?.netWorth === "number"
-    ) {
-      return j;
-    }
-  } catch {
-    /* ignore */
-  }
-  return null;
-}
-
-function writeKpiSnap(snap: KpiSnap) {
-  try {
-    sessionStorage.setItem("af.kpiSnapshotNZD", JSON.stringify(snap));
-  } catch {
-    /* ignore */
-  }
-}
-
 function StatCard({
   label,
   value,
@@ -386,7 +356,6 @@ export function PortfolioDashboard({
     }
   });
   const [metalsLoaded, setMetalsLoaded] = useState(!!preview);
-  const [kpiSnap, setKpiSnap] = useState<KpiSnap | null>(() => (preview ? null : readKpiSnap()));
   // Cash (NZD) + precious-metals value (NZD) power the "Totals owned" strip.
   const [cashBalance, setCashBalance] = useState(() => {
     if (preview) return PREVIEW_CASH_NZD;
@@ -775,39 +744,15 @@ export function PortfolioDashboard({
   // metals traded through the ledger — distinct records, so no double-count.
   const holdingsValueNZD = stockTotalNZD + cryptoTotalNZD + metalsValueNZD + metalStockTotalNZD;
   const netWorthNZD = holdingsValueNZD + cashBalance;
-  // Gate KPIs until cash + holdings + metals marks are ALL hydrated — never show a
-  // mid-state like cash-only NZ$15.26 on hard refresh. Prefer last-known consistent
-  // snapshot while waiting; otherwise skeleton.
+  // One shared portfolio-ready gate: KPI totals AND stock/crypto/metals position
+  // cards only paint real data together (or all skeletons). Never show a non-zero
+  // net-worth snapshot alongside empty position cards from an incomplete load.
   const balancesReady = preview || (cashLoaded && metalsLoaded && !loading);
-  // Consistent display: live values only when fully ready; else last-known snapshot; else null → skeleton.
-  const showCash = balancesReady ? cashBalance : kpiSnap?.cash;
-  const showHoldings = balancesReady ? holdingsValueNZD : kpiSnap?.holdings;
-  const showMetalsTotal = balancesReady
-    ? metalsValueNZD + metalStockTotalNZD
-    : kpiSnap?.metals;
-  const showNetWorth = balancesReady ? netWorthNZD : kpiSnap?.netWorth;
-  const kpiPending = !balancesReady && showNetWorth == null;
-
-  // Persist a consistent snapshot once cash+holdings+marks are all ready.
-  useEffect(() => {
-    if (!balancesReady || preview) return;
-    const snap: KpiSnap = {
-      cash: cashBalance,
-      holdings: holdingsValueNZD,
-      metals: metalsValueNZD + metalStockTotalNZD,
-      netWorth: netWorthNZD,
-    };
-    writeKpiSnap(snap);
-    setKpiSnap(snap);
-  }, [
-    balancesReady,
-    preview,
-    cashBalance,
-    holdingsValueNZD,
-    metalsValueNZD,
-    metalStockTotalNZD,
-    netWorthNZD,
-  ]);
+  const showCash = balancesReady ? cashBalance : null;
+  const showHoldings = balancesReady ? holdingsValueNZD : null;
+  const showMetalsTotal = balancesReady ? metalsValueNZD + metalStockTotalNZD : null;
+  const showNetWorth = balancesReady ? netWorthNZD : null;
+  const kpiPending = !balancesReady;
 
   async function handleRefreshPrices() {
     setRefreshing(true);
@@ -915,7 +860,11 @@ export function PortfolioDashboard({
       <div className="flex flex-wrap items-start justify-between gap-3 sm:gap-4">
         <div className="min-w-0">
           <p className="text-sm text-muted-foreground">
-            {preview ? "Live preview" : `Welcome back, ${userName.split(" ")[0]}`}
+            {preview
+              ? "Live preview"
+              : userName.trim()
+                ? `Welcome back, ${userName.trim().split(" ")[0]}`
+                : "Welcome back"}
           </p>
           {!isHome ? (
             <Link
@@ -1029,7 +978,7 @@ export function PortfolioDashboard({
       />
       )}
 
-      {isHome && !preview && (
+      {isHome && !preview && balancesReady && (
         <div className="mt-6 grid gap-4 lg:grid-cols-2">
           <OnboardingChecklist
             hasCash={cashBalance > 0}
@@ -1168,7 +1117,7 @@ export function PortfolioDashboard({
           value={formatMoney(stockOverviewSummary.totalValue, "NZD")}
           sub={`Cost basis ${formatMoney(stockOverviewSummary.totalCost, "NZD")}`}
           icon={Wallet}
-          loading={loading}
+          loading={!balancesReady}
         />
         <StatCard
           label="Unrealized P&L"
@@ -1176,7 +1125,7 @@ export function PortfolioDashboard({
           sub={formatPercent(stockOverviewSummary.totalGainPct)}
           icon={stockOverviewSummary.totalGain >= 0 ? TrendingUp : TrendingDown}
           tone={stockOverviewSummary.totalGain >= 0 ? "up" : "down"}
-          loading={loading}
+          loading={!balancesReady}
         />
         <StatCard
           label="7-Day alpha potential"
@@ -1188,7 +1137,7 @@ export function PortfolioDashboard({
           }
           icon={Zap}
           tone={stockOverviewMetrics.alphaPotentialPct >= 0 ? "up" : "down"}
-          loading={loading}
+          loading={!balancesReady}
         />
         <StatCard
           label="Portfolio health"
@@ -1204,7 +1153,7 @@ export function PortfolioDashboard({
                   ? "neutral"
                   : "down"
           }
-          loading={loading}
+          loading={!balancesReady}
         />
       </div>
 
@@ -1223,7 +1172,7 @@ export function PortfolioDashboard({
         emptyHint="Buy shares in the Transaction Centre below — they'll show here under Stock Portfolio Overview."
         holdings={stockOverviewSummary.holdings}
         baseCurrency="NZD"
-        loading={loading}
+        loading={!balancesReady}
         onAdd={openAdd}
         onEdit={openEdit}
         onDelete={setDeleteTarget}
@@ -1251,7 +1200,7 @@ export function PortfolioDashboard({
           value={formatMoney(cryptoOverviewSummary.totalValue, "USD")}
           sub={`Cost basis ${formatMoney(cryptoOverviewSummary.totalCost, "USD")}`}
           icon={Wallet}
-          loading={loading}
+          loading={!balancesReady}
         />
         <StatCard
           label="Unrealized P&L"
@@ -1259,7 +1208,7 @@ export function PortfolioDashboard({
           sub={formatPercent(cryptoOverviewSummary.totalGainPct)}
           icon={cryptoOverviewSummary.totalGain >= 0 ? TrendingUp : TrendingDown}
           tone={cryptoOverviewSummary.totalGain >= 0 ? "up" : "down"}
-          loading={loading}
+          loading={!balancesReady}
         />
         <StatCard
           label="7-Day alpha potential"
@@ -1271,7 +1220,7 @@ export function PortfolioDashboard({
           }
           icon={Zap}
           tone={cryptoOverviewMetrics.alphaPotentialPct >= 0 ? "up" : "down"}
-          loading={loading}
+          loading={!balancesReady}
         />
         <StatCard
           label="Portfolio health"
@@ -1287,7 +1236,7 @@ export function PortfolioDashboard({
                   ? "neutral"
                   : "down"
           }
-          loading={loading}
+          loading={!balancesReady}
         />
       </div>
 
@@ -1306,7 +1255,7 @@ export function PortfolioDashboard({
         emptyHint="Buy coins in the Transaction Centre — they'll show here so you can see where the money is."
         holdings={cryptoOverviewSummary.holdings}
         baseCurrency="USD"
-        loading={loading}
+        loading={!balancesReady}
         onAdd={openAdd}
         onEdit={openEdit}
         onDelete={setDeleteTarget}
@@ -1481,10 +1430,12 @@ export function PortfolioDashboard({
       <div className="rounded-3xl border border-border/70 bg-card/50">
         <div className="flex items-center justify-between border-b border-border/60 px-6 py-4">
           <h2 className="font-display text-lg font-bold">Your holdings</h2>
-          <span className="text-xs text-muted-foreground">{tableSummary.holdingsCount} positions</span>
+          <span className="text-xs text-muted-foreground">
+            {!balancesReady ? "…" : `${tableSummary.holdingsCount} positions`}
+          </span>
         </div>
 
-        {loading ? (
+        {!balancesReady ? (
           <div className="space-y-3 p-6">
             {[...Array(4)].map((_, i) => (
               <div key={i} className="h-12 animate-pulse rounded-lg bg-muted/40" />
