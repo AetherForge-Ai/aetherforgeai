@@ -89,10 +89,21 @@ export function BuyDialog({
     setAmount("");
     setShares("");
     setNotes("");
-    setFees("");
     setPriceEdited(false);
     if (target.price && target.price > 0) setLiveSpotRef(target.price);
     setDate(new Date().toISOString().slice(0, 10));
+    // Crypto buy modal defaults to ~1% exchange fee (overridable). Metals ~1% spread.
+    const market = feeMarketFor(target.ticker, target.assetType);
+    if (market === "CRYPTO") {
+      setFeePresetId("crypto-pct");
+      setFees("");
+    } else if (market === "METAL") {
+      setFeePresetId("metal-spread");
+      setFees("");
+    } else {
+      setFeePresetId("zero");
+      setFees("");
+    }
   }, [open, target]);
 
   // Load cash balance when the dialog opens.
@@ -207,6 +218,19 @@ export function BuyDialog({
     [ticker, sharesNum, priceNum, liveSpotRef, amountNum, assetType, currency]
   );
   const valid = !!ticker && amountNum > 0 && sharesNum > 0 && priceNum > 0 && !fillSanity.blocked;
+
+  // Keep crypto/metal % fee presets in sync with notional as the user types.
+  useEffect(() => {
+    if (!open || feePresetId === "zero" || feePresetId === "custom") return;
+    const market = feeMarketFor(ticker, assetType);
+    const preset = presetsForMarket(market).find((x) => x.id === feePresetId);
+    if (!preset || preset.percent <= 0) return;
+    const notional = sharesNum * priceNum;
+    if (!(notional > 0)) return;
+    const est = estimateFee(notional, preset);
+    setFees(est > 0 ? String(est) : "");
+  }, [open, feePresetId, sharesNum, priceNum, ticker, assetType]);
+
 
   // Remaining cash after this purchase (NZD). Note: asset currency may differ
   // from NZD cash — we still compare against cashBalance for a clear UI signal.

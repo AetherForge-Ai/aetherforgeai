@@ -26,7 +26,7 @@ import { BOT_STOX_AVATAR, BOT_KOINS_AVATAR, BOT_HEADMASTER_AVATAR } from "../../
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { checkReportQuota, formatDuration, formatReportCooldownLine, reportCadence } from "@/lib/entitlements";
-import { Loader2, Lock, Play, FileDown, Mail, FileText, Sparkles, Clock, Zap, ArrowRight, ChevronDown } from "lucide-react";
+import { Loader2, Lock, Play, FileDown, Mail, FileText, Sparkles, Clock, Zap, ArrowRight, ChevronDown, Eye } from "lucide-react";
 
 type BotAccess = "stock" | "crypto" | "both" | "none";
 
@@ -36,6 +36,10 @@ interface PastReport {
   bot: BotKind;
   marketLabel: string;
   executiveSummary: string;
+  /** Searchable plain/markdown body for inline history view. */
+  textBody?: string;
+  /** Full ApexReport JSON when available — preferred for rich inline view. */
+  payload?: ApexReport | null;
   emailed: string;
   aiEnhanced: boolean;
   trigger?: string;
@@ -105,6 +109,7 @@ export function ReportCenter({
 }) {
   const [running, setRunning] = React.useState<BotKind | null>(null);
   const [report, setReport] = React.useState<ApexReport | null>(null);
+  const [textOnly, setTextOnly] = React.useState<{ title: string; body: string } | null>(null);
   const [lastPdfUrl, setLastPdfUrl] = React.useState<string | null>(null);
   const [lastAiEnhanced, setLastAiEnhanced] = React.useState(false);
   const [open, setOpen] = React.useState(false);
@@ -202,6 +207,7 @@ export function ReportCenter({
       return;
     }
     setReport(res.data.report);
+    setTextOnly(null);
     setLastPdfUrl(res.data.pdfUrl);
     setLastAiEnhanced(!!res.data.aiEnhanced);
     setOpen(true);
@@ -466,16 +472,46 @@ export function ReportCenter({
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground">{fmtDate(r.generatedAt)}</p>
+                  {(r.executiveSummary || r.textBody) && (
+                    <p className="mt-1 line-clamp-2 max-w-xl text-xs leading-relaxed text-foreground/80">
+                      {r.executiveSummary || r.textBody}
+                    </p>
+                  )}
                 </div>
-                {r.pdfUrl ? (
-                  <Button asChild size="sm" variant="outline">
-                    <a href={r.pdfUrl} target="_blank" rel="noopener noreferrer">
-                      <FileDown className="mr-1 size-4" /> PDF
-                    </a>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="default"
+                    className="font-semibold"
+                    onClick={() => {
+                      setLastPdfUrl(r.pdfUrl);
+                      setLastAiEnhanced(!!r.aiEnhanced);
+                      if (r.payload && typeof r.payload === "object" && "executiveSummary" in r.payload) {
+                        setTextOnly(null);
+                        setReport(r.payload);
+                        setOpen(true);
+                      } else if (r.executiveSummary || r.textBody) {
+                        setReport(null);
+                        setTextOnly({
+                          title: r.title,
+                          body: r.executiveSummary || r.textBody || "",
+                        });
+                        setOpen(true);
+                      } else {
+                        toast.message("No searchable text body on this report yet — try the PDF.");
+                      }
+                    }}
+                  >
+                    <Eye className="mr-1 size-4" /> View text
                   </Button>
-                ) : (
-                  <span className="text-xs text-muted-foreground">PDF unavailable</span>
-                )}
+                  {r.pdfUrl ? (
+                    <Button asChild size="sm" variant="outline">
+                      <a href={r.pdfUrl} target="_blank" rel="noopener noreferrer">
+                        <FileDown className="mr-1 size-4" /> PDF
+                      </a>
+                    </Button>
+                  ) : null}
+                </div>
               </li>
             ))}
           </ul>
@@ -492,7 +528,7 @@ export function ReportCenter({
             <div className="flex flex-wrap items-center justify-between gap-2 pr-6">
               <div>
                 <div className="flex items-center gap-2">
-                  <DialogTitle>{report?.title ?? "ZENITH report"}</DialogTitle>
+                  <DialogTitle>{report?.title ?? textOnly?.title ?? "ZENITH report"}</DialogTitle>
                   {lastAiEnhanced && (
                     <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">
                       <Sparkles className="mr-1 size-3" /> Grok 4.6 enhanced
@@ -500,7 +536,7 @@ export function ReportCenter({
                   )}
                 </div>
                 <DialogDescription>
-                  Live intelligence built from your holdings — a copy has been emailed to you.
+                  Searchable report text below — PDF download is optional. A copy has been emailed to you.
                 </DialogDescription>
               </div>
               {lastPdfUrl && (
@@ -512,7 +548,14 @@ export function ReportCenter({
               )}
             </div>
           </DialogHeader>
-          {report && <ApexReportView report={report} />}
+          {report ? (
+            <ApexReportView report={report} />
+          ) : textOnly ? (
+            <article className="prose prose-invert max-w-none space-y-3 text-sm leading-relaxed">
+              <h3 className="font-display text-lg font-bold text-foreground">{textOnly.title}</h3>
+              <p className="whitespace-pre-wrap text-foreground/90">{textOnly.body}</p>
+            </article>
+          ) : null}
         </DialogContent>
       </Dialog>
     </section>

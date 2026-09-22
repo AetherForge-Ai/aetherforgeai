@@ -8,6 +8,7 @@ import {
   PortfolioDashboard,
   type DashboardView,
 } from "@/components/dashboard/PortfolioDashboard";
+import { resolveDisplayName, resolveGreetingName } from "@/lib/user-display";
 
 export async function renderDashboardView(view: DashboardView) {
   const user = await getCurrentUser();
@@ -40,7 +41,7 @@ export async function renderDashboardView(view: DashboardView) {
   return (
     <AppShell
       user={{
-        name: user.name,
+        name: resolveDisplayName(user),
         email: user.email,
         image: user.image,
         subscription_status: user.subscription_status,
@@ -49,7 +50,7 @@ export async function renderDashboardView(view: DashboardView) {
     >
       <PortfolioDashboard
         view={view}
-        userName={user.name}
+        userName={resolveGreetingName(user)}
         subscription={{
           status: user.subscription_status,
           plan: user.subscription_plan,

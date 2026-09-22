@@ -22,7 +22,7 @@ export const FEE_PRESETS: FeePreset[] = [
   { id: "nz-retail", label: "NZ shares · retail", fixed: 0, percent: 0.5, cap: 25, market: "NZ" },
   { id: "au-retail", label: "ASX · retail", fixed: 0, percent: 0.5, cap: 25, market: "AU" },
   { id: "us-retail", label: "US shares · retail", fixed: 3, percent: 0, cap: 3, market: "US" },
-  { id: "crypto-pct", label: "Crypto · ~0.6%", fixed: 0, percent: 0.6, market: "CRYPTO" },
+  { id: "crypto-pct", label: "Crypto · ~1%", fixed: 0, percent: 1, market: "CRYPTO" },
   { id: "metal-spread", label: "Metals · ~1%", fixed: 0, percent: 1, market: "METAL" },
   { id: "zero", label: "No fee", fixed: 0, percent: 0, market: "NZ" },
 ];

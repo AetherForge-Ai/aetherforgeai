@@ -24,6 +24,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { Check, ChevronsUpDown, Loader2, Search } from "lucide-react";
+import { markDialogSelectGuard } from "@/lib/dialog-guards";
 
 export interface TickerMatch {
   symbol: string;
@@ -80,9 +81,13 @@ export function TickerSearch({
   }, [query]);
 
   function pick(m: TickerMatch) {
+    markDialogSelectGuard();
     onSelect(m);
-    setOpen(false);
-    setQuery("");
+    // Defer popover close so the parent Dialog's outside-click race settles first.
+    requestAnimationFrame(() => {
+      setOpen(false);
+      setQuery("");
+    });
   }
 
   return (
@@ -136,6 +141,7 @@ export function TickerSearch({
                     key={m.symbol}
                     value={m.symbol}
                     onSelect={() => pick(m)}
+                    onPointerDown={(e) => e.preventDefault()}
                     className="flex items-center gap-2"
                   >
                     <Check className={cn("size-4", value === m.symbol ? "opacity-100" : "opacity-0")} />

@@ -21,7 +21,8 @@ import { CRYPTO_DIRECTORY } from "@/lib/apex";
 import { TickerSearch } from "@/components/dashboard/TickerSearch";
 import { CryptoSearch } from "@/components/dashboard/CryptoSearch";
 import { cn } from "@/lib/utils";
-import { keepDialogOpenOnPortalInteraction, keepDialogOpenWhilePopoverOpen } from "@/lib/dialog-guards";
+import { estimateFee, feeMarketFor, presetsForMarket, type FeePreset } from "@/lib/broker-fees";
+import { keepDialogOpenOnPortalInteraction, keepDialogOpenWhilePopoverOpen, guardDialogOpenChange } from "@/lib/dialog-guards";
 import { toast } from "sonner";
 import {
   ArrowLeftRight,
@@ -182,6 +183,7 @@ export function TransactionCenter({
   const [open, setOpen] = useState(false);
   const [allOpen, setAllOpen] = useState(false);
   const [mode, setMode] = useState<TxType>("buy");
+  const [deepLinkAsset, setDeepLinkAsset] = useState<"stock" | "crypto" | "metal" | null>(null);
 
   const load = useCallback(async () => {
     if (preview) return; // guest preview: no live ledger fetch
@@ -198,6 +200,28 @@ export function TransactionCenter({
   useEffect(() => {
     load();
   }, [load, reloadSignal]);
+
+  // Deep-link: /dashboard/transactions?buy=metal (or stock/crypto) opens Buy
+  // with that asset class — used by Headmaster / allocation "Save as paper metal".
+  useEffect(() => {
+    if (preview || typeof window === "undefined") return;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const buy = (params.get("buy") || "").toLowerCase();
+      if (buy === "metal" || buy === "stock" || buy === "crypto") {
+        setDeepLinkAsset(buy);
+        setMode("buy");
+        setOpen(true);
+        // Clean the query so a refresh does not re-open forever.
+        params.delete("buy");
+        const qs = params.toString();
+        const next = window.location.pathname + (qs ? `?${qs}` : "") + window.location.hash;
+        window.history.replaceState({}, "", next);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [preview]);
 
   function openMode(m: TxType) {
     setMode(m);
@@ -218,6 +242,7 @@ export function TransactionCenter({
     return holdings.filter((h) => (h.asset_type || "stock") === preferredAssetType);
   }, [holdings, preferredAssetType]);
 
+  const effectivePreferredAsset = deepLinkAsset || preferredAssetType;
   const cash = ledger?.cashBalance ?? 0;
   const realizedYtd = ledger?.realizedYtd ?? 0;
   const realizedTotal = ledger?.realizedTotal ?? 0;
@@ -427,7 +452,7 @@ export function TransactionCenter({
         holdings={scopedHoldings}
         cash={cash}
         onDone={handleDone}
-        preferredAssetType={preferredAssetType}
+        preferredAssetType={effectivePreferredAsset}
       />
 
       <AllTransactionsDialog
@@ -873,6 +898,7 @@ function TransactionDialog({
   const [quantity, setQuantity] = useState("");
   const [price, setPrice] = useState("");
   const [fees, setFees] = useState("");
+  const [feePresetId, setFeePresetId] = useState("zero");
   const [amount, setAmount] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
@@ -894,6 +920,19 @@ function TransactionDialog({
   // the user is never blocked (past dates, or a today with no live quote).
   const priceLocked = mode === "buy" && isToday && !liveUnavailable;
 
+  // Keep % fee presets in sync with notional (crypto defaults to ~1%).
+  useEffect(() => {
+    if (mode !== "buy" || feePresetId === "zero" || feePresetId === "custom") return;
+    const market = feeMarketFor(ticker || (assetType === "crypto" ? "BTC" : ""), assetType);
+    const preset = presetsForMarket(market).find((x) => x.id === feePresetId);
+    if (!preset || preset.percent <= 0) return;
+    const notional = (Number(quantity) || 0) * (Number(price) || 0);
+    if (!(notional > 0)) return;
+    const est = estimateFee(notional, preset);
+    setFees(est > 0 ? String(est) : "");
+  }, [mode, feePresetId, quantity, price, ticker, assetType]);
+
+
   // Keep the latest ticker in a ref so the date handler always fetches for the
   // current selection without re-creating callbacks.
   const tickerRef = useRef(ticker);
@@ -909,18 +948,36 @@ function TransactionDialog({
     lastModeRef.current = mode;
     if (!open) return;
     if (!openedNow && !modeChangedWhileOpen) return;
-    setAssetType(preferredAssetType || "stock");
-    setTicker("");
-    setAssetName("");
+    const nextType = preferredAssetType || "stock";
+    setAssetType(nextType);
+    if (nextType === "metal") {
+      setTicker("GOLD");
+      setAssetName("Gold bullion");
+      setFeePresetId("metal-spread");
+      setFees("");
+    } else if (nextType === "crypto") {
+      setTicker("");
+      setAssetName("");
+      setFeePresetId("crypto-pct");
+      setFees("");
+    } else {
+      setTicker("");
+      setAssetName("");
+      setFeePresetId("zero");
+      setFees("");
+    }
     setQuantity("");
     setPrice("");
-    setFees("");
     setAmount("");
     setNotes("");
     // New buy defaults to today ⇒ the price locks to live once a ticker is chosen.
     setExecutedDate(todayStr);
     setPriceLoading(false);
     setLiveUnavailable(false);
+    if (nextType === "metal" && mode === "buy") {
+      // Lock live gold spot once the dialog opens on the metals path.
+      void lockToLivePrice("GOLD", "metal");
+    }
   }, [open, mode, todayStr, preferredAssetType]);
 
   // Sell mode: the holding currently selected in the picker (for max qty + prefill).
@@ -973,11 +1030,28 @@ function TransactionDialog({
       setAssetName(opt.name || "");
       if (isToday) void lockToLivePrice(opt.ticker, "metal");
       else setPrice("");
+      // Metals default to ~1% spread preset (overridable).
+      const preset = presetsForMarket("METAL").find((x) => x.id === "metal-spread");
+      if (preset) {
+        setFeePresetId(preset.id);
+      } else {
+        setFeePresetId("zero");
+        setFees("");
+      }
+    } else if (opt.assetType === "crypto") {
+      setTicker("");
+      setAssetName("");
+      setPrice("");
+      // Crypto buy modal defaults to ~1% exchange fee (overridable).
+      setFeePresetId("crypto-pct");
+      setFees("");
     } else {
       // Switching to stock/crypto — reset the fixed metal selection.
       setTicker("");
       setAssetName("");
       setPrice("");
+      setFeePresetId("zero");
+      setFees("");
     }
   }
 
@@ -1186,8 +1260,12 @@ function TransactionDialog({
     withdraw: "Withdraw available cash from your account (NZD).",
   };
 
+  function handleDialogOpenChange(next: boolean) {
+    guardDialogOpenChange(next, onOpenChange);
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleDialogOpenChange}>
       <DialogContent
         className="sm:max-w-md"
         // The Buy/Sell form nests a Popover-based ticker search (and a native
@@ -1441,6 +1519,32 @@ function TransactionDialog({
 
               <div className="space-y-2">
                 <Label htmlFor="tx-fees">Fees ({currency}) — optional</Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {presetsForMarket(feeMarketFor(ticker || (assetType === "crypto" ? "BTC" : ""), assetType)).map((preset: FeePreset) => {
+                    const notional = (Number(quantity) || 0) * (Number(price) || 0);
+                    const est = estimateFee(notional, preset);
+                    const active = feePresetId === preset.id;
+                    return (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => {
+                          setFeePresetId(preset.id);
+                          setFees(est > 0 ? String(est) : "");
+                        }}
+                        className={
+                          "rounded-lg border px-2 py-1 text-[0.65rem] font-medium transition-colors " +
+                          (active
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border/60 text-muted-foreground hover:text-foreground")
+                        }
+                      >
+                        {preset.label}
+                        {notional > 0 && preset.id !== "zero" ? ` · ${est}` : ""}
+                      </button>
+                    );
+                  })}
+                </div>
                 <Input
                   id="tx-fees"
                   type="number"
@@ -1448,8 +1552,14 @@ function TransactionDialog({
                   step="any"
                   placeholder="0.00"
                   value={fees}
-                  onChange={(e) => setFees(e.target.value)}
+                  onChange={(e) => {
+                    setFees(e.target.value);
+                    setFeePresetId("custom");
+                  }}
                 />
+                <p className="text-[11px] text-muted-foreground">
+                  Advisory fee presets — crypto defaults to ~1%. Override to match your broker fill.
+                </p>
               </div>
             </>
           )}

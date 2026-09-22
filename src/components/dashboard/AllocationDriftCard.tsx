@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatMoney } from "@/lib/currency";
-import { Compass, Save } from "lucide-react";
+import { Coins, Compass, Save } from "lucide-react";
 import { toast } from "sonner";
 
 export type AllocSlice = { key: string; label: string; valueNZD: number; targetPct: number };
@@ -153,11 +153,20 @@ export function AllocationDriftCard({
               </li>
             ))}
           </ul>
-          <Button size="sm" variant="secondary" className="mt-3" onClick={saveIdeas}>
-            <Save className="mr-1.5 size-3.5" /> Save as idea
-          </Button>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button size="sm" variant="secondary" onClick={saveIdeas}>
+              <Save className="mr-1.5 size-3.5" /> Save as idea
+            </Button>
+            {rows.some((r) => r.key === "metals" && r.deltaNZD >= 25) && (
+              <Button asChild size="sm" variant="outline">
+                <Link href="/dashboard/transactions?buy=metal">
+                  <Coins className="mr-1.5 size-3.5" /> Save as paper metal
+                </Link>
+              </Button>
+            )}
+          </div>
           <p className="mt-2 text-[0.65rem] text-muted-foreground">
-            Ideas are not fills. Record broker fills in the Transaction Centre when you act.
+            Ideas are not fills. Paper gold/silver via Transaction Centre → Buy → Gold/Silver, or open the metals desk. Record broker fills when you act.
           </p>
         </div>
       )}

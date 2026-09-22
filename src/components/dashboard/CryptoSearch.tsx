@@ -22,6 +22,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { Check, ChevronsUpDown, Loader2, Search } from "lucide-react";
+import { markDialogSelectGuard } from "@/lib/dialog-guards";
 import { useCryptoMarkets } from "@/hooks/useCryptoMarkets";
 import { coinLogo, fmtPrice, fmtPct, pctColor, GENERIC_COIN_ICON, type CoinMarket } from "@/lib/crypto-market";
 
@@ -50,9 +51,12 @@ export function CryptoSearch({
   }, [coins, query]);
 
   function pick(c: CoinMarket) {
+    markDialogSelectGuard();
     onSelect(c);
-    setOpen(false);
-    setQuery("");
+    requestAnimationFrame(() => {
+      setOpen(false);
+      setQuery("");
+    });
   }
 
   return (
@@ -101,6 +105,7 @@ export function CryptoSearch({
                     key={c.id}
                     value={`${c.symbol} ${c.name}`}
                     onSelect={() => pick(c)}
+                    onPointerDown={(e) => e.preventDefault()}
                     className="flex items-center gap-2.5"
                   >
                     <Check className={cn("size-4 shrink-0", value === c.symbol ? "opacity-100" : "opacity-0")} />

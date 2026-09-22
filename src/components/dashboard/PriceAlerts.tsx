@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { keepDialogOpenOnPortalInteraction, keepDialogOpenWhilePopoverOpen } from "@/lib/dialog-guards";
+import { keepDialogOpenOnPortalInteraction, keepDialogOpenWhilePopoverOpen, guardDialogOpenChange } from "@/lib/dialog-guards";
 import { TickerSearch, type TickerMatch } from "@/components/dashboard/TickerSearch";
 import { CryptoSearch } from "@/components/dashboard/CryptoSearch";
 import type { CoinMarket } from "@/lib/crypto-market";
@@ -398,22 +398,23 @@ export function PriceAlerts({
       </div>
 
       {/* Add / edit dialog */}
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={(next) => guardDialogOpenChange(next, setOpen)}>
         <DialogContent
-          className="max-h-[90vh] overflow-y-auto sm:max-w-lg"
+          className="flex max-h-[min(90vh,40rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg"
           // Keep the dialog open when interacting with the portaled ticker search.
           onInteractOutside={keepDialogOpenOnPortalInteraction}
           onPointerDownOutside={keepDialogOpenOnPortalInteraction}
           onFocusOutside={keepDialogOpenOnPortalInteraction}
           onEscapeKeyDown={keepDialogOpenWhilePopoverOpen}
         >
-          <DialogHeader>
+          <DialogHeader className="shrink-0 border-b border-border/60 px-5 py-4 sm:px-6">
             <DialogTitle>{editingId ? "Edit alert" : "New price alert"}</DialogTitle>
             <DialogDescription>
               Define the execution rules. We monitor the price and flag when your sell-out is hit.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={save} className="space-y-4">
+          <form onSubmit={save} className="flex min-h-0 flex-1 flex-col">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4 sm:px-6">
             <div className="space-y-1.5">
               <Label>{isMetal ? "Metal" : isCrypto ? "Coin / ticker" : "Company / ticker"}</Label>
               {isMetal ? (
@@ -560,7 +561,8 @@ export function PriceAlerts({
               />
             </div>
 
-            <DialogFooter>
+            </div>
+            <DialogFooter className="shrink-0 gap-2 border-t border-border/60 bg-background px-5 py-4 sm:px-6">
               <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={saving}>
                 Cancel
               </Button>

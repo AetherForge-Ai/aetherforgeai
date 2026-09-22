@@ -131,18 +131,42 @@ export async function GET() {
       _limit: 50,
     });
     const rows = (res?.data as any[]) || [];
-    const reports = rows.map((r) => ({
-      _id: r._id,
-      title: r.title,
-      bot: r.bot,
-      marketLabel: r.market_label,
-      executiveSummary: r.executive_summary,
-      emailed: r.emailed,
-      aiEnhanced: r.ai_enhanced === "yes",
-      trigger: r.trigger || "manual",
-      generatedAt: r.generated_at || r.createdAt,
-      pdfUrl: r.pdf_file?.url ?? null,
-    }));
+    const reports = rows.map((r) => {
+      let payload: unknown = null;
+      if (typeof r.payload === "string" && r.payload.trim()) {
+        try {
+          payload = JSON.parse(r.payload);
+        } catch {
+          payload = null;
+        }
+      } else if (r.payload && typeof r.payload === "object") {
+        payload = r.payload;
+      }
+      const executiveSummary = r.executive_summary || "";
+      // Searchable inline text for history view (prefer full payload summary + headline fields).
+      const textBody = [
+        executiveSummary,
+        payload && typeof payload === "object" && "marketLabel" in (payload as object)
+          ? String((payload as { marketLabel?: string }).marketLabel || "")
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+      return {
+        _id: r._id,
+        title: r.title,
+        bot: r.bot,
+        marketLabel: r.market_label,
+        executiveSummary,
+        textBody,
+        payload,
+        emailed: r.emailed,
+        aiEnhanced: r.ai_enhanced === "yes",
+        trigger: r.trigger || "manual",
+        generatedAt: r.generated_at || r.createdAt,
+        pdfUrl: r.pdf_file?.url ?? null,
+      };
+    });
 
     // Independent per-bot allowances — derive each bot's most-recent report from
     // the fetched history so Stox and Koins each get their own countdown.

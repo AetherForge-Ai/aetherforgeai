@@ -165,18 +165,52 @@ const SECTOR_COLORS = [
   "oklch(0.68 0.12 130)",
 ];
 
+
+type KpiSnap = { cash: number; holdings: number; metals: number; netWorth: number };
+
+function readKpiSnap(): KpiSnap | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem("af.kpiSnapshotNZD");
+    if (!raw) return null;
+    const j = JSON.parse(raw) as KpiSnap;
+    if (
+      typeof j?.cash === "number" &&
+      typeof j?.holdings === "number" &&
+      typeof j?.metals === "number" &&
+      typeof j?.netWorth === "number"
+    ) {
+      return j;
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+function writeKpiSnap(snap: KpiSnap) {
+  try {
+    sessionStorage.setItem("af.kpiSnapshotNZD", JSON.stringify(snap));
+  } catch {
+    /* ignore */
+  }
+}
+
 function StatCard({
   label,
   value,
   sub,
   icon: Icon,
   tone = "neutral",
+  loading = false,
 }: {
   label: string;
   value: string;
   sub?: string;
   icon: React.ElementType;
   tone?: "neutral" | "up" | "down";
+  /** Never flash NZ$0 / empty KPIs while cash+holdings+marks hydrate. */
+  loading?: boolean;
 }) {
   return (
     <div className="rounded-2xl border border-border/70 bg-card/50 p-5">
@@ -195,16 +229,20 @@ function StatCard({
           <Icon className="size-4" />
         </span>
       </div>
-      <p
-        className={cn(
-          "tnum mt-3 font-display text-2xl font-bold",
-          tone === "up" && "text-emerald-600",
-          tone === "down" && "text-rose-600"
-        )}
-      >
-        {value}
-      </p>
-      {sub && <p className="mt-1 text-xs text-muted-foreground">{sub}</p>}
+      {loading ? (
+        <div className="mt-3 h-8 w-28 animate-pulse rounded-md bg-muted/50" aria-hidden aria-label="Loading" />
+      ) : (
+        <p
+          className={cn(
+            "tnum mt-3 font-display text-2xl font-bold",
+            tone === "up" && "text-emerald-600",
+            tone === "down" && "text-rose-600"
+          )}
+        >
+          {value}
+        </p>
+      )}
+      {sub && !loading && <p className="mt-1 text-xs text-muted-foreground">{sub}</p>}
     </div>
   );
 }
@@ -348,6 +386,7 @@ export function PortfolioDashboard({
     }
   });
   const [metalsLoaded, setMetalsLoaded] = useState(!!preview);
+  const [kpiSnap, setKpiSnap] = useState<KpiSnap | null>(() => (preview ? null : readKpiSnap()));
   // Cash (NZD) + precious-metals value (NZD) power the "Totals owned" strip.
   const [cashBalance, setCashBalance] = useState(() => {
     if (preview) return PREVIEW_CASH_NZD;
@@ -736,9 +775,39 @@ export function PortfolioDashboard({
   // metals traded through the ledger — distinct records, so no double-count.
   const holdingsValueNZD = stockTotalNZD + cryptoTotalNZD + metalsValueNZD + metalStockTotalNZD;
   const netWorthNZD = holdingsValueNZD + cashBalance;
-  // Gate KPI/cash UI until cash + holdings + metals have resolved (preview skips).
-  // Gate KPIs on cash + metals only — holdings `loading` must not flash NZ$0 on route changes.
-  const balancesReady = preview || (cashLoaded && metalsLoaded);
+  // Gate KPIs until cash + holdings + metals marks are ALL hydrated — never show a
+  // mid-state like cash-only NZ$15.26 on hard refresh. Prefer last-known consistent
+  // snapshot while waiting; otherwise skeleton.
+  const balancesReady = preview || (cashLoaded && metalsLoaded && !loading);
+  // Consistent display: live values only when fully ready; else last-known snapshot; else null → skeleton.
+  const showCash = balancesReady ? cashBalance : kpiSnap?.cash;
+  const showHoldings = balancesReady ? holdingsValueNZD : kpiSnap?.holdings;
+  const showMetalsTotal = balancesReady
+    ? metalsValueNZD + metalStockTotalNZD
+    : kpiSnap?.metals;
+  const showNetWorth = balancesReady ? netWorthNZD : kpiSnap?.netWorth;
+  const kpiPending = !balancesReady && showNetWorth == null;
+
+  // Persist a consistent snapshot once cash+holdings+marks are all ready.
+  useEffect(() => {
+    if (!balancesReady || preview) return;
+    const snap: KpiSnap = {
+      cash: cashBalance,
+      holdings: holdingsValueNZD,
+      metals: metalsValueNZD + metalStockTotalNZD,
+      netWorth: netWorthNZD,
+    };
+    writeKpiSnap(snap);
+    setKpiSnap(snap);
+  }, [
+    balancesReady,
+    preview,
+    cashBalance,
+    holdingsValueNZD,
+    metalsValueNZD,
+    metalStockTotalNZD,
+    netWorthNZD,
+  ]);
 
   async function handleRefreshPrices() {
     setRefreshing(true);
@@ -841,7 +910,7 @@ export function PortfolioDashboard({
 
   return (
     <MarketIntelProvider bot={bot}>
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8" aria-busy={kpiPending || undefined}>
       {/* Header — matches dashboard home mock */}
       <div className="flex flex-wrap items-start justify-between gap-3 sm:gap-4">
         <div className="min-w-0">
@@ -888,21 +957,29 @@ export function PortfolioDashboard({
               <p className="text-[0.68rem] font-semibold uppercase tracking-wide text-foreground">
                 Holdings value
               </p>
-              <AnimatedMoney
-                value={holdingsValueNZD}
-                currency="NZD"
-                className="tnum font-display text-xl font-bold text-emerald-600 sm:text-2xl"
-              />
+              {showHoldings == null ? (
+                <div className="mt-1 ml-auto h-7 w-24 animate-pulse rounded-md bg-muted/50" aria-hidden />
+              ) : (
+                <AnimatedMoney
+                  value={showHoldings}
+                  currency="NZD"
+                  className="tnum font-display text-xl font-bold text-emerald-600 sm:text-2xl"
+                />
+              )}
             </div>
             <div className="text-right">
               <p className="text-[0.68rem] font-semibold uppercase tracking-wide text-foreground">
                 Total net worth
               </p>
-              <AnimatedMoney
-                value={netWorthNZD}
-                currency="NZD"
-                className="tnum font-display text-xl font-bold text-emerald-600 sm:text-2xl"
-              />
+              {showNetWorth == null ? (
+                <div className="mt-1 ml-auto h-7 w-28 animate-pulse rounded-md bg-muted/50" aria-hidden />
+              ) : (
+                <AnimatedMoney
+                  value={showNetWorth}
+                  currency="NZD"
+                  className="tnum font-display text-xl font-bold text-emerald-600 sm:text-2xl"
+                />
+              )}
             </div>
           </div>
         </div>
@@ -991,10 +1068,10 @@ export function PortfolioDashboard({
         <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-2xl border border-primary/40 bg-gradient-to-br from-primary/15 via-card/70 to-card/50 p-4">
             <p className="font-grift-black text-sm uppercase tracking-wide text-amber-400">Cash Bal</p>
-            {!balancesReady ? (
+            {showCash == null ? (
               <div className="mt-2 h-7 w-28 animate-pulse rounded-md bg-muted/50" aria-hidden />
             ) : (
-              <AnimatedMoney value={cashBalance} currency="NZD" className="tnum mt-2 font-display text-xl font-bold text-emerald-600" />
+              <AnimatedMoney value={showCash} currency="NZD" className="tnum mt-2 font-display text-xl font-bold text-emerald-600" />
             )}
             <p className="mt-1 text-[0.7rem] text-muted-foreground">From Transaction Ledger</p>
           </div>
@@ -1018,10 +1095,10 @@ export function PortfolioDashboard({
           </div>
           <div className="rounded-2xl border border-border/70 bg-card/70 p-4">
             <p className="font-grift-black text-sm uppercase tracking-wide text-amber-400">Value in Metals NZD</p>
-            {!balancesReady ? (
+            {showMetalsTotal == null ? (
               <div className="mt-2 h-7 w-28 animate-pulse rounded-md bg-muted/50" aria-hidden />
             ) : (
-              <AnimatedMoney value={metalsValueNZD + metalStockTotalNZD} currency="NZD" className="tnum mt-2 font-display text-xl font-bold text-emerald-600" />
+              <AnimatedMoney value={showMetalsTotal} currency="NZD" className="tnum mt-2 font-display text-xl font-bold text-emerald-600" />
             )}
             <p className="mt-1 text-[0.7rem] text-muted-foreground">Live holdings from metals trades</p>
           </div>
@@ -1032,19 +1109,19 @@ export function PortfolioDashboard({
         <div className="mt-8 grid gap-4 sm:grid-cols-2">
           <div className="rounded-2xl border border-primary/40 bg-gradient-to-br from-primary/15 via-card/70 to-card/50 p-6">
             <p className="font-grift-black text-sm uppercase tracking-wide text-amber-400">Cash Bal</p>
-            {!balancesReady ? (
+            {showCash == null ? (
               <div className="mt-3 h-9 w-36 animate-pulse rounded-md bg-muted/50" aria-hidden />
             ) : (
-              <AnimatedMoney value={cashBalance} currency="NZD" className="tnum mt-3 font-display text-3xl font-bold text-emerald-600" />
+              <AnimatedMoney value={showCash} currency="NZD" className="tnum mt-3 font-display text-3xl font-bold text-emerald-600" />
             )}
             <p className="mt-2 text-sm text-muted-foreground">Available for buys across stocks, crypto and metals.</p>
           </div>
           <div className="rounded-2xl border border-border/70 bg-card/70 p-6">
             <p className="font-grift-black text-sm uppercase tracking-wide text-amber-400">Net worth</p>
-            {!balancesReady ? (
+            {showNetWorth == null ? (
               <div className="mt-3 h-9 w-36 animate-pulse rounded-md bg-muted/50" aria-hidden />
             ) : (
-              <AnimatedMoney value={netWorthNZD} currency="NZD" className="tnum mt-3 font-display text-3xl font-bold text-emerald-600" />
+              <AnimatedMoney value={showNetWorth} currency="NZD" className="tnum mt-3 font-display text-3xl font-bold text-emerald-600" />
             )}
             <p className="mt-2 text-sm text-muted-foreground">Cash plus live holdings value.</p>
           </div>
@@ -1091,6 +1168,7 @@ export function PortfolioDashboard({
           value={formatMoney(stockOverviewSummary.totalValue, "NZD")}
           sub={`Cost basis ${formatMoney(stockOverviewSummary.totalCost, "NZD")}`}
           icon={Wallet}
+          loading={loading}
         />
         <StatCard
           label="Unrealized P&L"
@@ -1098,6 +1176,7 @@ export function PortfolioDashboard({
           sub={formatPercent(stockOverviewSummary.totalGainPct)}
           icon={stockOverviewSummary.totalGain >= 0 ? TrendingUp : TrendingDown}
           tone={stockOverviewSummary.totalGain >= 0 ? "up" : "down"}
+          loading={loading}
         />
         <StatCard
           label="7-Day alpha potential"
@@ -1109,6 +1188,7 @@ export function PortfolioDashboard({
           }
           icon={Zap}
           tone={stockOverviewMetrics.alphaPotentialPct >= 0 ? "up" : "down"}
+          loading={loading}
         />
         <StatCard
           label="Portfolio health"
@@ -1124,6 +1204,7 @@ export function PortfolioDashboard({
                   ? "neutral"
                   : "down"
           }
+          loading={loading}
         />
       </div>
 
@@ -1170,6 +1251,7 @@ export function PortfolioDashboard({
           value={formatMoney(cryptoOverviewSummary.totalValue, "USD")}
           sub={`Cost basis ${formatMoney(cryptoOverviewSummary.totalCost, "USD")}`}
           icon={Wallet}
+          loading={loading}
         />
         <StatCard
           label="Unrealized P&L"
@@ -1177,6 +1259,7 @@ export function PortfolioDashboard({
           sub={formatPercent(cryptoOverviewSummary.totalGainPct)}
           icon={cryptoOverviewSummary.totalGain >= 0 ? TrendingUp : TrendingDown}
           tone={cryptoOverviewSummary.totalGain >= 0 ? "up" : "down"}
+          loading={loading}
         />
         <StatCard
           label="7-Day alpha potential"
@@ -1188,6 +1271,7 @@ export function PortfolioDashboard({
           }
           icon={Zap}
           tone={cryptoOverviewMetrics.alphaPotentialPct >= 0 ? "up" : "down"}
+          loading={loading}
         />
         <StatCard
           label="Portfolio health"
@@ -1203,6 +1287,7 @@ export function PortfolioDashboard({
                   ? "neutral"
                   : "down"
           }
+          loading={loading}
         />
       </div>
 
@@ -1260,11 +1345,11 @@ export function PortfolioDashboard({
           <div className="flex items-end gap-6">
             <div className="text-right">
               <p className="text-[0.68rem] uppercase tracking-wide text-muted-foreground">Holdings value · NZD</p>
-              {!balancesReady ? (
+              {showHoldings == null ? (
                 <div className="mt-1 ml-auto h-6 w-24 animate-pulse rounded-md bg-muted/50" aria-hidden />
               ) : (
                 <AnimatedMoney
-                  value={holdingsValueNZD}
+                  value={showHoldings}
                   currency="NZD"
                   className="font-display text-lg font-bold text-foreground"
                 />
@@ -1278,11 +1363,11 @@ export function PortfolioDashboard({
                 </span>
                 Total net worth · NZD
               </p>
-              {!balancesReady ? (
+              {showNetWorth == null ? (
                 <div className="mt-1 ml-auto h-8 w-32 animate-pulse rounded-md bg-muted/50" aria-hidden />
               ) : (
                 <AnimatedMoney
-                  value={netWorthNZD}
+                  value={showNetWorth}
                   currency="NZD"
                   className="font-display text-2xl font-bold text-primary"
                 />
@@ -1300,11 +1385,11 @@ export function PortfolioDashboard({
                 <Wallet className="size-4" />
               </span>
             </div>
-            {!balancesReady ? (
+            {showCash == null ? (
               <div className="mt-3 h-9 w-40 animate-pulse rounded-md bg-primary/15" aria-hidden />
             ) : (
               <AnimatedMoney
-                value={cashBalance}
+                value={showCash}
                 currency="NZD"
                 className="mt-3 block font-display text-3xl font-bold text-primary"
               />
@@ -1314,7 +1399,11 @@ export function PortfolioDashboard({
             </p>
             <div className="mt-3 flex items-center justify-between border-t border-primary/20 pt-2 text-xs">
               <span className="text-muted-foreground">Holdings value</span>
-              <AnimatedMoney value={holdingsValueNZD} currency="NZD" className="font-semibold text-foreground" />
+              {showHoldings == null ? (
+                <div className="h-4 w-16 animate-pulse rounded bg-muted/50" aria-hidden />
+              ) : (
+                <AnimatedMoney value={showHoldings} currency="NZD" className="font-semibold text-foreground" />
+              )}
             </div>
           </div>
           <StatCard
@@ -1322,12 +1411,14 @@ export function PortfolioDashboard({
             value={formatMoney(stockTotalNZD, "NZD")}
             sub={`${stockHoldings.length} position${stockHoldings.length === 1 ? "" : "s"}`}
             icon={LineChart}
+            loading={!balancesReady}
           />
           <StatCard
             label="Value in Crypto · NZD"
             value={formatMoney(cryptoTotalNZD, "NZD")}
             sub={`${cryptoHoldings.length} coin${cryptoHoldings.length === 1 ? "" : "s"}`}
             icon={Bitcoin}
+            loading={!balancesReady}
           />
           <StatCard
             label="Value in Metals · NZD"
@@ -1340,6 +1431,7 @@ export function PortfolioDashboard({
                   : "Bonus for paid members"
             }
             icon={Coins}
+            loading={!balancesReady}
           />
         </div>
 

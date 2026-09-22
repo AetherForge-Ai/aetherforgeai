@@ -61,3 +61,48 @@ export function keepDialogOpenWhilePopoverOpen(e: { preventDefault: () => void }
     e.preventDefault();
   }
 }
+
+/**
+ * Wrap Dialog `onOpenChange` so a close request is ignored while a portaled
+ * ticker/coin search popover is still open (or just closed via select).
+ * MarketsExplorer avoids this by selecting the ticker before opening Buy;
+ * Transaction Center embeds the search inside the dialog and needs this guard.
+ */
+export function guardDialogOpenChange(
+  next: boolean,
+  onOpenChange: (open: boolean) => void,
+  opts?: { graceMs?: number }
+) {
+  if (next) {
+    onOpenChange(true);
+    return;
+  }
+  if (typeof document === "undefined") {
+    onOpenChange(false);
+    return;
+  }
+  const popoverOpen =
+    !!document.querySelector("[data-radix-popper-content-wrapper]") ||
+    !!document.querySelector("[cmdk-root]") ||
+    !!document.querySelector("[data-slot='popover-content']");
+  if (popoverOpen) return;
+
+  // Brief grace after a cmdk select — the portal may already be unmounted but
+  // Radix still emits onOpenChange(false) from the outside-click race.
+  void opts;
+  const marked = (document.body as HTMLElement & { dataset: DOMStringMap }).dataset;
+  if (marked.afDialogSelectGuard === "1") return;
+
+  onOpenChange(false);
+}
+
+/** Call from ticker/coin pick handlers so the parent dialog survives the select race. */
+export function markDialogSelectGuard(ms = 200) {
+  if (typeof document === "undefined") return;
+  const body = document.body as HTMLElement & { dataset: DOMStringMap };
+  body.dataset.afDialogSelectGuard = "1";
+  window.setTimeout(() => {
+    delete body.dataset.afDialogSelectGuard;
+  }, ms);
+}
+

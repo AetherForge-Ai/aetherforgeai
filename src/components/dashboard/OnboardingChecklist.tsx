@@ -25,7 +25,7 @@ export function OnboardingChecklist({
     {
       id: "headmaster",
       title: "Meet The Headmaster",
-      body: "Set a target allocation for stocks, crypto, metals and cash.",
+      body: "Set a target allocation for stocks, crypto, metals and cash. Paper gold/silver via Transaction Centre Buy → Gold/Silver.",
       href: "/headmaster",
       done: false, // soft — visiting is enough; we don't gate on API
       icon: Crown,

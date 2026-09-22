@@ -191,14 +191,24 @@ export function PreciousMetals({
           Precious Metals Overview
         </h2>
         <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-          Track your gold &amp; silver alongside your shares — valued live against today's spot
-          price. This bonus is free for every active paying member.
+          Track your gold &amp; silver alongside your shares — valued live against today&apos;s spot
+          price. Smitty&apos;s metals desk is free for every active paying member.
         </p>
-        <Button asChild className="mt-5 font-semibold shadow-glow">
-          <Link href="/pricing">
-            <Sparkles className="mr-2 size-4" /> Upgrade to unlock
-          </Link>
-        </Button>
+        <p className="mx-auto mt-3 max-w-md text-sm text-muted-foreground">
+          Need metals for a Headmaster allocation now? Use{" "}
+          <strong className="text-foreground">Transaction Centre → Buy → Gold/Silver</strong> for a
+          paper/idea fill (advisory only — not a broker order), or upgrade to unlock Smitty&apos;s spot desk.
+        </p>
+        <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+          <Button asChild variant="outline" className="font-semibold">
+            <Link href="/dashboard/transactions?buy=metal">Save as paper metal</Link>
+          </Button>
+          <Button asChild className="font-semibold shadow-glow">
+            <Link href="/pricing">
+              <Sparkles className="mr-2 size-4" /> Upgrade to unlock
+            </Link>
+          </Button>
+        </div>
       </div>
     );
   }
