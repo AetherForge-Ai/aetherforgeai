@@ -99,18 +99,30 @@ function round(n: number, decimals = 2): number {
 
 /** Fetch the affected holding for a ticker, tolerating legacy rows w/o asset_type. */
 async function findHolding(userId: string, ticker: string, assetType: TxAssetType) {
+  const sym = String(ticker || "").toUpperCase();
   const res = await totalumSdk.crud.query("stock", {
-    _filter: { user: userId, ticker, asset_type: assetType },
-    _limit: 1,
+    _filter: { user: userId, ticker: sym, asset_type: assetType },
+    _limit: 5,
   });
   let holding = ((res?.data as any[]) || [])[0] || null;
-  if (!holding && assetType === "stock") {
-    // Legacy holdings created before asset_type existed default to "stock".
+  if (!holding) {
+    // Case / asset_type drift — scan a few rows and match in memory.
     const legacy = await totalumSdk.crud.query("stock", {
-      _filter: { user: userId, ticker },
-      _limit: 5,
+      _filter: { user: userId },
+      _limit: 500,
     });
-    holding = ((legacy?.data as any[]) || []).find((h) => (h.asset_type || "stock") === "stock") || null;
+    holding =
+      ((legacy?.data as any[]) || []).find(
+        (h) =>
+          String(h.ticker || "").toUpperCase() === sym &&
+          (h.asset_type || "stock") === assetType
+      ) || null;
+    if (!holding && assetType === "stock") {
+      holding =
+        ((legacy?.data as any[]) || []).find(
+          (h) => String(h.ticker || "").toUpperCase() === sym && (h.asset_type || "stock") === "stock"
+        ) || null;
+    }
   }
   return holding;
 }
@@ -269,6 +281,34 @@ export async function applyTransaction(user: AppUser, input: TransactionInput): 
 
   // ---- BUY ----
   if (input.type === "buy") {
+    // Accidental double-submit guard: identical buy within 45s returns the prior row.
+    try {
+      const recent = await totalumSdk.crud.query("transaction", {
+        _filter: { user: user._id, type: "buy", ticker },
+        _limit: 8,
+        _order: "-executed_at",
+      });
+      const now = Date.now();
+      const dup = ((recent?.data as any[]) || []).find((t) => {
+        const at = new Date(t.executed_at || t.created_at || 0).getTime();
+        if (!(now - at < 45_000)) return false;
+        const q = Number(t.quantity);
+        const p = Number(t.price);
+        return Math.abs(q - quantity) < 1e-8 && Math.abs(p - price) < 1e-8;
+      });
+      if (dup) {
+        console.warn(`[transactions] Duplicate buy suppressed for ${ticker} (within 45s)`);
+        return {
+          cashBalance: currentCash,
+          realizedNZD: 0,
+          transaction: dup,
+          holdingId: dup.holding_id || null,
+        };
+      }
+    } catch (err) {
+      console.error("[transactions] Duplicate-buy check failed (non-fatal):", err);
+    }
+
     const costNative = quantity * price + fees;
     const costNZD = round(convertCurrency(costNative, currency, "NZD", rates));
     let holdingId: string;

@@ -209,8 +209,13 @@ export async function POST(req: Request) {
       _limit: 1000,
     });
     const held = (existing?.data as any[]) || [];
+    const existingSleeve = held.find(
+      (h) =>
+        String(h.ticker || "").toUpperCase() === ticker.toUpperCase() &&
+        (h.asset_type || "stock") === assetType
+    );
     const quota = checkTickerQuota(user, held, assetType);
-    if (!quota.allowed) {
+    if (!quota.allowed && !existingSleeve) {
       console.log(
         `[api/stocks] Quota reached for user ${user._id}: ${quota.used}/${quota.limit} (${quota.scope}) — blocking add of ${ticker}`
       );
@@ -304,6 +309,33 @@ export async function POST(req: Request) {
       }
     }
     if (!company_name) company_name = ticker;
+
+    // Merge into an existing sleeve for the same ticker + asset class so a
+    // double-submit (or second "Add holding") never creates a confusing duplicate lot.
+    const sameSleeve = existingSleeve;
+    if (sameSleeve?._id) {
+      const oldShares = Number(sameSleeve.shares) || 0;
+      const oldAvg = Number(sameSleeve.purchase_price) || 0;
+      const addShares = parsed.data.shares;
+      const newShares = oldShares + addShares;
+      const newAvg =
+        newShares > 0 ? (oldShares * oldAvg + addShares * purchase_price) / newShares : purchase_price;
+      const patch = {
+        shares: Math.round((newShares + Number.EPSILON) * 1e6) / 1e6,
+        purchase_price: Math.round((newAvg + Number.EPSILON) * 1e6) / 1e6,
+        current_price,
+        company_name: company_name || sameSleeve.company_name,
+        purchase_date: parsed.data.purchase_date || sameSleeve.purchase_date || new Date().toISOString().slice(0, 10),
+      };
+      await totalumSdk.crud.editRecordById("stock", sameSleeve._id, patch);
+      console.log(
+        `[api/stocks] POST merged ${addShares} into existing ${ticker} for user ${user._id} → ${patch.shares} @ ${patch.purchase_price}`
+      );
+      return NextResponse.json({
+        ok: true,
+        data: { ...sameSleeve, ...patch, _id: sameSleeve._id, merged: true },
+      });
+    }
 
     const record = {
       ticker,

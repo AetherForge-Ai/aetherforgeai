@@ -37,7 +37,7 @@ export interface PriceAlert {
   _id: string;
   ticker: string;
   stockId: string | null;
-  assetType?: "stock" | "crypto";
+  assetType?: "stock" | "crypto" | "metal";
   trimPct: number | null;
   trimTriggerDipPct: number | null;
   hardSellPrice: number | null;
@@ -100,11 +100,12 @@ export function PriceAlerts({
   preview = false,
 }: {
   stocks: Stock[];
-  /** Hub context — stock desk vs crypto desk. */
-  assetType?: "stock" | "crypto";
+  /** Hub context — stock desk, crypto desk, or metals. */
+  assetType?: "stock" | "crypto" | "metal";
   preview?: boolean;
 }) {
   const isCrypto = assetType === "crypto";
+  const isMetal = assetType === "metal";
   const [alerts, setAlerts] = React.useState<PriceAlert[]>([]);
   const [loading, setLoading] = React.useState(!preview);
   const [open, setOpen] = React.useState(false);
@@ -134,11 +135,12 @@ export function PriceAlerts({
       setAlerts(
         res.data.filter((a) => {
           const at = (a.assetType || "").toLowerCase();
-          if (at === "crypto" || at === "stock") return at === assetType;
+          if (at === "crypto" || at === "stock" || at === "metal") return at === assetType;
           const tick = String(a.ticker || "").toUpperCase();
+          if (assetType === "metal") return tick === "GOLD" || tick === "SILVER";
           if (holdingTickers.has(tick)) return true;
           // Untyped legacy alerts: equities with exchange suffix stay on the stock hub.
-          if (assetType === "stock") return /\.(AX|NZ|L)$/i.test(tick);
+          if (assetType === "stock") return /\.(AX|NZ|L)$/i.test(tick) && tick !== "GOLD" && tick !== "SILVER";
           return false;
         })
       );
@@ -401,6 +403,8 @@ export function PriceAlerts({
           className="max-h-[90vh] overflow-y-auto sm:max-w-lg"
           // Keep the dialog open when interacting with the portaled ticker search.
           onInteractOutside={keepDialogOpenOnPortalInteraction}
+          onPointerDownOutside={keepDialogOpenOnPortalInteraction}
+          onFocusOutside={keepDialogOpenOnPortalInteraction}
           onEscapeKeyDown={keepDialogOpenWhilePopoverOpen}
         >
           <DialogHeader>
@@ -411,16 +415,44 @@ export function PriceAlerts({
           </DialogHeader>
           <form onSubmit={save} className="space-y-4">
             <div className="space-y-1.5">
-              <Label>{isCrypto ? "Coin / ticker" : "Company / ticker"}</Label>
-              {isCrypto ? (
+              <Label>{isMetal ? "Metal" : isCrypto ? "Coin / ticker" : "Company / ticker"}</Label>
+              {isMetal ? (
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { t: "GOLD", n: "Gold bullion" },
+                    { t: "SILVER", n: "Silver bullion" },
+                  ].map((m) => (
+                    <button
+                      key={m.t}
+                      type="button"
+                      onClick={() => {
+                        setForm((f) => ({ ...f, ticker: m.t, stockId: "" }));
+                        setSelectedName(m.n);
+                        fetchQuote(m.t, true);
+                      }}
+                      className={
+                        "rounded-lg border px-3 py-2 text-sm font-semibold transition-colors " +
+                        (form.ticker === m.t
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border/60 text-muted-foreground hover:text-foreground")
+                      }
+                    >
+                      {m.t === "GOLD" ? "🥇 " : "🥈 "}
+                      {m.n}
+                    </button>
+                  ))}
+                </div>
+              ) : isCrypto ? (
                 <CryptoSearch value={form.ticker} label={selectedName} onSelect={handlePickCoin} />
               ) : (
                 <TickerSearch value={form.ticker} label={selectedName} onSelect={handlePickSymbol} />
               )}
               <p className="text-[11px] text-muted-foreground">
-                {isCrypto
-                  ? "Search the live crypto universe by name or ticker (BTC, ETH, SOL…)."
-                  : "Search the full ASX, NZX, NASDAQ & NYSE (incl. all Dow Jones) universe by name or ticker."}
+                {isMetal
+                  ? "Alert on live NZD spot for gold or silver."
+                  : isCrypto
+                    ? "Search the live crypto universe by name or ticker (BTC, ETH, SOL…)."
+                    : "Search the full ASX, NZX, NASDAQ & NYSE (incl. all Dow Jones) universe by name or ticker."}
               </p>
 
               {/* Live company + price read-out for the chosen symbol. */}

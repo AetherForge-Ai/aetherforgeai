@@ -199,3 +199,48 @@ export function formatDuration(ms: number): string {
   if (parts.length === 2) return `${parts[0]} and ${parts[1]}`;
   return `${parts[0]}, ${parts[1]} and ${parts[2]}`;
 }
+
+/** Compact relative age, e.g. "12m ago", "3h ago", "2d ago" (NZ English). */
+export function formatAgeAgo(msAgo: number): string {
+  if (msAgo < 0) msAgo = 0;
+  const totalMin = Math.floor(msAgo / 60000);
+  if (totalMin < 1) return "just now";
+  if (totalMin < 60) return `${totalMin}m ago`;
+  const hours = Math.floor(totalMin / 60);
+  if (hours < 48) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+/** Compact remaining wait, e.g. "4h", "35m", "until NZ midnight". */
+export function formatWaitShort(ms: number): string {
+  if (ms <= 0) return "now";
+  const totalMin = Math.floor(ms / 60000);
+  if (totalMin < 60) return `${Math.max(1, totalMin)}m`;
+  const hours = Math.floor(totalMin / 60);
+  const mins = totalMin % 60;
+  if (hours < 48) return mins ? `${hours}h ${mins}m` : `${hours}h`;
+  const days = Math.floor(hours / 24);
+  return `${days}d`;
+}
+
+/**
+ * Stox/Koins cooldown line: "Generated 3h ago · next refresh in 5h" (or until NZ midnight).
+ */
+export function formatReportCooldownLine(opts: {
+  lastReportAt: string | null | undefined;
+  waitMs: number;
+  cadenceUnit: CadenceUnit;
+  now?: number;
+}): string {
+  const now = opts.now ?? Date.now();
+  const last = opts.lastReportAt ? new Date(opts.lastReportAt).getTime() : NaN;
+  if (!opts.lastReportAt || Number.isNaN(last)) return "Ready to run";
+  const ago = formatAgeAgo(now - last);
+  if (opts.waitMs <= 0) return `Generated ${ago} · ready to refresh`;
+  const until =
+    opts.cadenceUnit === "day"
+      ? `next refresh in ${formatWaitShort(opts.waitMs)} (NZ midnight)`
+      : `next refresh in ${formatWaitShort(opts.waitMs)}`;
+  return `Generated ${ago} · ${until}`;
+}

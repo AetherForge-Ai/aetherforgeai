@@ -10,6 +10,8 @@
  * Usage:
  *   <DialogContent
  *     onInteractOutside={keepDialogOpenOnPortalInteraction}
+ *     onPointerDownOutside={keepDialogOpenOnPortalInteraction}
+ *     onFocusOutside={keepDialogOpenOnPortalInteraction}
  *     onEscapeKeyDown={keepDialogOpenWhilePopoverOpen}
  *   >
  */
@@ -18,22 +20,32 @@
 const PORTAL_SELECTORS = [
   "[data-radix-popper-content-wrapper]",
   "[data-slot='popover-content']",
+  "[data-radix-select-content]",
   "[cmdk-root]",
   "[cmdk-list]",
+  "[cmdk-item]",
 ] as const;
+
+function isPortalTarget(t: HTMLElement | null): boolean {
+  if (!t) return true; // detached / null target — classic cmdk select race
+  if (PORTAL_SELECTORS.some((sel) => t.closest?.(sel))) return true;
+  // Node already removed from the document (select → unmount race).
+  if (typeof document !== "undefined" && !document.body.contains(t)) return true;
+  return false;
+}
 
 /**
  * Prevent the dialog from closing when the outside interaction actually lands on
  * a portaled popover/command element, or on a node that has already been removed
  * from the DOM (the classic "select a cmdk item → dialog closes" race).
+ * Wire to onInteractOutside, onPointerDownOutside and onFocusOutside.
  */
-export function keepDialogOpenOnPortalInteraction(e: { target: EventTarget | null; preventDefault: () => void }) {
+export function keepDialogOpenOnPortalInteraction(e: {
+  target: EventTarget | null;
+  preventDefault: () => void;
+}) {
   const t = e.target as HTMLElement | null;
-  if (!t) return;
-  const insidePortal = PORTAL_SELECTORS.some((sel) => t.closest?.(sel));
-  if (insidePortal || !document.body.contains(t)) {
-    e.preventDefault();
-  }
+  if (isPortalTarget(t)) e.preventDefault();
 }
 
 /**
@@ -41,7 +53,11 @@ export function keepDialogOpenOnPortalInteraction(e: { target: EventTarget | nul
  * (leaving the parent dialog and the user's half-filled form intact).
  */
 export function keepDialogOpenWhilePopoverOpen(e: { preventDefault: () => void }) {
-  if (typeof document !== "undefined" && document.querySelector("[data-radix-popper-content-wrapper]")) {
+  if (
+    typeof document !== "undefined" &&
+    (document.querySelector("[data-radix-popper-content-wrapper]") ||
+      document.querySelector("[cmdk-root]"))
+  ) {
     e.preventDefault();
   }
 }

@@ -1,8 +1,6 @@
-import { redirect } from "next/navigation";
 import {
   getCurrentUser,
   isStripeConfigured,
-  hasActiveSubscription,
   hasPaidSubscription,
 } from "@/lib/session";
 import { AppShell } from "@/components/AppShell";
@@ -35,10 +33,8 @@ export async function renderDashboardView(view: DashboardView) {
     );
   }
 
-  if (isStripeConfigured() && !hasActiveSubscription(user)) {
-    redirect("/pricing");
-  }
-
+  // Free members and testers keep Dashboard + Transactions. Headmaster / metals
+  // stay paid-entitled (soft upsell in-console) — never trap them on /pricing.
   const metalsEntitled = !isStripeConfigured() || hasPaidSubscription(user);
 
   return (

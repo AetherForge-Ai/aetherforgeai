@@ -41,6 +41,8 @@ import { MarketIntelProvider } from "@/components/dashboard/MarketIntelContext";
 import { WatchlistPanel } from "@/components/dashboard/WatchlistPanel";
 import { GlobalSearch } from "@/components/dashboard/GlobalSearch";
 import { DashboardHomeGrid } from "@/components/dashboard/DashboardHomeGrid";
+import { OnboardingChecklist } from "@/components/dashboard/OnboardingChecklist";
+import { AllocationDriftCard } from "@/components/dashboard/AllocationDriftCard";
 import { IndexMarketCard } from "@/components/dashboard/IndexMarketCard";
 import { LockedSection } from "@/components/dashboard/LockedSection";
 import { CollapsibleSection } from "@/components/dashboard/CollapsibleSection";
@@ -336,10 +338,28 @@ export function PortfolioDashboard({
   const [loading, setLoading] = useState(!preview);
   const [refreshing, setRefreshing] = useState(false);
   // Separate from holdings `loading` so KPIs never flash NZ$0 before cash/metals land.
-  const [cashLoaded, setCashLoaded] = useState(!!preview);
+  const [cashLoaded, setCashLoaded] = useState(() => {
+    if (preview) return true;
+    if (typeof window === "undefined") return false;
+    try {
+      return sessionStorage.getItem("af.cashBalanceNZD") != null;
+    } catch {
+      return false;
+    }
+  });
   const [metalsLoaded, setMetalsLoaded] = useState(!!preview);
   // Cash (NZD) + precious-metals value (NZD) power the "Totals owned" strip.
-  const [cashBalance, setCashBalance] = useState(preview ? PREVIEW_CASH_NZD : 0);
+  const [cashBalance, setCashBalance] = useState(() => {
+    if (preview) return PREVIEW_CASH_NZD;
+    if (typeof window === "undefined") return 0;
+    try {
+      const raw = sessionStorage.getItem("af.cashBalanceNZD");
+      const n = raw != null ? Number(raw) : NaN;
+      return Number.isFinite(n) && n >= 0 ? n : 0;
+    } catch {
+      return 0;
+    }
+  });
   const [recentLedger, setRecentLedger] = useState<
     { type?: string; ticker?: string | null; amount?: number | null; executed_at?: string | null; notes?: string | null }[]
   >([]);
@@ -424,7 +444,13 @@ export function PortfolioDashboard({
       }[];
     }>("/api/transactions");
     if (res.ok && res.data) {
-      setCashBalance(res.data.cashBalance ?? 0);
+      const bal = res.data.cashBalance ?? 0;
+      setCashBalance(bal);
+      try {
+        sessionStorage.setItem("af.cashBalanceNZD", String(bal));
+      } catch {
+        /* ignore */
+      }
       const rows = (res.data.transactions || []).slice(0, 6).map((r) => ({
         type: r.type,
         ticker: r.ticker ?? null,
@@ -711,7 +737,8 @@ export function PortfolioDashboard({
   const holdingsValueNZD = stockTotalNZD + cryptoTotalNZD + metalsValueNZD + metalStockTotalNZD;
   const netWorthNZD = holdingsValueNZD + cashBalance;
   // Gate KPI/cash UI until cash + holdings + metals have resolved (preview skips).
-  const balancesReady = preview || (cashLoaded && !loading && metalsLoaded);
+  // Gate KPIs on cash + metals only — holdings `loading` must not flash NZ$0 on route changes.
+  const balancesReady = preview || (cashLoaded && metalsLoaded);
 
   async function handleRefreshPrices() {
     setRefreshing(true);
@@ -923,6 +950,21 @@ export function PortfolioDashboard({
         recentLedger={recentLedger}
         balancesLoading={!balancesReady}
       />
+      )}
+
+      {isHome && !preview && (
+        <div className="mt-6 grid gap-4 lg:grid-cols-2">
+          <OnboardingChecklist
+            hasCash={cashBalance > 0}
+            hasHoldings={allStocks.length > 0 || preciousMetalHoldings.length > 0}
+          />
+          <AllocationDriftCard
+            stockNZD={stockTotalNZD}
+            cryptoNZD={cryptoTotalNZD}
+            metalsNZD={metalsValueNZD + metalStockTotalNZD}
+            cashNZD={cashBalance}
+          />
+        </div>
       )}
 
       {/* Report Center under home window tiles / bots desk (not on stocks/crypto hubs) */}
@@ -1195,6 +1237,14 @@ export function PortfolioDashboard({
       {/* ───────────────────────── 3c · Precious metals (moved up for page flow) ───────────────────────── */}
       <div id="dash-metals-overview" className={cn("mt-10 scroll-mt-24", !isMetals && "hidden")}>
         <PreciousMetals entitled={metalsEntitled} plan={subscription.plan} onChanged={handleMetalsChanged} />
+        <div className="mt-6">
+          <Gate
+            title="Metals Price Alerts"
+            description="Set alerts on gold and silver so you never miss a move on your bullion."
+          >
+            <PriceAlerts stocks={allStocks} assetType="metal" preview={preview} />
+          </Gate>
+        </div>
       </div>
 
       {/* ───────────────────────── 4 · Totals owned (Stocks · Crypto · Cash · Metals) ───────────────────────── */}

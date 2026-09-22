@@ -19,6 +19,7 @@ import { formatMoney, currencyForTicker, type CurrencyCode } from "@/lib/currenc
 import { formatNumber } from "@/lib/portfolio";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { estimateFee, feeMarketFor, presetsForMarket, type FeePreset } from "@/lib/broker-fees";
 
 export interface BuyTarget {
   ticker: string; // internal ticker, e.g. BHP.AX or BTC
@@ -60,6 +61,8 @@ export function BuyDialog({
   const [notes, setNotes] = useState("");
   const [fees, setFees] = useState("");
   const [saving, setSaving] = useState(false);
+  const submittingRef = useRef(false);
+  const [feePresetId, setFeePresetId] = useState("zero");
   const [priceLoading, setPriceLoading] = useState(false);
   const [priceEdited, setPriceEdited] = useState(false);
   const [liveSpotRef, setLiveSpotRef] = useState<number | null>(null);
@@ -203,7 +206,7 @@ export function BuyDialog({
       }),
     [ticker, sharesNum, priceNum, liveSpotRef, amountNum, assetType, currency]
   );
-  const valid = amountNum > 0 && sharesNum > 0 && priceNum > 0;
+  const valid = !!ticker && amountNum > 0 && sharesNum > 0 && priceNum > 0 && !fillSanity.blocked;
 
   // Remaining cash after this purchase (NZD). Note: asset currency may differ
   // from NZD cash — we still compare against cashBalance for a clear UI signal.
@@ -213,6 +216,7 @@ export function BuyDialog({
     cashBalance != null && totalCost > 0 && totalCost > cashBalance + 1e-6;
 
   async function confirm() {
+    if (submittingRef.current || saving) return;
     if (!ticker) return toast.error("No ticker selected");
     if (!(priceNum > 0)) return toast.error("Enter a valid price per share");
     if (!(amountNum > 0)) return toast.error("Enter the dollar amount to invest");
@@ -244,6 +248,7 @@ export function BuyDialog({
       return toast.error(sanity.message || "Implied price blocked");
     }
 
+    submittingRef.current = true;
     setSaving(true);
     const payload = {
       type: "buy" as const,
@@ -262,6 +267,7 @@ export function BuyDialog({
     console.log("[buy-dialog] Submitting buy:", payload);
     const res = await api.post("/api/transactions", payload);
     setSaving(false);
+    submittingRef.current = false;
 
     if (res.ok) {
       toast.success(`Bought ${formatNumber(sharesNum)} ${displaySymbol} · ${formatMoney(totalCost, currency)}`);
@@ -385,24 +391,24 @@ export function BuyDialog({
                 autoFocus
               />
             </div>
-            {/* Quick-fill chips — never suggest more than available NZD cash */}
+            {/* Cash-aware % chips — always capped to available NZD cash (never hard-code US$1,000). */}
             <div className="flex flex-wrap gap-2">
-              {(cashBalance != null && cashBalance > 0
-                ? [25, 50, 100, 250, 500, 1000, 2500]
-                    .map((v) => Math.min(v, +cashBalance.toFixed(2)))
-                    .filter((v, i, arr) => v > 0 && arr.indexOf(v) === i)
-                    .slice(0, 5)
-                : []
-              ).map((v) => (
-                <button
-                  key={v}
-                  type="button"
-                  onClick={() => onAmountChange(String(v))}
-                  className="rounded-lg border border-border/60 bg-background/40 px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
-                >
-                  {formatMoney(v, currency === "NZD" ? "NZD" : currency, { compact: true })}
-                </button>
-              ))}
+              {cashBalance != null && cashBalance > 0
+                ? [25, 50, 100].map((pct) => {
+                    const v = +((cashBalance * pct) / 100).toFixed(2);
+                    if (!(v > 0)) return null;
+                    return (
+                      <button
+                        key={pct}
+                        type="button"
+                        onClick={() => onAmountChange(String(v))}
+                        className="rounded-lg border border-border/60 bg-background/40 px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+                      >
+                        {pct}% · {formatMoney(v, "NZD", { compact: true })}
+                      </button>
+                    );
+                  })
+                : null}
             </div>
             {exceedsCash && (
               <p className="flex items-center gap-1.5 text-xs font-medium text-rose-500">
@@ -506,9 +512,35 @@ export function BuyDialog({
           </div>
         </div>
 
-        
-          <div className="space-y-2">
+
+          <div className="space-y-2 border-t border-border/40 px-5 pt-3 sm:px-6">
             <Label htmlFor="buy-fees">Fees ({currency}) — optional</Label>
+            <div className="flex flex-wrap gap-1.5">
+              {presetsForMarket(feeMarketFor(ticker, assetType)).map((preset: FeePreset) => {
+                const notional = sharesNum * priceNum;
+                const est = estimateFee(notional, preset);
+                const active = feePresetId === preset.id;
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => {
+                      setFeePresetId(preset.id);
+                      setFees(est > 0 ? String(est) : "");
+                    }}
+                    className={
+                      "rounded-lg border px-2 py-1 text-[0.65rem] font-medium transition-colors " +
+                      (active
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border/60 text-muted-foreground hover:text-foreground")
+                    }
+                  >
+                    {preset.label}
+                    {notional > 0 && preset.id !== "zero" ? ` · ${est}` : ""}
+                  </button>
+                );
+              })}
+            </div>
             <Input
               id="buy-fees"
               type="number"
@@ -516,10 +548,13 @@ export function BuyDialog({
               step="any"
               placeholder="0.00"
               value={fees}
-              onChange={(e) => setFees(e.target.value)}
+              onChange={(e) => {
+                setFees(e.target.value);
+                setFeePresetId("custom");
+              }}
             />
             <p className="text-[11px] text-muted-foreground">
-              Brokerage or exchange fees for this fill. Paper/idea flows keep fees for reference without booking realised P&amp;L.
+              Advisory brokerage presets (NZ/AU/US caps, crypto %). Override to match your broker fill — AetherForge does not execute trades.
             </p>
           </div>
 

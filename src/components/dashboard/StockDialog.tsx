@@ -53,6 +53,7 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
   // Purchase date drives the price logic: today ⇒ live price locked; past ⇒ editable.
   const [purchaseDate, setPurchaseDate] = useState(todayStr);
   const [saving, setSaving] = useState(false);
+  const submittingRef = useRef(false);
   // True once we've auto-filled the "amount paid" with the live price (past dates),
   // so we can show a confirmation hint. Cleared as soon as the user edits it by hand.
   const [pricePrefilled, setPricePrefilled] = useState(false);
@@ -219,6 +220,7 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
   }
 
   async function handleSubmit() {
+    if (submittingRef.current || saving) return;
     const t = ticker.trim().toUpperCase();
     const sharesNum = Number(shares);
     const priceNum = Number(purchasePrice);
@@ -244,6 +246,7 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
       return toast.error(sanity.message || "Fill blocked");
     }
 
+    submittingRef.current = true;
     setSaving(true);
     const payload = {
       ticker: t,
@@ -266,6 +269,7 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
       : await api.post("/api/stocks", payload);
 
     setSaving(false);
+    submittingRef.current = false;
 
     if (res.ok) {
       toast.success(isEdit ? "Holding updated" : `${t} added to your portfolio`);
@@ -284,6 +288,8 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
         // Keep the dialog open when interacting with the portaled ticker search /
         // date picker dropdowns (see dialog-guards for the why).
         onInteractOutside={keepDialogOpenOnPortalInteraction}
+        onPointerDownOutside={keepDialogOpenOnPortalInteraction}
+        onFocusOutside={keepDialogOpenOnPortalInteraction}
         onEscapeKeyDown={keepDialogOpenWhilePopoverOpen}
       >
         <DialogHeader>
@@ -454,7 +460,17 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={saving || priceLoading} className="font-semibold">
+          <Button
+            onClick={handleSubmit}
+            disabled={
+              saving ||
+              priceLoading ||
+              !ticker.trim() ||
+              !(Number(shares) > 0) ||
+              !(Number(purchasePrice) > 0)
+            }
+            className="font-semibold"
+          >
             {saving ? (
               <>
                 <Loader2 className="mr-2 size-4 animate-spin" /> Saving…

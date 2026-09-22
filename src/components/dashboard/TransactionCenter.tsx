@@ -19,6 +19,7 @@ import { formatNumber, type Stock } from "@/lib/portfolio";
 import { lookupTicker } from "@/lib/market";
 import { CRYPTO_DIRECTORY } from "@/lib/apex";
 import { TickerSearch } from "@/components/dashboard/TickerSearch";
+import { CryptoSearch } from "@/components/dashboard/CryptoSearch";
 import { cn } from "@/lib/utils";
 import { keepDialogOpenOnPortalInteraction, keepDialogOpenWhilePopoverOpen } from "@/lib/dialog-guards";
 import { toast } from "sonner";
@@ -875,6 +876,7 @@ function TransactionDialog({
   const [amount, setAmount] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const submittingRef = useRef(false);
   // BUY: the transaction date drives the price logic — today ⇒ live price locked;
   // any past date ⇒ the price field stays fully editable for the amount actually paid.
   const [executedDate, setExecutedDate] = useState(todayStr);
@@ -1039,6 +1041,7 @@ function TransactionDialog({
   }, [mode, quantity, price, fees, amount]);
 
   async function submit() {
+    if (submittingRef.current || saving) return;
     // Client-side validation with clear messages.
     if (isTrade) {
       const t = ticker.trim().toUpperCase();
@@ -1063,6 +1066,7 @@ function TransactionDialog({
       if (mode === "withdraw" && a > cash + 1e-6) return toast.error("Insufficient cash balance");
     }
 
+    submittingRef.current = true;
     setSaving(true);
 
     // ── Precious-metal sell (from the dedicated precious_metal table) ──────
@@ -1097,6 +1101,7 @@ function TransactionDialog({
         partial?: boolean;
       }>(url);
       setSaving(false);
+      submittingRef.current = false;
 
       if (res.ok) {
         const sold = res.data?.soldOunces ?? sellQty;
@@ -1150,6 +1155,7 @@ function TransactionDialog({
     console.log(`[transaction-center] Submitting ${mode}`, payload);
     const res = await api.post<Ledger>("/api/transactions", payload);
     setSaving(false);
+    submittingRef.current = false;
 
     if (res.ok && res.data) {
       const labels: Record<TxType, string> = {
@@ -1190,6 +1196,8 @@ function TransactionDialog({
         // cmdk item unmounting on select — is misread by Radix as an "outside"
         // click and dismisses the whole dialog.
         onInteractOutside={keepDialogOpenOnPortalInteraction}
+        onPointerDownOutside={keepDialogOpenOnPortalInteraction}
+        onFocusOutside={keepDialogOpenOnPortalInteraction}
         onEscapeKeyDown={keepDialogOpenWhilePopoverOpen}
       >
         <DialogHeader>
@@ -1258,24 +1266,17 @@ function TransactionDialog({
                     <span className="text-xs text-muted-foreground">Live NZD spot / troy oz</span>
                   </div>
                 ) : assetType === "crypto" ? (
-                  <>
-                    <Input
-                      id="tx-ticker"
-                      list="tx-ticker-suggestions"
-                      placeholder="e.g. BTC, ETH, SOL"
-                      value={ticker}
-                      onChange={(e) => setTicker(e.target.value.toUpperCase())}
-                      onBlur={handleBuyTickerBlur}
-                      className="uppercase"
-                    />
-                    <datalist id="tx-ticker-suggestions">
-                      {CRYPTO_DIRECTORY.map((t) => (
-                        <option key={t.ticker} value={t.ticker}>
-                          {t.name}
-                        </option>
-                      ))}
-                    </datalist>
-                  </>
+                  <CryptoSearch
+                    value={ticker}
+                    label={assetName}
+                    onSelect={(coin) => {
+                      const sym = coin.symbol.toUpperCase();
+                      setTicker(sym);
+                      setAssetName(coin.name);
+                      if (isToday) void lockToLivePrice(sym, "crypto");
+                      else if (coin.price > 0) setPrice(String(coin.price));
+                    }}
+                  />
                 ) : (
                   <>
                     <TickerSearch
@@ -1512,7 +1513,19 @@ function TransactionDialog({
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancel
           </Button>
-          <Button onClick={submit} disabled={saving || priceLoading} className="font-semibold">
+          <Button
+            onClick={submit}
+            disabled={
+              saving ||
+              priceLoading ||
+              (isTrade
+                ? !(ticker.trim() || selectedHolding?.metalSourceId) ||
+                  !(Number(quantity) > 0) ||
+                  (!(Number(price) > 0) && !selectedHolding?.metalSourceId)
+                : !(Number(amount) > 0))
+            }
+            className="font-semibold"
+          >
             {saving ? (
               <>
                 <Loader2 className="mr-2 size-4 animate-spin" /> Recording…

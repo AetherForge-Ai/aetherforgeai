@@ -88,7 +88,18 @@ export function hasActiveSubscription(user: AppUser | null): boolean {
 }
 
 /** The paid (non-free) subscription tiers. */
-const PAID_PLANS = ["weekly", "monthly", "yearly", "dual_yearly"];
+const PAID_PLANS = [
+  "weekly",
+  "monthly",
+  "yearly",
+  "dual_yearly",
+  "starter_monthly",
+  "starter_yearly",
+  "pro_monthly",
+  "pro_yearly",
+  "ultimate_monthly",
+  "ultimate_yearly",
+];
 
 /**
  * True only for an active PAID subscription (excludes the free tier).

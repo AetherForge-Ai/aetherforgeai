@@ -5,11 +5,12 @@ import { totalumSdk } from "@/lib/totalum";
 import { referencePrice } from "@/lib/market";
 import { fetchLiveQuotes, fetchCryptoQuotes } from "@/lib/market-data";
 import { CRYPTO_DIRECTORY } from "@/lib/apex";
+import { getMetalsSpot } from "@/lib/metals";
 
 const createSchema = z.object({
   stockId: z.string().optional(),
   ticker: z.string().min(1).max(12),
-  assetType: z.enum(["stock", "crypto"]).optional(),
+  assetType: z.enum(["stock", "crypto", "metal"]).optional(),
   trimPct: z.number().nullable().optional(),
   trimTriggerDipPct: z.number().nullable().optional(),
   hardSellPrice: z.number().nullable().optional(),
@@ -25,12 +26,13 @@ function inferAssetType(
   ticker: string,
   stored: string | null | undefined,
   holdingType: string | null | undefined
-): "stock" | "crypto" {
+): "stock" | "crypto" | "metal" {
   const s = (stored || "").toLowerCase();
-  if (s === "crypto" || s === "stock") return s;
+  if (s === "crypto" || s === "stock" || s === "metal") return s as "stock" | "crypto" | "metal";
   const h = (holdingType || "").toLowerCase();
-  if (h === "crypto" || h === "stock") return h as "stock" | "crypto";
+  if (h === "crypto" || h === "stock" || h === "metal") return h as "stock" | "crypto" | "metal";
   const t = ticker.toUpperCase();
+  if (t === "GOLD" || t === "SILVER") return "metal";
   if (CRYPTO_TICKERS.has(t) || CRYPTO_TICKERS.has(t.replace(/-USD$/, ""))) return "crypto";
   return "stock";
 }
@@ -83,13 +85,31 @@ export async function GET() {
         : Promise.resolve({} as Record<string, { price: number; changePct: number }>),
     ]);
 
+    const metalTickers = classified.filter((c) => c.assetType === "metal").map((c) => c.ticker);
+    let metalSpot: { gold?: { nzdPerOz: number }; silver?: { nzdPerOz: number } } | null = null;
+    if (metalTickers.length) {
+      try {
+        metalSpot = await getMetalsSpot();
+      } catch (err) {
+        console.error("[api/alerts] metals spot fetch failed:", err);
+      }
+    }
+
     const alerts = classified.map(({ a, ticker, assetType }) => {
-      const liveHit =
-        assetType === "crypto" ? liveCrypto[ticker] : liveEquity[ticker];
-      const currentPrice =
-        liveHit && liveHit.price > 0
-          ? liveHit.price
-          : referencePrice(a.ticker, Number(a.hard_sell_price) || 1);
+      let currentPrice = 0;
+      if (assetType === "metal") {
+        const key = ticker === "SILVER" ? "silver" : "gold";
+        currentPrice = metalSpot?.[key]?.nzdPerOz || 0;
+      } else {
+        const liveHit = assetType === "crypto" ? liveCrypto[ticker] : liveEquity[ticker];
+        currentPrice =
+          liveHit && liveHit.price > 0
+            ? liveHit.price
+            : referencePrice(a.ticker, Number(a.hard_sell_price) || 1);
+      }
+      if (!(currentPrice > 0)) {
+        currentPrice = referencePrice(a.ticker, Number(a.hard_sell_price) || 1);
+      }
       const triggered =
         typeof a.hard_sell_price === "number" && a.hard_sell_price > 0 && currentPrice <= a.hard_sell_price;
       return {

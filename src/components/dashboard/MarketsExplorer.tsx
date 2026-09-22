@@ -137,6 +137,9 @@ export function MarketsExplorer({
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [buyTarget, setBuyTarget] = useState<BuyTarget | null>(null);
   const [buyOpen, setBuyOpen] = useState(false);
+  /** Live Yahoo matches for tickers outside the curated exchange list (e.g. CIP.AX). */
+  const [remoteHits, setRemoteHits] = useState<DisplayRow[]>([]);
+  const [remoteLoading, setRemoteLoading] = useState(false);
   const [detailTarget, setDetailTarget] = useState<DetailTarget | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [coinId, setCoinId] = useState<string | null>(null);
@@ -177,6 +180,94 @@ export function MarketsExplorer({
     const id = setInterval(() => load(tab as Exchange, true), 45_000);
     return () => clearInterval(id);
   }, [active, tab, isCryptoTab, load]);
+
+  // When the local curated list misses a ticker (e.g. CIP.AX), resolve via Yahoo
+  // symbol search so Buy still appears for any ASX/NZX/US listing.
+  useEffect(() => {
+    if (!active || isCryptoTab) {
+      setRemoteHits([]);
+      return;
+    }
+    const q = query.trim();
+    if (q.length < 1) {
+      setRemoteHits([]);
+      setRemoteLoading(false);
+      return;
+    }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      setRemoteLoading(true);
+      const res = await api.get<
+        { symbol: string; name: string; exchange: string; exchangeLabel: string }[]
+      >(`/api/tickers/search?q=${encodeURIComponent(q)}`);
+      if (cancelled) return;
+      setRemoteLoading(false);
+      if (!res.ok || !res.data) {
+        setRemoteHits([]);
+        return;
+      }
+      const tabLabel =
+        tab === "ASX" ? "ASX" : tab === "NZX" ? "NZX" : tab === "NASDAQ" ? "NASDAQ" : tab === "DOW" ? "NYSE" : "";
+      const qUp = q.toUpperCase();
+      const mapped: DisplayRow[] = [];
+      for (const m of res.data) {
+        const label = (m.exchangeLabel || "").toUpperCase();
+        const sym = (m.symbol || "").toUpperCase();
+        const bare = sym.replace(/\.(AX|NZ)$/i, "");
+        const exactHit =
+          sym === qUp || bare === qUp || sym.startsWith(qUp) || bare.startsWith(qUp);
+        const onTab = !tabLabel || label === tabLabel || (tab === "DOW" && label === "NYSE");
+        // Always surface exact ticker hits (CIP / CIP.AX) even off-tab; otherwise keep tab matches.
+        if (!exactHit && !onTab) continue;
+        const currency = label === "ASX" ? "AUD" : label === "NZX" ? "NZD" : "USD";
+        const exchange = (
+          label === "ASX" ? "ASX" : label === "NZX" ? "NZX" : label === "NASDAQ" ? "NASDAQ" : "DOW"
+        ) as Exchange;
+        mapped.push({
+          key: `remote:${sym}`,
+          ticker: sym,
+          symbol: bare,
+          name: m.name || sym,
+          currency,
+          price: 0,
+          changePct: 0,
+          changeAbs: 0,
+          dayHigh: null,
+          dayLow: null,
+          volume: null,
+          marketCap: null,
+          live: false,
+          exchange,
+        });
+      }
+      setRemoteHits(mapped);
+      // Best-effort live quote for the top few remote hits so Buy has a price.
+      for (const row of mapped.slice(0, 6)) {
+        void (async () => {
+          const qr = await api.get<{ price: number | null; changePct?: number | null }>(
+            `/api/tickers/quote?symbol=${encodeURIComponent(row.ticker)}&type=stock`
+          );
+          if (cancelled || !qr.ok || !qr.data?.price) return;
+          setRemoteHits((prev) =>
+            prev.map((r) =>
+              r.ticker === row.ticker
+                ? {
+                    ...r,
+                    price: qr.data!.price!,
+                    changePct: qr.data!.changePct ?? 0,
+                    live: true,
+                  }
+                : r
+            )
+          );
+        })();
+      }
+    }, 320);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [active, isCryptoTab, query, tab]);
 
   function refresh() {
     if (isCryptoTab) crypto.refresh();
@@ -231,16 +322,22 @@ export function MarketsExplorer({
     }
     const q = query.trim().toLowerCase();
     const filtered = q
-      ? all.filter((r) => r.symbol.toLowerCase().includes(q) || r.name.toLowerCase().includes(q))
+      ? all.filter((r) => r.symbol.toLowerCase().includes(q) || r.name.toLowerCase().includes(q) || r.ticker.toLowerCase().includes(q))
       : all;
+    // Merge Yahoo remote hits that are not already in the curated list.
+    const seen = new Set(filtered.map((r) => r.ticker.toUpperCase()));
+    const extras = !isCryptoTab && q
+      ? remoteHits.filter((r) => !seen.has(r.ticker.toUpperCase()))
+      : [];
+    const merged = extras.length ? [...extras, ...filtered] : filtered;
     const dir = sortDir === "asc" ? 1 : -1;
-    return [...filtered].sort((a, b) => {
+    return [...merged].sort((a, b) => {
       if (sortKey === "symbol") return a.symbol.localeCompare(b.symbol) * dir;
       if (sortKey === "volume") return ((a.volume ?? 0) - (b.volume ?? 0)) * dir;
       if (sortKey === "marketCap") return ((a.marketCap ?? 0) - (b.marketCap ?? 0)) * dir;
       return ((a[sortKey] as number) - (b[sortKey] as number)) * dir;
     });
-  }, [isCryptoTab, crypto.coins, data, query, sortKey, sortDir]);
+  }, [isCryptoTab, crypto.coins, data, query, sortKey, sortDir, remoteHits]);
 
   // Live-price formatter — crypto needs micro-price precision, stocks are currency-aware.
   const showPrice = (r: DisplayRow) => (r.coinId ? fmtPrice(r.price) : formatMarketPrice(r.price, r.currency));
@@ -344,7 +441,9 @@ export function MarketsExplorer({
         <div className="flex flex-col items-end gap-0.5">
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <Radio className="size-3.5 text-emerald-600" />
-            {hasData ? `${rows.length} of ${total} · ${liveCount} live${asOf ? ` · ${fmtTime(asOf)}` : ""}` : "—"}
+            {hasData || remoteHits.length
+              ? `${rows.length} of ${total}${remoteLoading ? " · searching…" : ""}${remoteHits.length && query.trim() ? ` · +${remoteHits.length} market match${remoteHits.length === 1 ? "" : "es"}` : ""} · ${liveCount} live${asOf ? ` · ${fmtTime(asOf)}` : ""}`
+              : "—"}
           </p>
           {tab === "NZX" && (
             <p className="flex items-center gap-1 text-[0.62rem] text-muted-foreground/80">

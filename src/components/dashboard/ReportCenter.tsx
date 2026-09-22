@@ -25,7 +25,7 @@ import type { ApexReport, BotKind } from "@/lib/apex";
 import { BOT_STOX_AVATAR, BOT_KOINS_AVATAR, BOT_HEADMASTER_AVATAR } from "../../../assets/files";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { checkReportQuota, formatDuration, reportCadence } from "@/lib/entitlements";
+import { checkReportQuota, formatDuration, formatReportCooldownLine, reportCadence } from "@/lib/entitlements";
 import { Loader2, Lock, Play, FileDown, Mail, FileText, Sparkles, Clock, Zap, ArrowRight, ChevronDown } from "lucide-react";
 
 type BotAccess = "stock" | "crypto" | "both" | "none";
@@ -267,7 +267,8 @@ export function ReportCenter({
             <p className="text-sm font-semibold">
               One full <span className="text-foreground">Stox</span> report{" "}
               <span className="text-muted-foreground">and</span> one full{" "}
-              <span className="text-foreground">Koins</span> report per {cadence.unit}
+              <span className="text-foreground">Koins</span> report per Auckland{" "}
+              {cadence.unit === "day" ? "calendar day (unlocks at NZ midnight)" : "week"}
             </p>
             <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
               {(["stock", "crypto"] as BotKind[]).map((k) => {
@@ -277,9 +278,21 @@ export function ReportCenter({
                   <span key={k} className="inline-flex items-center gap-1">
                     <span className="font-medium text-foreground">{label}:</span>
                     {q.allowed ? (
-                      <span className="text-emerald-600">ready to run</span>
+                      <span className="text-emerald-600">
+                        {formatReportCooldownLine({
+                          lastReportAt: q.lastReportAt,
+                          waitMs: 0,
+                          cadenceUnit: q.cadence.unit,
+                        })}
+                      </span>
                     ) : (
-                      <span className="text-[var(--gold)]">available again in {formatDuration(q.waitMs)}</span>
+                      <span className="text-[var(--gold)]">
+                        {formatReportCooldownLine({
+                          lastReportAt: q.lastReportAt,
+                          waitMs: q.waitMs,
+                          cadenceUnit: q.cadence.unit,
+                        })}
+                      </span>
                     )}
                   </span>
                 );
@@ -343,7 +356,7 @@ export function ReportCenter({
                   </Button>
                 ) : botLocked ? (
                   <Button variant="outline" className="w-full" disabled>
-                    <Clock className="mr-1 size-4" /> {b.name} available again in {formatDuration(botQuota.waitMs)}
+                    <Clock className="mr-1 size-4" /> {formatReportCooldownLine({ lastReportAt: botQuota.lastReportAt, waitMs: botQuota.waitMs, cadenceUnit: botQuota.cadence.unit })}
                   </Button>
                 ) : (
                   <Button className="w-full" onClick={() => runReport(b.kind)} disabled={busy || running !== null}>

@@ -32,11 +32,11 @@ export function AnimatedMoney({
     const to = value;
     if (from === to) return;
 
-    // Honour reduced-motion — snap straight to the value.
+    // Snap when hydrating from a zero placeholder so route changes never tween NZ$0 → real cash.
     const reduce =
       typeof window !== "undefined" &&
       window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    if (reduce) {
+    if (reduce || (from === 0 && to > 0)) {
       fromRef.current = to;
       setDisplay(to);
       return;

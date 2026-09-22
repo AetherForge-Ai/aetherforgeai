@@ -151,8 +151,8 @@ function formatBookSnapshot(s: BookSnapshot): string {
   if (s.isEmpty) {
     return (
       "**Dashboard overview**\n\n" +
-      "Your book looks empty so far — no cash, stocks, crypto or metals recorded yet.\n\n" +
-      "Next: deposit cash or add holdings in the **Transaction Center**, then ask me again for a fresh read."
+      "I could not see cash or holdings on your live ledger yet.\n\n" +
+      "If you recently deposited funds, refresh and ask again — I always re-read the ledger before making cash claims."
     );
   }
   const alloc = (s.classAllocation || [])
@@ -314,10 +314,10 @@ export function PortfolioCoachChat({
         let stockVal = 0;
         let cryptoVal = 0;
         for (const h of holdings) {
-          const qty = Number(h.quantity || 0);
+          const qty = Number((h as any).shares ?? h.quantity ?? 0);
           const px = Number(h.current_price ?? h.price ?? 0);
           const v = Number(
-            h.value_nzd ?? h.current_value ?? h.market_value ?? qty * px
+            h.value_nzd ?? h.current_value ?? h.market_value ?? (qty > 0 && px > 0 ? qty * px : 0)
           );
           if ((h.asset_type || "stock") === "crypto") cryptoVal += v;
           else stockVal += v;
@@ -343,7 +343,8 @@ export function PortfolioCoachChat({
         }
 
         const total = cash + stockVal + cryptoVal + metalsVal;
-        const isEmpty = total <= 0 && holdings.length === 0;
+        // Cash on the ledger counts — never claim "no cash" when NZD balance > 0.
+        const isEmpty = cash <= 0 && holdings.length === 0 && metalsVal <= 0 && total <= 0;
         const classes: { label: string; weight: number; valueNZD: number }[] = [];
         const pushClass = (label: string, valueNZD: number) => {
           if (valueNZD <= 0 && label !== "Cash") return;
@@ -450,6 +451,35 @@ export function PortfolioCoachChat({
     }
     setSending(true);
 
+    // Always re-read live ledger cash before any cash / holdings claim so the
+    // Guide never contradicts a book that already has NZD on deposit.
+    let liveBook = bookSnapshot;
+    try {
+      const txRes = await fetch("/api/transactions", { credentials: "include" });
+      const txJson = (await txRes.json()) as { ok?: boolean; data?: { cashBalance?: number } };
+      if (txJson.ok) {
+        const cash = Number(txJson.data?.cashBalance || 0);
+        liveBook = {
+          ...(liveBook || {}),
+          cashBalanceNZD: cash,
+          totalValueNZD: Math.max(Number(liveBook?.totalValueNZD || 0), cash),
+          isEmpty: cash <= 0 && !((liveBook?.classAllocation || []).some((c) => (c.valueNZD || 0) > 0 || c.label !== "Cash")),
+          asOf: new Date().toISOString().slice(0, 10),
+        };
+        if (cash > 0) liveBook.isEmpty = false;
+        setBookSnapshot(liveBook);
+        if (cash > 0) {
+          setHeadmasterPlan((prev) =>
+            prev && /book is empty/i.test(prev)
+              ? `Latest ledger cash about NZ$${Math.round(cash).toLocaleString()}.`
+              : prev
+          );
+        }
+      }
+    } catch {
+      /* keep prior snapshot */
+    }
+
     try {
       const historyForApi = (
         opts?.prependAssistant
@@ -535,6 +565,7 @@ export function PortfolioCoachChat({
         );
         return;
       }
+      // send() always re-reads /api/transactions before cash claims.
       const snapshot = formatBookSnapshot(bookSnapshot);
       void send(
         card.prompt ||
