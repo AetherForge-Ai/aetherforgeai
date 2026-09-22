@@ -267,7 +267,9 @@ type HoldingSortKey =
 
 /** Stable gate wrapper — MUST live outside the dashboard component so React
  *  does not treat it as a new component type on every parent render (which
- *  remounts children and wipes open Buy/Add dialog state on ledger refresh). */
+ *  remounts children and wipes open Buy/Add dialog state on ledger refresh).
+ *  Always render <DashboardGate preview={…}> directly — never re-wrap it in an
+ *  inline `const Gate = …` alias (that undoes this fix and dismisses TC search). */
 function DashboardGate({
   preview,
   title,
@@ -426,7 +428,10 @@ export function PortfolioDashboard({
   const monitoredForLimit = scope === "total" ? holdingCounts.total : stocks.length;
 
   const loadStocks = useCallback(async () => {
-    setLoading(true);
+    // Never re-arm `loading` after the initial hydrate. Flipping it true again
+    // collapses balancesReady (KPI zero-flash) and used to remount Transaction
+    // Centre Buy/Add mid ticker-search when live price overlay finished on the
+    // existing-holdings path. Initial useState(!preview) already gates first paint.
     const res = await api.get<Stock[]>(`/api/stocks`);
     if (res.ok && res.data) {
       setAllStocks(res.data);
@@ -802,11 +807,6 @@ export function PortfolioDashboard({
 
   const gainTone = summary.totalGain >= 0 ? "up" : "down";
 
-  const Gate = (props: { title: string; description?: string; children: React.ReactNode }) => (
-    <DashboardGate preview={preview} {...props} />
-  );
-
-
   const isHome = view === "home";
   const isBots = view === "bots";
   const isCash = view === "cash";
@@ -996,7 +996,8 @@ export function PortfolioDashboard({
       {/* Report Center under home window tiles / bots desk (not on stocks/crypto hubs) */}
       {(isHome || isBots) && (
       <div id="dash-report-centre" className="mt-8 scroll-mt-24">
-      <Gate
+      <DashboardGate
+        preview={preview}
         title="Report Centre"
         description="Generate full PDF portfolio reports with market intelligence, indicators and AI insight — emailed to you."
       >
@@ -1009,7 +1010,7 @@ export function PortfolioDashboard({
           onHoldingsChanged={handleDataChanged}
           preview={preview}
         />
-      </Gate>
+      </DashboardGate>
       </div>
       )}
 
@@ -1099,7 +1100,8 @@ export function PortfolioDashboard({
 
       {/* ───────────────────────── 3 · Stock portfolio overview ───────────────────────── */}
       <div id="dash-stock-overview" className={cn("mt-10 scroll-mt-24", !isStocks && "hidden")}>
-      <Gate
+      <DashboardGate
+        preview={preview}
         title="Stock Portfolio Overview"
         description="Your live KPIs — total worth, unrealised P&L, 7-day alpha, portfolio health, Sharpe & win rate."
       >
@@ -1178,12 +1180,13 @@ export function PortfolioDashboard({
         onDelete={setDeleteTarget}
         onOpenChart={setChartTarget}
       />
-      </Gate>
+      </DashboardGate>
       </div>
 
       {/* ───────────────────────── 3b · Crypto currency overview ───────────────────────── */}
       <div id="dash-crypto-overview" className={cn("mt-10 scroll-mt-24", !isCrypto && "hidden")}>
-      <Gate
+      <DashboardGate
+        preview={preview}
         title="Crypto Currency Overview"
         description="Live crypto KPIs and market terminal — total worth, unrealised P&L, health and projected movers."
       >
@@ -1265,19 +1268,20 @@ export function PortfolioDashboard({
       <div className="mt-6">
         <CryptoMarketSection />
       </div>
-      </Gate>
+      </DashboardGate>
       </div>
 
       {/* ───────────────────────── 3c · Precious metals (moved up for page flow) ───────────────────────── */}
       <div id="dash-metals-overview" className={cn("mt-10 scroll-mt-24", !isMetals && "hidden")}>
         <PreciousMetals entitled={metalsEntitled} plan={subscription.plan} onChanged={handleMetalsChanged} />
         <div className="mt-6">
-          <Gate
+          <DashboardGate
+            preview={preview}
             title="Metals Price Alerts"
             description="Set alerts on gold and silver so you never miss a move on your bullion."
           >
             <PriceAlerts stocks={allStocks} assetType="metal" preview={preview} />
-          </Gate>
+          </DashboardGate>
         </div>
       </div>
 
@@ -1423,7 +1427,8 @@ export function PortfolioDashboard({
 
       {/* ───────────────────────── 5 · Holdings table (gated for guests) ───────────────────────── */}
       <div className={cn("mt-8", !isStocks && "hidden")}>
-      <Gate
+      <DashboardGate
+        preview={preview}
         title="Your Holdings"
         description="Track every position live — shares, cost, current price, market value and gain/loss."
       >
@@ -1605,13 +1610,14 @@ export function PortfolioDashboard({
           </div>
         )}
       </div>
-      </Gate>
+      </DashboardGate>
       </div>
 
 
       {/* Share / crypto price alerts — directly under Your Holdings */}
       <div className={cn("mt-6", !(isStocks || isCrypto) && "hidden")}>
-        <Gate
+        <DashboardGate
+          preview={preview}
           title={isCrypto ? "Crypto Price Alerts" : "Share Price Alerts"}
           description={
             isCrypto
@@ -1624,13 +1630,14 @@ export function PortfolioDashboard({
             assetType={isCrypto ? "crypto" : "stock"}
             preview={preview}
           />
-        </Gate>
+        </DashboardGate>
       </div>
 
 
       {/* ───────────────────────── 6 · Transaction centre (buy / sell / cash) — gated for guests ───────────────────────── */}
       <div className={cn("mt-8", !(isCash || isTransactions || isStocks || isCrypto) && "hidden")}>
-      <Gate
+      <DashboardGate
+        preview={preview}
         title="Transaction Centre"
         description="Buy, sell, deposit and withdraw — a full ledger of your cash and trades across every asset."
       >
@@ -1644,7 +1651,7 @@ export function PortfolioDashboard({
           }
           layout={isTransactions ? "ledger" : isCash ? "full" : "trading"}
         />
-      </Gate>
+      </DashboardGate>
       </div>
 
 
@@ -1684,14 +1691,15 @@ export function PortfolioDashboard({
       {/* ───────────────────────── 10 · Watchlist (gated for guests) ───────────────────────── */}
       <div className={cn("mt-6", !(isStocks || isCrypto) && "hidden")}>
       <div className="mt-6">
-      <Gate
+      <DashboardGate
+        preview={preview}
         title="Watchlist"
         description="Track tickers you follow — add names to your watchlist so you never lose sight of them."
       >
       <div>
         <WatchlistPanel bot={bot} reloadSignal={watchlistSignal} preview={preview} />
       </div>
-      </Gate>
+      </DashboardGate>
       </div>
 
       {/* AI report companion */}
@@ -1706,7 +1714,8 @@ export function PortfolioDashboard({
       {/* Report Centre at foot of stocks/crypto overview — generators first, reports list below (minimizable) */}
       {(isStocks || isCrypto) && (
       <div id="dash-report-centre-hub" className="mt-10 scroll-mt-24">
-      <Gate
+      <DashboardGate
+        preview={preview}
         title="Report Centre"
         description="Generate full PDF portfolio reports with market intelligence, indicators and AI insight — emailed to you."
       >
@@ -1719,7 +1728,7 @@ export function PortfolioDashboard({
           onHoldingsChanged={handleDataChanged}
           preview={preview}
         />
-      </Gate>
+      </DashboardGate>
       </div>
       )}
 
