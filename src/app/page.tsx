@@ -1,8 +1,6 @@
-import Link from "next/link";
 import { SiteHeader } from "@/components/SiteHeader";
 import { MarketTicker } from "@/components/MarketTicker";
-import { Button } from "@/components/ui/button";
-import { ArrowRight } from "lucide-react";
+import { HomeBottomCta, HomeHeroCtas } from "@/components/home/HomeSessionCtas";
 import { PersonalGuide } from "@/components/personal-guide";
 
 const BOTS = [
@@ -95,17 +93,7 @@ export default function LandingPage() {
                     then let Stox, Koins and The Headmaster turn live data into a plan
                     you can actually use.
                   </p>
-                  <div className="mt-8 flex flex-wrap items-center gap-3">
-                    <Button asChild className="h-12 px-7 text-base shadow-glow">
-                      <Link href="/register">
-                        Start free
-                        <ArrowRight className="size-4" />
-                      </Link>
-                    </Button>
-                    <Button asChild variant="outline" className="h-12 px-7 text-base border-white/40 bg-white/10 text-white hover:bg-white/20 hover:text-white">
-                      <Link href="/dashboard">Open Dashboard</Link>
-                    </Button>
-                  </div>
+                  <HomeHeroCtas />
                 </div>
                 <div className="relative">
                   <div className="absolute -inset-4 rounded-3xl bg-gradient-to-br from-primary/20 via-transparent to-amber-400/10 blur-2xl" />
@@ -279,12 +267,7 @@ export default function LandingPage() {
                   Ready to take care of your Portfolio?
                 </h2>
 
-                <Button asChild className="mt-8 h-12 px-8 text-base shadow-glow">
-                  <Link href="/register">
-                    Start free
-                    <ArrowRight className="size-4" />
-                  </Link>
-                </Button>
+                <HomeBottomCta />
               </div>
             </section>
           </div>

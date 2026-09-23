@@ -19,9 +19,13 @@ function VerifyEmailInner() {
     if (errorParam) {
       console.warn(`[verify-email] Verification failed: ${errorParam}`);
       setFailed(true);
-    } else {
-      console.log("[verify-email] Email verified successfully.");
+      return;
     }
+    console.log("[verify-email] Email verified successfully — sending the user to Dashboard.");
+    const timer = window.setTimeout(() => {
+      window.location.href = "/dashboard";
+    }, 600);
+    return () => window.clearTimeout(timer);
   }, [errorParam]);
 
   return (

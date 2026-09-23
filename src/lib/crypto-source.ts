@@ -24,31 +24,70 @@ function toCgId(id: string): string {
   return canonicalCryptoId(t);
 }
 
+const MIN_CRYPTO_UNIVERSE = 100;
+
+function coinKey(c: CoinMarket): string {
+  return (c.symbol || c.id || "").toUpperCase();
+}
+
+/** Keep the first copy of each symbol, ordered by market-cap rank. */
+function mergeByRank(lists: CoinMarket[][]): CoinMarket[] {
+  const seen = new Set<string>();
+  const out: CoinMarket[] = [];
+  for (const list of lists) {
+    for (const coin of list) {
+      const key = coinKey(coin);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      out.push(coin);
+    }
+  }
+  return out.sort((a, b) => (a.rank ?? 999999) - (b.rank ?? 999999));
+}
+
 export async function getTop500(): Promise<CoinMarket[]> {
+  const parts: CoinMarket[][] = [];
+
   try {
     const coins = await swyftx.fetchTop500();
     if (coins && coins.length > 0) {
       console.log(`[crypto-source] top500 via Swyftx (${coins.length})`);
-      return coins;
+      if (coins.length >= MIN_CRYPTO_UNIVERSE) return coins;
+      parts.push(coins);
+    } else {
+      throw new Error("Swyftx returned an empty market list");
     }
-    throw new Error("Swyftx returned an empty market list");
   } catch (err) {
     console.error("[crypto-source] Swyftx top500 failed — trying CoinGecko:", err);
   }
-  try {
-    const coins = await coingecko.fetchTop500();
-    if (coins && coins.length > 0) {
-      console.log(`[crypto-source] top500 via CoinGecko (${coins.length})`);
-      return coins;
+
+  if (mergeByRank(parts).length < MIN_CRYPTO_UNIVERSE) {
+    try {
+      const coins = await coingecko.fetchTop500();
+      if (coins && coins.length > 0) {
+        console.log(`[crypto-source] top500 via CoinGecko (${coins.length})`);
+        parts.push(coins);
+        if (mergeByRank(parts).length >= MIN_CRYPTO_UNIVERSE && parts.length === 1) return coins;
+      } else {
+        throw new Error("CoinGecko returned an empty market list");
+      }
+    } catch (err) {
+      console.error("[crypto-source] CoinGecko top500 failed — Yahoo major fallback:", err);
     }
-    throw new Error("CoinGecko returned an empty market list");
-  } catch (err) {
-    console.error("[crypto-source] CoinGecko top500 failed — Yahoo major fallback:", err);
   }
-  const y = await yahoo.fetchYahooMajorMarkets();
-  if (!y.length) throw new Error("All crypto market sources failed (Swyftx, CoinGecko, Yahoo)");
-  console.log(`[crypto-source] top500 via Yahoo major (${y.length})`);
-  return y;
+
+  if (mergeByRank(parts).length < MIN_CRYPTO_UNIVERSE) {
+    const y = await yahoo.fetchYahooMajorMarkets();
+    if (y.length) {
+      console.log(`[crypto-source] topping up via Yahoo major (${y.length})`);
+      parts.push(y);
+    }
+  }
+
+  const merged = mergeByRank(parts);
+  if (!merged.length) throw new Error("All crypto market sources failed (Swyftx, CoinGecko, Yahoo)");
+  console.log(`[crypto-source] crypto universe → ${merged.length} coins`);
+  return merged;
 }
 
 export async function getCoinDetail(id: string): Promise<CoinDetail> {

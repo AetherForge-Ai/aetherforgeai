@@ -6,8 +6,6 @@ import { Button } from "@/components/ui/button";
 import { LiveExamplesGallery } from "@/components/performance/LiveExamplesGallery";
 import {
   ArrowRight,
-  ChevronDown,
-  ShieldCheck,
   Gauge,
   Zap,
   BrainCircuit,
@@ -83,76 +81,35 @@ export default function PerformancePage() {
       <div className="relative">
         <SiteHeader />
 
-        {/* ─────────────────────────  1 · HERO  ───────────────────────── */}
-        <section className="relative mx-auto max-w-5xl px-4 pt-16 pb-14 text-center sm:px-6 lg:px-8 lg:pt-20">
-          <p className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-primary">
-            <ShieldCheck className="size-3.5" /> Live · Unedited · Timestamped
-          </p>
-          <h1 className="mt-6 font-display text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-6xl">
-            Real Proof. <span className="text-primary">Real Accuracy.</span>
-            <br className="hidden sm:block" /> Real{" "}
-            <span className="text-gradient">Profits.</span>
+        {/* ─────────────────────────  INTRO  ───────────────────────── */}
+        <section className="mx-auto max-w-3xl px-4 pt-14 pb-10 text-center sm:px-6 sm:pt-16 sm:pb-12 lg:px-8">
+          <h1 className="font-grift-black text-4xl tracking-tight text-amber-400 sm:text-5xl">
+            Live Results
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-muted-foreground">
-            Live, unedited screenshots from today showing the AI bot delivering precise market
-            information and clear profit opportunities in real time.
-          </p>
-          <p className="mx-auto mt-4 inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/40 px-4 py-1.5 text-xs font-medium text-muted-foreground">
-            <BadgeCheck className="size-3.5 text-primary" /> Every example is timestamped and
-            verifiable against live NZX &amp; ASX market data.
-          </p>
-
-          <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row">
-            <Button asChild size="lg" className="h-12 px-8 text-base font-semibold shadow-glow">
-              <Link href="/register">
-                Start Using the Bot <ArrowRight className="ml-1 size-4" />
-              </Link>
-            </Button>
-            <Button asChild size="lg" variant="outline" className="h-12 px-8 text-base">
-              <a href="#live-examples">
-                See How It Works <ChevronDown className="ml-1 size-4" />
-              </a>
-            </Button>
-          </div>
-
-          {/* subtle ticker-style trust row */}
-          <div className="mx-auto mt-12 grid max-w-3xl grid-cols-2 gap-3 sm:grid-cols-4">
-            {[
-              ["4 markets", "NZX · ASX · US · Crypto"],
-              ["Live FX", "True NZD net worth"],
-              ["Real-time", "Analytics & alerts"],
-              ["0 edits", "Raw screenshots"],
-            ].map(([big, small]) => (
-              <div
-                key={big}
-                className="rounded-2xl border border-border/60 bg-card/30 px-4 py-3 backdrop-blur"
-              >
-                <div className="font-display text-sm font-bold text-primary">{big}</div>
-                <div className="mt-0.5 text-[11px] text-muted-foreground">{small}</div>
-              </div>
-            ))}
+          <div className="mt-6 space-y-4 text-base leading-relaxed text-muted-foreground sm:mt-8 sm:text-lg">
+            <p>
+              I am so confident in my AI bots coming up with accurate predictions so I ran a LIVE
+              experiment and screenshot my Portfolio Balance over the period of 1 day from just after
+              9am till around the close of business that day.
+            </p>
+            <p>
+              These screenshot images that I have uploaded are verified by the Stock Markets share
+              prices on that day and at these times.
+            </p>
+            <p>
+              2.4% profit over the space of 8-9 hours is not something I am seeing ANY trading
+              platforms achieve. AetherForge AI not only proves these results, but produces positive
+              results EVERY SINGLE TIME.
+            </p>
+            <p>
+              This is achieved by using DATA BACKED Intelligence — Data Backed means factual
+              intelligence, not guess work, actual real intelligence.
+            </p>
           </div>
         </section>
 
-        {/* ────────────────  2 · TODAY'S LIVE EXAMPLES  ──────────────── */}
-        <section id="live-examples" className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-          <div className="mx-auto mb-12 max-w-3xl text-center">
-            <p className="text-sm font-semibold uppercase tracking-wider text-primary">
-              Today&apos;s live examples
-            </p>
-            <h2 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">
-              Screenshots from Today — See the Accuracy Yourself
-            </h2>
-            <p className="mt-4 text-lg leading-relaxed text-muted-foreground">
-              These are real interactions with the AI Portfolio Monitoring Bot captured today. Notice
-              how the information is precise, timely, and directly useful for making profitable
-              decisions.
-            </p>
-            <p className="mt-3 text-sm text-muted-foreground/80">
-              Tip: tap any screenshot to open a larger, zoomable view.
-            </p>
-          </div>
-
+        {/* ────────────────  LIVE EXAMPLES GALLERY  ──────────────── */}
+        <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
           <LiveExamplesGallery />
 
           {/* the live climb, summarised honestly */}

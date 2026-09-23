@@ -13,9 +13,17 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { BrandLogo } from "@/components/BrandLogo";
 import { MailWarning, Loader2 } from "lucide-react";
 
+/** After a successful sign-in, land on Dashboard unless a specific in-app path was requested. */
+function postLoginPath(raw: string | null): string {
+  if (!raw || raw === "/" || raw.startsWith("/?") || raw.startsWith("//") || !raw.startsWith("/")) {
+    return "/dashboard";
+  }
+  return raw;
+}
+
 function LoginForm() {
   const searchParams = useSearchParams();
-  const redirect = searchParams.get("redirect") || "/dashboard";
+  const redirect = postLoginPath(searchParams.get("redirect"));
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

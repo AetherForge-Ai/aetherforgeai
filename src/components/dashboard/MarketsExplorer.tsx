@@ -81,6 +81,10 @@ interface DisplayRow {
   coinId?: string; // crypto rows only — opens the coin detail modal
 }
 
+/** Crypto tab shows the top 100 by market cap, 25 per page so the list stays scrollable. */
+const CRYPTO_TOP_N = 100;
+const CRYPTO_PAGE_SIZE = 25;
+
 const volFmt = new Intl.NumberFormat("en-NZ", { notation: "compact", maximumFractionDigits: 1 });
 
 function fmtVolume(v: number | null): string {
@@ -144,11 +148,13 @@ export function MarketsExplorer({
   const [detailOpen, setDetailOpen] = useState(false);
   const [coinId, setCoinId] = useState<string | null>(null);
   const [coinOpen, setCoinOpen] = useState(false);
+  const [cryptoPage, setCryptoPage] = useState(0);
 
   const isCryptoTab = tab === "CRYPTO";
 
-  // Live top-500 crypto universe (Swyftx-priced) — only fetches while the crypto
-  // tab is active. Shares the same cached store as the Crypto Market terminal.
+  // Live crypto universe (Swyftx → CoinGecko → Yahoo). The Crypto tab shows the
+  // top 100 by market cap from that feed. Shares the cached store with the
+  // Crypto Market terminal.
   const crypto = useCryptoMarkets(active && isCryptoTab);
 
   // `silent` refresh keeps the current rows on screen (no skeleton flash) — used
@@ -274,6 +280,10 @@ export function MarketsExplorer({
     else load(tab as Exchange);
   }
 
+  useEffect(() => {
+    setCryptoPage(0);
+  }, [tab, query, sortKey, sortDir]);
+
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     else {
@@ -286,7 +296,10 @@ export function MarketsExplorer({
   const rows = useMemo<DisplayRow[]>(() => {
     let all: DisplayRow[];
     if (isCryptoTab) {
-      all = crypto.coins.map((c) => ({
+      const top = [...crypto.coins]
+        .sort((a, b) => (a.rank ?? 999999) - (b.rank ?? 999999))
+        .slice(0, CRYPTO_TOP_N);
+      all = top.map((c) => ({
         key: c.id,
         ticker: c.symbol.toUpperCase(),
         symbol: c.symbol.toUpperCase(),
@@ -344,10 +357,16 @@ export function MarketsExplorer({
 
   // Unified loading + status across both data sources.
   const loadingRows = isCryptoTab ? crypto.loading : loading;
-  const total = isCryptoTab ? crypto.coins.length : data?.total ?? 0;
-  const liveCount = isCryptoTab ? crypto.coins.length : data?.liveCount ?? 0;
+  const cryptoListed = Math.min(CRYPTO_TOP_N, crypto.coins.length);
+  const total = isCryptoTab ? cryptoListed : data?.total ?? 0;
+  const liveCount = isCryptoTab ? cryptoListed : data?.liveCount ?? 0;
   const asOf = isCryptoTab ? crypto.lastUpdated?.toISOString() ?? "" : data?.asOf ?? "";
   const hasData = isCryptoTab ? crypto.coins.length > 0 : !!data;
+  const cryptoPageCount = Math.max(1, Math.ceil(rows.length / CRYPTO_PAGE_SIZE));
+  const cryptoPageSafe = Math.min(cryptoPage, cryptoPageCount - 1);
+  const visibleRows = isCryptoTab
+    ? rows.slice(cryptoPageSafe * CRYPTO_PAGE_SIZE, cryptoPageSafe * CRYPTO_PAGE_SIZE + CRYPTO_PAGE_SIZE)
+    : rows;
 
   function openBuy(r: DisplayRow) {
     setBuyTarget({ ticker: r.ticker, name: r.name, assetType: r.coinId ? "crypto" : "stock", price: r.price });
@@ -408,7 +427,7 @@ export function MarketsExplorer({
             </button>
           );
         })}
-        {/* Crypto — the live top-500 coin universe, USD-priced via Swyftx */}
+        {/* Crypto — top 100 by market cap from the live crypto feed */}
         <button
           onClick={() => setTab("CRYPTO")}
           className={cn(
@@ -452,7 +471,7 @@ export function MarketsExplorer({
           )}
           {isCryptoTab && (
             <p className="flex items-center gap-1 text-[0.62rem] text-muted-foreground/80">
-              <Bitcoin className="size-3" /> Live crypto prices via Swyftx · USD
+              <Bitcoin className="size-3" /> Top {CRYPTO_TOP_N} cryptocurrencies by market cap · USD
             </p>
           )}
         </div>
@@ -498,7 +517,7 @@ export function MarketsExplorer({
                 </td>
               </tr>
             ) : (
-              rows.map((r) => {
+              visibleRows.map((r) => {
                 const up = r.changePct >= 0;
                 return (
                   <tr key={r.key} className="border-b border-border/30 last:border-0 hover:bg-background/40">
@@ -566,6 +585,39 @@ export function MarketsExplorer({
           </tbody>
         </table>
       </div>
+
+      {isCryptoTab && rows.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/60 px-1 pt-3">
+          <p className="text-xs text-muted-foreground">
+            Showing {cryptoPageSafe * CRYPTO_PAGE_SIZE + 1}–
+            {Math.min(rows.length, (cryptoPageSafe + 1) * CRYPTO_PAGE_SIZE)} of {rows.length}
+            {crypto.coins.length > CRYPTO_TOP_N ? ` · top ${CRYPTO_TOP_N} by market cap` : ""}
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={cryptoPageSafe <= 0}
+              onClick={() => setCryptoPage((p) => Math.max(0, p - 1))}
+            >
+              Previous
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              {cryptoPageSafe + 1} / {cryptoPageCount}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={cryptoPageSafe >= cryptoPageCount - 1}
+              onClick={() => setCryptoPage((p) => Math.min(cryptoPageCount - 1, p + 1))}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      )}
 
       <BuyDialog
         open={buyOpen}
