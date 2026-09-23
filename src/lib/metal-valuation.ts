@@ -180,7 +180,7 @@ export interface VisibleBullionLot {
 
 /** Metals hub rows: ledger GOLD/SILVER lots plus the precious_metal desk. */
 export function visibleBullionLots(
-  ledger: BullionHoldingLike & { _id?: string }[],
+  ledger: Array<BullionHoldingLike & { _id?: string }>,
   precious: Array<{
     _id: string;
     metal: MetalKey;
