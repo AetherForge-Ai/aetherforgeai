@@ -4,6 +4,7 @@ import {
   hasPaidSubscription,
 } from "@/lib/session";
 import { AppShell } from "@/components/AppShell";
+import { GuestDashboardGate } from "@/components/dashboard/GuestDashboardGate";
 import {
   PortfolioDashboard,
   type DashboardView,
@@ -18,20 +19,7 @@ export async function renderDashboardView(view: DashboardView) {
   if (!user) {
     return (
       <AppShell guest user={{ name: "Guest", email: "Sign in to activate your account" }}>
-        <PortfolioDashboard
-          preview
-          view={view}
-          userName="Guest"
-          subscription={{
-            status: null,
-            plan: null,
-            startedAt: null,
-            expiresAt: null,
-            tickerLimit: null,
-            botAccess: "none",
-          }}
-          metalsEntitled={false}
-        />
+        <GuestDashboardGate />
       </AppShell>
     );
   }
