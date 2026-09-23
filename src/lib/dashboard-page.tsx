@@ -52,6 +52,7 @@ export async function renderDashboardView(view: DashboardView) {
     >
       <PortfolioDashboard
         view={view}
+        userId={user.id}
         userName={resolveGreetingName(user)}
         subscription={{
           status: user.subscription_status,

@@ -30,6 +30,14 @@ import {
   isDialogSearchActive,
   type DialogCloseReason,
 } from "@/lib/dialog-guards";
+import {
+  getStickyTxOpen,
+  getStickyTxMode,
+  setStickyTxOpen,
+  setStickyTxMode,
+  bindTransactionStickyUser,
+  type StickyTxMode,
+} from "@/lib/transaction-sticky";
 import { toast } from "sonner";
 import {
   ArrowLeftRight,
@@ -98,19 +106,10 @@ const NZD: CurrencyCode = "NZD";
 
 /**
  * Survive parent remounts during holdings live-price hydrate / soft-refresh.
- * Round-4 stopped the DashboardGate alias remount, but a slow /api/stocks live
- * overlay on existing-holdings accounts can still tear down TransactionCenter
- * mid ticker-search; without sticky open the Buy/Add dialog resets to closed
- * right after "Searching markets…". Empty accounts load instantly so they never
- * hit this race (hence 1T PASS / TT FAIL).
+ * Sticky open/mode live in `@/lib/transaction-sticky` and are cleared on userId
+ * change so they cannot leak Buy/Add across accounts in the same tab.
  */
-let stickyTxOpen = false;
-let stickyTxMode: TxType = "buy";
-
-/** True while Buy/Add (or Sell/Cash) dialog is sticky-open — pause holdings soft-refresh. */
-export function isTransactionDialogOpen(): boolean {
-  return stickyTxOpen;
-}
+export { isTransactionDialogOpen } from "@/lib/transaction-sticky";
 
 
 /** Local yyyy-mm-dd for "today" — the boundary that flips the live-price lock on/off. */
@@ -188,6 +187,7 @@ export function TransactionCenter({
   preview = false,
   preferredAssetType,
   layout = "full",
+  userId = null,
 }: {
   /** Current holdings (both bots + precious metals) — used to power the Sell picker. */
   holdings: SellableHolding[];
@@ -201,49 +201,81 @@ export function TransactionCenter({
   preferredAssetType?: "stock" | "crypto" | "metal";
   /** full = trading + ledger; trading = buy/sell focused; ledger = spreadsheet focused. */
   layout?: "full" | "trading" | "ledger";
+  /** Authenticated user id — binds sticky dialog + ignores stale ledger responses. */
+  userId?: string | null;
 }) {
   const [ledger, setLedger] = useState<Ledger | null>(null);
   const [loading, setLoading] = useState(!preview);
-  const [open, setOpenRaw] = useState(stickyTxOpen);
+  const [open, setOpenRaw] = useState(() => getStickyTxOpen());
   const [allOpen, setAllOpen] = useState(false);
-  const [mode, setModeRaw] = useState<TxType>(stickyTxMode);
+  const [mode, setModeRaw] = useState<TxType>(() => getStickyTxMode());
   const [deepLinkAsset, setDeepLinkAsset] = useState<"stock" | "crypto" | "metal" | null>(null);
+  const loadGenRef = useRef(0);
+  const activeUserIdRef = useRef<string | null>(userId ?? null);
+
+  // Bind sticky Buy/Add to this user; clear ledger when the account changes.
+  useEffect(() => {
+    bindTransactionStickyUser(userId ?? null);
+    activeUserIdRef.current = userId ?? null;
+    setLedger(null);
+    if (!(userId && getStickyTxOpen())) {
+      setOpenRaw(false);
+    } else {
+      setOpenRaw(true);
+      setModeRaw(getStickyTxMode());
+    }
+  }, [userId]);
 
   const setOpen = useCallback((next: boolean) => {
     debugTcDialog("setOpen", {
       next,
-      prevSticky: stickyTxOpen,
+      prevSticky: getStickyTxOpen(),
       searchActive: isDialogSearchActive(),
+      userId: activeUserIdRef.current,
     });
     // Never clear sticky open on a blocked/spurious close — guardDialogOpenChange
     // is the gate; by the time we get here the close was allowed (or is open=true).
-    stickyTxOpen = next;
+    setStickyTxOpen(next);
     setOpenRaw(next);
   }, []);
   const setMode = useCallback((next: TxType) => {
-    stickyTxMode = next;
+    setStickyTxMode(next as StickyTxMode);
     setModeRaw(next);
   }, []);
 
   // Re-hydrate sticky open after an unexpected remount (holdings hydrate race).
   useEffect(() => {
-    if (stickyTxOpen && !open) {
+    if (getStickyTxOpen() && !open) {
       setOpenRaw(true);
-      setModeRaw(stickyTxMode);
+      setModeRaw(getStickyTxMode());
     }
   }, [open]);
 
   const load = useCallback(async () => {
     if (preview) return; // guest preview: no live ledger fetch
+    const expectedUserId = userId ?? null;
+    activeUserIdRef.current = expectedUserId;
+    const gen = ++loadGenRef.current;
     setLoading(true);
-    const res = await api.get<Ledger>("/api/transactions");
+    const res = await api.get<Ledger & { userId?: string }>("/api/transactions");
+    // Ignore stale responses from a prior user / superseded fetch.
+    if (gen !== loadGenRef.current) return;
+    if (expectedUserId && activeUserIdRef.current !== expectedUserId) return;
     if (res.ok && res.data) {
+      if (expectedUserId && res.data.userId && res.data.userId !== expectedUserId) {
+        console.error("[transaction-center] Ignoring ledger for other user", {
+          expectedUserId,
+          got: res.data.userId,
+        });
+        setLoading(false);
+        return;
+      }
       setLedger(res.data);
     } else {
       console.error("[transaction-center] Failed to load ledger:", res.error);
     }
     setLoading(false);
-  }, [preview]);
+  }, [preview, userId]);
 
   useEffect(() => {
     load();

@@ -43,7 +43,19 @@ export async function GET() {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
     const ledger = await loadLedger(user);
-    return NextResponse.json({ ok: true, data: ledger });
+    // Echo userId so clients can reject stale/cross-user cached responses.
+    return NextResponse.json(
+      {
+        ok: true,
+        data: { ...ledger, userId: user._id },
+      },
+      {
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate, private",
+          Vary: "Cookie",
+        },
+      }
+    );
   } catch (err: any) {
     console.error("[api/transactions] GET error:", err);
     return NextResponse.json(

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { signOut } from "@/lib/auth-client";
+import { clearClientUserState } from "@/lib/client-user-state";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { BrandLogo } from "@/components/BrandLogo";
@@ -18,6 +19,7 @@ export default function LogoutPage() {
 
     (async () => {
       try {
+        clearClientUserState();
         await signOut();
         console.log("[logout] Session cleared.");
       } catch (err) {

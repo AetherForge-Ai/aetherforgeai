@@ -19,7 +19,13 @@ async function request<T>(
   options?: RequestInit
 ): Promise<ApiResponse<T>> {
   try {
-    const res = await fetch(url, options);
+    // Always credentials + no-store: authenticated GETs must never reuse another
+    // tab/session's cached ledger/cash (Buy/Add account-switch bug).
+    const res = await fetch(url, {
+      ...options,
+      credentials: "include",
+      cache: "no-store",
+    });
     const json = (await res.json()) as ApiResponse<T>;
     return json;
   } catch (err) {

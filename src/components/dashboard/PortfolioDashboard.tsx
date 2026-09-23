@@ -20,7 +20,13 @@ import {
   HoldingChartDialog,
   type HoldingChartTarget,
 } from "@/components/dashboard/HoldingChartDialog";
-import { TransactionCenter, isTransactionDialogOpen } from "@/components/dashboard/TransactionCenter";
+import { TransactionCenter } from "@/components/dashboard/TransactionCenter";
+import { isTransactionDialogOpen } from "@/lib/transaction-sticky";
+import {
+  bindClientUser,
+  readCachedCashNZD,
+  writeCachedCashNZD,
+} from "@/lib/client-user-state";
 import { AnalysisPanel } from "@/components/dashboard/AnalysisPanel";
 import { ReportCenter } from "@/components/dashboard/ReportCenter";
 import { PriceAlerts } from "@/components/dashboard/PriceAlerts";
@@ -293,12 +299,15 @@ function DashboardGate({
 
 export function PortfolioDashboard({
   userName,
+  userId = null,
   subscription,
   metalsEntitled,
   preview = false,
   view = "home",
 }: {
   userName: string;
+  /** Authenticated user id — scopes cash cache + sticky Buy/Add; null in guest preview. */
+  userId?: string | null;
   subscription: DashboardSubscription;
   /** Precious-metals bonus is unlocked for active paying members (or demo mode). */
   metalsEntitled: boolean;
@@ -311,6 +320,29 @@ export function PortfolioDashboard({
   const defaultBot: AssetClass = subscription.botAccess === "crypto" ? "crypto" : "stock";
   const [bot, setBot] = useState<AssetClass>(defaultBot);
   const [watchlistSignal, setWatchlistSignal] = useState(0);
+
+  // Bind module sticky + purge legacy unscoped cash whenever the authenticated user changes.
+  useEffect(() => {
+    if (preview) {
+      bindClientUser(null);
+      return;
+    }
+    bindClientUser(userId ?? null);
+  }, [preview, userId]);
+
+  // When the authenticated user changes, rehydrate cash only from THAT user's cache.
+  useEffect(() => {
+    if (preview) return;
+    const cached = readCachedCashNZD(userId);
+    if (cached != null) {
+      setCashBalance(cached);
+      setCashLoaded(true);
+    } else {
+      setCashBalance(0);
+      setCashLoaded(false);
+    }
+    setRecentLedger([]);
+  }, [preview, userId]);
 
   // Keep the active bot in step with the hub page so crypto alerts/holdings
   // receive crypto positions (not leftover stock filters) on /dashboard/crypto.
@@ -352,25 +384,14 @@ export function PortfolioDashboard({
   // Separate from holdings `loading` so KPIs never flash NZ$0 before cash/metals land.
   const [cashLoaded, setCashLoaded] = useState(() => {
     if (preview) return true;
-    if (typeof window === "undefined") return false;
-    try {
-      return sessionStorage.getItem("af.cashBalanceNZD") != null;
-    } catch {
-      return false;
-    }
+    return readCachedCashNZD(userId) != null;
   });
   const [metalsLoaded, setMetalsLoaded] = useState(!!preview);
   // Cash (NZD) + precious-metals value (NZD) power the "Totals owned" strip.
+  // Scoped by userId — never rehydrate another account's balance from sessionStorage.
   const [cashBalance, setCashBalance] = useState(() => {
     if (preview) return PREVIEW_CASH_NZD;
-    if (typeof window === "undefined") return 0;
-    try {
-      const raw = sessionStorage.getItem("af.cashBalanceNZD");
-      const n = raw != null ? Number(raw) : NaN;
-      return Number.isFinite(n) && n >= 0 ? n : 0;
-    } catch {
-      return 0;
-    }
+    return readCachedCashNZD(userId) ?? 0;
   });
   const [recentLedger, setRecentLedger] = useState<
     { type?: string; ticker?: string | null; amount?: number | null; executed_at?: string | null; notes?: string | null }[]
@@ -454,8 +475,10 @@ export function PortfolioDashboard({
   // Cash balance (NZD) from the transaction ledger.
   /** Cash + recent rows from /api/transactions — same ledger as the Transactions page. */
   const loadCash = useCallback(async () => {
+    const expectedUserId = userId;
     const res = await api.get<{
       cashBalance: number;
+      userId?: string;
       transactions?: {
         type?: string;
         ticker?: string;
@@ -466,13 +489,20 @@ export function PortfolioDashboard({
       }[];
     }>("/api/transactions");
     if (res.ok && res.data) {
+      if (
+        expectedUserId &&
+        res.data.userId &&
+        res.data.userId !== expectedUserId
+      ) {
+        console.error("[dashboard] Ignoring cash ledger for other user", {
+          expectedUserId,
+          got: res.data.userId,
+        });
+        return;
+      }
       const bal = res.data.cashBalance ?? 0;
       setCashBalance(bal);
-      try {
-        sessionStorage.setItem("af.cashBalanceNZD", String(bal));
-      } catch {
-        /* ignore */
-      }
+      writeCachedCashNZD(expectedUserId, bal);
       const rows = (res.data.transactions || []).slice(0, 6).map((r) => ({
         type: r.type,
         ticker: r.ticker ?? null,
@@ -485,7 +515,7 @@ export function PortfolioDashboard({
       console.error("[dashboard] Failed to load cash balance:", res.error);
     }
     setCashLoaded(true);
-  }, []);
+  }, [userId]);
 
   // Precious-metals total value (NZD) from live spot × ounces held.
   // Also keeps the full holding list so Transaction Center Sell/Remove can show
@@ -1662,6 +1692,7 @@ export function PortfolioDashboard({
           onChanged={handleDataChanged}
           reloadSignal={ledgerSignal}
           preview={preview}
+          userId={userId}
           preferredAssetType={
             isStocks ? "stock" : isCrypto ? "crypto" : undefined
           }
