@@ -35,14 +35,25 @@ export function CryptoSearch({
   label,
   onSelect,
   placeholder = "Search any coin — Bitcoin, ETH, Solana…",
+  embedInDialog = true,
+  onQueryChange,
 }: {
   value?: string; // currently-selected symbol (e.g. "BTC")
   label?: string; // coin name to show alongside the symbol on the trigger
   onSelect: (coin: CoinMarket) => void;
   placeholder?: string;
+  embedInDialog?: boolean;
+  onQueryChange?: (query: string) => void;
 }) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
+  const setQueryAndNotify = React.useCallback(
+    (q: string) => {
+      setQuery(q);
+      onQueryChange?.(q);
+    },
+    [onQueryChange]
+  );
   // Only auto-fetch the universe once the picker is opened.
   const { coins, loading } = useCryptoMarkets(open);
 
@@ -71,7 +82,7 @@ export function CryptoSearch({
     onSelect(c);
     requestAnimationFrame(() => {
       setOpen(false);
-      setQuery("");
+      setQueryAndNotify("");
     });
   }
 
@@ -85,7 +96,7 @@ export function CryptoSearch({
   }
 
   return (
-    <Popover open={open} onOpenChange={handleOpenChange} modal={false}>
+    <Popover open={open} onOpenChange={handleOpenChange} modal={embedInDialog}>
       <PopoverTrigger asChild>
         <Button
           type="button"
@@ -108,14 +119,16 @@ export function CryptoSearch({
         </Button>
       </PopoverTrigger>
       <PopoverContent
+        portalled={!embedInDialog}
         className="pointer-events-auto z-[60] w-[--radix-popover-trigger-width] p-0"
         align="start"
         onOpenAutoFocus={(e) => e.preventDefault()}
         onCloseAutoFocus={(e) => e.preventDefault()}
         onPointerDown={(e) => e.stopPropagation()}
+        data-af-ticker-search-panel=""
       >
         <Command shouldFilter={false}>
-          <CommandInput placeholder={placeholder} value={query} onValueChange={setQuery} />
+          <CommandInput placeholder={placeholder} value={query} onValueChange={setQueryAndNotify} />
           <CommandList>
             {loading && coins.length === 0 ? (
               <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">

@@ -22,7 +22,14 @@ import { TickerSearch } from "@/components/dashboard/TickerSearch";
 import { CryptoSearch } from "@/components/dashboard/CryptoSearch";
 import { cn } from "@/lib/utils";
 import { estimateFee, feeMarketFor, presetsForMarket, type FeePreset } from "@/lib/broker-fees";
-import { keepDialogOpenOnPortalInteraction, keepDialogOpenWhilePopoverOpen, guardDialogOpenChange } from "@/lib/dialog-guards";
+import {
+  keepDialogOpenOnPortalInteraction,
+  keepDialogOpenWhilePopoverOpen,
+  guardDialogOpenChange,
+  debugTcDialog,
+  isDialogSearchActive,
+  type DialogCloseReason,
+} from "@/lib/dialog-guards";
 import { toast } from "sonner";
 import {
   ArrowLeftRight,
@@ -99,6 +106,11 @@ const NZD: CurrencyCode = "NZD";
  */
 let stickyTxOpen = false;
 let stickyTxMode: TxType = "buy";
+
+/** True while Buy/Add (or Sell/Cash) dialog is sticky-open — pause holdings soft-refresh. */
+export function isTransactionDialogOpen(): boolean {
+  return stickyTxOpen;
+}
 
 
 /** Local yyyy-mm-dd for "today" — the boundary that flips the live-price lock on/off. */
@@ -198,6 +210,13 @@ export function TransactionCenter({
   const [deepLinkAsset, setDeepLinkAsset] = useState<"stock" | "crypto" | "metal" | null>(null);
 
   const setOpen = useCallback((next: boolean) => {
+    debugTcDialog("setOpen", {
+      next,
+      prevSticky: stickyTxOpen,
+      searchActive: isDialogSearchActive(),
+    });
+    // Never clear sticky open on a blocked/spurious close — guardDialogOpenChange
+    // is the gate; by the time we get here the close was allowed (or is open=true).
     stickyTxOpen = next;
     setOpenRaw(next);
   }, []);
@@ -945,6 +964,10 @@ function TransactionDialog({
   // True when the date is today but no live price could be fetched (market closed /
   // invalid ticker / provider down) — we then UNLOCK the field for manual entry.
   const [liveUnavailable, setLiveUnavailable] = useState(false);
+  /** Live TickerSearch/CryptoSearch query — hard-blocks Radix dismiss while typed. */
+  const [searchQuery, setSearchQuery] = useState("");
+  /** Why Radix wants to close — explicit Cancel/success always wins. */
+  const closeReasonRef = useRef<DialogCloseReason>("unknown");
 
   const isToday = executedDate === todayStr;
   const isMetal = assetType === "metal";
@@ -1011,6 +1034,7 @@ function TransactionDialog({
     setExecutedDate(todayStr);
     setPriceLoading(false);
     setLiveUnavailable(false);
+    setSearchQuery("");
     if (nextType === "metal" && mode === "buy") {
       // Lock live gold spot once the dialog opens on the metals path.
       void lockToLivePrice("GOLD", "metal");
@@ -1226,6 +1250,7 @@ function TransactionDialog({
               }`
             : `Sold ${formatNumber(sold)} oz ${selectedHolding.ticker}`
         );
+        closeReasonRef.current = "explicit";
         onOpenChange(false);
         // Reload ledger so cash + realized cards update.
         const ledgerRes = await api.get<Ledger>("/api/transactions");
@@ -1276,6 +1301,7 @@ function TransactionDialog({
         withdraw: "Withdrawal recorded",
       };
       toast.success(labels[mode]);
+      closeReasonRef.current = "explicit";
       onOpenChange(false);
       onDone(res.data);
     } else {
@@ -1297,36 +1323,59 @@ function TransactionDialog({
     withdraw: "Withdraw available cash from your account (NZD).",
   };
 
+  function requestExplicitClose() {
+    closeReasonRef.current = "explicit";
+    onOpenChange(false);
+  }
+
   function handleDialogOpenChange(next: boolean) {
+    const reason = closeReasonRef.current;
+    closeReasonRef.current = "unknown";
+    debugTcDialog("TransactionDialog onOpenChange", {
+      next,
+      reason,
+      searchActive: isDialogSearchActive(),
+      queryLength: searchQuery.trim().length,
+      mode,
+    });
     // Keep Buy/Add open through ticker search start/complete/error. Explicit
-    // Cancel / success still call onOpenChange(false) directly and always win.
-    guardDialogOpenChange(next, onOpenChange);
+    // Cancel / success still call onOpenChange(false) via requestExplicitClose.
+    guardDialogOpenChange(next, onOpenChange, {
+      reason,
+      queryLength: searchQuery.trim().length,
+    });
   }
 
   return (
     <Dialog open={open} onOpenChange={handleDialogOpenChange}>
       <DialogContent
-        className="sm:max-w-md"
-        // The Buy/Sell form nests a Popover-based ticker search (and a native
-        // date picker) whose dropdowns render in a portal OUTSIDE this dialog's
-        // DOM subtree. Without these guards, clicking a search result — or the
-        // cmdk item unmounting on select — is misread by Radix as an "outside"
-        // click and dismisses the whole dialog. Always preventDefault on outside
-        // events: holdings live-price hydrate can orphan targets mid-search even
-        // when the portal selectors miss a frame (round-4 Gate fix was not enough).
+        className="sm:max-w-md overflow-visible"
+        // The Buy/Sell form nests a ticker search. Round-6: results render
+        // in-tree (no body portal) + module-level close gate ignores
+        // interact/focus-outside while search/query is live. Always
+        // preventDefault on outside events as a belt-and-braces layer.
         onInteractOutside={(e) => {
+          closeReasonRef.current = "interact-outside";
           e.preventDefault();
           keepDialogOpenOnPortalInteraction(e);
+          debugTcDialog("interact-outside prevented", {
+            searchActive: isDialogSearchActive(),
+          });
         }}
         onPointerDownOutside={(e) => {
+          closeReasonRef.current = "pointer-outside";
           e.preventDefault();
           keepDialogOpenOnPortalInteraction(e);
         }}
         onFocusOutside={(e) => {
+          closeReasonRef.current = "focus-outside";
           e.preventDefault();
           keepDialogOpenOnPortalInteraction(e);
         }}
-        onEscapeKeyDown={keepDialogOpenWhilePopoverOpen}
+        onEscapeKeyDown={(e) => {
+          closeReasonRef.current = "escape";
+          keepDialogOpenWhilePopoverOpen(e);
+        }}
       >
         <DialogHeader>
           <DialogTitle className="font-display text-xl">{titles[mode]}</DialogTitle>
@@ -1397,10 +1446,13 @@ function TransactionDialog({
                   <CryptoSearch
                     value={ticker}
                     label={assetName}
+                    embedInDialog
+                    onQueryChange={setSearchQuery}
                     onSelect={(coin) => {
                       const sym = coin.symbol.toUpperCase();
                       setTicker(sym);
                       setAssetName(coin.name);
+                      setSearchQuery("");
                       if (isToday) void lockToLivePrice(sym, "crypto");
                       else if (coin.price > 0) setPrice(String(coin.price));
                     }}
@@ -1410,10 +1462,13 @@ function TransactionDialog({
                     <TickerSearch
                       value={ticker}
                       label={assetName}
+                      embedInDialog
+                      onQueryChange={setSearchQuery}
                       onSelect={(m) => {
                         const sym = m.symbol.toUpperCase();
                         setTicker(sym);
                         setAssetName(m.name);
+                        setSearchQuery("");
                         // Today's date ⇒ immediately lock the price to the live quote.
                         if (isToday) void lockToLivePrice(sym, "stock");
                       }}
@@ -1670,7 +1725,7 @@ function TransactionDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
+          <Button variant="ghost" onClick={requestExplicitClose} disabled={saving}>
             Cancel
           </Button>
           <Button

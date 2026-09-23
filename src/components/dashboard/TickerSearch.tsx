@@ -8,9 +8,11 @@
  * Selecting a result reports back the Yahoo symbol + company name so the caller
  * can fetch a live price. Server-driven, so cmdk's built-in filtering is off.
  *
- * When embedded inside a Dialog (Transaction Centre), Popover is non-modal and
- * search/select guards keep the parent dialog open through the async search
- * lifecycle — align with the Markets path (select ticker without dismissing Buy).
+ * When embedded inside a Dialog (Transaction Centre), Popover is modal and
+ * results stay in-tree (no body portal) so Radix Dialog never sees an outside
+ * click when the results panel mounts. Search/select guards keep the parent
+ * dialog open through the async search lifecycle — align with the Markets path
+ * (select ticker without dismissing Buy).
  */
 
 import * as React from "react";
@@ -53,17 +55,31 @@ export function TickerSearch({
   label,
   onSelect,
   placeholder = "Search any ASX, NZX, NASDAQ or NYSE company…",
+  /** Inside a Dialog: keep results in-tree (no body portal) + modal popover. */
+  embedInDialog = true,
+  /** Optional: report live query length so the parent close-gate can hard-block. */
+  onQueryChange,
 }: {
   value?: string;
   label?: string; // company name to show alongside the symbol on the trigger
   onSelect: (match: TickerMatch) => void;
   placeholder?: string;
+  embedInDialog?: boolean;
+  onQueryChange?: (query: string) => void;
 }) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const [results, setResults] = React.useState<TickerMatch[]>([]);
   const [loading, setLoading] = React.useState(false);
   const seq = React.useRef(0);
+
+  const setQueryAndNotify = React.useCallback(
+    (q: string) => {
+      setQuery(q);
+      onQueryChange?.(q);
+    },
+    [onQueryChange]
+  );
 
   // Debounced, race-safe live search. Keep the dialog search guard armed for the
   // WHOLE popover lifetime (not cleared on fetch settle) so holdings soft-refresh
@@ -105,7 +121,7 @@ export function TickerSearch({
     // Defer popover close so the parent Dialog's outside-click race settles first.
     requestAnimationFrame(() => {
       setOpen(false);
-      setQuery("");
+      setQueryAndNotify("");
       clearDialogSearchGuard(900);
     });
   }
@@ -122,18 +138,19 @@ export function TickerSearch({
     setOpen(next);
   }
 
-  // If the component unmounts mid-search (parent remount), drop the body flag
-  // after a short grace so we do not permanently block other dialogs.
+  // If the component unmounts mid-search (parent remount on holdings soft-refresh),
+  // keep the module-level guard alive long enough for sticky dialog rehydrate.
+  // Round-5 used 400ms — that was short enough for a focus-outside dismiss to
+  // sneak through after the remount wiped body.dataset.
   React.useEffect(() => {
     return () => {
-      // Soft release — leave a brief select guard for any in-flight dismiss race.
-      markDialogSelectGuard(400);
-      clearDialogSearchGuard(400);
+      markDialogSelectGuard(1500);
+      clearDialogSearchGuard(3000);
     };
   }, []);
 
   return (
-    <Popover open={open} onOpenChange={handleOpenChange} modal={false}>
+    <Popover open={open} onOpenChange={handleOpenChange} modal={embedInDialog}>
       <PopoverTrigger asChild>
         <Button
           type="button"
@@ -156,14 +173,18 @@ export function TickerSearch({
         </Button>
       </PopoverTrigger>
       <PopoverContent
+        // Inside Dialog: render in-tree so Radix never treats result mount as an
+        // outside click. Branch wrapper (in popover.tsx) covers body-portal cases.
+        portalled={!embedInDialog}
         className="pointer-events-auto z-[60] w-[--radix-popover-trigger-width] p-0"
         align="start"
         onOpenAutoFocus={(e) => e.preventDefault()}
         onCloseAutoFocus={(e) => e.preventDefault()}
         onPointerDown={(e) => e.stopPropagation()}
+        data-af-ticker-search-panel=""
       >
         <Command shouldFilter={false}>
-          <CommandInput placeholder={placeholder} value={query} onValueChange={setQuery} />
+          <CommandInput placeholder={placeholder} value={query} onValueChange={setQueryAndNotify} />
           <CommandList>
             {loading ? (
               <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">

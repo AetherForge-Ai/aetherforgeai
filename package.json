@@ -13,7 +13,9 @@
     "setup:stripe-webhook": "ts-node scripts/setup-stripe-webhook.ts",
     "test:serve": "TESTING_MODE=true NEXT_TELEMETRY_DISABLED=1 DISABLE_OPENNEXT=true PORT=3000 next start",
     "validate:ledger": "node scripts/validate_ledger.mjs",
-    "smoke:crypto": "node scripts/smoke-crypto-live.mjs"
+    "smoke:crypto": "node scripts/smoke-crypto-live.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "cloudflare": {
     "label": "Totalum App",
@@ -99,6 +101,7 @@
     "ts-node": "^10.9.2",
     "tw-animate-css": "^1.3.6",
     "typescript": "5.8.3",
+    "vitest": "^3.2.7",
     "wrangler": "4.21.x"
   },
   "private": true

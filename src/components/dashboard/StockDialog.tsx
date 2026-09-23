@@ -20,7 +20,14 @@ import { CryptoSearch } from "@/components/dashboard/CryptoSearch";
 import type { Stock } from "@/lib/portfolio";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { keepDialogOpenOnPortalInteraction, keepDialogOpenWhilePopoverOpen, guardDialogOpenChange } from "@/lib/dialog-guards";
+import {
+  keepDialogOpenOnPortalInteraction,
+  keepDialogOpenWhilePopoverOpen,
+  guardDialogOpenChange,
+  debugTcDialog,
+  isDialogSearchActive,
+  type DialogCloseReason,
+} from "@/lib/dialog-guards";
 import { checkFillSanity, ADVISORY_NOTE } from "@/lib/fill-integrity-client";
 
 type AssetType = "stock" | "crypto";
@@ -54,6 +61,8 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
   const [purchaseDate, setPurchaseDate] = useState(todayStr);
   const [saving, setSaving] = useState(false);
   const submittingRef = useRef(false);
+  const closeReasonRef = useRef<DialogCloseReason>("unknown");
+  const [searchQuery, setSearchQuery] = useState("");
   // True once we've auto-filled the "amount paid" with the live price (past dates),
   // so we can show a confirmation hint. Cleared as soon as the user edits it by hand.
   const [pricePrefilled, setPricePrefilled] = useState(false);
@@ -273,6 +282,7 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
 
     if (res.ok) {
       toast.success(isEdit ? "Holding updated" : `${t} added to your portfolio`);
+      closeReasonRef.current = "explicit";
       onOpenChange(false);
       onSaved();
     } else {
@@ -282,24 +292,45 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
   }
 
   return (
-    <Dialog open={open} onOpenChange={(next) => guardDialogOpenChange(next, onOpenChange)}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        const reason = closeReasonRef.current;
+        closeReasonRef.current = "unknown";
+        debugTcDialog("StockDialog onOpenChange", {
+          next,
+          reason,
+          searchActive: isDialogSearchActive(),
+          queryLength: searchQuery.trim().length,
+        });
+        guardDialogOpenChange(next, onOpenChange, {
+          reason,
+          queryLength: searchQuery.trim().length,
+        });
+      }}
+    >
       <DialogContent
-        className="sm:max-w-md"
-        // Keep the dialog open when interacting with the portaled ticker search /
-        // date picker dropdowns (see dialog-guards for the why).
+        className="sm:max-w-md overflow-visible"
+        // Keep the dialog open when interacting with ticker search / date picker.
         onInteractOutside={(e) => {
+          closeReasonRef.current = "interact-outside";
           e.preventDefault();
           keepDialogOpenOnPortalInteraction(e);
         }}
         onPointerDownOutside={(e) => {
+          closeReasonRef.current = "pointer-outside";
           e.preventDefault();
           keepDialogOpenOnPortalInteraction(e);
         }}
         onFocusOutside={(e) => {
+          closeReasonRef.current = "focus-outside";
           e.preventDefault();
           keepDialogOpenOnPortalInteraction(e);
         }}
-        onEscapeKeyDown={keepDialogOpenWhilePopoverOpen}
+        onEscapeKeyDown={(e) => {
+          closeReasonRef.current = "escape";
+          keepDialogOpenWhilePopoverOpen(e);
+        }}
       >
         <DialogHeader>
           <DialogTitle className="font-display text-xl">
@@ -363,9 +394,27 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
               // Ticker is locked once a holding exists — only date/amount/price change.
               <Input id="ticker" value={ticker} disabled className="uppercase" />
             ) : isCrypto ? (
-              <CryptoSearch value={ticker} label={companyName} onSelect={handleCryptoSelect} />
+              <CryptoSearch
+                value={ticker}
+                label={companyName}
+                embedInDialog
+                onQueryChange={setSearchQuery}
+                onSelect={(c) => {
+                  setSearchQuery("");
+                  handleCryptoSelect(c);
+                }}
+              />
             ) : (
-              <TickerSearch value={ticker} label={companyName} onSelect={handleStockSelect} />
+              <TickerSearch
+                value={ticker}
+                label={companyName}
+                embedInDialog
+                onQueryChange={setSearchQuery}
+                onSelect={(m) => {
+                  setSearchQuery("");
+                  handleStockSelect(m);
+                }}
+              />
             )}
             <p className="text-xs leading-relaxed text-muted-foreground">{copy.symbolHint}</p>
           </div>
@@ -466,7 +515,14 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
         </div>
 
         <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              closeReasonRef.current = "explicit";
+              onOpenChange(false);
+            }}
+            disabled={saving}
+          >
             Cancel
           </Button>
           <Button

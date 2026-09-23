@@ -11,13 +11,8 @@
  * as "Searching markets…" → Buy/Add vanishes. These helpers keep the dialog open
  * in exactly those cases.
  *
- * Usage:
- *   <DialogContent
- *     onInteractOutside={keepDialogOpenOnPortalInteraction}
- *     onPointerDownOutside={keepDialogOpenOnPortalInteraction}
- *     onFocusOutside={keepDialogOpenOnPortalInteraction}
- *     onEscapeKeyDown={keepDialogOpenWhilePopoverOpen}
- *   >
+ * Round 6: module-level searchActiveUntil (DOM/body.dataset can race on remount),
+ * shouldAllowDialogClose() reason gate, and DEBUG_TC_DIALOG logging.
  */
 
 /** Selectors that identify a portaled popover / command dropdown. */
@@ -29,6 +24,20 @@ const PORTAL_SELECTORS = [
   "[cmdk-list]",
   "[cmdk-item]",
 ] as const;
+
+/** Module-level guard — survives body.dataset wipes and TickerSearch remount races. */
+let searchGuardUntil = 0;
+let selectGuardUntil = 0;
+let searchGuardTimer: number | null = null;
+let selectGuardTimer: number | null = null;
+
+export type DialogCloseReason =
+  | "escape"
+  | "explicit"
+  | "interact-outside"
+  | "focus-outside"
+  | "pointer-outside"
+  | "unknown";
 
 function isPortalTarget(t: HTMLElement | null): boolean {
   if (!t) return true; // detached / null target — classic cmdk select race
@@ -48,15 +57,57 @@ function isGuardFlag(key: "afDialogSelectGuard" | "afDialogSearchGuard"): boolea
   return ds?.[key] === "1";
 }
 
+function nowMs(): number {
+  return typeof performance !== "undefined" ? performance.now() : Date.now();
+}
+
 /** True while a ticker/coin search popover is mounted or a search guard is armed. */
 export function isDialogSearchActive(): boolean {
+  const t = nowMs();
+  if (t < searchGuardUntil || t < selectGuardUntil) return true;
   if (typeof document === "undefined") return false;
   if (isGuardFlag("afDialogSearchGuard") || isGuardFlag("afDialogSelectGuard")) return true;
   return !!(
     document.querySelector("[data-radix-popper-content-wrapper]") ||
     document.querySelector("[cmdk-root]") ||
-    document.querySelector("[data-slot='popover-content']")
+    document.querySelector("[data-slot='popover-content']") ||
+    document.querySelector("[data-af-ticker-search-panel]")
   );
+}
+
+/**
+ * Pure close-gate used by Transaction Centre / StockDialog and unit-tested.
+ * While search is active (or the user has typed a query), only an explicit
+ * Close/Cancel/success may dismiss — never interact-outside / focus-outside.
+ * Escape is allowed only when search is NOT active (popover already collapsed).
+ */
+export function shouldAllowDialogClose(opts: {
+  searchActive: boolean;
+  queryLength?: number;
+  reason: DialogCloseReason;
+}): boolean {
+  const typed = (opts.queryLength ?? 0) > 0;
+  if (opts.reason === "explicit") return true;
+  if (opts.searchActive || typed) {
+    // Escape while the popover/query is live must NOT kill the parent dialog —
+    // TickerSearch owns Escape to collapse the panel first.
+    return false;
+  }
+  // No active search: allow Escape / unknown (Radix X) / outside.
+  return true;
+}
+
+/** Gated debug logger — enable with localStorage.DEBUG_TC_DIALOG = "1". */
+export function debugTcDialog(message: string, detail?: Record<string, unknown>) {
+  if (typeof window === "undefined") return;
+  try {
+    if (localStorage.getItem("DEBUG_TC_DIALOG") !== "1") return;
+  } catch {
+    return;
+  }
+  const stack = new Error().stack?.split("\n").slice(2, 8).join("\n") ?? "";
+  // eslint-disable-next-line no-console
+  console.debug("[TC-DIALOG]", message, { ...detail, stack });
 }
 
 /**
@@ -102,31 +153,63 @@ export function keepDialogOpenWhilePopoverOpen(e: { preventDefault: () => void }
 export function guardDialogOpenChange(
   next: boolean,
   onOpenChange: (open: boolean) => void,
-  opts?: { graceMs?: number }
+  opts?: { graceMs?: number; reason?: DialogCloseReason; queryLength?: number }
 ) {
+  const reason: DialogCloseReason = opts?.reason ?? "unknown";
+  debugTcDialog("onOpenChange", {
+    next,
+    reason,
+    searchActive: isDialogSearchActive(),
+    queryLength: opts?.queryLength ?? 0,
+    searchGuardUntil,
+    selectGuardUntil,
+  });
   if (next) {
     onOpenChange(true);
     return;
   }
-  void opts;
+  void opts?.graceMs;
   if (typeof document === "undefined") {
+    // SSR / no DOM — still honour the pure close gate when search flags are live.
+    if (
+      !shouldAllowDialogClose({
+        searchActive: isDialogSearchActive(),
+        queryLength: opts?.queryLength,
+        reason,
+      })
+    ) {
+      debugTcDialog("blocked close (ssr/no-dom)", { reason });
+      return;
+    }
     onOpenChange(false);
     return;
   }
-  // Hard block: never dismiss while search popover / guard is active — even if
-  // the portal briefly unmounted during a holdings re-render race.
-  if (isDialogSearchActive()) return;
+  if (
+    !shouldAllowDialogClose({
+      searchActive: isDialogSearchActive(),
+      queryLength: opts?.queryLength,
+      reason,
+    })
+  ) {
+    debugTcDialog("blocked close", { reason });
+    return;
+  }
 
   onOpenChange(false);
 }
 
 /** Call from ticker/coin pick handlers so the parent dialog survives the select race. */
 export function markDialogSelectGuard(ms = 450) {
+  const until = nowMs() + ms;
+  if (until > selectGuardUntil) selectGuardUntil = until;
   if (typeof document === "undefined") return;
   const body = document.body as HTMLElement & { dataset: DOMStringMap };
   body.dataset.afDialogSelectGuard = "1";
-  window.setTimeout(() => {
+  if (selectGuardTimer != null) window.clearTimeout(selectGuardTimer);
+  selectGuardTimer = window.setTimeout(() => {
     delete body.dataset.afDialogSelectGuard;
+    selectGuardTimer = null;
+    if (nowMs() >= selectGuardUntil) selectGuardUntil = 0;
   }, ms);
 }
 
@@ -137,8 +220,9 @@ export function markDialogSelectGuard(ms = 450) {
  * only when the popover fully closes (not on every fetch settle — that left a
  * race on holdings soft-refresh after "Searching markets…").
  */
-let searchGuardTimer: number | null = null;
 export function markDialogSearchGuard(ms = 30_000) {
+  const until = nowMs() + ms;
+  if (until > searchGuardUntil) searchGuardUntil = until;
   if (typeof document === "undefined") return;
   const body = document.body as HTMLElement & { dataset: DOMStringMap };
   body.dataset.afDialogSearchGuard = "1";
@@ -146,10 +230,14 @@ export function markDialogSearchGuard(ms = 30_000) {
   searchGuardTimer = window.setTimeout(() => {
     delete body.dataset.afDialogSearchGuard;
     searchGuardTimer = null;
+    if (nowMs() >= searchGuardUntil) searchGuardUntil = 0;
   }, ms);
 }
 
 export function clearDialogSearchGuard(graceMs = 750) {
+  const until = nowMs() + graceMs;
+  // Never shorten an existing longer guard (remount races used to drop to 400ms).
+  if (until > searchGuardUntil) searchGuardUntil = until;
   if (typeof document === "undefined") return;
   if (searchGuardTimer != null) window.clearTimeout(searchGuardTimer);
   const body = document.body as HTMLElement & { dataset: DOMStringMap };
@@ -157,11 +245,13 @@ export function clearDialogSearchGuard(graceMs = 750) {
   searchGuardTimer = window.setTimeout(() => {
     delete body.dataset.afDialogSearchGuard;
     searchGuardTimer = null;
+    if (nowMs() >= searchGuardUntil) searchGuardUntil = 0;
   }, graceMs);
 }
 
 /** Drop the search guard immediately (popover closed, no grace needed). */
 export function releaseDialogSearchGuard() {
+  searchGuardUntil = 0;
   if (typeof document === "undefined") return;
   if (searchGuardTimer != null) {
     window.clearTimeout(searchGuardTimer);
@@ -169,4 +259,16 @@ export function releaseDialogSearchGuard() {
   }
   const body = document.body as HTMLElement & { dataset: DOMStringMap };
   delete body.dataset.afDialogSearchGuard;
+}
+
+/** Test helper — reset module timers between unit tests. */
+export function __resetDialogGuardsForTests() {
+  searchGuardUntil = 0;
+  selectGuardUntil = 0;
+  if (typeof window !== "undefined") {
+    if (searchGuardTimer != null) window.clearTimeout(searchGuardTimer);
+    if (selectGuardTimer != null) window.clearTimeout(selectGuardTimer);
+  }
+  searchGuardTimer = null;
+  selectGuardTimer = null;
 }

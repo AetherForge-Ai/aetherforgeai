@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import {
   computeSummary,
@@ -20,7 +20,7 @@ import {
   HoldingChartDialog,
   type HoldingChartTarget,
 } from "@/components/dashboard/HoldingChartDialog";
-import { TransactionCenter } from "@/components/dashboard/TransactionCenter";
+import { TransactionCenter, isTransactionDialogOpen } from "@/components/dashboard/TransactionCenter";
 import { AnalysisPanel } from "@/components/dashboard/AnalysisPanel";
 import { ReportCenter } from "@/components/dashboard/ReportCenter";
 import { PriceAlerts } from "@/components/dashboard/PriceAlerts";
@@ -345,6 +345,8 @@ export function PortfolioDashboard({
   // correctly — the free tier counts stocks + crypto together. The active bot's
   // holdings are derived below.
   const [allStocks, setAllStocks] = useState<Stock[]>(preview ? PREVIEW_STOCKS : []);
+  /** After first /api/stocks hydrate — later overlays may be deferred while Buy/Add is open. */
+  const holdingsHydratedRef = useRef(!!preview);
   const [loading, setLoading] = useState(!preview);
   const [refreshing, setRefreshing] = useState(false);
   // Separate from holdings `loading` so KPIs never flash NZ$0 before cash/metals land.
@@ -434,7 +436,14 @@ export function PortfolioDashboard({
     // existing-holdings path. Initial useState(!preview) already gates first paint.
     const res = await api.get<Stock[]>(`/api/stocks`);
     if (res.ok && res.data) {
-      setAllStocks(res.data);
+      // Round-6: after the first hydrate, defer live-price overlays while Buy/Add
+      // is open so TickerSearch cannot be torn down mid-results (TT holdings path).
+      if (isTransactionDialogOpen() && holdingsHydratedRef.current) {
+        console.log("[dashboard] Holdings overlay deferred — Transaction dialog open");
+      } else {
+        setAllStocks(res.data);
+        holdingsHydratedRef.current = true;
+      }
     } else {
       console.error("[dashboard] Failed to load stocks:", res.error);
       toast.error("Could not load your portfolio.");
@@ -524,8 +533,15 @@ export function PortfolioDashboard({
     if (preview) return;
     const id = setInterval(async () => {
       if (document.hidden) return; // don't poll a backgrounded tab
+      // Round-6: never soft-refresh holdings while Buy/Add is open — live-price
+      // overlay re-renders were racing TickerSearch and dismissing the modal.
+      if (isTransactionDialogOpen()) {
+        console.log("[dashboard] Soft-refresh deferred — Transaction dialog open");
+        return;
+      }
       const res = await api.post<Stock[]>("/api/stocks/refresh", {});
       if (res.ok && res.data) {
+        if (isTransactionDialogOpen()) return;
         setAllStocks(res.data);
         console.log("[dashboard] Live re-price tick applied");
       }
