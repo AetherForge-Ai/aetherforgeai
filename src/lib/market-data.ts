@@ -21,6 +21,7 @@ import {
 } from "@/lib/yahoo-finance";
 import { fetchGoogleCryptoQuotes, googleCryptoSymbol } from "@/lib/google-finance";
 import { fetchSpotPrices as fetchSwyftxSpot } from "@/lib/crypto-swyftx";
+import { bullionDisplayName, isBullionHolding } from "@/lib/metal-valuation";
 
 export interface LiveQuote {
   price: number;
@@ -493,8 +494,17 @@ export async function resolveCompanyNames(
   if (!tickers.length) return {};
   const out: Record<string, string> = {};
 
-  const equities = tickers.filter((t) => (t.asset_type || "stock") !== "crypto").map((t) => t.ticker.toUpperCase());
-  const cryptos = tickers.filter((t) => (t.asset_type || "stock") === "crypto").map((t) => t.ticker.toUpperCase());
+  // GOLD/SILVER are troy-ounce bullion. Yahoo's GOLD symbol is Gold.com, Inc.
+  const equities = tickers
+    .filter((t) => !isBullionHolding(t.asset_type, t.ticker) && (t.asset_type || "stock") !== "crypto")
+    .map((t) => t.ticker.toUpperCase());
+  const cryptos = tickers
+    .filter((t) => !isBullionHolding(t.asset_type, t.ticker) && (t.asset_type || "stock") === "crypto")
+    .map((t) => t.ticker.toUpperCase());
+  for (const b of tickers) {
+    if (!isBullionHolding(b.asset_type, b.ticker)) continue;
+    out[b.ticker.toUpperCase()] = bullionDisplayName(b.ticker);
+  }
 
   for (const c of cryptos) {
     const name = CRYPTO_NAMES[c.replace(/-?USD[T]?$/, "")];

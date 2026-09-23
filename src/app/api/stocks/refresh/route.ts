@@ -6,6 +6,11 @@ import { totalumSdk } from "@/lib/totalum";
 import { simulateTick } from "@/lib/market";
 import { fetchLiveQuotes, isLiveDataConfigured, fetchCryptoQuotes } from "@/lib/market-data";
 import { getMetalsSpot } from "@/lib/metals";
+import {
+  bullionNzdPerOz,
+  quoteRouteForHolding,
+  resolveHoldingMarkPrice,
+} from "@/lib/metal-valuation";
 
 /**
  * POST /api/stocks/refresh
@@ -34,30 +39,43 @@ export async function POST(req: Request) {
     }
 
     // Split by asset class: equities → Twelve Data/Yahoo, crypto → Swyftx, metals → spot.
-    const equityTickers = stocks
-      .filter((s) => (s.asset_type || "stock") === "stock")
-      .map((s) => String(s.ticker));
-    const cryptoTickers = stocks.filter((s) => (s.asset_type || "stock") === "crypto").map((s) => String(s.ticker));
-    const hasMetals = stocks.some((s) => (s.asset_type || "stock") === "metal");
+    // GOLD/SILVER are excluded from the equity feed (Yahoo GOLD is Gold.com, Inc.).
+    const equityTickers: string[] = [];
+    const cryptoTickers: string[] = [];
+    let hasBullion = false;
+    for (const s of stocks) {
+      const route = quoteRouteForHolding(s.asset_type, s.ticker);
+      if (route === "bullion") hasBullion = true;
+      else if (route === "crypto") cryptoTickers.push(String(s.ticker));
+      else equityTickers.push(String(s.ticker));
+    }
 
     const [equityQuotes, cryptoQuotes, metalsSpot] = await Promise.all([
       isLiveDataConfigured() && equityTickers.length ? fetchLiveQuotes(equityTickers) : Promise.resolve({}),
       cryptoTickers.length ? fetchCryptoQuotes(cryptoTickers) : Promise.resolve({}),
-      hasMetals ? getMetalsSpot() : Promise.resolve(null),
+      hasBullion ? getMetalsSpot() : Promise.resolve(null),
     ]);
-    const live: Record<string, { price: number; changePct: number }> = { ...equityQuotes, ...cryptoQuotes };
-    // Gold/silver re-price to the live NZD spot per troy ounce.
-    if (metalsSpot) {
-      live.GOLD = { price: metalsSpot.gold.nzdPerOz, changePct: 0 };
-      live.SILVER = { price: metalsSpot.silver.nzdPerOz, changePct: 0 };
-    }
-    const usedLive = Object.keys(live).length > 0;
+    const equityMap = equityQuotes as Record<string, { price: number }>;
+    const cryptoMap = cryptoQuotes as Record<string, { price: number }>;
+    const usedLive = Object.keys(equityMap).length > 0 || Object.keys(cryptoMap).length > 0 || !!metalsSpot;
 
     const updates = await Promise.all(
       stocks.map(async (s) => {
+        const ticker = String(s.ticker || "");
+        const key = ticker.toUpperCase();
+        const route = quoteRouteForHolding(s.asset_type, ticker);
         const base = Number(s.current_price) || Number(s.purchase_price) || 0;
-        const quote = live[String(s.ticker).toUpperCase()];
-        const next = quote?.price ?? simulateTick(base);
+        const marked = resolveHoldingMarkPrice({
+          ticker,
+          assetType: s.asset_type,
+          storedPrice: Number(s.current_price) || 0,
+          purchasePrice: Number(s.purchase_price) || 0,
+          equityQuote: route === "equity" ? equityMap[key]?.price : undefined,
+          cryptoQuote: route === "crypto" ? cryptoMap[key]?.price : undefined,
+          metalNzdPerOz: route === "bullion" ? bullionNzdPerOz(ticker, metalsSpot) : undefined,
+        });
+        // Bullion never random-walks and never takes an equity print.
+        const next = marked != null && marked > 0 ? marked : simulateTick(base);
         try {
           await totalumSdk.crud.editRecordById("stock", s._id, { current_price: next });
         } catch (err) {

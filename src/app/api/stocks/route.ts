@@ -18,6 +18,13 @@ import { canonicalCryptoId } from "@/lib/crypto-ids";
 import { venueForTicker } from "@/lib/ledger-schema";
 import { feedEntryForTicker } from "@/lib/feed-mapping";
 import { logLedgerAudit, appendAuditNote } from "@/lib/ledger-audit";
+import { getMetalsSpot } from "@/lib/metals";
+import {
+  bullionNameContaminated,
+  bullionNzdPerOz,
+  quoteRouteForHolding,
+  resolveHoldingMarkPrice,
+} from "@/lib/metal-valuation";
 
 /**
  * Overlay genuine LIVE prices onto a user's holdings and persist any that moved.
@@ -29,20 +36,27 @@ import { logLedgerAudit, appendAuditNote } from "@/lib/ledger-audit";
  */
 async function overlayLivePrices(holdings: any[]): Promise<void> {
   if (!holdings.length) return;
-  const equityTickers = holdings
-    .filter((s) => (s.asset_type || "stock") !== "crypto")
-    .map((s) => String(s.ticker));
-  const cryptoTickers = holdings
-    .filter((s) => (s.asset_type || "stock") === "crypto")
-    .map((s) => String(s.ticker));
+  // Bullion must NOT go to Yahoo/Twelve Data. Ticker GOLD is the equity
+  // Gold.com, Inc. (~US$44), not NZD gold spot per troy ounce.
+  const equityTickers: string[] = [];
+  const cryptoTickers: string[] = [];
+  let hasBullion = false;
+  for (const s of holdings) {
+    const route = quoteRouteForHolding(s.asset_type, s.ticker);
+    if (route === "bullion") hasBullion = true;
+    else if (route === "crypto") cryptoTickers.push(String(s.ticker));
+    else equityTickers.push(String(s.ticker));
+  }
 
   try {
-    const [equityQuotes, cryptoQuotes] = await Promise.all([
+    const [equityQuotes, cryptoQuotes, metalsSpot] = await Promise.all([
       isLiveDataConfigured() && equityTickers.length ? fetchLiveQuotes(equityTickers) : Promise.resolve({}),
       cryptoTickers.length ? fetchCryptoQuotes(cryptoTickers) : Promise.resolve({}),
+      hasBullion ? getMetalsSpot() : Promise.resolve(null),
     ]);
-    const live: Record<string, { price: number }> = { ...equityQuotes, ...cryptoQuotes };
-    if (!Object.keys(live).length) {
+    const equityMap = equityQuotes as Record<string, { price: number }>;
+    const cryptoMap = cryptoQuotes as Record<string, { price: number }>;
+    if (!Object.keys(equityMap).length && !Object.keys(cryptoMap).length && !hasBullion) {
       console.warn("[api/stocks] No live quotes available — serving stored prices for this load.");
       return;
     }
@@ -50,14 +64,25 @@ async function overlayLivePrices(holdings: any[]): Promise<void> {
     let updated = 0;
     await Promise.all(
       holdings.map(async (s) => {
-        const quote = live[String(s.ticker).toUpperCase()];
-        if (!quote || !(quote.price > 0)) return;
+        const ticker = String(s.ticker || "");
+        const key = ticker.toUpperCase();
+        const route = quoteRouteForHolding(s.asset_type, ticker);
+        const marked = resolveHoldingMarkPrice({
+          ticker,
+          assetType: s.asset_type,
+          storedPrice: Number(s.current_price) || 0,
+          purchasePrice: Number(s.purchase_price) || 0,
+          equityQuote: route === "equity" ? equityMap[key]?.price : undefined,
+          cryptoQuote: route === "crypto" ? cryptoMap[key]?.price : undefined,
+          metalNzdPerOz: route === "bullion" ? bullionNzdPerOz(ticker, metalsSpot) : undefined,
+        });
+        if (marked == null || !(marked > 0)) return;
         const prev = Number(s.current_price) || 0;
         // Overlay onto the object we return so the FIRST render is already live.
-        s.current_price = quote.price;
-        if (Math.abs(prev - quote.price) < 1e-9) return; // unchanged — skip the write
+        s.current_price = marked;
+        if (Math.abs(prev - marked) < 1e-9) return; // unchanged — skip the write
         try {
-          await totalumSdk.crud.editRecordById("stock", s._id, { current_price: quote.price });
+          await totalumSdk.crud.editRecordById("stock", s._id, { current_price: marked });
           updated++;
         } catch (err) {
           console.error(`[api/stocks] Failed to persist live price for ${s._id} (${s.ticker}):`, err);
@@ -77,6 +102,7 @@ async function overlayLivePrices(holdings: any[]): Promise<void> {
  * renders as a bare symbol instead of the company they represent.
  */
 function needsCompanyName(h: any): boolean {
+  if (bullionNameContaminated(h.asset_type, h.ticker, h.company_name)) return true;
   const name = String(h.company_name || "").trim();
   if (!name) return true;
   const ticker = String(h.ticker || "").trim().toUpperCase();

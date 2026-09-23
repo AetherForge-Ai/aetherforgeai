@@ -18,6 +18,7 @@ import {
 import { Markdown } from "@/components/Markdown";
 import { cn } from "@/lib/utils";
 import { BOT_HEADMASTER_AVATAR } from "@/assets/files";
+import { bullionNzdPerOz, isBullionHolding } from "@/lib/metal-valuation";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -303,7 +304,12 @@ export function PortfolioCoachChat({
               value_nzd?: number;
               current_value_nzd?: number;
             }[];
-            spot?: { goldNZD?: number; silverNZD?: number };
+            spot?: {
+              goldNZD?: number;
+              silverNZD?: number;
+              gold?: { nzdPerOz?: number };
+              silver?: { nzdPerOz?: number };
+            };
           };
         };
 
@@ -313,17 +319,25 @@ export function PortfolioCoachChat({
         const cash = txJson.ok ? Number(txJson.data?.cashBalance || 0) : 0;
         let stockVal = 0;
         let cryptoVal = 0;
+        let metalsVal = 0;
+        const spot = metalsJson.ok ? metalsJson.data?.spot : undefined;
         for (const h of holdings) {
-          const qty = Number((h as any).shares ?? h.quantity ?? 0);
-          const px = Number(h.current_price ?? h.price ?? 0);
+          const qty = Number((h as any).shares ?? (h as any).quantity ?? 0);
+          const ticker = String((h as any).ticker || "");
+          const assetType = (h as any).asset_type as string | undefined;
+          const spotPx = isBullionHolding(assetType, ticker) ? bullionNzdPerOz(ticker, spot) : 0;
+          const px = spotPx > 0 ? spotPx : Number((h as any).current_price ?? (h as any).price ?? 0);
           const v = Number(
-            h.value_nzd ?? h.current_value ?? h.market_value ?? (qty > 0 && px > 0 ? qty * px : 0)
+            (h as any).value_nzd ??
+              (h as any).current_value ??
+              (h as any).market_value ??
+              (qty > 0 && px > 0 ? qty * px : 0)
           );
-          if ((h.asset_type || "stock") === "crypto") cryptoVal += v;
+          if (isBullionHolding(assetType, ticker)) metalsVal += qty > 0 && px > 0 ? qty * px : v;
+          else if (assetType === "crypto") cryptoVal += v;
           else stockVal += v;
         }
 
-        let metalsVal = 0;
         if (metalsJson.ok && metalsJson.data?.metals) {
           const spot = metalsJson.data.spot;
           for (const m of metalsJson.data.metals) {
@@ -334,10 +348,9 @@ export function PortfolioCoachChat({
             }
             const oz = Number(m.ounces || 0);
             const metal = (m.metal || "").toLowerCase();
-            const px =
-              metal.includes("silver")
-                ? Number(spot?.silverNZD || 0)
-                : Number(spot?.goldNZD || 0);
+            const px = metal.includes("silver")
+              ? Number(spot?.silverNZD || spot?.silver?.nzdPerOz || 0)
+              : Number(spot?.goldNZD || spot?.gold?.nzdPerOz || 0);
             metalsVal += oz * px;
           }
         }
