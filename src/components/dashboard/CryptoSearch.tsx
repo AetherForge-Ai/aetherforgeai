@@ -96,7 +96,7 @@ export function CryptoSearch({
   }
 
   return (
-    <Popover open={open} onOpenChange={handleOpenChange} modal={embedInDialog}>
+    <Popover open={open} onOpenChange={handleOpenChange} modal={!embedInDialog}>
       <PopoverTrigger asChild>
         <Button
           type="button"

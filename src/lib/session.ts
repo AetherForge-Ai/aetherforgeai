@@ -2,6 +2,7 @@ import "server-only";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { totalumSdk } from "@/lib/totalum";
+import { userRecordConflicts } from "@/lib/account-guard";
 
 export type BotAccessValue = "stock" | "crypto" | "both" | "none";
 
@@ -28,6 +29,11 @@ export interface AppUser {
   country?: string | null;
   phone?: string | null;
   secondary_email?: string | null;
+  /**
+   * True when the Totalum user record id did not match the session user.
+   * Callers must not return that record's cash or ledger.
+   */
+  identityConflict?: boolean;
 }
 
 /**
@@ -47,6 +53,17 @@ export async function getCurrentUser(): Promise<AppUser | null> {
       record = (res as any)?.data ?? null;
     } catch (err) {
       console.error("[session] Failed to load full user record:", err);
+    }
+
+    // Session id is the source of truth. A record whose own id disagrees
+    // belongs to another account — never copy its cash_balance onto this user.
+    const identityConflict = userRecordConflicts(userId, record);
+    if (identityConflict) {
+      console.error("[session] Refusing user record that does not match session", {
+        sessionUserId: userId,
+        recordId: record?._id ?? record?.id,
+      });
+      record = null;
     }
 
     return {
@@ -70,6 +87,7 @@ export async function getCurrentUser(): Promise<AppUser | null> {
       country: record?.country ?? (session.user as any).country ?? null,
       phone: record?.phone ?? (session.user as any).phone ?? null,
       secondary_email: record?.secondary_email ?? (session.user as any).secondary_email ?? null,
+      identityConflict,
     };
   } catch (err) {
     console.error("[session] getCurrentUser error:", err);

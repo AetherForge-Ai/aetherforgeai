@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
+import { hasForeignOwner, requestClaimsOtherUser } from "@/lib/account-guard";
+import { accountMismatchResponse, privateJson } from "@/lib/account-response";
 import { totalumSdk } from "@/lib/totalum";
 import { simulateTick } from "@/lib/market";
 import { fetchLiveQuotes, isLiveDataConfigured, fetchCryptoQuotes } from "@/lib/market-data";
@@ -11,16 +13,25 @@ import { getMetalsSpot } from "@/lib/metals";
  * configured, real quotes are used; otherwise a bounded random-walk tick keeps
  * the demo tape moving. Persists and returns the updated holdings.
  */
-export async function POST() {
+export async function POST(req: Request) {
   try {
     const user = await getCurrentUser();
     if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    if (user.identityConflict || requestClaimsOtherUser(req, user._id)) {
+      return accountMismatchResponse(user._id);
+    }
 
     const result = await totalumSdk.crud.query("stock", {
       _filter: { user: user._id },
       _limit: 500,
     });
     const stocks = (result?.data as any[]) || [];
+    if (hasForeignOwner(stocks, user._id)) {
+      console.error("[api/stocks/refresh] Refusing holdings owned by another user", {
+        sessionUserId: user._id,
+      });
+      return accountMismatchResponse(user._id);
+    }
 
     // Split by asset class: equities → Twelve Data/Yahoo, crypto → Swyftx, metals → spot.
     const equityTickers = stocks
@@ -60,7 +71,7 @@ export async function POST() {
     console.log(
       `[api/stocks/refresh] Updated ${updates.length} prices for user ${user._id} (source: ${usedLive ? "live" : "simulated"})`
     );
-    return NextResponse.json({ ok: true, data: updates });
+    return privateJson({ ok: true, userId: user._id, data: updates });
   } catch (err: any) {
     console.error("[api/stocks/refresh] error:", err);
     return NextResponse.json({ ok: false, error: err?.message || "Failed to refresh prices" }, { status: 500 });

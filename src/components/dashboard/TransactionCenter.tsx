@@ -38,6 +38,18 @@ import {
   bindTransactionStickyUser,
   type StickyTxMode,
 } from "@/lib/transaction-sticky";
+import {
+  acceptAccountPayload,
+  bindActiveAccount,
+  getAccountEpoch,
+  responseUserId,
+  trackAccountRequest,
+} from "@/lib/account-identity";
+import {
+  getTxDialogSnapshot,
+  publishTxDialog,
+  setTxDialogHandlers,
+} from "@/lib/transaction-dialog-store";
 import { toast } from "sonner";
 import {
   ArrowLeftRight,
@@ -213,16 +225,38 @@ export function TransactionCenter({
   const loadGenRef = useRef(0);
   const activeUserIdRef = useRef<string | null>(userId ?? null);
 
-  // Bind sticky Buy/Add to this user; clear ledger when the account changes.
+  const cashRef = useRef(0);
+  const preferredRef = useRef(preferredAssetType ?? null);
+  preferredRef.current = preferredAssetType ?? null;
+  // Latest holdings while closed; frozen once Buy/Add opens (see below).
+  const holdingsFrozenRef = useRef(holdings);
+  if (!open) holdingsFrozenRef.current = holdings;
+
+  // Bind sticky Buy/Add to this user. Only an actual account switch clears the
+  // open dialog — a remount during holdings hydrate must leave it alone.
   useEffect(() => {
     bindTransactionStickyUser(userId ?? null);
+    bindActiveAccount(userId ?? null);
+    const switched =
+      activeUserIdRef.current != null && userId != null && activeUserIdRef.current !== userId;
     activeUserIdRef.current = userId ?? null;
-    setLedger(null);
-    if (!(userId && getStickyTxOpen())) {
+    if (switched) {
+      setLedger(null);
+      publishTxDialog({ open: false, userId });
       setOpenRaw(false);
-    } else {
+      return;
+    }
+    if (userId && getStickyTxOpen() && !getTxDialogSnapshot().open) {
       setOpenRaw(true);
       setModeRaw(getStickyTxMode());
+      publishTxDialog({
+        open: true,
+        userId,
+        mode: getStickyTxMode(),
+        holdings: holdingsFrozenRef.current,
+        cash: cashRef.current,
+        preferredAssetType: preferredRef.current,
+      });
     }
   }, [userId]);
 
@@ -237,6 +271,18 @@ export function TransactionCenter({
     // is the gate; by the time we get here the close was allowed (or is open=true).
     setStickyTxOpen(next);
     setOpenRaw(next);
+    if (next) {
+      publishTxDialog({
+        open: true,
+        userId: activeUserIdRef.current,
+        mode: getStickyTxMode(),
+        holdings: holdingsFrozenRef.current,
+        cash: cashRef.current,
+        preferredAssetType: preferredRef.current,
+      });
+    } else {
+      publishTxDialog({ open: false });
+    }
   }, []);
   const setMode = useCallback((next: TxType) => {
     setStickyTxMode(next as StickyTxMode);
@@ -253,28 +299,49 @@ export function TransactionCenter({
 
   const load = useCallback(async () => {
     if (preview) return; // guest preview: no live ledger fetch
-    const expectedUserId = userId ?? null;
-    activeUserIdRef.current = expectedUserId;
+    const tracked = trackAccountRequest();
+    activeUserIdRef.current = tracked.userId;
     const gen = ++loadGenRef.current;
     setLoading(true);
-    const res = await api.get<Ledger & { userId?: string }>("/api/transactions");
-    // Ignore stale responses from a prior user / superseded fetch.
-    if (gen !== loadGenRef.current) return;
-    if (expectedUserId && activeUserIdRef.current !== expectedUserId) return;
-    if (res.ok && res.data) {
-      if (expectedUserId && res.data.userId && res.data.userId !== expectedUserId) {
-        console.error("[transaction-center] Ignoring ledger for other user", {
-          expectedUserId,
-          got: res.data.userId,
+    try {
+      const res = await api.get<Ledger & { userId?: string }>("/api/transactions", {
+        signal: tracked.signal,
+      });
+      // Superseded fetch, account switch, or a body that isn't the active user.
+      if (gen !== loadGenRef.current) return;
+      if (res.aborted || tracked.epoch !== getAccountEpoch()) return;
+      const echoed = responseUserId(res);
+      if (res.status === 409 || res.error === "account-mismatch") {
+        console.error("[transaction-center] Discarding ledger for other/stale user", {
+          requestUserId: tracked.userId,
+          responseUserId: echoed,
         });
-        setLoading(false);
         return;
       }
-      setLedger(res.data);
-    } else {
-      console.error("[transaction-center] Failed to load ledger:", res.error);
+      if (res.ok && res.data) {
+        if (
+          !acceptAccountPayload({
+            epoch: tracked.epoch,
+            requestUserId: tracked.userId,
+            responseUserId: echoed,
+            rows: res.data.transactions,
+          })
+        ) {
+          console.error("[transaction-center] Discarding ledger for other/stale user", {
+            requestUserId: tracked.userId,
+            responseUserId: echoed,
+          });
+          return;
+        }
+        setLedger(res.data);
+        setLoading(false);
+      } else {
+        console.error("[transaction-center] Failed to load ledger:", res.error);
+        setLoading(false);
+      }
+    } finally {
+      tracked.release();
     }
-    setLoading(false);
   }, [preview, userId]);
 
   useEffect(() => {
@@ -308,30 +375,24 @@ export function TransactionCenter({
     setOpen(true);
   }
 
-  // After a successful transaction: refresh the ledger and the parent holdings.
-  const handleDone = useCallback(
-    (updated: Ledger) => {
-      setLedger(updated);
-      onChanged();
-    },
-    [onChanged]
-  );
-
-  // Freeze the holdings snapshot while Buy/Add is open so live-price soft-refresh
-  // cannot re-render the dialog tree mid ticker-search on holdings accounts.
-  const holdingsFrozenRef = useRef(holdings);
-  if (!open) holdingsFrozenRef.current = holdings;
-  const holdingsForDialog = open ? holdingsFrozenRef.current : holdings;
-
-  const scopedHoldings = useMemo(() => {
-    if (!preferredAssetType) return holdingsForDialog;
-    return holdingsForDialog.filter((h) => (h.asset_type || "stock") === preferredAssetType);
-  }, [holdingsForDialog, preferredAssetType]);
-
   const effectivePreferredAsset = deepLinkAsset || preferredAssetType;
   const cash = ledger?.cashBalance ?? 0;
+  cashRef.current = cash;
+  preferredRef.current = effectivePreferredAsset ?? null;
   const realizedYtd = ledger?.realizedYtd ?? 0;
   const realizedTotal = ledger?.realizedTotal ?? 0;
+
+  // Dialog lives in TransactionDialogHost (sibling, not this subtree) so a
+  // holdings/cash soft-refresh re-render cannot remount it.
+  setTxDialogHandlers({
+    onDone: (updated) => {
+      if (updated && typeof updated === "object" && "cashBalance" in updated) {
+        setLedger(updated as Ledger);
+      }
+      onChanged();
+    },
+    onOpenChange: (next) => setOpen(next),
+  });
 
   return (
     <>
@@ -530,16 +591,6 @@ export function TransactionCenter({
           P&amp;L against your average cost.
         </p>
       </div>
-
-      <TransactionDialog
-        open={open}
-        onOpenChange={setOpen}
-        mode={mode}
-        holdings={scopedHoldings}
-        cash={cash}
-        onDone={handleDone}
-        preferredAssetType={effectivePreferredAsset}
-      />
 
       <AllTransactionsDialog
         open={allOpen}
@@ -956,7 +1007,7 @@ function AllTransactionsDialog({
 
 /* ------------------------------------------------------------------ dialog */
 
-function TransactionDialog({
+export function TransactionDialog({
   open,
   onOpenChange,
   mode,

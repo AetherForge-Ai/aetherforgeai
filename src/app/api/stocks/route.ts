@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { hasForeignOwner, requestClaimsOtherUser } from "@/lib/account-guard";
+import { accountMismatchResponse, privateJson } from "@/lib/account-response";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
@@ -144,6 +146,13 @@ export async function GET(req: Request) {
     if (!user) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
+    if (user.identityConflict || requestClaimsOtherUser(req, user._id)) {
+      console.error("[api/stocks] Refusing cross-account holdings", {
+        sessionUserId: user._id,
+        claimed: req.headers.get("x-af-user-id"),
+      });
+      return accountMismatchResponse(user._id);
+    }
 
     // NOTE: brand-new accounts start with an EMPTY portfolio. We deliberately do
     // NOT auto-seed sample holdings — injecting tickers the user never bought
@@ -159,6 +168,13 @@ export async function GET(req: Request) {
     });
 
     let stocks = (result?.data as any[]) || [];
+    // Never price or return another account's rows (shared-isolate query mixup).
+    if (hasForeignOwner(stocks, user._id)) {
+      console.error("[api/stocks] Refusing holdings owned by another user", {
+        sessionUserId: user._id,
+      });
+      return accountMismatchResponse(user._id);
+    }
 
     // Re-price EVERY holding with live market data before returning, so the
     // portfolio value the dashboard renders is accurate on first paint (not the
@@ -175,7 +191,7 @@ export async function GET(req: Request) {
       `[api/stocks] GET returned ${stocks.length} holdings for user ${user._id} (filter: ${assetType || "all"})`
     );
 
-    return NextResponse.json({ ok: true, data: stocks });
+    return privateJson({ ok: true, userId: user._id, data: stocks });
   } catch (err: any) {
     console.error("[api/stocks] GET error:", err);
     return NextResponse.json({ ok: false, error: err?.message || "Failed to load stocks" }, { status: 500 });

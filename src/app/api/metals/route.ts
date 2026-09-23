@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser, isStripeConfigured, hasPaidSubscription, type AppUser } from "@/lib/session";
+import { hasForeignOwner, requestClaimsOtherUser } from "@/lib/account-guard";
+import { accountMismatchResponse, privateJson } from "@/lib/account-response";
 import { totalumSdk } from "@/lib/totalum";
 import { getMetalsSpot } from "@/lib/metals";
 import { recordMetalTrade } from "@/lib/transactions";
@@ -25,10 +27,13 @@ function isEntitled(user: AppUser | null): boolean {
 }
 
 // GET /api/metals — list the user's metals + current spot prices
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const user = await getCurrentUser();
     if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    if (user.identityConflict || requestClaimsOtherUser(req, user._id)) {
+      return accountMismatchResponse(user._id);
+    }
 
     if (!isEntitled(user)) {
       console.log(`[api/metals] GET blocked — user ${user._id} lacks an active paid membership`);
@@ -48,9 +53,13 @@ export async function GET() {
     ]);
 
     const metals = (result?.data as any[]) || [];
+    if (hasForeignOwner(metals, user._id)) {
+      console.error("[api/metals] Refusing metals owned by another user", { sessionUserId: user._id });
+      return accountMismatchResponse(user._id);
+    }
     console.log(`[api/metals] GET returned ${metals.length} metal holdings for user ${user._id}`);
 
-    return NextResponse.json({ ok: true, data: { metals, spot } });
+    return privateJson({ ok: true, userId: user._id, data: { metals, spot } });
   } catch (err: any) {
     console.error("[api/metals] GET error:", err);
     return NextResponse.json({ ok: false, error: err?.message || "Failed to load metals" }, { status: 500 });

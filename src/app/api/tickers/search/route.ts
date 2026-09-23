@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { searchYahooSymbols } from "@/lib/yahoo-finance";
+import { searchMarketUniverse } from "@/lib/market-intel";
 
 export const dynamic = "force-dynamic";
 
@@ -14,8 +15,15 @@ export async function GET(req: Request) {
     const q = (searchParams.get("q") || "").trim();
     if (!q) return NextResponse.json({ ok: true, data: [] });
 
-    const results = await searchYahooSymbols(q, 12);
-    console.log(`[api/tickers/search] "${q}" → ${results.length} matches`);
+    const local = searchMarketUniverse(q, 12);
+    const yahoo = await searchYahooSymbols(q, 12);
+    const seen = new Set<string>();
+    const results = [...local, ...yahoo].filter((m) => {
+      if (seen.has(m.symbol)) return false;
+      seen.add(m.symbol);
+      return true;
+    }).slice(0, 12);
+    console.log(`[api/tickers/search] "${q}" → ${results.length} matches (${local.length} local)`);
     return NextResponse.json({ ok: true, data: results });
   } catch (err: any) {
     console.error("[api/tickers/search] error:", err);

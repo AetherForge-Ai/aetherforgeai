@@ -14,7 +14,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, DollarSign, TrendingUp, ShoppingCart, Wallet, AlertTriangle } from "lucide-react";
 import { api } from "@/lib/api";
-import { useSession } from "@/lib/auth-client";
+import {
+  acceptAccountPayload,
+  getAccountEpoch,
+  responseUserId,
+  trackAccountRequest,
+} from "@/lib/account-identity";
 import { checkFillSanity, ADVISORY_NOTE } from "@/lib/fill-integrity-client";
 import { formatMoney, currencyForTicker, type CurrencyCode } from "@/lib/currency";
 import { formatNumber } from "@/lib/portfolio";
@@ -68,9 +73,6 @@ export function BuyDialog({
   const [priceEdited, setPriceEdited] = useState(false);
   const [liveSpotRef, setLiveSpotRef] = useState<number | null>(null);
 
-  const { data: session } = useSession();
-  const sessionUserId = (session?.user as { id?: string } | undefined)?.id ?? null;
-
   // Cash balance (NZD) — loaded every time the dialog opens.
   const [cashBalance, setCashBalance] = useState<number | null>(null);
   const [cashLoading, setCashLoading] = useState(false);
@@ -110,32 +112,39 @@ export function BuyDialog({
     }
   }, [open, target]);
 
-  // Load cash balance when the dialog opens — bound to the live session userId.
+  // Load cash balance when the dialog opens. Apply only if the echoed userId
+  // is still the active account — a late prior-account body must not replace it.
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
-    const expectedUserId = sessionUserId;
+    const tracked = trackAccountRequest();
     (async () => {
       setCashLoading(true);
-      const res = await api.get<{ cashBalance: number; userId?: string }>("/api/transactions");
-      if (cancelled) return;
+      const res = await api.get<{ cashBalance: number; userId?: string; transactions?: { user?: string }[] }>(
+        "/api/transactions",
+        { signal: tracked.signal }
+      );
+      if (cancelled || res.aborted || tracked.epoch !== getAccountEpoch()) return;
       setCashLoading(false);
+      const echoed = responseUserId(res);
+      if (
+        !acceptAccountPayload({
+          epoch: tracked.epoch,
+          requestUserId: tracked.userId,
+          responseUserId: echoed,
+          rows: res.data?.transactions,
+        })
+      ) {
+        console.error("[buy-dialog] Discarding cash for other/stale user", {
+          requestUserId: tracked.userId,
+          responseUserId: echoed,
+        });
+        return;
+      }
       if (res.ok && res.data && typeof res.data.cashBalance === "number") {
-        if (
-          expectedUserId &&
-          res.data.userId &&
-          res.data.userId !== expectedUserId
-        ) {
-          console.error("[buy-dialog] Ignoring cash for other user", {
-            expectedUserId,
-            got: res.data.userId,
-          });
-          setCashBalance(null);
-          return;
-        }
         const bal = res.data.cashBalance;
         setCashBalance(bal);
-        console.log(`[buy-dialog] Cash balance: ${bal} NZD (user=${res.data.userId || expectedUserId || "?"})`);
+        console.log(`[buy-dialog] Cash balance: ${bal} NZD (user=${echoed})`);
         // Prefill from available NZD cash when the desk currency is NZD and the
         // amount is still blank — never seed a phantom US$1,000 suggestion.
         setAmount((prev) => {
@@ -152,8 +161,9 @@ export function BuyDialog({
     })();
     return () => {
       cancelled = true;
+      tracked.release();
     };
-  }, [open, sessionUserId, ticker, assetType]);
+  }, [open, ticker, assetType]);
 
   // Always anchor a crypto buy to the FRESHEST live price at open time. The price
   // passed in from a list can be a few seconds stale (or, for a coin the caller

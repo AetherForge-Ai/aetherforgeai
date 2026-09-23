@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
 import { applyTransaction, loadLedger } from "@/lib/transactions";
+import { hasForeignOwner, requestClaimsOtherUser } from "@/lib/account-guard";
+import { accountMismatchResponse, privateJson } from "@/lib/account-response";
 
 export const dynamic = "force-dynamic";
 
@@ -36,26 +38,36 @@ const tradeSchema = z.object({
 });
 
 // GET /api/transactions — the user's ledger + cash balance + realized P&L rollups
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const user = await getCurrentUser();
     if (!user) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
+    // UI account (x-af-user-id) or a user-record id that isn't this session
+    // means the body would be someone else's cash. Refuse it outright.
+    if (user.identityConflict || requestClaimsOtherUser(req, user._id)) {
+      console.error("[api/transactions] Refusing cross-account ledger", {
+        sessionUserId: user._id,
+        claimed: req.headers.get("x-af-user-id"),
+        identityConflict: user.identityConflict,
+      });
+      return accountMismatchResponse(user._id);
+    }
     const ledger = await loadLedger(user);
-    // Echo userId so clients can reject stale/cross-user cached responses.
-    return NextResponse.json(
-      {
-        ok: true,
-        data: { ...ledger, userId: user._id },
-      },
-      {
-        headers: {
-          "Cache-Control": "no-store, no-cache, must-revalidate, private",
-          Vary: "Cookie",
-        },
-      }
-    );
+    if (hasForeignOwner(ledger.transactions, user._id)) {
+      console.error("[api/transactions] Refusing ledger rows owned by another user", {
+        sessionUserId: user._id,
+      });
+      return accountMismatchResponse(user._id);
+    }
+    // Echo userId on the envelope AND inside data so clients can reject a
+    // stale/cross-user body even if one of the two is stripped by a cache.
+    return privateJson({
+      ok: true,
+      userId: user._id,
+      data: { ...ledger, userId: user._id },
+    });
   } catch (err: any) {
     console.error("[api/transactions] GET error:", err);
     return NextResponse.json(

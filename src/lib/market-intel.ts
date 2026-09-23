@@ -622,6 +622,48 @@ export function resolveExchange(ticker: string, market: MarketCode): Exchange {
   return DOW_JONES_TICKERS.has(ticker.toUpperCase()) ? "DOW" : "NASDAQ";
 }
 
+export interface UniverseTickerMatch {
+  symbol: string;
+  name: string;
+  exchange: string;
+  exchangeLabel: string;
+}
+
+/**
+ * Instant local match against the curated NZX/ASX/US universe.
+ * Buy/Add ticker search uses this so a symbol like BAP resolves to BAP.AX
+ * without waiting on a slow Yahoo round-trip (that wait was dismissing the
+ * modal before any row could render).
+ */
+export function searchMarketUniverse(query: string, limit = 12): UniverseTickerMatch[] {
+  const q = (query || "").trim().toLowerCase();
+  if (!q) return [];
+  const scored: { entry: UniverseEntry; score: number }[] = [];
+  for (const entry of MARKET_UNIVERSE) {
+    const sym = entry.ticker.toLowerCase();
+    const bare = sym.split(".")[0];
+    const name = entry.name.toLowerCase();
+    let score = 0;
+    if (bare === q || sym === q) score = 100;
+    else if (bare.startsWith(q) || sym.startsWith(q)) score = 80;
+    else if (name.startsWith(q)) score = 60;
+    else if (name.includes(q) || bare.includes(q)) score = 40;
+    else continue;
+    scored.push({ entry, score });
+  }
+  scored.sort((a, b) => b.score - a.score || a.entry.ticker.localeCompare(b.entry.ticker));
+  return scored.slice(0, limit).map(({ entry }) => {
+    const ex = resolveExchange(entry.ticker, entry.market);
+    const exchangeLabel = ex === "DOW" ? "NYSE" : ex;
+    return {
+      symbol: entry.ticker,
+      name: entry.name,
+      exchange: exchangeLabel,
+      exchangeLabel,
+    };
+  });
+}
+
 /** All universe entries listed on a given user-facing exchange. */
 export function entriesForExchange(ex: Exchange): UniverseEntry[] {
   return MARKET_UNIVERSE.filter((e) => resolveExchange(e.ticker, e.market) === ex);

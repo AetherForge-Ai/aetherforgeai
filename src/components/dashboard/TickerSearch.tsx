@@ -35,12 +35,24 @@ import {
   markDialogSearchGuard,
   markDialogSelectGuard,
 } from "@/lib/dialog-guards";
+import { searchMarketUniverse } from "@/lib/market-intel";
 
 export interface TickerMatch {
   symbol: string;
   name: string;
   exchange: string;
   exchangeLabel: string;
+}
+
+function mergeTickerMatches(local: TickerMatch[], remote: TickerMatch[]): TickerMatch[] {
+  const seen = new Set<string>();
+  const out: TickerMatch[] = [];
+  for (const m of [...local, ...remote]) {
+    if (!m?.symbol || seen.has(m.symbol)) continue;
+    seen.add(m.symbol);
+    out.push(m);
+  }
+  return out;
 }
 
 const EXCHANGE_BADGE: Record<string, string> = {
@@ -91,18 +103,24 @@ export function TickerSearch({
       setLoading(false);
       return;
     }
-    setLoading(true);
+    // Paint curated-universe hits immediately (BAP → BAP.AX) so the popover is
+    // not stuck on "Searching markets…" until a slow Yahoo response settles —
+    // that settle was dismissing Buy/Add before any match could show.
+    const local = searchMarketUniverse(q);
+    if (local.length) setResults(local);
+    setLoading(local.length === 0);
     markDialogSearchGuard(30_000);
     const id = ++seq.current;
     const t = setTimeout(async () => {
       try {
         const res = await api.get<TickerMatch[]>(`/api/tickers/search?q=${encodeURIComponent(q)}`);
         if (id !== seq.current) return; // a newer keystroke won
-        if (res.ok && res.data) setResults(res.data);
-        else {
-          console.error("[TickerSearch] search failed:", res.error);
-          setResults([]);
-        }
+        const remote = res.ok && res.data ? res.data : [];
+        if (!res.ok) console.error("[TickerSearch] search failed:", res.error);
+        // Keep local hits if Yahoo is empty or errors — never wipe BAP back to
+        // "no matches" when the network round-trip fails.
+        const merged = mergeTickerMatches(local, remote);
+        if (merged.length || !local.length) setResults(merged);
       } finally {
         if (id === seq.current) {
           setLoading(false);
@@ -150,7 +168,9 @@ export function TickerSearch({
   }, []);
 
   return (
-    <Popover open={open} onOpenChange={handleOpenChange} modal={embedInDialog}>
+    // Non-modal inside a Dialog. A modal popover fights the parent focus scope
+    // and dismisses Buy/Add when the results list replaces "Searching markets…".
+    <Popover open={open} onOpenChange={handleOpenChange} modal={!embedInDialog}>
       <PopoverTrigger asChild>
         <Button
           type="button"
@@ -186,7 +206,7 @@ export function TickerSearch({
         <Command shouldFilter={false}>
           <CommandInput placeholder={placeholder} value={query} onValueChange={setQueryAndNotify} />
           <CommandList>
-            {loading ? (
+            {loading && results.length === 0 ? (
               <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
                 <Loader2 className="size-4 animate-spin" /> Searching markets…
               </div>

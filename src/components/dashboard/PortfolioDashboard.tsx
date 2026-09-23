@@ -22,6 +22,14 @@ import {
 } from "@/components/dashboard/HoldingChartDialog";
 import { TransactionCenter } from "@/components/dashboard/TransactionCenter";
 import { isTransactionDialogOpen } from "@/lib/transaction-sticky";
+import { TransactionDialogHost } from "@/components/dashboard/TransactionDialogHost";
+import {
+  acceptAccountPayload,
+  bindActiveAccount,
+  getAccountEpoch,
+  responseUserId,
+  trackAccountRequest,
+} from "@/lib/account-identity";
 import {
   bindClientUser,
   readCachedCashNZD,
@@ -321,12 +329,18 @@ export function PortfolioDashboard({
   const [bot, setBot] = useState<AssetClass>(defaultBot);
   const [watchlistSignal, setWatchlistSignal] = useState(0);
 
+  // Bind before child effects fetch. Account identity is the only user the
+  // dashboard may hydrate; a later response for anyone else is discarded.
+  if (!preview) bindActiveAccount(userId ?? null);
+
   // Bind module sticky + purge legacy unscoped cash whenever the authenticated user changes.
   useEffect(() => {
     if (preview) {
       bindClientUser(null);
+      bindActiveAccount(null);
       return;
     }
+    bindActiveAccount(userId ?? null);
     bindClientUser(userId ?? null);
   }, [preview, userId]);
 
@@ -455,82 +469,163 @@ export function PortfolioDashboard({
     // collapses balancesReady (KPI zero-flash) and used to remount Transaction
     // Centre Buy/Add mid ticker-search when live price overlay finished on the
     // existing-holdings path. Initial useState(!preview) already gates first paint.
-    const res = await api.get<Stock[]>(`/api/stocks`);
-    if (res.ok && res.data) {
-      // Round-6: after the first hydrate, defer live-price overlays while Buy/Add
-      // is open so TickerSearch cannot be torn down mid-results (TT holdings path).
-      if (isTransactionDialogOpen() && holdingsHydratedRef.current) {
-        console.log("[dashboard] Holdings overlay deferred — Transaction dialog open");
-      } else {
-        setAllStocks(res.data);
-        holdingsHydratedRef.current = true;
+    const tracked = trackAccountRequest();
+    try {
+      const res = await api.get<Stock[]>(`/api/stocks`, { signal: tracked.signal });
+      if (res.aborted || tracked.epoch !== getAccountEpoch()) return;
+      const echoed = responseUserId(res);
+      if (res.status === 409 || res.error === "account-mismatch") {
+        console.error("[dashboard] Discarding holdings for other/stale user", {
+          requestUserId: tracked.userId,
+          responseUserId: echoed,
+        });
+        return;
       }
-    } else {
-      console.error("[dashboard] Failed to load stocks:", res.error);
-      toast.error("Could not load your portfolio.");
+      if (res.ok && res.data) {
+        if (
+          !acceptAccountPayload({
+            epoch: tracked.epoch,
+            requestUserId: tracked.userId,
+            responseUserId: echoed,
+            rows: res.data,
+          })
+        ) {
+          console.error("[dashboard] Discarding holdings for other/stale user", {
+            requestUserId: tracked.userId,
+            responseUserId: echoed,
+          });
+          return;
+        }
+        // After the first hydrate, defer live-price overlays while Buy/Add is
+        // open. The dialog itself is mounted outside this tree; deferring also
+        // keeps the holdings table from swapping under an open sell list.
+        if (isTransactionDialogOpen() && holdingsHydratedRef.current) {
+          console.log("[dashboard] Holdings overlay deferred — Transaction dialog open");
+        } else {
+          setAllStocks(res.data);
+          holdingsHydratedRef.current = true;
+        }
+        setLoading(false);
+      } else {
+        console.error("[dashboard] Failed to load stocks:", res.error);
+        toast.error("Could not load your portfolio.");
+        setLoading(false);
+      }
+    } finally {
+      tracked.release();
     }
-    setLoading(false);
   }, []);
 
   // Cash balance (NZD) from the transaction ledger.
   /** Cash + recent rows from /api/transactions — same ledger as the Transactions page. */
   const loadCash = useCallback(async () => {
-    const expectedUserId = userId;
-    const res = await api.get<{
-      cashBalance: number;
-      userId?: string;
-      transactions?: {
-        type?: string;
-        ticker?: string;
-        total?: number;
-        amount?: number;
-        executed_at?: string;
-        notes?: string;
-      }[];
-    }>("/api/transactions");
-    if (res.ok && res.data) {
-      if (
-        expectedUserId &&
-        res.data.userId &&
-        res.data.userId !== expectedUserId
-      ) {
-        console.error("[dashboard] Ignoring cash ledger for other user", {
-          expectedUserId,
-          got: res.data.userId,
+    const tracked = trackAccountRequest();
+    try {
+      const res = await api.get<{
+        cashBalance: number;
+        userId?: string;
+        transactions?: {
+          type?: string;
+          ticker?: string;
+          total?: number;
+          amount?: number;
+          executed_at?: string;
+          notes?: string;
+          user?: string;
+        }[];
+      }>("/api/transactions", { signal: tracked.signal });
+      if (res.aborted || tracked.epoch !== getAccountEpoch()) return;
+      const echoed = responseUserId(res);
+      if (res.status === 409 || res.error === "account-mismatch") {
+        // Leave the user-scoped sessionStorage figure on screen. A late body
+        // from the previous account must not replace it — that was the ~8s
+        // 1T→TT cash switch.
+        console.error("[dashboard] Discarding cash ledger for other/stale user", {
+          requestUserId: tracked.userId,
+          responseUserId: echoed,
         });
         return;
       }
-      const bal = res.data.cashBalance ?? 0;
-      setCashBalance(bal);
-      writeCachedCashNZD(expectedUserId, bal);
-      const rows = (res.data.transactions || []).slice(0, 6).map((r) => ({
-        type: r.type,
-        ticker: r.ticker ?? null,
-        amount: r.total ?? r.amount ?? null,
-        executed_at: r.executed_at ?? null,
-        notes: r.notes ?? null,
-      }));
-      setRecentLedger(rows);
-    } else {
-      console.error("[dashboard] Failed to load cash balance:", res.error);
+      if (res.ok && res.data && typeof res.data.cashBalance === "number") {
+        if (
+          !acceptAccountPayload({
+            epoch: tracked.epoch,
+            requestUserId: tracked.userId,
+            responseUserId: echoed,
+            rows: res.data.transactions,
+          })
+        ) {
+          console.error("[dashboard] Discarding cash ledger for other/stale user", {
+            requestUserId: tracked.userId,
+            responseUserId: echoed,
+          });
+          return;
+        }
+        const bal = res.data.cashBalance;
+        setCashBalance(bal);
+        writeCachedCashNZD(tracked.userId, bal);
+        const rows = (res.data.transactions || []).slice(0, 6).map((r) => ({
+          type: r.type,
+          ticker: r.ticker ?? null,
+          amount: r.total ?? r.amount ?? null,
+          executed_at: r.executed_at ?? null,
+          notes: r.notes ?? null,
+        }));
+        setRecentLedger(rows);
+        setCashLoaded(true);
+      } else {
+        console.error("[dashboard] Failed to load cash balance:", res.error);
+        setCashLoaded(true);
+      }
+    } finally {
+      tracked.release();
     }
-    setCashLoaded(true);
   }, [userId]);
 
   // Precious-metals total value (NZD) from live spot × ounces held.
   // Also keeps the full holding list so Transaction Center Sell/Remove can show
   // Gold & Silver bought via the dedicated Precious Metals section.
   const loadMetals = useCallback(async () => {
-    const res = await api.get<{
+    const tracked = trackAccountRequest();
+    let res: Awaited<ReturnType<typeof api.get<{
       metals: {
         _id: string;
         metal: "gold" | "silver";
         ounces: number;
         purchase_price_per_oz: number;
+        user?: string;
       }[];
       spot: { gold: { nzdPerOz: number }; silver: { nzdPerOz: number } };
-    }>("/api/metals");
+    }>>>;
+    try {
+      res = await api.get("/api/metals", { signal: tracked.signal });
+    } finally {
+      tracked.release();
+    }
+    if (res.aborted || tracked.epoch !== getAccountEpoch()) return;
+    const echoed = responseUserId(res);
+    if (res.status === 409 || res.error === "account-mismatch") {
+      console.error("[dashboard] Discarding metals for other/stale user", {
+        requestUserId: tracked.userId,
+        responseUserId: echoed,
+      });
+      return;
+    }
     if (res.ok && res.data?.spot) {
+      if (
+        !acceptAccountPayload({
+          epoch: tracked.epoch,
+          requestUserId: tracked.userId,
+          responseUserId: echoed,
+          rows: res.data.metals,
+        })
+      ) {
+        console.error("[dashboard] Discarding metals for other/stale user", {
+          requestUserId: tracked.userId,
+          responseUserId: echoed,
+        });
+        return;
+      }
       const { metals, spot } = res.data;
       const list = metals || [];
       const total = list.reduce(
@@ -540,13 +635,15 @@ export function PortfolioDashboard({
       setMetalsValueNZD(total);
       setPreciousMetalHoldings(list);
       setMetalSpot(spot);
-    } else {
+    } else if (!res.aborted) {
       // Not entitled / no metals — simply contributes 0 to the totals.
+      // Cross-account 409s must not wipe a balance we already painted.
       setMetalsValueNZD(0);
       setPreciousMetalHoldings([]);
       setMetalSpot(null);
+      setMetalsLoaded(true);
     }
-    setMetalsLoaded(true);
+    if (res.ok && res.data?.spot) setMetalsLoaded(true);
   }, []);
 
   useEffect(() => {
@@ -569,7 +666,21 @@ export function PortfolioDashboard({
         console.log("[dashboard] Soft-refresh deferred — Transaction dialog open");
         return;
       }
-      const res = await api.post<Stock[]>("/api/stocks/refresh", {});
+      const tracked = trackAccountRequest();
+      const res = await api.post<Stock[]>("/api/stocks/refresh", {}, { signal: tracked.signal });
+      tracked.release();
+      if (res.aborted || tracked.epoch !== getAccountEpoch()) return;
+      if (
+        !acceptAccountPayload({
+          epoch: tracked.epoch,
+          requestUserId: tracked.userId,
+          responseUserId: responseUserId(res),
+          rows: res.data,
+        })
+      ) {
+        console.error("[dashboard] Discarding soft-refresh holdings for other/stale user");
+        return;
+      }
       if (res.ok && res.data) {
         if (isTransactionDialogOpen()) return;
         setAllStocks(res.data);
@@ -808,7 +919,22 @@ export function PortfolioDashboard({
   async function handleRefreshPrices() {
     setRefreshing(true);
     console.log("[dashboard] Refreshing market prices…");
-    const res = await api.post<Stock[]>("/api/stocks/refresh", {});
+    const tracked = trackAccountRequest();
+    const res = await api.post<Stock[]>("/api/stocks/refresh", {}, { signal: tracked.signal });
+    tracked.release();
+    if (
+      res.aborted ||
+      !acceptAccountPayload({
+        epoch: tracked.epoch,
+        requestUserId: tracked.userId,
+        responseUserId: responseUserId(res),
+        rows: res.data,
+      })
+    ) {
+      console.error("[dashboard] Discarding manual refresh for other/stale user");
+      setRefreshing(false);
+      return;
+    }
     if (res.ok && res.data) {
       // The refresh endpoint returns all holdings; the active bot's are derived.
       setAllStocks(res.data);
@@ -1778,6 +1904,10 @@ export function PortfolioDashboard({
       </DashboardGate>
       </div>
       )}
+
+      {/* Buy/Add is mounted here, not under the holdings tree, so a cash or
+          live-price soft-refresh cannot remount it mid ticker-search. */}
+      <TransactionDialogHost />
 
       <StockDialog
         open={dialogOpen}
