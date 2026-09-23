@@ -99,7 +99,7 @@ export default function LandingPage() {
                   <div className="absolute -inset-4 rounded-3xl bg-gradient-to-br from-primary/20 via-transparent to-amber-400/10 blur-2xl" />
                   <img
                     src="/brand/home-hero-portfolio.png"
-                    alt="Stock Portfolio Overview dashboard"
+                    alt="Welcome to your Dashboard overview"
                     className="relative w-full h-auto rounded-3xl border border-border/70 bg-card shadow-xl"
                   />
                 </div>
