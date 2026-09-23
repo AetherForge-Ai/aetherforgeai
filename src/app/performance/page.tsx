@@ -2,19 +2,13 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { SiteHeader } from "@/components/SiteHeader";
 import { BrandLogo } from "@/components/BrandLogo";
-import { Button } from "@/components/ui/button";
 import { LiveExamplesGallery } from "@/components/performance/LiveExamplesGallery";
 import {
-  ArrowRight,
-  Gauge,
   Zap,
   BrainCircuit,
   Globe2,
-  ShieldAlert,
-  Target,
   BadgeCheck,
   LineChart,
-  CheckCircle2,
 } from "lucide-react";
 
 export const metadata: Metadata = {
@@ -52,25 +46,6 @@ const PROOF_STATS = [
     icon: Globe2,
     title: "NZX + ASX + global, together",
     body: "Local shares, US equities, top-100 crypto and physical metals tracked side by side in one consolidated NZD view.",
-  },
-];
-
-// ── Section 4 — the real advantage ──
-const ADVANTAGES = [
-  {
-    icon: ShieldAlert,
-    title: "Avoid costly mistakes",
-    body: "Know your true cost basis, exposure and risk before you act — so a rushed decision never quietly erodes your capital.",
-  },
-  {
-    icon: Target,
-    title: "Catch opportunities earlier",
-    body: "Live movement, momentum and a forward 7-day outlook surface shifts while they still matter — not after the move is gone.",
-  },
-  {
-    icon: Gauge,
-    title: "Trade with confidence, backed by data",
-    body: "Institutional-grade analytics on your own holdings mean every choice is anchored to evidence you can point to.",
   },
 ];
 
@@ -155,68 +130,6 @@ export default function PerformancePage() {
             what separates an average tool from a genuine edge. Anyone can curate a perfect chart after
             the fact. Proving it in real time, on real money, is a different standard entirely.
           </p>
-        </section>
-
-        {/* ──────────────  4 · THE REAL ADVANTAGE  ────────────── */}
-        <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-          <div className="mx-auto mb-12 max-w-2xl text-center">
-            <p className="text-sm font-semibold uppercase tracking-wider text-primary">
-              The real advantage
-            </p>
-            <h2 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">
-              Accurate Information = Better Decisions = Real Money
-            </h2>
-          </div>
-          <div className="grid gap-6 md:grid-cols-3">
-            {ADVANTAGES.map((a) => (
-              <div
-                key={a.title}
-                className="relative overflow-hidden rounded-3xl border border-border/70 bg-card/40 p-8"
-              >
-                <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent" />
-                <div className="relative">
-                  <div className="flex size-12 items-center justify-center rounded-2xl border border-border/70 bg-background/60">
-                    <a.icon className="size-6 text-primary" />
-                  </div>
-                  <h3 className="mt-5 font-display text-lg font-bold">{a.title}</h3>
-                  <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{a.body}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* ──────────────────  5 · FINAL CTA  ────────────────── */}
-        <section className="mx-auto max-w-7xl px-4 pb-20 pt-6 sm:px-6 lg:px-8">
-          <div className="relative overflow-hidden rounded-3xl border border-primary/25 bg-gradient-to-br from-primary/15 via-card/60 to-card/60 px-6 py-16 text-center shadow-glow sm:px-12">
-            <div className="pointer-events-none absolute inset-0 bg-aurora opacity-60" />
-            <div className="relative">
-              <div className="mx-auto flex size-14 items-center justify-center rounded-2xl border border-primary/30 bg-background/60">
-                <Target className="size-7 text-primary" />
-              </div>
-              <h2 className="mx-auto mt-6 max-w-2xl font-display text-3xl font-bold tracking-tight sm:text-4xl">
-                Ready to Put This Edge to Work in Your Portfolio?
-              </h2>
-              <p className="mx-auto mt-4 max-w-xl text-muted-foreground">
-                Join AetherForge AI and turn live NZX, ASX and global market data into decisive,
-                evidence-based clarity — starting today.
-              </p>
-              <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row">
-                <Button asChild size="lg" className="h-12 px-8 text-base font-semibold shadow-glow">
-                  <Link href="/register">
-                    Get Started with the Bot <ArrowRight className="ml-1 size-4" />
-                  </Link>
-                </Button>
-                <Button asChild size="lg" variant="outline" className="h-12 px-8 text-base">
-                  <Link href="/how-it-works">Book a Quick Demo</Link>
-                </Button>
-              </div>
-              <p className="mt-7 inline-flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                <CheckCircle2 className="size-3.5 text-primary" /> Built for serious investors.
-                Transparent. No fluff.
-              </p>
-            </div>
-          </div>
         </section>
 
         {/* ──────────────────  FOOTER + DISCLAIMER  ────────────────── */}
