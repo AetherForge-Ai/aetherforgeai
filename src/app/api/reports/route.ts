@@ -5,14 +5,15 @@ import { totalumSdk } from "@/lib/totalum";
 import type { BotKind } from "@/lib/apex";
 import { generateReportForUser } from "@/lib/report-service";
 import { checkReportQuota } from "@/lib/entitlements";
+import { reconcileNarrativeWithLiveBook, reconcileStoredReport, type LiveBookPosition } from "@/lib/report-book";
 
 const schema = z.object({ bot: z.enum(["stock", "crypto"]) });
 
 /**
  * Most recent report timestamp for a user AND a specific bot (ISO), or null.
  *
- * The daily allowance is now PER report system: one full Stox report per day AND
- * one full Koins report per day, tracked independently. Filtering by `bot` is
+ * The allowance is PER report system: one full Stox report AND one full Koins
+ * report per window, tracked independently. Filtering by `bot` is
  * what makes the two allowances independent — running Stox never consumes the
  * Koins allowance and vice-versa.
  */
@@ -34,7 +35,7 @@ async function lastReportAt(userId: string, bot: BotKind): Promise<string | null
  * persists it and returns it for inline dashboard display.
  *
  * Enforces the plan's report cadence: Free & Apex Weekly → 1 report / week;
- * Apex Monthly / Yearly / Dual → 1 report / Pacific/Auckland calendar day.
+ * paid tiers → 1 report every 4 hours (rolling), per bot.
  */
 export async function POST(req: Request) {
   try {
@@ -125,12 +126,27 @@ export async function GET() {
     const user = await getCurrentUser();
     if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
-    const res = await totalumSdk.crud.query("report", {
-      _filter: { user: user._id },
-      _sort: { createdAt: "desc" },
-      _limit: 50,
-    });
+    const [res, stockRes] = await Promise.all([
+      totalumSdk.crud.query("report", {
+        _filter: { user: user._id },
+        _sort: { createdAt: "desc" },
+        _limit: 50,
+      }),
+      totalumSdk.crud.query("stock", { _filter: { user: user._id }, _limit: 500 }).catch((err) => {
+        console.error("[api/reports] Live book load failed (history still returned):", err);
+        return { data: [] as unknown[] };
+      }),
+    ]);
     const rows = (res?.data as any[]) || [];
+    const liveRows = ((stockRes as { data?: unknown[] })?.data as any[]) || [];
+    const liveFor = (bot: string): LiveBookPosition[] =>
+      liveRows
+        .filter((h) => (h.asset_type || "stock") === bot && h.ticker)
+        .map((h) => ({
+          ticker: String(h.ticker),
+          shares: Number(h.shares) || 0,
+          name: h.company_name || h.ticker,
+        }));
     const reports = rows.map((r) => {
       let payload: unknown = null;
       if (typeof r.payload === "string" && r.payload.trim()) {
@@ -142,7 +158,15 @@ export async function GET() {
       } else if (r.payload && typeof r.payload === "object") {
         payload = r.payload;
       }
-      const executiveSummary = r.executive_summary || "";
+      const liveBook = liveFor(String(r.bot || "stock"));
+      if (payload && typeof payload === "object") {
+        payload = reconcileStoredReport(payload as Record<string, unknown>, liveBook);
+      }
+      const fromPayload =
+        payload && typeof payload === "object" && "executiveSummary" in payload
+          ? String((payload as { executiveSummary?: string }).executiveSummary || "")
+          : "";
+      const executiveSummary = reconcileNarrativeWithLiveBook(r.executive_summary || fromPayload, liveBook);
       // Searchable inline text for history view (prefer full payload summary + headline fields).
       const textBody = [
         executiveSummary,
