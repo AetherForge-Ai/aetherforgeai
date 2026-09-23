@@ -25,7 +25,25 @@ import type { ApexReport, BotKind } from "@/lib/apex";
 import { BOT_STOX_AVATAR, BOT_KOINS_AVATAR, BOT_HEADMASTER_AVATAR } from "../../../assets/files";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { checkReportQuota, formatAucklandDateTime, formatDuration, formatReportCooldownLine, reportCadence } from "@/lib/entitlements";
+import {
+  evaluateReportQuota,
+  formatAucklandDateTime,
+  formatDuration,
+  formatReportCooldownLine,
+  reportCadence,
+  type ReportCadence,
+} from "@/lib/entitlements";
+import {
+  liveBookForAccount,
+  reconcileNarrativeForAccount,
+  reconcileStoredReport,
+  type AccountHoldingRow,
+} from "@/lib/report-book";
+import {
+  acceptAccountPayload,
+  responseUserId,
+  trackAccountRequest,
+} from "@/lib/account-identity";
 import { isTransactionDialogOpen } from "@/lib/transaction-sticky";
 import { getTxDialogSnapshot, subscribeTxDialog } from "@/lib/transaction-dialog-store";
 import { Loader2, Lock, Play, FileDown, Mail, FileText, Sparkles, Clock, Zap, ArrowRight, ChevronDown, Eye } from "lucide-react";
@@ -55,7 +73,9 @@ interface BotQuota {
   nextAllowedAt: string | null;
   lastReportAt: string | null;
   cadenceLabel: string;
-  cadenceUnit: "day" | "week";
+  cadenceUnit: "rolling" | "week" | "day";
+  cadenceMs?: number;
+  perLabel?: string;
 }
 
 interface ReportsResponse {
@@ -85,7 +105,9 @@ const DEFS: { kind: BotKind; name: string; subtitle: string; mascot: string; acc
 ];
 
 function fmtDate(iso?: string | null): string {
-  return formatAucklandDateTime(iso);
+  const label = formatAucklandDateTime(iso);
+  if (!label || label === "—") return label;
+  return `${label} Pacific/Auckland`;
 }
 
 export function ReportCenter({
@@ -94,6 +116,8 @@ export function ReportCenter({
   scope,
   counts,
   tickerLimit,
+  userId = null,
+  holdings = [],
   preview = false,
 }: {
   botAccess: BotAccess;
@@ -101,6 +125,10 @@ export function ReportCenter({
   scope: "total" | "perBot";
   counts: { stock: number; crypto: number; total: number };
   tickerLimit?: number | null;
+  /** Active account. History is discarded unless the response echoes this id. */
+  userId?: string | null;
+  /** Live book already on the dashboard — used to rewrite stale empty-book copy. */
+  holdings?: AccountHoldingRow[];
   /** Retained for API compatibility with the dashboard; holdings are edited in the Transaction Center now. */
   onHoldingsChanged?: () => void;
   /** Guest preview — read-only, no network calls. */
@@ -121,6 +149,8 @@ export function ReportCenter({
   });
   // Live clock so the "next report unlocks in…" countdown ticks down on screen.
   const [now, setNow] = React.useState<number>(() => Date.now());
+  // Server cadence (ms) once history loads, so the countdown cannot drift from the API.
+  const [serverCadence, setServerCadence] = React.useState<ReportCadence | null>(null);
   const sectionRef = React.useRef<HTMLElement | null>(null);
 
   // Stable anchor for Assistant Guide "Run Stox or Koins" → /dashboard#report-center
@@ -142,43 +172,108 @@ export function ReportCenter({
 
   const canRun = (kind: BotKind) => botAccess === "both" || botAccess === kind;
 
+  const holdingRows = React.useMemo<AccountHoldingRow[]>(
+    () => holdings.map((row) => ({ ...row, user: row.user ?? row.userId ?? userId ?? undefined })),
+    [holdings, userId]
+  );
+  const bookFor = React.useCallback(
+    (kind: BotKind) => (userId ? liveBookForAccount(holdingRows, userId, kind) : []),
+    [holdingRows, userId]
+  );
+  const shownSummary = React.useCallback(
+    (bot: BotKind, text: string) =>
+      userId ? reconcileNarrativeForAccount(userId, text, holdingRows, bot) : text,
+    [holdingRows, userId]
+  );
+
   // Report cadence — recomputed live against `now` so the countdowns tick. Each
-  // bot has its OWN quota so Stox and Koins unlock independently.
-  const cadence = reportCadence(plan);
-  const quotaFor = (kind: BotKind) => checkReportQuota(plan, lastReportAt[kind], now);
+  // bot has its OWN quota so Stox and Koins unlock independently. Prefer the
+  // cadence the API just returned (rolling 4h for paid, 7 days for free/weekly).
+  const cadence = serverCadence ?? reportCadence(plan);
+  const quotaFor = (kind: BotKind) => evaluateReportQuota(cadence, lastReportAt[kind], now);
   const anyLocked = (["stock", "crypto"] as BotKind[]).some((k) => !quotaFor(k).allowed);
 
-  const pendingHistoryRef = React.useRef<ReportsResponse | null>(null);
+  const pendingHistoryRef = React.useRef<{
+    data: ReportsResponse;
+    epoch: number;
+    userId: string | null;
+  } | null>(null);
   const applyHistory = React.useCallback((data: ReportsResponse) => {
     setHistory(data.reports || []);
     setLastReportAt({
       stock: data.quota?.stock?.lastReportAt ?? null,
       crypto: data.quota?.crypto?.lastReportAt ?? null,
     });
+    const sample = data.quota?.stock?.cadenceMs ? data.quota.stock : data.quota?.crypto;
+    if (sample?.cadenceMs && sample.perLabel && (sample.cadenceUnit === "rolling" || sample.cadenceUnit === "week")) {
+      setServerCadence({
+        unit: sample.cadenceUnit,
+        ms: sample.cadenceMs,
+        label: sample.cadenceLabel,
+        perLabel: sample.perLabel,
+      });
+    }
   }, []);
 
   const loadHistory = React.useCallback(async () => {
     if (preview) return; // guest preview: no live report history fetch
-    const res = await api.get<ReportsResponse>("/api/reports");
-    if (res.ok && res.data) {
-      // Report Centre mounts only on /dashboard/stocks (and crypto). Its
-      // history response lands in the same window as BAP search and used to
-      // re-render a sibling Radix dialog under the open Buy/Add modal.
-      if (isTransactionDialogOpen()) {
-        pendingHistoryRef.current = res.data;
-        console.log("[ReportCenter] History deferred — Transaction dialog open");
+    const tracked = trackAccountRequest();
+    try {
+      const res = await api.get<ReportsResponse>("/api/reports", { signal: tracked.signal });
+      if (res.aborted) return;
+      const echoed = responseUserId(res);
+      if (res.status === 409 || res.error === "account-mismatch") {
+        console.error("[ReportCenter] Discarding report history for other/stale user", {
+          requestUserId: tracked.userId,
+          responseUserId: echoed,
+        });
         return;
       }
-      pendingHistoryRef.current = null;
-      applyHistory(res.data);
-    } else {
-      console.error("[ReportCenter] Failed to load report history:", res.error);
+      if (res.ok && res.data) {
+        if (
+          !acceptAccountPayload({
+            epoch: tracked.epoch,
+            requestUserId: tracked.userId,
+            responseUserId: echoed,
+          })
+        ) {
+          console.error("[ReportCenter] Discarding report history for other/stale user", {
+            requestUserId: tracked.userId,
+            responseUserId: echoed,
+          });
+          return;
+        }
+        // Report Centre mounts only on /dashboard/stocks (and crypto). Its
+        // history response lands in the same window as BAP search and used to
+        // re-render a sibling Radix dialog under the open Buy/Add modal.
+        if (isTransactionDialogOpen()) {
+          pendingHistoryRef.current = {
+            data: res.data,
+            epoch: tracked.epoch,
+            userId: tracked.userId,
+          };
+          console.log("[ReportCenter] History deferred — Transaction dialog open");
+          return;
+        }
+        pendingHistoryRef.current = null;
+        applyHistory(res.data);
+      } else {
+        console.error("[ReportCenter] Failed to load report history:", res.error);
+      }
+    } finally {
+      tracked.release();
     }
   }, [preview, applyHistory]);
 
   React.useEffect(() => {
+    // Drop the previous account's narratives immediately. The fetch is aborted
+    // on switch and only applied when the response echoes this user.
+    setHistory([]);
+    setLastReportAt({ stock: null, crypto: null });
+    setServerCadence(null);
+    pendingHistoryRef.current = null;
     loadHistory();
-  }, [loadHistory]);
+  }, [loadHistory, userId]);
 
   React.useEffect(() => {
     return subscribeTxDialog(() => {
@@ -186,7 +281,17 @@ export function ReportCenter({
       const pending = pendingHistoryRef.current;
       if (!pending) return;
       pendingHistoryRef.current = null;
-      applyHistory(pending);
+      if (
+        !acceptAccountPayload({
+          epoch: pending.epoch,
+          requestUserId: pending.userId,
+          responseUserId: pending.userId,
+        })
+      ) {
+        console.error("[ReportCenter] Dropping deferred history after account switch");
+        return;
+      }
+      applyHistory(pending.data);
     });
   }, [applyHistory]);
 
@@ -210,6 +315,7 @@ export function ReportCenter({
     }
     setRunning(kind);
     console.log(`[ReportCenter] Running ${kind} report`);
+    const tracked = trackAccountRequest();
     const res = await api.post<{
       report: ApexReport;
       pdfUrl: string | null;
@@ -217,8 +323,24 @@ export function ReportCenter({
       aiEnhanced: boolean;
       monitored: number;
       nextAllowedAt: string | null;
-    }>("/api/reports", { bot: kind });
+      perLabel?: string;
+      cadenceMs?: number;
+      cadenceLabel?: string;
+      cadenceUnit?: "rolling" | "week" | "day";
+    }>("/api/reports", { bot: kind }, { signal: tracked.signal });
+    tracked.release();
     setRunning(null);
+
+    if (res.aborted) return;
+    const echoed = responseUserId(res);
+    if (res.status === 409 || res.error === "account-mismatch") {
+      console.error("[ReportCenter] Discarding generated report for other/stale user", {
+        requestUserId: tracked.userId,
+        responseUserId: echoed,
+      });
+      toast.error("Account changed before the report finished. Run it again on this book.");
+      return;
+    }
 
     if (!res.ok || !res.data?.report) {
       // Cadence limit → friendly countdown message; other errors → raw message.
@@ -229,7 +351,22 @@ export function ReportCenter({
       loadHistory();
       return;
     }
-    setReport(res.data.report);
+    if (
+      !acceptAccountPayload({
+        epoch: tracked.epoch,
+        requestUserId: tracked.userId,
+        responseUserId: echoed,
+      })
+    ) {
+      console.error("[ReportCenter] Discarding generated report for other/stale user", {
+        requestUserId: tracked.userId,
+        responseUserId: echoed,
+      });
+      toast.error("Account changed before the report finished. Run it again on this book.");
+      return;
+    }
+    const grounded = reconcileStoredReport(res.data.report, bookFor(kind));
+    setReport(grounded);
     setTextOnly(null);
     setLastPdfUrl(res.data.pdfUrl);
     setLastAiEnhanced(!!res.data.aiEnhanced);
@@ -312,6 +449,8 @@ export function ReportCenter({
                           lastReportAt: q.lastReportAt,
                           waitMs: 0,
                           cadenceUnit: q.cadence.unit,
+                          perLabel: q.cadence.perLabel,
+                          now,
                         })}
                       </span>
                     ) : (
@@ -320,6 +459,8 @@ export function ReportCenter({
                           lastReportAt: q.lastReportAt,
                           waitMs: q.waitMs,
                           cadenceUnit: q.cadence.unit,
+                          perLabel: q.cadence.perLabel,
+                          now,
                         })}
                       </span>
                     )}
@@ -385,7 +526,7 @@ export function ReportCenter({
                   </Button>
                 ) : botLocked ? (
                   <Button variant="outline" className="w-full" disabled>
-                    <Clock className="mr-1 size-4" /> {formatReportCooldownLine({ lastReportAt: botQuota.lastReportAt, waitMs: botQuota.waitMs, cadenceUnit: botQuota.cadence.unit })}
+                    <Clock className="mr-1 size-4" /> {formatReportCooldownLine({ lastReportAt: botQuota.lastReportAt, waitMs: botQuota.waitMs, cadenceUnit: botQuota.cadence.unit, perLabel: botQuota.cadence.perLabel, now })}
                   </Button>
                 ) : (
                   <Button className="w-full" onClick={() => runReport(b.kind)} disabled={busy || running !== null}>
@@ -497,7 +638,7 @@ export function ReportCenter({
                   <p className="text-xs text-muted-foreground">{fmtDate(r.generatedAt)}</p>
                   {(r.executiveSummary || r.textBody) && (
                     <p className="mt-1 line-clamp-2 max-w-xl text-xs leading-relaxed text-foreground/80">
-                      {r.executiveSummary || r.textBody}
+                      {shownSummary(r.bot === "crypto" ? "crypto" : "stock", r.executiveSummary || r.textBody || "")}
                     </p>
                   )}
                 </div>
@@ -507,17 +648,18 @@ export function ReportCenter({
                     variant="default"
                     className="font-semibold"
                     onClick={() => {
+                      const kind: BotKind = r.bot === "crypto" ? "crypto" : "stock";
                       setLastPdfUrl(r.pdfUrl);
                       setLastAiEnhanced(!!r.aiEnhanced);
                       if (r.payload && typeof r.payload === "object" && "executiveSummary" in r.payload) {
                         setTextOnly(null);
-                        setReport(r.payload);
+                        setReport(reconcileStoredReport(r.payload, bookFor(kind)));
                         setOpen(true);
                       } else if (r.executiveSummary || r.textBody) {
                         setReport(null);
                         setTextOnly({
                           title: r.title,
-                          body: r.executiveSummary || r.textBody || "",
+                          body: shownSummary(kind, r.executiveSummary || r.textBody || ""),
                         });
                         setOpen(true);
                       } else {

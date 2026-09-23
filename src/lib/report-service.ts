@@ -15,7 +15,7 @@ import { fetchCryptoMarketIntel } from "@/lib/koins-market";
 import { getFxSnapshot } from "@/lib/fx";
 import type { Stock } from "@/lib/portfolio";
 import { formatAucklandDateTime } from "@/lib/entitlements";
-import { groundReportNarrative } from "@/lib/report-book";
+import { groundReportNarrative, ownerIdOf } from "@/lib/report-book";
 
 /**
  * Minimal shape of the user needed to build + deliver a report. Both the
@@ -45,6 +45,66 @@ function nzDateLabel(d: Date): string {
 }
 
 /**
+ * Holdings for one account. The filtered query is the fast path (same as
+ * /api/stocks). When it comes back with no row owned by this id — a missed
+ * relation filter, or a page of someone else's rows — scan the recent book
+ * and keep only this account. A thrown query is `bookLoaded: false` so the
+ * caller does not save an empty-book report.
+ */
+export async function loadStockRowsForAccount(
+  accountId: string
+): Promise<{ rows: any[]; bookLoaded: boolean }> {
+  try {
+    const filtered = await totalumSdk.crud.query("stock", {
+      _filter: { user: accountId },
+      _sort: { createdAt: "desc" },
+      _limit: 500,
+    });
+    const page = ((filtered as { data?: unknown[] })?.data as any[]) || [];
+    const owned = page.filter((row) => ownerIdOf(row) === accountId);
+    const untagged = page.filter((row) => !ownerIdOf(row));
+    const foreign = page.some((row) => {
+      const owner = ownerIdOf(row);
+      return !!owner && owner !== accountId;
+    });
+    if (owned.length > 0) {
+      console.log(
+        `[report-service] Holdings for ${accountId}: ${owned.length} owned row(s)` +
+          (foreign ? " (dropped other accounts on the same page)" : "")
+      );
+      return { rows: owned, bookLoaded: true };
+    }
+    try {
+      const recent = await totalumSdk.crud.query("stock", {
+        _sort: { createdAt: "desc" },
+        _limit: 500,
+      });
+      const scanned = (((recent as { data?: unknown[] })?.data as any[]) || []).filter(
+        (row) => ownerIdOf(row) === accountId
+      );
+      if (scanned.length > 0) {
+        console.log(
+          `[report-service] Filtered holdings query missed ${accountId}; recent scan found ${scanned.length}`
+        );
+        return { rows: scanned, bookLoaded: true };
+      }
+    } catch (scanErr) {
+      console.error("[report-service] Recent holdings scan failed:", scanErr);
+    }
+    if (foreign) {
+      console.error(
+        `[report-service] Holdings page for ${accountId} contained other accounts and no owned rows`
+      );
+      return { rows: [], bookLoaded: true };
+    }
+    return { rows: untagged, bookLoaded: true };
+  } catch (err) {
+    console.error(`[report-service] Holdings load failed for ${accountId}:`, err);
+    return { rows: [], bookLoaded: false };
+  }
+}
+
+/**
  * Builds a full SuperGrok 4.6 ULTRA ADVANCED report from the user's holdings for
  * one asset class, renders a PDF, emails it (PDF attached), persists a `report`
  * record and returns everything for inline display. Shared by:
@@ -60,8 +120,12 @@ export async function generateReportForUser(
   context: "manual" | "scheduled" = "manual"
 ): Promise<GeneratedReport> {
   // Load holdings for this asset class (legacy rows without asset_type = stock).
-  const result = await totalumSdk.crud.query("stock", { _filter: { user: user._id }, _limit: 500 });
-  const allRows = (result?.data as any[]) || [];
+  // Never invent an empty book when the holdings query itself failed.
+  const loaded = await loadStockRowsForAccount(user._id);
+  if (!loaded.bookLoaded) {
+    throw new Error("Could not load this account's live holdings, so no report was saved.");
+  }
+  const allRows = loaded.rows;
   const rows = allRows.filter((r) => (r.asset_type || "stock") === bot);
 
   const limit = user.ticker_limit && user.ticker_limit > 0 ? user.ticker_limit : rows.length;

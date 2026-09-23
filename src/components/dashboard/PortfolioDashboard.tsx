@@ -1258,6 +1258,8 @@ export function PortfolioDashboard({
           scope={scope}
           counts={holdingCounts}
           tickerLimit={tickerLimit}
+          userId={userId}
+          holdings={allStocks}
           onHoldingsChanged={handleDataChanged}
           preview={preview}
         />
@@ -1983,6 +1985,8 @@ export function PortfolioDashboard({
           scope={scope}
           counts={holdingCounts}
           tickerLimit={tickerLimit}
+          userId={userId}
+          holdings={allStocks}
           onHoldingsChanged={handleDataChanged}
           preview={preview}
         />
