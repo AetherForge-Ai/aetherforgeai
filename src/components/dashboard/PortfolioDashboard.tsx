@@ -15,6 +15,7 @@ import {
   CURRENCY_META,
   type FxRatesToNZD,
 } from "@/lib/currency";
+import { bullionNzdPerOz, isBullionHolding } from "@/lib/metal-valuation";
 import { StockDialog } from "@/components/dashboard/StockDialog";
 import {
   HoldingChartDialog,
@@ -786,7 +787,10 @@ export function PortfolioDashboard({
 
   // Dedicated overviews (stock + crypto shown separately — no bot toggle)
   const stockOnly = useMemo(
-    () => allStocks.filter((s) => (s.asset_type || "stock") === "stock"),
+    () =>
+      allStocks.filter(
+        (s) => (s.asset_type || "stock") === "stock" && !isBullionHolding(s.asset_type, s.ticker)
+      ),
     [allStocks]
   );
   const cryptoOnly = useMemo(
@@ -808,10 +812,18 @@ export function PortfolioDashboard({
   // table as `asset_type:"metal"`. They must surface in the Holdings table
   // regardless of which bot (Stox/Koins) is active, so the table uses its own
   // summary that folds the active bot's positions together with all metals.
-  const metalStocks = useMemo(
-    () => allStocks.filter((s) => (s.asset_type || "stock") === "metal"),
-    [allStocks]
-  );
+  const metalStocks = useMemo(() => {
+    return allStocks
+      .filter((s) => isBullionHolding(s.asset_type, s.ticker))
+      .map((s) => {
+        // Mark troy ounces at NZD spot. A stored current_price near the Yahoo
+        // GOLD equity print (~$44) must not drive the metals KPI or allocation.
+        const px = bullionNzdPerOz(s.ticker, metalSpot);
+        if (!(px > 0)) return s;
+        if (Math.abs((Number(s.current_price) || 0) - px) < 1e-6) return s;
+        return { ...s, current_price: px };
+      });
+  }, [allStocks, metalSpot]);
 
   // Precious-metal holdings from the dedicated /api/metals table, mapped into
   // the same Stock shape so the Transaction Center Sell/Remove picker can show
@@ -839,19 +851,22 @@ export function PortfolioDashboard({
   // Prefer the precious_metal source when both systems somehow have the same metal
   // so selling goes through the correct API.
   const transactionHoldings = useMemo(() => {
-    const fromStocks = allStocks.filter((s) => {
-      // Drop any main-table metal rows that would duplicate a precious_metal entry.
-      if ((s.asset_type || "stock") !== "metal") return true;
-      const t = s.ticker.toUpperCase();
-      return !preciousAsStocks.some((pm) => pm.ticker === t);
-    });
+    const marked = new Map(metalStocks.map((m) => [m._id, m]));
+    const fromStocks = allStocks
+      .filter((s) => {
+        // Drop ledger bullion that duplicates a precious_metal entry.
+        if (!isBullionHolding(s.asset_type, s.ticker)) return true;
+        const t = s.ticker.toUpperCase();
+        return !preciousAsStocks.some((pm) => pm.ticker === t);
+      })
+      .map((s) => marked.get(s._id) ?? s);
     return [...fromStocks, ...preciousAsStocks];
-  }, [allStocks, preciousAsStocks]);
+  }, [allStocks, preciousAsStocks, metalStocks]);
 
   const tableStocks = useMemo(() => {
-    // Avoid double-listing if the active bot ever coincided with metals.
-    const seen = new Set(stocks.map((s) => s._id));
-    return [...stocks, ...metalStocks.filter((m) => !seen.has(m._id))];
+    // Prefer the spot-marked bullion row over a raw equity-priced copy.
+    const metalIds = new Set(metalStocks.map((m) => m._id));
+    return [...stocks.filter((s) => !metalIds.has(s._id)), ...metalStocks];
   }, [stocks, metalStocks]);
   const tableSummary = useMemo(
     () => computeSummary(tableStocks, { baseCurrency, fxToNZD }),
@@ -933,7 +948,10 @@ export function PortfolioDashboard({
 
   // Cross-bot totals, all expressed in NZD for the "Totals owned" strip.
   const stockHoldings = useMemo(
-    () => allStocks.filter((s) => (s.asset_type || "stock") === "stock"),
+    () =>
+      allStocks.filter(
+        (s) => (s.asset_type || "stock") === "stock" && !isBullionHolding(s.asset_type, s.ticker)
+      ),
     [allStocks]
   );
   const cryptoHoldings = useMemo(

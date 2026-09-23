@@ -24,6 +24,7 @@ import {
   BASELINE_FX_TO_NZD,
   type FxRatesToNZD,
 } from "@/lib/currency";
+import { bullionNzdPerOz, isBullionHolding } from "@/lib/metal-valuation";
 
 /* ------------------------------------------------------------------ *
  * Inputs
@@ -309,8 +310,13 @@ export function buildSynthesis(input: SynthesisInput): TotalumSynthesis {
   const metals = input.metals ?? [];
   const spot = input.spot;
 
+  // Ledger bullion (asset_type metal / GOLD / SILVER) is troy ounces. Mark it at
+  // NZD spot — never at current_price, which may be the Yahoo GOLD equity quote.
+  const securities = stocks.filter((s) => !isBullionHolding(s.asset_type, s.ticker));
+  const bullionLots = stocks.filter((s) => isBullionHolding(s.asset_type, s.ticker));
+
   // Equities + crypto come from the shared portfolio engine (already NZD-based).
-  const summary = computeSummary(stocks, { baseCurrency: "NZD", fxToNZD: fx });
+  const summary = computeSummary(securities, { baseCurrency: "NZD", fxToNZD: fx });
 
   const positions: UnifiedPosition[] = [];
 
@@ -323,6 +329,26 @@ export function buildSynthesis(input: SynthesisInput): TotalumSynthesis {
       label: h.ticker,
       sublabel: h.company_name || undefined,
       assetClass,
+      valueNZD: round(valueNZD),
+      costNZD: round(costNZD),
+      gainNZD: round(valueNZD - costNZD),
+      gainPct: costNZD > 0 ? round(((valueNZD - costNZD) / costNZD) * 100) : 0,
+      weight: 0,
+    });
+  });
+
+  // Gold/silver bought through the Transaction Center live on the stock table.
+  bullionLots.forEach((h) => {
+    const ounces = Number(h.shares) || 0;
+    const spotPx = bullionNzdPerOz(h.ticker, spot);
+    const mark = spotPx > 0 ? spotPx : Number(h.purchase_price) || 0;
+    const valueNZD = ounces * mark;
+    const costNZD = ounces * (Number(h.purchase_price) || 0);
+    positions.push({
+      key: `stk_${h._id}`,
+      label: h.ticker,
+      sublabel: h.company_name || `${ounces} oz`,
+      assetClass: "metals",
       valueNZD: round(valueNZD),
       costNZD: round(costNZD),
       gainNZD: round(valueNZD - costNZD),
