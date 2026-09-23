@@ -71,8 +71,15 @@ export function checkTickerQuota(
 /*  Report cadence — how often a plan may run a full SuperGrok report          */
 /* -------------------------------------------------------------------------- */
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-const WEEK_MS = 7 * DAY_MS;
+const HOUR_MS = 60 * 60 * 1000;
+const WEEK_MS = 7 * 24 * HOUR_MS;
+
+/**
+ * Paid Stox/Koins refresh spacing. A calendar-day lock until Pacific/Auckland
+ * midnight left a morning report stale all afternoon (~15h). Four hours keeps
+ * a cooldown without pinning the desk to NZ midnight.
+ */
+export const PAID_REPORT_REFRESH_MS = 4 * HOUR_MS;
 
 export type CadenceUnit = "day" | "week";
 
@@ -87,19 +94,24 @@ export interface ReportCadence {
 }
 
 /**
- * How frequently a plan can run a full report (one report across BOTH bots per
- * window — "either a stock or a crypto report", per the plan copy):
+ * How frequently a plan can run a full report. Stox and Koins are metered
+ * separately by the caller (one allowance each):
  *  - Free & Apex Weekly → one report per week (rolling 7 days).
- *  - Apex Monthly / Yearly / Dual → one report per Pacific/Auckland calendar day.
+ *  - Paid tiers → one report every 4 hours (rolling), not locked until NZ midnight.
  */
 export function reportCadence(plan?: string | null): ReportCadence {
   // Legacy Apex paid plans + all new public tiers (Starter/Pro/Ultimate,
-  // monthly or annual) get daily report generation. Free stays weekly.
+  // monthly or annual) get the short refresh. Free stays weekly.
   const isNewPaidTier =
     !!plan && /^(starter|pro|ultimate)_(monthly|yearly)$/.test(plan);
-  const daily = plan === "monthly" || plan === "yearly" || plan === "dual_yearly" || isNewPaidTier;
-  return daily
-    ? { unit: "day", ms: DAY_MS, label: "1 report per day", perLabel: "per day" }
+  const paid = plan === "monthly" || plan === "yearly" || plan === "dual_yearly" || isNewPaidTier;
+  return paid
+    ? {
+        unit: "day",
+        ms: PAID_REPORT_REFRESH_MS,
+        label: "1 report every 4 hours",
+        perLabel: "every 4 hours",
+      }
     : { unit: "week", ms: WEEK_MS, label: "1 report per week", perLabel: "per week" };
 }
 
@@ -123,20 +135,21 @@ export function aucklandYmd(ms: number = Date.now()): string {
   }).format(new Date(ms));
 }
 
-/**
- * UTC ms of the next Pacific/Auckland midnight after `nowMs`.
- * Used so a morning report unlocks again at NZ midnight — not a rolling 24h lock.
- */
-export function nextAucklandMidnightMs(nowMs: number = Date.now()): number {
-  const today = aucklandYmd(nowMs);
-  let lo = nowMs;
-  let hi = nowMs + 40 * 60 * 60 * 1000; // must cross midnight within ~40h (DST-safe)
-  while (hi - lo > 250) {
-    const mid = Math.floor((lo + hi) / 2);
-    if (aucklandYmd(mid) === today) lo = mid;
-    else hi = mid;
-  }
-  return hi;
+/** Absolute timestamp in Pacific/Auckland (NZST/NZDT), for report labels. */
+export function formatAucklandDateTime(input: number | Date | string | null | undefined): string {
+  if (input == null || input === "") return "—";
+  const d = input instanceof Date ? input : new Date(input);
+  if (Number.isNaN(d.getTime())) return "—";
+  return new Intl.DateTimeFormat("en-NZ", {
+    timeZone: "Pacific/Auckland",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hourCycle: "h12",
+    timeZoneName: "short",
+  }).format(d);
 }
 
 /**
@@ -144,10 +157,8 @@ export function nextAucklandMidnightMs(nowMs: number = Date.now()): number {
  * one was generated. Pure + client/server-safe so the dashboard countdown and
  * the server-side gate agree exactly.
  *
- * Daily plans use Pacific/Auckland *calendar days* (one Stox + one Koins report
- * per NZ day). That keeps morning runs from locking the desk until ~9am next
- * day under a rolling 24h window, while still blocking same-day spam.
- * Weekly plans keep a rolling 7-day window.
+ * Paid plans use a rolling 4-hour window so a morning report can be refreshed
+ * the same Auckland day. Weekly plans keep a rolling 7-day window.
  */
 export function checkReportQuota(
   plan: string | null | undefined,
@@ -160,18 +171,7 @@ export function checkReportQuota(
     return { allowed: true, waitMs: 0, nextAllowedAt: null, lastReportAt: null, cadence };
   }
 
-  let nextMs: number;
-  if (cadence.unit === "day") {
-    // Same Auckland calendar day → wait until NZ midnight; otherwise allowed now.
-    if (aucklandYmd(last) === aucklandYmd(now)) {
-      nextMs = nextAucklandMidnightMs(now);
-    } else {
-      nextMs = now; // already past the NZ day boundary
-    }
-  } else {
-    nextMs = last + cadence.ms;
-  }
-
+  const nextMs = last + cadence.ms;
   const waitMs = Math.max(0, nextMs - now);
   return {
     allowed: waitMs <= 0,
@@ -212,7 +212,7 @@ export function formatAgeAgo(msAgo: number): string {
   return `${days}d ago`;
 }
 
-/** Compact remaining wait, e.g. "4h", "35m", "until NZ midnight". */
+/** Compact remaining wait, e.g. "4h", "35m", "2h 10m". */
 export function formatWaitShort(ms: number): string {
   if (ms <= 0) return "now";
   const totalMin = Math.floor(ms / 60000);
@@ -225,7 +225,8 @@ export function formatWaitShort(ms: number): string {
 }
 
 /**
- * Stox/Koins cooldown line: "Generated 3h ago · next refresh in 5h" (or until NZ midnight).
+ * Stox/Koins cooldown line: "Generated 3h ago · next refresh in 1h".
+ * Age is relative; absolute report timestamps are formatted in Pacific/Auckland.
  */
 export function formatReportCooldownLine(opts: {
   lastReportAt: string | null | undefined;
@@ -238,9 +239,5 @@ export function formatReportCooldownLine(opts: {
   if (!opts.lastReportAt || Number.isNaN(last)) return "Ready to run";
   const ago = formatAgeAgo(now - last);
   if (opts.waitMs <= 0) return `Generated ${ago} · ready to refresh`;
-  const until =
-    opts.cadenceUnit === "day"
-      ? `next refresh in ${formatWaitShort(opts.waitMs)} (NZ midnight)`
-      : `next refresh in ${formatWaitShort(opts.waitMs)}`;
-  return `Generated ${ago} · ${until}`;
+  return `Generated ${ago} · next refresh in ${formatWaitShort(opts.waitMs)}`;
 }

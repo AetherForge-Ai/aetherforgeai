@@ -50,7 +50,7 @@ export function OnboardingChecklist({
     {
       id: "report",
       title: "Run Stox or Koins",
-      body: "Generate a full market report (daily unlock at NZ midnight on paid plans).",
+      body: "Generate a full market report (paid plans can refresh every 4 hours).",
       href: "/dashboard/bots",
       done: !!hasReport,
       icon: LineChart,
