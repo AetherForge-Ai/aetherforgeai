@@ -22,14 +22,19 @@ import {
 } from "@/components/dashboard/HoldingChartDialog";
 import { TransactionCenter } from "@/components/dashboard/TransactionCenter";
 import { isTransactionDialogOpen } from "@/lib/transaction-sticky";
-import { TransactionDialogHost } from "@/components/dashboard/TransactionDialogHost";
 import {
   acceptAccountPayload,
   bindActiveAccount,
   getAccountEpoch,
+  getActiveAccountUserId,
   responseUserId,
   trackAccountRequest,
 } from "@/lib/account-identity";
+import {
+  getTxDialogSnapshot,
+  holdingsHydrateAction,
+  subscribeTxDialog,
+} from "@/lib/transaction-dialog-store";
 import {
   bindClientUser,
   readCachedCashNZD,
@@ -393,6 +398,17 @@ export function PortfolioDashboard({
   const [allStocks, setAllStocks] = useState<Stock[]>(preview ? PREVIEW_STOCKS : []);
   /** After first /api/stocks hydrate — later overlays may be deferred while Buy/Add is open. */
   const holdingsHydratedRef = useRef(!!preview);
+  /**
+   * Latest accepted holdings body while Buy/Add is open. Applied when the
+   * dialog closes so the stocks hub does not reconcile under an in-progress
+   * BAP search. Includes the first hydrate (transactions already deferred
+   * only the later overlays; stocks dismissed on the first one).
+   */
+  const deferredHoldingsRef = useRef<{
+    rows: Stock[];
+    userId: string | null;
+    epoch: number;
+  } | null>(null);
   const [loading, setLoading] = useState(!preview);
   const [refreshing, setRefreshing] = useState(false);
   // Separate from holdings `loading` so KPIs never flash NZ$0 before cash/metals land.
@@ -496,16 +512,24 @@ export function PortfolioDashboard({
           });
           return;
         }
-        // After the first hydrate, defer live-price overlays while Buy/Add is
-        // open. The dialog itself is mounted outside this tree; deferring also
-        // keeps the holdings table from swapping under an open sell list.
-        if (isTransactionDialogOpen() && holdingsHydratedRef.current) {
-          console.log("[dashboard] Holdings overlay deferred — Transaction dialog open");
+        // Defer EVERY live-price hydrate while Buy/Add is open, including the
+        // first one. /dashboard/stocks renders the holdings table and market
+        // widgets from this state; committing it mid-search dismissed Buy/Add
+        // at the same moment Yahoo returned (~5.5s). /dashboard/transactions
+        // stayed open. Flush runs when the dialog closes.
+        if (holdingsHydrateAction(isTransactionDialogOpen()) === "defer") {
+          deferredHoldingsRef.current = {
+            rows: res.data,
+            userId: tracked.userId,
+            epoch: tracked.epoch,
+          };
+          console.log("[dashboard] Holdings hydrate deferred — Transaction dialog open");
         } else {
+          deferredHoldingsRef.current = null;
           setAllStocks(res.data);
           holdingsHydratedRef.current = true;
+          setLoading(false);
         }
-        setLoading(false);
       } else {
         console.error("[dashboard] Failed to load stocks:", res.error);
         toast.error("Could not load your portfolio.");
@@ -653,6 +677,24 @@ export function PortfolioDashboard({
     loadMetals();
   }, [preview, loadStocks, loadCash, loadMetals]);
 
+  // Apply a holdings body that arrived while Buy/Add was open. Identity is
+  // re-checked so a 1T→TT switch cannot flush the previous account's rows.
+  useEffect(() => {
+    return subscribeTxDialog(() => {
+      if (getTxDialogSnapshot().open) return;
+      const pending = deferredHoldingsRef.current;
+      if (!pending) return;
+      deferredHoldingsRef.current = null;
+      if (pending.epoch !== getAccountEpoch() || pending.userId !== getActiveAccountUserId()) {
+        console.error("[dashboard] Dropping deferred holdings — account changed");
+        return;
+      }
+      setAllStocks(pending.rows);
+      holdingsHydratedRef.current = true;
+      setLoading(false);
+    });
+  }, []);
+
   // Live net-worth updates — silently re-price holdings every 60s so the totals
   // fluctuate with the market (AnimatedMoney tweens each change smoothly). No
   // toast, no spinner; skipped in guest preview and when nothing is held.
@@ -682,8 +724,18 @@ export function PortfolioDashboard({
         return;
       }
       if (res.ok && res.data) {
-        if (isTransactionDialogOpen()) return;
+        if (holdingsHydrateAction(isTransactionDialogOpen()) === "defer") {
+          deferredHoldingsRef.current = {
+            rows: res.data,
+            userId: tracked.userId,
+            epoch: tracked.epoch,
+          };
+          console.log("[dashboard] Live re-price tick deferred — Transaction dialog open");
+          return;
+        }
+        deferredHoldingsRef.current = null;
         setAllStocks(res.data);
+        holdingsHydratedRef.current = true;
         console.log("[dashboard] Live re-price tick applied");
       }
     }, 60_000);
@@ -1905,9 +1957,9 @@ export function PortfolioDashboard({
       </div>
       )}
 
-      {/* Buy/Add is mounted here, not under the holdings tree, so a cash or
-          live-price soft-refresh cannot remount it mid ticker-search. */}
-      <TransactionDialogHost />
+      {/* Buy/Add is mounted once from the root layout (TransactionDialogHost),
+          not under this stocks/transactions tree. A live-price hydrate on
+          /dashboard/stocks must not remount it mid ticker-search. */}
 
       <StockDialog
         open={dialogOpen}

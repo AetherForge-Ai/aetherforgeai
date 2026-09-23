@@ -1,7 +1,15 @@
-import { describe, expect, it } from "vitest";
-import { shouldAllowDialogClose } from "./dialog-guards";
+import { beforeEach, describe, expect, it } from "vitest";
+import {
+  __resetDialogGuardsForTests,
+  guardDialogOpenChange,
+  noteDialogSearchQuery,
+  shouldAllowDialogClose,
+} from "./dialog-guards";
 
 describe("shouldAllowDialogClose", () => {
+  beforeEach(() => {
+    __resetDialogGuardsForTests();
+  });
   it("blocks interact-outside / unknown while search is active", () => {
     expect(
       shouldAllowDialogClose({ searchActive: true, queryLength: 0, reason: "interact-outside" })
@@ -57,5 +65,21 @@ describe("shouldAllowDialogClose", () => {
     expect(
       shouldAllowDialogClose({ searchActive: false, queryLength: 0, reason: "unknown" })
     ).toBe(true);
+  });
+
+  it("stocks Buy/Add search-settle close is blocked when React query state was wiped", () => {
+    // /dashboard/stocks remounts TickerSearch as Yahoo settles, so the dialog's
+    // searchQuery prop is 0 even though the user typed BAP. The module query
+    // must still keep Buy/Add open. Explicit Cancel still closes.
+    noteDialogSearchQuery("BAP");
+    let closed = false;
+    guardDialogOpenChange(false, () => {
+      closed = true;
+    }, { reason: "unknown", queryLength: 0 });
+    expect(closed).toBe(false);
+    guardDialogOpenChange(false, () => {
+      closed = true;
+    }, { reason: "explicit", queryLength: 0 });
+    expect(closed).toBe(true);
   });
 });

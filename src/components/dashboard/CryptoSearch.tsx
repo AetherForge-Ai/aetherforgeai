@@ -26,6 +26,7 @@ import {
   clearDialogSearchGuard,
   markDialogSearchGuard,
   markDialogSelectGuard,
+  noteDialogSearchQuery,
 } from "@/lib/dialog-guards";
 import { useCryptoMarkets } from "@/hooks/useCryptoMarkets";
 import { coinLogo, fmtPrice, fmtPct, pctColor, GENERIC_COIN_ICON, type CoinMarket } from "@/lib/crypto-market";
@@ -50,6 +51,7 @@ export function CryptoSearch({
   const setQueryAndNotify = React.useCallback(
     (q: string) => {
       setQuery(q);
+      noteDialogSearchQuery(q);
       onQueryChange?.(q);
     },
     [onQueryChange]

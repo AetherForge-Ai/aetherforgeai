@@ -12,13 +12,14 @@ import {
 type Sellable = Stock & { metalSourceId?: string };
 
 /**
- * Buy/Add mounted beside the portfolio tree, not inside it.
+ * Single Buy/Add host for every dashboard subpage.
  *
- * PortfolioDashboard re-renders when holdings, cash, or metals soft-refresh.
- * This host takes no props and is memoized, so those renders do not reach the
- * dialog. The store ignores holdings/cash republishes while open and keeps
- * mountId stable, so the dialog instance (and its ticker search) is not
- * remounted or dismissed.
+ * Mounted from the root layout, not inside PortfolioDashboard. The stocks hub
+ * (/dashboard/stocks) reconciles a large holdings table and extra dialogs when
+ * live prices land; that used to remount this dialog during BAP search.
+ * Transactions stayed open because its tree does not do that work. This host
+ * takes no props and is memoized. The store ignores holdings/cash republishes
+ * while open and keeps mountId stable.
  */
 function TransactionDialogHostInner() {
   const snap = useSyncExternalStore(subscribeTxDialog, getTxDialogSnapshot, getTxDialogSnapshot);

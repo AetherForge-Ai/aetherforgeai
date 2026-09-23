@@ -34,7 +34,9 @@ import {
   clearDialogSearchGuard,
   markDialogSearchGuard,
   markDialogSelectGuard,
+  noteDialogSearchQuery,
 } from "@/lib/dialog-guards";
+import { isTransactionDialogOpen } from "@/lib/transaction-sticky";
 import { searchMarketUniverse } from "@/lib/market-intel";
 
 export interface TickerMatch {
@@ -84,10 +86,13 @@ export function TickerSearch({
   const [results, setResults] = React.useState<TickerMatch[]>([]);
   const [loading, setLoading] = React.useState(false);
   const seq = React.useRef(0);
+  /** True from keystroke until Yahoo settles — popover must not close in that window. */
+  const inFlight = React.useRef(false);
 
   const setQueryAndNotify = React.useCallback(
     (q: string) => {
       setQuery(q);
+      noteDialogSearchQuery(q);
       onQueryChange?.(q);
     },
     [onQueryChange]
@@ -109,6 +114,7 @@ export function TickerSearch({
     const local = searchMarketUniverse(q);
     if (local.length) setResults(local);
     setLoading(local.length === 0);
+    inFlight.current = true;
     markDialogSearchGuard(30_000);
     const id = ++seq.current;
     const t = setTimeout(async () => {
@@ -123,6 +129,7 @@ export function TickerSearch({
         if (merged.length || !local.length) setResults(merged);
       } finally {
         if (id === seq.current) {
+          inFlight.current = false;
           setLoading(false);
           // Re-arm (do NOT clear) — guard stays until the popover closes.
           markDialogSearchGuard(30_000);
@@ -145,6 +152,13 @@ export function TickerSearch({
   }
 
   function handleOpenChange(next: boolean) {
+    // Stocks-hub live-price hydrate was closing this popover as Yahoo settled,
+    // while the list still said "Searching markets…". Keep it open until the
+    // request finishes so local/Yahoo rows can paint.
+    if (!next && inFlight.current) {
+      markDialogSearchGuard(30_000);
+      return;
+    }
     // Never let popover open-state thrash remount the parent Dialog; only toggle
     // this local popover. Arm search guard on open; brief select+grace on close.
     if (next) {
@@ -156,14 +170,14 @@ export function TickerSearch({
     setOpen(next);
   }
 
-  // If the component unmounts mid-search (parent remount on holdings soft-refresh),
-  // keep the module-level guard alive long enough for sticky dialog rehydrate.
-  // Round-5 used 400ms — that was short enough for a focus-outside dismiss to
-  // sneak through after the remount wiped body.dataset.
+  // If the component unmounts mid-search (stocks holdings hydrate remount),
+  // keep the module-level guard armed while Buy/Add is still open. Clearing
+  // it here dropped query protection before Yahoo's ~5.5s response.
   React.useEffect(() => {
     return () => {
+      if (!isTransactionDialogOpen()) return;
       markDialogSelectGuard(1500);
-      clearDialogSearchGuard(3000);
+      markDialogSearchGuard(30_000);
     };
   }, []);
 

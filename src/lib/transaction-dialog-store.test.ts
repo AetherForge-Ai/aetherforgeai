@@ -2,8 +2,10 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   __resetTxDialogStoreForTests,
   getTxDialogSnapshot,
+  holdingsHydrateAction,
   notePortfolioSoftRefresh,
   publishTxDialog,
+  shouldCommitPortfolioUpdate,
 } from "./transaction-dialog-store";
 
 describe("transaction dialog survives portfolio soft-refresh", () => {
@@ -89,6 +91,62 @@ describe("transaction dialog survives portfolio soft-refresh", () => {
     publishTxDialog({ open: false });
     expect(getTxDialogSnapshot().open).toBe(false);
     expect(getTxDialogSnapshot().mountId).toBe(mountId);
+  });
+
+  it("stocks-page Buy/Add defers the first holdings hydrate and stays open", () => {
+    // /dashboard/stocks publishes preferredAssetType "stock" and used to apply
+    // the first /api/stocks body while search was in flight. Transactions
+    // (preferredAssetType null) already survived later overlays.
+    publishTxDialog({
+      open: true,
+      userId: "user-tt",
+      mode: "buy",
+      holdings: [{ ticker: "CBA.AX" }],
+      cash: 15.26,
+      preferredAssetType: "stock",
+    });
+    const opened = getTxDialogSnapshot();
+    expect(holdingsHydrateAction(true)).toBe("defer");
+    expect(shouldCommitPortfolioUpdate()).toBe(false);
+
+    const after = notePortfolioSoftRefresh({
+      holdings: [
+        { ticker: "CBA.AX" },
+        { ticker: "BAP.AX" },
+      ],
+      cash: 999,
+    });
+    const snap = getTxDialogSnapshot();
+    expect(after.dismissed).toBe(false);
+    expect(after.remounted).toBe(false);
+    expect(after.applied).toBe(false);
+    expect(snap.open).toBe(true);
+    expect(snap.mountId).toBe(opened.mountId);
+    expect(snap.preferredAssetType).toBe("stock");
+    expect(snap.cash).toBe(15.26);
+    expect(snap.holdings).toEqual([{ ticker: "CBA.AX" }]);
+  });
+
+  it("transactions-page Buy/Add still ignores a holdings refresh while open", () => {
+    publishTxDialog({
+      open: true,
+      userId: "user-tt",
+      mode: "buy",
+      holdings: [{ ticker: "CBA.AX" }],
+      cash: 15.26,
+      preferredAssetType: null,
+    });
+    const mountId = getTxDialogSnapshot().mountId;
+    const after = notePortfolioSoftRefresh({
+      holdings: [{ ticker: "BAP.AX" }],
+      cash: 0,
+    });
+    expect(after.dismissed).toBe(false);
+    expect(after.remounted).toBe(false);
+    expect(getTxDialogSnapshot().open).toBe(true);
+    expect(getTxDialogSnapshot().mountId).toBe(mountId);
+    expect(getTxDialogSnapshot().preferredAssetType).toBe(null);
+    expect(holdingsHydrateAction(false)).toBe("apply");
   });
 
   it("account switch closes the dialog and bumps mount id", () => {

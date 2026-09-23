@@ -26,6 +26,8 @@ import { BOT_STOX_AVATAR, BOT_KOINS_AVATAR, BOT_HEADMASTER_AVATAR } from "../../
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { checkReportQuota, formatDuration, formatReportCooldownLine, reportCadence } from "@/lib/entitlements";
+import { isTransactionDialogOpen } from "@/lib/transaction-sticky";
+import { getTxDialogSnapshot, subscribeTxDialog } from "@/lib/transaction-dialog-store";
 import { Loader2, Lock, Play, FileDown, Mail, FileText, Sparkles, Clock, Zap, ArrowRight, ChevronDown, Eye } from "lucide-react";
 
 type BotAccess = "stock" | "crypto" | "both" | "none";
@@ -149,23 +151,47 @@ export function ReportCenter({
   const quotaFor = (kind: BotKind) => checkReportQuota(plan, lastReportAt[kind], now);
   const anyLocked = (["stock", "crypto"] as BotKind[]).some((k) => !quotaFor(k).allowed);
 
+  const pendingHistoryRef = React.useRef<ReportsResponse | null>(null);
+  const applyHistory = React.useCallback((data: ReportsResponse) => {
+    setHistory(data.reports || []);
+    setLastReportAt({
+      stock: data.quota?.stock?.lastReportAt ?? null,
+      crypto: data.quota?.crypto?.lastReportAt ?? null,
+    });
+  }, []);
+
   const loadHistory = React.useCallback(async () => {
     if (preview) return; // guest preview: no live report history fetch
     const res = await api.get<ReportsResponse>("/api/reports");
     if (res.ok && res.data) {
-      setHistory(res.data.reports || []);
-      setLastReportAt({
-        stock: res.data.quota?.stock?.lastReportAt ?? null,
-        crypto: res.data.quota?.crypto?.lastReportAt ?? null,
-      });
+      // Report Centre mounts only on /dashboard/stocks (and crypto). Its
+      // history response lands in the same window as BAP search and used to
+      // re-render a sibling Radix dialog under the open Buy/Add modal.
+      if (isTransactionDialogOpen()) {
+        pendingHistoryRef.current = res.data;
+        console.log("[ReportCenter] History deferred — Transaction dialog open");
+        return;
+      }
+      pendingHistoryRef.current = null;
+      applyHistory(res.data);
     } else {
       console.error("[ReportCenter] Failed to load report history:", res.error);
     }
-  }, [preview]);
+  }, [preview, applyHistory]);
 
   React.useEffect(() => {
     loadHistory();
   }, [loadHistory]);
+
+  React.useEffect(() => {
+    return subscribeTxDialog(() => {
+      if (getTxDialogSnapshot().open) return;
+      const pending = pendingHistoryRef.current;
+      if (!pending) return;
+      pendingHistoryRef.current = null;
+      applyHistory(pending);
+    });
+  }, [applyHistory]);
 
   // Tick the countdown once a minute (only while at least one report is locked).
   React.useEffect(() => {

@@ -1,12 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Stock } from "@/lib/portfolio";
 import { buildActionableIntelligence } from "@/lib/analytics";
 import { formatMarketPrice, type AssetClass, type SecurityIntel } from "@/lib/market-intel";
 import { cn } from "@/lib/utils";
 import { pctClass, fmtPct, SignalBadge, ExchangeChip } from "@/components/dashboard/intel-ui";
 import { useMarketIntel } from "@/components/dashboard/MarketIntelContext";
+import { isTransactionDialogOpen } from "@/lib/transaction-sticky";
+import { getTxDialogSnapshot, subscribeTxDialog } from "@/lib/transaction-dialog-store";
 import { BuyDialog, type BuyTarget } from "@/components/dashboard/BuyDialog";
 import { RecommendationActions } from "@/components/dashboard/RecommendationActions";
 import { api } from "@/lib/api";
@@ -51,6 +53,7 @@ export function ActionableIntelligence({
   // Dow Jones + NASDAQ + Crypto, not just the active bot.
   const [otherUniverse, setOtherUniverse] = useState<SecurityIntel[] | null>(null);
   const [otherLoading, setOtherLoading] = useState(false);
+  const pendingOtherRef = useRef<SecurityIntel[] | null>(null);
 
   const loadOtherUniverse = useCallback(async () => {
     const otherBot: AssetClass = bot === "crypto" ? "stock" : "crypto";
@@ -60,10 +63,18 @@ export function ActionableIntelligence({
         `/api/market?bot=${otherBot}&t=${Date.now()}`
       );
       if (res.ok && res.data?.universe) {
-        setOtherUniverse(res.data.universe);
-        console.log(
-          `[actionable-intel] Loaded ${res.data.universe.length} ${otherBot} securities for cross-market BUY list`
-        );
+        // This panel is open on /dashboard/stocks. Applying a second universe
+        // while Buy/Add is searching re-renders the hub under the dialog.
+        if (isTransactionDialogOpen()) {
+          pendingOtherRef.current = res.data.universe;
+          console.log("[actionable-intel] Other universe deferred — Transaction dialog open");
+        } else {
+          pendingOtherRef.current = null;
+          setOtherUniverse(res.data.universe);
+          console.log(
+            `[actionable-intel] Loaded ${res.data.universe.length} ${otherBot} securities for cross-market BUY list`
+          );
+        }
       } else {
         console.error("[actionable-intel] Failed to load other universe:", res.error);
       }
@@ -71,6 +82,16 @@ export function ActionableIntelligence({
       setOtherLoading(false);
     }
   }, [bot]);
+
+  useEffect(() => {
+    return subscribeTxDialog(() => {
+      if (getTxDialogSnapshot().open) return;
+      const pending = pendingOtherRef.current;
+      if (!pending) return;
+      pendingOtherRef.current = null;
+      setOtherUniverse(pending);
+    });
+  }, []);
 
   useEffect(() => {
     loadOtherUniverse();

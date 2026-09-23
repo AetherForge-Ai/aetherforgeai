@@ -178,9 +178,23 @@ export function notePortfolioSoftRefresh(payload: { holdings?: unknown[]; cash?:
   };
 }
 
+/**
+ * Whether a /api/stocks live-price body may be written into dashboard state.
+ *
+ * /dashboard/stocks used to apply the FIRST hydrate even while Buy/Add was
+ * open (`holdingsHydratedRef` still false). That reconcile — holdings table,
+ * price alerts, actionable signals — landed in the same ~5.5s window as
+ * ticker search and dismissed Buy/Add on the stocks hub only. The transactions
+ * page already deferred later overlays and stayed open. Every hydrate,
+ * including the first, now waits until Buy/Add closes.
+ */
+export function holdingsHydrateAction(dialogOpen: boolean): "apply" | "defer" {
+  return dialogOpen ? "defer" : "apply";
+}
+
 /** Dashboard may commit holdings/cash state while the dialog is closed. */
 export function shouldCommitPortfolioUpdate(): boolean {
-  return !snapshot.open;
+  return holdingsHydrateAction(snapshot.open) === "apply";
 }
 
 export function __resetTxDialogStoreForTests(): void {

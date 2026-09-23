@@ -382,8 +382,8 @@ export function TransactionCenter({
   const realizedYtd = ledger?.realizedYtd ?? 0;
   const realizedTotal = ledger?.realizedTotal ?? 0;
 
-  // Dialog lives in TransactionDialogHost (sibling, not this subtree) so a
-  // holdings/cash soft-refresh re-render cannot remount it.
+  // Dialog lives in TransactionDialogHost (root layout, not this subtree) so a
+  // holdings/cash soft-refresh on /dashboard/stocks cannot remount it.
   setTxDialogHandlers({
     onDone: (updated) => {
       if (updated && typeof updated === "object" && "cashBalance" in updated) {
@@ -1430,7 +1430,17 @@ export function TransactionDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleDialogOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={handleDialogOpenChange}
+      // Non-modal: the stocks hub mounts many other Radix dialogs (report
+      // centre, market snapshot, price alerts). A modal Buy/Add runs
+      // aria-hide/pointer-events lock on that tree; when the first live-price
+      // hydrate reconciles it (~5.5s) Radix dismisses this dialog. Transactions
+      // stays open because those sections are not in the visible stack. Outside
+      // clicks are still swallowed by the close gate below.
+      modal={false}
+    >
       <DialogContent
         className="sm:max-w-md overflow-visible"
         // The Buy/Sell form nests a ticker search. Round-6: results render

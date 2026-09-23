@@ -30,6 +30,21 @@ let searchGuardUntil = 0;
 let selectGuardUntil = 0;
 let searchGuardTimer: number | null = null;
 let selectGuardTimer: number | null = null;
+/**
+ * Typed ticker query, independent of TransactionDialog React state.
+ * A stocks-hub remount wipes `searchQuery` back to "" just as Yahoo settles,
+ * and the close gate then treats the dismiss as idle. This survives that.
+ */
+let searchQueryText = "";
+
+/** Record the live TickerSearch / CryptoSearch query ("" clears it). */
+export function noteDialogSearchQuery(query: string): void {
+  searchQueryText = (query ?? "").trim();
+}
+
+export function dialogSearchQueryLength(): number {
+  return searchQueryText.length;
+}
 
 export type DialogCloseReason =
   | "escape"
@@ -156,11 +171,14 @@ export function guardDialogOpenChange(
   opts?: { graceMs?: number; reason?: DialogCloseReason; queryLength?: number }
 ) {
   const reason: DialogCloseReason = opts?.reason ?? "unknown";
+  // Module query covers the stocks-page remount that resets React searchQuery
+  // to 0 in the same turn Yahoo replaces "Searching markets…".
+  const queryLength = Math.max(opts?.queryLength ?? 0, dialogSearchQueryLength());
   debugTcDialog("onOpenChange", {
     next,
     reason,
     searchActive: isDialogSearchActive(),
-    queryLength: opts?.queryLength ?? 0,
+    queryLength,
     searchGuardUntil,
     selectGuardUntil,
   });
@@ -169,32 +187,16 @@ export function guardDialogOpenChange(
     return;
   }
   void opts?.graceMs;
-  if (typeof document === "undefined") {
-    // SSR / no DOM — still honour the pure close gate when search flags are live.
-    if (
-      !shouldAllowDialogClose({
-        searchActive: isDialogSearchActive(),
-        queryLength: opts?.queryLength,
-        reason,
-      })
-    ) {
-      debugTcDialog("blocked close (ssr/no-dom)", { reason });
-      return;
-    }
-    onOpenChange(false);
+  const allowed = shouldAllowDialogClose({
+    searchActive: isDialogSearchActive(),
+    queryLength,
+    reason,
+  });
+  if (!allowed) {
+    debugTcDialog("blocked close", { reason, queryLength });
     return;
   }
-  if (
-    !shouldAllowDialogClose({
-      searchActive: isDialogSearchActive(),
-      queryLength: opts?.queryLength,
-      reason,
-    })
-  ) {
-    debugTcDialog("blocked close", { reason });
-    return;
-  }
-
+  noteDialogSearchQuery("");
   onOpenChange(false);
 }
 
@@ -265,6 +267,7 @@ export function releaseDialogSearchGuard() {
 export function __resetDialogGuardsForTests() {
   searchGuardUntil = 0;
   selectGuardUntil = 0;
+  searchQueryText = "";
   if (typeof window !== "undefined") {
     if (searchGuardTimer != null) window.clearTimeout(searchGuardTimer);
     if (selectGuardTimer != null) window.clearTimeout(selectGuardTimer);

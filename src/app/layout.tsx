@@ -9,6 +9,7 @@ import { GlobalErrorCatcher } from "@/components/GlobalErrorCatcher";
 import { GoogleTag } from "@/components/GoogleTag";
 import { Toaster } from "@/components/ui/sonner";
 import { PortfolioCoach } from "@/components/portfolio-coach";
+import { TransactionDialogHost } from "@/components/dashboard/TransactionDialogHost";
 
 const sora = Sora({
   variable: "--font-display",
@@ -84,6 +85,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <main className="flex-1">{children}</main>
         </div>
         <PortfolioCoach />
+        {/* Single Buy/Add host for every dashboard subpage. Lives outside
+            PortfolioDashboard so the stocks hub's live-price hydrate cannot
+            remount the dialog mid ticker-search. */}
+        <TransactionDialogHost />
         <Toaster position="top-center" richColors />
       </body>
     </html>
