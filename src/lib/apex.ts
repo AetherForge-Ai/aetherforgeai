@@ -668,6 +668,8 @@ interface ReportExtras {
   portfolio?: ApexReport["portfolio"];
   directRecommendations: DirectRecommendation[];
   pathwayPlan: PathwayPlan;
+  /** Held tickers with size, e.g. "GNC.AX × 120, ARB × 40". */
+  bookRoster?: string;
 }
 
 function assembleReport(
@@ -689,6 +691,13 @@ function assembleReport(
   const marketLabel = bot === "crypto" ? "BTC · ETH · Global digital assets" : "NZX · ASX · Global equities";
 
   const sweepLabel = bot === "crypto" ? "the complete digital-asset market" : "the complete NZX, ASX and US exchanges";
+  const assetNoun = bot === "crypto" ? "coins" : "tickers";
+  const bookRoster =
+    extras.bookRoster ||
+    tickers
+      .slice(0, 12)
+      .map((t) => t.ticker)
+      .join(", ");
   const buyNames = extras.directRecommendations
     .filter((r) => !r.held && (r.action === "BUY" || r.action === "ACCUMULATE"))
     .slice(0, 4)
@@ -696,16 +705,16 @@ function assembleReport(
   const executiveSummary =
     tickers.length === 0
       ? `**Ultra Advanced ZENITH State engaged.** SuperGrok 4.6 swept ${sweepLabel} for Top-10 movers and 7-day projection leaders. ` +
-        `Your book has **no monitored ${bot === "crypto" ? "coins" : "tickers"} yet** — this report leads with a concrete **BUY/ACCUMULATE** list` +
+        `Your book has **no monitored ${assetNoun} yet** — this report leads with a concrete **BUY/ACCUMULATE** list` +
         (buyNames.length ? ` led by **${buyNames.join(", ")}**` : "") +
         ` so cash can be deployed with conviction and specific markets named. ` +
         `_Informational market intelligence only — not personalised financial advice._`
-      : `**Ultra Advanced ZENITH State engaged.** SuperGrok 4.6 has orchestrated a full multi-timeframe sweep across ${sweepLabel}, ranking Top-10 movers over 24 hours, 7 days and the last month, projecting the next 7 days for the highest-conviction names and cross-referencing regional news. ` +
-        `Your ${tickers.length} monitored ${bot === "crypto" ? "coins" : "tickers"} were analysed against that backdrop — aggregate 7-day bias is **${strong.length >= weak.length ? "constructive" : "defensive"}** (${strong.length} accumulate-or-better, ${weak.length} elevated risk). ` +
+      : `**Ultra Advanced ZENITH State engaged.** ${isDemo ? "This sample book holds" : "Your live book holds"} **${tickers.length}** ${assetNoun}: **${bookRoster}**. ` +
+        `SuperGrok 4.6 swept ${sweepLabel} against those positions — aggregate 7-day bias is **${strong.length >= weak.length ? "constructive" : "defensive"}** (${strong.length} accumulate-or-better, ${weak.length} elevated risk). ` +
         (buyNames.length
           ? `Priority new buys this week: **${buyNames.join(", ")}**. `
           : "") +
-        `Below: portfolio standings, direct buy/sell recommendations and three forward pathways with a recommended route to maximise portfolio wealth. ` +
+        `Below: portfolio standings, direct buy/sell recommendations on the held names and three forward pathways. ` +
         `_Informational market intelligence only — not personalised financial advice._`;
 
   const keyObservations =
@@ -721,6 +730,7 @@ function assembleReport(
           "Keep a cash buffer; scale into positions in 2–3 tranches rather than a single fill.",
         ]
       : [
+          `${isDemo ? "Sample book" : "Live book"} (${tickers.length}): ${bookRoster}.`,
           `${strong.length} of ${tickers.length} ${bot === "crypto" ? "assets" : "holdings"} carry a positive momentum signal into the week.`,
           topGainers[0]
             ? `${topGainers[0].ticker} leads the session (+${topGainers[0].changePct}%) and tops the gainer board.`
@@ -914,12 +924,15 @@ export function buildLiveReport(
     cashHeavy,
   });
   const pathwayPlan = buildPathwayPlan(analyzable, directRecommendations, bot);
+  const bookRoster = analyzable
+    .map((h) => `${h.ticker} × ${typeof h.shares === "number" ? h.shares : 0}`)
+    .join(", ");
 
   return assembleReport(
     bot,
     tickers,
     false,
-    { portfolio, directRecommendations, pathwayPlan },
+    { portfolio, directRecommendations, pathwayPlan, bookRoster },
     marketOverrides,
     universeIntel
   );

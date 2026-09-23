@@ -25,7 +25,7 @@ import type { ApexReport, BotKind } from "@/lib/apex";
 import { BOT_STOX_AVATAR, BOT_KOINS_AVATAR, BOT_HEADMASTER_AVATAR } from "../../../assets/files";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { checkReportQuota, formatDuration, formatReportCooldownLine, reportCadence } from "@/lib/entitlements";
+import { checkReportQuota, formatAucklandDateTime, formatDuration, formatReportCooldownLine, reportCadence } from "@/lib/entitlements";
 import { isTransactionDialogOpen } from "@/lib/transaction-sticky";
 import { getTxDialogSnapshot, subscribeTxDialog } from "@/lib/transaction-dialog-store";
 import { Loader2, Lock, Play, FileDown, Mail, FileText, Sparkles, Clock, Zap, ArrowRight, ChevronDown, Eye } from "lucide-react";
@@ -85,10 +85,7 @@ const DEFS: { kind: BotKind; name: string; subtitle: string; mascot: string; acc
 ];
 
 function fmtDate(iso?: string | null): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return "—";
-  return d.toLocaleString("en-NZ", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" });
+  return formatAucklandDateTime(iso);
 }
 
 export function ReportCenter({
@@ -299,8 +296,8 @@ export function ReportCenter({
             <p className="text-sm font-semibold">
               One full <span className="text-foreground">Stox</span> report{" "}
               <span className="text-muted-foreground">and</span> one full{" "}
-              <span className="text-foreground">Koins</span> report per Auckland{" "}
-              {cadence.unit === "day" ? "calendar day (unlocks at NZ midnight)" : "week"}
+              <span className="text-foreground">Koins</span> report {cadence.perLabel}
+              <span className="font-normal text-muted-foreground"> · times in Pacific/Auckland</span>
             </p>
             <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
               {(["stock", "crypto"] as BotKind[]).map((k) => {

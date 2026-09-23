@@ -14,6 +14,8 @@ import { fetchQuotesForAssetClass, isLiveConfiguredFor } from "@/lib/market-data
 import { fetchCryptoMarketIntel } from "@/lib/koins-market";
 import { getFxSnapshot } from "@/lib/fx";
 import type { Stock } from "@/lib/portfolio";
+import { formatAucklandDateTime } from "@/lib/entitlements";
+import { groundReportNarrative } from "@/lib/report-book";
 
 /**
  * Minimal shape of the user needed to build + deliver a report. Both the
@@ -39,13 +41,7 @@ export interface GeneratedReport {
 }
 
 function nzDateLabel(d: Date): string {
-  return d.toLocaleString("en-NZ", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  return formatAucklandDateTime(d);
 }
 
 /**
@@ -95,6 +91,11 @@ export async function generateReportForUser(
       purchasePrice: Number(r.purchase_price) || price,
     };
   });
+  console.log(
+    `[report-service] Live ${bot} book for user ${user._id}: ${
+      holdings.length ? holdings.map((h) => `${h.ticker}×${h.shares}`).join(", ") : "(none)"
+    }`
+  );
 
   // Stock[] view (live-priced) for the technical + actionable-intelligence layer.
   const stockObjs: Stock[] = scoped.map((r, i) => ({
@@ -242,9 +243,13 @@ export async function generateReportForUser(
               `Be strictly evidence-based and PROBABILISTIC — speak in expected ranges and likelihoods, and NEVER give a single-point price target. ` +
               `Reference technical posture (RSI/MACD/regime), conviction/confidence %, catalysts, news sentiment, and the single most important action now. ` +
               `MANDATORY: explicitly NAME specific ${bot === "crypto" ? "coins/tickers" : "tickers"} (with market) to BUY or ACCUMULATE right now, each with a one-line data-grounded reason and conviction. ` +
-              (holdings.length === 0 || cashBalanceNZD > 0
-                ? `The member has ${holdings.length === 0 ? "empty holdings" : "positions"} and NZ$${Math.round(cashBalanceNZD)} cash — lead with a concrete ticker-level deployment list, not class allocation alone. `
-                : "") +
+              (holdings.length === 0
+                ? `The member has empty holdings and NZ$${Math.round(cashBalanceNZD)} cash — lead with a concrete ticker-level deployment list, not class allocation alone. `
+                : `The member ALREADY HOLDS live positions. Open by naming each held ticker and the action on it (hold, add, trim, or sell). ` +
+                  (cashBalanceNZD > 0
+                    ? `They also have NZ$${Math.round(cashBalanceNZD)} cash — name new BUY candidates only after the held-book actions. `
+                    : "") +
+                  `Never describe the book, portfolio, or holdings as empty, cash-only, or unmonitored. `) +
               `Never give vague or generic advice. Close with an italic disclaimer that this is informational intelligence, not financial advice. Use **bold** for highest-signal phrases and ticker names.\n\n` +
               `Market: ${report.marketLabel}.\n` +
               `Overall read: ${briefing.overall.bias} bias, ${briefing.overall.level} conviction, net ${briefing.overall.score}/100.\n` +
@@ -262,12 +267,22 @@ export async function generateReportForUser(
         ],
       });
       if (narrative && narrative.length > 40) {
-        report.executiveSummary = narrative;
-        // Keep the briefing's headline summary in lock-step with the report.
-        briefing.executiveSummary = narrative;
-        briefing.aiSummary = true;
-        aiEnhanced = true;
-        console.log(`[report-service] ZENITH narrative applied for user ${user._id}`);
+        const grounded = groundReportNarrative(
+          narrative,
+          holdings.map((h) => ({ ticker: h.ticker, shares: h.shares, name: h.name }))
+        );
+        if (grounded.discardedEmptyClaim || !grounded.text) {
+          console.warn(
+            `[report-service] Discarded ZENITH narrative that described an empty book while ${holdings.length} ${bot} holdings are live`
+          );
+        } else {
+          report.executiveSummary = grounded.text;
+          // Keep the briefing's headline summary in lock-step with the report.
+          briefing.executiveSummary = grounded.text;
+          briefing.aiSummary = true;
+          aiEnhanced = true;
+          console.log(`[report-service] ZENITH narrative applied for user ${user._id}`);
+        }
       }
     } catch (grokErr) {
       console.error("[report-service] ZENITH narrative failed (non-fatal):", grokErr);
