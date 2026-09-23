@@ -16,9 +16,25 @@ const BULLION_TICKERS = new Set(["GOLD", "SILVER"]);
 
 export function metalKeyForTicker(ticker: string | null | undefined): MetalKey | null {
   const t = (ticker || "").trim().toUpperCase();
-  if (t === "GOLD") return "gold";
-  if (t === "SILVER") return "silver";
+  if (t === "GOLD" || t === "XAU" || t === "XAUUSD") return "gold";
+  if (t === "SILVER" || t === "XAG" || t === "XAGUSD") return "silver";
   return null;
+}
+
+export function inferMetalKey(input: {
+  ticker?: string | null;
+  assetType?: string | null;
+  companyName?: string | null;
+  sector?: string | null;
+}): MetalKey | null {
+  const fromTicker = metalKeyForTicker(input.ticker);
+  if (fromTicker) return fromTicker;
+  // Name/sector text is only a hint for explicit metal lots. A miner such as
+  // "Newmont Gold" stays an equity so its share price is never replaced by spot.
+  if ((input.assetType || "").trim().toLowerCase() !== "metal") return null;
+  const blob = `${input.companyName || ""} ${input.sector || ""}`.toLowerCase();
+  if (blob.includes("silver")) return "silver";
+  return "gold";
 }
 
 /**
@@ -28,18 +44,33 @@ export function metalKeyForTicker(ticker: string | null | undefined): MetalKey |
  */
 export function isBullionHolding(
   assetType?: string | null,
-  ticker?: string | null
+  ticker?: string | null,
+  companyName?: string | null
 ): boolean {
-  if ((assetType || "").trim().toLowerCase() === "metal") return true;
-  const t = (ticker || "").trim().toUpperCase();
-  return BULLION_TICKERS.has(t);
+  return (
+    inferMetalKey({ ticker, assetType, companyName }) != null ||
+    (assetType || "").trim().toLowerCase() === "metal" ||
+    BULLION_TICKERS.has((ticker || "").trim().toUpperCase())
+  );
+}
+
+/**
+ * Yahoo GOLD (~US$44) stored as current_price against a per-ounce cost in the
+ * thousands. That print must never be the market value.
+ */
+export function isContaminatedEquityPrint(storedPrice: number, purchasePerOz: number): boolean {
+  const stored = Number(storedPrice);
+  const paid = Number(purchasePerOz);
+  if (!(stored > 0) || !(paid > 0)) return false;
+  return paid >= 500 && stored <= paid / 20;
 }
 
 export function quoteRouteForHolding(
   assetType?: string | null,
-  ticker?: string | null
+  ticker?: string | null,
+  companyName?: string | null
 ): QuoteRoute {
-  if (isBullionHolding(assetType, ticker)) return "bullion";
+  if (isBullionHolding(assetType, ticker, companyName)) return "bullion";
   if ((assetType || "stock").trim().toLowerCase() === "crypto") return "crypto";
   return "equity";
 }
@@ -89,6 +120,113 @@ export function bullionNzdPerOz(
   return Number.isFinite(px) && px > 0 ? px : 0;
 }
 
+export interface BullionHoldingLike {
+  ticker?: string | null;
+  asset_type?: string | null;
+  company_name?: string | null;
+  sector?: string | null;
+  shares?: number | null;
+  current_price?: number | null;
+  purchase_price?: number | null;
+}
+
+/**
+ * NZD per troy ounce to store and display for a bullion lot.
+ * Live spot wins. A persisted equity print (US$44.65) is never returned when
+ * the cost basis is a per-ounce NZD price.
+ */
+export function bullionMarkForHolding(
+  holding: BullionHoldingLike,
+  spot: MetalSpotPerOz | null | undefined
+): number {
+  const key = inferMetalKey({
+    ticker: holding.ticker,
+    assetType: holding.asset_type,
+    companyName: holding.company_name,
+    sector: holding.sector,
+  });
+  const spotPx = key ? bullionNzdPerOz(key === "silver" ? "SILVER" : "GOLD", spot) : 0;
+  if (spotPx > 0) return spotPx;
+  const purchase = Number(holding.purchase_price) || 0;
+  const stored = Number(holding.current_price) || 0;
+  if (purchase > 0 && isContaminatedEquityPrint(stored, purchase)) return purchase;
+  if (stored > 0) return stored;
+  return purchase > 0 ? purchase : 0;
+}
+
+/** Replace bullion current_price with NZD/oz. Equity and crypto rows are copied through. */
+export function markBookAtBullionSpot<T extends BullionHoldingLike>(
+  rows: T[],
+  spot: MetalSpotPerOz | null | undefined
+): T[] {
+  return rows.map((row) => {
+    if (!isBullionHolding(row.asset_type, row.ticker, row.company_name)) return row;
+    const mark = bullionMarkForHolding(row, spot);
+    if (!(mark > 0)) return row;
+    if (Math.abs((Number(row.current_price) || 0) - mark) < 1e-9) return row;
+    return { ...row, current_price: mark };
+  });
+}
+
+export interface VisibleBullionLot {
+  id: string;
+  metal: MetalKey;
+  ounces: number;
+  purchasePerOz: number;
+  /** ounces × NZD spot (or decontaminated per-oz cost when spot is missing). */
+  marketValueNZD: number;
+  source: "ledger" | "desk";
+}
+
+/** Metals hub rows: ledger GOLD/SILVER lots plus the precious_metal desk. */
+export function visibleBullionLots(
+  ledger: BullionHoldingLike & { _id?: string }[],
+  precious: Array<{
+    _id: string;
+    metal: MetalKey;
+    ounces: number;
+    purchase_price_per_oz: number;
+  }>,
+  spot: MetalSpotPerOz | null | undefined
+): VisibleBullionLot[] {
+  const fromLedger: VisibleBullionLot[] = [];
+  for (const row of ledger) {
+    if (!isBullionHolding(row.asset_type, row.ticker, row.company_name)) continue;
+    const metal =
+      inferMetalKey({
+        ticker: row.ticker,
+        assetType: row.asset_type,
+        companyName: row.company_name,
+        sector: row.sector,
+      }) ?? "gold";
+    const ounces = Number(row.shares) || 0;
+    const purchasePerOz = Number(row.purchase_price) || 0;
+    const mark = bullionMarkForHolding(row, spot);
+    fromLedger.push({
+      id: `ledger-${row._id || row.ticker || fromLedger.length}`,
+      metal,
+      ounces,
+      purchasePerOz,
+      marketValueNZD: markToMarketBullionNZD(ounces, mark),
+      source: "ledger",
+    });
+  }
+  const fromDesk: VisibleBullionLot[] = precious.map((row) => {
+    const mark = bullionNzdPerOz(row.metal === "silver" ? "SILVER" : "GOLD", spot);
+    const purchasePerOz = Number(row.purchase_price_per_oz) || 0;
+    const px = mark > 0 ? mark : purchasePerOz;
+    return {
+      id: `desk-${row._id}`,
+      metal: row.metal,
+      ounces: Number(row.ounces) || 0,
+      purchasePerOz,
+      marketValueNZD: markToMarketBullionNZD(row.ounces, px),
+      source: "desk" as const,
+    };
+  });
+  return [...fromLedger, ...fromDesk];
+}
+
 /** Ounces × NZD per troy ounce. Never pass an equity share price here. */
 export function markToMarketBullionNZD(ounces: number, nzdPerTroyOz: number): number {
   const oz = Number(ounces);
@@ -118,13 +256,23 @@ export interface ResolveMarkInput {
 export function resolveHoldingMarkPrice(input: ResolveMarkInput): number | null {
   const route = quoteRouteForHolding(input.assetType, input.ticker);
   if (route === "bullion") {
-    const spot = Number(input.metalNzdPerOz);
-    if (Number.isFinite(spot) && spot > 0) return spot;
-    const stored = Number(input.storedPrice);
-    if (Number.isFinite(stored) && stored > 0) return stored;
-    const paid = Number(input.purchasePrice);
-    if (Number.isFinite(paid) && paid > 0) return paid;
-    return null;
+    const spotPx = Number(input.metalNzdPerOz);
+    const spot =
+      spotPx > 0
+        ? input.ticker.toUpperCase().includes("SILVER") || input.assetType === "silver"
+          ? { silver: { nzdPerOz: spotPx } }
+          : { gold: { nzdPerOz: spotPx }, silver: { nzdPerOz: spotPx } }
+        : null;
+    const mark = bullionMarkForHolding(
+      {
+        ticker: input.ticker,
+        asset_type: input.assetType,
+        current_price: input.storedPrice,
+        purchase_price: input.purchasePrice,
+      },
+      spot
+    );
+    return mark > 0 ? mark : null;
   }
   if (route === "crypto") {
     const q = Number(input.cryptoQuote);

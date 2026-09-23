@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { formatMoney } from "@/lib/currency";
+import { visibleBullionLots, type MetalSpotPerOz } from "@/lib/metal-valuation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -66,15 +67,31 @@ const METAL_META: Record<MetalKey, { label: string; icon: React.ElementType; col
  * Members log their gold / silver holdings in troy ounces and the price/oz they
  * paid; today's value is computed live from the current-day spot price (NZD).
  */
+export interface LedgerBullionLot {
+  _id: string;
+  ticker: string;
+  asset_type?: string;
+  company_name?: string;
+  shares: number;
+  purchase_price: number;
+  current_price: number;
+}
+
 export function PreciousMetals({
   entitled,
   plan,
   onChanged,
+  ledgerLots = [],
+  spot: parentSpot = null,
 }: {
   entitled: boolean;
   plan?: string | null;
   /** Called after any buy/sell so the parent can refresh cash + the ledger. */
   onChanged?: () => void;
+  /** GOLD/SILVER rows from the stock ledger (Transaction Centre buys). */
+  ledgerLots?: LedgerBullionLot[];
+  /** NZD troy-oz spot already loaded by the dashboard, if any. */
+  spot?: MetalSpotPerOz | null;
 }) {
   const [metals, setMetals] = useState<MetalHolding[]>([]);
   const [spot, setSpot] = useState<MetalsSpot | null>(null);
@@ -96,17 +113,40 @@ export function PreciousMetals({
       setSpot(res.data.spot);
       console.log("[metals] Loaded", res.data.metals?.length ?? 0, "holdings; spot live:", res.data.spot?.live);
     } else {
+      // Desk list can be empty/forbidden while the public spot feed still works.
+      const pub = await api.get<MetalsSpot>("/api/metals/spot");
+      if (pub.ok && pub.data) setSpot(pub.data);
       console.error("[metals] Load failed:", res.error);
     }
     setLoading(false);
   }, []);
+
+  // Rewrite the ledger GOLD/SILVER current_price (often the stale equity print)
+  // and tell the dashboard to reload KPIs.
+  const refreshSpot = useCallback(async () => {
+    await load();
+    const refreshed = await api.post("/api/stocks/refresh", {});
+    if (!refreshed.ok) {
+      console.error("[metals] Refresh did not persist bullion marks:", refreshed.error);
+    }
+    onChanged?.();
+  }, [load, onChanged]);
 
   useEffect(() => {
     if (entitled) load();
     else setLoading(false);
   }, [entitled, load]);
 
-  const spotFor = useCallback((m: MetalKey): number => (spot ? spot[m].nzdPerOz : 0), [spot]);
+  const effectiveSpot = spot ?? parentSpot;
+  const spotFor = useCallback(
+    (m: MetalKey): number => (effectiveSpot ? Number(effectiveSpot[m]?.nzdPerOz) || 0 : 0),
+    [effectiveSpot]
+  );
+
+  const ledgerRows = useMemo(
+    () => visibleBullionLots(ledgerLots, [], effectiveSpot),
+    [ledgerLots, effectiveSpot]
+  );
 
   const totals = useMemo(() => {
     let value = 0;
@@ -115,10 +155,14 @@ export function PreciousMetals({
       value += h.ounces * spotFor(h.metal);
       cost += h.ounces * h.purchase_price_per_oz;
     }
+    for (const lot of ledgerRows) {
+      value += lot.marketValueNZD;
+      cost += lot.ounces * lot.purchasePerOz;
+    }
     const gain = value - cost;
     const gainPct = cost > 0 ? (gain / cost) * 100 : 0;
     return { value, cost, gain, gainPct };
-  }, [metals, spotFor]);
+  }, [metals, ledgerRows, spotFor]);
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -224,7 +268,7 @@ export function PreciousMetals({
             Precious Metals Overview
           </h2>
           <div className="flex min-w-0 flex-1 justify-end">
-            <Button variant="outline" size="sm" onClick={load} disabled={loading}>
+            <Button variant="outline" size="sm" onClick={() => void refreshSpot()} disabled={loading}>
               {loading ? <Loader2 className="mr-2 size-4 animate-spin" /> : <RefreshCw className="mr-2 size-4" />}
               Refresh spot
             </Button>
@@ -403,13 +447,13 @@ export function PreciousMetals({
         </p>
 
         {/* Holdings table */}
-        {loading ? (
+        {loading && metals.length === 0 && ledgerRows.length === 0 ? (
           <div className="mt-6 space-y-3">
             {[...Array(2)].map((_, i) => (
               <div key={i} className="h-12 animate-pulse rounded-lg bg-muted/40" />
             ))}
           </div>
-        ) : metals.length === 0 ? (
+        ) : metals.length === 0 && ledgerRows.length === 0 ? (
           <div className="mt-6 flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/60 px-6 py-10 text-center">
             <span className="grid size-12 place-items-center rounded-2xl bg-[var(--gold)]/10 text-[var(--gold)]">
               <Coins className="size-6" />
@@ -434,6 +478,49 @@ export function PreciousMetals({
                 </tr>
               </thead>
               <tbody>
+                {ledgerRows.map((lot) => {
+                  const meta = METAL_META[lot.metal];
+                  const Icon = meta.icon;
+                  const spotPerOz = spotFor(lot.metal);
+                  const cost = lot.ounces * lot.purchasePerOz;
+                  const gain = lot.marketValueNZD - cost;
+                  const gainPct = cost > 0 ? (gain / cost) * 100 : 0;
+                  const up = gain >= 0;
+                  return (
+                    <tr key={lot.id} className="border-b border-border/40 last:border-0 hover:bg-background/40">
+                      <td className="py-3.5 pr-3">
+                        <div className="flex items-center gap-2.5">
+                          <span className={cn("grid size-8 place-items-center rounded-lg", meta.ring)}>
+                            <Icon className={cn("size-4", meta.color)} />
+                          </span>
+                          <span className="font-semibold">{meta.label}</span>
+                          <span className="text-[0.65rem] uppercase tracking-wide text-muted-foreground">Ledger</span>
+                        </div>
+                      </td>
+                      <td className="tnum px-3 py-3.5 text-right text-muted-foreground">
+                        {lot.ounces.toLocaleString("en-NZ", { maximumFractionDigits: 4 })}
+                      </td>
+                      <td className="tnum px-3 py-3.5 text-right text-muted-foreground">
+                        {formatMoney(lot.purchasePerOz, "NZD")}
+                      </td>
+                      <td className="tnum px-3 py-3.5 text-right">{formatMoney(spotPerOz || lot.purchasePerOz, "NZD")}</td>
+                      <td className="tnum px-3 py-3.5 text-right font-medium">{formatMoney(lot.marketValueNZD, "NZD")}</td>
+                      <td className="px-3 py-3.5 text-right">
+                        <span className={cn("tnum font-medium", up ? "text-emerald-600" : "text-rose-600")}>
+                          {up ? "+" : ""}{formatMoney(gain, "NZD")}
+                        </span>
+                        <span className={cn("tnum block text-xs", up ? "text-emerald-600/80" : "text-rose-600/80")}>
+                          {up ? "+" : ""}{gainPct.toFixed(2)}%
+                        </span>
+                      </td>
+                      <td className="py-3.5 pl-3 text-right">
+                        <Button asChild size="sm" variant="outline">
+                          <Link href="/dashboard/transactions">Sell</Link>
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
                 {metals.map((h) => {
                   const meta = METAL_META[h.metal];
                   const Icon = meta.icon;
@@ -512,7 +599,7 @@ export function PreciousMetals({
                   );
                 })}
               </tbody>
-              {metals.length > 0 && (
+              {(metals.length > 0 || ledgerRows.length > 0) && (
                 <tfoot>
                   <tr className="border-t border-border/60 font-medium">
                     <td className="py-3.5 pr-3" colSpan={4}>

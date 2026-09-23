@@ -15,7 +15,7 @@ import {
   CURRENCY_META,
   type FxRatesToNZD,
 } from "@/lib/currency";
-import { bullionNzdPerOz, isBullionHolding } from "@/lib/metal-valuation";
+import { isBullionHolding, markBookAtBullionSpot, type MetalSpotPerOz } from "@/lib/metal-valuation";
 import { StockDialog } from "@/components/dashboard/StockDialog";
 import {
   HoldingChartDialog,
@@ -437,6 +437,9 @@ export function PortfolioDashboard({
     gold: { nzdPerOz: number };
     silver: { nzdPerOz: number };
   } | null>(null);
+  // Public troy-oz spot. Independent of the metals-desk entitlement gate so a
+  // ledger GOLD lot is marked even when /api/metals is empty or rejected.
+  const [publicSpot, setPublicSpot] = useState<MetalSpotPerOz | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Stock | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Stock | null>(null);
@@ -671,6 +674,18 @@ export function PortfolioDashboard({
     if (res.ok && res.data?.spot) setMetalsLoaded(true);
   }, []);
 
+  const loadPublicSpot = useCallback(async () => {
+    const res = await api.get<MetalSpotPerOz>("/api/metals/spot");
+    if (res.ok && res.data?.gold) {
+      setPublicSpot(res.data);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (preview) return;
+    loadPublicSpot();
+  }, [preview, loadPublicSpot, ledgerSignal]);
+
   useEffect(() => {
     if (preview) return; // guest preview uses seeded demo data — no network calls
     loadStocks();
@@ -812,18 +827,12 @@ export function PortfolioDashboard({
   // table as `asset_type:"metal"`. They must surface in the Holdings table
   // regardless of which bot (Stox/Koins) is active, so the table uses its own
   // summary that folds the active bot's positions together with all metals.
+  const spotForMarks = publicSpot ?? metalSpot;
   const metalStocks = useMemo(() => {
-    return allStocks
-      .filter((s) => isBullionHolding(s.asset_type, s.ticker))
-      .map((s) => {
-        // Mark troy ounces at NZD spot. A stored current_price near the Yahoo
-        // GOLD equity print (~$44) must not drive the metals KPI or allocation.
-        const px = bullionNzdPerOz(s.ticker, metalSpot);
-        if (!(px > 0)) return s;
-        if (Math.abs((Number(s.current_price) || 0) - px) < 1e-6) return s;
-        return { ...s, current_price: px };
-      });
-  }, [allStocks, metalSpot]);
+    const bullion = allStocks.filter((s) => isBullionHolding(s.asset_type, s.ticker, s.company_name));
+    // Always rewrite a persisted equity print (~US$44.65) to NZD per troy ounce.
+    return markBookAtBullionSpot(bullion, spotForMarks);
+  }, [allStocks, spotForMarks]);
 
   // Precious-metal holdings from the dedicated /api/metals table, mapped into
   // the same Stock shape so the Transaction Center Sell/Remove picker can show
@@ -1515,7 +1524,13 @@ export function PortfolioDashboard({
 
       {/* ───────────────────────── 3c · Precious metals (moved up for page flow) ───────────────────────── */}
       <div id="dash-metals-overview" className={cn("mt-10 scroll-mt-24", !isMetals && "hidden")}>
-        <PreciousMetals entitled={metalsEntitled} plan={subscription.plan} onChanged={handleMetalsChanged} />
+        <PreciousMetals
+          entitled={metalsEntitled}
+          plan={subscription.plan}
+          onChanged={handleMetalsChanged}
+          ledgerLots={metalStocks}
+          spot={spotForMarks}
+        />
         <div className="mt-6">
           <DashboardGate
             preview={preview}

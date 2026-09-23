@@ -7,7 +7,8 @@ import { simulateTick } from "@/lib/market";
 import { fetchLiveQuotes, isLiveDataConfigured, fetchCryptoQuotes } from "@/lib/market-data";
 import { getMetalsSpot } from "@/lib/metals";
 import {
-  bullionNzdPerOz,
+  bullionMarkForHolding,
+  isBullionHolding,
   quoteRouteForHolding,
   resolveHoldingMarkPrice,
 } from "@/lib/metal-valuation";
@@ -18,6 +19,8 @@ import {
  * configured, real quotes are used; otherwise a bounded random-walk tick keeps
  * the demo tape moving. Persists and returns the updated holdings.
  */
+export const dynamic = "force-dynamic";
+
 export async function POST(req: Request) {
   try {
     const user = await getCurrentUser();
@@ -38,22 +41,40 @@ export async function POST(req: Request) {
       return accountMismatchResponse(user._id);
     }
 
-    // Split by asset class: equities → Twelve Data/Yahoo, crypto → Swyftx, metals → spot.
-    // GOLD/SILVER are excluded from the equity feed (Yahoo GOLD is Gold.com, Inc.).
+    // Bullion spot is resolved on its own so an equity/crypto failure cannot
+    // leave GOLD at the persisted Yahoo equity print.
+    const hasBullion = stocks.some((s) => isBullionHolding(s.asset_type, s.ticker, s.company_name));
+    let metalsSpot: Awaited<ReturnType<typeof getMetalsSpot>> | null = null;
+    if (hasBullion) {
+      try {
+        metalsSpot = await getMetalsSpot();
+      } catch (err) {
+        console.error("[api/stocks/refresh] Bullion spot failed:", err);
+      }
+    }
+
     const equityTickers: string[] = [];
     const cryptoTickers: string[] = [];
-    let hasBullion = false;
     for (const s of stocks) {
-      const route = quoteRouteForHolding(s.asset_type, s.ticker);
-      if (route === "bullion") hasBullion = true;
-      else if (route === "crypto") cryptoTickers.push(String(s.ticker));
+      const route = quoteRouteForHolding(s.asset_type, s.ticker, s.company_name);
+      if (route === "bullion") continue;
+      if (route === "crypto") cryptoTickers.push(String(s.ticker));
       else equityTickers.push(String(s.ticker));
     }
 
-    const [equityQuotes, cryptoQuotes, metalsSpot] = await Promise.all([
-      isLiveDataConfigured() && equityTickers.length ? fetchLiveQuotes(equityTickers) : Promise.resolve({}),
-      cryptoTickers.length ? fetchCryptoQuotes(cryptoTickers) : Promise.resolve({}),
-      hasBullion ? getMetalsSpot() : Promise.resolve(null),
+    const [equityQuotes, cryptoQuotes] = await Promise.all([
+      isLiveDataConfigured() && equityTickers.length
+        ? fetchLiveQuotes(equityTickers).catch((err) => {
+            console.error("[api/stocks/refresh] Equity quotes failed:", err);
+            return {};
+          })
+        : Promise.resolve({}),
+      cryptoTickers.length
+        ? fetchCryptoQuotes(cryptoTickers).catch((err) => {
+            console.error("[api/stocks/refresh] Crypto quotes failed:", err);
+            return {};
+          })
+        : Promise.resolve({}),
     ]);
     const equityMap = equityQuotes as Record<string, { price: number }>;
     const cryptoMap = cryptoQuotes as Record<string, { price: number }>;
@@ -63,26 +84,30 @@ export async function POST(req: Request) {
       stocks.map(async (s) => {
         const ticker = String(s.ticker || "");
         const key = ticker.toUpperCase();
-        const route = quoteRouteForHolding(s.asset_type, ticker);
+        const route = quoteRouteForHolding(s.asset_type, ticker, s.company_name);
         const base = Number(s.current_price) || Number(s.purchase_price) || 0;
-        const marked = resolveHoldingMarkPrice({
-          ticker,
-          assetType: s.asset_type,
-          storedPrice: Number(s.current_price) || 0,
-          purchasePrice: Number(s.purchase_price) || 0,
-          equityQuote: route === "equity" ? equityMap[key]?.price : undefined,
-          cryptoQuote: route === "crypto" ? cryptoMap[key]?.price : undefined,
-          metalNzdPerOz: route === "bullion" ? bullionNzdPerOz(ticker, metalsSpot) : undefined,
-        });
+        const marked =
+          route === "bullion"
+            ? bullionMarkForHolding(s, metalsSpot)
+            : resolveHoldingMarkPrice({
+                ticker,
+                assetType: s.asset_type,
+                storedPrice: Number(s.current_price) || 0,
+                purchasePrice: Number(s.purchase_price) || 0,
+                equityQuote: route === "equity" ? equityMap[key]?.price : undefined,
+                cryptoQuote: route === "crypto" ? cryptoMap[key]?.price : undefined,
+              });
         // Bullion never random-walks and never takes an equity print.
-        const next = marked != null && marked > 0 ? marked : simulateTick(base);
+        const next = marked != null && marked > 0 ? marked : route === "bullion" ? base : simulateTick(base);
+        const row = { ...s, current_price: next };
+        if (Math.abs((Number(s.current_price) || 0) - next) < 1e-6) return row;
         try {
           await totalumSdk.crud.editRecordById("stock", s._id, { current_price: next });
         } catch (err) {
           console.error(`[api/stocks/refresh] Failed to update ${s._id}:`, err);
           throw err;
         }
-        return { ...s, current_price: next };
+        return row;
       })
     );
 

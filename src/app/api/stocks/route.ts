@@ -20,8 +20,9 @@ import { feedEntryForTicker } from "@/lib/feed-mapping";
 import { logLedgerAudit, appendAuditNote } from "@/lib/ledger-audit";
 import { getMetalsSpot } from "@/lib/metals";
 import {
+  bullionMarkForHolding,
   bullionNameContaminated,
-  bullionNzdPerOz,
+  isBullionHolding,
   quoteRouteForHolding,
   resolveHoldingMarkPrice,
 } from "@/lib/metal-valuation";
@@ -34,39 +35,72 @@ import {
  * (e.g. a seeded SOL at $198.40). Fully non-fatal: on any failure the stored
  * price is kept, so a data-provider outage can never break the portfolio load.
  */
+async function persistBullionMarks(holdings: any[]): Promise<void> {
+  const bullion = holdings.some((s) => isBullionHolding(s.asset_type, s.ticker, s.company_name));
+  if (!bullion) return;
+  let spot = null;
+  try {
+    spot = await getMetalsSpot();
+  } catch (err) {
+    console.error("[api/stocks] Bullion spot fetch failed (decontaminating stored prints):", err);
+  }
+  await Promise.all(
+    holdings.map(async (s, i) => {
+      if (!isBullionHolding(s.asset_type, s.ticker, s.company_name)) return;
+      const marked = bullionMarkForHolding(s, spot);
+      if (!(marked > 0)) return;
+      const prev = Number(s.current_price) || 0;
+      // Plain object so the JSON response carries the troy-oz mark even if the
+      // SDK record ignores later property writes.
+      holdings[i] = { ...s, current_price: marked };
+      if (Math.abs(prev - marked) < 1e-6) return;
+      try {
+        await totalumSdk.crud.editRecordById("stock", s._id, { current_price: marked });
+        console.log(
+          `[api/stocks] Bullion ${s.ticker} current_price ${prev} → ${marked} NZD/oz (persisted)`
+        );
+      } catch (err) {
+        console.error(`[api/stocks] Failed to persist bullion price for ${s._id} (${s.ticker}):`, err);
+      }
+    })
+  );
+}
+
 async function overlayLivePrices(holdings: any[]): Promise<void> {
   if (!holdings.length) return;
-  // Bullion must NOT go to Yahoo/Twelve Data. Ticker GOLD is the equity
-  // Gold.com, Inc. (~US$44), not NZD gold spot per troy ounce.
+  // Bullion first, and alone. An equity/crypto quote failure must not leave
+  // GOLD marked at the Yahoo Gold.com, Inc. print (~US$44).
+  await persistBullionMarks(holdings);
+
   const equityTickers: string[] = [];
   const cryptoTickers: string[] = [];
-  let hasBullion = false;
   for (const s of holdings) {
-    const route = quoteRouteForHolding(s.asset_type, s.ticker);
-    if (route === "bullion") hasBullion = true;
-    else if (route === "crypto") cryptoTickers.push(String(s.ticker));
+    const route = quoteRouteForHolding(s.asset_type, s.ticker, s.company_name);
+    if (route === "bullion") continue;
+    if (route === "crypto") cryptoTickers.push(String(s.ticker));
     else equityTickers.push(String(s.ticker));
   }
+  if (!equityTickers.length && !cryptoTickers.length) return;
 
   try {
-    const [equityQuotes, cryptoQuotes, metalsSpot] = await Promise.all([
+    const [equityQuotes, cryptoQuotes] = await Promise.all([
       isLiveDataConfigured() && equityTickers.length ? fetchLiveQuotes(equityTickers) : Promise.resolve({}),
       cryptoTickers.length ? fetchCryptoQuotes(cryptoTickers) : Promise.resolve({}),
-      hasBullion ? getMetalsSpot() : Promise.resolve(null),
     ]);
     const equityMap = equityQuotes as Record<string, { price: number }>;
     const cryptoMap = cryptoQuotes as Record<string, { price: number }>;
-    if (!Object.keys(equityMap).length && !Object.keys(cryptoMap).length && !hasBullion) {
-      console.warn("[api/stocks] No live quotes available — serving stored prices for this load.");
+    if (!Object.keys(equityMap).length && !Object.keys(cryptoMap).length) {
+      console.warn("[api/stocks] No live equity/crypto quotes — serving stored prices for those holdings.");
       return;
     }
 
     let updated = 0;
     await Promise.all(
-      holdings.map(async (s) => {
+      holdings.map(async (s, i) => {
         const ticker = String(s.ticker || "");
+        const route = quoteRouteForHolding(s.asset_type, ticker, s.company_name);
+        if (route === "bullion") return;
         const key = ticker.toUpperCase();
-        const route = quoteRouteForHolding(s.asset_type, ticker);
         const marked = resolveHoldingMarkPrice({
           ticker,
           assetType: s.asset_type,
@@ -74,13 +108,11 @@ async function overlayLivePrices(holdings: any[]): Promise<void> {
           purchasePrice: Number(s.purchase_price) || 0,
           equityQuote: route === "equity" ? equityMap[key]?.price : undefined,
           cryptoQuote: route === "crypto" ? cryptoMap[key]?.price : undefined,
-          metalNzdPerOz: route === "bullion" ? bullionNzdPerOz(ticker, metalsSpot) : undefined,
         });
         if (marked == null || !(marked > 0)) return;
         const prev = Number(s.current_price) || 0;
-        // Overlay onto the object we return so the FIRST render is already live.
-        s.current_price = marked;
-        if (Math.abs(prev - marked) < 1e-9) return; // unchanged — skip the write
+        holdings[i] = { ...s, current_price: marked };
+        if (Math.abs(prev - marked) < 1e-9) return;
         try {
           await totalumSdk.crud.editRecordById("stock", s._id, { current_price: marked });
           updated++;
@@ -89,9 +121,9 @@ async function overlayLivePrices(holdings: any[]): Promise<void> {
         }
       })
     );
-    console.log(`[api/stocks] Live price overlay applied (${updated} holdings re-priced & persisted).`);
+    console.log(`[api/stocks] Live price overlay applied (${updated} equity/crypto holdings re-priced).`);
   } catch (err) {
-    console.error("[api/stocks] Live price overlay failed (serving stored prices):", err);
+    console.error("[api/stocks] Equity/crypto price overlay failed (bullion marks already applied):", err);
   }
 }
 
@@ -165,6 +197,8 @@ const createSchema = z.object({
   session_close_date: z.string().optional(),
 });
 
+export const dynamic = "force-dynamic";
+
 // GET /api/stocks?asset_type=stock|crypto — list the current user's holdings
 export async function GET(req: Request) {
   try {
@@ -207,7 +241,10 @@ export async function GET(req: Request) {
     // last-stored/seeded price). Persists any that moved. Non-fatal on failure.
     // In parallel, backfill real company names onto any holding stored as a bare
     // ticker (e.g. "WOR.AX" → "Worley Limited"). Both are independent + non-fatal.
-    await Promise.all([overlayLivePrices(stocks), overlayCompanyNames(stocks)]);
+    // Names first so the bullion price copy includes a corrected company_name.
+    // Live prices (and the bullion spot persist) run after, on their own.
+    await overlayCompanyNames(stocks);
+    await overlayLivePrices(stocks);
 
     // Legacy rows without asset_type are treated as stock.
     if (assetType === "stock" || assetType === "crypto") {
