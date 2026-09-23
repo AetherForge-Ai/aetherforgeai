@@ -81,7 +81,12 @@ const WEEK_MS = 7 * 24 * HOUR_MS;
  */
 export const PAID_REPORT_REFRESH_MS = 4 * HOUR_MS;
 
-export type CadenceUnit = "day" | "week";
+/**
+ * "rolling" is the paid 4-hour window. It must not be the legacy "day" token:
+ * that token used to mean "locked until the next Pacific/Auckland midnight",
+ * which is what painted "next refresh in 48m (NZ midnight)" on a same-day report.
+ */
+export type CadenceUnit = "rolling" | "week";
 
 export interface ReportCadence {
   unit: CadenceUnit;
@@ -93,6 +98,25 @@ export interface ReportCadence {
   perLabel: string;
 }
 
+/** Normalise Stripe / display plan strings ("Pro Monthly", "pro-annual") to a key. */
+export function normalizePlanKey(plan?: string | null): string {
+  return (plan || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_")
+    .replace(/_annual$/, "_yearly")
+    .replace(/_annually$/, "_yearly");
+}
+
+/**
+ * Free trial and Apex Weekly keep a weekly report. Every other plan — including
+ * legacy Apex monthly/yearly and Starter/Pro/Ultimate — is the paid 4-hour window.
+ */
+export function isWeeklyReportPlan(plan?: string | null): boolean {
+  const key = normalizePlanKey(plan);
+  return key === "" || key === "free" || key === "none" || key === "weekly" || key === "apex_weekly";
+}
+
 /**
  * How frequently a plan can run a full report. Stox and Koins are metered
  * separately by the caller (one allowance each):
@@ -100,19 +124,15 @@ export interface ReportCadence {
  *  - Paid tiers → one report every 4 hours (rolling), not locked until NZ midnight.
  */
 export function reportCadence(plan?: string | null): ReportCadence {
-  // Legacy Apex paid plans + all new public tiers (Starter/Pro/Ultimate,
-  // monthly or annual) get the short refresh. Free stays weekly.
-  const isNewPaidTier =
-    !!plan && /^(starter|pro|ultimate)_(monthly|yearly)$/.test(plan);
-  const paid = plan === "monthly" || plan === "yearly" || plan === "dual_yearly" || isNewPaidTier;
-  return paid
-    ? {
-        unit: "day",
-        ms: PAID_REPORT_REFRESH_MS,
-        label: "1 report every 4 hours",
-        perLabel: "every 4 hours",
-      }
-    : { unit: "week", ms: WEEK_MS, label: "1 report per week", perLabel: "per week" };
+  if (isWeeklyReportPlan(plan)) {
+    return { unit: "week", ms: WEEK_MS, label: "1 report per week", perLabel: "per week" };
+  }
+  return {
+    unit: "rolling",
+    ms: PAID_REPORT_REFRESH_MS,
+    label: "1 report every 4 hours",
+    perLabel: "every 4 hours",
+  };
 }
 
 export interface ReportQuota {
@@ -160,12 +180,15 @@ export function formatAucklandDateTime(input: number | Date | string | null | un
  * Paid plans use a rolling 4-hour window so a morning report can be refreshed
  * the same Auckland day. Weekly plans keep a rolling 7-day window.
  */
-export function checkReportQuota(
-  plan: string | null | undefined,
+/**
+ * Quota for an already-resolved cadence. Paid and weekly both use
+ * `last + cadence.ms`. There is no Auckland-midnight branch.
+ */
+export function evaluateReportQuota(
+  cadence: ReportCadence,
   lastReportAtIso: string | null | undefined,
   now: number = Date.now()
 ): ReportQuota {
-  const cadence = reportCadence(plan);
   const last = lastReportAtIso ? new Date(lastReportAtIso).getTime() : NaN;
   if (!lastReportAtIso || Number.isNaN(last)) {
     return { allowed: true, waitMs: 0, nextAllowedAt: null, lastReportAt: null, cadence };
@@ -180,6 +203,14 @@ export function checkReportQuota(
     lastReportAt: lastReportAtIso,
     cadence,
   };
+}
+
+export function checkReportQuota(
+  plan: string | null | undefined,
+  lastReportAtIso: string | null | undefined,
+  now: number = Date.now()
+): ReportQuota {
+  return evaluateReportQuota(reportCadence(plan), lastReportAtIso, now);
 }
 
 /** Plain-English wait copy for report cooldowns (NZ English). */
@@ -231,13 +262,17 @@ export function formatWaitShort(ms: number): string {
 export function formatReportCooldownLine(opts: {
   lastReportAt: string | null | undefined;
   waitMs: number;
-  cadenceUnit: CadenceUnit;
+  /** Ignored for copy. Kept so older callers still type-check. Never means midnight. */
+  cadenceUnit?: CadenceUnit | "day";
+  /** e.g. "every 4 hours" or "per week". Appended so the window is explicit. */
+  perLabel?: string;
   now?: number;
 }): string {
   const now = opts.now ?? Date.now();
   const last = opts.lastReportAt ? new Date(opts.lastReportAt).getTime() : NaN;
   if (!opts.lastReportAt || Number.isNaN(last)) return "Ready to run";
   const ago = formatAgeAgo(now - last);
-  if (opts.waitMs <= 0) return `Generated ${ago} · ready to refresh`;
-  return `Generated ${ago} · next refresh in ${formatWaitShort(opts.waitMs)}`;
+  const windowLabel = opts.perLabel ? ` · ${opts.perLabel}` : "";
+  if (opts.waitMs <= 0) return `Generated ${ago} · ready to refresh${windowLabel}`;
+  return `Generated ${ago} · next refresh in ${formatWaitShort(opts.waitMs)}${windowLabel}`;
 }
