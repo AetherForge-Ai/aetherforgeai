@@ -11,9 +11,18 @@ import { coinLogo } from "@/lib/crypto-market";
 
 const YAHOO_CHART = "https://query1.finance.yahoo.com/v8/finance/chart";
 
+/** Fallback universe when Swyftx and CoinGecko are both down. Kept at 100 so the Stock Markets Crypto tab is never a short list. */
 export const YAHOO_MAJOR: string[] = [
-  "BTC", "ETH", "SOL", "BNB", "XRP", "ADA", "AVAX", "DOGE", "LINK", "DOT",
-  "MATIC", "POL", "LTC", "UNI", "ATOM", "NEAR", "APT", "ARB", "OP",
+  "BTC", "ETH", "USDT", "BNB", "SOL", "XRP", "USDC", "DOGE", "ADA", "TRX",
+  "AVAX", "TON", "SHIB", "DOT", "LINK", "BCH", "SUI", "HBAR", "XLM", "LTC",
+  "UNI", "PEPE", "NEAR", "APT", "ICP", "ETC", "ATOM", "VET", "RENDER", "FIL",
+  "ARB", "OP", "IMX", "INJ", "STX", "AAVE", "MKR", "GRT", "ALGO", "RUNE",
+  "THETA", "EGLD", "FLOW", "XTZ", "AXS", "EOS", "SAND", "MANA", "QNT", "LDO",
+  "APE", "COMP", "DYDX", "ENS", "CRV", "CHZ", "MINA", "ZEC", "SNX", "GALA",
+  "CAKE", "KAVA", "ZIL", "BAT", "GMX", "LRC", "ENJ", "IOTA", "NEO", "KSM",
+  "DASH", "SUSHI", "YFI", "CELO", "ROSE", "ANKR", "SKL", "STORJ", "AUDIO", "MASK",
+  "API3", "BAND", "BAL", "1INCH", "LUNC", "FET", "WLD", "TIA", "SEI", "JUP",
+  "BONK", "WIF", "FLOKI", "PENDLE", "ONDO", "PYTH", "JTO", "STRK", "BLUR", "ARKM",
 ];
 
 function yahooSymbol(ticker: string): string {
@@ -66,7 +75,7 @@ export async function fetchYahooCryptoQuote(
 export async function fetchYahooMajorMarkets(): Promise<CoinMarket[]> {
   const out: CoinMarket[] = [];
   const batch = [...YAHOO_MAJOR];
-  const conc = 4;
+  const conc = 8;
   let i = 0;
   async function worker() {
     while (i < batch.length) {
