@@ -3,9 +3,11 @@ import { z } from "zod";
 import { getCurrentUser, isStripeConfigured, hasActiveSubscription } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
 import type { BotKind } from "@/lib/apex";
-import { generateReportForUser } from "@/lib/report-service";
+import { generateReportForUser, loadStockRowsForAccount } from "@/lib/report-service";
 import { checkReportQuota } from "@/lib/entitlements";
-import { reconcileNarrativeWithLiveBook, reconcileStoredReport, type LiveBookPosition } from "@/lib/report-book";
+import { liveBookForAccount, reconcileNarrativeWithLiveBook, reconcileStoredReport } from "@/lib/report-book";
+import { requestClaimsOtherUser } from "@/lib/account-guard";
+import { accountMismatchResponse, privateJson } from "@/lib/account-response";
 
 const schema = z.object({ bot: z.enum(["stock", "crypto"]) });
 
@@ -41,6 +43,13 @@ export async function POST(req: Request) {
   try {
     const user = await getCurrentUser();
     if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    if (user.identityConflict || requestClaimsOtherUser(req, user._id)) {
+      console.error("[api/reports] Refusing cross-account generate", {
+        sessionUserId: user._id,
+        claimed: req.headers.get("x-af-user-id"),
+      });
+      return accountMismatchResponse(user._id);
+    }
 
     const parsed = schema.safeParse(await req.json().catch(() => ({})));
     if (!parsed.success) {
@@ -96,8 +105,9 @@ export async function POST(req: Request) {
     // The report was just generated "now", so the next unlock is now + cadence.
     const next = checkReportQuota(user.subscription_plan, new Date().toISOString());
 
-    return NextResponse.json({
+    return privateJson({
       ok: true,
+      userId: user._id,
       data: {
         report: out.report,
         pdfUrl: out.pdfUrl,
@@ -109,6 +119,9 @@ export async function POST(req: Request) {
         // Echo the next unlock so the UI can immediately start the countdown.
         nextAllowedAt: next.nextAllowedAt,
         cadenceLabel: next.cadence.label,
+        cadenceMs: next.cadence.ms,
+        perLabel: next.cadence.perLabel,
+        cadenceUnit: next.cadence.unit,
       },
     });
   } catch (err: any) {
@@ -121,32 +134,31 @@ export async function POST(req: Request) {
  * GET /api/reports — list the user's past reports (most recent first) plus their
  * current report-cadence status so the dashboard can render a live countdown.
  */
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const user = await getCurrentUser();
     if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    if (user.identityConflict || requestClaimsOtherUser(req, user._id)) {
+      console.error("[api/reports] Refusing cross-account history", {
+        sessionUserId: user._id,
+        claimed: req.headers.get("x-af-user-id"),
+      });
+      return accountMismatchResponse(user._id);
+    }
 
-    const [res, stockRes] = await Promise.all([
+    const [res, book] = await Promise.all([
       totalumSdk.crud.query("report", {
         _filter: { user: user._id },
         _sort: { createdAt: "desc" },
         _limit: 50,
       }),
-      totalumSdk.crud.query("stock", { _filter: { user: user._id }, _limit: 500 }).catch((err) => {
-        console.error("[api/reports] Live book load failed (history still returned):", err);
-        return { data: [] as unknown[] };
-      }),
+      loadStockRowsForAccount(user._id),
     ]);
     const rows = (res?.data as any[]) || [];
-    const liveRows = ((stockRes as { data?: unknown[] })?.data as any[]) || [];
-    const liveFor = (bot: string): LiveBookPosition[] =>
-      liveRows
-        .filter((h) => (h.asset_type || "stock") === bot && h.ticker)
-        .map((h) => ({
-          ticker: String(h.ticker),
-          shares: Number(h.shares) || 0,
-          name: h.company_name || h.ticker,
-        }));
+    // A failed holdings load must not be treated as an empty book — leave the
+    // stored wording for the client to reconcile against the dashboard book.
+    const liveRows = book.bookLoaded ? book.rows : [];
+    const liveFor = (bot: BotKind) => liveBookForAccount(liveRows, user._id, bot);
     const reports = rows.map((r) => {
       let payload: unknown = null;
       if (typeof r.payload === "string" && r.payload.trim()) {
@@ -158,7 +170,8 @@ export async function GET() {
       } else if (r.payload && typeof r.payload === "object") {
         payload = r.payload;
       }
-      const liveBook = liveFor(String(r.bot || "stock"));
+      const reportBot: BotKind = r.bot === "crypto" ? "crypto" : "stock";
+      const liveBook = liveFor(reportBot);
       if (payload && typeof payload === "object") {
         payload = reconcileStoredReport(payload as Record<string, unknown>, liveBook);
       }
@@ -204,6 +217,8 @@ export async function GET() {
         lastReportAt: q.lastReportAt,
         cadenceLabel: q.cadence.label,
         cadenceUnit: q.cadence.unit,
+        cadenceMs: q.cadence.ms,
+        perLabel: q.cadence.perLabel,
       };
     };
     const stockQuota = buildQuota("stock");
@@ -211,12 +226,15 @@ export async function GET() {
 
     console.log(
       `[api/reports] GET returned ${reports.length} reports for user ${user._id} ` +
-        `(Stox allowed=${stockQuota.allowed}, Koins allowed=${cryptoQuota.allowed})`
+        `(bookLoaded=${book.bookLoaded}, holdings=${liveRows.length}, ` +
+        `Stox allowed=${stockQuota.allowed}, Koins allowed=${cryptoQuota.allowed})`
     );
-    return NextResponse.json({
+    return privateJson({
       ok: true,
+      userId: user._id,
       data: {
         reports,
+        bookLoaded: book.bookLoaded,
         // Per report-system allowance (Stox + Koins tracked independently).
         quota: { stock: stockQuota, crypto: cryptoQuota },
       },
