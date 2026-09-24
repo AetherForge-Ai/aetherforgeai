@@ -251,7 +251,7 @@ export function BuyDialog({
     if (!open || feePresetId === "zero" || feePresetId === "custom") return;
     const market = feeMarketFor(ticker, assetType);
     const preset = presetsForMarket(market).find((x) => x.id === feePresetId);
-    if (!preset || preset.percent <= 0) return;
+    if (!preset) return;
     const notional = sharesNum * priceNum;
     if (!(notional > 0)) return;
     const est = estimateFee(notional, preset);

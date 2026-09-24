@@ -10,7 +10,7 @@ const updateSchema = z.object({
   takeProfitMinPct: z.number().nullable().optional(),
   takeProfitMaxPct: z.number().nullable().optional(),
   instructions: z.string().optional(),
-  status: z.enum(["active", "triggered", "paused"]).optional(),
+  status: z.enum(["active", "triggered", "paused", "archived"]).optional(),
 });
 
 // Verify the alert exists AND belongs to the current user.

@@ -13,7 +13,9 @@ import {
   baseCurrencyForBot,
   BASELINE_FX_TO_NZD,
   CURRENCY_META,
+  usdToNzd,
   type FxRatesToNZD,
+  type CurrencyCode,
 } from "@/lib/currency";
 import { isBullionHolding, markBookAtBullionSpot, type MetalSpotPerOz } from "@/lib/metal-valuation";
 import { StockDialog } from "@/components/dashboard/StockDialog";
@@ -377,6 +379,7 @@ export function PortfolioDashboard({
   // Live FX rates (1 unit → NZD) so AUD (.AX) / USD holdings convert into the
   // Stox NZD "Total Worth". Falls back to the baseline table if the feed misses.
   const [fxToNZD, setFxToNZD] = useState<FxRatesToNZD>(BASELINE_FX_TO_NZD);
+  const [cryptoBookCurrency, setCryptoBookCurrency] = useState<CurrencyCode>("NZD");
   // Base currency all totals are aggregated in: NZD for Stox, USD for Koins.
   const baseCurrency = useMemo(() => baseCurrencyForBot(bot), [bot]);
 
@@ -830,8 +833,8 @@ export function PortfolioDashboard({
   );
   const stockOverviewMetrics = useMemo(() => computePortfolioMetrics(stockOnly), [stockOnly]);
   const cryptoOverviewSummary = useMemo(
-    () => computeSummary(cryptoMarked, { baseCurrency: "USD", fxToNZD }),
-    [cryptoMarked, fxToNZD]
+    () => computeSummary(cryptoMarked, { baseCurrency: cryptoBookCurrency, fxToNZD }),
+    [cryptoMarked, fxToNZD, cryptoBookCurrency]
   );
   const cryptoOverviewMetrics = useMemo(() => computePortfolioMetrics(cryptoMarked), [cryptoMarked]);
 
@@ -1458,21 +1461,37 @@ export function PortfolioDashboard({
           avatarAlt="Koins AI bot"
           avatarPose="flip"
         />
-        <div className="mb-4 flex justify-center">
+        <div className="mb-4 flex flex-wrap items-center justify-center gap-3">
           <CryptoLiveStatus updatedAt={cryptoLive.updatedAt} />
+          <div className="inline-flex rounded-lg border border-border/60 p-0.5 text-xs font-semibold" role="group" aria-label="Crypto totals currency">
+            {(["NZD", "USD"] as const).map((code) => (
+              <button
+                key={code}
+                type="button"
+                onClick={() => setCryptoBookCurrency(code)}
+                className={cn(
+                  "rounded-md px-2.5 py-1 transition-colors",
+                  cryptoBookCurrency === code ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                )}
+                aria-pressed={cryptoBookCurrency === code}
+              >
+                {code === "NZD" ? "NZ$" : "US$"}
+              </button>
+            ))}
+          </div>
         </div>
 
       <div className="mt-2 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          label="Total worth · USD"
-          value={formatMoney(cryptoOverviewSummary.totalValue, "USD")}
-          sub={`Cost basis ${formatMoney(cryptoOverviewSummary.totalCost, "USD")}`}
+          label={cryptoBookCurrency === "NZD" ? "Total worth · NZD" : "Total worth · USD"}
+          value={formatMoney(cryptoOverviewSummary.totalValue, cryptoBookCurrency)}
+          sub={`Cost basis ${formatMoney(cryptoOverviewSummary.totalCost, cryptoBookCurrency)}`}
           icon={Wallet}
           loading={!balancesReady}
         />
         <StatCard
           label="Unrealized P&L"
-          value={formatMoney(cryptoOverviewSummary.totalGain, "USD")}
+          value={formatMoney(cryptoOverviewSummary.totalGain, cryptoBookCurrency)}
           sub={formatPercent(cryptoOverviewSummary.totalGainPct)}
           icon={cryptoOverviewSummary.totalGain >= 0 ? TrendingUp : TrendingDown}
           tone={cryptoOverviewSummary.totalGain >= 0 ? "up" : "down"}
@@ -1483,7 +1502,12 @@ export function PortfolioDashboard({
           value={`${cryptoOverviewMetrics.alphaPotentialPct >= 0 ? "+" : ""}${cryptoOverviewMetrics.alphaPotentialPct.toFixed(2)}%`}
           sub={
             cryptoOverviewSummary.holdingsCount
-              ? `${formatMoney(cryptoOverviewMetrics.alphaPotentialValue, "USD")} projected move`
+              ? `${formatMoney(
+                  cryptoBookCurrency === "NZD"
+                    ? usdToNzd(cryptoOverviewMetrics.alphaPotentialValue, fxToNZD.USD)
+                    : cryptoOverviewMetrics.alphaPotentialValue,
+                  cryptoBookCurrency
+                )} projected move`
               : "Add coins to project"
           }
           icon={Zap}
@@ -1522,7 +1546,7 @@ export function PortfolioDashboard({
         emptyLabel="No crypto in this portfolio yet"
         emptyHint="Buy coins in the Transaction Centre — they'll show here so you can see where the money is."
         holdings={cryptoOverviewSummary.holdings}
-        baseCurrency="USD"
+        baseCurrency={cryptoBookCurrency}
         loading={!balancesReady}
         headerExtra={<CryptoLiveStatus updatedAt={cryptoLive.updatedAt} />}
         onAdd={openAdd}

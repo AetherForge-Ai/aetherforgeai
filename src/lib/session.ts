@@ -36,14 +36,50 @@ export interface AppUser {
   identityConflict?: boolean;
 }
 
+const inflightSessions = new Map<string, Promise<Awaited<ReturnType<typeof auth.api.getSession>>>>();
+
+function sessionFlightKey(headerList: Headers, refresh: boolean): string {
+  const cookie = headerList.get("cookie") || "";
+  const match = cookie.match(/(?:^|;\s*)(?:__Secure-)?better-auth\.session_token=([^;]+)/);
+  return `${refresh ? "refresh" : "read"}:${match?.[1] || "none"}`;
+}
+
+/**
+ * One in-flight session read per cookie. Concurrent API calls (Buy confirm,
+ * a report compile, the crypto poll) must not each refresh and overwrite
+ * the session cookie.
+ *
+ * Background polls pass refresh=false so a 401 there cannot rotate the token.
+ */
+async function readSession(headerList: Headers, refresh: boolean) {
+  if (!refresh) {
+    return auth.api.getSession({
+      headers: headerList,
+      query: { disableRefresh: true },
+    });
+  }
+  const key = sessionFlightKey(headerList, true);
+  const existing = inflightSessions.get(key);
+  if (existing) return existing;
+  const job = auth.api.getSession({ headers: headerList }).finally(() => {
+    if (inflightSessions.get(key) === job) inflightSessions.delete(key);
+  });
+  inflightSessions.set(key, job);
+  return job;
+}
+
 /**
  * Returns the current session user merged with the full Totalum user record
  * (so subscription/billing fields are always present). Returns null if there
  * is no valid session.
+ *
+ * `refreshSession` defaults to true. Background polls pass false so they
+ * never rotate the session cookie.
  */
-export async function getCurrentUser(): Promise<AppUser | null> {
+export async function getCurrentUser(opts?: { refreshSession?: boolean }): Promise<AppUser | null> {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
+    const headerList = await headers();
+    const session = await readSession(headerList, opts?.refreshSession !== false);
     if (!session?.user?.id) return null;
 
     const userId = session.user.id;

@@ -545,6 +545,7 @@ export const CRYPTO_UNIVERSE: UniverseEntry[] = [
   { ticker: "APT", name: "Aptos", sector: "Smart Contract", market: "CRYPTO", basePrice: 9.8 },
   { ticker: "ARB", name: "Arbitrum", sector: "Layer 2", market: "CRYPTO", basePrice: 0.84 },
   { ticker: "OP", name: "Optimism", sector: "Layer 2", market: "CRYPTO", basePrice: 1.72 },
+  { ticker: "JUP", name: "Jupiter", sector: "DeFi", market: "CRYPTO", basePrice: 0.85 },
 ];
 
 /** The universe for a given asset class. */

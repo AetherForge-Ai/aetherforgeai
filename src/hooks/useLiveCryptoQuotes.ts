@@ -71,7 +71,7 @@ async function pull(): Promise<void> {
       store.quotes = next.quotes;
       store.updatedAt = next.updatedAt;
       notify();
-    } else if (!res.aborted) {
+    } else if (!res.aborted && res.status !== 401) {
       console.error("[crypto-live] spot poll failed:", res.error);
     }
   })();

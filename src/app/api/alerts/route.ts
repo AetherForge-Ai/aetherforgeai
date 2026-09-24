@@ -18,7 +18,7 @@ const createSchema = z.object({
   takeProfitMinPct: z.number().nullable().optional(),
   takeProfitMaxPct: z.number().nullable().optional(),
   instructions: z.string().optional(),
-  status: z.enum(["active", "triggered", "paused"]).optional(),
+  status: z.enum(["active", "triggered", "paused", "archived"]).optional(),
 });
 
 const CRYPTO_TICKERS = new Set(CRYPTO_DIRECTORY.map((c) => c.ticker.toUpperCase()));
@@ -49,7 +49,9 @@ export async function GET() {
       _sort: { createdAt: "desc" },
       _limit: 200,
     });
-    const rows = (res?.data as any[]) || [];
+    const rows = ((res?.data as any[]) || []).filter(
+      (a) => String(a?.status || "active").toLowerCase() !== "archived"
+    );
 
     // Classify tickers via stored asset_type + the user's holdings so crypto
     // alerts get Swyftx/CoinGecko prices (not Yahoo equity quotes).
