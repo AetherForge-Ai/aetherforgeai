@@ -12,13 +12,14 @@
  */
 
 import {
-  fetchYahooQuotes,
   fetchYahooNames,
   fetchYahooHistories,
   yahooEquitySymbol,
   yahooCryptoSymbol,
   fetchYahooQuotesBatched,
+  fetchYahooCryptoLiveQuotes,
 } from "@/lib/yahoo-finance";
+import { CRYPTO_SNAPSHOT_TTL_MS, normalizeCryptoSymbols, stampCryptoQuoteLive } from "@/lib/crypto-live";
 import { fetchGoogleCryptoQuotes, googleCryptoSymbol } from "@/lib/google-finance";
 import { fetchSpotPrices as fetchSwyftxSpot } from "@/lib/crypto-swyftx";
 import { bullionDisplayName, isBullionHolding } from "@/lib/metal-valuation";
@@ -292,17 +293,31 @@ const CRYPTO_CACHE = new Map<string, LiveQuote>();
 let cryptoStamp = 0;
 
 /**
- * Fetch live crypto quotes from CoinGecko. Returns a map keyed by the ORIGINAL
- * ticker (e.g. "BTC"). Returns {} on any error so callers fall back to the
- * deterministic engine.
+ * Fetch live crypto quotes (Swyftx → CoinGecko → Yahoo → Google). Returns a map
+ * keyed by the ORIGINAL ticker (e.g. "BTC"). Returns {} on any error so callers
+ * fall back to the last stored price.
+ *
+ * Crypto trades 24/7. This path does not consult NZX/ASX/US session hours,
+ * does not label prints "at close", and does not freeze quotes after the cash
+ * session ends. `bypassCache` is for the shared holdings snapshot, which has
+ * its own shorter TTL.
  */
-export async function fetchCryptoQuotes(tickers: string[]): Promise<Record<string, LiveQuote>> {
+export async function fetchCryptoQuotes(
+  tickers: string[],
+  opts?: { bypassCache?: boolean }
+): Promise<Record<string, LiveQuote>> {
   if (!tickers.length || !isCryptoLiveConfigured()) return {};
   const unique = Array.from(new Set(tickers.map((t) => t.toUpperCase())));
 
-  // Serve from cache when fresh.
-  if (CRYPTO_CACHE.size && Date.now() - cryptoStamp <= TTL_MS && unique.every((t) => CRYPTO_CACHE.get(t))) {
-    return Object.fromEntries(unique.map((t) => [t, CRYPTO_CACHE.get(t)!]));
+  // Serve from cache when fresh. Always re-stamp as live so a cached equity-style
+  // "close" flag can never leak into the crypto book.
+  if (
+    !opts?.bypassCache &&
+    CRYPTO_CACHE.size &&
+    Date.now() - cryptoStamp <= TTL_MS &&
+    unique.every((t) => CRYPTO_CACHE.get(t))
+  ) {
+    return Object.fromEntries(unique.map((t) => [t, stampCryptoQuoteLive(CRYPTO_CACHE.get(t)!)]));
   }
 
   const out: Record<string, LiveQuote> = {};
@@ -365,10 +380,11 @@ export async function fetchCryptoQuotes(tickers: string[]): Promise<Record<strin
   if (missing.length) {
     try {
       const map = Object.fromEntries(missing.map((t) => [t, yahooCryptoSymbol(t)]));
-      const yq = await fetchYahooQuotes(map);
+      // Batched Yahoo crypto spots — not the equity spark path's "market closed" label.
+      const yq = await fetchYahooCryptoLiveQuotes(map);
       let filled = 0;
       for (const [t, q] of Object.entries(yq)) {
-        out[t] = { price: q.price, changePct: q.changePct };
+        out[t] = { price: q.price, changePct: q.changePct, asOf: "live" };
         filled++;
       }
       if (filled) {
@@ -392,7 +408,7 @@ export async function fetchCryptoQuotes(tickers: string[]): Promise<Record<strin
       const gq = await fetchGoogleCryptoQuotes(map);
       let filled = 0;
       for (const [t, q] of Object.entries(gq)) {
-        out[t] = { price: q.price, changePct: q.changePct };
+        out[t] = { price: q.price, changePct: q.changePct, asOf: "live" };
         filled++;
       }
       if (filled) {
@@ -407,11 +423,68 @@ export async function fetchCryptoQuotes(tickers: string[]): Promise<Record<strin
 
   // Persist whatever we resolved (covers the common Swyftx-only path, which no
   // fallback stage touches) so repeat lookups within the TTL are instant.
+  // Every crypto print is live — never an equity "at close" flag.
   if (Object.keys(out).length) {
-    Object.entries(out).forEach(([t, v]) => CRYPTO_CACHE.set(t, v));
+    Object.entries(out).forEach(([t, v]) => CRYPTO_CACHE.set(t, stampCryptoQuoteLive(v)));
     cryptoStamp = Date.now();
   }
-  return out;
+  return Object.fromEntries(Object.entries(out).map(([t, v]) => [t, stampCryptoQuoteLive(v)]));
+}
+
+/* Shared 24/7 snapshot — holdings page, alerts, and /api/stocks/refresh. */
+
+let cryptoSnap: { at: number; quotes: Record<string, LiveQuote> } | null = null;
+let cryptoSnapInflight: Promise<{
+  quotes: Record<string, LiveQuote>;
+  updatedAt: string;
+  live: true;
+}> | null = null;
+let cryptoSnapInflightKey = "";
+
+/**
+ * One cached crypto spot snapshot for every caller in this process. A fresh
+ * snapshot that already covers the requested symbols is reused so the holdings
+ * poll, alert evaluation, and the book refresh do not each hit Swyftx/CoinGecko.
+ * Quotes are always `asOf: "live"` — cash-session state is not consulted.
+ */
+export async function fetchCryptoLiveSnapshot(tickers: string[]): Promise<{
+  quotes: Record<string, LiveQuote>;
+  updatedAt: string;
+  live: true;
+}> {
+  const unique = normalizeCryptoSymbols(tickers);
+  if (!unique.length) {
+    return { quotes: {}, updatedAt: new Date().toISOString(), live: true };
+  }
+  const key = unique.join(",");
+  const fresh = cryptoSnap != null && Date.now() - cryptoSnap.at < CRYPTO_SNAPSHOT_TTL_MS;
+  if (fresh && unique.every((t) => (cryptoSnap!.quotes[t]?.price ?? 0) > 0)) {
+    const quotes = Object.fromEntries(unique.map((t) => [t, stampCryptoQuoteLive(cryptoSnap!.quotes[t])]));
+    return { quotes, updatedAt: new Date(cryptoSnap!.at).toISOString(), live: true };
+  }
+  if (cryptoSnapInflight && cryptoSnapInflightKey === key) return cryptoSnapInflight;
+
+  const job = (async () => {
+    const raw = await fetchCryptoQuotes(unique, { bypassCache: true });
+    const quotes: Record<string, LiveQuote> = { ...(cryptoSnap?.quotes ?? {}) };
+    for (const [t, q] of Object.entries(raw)) {
+      if (q && q.price > 0) quotes[t] = stampCryptoQuoteLive(q);
+    }
+    const at = Date.now();
+    cryptoSnap = { at, quotes };
+    const picked = Object.fromEntries(
+      unique.filter((t) => (quotes[t]?.price ?? 0) > 0).map((t) => [t, stampCryptoQuoteLive(quotes[t])])
+    );
+    return { quotes: picked, updatedAt: new Date(at).toISOString(), live: true as const };
+  })();
+
+  cryptoSnapInflightKey = key;
+  cryptoSnapInflight = job;
+  try {
+    return await job;
+  } finally {
+    if (cryptoSnapInflight === job) cryptoSnapInflight = null;
+  }
 }
 
 /**

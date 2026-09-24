@@ -449,6 +449,23 @@ export function yahooCryptoSymbol(ticker: string): string {
   return `${t}-USD`;
 }
 
+/**
+ * Batched crypto spot quotes. Crypto trades through weekends and overnight, so
+ * this never applies equity session gating and never drops a print because an
+ * equity helper labelled it "close" (empty cash-session bars).
+ */
+export async function fetchYahooCryptoLiveQuotes(
+  map: Record<string, string>
+): Promise<Record<string, { price: number; changePct: number }>> {
+  if (!Object.keys(map).length) return {};
+  const batched = await fetchYahooQuotesBatched(map);
+  const out: Record<string, { price: number; changePct: number }> = {};
+  for (const [internal, q] of Object.entries(batched)) {
+    if (q.price > 0) out[internal] = { price: q.price, changePct: q.changePct };
+  }
+  return out;
+}
+
 /** Convenience: fetch a single symbol's live quote (or null). */
 export async function fetchYahooQuote(symbol: string): Promise<YahooQuote | null> {
   return fetchOne(yahooEquitySymbol(symbol));

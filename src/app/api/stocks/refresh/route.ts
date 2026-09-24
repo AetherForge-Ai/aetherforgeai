@@ -4,7 +4,7 @@ import { hasForeignOwner, requestClaimsOtherUser } from "@/lib/account-guard";
 import { accountMismatchResponse, privateJson } from "@/lib/account-response";
 import { totalumSdk } from "@/lib/totalum";
 import { simulateTick } from "@/lib/market";
-import { fetchLiveQuotes, isLiveDataConfigured, fetchCryptoQuotes } from "@/lib/market-data";
+import { fetchLiveQuotes, isLiveDataConfigured, fetchCryptoLiveSnapshot } from "@/lib/market-data";
 import { getMetalsSpot } from "@/lib/metals";
 import {
   bullionMarkForHolding,
@@ -70,14 +70,14 @@ export async function POST(req: Request) {
           })
         : Promise.resolve({}),
       cryptoTickers.length
-        ? fetchCryptoQuotes(cryptoTickers).catch((err) => {
+        ? fetchCryptoLiveSnapshot(cryptoTickers).catch((err) => {
             console.error("[api/stocks/refresh] Crypto quotes failed:", err);
-            return {};
+            return { quotes: {}, updatedAt: new Date().toISOString(), live: true as const };
           })
-        : Promise.resolve({}),
+        : Promise.resolve({ quotes: {}, updatedAt: new Date().toISOString(), live: true as const }),
     ]);
     const equityMap = equityQuotes as Record<string, { price: number }>;
-    const cryptoMap = cryptoQuotes as Record<string, { price: number }>;
+    const cryptoMap = (cryptoQuotes.quotes ?? {}) as Record<string, { price: number }>;
     const usedLive = Object.keys(equityMap).length > 0 || Object.keys(cryptoMap).length > 0 || !!metalsSpot;
 
     const updates = await Promise.all(
@@ -98,7 +98,14 @@ export async function POST(req: Request) {
                 cryptoQuote: route === "crypto" ? cryptoMap[key]?.price : undefined,
               });
         // Bullion never random-walks and never takes an equity print.
-        const next = marked != null && marked > 0 ? marked : route === "bullion" ? base : simulateTick(base);
+        // Crypto trades 24/7 — when the live snapshot misses a coin, keep the
+        // last real mark. Do not invent a cash-session close or a random walk.
+        const next =
+          marked != null && marked > 0
+            ? marked
+            : route === "bullion" || route === "crypto"
+              ? base
+              : simulateTick(base);
         const row = { ...s, current_price: next };
         if (Math.abs((Number(s.current_price) || 0) - next) < 1e-6) return row;
         try {

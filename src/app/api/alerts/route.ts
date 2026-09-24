@@ -3,7 +3,8 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
 import { referencePrice } from "@/lib/market";
-import { fetchLiveQuotes, fetchCryptoQuotes } from "@/lib/market-data";
+import { fetchLiveQuotes, fetchCryptoLiveSnapshot } from "@/lib/market-data";
+import { evaluateCryptoAlert } from "@/lib/crypto-live";
 import { CRYPTO_DIRECTORY } from "@/lib/apex";
 import { getMetalsSpot } from "@/lib/metals";
 
@@ -56,9 +57,13 @@ export async function GET() {
       .query("stock", { _filter: { user: user._id }, _limit: 500 })
       .catch(() => null);
     const holdingTypeByTicker = new Map<string, string>();
+    const purchaseByTicker = new Map<string, number>();
     for (const h of ((holdingsRes as any)?.data as any[]) || []) {
       const t = String(h.ticker || "").toUpperCase();
-      if (t) holdingTypeByTicker.set(t, h.asset_type || "stock");
+      if (!t) continue;
+      holdingTypeByTicker.set(t, h.asset_type || "stock");
+      const px = Number(h.purchase_price);
+      if (px > 0) purchaseByTicker.set(t, px);
     }
 
     const classified = rows.map((a) => {
@@ -78,11 +83,11 @@ export async function GET() {
           })
         : Promise.resolve({} as Record<string, { price: number; changePct: number }>),
       cryptoTickers.length
-        ? fetchCryptoQuotes(cryptoTickers).catch((err) => {
+        ? fetchCryptoLiveSnapshot(cryptoTickers).catch((err) => {
             console.error("[api/alerts] crypto quote fetch failed:", err);
-            return {} as Record<string, { price: number; changePct: number }>;
+            return { quotes: {} as Record<string, { price: number; changePct: number }>, updatedAt: "", live: true as const };
           })
-        : Promise.resolve({} as Record<string, { price: number; changePct: number }>),
+        : Promise.resolve({ quotes: {} as Record<string, { price: number; changePct: number }>, updatedAt: "", live: true as const }),
     ]);
 
     const metalTickers = classified.filter((c) => c.assetType === "metal").map((c) => c.ticker);
@@ -101,7 +106,7 @@ export async function GET() {
         const key = ticker === "SILVER" ? "silver" : "gold";
         currentPrice = metalSpot?.[key]?.nzdPerOz || 0;
       } else {
-        const liveHit = assetType === "crypto" ? liveCrypto[ticker] : liveEquity[ticker];
+        const liveHit = assetType === "crypto" ? liveCrypto.quotes[ticker] : liveEquity[ticker];
         currentPrice =
           liveHit && liveHit.price > 0
             ? liveHit.price
@@ -110,8 +115,24 @@ export async function GET() {
       if (!(currentPrice > 0)) {
         currentPrice = referencePrice(a.ticker, Number(a.hard_sell_price) || 1);
       }
+      // Equities keep the absolute hard-sell check. Crypto also evaluates the
+      // member's configured % vs purchase (sell at a loss, trim in the gain
+      // band) against the live 24/7 mark. Thresholds are not rewritten.
+      const purchasePrice = assetType === "crypto" ? purchaseByTicker.get(ticker) ?? null : null;
+      const cryptoEval =
+        assetType === "crypto"
+          ? evaluateCryptoAlert({
+              purchasePrice,
+              currentPrice,
+              trimTriggerDipPct: a.trim_trigger_dip_pct ?? null,
+              hardSellPrice: a.hard_sell_price ?? null,
+              takeProfitMinPct: a.take_profit_min_pct ?? null,
+              takeProfitMaxPct: a.take_profit_max_pct ?? null,
+            })
+          : null;
       const triggered =
-        typeof a.hard_sell_price === "number" && a.hard_sell_price > 0 && currentPrice <= a.hard_sell_price;
+        cryptoEval?.sell ??
+        (typeof a.hard_sell_price === "number" && a.hard_sell_price > 0 && currentPrice <= a.hard_sell_price);
       return {
         _id: a._id,
         ticker: a.ticker,
@@ -125,6 +146,9 @@ export async function GET() {
         instructions: a.instructions ?? "",
         status: a.status ?? "active",
         currentPrice,
+        purchasePrice,
+        pnlPct: cryptoEval?.pnlPct ?? null,
+        trimming: cryptoEval?.trimming ?? false,
         triggered,
       };
     });
