@@ -220,6 +220,7 @@ export const CRYPTO_DIRECTORY = [
   { ticker: "AVAX", name: "Avalanche", price: 41.2 },
   { ticker: "DOT", name: "Polkadot", price: 8.15 },
   { ticker: "MATIC", name: "Polygon", price: 0.62 },
+  { ticker: "JUP", name: "Jupiter", price: 0.85 },
 ];
 
 const SIGNALS: TickerAnalysis["signal"][] = ["Strong Buy", "Accumulate", "Hold", "Watch", "Reduce"];

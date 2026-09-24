@@ -164,7 +164,9 @@ export const auth = betterAuth({
     updateAge: 60 * 60 * 24, // Update session once per day
     cookieCache: {
       enabled: true,
-      maxAge: 30, // 30 seconds - reduced for faster role/permission updates
+      // Long enough that the 45s crypto poll and 60s holdings refresh share one
+      // cached session instead of all missing together and refreshing the cookie.
+      maxAge: 60 * 2,
     },
   },
 

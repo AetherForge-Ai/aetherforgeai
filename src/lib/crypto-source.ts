@@ -14,7 +14,7 @@ import "server-only";
 import * as swyftx from "@/lib/crypto-swyftx";
 import * as coingecko from "@/lib/crypto-coingecko";
 import * as yahoo from "@/lib/crypto-yahoo";
-import type { CoinMarket, CoinDetail, CoinChart } from "@/lib/crypto-market";
+import { coinLogo, type CoinMarket, type CoinDetail, type CoinChart } from "@/lib/crypto-market";
 import { canonicalCryptoId, normalizeCryptoTicker } from "@/lib/crypto-ids";
 
 function toCgId(id: string): string {
@@ -45,6 +45,51 @@ function mergeByRank(lists: CoinMarket[][]): CoinMarket[] {
   return out.sort((a, b) => (a.rank ?? 999999) - (b.rank ?? 999999));
 }
 
+const PINNED_COINS: { symbol: string; id: string; name: string }[] = [
+  { symbol: "JUP", id: "jupiter-exchange-solana", name: "Jupiter" },
+];
+
+/** Keep Jupiter (and any future pins) in the selector even if a feed omits them. */
+async function ensurePinnedCoins(coins: CoinMarket[]): Promise<CoinMarket[]> {
+  const have = new Set(coins.map((c) => (c.symbol || "").toUpperCase()));
+  const missing = PINNED_COINS.filter((p) => !have.has(p.symbol));
+  if (!missing.length) return coins;
+  const extras: CoinMarket[] = [];
+  for (const pin of missing) {
+    try {
+      const quote = await yahoo.fetchYahooCryptoQuote(pin.symbol);
+      if (!quote || !(quote.price > 0)) continue;
+      extras.push({
+        id: pin.id,
+        symbol: pin.symbol,
+        name: pin.name,
+        image: coinLogo(pin.symbol),
+        rank: 90,
+        price: quote.price,
+        marketCap: 0,
+        fdv: null,
+        volume24h: 0,
+        change1h: null,
+        change24h: quote.changePct,
+        change7d: 0,
+        high24h: null,
+        low24h: null,
+        circulatingSupply: null,
+        totalSupply: null,
+        maxSupply: null,
+        ath: null,
+        athDate: null,
+        atl: null,
+        atlDate: null,
+        sparkline7d: [],
+      });
+    } catch (err) {
+      console.error(`[crypto-source] pinned ${pin.symbol} lookup failed:`, err);
+    }
+  }
+  return extras.length ? mergeByRank([coins, extras]) : coins;
+}
+
 export async function getTop500(): Promise<CoinMarket[]> {
   const parts: CoinMarket[][] = [];
 
@@ -52,7 +97,7 @@ export async function getTop500(): Promise<CoinMarket[]> {
     const coins = await swyftx.fetchTop500();
     if (coins && coins.length > 0) {
       console.log(`[crypto-source] top500 via Swyftx (${coins.length})`);
-      if (coins.length >= MIN_CRYPTO_UNIVERSE) return coins;
+      if (coins.length >= MIN_CRYPTO_UNIVERSE) return ensurePinnedCoins(coins);
       parts.push(coins);
     } else {
       throw new Error("Swyftx returned an empty market list");
@@ -67,7 +112,7 @@ export async function getTop500(): Promise<CoinMarket[]> {
       if (coins && coins.length > 0) {
         console.log(`[crypto-source] top500 via CoinGecko (${coins.length})`);
         parts.push(coins);
-        if (mergeByRank(parts).length >= MIN_CRYPTO_UNIVERSE && parts.length === 1) return coins;
+        if (mergeByRank(parts).length >= MIN_CRYPTO_UNIVERSE && parts.length === 1) return ensurePinnedCoins(coins);
       } else {
         throw new Error("CoinGecko returned an empty market list");
       }
@@ -87,7 +132,7 @@ export async function getTop500(): Promise<CoinMarket[]> {
   const merged = mergeByRank(parts);
   if (!merged.length) throw new Error("All crypto market sources failed (Swyftx, CoinGecko, Yahoo)");
   console.log(`[crypto-source] crypto universe → ${merged.length} coins`);
-  return merged;
+  return ensurePinnedCoins(merged);
 }
 
 export async function getCoinDetail(id: string): Promise<CoinDetail> {

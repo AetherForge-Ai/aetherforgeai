@@ -13,6 +13,8 @@ import * as React from "react";
 import { api } from "@/lib/api";
 import { formatPercent, type Stock } from "@/lib/portfolio";
 import { evaluateCryptoAlert } from "@/lib/crypto-live";
+import { formatMoney, formatPriceInput, currencyForTicker } from "@/lib/currency";
+import { formatSellStopChip, formatTrimChip } from "@/lib/alert-labels";
 import { useLiveCryptoQuotes } from "@/hooks/useLiveCryptoQuotes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -76,9 +78,9 @@ const EMPTY_FORM: FormState = {
   instructions: "Trim 25% at a 6-7% dip. Hard sell-out at the floor price. Take profits in the 12-15% band.",
 };
 
-function money(n?: number | null): string {
+function money(n: number | null | undefined, ticker: string, crypto: boolean): string {
   if (n === null || n === undefined || isNaN(n)) return "—";
-  return `$${n.toLocaleString("en-NZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return formatMoney(n, currencyForTicker(ticker, crypto ? "crypto" : "stock"));
 }
 
 function num(v: string): number | null {
@@ -148,6 +150,7 @@ export function PriceAlerts({
       setAlerts(
         res.data.filter((a) => {
           const at = (a.assetType || "").toLowerCase();
+          if (String(a.status || "active").toLowerCase() === "archived") return false;
           if (at === "crypto" || at === "stock" || at === "metal") return at === assetType;
           const tick = String(a.ticker || "").toUpperCase();
           if (assetType === "metal") return tick === "GOLD" || tick === "SILVER";
@@ -184,7 +187,7 @@ export function PriceAlerts({
     if (res.ok && res.data) {
       setQuote(res.data);
       if (seedFloor && res.data.price != null) {
-        const floor = (res.data.price * 0.9).toFixed(2);
+        const floor = formatPriceInput(res.data.price * 0.9);
         setForm((f) => (f.hardSellPrice.trim() ? f : { ...f, hardSellPrice: floor }));
       }
     } else {
@@ -392,7 +395,7 @@ export function PriceAlerts({
                 <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Current</span>
-                    <span className="tnum font-medium">{money(currentPrice)}</span>
+                    <span className="tnum font-medium">{money(currentPrice, a.ticker, isCrypto)}</span>
                   </div>
                   {isCrypto && (
                     <div className="flex justify-between">
@@ -404,27 +407,15 @@ export function PriceAlerts({
                   )}
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Hard sell-out</span>
-                    <span className="tnum font-medium">{money(a.hardSellPrice)}</span>
+                    <span className="tnum font-medium">{money(a.hardSellPrice, a.ticker, isCrypto)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">{isCrypto ? "Sell vs purchase" : "Trim"}</span>
-                    <span className="tnum font-medium">
-                      {isCrypto
-                        ? a.trimTriggerDipPct != null
-                          ? `-${Math.abs(a.trimTriggerDipPct)}%`
-                          : "—"
-                        : `${a.trimPct != null ? `${a.trimPct}%` : "—"}${a.trimTriggerDipPct != null ? ` @ -${a.trimTriggerDipPct}%` : ""}`}
-                    </span>
+                    <span className="text-muted-foreground">Sell / stop</span>
+                    <span className="tnum font-medium">{formatSellStopChip(a)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">{isCrypto ? "Trim band" : "Take profit"}</span>
-                    <span className="tnum font-medium">
-                      {a.takeProfitMinPct != null || a.takeProfitMaxPct != null
-                        ? `${isCrypto && a.trimPct != null ? `${a.trimPct}% · ` : ""}${a.takeProfitMinPct ?? "?"}-${a.takeProfitMaxPct ?? "?"}%`
-                        : isCrypto && a.trimPct != null
-                          ? `${a.trimPct}%`
-                          : "—"}
-                    </span>
+                    <span className="text-muted-foreground">Trim</span>
+                    <span className="tnum font-medium">{formatTrimChip(a)}</span>
                   </div>
                 </div>
 

@@ -3,13 +3,27 @@ import { z } from "zod";
 import { getCurrentUser, isStripeConfigured, hasActiveSubscription } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
 import type { BotKind } from "@/lib/apex";
-import { generateReportForUser, loadStockRowsForAccount } from "@/lib/report-service";
+import { generateReportForUser, loadStockRowsForAccount, type GeneratedReport } from "@/lib/report-service";
 import { checkReportQuota } from "@/lib/entitlements";
+import { isRecentReportDuplicate } from "@/lib/report-dedupe";
 import { liveBookForAccount, reconcileNarrativeWithLiveBook, reconcileStoredReport } from "@/lib/report-book";
 import { requestClaimsOtherUser } from "@/lib/account-guard";
 import { accountMismatchResponse, privateJson } from "@/lib/account-response";
 
 const schema = z.object({ bot: z.enum(["stock", "crypto"]) });
+
+const reportJobs = new Map<string, Promise<GeneratedReport>>();
+
+function coalesceReport(userId: string, bot: BotKind, run: () => Promise<GeneratedReport>): Promise<GeneratedReport> {
+  const key = `${userId}:${bot}`;
+  const existing = reportJobs.get(key);
+  if (existing) return existing;
+  const job = run().finally(() => {
+    if (reportJobs.get(key) === job) reportJobs.delete(key);
+  });
+  reportJobs.set(key, job);
+  return job;
+}
 
 /**
  * Most recent report timestamp for a user AND a specific bot (ISO), or null.
@@ -81,6 +95,13 @@ export async function POST(req: Request) {
     const quota = checkReportQuota(user.subscription_plan, previous);
     if (!quota.allowed) {
       const botLabel = bot === "crypto" ? "Koins" : "Stox";
+      if (isRecentReportDuplicate(previous)) {
+        console.log(`[api/reports] Duplicate ${botLabel} follow-up ignored for user ${user._id}`);
+        return NextResponse.json(
+          { ok: false, error: "duplicate", data: { code: "report_duplicate", duplicate: true } },
+          { status: 200 }
+        );
+      }
       console.log(
         `[api/reports] Cadence reached for user ${user._id} · ${botLabel} (${quota.cadence.label}) — next at ${quota.nextAllowedAt}`
       );
@@ -99,7 +120,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const out = await generateReportForUser(user, bot, "manual");
+    const out = await coalesceReport(user._id, bot, () => generateReportForUser(user, bot, "manual"));
     console.log(`[api/reports] Manual report delivered for user ${user._id} (${bot})`);
 
     // The report was just generated "now", so the next unlock is now + cadence.

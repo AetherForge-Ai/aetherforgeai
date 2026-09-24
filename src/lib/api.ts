@@ -8,6 +8,7 @@
  */
 
 import { getActiveAccountUserId } from "@/lib/account-identity";
+import { authActionOn401, isBackgroundAuthPoll, refreshSessionSingleFlight } from "@/lib/auth-refresh";
 
 export interface ApiResponse<T = unknown> {
   ok: boolean;
@@ -25,7 +26,7 @@ export interface ApiInit {
   signal?: AbortSignal;
 }
 
-async function request<T>(url: string, options?: RequestInit): Promise<ApiResponse<T>> {
+async function request<T>(url: string, options?: RequestInit, alreadyRetried = false): Promise<ApiResponse<T>> {
   try {
     const headers = new Headers(options?.headers);
     const uid = getActiveAccountUserId();
@@ -40,6 +41,18 @@ async function request<T>(url: string, options?: RequestInit): Promise<ApiRespon
       credentials: "include",
       cache: "no-store",
     });
+    if (res.status === 401) {
+      const action = authActionOn401(url, alreadyRetried);
+      if (action === "retry") {
+        const refreshed = await refreshSessionSingleFlight();
+        if (refreshed) return request<T>(url, options, true);
+      }
+      // A background poll (crypto spot, holdings refresh) must not sign the
+      // user out. User actions also return the 401 without calling sign-out.
+      if (action === "keep-session" || (action === "retry" && isBackgroundAuthPoll(url))) {
+        return { ok: false, status: 401, error: "Unauthorized" };
+      }
+    }
     const json = (await res.json()) as ApiResponse<T>;
     if (json && typeof json === "object") json.status = res.status;
     return json;

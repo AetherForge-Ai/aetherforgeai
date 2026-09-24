@@ -302,7 +302,11 @@ export function ReportCenter({
     return () => clearInterval(id);
   }, [anyLocked]);
 
+  const runLock = React.useRef(false);
+  const shownKind = React.useRef<BotKind | null>(null);
+
   async function runReport(kind: BotKind) {
+    if (runLock.current) return;
     if (!canRun(kind)) {
       toast.error("Your plan does not include this monitor.");
       return;
@@ -313,6 +317,7 @@ export function ReportCenter({
       toast.error(`You've already run your ${label} ${cadence.label}. You can run the next ${label} report in ${formatDuration(kindQuota.waitMs)}.`);
       return;
     }
+    runLock.current = true;
     setRunning(kind);
     console.log(`[ReportCenter] Running ${kind} report`);
     const tracked = trackAccountRequest();
@@ -331,9 +336,13 @@ export function ReportCenter({
     tracked.release();
     setRunning(null);
 
-    if (res.aborted) return;
+    if (res.aborted) {
+      runLock.current = false;
+      return;
+    }
     const echoed = responseUserId(res);
     if (res.status === 409 || res.error === "account-mismatch") {
+      runLock.current = false;
       console.error("[ReportCenter] Discarding generated report for other/stale user", {
         requestUserId: tracked.userId,
         responseUserId: echoed,
@@ -342,12 +351,22 @@ export function ReportCenter({
       return;
     }
 
+    if (res.status === 429 || res.error === "duplicate") {
+      // A follow-up after generation is expected. Don't log it.
+      // A real cooldown (429) still toasts when this session hasn't just shown the report.
+      runLock.current = false;
+      if (res.status === 429 && shownKind.current !== kind) {
+        const msg = typeof res.error === "string" ? res.error : "You've already used this report allowance.";
+        toast.error(msg);
+      }
+      return;
+    }
+
     if (!res.ok || !res.data?.report) {
-      // Cadence limit → friendly countdown message; other errors → raw message.
+      runLock.current = false;
       const msg = typeof res.error === "string" ? res.error : res.error?.message || "Failed to generate the report.";
       console.error("[ReportCenter] run failed:", res.error);
       toast.error(msg);
-      // Refresh so the countdown reflects the server's authoritative state.
       loadHistory();
       return;
     }
@@ -358,6 +377,7 @@ export function ReportCenter({
         responseUserId: echoed,
       })
     ) {
+      runLock.current = false;
       console.error("[ReportCenter] Discarding generated report for other/stale user", {
         requestUserId: tracked.userId,
         responseUserId: echoed,
@@ -365,6 +385,8 @@ export function ReportCenter({
       toast.error("Account changed before the report finished. Run it again on this book.");
       return;
     }
+    shownKind.current = kind;
+    runLock.current = false;
     const grounded = reconcileStoredReport(res.data.report, bookFor(kind));
     setReport(grounded);
     setTextOnly(null);

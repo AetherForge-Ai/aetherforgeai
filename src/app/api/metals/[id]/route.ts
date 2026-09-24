@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getCurrentUser, isStripeConfigured, hasPaidSubscription, type AppUser } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
 import { getMetalsSpot, type MetalKey } from "@/lib/metals";
-import { recordMetalTrade } from "@/lib/transactions";
+import { archiveClosedPositionAlerts, recordMetalTrade } from "@/lib/transactions";
 
 export const dynamic = "force-dynamic";
 
@@ -129,8 +129,9 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
     });
 
     if (remaining <= 1e-9) {
-      // Fully closed — remove the record.
+      // Fully closed — remove the record and retire its alerts.
       await totalumSdk.crud.deleteRecordById("precious_metal", id);
+      await archiveClosedPositionAlerts(user._id, metal === "gold" ? "GOLD" : "SILVER", 0);
       console.log(
         `[api/metals/${id}] SOLD ALL ${sellOunces}oz ${metal} @ ${spotNZD} NZD for user ${user._id} → cash ${trade.cashBalance}, realized ${trade.realizedNZD}`
       );
