@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import type { HoldingMetrics } from "@/lib/portfolio";
 import { formatNumber, formatPercent } from "@/lib/portfolio";
 import { formatMoney, CURRENCY_META, type CurrencyCode } from "@/lib/currency";
@@ -66,6 +66,8 @@ type Props = {
   onEdit: (h: HoldingMetrics) => void;
   onDelete: (h: HoldingMetrics) => void;
   onOpenChart: (target: ChartTarget) => void;
+  /** Optional status (crypto Live clock) shown beside the position count. */
+  headerExtra?: ReactNode;
 };
 
 /**
@@ -83,6 +85,7 @@ export function HoldingsOwnedTable({
   onEdit,
   onDelete,
   onOpenChart,
+  headerExtra,
 }: Props) {
   const [holdingSort, setHoldingSort] = useState<{ key: HoldingSortKey; dir: "asc" | "desc" }>({
     key: "weight",
@@ -171,9 +174,12 @@ export function HoldingsOwnedTable({
     <div className="mt-6 rounded-3xl border border-border/70 bg-card/50">
       <div className="flex items-center justify-between border-b border-border/60 px-6 py-4">
         <h3 className="font-display text-base font-bold">{title}</h3>
-        <span className="text-xs text-muted-foreground">
-          {loading ? "…" : `${holdings.length} position${holdings.length === 1 ? "" : "s"}`}
-        </span>
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          {headerExtra}
+          <span className="text-xs text-muted-foreground">
+            {loading ? "…" : `${holdings.length} position${holdings.length === 1 ? "" : "s"}`}
+          </span>
+        </div>
       </div>
 
       {loading ? (
