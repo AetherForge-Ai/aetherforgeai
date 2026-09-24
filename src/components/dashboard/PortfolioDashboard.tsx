@@ -54,6 +54,9 @@ import { AnimatedMoney } from "@/components/dashboard/AnimatedMoney";
 import { TopMovers } from "@/components/dashboard/TopMovers";
 import { MarketWidePerformers } from "@/components/dashboard/MarketWidePerformers";
 import { CryptoMarketSection } from "@/components/dashboard/crypto/CryptoMarketSection";
+import { CryptoLiveStatus } from "@/components/dashboard/crypto/CryptoLiveStatus";
+import { applyLiveCryptoPrices } from "@/lib/crypto-live";
+import { resumeCryptoLivePoll, useLiveCryptoQuotes } from "@/hooks/useLiveCryptoQuotes";
 import { HoldingsOwnedTable } from "@/components/dashboard/HoldingsOwnedTable";
 import { ActionableIntelligence } from "@/components/dashboard/ActionableIntelligence";
 import { DashboardSectionTitle } from "@/components/dashboard/DashboardSectionTitle";
@@ -698,6 +701,7 @@ export function PortfolioDashboard({
   useEffect(() => {
     return subscribeTxDialog(() => {
       if (getTxDialogSnapshot().open) return;
+      resumeCryptoLivePoll();
       const pending = deferredHoldingsRef.current;
       if (!pending) return;
       deferredHoldingsRef.current = null;
@@ -812,16 +816,24 @@ export function PortfolioDashboard({
     () => allStocks.filter((s) => s.asset_type === "crypto"),
     [allStocks]
   );
+  const cryptoLiveSymbols = useMemo(() => cryptoOnly.map((s) => s.ticker), [cryptoOnly]);
+  // 24/7 spot poll for this hub only. Buy/Add pauses it inside the hook so a
+  // price tick cannot re-render the open modal shut.
+  const cryptoLive = useLiveCryptoQuotes(cryptoLiveSymbols, view === "crypto" && !preview);
+  const cryptoMarked = useMemo(
+    () => (view === "crypto" ? applyLiveCryptoPrices(cryptoOnly, cryptoLive.quotes) : cryptoOnly),
+    [view, cryptoOnly, cryptoLive.quotes]
+  );
   const stockOverviewSummary = useMemo(
     () => computeSummary(stockOnly, { baseCurrency: "NZD", fxToNZD }),
     [stockOnly, fxToNZD]
   );
   const stockOverviewMetrics = useMemo(() => computePortfolioMetrics(stockOnly), [stockOnly]);
   const cryptoOverviewSummary = useMemo(
-    () => computeSummary(cryptoOnly, { baseCurrency: "USD", fxToNZD }),
-    [cryptoOnly, fxToNZD]
+    () => computeSummary(cryptoMarked, { baseCurrency: "USD", fxToNZD }),
+    [cryptoMarked, fxToNZD]
   );
-  const cryptoOverviewMetrics = useMemo(() => computePortfolioMetrics(cryptoOnly), [cryptoOnly]);
+  const cryptoOverviewMetrics = useMemo(() => computePortfolioMetrics(cryptoMarked), [cryptoMarked]);
 
   // Gold & silver bought through the Buy/Sell window are stored in the `stock`
   // table as `asset_type:"metal"`. They must surface in the Holdings table
@@ -963,10 +975,7 @@ export function PortfolioDashboard({
       ),
     [allStocks]
   );
-  const cryptoHoldings = useMemo(
-    () => allStocks.filter((s) => s.asset_type === "crypto"),
-    [allStocks]
-  );
+  const cryptoHoldings = cryptoMarked;
   const stockTotalNZD = useMemo(
     () => computeSummary(stockHoldings, { baseCurrency: "NZD", fxToNZD }).totalValue,
     [stockHoldings, fxToNZD]
@@ -1449,6 +1458,9 @@ export function PortfolioDashboard({
           avatarAlt="Koins AI bot"
           avatarPose="flip"
         />
+        <div className="mb-4 flex justify-center">
+          <CryptoLiveStatus updatedAt={cryptoLive.updatedAt} />
+        </div>
 
       <div className="mt-2 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
@@ -1512,6 +1524,7 @@ export function PortfolioDashboard({
         holdings={cryptoOverviewSummary.holdings}
         baseCurrency="USD"
         loading={!balancesReady}
+        headerExtra={<CryptoLiveStatus updatedAt={cryptoLive.updatedAt} />}
         onAdd={openAdd}
         onEdit={openEdit}
         onDelete={setDeleteTarget}
@@ -1885,7 +1898,7 @@ export function PortfolioDashboard({
           }
         >
           <PriceAlerts
-            stocks={isCrypto ? cryptoOnly : stockOnly}
+            stocks={isCrypto ? cryptoMarked : stockOnly}
             assetType={isCrypto ? "crypto" : "stock"}
             preview={preview}
           />

@@ -11,7 +11,9 @@
 
 import * as React from "react";
 import { api } from "@/lib/api";
-import type { Stock } from "@/lib/portfolio";
+import { formatPercent, type Stock } from "@/lib/portfolio";
+import { evaluateCryptoAlert } from "@/lib/crypto-live";
+import { useLiveCryptoQuotes } from "@/hooks/useLiveCryptoQuotes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -46,6 +48,9 @@ export interface PriceAlert {
   instructions: string;
   status: string;
   currentPrice: number;
+  purchasePrice?: number | null;
+  pnlPct?: number | null;
+  trimming?: boolean;
   triggered: boolean;
 }
 
@@ -114,6 +119,14 @@ export function PriceAlerts({
   const [form, setForm] = React.useState<FormState>(EMPTY_FORM);
   const [deleteId, setDeleteId] = React.useState<string | null>(null);
   const [deleting, setDeleting] = React.useState(false);
+
+  // Same module-level snapshot as the holdings table. Alert tickers that are
+  // not currently held join that one batched request.
+  const cryptoSymbols = React.useMemo(() => {
+    if (!isCrypto) return [];
+    return [...stocks.map((s) => s.ticker), ...alerts.map((a) => a.ticker)];
+  }, [isCrypto, stocks, alerts]);
+  const cryptoLive = useLiveCryptoQuotes(cryptoSymbols, isCrypto && !preview);
 
   // Selected company + live quote shown inside the add/edit dialog.
   const [selectedName, setSelectedName] = React.useState("");
@@ -185,7 +198,20 @@ export function PriceAlerts({
     setSelectedName("");
     setQuote(null);
     setQuoteLoading(false);
-    setForm({ ...EMPTY_FORM });
+    // Crypto defaults match the 24/7 rules (sell −3% vs purchase, trim from +8%).
+    // Saved alerts keep whatever the member already configured. Stock defaults stay.
+    setForm(
+      isCrypto
+        ? {
+            ...EMPTY_FORM,
+            trimTriggerDipPct: "3",
+            takeProfitMinPct: "8",
+            takeProfitMaxPct: "12",
+            instructions:
+              "Sell out at -3% versus purchase. Start trimming 25% in the +8-12% band versus purchase.",
+          }
+        : { ...EMPTY_FORM }
+    );
     setOpen(true);
   }
 
@@ -318,19 +344,43 @@ export function PriceAlerts({
           </p>
         ) : (
           <ul className="grid gap-3 md:grid-cols-2">
-            {alerts.map((a) => (
+            {alerts.map((a) => {
+              const sym = a.ticker.toUpperCase();
+              const holding = stocks.find((s) => s._id === a.stockId || s.ticker.toUpperCase() === sym);
+              const polled = isCrypto ? cryptoLive.quotes[sym]?.price : undefined;
+              const heldPx = holding && holding.current_price > 0 ? holding.current_price : null;
+              const currentPrice =
+                polled && polled > 0 ? polled : heldPx != null ? heldPx : a.currentPrice;
+              const cryptoEval = isCrypto
+                ? evaluateCryptoAlert({
+                    purchasePrice: holding?.purchase_price ?? a.purchasePrice ?? null,
+                    currentPrice,
+                    trimTriggerDipPct: a.trimTriggerDipPct,
+                    hardSellPrice: a.hardSellPrice,
+                    takeProfitMinPct: a.takeProfitMinPct,
+                    takeProfitMaxPct: a.takeProfitMaxPct,
+                  })
+                : null;
+              const sell = isCrypto ? !!cryptoEval?.sell : a.triggered;
+              const trimming = isCrypto && !!cryptoEval?.trimming && !sell;
+              const pnlPct = cryptoEval?.pnlPct ?? null;
+              return (
               <li
                 key={a._id}
                 className={cn(
                   "rounded-2xl border p-4",
-                  a.triggered ? "border-rose-500/40 bg-rose-500/5" : "border-border/60 bg-background/40"
+                  sell ? "border-rose-500/40 bg-rose-500/5" : trimming ? "border-amber-500/40 bg-amber-500/5" : "border-border/60 bg-background/40"
                 )}
               >
                 <div className="flex items-center gap-2">
                   <span className="font-display text-base font-bold">{a.ticker}</span>
-                  {a.triggered ? (
+                  {sell ? (
                     <Badge className="bg-rose-500/15 text-rose-600 hover:bg-rose-500/15">
                       <TriangleAlert className="mr-1 size-3" /> Sell-out hit
+                    </Badge>
+                  ) : trimming ? (
+                    <Badge className="bg-amber-500/15 text-amber-700 hover:bg-amber-500/15">
+                      <TrendingUp className="mr-1 size-3" /> Trim
                     </Badge>
                   ) : (
                     <Badge variant="outline" className="border-emerald-500/30 text-emerald-600">
@@ -342,25 +392,38 @@ export function PriceAlerts({
                 <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Current</span>
-                    <span className="tnum font-medium">{money(a.currentPrice)}</span>
+                    <span className="tnum font-medium">{money(currentPrice)}</span>
                   </div>
+                  {isCrypto && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">vs purchase</span>
+                      <span className={cn("tnum font-medium", pnlPct != null && pnlPct < 0 ? "text-rose-600" : "text-emerald-600")}>
+                        {pnlPct == null ? "—" : formatPercent(pnlPct)}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Hard sell-out</span>
                     <span className="tnum font-medium">{money(a.hardSellPrice)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Trim</span>
+                    <span className="text-muted-foreground">{isCrypto ? "Sell vs purchase" : "Trim"}</span>
                     <span className="tnum font-medium">
-                      {a.trimPct != null ? `${a.trimPct}%` : "—"}
-                      {a.trimTriggerDipPct != null ? ` @ -${a.trimTriggerDipPct}%` : ""}
+                      {isCrypto
+                        ? a.trimTriggerDipPct != null
+                          ? `-${Math.abs(a.trimTriggerDipPct)}%`
+                          : "—"
+                        : `${a.trimPct != null ? `${a.trimPct}%` : "—"}${a.trimTriggerDipPct != null ? ` @ -${a.trimTriggerDipPct}%` : ""}`}
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Take profit</span>
+                    <span className="text-muted-foreground">{isCrypto ? "Trim band" : "Take profit"}</span>
                     <span className="tnum font-medium">
                       {a.takeProfitMinPct != null || a.takeProfitMaxPct != null
-                        ? `${a.takeProfitMinPct ?? "?"}-${a.takeProfitMaxPct ?? "?"}%`
-                        : "—"}
+                        ? `${isCrypto && a.trimPct != null ? `${a.trimPct}% · ` : ""}${a.takeProfitMinPct ?? "?"}-${a.takeProfitMaxPct ?? "?"}%`
+                        : isCrypto && a.trimPct != null
+                          ? `${a.trimPct}%`
+                          : "—"}
                     </span>
                   </div>
                 </div>
@@ -392,7 +455,8 @@ export function PriceAlerts({
                   </Button>
                 </div>
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </div>
@@ -531,7 +595,7 @@ export function PriceAlerts({
                 <Input id="al-trim" type="number" step="any" value={form.trimPct} onChange={(e) => setForm({ ...form, trimPct: e.target.value })} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="al-dip">Trim at dip of %</Label>
+                <Label htmlFor="al-dip">{isCrypto ? "Sell at loss vs purchase %" : "Trim at dip of %"}</Label>
                 <Input id="al-dip" type="number" step="any" value={form.trimTriggerDipPct} onChange={(e) => setForm({ ...form, trimTriggerDipPct: e.target.value })} />
               </div>
               <div className="space-y-1.5">
@@ -540,11 +604,11 @@ export function PriceAlerts({
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1.5">
-                  <Label htmlFor="al-tpmin">Profit min %</Label>
+                  <Label htmlFor="al-tpmin">{isCrypto ? "Trim from %" : "Profit min %"}</Label>
                   <Input id="al-tpmin" type="number" step="any" value={form.takeProfitMinPct} onChange={(e) => setForm({ ...form, takeProfitMinPct: e.target.value })} />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="al-tpmax">Profit max %</Label>
+                  <Label htmlFor="al-tpmax">{isCrypto ? "Trim through %" : "Profit max %"}</Label>
                   <Input id="al-tpmax" type="number" step="any" value={form.takeProfitMaxPct} onChange={(e) => setForm({ ...form, takeProfitMaxPct: e.target.value })} />
                 </div>
               </div>
