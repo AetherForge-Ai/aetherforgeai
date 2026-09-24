@@ -23,7 +23,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {
-    const user = await getCurrentUser();
+    const user = await getCurrentUser({ refreshSession: false });
     if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     if (user.identityConflict || requestClaimsOtherUser(req, user._id)) {
       return accountMismatchResponse(user._id);

@@ -57,3 +57,9 @@ export function presetsForMarket(market: FeeMarket): FeePreset[] {
   const matched = FEE_PRESETS.filter((p) => p.market === market || p.id === "zero");
   return matched.length ? matched : FEE_PRESETS.filter((p) => p.id === "zero");
 }
+
+/** Market default used by Buy and Sell so a selected preset is actually booked. */
+export function defaultFeePresetId(ticker: string, assetType?: string | null): string {
+  const market = feeMarketFor(ticker, assetType);
+  return presetsForMarket(market).find((p) => p.id !== "zero")?.id ?? "zero";
+}

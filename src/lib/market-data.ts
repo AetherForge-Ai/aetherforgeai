@@ -22,6 +22,7 @@ import {
 import { CRYPTO_SNAPSHOT_TTL_MS, normalizeCryptoSymbols, stampCryptoQuoteLive } from "@/lib/crypto-live";
 import { fetchGoogleCryptoQuotes, googleCryptoSymbol } from "@/lib/google-finance";
 import { fetchSpotPrices as fetchSwyftxSpot } from "@/lib/crypto-swyftx";
+import { canonicalCryptoId } from "@/lib/crypto-ids";
 import { bullionDisplayName, isBullionHolding } from "@/lib/metal-valuation";
 
 export interface LiveQuote {
@@ -254,34 +255,9 @@ export async function fetchLivePrice(ticker: string): Promise<number | null> {
  * so the Crypto Bot is always live. Symbol → CoinGecko id mapping for our
  * universe; unknown symbols are lower-cased as a best-effort id guess.
  */
-/** Canonical IDs live in crypto-ids.ts (APT→aptos, UNI→uniswap, ARB→arbitrum, OP→optimism, SOL→solana). */
-const COINGECKO_IDS: Record<string, string> = {
-  BTC: "bitcoin",
-  ETH: "ethereum",
-  SOL: "solana",
-  BNB: "binancecoin",
-  XRP: "ripple",
-  ADA: "cardano",
-  AVAX: "avalanche-2",
-  DOGE: "dogecoin",
-  LINK: "chainlink",
-  DOT: "polkadot",
-  // Polygon migrated MATIC → POL; the legacy "matic-network" id now returns an
-  // empty quote on CoinGecko, so we track the live POL token id instead.
-  MATIC: "polygon-ecosystem-token",
-  POL: "polygon-ecosystem-token",
-  LTC: "litecoin",
-  UNI: "uniswap",
-  ATOM: "cosmos",
-  NEAR: "near",
-  APT: "aptos",
-  ARB: "arbitrum",
-  OP: "optimism",
-};
-
+/** Canonical IDs live in crypto-ids.ts (including JUP → jupiter-exchange-solana). */
 function coingeckoId(ticker: string): string {
-  const t = ticker.toUpperCase().replace(/-?USD[T]?$/, "");
-  return COINGECKO_IDS[t] ?? t.toLowerCase();
+  return canonicalCryptoId(ticker);
 }
 
 /** Crypto is live without a key, but allow disabling via env if ever needed. */

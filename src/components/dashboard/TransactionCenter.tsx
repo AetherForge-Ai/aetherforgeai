@@ -21,7 +21,7 @@ import { CRYPTO_DIRECTORY } from "@/lib/apex";
 import { TickerSearch } from "@/components/dashboard/TickerSearch";
 import { CryptoSearch } from "@/components/dashboard/CryptoSearch";
 import { cn } from "@/lib/utils";
-import { estimateFee, feeMarketFor, presetsForMarket, type FeePreset } from "@/lib/broker-fees";
+import { defaultFeePresetId, estimateFee, feeMarketFor, presetsForMarket, type FeePreset } from "@/lib/broker-fees";
 import {
   keepDialogOpenOnPortalInteraction,
   keepDialogOpenWhilePopoverOpen,
@@ -98,6 +98,7 @@ interface TransactionRow {
   quantity?: number;
   price?: number;
   fees?: number;
+  fees_native?: number;
   total?: number;
   realized_pnl?: number;
   currency?: string;
@@ -115,6 +116,11 @@ interface Ledger {
 }
 
 const NZD: CurrencyCode = "NZD";
+
+function feeAmount(t: { fees?: number; fees_native?: number }): number {
+  const n = Number(t.fees_native ?? t.fees);
+  return Number.isFinite(n) ? n : 0;
+}
 
 /**
  * Survive parent remounts during holdings live-price hydrate / soft-refresh.
@@ -555,7 +561,7 @@ export function TransactionCenter({
                         {isTrade ? `${formatNumber(t.quantity || 0)} × ${formatMoney(t.price || 0, cur)}` : "—"}
                       </td>
                       <td className="tnum px-4 py-2.5 text-right text-muted-foreground">
-                        {isTrade && t.fees ? formatMoney(t.fees, cur) : "—"}
+                        {isTrade && feeAmount(t) > 0 ? formatMoney(feeAmount(t), cur) : "—"}
                       </td>
                       <td
                         className={cn(
@@ -1061,12 +1067,13 @@ export function TransactionDialog({
   // the user is never blocked (past dates, or a today with no live quote).
   const priceLocked = mode === "buy" && isToday && !liveUnavailable;
 
-  // Keep % fee presets in sync with notional (crypto defaults to ~1%).
+  // Keep fee presets in sync with notional for buys AND sells, including the
+  // US retail fixed fee (percent is 0, so a percent-only effect used to skip it).
   useEffect(() => {
-    if (mode !== "buy" || feePresetId === "zero" || feePresetId === "custom") return;
+    if ((mode !== "buy" && mode !== "sell") || feePresetId === "zero" || feePresetId === "custom") return;
     const market = feeMarketFor(ticker || (assetType === "crypto" ? "BTC" : ""), assetType);
     const preset = presetsForMarket(market).find((x) => x.id === feePresetId);
-    if (!preset || preset.percent <= 0) return;
+    if (!preset) return;
     const notional = (Number(quantity) || 0) * (Number(price) || 0);
     if (!(notional > 0)) return;
     const est = estimateFee(notional, preset);
@@ -1140,6 +1147,7 @@ export function TransactionDialog({
     setAssetType((h.asset_type as AssetType) || "stock");
     setAssetName(h.company_name || h.ticker);
     setPrice(h.current_price ? String(h.current_price) : "");
+    setFeePresetId(defaultFeePresetId(h.ticker, h.asset_type));
     // Pre-fill full quantity for metals — user can reduce it for a partial sale.
     if (h.asset_type === "metal" || h.metalSourceId) {
       setQuantity(String(h.shares || 0));
@@ -1364,7 +1372,13 @@ export function TransactionDialog({
       payload.asset_name = assetName.trim() || undefined;
       payload.quantity = Number(quantity);
       payload.price = Number(price);
-      if (Number(fees) > 0) payload.fees = Number(fees);
+      let feeValue = Number(fees) || 0;
+      if (!(feeValue > 0) && feePresetId !== "zero" && feePresetId !== "custom") {
+        const market = feeMarketFor(String(payload.ticker || ""), assetType);
+        const preset = presetsForMarket(market).find((x) => x.id === feePresetId);
+        if (preset) feeValue = estimateFee(Number(quantity) * Number(price), preset);
+      }
+      if (feeValue > 0) payload.fees = feeValue;
       // Record the chosen transaction date (buy). yyyy-mm-dd → server stores as Date.
       if (mode === "buy" && executedDate) payload.executed_at = executedDate;
     } else {

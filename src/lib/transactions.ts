@@ -15,7 +15,8 @@
 import "server-only";
 import { totalumSdk } from "@/lib/totalum";
 import type { AppUser } from "@/lib/session";
-import { currencyForTicker, convertCurrency } from "@/lib/currency";
+import { currencyForTicker, nativeToNzd, ensureNzdPerUsd, ensureNzdPerAud, type CurrencyCode } from "@/lib/currency";
+import { alertsToArchive, positionIsClosed } from "@/lib/alert-lifecycle";
 import { getFxSnapshot } from "@/lib/fx";
 import { normalizeTicker, lookupTicker, referencePrice } from "@/lib/market";
 import { fetchLivePrice, isLiveDataConfigured, fetchCryptoQuotes } from "@/lib/market-data";
@@ -95,6 +96,39 @@ export interface TransactionResult {
 function round(n: number, decimals = 2): number {
   const f = 10 ** decimals;
   return Math.round((n + Number.EPSILON) * f) / f;
+}
+
+/** NZD per 1 unit of the trade currency. Sub-1 quotes are the wrong direction. */
+function nzdPerUnit(currency: CurrencyCode, quoted: number): number {
+  if (currency === "USD") return ensureNzdPerUsd(quoted);
+  if (currency === "AUD") return ensureNzdPerAud(quoted);
+  return 1;
+}
+
+/** Archive price alerts once a stock or crypto position is fully sold. */
+export async function archiveClosedPositionAlerts(userId: string, ticker: string, remaining: number) {
+  if (!positionIsClosed(remaining) || !String(ticker || "").trim()) return;
+  try {
+    const res = await totalumSdk.crud.query("price_alert", {
+      _filter: { user: userId },
+      _limit: 200,
+    });
+    const rows = ((res?.data as { _id?: string; ticker?: string; status?: string }[]) || []).map((a) => ({
+      _id: String(a._id || ""),
+      ticker: String(a.ticker || ""),
+      status: a.status ?? "active",
+    }));
+    const matched = alertsToArchive(rows, ticker, remaining);
+    for (const alert of matched) {
+      if (!alert._id) continue;
+      await totalumSdk.crud.editRecordById("price_alert", alert._id, { status: "archived" });
+    }
+    if (matched.length) {
+      console.log(`[transactions] Archived ${matched.length} alert(s) for closed ${ticker}`);
+    }
+  } catch (err) {
+    console.error(`[transactions] Failed to archive alerts for ${ticker}:`, err);
+  }
 }
 
 /** Fetch the affected holding for a ticker, tolerating legacy rows w/o asset_type. */
@@ -310,7 +344,7 @@ export async function applyTransaction(user: AppUser, input: TransactionInput): 
     }
 
     const costNative = quantity * price + fees;
-    const costNZD = round(convertCurrency(costNative, currency, "NZD", rates));
+    const costNZD = round(nativeToNzd(costNative, currency, rates));
     let holdingId: string;
 
     if (holding) {
@@ -372,7 +406,7 @@ export async function applyTransaction(user: AppUser, input: TransactionInput): 
     await totalumSdk.crud.editRecordById("user", user._id, { cash_balance: newCash });
 
     const feed = feedEntryForTicker(ticker);
-    const fxRate = input.fx_rate ?? rates[currency] ?? 1;
+    const fxRate = nzdPerUnit(currency, input.fx_rate ?? rates[currency] ?? 1);
     const auditNotes = appendAuditNote(
       notes,
       `FILLED buy qty=${quantity} fill=${price} ${currency} live=${liveSpot ?? "n/a"} source=${input.price_source || "user_fill"}. ${ADVISORY_NOTE}`
@@ -406,7 +440,7 @@ export async function applyTransaction(user: AppUser, input: TransactionInput): 
       notional_native: round(quantity * price, 6),
       native_notional: round(quantity * price, 6),
       fees_native: round(fees),
-      fees_nzd: round(convertCurrency(fees, currency, "NZD", rates)),
+      fees_nzd: round(nativeToNzd(fees, currency, rates)),
       fx_rate: fxRate,
       fx_timestamp: input.fx_timestamp || new Date().toISOString(),
       fx_source: input.fx_source || "fx_snapshot",
@@ -436,9 +470,9 @@ export async function applyTransaction(user: AppUser, input: TransactionInput): 
   const avgCost = holding.purchase_price || 0;
   const proceedsNative = quantity * price - fees;
   const realizedNative = quantity * (price - avgCost) - fees;
-  const proceedsNZD = round(convertCurrency(proceedsNative, currency, "NZD", rates));
+  const proceedsNZD = round(nativeToNzd(proceedsNative, currency, rates));
   // FIFO-style split: price P&L at sell FX; FX P&L vs lot FX (legacy avg uses buy FX ≈ current if unknown).
-  const sellFx = input.fx_rate ?? rates[currency] ?? 1;
+  const sellFx = nzdPerUnit(currency, input.fx_rate ?? rates[currency] ?? 1);
   const lotFx = Number(holding.fx_rate) || sellFx;
   const fifo = fifoApplySell(
     [{ qty: quantity, fillPrice: avgCost, fillCurrency: currency, fxRate: lotFx, tradeDatetime: String(holding.purchase_date || "") }],
@@ -450,15 +484,16 @@ export async function applyTransaction(user: AppUser, input: TransactionInput): 
   const realizedFxNZD = fifo.realized_fx_pnl_nzd;
   const realizedNZD = round(realizedPriceNZD + realizedFxNZD);
   // Keep legacy native→NZD path as sanity floor when FIFO fx identical
-  const legacyRealizedNZD = round(convertCurrency(realizedNative, currency, "NZD", rates));
+  const legacyRealizedNZD = round(nativeToNzd(realizedNative, currency, rates));
   const realizedBooked = Math.abs(sellFx - lotFx) < 1e-9 ? legacyRealizedNZD : realizedNZD;
 
   const remaining = heldShares - quantity;
   let holdingId: string | null = holding._id;
   if (remaining <= 1e-6) {
-    // Position fully closed — remove it from the tracked holdings.
+    // Position fully closed — remove it from the tracked holdings and retire alerts.
     await totalumSdk.crud.deleteRecordById("stock", holding._id);
     holdingId = null;
+    await archiveClosedPositionAlerts(user._id, ticker, 0);
     console.log(`[transactions] SELL closed position ${ticker} (${quantity} @ ${price} ${currency})`);
   } else {
     await totalumSdk.crud.editRecordById("stock", holding._id, { shares: round(remaining, 6) });
@@ -476,6 +511,8 @@ export async function applyTransaction(user: AppUser, input: TransactionInput): 
     quantity: round(quantity, 6),
     price: round(price, 6),
     fees: round(fees),
+    fees_native: round(fees),
+    fees_nzd: round(nativeToNzd(fees, currency, rates)),
     total: round(proceedsNZD),
     realized_pnl: realizedBooked,
     realized_price_pnl_nzd: Math.abs(sellFx - lotFx) < 1e-9 ? legacyRealizedNZD : realizedPriceNZD,

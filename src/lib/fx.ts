@@ -8,7 +8,7 @@
  * stale rates. Results are cached in-memory for the process lifetime (TTL).
  */
 
-import { BASELINE_FX_TO_NZD, type FxRatesToNZD } from "./currency";
+import { BASELINE_FX_TO_NZD, normalizeFxRates, type FxRatesToNZD } from "./currency";
 
 export interface FxSnapshot {
   ratesToNZD: FxRatesToNZD;
@@ -48,11 +48,14 @@ async function fetchLiveRatesToNZD(): Promise<FxRatesToNZD> {
 
   if (!audPerNzd || !usdPerNzd) throw new Error("FX endpoint missing AUD/USD");
 
-  return {
+  // er-api base NZD: rates.USD is USD per 1 NZD (~0.57), NOT NZD per 1 USD.
+  // Invert, then run the direction guard so a payload that is already NZD-per-USD
+  // (or a missed invert) cannot be stored as a sub-1 multiplier.
+  return normalizeFxRates({
     NZD: 1,
-    AUD: 1 / audPerNzd, // 1 AUD → NZD
-    USD: 1 / usdPerNzd, // 1 USD → NZD
-  };
+    AUD: 1 / audPerNzd,
+    USD: 1 / usdPerNzd,
+  });
 }
 
 /**

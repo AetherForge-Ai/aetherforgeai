@@ -25,6 +25,7 @@ export const CANONICAL_CRYPTO_IDS: Record<string, string> = {
   APT: "aptos",
   ARB: "arbitrum",
   OP: "optimism",
+  JUP: "jupiter-exchange-solana",
 };
 
 export const CRYPTO_DISPLAY_NAMES: Record<string, string> = {
@@ -47,6 +48,7 @@ export const CRYPTO_DISPLAY_NAMES: Record<string, string> = {
   APT: "Aptos",
   ARB: "Arbitrum",
   OP: "Optimism",
+  JUP: "Jupiter",
 };
 
 /** Normalize a crypto ticker and return its canonical CoinGecko id. */
