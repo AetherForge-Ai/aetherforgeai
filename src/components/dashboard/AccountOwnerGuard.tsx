@@ -4,7 +4,7 @@ import { ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Lock } from "lucide-react";
-import { confirmPageSession } from "@/lib/auth-refresh";
+import { alignTradeSession, confirmPageSession } from "@/lib/auth-refresh";
 import { bindActiveAccount } from "@/lib/account-identity";
 import { accountPaintDecision, type AccountPaint } from "@/lib/session-owner";
 import { GuestDashboardGate } from "@/components/dashboard/GuestDashboardGate";
@@ -94,9 +94,23 @@ export function AccountOwnerGuard({
 
   useEffect(() => {
     let cancelled = false;
-    confirmPageSession().then((user) => {
+    (async () => {
+      const user = await confirmPageSession();
       if (cancelled) return;
-      const decision = accountPaintDecision(userId, user?.id ?? null);
+      let decision = accountPaintDecision(userId, user?.id ?? null);
+      // The document can arrive before the login cookie is readable. One
+      // delayed strict read before painting the signed-out gate.
+      if (decision === "signed-out") {
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        if (cancelled) return;
+        const again = await alignTradeSession(userId, false);
+        if (cancelled) return;
+        if (!again.ok) {
+          setPhase("mismatch");
+          return;
+        }
+        decision = accountPaintDecision(userId, again.userId);
+      }
       if (decision === "paint") {
         bindActiveAccount(userId);
         setPhase("paint");
@@ -111,7 +125,7 @@ export function AccountOwnerGuard({
         return;
       }
       setPhase("signed-out");
-    });
+    })();
     return () => {
       cancelled = true;
     };
@@ -133,8 +147,22 @@ export function DashboardSessionRecovery({ children }: { children: ReactNode }) 
 
   useEffect(() => {
     let cancelled = false;
-    confirmPageSession().then((user) => {
+    (async () => {
+      let user = await confirmPageSession();
       if (cancelled) return;
+      if (!user?.id) {
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        if (cancelled) return;
+        const again = await alignTradeSession(null, false);
+        if (cancelled) return;
+        if (again.ok && again.userId) {
+          user = {
+            id: again.userId,
+            email: "",
+            name: "",
+          };
+        }
+      }
       if (user?.id) {
         if (recentlyRecovered()) {
           setPhase("mismatch");
@@ -144,7 +172,7 @@ export function DashboardSessionRecovery({ children }: { children: ReactNode }) 
         return;
       }
       setPhase("guest");
-    });
+    })();
     return () => {
       cancelled = true;
     };

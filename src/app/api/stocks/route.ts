@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { hasForeignOwner, requestClaimsOtherUser } from "@/lib/account-guard";
 import { accountMismatchResponse, privateJson } from "@/lib/account-response";
 import { z } from "zod";
-import { getCurrentUser, getTradeSessionUser } from "@/lib/session";
+import { getStableSessionUser, getTradeSessionUser } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
 import { lookupTicker, normalizeTicker, referencePrice } from "@/lib/market";
 import {
@@ -205,7 +205,7 @@ export const dynamic = "force-dynamic";
 // GET /api/stocks?asset_type=stock|crypto — list the current user's holdings
 export async function GET(req: Request) {
   try {
-    const user = await getCurrentUser();
+    const user = await getStableSessionUser();
     if (!user) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }

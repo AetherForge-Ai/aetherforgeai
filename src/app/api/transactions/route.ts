@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getCurrentUser, getTradeSessionUser } from "@/lib/session";
+import { getStableSessionUser, getTradeSessionUser } from "@/lib/session";
 import { applyTransaction, loadLedger } from "@/lib/transactions";
 import { hasForeignOwner, requestClaimsOtherUser } from "@/lib/account-guard";
 import { accountMismatchResponse, privateJson } from "@/lib/account-response";
@@ -43,7 +43,7 @@ const tradeSchema = z.object({
 // GET /api/transactions — the user's ledger + cash balance + realized P&L rollups
 export async function GET(req: Request) {
   try {
-    const user = await getCurrentUser();
+    const user = await getStableSessionUser();
     if (!user) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }

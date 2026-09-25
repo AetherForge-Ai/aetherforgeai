@@ -123,6 +123,21 @@ export async function alignTradeSession(
   return { ok: true, userId: live?.id ?? null, refreshed };
 }
 
+const POST_LOGIN_RETRY_MS = 400;
+
+/**
+ * After sign-in, don't leave /login until a strict read sees the user.
+ * One rotating refresh if the first read is empty, then one delayed strict
+ * read for the cookie to land. Navigating earlier paints a signed-out book.
+ */
+export async function waitForPostLoginSession(): Promise<boolean> {
+  const first = await alignTradeSession(null, true);
+  if (first.ok && first.userId) return true;
+  await new Promise((resolve) => setTimeout(resolve, POST_LOGIN_RETRY_MS));
+  const second = await alignTradeSession(null, false);
+  return !!(second.ok && second.userId);
+}
+
 /**
  * One shared GET /api/auth/get-session. Concurrent callers await the same
  * refresh so they cannot invalidate each other's session cookie.

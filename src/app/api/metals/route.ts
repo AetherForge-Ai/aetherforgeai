@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getCurrentUser, getTradeSessionUser, isStripeConfigured, hasPaidSubscription, type AppUser } from "@/lib/session";
+import { getStableSessionUser, getTradeSessionUser, isStripeConfigured, hasPaidSubscription, type AppUser } from "@/lib/session";
 import { hasForeignOwner, requestClaimsOtherUser } from "@/lib/account-guard";
 import { accountMismatchResponse, privateJson } from "@/lib/account-response";
 import { totalumSdk } from "@/lib/totalum";
@@ -31,7 +31,7 @@ function isEntitled(user: AppUser | null): boolean {
 // GET /api/metals — list the user's metals + current spot prices
 export async function GET(req: Request) {
   try {
-    const user = await getCurrentUser();
+    const user = await getStableSessionUser();
     if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     if (user.identityConflict || requestClaimsOtherUser(req, user._id)) {
       return accountMismatchResponse(user._id);

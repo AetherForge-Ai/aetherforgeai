@@ -25,6 +25,7 @@ import {
   type MetalSpotPerOz,
 } from "@/lib/metal-valuation";
 import { hubAllocationLabel } from "@/lib/hub-labels";
+import { portfolioLoadFailure } from "@/lib/trade-commit-session";
 import { StockDialog } from "@/components/dashboard/StockDialog";
 import {
   HoldingChartDialog,
@@ -559,7 +560,9 @@ export function PortfolioDashboard({
         }
       } else {
         console.error("[dashboard] Failed to load stocks:", res.error);
-        toast.error("Could not load your portfolio.");
+        if (portfolioLoadFailure(false, res.status) === "toast") {
+          toast.error("Could not load your portfolio.");
+        }
         setLoading(false);
       }
     } finally {

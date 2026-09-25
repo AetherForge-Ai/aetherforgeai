@@ -4,6 +4,8 @@ import { api } from "@/lib/api";
 import {
   confirmedCommit401Action,
   isConfirmedCommitBody,
+  isPortfolioSessionRead,
+  portfolioLoadFailure,
   sessionWriteResult,
 } from "@/lib/trade-commit-session";
 
@@ -127,6 +129,42 @@ describe("confirmed trade session", () => {
     expect(res.ok).toBe(false);
     expect(res.status).toBe(409);
     expect(posts).toBe(0);
+  });
+
+  it("treats the holdings list as a session read and a 401 as not a portfolio outage", () => {
+    expect(isPortfolioSessionRead("/api/stocks")).toBe(true);
+    expect(isPortfolioSessionRead("/api/stocks?asset_type=crypto")).toBe(true);
+    expect(isPortfolioSessionRead("/api/transactions")).toBe(true);
+    expect(isPortfolioSessionRead("/api/metals")).toBe(true);
+    expect(isPortfolioSessionRead("/api/metals/spot")).toBe(false);
+    expect(isPortfolioSessionRead("/api/stocks/refresh", "POST")).toBe(false);
+    expect(isPortfolioSessionRead("/api/transactions", "POST")).toBe(false);
+    expect(portfolioLoadFailure(true, 200)).toBe("silent");
+    expect(portfolioLoadFailure(false, 401)).toBe("silent");
+    expect(portfolioLoadFailure(false, 409)).toBe("silent");
+    expect(portfolioLoadFailure(false, 500)).toBe("toast");
+  });
+
+  it("retries the first portfolio load once after a 401", async () => {
+    globalThis.window = {} as Window & typeof globalThis;
+    bindActiveAccount("user-tt");
+    let gets = 0;
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("disableRefresh")) {
+        return jsonResponse({
+          user: { id: "user-tt", email: "lukassouthey@outlook.co.nz", name: "Lukas Southey" },
+          session: { id: "s" },
+        });
+      }
+      gets += 1;
+      if (gets === 1) return jsonResponse({ ok: false, error: "Unauthorized" }, 401);
+      return jsonResponse({ ok: true, data: [] }, 200);
+    }) as typeof fetch;
+
+    const res = await api.get<unknown[]>("/api/stocks");
+    expect(res.ok).toBe(true);
+    expect(gets).toBe(2);
   });
 
   it("does not rotate when the strict read already matches the account", async () => {

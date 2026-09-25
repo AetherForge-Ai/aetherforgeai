@@ -12,6 +12,7 @@ import { alignTradeSession, authActionOn401, isBackgroundAuthPoll, refreshSessio
 import {
   confirmedCommit401Action,
   isConfirmedCommitBody,
+  isPortfolioSessionRead,
   TRADE_SESSION_MISMATCH,
 } from "@/lib/trade-commit-session";
 
@@ -76,6 +77,13 @@ async function request<T>(
           if (action === "retry") return request<T>(url, options, true, true);
         }
         return { ok: false, status: 401, error: "Unauthorized" };
+      }
+      if (isPortfolioSessionRead(url, options?.method) && !alreadyRetried) {
+        const aligned = await alignTradeSession(getActiveAccountUserId(), true);
+        if (!aligned.ok) {
+          return { ok: false, status: 409, error: "account-mismatch" };
+        }
+        return request<T>(url, options, true, true);
       }
       const action = authActionOn401(url, alreadyRetried);
       if (action === "retry") {

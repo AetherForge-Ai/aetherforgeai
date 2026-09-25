@@ -6,6 +6,32 @@
 export const TRADE_SESSION_MISMATCH =
   "This browser session changed. Sign in again before confirming the trade.";
 
+/**
+ * Holdings and ledger reads that paint the book after login.
+ * Not the background price poll (`/api/stocks/refresh`).
+ */
+export function isPortfolioSessionRead(url: string, method?: string): boolean {
+  const verb = (method || "GET").toUpperCase();
+  if (verb !== "GET") return false;
+  const path = url.split("?")[0];
+  if (path.endsWith("/api/stocks/refresh")) return false;
+  return (
+    path === "/api/stocks" ||
+    path.endsWith("/api/stocks") ||
+    path === "/api/transactions" ||
+    path.endsWith("/api/transactions") ||
+    path === "/api/metals" ||
+    path.endsWith("/api/metals")
+  );
+}
+
+/** A 401/409 on the first book load is a session miss, not a portfolio outage. */
+export function portfolioLoadFailure(ok: boolean, status?: number): "toast" | "silent" {
+  if (ok) return "silent";
+  if (status === 401 || status === 409) return "silent";
+  return "toast";
+}
+
 /** True only for an explicit confirm. Unconfirmed bodies stay on the normal path. */
 export function isConfirmedCommitBody(body: unknown): boolean {
   if (typeof body !== "string") return false;
