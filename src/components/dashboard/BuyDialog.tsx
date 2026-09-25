@@ -26,6 +26,10 @@ import { formatNumber } from "@/lib/portfolio";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { estimateFee, feeMarketFor, presetsForMarket, type FeePreset } from "@/lib/broker-fees";
+import { useFxRates } from "@/hooks/useFxRates";
+import { buildTradePreview, type TradePreview } from "@/lib/trade-preview";
+import { bumpHoldingsGeneration } from "@/lib/holdings-generation";
+import { TradeReview } from "@/components/dashboard/TradeReview";
 
 export interface BuyTarget {
   ticker: string; // internal ticker, e.g. BHP.AX or BTC
@@ -68,6 +72,9 @@ export function BuyDialog({
   const [fees, setFees] = useState("");
   const [saving, setSaving] = useState(false);
   const submittingRef = useRef(false);
+  const [step, setStep] = useState<"edit" | "review">("edit");
+  const [reviewPreview, setReviewPreview] = useState<TradePreview | null>(null);
+  const { rates: fxRates } = useFxRates();
   const [feePresetId, setFeePresetId] = useState("zero");
   const [priceLoading, setPriceLoading] = useState(false);
   const [priceEdited, setPriceEdited] = useState(false);
@@ -95,6 +102,8 @@ export function BuyDialog({
     setAmount("");
     setShares("");
     setNotes("");
+    setStep("edit");
+    setReviewPreview(null);
     setPriceEdited(false);
     if (target.price && target.price > 0) setLiveSpotRef(target.price);
     setDate(new Date().toISOString().slice(0, 10));
@@ -154,11 +163,15 @@ export function BuyDialog({
           if (deskCcy !== "NZD") return prev;
           return String(+bal.toFixed(2));
         });
-      } else {
+      } else if (res.status !== 401) {
         console.error("[buy-dialog] Could not load cash balance:", res.error);
         setCashBalance(null);
+      } else {
+        setCashBalance(null);
       }
-    })();
+    })().catch(() => {
+      if (!cancelled) setCashBalance(null);
+    });
     return () => {
       cancelled = true;
       tracked.release();
@@ -173,6 +186,7 @@ export function BuyDialog({
     if (!open || !target || assetType !== "crypto" || !ticker) return;
     let cancelled = false;
     (async () => {
+      try {
       setPriceLoading(true);
       const res = await api.get<{ symbol: string; price: number }>(
         `/api/crypto/price?symbol=${encodeURIComponent(displaySymbol)}`
@@ -193,8 +207,11 @@ export function BuyDialog({
           if (amt > 0) setShares(String(+(amt / live).toFixed(6)));
           return a;
         });
-      } else {
+      } else if (res.status !== 401) {
         console.error(`[buy-dialog] Could not fetch live price for ${displaySymbol}:`, res.error);
+      }
+      } catch {
+        if (!cancelled) setPriceLoading(false);
       }
     })();
     return () => {
@@ -266,7 +283,17 @@ export function BuyDialog({
   const exceedsCash =
     cashBalance != null && totalCost > 0 && totalCost > cashBalance + 1e-6;
 
-  async function confirm() {
+  function resolvedBuyFee(qty: number, px: number): number {
+    let feeValue = Number(fees) || 0;
+    if (!(feeValue > 0) && feePresetId !== "zero" && feePresetId !== "custom") {
+      const market = feeMarketFor(ticker, assetType);
+      const preset = presetsForMarket(market).find((x) => x.id === feePresetId);
+      if (preset) feeValue = estimateFee(qty * px, preset);
+    }
+    return feeValue > 0 ? feeValue : 0;
+  }
+
+  function beginReview() {
     if (submittingRef.current || saving) return;
     if (!ticker) return toast.error("No ticker selected");
     if (!(priceNum > 0)) return toast.error("Enter a valid price per share");
@@ -277,8 +304,6 @@ export function BuyDialog({
         `Insufficient cash — you have ${formatMoney(cashBalance ?? 0, "NZD")} available`
       );
     }
-
-    // Client-side fill sanity (server also enforces). Never inflate qty to fix tiny price.
     const sanity = checkFillSanity({
       ticker: ticker.toUpperCase(),
       quantity: sharesNum,
@@ -289,14 +314,44 @@ export function BuyDialog({
       fillCurrency: currency,
       priceSource: "user_fill",
     });
-    // Soft mismatch when user edited price away from the fetched live banner value
-    // is handled server-side with live re-fetch; here we block hard absurdities if
-    // amount/qty imply a wild price vs the displayed live price field.
     if (sanity.blocked && sanity.code === "hard_mismatch") {
       return toast.error(sanity.message || "Fill price blocked");
     }
     if (sanity.blocked && sanity.code === "implied_mismatch") {
       return toast.error(sanity.message || "Implied price blocked");
+    }
+    const qty = +sharesNum.toFixed(6);
+    const px = +priceNum.toFixed(6);
+    setReviewPreview(
+      buildTradePreview({
+        side: "buy",
+        asset: ticker.toUpperCase(),
+        assetName: target?.name || displaySymbol,
+        quantity: qty,
+        price: px,
+        fee: resolvedBuyFee(qty, px),
+        currency,
+        cashNzd: cashBalance ?? 0,
+        rates: fxRates,
+      })
+    );
+    setStep("review");
+  }
+
+  async function confirm() {
+    if (step !== "review") {
+      beginReview();
+      return;
+    }
+    if (submittingRef.current || saving) return;
+    if (!ticker) return toast.error("No ticker selected");
+    if (!(priceNum > 0)) return toast.error("Enter a valid price per share");
+    if (!(amountNum > 0)) return toast.error("Enter the dollar amount to invest");
+    if (!(sharesNum > 0)) return toast.error("Number of shares must be greater than 0");
+    if (exceedsCash) {
+      return toast.error(
+        `Insufficient cash — you have ${formatMoney(cashBalance ?? 0, "NZD")} available`
+      );
     }
 
     submittingRef.current = true;
@@ -311,7 +366,7 @@ export function BuyDialog({
       cash_or_notional: amountNum > 0 ? amountNum : undefined,
       execution_status: "filled" as const,
       price_source: "user_fill" as const,
-      fees: Number(fees) > 0 ? Number(fees) : undefined,
+      fees: resolvedBuyFee(+sharesNum.toFixed(6), +priceNum.toFixed(6)) || undefined,
       notes: notes.trim() || undefined,
       executed_at: date ? new Date(date).toISOString() : undefined,
     };
@@ -322,6 +377,7 @@ export function BuyDialog({
 
     if (res.ok) {
       toast.success(`Bought ${formatNumber(sharesNum)} ${displaySymbol} · ${formatMoney(totalCost, currency)}`);
+      bumpHoldingsGeneration();
       onOpenChange(false);
       onDone();
     } else {
@@ -344,6 +400,8 @@ export function BuyDialog({
         </DialogHeader>
 
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4 sm:px-6">
+          {step === "review" && reviewPreview ? <TradeReview preview={reviewPreview} /> : null}
+          <div className={cn(step === "review" && "hidden")}>
           {/* Cash balance — money the purchase comes off */}
           <div
             className={cn(
@@ -561,10 +619,11 @@ export function BuyDialog({
               <TrendingUp className="size-3" /> Adds the holding, re-averages cost &amp; debits your cash balance.
             </p>
           </div>
+          </div>
         </div>
 
 
-          <div className="space-y-2 border-t border-border/40 px-5 pt-3 sm:px-6">
+          <div className={cn("space-y-2 border-t border-border/40 px-5 pt-3 sm:px-6", step === "review" && "hidden")}>
             <Label htmlFor="buy-fees">Fees ({currency}) — optional</Label>
             <div className="flex flex-wrap gap-1.5">
               {presetsForMarket(feeMarketFor(ticker, assetType)).map((preset: FeePreset) => {
@@ -613,18 +672,27 @@ export function BuyDialog({
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancel
           </Button>
+          {step === "review" ? (
+            <Button variant="ghost" onClick={() => { setStep("edit"); setReviewPreview(null); }} disabled={saving}>
+              Back
+            </Button>
+          ) : null}
           <Button
             onClick={confirm}
-            disabled={saving || !valid || exceedsCash}
+            disabled={saving || (step === "review" ? !reviewPreview : !valid || exceedsCash)}
             className={cn("font-semibold shadow-glow")}
           >
             {saving ? (
               <>
                 <Loader2 className="mr-2 size-4 animate-spin" /> Buying…
               </>
-            ) : (
+            ) : step === "review" ? (
               <>
                 <ShoppingCart className="mr-2 size-4" /> Confirm purchase
+              </>
+            ) : (
+              <>
+                <ShoppingCart className="mr-2 size-4" /> Review purchase
               </>
             )}
           </Button>

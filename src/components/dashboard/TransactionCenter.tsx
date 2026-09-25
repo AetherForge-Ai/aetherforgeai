@@ -15,6 +15,10 @@ import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
 import { ADVISORY_NOTE } from "@/lib/fill-integrity-client";
 import { formatMoney, currencyForTicker, type CurrencyCode } from "@/lib/currency";
+import { useFxRates } from "@/hooks/useFxRates";
+import { buildTradePreview, type TradePreview } from "@/lib/trade-preview";
+import { bumpHoldingsGeneration } from "@/lib/holdings-generation";
+import { TradeReview } from "@/components/dashboard/TradeReview";
 import { formatNumber, type Stock } from "@/lib/portfolio";
 import { lookupTicker } from "@/lib/market";
 import { CRYPTO_DIRECTORY } from "@/lib/apex";
@@ -1046,6 +1050,9 @@ export function TransactionDialog({
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const submittingRef = useRef(false);
+  const [step, setStep] = useState<"edit" | "review">("edit");
+  const [reviewPreview, setReviewPreview] = useState<TradePreview | null>(null);
+  const { rates: fxRates } = useFxRates();
   // BUY: the transaction date drives the price logic — today ⇒ live price locked;
   // any past date ⇒ the price field stays fully editable for the amount actually paid.
   const [executedDate, setExecutedDate] = useState(todayStr);
@@ -1120,6 +1127,8 @@ export function TransactionDialog({
     setPrice("");
     setAmount("");
     setNotes("");
+    setStep("edit");
+    setReviewPreview(null);
     // New buy defaults to today ⇒ the price locks to live once a ticker is chosen.
     setExecutedDate(todayStr);
     setPriceLoading(false);
@@ -1266,6 +1275,53 @@ export function TransactionDialog({
     return -(Number(amount) || 0);
   }, [mode, quantity, price, fees, amount]);
 
+  function resolvedTradeFee(qty: number, px: number, sym: string): number {
+    let feeValue = Number(fees) || 0;
+    if (!(feeValue > 0) && feePresetId !== "zero" && feePresetId !== "custom") {
+      const market = feeMarketFor(sym || (assetType === "crypto" ? "BTC" : ""), assetType);
+      const preset = presetsForMarket(market).find((x) => x.id === feePresetId);
+      if (preset) feeValue = estimateFee(qty * px, preset);
+    }
+    return feeValue > 0 ? feeValue : 0;
+  }
+
+  /** Validate a buy or sell and show the review. Does not write the ledger. */
+  function beginReview() {
+    if (submittingRef.current || saving) return;
+    const t = (selectedHolding?.ticker || ticker).trim().toUpperCase();
+    const q = Number(quantity);
+    const typedPrice = Number(price);
+    const px = typedPrice > 0 ? typedPrice : Number(selectedHolding?.current_price) || 0;
+    if (mode === "buy") {
+      if (!executedDate) return toast.error("Date is required");
+      if (executedDate > todayStr) return toast.error("Date can't be in the future");
+    }
+    if (!t && !selectedHolding?.metalSourceId) return toast.error("Ticker is required");
+    if (!(q > 0)) return toast.error("Quantity must be greater than 0");
+    if (!(px > 0)) return toast.error("Price must be greater than 0");
+    if (mode === "sell") {
+      if (!selectedHolding) return toast.error("Select a holding you own to sell");
+      if (q > (selectedHolding.shares || 0) + 1e-6) {
+        return toast.error(`You only hold ${formatNumber(selectedHolding.shares || 0)} of ${selectedHolding.ticker}`);
+      }
+    }
+    const asset = t || selectedHolding?.ticker || "";
+    setReviewPreview(
+      buildTradePreview({
+        side: mode === "sell" ? "sell" : "buy",
+        asset,
+        assetName: assetName.trim() || selectedHolding?.company_name || asset,
+        quantity: q,
+        price: px,
+        fee: resolvedTradeFee(q, px, asset),
+        currency,
+        cashNzd: cash,
+        rates: fxRates,
+      })
+    );
+    setStep("review");
+  }
+
   async function submit() {
     if (submittingRef.current || saving) return;
     // Client-side validation with clear messages.
@@ -1305,10 +1361,12 @@ export function TransactionDialog({
       const held = selectedHolding.shares || 0;
       if (!(sellQty > 0)) {
         setSaving(false);
+        submittingRef.current = false;
         return toast.error("Quantity must be greater than 0");
       }
       if (sellQty > held + 1e-6) {
         setSaving(false);
+        submittingRef.current = false;
         return toast.error(`You only hold ${formatNumber(held)} oz of ${selectedHolding.ticker}`);
       }
 
@@ -1341,6 +1399,7 @@ export function TransactionDialog({
               }`
             : `Sold ${formatNumber(sold)} oz ${selectedHolding.ticker}`
         );
+        bumpHoldingsGeneration();
         closeReasonRef.current = "explicit";
         onOpenChange(false);
         // Reload ledger so cash + realized cards update.
@@ -1371,13 +1430,8 @@ export function TransactionDialog({
       payload.asset_type = assetType;
       payload.asset_name = assetName.trim() || undefined;
       payload.quantity = Number(quantity);
-      payload.price = Number(price);
-      let feeValue = Number(fees) || 0;
-      if (!(feeValue > 0) && feePresetId !== "zero" && feePresetId !== "custom") {
-        const market = feeMarketFor(String(payload.ticker || ""), assetType);
-        const preset = presetsForMarket(market).find((x) => x.id === feePresetId);
-        if (preset) feeValue = estimateFee(Number(quantity) * Number(price), preset);
-      }
+      payload.price = Number(price) > 0 ? Number(price) : Number(selectedHolding?.current_price) || 0;
+      const feeValue = resolvedTradeFee(Number(quantity), Number(payload.price), String(payload.ticker || ""));
       if (feeValue > 0) payload.fees = feeValue;
       // Record the chosen transaction date (buy). yyyy-mm-dd → server stores as Date.
       if (mode === "buy" && executedDate) payload.executed_at = executedDate;
@@ -1398,6 +1452,7 @@ export function TransactionDialog({
         withdraw: "Withdrawal recorded",
       };
       toast.success(labels[mode]);
+      if (isTrade) bumpHoldingsGeneration();
       closeReasonRef.current = "explicit";
       onOpenChange(false);
       onDone(res.data);
@@ -1489,7 +1544,13 @@ export function TransactionDialog({
           <DialogDescription>{descriptions[mode]}</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-1">
+        {step === "review" && reviewPreview && isTrade ? (
+          <div className="py-1">
+            <TradeReview preview={reviewPreview} />
+          </div>
+        ) : null}
+
+        <div className={cn("space-y-4 py-1", step === "review" && isTrade && "hidden")}>
           {/* BUY: the transaction date is the FIRST thing entered — it governs the price */}
           {mode === "buy" && (
             <div className="space-y-2">
@@ -1835,16 +1896,30 @@ export function TransactionDialog({
           <Button variant="ghost" onClick={requestExplicitClose} disabled={saving}>
             Cancel
           </Button>
+          {step === "review" && isTrade ? (
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setStep("edit");
+                setReviewPreview(null);
+              }}
+              disabled={saving}
+            >
+              Back
+            </Button>
+          ) : null}
           <Button
-            onClick={submit}
+            onClick={step === "review" || !isTrade ? submit : beginReview}
             disabled={
               saving ||
               priceLoading ||
-              (isTrade
-                ? !(ticker.trim() || selectedHolding?.metalSourceId) ||
-                  !(Number(quantity) > 0) ||
-                  (!(Number(price) > 0) && !selectedHolding?.metalSourceId)
-                : !(Number(amount) > 0))
+              (step === "review"
+                ? !reviewPreview
+                : isTrade
+                  ? !(ticker.trim() || selectedHolding?.metalSourceId) ||
+                    !(Number(quantity) > 0) ||
+                    (!(Number(price) > 0) && !selectedHolding?.metalSourceId)
+                  : !(Number(amount) > 0))
             }
             className="font-semibold"
           >
@@ -1852,6 +1927,10 @@ export function TransactionDialog({
               <>
                 <Loader2 className="mr-2 size-4 animate-spin" /> Recording…
               </>
+            ) : step === "review" && isTrade ? (
+              "Confirm"
+            ) : isTrade ? (
+              "Review"
             ) : (
               titles[mode].split(" ")[0]
             )}

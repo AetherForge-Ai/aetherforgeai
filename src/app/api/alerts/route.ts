@@ -5,6 +5,7 @@ import { totalumSdk } from "@/lib/totalum";
 import { referencePrice } from "@/lib/market";
 import { fetchLiveQuotes, fetchCryptoLiveSnapshot } from "@/lib/market-data";
 import { evaluateCryptoAlert } from "@/lib/crypto-live";
+import { alertIsEffectivelyArchived, heldQuantityForTicker } from "@/lib/alert-lifecycle";
 import { CRYPTO_DIRECTORY } from "@/lib/apex";
 import { getMetalsSpot } from "@/lib/metals";
 
@@ -49,7 +50,7 @@ export async function GET() {
       _sort: { createdAt: "desc" },
       _limit: 200,
     });
-    const rows = ((res?.data as any[]) || []).filter(
+    const storedRows = ((res?.data as any[]) || []).filter(
       (a) => String(a?.status || "active").toLowerCase() !== "archived"
     );
 
@@ -60,13 +61,19 @@ export async function GET() {
       .catch(() => null);
     const holdingTypeByTicker = new Map<string, string>();
     const purchaseByTicker = new Map<string, number>();
+    const holdingQty: { ticker: string; shares: number }[] = [];
     for (const h of ((holdingsRes as any)?.data as any[]) || []) {
       const t = String(h.ticker || "").toUpperCase();
       if (!t) continue;
       holdingTypeByTicker.set(t, h.asset_type || "stock");
+      holdingQty.push({ ticker: t, shares: Number(h.shares) || 0 });
       const px = Number(h.purchase_price);
       if (px > 0) purchaseByTicker.set(t, px);
     }
+    // Flat positions (including a full sell that deleted the row) are not Watching.
+    const rows = storedRows.filter(
+      (a) => !alertIsEffectivelyArchived(a.status, heldQuantityForTicker(holdingQty, String(a.ticker || "")))
+    );
 
     const classified = rows.map((a) => {
       const ticker = String(a.ticker || "").toUpperCase();

@@ -40,19 +40,26 @@ async function load(force = false): Promise<void> {
   notify();
 
   store.inflight = (async () => {
-    const res = await api.get<CoinMarket[]>("/api/crypto/markets");
-    if (res.ok && Array.isArray(res.data)) {
-      store.coins = res.data;
-      store.fetchedAt = Date.now();
-      store.error = null;
-      console.log(`[useCryptoMarkets] loaded ${res.data.length} coins`);
-    } else {
-      store.error = typeof res.error === "string" ? res.error : "Failed to load crypto markets";
-      console.error("[useCryptoMarkets] load failed:", res.error);
+    try {
+      const res = await api.get<CoinMarket[]>("/api/crypto/markets");
+      if (res.ok && Array.isArray(res.data)) {
+        store.coins = res.data;
+        store.fetchedAt = Date.now();
+        store.error = null;
+        console.log(`[useCryptoMarkets] loaded ${res.data.length} coins`);
+      } else if (res.status === 401) {
+        store.error = null;
+      } else {
+        store.error = typeof res.error === "string" ? res.error : "Failed to load crypto markets";
+        console.error("[useCryptoMarkets] load failed:", res.error);
+      }
+    } catch {
+      store.error = store.coins.length ? null : "Crypto markets are unavailable right now.";
+    } finally {
+      store.loading = false;
+      store.inflight = null;
+      notify();
     }
-    store.loading = false;
-    store.inflight = null;
-    notify();
   })();
 
   return store.inflight;
@@ -84,12 +91,12 @@ export function useCryptoMarkets(active = true): UseCryptoMarkets {
 
   useEffect(() => {
     if (!active) return;
-    void load(false);
-    const iv = setInterval(() => void load(false), TTL_MS);
+    void load(false).catch(() => {});
+    const iv = setInterval(() => void load(false).catch(() => {}), TTL_MS);
     return () => clearInterval(iv);
   }, [active]);
 
-  const refresh = useCallback(() => void load(true), []);
+  const refresh = useCallback(() => void load(true).catch(() => {}), []);
 
   return {
     coins: store.coins,

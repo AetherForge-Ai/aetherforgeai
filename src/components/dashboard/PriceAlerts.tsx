@@ -13,7 +13,8 @@ import * as React from "react";
 import { api } from "@/lib/api";
 import { formatPercent, type Stock } from "@/lib/portfolio";
 import { evaluateCryptoAlert } from "@/lib/crypto-live";
-import { formatMoney, formatPriceInput, currencyForTicker } from "@/lib/currency";
+import { formatMoney, formatPriceInput, currencyForTicker, type CurrencyCode } from "@/lib/currency";
+import { alertIsEffectivelyArchived, heldQuantityForTicker } from "@/lib/alert-lifecycle";
 import { formatSellStopChip, formatTrimChip } from "@/lib/alert-labels";
 import { useLiveCryptoQuotes } from "@/hooks/useLiveCryptoQuotes";
 import { Button } from "@/components/ui/button";
@@ -88,10 +89,14 @@ function num(v: string): number | null {
   return v.trim() === "" || isNaN(n) ? null : n;
 }
 
-// Currency-aware price formatter for the live quote read-out.
+// Same adaptive width as holdings (4 sig figs under $1, 6 under $0.01).
 function priceWithCurrency(n: number, currency?: string | null): string {
-  const body = n.toLocaleString("en-NZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return currency ? `${body} ${currency}` : `$${body}`;
+  const code = (currency || "").toUpperCase();
+  if (code === "NZD" || code === "USD" || code === "AUD" || code === "GBP") {
+    return formatMoney(n, code as CurrencyCode);
+  }
+  const body = formatPriceInput(n);
+  return currency ? `${body} ${currency}` : formatMoney(n, "USD");
 }
 
 interface LiveQuote {
@@ -150,7 +155,7 @@ export function PriceAlerts({
       setAlerts(
         res.data.filter((a) => {
           const at = (a.assetType || "").toLowerCase();
-          if (String(a.status || "active").toLowerCase() === "archived") return false;
+          if (alertIsEffectivelyArchived(a.status, heldQuantityForTicker(stocks, a.ticker))) return false;
           if (at === "crypto" || at === "stock" || at === "metal") return at === assetType;
           const tick = String(a.ticker || "").toUpperCase();
           if (assetType === "metal") return tick === "GOLD" || tick === "SILVER";
@@ -160,7 +165,7 @@ export function PriceAlerts({
           return false;
         })
       );
-    } else console.error("[PriceAlerts] load failed:", res.error);
+    } else if (res.status !== 401) console.error("[PriceAlerts] load failed:", res.error);
     setLoading(false);
   }, [preview, stocks, assetType]);
 
@@ -228,7 +233,7 @@ export function PriceAlerts({
       stockId: a.stockId ?? "",
       trimPct: a.trimPct?.toString() ?? "",
       trimTriggerDipPct: a.trimTriggerDipPct?.toString() ?? "",
-      hardSellPrice: a.hardSellPrice?.toString() ?? "",
+      hardSellPrice: a.hardSellPrice != null && Number.isFinite(a.hardSellPrice) ? formatPriceInput(a.hardSellPrice) : "",
       takeProfitMinPct: a.takeProfitMinPct?.toString() ?? "",
       takeProfitMaxPct: a.takeProfitMaxPct?.toString() ?? "",
       instructions: a.instructions ?? "",
@@ -591,7 +596,7 @@ export function PriceAlerts({
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="al-hard">Hard sell-out price</Label>
-                <Input id="al-hard" type="number" step="any" value={form.hardSellPrice} onChange={(e) => setForm({ ...form, hardSellPrice: e.target.value })} placeholder="135.00" />
+                <Input id="al-hard" type="text" inputMode="decimal" value={form.hardSellPrice} onChange={(e) => setForm({ ...form, hardSellPrice: e.target.value })} placeholder="0.00058" />
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1.5">

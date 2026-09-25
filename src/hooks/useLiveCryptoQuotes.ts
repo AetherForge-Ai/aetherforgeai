@@ -51,37 +51,45 @@ function activeSymbols(): string[] {
 }
 
 async function pull(): Promise<void> {
-  const symbols = activeSymbols();
-  const hidden = typeof document !== "undefined" && document.hidden;
-  if (!shouldFetchCryptoPoll({ hidden, dialogOpen: isTransactionDialogOpen(), hasSymbols: symbols.length > 0 })) {
-    return;
-  }
-  const key = symbols.join(",");
-  if (store.inflight && store.inflightKey === key) return store.inflight;
-
-  const job = (async () => {
-    const res = await api.get<{
-      quotes: Record<string, CryptoSpot>;
-      updatedAt: string;
-      live: true;
-    }>(`/api/crypto/spot?symbols=${encodeURIComponent(key)}`);
-    if (isTransactionDialogOpen()) return;
-    if (res.ok && res.data?.quotes) {
-      const next = applyCryptoPollSuccess(store, res.data.quotes, Date.now());
-      store.quotes = next.quotes;
-      store.updatedAt = next.updatedAt;
-      notify();
-    } else if (!res.aborted && res.status !== 401) {
-      console.error("[crypto-live] spot poll failed:", res.error);
-    }
-  })();
-
-  store.inflightKey = key;
-  store.inflight = job;
   try {
-    await job;
-  } finally {
-    if (store.inflight === job) store.inflight = null;
+    const symbols = activeSymbols();
+    const hidden = typeof document !== "undefined" && document.hidden;
+    if (!shouldFetchCryptoPoll({ hidden, dialogOpen: isTransactionDialogOpen(), hasSymbols: symbols.length > 0 })) {
+      return;
+    }
+    const key = symbols.join(",");
+    if (store.inflight && store.inflightKey === key) return store.inflight;
+
+    const job = (async () => {
+      try {
+        const res = await api.get<{
+          quotes: Record<string, CryptoSpot>;
+          updatedAt: string;
+          live: true;
+        }>(`/api/crypto/spot?symbols=${encodeURIComponent(key)}`);
+        if (isTransactionDialogOpen()) return;
+        if (res.ok && res.data?.quotes) {
+          const next = applyCryptoPollSuccess(store, res.data.quotes, Date.now());
+          store.quotes = next.quotes;
+          store.updatedAt = next.updatedAt;
+          notify();
+        } else if (!res.aborted && res.status !== 401) {
+          console.error("[crypto-live] spot poll failed:", res.error);
+        }
+      } catch {
+        /* 401 and network failures degrade to the last good quote */
+      }
+    })();
+
+    store.inflightKey = key;
+    store.inflight = job;
+    try {
+      await job;
+    } finally {
+      if (store.inflight === job) store.inflight = null;
+    }
+  } catch {
+    /* callers use `void pull()` — never leave an unhandled rejection */
   }
 }
 
@@ -95,12 +103,12 @@ function ensureTimer() {
   }
   if (store.timer) return;
   store.timer = setInterval(() => {
-    void pull();
+    void pull().catch(() => {});
   }, CRYPTO_LIVE_POLL_MS);
 }
 
 function onVisibility() {
-  if (typeof document !== "undefined" && !document.hidden) void pull();
+  if (typeof document !== "undefined" && !document.hidden) void pull().catch(() => {});
 }
 
 let visibilityBound = false;
@@ -112,7 +120,7 @@ function bindVisibility() {
 
 /** Resume after Buy/Add closes. No-op while the dialog or tab is still hidden. */
 export function resumeCryptoLivePoll() {
-  void pull();
+  void pull().catch(() => {});
 }
 
 export function useLiveCryptoQuotes(symbols: string[], enabled: boolean): {
@@ -129,7 +137,7 @@ export function useLiveCryptoQuotes(symbols: string[], enabled: boolean): {
     store.listeners.add(listener);
     bindVisibility();
     ensureTimer();
-    if (enabled && symbolKey) void pull();
+    if (enabled && symbolKey) void pull().catch(() => {});
     return () => {
       subs.delete(id);
       store.listeners.delete(listener);

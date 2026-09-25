@@ -94,9 +94,14 @@ export function CoinDetailModal({
     setLoading(true);
     setError(null);
     console.log(`[coin-detail] loading ${id}`);
-    const res = await api.get<CoinDetail>(`/api/crypto/coin/${encodeURIComponent(id)}`);
-    if (res.ok && res.data) setDetail(res.data);
-    else {
+    try {
+      const res = await api.get<CoinDetail>(`/api/crypto/coin/${encodeURIComponent(id)}`);
+      if (res.ok && res.data) setDetail(res.data);
+      else {
+        setError("Live data for this coin is unavailable right now.");
+        setDetail(null);
+      }
+    } catch {
       setError("Live data for this coin is unavailable right now.");
       setDetail(null);
     }
@@ -110,7 +115,10 @@ export function CoinDetailModal({
       setChartCache({});
       setRange("7D");
       setShowAnalysis(false);
-      loadDetail(coinId);
+      void loadDetail(coinId).catch(() => {
+        setError("Live data for this coin is unavailable right now.");
+        setLoading(false);
+      });
     }
   }, [open, coinId, loadDetail]);
 
@@ -124,16 +132,23 @@ export function CoinDetailModal({
       return;
     }
     let cancelled = false;
-    (async () => {
-      setChartLoading(true);
-      const res = await api.get<CoinChart>(`/api/crypto/chart/${encodeURIComponent(coinId)}?days=${days}`);
-      if (cancelled) return;
-      if (res.ok && res.data) {
-        setChart(res.data);
-        setChartCache((c) => ({ ...c, [key]: res.data as CoinChart }));
+    void (async () => {
+      try {
+        setChartLoading(true);
+        const res = await api.get<CoinChart>(`/api/crypto/chart/${encodeURIComponent(coinId)}?days=${days}`);
+        if (cancelled) return;
+        if (res.ok && res.data) {
+          setChart(res.data);
+          setChartCache((c) => ({ ...c, [key]: res.data as CoinChart }));
+        }
+      } catch {
+        /* chart is optional; a 401 must not reject the effect */
+      } finally {
+        if (!cancelled) setChartLoading(false);
       }
-      setChartLoading(false);
-    })();
+    })().catch(() => {
+      if (!cancelled) setChartLoading(false);
+    });
     return () => {
       cancelled = true;
     };

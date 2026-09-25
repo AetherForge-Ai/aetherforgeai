@@ -12,6 +12,7 @@ import {
   quoteRouteForHolding,
   resolveHoldingMarkPrice,
 } from "@/lib/metal-valuation";
+import { mergeFreshQuantities } from "@/lib/holding-snapshot";
 
 /**
  * POST /api/stocks/refresh
@@ -118,10 +119,21 @@ export async function POST(req: Request) {
       })
     );
 
+    let data = updates;
+    try {
+      const fresh = await totalumSdk.crud.query("stock", {
+        _filter: { user: user._id },
+        _limit: 500,
+      });
+      data = mergeFreshQuantities(updates, (fresh?.data as { _id?: string; shares?: number; purchase_price?: number }[]) || []);
+    } catch (err) {
+      console.error("[api/stocks/refresh] Quantity re-read failed:", err);
+    }
+
     console.log(
       `[api/stocks/refresh] Updated ${updates.length} prices for user ${user._id} (source: ${usedLive ? "live" : "simulated"})`
     );
-    return privateJson({ ok: true, userId: user._id, data: updates });
+    return privateJson({ ok: true, userId: user._id, data });
   } catch (err: any) {
     console.error("[api/stocks/refresh] error:", err);
     return NextResponse.json({ ok: false, error: err?.message || "Failed to refresh prices" }, { status: 500 });
