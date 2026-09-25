@@ -93,16 +93,28 @@ export async function POST(req: Request) {
     };
 
     const result = await totalumSdk.crud.createRecord("precious_metal", record);
+    const createdId = (result?.data as { _id?: string } | undefined)?._id;
     console.log(`[api/metals] POST created ${parsed.data.metal} holding for user ${user._id}`);
 
     // Buying metal debits cash and logs the movement in the Transaction Center,
     // exactly like a share/crypto purchase. Metals are priced in NZD/oz.
-    const trade = await recordMetalTrade(user, {
-      side: "buy",
-      metal: parsed.data.metal,
-      ounces: parsed.data.ounces,
-      pricePerOzNZD: parsed.data.purchase_price_per_oz,
-    });
+    // If the ledger write fails, remove the holding so the two cannot diverge.
+    let trade;
+    try {
+      trade = await recordMetalTrade(user, {
+        side: "buy",
+        metal: parsed.data.metal,
+        ounces: parsed.data.ounces,
+        pricePerOzNZD: parsed.data.purchase_price_per_oz,
+      });
+    } catch (err) {
+      if (createdId) {
+        await totalumSdk.crud.deleteRecordById("precious_metal", createdId).catch((rollbackErr) => {
+          console.error("[api/metals] Failed to remove holding after a rolled-back buy:", rollbackErr);
+        });
+      }
+      throw err;
+    }
 
     return NextResponse.json({
       ok: true,

@@ -117,27 +117,48 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
     const isPartial = sellOunces < heldOunces - 1e-9;
     const remaining = Math.max(0, heldOunces - sellOunces);
 
-    // Credit cash + log the sell BEFORE mutating the holding, so a failure never
-    // changes the record without recording the proceeds.
-    const trade = await recordMetalTrade(user, {
-      side: "sell",
-      metal,
-      ounces: sellOunces,
-      pricePerOzNZD: spotNZD,
-      avgCostNZD: avgCost,
-      notes: isPartial ? `Partial sell ${sellOunces} oz at spot` : "Sold at spot",
-    });
+    // Change the holding first, then the ledger. recordMetalTrade restores cash
+    // if the ledger row is not stored; this block restores ounces if that happens
+    // so a ledger row cannot exist without the matching holding change.
+    if (remaining <= 1e-9) {
+      await totalumSdk.crud.deleteRecordById("precious_metal", id);
+    } else {
+      await totalumSdk.crud.editRecordById("precious_metal", id, { ounces: remaining });
+    }
+    let trade;
+    try {
+      trade = await recordMetalTrade(user, {
+        side: "sell",
+        metal,
+        ounces: sellOunces,
+        pricePerOzNZD: spotNZD,
+        avgCostNZD: avgCost,
+        notes: isPartial ? `Partial sell ${sellOunces} oz at spot` : "Sold at spot",
+      });
+    } catch (err) {
+      if (remaining <= 1e-9) {
+        await totalumSdk.crud
+          .createRecord("precious_metal", {
+            metal,
+            ounces: heldOunces,
+            purchase_price_per_oz: avgCost,
+            user: user._id,
+          })
+          .catch((rollbackErr) => console.error("[api/metals] Failed to restore sold holding:", rollbackErr));
+      } else {
+        await totalumSdk.crud
+          .editRecordById("precious_metal", id, { ounces: heldOunces })
+          .catch((rollbackErr) => console.error("[api/metals] Failed to restore ounces:", rollbackErr));
+      }
+      throw err;
+    }
 
     if (remaining <= 1e-9) {
-      // Fully closed — remove the record and retire its alerts.
-      await totalumSdk.crud.deleteRecordById("precious_metal", id);
       await archiveClosedPositionAlerts(user._id, metal === "gold" ? "GOLD" : "SILVER", 0);
       console.log(
         `[api/metals/${id}] SOLD ALL ${sellOunces}oz ${metal} @ ${spotNZD} NZD for user ${user._id} → cash ${trade.cashBalance}, realized ${trade.realizedNZD}`
       );
     } else {
-      // Partial — reduce ounces in place (cost basis per oz stays the same).
-      await totalumSdk.crud.editRecordById("precious_metal", id, { ounces: remaining });
       console.log(
         `[api/metals/${id}] PARTIAL SELL ${sellOunces}oz ${metal} @ ${spotNZD} NZD (remaining ${remaining}oz) for user ${user._id} → cash ${trade.cashBalance}, realized ${trade.realizedNZD}`
       );

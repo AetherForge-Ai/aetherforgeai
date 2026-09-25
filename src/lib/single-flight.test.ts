@@ -19,8 +19,12 @@ describe("session refresh single-flight", () => {
 
   it("retries a 401 once and does not sign out a background poll", () => {
     expect(isBackgroundAuthPoll("/api/crypto/spot?symbols=SOL")).toBe(true);
+    expect(isBackgroundAuthPoll("/api/crypto/markets")).toBe(true);
+    expect(isBackgroundAuthPoll("/api/crypto/coin/solana")).toBe(true);
     expect(isBackgroundAuthPoll("/api/stocks/refresh")).toBe(true);
+    expect(isBackgroundAuthPoll("/api/transactions")).toBe(false);
     expect(authActionOn401("/api/crypto/spot?symbols=SOL", false)).toBe("retry");
+    expect(authActionOn401("/api/crypto/markets", true)).toBe("keep-session");
     expect(authActionOn401("/api/stocks/refresh", true)).toBe("keep-session");
     expect(authActionOn401("/api/transactions", true)).toBe("unauthorized");
   });

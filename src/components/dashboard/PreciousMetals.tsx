@@ -2,10 +2,13 @@
 
 import Image from "next/image";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { formatMoney } from "@/lib/currency";
+import { buildTradePreview, type TradePreview } from "@/lib/trade-preview";
+import { bumpHoldingsGeneration } from "@/lib/holdings-generation";
+import { TradeReview } from "@/components/dashboard/TradeReview";
 import { visibleBullionLots, type MetalSpotPerOz } from "@/lib/metal-valuation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -99,6 +102,12 @@ export function PreciousMetals({
   const [adding, setAdding] = useState(false);
   const [sellingId, setSellingId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [deskReview, setDeskReview] = useState<
+    | { side: "buy"; metal: MetalKey; ounces: number; price: number; preview: TradePreview }
+    | { side: "sell"; id: string; preview: TradePreview }
+    | null
+  >(null);
+  const submittingRef = useRef(false);
 
   // Add-form state.
   const [metal, setMetal] = useState<MetalKey>("gold");
@@ -116,7 +125,7 @@ export function PreciousMetals({
       // Desk list can be empty/forbidden while the public spot feed still works.
       const pub = await api.get<MetalsSpot>("/api/metals/spot");
       if (pub.ok && pub.data) setSpot(pub.data);
-      console.error("[metals] Load failed:", res.error);
+      if (res.status !== 401) console.error("[metals] Load failed:", res.error);
     }
     setLoading(false);
   }, []);
@@ -164,43 +173,106 @@ export function PreciousMetals({
     return { value, cost, gain, gainPct };
   }, [metals, ledgerRows, spotFor]);
 
+  async function readCashNzd(): Promise<number> {
+    const res = await api.get<{ cashBalance?: number }>("/api/transactions");
+    if (res.ok && res.data && typeof res.data.cashBalance === "number") return res.data.cashBalance;
+    return 0;
+  }
+
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
+    if (submittingRef.current || adding) return;
     const oz = parseFloat(ounces);
     const pp = parseFloat(price);
     if (!isFinite(oz) || oz <= 0) return toast.error("Enter how many ounces you own.");
     if (!isFinite(pp) || pp <= 0) return toast.error("Enter the price per ounce you paid.");
 
-    setAdding(true);
-    console.log("[metals] Adding", metal, oz, "oz @", pp, "/oz");
-    const res = await api.post("/api/metals", {
+    if (deskReview?.side === "buy" && deskReview.metal === metal && deskReview.ounces === oz && deskReview.price === pp) {
+      await commitAdd(deskReview);
+      return;
+    }
+
+    const cash = await readCashNzd();
+    setDeskReview({
+      side: "buy",
       metal,
       ounces: oz,
-      purchase_price_per_oz: pp,
+      price: pp,
+      preview: buildTradePreview({
+        side: "buy",
+        asset: metal === "gold" ? "GOLD" : "SILVER",
+        assetName: METAL_META[metal].label,
+        quantity: oz,
+        price: pp,
+        fee: 0,
+        currency: "NZD",
+        cashNzd: cash,
+      }),
+    });
+  }
+
+  async function commitAdd(review: { metal: MetalKey; ounces: number; price: number }) {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    setAdding(true);
+    console.log("[metals] Adding", review.metal, review.ounces, "oz @", review.price, "/oz");
+    const res = await api.post("/api/metals", {
+      metal: review.metal,
+      ounces: review.ounces,
+      purchase_price_per_oz: review.price,
     });
     setAdding(false);
+    submittingRef.current = false;
     if (res.ok) {
-      const cost = oz * pp;
+      const cost = review.ounces * review.price;
       toast.success(
-        `Bought ${oz} oz ${METAL_META[metal].label} · ${formatMoney(cost, "NZD")} debited from cash`
+        `Bought ${review.ounces} oz ${METAL_META[review.metal].label} · ${formatMoney(cost, "NZD")} debited from cash`
       );
       setOunces("");
       setPrice("");
+      setDeskReview(null);
+      bumpHoldingsGeneration();
       load();
-      onChanged?.(); // refresh cash balance + the Transaction Center ledger
-    } else {
+      onChanged?.();
+    } else if (res.status !== 401) {
       console.error("[metals] Add failed:", res.error);
       toast.error(typeof res.error === "string" ? res.error : "Could not add your metal holding.");
+    } else {
+      toast.error("Your session needs a refresh before this buy can be saved.");
     }
+  }
+
+  async function openSellReview(h: MetalHolding) {
+    const spotPerOz = spotFor(h.metal);
+    const px = spotPerOz > 0 ? spotPerOz : h.purchase_price_per_oz;
+    if (!(px > 0)) return toast.error("Spot price is unavailable — try again in a moment.");
+    const cash = await readCashNzd();
+    setConfirmId(h._id);
+    setDeskReview({
+      side: "sell",
+      id: h._id,
+      preview: buildTradePreview({
+        side: "sell",
+        asset: h.metal === "gold" ? "GOLD" : "SILVER",
+        assetName: METAL_META[h.metal].label,
+        quantity: h.ounces,
+        price: px,
+        fee: 0,
+        currency: "NZD",
+        cashNzd: cash,
+      }),
+    });
   }
 
   // Selling at spot credits cash, books realized P&L and logs it in the ledger.
   async function handleSell(id: string) {
+    if (submittingRef.current || sellingId) return;
+    submittingRef.current = true;
     setSellingId(id);
-    setConfirmId(null);
     const res = await api.delete<{ cashBalance: number; realizedNZD: number; proceeds: number }>(
       `/api/metals/${id}`
     );
+    submittingRef.current = false;
     setSellingId(null);
     if (res.ok && res.data) {
       const { proceeds, realizedNZD } = res.data;
@@ -211,10 +283,15 @@ export function PreciousMetals({
             : "")
       );
       setMetals((prev) => prev.filter((m) => m._id !== id));
+      setDeskReview(null);
+      setConfirmId(null);
+      bumpHoldingsGeneration();
       onChanged?.(); // refresh cash balance + the Transaction Center ledger
-    } else {
+    } else if (res.status !== 401) {
       console.error("[metals] Sell failed:", res.error);
       toast.error(typeof res.error === "string" ? res.error : "Could not sell holding.");
+    } else {
+      toast.error("Your session needs a refresh before this sell can be saved.");
     }
   }
 
@@ -406,7 +483,13 @@ export function PreciousMetals({
         >
           <div className="space-y-1.5">
             <Label className="text-xs">Metal</Label>
-            <Select value={metal} onValueChange={(v) => setMetal(v as MetalKey)}>
+            <Select
+              value={metal}
+              onValueChange={(v) => {
+                setMetal(v as MetalKey);
+                setDeskReview((prev) => (prev?.side === "buy" ? null : prev));
+              }}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -423,7 +506,10 @@ export function PreciousMetals({
               inputMode="decimal"
               placeholder="e.g. 10"
               value={ounces}
-              onChange={(e) => setOunces(e.target.value)}
+              onChange={(e) => {
+                setOunces(e.target.value);
+                setDeskReview((prev) => (prev?.side === "buy" ? null : prev));
+              }}
             />
           </div>
           <div className="space-y-1.5">
@@ -433,14 +519,29 @@ export function PreciousMetals({
               inputMode="decimal"
               placeholder="e.g. 3200"
               value={price}
-              onChange={(e) => setPrice(e.target.value)}
+              onChange={(e) => {
+                setPrice(e.target.value);
+                setDeskReview((prev) => (prev?.side === "buy" ? null : prev));
+              }}
             />
           </div>
-          <Button type="submit" disabled={adding} className="font-semibold">
-            {adding ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Plus className="mr-2 size-4" />}
-            Buy
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button type="submit" disabled={adding} className="font-semibold">
+              {adding ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Plus className="mr-2 size-4" />}
+              {deskReview?.side === "buy" ? "Confirm" : "Review"}
+            </Button>
+            {deskReview?.side === "buy" ? (
+              <Button type="button" variant="ghost" disabled={adding} onClick={() => setDeskReview(null)}>
+                Back
+              </Button>
+            ) : null}
+          </div>
         </form>
+        {deskReview?.side === "buy" ? (
+          <div className="mt-3">
+            <TradeReview preview={deskReview.preview} />
+          </div>
+        ) : null}
         <p className="mt-2 px-1 text-[0.7rem] text-muted-foreground">
           Buying debits your cash balance and logs the purchase in the Transaction Center. Selling credits cash at
           today's spot price and books your realized gain/loss.
@@ -530,8 +631,10 @@ export function PreciousMetals({
                   const gain = value - cost;
                   const gainPct = cost > 0 ? (gain / cost) * 100 : 0;
                   const up = gain >= 0;
+                  const reviewing = deskReview?.side === "sell" && deskReview.id === h._id;
                   return (
-                    <tr key={h._id} className="border-b border-border/40 last:border-0 hover:bg-background/40">
+                    <Fragment key={h._id}>
+                    <tr className="border-b border-border/40 last:border-0 hover:bg-background/40">
                       <td className="py-3.5 pr-3">
                         <div className="flex items-center gap-2.5">
                           <span className={cn("grid size-8 place-items-center rounded-lg", meta.ring)}>
@@ -557,13 +660,10 @@ export function PreciousMetals({
                         </span>
                       </td>
                       <td className="py-3.5 pl-3 text-right">
-                        {confirmId === h._id ? (
+                        {confirmId === h._id && deskReview?.side === "sell" && deskReview.id === h._id ? (
                           <div className="flex items-center justify-end gap-1.5">
-                            <span className="mr-1 hidden text-xs text-muted-foreground sm:inline">
-                              Sell for {formatMoney(value, "NZD")}?
-                            </span>
                             <button
-                              onClick={() => handleSell(h._id)}
+                              onClick={() => void handleSell(h._id)}
                               disabled={sellingId === h._id}
                               className="inline-flex items-center gap-1 rounded-lg bg-emerald-500/15 px-2 py-1 text-xs font-semibold text-emerald-600 transition-colors hover:bg-emerald-500/25"
                               aria-label={`Confirm sell ${meta.label}`}
@@ -576,26 +676,37 @@ export function PreciousMetals({
                               Confirm
                             </button>
                             <button
-                              onClick={() => setConfirmId(null)}
+                              onClick={() => {
+                                setConfirmId(null);
+                                setDeskReview(null);
+                              }}
                               disabled={sellingId === h._id}
                               className="grid size-7 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted"
-                              aria-label="Cancel"
+                              aria-label="Back"
                             >
                               <X className="size-3.5" />
                             </button>
                           </div>
                         ) : (
                           <button
-                            onClick={() => setConfirmId(h._id)}
+                            onClick={() => void openSellReview(h)}
                             disabled={sellingId === h._id}
                             className="inline-flex items-center gap-1 rounded-lg border border-border/60 px-2.5 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:border-rose-500/40 hover:bg-rose-500/10 hover:text-rose-600"
                             aria-label={`Sell ${meta.label}`}
                           >
-                            <Minus className="size-3.5" /> Sell
+                            <Minus className="size-3.5" /> Review
                           </button>
                         )}
                       </td>
                     </tr>
+                    {reviewing ? (
+                      <tr className="border-b border-border/40">
+                        <td colSpan={7} className="px-1 pb-3">
+                          <TradeReview preview={deskReview.preview} />
+                        </td>
+                      </tr>
+                    ) : null}
+                    </Fragment>
                   );
                 })}
               </tbody>

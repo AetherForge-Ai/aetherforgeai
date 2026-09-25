@@ -16,6 +16,7 @@ import { getFxSnapshot } from "@/lib/fx";
 import type { Stock } from "@/lib/portfolio";
 import { formatAucklandDateTime } from "@/lib/entitlements";
 import { groundReportNarrative, ownerIdOf } from "@/lib/report-book";
+import { alertIsEffectivelyArchived, heldQuantityForTicker } from "@/lib/alert-lifecycle";
 
 /**
  * Minimal shape of the user needed to build + deliver a report. Both the
@@ -360,6 +361,7 @@ export async function generateReportForUser(
     const tickerSet = new Set(scoped.map((r) => r.ticker));
     alerts = ((alertRes?.data as any[]) || [])
       .filter((a) => tickerSet.has(a.ticker))
+      .filter((a) => !alertIsEffectivelyArchived(a.status, heldQuantityForTicker(scoped, a.ticker)))
       .map((a) => ({
         ticker: a.ticker,
         currentPrice: referencePrice(a.ticker, Number(a.hard_sell_price) || 1),

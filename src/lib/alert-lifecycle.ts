@@ -34,3 +34,46 @@ export function alertsToArchive(
     return String(a.status || "active").toLowerCase() !== ARCHIVED_ALERT_STATUS;
   });
 }
+
+export interface HeldQuantity {
+  ticker: string;
+  shares?: number | null;
+}
+
+/**
+ * Read-time rule: an alert whose position is flat (no row, or quantity at
+ * dust) is archived for display. The stored status is left alone — a later
+ * admin pass may persist `archived`, but the page must not say Watching
+ * before that runs. A missing holding counts as zero (a full sell deletes
+ * the row).
+ */
+export function heldQuantityForTicker(holdings: HeldQuantity[], ticker: string): number {
+  const sym = String(ticker || "").trim().toUpperCase();
+  if (!sym) return 0;
+  let total = 0;
+  for (const holding of holdings) {
+    if (String(holding.ticker || "").trim().toUpperCase() !== sym) continue;
+    const shares = Number(holding.shares);
+    if (shares > 0) total += shares;
+  }
+  return total;
+}
+
+export function alertIsEffectivelyArchived(
+  status: string | null | undefined,
+  heldQuantity: number
+): boolean {
+  if (String(status || "active").toLowerCase() === ARCHIVED_ALERT_STATUS) return true;
+  return positionIsClosed(heldQuantity);
+}
+
+/** Alerts that should leave the Watching list. Already-archived rows are skipped. */
+export function alertsHiddenForFlatPositions(
+  alerts: AlertLifecycleRow[],
+  holdings: HeldQuantity[]
+): AlertLifecycleRow[] {
+  return alerts.filter((alert) => {
+    if (String(alert.status || "active").toLowerCase() === ARCHIVED_ALERT_STATUS) return false;
+    return alertIsEffectivelyArchived(alert.status, heldQuantityForTicker(holdings, alert.ticker));
+  });
+}
