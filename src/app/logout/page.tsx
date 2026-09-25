@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { signOut } from "@/lib/auth-client";
 import { clearClientUserState } from "@/lib/client-user-state";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,11 +19,16 @@ export default function LogoutPage() {
     (async () => {
       try {
         clearClientUserState();
-        await signOut();
+        const res = await fetch("/api/session/logout", {
+          method: "POST",
+          credentials: "include",
+          cache: "no-store",
+        });
+        if (!res.ok) throw new Error(`Logout failed (${res.status})`);
         console.log("[logout] Session cleared.");
       } catch (err) {
-        // Even if the network call fails, we still show the confirmation — the
-        // cookie is cleared client-side and the user intended to leave.
+        // The session cookies are httpOnly, so only the server can expire them.
+        // Still show the confirmation — the user intended to leave.
         console.error("[logout] signOut error (showing confirmation anyway):", err);
       } finally {
         setDone(true);

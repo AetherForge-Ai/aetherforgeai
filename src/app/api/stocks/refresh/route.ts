@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/session";
+import { getStableSessionUser } from "@/lib/session";
 import { hasForeignOwner, requestClaimsOtherUser } from "@/lib/account-guard";
 import { accountMismatchResponse, privateJson } from "@/lib/account-response";
 import { totalumSdk } from "@/lib/totalum";
@@ -24,7 +24,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {
-    const user = await getCurrentUser({ refreshSession: false });
+    const user = await getStableSessionUser();
     if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     if (user.identityConflict || requestClaimsOtherUser(req, user._id)) {
       return accountMismatchResponse(user._id);
