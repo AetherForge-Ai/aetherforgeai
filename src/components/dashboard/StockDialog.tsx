@@ -14,6 +14,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, Check, Lock, CalendarDays, Info } from "lucide-react";
 import { api } from "@/lib/api";
+import { currencyForTicker } from "@/lib/currency";
+import { useFxRates } from "@/hooks/useFxRates";
+import { buildTradePreview, type TradePreview } from "@/lib/trade-preview";
+import { TradeReview } from "@/components/dashboard/TradeReview";
+import { useTradeReviewGate } from "@/lib/trade-review-gate";
 import { lookupTicker } from "@/lib/market";
 import { TickerSearch } from "@/components/dashboard/TickerSearch";
 import { CryptoSearch } from "@/components/dashboard/CryptoSearch";
@@ -60,7 +65,10 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
   // Purchase date drives the price logic: today ⇒ live price locked; past ⇒ editable.
   const [purchaseDate, setPurchaseDate] = useState(todayStr);
   const [saving, setSaving] = useState(false);
-  const submittingRef = useRef(false);
+  const [step, setStep] = useState<"edit" | "review">("edit");
+  const [reviewPreview, setReviewPreview] = useState<TradePreview | null>(null);
+  const { submittingRef, confirmReady, armReview, disarmReview, claimCommit, releaseCommit } = useTradeReviewGate();
+  const { rates: fxRates } = useFxRates();
   const closeReasonRef = useRef<DialogCloseReason>("unknown");
   const [searchQuery, setSearchQuery] = useState("");
   // True once we've auto-filled the "amount paid" with the live price (past dates),
@@ -137,8 +145,11 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
       // be overwritten as "locked to live" on open — keep it editable unless the user
       // actively re-selects today. So mark live as unavailable for edits until acted on.
       setLiveUnavailable(!!editing);
+      setStep("edit");
+      setReviewPreview(null);
+      disarmReview();
     }
-  }, [open, editing, defaultAssetType, todayStr]);
+  }, [open, editing, defaultAssetType, todayStr, disarmReview]);
 
   /** Fetch the live price for a symbol. Crypto can pass a price already in hand. */
   async function fetchLivePrice(sym: string, type: AssetType, carried?: number): Promise<number | null> {
@@ -255,7 +266,38 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
       return toast.error(sanity.message || "Fill blocked");
     }
 
-    submittingRef.current = true;
+    if (!isEdit && step !== "review") {
+      if (submittingRef.current) return;
+      submittingRef.current = true;
+      let cash = 0;
+      const cashRes = await api.get<{ cashBalance?: number }>("/api/transactions");
+      if (cashRes.ok && cashRes.data && typeof cashRes.data.cashBalance === "number") {
+        cash = cashRes.data.cashBalance;
+      }
+      setReviewPreview(
+        buildTradePreview({
+          side: "buy",
+          asset: t,
+          assetName: companyName.trim() || t,
+          quantity: sharesNum,
+          price: priceNum,
+          fee: 0,
+          currency: currencyForTicker(t, assetType),
+          cashNzd: cash,
+          rates: fxRates,
+        })
+      );
+      armReview();
+      setStep("review");
+      return;
+    }
+
+    if (!isEdit) {
+      if (!claimCommit()) return;
+    } else {
+      if (submittingRef.current) return;
+      submittingRef.current = true;
+    }
     setSaving(true);
     const payload = {
       ticker: t,
@@ -269,6 +311,7 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
       price_source: priceLocked ? ("live_quote" as const) : ("user_fill" as const),
       cash_or_notional: assetType === "crypto" ? cashNotional : undefined,
       notes: ADVISORY_NOTE,
+      confirm: isEdit ? undefined : true,
     };
 
     console.log(`[dashboard] ${isEdit ? "Updating" : "Creating"} stock`, payload);
@@ -278,7 +321,7 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
       : await api.post("/api/stocks", payload);
 
     setSaving(false);
-    submittingRef.current = false;
+    releaseCommit();
 
     if (res.ok) {
       toast.success(isEdit ? "Holding updated" : `${t} added to your portfolio`);
@@ -514,8 +557,15 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
           </div>
         </div>
 
+        {step === "review" && reviewPreview && !isEdit ? (
+          <div className="px-1 pb-2">
+            <TradeReview preview={reviewPreview} />
+          </div>
+        ) : null}
+
         <DialogFooter>
           <Button
+            type="button"
             variant="ghost"
             onClick={() => {
               closeReasonRef.current = "explicit";
@@ -525,14 +575,30 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
           >
             Cancel
           </Button>
+          {step === "review" && !isEdit ? (
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={saving}
+              onClick={() => {
+                disarmReview();
+                setStep("edit");
+                setReviewPreview(null);
+              }}
+            >
+              Back
+            </Button>
+          ) : null}
           <Button
+            type="button"
             onClick={handleSubmit}
             disabled={
               saving ||
               priceLoading ||
               !ticker.trim() ||
               !(Number(shares) > 0) ||
-              !(Number(purchasePrice) > 0)
+              !(Number(purchasePrice) > 0) ||
+              (step === "review" && !isEdit && !confirmReady)
             }
             className="font-semibold"
           >
@@ -542,8 +608,10 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
               </>
             ) : isEdit ? (
               "Save changes"
+            ) : step === "review" ? (
+              "Confirm buy"
             ) : (
-              "Add holding"
+              "Review buy"
             )}
           </Button>
         </DialogFooter>

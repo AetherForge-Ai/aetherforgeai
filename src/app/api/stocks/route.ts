@@ -27,6 +27,7 @@ import {
   resolveHoldingMarkPrice,
 } from "@/lib/metal-valuation";
 import { mergeFreshQuantities } from "@/lib/holding-snapshot";
+import { TRADE_CONFIRM_REQUIRED } from "@/lib/trade-confirm";
 
 /**
  * Overlay genuine LIVE prices onto a user's holdings and persist any that moved.
@@ -196,6 +197,7 @@ const createSchema = z.object({
   notes: z.string().max(2000).optional(),
   prior_close: z.number().optional(),
   session_close_date: z.string().optional(),
+  confirm: z.boolean().optional(),
 });
 
 export const dynamic = "force-dynamic";
@@ -339,6 +341,9 @@ export async function POST(req: Request) {
     }
 
     const executionStatus = parsed.data.execution_status || "filled";
+    if (executionStatus === "filled" && parsed.data.confirm !== true) {
+      return NextResponse.json({ ok: false, error: TRADE_CONFIRM_REQUIRED }, { status: 400 });
+    }
     if (executionStatus === "idea" || executionStatus === "paper") {
       // Ideas/paper from Stox/Koins/Headmaster — no filled ledger, no realized P&L.
       const feed = feedEntryForTicker(ticker);

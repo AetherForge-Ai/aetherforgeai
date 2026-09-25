@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/session";
 import { applyTransaction, loadLedger } from "@/lib/transactions";
 import { hasForeignOwner, requestClaimsOtherUser } from "@/lib/account-guard";
 import { accountMismatchResponse, privateJson } from "@/lib/account-response";
+import { TRADE_CONFIRM_REQUIRED } from "@/lib/trade-confirm";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,8 @@ const tradeSchema = z.object({
   order_sizing: z.enum(["units", "notional"]).optional(),
   fx_rate: z.number().optional(),
   fx_source: z.string().optional(),
+  /** Required for buy and sell. Deposit and withdraw ignore it. */
+  confirm: z.boolean().optional(),
 });
 
 // GET /api/transactions — the user's ledger + cash balance + realized P&L rollups
@@ -95,6 +98,9 @@ export async function POST(req: Request) {
 
     // Per-type required-field guards (clear errors instead of silent NaNs).
     if (input.type === "buy" || input.type === "sell") {
+      if (input.confirm !== true) {
+        return NextResponse.json({ ok: false, error: TRADE_CONFIRM_REQUIRED }, { status: 400 });
+      }
       if (!input.ticker) {
         return NextResponse.json({ ok: false, error: "Ticker is required" }, { status: 400 });
       }

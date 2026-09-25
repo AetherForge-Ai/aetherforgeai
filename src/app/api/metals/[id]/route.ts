@@ -4,6 +4,7 @@ import { getCurrentUser, isStripeConfigured, hasPaidSubscription, type AppUser }
 import { totalumSdk } from "@/lib/totalum";
 import { getMetalsSpot, type MetalKey } from "@/lib/metals";
 import { archiveClosedPositionAlerts, recordMetalTrade } from "@/lib/transactions";
+import { TRADE_CONFIRM_REQUIRED } from "@/lib/trade-confirm";
 
 export const dynamic = "force-dynamic";
 
@@ -76,6 +77,12 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
     if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     if (!isEntitled(user)) {
       return NextResponse.json({ ok: false, error: "Not entitled" }, { status: 403 });
+    }
+
+    const body = (await req.json().catch(() => null)) as { confirm?: unknown } | null;
+    const queryConfirm = new URL(req.url).searchParams.get("confirm") === "true";
+    if (body?.confirm !== true && !queryConfirm) {
+      return NextResponse.json({ ok: false, error: TRADE_CONFIRM_REQUIRED }, { status: 400 });
     }
 
     const owned = await loadOwnedMetal(id, user._id);
