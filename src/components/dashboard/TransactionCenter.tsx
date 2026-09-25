@@ -1524,7 +1524,7 @@ export function TransactionDialog({
       modal={false}
     >
       <DialogContent
-        className="sm:max-w-md overflow-visible"
+        className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
         // The Buy/Sell form nests a ticker search. Round-6: results render
         // in-tree (no body portal) + module-level close gate ignores
         // interact/focus-outside while search/query is live. Always
@@ -1552,11 +1552,12 @@ export function TransactionDialog({
           keepDialogOpenWhilePopoverOpen(e);
         }}
       >
-        <DialogHeader>
+        <DialogHeader className="shrink-0 space-y-1.5 px-4 pt-4 pr-12 sm:px-6 sm:pt-6">
           <DialogTitle className="font-display text-xl">{titles[mode]}</DialogTitle>
           <DialogDescription>{descriptions[mode]}</DialogDescription>
         </DialogHeader>
 
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
         {step === "review" && reviewPreview && isTrade ? (
           <div className="py-1">
             <TradeReview preview={reviewPreview} />
@@ -1904,8 +1905,9 @@ export function TransactionDialog({
             </span>
           </div>
         </div>
+        </div>
 
-        <DialogFooter>
+        <DialogFooter className="shrink-0 gap-2 border-t border-border/60 bg-background px-4 py-4 sm:px-6">
           <Button type="button" variant="ghost" onClick={requestExplicitClose} disabled={saving}>
             Cancel
           </Button>

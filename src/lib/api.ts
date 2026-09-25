@@ -8,7 +8,13 @@
  */
 
 import { getActiveAccountUserId } from "@/lib/account-identity";
-import { authActionOn401, isBackgroundAuthPoll, refreshSessionSingleFlight } from "@/lib/auth-refresh";
+import { alignTradeSession, authActionOn401, isBackgroundAuthPoll, refreshSessionSingleFlight } from "@/lib/auth-refresh";
+import {
+  confirmedCommit401Action,
+  isConfirmedCommitBody,
+  isPortfolioSessionRead,
+  TRADE_SESSION_MISMATCH,
+} from "@/lib/trade-commit-session";
 
 export interface ApiResponse<T = unknown> {
   ok: boolean;
@@ -26,7 +32,20 @@ export interface ApiInit {
   signal?: AbortSignal;
 }
 
-async function request<T>(url: string, options?: RequestInit, alreadyRetried = false): Promise<ApiResponse<T>> {
+async function request<T>(
+  url: string,
+  options?: RequestInit,
+  alreadyRetried = false,
+  tradeRefreshUsed = false,
+): Promise<ApiResponse<T>> {
+  const confirmed = isConfirmedCommitBody(options?.body);
+  if (confirmed && !alreadyRetried) {
+    const aligned = await alignTradeSession(getActiveAccountUserId(), true);
+    if (!aligned.ok) {
+      return { ok: false, status: 409, error: TRADE_SESSION_MISMATCH };
+    }
+    tradeRefreshUsed = aligned.refreshed;
+  }
   try {
     const headers = new Headers(options?.headers);
     const uid = getActiveAccountUserId();
@@ -42,10 +61,34 @@ async function request<T>(url: string, options?: RequestInit, alreadyRetried = f
       cache: "no-store",
     });
     if (res.status === 401) {
+      if (confirmed) {
+        if (!alreadyRetried) {
+          const aligned = await alignTradeSession(getActiveAccountUserId(), !tradeRefreshUsed);
+          if (!aligned.ok) {
+            return { ok: false, status: 409, error: TRADE_SESSION_MISMATCH };
+          }
+          const action = confirmedCommit401Action({
+            alreadyRetried,
+            tradeRefreshUsed,
+            liveUserId: aligned.userId,
+            activeUserId: getActiveAccountUserId(),
+          });
+          // Same body, including confirm: true. One retry only.
+          if (action === "retry") return request<T>(url, options, true, true);
+        }
+        return { ok: false, status: 401, error: "Unauthorized" };
+      }
+      if (isPortfolioSessionRead(url, options?.method) && !alreadyRetried) {
+        const aligned = await alignTradeSession(getActiveAccountUserId(), true);
+        if (!aligned.ok) {
+          return { ok: false, status: 409, error: "account-mismatch" };
+        }
+        return request<T>(url, options, true, true);
+      }
       const action = authActionOn401(url, alreadyRetried);
       if (action === "retry") {
         const refreshed = await refreshSessionSingleFlight();
-        if (refreshed) return request<T>(url, options, true);
+        if (refreshed) return request<T>(url, options, true, tradeRefreshUsed);
       }
       // A background poll (crypto spot, holdings refresh) must not sign the
       // user out. User actions also return the 401 without calling sign-out.

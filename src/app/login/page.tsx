@@ -3,6 +3,7 @@
 import { useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { signIn, sendVerificationEmail } from "@/lib/auth-client";
+import { waitForPostLoginSession } from "@/lib/auth-refresh";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -65,11 +66,15 @@ function LoginForm() {
         return;
       }
 
-      // If we get here, login was successful
-      // Wait a bit for cookie to be set, then do a full page reload
-      setTimeout(() => {
-        window.location.href = redirect;
-      }, 500);
+      // Cookie must be readable before the dashboard document loads. A fixed
+      // delay sometimes navigates first and the book paints signed-out.
+      const ready = await waitForPostLoginSession();
+      if (!ready) {
+        setError("Signed in, but the session was not ready. Please try again.");
+        setLoading(false);
+        return;
+      }
+      window.location.href = redirect;
     } catch (err: any) {
       console.error("Login error:", err);
       setError(err.message || "Error signing in. Please check your credentials.");

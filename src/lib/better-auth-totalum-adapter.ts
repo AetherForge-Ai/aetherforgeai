@@ -2,6 +2,7 @@ import "server-only";
 import { TotalumApiSdk } from "totalum-api-sdk";
 import type { Adapter } from "better-auth";
 import { createAdapterFactory } from "better-auth/adapters";
+import { sessionWriteResult } from "@/lib/trade-commit-session";
 
 // ==================== Type Definitions ====================
 
@@ -457,15 +458,19 @@ export function totalumAdapter(
           // editRecordById now returns the full updated record
           const updateResponse = await client.crud.editRecordById(tableName, recordId, snakeCaseUpdate);
           const updatedRecord = unwrapTotalumResponse(updateResponse);
+          const existing = objectToCamelCase(record) as T;
+          const updated = updatedRecord ? (objectToCamelCase(updatedRecord) as T) : null;
+          // A failed session touch must keep the row. Returning null makes
+          // better-auth clear the session cookie and the next Confirm is Unauthorized.
+          const result = sessionWriteResult(data.model, updated, existing);
 
-          if (!updatedRecord) {
+          if (!result) {
             log("UPDATE: Failed to update record");
             return null;
           }
 
-          const result = objectToCamelCase(updatedRecord);
           log("UPDATE result:", result);
-          return result as T;
+          return result;
         },
 
         /**
