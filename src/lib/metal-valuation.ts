@@ -55,6 +55,21 @@ export function isBullionHolding(
 }
 
 /**
+ * Equity sleeve used by stock KPIs and the stock holdings table.
+ * Bullion (GOLD / SILVER / asset_type metal) belongs on the metals hub only,
+ * even when the lot is stored in the stock table.
+ */
+export function isListedStockHolding(
+  assetType?: string | null,
+  ticker?: string | null,
+  companyName?: string | null
+): boolean {
+  const kind = (assetType || "stock").trim().toLowerCase();
+  if (kind !== "stock") return false;
+  return !isBullionHolding(assetType, ticker, companyName);
+}
+
+/**
  * Yahoo GOLD (~US$44) stored as current_price against a per-ounce cost in the
  * thousands. That print must never be the market value.
  */

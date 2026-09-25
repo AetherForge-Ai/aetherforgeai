@@ -14,7 +14,7 @@ import { api } from "@/lib/api";
 import { formatPercent, type Stock } from "@/lib/portfolio";
 import { evaluateCryptoAlert } from "@/lib/crypto-live";
 import { formatMoney, formatPriceInput, currencyForTicker, type CurrencyCode } from "@/lib/currency";
-import { alertIsEffectivelyArchived, heldQuantityForTicker } from "@/lib/alert-lifecycle";
+import { alertsForDesk } from "@/lib/alert-desk";
 import { formatSellStopChip, formatTrimChip } from "@/lib/alert-labels";
 import { useLiveCryptoQuotes } from "@/hooks/useLiveCryptoQuotes";
 import { Button } from "@/components/ui/button";
@@ -109,11 +109,17 @@ interface LiveQuote {
 export function PriceAlerts({
   stocks,
   assetType = "stock",
+  holdingsReady = true,
   preview = false,
 }: {
   stocks: Stock[];
   /** Hub context — stock desk, crypto desk, or metals. */
   assetType?: "stock" | "crypto" | "metal";
+  /**
+   * False while holdings are still hydrating. An empty array in that window
+   * must not be treated as a flat book (that blanked the desk after Create).
+   */
+  holdingsReady?: boolean;
   preview?: boolean;
 }) {
   const isCrypto = assetType === "crypto";
@@ -147,27 +153,27 @@ export function PriceAlerts({
     [alerts, deleteId]
   );
 
+  const stocksRef = React.useRef(stocks);
+  stocksRef.current = stocks;
+  const loadSeq = React.useRef(0);
+  // Quote ticks do not change which names are held. Reloading on every tick
+  // raced an earlier empty-book response and left the desk on "No alerts yet".
+  const bookKey = React.useMemo(
+    () => stocks.map((s) => `${s._id}:${String(s.ticker).toUpperCase()}:${s.shares}`).join("|"),
+    [stocks]
+  );
+
   const load = React.useCallback(async () => {
     if (preview) return; // guest preview: no live alerts fetch
+    const seq = ++loadSeq.current;
     const res = await api.get<PriceAlert[]>("/api/alerts");
+    if (seq !== loadSeq.current) return;
     if (res.ok && res.data) {
-      const holdingTickers = new Set(stocks.map((s) => s.ticker.toUpperCase()));
-      setAlerts(
-        res.data.filter((a) => {
-          const at = (a.assetType || "").toLowerCase();
-          if (alertIsEffectivelyArchived(a.status, heldQuantityForTicker(stocks, a.ticker))) return false;
-          if (at === "crypto" || at === "stock" || at === "metal") return at === assetType;
-          const tick = String(a.ticker || "").toUpperCase();
-          if (assetType === "metal") return tick === "GOLD" || tick === "SILVER";
-          if (holdingTickers.has(tick)) return true;
-          // Untyped legacy alerts: equities with exchange suffix stay on the stock hub.
-          if (assetType === "stock") return /\.(AX|NZ|L)$/i.test(tick) && tick !== "GOLD" && tick !== "SILVER";
-          return false;
-        })
-      );
+      const book = holdingsReady ? stocksRef.current : null;
+      setAlerts(alertsForDesk(res.data, assetType, book));
     } else if (res.status !== 401) console.error("[PriceAlerts] load failed:", res.error);
-    setLoading(false);
-  }, [preview, stocks, assetType]);
+    if (seq === loadSeq.current) setLoading(false);
+  }, [preview, assetType, holdingsReady, bookKey]);
 
   React.useEffect(() => {
     load();
@@ -327,7 +333,7 @@ export function PriceAlerts({
           </span>
           <div>
             <h2 className="font-display text-lg font-bold">
-              {isCrypto ? "Crypto price alerts" : "Share-price alerts"}
+              {isMetal ? "Metals price alerts" : isCrypto ? "Crypto price alerts" : "Share-price alerts"}
             </h2>
             <p className="text-sm text-muted-foreground">
               Set trim, hard sell-out and take-profit rules with execution instructions.
@@ -487,7 +493,11 @@ export function PriceAlerts({
                       key={m.t}
                       type="button"
                       onClick={() => {
-                        setForm((f) => ({ ...f, ticker: m.t, stockId: "" }));
+                        const owned = stocks.find(
+                          (s) =>
+                            s.ticker.toUpperCase() === m.t && !String(s._id).startsWith("pm-")
+                        );
+                        setForm((f) => ({ ...f, ticker: m.t, stockId: owned?._id ?? "" }));
                         setSelectedName(m.n);
                         fetchQuote(m.t, true);
                       }}
