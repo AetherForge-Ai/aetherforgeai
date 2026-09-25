@@ -6,7 +6,7 @@
  * until the user confirms "I filled this" with a typed fill.
  */
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import { currencyForTicker } from "@/lib/currency";
 import { useFxRates } from "@/hooks/useFxRates";
 import { buildTradePreview, type TradePreview } from "@/lib/trade-preview";
 import { bumpHoldingsGeneration } from "@/lib/holdings-generation";
+import { useTradeReviewGate } from "@/lib/trade-review-gate";
 import { TradeReview } from "@/components/dashboard/TradeReview";
 import { Lightbulb, FileText, CheckCircle2 } from "lucide-react";
 
@@ -40,10 +41,12 @@ export function RecommendationActions({
   const [fees, setFees] = useState("");
   const [busy, setBusy] = useState<"idea" | "paper" | "filled" | null>(null);
   const [review, setReview] = useState<TradePreview | null>(null);
-  const submittingRef = useRef(false);
+  const { submittingRef, confirmReady, beginReviewGuard, armReview, disarmReview, claimCommit, releaseCommit } =
+    useTradeReviewGate();
   const { rates } = useFxRates();
 
   function clearReview() {
+    disarmReview();
     setReview(null);
   }
 
@@ -56,6 +59,8 @@ export function RecommendationActions({
         return toast.error('Type fill price and quantity, then confirm "I filled this".');
       }
       if (!review) {
+        if (!beginReviewGuard()) return;
+        submittingRef.current = true;
         let cash = 0;
         const cashRes = await api.get<{ cashBalance?: number }>("/api/transactions");
         if (cashRes.ok && cashRes.data && typeof cashRes.data.cashBalance === "number") {
@@ -74,10 +79,10 @@ export function RecommendationActions({
             rates,
           })
         );
+        armReview();
         return;
       }
-      if (submittingRef.current) return;
-      submittingRef.current = true;
+      if (!claimCommit()) return;
       setBusy(status);
       const res = await api.post("/api/transactions", {
         type: "buy",
@@ -93,9 +98,10 @@ export function RecommendationActions({
         cash_or_notional: qtyNum * fillNum,
         fees: Number(fees) > 0 ? Number(fees) : undefined,
         notes: `User confirmed broker fill. Signal was ${target.signalPrice ?? "n/a"}. ${ADVISORY_NOTE}`,
+        confirm: true,
       });
       setBusy(null);
-      submittingRef.current = false;
+      releaseCommit();
       if (!res.ok) return toast.error(typeof res.error === "string" ? res.error : "Fill blocked");
       toast.success(`Filled ${ticker} recorded`);
       setReview(null);
@@ -161,11 +167,11 @@ export function RecommendationActions({
       </div>
       {review ? <TradeReview preview={review} /> : null}
       <div className="flex flex-wrap gap-2">
-        <Button type="button" size="sm" disabled={!!busy} onClick={() => void save("filled")}>
-          <CheckCircle2 className="mr-1.5 size-3.5" /> {review ? "Confirm fill" : "Review fill"}
+        <Button type="button" size="sm" disabled={!!busy || (!!review && !confirmReady)} onClick={() => void save("filled")}>
+          <CheckCircle2 className="mr-1.5 size-3.5" /> {review ? "Confirm buy" : "Review buy"}
         </Button>
         {review ? (
-          <Button type="button" size="sm" variant="ghost" disabled={!!busy} onClick={() => setReview(null)}>
+          <Button type="button" size="sm" variant="ghost" disabled={!!busy} onClick={() => clearReview()}>
             Back
           </Button>
         ) : null}

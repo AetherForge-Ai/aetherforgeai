@@ -2,12 +2,13 @@
 
 import Image from "next/image";
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { formatMoney } from "@/lib/currency";
 import { buildTradePreview, type TradePreview } from "@/lib/trade-preview";
 import { bumpHoldingsGeneration } from "@/lib/holdings-generation";
+import { useTradeReviewGate } from "@/lib/trade-review-gate";
 import { TradeReview } from "@/components/dashboard/TradeReview";
 import { visibleBullionLots, type MetalSpotPerOz } from "@/lib/metal-valuation";
 import { Button } from "@/components/ui/button";
@@ -107,7 +108,15 @@ export function PreciousMetals({
     | { side: "sell"; id: string; preview: TradePreview }
     | null
   >(null);
-  const submittingRef = useRef(false);
+  const {
+    submittingRef,
+    confirmReady,
+    beginReviewGuard,
+    armReview,
+    disarmReview,
+    claimCommit,
+    releaseCommit,
+  } = useTradeReviewGate();
 
   // Add-form state.
   const [metal, setMetal] = useState<MetalKey>("gold");
@@ -179,19 +188,20 @@ export function PreciousMetals({
     return 0;
   }
 
-  async function handleAdd(e: React.FormEvent) {
+  function onBuyFormSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (submittingRef.current || adding) return;
+    // Enter and the Review button only open the review. They never write.
+    if (deskReview?.side === "buy") return;
+    void openBuyReview();
+  }
+
+  async function openBuyReview() {
+    if (!beginReviewGuard() || adding) return;
     const oz = parseFloat(ounces);
     const pp = parseFloat(price);
     if (!isFinite(oz) || oz <= 0) return toast.error("Enter how many ounces you own.");
     if (!isFinite(pp) || pp <= 0) return toast.error("Enter the price per ounce you paid.");
-
-    if (deskReview?.side === "buy" && deskReview.metal === metal && deskReview.ounces === oz && deskReview.price === pp) {
-      await commitAdd(deskReview);
-      return;
-    }
-
+    submittingRef.current = true;
     const cash = await readCashNzd();
     setDeskReview({
       side: "buy",
@@ -209,20 +219,21 @@ export function PreciousMetals({
         cashNzd: cash,
       }),
     });
+    armReview();
   }
 
   async function commitAdd(review: { metal: MetalKey; ounces: number; price: number }) {
-    if (submittingRef.current) return;
-    submittingRef.current = true;
+    if (adding || !claimCommit()) return;
     setAdding(true);
     console.log("[metals] Adding", review.metal, review.ounces, "oz @", review.price, "/oz");
     const res = await api.post("/api/metals", {
       metal: review.metal,
       ounces: review.ounces,
       purchase_price_per_oz: review.price,
+      confirm: true,
     });
     setAdding(false);
-    submittingRef.current = false;
+    releaseCommit();
     if (res.ok) {
       const cost = review.ounces * review.price;
       toast.success(
@@ -243,9 +254,11 @@ export function PreciousMetals({
   }
 
   async function openSellReview(h: MetalHolding) {
+    if (!beginReviewGuard() || adding || sellingId) return;
     const spotPerOz = spotFor(h.metal);
     const px = spotPerOz > 0 ? spotPerOz : h.purchase_price_per_oz;
     if (!(px > 0)) return toast.error("Spot price is unavailable — try again in a moment.");
+    submittingRef.current = true;
     const cash = await readCashNzd();
     setConfirmId(h._id);
     setDeskReview({
@@ -262,17 +275,18 @@ export function PreciousMetals({
         cashNzd: cash,
       }),
     });
+    armReview();
   }
 
   // Selling at spot credits cash, books realized P&L and logs it in the ledger.
   async function handleSell(id: string) {
-    if (submittingRef.current || sellingId) return;
-    submittingRef.current = true;
+    if (sellingId || !claimCommit()) return;
     setSellingId(id);
     const res = await api.delete<{ cashBalance: number; realizedNZD: number; proceeds: number }>(
-      `/api/metals/${id}`
+      `/api/metals/${id}?confirm=true`,
+      { confirm: true }
     );
-    submittingRef.current = false;
+    releaseCommit();
     setSellingId(null);
     if (res.ok && res.data) {
       const { proceeds, realizedNZD } = res.data;
@@ -478,7 +492,7 @@ export function PreciousMetals({
 
         {/* Add form */}
         <form
-          onSubmit={handleAdd}
+          onSubmit={onBuyFormSubmit}
           className="mt-6 grid grid-cols-1 gap-3 rounded-2xl border border-border/60 bg-background/40 p-4 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end"
         >
           <div className="space-y-1.5">
@@ -526,12 +540,32 @@ export function PreciousMetals({
             />
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button type="submit" disabled={adding} className="font-semibold">
-              {adding ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Plus className="mr-2 size-4" />}
-              {deskReview?.side === "buy" ? "Confirm" : "Review"}
-            </Button>
             {deskReview?.side === "buy" ? (
-              <Button type="button" variant="ghost" disabled={adding} onClick={() => setDeskReview(null)}>
+              <Button
+                type="button"
+                disabled={adding || !confirmReady}
+                className="font-semibold"
+                onClick={() => void commitAdd(deskReview)}
+              >
+                {adding ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Plus className="mr-2 size-4" />}
+                Confirm buy
+              </Button>
+            ) : (
+              <Button type="submit" disabled={adding} className="font-semibold">
+                {adding ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Plus className="mr-2 size-4" />}
+                Review buy
+              </Button>
+            )}
+            {deskReview?.side === "buy" ? (
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={adding}
+                onClick={() => {
+                  disarmReview();
+                  setDeskReview(null);
+                }}
+              >
                 Back
               </Button>
             ) : null}
@@ -663,9 +697,10 @@ export function PreciousMetals({
                         {confirmId === h._id && deskReview?.side === "sell" && deskReview.id === h._id ? (
                           <div className="flex items-center justify-end gap-1.5">
                             <button
+                              type="button"
                               onClick={() => void handleSell(h._id)}
-                              disabled={sellingId === h._id}
-                              className="inline-flex items-center gap-1 rounded-lg bg-emerald-500/15 px-2 py-1 text-xs font-semibold text-emerald-600 transition-colors hover:bg-emerald-500/25"
+                              disabled={sellingId === h._id || !confirmReady}
+                              className="inline-flex items-center gap-1 rounded-lg bg-emerald-500/15 px-2 py-1 text-xs font-semibold text-emerald-600 transition-colors hover:bg-emerald-500/25 disabled:opacity-50"
                               aria-label={`Confirm sell ${meta.label}`}
                             >
                               {sellingId === h._id ? (
@@ -673,10 +708,12 @@ export function PreciousMetals({
                               ) : (
                                 <Check className="size-3.5" />
                               )}
-                              Confirm
+                              Confirm sell
                             </button>
                             <button
+                              type="button"
                               onClick={() => {
+                                disarmReview();
                                 setConfirmId(null);
                                 setDeskReview(null);
                               }}
@@ -689,12 +726,13 @@ export function PreciousMetals({
                           </div>
                         ) : (
                           <button
+                            type="button"
                             onClick={() => void openSellReview(h)}
                             disabled={sellingId === h._id}
                             className="inline-flex items-center gap-1 rounded-lg border border-border/60 px-2.5 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:border-rose-500/40 hover:bg-rose-500/10 hover:text-rose-600"
                             aria-label={`Sell ${meta.label}`}
                           >
-                            <Minus className="size-3.5" /> Review
+                            <Minus className="size-3.5" /> Review sell
                           </button>
                         )}
                       </td>
