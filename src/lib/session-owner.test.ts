@@ -3,6 +3,7 @@ import {
   LIVE_SESSION_PATH,
   REFRESH_SESSION_PATH,
   accountPaintDecision,
+  cookieHeaderForStableRead,
   hasSessionDataCookie,
   mayPaintNavIdentity,
   sessionFlightKey,
@@ -48,16 +49,29 @@ describe("session owner", () => {
     expect(stripSessionDataCookie("better-auth.session_data=only")).toBe("");
   });
 
-  it("recovers a dashboard miss, and a nav miss only when the atom has a user", () => {
-    expect(shouldRecoverSession({ purpose: "page" })).toBe(true);
+  it("never rotates to recover a null probe", () => {
+    expect(shouldRecoverSession({ purpose: "page" })).toBe(false);
     expect(shouldRecoverSession({ purpose: "nav", atomUserId: null })).toBe(false);
-    expect(shouldRecoverSession({ purpose: "nav", atomUserId: "user-tt" })).toBe(true);
+    expect(shouldRecoverSession({ purpose: "nav", atomUserId: "user-tt" })).toBe(false);
   });
 
-  it("probes identity without using the rotating refresh URL", () => {
-    expect(LIVE_SESSION_PATH).toContain("disableCookieCache=true");
-    expect(LIVE_SESSION_PATH).toContain("disableRefresh=true");
+  it("probes identity on the stable session route, not the rotating refresh", () => {
+    expect(LIVE_SESSION_PATH).toBe("/api/session");
+    expect(LIVE_SESSION_PATH).not.toContain("get-session");
     expect(REFRESH_SESSION_PATH).toBe("/api/auth/get-session");
     expect(REFRESH_SESSION_PATH).not.toContain("disableRefresh");
+  });
+
+  it("drops session_data before a stable read and keeps both token names", () => {
+    const mixed = [
+      "better-auth.session_token=old",
+      "__Secure-better-auth.session_token=new",
+      "__Secure-better-auth.session_data=cached-other-book",
+    ].join("; ");
+    const stable = cookieHeaderForStableRead(mixed);
+    expect(stable).toContain("better-auth.session_token=old");
+    expect(stable).toContain("__Secure-better-auth.session_token=new");
+    expect(stable).not.toContain("session_data");
+    expect(hasSessionDataCookie(stable)).toBe(false);
   });
 });

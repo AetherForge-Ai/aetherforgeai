@@ -4,7 +4,6 @@ import { createSingleFlight } from "@/lib/single-flight";
 import {
   LIVE_SESSION_PATH,
   REFRESH_SESSION_PATH,
-  shouldRecoverSession,
   type LiveSessionUser,
 } from "@/lib/session-owner";
 
@@ -24,14 +23,13 @@ export function isBackgroundAuthPoll(url: string): boolean {
 export type Auth401Action = "retry" | "keep-session" | "unauthorized";
 
 /**
- * First 401 → refresh once, then retry the original request.
- * A second 401 on a background poll keeps the session (no sign-out).
- * A second 401 on a user action is a real unauthorized response, still
- * without forcing sign-out — the caller surfaces the error.
+ * Background polls never retry through the rotating session endpoint.
+ * Other 401s may retry the same request once. They must not rotate the
+ * cookie: a failed refresh deletes the token and Confirm then 401s.
  */
 export function authActionOn401(url: string, alreadyRetried: boolean): Auth401Action {
-  if (!alreadyRetried) return "retry";
   if (isBackgroundAuthPoll(url)) return "keep-session";
+  if (!alreadyRetried) return "retry";
   return "unauthorized";
 }
 
@@ -54,8 +52,8 @@ function parseLiveUser(data: SessionEnvelope): LiveSessionUser | null {
 }
 
 /**
- * Identity probe. Skips the 2-minute session_data cache and does not rotate
- * the session cookie. A separate single-flight from the refresh below.
+ * Identity probe. Hits GET /api/session, which reads the token and does not
+ * rotate the cookie. Not the better-auth get-session URL.
  */
 const readLiveSessionUser = createSingleFlight(async (): Promise<LiveSessionUser | null> => {
   if (typeof window === "undefined") return null;
@@ -73,28 +71,14 @@ const readLiveSessionUser = createSingleFlight(async (): Promise<LiveSessionUser
   }
 });
 
-async function recoverLiveSessionUser(input: {
-  purpose: "page" | "nav";
-  atomUserId?: string | null;
-}): Promise<LiveSessionUser | null> {
-  const first = await readLiveSessionUser();
-  if (first) return first;
-  if (!shouldRecoverSession(input)) return null;
-  await refreshSessionSingleFlight();
+/** Dashboard and nav: one stable read. A null result is not a reason to rotate. */
+export function confirmPageSession(): Promise<LiveSessionUser | null> {
   return readLiveSessionUser();
 }
 
-/** Dashboard pages: one strict read, then the existing refresh flight if that read is empty. */
-export function confirmPageSession(): Promise<LiveSessionUser | null> {
-  return recoverLiveSessionUser({ purpose: "page" });
-}
-
-/**
- * Nav identity. Recovers through the refresh flight only when the session
- * atom already has a user, so a logged-out page does not rotate the cookie.
- */
-export function confirmSessionUser(atomUserId?: string | null): Promise<LiveSessionUser | null> {
-  return recoverLiveSessionUser({ purpose: "nav", atomUserId });
+/** Nav identity. The session atom is not consulted — it can name the previous book. */
+export function confirmSessionUser(_atomUserId?: string | null): Promise<LiveSessionUser | null> {
+  return readLiveSessionUser();
 }
 
 export type TradeSessionAlign =
@@ -102,36 +86,30 @@ export type TradeSessionAlign =
   | { ok: false; reason: "mismatch" };
 
 /**
- * Session for a confirmed trade. Strict read first so Confirm does not itself
- * rotate the cookie. One call to the existing refresh flight only when that
- * read is empty. A live user other than the account on screen is refused.
+ * Session for a confirmed trade. Stable read only. `allowRefresh` is ignored:
+ * calling the rotating get-session here deletes a valid token and the POST
+ * that follows is 401. A live user other than the account on screen is refused.
  */
 export async function alignTradeSession(
   activeUserId: string | null,
-  allowRefresh: boolean,
+  _allowRefresh = false,
 ): Promise<TradeSessionAlign> {
-  let refreshed = false;
-  let live = await readLiveSessionUser();
-  if (!live && allowRefresh) {
-    refreshed = true;
-    await refreshSessionSingleFlight();
-    live = await readLiveSessionUser();
-  }
+  const live = await readLiveSessionUser();
   if (live && activeUserId && live.id !== activeUserId) {
     return { ok: false, reason: "mismatch" };
   }
-  return { ok: true, userId: live?.id ?? null, refreshed };
+  return { ok: true, userId: live?.id ?? null, refreshed: false };
 }
 
 const POST_LOGIN_RETRY_MS = 400;
 
 /**
- * After sign-in, don't leave /login until a strict read sees the user.
- * One rotating refresh if the first read is empty, then one delayed strict
- * read for the cookie to land. Navigating earlier paints a signed-out book.
+ * After sign-in, don't leave /login until the stable read sees the user.
+ * The sign-in response already set the cookie. A rotating refresh here can
+ * delete it before the dashboard document loads.
  */
 export async function waitForPostLoginSession(): Promise<boolean> {
-  const first = await alignTradeSession(null, true);
+  const first = await alignTradeSession(null, false);
   if (first.ok && first.userId) return true;
   await new Promise((resolve) => setTimeout(resolve, POST_LOGIN_RETRY_MS));
   const second = await alignTradeSession(null, false);

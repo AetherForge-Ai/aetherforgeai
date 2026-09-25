@@ -4,9 +4,9 @@ import { auth } from "@/lib/auth";
 import { totalumSdk } from "@/lib/totalum";
 import { userRecordConflicts } from "@/lib/account-guard";
 import {
+  cookieHeaderForStableRead,
   hasSessionDataCookie,
   sessionFlightKey,
-  stripSessionDataCookie,
   type SessionReadMode,
 } from "@/lib/session-owner";
 
@@ -87,11 +87,12 @@ async function readSession(
  * (so subscription/billing fields are always present). Returns null if there
  * is no valid session.
  *
- * `refreshSession` defaults to true. Background polls pass false so they
- * never rotate the session cookie. Dashboard pages also pass
- * `disableCookieCache` so a shared browser cannot paint session_data from
- * the other paper book. A bad session_data HMAC returns null before the
- * token lookup; that case retries once with only the cache cookie removed.
+ * Session reads do not rotate the cookie unless `refreshSession` is explicitly
+ * true. A rotating get-session deletes the token when the session touch fails,
+ * and an in-flight refresh can overwrite the next paper book on a shared browser.
+ * Non-rotating reads drop session_data before calling better-auth. A bad HMAC
+ * returns null before `disableCookieCache` is consulted, and a valid cache can
+ * name a different account than the session token.
  */
 export async function getCurrentUser(opts?: {
   refreshSession?: boolean;
@@ -99,20 +100,22 @@ export async function getCurrentUser(opts?: {
 }): Promise<AppUser | null> {
   try {
     const headerList = await headers();
-    const refresh = opts?.refreshSession !== false;
-    const disableCookieCache = opts?.disableCookieCache === true && !refresh;
-    let session = await readSession(headerList, refresh, disableCookieCache);
-    if (
-      !session?.user?.id &&
-      disableCookieCache &&
-      hasSessionDataCookie(headerList.get("cookie"))
-    ) {
+    const refresh = opts?.refreshSession === true;
+    const disableCookieCache = !refresh;
+    let readHeaders: Headers = headerList;
+    if (disableCookieCache && hasSessionDataCookie(headerList.get("cookie"))) {
       const stripped = new Headers(headerList);
-      const cookie = stripSessionDataCookie(headerList.get("cookie"));
+      const cookie = cookieHeaderForStableRead(headerList.get("cookie"));
       if (cookie) stripped.set("cookie", cookie);
       else stripped.delete("cookie");
-      session = await readSession(stripped, false, true, "strict-db");
+      readHeaders = stripped;
     }
+    const session = await readSession(
+      readHeaders,
+      refresh,
+      disableCookieCache,
+      disableCookieCache ? "strict-db" : undefined,
+    );
     if (!session?.user?.id) return null;
 
     const userId = session.user.id;

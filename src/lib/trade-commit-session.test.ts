@@ -7,6 +7,7 @@ import {
   isPortfolioSessionRead,
   portfolioLoadFailure,
   sessionWriteResult,
+  stableConfirmDecision,
 } from "@/lib/trade-commit-session";
 
 const sellBody = {
@@ -38,6 +39,18 @@ describe("confirmed trade session", () => {
     expect(isConfirmedCommitBody(JSON.stringify({ ...sellBody, confirm: false }))).toBe(false);
     expect(isConfirmedCommitBody(JSON.stringify({ type: "sell", ticker: "SNX" }))).toBe(false);
     expect(isConfirmedCommitBody("not-json")).toBe(false);
+  });
+
+  it("does not send a confirmed trade when the stable session is missing", () => {
+    expect(
+      stableConfirmDecision({ ok: true, userId: null, activeUserId: "user-1t" }),
+    ).toBe("unauthorized");
+    expect(
+      stableConfirmDecision({ ok: true, userId: "user-1t", activeUserId: "user-1t" }),
+    ).toBe("send");
+    expect(
+      stableConfirmDecision({ ok: false, userId: "user-tt", activeUserId: "user-1t" }),
+    ).toBe("mismatch");
   });
 
   it("retries a confirmed 401 once and refuses the other paper book", () => {
@@ -89,7 +102,7 @@ describe("confirmed trade session", () => {
     let postCount = 0;
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      if (url.includes("disableRefresh")) {
+      if (url.includes("/api/session")) {
         return jsonResponse({
           user: { id: "user-1t", email: "tinikog589@stenmax.com", name: "AetherForge 1T" },
           session: { id: "s" },
@@ -115,7 +128,7 @@ describe("confirmed trade session", () => {
     let posts = 0;
     globalThis.fetch = (async (input: RequestInfo | URL) => {
       const url = String(input);
-      if (url.includes("disableRefresh")) {
+      if (url.includes("/api/session")) {
         return jsonResponse({
           user: { id: "user-tt", email: "lukassouthey@outlook.co.nz", name: "Lukas Southey" },
           session: { id: "s" },
@@ -151,7 +164,7 @@ describe("confirmed trade session", () => {
     let gets = 0;
     globalThis.fetch = (async (input: RequestInfo | URL) => {
       const url = String(input);
-      if (url.includes("disableRefresh")) {
+      if (url.includes("/api/session")) {
         return jsonResponse({
           user: { id: "user-tt", email: "lukassouthey@outlook.co.nz", name: "Lukas Southey" },
           session: { id: "s" },
@@ -174,7 +187,7 @@ describe("confirmed trade session", () => {
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       urls.push(url);
-      if (url.includes("disableRefresh")) {
+      if (url.includes("/api/session")) {
         return jsonResponse({
           user: { id: "user-1t", email: "tinikog589@stenmax.com", name: "AetherForge 1T" },
           session: { id: "s" },
@@ -187,6 +200,49 @@ describe("confirmed trade session", () => {
     const res = await api.post("/api/transactions", sellBody);
     expect(res.ok).toBe(true);
     expect(urls.filter((url) => url === "/api/auth/get-session")).toHaveLength(0);
-    expect(urls.some((url) => url.includes("disableRefresh"))).toBe(true);
+    expect(urls.some((url) => url.includes("/api/session"))).toBe(true);
+  });
+
+  it("does not POST or rotate when the stable session is empty", async () => {
+    globalThis.window = {} as Window & typeof globalThis;
+    bindActiveAccount("user-1t");
+    const urls: string[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      urls.push(url);
+      if (url.includes("/api/session")) return jsonResponse({ user: null });
+      return jsonResponse({ ok: true }, 200);
+    }) as typeof fetch;
+
+    const res = await api.post("/api/transactions", sellBody);
+    expect(res.ok).toBe(false);
+    expect(res.status).toBe(401);
+    expect(urls.filter((url) => url === "/api/auth/get-session")).toHaveLength(0);
+    expect(urls.filter((url) => url.includes("/api/transactions"))).toHaveLength(0);
+  });
+
+  it("retries confirm:true once after a 401 without calling the rotating get-session", async () => {
+    globalThis.window = {} as Window & typeof globalThis;
+    bindActiveAccount("user-1t");
+    const urls: string[] = [];
+    let posts = 0;
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      urls.push(url);
+      if (url.includes("/api/session")) {
+        return jsonResponse({
+          user: { id: "user-1t", email: "tinikog589@stenmax.com", name: "AetherForge 1T" },
+        });
+      }
+      posts += 1;
+      expect(String(init?.body)).toContain('"confirm":true');
+      if (posts === 1) return jsonResponse({ ok: false, error: "Unauthorized" }, 401);
+      return jsonResponse({ ok: true, data: { cashBalance: 2780.47 } }, 200);
+    }) as typeof fetch;
+
+    const res = await api.post("/api/transactions", sellBody);
+    expect(res.ok).toBe(true);
+    expect(posts).toBe(2);
+    expect(urls.filter((url) => url === "/api/auth/get-session")).toHaveLength(0);
   });
 });

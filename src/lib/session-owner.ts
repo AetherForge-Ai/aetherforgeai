@@ -17,12 +17,33 @@ export interface LiveSessionUser {
   subscription_plan?: string | null;
 }
 
-/** Non-rotating identity probe. Must stay a different request from the refresh flight. */
-export const LIVE_SESSION_PATH =
-  "/api/auth/get-session?disableCookieCache=true&disableRefresh=true";
+/**
+ * Identity probe. Our route reads the session token and ignores session_data.
+ * better-auth's get-session returns null on a bad HMAC before it looks at the
+ * token, and a valid cache can name a different paper book than the token.
+ */
+export const LIVE_SESSION_PATH = "/api/session";
 
-/** Existing single-flight refresh. Do not add cache-bypass flags here. */
+/**
+ * Kept for the single-flight helper. Dashboard, nav, and Confirm must not call it:
+ * a failed refresh deletes the session token, and the next POST /api/transactions is 401.
+ */
 export const REFRESH_SESSION_PATH = "/api/auth/get-session";
+
+export const SESSION_DATA_COOKIE_NAMES = [
+  "better-auth.session_data",
+  "__Secure-better-auth.session_data",
+] as const;
+
+export const SESSION_TOKEN_COOKIE_NAMES = [
+  "better-auth.session_token",
+  "__Secure-better-auth.session_token",
+] as const;
+
+export const SESSION_AUX_COOKIE_NAMES = [
+  "better-auth.dont_remember",
+  "__Secure-better-auth.dont_remember",
+] as const;
 
 const SESSION_TOKEN = /(?:^|;\s*)(?:__Secure-)?better-auth\.session_token=([^;]+)/;
 const SESSION_DATA = /^(?:__Secure-)?better-auth\.session_data=/;
@@ -51,6 +72,14 @@ export function stripSessionDataCookie(cookieHeader: string | null | undefined):
 }
 
 /**
+ * Cookie header for a stable identity read. session_data is omitted so
+ * better-auth cannot return the cached account or null out a valid token.
+ */
+export function cookieHeaderForStableRead(cookieHeader: string | null | undefined): string {
+  return stripSessionDataCookie(cookieHeader);
+}
+
+/**
  * `liveUserId === undefined` means the probe has not finished.
  * Null/empty means signed out. Any other id must equal the page owner.
  */
@@ -74,15 +103,13 @@ export function mayPaintNavIdentity(
 }
 
 /**
- * A null strict read may use the one rotating refresh.
- * Dashboard pages always try once (a bad session_data cookie looks signed-out).
- * The nav refreshes only when the session atom already thinks someone is signed in,
- * so anonymous marketing pages do not rotate a cookie.
+ * A null identity probe must not call the rotating get-session.
+ * That request deletes the session token when the cache HMAC is bad or the
+ * session touch fails, which is the Confirm 401 and the login gate that follows.
  */
-export function shouldRecoverSession(input: {
+export function shouldRecoverSession(_input?: {
   purpose: "page" | "nav";
   atomUserId?: string | null;
 }): boolean {
-  if (input.purpose === "page") return true;
-  return !!input.atomUserId;
+  return false;
 }
