@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { hasForeignOwner, requestClaimsOtherUser } from "@/lib/account-guard";
 import { accountMismatchResponse, privateJson } from "@/lib/account-response";
 import { z } from "zod";
-import { getCurrentUser } from "@/lib/session";
+import { getCurrentUser, getTradeSessionUser } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
 import { lookupTicker, normalizeTicker, referencePrice } from "@/lib/market";
 import {
@@ -279,7 +279,7 @@ export async function GET(req: Request) {
 // POST /api/stocks — add a holding
 export async function POST(req: Request) {
   try {
-    const user = await getCurrentUser();
+    const user = await getTradeSessionUser();
     if (!user) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }

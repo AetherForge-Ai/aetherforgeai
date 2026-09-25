@@ -164,6 +164,14 @@ export async function getCurrentUser(opts?: {
   }
 }
 
+/**
+ * Confirmed trades. Do not refresh and do not trust session_data — a failed
+ * refresh deletes the session cookie and Confirm returns Unauthorized.
+ */
+export function getTradeSessionUser() {
+  return getCurrentUser({ refreshSession: false, disableCookieCache: true });
+}
+
 /** Whether Stripe billing is configured in this environment. */
 export function isStripeConfigured(): boolean {
   return !!process.env.STRIPE_SECRET_KEY;

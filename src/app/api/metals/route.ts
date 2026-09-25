@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getCurrentUser, isStripeConfigured, hasPaidSubscription, type AppUser } from "@/lib/session";
+import { getCurrentUser, getTradeSessionUser, isStripeConfigured, hasPaidSubscription, type AppUser } from "@/lib/session";
 import { hasForeignOwner, requestClaimsOtherUser } from "@/lib/account-guard";
 import { accountMismatchResponse, privateJson } from "@/lib/account-response";
 import { totalumSdk } from "@/lib/totalum";
@@ -71,7 +71,7 @@ export async function GET(req: Request) {
 // POST /api/metals — add a gold/silver holding
 export async function POST(req: Request) {
   try {
-    const user = await getCurrentUser();
+    const user = await getTradeSessionUser();
     if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
     if (!isEntitled(user)) {

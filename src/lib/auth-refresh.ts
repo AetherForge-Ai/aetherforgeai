@@ -97,6 +97,32 @@ export function confirmSessionUser(atomUserId?: string | null): Promise<LiveSess
   return recoverLiveSessionUser({ purpose: "nav", atomUserId });
 }
 
+export type TradeSessionAlign =
+  | { ok: true; userId: string | null; refreshed: boolean }
+  | { ok: false; reason: "mismatch" };
+
+/**
+ * Session for a confirmed trade. Strict read first so Confirm does not itself
+ * rotate the cookie. One call to the existing refresh flight only when that
+ * read is empty. A live user other than the account on screen is refused.
+ */
+export async function alignTradeSession(
+  activeUserId: string | null,
+  allowRefresh: boolean,
+): Promise<TradeSessionAlign> {
+  let refreshed = false;
+  let live = await readLiveSessionUser();
+  if (!live && allowRefresh) {
+    refreshed = true;
+    await refreshSessionSingleFlight();
+    live = await readLiveSessionUser();
+  }
+  if (live && activeUserId && live.id !== activeUserId) {
+    return { ok: false, reason: "mismatch" };
+  }
+  return { ok: true, userId: live?.id ?? null, refreshed };
+}
+
 /**
  * One shared GET /api/auth/get-session. Concurrent callers await the same
  * refresh so they cannot invalidate each other's session cookie.

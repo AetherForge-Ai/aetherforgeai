@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getCurrentUser } from "@/lib/session";
+import { getCurrentUser, getTradeSessionUser } from "@/lib/session";
 import { applyTransaction, loadLedger } from "@/lib/transactions";
 import { hasForeignOwner, requestClaimsOtherUser } from "@/lib/account-guard";
 import { accountMismatchResponse, privateJson } from "@/lib/account-response";
@@ -83,7 +83,7 @@ export async function GET(req: Request) {
 // POST /api/transactions — record a buy / sell / deposit / withdraw
 export async function POST(req: Request) {
   try {
-    const user = await getCurrentUser();
+    const user = await getTradeSessionUser();
     if (!user) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
