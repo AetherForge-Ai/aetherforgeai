@@ -26,6 +26,7 @@ import {
   quoteRouteForHolding,
   resolveHoldingMarkPrice,
 } from "@/lib/metal-valuation";
+import { mergeFreshQuantities } from "@/lib/holding-snapshot";
 
 /**
  * Overlay genuine LIVE prices onto a user's holdings and persist any that moved.
@@ -245,6 +246,18 @@ export async function GET(req: Request) {
     // Live prices (and the bullion spot persist) run after, on their own.
     await overlayCompanyNames(stocks);
     await overlayLivePrices(stocks);
+
+    // Quote fetches outlive a buy that committed while this request was in
+    // flight. Re-read quantity so the response cannot paint the pre-trade shares.
+    try {
+      const fresh = await totalumSdk.crud.query("stock", {
+        _filter: { user: user._id },
+        _limit: 500,
+      });
+      stocks = mergeFreshQuantities(stocks, (fresh?.data as { _id?: string; shares?: number; purchase_price?: number }[]) || []);
+    } catch (err) {
+      console.error("[api/stocks] Quantity re-read failed (serving the overlay snapshot):", err);
+    }
 
     // Legacy rows without asset_type are treated as stock.
     if (assetType === "stock" || assetType === "crypto") {

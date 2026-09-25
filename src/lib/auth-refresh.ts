@@ -2,8 +2,12 @@
 
 import { createSingleFlight } from "@/lib/single-flight";
 
-/** Background polls. A 401 here must not sign the user out. */
-const BACKGROUND_POLLS = ["/api/crypto/spot", "/api/stocks/refresh"];
+/**
+ * Background polls and Koins reads. A 401 here must not sign the user out.
+ * `/api/crypto` covers spot, markets, coin and chart — one refresh-retry,
+ * then a quiet failure the caller degrades from.
+ */
+const BACKGROUND_POLLS = ["/api/crypto", "/api/stocks/refresh"];
 
 export function isBackgroundAuthPoll(url: string): boolean {
   return BACKGROUND_POLLS.some((path) => url.includes(path));

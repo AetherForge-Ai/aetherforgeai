@@ -257,9 +257,11 @@ export function ReportCenter({
         }
         pendingHistoryRef.current = null;
         applyHistory(res.data);
-      } else {
+      } else if (res.status !== 401) {
         console.error("[ReportCenter] Failed to load report history:", res.error);
       }
+    } catch {
+      /* history is optional; never reject the effect */
     } finally {
       tracked.release();
     }
@@ -272,7 +274,7 @@ export function ReportCenter({
     setLastReportAt({ stock: null, crypto: null });
     setServerCadence(null);
     pendingHistoryRef.current = null;
-    loadHistory();
+    void loadHistory().catch(() => {});
   }, [loadHistory, userId]);
 
   React.useEffect(() => {
@@ -365,9 +367,9 @@ export function ReportCenter({
     if (!res.ok || !res.data?.report) {
       runLock.current = false;
       const msg = typeof res.error === "string" ? res.error : res.error?.message || "Failed to generate the report.";
-      console.error("[ReportCenter] run failed:", res.error);
-      toast.error(msg);
-      loadHistory();
+      if (res.status !== 401) console.error("[ReportCenter] run failed:", res.error);
+      toast.error(res.status === 401 ? "Your session needs a refresh before Koins can run this report." : msg);
+      void loadHistory().catch(() => {});
       return;
     }
     if (
@@ -402,7 +404,7 @@ export function ReportCenter({
         ? `Report ready — emailed to you and saved below.`
         : `Report ready and saved below (email delivery is pending).`
     );
-    loadHistory();
+    void loadHistory().catch(() => {});
   }
 
   return (
@@ -551,7 +553,7 @@ export function ReportCenter({
                     <Clock className="mr-1 size-4" /> {formatReportCooldownLine({ lastReportAt: botQuota.lastReportAt, waitMs: botQuota.waitMs, cadenceUnit: botQuota.cadence.unit, perLabel: botQuota.cadence.perLabel, now })}
                   </Button>
                 ) : (
-                  <Button className="w-full" onClick={() => runReport(b.kind)} disabled={busy || running !== null}>
+                  <Button className="w-full" onClick={() => void runReport(b.kind).catch(() => {})} disabled={busy || running !== null}>
                     {busy ? (
                       <>
                         <Loader2 className="mr-1 size-4 animate-spin" /> Compiling report…

@@ -58,6 +58,7 @@ import { MarketWidePerformers } from "@/components/dashboard/MarketWidePerformer
 import { CryptoMarketSection } from "@/components/dashboard/crypto/CryptoMarketSection";
 import { CryptoLiveStatus } from "@/components/dashboard/crypto/CryptoLiveStatus";
 import { applyLiveCryptoPrices } from "@/lib/crypto-live";
+import { holdingsGeneration, holdingsResponseIsStale } from "@/lib/holdings-generation";
 import { resumeCryptoLivePoll, useLiveCryptoQuotes } from "@/hooks/useLiveCryptoQuotes";
 import { HoldingsOwnedTable } from "@/components/dashboard/HoldingsOwnedTable";
 import { ActionableIntelligence } from "@/components/dashboard/ActionableIntelligence";
@@ -415,6 +416,7 @@ export function PortfolioDashboard({
     rows: Stock[];
     userId: string | null;
     epoch: number;
+    generation: number;
   } | null>(null);
   const [loading, setLoading] = useState(!preview);
   const [refreshing, setRefreshing] = useState(false);
@@ -491,6 +493,7 @@ export function PortfolioDashboard({
   const monitoredForLimit = scope === "total" ? holdingCounts.total : stocks.length;
 
   const loadStocks = useCallback(async () => {
+    const capturedGen = holdingsGeneration();
     // Never re-arm `loading` after the initial hydrate. Flipping it true again
     // collapses balancesReady (KPI zero-flash) and used to remount Transaction
     // Centre Buy/Add mid ticker-search when live price overlay finished on the
@@ -522,6 +525,12 @@ export function PortfolioDashboard({
           });
           return;
         }
+        // A buy/sell that committed while this request was in flight bumped the
+        // generation. The body still has the pre-trade quantity — drop it.
+        if (holdingsResponseIsStale(capturedGen)) {
+          console.log("[dashboard] Ignoring holdings snapshot captured before a trade");
+          return;
+        }
         // Defer EVERY live-price hydrate while Buy/Add is open, including the
         // first one. /dashboard/stocks renders the holdings table and market
         // widgets from this state; committing it mid-search dismissed Buy/Add
@@ -532,6 +541,7 @@ export function PortfolioDashboard({
             rows: res.data,
             userId: tracked.userId,
             epoch: tracked.epoch,
+            generation: capturedGen,
           };
           console.log("[dashboard] Holdings hydrate deferred — Transaction dialog open");
         } else {
@@ -712,6 +722,10 @@ export function PortfolioDashboard({
         console.error("[dashboard] Dropping deferred holdings — account changed");
         return;
       }
+      if (holdingsResponseIsStale(pending.generation)) {
+        console.log("[dashboard] Dropping deferred holdings captured before a trade");
+        return;
+      }
       setAllStocks(pending.rows);
       holdingsHydratedRef.current = true;
       setLoading(false);
@@ -723,7 +737,8 @@ export function PortfolioDashboard({
   // toast, no spinner; skipped in guest preview and when nothing is held.
   useEffect(() => {
     if (preview) return;
-    const id = setInterval(async () => {
+    const id = setInterval(() => {
+      void (async () => {
       if (document.hidden) return; // don't poll a backgrounded tab
       // Round-6: never soft-refresh holdings while Buy/Add is open — live-price
       // overlay re-renders were racing TickerSearch and dismissing the modal.
@@ -731,10 +746,16 @@ export function PortfolioDashboard({
         console.log("[dashboard] Soft-refresh deferred — Transaction dialog open");
         return;
       }
+      const capturedGen = holdingsGeneration();
       const tracked = trackAccountRequest();
+      try {
       const res = await api.post<Stock[]>("/api/stocks/refresh", {}, { signal: tracked.signal });
       tracked.release();
       if (res.aborted || tracked.epoch !== getAccountEpoch()) return;
+      if (holdingsResponseIsStale(capturedGen)) {
+        console.log("[dashboard] Ignoring soft-refresh captured before a trade");
+        return;
+      }
       if (
         !acceptAccountPayload({
           epoch: tracked.epoch,
@@ -752,6 +773,7 @@ export function PortfolioDashboard({
             rows: res.data,
             userId: tracked.userId,
             epoch: tracked.epoch,
+            generation: capturedGen,
           };
           console.log("[dashboard] Live re-price tick deferred — Transaction dialog open");
           return;
@@ -760,7 +782,15 @@ export function PortfolioDashboard({
         setAllStocks(res.data);
         holdingsHydratedRef.current = true;
         console.log("[dashboard] Live re-price tick applied");
+      } else if (res.status !== 401 && !res.aborted) {
+        console.error("[dashboard] Soft-refresh failed:", res.error);
       }
+      } finally {
+        tracked.release();
+      }
+      })().catch(() => {
+        /* interval must not surface an unhandled rejection */
+      });
     }, 60_000);
     return () => clearInterval(id);
   }, [preview]);
