@@ -203,6 +203,25 @@ describe("confirmed trade session", () => {
     expect(urls.some((url) => url.includes("/api/session"))).toBe(true);
   });
 
+  it("a price-refresh 401 does not call the rotating get-session", async () => {
+    globalThis.window = {} as Window & typeof globalThis;
+    bindActiveAccount("user-1t");
+    const urls: string[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      urls.push(`${init?.method || "GET"} ${url}`);
+      return jsonResponse({ ok: false, error: "Unauthorized" }, 401);
+    }) as typeof fetch;
+
+    const spot = await api.get("/api/crypto/spot?symbols=SNX");
+    const refresh = await api.post("/api/stocks/refresh", {});
+    expect(spot.status).toBe(401);
+    expect(refresh.status).toBe(401);
+    expect(urls.some((url) => url.includes("/api/auth/get-session"))).toBe(false);
+    expect(urls.filter((url) => url.includes("/api/crypto/spot"))).toHaveLength(1);
+    expect(urls.filter((url) => url.startsWith("POST") && url.includes("/api/stocks/refresh"))).toHaveLength(1);
+  });
+
   it("does not POST or rotate when the stable session is empty", async () => {
     globalThis.window = {} as Window & typeof globalThis;
     bindActiveAccount("user-1t");

@@ -3,12 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { totalumSdk } from "@/lib/totalum";
 import { userRecordConflicts } from "@/lib/account-guard";
-import {
-  cookieHeaderForStableRead,
-  hasSessionDataCookie,
-  sessionFlightKey,
-  type SessionReadMode,
-} from "@/lib/session-owner";
+import { cookieValue, sessionExpiresInFuture, verifySignedSessionToken } from "@/lib/session-token";
 
 export type BotAccessValue = "stock" | "crypto" | "both" | "none";
 
@@ -42,42 +37,44 @@ export interface AppUser {
   identityConflict?: boolean;
 }
 
-const inflightSessions = new Map<string, Promise<Awaited<ReturnType<typeof auth.api.getSession>>>>();
+type TokenSession = {
+  user: {
+    id: string;
+    email: string;
+    name: string;
+    image?: string | null;
+  };
+  session: { expiresAt?: Date | string | number | null };
+};
+
+const inflightSessions = new Map<string, Promise<TokenSession | null>>();
 
 /**
- * One in-flight session read per cookie and mode. Concurrent API calls (Buy
- * confirm, a report compile, the crypto poll) must not each refresh and
- * overwrite the session cookie.
- *
- * Background polls pass refresh=false so a 401 there cannot rotate the token.
- * Their key stays `read:<token>`. Dashboard navigations use `strict:<token>`
- * (disableCookieCache) so they never share that promise or trust session_data.
- * The rotating key stays `refresh:<token>`.
+ * Token-only session lookup. Does not call better-auth get-session.
+ * That endpoint writes Set-Cookie: it deletes the token when the row looks
+ * missing or a session touch fails, which is how UI Refresh signed the user out
+ * after a successful Confirm. A miss here is just "no user" — the cookie stays.
  */
-async function readSession(
-  headerList: Headers,
-  refresh: boolean,
-  disableCookieCache = false,
-  modeOverride?: SessionReadMode,
-) {
-  const mode: SessionReadMode =
-    modeOverride ?? (refresh ? "refresh" : disableCookieCache ? "strict" : "read");
-  const key = sessionFlightKey(headerList.get("cookie"), mode);
+async function readTokenSession(cookieHeader: string | null): Promise<TokenSession | null> {
+  const ctx = await auth.$context;
+  const raw = cookieValue(cookieHeader, ctx.authCookies.sessionToken.name);
+  if (!raw) return null;
+  const token = await verifySignedSessionToken(raw, ctx.secret);
+  if (!token) return null;
+  const key = `token:${token}`;
   const existing = inflightSessions.get(key);
   if (existing) return existing;
-  const job = (
-    refresh
-      ? auth.api.getSession({ headers: headerList })
-      : auth.api.getSession({
-          headers: headerList,
-          query: {
-            disableRefresh: true,
-            ...(disableCookieCache ? { disableCookieCache: true } : {}),
-          },
-        })
-  ).finally(() => {
-    if (inflightSessions.get(key) === job) inflightSessions.delete(key);
-  });
+  const job = ctx.internalAdapter
+    .findSession(token)
+    .then((found) => {
+      const row = found as TokenSession | null;
+      if (!row?.user?.id || !row.session) return null;
+      if (!sessionExpiresInFuture(row.session.expiresAt)) return null;
+      return row;
+    })
+    .finally(() => {
+      if (inflightSessions.get(key) === job) inflightSessions.delete(key);
+    });
   inflightSessions.set(key, job);
   return job;
 }
@@ -87,35 +84,19 @@ async function readSession(
  * (so subscription/billing fields are always present). Returns null if there
  * is no valid session.
  *
- * Session reads do not rotate the cookie unless `refreshSession` is explicitly
- * true. A rotating get-session deletes the token when the session touch fails,
- * and an in-flight refresh can overwrite the next paper book on a shared browser.
- * Non-rotating reads drop session_data before calling better-auth. A bad HMAC
- * returns null before `disableCookieCache` is consulted, and a valid cache can
- * name a different account than the session token.
+ * Every read uses the signed session token and the database row.
+ * `refreshSession` is accepted and ignored. Calling better-auth get-session
+ * from a price refresh (or any other route) can delete `session_token`.
+ * `session_data` is not consulted, so a stale cache cannot name another book
+ * or null out a valid token.
  */
-export async function getCurrentUser(opts?: {
+export async function getCurrentUser(_opts?: {
   refreshSession?: boolean;
   disableCookieCache?: boolean;
 }): Promise<AppUser | null> {
   try {
     const headerList = await headers();
-    const refresh = opts?.refreshSession === true;
-    const disableCookieCache = !refresh;
-    let readHeaders: Headers = headerList;
-    if (disableCookieCache && hasSessionDataCookie(headerList.get("cookie"))) {
-      const stripped = new Headers(headerList);
-      const cookie = cookieHeaderForStableRead(headerList.get("cookie"));
-      if (cookie) stripped.set("cookie", cookie);
-      else stripped.delete("cookie");
-      readHeaders = stripped;
-    }
-    const session = await readSession(
-      readHeaders,
-      refresh,
-      disableCookieCache,
-      disableCookieCache ? "strict-db" : undefined,
-    );
+    const session = await readTokenSession(headerList.get("cookie"));
     if (!session?.user?.id) return null;
 
     const userId = session.user.id;
