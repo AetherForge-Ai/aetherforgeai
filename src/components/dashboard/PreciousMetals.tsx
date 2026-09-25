@@ -5,6 +5,12 @@ import Image from "next/image";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
+import {
+  acceptAccountPayload,
+  getAccountEpoch,
+  responseUserId,
+  trackAccountRequest,
+} from "@/lib/account-identity";
 import { formatMoney } from "@/lib/currency";
 import { buildTradePreview, type TradePreview } from "@/lib/trade-preview";
 import { bumpHoldingsGeneration } from "@/lib/holdings-generation";
@@ -125,18 +131,49 @@ export function PreciousMetals({
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await api.get<{ metals: MetalHolding[]; spot: MetalsSpot }>("/api/metals");
-    if (res.ok && res.data) {
-      setMetals(res.data.metals || []);
-      setSpot(res.data.spot);
-      console.log("[metals] Loaded", res.data.metals?.length ?? 0, "holdings; spot live:", res.data.spot?.live);
-    } else {
+    const tracked = trackAccountRequest();
+    try {
+      const res = await api.get<{ metals: MetalHolding[]; spot: MetalsSpot; user?: string }>(
+        "/api/metals",
+        { signal: tracked.signal },
+      );
+      if (res.aborted || tracked.epoch !== getAccountEpoch()) return;
+      const echoed = responseUserId(res);
+      if (res.status === 409 || res.error === "account-mismatch") {
+        console.error("[metals] Discarding desk for other/stale user", {
+          requestUserId: tracked.userId,
+          responseUserId: echoed,
+        });
+        return;
+      }
+      if (res.ok && res.data) {
+        if (
+          !acceptAccountPayload({
+            epoch: tracked.epoch,
+            requestUserId: tracked.userId,
+            responseUserId: echoed,
+            rows: res.data.metals,
+          })
+        ) {
+          console.error("[metals] Discarding desk for other/stale user", {
+            requestUserId: tracked.userId,
+            responseUserId: echoed,
+          });
+          return;
+        }
+        setMetals(res.data.metals || []);
+        setSpot(res.data.spot);
+        console.log("[metals] Loaded", res.data.metals?.length ?? 0, "holdings; spot live:", res.data.spot?.live);
+        return;
+      }
       // Desk list can be empty/forbidden while the public spot feed still works.
-      const pub = await api.get<MetalsSpot>("/api/metals/spot");
-      if (pub.ok && pub.data) setSpot(pub.data);
+      const pub = await api.get<MetalsSpot>("/api/metals/spot", { signal: tracked.signal });
+      if (!pub.aborted && tracked.epoch === getAccountEpoch() && pub.ok && pub.data) setSpot(pub.data);
       if (res.status !== 401) console.error("[metals] Load failed:", res.error);
+    } finally {
+      tracked.release();
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   // Rewrite the ledger GOLD/SILVER current_price (often the stale equity print)
@@ -182,10 +219,28 @@ export function PreciousMetals({
     return { value, cost, gain, gainPct };
   }, [metals, ledgerRows, spotFor]);
 
-  async function readCashNzd(): Promise<number> {
-    const res = await api.get<{ cashBalance?: number }>("/api/transactions");
-    if (res.ok && res.data && typeof res.data.cashBalance === "number") return res.data.cashBalance;
-    return 0;
+  async function readCashNzd(): Promise<number | null> {
+    const tracked = trackAccountRequest();
+    try {
+      const res = await api.get<{ cashBalance?: number }>("/api/transactions", {
+        signal: tracked.signal,
+      });
+      if (res.aborted || tracked.epoch !== getAccountEpoch()) return null;
+      if (res.status === 409 || res.error === "account-mismatch") return null;
+      if (!res.ok || !res.data || typeof res.data.cashBalance !== "number") return null;
+      if (
+        !acceptAccountPayload({
+          epoch: tracked.epoch,
+          requestUserId: tracked.userId,
+          responseUserId: responseUserId(res),
+        })
+      ) {
+        return null;
+      }
+      return res.data.cashBalance;
+    } finally {
+      tracked.release();
+    }
   }
 
   function onBuyFormSubmit(e: React.FormEvent) {
@@ -203,6 +258,11 @@ export function PreciousMetals({
     if (!isFinite(pp) || pp <= 0) return toast.error("Enter the price per ounce you paid.");
     submittingRef.current = true;
     const cash = await readCashNzd();
+    if (cash === null) {
+      submittingRef.current = false;
+      toast.error("Could not confirm this account's cash. Refresh and try again.");
+      return;
+    }
     setDeskReview({
       side: "buy",
       metal,
@@ -260,6 +320,11 @@ export function PreciousMetals({
     if (!(px > 0)) return toast.error("Spot price is unavailable — try again in a moment.");
     submittingRef.current = true;
     const cash = await readCashNzd();
+    if (cash === null) {
+      submittingRef.current = false;
+      toast.error("Could not confirm this account's cash. Refresh and try again.");
+      return;
+    }
     setConfirmId(h._id);
     setDeskReview({
       side: "sell",

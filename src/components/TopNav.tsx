@@ -3,8 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useSession } from "@/lib/auth-client";
-import type { ExtendedUser } from "@/lib/auth";
+import { useLiveSessionUser } from "@/lib/use-live-session";
 import { planLabel } from "@/lib/plans";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -139,7 +138,17 @@ function DesktopLinks({ pathname }: { pathname: string }) {
   );
 }
 
-function AccountMenu({ user }: { user: ExtendedUser }) {
+function AccountMenu({
+  user,
+}: {
+  user: {
+    name: string;
+    email: string;
+    image?: string | null;
+    subscription_status?: string | null;
+    subscription_plan?: string | null;
+  };
+}) {
   const isActive = user.subscription_status === "active";
   // Runtime plan may be "dual_yearly" (broader than the narrowed type), so compare as string.
   const plan = String(user.subscription_plan || "");
@@ -225,7 +234,15 @@ function AccountMenu({ user }: { user: ExtendedUser }) {
   );
 }
 
-function MobileDrawer({ pathname, loggedIn }: { pathname: string; loggedIn: boolean }) {
+function MobileDrawer({
+  pathname,
+  loggedIn,
+  pending,
+}: {
+  pathname: string;
+  loggedIn: boolean;
+  pending: boolean;
+}) {
   const [open, setOpen] = useState(false);
   useEffect(() => {
     setOpen(false);
@@ -270,7 +287,9 @@ function MobileDrawer({ pathname, loggedIn }: { pathname: string; loggedIn: bool
           })}
         </nav>
         <div className="mt-6 space-y-2 border-t border-border/60 pt-4">
-          {loggedIn ? (
+          {pending ? (
+            <div className="h-10 animate-pulse rounded-xl bg-muted/60" />
+          ) : loggedIn ? (
             <>
               <Button asChild variant="outline" className="w-full justify-start">
                 <Link href="/settings" onClick={() => setOpen(false)}>
@@ -303,8 +322,8 @@ function MobileDrawer({ pathname, loggedIn }: { pathname: string; loggedIn: bool
  * changes shape or relocates to a sidebar when entering the portfolio.
  */
 export function TopNav() {
-  const { data: session, isPending } = useSession();
-  const user = session?.user as ExtendedUser | undefined;
+  const { user } = useLiveSessionUser();
+  const pending = user === undefined;
   const loggedIn = !!user;
   const pathname = usePathname();
 
@@ -313,7 +332,7 @@ export function TopNav() {
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         {/* Left: mobile menu + brand */}
         <div className="flex items-center gap-2">
-          <MobileDrawer pathname={pathname} loggedIn={loggedIn} />
+          <MobileDrawer pathname={pathname} loggedIn={loggedIn} pending={pending} />
           <Link href={loggedIn ? "/dashboard" : "/"} className="transition-opacity hover:opacity-90">
             <BrandLogo />
           </Link>
@@ -324,7 +343,7 @@ export function TopNav() {
 
         {/* Right: auth cluster */}
         <div className="flex items-center gap-2">
-          {isPending ? (
+          {pending ? (
             <div className="h-9 w-24 animate-pulse rounded-full bg-muted/60" />
           ) : loggedIn && user ? (
             <AccountMenu user={user} />

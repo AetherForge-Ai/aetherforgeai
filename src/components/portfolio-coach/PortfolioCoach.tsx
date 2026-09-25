@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { MessageSquareText } from "lucide-react";
-import { useSession } from "@/lib/auth-client";
+import { useLiveSessionUser } from "@/lib/use-live-session";
 import { PortfolioCoachChat } from "./PortfolioCoachChat";
 import { RiseAnimation } from "./RiseAnimation";
 import "@/components/personal-guide/personal-guide.css";
@@ -37,17 +37,18 @@ function isExcludedPath(pathname: string | null): boolean {
  */
 export function PortfolioCoach() {
   const pathname = usePathname();
-  const { data: session, isPending } = useSession();
+  const { user: liveUser } = useLiveSessionUser();
+  const pending = liveUser === undefined;
   const [open, setOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [phase, setPhase] = useState<Phase>("idle");
   const [showRise, setShowRise] = useState(false);
 
-  const userId = session?.user?.id || session?.user?.email || null;
-  const allowed = !!session?.user && !isExcludedPath(pathname);
+  const userId = liveUser?.id ?? null;
+  const allowed = !!liveUser && !isExcludedPath(pathname);
 
   useEffect(() => {
-    if (isPending) return;
+    if (pending) return;
     if (!allowed) {
       setHydrated(false);
       setOpen(false);
@@ -87,7 +88,7 @@ export function PortfolioCoach() {
     }
 
     setHydrated(true);
-  }, [allowed, isPending]);
+  }, [allowed, pending]);
 
   const minimize = useCallback(() => {
     setOpen(false);
@@ -132,7 +133,7 @@ export function PortfolioCoach() {
     return () => window.clearTimeout(t);
   }, [phase]);
 
-  if (isPending || !hydrated || !allowed || !userId) {
+  if (pending || !hydrated || !allowed || !userId) {
     return null;
   }
 

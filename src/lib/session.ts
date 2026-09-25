@@ -3,6 +3,12 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { totalumSdk } from "@/lib/totalum";
 import { userRecordConflicts } from "@/lib/account-guard";
+import {
+  hasSessionDataCookie,
+  sessionFlightKey,
+  stripSessionDataCookie,
+  type SessionReadMode,
+} from "@/lib/session-owner";
 
 export type BotAccessValue = "stock" | "crypto" | "both" | "none";
 
@@ -38,30 +44,38 @@ export interface AppUser {
 
 const inflightSessions = new Map<string, Promise<Awaited<ReturnType<typeof auth.api.getSession>>>>();
 
-function sessionFlightKey(headerList: Headers, refresh: boolean): string {
-  const cookie = headerList.get("cookie") || "";
-  const match = cookie.match(/(?:^|;\s*)(?:__Secure-)?better-auth\.session_token=([^;]+)/);
-  return `${refresh ? "refresh" : "read"}:${match?.[1] || "none"}`;
-}
-
 /**
- * One in-flight session read per cookie. Concurrent API calls (Buy confirm,
- * a report compile, the crypto poll) must not each refresh and overwrite
- * the session cookie.
+ * One in-flight session read per cookie and mode. Concurrent API calls (Buy
+ * confirm, a report compile, the crypto poll) must not each refresh and
+ * overwrite the session cookie.
  *
  * Background polls pass refresh=false so a 401 there cannot rotate the token.
+ * Their key stays `read:<token>`. Dashboard navigations use `strict:<token>`
+ * (disableCookieCache) so they never share that promise or trust session_data.
+ * The rotating key stays `refresh:<token>`.
  */
-async function readSession(headerList: Headers, refresh: boolean) {
-  if (!refresh) {
-    return auth.api.getSession({
-      headers: headerList,
-      query: { disableRefresh: true },
-    });
-  }
-  const key = sessionFlightKey(headerList, true);
+async function readSession(
+  headerList: Headers,
+  refresh: boolean,
+  disableCookieCache = false,
+  modeOverride?: SessionReadMode,
+) {
+  const mode: SessionReadMode =
+    modeOverride ?? (refresh ? "refresh" : disableCookieCache ? "strict" : "read");
+  const key = sessionFlightKey(headerList.get("cookie"), mode);
   const existing = inflightSessions.get(key);
   if (existing) return existing;
-  const job = auth.api.getSession({ headers: headerList }).finally(() => {
+  const job = (
+    refresh
+      ? auth.api.getSession({ headers: headerList })
+      : auth.api.getSession({
+          headers: headerList,
+          query: {
+            disableRefresh: true,
+            ...(disableCookieCache ? { disableCookieCache: true } : {}),
+          },
+        })
+  ).finally(() => {
     if (inflightSessions.get(key) === job) inflightSessions.delete(key);
   });
   inflightSessions.set(key, job);
@@ -74,12 +88,31 @@ async function readSession(headerList: Headers, refresh: boolean) {
  * is no valid session.
  *
  * `refreshSession` defaults to true. Background polls pass false so they
- * never rotate the session cookie.
+ * never rotate the session cookie. Dashboard pages also pass
+ * `disableCookieCache` so a shared browser cannot paint session_data from
+ * the other paper book. A bad session_data HMAC returns null before the
+ * token lookup; that case retries once with only the cache cookie removed.
  */
-export async function getCurrentUser(opts?: { refreshSession?: boolean }): Promise<AppUser | null> {
+export async function getCurrentUser(opts?: {
+  refreshSession?: boolean;
+  disableCookieCache?: boolean;
+}): Promise<AppUser | null> {
   try {
     const headerList = await headers();
-    const session = await readSession(headerList, opts?.refreshSession !== false);
+    const refresh = opts?.refreshSession !== false;
+    const disableCookieCache = opts?.disableCookieCache === true && !refresh;
+    let session = await readSession(headerList, refresh, disableCookieCache);
+    if (
+      !session?.user?.id &&
+      disableCookieCache &&
+      hasSessionDataCookie(headerList.get("cookie"))
+    ) {
+      const stripped = new Headers(headerList);
+      const cookie = stripSessionDataCookie(headerList.get("cookie"));
+      if (cookie) stripped.set("cookie", cookie);
+      else stripped.delete("cookie");
+      session = await readSession(stripped, false, true, "strict-db");
+    }
     if (!session?.user?.id) return null;
 
     const userId = session.user.id;

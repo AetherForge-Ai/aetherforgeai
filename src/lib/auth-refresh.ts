@@ -1,6 +1,14 @@
 "use client";
 
 import { createSingleFlight } from "@/lib/single-flight";
+import {
+  LIVE_SESSION_PATH,
+  REFRESH_SESSION_PATH,
+  shouldRecoverSession,
+  type LiveSessionUser,
+} from "@/lib/session-owner";
+
+export type { LiveSessionUser };
 
 /**
  * Background polls and Koins reads. A 401 here must not sign the user out.
@@ -27,6 +35,68 @@ export function authActionOn401(url: string, alreadyRetried: boolean): Auth401Ac
   return "unauthorized";
 }
 
+type SessionEnvelope = {
+  user?: Partial<LiveSessionUser> | null;
+  session?: unknown;
+} | null;
+
+function parseLiveUser(data: SessionEnvelope): LiveSessionUser | null {
+  const user = data?.user;
+  if (!user?.id || !user.email) return null;
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name || user.email,
+    image: user.image ?? null,
+    subscription_status: user.subscription_status,
+    subscription_plan: user.subscription_plan,
+  };
+}
+
+/**
+ * Identity probe. Skips the 2-minute session_data cache and does not rotate
+ * the session cookie. A separate single-flight from the refresh below.
+ */
+const readLiveSessionUser = createSingleFlight(async (): Promise<LiveSessionUser | null> => {
+  if (typeof window === "undefined") return null;
+  try {
+    const res = await fetch(LIVE_SESSION_PATH, {
+      method: "GET",
+      credentials: "include",
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    const data = (await res.json().catch(() => null)) as SessionEnvelope;
+    return parseLiveUser(data);
+  } catch {
+    return null;
+  }
+});
+
+async function recoverLiveSessionUser(input: {
+  purpose: "page" | "nav";
+  atomUserId?: string | null;
+}): Promise<LiveSessionUser | null> {
+  const first = await readLiveSessionUser();
+  if (first) return first;
+  if (!shouldRecoverSession(input)) return null;
+  await refreshSessionSingleFlight();
+  return readLiveSessionUser();
+}
+
+/** Dashboard pages: one strict read, then the existing refresh flight if that read is empty. */
+export function confirmPageSession(): Promise<LiveSessionUser | null> {
+  return recoverLiveSessionUser({ purpose: "page" });
+}
+
+/**
+ * Nav identity. Recovers through the refresh flight only when the session
+ * atom already has a user, so a logged-out page does not rotate the cookie.
+ */
+export function confirmSessionUser(atomUserId?: string | null): Promise<LiveSessionUser | null> {
+  return recoverLiveSessionUser({ purpose: "nav", atomUserId });
+}
+
 /**
  * One shared GET /api/auth/get-session. Concurrent callers await the same
  * refresh so they cannot invalidate each other's session cookie.
@@ -34,7 +104,7 @@ export function authActionOn401(url: string, alreadyRetried: boolean): Auth401Ac
 export const refreshSessionSingleFlight = createSingleFlight(async (): Promise<boolean> => {
   if (typeof window === "undefined") return false;
   try {
-    const res = await fetch("/api/auth/get-session", {
+    const res = await fetch(REFRESH_SESSION_PATH, {
       method: "GET",
       credentials: "include",
       cache: "no-store",
