@@ -6,6 +6,7 @@ import {
   classWeightPct,
   equityTickersForQuotes,
   isBullionHolding,
+  isListedStockHolding,
   isContaminatedEquityPrint,
   markBookAtBullionSpot,
   markToMarketBullionNZD,
@@ -62,6 +63,14 @@ describe("bullion mark-to-market", () => {
     expect(quoteRouteForHolding("stock", "AAPL")).toBe("equity");
     expect(quoteRouteForHolding("crypto", "BTC")).toBe("crypto");
     expect(isBullionHolding("stock", "BHP.AX")).toBe(false);
+    expect(isListedStockHolding("stock", "AAPL")).toBe(true);
+    expect(isListedStockHolding("stock", "BHP.AX")).toBe(true);
+    expect(isListedStockHolding(undefined, "FPH.NZ")).toBe(true);
+    expect(isListedStockHolding("stock", "NEM", "Newmont Gold")).toBe(true);
+    expect(isListedStockHolding("stock", "GOLD")).toBe(false);
+    expect(isListedStockHolding("stock", "SILVER")).toBe(false);
+    expect(isListedStockHolding("metal", "GOLD")).toBe(false);
+    expect(isListedStockHolding("crypto", "BTC")).toBe(false);
   });
 
   it("keeps equity and crypto marks on their own feeds", () => {

@@ -17,7 +17,15 @@ import {
   type FxRatesToNZD,
   type CurrencyCode,
 } from "@/lib/currency";
-import { isBullionHolding, markBookAtBullionSpot, type MetalSpotPerOz } from "@/lib/metal-valuation";
+import {
+  isBullionHolding,
+  inferMetalKey,
+  isListedStockHolding,
+  markBookAtBullionSpot,
+  type MetalSpotPerOz,
+} from "@/lib/metal-valuation";
+import { hubAllocationLabel } from "@/lib/hub-labels";
+import { portfolioLoadFailure } from "@/lib/trade-commit-session";
 import { StockDialog } from "@/components/dashboard/StockDialog";
 import {
   HoldingChartDialog,
@@ -552,7 +560,9 @@ export function PortfolioDashboard({
         }
       } else {
         console.error("[dashboard] Failed to load stocks:", res.error);
-        toast.error("Could not load your portfolio.");
+        if (portfolioLoadFailure(false, res.status) === "toast") {
+          toast.error("Could not load your portfolio.");
+        }
         setLoading(false);
       }
     } finally {
@@ -839,10 +849,7 @@ export function PortfolioDashboard({
 
   // Dedicated overviews (stock + crypto shown separately — no bot toggle)
   const stockOnly = useMemo(
-    () =>
-      allStocks.filter(
-        (s) => (s.asset_type || "stock") === "stock" && !isBullionHolding(s.asset_type, s.ticker)
-      ),
+    () => allStocks.filter((s) => isListedStockHolding(s.asset_type, s.ticker, s.company_name)),
     [allStocks]
   );
   const cryptoOnly = useMemo(
@@ -868,10 +875,9 @@ export function PortfolioDashboard({
   );
   const cryptoOverviewMetrics = useMemo(() => computePortfolioMetrics(cryptoMarked), [cryptoMarked]);
 
-  // Gold & silver bought through the Buy/Sell window are stored in the `stock`
-  // table as `asset_type:"metal"`. They must surface in the Holdings table
-  // regardless of which bot (Stox/Koins) is active, so the table uses its own
-  // summary that folds the active bot's positions together with all metals.
+  // Gold & silver bought through Buy/Sell live in the stock table as metal lots.
+  // Stock KPIs already exclude them. The stock holdings table uses that same
+  // equity filter — bullion is listed only on the metals hub.
   const spotForMarks = publicSpot ?? metalSpot;
   const metalStocks = useMemo(() => {
     const bullion = allStocks.filter((s) => isBullionHolding(s.asset_type, s.ticker, s.company_name));
@@ -917,11 +923,8 @@ export function PortfolioDashboard({
     return [...fromStocks, ...preciousAsStocks];
   }, [allStocks, preciousAsStocks, metalStocks]);
 
-  const tableStocks = useMemo(() => {
-    // Prefer the spot-marked bullion row over a raw equity-priced copy.
-    const metalIds = new Set(metalStocks.map((m) => m._id));
-    return [...stocks.filter((s) => !metalIds.has(s._id)), ...metalStocks];
-  }, [stocks, metalStocks]);
+  // Same equity book as Value in Stocks — never append bullion rows.
+  const tableStocks = stockOnly;
   const tableSummary = useMemo(
     () => computeSummary(tableStocks, { baseCurrency, fxToNZD }),
     [tableStocks, baseCurrency, fxToNZD]
@@ -1001,13 +1004,7 @@ export function PortfolioDashboard({
   );
 
   // Cross-bot totals, all expressed in NZD for the "Totals owned" strip.
-  const stockHoldings = useMemo(
-    () =>
-      allStocks.filter(
-        (s) => (s.asset_type || "stock") === "stock" && !isBullionHolding(s.asset_type, s.ticker)
-      ),
-    [allStocks]
-  );
+  const stockHoldings = stockOnly;
   const cryptoHoldings = cryptoMarked;
   const stockTotalNZD = useMemo(
     () => computeSummary(stockHoldings, { baseCurrency: "NZD", fxToNZD }).totalValue,
@@ -1021,6 +1018,26 @@ export function PortfolioDashboard({
   const metalStockTotalNZD = useMemo(
     () => computeSummary(metalStocks, { baseCurrency: "NZD", fxToNZD }).totalValue,
     [metalStocks, fxToNZD]
+  );
+  const metalsAllocationSummary = useMemo(() => {
+    const rows: Stock[] = [...metalStocks, ...preciousAsStocks].map((row) => {
+      const key = inferMetalKey({
+        ticker: row.ticker,
+        assetType: row.asset_type,
+        companyName: row.company_name,
+        sector: row.sector,
+      });
+      return {
+        ...row,
+        asset_type: "metal" as const,
+        sector: key === "silver" ? "Silver" : "Gold",
+      };
+    });
+    return computeSummary(rows, { baseCurrency: "NZD", fxToNZD });
+  }, [metalStocks, preciousAsStocks, fxToNZD]);
+  const metalAlertHoldings = useMemo(
+    () => [...metalStocks, ...preciousAsStocks],
+    [metalStocks, preciousAsStocks]
   );
   // Live market value of everything held (excludes idle cash) + full net worth.
   // `metalsValueNZD` = the precious_metal bonus store; `metalStockTotalNZD` =
@@ -1107,6 +1124,9 @@ export function PortfolioDashboard({
   const isCrypto = view === "crypto";
   const isMetals = view === "metals";
   const isTransactions = view === "transactions";
+  const allocationSummary = isMetals ? metalsAllocationSummary : summary;
+  const allocationLabel = hubAllocationLabel(view, bot);
+  const allocationCurrency = isMetals ? "NZD" : baseCurrency;
   const isMarket =
     view === "nzsx" || view === "asx" || view === "nasdaq" || view === "dow";
   const marketExchange =
@@ -1606,7 +1626,12 @@ export function PortfolioDashboard({
             title="Metals Price Alerts"
             description="Set alerts on gold and silver so you never miss a move on your bullion."
           >
-            <PriceAlerts stocks={allStocks} assetType="metal" preview={preview} />
+            <PriceAlerts
+              stocks={metalAlertHoldings}
+              assetType="metal"
+              holdingsReady={!loading && metalsLoaded}
+              preview={preview}
+            />
           </DashboardGate>
         </div>
       </div>
@@ -1714,14 +1739,14 @@ export function PortfolioDashboard({
           />
         </div>
 
-        {/* Sector allocation for the active bot */}
-        {summary.sectorAllocation.length > 0 && (
+        {/* Allocation for this hub. Metals must not reuse the stock label or book. */}
+        {allocationSummary.sectorAllocation.length > 0 && (
           <div className="mt-5 rounded-2xl border border-border/60 bg-background/30 p-5">
             <div className="flex items-center gap-2 text-sm font-semibold">
-              <PieChart className="size-4 text-primary" /> {bot === "crypto" ? "Crypto" : "Stock"} allocation
+              <PieChart className="size-4 text-primary" /> {allocationLabel}
             </div>
             <div className="mt-4 flex h-3 overflow-hidden rounded-full bg-muted/40">
-              {summary.sectorAllocation.map((s, i) => (
+              {allocationSummary.sectorAllocation.map((s, i) => (
                 <div
                   key={s.sector}
                   style={{
@@ -1733,7 +1758,7 @@ export function PortfolioDashboard({
               ))}
             </div>
             <div className="mt-4 grid gap-2.5 sm:grid-cols-2">
-              {summary.sectorAllocation.map((s, i) => (
+              {allocationSummary.sectorAllocation.map((s, i) => (
                 <div key={s.sector} className="flex items-center gap-3">
                   <span
                     className="size-2.5 shrink-0 rounded-full"
@@ -1741,7 +1766,7 @@ export function PortfolioDashboard({
                   />
                   <span className="min-w-0 flex-1 truncate text-sm">{s.sector}</span>
                   <span className="tnum text-sm text-muted-foreground">
-                    {formatMoney(s.value, baseCurrency, { compact: true })}
+                    {formatMoney(s.value, allocationCurrency, { compact: true })}
                   </span>
                   <span className="tnum w-12 text-right text-sm font-medium">{s.weight.toFixed(1)}%</span>
                 </div>
@@ -1954,6 +1979,7 @@ export function PortfolioDashboard({
           <PriceAlerts
             stocks={isCrypto ? cryptoMarked : stockOnly}
             assetType={isCrypto ? "crypto" : "stock"}
+            holdingsReady={!loading}
             preview={preview}
           />
         </DashboardGate>

@@ -5,7 +5,7 @@ import { totalumSdk } from "@/lib/totalum";
 import { referencePrice } from "@/lib/market";
 import { fetchLiveQuotes, fetchCryptoLiveSnapshot } from "@/lib/market-data";
 import { evaluateCryptoAlert } from "@/lib/crypto-live";
-import { alertIsEffectivelyArchived, heldQuantityForTicker } from "@/lib/alert-lifecycle";
+import { alertTickerKey, alertVisibleInBook, inferAlertAssetType, type DeskHolding } from "@/lib/alert-desk";
 import { CRYPTO_DIRECTORY } from "@/lib/apex";
 import { getMetalsSpot } from "@/lib/metals";
 
@@ -24,19 +24,13 @@ const createSchema = z.object({
 
 const CRYPTO_TICKERS = new Set(CRYPTO_DIRECTORY.map((c) => c.ticker.toUpperCase()));
 
-function inferAssetType(
-  ticker: string,
-  stored: string | null | undefined,
-  holdingType: string | null | undefined
-): "stock" | "crypto" | "metal" {
-  const s = (stored || "").toLowerCase();
-  if (s === "crypto" || s === "stock" || s === "metal") return s as "stock" | "crypto" | "metal";
-  const h = (holdingType || "").toLowerCase();
-  if (h === "crypto" || h === "stock" || h === "metal") return h as "stock" | "crypto" | "metal";
-  const t = ticker.toUpperCase();
-  if (t === "GOLD" || t === "SILVER") return "metal";
-  if (CRYPTO_TICKERS.has(t) || CRYPTO_TICKERS.has(t.replace(/-USD$/, ""))) return "crypto";
-  return "stock";
+function stockLinkId(stock: unknown): string | null {
+  if (typeof stock === "string" && stock) return stock;
+  if (stock && typeof stock === "object" && "_id" in stock) {
+    const id = (stock as { _id?: unknown })._id;
+    return typeof id === "string" && id ? id : null;
+  }
+  return null;
 }
 
 /** GET /api/alerts — list the current user's price alerts (with live prices). */
@@ -56,28 +50,72 @@ export async function GET() {
 
     // Classify tickers via stored asset_type + the user's holdings so crypto
     // alerts get Swyftx/CoinGecko prices (not Yahoo equity quotes).
-    const holdingsRes = await totalumSdk.crud
-      .query("stock", { _filter: { user: user._id }, _limit: 500 })
-      .catch(() => null);
+    // A failed holdings read must not look like an empty book — that dropped
+    // every alert and the desk stayed on "No alerts yet" after Create.
+    let book: DeskHolding[] | null = null;
     const holdingTypeByTicker = new Map<string, string>();
     const purchaseByTicker = new Map<string, number>();
-    const holdingQty: { ticker: string; shares: number }[] = [];
-    for (const h of ((holdingsRes as any)?.data as any[]) || []) {
-      const t = String(h.ticker || "").toUpperCase();
-      if (!t) continue;
-      holdingTypeByTicker.set(t, h.asset_type || "stock");
-      holdingQty.push({ ticker: t, shares: Number(h.shares) || 0 });
-      const px = Number(h.purchase_price);
-      if (px > 0) purchaseByTicker.set(t, px);
+    try {
+      const holdingsRes = await totalumSdk.crud.query("stock", {
+        _filter: { user: user._id },
+        _limit: 500,
+      });
+      book = [];
+      for (const h of ((holdingsRes as any)?.data as any[]) || []) {
+        const t = String(h.ticker || "").toUpperCase();
+        if (!t) continue;
+        const key = alertTickerKey(t);
+        holdingTypeByTicker.set(key, h.asset_type || "stock");
+        const shares = Number(h.shares ?? h.quantity) || 0;
+        book.push({ _id: h._id ? String(h._id) : null, ticker: t, shares, asset_type: h.asset_type });
+        const px = Number(h.purchase_price);
+        if (px > 0) purchaseByTicker.set(key, px);
+      }
+      try {
+        const precious = await totalumSdk.crud.query("precious_metal", {
+          _filter: { user: user._id },
+          _limit: 200,
+        });
+        for (const m of ((precious as any)?.data as any[]) || []) {
+          const metal = String(m.metal || "").toLowerCase();
+          const ticker = metal === "silver" ? "SILVER" : "GOLD";
+          const ounces = Number(m.ounces) || 0;
+          book.push({
+            _id: m._id ? String(m._id) : null,
+            ticker,
+            shares: ounces,
+            asset_type: "metal",
+          });
+          holdingTypeByTicker.set(alertTickerKey(ticker), "metal");
+        }
+      } catch (err) {
+        console.error("[api/alerts] precious metal holdings lookup failed:", err);
+      }
+    } catch (err) {
+      console.error("[api/alerts] holdings lookup failed:", err);
+      book = null;
     }
-    // Flat positions (including a full sell that deleted the row) are not Watching.
-    const rows = storedRows.filter(
-      (a) => !alertIsEffectivelyArchived(a.status, heldQuantityForTicker(holdingQty, String(a.ticker || "")))
+    // Archived rows are already dropped. A flat row, or a holding deleted on a
+    // full sell, leaves Watching. A follow alert with no position still lists.
+    const rows = storedRows.filter((a) =>
+      alertVisibleInBook(
+        {
+          ticker: String(a.ticker || ""),
+          status: a.status,
+          stockId: stockLinkId(a.stock),
+        },
+        book
+      )
     );
 
     const classified = rows.map((a) => {
       const ticker = String(a.ticker || "").toUpperCase();
-      const assetType = inferAssetType(ticker, a.asset_type, holdingTypeByTicker.get(ticker));
+      const assetType = inferAlertAssetType(
+        ticker,
+        a.asset_type,
+        holdingTypeByTicker.get(alertTickerKey(ticker)),
+        CRYPTO_TICKERS
+      );
       return { a, ticker, assetType };
     });
 
@@ -127,7 +165,7 @@ export async function GET() {
       // Equities keep the absolute hard-sell check. Crypto also evaluates the
       // member's configured % vs purchase (sell at a loss, trim in the gain
       // band) against the live 24/7 mark. Thresholds are not rewritten.
-      const purchasePrice = assetType === "crypto" ? purchaseByTicker.get(ticker) ?? null : null;
+      const purchasePrice = assetType === "crypto" ? purchaseByTicker.get(alertTickerKey(ticker)) ?? null : null;
       const cryptoEval =
         assetType === "crypto"
           ? evaluateCryptoAlert({

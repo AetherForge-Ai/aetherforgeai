@@ -12,6 +12,13 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  experimental: {
+    // Dynamic dashboard RSC must not be replayed from the client router cache
+    // after a paper-book switch. Static marketing prefetch keeps its default.
+    staleTimes: {
+      dynamic: 0,
+    },
+  },
   allowedDevOrigins: ["*"],
   async headers() {
     // Only cache-control headers here. CSP and CORS are handled exclusively in middleware.ts
