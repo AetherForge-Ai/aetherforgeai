@@ -86,7 +86,11 @@ export const api = {
     });
   },
 
-  delete<T>(url: string): Promise<ApiResponse<T>> {
-    return request<T>(url, { method: "DELETE" });
+  delete<T>(url: string, body?: unknown): Promise<ApiResponse<T>> {
+    return request<T>(url, {
+      method: "DELETE",
+      headers: body !== undefined ? { "Content-Type": "application/json" } : undefined,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
   },
 };

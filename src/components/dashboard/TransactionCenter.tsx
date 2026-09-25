@@ -18,6 +18,7 @@ import { formatMoney, currencyForTicker, type CurrencyCode } from "@/lib/currenc
 import { useFxRates } from "@/hooks/useFxRates";
 import { buildTradePreview, type TradePreview } from "@/lib/trade-preview";
 import { bumpHoldingsGeneration } from "@/lib/holdings-generation";
+import { useTradeReviewGate } from "@/lib/trade-review-gate";
 import { TradeReview } from "@/components/dashboard/TradeReview";
 import { formatNumber, type Stock } from "@/lib/portfolio";
 import { lookupTicker } from "@/lib/market";
@@ -1049,7 +1050,15 @@ export function TransactionDialog({
   const [amount, setAmount] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
-  const submittingRef = useRef(false);
+  const {
+    submittingRef,
+    confirmReady,
+    beginReviewGuard,
+    armReview,
+    disarmReview,
+    claimCommit,
+    releaseCommit,
+  } = useTradeReviewGate();
   const [step, setStep] = useState<"edit" | "review">("edit");
   const [reviewPreview, setReviewPreview] = useState<TradePreview | null>(null);
   const { rates: fxRates } = useFxRates();
@@ -1129,6 +1138,7 @@ export function TransactionDialog({
     setNotes("");
     setStep("edit");
     setReviewPreview(null);
+    disarmReview();
     // New buy defaults to today ⇒ the price locks to live once a ticker is chosen.
     setExecutedDate(todayStr);
     setPriceLoading(false);
@@ -1138,7 +1148,7 @@ export function TransactionDialog({
       // Lock live gold spot once the dialog opens on the metals path.
       void lockToLivePrice("GOLD", "metal");
     }
-  }, [open, mode, todayStr, preferredAssetType]);
+  }, [open, mode, todayStr, preferredAssetType, disarmReview]);
 
   // Sell mode: the holding currently selected in the picker (for max qty + prefill).
   // Prefer exact _id match when available so multiple GOLD/SILVER lots can be distinguished.
@@ -1287,7 +1297,7 @@ export function TransactionDialog({
 
   /** Validate a buy or sell and show the review. Does not write the ledger. */
   function beginReview() {
-    if (submittingRef.current || saving) return;
+    if (!beginReviewGuard() || saving) return;
     const t = (selectedHolding?.ticker || ticker).trim().toUpperCase();
     const q = Number(quantity);
     const typedPrice = Number(price);
@@ -1319,12 +1329,12 @@ export function TransactionDialog({
         rates: fxRates,
       })
     );
+    armReview();
     setStep("review");
   }
 
   async function submit() {
-    if (submittingRef.current || saving) return;
-    // Client-side validation with clear messages.
+    if (saving) return;
     if (isTrade) {
       const t = ticker.trim().toUpperCase();
       const q = Number(quantity);
@@ -1333,22 +1343,23 @@ export function TransactionDialog({
         if (!executedDate) return toast.error("Date is required");
         if (executedDate > todayStr) return toast.error("Date can't be in the future");
       }
-      if (!t && !(selectedHolding?.metalSourceId)) return toast.error("Ticker is required");
+      if (!t && !selectedHolding?.metalSourceId) return toast.error("Ticker is required");
       if (!(q > 0)) return toast.error("Quantity must be greater than 0");
-      if (!(p > 0) && !(selectedHolding?.metalSourceId)) return toast.error("Price must be greater than 0");
+      if (!(p > 0) && !selectedHolding?.metalSourceId) return toast.error("Price must be greater than 0");
       if (mode === "sell") {
         if (!selectedHolding) return toast.error("Select a holding you own to sell");
         if (q > (selectedHolding.shares || 0) + 1e-6) {
           return toast.error(`You only hold ${formatNumber(selectedHolding.shares || 0)} of ${selectedHolding.ticker}`);
         }
       }
+      if (step !== "review" || !claimCommit()) return;
     } else {
       const a = Number(amount);
       if (!(a > 0)) return toast.error("Amount must be greater than 0");
       if (mode === "withdraw" && a > cash + 1e-6) return toast.error("Insufficient cash balance");
+      if (submittingRef.current) return;
+      submittingRef.current = true;
     }
-
-    submittingRef.current = true;
     setSaving(true);
 
     // ── Precious-metal sell (from the dedicated precious_metal table) ──────
@@ -1361,17 +1372,17 @@ export function TransactionDialog({
       const held = selectedHolding.shares || 0;
       if (!(sellQty > 0)) {
         setSaving(false);
-        submittingRef.current = false;
+        releaseCommit();
         return toast.error("Quantity must be greater than 0");
       }
       if (sellQty > held + 1e-6) {
         setSaving(false);
-        submittingRef.current = false;
+        releaseCommit();
         return toast.error(`You only hold ${formatNumber(held)} oz of ${selectedHolding.ticker}`);
       }
 
       // Pass ounces so the API can do a partial sell when qty < held.
-      const url = `/api/metals/${metalId}?ounces=${encodeURIComponent(String(sellQty))}`;
+      const url = `/api/metals/${metalId}?ounces=${encodeURIComponent(String(sellQty))}&confirm=true`;
       console.log(
         `[transaction-center] Selling ${sellQty} oz ${selectedHolding.ticker} (held ${held}) via ${url}`
       );
@@ -1383,9 +1394,9 @@ export function TransactionDialog({
         soldOunces?: number;
         remainingOunces?: number;
         partial?: boolean;
-      }>(url);
+      }>(url, { confirm: true });
       setSaving(false);
-      submittingRef.current = false;
+      releaseCommit();
 
       if (res.ok) {
         const sold = res.data?.soldOunces ?? sellQty;
@@ -1435,6 +1446,7 @@ export function TransactionDialog({
       if (feeValue > 0) payload.fees = feeValue;
       // Record the chosen transaction date (buy). yyyy-mm-dd → server stores as Date.
       if (mode === "buy" && executedDate) payload.executed_at = executedDate;
+      payload.confirm = true;
     } else {
       payload.amount = Number(amount);
     }
@@ -1442,7 +1454,8 @@ export function TransactionDialog({
     console.log(`[transaction-center] Submitting ${mode}`, payload);
     const res = await api.post<Ledger>("/api/transactions", payload);
     setSaving(false);
-    submittingRef.current = false;
+    if (isTrade) releaseCommit();
+    else submittingRef.current = false;
 
     if (res.ok && res.data) {
       const labels: Record<TxType, string> = {
@@ -1893,13 +1906,15 @@ export function TransactionDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="ghost" onClick={requestExplicitClose} disabled={saving}>
+          <Button type="button" variant="ghost" onClick={requestExplicitClose} disabled={saving}>
             Cancel
           </Button>
           {step === "review" && isTrade ? (
             <Button
+              type="button"
               variant="ghost"
               onClick={() => {
+                disarmReview();
                 setStep("edit");
                 setReviewPreview(null);
               }}
@@ -1909,12 +1924,13 @@ export function TransactionDialog({
             </Button>
           ) : null}
           <Button
+            type="button"
             onClick={step === "review" || !isTrade ? submit : beginReview}
             disabled={
               saving ||
               priceLoading ||
-              (step === "review"
-                ? !reviewPreview
+              (step === "review" && isTrade
+                ? !confirmReady || !reviewPreview
                 : isTrade
                   ? !(ticker.trim() || selectedHolding?.metalSourceId) ||
                     !(Number(quantity) > 0) ||
@@ -1927,10 +1943,14 @@ export function TransactionDialog({
               <>
                 <Loader2 className="mr-2 size-4 animate-spin" /> Recording…
               </>
-            ) : step === "review" && isTrade ? (
-              "Confirm"
             ) : isTrade ? (
-              "Review"
+              step === "review"
+                ? mode === "sell"
+                  ? "Confirm sell"
+                  : "Confirm buy"
+                : mode === "sell"
+                  ? "Review sell"
+                  : "Review buy"
             ) : (
               titles[mode].split(" ")[0]
             )}

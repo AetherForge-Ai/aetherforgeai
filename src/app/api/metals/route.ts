@@ -6,6 +6,7 @@ import { accountMismatchResponse, privateJson } from "@/lib/account-response";
 import { totalumSdk } from "@/lib/totalum";
 import { getMetalsSpot } from "@/lib/metals";
 import { recordMetalTrade } from "@/lib/transactions";
+import { TRADE_CONFIRM_REQUIRED } from "@/lib/trade-confirm";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,7 @@ const createSchema = z.object({
   metal: z.enum(["gold", "silver"]),
   ounces: z.number().positive("Ounces must be greater than 0"),
   purchase_price_per_oz: z.number().positive("Purchase price must be greater than 0"),
+  confirm: z.boolean().optional(),
 });
 
 /**
@@ -83,6 +85,9 @@ export async function POST(req: Request) {
     const parsed = createSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json({ ok: false, error: parsed.error.flatten() }, { status: 400 });
+    }
+    if (parsed.data.confirm !== true) {
+      return NextResponse.json({ ok: false, error: TRADE_CONFIRM_REQUIRED }, { status: 400 });
     }
 
     const record = {

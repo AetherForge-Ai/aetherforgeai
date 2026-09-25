@@ -29,6 +29,7 @@ import { estimateFee, feeMarketFor, presetsForMarket, type FeePreset } from "@/l
 import { useFxRates } from "@/hooks/useFxRates";
 import { buildTradePreview, type TradePreview } from "@/lib/trade-preview";
 import { bumpHoldingsGeneration } from "@/lib/holdings-generation";
+import { useTradeReviewGate } from "@/lib/trade-review-gate";
 import { TradeReview } from "@/components/dashboard/TradeReview";
 
 export interface BuyTarget {
@@ -71,7 +72,14 @@ export function BuyDialog({
   const [notes, setNotes] = useState("");
   const [fees, setFees] = useState("");
   const [saving, setSaving] = useState(false);
-  const submittingRef = useRef(false);
+  const {
+    confirmReady,
+    beginReviewGuard,
+    armReview,
+    disarmReview,
+    claimCommit,
+    releaseCommit,
+  } = useTradeReviewGate();
   const [step, setStep] = useState<"edit" | "review">("edit");
   const [reviewPreview, setReviewPreview] = useState<TradePreview | null>(null);
   const { rates: fxRates } = useFxRates();
@@ -104,6 +112,7 @@ export function BuyDialog({
     setNotes("");
     setStep("edit");
     setReviewPreview(null);
+    disarmReview();
     setPriceEdited(false);
     if (target.price && target.price > 0) setLiveSpotRef(target.price);
     setDate(new Date().toISOString().slice(0, 10));
@@ -119,7 +128,7 @@ export function BuyDialog({
       setFeePresetId("zero");
       setFees("");
     }
-  }, [open, target]);
+  }, [open, target, disarmReview]);
 
   // Load cash balance when the dialog opens. Apply only if the echoed userId
   // is still the active account — a late prior-account body must not replace it.
@@ -294,7 +303,7 @@ export function BuyDialog({
   }
 
   function beginReview() {
-    if (submittingRef.current || saving) return;
+    if (!beginReviewGuard() || saving) return;
     if (!ticker) return toast.error("No ticker selected");
     if (!(priceNum > 0)) return toast.error("Enter a valid price per share");
     if (!(amountNum > 0)) return toast.error("Enter the dollar amount to invest");
@@ -335,6 +344,7 @@ export function BuyDialog({
         rates: fxRates,
       })
     );
+    armReview();
     setStep("review");
   }
 
@@ -343,7 +353,7 @@ export function BuyDialog({
       beginReview();
       return;
     }
-    if (submittingRef.current || saving) return;
+    if (saving) return;
     if (!ticker) return toast.error("No ticker selected");
     if (!(priceNum > 0)) return toast.error("Enter a valid price per share");
     if (!(amountNum > 0)) return toast.error("Enter the dollar amount to invest");
@@ -353,8 +363,8 @@ export function BuyDialog({
         `Insufficient cash — you have ${formatMoney(cashBalance ?? 0, "NZD")} available`
       );
     }
+    if (!claimCommit()) return;
 
-    submittingRef.current = true;
     setSaving(true);
     const payload = {
       type: "buy" as const,
@@ -369,11 +379,12 @@ export function BuyDialog({
       fees: resolvedBuyFee(+sharesNum.toFixed(6), +priceNum.toFixed(6)) || undefined,
       notes: notes.trim() || undefined,
       executed_at: date ? new Date(date).toISOString() : undefined,
+      confirm: true as const,
     };
     console.log("[buy-dialog] Submitting buy:", payload);
     const res = await api.post("/api/transactions", payload);
     setSaving(false);
-    submittingRef.current = false;
+    releaseCommit();
 
     if (res.ok) {
       toast.success(`Bought ${formatNumber(sharesNum)} ${displaySymbol} · ${formatMoney(totalCost, currency)}`);
@@ -669,17 +680,18 @@ export function BuyDialog({
           </div>
 
         <DialogFooter className="shrink-0 gap-2 border-t border-border/60 bg-background px-5 py-4 sm:px-6">
-          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
+          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancel
           </Button>
           {step === "review" ? (
-            <Button variant="ghost" onClick={() => { setStep("edit"); setReviewPreview(null); }} disabled={saving}>
+            <Button type="button" variant="ghost" onClick={() => { disarmReview(); setStep("edit"); setReviewPreview(null); }} disabled={saving}>
               Back
             </Button>
           ) : null}
           <Button
+            type="button"
             onClick={confirm}
-            disabled={saving || (step === "review" ? !reviewPreview : !valid || exceedsCash)}
+            disabled={saving || (step === "review" ? !confirmReady || !reviewPreview : !valid || exceedsCash)}
             className={cn("font-semibold shadow-glow")}
           >
             {saving ? (
@@ -687,13 +699,9 @@ export function BuyDialog({
                 <Loader2 className="mr-2 size-4 animate-spin" /> Buying…
               </>
             ) : step === "review" ? (
-              <>
-                <ShoppingCart className="mr-2 size-4" /> Confirm purchase
-              </>
+              "Confirm buy"
             ) : (
-              <>
-                <ShoppingCart className="mr-2 size-4" /> Review purchase
-              </>
+              "Review buy"
             )}
           </Button>
         </DialogFooter>
