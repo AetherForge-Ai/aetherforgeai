@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getCurrentUser, getTradeSessionUser, isStripeConfigured, hasPaidSubscription, type AppUser } from "@/lib/session";
+import { getTradeSessionUser, isStripeConfigured, hasPaidSubscription, type AppUser } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
 import { getMetalsSpot, type MetalKey } from "@/lib/metals";
 import { archiveClosedPositionAlerts, recordMetalTrade } from "@/lib/transactions";
@@ -34,7 +34,7 @@ async function loadOwnedMetal(id: string, userId: string) {
 export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await ctx.params;
-    const user = await getCurrentUser();
+    const user = await getTradeSessionUser();
     if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     if (!isEntitled(user)) {
       return NextResponse.json({ ok: false, error: "Not entitled" }, { status: 403 });

@@ -124,7 +124,9 @@ export function AccountOwnerGuard({
         hardReload();
         return;
       }
-      setPhase("signed-out");
+      // The server already rendered this user. A null probe here is a session
+      // disagreement, not a logged-out visit — don't paint the guest gate.
+      setPhase("mismatch");
     })();
     return () => {
       cancelled = true;

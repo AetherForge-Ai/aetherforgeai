@@ -43,6 +43,24 @@ export function isConfirmedCommitBody(body: unknown): boolean {
   }
 }
 
+export type StableConfirmDecision = "send" | "mismatch" | "unauthorized";
+
+/**
+ * Whether a confirmed trade may be posted.
+ * A null stable session must not fall through to the rotating get-session
+ * or to a POST that will 401 after that call deletes the cookie.
+ */
+export function stableConfirmDecision(input: {
+  ok: boolean;
+  userId: string | null;
+  activeUserId: string | null;
+}): StableConfirmDecision {
+  if (!input.ok) return "mismatch";
+  if (input.userId && input.activeUserId && input.userId !== input.activeUserId) return "mismatch";
+  if (!input.userId) return "unauthorized";
+  return "send";
+}
+
 /**
  * After a confirmed commit gets 401: retry the same body once, or stop.
  * `tradeRefreshUsed` means this attempt already ran the single rotating refresh.

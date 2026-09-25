@@ -6,7 +6,7 @@
  * share the same upstream fetch.
  */
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/session";
+import { getStableSessionUser } from "@/lib/session";
 import { fetchCryptoLiveSnapshot } from "@/lib/market-data";
 import { normalizeCryptoSymbols } from "@/lib/crypto-live";
 
@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   try {
-    const user = await getCurrentUser({ refreshSession: false });
+    const user = await getStableSessionUser();
     if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
     const url = new URL(req.url);
