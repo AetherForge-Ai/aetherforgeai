@@ -116,6 +116,12 @@ export function AccountOwnerGuard({
         setPhase("paint");
         return;
       }
+      // A null live session is signed out. Never leave the previous paper book
+      // on screen — the members prompt has no account name or balances.
+      if (decision === "signed-out") {
+        setPhase("signed-out");
+        return;
+      }
       if (decision === "mismatch") {
         if (recentlyRecovered()) {
           setPhase("mismatch");
@@ -124,8 +130,6 @@ export function AccountOwnerGuard({
         hardReload();
         return;
       }
-      // The server already rendered this user. A null probe here is a session
-      // disagreement, not a logged-out visit — don't paint the guest gate.
       setPhase("mismatch");
     })();
     return () => {

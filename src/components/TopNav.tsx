@@ -236,7 +236,7 @@ function AccountMenu({
         )}
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link href="/logout" className="text-destructive focus:text-destructive"><LogOut className="size-4" /> Sign out</Link>
+          <a href="/logout" className="text-destructive focus:text-destructive"><LogOut className="size-4" /> Sign out</a>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -311,7 +311,7 @@ function MobileDrawer({
                 </Link>
               </Button>
               <Button asChild variant="outline" className="w-full justify-start text-destructive">
-                <Link href="/logout"><LogOut className="size-4" /> Sign out</Link>
+                <a href="/logout"><LogOut className="size-4" /> Sign out</a>
               </Button>
             </>
           ) : (
