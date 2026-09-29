@@ -41,25 +41,8 @@ const nextConfig: NextConfig = {
       ...PUBLIC_ROUTE_ALIASES.map((row) => ({ ...row, permanent: false })),
     ];
   },
-  async headers() {
-    // Only cache-control headers here. CSP and CORS are handled exclusively in middleware.ts
-    return [
-      {
-        source: '/:path*',
-        headers: [
-          {
-            key: "Cache-Control",
-            value: "private, no-store, no-cache, must-revalidate",
-          },
-          { key: "CDN-Cache-Control", value: "no-store" },
-          { key: "Cloudflare-CDN-Cache-Control", value: "no-store" },
-          { key: "Pragma", value: "no-cache" },
-          { key: "Expires", value: "0" },
-          { key: "Vary", value: "Cookie" },
-        ],
-      },
-    ];
-  },
+  // Cache-Control is applied once in middleware.ts. A global headers()
+  // entry was appended on top of that and duplicated the directive.
   webpack: (config, { dev }) => {
     if (dev) {
       config.watchOptions = {

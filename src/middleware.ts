@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { PRIVATE_NO_STORE_HEADERS } from "@/lib/account-guard";
 import { portfolioAliasRedirect } from "@/lib/portfolio-route-aliases";
+import {
+  filterAnonymousAuthSetCookies,
+  isCacheableMarketingPath,
+  PUBLIC_MARKETING_CACHE_HEADERS,
+} from "@/lib/private-document";
 import { publicAliasRedirect } from "@/lib/public-route-aliases";
 import {
   anonymousAccountApi,
@@ -68,6 +73,17 @@ const publicRoutes = [
   "/stripe/cancel",
 ];
 
+function mergeVary(response: NextResponse, extra: string) {
+  const existing = response.headers.get("Vary");
+  const parts = new Set(
+    `${existing ?? ""}, ${extra}`
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean)
+  );
+  response.headers.set("Vary", Array.from(parts).join(", "));
+}
+
 // Add CORS headers if the origin is allowed
 function addCorsHeaders(response: NextResponse, request: NextRequest) {
   const origin = request.headers.get("origin");
@@ -78,7 +94,7 @@ function addCorsHeaders(response: NextResponse, request: NextRequest) {
     response.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
     response.headers.set("Access-Control-Allow-Credentials", "true");
     response.headers.set("Access-Control-Max-Age", "86400");
-    response.headers.set("Vary", "Origin");
+    mergeVary(response, "Origin");
   }
 
   return response;
@@ -91,17 +107,10 @@ function addCspHeaders(response: NextResponse) {
   return response;
 }
 
-function applyPrivateNoStore(response: NextResponse) {
-  for (const [key, value] of Object.entries(PRIVATE_NO_STORE_HEADERS)) {
+function applyHeaderMap(response: NextResponse, headers: Record<string, string>) {
+  for (const [key, value] of Object.entries(headers)) {
     if (key.toLowerCase() === "vary") {
-      const existing = response.headers.get("Vary");
-      const parts = new Set(
-        `${existing ?? ""}, ${value}`
-          .split(",")
-          .map((part) => part.trim())
-          .filter(Boolean)
-      );
-      response.headers.set("Vary", Array.from(parts).join(", "));
+      mergeVary(response, value);
       continue;
     }
     response.headers.set(key, value);
@@ -109,59 +118,93 @@ function applyPrivateNoStore(response: NextResponse) {
   return response;
 }
 
-const PRIVATE_PAGE_PREFIXES = ["/dashboard", "/notifications", "/alerts", "/transactions"];
+function applyPrivateNoStore(response: NextResponse) {
+  return applyHeaderMap(response, PRIVATE_NO_STORE_HEADERS);
+}
 
-function isPrivatePage(pathname: string): boolean {
-  return PRIVATE_PAGE_PREFIXES.some(
-    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
-  );
+function applyPublicMarketingCache(response: NextResponse) {
+  response.headers.delete("Pragma");
+  response.headers.delete("Expires");
+  response.headers.delete("Surrogate-Control");
+  return applyHeaderMap(response, PUBLIC_MARKETING_CACHE_HEADERS);
+}
+
+const STATIC_FILE = /\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|map|txt|xml|woff2?)$/i;
+
+function applyCachePolicy(response: NextResponse, pathname: string) {
+  if (pathname.startsWith("/_next/") || STATIC_FILE.test(pathname)) return response;
+  if (pathname.startsWith("/api/")) {
+    // Public market reads keep the cache policy their route sets.
+    // Session and account books never do.
+    if (pathname === "/api/session" || pathname.startsWith("/api/session/") || isProtectedAccountApi(pathname)) {
+      applyPrivateNoStore(response);
+    }
+    return response;
+  }
+  if (isCacheableMarketingPath(pathname)) return applyPublicMarketingCache(response);
+  return applyPrivateNoStore(response);
+}
+
+function stripLeakedAuthCookies(
+  response: NextResponse,
+  pathname: string,
+  method: string,
+  hasSessionToken: boolean,
+) {
+  const headerBag = response.headers as Headers & { getSetCookie?: () => string[] };
+  const current = typeof headerBag.getSetCookie === "function" ? headerBag.getSetCookie() : [];
+  if (!current.length) return response;
+  const next = filterAnonymousAuthSetCookies(current, pathname, method, hasSessionToken);
+  if (next.length === current.length && next.every((line, index) => line === current[index])) return response;
+  response.headers.delete("set-cookie");
+  for (const line of next) response.headers.append("set-cookie", line);
+  return response;
+}
+
+function finish(response: NextResponse, request: NextRequest, signedIn: boolean) {
+  const { pathname } = request.nextUrl;
+  addCorsHeaders(response, request);
+  addCspHeaders(response);
+  applyCachePolicy(response, pathname);
+  stripLeakedAuthCookies(response, pathname, request.method, signedIn);
+  return response;
 }
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const signedIn = requestHasSessionToken((name) => request.cookies.get(name)?.value);
 
   // Handle CORS preflight requests
   if (request.method === "OPTIONS") {
     const response = new NextResponse(null, { status: 204 });
-    addCorsHeaders(response, request);
-    addCspHeaders(response);
-    return response;
+    return finish(response, request, signedIn);
   }
 
   const alias = publicAliasRedirect(pathname) ?? portfolioAliasRedirect(pathname);
   if (alias) {
     const redirectResponse = NextResponse.redirect(new URL(alias, request.url));
-    addCorsHeaders(redirectResponse, request);
-    addCspHeaders(redirectResponse);
-    return redirectResponse;
+    return finish(redirectResponse, request, signedIn);
   }
 
-  const signedIn = requestHasSessionToken((name) => request.cookies.get(name)?.value);
   if (!signedIn) {
     const anon = anonymousAccountApi(pathname, request.method);
     if (anon === "session-null") {
       const body = NextResponse.json({ user: null });
-      addCorsHeaders(body, request);
-      addCspHeaders(body);
-      return applyPrivateNoStore(body);
+      return finish(body, request, false);
     }
     if (anon === "unauthorized") {
       const body = NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-      addCorsHeaders(body, request);
-      addCspHeaders(body);
-      return applyPrivateNoStore(body);
+      return finish(body, request, false);
     }
   }
 
-  // Create response
-  const response = NextResponse.next();
-
-  // Add CORS and CSP headers
-  addCorsHeaders(response, request);
-  addCspHeaders(response);
-  if (isPrivatePage(pathname) || pathname === "/api/session" || isProtectedAccountApi(pathname)) {
-    applyPrivateNoStore(response);
-  }
+  // Document mode is decided from this request's cookie, not from a
+  // worker-cached session. "guest" renders the membership gate. "member"
+  // renders a skeleton until GET /api/session confirms the same browser.
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-af-doc", signedIn ? "member" : "guest");
+  const response = NextResponse.next({ request: { headers: requestHeaders } });
+  finish(response, request, signedIn);
 
   // Allow all API routes and static files
   if (
@@ -181,18 +224,12 @@ export async function middleware(request: NextRequest) {
   // Better Auth uses "better-auth.session_token" or "__Secure-better-auth.session_token" (when secure)
   // An empty leftover cookie is not a session — /settings, /account, /profile
   // and /onboarding must go to login instead of painting the app shell.
-  const sessionCookie =
-    request.cookies.get("better-auth.session_token") ||
-    request.cookies.get("__Secure-better-auth.session_token");
-
-  if (!sessionCookie?.value?.trim()) {
+  if (!signedIn) {
     // Redirect to login if no session cookie found
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("redirect", pathname);
     const redirectResponse = NextResponse.redirect(loginUrl);
-    addCorsHeaders(redirectResponse, request);
-    addCspHeaders(redirectResponse);
-    return redirectResponse;
+    return finish(redirectResponse, request, false);
   }
 
   // Cookie exists - allow access
