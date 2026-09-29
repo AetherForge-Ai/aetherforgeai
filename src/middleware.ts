@@ -27,6 +27,10 @@ function isAllowedOrigin(origin: string, request: NextRequest): boolean {
 const publicRoutes = [
   "/",
   "/about",
+  "/contact",
+  "/faq",
+  "/features",
+  "/how",
   "/performance",
   "/dashboard", // logged-out visitors get a locked, read-only preview (page handles guest vs member)
   "/markets", // full-page Stock Markets browser — read-only preview for guests

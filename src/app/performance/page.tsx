@@ -12,14 +12,14 @@ import {
 } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Live Results & Performance Proof — AI Trading Bot Accuracy | AetherForge AI",
+  title: "Example results — paper portfolio snapshots | AetherForge AI",
   description:
-    "See real, timestamped screenshots from today of the AetherForge AI portfolio bot delivering accurate NZX & ASX market intelligence, live multi-asset net-worth tracking and institutional analytics. Transparent proof — verifiable against live markets.",
+    "Timestamped screenshots of an AetherForge paper portfolio. Illustrative only — not a trading platform, not a broker, and not a promise of future returns.",
   alternates: { canonical: "/performance" },
   openGraph: {
     title: "Live Results & Performance Proof — AetherForge AI",
     description:
-      "Real, unedited, timestamped screenshots proving the AI portfolio bot's accuracy across NZX, ASX, US equities, crypto and metals — captured live today.",
+      "Timestamped paper-portfolio snapshots across NZX, ASX, US equities, crypto and metals. Illustrative only — not a broker and not a guarantee.",
     url: "/performance",
     type: "website",
   },
@@ -72,13 +72,14 @@ export default function PerformancePage() {
               prices on that day and at these times.
             </p>
             <p>
-              2.4% profit over the space of 8-9 hours is not something I am seeing ANY trading
-              platforms achieve. AetherForge AI not only proves these results, but produces positive
-              results EVERY SINGLE TIME.
+              Over that day the paper portfolio showed about a 2.4% mark-to-market change across
+              8–9 hours. That is one example from one day. It is not a claim that AetherForge beats
+              every platform, and it is not a promise that results will be positive again.
             </p>
             <p>
-              This is achieved by using DATA BACKED Intelligence — Data Backed means factual
-              intelligence, not guess work, actual real intelligence.
+              The screenshots use market data that was available at those times. AetherForge is a
+              paper portfolio and research tool — it does not place trades, and past examples are
+              not a forecast.
             </p>
           </div>
         </section>
@@ -125,10 +126,9 @@ export default function PerformancePage() {
             ))}
           </div>
           <p className="mx-auto mt-10 max-w-3xl text-center text-base leading-relaxed text-muted-foreground">
-            Seeing accurate information in{" "}
-            <span className="font-semibold text-foreground">live conditions — not backtests</span> — is
-            what separates an average tool from a genuine edge. Anyone can curate a perfect chart after
-            the fact. Proving it in real time, on real money, is a different standard entirely.
+            These figures were captured while markets were open. They show how the paper book was
+            marked that day. They are not a guarantee, not a comparison that AetherForge beats other
+            products, and not evidence of money placed with a broker.
           </p>
         </section>
 
@@ -148,7 +148,8 @@ export default function PerformancePage() {
                 <Link href="/how-it-works" className="hover:text-foreground">How it works</Link>
                 <Link href="/pricing" className="hover:text-foreground">Pricing</Link>
                 <Link href="/about" className="hover:text-foreground">About</Link>
-                <Link href="/privacy-policy" className="hover:text-foreground">AI Privacy Act</Link>
+                <Link href="/privacy-policy" className="hover:text-foreground">Privacy</Link>
+                <Link href="/terms-of-service" className="hover:text-foreground">Terms</Link>
                 <Link href="/ai-disclaimer" className="hover:text-foreground">AI Disclaimer</Link>
               </div>
             </div>
@@ -156,9 +157,9 @@ export default function PerformancePage() {
             {/* Risk disclaimer */}
             <div className="mt-10 border-t border-border/50 pt-6">
               <p className="text-center text-xs leading-relaxed text-muted-foreground/70">
-                Past performance and example results are for illustrative purposes only. Trading
-                involves risk of loss. All examples shown are real but not guarantees of future
-                results.
+                Example screenshots are illustrative. AetherForge does not execute trades and is not a
+                licensed financial advice service. Past paper-portfolio changes are not a reliable
+                indicator of future results. Markets can fall as well as rise.
               </p>
               <p className="mt-3 text-center text-xs leading-relaxed text-muted-foreground/70">
                 © {new Date().getFullYear()} AetherForge AI — New Zealand owned &amp; operated. For

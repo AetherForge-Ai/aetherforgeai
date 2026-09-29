@@ -1,9 +1,4 @@
-import {
-  getCurrentUser,
-  isStripeConfigured,
-  hasActiveSubscription,
-} from "@/lib/session";
-import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/session";
 import { AppShell } from "@/components/AppShell";
 import { MarketsPageContent } from "@/components/dashboard/MarketsPageContent";
 
@@ -23,10 +18,6 @@ export default async function MarketsPage() {
         <MarketsPageContent preview />
       </AppShell>
     );
-  }
-
-  if (isStripeConfigured() && !hasActiveSubscription(user)) {
-    redirect("/pricing");
   }
 
   return (

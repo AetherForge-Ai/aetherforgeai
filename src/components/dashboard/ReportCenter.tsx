@@ -30,6 +30,7 @@ import {
   formatAucklandDateTime,
   formatDuration,
   formatReportCooldownLine,
+  isFreeReportPlan,
   reportCadence,
   type ReportCadence,
 } from "@/lib/entitlements";
@@ -73,9 +74,11 @@ interface BotQuota {
   nextAllowedAt: string | null;
   lastReportAt: string | null;
   cadenceLabel: string;
-  cadenceUnit: "rolling" | "week" | "day";
+  cadenceUnit: "rolling" | "week" | "day" | "month";
   cadenceMs?: number;
   perLabel?: string;
+  reportsUsed?: number;
+  reportsLimit?: number;
 }
 
 interface ReportsResponse {
@@ -151,6 +154,9 @@ export function ReportCenter({
   const [now, setNow] = React.useState<number>(() => Date.now());
   // Server cadence (ms) once history loads, so the countdown cannot drift from the API.
   const [serverCadence, setServerCadence] = React.useState<ReportCadence | null>(null);
+  const [serverQuota, setServerQuota] = React.useState<ReportsResponse["quota"] | null>(null);
+  const [access, setAccess] = React.useState(botAccess);
+  React.useEffect(() => setAccess(botAccess), [botAccess]);
   const sectionRef = React.useRef<HTMLElement | null>(null);
 
   // Stable anchor for Assistant Guide "Run Stox or Koins" → /dashboard#report-center
@@ -170,7 +176,8 @@ export function ReportCenter({
     };
   }, []);
 
-  const canRun = (kind: BotKind) => botAccess === "both" || botAccess === kind;
+  const canRun = (kind: BotKind) => access === "both" || access === kind;
+  const freePlan = isFreeReportPlan(plan);
 
   const holdingRows = React.useMemo<AccountHoldingRow[]>(
     () => holdings.map((row) => ({ ...row, user: row.user ?? row.userId ?? userId ?? undefined })),
@@ -190,7 +197,26 @@ export function ReportCenter({
   // bot has its OWN quota so Stox and Koins unlock independently. Prefer the
   // cadence the API just returned (rolling 4h for paid, 7 days for free/weekly).
   const cadence = serverCadence ?? reportCadence(plan);
-  const quotaFor = (kind: BotKind) => evaluateReportQuota(cadence, lastReportAt[kind], now);
+  const quotaFor = (kind: BotKind) => {
+    const server = serverQuota?.[kind];
+    if (server?.cadenceUnit === "month") {
+      return {
+        allowed: server.allowed,
+        waitMs: server.waitMs,
+        nextAllowedAt: server.nextAllowedAt,
+        lastReportAt: server.lastReportAt,
+        cadence: {
+          unit: "month" as const,
+          ms: server.cadenceMs ?? 0,
+          label: server.cadenceLabel,
+          perLabel: server.perLabel || "per month",
+        },
+        reportsUsed: server.reportsUsed,
+        reportsLimit: server.reportsLimit,
+      };
+    }
+    return evaluateReportQuota(cadence, lastReportAt[kind], now);
+  };
   const anyLocked = (["stock", "crypto"] as BotKind[]).some((k) => !quotaFor(k).allowed);
 
   const pendingHistoryRef = React.useRef<{
@@ -205,7 +231,14 @@ export function ReportCenter({
       crypto: data.quota?.crypto?.lastReportAt ?? null,
     });
     const sample = data.quota?.stock?.cadenceMs ? data.quota.stock : data.quota?.crypto;
-    if (sample?.cadenceMs && sample.perLabel && (sample.cadenceUnit === "rolling" || sample.cadenceUnit === "week")) {
+    if (sample?.cadenceUnit === "month") {
+      setServerCadence({
+        unit: "month",
+        ms: 0,
+        label: sample.cadenceLabel,
+        perLabel: sample.perLabel || "per month",
+      });
+    } else if (sample?.cadenceMs && sample.perLabel && (sample.cadenceUnit === "rolling" || sample.cadenceUnit === "week")) {
       setServerCadence({
         unit: sample.cadenceUnit,
         ms: sample.cadenceMs,
@@ -213,6 +246,7 @@ export function ReportCenter({
         perLabel: sample.perLabel,
       });
     }
+    if (data.quota) setServerQuota(data.quota);
   }, []);
 
   const loadHistory = React.useCallback(async () => {
@@ -273,6 +307,7 @@ export function ReportCenter({
     setHistory([]);
     setLastReportAt({ stock: null, crypto: null });
     setServerCadence(null);
+    setServerQuota(null);
     pendingHistoryRef.current = null;
     void loadHistory().catch(() => {});
   }, [loadHistory, userId]);
@@ -305,6 +340,28 @@ export function ReportCenter({
   }, [anyLocked]);
 
   const runLock = React.useRef(false);
+
+  async function chooseFreeBot(kind: BotKind) {
+    if (runLock.current) return;
+    runLock.current = true;
+    setRunning(kind);
+    const res = await api.post<{ plan?: string; alreadyPaid?: boolean }>("/api/free-trial/activate", {
+      bot: kind,
+    });
+    setRunning(null);
+    runLock.current = false;
+    if (!res.ok) {
+      toast.error(typeof res.error === "string" ? res.error : "Could not activate the free plan.");
+      return;
+    }
+    if (res.data?.alreadyPaid) {
+      toast.error("Your paid plan already includes bot access.");
+      return;
+    }
+    setAccess(kind);
+    toast.success(kind === "crypto" ? "Koins is your free bot — 3 reports a month." : "Stox is your free bot — 3 reports a month.");
+  }
+
   const shownKind = React.useRef<BotKind | null>(null);
 
   async function runReport(kind: BotKind) {
@@ -455,9 +512,18 @@ export function ReportCenter({
           </span>
           <div>
             <p className="text-sm font-semibold">
-              One full <span className="text-foreground">Stox</span> report{" "}
-              <span className="text-muted-foreground">and</span> one full{" "}
-              <span className="text-foreground">Koins</span> report {cadence.perLabel}
+              {cadence.unit === "month" ? (
+                <>
+                  Free plan: <span className="text-foreground">3 AI reports</span> per month on your chosen bot
+                  (Stox or Koins)
+                </>
+              ) : (
+                <>
+                  One full <span className="text-foreground">Stox</span> report{" "}
+                  <span className="text-muted-foreground">and</span> one full{" "}
+                  <span className="text-foreground">Koins</span> report {cadence.perLabel}
+                </>
+              )}
               <span className="font-normal text-muted-foreground"> · times in Pacific/Auckland</span>
             </p>
             <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
@@ -543,11 +609,25 @@ export function ReportCenter({
               </div>
               <div className="mt-4">
                 {!unlocked ? (
-                  <Button asChild variant="outline" className="w-full">
-                    <Link href="/pricing">
-                      <Lock className="mr-1 size-4" /> Unlock this monitor
-                    </Link>
-                  </Button>
+                  freePlan ? (
+                    <Button className="w-full" onClick={() => void chooseFreeBot(b.kind)} disabled={running !== null}>
+                      {busy ? (
+                        <>
+                          <Loader2 className="mr-1 size-4 animate-spin" /> Choosing…
+                        </>
+                      ) : (
+                        <>
+                          <Play className="mr-1 size-4" /> Choose {b.name} free
+                        </>
+                      )}
+                    </Button>
+                  ) : (
+                    <Button asChild variant="outline" className="w-full">
+                      <Link href="/pricing">
+                        <Lock className="mr-1 size-4" /> Unlock this monitor
+                      </Link>
+                    </Button>
+                  )
                 ) : botLocked ? (
                   <Button variant="outline" className="w-full" disabled>
                     <Clock className="mr-1 size-4" /> {formatReportCooldownLine({ lastReportAt: botQuota.lastReportAt, waitMs: botQuota.waitMs, cadenceUnit: botQuota.cadence.unit, perLabel: botQuota.cadence.perLabel, now })}

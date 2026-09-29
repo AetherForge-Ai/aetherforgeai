@@ -379,6 +379,11 @@ async function applyTransactionUnlocked(user: AppUser, input: TransactionInput):
 
     const costNative = quantity * price + fees;
     const costNZD = round(nativeToNzd(costNative, currency, rates));
+    if (costNZD > currentCash + 1e-6) {
+      throw new Error(
+        `Insufficient cash — this buy needs NZ$${costNZD.toFixed(2)} and you have NZ$${currentCash.toFixed(2)} available.`
+      );
+    }
     let holdingId: string;
 
     if (holding) {
@@ -429,6 +434,7 @@ async function applyTransactionUnlocked(user: AppUser, input: TransactionInput):
           (assetType === "crypto" ? "Digital Assets" : assetType === "metal" ? "Precious Metals" : "Other"),
         shares: round(quantity, 6),
         purchase_price: round(avgWithFees, 6),
+        purchase_date: executedAt.toISOString(),
         current_price,
         user: user._id,
       });
@@ -715,7 +721,13 @@ async function recordMetalTradeUnlocked(
   let total: number;
   let realizedNZD = 0;
   if (input.side === "buy") {
-    total = round(-(gross + fees));
+    const cost = round(gross + fees);
+    if (cost > currentCash + 1e-6) {
+      throw new Error(
+        `Insufficient cash — this buy needs NZ$${cost.toFixed(2)} and you have NZ$${currentCash.toFixed(2)} available.`
+      );
+    }
+    total = round(-cost);
   } else {
     total = round(gross - fees);
     const avg = Number(input.avgCostNZD) || 0;
@@ -795,10 +807,20 @@ export async function loadLedger(user: AppUser, limit = 60): Promise<Transaction
     _sort: { executed_at: "desc", createdAt: "desc" },
     _limit: limit,
   });
-  const rows = ((recentRes?.data as unknown as TransactionRow[]) || []).map((r) => ({
-    ...r,
-    executed_at: (r as any).executed_at || (r as any).createdAt,
-  }));
+  const rows = ((recentRes?.data as unknown as TransactionRow[]) || [])
+    .map((r) => ({
+      ...r,
+      executed_at: (r as any).executed_at || (r as any).createdAt,
+    }))
+    .sort((a, b) => {
+      const ta = new Date(a.executed_at || a.createdAt || 0).getTime();
+      const tb = new Date(b.executed_at || b.createdAt || 0).getTime();
+      return (Number.isFinite(tb) ? tb : 0) - (Number.isFinite(ta) ? ta : 0);
+    });
+  const cashBalance = await readUserCash(
+    user._id,
+    typeof user.cash_balance === "number" ? user.cash_balance : 0
+  );
 
   // …and ALL sell rows (realized P&L must reflect the full history, not just
   // the recent page). Sells are a small subset, so this stays cheap.
@@ -824,7 +846,7 @@ export async function loadLedger(user: AppUser, limit = 60): Promise<Transaction
 
   return {
     transactions: rows,
-    cashBalance: typeof user.cash_balance === "number" ? user.cash_balance : 0,
+    cashBalance,
     realizedYtd: round(realizedYtd),
     realizedTotal: round(realizedTotal),
     realizedYtdCount,

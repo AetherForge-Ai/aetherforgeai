@@ -63,19 +63,42 @@ export async function POST(req: Request) {
       console.log(`[api/stripe/checkout] Created Stripe customer ${customerId} for user ${user._id}`);
     }
 
-    // New public tiers (Starter/Pro/Ultimate) advertise a 14-day Pro trial.
+    // Starter, Pro and Ultimate include a 14-day trial. Amounts follow the NZD
+    // prices on the site. Line items are named here so checkout does not inherit
+    // an old product description.
     const isNewPaidTier = /^(starter|pro|ultimate)_(monthly|yearly)$/.test(planDef.key);
-    const subscriptionData: Record<string, unknown> = { metadata: meta };
+    const interval = planDef.interval === "week" ? "week" : planDef.interval === "year" ? "year" : "month";
+    const subscriptionData: Record<string, unknown> = {
+      metadata: meta,
+      description: `${planDef.name} — AetherForge AI paper portfolio and research reports (NZD). Not a broker.`,
+    };
     if (isNewPaidTier) subscriptionData.trial_period_days = 14;
 
     const baseUrl = getRequestBaseUrl(req);
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       customer: customerId,
-      line_items: [{ price: priceId, quantity: 1 }],
+      line_items: [
+        {
+          quantity: 1,
+          price_data: {
+            currency: "nzd",
+            unit_amount: Math.round(planDef.price * 100),
+            recurring: { interval },
+            product_data: {
+              name: `AetherForge ${planDef.name}`,
+              description: `${planDef.tagline}. Paper portfolio and AI research in NZD — not a broker and not personalised financial advice.`,
+              metadata: meta,
+            },
+          },
+        },
+      ],
       client_reference_id: user._id,
       metadata: meta,
       subscription_data: subscriptionData as any,
+      // $0 due today on a trial does not require a card. Paid invoices still collect one.
+      payment_method_collection: isNewPaidTier ? "if_required" : "always",
+      locale: "en",
       success_url: `${baseUrl}/stripe/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${baseUrl}/pricing`,
       allow_promotion_codes: true,

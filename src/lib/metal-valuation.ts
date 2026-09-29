@@ -132,7 +132,12 @@ export function bullionNzdPerOz(
   const key = metalKeyForTicker(ticker);
   if (!key || !spot) return 0;
   const px = Number(spot[key]?.nzdPerOz);
-  return Number.isFinite(px) && px > 0 ? px : 0;
+  if (!Number.isFinite(px) || !(px > 0)) return 0;
+  // A troy-ounce quote in the billions is a market-cap or equity print, not spot.
+  const cap = key === "gold" ? 25000 : 800;
+  const floor = key === "gold" ? 400 : 5;
+  if (px < floor || px > cap) return 0;
+  return px;
 }
 
 export interface BullionHoldingLike {

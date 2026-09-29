@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { buildLiveReport } from "@/lib/apex";
 import {
+  FREE_REPORTS_PER_MONTH,
   PAID_REPORT_REFRESH_MS,
   checkReportQuota,
+  countReportsInAucklandMonth,
   formatAucklandDateTime,
   formatReportCooldownLine,
+  monthlyReportQuota,
   reportCadence,
 } from "@/lib/entitlements";
 import {
@@ -74,19 +77,26 @@ describe("Stox/Koins refresh cadence", () => {
       expect(line).toContain("every 4 hours");
       expect(line.toLowerCase()).not.toContain("midnight");
     }
-    const free = checkReportQuota("free", last, qaNow);
-    expect(free.cadence.unit).toBe("week");
-    expect(free.allowed).toBe(false);
-    expect(free.waitMs).toBeGreaterThan(5 * 24 * HOUR);
     const weekly = checkReportQuota("weekly", last, qaNow);
     expect(weekly.cadence.perLabel).toBe("per week");
     expect(reportCadence("apex_weekly").ms).toBe(7 * 24 * HOUR);
+    expect(reportCadence("free").unit).toBe("month");
+    expect(reportCadence("free").perLabel).toBe("per month");
   });
 
-  it("leaves the free weekly window unchanged", () => {
-    expect(reportCadence("free").perLabel).toBe("per week");
-    const recent = checkReportQuota("free", new Date(NOW - 2 * 24 * HOUR).toISOString(), NOW);
-    expect(recent.allowed).toBe(false);
+  it("allows 3 free reports in an Auckland month, then waits until next month", () => {
+    expect(FREE_REPORTS_PER_MONTH).toBe(3);
+    const stamps = [
+      new Date(NOW - 2 * HOUR).toISOString(),
+      new Date(NOW - 5 * HOUR).toISOString(),
+      new Date(NOW - 26 * HOUR).toISOString(),
+    ];
+    expect(countReportsInAucklandMonth(stamps, NOW)).toBe(3);
+    const full = monthlyReportQuota(3, NOW);
+    expect(full.allowed).toBe(false);
+    expect(full.cadence.label).toBe("3 reports per month");
+    expect(full.waitMs).toBeGreaterThan(0);
+    expect(monthlyReportQuota(2, NOW).allowed).toBe(true);
     const stale = checkReportQuota("weekly", new Date(NOW - 8 * 24 * HOUR).toISOString(), NOW);
     expect(stale.allowed).toBe(true);
   });

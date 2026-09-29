@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getCurrentUser, isStripeConfigured, hasActiveSubscription } from "@/lib/session";
+import { getCurrentUser, isStripeConfigured } from "@/lib/session";
 import { AppShell } from "@/components/AppShell";
 import { SettingsClient } from "@/components/settings/SettingsClient";
 
@@ -8,10 +8,6 @@ export const dynamic = "force-dynamic";
 export default async function SettingsPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login?redirect=/settings");
-
-  if (isStripeConfigured() && !hasActiveSubscription(user)) {
-    redirect("/pricing");
-  }
 
   return (
     <AppShell

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getTradeSessionUser, isStripeConfigured, hasPaidSubscription, type AppUser } from "@/lib/session";
+import { getTradeSessionUser } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
 import { getMetalsSpot, type MetalKey } from "@/lib/metals";
 import { archiveClosedPositionAlerts, recordMetalTrade } from "@/lib/transactions";
@@ -12,12 +12,6 @@ const updateSchema = z.object({
   ounces: z.number().positive().optional(),
   purchase_price_per_oz: z.number().positive().optional(),
 });
-
-function isEntitled(user: AppUser | null): boolean {
-  if (!user) return false;
-  if (!isStripeConfigured()) return true; // demo mode
-  return hasPaidSubscription(user);
-}
 
 // Verify the metal holding exists AND belongs to the current user.
 async function loadOwnedMetal(id: string, userId: string) {
@@ -36,9 +30,6 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
     const { id } = await ctx.params;
     const user = await getTradeSessionUser();
     if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-    if (!isEntitled(user)) {
-      return NextResponse.json({ ok: false, error: "Not entitled" }, { status: 403 });
-    }
 
     const owned = await loadOwnedMetal(id, user._id);
     if (!owned) return NextResponse.json({ ok: false, error: "Holding not found" }, { status: 404 });
@@ -75,9 +66,6 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
     const { id } = await ctx.params;
     const user = await getTradeSessionUser();
     if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-    if (!isEntitled(user)) {
-      return NextResponse.json({ ok: false, error: "Not entitled" }, { status: 403 });
-    }
 
     const body = (await req.json().catch(() => null)) as { confirm?: unknown } | null;
     const queryConfirm = new URL(req.url).searchParams.get("confirm") === "true";

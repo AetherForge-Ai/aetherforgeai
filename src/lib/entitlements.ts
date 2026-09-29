@@ -85,8 +85,12 @@ export const PAID_REPORT_REFRESH_MS = 4 * HOUR_MS;
  * "rolling" is the paid 4-hour window. It must not be the legacy "day" token:
  * that token used to mean "locked until the next Pacific/Auckland midnight",
  * which is what painted "next refresh in 48m (NZ midnight)" on a same-day report.
+ * "month" is the free allowance: 3 reports per Auckland calendar month.
  */
-export type CadenceUnit = "rolling" | "week";
+export type CadenceUnit = "rolling" | "week" | "month";
+
+/** Free tier matches Pricing: 3 AI research reports per calendar month. */
+export const FREE_REPORTS_PER_MONTH = 3;
 
 export interface ReportCadence {
   unit: CadenceUnit;
@@ -108,22 +112,37 @@ export function normalizePlanKey(plan?: string | null): string {
     .replace(/_annually$/, "_yearly");
 }
 
-/**
- * Free trial and Apex Weekly keep a weekly report. Every other plan — including
- * legacy Apex monthly/yearly and Starter/Pro/Ultimate — is the paid 4-hour window.
- */
-export function isWeeklyReportPlan(plan?: string | null): boolean {
+/** Free / unsigned plans: Stox or Koins, 3 reports per month (Pricing card). */
+export function isFreeReportPlan(plan?: string | null): boolean {
   const key = normalizePlanKey(plan);
-  return key === "" || key === "free" || key === "none" || key === "weekly" || key === "apex_weekly";
+  return key === "" || key === "free" || key === "none";
 }
 
 /**
- * How frequently a plan can run a full report. Stox and Koins are metered
- * separately by the caller (one allowance each):
- *  - Free & Apex Weekly → one report per week (rolling 7 days).
- *  - Paid tiers → one report every 4 hours (rolling), not locked until NZ midnight.
+ * Apex Weekly keeps a weekly report. Every paid plan — including legacy Apex
+ * monthly/yearly and Starter/Pro/Ultimate — is the paid 4-hour window.
+ * Free is monthly (see {@link monthlyReportQuota}), not this weekly window.
+ */
+export function isWeeklyReportPlan(plan?: string | null): boolean {
+  const key = normalizePlanKey(plan);
+  return key === "weekly" || key === "apex_weekly";
+}
+
+/**
+ * How frequently a plan can run a full report.
+ *  - Free → 3 reports per Auckland month (shared; one bot).
+ *  - Apex Weekly → one report per week (rolling 7 days), per bot.
+ *  - Paid tiers → one report every 4 hours (rolling), per bot.
  */
 export function reportCadence(plan?: string | null): ReportCadence {
+  if (isFreeReportPlan(plan)) {
+    return {
+      unit: "month",
+      ms: 0,
+      label: `${FREE_REPORTS_PER_MONTH} reports per month`,
+      perLabel: "per month",
+    };
+  }
   if (isWeeklyReportPlan(plan)) {
     return { unit: "week", ms: WEEK_MS, label: "1 report per week", perLabel: "per week" };
   }
@@ -132,6 +151,59 @@ export function reportCadence(plan?: string | null): ReportCadence {
     ms: PAID_REPORT_REFRESH_MS,
     label: "1 report every 4 hours",
     perLabel: "every 4 hours",
+  };
+}
+
+/** yyyy-mm in Pacific/Auckland. */
+export function aucklandYearMonth(ms: number = Date.now()): string {
+  return aucklandYmd(ms).slice(0, 7);
+}
+
+/** Milliseconds until the next Pacific/Auckland calendar month starts. */
+export function msUntilNextAucklandMonth(now: number = Date.now()): number {
+  const [y, m] = aucklandYmd(now).split("-").map(Number);
+  const next =
+    m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, "0")}-01`;
+  let t = now;
+  const horizon = now + 40 * 24 * HOUR_MS;
+  while (aucklandYmd(t) < next && t < horizon) t += 60 * 60 * 1000;
+  while (t > now && aucklandYmd(t - 60_000) >= next) t -= 60_000;
+  return Math.max(0, t - now);
+}
+
+export function countReportsInAucklandMonth(
+  timestamps: Array<string | null | undefined>,
+  now: number = Date.now()
+): number {
+  const month = aucklandYearMonth(now);
+  let n = 0;
+  for (const iso of timestamps) {
+    if (!iso) continue;
+    const t = new Date(iso).getTime();
+    if (Number.isNaN(t)) continue;
+    if (aucklandYearMonth(t) === month) n += 1;
+  }
+  return n;
+}
+
+/**
+ * Free-plan allowance. `used` is how many reports were generated this
+ * Auckland month (Stox and Koins share one pool).
+ */
+export function monthlyReportQuota(
+  used: number,
+  now: number = Date.now(),
+  limit: number = FREE_REPORTS_PER_MONTH
+): ReportQuota {
+  const cadence = reportCadence("free");
+  const allowed = used < limit;
+  const waitMs = allowed ? 0 : msUntilNextAucklandMonth(now);
+  return {
+    allowed,
+    waitMs,
+    nextAllowedAt: allowed ? null : new Date(now + waitMs).toISOString(),
+    lastReportAt: null,
+    cadence,
   };
 }
 

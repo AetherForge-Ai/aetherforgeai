@@ -425,7 +425,8 @@ export default function MaximizeResultsPage() {
                 <Link href="/how-to-maximize-results" className="hover:text-foreground">Maximize results</Link>
                 <Link href="/pricing" className="hover:text-foreground">Pricing</Link>
                 <Link href="/headmaster" className="hover:text-foreground">The Headmaster</Link>
-                <Link href="/privacy-policy" className="hover:text-foreground">AI Privacy Act</Link>
+                <Link href="/privacy-policy" className="hover:text-foreground">Privacy</Link>
+                <Link href="/terms-of-service" className="hover:text-foreground">Terms</Link>
                 <Link href="/ai-disclaimer" className="hover:text-foreground">AI Disclaimer</Link>
               </div>
             </div>

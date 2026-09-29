@@ -19,7 +19,7 @@ const FAQS: { q: string; a: string }[] = [
   },
   {
     q: "Do you offer refunds?",
-    a: "Paid plans start with a 14-day Pro trial, so you can explore the full experience before you're charged. If you're ever billed in error or something isn't right, reach out and we'll make it right — we don't believe in trapping customers.",
+    a: "Paid plans start with a 14-day trial of the plan you choose, so you can explore it before you're charged. If you're ever billed in error or something isn't right, reach out and we'll make it right — we don't believe in trapping customers.",
   },
   {
     q: "What is included with The Headmaster?",
@@ -31,7 +31,7 @@ const FAQS: { q: string; a: string }[] = [
   },
   {
     q: "Can I try Pro before committing?",
-    a: "Yes — every paid plan begins with a 14-day Pro trial. You get the complete Pro experience up front, no card friction, and you can cancel any time before the trial ends without being charged.",
+    a: "Yes — Starter, Pro and Ultimate each begin with a 14-day trial of that plan. Nothing is due today, a card is not required to start, and you can cancel any time before the trial ends without being charged.",
   },
   {
     q: "Do you have discounts for students or charities?",
@@ -51,7 +51,7 @@ export function PricingFAQ() {
   const [open, setOpen] = useState<number | null>(0);
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div id="faq" className="mx-auto max-w-3xl scroll-mt-24">
       <div className="mb-8 text-center">
         <h2 className="font-display text-2xl font-bold sm:text-3xl">Frequently asked questions</h2>
         <p className="mt-2 text-sm text-muted-foreground">

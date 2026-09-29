@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { SiteHeader } from "@/components/SiteHeader";
 import { MarketTicker } from "@/components/MarketTicker";
 import { HomeBottomCta, HomeHeroCtas } from "@/components/home/HomeSessionCtas";
@@ -27,7 +28,7 @@ const BOTS = [
 const STEPS = [
   {
     title: "Create Your Account",
-    body: "Sign up and get started for FREE right now. See for your self how this works before you decide if you want to signup",
+    body: "Sign up and get started for FREE right now. See for yourself how this works before you decide if you want to sign up.",
     sitter: {
       name: "Stox",
       img: "/brand/bot-stox-fullbody.png",
@@ -121,7 +122,7 @@ export default function LandingPage() {
                   plan and strategy with You, tailored to What your Individual needs
                   require. Then using Koins and Stox indepth Ultra Advanced Analysis and
                   Reports on everything that is relative to your portfolio, Manage your
-                  Investment Portfolio with the minimal amout of work required from you,
+                  Investment Portfolio with the minimal amount of work required from you,
                   leaving you free time to do other things.
                 </p>
               </div>
@@ -220,7 +221,7 @@ export default function LandingPage() {
             <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
               <div className="mx-auto max-w-2xl text-center">
                 <h2 className="font-grift-black text-3xl tracking-tight text-amber-400 sm:text-4xl">
-                  Heres how to get started
+                  Here's how to get started
                 </h2>
               </div>
               <div className="mt-20 grid gap-x-5 gap-y-20 sm:grid-cols-2 lg:grid-cols-4">
@@ -273,6 +274,25 @@ export default function LandingPage() {
           </div>
         </div>
       </main>
+      <footer className="border-t border-border/60 bg-background">
+        <nav
+          aria-label="Footer"
+          className="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-x-6 gap-y-2 px-4 py-8 text-sm text-muted-foreground"
+        >
+          <Link href="/privacy-policy" className="hover:text-foreground">
+            Privacy
+          </Link>
+          <Link href="/terms-of-service" className="hover:text-foreground">
+            Terms
+          </Link>
+          <Link href="/about#contact" className="hover:text-foreground">
+            Contact
+          </Link>
+          <Link href="/pricing" className="hover:text-foreground">
+            Pricing
+          </Link>
+        </nav>
+      </footer>
     </div>
   );
 }

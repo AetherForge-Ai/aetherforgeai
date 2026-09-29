@@ -37,14 +37,9 @@ export async function GET(req: Request) {
       return accountMismatchResponse(user._id);
     }
 
-    if (!isEntitled(user)) {
-      console.log(`[api/metals] GET blocked — user ${user._id} lacks an active paid membership`);
-      return NextResponse.json(
-        { ok: false, error: "Precious metals is a bonus for active paying members.", data: { code: "not_entitled" } },
-        { status: 403 }
-      );
-    }
-
+    // Any signed-in member can read their own bullion. Rows are filtered to this
+    // user, so a free session does not see anyone else's metals. Adding a new
+    // desk lot stays on the paid gate below.
     const [result, spot] = await Promise.all([
       totalumSdk.crud.query("precious_metal", {
         _filter: { user: user._id },

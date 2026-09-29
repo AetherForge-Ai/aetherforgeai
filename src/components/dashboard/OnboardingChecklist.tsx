@@ -36,7 +36,7 @@ export function OnboardingChecklist({
       title: "Record your first buys",
       body: "Deposit cash if needed, then buy via the Transaction Centre — fill prices must match your broker.",
       href: "/dashboard/transactions",
-      done: hasCash && hasHoldings,
+      done: hasHoldings,
       icon: ShoppingCart,
     },
     {
@@ -57,9 +57,10 @@ export function OnboardingChecklist({
     },
   ];
 
-  const completed = steps.filter((s) => s.done).length;
-  // Hide once the book is clearly underway.
-  if (hasHoldings && hasCash && completed >= 2) return null;
+  const countable = steps.filter((s) => !s.optional);
+  const completed = countable.filter((s) => s.done).length;
+  // A filled paper book (cash and at least one holding) is past the stuck 1/4 state.
+  if (hasHoldings && hasCash) return null;
 
   return (
     <div
@@ -76,7 +77,7 @@ export function OnboardingChecklist({
           </p>
         </div>
         <span className="rounded-full border border-border/60 bg-background/50 px-2.5 py-1 text-[0.65rem] font-semibold text-muted-foreground">
-          {completed}/{steps.length} done
+          {completed}/{countable.length} done
         </span>
       </div>
       <ul className="mt-4 space-y-2.5">

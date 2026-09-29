@@ -21,11 +21,11 @@ import {
   trackAccountRequest,
 } from "@/lib/account-identity";
 import { checkFillSanity, ADVISORY_NOTE } from "@/lib/fill-integrity-client";
-import { formatMoney, currencyForTicker, type CurrencyCode } from "@/lib/currency";
+import { formatMoney, currencyForTicker, nativeToNzd, type CurrencyCode } from "@/lib/currency";
 import { formatNumber } from "@/lib/portfolio";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { estimateFee, feeMarketFor, presetsForMarket, type FeePreset } from "@/lib/broker-fees";
+import { defaultFeePresetId, estimateFee, feeMarketFor, presetsForMarket, type FeePreset } from "@/lib/broker-fees";
 import { useFxRates } from "@/hooks/useFxRates";
 import { buildTradePreview, type TradePreview } from "@/lib/trade-preview";
 import { bumpHoldingsGeneration } from "@/lib/holdings-generation";
@@ -117,17 +117,8 @@ export function BuyDialog({
     if (target.price && target.price > 0) setLiveSpotRef(target.price);
     setDate(new Date().toISOString().slice(0, 10));
     // Crypto buy modal defaults to ~1% exchange fee (overridable). Metals ~1% spread.
-    const market = feeMarketFor(target.ticker, target.assetType);
-    if (market === "CRYPTO") {
-      setFeePresetId("crypto-pct");
-      setFees("");
-    } else if (market === "METAL") {
-      setFeePresetId("metal-spread");
-      setFees("");
-    } else {
-      setFeePresetId("zero");
-      setFees("");
-    }
+    setFeePresetId(defaultFeePresetId(target.ticker, target.assetType));
+    setFees("");
   }, [open, target, disarmReview]);
 
   // Load cash balance when the dialog opens. Apply only if the echoed userId
@@ -285,12 +276,12 @@ export function BuyDialog({
   }, [open, feePresetId, sharesNum, priceNum, ticker, assetType]);
 
 
-  // Remaining cash after this purchase (NZD). Note: asset currency may differ
-  // from NZD cash — we still compare against cashBalance for a clear UI signal.
+  // Cash is NZD. Compare the FX-converted cost, not the native quote.
+  const costNzd = nativeToNzd(totalCost, currency, fxRates);
   const remainingCash =
-    cashBalance != null && totalCost > 0 ? cashBalance - totalCost : cashBalance;
+    cashBalance != null && totalCost > 0 ? cashBalance - costNzd : cashBalance;
   const exceedsCash =
-    cashBalance != null && totalCost > 0 && totalCost > cashBalance + 1e-6;
+    cashBalance != null && totalCost > 0 && costNzd > cashBalance + 1e-6;
 
   function resolvedBuyFee(qty: number, px: number): number {
     let feeValue = Number(fees) || 0;
@@ -657,7 +648,7 @@ export function BuyDialog({
                     }
                   >
                     {preset.label}
-                    {notional > 0 && preset.id !== "zero" ? ` · ${est}` : ""}
+                    {notional > 0 && preset.id !== "zero" ? ` · ${formatMoney(est, currency)}` : ""}
                   </button>
                 );
               })}
@@ -691,7 +682,11 @@ export function BuyDialog({
           <Button
             type="button"
             onClick={confirm}
-            disabled={saving || (step === "review" ? !confirmReady || !reviewPreview : !valid || exceedsCash)}
+            disabled={
+              saving ||
+              exceedsCash ||
+              (step === "review" ? !confirmReady || !reviewPreview : !valid)
+            }
             className={cn("font-semibold shadow-glow")}
           >
             {saving ? (

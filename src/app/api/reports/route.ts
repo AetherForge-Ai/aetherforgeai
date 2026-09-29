@@ -4,7 +4,14 @@ import { getCurrentUser, isStripeConfigured, hasActiveSubscription } from "@/lib
 import { totalumSdk } from "@/lib/totalum";
 import type { BotKind } from "@/lib/apex";
 import { generateReportForUser, loadStockRowsForAccount, type GeneratedReport } from "@/lib/report-service";
-import { checkReportQuota } from "@/lib/entitlements";
+import {
+  FREE_REPORTS_PER_MONTH,
+  checkReportQuota,
+  countReportsInAucklandMonth,
+  isFreeReportPlan,
+  monthlyReportQuota,
+  type ReportQuota,
+} from "@/lib/entitlements";
 import { isRecentReportDuplicate } from "@/lib/report-dedupe";
 import { liveBookForAccount, reconcileNarrativeWithLiveBook, reconcileStoredReport } from "@/lib/report-book";
 import { requestClaimsOtherUser } from "@/lib/account-guard";
@@ -33,25 +40,42 @@ function coalesceReport(userId: string, bot: BotKind, run: () => Promise<Generat
  * what makes the two allowances independent — running Stox never consumes the
  * Koins allowance and vice-versa.
  */
-async function lastReportAt(userId: string, bot: BotKind): Promise<string | null> {
+async function reportStampRows(userId: string): Promise<{ bot: string; at: string }[]> {
   const res = await totalumSdk.crud.query("report", {
-    _filter: { user: userId, bot },
+    _filter: { user: userId },
     _sort: { createdAt: "desc" },
-    _limit: 1,
+    _limit: 80,
   });
-  const row = (res?.data as any[])?.[0];
-  if (!row) return null;
-  return row.generated_at || row.createdAt || null;
+  return ((res?.data as any[]) || [])
+    .map((row) => ({
+      bot: String(row.bot || "stock"),
+      at: String(row.generated_at || row.createdAt || ""),
+    }))
+    .filter((row) => row.at);
+}
+
+function quotaForUser(
+  plan: string | null | undefined,
+  rows: { bot: string; at: string }[],
+  bot: BotKind
+): ReportQuota & { reportsUsed?: number; reportsLimit?: number } {
+  if (isFreeReportPlan(plan)) {
+    const used = countReportsInAucklandMonth(rows.map((r) => r.at));
+    const q = monthlyReportQuota(used);
+    const last = rows.find((r) => r.bot === bot)?.at || rows[0]?.at || null;
+    return { ...q, lastReportAt: last, reportsUsed: used, reportsLimit: FREE_REPORTS_PER_MONTH };
+  }
+  const last = rows.find((r) => r.bot === bot)?.at || null;
+  return checkReportQuota(plan, last);
 }
 
 /**
  * POST /api/reports
- * Generates a full SuperGrok 4.6 ULTRA ADVANCED report for the logged-in user's
- * holdings (via the shared report service), emails it with the PDF attached,
- * persists it and returns it for inline dashboard display.
+ * Generates a full report for the logged-in user's holdings, emails the PDF,
+ * persists it and returns it for the dashboard.
  *
- * Enforces the plan's report cadence: Free & Apex Weekly → 1 report / week;
- * paid tiers → 1 report every 4 hours (rolling), per bot.
+ * Free: 3 AI reports per Auckland month on the chosen bot (Stox or Koins).
+ * Apex Weekly: 1 report / week per bot. Paid tiers: 1 report every 4 hours per bot.
  */
 export async function POST(req: Request) {
   try {
@@ -88,11 +112,11 @@ export async function POST(req: Request) {
       }
     }
 
-    // Cadence gate — one report per plan window, PER BOT (independent Stox &
-    // Koins allowances). Authoritative: the client countdown is cosmetic; this is
-    // what actually blocks over-use.
-    const previous = await lastReportAt(user._id, bot);
-    const quota = checkReportQuota(user.subscription_plan, previous);
+    // Cadence gate. Free: 3 reports per Auckland month, shared by the chosen bot.
+    // Paid: one report per window, PER BOT. The client countdown is cosmetic.
+    const stampRows = await reportStampRows(user._id);
+    const previous = stampRows.find((r) => r.bot === bot)?.at || null;
+    const quota = quotaForUser(user.subscription_plan, stampRows, bot);
     if (!quota.allowed) {
       const botLabel = bot === "crypto" ? "Koins" : "Stox";
       if (isRecentReportDuplicate(previous)) {
@@ -124,7 +148,9 @@ export async function POST(req: Request) {
     console.log(`[api/reports] Manual report delivered for user ${user._id} (${bot})`);
 
     // The report was just generated "now", so the next unlock is now + cadence.
-    const next = checkReportQuota(user.subscription_plan, new Date().toISOString());
+    const next = isFreeReportPlan(user.subscription_plan)
+      ? monthlyReportQuota(countReportsInAucklandMonth([...stampRows.map((r) => r.at), new Date().toISOString()]))
+      : checkReportQuota(user.subscription_plan, new Date().toISOString());
 
     return privateJson({
       ok: true,
@@ -143,6 +169,10 @@ export async function POST(req: Request) {
         cadenceMs: next.cadence.ms,
         perLabel: next.cadence.perLabel,
         cadenceUnit: next.cadence.unit,
+        reportsUsed: isFreeReportPlan(user.subscription_plan)
+          ? countReportsInAucklandMonth([...stampRows.map((r) => r.at), new Date().toISOString()])
+          : undefined,
+        reportsLimit: isFreeReportPlan(user.subscription_plan) ? FREE_REPORTS_PER_MONTH : undefined,
       },
     });
   } catch (err: any) {
@@ -228,9 +258,9 @@ export async function GET(req: Request) {
 
     // Independent per-bot allowances — derive each bot's most-recent report from
     // the fetched history so Stox and Koins each get their own countdown.
-    const lastFor = (b: BotKind) => reports.find((r) => r.bot === b)?.generatedAt || null;
+    const historyStamps = reports.map((r) => ({ bot: String(r.bot || "stock"), at: String(r.generatedAt || "") }));
     const buildQuota = (b: BotKind) => {
-      const q = checkReportQuota(user.subscription_plan, lastFor(b));
+      const q = quotaForUser(user.subscription_plan, historyStamps, b);
       return {
         allowed: q.allowed,
         waitMs: q.waitMs,
@@ -240,6 +270,8 @@ export async function GET(req: Request) {
         cadenceUnit: q.cadence.unit,
         cadenceMs: q.cadence.ms,
         perLabel: q.cadence.perLabel,
+        reportsUsed: q.reportsUsed,
+        reportsLimit: q.reportsLimit,
       };
     };
     const stockQuota = buildQuota("stock");
