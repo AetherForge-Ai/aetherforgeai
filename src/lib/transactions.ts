@@ -436,7 +436,10 @@ async function applyTransactionUnlocked(user: AppUser, input: TransactionInput):
       console.log(`[transactions] BUY opened new position ${ticker} (${quantity} @ ${price} ${currency})`);
     }
 
-    const newCash = round(currentCash - costNZD);
+      if (costNZD > currentCash + 1e-6) {
+          throw new Error(`Insufficient cash: need ${costNZD.toFixed(2)} NZD, available ${currentCash.toFixed(2)} NZD`);
+            }
+              const newCash = round(currentCash - costNZD);}
     const createdNew = !holding;
     const previousShares = round(holding?.shares || 0, 6);
     const previousAvg = round(holding?.purchase_price || 0, 6);
@@ -721,7 +724,10 @@ async function recordMetalTradeUnlocked(
     const avg = Number(input.avgCostNZD) || 0;
     realizedNZD = round(ounces * (price - avg) - fees);
   }
-  const newCash = round(currentCash + total);
+    if (input.side === "buy" && currentCash + total < -1e-6) {
+        throw new Error(`Insufficient cash: need ${Math.abs(total).toFixed(2)} NZD, available ${currentCash.toFixed(2)} NZD`);
+          }
+          const newCash = round(currentCash + total);
 
   let ledgerId: string | undefined;
   try {
