@@ -34,6 +34,7 @@ const publicRoutes = [
   "/performance",
   "/dashboard", // guests get a sign-in gate with no portfolio or account data
   "/markets", // full-page Stock Markets browser — read-only preview for guests
+  "/market-news", // guest preview of headlines; the page renders no portfolio
   "/projections", // Top-50 weekly projections per market — read-only preview for guests
   "/login",
   "/register",

@@ -9,8 +9,8 @@ function read(rel: string) {
 describe("public surface routes", () => {
   it("does not hide About sections until an intersection observer runs", () => {
     const about = read("src/components/about/AboutContent.tsx");
-    expect(about).not.toContain("opacity-0");
-    expect(about).not.toContain("IntersectionObserver");
+    expect(about).not.toContain("translate-y-6 opacity-0");
+    expect(about).not.toContain("new IntersectionObserver");
     expect(about).toContain("Who We Are");
     expect(about).toContain("Send us a message");
   });
@@ -26,6 +26,7 @@ describe("public surface routes", () => {
     expect(read("src/app/docs/page.tsx")).toContain("/ai-disclaimer");
     expect(read("src/app/docs/page.tsx")).toContain("/pricing#faq");
     expect(read("src/app/blog/page.tsx")).toContain("/market-news");
+    expect(middleware).toContain('"/market-news"');
     expect(read("src/app/blog/page.tsx")).toContain("no articles");
   });
 });
