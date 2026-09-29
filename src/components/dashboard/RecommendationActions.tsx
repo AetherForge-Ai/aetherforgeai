@@ -82,7 +82,10 @@ export function RecommendationActions({
         armReview();
         return;
       }
-      if (!claimCommit()) return;
+      if (review?.resultingCashNzd != null && review.resultingCashNzd < -1e-6) {
+        return toast.error(`Insufficient cash: cash after buy would be ${review.resultingCashNzd.toFixed(2)} NZD`);
+        }
+        if (!claimCommit()) return;
       setBusy(status);
       const res = await api.post("/api/transactions", {
         type: "buy",
