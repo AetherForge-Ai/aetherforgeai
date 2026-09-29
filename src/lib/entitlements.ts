@@ -109,19 +109,40 @@ export function normalizePlanKey(plan?: string | null): string {
 }
 
 /**
- * Free trial and Apex Weekly keep a weekly report. Every other plan — including
- * legacy Apex monthly/yearly and Starter/Pro/Ultimate — is the paid 4-hour window.
+ * Apex Weekly (legacy paid single-bot plan) keeps a rolling weekly report.
+ * Every other plan — including legacy Apex monthly/yearly and Starter/Pro/Ultimate
+ * — is the paid 4-hour window.
+ *
+ * NOTE: Free is intentionally NOT included here any more. Free's product promise
+ * is 3 AI reports per CALENDAR MONTH (see FREE_REPORTS_PER_MONTH /
+ * evaluateFreeReportQuota below), a count-based allowance rather than a
+ * time-gated cooldown, so it no longer shares this weekly cadence bucket.
  */
 export function isWeeklyReportPlan(plan?: string | null): boolean {
   const key = normalizePlanKey(plan);
-  return key === "" || key === "free" || key === "none" || key === "weekly" || key === "apex_weekly";
+  return key === "weekly" || key === "apex_weekly";
 }
 
 /**
- * How frequently a plan can run a full report. Stox and Koins are metered
+ * True for the Free tier (including an unset/legacy plan key, which defaults to
+ * Free). Callers use this to route report-allowance checks to the monthly
+ * counter (evaluateFreeReportQuota) instead of the time-gated reportCadence()
+ * below, which now only covers paid plans (rolling 4h, or legacy Apex Weekly's
+ * rolling 7 days).
+ */
+export function isFreeReportPlan(plan?: string | null): boolean {
+  const key = normalizePlanKey(plan);
+  return key === "" || key === "free" || key === "none";
+}
+
+/**
+ * How frequently a PAID plan can run a full report. Stox and Koins are metered
  * separately by the caller (one allowance each):
- *  - Free & Apex Weekly → one report per week (rolling 7 days).
- *  - Paid tiers → one report every 4 hours (rolling), not locked until NZ midnight.
+ *  - Apex Weekly (legacy) → one report per week (rolling 7 days).
+ *  - Other paid tiers → one report every 4 hours (rolling), not locked until NZ midnight.
+ *
+ * Not used for Free — Free's allowance is 3 reports per calendar month, evaluated
+ * by evaluateFreeReportQuota() below, not this time-gated cadence.
  */
 export function reportCadence(plan?: string | null): ReportCadence {
   if (isWeeklyReportPlan(plan)) {
@@ -133,6 +154,54 @@ export function reportCadence(plan?: string | null): ReportCadence {
     label: "1 report every 4 hours",
     perLabel: "every 4 hours",
   };
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Free monthly report allowance — 3 AI reports per calendar month           */
+/*  (Pacific/Auckland), replacing the old 1-report-per-week cadence above.    */
+/*  This is a count-based allowance, not a time-gated cooldown: a Free member  */
+/*  may run reports back-to-back until they hit the monthly cap.              */
+/* -------------------------------------------------------------------------- */
+
+/** Reports a Free member may run per calendar month. Mirrors FREE_PLAN.reportsPerMonth. */
+export const FREE_REPORTS_PER_MONTH = FREE_PLAN.reportsPerMonth;
+
+/** Calendar month bucket key (Pacific/Auckland), e.g. "2026-09". Stable across DST. */
+export function aucklandMonthKey(ms: number = Date.now()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Pacific/Auckland",
+    year: "numeric",
+    month: "2-digit",
+  }).format(new Date(ms));
+}
+
+export interface FreeReportQuota {
+  allowed: boolean;
+  /** Reports already run in the current calendar month. */
+  used: number;
+  /** FREE_REPORTS_PER_MONTH. */
+  limit: number;
+  /** Reports still available this calendar month (never negative). */
+  remaining: number;
+  /** Pacific/Auckland "yyyy-MM" bucket this count applies to. */
+  monthKey: string;
+}
+
+/**
+ * Pure count-based quota check for the Free tier: pass the number of reports
+ * the user has already generated within the current calendar month (the caller
+ * is responsible for counting only rows whose generated_at falls in that
+ * Pacific/Auckland month — this function does no I/O), and get back whether
+ * another report is allowed plus a UI-ready remaining count (e.g. "2/3 left").
+ */
+export function evaluateFreeReportQuota(
+  reportsThisMonth: number,
+  now: number = Date.now(),
+  limit: number = FREE_REPORTS_PER_MONTH
+): FreeReportQuota {
+  const used = Math.max(0, reportsThisMonth);
+  const remaining = Math.max(0, limit - used);
+  return { allowed: used < limit, used, limit, remaining, monthKey: aucklandMonthKey(now) };
 }
 
 export interface ReportQuota {

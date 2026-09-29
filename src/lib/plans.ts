@@ -34,8 +34,15 @@ export const FREE_PLAN = {
   botAccess: "both" as const,
   /** Free trials stay active for this many days before a gentle nudge to upgrade. */
   durationDays: 3650,
+  /**
+   * AI research reports a Free member may run per calendar month (Pacific/Auckland).
+   * Replaces the old "1 report per week" cadence — see FREE_REPORTS_PER_MONTH and
+   * evaluateFreeReportQuota() in entitlements.ts, which are the source of truth for
+   * enforcing and displaying this allowance.
+   */
+  reportsPerMonth: 3,
   features: [
-    "1 full SuperGrok 4.6 ULTRA ADVANCED report engine",
+    "3 AI research reports per calendar month",
     "Monitor up to 8 tickers — stocks or crypto",
     "Reports delivered to your email + dashboard",
     "Download every report as a PDF",
