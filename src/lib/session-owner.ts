@@ -147,3 +147,55 @@ export function shouldRecoverSession(_input?: {
 }): boolean {
   return false;
 }
+
+/** True only when this request actually carries a session token cookie. */
+export function requestHasSessionToken(
+  getCookie: (name: string) => string | null | undefined
+): boolean {
+  return SESSION_TOKEN_COOKIE_NAMES.some((name) => {
+    const value = getCookie(name);
+    return typeof value === "string" && value.trim().length > 0;
+  });
+}
+
+const PROTECTED_ACCOUNT_PREFIXES = [
+  "/api/stocks",
+  "/api/alerts",
+  "/api/transactions",
+  "/api/profile",
+  "/api/watchlist",
+  "/api/reports",
+  "/api/portfolio-coach",
+  "/api/ticker-analysis",
+  "/api/personal-guide",
+] as const;
+
+/** Account APIs whose body is one member's book. Spot metals stay public. */
+export function isProtectedAccountApi(pathname: string): boolean {
+  if (pathname === "/api/session/logout") return false;
+  if (
+    pathname === "/api/metals" ||
+    (pathname.startsWith("/api/metals/") && !pathname.startsWith("/api/metals/spot"))
+  ) {
+    return true;
+  }
+  return PROTECTED_ACCOUNT_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+  );
+}
+
+export type AnonymousAccountApi = "session-null" | "unauthorized";
+
+/**
+ * What a cookie-less request may receive. Session lookup must not run:
+ * a shared worker or edge cache must not answer with another member's book.
+ * GET /api/session returns a signed-out envelope. Other account APIs are 401.
+ */
+export function anonymousAccountApi(pathname: string, method: string): AnonymousAccountApi | null {
+  const verb = method.toUpperCase();
+  if (verb === "OPTIONS" || verb === "HEAD") return null;
+  if (pathname === "/api/session/logout") return null;
+  if (pathname === "/api/session" && verb === "GET") return "session-null";
+  if (isProtectedAccountApi(pathname)) return "unauthorized";
+  return null;
+}

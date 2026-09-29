@@ -1,5 +1,13 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { PRIVATE_NO_STORE_HEADERS } from "@/lib/account-guard";
+import { portfolioAliasRedirect } from "@/lib/portfolio-route-aliases";
+import { publicAliasRedirect } from "@/lib/public-route-aliases";
+import {
+  anonymousAccountApi,
+  isProtectedAccountApi,
+  requestHasSessionToken,
+} from "@/lib/session-owner";
 
 const isProduction = process.env.NODE_ENV === "production";
 const appUrl = process.env.NEXT_PUBLIC_APP_URL || "";
@@ -83,6 +91,32 @@ function addCspHeaders(response: NextResponse) {
   return response;
 }
 
+function applyPrivateNoStore(response: NextResponse) {
+  for (const [key, value] of Object.entries(PRIVATE_NO_STORE_HEADERS)) {
+    if (key.toLowerCase() === "vary") {
+      const existing = response.headers.get("Vary");
+      const parts = new Set(
+        `${existing ?? ""}, ${value}`
+          .split(",")
+          .map((part) => part.trim())
+          .filter(Boolean)
+      );
+      response.headers.set("Vary", Array.from(parts).join(", "));
+      continue;
+    }
+    response.headers.set(key, value);
+  }
+  return response;
+}
+
+const PRIVATE_PAGE_PREFIXES = ["/dashboard", "/notifications", "/alerts", "/transactions"];
+
+function isPrivatePage(pathname: string): boolean {
+  return PRIVATE_PAGE_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+  );
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -94,12 +128,40 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
+  const alias = publicAliasRedirect(pathname) ?? portfolioAliasRedirect(pathname);
+  if (alias) {
+    const redirectResponse = NextResponse.redirect(new URL(alias, request.url));
+    addCorsHeaders(redirectResponse, request);
+    addCspHeaders(redirectResponse);
+    return redirectResponse;
+  }
+
+  const signedIn = requestHasSessionToken((name) => request.cookies.get(name)?.value);
+  if (!signedIn) {
+    const anon = anonymousAccountApi(pathname, request.method);
+    if (anon === "session-null") {
+      const body = NextResponse.json({ user: null });
+      addCorsHeaders(body, request);
+      addCspHeaders(body);
+      return applyPrivateNoStore(body);
+    }
+    if (anon === "unauthorized") {
+      const body = NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+      addCorsHeaders(body, request);
+      addCspHeaders(body);
+      return applyPrivateNoStore(body);
+    }
+  }
+
   // Create response
   const response = NextResponse.next();
 
   // Add CORS and CSP headers
   addCorsHeaders(response, request);
   addCspHeaders(response);
+  if (isPrivatePage(pathname) || pathname === "/api/session" || isProtectedAccountApi(pathname)) {
+    applyPrivateNoStore(response);
+  }
 
   // Allow all API routes and static files
   if (
