@@ -377,13 +377,13 @@ export function TrialExperience({ userName }: { userName?: string }) {
             <>
               <strong className="text-foreground">Full scope:</strong> the engine analyses the{" "}
               <strong className="text-foreground">top 100 cryptocurrencies</strong> — top movers over 24h / 7d / 30d,
-              fact-based next-move predictions, worldwide crypto news, and a 12-month momentum graph for each coin you enter.
+              illustrative scenario ranges, worldwide crypto news, and a 12-month momentum graph for each coin you enter.
             </>
           ) : (
             <>
               <strong className="text-foreground">Full scope:</strong> the engine sweeps the{" "}
               <strong className="text-foreground">entire NZX + ASX market</strong> — market movers, RSI/MACD signals,
-              fact-based next-move predictions, and a 12-month momentum graph for each ticker you enter.
+              illustrative scenario ranges, and a 12-month momentum graph for each ticker you enter.
             </>
           )}
         </div>

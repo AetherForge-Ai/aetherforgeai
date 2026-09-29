@@ -12,7 +12,8 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Loader2, User, CreditCard, Crown, ExternalLink, Sparkles, ShieldCheck, Mail, KeyRound, ArrowUpCircle, Check, Zap, CalendarClock, Camera } from "lucide-react";
 import Link from "next/link";
-import { PLANS, planByKey, planLabel, type Plan } from "@/lib/plans";
+import { PLANS, SALES_EMAIL, planByKey, planLabel, type Plan } from "@/lib/plans";
+import { isFreeReportPlan } from "@/lib/entitlements";
 import { formatUsdApprox } from "@/lib/currency";
 import { useFxRates } from "@/hooks/useFxRates";
 import { COUNTRIES } from "@/lib/countries";
@@ -136,7 +137,11 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
   // Live NZD→USD rate so each NZ$ plan price shows its US$ equivalent.
   const { rates: fx } = useFxRates();
   // Other paid plans the member can switch to from their current subscription.
-  const switchOptions = PLANS.filter((p) => p.key !== user.subscription_plan);
+  // Ultimate stays founder-led. Do not offer it as a self-serve Stripe switch.
+  const switchOptions = PLANS.filter(
+    (p) => p.key !== user.subscription_plan && !String(p.key).startsWith("ultimate_")
+  );
+  const freeAccount = isFreeReportPlan(user.subscription_plan);
 
   const displayName = `${firstName} ${lastName}`.trim() || user.name;
 
@@ -462,7 +467,11 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
             <div className="rounded-xl border border-border/60 bg-background/30 px-4 py-3">
               <p className="text-xs text-muted-foreground">Ticker limit</p>
               <p className="mt-0.5 text-sm font-medium">
-                {user.ticker_limit ? `${user.ticker_limit} per bot` : "—"}
+                {user.ticker_limit
+                  ? freeAccount
+                    ? `${Math.max(user.ticker_limit, 8)} holdings total`
+                    : `${user.ticker_limit} per bot`
+                  : "—"}
               </p>
             </div>
           </div>
@@ -484,7 +493,7 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
             </Button>
           ) : (
             <Button asChild className="font-semibold shadow-glow">
-              <Link href="/pricing">
+              <Link href="/pricing#pro">
                 <Sparkles className="mr-2 size-4" /> Upgrade to AetherForge Pro
               </Link>
             </Button>
@@ -602,6 +611,16 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
                   </div>
                 );
               })}
+            </div>
+
+            <div className="mt-3 rounded-2xl border border-border/60 bg-background/30 p-4">
+              <p className="font-display text-sm font-bold">Ultimate · founder-led</p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                Team seats, API access and custom reporting are arranged with the founder. This is not a self-serve checkout.
+              </p>
+              <Button asChild variant="outline" size="sm" className="mt-3">
+                <a href={`mailto:${SALES_EMAIL}?subject=${encodeURIComponent("Founder-led onboarding")}`}>Talk to us</a>
+              </Button>
             </div>
 
             <p className="mt-3 text-[0.7rem] text-muted-foreground">

@@ -19,12 +19,12 @@ import {
 export const metadata = {
   title: "Pricing — AetherForge AI | Simple, powerful market intelligence",
   description:
-    "Start free and upgrade when you need more power. Institutional-grade NZX, ASX and crypto insights from $0. Free, Starter, Pro and Ultimate plans — cancel anytime, secure Stripe checkout.",
+    "Start with Pro at NZ$69/month for Stox, Koins and the full Headmaster. Free and Starter stay available. Informational market intelligence — not financial advice, and we don't trade for you.",
   alternates: { canonical: "/pricing" },
 };
 
 const TRUST_ITEMS = [
-  { icon: ShieldCheck, label: "14-day trial on Starter, Pro and Ultimate" },
+  { icon: ShieldCheck, label: "14-day trial on Starter and Pro" },
   { icon: RefreshCcw, label: "Cancel or downgrade anytime" },
   { icon: Lock, label: "Secure payments via Stripe" },
   { icon: Fingerprint, label: "Your data stays private — bank-grade security" },
@@ -47,7 +47,7 @@ function PricingSchema() {
     "@type": "Product",
     name: "AetherForge AI",
     description:
-      "Institutional-grade market intelligence for NZX, ASX and crypto investors — portfolio analytics, AI research reports and The Headmaster for Portfolio Planning and Strategies.",
+      "Informational market intelligence for NZX, ASX and crypto — portfolio tracking, AI research reports and The Headmaster for goal planning. Not financial advice.",
     brand: { "@type": "Brand", name: "AetherForge AI" },
     offers: {
       "@type": "AggregateOffer",
@@ -84,8 +84,9 @@ export default function PricingPage() {
             Simple pricing. <span className="text-gradient">Powerful market intelligence.</span>
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-base text-muted-foreground sm:text-lg">
-            Start free and upgrade when you need more power. Built for serious NZX, ASX, and crypto
-            investors who want institutional-grade insights without the institutional price.
+            Start with Pro at NZ$69/month — Stox, Koins and the full Headmaster. Free and Starter
+            stay on the table. Reports are illustrative scenarios, not personalised advice, and you
+            execute on your own broker.
           </p>
           <p className="mt-4 text-sm text-muted-foreground">
             Cancel anytime <span className="text-primary">•</span> Secure Stripe checkout{" "}
@@ -126,20 +127,20 @@ export default function PricingPage() {
         <section className="mx-auto max-w-6xl px-4 pt-24 sm:px-6 lg:px-8">
           <div className="relative overflow-hidden rounded-3xl border border-primary/40 bg-gradient-to-br from-primary/15 via-card/60 to-gold/10 px-6 py-14 text-center shadow-glow sm:px-12">
             <h2 className="mx-auto max-w-2xl font-display text-3xl font-extrabold tracking-tight sm:text-4xl">
-              Ready to get institutional-grade clarity on your portfolio?
+              Start with Pro for the full research desk
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-muted-foreground">
-              Join serious NZX, ASX and crypto investors using AetherForge AI. Start free in seconds —
-              upgrade the moment you need more power.
+              Pro is NZ$69/month and includes both bots plus The Headmaster. Free remains available if
+              you want to look first. Nothing here is a trade we place for you.
             </p>
             <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Button asChild size="lg" className="h-12 px-7 font-semibold">
-                <Link href="/register">
-                  Start Free <ArrowRight className="ml-1.5 size-4" />
-                </Link>
+                <a href="#pro">
+                  Start with Pro <ArrowRight className="ml-1.5 size-4" />
+                </a>
               </Button>
               <Button asChild size="lg" variant="outline" className="h-12 px-7 font-semibold">
-                <a href="#plans">Start Pro Trial</a>
+                <Link href="/register">Start Free</Link>
               </Button>
             </div>
           </div>

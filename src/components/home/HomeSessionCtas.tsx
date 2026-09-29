@@ -28,12 +28,21 @@ export function HomeHeroCtas() {
   return (
     <div className="mt-8 flex flex-wrap items-center gap-3">
       {!loggedIn && (
-        <Button asChild className="h-12 px-7 text-base shadow-glow">
-          <Link href="/register">
-            Start free
-            <ArrowRight className="size-4" />
-          </Link>
-        </Button>
+        <>
+          <Button asChild className="h-12 px-7 text-base shadow-glow">
+            <Link href="/pricing#pro">
+              Start with Pro
+              <ArrowRight className="size-4" />
+            </Link>
+          </Button>
+          <Button
+            asChild
+            variant="outline"
+            className="h-12 px-7 text-base border-white/40 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+          >
+            <Link href="/register">Start free</Link>
+          </Button>
+        </>
       )}
       <Button
         asChild
@@ -41,7 +50,7 @@ export function HomeHeroCtas() {
         className={
           loggedIn
             ? "h-12 px-7 text-base shadow-glow"
-            : "h-12 px-7 text-base border-white/40 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+            : "h-12 px-7 text-base border-white/20 bg-transparent text-white hover:bg-white/10 hover:text-white"
         }
       >
         <Link href="/dashboard" onClick={memberDashboard.onDashboardClick}>

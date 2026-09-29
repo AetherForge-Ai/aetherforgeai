@@ -233,7 +233,7 @@ function tickerBlock(t: TrialTickerAnalysis, idx: number): string {
       </tr>
     </table>
 
-    <div style="font-size:11px;color:${MUTE};text-transform:uppercase;letter-spacing:.04em;margin:14px 0 4px">Fact-based next-move predictions</div>
+    <div style="font-size:11px;color:${MUTE};text-transform:uppercase;letter-spacing:.04em;margin:14px 0 4px">Illustrative scenario ranges</div>
     <table width="100%" style="border-collapse:collapse"><tr>${predictionRows(t.predictions)}</tr></table>
 
     ${holding}
@@ -300,7 +300,7 @@ function marketPredictionsBlock(report: TrialReport): string {
       </div>`
     )
     .join("");
-  return `<h2 style="font-size:15px;color:${INK};margin:26px 0 6px">🔮 Fact-based predictions of next moves</h2>${cards}`;
+  return `<h2 style="font-size:15px;color:${INK};margin:26px 0 6px">Illustrative market scenarios</h2>${cards}`;
 }
 
 /* ---------------------------- Movers section ---------------------------- */

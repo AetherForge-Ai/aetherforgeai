@@ -555,7 +555,7 @@ function fallbackSummary(report: TrialReport): string {
     (held
       ? `Your integrated portfolio of ${held} funded position${held === 1 ? "" : "s"} is valued in the summary above. `
       : "No holdings were supplied, so figures are analysis-only. ") +
-    `Every prediction below is derived transparently from real market data. ` +
+    `Every scenario range below is derived from the market data in this briefing. It is illustrative, not a guarantee. ` +
     `_Informational only — not financial advice._`
   );
 }
@@ -585,7 +585,7 @@ async function enhanceWithGrok(report: TrialReport): Promise<boolean> {
         {
           role: "system",
           content:
-            "You are AetherForge ZENITH, an elite institutional market-intelligence analyst producing an ULTRA ADVANCED executive briefing. Write a rich, confident 6-9 sentence executive summary of the analysed universe and the user's selected holdings. Reference the real numbers (performance windows, RSI/MACD, 12-month momentum, and the fact-based next-move predictions). Cover overall market posture, the single most important observation per holding, and the highest-conviction forward call. MANDATORY: explicitly NAME the specific ticker(s) to BUY right now from the analysed set/movers, each with a concrete, data-grounded one-line reason — never give vague or generic advice. Use **bold** for key phrases and for every ticker you tell the reader to BUY. End with a one-line italic (_..._) disclaimer that this is informational only, not financial advice.",
+            "You are AetherForge ZENITH, a market-intelligence analyst producing an executive briefing. Write a clear 6-9 sentence summary of the analysed universe and the user's selected holdings. Reference the real numbers (performance windows, RSI/MACD, 12-month momentum, and the illustrative scenario ranges). Cover overall market posture and the single most important observation per holding. You may NAME tickers and describe an illustrative informational scenario, including why the data is notable. Do NOT tell the reader to BUY, do NOT instruct them to deploy cash, and do NOT present a scenario as personalised advice or a guarantee. Use **bold** for ticker symbols. End with a one-line italic (_..._) disclaimer that this is informational only, not financial advice, and that the reader executes elsewhere.",
         },
         {
           role: "user",

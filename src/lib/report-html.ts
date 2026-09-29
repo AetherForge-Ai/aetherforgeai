@@ -164,7 +164,7 @@ function tickerBlock(t: TickerAnalysis): string {
     </div>
     ${sparkline(t.momentum, t.momentum12moPct >= 0)}
 
-    <div style="font-size:11px;color:${MUTE};margin:8px 0 4px">7-day short-term projection</div>
+    <div style="font-size:11px;color:${MUTE};margin:8px 0 4px">7-day illustrative scenario</div>
     <table width="100%" style="border-collapse:collapse"><tr>${days}</tr></table>
 
     <div style="font-size:11px;color:${MUTE};margin:10px 0 4px">Three forward pathways</div>
@@ -195,7 +195,7 @@ function alertsBlock(alerts: ReportAlert[]): string {
         <td style="padding:8px;border:1px solid ${LINE};font-family:monospace">${cur}</td>
         <td style="padding:8px;border:1px solid ${LINE}">${esc(trim)}</td>
         <td style="padding:8px;border:1px solid ${LINE}">${esc(tp)}</td>
-        <td style="padding:8px;border:1px solid ${LINE};color:${triggered ? RED : INK};font-weight:${triggered ? 700 : 400}">${hard}${triggered ? " · SELL SIGNAL" : ""}</td>
+        <td style="padding:8px;border:1px solid ${LINE};color:${triggered ? RED : INK};font-weight:${triggered ? 700 : 400}">${hard}${triggered ? " · your level hit" : ""}</td>
       </tr>${
         a.instructions
           ? `<tr><td colspan="5" style="padding:6px 8px;border:1px solid ${LINE};background:#f8fafc;font-size:11px;color:${MUTE}">${esc(a.instructions)}</td></tr>`
@@ -388,11 +388,11 @@ function directRecommendationsBlock(recs: DirectRecommendation[]): string {
   const urgent = held.some((r) => r.action === "SELL" || r.action === "TRIM");
   const banner = urgent
     ? `<div style="background:${RED}12;border:1px solid ${RED}55;border-radius:8px;padding:10px 14px;margin:6px 0 12px">
-        <strong style="color:${RED}">⚠ Action required</strong>
-        <span style="color:${INK};font-size:12px"> — one or more holdings are projected to weaken. Direct exit/trim guidance below.</span>
+        <strong style="color:${RED}">⚠ Downside scenario</strong>
+        <span style="color:${INK};font-size:12px"> — one or more holdings are modelled weaker. Illustrative trim scenarios below. You execute on your own broker.</span>
       </div>`
     : "";
-  return `<h2 style="font-size:16px;color:${INK};margin:26px 0 8px">Direct recommendations — build &amp; protect wealth</h2>
+  return `<h2 style="font-size:16px;color:${INK};margin:26px 0 8px">Illustrative moves — informational only</h2>
     ${banner}
     ${held.length ? `<h3 style="font-size:13px;margin:6px 0;color:${INK}">On your holdings</h3><ul style="padding-left:2px;margin:0;list-style:none">${held.map(row).join("")}</ul>` : ""}
     ${fresh.length ? `<h3 style="font-size:13px;margin:14px 0 6px;color:${GREEN}">New high-conviction opportunities (not yet held)</h3><ul style="padding-left:2px;margin:0;list-style:none">${fresh.map(row).join("")}</ul>` : ""}`;
@@ -406,7 +406,7 @@ function pathwayPlanBlock(plan: PathwayPlan): string {
       const rec = p.recommended;
       return `<td style="padding:12px;border:2px solid ${rec ? BLUE : LINE};border-radius:8px;vertical-align:top;width:33%;background:${rec ? BLUE + "0a" : "#fff"}">
         <div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:${MUTE}">${esc(p.risk)} · ${p.probability}% odds</div>
-        <div style="font-weight:700;font-size:14px;color:${INK}">${esc(p.name)}${rec ? ` <span style="color:${BLUE};font-size:10px;font-weight:700">★ RECOMMENDED</span>` : ""}</div>
+        <div style="font-weight:700;font-size:14px;color:${INK}">${esc(p.name)}${rec ? ` <span style="color:${BLUE};font-size:10px;font-weight:700">★ ILLUSTRATIVE</span>` : ""}</div>
         <div style="font-size:16px;font-weight:700;color:${pctColor(p.targetPct)}">${pct(p.targetPct)} <span style="font-size:10px;color:${MUTE};font-weight:400">7-day target</span></div>
         <div style="font-size:11px;color:${MUTE};margin:4px 0 6px;line-height:1.4">${esc(p.summary)}</div>
         <ol style="padding-left:16px;margin:0;font-size:11px;color:${INK};line-height:1.5">
@@ -417,7 +417,7 @@ function pathwayPlanBlock(plan: PathwayPlan): string {
     .join("");
   return `<h2 style="font-size:16px;color:${INK};margin:26px 0 8px">Three pathways forward — with step-by-step plan</h2>
     <div style="background:${BLUE}0f;border:1px solid ${BLUE}44;border-radius:8px;padding:12px 14px;margin:0 0 12px">
-      <strong style="color:${BLUE}">★ Recommended route: ${esc(plan.recommendedName)}</strong>
+      <strong style="color:${BLUE}">★ Illustrative route: ${esc(plan.recommendedName)}</strong>
       <div style="color:${INK};font-size:12px;line-height:1.5;margin-top:3px">${esc(plan.recommendationNote)}</div>
     </div>
     <table width="100%" style="border-collapse:separate;border-spacing:6px 0"><tr>${cols}</tr></table>`;
@@ -658,7 +658,8 @@ export function renderReportHtml(source: ApexReport, opts: RenderReportOptions):
 
         <p style="font-size:11px;color:${MUTE};line-height:1.6;border-top:1px solid ${LINE};padding-top:14px;margin-top:22px">
           AetherForge AI delivers informational market intelligence only. Nothing here is personalised financial advice,
-          a recommendation, or an offer to buy or sell any security or digital asset. Powered by SuperGrok 4.6. Always do your own research.
+          a recommendation, or an offer to buy or sell any security or digital asset. We do not trade for you or hold your assets — you execute elsewhere.
+          Powered by SuperGrok 4.6. See aetherforgeai.co.nz/ai-disclaimer.
         </p>
       </div>
 

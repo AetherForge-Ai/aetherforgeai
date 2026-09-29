@@ -11,7 +11,7 @@ const FAQS: { q: string; a: string }[] = [
   },
   {
     q: "What happens when I hit my report or holding limits?",
-    a: "Nothing breaks — you keep full access to everything you've already created. You'll simply see a friendly prompt when you try to add a holding or generate a report beyond your plan's allowance, with a one-click option to upgrade. Upgrades take effect instantly.",
+    a: "Nothing breaks — you keep full access to everything you've already created. When you pass a Free or Starter allowance, the prompt points to Pro. Pro and above can talk to us about a founder-led Ultimate setup. Self-serve upgrades take effect through Stripe.",
   },
   {
     q: "Can I upgrade or downgrade later?",
@@ -31,7 +31,7 @@ const FAQS: { q: string; a: string }[] = [
   },
   {
     q: "Can I try Pro before committing?",
-    a: "Yes — Starter, Pro and Ultimate each begin with a 14-day trial of that plan. Nothing is due today, a card is not required to start, and you can cancel any time before the trial ends without being charged.",
+    a: "Yes. Starter and Pro each begin with a 14-day trial of that plan. Nothing is due today on a NZ$0 trial day, and you can cancel before the trial ends. Ultimate is founder-led — use Talk to us rather than self-serve checkout.",
   },
   {
     q: "Do you have discounts for students or charities?",

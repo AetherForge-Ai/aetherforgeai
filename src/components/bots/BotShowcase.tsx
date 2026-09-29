@@ -42,7 +42,7 @@ const BOTS: BotDef[] = [
     subtitle: "Stock Market Intelligence Monitor",
     mascot: BOT_STOX_AVATAR,
     blurb:
-      "Sweeps NZX, ASX and global equities in Apex Mode — compiling institutional-grade tables, top-gainer boards and 12-month continuation graphs for every ticker you monitor.",
+      "Sweeps NZX, ASX and global equities in Apex Mode — compiling detailed tables, top-gainer boards and 12-month continuation graphs for every ticker you monitor.",
     accent: "from-emerald-500/20 via-teal-500/10 to-transparent",
     tags: ["NZX", "ASX", "Global equities"],
   },
@@ -113,10 +113,10 @@ export function BotShowcase() {
       <div className="text-center">
         <p className="text-sm font-medium uppercase tracking-[0.2em] text-primary">The core of AetherForge</p>
         <h2 className="mt-3 font-grift-black text-3xl tracking-tight text-amber-400 md:text-4xl">
-          3 Genius AI bots to do the Thinking for You
+          3 AI bots that research the markets with you
         </h2>
         <p className="mx-auto mt-4 max-w-2xl text-muted-foreground">
-          Powered by SuperGrok 4.6, STOX monitors the Stock Market, KOINS monitors the Crypto Currency World, and The Headmaster will make an investment plan and strategy with You, tailored to What your Individual needs require. Then using Koins and Stox indepth Ultra Advanced Analysis and Reports on everything that is relative to your portfolio, Manage your Investment Portfolio with the minimal amount of work required from you, leaving you free time to do other things.  
+          Powered by SuperGrok 4.6. Stox monitors stock markets, Koins monitors crypto, and The Headmaster is the goal-planning bot. Reports are informational scenarios. AetherForge does not trade for you.
           
         </p>
       </div>

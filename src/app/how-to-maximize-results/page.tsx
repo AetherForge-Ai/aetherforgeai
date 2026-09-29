@@ -157,10 +157,9 @@ export default function MaximizeResultsPage() {
             Get the Most Out of <span className="text-gradient">AetherForge AI</span>
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-lg leading-relaxed text-muted-foreground">
-            Turn market intelligence into disciplined, high-performance trading decisions. AetherForge AI gives
-            you institutional-grade tools — how you use them determines your results. Follow the framework below
-            to extract maximum clarity, consistency and edge from <strong>Stox</strong>, <strong>Koins</strong>{" "}
-            and <strong>The Headmaster</strong>.
+            Use the research desk with a repeatable process. AetherForge AI gives you informational tools —
+            how you use them is up to you, and you still execute on your own broker. Follow the framework below
+            for <strong>Stox</strong>, <strong>Koins</strong> and <strong>The Headmaster</strong>.
           </p>
 
           <div className="mx-auto mt-6 flex max-w-2xl items-start gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-left">

@@ -59,7 +59,7 @@ const STEPS = [
   },
   {
     title: "Use Stox and Koins",
-    body: "Generate daily reports using Stox and Koins AI bots, they monitor the entire markets, Analyze ALL of the REAL LIVE Data, and make Data Backed Short Term Predictions that will help you navigate your way towards achieving your Goals set with The Headmaster",
+    body: "Generate reports with Stox and Koins. They read live market data and show probabilistic, illustrative short-term scenarios you can compare with the goals you set with The Headmaster. You still decide, and you buy or sell on your own broker.",
     sitter: {
       name: "Koins",
       img: "/brand/bot-koins-fullbody.png",
@@ -91,8 +91,16 @@ export default function LandingPage() {
                   </h1>
                   <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
                     Powered by SuperGrok 4.6. Track stocks, crypto and precious metals,
-                    then let Stox, Koins and The Headmaster turn live data into a plan
-                    you can actually use.
+                    then use Stox, Koins and The Headmaster to turn live data into
+                    illustrative scenarios and a goal plan. You execute elsewhere.
+                  </p>
+                  <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
+                    Not financial advice. Forge Intelligence Ltd is not a licensed financial
+                    advice provider, and we don&apos;t place trades or take custody.{" "}
+                    <Link href="/ai-disclaimer" className="font-medium text-primary hover:underline">
+                      AI disclaimer
+                    </Link>
+                    .
                   </p>
                   <HomeHeroCtas />
                 </div>
@@ -114,16 +122,18 @@ export default function LandingPage() {
                   The core of AetherForge
                 </p>
                 <h2 className="mt-3 font-grift-black text-3xl tracking-tight text-amber-400 sm:text-4xl">
-                  3 Genius AI bots to do the Thinking for You
+                  3 AI bots that research the markets with you
                 </h2>
                 <p className="mt-4 text-base leading-relaxed text-muted-foreground sm:text-lg">
-                  Powered by SuperGrok 4.6, STOX monitors the Stock Market, KOINS monitors
-                  the Crypto Currency World, and The Headmaster will make an investment
-                  plan and strategy with You, tailored to What your Individual needs
-                  require. Then using Koins and Stox indepth Ultra Advanced Analysis and
-                  Reports on everything that is relative to your portfolio, Manage your
-                  Investment Portfolio with the minimal amount of work required from you,
-                  leaving you free time to do other things.
+                  Powered by SuperGrok 4.6, Stox monitors stock markets, Koins monitors
+                  crypto, and The Headmaster is the goal-planning bot — it builds a plan
+                  with you from the goals you set. Reports are informational scenarios about
+                  what is on your book. AetherForge does not trade for you and does not hold
+                  your assets.{" "}
+                  <Link href="/ai-disclaimer" className="font-medium text-primary hover:underline">
+                    Read the AI disclaimer
+                  </Link>
+                  .
                 </p>
               </div>
               <div className="mt-10 grid gap-5 sm:grid-cols-3">
@@ -290,6 +300,9 @@ export default function LandingPage() {
           </Link>
           <Link href="/pricing" className="hover:text-foreground">
             Pricing
+          </Link>
+          <Link href="/ai-disclaimer" className="hover:text-foreground">
+            AI disclaimer
           </Link>
           <Link href="/docs" className="hover:text-foreground">
             Docs
