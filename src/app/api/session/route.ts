@@ -18,6 +18,7 @@ export async function GET() {
         ? {
             id: user.id,
             email: user.email,
+            // Settings first/last name ahead of the auth name and email local-part.
             name: resolveDisplayName(user) || user.name,
             image: user.image ?? null,
             subscription_status: user.subscription_status ?? null,

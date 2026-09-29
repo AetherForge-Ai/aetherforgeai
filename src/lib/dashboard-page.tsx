@@ -15,7 +15,8 @@ import {
   DashboardSessionRecovery,
 } from "@/components/dashboard/AccountOwnerGuard";
 
-// Greeting: live session name/email only — never cached/placeholder "Test".
+// Greeting: saved settings name first. A bare placeholder ("Test") is skipped;
+// a distinctive settings name ("Test UserAF") is kept ahead of the email local-part.
 // Page reads skip cookie refresh and the session_data cache so a shared
 // browser cannot paint the other paper book during metals/transactions nav.
 
