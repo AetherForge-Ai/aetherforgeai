@@ -326,7 +326,7 @@ export async function generateReportForUser(
                 : `This is a PURE equities report covering NZX, ASX, NASDAQ and DOW JONES — never reference crypto. `) +
               `Write a rich, professional 4-6 sentence executive summary of the short-term (7-day) outlook. ` +
               `Be strictly evidence-based and PROBABILISTIC — speak in expected ranges and likelihoods, and NEVER give a single-point price target that disagrees with the base-case range below. ` +
-              `Reference technical posture (RSI/MACD/regime), conviction/confidence %, catalysts, news sentiment, and the single most important action now. ` +
+              `Reference technical posture (RSI/MACD/regime), conviction/confidence %, catalysts, news sentiment, and the single most important illustrative scenario. Do not tell the reader they should buy, and do not instruct a cash deployment. ` +
               `CANONICAL RATINGS are the only actions you may use. Do not upgrade a HOLD into Strong Buy, Accumulate, or ADD. Do not call a name positive momentum unless the line says yes. ` +
               `If you quote a 7-day view for a held name, use that name's base-case range exactly. ` +
               (guard.mode === "full"

@@ -822,7 +822,9 @@ export function PortfolioDashboard({
   // Global-search pick: switch to the matching bot and track the symbol.
   async function handleSearchPick(assetClass: AssetClass, entry: UniverseEntry) {
     if (!canUseBot(assetClass)) {
-      toast.error(`Your plan does not include the ${assetClass} bot. Upgrade to unlock it.`);
+      toast.error(`Your plan does not include the ${assetClass} bot. Pro includes both Stox and Koins.`, {
+        action: { label: "See Pro", onClick: () => { window.location.href = "/pricing#pro"; } },
+      });
       return;
     }
     if (assetClass !== bot) setBot(assetClass);
@@ -1087,7 +1089,13 @@ export function PortfolioDashboard({
   function openAdd() {
     // Gate on the plan's ticker quota before opening the add dialog.
     if (atLimit) {
-      toast.error(quota.message);
+      const founder = quota.upgradeHref.startsWith("mailto:");
+      toast.error(quota.message, {
+        action: {
+          label: founder ? "Talk to us" : "See Pro",
+          onClick: () => { window.location.href = quota.upgradeHref; },
+        },
+      });
       return;
     }
     setEditing(null);
@@ -2011,8 +2019,8 @@ export function PortfolioDashboard({
       {/* ───────────────────────── 6 · Actionable intelligence — SELL/BUY signals + pathways (modular window) ───────────────────────── */}
       <div className={cn("mt-6", !(isStocks || isCrypto) && "hidden")}>
         <CollapsibleSection
-          title="Actionable Intelligence"
-          subtitle="Live SELL / BUY signals and the pathways behind them"
+          title="Informational signals"
+          subtitle="Illustrative sell and buy scenarios — not personalised advice"
           icon={Radar}
           defaultOpen
         >

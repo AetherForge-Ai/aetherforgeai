@@ -681,19 +681,19 @@ function buildPathwayPlan(
     recommendationNote = guard.headline;
   } else if (holdings.length === 0 && buys.length > 0) {
     recommendedName = "Balanced Growth";
-    recommendationNote = `Cash-ready / empty holdings — deploy into named BUY/ACCUMULATE tickers (${buys
+    recommendationNote = `No holdings on the book. Illustrative scenarios mention ${buys
       .slice(0, 3)
       .map((b) => b.ticker)
-      .join(", ")}) with a measured starter size. Keep a cash buffer and scale in on strength.`;
+      .join(", ")} as informational ideas only — not an instruction to deploy cash. You decide, and you buy elsewhere.`;
   } else if (sells.length > strongs.length && sells.length > 0) {
     recommendedName = "Capital Preservation";
-    recommendationNote = `${sells.length} holding${sells.length > 1 ? "s" : ""} flag downside risk this week — the recommended route is to de-risk first, lock in gains and rotate into quality before adding exposure.`;
+    recommendationNote = `${sells.length} holding${sells.length > 1 ? "s" : ""} flag downside risk this week — the illustrative route is the more defensive scenario. It is informational. You decide whether to act, and you execute on your own broker.`;
   } else if (strongs.length >= 1 || alpha > 0) {
     recommendedName = "Balanced Growth";
-    recommendationNote = `Signals are net constructive (portfolio 7-day alpha ${alpha > 0 ? "+" : ""}${alpha}%). The recommended route holds the core, acts on the strongest signals and keeps diversification intact.`;
+    recommendationNote = `Signals are net constructive (portfolio 7-day alpha ${alpha > 0 ? "+" : ""}${alpha}%). The illustrative route keeps the core and treats the strongest signals as scenarios, not orders.`;
   } else {
     recommendedName = "Balanced Growth";
-    recommendationNote = `The tape is mixed — the recommended route is to stay balanced, make no forced moves and act only on the clearest signals.`;
+    recommendationNote = `The tape is mixed — the illustrative route stays balanced and does not force a move. Any action is yours, on your own broker.`;
   }
 
   const pathways: PortfolioPathway[] = [

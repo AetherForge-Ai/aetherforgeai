@@ -190,7 +190,7 @@ function TickerCard({ t }: { t: TrialTickerAnalysis }) {
 
       <div className="mt-4">
         <p className="mb-2 flex items-center gap-1.5 text-[0.68rem] font-semibold uppercase tracking-wide text-muted-foreground">
-          <Target className="size-3.5" /> Fact-based next-move predictions
+          <Target className="size-3.5" /> Illustrative scenario ranges
         </p>
         <div className="flex flex-col gap-2 sm:flex-row">
           {t.predictions.map((p) => (
@@ -359,7 +359,7 @@ export function TrialReportView({
       {report.predictions.length > 0 && (
         <div className="rounded-3xl border border-border/70 bg-card/40 p-6">
           <h3 className="flex items-center gap-2 font-display text-lg font-bold">
-            <Target className="size-5 text-primary" /> Fact-based predictions of next moves
+            <Target className="size-5 text-primary" /> Illustrative market scenarios
           </h3>
           <div className="mt-3 grid gap-3 md:grid-cols-3">
             {report.predictions.map((p, i) => (

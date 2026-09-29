@@ -48,10 +48,11 @@ export function DisclaimerNotice({
               <strong className="text-foreground/90">
                 not a licensed financial advice provider
               </strong>{" "}
-              under the Financial Markets Conduct Act 2013 (New Zealand). Nothing here takes into
-              account your personal financial situation, goals or needs, and nothing here is a
-              recommendation, opinion or offer to buy, sell or hold any share, digital asset or other
-              financial product.
+              under the Financial Markets Conduct Act 2013 (New Zealand). We do not trade for you,
+              place orders, or take custody of your assets — you buy and sell on your own broker or
+              exchange. Nothing here takes into account your personal financial situation, goals or
+              needs, and nothing here is a recommendation, opinion or offer to buy, sell or hold any
+              share, digital asset or other financial product.
             </p>
             <p>
               Investing involves risk, including the loss of some or all of your capital; digital
@@ -83,9 +84,10 @@ export function DisclaimerNotice({
         <strong className="font-semibold text-foreground/80">Not financial advice.</strong>{" "}
         AetherForge AI (Forge Intelligence Ltd) provides general market information and AI-generated
         analysis for informational purposes only. We are not financial advisers and this is not
-        licensed financial advice under the Financial Markets Conduct Act 2013 (NZ). It does not
-        consider your personal circumstances and is not a recommendation to buy or sell any financial
-        product. Investing carries risk, including loss of capital; past performance does not
+        licensed financial advice under the Financial Markets Conduct Act 2013 (NZ). We do not trade
+        for you or hold your assets. It does not consider your personal circumstances and is not a
+        recommendation to buy or sell any financial product. Investing carries risk, including loss of
+        capital; past performance does not
         guarantee future results. Always do your own research and consult a licensed financial
         adviser.{" "}
         <Link href="/ai-disclaimer" className="font-medium text-primary hover:underline">
