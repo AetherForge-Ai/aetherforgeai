@@ -32,8 +32,9 @@ const publicRoutes = [
   "/features",
   "/how",
   "/performance",
-  "/dashboard", // logged-out visitors get a locked, read-only preview (page handles guest vs member)
+  "/dashboard", // guests get the member signup prompt; no portfolio or account data
   "/markets", // full-page Stock Markets browser — read-only preview for guests
+  "/market-news", // guest preview of headlines; the page renders no portfolio
   "/projections", // Top-50 weekly projections per market — read-only preview for guests
   "/login",
   "/register",
@@ -50,6 +51,8 @@ const publicRoutes = [
   "/free-trial",
   "/chat", // Market Assistant — guests see a sign-in prompt; members are not sent to pricing
   "/own-the-bots",
+  "/docs",
+  "/blog",
 
   //stripe routes here
   "/stripe/demo",

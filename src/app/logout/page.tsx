@@ -1,54 +1,102 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { clearClientUserState } from "@/lib/client-user-state";
+import { invalidateLiveSessionProbe } from "@/lib/auth-refresh";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { BrandLogo } from "@/components/BrandLogo";
 import { CheckCircle2, ShieldCheck, LogIn, Loader2 } from "lucide-react";
 
+async function sessionStillPresent(): Promise<boolean> {
+  invalidateLiveSessionProbe();
+  const res = await fetch("/api/session", {
+    method: "GET",
+    credentials: "include",
+    cache: "no-store",
+  });
+  if (!res.ok) return true;
+  const data = (await res.json().catch(() => null)) as { user?: { id?: string } | null } | null;
+  return !!data?.user?.id;
+}
+
+async function postLogout(): Promise<boolean> {
+  const res = await fetch("/api/session/logout", {
+    method: "POST",
+    credentials: "include",
+    cache: "no-store",
+  });
+  return res.ok;
+}
+
 export default function LogoutPage() {
-  const [done, setDone] = useState(false);
-  const ranRef = useRef(false); // guard against React StrictMode double-invoke
+  const [phase, setPhase] = useState<"working" | "done" | "error">("working");
+  const ranRef = useRef(false);
 
   useEffect(() => {
     if (ranRef.current) return;
     ranRef.current = true;
 
+    const done = new URLSearchParams(window.location.search).get("done") === "1";
+    if (done) {
+      setPhase("done");
+      return;
+    }
+
     (async () => {
       try {
         clearClientUserState();
-        const res = await fetch("/api/session/logout", {
-          method: "POST",
-          credentials: "include",
-          cache: "no-store",
-        });
-        if (!res.ok) throw new Error(`Logout failed (${res.status})`);
-        console.log("[logout] Session cleared.");
+        invalidateLiveSessionProbe();
+        const posted = await postLogout();
+        if (!posted) throw new Error("Logout failed");
+        // One retry if the first response did not drop the cookie.
+        if (await sessionStillPresent()) {
+          await postLogout();
+          if (await sessionStillPresent()) {
+            setPhase("error");
+            return;
+          }
+        }
+        clearClientUserState();
+        // Full navigation drops the client router cache of the signed-in dashboard.
+        window.location.replace("/logout?done=1");
       } catch (err) {
-        // The session cookies are httpOnly, so only the server can expire them.
-        // Still show the confirmation — the user intended to leave.
-        console.error("[logout] signOut error (showing confirmation anyway):", err);
-      } finally {
-        setDone(true);
+        console.error("[logout] signOut error:", err);
+        setPhase("error");
       }
     })();
   }, []);
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-6 px-4 bg-gradient-to-br from-background to-muted/20">
-      <Link href="/" className="transition-opacity hover:opacity-90">
+      <a href="/" className="transition-opacity hover:opacity-90">
         <BrandLogo animated markClassName="size-12" wordmarkClassName="text-xl" />
-      </Link>
+      </a>
 
-      {!done ? (
+      {phase === "working" ? (
         <Card className="w-full max-w-md border shadow-xl">
           <CardHeader className="space-y-3 text-center py-10">
             <Loader2 className="mx-auto size-8 animate-spin text-primary" />
             <CardTitle className="text-xl font-semibold tracking-tight">Signing you out…</CardTitle>
             <CardDescription>Securely closing your session.</CardDescription>
           </CardHeader>
+        </Card>
+      ) : phase === "error" ? (
+        <Card className="w-full max-w-md border shadow-xl">
+          <CardHeader className="space-y-4 text-center pb-2">
+            <CardTitle className="text-2xl font-bold tracking-tight">Sign-out did not finish</CardTitle>
+            <CardDescription className="text-base">
+              This browser still has a session. Portfolio pages stay closed until sign-out completes.
+            </CardDescription>
+          </CardHeader>
+          <CardFooter className="flex flex-col gap-3 pt-4">
+            <Button className="w-full h-12 text-base font-semibold" onClick={() => window.location.assign("/logout")}>
+              Try sign-out again
+            </Button>
+            <Button asChild variant="ghost" className="w-full h-11">
+              <a href="/">Return to Home</a>
+            </Button>
+          </CardFooter>
         </Card>
       ) : (
         <Card className="w-full max-w-md border shadow-xl animate-in fade-in zoom-in-95 duration-300">
@@ -74,13 +122,13 @@ export default function LogoutPage() {
           </CardContent>
           <CardFooter className="flex flex-col gap-3 pt-4">
             <Button asChild className="w-full h-12 text-base font-semibold">
-              <Link href="/login">
+              <a href="/login">
                 <LogIn className="size-5" />
                 Log In Again
-              </Link>
+              </a>
             </Button>
             <Button asChild variant="ghost" className="w-full h-11">
-              <Link href="/">Return to Home</Link>
+              <a href="/">Return to Home</a>
             </Button>
           </CardFooter>
         </Card>
