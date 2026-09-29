@@ -6,9 +6,16 @@
  */
 
 import type { TotalumSynthesis, StrategyBlueprint } from "@/lib/totalum-engine";
+import {
+  alignNarrativeToPlan,
+  illustrativeActionLabel,
+  nzdWhole,
+  softenHeadmasterLanguage,
+  type HeadmasterIdea,
+} from "@/lib/headmaster-trust";
 
 function nzd(v: number): string {
-  return `NZ$${Math.round(v).toLocaleString()}`;
+  return nzdWhole(v);
 }
 function pct(v: number): string {
   return `${v > 0 ? "+" : ""}${v.toFixed(2)}%`;
@@ -38,6 +45,8 @@ export function renderTotalumReport(
     strategy?: StrategyBlueprint | null;
     aiNarrative?: string;
     engine?: string;
+    /** Explicit opt-in. Rendered in its own section, never as default instructions. */
+    watchlist?: HeadmasterIdea[];
   } = {}
 ): string {
   const s = synthesis;
@@ -99,33 +108,65 @@ export function renderTotalumReport(
 
   const correlation = `<ul>${s.correlationNotes.map((n) => `<li>${esc(n)}</li>`).join("")}</ul>`;
 
-  const strategyBlock = opts.strategy
+  const strategy = opts.strategy;
+  const commentary =
+    strategy && opts.aiNarrative
+      ? alignNarrativeToPlan(opts.aiNarrative, strategy.plan)
+      : "";
+  const watchlist = opts.watchlist ?? [];
+  const watchlistBlock = watchlist.length
     ? `
     <section>
-      <h2>Recommended Strategy · ${esc(opts.strategy.name)}</h2>
-      <p>${esc(opts.strategy.narrative)}</p>
-      <p class="muted">Target: ${Object.entries(opts.strategy.targets)
+      <h2>Watchlist ideas — not held</h2>
+      <p class="muted">These names are not in the current book. They are research ideas behind an explicit request, not instructions. AetherForge does not trade for you.</p>
+      <ul>${watchlist
+        .map((w) => {
+          const note = softenHeadmasterLanguage(w.reason || "").replace(/\s+/g, " ").trim();
+          return `<li><strong>${esc(w.ticker)}</strong> — ${esc(w.name)} (${esc(w.market)}).${note ? ` ${esc(note)}` : ""} Not an instruction.</li>`;
+        })
+        .join("")}</ul>
+    </section>`
+    : "";
+
+  const strategyBlock = strategy
+    ? `
+    <section>
+      <h2>Executive brief</h2>
+      <p>${esc(strategy.narrative)}</p>
+      <p class="muted"><strong>Retained cash:</strong> ${nzd(strategy.plan.retainedCashNZD)} (${strategy.plan.targetCashPct}% of ${nzd(strategy.plan.totalValueNZD)}). <strong>Illustrated cash reallocation:</strong> ${nzd(strategy.plan.cashToReallocateNZD)}. Cash on book: ${nzd(strategy.plan.cashOnBookNZD)}.</p>
+      <p class="muted">${esc(strategy.formula)}</p>
+      ${
+        commentary
+          ? `<h3>Additional commentary</h3><div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:12px;padding:16px 18px;font-size:14px;line-height:1.65;color:#0f172a">${rich(commentary)}</div><p class="sub" style="margin-top:6px">Commentary is scenario language. Cash figures above are the calculation of record.</p>`
+          : ""
+      }
+    </section>
+    <section>
+      <h2>Allocation skeleton · ${esc(strategy.name)}</h2>
+      <p class="muted">Illustrative class moves for the selected goal. Not orders. AetherForge does not trade for you.</p>
+      <p class="muted">Target: ${Object.entries(strategy.targets)
         .map(([k, v]) => `${k} ${v}%`)
-        .join(" · ")} · Projected ≈${opts.strategy.projectedReturnPct}% return @ ≈${opts.strategy.projectedVolPct}% vol</p>
+        .join(" · ")} · Model pathway ≈${strategy.projectedReturnPct}% return @ ≈${strategy.projectedVolPct}% vol</p>
       <table>
-        <thead><tr><th>Asset class</th><th class="num">Current</th><th class="num">Target</th><th>Action</th><th class="num">Amount</th></tr></thead>
+        <thead><tr><th>Asset class</th><th class="num">Current</th><th class="num">Target</th><th>Scenario</th><th class="num">Amount</th></tr></thead>
         <tbody>
-          ${opts.strategy.rebalance
+          ${strategy.rebalance
             .map(
               (m) => `<tr>
               <td>${esc(m.label)}</td>
               <td class="num">${m.currentWeight.toFixed(1)}%</td>
               <td class="num">${m.targetWeight}%</td>
-              <td>${m.action === "hold" ? "Hold" : m.action === "buy" ? "Buy ▲" : "Trim ▼"}</td>
-              <td class="num">${m.action === "hold" ? "—" : nzd(m.amountNZD)}</td>
+              <td>${esc(illustrativeActionLabel(m.action))}</td>
+              <td class="num">${m.action === "unchanged" ? "—" : nzd(m.amountNZD)}</td>
             </tr>`
             )
             .join("")}
         </tbody>
       </table>
+      <p class="muted">Retained cash ${nzd(strategy.plan.retainedCashNZD)}. Increases ${nzd(strategy.plan.illustrativeIncreaseNZD)} = reductions ${nzd(strategy.plan.illustrativeReduceNZD)}.</p>
       <div class="cols">
-        <div><h3>Entry rules</h3><ul>${opts.strategy.entryRules.map((r) => `<li>${esc(r)}</li>`).join("")}</ul></div>
-        <div><h3>Exit &amp; risk rules</h3><ul>${opts.strategy.exitRules.map((r) => `<li>${esc(r)}</li>`).join("")}</ul></div>
+        <div><h3>Illustrative entry notes</h3><ul>${strategy.entryRules.map((r) => `<li>${esc(r)}</li>`).join("")}</ul></div>
+        <div><h3>Illustrative exit &amp; risk notes</h3><ul>${strategy.exitRules.map((r) => `<li>${esc(r)}</li>`).join("")}</ul></div>
       </div>
     </section>`
     : "";
@@ -179,18 +220,6 @@ export function renderTotalumReport(
   <h1>Total Portfolio Intelligence Report</h1>
   <p class="muted">A unified cross-asset view of your equities, crypto and precious metals — synthesised into allocation, risk, scenarios and strategy.</p>
 
-  ${
-    opts.aiNarrative
-      ? `<section>
-    <h2>ZENITH Executive Briefing</h2>
-    <div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:12px;padding:16px 18px;font-size:14px;line-height:1.65;color:#0f172a">
-      ${rich(opts.aiNarrative)}
-    </div>
-    <p class="sub" style="margin-top:6px">Authored by The Headmaster · Portfolio Planning and Strategies in ${esc(opts.engine || "Ultra Advanced ZENITH State")}.</p>
-  </section>`
-      : ""
-  }
-
   <div class="kpis">
     <div class="kpi"><div class="l">Total wealth</div><div class="v">${nzd(s.totalValueNZD)}</div></div>
     <div class="kpi"><div class="l">Unrealised P/L</div><div class="v" style="color:${gainColor}">${nzd(s.totalGainNZD)}</div></div>
@@ -230,9 +259,10 @@ export function renderTotalumReport(
   </section>
 
   ${strategyBlock}
+  ${watchlistBlock}
 
   <footer>
-    Generated by The Headmaster — AetherForge AI. Figures are model-based intelligence using transparent capital-market assumptions and live spot/FX where available. This is portfolio intelligence, not personalised financial advice.
+    Generated by The Headmaster — AetherForge AI. Figures are model-based intelligence using transparent capital-market assumptions and live spot/FX where available. This is portfolio intelligence, not personalised financial advice. AetherForge does not trade for you.
   </footer>
 </div></body></html>`;
 }
