@@ -232,46 +232,77 @@ export function illustrativeActionLabel(action: IllustrativeAction): string {
 export function softenHeadmasterLanguage(text: string): string {
   return String(text || "")
     .replace(/\bBUY\s*\/\s*ACCUMULATE\b/gi, "an illustrative increase")
-    .replace(/\bSTRONG\s+BUY\b/gi, "a higher-conviction scenario")
+    .replace(/\bSTRONG[-\s]+BUY\b/gi, "a higher-conviction scenario")
     .replace(/\bACCUMULATE\b/gi, "an illustrative increase")
-    .replace(/\bBUY\b/g, "an illustrative add")
-    .replace(/\bADD\s+([A-Z][A-Z0-9.]{0,14})\b/g, "an illustrative increase case for $1");
+    .replace(/\bBUY\s*▲/gi, "Illustrative increase")
+    .replace(/\bTRIM\s*▼/gi, "Illustrative reduce")
+    .replace(/\bBUY\b/gi, "an illustrative add")
+    .replace(/\bADD\s+([A-Z][A-Z0-9.]{0,14})\b/g, "an illustrative increase case for $1")
+    .replace(/\bdeployable cash\b/gi, "the illustrated reallocation");
 }
 
-function mentionsAmount(sentence: string, amount: number): boolean {
-  const n = Math.round(amount);
-  if (!Number.isFinite(n)) return false;
-  const comma = n.toLocaleString("en-NZ");
-  return sentence.includes(comma) || new RegExp(`\\b${n}\\b`).test(sentence);
+function illustrativeCashLine(plan?: AllocationPlan | null): string {
+  if (!plan) {
+    return "Illustrative reallocation uses only cash above the retained-cash target. It is not an instruction to deploy the cash balance.";
+  }
+  return `Illustrative reallocation is ${nzdWhole(plan.cashToReallocateNZD)}, retaining ${nzdWhole(plan.retainedCashNZD)} cash. That is the cash-row figure, not the full cash balance.`;
+}
+
+/** Keep 9,053.33 and CIP.AX from ending a sentence match early. */
+function maskBreakableDots(text: string): string {
+  return text
+    .replace(/(\d)\.(\d)/g, "$1\u0001$2")
+    .replace(/\.(AX|NZ|NZX|ASX|L|TO|HK)\b/gi, "\u0001$1");
+}
+
+/**
+ * Display-time pass for Headmaster prose.
+ * Stored reports generated before Wave A still contain BUY/ACCUMULATE lists,
+ * "deploy dry powder now", and "Trim ~NZ$… from cash". Softening at generation
+ * time does not rewrite those documents; this pass does, on view.
+ * Wave A skeleton copy (retained cash, illustrated reallocation) is left as-is.
+ */
+export function sanitizeHeadmasterDisplayText(text: string, plan?: AllocationPlan | null): string {
+  const cashLine = illustrativeCashLine(plan).replace(/\.$/, "");
+  let out = maskBreakableDots(softenHeadmasterLanguage(text));
+  out = out.replace(
+    /Trim\s+~?(?:NZ\$|\$)\s*[\d,]+(?:\u0001\d+)?\s+from\s+cash\s+and\s+rotate\s+into\s+[^.!?\n]+/gi,
+    cashLine
+  );
+  out = out.replace(
+    /Keep at least\s+\d+(?:\u0001\d+)?%\s+in cash as dry powder[^.;!\n]*/gi,
+    "Keep the skeleton cash target as retained cash. That balance is not an instruction"
+  );
+  out = out.replace(
+    /[^.!?\n]*(?:\bdry\s+powder\b|\bput\s+(?:the\s+)?cash\s+to\s+work\b|\bdeploy(?:ing)?\s+(?:the\s+)?(?:full\s+|entire\s+|whole\s+)?cash\b)[^.!?\n]*[.!?]?/gi,
+    (sentence) => {
+      if (/\bnot an instruction\b/i.test(sentence) && !/\bdry\s+powder\b/i.test(sentence)) return sentence;
+      return /[.!?]\s*$/.test(sentence) ? `${cashLine}.` : cashLine;
+    }
+  );
+  return out.replace(/\u0001/g, ".").replace(/[ ]{2,}/g, " ");
+}
+
+/** Sanitize visible text nodes in a stored or freshly rendered Headmaster HTML report. */
+export function sanitizeHeadmasterReportHtml(html: string, plan?: AllocationPlan | null): string {
+  return String(html || "")
+    .replace(/ZENITH Executive Briefing/g, "Illustrative commentary")
+    .replace(/>([^<]*)</g, (full, text: string) => {
+      // Leave the document stylesheet alone. Report prose does not look like CSS.
+      if (/[{}]/.test(text) && /font-family|color-scheme|box-sizing/.test(text)) return full;
+      if (!text.trim()) return full;
+      return `>${sanitizeHeadmasterDisplayText(text, plan)}<`;
+    });
 }
 
 /**
  * Force commentary onto the plan's cash figures. A sentence that tells the
- * reader to deploy the full cash balance is replaced with the retained-cash
- * identity from the same plan.
+ * reader to deploy cash or dry powder is replaced with the retained-cash
+ * identity from the same plan, including when the sentence never names the
+ * cash-on-book amount.
  */
 export function alignNarrativeToPlan(text: string, plan: AllocationPlan): string {
-  const softened = softenHeadmasterLanguage(text);
-  if (Math.abs(plan.cashOnBookNZD - plan.cashToReallocateNZD) <= 1) return softened;
-  const replacement = `Illustrative reallocation is ${nzdWhole(plan.cashToReallocateNZD)}, retaining ${nzdWhole(plan.retainedCashNZD)} cash.`;
-  return softened
-    .split(/(?<=\.)\s+|\n+/)
-    .map((sentence) => {
-      const deploy =
-        /\b(?:deploy(?:ing)?|dry powder|put (?:the )?cash to work)\b/i.test(sentence);
-      if (!deploy) return sentence;
-      if (!mentionsAmount(sentence, plan.cashOnBookNZD)) return sentence;
-      if (
-        mentionsAmount(sentence, plan.cashToReallocateNZD) &&
-        mentionsAmount(sentence, plan.retainedCashNZD)
-      ) {
-        return sentence;
-      }
-      return replacement;
-    })
-    .join(" ")
-    .replace(/[ ]{2,}/g, " ")
-    .trim();
+  return sanitizeHeadmasterDisplayText(text, plan).trim();
 }
 
 export interface HeadmasterIdea {
