@@ -602,8 +602,8 @@ export function ReportCenter({
         </div>
         {anyLocked && (freePlan || plan === "weekly") && (
           <Button asChild size="sm" variant="outline" className="border-[var(--gold)]/40">
-            <Link href="/pricing">
-              <Zap className="mr-1 size-4" /> Upgrade
+            <Link href="/pricing#pro">
+              <Zap className="mr-1 size-4" /> Upgrade to Pro
             </Link>
           </Button>
         )}
@@ -662,8 +662,8 @@ export function ReportCenter({
                     </Button>
                   ) : (
                     <Button asChild variant="outline" className="w-full">
-                      <Link href="/pricing">
-                        <Lock className="mr-1 size-4" /> Unlock this monitor
+                      <Link href="/pricing#pro">
+                        <Lock className="mr-1 size-4" /> Unlock with Pro
                       </Link>
                     </Button>
                   )

@@ -56,8 +56,8 @@ const OVERVIEW_PILLARS = [
   },
   {
     icon: Bot,
-    title: "We analyse & advise",
-    body: "You enter what you own; our Stox and Koins bots study the markets and hand you clear, plain-English guidance and reports.",
+    title: "We analyse and explain",
+    body: "You enter what you own. Stox and Koins study the markets and return plain-English, illustrative scenarios. They are informational — not personalised advice.",
   },
 ];
 
@@ -102,7 +102,7 @@ const STEPS = [
     n: "07",
     icon: FileBarChart,
     title: "Receive your AI report",
-    body: "Get a comprehensive, analyst-grade report — delivered to your dashboard and inbox, downloadable as a PDF, with clear recommended moves.",
+    body: "Get a detailed report on your dashboard and by email, downloadable as a PDF, with illustrative moves. You decide, then execute on your own broker.",
   },
 ];
 
@@ -110,8 +110,8 @@ const REPORT_CONTENTS = [
   { icon: BarChart3, label: "Complete market breakdown", desc: "Live NZX, ASX, US and global tables with the context around every ticker you hold." },
   { icon: TrendingUp, label: "What has performed well", desc: "Your top movers surfaced and ranked across 24h, 7-day and 30-day windows." },
   { icon: LineChart, label: "Performance graphs", desc: "Clean 12-month history and continuation charts embedded right in the report." },
-  { icon: GaugeCircle, label: "7-day projected outlook", desc: "Forward projections with confidence scores, momentum and continuation graphs." },
-  { icon: ListChecks, label: "Clear recommended moves", desc: "Plain-English Sell / Hold / Buy calls — each with the detailed reasoning behind it." },
+  { icon: GaugeCircle, label: "7-day illustrative outlook", desc: "Probabilistic scenario ranges with confidence scores, momentum and continuation graphs. Not a guarantee." },
+  { icon: ListChecks, label: "Illustrative moves", desc: "Plain-English Sell / Hold / Buy scenarios with the reasoning behind them. Informational only — not a personalised recommendation." },
   { icon: Route, label: "Three pathways forward", desc: "Low Risk · Balanced · High Risk routes so you choose the path that fits you." },
 ];
 
@@ -122,7 +122,7 @@ const BOTS = [
     subtitle: "Stock Market Intelligence",
     accent: "from-emerald-500/20 via-teal-500/10 to-transparent",
     ring: "border-emerald-500/30",
-    desc: "Sweeps the entire NZX and ASX plus global equities — compiling institutional-grade tables, top-mover boards and 12-month continuation graphs for every share you hold.",
+    desc: "Sweeps NZX, ASX and global equities — compiling detailed tables, top-mover boards and 12-month continuation graphs for every share you hold.",
     tags: ["NZX", "ASX", "US & global equities"],
   },
   {
@@ -131,7 +131,7 @@ const BOTS = [
     subtitle: "Crypto Market Intelligence",
     accent: "from-amber-500/20 via-orange-500/10 to-transparent",
     ring: "border-amber-500/30",
-    desc: "Tracks the top 100 cryptocurrencies and the wider digital-asset market — synthesising flows, worldwide news and sentiment into clear 7-day projections and forward pathways.",
+    desc: "Tracks the top 100 cryptocurrencies and the wider digital-asset market — synthesising flows, news and sentiment into illustrative 7-day scenarios and forward pathways.",
     tags: ["BTC", "ETH", "Top-100 digital assets"],
   },
 ];
@@ -398,8 +398,8 @@ export default function HowItWorksPage() {
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-lg leading-relaxed text-muted-foreground">
             You buy your shares, crypto, silver or gold wherever you like — Sharesies, Tiger Trade,
-            Interactive Brokers or any broker. AetherForge AI never touches your assets. You simply enter what
-            you hold, and our Stox and Koins bots analyse the markets and hand you clear, actionable guidance.
+            Interactive Brokers or any broker. AetherForge AI never touches your assets. You enter what
+            you hold, and Stox and Koins return informational scenarios. You still execute elsewhere.
           </p>
           <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
             <Button asChild size="lg" className="h-12 px-8 text-base font-semibold shadow-glow">
@@ -422,7 +422,7 @@ export default function HowItWorksPage() {
                 Monitor and protect your investments — without ever giving up control
               </h2>
               <p className="mt-4 text-muted-foreground">
-                AetherForge AI is purely analytical and advisory. You keep your money and your holdings in
+                AetherForge AI is an informational research tool. You keep your money and your holdings in
                 your own broker and wallet accounts at all times. We never take custody, never place trades,
                 and never move a single dollar. Our job is to turn the markets into clarity — yours is to
                 decide.
@@ -443,7 +443,11 @@ export default function HowItWorksPage() {
               <ShieldCheck className="size-5 shrink-0 text-primary" />
               <span>
                 <span className="font-semibold text-foreground">AetherForge AI is not a trading platform.</span>{" "}
-                We have no access to your assets — you stay in complete control on your chosen exchange.
+                We have no access to your assets — you stay in complete control on your chosen exchange.{" "}
+                <Link href="/ai-disclaimer" className="font-medium text-primary hover:underline">
+                  Full AI disclaimer
+                </Link>
+                .
               </span>
             </div>
           </div>

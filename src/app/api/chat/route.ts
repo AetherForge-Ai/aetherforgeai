@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
+import {
+  aucklandMonthKey,
+  FREE_ASSISTANT_QUERIES_PER_MONTH,
+  isFreeReportPlan,
+} from "@/lib/entitlements";
 import { totalumSdk } from "@/lib/totalum";
 import { buildPortfolioContext, ANALYST_SYSTEM_PROMPT } from "@/lib/ai-context";
 import { createGrokChatCompletion, type GrokMessage } from "@/lib/grok";
@@ -9,6 +14,24 @@ import type { Stock } from "@/lib/portfolio";
 const postSchema = z.object({
   message: z.string().min(1, "Message is required").max(2000),
 });
+
+/** User-role Market Assistant messages already sent in the current Auckland month. */
+async function freeAssistantUsedThisMonth(userId: string, now = Date.now()): Promise<number> {
+  const month = aucklandMonthKey(now);
+  const historyRes = await totalumSdk.crud.query("chat_message", {
+    _filter: { user: userId },
+    _sort: { createdAt: "desc" },
+    _limit: 200,
+  });
+  const rows = (historyRes?.data as unknown as { role?: string; createdAt?: string | Date; created_at?: string | Date }[]) || [];
+  return rows.filter((m) => {
+    if (m.role && m.role !== "user") return false;
+    const created = m.createdAt || m.created_at;
+    if (!created) return false;
+    const t = new Date(created).getTime();
+    return !Number.isNaN(t) && aucklandMonthKey(t) === month;
+  }).length;
+}
 
 // GET /api/chat — load the user's chat history
 export async function GET() {
@@ -42,6 +65,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: parsed.error.flatten() }, { status: 400 });
     }
     const userMessage = parsed.data.message.trim();
+
+    if (isFreeReportPlan(user.subscription_plan)) {
+      const used = await freeAssistantUsedThisMonth(user._id);
+      if (used >= FREE_ASSISTANT_QUERIES_PER_MONTH) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: `You've used this month's ${FREE_ASSISTANT_QUERIES_PER_MONTH} free Market Assistant queries. Upgrade to Pro for a higher allowance, or wait until next month.`,
+          },
+          { status: 429 }
+        );
+      }
+    }
 
     // Persist the user's message
     await totalumSdk.crud.createRecord("chat_message", {

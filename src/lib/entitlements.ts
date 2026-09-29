@@ -8,7 +8,7 @@
  * the dashboard UI.
  */
 
-import { FREE_PLAN, planByKey } from "@/lib/plans";
+import { FREE_PLAN, planByKey, SALES_EMAIL } from "@/lib/plans";
 
 export type AssetType = "stock" | "crypto";
 export type LimitScope = "total" | "perBot";
@@ -20,20 +20,37 @@ export interface EntitlementInput {
 
 /**
  * How ticker usage is counted against the limit.
- *  - Free tier: "3 tickers — stocks OR crypto" → counted across BOTH bots.
- *  - Paid tiers: the limit applies "per bot" (stock and crypto each get the full quota).
+ *  - Free tier: 8 holdings across both sleeves (Stox or Koins — the book is one cap).
+ *  - Paid tiers: the limit applies per bot (stock and crypto each get the full quota).
  */
 export function limitScope(plan?: string | null): LimitScope {
   return plan === "free" || plan === "none" || !plan ? "total" : "perBot";
 }
 
-/** The number of tickers this user may actively monitor (per the scope above). */
+/**
+ * Holdings cap for this account.
+ * Free always gets at least {@link FREE_PLAN.tickerLimit} (8), even when an
+ * older record still stores the legacy stamp of 3.
+ */
 export function resolveTickerLimit(user: EntitlementInput): number {
-  if (typeof user.ticker_limit === "number" && user.ticker_limit > 0) return user.ticker_limit;
+  const stamped = typeof user.ticker_limit === "number" && user.ticker_limit > 0 ? user.ticker_limit : 0;
+  if (isFreeReportPlan(user.subscription_plan)) {
+    return Math.max(stamped, FREE_PLAN.tickerLimit);
+  }
+  if (stamped > 0) return stamped;
   const plan = planByKey(user.subscription_plan);
   if (plan) return plan.tickerLimit;
-  // Sensible floor — treat anyone without an explicit limit as the free tier.
   return FREE_PLAN.tickerLimit;
+}
+
+/** Where an over-cap prompt should send the member. Pro for everyone below Pro; founder email at Pro and above. */
+export function overCapUpgradeHref(plan?: string | null): string {
+  const key = normalizePlanKey(plan);
+  const atProOrAbove = key.startsWith("pro_") || key.startsWith("ultimate_");
+  if (atProOrAbove) {
+    return `mailto:${SALES_EMAIL}?subject=${encodeURIComponent("Founder-led onboarding")}`;
+  }
+  return "/pricing#pro";
 }
 
 /** How many of the user's holdings count toward the limit for a given bot. */
@@ -54,17 +71,19 @@ export function checkTickerQuota(
   user: EntitlementInput,
   holdings: { asset_type?: string | null }[],
   assetType: AssetType
-): { allowed: boolean; used: number; limit: number; scope: LimitScope; message: string } {
+): { allowed: boolean; used: number; limit: number; scope: LimitScope; message: string; upgradeHref: string } {
   const scope = limitScope(user.subscription_plan);
   const limit = resolveTickerLimit(user);
   const used = usedTickerCount(holdings, assetType, scope);
   const allowed = used < limit;
-  const noun = scope === "total" ? "tickers" : `${assetType} tickers`;
+  const noun = scope === "total" ? "holdings" : `${assetType} holdings`;
+  const href = overCapUpgradeHref(user.subscription_plan);
   const message = allowed
     ? ""
-    : `You've reached your plan's limit of ${limit} monitored ${noun}. ` +
-      `Upgrade your plan or remove a holding to add more.`;
-  return { allowed, used, limit, scope, message };
+    : href.startsWith("mailto:")
+      ? `You've reached your plan's limit of ${limit} monitored ${noun}. Remove a holding to add another, or talk to us about a founder-led setup.`
+      : `You've reached your plan's limit of ${limit} monitored ${noun}. Upgrade to Pro for a higher cap, or remove a holding to add another.`;
+  return { allowed, used, limit, scope, message, upgradeHref: href };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -91,6 +110,9 @@ export type CadenceUnit = "rolling" | "week" | "month";
 
 /** Free tier matches Pricing: 3 AI research reports per calendar month. */
 export const FREE_REPORTS_PER_MONTH = FREE_PLAN.reportsPerMonth;
+
+/** Free Market Assistant allowance per Auckland calendar month. Paid plans are uncapped here. */
+export const FREE_ASSISTANT_QUERIES_PER_MONTH = 20;
 
 export interface ReportCadence {
   unit: CadenceUnit;

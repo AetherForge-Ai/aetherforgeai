@@ -44,7 +44,7 @@ export const FREE_PLAN = {
     "Access to either Stox or Koins (choose one)",
     "3 AI Research Reports per month",
     "Basic portfolio tracking & P/L",
-    "Limited Market Assistant queries",
+    "20 Market Assistant queries per month",
   ],
 };
 
@@ -74,7 +74,7 @@ export interface Plan {
 
 const APEX_FEATURES = [
   "SuperGrok 4.6 Ultra Advanced ZENITH State reports",
-  "7-day short-term predictions",
+  "7-day illustrative scenario ranges",
   "3 forward pathways — safe · medium-risk · volatile",
   "12-month momentum & continuation graphs",
   "Daily orchestrated email briefings",
@@ -281,7 +281,7 @@ export const PRICING_TIERS: PricingTier[] = [
       "Access to either Stox or Koins (choose one)",
       "3 AI Research Reports per month",
       "Basic portfolio tracking & P/L",
-      "Limited Market Assistant queries",
+      "20 Market Assistant queries per month",
     ],
   },
   {
@@ -310,7 +310,7 @@ export const PRICING_TIERS: PricingTier[] = [
     yearlyPrice: 690,
     monthlyPlanKey: "pro_monthly",
     yearlyPlanKey: "pro_yearly",
-    cta: { label: "Start 14-day Pro Trial", kind: "checkout" },
+    cta: { label: "Start with Pro", kind: "checkout" },
     featured: true,
     highlights: [
       "Up to 75 holdings",
@@ -324,13 +324,13 @@ export const PRICING_TIERS: PricingTier[] = [
   {
     id: "ultimate",
     name: "Ultimate",
-    subtitle: "For family offices, advisors & power users",
-    badge: "Best Value for Heavy Users",
+    subtitle: "Founder-led onboarding for teams, API access and custom reporting",
+    badge: "Founder-led",
     monthlyPrice: 199,
     yearlyPrice: 1990,
     monthlyPlanKey: "ultimate_monthly",
     yearlyPlanKey: "ultimate_yearly",
-    cta: { label: "Talk to Sales", kind: "sales" },
+    cta: { label: "Talk to us", kind: "sales" },
     highlights: [
       "Unlimited holdings",
       "Everything in Pro",
@@ -343,7 +343,7 @@ export const PRICING_TIERS: PricingTier[] = [
   },
 ];
 
-/** Enquiries / sign-up contact used by the Ultimate "Talk to Sales" CTA. */
+/** Enquiries contact used by the Ultimate "Talk to us" CTA. Founder-led — not a self-serve checkout push. */
 export const SALES_EMAIL = "lukas@aetherforgeai.co.nz";
 
 /** All new-tier Stripe prices are provisioned in NZD. */
