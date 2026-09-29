@@ -25,7 +25,7 @@ import { formatMoney, currencyForTicker, nativeToNzd, type CurrencyCode } from "
 import { formatNumber } from "@/lib/portfolio";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { estimateFee, feeMarketFor, presetsForMarket, type FeePreset } from "@/lib/broker-fees";
+import { defaultFeePresetId, estimateFee, feeMarketFor, presetsForMarket, type FeePreset } from "@/lib/broker-fees";
 import { useFxRates } from "@/hooks/useFxRates";
 import { buildTradePreview, type TradePreview } from "@/lib/trade-preview";
 import { bumpHoldingsGeneration } from "@/lib/holdings-generation";
@@ -117,17 +117,8 @@ export function BuyDialog({
     if (target.price && target.price > 0) setLiveSpotRef(target.price);
     setDate(new Date().toISOString().slice(0, 10));
     // Crypto buy modal defaults to ~1% exchange fee (overridable). Metals ~1% spread.
-    const market = feeMarketFor(target.ticker, target.assetType);
-    if (market === "CRYPTO") {
-      setFeePresetId("crypto-pct");
-      setFees("");
-    } else if (market === "METAL") {
-      setFeePresetId("metal-spread");
-      setFees("");
-    } else {
-      setFeePresetId("zero");
-      setFees("");
-    }
+    setFeePresetId(defaultFeePresetId(target.ticker, target.assetType));
+    setFees("");
   }, [open, target, disarmReview]);
 
   // Load cash balance when the dialog opens. Apply only if the echoed userId
@@ -285,7 +276,7 @@ export function BuyDialog({
   }, [open, feePresetId, sharesNum, priceNum, ticker, assetType]);
 
 
-  // Remaining cash after this purchase (NZD); convert the native total before comparing.
+  // Cash is NZD. Compare the FX-converted cost, not the native quote.
   const totalCostNzd = totalCost > 0 ? nativeToNzd(totalCost, currency, fxRates) : 0;
   const remainingCash = cashBalance != null && totalCostNzd > 0 ? cashBalance - totalCostNzd : cashBalance;
   const exceedsCash = cashBalance != null && totalCostNzd > 0 && totalCostNzd > cashBalance + 1e-6;
@@ -655,7 +646,7 @@ export function BuyDialog({
                     }
                   >
                     {preset.label}
-                    {notional > 0 && preset.id !== "zero" ? ` · ${est}` : ""}
+                    {notional > 0 && preset.id !== "zero" ? ` · ${formatMoney(est, currency)}` : ""}
                   </button>
                 );
               })}
@@ -689,7 +680,11 @@ export function BuyDialog({
           <Button
             type="button"
             onClick={confirm}
-            disabled={saving || (step === "review" ? !confirmReady || !reviewPreview : !valid || exceedsCash)}
+            disabled={
+              saving ||
+              exceedsCash ||
+              (step === "review" ? !confirmReady || !reviewPreview : !valid)
+            }
             className={cn("font-semibold shadow-glow")}
           >
             {saving ? (

@@ -14,8 +14,8 @@ import { api } from "@/lib/api";
 import { formatPercent, type Stock } from "@/lib/portfolio";
 import { evaluateCryptoAlert } from "@/lib/crypto-live";
 import { formatMoney, formatPriceInput, currencyForTicker, type CurrencyCode } from "@/lib/currency";
-import { alertsForDesk } from "@/lib/alert-desk";
-import { formatSellStopChip, formatTrimChip } from "@/lib/alert-labels";
+import { alertTickerKey, alertsForDesk } from "@/lib/alert-desk";
+import { formatAlertRuleLine, formatSellStopChip, formatTrimChip } from "@/lib/alert-labels";
 import { useLiveCryptoQuotes } from "@/hooks/useLiveCryptoQuotes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -68,6 +68,11 @@ interface FormState {
   instructions: string;
 }
 
+const STOCK_INSTRUCTIONS =
+  "Trim 25% at a 6-7% dip. Hard sell-out at the floor price. Take profits in the 12-15% band.";
+const CRYPTO_INSTRUCTIONS =
+  "Sell out at -3% versus purchase. Start trimming 25% in the +8-12% band versus purchase.";
+
 const EMPTY_FORM: FormState = {
   ticker: "",
   stockId: "",
@@ -76,12 +81,23 @@ const EMPTY_FORM: FormState = {
   hardSellPrice: "",
   takeProfitMinPct: "12",
   takeProfitMaxPct: "15",
-  instructions: "Trim 25% at a 6-7% dip. Hard sell-out at the floor price. Take profits in the 12-15% band.",
+  instructions: STOCK_INSTRUCTIONS,
 };
 
-function money(n: number | null | undefined, ticker: string, crypto: boolean): string {
+/** Default sentences ignore a custom trim or hard-sell %. The saved percents are the rule. */
+function isBoilerplateInstructions(text: string): boolean {
+  const t = text.trim();
+  return !t || t === STOCK_INSTRUCTIONS || t === CRYPTO_INSTRUCTIONS;
+}
+
+function money(
+  n: number | null | undefined,
+  ticker: string,
+  crypto: boolean,
+  holdingTicker?: string | null
+): string {
   if (n === null || n === undefined || isNaN(n)) return "—";
-  return formatMoney(n, currencyForTicker(ticker, crypto ? "crypto" : "stock"));
+  return formatMoney(n, currencyForTicker(holdingTicker || ticker, crypto ? "crypto" : "stock"));
 }
 
 function num(v: string): number | null {
@@ -221,8 +237,7 @@ export function PriceAlerts({
             trimTriggerDipPct: "3",
             takeProfitMinPct: "8",
             takeProfitMaxPct: "12",
-            instructions:
-              "Sell out at -3% versus purchase. Start trimming 25% in the +8-12% band versus purchase.",
+            instructions: CRYPTO_INSTRUCTIONS,
           }
         : { ...EMPTY_FORM }
     );
@@ -287,7 +302,14 @@ export function PriceAlerts({
       hardSellPrice: num(form.hardSellPrice),
       takeProfitMinPct: num(form.takeProfitMinPct),
       takeProfitMaxPct: num(form.takeProfitMaxPct),
-      instructions: form.instructions.trim(),
+      instructions: isBoilerplateInstructions(form.instructions)
+        ? formatAlertRuleLine({
+            trimPct: num(form.trimPct),
+            trimTriggerDipPct: num(form.trimTriggerDipPct),
+            takeProfitMinPct: num(form.takeProfitMinPct),
+            takeProfitMaxPct: num(form.takeProfitMaxPct),
+          })
+        : form.instructions.trim(),
     };
     console.log("[PriceAlerts] saving alert", { editingId, body });
     const res = editingId
@@ -360,7 +382,10 @@ export function PriceAlerts({
           <ul className="grid gap-3 md:grid-cols-2">
             {alerts.map((a) => {
               const sym = a.ticker.toUpperCase();
-              const holding = stocks.find((s) => s._id === a.stockId || s.ticker.toUpperCase() === sym);
+              const holding =
+                stocks.find((s) => a.stockId && s._id === a.stockId) ||
+                stocks.find((s) => s.ticker.toUpperCase() === sym) ||
+                stocks.find((s) => alertTickerKey(s.ticker) === alertTickerKey(sym));
               const polled = isCrypto ? cryptoLive.quotes[sym]?.price : undefined;
               const heldPx = holding && holding.current_price > 0 ? holding.current_price : null;
               const currentPrice =
@@ -406,7 +431,7 @@ export function PriceAlerts({
                 <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Current</span>
-                    <span className="tnum font-medium">{money(currentPrice, a.ticker, isCrypto)}</span>
+                    <span className="tnum font-medium">{money(currentPrice, a.ticker, isCrypto, holding?.ticker)}</span>
                   </div>
                   {isCrypto && (
                     <div className="flex justify-between">
@@ -418,7 +443,7 @@ export function PriceAlerts({
                   )}
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Hard sell-out</span>
-                    <span className="tnum font-medium">{money(a.hardSellPrice, a.ticker, isCrypto)}</span>
+                    <span className="tnum font-medium">{money(a.hardSellPrice, a.ticker, isCrypto, holding?.ticker)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Sell / stop</span>
@@ -430,11 +455,18 @@ export function PriceAlerts({
                   </div>
                 </div>
 
-                {a.instructions && (
-                  <p className="mt-3 rounded-lg bg-muted/40 p-2.5 text-xs leading-relaxed text-muted-foreground">
-                    {a.instructions}
-                  </p>
-                )}
+                {(() => {
+                  const ruleLine = formatAlertRuleLine(a);
+                  const custom = (a.instructions || "").trim();
+                  const showCustom = !!custom && !isBoilerplateInstructions(custom) && custom !== ruleLine;
+                  if (!ruleLine && !showCustom) return null;
+                  return (
+                    <p className="mt-3 rounded-lg bg-muted/40 p-2.5 text-xs leading-relaxed text-muted-foreground">
+                      {ruleLine}
+                      {showCustom ? (ruleLine ? ` ${custom}` : custom) : null}
+                    </p>
+                  );
+                })()}
 
                 <div className="mt-4 flex items-center gap-2 border-t border-border/50 pt-3">
                   <Button

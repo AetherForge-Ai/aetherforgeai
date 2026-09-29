@@ -85,8 +85,12 @@ export const PAID_REPORT_REFRESH_MS = 4 * HOUR_MS;
  * "rolling" is the paid 4-hour window. It must not be the legacy "day" token:
  * that token used to mean "locked until the next Pacific/Auckland midnight",
  * which is what painted "next refresh in 48m (NZ midnight)" on a same-day report.
+ * "month" is the free allowance: 3 reports per Auckland calendar month.
  */
-export type CadenceUnit = "rolling" | "week";
+export type CadenceUnit = "rolling" | "week" | "month";
+
+/** Free tier matches Pricing: 3 AI research reports per calendar month. */
+export const FREE_REPORTS_PER_MONTH = FREE_PLAN.reportsPerMonth;
 
 export interface ReportCadence {
   unit: CadenceUnit;
@@ -108,15 +112,17 @@ export function normalizePlanKey(plan?: string | null): string {
     .replace(/_annually$/, "_yearly");
 }
 
+/** Free / unsigned plans: Stox or Koins, 3 reports per month (Pricing card). */
+export function isFreeReportPlan(plan?: string | null): boolean {
+  const key = normalizePlanKey(plan);
+  return key === "" || key === "free" || key === "none";
+}
+
 /**
- * Apex Weekly (legacy paid single-bot plan) keeps a rolling weekly report.
- * Every other plan — including legacy Apex monthly/yearly and Starter/Pro/Ultimate
- * — is the paid 4-hour window.
- *
- * NOTE: Free is intentionally NOT included here any more. Free's product promise
- * is 3 AI reports per CALENDAR MONTH (see FREE_REPORTS_PER_MONTH /
- * evaluateFreeReportQuota below), a count-based allowance rather than a
- * time-gated cooldown, so it no longer shares this weekly cadence bucket.
+ * Apex Weekly keeps a weekly report. Every paid plan — including legacy Apex
+ * monthly/yearly and Starter/Pro/Ultimate — is the paid 4-hour window.
+ * Free is a monthly count (see {@link monthlyReportQuota} and
+ * {@link evaluateFreeReportQuota}), not this weekly window.
  */
 export function isWeeklyReportPlan(plan?: string | null): boolean {
   const key = normalizePlanKey(plan);
@@ -124,27 +130,20 @@ export function isWeeklyReportPlan(plan?: string | null): boolean {
 }
 
 /**
- * True for the Free tier (including an unset/legacy plan key, which defaults to
- * Free). Callers use this to route report-allowance checks to the monthly
- * counter (evaluateFreeReportQuota) instead of the time-gated reportCadence()
- * below, which now only covers paid plans (rolling 4h, or legacy Apex Weekly's
- * rolling 7 days).
- */
-export function isFreeReportPlan(plan?: string | null): boolean {
-  const key = normalizePlanKey(plan);
-  return key === "" || key === "free" || key === "none";
-}
-
-/**
- * How frequently a PAID plan can run a full report. Stox and Koins are metered
- * separately by the caller (one allowance each):
- *  - Apex Weekly (legacy) → one report per week (rolling 7 days).
- *  - Other paid tiers → one report every 4 hours (rolling), not locked until NZ midnight.
- *
- * Not used for Free — Free's allowance is 3 reports per calendar month, evaluated
- * by evaluateFreeReportQuota() below, not this time-gated cadence.
+ * How frequently a plan can run a full report.
+ *  - Free → 3 reports per Auckland month (shared; one chosen bot).
+ *  - Apex Weekly → one report per week (rolling 7 days), per bot.
+ *  - Paid tiers → one report every 4 hours (rolling), per bot.
  */
 export function reportCadence(plan?: string | null): ReportCadence {
+  if (isFreeReportPlan(plan)) {
+    return {
+      unit: "month",
+      ms: 0,
+      label: `${FREE_REPORTS_PER_MONTH} reports per month`,
+      perLabel: "per month",
+    };
+  }
   if (isWeeklyReportPlan(plan)) {
     return { unit: "week", ms: WEEK_MS, label: "1 report per week", perLabel: "per week" };
   }
@@ -158,13 +157,9 @@ export function reportCadence(plan?: string | null): ReportCadence {
 
 /* -------------------------------------------------------------------------- */
 /*  Free monthly report allowance — 3 AI reports per calendar month           */
-/*  (Pacific/Auckland), replacing the old 1-report-per-week cadence above.    */
-/*  This is a count-based allowance, not a time-gated cooldown: a Free member  */
-/*  may run reports back-to-back until they hit the monthly cap.              */
+/*  (Pacific/Auckland). Count-based: a Free member may run reports            */
+/*  back-to-back until they hit the monthly cap on their chosen bot.         */
 /* -------------------------------------------------------------------------- */
-
-/** Reports a Free member may run per calendar month. Mirrors FREE_PLAN.reportsPerMonth. */
-export const FREE_REPORTS_PER_MONTH = FREE_PLAN.reportsPerMonth;
 
 /** Calendar month bucket key (Pacific/Auckland), e.g. "2026-09". Stable across DST. */
 export function aucklandMonthKey(ms: number = Date.now()): string {
@@ -173,6 +168,11 @@ export function aucklandMonthKey(ms: number = Date.now()): string {
     year: "numeric",
     month: "2-digit",
   }).format(new Date(ms));
+}
+
+/** yyyy-mm in Pacific/Auckland. Same bucket as {@link aucklandMonthKey}. */
+export function aucklandYearMonth(ms: number = Date.now()): string {
+  return aucklandMonthKey(ms);
 }
 
 export interface FreeReportQuota {
@@ -202,6 +202,54 @@ export function evaluateFreeReportQuota(
   const used = Math.max(0, reportsThisMonth);
   const remaining = Math.max(0, limit - used);
   return { allowed: used < limit, used, limit, remaining, monthKey: aucklandMonthKey(now) };
+}
+
+/** Milliseconds until the next Pacific/Auckland calendar month starts. */
+export function msUntilNextAucklandMonth(now: number = Date.now()): number {
+  const [y, m] = aucklandYmd(now).split("-").map(Number);
+  const next =
+    m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, "0")}-01`;
+  let t = now;
+  const horizon = now + 40 * 24 * HOUR_MS;
+  while (aucklandYmd(t) < next && t < horizon) t += 60 * 60 * 1000;
+  while (t > now && aucklandYmd(t - 60_000) >= next) t -= 60_000;
+  return Math.max(0, t - now);
+}
+
+export function countReportsInAucklandMonth(
+  timestamps: Array<string | null | undefined>,
+  now: number = Date.now()
+): number {
+  const month = aucklandYearMonth(now);
+  let n = 0;
+  for (const iso of timestamps) {
+    if (!iso) continue;
+    const t = new Date(iso).getTime();
+    if (Number.isNaN(t)) continue;
+    if (aucklandYearMonth(t) === month) n += 1;
+  }
+  return n;
+}
+
+/**
+ * Free-plan allowance. `used` is how many reports were generated this
+ * Auckland month (Stox and Koins share one pool on the chosen bot).
+ */
+export function monthlyReportQuota(
+  used: number,
+  now: number = Date.now(),
+  limit: number = FREE_REPORTS_PER_MONTH
+): ReportQuota {
+  const cadence = reportCadence("free");
+  const allowed = used < limit;
+  const waitMs = allowed ? 0 : msUntilNextAucklandMonth(now);
+  return {
+    allowed,
+    waitMs,
+    nextAllowedAt: allowed ? null : new Date(now + waitMs).toISOString(),
+    lastReportAt: null,
+    cadence,
+  };
 }
 
 export interface ReportQuota {

@@ -51,7 +51,7 @@ const TIER_DEFS: TierDef[] = [
   {
     tier: "pro",
     name: "Pro",
-    description: "The complete experience · up to 75 holdings · both Stox + Koins · full Totalum architect.",
+    description: "The complete experience · up to 75 holdings · both Stox + Koins · full Headmaster planning.",
     ticker_limit: 75,
     bot_access: "both",
     monthly: 6900,

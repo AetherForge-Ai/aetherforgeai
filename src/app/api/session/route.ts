@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getStableSessionUser } from "@/lib/session";
+import { resolveDisplayName } from "@/lib/user-display";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,7 @@ export async function GET() {
         ? {
             id: user.id,
             email: user.email,
-            name: user.name,
+            name: resolveDisplayName(user) || user.name,
             image: user.image ?? null,
             subscription_status: user.subscription_status ?? null,
             subscription_plan: user.subscription_plan ?? null,

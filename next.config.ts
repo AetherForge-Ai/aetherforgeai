@@ -20,6 +20,24 @@ const nextConfig: NextConfig = {
     },
   },
   allowedDevOrigins: ["*"],
+  async redirects() {
+    return [
+      { source: "/privacy", destination: "/privacy-policy", permanent: false },
+      { source: "/terms", destination: "/terms-of-service", permanent: false },
+      { source: "/contact", destination: "/about#contact", permanent: false },
+      { source: "/faq", destination: "/pricing#faq", permanent: false },
+      { source: "/features", destination: "/how-it-works", permanent: false },
+      { source: "/try", destination: "/free-trial", permanent: false },
+      { source: "/signup", destination: "/register", permanent: false },
+      { source: "/stox", destination: "/dashboard/stocks", permanent: false },
+      { source: "/koins", destination: "/dashboard/crypto", permanent: false },
+      { source: "/smitty", destination: "/dashboard/metals", permanent: false },
+      { source: "/holdings", destination: "/dashboard", permanent: false },
+      { source: "/portfolio", destination: "/dashboard", permanent: false },
+      { source: "/how", destination: "/how-it-works", permanent: false },
+      { source: "/account", destination: "/settings", permanent: false },
+    ];
+  },
   async headers() {
     // Only cache-control headers here. CSP and CORS are handled exclusively in middleware.ts
     return [

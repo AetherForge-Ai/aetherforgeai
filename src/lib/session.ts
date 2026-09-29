@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { totalumSdk } from "@/lib/totalum";
 import { userRecordConflicts } from "@/lib/account-guard";
+import { normalizePlanKey } from "@/lib/entitlements";
 import { cookieValue, sessionExpiresInFuture, verifySignedSessionToken } from "@/lib/session-token";
 
 export type BotAccessValue = "stock" | "crypto" | "both" | "none";
@@ -192,7 +193,9 @@ const PAID_PLANS = [
  * the one-time free-trial experience (signed-up but not yet paying).
  */
 export function hasPaidSubscription(user: AppUser | null): boolean {
-  return user?.subscription_status === "active" && PAID_PLANS.includes(user?.subscription_plan || "");
+  if (user?.subscription_status !== "active") return false;
+  const key = normalizePlanKey(user.subscription_plan);
+  return PAID_PLANS.includes(key);
 }
 
 /**

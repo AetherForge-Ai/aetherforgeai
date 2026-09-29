@@ -27,12 +27,12 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
   evaluateReportQuota,
+  FREE_REPORTS_PER_MONTH,
   formatAucklandDateTime,
   formatDuration,
   formatReportCooldownLine,
-  reportCadence,
   isFreeReportPlan,
-  FREE_REPORTS_PER_MONTH,
+  reportCadence,
   type ReportCadence,
 } from "@/lib/entitlements";
 import {
@@ -75,9 +75,11 @@ interface BotQuota {
   nextAllowedAt: string | null;
   lastReportAt: string | null;
   cadenceLabel: string;
-  cadenceUnit: "rolling" | "week" | "day";
+  cadenceUnit: "rolling" | "week" | "day" | "month";
   cadenceMs?: number;
   perLabel?: string;
+  reportsUsed?: number;
+  reportsLimit?: number;
 }
 
 interface FreeQuota {
@@ -89,11 +91,8 @@ interface FreeQuota {
 
 interface ReportsResponse {
   reports: PastReport[];
-  // Independent per report-system allowances — Stox and Koins are tracked
-  // separately (one full report each per plan window). Paid / legacy weekly only.
+  // Paid: independent per-bot allowances. Free: shared monthly pool, echoed on both bots.
   quota: { stock: BotQuota; crypto: BotQuota };
-  // Free tier's pooled monthly allowance (3 reports/calendar month across
-  // Stox + Koins). Null for paid/legacy weekly plans.
   free?: FreeQuota | null;
 }
 
@@ -163,13 +162,11 @@ export function ReportCenter({
   const [now, setNow] = React.useState<number>(() => Date.now());
   // Server cadence (ms) once history loads, so the countdown cannot drift from the API.
   const [serverCadence, setServerCadence] = React.useState<ReportCadence | null>(null);
-  // Free tier's pooled monthly allowance (3 reports/month across Stox + Koins).
+  const [serverQuota, setServerQuota] = React.useState<ReportsResponse["quota"] | null>(null);
   const [freeQuota, setFreeQuota] = React.useState<FreeQuota | null>(null);
-  // Which single bot a Free member is currently running reports for.
-  const [freeBotChoice, setFreeBotChoice] = React.useState<BotKind>("stock");
+  const [access, setAccess] = React.useState(botAccess);
+  React.useEffect(() => setAccess(botAccess), [botAccess]);
   const sectionRef = React.useRef<HTMLElement | null>(null);
-
-  const isFree = isFreeReportPlan(plan);
 
   // Stable anchor for Assistant Guide "Run Stox or Koins" → /dashboard#report-center
   React.useEffect(() => {
@@ -188,11 +185,8 @@ export function ReportCenter({
     };
   }, []);
 
-  // Free members choose ONE bot (Stox or Koins) to run reports for — the
-  // choice drives access here, not the botAccess field. Paid tiers keep the
-  // existing botAccess-driven gate untouched.
-  const canRun = (kind: BotKind) =>
-    isFree ? kind === freeBotChoice : botAccess === "both" || botAccess === kind;
+  const canRun = (kind: BotKind) => access === "both" || access === kind;
+  const freePlan = isFreeReportPlan(plan);
 
   const holdingRows = React.useMemo<AccountHoldingRow[]>(
     () => holdings.map((row) => ({ ...row, user: row.user ?? row.userId ?? userId ?? undefined })),
@@ -212,10 +206,27 @@ export function ReportCenter({
   // bot has its OWN quota so Stox and Koins unlock independently. Prefer the
   // cadence the API just returned (rolling 4h for paid, 7 days for free/weekly).
   const cadence = serverCadence ?? reportCadence(plan);
-  const quotaFor = (kind: BotKind) => evaluateReportQuota(cadence, lastReportAt[kind], now);
-  const anyLocked = isFree
-    ? !!freeQuota && freeQuota.remaining <= 0
-    : (["stock", "crypto"] as BotKind[]).some((k) => !quotaFor(k).allowed);
+  const quotaFor = (kind: BotKind) => {
+    const server = serverQuota?.[kind];
+    if (server?.cadenceUnit === "month") {
+      return {
+        allowed: server.allowed,
+        waitMs: server.waitMs,
+        nextAllowedAt: server.nextAllowedAt,
+        lastReportAt: server.lastReportAt,
+        cadence: {
+          unit: "month" as const,
+          ms: server.cadenceMs ?? 0,
+          label: server.cadenceLabel,
+          perLabel: server.perLabel || "per month",
+        },
+        reportsUsed: server.reportsUsed,
+        reportsLimit: server.reportsLimit,
+      };
+    }
+    return evaluateReportQuota(cadence, lastReportAt[kind], now);
+  };
+  const anyLocked = (["stock", "crypto"] as BotKind[]).some((k) => !quotaFor(k).allowed);
 
   const pendingHistoryRef = React.useRef<{
     data: ReportsResponse;
@@ -229,8 +240,22 @@ export function ReportCenter({
       crypto: data.quota?.crypto?.lastReportAt ?? null,
     });
     setFreeQuota(data.free ?? null);
-    const sample = data.quota?.stock?.cadenceMs ? data.quota.stock : data.quota?.crypto;
-    if (sample?.cadenceMs && sample.perLabel && (sample.cadenceUnit === "rolling" || sample.cadenceUnit === "week")) {
+    const sample =
+      data.quota?.stock?.cadenceUnit === "month"
+        ? data.quota.stock
+        : data.quota?.crypto?.cadenceUnit === "month"
+          ? data.quota.crypto
+          : data.quota?.stock?.cadenceMs
+            ? data.quota.stock
+            : data.quota?.crypto;
+    if (sample?.cadenceUnit === "month") {
+      setServerCadence({
+        unit: "month",
+        ms: 0,
+        label: sample.cadenceLabel,
+        perLabel: sample.perLabel || "per month",
+      });
+    } else if (sample?.cadenceMs && sample.perLabel && (sample.cadenceUnit === "rolling" || sample.cadenceUnit === "week")) {
       setServerCadence({
         unit: sample.cadenceUnit,
         ms: sample.cadenceMs,
@@ -238,6 +263,7 @@ export function ReportCenter({
         perLabel: sample.perLabel,
       });
     }
+    if (data.quota) setServerQuota(data.quota);
   }, []);
 
   const loadHistory = React.useCallback(async () => {
@@ -298,8 +324,8 @@ export function ReportCenter({
     setHistory([]);
     setLastReportAt({ stock: null, crypto: null });
     setServerCadence(null);
+    setServerQuota(null);
     setFreeQuota(null);
-    setFreeBotChoice("stock");
     pendingHistoryRef.current = null;
     void loadHistory().catch(() => {});
   }, [loadHistory, userId]);
@@ -332,26 +358,41 @@ export function ReportCenter({
   }, [anyLocked]);
 
   const runLock = React.useRef(false);
+
+  async function chooseFreeBot(kind: BotKind) {
+    if (runLock.current) return;
+    runLock.current = true;
+    setRunning(kind);
+    const res = await api.post<{ plan?: string; alreadyPaid?: boolean }>("/api/free-trial/activate", {
+      bot: kind,
+    });
+    setRunning(null);
+    runLock.current = false;
+    if (!res.ok) {
+      toast.error(typeof res.error === "string" ? res.error : "Could not activate the free plan.");
+      return;
+    }
+    if (res.data?.alreadyPaid) {
+      toast.error("Your paid plan already includes bot access.");
+      return;
+    }
+    setAccess(kind);
+    toast.success(kind === "crypto" ? "Koins is your free bot — 3 reports a month." : "Stox is your free bot — 3 reports a month.");
+  }
+
   const shownKind = React.useRef<BotKind | null>(null);
 
   async function runReport(kind: BotKind) {
     if (runLock.current) return;
     if (!canRun(kind)) {
-      toast.error(isFree ? "Select this monitor above to run its report." : "Your plan does not include this monitor.");
+      toast.error("Your plan does not include this monitor.");
       return;
     }
-    if (isFree) {
-      if (freeQuota && freeQuota.remaining <= 0) {
-        toast.error(`You've used all ${freeQuota.limit} free AI reports this month. Upgrade for more.`);
-        return;
-      }
-    } else {
-      const kindQuota = quotaFor(kind);
-      if (!kindQuota.allowed) {
-        const label = kind === "crypto" ? "Koins" : "Stox";
-        toast.error(`You've already run your ${label} ${cadence.label}. You can run the next ${label} report in ${formatDuration(kindQuota.waitMs)}.`);
-        return;
-      }
+    const kindQuota = quotaFor(kind);
+    if (!kindQuota.allowed) {
+      const label = kind === "crypto" ? "Koins" : "Stox";
+      toast.error(`You've already run your ${label} ${cadence.label}. You can run the next ${label} report in ${formatDuration(kindQuota.waitMs)}.`);
+      return;
     }
     runLock.current = true;
     setRunning(kind);
@@ -367,7 +408,7 @@ export function ReportCenter({
       perLabel?: string;
       cadenceMs?: number;
       cadenceLabel?: string;
-      cadenceUnit?: "rolling" | "week" | "day";
+      cadenceUnit?: "rolling" | "week" | "day" | "month";
       free?: FreeQuota | null;
     }>("/api/reports", { bot: kind }, { signal: tracked.signal });
     tracked.release();
@@ -491,63 +532,63 @@ export function ReportCenter({
           >
             {anyLocked ? <Clock className="size-5" /> : <Zap className="size-5" />}
           </span>
-          {isFree ? (
-            <div>
-              <p className="text-sm font-semibold">
-                Free reports remaining this month:{" "}
-                <span className={anyLocked ? "text-[var(--gold)]" : "text-emerald-600"}>
-                  {freeQuota ? freeQuota.remaining : "…"} of {freeQuota?.limit ?? FREE_REPORTS_PER_MONTH}
-                </span>
-              </p>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                Pooled across Stox + Koins · resets at the start of next calendar month (Pacific/Auckland)
-              </p>
-            </div>
-          ) : (
-            <div>
-              <p className="text-sm font-semibold">
-                One full <span className="text-foreground">Stox</span> report{" "}
-                <span className="text-muted-foreground">and</span> one full{" "}
-                <span className="text-foreground">Koins</span> report {cadence.perLabel}
-                <span className="font-normal text-muted-foreground"> · times in Pacific/Auckland</span>
-              </p>
-              <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-                {(["stock", "crypto"] as BotKind[]).map((k) => {
-                  const q = quotaFor(k);
-                  const label = k === "crypto" ? "Koins" : "Stox";
-                  return (
-                    <span key={k} className="inline-flex items-center gap-1">
-                      <span className="font-medium text-foreground">{label}:</span>
-                      {q.allowed ? (
-                        <span className="text-emerald-600">
-                          {formatReportCooldownLine({
-                            lastReportAt: q.lastReportAt,
-                            waitMs: 0,
-                            cadenceUnit: q.cadence.unit,
-                            perLabel: q.cadence.perLabel,
-                            now,
-                          })}
-                        </span>
-                      ) : (
-                        <span className="text-[var(--gold)]">
-                          {formatReportCooldownLine({
-                            lastReportAt: q.lastReportAt,
-                            waitMs: q.waitMs,
-                            cadenceUnit: q.cadence.unit,
-                            perLabel: q.cadence.perLabel,
-                            now,
-                          })}
-                        </span>
-                      )}
-                    </span>
-                  );
-                })}
-                <span className="text-muted-foreground/70">· tracked independently</span>
-              </p>
-            </div>
-          )}
+          <div>
+            <p className="text-sm font-semibold">
+              {cadence.unit === "month" ? (
+                <>
+                  Free plan:{" "}
+                  <span className="text-foreground">
+                    {freeQuota ? `${freeQuota.remaining} of ${freeQuota.limit}` : FREE_REPORTS_PER_MONTH} AI reports
+                  </span>{" "}
+                  left this month on your chosen bot (Stox or Koins)
+                </>
+              ) : (
+                <>
+                  One full <span className="text-foreground">Stox</span> report{" "}
+                  <span className="text-muted-foreground">and</span> one full{" "}
+                  <span className="text-foreground">Koins</span> report {cadence.perLabel}
+                </>
+              )}
+              <span className="font-normal text-muted-foreground"> · times in Pacific/Auckland</span>
+            </p>
+            <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+              {(["stock", "crypto"] as BotKind[]).map((k) => {
+                const q = quotaFor(k);
+                const label = k === "crypto" ? "Koins" : "Stox";
+                return (
+                  <span key={k} className="inline-flex items-center gap-1">
+                    <span className="font-medium text-foreground">{label}:</span>
+                    {q.allowed ? (
+                      <span className="text-emerald-600">
+                        {formatReportCooldownLine({
+                          lastReportAt: q.lastReportAt,
+                          waitMs: 0,
+                          cadenceUnit: q.cadence.unit,
+                          perLabel: q.cadence.perLabel,
+                          now,
+                        })}
+                      </span>
+                    ) : (
+                      <span className="text-[var(--gold)]">
+                        {formatReportCooldownLine({
+                          lastReportAt: q.lastReportAt,
+                          waitMs: q.waitMs,
+                          cadenceUnit: q.cadence.unit,
+                          perLabel: q.cadence.perLabel,
+                          now,
+                        })}
+                      </span>
+                    )}
+                  </span>
+                );
+              })}
+              <span className="text-muted-foreground/70">
+                {cadence.unit === "month" ? "· one shared monthly allowance" : "· tracked independently"}
+              </span>
+            </p>
+          </div>
         </div>
-        {anyLocked && (isFree || plan === "weekly") && (
+        {anyLocked && (freePlan || plan === "weekly") && (
           <Button asChild size="sm" variant="outline" className="border-[var(--gold)]/40">
             <Link href="/pricing">
               <Zap className="mr-1 size-4" /> Upgrade
@@ -555,28 +596,6 @@ export function ReportCenter({
           </Button>
         )}
       </div>
-
-      {/* Free plan — Stox/Koins chooser (pick one monitor to run reports for) */}
-      {isFree && (
-        <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          <span>Choose your monitor:</span>
-          <div className="inline-flex items-center rounded-full border border-border/60 bg-card/50 p-0.5">
-            {DEFS.map((b) => (
-              <button
-                key={b.kind}
-                type="button"
-                onClick={() => setFreeBotChoice(b.kind)}
-                className={cn(
-                  "rounded-full px-3 py-1 font-medium transition-colors",
-                  freeBotChoice === b.kind ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {b.name}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Run buttons */}
       <div className="mt-4 grid gap-4 md:grid-cols-2">
@@ -617,33 +636,23 @@ export function ReportCenter({
               </div>
               <div className="mt-4">
                 {!unlocked ? (
-                  isFree ? (
-                    <Button variant="outline" className="w-full" onClick={() => setFreeBotChoice(b.kind)}>
-                      Select {b.name}
+                  freePlan ? (
+                    <Button className="w-full" onClick={() => void chooseFreeBot(b.kind)} disabled={running !== null}>
+                      {busy ? (
+                        <>
+                          <Loader2 className="mr-1 size-4 animate-spin" /> Choosing…
+                        </>
+                      ) : (
+                        <>
+                          <Play className="mr-1 size-4" /> Choose {b.name} free
+                        </>
+                      )}
                     </Button>
                   ) : (
                     <Button asChild variant="outline" className="w-full">
                       <Link href="/pricing">
                         <Lock className="mr-1 size-4" /> Unlock this monitor
                       </Link>
-                    </Button>
-                  )
-                ) : isFree ? (
-                  anyLocked ? (
-                    <Button variant="outline" className="w-full" disabled>
-                      <Clock className="mr-1 size-4" /> Free monthly limit reached
-                    </Button>
-                  ) : (
-                    <Button className="w-full" onClick={() => void runReport(b.kind).catch(() => {})} disabled={busy || running !== null}>
-                      {busy ? (
-                        <>
-                          <Loader2 className="mr-1 size-4 animate-spin" /> Compiling report…
-                        </>
-                      ) : (
-                        <>
-                          <Play className="mr-1 size-4" /> Run full {b.name} report
-                        </>
-                      )}
                     </Button>
                   )
                 ) : botLocked ? (
