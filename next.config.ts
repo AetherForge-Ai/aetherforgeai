@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { PORTFOLIO_ROUTE_ALIASES } from "./src/lib/portfolio-route-aliases";
 
 const nextConfig: NextConfig = {
   images: {
@@ -35,6 +36,7 @@ const nextConfig: NextConfig = {
       { source: "/holdings", destination: "/dashboard", permanent: false },
       { source: "/portfolio", destination: "/dashboard", permanent: false },
       { source: "/how", destination: "/how-it-works", permanent: false },
+      ...PORTFOLIO_ROUTE_ALIASES.map((row) => ({ ...row, permanent: false })),
     ];
   },
   async headers() {
