@@ -1,50 +1,40 @@
-import { redirect } from "next/navigation";
-import {
-  getCurrentUser,
-  isStripeConfigured,
-  hasActiveSubscription,
-  hasPaidSubscription,
-} from "@/lib/session";
+import Link from "next/link";
+import { getCurrentUser } from "@/lib/session";
 import { AppShell } from "@/components/AppShell";
-import { PortfolioDashboard } from "@/components/dashboard/PortfolioDashboard";
+import { ChatAssistant } from "@/components/chat/ChatAssistant";
+import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
 
-export default async function DashboardPage() {
+/**
+ * Market Assistant. Free includes a monthly query cap (see entitlements).
+ * This route used to clone the dashboard and redirect anyone without an
+ * active subscription to /pricing, which locked the assistant pricing promises.
+ */
+export default async function MarketAssistantPage() {
   const user = await getCurrentUser();
 
-  // Logged-out visitors get a live, read-only PREVIEW of the dashboard: every
-  // section is visible so they can see what they’d get, but the member sections
-  // (overview, holdings, transaction centre, alerts, report centre) are locked.
   if (!user) {
     return (
-      <AppShell guest user={{ name: "Guest", email: "Sign in to activate your account" }}>
-        <PortfolioDashboard
-          preview
-          userName="Guest"
-          subscription={{
-            status: null,
-            plan: null,
-            startedAt: null,
-            expiresAt: null,
-            tickerLimit: null,
-            botAccess: "none",
-          }}
-          metalsEntitled={false}
-        />
+      <AppShell guest user={{ name: "Guest", email: "Sign in to use the Market Assistant" }}>
+        <div className="mx-auto max-w-lg px-4 py-20 text-center">
+          <h1 className="font-display text-3xl font-bold">Market Assistant</h1>
+          <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+            Free accounts include 20 informational queries a month. Answers are scenarios, not
+            personalised advice. AetherForge does not trade for you.
+          </p>
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <Button asChild>
+              <Link href="/login">Sign in</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/register">Start free</Link>
+            </Button>
+          </div>
+        </div>
       </AppShell>
     );
   }
-
-  // Subscription gate — only enforced when billing is actually configured,
-  // so the app remains fully usable in demo mode without a Stripe key.
-  if (isStripeConfigured() && !hasActiveSubscription(user)) {
-    redirect("/pricing");
-  }
-
-  // Precious-metals bonus: free for active PAYING members (in demo mode — no
-  // Stripe key — it's open to everyone so testers aren't locked out).
-  const metalsEntitled = !isStripeConfigured() || hasPaidSubscription(user);
 
   return (
     <AppShell
@@ -56,19 +46,7 @@ export default async function DashboardPage() {
         subscription_plan: user.subscription_plan,
       }}
     >
-      <PortfolioDashboard
-        userName={user.name}
-        subscription={{
-          status: user.subscription_status,
-          plan: user.subscription_plan,
-          startedAt: user.subscription_started_at,
-          expiresAt: user.subscription_expires_at,
-          tickerLimit: user.ticker_limit,
-          botAccess: user.bot_access ?? "none",
-        }}
-        metalsEntitled={metalsEntitled}
-      />
+      <ChatAssistant />
     </AppShell>
   );
 }
-

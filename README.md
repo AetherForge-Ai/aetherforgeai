@@ -1,6 +1,8 @@
-# Totalum Next.js Project
+# AetherForge AI
 
-This project is a nextjs project that uses TotalumSdk for database operations.
+Customer-facing product of Forge Intelligence Ltd. The Headmaster is the goal-planning bot. The hosting platform name is infrastructure only and must not appear in customer UI, emails, Stripe line items, or PDFs.
+
+This Next.js app uses the platform SDK for database operations.
 
 If you are working outside Totalum: Only commit and push to develop branch, totalum handles the auto merge to main branch and the deployment to production environment.
 

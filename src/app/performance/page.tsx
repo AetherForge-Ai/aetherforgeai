@@ -17,7 +17,7 @@ export const metadata: Metadata = {
     "Timestamped screenshots of an AetherForge paper portfolio. Illustrative only — not a trading platform, not a broker, and not a promise of future returns.",
   alternates: { canonical: "/performance" },
   openGraph: {
-    title: "Live Results & Performance Proof — AetherForge AI",
+    title: "Example results — one dated paper book | AetherForge AI",
     description:
       "Timestamped paper-portfolio snapshots across NZX, ASX, US equities, crypto and metals. Illustrative only — not a broker and not a guarantee.",
     url: "/performance",
@@ -29,13 +29,13 @@ export const metadata: Metadata = {
 const PROOF_STATS = [
   {
     icon: BadgeCheck,
-    title: "Real-time accuracy you can verify",
-    body: "Every figure on screen can be checked against live NZX & ASX prices the moment it's shown — no black box, no backtest gloss.",
+    title: "Figures you can check",
+    body: "Prices on these screens can be compared with the NZX and ASX prints from that session. They are a dated sample, not a forecast.",
   },
   {
     icon: Zap,
-    title: "Actionable insight, delivered fast",
-    body: "Prices, P&L, health scores and 7-day outlooks update in real time, so decisions are based on now — not on yesterday's close.",
+    title: "A same-day informational read",
+    body: "Prices, P/L and 7-day scenario ranges are marked as of that session. They are illustrative. They are not an instruction to trade.",
   },
   {
     icon: BrainCircuit,
@@ -63,9 +63,9 @@ export default function PerformancePage() {
           </h1>
           <div className="mt-6 space-y-4 text-base leading-relaxed text-muted-foreground sm:mt-8 sm:text-lg">
             <p>
-              I am so confident in my AI bots coming up with accurate predictions so I ran a LIVE
-              experiment and screenshot my Portfolio Balance over the period of 1 day from just after
-              9am till around the close of business that day.
+              These are timestamped screenshots from one paper portfolio on one session, from just
+              after 9am through to around the close that day. They show how the book was marked.
+              Treat them as a single dated sample.
             </p>
             <p>
               These screenshot images that I have uploaded are verified by the Stock Markets share
@@ -92,13 +92,16 @@ export default function PerformancePage() {
           <div className="mx-auto mt-12 flex max-w-3xl flex-col items-center gap-3 rounded-3xl border border-primary/20 bg-gradient-to-br from-primary/10 via-card/40 to-card/40 p-8 text-center">
             <LineChart className="size-8 text-primary" />
             <p className="font-display text-xl font-bold sm:text-2xl">
-              One portfolio, tracked live: NZ$100,429 → NZ$101,645 → NZ$101,931 → NZ$102,421
+              One paper book, one day: NZ$100,429 → NZ$101,645 → NZ$101,931 → NZ$102,421
             </p>
             <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
-              Seven timestamped snapshots from a single day — the portfolio climbing steadily to a
-              NZ$102,421 high, roughly a{" "}
-              <span className="font-semibold text-primary">NZ$2,000 increase</span> captured in real
-              time, every number checkable against the live market as it happened.
+              Seven timestamped snapshots from a single session. The marks moved by about NZ$2,000
+              on that day. That is one example. It is not a forecast, not a promise, and not money
+              placed with a broker.{" "}
+              <Link href="/ai-disclaimer" className="font-medium text-primary hover:underline">
+                AI disclaimer
+              </Link>
+              .
             </p>
           </div>
         </section>
@@ -108,7 +111,7 @@ export default function PerformancePage() {
           <div className="mx-auto mb-12 max-w-2xl text-center">
             <p className="text-sm font-semibold uppercase tracking-wider text-primary">The proof</p>
             <h2 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">
-              Why This Level of Accuracy Matters for Your Portfolio
+              What this dated sample shows
             </h2>
           </div>
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">

@@ -47,14 +47,14 @@ const GROUPS: Group[] = [
       { label: "AI Research Reports per month", cells: ["3", "15", "Unlimited", "Unlimited"] },
       { label: "Strategy generation & simulation", cells: [false, "Basic", true, true] },
       { label: "Risk & stress testing", cells: [false, false, true, true] },
-      { label: "Forward pathway projections", cells: ["Limited", true, true, true] },
+      { label: "Illustrative pathway scenarios", cells: ["Limited", true, true, true] },
     ],
   },
   {
     title: "Market Assistant",
     rows: [
-      { label: "Query limits", cells: ["Limited", "Standard", "High", "Unlimited"] },
-      { label: "Depth of analysis", cells: ["Basic", "Standard", "Advanced", "Institutional"] },
+      { label: "Query limits", cells: ["20 / month", "Standard", "High", "Unlimited"] },
+      { label: "Depth of analysis", cells: ["Basic", "Standard", "Advanced", "In-depth"] },
     ],
   },
   {

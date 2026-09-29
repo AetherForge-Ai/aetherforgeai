@@ -134,7 +134,7 @@ export default async function OwnTheBotsPage() {
                           </p>
                           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                             Proven NZX + ASX market intelligence. Sweeps the full equity universe,
-                            surfaces movers, builds institutional-grade tables and 12-month continuation
+                            surfaces movers, builds detailed tables and 12-month continuation
                             graphs for every ticker you monitor.
                           </p>
                         </div>

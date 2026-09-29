@@ -295,7 +295,7 @@ export async function POST(req: Request) {
     const info = lookupTicker(ticker);
     const purchase_price = parsed.data.purchase_price;
 
-    // Enforce the plan's ticker quota (FREE = 3 across both bots; paid = per bot).
+    // Enforce the plan's holding cap (Free = 8 across the book; paid = per bot).
     // Never trust the client — this is the authoritative gate, so a free member
     // cannot add unlimited holdings by calling the API directly.
     const existing = await totalumSdk.crud.query("stock", {

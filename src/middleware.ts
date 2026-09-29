@@ -48,6 +48,7 @@ const publicRoutes = [
   "/terms-of-service",
   "/ai-disclaimer",
   "/free-trial",
+  "/chat", // Market Assistant — guests see a sign-in prompt; members are not sent to pricing
   "/own-the-bots",
 
   //stripe routes here
