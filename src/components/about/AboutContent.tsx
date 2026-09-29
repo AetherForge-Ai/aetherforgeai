@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -141,52 +141,22 @@ const PILLARS = [
 ];
 
 /* -------------------------------------------------------------------------- */
-/*  Reveal — subtle on-scroll fade / rise, respects reduced-motion            */
+/*  Reveal — layout wrapper only.                                             */
+/*  Sections used to start at opacity-0 until IntersectionObserver fired.     */
+/*  Full-page captures and any visit where the observer never ran left the    */
+/*  story, pillars and contact form invisible inside their coloured blocks.   */
+/*  Content stays painted; the optional delay prop is ignored on purpose.     */
 /* -------------------------------------------------------------------------- */
 
 function Reveal({
   children,
-  delay = 0,
   className = "",
 }: {
   children: React.ReactNode;
   delay?: number;
   className?: string;
 }) {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const [shown, setShown] = useState(false);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            setShown(true);
-            io.disconnect();
-          }
-        });
-      },
-      { threshold: 0.15, rootMargin: "0px 0px -60px 0px" }
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, []);
-
-  return (
-    <div
-      ref={ref}
-      style={{ transitionDelay: `${delay}ms` }}
-      className={[
-        "transition-all duration-700 ease-out motion-reduce:transition-none",
-        shown ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0",
-        className,
-      ].join(" ")}
-    >
-      {children}
-    </div>
-  );
+  return <div className={className}>{children}</div>;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -928,6 +898,12 @@ export function AboutContent() {
               </Link>
               <Link href="/how-it-works" className="text-white/70 transition-colors hover:text-white">
                 How It Works
+              </Link>
+              <Link href="/docs" className="text-white/70 transition-colors hover:text-white">
+                Docs
+              </Link>
+              <Link href="/blog" className="text-white/70 transition-colors hover:text-white">
+                Blog
               </Link>
               <Link href="/pricing" className="text-white/70 transition-colors hover:text-white">
                 Pricing
