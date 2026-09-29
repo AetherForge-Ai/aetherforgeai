@@ -24,6 +24,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -45,12 +46,16 @@ import {
   Lock,
   AlertTriangle,
   Compass,
+  Loader2,
+  X,
 } from "lucide-react";
 import type {
   TotalumSynthesis,
   StrategyBlueprint,
   GoalKey,
 } from "@/lib/totalum-engine";
+import { illustrativeActionLabel, turnProgressLabel } from "@/lib/headmaster-trust";
+import { useRecoverableTurn } from "@/lib/use-recoverable-turn";
 import { cn } from "@/lib/utils";
 import { headmasterDeskCopy } from "@/lib/entitlements";
 import { BOT_HEADMASTER_AVATAR } from "../../../assets/files";
@@ -185,6 +190,9 @@ function AllocationBar({ synthesis }: { synthesis: TotalumSynthesis }) {
 function SynthesisTab({ s }: { s: TotalumSynthesis }) {
   return (
     <div className="space-y-6">
+      <p className="text-sm text-muted-foreground">
+        Facts from the current book: values, weights, concentration, and model return/volatility. This tab does not suggest trades.
+      </p>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Kpi label="Total Wealth" value={nzd(s.totalValueNZD)} sub="Unified · NZD base" />
         <Kpi label="Unrealised P/L" value={nzd(s.totalGainNZD)} sub={pct(s.totalGainPct)} accent={gainClass(s.totalGainNZD)} />
@@ -285,8 +293,8 @@ function ScenariosTab({ s }: { s: TotalumSynthesis }) {
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        Projected pathways for your <strong>{nzd(s.totalValueNZD)}</strong> book, modelled from asset-class capital-market
-        assumptions (≈{s.expectedAnnualReturnPct}% return @ ≈{s.expectedAnnualVolPct}% volatility). Bull/bear bands are ~1 standard deviation.
+        Pathway illustration only for your <strong>{nzd(s.totalValueNZD)}</strong> book, from asset-class capital-market
+        assumptions (≈{s.expectedAnnualReturnPct}% return @ ≈{s.expectedAnnualVolPct}% volatility). Bull, base, and bear bands are about one standard deviation. Not a forecast and not a trade.
       </p>
       <div className="grid gap-4 sm:grid-cols-2">
         {s.scenarios.map((sc) => (
@@ -338,7 +346,7 @@ function StressTab({ s }: { s: TotalumSynthesis }) {
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        How your unified book absorbs adverse (and favourable) shocks, applied to your live asset-class weights.
+        Shock illustration only. These cards apply named shocks to your live asset-class weights. They are not instructions.
       </p>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {s.stressTests.map((t) => (
@@ -373,6 +381,8 @@ function StrategyTab({ initialSynthesis }: { initialSynthesis: TotalumSynthesis 
   const [strategy, setStrategy] = React.useState<StrategyBlueprint | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [includeWatchlist, setIncludeWatchlist] = React.useState(false);
+  const reportHref = `/api/totalum/report?goal=${goal}${includeWatchlist ? "&watchlist=1" : ""}`;
 
   const build = React.useCallback(async (g: GoalKey) => {
     setLoading(true);
@@ -396,10 +406,9 @@ function StrategyTab({ initialSynthesis }: { initialSynthesis: TotalumSynthesis 
       <Card className="p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div className="max-w-md">
-            <h3 className="text-sm font-semibold">Describe your objective</h3>
+            <h3 className="text-sm font-semibold">Allocation skeleton</h3>
             <p className="mt-1 text-xs text-muted-foreground">
-              Pick a goal and The Headmaster engineers a target allocation, entry/exit rules, risk parameters and an exact
-              rebalancing plan for your current book.
+              Pick a goal. The Headmaster shows target weights, retained cash, and illustrative class amounts from one calculation. Not orders, and AetherForge does not trade for you.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -420,12 +429,20 @@ function StrategyTab({ initialSynthesis }: { initialSynthesis: TotalumSynthesis 
             </Button>
           </div>
         </div>
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-3 flex flex-wrap items-center gap-3">
           <Button asChild size="sm" variant="outline">
-            <a href={`/api/totalum/report?goal=${goal}`} target="_blank" rel="noopener noreferrer">
-              <Download className="mr-1.5 size-3.5" /> Intelligence Report (PDF/HTML)
+            <a href={reportHref} target="_blank" rel="noopener noreferrer">
+              <Download className="mr-1.5 size-3.5" /> Intelligence report (HTML)
             </a>
           </Button>
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Checkbox
+              checked={includeWatchlist}
+              onCheckedChange={(v) => setIncludeWatchlist(v === true)}
+              aria-label="Include watchlist ideas"
+            />
+            Include watchlist ideas (not held, not instructions)
+          </label>
         </div>
       </Card>
 
@@ -447,12 +464,12 @@ function StrategyTab({ initialSynthesis }: { initialSynthesis: TotalumSynthesis 
                   Strategy ready
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  The Headmaster has built <span className="font-medium text-foreground">{strategy.name}</span> for your
-                  current book. Review the allocation and rules below, then pick a next step.
+                  The Headmaster has built an illustrative <span className="font-medium text-foreground">{strategy.name}</span> skeleton for your
+                  current book. Review retained cash and class amounts below.
                 </p>
                 <div className="flex flex-wrap gap-2 pt-2">
                   <Button asChild size="sm" variant="default">
-                    <a href={`/api/totalum/report?goal=${goal}`} target="_blank" rel="noopener noreferrer">
+                    <a href={reportHref} target="_blank" rel="noopener noreferrer">
                       <Download className="mr-1.5 size-3.5" /> Download intelligence report
                     </a>
                   </Button>
@@ -484,15 +501,24 @@ function StrategyTab({ initialSynthesis }: { initialSynthesis: TotalumSynthesis 
               <Badge variant="outline" className="ml-auto">{strategy.riskLabel}</Badge>
             </div>
             <p className="mt-2 text-sm text-muted-foreground">{strategy.narrative}</p>
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              <Kpi label="Projected return" value={`${strategy.projectedReturnPct}%`} sub="Annualised (target mix)" />
-              <Kpi label="Projected volatility" value={`${strategy.projectedVolPct}%`} sub="Annualised" />
-              <Kpi label="Cash buffer" value={`${strategy.riskParameters.cashBufferPct}%`} sub={`Rebalance ${strategy.riskParameters.rebalanceCadence}`} />
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <Kpi label="Projected return" value={`${strategy.projectedReturnPct}%`} sub="Model pathway, target mix" />
+              <Kpi label="Projected volatility" value={`${strategy.projectedVolPct}%`} sub="Model pathway" />
+              <Kpi label="Retained cash" value={nzd(strategy.plan.retainedCashNZD)} sub={`${strategy.plan.targetCashPct}% of the book`} />
+              <Kpi
+                label="Cash reallocation"
+                value={nzd(strategy.plan.cashToReallocateNZD)}
+                sub={`Cash on book ${nzd(strategy.plan.cashOnBookNZD)}`}
+              />
             </div>
+            <p className="mt-3 text-xs text-muted-foreground">{strategy.formula}</p>
           </Card>
 
           <Card className="p-5">
-            <h3 className="mb-3 text-sm font-semibold">Rebalancing Plan</h3>
+            <h3 className="mb-1 text-sm font-semibold">Allocation skeleton</h3>
+            <p className="mb-3 text-xs text-muted-foreground">
+              Amounts are the whole-dollar gap to the target weight. Increases equal reductions. Retained cash stays in the plan.
+            </p>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -501,7 +527,7 @@ function StrategyTab({ initialSynthesis }: { initialSynthesis: TotalumSynthesis 
                     <th className="px-2 py-2 text-right">Current</th>
                     <th className="px-2 py-2 text-right">Target</th>
                     <th className="px-2 py-2 text-right">Drift</th>
-                    <th className="px-2 py-2 text-center">Action</th>
+                    <th className="px-2 py-2 text-center">Scenario</th>
                     <th className="px-2 py-2 text-right">Amount</th>
                   </tr>
                 </thead>
@@ -521,13 +547,13 @@ function StrategyTab({ initialSynthesis }: { initialSynthesis: TotalumSynthesis 
                       </td>
                       <td className="px-2 py-2 text-center">
                         <Badge
-                          variant={m.action === "hold" ? "secondary" : m.action === "buy" ? "default" : "outline"}
-                          className="text-[10px] uppercase"
+                          variant={m.action === "unchanged" ? "secondary" : m.action === "increase" ? "default" : "outline"}
+                          className="text-[10px]"
                         >
-                          {m.action === "hold" ? "Hold" : m.action === "buy" ? "Buy ▲" : "Trim ▼"}
+                          {illustrativeActionLabel(m.action)}
                         </Badge>
                       </td>
-                      <td className="px-2 py-2 text-right tabular-nums">{m.action === "hold" ? "—" : nzd(m.amountNZD)}</td>
+                      <td className="px-2 py-2 text-right tabular-nums">{m.action === "unchanged" ? "—" : nzd(m.amountNZD)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -537,7 +563,7 @@ function StrategyTab({ initialSynthesis }: { initialSynthesis: TotalumSynthesis 
 
           <div className="grid gap-4 lg:grid-cols-2">
             <Card className="p-5">
-              <h3 className="mb-2 text-sm font-semibold text-emerald-500">Entry Rules</h3>
+              <h3 className="mb-2 text-sm font-semibold text-emerald-500">Illustrative entry notes</h3>
               <ul className="space-y-2 text-sm text-muted-foreground">
                 {strategy.entryRules.map((r, i) => (
                   <li key={i} className="flex gap-2">
@@ -548,7 +574,7 @@ function StrategyTab({ initialSynthesis }: { initialSynthesis: TotalumSynthesis 
               </ul>
             </Card>
             <Card className="p-5">
-              <h3 className="mb-2 text-sm font-semibold text-rose-500">Exit &amp; Risk Rules</h3>
+              <h3 className="mb-2 text-sm font-semibold text-rose-500">Illustrative exit &amp; risk notes</h3>
               <ul className="space-y-2 text-sm text-muted-foreground">
                 {strategy.exitRules.map((r, i) => (
                   <li key={i} className="flex gap-2">
@@ -564,8 +590,7 @@ function StrategyTab({ initialSynthesis }: { initialSynthesis: TotalumSynthesis 
 
       {initialSynthesis.isEmpty && (
         <p className="text-sm text-muted-foreground">
-          Deposit cash in the Transaction Center and/or add equities, crypto or metals — cash alone is enough to unlock a
-          personalised rebalancing and deployment plan.
+          Deposit cash in the Transaction Center and/or add equities, crypto or metals. Cash alone is enough to open an allocation skeleton.
         </p>
       )}
     </div>
@@ -590,38 +615,40 @@ const SUGGESTIONS = [
 
 function StrategistTab() {
   const [messages, setMessages] = React.useState<ChatMsg[]>([]);
-  const [input, setInput] = React.useState("");
-  const [sending, setSending] = React.useState(false);
+  const turn = useRecoverableTurn();
   const scrollRef = React.useRef<HTMLDivElement>(null);
+  const messagesRef = React.useRef(messages);
+  messagesRef.current = messages;
 
   React.useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages, sending]);
+  }, [messages, turn.working, turn.notice]);
 
   const send = React.useCallback(
     async (text: string) => {
       const msg = text.trim();
-      if (!msg || sending) return;
-      const nextHistory = [...messages, { role: "user" as const, content: msg }];
-      setMessages(nextHistory);
-      setInput("");
-      setSending(true);
+      if (!msg || turn.working) return;
+      const history = messagesRef.current.slice(-10);
+      setMessages((m) => [...m, { role: "user", content: msg }]);
       console.log("[TotalumConsole] Chief Strategist query:", msg);
-      const res = await api.post<{ reply: string; source: string }>("/api/totalum/chat", {
-        message: msg,
-        history: messages.slice(-10),
+      const outcome = await turn.run(msg, async (signal) => {
+        const res = await api.post<{ reply: string; source: string }>(
+          "/api/totalum/chat",
+          { message: msg, history },
+          { signal }
+        );
+        if (res.aborted) return { ok: false, error: "aborted" };
+        if (res.ok && res.data?.reply) return { ok: true, text: res.data.reply };
+        const err = typeof res.error === "string" ? res.error : "The strategist did not return an answer.";
+        return { ok: false, error: err };
       });
-      if (res.ok && res.data?.reply) {
-        setMessages((m) => [...m, { role: "assistant", content: res.data!.reply }]);
-      } else {
-        setMessages((m) => [
-          ...m,
-          { role: "assistant", content: "⚠️ I couldn't reach the strategist just now. Please try again in a moment." },
-        ]);
+      if (outcome.status === "ok") {
+        setMessages((m) => [...m, { role: "assistant", content: outcome.text }]);
+      } else if (outcome.status !== "ignored") {
+        setMessages((m) => [...m, { role: "assistant", content: outcome.message }]);
       }
-      setSending(false);
     },
-    [messages, sending]
+    [turn]
   );
 
   return (
@@ -632,7 +659,7 @@ function StrategistTab() {
         </div>
         <div>
           <p className="text-sm font-semibold">Chief Strategist</p>
-          <p className="text-xs text-muted-foreground">Cross-asset AI · grounded in your live book</p>
+          <p className="text-xs text-muted-foreground">Questions and answers about your book · not an order ticket</p>
         </div>
       </div>
 
@@ -640,14 +667,16 @@ function StrategistTab() {
         {messages.length === 0 && (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Ask The Headmaster anything about your unified portfolio — allocation, risk, rebalancing or scenario planning.
+              Ask about the current book — allocation, risk, pathways, or the strategy skeleton. Answers are scenarios, not orders.
             </p>
             <div className="flex flex-wrap gap-2">
               {SUGGESTIONS.map((q) => (
                 <button
                   key={q}
-                  onClick={() => send(q)}
-                  className="rounded-full border border-border/60 bg-card/50 px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+                  type="button"
+                  disabled={turn.working}
+                  onClick={() => void send(q)}
+                  className="rounded-full border border-border/60 bg-card/50 px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-50"
                 >
                   {q}
                 </button>
@@ -668,35 +697,46 @@ function StrategistTab() {
             </div>
           </div>
         ))}
-        {sending && (
-          <div className="flex justify-start">
-            <div className="rounded-2xl border border-border/60 bg-card/60 px-4 py-2.5 text-sm text-muted-foreground">
-              <span className="inline-flex gap-1">
-                <span className="size-1.5 animate-bounce rounded-full bg-primary [animation-delay:-0.3s]" />
-                <span className="size-1.5 animate-bounce rounded-full bg-primary [animation-delay:-0.15s]" />
-                <span className="size-1.5 animate-bounce rounded-full bg-primary" />
-              </span>
-            </div>
+        {turn.working && (
+          <div className="flex items-center justify-between gap-3 rounded-2xl border border-border/60 bg-card/60 px-4 py-2.5 text-sm text-muted-foreground" role="status" aria-live="polite">
+            <span className="inline-flex items-center gap-2">
+              <Loader2 className="size-3.5 animate-spin text-primary" />
+              {turnProgressLabel(turn.elapsedSec)}
+            </span>
+            <Button type="button" size="sm" variant="outline" onClick={turn.cancel}>
+              <X className="mr-1 size-3.5" /> Cancel
+            </Button>
           </div>
         )}
       </div>
 
-      <div className="border-t border-border/60 p-3">
+      <div className="shrink-0 border-t border-border/60 p-3">
+        {turn.notice && !turn.working && (
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200" role="alert">
+            <span>{turn.notice}</span>
+            {turn.retryPrompt && (
+              <Button type="button" size="sm" variant="outline" onClick={() => void send(turn.retryPrompt!)}>
+                Retry
+              </Button>
+            )}
+          </div>
+        )}
         <div className="flex items-end gap-2">
           <Textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
+            value={turn.draft}
+            onChange={(e) => turn.setDraft(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
-                void send(input);
+                void send(turn.draft);
               }
             }}
-            placeholder="Ask the Chief Strategist…"
+            placeholder="Or type a question…"
             className="min-h-[44px] max-h-32 resize-none"
             rows={1}
+            aria-label="Ask the Chief Strategist"
           />
-          <Button onClick={() => send(input)} disabled={sending || !input.trim()} size="icon" className="size-11 shrink-0">
+          <Button onClick={() => void send(turn.draft)} disabled={turn.working || !turn.draft.trim()} size="icon" className="size-11 shrink-0" aria-label="Send">
             <Send className="size-4" />
           </Button>
         </div>
@@ -810,7 +850,7 @@ export function TotalumConsole({ entitled, memberName, plan }: { entitled: boole
           <h3 className="mt-3 text-lg font-semibold">Your unified book is empty</h3>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
             Deposit cash in the Transaction Center, or add equities in Stox, coins in Koins, and gold/silver in Precious
-            Metals. Cash alone is enough — The Headmaster will then synthesise a deployment plan into named tickers.
+            Metals. Cash alone is enough to open an allocation skeleton for the current book.
           </p>
           <Button asChild className="mt-4">
             <Link href="/dashboard">Go to your dashboard</Link>
