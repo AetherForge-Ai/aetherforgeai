@@ -554,6 +554,7 @@ function BriefingSection({ report }: { report: ApexReport }) {
 }
 
 export function ApexReportView({ report: source }: { report: ApexReport }) {
+  // Stored View, including recommendation rows, always re-applies the cash guard.
   const report = sanitizeGuardedReport(source);
   return (
     <div className="min-w-0 max-w-full space-y-5 overflow-x-hidden">
