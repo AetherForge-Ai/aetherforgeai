@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { confirmPageSession, confirmSessionUser, refreshSessionSingleFlight } from "@/lib/auth-refresh";
+import {
+  confirmDashboardSession,
+  confirmPageSession,
+  confirmSessionUser,
+  refreshSessionSingleFlight,
+} from "@/lib/auth-refresh";
 
 const user1t = {
   id: "user-1t",
@@ -49,6 +54,30 @@ describe("live session probe", () => {
     expect(nav).toBeNull();
     expect(calls.every((url) => url === "/api/session")).toBe(true);
     expect(calls.filter((url) => url === "/api/auth/get-session")).toHaveLength(0);
+  });
+
+  it("reads dashboard entitlement from the same session response and not from a cash field", async () => {
+    const calls: string[] = [];
+    globalThis.window = {} as Window & typeof globalThis;
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      calls.push(String(input));
+      return jsonResponse({
+        user: {
+          ...user1t,
+          greetingName: "AetherForge",
+          metalsEntitled: true,
+          cash_balance: 11047.68,
+          subscription: { botAccess: "both", status: "active", plan: "pro_monthly" },
+        },
+      });
+    }) as typeof fetch;
+
+    const [nav, book] = await Promise.all([confirmPageSession(), confirmDashboardSession()]);
+    expect(nav?.id).toBe("user-1t");
+    expect(book?.metalsEntitled).toBe(true);
+    expect(book?.subscription.botAccess).toBe("both");
+    expect(JSON.stringify(book)).not.toContain("11047");
+    expect(calls).toEqual(["/api/session"]);
   });
 
   it("does not refresh the nav when the atom has no user", async () => {

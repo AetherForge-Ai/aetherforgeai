@@ -8,3 +8,9 @@ export const PORTFOLIO_ROUTE_ALIASES = [
   { source: "/alerts", destination: "/dashboard/alerts" },
   { source: "/notifications", destination: "/dashboard/alerts" },
 ] as const;
+
+export function portfolioAliasRedirect(pathname: string): string | null {
+  const path = pathname.length > 1 && pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
+  const hit = PORTFOLIO_ROUTE_ALIASES.find((row) => row.source === path);
+  return hit?.destination ?? null;
+}

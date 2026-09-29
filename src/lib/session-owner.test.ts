@@ -9,6 +9,8 @@ import {
   hasSessionDataCookie,
   mayPaintNavIdentity,
   sessionFlightKey,
+  anonymousAccountApi,
+  requestHasSessionToken,
   shouldRecoverSession,
   stripSessionDataCookie,
 } from "@/lib/session-owner";
@@ -101,5 +103,26 @@ describe("session owner", () => {
     expect(stable).toContain("__Secure-better-auth.session_token=new");
     expect(stable).not.toContain("session_data");
     expect(hasSessionDataCookie(stable)).toBe(false);
+  });
+
+  it("treats a missing or blank session cookie as signed out", () => {
+    expect(requestHasSessionToken(() => undefined)).toBe(false);
+    expect(requestHasSessionToken(() => "  ")).toBe(false);
+    expect(
+      requestHasSessionToken((name) => (name === "__Secure-better-auth.session_token" ? "tok" : undefined))
+    ).toBe(true);
+  });
+
+  it("does not let a cookie-less request read another member's book", () => {
+    expect(anonymousAccountApi("/api/session", "GET")).toBe("session-null");
+    expect(anonymousAccountApi("/api/stocks", "GET")).toBe("unauthorized");
+    expect(anonymousAccountApi("/api/alerts", "GET")).toBe("unauthorized");
+    expect(anonymousAccountApi("/api/transactions", "POST")).toBe("unauthorized");
+    expect(anonymousAccountApi("/api/metals", "GET")).toBe("unauthorized");
+    expect(anonymousAccountApi("/api/metals/lot-1", "DELETE")).toBe("unauthorized");
+    expect(anonymousAccountApi("/api/metals/spot", "GET")).toBeNull();
+    expect(anonymousAccountApi("/api/ticker", "GET")).toBeNull();
+    expect(anonymousAccountApi("/api/session/logout", "POST")).toBeNull();
+    expect(anonymousAccountApi("/dashboard", "GET")).toBeNull();
   });
 });
