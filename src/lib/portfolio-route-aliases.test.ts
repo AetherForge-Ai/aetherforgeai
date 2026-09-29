@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PORTFOLIO_ROUTE_ALIASES } from "./portfolio-route-aliases";
+import { PORTFOLIO_ROUTE_ALIASES, portfolioAliasRedirect } from "./portfolio-route-aliases";
 
 describe("portfolio route aliases", () => {
   it("sends the three urgent 404s to existing portfolio surfaces", () => {
@@ -8,5 +8,7 @@ describe("portfolio route aliases", () => {
       "/alerts": "/dashboard/alerts",
       "/notifications": "/dashboard/alerts",
     });
+    expect(portfolioAliasRedirect("/notifications")).toBe("/dashboard/alerts");
+    expect(portfolioAliasRedirect("/alerts/")).toBe("/dashboard/alerts");
   });
 });

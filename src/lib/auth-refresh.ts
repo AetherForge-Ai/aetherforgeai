@@ -1,6 +1,7 @@
 "use client";
 
 import { createSingleFlight } from "@/lib/single-flight";
+import { parseDashboardSessionUser, type DashboardSessionUser } from "@/lib/dashboard-session";
 import {
   LIVE_SESSION_PATH,
   REFRESH_SESSION_PATH,
@@ -34,20 +35,22 @@ export function authActionOn401(url: string, alreadyRetried: boolean): Auth401Ac
 }
 
 type SessionEnvelope = {
-  user?: Partial<LiveSessionUser> | null;
+  user?: unknown;
   session?: unknown;
 } | null;
 
 function parseLiveUser(data: SessionEnvelope): LiveSessionUser | null {
   const user = data?.user;
-  if (!user?.id || !user.email) return null;
+  if (!user || typeof user !== "object") return null;
+  const row = user as Partial<LiveSessionUser>;
+  if (!row.id || !row.email) return null;
   return {
-    id: user.id,
-    email: user.email,
-    name: user.name || user.email,
-    image: user.image ?? null,
-    subscription_status: user.subscription_status,
-    subscription_plan: user.subscription_plan,
+    id: row.id,
+    email: row.email,
+    name: row.name || row.email,
+    image: row.image ?? null,
+    subscription_status: row.subscription_status,
+    subscription_plan: row.subscription_plan,
   };
 }
 
@@ -64,7 +67,7 @@ export function invalidateLiveSessionProbe(): void {
   liveSessionEpoch += 1;
 }
 
-async function fetchLiveSession(epochAtStart: number): Promise<LiveSessionUser | null> {
+async function fetchSessionEnvelope(epochAtStart: number): Promise<SessionEnvelope> {
   if (typeof window === "undefined") return null;
   try {
     const res = await fetch(LIVE_SESSION_PATH, {
@@ -72,26 +75,34 @@ async function fetchLiveSession(epochAtStart: number): Promise<LiveSessionUser |
       credentials: "include",
       cache: "no-store",
     });
-    if (epochAtStart !== liveSessionEpoch) return fetchLiveSession(liveSessionEpoch);
+    if (epochAtStart !== liveSessionEpoch) return fetchSessionEnvelope(liveSessionEpoch);
     if (!res.ok) return null;
     const data = (await res.json().catch(() => null)) as SessionEnvelope;
-    if (epochAtStart !== liveSessionEpoch) return fetchLiveSession(liveSessionEpoch);
-    return parseLiveUser(data);
+    if (epochAtStart !== liveSessionEpoch) return fetchSessionEnvelope(liveSessionEpoch);
+    return data;
   } catch {
     return null;
   }
 }
 
-const readLiveSessionUser = createSingleFlight(() => fetchLiveSession(liveSessionEpoch));
+const readSessionEnvelope = createSingleFlight(() => fetchSessionEnvelope(liveSessionEpoch));
 
 /** Dashboard and nav: one stable read. A null result is not a reason to rotate. */
 export function confirmPageSession(): Promise<LiveSessionUser | null> {
-  return readLiveSessionUser();
+  return readSessionEnvelope().then(parseLiveUser);
+}
+
+/**
+ * Paper-book gate. Same uncached read as the nav, including subscription
+ * fields. Null until this browser's cookie resolves to a user.
+ */
+export function confirmDashboardSession(): Promise<DashboardSessionUser | null> {
+  return readSessionEnvelope().then(parseDashboardSessionUser);
 }
 
 /** Nav identity. The session atom is not consulted — it can name the previous book. */
 export function confirmSessionUser(_atomUserId?: string | null): Promise<LiveSessionUser | null> {
-  return readLiveSessionUser();
+  return readSessionEnvelope().then(parseLiveUser);
 }
 
 export type TradeSessionAlign =
@@ -107,7 +118,7 @@ export async function alignTradeSession(
   activeUserId: string | null,
   _allowRefresh = false,
 ): Promise<TradeSessionAlign> {
-  const live = await readLiveSessionUser();
+  const live = await confirmPageSession();
   if (live && activeUserId && live.id !== activeUserId) {
     return { ok: false, reason: "mismatch" };
   }

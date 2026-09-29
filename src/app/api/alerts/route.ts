@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { privateJson } from "@/lib/account-response";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
@@ -201,7 +202,7 @@ export async function GET() {
     });
 
     console.log(`[api/alerts] GET returned ${alerts.length} alerts for user ${user._id}`);
-    return NextResponse.json({ ok: true, data: alerts });
+    return privateJson({ ok: true, userId: user._id, data: alerts });
   } catch (err: any) {
     console.error("[api/alerts] GET error:", err);
     return NextResponse.json({ ok: false, error: err?.message || "Failed to load alerts" }, { status: 500 });

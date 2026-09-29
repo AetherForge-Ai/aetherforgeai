@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { privateJson } from "@/lib/account-response";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
@@ -35,7 +36,7 @@ export async function GET() {
   try {
     const user = await getCurrentUser();
     if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-    return NextResponse.json({ ok: true, data: user });
+    return privateJson({ ok: true, userId: user._id, data: user });
   } catch (err: any) {
     console.error("[api/profile] GET error:", err);
     return NextResponse.json({ ok: false, error: err?.message || "Failed" }, { status: 500 });

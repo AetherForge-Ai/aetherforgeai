@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import { PORTFOLIO_ROUTE_ALIASES } from "./src/lib/portfolio-route-aliases";
+import { PUBLIC_ROUTE_ALIASES } from "./src/lib/public-route-aliases";
 
 const nextConfig: NextConfig = {
   images: {
@@ -37,6 +38,7 @@ const nextConfig: NextConfig = {
       { source: "/portfolio", destination: "/dashboard", permanent: false },
       { source: "/how", destination: "/how-it-works", permanent: false },
       ...PORTFOLIO_ROUTE_ALIASES.map((row) => ({ ...row, permanent: false })),
+      ...PUBLIC_ROUTE_ALIASES.map((row) => ({ ...row, permanent: false })),
     ];
   },
   async headers() {
@@ -46,11 +48,14 @@ const nextConfig: NextConfig = {
         source: '/:path*',
         headers: [
           {
-            key: 'Cache-Control',
-            value: 'no-cache, no-store, must-revalidate',
+            key: "Cache-Control",
+            value: "private, no-store, no-cache, must-revalidate",
           },
+          { key: "CDN-Cache-Control", value: "no-store" },
+          { key: "Cloudflare-CDN-Cache-Control", value: "no-store" },
           { key: "Pragma", value: "no-cache" },
           { key: "Expires", value: "0" },
+          { key: "Vary", value: "Cookie" },
         ],
       },
     ];
