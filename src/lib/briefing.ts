@@ -22,6 +22,7 @@ import type { SecurityIntel, ProbabilisticOutlook, ConvictionLevel } from "@/lib
 import type { EconEvent } from "@/lib/econ-calendar";
 import type { SentimentSummary } from "@/lib/news-sentiment";
 import type { BotKind } from "@/lib/apex";
+import { alignedProjection, rateAsset, readTape } from "@/lib/report-consistency";
 
 export interface BriefingOutlookRow {
   ticker: string;
@@ -85,24 +86,19 @@ export function buildIntelligenceBriefing(args: BuildBriefingArgs): Intelligence
   const assetWord = bot === "crypto" ? "assets" : "holdings";
   const n = technicals.length;
 
-  // ---- Aggregate directional read -------------------------------------
-  const avgEdge = n ? technicals.reduce((s, t) => s + (t.score - 50), 0) / n : 0;
-  const avgConfidence = n ? Math.round(technicals.reduce((s, t) => s + t.confidence, 0) / n) : 0;
-  const netScore = Math.round(Math.max(0, Math.min(100, 50 + avgEdge)));
-  const strong = technicals.filter((t) => t.signal === "Strong Buy" || t.signal === "Buy");
-  const weak = technicals.filter((t) => t.signal === "Reduce" || t.signal === "Sell");
-  const highConv = technicals.filter((t) => t.conviction === "High");
-  const speculative = technicals.filter((t) => t.conviction === "Speculative");
+  // ---- Aggregate directional read (same tape the report guardrails use) --
+  const tape = readTape(technicals);
+  const avgConfidence = tape.averageConfidence;
+  const netScore = tape.score;
+  const strong = technicals.filter((t) => rateAsset(t).positiveMomentum);
+  const weak = technicals.filter((t) => {
+    const action = rateAsset(t).action;
+    return action === "SELL" || action === "TRIM";
+  });
   const hotVol = technicals.filter((t) => t.regime === "High Volatility");
-
-  const bias: OverallConviction["bias"] =
-    avgEdge > 5 ? "Constructive" : avgEdge < -5 ? "Defensive" : "Neutral";
-
-  let overallLevel: ConvictionLevel;
-  if (n && speculative.length / n >= 0.5) overallLevel = "Speculative";
-  else if (n && highConv.length / n >= 0.34 && Math.abs(avgEdge) > 6) overallLevel = "High";
-  else if (Math.abs(avgEdge) > 4 || (n && highConv.length >= 1)) overallLevel = "Moderate";
-  else overallLevel = "Low";
+  const highConv = technicals.filter((t) => t.conviction === "High");
+  const bias: OverallConviction["bias"] = tape.bias;
+  const overallLevel: ConvictionLevel = tape.level;
 
   const overall: OverallConviction = {
     level: overallLevel,
@@ -119,11 +115,21 @@ export function buildIntelligenceBriefing(args: BuildBriefingArgs): Intelligence
   const topName = [...technicals].sort((a, b) => b.score - a.score)[0];
   const worstName = [...technicals].sort((a, b) => a.score - b.score)[0];
   const bigCatalyst = events.find((e) => e.importance === "High");
+  const positiveMomentum = technicals.filter((t) => rateAsset(t).positiveMomentum).length;
+  const ratedLine = technicals
+    .slice(0, 8)
+    .map((t) => {
+      const rating = rateAsset(t);
+      const aligned = alignedProjection(t);
+      return `**${rating.action} ${t.ticker}** (${t.regime}, MACD ${t.macdSignal}, 7-day base ${aligned.range})`;
+    })
+    .join("; ");
   const executiveSummary =
     (n
       ? `The ${bot === "crypto" ? "Koins" : "Stox"} engine reads a **${bias.toLowerCase()}** 7-day posture across ${n} ${assetWord} ` +
-        `(${strong.length} constructive vs ${weak.length} elevated-risk; net ${netScore}/100 at ${avgConfidence}% average confidence). ` +
-        (topName ? `**${topName.ticker}** carries the strongest edge (${topName.signal}, ${topName.conviction.toLowerCase()} conviction)${worstName && worstName !== topName ? `, while **${worstName.ticker}** is the weakest link` : ""}. `
+        `(${positiveMomentum} of ${n} carry a positive momentum signal; net ${netScore}/100 at ${avgConfidence}% average confidence). ` +
+        (ratedLine ? `${ratedLine}. ` : "") +
+        (topName ? `Strongest model score is **${topName.ticker}** (${rateAsset(topName).action}, ${topName.conviction.toLowerCase()} conviction)${worstName && worstName !== topName ? `; weakest score is **${worstName.ticker}** (${rateAsset(worstName).action})` : ""}. `
           : "")
       : `No ${assetWord} are currently monitored for this bot — add tickers to receive a full probabilistic briefing. `) +
     (bigCatalyst
@@ -144,7 +150,10 @@ export function buildIntelligenceBriefing(args: BuildBriefingArgs): Intelligence
     const overbought = technicals.filter((t) => t.rsi >= 70).map((t) => t.ticker);
     const oversold = technicals.filter((t) => t.rsi <= 30).map((t) => t.ticker);
     observations.push(
-      `Momentum: MACD is bullish on ${bullMacd}/${n}; ` +
+      `${positiveMomentum} of ${n} ${assetWord} carry a positive momentum signal (same Buy or Accumulate rating as each card).`
+    );
+    observations.push(
+      `MACD is bullish on ${bullMacd}/${n}; ` +
         (overbought.length ? `overbought (RSI≥70): ${overbought.join(", ")}. ` : "no overbought extremes. ") +
         (oversold.length ? `Oversold (RSI≤30): ${oversold.join(", ")}.` : "")
     );
@@ -182,7 +191,15 @@ export function buildIntelligenceBriefing(args: BuildBriefingArgs): Intelligence
       price: t.price,
       regime: t.regime,
       conviction: t.conviction,
-      signal: t.signal,
+      signal: rateAsset(t).cardSignal === "Sell"
+        ? "Sell"
+        : rateAsset(t).cardSignal === "Reduce"
+          ? "Reduce"
+          : rateAsset(t).cardSignal === "Strong Buy"
+            ? "Strong Buy"
+            : rateAsset(t).cardSignal === "Buy" || rateAsset(t).cardSignal === "Accumulate"
+              ? "Buy"
+              : "Hold",
       outlook: t.outlook,
     }));
 
@@ -192,7 +209,7 @@ export function buildIntelligenceBriefing(args: BuildBriefingArgs): Intelligence
   if (topHigh) {
     const c = topHigh.score >= 50 ? topHigh.outlook.bull : topHigh.outlook.bear;
     highlights.push(
-      `⭐ High conviction: **${topHigh.ticker}** (${topHigh.signal}) — base case ${rangeLabel(topHigh.outlook.base)} (${topHigh.outlook.base.probability}%), ${topHigh.score >= 50 ? "bull" : "bear"} case ${rangeLabel(c)} (${c.probability}%).`
+      `⭐ High conviction: **${topHigh.ticker}** (${rateAsset(topHigh).action}) — base case ${rangeLabel(topHigh.outlook.base)} (${topHigh.outlook.base.probability}%), ${topHigh.score >= 50 ? "bull" : "bear"} case ${rangeLabel(c)} (${c.probability}%).`
     );
   }
   for (const t of hotVol.slice(0, 2)) {

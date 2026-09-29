@@ -7,7 +7,7 @@
 import "server-only";
 import type { CoinMarket, CoinDetail, CoinChart } from "@/lib/crypto-market";
 import { CANONICAL_CRYPTO_IDS, CRYPTO_DISPLAY_NAMES, normalizeCryptoTicker } from "@/lib/crypto-ids";
-import { coinLogo } from "@/lib/crypto-market";
+import { coinLogo, sevenDayReturnPct } from "@/lib/crypto-market";
 
 const YAHOO_CHART = "https://query1.finance.yahoo.com/v8/finance/chart";
 
@@ -61,15 +61,19 @@ async function yahooChartRaw(symbol: string, range = "1mo", interval = "1d"): Pr
 
 export async function fetchYahooCryptoQuote(
   ticker: string
-): Promise<{ price: number; changePct: number } | null> {
-  const j = await yahooChartRaw(yahooSymbol(ticker), "5d", "1d");
+): Promise<{ price: number; changePct: number; change7d: number | null; sparkline7d: number[] } | null> {
+  const j = await yahooChartRaw(yahooSymbol(ticker), "7d", "1d");
   const r = j?.chart?.result?.[0];
   if (!r) return null;
   const price = Number(r.meta?.regularMarketPrice);
   const prev = Number(r.meta?.chartPreviousClose ?? r.meta?.previousClose);
   if (!(price > 0)) return null;
-  const changePct = prev > 0 ? ((price - prev) / prev) * 100 : 0;
-  return { price, changePct };
+  const closes: number[] = (r.indicators?.quote?.[0]?.close || []).filter(
+    (n: unknown): n is number => typeof n === "number" && isFinite(n) && n > 0
+  );
+  const prior = closes.length >= 2 ? closes[closes.length - 2] : prev;
+  const changePct = prior > 0 ? ((price - prior) / prior) * 100 : prev > 0 ? ((price - prev) / prev) * 100 : 0;
+  return { price, changePct, change7d: sevenDayReturnPct(closes), sparkline7d: closes };
 }
 
 export async function fetchYahooMajorMarkets(): Promise<CoinMarket[]> {
@@ -95,7 +99,8 @@ export async function fetchYahooMajorMarkets(): Promise<CoinMarket[]> {
         volume24h: 0,
         change1h: null,
         change24h: q.changePct,
-        change7d: 0,
+        change7d: q.change7d ?? 0,
+        sparkline7d: q.sparkline7d,
         high24h: null,
         low24h: null,
         circulatingSupply: null,
@@ -105,7 +110,6 @@ export async function fetchYahooMajorMarkets(): Promise<CoinMarket[]> {
         athDate: null,
         atl: null,
         atlDate: null,
-        sparkline7d: [],
       });
     }
   }

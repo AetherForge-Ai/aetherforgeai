@@ -12,7 +12,7 @@
  */
 
 import "server-only";
-import type { CoinMarket, CoinDetail, CoinChart } from "@/lib/crypto-market";
+import { resolveSevenDayChange, type CoinMarket, type CoinDetail, type CoinChart } from "@/lib/crypto-market";
 
 const CG_BASE = "https://api.coingecko.com/api/v3";
 
@@ -104,7 +104,8 @@ function mapMarketRow(r: CgMarketRow): CoinMarket {
     volume24h: r.total_volume ?? 0,
     change1h: r.price_change_percentage_1h_in_currency ?? null,
     change24h: r.price_change_percentage_24h_in_currency ?? r.price_change_percentage_24h ?? 0,
-    change7d: r.price_change_percentage_7d_in_currency ?? 0,
+    change7d:
+      resolveSevenDayChange(r.price_change_percentage_7d_in_currency, r.sparkline_in_7d?.price) ?? 0,
     high24h: r.high_24h ?? null,
     low24h: r.low_24h ?? null,
     circulatingSupply: r.circulating_supply ?? null,
