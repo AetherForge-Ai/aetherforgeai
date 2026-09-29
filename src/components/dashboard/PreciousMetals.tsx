@@ -380,8 +380,9 @@ export function PreciousMetals({
     </span>
   );
 
+  const hasBullion = ledgerLots.length > 0 || metals.length > 0;
   /* ---------------------------- Locked (upsell) --------------------------- */
-  if (!entitled) {
+  if (!entitled && !hasBullion) {
     return (
       <div className="rounded-3xl border border-border/70 bg-card/50 p-8 text-center">
         <span className="mx-auto grid size-14 place-items-center rounded-2xl bg-[var(--gold)]/12 text-[var(--gold)]">

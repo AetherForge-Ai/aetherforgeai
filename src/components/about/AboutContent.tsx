@@ -125,7 +125,7 @@ const PILLARS = [
   },
   {
     icon: MapPin,
-    title: "Built specifically for NZX & ASX",
+    title: "NZX, ASX, US markets, crypto and metals",
     desc: "Not a generic global screener. AetherForge AI is tuned from the ground up for New Zealand and Australian markets — the ones that matter to you.",
   },
   {
@@ -580,17 +580,17 @@ export function AboutContent() {
             <p className="mx-auto mt-7 max-w-3xl text-lg leading-relaxed text-[#475569]">
               AetherForge AI operates under <strong className="font-semibold text-[#0F172A]">Forge
               Intelligence Limited</strong> — a proudly 100% New Zealand-owned and operated company that has
-              only just been made available to the public. We are focused exclusively on the{" "}
-              <strong className="font-semibold text-[#0F172A]">NZX and ASX markets</strong>, delivering
-              intelligent, reliable insights designed specifically to help everyday New Zealanders build
-              wealth while staying fully in control of their own trading decisions.
+              only just been made available to the public. The product covers{" "}
+              <strong className="font-semibold text-[#0F172A]">NZX, ASX, US equities, crypto and precious metals</strong>{" "}
+              in one NZD paper book. It started as an NZX and ASX monitor. It does not place trades —
+              you stay in control of every decision at your own broker.
             </p>
           </Reveal>
 
           <Reveal delay={160}>
             <div className="mx-auto mt-10 flex max-w-2xl flex-wrap items-center justify-center gap-3">
               {[
-                { icon: MapPin, label: "NZX & ASX focused" },
+                { icon: MapPin, label: "NZX, ASX, US, crypto & metals" },
                 { icon: ShieldCheck, label: "You stay in control" },
                 { icon: Sparkles, label: "AI-powered insight" },
               ].map((chip) => (

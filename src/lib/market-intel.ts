@@ -560,6 +560,25 @@ export function universeFor(assetClass: AssetClass): UniverseEntry[] {
  * "US" market code into the two headline indices ("Dow Jones" vs "NASDAQ") for
  * the ALL Markets selector and the projection exchange chips.
  */
+/** Dow names whose primary listing is NASDAQ, not NYSE. */
+export const NASDAQ_LISTED_TICKERS: ReadonlySet<string> = new Set([
+  "AAPL", "AMGN", "AMZN", "CSCO", "MSFT", "NVDA",
+]);
+
+export function listingExchangeLabel(ticker: string, assetType?: string | null): string {
+  if (assetType === "crypto") return "Crypto";
+  if (assetType === "metal") return "Metals";
+  const t = (ticker || "").toUpperCase();
+  if (t.endsWith(".NZ") || t.endsWith(".NZX")) return "NZX";
+  if (t.endsWith(".AX") || t.endsWith(".ASX")) return "ASX";
+  if (t.endsWith(".L")) return "LSE";
+  const bare = t.split(".")[0];
+  if (NASDAQ_LISTED_TICKERS.has(bare)) return "NASDAQ";
+  if (DOW_JONES_TICKERS.has(bare)) return "NYSE";
+  if (bare && !t.includes(".")) return "NASDAQ";
+  return "US";
+}
+
 export const DOW_JONES_TICKERS: ReadonlySet<string> = new Set([
   "AAPL", "AMGN", "AMZN", "AXP", "BA", "CAT", "CRM", "CSCO", "CVX", "DIS",
   "GS", "HD", "HON", "IBM", "JNJ", "JPM", "KO", "MCD", "MMM", "MRK",
@@ -655,7 +674,7 @@ export function searchMarketUniverse(query: string, limit = 12): UniverseTickerM
   scored.sort((a, b) => b.score - a.score || a.entry.ticker.localeCompare(b.entry.ticker));
   return scored.slice(0, limit).map(({ entry }) => {
     const ex = resolveExchange(entry.ticker, entry.market);
-    const exchangeLabel = ex === "DOW" ? "NYSE" : ex;
+    const exchangeLabel = listingExchangeLabel(entry.ticker, entry.market === "CRYPTO" ? "crypto" : "stock");
     return {
       symbol: entry.ticker,
       name: entry.name,
@@ -865,10 +884,15 @@ function projectForward(
     p = Math.max(0.01, p + adjSlope);
     path.push(round(p, last < 5 ? 4 : 2));
   }
-  const pct = round(((path[path.length - 1] - last) / last) * 100, 2);
-  // Crypto tolerates larger projected swings before confidence is discounted.
+  const rawPct = ((path[path.length - 1] - last) / last) * 100;
+  // Penny-priced series can imply +1000% in a week. Cap the claim and drop
+  // confidence so a wild slope is not shown as a high-conviction Strong Buy.
+  const cap = 25 * volScale;
+  const extreme = Math.abs(rawPct) > cap;
+  const pct = round(clamp(rawPct, -cap, cap), 2);
   const swingBudget = 10 * volScale;
-  const confidence = Math.round(clamp(45 + r2 * 45 + (swingBudget - Math.abs(pct)) * 0.5, 40, 96));
+  let confidence = Math.round(clamp(45 + r2 * 45 + (swingBudget - Math.abs(pct)) * 0.5, 40, 96));
+  if (extreme) confidence = Math.min(confidence, 40);
   return { path, pct, confidence };
 }
 

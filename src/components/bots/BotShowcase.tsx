@@ -116,7 +116,7 @@ export function BotShowcase() {
           3 Genius AI bots to do the Thinking for You
         </h2>
         <p className="mx-auto mt-4 max-w-2xl text-muted-foreground">
-          Powered by SuperGrok 4.6, STOX monitors the Stock Market, KOINS monitors the Crypto Currency World, and The Headmaster will make an investment plan and strategy with You, tailored to What your Individual needs require. Then using Koins and Stox indepth Ultra Advanced Analysis and Reports on everything that is relative to your portfolio, Manage your Investment Portfolio with the minimal amout of work required from you, leaving you free time to do other things.  
+          Powered by SuperGrok 4.6, STOX monitors the Stock Market, KOINS monitors the Crypto Currency World, and The Headmaster will make an investment plan and strategy with You, tailored to What your Individual needs require. Then using Koins and Stox indepth Ultra Advanced Analysis and Reports on everything that is relative to your portfolio, Manage your Investment Portfolio with the minimal amount of work required from you, leaving you free time to do other things.  
           
         </p>
       </div>

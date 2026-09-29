@@ -23,30 +23,28 @@ export type PlanKey =
   | "ultimate_yearly";
 export type BotAccess = "single" | "both";
 
-/** Free-trial tier — no Stripe price, activated instantly with just an email. */
+/** Free tier — no Stripe price. Matches the public Pricing card. */
 export const FREE_PLAN = {
   key: "free" as const,
-  name: "Apex Free Trial",
-  tagline: "Run the full engine — free, forever",
-  /** Tickers a free member can monitor across both bots. */
+  name: "Free",
+  tagline: "Perfect for testing the platform",
+  /** Holdings a free member can track. */
   tickerLimit: 8,
-  /** Free members can run BOTH the stock and crypto monitors. */
-  botAccess: "both" as const,
-  /** Free trials stay active for this many days before a gentle nudge to upgrade. */
-  durationDays: 3650,
+  /** Free members choose Stox or Koins, not both. */
+  botAccess: "single" as const,
   /**
    * AI research reports a Free member may run per calendar month (Pacific/Auckland).
-   * Replaces the old "1 report per week" cadence — see FREE_REPORTS_PER_MONTH and
-   * evaluateFreeReportQuota() in entitlements.ts, which are the source of truth for
-   * enforcing and displaying this allowance.
+   * Enforced by FREE_REPORTS_PER_MONTH / evaluateFreeReportQuota() in entitlements.ts.
    */
   reportsPerMonth: 3,
+  /** Free access stays on the account; paid plans add capacity. */
+  durationDays: 3650,
   features: [
-    "3 AI research reports per calendar month",
-    "Monitor up to 8 tickers — stocks or crypto",
-    "Reports delivered to your email + dashboard",
-    "Download every report as a PDF",
-    "Share-price alerts with execution instructions",
+    "Up to 8 holdings",
+    "Access to either Stox or Koins (choose one)",
+    "3 AI Research Reports per month",
+    "Basic portfolio tracking & P/L",
+    "Limited Market Assistant queries",
   ],
 };
 
@@ -294,7 +292,7 @@ export const PRICING_TIERS: PricingTier[] = [
     yearlyPrice: 290,
     monthlyPlanKey: "starter_monthly",
     yearlyPlanKey: "starter_yearly",
-    cta: { label: "Start 14-day Pro Trial", kind: "checkout" },
+    cta: { label: "Start 14-day Starter trial", kind: "checkout" },
     highlights: [
       "Up to 25 holdings",
       "Full access to one bot (Stox or Koins)",

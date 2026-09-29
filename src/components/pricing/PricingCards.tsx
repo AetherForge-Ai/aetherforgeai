@@ -10,7 +10,6 @@ import { toast } from "sonner";
 import {
   PRICING_TIERS,
   planByKey,
-  buildPaymentLinkUrl,
   SALES_EMAIL,
   ANNUAL_SAVINGS_PCT,
   type PricingTier,
@@ -69,22 +68,8 @@ export function PricingCards() {
 
     setLoadingTier(tier.id);
 
-    // Preferred path: the owner's shareable Stripe Payment Link. We tag it with
-    // the signed-in user's id (client_reference_id) + email so the webhook can
-    // attach the subscription to their account. Bot choice matters only for the
-    // single-bot Starter tier.
-    const paymentUrl = buildPaymentLinkUrl(plan, {
-      userId: session.user.id,
-      email: session.user.email,
-      bot: plan.botAccess === "both" ? undefined : bot,
-    });
-    if (paymentUrl) {
-      console.log(`[pricing] Payment Link → ${tier.id} (${period})`, { plan: plan.key, bot });
-      window.location.href = paymentUrl;
-      return;
-    }
-
-    // Fallback: dynamic Checkout Session (used if a plan has no payment link).
+    // Checkout Session uses the NZD amount on the pricing card (not a Payment
+    // Link that can show another currency or an old product name).
     console.log(`[pricing] Checkout session ${tier.id} (${period})`, { priceId: plan.priceId, bot });
     const res = await api.post<{ url: string }>("/api/stripe/checkout", {
       priceId: plan.priceId,
@@ -102,9 +87,26 @@ export function PricingCards() {
     }
   }
 
+  async function startFree() {
+    if (!session?.user) {
+      router.push(`/register?plan=free&bot=${bot}`);
+      return;
+    }
+    setLoadingTier("free");
+    const res = await api.post("/api/free-trial/activate", { bot });
+    setLoadingTier(null);
+    if (!res.ok) {
+      const msg = typeof res.error === "string" ? res.error : "Could not start the free plan.";
+      toast.error(msg);
+      return;
+    }
+    toast.success(bot === "crypto" ? "Koins is your free bot." : "Stox is your free bot.");
+    router.push("/dashboard/bots");
+  }
+
   function handleCta(tier: PricingTier) {
     if (tier.cta.kind === "register") {
-      router.push("/register");
+      void startFree();
     } else if (tier.cta.kind === "sales") {
       // Ultimate enquiries use the subject "Ultimate"; any other sales CTA uses
       // "Sale <plan name>" so the inbox can be triaged at a glance.
@@ -152,7 +154,7 @@ export function PricingCards() {
 
         {/* Single-bot selector — applies to Starter checkout only */}
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span className="hidden sm:inline">Single-bot plan (Starter) uses:</span>
+          <span className="hidden sm:inline">Free and Starter use:</span>
           <div className="inline-flex items-center rounded-full border border-border/60 bg-card/50 p-0.5">
             <button
               onClick={() => setBot("stock")}
@@ -290,8 +292,8 @@ export function PricingCards() {
       </div>
 
       <p className="mt-8 text-center text-xs text-muted-foreground">
-        All prices in NZD — billed in NZD. US$ amounts are indicative at today&apos;s exchange rate ·
-        Secure Stripe checkout · Cancel anytime · Paid plans include a 14-day Pro trial
+        All prices in NZD — checkout is billed in NZD. US$ amounts are indicative at today&apos;s exchange rate ·
+        Secure Stripe checkout · Cancel anytime · Paid plans include a 14-day trial (no card while today is NZ$0)
       </p>
     </div>
   );

@@ -57,3 +57,16 @@ export function formatSellStopChip(alert: AlertChipInput): string {
   if (dip == null) return "—";
   return `−${pctText(Math.abs(dip))}%`;
 }
+
+/** Sentence built from the saved percents, so a custom trim or hard-sell % is what the card says. */
+export function formatAlertRuleLine(alert: AlertChipInput): string {
+  const size = num(alert.trimPct);
+  const dip = num(alert.trimTriggerDipPct);
+  const band = formatTakeProfitBand(alert.takeProfitMinPct, alert.takeProfitMaxPct);
+  const parts: string[] = [];
+  if (size != null && dip != null) parts.push(`Trim ${pctText(size)}% at a ${pctText(Math.abs(dip))}% dip`);
+  else if (size != null) parts.push(`Trim ${pctText(size)}%`);
+  else if (dip != null) parts.push(`Dip rule ${pctText(Math.abs(dip))}%`);
+  if (band) parts.push(`take profit ${band}`);
+  return parts.length ? `${parts.join(". ")}.` : "";
+}

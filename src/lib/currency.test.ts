@@ -64,5 +64,7 @@ describe("adaptive price formatter", () => {
     expect(arb).toContain("0.1842");
     expect(hard).toContain("0.004218");
     expect(formatMoney(116.52, "USD")).toBe("US$116.52");
+    expect(formatMoney(-116.52, "NZD")).toBe("-NZ$116.52");
+    expect(formatMoney(-10, "USD")).toBe("-US$10.00");
   });
 });
