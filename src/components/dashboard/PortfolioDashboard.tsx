@@ -1176,7 +1176,7 @@ export function PortfolioDashboard({
             {preview
               ? "Live preview"
               : userName.trim()
-                ? `Welcome back, ${userName.trim().split(" ")[0]}`
+                ? `Welcome back, ${userName.trim()}`
                 : "Welcome back"}
           </p>
           {!isHome ? (

@@ -113,11 +113,13 @@ export async function middleware(request: NextRequest) {
 
   // Check session cookie for protected routes (lightweight Edge-compatible check)
   // Better Auth uses "better-auth.session_token" or "__Secure-better-auth.session_token" (when secure)
+  // An empty leftover cookie is not a session — /settings, /account, /profile
+  // and /onboarding must go to login instead of painting the app shell.
   const sessionCookie =
     request.cookies.get("better-auth.session_token") ||
     request.cookies.get("__Secure-better-auth.session_token");
 
-  if (!sessionCookie) {
+  if (!sessionCookie?.value?.trim()) {
     // Redirect to login if no session cookie found
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("redirect", pathname);
