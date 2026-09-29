@@ -14,7 +14,15 @@ import "server-only";
 import * as swyftx from "@/lib/crypto-swyftx";
 import * as coingecko from "@/lib/crypto-coingecko";
 import * as yahoo from "@/lib/crypto-yahoo";
-import { coinLogo, type CoinMarket, type CoinDetail, type CoinChart } from "@/lib/crypto-market";
+import {
+  coinLogo,
+  mergeSevenDayChanges,
+  resolveSevenDayChange,
+  sevenDayBoardIsMissing,
+  type CoinMarket,
+  type CoinDetail,
+  type CoinChart,
+} from "@/lib/crypto-market";
 import { canonicalCryptoId, normalizeCryptoTicker } from "@/lib/crypto-ids";
 
 function toCgId(id: string): string {
@@ -71,7 +79,8 @@ async function ensurePinnedCoins(coins: CoinMarket[]): Promise<CoinMarket[]> {
         volume24h: 0,
         change1h: null,
         change24h: quote.changePct,
-        change7d: 0,
+        change7d: quote.change7d ?? 0,
+        sparkline7d: quote.sparkline7d ?? [],
         high24h: null,
         low24h: null,
         circulatingSupply: null,
@@ -81,13 +90,35 @@ async function ensurePinnedCoins(coins: CoinMarket[]): Promise<CoinMarket[]> {
         athDate: null,
         atl: null,
         atlDate: null,
-        sparkline7d: [],
       });
     } catch (err) {
       console.error(`[crypto-source] pinned ${pin.symbol} lookup failed:`, err);
     }
   }
   return extras.length ? mergeByRank([coins, extras]) : coins;
+}
+
+/**
+ * Swyftx only sparks the top handful of coins and writes 0 for everyone else.
+ * When that leaves the 7-day column flat, fill it from CoinGecko sparklines
+ * (or CoinGecko's own 7-day percentage) matched by symbol.
+ */
+async function hydrateSevenDay(coins: CoinMarket[]): Promise<CoinMarket[]> {
+  const primed = coins.map((c) => {
+    const pct = resolveSevenDayChange(c.change7d, c.sparkline7d);
+    return pct == null ? c : { ...c, change7d: pct };
+  });
+  if (!sevenDayBoardIsMissing(primed)) return primed;
+  try {
+    const cg = await coingecko.fetchTop500();
+    const merged = mergeSevenDayChanges(primed, cg);
+    const filled = merged.filter((c) => resolveSevenDayChange(c.change7d, c.sparkline7d) != null).length;
+    console.log(`[crypto-source] 7-day backfill ${filled}/${merged.length} coins via CoinGecko`);
+    return merged;
+  } catch (err) {
+    console.error("[crypto-source] 7-day backfill failed:", err);
+    return primed;
+  }
 }
 
 export async function getTop500(): Promise<CoinMarket[]> {
@@ -97,7 +128,7 @@ export async function getTop500(): Promise<CoinMarket[]> {
     const coins = await swyftx.fetchTop500();
     if (coins && coins.length > 0) {
       console.log(`[crypto-source] top500 via Swyftx (${coins.length})`);
-      if (coins.length >= MIN_CRYPTO_UNIVERSE) return ensurePinnedCoins(coins);
+      if (coins.length >= MIN_CRYPTO_UNIVERSE) return hydrateSevenDay(await ensurePinnedCoins(coins));
       parts.push(coins);
     } else {
       throw new Error("Swyftx returned an empty market list");
@@ -112,7 +143,9 @@ export async function getTop500(): Promise<CoinMarket[]> {
       if (coins && coins.length > 0) {
         console.log(`[crypto-source] top500 via CoinGecko (${coins.length})`);
         parts.push(coins);
-        if (mergeByRank(parts).length >= MIN_CRYPTO_UNIVERSE && parts.length === 1) return ensurePinnedCoins(coins);
+        if (mergeByRank(parts).length >= MIN_CRYPTO_UNIVERSE && parts.length === 1) {
+          return hydrateSevenDay(await ensurePinnedCoins(coins));
+        }
       } else {
         throw new Error("CoinGecko returned an empty market list");
       }
@@ -132,7 +165,7 @@ export async function getTop500(): Promise<CoinMarket[]> {
   const merged = mergeByRank(parts);
   if (!merged.length) throw new Error("All crypto market sources failed (Swyftx, CoinGecko, Yahoo)");
   console.log(`[crypto-source] crypto universe → ${merged.length} coins`);
-  return ensurePinnedCoins(merged);
+  return hydrateSevenDay(await ensurePinnedCoins(merged));
 }
 
 export async function getCoinDetail(id: string): Promise<CoinDetail> {

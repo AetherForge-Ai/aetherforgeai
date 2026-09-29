@@ -52,6 +52,7 @@ import type {
   GoalKey,
 } from "@/lib/totalum-engine";
 import { cn } from "@/lib/utils";
+import { headmasterDeskCopy } from "@/lib/entitlements";
 import { BOT_HEADMASTER_AVATAR } from "../../../assets/files";
 
 /* ------------------------------------------------------------------ *
@@ -708,7 +709,8 @@ function StrategistTab() {
  * Root
  * ------------------------------------------------------------------ */
 
-export function TotalumConsole({ entitled, memberName }: { entitled: boolean; memberName: string; plan?: string | null }) {
+export function TotalumConsole({ entitled, memberName, plan }: { entitled: boolean; memberName: string; plan?: string | null }) {
+  const desk = headmasterDeskCopy(plan);
   const [synthesis, setSynthesis] = React.useState<TotalumSynthesis | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -773,6 +775,16 @@ export function TotalumConsole({ entitled, memberName }: { entitled: boolean; me
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             One unified command centre across your equities, crypto and precious metals — synthesis, strategy, scenarios and risk.
           </p>
+          <p className="mt-2 max-w-2xl text-xs leading-relaxed text-muted-foreground">
+            <span className="font-medium text-foreground">{desk.summary}.</span> {desk.detail}
+          </p>
+          <div className="mt-3">
+            <Button asChild size="sm" variant="outline">
+              <a href="/api/totalum/report?goal=balanced_growth" target="_blank" rel="noopener noreferrer">
+                <Download className="mr-1.5 size-3.5" /> Total Portfolio Intelligence report
+              </a>
+            </Button>
+          </div>
           </div>
         </div>
       </div>

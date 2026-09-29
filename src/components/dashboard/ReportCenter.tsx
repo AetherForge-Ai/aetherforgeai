@@ -31,6 +31,7 @@ import {
   formatAucklandDateTime,
   formatDuration,
   formatReportCooldownLine,
+  headmasterDeskCopy,
   isFreeReportPlan,
   reportCadence,
   type ReportCadence,
@@ -146,6 +147,7 @@ export function ReportCenter({
   preview?: boolean;
 }) {
   const [running, setRunning] = React.useState<BotKind | null>(null);
+  const [compileSeconds, setCompileSeconds] = React.useState(0);
   const [report, setReport] = React.useState<ApexReport | null>(null);
   const [textOnly, setTextOnly] = React.useState<{ title: string; body: string } | null>(null);
   const [lastPdfUrl, setLastPdfUrl] = React.useState<string | null>(null);
@@ -358,6 +360,16 @@ export function ReportCenter({
   }, [anyLocked]);
 
   const runLock = React.useRef(false);
+  const headmasterCopy = headmasterDeskCopy(plan);
+
+  React.useEffect(() => {
+    if (!running) {
+      setCompileSeconds(0);
+      return;
+    }
+    const id = window.setInterval(() => setCompileSeconds((s) => s + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [running]);
 
   async function chooseFreeBot(kind: BotKind) {
     if (runLock.current) return;
@@ -660,10 +672,15 @@ export function ReportCenter({
                     <Clock className="mr-1 size-4" /> {formatReportCooldownLine({ lastReportAt: botQuota.lastReportAt, waitMs: botQuota.waitMs, cadenceUnit: botQuota.cadence.unit, perLabel: botQuota.cadence.perLabel, now })}
                   </Button>
                 ) : (
-                  <Button className="w-full" onClick={() => void runReport(b.kind).catch(() => {})} disabled={busy || running !== null}>
+                  <Button
+                    className="w-full"
+                    aria-busy={busy}
+                    onClick={() => void runReport(b.kind).catch(() => {})}
+                    disabled={busy || running !== null}
+                  >
                     {busy ? (
                       <>
-                        <Loader2 className="mr-1 size-4 animate-spin" /> Compiling report…
+                        <Loader2 className="mr-1 size-4 animate-spin" /> Compiling report… {compileSeconds}s
                       </>
                     ) : (
                       <>
@@ -672,6 +689,12 @@ export function ReportCenter({
                     )}
                   </Button>
                 )}
+                {busy ? (
+                  <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                    Building the live book, 7-day outlook, and PDF. This usually finishes within 90 seconds.
+                    This button stays locked so a second click will not start another run.
+                  </p>
+                ) : null}
               </div>
             </div>
           );
@@ -691,16 +714,14 @@ export function ReportCenter({
             className="size-11 shrink-0 rounded-xl object-cover ring-1 ring-primary/25"
           />
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <h3 className="font-semibold">The Headmaster · Portfolio Planning and Strategies</h3>
               <span className="rounded-md bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
-                Pro
+                {headmasterCopy.badge}
               </span>
             </div>
-            <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-              Combines Stox &amp; Koins with your precious metals into one strategy — allocation, rebalancing,
-              scenarios, stress tests and a Chief Strategist AI.
-            </p>
+            <p className="mt-1 max-w-xl text-sm text-muted-foreground">{headmasterCopy.summary}</p>
+            <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted-foreground">{headmasterCopy.detail}</p>
           </div>
         </div>
         <span className="relative inline-flex items-center gap-1.5 self-start rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground sm:self-auto">
@@ -819,19 +840,19 @@ export function ReportCenter({
 
       {/* Inline report modal */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
-          <DialogHeader>
-            <div className="flex flex-wrap items-center justify-between gap-2 pr-6">
-              <div>
-                <div className="flex items-center gap-2">
-                  <DialogTitle>{report?.title ?? textOnly?.title ?? "ZENITH report"}</DialogTitle>
+        <DialogContent className="max-h-[min(92dvh,calc(100dvh-0.75rem))] w-[calc(100vw-0.75rem)] max-w-[calc(100vw-0.75rem)] min-w-0 gap-3 overflow-x-hidden overflow-y-auto p-3 [&>*]:min-w-0 sm:max-w-3xl sm:p-6">
+          <DialogHeader className="min-w-0 space-y-2 text-left">
+            <div className="flex min-w-0 flex-col gap-3 pr-8 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <DialogTitle className="break-words text-base leading-snug sm:text-lg">{report?.title ?? textOnly?.title ?? "ZENITH report"}</DialogTitle>
                   {lastAiEnhanced && (
                     <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">
                       <Sparkles className="mr-1 size-3" /> Grok 4.6 enhanced
                     </Badge>
                   )}
                 </div>
-                <DialogDescription>
+                <DialogDescription className="break-words">
                   Searchable report text below — PDF download is optional. A copy has been emailed to you.
                 </DialogDescription>
               </div>
@@ -847,7 +868,7 @@ export function ReportCenter({
           {report ? (
             <ApexReportView report={report} />
           ) : textOnly ? (
-            <article className="prose prose-invert max-w-none space-y-3 text-sm leading-relaxed">
+            <article className="min-w-0 max-w-full space-y-3 break-words text-sm leading-relaxed">
               <h3 className="font-display text-lg font-bold text-foreground">{textOnly.title}</h3>
               <p className="whitespace-pre-wrap text-foreground/90">{textOnly.body}</p>
             </article>
