@@ -805,6 +805,7 @@ export function ReportCenter({
                       setLastAiEnhanced(!!r.aiEnhanced);
                       if (r.payload && typeof r.payload === "object" && "executiveSummary" in r.payload) {
                         setTextOnly(null);
+                        // View path: stored JSON is sanitized before ApexReport renders it again.
                         setReport(reconcileStoredReport(r.payload, bookFor(kind)));
                         setOpen(true);
                       } else if (r.executiveSummary || r.textBody) {
