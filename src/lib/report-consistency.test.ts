@@ -225,6 +225,84 @@ describe("stored reports cannot keep a full-cash deploy", () => {
     expect(stored.pathwayPlan?.recommendationNote).not.toMatch(/ACCUMULATE the NZ\$12,696 cash/i);
     expect(stored.executiveSummary).toMatch(/Do not deploy the full cash balance/);
   });
+
+  it("strips the exact live View phrases, including markdown and comma-less dry powder", () => {
+    const stoxSummary =
+      "On the live book, **HOLD AAPL** (NASDAQ; RSI 27.1, MACD Bearish). The tape is a Neutral-bias, Speculative 54/100 regime. " +
+      "The single highest-impact action now is to **ACCUMULATE the NZ$12,696 cash into CIP.AX and MAH.AX** at high Speculative conviction. " +
+      "Secondary BUY names: WOR.AX, PFI.NZ, NST.AX and CIP.AX.";
+    const koinsSummary =
+      "Global digital assets are Neutral / low conviction (net 49/100). After that held-book action, **deploy NZ$12,696 cash to BUY/ACCUMULATE** on the crypto market GALA, SKL, ARB, ANKR, SHIB and QNT. " +
+      "The single highest-impact action now is HOLD ETH and ACCUMULATE GALA with a measured cash slice.";
+    const dry = (ticker: string, action: "BUY" | "ACCUMULATE") =>
+      `${action === "BUY" ? "Buy" : "Accumulate"} **${ticker}** — screens **${action === "BUY" ? "Buy" : "Strong Buy"}** with a +0.94% 7-day projection at **87%** conviction. Deploy dry powder (cash NZ$12696 available) with a measured starter size.`;
+
+    expect(urgesFullDeployment("**ACCUMULATE the NZ$12,696 cash into CIP.AX and MAH.AX**")).toBe(true);
+    expect(urgesFullDeployment("**deploy NZ$12,696 cash to BUY/ACCUMULATE**")).toBe(true);
+    expect(urgesFullDeployment(dry("WOR.AX", "BUY"))).toBe(true);
+    expect(violatesCashGuard(deploymentGuard("stock", neutralTape, 12696).headline)).toBe(false);
+
+    const stox = sanitizeGuardedReport({
+      bot: "stock",
+      executiveSummary: stoxSummary,
+      briefing: {
+        overall: { bias: "Neutral", level: "Speculative", score: 54, reason: stoxSummary },
+        executiveSummary: stoxSummary,
+        highlights: ["**ACCUMULATE the NZ$12,696 cash into CIP.AX and MAH.AX**"],
+      },
+      directRecommendations: [
+        { ticker: "FPH.NZ", held: true, action: "BUY", detail: "Buy FPH.NZ — constructive momentum with a +0.02% 7-day projection. A measured top-up is warranted." },
+        ...["WOR.AX", "PFI.NZ", "NST.AX", "CIP.AX", "SFR.AX", "LIN", "DOW.AX"].map((ticker) => ({
+          ticker,
+          held: false as const,
+          action: "BUY" as const,
+          detail: dry(ticker, "BUY"),
+        })),
+      ],
+    });
+    const stoxBlob = [
+      stox.executiveSummary,
+      stox.briefing?.executiveSummary,
+      stox.briefing?.overall?.reason,
+      ...(stox.briefing?.highlights ?? []),
+      ...(stox.directRecommendations ?? []).map((rec) => rec.detail),
+    ].join("\n");
+    expect(stox.executiveSummary).toMatch(/HOLD AAPL/);
+    expect(stoxBlob).not.toMatch(/ACCUMULATE the NZ\$12,696 cash/i);
+    expect(stoxBlob).not.toMatch(/Secondary BUY names/i);
+    expect(stoxBlob).not.toMatch(/dry powder/i);
+    expect(stoxBlob).not.toMatch(/NZ\$12696/);
+    expect(stoxBlob).not.toMatch(/cash NZ\$12,696/i);
+    expect(stox.directRecommendations?.some((rec) => rec.ticker === "FPH.NZ")).toBe(true);
+    expect(stox.directRecommendations?.filter((rec) => rec.held === false)).toHaveLength(2);
+    expect(stox.executiveSummary).toMatch(/Do not deploy the full cash balance/);
+
+    const koins = sanitizeGuardedCashText(koinsSummary, "crypto");
+    expect(koins).toMatch(/HOLD ETH/);
+    expect(koins).not.toMatch(/deploy NZ\$12,696 cash to BUY\/ACCUMULATE/i);
+    expect(koins).not.toMatch(/measured cash slice/i);
+    expect(koins).toMatch(/Do not deploy the full cash balance/);
+
+    const viewed = reconcileStoredReport(
+      {
+        bot: "crypto",
+        executiveSummary: koinsSummary,
+        briefing: { overall: { bias: "Neutral", level: "Low", score: 49 }, executiveSummary: koinsSummary },
+        directRecommendations: [
+          { ticker: "ETH", held: true, action: "HOLD", detail: "Hold ETH — no decisive edge this week." },
+          { ticker: "TRX", held: false, action: "BUY", detail: dry("TRX", "BUY") },
+          { ticker: "ROSE", held: false, action: "ACCUMULATE", detail: dry("ROSE", "ACCUMULATE") },
+          { ticker: "WIF", held: false, action: "BUY", detail: dry("WIF", "BUY") },
+        ],
+      },
+      [{ ticker: "ETH", shares: 0.25 }]
+    );
+    const viewedBlob = [viewed.executiveSummary, ...(viewed.directRecommendations ?? []).map((rec) => rec.detail ?? "")].join("\n");
+    expect(viewedBlob).not.toMatch(/deploy NZ\$12,696 cash/i);
+    expect(viewedBlob).not.toMatch(/dry powder/i);
+    expect(viewedBlob).not.toMatch(/NZ\$12696/);
+    expect(viewed.directRecommendations?.filter((rec) => rec.held === false).length).toBeLessThanOrEqual(2);
+  });
 });
 
 describe("live report uses one rating", () => {
