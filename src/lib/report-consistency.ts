@@ -256,22 +256,31 @@ function windowsFor(text: string, ticker: string): string[] {
 const FULL_CASH =
   /deploy(?:ing)? the full|full cash|entire cash|whole (?:cash )?balance|all (?:of )?(?:the |your )?(?:available )?cash|100% of (?:the )?cash/i;
 
-/**
- * "ACCUMULATE the NZ$12,696 cash" / "deploy NZ$12,696 cash to BUY" — the live
- * failure mode. The model names the balance instead of saying "full cash".
- */
-const CASH_PILE =
-  /\b(?:accumulate|accumulating|buy|buying|deploy(?:ing)?|commit(?:ting)?|allocate|allocating)\b[^.]{0,120}\b(?:nz\$|us\$|aud\$|\$)\s*[\d,]{3,}(?:\.\d+)?\s*cash\b/i;
+/** NZ$12,696 and NZ$12696, with or without a thousands comma. */
+const CASH_AMT = String.raw`(?:nz\$|us\$|aud\$|\$)\s*\d[\d,]{2,}(?:\.\d+)?`;
 
-const CASH_PILE_INTO =
-  /\b(?:nz\$|us\$|aud\$|\$)\s*[\d,]{3,}(?:\.\d+)?\s*cash\b[^.]{0,80}\b(?:into|to\b|buy|accumulate)/i;
+/**
+ * Live failures the first guard missed:
+ * "**ACCUMULATE the NZ$12,696 cash into…**",
+ * "**deploy NZ$12,696 cash to BUY/ACCUMULATE**",
+ * "Deploy dry powder (cash NZ$12696 available) with a measured starter size."
+ */
+const CASH_DEPLOY = new RegExp(
+  [
+    String.raw`\b(?:accumulate|accumulating|buy|buying|deploy(?:ing)?|commit(?:ting)?|allocate|allocating)\b[^.]{0,180}?${CASH_AMT}\s*cash\b`,
+    String.raw`\b(?:accumulate|accumulating|buy|buying|deploy(?:ing)?|commit(?:ting)?|allocate|allocating)\b[^.]{0,140}?\bcash\s*${CASH_AMT}`,
+    String.raw`${CASH_AMT}\s*cash\b[^.]{0,80}?\b(?:into|to|buy|accumulate)\b`,
+    String.raw`\bdeploy\s+dry\s+powder\b`,
+    String.raw`\bdry\s+powder\s*\(\s*cash\b`,
+    String.raw`\b(?:accumulate|deploy(?:ing)?|buy|buying)\b[^.]{0,180}?\bmeasured\s+cash\s+slice\b`,
+    String.raw`\bsecondary\s+buy\s+names\b`,
+  ].join("|"),
+  "i"
+);
 
 /** Buy/accumulate language tied to speculative conviction in the same sentence. */
 const SPECULATIVE_BUY =
   /\b(?:accumulate|buy|add)\b[^.]{0,400}\bspeculative\b|\bspeculative\b[^.]{0,160}\b(?:accumulate|buy|add)\b/i;
-
-const STARTER_SIZED =
-  /starter (?:size|tranche)|measured starter|cash buffer|75% kept in reserve|do not deploy the full|this tape does not support new risk/i;
 
 /**
  * True when a model narrative disagrees with the canonical ratings or tells a
@@ -303,6 +312,23 @@ export function narrativeContradictsCanonical(
   return false;
 }
 
+function maskTickerDots(text: string): string {
+  return text.replace(/\.(AX|NZ|NZX|ASX|L|TO|HK)\b/gi, "§$1");
+}
+
+function unmaskTickerDots(text: string): string {
+  return text.replace(/§(AX|NZ|NZX|ASX|L|TO|HK)\b/gi, ".$1");
+}
+
+/** Bold/italic markers must not hide ACCUMULATE or NZ$. */
+function normalizeCopy(text: string): string {
+  return maskTickerDots(text)
+    .replace(/[*_`]/g, "")
+    .replace(/[\u00a0\u202f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function stripGuardNegations(text: string): string {
   return text
     .replace(/do not deploy the full[^.]*/gi, "")
@@ -313,24 +339,20 @@ function stripGuardNegations(text: string): string {
     .replace(/without speculative conviction[^.]*/gi, "");
 }
 
-/** True when copy tells the reader to put the whole cash balance to work. Negated guardrail sentences do not count. */
+/** True when copy tells the reader to put the cash balance to work. Negated guardrail sentences do not count. */
 export function urgesFullDeployment(text: string): boolean {
-  const stripped = stripGuardNegations(text);
+  const stripped = normalizeCopy(stripGuardNegations(text));
+  if (!stripped) return false;
   if (FULL_CASH.test(stripped)) return true;
-  if (STARTER_SIZED.test(stripped) && !CASH_PILE.test(stripped) && !CASH_PILE_INTO.test(stripped)) return false;
-  return CASH_PILE.test(stripped) || CASH_PILE_INTO.test(stripped);
+  return CASH_DEPLOY.test(stripped);
 }
 
 /**
  * True when a sentence tells a reader to buy or accumulate on speculative
  * conviction. The regime word alone ("Speculative 54/100") does not count.
  */
-function softenTickerDots(text: string): string {
-  return text.replace(/\.(AX|NZ|NZX|ASX|L|TO|HK)\b/gi, "").replace(/(\d)\.(\d)/g, "$1$2");
-}
-
 export function urgesSpeculativeBuy(text: string): boolean {
-  return SPECULATIVE_BUY.test(softenTickerDots(stripGuardNegations(text)));
+  return SPECULATIVE_BUY.test(normalizeCopy(stripGuardNegations(text)));
 }
 
 /** Cash-guard violations a Neutral / low / Speculative tape must not ship. */
@@ -357,13 +379,16 @@ export function cashBalanceMentioned(text: string): number {
 
 /** Tape implied by prose when a stored report has no structured overall read. */
 export function textImpliesGuardedTape(text: string): TapeRead | null {
-  if (!text) return null;
-  const scoreMatch = text.match(/(\d{1,3})\s*\/\s*100/);
+  const normalized = normalizeCopy(text);
+  if (!normalized) return null;
+  const scoreMatch =
+    normalized.match(/(?:speculative|neutral|low conviction|net)\D{0,30}(\d{1,3})\s*\/\s*100/i) ||
+    normalized.match(/(\d{1,3})\s*\/\s*100/);
   const score = scoreMatch ? Number(scoreMatch[1]) : 50;
-  const speculative = /\bspeculative\b/i.test(text) && !/\b(?:not|without|non-) ?speculative\b/i.test(text);
-  const low = /low conviction/i.test(text);
-  const neutral = /\bneutral\b/i.test(text);
-  const defensive = /\bdefensive\b/i.test(text) && !/\bnot defensive\b/i.test(text);
+  const speculative = /(?<!without )(?<!not )(?<!non-)\bspeculative\b/i.test(normalized);
+  const low = /low conviction/i.test(normalized);
+  const neutral = /\bneutral\b/i.test(normalized);
+  const defensive = /\bdefensive\b/i.test(normalized) && !/\bnot defensive\b/i.test(normalized);
   if (!speculative && !low && !(neutral && score < 58) && !defensive) return null;
   const bias: TapeRead["bias"] = defensive && !neutral ? "Defensive" : neutral || speculative || low ? "Neutral" : "Defensive";
   const level: TapeRead["level"] = speculative ? "Speculative" : low ? "Low" : defensive ? "Moderate" : "Low";
@@ -397,13 +422,35 @@ function splitSentences(text: string): string[] {
     .filter(Boolean);
 }
 
+/** Cut a cash-deploy clause. Keep a HOLD that shares the sentence. Drop the rest. */
+function stripViolatingClauses(sentence: string): string {
+  if (!violatesCashGuard(sentence)) return sentence;
+  const masked = maskTickerDots(sentence);
+  let next = masked.replace(
+    /\b(?:accumulate|accumulating|buy|buying|deploy(?:ing)?|commit(?:ting)?|allocate|allocating)\b[^.]{0,240}?(?:dry powder|measured cash slice|(?:nz\$|us\$|aud\$|\$)\s*\d[\d,]{2,}(?:\.\d+)?\s*cash|cash\s*(?:nz\$|us\$|aud\$|\$)\s*\d[\d,]{2,}(?:\.\d+)?)[^.]*/gi,
+    ""
+  );
+  next = next.replace(/\bsecondary\s+buy\s+names\b[^.]*/gi, "");
+  next = next
+    .replace(/[*_`]/g, "")
+    .replace(/\s+(?:and|into|to|is to)\s*$/i, "")
+    .replace(/\(\s*\)/g, "")
+    .replace(/\s{2,}/g, " ")
+    .replace(/^[\s,;:–—-]+|[\s,;:–—-]+$/g, "")
+    .trim();
+  const restored = unmaskTickerDots(next);
+  if (/\bHOLD\b/.test(restored) && !violatesCashGuard(restored)) return restored;
+  if (!restored || restored.length < 24 || violatesCashGuard(restored)) return "";
+  return restored;
+}
+
 /**
  * Drop sentences that deploy the cash pile or buy on speculative conviction,
  * and append the starter/defensive headline so the cap stays visible.
  */
 export function sanitizeGuardedCashLanguage(text: string, guard: DeploymentGuard): string {
   if (!text || guard.mode === "full" || !violatesCashGuard(text)) return text;
-  const kept = splitSentences(text).filter((part) => !violatesCashGuard(part));
+  const kept = splitSentences(text).map(stripViolatingClauses).filter(Boolean);
   let body = kept.join(" ").replace(/[ \t]+\n/g, "\n").replace(/[ \t]{2,}/g, " ").trim();
   const headline = guard.headline.trim();
   const alreadyGuarded = /do not deploy the full cash balance|this tape does not support new risk|leave the nz\$/i.test(body);
@@ -428,9 +475,12 @@ export interface GuardedReportFields {
   briefing?: {
     executiveSummary?: string;
     keyObservations?: string[];
-    overall?: { bias?: string; level?: string; score?: number };
+    highlights?: string[];
+    risks?: string[];
+    overall?: { bias?: string; level?: string; score?: number; reason?: string };
   } | null;
-  directRecommendations?: Array<{ detail?: string }>;
+  directRecommendations?: Array<{ detail?: string; held?: boolean; action?: string }>;
+  tickers?: Array<{ note?: string }>;
 }
 
 /**
@@ -455,17 +505,41 @@ export function sanitizeGuardedReport<T extends GuardedReportFields>(report: T):
     next.pathwayPlan = { ...next.pathwayPlan, recommendationNote: sanitizeGuardedCashLanguage(next.pathwayPlan.recommendationNote, guard) };
   }
   if (next.briefing) {
+    const overall = next.briefing.overall;
     next.briefing = {
       ...next.briefing,
       executiveSummary: clean(next.briefing.executiveSummary) ?? next.briefing.executiveSummary,
       keyObservations: Array.isArray(next.briefing.keyObservations)
         ? next.briefing.keyObservations.map((line) => sanitizeGuardedCashLanguage(line, guard))
         : next.briefing.keyObservations,
+      highlights: Array.isArray(next.briefing.highlights)
+        ? next.briefing.highlights.map((line) => sanitizeGuardedCashLanguage(line, guard))
+        : next.briefing.highlights,
+      risks: Array.isArray(next.briefing.risks)
+        ? next.briefing.risks.map((line) => sanitizeGuardedCashLanguage(line, guard))
+        : next.briefing.risks,
+      overall:
+        overall && typeof overall.reason === "string"
+          ? { ...overall, reason: sanitizeGuardedCashLanguage(overall.reason, guard) }
+          : overall,
     };
   }
   if (Array.isArray(next.directRecommendations)) {
-    next.directRecommendations = next.directRecommendations.map((rec) =>
+    const cleaned = next.directRecommendations.map((rec) =>
       typeof rec.detail === "string" ? { ...rec, detail: sanitizeGuardedCashLanguage(rec.detail, guard) } : rec
+    );
+    let freshBuys = 0;
+    next.directRecommendations = cleaned.filter((rec) => {
+      const unheldBuy = rec.held === false && (rec.action === "BUY" || rec.action === "ACCUMULATE");
+      if (!unheldBuy) return true;
+      if (freshBuys >= guard.maxNewNames) return false;
+      freshBuys += 1;
+      return true;
+    });
+  }
+  if (Array.isArray(next.tickers)) {
+    next.tickers = next.tickers.map((ticker) =>
+      typeof ticker.note === "string" ? { ...ticker, note: sanitizeGuardedCashLanguage(ticker.note, guard) } : ticker
     );
   }
   return next;

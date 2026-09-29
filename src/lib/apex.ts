@@ -608,16 +608,10 @@ function buildDirectRecommendations(
 
   const buyCandidates: DirectRecommendation[] = suitable.slice(0, buyLimit).map((i) => {
       const action = rateAsset(i).action === "ACCUMULATE" ? "ACCUMULATE" : "BUY";
-      const cashAvail = Math.max(0, opts?.cashBalanceNZD || 0);
-      const deploy = guard
-        ? guard.mode === "starter"
+      const deploy =
+        guard?.mode === "starter" || (!guard && cashHeavy)
           ? ` Starter size only — do not deploy the full cash balance.`
-          : ""
-        : cashHeavy && cashAvail > 0
-          ? ` Deploy dry powder (cash NZ$${Math.round(cashAvail)} available) with a measured starter size.`
-          : cashHeavy
-            ? " Prioritise this name for first capital when cash is deposited."
-            : "";
+          : "";
       return {
         action: action as "ACCUMULATE" | "BUY",
         ticker: i.ticker,
