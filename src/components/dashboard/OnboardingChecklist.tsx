@@ -1,71 +1,133 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { CheckCircle2, Circle, Crown, Bell, LineChart, ShoppingCart } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { api } from "@/lib/api";
+import { onboardingProgress, type OnboardingStepId } from "@/lib/onboarding-steps";
 
 /**
  * Lightweight onboarding for new NZ$10k (or any) paper books — Headmaster →
  * first buys → alerts → Stox/Koins. Advisory only; never executes trades.
+ *
+ * Required progress is buys / alerts / report (3). Headmaster stays optional
+ * so a filled book cannot sit at 1/4. The card stays up until those three
+ * are done, unless `alwaysShow` (the /onboarding page).
  */
+const COPY: Record<
+  OnboardingStepId,
+  { title: string; body: string; href: string; icon: typeof Crown }
+> = {
+  headmaster: {
+    title: "Meet The Headmaster",
+    body: "Set a target allocation for stocks, crypto, metals and cash. Paper gold/silver via Transaction Centre Buy → Gold/Silver.",
+    href: "/headmaster",
+    icon: Crown,
+  },
+  buy: {
+    title: "Record your first buys",
+    body: "Deposit cash if needed, then buy via the Transaction Centre — fill prices must match your broker.",
+    href: "/dashboard/transactions",
+    icon: ShoppingCart,
+  },
+  alerts: {
+    title: "Set a price alert",
+    body: "Protect a holding with a hard sell-out or trim rule.",
+    href: "/dashboard/stocks",
+    icon: Bell,
+  },
+  report: {
+    title: "Run Stox or Koins",
+    body: "Generate a full market report (paid plans can refresh every 4 hours).",
+    href: "/dashboard/bots",
+    icon: LineChart,
+  },
+};
+
 export function OnboardingChecklist({
   hasCash,
   hasHoldings,
   hasAlerts,
   hasReport,
+  alwaysShow = false,
   className,
 }: {
   hasCash: boolean;
   hasHoldings: boolean;
   hasAlerts?: boolean;
   hasReport?: boolean;
+  /** Dedicated /onboarding route — keep the list even after the book is finished. */
+  alwaysShow?: boolean;
   className?: string;
 }) {
-  const steps = [
-    {
-      id: "headmaster",
-      title: "Meet The Headmaster",
-      body: "Set a target allocation for stocks, crypto, metals and cash. Paper gold/silver via Transaction Centre Buy → Gold/Silver.",
-      href: "/headmaster",
-      done: false, // soft — visiting is enough; we don't gate on API
-      icon: Crown,
-      optional: true,
-    },
-    {
-      id: "buy",
-      title: "Record your first buys",
-      body: "Deposit cash if needed, then buy via the Transaction Centre — fill prices must match your broker.",
-      href: "/dashboard/transactions",
-      done: hasHoldings,
-      icon: ShoppingCart,
-    },
-    {
-      id: "alerts",
-      title: "Set a price alert",
-      body: "Protect a holding with a hard sell-out or trim rule.",
-      href: "/dashboard/stocks",
-      done: !!hasAlerts,
-      icon: Bell,
-    },
-    {
-      id: "report",
-      title: "Run Stox or Koins",
-      body: "Generate a full market report (paid plans can refresh every 4 hours).",
-      href: "/dashboard/bots",
-      done: !!hasReport,
-      icon: LineChart,
-    },
-  ];
+  const [alertsDone, setAlertsDone] = useState<boolean | null>(
+    hasAlerts === undefined ? null : !!hasAlerts
+  );
+  const [reportDone, setReportDone] = useState<boolean | null>(
+    hasReport === undefined ? null : !!hasReport
+  );
 
-  const countable = steps.filter((s) => !s.optional);
-  const completed = countable.filter((s) => s.done).length;
-  // A filled paper book (cash and at least one holding) is past the stuck 1/4 state.
-  if (hasHoldings && hasCash) return null;
+  useEffect(() => {
+    if (hasAlerts !== undefined) setAlertsDone(!!hasAlerts);
+  }, [hasAlerts]);
+
+  useEffect(() => {
+    if (hasReport !== undefined) setReportDone(!!hasReport);
+  }, [hasReport]);
+
+  useEffect(() => {
+    if (hasAlerts !== undefined && hasReport !== undefined) return;
+    let cancelled = false;
+    (async () => {
+      if (hasAlerts === undefined) {
+        const res = await api.get<unknown[]>("/api/alerts");
+        if (!cancelled) setAlertsDone(!!(res.ok && Array.isArray(res.data) && res.data.length > 0));
+      }
+      if (hasReport === undefined) {
+        const res = await api.get<{ reports?: unknown[] }>("/api/reports");
+        const reports = res.data?.reports;
+        if (!cancelled) setReportDone(!!(res.ok && Array.isArray(reports) && reports.length > 0));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [hasAlerts, hasReport]);
+
+  const probing = alertsDone === null || reportDone === null;
+  const progress = onboardingProgress({
+    hasHoldings,
+    hasAlerts: !!alertsDone,
+    hasReport: !!reportDone,
+  });
+
+  if (probing) {
+    return (
+      <div
+        id="onboarding"
+        className={cn(
+          "scroll-mt-24 rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/10 via-card/60 to-transparent p-5",
+          className
+        )}
+      >
+        <h3 className="font-display text-lg font-bold">Get started · NZ paper book</h3>
+        <p className="mt-1 text-xs text-muted-foreground">Checking your paper book…</p>
+      </div>
+    );
+  }
+
+  if (!alwaysShow && progress.finished) return null;
+
+  const buyBody = hasCash
+    ? "Buy via the Transaction Centre — fill prices must match your broker."
+    : COPY.buy.body;
 
   return (
     <div
+      id="onboarding"
       className={cn(
-        "rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/10 via-card/60 to-transparent p-5",
+        "scroll-mt-24 rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/10 via-card/60 to-transparent p-5",
         className
       )}
     >
@@ -77,24 +139,26 @@ export function OnboardingChecklist({
           </p>
         </div>
         <span className="rounded-full border border-border/60 bg-background/50 px-2.5 py-1 text-[0.65rem] font-semibold text-muted-foreground">
-          {completed}/{countable.length} done
+          {progress.completed}/{progress.total} done
         </span>
       </div>
       <ul className="mt-4 space-y-2.5">
-        {steps.map((s) => {
-          const Icon = s.icon;
+        {progress.steps.map((step) => {
+          const copy = COPY[step.id];
+          const Icon = copy.icon;
+          const done = step.done;
           return (
-            <li key={s.id}>
+            <li key={step.id}>
               <Link
-                href={s.href}
+                href={copy.href}
                 className={cn(
                   "flex items-start gap-3 rounded-xl border px-3 py-2.5 transition-colors",
-                  s.done
+                  done
                     ? "border-emerald-500/30 bg-emerald-500/8"
                     : "border-border/60 bg-background/40 hover:border-primary/40"
                 )}
               >
-                {s.done ? (
+                {done ? (
                   <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-600" />
                 ) : (
                   <Circle className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
@@ -102,14 +166,16 @@ export function OnboardingChecklist({
                 <div className="min-w-0 flex-1">
                   <p className="flex items-center gap-1.5 text-sm font-semibold">
                     <Icon className="size-3.5 text-primary" />
-                    {s.title}
-                    {s.optional && (
+                    {copy.title}
+                    {step.optional && (
                       <span className="text-[0.6rem] font-medium uppercase tracking-wide text-muted-foreground">
                         optional
                       </span>
                     )}
                   </p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{s.body}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {step.id === "buy" ? buyBody : copy.body}
+                  </p>
                 </div>
               </Link>
             </li>

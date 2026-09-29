@@ -178,8 +178,8 @@ export function PricingCards() {
         </div>
       </div>
 
-      {/* Cards */}
-      <div className="mt-10 grid items-start gap-5 lg:grid-cols-4">
+      {/* Mobile: extra space under the stack, and each card paints above the Assistant Guide chip. */}
+      <div className="mt-10 grid items-start gap-5 pb-28 sm:pb-0 lg:grid-cols-4">
         {PRICING_TIERS.map((tier) => {
           const isFree = tier.id === "free";
           const price = annual ? tier.yearlyPrice : tier.monthlyPrice;
@@ -188,7 +188,7 @@ export function PricingCards() {
             <div
               key={tier.id}
               className={cn(
-                "relative flex h-full flex-col rounded-3xl border p-6 transition-all duration-200",
+                "relative z-40 flex h-full flex-col rounded-3xl border p-6 transition-all duration-200 max-sm:pb-10",
                 tier.featured
                   ? "border-primary/50 bg-gradient-to-b from-primary/12 via-card/60 to-card/50 shadow-glow lg:-mt-3 lg:mb-3 lg:pb-9 hover:border-primary/70"
                   : "border-border/70 bg-card/40 hover:border-primary/40 hover:bg-card/60"
