@@ -35,7 +35,6 @@ const nextConfig: NextConfig = {
       { source: "/holdings", destination: "/dashboard", permanent: false },
       { source: "/portfolio", destination: "/dashboard", permanent: false },
       { source: "/how", destination: "/how-it-works", permanent: false },
-      { source: "/account", destination: "/settings", permanent: false },
     ];
   },
   async headers() {
