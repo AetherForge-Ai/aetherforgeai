@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildLiveReport } from "@/lib/apex";
 import { buildIntelligenceBriefing } from "@/lib/briefing";
 import type { SecurityIntel } from "@/lib/market-intel";
+import { reconcileStoredReport } from "@/lib/report-book";
 import {
   alignedProjection,
   candidateIsSuitable,
@@ -9,7 +10,10 @@ import {
   narrativeContradictsCanonical,
   rateAsset,
   readTape,
+  sanitizeGuardedCashText,
+  sanitizeGuardedReport,
   urgesFullDeployment,
+  violatesCashGuard,
 } from "@/lib/report-consistency";
 
 function intel(partial: Partial<SecurityIntel> & Pick<SecurityIntel, "ticker">): SecurityIntel {
@@ -128,6 +132,98 @@ describe("cash deployment guard", () => {
         { positive: 0, total: 1 }
       )
     ).toBe(true);
+  });
+});
+
+const STOX_STORED =
+  "On the live book, HOLD AAPL (NASDAQ; RSI 27.1, MACD Bearish, High Volatility; 50% odds of a -7.09% to +10.77% 7-day band) and ADD FPH.NZ (NZX; RSI 61.9, MACD Bullish, Range-Bound; 50% odds of -2.83% to +2.87% at 60% Moderate conviction). " +
+  "The 7-day tape is a Neutral-bias, Speculative 54/100 regime with Neutral 50/100 sentiment. " +
+  "The single highest-impact action now is to ACCUMULATE the NZ$12,696 cash into CIP.AX and MAH.AX at high Speculative conviction. " +
+  "Secondary BUY names: WOR.AX and MAR (Buy) sit at Speculative-to-Moderate conviction aligned to the 54/100 net read.";
+
+const KOINS_STORED =
+  "Global digital assets are Neutral / low conviction (net 49/100). Deploy NZ$12,696 cash to BUY/ACCUMULATE GALA, SKL, ARB, ANKR and SHIB.";
+
+describe("stored reports cannot keep a full-cash deploy", () => {
+  const guard = deploymentGuard("stock", neutralTape, 12696);
+
+  it("treats a named cash balance as a full deploy under a 54 speculative tape", () => {
+    expect(urgesFullDeployment(STOX_STORED)).toBe(true);
+    expect(urgesFullDeployment(KOINS_STORED)).toBe(true);
+    expect(violatesCashGuard(guard.headline)).toBe(false);
+    expect(
+      narrativeContradictsCanonical(
+        STOX_STORED,
+        [
+          { ticker: "AAPL", action: "HOLD" },
+          { ticker: "FPH.NZ", action: "BUY" },
+        ],
+        guard
+      )
+    ).toBe(true);
+    expect(
+      narrativeContradictsCanonical(
+        KOINS_STORED,
+        [{ ticker: "ETH", action: "HOLD" }],
+        deploymentGuard("crypto", { bias: "Neutral", level: "Low", score: 49, averageConfidence: 40 }, 12696)
+      )
+    ).toBe(true);
+  });
+
+  it("strips the cash-deploy sentences when an old report is opened", () => {
+    const cleaned = sanitizeGuardedReport({
+      bot: "stock",
+      executiveSummary: STOX_STORED,
+      briefing: {
+        overall: { bias: "Neutral", level: "Speculative", score: 54 },
+        executiveSummary: STOX_STORED,
+      },
+      keyObservations: ["1 of 3 holdings carry a positive momentum signal."],
+      pathwayPlan: { recommendationNote: "ACCUMULATE the NZ$12,696 cash into CIP.AX and MAH.AX." },
+      directRecommendations: [{ detail: "Buy CIP.AX — deploy NZ$12,696 cash at high Speculative conviction." }],
+    });
+    expect(cleaned.executiveSummary).toMatch(/HOLD AAPL/);
+    expect(cleaned.executiveSummary).toMatch(/FPH\.NZ/);
+    expect(cleaned.executiveSummary).toMatch(/-2\.83% to \+2\.87%/);
+    expect(cleaned.executiveSummary).not.toMatch(/ACCUMULATE the NZ\$12,696 cash/i);
+    expect(cleaned.executiveSummary).not.toMatch(/CIP\.AX/);
+    expect(cleaned.executiveSummary).toMatch(/Do not deploy the full cash balance/);
+    expect(cleaned.executiveSummary).toMatch(/12,696/);
+    expect(cleaned.briefing?.executiveSummary).not.toMatch(/ACCUMULATE the NZ\$12,696 cash/i);
+    expect(cleaned.pathwayPlan?.recommendationNote).not.toMatch(/ACCUMULATE the NZ\$12,696 cash/i);
+    expect(cleaned.directRecommendations?.[0]?.detail).not.toMatch(/NZ\$12,696 cash/i);
+    expect(cleaned.keyObservations?.[0]).toMatch(/1 of 3/);
+    expect(sanitizeGuardedReport(cleaned).executiveSummary).toBe(cleaned.executiveSummary);
+
+    const koins = sanitizeGuardedCashText(KOINS_STORED, "crypto");
+    expect(koins).not.toMatch(/Deploy NZ\$12,696 cash/i);
+    expect(koins).not.toMatch(/BUY\/ACCUMULATE GALA/i);
+    expect(koins).toMatch(/Do not deploy the full cash balance/);
+    expect(koins).toMatch(/Neutral/);
+    expect(sanitizeGuardedCashText(koins, "crypto")).toBe(koins);
+  });
+
+  it("sanitizes a stored payload on the view path", () => {
+    const stored = reconcileStoredReport(
+      {
+        bot: "stock",
+        executiveSummary: STOX_STORED,
+        briefing: {
+          overall: { bias: "Neutral", level: "Speculative", score: 54 },
+          executiveSummary: STOX_STORED,
+        },
+        keyObservations: ["Live book: AAPL, FPH.NZ."],
+        pathwayPlan: { recommendationNote: "ACCUMULATE the NZ$12,696 cash into CIP.AX." },
+      },
+      [
+        { ticker: "AAPL", shares: 2 },
+        { ticker: "FPH.NZ", shares: 5 },
+      ]
+    );
+    expect(stored.executiveSummary).toMatch(/HOLD AAPL/);
+    expect(stored.executiveSummary).not.toMatch(/ACCUMULATE the NZ\$12,696 cash/i);
+    expect(stored.pathwayPlan?.recommendationNote).not.toMatch(/ACCUMULATE the NZ\$12,696 cash/i);
+    expect(stored.executiveSummary).toMatch(/Do not deploy the full cash balance/);
   });
 });
 

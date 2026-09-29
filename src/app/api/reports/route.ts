@@ -307,7 +307,7 @@ export async function GET(req: Request) {
         payload && typeof payload === "object" && "executiveSummary" in payload
           ? String((payload as { executiveSummary?: string }).executiveSummary || "")
           : "";
-      const executiveSummary = reconcileNarrativeWithLiveBook(r.executive_summary || fromPayload, liveBook);
+      const executiveSummary = reconcileNarrativeWithLiveBook(r.executive_summary || fromPayload, liveBook, reportBot);
       // Searchable inline text for history view (prefer full payload summary + headline fields).
       const textBody = [
         executiveSummary,
