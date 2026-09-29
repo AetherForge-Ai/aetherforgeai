@@ -21,7 +21,7 @@ import {
   trackAccountRequest,
 } from "@/lib/account-identity";
 import { checkFillSanity, ADVISORY_NOTE } from "@/lib/fill-integrity-client";
-import { formatMoney, currencyForTicker, type CurrencyCode } from "@/lib/currency";
+import { formatMoney, currencyForTicker, nativeToNzd, type CurrencyCode } from "@/lib/currency";
 import { formatNumber } from "@/lib/portfolio";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -285,12 +285,10 @@ export function BuyDialog({
   }, [open, feePresetId, sharesNum, priceNum, ticker, assetType]);
 
 
-  // Remaining cash after this purchase (NZD). Note: asset currency may differ
-  // from NZD cash — we still compare against cashBalance for a clear UI signal.
-  const remainingCash =
-    cashBalance != null && totalCost > 0 ? cashBalance - totalCost : cashBalance;
-  const exceedsCash =
-    cashBalance != null && totalCost > 0 && totalCost > cashBalance + 1e-6;
+  // Remaining cash after this purchase (NZD); convert the native total before comparing.
+  const totalCostNzd = totalCost > 0 ? nativeToNzd(totalCost, currency, fxRates) : 0;
+  const remainingCash = cashBalance != null && totalCostNzd > 0 ? cashBalance - totalCostNzd : cashBalance;
+  const exceedsCash = cashBalance != null && totalCostNzd > 0 && totalCostNzd > cashBalance + 1e-6;
 
   function resolvedBuyFee(qty: number, px: number): number {
     let feeValue = Number(fees) || 0;
