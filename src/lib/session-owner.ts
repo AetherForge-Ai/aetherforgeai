@@ -45,6 +45,40 @@ export const SESSION_AUX_COOKIE_NAMES = [
   "__Secure-better-auth.dont_remember",
 ] as const;
 
+export const AUTH_COOKIE_NAMES = [
+  ...SESSION_TOKEN_COOKIE_NAMES,
+  ...SESSION_DATA_COOKIE_NAMES,
+  ...SESSION_AUX_COOKIE_NAMES,
+] as const;
+
+/** Attributes that match how better-auth set the cookie, so the browser actually drops it. */
+export function expiredAuthCookie(name: string): {
+  name: string;
+  value: "";
+  options: {
+    path: "/";
+    maxAge: 0;
+    expires: Date;
+    httpOnly: true;
+    secure: boolean;
+    sameSite: "none" | "lax";
+  };
+} {
+  const secure = name.startsWith("__Secure-");
+  return {
+    name,
+    value: "",
+    options: {
+      path: "/",
+      maxAge: 0,
+      expires: new Date(0),
+      httpOnly: true,
+      secure,
+      sameSite: secure ? "none" : "lax",
+    },
+  };
+}
+
 const SESSION_TOKEN = /(?:^|;\s*)(?:__Secure-)?better-auth\.session_token=([^;]+)/;
 const SESSION_DATA = /^(?:__Secure-)?better-auth\.session_data=/;
 
