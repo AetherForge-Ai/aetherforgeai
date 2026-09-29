@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLiveSessionUser } from "@/lib/use-live-session";
 import { planLabel } from "@/lib/plans";
+import { headmasterDeskCopy } from "@/lib/entitlements";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
@@ -205,7 +206,7 @@ function AccountMenu({
           <Link href="/dashboard"><LayoutDashboard className="size-4" /> Dashboard</Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <Link href="/headmaster"><Compass className="size-4" /> The Headmaster <span className="ml-auto rounded bg-primary/15 px-1.5 py-px text-[9px] font-bold uppercase text-primary">Pro</span></Link>
+          <Link href="/headmaster"><Compass className="size-4" /> The Headmaster <span className="ml-auto rounded bg-primary/15 px-1.5 py-px text-[9px] font-bold uppercase text-primary">{headmasterDeskCopy(user.subscription_plan).badge}</span></Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link href="/settings"><Settings className="size-4" /> Account &amp; Settings</Link>

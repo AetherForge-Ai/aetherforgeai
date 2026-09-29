@@ -3,6 +3,8 @@
  * Sends them to parent window via postMessage for real-time monitoring
  */
 
+import { shouldIgnoreClientError } from "@/lib/client-error";
+
 class ConsoleLogger {
   private parentOrigin: string | null = null;
   private isInitialized = false;
@@ -181,13 +183,25 @@ class ConsoleLogger {
   private interceptErrors() {
     // Store handlers so we can remove them later
     this.errorHandler = (event: ErrorEvent) => {
+      if (
+        shouldIgnoreClientError({
+          error: event.error,
+          message: event.message,
+          filename: event.filename,
+          target: event.target,
+        })
+      ) {
+        return;
+      }
       this.sendLog('error', [
         `Unhandled Error: ${event.message} at ${event.filename}:${event.lineno}:${event.colno}`,
       ]);
     };
 
     this.rejectionHandler = (event: PromiseRejectionEvent) => {
-      this.sendLog('error', [`Unhandled Promise Rejection: ${event.reason}`]);
+      const reason = event.reason;
+      if (reason == null || reason === "" || reason === "undefined") return;
+      this.sendLog('error', [`Unhandled Promise Rejection: ${reason instanceof Error ? reason.message : String(reason)}`]);
     };
 
     window.addEventListener('error', this.errorHandler);

@@ -17,7 +17,7 @@ import "server-only";
 
 import { getTop500 } from "@/lib/crypto-source";
 import { analyzeSecurity, type SecurityIntel } from "@/lib/market-intel";
-import type { CoinMarket } from "@/lib/crypto-market";
+import { resolveSevenDayChange, type CoinMarket } from "@/lib/crypto-market";
 
 function round(v: number, dp = 2): number {
   const f = Math.pow(10, dp);
@@ -43,15 +43,18 @@ export function coinToIntel(c: CoinMarket): SecurityIntel {
   const base = analyzeSecurity(c.symbol, c.price > 0 ? c.price : undefined, c.name, "CRYPTO");
 
   const change1d = isFinite(c.change24h) ? round(c.change24h, 2) : base.change1d;
-  const change7d = isFinite(c.change7d) ? round(c.change7d, 2) : base.change7d;
+  // A literal 0 with no sparkline is a missing window, not a flat week. Do not
+  // overwrite the engine's 7-day change with that placeholder.
+  const live7d = resolveSevenDayChange(c.change7d, c.sparkline7d);
+  const change7d = live7d != null ? round(live7d, 2) : base.change7d;
 
-  // Forward 7-day projection: continuation of REAL momentum, damped for
-  // mean-reversion, tempered by the model's structural read. Bounded so a single
-  // vertical pump can't dominate the ranking with an implausible number.
-  const projected7dPct = round(
-    clamp(0.5 * base.projected7dPct + 0.4 * change7d + 0.1 * change1d, -45, 70),
-    2
-  );
+  // Forward 7-day projection: continuation of REAL momentum when we have it.
+  // Without a live 7-day print, keep the structural read inside a tight band so
+  // a seeded walk cannot print a +27% "model" move.
+  const projected7dPct =
+    live7d == null
+      ? round(clamp(base.projected7dPct, -12, 12), 2)
+      : round(clamp(0.5 * base.projected7dPct + 0.4 * change7d + 0.1 * change1d, -45, 45), 2);
 
   return {
     ...base,

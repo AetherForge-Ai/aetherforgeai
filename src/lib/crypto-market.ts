@@ -156,6 +156,65 @@ export function pctColor(n: number | null | undefined): string {
 }
 
 /**
+ * Percent change from the first to the last positive print in a 7-day series.
+ * Returns 0 when the series is genuinely flat. Returns null when there is no series.
+ */
+export function sevenDayReturnPct(series: Array<number | null | undefined> | null | undefined): number | null {
+  if (!series || series.length < 2) return null;
+  const closes = series.filter((n): n is number => typeof n === "number" && isFinite(n) && n > 0);
+  if (closes.length < 2) return null;
+  const first = closes[0];
+  const last = closes[closes.length - 1];
+  if (!(first > 0)) return null;
+  const pct = ((last - first) / first) * 100;
+  return isFinite(pct) ? pct : null;
+}
+
+/**
+ * Live 7-day change for a market row.
+ * A sparkline is the source of truth. An explicit 0 with no sparkline is the
+ * placeholder feeds emit when the 7-day window was never fetched — not a flat market.
+ */
+export function resolveSevenDayChange(
+  explicit: number | null | undefined,
+  sparkline?: Array<number | null | undefined> | null
+): number | null {
+  const fromSeries = sevenDayReturnPct(sparkline);
+  if (fromSeries != null) return fromSeries;
+  if (typeof explicit === "number" && isFinite(explicit) && explicit !== 0) return explicit;
+  return null;
+}
+
+export function sevenDayBoardIsMissing<T extends { change7d: number; sparkline7d?: number[] | null }>(
+  coins: T[]
+): boolean {
+  if (coins.length < 5) return false;
+  const missing = coins.filter((c) => resolveSevenDayChange(c.change7d, c.sparkline7d) == null).length;
+  return missing / coins.length >= 0.4;
+}
+
+/** Fill missing 7-day changes from a second feed (same symbol), preferring sparkline math. */
+export function mergeSevenDayChanges<T extends { symbol: string; change7d: number; sparkline7d: number[] }>(
+  coins: T[],
+  fallback: Array<{ symbol: string; change7d: number; sparkline7d?: number[] | null }>
+): T[] {
+  const bySymbol = new Map(fallback.map((c) => [c.symbol.toUpperCase(), c]));
+  return coins.map((coin) => {
+    const own = resolveSevenDayChange(coin.change7d, coin.sparkline7d);
+    if (own != null) return { ...coin, change7d: own };
+    const alt = bySymbol.get(coin.symbol.toUpperCase());
+    if (!alt) return coin;
+    const altPct = resolveSevenDayChange(alt.change7d, alt.sparkline7d);
+    if (altPct == null) return coin;
+    const sparkline =
+      coin.sparkline7d && coin.sparkline7d.length >= 2
+        ? coin.sparkline7d
+        : (alt.sparkline7d ?? []).filter((n): n is number => typeof n === "number" && isFinite(n));
+    return { ...coin, change7d: altPct, sparkline7d: sparkline };
+  });
+}
+
+/**
  * Coin logo URL from a ticker symbol.
  *
  * Swyftx's market endpoints don't return logos, so we resolve them from a

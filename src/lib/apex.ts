@@ -29,6 +29,15 @@ import {
 } from "./currency";
 import { ZENITH_STATE_LABEL } from "./zenith";
 import type { IntelligenceBriefing } from "./briefing";
+import {
+  alignedProjection,
+  candidateIsSuitable,
+  deploymentGuard,
+  isConstructiveCard,
+  rateAsset,
+  type DeploymentGuard,
+  type TapeRead,
+} from "./report-consistency";
 
 export type BotKind = "stock" | "crypto";
 
@@ -56,7 +65,9 @@ export interface TickerAnalysis {
   name: string;
   price: number;
   changePct: number; // last-session move
-  signal: "Strong Buy" | "Accumulate" | "Hold" | "Watch" | "Reduce";
+  signal: "Strong Buy" | "Buy" | "Accumulate" | "Hold" | "Watch" | "Reduce" | "Sell";
+  /** When set, the card chart is a recent path rather than a seeded 12-month line. */
+  momentumLabel?: string;
   sentiment: number; // 0-100
   momentum: MomentumPoint[]; // 12 months
   momentum12moPct: number;
@@ -112,6 +123,8 @@ export interface DirectRecommendation {
   price: number;
   projected7dPct: number;
   detail: string; // "Sell CPU.AX — the 7-day model projects -8.2% …"
+  /** Base-case 7-day range quoted everywhere for this name, when known. */
+  baseRange?: string;
   urgency: "high" | "medium" | "low";
   held: boolean; // true if this is a current holding, false for new buy candidates
 }
@@ -327,6 +340,70 @@ function synthesizeTicker(
 
 /* --------------------- Advanced-section computation --------------------- */
 
+/** Per-asset card built from the same SecurityIntel the recommendations use. */
+function tickerFromIntel(intel: SecurityIntel, _bot: BotKind): TickerAnalysis {
+  const rating = rateAsset(intel);
+  const aligned = alignedProjection(intel);
+  const history = intel.history.length ? intel.history : [{ label: "Now", price: intel.price }];
+  const momentum: MomentumPoint[] = history.map((p) => ({ label: p.label, value: p.price }));
+  let remaining = aligned.pct;
+  const shortTerm: DayPrediction[] = [];
+  for (let d = 1; d <= 7; d++) {
+    const movePct = d === 7 ? round(remaining, 2) : round(aligned.pct / 7, 2);
+    remaining = round(remaining - movePct, 2);
+    shortTerm.push({
+      day: `Day ${d}`,
+      direction: movePct > 0.05 ? "up" : movePct < -0.05 ? "down" : "flat",
+      movePct,
+      confidence: intel.confidence,
+    });
+  }
+  const bearMid = round((intel.outlook.bear.lowPct + intel.outlook.bear.highPct) / 2, 2);
+  const bullMid = round((intel.outlook.bull.lowPct + intel.outlook.bull.highPct) / 2, 2);
+  const pathways: Pathway[] = [
+    {
+      name: "Safe",
+      targetPct: bearMid,
+      probability: intel.outlook.bear.probability,
+      narrative: `Bear case ${spPct(intel.outlook.bear.lowPct)} to ${spPct(intel.outlook.bear.highPct)}.`,
+    },
+    {
+      name: "Medium-Risk",
+      targetPct: aligned.pct,
+      probability: intel.outlook.base.probability,
+      narrative: `Base case ${aligned.range} — the same range quoted in the summary.`,
+    },
+    {
+      name: "Volatile",
+      targetPct: bullMid,
+      probability: intel.outlook.bull.probability,
+      narrative: `Bull case ${spPct(intel.outlook.bull.lowPct)} to ${spPct(intel.outlook.bull.highPct)}.`,
+    },
+  ];
+  const momentumNote = rating.positiveMomentum
+    ? "This is a positive-momentum rating."
+    : "This is not a positive-momentum rating.";
+  return {
+    ticker: intel.ticker,
+    name: intel.name,
+    price: intel.price,
+    changePct: intel.change1d,
+    signal: rating.cardSignal,
+    sentiment: intel.score,
+    momentum,
+    momentum12moPct: intel.change30d,
+    momentumLabel: "Recent price path",
+    shortTerm,
+    pathways,
+    note: `${intel.ticker} is ${rating.action} — ${intel.regime}, MACD ${intel.macdSignal}, RSI ${intel.rsi}. 7-day base case ${aligned.range} (${aligned.probability}% odds, midpoint ${spPct(aligned.pct)}). ${momentumNote}`,
+  };
+}
+
+function spPct(n: number): string {
+  const rounded = round(n, 2);
+  return `${rounded >= 0 ? "+" : ""}${rounded}%`;
+}
+
 const MARKET_LABELS: Record<MarketCode, string> = {
   NZX: "New Zealand Exchange · NZX",
   ASX: "Australian Securities Exchange · ASX",
@@ -446,62 +523,57 @@ interface AnalyzableHolding {
  * short list of high-conviction new buy candidates. Sells surface first so the
  * user sees the most urgent action (e.g. "Sell CPU.AX …") at the top.
  */
+function holdingDetail(action: DirectRecommendation["action"], ticker: string, range: string, probability: number, pct: number): string {
+  const mid = `7-day base case ${range} (${probability}% odds, midpoint ${spPct(pct)})`;
+  switch (action) {
+    case "SELL":
+      return `Sell ${ticker} — ${mid}. Exit to protect capital before a sharper drawdown.`;
+    case "TRIM":
+      return `Trim ${ticker} — ${mid}. Take some risk off.`;
+    case "ACCUMULATE":
+      return `Accumulate ${ticker} — ${mid}. Add only in a size that matches that conviction.`;
+    case "BUY":
+      return `Buy ${ticker} — ${mid}. A measured top-up matches this rating.`;
+    default:
+      return `Hold ${ticker} — ${mid}. Maintain the position and monitor.`;
+  }
+}
+
 function buildDirectRecommendations(
   holdings: AnalyzableHolding[],
   bot: BotKind,
   universeIntel?: SecurityIntel[],
-  opts?: { cashBalanceNZD?: number; cashHeavy?: boolean }
+  opts?: {
+    cashBalanceNZD?: number;
+    cashHeavy?: boolean;
+    holdingIntel?: SecurityIntel[];
+    tape?: TapeRead;
+    /** Filled with new names left off the buy list by the suitability guard. */
+    skippedNames?: string[];
+  }
 ): DirectRecommendation[] {
   const held = new Set(holdings.map((h) => h.ticker.toUpperCase()));
+  const intelByTicker = new Map((opts?.holdingIntel ?? []).map((i) => [i.ticker.toUpperCase(), i]));
+  const guard = opts?.tape ? deploymentGuard(bot, opts.tape, opts.cashBalanceNZD ?? 0) : undefined;
 
   const fromHoldings: DirectRecommendation[] = holdings.map((h) => {
-    const intel = analyzeSecurity(h.ticker, h.price > 0 ? h.price : undefined, h.name, h.market);
-    const pct = intel.projected7dPct;
-    const base = {
+    const intel =
+      intelByTicker.get(h.ticker.toUpperCase()) ??
+      analyzeSecurity(h.ticker, h.price > 0 ? h.price : undefined, h.name, h.market);
+    const aligned = alignedProjection(intel);
+    const rating = rateAsset(intel);
+    return {
       ticker: h.ticker,
       name: h.name,
       currency: h.currency,
       price: intel.price,
-      projected7dPct: pct,
+      projected7dPct: aligned.pct,
+      baseRange: aligned.range,
       held: true,
+      action: rating.action,
+      urgency: rating.action === "SELL" ? ("high" as const) : rating.action === "TRIM" ? ("medium" as const) : ("low" as const),
+      detail: holdingDetail(rating.action, h.ticker, aligned.range, aligned.probability, aligned.pct),
     };
-    switch (intel.signal) {
-      case "Sell":
-        return {
-          ...base,
-          action: "SELL" as const,
-          urgency: "high" as const,
-          detail: `Sell ${h.ticker} — the 7-day model projects ${pct}% with momentum turning down. Exit now to protect capital before a sharper drawdown.`,
-        };
-      case "Reduce":
-        return {
-          ...base,
-          action: "TRIM" as const,
-          urgency: "medium" as const,
-          detail: `Trim ${h.ticker} — relative strength is fading (7-day projection ${pct}%). Take some risk off and redeploy into stronger signals.`,
-        };
-      case "Strong Buy":
-        return {
-          ...base,
-          action: "ACCUMULATE" as const,
-          urgency: "low" as const,
-          detail: `Accumulate ${h.ticker} — a leading signal (7-day projection ${pct > 0 ? "+" : ""}${pct}%). Add on strength or into any dip.`,
-        };
-      case "Buy":
-        return {
-          ...base,
-          action: "BUY" as const,
-          urgency: "low" as const,
-          detail: `Add to ${h.ticker} — constructive momentum with a ${pct > 0 ? "+" : ""}${pct}% 7-day projection. A measured top-up is warranted.`,
-        };
-      default:
-        return {
-          ...base,
-          action: "HOLD" as const,
-          urgency: "low" as const,
-          detail: `Hold ${h.ticker} — no decisive edge this week (7-day projection ${pct > 0 ? "+" : ""}${pct}%). Maintain the position and monitor.`,
-        };
-    }
   });
 
   // High-conviction buy candidates the user does NOT already own. When a
@@ -512,7 +584,7 @@ function buildDirectRecommendations(
   // every report — especially cash-only / cash-heavy books — gives concrete,
   // specific BUY/ACCUMULATE instructions (never vague class-only advice).
   const cashHeavy = !!opts?.cashHeavy || holdings.length === 0;
-  const buyLimit = cashHeavy ? 8 : 6;
+  const buyLimit = guard ? guard.maxNewNames : cashHeavy ? 8 : 6;
   const candidatePool: SecurityIntel[] =
     universeIntel && universeIntel.length
       ? universeIntel.filter((i) => !held.has(i.ticker.toUpperCase()))
@@ -520,29 +592,43 @@ function buildDirectRecommendations(
           .filter((e) => !held.has(e.ticker.toUpperCase()))
           .map((e) => analyzeSecurity(e.ticker, undefined, e.name, e.market));
 
-  const buyCandidates: DirectRecommendation[] = candidatePool
-    .filter((i) => i.signal === "Strong Buy" || i.signal === "Buy")
-    .sort((a, b) => b.score * (b.confidence / 100) - a.score * (a.confidence / 100))
-    .slice(0, buyLimit)
-    .map((i) => {
-      const action = (i.signal === "Strong Buy" ? "ACCUMULATE" : "BUY") as "ACCUMULATE" | "BUY";
+  const ranked = [...candidatePool].sort(
+    (a, b) => b.score * (b.confidence / 100) - a.score * (a.confidence / 100)
+  );
+  const suitable = guard
+    ? ranked.filter((i) => candidateIsSuitable(i, guard))
+    : ranked.filter((i) => i.signal === "Strong Buy" || i.signal === "Buy");
+  if (guard && opts?.skippedNames) {
+    const skipped = ranked
+      .filter((i) => (i.signal === "Strong Buy" || i.signal === "Buy") && !candidateIsSuitable(i, guard))
+      .slice(0, 5)
+      .map((i) => i.ticker);
+    opts.skippedNames.push(...skipped);
+  }
+
+  const buyCandidates: DirectRecommendation[] = suitable.slice(0, buyLimit).map((i) => {
+      const action = rateAsset(i).action === "ACCUMULATE" ? "ACCUMULATE" : "BUY";
       const cashAvail = Math.max(0, opts?.cashBalanceNZD || 0);
-      const deploy =
-        cashHeavy && cashAvail > 0
+      const deploy = guard
+        ? guard.mode === "starter"
+          ? ` Starter size only — do not deploy the full cash balance.`
+          : ""
+        : cashHeavy && cashAvail > 0
           ? ` Deploy dry powder (cash NZ$${Math.round(cashAvail)} available) with a measured starter size.`
           : cashHeavy
             ? " Prioritise this name for first capital when cash is deposited."
             : "";
       return {
-        action,
+        action: action as "ACCUMULATE" | "BUY",
         ticker: i.ticker,
         name: i.name,
         currency: i.currency as CurrencyCode,
         price: i.price,
         projected7dPct: i.projected7dPct,
+        baseRange: spPct(i.projected7dPct),
         held: false,
-        urgency: (cashHeavy ? "medium" : "low") as "medium" | "low",
-        detail: `${action === "ACCUMULATE" ? "Accumulate" : "Buy"} **${i.ticker}** (${i.name}, ${i.market}) — screens **${i.signal}** with a ${i.projected7dPct > 0 ? "+" : ""}${i.projected7dPct}% 7-day projection at **${i.confidence}%** conviction.${deploy}`,
+        urgency: (cashHeavy && !guard ? "medium" : "low") as "medium" | "low",
+        detail: `${action === "ACCUMULATE" ? "Accumulate" : "Buy"} **${i.ticker}** (${i.name}, ${i.market}) — **${action}** with a 7-day model of ${spPct(i.projected7dPct)} at **${i.confidence}%** confidence.${deploy}`,
       };
     });
 
@@ -560,23 +646,28 @@ function buildDirectRecommendations(
 function buildPathwayPlan(
   holdings: AnalyzableHolding[],
   recs: DirectRecommendation[],
-  bot: BotKind
+  bot: BotKind,
+  holdingIntel?: SecurityIntel[],
+  guard?: DeploymentGuard
 ): PathwayPlan {
-  // Value-weighted 7-day alpha across the actual book.
+  const intelByTicker = new Map((holdingIntel ?? []).map((i) => [i.ticker.toUpperCase(), i]));
+  // Value-weighted 7-day alpha across the actual book, using the same intel as the cards.
   const enriched = holdings.map((h) => ({
     h,
-    intel: analyzeSecurity(h.ticker, h.price > 0 ? h.price : undefined, h.name, h.market),
+    intel:
+      intelByTicker.get(h.ticker.toUpperCase()) ??
+      analyzeSecurity(h.ticker, h.price > 0 ? h.price : undefined, h.name, h.market),
     value: (h.shares || 0) * (h.price || 0),
   }));
   const totalValue = enriched.reduce((s, e) => s + e.value, 0);
   const alpha =
     totalValue > 0
       ? round(
-          enriched.reduce((s, e) => s + (e.value / totalValue) * e.intel.projected7dPct, 0),
+          enriched.reduce((s, e) => s + (e.value / totalValue) * alignedProjection(e.intel).pct, 0),
           2
         )
       : round(
-          enriched.reduce((s, e) => s + e.intel.projected7dPct, 0) / Math.max(enriched.length, 1),
+          enriched.reduce((s, e) => s + alignedProjection(e.intel).pct, 0) / Math.max(enriched.length, 1),
           2
         );
 
@@ -591,7 +682,10 @@ function buildPathwayPlan(
   // manageable risk → balanced; otherwise balanced as the sensible default.
   let recommendedName: string;
   let recommendationNote: string;
-  if (holdings.length === 0 && buys.length > 0) {
+  if (guard && guard.mode !== "full") {
+    recommendedName = guard.mode === "defensive" || sells.length > 0 ? "Capital Preservation" : "Balanced Growth";
+    recommendationNote = guard.headline;
+  } else if (holdings.length === 0 && buys.length > 0) {
     recommendedName = "Balanced Growth";
     recommendationNote = `Cash-ready / empty holdings — deploy into named BUY/ACCUMULATE tickers (${buys
       .slice(0, 3)
@@ -671,6 +765,42 @@ interface ReportExtras {
   pathwayPlan: PathwayPlan;
   /** Held tickers with size, e.g. "GNC.AX × 120, ARB × 40". */
   bookRoster?: string;
+  tape?: TapeRead;
+  guard?: DeploymentGuard;
+  skippedSpeculative?: string[];
+}
+
+function consistentExecutiveSummary(
+  bot: BotKind,
+  heldRecs: DirectRecommendation[],
+  positive: number,
+  total: number,
+  extras: ReportExtras
+): string {
+  const noun = bot === "crypto" ? "assets" : "holdings";
+  const actions = heldRecs.length
+    ? heldRecs
+        .map((r) => `**${r.action} ${r.ticker}** (7-day base ${r.baseRange ?? spPct(r.projected7dPct)})`)
+        .join("; ")
+    : `no monitored ${noun} yet`;
+  const roster = extras.bookRoster ? ` Live book: ${extras.bookRoster}.` : "";
+  const buys = extras.directRecommendations
+    .filter((r) => !r.held && (r.action === "BUY" || r.action === "ACCUMULATE"))
+    .slice(0, 3)
+    .map((r) => `${r.action} ${r.ticker} (${spPct(r.projected7dPct)})`);
+  const buyLine = buys.length ? ` Suitable new names: ${buys.join(", ")}.` : "";
+  const skipped =
+    extras.skippedSpeculative && extras.skippedSpeculative.length
+      ? ` Not sized this week: ${extras.skippedSpeculative.join(", ")}.`
+      : "";
+  return (
+    `On the live book:${roster} ${actions}. ` +
+    `${positive} of ${total} ${noun} carry a positive momentum signal — the same Buy or Accumulate rating on each card. ` +
+    `${extras.guard?.headline ?? ""}` +
+    buyLine +
+    skipped +
+    ` _Informational market intelligence only — not personalised financial advice._`
+  );
 }
 
 function assembleReport(
@@ -687,7 +817,7 @@ function assembleReport(
     .slice(0, 3)
     .map((t) => ({ ticker: t.ticker, name: t.name, changePct: t.changePct }));
 
-  const strong = tickers.filter((t) => t.signal === "Strong Buy" || t.signal === "Accumulate");
+  const strong = tickers.filter((t) => isConstructiveCard(t.signal));
   const weak = tickers.filter((t) => t.signal === "Reduce");
   const marketLabel = bot === "crypto" ? "BTC · ETH · Global digital assets" : "NZX · ASX · Global equities";
 
@@ -703,7 +833,13 @@ function assembleReport(
     .filter((r) => !r.held && (r.action === "BUY" || r.action === "ACCUMULATE"))
     .slice(0, 4)
     .map((r) => r.ticker);
-  const executiveSummary =
+  const heldRecs = extras.directRecommendations.filter((r) => r.held);
+  const positiveFromRecs = heldRecs.filter((r) => r.action === "BUY" || r.action === "ACCUMULATE").length;
+  const momentumCount = extras.guard ? positiveFromRecs : strong.length;
+  const momentumTotal = extras.guard ? heldRecs.length : tickers.length;
+  const executiveSummary = extras.guard
+    ? consistentExecutiveSummary(bot, heldRecs, momentumCount, momentumTotal, extras)
+    :
     tickers.length === 0
       ? `**Ultra Advanced ZENITH State engaged.** SuperGrok 4.6 swept ${sweepLabel} for Top-10 movers and 7-day projection leaders. ` +
         `Your book has **no monitored ${assetNoun} yet** — this report leads with a concrete **BUY/ACCUMULATE** list` +
@@ -732,7 +868,7 @@ function assembleReport(
         ]
       : [
           `${isDemo ? "Sample book" : "Live book"} (${tickers.length}): ${bookRoster}.`,
-          `${strong.length} of ${tickers.length} ${bot === "crypto" ? "assets" : "holdings"} carry a positive momentum signal into the week.`,
+          `${momentumCount} of ${momentumTotal} ${bot === "crypto" ? "assets" : "holdings"} carry a positive momentum signal into the week.`,
           topGainers[0]
             ? `${topGainers[0].ticker} leads the session (+${topGainers[0].changePct}%) and tops the gainer board.`
             : `No standout session gainers — the tape is consolidating.`,
@@ -742,6 +878,12 @@ function assembleReport(
               ? "Cross-asset correlation remains elevated; BTC dominance is the primary risk driver."
               : "Sector rotation favours defensives; watch NZX yield names into the print.",
           "Volatile-pathway probabilities are contained, keeping tail risk secondary to the base case.",
+          ...(extras.guard ? [extras.guard.headline] : []),
+          ...(extras.skippedSpeculative && extras.skippedSpeculative.length
+            ? [
+                `Left off the buy list under this tape (moves or conviction are too aggressive to size): ${extras.skippedSpeculative.join(", ")}.`,
+              ]
+            : []),
         ];
 
   const newsSynthesis =
@@ -892,6 +1034,13 @@ export interface BuildLiveReportOptions {
    * cryptocurrency market and never mixes in NZX / ASX / NASDAQ / DOW data.
    */
   universeIntel?: SecurityIntel[];
+  /**
+   * Live technicals for the held book. When present, cards, momentum counts,
+   * and recommendations all use this intel instead of a seeded ticker synthesis.
+   */
+  holdingIntel?: SecurityIntel[];
+  /** Book-level tape (bias / conviction / score) for cash-deployment guardrails. */
+  tape?: TapeRead;
   /** Member ledger cash (NZD) — when present, BUY lists emphasise deploying dry powder. */
   cashBalanceNZD?: number;
 }
@@ -907,12 +1056,19 @@ export function buildLiveReport(
     fxToNZD = BASELINE_FX_TO_NZD,
     marketOverrides,
     universeIntel,
+    holdingIntel,
+    tape,
     cashBalanceNZD = 0,
   } = options;
 
+  const intelByTicker = new Map((holdingIntel ?? []).map((i) => [i.ticker.toUpperCase(), i]));
   const tickers = holdings
     .filter((h) => h.ticker)
-    .map((h) => synthesizeTicker(h.ticker, h.name || h.ticker, Math.max(0.01, h.price || 1), bot, seedSalt));
+    .map((h) => {
+      const intel = intelByTicker.get(h.ticker.toUpperCase());
+      if (intel) return tickerFromIntel(intel, bot);
+      return synthesizeTicker(h.ticker, h.name || h.ticker, Math.max(0.01, h.price || 1), bot, seedSalt);
+    });
 
   const analyzable = toAnalyzable(bot, holdings);
   const portfolio = computePortfolio(bot, analyzable, fxToNZD);
@@ -920,11 +1076,16 @@ export function buildLiveReport(
   const cashHeavy =
     analyzable.length === 0 ||
     (cashBalanceNZD > 0 && bookValue > 0 && cashBalanceNZD / bookValue >= 0.4);
+  const guard = tape ? deploymentGuard(bot, tape, cashBalanceNZD) : undefined;
+  const skippedNames: string[] = [];
   const directRecommendations = buildDirectRecommendations(analyzable, bot, universeIntel, {
     cashBalanceNZD,
     cashHeavy,
+    holdingIntel,
+    tape,
+    skippedNames,
   });
-  const pathwayPlan = buildPathwayPlan(analyzable, directRecommendations, bot);
+  const pathwayPlan = buildPathwayPlan(analyzable, directRecommendations, bot, holdingIntel, guard);
   const bookRoster = analyzable
     .map((h) => `${h.ticker} × ${typeof h.shares === "number" ? h.shares : 0}`)
     .join(", ");
@@ -933,7 +1094,15 @@ export function buildLiveReport(
     bot,
     tickers,
     false,
-    { portfolio, directRecommendations, pathwayPlan, bookRoster },
+    {
+      portfolio,
+      directRecommendations,
+      pathwayPlan,
+      bookRoster,
+      tape,
+      guard,
+      skippedSpeculative: skippedNames,
+    },
     marketOverrides,
     universeIntel
   );

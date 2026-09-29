@@ -110,10 +110,12 @@ function sparkline(series: MomentumPoint[], positive: boolean): string {
 function signalBadge(signal: TickerAnalysis["signal"]): string {
   const map: Record<TickerAnalysis["signal"], string> = {
     "Strong Buy": GREEN,
+    Buy: "#0d9488",
     Accumulate: "#0d9488",
     Hold: "#0284c7",
     Watch: "#d97706",
     Reduce: RED,
+    Sell: RED,
   };
   const c = map[signal];
   return `<span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;color:${c};background:${c}1a;border:1px solid ${c}33">${esc(
@@ -156,8 +158,8 @@ function tickerBlock(t: TickerAnalysis): string {
     </tr></table>
 
     <div style="display:flex;justify-content:space-between;font-size:11px;color:${MUTE};margin-top:10px">
-      <span>12-month continuation / momentum</span>
-      <span style="color:${pctColor(t.momentum12moPct)}">${pct(t.momentum12moPct)} 12m</span>
+      <span>${esc(t.momentumLabel ?? "12-month continuation / momentum")}</span>
+      <span style="color:${pctColor(t.momentum12moPct)}">${pct(t.momentum12moPct)} ${t.momentumLabel ? "30d" : "12m"}</span>
     </div>
     ${sparkline(t.momentum, t.momentum12moPct >= 0)}
 

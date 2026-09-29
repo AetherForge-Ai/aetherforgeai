@@ -23,13 +23,15 @@ function signalTone(signal: TickerAnalysis["signal"]): string {
   switch (signal) {
     case "Strong Buy":
       return "bg-emerald-500/15 text-emerald-600 border-emerald-500/30";
+    case "Buy":
     case "Accumulate":
-      return "bg-teal-500/15 text-teal-300 border-teal-500/30";
+      return "bg-teal-500/15 text-teal-700 border-teal-500/30";
     case "Hold":
       return "bg-sky-500/15 text-sky-700 border-sky-500/30";
     case "Watch":
       return "bg-amber-500/15 text-amber-700 border-amber-500/30";
     case "Reduce":
+    case "Sell":
       return "bg-rose-500/15 text-rose-700 border-rose-500/30";
   }
 }
@@ -97,9 +99,11 @@ function TickerCard({ t }: { t: TickerAnalysis }) {
 
       {/* 12-month continuation graph */}
       <div className="mt-3">
-        <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-          <span>12-month continuation / momentum</span>
-          <span className={pctTone(t.momentum12moPct)}>{formatPercent(t.momentum12moPct)} 12m</span>
+        <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+          <span className="min-w-0">{t.momentumLabel ?? "12-month continuation / momentum"}</span>
+          <span className={`shrink-0 ${pctTone(t.momentum12moPct)}`}>
+            {formatPercent(t.momentum12moPct)} {t.momentumLabel ? "30d" : "12m"}
+          </span>
         </div>
         <div className="mt-1 text-muted-foreground">
           <MomentumChart series={t.momentum} positive={t.momentum12moPct >= 0} />
@@ -111,7 +115,7 @@ function TickerCard({ t }: { t: TickerAnalysis }) {
         <div className="text-[11px] text-muted-foreground mb-1">7-day short-term projection</div>
         <div className="grid grid-cols-7 gap-1">
           {t.shortTerm.map((d) => (
-            <div key={d.day} className="rounded-md border border-border/50 bg-background/40 px-1 py-1.5 text-center">
+            <div key={d.day} className="min-w-0 rounded-md border border-border/50 bg-background/40 px-0.5 py-1.5 text-center">
               <div className="text-[9px] text-muted-foreground">D{d.day.replace("Day ", "")}</div>
               <div className={`text-[10px] font-mono ${pctTone(d.movePct)}`}>
                 {d.direction === "up" ? "▲" : d.direction === "down" ? "▼" : "—"}
@@ -192,8 +196,8 @@ function MarketMoversSection({ report }: { report: ApexReport }) {
                   <div className="mb-1 text-[11px] font-medium text-muted-foreground">{w.window}</div>
                   <ul className="space-y-0.5">
                     {w.movers.map((m, i) => (
-                      <li key={m.ticker} className="flex items-center justify-between text-[11px]">
-                        <span className="truncate">
+                      <li key={m.ticker} className="flex min-w-0 items-center justify-between gap-2 text-[11px]">
+                        <span className="min-w-0 truncate">
                           <span className="text-muted-foreground/60">{i + 1}.</span>{" "}
                           <span className="font-medium">{m.ticker}</span>
                         </span>
@@ -219,7 +223,7 @@ function ProjectionLeadersSection({ report }: { report: ApexReport }) {
       <div className="mb-2 text-sm font-semibold">Next 7 days · Top-10 projected movers</div>
       <div className="space-y-1">
         {report.projectionLeaders.map((r, i) => (
-          <div key={r.ticker} className="flex items-center justify-between gap-2 text-sm">
+          <div key={r.ticker} className="flex min-w-0 flex-wrap items-center justify-between gap-2 text-sm">
             <span className="min-w-0 truncate text-muted-foreground">
               <span className="text-muted-foreground/60">{i + 1}.</span>{" "}
               <span className="font-medium text-foreground">{r.ticker}</span>
@@ -392,8 +396,8 @@ function convTone(level: string): string {
 function OutlookRow({ r }: { r: BriefingOutlookRow }) {
   const { base, bull, bear } = r.outlook;
   const Cell = ({ label, lo, hi, prob, tone }: { label: string; lo: number; hi: number; prob: number; tone: string }) => (
-    <td className="border-t border-border/50 px-2 py-1.5 text-center">
-      <div className={`text-[11px] font-semibold ${tone}`}>
+    <td className="border-t border-border/50 px-1 py-1.5 text-center align-top">
+      <div className={`break-words text-[10px] font-semibold leading-tight [overflow-wrap:anywhere] sm:text-[11px] ${tone}`}>
         {lo >= 0 ? "+" : ""}
         {lo}% … {hi >= 0 ? "+" : ""}
         {hi}%
@@ -520,12 +524,12 @@ function BriefingSection({ report }: { report: ApexReport }) {
 
       {/* Probabilistic outlook table */}
       {b.outlook.length ? (
-        <div className="mt-3 overflow-x-auto">
+        <div className="mt-3 max-w-full">
           <div className="text-xs font-semibold">Probabilistic 7-day outlook</div>
           <div className="mt-0.5 text-[10px] text-muted-foreground">
             Expected % move over the next 7 sessions — volatility-scaled ranges, not point targets.
           </div>
-          <table className="mt-1 w-full border-collapse text-xs">
+          <table className="mt-1 w-full table-fixed border-collapse text-xs">
             <thead>
               <tr className="text-[9px] uppercase tracking-wide text-muted-foreground">
                 <td className="px-2 py-1">Ticker</td>
@@ -550,20 +554,20 @@ function BriefingSection({ report }: { report: ApexReport }) {
 
 export function ApexReportView({ report }: { report: ApexReport }) {
   return (
-    <div className="space-y-5">
+    <div className="min-w-0 max-w-full space-y-5 overflow-x-hidden">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Badge className="bg-primary/15 text-primary border-primary/30" variant="outline">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <Badge className="max-w-full min-w-0 shrink whitespace-normal bg-primary/15 text-primary border-primary/30" variant="outline">
             ⚡ {report.engine || "Ultra Advanced ZENITH State"}
           </Badge>
-          <Badge variant="outline" className="border-border/60 text-muted-foreground">
+          <Badge variant="outline" className="max-w-full min-w-0 shrink whitespace-normal border-border/60 text-muted-foreground">
             {report.marketLabel}
           </Badge>
         </div>
         <Badge
           variant="outline"
-          className={report.isDemo ? "border-amber-500/40 text-amber-700 bg-amber-500/10" : "border-emerald-500/40 text-emerald-700 bg-emerald-500/10"}
+          className={report.isDemo ? "max-w-full min-w-0 shrink whitespace-normal border-amber-500/40 text-amber-700 bg-amber-500/10" : "max-w-full min-w-0 shrink whitespace-normal border-emerald-500/40 text-emerald-700 bg-emerald-500/10"}
         >
           {report.generatedLabel}
         </Badge>
@@ -572,23 +576,23 @@ export function ApexReportView({ report }: { report: ApexReport }) {
       {/* Portfolio snapshot (live only) */}
       {report.portfolio && (
         <div>
-          <div className="grid grid-cols-3 gap-2">
-            <div className="rounded-lg border border-border/60 bg-card/40 p-3">
+          <div className="grid grid-cols-1 gap-2 min-[420px]:grid-cols-3">
+            <div className="min-w-0 rounded-lg border border-border/60 bg-card/40 p-3">
               <div className="text-[11px] text-muted-foreground">Total Worth · {report.portfolio.currency}</div>
-              <div className="mt-0.5 text-lg font-semibold">
+              <div className="mt-0.5 break-words text-base font-semibold sm:text-lg">
                 {formatMoney(report.portfolio.value, report.portfolio.currency)}
               </div>
             </div>
-            <div className="rounded-lg border border-border/60 bg-card/40 p-3">
+            <div className="min-w-0 rounded-lg border border-border/60 bg-card/40 p-3">
               <div className="text-[11px] text-muted-foreground">Profit &amp; Loss</div>
-              <div className={`mt-0.5 text-lg font-semibold ${pctTone(report.portfolio.pnl)}`}>
+              <div className={`mt-0.5 break-words text-base font-semibold sm:text-lg ${pctTone(report.portfolio.pnl)}`}>
                 {report.portfolio.pnl >= 0 ? "+" : ""}
                 {formatMoney(report.portfolio.pnl, report.portfolio.currency)}
               </div>
             </div>
-            <div className="rounded-lg border border-border/60 bg-card/40 p-3">
+            <div className="min-w-0 rounded-lg border border-border/60 bg-card/40 p-3">
               <div className="text-[11px] text-muted-foreground">Return</div>
-              <div className={`mt-0.5 text-lg font-semibold ${pctTone(report.portfolio.pnlPct)}`}>
+              <div className={`mt-0.5 break-words text-base font-semibold sm:text-lg ${pctTone(report.portfolio.pnlPct)}`}>
                 {formatPercent(report.portfolio.pnlPct)}
               </div>
             </div>
@@ -604,7 +608,7 @@ export function ApexReportView({ report }: { report: ApexReport }) {
 
       {/* Executive summary */}
       <div className="rounded-xl border border-border/60 bg-gradient-to-br from-primary/5 to-transparent p-4">
-        <p className="text-sm leading-relaxed text-muted-foreground">
+        <p className="break-words text-sm leading-relaxed text-muted-foreground">
           <RichText text={report.executiveSummary} />
         </p>
       </div>
