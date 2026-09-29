@@ -45,7 +45,8 @@ next-env.d.ts
 frontend.log
 npm-start.log
 CLAUDE.md
-docs/
+# Root notes only. Do not ignore the public /docs App Router page.
+/docs/
 
 # claude files
 .claude

@@ -32,7 +32,7 @@ const publicRoutes = [
   "/features",
   "/how",
   "/performance",
-  "/dashboard", // logged-out visitors get a locked, read-only preview (page handles guest vs member)
+  "/dashboard", // guests get a sign-in gate with no portfolio or account data
   "/markets", // full-page Stock Markets browser — read-only preview for guests
   "/projections", // Top-50 weekly projections per market — read-only preview for guests
   "/login",
@@ -49,6 +49,8 @@ const publicRoutes = [
   "/ai-disclaimer",
   "/free-trial",
   "/own-the-bots",
+  "/docs",
+  "/blog",
 
   //stripe routes here
   "/stripe/demo",
