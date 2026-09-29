@@ -405,8 +405,8 @@ export function PreciousMetals({
             <Link href="/dashboard/transactions?buy=metal">Save as paper metal</Link>
           </Button>
           <Button asChild className="font-semibold shadow-glow">
-            <Link href="/pricing">
-              <Sparkles className="mr-2 size-4" /> Upgrade to unlock
+            <Link href="/pricing#pro">
+              <Sparkles className="mr-2 size-4" /> Upgrade to Pro
             </Link>
           </Button>
         </div>

@@ -110,7 +110,7 @@ export function PricingCards() {
     } else if (tier.cta.kind === "sales") {
       // Ultimate enquiries use the subject "Ultimate"; any other sales CTA uses
       // "Sale <plan name>" so the inbox can be triaged at a glance.
-      const subject = tier.id === "ultimate" ? "Ultimate" : `Sale ${tier.name}`;
+      const subject = tier.id === "ultimate" ? "Founder-led onboarding" : `Sale ${tier.name}`;
       window.location.href = `mailto:${SALES_EMAIL}?subject=${encodeURIComponent(subject)}`;
     } else {
       void startCheckout(tier);
@@ -187,6 +187,7 @@ export function PricingCards() {
           return (
             <div
               key={tier.id}
+              id={tier.id}
               className={cn(
                 "relative z-40 flex h-full flex-col rounded-3xl border p-6 transition-all duration-200 max-sm:pb-10",
                 tier.featured
@@ -200,7 +201,9 @@ export function PricingCards() {
                     "absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-3 py-1 text-[0.68rem] font-bold uppercase tracking-wide shadow",
                     tier.featured
                       ? "bg-primary text-primary-foreground ring-1 ring-primary/40"
-                      : "bg-gold/15 text-gold ring-1 ring-gold/30"
+                      : tier.id === "ultimate"
+                        ? "bg-muted text-muted-foreground ring-1 ring-border"
+                        : "bg-gold/15 text-gold ring-1 ring-gold/30"
                   )}
                 >
                   {tier.featured ? (
@@ -286,14 +289,19 @@ export function PricingCards() {
                   </li>
                 ))}
               </ul>
+              {tier.id === "ultimate" && (
+                <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
+                  Founder-led. This card opens an email — it does not start a self-serve checkout.
+                </p>
+              )}
             </div>
           );
         })}
       </div>
 
       <p className="mt-8 text-center text-xs text-muted-foreground">
-        All prices in NZD — checkout is billed in NZD. US$ amounts are indicative at today&apos;s exchange rate ·
-        Secure Stripe checkout · Cancel anytime · Paid plans include a 14-day trial (no card while today is NZ$0)
+        All prices in NZD — Starter and Pro checkout is billed in NZD. US$ amounts are indicative at today&apos;s exchange rate ·
+        Secure Stripe checkout · Cancel anytime · Starter and Pro include a 14-day trial · Ultimate is Talk to us
       </p>
     </div>
   );

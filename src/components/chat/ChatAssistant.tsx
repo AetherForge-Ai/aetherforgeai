@@ -97,7 +97,10 @@ export function ChatAssistant() {
           <div>
             <h1 className="font-display text-xl font-bold">AI Market Assistant</h1>
             <p className="text-xs text-muted-foreground">
-              Ask about your portfolio, holdings, or the markets.
+              Informational scenarios about your book. Not financial advice — we don&apos;t trade for you.{" "}
+              <a href="/ai-disclaimer" className="font-medium text-primary hover:underline">
+                Disclaimer
+              </a>
             </p>
           </div>
         </div>
@@ -121,7 +124,7 @@ export function ChatAssistant() {
             <span className="grid size-16 place-items-center rounded-3xl bg-primary/10 text-primary">
               <Sparkles className="size-8" />
             </span>
-            <h2 className="mt-5 font-display text-2xl font-bold">How can I help you invest?</h2>
+            <h2 className="mt-5 font-display text-2xl font-bold">What would you like to understand?</h2>
             <p className="mt-2 max-w-md text-sm text-muted-foreground">
               I have context on your live portfolio. Ask me anything about your holdings, risk, or
               the broader market.

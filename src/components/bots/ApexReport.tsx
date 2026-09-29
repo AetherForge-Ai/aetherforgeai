@@ -113,7 +113,7 @@ function TickerCard({ t }: { t: TickerAnalysis }) {
 
       {/* 7-day short-term predictions */}
       <div className="mt-3">
-        <div className="text-[11px] text-muted-foreground mb-1">7-day short-term projection</div>
+        <div className="text-[11px] text-muted-foreground mb-1">7-day illustrative scenario</div>
         <div className="grid grid-cols-7 gap-1">
           {t.shortTerm.map((d) => (
             <div key={d.day} className="min-w-0 rounded-md border border-border/50 bg-background/40 px-0.5 py-1.5 text-center">
@@ -353,7 +353,7 @@ function PathwayPlanSection({ report }: { report: ApexReport }) {
         <span>
           {p.risk} · {p.probability}%
         </span>
-        {p.recommended && <span className="font-bold text-primary">★ Recommended</span>}
+        {p.recommended && <span className="font-bold text-primary">★ Illustrative</span>}
       </div>
       <div className="mt-0.5 text-sm font-semibold">{p.name}</div>
       <div className={`text-base font-bold ${pctTone(p.targetPct)}`}>
@@ -372,7 +372,7 @@ function PathwayPlanSection({ report }: { report: ApexReport }) {
     <div className="rounded-xl border border-border/60 bg-card/40 p-4">
       <div className="text-sm font-semibold">Three pathways forward — with step-by-step plan</div>
       <div className="mt-2 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2">
-        <div className="text-xs font-semibold text-primary">★ Recommended route: {plan.recommendedName}</div>
+        <div className="text-xs font-semibold text-primary">★ Illustrative route: {plan.recommendedName}</div>
         <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{plan.recommendationNote}</p>
       </div>
       <div className="mt-3 grid gap-2 md:grid-cols-3">

@@ -140,9 +140,9 @@ export function ActionableIntelligence({
           <Scale className="size-4" />
         </span>
         <div>
-          <h2 className="font-display text-lg font-bold">Actionable intelligence</h2>
+          <h2 className="font-display text-lg font-bold">Informational signals</h2>
           <p className="text-xs text-muted-foreground">
-            Explicit signals from your holdings + the full NZX  -  ASX  -  Dow Jones  -  NASDAQ  -  Crypto universe
+            Illustrative scenarios from your holdings and the wider universe. Not personalised advice — you execute elsewhere.
           </p>
         </div>
       </div>
@@ -152,11 +152,11 @@ export function ActionableIntelligence({
         <div className="flex items-start gap-3 rounded-2xl border border-rose-500/40 bg-rose-500/10 px-5 py-4">
           <AlertTriangle className="mt-0.5 size-5 shrink-0 text-rose-600" />
           <div>
-            <p className="font-display font-bold text-rose-200">Immediate action required</p>
+            <p className="font-display font-bold text-rose-200">Downside scenario flagged</p>
             <p className="text-sm text-rose-200/80">
               {sellRecommendations.length} holding{sellRecommendations.length === 1 ? "" : "s"} in your portfolio{" "}
-              {sellRecommendations.length === 1 ? "is" : "are"} flagging elevated downside risk. Review the SELL
-              recommendations below.
+              {sellRecommendations.length === 1 ? "is" : "are"} modelled with elevated downside risk. The sell
+              scenarios below are illustrative. AetherForge does not sell for you.
             </p>
           </div>
         </div>
@@ -166,8 +166,8 @@ export function ActionableIntelligence({
           <div>
             <p className="font-display font-bold text-emerald-200">No urgent exits</p>
             <p className="text-sm text-emerald-200/80">
-              None of your current holdings trigger a SELL signal this session. Consider the BUY candidates below to
-              deploy capital.
+              None of your current holdings flag a sell scenario this session. Illustrative buy scenarios
+              are listed below. They are not an instruction to deploy cash.
             </p>
           </div>
         </div>
@@ -177,7 +177,7 @@ export function ActionableIntelligence({
         {/* SELL recommendations */}
         <div className="rounded-2xl border border-border/70 bg-card/40 p-5">
           <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-rose-700">
-            <ArrowDownRight className="size-4" /> SELL recommendations
+            <ArrowDownRight className="size-4" /> Illustrative sell scenarios
             <span className="text-xs font-normal text-muted-foreground">(from your holdings)</span>
           </div>
           {sellRecommendations.length === 0 ? (
@@ -222,7 +222,7 @@ export function ActionableIntelligence({
               className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm font-semibold text-emerald-700"
             >
               <ArrowUpRight className="size-4 shrink-0" />
-              <span className="truncate">High-conviction BUY candidates</span>
+              <span className="truncate">Illustrative buy scenarios</span>
               <span className="hidden text-xs font-normal text-muted-foreground sm:inline">
                 (not held - NZX - ASX - DJIA - NASDAQ - Crypto)
               </span>

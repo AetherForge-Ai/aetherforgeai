@@ -28,6 +28,7 @@ import {
   Newspaper,
   Trophy,
   GraduationCap,
+  MessageSquare,
   Settings,
   Compass,
   LogOut,
@@ -206,6 +207,9 @@ function AccountMenu({
           <Link href="/dashboard"><LayoutDashboard className="size-4" /> Dashboard</Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
+          <Link href="/chat"><MessageSquare className="size-4" /> Market Assistant</Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
           <Link href="/headmaster"><Compass className="size-4" /> The Headmaster <span className="ml-auto rounded bg-primary/15 px-1.5 py-px text-[9px] font-bold uppercase text-primary">{headmasterDeskCopy(user.subscription_plan).badge}</span></Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
@@ -223,7 +227,7 @@ function AccountMenu({
         )}
         {!isActive && (
           <DropdownMenuItem asChild>
-            <Link href="/pricing" className="text-primary"><Sparkles className="size-4" /> Upgrade to Pro</Link>
+            <Link href="/pricing#pro" className="text-primary"><Sparkles className="size-4" /> Upgrade to Pro</Link>
           </DropdownMenuItem>
         )}
         <DropdownMenuSeparator />

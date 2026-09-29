@@ -1,6 +1,6 @@
 {
   "name": "nextjs-totalum-project",
-  "description": "Build a full-stack web application with Next.js and Totalum.",
+  "description": "AetherForge AI — informational market intelligence. Forge Intelligence Ltd.",
   "scripts": {
     "dev": "NEXT_TELEMETRY_DISABLED=1 DISABLE_OPENNEXT=true next dev",
     "check-types-errors": "tsc --noEmit --skipLibCheck",
@@ -18,7 +18,7 @@
     "test:watch": "vitest"
   },
   "cloudflare": {
-    "label": "Totalum App",
+    "label": "AetherForge AI",
     "products": [
       "Workers"
     ],

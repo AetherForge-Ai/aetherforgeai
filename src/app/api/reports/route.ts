@@ -167,7 +167,7 @@ export async function POST(req: Request) {
         return NextResponse.json(
           {
             ok: false,
-            error: `You've used all ${freeQuota.limit} free AI reports for this month. Upgrade for more, or wait until next month.`,
+            error: `You've used all ${freeQuota.limit} free AI reports for this month. Upgrade to Pro for more, or wait until next month.`,
             data: {
               code: "free_monthly_limit",
               nextAllowedAt: blocked.nextAllowedAt,

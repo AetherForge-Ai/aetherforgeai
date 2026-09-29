@@ -70,7 +70,8 @@ async function getAccessToken(): Promise<string | null> {
 async function sxHeaders(): Promise<Record<string, string>> {
   const h: Record<string, string> = {
     accept: "application/json",
-    "User-Agent": "TotalumCryptoDashboard/1.0",
+    // Outbound identifier. Infrastructure host is not a customer-facing name.
+    "User-Agent": "AetherForgeAI/1.0",
   };
   const token = await getAccessToken();
   if (token) h["Authorization"] = `Bearer ${token}`;
