@@ -4,7 +4,12 @@ import { getCurrentUser, isStripeConfigured, hasActiveSubscription } from "@/lib
 import { totalumSdk } from "@/lib/totalum";
 import type { BotKind } from "@/lib/apex";
 import { generateReportForUser, loadStockRowsForAccount, type GeneratedReport } from "@/lib/report-service";
-import { checkReportQuota } from "@/lib/entitlements";
+import {
+  checkReportQuota,
+  isFreeReportPlan,
+  evaluateFreeReportQuota,
+  aucklandMonthKey,
+} from "@/lib/entitlements";
 import { isRecentReportDuplicate } from "@/lib/report-dedupe";
 import { liveBookForAccount, reconcileNarrativeWithLiveBook, reconcileStoredReport } from "@/lib/report-book";
 import { requestClaimsOtherUser } from "@/lib/account-guard";
@@ -42,6 +47,42 @@ async function lastReportAt(userId: string, bot: BotKind): Promise<string | null
   const row = (res?.data as any[])?.[0];
   if (!row) return null;
   return row.generated_at || row.createdAt || null;
+}
+
+/**
+ * Padded UTC bounds covering the full Pacific/Auckland calendar month for
+ * `monthKey` ("yyyy-MM"), widened by a day on each side to safely cover the
+ * NZST/NZDT (+12/+13h) offset without a full timezone-conversion library.
+ * The DB filter only narrows the candidate rows — exact month membership is
+ * re-checked in JS via aucklandMonthKey() on each row in countFreeReportsThisMonth.
+ */
+function aucklandMonthUtcBoundsPadded(monthKey: string): { gte: string; lte: string } {
+  const [year, month] = monthKey.split("-").map(Number);
+  const start = new Date(Date.UTC(year, month - 1, 1));
+  start.setUTCDate(start.getUTCDate() - 1);
+  const end = new Date(Date.UTC(year, month, 1));
+  end.setUTCDate(end.getUTCDate() + 1);
+  return { gte: start.toISOString(), lte: end.toISOString() };
+}
+
+/**
+ * Reports (any bot) a Free user has generated in the current Pacific/Auckland
+ * calendar month. Free's 3-report cap is a single pooled monthly allowance
+ * across Stox + Koins — not a per-bot allowance like the paid cadence above.
+ */
+async function countFreeReportsThisMonth(userId: string, now: number): Promise<{ count: number; monthKey: string }> {
+  const monthKey = aucklandMonthKey(now);
+  const { gte, lte } = aucklandMonthUtcBoundsPadded(monthKey);
+  const res = await totalumSdk.crud.query("report", {
+    _filter: { user: userId, createdAt: { gte, lte } },
+    _sort: { createdAt: "desc" },
+    _limit: 100,
+  });
+  const rows = (res?.data as any[]) || [];
+  const count = rows.filter(
+    (r) => aucklandMonthKey(new Date(r.generated_at || r.createdAt).getTime()) === monthKey
+  ).length;
+  return { count, monthKey };
 }
 
 /**
@@ -88,43 +129,77 @@ export async function POST(req: Request) {
       }
     }
 
-    // Cadence gate — one report per plan window, PER BOT (independent Stox &
-    // Koins allowances). Authoritative: the client countdown is cosmetic; this is
-    // what actually blocks over-use.
-    const previous = await lastReportAt(user._id, bot);
-    const quota = checkReportQuota(user.subscription_plan, previous);
-    if (!quota.allowed) {
-      const botLabel = bot === "crypto" ? "Koins" : "Stox";
-      if (isRecentReportDuplicate(previous)) {
-        console.log(`[api/reports] Duplicate ${botLabel} follow-up ignored for user ${user._id}`);
+    const isFree = isFreeReportPlan(user.subscription_plan);
+    let freeAfterRun: { used: number; limit: number; remaining: number; monthKey: string } | null = null;
+
+    if (isFree) {
+      // Free gate — one pooled monthly allowance (3 AI reports/calendar month,
+      // Pacific/Auckland) shared across Stox + Koins, not a per-bot cadence.
+      const now = Date.now();
+      const { count: usedThisMonth, monthKey } = await countFreeReportsThisMonth(user._id, now);
+      const freeQuota = evaluateFreeReportQuota(usedThisMonth, now);
+      if (!freeQuota.allowed) {
+        console.log(
+          `[api/reports] Free monthly cap reached for user ${user._id} (${freeQuota.used}/${freeQuota.limit}, month ${monthKey})`
+        );
         return NextResponse.json(
-          { ok: false, error: "duplicate", data: { code: "report_duplicate", duplicate: true } },
-          { status: 200 }
+          {
+            ok: false,
+            error: `You've used all ${freeQuota.limit} free AI reports for this month. Upgrade for more, or wait until next month.`,
+            data: {
+              code: "free_monthly_limit",
+              free: {
+                used: freeQuota.used,
+                limit: freeQuota.limit,
+                remaining: freeQuota.remaining,
+                monthKey: freeQuota.monthKey,
+              },
+            },
+          },
+          { status: 429 }
         );
       }
-      console.log(
-        `[api/reports] Cadence reached for user ${user._id} · ${botLabel} (${quota.cadence.label}) — next at ${quota.nextAllowedAt}`
-      );
-      return NextResponse.json(
-        {
-          ok: false,
-          error: `You've used your ${botLabel} ${quota.cadence.label} allowance. Your next full ${botLabel} report unlocks soon — your other report system is tracked separately.`,
-          data: {
-            code: "report_cadence",
-            nextAllowedAt: quota.nextAllowedAt,
-            waitMs: quota.waitMs,
-            cadence: quota.cadence.label,
+      freeAfterRun = evaluateFreeReportQuota(usedThisMonth + 1, now);
+    } else {
+      // Cadence gate — one report per plan window, PER BOT (independent Stox &
+      // Koins allowances). Authoritative: the client countdown is cosmetic; this is
+      // what actually blocks over-use.
+      const previous = await lastReportAt(user._id, bot);
+      const quota = checkReportQuota(user.subscription_plan, previous);
+      if (!quota.allowed) {
+        const botLabel = bot === "crypto" ? "Koins" : "Stox";
+        if (isRecentReportDuplicate(previous)) {
+          console.log(`[api/reports] Duplicate ${botLabel} follow-up ignored for user ${user._id}`);
+          return NextResponse.json(
+            { ok: false, error: "duplicate", data: { code: "report_duplicate", duplicate: true } },
+            { status: 200 }
+          );
+        }
+        console.log(
+          `[api/reports] Cadence reached for user ${user._id} · ${botLabel} (${quota.cadence.label}) — next at ${quota.nextAllowedAt}`
+        );
+        return NextResponse.json(
+          {
+            ok: false,
+            error: `You've used your ${botLabel} ${quota.cadence.label} allowance. Your next full ${botLabel} report unlocks soon — your other report system is tracked separately.`,
+            data: {
+              code: "report_cadence",
+              nextAllowedAt: quota.nextAllowedAt,
+              waitMs: quota.waitMs,
+              cadence: quota.cadence.label,
+            },
           },
-        },
-        { status: 429 }
-      );
+          { status: 429 }
+        );
+      }
     }
 
     const out = await coalesceReport(user._id, bot, () => generateReportForUser(user, bot, "manual"));
     console.log(`[api/reports] Manual report delivered for user ${user._id} (${bot})`);
 
-    // The report was just generated "now", so the next unlock is now + cadence.
-    const next = checkReportQuota(user.subscription_plan, new Date().toISOString());
+    // The report was just generated "now". Free: echo the pooled monthly
+    // remaining count. Paid/legacy weekly: echo the next cadence unlock.
+    const next = isFree ? null : checkReportQuota(user.subscription_plan, new Date().toISOString());
 
     return privateJson({
       ok: true,
@@ -137,12 +212,14 @@ export async function POST(req: Request) {
         aiEnhanced: out.aiEnhanced,
         monitored: out.monitored,
         generatedAtLabel: out.generatedAtLabel,
-        // Echo the next unlock so the UI can immediately start the countdown.
-        nextAllowedAt: next.nextAllowedAt,
-        cadenceLabel: next.cadence.label,
-        cadenceMs: next.cadence.ms,
-        perLabel: next.cadence.perLabel,
-        cadenceUnit: next.cadence.unit,
+        // Echo the next unlock so the UI can immediately start the countdown (paid/legacy weekly only).
+        nextAllowedAt: next?.nextAllowedAt ?? null,
+        cadenceLabel: next?.cadence.label,
+        cadenceMs: next?.cadence.ms,
+        perLabel: next?.cadence.perLabel,
+        cadenceUnit: next?.cadence.unit,
+        // Free tier's pooled monthly allowance, echoed so the UI can show "N of 3" immediately.
+        free: freeAfterRun,
       },
     });
   } catch (err: any) {
@@ -167,13 +244,16 @@ export async function GET(req: Request) {
       return accountMismatchResponse(user._id);
     }
 
-    const [res, book] = await Promise.all([
+    const isFree = isFreeReportPlan(user.subscription_plan);
+
+    const [res, book, freeCount] = await Promise.all([
       totalumSdk.crud.query("report", {
         _filter: { user: user._id },
         _sort: { createdAt: "desc" },
         _limit: 50,
       }),
       loadStockRowsForAccount(user._id),
+      isFree ? countFreeReportsThisMonth(user._id, Date.now()) : Promise.resolve(null),
     ]);
     const rows = (res?.data as any[]) || [];
     // A failed holdings load must not be treated as an empty book — leave the
@@ -245,10 +325,21 @@ export async function GET(req: Request) {
     const stockQuota = buildQuota("stock");
     const cryptoQuota = buildQuota("crypto");
 
+    // Free tier's pooled monthly allowance (3 AI reports/calendar month across
+    // Stox + Koins) — only meaningful when isFree; null for paid/legacy weekly.
+    const freeQuota = freeCount
+      ? (() => {
+          const q = evaluateFreeReportQuota(freeCount.count, Date.now());
+          return { used: q.used, limit: q.limit, remaining: q.remaining, monthKey: freeCount.monthKey };
+        })()
+      : null;
+
     console.log(
       `[api/reports] GET returned ${reports.length} reports for user ${user._id} ` +
         `(bookLoaded=${book.bookLoaded}, holdings=${liveRows.length}, ` +
-        `Stox allowed=${stockQuota.allowed}, Koins allowed=${cryptoQuota.allowed})`
+        `Stox allowed=${stockQuota.allowed}, Koins allowed=${cryptoQuota.allowed}` +
+        (freeQuota ? `, free ${freeQuota.used}/${freeQuota.limit}` : "") +
+        ")"
     );
     return privateJson({
       ok: true,
@@ -256,8 +347,10 @@ export async function GET(req: Request) {
       data: {
         reports,
         bookLoaded: book.bookLoaded,
-        // Per report-system allowance (Stox + Koins tracked independently).
+        // Per report-system allowance (Stox + Koins tracked independently) — paid/legacy weekly.
         quota: { stock: stockQuota, crypto: cryptoQuota },
+        // Free tier's pooled monthly allowance (null unless isFree).
+        free: freeQuota,
       },
     });
   } catch (err: any) {

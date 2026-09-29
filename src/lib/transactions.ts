@@ -436,10 +436,10 @@ async function applyTransactionUnlocked(user: AppUser, input: TransactionInput):
       console.log(`[transactions] BUY opened new position ${ticker} (${quantity} @ ${price} ${currency})`);
     }
 
-      if (costNZD > currentCash + 1e-6) {
-          throw new Error(`Insufficient cash: need ${costNZD.toFixed(2)} NZD, available ${currentCash.toFixed(2)} NZD`);
-            }
-              const newCash = round(currentCash - costNZD);}
+    if (costNZD > currentCash + 1e-6) {
+      throw new Error(`Insufficient cash: need ${costNZD.toFixed(2)} NZD, available ${currentCash.toFixed(2)} NZD`);
+    }
+    const newCash = round(currentCash - costNZD);
     const createdNew = !holding;
     const previousShares = round(holding?.shares || 0, 6);
     const previousAvg = round(holding?.purchase_price || 0, 6);
