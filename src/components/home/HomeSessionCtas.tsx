@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { useSession } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
+import { useMemberDashboardPrompt } from "@/components/dashboard/MemberDashboardPrompt";
 
 function CtaSkeleton({ className }: { className?: string }) {
   return <div className={`h-12 animate-pulse rounded-md bg-muted/50 ${className ?? "w-36"}`} />;
@@ -12,6 +13,7 @@ function CtaSkeleton({ className }: { className?: string }) {
 /** Hero actions. Logged-in visitors do not see "Start free". */
 export function HomeHeroCtas() {
   const { data: session, isPending } = useSession();
+  const memberDashboard = useMemberDashboardPrompt();
   const loggedIn = !!session?.user;
 
   if (isPending) {
@@ -42,8 +44,11 @@ export function HomeHeroCtas() {
             : "h-12 px-7 text-base border-white/40 bg-white/10 text-white hover:bg-white/20 hover:text-white"
         }
       >
-        <Link href="/dashboard">Open Dashboard</Link>
+        <Link href="/dashboard" onClick={memberDashboard.onDashboardClick}>
+          Open Dashboard
+        </Link>
       </Button>
+      {memberDashboard.dialog}
     </div>
   );
 }
@@ -51,6 +56,7 @@ export function HomeHeroCtas() {
 /** Bottom "Ready to take care of your Portfolio?" action. */
 export function HomeBottomCta() {
   const { data: session, isPending } = useSession();
+  const memberDashboard = useMemberDashboardPrompt();
   const loggedIn = !!session?.user;
 
   if (isPending) {
@@ -59,12 +65,15 @@ export function HomeBottomCta() {
 
   if (loggedIn) {
     return (
-      <Button asChild className="mt-8 h-12 px-8 text-base shadow-glow">
-        <Link href="/dashboard">
-          Go to your Dashboard
-          <ArrowRight className="size-4" />
-        </Link>
-      </Button>
+      <>
+        <Button asChild className="mt-8 h-12 px-8 text-base shadow-glow">
+          <Link href="/dashboard" onClick={memberDashboard.onDashboardClick}>
+            Go to your Dashboard
+            <ArrowRight className="size-4" />
+          </Link>
+        </Button>
+        {memberDashboard.dialog}
+      </>
     );
   }
 

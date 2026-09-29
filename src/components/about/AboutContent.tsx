@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -10,14 +10,13 @@ import {
   HeartHandshake,
   Mail,
   Phone,
-  Menu,
-  X,
   Sparkles,
   Send,
   CheckCircle2,
   Quote,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { SiteHeader } from "@/components/SiteHeader";
 import { LOGO_MARK_IMG, ABOUT_HERO_IMG, FOUNDER_PORTRAIT_IMG } from "../../../assets/files";
 
 /* ---- Official brand marks (lucide dropped brand icons) ---- */
@@ -71,13 +70,6 @@ const SOCIAL_LINKS = [
 /*  Brand palette (self-contained light theme for this marketing page)        */
 /*  navy #0F172A · emerald #059669 · off-white #F8FAFC · bronze/gold #B0894F  */
 /* -------------------------------------------------------------------------- */
-
-const NAV_LINKS: { label: string; href: string; anchor?: boolean }[] = [
-  { label: "Home", href: "/" },
-  { label: "About", href: "#top", anchor: true },
-  { label: "How It Works", href: "/how-it-works" },
-  { label: "Contact", href: "#contact", anchor: true },
-];
 
 const STORY: { text: string; pull?: boolean }[] = [
   {
@@ -309,16 +301,6 @@ function ContactForm() {
 /* -------------------------------------------------------------------------- */
 
 export function AboutContent() {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 12);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
   function scrollToId(id: string) {
     const el = document.getElementById(id);
     if (!el) {
@@ -332,128 +314,13 @@ export function AboutContent() {
   function handleNav(e: React.MouseEvent, href: string, anchor?: boolean) {
     if (anchor) {
       e.preventDefault();
-      setMenuOpen(false);
       scrollToId(href.replace("#", ""));
     }
   }
 
   return (
     <div id="top" className="min-h-screen scroll-smooth bg-[#F8FAFC] font-sans text-[#0F172A]">
-      {/* ─────────────────────────  NAV  ───────────────────────── */}
-      <header
-        className={[
-          "fixed inset-x-0 top-0 z-50 transition-all duration-300",
-          scrolled
-            ? "border-b border-[#0F172A]/8 bg-white/85 backdrop-blur-xl shadow-sm"
-            : "border-b border-transparent bg-transparent",
-        ].join(" ")}
-      >
-        <div className="mx-auto flex h-[68px] max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <Link href="/" className="flex items-center gap-2.5">
-            <span
-              className={[
-                "grid size-9 place-items-center rounded-xl p-1 ring-1 transition-colors",
-                scrolled ? "bg-[#0F172A] ring-[#0F172A]/10" : "bg-white/15 ring-white/25 backdrop-blur",
-              ].join(" ")}
-            >
-              <img src={LOGO_MARK_IMG} alt="AetherForge AI" className="h-full w-full object-contain" />
-            </span>
-            <span
-              className={[
-                "font-display text-[1.05rem] font-bold tracking-tight transition-colors",
-                scrolled ? "text-[#0F172A]" : "text-white",
-              ].join(" ")}
-            >
-              AetherForge<span className="text-[#059669]"> AI</span>
-            </span>
-          </Link>
-
-          <nav className="hidden items-center gap-8 md:flex">
-            {NAV_LINKS.map((l) =>
-              l.anchor ? (
-                <a
-                  key={l.label}
-                  href={l.href}
-                  onClick={(e) => handleNav(e, l.href, true)}
-                  className={[
-                    "text-sm font-medium transition-colors",
-                    scrolled ? "text-[#475569] hover:text-[#059669]" : "text-white/85 hover:text-white",
-                  ].join(" ")}
-                >
-                  {l.label}
-                </a>
-              ) : (
-                <Link
-                  key={l.label}
-                  href={l.href}
-                  className={[
-                    "text-sm font-medium transition-colors",
-                    scrolled ? "text-[#475569] hover:text-[#059669]" : "text-white/85 hover:text-white",
-                  ].join(" ")}
-                >
-                  {l.label}
-                </Link>
-              )
-            )}
-          </nav>
-
-          <div className="flex items-center gap-2">
-            <Link
-              href="/register"
-              className="hidden items-center gap-1.5 rounded-full bg-[#059669] px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-[#059669]/25 transition-all hover:bg-[#047857] hover:shadow-xl hover:shadow-[#059669]/30 sm:inline-flex"
-            >
-              Try the AI <ArrowRight className="size-4" />
-            </Link>
-            <button
-              type="button"
-              aria-label="Toggle menu"
-              onClick={() => setMenuOpen((v) => !v)}
-              className={[
-                "grid size-10 place-items-center rounded-lg transition-colors md:hidden",
-                scrolled ? "text-[#0F172A] hover:bg-[#0F172A]/5" : "text-white hover:bg-white/10",
-              ].join(" ")}
-            >
-              {menuOpen ? <X className="size-6" /> : <Menu className="size-6" />}
-            </button>
-          </div>
-        </div>
-
-        {/* Mobile menu */}
-        {menuOpen && (
-          <div className="border-t border-[#0F172A]/8 bg-white px-4 py-4 shadow-lg md:hidden">
-            <nav className="flex flex-col gap-1">
-              {NAV_LINKS.map((l) =>
-                l.anchor ? (
-                  <a
-                    key={l.label}
-                    href={l.href}
-                    onClick={(e) => handleNav(e, l.href, true)}
-                    className="rounded-lg px-3 py-2.5 text-[15px] font-medium text-[#334155] transition-colors hover:bg-[#F8FAFC] hover:text-[#059669]"
-                  >
-                    {l.label}
-                  </a>
-                ) : (
-                  <Link
-                    key={l.label}
-                    href={l.href}
-                    onClick={() => setMenuOpen(false)}
-                    className="rounded-lg px-3 py-2.5 text-[15px] font-medium text-[#334155] transition-colors hover:bg-[#F8FAFC] hover:text-[#059669]"
-                  >
-                    {l.label}
-                  </Link>
-                )
-              )}
-              <Link
-                href="/register"
-                onClick={() => setMenuOpen(false)}
-                className="mt-2 inline-flex items-center justify-center gap-1.5 rounded-full bg-[#059669] px-5 py-3 text-sm font-semibold text-white"
-              >
-                Try the AI <ArrowRight className="size-4" />
-              </Link>
-            </nav>
-          </div>
-        )}
-      </header>
+      <SiteHeader />
 
       {/* ─────────────────────────  HERO  ───────────────────────── */}
       <section className="relative isolate overflow-hidden">
@@ -487,7 +354,7 @@ export function AboutContent() {
           }}
         />
 
-        <div className="mx-auto flex min-h-[92vh] max-w-7xl flex-col justify-center px-4 pb-20 pt-32 sm:px-6 lg:px-8">
+        <div className="mx-auto flex min-h-[78vh] max-w-7xl flex-col justify-center px-4 pb-20 pt-16 sm:px-6 lg:px-8">
           <Reveal>
             <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-1.5 text-xs font-semibold tracking-wide text-white backdrop-blur">
               <span className="size-1.5 rounded-full bg-[#059669] shadow-[0_0_10px_2px_rgba(5,150,105,0.7)]" />
