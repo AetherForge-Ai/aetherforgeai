@@ -134,6 +134,7 @@ export type DashboardView =
   | "crypto"
   | "metals"
   | "transactions"
+  | "alerts"
   | "bots"
   | "nzsx"
   | "asx"
@@ -1132,6 +1133,7 @@ export function PortfolioDashboard({
   const isCrypto = view === "crypto";
   const isMetals = view === "metals";
   const isTransactions = view === "transactions";
+  const isAlerts = view === "alerts";
   const allocationSummary = isMetals ? metalsAllocationSummary : summary;
   const allocationLabel = hubAllocationLabel(view, bot);
   const allocationCurrency = isMetals ? "NZD" : baseCurrency;
@@ -1170,7 +1172,9 @@ export function PortfolioDashboard({
             ? "Precious Metals Overview"
             : view === "transactions"
               ? "Transaction Ledger"
-              : isMarket
+              : view === "alerts"
+                ? "Price Alerts"
+                : isMarket
                 ? marketTitle
                 : "Welcome to your Dashboard";
 
@@ -1645,7 +1649,7 @@ export function PortfolioDashboard({
       </div>
 
       {/* ───────────────────────── 4 · Totals owned (Stocks · Crypto · Cash · Metals) ───────────────────────── */}
-      <div className={cn("mt-8 rounded-3xl border border-border/70 bg-gradient-to-br from-primary/8 to-card/50 p-6", (isHome || isMarket || isTransactions) && "hidden")}>
+      <div className={cn("mt-8 rounded-3xl border border-border/70 bg-gradient-to-br from-primary/8 to-card/50 p-6", (isHome || isMarket || isTransactions || isAlerts) && "hidden")}>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold">
@@ -1992,6 +1996,52 @@ export function PortfolioDashboard({
           />
         </DashboardGate>
       </div>
+
+      {/* /alerts and /notifications land here. Price alerts are the in-app notifications. */}
+      {isAlerts && (
+        <div id="dash-alerts" className="mt-8 space-y-6">
+          <p className="max-w-2xl text-sm text-muted-foreground">
+            Share, crypto, and metals price alerts are the notifications for this paper book. A triggered
+            alert shows in the matching list.
+          </p>
+          <DashboardGate
+            preview={preview}
+            title="Share Price Alerts"
+            description="Set live share-price alerts so you never miss a move on the tickers you hold or follow."
+          >
+            <PriceAlerts
+              stocks={stockOnly}
+              assetType="stock"
+              holdingsReady={!loading}
+              preview={preview}
+            />
+          </DashboardGate>
+          <DashboardGate
+            preview={preview}
+            title="Crypto Price Alerts"
+            description="Set live crypto price alerts so you never miss a move on the coins you hold or follow."
+          >
+            <PriceAlerts
+              stocks={cryptoMarked}
+              assetType="crypto"
+              holdingsReady={!loading}
+              preview={preview}
+            />
+          </DashboardGate>
+          <DashboardGate
+            preview={preview}
+            title="Metals Price Alerts"
+            description="Set alerts on gold and silver so you never miss a move on your bullion."
+          >
+            <PriceAlerts
+              stocks={metalAlertHoldings}
+              assetType="metal"
+              holdingsReady={!loading && metalsLoaded}
+              preview={preview}
+            />
+          </DashboardGate>
+        </div>
+      )}
 
 
       {/* ───────────────────────── 6 · Transaction centre (buy / sell / cash) — gated for guests ───────────────────────── */}

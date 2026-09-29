@@ -16,10 +16,14 @@ import { Loader2, DollarSign, TrendingUp, ShoppingCart, Wallet, AlertTriangle } 
 import { api } from "@/lib/api";
 import {
   acceptAccountPayload,
+  bindActiveAccount,
   getAccountEpoch,
+  getActiveAccountUserId,
   responseUserId,
   trackAccountRequest,
 } from "@/lib/account-identity";
+import { confirmPageSession } from "@/lib/auth-refresh";
+import { buyCashUiFromResponse, buyReviewAllowed, planBuyCashFetch } from "@/lib/buy-cash-identity";
 import { checkFillSanity, ADVISORY_NOTE } from "@/lib/fill-integrity-client";
 import { formatMoney, currencyForTicker, nativeToNzd, type CurrencyCode } from "@/lib/currency";
 import { formatNumber } from "@/lib/portfolio";
@@ -91,6 +95,8 @@ export function BuyDialog({
   // Cash balance (NZD) — loaded every time the dialog opens.
   const [cashBalance, setCashBalance] = useState<number | null>(null);
   const [cashLoading, setCashLoading] = useState(false);
+  const [cashError, setCashError] = useState<string | null>(null);
+  const cashReady = buyReviewAllowed({ loading: cashLoading, balance: cashBalance, error: cashError });
 
   // Reset + prefill only when the dialog opens or the ticker changes —
   // never when the parent re-creates the target object on a ledger refresh
@@ -121,60 +127,106 @@ export function BuyDialog({
     setFees("");
   }, [open, target, disarmReview]);
 
-  // Load cash balance when the dialog opens. Apply only if the echoed userId
-  // is still the active account — a late prior-account body must not replace it.
+  // Load cash balance when the dialog opens. Identity is bound before the
+  // request so a logged-in balance is not discarded as a null-user race.
+  // Apply only if the echoed userId is still the active account.
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
-    const tracked = trackAccountRequest();
+    let release: (() => void) | undefined;
+    setCashLoading(true);
+    setCashError(null);
+    setCashBalance(null);
     (async () => {
-      setCashLoading(true);
+      const settle = (ui: { loading: boolean; balance: number | null; error: string | null }) => {
+        if (cancelled) return;
+        setCashLoading(ui.loading);
+        setCashBalance(ui.balance);
+        setCashError(ui.error);
+      };
+      let active = getActiveAccountUserId();
+      let liveId: string | null = active;
+      if (!active) {
+        const live = await confirmPageSession();
+        if (cancelled) return;
+        active = getActiveAccountUserId();
+        liveId = live?.id ?? null;
+      }
+      const plan = planBuyCashFetch(active, liveId);
+      if (plan.action === "refuse") {
+        settle({ loading: false, balance: null, error: plan.error });
+        return;
+      }
+      if (plan.bind) bindActiveAccount(plan.userId);
+      if (cancelled) return;
+      if (getActiveAccountUserId() !== plan.userId) {
+        settle({
+          loading: false,
+          balance: null,
+          error: "This session does not match the account on screen.",
+        });
+        return;
+      }
+      const tracked = trackAccountRequest();
+      release = tracked.release;
       const res = await api.get<{ cashBalance: number; userId?: string; transactions?: { user?: string }[] }>(
         "/api/transactions",
         { signal: tracked.signal }
       );
-      if (cancelled || res.aborted || tracked.epoch !== getAccountEpoch()) return;
-      setCashLoading(false);
+      if (cancelled) return;
+      if (res.aborted || tracked.epoch !== getAccountEpoch()) {
+        settle({
+          loading: false,
+          balance: null,
+          error: "Available cash is for a different account. Close and reopen Buy.",
+        });
+        return;
+      }
       const echoed = responseUserId(res);
-      if (
-        !acceptAccountPayload({
-          epoch: tracked.epoch,
-          requestUserId: tracked.userId,
-          responseUserId: echoed,
-          rows: res.data?.transactions,
-        })
-      ) {
+      const accepted = acceptAccountPayload({
+        epoch: tracked.epoch,
+        requestUserId: tracked.userId,
+        responseUserId: echoed,
+        rows: res.data?.transactions,
+      });
+      if (!accepted) {
         console.error("[buy-dialog] Discarding cash for other/stale user", {
           requestUserId: tracked.userId,
           responseUserId: echoed,
         });
+      }
+      const ui = buyCashUiFromResponse({
+        accepted,
+        ok: res.ok,
+        status: res.status,
+        cashBalance: res.data?.cashBalance,
+        error: res.error,
+      });
+      settle(ui);
+      if (ui.balance == null || ui.error) {
+        if (ui.error && accepted) console.error("[buy-dialog] Could not load cash balance:", ui.error);
         return;
       }
-      if (res.ok && res.data && typeof res.data.cashBalance === "number") {
-        const bal = res.data.cashBalance;
-        setCashBalance(bal);
-        console.log(`[buy-dialog] Cash balance: ${bal} NZD (user=${echoed})`);
-        // Prefill from available NZD cash when the desk currency is NZD and the
-        // amount is still blank — never seed a phantom US$1,000 suggestion.
-        setAmount((prev) => {
-          if (prev.trim() !== "") return prev;
-          if (!(bal > 0)) return prev;
-          const deskCcy = ticker ? currencyForTicker(ticker, assetType) : "NZD";
-          if (deskCcy !== "NZD") return prev;
-          return String(+bal.toFixed(2));
-        });
-      } else if (res.status !== 401) {
-        console.error("[buy-dialog] Could not load cash balance:", res.error);
-        setCashBalance(null);
-      } else {
-        setCashBalance(null);
-      }
+      const bal = ui.balance;
+      console.log(`[buy-dialog] Cash balance: ${bal} NZD (user=${echoed})`);
+      // Prefill from available NZD cash when the desk currency is NZD and the
+      // amount is still blank — never seed a phantom US$1,000 suggestion.
+      setAmount((prev) => {
+        if (prev.trim() !== "") return prev;
+        if (!(bal > 0)) return prev;
+        const deskCcy = ticker ? currencyForTicker(ticker, assetType) : "NZD";
+        if (deskCcy !== "NZD") return prev;
+        return String(+bal.toFixed(2));
+      });
     })().catch(() => {
-      if (!cancelled) setCashBalance(null);
+      if (cancelled) return;
+      setCashLoading(false);
+      setCashBalance(null);
+      setCashError("Could not load available cash.");
     });
     return () => {
       cancelled = true;
-      tracked.release();
+      release?.();
     };
   }, [open, ticker, assetType]);
 
@@ -292,6 +344,7 @@ export function BuyDialog({
   }
 
   function beginReview() {
+    if (!cashReady) return toast.error(cashError || "Available cash is still loading.");
     if (!beginReviewGuard() || saving) return;
     if (!ticker) return toast.error("No ticker selected");
     if (!(priceNum > 0)) return toast.error("Enter a valid price per share");
@@ -342,6 +395,7 @@ export function BuyDialog({
       beginReview();
       return;
     }
+    if (!cashReady) return toast.error(cashError || "Available cash is still loading.");
     if (saving) return;
     if (!ticker) return toast.error("No ticker selected");
     if (!(priceNum > 0)) return toast.error("Enter a valid price per share");
@@ -424,15 +478,15 @@ export function BuyDialog({
                 <p className="text-[0.65rem] font-medium uppercase tracking-wide text-muted-foreground">
                   Available cash
                 </p>
-                <p className="tnum font-display text-lg font-bold">
-                  {cashLoading ? (
+                <p className="tnum font-display text-lg font-bold" aria-busy={cashLoading || undefined}>
+                  {cashLoading || (cashBalance == null && !cashError) ? (
                     <span className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
                       <Loader2 className="size-3.5 animate-spin" /> Loading…
                     </span>
                   ) : cashBalance != null ? (
                     formatMoney(cashBalance, "NZD")
                   ) : (
-                    "—"
+                    <span className="text-sm font-medium text-rose-600">{cashError}</span>
                   )}
                 </p>
               </div>
@@ -683,6 +737,7 @@ export function BuyDialog({
             disabled={
               saving ||
               exceedsCash ||
+              !cashReady ||
               (step === "review" ? !confirmReady || !reviewPreview : !valid)
             }
             className={cn("font-semibold shadow-glow")}
