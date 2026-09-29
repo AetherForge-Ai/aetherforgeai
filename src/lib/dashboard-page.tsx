@@ -1,68 +1,22 @@
-import {
-  getCurrentUser,
-  isStripeConfigured,
-  hasPaidSubscription,
-} from "@/lib/session";
+import { cookies } from "next/headers";
 import { AppShell } from "@/components/AppShell";
-import { GuestDashboardGate } from "@/components/dashboard/GuestDashboardGate";
-import {
-  PortfolioDashboard,
-  type DashboardView,
-} from "@/components/dashboard/PortfolioDashboard";
-import { resolveDisplayName, resolveGreetingName } from "@/lib/user-display";
-import {
-  AccountOwnerGuard,
-  DashboardSessionRecovery,
-} from "@/components/dashboard/AccountOwnerGuard";
+import { DashboardSessionShell } from "@/components/dashboard/DashboardSessionShell";
+import type { DashboardView } from "@/components/dashboard/PortfolioDashboard";
+import { requestHasSessionToken } from "@/lib/session-owner";
 
-// Greeting: saved settings name first. A bare placeholder ("Test") is skipped;
-// a distinctive settings name ("Test UserAF") is kept ahead of the email local-part.
-// Page reads skip cookie refresh and the session_data cache so a shared
-// browser cannot paint the other paper book during metals/transactions nav.
-
+/**
+ * Dashboard HTML never includes a member book.
+ * A request with no session cookie renders the signed-out gate.
+ * A request that has a cookie still waits for GET /api/session in the
+ * browser before any name, cash, or holding is painted — so a shared
+ * document cache cannot show another account.
+ */
 export async function renderDashboardView(view: DashboardView) {
-  const user = await getCurrentUser({ refreshSession: false, disableCookieCache: true });
-
-  if (!user) {
-    return (
-      <AppShell guest user={{ name: "Guest", email: "Sign in to activate your account" }}>
-        <DashboardSessionRecovery>
-          <GuestDashboardGate />
-        </DashboardSessionRecovery>
-      </AppShell>
-    );
-  }
-
-  // Free members and testers keep Dashboard + Transactions. Headmaster / metals
-  // stay paid-entitled (soft upsell in-console) — never trap them on /pricing.
-  const metalsEntitled = !isStripeConfigured() || hasPaidSubscription(user);
-
+  const jar = await cookies();
+  const signedIn = requestHasSessionToken((name) => jar.get(name)?.value);
   return (
-    <AppShell
-      user={{
-        name: resolveDisplayName(user),
-        email: user.email,
-        image: user.image,
-        subscription_status: user.subscription_status,
-        subscription_plan: user.subscription_plan,
-      }}
-    >
-      <AccountOwnerGuard key={user.id} userId={user.id}>
-        <PortfolioDashboard
-          view={view}
-          userId={user.id}
-          userName={resolveGreetingName(user)}
-          subscription={{
-            status: user.subscription_status,
-            plan: user.subscription_plan,
-            startedAt: user.subscription_started_at,
-            expiresAt: user.subscription_expires_at,
-            tickerLimit: user.ticker_limit,
-            botAccess: user.bot_access ?? "none",
-          }}
-          metalsEntitled={metalsEntitled}
-        />
-      </AccountOwnerGuard>
+    <AppShell guest={!signedIn}>
+      <DashboardSessionShell view={view} initialSignedOut={!signedIn} />
     </AppShell>
   );
 }

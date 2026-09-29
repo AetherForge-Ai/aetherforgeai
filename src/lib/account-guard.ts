@@ -6,7 +6,11 @@
  */
 
 export const PRIVATE_NO_STORE_HEADERS: Record<string, string> = {
-  "Cache-Control": "no-store, no-cache, must-revalidate, private",
+  "Cache-Control": "private, no-store, no-cache, must-revalidate",
+  "CDN-Cache-Control": "no-store",
+  "Cloudflare-CDN-Cache-Control": "no-store",
+  Pragma: "no-cache",
+  Expires: "0",
   Vary: "Cookie",
 };
 
