@@ -3,6 +3,8 @@
  * Pure — safe in the report generator, the reports API, and unit tests.
  */
 
+import { sanitizeGuardedCashText, sanitizeGuardedReport } from "@/lib/report-consistency";
+
 export interface LiveBookPosition {
   ticker: string;
   shares?: number;
@@ -118,14 +120,23 @@ export function reconcileNarrativeForAccount(
   rows: AccountHoldingRow[],
   bot: "stock" | "crypto"
 ): string {
-  return reconcileNarrativeWithLiveBook(text, liveBookForAccount(rows, accountId, bot));
+  return reconcileNarrativeWithLiveBook(text, liveBookForAccount(rows, accountId, bot), bot);
 }
 
 /**
  * Rewrite stored or model narrative that denies a book the account actually holds.
- * Text that already names a live ticker and does not claim an empty book is unchanged.
+ * Text that already names a live ticker and does not claim an empty book is unchanged,
+ * then any Neutral / low / Speculative full-cash deploy line is removed.
  */
-export function reconcileNarrativeWithLiveBook(text: string, holdings: LiveBookPosition[]): string {
+export function reconcileNarrativeWithLiveBook(
+  text: string,
+  holdings: LiveBookPosition[],
+  bot: "stock" | "crypto" = "stock"
+): string {
+  return sanitizeGuardedCashText(alignNarrativeToBook(text, holdings), bot);
+}
+
+function alignNarrativeToBook(text: string, holdings: LiveBookPosition[]): string {
   if (!holdings.length || !text) return text;
   const named = mentionsHeldTicker(text, holdings);
   if (!deniesLiveBook(text, holdings) && named) return text;
@@ -158,17 +169,25 @@ export function groundReportNarrative(
 }
 
 interface StoredReportShape {
+  bot?: string;
   executiveSummary?: string;
   keyObservations?: string[];
   pathwayPlan?: { recommendationNote?: string } | null;
+  briefing?: {
+    executiveSummary?: string;
+    keyObservations?: string[];
+    overall?: { bias?: string; level?: string; score?: number };
+  } | null;
+  directRecommendations?: Array<{ detail?: string }>;
 }
 
-/** Patch a persisted Apex report so history cannot keep describing an empty book. */
+/** Patch a persisted Apex report so history cannot keep describing an empty book or a full-cash deploy. */
 export function reconcileStoredReport<T extends StoredReportShape>(report: T, holdings: LiveBookPosition[]): T {
-  if (!holdings.length) return report;
+  const bot = report.bot === "crypto" ? "crypto" : "stock";
+  if (!holdings.length) return sanitizeGuardedReport(report);
   const next: T = { ...report };
   if (typeof next.executiveSummary === "string") {
-    next.executiveSummary = reconcileNarrativeWithLiveBook(next.executiveSummary, holdings);
+    next.executiveSummary = reconcileNarrativeWithLiveBook(next.executiveSummary, holdings, bot);
   }
   if (Array.isArray(next.keyObservations)) {
     let observations = next.keyObservations.map((line) =>
@@ -187,5 +206,5 @@ export function reconcileStoredReport<T extends StoredReportShape>(report: T, ho
       recommendationNote: `Live book holds ${liveBookRoster(holdings)}. ${cleaned}`.trim(),
     };
   }
-  return next;
+  return sanitizeGuardedReport(next);
 }

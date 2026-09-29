@@ -257,6 +257,23 @@ const FULL_CASH =
   /deploy(?:ing)? the full|full cash|entire cash|whole (?:cash )?balance|all (?:of )?(?:the |your )?(?:available )?cash|100% of (?:the )?cash/i;
 
 /**
+ * "ACCUMULATE the NZ$12,696 cash" / "deploy NZ$12,696 cash to BUY" — the live
+ * failure mode. The model names the balance instead of saying "full cash".
+ */
+const CASH_PILE =
+  /\b(?:accumulate|accumulating|buy|buying|deploy(?:ing)?|commit(?:ting)?|allocate|allocating)\b[^.]{0,120}\b(?:nz\$|us\$|aud\$|\$)\s*[\d,]{3,}(?:\.\d+)?\s*cash\b/i;
+
+const CASH_PILE_INTO =
+  /\b(?:nz\$|us\$|aud\$|\$)\s*[\d,]{3,}(?:\.\d+)?\s*cash\b[^.]{0,80}\b(?:into|to\b|buy|accumulate)/i;
+
+/** Buy/accumulate language tied to speculative conviction in the same sentence. */
+const SPECULATIVE_BUY =
+  /\b(?:accumulate|buy|add)\b[^.]{0,400}\bspeculative\b|\bspeculative\b[^.]{0,160}\b(?:accumulate|buy|add)\b/i;
+
+const STARTER_SIZED =
+  /starter (?:size|tranche)|measured starter|cash buffer|75% kept in reserve|do not deploy the full|this tape does not support new risk/i;
+
+/**
  * True when a model narrative disagrees with the canonical ratings or tells a
  * guarded tape to deploy the whole cash balance.
  */
@@ -282,16 +299,174 @@ export function narrativeContradictsCanonical(
       if (positive !== positiveCount.positive || total !== positiveCount.total) return true;
     }
   }
-  if (guard.mode !== "full" && urgesFullDeployment(text)) return true;
+  if (guard.mode !== "full" && violatesCashGuard(text)) return true;
   return false;
+}
+
+function stripGuardNegations(text: string): string {
+  return text
+    .replace(/do not deploy the full[^.]*/gi, "")
+    .replace(/don't deploy the full[^.]*/gi, "")
+    .replace(/do not commit the entire[^.]*/gi, "")
+    .replace(/not deploy the full[^.]*/gi, "")
+    .replace(/do not (?:buy|accumulate|add|recommend|deploy)[^.]*/gi, "")
+    .replace(/without speculative conviction[^.]*/gi, "");
 }
 
 /** True when copy tells the reader to put the whole cash balance to work. Negated guardrail sentences do not count. */
 export function urgesFullDeployment(text: string): boolean {
-  const stripped = text
-    .replace(/do not deploy the full[^.]*/gi, "")
-    .replace(/don't deploy the full[^.]*/gi, "")
-    .replace(/do not commit the entire[^.]*/gi, "")
-    .replace(/not deploy the full[^.]*/gi, "");
-  return FULL_CASH.test(stripped);
+  const stripped = stripGuardNegations(text);
+  if (FULL_CASH.test(stripped)) return true;
+  if (STARTER_SIZED.test(stripped) && !CASH_PILE.test(stripped) && !CASH_PILE_INTO.test(stripped)) return false;
+  return CASH_PILE.test(stripped) || CASH_PILE_INTO.test(stripped);
+}
+
+/**
+ * True when a sentence tells a reader to buy or accumulate on speculative
+ * conviction. The regime word alone ("Speculative 54/100") does not count.
+ */
+function softenTickerDots(text: string): string {
+  return text.replace(/\.(AX|NZ|NZX|ASX|L|TO|HK)\b/gi, "").replace(/(\d)\.(\d)/g, "$1$2");
+}
+
+export function urgesSpeculativeBuy(text: string): boolean {
+  return SPECULATIVE_BUY.test(softenTickerDots(stripGuardNegations(text)));
+}
+
+/** Cash-guard violations a Neutral / low / Speculative tape must not ship. */
+export function violatesCashGuard(text: string): boolean {
+  return urgesFullDeployment(text) || urgesSpeculativeBuy(text);
+}
+
+/** Largest cash balance named next to the word "cash", e.g. NZ$12,696 cash. */
+export function cashBalanceMentioned(text: string): number {
+  const patterns = [
+    /(?:nz\$|us\$|aud\$|\$)\s*([\d,]+(?:\.\d+)?)\s*cash/gi,
+    /cash\s*(?:balance\s*)?(?:of\s*)?(?:nz\$|us\$|aud\$|\$)\s*([\d,]+(?:\.\d+)?)/gi,
+  ];
+  let best = 0;
+  for (const re of patterns) {
+    let match: RegExpExecArray | null;
+    while ((match = re.exec(text))) {
+      const amount = Number(match[1].replace(/,/g, ""));
+      if (amount > best) best = amount;
+    }
+  }
+  return best;
+}
+
+/** Tape implied by prose when a stored report has no structured overall read. */
+export function textImpliesGuardedTape(text: string): TapeRead | null {
+  if (!text) return null;
+  const scoreMatch = text.match(/(\d{1,3})\s*\/\s*100/);
+  const score = scoreMatch ? Number(scoreMatch[1]) : 50;
+  const speculative = /\bspeculative\b/i.test(text) && !/\b(?:not|without|non-) ?speculative\b/i.test(text);
+  const low = /low conviction/i.test(text);
+  const neutral = /\bneutral\b/i.test(text);
+  const defensive = /\bdefensive\b/i.test(text) && !/\bnot defensive\b/i.test(text);
+  if (!speculative && !low && !(neutral && score < 58) && !defensive) return null;
+  const bias: TapeRead["bias"] = defensive && !neutral ? "Defensive" : neutral || speculative || low ? "Neutral" : "Defensive";
+  const level: TapeRead["level"] = speculative ? "Speculative" : low ? "Low" : defensive ? "Moderate" : "Low";
+  return { bias, level, score, averageConfidence: 0 };
+}
+
+function stricterTape(structured: TapeRead | null, implied: TapeRead | null): TapeRead | null {
+  if (!structured) return implied;
+  if (!implied) return structured;
+  const rank = { defensive: 0, starter: 1, full: 2 } as const;
+  const structuredMode = deploymentGuard("stock", structured, 0).mode;
+  const impliedMode = deploymentGuard("stock", implied, 0).mode;
+  return rank[impliedMode] < rank[structuredMode] ? implied : structured;
+}
+
+function tapeFromOverall(overall?: { bias?: string; level?: string; score?: number } | null): TapeRead | null {
+  if (!overall) return null;
+  const bias = overall.bias === "Constructive" || overall.bias === "Defensive" || overall.bias === "Neutral" ? overall.bias : null;
+  const level =
+    overall.level === "High" || overall.level === "Moderate" || overall.level === "Low" || overall.level === "Speculative"
+      ? overall.level
+      : null;
+  if (!bias || !level || typeof overall.score !== "number" || !isFinite(overall.score)) return null;
+  return { bias, level, score: overall.score, averageConfidence: 0 };
+}
+
+function splitSentences(text: string): string[] {
+  return text
+    .split(/(?<=[.!?])\s+(?=\*{0,2}[A-Z])/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Drop sentences that deploy the cash pile or buy on speculative conviction,
+ * and append the starter/defensive headline so the cap stays visible.
+ */
+export function sanitizeGuardedCashLanguage(text: string, guard: DeploymentGuard): string {
+  if (!text || guard.mode === "full" || !violatesCashGuard(text)) return text;
+  const kept = splitSentences(text).filter((part) => !violatesCashGuard(part));
+  let body = kept.join(" ").replace(/[ \t]+\n/g, "\n").replace(/[ \t]{2,}/g, " ").trim();
+  const headline = guard.headline.trim();
+  const alreadyGuarded = /do not deploy the full cash balance|this tape does not support new risk|leave the nz\$/i.test(body);
+  if (headline && !alreadyGuarded) body = body ? `${body} ${headline}` : headline;
+  return body;
+}
+
+export function sanitizeGuardedCashText(text: string, bot: "stock" | "crypto" = "stock"): string {
+  if (!text || !violatesCashGuard(text)) return text;
+  const tape = textImpliesGuardedTape(text);
+  if (!tape) return text;
+  const guard = deploymentGuard(bot, tape, cashBalanceMentioned(text));
+  if (guard.mode === "full") return text;
+  return sanitizeGuardedCashLanguage(text, guard);
+}
+
+export interface GuardedReportFields {
+  bot?: string;
+  executiveSummary?: string;
+  keyObservations?: string[];
+  pathwayPlan?: { recommendationNote?: string } | null;
+  briefing?: {
+    executiveSummary?: string;
+    keyObservations?: string[];
+    overall?: { bias?: string; level?: string; score?: number };
+  } | null;
+  directRecommendations?: Array<{ detail?: string }>;
+}
+
+/**
+ * Display-time pass for a stored Apex report. Structured tape wins; otherwise
+ * the summary's own Neutral / low / Speculative wording is used. Constructive
+ * full-mode tapes are left unchanged.
+ */
+export function sanitizeGuardedReport<T extends GuardedReportFields>(report: T): T {
+  const blob = [report.executiveSummary, report.briefing?.executiveSummary, report.pathwayPlan?.recommendationNote]
+    .filter((part): part is string => typeof part === "string")
+    .join("\n");
+  const tape = stricterTape(tapeFromOverall(report.briefing?.overall), textImpliesGuardedTape(blob));
+  if (!tape) return report;
+  const bot = report.bot === "crypto" ? "crypto" : "stock";
+  const guard = deploymentGuard(bot, tape, cashBalanceMentioned(blob));
+  if (guard.mode === "full") return report;
+  const clean = (value: string | undefined) => (typeof value === "string" ? sanitizeGuardedCashLanguage(value, guard) : value);
+  const next: T = { ...report };
+  if (typeof next.executiveSummary === "string") next.executiveSummary = clean(next.executiveSummary);
+  if (Array.isArray(next.keyObservations)) next.keyObservations = next.keyObservations.map((line) => sanitizeGuardedCashLanguage(line, guard));
+  if (next.pathwayPlan && typeof next.pathwayPlan.recommendationNote === "string") {
+    next.pathwayPlan = { ...next.pathwayPlan, recommendationNote: sanitizeGuardedCashLanguage(next.pathwayPlan.recommendationNote, guard) };
+  }
+  if (next.briefing) {
+    next.briefing = {
+      ...next.briefing,
+      executiveSummary: clean(next.briefing.executiveSummary) ?? next.briefing.executiveSummary,
+      keyObservations: Array.isArray(next.briefing.keyObservations)
+        ? next.briefing.keyObservations.map((line) => sanitizeGuardedCashLanguage(line, guard))
+        : next.briefing.keyObservations,
+    };
+  }
+  if (Array.isArray(next.directRecommendations)) {
+    next.directRecommendations = next.directRecommendations.map((rec) =>
+      typeof rec.detail === "string" ? { ...rec, detail: sanitizeGuardedCashLanguage(rec.detail, guard) } : rec
+    );
+  }
+  return next;
 }
