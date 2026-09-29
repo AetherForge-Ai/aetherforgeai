@@ -1129,7 +1129,7 @@ export function TransactionDialog({
     } else {
       setTicker("");
       setAssetName("");
-      setFeePresetId("zero");
+      setFeePresetId(defaultFeePresetId("", "stock"));
       setFees("");
     }
     setQuantity("");
@@ -1167,10 +1167,8 @@ export function TransactionDialog({
     setAssetName(h.company_name || h.ticker);
     setPrice(h.current_price ? String(h.current_price) : "");
     setFeePresetId(defaultFeePresetId(h.ticker, h.asset_type));
-    // Pre-fill full quantity for metals — user can reduce it for a partial sale.
-    if (h.asset_type === "metal" || h.metalSourceId) {
-      setQuantity(String(h.shares || 0));
-    }
+    // Prefill the full lot. Sell all stays available; the user can lower qty for a partial.
+    setQuantity(h.shares > 0 ? String(h.shares) : "");
   }
 
   function handleBuyTickerBlur() {
@@ -1221,7 +1219,7 @@ export function TransactionDialog({
       setTicker("");
       setAssetName("");
       setPrice("");
-      setFeePresetId("zero");
+      setFeePresetId(defaultFeePresetId("", "stock"));
       setFees("");
     }
   }
@@ -1274,16 +1272,29 @@ export function TransactionDialog({
     ? currencyForTicker(ticker || "", assetType)
     : NZD;
 
-  // Live estimate of the cash impact so the user sees it before confirming.
-  const estimate = useMemo(() => {
+  // Cash impact in NZD. Buys show the amount required as a positive figure.
+  const tradeEstimate = useMemo(() => {
+    if (!isTrade) return null;
     const q = Number(quantity) || 0;
     const p = Number(price) || 0;
-    const f = Number(fees) || 0;
-    if (mode === "buy") return -(q * p + f);
-    if (mode === "sell") return q * p - f;
+    const sym = (ticker || "").trim().toUpperCase();
+    return buildTradePreview({
+      side: mode === "sell" ? "sell" : "buy",
+      asset: sym || "—",
+      quantity: q,
+      price: p,
+      fee: resolvedTradeFee(q, p, sym),
+      currency,
+      cashNzd: cash,
+      rates: fxRates,
+    });
+  }, [isTrade, mode, quantity, price, fees, feePresetId, ticker, assetType, currency, cash, fxRates]);
+  const estimate = useMemo(() => {
+    if (tradeEstimate) return tradeEstimate.totalNzd;
     if (mode === "deposit") return Number(amount) || 0;
     return -(Number(amount) || 0);
-  }, [mode, quantity, price, fees, amount]);
+  }, [tradeEstimate, mode, amount]);
+  const buyShortCash = mode === "buy" && !!tradeEstimate && tradeEstimate.resultingCashNzd < -1e-6;
 
   function resolvedTradeFee(qty: number, px: number, sym: string): number {
     let feeValue = Number(fees) || 0;
@@ -1316,19 +1327,21 @@ export function TransactionDialog({
       }
     }
     const asset = t || selectedHolding?.ticker || "";
-    setReviewPreview(
-      buildTradePreview({
-        side: mode === "sell" ? "sell" : "buy",
-        asset,
-        assetName: assetName.trim() || selectedHolding?.company_name || asset,
-        quantity: q,
-        price: px,
-        fee: resolvedTradeFee(q, px, asset),
-        currency,
-        cashNzd: cash,
-        rates: fxRates,
-      })
-    );
+    const preview = buildTradePreview({
+      side: mode === "sell" ? "sell" : "buy",
+      asset,
+      assetName: assetName.trim() || selectedHolding?.company_name || asset,
+      quantity: q,
+      price: px,
+      fee: resolvedTradeFee(q, px, asset),
+      currency,
+      cashNzd: cash,
+      rates: fxRates,
+    });
+    if (mode === "buy" && preview.resultingCashNzd < -1e-6) {
+      return toast.error(`Insufficient cash — you have ${formatMoney(cash, "NZD")} available.`);
+    }
+    setReviewPreview(preview);
     armReview();
     setStep("review");
   }
@@ -1351,6 +1364,9 @@ export function TransactionDialog({
         if (q > (selectedHolding.shares || 0) + 1e-6) {
           return toast.error(`You only hold ${formatNumber(selectedHolding.shares || 0)} of ${selectedHolding.ticker}`);
         }
+      }
+      if (mode === "buy" && buyShortCash) {
+        return toast.error(`Insufficient cash — you have ${formatMoney(cash, "NZD")} available.`);
       }
       if (step !== "review" || !claimCommit()) return;
     } else {
@@ -1891,17 +1907,17 @@ export function TransactionDialog({
           {/* Live cash-impact estimate */}
           <div className="flex items-center justify-between rounded-lg border border-border/60 bg-background/40 px-3 py-2.5 text-sm">
             <span className="text-muted-foreground">
-              {mode === "buy" ? "Cash required" : mode === "sell" ? "Cash proceeds" : "Cash impact"}
-              {isTrade && currency !== NZD ? ` (${currency})` : ""}
+              {mode === "buy" ? "Cash required (NZD)" : mode === "sell" ? "Cash proceeds (NZD)" : "Cash impact"}
             </span>
             <span
               className={cn(
                 "tnum font-semibold",
-                estimate >= 0 ? "text-emerald-600" : "text-rose-600"
+                buyShortCash ? "text-rose-600" : estimate >= 0 ? "text-emerald-600" : "text-rose-600"
               )}
             >
-              {estimate >= 0 ? "+" : ""}
-              {formatMoney(estimate, currency)}
+              {mode === "buy"
+                ? formatMoney(Math.abs(estimate), NZD)
+                : `${estimate >= 0 ? "+" : ""}${formatMoney(estimate, NZD)}`}
             </span>
           </div>
         </div>
@@ -1932,7 +1948,7 @@ export function TransactionDialog({
               saving ||
               priceLoading ||
               (step === "review" && isTrade
-                ? !confirmReady || !reviewPreview
+                ? !confirmReady || !reviewPreview || (mode === "buy" && (reviewPreview.resultingCashNzd < -1e-6 || buyShortCash))
                 : isTrade
                   ? !(ticker.trim() || selectedHolding?.metalSourceId) ||
                     !(Number(quantity) > 0) ||

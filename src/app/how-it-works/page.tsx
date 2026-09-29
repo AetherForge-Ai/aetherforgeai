@@ -766,7 +766,8 @@ export default function HowItWorksPage() {
                 <Link href="/pricing" className="hover:text-foreground">Pricing</Link>
                 <Link href="/login" className="hover:text-foreground">Log in</Link>
                 <Link href="/register" className="hover:text-foreground">Sign up</Link>
-                <Link href="/privacy-policy" className="hover:text-foreground">AI Privacy Act</Link>
+                <Link href="/privacy-policy" className="hover:text-foreground">Privacy</Link>
+                <Link href="/terms-of-service" className="hover:text-foreground">Terms</Link>
                 <Link href="/ai-disclaimer" className="hover:text-foreground">AI Disclaimer</Link>
               </div>
             </div>

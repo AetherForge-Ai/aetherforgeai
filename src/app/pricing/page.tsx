@@ -24,7 +24,7 @@ export const metadata = {
 };
 
 const TRUST_ITEMS = [
-  { icon: ShieldCheck, label: "14-day Pro trial on paid plans" },
+  { icon: ShieldCheck, label: "14-day trial on Starter, Pro and Ultimate" },
   { icon: RefreshCcw, label: "Cancel or downgrade anytime" },
   { icon: Lock, label: "Secure payments via Stripe" },
   { icon: Fingerprint, label: "Your data stays private — bank-grade security" },

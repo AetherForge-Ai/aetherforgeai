@@ -167,15 +167,16 @@ export function formatMoney(
   // trailing zeros out to 8 places. $1 and up stay fixed-width.
   const minDigits = opts.compact ? 0 : abs > 0 && abs < 1 ? Math.min(2, decimals) : decimals;
   const maxDigits = opts.compact ? Math.min(2, decimals) : decimals;
+  const sign = value < 0 ? "-" : "";
   try {
     const formatted = new Intl.NumberFormat(meta.locale, {
       minimumFractionDigits: minDigits,
       maximumFractionDigits: maxDigits,
       notation: opts.compact ? "compact" : "standard",
-    }).format(value);
-    return `${meta.symbol}${formatted}`;
+    }).format(abs);
+    return `${sign}${meta.symbol}${formatted}`;
   } catch {
-    return `${meta.symbol}${value.toFixed(decimals)}`;
+    return `${sign}${meta.symbol}${abs.toFixed(decimals)}`;
   }
 }
 

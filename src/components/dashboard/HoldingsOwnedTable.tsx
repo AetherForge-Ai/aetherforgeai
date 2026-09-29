@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState, type ReactNode } from "react";
 import type { HoldingMetrics } from "@/lib/portfolio";
 import { formatNumber, formatPercent } from "@/lib/portfolio";
 import { formatMoney, CURRENCY_META, type CurrencyCode } from "@/lib/currency";
+import { listingExchangeLabel } from "@/lib/market-intel";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,17 +33,20 @@ function formatHoldingDate(iso?: string | null): string {
   if (!iso) return "—";
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "—";
+  // Date-only strings (yyyy-mm-dd) are UTC midnight and can render as the previous NZ day.
+  const ymd = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso.trim());
+  if (ymd) {
+    return new Date(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3])).toLocaleDateString("en-NZ", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  }
   return d.toLocaleDateString("en-NZ", { day: "numeric", month: "short", year: "numeric" });
 }
 
 function exchangeForTicker(ticker: string, assetType?: string | null): string {
-  if (assetType === "crypto") return "Crypto";
-  if (assetType === "metal") return "Metals";
-  const t = ticker.toUpperCase();
-  if (t.endsWith(".NZ")) return "NZX";
-  if (t.endsWith(".AX")) return "ASX";
-  if (t.endsWith(".L")) return "LSE";
-  return "US";
+  return listingExchangeLabel(ticker, assetType);
 }
 
 type ChartTarget = {

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
+import { isFreeReportPlan } from "@/lib/entitlements";
 import { totalumSdk } from "@/lib/totalum";
 import { FREE_PLAN } from "@/lib/plans";
 
@@ -14,29 +15,41 @@ import { FREE_PLAN } from "@/lib/plans";
  * Idempotent: calling it again on an already-active PAID plan is a no-op so we
  * never downgrade a paying customer who happens to hit the free CTA.
  */
-export async function POST() {
+export async function POST(req: Request) {
   try {
     const user = await getCurrentUser();
     if (!user) {
       return NextResponse.json({ ok: false, error: "You must be signed in to start the free trial." }, { status: 401 });
     }
 
+    const body = (await req.json().catch(() => ({}))) as { bot?: string };
+    const chosen = body.bot === "crypto" ? "crypto" : body.bot === "stock" ? "stock" : null;
+    if (!chosen) {
+      return NextResponse.json(
+        { ok: false, error: "Choose Stox (stock) or Koins (crypto) for the free plan." },
+        { status: 400 }
+      );
+    }
+
     // Never clobber an active PAID subscription with the free tier.
-    const paidPlans = ["weekly", "monthly", "yearly", "dual_yearly"];
-    if (user.subscription_status === "active" && paidPlans.includes(user.subscription_plan || "")) {
+    if (user.subscription_status === "active" && !isFreeReportPlan(user.subscription_plan)) {
       console.log(`[free-trial] User ${user._id} already on paid plan ${user.subscription_plan}; skipping free activation`);
       return NextResponse.json({ ok: true, data: { plan: user.subscription_plan, alreadyPaid: true } });
     }
 
     const now = new Date();
     const expires = new Date(now.getTime() + FREE_PLAN.durationDays * 86400_000);
+    // Legacy free accounts that already have both bots keep them. A new choice
+    // is Stox or Koins, matching the Pricing card.
+    const current = user.bot_access ?? "none";
+    const botAccess = current === "both" ? "both" : chosen;
 
     const patch = {
       subscription_status: "active",
       subscription_plan: "free",
-      bot_access: FREE_PLAN.botAccess, // "both"
-      ticker_limit: FREE_PLAN.tickerLimit, // 3
-      subscription_started_at: now.toISOString(),
+      bot_access: botAccess,
+      ticker_limit: FREE_PLAN.tickerLimit,
+      subscription_started_at: user.subscription_started_at || now.toISOString(),
       subscription_expires_at: expires.toISOString(),
     };
 

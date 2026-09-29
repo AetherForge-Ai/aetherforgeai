@@ -156,9 +156,10 @@ export function PortfolioCoach() {
               type="button"
               onClick={expand}
               className={cn(
-                "pg-chat-in fixed bottom-4 right-3 z-[70] flex items-center gap-2.5 rounded-full border border-amber-400/45",
-                "bg-[#06261a]/95 px-3 py-2.5 text-left shadow-[0_0_0_1px_rgba(245,158,11,0.28),0_16px_40px_rgba(0,0,0,0.5)]",
-                "backdrop-blur-md transition hover:border-amber-300/60 hover:bg-[#0a3d2a] sm:right-5"
+                "pg-chat-in fixed bottom-3 right-3 z-[70] flex items-center rounded-full border border-amber-400/45",
+                "bg-[#06261a]/95 p-1.5 text-left shadow-[0_0_0_1px_rgba(245,158,11,0.28),0_16px_40px_rgba(0,0,0,0.5)]",
+                "backdrop-blur-md transition hover:border-amber-300/60 hover:bg-[#0a3d2a]",
+                "sm:bottom-4 sm:right-5 sm:gap-2.5 sm:px-3 sm:py-2.5"
               )}
               aria-label="Open Assistant Guide"
               title="Assistant Guide"
@@ -173,7 +174,7 @@ export function PortfolioCoach() {
                   <MessageSquareText className="size-2.5" />
                 </span>
               </span>
-              <span className="pr-1">
+              <span className="hidden pr-1 sm:block">
                 <span className="block font-display text-xs font-bold tracking-wide text-amber-300">
                   Assistant Guide
                 </span>

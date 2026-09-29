@@ -66,26 +66,31 @@ export function RecommendationActions({
         if (cashRes.ok && cashRes.data && typeof cashRes.data.cashBalance === "number") {
           cash = cashRes.data.cashBalance;
         }
-        setReview(
-          buildTradePreview({
-            side: "buy",
-            asset: ticker,
-            assetName: target.name,
-            quantity: qtyNum,
-            price: fillNum,
-            fee: Number(fees) > 0 ? Number(fees) : 0,
-            currency: currencyForTicker(ticker, target.assetType),
-            cashNzd: cash,
-            rates,
-          })
-        );
+        const preview = buildTradePreview({
+          side: "buy",
+          asset: ticker,
+          assetName: target.name,
+          quantity: qtyNum,
+          price: fillNum,
+          fee: Number(fees) > 0 ? Number(fees) : 0,
+          currency: currencyForTicker(ticker, target.assetType),
+          cashNzd: cash,
+          rates,
+        });
+        setReview(preview);
+        if (preview.resultingCashNzd < -1e-6) {
+          toast.error(
+            `Insufficient cash — this buy needs about NZ$${Math.abs(preview.totalNzd).toFixed(2)} and you have NZ$${cash.toFixed(2)}.`
+          );
+        }
         armReview();
+        submittingRef.current = false;
         return;
       }
-      if (review?.resultingCashNzd != null && review.resultingCashNzd < -1e-6) {
-        return toast.error(`Insufficient cash: cash after buy would be ${review.resultingCashNzd.toFixed(2)} NZD`);
-        }
-        if (!claimCommit()) return;
+      if (review.resultingCashNzd < -1e-6) {
+        return toast.error("Insufficient cash for this buy.");
+      }
+      if (!claimCommit()) return;
       setBusy(status);
       const res = await api.post("/api/transactions", {
         type: "buy",
@@ -170,7 +175,12 @@ export function RecommendationActions({
       </div>
       {review ? <TradeReview preview={review} /> : null}
       <div className="flex flex-wrap gap-2">
-        <Button type="button" size="sm" disabled={!!busy || (!!review && !confirmReady)} onClick={() => void save("filled")}>
+        <Button
+          type="button"
+          size="sm"
+          disabled={!!busy || (!!review && (!confirmReady || review.resultingCashNzd < -1e-6))}
+          onClick={() => void save("filled")}
+        >
           <CheckCircle2 className="mr-1.5 size-3.5" /> {review ? "Confirm buy" : "Review buy"}
         </Button>
         {review ? (
