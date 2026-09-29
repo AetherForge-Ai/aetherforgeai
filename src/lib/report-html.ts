@@ -24,6 +24,7 @@ import type { SecurityIntel } from "@/lib/market-intel";
 import type { ActionableIntelligence, PortfolioMetrics } from "@/lib/analytics";
 import type { CurrencyCode } from "@/lib/currency";
 import type { IntelligenceBriefing, BriefingOutlookRow } from "@/lib/briefing";
+import { sanitizeGuardedReport } from "@/lib/report-consistency";
 
 export interface ReportAlert {
   ticker: string;
@@ -533,7 +534,8 @@ export interface RenderReportOptions {
   metrics?: PortfolioMetrics;
 }
 
-export function renderReportHtml(report: ApexReport, opts: RenderReportOptions): string {
+export function renderReportHtml(source: ApexReport, opts: RenderReportOptions): string {
+  const report = sanitizeGuardedReport(source);
   const gainers = report.topGainers.length
     ? report.topGainers
         .map(
