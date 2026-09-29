@@ -2,13 +2,25 @@
 
 import { MarketsExplorer } from "@/components/dashboard/MarketsExplorer";
 import { OpenMarketSnapshot } from "@/components/dashboard/OpenMarketSnapshot";
+import { bindActiveAccount } from "@/lib/account-identity";
 import { LineChart, Globe } from "lucide-react";
 
 /**
  * Full-page Stock Markets view. Wraps the shared MarketsExplorer in a spacious,
  * dashboard-consistent card. Buying is disabled in guest preview.
  */
-export function MarketsPageContent({ preview = false }: { preview?: boolean }) {
+export function MarketsPageContent({
+  preview = false,
+  userId = null,
+}: {
+  preview?: boolean;
+  userId?: string | null;
+}) {
+  // Bind before BuyDialog's effect. This page sits outside AccountOwnerGuard,
+  // so an unbound shell made the cash request start with userId null and the
+  // apply-gate discarded the logged-in balance.
+  bindActiveAccount(!preview && userId ? userId : null);
+
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
       {/* Page header */}

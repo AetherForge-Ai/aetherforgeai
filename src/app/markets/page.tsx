@@ -30,7 +30,7 @@ export default async function MarketsPage() {
         subscription_plan: user.subscription_plan,
       }}
     >
-      <MarketsPageContent />
+      <MarketsPageContent userId={user.id} />
     </AppShell>
   );
 }
