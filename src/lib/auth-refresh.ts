@@ -2,6 +2,7 @@
 
 import { createSingleFlight } from "@/lib/single-flight";
 import { parseDashboardSessionUser, type DashboardSessionUser } from "@/lib/dashboard-session";
+import { isSharedCacheReplay } from "@/lib/private-document";
 import {
   LIVE_SESSION_PATH,
   REFRESH_SESSION_PATH,
@@ -77,6 +78,9 @@ async function fetchSessionEnvelope(epochAtStart: number): Promise<SessionEnvelo
     });
     if (epochAtStart !== liveSessionEpoch) return fetchSessionEnvelope(liveSessionEpoch);
     if (!res.ok) return null;
+    // A colo can still be holding another member's /api/session body.
+    // Do not treat that replay as this browser's paper book.
+    if (isSharedCacheReplay(res.headers)) return null;
     const data = (await res.json().catch(() => null)) as SessionEnvelope;
     if (epochAtStart !== liveSessionEpoch) return fetchSessionEnvelope(liveSessionEpoch);
     return data;

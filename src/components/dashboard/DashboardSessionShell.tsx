@@ -12,24 +12,27 @@ import type { DashboardSessionUser } from "@/lib/dashboard-session";
 
 /**
  * The paper book mounts only after GET /api/session for this browser.
- * The server render is a skeleton or the signed-out gate — never another
- * member's name, cash, or holdings baked into the HTML.
+ * A guest document server-renders the membership gate. A member document
+ * server-renders a skeleton. Neither one includes a name or a holding.
  */
 export function DashboardSessionShell({
   view,
-  initialSignedOut,
+  guestDocument,
 }: {
   view: DashboardView;
-  initialSignedOut: boolean;
+  guestDocument: boolean;
 }) {
   const [phase, setPhase] = useState<"pending" | "guest" | "ready">(
-    initialSignedOut ? "guest" : "pending"
+    guestDocument ? "guest" : "pending",
   );
   const [session, setSession] = useState<DashboardSessionUser | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    if (!initialSignedOut) setPhase("pending");
+    if (!guestDocument) {
+      setPhase("pending");
+      setSession(null);
+    }
     confirmDashboardSession().then((next) => {
       if (cancelled) return;
       if (!next) {
@@ -43,12 +46,12 @@ export function DashboardSessionShell({
     return () => {
       cancelled = true;
     };
-  }, [view, initialSignedOut]);
+  }, [view, guestDocument]);
 
-  if (phase === "guest" || (phase !== "ready" && initialSignedOut && !session)) {
-    return <GuestDashboardGate />;
+  if (phase !== "ready" || !session) {
+    if (phase === "guest") return <GuestDashboardGate />;
+    return <DashboardSessionSkeleton />;
   }
-  if (phase !== "ready" || !session) return <DashboardSessionSkeleton />;
   return (
     <PortfolioDashboard
       view={view}

@@ -8,6 +8,7 @@
  */
 
 import { getActiveAccountUserId } from "@/lib/account-identity";
+import { isAccountScopedClientUrl, isSharedCacheReplay } from "@/lib/private-document";
 import { alignTradeSession, authActionOn401, isBackgroundAuthPoll } from "@/lib/auth-refresh";
 import {
   confirmedCommit401Action,
@@ -68,6 +69,9 @@ async function request<T>(
       credentials: "include",
       cache: "no-store",
     });
+    if (isAccountScopedClientUrl(url) && isSharedCacheReplay(res.headers)) {
+      return { ok: false, status: 401, error: "Unauthorized" };
+    }
     if (res.status === 401) {
       if (confirmed) {
         if (!alreadyRetried) {
