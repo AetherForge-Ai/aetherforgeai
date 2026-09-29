@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { buildStrategy, buildSynthesis, CLASS_META } from "@/lib/totalum-engine";
+import { renderTotalumReport } from "@/lib/totalum-report-html";
 import {
   alignNarrativeToPlan,
   ASSISTANT_TURN_TIMEOUT_MS,
@@ -10,6 +11,8 @@ import {
   illustrativeActionLabel,
   intelligenceBriefInstructions,
   requestsWatchlist,
+  sanitizeHeadmasterDisplayText,
+  sanitizeHeadmasterReportHtml,
   scopeHeadmasterIdeas,
   softenHeadmasterLanguage,
   turnProgressLabel,
@@ -196,6 +199,109 @@ describe("Headmaster language and holdings scope", () => {
     expect(prompt).toMatch(/Do not use BUY, ACCUMULATE, or Strong Buy/);
     expect(prompt).toMatch(/Do not name any ticker that is not in the current holdings/);
     expect(prompt).not.toMatch(/BUY\/ACCUMULATE/);
+  });
+});
+
+const STORED_HEADMASTER_BRIEFING =
+  "The book is cash-heavy and under-risked versus the Balanced Growth mandate: NZ$11,048 (55.4%) is idle, expected 7.3%/11.5% lags the 12.7% @ 26% vol target. " +
+  "Single highest-impact move: deploy dry powder now into named names so Equities rise from 25.1%. " +
+  "Lead BUY/ACCUMULATE (equities, ~75% of deployable cash): CIP.AX (+2.52% 7d, 80% conviction), LIN, WOR.AX, plus ADD FPH.NZ (MACD bullish) and a smaller MAH.AX starter (+5.56% 7d Buy @ 65%); HOLD AAPL and HOLD BHP.AX. " +
+  "Crypto sleeve (measured starters only, do not add ETH into Friday NFP): BUY TRX (96% conviction, +2.18% 7d), BUY CHZ (94%), BUY SNX (91%), BUY WIF (90%, +2.88%), ACCUMULATE ROSE (Strong Buy, +5.06% / 84%), BUY EGLD (85%). " +
+  "Keep a residual cash buffer.";
+
+const STORED_HEADMASTER_HTML = `<section><h2>ZENITH Executive Briefing</h2><div><p>${STORED_HEADMASTER_BRIEFING}</p></div></section>
+<section><h2>Recommended Strategy · Balanced Growth</h2><p>Trim ~NZ$9,053.33 from cash and rotate into equities to align with a balanced posture (≈12.7% expected annual return at ≈26% volatility).</p>
+<table><tr><td>Buy ▲</td><td>Trim ▼</td></tr></table>
+<ul><li>Keep at least 10% in cash as dry powder for volatility spikes.</li></ul></section>`;
+
+function expectNoImperativeHeadmasterCopy(value: string) {
+  expect(value).not.toMatch(/deploy dry powder/i);
+  expect(value).not.toMatch(/dry powder/i);
+  expect(value).not.toMatch(/BUY\s*\/\s*ACCUMULATE/i);
+  expect(value).not.toMatch(/\bBUY\b/i);
+  expect(value).not.toMatch(/\bACCUMULATE\b/i);
+  expect(value).not.toMatch(/Strong Buy/i);
+  expect(value).not.toMatch(/Trim ~NZ\$9,053\.33 from cash and rotate into equities/);
+  expect(value).not.toMatch(/Keep at least 10% in cash as dry powder/i);
+  expect(value).not.toMatch(/deployable cash/i);
+  expect(value).not.toMatch(/\.1%/);
+}
+
+describe("stored Headmaster report view", () => {
+  it("rewrites the live FAIL strings into illustrative cash language", () => {
+    const plan = examPlan();
+    const cleaned = sanitizeHeadmasterDisplayText(
+      `${STORED_HEADMASTER_BRIEFING} Trim ~NZ$9,053.33 from cash and rotate into equities. Keep at least 10% in cash as dry powder.`,
+      plan
+    );
+    expectNoImperativeHeadmasterCopy(cleaned);
+    expect(cleaned).toMatch(/HOLD AAPL/);
+    expect(cleaned).toMatch(/do not add ETH/i);
+    expect(cleaned).toMatch(/illustrative/i);
+    expect(cleaned).toContain("NZ$9,054");
+    expect(cleaned).toContain("NZ$1,994");
+    expect(cleaned).toContain("55.4%");
+    expect(cleaned).toContain("CIP.AX");
+    expect(cleaned).toMatch(/residual cash buffer/);
+    expect(sanitizeHeadmasterDisplayText(cleaned, plan)).toBe(cleaned);
+  });
+
+  it("cleans a stored HTML document on view, and leaves the Wave A skeleton sentence intact", () => {
+    const plan = examPlan();
+    const good =
+      "Cash on book is NZ$11,048. This skeleton retains NZ$1,994 and illustrates reallocating NZ$9,054 — the same figure as the cash row, not the full cash balance.";
+    const html = sanitizeHeadmasterReportHtml(
+      `${STORED_HEADMASTER_HTML}<p>${good}</p><p>That balance is not an amount to deploy.</p>`,
+      plan
+    );
+    expectNoImperativeHeadmasterCopy(html);
+    expect(html).not.toMatch(/ZENITH Executive Briefing/);
+    expect(html).toMatch(/Illustrative commentary/);
+    expect(html).toContain(good);
+    expect(html).toMatch(/not an amount to deploy/);
+    expect(html).toMatch(/Illustrative increase/);
+    expect(html).toMatch(/Illustrative reduce/);
+    expect(html).not.toMatch(/Buy ▲|Trim ▼/);
+    expect(html).toContain("NZ$9,054");
+    expect(html).toContain("NZ$1,994");
+  });
+
+  it("sanitizes a rendered intelligence report that still carries pre-Wave A prose", () => {
+    const syn = buildSynthesis({
+      stocks: [],
+      metals: [],
+      spot: {
+        gold: { nzdPerOz: 4000, usdPerOz: 2400 },
+        silver: { nzdPerOz: 50, usdPerOz: 30 },
+        live: true,
+        asOf: "2026-09-29T06:14:00.000Z",
+      },
+      fxToNZD: { NZD: 1, USD: 1, AUD: 1 },
+      cashBalanceNZD: EXAM_CASH,
+    });
+    const strategy = buildStrategy(syn, "balanced_growth");
+    const poisoned = {
+      ...strategy,
+      narrative:
+        "Trim ~NZ$9,053.33 from cash and rotate into equities to align with a balanced posture (≈12.7% expected annual return at ≈26% volatility).",
+      entryRules: [
+        "Keep at least 10% in cash as dry powder for volatility spikes.",
+        "Cap any single position at 20% of total wealth on entry.",
+      ],
+    };
+    const html = renderTotalumReport(syn, {
+      memberName: "Test UserAF",
+      strategy: poisoned,
+      aiNarrative: STORED_HEADMASTER_BRIEFING,
+    });
+    expectNoImperativeHeadmasterCopy(html);
+    expect(html).toMatch(/illustrative/i);
+    expect(html).toContain(`NZ$${strategy.plan.retainedCashNZD.toLocaleString("en-NZ")}`);
+    expect(html).toContain(`NZ$${strategy.plan.cashToReallocateNZD.toLocaleString("en-NZ")}`);
+    expect(html).toMatch(/HOLD AAPL/);
+    expect(html).toMatch(/Additional commentary/);
+    expect(html).not.toMatch(/ZENITH Executive Briefing/);
+    expect(html).toContain("font-family: -apple-system");
   });
 });
 

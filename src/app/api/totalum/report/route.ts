@@ -9,6 +9,7 @@ import { ZENITH_STATE_LABEL } from "@/lib/zenith";
 import {
   alignNarrativeToPlan,
   intelligenceBriefInstructions,
+  sanitizeHeadmasterReportHtml,
   scopeHeadmasterIdeas,
 } from "@/lib/headmaster-trust";
 
@@ -84,13 +85,16 @@ export async function GET(req: Request) {
       }
     }
 
-    const html = renderTotalumReport(synthesis, {
-      memberName: user.name,
-      strategy,
-      aiNarrative,
-      engine: ZENITH_STATE_LABEL,
-      watchlist: includeWatchlist ? scoped.watchlist : [],
-    });
+    const html = sanitizeHeadmasterReportHtml(
+      renderTotalumReport(synthesis, {
+        memberName: user.name,
+        strategy,
+        aiNarrative,
+        engine: ZENITH_STATE_LABEL,
+        watchlist: includeWatchlist ? scoped.watchlist : [],
+      }),
+      strategy?.plan
+    );
 
     console.log(`[api/totalum/report] Rendered intelligence report for user ${user._id} (goal=${goal})`);
     return new NextResponse(html, {
@@ -98,6 +102,9 @@ export async function GET(req: Request) {
       headers: {
         "Content-Type": "text/html; charset=utf-8",
         "Content-Disposition": `inline; filename="headmaster-intelligence-report.html"`,
+        "Cache-Control": "private, no-store, no-cache, must-revalidate",
+        Pragma: "no-cache",
+        Expires: "0",
       },
     });
   } catch (err: any) {
