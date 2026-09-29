@@ -154,6 +154,8 @@ export default function PerformancePage() {
                 <Link href="/privacy-policy" className="hover:text-foreground">Privacy</Link>
                 <Link href="/terms-of-service" className="hover:text-foreground">Terms</Link>
                 <Link href="/ai-disclaimer" className="hover:text-foreground">AI Disclaimer</Link>
+                <Link href="/docs" className="hover:text-foreground">Docs</Link>
+                <Link href="/blog" className="hover:text-foreground">Blog</Link>
               </div>
             </div>
 

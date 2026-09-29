@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  AUTH_COOKIE_NAMES,
   LIVE_SESSION_PATH,
   REFRESH_SESSION_PATH,
   accountPaintDecision,
   cookieHeaderForStableRead,
+  expiredAuthCookie,
   hasSessionDataCookie,
   mayPaintNavIdentity,
   sessionFlightKey,
@@ -53,6 +55,32 @@ describe("session owner", () => {
     expect(shouldRecoverSession({ purpose: "page" })).toBe(false);
     expect(shouldRecoverSession({ purpose: "nav", atomUserId: null })).toBe(false);
     expect(shouldRecoverSession({ purpose: "nav", atomUserId: "user-tt" })).toBe(false);
+  });
+
+  it("expires every auth cookie name with attributes the browser will honor", () => {
+    expect(AUTH_COOKIE_NAMES).toEqual([
+      "better-auth.session_token",
+      "__Secure-better-auth.session_token",
+      "better-auth.session_data",
+      "__Secure-better-auth.session_data",
+      "better-auth.dont_remember",
+      "__Secure-better-auth.dont_remember",
+    ]);
+    for (const name of AUTH_COOKIE_NAMES) {
+      const cookie = expiredAuthCookie(name);
+      expect(cookie.value).toBe("");
+      expect(cookie.options.maxAge).toBe(0);
+      expect(cookie.options.path).toBe("/");
+      expect(cookie.options.httpOnly).toBe(true);
+      expect(cookie.options.expires.getTime()).toBe(0);
+      if (name.startsWith("__Secure-")) {
+        expect(cookie.options.secure).toBe(true);
+        expect(cookie.options.sameSite).toBe("none");
+      } else {
+        expect(cookie.options.secure).toBe(false);
+        expect(cookie.options.sameSite).toBe("lax");
+      }
+    }
   });
 
   it("probes identity on the stable session route, not the rotating refresh", () => {

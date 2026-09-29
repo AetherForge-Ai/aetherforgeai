@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { SiteHeader } from "@/components/SiteHeader";
 import { BrandLogo } from "@/components/BrandLogo";
 import { Button } from "@/components/ui/button";
+import { DashboardEntryButton } from "@/components/dashboard/MemberDashboardPrompt";
 import {
   ArrowRight,
   Sparkles,
@@ -171,9 +172,9 @@ export default function MaximizeResultsPage() {
           </div>
 
           <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-            <Button asChild size="lg" className="h-12 px-8 text-base font-semibold shadow-glow">
-              <Link href="/dashboard">Open your dashboard</Link>
-            </Button>
+            <DashboardEntryButton size="lg" className="h-12 px-8 text-base font-semibold shadow-glow">
+              Open your dashboard
+            </DashboardEntryButton>
             <Button asChild size="lg" variant="outline" className="h-12 px-8 text-base">
               <Link href="/headmaster">
                 Explore The Headmaster <ArrowRight className="ml-1 size-4" />
@@ -356,9 +357,9 @@ export default function MaximizeResultsPage() {
                 tracker — together as one integrated system.
               </p>
               <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-                <Button asChild size="lg" className="h-12 px-8 text-base font-semibold shadow-glow">
-                  <Link href="/dashboard">Go to dashboard</Link>
-                </Button>
+                <DashboardEntryButton size="lg" className="h-12 px-8 text-base font-semibold shadow-glow">
+                  Go to dashboard
+                </DashboardEntryButton>
                 <Button asChild size="lg" variant="outline" className="h-12 px-8 text-base">
                   <Link href="/pricing">View pricing</Link>
                 </Button>

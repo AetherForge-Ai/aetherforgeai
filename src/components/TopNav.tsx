@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLiveSessionUser } from "@/lib/use-live-session";
+import { useMemberDashboardPrompt } from "@/components/dashboard/MemberDashboardPrompt";
 import { planLabel } from "@/lib/plans";
 import { headmasterDeskCopy } from "@/lib/entitlements";
 import { Button } from "@/components/ui/button";
@@ -106,7 +107,13 @@ async function downloadToolkit(setBusy: (b: boolean) => void) {
   }
 }
 
-function DesktopLinks({ pathname }: { pathname: string }) {
+function DesktopLinks({
+  pathname,
+  onDashboardClick,
+}: {
+  pathname: string;
+  onDashboardClick: (event: React.MouseEvent) => void;
+}) {
   return (
     <nav className="hidden items-center gap-1 lg:flex">
       {NAV_LINKS.map((item) => {
@@ -115,6 +122,7 @@ function DesktopLinks({ pathname }: { pathname: string }) {
           <Link
             key={item.href}
             href={item.href}
+            onClick={item.href === "/dashboard" ? onDashboardClick : undefined}
             className={cn(
               "relative rounded-lg px-3 py-2 text-sm font-medium transition-colors",
               active
@@ -232,7 +240,7 @@ function AccountMenu({
         )}
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link href="/logout" className="text-destructive focus:text-destructive"><LogOut className="size-4" /> Sign out</Link>
+          <a href="/logout" className="text-destructive focus:text-destructive"><LogOut className="size-4" /> Sign out</a>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -243,10 +251,12 @@ function MobileDrawer({
   pathname,
   loggedIn,
   pending,
+  onDashboardClick,
 }: {
   pathname: string;
   loggedIn: boolean;
   pending: boolean;
+  onDashboardClick: (event: React.MouseEvent) => void;
 }) {
   const [open, setOpen] = useState(false);
   useEffect(() => {
@@ -272,7 +282,10 @@ function MobileDrawer({
               <Link
                 key={item.href}
                 href={item.href}
-                onClick={() => setOpen(false)}
+                onClick={(event) => {
+                  setOpen(false);
+                  if (item.href === "/dashboard") onDashboardClick(event);
+                }}
                 className={cn(
                   "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
                   active
@@ -302,7 +315,7 @@ function MobileDrawer({
                 </Link>
               </Button>
               <Button asChild variant="outline" className="w-full justify-start text-destructive">
-                <Link href="/logout"><LogOut className="size-4" /> Sign out</Link>
+                <a href="/logout"><LogOut className="size-4" /> Sign out</a>
               </Button>
             </>
           ) : (
@@ -328,23 +341,30 @@ function MobileDrawer({
  */
 export function TopNav() {
   const { user } = useLiveSessionUser();
+  const memberDashboard = useMemberDashboardPrompt();
   const pending = user === undefined;
   const loggedIn = !!user;
   const pathname = usePathname();
 
   return (
+    <>
     <header className="chrome-dark sticky top-0 z-[60] w-full border-b border-border/60 bg-background/85 text-foreground backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         {/* Left: mobile menu + brand */}
         <div className="flex items-center gap-2">
-          <MobileDrawer pathname={pathname} loggedIn={loggedIn} pending={pending} />
+          <MobileDrawer
+            pathname={pathname}
+            loggedIn={loggedIn}
+            pending={pending}
+            onDashboardClick={memberDashboard.onDashboardClick}
+          />
           <Link href={loggedIn ? "/dashboard" : "/"} className="transition-opacity hover:opacity-90">
             <BrandLogo />
           </Link>
         </div>
 
         {/* Center: primary links */}
-        <DesktopLinks pathname={pathname} />
+        <DesktopLinks pathname={pathname} onDashboardClick={memberDashboard.onDashboardClick} />
 
         {/* Right: auth cluster */}
         <div className="flex items-center gap-2">
@@ -365,5 +385,7 @@ export function TopNav() {
         </div>
       </div>
     </header>
+    {memberDashboard.dialog}
+    </>
   );
 }

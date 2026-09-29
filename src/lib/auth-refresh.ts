@@ -54,8 +54,17 @@ function parseLiveUser(data: SessionEnvelope): LiveSessionUser | null {
 /**
  * Identity probe. Hits GET /api/session, which reads the token and does not
  * rotate the cookie. Not the better-auth get-session URL.
+ *
+ * Logout bumps the epoch so a read that started while the cookie still
+ * existed cannot be reused as proof the browser is still signed in.
  */
-const readLiveSessionUser = createSingleFlight(async (): Promise<LiveSessionUser | null> => {
+let liveSessionEpoch = 0;
+
+export function invalidateLiveSessionProbe(): void {
+  liveSessionEpoch += 1;
+}
+
+async function fetchLiveSession(epochAtStart: number): Promise<LiveSessionUser | null> {
   if (typeof window === "undefined") return null;
   try {
     const res = await fetch(LIVE_SESSION_PATH, {
@@ -63,13 +72,17 @@ const readLiveSessionUser = createSingleFlight(async (): Promise<LiveSessionUser
       credentials: "include",
       cache: "no-store",
     });
+    if (epochAtStart !== liveSessionEpoch) return fetchLiveSession(liveSessionEpoch);
     if (!res.ok) return null;
     const data = (await res.json().catch(() => null)) as SessionEnvelope;
+    if (epochAtStart !== liveSessionEpoch) return fetchLiveSession(liveSessionEpoch);
     return parseLiveUser(data);
   } catch {
     return null;
   }
-});
+}
+
+const readLiveSessionUser = createSingleFlight(() => fetchLiveSession(liveSessionEpoch));
 
 /** Dashboard and nav: one stable read. A null result is not a reason to rotate. */
 export function confirmPageSession(): Promise<LiveSessionUser | null> {

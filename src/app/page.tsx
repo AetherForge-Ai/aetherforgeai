@@ -304,6 +304,12 @@ export default function LandingPage() {
           <Link href="/ai-disclaimer" className="hover:text-foreground">
             AI disclaimer
           </Link>
+          <Link href="/docs" className="hover:text-foreground">
+            Docs
+          </Link>
+          <Link href="/blog" className="hover:text-foreground">
+            Blog
+          </Link>
         </nav>
       </footer>
     </div>
