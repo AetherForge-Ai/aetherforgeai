@@ -303,6 +303,104 @@ describe("stored reports cannot keep a full-cash deploy", () => {
     expect(viewedBlob).not.toMatch(/NZ\$12696/);
     expect(viewed.directRecommendations?.filter((rec) => rec.held === false).length).toBeLessThanOrEqual(2);
   });
+
+  it("strips the exact retest strings, including split bold, decimals, and a constructive overall", () => {
+    const stoxSummary =
+      "On the live book, **HOLD AAPL** (NASDAQ; RSI 27.1, MACD Bearish, High Volatility; 50% odds of a **-7.09% to +10.77%** 7-day band at 50% confidence), **HOLD BHP.AX** (ASX; RSI 41.4, MACD Bearish), and **ADD FPH.NZ** (NZX; RSI 61.9; 50% odds of **-2.83% to +2.87%** at 60% Moderate conviction). " +
+      "The 7-day NZX/ASX/NASDAQ/Dow tape is a Neutral-bias, Speculative 54/100 regime with Neutral 50/100 sentiment. " +
+      "The single highest-impact action now is to **ACCUMULATE** the **NZ$12,696 cash** into **CIP.AX** (ASX; +2.52% 7d projection, highest full-market sweep alpha) and **MAH.AX** (ASX; +5.56% 7d projected leader, Buy) at high Speculative conviction. " +
+      "Secondary **BUY** names: **WOR.AX** (ASX, +0.94% 7d) for industrial momentum.";
+    const dryWor =
+      "Buy **WOR.AX** (Worley, ASX) — screens **Buy** with a +0.94% 7-day projection at **87%** conviction. Deploy dry powder (cash NZ$12696 available) with a measured starter size.";
+    const koinsSummary =
+      "ETH is a **HOLD** (0.25 @ $2,730.56 vs $2,717.05 cost): regime Trending Down, RSI 29.9 oversold, MACD Bearish, 7-day base-case **-4.61% to +3.69%** (50% odds) at 78% confidence, and no sell flag — do not add or trim into Friday NFP. " +
+      "After that held-book action, deploy **NZ$12,696 cash** to **BUY/ACCUMULATE** on the crypto market GALA (Strong Buy, +28.27% 7d proj), SKL, ARB and ANKR. " +
+      "Global digital assets are Neutral / low conviction (net 49/100). " +
+      "The single highest-impact action now is **HOLD ETH and ACCUMULATE GALA, SKL, ARB and ANKR with a measured cash slice before NFP**.";
+    const dryTrx =
+      "Buy **TRX** (TRX, CRYPTO) — screens **Buy** with a +2.18% 7-day projection at **96%** conviction. Deploy dry powder (cash NZ$12696 available) with a measured starter size.";
+    const swallowed =
+      "ETH is a **HOLD** and no sell flag — do not add or trim into Friday NFP — after that held-book action, deploy **NZ$12,696 cash** to **BUY/ACCUMULATE** GALA.";
+
+    expect(urgesFullDeployment(stoxSummary)).toBe(true);
+    expect(urgesFullDeployment(koinsSummary)).toBe(true);
+    expect(urgesFullDeployment(dryWor)).toBe(true);
+    expect(urgesFullDeployment(swallowed)).toBe(true);
+
+    const stox = sanitizeGuardedReport({
+      bot: "stock",
+      executiveSummary: stoxSummary,
+      briefing: {
+        overall: { bias: "Constructive", level: "High", score: 80, reason: stoxSummary },
+        executiveSummary: stoxSummary,
+      },
+      directRecommendations: [
+        { ticker: "FPH.NZ", held: true, action: "BUY", detail: "Add to FPH.NZ — constructive momentum with a +0.02% 7-day projection. A measured top-up is warranted." },
+        { ticker: "WOR.AX", held: false, action: "BUY", detail: dryWor },
+      ],
+      pathwayPlan: {
+        recommendationNote: "Deploy dry powder (cash NZ$12696 available) into CIP.AX.",
+        pathways: [{ summary: "Overweight CIP.AX.", steps: ["Deploy dry powder (cash NZ$12696 available) with a measured starter size."] }],
+      },
+    });
+    const stoxBlob = [
+      stox.executiveSummary,
+      stox.briefing?.executiveSummary,
+      stox.briefing?.overall?.reason,
+      stox.pathwayPlan?.recommendationNote,
+      ...(stox.pathwayPlan?.pathways ?? []).flatMap((p) => [p.summary, ...(p.steps ?? [])]),
+      ...(stox.directRecommendations ?? []).map((rec) => rec.detail),
+    ].join("\n");
+    expect(stox.executiveSummary).toMatch(/HOLD AAPL/);
+    expect(stox.executiveSummary).toMatch(/FPH\.NZ/);
+    expect(stox.executiveSummary).toMatch(/-2\.83% to \+2\.87%/);
+    expect(stoxBlob).not.toMatch(/NZ\$12,696 cash/i);
+    expect(stoxBlob).not.toMatch(/NZ\$12696/);
+    expect(stoxBlob).not.toMatch(/dry powder/i);
+    expect(stoxBlob).not.toMatch(/\.52%/);
+    expect(stoxBlob).not.toMatch(/ACCUMULATE/i);
+    expect(stox.directRecommendations?.some((rec) => rec.ticker === "FPH.NZ")).toBe(true);
+    expect(stox.directRecommendations?.find((rec) => rec.ticker === "WOR.AX")?.detail).toMatch(/Buy \*\*WOR\.AX\*\*/);
+    expect(stox.executiveSummary).toMatch(/Do not deploy the full cash balance/);
+
+    const koins = sanitizeGuardedReport({
+      bot: "crypto",
+      executiveSummary: koinsSummary,
+      briefing: { overall: { bias: "Neutral", level: "Low", score: 49 }, executiveSummary: koinsSummary },
+      directRecommendations: [
+        { ticker: "ETH", held: true, action: "HOLD", detail: "Hold ETH — no decisive edge this week (7-day projection -0.46%). Maintain the position and monitor." },
+        { ticker: "TRX", held: false, action: "BUY", detail: dryTrx },
+      ],
+    });
+    const koinsBlob = [koins.executiveSummary, koins.briefing?.executiveSummary, ...(koins.directRecommendations ?? []).map((rec) => rec.detail ?? "")].join("\n");
+    expect(koinsBlob).toMatch(/HOLD/);
+    expect(koinsBlob).toMatch(/\$2,730\.56/);
+    expect(koinsBlob).not.toMatch(/NZ\$12,696 cash/i);
+    expect(koinsBlob).not.toMatch(/NZ\$12696/);
+    expect(koinsBlob).not.toMatch(/dry powder/i);
+    expect(koinsBlob).not.toMatch(/measured cash slice/i);
+    expect(koinsBlob).not.toMatch(/BUY\/ACCUMULATE/i);
+    expect(sanitizeGuardedCashText(swallowed, "crypto")).not.toMatch(/NZ\$12,696 cash/i);
+
+    const hiddenOnConstructive = sanitizeGuardedReport({
+      bot: "stock",
+      executiveSummary: "Signals are constructive. Scale into quality names.",
+      briefing: { overall: { bias: "Constructive", level: "High", score: 80 }, executiveSummary: "Signals are constructive. Scale into quality names." },
+      directRecommendations: [{ ticker: "WOR.AX", held: false, action: "BUY", detail: dryWor }],
+    });
+    expect(hiddenOnConstructive.directRecommendations?.[0]?.detail).not.toMatch(/dry powder/i);
+    expect(hiddenOnConstructive.directRecommendations?.[0]?.detail).not.toMatch(/NZ\$12696/);
+    expect(hiddenOnConstructive.executiveSummary).toMatch(/Scale into quality/);
+
+    const untouched = sanitizeGuardedReport({
+      bot: "stock",
+      executiveSummary: "Constructive tape. Scale into quality names.",
+      briefing: { overall: { bias: "Constructive", level: "High", score: 80 } },
+      directRecommendations: [{ held: false, action: "BUY", detail: "Buy FPH.NZ — starter size only." }],
+    });
+    expect(untouched.executiveSummary).toBe("Constructive tape. Scale into quality names.");
+    expect(untouched.directRecommendations?.[0]?.detail).toBe("Buy FPH.NZ — starter size only.");
+  });
 });
 
 describe("live report uses one rating", () => {
