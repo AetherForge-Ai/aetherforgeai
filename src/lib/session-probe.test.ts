@@ -80,6 +80,22 @@ describe("live session probe", () => {
     expect(calls).toEqual(["/api/session"]);
   });
 
+  it("does not paint a session body that a shared cache replayed", async () => {
+    globalThis.window = {} as Window & typeof globalThis;
+    globalThis.fetch = (async () => {
+      return {
+        ok: true,
+        headers: { get: (name: string) => (name === "cf-cache-status" ? "HIT" : null) },
+        json: async () => ({ user: user1t }),
+      } as unknown as Response;
+    }) as typeof fetch;
+
+    const user = await confirmPageSession();
+    expect(user).toBeNull();
+    const book = await confirmDashboardSession();
+    expect(book).toBeNull();
+  });
+
   it("does not refresh the nav when the atom has no user", async () => {
     const calls: string[] = [];
     globalThis.window = {} as Window & typeof globalThis;

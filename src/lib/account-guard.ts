@@ -6,12 +6,16 @@
  */
 
 export const PRIVATE_NO_STORE_HEADERS: Record<string, string> = {
-  "Cache-Control": "private, no-store, no-cache, must-revalidate",
+  "Cache-Control": "private, no-store, no-cache, max-age=0, must-revalidate",
   "CDN-Cache-Control": "no-store",
   "Cloudflare-CDN-Cache-Control": "no-store",
+  "Surrogate-Control": "no-store",
   Pragma: "no-cache",
   Expires: "0",
-  Vary: "Cookie",
+  // Cloudflare otherwise keys HTML on the URL alone and can replay one
+  // member's document to the next browser. no-store is the real control;
+  // Vary lists every header that changes the RSC payload.
+  Vary: "Cookie, RSC, Next-Router-State-Tree, Next-Router-Prefetch, Next-Router-Segment-Prefetch",
 };
 
 /** Client-claimed user from `x-af-user-id`. Empty when the caller didn't send one. */
