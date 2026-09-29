@@ -12,6 +12,7 @@ import {
 } from "@/lib/portfolio-coach-knowledge";
 import { isTotalumEntitled } from "@/app/api/totalum/route";
 import { loadTotalumSynthesis, loadReportFindings } from "@/lib/totalum-service";
+import { scopeHeadmasterIdeas } from "@/lib/headmaster-trust";
 
 export const dynamic = "force-dynamic";
 
@@ -77,6 +78,11 @@ function buildHeadmasterContextBlock(
   if (findings.contextBlock?.trim()) {
     lines.push("", "Latest Stox / Koins findings available to Headmaster:", findings.contextBlock.trim());
   }
+  const held = synthesis.positions
+    .filter((p) => p.assetClass !== "cash")
+    .map((p) => p.label);
+  const scoped = scopeHeadmasterIdeas(findings.ideas || [], held, false);
+  lines.push("", scoped.contextBlock);
 
   return lines.join("\n");
 }

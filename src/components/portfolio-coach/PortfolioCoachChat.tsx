@@ -16,6 +16,8 @@ import {
   X,
 } from "lucide-react";
 import { Markdown } from "@/components/Markdown";
+import { turnProgressLabel } from "@/lib/headmaster-trust";
+import { useRecoverableTurn } from "@/lib/use-recoverable-turn";
 import { cn } from "@/lib/utils";
 import { BOT_HEADMASTER_AVATAR } from "@/assets/files";
 import { bullionNzdPerOz, isBullionHolding } from "@/lib/metal-valuation";
@@ -208,8 +210,8 @@ export function PortfolioCoachChat({
 
   const [messages, setMessages] = useState<Msg[]>(() => initial.messages);
   const [showCards, setShowCards] = useState(() => initial.showCards);
-  const [input, setInput] = useState("");
-  const [sending, setSending] = useState(false);
+  const turn = useRecoverableTurn();
+  const busyRef = useRef(false);
   const [reports, setReports] = useState<ReportItem[]>([]);
   const [reportsLoading, setReportsLoading] = useState(false);
   const [attachOpen, setAttachOpen] = useState(false);
@@ -229,7 +231,7 @@ export function PortfolioCoachChat({
       top: scrollRef.current.scrollHeight,
       behavior: "smooth",
     });
-  }, [messages, sending, attachOpen, showCards]);
+  }, [messages, turn.working, turn.notice, attachOpen, showCards]);
 
   useEffect(() => {
     saveMessages(userId, messages);
@@ -448,9 +450,9 @@ export function PortfolioCoachChat({
 
   async function send(text: string, opts?: { prependAssistant?: string }) {
     const content = text.trim();
-    if (!content || sending) return;
+    if (!content || busyRef.current || turn.working) return;
+    busyRef.current = true;
     setShowCards(false);
-    setInput("");
     setAttachOpen(false);
 
     if (opts?.prependAssistant) {
@@ -462,100 +464,96 @@ export function PortfolioCoachChat({
     } else {
       setMessages((prev) => [...prev, { role: "user", content }]);
     }
-    setSending(true);
 
-    // Always re-read live ledger cash before any cash / holdings claim so the
-    // Guide never contradicts a book that already has NZD on deposit.
-    let liveBook = bookSnapshot;
+    const historyForApi = (
+      opts?.prependAssistant
+        ? [
+            ...messages,
+            { role: "assistant" as const, content: opts.prependAssistant },
+          ]
+        : messages
+    )
+      .slice(-8)
+      .map((m) => ({
+        role: m.role,
+        content: m.content.slice(0, 2000),
+      }));
+
     try {
-      const txRes = await fetch("/api/transactions", { credentials: "include" });
-      const txJson = (await txRes.json()) as { ok?: boolean; data?: { cashBalance?: number } };
-      if (txJson.ok) {
-        const cash = Number(txJson.data?.cashBalance || 0);
-        liveBook = {
-          ...(liveBook || {}),
-          cashBalanceNZD: cash,
-          totalValueNZD: Math.max(Number(liveBook?.totalValueNZD || 0), cash),
-          isEmpty: cash <= 0 && !((liveBook?.classAllocation || []).some((c) => (c.valueNZD || 0) > 0 || c.label !== "Cash")),
-          asOf: new Date().toISOString().slice(0, 10),
-        };
-        if (cash > 0) liveBook.isEmpty = false;
-        setBookSnapshot(liveBook);
-        if (cash > 0) {
-          setHeadmasterPlan((prev) =>
-            prev && /book is empty/i.test(prev)
-              ? `Latest ledger cash about NZ$${Math.round(cash).toLocaleString()}.`
-              : prev
-          );
+      const outcome = await turn.run(content, async (signal) => {
+        // Always re-read live ledger cash before any cash / holdings claim so the
+        // Guide never contradicts a book that already has NZD on deposit.
+        let liveBook = bookSnapshot;
+        try {
+          const txRes = await fetch("/api/transactions", { credentials: "include", signal });
+          const txJson = (await txRes.json()) as { ok?: boolean; data?: { cashBalance?: number } };
+          if (txJson.ok) {
+            const cash = Number(txJson.data?.cashBalance || 0);
+            liveBook = {
+              ...(liveBook || {}),
+              cashBalanceNZD: cash,
+              totalValueNZD: Math.max(Number(liveBook?.totalValueNZD || 0), cash),
+              isEmpty: cash <= 0 && !((liveBook?.classAllocation || []).some((c) => (c.valueNZD || 0) > 0 || c.label !== "Cash")),
+              asOf: new Date().toISOString().slice(0, 10),
+            };
+            if (cash > 0) liveBook.isEmpty = false;
+            setBookSnapshot(liveBook);
+            if (cash > 0) {
+              setHeadmasterPlan((prev) =>
+                prev && /book is empty/i.test(prev)
+                  ? `Latest ledger cash about NZ$${Math.round(cash).toLocaleString()}.`
+                  : prev
+              );
+            }
+          }
+        } catch (err) {
+          if (signal.aborted) return { ok: false, error: "aborted" };
+          /* keep prior snapshot */
         }
-      }
-    } catch {
-      /* keep prior snapshot */
-    }
 
-    try {
-      const historyForApi = (
-        opts?.prependAssistant
-          ? [
-              ...messages,
-              { role: "assistant" as const, content: opts.prependAssistant },
-            ]
-          : messages
-      )
-        .slice(-8)
-        .map((m) => ({
-          role: m.role,
-          content: m.content.slice(0, 2000),
-        }));
-
-      const res = await fetch("/api/portfolio-coach", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: content,
-          history: historyForApi,
-          headmasterPlan: headmasterPlan || undefined,
-          attachedReports: selectedReports.map((r) => ({
-            id: r._id,
-            title: r.title,
-            bot: r.bot === "crypto" ? "crypto" : "stock",
-            summary: (r.executiveSummary || "").slice(0, 5000),
-            generatedAt: r.generatedAt,
-          })),
-        }),
+        try {
+          const res = await fetch("/api/portfolio-coach", {
+            method: "POST",
+            credentials: "include",
+            signal,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              message: content,
+              history: historyForApi,
+              headmasterPlan: headmasterPlan || undefined,
+              attachedReports: selectedReports.map((r) => ({
+                id: r._id,
+                title: r.title,
+                bot: r.bot === "crypto" ? "crypto" : "stock",
+                summary: (r.executiveSummary || "").slice(0, 5000),
+                generatedAt: r.generatedAt,
+              })),
+            }),
+          });
+          if (signal.aborted) return { ok: false, error: "aborted" };
+          const json = (await res.json()) as {
+            ok?: boolean;
+            data?: { reply?: string };
+            error?: string;
+          };
+          if (json.ok && json.data?.reply) return { ok: true, text: json.data.reply };
+          return {
+            ok: false,
+            error: typeof json.error === "string" ? json.error : "The guide did not return an answer.",
+          };
+        } catch (err) {
+          if (signal.aborted) return { ok: false, error: "aborted" };
+          return { ok: false, error: err instanceof Error ? err.message : "The guide could not be reached." };
+        }
       });
-      const json = (await res.json()) as {
-        ok?: boolean;
-        data?: { reply?: string };
-        error?: string;
-      };
-      if (json.ok && json.data?.reply) {
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: json.data!.reply! },
-        ]);
-      } else {
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            content:
-              "Sorry — I could not complete that reply. Please try again in a moment.",
-          },
-        ]);
+
+      if (outcome.status === "ok") {
+        setMessages((prev) => [...prev, { role: "assistant", content: outcome.text }]);
+      } else if (outcome.status !== "ignored") {
+        setMessages((prev) => [...prev, { role: "assistant", content: outcome.message }]);
       }
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content:
-            "I could not reach the coach service just now. Please try again shortly.",
-        },
-      ]);
     } finally {
-      setSending(false);
+      busyRef.current = false;
     }
   }
 
@@ -692,7 +690,7 @@ export function PortfolioCoachChat({
           </div>
         ))}
 
-        {showCards && messages.length <= 1 && !sending ? (
+        {showCards && messages.length <= 1 && !turn.working ? (
           <div className="grid gap-2 pt-0.5">
             {ENTRY_CARDS.map((card) => {
               const Icon = card.icon;
@@ -741,10 +739,33 @@ export function PortfolioCoachChat({
           </div>
         ) : null}
 
-        {sending && (
-          <div className="flex items-center gap-2 text-xs text-amber-200/80">
-            <Loader2 className="size-3.5 animate-spin text-amber-300" />
-            Assistant Guide is preparing the next steps…
+        {turn.working && (
+          <div className="flex items-center justify-between gap-2 text-xs text-amber-200/80" role="status" aria-live="polite">
+            <span className="inline-flex items-center gap-2">
+              <Loader2 className="size-3.5 animate-spin text-amber-300" />
+              {turnProgressLabel(turn.elapsedSec)}
+            </span>
+            <button
+              type="button"
+              onClick={turn.cancel}
+              className="rounded-md border border-amber-400/40 px-2 py-1 text-[11px] text-amber-100 hover:bg-white/10"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+        {turn.notice && !turn.working && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-400/35 bg-amber-400/10 px-2.5 py-2 text-[11px] text-amber-100" role="alert">
+            <span>{turn.notice}</span>
+            {turn.retryPrompt && (
+              <button
+                type="button"
+                onClick={() => void send(turn.retryPrompt!)}
+                className="rounded-md border border-amber-300/50 px-2 py-1 text-[11px] font-semibold text-amber-50 hover:bg-amber-400/20"
+              >
+                Retry
+              </button>
+            )}
           </div>
         )}
 
@@ -834,7 +855,7 @@ export function PortfolioCoachChat({
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            send(input);
+            void send(turn.draft);
           }}
           className="flex items-center gap-1.5"
         >
@@ -853,19 +874,20 @@ export function PortfolioCoachChat({
             <Paperclip className="size-4" />
           </button>
           <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
+            value={turn.draft}
+            onChange={(e) => turn.setDraft(e.target.value)}
             placeholder="Or type a question…"
             className="h-9 flex-1 rounded-xl border border-amber-400/25 bg-[#0a2f22] px-3 text-sm text-amber-100 placeholder:text-amber-200/55 focus:border-amber-400/50 focus:outline-none"
             maxLength={2000}
+            aria-label="Ask the Assistant Guide"
           />
           <button
             type="submit"
-            disabled={sending || !input.trim()}
+            disabled={turn.working || !turn.draft.trim()}
             className="grid size-9 place-items-center rounded-xl bg-amber-400 text-amber-950 disabled:opacity-40"
             aria-label="Send"
           >
-            {sending ? (
+            {turn.working ? (
               <Loader2 className="size-4 animate-spin" />
             ) : (
               <Send className="size-4" />

@@ -20,6 +20,7 @@ import {
   type MetalHolding,
   type TotalumSynthesis,
 } from "@/lib/totalum-engine";
+import { softenHeadmasterLanguage, type HeadmasterIdea } from "@/lib/headmaster-trust";
 
 export async function loadTotalumSynthesis(userId: string): Promise<TotalumSynthesis> {
   const [stocksRes, metalsRes, userRes, spot, fx] = await Promise.all([
@@ -56,22 +57,26 @@ export async function loadTotalumSynthesis(userId: string): Promise<TotalumSynth
 
 /* ------------------------ Report-findings ingestion --------------------- */
 
-/** One concrete BUY drawn from a bot's latest full report. */
-export interface ReportBuy {
+/** A named idea from a Stox or Koins report. Held vs not-held is explicit. */
+export interface ReportBuy extends HeadmasterIdea {
   ticker: string;
   name: string;
   market: string; // "Stox (equities)" | "Koins (crypto)"
   projected7dPct: number;
   reason: string;
+  held: boolean;
 }
 
 /** The latest Stox + Koins report findings, distilled for The Headmaster. */
 export interface ReportFindings {
   hasStox: boolean;
   hasKoins: boolean;
-  /** Buy list combined across both reports (specific tickers to BUY). */
-  buys: ReportBuy[];
-  /** Rich, AI-ready context block summarising both reports. */
+  /** Held and not-held names. Callers must scope before showing not-held names. */
+  ideas: ReportBuy[];
+  /**
+   * Held-first context. Does not list non-held tickers and does not instruct buys.
+   * Watchlist ideas are opt-in via scopeHeadmasterIdeas.
+   */
   contextBlock: string;
 }
 
@@ -79,55 +84,38 @@ function stripMd(s: string): string {
   return (s || "").replace(/\*\*/g, "").replace(/_/g, "").trim();
 }
 
-function summariseReport(bot: BotKind, report: ApexReport, generatedAt: string): { text: string; buys: ReportBuy[] } {
+function summariseReport(bot: BotKind, report: ApexReport, generatedAt: string): { text: string; ideas: ReportBuy[] } {
   const label = bot === "crypto" ? "KOINS (crypto)" : "STOX (equities)";
   const marketTag = bot === "crypto" ? "Koins (crypto)" : "Stox (equities)";
 
-  const leaders = (report.projectionLeaders || [])
-    .slice(0, 8)
-    .map((p) => `${p.ticker} ${p.projected7dPct >= 0 ? "+" : ""}${p.projected7dPct}% (${p.signal}) @ ${p.confidence}% conf`)
-    .join(", ") || "none";
-
-  const recBuys = (report.directRecommendations || []).filter(
-    (r) => !r.held && (r.action === "BUY" || r.action === "ACCUMULATE")
-  );
-  const buys: ReportBuy[] = recBuys.map((r) => ({
+  const ideas: ReportBuy[] = (report.directRecommendations || []).map((r) => ({
     ticker: r.ticker,
     name: r.name,
     market: marketTag,
     projected7dPct: r.projected7dPct,
-    reason: stripMd(r.detail),
+    reason: softenHeadmasterLanguage(stripMd(r.detail)).slice(0, 240),
+    held: !!r.held,
   }));
-  const buyLine =
-    recBuys
-      .map(
-        (r) =>
-          `${r.action} ${r.ticker} (${r.name}) ${r.projected7dPct >= 0 ? "+" : ""}${r.projected7dPct}% 7d — ${stripMd(r.detail).slice(0, 120)}`
-      )
-      .join("; ") || "none flagged";
-
-  const exec = stripMd(report.executiveSummary || "").slice(0, 420);
+  const heldNames = ideas.filter((r) => r.held).map((r) => r.ticker);
 
   const text = [
-    `${label} FULL REPORT — latest, generated ${generatedAt}:`,
-    exec ? `- Executive read: ${exec}` : "",
-    `- Top 7-day projected leaders: ${leaders}`,
-    `- Specific ticker-level BUY/ACCUMULATE list (use these when cash is available to deploy): ${buyLine}`,
-  ]
-    .filter(Boolean)
-    .join("\n");
+    `${label} report is available (generated ${generatedAt}).`,
+    heldNames.length
+      ? `- Held names mentioned in that report: ${heldNames.join(", ")}.`
+      : "- That report did not list held names.",
+    "- Use it as background for the current book. Non-held names stay off the default Headmaster plan.",
+  ].join("\n");
 
-  return { text, buys };
+  return { text, ideas };
 }
 
 /**
- * Loads the member's latest Stox AND Koins full reports and distils their
- * projections + specific BUY recommendations so The Headmaster can factor
- * BOTH report systems into a more specific, in-depth strategic plan. Non-fatal:
- * on any read/parse failure the affected side is simply reported as absent.
+ * Loads the member's latest Stox AND Koins full reports as held-first context.
+ * Non-held names are returned on `ideas` and stay out of `contextBlock`.
+ * Non-fatal: on any read/parse failure the affected side is simply absent.
  */
 export async function loadReportFindings(userId: string): Promise<ReportFindings> {
-  const loadOne = async (bot: BotKind): Promise<{ text: string; buys: ReportBuy[] } | null> => {
+  const loadOne = async (bot: BotKind): Promise<{ text: string; ideas: ReportBuy[] } | null> => {
     try {
       const res = await totalumSdk.crud.query("report", {
         _filter: { user: userId, bot },
@@ -147,18 +135,18 @@ export async function loadReportFindings(userId: string): Promise<ReportFindings
 
   const [stox, koins] = await Promise.all([loadOne("stock"), loadOne("crypto")]);
 
-  const buys = [...(stox?.buys || []), ...(koins?.buys || [])];
+  const ideas = [...(stox?.ideas || []), ...(koins?.ideas || [])];
   const sections: string[] = [];
   if (stox) sections.push(stox.text);
   if (koins) sections.push(koins.text);
 
   const contextBlock = sections.length
-    ? `LATEST FULL-REPORT FINDINGS (ingested from the member's own Stox & Koins reports — prefer these named tickers when deploying cash):\n\n${sections.join("\n\n")}`
-    : "No Stox or Koins full reports have been generated yet — encourage the member to run both (even with cash-only / empty holdings) so The Headmaster can factor their ticker-level BUY lists into the plan.";
+    ? `LATEST STOX / KOINS CONTEXT (current holdings only — non-held names are withheld unless a watchlist was requested):\n\n${sections.join("\n\n")}`
+    : "No Stox or Koins full reports have been generated yet. The Headmaster plan still covers the current book. Non-held names are not suggested by default.";
 
   console.log(
-    `[totalum] Report findings ingested for user ${userId}: Stox=${!!stox}, Koins=${!!koins}, ${buys.length} specific buys`
+    `[totalum] Report findings ingested for user ${userId}: Stox=${!!stox}, Koins=${!!koins}, ${ideas.length} named ideas (${ideas.filter((i) => !i.held).length} not held, withheld from default context)`
   );
 
-  return { hasStox: !!stox, hasKoins: !!koins, buys, contextBlock };
+  return { hasStox: !!stox, hasKoins: !!koins, ideas, contextBlock };
 }

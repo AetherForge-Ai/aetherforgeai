@@ -25,6 +25,7 @@ import {
   type FxRatesToNZD,
 } from "@/lib/currency";
 import { bullionNzdPerOz, isBullionHolding } from "@/lib/metal-valuation";
+import { buildAllocationPlan, type AllocationPlan, type IllustrativeAction } from "@/lib/headmaster-trust";
 
 /* ------------------------------------------------------------------ *
  * Inputs
@@ -76,7 +77,7 @@ export const CLASS_META: Record<
   equities: { label: "Equities", color: "#10b981", blurb: "NZX · ASX · global stocks" },
   crypto: { label: "Crypto", color: "#f59e0b", blurb: "Digital assets" },
   metals: { label: "Precious Metals", color: "#eab308", blurb: "Gold & silver" },
-  cash: { label: "Cash", color: "#64748b", blurb: "Dry powder & buffer" },
+  cash: { label: "Cash", color: "#64748b", blurb: "Ledger cash and liquidity reserve" },
 };
 
 export interface UnifiedPosition {
@@ -156,8 +157,10 @@ export interface RebalanceMove {
   currentWeight: number;
   targetWeight: number;
   driftPct: number; // current - target (positive = overweight)
-  action: "buy" | "sell" | "hold";
-  amountNZD: number; // absolute $ to move to reach target
+  /** Illustrative skeleton move. Not an order. */
+  action: IllustrativeAction;
+  /** Absolute whole dollars. Same object as AllocationPlan. */
+  amountNZD: number;
 }
 
 export interface StrategyBlueprint {
@@ -175,6 +178,10 @@ export interface StrategyBlueprint {
     rebalanceCadence: string;
   };
   rebalance: RebalanceMove[];
+  /** Single calculation for retained cash, class amounts, and the narrative. */
+  plan: AllocationPlan;
+  /** Same text as plan.formula. */
+  formula: string;
   projectedReturnPct: number;
   projectedVolPct: number;
   narrative: string;
@@ -262,7 +269,7 @@ export const MODEL_PORTFOLIOS: ModelPortfolio[] = [
   {
     key: "conservative_growth",
     name: "Conservative Growth",
-    description: "Steady compounding with a large cash buffer — suited to cash-heavy books deploying gradually.",
+    description: "Steady compounding with a large cash buffer — suited to cash-heavy books building gradually.",
     riskLabel: "Low-Moderate",
     targets: { equities: 45, crypto: 5, metals: 20, cash: 30 },
   },
@@ -376,8 +383,8 @@ export function buildSynthesis(input: SynthesisInput): TotalumSynthesis {
     });
   });
 
-  // Ledger cash (NZD) — dry powder. Cash-only books are synthesised so Strategy
-  // Builder / Strategist work without requiring holdings first.
+  // Ledger cash (NZD). Cash-only books are synthesised so Strategy Builder and
+  // Strategist work without requiring other holdings first.
   const cashBalanceNZD = round(Math.max(0, Number(input.cashBalanceNZD) || 0));
   if (cashBalanceNZD > 0) {
     positions.push({
@@ -439,6 +446,17 @@ export function buildSynthesis(input: SynthesisInput): TotalumSynthesis {
   // Concentration risks — single names >25% and asset classes >70%.
   const concentrationRisks: ConcentrationRisk[] = [];
   positions.forEach((p) => {
+    if (p.assetClass === "cash") {
+      if (p.weight >= 25) {
+        concentrationRisks.push({
+          label: p.label,
+          weight: p.weight,
+          note: `${p.label} is ${p.weight.toFixed(1)}% of total wealth. Cash is a liquidity reserve in this synthesis, not a single-name market position.`,
+          severity: "medium",
+        });
+      }
+      return;
+    }
     if (p.weight >= 25) {
       concentrationRisks.push({
         label: p.label,
@@ -449,12 +467,11 @@ export function buildSynthesis(input: SynthesisInput): TotalumSynthesis {
     }
   });
   classAllocation.forEach((c) => {
-    // Cash overweight is dry powder to deploy — surface as medium guidance, not a shock risk.
     if (c.assetClass === "cash" && c.weight >= 70) {
       concentrationRisks.push({
         label: `${c.label} class`,
         weight: c.weight,
-        note: `${c.weight.toFixed(1)}% of the portfolio is cash — deploy into named Stox/Koins BUY tickers per your goal, keeping a deliberate buffer.`,
+        note: `${c.weight.toFixed(1)}% of the portfolio is cash. That is a liquidity reserve, recorded here as a fact.`,
         severity: "medium",
       });
       return;
@@ -639,38 +656,13 @@ function buildStressTests(
 }
 
 /* ------------------------------------------------------------------ *
- * Strategy Builder — turn a goal into a concrete blueprint + rebalancing plan
+ * Strategy Builder — allocation skeleton from one cash/class calculation
  * ------------------------------------------------------------------ */
 
 export function buildStrategy(synthesis: TotalumSynthesis, goal: GoalKey): StrategyBlueprint {
   const model = modelByKey(goal) ?? MODEL_PORTFOLIOS[1];
   const total = synthesis.totalValueNZD;
-
-  // Current weights by class (cash included when the ledger has a balance).
-  const current: Record<AssetClassKey, number> = { equities: 0, crypto: 0, metals: 0, cash: 0 };
-  synthesis.classAllocation.forEach((c) => {
-    current[c.assetClass] = c.weight;
-  });
-
   const classes: AssetClassKey[] = ["equities", "crypto", "metals", "cash"];
-  const rebalance: RebalanceMove[] = classes.map((key) => {
-    const currentWeight = round(current[key], 1);
-    const targetWeight = model.targets[key];
-    const driftPct = round(currentWeight - targetWeight, 1);
-    const amountNZD = round((Math.abs(driftPct) / 100) * total);
-    const action: RebalanceMove["action"] =
-      Math.abs(driftPct) < 3 ? "hold" : driftPct > 0 ? "sell" : "buy";
-    return {
-      assetClass: key,
-      label: CLASS_META[key].label,
-      color: CLASS_META[key].color,
-      currentWeight,
-      targetWeight,
-      driftPct,
-      action,
-      amountNZD,
-    };
-  });
 
   // Projected characteristics of the TARGET allocation.
   const tFrac = (k: AssetClassKey) => model.targets[k] / 100;
@@ -686,19 +678,35 @@ export function buildStrategy(synthesis: TotalumSynthesis, goal: GoalKey): Strat
   const riskParameters = riskParamsForGoal(goal);
   const { entryRules, exitRules } = rulesForGoal(goal, riskParameters);
 
-  const biggestBuy = [...rebalance].filter((r) => r.action === "buy").sort((a, b) => b.amountNZD - a.amountNZD)[0];
-  const biggestSell = [...rebalance].filter((r) => r.action === "sell").sort((a, b) => b.amountNZD - a.amountNZD)[0];
+  const plan = buildAllocationPlan({
+    totalValueNZD: total,
+    cashBalanceNZD: synthesis.cashBalanceNZD,
+    classes: classes.map((key) => {
+      const row = synthesis.classAllocation.find((c) => c.assetClass === key);
+      return {
+        assetClass: key,
+        label: CLASS_META[key].label,
+        color: CLASS_META[key].color,
+        valueNZD: row?.valueNZD ?? (key === "cash" ? synthesis.cashBalanceNZD : 0),
+      };
+    }),
+    targets: model.targets,
+    modelName: model.name,
+    riskLabel: model.riskLabel,
+    projectedReturnPct: projReturn,
+    projectedVolPct: projVol,
+  });
 
-  const narrative =
-    `The ${model.name} blueprint targets ${model.targets.equities}% equities · ` +
-    `${model.targets.crypto}% crypto · ${model.targets.metals}% metals · ${model.targets.cash}% cash. ` +
-    (biggestSell
-      ? `Trim ~NZ$${biggestSell.amountNZD.toLocaleString()} from ${biggestSell.label.toLowerCase()} `
-      : "") +
-    (biggestBuy
-      ? `${biggestSell ? "and rotate into" : "Deploy ~NZ$" + biggestBuy.amountNZD.toLocaleString() + " toward"} ${biggestBuy.label.toLowerCase()} `
-      : "") +
-    `to align with a ${model.riskLabel.toLowerCase()} posture (≈${projReturn}% expected annual return at ≈${projVol}% volatility).`;
+  const rebalance: RebalanceMove[] = plan.moves.map((m) => ({
+    assetClass: m.assetClass,
+    label: m.label,
+    color: m.color,
+    currentWeight: m.currentWeight,
+    targetWeight: m.targetWeight,
+    driftPct: m.driftPct,
+    action: m.action,
+    amountNZD: m.amountNZD,
+  }));
 
   return {
     goal,
@@ -710,9 +718,11 @@ export function buildStrategy(synthesis: TotalumSynthesis, goal: GoalKey): Strat
     exitRules,
     riskParameters,
     rebalance,
+    plan,
+    formula: plan.formula,
     projectedReturnPct: projReturn,
     projectedVolPct: projVol,
-    narrative,
+    narrative: plan.narrative,
   };
 }
 
@@ -741,81 +751,81 @@ function rulesForGoal(
 ): { entryRules: string[]; exitRules: string[] } {
   const common = {
     entry: [
-      `Cap any single position at ${rp.maxPositionWeight}% of total wealth on entry.`,
-      `Keep at least ${rp.cashBufferPct}% in cash as dry powder for volatility spikes.`,
-      "Scale into new positions in 2–3 tranches rather than a single fill.",
+      `Illustrative position cap: ${rp.maxPositionWeight}% of total wealth in this skeleton.`,
+      `Retained cash in this skeleton is the ${rp.cashBufferPct}% cash target shown in the allocation table. That balance is not an amount to deploy.`,
+      "If a sleeve were increased, this skeleton assumes two or three tranches rather than one fill.",
     ],
     exit: [
-      `Set a hard stop-loss ${rp.stopLossPct}% below cost on each position.`,
-      `Rebalance to target weights on a ${rp.rebalanceCadence.toLowerCase()} cadence.`,
-      "Trim any position that drifts more than 5% above its target weight.",
+      `Illustrative review band: about ${rp.stopLossPct}% below cost is a point to revisit the scenario, not an order.`,
+      `Compare live weights with this skeleton on a ${rp.rebalanceCadence.toLowerCase()} cadence.`,
+      "A position more than 5 percentage points above its skeleton weight is an illustrative reduce case.",
     ],
   };
   switch (goal) {
     case "aggressive_growth":
       return {
         entryRules: [
-          "Concentrate into the highest-conviction Strong-Buy signals from Stox & Koins.",
+          "This higher-risk skeleton leans on names already in the book, sized inside the position cap.",
           ...common.entry,
-          "Add on strength — pyramid winners rather than averaging down losers.",
+          "The pathway assumes further size only while that higher-risk case still fits the skeleton.",
         ],
         exitRules: [
-          "Let winners run; use trailing stops instead of fixed profit targets.",
+          "The pathway leaves room for winning sleeves to stay inside the cap, using a trailing review band rather than a fixed profit target.",
           ...common.exit,
         ],
       };
     case "capital_preservation":
       return {
         entryRules: [
-          "Favour defensive, cash-generative equities (utilities, healthcare, staples).",
-          "Anchor the book with a 40% gold/silver allocation as a crisis hedge.",
+          "The preservation pathway favours defensive, cash-generative equity sectors already represented, or leaves the sleeve unchanged.",
+          "The skeleton anchors a large gold and silver weight as a crisis hedge.",
           ...common.entry,
         ],
         exitRules: [
-          "Cut any holding on the first flagged weakness — protect capital first.",
+          "The preservation pathway treats the first flagged weakness as a review point.",
           ...common.exit,
         ],
       };
     case "preservation_crypto":
       return {
         entryRules: [
-          "Build a preservation core (metals + quality equities) first, then add the crypto sleeve.",
-          "Treat the crypto allocation as asymmetric, high-conviction, position-sized to survive a 55% drawdown.",
+          "The pathway builds the preservation core (metals and equities) in the skeleton before the crypto sleeve.",
+          "The crypto weight is an asymmetric sleeve, sized so a large drawdown stays inside the scenario.",
           ...common.entry,
         ],
         exitRules: [
-          "Take profits on crypto into strength to keep the sleeve within its target weight.",
+          "Crypto strength in this pathway is a point to check the sleeve against its target weight.",
           ...common.exit,
         ],
       };
     case "conservative_growth":
       return {
         entryRules: [
-          "Deploy cash gradually into quality equities and a metals ballast — never all-in at once.",
-          "Prefer named BUY/ACCUMULATE tickers from Stox & Koins with measured conviction.",
+          "The pathway moves cash toward quality equities and a metals ballast in tranches, never as the full balance.",
+          "Illustrative names, if any, stay inside current holdings unless a watchlist was requested.",
           ...common.entry,
         ],
         exitRules: [
-          "Protect the cash buffer first; trim risk assets when they exceed target weights.",
+          "The pathway protects the retained-cash target first and illustrates reducing risk assets only when they exceed target weights.",
           ...common.exit,
         ],
       };
     case "high_risk_high_reward":
       return {
         entryRules: [
-          "Concentrate into the highest-conviction named tickers from Stox & Koins sweeps.",
-          "Accept elevated volatility — size positions so a severe drawdown is survivable.",
+          "This higher-risk skeleton concentrates the target mix in equities and crypto, still inside the position cap and retained-cash target.",
+          "The pathway accepts elevated volatility and sizes sleeves so a severe drawdown stays inside the scenario.",
           ...common.entry,
         ],
         exitRules: [
-          "Use tight trailing stops; rotate quickly out of broken momentum names.",
+          "A broken momentum path is a review point for rotating the skeleton, not an order.",
           ...common.exit,
         ],
       };
     default:
       return {
         entryRules: [
-          "Hold a diversified core across at least three asset classes.",
+          "The skeleton holds a diversified core across at least three asset classes.",
           ...common.entry,
         ],
         exitRules: [...common.exit],

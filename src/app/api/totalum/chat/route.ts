@@ -4,8 +4,9 @@ import { getCurrentUser } from "@/lib/session";
 import { loadTotalumSynthesis, loadReportFindings } from "@/lib/totalum-service";
 import { isTotalumEntitled } from "../route";
 import { createGrokChatCompletion, isGrokConfigured, type GrokMessage } from "@/lib/grok";
-import type { TotalumSynthesis } from "@/lib/totalum-engine";
+import { buildStrategy, type TotalumSynthesis } from "@/lib/totalum-engine";
 import type { ReportFindings } from "@/lib/totalum-service";
+import { requestsWatchlist, scopeHeadmasterIdeas } from "@/lib/headmaster-trust";
 
 export const dynamic = "force-dynamic";
 
@@ -17,15 +18,15 @@ const postSchema = z.object({
     .optional(),
 });
 
-const STRATEGIST_SYSTEM_PROMPT = `You are "The Headmaster", the Portfolio Planning and Strategies agent and Chief Strategist inside the AetherForge AI platform.
-You orchestrate the member's ENTIRE cross-asset book — NZX/ASX/global equities, crypto and physical precious metals — into one unified NZD wealth system.
-You think holistically across asset classes: allocation, diversification, concentration, correlation, drawdown risk, hedging and rebalancing toward the member's goals.
-Speak like a seasoned Chief Investment Strategist briefing a private client: decisive, concrete, numerate. Always ground statements in the portfolio snapshot provided and cite real figures from it (all values are NZD).
-When asked "what if" questions (e.g. a crypto crash), reason from the asset-class weights and the stress-test / scenario figures given.
-You are also fed the member's LATEST FULL-REPORT FINDINGS from BOTH report systems — the Stox Full Report (NZX/ASX/NASDAQ/DOW equities) and the Koins Full Report (the complete crypto market). Factor the projections and specific BUY recommendations from BOTH into a more specific, in-depth strategic plan.
-MANDATORY SPECIFICITY: whenever you suggest BUYS, explicitly NAME the specific tickers/coins to buy (with market) and give concrete, structured reasoning plus conviction for each — drawn from the Stox and Koins report findings and the portfolio snapshot above. When the member has cash (cash-only or cash-heavy), lead with a concrete ticker-level BUY/ACCUMULATE deployment list — not just asset-class allocation. Never give vague or generic advice.
-Format in clean Markdown: short paragraphs, **bold** key numbers, bullet lists for actions. Keep replies focused (a few hundred words max).
-End with a one-line, non-legalese reminder that this is portfolio intelligence, not personalised financial advice.`;
+const STRATEGIST_SYSTEM_PROMPT = `You are "The Headmaster", the Portfolio Planning and Strategies agent inside the AetherForge AI platform.
+You answer questions about the member's current cross-asset book — NZX/ASX/global equities, crypto and physical precious metals — in one NZD picture.
+This tab is questions and answers. It is not an order ticket. You do not place trades.
+Speak in scenarios and illustrative alternatives. Do not instruct the member to BUY, ACCUMULATE, or treat a signal as a Strong Buy.
+Default scope is current holdings. Name a ticker that is not held only when the member explicitly asks for watchlist ideas, and then put those names under a heading "Watchlist ideas — not held, not instructions".
+When you mention cash movement, use the retained-cash and illustrated-reallocation figures in the snapshot. Never tell the member to deploy the entire cash balance.
+Ground figures in the snapshot (all values are NZD). For "what if" questions, use the stress-test and scenario pathway figures.
+Format in clean Markdown: short paragraphs, **bold** key numbers, bullet lists for scenarios. Keep replies focused.
+End with a one-line reminder that this is portfolio intelligence, not personalised financial advice, and that AetherForge does not trade for you.`;
 
 function nzd(v: number): string {
   return `NZ$${Math.round(v).toLocaleString()}`;
@@ -37,21 +38,18 @@ function buildStrategistContext(s: TotalumSynthesis): string {
     return (
       "The member's unified book is empty — no equities, crypto, metals OR cash yet. " +
       "Encourage them to deposit cash in the Transaction Center and/or add positions in Stox, Koins and the Precious Metals tracker. " +
-      "Cash alone is enough to start Strategy Builder and deploy into named BUY tickers from Stox/Koins reports."
+      "Cash alone is enough to open the allocation skeleton. Do not invent tickers to buy."
     );
   }
   const lines: string[] = [];
   const cashW = s.classAllocation.find((c) => c.assetClass === "cash")?.weight ?? 0;
-  const heldSecurities = s.positions.filter((p) => p.assetClass !== "cash").length;
+  const skeleton = buildStrategy(s, "balanced_growth");
   lines.push(
     `UNIFIED PORTFOLIO (base currency NZD, as of ${s.asOf}):`,
     `- Total value: ${nzd(s.totalValueNZD)} | cost ${nzd(s.totalCostNZD)} | P/L ${nzd(s.totalGainNZD)} (${s.totalGainPct.toFixed(2)}%)`,
-    `- Cash balance: ${nzd(s.cashBalanceNZD)} (${cashW.toFixed(1)}% of book)` +
-      (s.cashBalanceNZD > 0 && heldSecurities === 0
-        ? " — CASH-ONLY book: prioritise concrete ticker-level BUY/ACCUMULATE lists from Stox & Koins findings"
-        : s.cashBalanceNZD > 0 && cashW >= 40
-          ? " — CASH-HEAVY: name specific tickers to deploy dry powder into"
-          : ""),
+    `- Cash on book: ${nzd(s.cashBalanceNZD)} (${cashW.toFixed(1)}% of book). Liquidity reserve, not a single-name shock.`,
+    `- Default Balanced Growth skeleton (same calculation as the Strategy tab): retained cash ${nzd(skeleton.plan.retainedCashNZD)} (${skeleton.plan.targetCashPct}%). Illustrated cash reallocation ${nzd(skeleton.plan.cashToReallocateNZD)}.`,
+    `- ${skeleton.plan.formula}`,
     `- Diversification score: ${s.diversificationScore}/100 (${s.concentrationLabel}, HHI ${s.hhi})`,
     `- Expected: ≈${s.expectedAnnualReturnPct}% annual return at ≈${s.expectedAnnualVolPct}% volatility`,
     "",
@@ -84,28 +82,19 @@ function buildStrategistContext(s: TotalumSynthesis): string {
   return lines.join("\n");
 }
 
-/** Renders the combined Stox + Koins specific-BUY list for grounding replies. */
-function buyBlock(findings: ReportFindings): string {
-  if (!findings.buys.length) return "";
-  const top = findings.buys
-    .slice()
-    .sort((a, b) => b.projected7dPct - a.projected7dPct)
-    .slice(0, 6);
-  const lines = top.map(
-    (b) =>
-      `- **${b.ticker}** — ${b.name} · _${b.market}_ · projected **${b.projected7dPct >= 0 ? "+" : ""}${b.projected7dPct}%** (7d)${
-        b.reason ? ` — ${b.reason}` : ""
-      }`
-  );
-  return ["", "**Specific BUYS drawn from your latest Stox & Koins reports:**", ...lines].join("\n");
+function heldLabels(s: TotalumSynthesis): string[] {
+  return s.positions.filter((p) => p.assetClass !== "cash").map((p) => p.label);
+}
+
+function ideaBlock(message: string, s: TotalumSynthesis, findings: ReportFindings): string {
+  const scoped = scopeHeadmasterIdeas(findings.ideas || [], heldLabels(s), requestsWatchlist(message));
+  return ["", scoped.contextBlock].join("\n");
 }
 
 /** Deterministic fallback answer when the AI provider is not configured. */
 function deterministicReply(message: string, s: TotalumSynthesis, findings: ReportFindings): string {
   if (s.isEmpty) {
-    return `Your unified book is empty — no cash, equities, crypto or metals yet. **Deposit cash** in the Transaction Center and/or add positions in **Stox**, **Koins**, and the **Precious Metals** tracker. Cash alone is enough for me to build a deployment plan into named BUY tickers.${buyBlock(
-      findings
-    )}\n\n_Portfolio intelligence, not personalised financial advice._`;
+    return `Your unified book is empty — no cash, equities, crypto or metals yet. **Deposit cash** in the Transaction Center and/or add positions in **Stox**, **Koins**, and the **Precious Metals** tracker. Cash alone is enough to open an allocation skeleton. I will not invent tickers.\n\n_Portfolio intelligence, not personalised financial advice. AetherForge does not trade for you._`;
   }
   const top = s.classAllocation[0];
   const worstStress = [...s.stressTests].sort((a, b) => a.impactNZD - b.impactNZD)[0];
@@ -118,11 +107,11 @@ function deterministicReply(message: string, s: TotalumSynthesis, findings: Repo
       ? `- **Biggest downside stress:** ${worstStress.name} would cost **${nzd(Math.abs(worstStress.impactNZD))}** (${worstStress.impactPct}%).`
       : "",
     s.concentrationRisks[0] ? `- **Watch:** ${s.concentrationRisks[0].note}` : "",
-    buyBlock(findings),
+    ideaBlock(message, s, findings),
     "",
-    "Use the **Strategy Builder** above to pick a goal and get an exact rebalancing plan, or the **Scenario Simulator** to see bull/base/bear pathways.",
+    "The **Strategy** tab is the allocation skeleton (retained cash and illustrative class amounts). **Scenarios** and **Stress** are pathways and shocks. This chat only answers questions about that picture.",
     "",
-    "_Portfolio intelligence, not personalised financial advice._",
+    "_Portfolio intelligence, not personalised financial advice. AetherForge does not trade for you._",
   ];
   return lines.filter(Boolean).join("\n");
 }
@@ -150,7 +139,12 @@ export async function POST(req: Request) {
       loadTotalumSynthesis(user._id),
       loadReportFindings(user._id),
     ]);
-    const context = `${buildStrategistContext(synthesis)}\n\n${findings.contextBlock}`;
+    const scoped = scopeHeadmasterIdeas(
+      findings.ideas || [],
+      heldLabels(synthesis),
+      requestsWatchlist(parsed.data.message)
+    );
+    const context = `${buildStrategistContext(synthesis)}\n\n${findings.contextBlock}\n\n${scoped.contextBlock}`;
 
     // Graceful deterministic fallback when no AI key is configured.
     if (!isGrokConfigured()) {
