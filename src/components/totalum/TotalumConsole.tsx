@@ -54,7 +54,7 @@ import type {
   StrategyBlueprint,
   GoalKey,
 } from "@/lib/totalum-engine";
-import { illustrativeActionLabel, turnProgressLabel } from "@/lib/headmaster-trust";
+import { illustrativeActionLabel, sanitizeHeadmasterDisplayText, turnProgressLabel } from "@/lib/headmaster-trust";
 import { useRecoverableTurn } from "@/lib/use-recoverable-turn";
 import { cn } from "@/lib/utils";
 import { headmasterDeskCopy } from "@/lib/entitlements";
@@ -382,7 +382,7 @@ function StrategyTab({ initialSynthesis }: { initialSynthesis: TotalumSynthesis 
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [includeWatchlist, setIncludeWatchlist] = React.useState(false);
-  const reportHref = `/api/totalum/report?goal=${goal}${includeWatchlist ? "&watchlist=1" : ""}`;
+  const reportHref = `/api/totalum/report?goal=${goal}${includeWatchlist ? "&watchlist=1" : ""}&hm=2`;
 
   const build = React.useCallback(async (g: GoalKey) => {
     setLoading(true);
@@ -500,7 +500,7 @@ function StrategyTab({ initialSynthesis }: { initialSynthesis: TotalumSynthesis 
               <h3 className="text-sm font-semibold">{strategy.name}</h3>
               <Badge variant="outline" className="ml-auto">{strategy.riskLabel}</Badge>
             </div>
-            <p className="mt-2 text-sm text-muted-foreground">{strategy.narrative}</p>
+            <p className="mt-2 text-sm text-muted-foreground">{sanitizeHeadmasterDisplayText(strategy.narrative, strategy.plan)}</p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <Kpi label="Projected return" value={`${strategy.projectedReturnPct}%`} sub="Model pathway, target mix" />
               <Kpi label="Projected volatility" value={`${strategy.projectedVolPct}%`} sub="Model pathway" />
@@ -511,7 +511,7 @@ function StrategyTab({ initialSynthesis }: { initialSynthesis: TotalumSynthesis 
                 sub={`Cash on book ${nzd(strategy.plan.cashOnBookNZD)}`}
               />
             </div>
-            <p className="mt-3 text-xs text-muted-foreground">{strategy.formula}</p>
+            <p className="mt-3 text-xs text-muted-foreground">{sanitizeHeadmasterDisplayText(strategy.formula, strategy.plan)}</p>
           </Card>
 
           <Card className="p-5">
@@ -568,7 +568,7 @@ function StrategyTab({ initialSynthesis }: { initialSynthesis: TotalumSynthesis 
                 {strategy.entryRules.map((r, i) => (
                   <li key={i} className="flex gap-2">
                     <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-emerald-500" />
-                    <span>{r}</span>
+                    <span>{sanitizeHeadmasterDisplayText(r, strategy.plan)}</span>
                   </li>
                 ))}
               </ul>
@@ -579,7 +579,7 @@ function StrategyTab({ initialSynthesis }: { initialSynthesis: TotalumSynthesis 
                 {strategy.exitRules.map((r, i) => (
                   <li key={i} className="flex gap-2">
                     <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-rose-500" />
-                    <span>{r}</span>
+                    <span>{sanitizeHeadmasterDisplayText(r, strategy.plan)}</span>
                   </li>
                 ))}
               </ul>
@@ -820,7 +820,7 @@ export function TotalumConsole({ entitled, memberName, plan }: { entitled: boole
           </p>
           <div className="mt-3">
             <Button asChild size="sm" variant="outline">
-              <a href="/api/totalum/report?goal=balanced_growth" target="_blank" rel="noopener noreferrer">
+              <a href="/api/totalum/report?goal=balanced_growth&hm=2" target="_blank" rel="noopener noreferrer">
                 <Download className="mr-1.5 size-3.5" /> Total Portfolio Intelligence report
               </a>
             </Button>
