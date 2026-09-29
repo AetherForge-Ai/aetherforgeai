@@ -393,3 +393,48 @@ export function formatReportCooldownLine(opts: {
   if (opts.waitMs <= 0) return `Generated ${ago} · ready to refresh${windowLabel}`;
   return `Generated ${ago} · next refresh in ${formatWaitShort(opts.waitMs)}${windowLabel}`;
 }
+
+/**
+ * What the Headmaster desk is on this plan. Copy only — does not change
+ * Stripe products. Every paid plan that can open /headmaster gets the same
+ * planning desk; Pro's pricing line names that desk "Full Headmaster".
+ */
+export interface HeadmasterDeskCopy {
+  badge: string;
+  summary: string;
+  detail: string;
+}
+
+export function headmasterDeskCopy(plan?: string | null): HeadmasterDeskCopy {
+  const key = normalizePlanKey(plan);
+  if (key === "dual_yearly") {
+    return {
+      badge: "Apex Dual",
+      summary: "Included with Apex Dual",
+      detail:
+        "Apex Dual includes this planning desk: unified allocation, scenarios, stress tests, the strategy builder, and the Chief Strategist. The Total Portfolio Intelligence report is on the Strategy tab — it is not a separate Stox or Koins run. The Pro plan's “Full Headmaster planning & strategies” line is this same desk.",
+    };
+  }
+  if (key === "pro_monthly" || key === "pro_yearly" || key === "ultimate_monthly" || key === "ultimate_yearly") {
+    return {
+      badge: "Included",
+      summary: "Full Headmaster desk included",
+      detail:
+        "This plan includes the full Headmaster planning desk and the on-demand Total Portfolio Intelligence report. Open the Strategy tab to generate that report. It is not a third bot run beside Stox and Koins.",
+    };
+  }
+  if (key && !isFreeReportPlan(key)) {
+    return {
+      badge: "Included",
+      summary: "Planning desk included",
+      detail:
+        "Your paid plan includes this desk for allocation, scenarios, stress, and strategy. The intelligence report is on the Strategy tab. Pro lists the same desk as Full Headmaster planning & strategies.",
+    };
+  }
+  return {
+    badge: "Pro",
+    summary: "Paid planning desk",
+    detail:
+      "The Headmaster planning desk opens with an active paid membership. Pro lists it as Full Headmaster planning & strategies. Apex Dual includes the same desk alongside Stox and Koins.",
+  };
+}

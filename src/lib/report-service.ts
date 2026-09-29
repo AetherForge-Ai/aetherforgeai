@@ -10,6 +10,13 @@ import { computePortfolioMetrics, buildActionableIntelligence } from "@/lib/anal
 import { getUpcomingEvents } from "@/lib/econ-calendar";
 import { scoreHeadlines } from "@/lib/news-sentiment";
 import { buildIntelligenceBriefing } from "@/lib/briefing";
+import {
+  deploymentGuard,
+  narrativeContradictsCanonical,
+  rateAsset,
+  readTape,
+  alignedProjection,
+} from "@/lib/report-consistency";
 import { fetchQuotesForAssetClass, isLiveConfiguredFor } from "@/lib/market-data";
 import { fetchCryptoMarketIntel } from "@/lib/koins-market";
 import { getFxSnapshot } from "@/lib/fx";
@@ -224,11 +231,14 @@ export async function generateReportForUser(
       ? Math.max(0, user.cash_balance)
       : 0;
 
+  const tape = readTape(technicals);
   const report = buildLiveReport(bot, holdings, {
     seedSalt: `${user._id}:${bot}:${context}:${Date.now()}`,
     fxToNZD: fx.ratesToNZD,
     marketOverrides,
     universeIntel,
+    holdingIntel: technicals,
+    tape,
     cashBalanceNZD,
   });
 
@@ -281,6 +291,15 @@ export async function generateReportForUser(
       // Full-market BUY candidates + top projected leaders drawn from the report's
       // own sweep (the ENTIRE crypto market for Koins) — fed to the narrative so
       // it can name specific tickers to BUY with concrete, data-grounded reasons.
+      const guard = deploymentGuard(bot, tape, cashBalanceNZD);
+      const canonicalLines = technicals
+        .map((t) => {
+          const rating = rateAsset(t);
+          const aligned = alignedProjection(t);
+          return `${rating.action} ${t.ticker} — 7-day base ${aligned.range} (${aligned.probability}% odds, midpoint ${aligned.pct >= 0 ? "+" : ""}${aligned.pct}%), MACD ${t.macdSignal}, regime ${t.regime}, RSI ${t.rsi}. Positive momentum: ${rating.positiveMomentum ? "yes" : "no"}.`;
+        })
+        .join("\n");
+      const positive = technicals.filter((t) => rateAsset(t).positiveMomentum).length;
       const marketBuys =
         report.directRecommendations
           .filter((r) => !r.held && (r.action === "BUY" || r.action === "ACCUMULATE"))
@@ -305,29 +324,32 @@ export async function generateReportForUser(
                 ? `This is a PURE cryptocurrency report covering the COMPLETE crypto market — never reference NZX, ASX, NASDAQ, DOW or any equities. `
                 : `This is a PURE equities report covering NZX, ASX, NASDAQ and DOW JONES — never reference crypto. `) +
               `Write a rich, professional 4-6 sentence executive summary of the short-term (7-day) outlook. ` +
-              `Be strictly evidence-based and PROBABILISTIC — speak in expected ranges and likelihoods, and NEVER give a single-point price target. ` +
+              `Be strictly evidence-based and PROBABILISTIC — speak in expected ranges and likelihoods, and NEVER give a single-point price target that disagrees with the base-case range below. ` +
               `Reference technical posture (RSI/MACD/regime), conviction/confidence %, catalysts, news sentiment, and the single most important action now. ` +
-              `MANDATORY: explicitly NAME specific ${bot === "crypto" ? "coins/tickers" : "tickers"} (with market) to BUY or ACCUMULATE right now, each with a one-line data-grounded reason and conviction. ` +
+              `CANONICAL RATINGS are the only actions you may use. Do not upgrade a HOLD into Strong Buy, Accumulate, or ADD. Do not call a name positive momentum unless the line says yes. ` +
+              `If you quote a 7-day view for a held name, use that name's base-case range exactly. ` +
+              (guard.mode === "full"
+                ? `You may name the suitable BUY/ACCUMULATE candidates below, sized with a cash buffer. `
+                : `CASH GUARD (${guard.mode}): ${guard.headline} Do not tell the reader to deploy the full cash balance. Do not recommend speculative or outsized movers as buys. `) +
               (holdings.length === 0
-                ? `The member has empty holdings and NZ$${Math.round(cashBalanceNZD)} cash — lead with a concrete ticker-level deployment list, not class allocation alone. `
-                : `The member ALREADY HOLDS live positions. Open by naming each held ticker and the action on it (hold, add, trim, or sell). ` +
-                  (cashBalanceNZD > 0
-                    ? `They also have NZ$${Math.round(cashBalanceNZD)} cash — name new BUY candidates only after the held-book actions. `
-                    : "") +
+                ? `The member has empty holdings and NZ$${Math.round(cashBalanceNZD)} cash — follow the cash guard. `
+                : `The member ALREADY HOLDS live positions. Open by naming each held ticker with its CANONICAL action. ` +
                   `Never describe the book, portfolio, or holdings as empty, cash-only, or unmonitored. `) +
-              `Never give vague or generic advice. Close with an italic disclaimer that this is informational intelligence, not financial advice. Use **bold** for highest-signal phrases and ticker names.\n\n` +
+              `Positive momentum count you must match if you mention it: ${positive} of ${technicals.length}. ` +
+              `Close with an italic disclaimer that this is informational intelligence, not financial advice. Use **bold** for ticker names.\n\n` +
               `Market: ${report.marketLabel}.\n` +
               `Overall read: ${briefing.overall.bias} bias, ${briefing.overall.level} conviction, net ${briefing.overall.score}/100.\n` +
               `News sentiment: ${sentiment.label} (${sentiment.score}/100, ${sentiment.method} model).\n` +
               `Catalysts next 7 days: ${catalystLine}.\n` +
               `Portfolio metrics: health ${metrics.healthScore}/100 (${metrics.healthLabel}), annualised volatility ${metrics.volatility}%, Sharpe ${metrics.sharpe}, 7-day alpha potential ${metrics.alphaPotentialPct}%.\n` +
+              `CANONICAL RATINGS (source of truth):\n${canonicalLines || "(none)"}\n` +
               `SELL flags (held): ${sells}. High-conviction BUY candidates (held): ${buys}.\n` +
-              `SPECIFIC BUY candidates from the full-market sweep — name these explicitly: ${marketBuys}.\n` +
-              `Top 7-day projected leaders across the market: ${topProjected}.\n` +
+              `Suitable new BUY candidates only: ${marketBuys}.\n` +
+              `Top 7-day projected leaders across the market (context, not automatic buys): ${topProjected}.\n` +
               (holdings.length
                 ? `Holdings:\n${lines}\n\n`
-                : `Holdings: none — cash NZ$${Math.round(cashBalanceNZD)} available to deploy.\n\n`) +
-              `Write the ZENITH executive summary now — name specific tickers to BUY/ACCUMULATE with conviction.`,
+                : `Holdings: none — cash NZ$${Math.round(cashBalanceNZD)} available, subject to the cash guard.\n\n`) +
+              `Write the ZENITH executive summary now. Repeat the canonical actions. Do not contradict them.`,
           },
         ],
       });
@@ -336,9 +358,17 @@ export async function generateReportForUser(
           narrative,
           holdings.map((h) => ({ ticker: h.ticker, shares: h.shares, name: h.name }))
         );
-        if (grounded.discardedEmptyClaim || !grounded.text) {
+        const contradicts = narrativeContradictsCanonical(
+          grounded.text,
+          technicals.map((t) => ({ ticker: t.ticker, action: rateAsset(t).action })),
+          guard,
+          { positive, total: technicals.length }
+        );
+        if (grounded.discardedEmptyClaim || !grounded.text || contradicts) {
           console.warn(
-            `[report-service] Discarded ZENITH narrative that described an empty book while ${holdings.length} ${bot} holdings are live`
+            contradicts
+              ? `[report-service] Discarded ZENITH narrative that contradicted canonical ratings or the cash guard`
+              : `[report-service] Discarded ZENITH narrative that described an empty book while ${holdings.length} ${bot} holdings are live`
           );
         } else {
           report.executiveSummary = grounded.text;
