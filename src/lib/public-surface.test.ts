@@ -29,4 +29,20 @@ describe("public surface routes", () => {
     expect(middleware).toContain('"/market-news"');
     expect(read("src/app/blog/page.tsx")).toContain("no articles");
   });
+
+  it("uses the shared site header on About and prompts signed-out dashboard clicks", () => {
+    const about = read("src/components/about/AboutContent.tsx");
+    expect(about).toContain("SiteHeader");
+    expect(about).not.toContain("Try the AI");
+    expect(about).not.toContain("Toggle menu");
+    const prompt = read("src/components/dashboard/MemberDashboardPrompt.tsx");
+    expect(prompt).toContain(
+      "Dashboard is part of the service available to signed up members — You can sign up right now for free by clicking the link",
+    );
+    expect(prompt).toContain('"/pricing"');
+    expect(read("src/components/TopNav.tsx")).toContain("onDashboardClick");
+    expect(read("src/components/home/HomeSessionCtas.tsx")).toContain("onDashboardClick");
+    expect(read("src/components/dashboard/GuestDashboardGate.tsx")).toContain("MemberDashboardDialog");
+    expect(read("src/components/dashboard/GuestDashboardGate.tsx")).not.toContain("Test UserAF");
+  });
 });
