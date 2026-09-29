@@ -13,6 +13,7 @@ import { buildIntelligenceBriefing } from "@/lib/briefing";
 import {
   deploymentGuard,
   narrativeContradictsCanonical,
+  sanitizeGuardedReport,
   rateAsset,
   readTape,
   alignedProjection,
@@ -409,7 +410,8 @@ export async function generateReportForUser(
 
   const now = new Date();
   const generatedAtLabel = nzDateLabel(now);
-  const html = renderReportHtml(report, {
+  const delivered = sanitizeGuardedReport(report);
+  const html = renderReportHtml(delivered, {
     userName: user.name || undefined,
     generatedAtLabel,
     alerts,
@@ -465,8 +467,8 @@ export async function generateReportForUser(
       user: user._id,
       bot,
       market_label: report.marketLabel,
-      executive_summary: report.executiveSummary,
-      payload: JSON.stringify(report),
+      executive_summary: delivered.executiveSummary,
+      payload: JSON.stringify(delivered),
       emailed: emailed ? "yes" : "no",
       ai_enhanced: aiEnhanced ? "yes" : "no",
       ai_engine: report.engine,

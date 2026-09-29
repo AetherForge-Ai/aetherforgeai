@@ -10,6 +10,7 @@ import * as React from "react";
 import { Badge } from "@/components/ui/badge";
 import { formatPercent } from "@/lib/portfolio";
 import { formatMoney } from "@/lib/currency";
+import { sanitizeGuardedReport } from "@/lib/report-consistency";
 import type {
   ApexReport,
   TickerAnalysis,
@@ -552,7 +553,8 @@ function BriefingSection({ report }: { report: ApexReport }) {
   );
 }
 
-export function ApexReportView({ report }: { report: ApexReport }) {
+export function ApexReportView({ report: source }: { report: ApexReport }) {
+  const report = sanitizeGuardedReport(source);
   return (
     <div className="min-w-0 max-w-full space-y-5 overflow-x-hidden">
       {/* Header */}
