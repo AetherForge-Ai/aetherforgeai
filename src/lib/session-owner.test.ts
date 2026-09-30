@@ -115,6 +115,8 @@ describe("session owner", () => {
 
   it("does not let a cookie-less request read another member's book", () => {
     expect(anonymousAccountApi("/api/session", "GET")).toBe("session-null");
+    expect(anonymousAccountApi("/api/auth/get-session", "GET")).toBe("auth-null");
+    expect(anonymousAccountApi("/api/auth/sign-in/email", "POST")).toBeNull();
     expect(anonymousAccountApi("/api/stocks", "GET")).toBe("unauthorized");
     expect(anonymousAccountApi("/api/alerts", "GET")).toBe("unauthorized");
     expect(anonymousAccountApi("/api/transactions", "POST")).toBe("unauthorized");
