@@ -184,7 +184,7 @@ export function isProtectedAccountApi(pathname: string): boolean {
   );
 }
 
-export type AnonymousAccountApi = "session-null" | "unauthorized";
+export type AnonymousAccountApi = "session-null" | "auth-null" | "unauthorized";
 
 /**
  * What a cookie-less request may receive. Session lookup must not run:
@@ -196,6 +196,10 @@ export function anonymousAccountApi(pathname: string, method: string): Anonymous
   if (verb === "OPTIONS" || verb === "HEAD") return null;
   if (pathname === "/api/session/logout") return null;
   if (pathname === "/api/session" && verb === "GET") return "session-null";
+  // better-auth's get-session is not the paper-book probe, but useSession()
+  // still calls it. A cookieless hit must not run the handler: that path can
+  // Set-Cookie a worker-cached session and is not varied on Cookie.
+  if (pathname === "/api/auth/get-session" && verb === "GET") return "auth-null";
   if (isProtectedAccountApi(pathname)) return "unauthorized";
   return null;
 }

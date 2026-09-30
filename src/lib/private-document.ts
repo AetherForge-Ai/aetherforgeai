@@ -71,7 +71,20 @@ export function anonymousResponseMaySetAuthCookie(pathname: string, method: stri
   if (path === "/api/session/logout" || path === "/logout") return true;
   if (path.startsWith("/api/auth/callback")) return true;
   if (path.startsWith("/api/auth/") && verb === "POST") return true;
+  // Email verification signs the browser in (autoSignInAfterVerification).
+  // That GET must be allowed to keep the session cookie it just issued.
+  if (path === "/api/auth/verify-email" || path.startsWith("/api/auth/magic-link")) return true;
   return false;
+}
+
+/** A Set-Cookie that deletes the cookie (empty value or Max-Age=0). */
+export function isClearingSetCookie(line: string): boolean {
+  const lower = line.toLowerCase();
+  if (lower.includes("max-age=0")) return true;
+  const pair = line.split(";", 1)[0] ?? "";
+  const eq = pair.indexOf("=");
+  if (eq < 0) return false;
+  return pair.slice(eq + 1).trim().length === 0;
 }
 
 export function filterAnonymousAuthSetCookies(
@@ -81,7 +94,33 @@ export function filterAnonymousAuthSetCookies(
   hasSessionToken: boolean,
 ): string[] {
   if (hasSessionToken || anonymousResponseMaySetAuthCookie(pathname, method)) return [...lines];
-  return lines.filter((line) => !AUTH_COOKIE_NAME.test(setCookieName(line)));
+  return lines.filter((line) => {
+    if (!AUTH_COOKIE_NAME.test(setCookieName(line))) return true;
+    // Keep an explicit clear. Drop a value that would sign this browser in.
+    return isClearingSetCookie(line);
+  });
+}
+
+const STATIC_PREFIXES = ["/_next/", "/favicon.ico"];
+
+/**
+ * Anonymous responses must not leave a session cookie in the browser.
+ * Middleware cookies override the handler on OpenNext, so a clearing
+ * Set-Cookie here wins over a session cookie attached later in the render.
+ * Marketing HTML stays free of Set-Cookie so the shared CDN cache can keep it.
+ * Sign-in, the OAuth callback, and logout are the writes that may set one.
+ */
+export function shouldClearAnonymousAuthCookies(
+  pathname: string,
+  method: string,
+  hasSessionToken: boolean,
+): boolean {
+  if (hasSessionToken) return false;
+  if (anonymousResponseMaySetAuthCookie(pathname, method)) return false;
+  const path = normalizePathname(pathname);
+  if (isCacheableMarketingPath(path)) return false;
+  if (STATIC_PREFIXES.some((prefix) => path === prefix || path.startsWith(prefix))) return false;
+  return true;
 }
 
 const SHARED_CACHE_STATUS = new Set(["HIT", "STALE", "REVALIDATED", "UPDATING"]);

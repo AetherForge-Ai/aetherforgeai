@@ -4,8 +4,10 @@ import {
   filterAnonymousAuthSetCookies,
   isAccountScopedClientUrl,
   isCacheableMarketingPath,
+  isClearingSetCookie,
   isPrivateAppPath,
   isSharedCacheReplay,
+  shouldClearAnonymousAuthCookies,
 } from "./private-document";
 
 const TOKEN = "__Secure-better-auth.session_token=abc; Path=/; HttpOnly; Secure";
@@ -33,6 +35,7 @@ describe("private document cache policy", () => {
     expect(anonymousResponseMaySetAuthCookie("/api/auth/get-session", "GET")).toBe(false);
     expect(anonymousResponseMaySetAuthCookie("/api/auth/sign-in/email", "POST")).toBe(true);
     expect(anonymousResponseMaySetAuthCookie("/api/auth/callback/google", "GET")).toBe(true);
+    expect(anonymousResponseMaySetAuthCookie("/api/auth/verify-email", "GET")).toBe(true);
     expect(anonymousResponseMaySetAuthCookie("/api/session/logout", "POST")).toBe(true);
     const kept = filterAnonymousAuthSetCookies([TOKEN, THEME], "/dashboard", "GET", false);
     expect(kept).toEqual([THEME]);
@@ -40,6 +43,27 @@ describe("private document cache policy", () => {
     expect(signedIn).toEqual([TOKEN]);
     const login = filterAnonymousAuthSetCookies([TOKEN], "/api/auth/sign-in/email", "POST", false);
     expect(login).toEqual([TOKEN]);
+    const clear = "__Secure-better-auth.session_token=; Max-Age=0; Path=/; HttpOnly; Secure";
+    expect(isClearingSetCookie(clear)).toBe(true);
+    expect(isClearingSetCookie(TOKEN)).toBe(false);
+    expect(filterAnonymousAuthSetCookies([TOKEN, clear, THEME], "/dashboard", "GET", false)).toEqual([
+      clear,
+      THEME,
+    ]);
+  });
+
+  it("clears a planted session cookie on anonymous app responses only", () => {
+    expect(shouldClearAnonymousAuthCookies("/dashboard", "GET", false)).toBe(true);
+    expect(shouldClearAnonymousAuthCookies("/dashboard/stocks", "GET", false)).toBe(true);
+    expect(shouldClearAnonymousAuthCookies("/api/auth/get-session", "GET", false)).toBe(true);
+    expect(shouldClearAnonymousAuthCookies("/api/session", "GET", false)).toBe(true);
+    expect(shouldClearAnonymousAuthCookies("/", "GET", false)).toBe(false);
+    expect(shouldClearAnonymousAuthCookies("/pricing", "GET", false)).toBe(false);
+    expect(shouldClearAnonymousAuthCookies("/api/auth/sign-in/email", "POST", false)).toBe(false);
+    expect(shouldClearAnonymousAuthCookies("/api/auth/callback/google", "GET", false)).toBe(false);
+    expect(shouldClearAnonymousAuthCookies("/api/auth/verify-email", "GET", false)).toBe(false);
+    expect(shouldClearAnonymousAuthCookies("/dashboard", "GET", true)).toBe(false);
+    expect(shouldClearAnonymousAuthCookies("/_next/static/chunks/app.js", "GET", false)).toBe(false);
   });
 
   it("treats a CDN hit or aged account payload as unsafe to paint", () => {
