@@ -3,6 +3,8 @@ import React from "react";
 import type { Metadata, Viewport } from "next";
 import { Sora, Manrope, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import { headers } from "next/headers";
+import { DocumentSessionProvider } from "@/components/DocumentSession";
 import { ScriptExecutor } from "@/components/ScriptExecutor";
 import { DevToolsHandler } from "@/components/DevToolsHandler";
 import { GlobalErrorCatcher } from "@/components/GlobalErrorCatcher";
@@ -70,26 +72,32 @@ export const viewport: Viewport = {
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Missing or non-member is guest. Fail closed: a document that did not
+  // present a session cookie cannot paint identity anywhere in the tree.
+  const headerList = await headers();
+  const sessionMode = headerList.get("x-af-doc") === "member" ? "member" : "guest";
   return (
     <html lang="en">
       <body
         className={`${sora.variable} ${manrope.variable} ${jetbrainsMono.variable} font-sans antialiased`}
       >
-        {/* Google tag (gtag.js) — injected on every page/route */}
-        <GoogleTag />
-        <GlobalErrorCatcher />
-        <ScriptExecutor />
-        <DevToolsHandler />
-        <div className="min-h-screen flex flex-col">
-          <main className="flex-1">{children}</main>
-        </div>
-        <PortfolioCoach />
-        {/* Single Buy/Add host for every dashboard subpage. Lives outside
-            PortfolioDashboard so the stocks hub's live-price hydrate cannot
-            remount the dialog mid ticker-search. */}
-        <TransactionDialogHost />
-        <Toaster position="top-center" richColors />
+        <DocumentSessionProvider mode={sessionMode}>
+          {/* Google tag (gtag.js) — injected on every page/route */}
+          <GoogleTag />
+          <GlobalErrorCatcher />
+          <ScriptExecutor />
+          <DevToolsHandler />
+          <div className="min-h-screen flex flex-col">
+            <main className="flex-1">{children}</main>
+          </div>
+          <PortfolioCoach />
+          {/* Single Buy/Add host for every dashboard subpage. Lives outside
+              PortfolioDashboard so the stocks hub's live-price hydrate cannot
+              remount the dialog mid ticker-search. */}
+          <TransactionDialogHost />
+          <Toaster position="top-center" richColors />
+        </DocumentSessionProvider>
       </body>
     </html>
   );

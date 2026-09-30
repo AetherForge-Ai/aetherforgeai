@@ -6,10 +6,13 @@ import {
   filterAnonymousAuthSetCookies,
   isCacheableMarketingPath,
   PUBLIC_MARKETING_CACHE_HEADERS,
+  shouldClearAnonymousAuthCookies,
 } from "@/lib/private-document";
 import { publicAliasRedirect } from "@/lib/public-route-aliases";
 import {
   anonymousAccountApi,
+  AUTH_COOKIE_NAMES,
+  expiredAuthCookie,
   isProtectedAccountApi,
   requestHasSessionToken,
 } from "@/lib/session-owner";
@@ -136,13 +139,32 @@ function applyCachePolicy(response: NextResponse, pathname: string) {
   if (pathname.startsWith("/api/")) {
     // Public market reads keep the cache policy their route sets.
     // Session and account books never do.
-    if (pathname === "/api/session" || pathname.startsWith("/api/session/") || isProtectedAccountApi(pathname)) {
+    if (
+      pathname === "/api/session" ||
+      pathname.startsWith("/api/session/") ||
+      pathname.startsWith("/api/auth/") ||
+      isProtectedAccountApi(pathname)
+    ) {
       applyPrivateNoStore(response);
     }
     return response;
   }
   if (isCacheableMarketingPath(pathname)) return applyPublicMarketingCache(response);
   return applyPrivateNoStore(response);
+}
+
+function clearAnonymousAuthCookies(
+  response: NextResponse,
+  pathname: string,
+  method: string,
+  signedIn: boolean,
+) {
+  if (!shouldClearAnonymousAuthCookies(pathname, method, signedIn)) return response;
+  for (const name of AUTH_COOKIE_NAMES) {
+    const cookie = expiredAuthCookie(name);
+    response.cookies.set(cookie.name, cookie.value, cookie.options);
+  }
+  return response;
 }
 
 function stripLeakedAuthCookies(
@@ -167,6 +189,10 @@ function finish(response: NextResponse, request: NextRequest, signedIn: boolean)
   addCspHeaders(response);
   applyCachePolicy(response, pathname);
   stripLeakedAuthCookies(response, pathname, request.method, signedIn);
+  // After the strip, so the clearing Set-Cookie is what the browser stores.
+  // On OpenNext these middleware cookies override a session cookie the
+  // handler attaches later in the same response.
+  clearAnonymousAuthCookies(response, pathname, request.method, signedIn);
   return response;
 }
 
@@ -190,6 +216,11 @@ export async function middleware(request: NextRequest) {
     const anon = anonymousAccountApi(pathname, request.method);
     if (anon === "session-null") {
       const body = NextResponse.json({ user: null });
+      return finish(body, request, false);
+    }
+    if (anon === "auth-null") {
+      // better-auth's signed-out get-session body is JSON null.
+      const body = NextResponse.json(null);
       return finish(body, request, false);
     }
     if (anon === "unauthorized") {
