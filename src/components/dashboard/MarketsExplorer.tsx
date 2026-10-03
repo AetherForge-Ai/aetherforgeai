@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
 import { EXCHANGES, EXCHANGE_META, formatMarketPrice, type Exchange } from "@/lib/market-intel";
-import { BuyDialog, type BuyTarget } from "@/components/dashboard/BuyDialog";
 import { StockDetailDialog, type DetailTarget } from "@/components/dashboard/StockDetailDialog";
 import { CoinDetailModal } from "@/components/dashboard/crypto/CoinDetailModal";
 import { useCryptoMarkets } from "@/hooks/useCryptoMarkets";
@@ -18,7 +17,6 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
-  ShoppingCart,
   Radio,
   Clock,
   Bitcoin,
@@ -65,7 +63,7 @@ type Tab = Exchange | "CRYPTO";
  */
 interface DisplayRow {
   key: string;
-  ticker: string; // internal ticker used for a Buy (e.g. BHP.AX or BTC)
+  ticker: string; // internal ticker (e.g. BHP.AX or BTC)
   symbol: string; // display symbol
   name: string;
   currency: "NZD" | "AUD" | "USD";
@@ -116,7 +114,7 @@ function fmtTime(iso: string): string {
 /**
  * Shared live cross-exchange market browser — the sortable / searchable table
  * of every ticker on the selected exchange (NZX · ASX · Dow Jones · NASDAQ) with
- * live price, % change and volume, plus a one-click Buy.
+ * live price, % change and volume. Orders are recorded in the Transaction Centre.
  *
  * Used both inside the dashboard "ALL Markets" modal and as the full-page
  * `/markets` (Stock Markets) view, so the two never drift apart.
@@ -124,11 +122,9 @@ function fmtTime(iso: string): string {
  * Data comes from GET /api/all-markets (keyless live Yahoo Finance server-side).
  */
 export function MarketsExplorer({
-  onBought,
   active = true,
   className,
 }: {
-  onBought?: () => void;
   /** When false the component skips fetching (e.g. modal is closed). */
   active?: boolean;
   className?: string;
@@ -139,8 +135,6 @@ export function MarketsExplorer({
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("changePct");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
-  const [buyTarget, setBuyTarget] = useState<BuyTarget | null>(null);
-  const [buyOpen, setBuyOpen] = useState(false);
   /** Live Yahoo matches for tickers outside the curated exchange list (e.g. CIP.AX). */
   const [remoteHits, setRemoteHits] = useState<DisplayRow[]>([]);
   const [remoteLoading, setRemoteLoading] = useState(false);
@@ -188,7 +182,7 @@ export function MarketsExplorer({
   }, [active, tab, isCryptoTab, load]);
 
   // When the local curated list misses a ticker (e.g. CIP.AX), resolve via Yahoo
-  // symbol search so Buy still appears for any ASX/NZX/US listing.
+  // symbol search so the row still appears for any ASX/NZX/US listing.
   useEffect(() => {
     if (!active || isCryptoTab) {
       setRemoteHits([]);
@@ -247,7 +241,7 @@ export function MarketsExplorer({
         });
       }
       setRemoteHits(mapped);
-      // Best-effort live quote for the top few remote hits so Buy has a price.
+      // Best-effort live quote for the top few remote hits.
       for (const row of mapped.slice(0, 6)) {
         void (async () => {
           const qr = await api.get<{ price: number | null; changePct?: number | null }>(
@@ -367,11 +361,6 @@ export function MarketsExplorer({
   const visibleRows = isCryptoTab
     ? rows.slice(cryptoPageSafe * CRYPTO_PAGE_SIZE, cryptoPageSafe * CRYPTO_PAGE_SIZE + CRYPTO_PAGE_SIZE)
     : rows;
-
-  function openBuy(r: DisplayRow) {
-    setBuyTarget({ ticker: r.ticker, name: r.name, assetType: r.coinId ? "crypto" : "stock", price: r.price });
-    setBuyOpen(true);
-  }
 
   function openDetail(r: DisplayRow) {
     if (r.coinId) {
@@ -496,23 +485,20 @@ export function MarketsExplorer({
               </th>
               <th className="hidden py-2.5 px-3 md:table-cell"><SortHead label="Volume" k="volume" /></th>
               <th className="hidden py-2.5 px-3 xl:table-cell"><SortHead label="Mkt Cap" k="marketCap" /></th>
-              <th className="py-2.5 pl-3 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Buy
-              </th>
             </tr>
           </thead>
           <tbody>
             {loadingRows && rows.length === 0 ? (
               [...Array(12)].map((_, i) => (
                 <tr key={i} className="border-b border-border/30">
-                  <td colSpan={9} className="py-2">
+                  <td colSpan={8} className="py-2">
                     <div className="h-8 animate-pulse rounded-lg bg-muted/40" />
                   </td>
                 </tr>
               ))
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={9} className="py-12 text-center text-sm text-muted-foreground">
+                <td colSpan={8} className="py-12 text-center text-sm text-muted-foreground">
                   {query ? `No tickers match “${query}”.` : "No market data available right now."}
                 </td>
               </tr>
@@ -572,12 +558,6 @@ export function MarketsExplorer({
                     <td className="tnum hidden py-2.5 px-3 text-right text-muted-foreground xl:table-cell">
                       {fmtCap(r.marketCap, r.currency)}
                     </td>
-                    <td className="py-2.5 pl-3 text-right">
-                      <Button size="sm" variant="outline" className="h-8 px-2.5" onClick={() => openBuy(r)}>
-                        <ShoppingCart className="size-3.5 sm:mr-1.5" />
-                        <span className="hidden sm:inline">Buy</span>
-                      </Button>
-                    </td>
                   </tr>
                 );
               })
@@ -619,23 +599,12 @@ export function MarketsExplorer({
         </div>
       )}
 
-      <BuyDialog
-        open={buyOpen}
-        onOpenChange={setBuyOpen}
-        target={buyTarget}
-        onDone={() => {
-          setBuyOpen(false);
-          onBought?.();
-        }}
-      />
-
       {/* Detailed stock view — chart, key stats & Stox AI analysis pane */}
       <StockDetailDialog
         open={detailOpen}
         onOpenChange={setDetailOpen}
         target={detailTarget}
-        canBuy={!!onBought}
-        onBought={onBought}
+        canBuy={false}
       />
 
       {/* Detailed crypto view — live chart, metrics & Koins AI analysis */}

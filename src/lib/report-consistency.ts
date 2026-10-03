@@ -8,7 +8,7 @@
  */
 
 import type { ConvictionLevel, SecurityIntel } from "@/lib/market-intel";
-import { bookCashReserve } from "@/lib/headmaster-trust";
+import { deskCashPlan } from "@/lib/headmaster-trust";
 
 export type CanonicalAction = "SELL" | "TRIM" | "HOLD" | "BUY" | "ACCUMULATE";
 
@@ -145,26 +145,21 @@ export function alignedProjection(intel: Pick<SecurityIntel, "projected7dPct" | 
   };
 }
 
-function cashRuleClause(cash: number): string {
-  if (cash <= 0) return "";
-  const rule = bookCashReserve(cash);
-  const retained = rule.retainedNZD.toLocaleString("en-NZ");
-  const deployable = rule.deployableNZD.toLocaleString("en-NZ");
-  const available = cash.toLocaleString("en-NZ");
-  return (
-    ` Cash on book NZ$${available}. Keep NZ$${retained} (${rule.reservePct}%) in reserve and illustrate NZ$${deployable} as the deployment — the same cash rule as the Headmaster skeleton.`
-  );
+function cashRuleClause(cash: number, total?: number): string {
+  const sentence = deskCashPlan(cash, total).sentence;
+  return sentence ? ` ${sentence}` : "";
 }
 
 export function deploymentGuard(
   bot: "stock" | "crypto",
   tape: TapeRead,
-  cashNZD = 0
+  cashNZD = 0,
+  totalValueNZD?: number
 ): DeploymentGuard {
   const cap = bot === "crypto" ? 12 : 8;
   const cash = Math.max(0, Math.round(cashNZD));
-  const rule = bookCashReserve(cash);
-  const deployFraction = cash > 0 ? rule.deployableNZD / cash : 0.9;
+  const plan = deskCashPlan(cash, totalValueNZD);
+  const deployFraction = cash > 0 ? plan.reallocateNZD / cash : 0;
   const neutral =
     tape.bias !== "Constructive" ||
     tape.level === "Low" ||
@@ -181,7 +176,7 @@ export function deploymentGuard(
       headline:
         `${tape.bias} tape at ${tape.score}/100 with ${tape.level} conviction. ` +
         `This tape does not support new risk, so no new names are listed.` +
-        cashRuleClause(cash),
+        cashRuleClause(cash, totalValueNZD),
     };
   }
   if (neutral) {
@@ -193,7 +188,7 @@ export function deploymentGuard(
       headline:
         `${tape.bias} tape at ${tape.score}/100 with ${tape.level} conviction. ` +
         `Do not deploy the full cash balance.` +
-        cashRuleClause(cash) +
+        cashRuleClause(cash, totalValueNZD) +
         ` New buys are limited to names inside a ${cap}% 7-day suitability cap and without speculative conviction.`,
     };
   }
@@ -205,7 +200,7 @@ export function deploymentGuard(
     headline:
       `Constructive tape at ${tape.score}/100 with ${tape.level} conviction. ` +
       `Scale in on the same cash rule — do not commit the entire balance in one fill.` +
-      cashRuleClause(cash),
+      cashRuleClause(cash, totalValueNZD),
   };
 }
 
@@ -433,6 +428,84 @@ function tapeFromOverall(overall?: { bias?: string; level?: string; score?: numb
   return { bias, level, score: overall.score, averageConfidence: 0 };
 }
 
+const STALE_CASH_CLAUSE = [
+  /Cash on book NZ\$[\d,]+(?:\.\d+)?\. Keep NZ\$[\d,]+(?:\.\d+)? \(\d+%\) in reserve and illustrate NZ\$[\d,]+(?:\.\d+)? as the deployment — the same cash rule as the Headmaster skeleton\.?/gi,
+  /\(\s*(?:NZ\$|\$)?\s*[\d,]+(?:\.\d+)?\s+available;\s*a starter tranche is about (?:NZ\$|\$)\s*[\d,]+(?:\.\d+)?,\s*with at least 75% kept in reserve\s*\)/gi,
+  /a starter tranche is about (?:NZ\$|\$)\s*[\d,]+(?:\.\d+)?/gi,
+  /(?:with\s+|keep\s+)?at least 75%\s+(?:kept\s+)?in reserve/gi,
+  /Keep the 10% cash reserve — the same rule as the Headmaster skeleton\.?/gi,
+  /(?:NZ\$|\$)\s*100[,.]?000\s+available/gi,
+  /\b100[,.]?000\s+available/gi,
+];
+
+const DESK_CASH_SENTENCE =
+  /Cash on book is NZ\$[\d,]+(?:\.\d+)?\. Keep NZ\$[\d,]+(?:\.\d+)?(?: and reallocate NZ\$[\d,]+(?:\.\d+)?)?\.?(?: There is no amount to reallocate\.)?/gi;
+
+function stripPattern(text: string, pattern: RegExp): string {
+  return text.replace(pattern, " ");
+}
+
+function sentenceKeepsMeaning(sentence: string): boolean {
+  const core = sentence
+    .replace(/[^A-Za-z0-9$%]/g, " ")
+    .replace(/\b(and|or|with|the|a|an|of|in|to|at|least)\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return /[A-Za-z0-9]/.test(core);
+}
+
+function tidyCashCopy(text: string): string {
+  const collapsed = text
+    .replace(/\(\s*[,;:\-–—.\s]*\)/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([,.;])/g, "$1")
+    .replace(/([,;])\s*([,;])/g, "$2")
+    .trim();
+  return splitSentences(collapsed)
+    .map((sentence) => sentence.replace(/^[\s,;:\-–—(]+/, "").replace(/[\s,;:\-–—]+$/g, "").trim())
+    .filter(sentenceKeepsMeaning)
+    .join(" ")
+    .trim();
+}
+
+function stripStaleCashClauses(text: string): { text: string; removed: boolean } {
+  let next = text;
+  let removed = false;
+  for (const pattern of STALE_CASH_CLAUSE) {
+    pattern.lastIndex = 0;
+    const replaced = next.replace(pattern, " ");
+    if (replaced !== next) removed = true;
+    next = replaced;
+  }
+  return { text: tidyCashCopy(next), removed };
+}
+
+function stripDeskSentences(text: string): string {
+  return tidyCashCopy(stripPattern(text, DESK_CASH_SENTENCE));
+}
+
+/**
+ * Replace a stored 75% / NZ$100,000 starter line, or the older "illustrate
+ * the deployment" clause, with the live Headmaster cash sentence.
+ * `ensure` writes that sentence even when the stored copy never mentioned cash.
+ */
+export function alignCashCopyToBook(
+  text: string,
+  cashOnBookNZD: number,
+  totalValueNZD?: number,
+  opts?: { ensure?: boolean }
+): string {
+  const source = text || "";
+  const plan = deskCashPlan(cashOnBookNZD, totalValueNZD);
+  const stripped = stripStaleCashClauses(source);
+  if (!opts?.ensure && !stripped.removed) return source;
+  let next = stripDeskSentences(stripped.text);
+  if (plan.sentence && !next.includes(plan.sentence)) {
+    next = next ? `${next} ${plan.sentence}` : plan.sentence;
+  }
+  return next;
+}
+
 /** Split prose on sentence ends without breaking 2.52%, $2,730.56, or CIP.AX. */
 function splitSentences(text: string): string[] {
   const protectedText = text
@@ -617,6 +690,70 @@ export function sanitizeGuardedReport<T extends GuardedReportFields>(report: T):
   if (Array.isArray(next.tickers)) {
     next.tickers = next.tickers.map((ticker) =>
       typeof ticker.note === "string" ? { ...ticker, note: clean(ticker.note) ?? ticker.note } : ticker
+    );
+  }
+  return next;
+}
+
+/**
+ * Write the live keep / reallocate sentence onto the summaries a member reads.
+ * Other prose is rewritten only when it still carries a stale cash clause.
+ */
+export function stampDeskCash<T extends GuardedReportFields>(
+  report: T,
+  cashOnBookNZD: number,
+  totalValueNZD?: number
+): T {
+  const ensure = (value: string | undefined) =>
+    typeof value === "string" ? alignCashCopyToBook(value, cashOnBookNZD, totalValueNZD, { ensure: true }) : value;
+  const ifStale = (value: string | undefined) =>
+    typeof value === "string" ? alignCashCopyToBook(value, cashOnBookNZD, totalValueNZD) : value;
+  const next: T = { ...report };
+  if (typeof next.executiveSummary === "string") next.executiveSummary = ensure(next.executiveSummary);
+  if (Array.isArray(next.keyObservations)) {
+    next.keyObservations = next.keyObservations.map((line) => ifStale(line) ?? line);
+  }
+  if (next.pathwayPlan) {
+    const plan = next.pathwayPlan;
+    next.pathwayPlan = {
+      ...plan,
+      recommendationNote:
+        typeof plan.recommendationNote === "string" ? ensure(plan.recommendationNote) : plan.recommendationNote,
+      pathways: Array.isArray(plan.pathways)
+        ? plan.pathways.map((pathway) => ({
+            ...pathway,
+            summary: typeof pathway.summary === "string" ? ifStale(pathway.summary) : pathway.summary,
+            steps: Array.isArray(pathway.steps) ? pathway.steps.map((step) => ifStale(step) ?? step) : pathway.steps,
+          }))
+        : plan.pathways,
+    };
+  }
+  if (next.briefing) {
+    const overall = next.briefing.overall;
+    next.briefing = {
+      ...next.briefing,
+      executiveSummary: ensure(next.briefing.executiveSummary) ?? next.briefing.executiveSummary,
+      keyObservations: Array.isArray(next.briefing.keyObservations)
+        ? next.briefing.keyObservations.map((line) => ifStale(line) ?? line)
+        : next.briefing.keyObservations,
+      highlights: Array.isArray(next.briefing.highlights)
+        ? next.briefing.highlights.map((line) => ifStale(line) ?? line)
+        : next.briefing.highlights,
+      risks: Array.isArray(next.briefing.risks) ? next.briefing.risks.map((line) => ifStale(line) ?? line) : next.briefing.risks,
+      overall:
+        overall && typeof overall.reason === "string"
+          ? { ...overall, reason: ifStale(overall.reason) ?? overall.reason }
+          : overall,
+    };
+  }
+  if (Array.isArray(next.directRecommendations)) {
+    next.directRecommendations = next.directRecommendations.map((rec) =>
+      typeof rec.detail === "string" ? { ...rec, detail: ifStale(rec.detail) ?? rec.detail } : rec
+    );
+  }
+  if (Array.isArray(next.tickers)) {
+    next.tickers = next.tickers.map((ticker) =>
+      typeof ticker.note === "string" ? { ...ticker, note: ifStale(ticker.note) ?? ticker.note } : ticker
     );
   }
   return next;

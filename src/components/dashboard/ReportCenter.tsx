@@ -43,6 +43,7 @@ import {
   reportReadsAsNotCurrent,
   type AccountHoldingRow,
 } from "@/lib/report-book";
+import { alignCashCopyToBook } from "@/lib/report-consistency";
 import {
   acceptAccountPayload,
   responseUserId,
@@ -65,6 +66,8 @@ interface PastReport {
   /** Full ApexReport JSON when available — preferred for rich inline view. */
   payload?: ApexReport | null;
   emailed: string;
+  /** Set only when a send was accepted. Legacy rows omit this and stay "not emailed". */
+  emailDelivery?: "confirmed" | "none";
   aiEnhanced: boolean;
   trigger?: string;
   generatedAt: string;
@@ -131,6 +134,8 @@ export function ReportCenter({
   tickerLimit,
   userId = null,
   holdings = [],
+  cashOnBookNZD = null,
+  totalValueNZD = null,
   preview = false,
 }: {
   botAccess: BotAccess;
@@ -142,6 +147,10 @@ export function ReportCenter({
   userId?: string | null;
   /** Live book already on the dashboard — used to rewrite stale empty-book copy. */
   holdings?: AccountHoldingRow[];
+  /** Ledger cash. Null until the dashboard balances have loaded. */
+  cashOnBookNZD?: number | null;
+  /** Full-book wealth (holdings + cash). Null until balances have loaded. */
+  totalValueNZD?: number | null;
   /** Retained for API compatibility with the dashboard; holdings are edited in the Transaction Center now. */
   onHoldingsChanged?: () => void;
   /** Guest preview — read-only, no network calls. */
@@ -200,11 +209,30 @@ export function ReportCenter({
     (kind: BotKind) => (userId ? liveBookForAccount(holdingRows, userId, kind) : []),
     [holdingRows, userId]
   );
+  const deskBook = React.useMemo(() => {
+    if (cashOnBookNZD == null || totalValueNZD == null) return null;
+    return { cashOnBookNZD, totalValueNZD };
+  }, [cashOnBookNZD, totalValueNZD]);
   const shownSummary = React.useCallback(
-    (bot: BotKind, text: string) =>
-      userId ? reconcileNarrativeForAccount(userId, text, holdingRows, bot) : text,
-    [holdingRows, userId]
+    (bot: BotKind, text: string) => {
+      const base = userId ? reconcileNarrativeForAccount(userId, text, holdingRows, bot) : text;
+      if (!deskBook) return base;
+      return alignCashCopyToBook(base, deskBook.cashOnBookNZD, deskBook.totalValueNZD, { ensure: true });
+    },
+    [holdingRows, userId, deskBook]
   );
+  const wasEmailed = (row: { emailDelivery?: string }) => row.emailDelivery === "confirmed";
+  const openSource = React.useRef<{
+    kind: BotKind;
+    payload?: ApexReport;
+    text?: { title: string; raw: string };
+  } | null>(null);
+  React.useEffect(() => {
+    const src = openSource.current;
+    if (!src) return;
+    if (src.payload) setReport(reconcileStoredReport(src.payload, bookFor(src.kind), deskBook));
+    if (src.text) setTextOnly({ title: src.text.title, body: shownSummary(src.kind, src.text.raw) });
+  }, [deskBook, bookFor, shownSummary]);
 
   // Report cadence — recomputed live against `now` so the countdowns tick. Each
   // bot has its OWN quota so Stox and Koins unlock independently. Prefer the
@@ -484,7 +512,8 @@ export function ReportCenter({
     }
     shownKind.current = kind;
     runLock.current = false;
-    const grounded = reconcileStoredReport(res.data.report, bookFor(kind));
+    openSource.current = { kind, payload: res.data.report };
+    const grounded = reconcileStoredReport(res.data.report, bookFor(kind), deskBook);
     setReport(grounded);
     setReportEmailed(res.data.emailed === true && !reportReadsAsNotCurrent(grounded.executiveSummary || ""));
     setTextOnly(null);
@@ -782,7 +811,7 @@ export function ReportCenter({
                         <Sparkles className="mr-1 size-3" /> AI
                       </Badge>
                     )}
-                    {r.emailed === "yes" && !reportReadsAsNotCurrent(r.executiveSummary || r.textBody || "") && (
+                    {wasEmailed(r) && !reportReadsAsNotCurrent(r.executiveSummary || r.textBody || "") && (
                       <Badge variant="outline" className="border-emerald-500/30 text-emerald-600">
                         <Mail className="mr-1 size-3" /> Emailed
                       </Badge>
@@ -798,7 +827,11 @@ export function ReportCenter({
                       </Badge>
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground">{fmtDate(r.generatedAt)}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {wasEmailed(r)
+                      ? `Emailed ${fmtDate(r.generatedAt)}`
+                      : `Generated ${fmtDate(r.generatedAt)} · not emailed`}
+                  </p>
                   {(r.executiveSummary || r.textBody) && (
                     <p className="mt-1 line-clamp-2 max-w-xl text-xs leading-relaxed text-foreground/80">
                       {shownSummary(r.bot === "crypto" ? "crypto" : "stock", r.executiveSummary || r.textBody || "")}
@@ -816,23 +849,26 @@ export function ReportCenter({
                       setLastAiEnhanced(!!r.aiEnhanced);
                       if (r.payload && typeof r.payload === "object" && "executiveSummary" in r.payload) {
                         setTextOnly(null);
-                        const viewed = reconcileStoredReport(r.payload, bookFor(kind));
+                        openSource.current = { kind, payload: r.payload };
+                        const viewed = reconcileStoredReport(r.payload, bookFor(kind), deskBook);
                         const notCurrent = reportReadsAsNotCurrent(
                           viewed.executiveSummary || r.executiveSummary || ""
                         );
-                        setReportEmailed(r.emailed === "yes" && !notCurrent);
+                        setReportEmailed(wasEmailed(r) && !notCurrent);
                         // View path: stored JSON is sanitized before ApexReport renders it again.
                         setReport(viewed);
                         setOpen(true);
                       } else if (r.executiveSummary || r.textBody) {
                         setReport(null);
                         setReportEmailed(
-                          r.emailed === "yes" &&
+                          wasEmailed(r) &&
                             !reportReadsAsNotCurrent(r.executiveSummary || r.textBody || "")
                         );
+                        const raw = r.executiveSummary || r.textBody || "";
+                        openSource.current = { kind, text: { title: r.title, raw } };
                         setTextOnly({
                           title: r.title,
-                          body: shownSummary(kind, r.executiveSummary || r.textBody || ""),
+                          body: shownSummary(kind, raw),
                         });
                         setOpen(true);
                       } else {

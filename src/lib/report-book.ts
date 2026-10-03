@@ -3,7 +3,7 @@
  * Pure — safe in the report generator, the reports API, and unit tests.
  */
 
-import { sanitizeGuardedCashText, sanitizeGuardedReport } from "@/lib/report-consistency";
+import { sanitizeGuardedCashText, sanitizeGuardedReport, stampDeskCash } from "@/lib/report-consistency";
 
 export interface LiveBookPosition {
   ticker: string;
@@ -191,10 +191,28 @@ interface StoredReportShape {
   directRecommendations?: Array<{ detail?: string }>;
 }
 
+export interface StoredBookCash {
+  cashOnBookNZD?: number | null;
+  totalValueNZD?: number | null;
+}
+
+function withDeskCash<T extends StoredReportShape>(report: T, book?: StoredBookCash | null): T {
+  if (!book) return report;
+  const cash = book.cashOnBookNZD;
+  const total = book.totalValueNZD;
+  if (typeof cash !== "number" || typeof total !== "number") return report;
+  if (!Number.isFinite(cash) || !Number.isFinite(total)) return report;
+  return stampDeskCash(report, cash, total);
+}
+
 /** Patch a persisted Apex report so history cannot keep describing an empty book or a full-cash deploy. */
-export function reconcileStoredReport<T extends StoredReportShape>(report: T, holdings: LiveBookPosition[]): T {
+export function reconcileStoredReport<T extends StoredReportShape>(
+  report: T,
+  holdings: LiveBookPosition[],
+  book?: StoredBookCash | null
+): T {
   const bot = report.bot === "crypto" ? "crypto" : "stock";
-  if (!holdings.length) return sanitizeGuardedReport(report);
+  if (!holdings.length) return withDeskCash(sanitizeGuardedReport(report), book);
   const next: T = { ...report };
   if (typeof next.executiveSummary === "string") {
     next.executiveSummary = reconcileNarrativeWithLiveBook(next.executiveSummary, holdings, bot);
@@ -216,5 +234,5 @@ export function reconcileStoredReport<T extends StoredReportShape>(report: T, ho
       recommendationNote: `Live book holds ${liveBookRoster(holdings)}. ${cleaned}`.trim(),
     };
   }
-  return sanitizeGuardedReport(next);
+  return withDeskCash(sanitizeGuardedReport(next), book);
 }

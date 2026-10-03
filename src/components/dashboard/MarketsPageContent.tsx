@@ -7,7 +7,7 @@ import { LineChart, Globe } from "lucide-react";
 
 /**
  * Full-page Stock Markets view. Wraps the shared MarketsExplorer in a spacious,
- * dashboard-consistent card. Buying is disabled in guest preview.
+ * dashboard-consistent card. Fills are recorded in the Transaction Centre.
  */
 export function MarketsPageContent({
   preview = false,
@@ -16,7 +16,7 @@ export function MarketsPageContent({
   preview?: boolean;
   userId?: string | null;
 }) {
-  // Bind before BuyDialog's effect. This page sits outside AccountOwnerGuard,
+  // Bind the active account. This page sits outside AccountOwnerGuard,
   // so an unbound shell made the cash request start with userId null and the
   // apply-gate discarded the logged-in balance.
   bindActiveAccount(!preview && userId ? userId : null);
@@ -44,7 +44,7 @@ export function MarketsPageContent({
 
       {/* Quick cross-market pulse — prominent near the top of the page */}
       <div className="mt-6">
-        <OpenMarketSnapshot onBought={preview ? undefined : () => window.location.reload()} />
+        <OpenMarketSnapshot />
       </div>
 
       {/* Live browser */}
@@ -52,16 +52,12 @@ export function MarketsPageContent({
         <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-muted-foreground">
           <Globe className="size-4 text-primary" /> Market snapshot
         </div>
-        <MarketsExplorer
-          active
-          className="h-[70vh]"
-          onBought={preview ? undefined : () => window.location.reload()}
-        />
+        <MarketsExplorer active className="h-[70vh]" />
       </div>
 
       {preview && (
         <p className="mt-4 text-center text-xs text-muted-foreground">
-          You&apos;re viewing a live preview. Create a free account to buy and track positions.
+          You&apos;re viewing a live preview. Create a free account to record holdings and run reports.
         </p>
       )}
     </div>

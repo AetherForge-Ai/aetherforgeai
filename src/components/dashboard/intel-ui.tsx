@@ -24,15 +24,17 @@ const SIGNAL_STYLES: Record<SecurityIntel["signal"], string> = {
  * Does not invent a replacement rating.
  */
 export function publicMarketNote(text: string): string {
-  const rating =
+  const leading =
     /^(?:strong buy|buy|sell|reduce|hold|accumulate|watch|add)\b(?:\s*[·:.\-–—]\s*|\s+)?/i;
+  const trailing =
+    /(?:\s*[·:.\-–—]\s*|\s+)(?:strong buy|buy|sell|reduce|hold|accumulate|watch|add)\s*[.!?]?$/i;
   let next = (text || "").trim();
   let prev = "";
   while (next && next !== prev) {
     prev = next;
-    next = next.replace(rating, "").trim();
+    next = next.replace(leading, "").replace(trailing, "").trim();
   }
-  return next;
+  return next.replace(/[\s·:.\-–—]+$/g, "").trim();
 }
 
 export function SignalBadge({ signal, className }: { signal: SecurityIntel["signal"]; className?: string }) {

@@ -1334,6 +1334,8 @@ export function PortfolioDashboard({
           tickerLimit={tickerLimit}
           userId={userId}
           holdings={allStocks}
+          cashOnBookNZD={balancesReady ? cashBalance : null}
+          totalValueNZD={balancesReady ? netWorthNZD : null}
           onHoldingsChanged={handleDataChanged}
           preview={preview}
         />
@@ -1419,7 +1421,7 @@ export function PortfolioDashboard({
               <OpenMarketSnapshot onBought={handleDataChanged} />
             </div>
             <div className="mt-4">
-              <AllMarkets onBought={handleDataChanged} />
+              <AllMarkets />
             </div>
           </div>
         </div>
@@ -2087,7 +2089,7 @@ export function PortfolioDashboard({
           icon={Compass}
         >
           <div className="grid gap-4 lg:grid-cols-2">
-            <AllMarkets onBought={handleDataChanged} />
+            <AllMarkets />
             <OpenMarketSnapshot onBought={handleDataChanged} />
           </div>
           <div className="mt-8">
@@ -2138,6 +2140,8 @@ export function PortfolioDashboard({
           tickerLimit={tickerLimit}
           userId={userId}
           holdings={allStocks}
+          cashOnBookNZD={balancesReady ? cashBalance : null}
+          totalValueNZD={balancesReady ? netWorthNZD : null}
           onHoldingsChanged={handleDataChanged}
           preview={preview}
         />

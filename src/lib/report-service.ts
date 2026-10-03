@@ -11,13 +11,17 @@ import { getUpcomingEvents } from "@/lib/econ-calendar";
 import { scoreHeadlines } from "@/lib/news-sentiment";
 import { buildIntelligenceBriefing } from "@/lib/briefing";
 import {
+  alignCashCopyToBook,
   deploymentGuard,
   narrativeContradictsCanonical,
   sanitizeGuardedReport,
+  stampDeskCash,
   rateAsset,
   readTape,
   alignedProjection,
 } from "@/lib/report-consistency";
+import { loadTotalumSynthesis } from "@/lib/totalum-service";
+import { sendReportEmail } from "@/lib/member-email";
 import { fetchQuotesForAssetClass, isLiveConfiguredFor } from "@/lib/market-data";
 import { fetchCryptoMarketIntel } from "@/lib/koins-market";
 import { getFxSnapshot } from "@/lib/fx";
@@ -244,10 +248,25 @@ export async function generateReportForUser(
     }
   }
 
-  const cashBalanceNZD =
+  let cashBalanceNZD =
     typeof user.cash_balance === "number" && isFinite(user.cash_balance)
       ? Math.max(0, user.cash_balance)
       : 0;
+  let totalValueNZD: number | undefined;
+  try {
+    const synthesis = await loadTotalumSynthesis(user._id);
+    if (Number.isFinite(synthesis.cashBalanceNZD)) {
+      cashBalanceNZD = Math.max(0, synthesis.cashBalanceNZD);
+    }
+    if (Number.isFinite(synthesis.totalValueNZD) && synthesis.totalValueNZD > 0) {
+      totalValueNZD = synthesis.totalValueNZD;
+    }
+  } catch (bookErr) {
+    console.error(
+      "[report-service] Full-book synthesis failed; cash copy falls back to this bot's sleeve plus ledger cash:",
+      bookErr
+    );
+  }
 
   const tape = readTape(technicals);
   const report = buildLiveReport(bot, holdings, {
@@ -258,6 +277,7 @@ export async function generateReportForUser(
     holdingIntel: technicals,
     tape,
     cashBalanceNZD,
+    totalValueNZD,
   });
 
   // ---- Intelligence briefing + probabilistic 7-day outlook -------------
@@ -309,7 +329,7 @@ export async function generateReportForUser(
       // Full-market BUY candidates + top projected leaders drawn from the report's
       // own sweep (the ENTIRE crypto market for Koins) — fed to the narrative so
       // it can name specific tickers to BUY with concrete, data-grounded reasons.
-      const guard = deploymentGuard(bot, tape, cashBalanceNZD);
+      const guard = deploymentGuard(bot, tape, cashBalanceNZD, totalValueNZD);
       const canonicalLines = technicals
         .map((t) => {
           const rating = rateAsset(t);
@@ -376,8 +396,9 @@ export async function generateReportForUser(
           narrative,
           holdings.map((h) => ({ ticker: h.ticker, shares: h.shares, name: h.name }))
         );
+        const alignedNarrative = alignCashCopyToBook(grounded.text, cashBalanceNZD, totalValueNZD, { ensure: true });
         const contradicts = narrativeContradictsCanonical(
-          grounded.text,
+          alignedNarrative,
           technicals.map((t) => ({ ticker: t.ticker, action: rateAsset(t).action })),
           guard,
           { positive, total: technicals.length }
@@ -389,9 +410,9 @@ export async function generateReportForUser(
               : `[report-service] Discarded ZENITH narrative that described an empty book while ${holdings.length} ${bot} holdings are live`
           );
         } else {
-          report.executiveSummary = grounded.text;
+          report.executiveSummary = alignedNarrative;
           // Keep the briefing's headline summary in lock-step with the report.
-          briefing.executiveSummary = grounded.text;
+          briefing.executiveSummary = alignedNarrative;
           briefing.aiSummary = true;
           aiEnhanced = true;
           console.log(`[report-service] ZENITH narrative applied for user ${user._id}`);
@@ -427,7 +448,7 @@ export async function generateReportForUser(
 
   const now = new Date();
   const generatedAtLabel = nzDateLabel(now);
-  const delivered = sanitizeGuardedReport(report);
+  const delivered = stampDeskCash(sanitizeGuardedReport(report), cashBalanceNZD, totalValueNZD);
   const html = renderReportHtml(delivered, {
     userName: user.name || undefined,
     generatedAtLabel,
@@ -457,24 +478,18 @@ export async function generateReportForUser(
     console.error("[report-service] PDF generation failed:", pdfErr);
   }
 
-  // Email the report (HTML body + PDF attachment).
+  // Compact class-styled email. The PDF keeps the full report. emailed is true
+  // only when the provider accepts the send.
   const subjectPrefix = context === "scheduled" ? "Your scheduled briefing · " : "";
-  let emailed = false;
-  try {
-    await totalumSdk.email.sendEmail({
-      to: [user.email],
-      subject: `${subjectPrefix}${report.title} — ${generatedAtLabel}`,
-      html,
-      fromName: "AetherForge AI",
-      ...(pdfUrl
-        ? { attachments: [{ filename: `${report.title}.pdf`, url: pdfUrl, contentType: "application/pdf" }] }
-        : {}),
-    });
-    emailed = true;
-    console.log(`[report-service] Report emailed to ${user.email}`);
-  } catch (mailErr) {
-    console.error("[report-service] Email delivery failed (non-fatal):", mailErr);
-  }
+  const mailed = await sendReportEmail({
+    to: user.email,
+    subject: `${subjectPrefix}${report.title} — ${generatedAtLabel}`,
+    title: report.title,
+    summary: delivered.executiveSummary || "",
+    botLabel: bot === "crypto" ? "Koins" : "Stox",
+    generatedAt: generatedAtLabel,
+    pdfUrl,
+  });
 
   // Persist the report record.
   let reportId: string | null = null;
@@ -485,8 +500,8 @@ export async function generateReportForUser(
       bot,
       market_label: report.marketLabel,
       executive_summary: delivered.executiveSummary,
-      payload: JSON.stringify(delivered),
-      emailed: emailed ? "yes" : "no",
+      payload: JSON.stringify({ ...delivered, emailDelivery: mailed ? "confirmed" : "none" }),
+      emailed: mailed ? "yes" : "no",
       ai_enhanced: aiEnhanced ? "yes" : "no",
       ai_engine: report.engine,
       generated_at: now.toISOString(),
@@ -499,5 +514,5 @@ export async function generateReportForUser(
     console.error("[report-service] Failed to persist report (non-fatal):", saveErr);
   }
 
-  return { report, pdfUrl, reportId, emailed, aiEnhanced, monitored: holdings.length, generatedAtLabel };
+  return { report: delivered, pdfUrl, reportId, emailed: mailed, aiEnhanced, monitored: holdings.length, generatedAtLabel };
 }

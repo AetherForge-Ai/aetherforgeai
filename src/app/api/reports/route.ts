@@ -312,6 +312,11 @@ export async function GET(req: Request) {
       }
       const reportBot: BotKind = r.bot === "crypto" ? "crypto" : "stock";
       const liveBook = liveFor(reportBot);
+      const rawDelivery =
+        payload && typeof payload === "object" && "emailDelivery" in payload
+          ? (payload as { emailDelivery?: unknown }).emailDelivery
+          : undefined;
+      const emailDelivery = rawDelivery === "confirmed" ? "confirmed" : "none";
       if (payload && typeof payload === "object") {
         payload = reconcileStoredReport(payload as Record<string, unknown>, liveBook);
       }
@@ -338,6 +343,7 @@ export async function GET(req: Request) {
         textBody,
         payload,
         emailed: r.emailed,
+        emailDelivery,
         aiEnhanced: r.ai_enhanced === "yes",
         trigger: r.trigger || "manual",
         generatedAt: r.generated_at || r.createdAt,

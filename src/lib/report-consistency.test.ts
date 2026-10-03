@@ -6,6 +6,7 @@ import { reconcileStoredReport } from "@/lib/report-book";
 import {
   alignedProjection,
   candidateIsSuitable,
+  alignCashCopyToBook,
   deploymentGuard,
   narrativeContradictsCanonical,
   rateAsset,
@@ -120,12 +121,43 @@ describe("cash deployment guard", () => {
     const tape = { bias: "Neutral" as const, level: "Low" as const, score: 49, averageConfidence: 40 };
     const stock = deploymentGuard("stock", tape, 100000);
     const crypto = deploymentGuard("crypto", tape, 100000);
-    expect(stock.headline).toMatch(/Keep NZ\$10,000 \(10%\)/);
-    expect(crypto.headline).toMatch(/Keep NZ\$10,000 \(10%\)/);
-    expect(stock.headline).toMatch(/NZ\$90,000/);
-    expect(crypto.headline).toMatch(/NZ\$90,000/);
+    expect(stock.headline).toMatch(/Keep NZ\$10,000 and reallocate NZ\$90,000/);
+    expect(crypto.headline).toMatch(/Keep NZ\$10,000 and reallocate NZ\$90,000/);
+    expect(stock.headline).not.toMatch(/75%/);
+    expect(crypto.headline).not.toMatch(/illustrate NZ\$/);
     expect(stock.maxDeployFraction).toBeCloseTo(0.9, 5);
     expect(crypto.maxDeployFraction).toBeCloseTo(0.9, 5);
+  });
+
+  it("uses 10% of total wealth for the live keep and reallocate figures", () => {
+    const tape = { bias: "Neutral" as const, level: "Low" as const, score: 49, averageConfidence: 40 };
+    const guard = deploymentGuard("stock", tape, 63678, 99750);
+    expect(guard.headline).toMatch(/Cash on book is NZ\$63,678\. Keep NZ\$9,975 and reallocate NZ\$53,703\./);
+    expect(guard.headline).not.toMatch(/75%/);
+    expect(guard.headline).not.toMatch(/100,000/);
+    expect(guard.headline).not.toMatch(/illustrate NZ\$/);
+    expect(guard.maxDeployFraction).toBeCloseTo(53703 / 63678, 5);
+    expect(urgesFullDeployment(guard.headline)).toBe(false);
+  });
+
+  it("replaces a stored NZ$100,000 / 75% reserve line with the live book sentence", () => {
+    const stale = "NZ$100,000 available and keep at least 75% in reserve.";
+    const parenthetical =
+      "(NZ$100,000 available; a starter tranche is about NZ$25,000, with at least 75% kept in reserve)";
+    const live = "Cash on book is NZ$63,678. Keep NZ$9,975 and reallocate NZ$53,703.";
+    expect(alignCashCopyToBook(stale, 63678, 99750)).toBe(live);
+    expect(alignCashCopyToBook(parenthetical, 63678, 99750)).toBe(live);
+    expect(alignCashCopyToBook(live, 63678, 99750, { ensure: true })).toBe(live);
+    const oldClause =
+      "Cash on book NZ$63,678. Keep NZ$6,368 (10%) in reserve and illustrate NZ$57,310 as the deployment — the same cash rule as the Headmaster skeleton.";
+    expect(alignCashCopyToBook(oldClause, 63678, 99750)).toBe(live);
+    expect(
+      alignCashCopyToBook(
+        "Keep the 10% cash reserve — the same rule as the Headmaster skeleton.",
+        63678,
+        99750
+      )
+    ).toBe(live);
   });
 
   it("does not quote the synthetic WOR.AX seed as an actionable price", () => {

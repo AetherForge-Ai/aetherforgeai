@@ -78,23 +78,57 @@ export function nzdWhole(value: number): string {
 }
 
 /**
- * One cash-reserve rule for Headmaster, Stox, and Koins.
- * Matches the Balanced Growth skeleton (10% retained). A NZ$100,000 book
- * keeps NZ$10,000 and illustrates NZ$90,000 — the same dollars on every desk.
+ * One cash rule for Headmaster, Stox, and Koins.
+ * Retained cash is 10% of total wealth. Cash above that retained amount is the
+ * reallocation. When the total is omitted, the cash balance is the whole book.
  */
 export const BOOK_CASH_RESERVE_PCT = 10;
+
+export interface DeskCashPlan {
+  reservePct: number;
+  cashOnBookNZD: number;
+  totalValueNZD: number;
+  retainedNZD: number;
+  reallocateNZD: number;
+  /** Empty when there is no cash on the book. */
+  sentence: string;
+}
+
+export function deskCashPlan(cashOnBookNZD: number, totalValueNZD?: number): DeskCashPlan {
+  const cash = Math.max(0, Math.round(Number.isFinite(cashOnBookNZD) ? cashOnBookNZD : 0));
+  const supplied =
+    typeof totalValueNZD === "number" && Number.isFinite(totalValueNZD) && totalValueNZD > 0
+      ? Math.round(totalValueNZD)
+      : cash;
+  const total = Math.max(supplied, cash);
+  const retainedNZD = total > 0 ? Math.round((total * BOOK_CASH_RESERVE_PCT) / 100) : 0;
+  const reallocateNZD = Math.max(0, cash - retainedNZD);
+  let sentence = "";
+  if (cash > 0 && reallocateNZD > 0) {
+    sentence = `Cash on book is ${nzdWhole(cash)}. Keep ${nzdWhole(retainedNZD)} and reallocate ${nzdWhole(reallocateNZD)}.`;
+  } else if (cash > 0) {
+    sentence = `Cash on book is ${nzdWhole(cash)}. Keep ${nzdWhole(retainedNZD)}. There is no amount to reallocate.`;
+  }
+  return {
+    reservePct: BOOK_CASH_RESERVE_PCT,
+    cashOnBookNZD: cash,
+    totalValueNZD: total,
+    retainedNZD,
+    reallocateNZD,
+    sentence,
+  };
+}
 
 export function bookCashReserve(bookNZD: number): {
   reservePct: number;
   retainedNZD: number;
   deployableNZD: number;
 } {
-  const book = Math.max(0, Math.round(Number.isFinite(bookNZD) ? bookNZD : 0));
-  const retainedNZD = book > 0 ? Math.round((book * BOOK_CASH_RESERVE_PCT) / 100) : 0;
+  const plan = deskCashPlan(bookNZD, bookNZD);
   return {
-    reservePct: BOOK_CASH_RESERVE_PCT,
-    retainedNZD,
-    deployableNZD: Math.max(0, book - retainedNZD),
+    reservePct: plan.reservePct,
+    retainedNZD: plan.retainedNZD,
+    deployableNZD: plan.reallocateNZD,
   };
 }
 

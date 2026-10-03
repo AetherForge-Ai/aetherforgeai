@@ -4,6 +4,7 @@ import { bearer } from "better-auth/plugins";
 import { nextCookies } from "better-auth/next-js";
 import { totalumAdapter } from "@/lib/better-auth-totalum-adapter";
 import { totalumSdk } from "@/lib/totalum";
+import { sendWelcomeEmail } from "@/lib/member-email";
 
 // TESTING_MODE is set only by the test:serve script (npm run test:serve).
 // When active, use LOCAL_NEXTJS_PROJECT_TESTING_URL so that CORS, baseURL,
@@ -316,6 +317,20 @@ export const auth = betterAuth({
   // if (user?.role === 'admin') { /* admin logic */ }
   //
   // ============================================================================
+  databaseHooks: {
+    user: {
+      create: {
+        after: async (user) => {
+          try {
+            await sendWelcomeEmail({ email: user.email, name: user.name });
+          } catch (err) {
+            console.error("[auth] Welcome email failed (signup continues):", err);
+          }
+        },
+      },
+    },
+  },
+
   user: {
     // Allow users to update their email from Settings. No verification email is
     // sent (email delivery isn't configured), so the change applies directly.

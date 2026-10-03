@@ -1,9 +1,9 @@
 /**
  * Standalone HTML renderer for an ApexReport.
  *
- * The SAME markup is used two ways:
- *   1. Fed to `totalumSdk.files.createPdfFromHtml` to produce the downloadable PDF.
- *   2. Sent as the HTML body of the delivery email.
+ * Fed to `totalumSdk.files.createPdfFromHtml` for the downloadable PDF.
+ * The inbox copy is the short class-styled briefing in member-email, because
+ * this document's inline styles are stripped by the mail provider.
  *
  * It is a fully self-contained document with inline styles (email clients and the
  * PDF renderer don't share our Tailwind build), on a light, print-friendly theme.

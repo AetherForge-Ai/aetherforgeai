@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 /**
  * /markets — the full-page "Stock Markets" browser (linked prominently from the
  * sidebar nav). Shows every live ticker across NZX · ASX · Dow Jones · NASDAQ.
- * Logged-out visitors get a read-only preview; members can buy in one click.
+ * Logged-out visitors and members both read the market here. Fills are recorded in the Transaction Centre.
  */
 export default async function MarketsPage() {
   const user = await getCurrentUser();

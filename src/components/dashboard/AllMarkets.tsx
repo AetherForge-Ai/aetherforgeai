@@ -16,7 +16,7 @@ import { Globe, Layers } from "lucide-react";
  * MarketsExplorer (live cross-exchange table). The full-page version of the
  * same browser lives at /markets (the Stock Markets nav item).
  */
-export function AllMarkets({ onBought }: { onBought?: () => void }) {
+export function AllMarkets() {
   const [open, setOpen] = useState(false);
 
   return (
@@ -53,11 +53,11 @@ export function AllMarkets({ onBought }: { onBought?: () => void }) {
               <Globe className="size-5 text-primary" /> ALL Markets
             </DialogTitle>
             <DialogDescription>
-              Live prices across every exchange. Pick a market, search, sort — then buy in one click.
+              Live prices across every exchange. Pick a market, search, and sort. Record a fill in the Transaction Centre.
             </DialogDescription>
           </DialogHeader>
 
-          <MarketsExplorer active={open} onBought={onBought} className="min-h-0 flex-1" />
+          <MarketsExplorer active={open} className="min-h-0 flex-1" />
         </DialogContent>
       </Dialog>
     </section>

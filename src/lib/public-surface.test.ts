@@ -52,6 +52,17 @@ describe("public copy does not name a model", () => {
   });
 });
 
+describe("public markets table", () => {
+  it("does not render a Buy column or row control", () => {
+    const explorer = read("src/components/dashboard/MarketsExplorer.tsx");
+    const page = read("src/components/dashboard/MarketsPageContent.tsx");
+    expect(explorer).not.toContain("openBuy");
+    expect(explorer).not.toContain(">Buy</th>");
+    expect(explorer).not.toContain(">Buy</span>");
+    expect(page).not.toContain("onBought");
+  });
+});
+
 describe("public surface routes", () => {
   it("does not hide About sections until an intersection observer runs", () => {
     const about = read("src/components/about/AboutContent.tsx");

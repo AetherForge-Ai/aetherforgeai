@@ -552,6 +552,8 @@ function buildDirectRecommendations(
   universeIntel?: SecurityIntel[],
   opts?: {
     cashBalanceNZD?: number;
+    /** Full-book wealth. Retained cash is 10% of this total, not 10% of cash alone. */
+    totalValueNZD?: number;
     cashHeavy?: boolean;
     holdingIntel?: SecurityIntel[];
     tape?: TapeRead;
@@ -568,7 +570,9 @@ function buildDirectRecommendations(
 ): DirectRecommendation[] {
   const held = new Set(holdings.map((h) => h.ticker.toUpperCase()));
   const intelByTicker = new Map((opts?.holdingIntel ?? []).map((i) => [i.ticker.toUpperCase(), i]));
-  const guard = opts?.tape ? deploymentGuard(bot, opts.tape, opts.cashBalanceNZD ?? 0) : undefined;
+  const guard = opts?.tape
+    ? deploymentGuard(bot, opts.tape, opts.cashBalanceNZD ?? 0, opts.totalValueNZD)
+    : undefined;
 
   const fromHoldings: DirectRecommendation[] = holdings.map((h) => {
     const intel =
@@ -731,7 +735,8 @@ function buildPathwayPlan(
         bot === "crypto"
           ? "Rotate proceeds into large-cap majors (BTC/ETH) and hold a stablecoin buffer."
           : "Rotate proceeds into utilities / healthcare names with RSI in the 40–60 band.",
-        "Keep the 10% cash reserve — the same rule as the Headmaster skeleton.",
+        guard?.headline.match(/Cash on book is NZ\$[\d,]+\. Keep NZ\$[\d,]+(?: and reallocate NZ\$[\d,]+)?\./)?.[0] ??
+          "Keep 10% of total wealth as cash. Reallocate only the cash above that retained amount.",
       ],
       recommended: recommendedName === "Capital Preservation",
     },
@@ -1056,8 +1061,13 @@ export interface BuildLiveReportOptions {
   holdingIntel?: SecurityIntel[];
   /** Book-level tape (bias / conviction / score) for cash-deployment guardrails. */
   tape?: TapeRead;
-  /** Member ledger cash (NZD) — when present, BUY lists emphasise deploying dry powder. */
+  /** Member ledger cash (NZD). The cash sentence uses the Headmaster keep / reallocate plan. */
   cashBalanceNZD?: number;
+  /**
+   * Full-book wealth in NZD (equities + crypto + metals + cash), the same total
+   * Headmaster uses. When omitted, this bot's sleeve plus cash is the book.
+   */
+  totalValueNZD?: number;
 }
 
 /** Live subscriber report built from the user's real monitored holdings. */
@@ -1074,6 +1084,7 @@ export function buildLiveReport(
     holdingIntel,
     tape,
     cashBalanceNZD = 0,
+    totalValueNZD: suppliedTotal,
   } = options;
 
   const intelByTicker = new Map((holdingIntel ?? []).map((i) => [i.ticker.toUpperCase(), i]));
@@ -1088,13 +1099,15 @@ export function buildLiveReport(
   const analyzable = toAnalyzable(bot, holdings);
   const portfolio = computePortfolio(bot, analyzable, fxToNZD);
   const bookValue = (portfolio?.value || 0) + Math.max(0, cashBalanceNZD);
+  const totalValueNZD = suppliedTotal && suppliedTotal > 0 ? suppliedTotal : bookValue;
   const cashHeavy =
     analyzable.length === 0 ||
     (cashBalanceNZD > 0 && bookValue > 0 && cashBalanceNZD / bookValue >= 0.4);
-  const guard = tape ? deploymentGuard(bot, tape, cashBalanceNZD) : undefined;
+  const guard = tape ? deploymentGuard(bot, tape, cashBalanceNZD, totalValueNZD) : undefined;
   const skippedNames: string[] = [];
   const directRecommendations = buildDirectRecommendations(analyzable, bot, universeIntel, {
     cashBalanceNZD,
+    totalValueNZD,
     cashHeavy,
     holdingIntel,
     tape,

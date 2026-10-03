@@ -4,13 +4,11 @@ import { useMemo, useState } from "react";
 import {
   getTopPerformers,
   formatMarketPrice,
-  type AssetClass,
   type SecurityIntel,
 } from "@/lib/market-intel";
 import { cn } from "@/lib/utils";
 import { pctClass, fmtPct, ExchangeChip, publicMarketNote } from "@/components/dashboard/intel-ui";
 import { useMarketIntel } from "@/components/dashboard/MarketIntelContext";
-import { BuyDialog, type BuyTarget } from "@/components/dashboard/BuyDialog";
 import { Button } from "@/components/ui/button";
 import {
   LineChart,
@@ -18,7 +16,6 @@ import {
   TrendingDown,
   RefreshCw,
   Loader2,
-  ShoppingCart,
   ArrowUp,
   ArrowDown,
 } from "lucide-react";
@@ -117,13 +114,7 @@ function ProjectionChart({ sel }: { sel: SecurityIntel }) {
   );
 }
 
-export function ProjectionsPanel({
-  assetClass = "stock",
-  onBought,
-}: {
-  assetClass?: AssetClass;
-  onBought?: () => void;
-}) {
+export function ProjectionsPanel() {
   const { universe, refresh, refreshing, lastUpdated } = useMarketIntel();
   // Analyse the whole cross-market universe (NZX, ASX, Dow Jones, NASDAQ) and
   // surface the 15 strongest projected TOP PERFORMERS overall — led by the best
@@ -133,14 +124,6 @@ export function ProjectionsPanel({
   const analysedCount = universe?.length ?? 0;
   const [selected, setSelected] = useState<string>("");
   const sel = leaders.find((l) => l.ticker === selected) ?? leaders[0];
-
-  const [buyTarget, setBuyTarget] = useState<BuyTarget | null>(null);
-  const [buyOpen, setBuyOpen] = useState(false);
-
-  function openBuy(s: SecurityIntel) {
-    setBuyTarget({ ticker: s.ticker, name: s.name, assetType: assetClass, price: s.price });
-    setBuyOpen(true);
-  }
 
   if (!sel) return null;
 
@@ -241,9 +224,6 @@ export function ProjectionsPanel({
                   {fmtPct(sel.projected7dPct)} projected · {sel.confidence}% confidence
                 </p>
               </div>
-              <Button size="sm" className="h-9 gap-1.5 px-3 font-semibold shadow-glow" onClick={() => openBuy(sel)}>
-                <ShoppingCart className="size-4" /> Buy
-              </Button>
             </div>
           </div>
 
@@ -293,15 +273,6 @@ export function ProjectionsPanel({
         </div>
       </div>
 
-      <BuyDialog
-        open={buyOpen}
-        onOpenChange={setBuyOpen}
-        target={buyTarget}
-        onDone={() => {
-          setBuyOpen(false);
-          onBought?.();
-        }}
-      />
     </section>
   );
 }
