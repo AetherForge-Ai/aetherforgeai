@@ -73,7 +73,7 @@ export interface Plan {
 }
 
 const APEX_FEATURES = [
-  "SuperGrok 4.6 Ultra Advanced ZENITH State reports",
+  "AI research reports",
   "7-day illustrative scenario ranges",
   "3 forward pathways — safe · medium-risk · volatile",
   "12-month momentum & continuation graphs",
@@ -263,8 +263,8 @@ export interface PricingTier {
   featured?: boolean;
 }
 
-/** ~18% annual saving is baked into the annual prices above (10 months for 12). */
-export const ANNUAL_SAVINGS_PCT = 18;
+/** Yearly price is 10 months of the monthly rate: 1 − 10/12 = 16.666…%. */
+export const ANNUAL_SAVINGS_PCT = 16.67;
 
 export const PRICING_TIERS: PricingTier[] = [
   {

@@ -101,15 +101,44 @@ describe("cash deployment guard", () => {
   it("caps a neutral speculative tape and refuses the full cash balance", () => {
     const guard = deploymentGuard("stock", neutralTape, 12696);
     expect(guard.mode).toBe("starter");
-    expect(guard.maxDeployFraction).toBe(0.25);
+    // NZ$12,696 keeps 10% (NZ$1,270) and illustrates NZ$11,426 — same rule as Headmaster.
+    expect(guard.maxDeployFraction).toBeCloseTo(11426 / 12696, 5);
     expect(guard.headline).toMatch(/Do not deploy the full cash balance/);
     expect(guard.headline).toMatch(/12,696/);
+    expect(guard.headline).toMatch(/1,270/);
+    expect(guard.headline).toMatch(/11,426/);
+    expect(guard.headline).not.toMatch(/75%/);
     expect(
       candidateIsSuitable(
         { signal: "Strong Buy", macdSignal: "Bullish", regime: "Trending Up", conviction: "Speculative", projected7dPct: 27 },
         guard
       )
     ).toBe(false);
+  });
+
+  it("quotes the same 10% cash rule for Stox and Koins on a NZ$100,000 book", () => {
+    const tape = { bias: "Neutral" as const, level: "Low" as const, score: 49, averageConfidence: 40 };
+    const stock = deploymentGuard("stock", tape, 100000);
+    const crypto = deploymentGuard("crypto", tape, 100000);
+    expect(stock.headline).toMatch(/Keep NZ\$10,000 \(10%\)/);
+    expect(crypto.headline).toMatch(/Keep NZ\$10,000 \(10%\)/);
+    expect(stock.headline).toMatch(/NZ\$90,000/);
+    expect(crypto.headline).toMatch(/NZ\$90,000/);
+    expect(stock.maxDeployFraction).toBeCloseTo(0.9, 5);
+    expect(crypto.maxDeployFraction).toBeCloseTo(0.9, 5);
+  });
+
+  it("does not quote the synthetic WOR.AX seed as an actionable price", () => {
+    const report = buildLiveReport("stock", [], {
+      marketOverrides: { "WOR.AX": 9.51 },
+      cashBalanceNZD: 100000,
+    });
+    const fresh = report.directRecommendations.filter((rec) => !rec.held);
+    for (const rec of fresh) {
+      expect(rec.ticker.toUpperCase()).toBe("WOR.AX");
+      expect(rec.price).toBe(9.51);
+    }
+    expect(report.directRecommendations.some((rec) => rec.price === 14.85)).toBe(false);
   });
 
   it("does not treat the guard sentence itself as a full-cash instruction", () => {

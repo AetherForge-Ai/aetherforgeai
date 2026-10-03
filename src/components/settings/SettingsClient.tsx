@@ -581,7 +581,7 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
                       <span className="text-xs text-muted-foreground"> / {plan.intervalLabel}</span>
                     </p>
                     <p className="tnum text-[0.7rem] font-medium text-muted-foreground/90">
-                      {formatUsdApprox(plan.price, fx)} / {plan.intervalLabel} today
+                      {formatUsdApprox(plan.price, fx, { decimals: 2 })} / {plan.intervalLabel} today
                     </p>
 
                     <ul className="mt-2 space-y-1">

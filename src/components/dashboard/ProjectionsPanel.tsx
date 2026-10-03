@@ -8,7 +8,7 @@ import {
   type SecurityIntel,
 } from "@/lib/market-intel";
 import { cn } from "@/lib/utils";
-import { pctClass, fmtPct, SignalBadge, ExchangeChip } from "@/components/dashboard/intel-ui";
+import { pctClass, fmtPct, ExchangeChip, publicMarketNote } from "@/components/dashboard/intel-ui";
 import { useMarketIntel } from "@/components/dashboard/MarketIntelContext";
 import { BuyDialog, type BuyTarget } from "@/components/dashboard/BuyDialog";
 import { Button } from "@/components/ui/button";
@@ -220,7 +220,6 @@ export function ProjectionsPanel({
               <div className="flex items-center gap-2">
                 <h3 className="font-display text-xl font-bold">{sel.ticker.replace(/\.(NZ|AX)$/, "")}</h3>
                 <ExchangeChip ticker={sel.ticker} market={sel.market} />
-                <SignalBadge signal={sel.signal} />
                 <span
                   className={cn(
                     "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[0.62rem] font-bold uppercase tracking-wide",
@@ -285,7 +284,7 @@ export function ProjectionsPanel({
             <p className="flex items-center gap-1.5 text-[0.65rem] font-semibold uppercase tracking-wide text-primary">
               <TrendingUp className="size-3.5" /> Why this projection
             </p>
-            <p className="mt-1.5 text-sm leading-relaxed text-foreground/90">{sel.reasoning}</p>
+            <p className="mt-1.5 text-sm leading-relaxed text-foreground/90">{publicMarketNote(sel.reasoning)}</p>
             <p className="mt-2 text-xs text-muted-foreground">
               Projected <span className={cn("font-semibold", pctClass(sel.projected7dPct))}>{fmtPct(sel.projected7dPct)}</span> over
               the next 7 sessions at {sel.confidence}% model confidence · conviction score {sel.score}/100.

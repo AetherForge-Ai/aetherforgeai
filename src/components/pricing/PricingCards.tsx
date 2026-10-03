@@ -240,7 +240,7 @@ export function PricingCards() {
                     </div>
                     {/* Live US$ equivalent of the NZD price. */}
                     <p className="mt-1 text-xs font-medium text-muted-foreground/90">
-                      {formatUsdApprox(price ?? 0, fx)}
+                      {formatUsdApprox(price ?? 0, fx, { decimals: 2 })}
                       <span className="text-muted-foreground/70"> /{annual ? "yr" : "mo"} today</span>
                     </p>
                     <p className="mt-1.5 text-xs text-muted-foreground">

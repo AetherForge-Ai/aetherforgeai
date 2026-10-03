@@ -65,7 +65,7 @@ const BOT_PRICE_NZD = 300;
 export default async function OwnTheBotsPage() {
   // Resolve a live NZD→USD rate so the NZ$300 price can show its US$ equivalent.
   const fx = await getFxSnapshot();
-  const botPriceUsd = formatUsdApprox(BOT_PRICE_NZD, fx.ratesToNZD);
+  const botPriceUsd = formatUsdApprox(BOT_PRICE_NZD, fx.ratesToNZD, { decimals: 2 });
 
   return (
     <div className="chrome-dark relative min-h-screen bg-background bg-grid">

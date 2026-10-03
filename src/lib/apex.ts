@@ -153,7 +153,7 @@ export interface ApexReport {
   marketLabel: string;
   generatedLabel: string;
   isDemo: boolean;
-  /** AI engine that produced this report, e.g. "SuperGrok 4.6 · Ultra Advanced ZENITH State". */
+  /** AI engine label shown on the report. Public copy says AI. */
   engine: string;
   executiveSummary: string;
   topGainers: { ticker: string; name: string; changePct: number }[];
@@ -539,6 +539,13 @@ function holdingDetail(action: DirectRecommendation["action"], ticker: string, r
   }
 }
 
+/** Live quote for an actionable price. Seed basePrice is never a fill price. */
+function liveActionPrice(ticker: string, overrides?: Record<string, number>): number | undefined {
+  if (!overrides) return undefined;
+  const raw = overrides[ticker] ?? overrides[ticker.toUpperCase()];
+  return typeof raw === "number" && isFinite(raw) && raw > 0 ? raw : undefined;
+}
+
 function buildDirectRecommendations(
   holdings: AnalyzableHolding[],
   bot: BotKind,
@@ -550,6 +557,13 @@ function buildDirectRecommendations(
     tape?: TapeRead;
     /** Filled with new names left off the buy list by the suitability guard. */
     skippedNames?: string[];
+    /**
+     * Live prices (internal ticker → price) from the same quote path the paper
+     * order locks. When this object is present, a name without a live price is
+     * left off the buy list — the synthetic universe basePrice is not a price
+     * the member can act on.
+     */
+    marketOverrides?: Record<string, number>;
   }
 ): DirectRecommendation[] {
   const held = new Set(holdings.map((h) => h.ticker.toUpperCase()));
@@ -585,12 +599,19 @@ function buildDirectRecommendations(
   // specific BUY/ACCUMULATE instructions (never vague class-only advice).
   const cashHeavy = !!opts?.cashHeavy || holdings.length === 0;
   const buyLimit = guard ? guard.maxNewNames : cashHeavy ? 8 : 6;
+  const liveBook = opts?.marketOverrides;
   const candidatePool: SecurityIntel[] =
     universeIntel && universeIntel.length
       ? universeIntel.filter((i) => !held.has(i.ticker.toUpperCase()))
       : universeFor(bot)
           .filter((e) => !held.has(e.ticker.toUpperCase()))
-          .map((e) => analyzeSecurity(e.ticker, undefined, e.name, e.market));
+          .flatMap((e) => {
+            const live = liveActionPrice(e.ticker, liveBook);
+            // A supplied override map means this is a live report. Do not
+            // quote the synthetic basePrice when Yahoo/the feed has no print.
+            if (liveBook && live == null) return [];
+            return [analyzeSecurity(e.ticker, live, e.name, e.market)];
+          });
 
   const ranked = [...candidatePool].sort(
     (a, b) => b.score * (b.confidence / 100) - a.score * (a.confidence / 100)
@@ -710,7 +731,7 @@ function buildPathwayPlan(
         bot === "crypto"
           ? "Rotate proceeds into large-cap majors (BTC/ETH) and hold a stablecoin buffer."
           : "Rotate proceeds into utilities / healthcare names with RSI in the 40–60 band.",
-        "Keep a 10–15% cash (or stablecoin) buffer ready for volatility spikes.",
+        "Keep the 10% cash reserve — the same rule as the Headmaster skeleton.",
       ],
       recommended: recommendedName === "Capital Preservation",
     },
@@ -835,13 +856,13 @@ function assembleReport(
     ? consistentExecutiveSummary(bot, heldRecs, momentumCount, momentumTotal, extras)
     :
     tickers.length === 0
-      ? `**Ultra Advanced ZENITH State engaged.** SuperGrok 4.6 swept ${sweepLabel} for Top-10 movers and 7-day projection leaders. ` +
+      ? `**AI briefing.** The sweep covered ${sweepLabel} for Top-10 movers and 7-day projection leaders. ` +
         `Your book has **no monitored ${assetNoun} yet** — this report leads with a concrete **BUY/ACCUMULATE** list` +
         (buyNames.length ? ` led by **${buyNames.join(", ")}**` : "") +
         ` so cash can be deployed with conviction and specific markets named. ` +
         `_Informational market intelligence only — not personalised financial advice._`
-      : `**Ultra Advanced ZENITH State engaged.** ${isDemo ? "This sample book holds" : "Your live book holds"} **${tickers.length}** ${assetNoun}: **${bookRoster}**. ` +
-        `SuperGrok 4.6 swept ${sweepLabel} against those positions — aggregate 7-day bias is **${strong.length >= weak.length ? "constructive" : "defensive"}** (${strong.length} accumulate-or-better, ${weak.length} elevated risk). ` +
+      :         `**AI briefing.** ${isDemo ? "This sample book holds" : "Your live book holds"} **${tickers.length}** ${assetNoun}: **${bookRoster}**. ` +
+        `The sweep covered ${sweepLabel} against those positions — aggregate 7-day bias is **${strong.length >= weak.length ? "constructive" : "defensive"}** (${strong.length} accumulate-or-better, ${weak.length} elevated risk). ` +
         (buyNames.length
           ? `Priority new buys this week: **${buyNames.join(", ")}**. `
           : "") +
@@ -1078,6 +1099,7 @@ export function buildLiveReport(
     holdingIntel,
     tape,
     skippedNames,
+    marketOverrides,
   });
   const pathwayPlan = buildPathwayPlan(analyzable, directRecommendations, bot, holdingIntel, guard);
   const bookRoster = analyzable

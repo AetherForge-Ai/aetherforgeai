@@ -49,6 +49,17 @@ export interface GeneratedReport {
   generatedAtLabel: string;
 }
 
+/** Raised when a bot has no positions. Nothing is saved and nothing is emailed. */
+export class EmptyBookReportError extends Error {
+  readonly code = "empty-book" as const;
+  constructor(bot: string) {
+    super(
+      `No current ${bot === "crypto" ? "Koins" : "Stox"} report is issued when that book has no positions. Nothing was emailed.`
+    );
+    this.name = "EmptyBookReportError";
+  }
+}
+
 function nzDateLabel(d: Date): string {
   return formatAucklandDateTime(d);
 }
@@ -139,6 +150,12 @@ export async function generateReportForUser(
 
   const limit = user.ticker_limit && user.ticker_limit > 0 ? user.ticker_limit : rows.length;
   const scoped = rows.slice(0, limit);
+  if (scoped.length === 0) {
+    console.log(
+      `[report-service] Skipping ${bot} report for ${user._id}: book has no positions. No email.`
+    );
+    throw new EmptyBookReportError(bot);
+  }
 
   // Live quotes for this asset class — stocks via Twelve Data (needs a key),
   // crypto via CoinGecko (no key). Falls back to simulation on any miss.

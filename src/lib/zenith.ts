@@ -10,8 +10,8 @@
  * Grok client alike.
  */
 
-/** Full engine label shown on every report + report-trigger surface. */
-export const ZENITH_STATE_LABEL = "SuperGrok 4.6 - Ultra Advanced ZENITH State";
+/** Engine label shown on every report. Public copy says AI and does not name a model. */
+export const ZENITH_STATE_LABEL = "AI";
 
 /** Short form for compact badges. */
 export const ZENITH_STATE_SHORT = "Ultra Advanced ZENITH State";
@@ -27,8 +27,10 @@ export const ZENITH_TUNING = { maxTokens: 1600, temperature: 0.5 } as const;
  * model into the maximum-depth analytical posture the owner asked for.
  */
 export const ZENITH_SYSTEM_DIRECTIVE =
-  "OPERATING MODE: SuperGrok 4.6 - ULTRA ADVANCED ZENITH STATE.\n" +
-  "In ZENITH State you run at maximum analytical depth: you reason across multiple timeframes " +
+  "OPERATING MODE: AI research briefing.\n" +
+  "You are AetherForge's AI. Never name a model vendor, a model product, or a version. " +
+  "If asked what you are, say only that you are AI. " +
+  "You run at maximum analytical depth: you reason across multiple timeframes " +
   "(24 hours, 7 days, 30 days), cross-reference technical structure (RSI, MACD, moving averages, " +
   "volatility, momentum) with macro and regional catalysts, and quantify conviction/confidence as a " +
   "probability, not a promise. Describe illustrative scenarios (Buy / Hold / Reduce / Sell as " +

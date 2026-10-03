@@ -106,7 +106,7 @@ export async function createGrokChatCompletion({
   if (!res.ok) {
     const errText = await res.text().catch(() => "");
     console.error(`[grok] API error ${res.status}: ${errText}`);
-    throw new Error(`Grok API error (${res.status}): ${errText || res.statusText}`);
+    throw new Error("AI request failed. Try again in a moment.");
   }
 
   const json = (await res.json()) as {
@@ -116,7 +116,7 @@ export async function createGrokChatCompletion({
   const content = json?.choices?.[0]?.message?.content?.trim();
   if (!content) {
     console.error("[grok] Empty completion payload:", JSON.stringify(json).slice(0, 500));
-    throw new Error("Grok returned an empty response.");
+    throw new Error("AI returned an empty response.");
   }
 
   return content;

@@ -19,6 +19,22 @@ const SIGNAL_STYLES: Record<SecurityIntel["signal"], string> = {
   Sell: "bg-rose-500/15 text-rose-700 border-rose-500/30",
 };
 
+/**
+ * Drop recommendation words from copy shown on public markets and projections.
+ * Does not invent a replacement rating.
+ */
+export function publicMarketNote(text: string): string {
+  const rating =
+    /^(?:strong buy|buy|sell|reduce|hold|accumulate|watch|add)\b(?:\s*[·:.\-–—]\s*|\s+)?/i;
+  let next = (text || "").trim();
+  let prev = "";
+  while (next && next !== prev) {
+    prev = next;
+    next = next.replace(rating, "").trim();
+  }
+  return next;
+}
+
 export function SignalBadge({ signal, className }: { signal: SecurityIntel["signal"]; className?: string }) {
   return (
     <span

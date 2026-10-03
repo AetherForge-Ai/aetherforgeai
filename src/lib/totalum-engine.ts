@@ -489,20 +489,17 @@ export function buildSynthesis(input: SynthesisInput): TotalumSynthesis {
   // Correlation notes (qualitative, deterministic).
   const correlationNotes = buildCorrelationNotes(classAllocation);
 
-  // Expected portfolio return & volatility from class weights (fractions).
+  // Expected return and volatility from DEPLOYED sleeves only.
+  // Ledger cash is not a returning asset: a cash book must not print the
+  // cash capital-market yield or a profitable bear case on money that is
+  // still sitting undeployed.
   const wByClass: Record<AssetClassKey, number> = { equities: 0, crypto: 0, metals: 0, cash: 0 };
   classAllocation.forEach((c) => {
     wByClass[c.assetClass] = c.weight / 100;
   });
-  const expReturn = (Object.keys(CMA) as AssetClassKey[]).reduce(
-    (s, k) => s + wByClass[k] * CMA[k].ret,
-    0
-  );
-  // Conservative: weighted-average vol (ignores diversification benefit → upper bound).
-  const expVol = (Object.keys(CMA) as AssetClassKey[]).reduce(
-    (s, k) => s + wByClass[k] * CMA[k].vol,
-    0
-  );
+  const deployed: AssetClassKey[] = ["equities", "crypto", "metals"];
+  const expReturn = deployed.reduce((s, k) => s + wByClass[k] * CMA[k].ret, 0);
+  const expVol = deployed.reduce((s, k) => s + wByClass[k] * CMA[k].vol, 0);
   const expectedAnnualReturnPct = round(expReturn * 100, 1);
   const expectedAnnualVolPct = round(expVol * 100, 1);
 
@@ -666,12 +663,13 @@ export function buildStrategy(synthesis: TotalumSynthesis, goal: GoalKey): Strat
 
   // Projected characteristics of the TARGET allocation.
   const tFrac = (k: AssetClassKey) => model.targets[k] / 100;
+  const deployedTarget: AssetClassKey[] = ["equities", "crypto", "metals"];
   const projReturn = round(
-    classes.reduce((s, k) => s + tFrac(k) * CMA[k].ret, 0) * 100,
+    deployedTarget.reduce((s, k) => s + tFrac(k) * CMA[k].ret, 0) * 100,
     1
   );
   const projVol = round(
-    classes.reduce((s, k) => s + tFrac(k) * CMA[k].vol, 0) * 100,
+    deployedTarget.reduce((s, k) => s + tFrac(k) * CMA[k].vol, 0) * 100,
     1
   );
 

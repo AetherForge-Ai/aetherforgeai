@@ -149,6 +149,35 @@ describe("transaction dialog survives portfolio soft-refresh", () => {
     expect(holdingsHydrateAction(false)).toBe("apply");
   });
 
+  it("settles an unknown zero cash balance once the ledger arrives without remounting", () => {
+    publishTxDialog({
+      open: true,
+      userId: "user-tt",
+      mode: "buy",
+      holdings: [{ ticker: "WOR.AX" }],
+      cash: 0,
+      cashKnown: false,
+    });
+    const mountId = getTxDialogSnapshot().mountId;
+    const settled = publishTxDialog({
+      open: true,
+      cash: 100000,
+      cashKnown: true,
+      holdings: [{ ticker: "OTHER" }],
+    });
+    expect(settled.ignoredSoftRefresh).toBe(false);
+    const snap = getTxDialogSnapshot();
+    expect(snap.cash).toBe(100000);
+    expect(snap.cashKnown).toBe(true);
+    expect(snap.mountId).toBe(mountId);
+    expect(snap.holdings).toEqual([{ ticker: "WOR.AX" }]);
+
+    publishTxDialog({ open: true, cash: 1, cashKnown: true, holdings: [] });
+    expect(getTxDialogSnapshot().cash).toBe(100000);
+    expect(getTxDialogSnapshot().mountId).toBe(mountId);
+    expect(getTxDialogSnapshot().holdings).toEqual([{ ticker: "WOR.AX" }]);
+  });
+
   it("account switch closes the dialog and bumps mount id", () => {
     publishTxDialog({ open: true, userId: "user-tt", mode: "buy", cash: 15.26, holdings: [{ ticker: "BAP.AX" }] });
     const mountId = getTxDialogSnapshot().mountId;
