@@ -63,10 +63,11 @@ export default function TermsOfService() {
 
       <LegalSection heading="5. Subscriptions, billing & payment">
         <p>
-          Paid features are offered on weekly, monthly and yearly subscription plans. Prices are shown
-          on our pricing page and are stated in the applicable currency. Payments are processed securely
-          by Stripe; by subscribing you authorise us (through Stripe) to charge your chosen payment
-          method on a recurring basis until you cancel.
+          Public pricing is billed monthly or yearly. Prices are shown on our pricing page and are
+          stated in the applicable currency. An existing weekly plan, if it is already on the account,
+          continues to bill weekly until it is changed. Payments are processed securely by Stripe; by
+          subscribing you authorise us (through Stripe) to charge your chosen payment method on a
+          recurring basis until you cancel.
         </p>
         <ul className="list-disc space-y-1.5 pl-5">
           <li>Subscriptions renew automatically at the end of each billing period unless cancelled.</li>

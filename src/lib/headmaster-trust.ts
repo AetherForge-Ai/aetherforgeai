@@ -77,6 +77,27 @@ export function nzdWhole(value: number): string {
   return `NZ$${n.toLocaleString("en-NZ")}`;
 }
 
+/**
+ * One cash-reserve rule for Headmaster, Stox, and Koins.
+ * Matches the Balanced Growth skeleton (10% retained). A NZ$100,000 book
+ * keeps NZ$10,000 and illustrates NZ$90,000 — the same dollars on every desk.
+ */
+export const BOOK_CASH_RESERVE_PCT = 10;
+
+export function bookCashReserve(bookNZD: number): {
+  reservePct: number;
+  retainedNZD: number;
+  deployableNZD: number;
+} {
+  const book = Math.max(0, Math.round(Number.isFinite(bookNZD) ? bookNZD : 0));
+  const retainedNZD = book > 0 ? Math.round((book * BOOK_CASH_RESERVE_PCT) / 100) : 0;
+  return {
+    reservePct: BOOK_CASH_RESERVE_PCT,
+    retainedNZD,
+    deployableNZD: Math.max(0, book - retainedNZD),
+  };
+}
+
 function whole(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.round(value);
@@ -217,7 +238,7 @@ export function executiveBriefFromPlan(plan: AllocationPlan): string {
     `Illustrative ${plan.modelName} skeleton (${plan.riskLabel.toLowerCase()}): ${mix}.`,
     cashSentence,
     plan.formula || allocationFormula(plan),
-    `The target mix models about ${plan.projectedReturnPct}% annual return at about ${plan.projectedVolPct}% volatility. That is a pathway, not a forecast and not an instruction.`,
+    `The target mix models about ${plan.projectedReturnPct}% annual return at about ${plan.projectedVolPct}% volatility on the sleeves that would be deployed. Undeployed cash is not given a return. That is a pathway, not a forecast and not an instruction.`,
     "AetherForge does not trade for you. This is portfolio intelligence, not personalised financial advice.",
   ].join(" ");
 }

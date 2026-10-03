@@ -562,7 +562,7 @@ export function ApexReportView({ report: source }: { report: ApexReport }) {
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <Badge className="max-w-full min-w-0 shrink whitespace-normal bg-primary/15 text-primary border-primary/30" variant="outline">
-            ⚡ {report.engine || "Ultra Advanced ZENITH State"}
+            ⚡ {report.engine || "AI"}
           </Badge>
           <Badge variant="outline" className="max-w-full min-w-0 shrink whitespace-normal border-border/60 text-muted-foreground">
             {report.marketLabel}

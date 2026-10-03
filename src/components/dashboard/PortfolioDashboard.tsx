@@ -1324,7 +1324,7 @@ export function PortfolioDashboard({
       <DashboardGate
         preview={preview}
         title="Report Centre"
-        description="Generate full PDF portfolio reports with market intelligence, indicators and AI insight — emailed to you."
+        description="Generate full PDF portfolio reports with market intelligence, indicators and AI insight. Email is sent only when delivery succeeds."
       >
         <ReportCenter
           botAccess={subscription.botAccess}
@@ -2128,7 +2128,7 @@ export function PortfolioDashboard({
       <DashboardGate
         preview={preview}
         title="Report Centre"
-        description="Generate full PDF portfolio reports with market intelligence, indicators and AI insight — emailed to you."
+        description="Generate full PDF portfolio reports with market intelligence, indicators and AI insight. Email is sent only when delivery succeeds."
       >
         <ReportCenter
           botAccess={subscription.botAccess}

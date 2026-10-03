@@ -19,6 +19,11 @@ export interface TxDialogSnapshot {
   mode: TxDialogMode;
   holdings: unknown[];
   cash: number;
+  /**
+   * False until the ledger has loaded. An open dialog may replace cash once
+   * when this flips true, without remounting. A later soft-refresh is ignored.
+   */
+  cashKnown: boolean;
   preferredAssetType: "stock" | "crypto" | "metal" | null;
 }
 
@@ -33,6 +38,7 @@ let snapshot: TxDialogSnapshot = {
   mode: "buy",
   holdings: [],
   cash: 0,
+  cashKnown: false,
   preferredAssetType: null,
 };
 
@@ -90,6 +96,7 @@ export function publishTxDialog(
       userId: next.userId ?? snapshot.userId,
       holdings: [],
       cash: 0,
+      cashKnown: false,
       mode: "buy",
     };
     emit();
@@ -98,9 +105,18 @@ export function publishTxDialog(
 
   // Already open: ignore holdings/cash republish (soft-refresh). A mode
   // change (Buy → Sell) is a user action and must apply without remounting.
+  // The one exception is the first ledger settlement: cash opened at 0
+  // before the book loaded must become the real balance without remounting.
   if (snapshot.open && !closing) {
-    if (next.mode && next.mode !== snapshot.mode) {
-      snapshot = { ...snapshot, mode: next.mode };
+    const settleCash =
+      !snapshot.cashKnown && next.cashKnown === true && typeof next.cash === "number";
+    if (settleCash || (next.mode && next.mode !== snapshot.mode)) {
+      snapshot = {
+        ...snapshot,
+        mode: next.mode && next.mode !== snapshot.mode ? next.mode : snapshot.mode,
+        cash: settleCash ? next.cash! : snapshot.cash,
+        cashKnown: settleCash ? true : snapshot.cashKnown,
+      };
       emit();
       return { mountId: snapshot.mountId, ignoredSoftRefresh: false };
     }
@@ -122,6 +138,7 @@ export function publishTxDialog(
       mode: next.mode ?? snapshot.mode,
       holdings: next.holdings ?? snapshot.holdings,
       cash: typeof next.cash === "number" ? next.cash : snapshot.cash,
+      cashKnown: next.cashKnown === true,
       preferredAssetType:
         next.preferredAssetType !== undefined ? next.preferredAssetType : snapshot.preferredAssetType,
     };
@@ -134,6 +151,7 @@ export function publishTxDialog(
     const changed =
       (next.holdings && next.holdings !== snapshot.holdings) ||
       (typeof next.cash === "number" && next.cash !== snapshot.cash) ||
+      (next.cashKnown === true && !snapshot.cashKnown) ||
       (next.userId != null && next.userId !== snapshot.userId) ||
       (next.mode != null && next.mode !== snapshot.mode) ||
       (next.preferredAssetType !== undefined && next.preferredAssetType !== snapshot.preferredAssetType);
@@ -144,6 +162,7 @@ export function publishTxDialog(
       mode: next.mode ?? snapshot.mode,
       holdings: next.holdings ?? snapshot.holdings,
       cash: typeof next.cash === "number" ? next.cash : snapshot.cash,
+      cashKnown: next.cashKnown === true ? true : snapshot.cashKnown,
       preferredAssetType:
         next.preferredAssetType !== undefined ? next.preferredAssetType : snapshot.preferredAssetType,
     };
@@ -206,6 +225,7 @@ export function __resetTxDialogStoreForTests(): void {
     mode: "buy",
     holdings: [],
     cash: 0,
+    cashKnown: false,
     preferredAssetType: null,
   };
   onDone = () => {};

@@ -10,7 +10,7 @@ import {
   formatMarketPrice,
   type SecurityIntel,
 } from "@/lib/market-intel";
-import { pctClass, fmtPct, SignalBadge, ExchangeChip } from "@/components/dashboard/intel-ui";
+import { pctClass, fmtPct, ExchangeChip, publicMarketNote } from "@/components/dashboard/intel-ui";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -110,7 +110,7 @@ function MethodologyModal() {
               (SMA 20/50), momentum (RSI, MACD), mean-reversion (Bollinger position), realised
               volatility (ATR) and support/resistance structure into a probabilistic 7-day outlook.
               The <span className="font-medium text-foreground">Projected</span> figure is the
-              central expected move over the next five trading sessions.
+              central expected move over the next seven sessions — the same seven-step horizon the model builds.
             </p>
           </div>
           <div>
@@ -139,7 +139,7 @@ function MethodologyModal() {
 
 function ProjectionRow({ rank, s, showMarket = false }: { rank: number; s: SecurityIntel; showMarket?: boolean }) {
   const [open, setOpen] = useState(false);
-  const colSpan = showMarket ? 9 : 8;
+  const colSpan = showMarket ? 8 : 7;
   return (
     <>
       <tr className="group border-b border-border/40 transition-colors hover:bg-card/50">
@@ -182,9 +182,6 @@ function ProjectionRow({ rank, s, showMarket = false }: { rank: number; s: Secur
         <td className="hidden px-2 py-3 md:table-cell">
           <Confidence value={s.confidence} />
         </td>
-        <td className="hidden px-2 py-3 lg:table-cell">
-          <SignalBadge signal={s.signal} />
-        </td>
         <td className="px-2 py-3 pr-3 text-right">
           <button
             onClick={() => setOpen((o) => !o)}
@@ -204,7 +201,7 @@ function ProjectionRow({ rank, s, showMarket = false }: { rank: number; s: Secur
                 <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-primary">
                   <Sparkles className="size-3.5" /> Reasoning &amp; analysis
                 </p>
-                <p className="text-sm leading-relaxed text-muted-foreground">{s.reasoning}</p>
+                <p className="text-sm leading-relaxed text-muted-foreground">{publicMarketNote(s.reasoning)}</p>
                 <p className="mt-2 text-xs text-muted-foreground/80">
                   <span className="font-medium text-foreground/80">Conviction:</span>{" "}
                   {s.conviction} — {s.convictionReason}
@@ -410,7 +407,6 @@ export function ProjectionsExplorer() {
                   <th className="px-2 py-2.5 text-right font-semibold">Price</th>
                   <th className="px-2 py-2.5 text-right font-semibold">Projected 7d</th>
                   <th className="hidden px-2 py-2.5 font-semibold md:table-cell">Confidence</th>
-                  <th className="hidden px-2 py-2.5 font-semibold lg:table-cell">Signal</th>
                   <th className="px-2 py-2.5 pr-3 text-right font-semibold">Detail</th>
                 </tr>
               </thead>

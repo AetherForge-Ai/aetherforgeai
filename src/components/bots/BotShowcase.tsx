@@ -116,7 +116,7 @@ export function BotShowcase() {
           3 AI bots that research the markets with you
         </h2>
         <p className="mx-auto mt-4 max-w-2xl text-muted-foreground">
-          Powered by SuperGrok 4.6. Stox monitors stock markets, Koins monitors crypto, and The Headmaster is the goal-planning bot. Reports are informational scenarios. AetherForge does not trade for you.
+          Stox monitors stock markets, Koins monitors crypto, and The Headmaster is the goal-planning bot. Reports are informational scenarios. AetherForge does not trade for you.
           
         </p>
       </div>

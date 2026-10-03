@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 const FAQS: { q: string; a: string }[] = [
   {
     q: "Can I switch between monthly and annual billing?",
-    a: "Yes. You can move from monthly to annual (or back) at any time from your billing settings. When you switch to annual you immediately lock in the ~18% saving, and any unused time on your current period is prorated toward the new plan automatically via Stripe.",
+    a: "Yes. You can move from monthly to annual (or back) at any time from your billing settings. When you switch to annual you immediately lock in the 16.67% saving, and any unused time on your current period is prorated toward the new plan automatically via Stripe.",
   },
   {
     q: "What happens when I hit my report or holding limits?",
@@ -39,7 +39,7 @@ const FAQS: { q: string; a: string }[] = [
   },
   {
     q: "How does billing work with annual plans?",
-    a: "Annual plans are billed once up front for 12 months at roughly the cost of 10 — an ~18% saving versus paying monthly. Your plan renews automatically each year, and you can cancel or switch to monthly at any time.",
+    a: "Annual plans are billed once up front for 12 months at roughly the cost of 10 — a 16.67% saving versus paying monthly. Your plan renews automatically each year, and you can cancel or switch to monthly at any time.",
   },
   {
     q: "What kind of support do I get on each plan?",
