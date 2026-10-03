@@ -11,7 +11,7 @@ import {
   type SecurityIntel,
   type Exchange,
 } from "@/lib/market-intel";
-import { pctClass, fmtPct } from "@/components/dashboard/intel-ui";
+import { pctClass, fmtPct, publicMarketNote } from "@/components/dashboard/intel-ui";
 import {
   StockDetailDialog,
   type DetailTarget,
@@ -290,7 +290,7 @@ export function MarketWidePerformers({ onBought }: { onBought?: () => void }) {
                           </td>
                           <td className="hidden max-w-[22rem] px-3 py-2.5 lg:table-cell">
                             <p className="line-clamp-2 text-[0.72rem] leading-relaxed text-muted-foreground">
-                              {s.reasoning}
+                              {publicMarketNote(s.reasoning)}
                             </p>
                           </td>
                         </tr>

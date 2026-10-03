@@ -330,25 +330,6 @@ function parseSparkBySymbol(json: Record<string, any>): Record<string, any> {
   return bySymbol;
 }
 
-function warmQuoteCache(ySym: string, q: YahooBatchedQuote): void {
-  const prevClose =
-    q.asOf === "close"
-      ? q.price
-      : q.changePct !== 0
-        ? q.price / (1 + q.changePct / 100)
-        : q.price;
-  CACHE.set(ySym, {
-    quote: {
-      price: q.price,
-      changePct: q.changePct,
-      changeAbs: q.price - prevClose,
-      prevClose,
-      currency: "USD",
-    },
-    at: Date.now(),
-  });
-}
-
 /**
  * BATCHED live-or-close quotes via Yahoo spark.
  * Prefer intraday prints (1d/5m); if bars are empty (market closed / holiday),
@@ -407,7 +388,6 @@ export async function fetchYahooQuotesBatched(
           ? { ...resolved, asOf: "close" }
           : resolved;
         out[internal] = quote;
-        warmQuoteCache(ySym, quote);
       }
     } catch (err) {
       console.error(`[yahoo] live-batch fetch failed for a chunk of ${chunk.length} (${range}/${interval}):`, err);

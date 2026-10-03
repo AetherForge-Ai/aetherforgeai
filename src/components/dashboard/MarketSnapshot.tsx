@@ -8,7 +8,7 @@ import {
   type SecurityIntel,
 } from "@/lib/market-intel";
 import { cn } from "@/lib/utils";
-import { SignalBadge, pctClass, fmtPct } from "@/components/dashboard/intel-ui";
+import { pctClass, fmtPct } from "@/components/dashboard/intel-ui";
 import { useMarketIntel } from "@/components/dashboard/MarketIntelContext";
 import { ArrowUpDown, Globe } from "lucide-react";
 
@@ -71,7 +71,6 @@ function MarketColumn({ code, label, sub, rows }: { code: MarketCode; label: str
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
                   <span className="font-display text-sm font-semibold">{r.ticker.replace(/\.(NZ|AX)$/, "")}</span>
-                  <SignalBadge signal={r.signal} />
                 </div>
                 <p className="truncate text-[0.68rem] text-muted-foreground">{r.name}</p>
               </div>

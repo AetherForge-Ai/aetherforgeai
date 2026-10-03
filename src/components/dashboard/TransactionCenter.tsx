@@ -237,6 +237,7 @@ export function TransactionCenter({
   const activeUserIdRef = useRef<string | null>(userId ?? null);
 
   const cashRef = useRef(0);
+  const cashKnownRef = useRef(false);
   const preferredRef = useRef(preferredAssetType ?? null);
   preferredRef.current = preferredAssetType ?? null;
   // Latest holdings while closed; frozen once Buy/Add opens (see below).
@@ -266,6 +267,7 @@ export function TransactionCenter({
         mode: getStickyTxMode(),
         holdings: holdingsFrozenRef.current,
         cash: cashRef.current,
+        cashKnown: cashKnownRef.current,
         preferredAssetType: preferredRef.current,
       });
     }
@@ -289,6 +291,7 @@ export function TransactionCenter({
         mode: getStickyTxMode(),
         holdings: holdingsFrozenRef.current,
         cash: cashRef.current,
+        cashKnown: cashKnownRef.current,
         preferredAssetType: preferredRef.current,
       });
     } else {
@@ -388,8 +391,17 @@ export function TransactionCenter({
 
   const effectivePreferredAsset = deepLinkAsset || preferredAssetType;
   const cash = ledger?.cashBalance ?? 0;
+  const cashKnown = ledger != null;
   cashRef.current = cash;
+  cashKnownRef.current = cashKnown;
   preferredRef.current = effectivePreferredAsset ?? null;
+  // Ledger can arrive after Buy is already open. Settle cash in place so the
+  // review form does not keep the pre-load NZ$0.
+  useEffect(() => {
+    if (!cashKnown) return;
+    publishTxDialog({ cash, cashKnown: true });
+  }, [cashKnown, cash]);
+
   const realizedYtd = ledger?.realizedYtd ?? 0;
   const realizedTotal = ledger?.realizedTotal ?? 0;
 
@@ -1024,6 +1036,7 @@ export function TransactionDialog({
   mode,
   holdings,
   cash,
+  cashKnown = true,
   onDone,
   preferredAssetType,
 }: {
@@ -1032,6 +1045,8 @@ export function TransactionDialog({
   mode: TxType;
   holdings: SellableHolding[];
   cash: number;
+  /** False while the ledger has not loaded. Do not treat 0 as the book. */
+  cashKnown?: boolean;
   onDone: (ledger: Ledger) => void;
   preferredAssetType?: "stock" | "crypto" | "metal";
 }) {
@@ -1338,6 +1353,9 @@ export function TransactionDialog({
       cashNzd: cash,
       rates: fxRates,
     });
+    if (mode === "buy" && !cashKnown) {
+      return toast.error("Cash balance is still loading. It will match the book before you can review.");
+    }
     if (mode === "buy" && preview.resultingCashNzd < -1e-6) {
       return toast.error(`Insufficient cash — you have ${formatMoney(cash, "NZD")} available.`);
     }
@@ -1364,6 +1382,9 @@ export function TransactionDialog({
         if (q > (selectedHolding.shares || 0) + 1e-6) {
           return toast.error(`You only hold ${formatNumber(selectedHolding.shares || 0)} of ${selectedHolding.ticker}`);
         }
+      }
+      if (mode === "buy" && !cashKnown) {
+        return toast.error("Cash balance is still loading. It will match the book before you can review.");
       }
       if (mode === "buy" && buyShortCash) {
         return toast.error(`Insufficient cash — you have ${formatMoney(cash, "NZD")} available.`);
@@ -1888,7 +1909,8 @@ export function TransactionDialog({
               />
               {mode === "withdraw" && (
                 <p className="text-xs text-muted-foreground">
-                  Available: <span className="tnum">{formatMoney(cash, NZD)}</span>
+                  Available:{" "}
+                  <span className="tnum">{cashKnown ? formatMoney(cash, NZD) : "Loading book…"}</span>
                 </p>
               )}
             </div>
@@ -1903,6 +1925,15 @@ export function TransactionDialog({
               onChange={(e) => setNotes(e.target.value)}
             />
           </div>
+
+          {mode === "buy" && (
+            <p className="text-xs text-muted-foreground">
+              Available:{" "}
+              <span className="tnum font-medium text-foreground">
+                {cashKnown ? formatMoney(cash, NZD) : "Loading book…"}
+              </span>
+            </p>
+          )}
 
           {/* Live cash-impact estimate */}
           <div className="flex items-center justify-between rounded-lg border border-border/60 bg-background/40 px-3 py-2.5 text-sm">
@@ -1947,6 +1978,7 @@ export function TransactionDialog({
             disabled={
               saving ||
               priceLoading ||
+              (mode === "buy" && !cashKnown) ||
               (step === "review" && isTrade
                 ? !confirmReady || !reviewPreview || (mode === "buy" && (reviewPreview.resultingCashNzd < -1e-6 || buyShortCash))
                 : isTrade

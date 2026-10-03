@@ -90,7 +90,7 @@ export default function LandingPage() {
                     Data Backed Market Intelligence straight to You
                   </h1>
                   <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-                    Powered by SuperGrok 4.6. Track stocks, crypto and precious metals,
+                    Track stocks, crypto and precious metals,
                     then use Stox, Koins and The Headmaster to turn live data into
                     illustrative scenarios and a goal plan. You execute elsewhere.
                   </p>
@@ -125,7 +125,7 @@ export default function LandingPage() {
                   3 AI bots that research the markets with you
                 </h2>
                 <p className="mt-4 text-base leading-relaxed text-muted-foreground sm:text-lg">
-                  Powered by SuperGrok 4.6, Stox monitors stock markets, Koins monitors
+                  Stox monitors stock markets, Koins monitors
                   crypto, and The Headmaster is the goal-planning bot — it builds a plan
                   with you from the goals you set. Reports are informational scenarios about
                   what is on your book. AetherForge does not trade for you and does not hold

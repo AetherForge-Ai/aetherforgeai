@@ -3,7 +3,7 @@
 /**
  * Report Center — the master intelligence desk at the foot of the dashboard.
  *
- *  1. "Run full SuperGrok 4.6 ULTRA ADVANCED report" buttons per unlocked bot
+ *  1. "Run full AI report" buttons per unlocked bot
  *     (Stox + Koins), plus The Headmaster (Portfolio Planning and Strategies) that unifies
  *     stocks, crypto & metals into one strategy.
  *     Running calls POST /api/reports, which emails the report + PDF, persists it
@@ -40,6 +40,7 @@ import {
   liveBookForAccount,
   reconcileNarrativeForAccount,
   reconcileStoredReport,
+  reportReadsAsNotCurrent,
   type AccountHoldingRow,
 } from "@/lib/report-book";
 import {
@@ -153,6 +154,7 @@ export function ReportCenter({
   const [lastPdfUrl, setLastPdfUrl] = React.useState<string | null>(null);
   const [lastAiEnhanced, setLastAiEnhanced] = React.useState(false);
   const [open, setOpen] = React.useState(false);
+  const [reportEmailed, setReportEmailed] = React.useState(false);
   const [reportsMinimized, setReportsMinimized] = React.useState(true);
   const [history, setHistory] = React.useState<PastReport[]>([]);
   // Independent per-bot last-report timestamps → independent countdowns.
@@ -456,8 +458,11 @@ export function ReportCenter({
 
     if (!res.ok || !res.data?.report) {
       runLock.current = false;
+      const emptyBook =
+        res.status === 422 ||
+        (res.data as { code?: string } | undefined)?.code === "empty-book";
       const msg = typeof res.error === "string" ? res.error : res.error?.message || "Failed to generate the report.";
-      if (res.status !== 401) console.error("[ReportCenter] run failed:", res.error);
+      if (res.status !== 401 && !emptyBook) console.error("[ReportCenter] run failed:", res.error);
       toast.error(res.status === 401 ? "Your session needs a refresh before Koins can run this report." : msg);
       void loadHistory().catch(() => {});
       return;
@@ -481,6 +486,7 @@ export function ReportCenter({
     runLock.current = false;
     const grounded = reconcileStoredReport(res.data.report, bookFor(kind));
     setReport(grounded);
+    setReportEmailed(res.data.emailed === true && !reportReadsAsNotCurrent(grounded.executiveSummary || ""));
     setTextOnly(null);
     setLastPdfUrl(res.data.pdfUrl);
     setLastAiEnhanced(!!res.data.aiEnhanced);
@@ -509,12 +515,12 @@ export function ReportCenter({
           <div className="flex items-center gap-2">
             <h2 className="font-display text-lg font-bold">Report Center</h2>
             <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">
-              <Sparkles className="mr-1 size-3" /> Ultra Advanced ZENITH State
+              <Sparkles className="mr-1 size-3" /> AI
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground">
-            Run the full SuperGrok 4.6 ULTRA ADVANCED report for Stox, Koins or The Headmaster —
-            delivered to your inbox and here.
+            Run the full AI report for Stox, Koins or The Headmaster.
+            A copy is emailed only when delivery succeeds, and only for a book that has positions.
           </p>
         </div>
         <div className="text-right text-xs text-muted-foreground">
@@ -773,12 +779,17 @@ export function ReportCenter({
                     <span className="truncate text-sm font-medium">{r.title}</span>
                     {r.aiEnhanced && (
                       <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">
-                        <Sparkles className="mr-1 size-3" /> Grok 4.6
+                        <Sparkles className="mr-1 size-3" /> AI
                       </Badge>
                     )}
-                    {r.emailed === "yes" && (
+                    {r.emailed === "yes" && !reportReadsAsNotCurrent(r.executiveSummary || r.textBody || "") && (
                       <Badge variant="outline" className="border-emerald-500/30 text-emerald-600">
                         <Mail className="mr-1 size-3" /> Emailed
+                      </Badge>
+                    )}
+                    {reportReadsAsNotCurrent(r.executiveSummary || r.textBody || "") && (
+                      <Badge variant="outline" className="border-amber-500/30 text-amber-700">
+                        Not current
                       </Badge>
                     )}
                     {r.trigger === "scheduled" && (
@@ -805,11 +816,20 @@ export function ReportCenter({
                       setLastAiEnhanced(!!r.aiEnhanced);
                       if (r.payload && typeof r.payload === "object" && "executiveSummary" in r.payload) {
                         setTextOnly(null);
+                        const viewed = reconcileStoredReport(r.payload, bookFor(kind));
+                        const notCurrent = reportReadsAsNotCurrent(
+                          viewed.executiveSummary || r.executiveSummary || ""
+                        );
+                        setReportEmailed(r.emailed === "yes" && !notCurrent);
                         // View path: stored JSON is sanitized before ApexReport renders it again.
-                        setReport(reconcileStoredReport(r.payload, bookFor(kind)));
+                        setReport(viewed);
                         setOpen(true);
                       } else if (r.executiveSummary || r.textBody) {
                         setReport(null);
+                        setReportEmailed(
+                          r.emailed === "yes" &&
+                            !reportReadsAsNotCurrent(r.executiveSummary || r.textBody || "")
+                        );
                         setTextOnly({
                           title: r.title,
                           body: shownSummary(kind, r.executiveSummary || r.textBody || ""),
@@ -846,15 +866,18 @@ export function ReportCenter({
             <div className="flex min-w-0 flex-col gap-3 pr-8 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  <DialogTitle className="break-words text-base leading-snug sm:text-lg">{report?.title ?? textOnly?.title ?? "ZENITH report"}</DialogTitle>
+                  <DialogTitle className="break-words text-base leading-snug sm:text-lg">{report?.title ?? textOnly?.title ?? "AI report"}</DialogTitle>
                   {lastAiEnhanced && (
                     <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">
-                      <Sparkles className="mr-1 size-3" /> Grok 4.6 enhanced
+                      <Sparkles className="mr-1 size-3" /> AI
                     </Badge>
                   )}
                 </div>
                 <DialogDescription className="break-words">
-                  Searchable report text below — PDF download is optional. A copy has been emailed to you.
+                  Searchable report text below — PDF download is optional.
+                  {reportEmailed
+                    ? " A copy was emailed to you."
+                    : " No report email was sent for this view."}
                 </DialogDescription>
               </div>
               {lastPdfUrl && (
