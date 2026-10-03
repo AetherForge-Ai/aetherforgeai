@@ -697,6 +697,21 @@ const UNIVERSE_MAP: Record<string, UniverseEntry> = [...MARKET_UNIVERSE, ...CRYP
   {} as Record<string, UniverseEntry>
 );
 
+/** Synthetic directory price. Never a fill the paper form can lock. */
+export function universeSeedPrice(ticker: string): number | undefined {
+  const entry = UNIVERSE_MAP[ticker] ?? UNIVERSE_MAP[ticker.toUpperCase()];
+  return entry && entry.basePrice > 0 ? entry.basePrice : undefined;
+}
+
+/** True when a displayed price is the directory seed, not a live print. */
+export function priceMatchesUniverseSeed(ticker: string, price: number): boolean {
+  const seed = universeSeedPrice(ticker);
+  if (seed == null || !(price > 0) || !isFinite(price)) return false;
+  const dp = Math.max(seed, price) < 5 ? 4 : 2;
+  const scale = 10 ** dp;
+  return Math.round(seed * scale) === Math.round(price * scale);
+}
+
 export function currencyForMarket(market: MarketCode): "NZD" | "AUD" | "USD" {
   return market === "NZX" ? "NZD" : market === "ASX" ? "AUD" : "USD";
 }
@@ -1332,9 +1347,8 @@ export const LIVE_COVERAGE_FLOOR = 0.4;
  * renamed ticker (no live price) is automatically dropped from every list
  * (snapshot, top movers, projection leaders). This is what keeps a name that
  * stops trading — e.g. an ASX company that gets acquired — from lingering in the
- * lists on stale synthetic data. Guarded: if live coverage collapses (a
- * transient data-feed outage), we fall back to the full deterministic set so the
- * dashboard can never go blank.
+ * lists on stale synthetic data. A thin live sweep does not fill the gaps with
+ * directory seed prices — those are not the quote the paper form locks.
  */
 export function analyzeUniverse(
   priceOverrides?: Record<string, number>,
@@ -1367,12 +1381,12 @@ export function analyzeUniverse(
   const strict = liveCount >= Math.max(1, Math.floor(universe.length * LIVE_COVERAGE_FLOOR));
   if (!strict) {
     console.warn(
-      `[market-intel] Live coverage low (${liveCount}/${universe.length}); keeping full ${assetClass} set to avoid a blank board.`
+      `[market-intel] Live coverage low (${liveCount}/${universe.length}); omitting ${assetClass} names with no live quote instead of synthetic seeds.`
     );
   }
 
   return priced
-    .filter((p) => (strict ? p.hasData : true))
+    .filter((p) => typeof p.price === "number" && p.price > 0)
     .map((p) => analyzeSecurity(p.ticker, p.price, undefined, undefined, p.series));
 }
 

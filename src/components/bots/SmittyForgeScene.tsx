@@ -17,7 +17,7 @@ type Props = {
 export function SmittyForgeScene({
   className,
   sceneSrc = "/brand/precious-metals-trolley.png",
-  alt = "Smitty, AetherForge Precious Metals Manager, with gold and silver at the forge",
+  alt = "Smitty with gold and silver at the forge",
 }: Props) {
   return (
     <div

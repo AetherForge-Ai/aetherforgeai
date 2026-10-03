@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { buildLiveReport } from "@/lib/apex";
 import { buildIntelligenceBriefing } from "@/lib/briefing";
-import type { SecurityIntel } from "@/lib/market-intel";
+import { analyzeSecurity, analyzeUniverse, type SecurityIntel } from "@/lib/market-intel";
+import { applyLockedActionPrices, applyPaperQuotes } from "@/lib/paper-quote-lock";
+import { reportEmailWasDelivered } from "@/lib/report-email";
 import { reconcileStoredReport } from "@/lib/report-book";
 import {
   alignedProjection,
@@ -116,16 +118,37 @@ describe("cash deployment guard", () => {
     ).toBe(false);
   });
 
-  it("quotes the same 10% cash rule for Stox and Koins on a NZ$100,000 book", () => {
+  it("quotes live cash and 10% of the live book for Stox and Koins", () => {
     const tape = { bias: "Neutral" as const, level: "Low" as const, score: 49, averageConfidence: 40 };
-    const stock = deploymentGuard("stock", tape, 100000);
-    const crypto = deploymentGuard("crypto", tape, 100000);
-    expect(stock.headline).toMatch(/Keep NZ\$10,000 \(10%\)/);
-    expect(crypto.headline).toMatch(/Keep NZ\$10,000 \(10%\)/);
-    expect(stock.headline).toMatch(/NZ\$90,000/);
-    expect(crypto.headline).toMatch(/NZ\$90,000/);
-    expect(stock.maxDeployFraction).toBeCloseTo(0.9, 5);
-    expect(crypto.maxDeployFraction).toBeCloseTo(0.9, 5);
+    const cash = 63678.62;
+    const book = 99750;
+    const stock = deploymentGuard("stock", tape, cash, book);
+    const crypto = deploymentGuard("crypto", tape, cash, book);
+    expect(stock.headline).toMatch(/63,678\.62/);
+    expect(crypto.headline).toMatch(/63,678\.62/);
+    expect(stock.headline).toMatch(/9,975/);
+    expect(stock.headline).toMatch(/10% of the live book/);
+    expect(crypto.headline).toMatch(/10% of the live book/);
+    expect(stock.headline).not.toMatch(/75%/);
+    expect(stock.headline).not.toMatch(/100,000/);
+    expect(stock.headline).not.toMatch(/25,000/);
+    expect(stock.maxDeployFraction).toBeCloseTo((cash - 9975) / cash, 5);
+    expect(crypto.maxDeployFraction).toBeCloseTo(stock.maxDeployFraction, 5);
+  });
+
+  it("rewrites a stored 75% / NZ$100,000 / NZ$25,000 illustration onto the live book", () => {
+    const cleaned = sanitizeGuardedReport(
+      {
+        executiveSummary:
+          "NZ$100,000 is available. Keep at least 75% in reserve and start with about NZ$25,000.",
+      },
+      { cashNZD: 63678.62, bookNZD: 99750 }
+    );
+    expect(cleaned.executiveSummary).toMatch(/63,678\.62/);
+    expect(cleaned.executiveSummary).toMatch(/9,975/);
+    expect(cleaned.executiveSummary).not.toMatch(/75%/);
+    expect(cleaned.executiveSummary).not.toMatch(/100,000/);
+    expect(cleaned.executiveSummary).not.toMatch(/25,000/);
   });
 
   it("does not quote the synthetic WOR.AX seed as an actionable price", () => {
@@ -139,6 +162,71 @@ describe("cash deployment guard", () => {
       expect(rec.price).toBe(9.51);
     }
     expect(report.directRecommendations.some((rec) => rec.price === 14.85)).toBe(false);
+  });
+
+  it("does not keep WOR.AX at the seed when the live sweep missed it", () => {
+    const report = buildLiveReport("stock", [], {
+      marketOverrides: { "BHP.AX": 40.12 },
+      cashBalanceNZD: 63678.62,
+      accountBookNZD: 99750,
+    });
+    expect(report.directRecommendations.some((rec) => rec.ticker.toUpperCase() === "WOR.AX")).toBe(false);
+    expect(report.directRecommendations.some((rec) => rec.price === 14.85)).toBe(false);
+    expect(report.projectionLeaders.some((row) => row.ticker === "WOR.AX" && row.price === 14.85)).toBe(false);
+  });
+
+  it("drops a seeded universe row unless a live print replaces it", () => {
+    const seeded = analyzeSecurity("WOR.AX");
+    expect(seeded.price).toBe(14.85);
+    const report = buildLiveReport("stock", [], {
+      universeIntel: [seeded],
+      marketOverrides: {},
+      cashBalanceNZD: 63678.62,
+    });
+    expect(report.directRecommendations.some((rec) => rec.price === 14.85)).toBe(false);
+    const quoted = buildLiveReport("stock", [], {
+      universeIntel: [seeded],
+      marketOverrides: { "WOR.AX": 9.51 },
+      cashBalanceNZD: 63678.62,
+    });
+    const row = quoted.directRecommendations.find((rec) => rec.ticker.toUpperCase() === "WOR.AX");
+    if (row) expect(row.price).toBe(9.51);
+  });
+
+  it("replaces a stored seed price with the paper-form quote and drops it when no quote exists", () => {
+    const stored = {
+      directRecommendations: [{ ticker: "WOR.AX", price: 14.85, action: "BUY", held: false, detail: "Buy WOR.AX" }],
+      projectionLeaders: [{ ticker: "WOR.AX", price: 14.85 }],
+    };
+    const locked = applyPaperQuotes(stored, { "WOR.AX": 9.51 });
+    expect(locked.directRecommendations[0]?.price).toBe(9.51);
+    expect(locked.projectionLeaders[0]?.price).toBe(9.51);
+    const dropped = applyPaperQuotes(stored, {});
+    expect(dropped.directRecommendations).toHaveLength(0);
+    expect(dropped.projectionLeaders).toHaveLength(0);
+    const stillSeed = applyPaperQuotes(stored, { "WOR.AX": 14.85 });
+    expect(stillSeed.directRecommendations).toHaveLength(0);
+    const relocked = applyLockedActionPrices(
+      { directRecommendations: [{ ticker: "WOR.AX", price: 15.2, action: "BUY", held: false }] },
+      { "WOR.AX": 9.51 }
+    );
+    expect(relocked.directRecommendations[0]?.price).toBe(9.51);
+  });
+
+  it("accepts an email only when the send API reports success and a message id", () => {
+    expect(reportEmailWasDelivered({ errors: { errorCode: "INVALID_ATTACHMENT_URL" }, data: null })).toBe(false);
+    expect(reportEmailWasDelivered({ data: { success: true, message: "sent", messageId: "msg_1" } })).toBe(true);
+    expect(reportEmailWasDelivered({ success: true, message: "sent", messageId: "msg_2" })).toBe(true);
+    expect(reportEmailWasDelivered({ success: true, message: "sent" })).toBe(false);
+    expect(reportEmailWasDelivered(undefined)).toBe(false);
+  });
+
+  it("omits WOR.AX from a thin live sweep instead of filling the seed", () => {
+    const board = analyzeUniverse({ "BHP.AX": 40.12 }, "stock");
+    expect(board.some((row) => row.ticker === "WOR.AX" && row.price === 14.85)).toBe(false);
+    expect(board.find((row) => row.ticker === "WOR.AX")).toBeUndefined();
+    const quoted = analyzeUniverse({ "WOR.AX": 9.51 }, "stock");
+    expect(quoted.find((row) => row.ticker === "WOR.AX")?.price).toBe(9.51);
   });
 
   it("does not treat the guard sentence itself as a full-cash instruction", () => {

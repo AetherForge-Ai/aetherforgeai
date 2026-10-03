@@ -145,26 +145,70 @@ export function alignedProjection(intel: Pick<SecurityIntel, "projected7dPct" | 
   };
 }
 
-function cashRuleClause(cash: number): string {
-  if (cash <= 0) return "";
-  const rule = bookCashReserve(cash);
-  const retained = rule.retainedNZD.toLocaleString("en-NZ");
-  const deployable = rule.deployableNZD.toLocaleString("en-NZ");
-  const available = cash.toLocaleString("en-NZ");
+export interface LiveCashFigures {
+  cashNZD: number;
+  bookNZD: number;
+}
+
+function formatRuleNzd(value: number): string {
+  const rounded = Math.round((Number.isFinite(value) ? value : 0) * 100) / 100;
+  const showCents = Math.abs(rounded - Math.round(rounded)) >= 0.005;
+  return rounded.toLocaleString("en-NZ", {
+    minimumFractionDigits: showCents ? 2 : 0,
+    maximumFractionDigits: 2,
+  });
+}
+
+/**
+ * One cash rule for Stox, Koins, and Headmaster.
+ * Shows the live ledger cash. Retained cash is about 10% of the live book.
+ */
+export function liveCashRuleSentence(cashNZD: number, bookNZD?: number): string {
+  const cash = Math.max(0, Number.isFinite(cashNZD) ? cashNZD : 0);
+  const book = Math.max(cash, Math.max(0, bookNZD != null && Number.isFinite(bookNZD) ? bookNZD : cash));
+  const retained = bookCashReserve(book).retainedNZD;
+  const deployable = Math.max(0, Math.round((cash - retained) * 100) / 100);
   return (
-    ` Cash on book NZ$${available}. Keep NZ$${retained} (${rule.reservePct}%) in reserve and illustrate NZ$${deployable} as the deployment — the same cash rule as the Headmaster skeleton.`
+    `Cash on book NZ$${formatRuleNzd(cash)}. Keep about NZ$${retained.toLocaleString("en-NZ")} (10% of the live book) in reserve and illustrate at most NZ$${formatRuleNzd(deployable)} from that cash — the same cash rule as the Headmaster skeleton.`
   );
+}
+
+function cashRuleClause(cash: number, book?: number): string {
+  if (!(cash > 0)) return "";
+  return ` ${liveCashRuleSentence(cash, book)}`;
+}
+
+/** Stored Stox/Koins prose that still illustrates a NZ$100,000 book, a 75% reserve, or a NZ$25,000 starter. */
+const LEGACY_CASH_ILLUSTRATION =
+  /(?:nz\$|\$)\s*100[,.]?000(?:\s+is)?\s+available|keep at least\s+75\s*%|75\s*%\s+in reserve|start with(?: about)?\s+(?:nz\$|\$)\s*25[,.]?000|(?:about|around)\s+(?:nz\$|\$)\s*25[,.]?000/i;
+
+export function rewriteLegacyCashIllustration(text: string, figures?: LiveCashFigures): string {
+  if (!text || !LEGACY_CASH_ILLUSTRATION.test(text)) return text;
+  const replacement =
+    figures && figures.cashNZD > 0
+      ? liveCashRuleSentence(figures.cashNZD, figures.bookNZD)
+      : "Use the live cash balance. Keep about 10% of the live book in reserve — the same cash rule as the Headmaster skeleton.";
+  const collapsed: string[] = [];
+  for (const sentence of splitSentences(text)) {
+    const next = LEGACY_CASH_ILLUSTRATION.test(sentence) ? replacement : sentence;
+    if (next === replacement && collapsed[collapsed.length - 1] === replacement) continue;
+    collapsed.push(next);
+  }
+  return collapsed.join(" ").replace(/[ \t]{2,}/g, " ").trim();
 }
 
 export function deploymentGuard(
   bot: "stock" | "crypto",
   tape: TapeRead,
-  cashNZD = 0
+  cashNZD = 0,
+  bookNZD?: number
 ): DeploymentGuard {
   const cap = bot === "crypto" ? 12 : 8;
-  const cash = Math.max(0, Math.round(cashNZD));
-  const rule = bookCashReserve(cash);
-  const deployFraction = cash > 0 ? rule.deployableNZD / cash : 0.9;
+  const cash = Math.max(0, cashNZD);
+  const book = bookNZD != null && bookNZD > 0 ? bookNZD : cash;
+  const retained = bookCashReserve(book).retainedNZD;
+  const deployable = Math.max(0, cash - retained);
+  const deployFraction = cash > 0 ? deployable / cash : 0;
   const neutral =
     tape.bias !== "Constructive" ||
     tape.level === "Low" ||
@@ -181,7 +225,7 @@ export function deploymentGuard(
       headline:
         `${tape.bias} tape at ${tape.score}/100 with ${tape.level} conviction. ` +
         `This tape does not support new risk, so no new names are listed.` +
-        cashRuleClause(cash),
+        cashRuleClause(cash, book),
     };
   }
   if (neutral) {
@@ -193,7 +237,7 @@ export function deploymentGuard(
       headline:
         `${tape.bias} tape at ${tape.score}/100 with ${tape.level} conviction. ` +
         `Do not deploy the full cash balance.` +
-        cashRuleClause(cash) +
+        cashRuleClause(cash, book) +
         ` New buys are limited to names inside a ${cap}% 7-day suitability cap and without speculative conviction.`,
     };
   }
@@ -205,7 +249,7 @@ export function deploymentGuard(
     headline:
       `Constructive tape at ${tape.score}/100 with ${tape.level} conviction. ` +
       `Scale in on the same cash rule — do not commit the entire balance in one fill.` +
-      cashRuleClause(cash),
+      cashRuleClause(cash, book),
   };
 }
 
@@ -551,20 +595,71 @@ function reportProse(report: GuardedReportFields): string {
  * Neutral / low / Speculative tapes also drop speculative-buy sentences and
  * keep the reserve headline.
  */
-export function sanitizeGuardedReport<T extends GuardedReportFields>(report: T): T {
-  const blob = reportProse(report);
-  const tape = stricterTape(tapeFromOverall(report.briefing?.overall), textImpliesGuardedTape(blob));
+function mapReportProse<T extends GuardedReportFields>(report: T, clean: (value: string) => string): T {
+  const next: T = { ...report };
+  if (typeof next.executiveSummary === "string") next.executiveSummary = clean(next.executiveSummary);
+  if (Array.isArray(next.keyObservations)) next.keyObservations = next.keyObservations.map((line) => clean(line));
+  if (next.pathwayPlan) {
+    const plan = next.pathwayPlan;
+    next.pathwayPlan = {
+      ...plan,
+      recommendationNote: typeof plan.recommendationNote === "string" ? clean(plan.recommendationNote) : plan.recommendationNote,
+      pathways: Array.isArray(plan.pathways)
+        ? plan.pathways.map((pathway) => ({
+            ...pathway,
+            summary: typeof pathway.summary === "string" ? clean(pathway.summary) : pathway.summary,
+            steps: Array.isArray(pathway.steps) ? pathway.steps.map((step) => clean(step)) : pathway.steps,
+          }))
+        : plan.pathways,
+    };
+  }
+  if (next.briefing) {
+    const overall = next.briefing.overall;
+    next.briefing = {
+      ...next.briefing,
+      executiveSummary:
+        typeof next.briefing.executiveSummary === "string" ? clean(next.briefing.executiveSummary) : next.briefing.executiveSummary,
+      keyObservations: Array.isArray(next.briefing.keyObservations)
+        ? next.briefing.keyObservations.map((line) => clean(line))
+        : next.briefing.keyObservations,
+      highlights: Array.isArray(next.briefing.highlights)
+        ? next.briefing.highlights.map((line) => clean(line))
+        : next.briefing.highlights,
+      risks: Array.isArray(next.briefing.risks) ? next.briefing.risks.map((line) => clean(line)) : next.briefing.risks,
+      overall:
+        overall && typeof overall.reason === "string" ? { ...overall, reason: clean(overall.reason) } : overall,
+    };
+  }
+  if (Array.isArray(next.directRecommendations)) {
+    next.directRecommendations = next.directRecommendations.map((rec) =>
+      typeof rec.detail === "string" ? { ...rec, detail: clean(rec.detail) } : rec
+    );
+  }
+  if (Array.isArray(next.tickers)) {
+    next.tickers = next.tickers.map((ticker) =>
+      typeof ticker.note === "string" ? { ...ticker, note: clean(ticker.note) } : ticker
+    );
+  }
+  return next;
+}
+
+export function sanitizeGuardedReport<T extends GuardedReportFields>(report: T, figures?: LiveCashFigures): T {
+  const priced = mapReportProse(report, (value) => rewriteLegacyCashIllustration(value, figures));
+  const blob = reportProse(priced);
+  const tape = stricterTape(tapeFromOverall(priced.briefing?.overall), textImpliesGuardedTape(blob));
   const named = urgesNamedCashDeploy(blob);
-  if (!tape && !named) return report;
-  const bot = report.bot === "crypto" ? "crypto" : "stock";
-  const guard = tape ? deploymentGuard(bot, tape, cashBalanceMentioned(blob)) : null;
-  if (guard?.mode === "full" && !named) return report;
+  if (!tape && !named) return priced;
+  const bot = priced.bot === "crypto" ? "crypto" : "stock";
+  const cash = figures && figures.cashNZD > 0 ? figures.cashNZD : cashBalanceMentioned(blob);
+  const book = figures && figures.bookNZD > 0 ? figures.bookNZD : undefined;
+  const guard = tape ? deploymentGuard(bot, tape, cash, book) : null;
+  if (guard?.mode === "full" && !named) return priced;
   const clean = (value: string | undefined) => {
     if (typeof value !== "string") return value;
     if (guard && guard.mode !== "full") return sanitizeGuardedCashLanguage(value, guard);
     return stripNamedCashCopy(value);
   };
-  const next: T = { ...report };
+  const next: T = { ...priced };
   if (typeof next.executiveSummary === "string") next.executiveSummary = clean(next.executiveSummary);
   if (Array.isArray(next.keyObservations)) next.keyObservations = next.keyObservations.map((line) => clean(line) ?? line);
   if (next.pathwayPlan) {

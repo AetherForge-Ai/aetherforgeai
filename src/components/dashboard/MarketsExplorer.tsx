@@ -127,11 +127,14 @@ export function MarketsExplorer({
   onBought,
   active = true,
   className,
+  allowBuy = true,
 }: {
   onBought?: () => void;
   /** When false the component skips fetching (e.g. modal is closed). */
   active?: boolean;
   className?: string;
+  /** Public /markets hides the Buy column. Dashboard paper-trade keeps it. */
+  allowBuy?: boolean;
 }) {
   const [tab, setTab] = useState<Tab>("NASDAQ");
   const [data, setData] = useState<MarketPayload | null>(null);
@@ -496,23 +499,25 @@ export function MarketsExplorer({
               </th>
               <th className="hidden py-2.5 px-3 md:table-cell"><SortHead label="Volume" k="volume" /></th>
               <th className="hidden py-2.5 px-3 xl:table-cell"><SortHead label="Mkt Cap" k="marketCap" /></th>
-              <th className="py-2.5 pl-3 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Buy
-              </th>
+              {allowBuy && (
+                <th className="py-2.5 pl-3 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Buy
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
             {loadingRows && rows.length === 0 ? (
               [...Array(12)].map((_, i) => (
                 <tr key={i} className="border-b border-border/30">
-                  <td colSpan={9} className="py-2">
+                  <td colSpan={allowBuy ? 9 : 8} className="py-2">
                     <div className="h-8 animate-pulse rounded-lg bg-muted/40" />
                   </td>
                 </tr>
               ))
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={9} className="py-12 text-center text-sm text-muted-foreground">
+                <td colSpan={allowBuy ? 9 : 8} className="py-12 text-center text-sm text-muted-foreground">
                   {query ? `No tickers match “${query}”.` : "No market data available right now."}
                 </td>
               </tr>
@@ -572,12 +577,14 @@ export function MarketsExplorer({
                     <td className="tnum hidden py-2.5 px-3 text-right text-muted-foreground xl:table-cell">
                       {fmtCap(r.marketCap, r.currency)}
                     </td>
-                    <td className="py-2.5 pl-3 text-right">
-                      <Button size="sm" variant="outline" className="h-8 px-2.5" onClick={() => openBuy(r)}>
-                        <ShoppingCart className="size-3.5 sm:mr-1.5" />
-                        <span className="hidden sm:inline">Buy</span>
-                      </Button>
-                    </td>
+                    {allowBuy && (
+                      <td className="py-2.5 pl-3 text-right">
+                        <Button size="sm" variant="outline" className="h-8 px-2.5" onClick={() => openBuy(r)}>
+                          <ShoppingCart className="size-3.5 sm:mr-1.5" />
+                          <span className="hidden sm:inline">Buy</span>
+                        </Button>
+                      </td>
+                    )}
                   </tr>
                 );
               })
@@ -634,7 +641,7 @@ export function MarketsExplorer({
         open={detailOpen}
         onOpenChange={setDetailOpen}
         target={detailTarget}
-        canBuy={!!onBought}
+        canBuy={allowBuy && !!onBought}
         onBought={onBought}
       />
 

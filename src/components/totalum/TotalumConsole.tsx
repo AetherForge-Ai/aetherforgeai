@@ -518,6 +518,7 @@ function StrategyTab({ initialSynthesis }: { initialSynthesis: TotalumSynthesis 
             <h3 className="mb-1 text-sm font-semibold">Allocation skeleton</h3>
             <p className="mb-3 text-xs text-muted-foreground">
               Amounts are the whole-dollar gap to the target weight. Increases equal reductions. Retained cash stays in the plan.
+              Precious metals here are a target weight, not a holding and not a report you can run.
             </p>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">

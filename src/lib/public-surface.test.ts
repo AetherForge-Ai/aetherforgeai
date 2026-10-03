@@ -91,4 +91,29 @@ describe("public surface routes", () => {
     expect(read("src/components/dashboard/GuestDashboardGate.tsx")).toContain("MemberDashboardDialog");
     expect(read("src/components/dashboard/GuestDashboardGate.tsx")).not.toContain("Test UserAF");
   });
+
+  it("hides the public markets Buy column and does not offer a Smitty report", () => {
+    const markets = read("src/components/dashboard/MarketsPageContent.tsx");
+    expect(markets).toContain("allowBuy={false}");
+    expect(markets).not.toContain("Strong Buy");
+    expect(markets).not.toContain("Reduce");
+    const explorer = read("src/components/dashboard/MarketsExplorer.tsx");
+    expect(explorer).toContain("allowBuy &&");
+    const dashboard = read("src/components/dashboard/AllMarkets.tsx");
+    expect(dashboard).toContain("<MarketsExplorer");
+    expect(dashboard).not.toContain("allowBuy={false}");
+    const metals = read("src/components/dashboard/PreciousMetals.tsx");
+    expect(metals).toContain("does not run a report");
+    expect(metals).not.toContain("Run Smitty");
+    const headmaster = read("src/components/totalum/TotalumConsole.tsx");
+    expect(headmaster).toContain("target weight, not a holding");
+    const guide = read("src/lib/personal-guide-knowledge.ts");
+    expect(guide).toContain("no Smitty report");
+  });
+
+  it("shows Emailed only from delivery proof on the report payload", () => {
+    const center = read("src/components/dashboard/ReportCenter.tsx");
+    expect(center).toContain("reportPayloadWasEmailed");
+    expect(center).not.toContain('r.emailed === "yes"');
+  });
 });

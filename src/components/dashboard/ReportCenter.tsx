@@ -43,6 +43,7 @@ import {
   reportReadsAsNotCurrent,
   type AccountHoldingRow,
 } from "@/lib/report-book";
+import { reportPayloadWasEmailed } from "@/lib/report-email";
 import {
   acceptAccountPayload,
   responseUserId,
@@ -782,7 +783,7 @@ export function ReportCenter({
                         <Sparkles className="mr-1 size-3" /> AI
                       </Badge>
                     )}
-                    {r.emailed === "yes" && !reportReadsAsNotCurrent(r.executiveSummary || r.textBody || "") && (
+                    {reportPayloadWasEmailed(r.payload) && !reportReadsAsNotCurrent(r.executiveSummary || r.textBody || "") && (
                       <Badge variant="outline" className="border-emerald-500/30 text-emerald-600">
                         <Mail className="mr-1 size-3" /> Emailed
                       </Badge>
@@ -820,16 +821,13 @@ export function ReportCenter({
                         const notCurrent = reportReadsAsNotCurrent(
                           viewed.executiveSummary || r.executiveSummary || ""
                         );
-                        setReportEmailed(r.emailed === "yes" && !notCurrent);
+                        setReportEmailed(reportPayloadWasEmailed(r.payload) && !notCurrent);
                         // View path: stored JSON is sanitized before ApexReport renders it again.
                         setReport(viewed);
                         setOpen(true);
                       } else if (r.executiveSummary || r.textBody) {
                         setReport(null);
-                        setReportEmailed(
-                          r.emailed === "yes" &&
-                            !reportReadsAsNotCurrent(r.executiveSummary || r.textBody || "")
-                        );
+                        setReportEmailed(false);
                         setTextOnly({
                           title: r.title,
                           body: shownSummary(kind, r.executiveSummary || r.textBody || ""),

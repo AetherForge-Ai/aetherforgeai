@@ -395,7 +395,7 @@ export function DashboardHomeGrid({
           poster="/brand/precious-metals-smitty.png"
           metricLabel="Metals value · NZD"
           metricValue={balancesLoading ? "…" : formatMoney(metalsTotalNZD, "NZD")}
-          hint="Smitty with live gold & silver at the forge"
+          hint="Live gold and silver spot. Not a report."
         />
         <LedgerCard
           href="/dashboard/transactions"

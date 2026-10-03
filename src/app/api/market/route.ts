@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { analyzeUniverse, universeFor, getMarketNews, type AssetClass } from "@/lib/market-intel";
+import { analyzeUniverse, priceMatchesUniverseSeed, universeFor, getMarketNews, type AssetClass } from "@/lib/market-intel";
+import { fetchYahooQuote } from "@/lib/yahoo-finance";
 import { loadMarketNews } from "@/lib/market-news";
 import {
   fetchQuotesForAssetClass,
@@ -55,6 +56,21 @@ export async function GET(req: Request) {
         }
       }
       live = Object.keys(overrides).length > 0 || Object.keys(histories).length > 0;
+      if (assetClass === "stock") {
+        const suspects = Object.keys(overrides).filter((ticker) =>
+          priceMatchesUniverseSeed(ticker, overrides[ticker]!)
+        );
+        await Promise.all(
+          suspects.map(async (ticker) => {
+            const quote = await fetchYahooQuote(ticker).catch(() => null);
+            if (quote && quote.price > 0 && !priceMatchesUniverseSeed(ticker, quote.price)) {
+              overrides[ticker] = quote.price;
+            } else {
+              delete overrides[ticker];
+            }
+          })
+        );
+      }
     }
 
     const universe = analyzeUniverse(overrides, assetClass, histories);

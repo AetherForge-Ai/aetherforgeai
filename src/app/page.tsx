@@ -171,7 +171,7 @@ export default function LandingPage() {
                   Smitty
                 </p>
                 <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-[#a89c86]">
-                  Precious Metals Manager
+                  Spot and holdings tracker
                 </p>
               </div>
 
@@ -180,7 +180,7 @@ export default function LandingPage() {
                 <div className="flex flex-col">
                   <img
                     src="/brand/precious-metals-smitty.png"
-                    alt="Smitty, AetherForge Precious Metals Manager, with gold and silver at the forge"
+                    alt="Smitty with gold and silver at the forge"
                     className="w-full h-auto rounded-3xl border border-border/70 shadow-xl"
                   />
                   <div className="mx-auto mt-6 grid w-full max-w-xl gap-3 sm:grid-cols-2">
@@ -212,10 +212,10 @@ export default function LandingPage() {
                       Gold and silver — investment, currency, and a safe haven
                     </h3>
                     <p className="mt-4 text-base leading-relaxed text-muted-foreground sm:text-lg">
-                      Meet Smitty — AetherForge AI&apos;s Precious Metals Manager. He understands how much precious metals mean to the
+                      Meet Smitty — AetherForge AI&apos;s precious-metals tracker. He understands how much precious metals mean to the
                       world. We surface daily live Silver and
                       Gold prices with inclines and declines so you can track the metals
-                      that matter.
+                      that matter. This desk does not run a separate report.
                     </p>
                   </div>
                   <img

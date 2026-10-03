@@ -3,7 +3,8 @@
  * Pure — safe in the report generator, the reports API, and unit tests.
  */
 
-import { sanitizeGuardedCashText, sanitizeGuardedReport } from "@/lib/report-consistency";
+import { sanitizeGuardedCashText, sanitizeGuardedReport, type LiveCashFigures } from "@/lib/report-consistency";
+import { applyPaperQuotes } from "@/lib/paper-quote-lock";
 
 export interface LiveBookPosition {
   ticker: string;
@@ -191,10 +192,14 @@ interface StoredReportShape {
   directRecommendations?: Array<{ detail?: string }>;
 }
 
-/** Patch a persisted Apex report so history cannot keep describing an empty book or a full-cash deploy. */
-export function reconcileStoredReport<T extends StoredReportShape>(report: T, holdings: LiveBookPosition[]): T {
+/** Patch a persisted Apex report so history cannot keep describing an empty book, a seed price, or a full-cash deploy. */
+export function reconcileStoredReport<T extends StoredReportShape>(
+  report: T,
+  holdings: LiveBookPosition[],
+  figures?: LiveCashFigures
+): T {
   const bot = report.bot === "crypto" ? "crypto" : "stock";
-  if (!holdings.length) return sanitizeGuardedReport(report);
+  if (!holdings.length) return applyPaperQuotes(sanitizeGuardedReport(report, figures));
   const next: T = { ...report };
   if (typeof next.executiveSummary === "string") {
     next.executiveSummary = reconcileNarrativeWithLiveBook(next.executiveSummary, holdings, bot);
@@ -216,5 +221,5 @@ export function reconcileStoredReport<T extends StoredReportShape>(report: T, ho
       recommendationNote: `Live book holds ${liveBookRoster(holdings)}. ${cleaned}`.trim(),
     };
   }
-  return sanitizeGuardedReport(next);
+  return applyPaperQuotes(sanitizeGuardedReport(next, figures));
 }

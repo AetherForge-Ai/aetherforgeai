@@ -10,6 +10,7 @@
 
 import {
   analyzeUniverse,
+  priceMatchesUniverseSeed,
   analyzeSecurity,
   getProjectionLeaders,
   getMarketNews,
@@ -555,6 +556,8 @@ function buildDirectRecommendations(
     cashHeavy?: boolean;
     holdingIntel?: SecurityIntel[];
     tape?: TapeRead;
+    /** Full-account book in NZD. Retained cash is 10% of this, not of a deposit illustration. */
+    accountBookNZD?: number;
     /** Filled with new names left off the buy list by the suitability guard. */
     skippedNames?: string[];
     /**
@@ -568,7 +571,9 @@ function buildDirectRecommendations(
 ): DirectRecommendation[] {
   const held = new Set(holdings.map((h) => h.ticker.toUpperCase()));
   const intelByTicker = new Map((opts?.holdingIntel ?? []).map((i) => [i.ticker.toUpperCase(), i]));
-  const guard = opts?.tape ? deploymentGuard(bot, opts.tape, opts.cashBalanceNZD ?? 0) : undefined;
+  const guard = opts?.tape
+    ? deploymentGuard(bot, opts.tape, opts.cashBalanceNZD ?? 0, opts.accountBookNZD)
+    : undefined;
 
   const fromHoldings: DirectRecommendation[] = holdings.map((h) => {
     const intel =
@@ -602,7 +607,17 @@ function buildDirectRecommendations(
   const liveBook = opts?.marketOverrides;
   const candidatePool: SecurityIntel[] =
     universeIntel && universeIntel.length
-      ? universeIntel.filter((i) => !held.has(i.ticker.toUpperCase()))
+      ? universeIntel.flatMap((i) => {
+          if (held.has(i.ticker.toUpperCase())) return [];
+          const live = liveActionPrice(i.ticker, liveBook);
+          if (liveBook && live == null) return [];
+          // Directory seed is not an actionable price unless a live print replaced it.
+          if (priceMatchesUniverseSeed(i.ticker, i.price) && live == null) return [];
+          if (live != null && Math.abs(live - i.price) > 1e-6) {
+            return [analyzeSecurity(i.ticker, live, i.name, i.market)];
+          }
+          return [i];
+        })
       : universeFor(bot)
           .filter((e) => !held.has(e.ticker.toUpperCase()))
           .flatMap((e) => {
@@ -610,7 +625,9 @@ function buildDirectRecommendations(
             // A supplied override map means this is a live report. Do not
             // quote the synthetic basePrice when Yahoo/the feed has no print.
             if (liveBook && live == null) return [];
-            return [analyzeSecurity(e.ticker, live, e.name, e.market)];
+            const intel = analyzeSecurity(e.ticker, live, e.name, e.market);
+            if (priceMatchesUniverseSeed(e.ticker, intel.price) && live == null) return [];
+            return [intel];
           });
 
   const ranked = [...candidatePool].sort(
@@ -731,7 +748,7 @@ function buildPathwayPlan(
         bot === "crypto"
           ? "Rotate proceeds into large-cap majors (BTC/ETH) and hold a stablecoin buffer."
           : "Rotate proceeds into utilities / healthcare names with RSI in the 40–60 band.",
-        "Keep the 10% cash reserve — the same rule as the Headmaster skeleton.",
+        "Keep about 10% of the live book in reserve — the same cash rule as the Headmaster skeleton.",
       ],
       recommended: recommendedName === "Capital Preservation",
     },
@@ -1056,8 +1073,10 @@ export interface BuildLiveReportOptions {
   holdingIntel?: SecurityIntel[];
   /** Book-level tape (bias / conviction / score) for cash-deployment guardrails. */
   tape?: TapeRead;
-  /** Member ledger cash (NZD) — when present, BUY lists emphasise deploying dry powder. */
+  /** Member ledger cash (NZD). Shown as live cash, not a deposit illustration. */
   cashBalanceNZD?: number;
+  /** Full-account book in NZD. Cash retained is about 10% of this book. */
+  accountBookNZD?: number;
 }
 
 /** Live subscriber report built from the user's real monitored holdings. */
@@ -1074,6 +1093,7 @@ export function buildLiveReport(
     holdingIntel,
     tape,
     cashBalanceNZD = 0,
+    accountBookNZD,
   } = options;
 
   const intelByTicker = new Map((holdingIntel ?? []).map((i) => [i.ticker.toUpperCase(), i]));
@@ -1091,7 +1111,8 @@ export function buildLiveReport(
   const cashHeavy =
     analyzable.length === 0 ||
     (cashBalanceNZD > 0 && bookValue > 0 && cashBalanceNZD / bookValue >= 0.4);
-  const guard = tape ? deploymentGuard(bot, tape, cashBalanceNZD) : undefined;
+  const bookForCash = accountBookNZD && accountBookNZD > 0 ? accountBookNZD : bookValue;
+  const guard = tape ? deploymentGuard(bot, tape, cashBalanceNZD, bookForCash) : undefined;
   const skippedNames: string[] = [];
   const directRecommendations = buildDirectRecommendations(analyzable, bot, universeIntel, {
     cashBalanceNZD,
@@ -1100,6 +1121,7 @@ export function buildLiveReport(
     tape,
     skippedNames,
     marketOverrides,
+    accountBookNZD: bookForCash,
   });
   const pathwayPlan = buildPathwayPlan(analyzable, directRecommendations, bot, holdingIntel, guard);
   const bookRoster = analyzable

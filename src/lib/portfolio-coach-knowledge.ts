@@ -42,7 +42,7 @@ Bots:
 - **Stox** — equities intelligence (NZX, ASX, NASDAQ, Dow Jones and related global names) and full reports.
 - **Koins** — crypto market monitoring and full reports.
 - **The Headmaster** — goals, portfolio planning and strategies across asset classes (Pro feature).
-- **Smitty** — precious metals (gold / silver) tracking.
+- **Smitty** — precious metals (gold / silver) spot and holdings tracking. There is no Smitty report. Do not tell the member to run one. Headmaster may show a metals target weight; that is a target, not a holding and not a runnable bot.
 
 ## Markets — educational coverage
 

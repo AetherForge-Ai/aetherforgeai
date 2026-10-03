@@ -20,6 +20,9 @@ import {
 } from "@/lib/entitlements";
 import { isRecentReportDuplicate } from "@/lib/report-dedupe";
 import { liveBookForAccount, reconcileNarrativeWithLiveBook, reconcileStoredReport } from "@/lib/report-book";
+import { relockSeededReportPrices } from "@/lib/paper-quote-lock.server";
+import { reportPayloadWasEmailed } from "@/lib/report-email";
+import { loadTotalumSynthesis } from "@/lib/totalum-service";
 import { requestClaimsOtherUser } from "@/lib/account-guard";
 import { accountMismatchResponse, privateJson } from "@/lib/account-response";
 
@@ -285,7 +288,7 @@ export async function GET(req: Request) {
 
     const isFree = isFreeReportPlan(user.subscription_plan);
 
-    const [res, book, freeCount] = await Promise.all([
+    const [res, book, freeCount, synthesis] = await Promise.all([
       totalumSdk.crud.query("report", {
         _filter: { user: user._id },
         _sort: { createdAt: "desc" },
@@ -293,13 +296,24 @@ export async function GET(req: Request) {
       }),
       loadStockRowsForAccount(user._id),
       isFree ? countFreeReportsThisMonth(user._id, Date.now()) : Promise.resolve(null),
+      loadTotalumSynthesis(user._id).catch((err: unknown) => {
+        console.error("[api/reports] Live book total unavailable:", err);
+        return null;
+      }),
     ]);
+    const cashNZD =
+      synthesis && synthesis.cashBalanceNZD > 0
+        ? synthesis.cashBalanceNZD
+        : typeof user.cash_balance === "number" && isFinite(user.cash_balance)
+          ? Math.max(0, user.cash_balance)
+          : 0;
+    const bookNZD = synthesis && synthesis.totalValueNZD > 0 ? synthesis.totalValueNZD : cashNZD;
     const rows = (res?.data as any[]) || [];
     // A failed holdings load must not be treated as an empty book — leave the
     // stored wording for the client to reconcile against the dashboard book.
     const liveRows = book.bookLoaded ? book.rows : [];
     const liveFor = (bot: BotKind) => liveBookForAccount(liveRows, user._id, bot);
-    const reports = rows.map((r) => {
+    const reports = await Promise.all(rows.map(async (r) => {
       let payload: unknown = null;
       if (typeof r.payload === "string" && r.payload.trim()) {
         try {
@@ -313,7 +327,11 @@ export async function GET(req: Request) {
       const reportBot: BotKind = r.bot === "crypto" ? "crypto" : "stock";
       const liveBook = liveFor(reportBot);
       if (payload && typeof payload === "object") {
-        payload = reconcileStoredReport(payload as Record<string, unknown>, liveBook);
+        const relocked = await relockSeededReportPrices(payload);
+        payload = reconcileStoredReport(relocked as Record<string, unknown>, liveBook, {
+          cashNZD,
+          bookNZD,
+        });
       }
       const fromPayload =
         payload && typeof payload === "object" && "executiveSummary" in payload
@@ -337,13 +355,13 @@ export async function GET(req: Request) {
         executiveSummary,
         textBody,
         payload,
-        emailed: r.emailed,
+        emailed: reportPayloadWasEmailed(payload) ? "yes" : "no",
         aiEnhanced: r.ai_enhanced === "yes",
         trigger: r.trigger || "manual",
         generatedAt: r.generated_at || r.createdAt,
         pdfUrl: r.pdf_file?.url ?? null,
       };
-    });
+    }));
 
     // Free tier's monthly allowance (3 AI reports / Auckland month on the chosen
     // bot). Null for paid and legacy weekly plans.
