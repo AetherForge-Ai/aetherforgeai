@@ -16,6 +16,7 @@ import {
   reconcileNarrativeForAccount,
   reconcileNarrativeWithLiveBook,
   reconcileStoredReport,
+  reportReadsAsNotCurrent,
   type AccountHoldingRow,
 } from "@/lib/report-book";
 
@@ -173,6 +174,24 @@ describe("report narrative vs live book", () => {
     expect(stored.executiveSummary).toMatch(/DOT × 12/);
     expect(stored.keyObservations?.[0]).toMatch(/DOT/);
     expect(claimsEmptyBook(stored.pathwayPlan?.recommendationNote || "")).toBe(false);
+  });
+
+  it("does not mark a report stale when it already names the ticker just bought", () => {
+    const matched = reconcileNarrativeWithLiveBook(
+      "TRX is the match from this sweep. A starter allocation fits the tape.",
+      [{ ticker: "TRX", shares: 37500 }]
+    );
+    expect(reportReadsAsNotCurrent(matched)).toBe(false);
+    expect(matched).toMatch(/TRX/);
+    expect(matched).not.toMatch(/Refresh this report/);
+
+    const namedEmptyClaim = reconcileNarrativeWithLiveBook(
+      "Cash-ready / empty holdings — TRX is the name from the sweep.",
+      [{ ticker: "TRX", shares: 37500 }]
+    );
+    expect(reportReadsAsNotCurrent(namedEmptyClaim)).toBe(false);
+    expect(namedEmptyClaim).toMatch(/TRX × 37500/);
+    expect(namedEmptyClaim).not.toMatch(/Refresh this report/);
   });
 
   it("rewrites an empty NZ$10,000 book for a non-default account and ignores the other book", () => {

@@ -3,7 +3,12 @@ import { z } from "zod";
 import { getCurrentUser, isStripeConfigured, hasActiveSubscription } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
 import type { BotKind } from "@/lib/apex";
-import { generateReportForUser, loadStockRowsForAccount, type GeneratedReport } from "@/lib/report-service";
+import {
+  EmptyBookReportError,
+  generateReportForUser,
+  loadStockRowsForAccount,
+  type GeneratedReport,
+} from "@/lib/report-service";
 import {
   FREE_REPORTS_PER_MONTH,
   checkReportQuota,
@@ -250,6 +255,13 @@ export async function POST(req: Request) {
       },
     });
   } catch (err: any) {
+    if (err instanceof EmptyBookReportError || err?.code === "empty-book") {
+      console.log(`[api/reports] Empty book — no report and no email for user`, err?.message);
+      return NextResponse.json(
+        { ok: false, error: err.message, data: { code: "empty-book", emailed: false } },
+        { status: 422 }
+      );
+    }
     console.error("[api/reports] POST error:", err);
     return NextResponse.json({ ok: false, error: err?.message || "Failed to generate report" }, { status: 500 });
   }

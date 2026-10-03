@@ -6,6 +6,52 @@ function read(rel: string) {
   return readFileSync(path.join(process.cwd(), rel), "utf8");
 }
 
+const MODEL_NAME = /\b(SuperGrok|Grok|xAI|grok-4(?:\.\d+)?|Claude|Gemini|GPT-\d|gpt-4)\b/;
+
+const PUBLIC_COPY = [
+  "src/app/page.tsx",
+  "src/app/layout.tsx",
+  "src/app/performance/page.tsx",
+  "src/app/terms-of-service/page.tsx",
+  "src/components/pricing/PricingCards.tsx",
+  "src/components/pricing/PricingFAQ.tsx",
+  "src/components/PricingPlans.tsx",
+  "src/components/chat/ChatAssistant.tsx",
+  "src/components/bots/BotShowcase.tsx",
+  "src/components/bots/ApexReport.tsx",
+  "src/components/dashboard/ReportCenter.tsx",
+  "src/components/dashboard/AnalysisPanel.tsx",
+  "src/components/dashboard/ProjectionsExplorer.tsx",
+  "src/components/dashboard/ProjectionsPanel.tsx",
+  "src/components/dashboard/MarketWidePerformers.tsx",
+  "src/components/trial/TrialExperience.tsx",
+  "src/components/trial/TrialReportView.tsx",
+  "src/components/performance/LiveExamplesGallery.tsx",
+  "src/lib/plans.ts",
+  "src/lib/report-html.ts",
+  "src/lib/trial-report-html.ts",
+];
+
+describe("public copy does not name a model", () => {
+  it("says AI on user-facing pages, reports, and metadata", () => {
+    for (const rel of PUBLIC_COPY) {
+      const text = read(rel);
+      expect(text, rel).not.toMatch(MODEL_NAME);
+    }
+    const zenith = read("src/lib/zenith.ts");
+    expect(zenith).toContain('ZENITH_STATE_LABEL = "AI"');
+    expect(zenith).toContain("OPERATING MODE: AI research briefing.");
+    expect(zenith).not.toContain("OPERATING MODE: SuperGrok");
+    expect(zenith).toContain('ZENITH_MODEL_DEFAULT = "grok-4.6"');
+    expect(read("src/lib/plans.ts")).toContain("ANNUAL_SAVINGS_PCT = 16.67");
+    expect(read("src/app/performance/page.tsx")).toContain("1.98%");
+    expect(read("src/app/performance/page.tsx")).not.toContain("2.4%");
+    expect(read("src/components/performance/LiveExamplesGallery.tsx")).not.toMatch(/\btoday\b/i);
+    expect(read("src/lib/grok.ts")).not.toContain("throw new Error(`Grok");
+    expect(read("src/lib/grok.ts")).not.toContain('throw new Error("Grok');
+  });
+});
+
 describe("public surface routes", () => {
   it("does not hide About sections until an intersection observer runs", () => {
     const about = read("src/components/about/AboutContent.tsx");

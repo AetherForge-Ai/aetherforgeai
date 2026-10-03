@@ -30,6 +30,7 @@ function TransactionDialogHostInner() {
       mode={snap.mode}
       holdings={snap.holdings as Sellable[]}
       cash={snap.cash}
+      cashKnown={snap.cashKnown}
       preferredAssetType={snap.preferredAssetType ?? undefined}
       onDone={(ledger) => getTxDialogHandlers().onDone(ledger)}
       onOpenChange={(next) => getTxDialogHandlers().onOpenChange(next)}

@@ -136,13 +136,23 @@ export function reconcileNarrativeWithLiveBook(
   return sanitizeGuardedCashText(alignNarrativeToBook(text, holdings), bot);
 }
 
+/** Marker the UI uses so an empty-book run is not shown as the current report. */
+export const NOT_CURRENT_REPORT_MARK = "This report is not current.";
+
+export function reportReadsAsNotCurrent(text: string): boolean {
+  return (text || "").includes(NOT_CURRENT_REPORT_MARK);
+}
+
 function alignNarrativeToBook(text: string, holdings: LiveBookPosition[]): string {
   if (!holdings.length || !text) return text;
   const named = mentionsHeldTicker(text, holdings);
   if (!deniesLiveBook(text, holdings) && named) return text;
   const lead = `Live book: ${holdings.length} position${holdings.length === 1 ? "" : "s"} — ${liveBookRoster(holdings)}.`;
   if (deniesLiveBook(text, holdings)) {
-    return `${lead} Refresh this report for a full read on these holdings. Earlier wording did not match this account.`;
+    // A matching buy (the report already names the ticker now on the book)
+    // is not a stale report. Keep the read and show the live roster.
+    if (named) return `${lead}\n\n${text}`;
+    return `${NOT_CURRENT_REPORT_MARK} It was prepared before these positions were on the account. ${lead}`;
   }
   return `${lead}\n\n${text}`;
 }

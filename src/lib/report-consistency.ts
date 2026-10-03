@@ -8,6 +8,7 @@
  */
 
 import type { ConvictionLevel, SecurityIntel } from "@/lib/market-intel";
+import { bookCashReserve } from "@/lib/headmaster-trust";
 
 export type CanonicalAction = "SELL" | "TRIM" | "HOLD" | "BUY" | "ACCUMULATE";
 
@@ -144,6 +145,17 @@ export function alignedProjection(intel: Pick<SecurityIntel, "projected7dPct" | 
   };
 }
 
+function cashRuleClause(cash: number): string {
+  if (cash <= 0) return "";
+  const rule = bookCashReserve(cash);
+  const retained = rule.retainedNZD.toLocaleString("en-NZ");
+  const deployable = rule.deployableNZD.toLocaleString("en-NZ");
+  const available = cash.toLocaleString("en-NZ");
+  return (
+    ` Cash on book NZ$${available}. Keep NZ$${retained} (${rule.reservePct}%) in reserve and illustrate NZ$${deployable} as the deployment — the same cash rule as the Headmaster skeleton.`
+  );
+}
+
 export function deploymentGuard(
   bot: "stock" | "crypto",
   tape: TapeRead,
@@ -151,6 +163,8 @@ export function deploymentGuard(
 ): DeploymentGuard {
   const cap = bot === "crypto" ? 12 : 8;
   const cash = Math.max(0, Math.round(cashNZD));
+  const rule = bookCashReserve(cash);
+  const deployFraction = cash > 0 ? rule.deployableNZD / cash : 0.9;
   const neutral =
     tape.bias !== "Constructive" ||
     tape.level === "Low" ||
@@ -166,36 +180,32 @@ export function deploymentGuard(
       projectionCapPct: cap,
       headline:
         `${tape.bias} tape at ${tape.score}/100 with ${tape.level} conviction. ` +
-        (cash > 0 ? `Leave the NZ$${cash.toLocaleString("en-NZ")} cash in reserve — ` : "Leave cash in reserve — ") +
-        `this tape does not support new risk.`,
+        `This tape does not support new risk, so no new names are listed.` +
+        cashRuleClause(cash),
     };
   }
   if (neutral) {
-    const fraction = 0.25;
-    const starter = Math.round(cash * fraction);
     return {
       mode: "starter",
       maxNewNames: 2,
-      maxDeployFraction: fraction,
+      maxDeployFraction: deployFraction,
       projectionCapPct: cap,
       headline:
         `${tape.bias} tape at ${tape.score}/100 with ${tape.level} conviction. ` +
-        `Do not deploy the full cash balance` +
-        (cash > 0
-          ? ` (NZ$${cash.toLocaleString("en-NZ")} available; a starter tranche is about NZ$${starter.toLocaleString("en-NZ")}, with at least 75% kept in reserve)`
-          : "") +
-        `. New buys are limited to names inside a ${cap}% 7-day suitability cap and without speculative conviction.`,
+        `Do not deploy the full cash balance.` +
+        cashRuleClause(cash) +
+        ` New buys are limited to names inside a ${cap}% 7-day suitability cap and without speculative conviction.`,
     };
   }
-  const fraction = 0.6;
   return {
     mode: "full",
     maxNewNames: 4,
-    maxDeployFraction: fraction,
+    maxDeployFraction: deployFraction,
     projectionCapPct: bot === "crypto" ? 20 : 12,
     headline:
       `Constructive tape at ${tape.score}/100 with ${tape.level} conviction. ` +
-      `Scale in and keep a cash buffer — do not commit the entire balance in one fill.`,
+      `Scale in on the same cash rule — do not commit the entire balance in one fill.` +
+      cashRuleClause(cash),
   };
 }
 

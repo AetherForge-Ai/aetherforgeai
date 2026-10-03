@@ -47,6 +47,29 @@ function examPlan() {
   });
 }
 
+describe("undeployed cash does not print a return", () => {
+  it("gives a cash-only book 0% expected return and a bear case that is not profitable", () => {
+    const syn = buildSynthesis({
+      stocks: [],
+      metals: [],
+      cashBalanceNZD: 100000,
+      spot: {
+        gold: { nzdPerOz: 7200, usdPerOz: 4300 },
+        silver: { nzdPerOz: 110, usdPerOz: 66 },
+        live: true,
+        asOf: "2026-10-04",
+      },
+    });
+    expect(syn.expectedAnnualReturnPct).toBe(0);
+    expect(syn.expectedAnnualVolPct).toBe(0);
+    expect(syn.scenarios.length).toBeGreaterThan(0);
+    for (const scenario of syn.scenarios) {
+      expect(scenario.basePct).toBe(0);
+      expect(scenario.bearPct).toBeLessThanOrEqual(0);
+    }
+  });
+});
+
 describe("Headmaster allocation plan", () => {
   it("uses one cash identity for the exam book instead of deploying the full balance", () => {
     const plan = examPlan();

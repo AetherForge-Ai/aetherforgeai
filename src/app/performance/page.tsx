@@ -72,7 +72,7 @@ export default function PerformancePage() {
               prices on that day and at these times.
             </p>
             <p>
-              Over that day the paper portfolio showed about a 2.4% mark-to-market change across
+              Over that day the paper portfolio showed about a 1.98% mark-to-market change across
               8–9 hours. That is one example from one day. It is not a claim that AetherForge beats
               every platform, and it is not a promise that results will be positive again.
             </p>
