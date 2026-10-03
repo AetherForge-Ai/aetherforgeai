@@ -2,6 +2,64 @@ import type { NextConfig } from "next";
 import { PORTFOLIO_ROUTE_ALIASES } from "./src/lib/portfolio-route-aliases";
 import { PUBLIC_ROUTE_ALIASES } from "./src/lib/public-route-aliases";
 
+type DynamicSegmentAsset = { source: () => string | Buffer };
+type DynamicSegmentChunk = { id?: string | number };
+type DynamicSegmentEntrypoint = {
+  name?: string;
+  getEntrypointChunk: () => DynamicSegmentChunk;
+};
+type DynamicSegmentCompilation = {
+  entrypoints: { values: () => Iterable<DynamicSegmentEntrypoint> };
+  hooks: {
+    processAssets: {
+      tap: (opts: { name: string; stage: number }, fn: () => void) => void;
+    };
+  };
+  getAsset: (name: string) => DynamicSegmentAsset | undefined;
+  getPath: (name: string, data: { chunk: DynamicSegmentChunk }) => string;
+  renameAsset: (from: string, to: string) => void;
+  emitAsset: (name: string, source: unknown) => void;
+};
+
+const DYNAMIC_SEGMENT_SUFFIXES = [
+  ".js.nft.json",
+  ".js",
+  "_client-reference-manifest.js",
+] as const;
+
+function preserveDynamicSegmentTraces(
+  compilation: DynamicSegmentCompilation,
+  webpack: { sources: { RawSource: new (source: string) => unknown } },
+) {
+  for (const entrypoint of compilation.entrypoints.values()) {
+    const entryName = entrypoint.name;
+    if (!entryName?.includes("[id]")) continue;
+    const chunk = entrypoint.getEntrypointChunk();
+    for (const suffix of DYNAMIC_SEGMENT_SUFFIXES) {
+      const literal = `../${entryName}${suffix}`;
+      let substituted = literal;
+      try {
+        substituted = compilation.getPath(literal, { chunk });
+      } catch {
+        const id = chunk?.id;
+        if (id !== undefined && id !== null) {
+          substituted = literal.replaceAll("[id]", String(id));
+        }
+      }
+      if (compilation.getAsset(literal)) continue;
+      if (substituted !== literal && compilation.getAsset(substituted)) {
+        compilation.renameAsset(substituted, literal);
+        continue;
+      }
+      if (suffix !== ".js.nft.json") continue;
+      compilation.emitAsset(
+        literal,
+        new webpack.sources.RawSource(JSON.stringify({ version: 1, files: [] })),
+      );
+    }
+  }
+}
+
 const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
@@ -43,7 +101,7 @@ const nextConfig: NextConfig = {
   },
   // Cache-Control is applied once in middleware.ts. A global headers()
   // entry was appended on top of that and duplicated the directive.
-  webpack: (config, { dev }) => {
+  webpack: (config, { dev, isServer, nextRuntime, webpack }) => {
     if (dev) {
       config.watchOptions = {
         ...config.watchOptions,
@@ -59,6 +117,34 @@ const nextConfig: NextConfig = {
           '**/project-docs/**',
         ],
       };
+    }
+    // Webpack's path templating treats `[id]` as the chunk id. Next asks
+    // collect-build-traces for `.next/server/app/api/alerts/[id]/route.js.nft.json`,
+    // but a second template pass (or an asset rename) writes that trace under
+    // the numeric chunk id instead. Alerts is the first `[id]` route, so the
+    // build dies there with ENOENT. Put the literal file back before emit.
+    if (isServer && !dev && nextRuntime === "nodejs") {
+      config.plugins.push({
+        apply(compiler: {
+          hooks: {
+            thisCompilation: {
+              tap: (name: string, fn: (compilation: DynamicSegmentCompilation) => void) => void;
+            };
+          };
+        }) {
+          compiler.hooks.thisCompilation.tap("PreserveDynamicSegmentTraces", (compilation) => {
+            compilation.hooks.processAssets.tap(
+              {
+                name: "PreserveDynamicSegmentTraces",
+                stage: webpack.Compilation.PROCESS_ASSETS_STAGE_REPORT,
+              },
+              () => {
+                preserveDynamicSegmentTraces(compilation, webpack);
+              },
+            );
+          });
+        },
+      });
     }
     return config;
   },
