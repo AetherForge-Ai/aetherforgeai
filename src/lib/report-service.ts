@@ -25,6 +25,9 @@ import type { Stock } from "@/lib/portfolio";
 import { formatAucklandDateTime } from "@/lib/entitlements";
 import { groundReportNarrative, ownerIdOf } from "@/lib/report-book";
 import { alertIsEffectivelyArchived, heldQuantityForTicker } from "@/lib/alert-lifecycle";
+import { relockSeededReportPrices } from "@/lib/paper-quote-lock.server";
+import { reportEmailWasDelivered } from "@/lib/report-email";
+import { loadTotalumSynthesis } from "@/lib/totalum-service";
 
 /**
  * Minimal shape of the user needed to build + deliver a report. Both the
@@ -249,6 +252,14 @@ export async function generateReportForUser(
       ? Math.max(0, user.cash_balance)
       : 0;
 
+  let accountBookNZD = 0;
+  try {
+    const synthesis = await loadTotalumSynthesis(user._id);
+    if (synthesis.totalValueNZD > 0) accountBookNZD = synthesis.totalValueNZD;
+  } catch (err) {
+    console.error("[report-service] Live book total unavailable (cash rule falls back to this sleeve):", err);
+  }
+
   const tape = readTape(technicals);
   const report = buildLiveReport(bot, holdings, {
     seedSalt: `${user._id}:${bot}:${context}:${Date.now()}`,
@@ -258,6 +269,7 @@ export async function generateReportForUser(
     holdingIntel: technicals,
     tape,
     cashBalanceNZD,
+    accountBookNZD: accountBookNZD > 0 ? accountBookNZD : undefined,
   });
 
   // ---- Intelligence briefing + probabilistic 7-day outlook -------------
@@ -309,7 +321,7 @@ export async function generateReportForUser(
       // Full-market BUY candidates + top projected leaders drawn from the report's
       // own sweep (the ENTIRE crypto market for Koins) — fed to the narrative so
       // it can name specific tickers to BUY with concrete, data-grounded reasons.
-      const guard = deploymentGuard(bot, tape, cashBalanceNZD);
+      const guard = deploymentGuard(bot, tape, cashBalanceNZD, accountBookNZD > 0 ? accountBookNZD : undefined);
       const canonicalLines = technicals
         .map((t) => {
           const rating = rateAsset(t);
@@ -349,6 +361,7 @@ export async function generateReportForUser(
               (guard.mode === "full"
                 ? `You may name the suitable BUY/ACCUMULATE candidates below, sized with a cash buffer. `
                 : `CASH GUARD (${guard.mode}): ${guard.headline} Do not tell the reader to deploy the full cash balance. Do not recommend speculative or outsized movers as buys. `) +
+              `CASH RULE: quote the live cash on the guard line. Keep about 10% of the live book in reserve, the same rule as the Headmaster skeleton. Do not say NZ$100,000 is available, do not keep 75% in reserve, and do not start from NZ$25,000. ` +
               (holdings.length === 0
                 ? `The member has empty holdings and NZ$${Math.round(cashBalanceNZD)} cash — follow the cash guard. `
                 : `The member ALREADY HOLDS live positions. Open by naming each held ticker with its CANONICAL action. ` +
@@ -427,7 +440,10 @@ export async function generateReportForUser(
 
   const now = new Date();
   const generatedAtLabel = nzDateLabel(now);
-  const delivered = sanitizeGuardedReport(report);
+  const locked = await relockSeededReportPrices(report);
+  const bookNZD =
+    accountBookNZD > 0 ? accountBookNZD : (report.portfolio?.value || 0) + cashBalanceNZD;
+  const delivered = sanitizeGuardedReport(locked, { cashNZD: cashBalanceNZD, bookNZD });
   const html = renderReportHtml(delivered, {
     userName: user.name || undefined,
     generatedAtLabel,
@@ -461,7 +477,7 @@ export async function generateReportForUser(
   const subjectPrefix = context === "scheduled" ? "Your scheduled briefing · " : "";
   let emailed = false;
   try {
-    await totalumSdk.email.sendEmail({
+    const sent = await totalumSdk.email.sendEmail({
       to: [user.email],
       subject: `${subjectPrefix}${report.title} — ${generatedAtLabel}`,
       html,
@@ -470,8 +486,9 @@ export async function generateReportForUser(
         ? { attachments: [{ filename: `${report.title}.pdf`, url: pdfUrl, contentType: "application/pdf" }] }
         : {}),
     });
-    emailed = true;
-    console.log(`[report-service] Report emailed to ${user.email}`);
+    emailed = reportEmailWasDelivered(sent);
+    if (emailed) console.log(`[report-service] Report emailed to ${user.email}`);
+    else console.error("[report-service] Report email was not accepted; the card will not say Emailed.");
   } catch (mailErr) {
     console.error("[report-service] Email delivery failed (non-fatal):", mailErr);
   }
@@ -485,7 +502,7 @@ export async function generateReportForUser(
       bot,
       market_label: report.marketLabel,
       executive_summary: delivered.executiveSummary,
-      payload: JSON.stringify(delivered),
+      payload: JSON.stringify({ ...delivered, emailDelivered: emailed }),
       emailed: emailed ? "yes" : "no",
       ai_enhanced: aiEnhanced ? "yes" : "no",
       ai_engine: report.engine,
@@ -499,5 +516,5 @@ export async function generateReportForUser(
     console.error("[report-service] Failed to persist report (non-fatal):", saveErr);
   }
 
-  return { report, pdfUrl, reportId, emailed, aiEnhanced, monitored: holdings.length, generatedAtLabel };
+  return { report: delivered, pdfUrl, reportId, emailed, aiEnhanced, monitored: holdings.length, generatedAtLabel };
 }

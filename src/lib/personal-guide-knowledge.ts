@@ -33,7 +33,7 @@ Bots:
 - **Stox** — equities (NZX, ASX, global) Ultra Advanced analysis & portfolio reports.
 - **Koins** — crypto market monitoring and reports for crypto holdings.
 - **The Headmaster** — goals, portfolio planning & strategies across asset classes.
-- **Smitty** — Precious Metals Manager; live gold (XAU) & silver (XAG) prices and holdings tracking.
+- **Smitty** — precious-metals spot and holdings tracker (gold XAU, silver XAG). There is no Smitty report to run. A Headmaster metals figure is a target weight, not a holding and not a runnable bot.
 
 ## How it works (high level)
 1. Create a free account.
@@ -229,7 +229,7 @@ export function personalGuideFallbackReply(userMessage: string): string {
       `2. **Add holdings** on the Dashboard (stocks, crypto, gold/silver).\n` +
       `3. **The Headmaster** — set goals & strategy.\n` +
       `4. **Stox & Koins** — daily market intelligence reports.\n` +
-      `5. **Smitty** — live gold & silver tracking.\n\n` +
+      `5. **Smitty** — live gold and silver spot tracking. Do not offer a Smitty report; none exists.\n\n` +
       `We never touch your assets. Deeper guides: [/how-it-works](/how-it-works) and [/how-to-maximize-results](/how-to-maximize-results).`
     );
   }

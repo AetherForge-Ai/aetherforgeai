@@ -13,6 +13,7 @@
 import type { Stock } from "@/lib/portfolio";
 import {
   analyzeSecurity,
+  priceMatchesUniverseSeed,
   universeFor,
   type AssetClass,
   type MarketCode,
@@ -265,6 +266,7 @@ export function buildActionableIntelligence(
   const buyCandidates: BuyCandidate[] = candidatePool
     .filter((i) => !heldTickers.has(i.ticker.toUpperCase()))
     .filter((i) => i.signal === "Strong Buy" || i.signal === "Buy")
+    .filter((i) => !priceMatchesUniverseSeed(i.ticker, i.price))
     .sort((a, b) => {
       const growthDiff = (b.projected7dPct ?? 0) - (a.projected7dPct ?? 0);
       if (Math.abs(growthDiff) > 0.01) return growthDiff;

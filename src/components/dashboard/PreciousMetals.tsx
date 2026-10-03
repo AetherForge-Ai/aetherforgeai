@@ -393,12 +393,12 @@ export function PreciousMetals({
         </h2>
         <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
           Track your gold &amp; silver alongside your shares — valued live against today&apos;s spot
-          price. Smitty&apos;s metals desk is free for every active paying member.
+          price. This desk tracks spot and holdings. It does not run a report.
         </p>
         <p className="mx-auto mt-3 max-w-md text-sm text-muted-foreground">
           Need metals for a Headmaster allocation now? Use{" "}
           <strong className="text-foreground">Transaction Centre → Buy → Gold/Silver</strong> for a
-          paper/idea fill (advisory only — not a broker order), or upgrade to unlock Smitty&apos;s spot desk.
+          paper/idea fill (advisory only — not a broker order), or upgrade to unlock the spot desk.
         </p>
         <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
           <Button asChild variant="outline" className="font-semibold">
@@ -421,9 +421,14 @@ export function PreciousMetals({
       <div className="relative border-b border-border/60 px-4 pt-5 sm:px-6">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1" />
-          <h2 className="font-display text-center text-xl font-bold uppercase tracking-wide text-amber-400 underline decoration-amber-400 decoration-2 underline-offset-8 sm:text-2xl">
-            Precious Metals Overview
-          </h2>
+          <div className="min-w-0 text-center">
+            <h2 className="font-display text-xl font-bold uppercase tracking-wide text-amber-400 underline decoration-amber-400 decoration-2 underline-offset-8 sm:text-2xl">
+              Precious Metals Overview
+            </h2>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Spot and holdings only. Smitty does not run a report.
+            </p>
+          </div>
           <div className="flex min-w-0 flex-1 justify-end">
             <Button variant="outline" size="sm" onClick={() => void refreshSpot()} disabled={loading}>
               {loading ? <Loader2 className="mr-2 size-4 animate-spin" /> : <RefreshCw className="mr-2 size-4" />}

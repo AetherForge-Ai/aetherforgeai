@@ -283,11 +283,8 @@ export async function fetchStockUniverse(): Promise<{ intel: SecurityIntel[]; bo
   }
   const liveCount = Object.keys(live).length;
 
-  // SELF-CLEANING: once we have healthy live coverage, sweep ONLY the names that
-  // returned a genuine live quote — so any delisted / acquired / renamed ticker
-  // (no live price) drops out of the report's movers board instead of appearing
-  // on stale synthetic data. If coverage collapses (feed outage) we keep the full
-  // universe so the report is never empty.
+  // SELF-CLEANING: a name with no live quote is left out. The directory seed
+  // is not a price the paper form can lock, including when coverage is thin.
   const strict = liveCount >= Math.max(1, Math.floor(NZX_ASX_UNIVERSE.length * LIVE_COVERAGE_FLOOR));
   const activeUniverse = strict
     ? NZX_ASX_UNIVERSE.filter((e) => {
@@ -296,9 +293,11 @@ export async function fetchStockUniverse(): Promise<{ intel: SecurityIntel[]; bo
       })
     : NZX_ASX_UNIVERSE;
 
-  const intel: SecurityIntel[] = activeUniverse.map((e) => {
-    const q = live[e.ticker.toUpperCase()];
-    return analyzeSecurity(e.ticker, q?.price ?? e.basePrice, e.name, e.market);
+  const intel: SecurityIntel[] = activeUniverse.flatMap((e) => {
+    const price = live[e.ticker.toUpperCase()]?.price;
+    // A missing quote is omitted. The directory basePrice is not a fill.
+    if (!(typeof price === "number" && price > 0)) return [];
+    return [analyzeSecurity(e.ticker, price, e.name, e.market)];
   });
 
   const movers: MoverEntry[] = intel.map((s) => {

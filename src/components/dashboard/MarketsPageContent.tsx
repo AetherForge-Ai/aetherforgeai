@@ -44,7 +44,7 @@ export function MarketsPageContent({
 
       {/* Quick cross-market pulse — prominent near the top of the page */}
       <div className="mt-6">
-        <OpenMarketSnapshot onBought={preview ? undefined : () => window.location.reload()} />
+        <OpenMarketSnapshot />
       </div>
 
       {/* Live browser */}
@@ -52,11 +52,7 @@ export function MarketsPageContent({
         <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-muted-foreground">
           <Globe className="size-4 text-primary" /> Market snapshot
         </div>
-        <MarketsExplorer
-          active
-          className="h-[70vh]"
-          onBought={preview ? undefined : () => window.location.reload()}
-        />
+        <MarketsExplorer active className="h-[70vh]" allowBuy={false} />
       </div>
 
       {preview && (
