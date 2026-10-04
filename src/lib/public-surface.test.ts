@@ -30,6 +30,7 @@ const PUBLIC_COPY = [
   "src/lib/plans.ts",
   "src/lib/report-html.ts",
   "src/lib/trial-report-html.ts",
+  "src/lib/product-note.ts",
 ];
 
 describe("public copy does not name a model", () => {
