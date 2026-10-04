@@ -3,7 +3,11 @@ import { buildLiveReport } from "@/lib/apex";
 import { renderReportHtml } from "@/lib/report-html";
 import {
   buildSharedBookLog,
+  fullBookFromHoldings,
+  fullBookFromPositions,
   fullBookSentence,
+  illustratedPathFromPayloads,
+  pathMissFromSaved,
   pathMissText,
   publishSharedBookLog,
   readSharedBookLog,
@@ -20,8 +24,9 @@ import {
   rollClosedCallScore,
   type SevenDayCall,
 } from "@/lib/report-topup";
-import { applyCashLine, ledgerSections, netWorthOf } from "@/lib/ledger-cash-lines";
-import { recordListedTrade } from "@/lib/listed-trade";
+import { applyCashLine, displayedCashImpact, ledgerSections, netWorthOf } from "@/lib/ledger-cash-lines";
+import { applyPaperCashMove } from "@/lib/paper-cash";
+import { BASELINE_FX_TO_NZD } from "@/lib/currency";
 import { blockchainLabel } from "@/lib/crypto-market";
 import { dedupeDexTokens, parseMegafilterPage } from "@/lib/crypto-dex";
 import { reportPayloadWasEmailed } from "@/lib/report-email";
@@ -62,6 +67,68 @@ describe("shared book log", () => {
     expect(miss).toMatch(/missed by/);
     expect(pathMissText(0, WEEK, 0, 4)).toMatch(/no view/);
     expect(pathMissText(0, WEEK, 0, 4)).not.toMatch(/0\.00%/);
+  });
+
+  it("reads last week's illustrated path from the saved Headmaster report, not from module memory", () => {
+    const saved = { illustrated7dPct: 2, netWorthNZD: 1000, issuedAtMs: 0 };
+    expect(illustratedPathFromPayloads([JSON.stringify({ illustratedPath: saved })])?.netWorthNZD).toBe(1000);
+    expect(pathMissFromSaved(saved, WEEK - 1, 1100)).toBeNull();
+    const later = publishSharedBookLog(
+      { cashNZD: 1100, stocksNZD: 0, cryptoNZD: 0, metalsNZD: 0, priorIllustratedPath: saved },
+      WEEK
+    );
+    expect(later.pathMiss).toMatch(/After a week/);
+    expect(later.pathMiss).toMatch(/illustrated \+2%/);
+    resetSharedBookLog();
+    const withoutTheSavedPath = publishSharedBookLog(
+      { cashNZD: 1100, stocksNZD: 0, cryptoNZD: 0, metalsNZD: 0 },
+      WEEK
+    );
+    expect(withoutTheSavedPath.pathMiss).toBeNull();
+    const silent = pathMissFromSaved(
+      { illustrated7dPct: 0, netWorthNZD: 1000, issuedAtMs: 0 },
+      WEEK,
+      1100
+    );
+    expect(silent).toMatch(/no view/);
+    expect(silent).not.toMatch(/0\.00%/);
+  });
+
+  it("uses one full book for a stock report and a crypto report when class allocation is missing", () => {
+    const rows = [
+      { _id: "eq", ticker: "AIA.NZ", asset_type: "stock", shares: 10, purchase_price: 8, current_price: 10 },
+      { _id: "coin", ticker: "BONK", asset_type: "crypto", shares: 2, purchase_price: 20, current_price: 25 },
+      { _id: "oz", ticker: "GOLD", asset_type: "metal", shares: 1, purchase_price: 4000, current_price: 44 },
+    ];
+    const book = fullBookFromHoldings({
+      rows,
+      precious: [{ metal: "silver", ounces: 2, purchase_price_per_oz: 40 }],
+      spot: { gold: { nzdPerOz: 4000 }, silver: { nzdPerOz: 50 } },
+      cashNZD: 100,
+      fxToNZD: { NZD: 1, USD: 2, AUD: 1 },
+    });
+    expect(book.stocksNZD).toBe(100);
+    expect(book.cryptoNZD).toBe(100);
+    expect(book.metalsNZD).toBe(4100);
+    expect(book.cashNZD).toBe(100);
+    expect(book.netWorthNZD).toBe(4400);
+    const stockReport = publishSharedBookLog({ ...book, sleeveNZD: 100, sleeveLabel: "Sleeve" });
+    const cryptoReport = publishSharedBookLog({ ...book, sleeveNZD: book.cryptoNZD, sleeveLabel: "Sleeve" });
+    expect(stockReport.stocksNZD).toBe(cryptoReport.stocksNZD);
+    expect(stockReport.cryptoNZD).toBe(cryptoReport.cryptoNZD);
+    expect(stockReport.metalsNZD).toBe(cryptoReport.metalsNZD);
+    expect(stockReport.netWorthNZD).toBe(cryptoReport.netWorthNZD);
+    expect(stockReport.cryptoNZD).not.toBe(0);
+    expect(cryptoReport.stocksNZD).not.toBe(0);
+    expect(stockReport.sleeveLabel).toBe("Sleeve");
+    expect(stockReport.sleeveNZD).toBe(100);
+    const fromPositions = fullBookFromPositions([
+      { assetClass: "equities", valueNZD: book.stocksNZD },
+      { assetClass: "crypto", valueNZD: book.cryptoNZD },
+      { assetClass: "metals", valueNZD: book.metalsNZD },
+      { assetClass: "cash", valueNZD: book.cashNZD },
+    ]);
+    expect(fromPositions).toEqual(book);
   });
 });
 
@@ -214,25 +281,66 @@ describe("dividend and tax ledger lines", () => {
     expect(sections.tax).toHaveLength(1);
     expect(sections.dividends[0].asset_name).toBe("Dividend");
     expect(sections.tax[0].asset_name).toBe("Tax");
+    expect(displayedCashImpact("tax", 15)).toBe(-15);
+    expect(displayedCashImpact("tax", -15)).toBe(-15);
+    expect(displayedCashImpact("dividend", 40)).toBe(40);
+    expect(displayedCashImpact("dividend", -40)).toBe(40);
   });
 });
 
 describe("extended crypto and DEX paper trades", () => {
-  it("records a buy and a sell of a name from the extended lists", () => {
-    const listing = { symbol: "BONK", name: "Bonk", id: "bonk", price: 0.00002, list: "dex" as const };
-    const bought = recordListedTrade({ cashNZD: 500, holdings: {} }, { side: "buy", listing, quantity: 1000 });
+  it("debits cash on a buy at the live price and credits cash when the holding is reduced", () => {
+    const price = 0.00002;
+    const quantity = 1000;
+    const bought = applyPaperCashMove({
+      side: "buy",
+      quantity,
+      price,
+      currency: "USD",
+      rates: BASELINE_FX_TO_NZD,
+      cashNZD: 500,
+      shares: 0,
+    });
+    const costNZD = Math.round((quantity * price * BASELINE_FX_TO_NZD.USD + Number.EPSILON) * 100) / 100;
     expect(bought.ok).toBe(true);
-    expect(bought.book.holdings.BONK.shares).toBe(1000);
-    const sold = recordListedTrade(bought.book, { side: "sell", listing, quantity: 400 });
+    expect(bought.shares).toBe(1000);
+    expect(bought.cashDeltaNZD).toBeCloseTo(-costNZD, 2);
+    expect(bought.cashNZD).toBeCloseTo(500 - costNZD, 2);
+    expect(bought.cashNZD).toBeLessThan(500);
+    const sold = applyPaperCashMove({
+      side: "sell",
+      quantity: 400,
+      price,
+      currency: "USD",
+      rates: BASELINE_FX_TO_NZD,
+      cashNZD: bought.cashNZD,
+      shares: bought.shares,
+    });
     expect(sold.ok).toBe(true);
-    expect(sold.book.holdings.BONK.shares).toBe(600);
-    const closed = recordListedTrade(sold.book, { side: "sell", listing, quantity: 600 });
-    expect(closed.book.holdings.BONK).toBeUndefined();
-    const refused = recordListedTrade(
-      { cashNZD: 500, holdings: {} },
-      { side: "buy", listing: { ...listing, price: null }, quantity: 1 }
-    );
+    expect(sold.shares).toBe(600);
+    expect(sold.cashNZD).toBeGreaterThan(bought.cashNZD);
+    const closed = applyPaperCashMove({
+      side: "sell",
+      quantity: 600,
+      price,
+      currency: "USD",
+      rates: BASELINE_FX_TO_NZD,
+      cashNZD: sold.cashNZD,
+      shares: sold.shares,
+    });
+    expect(closed.shares).toBe(0);
+    expect(closed.cashNZD).toBeGreaterThan(sold.cashNZD);
+    const refused = applyPaperCashMove({
+      side: "buy",
+      quantity: 1,
+      price: null,
+      currency: "USD",
+      cashNZD: 500,
+      shares: 0,
+    });
     expect(refused.ok).toBe(false);
+    expect(refused.cashNZD).toBe(500);
+    expect(refused.shares).toBe(0);
     expect(refused.error).toMatch(/live price unavailable/i);
   });
 });

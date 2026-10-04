@@ -188,6 +188,7 @@ function AllocationBar({ synthesis }: { synthesis: TotalumSynthesis }) {
  * ------------------------------------------------------------------ */
 
 function SynthesisTab({ s }: { s: TotalumSynthesis }) {
+  const modelView = modelViewSentence(s.expectedAnnualReturnPct, s.expectedAnnualVolPct);
   return (
     <div className="space-y-6">
       <p className="text-sm text-muted-foreground">
@@ -197,7 +198,7 @@ function SynthesisTab({ s }: { s: TotalumSynthesis }) {
         <Kpi label="Total Wealth" value={nzd(s.totalValueNZD)} sub="Unified · NZD base" />
         <Kpi label="Unrealised P/L" value={nzd(s.totalGainNZD)} sub={pct(s.totalGainPct)} accent={gainClass(s.totalGainNZD)} />
         <Kpi label="Diversification" value={`${s.diversificationScore}/100`} sub={s.concentrationLabel} />
-        <Kpi label="Exp. Return / Vol" value={`${s.expectedAnnualReturnPct}% / ${s.expectedAnnualVolPct}%`} sub="Annualised model" />
+        <Kpi label="Model view" value={modelView} sub="Annualised model" />
       </div>
 
       <Card className="p-5">
@@ -286,6 +287,8 @@ function SynthesisTab({ s }: { s: TotalumSynthesis }) {
  * ------------------------------------------------------------------ */
 
 function ScenariosTab({ s }: { s: TotalumSynthesis }) {
+  const modelView = modelViewSentence(s.expectedAnnualReturnPct, s.expectedAnnualVolPct);
+  const modelIsSilent = modelView === "The model has no view.";
   const maxAbs = Math.max(
     1,
     ...s.scenarios.flatMap((sc) => [Math.abs(sc.bullPct), Math.abs(sc.bearPct)])
@@ -293,10 +296,11 @@ function ScenariosTab({ s }: { s: TotalumSynthesis }) {
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        Pathway illustration only for your <strong>{nzd(s.totalValueNZD)}</strong> book, from asset-class capital-market
-        assumptions (≈{s.expectedAnnualReturnPct}% return @ ≈{s.expectedAnnualVolPct}% volatility). Bull, base, and bear bands are about one standard deviation. Not a forecast and not a trade.
+        {modelIsSilent
+          ? modelView
+          : `Pathway illustration only for your book. ${modelView}`}
       </p>
-      <div className="grid gap-4 sm:grid-cols-2">
+      {modelIsSilent ? null : <div className="grid gap-4 sm:grid-cols-2">
         {s.scenarios.map((sc) => (
           <Card key={sc.horizon} className="p-5">
             <div className="flex items-center justify-between">
@@ -327,7 +331,7 @@ function ScenariosTab({ s }: { s: TotalumSynthesis }) {
             </div>
           </Card>
         ))}
-      </div>
+      </div>}
     </div>
   );
 }

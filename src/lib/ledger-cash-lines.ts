@@ -59,6 +59,18 @@ export function applyCashLine(book: LedgerBook, line: CashLine): LedgerBook {
   return next;
 }
 
+/**
+ * Cash shown on a ledger row. A tax line is a reduction even when the stored
+ * total was saved without a sign. A dividend stays an increase.
+ */
+export function displayedCashImpact(type: string, total: number | null | undefined): number {
+  const amount = Number(total);
+  const magnitude = Number.isFinite(amount) ? Math.abs(amount) : 0;
+  if (type === "tax") return -magnitude;
+  if (type === "dividend") return magnitude;
+  return Number.isFinite(amount) ? amount : 0;
+}
+
 export function ledgerSections(rows: LedgerRowLike[]): { dividends: LedgerRowLike[]; tax: LedgerRowLike[] } {
   return {
     dividends: rows.filter((r) => r.type === "dividend"),

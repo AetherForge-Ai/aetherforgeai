@@ -4,8 +4,10 @@
  * Net worth uses the same sum as the dashboard.
  */
 
-import { netWorthNZD } from "@/lib/metal-valuation";
+import { netWorthNZD, bullionNzdPerOz, isBullionHolding, isListedStockHolding, markBookAtBullionSpot, type MetalSpotPerOz } from "@/lib/metal-valuation";
 import { bookCashReserve, sharedReserveSentence } from "@/lib/headmaster-trust";
+import { computeSummary, type Stock } from "@/lib/portfolio";
+import { BASELINE_FX_TO_NZD, type FxRatesToNZD } from "@/lib/currency";
 
 export interface BookFacts {
   cashNZD: number;
@@ -18,6 +20,26 @@ export interface BookFacts {
   prices?: Record<string, number>;
   /** Headmaster 7-day illustrated path, percent. Omit on Stox and Koins. */
   illustrated7dPct?: number | null;
+  /**
+   * The illustrated path saved on an earlier Headmaster report.
+   * A later report reads this back. It is not kept in module memory.
+   */
+  priorIllustratedPath?: IllustratedPathRecord | null;
+}
+
+/** Illustrated 7-day path stored with a Headmaster report, the same way open calls are stored. */
+export interface IllustratedPathRecord {
+  illustrated7dPct: number;
+  netWorthNZD: number;
+  issuedAtMs: number;
+}
+
+export interface FullBookParts {
+  cashNZD: number;
+  stocksNZD: number;
+  cryptoNZD: number;
+  metalsNZD: number;
+  netWorthNZD: number;
 }
 
 export interface SharedBookLog {
@@ -41,7 +63,6 @@ export interface SharedBookLog {
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 let current: SharedBookLog | null = null;
-let anchor: { at: number; netWorthNZD: number; illustrated7dPct: number } | null = null;
 
 function finite(n: number | undefined): number {
   const v = Number(n);
@@ -97,17 +118,7 @@ export function buildSharedBookLog(facts: BookFacts, now = Date.now()): Omit<Sha
 export function publishSharedBookLog(facts: BookFacts, now = Date.now()): SharedBookLog {
   const built = buildSharedBookLog(facts, now);
   const prices = { ...(current?.prices || {}), ...built.prices };
-  let pathMiss: string | null = current?.pathMiss ?? null;
-  const illustrated = facts.illustrated7dPct;
-  if (typeof illustrated === "number" && Number.isFinite(illustrated)) {
-    if (anchor && now - anchor.at >= WEEK_MS && anchor.netWorthNZD > 0) {
-      const realized = ((built.netWorthNZD - anchor.netWorthNZD) / anchor.netWorthNZD) * 100;
-      pathMiss = pathMissText(anchor.at, now, anchor.illustrated7dPct, realized);
-      anchor = { at: now, netWorthNZD: built.netWorthNZD, illustrated7dPct: illustrated };
-    } else if (!anchor) {
-      anchor = { at: now, netWorthNZD: built.netWorthNZD, illustrated7dPct: illustrated };
-    }
-  }
+  const pathMiss = pathMissFromSaved(facts.priorIllustratedPath, now, built.netWorthNZD);
   current = { ...built, prices, pathMiss, at: now };
   return current;
 }
@@ -118,7 +129,141 @@ export function readSharedBookLog(): SharedBookLog | null {
 
 export function resetSharedBookLog(): void {
   current = null;
-  anchor = null;
+}
+
+/**
+ * Cash, stocks, crypto, metals, and net worth from the positions the
+ * Headmaster synthesis already marks. A missing class stays zero.
+ * It is not replaced by the sleeve that happens to be speaking.
+ */
+export function fullBookFromPositions(
+  positions: Array<{ assetClass: string; valueNZD: number }>
+): FullBookParts {
+  const sum = (key: string) =>
+    positions
+      .filter((row) => row.assetClass === key)
+      .reduce((total, row) => total + (Number.isFinite(Number(row.valueNZD)) ? Number(row.valueNZD) : 0), 0);
+  return fullBookParts({
+    cashNZD: sum("cash"),
+    stocksNZD: sum("equities"),
+    cryptoNZD: sum("crypto"),
+    metalsNZD: sum("metals"),
+  });
+}
+
+interface HoldingRow {
+  _id?: string;
+  ticker?: string | null;
+  asset_type?: string | null;
+  company_name?: string | null;
+  sector?: string | null;
+  shares?: number | null;
+  purchase_price?: number | null;
+  current_price?: number | null;
+}
+
+/**
+ * The same split the dashboard sums: listed stocks, crypto, ledger bullion
+ * marked at spot, and the precious-metal desk. One result for every bot.
+ */
+export function fullBookFromHoldings(input: {
+  rows: HoldingRow[];
+  precious?: Array<{ metal: "gold" | "silver"; ounces: number; purchase_price_per_oz?: number }>;
+  spot?: MetalSpotPerOz | null;
+  cashNZD: number;
+  fxToNZD?: FxRatesToNZD;
+}): FullBookParts {
+  const fx = input.fxToNZD ?? BASELINE_FX_TO_NZD;
+  const asStock = (row: HoldingRow, index: number): Stock => ({
+    _id: row._id || `row-${index}`,
+    ticker: String(row.ticker || ""),
+    asset_type: (row.asset_type as Stock["asset_type"]) || "stock",
+    company_name: row.company_name || undefined,
+    sector: row.sector || undefined,
+    shares: Number(row.shares) || 0,
+    purchase_price: Number(row.purchase_price) || 0,
+    current_price: Number(row.current_price) || 0,
+  });
+  const rows = input.rows.map(asStock);
+  const stocks = rows.filter((row) => isListedStockHolding(row.asset_type, row.ticker, row.company_name));
+  const crypto = rows.filter((row) => (row.asset_type || "") === "crypto");
+  const bullion = markBookAtBullionSpot(
+    rows.filter((row) => isBullionHolding(row.asset_type, row.ticker, row.company_name)),
+    input.spot
+  );
+  const stockNZD = computeSummary(stocks, { baseCurrency: "NZD", fxToNZD: fx }).totalValue;
+  const cryptoNZD = computeSummary(crypto, { baseCurrency: "NZD", fxToNZD: fx }).totalValue;
+  const ledgerMetalsNZD = computeSummary(bullion, { baseCurrency: "NZD", fxToNZD: fx }).totalValue;
+  let deskNZD = 0;
+  for (const lot of input.precious || []) {
+    const ticker = lot.metal === "silver" ? "SILVER" : "GOLD";
+    const spotPx = bullionNzdPerOz(ticker, input.spot);
+    const mark = spotPx > 0 ? spotPx : Number(lot.purchase_price_per_oz) || 0;
+    deskNZD += (Number(lot.ounces) || 0) * mark;
+  }
+  return fullBookParts({
+    cashNZD: finite(input.cashNZD),
+    stocksNZD: stockNZD,
+    cryptoNZD: cryptoNZD,
+    metalsNZD: ledgerMetalsNZD + deskNZD,
+  });
+}
+
+function fullBookParts(parts: Omit<FullBookParts, "netWorthNZD">): FullBookParts {
+  const cashNZD = finite(parts.cashNZD);
+  const stocksNZD = finite(parts.stocksNZD);
+  const cryptoNZD = finite(parts.cryptoNZD);
+  const metalsNZD = finite(parts.metalsNZD);
+  return {
+    cashNZD,
+    stocksNZD,
+    cryptoNZD,
+    metalsNZD,
+    netWorthNZD: netWorthNZD({
+      cashNZD,
+      equityNZD: stocksNZD,
+      cryptoNZD,
+      metalsNZD,
+    }),
+  };
+}
+
+/** Read the path saved on the newest Headmaster report that has one. */
+export function illustratedPathFromPayloads(payloads: unknown[]): IllustratedPathRecord | null {
+  for (const raw of payloads) {
+    let parsed: unknown = raw;
+    if (typeof raw === "string") {
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        continue;
+      }
+    }
+    if (!parsed || typeof parsed !== "object") continue;
+    const path = (parsed as { illustratedPath?: unknown }).illustratedPath;
+    if (!path || typeof path !== "object") continue;
+    const row = path as IllustratedPathRecord;
+    if (!Number.isFinite(row.illustrated7dPct)) continue;
+    if (!(Number(row.netWorthNZD) > 0)) continue;
+    if (!Number.isFinite(row.issuedAtMs)) continue;
+    return {
+      illustrated7dPct: Number(row.illustrated7dPct),
+      netWorthNZD: Number(row.netWorthNZD),
+      issuedAtMs: Number(row.issuedAtMs),
+    };
+  }
+  return null;
+}
+
+/** How far a saved illustrated path missed, once a week has passed. */
+export function pathMissFromSaved(
+  saved: IllustratedPathRecord | null | undefined,
+  nowMs: number,
+  currentNetWorthNZD: number
+): string | null {
+  if (!saved || !(saved.netWorthNZD > 0)) return null;
+  const realized = ((currentNetWorthNZD - saved.netWorthNZD) / saved.netWorthNZD) * 100;
+  return pathMissText(saved.issuedAtMs, nowMs, saved.illustrated7dPct, realized);
 }
 
 export function pathMissText(

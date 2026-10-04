@@ -1,6 +1,6 @@
 /**
- * General information for a paper portfolio. Figures that are not on the
- * linked Inland Revenue pages are left out.
+ * General information drawn from the four Inland Revenue pages linked below.
+ * Sentences that are not on those pages are left out.
  */
 
 const SOURCES = [
@@ -28,59 +28,82 @@ export function TaxPageContent() {
       <p className="text-xs font-semibold uppercase tracking-wide text-primary">New Zealand</p>
       <h1 className="mt-2 font-display text-3xl font-bold">TAX</h1>
       <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-        This page is general information about New Zealand tax for a paper portfolio kept in
-        AetherForge. It is not personal tax advice, and it is not an Inland Revenue assessment.
-        Rates, dates, and thresholds that are not stated on the Inland Revenue pages linked below
-        are left out. Check Inland Revenue for those figures, and for anything about your own
-        circumstances.
+        This is general information and not personal tax advice.
       </p>
-
-      <section className="mt-8 space-y-3">
-        <h2 className="font-display text-lg font-semibold">What a paper portfolio is</h2>
-        <p className="text-sm leading-relaxed text-muted-foreground">
-          A paper portfolio in this app is a record you keep: buys, sells, dividends, and tax lines.
-          Recording a line does not send an order to an exchange and does not file a return. Whether
-          a real acquisition, disposal, dividend, or cryptoasset activity is taxable is for you and
-          Inland Revenue.
-        </p>
-        <ol className="list-decimal space-y-2 pl-5 text-sm leading-relaxed text-muted-foreground">
-          <li>Record a buy or a sell in the transaction ledger. That entry is a paper record.</li>
-          <li>Record a dividend when cash should increase by that amount. The holding quantity does not change.</li>
-          <li>Record a tax line when cash should reduce by that amount. The holding quantity does not change.</li>
-          <li>Use the linked Inland Revenue pages when you work out what, if anything, belongs on a return.</li>
-        </ol>
-      </section>
 
       <section className="mt-8 space-y-3">
         <h2 className="font-display text-lg font-semibold">Cryptoassets</h2>
         <p className="text-sm leading-relaxed text-muted-foreground">
-          Inland Revenue treats cryptoassets as property. The tax outcome depends on the
-          characteristics of the cryptoasset and how it is used, not on the name. Cryptoassets are
-          not subject to GST when bought or sold. GST can apply when cryptoassets are received as
-          payment for a normal business. Cryptoassets are excepted financial arrangements, except
-          those that are economically equivalent to debt. If they are trading stock, they are valued
-          at cost at year end. File an IR3 when there is taxable cryptoasset income.
+          Cryptoassets are treated as a form of property for tax purposes. While there are different
+          types of cryptoassets, the tax treatment depends on the characteristics and use of the
+          cryptoassets. It does not depend on what they are called.
         </p>
         <p className="text-sm leading-relaxed text-muted-foreground">
-          If cryptoassets were acquired for the purpose of disposing of them, the profit is income
-          and is subject to income tax. A loss may be claimable where a profit on that disposal
-          would have been taxable. The activity may still be taxable under a profit-making scheme
-          even if disposal was not the main purpose.
+          Cryptoassets are not subject to GST when they are bought or sold, but do have GST
+          implications when they are received as payment for normal business activities.
         </p>
         <p className="text-sm leading-relaxed text-muted-foreground">
-          Inland Revenue&apos;s taxing guidance is to file an IR3, calculate the New Zealand dollar
-          value, and work out income and expenses. Other rules apply if the cryptoassets are
-          trading stock. This page does not set a rate, a date, or a threshold. Check Inland Revenue.
+          Cryptoassets are not financial arrangements, they are excepted financial arrangements
+          (except those economically equivalent to debt arrangements). This means that if your
+          cryptoassets are trading stock they are valued at cost at the end of the tax year.
+        </p>
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          You need to file an income tax return - IR3 when you have taxable income from a cryptoasset
+          activity.
         </p>
       </section>
 
       <section className="mt-8 space-y-3">
-        <h2 className="font-display text-lg font-semibold">Shares and dividends</h2>
+        <h2 className="font-display text-lg font-semibold">Acquiring cryptoassets to sell or exchange</h2>
         <p className="text-sm leading-relaxed text-muted-foreground">
-          Dividends, including foreign dividends, are taxable. New Zealand companies generally
-          withhold tax, and those amounts go into the assessment on the IR3 — check them. Foreign
-          dividends must be paid in New Zealand and self-reported on an IR1261 if they are not
-          already in the IR3. Check Inland Revenue for any figure this page does not state.
+          If you acquire cryptoassets for the purpose of disposing of them you need to pay income tax
+          on any profit you make. For example, if you buy or mine cryptoassets to sell or exchange
+          them. If you make a loss when you sell your cryptoassets you may be able to claim this loss.
+        </p>
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          If your purpose for getting cryptoassets is to sell or exchange them, you&apos;ll need to pay
+          income tax when you do. You may have more than one purpose for your cryptoassets at the time
+          you acquire them. It is your main purpose that matters. Inland Revenue looks at your purpose
+          at the time you acquire (for example, buy or mine) your cryptoassets. If that purpose changes
+          later on, it does not matter.
+        </p>
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          To claim a loss, you need to show that if you&apos;d made a profit it would have been taxable.
+          You may still need to pay income tax even if you did not acquire your cryptoassets for the
+          main purpose of disposing of them, such as if you&apos;re carrying on a profit-making scheme.
+        </p>
+      </section>
+
+      <section className="mt-8 space-y-3">
+        <h2 className="font-display text-lg font-semibold">Taxing cryptoasset income</h2>
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          You need to file an income tax return - IR3 when you have taxable income from a cryptoasset
+          activity. Before you can add your cryptoasset net income (or loss) in your income tax return
+          you must calculate the New Zealand dollar value of your cryptoasset transactions and work out
+          your cryptoasset income and expenses.
+        </p>
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          There are other rules you need to be aware of if your cryptoassets are trading stock.
+        </p>
+      </section>
+
+      <section className="mt-8 space-y-3">
+        <h2 className="font-display text-lg font-semibold">Share investments</h2>
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          Dividends companies pay are taxable income — this includes dividends from foreign companies.
+        </p>
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          When a New Zealand company pays a dividend, they&apos;ll generally withhold tax and pay it to
+          Inland Revenue on your behalf. The dividend income and tax credits will be added in to your
+          income tax assessment or individual income return IR3. You will need to check the amounts are
+          correct.
+        </p>
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          When you get a dividend from a foreign company, you need to pay tax in New Zealand. You will
+          need to check if tax has been withheld and paid in New Zealand. If the amounts have not been
+          added in to your individual income tax return IR3, you will need to self-report this
+          information. If you receive foreign dividends, you should file an Overseas income summary -
+          IR1261 and claim foreign tax credits.
         </p>
       </section>
 

@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
-import { loadTotalumSynthesis, loadReportFindings } from "@/lib/totalum-service";
+import { loadTotalumSynthesis, loadReportFindings, loadHeadmasterIllustratedPath, saveHeadmasterIllustratedPath } from "@/lib/totalum-service";
 import { isFullHeadmaster } from "../route";
 import { renderTotalumReport } from "@/lib/totalum-report-html";
 import { buildStrategy, type GoalKey } from "@/lib/totalum-engine";
 import { HEADMASTER_BOT_LABEL } from "@/lib/report-language";
-import { sanitizeHeadmasterReportHtml, scopeHeadmasterIdeas } from "@/lib/headmaster-trust";
-import { publishSharedBookLog } from "@/lib/book-log";
+import { modelViewSentence, sanitizeHeadmasterReportHtml, scopeHeadmasterIdeas } from "@/lib/headmaster-trust";
+import { fullBookFromPositions, publishSharedBookLog, pathMissFromSaved } from "@/lib/book-log";
 
 export const dynamic = "force-dynamic";
 
@@ -38,22 +38,33 @@ export async function GET(req: Request) {
     const goal = (GOALS.includes(goalParam as GoalKey) ? goalParam : "balanced_growth") as GoalKey;
     const includeWatchlist = url.searchParams.get("watchlist") === "1";
 
-    const [synthesis, findings] = await Promise.all([
+    const [synthesis, findings, priorPath] = await Promise.all([
       loadTotalumSynthesis(user._id),
       loadReportFindings(user._id),
+      loadHeadmasterIllustratedPath(user._id),
     ]);
-    const classOf = (key: "cash" | "equities" | "crypto" | "metals") =>
-      synthesis.classAllocation.find((row) => row.assetClass === key)?.valueNZD ?? 0;
+    const book = fullBookFromPositions(synthesis.positions);
     const week = synthesis.scenarios.find((row) => row.horizon === "7D");
+    const illustrated7dPct = week && Number.isFinite(week.basePct) ? week.basePct : null;
+    const now = Date.now();
+    const pathMiss = pathMissFromSaved(priorPath, now, book.netWorthNZD);
     publishSharedBookLog({
-      cashNZD: classOf("cash"),
-      stocksNZD: classOf("equities"),
-      cryptoNZD: classOf("crypto"),
-      metalsNZD: classOf("metals"),
-      sleeveNZD: synthesis.totalValueNZD,
-      sleeveLabel: "Headmaster",
-      illustrated7dPct: week && Number.isFinite(week.basePct) ? week.basePct : null,
+      ...book,
+      sleeveLabel: "Sleeve",
+      illustrated7dPct,
+      priorIllustratedPath: priorPath,
     });
+    if (illustrated7dPct != null && book.netWorthNZD > 0) {
+      try {
+        await saveHeadmasterIllustratedPath(user._id, {
+          illustrated7dPct,
+          netWorthNZD: book.netWorthNZD,
+          issuedAtMs: now,
+        });
+      } catch (saveErr) {
+        console.error("[api/totalum/report] Failed to persist the illustrated path (non-fatal):", saveErr);
+      }
+    }
     const strategy = synthesis.isEmpty ? null : buildStrategy(synthesis, goal);
     const heldTickers = synthesis.positions
       .filter((p) => p.assetClass !== "cash")
@@ -66,6 +77,9 @@ export async function GET(req: Request) {
         strategy,
         engine: HEADMASTER_BOT_LABEL,
         watchlist: includeWatchlist ? scoped.watchlist : [],
+        book,
+        pathMiss,
+        modelView: modelViewSentence(synthesis.expectedAnnualReturnPct, synthesis.expectedAnnualVolPct),
       }),
       strategy?.plan
     );

@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export const metadata = {
   title: "TAX · AetherForge AI",
   description:
-    "General information on New Zealand tax for a paper portfolio, drawn from Inland Revenue. Not personal tax advice.",
+    "This is general information and not personal tax advice.",
 };
 
 export default async function TaxPage() {

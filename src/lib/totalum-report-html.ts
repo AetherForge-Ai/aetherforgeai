@@ -16,7 +16,7 @@ import {
   type AllocationPlan,
   type HeadmasterIdea,
 } from "@/lib/headmaster-trust";
-import { fullBookSentence, readSharedBookLog } from "@/lib/book-log";
+import { fullBookSentence, type FullBookParts } from "@/lib/book-log";
 import { HEADMASTER_BOT_LABEL } from "@/lib/report-language";
 
 function nzd(v: number): string {
@@ -52,22 +52,28 @@ export function renderTotalumReport(
     engine?: string;
     /** Explicit opt-in. Rendered in its own section, never as default instructions. */
     watchlist?: HeadmasterIdea[];
+    /** Cash, stocks, crypto, metals, and net worth from the holdings the dashboard sums. */
+    book?: FullBookParts;
+    /** Miss against the path saved on an earlier Headmaster report. */
+    pathMiss?: string | null;
+    modelView?: string;
   } = {}
 ): string {
   const s = synthesis;
   const gainColor = s.totalGainNZD >= 0 ? "#059669" : "#dc2626";
   const classOf = (key: string) => s.classAllocation.find((row) => row.assetClass === key)?.valueNZD ?? 0;
-  const bookLine = fullBookSentence({
+  const book = opts.book ?? {
     cashNZD: classOf("cash"),
     stocksNZD: classOf("equities"),
     cryptoNZD: classOf("crypto"),
     metalsNZD: classOf("metals"),
     netWorthNZD: s.totalValueNZD,
-  });
-  const reserveLine = sharedReserveSentence(classOf("cash") || s.cashBalanceNZD, s.totalValueNZD);
-  const modelView = modelViewSentence(s.expectedAnnualReturnPct, s.expectedAnnualVolPct);
+  };
+  const bookLine = fullBookSentence(book);
+  const reserveLine = sharedReserveSentence(book.cashNZD, book.netWorthNZD);
+  const modelView = opts.modelView || modelViewSentence(s.expectedAnnualReturnPct, s.expectedAnnualVolPct);
   const modelIsSilent = modelView === "The model has no view.";
-  const pathMiss = readSharedBookLog()?.pathMiss || "";
+  const pathMiss = opts.pathMiss || "";
   const date = new Date(s.asOf).toLocaleString("en-NZ", { dateStyle: "long", timeStyle: "short" });
 
   const allocRows = s.classAllocation

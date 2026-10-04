@@ -18,7 +18,7 @@ import { ownerIdOf } from "@/lib/report-book";
 import { alertIsEffectivelyArchived, heldQuantityForTicker } from "@/lib/alert-lifecycle";
 import { relockSeededReportPrices } from "@/lib/paper-quote-lock.server";
 import { reportEmailMessageId, reportEmailWasDelivered } from "@/lib/report-email";
-import { publishSharedBookLog, fullBookSentence } from "@/lib/book-log";
+import { publishSharedBookLog, fullBookSentence, fullBookFromHoldings, fullBookFromPositions } from "@/lib/book-log";
 import {
   annotateTickerCalls,
   koinsCoverageSentences,
@@ -397,8 +397,6 @@ export async function generateReportForUser(
       ? accountBookNZD
       : (report.portfolio?.value || 0) + cashBalanceNZD;
   const delivered = sanitizeGuardedReport(locked, { cashNZD: cashBalanceNZD, bookNZD });
-  const classValue = (key: string) =>
-    synthesis?.classAllocation?.find((row) => row.assetClass === key)?.valueNZD ?? 0;
   const prices: Record<string, number> = {};
   for (const holding of holdings) {
     if (holding.price > 0 && !holding.priceUnavailable) prices[holding.ticker.toUpperCase()] = holding.price;
@@ -406,13 +404,17 @@ export async function generateReportForUser(
   for (const [ticker, price] of Object.entries(marketOverrides)) {
     if (price > 0) prices[ticker.toUpperCase()] = price;
   }
+  const heldBook = synthesis
+    ? fullBookFromPositions(synthesis.positions)
+    : fullBookFromHoldings({
+        rows: allRows,
+        cashNZD: cashBalanceNZD,
+        fxToNZD: fx.ratesToNZD,
+      });
   const bookLog = publishSharedBookLog({
-    cashNZD: classValue("cash") || cashBalanceNZD,
-    stocksNZD: classValue("equities") || (bot === "stock" ? delivered.portfolio?.value || 0 : 0),
-    cryptoNZD: classValue("crypto") || (bot === "crypto" ? delivered.portfolio?.value || 0 : 0),
-    metalsNZD: classValue("metals"),
+    ...heldBook,
     sleeveNZD: delivered.portfolio?.value || 0,
-    sleeveLabel: bot === "crypto" ? "Koins" : "Stox",
+    sleeveLabel: "Sleeve",
     prices,
   });
   delivered.tickers = annotateTickerCalls(delivered.tickers, bookLog, bot);

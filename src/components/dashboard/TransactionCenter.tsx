@@ -17,6 +17,7 @@ import { ADVISORY_NOTE } from "@/lib/fill-integrity-client";
 import { formatMoney, currencyForTicker, type CurrencyCode } from "@/lib/currency";
 import { useFxRates } from "@/hooks/useFxRates";
 import { buildTradePreview, type TradePreview } from "@/lib/trade-preview";
+import { displayedCashImpact } from "@/lib/ledger-cash-lines";
 import { bumpHoldingsGeneration } from "@/lib/holdings-generation";
 import { useTradeReviewGate } from "@/lib/trade-review-gate";
 import { TradeReview } from "@/components/dashboard/TradeReview";
@@ -219,7 +220,7 @@ function CashLineSection({
       ) : (
         <ul className="mt-3 space-y-2">
           {rows.map((row) => {
-            const amount = row.total ?? 0;
+            const amount = displayedCashImpact(row.type, row.total);
             return (
               <li key={row._id} className="flex items-baseline justify-between gap-3 text-sm">
                 <span className="min-w-0">
@@ -600,7 +601,7 @@ export function TransactionCenter({
                   const Icon = meta.icon;
                   const cur = (t.currency as CurrencyCode) || NZD;
                   const isTrade = t.type === "buy" || t.type === "sell";
-                  const total = t.total ?? 0;
+                  const total = displayedCashImpact(t.type, t.total);
                   return (
                     <tr key={t._id} className="border-b border-border/30 last:border-0 hover:bg-background/40">
                       <td className="px-4 py-2.5">
@@ -925,7 +926,7 @@ function AllTransactionsDialog({
                   const Icon = meta.icon;
                   const cur = (t.currency as CurrencyCode) || NZD;
                   const isTrade = t.type === "buy" || t.type === "sell";
-                  const total = t.total ?? 0;
+                  const total = displayedCashImpact(t.type, t.total);
                   return (
                     <tr key={t._id} className="border-b border-border/30 last:border-0 hover:bg-background/40">
                       <td className="py-3 pr-3">
@@ -1091,10 +1092,10 @@ export function TransactionDialog({
   const isMetal = assetType === "metal";
   // Which Buy asset-class chip is active (metals are keyed by their ticker).
   const selectedAssetKey = isMetal ? ticker.toLowerCase() : assetType;
-  // Lock the Share Price to the live market price only for a BUY dated today AND
-  // when a live quote is actually available. Otherwise the field stays editable so
-  // the user is never blocked (past dates, or a today with no live quote).
-  const priceLocked = mode === "buy" && isToday && !liveUnavailable;
+  // Lock today's buy price to the live print. A crypto name with no live print
+  // stays blank. An equity with no print can still be typed.
+  const cryptoLiveMissing = mode === "buy" && assetType === "crypto" && liveUnavailable;
+  const priceLocked = (mode === "buy" && isToday && !liveUnavailable) || cryptoLiveMissing;
 
   // Keep fee presets in sync with notional for buys AND sells, including the
   // US retail fixed fee (percent is 0, so a percent-only effect used to skip it).
@@ -1256,9 +1257,12 @@ export function TransactionDialog({
       setPrice(String(live));
       setLiveUnavailable(false);
       console.log(`[transaction-center] Locked ${sym} to today's live price: ${live}`);
+    } else if (type === "crypto") {
+      setPrice("");
+      setLiveUnavailable(true);
+      console.warn(`[transaction-center] ${sym} live price unavailable`);
     } else {
-      // Edge case — market closed / invalid ticker / provider outage. Never block the
-      // user: unlock the field so they can type the price manually.
+      // Market closed or an unrecognised equity ticker. A past print can still be typed.
       setLiveUnavailable(true);
       console.warn(`[transaction-center] No live price for ${sym} today — unlocking for manual entry.`);
     }
@@ -1333,6 +1337,9 @@ export function TransactionDialog({
     }
     if (!t && !selectedHolding?.metalSourceId) return toast.error("Ticker is required");
     if (!(q > 0)) return toast.error("Quantity must be greater than 0");
+    if (assetType === "crypto" && (liveUnavailable || !(px > 0))) {
+      return toast.error(`${t || "This name"} live price unavailable`);
+    }
     if (!(px > 0)) return toast.error("Price must be greater than 0");
     if (mode === "sell") {
       if (!selectedHolding) return toast.error("Select a holding you own to sell");
@@ -1375,6 +1382,9 @@ export function TransactionDialog({
       }
       if (!t && !selectedHolding?.metalSourceId) return toast.error("Ticker is required");
       if (!(q > 0)) return toast.error("Quantity must be greater than 0");
+      if (assetType === "crypto" && (liveUnavailable || !(p > 0)) && !selectedHolding?.metalSourceId) {
+        return toast.error(`${t || "This name"} live price unavailable`);
+      }
       if (!(p > 0) && !selectedHolding?.metalSourceId) return toast.error("Price must be greater than 0");
       if (mode === "sell") {
         if (!selectedHolding) return toast.error("Select a holding you own to sell");
@@ -1842,6 +1852,11 @@ export function TransactionDialog({
                       <strong>Locked to today&apos;s live price.</strong> Because the date is today, this is the
                       current market price and can&apos;t be edited. Pick an earlier date to enter the price you paid.
                     </span>
+                  </p>
+                ) : cryptoLiveMissing ? (
+                  <p className="-mt-1 flex items-start gap-1.5 text-xs leading-relaxed text-amber-600">
+                    <Info className="mt-0.5 size-3.5 shrink-0" />
+                    <span>Live price unavailable.</span>
                   </p>
                 ) : isToday && liveUnavailable ? (
                   <p className="-mt-1 flex items-start gap-1.5 text-xs leading-relaxed text-amber-600">

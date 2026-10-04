@@ -23,6 +23,7 @@ import { fetchLivePrice, isLiveDataConfigured, fetchCryptoQuotes } from "@/lib/m
 import { getMetalsSpot } from "@/lib/metals";
 import {
   checkFillSanity,
+  aucklandDateISO,
   aucklandDateTimeISO,
   ADVISORY_NOTE,
   type PriceSource,
@@ -34,6 +35,7 @@ import { venueForTicker, fifoApplySell, type FifoLot } from "@/lib/ledger-schema
 import { logLedgerAudit, appendAuditNote } from "@/lib/ledger-audit";
 import { feedEntryForTicker } from "@/lib/feed-mapping";
 import { withUserTradeLock } from "@/lib/trade-lock";
+import { applyPaperCashMove } from "@/lib/paper-cash";
 
 export type TxType = "buy" | "sell" | "deposit" | "withdraw" | "dividend" | "tax";
 export type TxAssetType = "stock" | "crypto" | "metal";
@@ -253,7 +255,7 @@ async function applyTransactionUnlocked(user: AppUser, input: TransactionInput):
   if (!ticker) throw new Error("Ticker is required");
   const assetType: TxAssetType = input.asset_type || "stock";
   const quantity = Number(input.quantity) || 0;
-  const price = Number(input.price) || 0;
+  let price = Number(input.price) || 0;
   const fees = Math.max(0, Number(input.fees) || 0);
   if (quantity <= 0) throw new Error("Quantity must be greater than 0");
   if (price <= 0) throw new Error("Price must be greater than 0");
@@ -328,6 +330,17 @@ async function applyTransactionUnlocked(user: AppUser, input: TransactionInput):
     console.error(`[transactions] Live spot for sanity check failed (${ticker}):`, err);
   }
 
+  if (assetType === "crypto") {
+    const tradeDay = (input.trade_date || input.executed_at || "").slice(0, 10);
+    const tradingToday = !/^\d{4}-\d{2}-\d{2}$/.test(tradeDay) || tradeDay === aucklandDateISO(executedAt);
+    if (tradingToday) {
+      if (!(liveSpot != null && liveSpot > 0)) {
+        throw new Error(`${ticker} live price unavailable`);
+      }
+      price = liveSpot;
+    }
+  }
+
   const sanity = checkFillSanity({
     ticker,
     quantity,
@@ -396,8 +409,18 @@ async function applyTransactionUnlocked(user: AppUser, input: TransactionInput):
       console.error("[transactions] Duplicate-buy check failed (non-fatal):", err);
     }
 
-    const costNative = quantity * price + fees;
-    const costNZD = round(nativeToNzd(costNative, currency, rates));
+    const moved = applyPaperCashMove({
+      side: "buy",
+      quantity,
+      price,
+      fees,
+      currency,
+      rates,
+      cashNZD: currentCash,
+      shares: holding?.shares || 0,
+    });
+    if (!moved.ok) throw new Error(moved.error || `${ticker} live price unavailable`);
+    const costNZD = round(-moved.cashDeltaNZD);
     if (costNZD > currentCash + 1e-6) {
       throw new Error(
         `Insufficient cash — this buy needs NZ$${costNZD.toFixed(2)} and you have NZ$${currentCash.toFixed(2)} available.`
@@ -466,11 +489,11 @@ async function applyTransactionUnlocked(user: AppUser, input: TransactionInput):
       console.log(`[transactions] BUY opened new position ${ticker} (${quantity} @ ${price} ${currency})`);
     }
 
-    const newCash = round(currentCash - costNZD);
+    const newCash = moved.cashNZD;
     const createdNew = !holding;
     const previousShares = round(holding?.shares || 0, 6);
     const previousAvg = round(holding?.purchase_price || 0, 6);
-    const expectedShares = createdNew ? round(quantity, 6) : round(previousShares + quantity, 6);
+    const expectedShares = moved.shares;
     let ledgerId: string | undefined;
     try {
     await totalumSdk.crud.editRecordById("user", user._id, { cash_balance: newCash });
@@ -570,9 +593,19 @@ async function applyTransactionUnlocked(user: AppUser, input: TransactionInput):
     throw new Error(`You only hold ${round(heldShares, 6)} unit(s) of ${ticker}`);
   }
   const avgCost = holding.purchase_price || 0;
-  const proceedsNative = quantity * price - fees;
   const realizedNative = quantity * (price - avgCost) - fees;
-  const proceedsNZD = round(nativeToNzd(proceedsNative, currency, rates));
+  const sold = applyPaperCashMove({
+    side: "sell",
+    quantity,
+    price,
+    fees,
+    currency,
+    rates,
+    cashNZD: currentCash,
+    shares: heldShares,
+  });
+  if (!sold.ok) throw new Error(sold.error || `${ticker} live price unavailable`);
+  const proceedsNZD = sold.cashDeltaNZD;
   // FIFO-style split: price P&L at sell FX; FX P&L vs lot FX (legacy avg uses buy FX ≈ current if unknown).
   const sellFx = nzdPerUnit(currency, input.fx_rate ?? rates[currency] ?? 1);
   const lotFx = Number(holding.fx_rate) || sellFx;
@@ -589,12 +622,11 @@ async function applyTransactionUnlocked(user: AppUser, input: TransactionInput):
   const legacyRealizedNZD = round(nativeToNzd(realizedNative, currency, rates));
   const realizedBooked = Math.abs(sellFx - lotFx) < 1e-9 ? legacyRealizedNZD : realizedNZD;
 
-  const remaining = heldShares - quantity;
-  const closed = remaining <= 1e-6;
-  const expectedRemaining = closed ? 0 : round(remaining, 6);
+  const closed = sold.shares <= 1e-6;
+  const expectedRemaining = sold.shares;
   let holdingId: string | null = holding._id;
   let ledgerId: string | undefined;
-  const newCash = round(currentCash + proceedsNZD);
+  const newCash = sold.cashNZD;
   try {
   if (closed) {
     // Position fully closed — remove it from the tracked holdings and retire alerts.
