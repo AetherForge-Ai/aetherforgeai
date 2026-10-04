@@ -8,7 +8,13 @@
  * the dashboard UI.
  */
 
-import { FREE_PLAN, planByKey, SALES_EMAIL } from "@/lib/plans";
+import {
+  ASSISTANT_QUERY_LIMITS,
+  FREE_PLAN,
+  planByKey,
+  SALES_EMAIL,
+  STARTER_REPORTS_PER_MONTH,
+} from "@/lib/plans";
 
 export type AssetType = "stock" | "crypto";
 export type LimitScope = "total" | "perBot";
@@ -20,7 +26,7 @@ export interface EntitlementInput {
 
 /**
  * How ticker usage is counted against the limit.
- *  - Free tier: 8 holdings across both sleeves (Stox or Koins — the book is one cap).
+ *  - Free tier: 10 holdings across both sleeves (Stox or Koins — the book is one cap).
  *  - Paid tiers: the limit applies per bot (stock and crypto each get the full quota).
  */
 export function limitScope(plan?: string | null): LimitScope {
@@ -29,7 +35,7 @@ export function limitScope(plan?: string | null): LimitScope {
 
 /**
  * Holdings cap for this account.
- * Free always gets at least {@link FREE_PLAN.tickerLimit} (8), even when an
+ * Free always gets at least {@link FREE_PLAN.tickerLimit} (10), even when an
  * older record still stores the legacy stamp of 3.
  */
 export function resolveTickerLimit(user: EntitlementInput): number {
@@ -111,8 +117,52 @@ export type CadenceUnit = "rolling" | "week" | "month";
 /** Free tier matches Pricing: 3 AI research reports per calendar month. */
 export const FREE_REPORTS_PER_MONTH = FREE_PLAN.reportsPerMonth;
 
-/** Free Market Assistant allowance per Auckland calendar month. Paid plans are uncapped here. */
-export const FREE_ASSISTANT_QUERIES_PER_MONTH = 20;
+/** Free Market Assistant allowance per Auckland calendar month. */
+export const FREE_ASSISTANT_QUERIES_PER_MONTH = ASSISTANT_QUERY_LIMITS.free;
+
+export function isStarterPlan(plan?: string | null): boolean {
+  return normalizePlanKey(plan).startsWith("starter_");
+}
+
+export function isProPlan(plan?: string | null): boolean {
+  const key = normalizePlanKey(plan);
+  return key.startsWith("pro_");
+}
+
+/**
+ * Market Assistant cap for this plan. Null means uncapped (Ultimate and legacy Apex).
+ * Starter is 100/month and Pro is 500/month — those quotas were not previously coded.
+ */
+export function assistantQueryLimit(plan?: string | null): number | null {
+  if (isFreeReportPlan(plan)) return ASSISTANT_QUERY_LIMITS.free;
+  if (isStarterPlan(plan)) return ASSISTANT_QUERY_LIMITS.starter;
+  if (isProPlan(plan)) return ASSISTANT_QUERY_LIMITS.pro;
+  return null;
+}
+
+/** CSV export is a paid feature. Free and unsigned plans are refused on the server. */
+export function canExportCsv(plan?: string | null): boolean {
+  return !isFreeReportPlan(plan);
+}
+
+export type HeadmasterDepth = "none" | "basic" | "full";
+
+/**
+ * Free has no Headmaster plan. Starter is the basic desk (no stress tests,
+ * no intelligence report). Pro, Ultimate, and legacy Apex keep the full desk.
+ */
+export function headmasterDepth(plan?: string | null): HeadmasterDepth {
+  if (isFreeReportPlan(plan)) return "none";
+  if (isStarterPlan(plan)) return "basic";
+  return "full";
+}
+
+/** Auckland-month report cap. Null means the rolling paid cadence applies (unlimited). */
+export function monthlyReportLimit(plan?: string | null): number | null {
+  if (isFreeReportPlan(plan)) return FREE_REPORTS_PER_MONTH;
+  if (isStarterPlan(plan)) return STARTER_REPORTS_PER_MONTH;
+  return null;
+}
 
 export interface ReportCadence {
   unit: CadenceUnit;
@@ -141,8 +191,8 @@ export function isFreeReportPlan(plan?: string | null): boolean {
 }
 
 /**
- * Apex Weekly keeps a weekly report. Every paid plan — including legacy Apex
- * monthly/yearly and Starter/Pro/Ultimate — is the paid 4-hour window.
+ * Apex Weekly keeps a weekly report. Starter is a monthly count (15).
+ * Pro, Ultimate, and legacy Apex monthly/yearly use the paid 4-hour window.
  * Free is a monthly count (see {@link monthlyReportQuota} and
  * {@link evaluateFreeReportQuota}), not this weekly window.
  */
@@ -154,8 +204,9 @@ export function isWeeklyReportPlan(plan?: string | null): boolean {
 /**
  * How frequently a plan can run a full report.
  *  - Free → 3 reports per Auckland month (shared; one chosen bot).
+ *  - Starter → 15 reports per Auckland month.
  *  - Apex Weekly → one report per week (rolling 7 days), per bot.
- *  - Paid tiers → one report every 4 hours (rolling), per bot.
+ *  - Pro, Ultimate, and other paid tiers → one report every 4 hours (rolling), per bot.
  */
 export function reportCadence(plan?: string | null): ReportCadence {
   if (isFreeReportPlan(plan)) {
@@ -163,6 +214,14 @@ export function reportCadence(plan?: string | null): ReportCadence {
       unit: "month",
       ms: 0,
       label: `${FREE_REPORTS_PER_MONTH} reports per month`,
+      perLabel: "per month",
+    };
+  }
+  if (isStarterPlan(plan)) {
+    return {
+      unit: "month",
+      ms: 0,
+      label: `${STARTER_REPORTS_PER_MONTH} reports per month`,
       perLabel: "per month",
     };
   }
@@ -260,9 +319,9 @@ export function countReportsInAucklandMonth(
 export function monthlyReportQuota(
   used: number,
   now: number = Date.now(),
-  limit: number = FREE_REPORTS_PER_MONTH
+  limit: number = FREE_REPORTS_PER_MONTH,
+  cadence: ReportCadence = reportCadence("free")
 ): ReportQuota {
-  const cadence = reportCadence("free");
   const allowed = used < limit;
   const waitMs = allowed ? 0 : msUntilNextAucklandMonth(now);
   return {
@@ -435,6 +494,14 @@ export function headmasterDeskCopy(plan?: string | null): HeadmasterDeskCopy {
       summary: "Included with Apex Dual",
       detail:
         "Apex Dual includes this planning desk: unified allocation, scenarios, stress tests, the strategy builder, and the Chief Strategist. The Total Portfolio Intelligence report is on the Strategy tab — it is not a separate Stox or Koins run. The Pro plan's “Full Headmaster planning & strategies” line is this same desk.",
+    };
+  }
+  if (key.startsWith("starter_")) {
+    return {
+      badge: "Basic",
+      summary: "Basic Headmaster",
+      detail:
+        "Starter includes the planning desk and a basic strategy for the current book. Risk and stress testing, and the Total Portfolio Intelligence report, open on Pro.",
     };
   }
   if (key === "pro_monthly" || key === "pro_yearly" || key === "ultimate_monthly" || key === "ultimate_yearly") {

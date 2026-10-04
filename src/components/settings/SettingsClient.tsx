@@ -139,7 +139,11 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
   // Other paid plans the member can switch to from their current subscription.
   // Ultimate stays founder-led. Do not offer it as a self-serve Stripe switch.
   const switchOptions = PLANS.filter(
-    (p) => p.key !== user.subscription_plan && !String(p.key).startsWith("ultimate_")
+    (p) =>
+      p.priceId &&
+      !p.archived &&
+      p.key !== user.subscription_plan &&
+      !String(p.key).startsWith("ultimate_")
   );
   const freeAccount = isFreeReportPlan(user.subscription_plan);
 

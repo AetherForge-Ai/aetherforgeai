@@ -630,13 +630,6 @@ export function TransactionCenter({
 type TxSortKey = "date" | "type" | "ticker" | "quantity" | "price" | "total" | "realized";
 const PAGE_SIZE = 12;
 
-/** Full ISO → yyyy-mm-dd for CSV, and a display date/time helper. */
-function csvDate(iso?: string): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  return isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
-}
-
 /**
  * Large, spacious "sub-folder" view of the COMPLETE transaction history.
  * Sortable + searchable + type-filtered, paginated for long ledgers, with a
@@ -721,78 +714,18 @@ function AllTransactionsDialog({
   const safePage = Math.min(page, pageCount - 1);
   const pageRows = filtered.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE);
 
-  // Build + download a CSV of the CURRENT filtered/sorted view.
-  function exportCsv() {
-    const headers = [
-      "Date",
-      "DateTime_NZ",
-      "ExecutionStatus",
-      "Type",
-      "Ticker",
-      "AssetName",
-      "AssetType",
-      "AssetId",
-      "Quantity",
-      "FillPrice",
-      "FillCurrency",
-      "PriceSource",
-      "PriceAsAt",
-      "SignalPrice",
-      "MarkPriceAtExport",
-      "FeesNative",
-      "FeesNZD",
-      "NativeNotional",
-      "FxRate",
-      "FxSource",
-      "CashNZD",
-      "RealizedPricePnlNZD",
-      "RealizedFxPnlNZD",
-      "RealizedPnlNZD",
-      "OrderSizing",
-      "NotionalNative",
-      "Broker",
-      "Notes",
-    ];
-    const esc = (v: unknown) => {
-      const s = String(v ?? "");
-      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-    };
-    const lines = filtered.map((t) =>
-      [
-        csvDate(t.executed_at || t.createdAt),
-        (t as any).trade_datetime || csvDate(t.executed_at || t.createdAt),
-        (t as any).execution_status || "filled",
-        t.type,
-        t.ticker || "",
-        t.asset_name || "",
-        t.asset_type || "",
-        (t as any).asset_id || "",
-        t.quantity ?? "",
-        (t as any).fill_price ?? t.price ?? "",
-        (t as any).fill_currency || t.currency || "NZD",
-        (t as any).price_source || "user_fill",
-        (t as any).price_as_at || "",
-        (t as any).signal_price ?? "",
-        (t as any).mark_price ?? "",
-        (t as any).fees_native ?? t.fees ?? "",
-        (t as any).fees_nzd ?? "",
-        (t as any).native_notional ?? ((t.quantity || 0) * (t.price || 0)),
-        (t as any).fx_rate ?? "",
-        (t as any).fx_source || "",
-        (t as any).cash_nzd ?? t.total ?? "",
-        (t as any).realized_price_pnl_nzd ?? "",
-        (t as any).realized_fx_pnl_nzd ?? "",
-        (t as any).realized_pnl_nzd ?? t.realized_pnl ?? "",
-        (t as any).order_sizing || "units",
-        (t as any).notional_native ?? "",
-        (t as any).broker || "",
-        t.notes || "",
-      ]
-        .map(esc)
-        .join(",")
-    );
-    const csv = [headers.join(","), ...lines].join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  // Server builds the file and refuses Free. The browser does not assemble the CSV.
+  async function exportCsv() {
+    const res = await fetch("/api/transactions/export", { credentials: "include" });
+    if (res.status === 403) {
+      toast.error("CSV export is included on Starter and above.");
+      return;
+    }
+    if (!res.ok) {
+      toast.error("Could not export transactions.");
+      return;
+    }
+    const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -801,8 +734,7 @@ function AllTransactionsDialog({
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-    console.log(`[transaction-center] Exported ${filtered.length} transactions to CSV`);
-    toast.success(`Exported ${filtered.length} transaction${filtered.length === 1 ? "" : "s"} to CSV`);
+    toast.success("Exported transactions to CSV");
   }
 
   const SortHead = ({ label, k, align = "right" }: { label: string; k: TxSortKey; align?: "left" | "right" }) => (

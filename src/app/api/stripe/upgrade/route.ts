@@ -3,11 +3,22 @@ import { z } from "zod";
 import { stripe } from "@/lib/stripe";
 import { getCurrentUser } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
-import { planByPriceId, planByKey } from "@/lib/plans";
+import { isSelfServeCheckoutPlan, planByPriceId, planByKey } from "@/lib/plans";
 
 const schema = z.object({
   priceId: z.string().min(1, "Price ID is required"),
-  plan: z.enum(["weekly", "monthly", "yearly", "dual_yearly"]).optional(),
+  plan: z
+    .enum([
+      "weekly",
+      "monthly",
+      "yearly",
+      "dual_yearly",
+      "starter_monthly",
+      "starter_yearly",
+      "pro_monthly",
+      "pro_yearly",
+    ])
+    .optional(),
   bot: z.enum(["stock", "crypto"]).optional(),
   // "now" applies the change immediately with prorated credit/charge;
   // "next_cycle" swaps the price at the next renewal with no proration.
@@ -39,8 +50,23 @@ export async function POST(req: Request) {
     const { priceId, bot, when = "now" } = parsed.data;
 
     const planDef = planByPriceId(priceId) || planByKey(parsed.data.plan);
-    if (!planDef) {
+    if (!planDef || planDef.priceId !== priceId) {
       return NextResponse.json({ ok: false, error: "Unknown plan / price id" }, { status: 400 });
+    }
+    if (planDef.key.startsWith("ultimate_") || planDef.archived) {
+      return NextResponse.json(
+        { ok: false, error: "That price is not offered for a self-serve change." },
+        { status: 400 }
+      );
+    }
+    if (
+      (planDef.key.startsWith("starter_") || planDef.key.startsWith("pro_")) &&
+      !isSelfServeCheckoutPlan(planDef)
+    ) {
+      return NextResponse.json(
+        { ok: false, error: "This plan is not available for self-serve checkout." },
+        { status: 400 }
+      );
     }
 
     const customerId = user.stripe_customer_id;

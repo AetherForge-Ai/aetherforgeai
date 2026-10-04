@@ -19,7 +19,7 @@ import {
 export const metadata = {
   title: "Pricing — AetherForge AI | Simple, powerful market intelligence",
   description:
-    "Start with Pro at NZ$69/month for Stox, Koins and the full Headmaster. Free and Starter stay available. Informational market intelligence — not financial advice, and we don't trade for you.",
+    "Start with Pro at NZ$49/month for Stox, Koins and the full Headmaster. Free and Starter stay available. Informational market intelligence — not financial advice, and we don't trade for you.",
   alternates: { canonical: "/pricing" },
 };
 
@@ -84,7 +84,7 @@ export default function PricingPage() {
             Simple pricing. <span className="text-gradient">Powerful market intelligence.</span>
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-base text-muted-foreground sm:text-lg">
-            Start with Pro at NZ$69/month — Stox, Koins and the full Headmaster. Free and Starter
+            Start with Pro at NZ$49/month — Stox, Koins and the full Headmaster. Free and Starter
             stay on the table. Reports are illustrative scenarios, not personalised advice, and you
             execute on your own broker.
           </p>
@@ -130,7 +130,7 @@ export default function PricingPage() {
               Start with Pro for the full research desk
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-muted-foreground">
-              Pro is NZ$69/month and includes both bots plus The Headmaster. Free remains available if
+              Pro is NZ$49/month and includes both bots plus The Headmaster. Free remains available if
               you want to look first. Nothing here is a trade we place for you.
             </p>
             <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">

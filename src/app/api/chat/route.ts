@@ -1,11 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
-import {
-  aucklandMonthKey,
-  FREE_ASSISTANT_QUERIES_PER_MONTH,
-  isFreeReportPlan,
-} from "@/lib/entitlements";
+import { assistantQueryLimit, aucklandMonthKey } from "@/lib/entitlements";
 import { totalumSdk } from "@/lib/totalum";
 import { buildPortfolioContext, ANALYST_SYSTEM_PROMPT } from "@/lib/ai-context";
 import { createGrokChatCompletion, type GrokMessage } from "@/lib/grok";
@@ -66,13 +62,14 @@ export async function POST(req: Request) {
     }
     const userMessage = parsed.data.message.trim();
 
-    if (isFreeReportPlan(user.subscription_plan)) {
+    const queryLimit = assistantQueryLimit(user.subscription_plan);
+    if (queryLimit != null) {
       const used = await freeAssistantUsedThisMonth(user._id);
-      if (used >= FREE_ASSISTANT_QUERIES_PER_MONTH) {
+      if (used >= queryLimit) {
         return NextResponse.json(
           {
             ok: false,
-            error: `You've used this month's ${FREE_ASSISTANT_QUERIES_PER_MONTH} free Market Assistant queries. Upgrade to Pro for a higher allowance, or wait until next month.`,
+            error: `You've used this month's ${queryLimit} Market Assistant queries. You can wait until next month, or move to a plan with a higher allowance.`,
           },
           { status: 429 }
         );

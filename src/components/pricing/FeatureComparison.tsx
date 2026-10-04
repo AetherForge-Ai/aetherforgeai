@@ -27,7 +27,8 @@ const GROUPS: Group[] = [
   {
     title: "Portfolio & Tracking",
     rows: [
-      { label: "Maximum holdings", cells: ["8", "25", "75", "Unlimited"] },
+      { label: "Maximum holdings", cells: ["10", "25", "75", "Unlimited"] },
+      { label: "Smitty gold & silver spot prices", cells: ["Read-only", true, true, true] },
       { label: "Real-time P/L & allocation breakdown", cells: [true, true, true, true] },
       { label: "Multi-timeframe charts & top gainers", cells: ["Basic", true, true, true] },
       { label: "Data export (CSV)", cells: [false, true, true, true] },
@@ -53,7 +54,7 @@ const GROUPS: Group[] = [
   {
     title: "Market Assistant",
     rows: [
-      { label: "Query limits", cells: ["20 / month", "Standard", "High", "Unlimited"] },
+      { label: "Query limits", cells: ["20 / month", "100 / month", "500 / month", "Unlimited"] },
       { label: "Depth of analysis", cells: ["Basic", "Standard", "Advanced", "In-depth"] },
     ],
   },

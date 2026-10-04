@@ -36,8 +36,6 @@ import {
   Loader2,
   TrendingUp,
   TrendingDown,
-  Lock,
-  Sparkles,
   RefreshCw,
   BadgeCheck,
   Minus,
@@ -188,8 +186,23 @@ export function PreciousMetals({
   }, [load, onChanged]);
 
   useEffect(() => {
-    if (entitled) load();
-    else setLoading(false);
+    let cancelled = false;
+    (async () => {
+      if (!entitled) {
+        setLoading(true);
+        try {
+          const pub = await api.get<MetalsSpot>("/api/metals/spot");
+          if (!cancelled && pub.ok && pub.data) setSpot(pub.data);
+        } finally {
+          if (!cancelled) setLoading(false);
+        }
+        return;
+      }
+      await load();
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [entitled, load]);
 
   const effectiveSpot = spot ?? parentSpot;
@@ -374,41 +387,31 @@ export function PreciousMetals({
     }
   }
 
-  const HeaderBadge = (
-    <span className="ml-2 inline-flex items-center gap-1 rounded-full border border-[var(--gold)]/40 bg-[var(--gold)]/10 px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wide text-[var(--gold)]">
-      <Sparkles className="size-3" /> Member bonus
-    </span>
-  );
-
-  const hasBullion = ledgerLots.length > 0 || metals.length > 0;
-  /* ---------------------------- Locked (upsell) --------------------------- */
-  if (!entitled && !hasBullion) {
+  /* ---------------------------- Read-only spots --------------------------- */
+  if (!entitled) {
+    const gold = effectiveSpot?.gold;
+    const silver = effectiveSpot?.silver;
     return (
-      <div className="rounded-3xl border border-border/70 bg-card/50 p-8 text-center">
-        <span className="mx-auto grid size-14 place-items-center rounded-2xl bg-[var(--gold)]/12 text-[var(--gold)]">
-          <Lock className="size-7" />
-        </span>
-        <h2 className="mt-4 font-display text-xl font-bold">
-          Precious Metals Overview
-        </h2>
-        <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-          Track your gold &amp; silver alongside your shares — valued live against today&apos;s spot
-          price. This desk tracks spot and holdings. It does not run a report.
+      <div className="rounded-3xl border border-border/70 bg-card/50 p-6 sm:p-8">
+        <h2 className="font-display text-xl font-bold">Smitty spot prices</h2>
+        <p className="mt-2 max-w-xl text-sm text-muted-foreground">
+          Gold and silver spot prices are visible on this plan. Recording bullion holdings is on a paid plan.
         </p>
-        <p className="mx-auto mt-3 max-w-md text-sm text-muted-foreground">
-          Need metals for a Headmaster allocation now? Use{" "}
-          <strong className="text-foreground">Transaction Centre → Buy → Gold/Silver</strong> for a
-          paper/idea fill (advisory only — not a broker order), or upgrade to unlock the spot desk.
-        </p>
-        <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
-          <Button asChild variant="outline" className="font-semibold">
-            <Link href="/dashboard/transactions?buy=metal">Save as paper metal</Link>
-          </Button>
-          <Button asChild className="font-semibold shadow-glow">
-            <Link href="/pricing#pro">
-              <Sparkles className="mr-2 size-4" /> Upgrade to Pro
-            </Link>
-          </Button>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-2xl border border-[var(--gold)]/40 bg-[var(--gold)]/10 p-4">
+            <p className="text-sm font-semibold text-[var(--gold)]">Gold</p>
+            <p className="mt-2 font-display text-2xl font-bold">
+              {gold ? formatMoney(gold.nzdPerOz, "NZD") : loading ? "Loading…" : "—"}
+              <span className="ml-1 text-sm font-medium text-muted-foreground">/oz</span>
+            </p>
+          </div>
+          <div className="rounded-2xl border border-slate-400/40 bg-slate-400/10 p-4">
+            <p className="text-sm font-semibold text-slate-300">Silver</p>
+            <p className="mt-2 font-display text-2xl font-bold">
+              {silver ? formatMoney(silver.nzdPerOz, "NZD") : loading ? "Loading…" : "—"}
+              <span className="ml-1 text-sm font-medium text-muted-foreground">/oz</span>
+            </p>
+          </div>
         </div>
       </div>
     );

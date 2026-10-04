@@ -10,11 +10,12 @@ import {
   type GeneratedReport,
 } from "@/lib/report-service";
 import {
-  FREE_REPORTS_PER_MONTH,
   checkReportQuota,
   evaluateFreeReportQuota,
   isFreeReportPlan,
+  monthlyReportLimit,
   monthlyReportQuota,
+  reportCadence,
   aucklandMonthKey,
   type ReportQuota,
 } from "@/lib/entitlements";
@@ -52,10 +53,12 @@ function coalesceReport(userId: string, bot: BotKind, run: () => Promise<Generat
 function quotaFromMonthly(
   used: number,
   lastReportAt: string | null,
+  limit: number,
+  plan: string | null | undefined,
   now: number = Date.now()
 ): ReportQuota & { reportsUsed: number; reportsLimit: number } {
-  const q = monthlyReportQuota(used, now);
-  return { ...q, lastReportAt, reportsUsed: used, reportsLimit: FREE_REPORTS_PER_MONTH };
+  const q = monthlyReportQuota(used, now, limit, reportCadence(plan));
+  return { ...q, lastReportAt, reportsUsed: used, reportsLimit: limit };
 }
 
 async function lastReportAt(userId: string, bot: BotKind): Promise<string | null> {
@@ -111,8 +114,8 @@ async function countFreeReportsThisMonth(userId: string, now: number): Promise<{
  * holdings (via the shared report service), emails it with the PDF attached,
  * persists it and returns it for inline dashboard display.
  *
- * Free: 3 AI reports per Auckland month on the chosen bot (Stox or Koins).
- * Apex Weekly: 1 report / week per bot. Paid tiers: 1 report every 4 hours per bot.
+ * Free: 3 AI reports per Auckland month. Starter: 15 per Auckland month.
+ * Apex Weekly: 1 report / week per bot. Pro and Ultimate: 1 report every 4 hours per bot.
  */
 export async function POST(req: Request) {
   try {
@@ -149,15 +152,14 @@ export async function POST(req: Request) {
       }
     }
 
-    const isFree = isFreeReportPlan(user.subscription_plan);
-    let freeAfterRun: { used: number; limit: number; remaining: number; monthKey: string } | null = null;
+    const monthLimit = monthlyReportLimit(user.subscription_plan);
+    let monthAfterRun: { used: number; limit: number; remaining: number; monthKey: string } | null = null;
 
-    if (isFree) {
-      // Free gate — 3 AI reports per Auckland month on the chosen bot
-      // (Stox or Koins). The count is pooled; bot access is single.
+    if (monthLimit != null) {
+      // Free is 3 and Starter is 15, pooled across the account for the Auckland month.
       const now = Date.now();
       const { count: usedThisMonth, monthKey } = await countFreeReportsThisMonth(user._id, now);
-      const freeQuota = evaluateFreeReportQuota(usedThisMonth, now);
+      const monthQuota = evaluateFreeReportQuota(usedThisMonth, now, monthLimit);
       const previous = await lastReportAt(user._id, bot);
       const botLabel = bot === "crypto" ? "Koins" : "Stox";
       if (isRecentReportDuplicate(previous)) {
@@ -167,32 +169,33 @@ export async function POST(req: Request) {
           { status: 200 }
         );
       }
-      if (!freeQuota.allowed) {
-        const blocked = monthlyReportQuota(freeQuota.used, now);
+      if (!monthQuota.allowed) {
+        const blocked = monthlyReportQuota(monthQuota.used, now, monthQuota.limit, reportCadence(user.subscription_plan));
+        const planLabel = isFreeReportPlan(user.subscription_plan) ? "free" : "Starter";
         console.log(
-          `[api/reports] Free monthly cap reached for user ${user._id} (${freeQuota.used}/${freeQuota.limit}, month ${monthKey})`
+          `[api/reports] Monthly cap reached for user ${user._id} (${monthQuota.used}/${monthQuota.limit}, month ${monthKey})`
         );
         return NextResponse.json(
           {
             ok: false,
-            error: `You've used all ${freeQuota.limit} free AI reports for this month. Upgrade to Pro for more, or wait until next month.`,
+            error: `You've used all ${monthQuota.limit} ${planLabel} AI reports for this month. Upgrade to Pro for more, or wait until next month.`,
             data: {
-              code: "free_monthly_limit",
+              code: "monthly_report_limit",
               nextAllowedAt: blocked.nextAllowedAt,
               waitMs: blocked.waitMs,
               cadence: blocked.cadence.label,
               free: {
-                used: freeQuota.used,
-                limit: freeQuota.limit,
-                remaining: freeQuota.remaining,
-                monthKey: freeQuota.monthKey,
+                used: monthQuota.used,
+                limit: monthQuota.limit,
+                remaining: monthQuota.remaining,
+                monthKey: monthQuota.monthKey,
               },
             },
           },
           { status: 429 }
         );
       }
-      freeAfterRun = evaluateFreeReportQuota(usedThisMonth + 1, now);
+      monthAfterRun = evaluateFreeReportQuota(usedThisMonth + 1, now, monthLimit);
     } else {
       // Cadence gate — one report per plan window, PER BOT (independent Stox &
       // Koins allowances). Authoritative: the client countdown is cosmetic; this is
@@ -230,10 +233,14 @@ export async function POST(req: Request) {
     const out = await coalesceReport(user._id, bot, () => generateReportForUser(user, bot, "manual"));
     console.log(`[api/reports] Manual report delivered for user ${user._id} (${bot})`);
 
-    // Free: echo the monthly remaining count and the month cadence.
-    // Paid/legacy weekly: echo the next per-bot unlock.
-    const next = isFree && freeAfterRun
-      ? monthlyReportQuota(freeAfterRun.used)
+    // Monthly caps echo the remaining count. Pro, Ultimate, and legacy weekly echo the next unlock.
+    const next = monthAfterRun
+      ? monthlyReportQuota(
+          monthAfterRun.used,
+          Date.now(),
+          monthAfterRun.limit,
+          reportCadence(user.subscription_plan)
+        )
       : checkReportQuota(user.subscription_plan, new Date().toISOString());
 
     return privateJson({
@@ -252,9 +259,9 @@ export async function POST(req: Request) {
         cadenceMs: next.cadence.ms,
         perLabel: next.cadence.perLabel,
         cadenceUnit: next.cadence.unit,
-        reportsUsed: freeAfterRun?.used,
-        reportsLimit: freeAfterRun ? FREE_REPORTS_PER_MONTH : undefined,
-        free: freeAfterRun,
+        reportsUsed: monthAfterRun?.used,
+        reportsLimit: monthAfterRun?.limit,
+        free: isFreeReportPlan(user.subscription_plan) ? monthAfterRun : null,
       },
     });
   } catch (err: any) {
@@ -286,16 +293,16 @@ export async function GET(req: Request) {
       return accountMismatchResponse(user._id);
     }
 
-    const isFree = isFreeReportPlan(user.subscription_plan);
+    const monthLimit = monthlyReportLimit(user.subscription_plan);
 
-    const [res, book, freeCount, synthesis] = await Promise.all([
+    const [res, book, monthCount, synthesis] = await Promise.all([
       totalumSdk.crud.query("report", {
         _filter: { user: user._id },
         _sort: { createdAt: "desc" },
         _limit: 50,
       }),
       loadStockRowsForAccount(user._id),
-      isFree ? countFreeReportsThisMonth(user._id, Date.now()) : Promise.resolve(null),
+      monthLimit != null ? countFreeReportsThisMonth(user._id, Date.now()) : Promise.resolve(null),
       loadTotalumSynthesis(user._id).catch((err: unknown) => {
         console.error("[api/reports] Live book total unavailable:", err);
         return null;
@@ -363,21 +370,19 @@ export async function GET(req: Request) {
       };
     }));
 
-    // Free tier's monthly allowance (3 AI reports / Auckland month on the chosen
-    // bot). Null for paid and legacy weekly plans.
-    const freeQuota = freeCount
+    // Free is 3/month and Starter is 15/month. Pro and Ultimate stay on the rolling window.
+    const monthQuota = monthCount && monthLimit != null
       ? (() => {
-          const q = evaluateFreeReportQuota(freeCount.count, Date.now());
-          return { used: q.used, limit: q.limit, remaining: q.remaining, monthKey: freeCount.monthKey };
+          const q = evaluateFreeReportQuota(monthCount.count, Date.now(), monthLimit);
+          return { used: q.used, limit: q.limit, remaining: q.remaining, monthKey: monthCount.monthKey };
         })()
       : null;
 
-    // Paid: independent per-bot countdowns. Free: one shared monthly pool,
-    // counted with the padded Auckland-month query above (not the 50-row page).
+    // Pro/Ultimate: independent per-bot countdowns. Monthly plans share one pool.
     const lastFor = (b: BotKind) => reports.find((r) => r.bot === b)?.generatedAt || null;
     const buildQuota = (b: BotKind) => {
-      if (freeQuota) {
-        const q = quotaFromMonthly(freeQuota.used, lastFor(b));
+      if (monthQuota) {
+        const q = quotaFromMonthly(monthQuota.used, lastFor(b), monthQuota.limit, user.subscription_plan);
         return {
           allowed: q.allowed,
           waitMs: q.waitMs,
@@ -410,7 +415,7 @@ export async function GET(req: Request) {
       `[api/reports] GET returned ${reports.length} reports for user ${user._id} ` +
         `(bookLoaded=${book.bookLoaded}, holdings=${liveRows.length}, ` +
         `Stox allowed=${stockQuota.allowed}, Koins allowed=${cryptoQuota.allowed}` +
-        (freeQuota ? `, free ${freeQuota.used}/${freeQuota.limit}` : "") +
+        (monthQuota ? `, month ${monthQuota.used}/${monthQuota.limit}` : "") +
         ")"
     );
     return privateJson({
@@ -421,8 +426,8 @@ export async function GET(req: Request) {
         bookLoaded: book.bookLoaded,
         // Per report-system allowance (Stox + Koins tracked independently) — paid/legacy weekly.
         quota: { stock: stockQuota, crypto: cryptoQuota },
-        // Free tier's pooled monthly allowance (null unless isFree).
-        free: freeQuota,
+        // Pooled monthly allowance for Free. Null on Starter and the rolling plans.
+        free: isFreeReportPlan(user.subscription_plan) ? monthQuota : null,
       },
     });
   } catch (err: any) {

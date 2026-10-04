@@ -1,9 +1,6 @@
 import { redirect } from "next/navigation";
-import {
-  getCurrentUser,
-  isStripeConfigured,
-  hasPaidSubscription,
-} from "@/lib/session";
+import { getCurrentUser, isStripeConfigured } from "@/lib/session";
+import { headmasterDepth } from "@/lib/entitlements";
 import { AppShell } from "@/components/AppShell";
 import { TotalumConsole } from "@/components/totalum/TotalumConsole";
 
@@ -17,11 +14,11 @@ export default async function HeadmasterPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login?redirect=/headmaster");
 
-  // Any logged-in member can open Headmaster anytime — with cash, stocks, crypto,
-  // metals, or any mix (including cash-only). The console shows a Pro upsell when
-  // not entitled; demo mode (no Stripe key) keeps the console open.
-  const entitled = !isStripeConfigured() || hasPaidSubscription(user);
-  console.log(`[headmaster] Rendering console for user ${user._id} (entitled=${entitled})`);
+  // Any logged-in member can open the page. Free sees the upsell when Stripe is
+  // configured. Starter gets the basic desk. Demo mode (no Stripe key) stays open.
+  const depth = !isStripeConfigured() ? "full" : headmasterDepth(user.subscription_plan);
+  const entitled = depth !== "none";
+  console.log(`[headmaster] Rendering console for user ${user._id} (depth=${depth})`);
 
   return (
     <AppShell
@@ -34,7 +31,7 @@ export default async function HeadmasterPage() {
       }}
     >
       <div className="p-4 md:p-8">
-        <TotalumConsole entitled={entitled} memberName={user.name} plan={user.subscription_plan} />
+        <TotalumConsole entitled={entitled} depth={depth} memberName={user.name} plan={user.subscription_plan} />
       </div>
     </AppShell>
   );
