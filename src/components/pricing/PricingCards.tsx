@@ -72,24 +72,31 @@ export function PricingCards() {
       toast.error("Sign in again to continue to checkout.");
       return;
     }
-    if (!plan.paymentLink) {
-      toast.error("Checkout for this plan is not available yet.");
-      return;
-    }
-
     setLoadingTier(tier.id);
-    const url = buildPaymentLinkUrl(plan, {
+    const linked = buildPaymentLinkUrl(plan, {
       userId,
       email: session.user.email,
       bot: plan.botAccess === "both" ? undefined : bot,
     });
-    if (!url) {
-      setLoadingTier(null);
-      toast.error("Checkout for this plan is not available yet.");
+    if (linked) {
+      console.log(`[pricing] Payment link ${tier.id} (${period})`);
+      window.location.href = linked;
       return;
     }
-    console.log(`[pricing] Payment link ${tier.id} (${period})`);
-    window.location.href = url;
+
+    // No committed payment link yet. The server reads STRIPE_SECRET_KEY and
+    // attaches the catalog Price (NZ$16 / NZ$160 / NZ$49 / NZ$490).
+    const res = await api.post<{ url: string }>("/api/stripe/checkout", {
+      plan: plan.key,
+      bot: plan.botAccess === "both" ? undefined : bot,
+    });
+    if (res.ok && res.data?.url) {
+      window.location.href = res.data.url;
+      return;
+    }
+    setLoadingTier(null);
+    const msg = typeof res.error === "string" ? res.error : "Could not start checkout.";
+    toast.error(msg);
   }
 
   async function startFree() {

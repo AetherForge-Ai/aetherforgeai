@@ -1,3 +1,5 @@
+import { publicPriceSlot } from "@/lib/public-catalog";
+
 /**
  * AetherForge Apex subscription plans — single source of truth.
  *
@@ -582,10 +584,10 @@ export function planByPriceId(priceId?: string | null): Plan | undefined {
   );
 }
 
-/** Starter and Pro prices that checkout and payment links may sell. */
+/** Starter and Pro prices that checkout may sell. A committed price id is optional. */
 export function isSelfServeCheckoutPlan(plan: Plan | undefined): boolean {
-  if (!plan?.priceId || plan.archived) return false;
-  return plan.key.startsWith("starter_") || plan.key.startsWith("pro_");
+  if (!plan || plan.archived) return false;
+  return !!publicPriceSlot(plan.key);
 }
 
 /** Human label for a plan key (falls back gracefully for legacy values). */

@@ -8,23 +8,24 @@
 import Stripe from "stripe";
 import { StripeProduct } from "@/types/stripe";
 
-// Get Stripe secret key
-const stripeSecretKey = process.env.STRIPE_SECRET_KEY || "";
-
-// Lazy initialization to avoid build-time errors when API key is not set
+// Lazy initialization to avoid build-time errors when the key is not set.
 let stripeInstance: Stripe | null = null;
 
+/** Drop any secret-key material from a Stripe error before it is logged or returned. */
+export function redactStripeMessage(message: string): string {
+  return message.replace(/sk_(?:live|test)_[A-Za-z0-9]+/g, "sk_[redacted]");
+}
+
 /**
- * Get Stripe client instance
- * Initializes Stripe client on first use
+ * Get Stripe client instance.
+ * Reads STRIPE_SECRET_KEY from the environment on first use. The value is
+ * never written to disk and never returned to the client.
  */
 export function getStripe(): Stripe {
   if (!stripeInstance) {
+    const stripeSecretKey = process.env.STRIPE_SECRET_KEY || "";
     if (!stripeSecretKey) {
-      throw new Error(
-        "STRIPE_SECRET_KEY is not set in environment variables. " +
-        "Add your Stripe secret key to .env to enable Stripe integration."
-      );
+      throw new Error("STRIPE_SECRET_KEY is not set in environment variables.");
     }
     stripeInstance = new Stripe(stripeSecretKey, {
       apiVersion: "2025-09-30.clover",
@@ -174,7 +175,7 @@ export const STRIPE_WEBHOOK_SECRETS: string[] = Array.from(
   )
 );
 
-if (!STRIPE_WEBHOOK_SECRETS.length && stripeSecretKey) {
+if (!STRIPE_WEBHOOK_SECRETS.length && process.env.STRIPE_SECRET_KEY) {
   console.warn(
     "⚠️  STRIPE_WEBHOOK_SECRET is not set. " +
     "Webhook signature verification will be skipped. " +

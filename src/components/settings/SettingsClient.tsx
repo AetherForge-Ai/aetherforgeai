@@ -140,10 +140,10 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
   // Ultimate stays founder-led. Do not offer it as a self-serve Stripe switch.
   const switchOptions = PLANS.filter(
     (p) =>
-      p.priceId &&
       !p.archived &&
       p.key !== user.subscription_plan &&
-      !String(p.key).startsWith("ultimate_")
+      !String(p.key).startsWith("ultimate_") &&
+      (p.priceId || p.key.startsWith("starter_") || p.key.startsWith("pro_"))
   );
   const freeAccount = isFreeReportPlan(user.subscription_plan);
 
@@ -233,10 +233,9 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
   }
 
   async function switchPlan(plan: Plan) {
-    setUpgradingPrice(plan.priceId);
+    setUpgradingPrice(plan.key);
     console.log(`[settings] Switching plan → ${plan.key} (${applyWhen})`);
     const res = await api.post<{ plan: string; proration: boolean }>("/api/stripe/upgrade", {
-      priceId: plan.priceId,
       plan: plan.key,
       bot: preferredBot,
       when: applyWhen,
@@ -552,7 +551,7 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               {switchOptions.map((plan) => {
                 const isUpgrade = plan.price > currentPrice;
-                const busy = upgradingPrice === plan.priceId;
+                const busy = upgradingPrice === plan.key;
                 return (
                   <div
                     key={plan.key}

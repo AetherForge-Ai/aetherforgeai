@@ -7,8 +7,9 @@
  * Ultimate gets no new price. The old Starter, Pro, and Ultimate payment links
  * are archived (active: false).
  *
- * Reads STRIPE_SECRET_KEY from .env. Prints price IDs and payment-link URLs
- * only. Does not print the secret key.
+ * Reads STRIPE_SECRET_KEY from the environment, the same way src/lib/stripe.ts
+ * does. A gitignored .env is used only when that variable is unset. Prints
+ * price IDs and payment-link URLs only. Does not print or write the secret key.
  *
  * A test-mode key never writes the live price IDs in src/lib/plans.ts.
  */
@@ -16,6 +17,48 @@
 import * as fs from "fs";
 import * as path from "path";
 import Stripe from "stripe";
+
+/** Keep in step with PUBLIC_PRICE_SLOTS in src/lib/public-catalog.ts. */
+const PUBLIC_CATALOG = "2026-10-public";
+const PUBLIC_PRICE_SLOTS = [
+  {
+    key: "starter_monthly" as const,
+    retiredPriceId: "price_1TsjfH9sOmzarzYkYpuvCfuA",
+    unitAmount: 1600,
+    interval: "month" as const,
+    tickerLimit: "25",
+    botAccess: "single" as const,
+  },
+  {
+    key: "starter_yearly" as const,
+    retiredPriceId: "price_1TsjfH9sOmzarzYkj43Mf2Zh",
+    unitAmount: 16000,
+    interval: "year" as const,
+    tickerLimit: "25",
+    botAccess: "single" as const,
+  },
+  {
+    key: "pro_monthly" as const,
+    retiredPriceId: "price_1TsjfI9sOmzarzYkiDEzedgi",
+    unitAmount: 4900,
+    interval: "month" as const,
+    tickerLimit: "75",
+    botAccess: "both" as const,
+  },
+  {
+    key: "pro_yearly" as const,
+    retiredPriceId: "price_1TsjfI9sOmzarzYkyyURWr4E",
+    unitAmount: 49000,
+    interval: "year" as const,
+    tickerLimit: "75",
+    botAccess: "both" as const,
+  },
+];
+
+function safeMessage(err: unknown): string {
+  const message = err instanceof Error ? err.message : "Stripe request failed";
+  return message.replace(/sk_(?:live|test)_[A-Za-z0-9]+/g, "sk_[redacted]");
+}
 
 function loadEnv(): Record<string, string> {
   const envPath = path.join(process.cwd(), ".env");
@@ -32,14 +75,11 @@ function loadEnv(): Record<string, string> {
   return env;
 }
 
-const LIVE_PRICE_IDS = {
-  starter_monthly: "price_1TsjfH9sOmzarzYkYpuvCfuA",
-  starter_yearly: "price_1TsjfH9sOmzarzYkj43Mf2Zh",
-  pro_monthly: "price_1TsjfI9sOmzarzYkiDEzedgi",
-  pro_yearly: "price_1TsjfI9sOmzarzYkyyURWr4E",
+const UNTOUCHED_PRICE_IDS: Record<string, string> = {
+  ...Object.fromEntries(PUBLIC_PRICE_SLOTS.map((slot) => [slot.key, slot.retiredPriceId])),
   ultimate_monthly: "price_1TsjfJ9sOmzarzYkM1QYb3tU",
   ultimate_yearly: "price_1TsjfJ9sOmzarzYkRBYlUacp",
-} as const;
+};
 
 const RETIRED_LINKS = [
   "https://buy.stripe.com/7sYaER8YDdwj8a3bPF1440l",
@@ -50,51 +90,14 @@ const RETIRED_LINKS = [
   "https://buy.stripe.com/4gMbIV3Ej9g38a34nd1440g",
 ];
 
-interface Slot {
-  key: "starter_monthly" | "starter_yearly" | "pro_monthly" | "pro_yearly";
-  oldPriceId: string;
-  unitAmount: number;
-  interval: "month" | "year";
-  tickerLimit: string;
-  botAccess: "single" | "both";
-}
-
-const SLOTS: Slot[] = [
-  {
-    key: "starter_monthly",
-    oldPriceId: LIVE_PRICE_IDS.starter_monthly,
-    unitAmount: 1600,
-    interval: "month",
-    tickerLimit: "25",
-    botAccess: "single",
-  },
-  {
-    key: "starter_yearly",
-    oldPriceId: LIVE_PRICE_IDS.starter_yearly,
-    unitAmount: 16000,
-    interval: "year",
-    tickerLimit: "25",
-    botAccess: "single",
-  },
-  {
-    key: "pro_monthly",
-    oldPriceId: LIVE_PRICE_IDS.pro_monthly,
-    unitAmount: 4900,
-    interval: "month",
-    tickerLimit: "75",
-    botAccess: "both",
-  },
-  {
-    key: "pro_yearly",
-    oldPriceId: LIVE_PRICE_IDS.pro_yearly,
-    unitAmount: 49000,
-    interval: "year",
-    tickerLimit: "75",
-    botAccess: "both",
-  },
-];
-
-const CATALOG = "2026-10-public";
+const SLOTS = PUBLIC_PRICE_SLOTS.map((slot) => ({
+  key: slot.key,
+  oldPriceId: slot.retiredPriceId,
+  unitAmount: slot.unitAmount,
+  interval: slot.interval,
+  tickerLimit: slot.tickerLimit,
+  botAccess: slot.botAccess,
+}));
 
 function completionFrom(link: Stripe.PaymentLink): Stripe.PaymentLinkCreateParams.AfterCompletion {
   const done = link.after_completion;
@@ -121,12 +124,11 @@ function writeCheckout(created: Record<string, { priceId: string; paymentLink: s
 }
 
 async function main() {
-  const env = { ...process.env, ...loadEnv() };
-  const key = env.STRIPE_SECRET_KEY || "";
+  const key = process.env.STRIPE_SECRET_KEY || loadEnv().STRIPE_SECRET_KEY || "";
   if (!key) {
     console.error("STRIPE_SECRET_KEY missing. No Stripe prices or payment links were created.");
     console.error("Live price IDs left untouched:");
-    for (const [name, id] of Object.entries(LIVE_PRICE_IDS)) console.error(`  ${name} ${id}`);
+    for (const [name, id] of Object.entries(UNTOUCHED_PRICE_IDS)) console.error(`  ${name} ${id}`);
     process.exit(1);
   }
   const testMode = key.startsWith("sk_test_");
@@ -139,13 +141,13 @@ async function main() {
     try {
       oldPrices.set(slot.key, await stripe.prices.retrieve(slot.oldPriceId));
     } catch (err) {
-      const message = err instanceof Error ? err.message : "retrieve failed";
+      const message = safeMessage(err);
       console.error(`Could not retrieve ${slot.key} (${slot.oldPriceId}): ${message}`);
     }
   }
   if (oldPrices.size !== SLOTS.length) {
     console.error("Stopped before creating prices. Live catalog IDs were not modified:");
-    for (const [name, id] of Object.entries(LIVE_PRICE_IDS)) console.error(`  ${name} ${id}`);
+    for (const [name, id] of Object.entries(UNTOUCHED_PRICE_IDS)) console.error(`  ${name} ${id}`);
     process.exit(1);
   }
 
@@ -173,7 +175,7 @@ async function main() {
         p.currency === "nzd" &&
         p.unit_amount === slot.unitAmount &&
         p.recurring?.interval === slot.interval &&
-        p.metadata?.aetherforge_catalog === CATALOG &&
+        p.metadata?.aetherforge_catalog === PUBLIC_CATALOG &&
         p.metadata?.plan === slot.key
     );
     if (!price) {
@@ -182,12 +184,12 @@ async function main() {
         currency: "nzd",
         unit_amount: slot.unitAmount,
         recurring: { interval: slot.interval },
-        nickname: `${slot.key} NZD ${CATALOG}`,
+        nickname: `${slot.key} NZD ${PUBLIC_CATALOG}`,
         metadata: {
           plan: slot.key,
           ticker_limit: slot.tickerLimit,
           bot_access: slot.botAccess,
-          aetherforge_catalog: CATALOG,
+          aetherforge_catalog: PUBLIC_CATALOG,
         },
       });
       console.log(`Created price ${slot.key} ${price.id}`);
@@ -199,11 +201,11 @@ async function main() {
       plan: slot.key,
       ticker_limit: slot.tickerLimit,
       bot_access: slot.botAccess === "both" ? "both" : "stock",
-      aetherforge_catalog: CATALOG,
+      aetherforge_catalog: PUBLIC_CATALOG,
     };
     let url = "";
     for (const link of linksByUrl.values()) {
-      if (link.metadata?.plan === slot.key && link.metadata?.aetherforge_catalog === CATALOG && link.active && link.url) {
+      if (link.metadata?.plan === slot.key && link.metadata?.aetherforge_catalog === PUBLIC_CATALOG && link.active && link.url) {
         url = link.url;
       }
     }
@@ -244,7 +246,7 @@ async function main() {
   if (testMode) {
     console.log("Test mode: plans.ts was not updated with these IDs.");
     console.log("Live price IDs not touched:");
-    for (const [name, id] of Object.entries(LIVE_PRICE_IDS)) console.log(`  ${name} ${id}`);
+    for (const [name, id] of Object.entries(UNTOUCHED_PRICE_IDS)) console.log(`  ${name} ${id}`);
   } else {
     writeCheckout(created);
     console.log("Updated src/lib/plans.ts PUBLIC_CHECKOUT.");
@@ -254,7 +256,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  const message = err instanceof Error ? err.message : "Stripe reprice failed";
-  console.error(message);
+  console.error(safeMessage(err));
   process.exit(1);
 });

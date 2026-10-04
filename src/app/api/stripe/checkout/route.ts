@@ -1,31 +1,40 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { stripe, getRequestBaseUrl } from "@/lib/stripe";
+import { stripe, getRequestBaseUrl, redactStripeMessage } from "@/lib/stripe";
 import { getCurrentUser } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
 import { isSelfServeCheckoutPlan, planByPriceId, planByKey } from "@/lib/plans";
+import { ensurePublicPrice } from "@/lib/ensure-public-price";
+import { publicPriceSlot } from "@/lib/public-catalog";
 
-const schema = z.object({
-  priceId: z.string().min(1, "Price ID is required"),
-  plan: z
-    .enum([
-      "weekly",
-      "monthly",
-      "yearly",
-      "dual_yearly",
-      "starter_monthly",
-      "starter_yearly",
-      "pro_monthly",
-      "pro_yearly",
-    ])
-    .optional(),
-  // Which bot the buyer wants for a single-bot plan. Ignored for "both" plans.
-  bot: z.enum(["stock", "crypto"]).optional(),
-});
+const schema = z
+  .object({
+    priceId: z.string().optional(),
+    plan: z
+      .enum([
+        "weekly",
+        "monthly",
+        "yearly",
+        "dual_yearly",
+        "starter_monthly",
+        "starter_yearly",
+        "pro_monthly",
+        "pro_yearly",
+      ])
+      .optional(),
+    // Which bot the buyer wants for a single-bot plan. Ignored for "both" plans.
+    bot: z.enum(["stock", "crypto"]).optional(),
+  })
+  .refine((body) => Boolean(body.plan) || Boolean(body.priceId?.trim()), {
+    message: "Plan is required",
+  });
 
 function serializeError(err: unknown) {
-  const e = err as any;
-  return { message: e?.message ?? "Unknown error", code: e?.code ?? null };
+  const e = err as { message?: string; code?: string | null };
+  return {
+    message: redactStripeMessage(e?.message ?? "Unknown error"),
+    code: e?.code ?? null,
+  };
 }
 
 /**
@@ -44,11 +53,15 @@ export async function POST(req: Request) {
     if (!parsed.success) {
       return NextResponse.json({ ok: false, error: parsed.error.flatten() }, { status: 400 });
     }
-    const { priceId, bot } = parsed.data;
+    const { bot } = parsed.data;
+    const requestedKey = parsed.data.plan;
+    const requestedPriceId = parsed.data.priceId?.trim() || "";
 
-    // Resolve the plan from the price id (authoritative) or the passed key.
-    const planDef = planByPriceId(priceId) || planByKey(parsed.data.plan);
-    if (!planDef || planDef.priceId !== priceId) {
+    // Starter and Pro ignore a client-supplied price id. The server attaches
+    // the catalog Price (found or created from STRIPE_SECRET_KEY). Legacy Apex
+    // still requires the committed price id.
+    const planDef = (requestedKey ? planByKey(requestedKey) : undefined) || planByPriceId(requestedPriceId);
+    if (!planDef) {
       return NextResponse.json({ ok: false, error: "Unknown plan / price id" }, { status: 400 });
     }
     const selfServe = isSelfServeCheckoutPlan(planDef);
@@ -63,6 +76,12 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
+    if (!selfServe && planDef.priceId !== requestedPriceId) {
+      return NextResponse.json({ ok: false, error: "Unknown plan / price id" }, { status: 400 });
+    }
+
+    const slot = publicPriceSlot(planDef.key);
+    const priceId = slot ? await ensurePublicPrice(slot.key) : planDef.priceId;
 
     // For single-bot plans a bot choice is required; dual plans unlock both.
     const botAccess = planDef.botAccess === "both" ? "both" : bot === "crypto" ? "crypto" : "stock";
@@ -100,7 +119,7 @@ export async function POST(req: Request) {
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       customer: customerId,
-      line_items: [{ price: planDef.priceId, quantity: 1 }],
+      line_items: [{ price: priceId, quantity: 1 }],
       client_reference_id: user._id,
       metadata: meta,
       subscription_data: subscriptionData as any,
