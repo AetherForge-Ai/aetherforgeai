@@ -1,4 +1,5 @@
 import { LegalShell, LegalSection } from "@/components/legal/LegalShell";
+import { LEGAL_ENTITY_NAME } from "@/lib/company";
 
 export const metadata = {
   title: "AI Privacy Policy — AetherForge AI",
@@ -12,13 +13,14 @@ export default function PrivacyPolicy() {
   return (
     <LegalShell
       title="Privacy Policy"
-      subtitle="This policy explains how AetherForge AI collects, uses, discloses and protects your personal information in accordance with the Privacy Act 2020 (New Zealand) and its thirteen Information Privacy Principles (IPPs). AetherForge AI is a New Zealand–owned and operated service."
+      subtitle={`This policy explains how AetherForge AI collects, uses, discloses and protects your personal information in accordance with the Privacy Act 2020 (New Zealand) and its thirteen Information Privacy Principles (IPPs). AetherForge AI is the trading name of ${LEGAL_ENTITY_NAME}, a New Zealand limited company.`}
       updated={UPDATED}
     >
       <LegalSection heading="1. Who we are">
         <p>
-          AetherForge AI (&quot;AetherForge AI&quot;, &quot;we&quot;, &quot;us&quot; or &quot;our&quot;) operates the
-          website <strong className="text-foreground/90">www.aetherforgeai.co.nz</strong> and provides
+          AetherForge AI is the trading name of {LEGAL_ENTITY_NAME} (&quot;AetherForge AI&quot;, &quot;we&quot;,
+          &quot;us&quot; or &quot;our&quot;). We operate the website{" "}
+          <strong className="text-foreground/90">www.aetherforgeai.co.nz</strong> and provide
           AI-generated market intelligence and portfolio-monitoring tools. We are the &quot;agency&quot;
           responsible for your personal information under the Privacy Act 2020.
         </p>

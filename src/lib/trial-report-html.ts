@@ -10,6 +10,7 @@
  * safe on server and never touches the network.
  */
 
+import { LEGAL_ENTITY_NAME } from "@/lib/company";
 import type {
   TrialReport,
   TrialTickerAnalysis,
@@ -372,7 +373,7 @@ export function renderTrialReportHtml(report: TrialReport, opts: { userName?: st
           <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,${CYAN},${VIOLET});display:inline-block;text-align:center;line-height:36px;font-weight:900;color:${VOID}">A</div>
           <div>
             <span style="font-size:18px;font-weight:900;letter-spacing:.02em;color:${INK}">AetherForge&nbsp;AI</span>
-            <div style="font-size:10px;color:${FAINT};letter-spacing:.06em;text-transform:uppercase">Forge Intelligence Ltd</div>
+            <div style="font-size:10px;color:${FAINT};letter-spacing:.06em;text-transform:uppercase">${LEGAL_ENTITY_NAME}</div>
           </div>
         </div>
         <div style="margin-top:16px;display:flex;flex-wrap:wrap;gap:8px;align-items:center">
@@ -413,7 +414,7 @@ export function renderTrialReportHtml(report: TrialReport, opts: { userName?: st
       </div>
 
       <div style="background:${PANEL};padding:16px 28px;color:${FAINT};font-size:11px;text-align:center;border-top:1px solid ${LINE}">
-        © Forge Intelligence Ltd · AetherForge AI · www.aetherforgeai.co.nz
+        © ${LEGAL_ENTITY_NAME} · AetherForge AI · www.aetherforgeai.co.nz
       </div>
     </div>
   </body></html>`;

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { LEGAL_ENTITY_NAME } from "@/lib/company";
 import { SiteHeader } from "@/components/SiteHeader";
 import { BrandLogo } from "@/components/BrandLogo";
 import { LiveExamplesGallery } from "@/components/performance/LiveExamplesGallery";
@@ -25,27 +26,26 @@ export const metadata: Metadata = {
   },
 };
 
-// ── Section 3 — proof stat/feature cards ──
-const PROOF_STATS = [
+const SAMPLE_NOTES = [
   {
     icon: BadgeCheck,
-    title: "Figures you can check",
-    body: "Prices on these screens can be compared with the NZX and ASX prints from that session. They are a dated sample, not a forecast.",
+    title: "One paper book",
+    body: "Every screenshot is the same paper portfolio on 7–8 July 2026. AetherForge did not place the trades.",
   },
   {
     icon: Zap,
-    title: "A same-day informational read",
-    body: "Prices, P/L and 7-day scenario ranges are marked as of that session. They are illustrative. They are not an instruction to trade.",
+    title: "One meaning of 1.98%",
+    body: "1.98% is the mark-to-market change from NZ$100,429 to the day's high of NZ$102,421.30, over about 8–9 hours. It is not a 7-day figure and not a forecast.",
   },
   {
     icon: BrainCircuit,
-    title: "Removes emotion from decisions",
-    body: "Sharpe ratio, volatility, win rate and diversification are computed for you — cold, consistent numbers instead of gut feel.",
+    title: "One Sharpe reading",
+    body: "The +30 minute screen shows Sharpe 0.15. That is the only Sharpe quoted on this page.",
   },
   {
     icon: Globe2,
-    title: "NZX + ASX + global, together",
-    body: "Local shares, US equities, top-100 crypto and physical metals tracked side by side in one consolidated NZD view.",
+    title: "One day's high",
+    body: "NZ$102,421.30 is the highest mark that day. NZ$101,931.77 is an earlier reading, not the high.",
   },
 ];
 
@@ -59,7 +59,7 @@ export default function PerformancePage() {
         {/* ─────────────────────────  INTRO  ───────────────────────── */}
         <section className="mx-auto max-w-3xl px-4 pt-14 pb-10 text-center sm:px-6 sm:pt-16 sm:pb-12 lg:px-8">
           <h1 className="font-grift-black text-4xl tracking-tight text-amber-400 sm:text-5xl">
-            Live Results
+            Example results
           </h1>
           <div className="mt-6 space-y-4 text-base leading-relaxed text-muted-foreground sm:mt-8 sm:text-lg">
             <p>
@@ -68,8 +68,8 @@ export default function PerformancePage() {
               Treat them as a single dated sample.
             </p>
             <p>
-              These screenshot images that I have uploaded are verified by the Stock Markets share
-              prices on that day and at these times.
+              Each screenshot is dated with the prices that were on that screen. Together they are one
+              sample of one paper book.
             </p>
             <p>
               Over that day the paper portfolio showed about a 1.98% mark-to-market change across
@@ -92,7 +92,7 @@ export default function PerformancePage() {
           <div className="mx-auto mt-12 flex max-w-3xl flex-col items-center gap-3 rounded-3xl border border-primary/20 bg-gradient-to-br from-primary/10 via-card/40 to-card/40 p-8 text-center">
             <LineChart className="size-8 text-primary" />
             <p className="font-display text-xl font-bold sm:text-2xl">
-              One paper book, one day: NZ$100,429 → NZ$101,645 → NZ$101,931 → NZ$102,421
+              One paper book, 7–8 July 2026: NZ$100,429 to a day's high of NZ$102,421.30 (about 1.98%)
             </p>
             <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
               Seven timestamped snapshots from a single session. The marks moved by about NZ$2,000
@@ -106,16 +106,16 @@ export default function PerformancePage() {
           </div>
         </section>
 
-        {/* ────────────  3 · WHAT THESE EXAMPLES PROVE  ──────────── */}
+        {/* ────────────  WHAT THIS DATED SAMPLE SHOWS  ──────────── */}
         <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
           <div className="mx-auto mb-12 max-w-2xl text-center">
-            <p className="text-sm font-semibold uppercase tracking-wider text-primary">The proof</p>
+            <p className="text-sm font-semibold uppercase tracking-wider text-primary">The sample</p>
             <h2 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">
               What this dated sample shows
             </h2>
           </div>
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {PROOF_STATS.map((s) => (
+            {SAMPLE_NOTES.map((s) => (
               <div
                 key={s.title}
                 className="group rounded-3xl border border-border/70 bg-card/40 p-6 transition-all duration-300 hover:-translate-y-1 hover:border-primary/40"
@@ -142,12 +142,12 @@ export default function PerformancePage() {
               <div className="max-w-sm text-center sm:text-left">
                 <BrandLogo animated markClassName="size-11" wordmarkClassName="text-lg" />
                 <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-                  New Zealand–owned and operated multi-asset market intelligence. Turning NZX, ASX and
-                  global market data into decisive clarity.
+                  {LEGAL_ENTITY_NAME}, a New Zealand limited company. Market intelligence for NZX, ASX
+                  and global markets.
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-x-10 gap-y-2 text-sm text-muted-foreground">
-                <Link href="/performance" className="hover:text-foreground">Live results</Link>
+                <Link href="/performance" className="hover:text-foreground">Example results</Link>
                 <Link href="/how-it-works" className="hover:text-foreground">How it works</Link>
                 <Link href="/pricing" className="hover:text-foreground">Pricing</Link>
                 <Link href="/about" className="hover:text-foreground">About</Link>
@@ -155,7 +155,6 @@ export default function PerformancePage() {
                 <Link href="/terms-of-service" className="hover:text-foreground">Terms</Link>
                 <Link href="/ai-disclaimer" className="hover:text-foreground">AI Disclaimer</Link>
                 <Link href="/docs" className="hover:text-foreground">Docs</Link>
-                <Link href="/blog" className="hover:text-foreground">Blog</Link>
               </div>
             </div>
 
@@ -167,9 +166,8 @@ export default function PerformancePage() {
                 indicator of future results. Markets can fall as well as rise.
               </p>
               <p className="mt-3 text-center text-xs leading-relaxed text-muted-foreground/70">
-                © {new Date().getFullYear()} AetherForge AI — New Zealand owned &amp; operated. For
-                informational purposes only. Not licensed financial advice under the Financial Markets
-                Conduct Act 2013.
+                © {new Date().getFullYear()} {LEGAL_ENTITY_NAME}. For informational purposes only. Not
+                licensed financial advice under the Financial Markets Conduct Act 2013.
               </p>
             </div>
           </div>

@@ -18,6 +18,7 @@ import {
 import { api } from "@/lib/api";
 import { SiteHeader } from "@/components/SiteHeader";
 import { LOGO_MARK_IMG, ABOUT_HERO_IMG, FOUNDER_PORTRAIT_IMG } from "../../../assets/files";
+import { FOUNDER_NAME, LEGAL_ENTITY_NAME, NZBN, REGISTERED_OFFICE } from "@/lib/company";
 
 /* ---- Official brand marks (lucide dropped brand icons) ---- */
 function XLogo({ className }: { className?: string }) {
@@ -82,38 +83,38 @@ const STORY: { text: string; pull?: boolean }[] = [
     text: "When AI started becoming accessible to everyone, I had an idea. What if I could build my own AI tool to keep an eye on the New Zealand and Australian stock markets? I began with a simple bot designed to monitor the NZX and ASX and alert on news that could move the markets.",
   },
   {
-    text: "After fine-tuning it through several experimental phases and rigorously checking its accuracy, I realised the true power of what I had created. I spent weeks strengthening the system, making it as robust and dependable as possible.",
+    text: "After several versions, I kept working on the notes so they would be clear. The product stayed a paper book: it watches markets and writes them down. It does not place a trade.",
   },
   {
     text: "I looked at what else was available. Plenty of AI tools want to take over your trading decisions completely. That wasn't my vision at all.",
   },
   { pull: true, text: "I want you to stay in control." },
   {
-    text: "My goal is to give you the same high-quality insights and cause-and-effect analysis that professional traders use — but you make every decision. You add your portfolio, set your alerts and stop levels, and execute your own trades. The satisfaction of watching your wealth grow because of your own informed choices is something no automated system can ever give you.",
+    text: "My goal is to put plain-English market information in front of you, and leave every decision with you. You add your portfolio, note the levels you care about, and place any trade yourself.",
   },
   {
     text: "After searching extensively, I discovered there was nothing quite like this available in New Zealand — nothing built specifically for our local markets with this empowering philosophy.",
   },
   {
-    text: "So I built AetherForge AI for my fellow New Zealanders. To stand beside you, offering clear guidance and support so we can all move forward together.",
+    text: "So I built AetherForge AI for my fellow New Zealanders. The notes are there to read. The decision stays yours.",
   },
   {
     pull: true,
     text: "I'm not here to take a cut of your success. I genuinely want to see everyday Kiwis do well.",
   },
   {
-    text: "It's time we, the 95% who hold just 5% of the wealth, had access to tools that help us break into that top tier. This is my answer to that.",
+    text: "Everyday New Zealanders should be able to read market information and keep the decision. That is what I built this for.",
   },
   {
-    text: "It is with real pride and honour that I launch AetherForge AI — created in New Zealand, for New Zealanders, owned and operated 100% by New Zealanders.",
+    text: "It is with real pride that I launch AetherForge AI — created in New Zealand, for New Zealanders, and operated by a New Zealand limited company.",
   },
 ];
 
 const PILLARS = [
   {
     icon: ShieldCheck,
-    title: "We don't trade for you — we empower you",
-    desc: "You stay in complete control. We surface professional-grade insight and cause-and-effect analysis; every buy, sell, alert and stop level is your call.",
+    title: "We don't trade for you",
+    desc: "You stay in control. The product writes down what the figures show. Any buy, sell, or level you note is your decision, at your own broker.",
   },
   {
     icon: MapPin,
@@ -358,7 +359,7 @@ export function AboutContent() {
           <Reveal>
             <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-1.5 text-xs font-semibold tracking-wide text-white backdrop-blur">
               <span className="size-1.5 rounded-full bg-[#059669] shadow-[0_0_10px_2px_rgba(5,150,105,0.7)]" />
-              100% NZ Owned &amp; Operated
+              Registered in New Zealand
               <span className="text-white/40">•</span>
               <span style={{ color: "#D9B27C" }}>Freshly Launched 2026</span>
             </span>
@@ -415,9 +416,8 @@ export function AboutContent() {
           </Reveal>
           <Reveal delay={100}>
             <p className="mx-auto mt-7 max-w-3xl text-lg leading-relaxed text-[#475569]">
-              AetherForge AI operates under <strong className="font-semibold text-[#0F172A]">Forge
-              Intelligence Limited</strong> — a proudly 100% New Zealand-owned and operated company that has
-              only just been made available to the public. The product covers{" "}
+              AetherForge AI operates under <strong className="font-semibold text-[#0F172A]">{LEGAL_ENTITY_NAME}</strong>,
+              a New Zealand limited company. The product covers{" "}
               <strong className="font-semibold text-[#0F172A]">NZX, ASX, US equities, crypto and precious metals</strong>{" "}
               in one NZD paper book. It started as an NZX and ASX monitor. It does not place trades —
               you stay in control of every decision at your own broker.
@@ -484,7 +484,7 @@ export function AboutContent() {
                 <div className="mt-9 flex items-center gap-3">
                   <div className="h-px flex-1" style={{ backgroundColor: "rgba(15,23,42,0.1)" }} />
                   <span className="font-display text-sm font-semibold italic text-[#64748B]">
-                    — The founder, AetherForge AI
+                    — {FOUNDER_NAME}, founder, AetherForge AI
                   </span>
                 </div>
               </Reveal>
@@ -508,8 +508,8 @@ export function AboutContent() {
                       }}
                     />
                     <div className="absolute inset-x-0 bottom-0 p-5">
-                      <p className="font-display text-base font-bold text-white">Founder &amp; Builder</p>
-                      <p className="mt-0.5 text-sm text-white/80">Forge Intelligence Limited</p>
+                      <p className="font-display text-base font-bold text-white">{FOUNDER_NAME}</p>
+                      <p className="mt-0.5 text-sm text-white/80">Founder · {LEGAL_ENTITY_NAME}</p>
                     </div>
                     <span
                       className="absolute right-4 top-4 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold text-white"
@@ -575,17 +575,12 @@ export function AboutContent() {
                 style={{ background: "radial-gradient(circle, rgba(5,150,105,0.5), transparent 70%)" }}
               />
               <div className="relative">
-                <div className="flex items-end justify-center gap-3">
-                  <span className="font-display text-6xl font-extrabold text-white sm:text-7xl">95%</span>
-                  <span className="pb-2 text-lg font-medium text-white/60">of us</span>
-                </div>
-                <p className="mx-auto mt-5 max-w-2xl font-display text-xl font-semibold leading-snug text-white sm:text-2xl">
-                  hold just <span style={{ color: "#34D399" }}>5%</span> of the wealth. It&apos;s time we had
-                  the tools to break into that top tier.
+                <p className="mx-auto max-w-2xl font-display text-xl font-semibold leading-snug text-white sm:text-2xl">
+                  Market information for everyday New Zealanders. Every decision stays yours.
                 </p>
                 <p className="mx-auto mt-4 max-w-xl text-[15px] leading-relaxed text-white/60">
-                  AetherForge AI is our answer to that — professional-grade insight placed in the hands of
-                  everyday Kiwis, so your success stays entirely your own.
+                  AetherForge AI is a paper book and a set of notes. It does not take a share of a result,
+                  and it does not place a trade.
                 </p>
               </div>
             </div>
@@ -603,8 +598,7 @@ export function AboutContent() {
                 We&apos;re here to support you
               </h2>
               <p className="mt-5 text-lg leading-relaxed text-[#475569]">
-                We&apos;re here to support you on your wealth-building journey. Reach out anytime — we&apos;d
-                love to hear from you.
+                Questions about the product, an account, or a bill can come to the addresses below.
               </p>
             </Reveal>
           </div>
@@ -710,10 +704,20 @@ export function AboutContent() {
                     Follow us on X, Facebook and LinkedIn for market updates, product news and what
                     we&apos;re building next.
                   </p>
-                  <p className="mt-3 flex items-start gap-2 text-sm leading-relaxed text-[#64748B]">
-                    <MapPin className="mt-0.5 size-4 shrink-0 text-[#94A3B8]" />
-                    Physical/postal address to be added shortly.
-                  </p>
+                  <div className="mt-4 space-y-2 text-sm leading-relaxed text-[#334155]">
+                    <p className="font-semibold text-[#0F172A]">Company</p>
+                    <p>{LEGAL_ENTITY_NAME}</p>
+                    <p>NZBN {NZBN}</p>
+                    <p className="flex items-start gap-2">
+                      <MapPin className="mt-0.5 size-4 shrink-0 text-[#64748B]" />
+                      <span>
+                        Registered office
+                        <br />
+                        {REGISTERED_OFFICE}
+                      </span>
+                    </p>
+                    <p>Founder: {FOUNDER_NAME}</p>
+                  </div>
                 </div>
               </Reveal>
             </div>
@@ -769,9 +773,6 @@ export function AboutContent() {
               <Link href="/docs" className="text-white/70 transition-colors hover:text-white">
                 Docs
               </Link>
-              <Link href="/blog" className="text-white/70 transition-colors hover:text-white">
-                Blog
-              </Link>
               <Link href="/pricing" className="text-white/70 transition-colors hover:text-white">
                 Pricing
               </Link>
@@ -793,7 +794,7 @@ export function AboutContent() {
 
           <div className="mt-10 border-t border-white/10 pt-6 text-center">
             <p className="text-xs leading-relaxed text-white/50">
-              © 2026 Forge Intelligence Limited. All rights reserved.
+              © 2026 {LEGAL_ENTITY_NAME}. All rights reserved.
             </p>
           </div>
         </div>

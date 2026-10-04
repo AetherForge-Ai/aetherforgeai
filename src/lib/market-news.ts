@@ -12,18 +12,14 @@
  *  - Optional: CryptoCompare when CRYPTOCOMPARE_API_KEY is set
  *  - Optional: Twelve Data /press_releases when MARKET_DATA_API_KEY is set
  *
- * On any failure (or thin coverage) falls back to the curated NEWS_POOL /
- * CRYPTO_NEWS_POOL with day-rotated relative times — never blanks the page.
+ * Stories without a publisher date, or without an article path, are dropped.
+ * The public fallback is the dated official cards only — not an invented wire.
  */
 
 import "server-only";
 
-import {
-  getMarketNews as getCuratedNews,
-  type AssetClass,
-  type MarketCode,
-  type NewsItem,
-} from "@/lib/market-intel";
+import { type AssetClass, type MarketCode, type NewsItem } from "@/lib/market-intel";
+import { hasArticlePath, officialPublicNews, prepareNewsFeed } from "@/lib/news-present";
 import { keywordSentiment } from "@/lib/news-sentiment";
 
 const NEWS_TTL_MS = 4 * 60 * 60 * 1000; // ~4h — refreshes at least daily
@@ -138,10 +134,14 @@ function relevanceFor(text: string, assetClass: AssetClass, market: MarketCode |
   return Math.max(40, Math.min(98, score));
 }
 
-function toNewsItem(raw: RawStory, assetClass: AssetClass): NewsItem {
+function toNewsItem(raw: RawStory, assetClass: AssetClass): NewsItem | null {
+  if (!raw.url.startsWith("http") || !hasArticlePath(raw.url)) return null;
+  if (Number.isNaN(raw.publishedAt.getTime())) return null;
   const blob = `${raw.headline} ${raw.summary}`;
   const market = raw.marketHint ?? inferMarket(blob, assetClass === "crypto" ? "CRYPTO" : "Global");
   const { sentiment } = keywordSentiment(blob);
+  const url = raw.url;
+  const publishedOn = raw.publishedAt.toISOString();
   return {
     headline: raw.headline.slice(0, 220),
     summary: (raw.summary || raw.headline).slice(0, 420),
@@ -149,8 +149,9 @@ function toNewsItem(raw: RawStory, assetClass: AssetClass): NewsItem {
     market,
     impact: sentiment,
     relevance: relevanceFor(blob, assetClass, market),
-    time: formatRelativeTime(raw.publishedAt),
-    url: raw.url || "https://www.aetherforgeai.co.nz/market-news",
+    publishedOn,
+    time: publishedOn,
+    url,
     imageUrl: raw.imageUrl,
   };
 }
@@ -202,6 +203,7 @@ function parseFeedXml(xml: string, sourceFallback: string, marketHint?: MarketCo
       if (href) link = decodeXml(href[1]);
     }
     link = link.trim();
+    if (!link.startsWith("http") || !hasArticlePath(link)) continue;
 
     const pubRaw =
       tagBetween(block, "pubDate") ||
@@ -209,7 +211,8 @@ function parseFeedXml(xml: string, sourceFallback: string, marketHint?: MarketCo
       tagBetween(block, "updated") ||
       tagBetween(block, "dc:date") ||
       "";
-    const publishedAt = pubRaw ? new Date(pubRaw) : new Date();
+    if (!pubRaw) continue;
+    const publishedAt = new Date(pubRaw);
     if (Number.isNaN(publishedAt.getTime())) continue;
     // Drop stories older than ~10 days — keep the feed feeling fresh.
     if (Date.now() - publishedAt.getTime() > 10 * 24 * 60 * 60 * 1000) continue;
@@ -228,7 +231,7 @@ function parseFeedXml(xml: string, sourceFallback: string, marketHint?: MarketCo
       headline: title,
       summary: desc.slice(0, 420),
       source: creator.slice(0, 80) || sourceFallback,
-      url: link.startsWith("http") ? link : `https://www.aetherforgeai.co.nz/market-news`,
+      url: link,
       publishedAt,
       imageUrl,
       marketHint,
@@ -276,9 +279,8 @@ async function fetchYahooSearchNews(query: string, count = 8): Promise<RawStory[
     const json = (await res.json()) as { news?: YahooNewsHit[] };
     return (json.news || [])
       .map((n) => {
-        const publishedAt = n.providerPublishTime
-          ? new Date(n.providerPublishTime * 1000)
-          : new Date();
+        if (!n.providerPublishTime) return null;
+        const publishedAt = new Date(n.providerPublishTime * 1000);
         const img = n.thumbnail?.resolutions?.[0]?.url;
         return {
           headline: String(n.title || "").trim(),
@@ -289,7 +291,7 @@ async function fetchYahooSearchNews(query: string, count = 8): Promise<RawStory[
           imageUrl: img,
         } as RawStory;
       })
-      .filter((s) => s.headline.length >= 12 && s.url.startsWith("http"));
+      .filter((s): s is RawStory => !!s && s.headline.length >= 12 && s.url.startsWith("http") && hasArticlePath(s.url));
   } catch (err) {
     console.error(`[market-news] Yahoo search failed for "${query}":`, err);
     return [];
@@ -320,7 +322,7 @@ async function fetchTwelvePressReleases(limit = 6): Promise<RawStory[]> {
             summary: body || title,
             source: "Company Wire",
             url: `https://www.twelvedata.com/`,
-            publishedAt: pr.datetime ? new Date(pr.datetime) : new Date(),
+            publishedAt: pr.datetime ? new Date(pr.datetime) : new Date(NaN),
             marketHint: inferMarket(`${title} ${symbol}`),
           });
         }
@@ -345,18 +347,19 @@ async function fetchCryptoCompareNews(limit = 12): Promise<RawStory[]> {
     }
     const json = (await res.json()) as { Data?: any[]; Err?: unknown };
     if (!Array.isArray(json.Data)) return [];
-    return json.Data.slice(0, limit).map((n) => {
+    return json.Data.slice(0, limit).flatMap((n) => {
+      if (!n.published_on || !String(n.url || "").startsWith("http")) return [];
       const title = String(n.title || "");
       const body = String(n.body || "");
-      return {
+      return [{
         headline: title,
         summary: body.slice(0, 420) || title,
         source: String(n.source_info?.name || n.source || "Crypto Wire"),
         url: String(n.url || n.guid || ""),
-        publishedAt: n.published_on ? new Date(Number(n.published_on) * 1000) : new Date(),
+        publishedAt: n.published_on ? new Date(Number(n.published_on) * 1000) : new Date(NaN),
         imageUrl: n.imageurl ? String(n.imageurl) : undefined,
         marketHint: "CRYPTO" as const,
-      };
+      }];
     });
   } catch (err) {
     console.error("[market-news] CryptoCompare failed:", err);
@@ -421,9 +424,9 @@ async function loadCryptoStories(): Promise<RawStory[]> {
 }
 
 /**
- * Async loader used by GET /api/market (and other server routes).
- * Returns live headlines when available; otherwise the curated pool with
- * day-rotated relative times.
+ * Async loader used by GET /api/market.
+ * Live stories need a publisher date and an article link. Otherwise the
+ * response is the dated official cards, not an invented wire.
  */
 export async function loadMarketNews(assetClass: AssetClass = "stock"): Promise<NewsItem[]> {
   const cacheKey = `news-${assetClass}`;
@@ -435,22 +438,21 @@ export async function loadMarketNews(assetClass: AssetClass = "stock"): Promise<
     const live = raw
       .filter((s) => s.headline.length >= 12)
       .slice(0, 18)
-      .map((s) => toNewsItem(s, assetClass))
+      .flatMap((s) => {
+        const item = toNewsItem(s, assetClass);
+        return item ? [item] : [];
+      })
       .sort((a, b) => b.relevance - a.relevance);
 
-    if (live.length >= 4) {
-      console.log(`[market-news] Serving ${live.length} live ${assetClass} headlines`);
-      writeCache(cacheKey, live);
-      return live;
-    }
-    console.warn(
-      `[market-news] Live coverage thin (${live.length}) for ${assetClass} — using curated fallback`
-    );
+    const dated = prepareNewsFeed(live);
+    console.log(`[market-news] Serving ${dated.length} dated ${assetClass} headlines (${live.length} from feeds)`);
+    writeCache(cacheKey, dated);
+    return dated;
   } catch (err) {
     console.error(`[market-news] loadMarketNews(${assetClass}) failed:`, err);
   }
 
-  const fallback = getCuratedNews(assetClass);
+  const fallback = officialPublicNews();
   writeCache(cacheKey, fallback);
   return fallback;
 }

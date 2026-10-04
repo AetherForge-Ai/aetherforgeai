@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getFxSnapshot } from "@/lib/fx";
-import { formatUsdApprox } from "@/lib/currency";
+import { formatUsdWithRate } from "@/lib/currency";
+import { LEGAL_ENTITY_NAME } from "@/lib/company";
 import { SiteHeader } from "@/components/SiteHeader";
 import { BrandLogo } from "@/components/BrandLogo";
 import { Button } from "@/components/ui/button";
@@ -65,7 +66,9 @@ const BOT_PRICE_NZD = 300;
 export default async function OwnTheBotsPage() {
   // Resolve a live NZD→USD rate so the NZ$300 price can show its US$ equivalent.
   const fx = await getFxSnapshot();
-  const botPriceUsd = formatUsdApprox(BOT_PRICE_NZD, fx.ratesToNZD, { decimals: 2 });
+  const botPriceUsd = fx.live
+    ? formatUsdWithRate(BOT_PRICE_NZD, fx.ratesToNZD, fx.asOf, { decimals: 2 })
+    : "US$ unavailable — the exchange-rate feed did not answer.";
 
   return (
     <div className="chrome-dark relative min-h-screen bg-background bg-grid">
@@ -104,7 +107,7 @@ export default async function OwnTheBotsPage() {
                   <span className="text-gradient">Koins</span> Forever
                 </h1>
                 <p className="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-                  One-time NZ$300 purchase ({botPriceUsd} today). Receive the complete self-hosted AI market intelligence
+                  One-time NZ$300 purchase ({botPriceUsd}). Receive the complete self-hosted AI market intelligence
                   bot as a protected, compiled package — the same engine that powers this site.
                   Add your own portfolio and run it independently, offline, with no subscription.
                 </p>
@@ -160,7 +163,7 @@ export default async function OwnTheBotsPage() {
                           <p className="font-display text-2xl font-extrabold tracking-tight">
                             NZ$300 <span className="text-base font-semibold text-muted-foreground">one-time</span>
                           </p>
-                          <p className="text-xs font-medium text-muted-foreground/90">{botPriceUsd} today</p>
+                          <p className="text-xs font-medium text-muted-foreground/90">{botPriceUsd}</p>
                           <p className="text-xs text-muted-foreground">NZD · lifetime ownership</p>
                         </div>
                         <Button
@@ -224,7 +227,7 @@ export default async function OwnTheBotsPage() {
                           <p className="font-display text-2xl font-extrabold tracking-tight">
                             NZ$300 <span className="text-base font-semibold text-muted-foreground">one-time</span>
                           </p>
-                          <p className="text-xs font-medium text-muted-foreground/90">{botPriceUsd} today</p>
+                          <p className="text-xs font-medium text-muted-foreground/90">{botPriceUsd}</p>
                           <p className="text-xs text-muted-foreground">NZD · lifetime ownership</p>
                         </div>
                         <Button
@@ -311,7 +314,7 @@ export default async function OwnTheBotsPage() {
             <div className="flex flex-col items-center gap-4 text-center sm:flex-row sm:justify-between sm:text-left">
               <BrandLogo markClassName="size-9" wordmarkClassName="text-base" />
               <p className="max-w-md text-xs leading-relaxed text-muted-foreground">
-                © {new Date().getFullYear()} AetherForge AI · Forge Intelligence Ltd. One-time bot
+                © {new Date().getFullYear()} AetherForge AI · {LEGAL_ENTITY_NAME}. One-time bot
                 purchases are for informational use only and are not licensed financial advice.
               </p>
             </div>

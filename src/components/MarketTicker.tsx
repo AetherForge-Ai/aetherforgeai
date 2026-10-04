@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { tickerLiveLabel } from "@/lib/ticker-feed";
 import { cn } from "@/lib/utils";
+import { formatFxAsOf, formatMoney } from "@/lib/currency";
 
 /**
  * Market tape. Prices come only from GET /api/ticker (one live pipeline).
@@ -115,23 +116,22 @@ interface MetalsSpotFeed {
   gold: MetalSpot;
   silver: MetalSpot;
   live: boolean;
-}
-
-function fmtOz(nzd: number): string {
-  return nzd.toLocaleString("en-NZ", { maximumFractionDigits: nzd >= 1000 ? 0 : 2 });
+  asOf?: string;
 }
 
 function MetalsSpotBanner() {
   const [spot, setSpot] = useState<MetalsSpotFeed | null>(null);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let active = true;
     (async () => {
       const res = await api.get<MetalsSpotFeed>("/api/metals/spot");
-      if (active && res.ok && res.data) {
+      if (active && res.ok && res.data?.gold && res.data.silver) {
         setSpot(res.data);
         console.log("[metals-banner] Spot loaded:", res.data.live ? "live" : "est", res.data);
-      } else if (!res.ok) {
+      } else if (active) {
+        setFailed(true);
         console.error("[metals-banner] Spot fetch failed:", res.error);
       }
     })();
@@ -160,15 +160,17 @@ function MetalsSpotBanner() {
             {it.s ? (
               <>
                 <span className="tnum text-[0.8rem] font-medium text-zinc-100">
-                  NZ${fmtOz(it.s.nzdPerOz)}
+                  {formatMoney(it.s.nzdPerOz, "NZD")}
                   <span className="text-muted-foreground">/oz</span>
                 </span>
                 <span className="tnum text-[0.68rem] text-muted-foreground">
-                  US${fmtOz(it.s.usdPerOz)}
+                  {formatMoney(it.s.usdPerOz, "USD")}
                 </span>
               </>
             ) : (
-              <span className="text-[0.75rem] text-muted-foreground">Loading…</span>
+              <span className="text-[0.75rem] text-muted-foreground">
+                {failed ? "Spot prices failed to load." : "Loading…"}
+              </span>
             )}
           </span>
         ))}
@@ -177,9 +179,10 @@ function MetalsSpotBanner() {
             "rounded-full px-2 py-0.5 text-[0.58rem] font-bold uppercase tracking-wide",
             spot?.live ? "bg-emerald-500/15 text-emerald-600" : "bg-muted text-muted-foreground"
           )}
-          title={spot?.live ? "Live spot price" : "Estimated (live feed unavailable)"}
+          title={spot?.asOf ? formatFxAsOf(spot.asOf) : spot?.live ? "Live spot price" : "Estimated (live feed unavailable)"}
         >
-          {spot ? (spot.live ? "Live" : "Est.") : "…"}
+          {spot ? (spot.live ? "Live" : "Est.") : failed ? "Failed" : "…"}
+          {spot?.asOf ? ` · ${formatFxAsOf(spot.asOf)}` : ""}
         </span>
       </div>
     </div>

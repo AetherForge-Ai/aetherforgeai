@@ -3,7 +3,7 @@
  * All logos / icons / illustrative marks are referenced from here.
  */
 
-// ── Official business logo (Forge Intelligence Limited / AetherForge AI) ──
+// ── Official business logo (FORGE INTELLIGENCE LIMITED / AetherForge AI) ──
 // The customer's real shield emblem, cleanly cropped onto a transparent
 // background and served as an optimized static asset from /public/brand.
 // Use LOGO_MARK_IMG anywhere the brand mark is shown.

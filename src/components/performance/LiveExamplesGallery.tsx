@@ -33,85 +33,84 @@ type Proof = {
   points: string[];
 };
 
-// Honest, evidence-based captions written from what each screenshot actually
-// shows. The four shots are a single multi-asset portfolio tracked live through
-// 2026-07-08 — net worth climbing NZ$100,429 → NZ$101,240 → NZ$101,645.
+// One paper book, 7–8 July 2026. 1.98% is only the day's mark from
+// NZ$100,429 to NZ$102,421.30. The day's high is that last figure.
 const PROOFS: Proof[] = [
   {
     src: PROOF_TRANSACTIONS_IMG,
-    alt: "Paper portfolio transaction log from 7–8 July 2026 — NZX, ASX, US and crypto buys recorded with P&L and fees",
-    title: "Every Trade, Logged to the Cent — Across Four Markets at Once",
+    alt: "Paper portfolio log from 7–8 July 2026 — positions typed into the paper book, not orders sent to a broker",
+    title: "Paper log — positions entered on the book",
     badge: "7–8 Jul 2026 · 9:20am",
     points: [
-      "Real buys recorded across NZX (PEB.NZ), ASX (STO.AX), US equities (CDW), crypto (SOL · ADA · DOGE) and physical gold — one unified ledger.",
-      "Exact quantity, price, fees, cash impact and realised P&L captured automatically, timestamped 7–8 Jul 2026.",
-      "A clean audit trail means you always know your true cost basis before you sell — no spreadsheet guesswork.",
+      "This is a paper portfolio. AetherForge did not place these trades. The rows are entries on the paper book.",
+      "The log lists ticker, quantity, price and fees as they were entered on the paper book that morning.",
+      "It is a dated sample of the ledger screen, not an instruction and not a broker fill.",
     ],
   },
   {
     src: PROOF_NETWORTH_IMG,
-    alt: "Live portfolio bot performance proof — multi-asset net worth NZ$100,429 tracked in real time across stocks, crypto and metals",
-    title: "Your Entire Net Worth, Consolidated Live — NZ$100,429",
+    alt: "Paper portfolio on 7–8 July 2026 marked at NZ$100,429",
+    title: "Opening mark — NZ$100,429",
     badge: "7–8 Jul 2026",
     points: [
-      "Cash, stocks (NZ$55,567), crypto (NZ$19,700) and metals (NZ$14,808) totalled instantly into a single NZD figure.",
-      "Holdings in multiple currencies are converted with live FX, so your real position is never a rough estimate.",
-      "Allocation bars expose concentration at a glance — the first step to genuinely managing portfolio risk.",
+      "Cash, stocks (NZ$55,567), crypto (NZ$19,700) and metals (NZ$14,808) summed to NZ$100,429 on this paper book.",
+      "That figure is the start of the day used for the 1.98% mark-to-market change.",
+      "It is one session's paper mark, not a forecast.",
     ],
   },
   {
     src: PROOF_CRYPTO_IMG,
-    alt: "Paper portfolio crypto analytics from 7–8 July 2026 — Sharpe ratio, volatility, win rate and 7-day alpha",
-    title: "30 Minutes Later — NZ$101,240, With Institutional Analytics",
+    alt: "Paper portfolio about 30 minutes later on 7–8 July 2026, marked at NZ$101,240, Sharpe 0.15",
+    title: "About 30 minutes later — NZ$101,240",
     badge: "7–8 Jul 2026 · +30 min",
     points: [
-      "Real-time metrics most retail tools never show: Sharpe 0.15, annual volatility 42.9%, win rate 67%, diversification 67%.",
-      "A 7-day alpha potential of +1.98% and a 60/100 health score turn raw prices into a clear, actionable read.",
-      "Same portfolio as the shot before — the net worth updated live as the market moved beneath it.",
+      "The same paper book was marked at NZ$101,240. This snapshot is not the day's high and it is not the 1.98% figure.",
+      "The screen shows one Sharpe reading of 0.15, with volatility 42.9% and a health score of 60/100.",
+      "Those are labels on that screenshot. They are not a second return and not a claim about other platforms.",
     ],
   },
   {
     src: PROOF_STOCK_IMG,
     alt: "Paper portfolio net worth NZ$101,645 on 7–8 July 2026 at 2:30pm",
-    title: "By 2:30pm — NZ$101,645, Up ~NZ$1,200 on the Day",
+    title: "2:30pm — NZ$101,645",
     badge: "7–8 Jul 2026 · 2:30pm",
     points: [
-      "Stocks, crypto, metals and cash tracked simultaneously for one complete, real-time picture.",
-      "The same health, volatility, Sharpe and win-rate analytics applied across your equities book.",
-      "Three timestamped snapshots, one clear upward line — proof the numbers are live, not static marketing.",
+      "A later mark on the same paper book: NZ$101,645.",
+      "Still the same day, still short of the day's high.",
+      "An intermediate mark only. The 1.98% figure is the open-to-high change, not this card.",
     ],
   },
   {
     src: PROOF_CLOSE_IMG,
-    alt: "Paper portfolio net worth NZ$101,931 with NZ$1,836 unrealised profit on 8 July 2026 at 3:47pm",
-    title: "3:47pm — Net Worth NZ$101,931, the Day's High With +NZ$1,836 in Profit",
+    alt: "Paper portfolio net worth NZ$101,931.77 on 8 July 2026 at 3:47pm, before the day's high",
+    title: "3:47pm — NZ$101,931.77",
     badge: "8 Jul 2026 · 3:47pm",
     points: [
-      "The portfolio kept climbing: net worth ticked up again to NZ$101,931.77 — the highest reading of the day.",
-      "Unrealised profit of +NZ$1,836.51 on the stock book, with a standout Sharpe ratio of 2.96 and a 100% win rate on open positions.",
-      "From NZ$100,429 this morning to NZ$101,931 now — the same portfolio, tracked live and rising through the session.",
+      "Net worth was marked at NZ$101,931.77, with unrealised profit of NZ$1,836.51 shown on the stock book.",
+      "This is an earlier reading. It is not the highest mark of the day.",
+      "The day's high comes on the next screenshot.",
     ],
   },
   {
     src: PROOF_OVERVIEW_IMG,
-    alt: "Paper portfolio overview on 7–8 July 2026 — net worth NZ$102,421 with news sentiment and Sharpe ratio",
-    title: "New Day High — NZ$102,421 Net Worth, With Live News Sentiment Scoring",
+    alt: "Paper portfolio day's high of NZ$102,421.30 on 7–8 July 2026",
+    title: "Day's high — NZ$102,421.30",
     badge: "7–8 Jul 2026 · late session",
     points: [
-      "Net worth pushed to a fresh high of NZ$102,421.30 — the stock book alone now worth NZ$57,331.02.",
-      "Live news headlines are auto-scored for relevance and tagged Bullish or Bearish, so context arrives with the numbers.",
-      "The full command centre in one view: worth, unrealised P&L, 7-day alpha, health, volatility, Sharpe, diversification and win rate.",
+      "The highest mark that day was NZ$102,421.30. The stock book on this screen was NZ$57,331.02.",
+      "From the opening NZ$100,429 to this high is about 1.98% over 8–9 hours. That is the only meaning of 1.98% on this page.",
+      "It is one paper day. It is not a forecast and not a claim that AetherForge beats every platform.",
     ],
   },
   {
     src: PROOF_HOLDINGS_IMG,
-    alt: "Paper portfolio holdings table from 7–8 July 2026 with per-share cost, price and gain or loss",
-    title: "The Full Holdings Book — Every Position, Priced Live to the Cent",
+    alt: "Paper portfolio holdings table from 7–8 July 2026 at the day's high of NZ$102,421.30",
+    title: "Holdings at the day's high",
     badge: "7–8 Jul 2026 · late session",
     points: [
-      "A complete, itemised holdings table: ticker, company, exchange, shares, cost, live price, market value and gain/loss per line.",
-      "Stock allocation bar and totals across cash, stocks, crypto and metals — the same NZ$102,421 net worth, fully broken down.",
-      "Nothing hidden or rounded away: this is the exact position detail the bot works from, shown just as you'd see it.",
+      "The holdings table is the same paper book at the NZ$102,421.30 high.",
+      "Each line shows ticker, units, cost and the mark used that session.",
+      "Nothing here was sent to a broker.",
     ],
   },
 ];
@@ -214,7 +213,7 @@ export function LiveExamplesGallery() {
               </ul>
               <div className="mt-auto flex flex-wrap items-center gap-3 border-t border-border/50 pt-4 text-[11px] font-medium text-muted-foreground">
                 <span className="inline-flex items-center gap-1.5 text-primary">
-                  <ShieldCheck className="size-3.5" /> Verifiable against live markets
+                  <ShieldCheck className="size-3.5" /> Paper book · 7–8 July 2026
                 </span>
                 <span className="text-muted-foreground/60">·</span>
                 <span className="inline-flex items-center gap-1.5">

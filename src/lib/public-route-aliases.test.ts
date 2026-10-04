@@ -12,9 +12,11 @@ describe("legacy public routes", () => {
     expect(Object.fromEntries(PUBLIC_ROUTE_ALIASES.map((row) => [row.source, row.destination]))).toEqual({
       "/stock-markets": "/markets",
       "/live-results": "/performance",
+      "/about-us": "/about",
     });
     expect(publicAliasRedirect("/stock-markets")).toBe("/markets");
     expect(publicAliasRedirect("/live-results/")).toBe("/performance");
+    expect(publicAliasRedirect("/about-us")).toBe("/about");
     expect(publicAliasRedirect("/markets")).toBeNull();
   });
 
@@ -22,7 +24,9 @@ describe("legacy public routes", () => {
     const config = read("next.config.ts");
     expect(config).toContain("PUBLIC_ROUTE_ALIASES");
     const nav = read("src/components/TopNav.tsx");
-    expect(nav).toContain('{ href: "/performance", label: "Live Results"');
+    expect(nav).toContain('{ href: "/performance", label: "Example results"');
+    expect(nav).not.toContain('href: "/blog"');
+    expect(nav).not.toContain("label: \"Live Results\"");
     expect(nav).toContain('{ href: "/markets", label: "Stock Markets"');
     expect(nav).not.toContain('href: "/stock-markets"');
     expect(nav).not.toContain('href: "/live-results"');

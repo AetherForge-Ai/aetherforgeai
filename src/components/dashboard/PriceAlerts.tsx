@@ -69,9 +69,9 @@ interface FormState {
 }
 
 const STOCK_INSTRUCTIONS =
-  "Trim 25% at a 6-7% dip. Hard sell-out at the floor price. Take profits in the 12-15% band.";
+  "A trim marker of 25% is noted around a 6–7% dip. The hard-sell level is the floor you enter. A band of 12–15% is noted. These are information, not an instruction to trade.";
 const CRYPTO_INSTRUCTIONS =
-  "Sell out at -3% versus purchase. Start trimming 25% in the +8-12% band versus purchase.";
+  "A level 3% under the price paid is noted. A trim marker of 25% is noted in the +8–12% band. These are information, not an instruction to sell or trim.";
 
 const EMPTY_FORM: FormState = {
   ticker: "",
@@ -442,15 +442,15 @@ export function PriceAlerts({
                     </div>
                   )}
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Hard sell-out</span>
+                    <span className="text-muted-foreground">Hard-sell level</span>
                     <span className="tnum font-medium">{money(a.hardSellPrice, a.ticker, isCrypto, holding?.ticker)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Sell / stop</span>
+                    <span className="text-muted-foreground">Level vs price paid</span>
                     <span className="tnum font-medium">{formatSellStopChip(a)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Trim</span>
+                    <span className="text-muted-foreground">Trim marker</span>
                     <span className="tnum font-medium">{formatTrimChip(a)}</span>
                   </div>
                 </div>
@@ -629,15 +629,15 @@ export function PriceAlerts({
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="al-trim">Trim %</Label>
+                <Label htmlFor="al-trim">Trim marker %</Label>
                 <Input id="al-trim" type="number" step="any" value={form.trimPct} onChange={(e) => setForm({ ...form, trimPct: e.target.value })} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="al-dip">{isCrypto ? "Sell at loss vs purchase %" : "Trim at dip of %"}</Label>
+                <Label htmlFor="al-dip">{isCrypto ? "Level under price paid %" : "Noted if price is under by %"}</Label>
                 <Input id="al-dip" type="number" step="any" value={form.trimTriggerDipPct} onChange={(e) => setForm({ ...form, trimTriggerDipPct: e.target.value })} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="al-hard">Hard sell-out price</Label>
+                <Label htmlFor="al-hard">Hard-sell level</Label>
                 <Input id="al-hard" type="text" inputMode="decimal" value={form.hardSellPrice} onChange={(e) => setForm({ ...form, hardSellPrice: e.target.value })} placeholder="0.00058" />
               </div>
               <div className="grid grid-cols-2 gap-2">
@@ -653,13 +653,13 @@ export function PriceAlerts({
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="al-instr">Execution instructions</Label>
+              <Label htmlFor="al-instr">Note (information only)</Label>
               <Textarea
                 id="al-instr"
                 rows={3}
                 value={form.instructions}
                 onChange={(e) => setForm({ ...form, instructions: e.target.value })}
-                placeholder="e.g. Trim 25% at a 6-7% dip, hard sell-out at the floor, take profits 12-15%."
+                placeholder="e.g. A trim marker of 25% is noted around a 6–7% dip. This is information, not an instruction to trade."
               />
             </div>
 

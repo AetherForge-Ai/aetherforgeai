@@ -1,34 +1,36 @@
 import Link from "next/link";
+import { LEGAL_ENTITY_NAME } from "@/lib/company";
 import { SiteHeader } from "@/components/SiteHeader";
 import { MarketTicker } from "@/components/MarketTicker";
 import { HomeBottomCta, HomeHeroCtas } from "@/components/home/HomeSessionCtas";
 import { PersonalGuide } from "@/components/personal-guide";
+import { HomeMetalsPrices } from "@/components/home/HomeMetalsPrices";
 
 const BOTS = [
   {
     name: "Stox",
     role: "Stock markets",
     img: "/brand/bot-stox-fullbody.png",
-    blurb: "STOX monitors the Stock Market with Ultra Advanced analysis and reports tied to your portfolio.",
+    blurb: "Stox reads stock markets and writes reports about the holdings on your book.",
   },
   {
     name: "Koins",
     role: "Crypto markets",
     img: "/brand/bot-koins-fullbody.png",
-    blurb: "KOINS monitors the Crypto Currency World and surfaces what matters for your holdings.",
+    blurb: "Koins reads crypto markets and writes notes about the coins on your book.",
   },
   {
     name: "The Headmaster",
     role: "Goals & strategy",
     img: "/brand/bot-headmaster-fullbody.png",
-    blurb: "The Headmaster builds an investment plan and strategy with you, tailored to what your individual needs require.",
+    blurb: "The Headmaster sets out a goal plan you can read across the book. It is information, not personalised advice.",
   },
 ] as const;
 
 const STEPS = [
   {
     title: "Create Your Account",
-    body: "Sign up and get started for FREE right now. See for yourself how this works before you decide if you want to sign up.",
+    body: "Open a free account and look through the product before you choose a paid plan.",
     sitter: {
       name: "Stox",
       img: "/brand/bot-stox-fullbody.png",
@@ -38,7 +40,7 @@ const STEPS = [
   },
   {
     title: "Add your holdings",
-    body: "Enter into Dashboard section your current Stock Market or Crypto Market Investments, Enter Your Precious Metals Investment",
+    body: "Add the stocks, crypto, or metals you want on the paper book. A CSV of ticker, units, and price paid can be imported as well.",
     sitter: {
       name: "Smitty",
       img: "/brand/bot-smitty-holdings.png",
@@ -49,7 +51,7 @@ const STEPS = [
   },
   {
     title: "Meet the AI bots",
-    body: "Go to The Headmaster AI bot, Set Your Goals, Create a Strategy suitable to Your Needs and Requirements",
+    body: "Open The Headmaster and record the goals you want to read the book against. The plan is information. It is not personalised advice.",
     sitter: {
       name: "The Headmaster",
       img: "/brand/bot-headmaster-fullbody.png",
@@ -59,7 +61,7 @@ const STEPS = [
   },
   {
     title: "Use Stox and Koins",
-    body: "Generate reports with Stox and Koins. They read live market data and show probabilistic, illustrative short-term scenarios you can compare with the goals you set with The Headmaster. You still decide, and you buy or sell on your own broker.",
+    body: "When prices are available, Stox and Koins write illustrative scenarios from those prices. You compare them with the goals you set. You still decide, and any trade is placed at your own broker.",
     sitter: {
       name: "Koins",
       img: "/brand/bot-koins-fullbody.png",
@@ -84,18 +86,18 @@ export default function LandingPage() {
               <div className="grid items-center gap-12 lg:grid-cols-2">
                 <div>
                   <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-                    Live NZX · ASX · Crypto · Metals intelligence
+                    NZX · ASX · Crypto · Metals
                   </div>
                   <h1 className="mt-5 font-grift-black text-4xl tracking-tight text-amber-400 sm:text-5xl lg:text-[3.25rem] lg:leading-[1.1]">
-                    Data Backed Market Intelligence straight to You
+                    Market intelligence for the book you hold
                   </h1>
                   <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
                     Track stocks, crypto and precious metals,
-                    then use Stox, Koins and The Headmaster to turn live data into
+                    then use Stox, Koins and The Headmaster to turn market data into
                     illustrative scenarios and a goal plan. You execute elsewhere.
                   </p>
                   <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
-                    Not financial advice. Forge Intelligence Ltd is not a licensed financial
+                    Not financial advice. {LEGAL_ENTITY_NAME} is not a licensed financial
                     advice provider, and we don&apos;t place trades or take custody.{" "}
                     <Link href="/ai-disclaimer" className="font-medium text-primary hover:underline">
                       AI disclaimer
@@ -183,26 +185,7 @@ export default function LandingPage() {
                     alt="Smitty with gold and silver at the forge"
                     className="w-full h-auto rounded-3xl border border-border/70 shadow-xl"
                   />
-                  <div className="mx-auto mt-6 grid w-full max-w-xl gap-3 sm:grid-cols-2">
-                    <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-amber-400">
-                        Gold · XAU
-                      </p>
-                      <p className="mt-1 font-display text-xl font-bold text-amber-400">Live Daily Prices</p>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Inclines &amp; declines shown on your Dashboard
-                      </p>
-                    </div>
-                    <div className="rounded-2xl border border-slate-400/30 bg-slate-400/10 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-300">
-                        Silver · XAG
-                      </p>
-                      <p className="mt-1 font-display text-xl font-bold text-slate-200">Live Daily Prices</p>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Inclines &amp; declines shown on your Dashboard
-                      </p>
-                    </div>
-                  </div>
+                  <HomeMetalsPrices />
                 </div>
 
                 {/* Copy + cutout, top-aligned with large image */}
@@ -212,10 +195,7 @@ export default function LandingPage() {
                       Gold and silver — investment, currency, and a safe haven
                     </h3>
                     <p className="mt-4 text-base leading-relaxed text-muted-foreground sm:text-lg">
-                      Meet Smitty — AetherForge AI&apos;s precious-metals tracker. He understands how much precious metals mean to the
-                      world. We surface daily live Silver and
-                      Gold prices with inclines and declines so you can track the metals
-                      that matter. This desk does not run a separate report.
+                      Meet Smitty — AetherForge AI&apos;s precious-metals tracker. When the spot feed answers, the gold and silver figures here match the figures on Smitty, including the time they were taken. If the feed fails, the cards say so. This desk does not run a separate report.
                     </p>
                   </div>
                   <img
@@ -306,9 +286,6 @@ export default function LandingPage() {
           </Link>
           <Link href="/docs" className="hover:text-foreground">
             Docs
-          </Link>
-          <Link href="/blog" className="hover:text-foreground">
-            Blog
           </Link>
         </nav>
       </footer>

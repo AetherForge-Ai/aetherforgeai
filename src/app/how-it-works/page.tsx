@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { ExampleExplanationReport } from "@/components/how-it-works/ExampleExplanationReport";
 import type { Metadata } from "next";
+import { LEGAL_ENTITY_NAME } from "@/lib/company";
 import { SiteHeader } from "@/components/SiteHeader";
 import { BrandLogo } from "@/components/BrandLogo";
 import { Button } from "@/components/ui/button";
@@ -78,19 +80,19 @@ const STEPS = [
     n: "03",
     icon: Wallet,
     title: "Enter your investment details",
-    body: "Add each holding: the ticker code (e.g. BTC, FPH.NZ), the number of shares or units you bought, and the price you paid per unit.",
+    body: "Add each holding by hand, or import a CSV with ticker, units, price paid, and a date when the file has one.",
   },
   {
     n: "04",
     icon: Bell,
     title: "Set alerts on your holdings",
-    body: "Add smart alerts — Hard Sell levels, Trim % targets and more — so you're notified the moment a position hits a threshold that matters to you.",
+    body: "You can note a hard-sell level or a trim marker on a holding. The alert is information that a price was reached. It is not an instruction to sell or trim.",
   },
   {
     n: "05",
     icon: KeySquare,
     title: "Run The Headmaster — Portfolio Planning and Strategies",
-    body: "Let The Headmaster build a personalised plan across your whole portfolio, tuned to your goals and risk tolerance — equities and crypto considered together.",
+    body: "The Headmaster can lay out a goal plan across the book you entered. It is general information, not personalised advice, and it does not tell you what to buy or sell.",
   },
   {
     n: "06",
@@ -102,16 +104,16 @@ const STEPS = [
     n: "07",
     icon: FileBarChart,
     title: "Receive your AI report",
-    body: "Get a detailed report on your dashboard and by email, downloadable as a PDF, with illustrative moves. You decide, then execute on your own broker.",
+    body: "Get a detailed report on your dashboard and by email, downloadable as a PDF. The notes explain the figures. You decide, then place any trade on your own broker.",
   },
 ];
 
 const REPORT_CONTENTS = [
-  { icon: BarChart3, label: "Complete market breakdown", desc: "Live NZX, ASX, US and global tables with the context around every ticker you hold." },
+  { icon: BarChart3, label: "Market breakdown", desc: "NZX, ASX and US tables when the price feed has rows, with the context around every ticker you hold." },
   { icon: TrendingUp, label: "What has performed well", desc: "Your top movers surfaced and ranked across 24h, 7-day and 30-day windows." },
   { icon: LineChart, label: "Performance graphs", desc: "Clean 12-month history and continuation charts embedded right in the report." },
   { icon: GaugeCircle, label: "7-day illustrative outlook", desc: "Probabilistic scenario ranges with confidence scores, momentum and continuation graphs. Not a guarantee." },
-  { icon: ListChecks, label: "Illustrative moves", desc: "Plain-English Sell / Hold / Buy scenarios with the reasoning behind them. Informational only — not a personalised recommendation." },
+  { icon: ListChecks, label: "Plain-English notes", desc: "What the figures show, in sentences. Informational only — not a recommendation to buy, sell, or hold." },
   { icon: Route, label: "Three pathways forward", desc: "Low Risk · Balanced · High Risk routes so you choose the path that fits you." },
 ];
 
@@ -188,9 +190,9 @@ const STOCK_PLATFORMS: Platform[] = [
 const CRYPTO_PLATFORMS: Platform[] = [
   {
     name: "Easy Crypto",
-    tag: "NZ-owned · buy in NZD",
+    tag: "Buy in NZD · own wallet",
     region: "New Zealand",
-    desc: "A New Zealand-owned service that makes buying and selling major cryptocurrencies in NZD straightforward, sending coins straight to your own wallet for true self-custody.",
+    desc: "A service for buying and selling major cryptocurrencies, with coins sent to your own wallet.",
     url: "https://easycrypto.com/nz",
     mono: "EC",
     accent: "from-emerald-500/20 to-transparent",
@@ -505,8 +507,8 @@ export default function HowItWorksPage() {
                 </h2>
               </div>
               <Button asChild variant="outline">
-                <Link href="/#bots">
-                  See a sample <ArrowRight className="ml-1 size-4" />
+                <Link href="#example-report">
+                  See an example <ArrowRight className="ml-1 size-4" />
                 </Link>
               </Button>
             </div>
@@ -526,6 +528,8 @@ export default function HowItWorksPage() {
             </div>
           </div>
         </section>
+
+        <ExampleExplanationReport />
 
         {/* The two bots */}
         <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
@@ -714,7 +718,7 @@ export default function HowItWorksPage() {
               {
                 icon: BadgeCheck,
                 title: "You make every decision",
-                body: "Our reports recommend and explain — you choose whether to act, and you place trades on your own platform.",
+                body: "Reports explain the figures. They do not recommend a trade. You decide, and you place any trade on your own platform.",
               },
               {
                 icon: Store,
@@ -761,8 +765,8 @@ export default function HowItWorksPage() {
               <div className="max-w-sm text-center sm:text-left">
                 <BrandLogo animated markClassName="size-11" wordmarkClassName="text-lg" />
                 <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-                  New Zealand–owned and operated multi-asset market intelligence. Turning NZX, ASX and
-                  global market data into decisive clarity.
+                  {LEGAL_ENTITY_NAME}, a New Zealand limited company. Market intelligence for NZX, ASX
+                  and global markets.
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-x-10 gap-y-2 text-sm text-muted-foreground">
@@ -777,7 +781,7 @@ export default function HowItWorksPage() {
             </div>
             <div className="mt-10 border-t border-border/50 pt-6 text-center text-xs leading-relaxed text-muted-foreground">
               <p>
-                © {new Date().getFullYear()} AetherForge AI — New Zealand owned &amp; operated. For
+                © {new Date().getFullYear()} {LEGAL_ENTITY_NAME}. For
                 informational purposes only. Not licensed financial advice under the Financial Markets
                 Conduct Act 2013. Platform links are provided for convenience only and are not endorsements.
               </p>

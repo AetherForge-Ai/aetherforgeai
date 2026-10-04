@@ -71,6 +71,7 @@ describe("public surface routes", () => {
     expect(read("src/app/docs/page.tsx")).toContain("/how-it-works");
     expect(read("src/app/docs/page.tsx")).toContain("/ai-disclaimer");
     expect(read("src/app/docs/page.tsx")).toContain("/pricing#faq");
+    expect(read("src/app/docs/page.tsx")).not.toContain('href: "/blog"');
     expect(read("src/app/blog/page.tsx")).toContain("/market-news");
     expect(middleware).toContain('"/market-news"');
     expect(read("src/app/blog/page.tsx")).toContain("no articles");
