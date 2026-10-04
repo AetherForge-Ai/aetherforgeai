@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { LEGAL_ENTITY_NAME } from "@/lib/company";
 import Link from "next/link";
 import { SiteHeader } from "@/components/SiteHeader";
 import { BrandLogo } from "@/components/BrandLogo";
@@ -212,7 +213,7 @@ export default async function SuccessPage({
             <div className="flex flex-col items-center gap-4 text-center sm:flex-row sm:justify-between sm:text-left">
               <BrandLogo markClassName="size-9" wordmarkClassName="text-base" />
               <p className="max-w-md text-xs leading-relaxed text-muted-foreground">
-                © {new Date().getFullYear()} AetherForge AI · Forge Intelligence Ltd. Your bot
+                © {new Date().getFullYear()} AetherForge AI · {LEGAL_ENTITY_NAME}. Your bot
                 package is for informational use only and is not licensed financial advice.
               </p>
             </div>

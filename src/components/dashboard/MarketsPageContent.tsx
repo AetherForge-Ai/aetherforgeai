@@ -29,15 +29,10 @@ export function MarketsPageContent({
           <LineChart className="size-6" />
         </span>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <h1 className="font-display text-2xl font-bold">Stock Markets</h1>
-            <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wider text-emerald-700">
-              ● Live
-            </span>
-          </div>
+          <h1 className="font-display text-2xl font-bold">Stock Markets</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            Every live ticker across NZX · ASX · Dow Jones &amp; NASDAQ — price, % change &amp; volume.
-            Search, sort and filter the whole market.
+            NZX, ASX and US prices, plus crypto. Quoted rows show a time. If the feed fails, the
+            table says so instead of spinning.
           </p>
         </div>
       </div>
@@ -57,7 +52,7 @@ export function MarketsPageContent({
 
       {preview && (
         <p className="mt-4 text-center text-xs text-muted-foreground">
-          You&apos;re viewing a live preview. Create a free account to buy and track positions.
+          You&apos;re viewing prices. Create a free account to record holdings.
         </p>
       )}
     </div>

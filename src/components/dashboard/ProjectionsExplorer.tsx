@@ -96,11 +96,11 @@ function MethodologyModal() {
         </DialogHeader>
         <div className="space-y-4 text-sm leading-relaxed text-muted-foreground">
           <div>
-            <p className="font-semibold text-foreground">Live market data</p>
+            <p className="font-semibold text-foreground">Market data</p>
             <p>
-              Prices and 30-day histories are pulled live for every security — Twelve Data &amp;
-              Yahoo Finance for NZX · ASX · Dow · Nasdaq equities, and CoinGecko for crypto. The
-              model re-runs on this real price action, not static samples.
+              Prices and 30-day histories are requested for NZX, ASX, Dow and Nasdaq equities, and
+              for crypto. Rows appear when that feed answers. If it does not, the page says the
+              engine failed.
             </p>
           </div>
           <div>
@@ -249,8 +249,15 @@ export function ProjectionsExplorer() {
     setError(null);
     console.log("[projections] Fetching combined all-markets sweep…");
     try {
-      const res = await api.get<ProjectionsPayload>("/api/projections");
-      if (!res.ok || !res.data) throw new Error(res.error?.toString() || "Failed to load projections");
+      const res = await api.get<ProjectionsPayload>("/api/projections", {
+        signal: AbortSignal.timeout(25_000),
+      });
+      if (!res.ok || !res.data) throw new Error(res.error?.toString() || "The projection engine failed to return rows.");
+      const returned =
+        (res.data.combined?.length ?? 0) +
+        (res.data.stockUniverse?.length ?? 0) +
+        (res.data.cryptoUniverse?.length ?? 0);
+      if (returned === 0) throw new Error("The projection engine failed to return rows.");
       setStockUniverse(res.data.stockUniverse || []);
       setCryptoUniverse(res.data.cryptoUniverse || []);
       setCombined(res.data.combined || []);
@@ -261,7 +268,8 @@ export function ProjectionsExplorer() {
       );
     } catch (err) {
       console.error("[projections] Load failed:", err);
-      setError(err instanceof Error ? err.message : "Could not load projections. Please try again.");
+      const message = err instanceof Error ? err.message : "The projection engine failed to return rows.";
+      setError(/abort|timeout|failed/i.test(message) ? "The projection engine failed to return rows." : message);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -378,7 +386,7 @@ export function ProjectionsExplorer() {
         <div className="grid place-items-center rounded-2xl border border-border/60 bg-card/40 py-24">
           <div className="flex flex-col items-center gap-3 text-muted-foreground">
             <Loader2 className="size-7 animate-spin text-primary" />
-            <p className="text-sm">Running the projection engine on live market data…</p>
+            <p className="text-sm">Running the projection engine…</p>
           </div>
         </div>
       ) : error ? (
@@ -423,7 +431,7 @@ export function ProjectionsExplorer() {
       {/* Footnote */}
       <p className="text-center text-xs text-muted-foreground/80">
         Projections are AI-generated general information — not personalised financial advice under
-        the Financial Markets Conduct Act 2013. Data updates live; markets are uncertain.
+        the Financial Markets Conduct Act 2013. A failed load says so. Markets are uncertain.
       </p>
     </div>
   );

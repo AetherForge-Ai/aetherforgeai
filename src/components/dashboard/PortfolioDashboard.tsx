@@ -69,6 +69,7 @@ import { applyLiveCryptoPrices } from "@/lib/crypto-live";
 import { holdingsGeneration, holdingsResponseIsStale } from "@/lib/holdings-generation";
 import { resumeCryptoLivePoll, useLiveCryptoQuotes } from "@/hooks/useLiveCryptoQuotes";
 import { HoldingsOwnedTable } from "@/components/dashboard/HoldingsOwnedTable";
+import { HoldingsCsvImport } from "@/components/dashboard/HoldingsCsvImport";
 import { ActionableIntelligence } from "@/components/dashboard/ActionableIntelligence";
 import { DashboardSectionTitle } from "@/components/dashboard/DashboardSectionTitle";
 import { MarketIntelProvider } from "@/components/dashboard/MarketIntelContext";
@@ -1502,6 +1503,7 @@ export function PortfolioDashboard({
         holdings={stockOverviewSummary.holdings}
         baseCurrency="NZD"
         loading={!balancesReady}
+        headerExtra={preview ? null : <HoldingsCsvImport assetType="stock" onImported={handleDataChanged} />}
         onAdd={openAdd}
         onEdit={openEdit}
         onDelete={setDeleteTarget}
@@ -1610,7 +1612,12 @@ export function PortfolioDashboard({
         holdings={cryptoOverviewSummary.holdings}
         baseCurrency={cryptoBookCurrency}
         loading={!balancesReady}
-        headerExtra={<CryptoLiveStatus updatedAt={cryptoLive.updatedAt} />}
+        headerExtra={
+          <>
+            <CryptoLiveStatus updatedAt={cryptoLive.updatedAt} />
+            {preview ? null : <HoldingsCsvImport assetType="crypto" onImported={handleDataChanged} />}
+          </>
+        }
         onAdd={openAdd}
         onEdit={openEdit}
         onDelete={setDeleteTarget}

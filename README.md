@@ -1,6 +1,6 @@
 # AetherForge AI
 
-Customer-facing product of Forge Intelligence Ltd. The Headmaster is the goal-planning bot. The hosting platform name is infrastructure only and must not appear in customer UI, emails, Stripe line items, or PDFs.
+Customer-facing product of FORGE INTELLIGENCE LIMITED. The Headmaster is the goal-planning bot. The hosting platform name is infrastructure only and must not appear in customer UI, emails, Stripe line items, or PDFs.
 
 This Next.js app uses the platform SDK for database operations.
 

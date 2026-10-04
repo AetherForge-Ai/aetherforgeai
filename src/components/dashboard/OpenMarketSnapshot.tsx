@@ -184,7 +184,7 @@ function ExchangeCard({
                 <MoverRow key={m.ticker} m={m} exchange={s.exchange} currency={s.currency} onOpen={onOpen} />
               ))
             ) : (
-              <p className="px-2 py-1 text-[0.66rem] text-muted-foreground">No live movers</p>
+              <p className="px-2 py-1 text-[0.66rem] text-muted-foreground">No movers in this snapshot</p>
             )}
           </div>
         </div>
@@ -198,7 +198,7 @@ function ExchangeCard({
                 <MoverRow key={m.ticker} m={m} exchange={s.exchange} currency={s.currency} onOpen={onOpen} />
               ))
             ) : (
-              <p className="px-2 py-1 text-[0.66rem] text-muted-foreground">No live movers</p>
+              <p className="px-2 py-1 text-[0.66rem] text-muted-foreground">No movers in this snapshot</p>
             )}
           </div>
         </div>
@@ -230,7 +230,7 @@ export function OpenMarketSnapshot({ onBought }: { onBought?: () => void }) {
       setData(res.data);
     } else {
       console.error("[market-snapshot] Load failed:", res.error);
-      if (!silent) setError("Live snapshot is unavailable right now. Please try again.");
+      if (!silent) setError("The market snapshot failed to load.");
     }
     setLoading(false);
   }, []);
@@ -265,9 +265,6 @@ export function OpenMarketSnapshot({ onBought }: { onBought?: () => void }) {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h2 className="font-display text-lg font-bold">Open Market Snapshot</h2>
-            <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wider text-emerald-700">
-              ● Live
-            </span>
           </div>
           <p className="mt-0.5 text-sm text-muted-foreground">
             A quick pulse of all four markets — index performance, breadth &amp; today&apos;s top movers.
@@ -287,7 +284,7 @@ export function OpenMarketSnapshot({ onBought }: { onBought?: () => void }) {
                 <Activity className="size-5 text-emerald-600" /> Open Market Snapshot
               </DialogTitle>
               <DialogDescription>
-                Live overview of NZX · ASX · Dow Jones · NASDAQ. Click any ticker for the full view.
+                NZX, ASX, Dow Jones and NASDAQ. Quoted rows show a time. A failed load says so.
               </DialogDescription>
             </div>
             <Button
@@ -304,7 +301,7 @@ export function OpenMarketSnapshot({ onBought }: { onBought?: () => void }) {
           <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 sm:px-6">
             {loading && !data ? (
               <div className="flex h-64 items-center justify-center text-muted-foreground">
-                <Loader2 className="mr-2 size-5 animate-spin" /> Loading live snapshot…
+                <Loader2 className="mr-2 size-5 animate-spin" /> Loading market snapshot…
               </div>
             ) : error && !data ? (
               <div className="flex h-64 flex-col items-center justify-center gap-3 text-center text-sm text-muted-foreground">
@@ -322,9 +319,9 @@ export function OpenMarketSnapshot({ onBought }: { onBought?: () => void }) {
                 </div>
                 {asOf && (
                   <p className="mt-4 text-center text-[0.62rem] text-muted-foreground">
-                    Live via Yahoo Finance · as of{" "}
+                    {data.exchanges.some((s) => s.liveCount > 0) ? "Quoted prices" : "Reference prices"} · as of{" "}
                     {asOf.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · NZX
-                    quotes may be delayed ~20 min · auto-refreshes every 45s
+                    quotes may be delayed ~20 min
                   </p>
                 )}
               </>

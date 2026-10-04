@@ -39,7 +39,7 @@ const FAQS: { q: string; a: string }[] = [
   },
   {
     q: "How does billing work with annual plans?",
-    a: "Annual plans are billed once up front for 12 months at roughly the cost of 10 — a 16.67% saving versus paying monthly. Your plan renews automatically each year, and you can cancel or switch to monthly at any time.",
+    a: "Annual plans are billed once up front: 12 months for the price of 10, a 16.67% saving versus paying monthly. Your plan renews automatically each year, and you can cancel or switch to monthly at any time.",
   },
   {
     q: "What kind of support do I get on each plan?",

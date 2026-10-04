@@ -41,7 +41,9 @@ async function load(force = false): Promise<void> {
 
   store.inflight = (async () => {
     try {
-      const res = await api.get<CoinMarket[]>("/api/crypto/markets");
+      const res = await api.get<CoinMarket[]>("/api/crypto/markets", {
+        signal: AbortSignal.timeout(20_000),
+      });
       if (res.ok && Array.isArray(res.data)) {
         store.coins = res.data;
         store.fetchedAt = Date.now();

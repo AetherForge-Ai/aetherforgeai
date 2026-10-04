@@ -138,7 +138,8 @@ export function MarketsExplorer({
 }) {
   const [tab, setTab] = useState<Tab>("NASDAQ");
   const [data, setData] = useState<MarketPayload | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("changePct");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
@@ -164,14 +165,28 @@ export function MarketsExplorer({
   // by the 30–60s auto-refresh so prices update seamlessly, live-ticker style.
   const load = useCallback(async (ex: Exchange, silent = false) => {
     if (!silent) setLoading(true);
-    console.log(`[markets-explorer] Loading live list for ${ex}…${silent ? " (auto)" : ""}`);
-    const res = await api.get<MarketPayload>(`/api/all-markets?exchange=${ex}&t=${Date.now()}`);
-    if (res.ok && res.data) {
-      setData(res.data);
-      console.log(`[markets-explorer] ${ex}: ${res.data.liveCount}/${res.data.total} live`);
-    } else {
-      console.error("[markets-explorer] Load failed:", res.error);
-      if (!silent) setData(null);
+    console.log(`[markets-explorer] Loading prices for ${ex}…${silent ? " (auto)" : ""}`);
+    try {
+      const res = await api.get<MarketPayload>(`/api/all-markets?exchange=${ex}&t=${Date.now()}`, {
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (res.ok && res.data?.rows?.length) {
+        setData(res.data);
+        setLoadError(null);
+        console.log(`[markets-explorer] ${ex}: ${res.data.liveCount}/${res.data.total} quoted`);
+      } else {
+        console.error("[markets-explorer] Load failed:", res.error);
+        if (!silent) {
+          setData(null);
+          setLoadError("Market prices failed to load.");
+        }
+      }
+    } catch (err) {
+      console.error("[markets-explorer] Load failed:", err);
+      if (!silent) {
+        setData(null);
+        setLoadError("Market prices failed to load.");
+      }
     }
     if (!silent) setLoading(false);
   }, []);
@@ -462,10 +477,14 @@ export function MarketsExplorer({
         </div>
         <div className="flex flex-col items-end gap-0.5">
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Radio className="size-3.5 text-emerald-600" />
-            {hasData || remoteHits.length
-              ? `${rows.length} of ${total}${remoteLoading ? " · searching…" : ""}${remoteHits.length && query.trim() ? ` · +${remoteHits.length} market match${remoteHits.length === 1 ? "" : "es"}` : ""} · ${liveCount} live${asOf ? ` · ${fmtTime(asOf)}` : ""}`
-              : "—"}
+            <Radio className={cn("size-3.5", liveCount > 0 ? "text-emerald-600" : "text-muted-foreground")} />
+            {(isCryptoTab ? crypto.error : loadError)
+              ? (isCryptoTab ? crypto.error : loadError)
+              : hasData || remoteHits.length
+              ? `${rows.length} of ${total}${remoteLoading ? " · searching…" : ""}${remoteHits.length && query.trim() ? ` · +${remoteHits.length} market match${remoteHits.length === 1 ? "" : "es"}` : ""}${liveCount > 0 ? ` · ${liveCount} quoted` : " · reference prices"}${asOf ? ` · ${fmtTime(asOf)}` : ""}`
+              : loadingRows
+                ? "Loading prices…"
+                : "—"}
           </p>
           {tab === "NZX" && (
             <p className="flex items-center gap-1 text-[0.62rem] text-muted-foreground/80">
@@ -518,7 +537,11 @@ export function MarketsExplorer({
             ) : rows.length === 0 ? (
               <tr>
                 <td colSpan={allowBuy ? 9 : 8} className="py-12 text-center text-sm text-muted-foreground">
-                  {query ? `No tickers match “${query}”.` : "No market data available right now."}
+                  {query
+                    ? `No tickers match “${query}”.`
+                    : (isCryptoTab ? crypto.error : loadError)
+                      ? "Market prices failed to load. Use refresh to try again."
+                      : "No rows returned for this market."}
                 </td>
               </tr>
             ) : (

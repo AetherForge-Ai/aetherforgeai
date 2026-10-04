@@ -38,7 +38,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
   title: "AetherForge AI — Intelligent Market Analysis",
   description:
-    "AetherForge AI delivers intelligent market analysis: track your portfolio, measure gains and losses in real time, and get AI-powered research on every position. Professional-grade investing insight.",
+    "AetherForge AI is market intelligence for a paper portfolio: NZX, ASX and global markets, with AI research on the positions you enter. Not a broker, and not financial advice.",
   icons: {
     icon: [
       { url: "/brand/favicon-32.png", sizes: "32x32", type: "image/png" },
@@ -49,7 +49,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "AetherForge AI — Intelligent Market Analysis",
     description:
-      "New Zealand–owned market intelligence for NZX, ASX and global markets. Track your portfolio and get AI-powered research on every position.",
+      "Market intelligence for NZX, ASX and global markets, from FORGE INTELLIGENCE LIMITED, a New Zealand limited company.",
     images: [{ url: "/brand/aetherforge-icon-512.png", width: 512, height: 512, alt: "AetherForge AI" }],
     type: "website",
     url: siteUrl,

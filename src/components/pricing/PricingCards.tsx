@@ -16,7 +16,7 @@ import {
   type PricingTier,
   type PlanKey,
 } from "@/lib/plans";
-import { formatUsdApprox } from "@/lib/currency";
+import { formatFxAsOf, formatUsdWithRate, usdPerNzd } from "@/lib/currency";
 import { useFxRates } from "@/hooks/useFxRates";
 import {
   Check,
@@ -48,7 +48,7 @@ export function PricingCards() {
   const [bot, setBot] = useState<BotChoice>("stock");
   const [loadingTier, setLoadingTier] = useState<string | null>(null);
   // Live NZD→USD rate so each NZ$ price shows its US$ equivalent underneath.
-  const { rates: fx } = useFxRates();
+  const { rates: fx, asOf, ready } = useFxRates();
 
   const annual = period === "annual";
 
@@ -250,21 +250,24 @@ export function PricingCards() {
                       </span>
                       <span className="mb-0.5 text-sm text-muted-foreground">/{annual ? "yr" : "mo"}</span>
                     </div>
-                    {/* Live US$ equivalent of the NZD price. */}
                     <p className="mt-1 text-xs font-medium text-muted-foreground/90">
-                      {formatUsdApprox(price ?? 0, fx, { decimals: 2 })}
-                      <span className="text-muted-foreground/70"> /{annual ? "yr" : "mo"} today</span>
+                      {ready && asOf
+                        ? formatUsdWithRate(price ?? 0, fx, asOf, {
+                            decimals: 2,
+                            suffix: `/${annual ? "yr" : "mo"}`,
+                          })
+                        : "US$ …"}
                     </p>
                     <p className="mt-1.5 text-xs text-muted-foreground">
                       {annual ? (
                         <>
-                          Billed annually · Save ~{ANNUAL_SAVINGS_PCT}% ·{" "}
+                          12 months for the price of 10 · Save ~{ANNUAL_SAVINGS_PCT}% ·{" "}
                           <span className="font-medium text-foreground/80">
                             ~NZ${monthlyEquivalent(price ?? 0)}/mo
                           </span>
                         </>
                       ) : (
-                        <>or NZ${money(tier.yearlyPrice ?? 0)}/yr · Save ~{ANNUAL_SAVINGS_PCT}% annually</>
+                        <>or NZ${money(tier.yearlyPrice ?? 0)}/yr · 12 months for the price of 10 · Save ~{ANNUAL_SAVINGS_PCT}%</>
                       )}
                     </p>
                   </>
@@ -312,9 +315,12 @@ export function PricingCards() {
       </div>
 
       <p className="mt-8 text-center text-xs text-muted-foreground">
-        All prices in NZD. Annual billing is 10 months for the price of 12 (save ~{ANNUAL_SAVINGS_PCT}%).
+        All prices in NZD. Annual billing is 12 months for the price of 10 (save ~{ANNUAL_SAVINGS_PCT}%).
         Starter and Pro include a 14-day trial and a card is collected at checkout. Cancel anytime.
-        Ultimate is Talk to us. US$ amounts are indicative at today&apos;s exchange rate.
+        Ultimate is Talk to us.{" "}
+        {ready && asOf
+          ? `Every US$ figure on this page uses 1 NZD = US$${usdPerNzd(fx).toFixed(4)}, taken ${formatFxAsOf(asOf)}.`
+          : "US$ figures use one exchange rate, shown once it has been taken."}
       </p>
     </div>
   );

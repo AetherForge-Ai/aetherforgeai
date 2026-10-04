@@ -32,12 +32,9 @@ export function AllMarkets({ onBought }: { onBought?: () => void }) {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h2 className="font-display text-lg font-bold">ALL Markets</h2>
-            <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wider text-emerald-700">
-              ● Live
-            </span>
           </div>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            Browse every live ticker on NZX · ASX · Dow Jones · NASDAQ — price, % change &amp; volume.
+            NZX, ASX, Dow Jones and NASDAQ — price, change and volume. A failed load says so.
           </p>
         </div>
         <span className="hidden shrink-0 items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-transform group-hover:scale-[1.03] sm:inline-flex">
@@ -53,7 +50,7 @@ export function AllMarkets({ onBought }: { onBought?: () => void }) {
               <Globe className="size-5 text-primary" /> ALL Markets
             </DialogTitle>
             <DialogDescription>
-              Live prices across every exchange. Pick a market, search, sort — then buy in one click.
+              Prices across the exchanges. Pick a market and search. A failed load says so.
             </DialogDescription>
           </DialogHeader>
 

@@ -38,7 +38,7 @@ export default function DocsPage() {
         {
           href: "/about",
           title: "About and contact",
-          body: "The company story, and how to email or call Forge Intelligence Limited.",
+          body: "The company story, and how to email or call FORGE INTELLIGENCE LIMITED.",
         },
         {
           href: "/privacy-policy",
@@ -49,11 +49,6 @@ export default function DocsPage() {
           href: "/terms-of-service",
           title: "Terms of service",
           body: "The terms that apply to using AetherForge AI.",
-        },
-        {
-          href: "/blog",
-          title: "Blog",
-          body: "Product writing is not published yet. This page points at Market News and example results instead.",
         },
       ]}
     />

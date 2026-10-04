@@ -1,11 +1,11 @@
 /**
- * Legacy marketing paths that used to 404. Nav labels stay "Stock Markets"
- * and "Live Results"; both the label and these old URLs land on the pages
- * that already exist.
+ * Legacy marketing paths. Old URLs land on the public pages that already exist.
+ * /about-us opens About. /live-results opens the July paper-book page.
  */
 export const PUBLIC_ROUTE_ALIASES = [
   { source: "/stock-markets", destination: "/markets" },
   { source: "/live-results", destination: "/performance" },
+  { source: "/about-us", destination: "/about" },
 ] as const;
 
 export function publicAliasRedirect(pathname: string): string | null {

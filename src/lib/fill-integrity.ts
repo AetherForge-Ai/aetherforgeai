@@ -185,6 +185,12 @@ export function checkFillSanity(input: FillSanityInput): FillSanityResult {
     }
   }
 
+  // A dated broker file records what was paid, not today's quote. The 10×
+  // live-spot guard is for a same-session fill typed in the wrong units.
+  if (input.priceSource === "broker_import" && input.tradeDate && input.tradeDate < aucklandDateISO()) {
+    return { ok: true, blocked: false };
+  }
+
   if (!(live && live > 0)) {
     // No live spot — allow save but still reject zero/negative (already handled).
     return { ok: true, blocked: false };

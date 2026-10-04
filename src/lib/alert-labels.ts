@@ -35,17 +35,18 @@ export function formatTakeProfitBand(
 }
 
 /**
- * Trim chip. Uses the configured trim size and the take-profit band —
- * never the stop/loss percent. Example: "Trim 25% @ +8–12%".
+ * Trim marker. Uses the configured size and the take-profit band —
+ * never the stop/loss percent. Example: "Trim marker 25% at +8–12%".
+ * The chip records a level. It is not an instruction to trim.
  */
 export function formatTrimChip(alert: AlertChipInput): string {
   const size = num(alert.trimPct);
   const band = formatTakeProfitBand(alert.takeProfitMinPct, alert.takeProfitMaxPct);
   const sizeText = size == null ? null : `${pctText(size)}%`;
-  if (sizeText && band) return `Trim ${sizeText} @ ${band}`;
-  if (sizeText) return `Trim ${sizeText}`;
-  if (band) return `Trim @ ${band}`;
-  return "Trim —";
+  if (sizeText && band) return `Trim marker ${sizeText} at ${band}`;
+  if (sizeText) return `Trim marker ${sizeText}`;
+  if (band) return `Trim marker at ${band}`;
+  return "Trim marker —";
 }
 
 /**
@@ -58,15 +59,18 @@ export function formatSellStopChip(alert: AlertChipInput): string {
   return `−${pctText(Math.abs(dip))}%`;
 }
 
-/** Sentence built from the saved percents, so a custom trim or hard-sell % is what the card says. */
+/** Sentence built from the saved percents. It describes the levels on file. */
 export function formatAlertRuleLine(alert: AlertChipInput): string {
   const size = num(alert.trimPct);
   const dip = num(alert.trimTriggerDipPct);
   const band = formatTakeProfitBand(alert.takeProfitMinPct, alert.takeProfitMaxPct);
   const parts: string[] = [];
-  if (size != null && dip != null) parts.push(`Trim ${pctText(size)}% at a ${pctText(Math.abs(dip))}% dip`);
-  else if (size != null) parts.push(`Trim ${pctText(size)}%`);
-  else if (dip != null) parts.push(`Dip rule ${pctText(Math.abs(dip))}%`);
-  if (band) parts.push(`take profit ${band}`);
-  return parts.length ? `${parts.join(". ")}.` : "";
+  if (size != null && dip != null) {
+    parts.push(
+      `A trim marker of ${pctText(size)}% is noted if the price is ${pctText(Math.abs(dip))}% under the price paid`
+    );
+  } else if (size != null) parts.push(`A trim marker of ${pctText(size)}% is noted`);
+  else if (dip != null) parts.push(`A level ${pctText(Math.abs(dip))}% under the price paid is noted`);
+  if (band) parts.push(`a band of ${band} is noted`);
+  return parts.length ? `${parts.join(", ")}. This is information, not an instruction to trade.` : "";
 }

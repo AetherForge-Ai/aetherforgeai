@@ -12,24 +12,45 @@ import { BASELINE_FX_TO_NZD, type FxRatesToNZD } from "@/lib/currency";
  * baseline on any failure. Used to show the "≈ US$X" reference next to every
  * NZD price across the pricing, bot-purchase and billing screens.
  */
-export function useFxRates(): { rates: FxRatesToNZD; live: boolean } {
+export function useFxRates(): {
+  rates: FxRatesToNZD;
+  live: boolean;
+  asOf: string | null;
+  /** False until /api/fx answers, so the page does not paint a second baseline rate as "today". */
+  ready: boolean;
+} {
   const [rates, setRates] = useState<FxRatesToNZD>(BASELINE_FX_TO_NZD);
   const [live, setLive] = useState(false);
+  const [asOf, setAsOf] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     let active = true;
     (async () => {
-      const res = await api.get<{ ratesToNZD: FxRatesToNZD; live: boolean }>("/api/fx");
-      if (active && res.ok && res.data?.ratesToNZD) {
-        console.log("[useFxRates] FX rates loaded:", res.data.live ? "live" : "baseline", res.data.ratesToNZD);
+      const res = await api.get<{ ratesToNZD: FxRatesToNZD; live: boolean; asOf?: string }>("/api/fx");
+      if (!active) return;
+      if (res.ok && res.data?.ratesToNZD && res.data.live && res.data.asOf) {
+        console.log("[useFxRates] FX rates loaded:", res.data.ratesToNZD);
         setRates(res.data.ratesToNZD);
-        setLive(!!res.data.live);
+        setLive(true);
+        setAsOf(res.data.asOf);
+      } else {
+        console.error("[useFxRates] No live FX snapshot; US$ figures stay blank:", res.error);
+        setLive(false);
+        setAsOf(null);
       }
-    })().catch((err) => console.error("[useFxRates] Failed to load FX rates, using baseline:", err));
+      setReady(true);
+    })().catch((err) => {
+      console.error("[useFxRates] Failed to load FX rates; US$ figures stay blank:", err);
+      if (!active) return;
+      setLive(false);
+      setAsOf(null);
+      setReady(true);
+    });
     return () => {
       active = false;
     };
   }, []);
 
-  return { rates, live };
+  return { rates, live, asOf, ready };
 }

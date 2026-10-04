@@ -48,6 +48,7 @@ export const FREE_PLAN = {
     "3 AI research reports per month",
     "20 Market Assistant queries per month",
     "Basic portfolio P/L",
+    "CSV import of holdings",
   ],
 };
 
@@ -175,6 +176,7 @@ const STARTER_FEATURES = [
   "15 AI research reports per month",
   "100 Market Assistant queries per month",
   "CSV export",
+  "CSV import of holdings",
   "14-day trial",
 ];
 
@@ -186,6 +188,7 @@ const PRO_FEATURES = [
   "Unlimited AI research reports",
   "500 Market Assistant queries per month",
   "CSV export",
+  "CSV import of holdings",
   "14-day trial",
 ];
 

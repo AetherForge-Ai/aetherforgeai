@@ -20,6 +20,7 @@ import type {
   DirectRecommendation,
   PathwayPlan,
 } from "@/lib/apex";
+import { LEGAL_ENTITY_NAME } from "@/lib/company";
 import type { SecurityIntel } from "@/lib/market-intel";
 import type { ActionableIntelligence, PortfolioMetrics } from "@/lib/analytics";
 import type { CurrencyCode } from "@/lib/currency";
@@ -204,14 +205,15 @@ function alertsBlock(alerts: ReportAlert[]): string {
     })
     .join("");
 
-  return `<h2 style="font-size:16px;color:${INK};margin:26px 0 8px">Your share-price action plan</h2>
+  return `<h2 style="font-size:16px;color:${INK};margin:26px 0 8px">Price levels you noted</h2>
+    <p style="font-size:12px;color:${MUTE};margin:0 0 8px">These levels are information. They are not an instruction to buy, sell, or trim.</p>
     <table width="100%" style="border-collapse:collapse;font-size:12px">
       <tr style="background:${NAVY};color:#fff">
         <th style="padding:8px;text-align:left">Ticker</th>
         <th style="padding:8px;text-align:left">Now</th>
-        <th style="padding:8px;text-align:left">Trim rule</th>
-        <th style="padding:8px;text-align:left">Take profit</th>
-        <th style="padding:8px;text-align:left">Hard sell-out</th>
+        <th style="padding:8px;text-align:left">Trim marker</th>
+        <th style="padding:8px;text-align:left">Noted band</th>
+        <th style="padding:8px;text-align:left">Hard-sell level</th>
       </tr>
       ${rows}
     </table>`;
@@ -593,7 +595,7 @@ export function renderReportHtml(source: ApexReport, opts: RenderReportOptions):
           <div style="width:34px;height:34px;border-radius:8px;background:${BLUE};display:inline-block;text-align:center;line-height:34px;font-weight:800">A</div>
           <span style="font-size:18px;font-weight:800;letter-spacing:.02em">AetherForge&nbsp;AI</span>
         </div>
-        <div style="font-size:11px;color:#94a3b8;margin-top:4px">Forge Intelligence Ltd · Intelligent Market Analysis</div>
+        <div style="font-size:11px;color:#94a3b8;margin-top:4px">${LEGAL_ENTITY_NAME} · Intelligent Market Analysis</div>
       </div>
 
       <div style="padding:24px 28px">
@@ -664,7 +666,7 @@ export function renderReportHtml(source: ApexReport, opts: RenderReportOptions):
       </div>
 
       <div style="background:${NAVY};padding:16px 28px;color:#94a3b8;font-size:11px;text-align:center">
-        © Forge Intelligence Ltd · AetherForge AI · www.aetherforgeai.co.nz
+        © ${LEGAL_ENTITY_NAME} · AetherForge AI · www.aetherforgeai.co.nz
       </div>
     </div>
   </body></html>`;

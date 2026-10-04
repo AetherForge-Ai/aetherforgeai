@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { LEGAL_ENTITY_NAME } from "@/lib/company";
 import { SiteHeader } from "@/components/SiteHeader";
 import { BrandLogo } from "@/components/BrandLogo";
 import { Button } from "@/components/ui/button";
@@ -62,7 +63,7 @@ const SECTIONS = [
     points: [
       "Run a full Apex report on your portfolio at least once per day — ideally before NZ market open.",
       "Read the multi-timeframe analysis: short, medium and long-term.",
-      "Focus on top gainers & momentum, 7-day forward pathways, and data-backed Buy / Sell / Hold guidance.",
+      "Read top gainers, momentum and the 7-day pathways as information. They are not a recommendation to buy, sell, or hold.",
       "Cross-reference Stox and Koins whenever you hold both stocks and crypto.",
     ],
     tip: "Treat the reports like a professional briefing. Don’t just hunt for “Buy” signals — understand the why behind every observation.",
@@ -79,7 +80,7 @@ const SECTIONS = [
       "Generate a Total Portfolio Intelligence Report at least once per week.",
       "Use the Strategy Builder — tell The Headmaster your goals (e.g. “Aggressive growth with 30% crypto” or “Balanced income + growth”).",
       "Run Scenario Simulations (bull / base / bear) before making large allocation changes.",
-      "Use The Headmaster’s rebalancing suggestions to reduce concentration risk and improve diversification.",
+      "Read the allocation notes as general information. They are not personalised advice and they do not tell you to rebalance.",
     ],
     tip: "The Headmaster shines when your portfolio mixes assets (stocks + crypto + metals). It sees connections individual bots might miss.",
   },
@@ -90,12 +91,12 @@ const SECTIONS = [
     ring: "border-amber-500/25",
     title: "Set Smart Price Alerts",
     tag: "Never Miss Key Levels",
-    lead: "Price alerts turn passive monitoring into active opportunity capture.",
+    lead: "A price marker records a level you chose. Reaching that level is information, not an instruction to buy, sell, or trim.",
     points: [
-      "Set alerts at key technical levels suggested in Stox / Koins reports.",
-      "Use alerts for both entry and exit points.",
-      "Combine alerts with The Headmaster’s scenario pathways for higher-conviction trades.",
-      "Review and adjust alerts weekly as market conditions change.",
+      "You can note a level that appeared in a Stox or Koins explanation.",
+      "You can note levels above and below the price paid. The marker is information.",
+      "Read the marker next to the Headmaster notes. Neither one is an instruction to trade.",
+      "Review the levels you noted when the market has moved.",
     ],
     tip: null,
   },
@@ -110,7 +111,7 @@ const SECTIONS = [
     points: [
       "Morning Ritual — check overnight moves + run Stox / Koins reports.",
       "Review The Headmaster — look at overall portfolio health and strategy alignment.",
-      "Check Alerts — act only on levels you pre-planned.",
+      "Check the markers you noted. They are information, not an instruction to trade.",
       "Document Everything — use the Excel tracker religiously.",
       "Weekly Review — generate a full Headmaster report and assess performance vs plan.",
       "Risk First — never risk more than you are comfortable losing on any single idea.",
@@ -123,7 +124,7 @@ const SECTIONS = [
 const MISTAKES = [
   "Loading incomplete portfolios — missing holdings distort the analysis.",
   "Ignoring risk management and position sizing.",
-  "Chasing every “Buy” signal without context.",
+  "Treating an informational note as an instruction to trade.",
   "Not updating cost basis after averaging in or out.",
   "Trading emotionally instead of following the data.",
   "Skipping the Excel transaction log.",
@@ -133,7 +134,7 @@ const MISTAKES = [
 const ROUTINE: { day: string; action: string; tools: string; time: string; icon: any }[] = [
   { day: "Monday", action: "Full portfolio review + Headmaster report", tools: "The Headmaster", time: "20–30 min", icon: Compass },
   { day: "Daily", action: "Morning Stox + Koins briefing", tools: "Stox + Koins", time: "10 min", icon: TrendingUp },
-  { day: "Daily", action: "Check & action price alerts", tools: "Alerts", time: "5 min", icon: BellRing },
+  { day: "Daily", action: "Read the price markers you noted", tools: "Markers", time: "5 min", icon: BellRing },
   { day: "Wednesday", action: "Mid-week re-check + adjust alerts", tools: "All bots", time: "15 min", icon: Gauge },
   { day: "Friday", action: "Weekly performance review", tools: "Headmaster + Excel", time: "25 min", icon: FileSpreadsheet },
   { day: "Sunday", action: "Plan the week ahead", tools: "The Headmaster", time: "15 min", icon: CalendarClock },
@@ -176,8 +177,8 @@ export default function MaximizeResultsPage() {
               Open your dashboard
             </DashboardEntryButton>
             <Button asChild size="lg" variant="outline" className="h-12 px-8 text-base">
-              <Link href="/headmaster">
-                Explore The Headmaster <ArrowRight className="ml-1 size-4" />
+              <Link href="/how-it-works">
+                See how it works <ArrowRight className="ml-1 size-4" />
               </Link>
             </Button>
           </div>
@@ -380,10 +381,10 @@ export default function MaximizeResultsPage() {
                   <Bitcoin className="size-4 text-primary" /> Koins
                 </Link>
                 <Link
-                  href="/headmaster"
+                  href="/pricing"
                   className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-background/50 px-4 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
                 >
-                  <Compass className="size-4 text-primary" /> The Headmaster
+                  <Compass className="size-4 text-primary" /> Pricing
                 </Link>
               </div>
             </div>
@@ -403,8 +404,8 @@ export default function MaximizeResultsPage() {
               AetherForge AI provides general market information and AI-generated analysis only. It is not
               licensed financial advice under the Financial Markets Conduct Act 2013. Trading and investing carry
               a high risk of loss. Past performance is not indicative of future results. Always do your own
-              research and consult a licensed financial adviser before making any investment decisions. Forge
-              Intelligence Limited accepts no liability for any losses incurred.
+              research and consult a licensed financial adviser before making any investment decisions.{" "}
+              {LEGAL_ENTITY_NAME} accepts no liability for any losses incurred.
             </p>
           </div>
         </section>
@@ -416,15 +417,15 @@ export default function MaximizeResultsPage() {
               <div className="max-w-sm text-center sm:text-left">
                 <BrandLogo animated markClassName="size-11" wordmarkClassName="text-lg" />
                 <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-                  New Zealand–owned and operated multi-asset market intelligence. Turning NZX, ASX and global
-                  market data into decisive clarity.
+                  {LEGAL_ENTITY_NAME}, a New Zealand limited company. Market intelligence for NZX, ASX and
+                  global markets.
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-x-10 gap-y-2 text-sm text-muted-foreground">
                 <Link href="/how-it-works" className="hover:text-foreground">How it works</Link>
                 <Link href="/how-to-maximize-results" className="hover:text-foreground">Maximize results</Link>
                 <Link href="/pricing" className="hover:text-foreground">Pricing</Link>
-                <Link href="/headmaster" className="hover:text-foreground">The Headmaster</Link>
+                <Link href="/about" className="hover:text-foreground">About</Link>
                 <Link href="/privacy-policy" className="hover:text-foreground">Privacy</Link>
                 <Link href="/terms-of-service" className="hover:text-foreground">Terms</Link>
                 <Link href="/ai-disclaimer" className="hover:text-foreground">AI Disclaimer</Link>
@@ -432,7 +433,7 @@ export default function MaximizeResultsPage() {
             </div>
             <div className="mt-10 border-t border-border/50 pt-6 text-center text-xs leading-relaxed text-muted-foreground">
               <p>
-                © {new Date().getFullYear()} AetherForge AI — New Zealand owned &amp; operated. For informational
+                © {new Date().getFullYear()} {LEGAL_ENTITY_NAME}. For informational
                 purposes only. Not licensed financial advice under the Financial Markets Conduct Act 2013.
               </p>
             </div>

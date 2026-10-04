@@ -1,9 +1,10 @@
 import { LegalShell, LegalSection } from "@/components/legal/LegalShell";
+import { LEGAL_ENTITY_NAME } from "@/lib/company";
 
 export const metadata = {
   title: "Terms & Conditions — AetherForge AI",
   description:
-    "The terms and conditions governing your use of AetherForge AI, a New Zealand–owned market-intelligence service.",
+    `The terms and conditions governing your use of AetherForge AI, the trading name of ${LEGAL_ENTITY_NAME}.`,
 };
 
 const UPDATED = "2 July 2026";
@@ -12,7 +13,7 @@ export default function TermsOfService() {
   return (
     <LegalShell
       title="Terms & Conditions"
-      subtitle="These Terms & Conditions govern your access to and use of AetherForge AI. AetherForge AI is a New Zealand–owned and operated service, and these terms are governed by New Zealand law, including the Consumer Guarantees Act 1993, the Fair Trading Act 1986 and the Contract and Commercial Law Act 2017."
+      subtitle={`These Terms & Conditions govern your access to and use of AetherForge AI, the trading name of ${LEGAL_ENTITY_NAME}, a New Zealand limited company. These terms are governed by New Zealand law, including the Consumer Guarantees Act 1993, the Fair Trading Act 1986 and the Contract and Commercial Law Act 2017.`}
       updated={UPDATED}
     >
       <LegalSection heading="1. Agreement to these terms">

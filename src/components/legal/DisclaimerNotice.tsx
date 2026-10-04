@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LEGAL_ENTITY_NAME } from "@/lib/company";
 import { AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -6,7 +7,7 @@ import { cn } from "@/lib/utils";
  * Canonical, single-source financial disclaimer used sitewide so the wording
  * stays consistent and legally coherent everywhere it appears.
  *
- * New Zealand context: AetherForge AI (Forge Intelligence Ltd) is NOT a licensed
+ * New Zealand context: AetherForge AI ({LEGAL_ENTITY_NAME}) is NOT a licensed
  * financial advice provider under the Financial Markets Conduct Act 2013 and does
  * not give a "financial advice service" as defined in that Act. Everything the
  * platform outputs is general information only — never a personalised
@@ -42,7 +43,7 @@ export function DisclaimerNotice({
               <strong className="font-semibold text-foreground/90">
                 Important — this is not financial advice.
               </strong>{" "}
-              AetherForge AI (Forge Intelligence Ltd) provides general market information and
+              AetherForge AI ({LEGAL_ENTITY_NAME}) provides general market information and
               AI-generated analysis for informational and educational purposes only. We are{" "}
               <strong className="text-foreground/90">not financial advisers</strong> and are{" "}
               <strong className="text-foreground/90">
@@ -82,7 +83,7 @@ export function DisclaimerNotice({
     >
       <p className="mx-auto max-w-4xl text-[11px] leading-relaxed text-muted-foreground">
         <strong className="font-semibold text-foreground/80">Not financial advice.</strong>{" "}
-        AetherForge AI (Forge Intelligence Ltd) provides general market information and AI-generated
+        AetherForge AI ({LEGAL_ENTITY_NAME}) provides general market information and AI-generated
         analysis for informational purposes only. We are not financial advisers and this is not
         licensed financial advice under the Financial Markets Conduct Act 2013 (NZ). We do not trade
         for you or hold your assets. It does not consider your personal circumstances and is not a
