@@ -134,7 +134,8 @@ describe("product note rendering", () => {
     expect(rendered.text).toContain("https://www.rnz.co.nz/news/business/freight-costs");
     expect(rendered.text).not.toContain("9.99");
     expect(rendered.text).not.toContain("Reuters");
-    expect(rendered.text).toContain("Not a forecast and not a recommendation.");
+    expect(rendered.text).toContain("It is not a forecast, and it is not an instruction to buy or sell.");
+    expect(rendered.text).not.toMatch(/\brecommend(?:ation)?s?\b/i);
     expect(rendered.text).toContain("Prices can move either way from here.");
     expect(rendered.text).toContain("Wishing you a good week.");
     expect(rendered.text.split(PRODUCT_NOTE_DISCLAIMER)).toHaveLength(2);
@@ -167,6 +168,8 @@ describe("product note rendering", () => {
     expect(rendered.text).not.toContain("Last 30 days");
     expect(rendered.text).not.toContain("NZSX at the open");
     expect(rendered.text).toContain("Wishing you a good rest of the week.");
+    expect(rendered.text).toContain("It is not a forecast, and it is not an instruction to buy or sell.");
+    expect(rendered.text).not.toMatch(/\brecommend(?:ation)?s?\b/i);
     expect(rendered.text.split(PRODUCT_NOTE_DISCLAIMER)).toHaveLength(2);
     expect(rendered.text).not.toMatch(/\b(Grok|SuperGrok|xAI)\b/);
   });
@@ -192,6 +195,8 @@ describe("product note rendering", () => {
     expect(rendered.text).toContain("BBC, 9 Oct 2026");
     expect(rendered.text).toContain("This is not a suggestion to act.");
     expect(rendered.text).toContain("Wishing you a good weekend.");
+    expect(rendered.text).toContain("It is not a forecast, and it is not an instruction to buy or sell.");
+    expect(rendered.text).not.toMatch(/\brecommend(?:ation)?s?\b/i);
     expect(rendered.text).not.toContain("Wishing you a good week.");
     expect(rendered.text.split(PRODUCT_NOTE_DISCLAIMER)).toHaveLength(2);
   });
@@ -215,6 +220,7 @@ describe("product note rendering", () => {
       scenarioText: "Our Grok model recommends a buy with a 100% win rate.",
     });
     expect(rendered.text).toContain("An AI explanation is unavailable.");
+    expect(rendered.text).not.toMatch(/\brecommend(?:ation)?s?\b/i);
     expect(rendered.text).not.toMatch(/\bGrok\b/);
     expect(rendered.text).not.toContain("100%");
     expect(rendered.text).not.toContain("win rate");

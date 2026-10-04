@@ -703,7 +703,7 @@ function sectionsFor(content: ProductNoteContent): Section[] {
   sections.push({
     title: "Illustrative scenario",
     lines: content.scenario
-      ? ["Not a forecast and not a recommendation.", content.scenario]
+      ? ["It is not a forecast, and it is not an instruction to buy or sell.", content.scenario]
       : ["An AI explanation is unavailable."],
   });
   sections.push({
