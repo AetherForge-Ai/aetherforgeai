@@ -1742,9 +1742,7 @@ export function PortfolioDashboard({
             sub={
               metalStocks.length > 0
                 ? `${metalStocks.length} bullion position${metalStocks.length === 1 ? "" : "s"} + spot`
-                : metalsEntitled
-                  ? "Gold & silver at spot"
-                  : "Bonus for paid members"
+                : "Gold & silver at spot"
             }
             icon={Coins}
             loading={!balancesReady}

@@ -29,7 +29,7 @@ export const FREE_PLAN = {
   name: "Free",
   tagline: "Perfect for testing the platform",
   /** Holdings a free member can track. */
-  tickerLimit: 8,
+  tickerLimit: 10,
   /** Free members choose Stox or Koins, not both. */
   botAccess: "single" as const,
   /**
@@ -40,13 +40,28 @@ export const FREE_PLAN = {
   /** Free access stays on the account; paid plans add capacity. */
   durationDays: 3650,
   features: [
-    "Up to 8 holdings",
-    "Access to either Stox or Koins (choose one)",
-    "3 AI Research Reports per month",
-    "Basic portfolio tracking & P/L",
+    "Up to 10 holdings",
+    "One of Stox or Koins",
+    "Smitty spot prices (read-only)",
+    "3 AI research reports per month",
     "20 Market Assistant queries per month",
+    "Basic portfolio P/L",
   ],
 };
+
+/** Starter AI research reports per Auckland month. Enforced on the report route. */
+export const STARTER_REPORTS_PER_MONTH = 15;
+
+/**
+ * Market Assistant queries per Auckland month.
+ * Free was already capped at 20. Starter and Pro had no coded quota, so the
+ * catalog uses 100 and 500. Ultimate and legacy Apex stay uncapped.
+ */
+export const ASSISTANT_QUERY_LIMITS = {
+  free: 20,
+  starter: 100,
+  pro: 500,
+} as const;
 
 export interface Plan {
   key: PlanKey;
@@ -66,9 +81,14 @@ export interface Plan {
   durationDays: number;
   /** Live Stripe price id. */
   priceId: string;
-  /** Shareable Stripe Payment Link the owner can activate/share. */
+  /** Shareable Stripe Payment Link. Empty when the plan is not self-serve. */
   paymentLink: string;
   featured?: boolean;
+  /**
+   * Retired Stripe price kept so existing subscriptions still resolve.
+   * Checkout and upgrades must not sell it.
+   */
+  archived?: boolean;
   features: string[];
 }
 
@@ -143,16 +163,134 @@ export const PLANS: Plan[] = [
     ],
   },
 
-  /* ---------------------------------------------------------------------- */
-  /*  Public pricing tiers — Starter · Pro · Ultimate (monthly + annual).   */
-  /*  These back the /pricing page. Each price is a real live Stripe price;  */
-  /*  the checkout route + webhook resolve entitlements from tickerLimit /   */
-  /*  botAccess below via planByPriceId().                                   */
-  /* ---------------------------------------------------------------------- */
+];
+
+const STARTER_FEATURES = [
+  "Up to 25 holdings",
+  "One of Stox or Koins",
+  "Smitty spot prices",
+  "Basic Headmaster",
+  "15 AI research reports per month",
+  "100 Market Assistant queries per month",
+  "CSV export",
+  "14-day trial",
+];
+
+const PRO_FEATURES = [
+  "Up to 75 holdings",
+  "Stox and Koins",
+  "Smitty spot prices",
+  "Full Headmaster",
+  "Unlimited AI research reports",
+  "500 Market Assistant queries per month",
+  "CSV export",
+  "14-day trial",
+];
+
+const ULTIMATE_FEATURES = [
+  "Unlimited holdings",
+  "Everything in Pro",
+  "API access",
+  "Up to 5 seats",
+  "White-label options",
+  "Dedicated support",
+];
+
+/**
+ * Oct 2026 public Starter and Pro checkout.
+ * scripts/reprice-public-tiers.ts writes the new Stripe price IDs and payment
+ * links into the strings below. Empty means checkout is not offered yet.
+ * Env overrides (no secrets), either form:
+ * NEXT_PUBLIC_STRIPE_PRICE_STARTER_MONTHLY and
+ * NEXT_PUBLIC_STRIPE_PAYMENT_LINK_STARTER_MONTHLY, or
+ * STRIPE_PRICE_STARTER_MONTHLY and STRIPE_PAYMENT_LINK_STARTER_MONTHLY.
+ * The same pattern applies to STARTER_YEARLY, PRO_MONTHLY, and PRO_YEARLY.
+ * Ultimate has no payment link and no env slot.
+ */
+const PUBLIC_CHECKOUT = {
+  starter_monthly: { priceId: "", paymentLink: "" },
+  starter_yearly: { priceId: "", paymentLink: "" },
+  pro_monthly: { priceId: "", paymentLink: "" },
+  pro_yearly: { priceId: "", paymentLink: "" },
+} as const;
+
+type PublicCheckoutSlot = keyof typeof PUBLIC_CHECKOUT;
+
+function firstSet(...values: Array<string | undefined>): string {
+  for (const value of values) {
+    const trimmed = value?.trim();
+    if (trimmed) return trimmed;
+  }
+  return "";
+}
+
+/**
+ * Env names are written out so Next can inline NEXT_PUBLIC_* into the pricing
+ * buttons. STRIPE_PRICE_* / STRIPE_PAYMENT_LINK_* are the same public IDs for
+ * the server. A secret key must never be one of these variables.
+ */
+function publicCheckout(slot: PublicCheckoutSlot, field: "priceId" | "paymentLink"): string {
+  const committed = PUBLIC_CHECKOUT[slot][field];
+  switch (`${slot}.${field}`) {
+    case "starter_monthly.priceId":
+      return firstSet(
+        process.env.NEXT_PUBLIC_STRIPE_PRICE_STARTER_MONTHLY,
+        process.env.STRIPE_PRICE_STARTER_MONTHLY,
+        committed
+      );
+    case "starter_monthly.paymentLink":
+      return firstSet(
+        process.env.NEXT_PUBLIC_STRIPE_PAYMENT_LINK_STARTER_MONTHLY,
+        process.env.STRIPE_PAYMENT_LINK_STARTER_MONTHLY,
+        committed
+      );
+    case "starter_yearly.priceId":
+      return firstSet(
+        process.env.NEXT_PUBLIC_STRIPE_PRICE_STARTER_YEARLY,
+        process.env.STRIPE_PRICE_STARTER_YEARLY,
+        committed
+      );
+    case "starter_yearly.paymentLink":
+      return firstSet(
+        process.env.NEXT_PUBLIC_STRIPE_PAYMENT_LINK_STARTER_YEARLY,
+        process.env.STRIPE_PAYMENT_LINK_STARTER_YEARLY,
+        committed
+      );
+    case "pro_monthly.priceId":
+      return firstSet(
+        process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO_MONTHLY,
+        process.env.STRIPE_PRICE_PRO_MONTHLY,
+        committed
+      );
+    case "pro_monthly.paymentLink":
+      return firstSet(
+        process.env.NEXT_PUBLIC_STRIPE_PAYMENT_LINK_PRO_MONTHLY,
+        process.env.STRIPE_PAYMENT_LINK_PRO_MONTHLY,
+        committed
+      );
+    case "pro_yearly.priceId":
+      return firstSet(
+        process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO_YEARLY,
+        process.env.STRIPE_PRICE_PRO_YEARLY,
+        committed
+      );
+    case "pro_yearly.paymentLink":
+      return firstSet(
+        process.env.NEXT_PUBLIC_STRIPE_PAYMENT_LINK_PRO_YEARLY,
+        process.env.STRIPE_PAYMENT_LINK_PRO_YEARLY,
+        committed
+      );
+    default:
+      return committed;
+  }
+}
+
+/** Retired Starter/Pro prices. Existing subscribers stay on these. No payment links. */
+export const LEGACY_SUBSCRIPTION_PLANS: Plan[] = [
   {
     key: "starter_monthly",
     name: "Starter",
-    tagline: "For individual investors getting serious",
+    tagline: "Retired NZ$29 monthly price",
     price: 29,
     interval: "month",
     intervalLabel: "month",
@@ -160,13 +298,14 @@ export const PLANS: Plan[] = [
     botAccess: "single",
     durationDays: 30,
     priceId: "price_1TsjfH9sOmzarzYkYpuvCfuA",
-    paymentLink: "https://buy.stripe.com/7sYaER8YDdwj8a3bPF1440l",
-    features: ["Up to 25 holdings", "One bot — Stox OR Koins", "15 AI research reports / month"],
+    paymentLink: "",
+    archived: true,
+    features: STARTER_FEATURES,
   },
   {
     key: "starter_yearly",
     name: "Starter",
-    tagline: "For individual investors getting serious",
+    tagline: "Retired NZ$290 annual price",
     price: 290,
     interval: "year",
     intervalLabel: "year",
@@ -174,13 +313,14 @@ export const PLANS: Plan[] = [
     botAccess: "single",
     durationDays: 365,
     priceId: "price_1TsjfH9sOmzarzYkj43Mf2Zh",
-    paymentLink: "https://buy.stripe.com/4gM8wJdeT8bZ1LFg5V1440k",
-    features: ["Up to 25 holdings", "One bot — Stox OR Koins", "15 AI research reports / month"],
+    paymentLink: "",
+    archived: true,
+    features: STARTER_FEATURES,
   },
   {
     key: "pro_monthly",
     name: "Pro",
-    tagline: "The complete experience for serious investors",
+    tagline: "Retired NZ$69 monthly price",
     price: 69,
     interval: "month",
     intervalLabel: "month",
@@ -188,14 +328,14 @@ export const PLANS: Plan[] = [
     botAccess: "both",
     durationDays: 30,
     priceId: "price_1TsjfI9sOmzarzYkiDEzedgi",
-    paymentLink: "https://buy.stripe.com/aFa6oBa2H9g3eyraLB1440j",
-    featured: true,
-    features: ["Up to 75 holdings", "Both Stox + Koins", "Unlimited AI research reports", "Full Headmaster planning & strategies"],
+    paymentLink: "",
+    archived: true,
+    features: PRO_FEATURES,
   },
   {
     key: "pro_yearly",
     name: "Pro",
-    tagline: "The complete experience for serious investors",
+    tagline: "Retired NZ$690 annual price",
     price: 690,
     interval: "year",
     intervalLabel: "year",
@@ -203,9 +343,75 @@ export const PLANS: Plan[] = [
     botAccess: "both",
     durationDays: 365,
     priceId: "price_1TsjfI9sOmzarzYkyyURWr4E",
-    paymentLink: "https://buy.stripe.com/7sYbIVgr5fEr0HBg5V1440i",
+    paymentLink: "",
+    archived: true,
+    features: PRO_FEATURES,
+  },
+];
+
+/* ---------------------------------------------------------------------- */
+/*  Public pricing tiers — Starter · Pro · Ultimate (monthly + annual).   */
+/*  Ultimate keeps its existing price IDs for subscribers already on it   */
+/*  and has no payment link. Starter and Pro checkout uses PUBLIC_CHECKOUT. */
+/* ---------------------------------------------------------------------- */
+PLANS.push(
+  {
+    key: "starter_monthly",
+    name: "Starter",
+    tagline: "For individual investors getting serious",
+    price: 16,
+    interval: "month",
+    intervalLabel: "month",
+    tickerLimit: 25,
+    botAccess: "single",
+    durationDays: 30,
+    priceId: publicCheckout("starter_monthly", "priceId"),
+    paymentLink: publicCheckout("starter_monthly", "paymentLink"),
+    features: STARTER_FEATURES,
+  },
+  {
+    key: "starter_yearly",
+    name: "Starter",
+    tagline: "For individual investors getting serious",
+    price: 160,
+    interval: "year",
+    intervalLabel: "year",
+    tickerLimit: 25,
+    botAccess: "single",
+    durationDays: 365,
+    priceId: publicCheckout("starter_yearly", "priceId"),
+    paymentLink: publicCheckout("starter_yearly", "paymentLink"),
+    features: STARTER_FEATURES,
+  },
+  {
+    key: "pro_monthly",
+    name: "Pro",
+    tagline: "The complete experience for serious investors",
+    price: 49,
+    interval: "month",
+    intervalLabel: "month",
+    tickerLimit: 75,
+    botAccess: "both",
+    durationDays: 30,
+    priceId: publicCheckout("pro_monthly", "priceId"),
+    paymentLink: publicCheckout("pro_monthly", "paymentLink"),
     featured: true,
-    features: ["Up to 75 holdings", "Both Stox + Koins", "Unlimited AI research reports", "Full Headmaster planning & strategies"],
+    features: PRO_FEATURES,
+  },
+  {
+    key: "pro_yearly",
+    name: "Pro",
+    tagline: "The complete experience for serious investors",
+    price: 490,
+    interval: "year",
+    intervalLabel: "year",
+    tickerLimit: 75,
+    botAccess: "both",
+    durationDays: 365,
+    priceId: publicCheckout("pro_yearly", "priceId"),
+    paymentLink: publicCheckout("pro_yearly", "paymentLink"),
+    featured: true,
+    features: PRO_FEATURES,
   },
   {
     key: "ultimate_monthly",
@@ -218,8 +424,8 @@ export const PLANS: Plan[] = [
     botAccess: "both",
     durationDays: 30,
     priceId: "price_1TsjfJ9sOmzarzYkM1QYb3tU",
-    paymentLink: "https://buy.stripe.com/fZu4gt6QvfEr61V5rh1440h",
-    features: ["Unlimited holdings", "Everything in Pro", "API access + up to 5 team seats"],
+    paymentLink: "",
+    features: ULTIMATE_FEATURES,
   },
   {
     key: "ultimate_yearly",
@@ -232,10 +438,10 @@ export const PLANS: Plan[] = [
     botAccess: "both",
     durationDays: 365,
     priceId: "price_1TsjfJ9sOmzarzYkRBYlUacp",
-    paymentLink: "https://buy.stripe.com/4gMbIV3Ej9g38a34nd1440g",
-    features: ["Unlimited holdings", "Everything in Pro", "API access + up to 5 team seats"],
+    paymentLink: "",
+    features: ULTIMATE_FEATURES,
   },
-];
+);
 
 /* -------------------------------------------------------------------------- */
 /*  Public pricing-page tier model                                            */
@@ -277,49 +483,37 @@ export const PRICING_TIERS: PricingTier[] = [
     yearlyPlanKey: null,
     cta: { label: "Start Free – No Card Required", kind: "register" },
     highlights: [
-      "Up to 8 holdings",
-      "Access to either Stox or Koins (choose one)",
-      "3 AI Research Reports per month",
-      "Basic portfolio tracking & P/L",
+      "Up to 10 holdings",
+      "One of Stox or Koins",
+      "Smitty spot prices (read-only)",
+      "3 AI research reports per month",
       "20 Market Assistant queries per month",
+      "Basic portfolio P/L",
     ],
   },
   {
     id: "starter",
     name: "Starter",
     subtitle: "For individual investors getting serious",
-    monthlyPrice: 29,
-    yearlyPrice: 290,
+    monthlyPrice: 16,
+    yearlyPrice: 160,
     monthlyPlanKey: "starter_monthly",
     yearlyPlanKey: "starter_yearly",
     cta: { label: "Start 14-day Starter trial", kind: "checkout" },
-    highlights: [
-      "Up to 25 holdings",
-      "Full access to one bot (Stox or Koins)",
-      "15 AI Research Reports per month",
-      "Basic Headmaster portfolio insights",
-      "Priority report generation",
-    ],
+    highlights: STARTER_FEATURES,
   },
   {
     id: "pro",
     name: "Pro",
     subtitle: "The complete experience for serious investors",
     badge: "Most Popular",
-    monthlyPrice: 69,
-    yearlyPrice: 690,
+    monthlyPrice: 49,
+    yearlyPrice: 490,
     monthlyPlanKey: "pro_monthly",
     yearlyPlanKey: "pro_yearly",
     cta: { label: "Start with Pro", kind: "checkout" },
     featured: true,
-    highlights: [
-      "Up to 75 holdings",
-      "Full access to both Stox + Koins",
-      "Unlimited AI Research Reports",
-      "Full Headmaster (Portfolio Planning and Strategies)",
-      "Advanced strategy simulation & risk analysis",
-      "Priority processing + faster reports",
-    ],
+    highlights: PRO_FEATURES,
   },
   {
     id: "ultimate",
@@ -328,18 +522,10 @@ export const PRICING_TIERS: PricingTier[] = [
     badge: "Founder-led",
     monthlyPrice: 199,
     yearlyPrice: 1990,
-    monthlyPlanKey: "ultimate_monthly",
-    yearlyPlanKey: "ultimate_yearly",
+    monthlyPlanKey: null,
+    yearlyPlanKey: null,
     cta: { label: "Talk to us", kind: "sales" },
-    highlights: [
-      "Unlimited holdings",
-      "Everything in Pro",
-      "API access",
-      "Team seats (up to 5 users)",
-      "Custom report templates & white-label options",
-      "Dedicated support + strategy calls",
-      "Advanced scenario modelling & stress testing",
-    ],
+    highlights: ULTIMATE_FEATURES,
   },
 ];
 
@@ -389,7 +575,17 @@ export function parsePaymentLinkRef(
 }
 
 export function planByPriceId(priceId?: string | null): Plan | undefined {
-  return PLANS.find((p) => p.priceId === priceId);
+  if (!priceId) return undefined;
+  return (
+    PLANS.find((p) => p.priceId === priceId) ??
+    LEGACY_SUBSCRIPTION_PLANS.find((p) => p.priceId === priceId)
+  );
+}
+
+/** Starter and Pro prices that checkout and payment links may sell. */
+export function isSelfServeCheckoutPlan(plan: Plan | undefined): boolean {
+  if (!plan?.priceId || plan.archived) return false;
+  return plan.key.startsWith("starter_") || plan.key.startsWith("pro_");
 }
 
 /** Human label for a plan key (falls back gracefully for legacy values). */

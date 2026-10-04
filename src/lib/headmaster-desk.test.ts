@@ -14,6 +14,8 @@ describe("Headmaster desk copy", () => {
   it("keeps Pro as the named full desk and free as a paid upsell", () => {
     expect(headmasterDeskCopy("pro_monthly").badge).toBe("Included");
     expect(headmasterDeskCopy("pro_yearly").summary).toMatch(/Full Headmaster/);
+    expect(headmasterDeskCopy("starter_monthly").badge).toBe("Basic");
+    expect(headmasterDeskCopy("starter_monthly").summary).toMatch(/Basic Headmaster/);
     expect(headmasterDeskCopy("free").badge).toBe("Pro");
     expect(headmasterDeskCopy(null).badge).toBe("Pro");
   });

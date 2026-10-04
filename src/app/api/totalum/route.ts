@@ -1,20 +1,37 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getCurrentUser, isStripeConfigured, hasPaidSubscription, type AppUser } from "@/lib/session";
+import { getCurrentUser, isStripeConfigured, type AppUser } from "@/lib/session";
 import { loadTotalumSynthesis } from "@/lib/totalum-service";
 import { buildStrategy, type GoalKey } from "@/lib/totalum-engine";
+import { headmasterDepth, type HeadmasterDepth } from "@/lib/entitlements";
+import type { TotalumSynthesis } from "@/lib/totalum-engine";
 
 export const dynamic = "force-dynamic";
 
 /**
- * The Headmaster (Portfolio Planning and Strategies) is a PRO feature — it unifies Stox + Koins +
- * metals. It's reserved for active paying members (upsell path for everyone
- * else). In demo mode (no Stripe key) it's open so testers aren't locked out.
+ * Headmaster depth for this member.
+ * Demo mode (no Stripe key) stays open so local testing is not locked out.
+ * In production, Free has no plan, Starter is basic, and Pro and above are full.
  */
+export function headmasterAccess(user: AppUser | null): HeadmasterDepth {
+  if (!user) return "none";
+  if (!isStripeConfigured()) return "full";
+  return headmasterDepth(user.subscription_plan);
+}
+
+/** Basic or full desk. Free is refused when Stripe is configured. */
 export function isTotalumEntitled(user: AppUser | null): boolean {
-  if (!user) return false;
-  if (!isStripeConfigured()) return true; // demo mode
-  return hasPaidSubscription(user);
+  return headmasterAccess(user) !== "none";
+}
+
+/** Stress tests, the intelligence report, and the strategist. */
+export function isFullHeadmaster(user: AppUser | null): boolean {
+  return headmasterAccess(user) === "full";
+}
+
+function presentSynthesis(synthesis: TotalumSynthesis, depth: HeadmasterDepth): TotalumSynthesis {
+  if (depth === "full") return synthesis;
+  return { ...synthesis, stressTests: [] };
 }
 
 const GOALS: [GoalKey, ...GoalKey[]] = [
@@ -40,13 +57,14 @@ export async function GET() {
     if (!isTotalumEntitled(user)) {
       console.log(`[api/totalum] GET blocked — user ${user._id} is not a Pro member`);
       return NextResponse.json(
-        { ok: false, error: "The Headmaster is a Pro feature for active paying members.", data: { code: "not_entitled" } },
+        { ok: false, error: "The Headmaster plan is included on Starter and above.", data: { code: "not_entitled" } },
         { status: 403 }
       );
     }
 
-    const synthesis = await loadTotalumSynthesis(user._id);
-    return NextResponse.json({ ok: true, data: { synthesis } });
+    const depth = headmasterAccess(user);
+    const synthesis = presentSynthesis(await loadTotalumSynthesis(user._id), depth);
+    return NextResponse.json({ ok: true, data: { synthesis, depth } });
   } catch (err: any) {
     console.error("[api/totalum] GET error:", err);
     return NextResponse.json({ ok: false, error: err?.message || "Failed to synthesise portfolio" }, { status: 500 });
@@ -61,7 +79,7 @@ export async function POST(req: Request) {
 
     if (!isTotalumEntitled(user)) {
       return NextResponse.json(
-        { ok: false, error: "The Headmaster is a Pro feature for active paying members.", data: { code: "not_entitled" } },
+        { ok: false, error: "The Headmaster plan is included on Starter and above.", data: { code: "not_entitled" } },
         { status: 403 }
       );
     }
@@ -72,7 +90,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: parsed.error.flatten() }, { status: 400 });
     }
 
-    const synthesis = await loadTotalumSynthesis(user._id);
+    const depth = headmasterAccess(user);
+    const synthesis = presentSynthesis(await loadTotalumSynthesis(user._id), depth);
     const goal: GoalKey = parsed.data.goal ?? "balanced_growth";
     // Cash-only / any funded book builds a strategy; truly empty books return null.
     const strategy = synthesis.isEmpty ? null : buildStrategy(synthesis, goal);
