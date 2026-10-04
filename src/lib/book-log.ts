@@ -266,6 +266,37 @@ export function pathMissFromSaved(
   return pathMissText(saved.issuedAtMs, nowMs, saved.illustrated7dPct, realized);
 }
 
+export interface IllustratedPathDecision {
+  /** The row to write. Null means this render must not insert a report. */
+  save: IllustratedPathRecord | null;
+  pathMiss: string | null;
+}
+
+/**
+ * Keep the first saved path until it is seven days old.
+ * Only then measure the miss, and only then write the next path.
+ * A render inside that week leaves the saved path and the report list alone.
+ */
+export function illustratedPathDecision(input: {
+  saved: IllustratedPathRecord | null;
+  nowMs: number;
+  illustrated7dPct: number | null;
+  netWorthNZD: number;
+}): IllustratedPathDecision {
+  const illustrated = input.illustrated7dPct;
+  const canRecord =
+    illustrated != null && Number.isFinite(illustrated) && input.netWorthNZD > 0;
+  const next: IllustratedPathRecord | null = canRecord
+    ? { illustrated7dPct: illustrated, netWorthNZD: input.netWorthNZD, issuedAtMs: input.nowMs }
+    : null;
+  if (!input.saved) return { save: next, pathMiss: null };
+  if (!(input.nowMs - input.saved.issuedAtMs >= WEEK_MS)) return { save: null, pathMiss: null };
+  return {
+    save: next,
+    pathMiss: pathMissFromSaved(input.saved, input.nowMs, input.netWorthNZD),
+  };
+}
+
 export function pathMissText(
   issuedAtMs: number,
   nowMs: number,

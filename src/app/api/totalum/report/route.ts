@@ -6,7 +6,7 @@ import { renderTotalumReport } from "@/lib/totalum-report-html";
 import { buildStrategy, type GoalKey } from "@/lib/totalum-engine";
 import { HEADMASTER_BOT_LABEL } from "@/lib/report-language";
 import { modelViewSentence, sanitizeHeadmasterReportHtml, scopeHeadmasterIdeas } from "@/lib/headmaster-trust";
-import { fullBookFromPositions, publishSharedBookLog, pathMissFromSaved } from "@/lib/book-log";
+import { fullBookFromPositions, publishSharedBookLog, illustratedPathDecision } from "@/lib/book-log";
 
 export const dynamic = "force-dynamic";
 
@@ -47,20 +47,21 @@ export async function GET(req: Request) {
     const week = synthesis.scenarios.find((row) => row.horizon === "7D");
     const illustrated7dPct = week && Number.isFinite(week.basePct) ? week.basePct : null;
     const now = Date.now();
-    const pathMiss = pathMissFromSaved(priorPath, now, book.netWorthNZD);
+    const pathDecision = illustratedPathDecision({
+      saved: priorPath,
+      nowMs: now,
+      illustrated7dPct,
+      netWorthNZD: book.netWorthNZD,
+    });
     publishSharedBookLog({
       ...book,
       sleeveLabel: "Sleeve",
       illustrated7dPct,
-      priorIllustratedPath: priorPath,
+      priorIllustratedPath: pathDecision.pathMiss ? priorPath : null,
     });
-    if (illustrated7dPct != null && book.netWorthNZD > 0) {
+    if (pathDecision.save) {
       try {
-        await saveHeadmasterIllustratedPath(user._id, {
-          illustrated7dPct,
-          netWorthNZD: book.netWorthNZD,
-          issuedAtMs: now,
-        });
+        await saveHeadmasterIllustratedPath(user._id, pathDecision.save);
       } catch (saveErr) {
         console.error("[api/totalum/report] Failed to persist the illustrated path (non-fatal):", saveErr);
       }
@@ -78,7 +79,7 @@ export async function GET(req: Request) {
         engine: HEADMASTER_BOT_LABEL,
         watchlist: includeWatchlist ? scoped.watchlist : [],
         book,
-        pathMiss,
+        pathMiss: pathDecision.pathMiss,
         modelView: modelViewSentence(synthesis.expectedAnnualReturnPct, synthesis.expectedAnnualVolPct),
       }),
       strategy?.plan

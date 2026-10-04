@@ -6,6 +6,7 @@ import {
   fullBookFromHoldings,
   fullBookFromPositions,
   fullBookSentence,
+  illustratedPathDecision,
   illustratedPathFromPayloads,
   pathMissFromSaved,
   pathMissText,
@@ -92,6 +93,42 @@ describe("shared book log", () => {
     );
     expect(silent).toMatch(/no view/);
     expect(silent).not.toMatch(/0\.00%/);
+  });
+
+  it("keeps the first illustrated path for a week and does not write another row inside that week", () => {
+    const first = illustratedPathDecision({
+      saved: null,
+      nowMs: 0,
+      illustrated7dPct: 2,
+      netWorthNZD: 1000,
+    });
+    expect(first.pathMiss).toBeNull();
+    expect(first.save).toEqual({ illustrated7dPct: 2, netWorthNZD: 1000, issuedAtMs: 0 });
+    const insideTheWeek = illustratedPathDecision({
+      saved: first.save,
+      nowMs: WEEK - 1,
+      illustrated7dPct: 9,
+      netWorthNZD: 1400,
+    });
+    expect(insideTheWeek.save).toBeNull();
+    expect(insideTheWeek.pathMiss).toBeNull();
+    const due = illustratedPathDecision({
+      saved: first.save,
+      nowMs: WEEK,
+      illustrated7dPct: 3,
+      netWorthNZD: 1100,
+    });
+    expect(due.pathMiss).toMatch(/After a week/);
+    expect(due.save).toEqual({ illustrated7dPct: 3, netWorthNZD: 1100, issuedAtMs: WEEK });
+    const quiet = illustratedPathDecision({
+      saved: { illustrated7dPct: 0, netWorthNZD: 1000, issuedAtMs: 0 },
+      nowMs: WEEK,
+      illustrated7dPct: 1,
+      netWorthNZD: 1100,
+    });
+    expect(quiet.pathMiss).toMatch(/no view/);
+    expect(quiet.pathMiss).not.toMatch(/0\.00%/);
+    expect(quiet.save?.issuedAtMs).toBe(WEEK);
   });
 
   it("uses one full book for a stock report and a crypto report when class allocation is missing", () => {
