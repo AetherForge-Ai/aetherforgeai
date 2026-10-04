@@ -1,10 +1,9 @@
 import "server-only";
 import { totalumSdk } from "@/lib/totalum";
-import { referencePrice, simulateTick } from "@/lib/market";
 import { buildLiveReport, type LiveHolding, type BotKind } from "@/lib/apex";
 import { renderReportHtml, type ReportAlert } from "@/lib/report-html";
 import { createZenithCompletion, isZenithConfigured } from "@/lib/grok";
-import { analyzeSecurity, getMarketNews, universeFor, type SecurityIntel } from "@/lib/market-intel";
+import { analyzeSecurity, analyzeUniverse, getMarketNews, universeFor, type SecurityIntel } from "@/lib/market-intel";
 import { loadMarketNews } from "@/lib/market-news";
 import { computePortfolioMetrics, buildActionableIntelligence } from "@/lib/analytics";
 import { getUpcomingEvents } from "@/lib/econ-calendar";
@@ -28,6 +27,15 @@ import { alertIsEffectivelyArchived, heldQuantityForTicker } from "@/lib/alert-l
 import { relockSeededReportPrices } from "@/lib/paper-quote-lock.server";
 import { reportEmailWasDelivered } from "@/lib/report-email";
 import { loadTotalumSynthesis } from "@/lib/totalum-service";
+import type { TotalumSynthesis } from "@/lib/totalum-engine";
+import {
+  marketFeedUnavailableLine,
+  portfolioCoverageLines,
+  portfolioIsLoaded,
+  readPortfolioBook,
+  type CoveragePosition,
+} from "@/lib/report-scope";
+import { isBullionHolding } from "@/lib/metal-valuation";
 
 /**
  * Minimal shape of the user needed to build + deliver a report. Both the
@@ -135,13 +143,16 @@ export async function loadStockRowsForAccount(
  *  - GET  /api/cron/reports (scheduled 9am briefings)
  *
  * `context` is a short tag used to vary the report seed + email subject
- * (e.g. "manual" | "scheduled").
+ * (e.g. "manual" | "scheduled"). `deliver: false` still runs the full report
+ * and returns it, without a PDF, an email, or a saved row.
  */
 export async function generateReportForUser(
   user: ReportRecipient,
   bot: BotKind,
-  context: "manual" | "scheduled" = "manual"
+  context: "manual" | "scheduled" | "inline" = "manual",
+  options?: { deliver?: boolean }
 ): Promise<GeneratedReport> {
+  const deliver = options?.deliver !== false;
   // Load holdings for this asset class (legacy rows without asset_type = stock).
   // Never invent an empty book when the holdings query itself failed.
   const loaded = await loadStockRowsForAccount(user._id);
@@ -149,64 +160,68 @@ export async function generateReportForUser(
     throw new Error("Could not load this account's live holdings, so no report was saved.");
   }
   const allRows = loaded.rows;
-  const rows = allRows.filter((r) => (r.asset_type || "stock") === bot);
+  const rows = allRows.filter((r) => {
+    const asset = r.asset_type || "stock";
+    if (asset === "metal" || isBullionHolding(r.asset_type, r.ticker, r.company_name)) return false;
+    return asset === bot;
+  });
 
   const limit = user.ticker_limit && user.ticker_limit > 0 ? user.ticker_limit : rows.length;
   const scoped = rows.slice(0, limit);
-  if (scoped.length === 0) {
-    console.log(
-      `[report-service] Skipping ${bot} report for ${user._id}: book has no positions. No email.`
-    );
-    throw new EmptyBookReportError(bot);
-  }
 
-  // Live quotes for this asset class — stocks via Twelve Data (needs a key),
-  // crypto via CoinGecko (no key). Falls back to simulation on any miss.
-  const live = isLiveConfiguredFor(bot)
+  // Live quotes for this sleeve. A missing print keeps a stored book price.
+  // Nothing is simulated — a name with neither is left unpriced and said so.
+  const live = scoped.length && isLiveConfiguredFor(bot)
     ? await fetchQuotesForAssetClass(scoped.map((r) => String(r.ticker)), bot)
     : {};
   const usedLive = Object.keys(live).length > 0;
+  const unpricedHoldings: string[] = [];
 
-  const priceFor = (r: any): number => {
-    const q = live[String(r.ticker).toUpperCase()];
-    if (q?.price) return q.price;
-    const ref = referencePrice(r.ticker, Number(r.current_price) || Number(r.purchase_price) || 1);
-    return simulateTick(ref);
-  };
-
-  const holdings: LiveHolding[] = scoped.map((r) => {
-    const price = priceFor(r);
-    return {
-      ticker: r.ticker,
-      name: r.company_name || r.ticker,
+  const holdings: LiveHolding[] = [];
+  for (const r of scoped) {
+    const ticker = String(r.ticker || "");
+    if (!ticker) continue;
+    const quote = live[ticker.toUpperCase()];
+    const stored =
+      Number(r.current_price) > 0
+        ? Number(r.current_price)
+        : Number(r.purchase_price) > 0
+          ? Number(r.purchase_price)
+          : 0;
+    const price = quote?.price && quote.price > 0 ? quote.price : stored;
+    if (!(price > 0)) {
+      unpricedHoldings.push(ticker);
+      continue;
+    }
+    holdings.push({
+      ticker,
+      name: r.company_name || ticker,
       price,
       shares: Number(r.shares) || 0,
       purchasePrice: Number(r.purchase_price) || price,
-    };
-  });
+    });
+  }
   console.log(
     `[report-service] Live ${bot} book for user ${user._id}: ${
       holdings.length ? holdings.map((h) => `${h.ticker}×${h.shares}`).join(", ") : "(none)"
     }`
   );
 
-  // Stock[] view (live-priced) for the technical + actionable-intelligence layer.
-  const stockObjs: Stock[] = scoped.map((r, i) => ({
-    _id: String(r._id ?? i),
-    ticker: r.ticker,
-    asset_type: (r.asset_type || "stock") as "stock" | "crypto",
-    company_name: r.company_name || r.ticker,
-    sector: r.sector || undefined,
-    shares: Number(r.shares) || 0,
-    purchase_price: Number(r.purchase_price) || 0,
-    current_price: holdings[i]?.price ?? (Number(r.current_price) || 0),
+  // Stock[] view (priced) for the technical + actionable-intelligence layer.
+  const stockObjs: Stock[] = holdings.map((h, i) => ({
+    _id: String(i),
+    ticker: h.ticker,
+    asset_type: bot,
+    company_name: h.name || h.ticker,
+    shares: h.shares || 0,
+    purchase_price: h.purchasePrice || 0,
+    current_price: h.price,
   }));
 
   const technicals: SecurityIntel[] = stockObjs.map((s) =>
     analyzeSecurity(s.ticker, s.current_price || undefined, s.company_name)
   );
   const metrics = computePortfolioMetrics(stockObjs);
-  const intelligence = buildActionableIntelligence(stockObjs);
 
   // FX rates so AUD (.AX) / USD holdings convert into the Stox NZD total.
   const fx = await getFxSnapshot();
@@ -229,13 +244,12 @@ export async function generateReportForUser(
       `[report-service] Universe live sweep: ${Object.keys(marketOverrides).length}/${universeTickers.length} ${bot} names priced live`
     );
   } catch (err) {
-    console.error("[report-service] Universe live sweep failed (movers board on deterministic engine):", err);
+    console.error("[report-service] Universe live sweep failed:", err);
   }
 
-  // Koins full-market parity: when running the crypto bot, drive the report's
-  // movers / 7-day projections / buy candidates from the COMPLETE live crypto
-  // market (top-500 via Swyftx → CoinGecko) — the entire cryptocurrency market,
-  // never the 18-name core and never any NZX / ASX / NASDAQ / DOW equity data.
+  // Koins full-market parity: the COMPLETE live crypto market (top-500 via
+  // Swyftx → CoinGecko). Stox stays on the equity universe. A dead feed is
+  // not replaced with directory seed prices.
   let universeIntel: SecurityIntel[] | undefined;
   if (bot === "crypto") {
     const cryptoIntel = await fetchCryptoMarketIntel();
@@ -243,34 +257,93 @@ export async function generateReportForUser(
       universeIntel = cryptoIntel;
       console.log(`[report-service] Koins full-market intel: ${cryptoIntel.length} coins feeding the report`);
     } else {
-      console.error("[report-service] Koins full-market intel empty — falling back to core crypto universe");
+      console.error("[report-service] Koins full-market intel empty");
     }
   }
 
-  const cashBalanceNZD =
-    typeof user.cash_balance === "number" && isFinite(user.cash_balance)
-      ? Math.max(0, user.cash_balance)
-      : 0;
+  const marketTechnicals: SecurityIntel[] = universeIntel?.length
+    ? universeIntel
+    : Object.keys(marketOverrides).length > 0
+      ? analyzeUniverse(marketOverrides, bot)
+      : [];
+  const marketFeedUnavailable = marketTechnicals.length === 0;
+  const partialFeedNote =
+    bot === "crypto" && !universeIntel?.length && marketTechnicals.length
+      ? "The full crypto-market feed is unavailable for this run. Only quotes that came back are used. No prices were filled in for the rest."
+      : "";
+  if (marketFeedUnavailable) {
+    console.error(`[report-service] ${bot} market feed unavailable — report will say so and will not invent quotes`);
+  }
+  const intelligence = buildActionableIntelligence(
+    stockObjs,
+    bot,
+    marketTechnicals.length ? marketTechnicals : null,
+    false
+  );
 
-  let accountBookNZD = 0;
+  let synthesis: TotalumSynthesis | null = null;
   try {
-    const synthesis = await loadTotalumSynthesis(user._id);
-    if (synthesis.totalValueNZD > 0) accountBookNZD = synthesis.totalValueNZD;
+    synthesis = await loadTotalumSynthesis(user._id);
   } catch (err) {
     console.error("[report-service] Live book total unavailable (cash rule falls back to this sleeve):", err);
   }
 
-  const tape = readTape(technicals);
+  const cashBalanceNZD =
+    synthesis && synthesis.cashBalanceNZD > 0
+      ? synthesis.cashBalanceNZD
+      : typeof user.cash_balance === "number" && isFinite(user.cash_balance)
+        ? Math.max(0, user.cash_balance)
+        : 0;
+
+  let accountBookNZD = 0;
+  if (synthesis && synthesis.totalValueNZD > 0) {
+    accountBookNZD = synthesis.totalValueNZD;
+    if (!synthesis.metalsLive) {
+      const metalValue = synthesis.positions
+        .filter((position) => position.assetClass === "metals")
+        .reduce((sum, position) => sum + position.valueNZD, 0);
+      accountBookNZD = Math.max(0, accountBookNZD - metalValue);
+    }
+  }
+
+  const coveragePositions: CoveragePosition[] = (synthesis?.positions ?? []).map((position) => ({
+    label: position.label,
+    sublabel: position.sublabel,
+    assetClass: position.assetClass,
+    valueNZD: position.valueNZD,
+  }));
+  const portfolioBook = readPortfolioBook(allRows, [], cashBalanceNZD);
+  const portfolioLoaded = portfolioIsLoaded(portfolioBook, coveragePositions);
+  const portfolioLines = portfolioLoaded
+    ? portfolioCoverageLines({
+        book: portfolioBook,
+        positions: coveragePositions,
+        metalsFeedLive: synthesis ? synthesis.metalsLive : undefined,
+      })
+    : [];
+  if (unpricedHoldings.length) {
+    portfolioLines.push(
+      `Quote unavailable for ${unpricedHoldings.join(", ")}. Those names are on the book and were not priced.`
+    );
+  }
+
+  const tape = readTape(technicals.length ? technicals : marketTechnicals);
   const report = buildLiveReport(bot, holdings, {
     seedSalt: `${user._id}:${bot}:${context}:${Date.now()}`,
     fxToNZD: fx.ratesToNZD,
     marketOverrides,
-    universeIntel,
+    universeIntel: marketTechnicals.length ? marketTechnicals : undefined,
     holdingIntel: technicals,
     tape,
-    cashBalanceNZD,
+    cashBalanceNZD: portfolioLoaded ? cashBalanceNZD : 0,
     accountBookNZD: accountBookNZD > 0 ? accountBookNZD : undefined,
+    portfolioLines: portfolioLoaded ? portfolioLines : [],
+    marketFeedUnavailable,
   });
+  if (partialFeedNote) {
+    report.keyObservations = [partialFeedNote, ...report.keyObservations];
+    report.executiveSummary = `${partialFeedNote} ${report.executiveSummary}`;
+  }
 
   // ---- Intelligence briefing + probabilistic 7-day outlook -------------
   // Scheduled macro catalysts for the next 7 days (deterministic, no key).
@@ -283,13 +356,40 @@ export async function generateReportForUser(
     .slice(0, 16)
     .map((nws) => ({ headline: nws.headline, source: nws.source }));
   const sentiment = await scoreHeadlines(headlines, newsAssetLabel);
+  const briefingTechnicals = technicals.length ? technicals : marketTechnicals;
   const briefing = buildIntelligenceBriefing({
     bot,
     marketLabel: report.marketLabel,
-    technicals,
+    technicals: briefingTechnicals,
     events: econEvents,
     sentiment,
   });
+  if (technicals.length && marketTechnicals.length) {
+    const marketBrief = buildIntelligenceBriefing({
+      bot,
+      marketLabel: report.marketLabel,
+      technicals: marketTechnicals,
+      events: econEvents,
+      sentiment,
+    });
+    const marketTag = bot === "crypto" ? "Crypto market" : "Equity market";
+    briefing.keyObservations = [
+      ...briefing.keyObservations,
+      ...marketBrief.keyObservations.map((line) => `${marketTag}: ${line}`),
+    ];
+    briefing.highlights = [
+      ...briefing.highlights,
+      ...marketBrief.highlights.slice(0, 4).map((line) => `${marketTag}: ${line}`),
+    ];
+  }
+  if (marketFeedUnavailable) {
+    const note = marketFeedUnavailableLine(bot);
+    briefing.executiveSummary = `${note} ${briefing.executiveSummary.replace(
+      /No .+? are currently monitored for this bot — add tickers to receive a full probabilistic briefing\. /,
+      ""
+    )}`.trim();
+    if (!briefing.keyObservations.includes(note)) briefing.keyObservations.unshift(note);
+  }
   console.log(
     `[report-service] Briefing assembled for user ${user._id}: ${briefing.outlook.length} outlook rows, ` +
       `${econEvents.length} catalysts, sentiment ${sentiment.label} (${sentiment.method}), overall ${briefing.overall.level}/${briefing.overall.bias}`
@@ -301,8 +401,7 @@ export async function generateReportForUser(
   // if Grok is unavailable the report still ships with its deterministic summary.
   const botLabel = bot === "crypto" ? "Koins (crypto)" : "Stox (equities)";
   let aiEnhanced = false;
-  const hasMarketBuys = report.directRecommendations.some((r) => !r.held && (r.action === "BUY" || r.action === "ACCUMULATE"));
-  if (isZenithConfigured() && (holdings.length > 0 || cashBalanceNZD > 0 || hasMarketBuys)) {
+  if (isZenithConfigured()) {
     try {
       const lines = holdings
         .map((h, i) => {
@@ -321,15 +420,32 @@ export async function generateReportForUser(
       // Full-market BUY candidates + top projected leaders drawn from the report's
       // own sweep (the ENTIRE crypto market for Koins) — fed to the narrative so
       // it can name specific tickers to BUY with concrete, data-grounded reasons.
-      const guard = deploymentGuard(bot, tape, cashBalanceNZD, accountBookNZD > 0 ? accountBookNZD : undefined);
-      const canonicalLines = technicals
-        .map((t) => {
-          const rating = rateAsset(t);
-          const aligned = alignedProjection(t);
-          return `${rating.action} ${t.ticker} — 7-day base ${aligned.range} (${aligned.probability}% odds, midpoint ${aligned.pct >= 0 ? "+" : ""}${aligned.pct}%), MACD ${t.macdSignal}, regime ${t.regime}, RSI ${t.rsi}. Positive momentum: ${rating.positiveMomentum ? "yes" : "no"}.`;
-        })
-        .join("\n");
-      const positive = technicals.filter((t) => rateAsset(t).positiveMomentum).length;
+      const guard = deploymentGuard(bot, tape, portfolioLoaded ? cashBalanceNZD : 0, accountBookNZD > 0 ? accountBookNZD : undefined);
+      const canonicalLine = (t: SecurityIntel) => {
+        const rating = rateAsset(t);
+        const aligned = alignedProjection(t);
+        return `${rating.action} ${t.ticker} — 7-day base ${aligned.range} (${aligned.probability}% odds, midpoint ${aligned.pct >= 0 ? "+" : ""}${aligned.pct}%), MACD ${t.macdSignal}, regime ${t.regime}, RSI ${t.rsi}. Positive momentum: ${rating.positiveMomentum ? "yes" : "no"}.`;
+      };
+      const canonicalLines = technicals.map(canonicalLine).join("\n");
+      const heldTickers = new Set(technicals.map((t) => t.ticker.toUpperCase()));
+      const marketByTicker = new Map(marketTechnicals.map((t) => [t.ticker.toUpperCase(), t]));
+      const marketNames = new Set<string>();
+      for (const group of report.marketMovers) {
+        for (const window of group.windows) {
+          for (const mover of window.movers) marketNames.add(mover.ticker.toUpperCase());
+        }
+      }
+      for (const leader of report.projectionLeaders) marketNames.add(leader.ticker.toUpperCase());
+      for (const rec of report.directRecommendations) {
+        if (!rec.held) marketNames.add(rec.ticker.toUpperCase());
+      }
+      const marketCanon = [...marketNames]
+        .filter((ticker) => !heldTickers.has(ticker))
+        .map((ticker) => marketByTicker.get(ticker))
+        .filter((row): row is SecurityIntel => !!row);
+      const marketLines = marketCanon.map(canonicalLine).join("\n");
+      const rated = technicals.length ? technicals : marketCanon;
+      const positive = rated.filter((t) => rateAsset(t).positiveMomentum).length;
       const marketBuys =
         report.directRecommendations
           .filter((r) => !r.held && (r.action === "BUY" || r.action === "ACCUMULATE"))
@@ -351,8 +467,8 @@ export async function generateReportForUser(
             content:
               `You are the ${botLabel} bot producing this member's report in ULTRA ADVANCED ZENITH STATE. ` +
               (bot === "crypto"
-                ? `This is a PURE cryptocurrency report covering the COMPLETE crypto market — never reference NZX, ASX, NASDAQ, DOW or any equities. `
-                : `This is a PURE equities report covering NZX, ASX, NASDAQ and DOW JONES — never reference crypto. `) +
+                ? `This is a PURE cryptocurrency market report covering the COMPLETE crypto market. Do not analyse NZX, ASX, NASDAQ, DOW or any equities as crypto. If the loaded portfolio lists equities, metals, or cash, state those facts only. `
+                : `This is a PURE equities market report covering NZX, ASX, NASDAQ and DOW JONES. Do not analyse crypto as stocks. If the loaded portfolio lists crypto, metals, or cash, state those facts only. `) +
               `Write a rich, professional 4-6 sentence executive summary of the short-term (7-day) outlook. ` +
               `Be strictly evidence-based and PROBABILISTIC — speak in expected ranges and likelihoods, and NEVER give a single-point price target that disagrees with the base-case range below. ` +
               `Reference technical posture (RSI/MACD/regime), conviction/confidence %, catalysts, news sentiment, and the single most important illustrative scenario. Do not tell the reader they should buy, and do not instruct a cash deployment. ` +
@@ -362,24 +478,29 @@ export async function generateReportForUser(
                 ? `You may name the suitable BUY/ACCUMULATE candidates below, sized with a cash buffer. `
                 : `CASH GUARD (${guard.mode}): ${guard.headline} Do not tell the reader to deploy the full cash balance. Do not recommend speculative or outsized movers as buys. `) +
               `CASH RULE: quote the live cash on the guard line. Keep about 10% of the live book in reserve, the same rule as the Headmaster skeleton. Do not say NZ$100,000 is available, do not keep 75% in reserve, and do not start from NZ$25,000. ` +
-              (holdings.length === 0
-                ? `The member has empty holdings and NZ$${Math.round(cashBalanceNZD)} cash — follow the cash guard. `
-                : `The member ALREADY HOLDS live positions. Open by naming each held ticker with its CANONICAL action. ` +
-                  `Never describe the book, portfolio, or holdings as empty, cash-only, or unmonitored. `) +
-              `Positive momentum count you must match if you mention it: ${positive} of ${technicals.length}. ` +
+              (portfolioLoaded
+                ? holdings.length
+                  ? `The member ALREADY HOLDS live positions. Open by naming each held ticker with its CANONICAL action. Never describe the book, portfolio, or holdings as empty, cash-only, or unmonitored. Also cover the market sweep. `
+                  : `A portfolio is loaded, but this sleeve has no positions. Cover the entire relevant market and the loaded portfolio facts below. Do not invent holdings, and do not call the portfolio empty. `
+                : `No portfolio is loaded (no stocks, crypto, gold, silver, or cash). Analyse the entire relevant market only. Do not invent a portfolio, holdings, or prices. `) +
+              (marketFeedUnavailable ? `${marketFeedUnavailableLine(bot)} Do not invent prices or quotes. ` : "") +
+              (partialFeedNote ? `${partialFeedNote} Do not invent prices for coins the feed did not return. ` : "") +
+              `Positive momentum count you must match if you mention one: ${positive} of ${rated.length}. ` +
               `Close with an italic disclaimer that this is informational intelligence, not financial advice. Use **bold** for ticker names.\n\n` +
               `Market: ${report.marketLabel}.\n` +
               `Overall read: ${briefing.overall.bias} bias, ${briefing.overall.level} conviction, net ${briefing.overall.score}/100.\n` +
               `News sentiment: ${sentiment.label} (${sentiment.score}/100, ${sentiment.method} model).\n` +
               `Catalysts next 7 days: ${catalystLine}.\n` +
               `Portfolio metrics: health ${metrics.healthScore}/100 (${metrics.healthLabel}), annualised volatility ${metrics.volatility}%, Sharpe ${metrics.sharpe}, 7-day alpha potential ${metrics.alphaPotentialPct}%.\n` +
-              `CANONICAL RATINGS (source of truth):\n${canonicalLines || "(none)"}\n` +
+              `SLEEVE CANONICAL RATINGS (source of truth for held names):\n${canonicalLines || "(no sleeve positions)"}\n` +
+              `MARKET CANONICAL RATINGS (names on this report's sweep):\n${marketLines || (marketFeedUnavailable ? "(market feed unavailable)" : "(none)")}\n` +
               `SELL flags (held): ${sells}. High-conviction BUY candidates (held): ${buys}.\n` +
               `Suitable new BUY candidates only: ${marketBuys}.\n` +
-              `Top 7-day projected leaders across the market (context, not automatic buys): ${topProjected}.\n` +
+              `Top 7-day projected leaders across the market (context, not automatic buys): ${topProjected || "none"}.\n` +
+              (portfolioLoaded ? `Loaded portfolio:\n${portfolioLines.join("\n") || "(see sleeve holdings)"}\n` : `Loaded portfolio: none.\n`) +
               (holdings.length
                 ? `Holdings:\n${lines}\n\n`
-                : `Holdings: none — cash NZ$${Math.round(cashBalanceNZD)} available, subject to the cash guard.\n\n`) +
+                : `Holdings on this sleeve: none.\n\n`) +
               `Write the ZENITH executive summary now. Repeat the canonical actions. Do not contradict them.`,
           },
         ],
@@ -391,9 +512,9 @@ export async function generateReportForUser(
         );
         const contradicts = narrativeContradictsCanonical(
           grounded.text,
-          technicals.map((t) => ({ ticker: t.ticker, action: rateAsset(t).action })),
+          rated.map((t) => ({ ticker: t.ticker, action: rateAsset(t).action })),
           guard,
-          { positive, total: technicals.length }
+          { positive, total: rated.length }
         );
         if (grounded.discardedEmptyClaim || !grounded.text || contradicts) {
           console.warn(
@@ -425,7 +546,7 @@ export async function generateReportForUser(
       .filter((a) => !alertIsEffectivelyArchived(a.status, heldQuantityForTicker(scoped, a.ticker)))
       .map((a) => ({
         ticker: a.ticker,
-        currentPrice: referencePrice(a.ticker, Number(a.hard_sell_price) || 1),
+        currentPrice: holdings.find((h) => h.ticker.toUpperCase() === String(a.ticker).toUpperCase())?.price || Number(a.hard_sell_price) || 0,
         trimPct: a.trim_pct ?? null,
         trimTriggerDipPct: a.trim_trigger_dip_pct ?? null,
         hardSellPrice: a.hard_sell_price ?? null,
@@ -455,65 +576,70 @@ export async function generateReportForUser(
     intelligence,
   });
   console.log(
-    `[report-service] Report built for user ${user._id} (${context}, pricing: ${usedLive ? "live" : "simulated"})`
+    `[report-service] Report built for user ${user._id} (${context}, pricing: ${usedLive ? "live" : "stored or unpriced"}, portfolio=${portfolioLoaded}, marketFeed=${marketFeedUnavailable ? "unavailable" : "live"})`
   );
 
-  // Render the PDF.
+  // PDF + saved row for every completed run. Email stays on the sleeve that
+  // has positions — a market-only run is still produced and saved.
   let pdfFileName: string | null = null;
   let pdfUrl: string | null = null;
-  try {
-    const pdf = await totalumSdk.files.createPdfFromHtml({
-      html,
-      name: `AetherForge-${bot}-report-${now.getTime()}.pdf`,
-    });
-    pdfFileName = (pdf?.data as any)?.fileName ?? null;
-    pdfUrl = (pdf?.data as any)?.url ?? null;
-    console.log(`[report-service] PDF generated for user ${user._id}: ${pdfFileName}`);
-  } catch (pdfErr) {
-    console.error("[report-service] PDF generation failed:", pdfErr);
-  }
-
-  // Email the report (HTML body + PDF attachment).
-  const subjectPrefix = context === "scheduled" ? "Your scheduled briefing · " : "";
   let emailed = false;
-  try {
-    const sent = await totalumSdk.email.sendEmail({
-      to: [user.email],
-      subject: `${subjectPrefix}${report.title} — ${generatedAtLabel}`,
-      html,
-      fromName: "AetherForge AI",
-      ...(pdfUrl
-        ? { attachments: [{ filename: `${report.title}.pdf`, url: pdfUrl, contentType: "application/pdf" }] }
-        : {}),
-    });
-    emailed = reportEmailWasDelivered(sent);
-    if (emailed) console.log(`[report-service] Report emailed to ${user.email}`);
-    else console.error("[report-service] Report email was not accepted; the card will not say Emailed.");
-  } catch (mailErr) {
-    console.error("[report-service] Email delivery failed (non-fatal):", mailErr);
-  }
-
-  // Persist the report record.
   let reportId: string | null = null;
-  try {
-    const saved = await totalumSdk.crud.createRecord("report", {
-      title: report.title,
-      user: user._id,
-      bot,
-      market_label: report.marketLabel,
-      executive_summary: delivered.executiveSummary,
-      payload: JSON.stringify({ ...delivered, emailDelivered: emailed }),
-      emailed: emailed ? "yes" : "no",
-      ai_enhanced: aiEnhanced ? "yes" : "no",
-      ai_engine: report.engine,
-      generated_at: now.toISOString(),
-      trigger: context,
-      ...(pdfFileName ? { pdf_file: { name: pdfFileName } } : {}),
-    });
-    reportId = (saved?.data as any)?._id ?? null;
-    console.log(`[report-service] Saved report ${reportId} for user ${user._id}`);
-  } catch (saveErr) {
-    console.error("[report-service] Failed to persist report (non-fatal):", saveErr);
+  if (deliver) {
+    try {
+      const pdf = await totalumSdk.files.createPdfFromHtml({
+        html,
+        name: `AetherForge-${bot}-report-${now.getTime()}.pdf`,
+      });
+      pdfFileName = (pdf?.data as any)?.fileName ?? null;
+      pdfUrl = (pdf?.data as any)?.url ?? null;
+      console.log(`[report-service] PDF generated for user ${user._id}: ${pdfFileName}`);
+    } catch (pdfErr) {
+      console.error("[report-service] PDF generation failed:", pdfErr);
+    }
+
+    const subjectPrefix = context === "scheduled" ? "Your scheduled briefing · " : "";
+    if (holdings.length > 0) {
+      try {
+        const sent = await totalumSdk.email.sendEmail({
+          to: [user.email],
+          subject: `${subjectPrefix}${report.title} — ${generatedAtLabel}`,
+          html,
+          fromName: "AetherForge AI",
+          ...(pdfUrl
+            ? { attachments: [{ filename: `${report.title}.pdf`, url: pdfUrl, contentType: "application/pdf" }] }
+            : {}),
+        });
+        emailed = reportEmailWasDelivered(sent);
+        if (emailed) console.log(`[report-service] Report emailed to ${user.email}`);
+        else console.error("[report-service] Report email was not accepted; the card will not say Emailed.");
+      } catch (mailErr) {
+        console.error("[report-service] Email delivery failed (non-fatal):", mailErr);
+      }
+    } else {
+      console.log(`[report-service] ${bot} report saved without email — this sleeve has no positions`);
+    }
+
+    try {
+      const saved = await totalumSdk.crud.createRecord("report", {
+        title: report.title,
+        user: user._id,
+        bot,
+        market_label: report.marketLabel,
+        executive_summary: delivered.executiveSummary,
+        payload: JSON.stringify({ ...delivered, emailDelivered: emailed }),
+        emailed: emailed ? "yes" : "no",
+        ai_enhanced: aiEnhanced ? "yes" : "no",
+        ai_engine: report.engine,
+        generated_at: now.toISOString(),
+        trigger: context,
+        ...(pdfFileName ? { pdf_file: { name: pdfFileName } } : {}),
+      });
+      reportId = (saved?.data as any)?._id ?? null;
+      console.log(`[report-service] Saved report ${reportId} for user ${user._id}`);
+    } catch (saveErr) {
+      console.error("[report-service] Failed to persist report (non-fatal):", saveErr);
+    }
   }
 
   return { report: delivered, pdfUrl, reportId, emailed, aiEnhanced, monitored: holdings.length, generatedAtLabel };

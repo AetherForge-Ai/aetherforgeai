@@ -134,9 +134,19 @@ describe("report narrative vs live book", () => {
     expect(claimsEmptyBook(blob)).toBe(false);
   });
 
-  it("still uses empty-book copy when the account really has no positions", () => {
-    const report = buildLiveReport("crypto", [], { cashBalanceNZD: 500 });
+  it("analyses the market when the account has no positions and no cash", () => {
+    const report = buildLiveReport("crypto", []);
     expect(claimsEmptyBook(report.executiveSummary)).toBe(true);
+    expect(report.executiveSummary.toLowerCase()).toMatch(/market/);
+    expect(report.marketMovers.some((group) => group.windows.some((window) => window.movers.length > 0))).toBe(true);
+  });
+
+  it("covers a cash book alongside the market", () => {
+    const report = buildLiveReport("crypto", [], { cashBalanceNZD: 500 });
+    const blob = [report.executiveSummary, ...report.keyObservations].join("\n");
+    expect(claimsEmptyBook(blob)).toBe(false);
+    expect(blob).toMatch(/NZ\$500/);
+    expect(blob.toLowerCase()).toMatch(/market/);
   });
 
   it("discards a model narrative that calls a funded book empty", () => {

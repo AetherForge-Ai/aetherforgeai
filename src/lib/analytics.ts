@@ -229,7 +229,12 @@ export function buildActionableIntelligence(
    * drawn from these LIVE-priced securities so the "High-Conviction Buys" list
    * changes as the market moves — instead of the frozen deterministic set.
    */
-  liveUniverse?: SecurityIntel[] | null
+  liveUniverse?: SecurityIntel[] | null,
+  /**
+   * When false, a missing live universe yields no buy candidates. Report runs
+   * use this so a dead feed is not replaced with directory seed prices.
+   */
+  syntheticFallback = true
 ): ActionableIntelligence {
   const holdings = enrichHoldings(stocks);
   const heldTickers = new Set(holdings.map((h) => h.stock.ticker.toUpperCase()));
@@ -256,10 +261,12 @@ export function buildActionableIntelligence(
   const candidatePool: SecurityIntel[] =
     liveUniverse && liveUniverse.length
       ? liveUniverse
-      : [
-          ...universeFor("stock").map((e) => analyzeSecurity(e.ticker, undefined, undefined, e.market)),
-          ...universeFor("crypto").map((e) => analyzeSecurity(e.ticker, undefined, undefined, e.market)),
-        ];
+      : syntheticFallback
+        ? [
+            ...universeFor("stock").map((e) => analyzeSecurity(e.ticker, undefined, undefined, e.market)),
+            ...universeFor("crypto").map((e) => analyzeSecurity(e.ticker, undefined, undefined, e.market)),
+          ]
+        : [];
 
   // Rank by highest projected 7-day growth first (the best upside), with
   // conviction score as a tie-breaker. Show the top 20 across all markets.

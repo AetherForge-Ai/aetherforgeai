@@ -109,23 +109,9 @@ async function handle(req: Request) {
     const bots = botsFor(u.bot_access);
     if (!bots.length || !u.email) continue;
 
-    // Which asset classes does this user actually hold? Skip empty ones so we
-    // never email a report with no positions.
-    let holdings: any[] = [];
-    try {
-      const hRes = await totalumSdk.crud.query("stock", { _filter: { user: u._id }, _limit: 500 });
-      holdings = (hRes?.data as any[]) || [];
-    } catch (hErr) {
-      console.error(`[cron/reports] Failed to load holdings for ${u._id}:`, hErr);
-      continue;
-    }
-    const hasBot = (bot: BotKind) => holdings.some((h) => (h.asset_type || "stock") === bot);
-
+    // Empty sleeves still get a full market report. Email is sent only when
+    // that sleeve has positions (generateReportForUser).
     for (const bot of bots) {
-      if (!hasBot(bot)) {
-        skippedEmpty++;
-        continue;
-      }
       considered++;
       if (dry) {
         results.push({ user: u._id, bot, emailed: false });
