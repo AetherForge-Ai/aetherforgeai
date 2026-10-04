@@ -83,6 +83,8 @@ describe("Stox/Koins refresh cadence", () => {
     expect(reportCadence("apex_weekly").ms).toBe(7 * 24 * HOUR);
     expect(reportCadence("free").unit).toBe("month");
     expect(reportCadence("free").perLabel).toBe("per month");
+    expect(reportCadence("starter_monthly").label).toBe("15 reports per month");
+    expect(reportCadence("starter_yearly").unit).toBe("month");
   });
 
   it("allows 3 free reports in an Auckland month, then waits until next month", () => {

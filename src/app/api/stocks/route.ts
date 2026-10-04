@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { hasForeignOwner, requestClaimsOtherUser } from "@/lib/account-guard";
 import { accountMismatchResponse, privateJson } from "@/lib/account-response";
 import { z } from "zod";
-import { getStableSessionUser, getTradeSessionUser } from "@/lib/session";
+import { getStableSessionUser, getTradeSessionUser, isStripeConfigured } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
 import { lookupTicker, normalizeTicker, referencePrice } from "@/lib/market";
 import {
@@ -295,7 +295,23 @@ export async function POST(req: Request) {
     const info = lookupTicker(ticker);
     const purchase_price = parsed.data.purchase_price;
 
-    // Enforce the plan's holding cap (Free = 8 across the book; paid = per bot).
+    // One chosen bot on Free and Starter. The other sleeve is refused here, not only in the UI.
+    if (
+      isStripeConfigured() &&
+      (assetType === "stock" || assetType === "crypto") &&
+      (user.bot_access === "stock" || user.bot_access === "crypto") &&
+      user.bot_access !== assetType
+    ) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "This plan includes one of Stox or Koins. Choose that bot, or move to Pro for both.",
+          data: { code: "bot_access" },
+        },
+        { status: 403 }
+      );
+    }
+    // Enforce the plan's holding cap (Free = 10 across the book; paid = per bot).
     // Never trust the client — this is the authoritative gate, so a free member
     // cannot add unlimited holdings by calling the API directly.
     const existing = await totalumSdk.crud.query("stock", {

@@ -1,22 +1,42 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { stripe } from "@/lib/stripe";
+import { stripe, redactStripeMessage } from "@/lib/stripe";
 import { getCurrentUser } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
-import { planByPriceId, planByKey } from "@/lib/plans";
+import { isSelfServeCheckoutPlan, planByPriceId, planByKey } from "@/lib/plans";
+import { ensurePublicPrice } from "@/lib/ensure-public-price";
+import { publicPriceSlot } from "@/lib/public-catalog";
 
-const schema = z.object({
-  priceId: z.string().min(1, "Price ID is required"),
-  plan: z.enum(["weekly", "monthly", "yearly", "dual_yearly"]).optional(),
-  bot: z.enum(["stock", "crypto"]).optional(),
-  // "now" applies the change immediately with prorated credit/charge;
-  // "next_cycle" swaps the price at the next renewal with no proration.
-  when: z.enum(["now", "next_cycle"]).optional(),
-});
+const schema = z
+  .object({
+    priceId: z.string().optional(),
+    plan: z
+      .enum([
+        "weekly",
+        "monthly",
+        "yearly",
+        "dual_yearly",
+        "starter_monthly",
+        "starter_yearly",
+        "pro_monthly",
+        "pro_yearly",
+      ])
+      .optional(),
+    bot: z.enum(["stock", "crypto"]).optional(),
+    // "now" applies the change immediately with prorated credit/charge;
+    // "next_cycle" swaps the price at the next renewal with no proration.
+    when: z.enum(["now", "next_cycle"]).optional(),
+  })
+  .refine((body) => Boolean(body.plan) || Boolean(body.priceId?.trim()), {
+    message: "Plan is required",
+  });
 
 function serializeError(err: unknown) {
-  const e = err as any;
-  return { message: e?.message ?? "Unknown error", code: e?.code ?? null };
+  const e = err as { message?: string; code?: string | null };
+  return {
+    message: redactStripeMessage(e?.message ?? "Unknown error"),
+    code: e?.code ?? null,
+  };
 }
 
 /**
@@ -36,12 +56,31 @@ export async function POST(req: Request) {
     if (!parsed.success) {
       return NextResponse.json({ ok: false, error: parsed.error.flatten() }, { status: 400 });
     }
-    const { priceId, bot, when = "now" } = parsed.data;
-
-    const planDef = planByPriceId(priceId) || planByKey(parsed.data.plan);
+    const { bot, when = "now" } = parsed.data;
+    const requestedPriceId = parsed.data.priceId?.trim() || "";
+    const planDef =
+      (parsed.data.plan ? planByKey(parsed.data.plan) : undefined) || planByPriceId(requestedPriceId);
     if (!planDef) {
       return NextResponse.json({ ok: false, error: "Unknown plan / price id" }, { status: 400 });
     }
+    if (planDef.key.startsWith("ultimate_") || planDef.archived) {
+      return NextResponse.json(
+        { ok: false, error: "That price is not offered for a self-serve change." },
+        { status: 400 }
+      );
+    }
+    const selfServe = isSelfServeCheckoutPlan(planDef);
+    if ((planDef.key.startsWith("starter_") || planDef.key.startsWith("pro_")) && !selfServe) {
+      return NextResponse.json(
+        { ok: false, error: "This plan is not available for self-serve checkout." },
+        { status: 400 }
+      );
+    }
+    if (!selfServe && planDef.priceId !== requestedPriceId) {
+      return NextResponse.json({ ok: false, error: "Unknown plan / price id" }, { status: 400 });
+    }
+    const slot = publicPriceSlot(planDef.key);
+    const priceId = slot ? await ensurePublicPrice(slot.key) : planDef.priceId;
 
     const customerId = user.stripe_customer_id;
     if (!customerId) {

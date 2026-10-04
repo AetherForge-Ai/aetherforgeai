@@ -750,8 +750,19 @@ function StrategistTab() {
  * Root
  * ------------------------------------------------------------------ */
 
-export function TotalumConsole({ entitled, memberName, plan }: { entitled: boolean; memberName: string; plan?: string | null }) {
+export function TotalumConsole({
+  entitled,
+  depth = "full",
+  memberName,
+  plan,
+}: {
+  entitled: boolean;
+  depth?: "none" | "basic" | "full";
+  memberName: string;
+  plan?: string | null;
+}) {
   const desk = headmasterDeskCopy(plan);
+  const fullDesk = depth === "full";
   const [synthesis, setSynthesis] = React.useState<TotalumSynthesis | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -814,11 +825,13 @@ export function TotalumConsole({ entitled, memberName, plan }: { entitled: boole
           </div>
           <h1 className="mt-3 text-2xl font-bold tracking-tight md:text-3xl">Portfolio Planning and Strategies</h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            One unified command centre across your equities, crypto and precious metals — synthesis, strategy, scenarios and risk.
+            One planning desk across equities, crypto and precious metals — synthesis and strategy
+            {fullDesk ? ", scenarios and risk" : ""}.
           </p>
           <p className="mt-2 max-w-2xl text-xs leading-relaxed text-muted-foreground">
             <span className="font-medium text-foreground">{desk.summary}.</span> {desk.detail}
           </p>
+          {fullDesk && (
           <div className="mt-3">
             <Button asChild size="sm" variant="outline">
               <a href="/api/totalum/report?goal=balanced_growth&hm=2" target="_blank" rel="noopener noreferrer">
@@ -826,6 +839,7 @@ export function TotalumConsole({ entitled, memberName, plan }: { entitled: boole
               </a>
             </Button>
           </div>
+          )}
           </div>
         </div>
       </div>
@@ -861,12 +875,12 @@ export function TotalumConsole({ entitled, memberName, plan }: { entitled: boole
 
       {synthesis && !loading && !synthesis.isEmpty && (
         <Tabs defaultValue="synthesis">
-          <TabsList className="grid w-full grid-cols-2 sm:w-auto sm:grid-cols-5">
+          <TabsList className={fullDesk ? "grid w-full grid-cols-2 sm:w-auto sm:grid-cols-5" : "grid w-full grid-cols-3 sm:w-auto"}>
             <TabsTrigger value="synthesis">Synthesis</TabsTrigger>
             <TabsTrigger value="scenarios">Scenarios</TabsTrigger>
-            <TabsTrigger value="stress">Stress</TabsTrigger>
+            {fullDesk && <TabsTrigger value="stress">Stress</TabsTrigger>}
             <TabsTrigger value="strategy">Strategy</TabsTrigger>
-            <TabsTrigger data-totalum-tab="strategist" value="strategist">Strategist</TabsTrigger>
+            {fullDesk && <TabsTrigger data-totalum-tab="strategist" value="strategist">Strategist</TabsTrigger>}
           </TabsList>
           <TabsContent value="synthesis" className="mt-6">
             <SynthesisTab s={synthesis} />
@@ -874,15 +888,19 @@ export function TotalumConsole({ entitled, memberName, plan }: { entitled: boole
           <TabsContent value="scenarios" className="mt-6">
             <ScenariosTab s={synthesis} />
           </TabsContent>
+          {fullDesk && (
           <TabsContent value="stress" className="mt-6">
             <StressTab s={synthesis} />
           </TabsContent>
+          )}
           <TabsContent value="strategy" className="mt-6">
             <StrategyTab initialSynthesis={synthesis} />
           </TabsContent>
+          {fullDesk && (
           <TabsContent value="strategist" className="mt-6">
             <StrategistTab />
           </TabsContent>
+          )}
         </Tabs>
       )}
     </div>

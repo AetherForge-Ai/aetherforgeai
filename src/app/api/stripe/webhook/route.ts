@@ -19,6 +19,7 @@ import { stripe, STRIPE_WEBHOOK_SECRETS, cryptoProvider } from "@/lib/stripe";
 import Stripe from "stripe";
 import { totalumSdk } from "@/lib/totalum";
 import { planByPriceId, planByKey, parsePaymentLinkRef } from "@/lib/plans";
+import { PUBLIC_CATALOG } from "@/lib/public-catalog";
 
 type SubscriptionPatch = {
   subscription_status?: string;
@@ -69,6 +70,18 @@ async function updateUserSubscription(userId: string, patch: SubscriptionPatch) 
   }
 }
 
+function planFromSubscription(subscription: Stripe.Subscription) {
+  const price = subscription.items?.data?.[0]?.price;
+  const priceId = typeof price === "string" ? price : price?.id;
+  const byId = planByPriceId(priceId);
+  if (byId) return byId;
+  if (typeof price === "object" && price?.metadata?.aetherforge_catalog === PUBLIC_CATALOG) {
+    const fromPrice = planByKey(price.metadata.plan);
+    if (fromPrice) return fromPrice;
+  }
+  return planByKey(subscription.metadata?.plan as string);
+}
+
 async function syncSubscription(
   subscription: Stripe.Subscription,
   overrides?: { userId?: string | null; botAccess?: "stock" | "crypto" | null }
@@ -87,8 +100,7 @@ async function syncSubscription(
 
   // Resolve the app plan from the purchased price id (authoritative — works for
   // Payment Links too), falling back to the plan key in metadata.
-  const priceId = subscription.items?.data?.[0]?.price?.id;
-  const planDef = planByPriceId(priceId) || planByKey(subscription.metadata?.plan as string);
+  const planDef = planFromSubscription(subscription);
   const active = mapStatus(subscription.status) === "active";
 
   // Prefer real Stripe billing-period bounds; fall back to plan durationDays.
@@ -149,8 +161,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       // cancellations, failed payments — can resolve the user + entitlements
       // directly from subscription.metadata, exactly like a dynamic Checkout.
       if (userId && !subscription.metadata?.userId) {
-        const priceId = subscription.items?.data?.[0]?.price?.id;
-        const planDef = planByPriceId(priceId);
+        const planDef = planFromSubscription(subscription);
         const botAccess =
           planDef?.botAccess === "both" ? "both" : ref.bot || (subscription.metadata?.bot_access as string) || "stock";
         const stamped: Record<string, string> = {

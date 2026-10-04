@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
 import { loadTotalumSynthesis, loadReportFindings } from "@/lib/totalum-service";
-import { isTotalumEntitled } from "../route";
+import { isFullHeadmaster } from "../route";
 import { createGrokChatCompletion, isGrokConfigured, type GrokMessage } from "@/lib/grok";
 import { buildStrategy, type TotalumSynthesis } from "@/lib/totalum-engine";
 import type { ReportFindings } from "@/lib/totalum-service";
@@ -122,9 +122,9 @@ export async function POST(req: Request) {
     const user = await getCurrentUser();
     if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
-    if (!isTotalumEntitled(user)) {
+    if (!isFullHeadmaster(user)) {
       return NextResponse.json(
-        { ok: false, error: "The Headmaster is a Pro feature for active paying members.", data: { code: "not_entitled" } },
+        { ok: false, error: "The Headmaster strategist is included with Pro.", data: { code: "not_entitled" } },
         { status: 403 }
       );
     }

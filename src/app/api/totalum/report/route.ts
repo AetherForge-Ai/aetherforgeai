@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
 import { loadTotalumSynthesis, loadReportFindings } from "@/lib/totalum-service";
-import { isTotalumEntitled } from "../route";
+import { isFullHeadmaster } from "../route";
 import { renderTotalumReport } from "@/lib/totalum-report-html";
 import { buildStrategy, type GoalKey } from "@/lib/totalum-engine";
 import { createZenithCompletion, isZenithConfigured } from "@/lib/grok";
@@ -31,9 +31,9 @@ export async function GET(req: Request) {
     const user = await getCurrentUser();
     if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
-    if (!isTotalumEntitled(user)) {
+    if (!isFullHeadmaster(user)) {
       return NextResponse.json(
-        { ok: false, error: "The Headmaster is a Pro feature for active paying members." },
+        { ok: false, error: "The Total Portfolio Intelligence report is included with Pro." },
         { status: 403 }
       );
     }

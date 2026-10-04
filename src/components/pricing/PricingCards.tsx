@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import {
   PRICING_TIERS,
   planByKey,
+  buildPaymentLinkUrl,
   SALES_EMAIL,
   ANNUAL_SAVINGS_PCT,
   type PricingTier,
@@ -66,25 +67,36 @@ export function PricingCards() {
       return;
     }
 
+    const userId = session.user.id;
+    if (!userId) {
+      toast.error("Sign in again to continue to checkout.");
+      return;
+    }
     setLoadingTier(tier.id);
+    const linked = buildPaymentLinkUrl(plan, {
+      userId,
+      email: session.user.email,
+      bot: plan.botAccess === "both" ? undefined : bot,
+    });
+    if (linked) {
+      console.log(`[pricing] Payment link ${tier.id} (${period})`);
+      window.location.href = linked;
+      return;
+    }
 
-    // Checkout Session uses the NZD amount on the pricing card (not a Payment
-    // Link that can show another currency or an old product name).
-    console.log(`[pricing] Checkout session ${tier.id} (${period})`, { priceId: plan.priceId, bot });
+    // No committed payment link yet. The server reads STRIPE_SECRET_KEY and
+    // attaches the catalog Price (NZ$16 / NZ$160 / NZ$49 / NZ$490).
     const res = await api.post<{ url: string }>("/api/stripe/checkout", {
-      priceId: plan.priceId,
-      // Bot choice only matters for single-bot tiers (Starter); ignored otherwise.
+      plan: plan.key,
       bot: plan.botAccess === "both" ? undefined : bot,
     });
     if (res.ok && res.data?.url) {
       window.location.href = res.data.url;
-    } else {
-      const msg =
-        typeof res.error === "string" ? res.error : res.error?.message || "Could not start checkout.";
-      console.error("[pricing] checkout failed:", res.error);
-      toast.error(msg);
-      setLoadingTier(null);
+      return;
     }
+    setLoadingTier(null);
+    const msg = typeof res.error === "string" ? res.error : "Could not start checkout.";
+    toast.error(msg);
   }
 
   async function startFree() {
@@ -300,8 +312,9 @@ export function PricingCards() {
       </div>
 
       <p className="mt-8 text-center text-xs text-muted-foreground">
-        All prices in NZD — Starter and Pro checkout is billed in NZD. US$ amounts are indicative at today&apos;s exchange rate ·
-        Secure Stripe checkout · Cancel anytime · Starter and Pro include a 14-day trial · Ultimate is Talk to us
+        All prices in NZD. Annual billing is 10 months for the price of 12 (save ~{ANNUAL_SAVINGS_PCT}%).
+        Starter and Pro include a 14-day trial and a card is collected at checkout. Cancel anytime.
+        Ultimate is Talk to us. US$ amounts are indicative at today&apos;s exchange rate.
       </p>
     </div>
   );

@@ -31,7 +31,7 @@ const FAQS: { q: string; a: string }[] = [
   },
   {
     q: "Can I try Pro before committing?",
-    a: "Yes. Starter and Pro each begin with a 14-day trial of that plan. Nothing is due today on a NZ$0 trial day, and you can cancel before the trial ends. Ultimate is founder-led — use Talk to us rather than self-serve checkout.",
+    a: "Yes. Starter and Pro each begin with a 14-day trial of that plan. A card is collected at checkout, nothing is charged until the trial ends, and you can cancel before then. Ultimate is founder-led — use Talk to us rather than self-serve checkout.",
   },
   {
     q: "Do you have discounts for students or charities?",
