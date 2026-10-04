@@ -3,7 +3,6 @@ import { buildLiveReport } from "@/lib/apex";
 import { claimsEmptyBook } from "@/lib/report-book";
 import {
   marketFeedUnavailableLine,
-  portfolioCoverageLines,
   portfolioIsLoaded,
   readPortfolioBook,
 } from "@/lib/report-scope";
@@ -12,7 +11,6 @@ describe("portfolio load", () => {
   it("treats a book with no stocks, crypto, metals, or cash as empty", () => {
     const book = readPortfolioBook([], [], 0);
     expect(portfolioIsLoaded(book)).toBe(false);
-    expect(portfolioCoverageLines({ book })).toEqual([]);
   });
 
   it("treats cash, gold, silver, stocks, or crypto as a loaded book", () => {
@@ -34,16 +32,24 @@ describe("portfolio load", () => {
     expect(
       portfolioIsLoaded(readPortfolioBook([{ ticker: "FPH.NZ", asset_type: "stock", shares: 0 }], [], 0))
     ).toBe(false);
+    expect(
+      portfolioIsLoaded(
+        readPortfolioBook([{ ticker: "GOLD", asset_type: "metal", shares: 0, company_name: "Gold bullion" }], [], 0),
+        [{ label: "Gold", sublabel: "0 oz", assetClass: "metals", valueNZD: 0 }]
+      )
+    ).toBe(false);
+    expect(
+      portfolioIsLoaded(readPortfolioBook([], [], 0), [
+        { label: "FPH.NZ", assetClass: "equities", valueNZD: 320 },
+      ])
+    ).toBe(true);
+    expect(
+      portfolioIsLoaded(readPortfolioBook([], [], 0), [
+        { label: "Cash (NZD)", assetClass: "cash", valueNZD: 80 },
+      ])
+    ).toBe(true);
   });
 
-  it("states metal ounces without a spot when that feed is down", () => {
-    const book = readPortfolioBook([{ ticker: "SILVER", asset_type: "metal", shares: 8 }], [], 100);
-    const lines = portfolioCoverageLines({ book, metalsFeedLive: false });
-    expect(lines.join(" ")).toMatch(/8 oz silver/);
-    expect(lines.join(" ")).toMatch(/precious-metals feed is unavailable/);
-    expect(lines.join(" ")).toMatch(/Ledger cash: NZ\$100/);
-    expect(lines.join(" ")).not.toMatch(/silver \(\$/i);
-  });
 });
 
 describe("Stox and Koins report scope", () => {
@@ -59,21 +65,21 @@ describe("Stox and Koins report scope", () => {
   it("covers the loaded portfolio and the market together", () => {
     const report = buildLiveReport("stock", [
       { ticker: "FPH.NZ", name: "Fisher & Paykel Healthcare", price: 32, shares: 10, purchasePrice: 30 },
-    ], {
-      portfolioLines: ["Precious metals on the book: 1 oz gold.", "Ledger cash: NZ$400."],
-    });
+    ]);
     const blob = [report.executiveSummary, ...report.keyObservations].join("\n");
     expect(blob).toMatch(/FPH\.NZ/);
-    expect(blob).toMatch(/1 oz gold/);
-    expect(blob).toMatch(/NZ\$400/);
-    expect(blob.toLowerCase()).toMatch(/market|sweep/);
+    expect(blob).not.toMatch(/Precious metals on the book|Ledger cash|Equities on the book/);
+    expect(blob.toLowerCase()).toMatch(/sweep/);
     expect(claimsEmptyBook(blob)).toBe(false);
   });
 
   it("does not invent market quotes when the feed is unavailable", () => {
     const report = buildLiveReport("crypto", [], { marketFeedUnavailable: true });
-    const blob = [report.executiveSummary, ...report.keyObservations].join("\n");
-    expect(blob).toContain(marketFeedUnavailableLine("crypto"));
+    expect(report.executiveSummary.startsWith("**AI briefing.**")).toBe(true);
+    expect(report.keyObservations.filter((line) => line === marketFeedUnavailableLine("crypto"))).toEqual([
+      marketFeedUnavailableLine("crypto"),
+    ]);
+    expect(report.executiveSummary).not.toContain(marketFeedUnavailableLine("crypto"));
     expect(report.projectionLeaders).toHaveLength(0);
     expect(report.marketMovers.every((group) => group.windows.every((window) => window.movers.length === 0))).toBe(true);
     expect(report.directRecommendations).toHaveLength(0);

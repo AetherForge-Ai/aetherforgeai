@@ -815,8 +815,6 @@ interface ReportExtras {
   tape?: TapeRead;
   guard?: DeploymentGuard;
   skippedSpeculative?: string[];
-  /** Facts about a loaded book (stocks, crypto, metals, cash). Empty when none is loaded. */
-  portfolioLines?: string[];
   /** Live market sweep returned nothing. Seed directory prices must not fill the boards. */
   marketFeedUnavailable?: boolean;
 }
@@ -829,16 +827,11 @@ function consistentExecutiveSummary(
   extras: ReportExtras
 ): string {
   const noun = bot === "crypto" ? "assets" : "holdings";
-  const sweep = bot === "crypto" ? "the complete digital-asset market" : "the complete NZX, ASX and US exchanges";
-  const portfolioLines = extras.portfolioLines ?? [];
-  const loadedPortfolio = portfolioLines.length > 0;
   const actions = heldRecs.length
     ? heldRecs
         .map((r) => `**${r.action} ${r.ticker}** (7-day base ${r.baseRange ?? spPct(r.projected7dPct)})`)
         .join("; ")
-    : loadedPortfolio
-      ? `this sleeve lists no ${noun}`
-      : `no monitored ${noun} yet`;
+    : `no monitored ${noun} yet`;
   const roster = extras.bookRoster ? ` Live book: ${extras.bookRoster}.` : "";
   const buys = extras.directRecommendations
     .filter((r) => !r.held && (r.action === "BUY" || r.action === "ACCUMULATE"))
@@ -849,23 +842,12 @@ function consistentExecutiveSummary(
     extras.skippedSpeculative && extras.skippedSpeculative.length
       ? ` Not sized this week: ${extras.skippedSpeculative.join(", ")}.`
       : "";
-  const portfolio = loadedPortfolio ? ` Loaded portfolio: ${portfolioLines.join(" ")}` : "";
-  const feed = extras.marketFeedUnavailable ? ` ${marketFeedUnavailableLine(bot)}` : "";
-  const lead = heldRecs.length
-    ? `On the live book:${roster} ${actions}.`
-    : loadedPortfolio
-      ? `The sweep covered ${sweep}.${portfolio}`
-      : `The sweep covered ${sweep}. The portfolio is empty, so this report analyses that market only.`;
   return (
-    `${lead} ` +
-    (heldRecs.length
-      ? `${positive} of ${total} ${noun} carry a positive momentum signal — the same Buy or Accumulate rating on each card. `
-      : "") +
+    `On the live book:${roster} ${actions}. ` +
+    `${positive} of ${total} ${noun} carry a positive momentum signal — the same Buy or Accumulate rating on each card. ` +
     `${extras.guard?.headline ?? ""}` +
     buyLine +
     skipped +
-    (heldRecs.length ? portfolio : "") +
-    feed +
     ` _Informational market intelligence only — not personalised financial advice._`
   );
 }
@@ -904,49 +886,38 @@ function assembleReport(
   const positiveFromRecs = heldRecs.filter((r) => r.action === "BUY" || r.action === "ACCUMULATE").length;
   const momentumCount = extras.guard ? positiveFromRecs : strong.length;
   const momentumTotal = extras.guard ? heldRecs.length : tickers.length;
-  const portfolioLines = extras.portfolioLines ?? [];
   const feedLine = extras.marketFeedUnavailable ? [marketFeedUnavailableLine(bot)] : [];
   const executiveSummary = extras.guard
     ? consistentExecutiveSummary(bot, heldRecs, momentumCount, momentumTotal, extras)
     :
     tickers.length === 0
-      ? portfolioLines.length
-        ? `**AI briefing.** The sweep covered ${sweepLabel} for Top-10 movers and 7-day projection leaders. ` +
-          `The loaded portfolio is part of this report: ${portfolioLines.join(" ")} ` +
-          (buyNames.length ? `Market names from the sweep include **${buyNames.join(", ")}**. ` : "") +
-          `_Informational market intelligence only — not personalised financial advice._`
-        : `**AI briefing.** The sweep covered ${sweepLabel} for Top-10 movers and 7-day projection leaders. ` +
-          `The portfolio is empty, so this report analyses that market only` +
-          (buyNames.length ? `, led by **${buyNames.join(", ")}**` : "") +
-          `. ` +
-          `_Informational market intelligence only — not personalised financial advice._`
+      ? `**AI briefing.** The sweep covered ${sweepLabel} for Top-10 movers and 7-day projection leaders. ` +
+        `Your book has **no monitored ${assetNoun} yet** — this report leads with a concrete **BUY/ACCUMULATE** list` +
+        (buyNames.length ? ` led by **${buyNames.join(", ")}**` : "") +
+        ` so cash can be deployed with conviction and specific markets named. ` +
+        `_Informational market intelligence only — not personalised financial advice._`
       :         `**AI briefing.** ${isDemo ? "This sample book holds" : "Your live book holds"} **${tickers.length}** ${assetNoun}: **${bookRoster}**. ` +
         `The sweep covered ${sweepLabel} against those positions — aggregate 7-day bias is **${strong.length >= weak.length ? "constructive" : "defensive"}** (${strong.length} accumulate-or-better, ${weak.length} elevated risk). ` +
         (buyNames.length
           ? `Priority new buys this week: **${buyNames.join(", ")}**. `
           : "") +
-        (portfolioLines.length ? `${portfolioLines.join(" ")} ` : "") +
         `Below: portfolio standings, direct buy/sell recommendations on the held names and three forward pathways. ` +
         `_Informational market intelligence only — not personalised financial advice._`;
 
   const keyObservations =
     tickers.length === 0
       ? [
+          `Empty holdings — leading with ${buyNames.length} named BUY/ACCUMULATE candidates from the full-market sweep.`,
+          buyNames[0]
+            ? `Top deploy candidate: **${buyNames[0]}** — see Direct Recommendations for conviction and projected 7-day move.`
+            : "Run again once live market data is available to refresh the BUY board.",
+          bot === "crypto"
+            ? "Koins screened the complete crypto market — use the BUY list to put cash to work in specific coins."
+            : "Stox screened NZX / ASX / US equities — use the BUY list to put cash to work in specific tickers.",
+          "Keep a cash buffer; scale into positions in 2–3 tranches rather than a single fill.",
           ...feedLine,
-          ...portfolioLines,
-          `Market sweep covered ${sweepLabel}.`,
-          buyNames.length
-            ? `Named market ideas: ${buyNames.join(", ")}.`
-            : extras.marketFeedUnavailable
-              ? "No market prices were available to rank movers or ideas."
-              : bot === "crypto"
-                ? "Koins screened the complete crypto market."
-                : "Stox screened NZX, ASX, NASDAQ and Dow Jones.",
-          ...(portfolioLines.length ? [] : ["The portfolio is empty, so no holdings were analysed."]),
         ]
       : [
-          ...feedLine,
-          ...portfolioLines,
           `${isDemo ? "Sample book" : "Live book"} (${tickers.length}): ${bookRoster}.`,
           `${momentumCount} of ${momentumTotal} ${bot === "crypto" ? "assets" : "holdings"} carry a positive momentum signal into the week.`,
           topGainers[0]
@@ -964,6 +935,7 @@ function assembleReport(
                 `Left off the buy list under this tape (moves or conviction are too aggressive to size): ${extras.skippedSpeculative.join(", ")}.`,
               ]
             : []),
+          ...feedLine,
         ];
 
   const newsSynthesis =
@@ -1126,11 +1098,6 @@ export interface BuildLiveReportOptions {
   /** Full-account book in NZD. Cash retained is about 10% of this book. */
   accountBookNZD?: number;
   /**
-   * Facts about the loaded book (any stocks, crypto, gold, silver, or cash).
-   * Omit when nothing is loaded so the report stays a market analysis.
-   */
-  portfolioLines?: string[];
-  /**
    * The live market sweep was attempted and returned no quotes. Boards stay
    * empty instead of filling directory seed prices.
    */
@@ -1152,7 +1119,6 @@ export function buildLiveReport(
     tape,
     cashBalanceNZD = 0,
     accountBookNZD,
-    portfolioLines: suppliedLines,
     marketFeedUnavailable = false,
   } = options;
 
@@ -1189,10 +1155,6 @@ export function buildLiveReport(
   const bookRoster = analyzable
     .map((h) => `${h.ticker} × ${typeof h.shares === "number" ? h.shares : 0}`)
     .join(", ");
-  const portfolioLines = [...(suppliedLines ?? [])];
-  if (cashBalanceNZD > 0 && !portfolioLines.some((line) => /ledger cash/i.test(line))) {
-    portfolioLines.push(`Ledger cash: NZ$${Math.round(cashBalanceNZD)}.`);
-  }
 
   return assembleReport(
     bot,
@@ -1206,7 +1168,6 @@ export function buildLiveReport(
       tape,
       guard,
       skippedSpeculative: skippedNames,
-      portfolioLines,
       marketFeedUnavailable,
     },
     quotedMarket,
