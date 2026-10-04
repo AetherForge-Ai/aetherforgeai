@@ -1,7 +1,7 @@
 /**
  * Apex report engine.
  *
- * Produces the structured "Ultra Advanced Apex-State" report shown in the
+ * Produces the structured report shown in the
  * marketing demo modals (fake-but-realistic data) and in the subscriber
  * dashboard (built from the user's real holdings). Pure module — safe on
  * client and server. No Math.random at import time; a small seeded RNG keeps
@@ -29,6 +29,7 @@ import {
   type FxRatesToNZD,
 } from "./currency";
 import { ZENITH_STATE_LABEL } from "./zenith";
+import { memberBotLabel } from "./report-language";
 import type { IntelligenceBriefing } from "./briefing";
 import {
   alignedProjection,
@@ -955,9 +956,9 @@ function assembleReport(
     bot,
     title: bot === "crypto" ? "Koins · Crypto Market Intelligence Monitor" : "Stox · Stock Market Intelligence Monitor",
     marketLabel,
-    generatedLabel: isDemo ? "Sample report · illustrative data" : "Live ZENITH run",
+    generatedLabel: isDemo ? "Sample report · illustrative data" : "Live report",
     isDemo,
-    engine: ZENITH_STATE_LABEL,
+    engine: isDemo ? ZENITH_STATE_LABEL : memberBotLabel(bot),
     executiveSummary,
     topGainers,
     keyObservations,

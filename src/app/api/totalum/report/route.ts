@@ -4,14 +4,8 @@ import { loadTotalumSynthesis, loadReportFindings } from "@/lib/totalum-service"
 import { isFullHeadmaster } from "../route";
 import { renderTotalumReport } from "@/lib/totalum-report-html";
 import { buildStrategy, type GoalKey } from "@/lib/totalum-engine";
-import { createZenithCompletion, isZenithConfigured } from "@/lib/grok";
-import { ZENITH_STATE_LABEL } from "@/lib/zenith";
-import {
-  alignNarrativeToPlan,
-  intelligenceBriefInstructions,
-  sanitizeHeadmasterReportHtml,
-  scopeHeadmasterIdeas,
-} from "@/lib/headmaster-trust";
+import { HEADMASTER_BOT_LABEL } from "@/lib/report-language";
+import { sanitizeHeadmasterReportHtml, scopeHeadmasterIdeas } from "@/lib/headmaster-trust";
 
 export const dynamic = "force-dynamic";
 
@@ -53,44 +47,11 @@ export async function GET(req: Request) {
       .map((p) => p.label);
     const scoped = scopeHeadmasterIdeas(findings.ideas || [], heldTickers, includeWatchlist);
 
-    // Additional commentary only. Cash figures and the executive brief come from strategy.plan.
-    let aiNarrative: string | undefined;
-    if (!synthesis.isEmpty && strategy && isZenithConfigured()) {
-      try {
-        const alloc = synthesis.classAllocation
-          .map((c) => `${c.label} ${c.weight.toFixed(1)}% (${c.positions} pos)`)
-          .join(", ");
-        console.log(`[api/totalum/report] Running ${ZENITH_STATE_LABEL} commentary for user ${user._id} watchlist=${includeWatchlist}`);
-        aiNarrative = await createZenithCompletion({
-          maxTokens: 1000,
-          messages: [
-            {
-              role: "user",
-              content:
-                intelligenceBriefInstructions({
-                  plan: strategy.plan,
-                  heldTickers,
-                  includeWatchlist,
-                  findingsContext: scoped.contextBlock,
-                }) +
-                `\n\nBook facts: total ${Math.round(synthesis.totalValueNZD)}. Diversification ${synthesis.diversificationScore}/100 (${synthesis.concentrationLabel}, HHI ${synthesis.hhi}). ` +
-                `Current model return/vol ${synthesis.expectedAnnualReturnPct}% / ${synthesis.expectedAnnualVolPct}%. Allocation: ${alloc}. ` +
-                `Selected skeleton: ${strategy.name}.`,
-            },
-          ],
-        });
-        aiNarrative = alignNarrativeToPlan(aiNarrative, strategy.plan);
-      } catch (grokErr) {
-        console.error("[api/totalum/report] ZENITH briefing failed (non-fatal):", grokErr);
-      }
-    }
-
     const html = sanitizeHeadmasterReportHtml(
       renderTotalumReport(synthesis, {
         memberName: user.name,
         strategy,
-        aiNarrative,
-        engine: ZENITH_STATE_LABEL,
+        engine: HEADMASTER_BOT_LABEL,
         watchlist: includeWatchlist ? scoped.watchlist : [],
       }),
       strategy?.plan

@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatPercent } from "@/lib/portfolio";
 import { formatMoney } from "@/lib/currency";
 import { sanitizeGuardedReport } from "@/lib/report-consistency";
+import { labelMemberReport } from "@/lib/report-language";
 import type {
   ApexReport,
   TickerAnalysis,
@@ -555,7 +556,7 @@ function BriefingSection({ report }: { report: ApexReport }) {
 
 export function ApexReportView({ report: source }: { report: ApexReport }) {
   // Stored View, including recommendation rows, always re-applies the cash guard.
-  const report = sanitizeGuardedReport(source);
+  const report = labelMemberReport(sanitizeGuardedReport(source));
   return (
     <div className="min-w-0 max-w-full space-y-5 overflow-x-hidden">
       {/* Header */}

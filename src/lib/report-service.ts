@@ -2,38 +2,25 @@ import "server-only";
 import { totalumSdk } from "@/lib/totalum";
 import { buildLiveReport, type LiveHolding, type BotKind } from "@/lib/apex";
 import { renderReportHtml, type ReportAlert } from "@/lib/report-html";
-import { createZenithCompletion, isZenithConfigured } from "@/lib/grok";
 import { analyzeSecurity, analyzeUniverse, getMarketNews, universeFor, type SecurityIntel } from "@/lib/market-intel";
 import { loadMarketNews } from "@/lib/market-news";
 import { computePortfolioMetrics, buildActionableIntelligence } from "@/lib/analytics";
 import { getUpcomingEvents } from "@/lib/econ-calendar";
 import { scoreHeadlines } from "@/lib/news-sentiment";
 import { buildIntelligenceBriefing } from "@/lib/briefing";
-import {
-  deploymentGuard,
-  narrativeContradictsCanonical,
-  sanitizeGuardedReport,
-  rateAsset,
-  readTape,
-  alignedProjection,
-} from "@/lib/report-consistency";
+import { sanitizeGuardedReport, readTape } from "@/lib/report-consistency";
 import { fetchQuotesForAssetClass, isLiveConfiguredFor } from "@/lib/market-data";
 import { fetchCryptoMarketIntel } from "@/lib/koins-market";
 import { getFxSnapshot } from "@/lib/fx";
 import type { Stock } from "@/lib/portfolio";
 import { formatAucklandDateTime } from "@/lib/entitlements";
-import { groundReportNarrative, ownerIdOf } from "@/lib/report-book";
+import { ownerIdOf } from "@/lib/report-book";
 import { alertIsEffectivelyArchived, heldQuantityForTicker } from "@/lib/alert-lifecycle";
 import { relockSeededReportPrices } from "@/lib/paper-quote-lock.server";
 import { reportEmailWasDelivered } from "@/lib/report-email";
 import { loadTotalumSynthesis } from "@/lib/totalum-service";
 import type { TotalumSynthesis } from "@/lib/totalum-engine";
-import {
-  marketFeedUnavailableLine,
-  portfolioIsLoaded,
-  readPortfolioBook,
-  type CoveragePosition,
-} from "@/lib/report-scope";
+import { portfolioIsLoaded, readPortfolioBook, type CoveragePosition } from "@/lib/report-scope";
 import { isBullionHolding } from "@/lib/metal-valuation";
 
 /**
@@ -135,7 +122,7 @@ export async function loadStockRowsForAccount(
 }
 
 /**
- * Builds a full SuperGrok 4.6 ULTRA ADVANCED report from the user's holdings for
+ * Builds a full report from the user's holdings for
  * one asset class, renders a PDF, emails it (PDF attached), persists a `report`
  * record and returns everything for inline display. Shared by:
  *  - POST /api/reports (manual, dashboard-triggered)
@@ -262,10 +249,6 @@ export async function generateReportForUser(
       ? analyzeUniverse(marketOverrides, bot)
       : [];
   const marketFeedUnavailable = marketTechnicals.length === 0;
-  const partialFeedLine =
-    bot === "crypto" && !universeIntel?.length && marketTechnicals.length
-      ? "The full crypto-market feed is unavailable for this run."
-      : "";
   if (marketFeedUnavailable) {
     console.error(`[report-service] ${bot} market feed unavailable — report will say so and will not invent quotes`);
   }
@@ -321,9 +304,6 @@ export async function generateReportForUser(
     accountBookNZD: portfolioLoaded && accountBookNZD > 0 ? accountBookNZD : undefined,
     marketFeedUnavailable,
   });
-  if (partialFeedLine && !report.keyObservations.includes(partialFeedLine)) {
-    report.keyObservations = [...report.keyObservations, partialFeedLine];
-  }
 
   // ---- Intelligence briefing + probabilistic 7-day outlook -------------
   // Scheduled macro catalysts for the next 7 days (deterministic, no key).
@@ -348,127 +328,7 @@ export async function generateReportForUser(
       `${econEvents.length} catalysts, sentiment ${sentiment.label} (${sentiment.method}), overall ${briefing.overall.level}/${briefing.overall.bias}`
   );
   report.briefing = briefing;
-
-  // SuperGrok 4.6 · Ultra Advanced ZENITH State narrative — every bot's report is
-  // authored in this state whenever the owner's Grok key is configured. Non-fatal:
-  // if Grok is unavailable the report still ships with its deterministic summary.
-  const botLabel = bot === "crypto" ? "Koins (crypto)" : "Stox (equities)";
-  let aiEnhanced = false;
-  if (isZenithConfigured()) {
-    try {
-      const lines = holdings
-        .map((h, i) => {
-          const t = technicals[i];
-          if (!t) return `${h.ticker}: $${h.price.toFixed(2)} — no technical read`;
-          const base = `${t.outlook.base.lowPct >= 0 ? "+" : ""}${t.outlook.base.lowPct}% to ${t.outlook.base.highPct >= 0 ? "+" : ""}${t.outlook.base.highPct}%`;
-          return (
-            `${h.ticker}: $${h.price.toFixed(2)} (held ${h.shares}, cost $${(h.purchasePrice || 0).toFixed(2)}) — ` +
-            `signal ${t.signal}, ${t.conviction} conviction, regime ${t.regime}, RSI ${t.rsi}, MACD ${t.macdSignal}, ` +
-            `7d base-case range ${base} (${t.outlook.base.probability}% odds) @ ${t.confidence}% confidence`
-          );
-        })
-        .join("\n");
-      const sells = intelligence.sellRecommendations.map((r) => r.ticker).join(", ") || "none";
-      const buys = intelligence.buyCandidates.map((b) => b.ticker).join(", ") || "none";
-      // Full-market BUY candidates + top projected leaders drawn from the report's
-      // own sweep (the ENTIRE crypto market for Koins) — fed to the narrative so
-      // it can name specific tickers to BUY with concrete, data-grounded reasons.
-      const guardBook = portfolioLoaded && accountBookNZD > 0 ? accountBookNZD : undefined;
-      const guard = deploymentGuard(bot, tape, cashBalanceNZD, guardBook);
-      const canonicalLines = technicals
-        .map((t) => {
-          const rating = rateAsset(t);
-          const aligned = alignedProjection(t);
-          return `${rating.action} ${t.ticker} — 7-day base ${aligned.range} (${aligned.probability}% odds, midpoint ${aligned.pct >= 0 ? "+" : ""}${aligned.pct}%), MACD ${t.macdSignal}, regime ${t.regime}, RSI ${t.rsi}. Positive momentum: ${rating.positiveMomentum ? "yes" : "no"}.`;
-        })
-        .join("\n");
-      const positive = technicals.filter((t) => rateAsset(t).positiveMomentum).length;
-      const missingFeedLine = marketFeedUnavailable ? marketFeedUnavailableLine(bot) : partialFeedLine;
-      const marketBuys =
-        report.directRecommendations
-          .filter((r) => !r.held && (r.action === "BUY" || r.action === "ACCUMULATE"))
-          .map((r) => `${r.ticker} (${r.projected7dPct >= 0 ? "+" : ""}${r.projected7dPct}% proj 7d)`)
-          .join(", ") || "none";
-      const topProjected = report.projectionLeaders
-        .slice(0, 6)
-        .map((p) => `${p.ticker} ${p.projected7dPct >= 0 ? "+" : ""}${p.projected7dPct}% (${p.signal})`)
-        .join(", ");
-      const catalystLine = econEvents.length
-        ? econEvents.map((e) => `${e.title} (${e.dateLabel})`).join("; ")
-        : "no top-tier scheduled catalysts";
-      console.log(`[report-service] Running ${report.engine} narrative for ${botLabel} · user ${user._id}`);
-      const narrative = await createZenithCompletion({
-        maxTokens: 1100,
-        messages: [
-          {
-            role: "user",
-            content:
-              `You are the ${botLabel} bot producing this member's report in ULTRA ADVANCED ZENITH STATE. ` +
-              (bot === "crypto"
-                ? `This is a PURE cryptocurrency report covering the COMPLETE crypto market — never reference NZX, ASX, NASDAQ, DOW or any equities. `
-                : `This is a PURE equities report covering NZX, ASX, NASDAQ and DOW JONES — never reference crypto. `) +
-              `Write a rich, professional 4-6 sentence executive summary of the short-term (7-day) outlook. ` +
-              `Be strictly evidence-based and PROBABILISTIC — speak in expected ranges and likelihoods, and NEVER give a single-point price target that disagrees with the base-case range below. ` +
-              `Reference technical posture (RSI/MACD/regime), conviction/confidence %, catalysts, news sentiment, and the single most important illustrative scenario. Do not tell the reader they should buy, and do not instruct a cash deployment. ` +
-              `CANONICAL RATINGS are the only actions you may use. Do not upgrade a HOLD into Strong Buy, Accumulate, or ADD. Do not call a name positive momentum unless the line says yes. ` +
-              `If you quote a 7-day view for a held name, use that name's base-case range exactly. ` +
-              (guard.mode === "full"
-                ? `You may name the suitable BUY/ACCUMULATE candidates below, sized with a cash buffer. `
-                : `CASH GUARD (${guard.mode}): ${guard.headline} Do not tell the reader to deploy the full cash balance. Do not recommend speculative or outsized movers as buys. `) +
-              `CASH RULE: quote the live cash on the guard line. Keep about 10% of the live book in reserve, the same rule as the Headmaster skeleton. Do not say NZ$100,000 is available, do not keep 75% in reserve, and do not start from NZ$25,000. ` +
-              (holdings.length === 0
-                ? `The member has empty holdings and NZ$${Math.round(cashBalanceNZD)} cash — follow the cash guard. `
-                : `The member ALREADY HOLDS live positions. Open by naming each held ticker with its CANONICAL action. ` +
-                  `Never describe the book, portfolio, or holdings as empty, cash-only, or unmonitored. `) +
-              `Positive momentum count you must match if you mention it: ${positive} of ${technicals.length}. ` +
-              `Close with an italic disclaimer that this is informational intelligence, not financial advice. Use **bold** for ticker names.\n\n` +
-              `Market: ${report.marketLabel}.\n` +
-              `Overall read: ${briefing.overall.bias} bias, ${briefing.overall.level} conviction, net ${briefing.overall.score}/100.\n` +
-              `News sentiment: ${sentiment.label} (${sentiment.score}/100, ${sentiment.method} model).\n` +
-              `Catalysts next 7 days: ${catalystLine}.\n` +
-              `Portfolio metrics: health ${metrics.healthScore}/100 (${metrics.healthLabel}), annualised volatility ${metrics.volatility}%, Sharpe ${metrics.sharpe}, 7-day alpha potential ${metrics.alphaPotentialPct}%.\n` +
-              `CANONICAL RATINGS (source of truth):\n${canonicalLines || "(none)"}\n` +
-              `SELL flags (held): ${sells}. High-conviction BUY candidates (held): ${buys}.\n` +
-              `Suitable new BUY candidates only: ${marketBuys}.\n` +
-              `Top 7-day projected leaders across the market (context, not automatic buys): ${topProjected}.\n` +
-              (holdings.length
-                ? `Holdings:\n${lines}\n\n`
-                : `Holdings: none — cash NZ$${Math.round(cashBalanceNZD)} available, subject to the cash guard.\n\n`) +
-              (missingFeedLine ? `${missingFeedLine}\n` : "") +
-              `Write the ZENITH executive summary now. Repeat the canonical actions. Do not contradict them.`,
-          },
-        ],
-      });
-      if (narrative && narrative.length > 40) {
-        const grounded = groundReportNarrative(
-          narrative,
-          holdings.map((h) => ({ ticker: h.ticker, shares: h.shares, name: h.name }))
-        );
-        const contradicts = narrativeContradictsCanonical(
-          grounded.text,
-          technicals.map((t) => ({ ticker: t.ticker, action: rateAsset(t).action })),
-          guard,
-          { positive, total: technicals.length }
-        );
-        if (grounded.discardedEmptyClaim || !grounded.text || contradicts) {
-          console.warn(
-            contradicts
-              ? `[report-service] Discarded ZENITH narrative that contradicted canonical ratings or the cash guard`
-              : `[report-service] Discarded ZENITH narrative that described an empty book while ${holdings.length} ${bot} holdings are live`
-          );
-        } else {
-          report.executiveSummary = grounded.text;
-          // Keep the briefing's headline summary in lock-step with the report.
-          briefing.executiveSummary = grounded.text;
-          briefing.aiSummary = true;
-          aiEnhanced = true;
-          console.log(`[report-service] ZENITH narrative applied for user ${user._id}`);
-        }
-      }
-    } catch (grokErr) {
-      console.error("[report-service] ZENITH narrative failed (non-fatal):", grokErr);
-    }
-  }
+  const aiEnhanced = false;
 
   // Pull the user's price alerts for these tickers to include an action plan.
   let alerts: ReportAlert[] = [];

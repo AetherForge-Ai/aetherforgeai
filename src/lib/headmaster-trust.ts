@@ -6,6 +6,8 @@
  * scenario-based. Non-held names stay off the default plan.
  */
 
+import { stripReportModelLanguage } from "@/lib/report-language";
+
 export type PlanAssetClass = "equities" | "crypto" | "metals" | "cash";
 
 export type IllustrativeAction = "increase" | "reduce" | "unchanged";
@@ -301,12 +303,13 @@ export function sanitizeHeadmasterDisplayText(text: string, plan?: AllocationPla
       return /[.!?]\s*$/.test(sentence) ? `${cashLine}.` : cashLine;
     }
   );
-  return out.replace(/\u0001/g, ".").replace(/[ ]{2,}/g, " ");
+  return stripReportModelLanguage(out.replace(/\u0001/g, ".").replace(/[ ]{2,}/g, " "));
 }
 
 /** Sanitize visible text nodes in a stored or freshly rendered Headmaster HTML report. */
 export function sanitizeHeadmasterReportHtml(html: string, plan?: AllocationPlan | null): string {
   return String(html || "")
+    .replace(/Ultra Advanced ZENITH State/gi, "intelligent AI bot named Headmaster")
     .replace(/ZENITH Executive Briefing/g, "Illustrative commentary")
     .replace(/>([^<]*)</g, (full, text: string) => {
       // Leave the document stylesheet alone. Report prose does not look like CSS.

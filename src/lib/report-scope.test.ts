@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { buildLiveReport } from "@/lib/apex";
+import { buildDemoReport, buildLiveReport } from "@/lib/apex";
 import { claimsEmptyBook } from "@/lib/report-book";
+import { stripReportModelLanguage } from "@/lib/report-language";
 import {
   marketFeedUnavailableLine,
   portfolioIsLoaded,
@@ -80,10 +81,31 @@ describe("Stox and Koins report scope", () => {
       marketFeedUnavailableLine("crypto"),
     ]);
     expect(report.executiveSummary).not.toContain(marketFeedUnavailableLine("crypto"));
+    expect([report.executiveSummary, ...report.keyObservations].join("\n")).not.toContain(
+      "The full crypto-market feed is unavailable"
+    );
     expect(report.projectionLeaders).toHaveLength(0);
     expect(report.marketMovers.every((group) => group.windows.every((window) => window.movers.length === 0))).toBe(true);
     expect(report.directRecommendations).toHaveLength(0);
     expect(JSON.stringify(report.marketMovers)).not.toContain("96850");
     expect(report.executiveSummary.toLowerCase()).toMatch(/market/);
+    expect(report.engine).toBe("intelligent AI bot named Koins");
+    expect(report.generatedLabel).toBe("Live report");
+    expect(JSON.stringify(report)).not.toMatch(/\b(ZENITH|Grok|ULTRA|advanced)\b/);
+  });
+
+  it("drops model branding and keeps the company name Advanced Micro Devices", () => {
+    const cleaned = stripReportModelLanguage(
+      "Live ZENITH run by SuperGrok 4.6. ULTRA advanced note on Advanced Micro Devices and grok-4.6."
+    );
+    expect(cleaned).toBe("Live report by. note on Advanced Micro Devices and.");
+    expect(cleaned.replace(/Advanced Micro Devices/g, "")).not.toMatch(/\b(ZENITH|Grok|ULTRA|advanced|grok-4\.6)\b/i);
+  });
+
+  it("keeps the sample report badge used on the page", () => {
+    const demo = buildDemoReport("stock");
+    expect(demo.isDemo).toBe(true);
+    expect(demo.engine).toBe("AI");
+    expect(demo.generatedLabel).toBe("Sample report · illustrative data");
   });
 });

@@ -14,6 +14,7 @@ import {
   type AllocationPlan,
   type HeadmasterIdea,
 } from "@/lib/headmaster-trust";
+import { HEADMASTER_BOT_LABEL } from "@/lib/report-language";
 
 function nzd(v: number): string {
   return nzdWhole(v);
@@ -214,7 +215,7 @@ export function renderTotalumReport(
       <div class="muted">${esc(opts.memberName || "Member")}</div>
       <div class="muted">${esc(date)}</div>
       <div class="muted">Spot ${s.metalsLive ? "live" : "est."} · base currency NZD</div>
-      <div style="margin-top:6px"><span style="display:inline-block;padding:3px 10px;border-radius:999px;background:#eef2ff;color:#6366f1;font-size:11px;font-weight:700">⚡ ${esc(opts.engine || "Ultra Advanced ZENITH State")}</span></div>
+      <div style="margin-top:6px"><span style="display:inline-block;padding:3px 10px;border-radius:999px;background:#eef2ff;color:#6366f1;font-size:11px;font-weight:700">⚡ ${esc(opts.engine || HEADMASTER_BOT_LABEL)}</span></div>
     </div>
   </header>
 
