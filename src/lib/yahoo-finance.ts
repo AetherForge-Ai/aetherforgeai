@@ -59,6 +59,14 @@ const CONCURRENCY = 8;
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36";
 
+/** Yahoo calls must fail closed. A hung quote request must not leave a page spinning. */
+function yahooGet(url: string, timeoutMs = 8000): Promise<Response> {
+  return fetch(url, {
+    headers: { "User-Agent": UA, Accept: "application/json" },
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+}
+
 const CACHE = new Map<string, { quote: YahooQuote; at: number }>();
 
 /** Fetch a single Yahoo symbol's current quote, or null on any failure. */
@@ -68,9 +76,7 @@ async function fetchOne(yahooSymbol: string): Promise<YahooQuote | null> {
 
   try {
     const url = `${BASE}/${encodeURIComponent(yahooSymbol)}?interval=1d&range=1d`;
-    const res = await fetch(url, {
-      headers: { "User-Agent": UA, Accept: "application/json" },
-    });
+    const res = await yahooGet(url);
     if (!res.ok) {
       console.error(`[yahoo] HTTP ${res.status} for ${yahooSymbol}`);
       return null;
@@ -235,7 +241,7 @@ export async function fetchYahooHistories(
     const symbols = chunk.map(([, y]) => y).join(",");
     try {
       const url = `${SPARK_BASE}?symbols=${encodeURIComponent(symbols)}&range=${range}&interval=${interval}`;
-      const res = await fetch(url, { headers: { "User-Agent": UA, Accept: "application/json" } });
+      const res = await yahooGet(url);
       if (!res.ok) {
         console.error(`[yahoo] spark HTTP ${res.status} for ${chunk.length} symbols`);
         return;
@@ -371,7 +377,7 @@ export async function fetchYahooQuotesBatched(
       // 1d/5m → live intraday prints when the session has bars.
       // 5d/1d → last official daily closes when markets are shut / bars empty.
       const url = `${SPARK_BASE}?symbols=${encodeURIComponent(symbols)}&range=${range}&interval=${interval}`;
-      const res = await fetch(url, { headers: { "User-Agent": UA, Accept: "application/json" } });
+      const res = await yahooGet(url);
       if (!res.ok) {
         console.error(`[yahoo] live-batch HTTP ${res.status} for ${chunk.length} symbols (${range}/${interval})`);
         return;
@@ -492,7 +498,7 @@ const SEARCH_CACHE = new Map<string, { at: number; results: YahooSymbolMatch[] }
 async function probeSymbol(symbol: string): Promise<YahooSymbolMatch | null> {
   try {
     const url = `${BASE}/${encodeURIComponent(symbol)}?interval=1d&range=1d`;
-    const res = await fetch(url, { headers: { "User-Agent": UA, Accept: "application/json" } });
+    const res = await yahooGet(url);
     if (!res.ok) return null;
     const json = (await res.json()) as {
       chart?: { result?: Array<{ meta?: Record<string, any> }> };
@@ -522,7 +528,7 @@ async function probeSymbol(symbol: string): Promise<YahooSymbolMatch | null> {
 async function nameSearch(q: string): Promise<YahooSymbolMatch[]> {
   try {
     const url = `${SEARCH_BASE}?q=${encodeURIComponent(q)}&quotesCount=40&newsCount=0&listsCount=0&enableFuzzyQuery=false`;
-    const res = await fetch(url, { headers: { "User-Agent": UA, Accept: "application/json" } });
+    const res = await yahooGet(url);
     if (!res.ok) {
       console.error(`[yahoo] search HTTP ${res.status} for "${q}"`);
       return [];

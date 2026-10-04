@@ -202,6 +202,44 @@ export function formatUsdApprox(
   return `≈ ${formatMoney(nzdToUsd(nzd, rates), "USD", { decimals: opts.decimals ?? 0 })}`;
 }
 
+/** US dollars received for 1 NZD, from the same "1 unit → NZD" table. */
+export function usdPerNzd(rates: FxRatesToNZD = BASELINE_FX_TO_NZD): number {
+  return 1 / ensureNzdPerUsd(rates.USD);
+}
+
+/** Auckland wall time for the single FX snapshot, e.g. "4 Oct 2026, 3:06 pm NZST". */
+export function formatFxAsOf(asOfIso: string): string {
+  const date = new Date(asOfIso);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString("en-NZ", {
+    timeZone: "Pacific/Auckland",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  });
+}
+
+/**
+ * One caption for every public US$ figure: the converted amount, the single
+ * NZD→USD rate, and the time that rate was taken.
+ */
+export function formatUsdWithRate(
+  nzd: number,
+  rates: FxRatesToNZD,
+  asOfIso: string,
+  opts: { decimals?: number; suffix?: string } = {}
+): string {
+  // The printed rate is the rate used. Four decimal places is what the caption shows.
+  const rate = Number(usdPerNzd(rates).toFixed(4));
+  const amount = formatMoney(nzd * rate, "USD", { decimals: opts.decimals ?? 2 });
+  const taken = formatFxAsOf(asOfIso);
+  const suffix = opts.suffix ?? "";
+  return `≈ ${amount}${suffix} · 1 NZD = US$${rate.toFixed(4)}${taken ? ` · ${taken}` : ""}`;
+}
+
 /** Short signed percent, e.g. "+2.4%". */
 export function formatSignedPercent(value: number, decimals = 2): string {
   const s = value.toFixed(decimals);

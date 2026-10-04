@@ -14,7 +14,7 @@ import { Loader2, User, CreditCard, Crown, ExternalLink, Sparkles, ShieldCheck, 
 import Link from "next/link";
 import { PLANS, SALES_EMAIL, planByKey, planLabel, type Plan } from "@/lib/plans";
 import { isFreeReportPlan } from "@/lib/entitlements";
-import { formatUsdApprox } from "@/lib/currency";
+import { formatUsdWithRate } from "@/lib/currency";
 import { useFxRates } from "@/hooks/useFxRates";
 import { COUNTRIES } from "@/lib/countries";
 import {
@@ -135,7 +135,7 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
   const currentPrice = currentPlan?.price ?? 0;
   const preferredBot: "stock" | "crypto" = user.bot_access === "crypto" ? "crypto" : "stock";
   // Live NZD→USD rate so each NZ$ plan price shows its US$ equivalent.
-  const { rates: fx } = useFxRates();
+  const { rates: fx, asOf, ready } = useFxRates();
   // Other paid plans the member can switch to from their current subscription.
   // Ultimate stays founder-led. Do not offer it as a self-serve Stripe switch.
   const switchOptions = PLANS.filter(
@@ -584,7 +584,9 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
                       <span className="text-xs text-muted-foreground"> / {plan.intervalLabel}</span>
                     </p>
                     <p className="tnum text-[0.7rem] font-medium text-muted-foreground/90">
-                      {formatUsdApprox(plan.price, fx, { decimals: 2 })} / {plan.intervalLabel} today
+                      {ready && asOf
+                        ? formatUsdWithRate(plan.price, fx, asOf, { decimals: 2, suffix: ` / ${plan.intervalLabel}` })
+                        : "US$ …"}
                     </p>
 
                     <ul className="mt-2 space-y-1">

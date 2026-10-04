@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { formatMarketPrice } from "@/lib/market-intel";
 import {
   adaptiveFractionDigits,
   audToNzd,
@@ -6,6 +7,7 @@ import {
   ensureNzdPerAud,
   ensureNzdPerUsd,
   formatMoney,
+  formatUsdWithRate,
   nativeToNzd,
   usdToNzd,
 } from "@/lib/currency";
@@ -50,6 +52,25 @@ describe("usdToNzd", () => {
     expect(nativeToNzd(proceedsUsd, "USD", rates)).toBeCloseTo(proceedsUsd / 0.6, 6);
     expect(convertCurrency(3, "USD", "NZD", rates)).toBeCloseTo(5, 6);
     expect(convertCurrency(10, "NZD", "USD", rates)).toBeCloseTo(6, 6);
+  });
+});
+
+describe("public USD caption", () => {
+  it("converts with the same four-decimal rate it prints", () => {
+    const rates = { NZD: 1, AUD: 1.238083446824316, USD: 1.7814673946930086 };
+    const line = formatUsdWithRate(300, rates, "2026-10-04T04:06:51.545Z");
+    expect(line).toContain("1 NZD = US$0.5613");
+    expect(line).toContain("US$168.39");
+    expect(line).toContain("4 Oct 2026");
+    expect(formatUsdWithRate(16, rates, "2026-10-04T04:06:51.545Z")).toContain("US$8.98");
+    expect(formatUsdWithRate(49, rates, "2026-10-04T04:06:51.545Z")).toContain("US$27.50");
+    expect(formatUsdWithRate(199, rates, "2026-10-04T04:06:51.545Z")).toContain("US$111.70");
+  });
+
+  it("does not print a sub-cent coin as zero", () => {
+    const line = formatMarketPrice(0.00000812, "USD");
+    expect(line).toContain("0.00000812");
+    expect(line).not.toMatch(/0\.00$/);
   });
 });
 

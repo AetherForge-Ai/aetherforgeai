@@ -21,11 +21,17 @@ const IMPACT_STYLES: Record<NewsItem["impact"], string> = {
 
 /** News card grid only — section title is rendered by the parent dashboard. */
 export function NewsFeed() {
-  const { news } = useMarketIntel();
+  const { news, loading, newsNote } = useMarketIntel();
   const [active, setActive] = useState<NewsItem | null>(null);
 
   return (
     <section>
+      {newsNote ? <p className="mb-4 text-sm text-muted-foreground">{newsNote}</p> : null}
+      {loading && news.length === 0 ? (
+        <p className="py-16 text-center text-sm text-muted-foreground">Loading market news…</p>
+      ) : news.length === 0 ? (
+        <p className="py-16 text-center text-sm text-muted-foreground">Market news failed to load.</p>
+      ) : null}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {news.map((n, i) => (
           <button

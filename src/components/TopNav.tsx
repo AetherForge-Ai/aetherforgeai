@@ -28,7 +28,6 @@ import {
   Tag,
   Newspaper,
   Trophy,
-  GraduationCap,
   MessageSquare,
   Settings,
   Compass,
@@ -46,13 +45,12 @@ import {
  * portfolio/markets/projections all keep this same top bar. Section-level
  * sub-navigation lives inside each page (secondary tabs), never up here.
  */
-const NAV_LINKS: { href: string; label: string; icon: React.ComponentType<{ className?: string }>; highlight?: boolean }[] = [
+const NAV_LINKS: { href: string; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { href: "/", label: "Home", icon: Home },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/headmaster", label: "The Headmaster", icon: GraduationCap },
-  { href: "/performance", label: "Live Results", icon: Trophy },
+  { href: "/performance", label: "Example results", icon: Trophy },
   { href: "/market-news", label: "Market News", icon: Newspaper },
-  { href: "/markets", label: "Stock Markets", icon: LineChart, highlight: true },
+  { href: "/markets", label: "Stock Markets", icon: LineChart },
   { href: "/pricing", label: "Pricing", icon: Tag },
 ];
 
@@ -130,14 +128,7 @@ function DesktopLinks({
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
-            <span className="flex items-center gap-1.5">
-              {item.label}
-              {item.highlight && (
-                <span className="rounded bg-emerald-500/15 px-1.5 py-px text-[9px] font-bold uppercase tracking-wide text-emerald-600">
-                  Live
-                </span>
-              )}
-            </span>
+            <span className="flex items-center gap-1.5">{item.label}</span>
             {active && (
               <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-primary" />
             )}
@@ -295,11 +286,6 @@ function MobileDrawer({
               >
                 <item.icon className="size-4" />
                 {item.label}
-                {item.highlight && (
-                  <span className="ml-auto rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-600">
-                    Live
-                  </span>
-                )}
               </Link>
             );
           })}

@@ -10,6 +10,8 @@ interface MarketIntelState {
   /** Analysed universe — live-anchored when a data key is set, else deterministic. */
   universe: SecurityIntel[] | null;
   news: NewsItem[];
+  /** Set when the live headline feed did not answer. Official cards may still be showing. */
+  newsNote: string | null;
   live: boolean;
   loading: boolean;
   /** True only while a manual refresh (not the first load) is in flight. */
@@ -24,6 +26,7 @@ interface MarketIntelState {
 const MarketIntelCtx = createContext<MarketIntelState>({
   universe: null,
   news: getMarketNews(),
+  newsNote: null,
   live: false,
   loading: true,
   refreshing: false,
@@ -39,6 +42,7 @@ export function useMarketIntel(): MarketIntelState {
 export function MarketIntelProvider({ bot = "stock", children }: { bot?: AssetClass; children: ReactNode }) {
   const [universe, setUniverse] = useState<SecurityIntel[] | null>(null);
   const [news, setNews] = useState<NewsItem[]>(getMarketNews(bot));
+  const [newsNote, setNewsNote] = useState<string | null>(null);
   const [live, setLive] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -48,12 +52,13 @@ export function MarketIntelProvider({ bot = "stock", children }: { bot?: AssetCl
 
   const applyPayload = useCallback((data: { universe: SecurityIntel[]; news: NewsItem[]; live: boolean }) => {
     setUniverse(data.universe);
-    setNews(data.news);
+    setNews(data.news?.length ? data.news : getMarketNews(bot));
+    setNewsNote(data.news?.length ? null : "Other headlines could not be loaded. The cards below are the items we could check.");
     setLive(data.live);
     setLastUpdated(new Date().toISOString());
     setLoading(false);
     setRefreshing(false);
-  }, []);
+  }, [bot]);
 
   const load = useCallback(
     async (isManual: boolean) => {
@@ -84,7 +89,9 @@ export function MarketIntelProvider({ bot = "stock", children }: { bot?: AssetCl
         applyPayload(res.data);
         return;
       }
-      console.error("[market-intel] Failed to load /api/market, using local engine:", res.error);
+      console.error("[market-intel] Failed to load /api/market, using official cards:", res.error);
+      setNews(getMarketNews(bot));
+      setNewsNote("Other headlines could not be loaded. The cards below are the items we could check.");
       setLoading(false);
       setRefreshing(false);
     },
@@ -117,7 +124,7 @@ export function MarketIntelProvider({ bot = "stock", children }: { bot?: AssetCl
 
   return (
     <MarketIntelCtx.Provider
-      value={{ universe, news, live, loading, refreshing, lastUpdated, bot, refresh }}
+      value={{ universe, news, newsNote, live, loading, refreshing, lastUpdated, bot, refresh }}
     >
       {children}
     </MarketIntelCtx.Provider>

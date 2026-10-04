@@ -11,7 +11,7 @@ import {
   responseUserId,
   trackAccountRequest,
 } from "@/lib/account-identity";
-import { formatMoney } from "@/lib/currency";
+import { formatFxAsOf, formatMoney } from "@/lib/currency";
 import { buildTradePreview, type TradePreview } from "@/lib/trade-preview";
 import { bumpHoldingsGeneration } from "@/lib/holdings-generation";
 import { useTradeReviewGate } from "@/lib/trade-review-gate";
@@ -396,6 +396,7 @@ export function PreciousMetals({
         <h2 className="font-display text-xl font-bold">Smitty spot prices</h2>
         <p className="mt-2 max-w-xl text-sm text-muted-foreground">
           Gold and silver spot prices are visible on this plan. Recording bullion holdings is on a paid plan.
+          {spot?.asOf ? ` Taken ${formatFxAsOf(spot.asOf)}.` : gold || loading ? "" : " Spot prices failed to load."}
         </p>
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
           <div className="rounded-2xl border border-[var(--gold)]/40 bg-[var(--gold)]/10 p-4">
@@ -430,6 +431,7 @@ export function PreciousMetals({
             </h2>
             <p className="mt-2 text-xs text-muted-foreground">
               Spot and holdings only. Smitty does not run a report.
+              {spot?.asOf ? ` Taken ${formatFxAsOf(spot.asOf)}.` : ""}
             </p>
           </div>
           <div className="flex min-w-0 flex-1 justify-end">

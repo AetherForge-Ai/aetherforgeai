@@ -155,7 +155,7 @@ export function CryptoInfoModal({
                 <span className="font-semibold text-foreground">Where AetherForge fits in:</span> you buy and
                 custody crypto on your own exchange or wallet. AetherForge never touches your coins — our{" "}
                 <span className="font-medium text-foreground">Koins</span> bot simply analyses the market and
-                your holdings, then hands you clear, plain-English guidance.
+                your holdings, then writes plain-English notes. Those notes are information, not an instruction to trade.
               </p>
             </section>
 

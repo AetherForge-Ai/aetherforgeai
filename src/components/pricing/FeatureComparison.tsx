@@ -32,6 +32,7 @@ const GROUPS: Group[] = [
       { label: "Real-time P/L & allocation breakdown", cells: [true, true, true, true] },
       { label: "Multi-timeframe charts & top gainers", cells: ["Basic", true, true, true] },
       { label: "Data export (CSV)", cells: [false, true, true, true] },
+      { label: "CSV import of holdings", cells: [true, true, true, true] },
     ],
   },
   {

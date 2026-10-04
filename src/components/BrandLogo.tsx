@@ -11,7 +11,7 @@ interface BrandLogoProps {
 }
 
 /**
- * AetherForge AI brand lockup — the official Forge Intelligence shield mark
+ * AetherForge AI brand lockup — the official shield mark
  * (blue + gold) paired with the gradient wordmark. The colourful shield sits in
  * a subtle navy tile so it reads clearly on any dark surface. Pass `animated`
  * for a pulsing glow on prominent placements (hero, headers).
