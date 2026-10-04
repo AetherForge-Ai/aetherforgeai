@@ -210,10 +210,10 @@ const ULTIMATE_FEATURES = [
  * Ultimate has no payment link and no env slot.
  */
 const PUBLIC_CHECKOUT = {
-  starter_monthly: { priceId: "", paymentLink: "" },
-  starter_yearly: { priceId: "", paymentLink: "" },
-  pro_monthly: { priceId: "", paymentLink: "" },
-  pro_yearly: { priceId: "", paymentLink: "" },
+  starter_monthly: { priceId: "price_1UMeiw9sOmzarzYktK1su69w", paymentLink: "https://buy.stripe.com/14A3cp6QveAnaibcTJ1440G" },
+  starter_yearly: { priceId: "price_1UMeix9sOmzarzYkwyui22VZ", paymentLink: "https://buy.stripe.com/8x2dR3b6LeAnbmf3j91440H" },
+  pro_monthly: { priceId: "price_1UMeiy9sOmzarzYkQHpTEvn2", paymentLink: "https://buy.stripe.com/14AeV70s7dwjcqj4nd1440I" },
+  pro_yearly: { priceId: "price_1UMeiy9sOmzarzYkZoh628kK", paymentLink: "https://buy.stripe.com/5kQ4gt8YDdwj75Z1b11440J" },
 } as const;
 
 type PublicCheckoutSlot = keyof typeof PUBLIC_CHECKOUT;
