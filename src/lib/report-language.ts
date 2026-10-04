@@ -41,10 +41,12 @@ function scrubDeep<T>(value: T): T {
 export function labelMemberReport<
   T extends { bot: "stock" | "crypto"; isDemo: boolean; engine: string; generatedLabel: string },
 >(report: T): T {
-  if (report.isDemo) return report;
-  return scrubDeep({
-    ...report,
-    engine: memberBotLabel(report.bot),
-    generatedLabel: "Live report",
-  });
+  const named = report.isDemo
+    ? report
+    : {
+        ...report,
+        engine: memberBotLabel(report.bot),
+        generatedLabel: "Live report",
+      };
+  return scrubDeep(named);
 }

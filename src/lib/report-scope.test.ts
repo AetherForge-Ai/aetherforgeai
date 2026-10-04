@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildDemoReport, buildLiveReport } from "@/lib/apex";
 import { claimsEmptyBook } from "@/lib/report-book";
-import { stripReportModelLanguage } from "@/lib/report-language";
+import { labelMemberReport, stripReportModelLanguage } from "@/lib/report-language";
 import {
   marketFeedUnavailableLine,
   portfolioIsLoaded,
@@ -102,10 +102,21 @@ describe("Stox and Koins report scope", () => {
     expect(cleaned.replace(/Advanced Micro Devices/g, "")).not.toMatch(/\b(ZENITH|Grok|ULTRA|advanced|grok-4\.6)\b/i);
   });
 
-  it("keeps the sample report badge used on the page", () => {
+  it("strips model branding from a sample report and keeps the page badge", () => {
     const demo = buildDemoReport("stock");
-    expect(demo.isDemo).toBe(true);
-    expect(demo.engine).toBe("AI");
-    expect(demo.generatedLabel).toBe("Sample report · illustrative data");
+    const shown = labelMemberReport({
+      ...demo,
+      executiveSummary: `${demo.executiveSummary} Live ZENITH run by SuperGrok on Advanced Micro Devices.`,
+    });
+    expect(shown.isDemo).toBe(true);
+    expect(shown.engine).toBe("AI");
+    expect(shown.generatedLabel).toBe("Sample report · illustrative data");
+    expect(shown.executiveSummary).toContain("Advanced Micro Devices");
+    expect(shown.executiveSummary.replace(/Advanced Micro Devices/g, "")).not.toMatch(
+      /\b(ZENITH|Grok|ULTRA|advanced|grok-4\.6)\b/i
+    );
+    expect(JSON.stringify(demo).replace(/Advanced Micro Devices/g, "")).not.toMatch(
+      /\b(ZENITH|Grok|ULTRA|advanced)\b/i
+    );
   });
 });

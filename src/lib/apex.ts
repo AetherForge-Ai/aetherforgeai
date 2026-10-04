@@ -29,7 +29,7 @@ import {
   type FxRatesToNZD,
 } from "./currency";
 import { ZENITH_STATE_LABEL } from "./zenith";
-import { memberBotLabel } from "./report-language";
+import { labelMemberReport, memberBotLabel } from "./report-language";
 import type { IntelligenceBriefing } from "./briefing";
 import {
   alignedProjection,
@@ -952,7 +952,7 @@ function assembleReport(
           { headline: "NZD strength pressures exporter margins", source: "FX Observer", impact: "Bearish" as const },
         ];
 
-  return {
+  return labelMemberReport({
     bot,
     title: bot === "crypto" ? "Koins · Crypto Market Intelligence Monitor" : "Stox · Stock Market Intelligence Monitor",
     marketLabel,
@@ -970,7 +970,7 @@ function assembleReport(
     regionalNews: buildRegionalNews(bot),
     directRecommendations: extras.directRecommendations,
     pathwayPlan: extras.pathwayPlan,
-  };
+  });
 }
 
 /** Attach the real market of each holding + its native currency. */
