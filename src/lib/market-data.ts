@@ -280,7 +280,7 @@ let cryptoStamp = 0;
  */
 export async function fetchCryptoQuotes(
   tickers: string[],
-  opts?: { bypassCache?: boolean }
+  opts?: { bypassCache?: boolean; ids?: Record<string, string>; strictCoinGecko?: string[] }
 ): Promise<Record<string, LiveQuote>> {
   if (!tickers.length || !isCryptoLiveConfigured()) return {};
   const unique = Array.from(new Set(tickers.map((t) => t.toUpperCase())));
@@ -313,12 +313,16 @@ export async function fetchCryptoQuotes(
     console.error("[market-data] Swyftx crypto spot failed (falling back to CoinGecko):", err);
   }
 
+  // An explicit CoinGecko id that misses is left unpriced. Yahoo and Google
+  // are not asked to invent a print for that name.
+  const strict = new Set((opts?.strictCoinGecko || []).map((t) => t.toUpperCase()));
+
   // 2) CoinGecko — fill only the coins Swyftx could not price.
   const cgMissing = unique.filter((t) => !out[t]);
   if (cgMissing.length) {
     // idMap: coingecko id -> internal ticker
     const idMap = new Map<string, string>();
-    cgMissing.forEach((t) => idMap.set(coingeckoId(t), t));
+    cgMissing.forEach((t) => idMap.set(opts?.ids?.[t] || coingeckoId(t), t));
     const ids = Array.from(idMap.keys()).join(",");
     try {
       const url = `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(
@@ -352,7 +356,7 @@ export async function fetchCryptoQuotes(
   // retired/renamed coin id) so the feed stays live PER-COIN instead of only
   // when the entire upstream call fails. This is what keeps one dead symbol
   // from silently decaying to its stale snapshot while the rest are live.
-  const missing = unique.filter((t) => !out[t]);
+  const missing = unique.filter((t) => !out[t] && !strict.has(t));
   if (missing.length) {
     try {
       const map = Object.fromEntries(missing.map((t) => [t, yahooCryptoSymbol(t)]));
@@ -377,7 +381,7 @@ export async function fetchCryptoQuotes(
   // both CoinGecko and Yahoo (rate limits, a retired/renamed id, an outage),
   // scrape its Google Finance quote page: Google always surfaces a current live
   // crypto price, so nothing is left on its stale synthetic seed.
-  const stillMissing = unique.filter((t) => !out[t]);
+  const stillMissing = unique.filter((t) => !out[t] && !strict.has(t));
   if (stillMissing.length) {
     try {
       const map = Object.fromEntries(stillMissing.map((t) => [t, googleCryptoSymbol(t)]));

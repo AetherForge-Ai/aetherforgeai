@@ -54,7 +54,7 @@ import type {
   StrategyBlueprint,
   GoalKey,
 } from "@/lib/totalum-engine";
-import { illustrativeActionLabel, sanitizeHeadmasterDisplayText, turnProgressLabel } from "@/lib/headmaster-trust";
+import { illustrativeActionLabel, modelViewSentence, sanitizeHeadmasterDisplayText, turnProgressLabel } from "@/lib/headmaster-trust";
 import { useRecoverableTurn } from "@/lib/use-recoverable-turn";
 import { cn } from "@/lib/utils";
 import { headmasterDeskCopy } from "@/lib/entitlements";
@@ -502,8 +502,7 @@ function StrategyTab({ initialSynthesis }: { initialSynthesis: TotalumSynthesis 
             </div>
             <p className="mt-2 text-sm text-muted-foreground">{sanitizeHeadmasterDisplayText(strategy.narrative, strategy.plan)}</p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <Kpi label="Projected return" value={`${strategy.projectedReturnPct}%`} sub="Model pathway, target mix" />
-              <Kpi label="Projected volatility" value={`${strategy.projectedVolPct}%`} sub="Model pathway" />
+              <Kpi label="Model view" value={modelViewSentence(strategy.projectedReturnPct, strategy.projectedVolPct)} sub="Pathway, not a forecast" />
               <Kpi label="Retained cash" value={nzd(strategy.plan.retainedCashNZD)} sub={`${strategy.plan.targetCashPct}% of the book`} />
               <Kpi
                 label="Cash reallocation"

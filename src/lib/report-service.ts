@@ -17,7 +17,16 @@ import { formatAucklandDateTime } from "@/lib/entitlements";
 import { ownerIdOf } from "@/lib/report-book";
 import { alertIsEffectivelyArchived, heldQuantityForTicker } from "@/lib/alert-lifecycle";
 import { relockSeededReportPrices } from "@/lib/paper-quote-lock.server";
-import { reportEmailWasDelivered } from "@/lib/report-email";
+import { reportEmailMessageId, reportEmailWasDelivered } from "@/lib/report-email";
+import { publishSharedBookLog, fullBookSentence } from "@/lib/book-log";
+import {
+  annotateTickerCalls,
+  koinsCoverageSentences,
+  openCallFromTicker,
+  priorCallsFromPayloads,
+  rollClosedCallScore,
+  type SevenDayCall,
+} from "@/lib/report-topup";
 import { loadTotalumSynthesis } from "@/lib/totalum-service";
 import type { TotalumSynthesis } from "@/lib/totalum-engine";
 import { portfolioIsLoaded, readPortfolioBook, type CoveragePosition } from "@/lib/report-scope";
@@ -59,6 +68,21 @@ export class EmptyBookReportError extends Error {
 
 function nzDateLabel(d: Date): string {
   return formatAucklandDateTime(d);
+}
+
+async function loadPriorReportCalls(userId: string, bot: BotKind) {
+  try {
+    const res = await totalumSdk.crud.query("report", {
+      _filter: { user: userId, bot },
+      _sort: { createdAt: "desc" },
+      _limit: 12,
+    });
+    const rows = ((res as { data?: Array<{ payload?: unknown }> })?.data || []).map((row) => row.payload);
+    return priorCallsFromPayloads(rows);
+  } catch (err) {
+    console.error("[report-service] Prior closed-call load failed (non-fatal):", err);
+    return priorCallsFromPayloads([]);
+  }
 }
 
 /**
@@ -173,7 +197,19 @@ export async function generateReportForUser(
         : Number(r.purchase_price) > 0
           ? Number(r.purchase_price)
           : 0;
-    const price = quote?.price && quote.price > 0 ? quote.price : stored;
+    const livePrice = quote?.price && quote.price > 0 ? quote.price : 0;
+    if (bot === "crypto") {
+      holdings.push({
+        ticker,
+        name: r.company_name || ticker,
+        price: livePrice,
+        shares: Number(r.shares) || 0,
+        purchasePrice: Number(r.purchase_price) || 0,
+        priceUnavailable: !(livePrice > 0),
+      });
+      continue;
+    }
+    const price = livePrice > 0 ? livePrice : stored;
     if (!(price > 0)) continue;
     holdings.push({
       ticker,
@@ -190,7 +226,7 @@ export async function generateReportForUser(
   );
 
   // Stock[] view (priced) for the technical + actionable-intelligence layer.
-  const stockObjs: Stock[] = holdings.map((h, i) => ({
+  const stockObjs: Stock[] = holdings.filter((h) => !h.priceUnavailable && h.price > 0).map((h, i) => ({
     _id: String(i),
     ticker: h.ticker,
     asset_type: bot,
@@ -361,6 +397,45 @@ export async function generateReportForUser(
       ? accountBookNZD
       : (report.portfolio?.value || 0) + cashBalanceNZD;
   const delivered = sanitizeGuardedReport(locked, { cashNZD: cashBalanceNZD, bookNZD });
+  const classValue = (key: string) =>
+    synthesis?.classAllocation?.find((row) => row.assetClass === key)?.valueNZD ?? 0;
+  const prices: Record<string, number> = {};
+  for (const holding of holdings) {
+    if (holding.price > 0 && !holding.priceUnavailable) prices[holding.ticker.toUpperCase()] = holding.price;
+  }
+  for (const [ticker, price] of Object.entries(marketOverrides)) {
+    if (price > 0) prices[ticker.toUpperCase()] = price;
+  }
+  const bookLog = publishSharedBookLog({
+    cashNZD: classValue("cash") || cashBalanceNZD,
+    stocksNZD: classValue("equities") || (bot === "stock" ? delivered.portfolio?.value || 0 : 0),
+    cryptoNZD: classValue("crypto") || (bot === "crypto" ? delivered.portfolio?.value || 0 : 0),
+    metalsNZD: classValue("metals"),
+    sleeveNZD: delivered.portfolio?.value || 0,
+    sleeveLabel: bot === "crypto" ? "Koins" : "Stox",
+    prices,
+  });
+  delivered.tickers = annotateTickerCalls(delivered.tickers, bookLog, bot);
+  if (bot === "crypto") {
+    const lines = koinsCoverageSentences(
+      holdings.map((holding) => ({
+        ticker: holding.ticker,
+        name: holding.name,
+        shares: holding.shares || 0,
+        livePrice: holding.priceUnavailable ? null : holding.price,
+      }))
+    );
+    const have = new Set(delivered.keyObservations);
+    delivered.keyObservations = [...delivered.keyObservations, ...lines.filter((line) => !have.has(line))];
+  }
+  const prior = await loadPriorReportCalls(user._id, bot);
+  const closedCallScore = rollClosedCallScore(prior.score, prior.calls, bookLog.prices, now.getTime());
+  const openCalls = delivered.tickers
+    .map((ticker) => openCallFromTicker(ticker, now.getTime()))
+    .filter((call): call is SevenDayCall => call != null);
+  delivered.bookSentence = fullBookSentence(bookLog);
+  delivered.reserveSentence = bookLog.reserveSentence;
+  delivered.closedCallSentence = closedCallScore.sentence;
   const html = renderReportHtml(delivered, {
     userName: user.name || undefined,
     generatedAtLabel,
@@ -370,6 +445,8 @@ export async function generateReportForUser(
     technicals,
     metrics,
     intelligence,
+    bookLog,
+    closedCallScore,
   });
   console.log(
     `[report-service] Report built for user ${user._id} (${context}, pricing: ${usedLive ? "live" : "stored or unpriced"}, portfolio=${portfolioLoaded}, marketFeed=${marketFeedUnavailable ? "unavailable" : "live"})`
@@ -380,6 +457,7 @@ export async function generateReportForUser(
   let pdfFileName: string | null = null;
   let pdfUrl: string | null = null;
   let emailed = false;
+  let emailMessageId: string | null = null;
   let reportId: string | null = null;
   if (deliver) {
     try {
@@ -407,6 +485,7 @@ export async function generateReportForUser(
             : {}),
         });
         emailed = reportEmailWasDelivered(sent);
+        emailMessageId = reportEmailMessageId(sent);
         if (emailed) console.log(`[report-service] Report emailed to ${user.email}`);
         else console.error("[report-service] Report email was not accepted; the card will not say Emailed.");
       } catch (mailErr) {
@@ -423,7 +502,13 @@ export async function generateReportForUser(
         bot,
         market_label: report.marketLabel,
         executive_summary: delivered.executiveSummary,
-        payload: JSON.stringify({ ...delivered, emailDelivered: emailed }),
+        payload: JSON.stringify({
+          ...delivered,
+          emailDelivered: emailed,
+          emailMessageId,
+          openCalls,
+          closedCallScore,
+        }),
         emailed: emailed ? "yes" : "no",
         ai_enhanced: aiEnhanced ? "yes" : "no",
         ai_engine: report.engine,

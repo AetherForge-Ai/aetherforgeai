@@ -27,6 +27,8 @@ import type { CurrencyCode } from "@/lib/currency";
 import type { IntelligenceBriefing, BriefingOutlookRow } from "@/lib/briefing";
 import { sanitizeGuardedReport } from "@/lib/report-consistency";
 import { labelMemberReport, stripReportModelLanguage } from "@/lib/report-language";
+import { fullBookSentence, type SharedBookLog } from "@/lib/book-log";
+import type { ClosedCallScore } from "@/lib/report-topup";
 
 export interface ReportAlert {
   ticker: string;
@@ -155,12 +157,14 @@ function tickerBlock(t: TickerAnalysis): string {
         <div style="font-size:12px;color:${MUTE}">${esc(t.name)}</div>
       </td>
       <td style="vertical-align:top;text-align:right">
-        <div style="font-family:monospace;font-size:14px;color:${INK}">$${t.price.toFixed(dp)}</div>
-        <div style="font-size:11px;color:${pctColor(t.changePct)}">${pct(t.changePct)} today</div>
+        <div style="font-family:monospace;font-size:14px;color:${INK}">${t.priceUnavailable ? "Unavailable" : `$${t.price.toFixed(dp)}`}</div>
+        ${t.priceUnavailable ? "" : `<div style="font-size:11px;color:${pctColor(t.changePct)}">${pct(t.changePct)} today</div>`}
       </td>
     </tr></table>
-
-    <div style="display:flex;justify-content:space-between;font-size:11px;color:${MUTE};margin-top:10px">
+    ${
+      t.priceUnavailable
+        ? ""
+        : `<div style="display:flex;justify-content:space-between;font-size:11px;color:${MUTE};margin-top:10px">
       <span>${esc(t.momentumLabel ?? "12-month continuation / momentum")}</span>
       <span style="color:${pctColor(t.momentum12moPct)}">${pct(t.momentum12moPct)} ${t.momentumLabel ? "30d" : "12m"}</span>
     </div>
@@ -170,7 +174,8 @@ function tickerBlock(t: TickerAnalysis): string {
     <table width="100%" style="border-collapse:collapse"><tr>${days}</tr></table>
 
     <div style="font-size:11px;color:${MUTE};margin:10px 0 4px">Three forward pathways</div>
-    <table width="100%" style="border-collapse:collapse"><tr>${paths}</tr></table>
+    <table width="100%" style="border-collapse:collapse"><tr>${paths}</tr></table>`
+    }
 
     <p style="font-size:11px;color:${MUTE};line-height:1.5;margin:10px 0 0">${esc(t.note)}</p>
   </div>`;
@@ -535,6 +540,8 @@ export interface RenderReportOptions {
   intelligence?: ActionableIntelligence;
   /** Portfolio risk/quality metrics. */
   metrics?: PortfolioMetrics;
+  bookLog?: SharedBookLog | null;
+  closedCallScore?: ClosedCallScore | null;
 }
 
 export function renderReportHtml(source: ApexReport, opts: RenderReportOptions): string {
@@ -564,7 +571,7 @@ export function renderReportHtml(source: ApexReport, opts: RenderReportOptions):
     ? `<table width="100%" style="border-collapse:collapse;margin:14px 0">
         <tr>
           <td style="width:33%;padding:12px;border:1px solid ${LINE};border-radius:8px">
-            <div style="font-size:11px;color:${MUTE}">Total Worth · ${esc(report.portfolio.currency)}</div>
+            <div style="font-size:11px;color:${MUTE}">Sleeve · ${esc(report.portfolio.currency)}</div>
             <div style="font-size:18px;font-weight:700;color:${INK}">${moneyC(report.portfolio.value, report.portfolio.currency)}</div>
           </td>
           <td style="width:33%;padding:12px;border:1px solid ${LINE}">
@@ -579,9 +586,19 @@ export function renderReportHtml(source: ApexReport, opts: RenderReportOptions):
       </table>
       ${
         report.portfolio.currency === "NZD"
-          ? `<div style="font-size:11px;color:${MUTE};margin:-6px 0 8px">Total worth is aggregated in NZD — Australian (.AX) holdings are shown in AUD and US holdings in USD on their individual cards, then converted to NZD here.</div>`
+          ? `<div style="font-size:11px;color:${MUTE};margin:-6px 0 8px">The sleeve figure is this bot's holdings. Australian (.AX) holdings are shown in AUD and US holdings in USD on their individual cards.</div>`
+          : ""
+      }${
+        opts.bookLog
+          ? `<p style="font-size:12px;color:${INK};line-height:1.5;margin:0 0 8px">${esc(fullBookSentence(opts.bookLog))}</p><p style="font-size:12px;color:${INK};line-height:1.5;margin:0 0 8px">${esc(opts.bookLog.reserveSentence)}</p>`
           : ""
       }`
+    : opts.bookLog
+      ? `<p style="font-size:12px;color:${INK};line-height:1.5;margin:8px 0">${esc(fullBookSentence(opts.bookLog))}</p><p style="font-size:12px;color:${INK};line-height:1.5;margin:0 0 8px">${esc(opts.bookLog.reserveSentence)}</p>`
+      : "";
+
+  const closedCalls = opts.closedCallScore
+    ? `<h3 style="font-size:14px;margin:8px 0 4px">Closed-call score</h3><p style="font-size:13px;line-height:1.5;margin:0 0 12px">${esc(opts.closedCallScore.sentence)}</p>`
     : "";
 
   const tickers = report.tickers.map((t) => tickerBlock(t)).join("");
@@ -610,6 +627,7 @@ export function renderReportHtml(source: ApexReport, opts: RenderReportOptions):
         <div style="font-size:13px;color:${MUTE}">${esc(report.marketLabel)}${opts.userName ? ` · Prepared for ${esc(opts.userName)}` : ""}</div>
 
         ${portfolio}
+        ${closedCalls}
 
         ${opts.metrics ? metricsStrip(opts.metrics) : ""}
 

@@ -12,7 +12,9 @@
  */
 
 import "server-only";
-import { resolveSevenDayChange, type CoinMarket, type CoinDetail, type CoinChart } from "@/lib/crypto-market";
+import { blockchainLabel, resolveSevenDayChange, type CoinMarket, type CoinDetail, type CoinChart } from "@/lib/crypto-market";
+import { rememberCryptoIds } from "@/lib/crypto-id-registry";
+import { dedupeDexTokens, parseMegafilterPage, type DexTokenRow } from "@/lib/crypto-dex";
 
 const CG_BASE = "https://api.coingecko.com/api/v3";
 
@@ -116,6 +118,7 @@ function mapMarketRow(r: CgMarketRow): CoinMarket {
     atl: r.atl ?? null,
     atlDate: r.atl_date ?? null,
     sparkline7d: r.sparkline_in_7d?.price ?? [],
+    priceUnavailable: !(typeof r.current_price === "number" && r.current_price > 0),
   };
 }
 
@@ -144,6 +147,123 @@ export async function fetchTop500(): Promise<CoinMarket[]> {
     const coins = Array.from(byId.values()).sort((a, b) => a.rank - b.rank);
     console.log(`[crypto-coingecko] fetchTop500 → ${coins.length} coins (deduped from ${(p1?.length || 0) + (p2?.length || 0)})`);
     return coins;
+  });
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export interface RankedCryptoPage {
+  coins: CoinMarket[];
+  /** Set when CoinGecko stopped short of the requested list. */
+  notice: string | null;
+}
+
+async function loadPlatforms(): Promise<Map<string, Record<string, string>> | null> {
+  try {
+    return await cached("platforms", 6 * 60 * 60 * 1000, async () => {
+      const list = (await cgFetch("/coins/list?include_platform=true")) as Array<{
+        id?: string;
+        platforms?: Record<string, string>;
+      }>;
+      const map = new Map<string, Record<string, string>>();
+      for (const row of list || []) {
+        if (!row?.id) continue;
+        map.set(row.id, row.platforms && typeof row.platforms === "object" ? row.platforms : {});
+      }
+      return map;
+    });
+  } catch (err) {
+    console.error("[crypto-coingecko] platform list unavailable:", err);
+    return null;
+  }
+}
+
+/**
+ * CoinGecko top 400 by market cap. Pages are sequential so a 429 stops the
+ * list instead of inventing the missing rows.
+ */
+export async function fetchTop400(): Promise<RankedCryptoPage> {
+  return cached("top400", 60_000, async () => {
+    const common =
+      "vs_currency=usd&order=market_cap_desc&per_page=250&sparkline=false" +
+      "&price_change_percentage=1h,24h,7d";
+    let notice: string | null = null;
+    const pages: CgMarketRow[] = [];
+    try {
+      const first = (await cgFetch(`/coins/markets?${common}&page=1`)) as CgMarketRow[];
+      pages.push(...(first || []));
+    } catch (err) {
+      console.error("[crypto-coingecko] top 400 page 1 failed:", err);
+      throw new Error("Live crypto prices are unavailable.");
+    }
+    await sleep(1200);
+    try {
+      const second = (await cgFetch(`/coins/markets?${common}&page=2`)) as CgMarketRow[];
+      pages.push(...(second || []));
+    } catch (err) {
+      console.error("[crypto-coingecko] top 400 page 2 unavailable:", err);
+      notice = "Further rows are unavailable.";
+    }
+    const byId = new Map<string, CoinMarket>();
+    for (const row of pages) {
+      if (!row?.id || byId.has(row.id)) continue;
+      byId.set(row.id, mapMarketRow(row));
+    }
+    let coins = Array.from(byId.values()).sort((a, b) => a.rank - b.rank).slice(0, 400);
+    const platforms = await loadPlatforms();
+    const listLoaded = platforms != null;
+    coins = coins.map((coin) => ({
+      ...coin,
+      blockchain: blockchainLabel(platforms?.get(coin.id), listLoaded),
+    }));
+    if (coins.length < 400 && !notice) notice = "Further rows are unavailable.";
+    rememberCryptoIds(coins.map((coin) => ({ symbol: coin.symbol, id: coin.id })));
+    console.log(`[crypto-coingecko] fetchTop400 → ${coins.length} coins`);
+    return { coins, notice };
+  });
+}
+
+export interface DexPage {
+  rows: DexTokenRow[];
+  notice: string | null;
+}
+
+/**
+ * Top decentralized tokens by 24-hour pool volume.
+ * Official on-chain megafilter, paged slowly. A 429 stops the walk.
+ */
+export async function fetchDexTop400(opts?: { maxMs?: number }): Promise<DexPage> {
+  return cached(`dex400:${opts?.maxMs || 0}`, 10 * 60_000, async () => {
+    const started = Date.now();
+    const collected: DexTokenRow[] = [];
+    let notice: string | null = null;
+    for (let page = 1; page <= 20; page++) {
+      if (opts?.maxMs && Date.now() - started > opts.maxMs) {
+        notice = "Further rows are unavailable.";
+        break;
+      }
+      if (dedupeDexTokens(collected, 400).length >= 400) break;
+      if (page > 1) await sleep(1100);
+      try {
+        const payload = await cgFetch(
+          `/onchain/pools/megafilter?include=base_token,quote_token,dex,network&sort=h24_volume_usd_desc&page=${page}`
+        );
+        const rows = parseMegafilterPage(payload);
+        if (!rows.length) break;
+        collected.push(...rows);
+      } catch (err) {
+        console.error(`[crypto-coingecko] DEX page ${page} unavailable:`, err);
+        notice = "Further rows are unavailable.";
+        break;
+      }
+    }
+    const rows = dedupeDexTokens(collected, 400);
+    if (rows.length < 400 && !notice) notice = "Further rows are unavailable.";
+    rememberCryptoIds(rows.map((row) => ({ symbol: row.symbol, id: row.id })));
+    console.log(`[crypto-coingecko] fetchDexTop400 → ${rows.length} tokens`);
+    return { rows, notice: rows.length >= 400 ? null : notice || "Further rows are unavailable." };
   });
 }
 

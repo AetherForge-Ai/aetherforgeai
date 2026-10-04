@@ -8,12 +8,15 @@
 import type { TotalumSynthesis, StrategyBlueprint } from "@/lib/totalum-engine";
 import {
   illustrativeActionLabel,
+  modelViewSentence,
   nzdWhole,
+  sharedReserveSentence,
   sanitizeHeadmasterDisplayText,
   sanitizeHeadmasterReportHtml,
   type AllocationPlan,
   type HeadmasterIdea,
 } from "@/lib/headmaster-trust";
+import { fullBookSentence, readSharedBookLog } from "@/lib/book-log";
 import { HEADMASTER_BOT_LABEL } from "@/lib/report-language";
 
 function nzd(v: number): string {
@@ -53,6 +56,18 @@ export function renderTotalumReport(
 ): string {
   const s = synthesis;
   const gainColor = s.totalGainNZD >= 0 ? "#059669" : "#dc2626";
+  const classOf = (key: string) => s.classAllocation.find((row) => row.assetClass === key)?.valueNZD ?? 0;
+  const bookLine = fullBookSentence({
+    cashNZD: classOf("cash"),
+    stocksNZD: classOf("equities"),
+    cryptoNZD: classOf("crypto"),
+    metalsNZD: classOf("metals"),
+    netWorthNZD: s.totalValueNZD,
+  });
+  const reserveLine = sharedReserveSentence(classOf("cash") || s.cashBalanceNZD, s.totalValueNZD);
+  const modelView = modelViewSentence(s.expectedAnnualReturnPct, s.expectedAnnualVolPct);
+  const modelIsSilent = modelView === "The model has no view.";
+  const pathMiss = readSharedBookLog()?.pathMiss || "";
   const date = new Date(s.asOf).toLocaleString("en-NZ", { dateStyle: "long", timeStyle: "short" });
 
   const allocRows = s.classAllocation
@@ -80,7 +95,9 @@ export function renderTotalumReport(
     )
     .join("");
 
-  const scenarioRows = s.scenarios
+  const scenarioRows = modelIsSilent
+    ? `<tr><td colspan="4">${esc(modelView)}</td></tr>`
+    : s.scenarios
     .map(
       (sc) => `
       <tr>
@@ -148,7 +165,7 @@ export function renderTotalumReport(
       <p class="muted">Illustrative class moves for the selected goal. Not orders. AetherForge does not trade for you.</p>
       <p class="muted">Target: ${Object.entries(strategy.targets)
         .map(([k, v]) => `${k} ${v}%`)
-        .join(" · ")} · Model pathway ≈${strategy.projectedReturnPct}% return @ ≈${strategy.projectedVolPct}% vol</p>
+        .join(" · ")}. ${esc(modelViewSentence(strategy.projectedReturnPct, strategy.projectedVolPct))}</p>
       <table>
         <thead><tr><th>Asset class</th><th class="num">Current</th><th class="num">Target</th><th>Scenario</th><th class="num">Amount</th></tr></thead>
         <tbody>
@@ -166,6 +183,7 @@ export function renderTotalumReport(
         </tbody>
       </table>
       <p class="muted">Retained cash ${nzd(strategy.plan.retainedCashNZD)}. Increases ${nzd(strategy.plan.illustrativeIncreaseNZD)} = reductions ${nzd(strategy.plan.illustrativeReduceNZD)}.</p>
+      ${pathMiss ? `<p>${esc(pathMiss)}</p>` : ""}
       <div class="cols">
         <div><h3>Illustrative entry notes</h3><ul>${strategy.entryRules.map((r) => `<li>${esc(show(r))}</li>`).join("")}</ul></div>
         <div><h3>Illustrative exit &amp; risk notes</h3><ul>${strategy.exitRules.map((r) => `<li>${esc(show(r))}</li>`).join("")}</ul></div>
@@ -226,8 +244,10 @@ export function renderTotalumReport(
     <div class="kpi"><div class="l">Total wealth</div><div class="v">${nzd(s.totalValueNZD)}</div></div>
     <div class="kpi"><div class="l">Unrealised P/L</div><div class="v" style="color:${gainColor}">${nzd(s.totalGainNZD)}</div></div>
     <div class="kpi"><div class="l">Diversification</div><div class="v">${s.diversificationScore}/100</div></div>
-    <div class="kpi"><div class="l">Exp. return / vol</div><div class="v">${s.expectedAnnualReturnPct}% / ${s.expectedAnnualVolPct}%</div></div>
+    <div class="kpi"><div class="l">Model view</div><div class="v" style="font-size:14px;line-height:1.35">${esc(modelView)}</div></div>
   </div>
+  <p>${esc(bookLine)}</p>
+  <p class="muted">${esc(reserveLine)}</p>
 
   <section>
     <h2>Asset-Class Allocation</h2>

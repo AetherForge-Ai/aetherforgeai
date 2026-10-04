@@ -37,6 +37,45 @@ export interface CoinMarket {
   atlDate: string | null;
   /** ~7-day hourly price series for the inline sparkline. */
   sparkline7d: number[];
+  /** Chain from CoinGecko platforms. "Native" or "Unavailable" when that is the honest label. */
+  blockchain?: string;
+  /** True when this row has no live print. Do not treat price 0 as a quote. */
+  priceUnavailable?: boolean;
+}
+
+/**
+ * Blockchain label for a CoinGecko coin.
+ * An empty platforms object is native. A failed platform list is unavailable.
+ * The id is not used to guess a chain.
+ */
+export function blockchainLabel(
+  platforms: Record<string, string> | null | undefined,
+  listLoaded: boolean
+): string {
+  if (!listLoaded) return "Unavailable";
+  const keys = platforms ? Object.keys(platforms).map((key) => key.trim()).filter(Boolean) : [];
+  if (!keys.length) return "Native";
+  return keys.map(prettyChain).join(", ");
+}
+
+function prettyChain(key: string): string {
+  const known: Record<string, string> = {
+    ethereum: "Ethereum",
+    "binance-smart-chain": "BNB Chain",
+    "polygon-pos": "Polygon",
+    solana: "Solana",
+    avalanche: "Avalanche",
+    "arbitrum-one": "Arbitrum",
+    "optimistic-ethereum": "Optimism",
+    base: "Base",
+    "the-open-network": "TON",
+  };
+  if (known[key]) return known[key];
+  return key
+    .split("-")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 /** Rich single-coin payload from CoinGecko /coins/{id}. */

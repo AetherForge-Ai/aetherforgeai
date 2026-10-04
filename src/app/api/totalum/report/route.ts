@@ -6,6 +6,7 @@ import { renderTotalumReport } from "@/lib/totalum-report-html";
 import { buildStrategy, type GoalKey } from "@/lib/totalum-engine";
 import { HEADMASTER_BOT_LABEL } from "@/lib/report-language";
 import { sanitizeHeadmasterReportHtml, scopeHeadmasterIdeas } from "@/lib/headmaster-trust";
+import { publishSharedBookLog } from "@/lib/book-log";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +42,18 @@ export async function GET(req: Request) {
       loadTotalumSynthesis(user._id),
       loadReportFindings(user._id),
     ]);
+    const classOf = (key: "cash" | "equities" | "crypto" | "metals") =>
+      synthesis.classAllocation.find((row) => row.assetClass === key)?.valueNZD ?? 0;
+    const week = synthesis.scenarios.find((row) => row.horizon === "7D");
+    publishSharedBookLog({
+      cashNZD: classOf("cash"),
+      stocksNZD: classOf("equities"),
+      cryptoNZD: classOf("crypto"),
+      metalsNZD: classOf("metals"),
+      sleeveNZD: synthesis.totalValueNZD,
+      sleeveLabel: "Headmaster",
+      illustrated7dPct: week && Number.isFinite(week.basePct) ? week.basePct : null,
+    });
     const strategy = synthesis.isEmpty ? null : buildStrategy(synthesis, goal);
     const heldTickers = synthesis.positions
       .filter((p) => p.assetClass !== "cash")

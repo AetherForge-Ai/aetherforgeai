@@ -77,6 +77,19 @@ export interface TickerAnalysis {
   shortTerm: DayPrediction[]; // 7 days
   pathways: Pathway[]; // 3 scenarios
   note: string;
+  /** Live print missing. The card must say so and must not show a made-up price. */
+  priceUnavailable?: boolean;
+  /** 7-day base range, stated odds, bear-band kill price, and recent realised vol. */
+  call?: {
+    horizon: string;
+    range: string;
+    oddsPct: number;
+    killPrice: number;
+    realizedVolPct: number | null;
+    bear: [number, number];
+    base: [number, number];
+    bull: [number, number];
+  };
 }
 
 /* --------------------- Advanced Apex report sections -------------------- */
@@ -176,6 +189,12 @@ export interface ApexReport {
    * once technicals, the economic calendar and news sentiment are available.
    */
   briefing?: IntelligenceBriefing;
+  /** Full-book sentence under the sleeve figure. Same dollars as the dashboard. */
+  bookSentence?: string;
+  /** Shared cash-reserve sentence. Dollars and the cap. */
+  reserveSentence?: string;
+  /** Count of expired 7-day ranges. Never a hit rate. */
+  closedCallSentence?: string;
 }
 
 /* --------------------------------- RNG ---------------------------------- */
@@ -399,6 +418,16 @@ function tickerFromIntel(intel: SecurityIntel, _bot: BotKind): TickerAnalysis {
     shortTerm,
     pathways,
     note: `${intel.ticker} is ${rating.action} — ${intel.regime}, MACD ${intel.macdSignal}, RSI ${intel.rsi}. 7-day base case ${aligned.range} (${aligned.probability}% odds, midpoint ${spPct(aligned.pct)}). ${momentumNote}`,
+    call: {
+      horizon: "7-day",
+      range: aligned.range,
+      oddsPct: aligned.probability,
+      killPrice: intel.outlook.bear.lowPrice,
+      realizedVolPct: Number.isFinite(intel.realizedVolPct) ? intel.realizedVolPct : null,
+      bear: [intel.outlook.bear.lowPrice, intel.outlook.bear.highPrice],
+      base: [intel.outlook.base.lowPrice, intel.outlook.base.highPrice],
+      bull: [intel.outlook.bull.lowPrice, intel.outlook.bull.highPrice],
+    },
   };
 }
 
@@ -764,7 +793,7 @@ function buildPathwayPlan(
         bot === "crypto"
           ? "Rotate proceeds into large-cap majors (BTC/ETH) and hold a stablecoin buffer."
           : "Rotate proceeds into utilities / healthcare names with RSI in the 40–60 band.",
-        "Keep about 10% of the live book in reserve — the same cash rule as the Headmaster skeleton.",
+        "Use the shared cash reserve on this report: the dollar amount and the 10% cap, the same cash rule as the Headmaster skeleton.",
       ],
       recommended: recommendedName === "Capital Preservation",
     },
@@ -976,7 +1005,7 @@ function assembleReport(
 /** Attach the real market of each holding + its native currency. */
 function toAnalyzable(bot: BotKind, holdings: LiveHolding[]): AnalyzableHolding[] {
   return holdings
-    .filter((h) => h.ticker)
+    .filter((h) => h.ticker && !h.priceUnavailable && h.price > 0)
     .map((h) => {
       const market = marketForTicker(h.ticker, bot);
       return {
@@ -1065,6 +1094,8 @@ export interface LiveHolding {
   price: number;
   shares?: number;
   purchasePrice?: number;
+  /** True when CoinGecko (or the book) has no live print. Do not invent one. */
+  priceUnavailable?: boolean;
 }
 
 export interface BuildLiveReportOptions {
@@ -1105,6 +1136,24 @@ export interface BuildLiveReportOptions {
   marketFeedUnavailable?: boolean;
 }
 
+/** A held name with no live print. The card stays; the price is not invented. */
+function unavailableTicker(ticker: string, name: string): TickerAnalysis {
+  return {
+    ticker,
+    name,
+    price: 0,
+    changePct: 0,
+    signal: "Watch",
+    sentiment: 0,
+    momentum: [{ label: "Now", value: 0 }],
+    momentum12moPct: 0,
+    shortTerm: [],
+    pathways: [],
+    note: `${ticker} is on the book. Live price unavailable.`,
+    priceUnavailable: true,
+  };
+}
+
 /** Live subscriber report built from the user's real monitored holdings. */
 export function buildLiveReport(
   bot: BotKind,
@@ -1127,6 +1176,9 @@ export function buildLiveReport(
   const tickers = holdings
     .filter((h) => h.ticker)
     .map((h) => {
+      if (h.priceUnavailable || !(h.price > 0)) {
+        return unavailableTicker(h.ticker, h.name || h.ticker);
+      }
       const intel = intelByTicker.get(h.ticker.toUpperCase());
       if (intel) return tickerFromIntel(intel, bot);
       return synthesizeTicker(h.ticker, h.name || h.ticker, Math.max(0.01, h.price || 1), bot, seedSalt);

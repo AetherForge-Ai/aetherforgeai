@@ -9,8 +9,9 @@ import { TRADE_CONFIRM_REQUIRED } from "@/lib/trade-confirm";
 export const dynamic = "force-dynamic";
 
 const tradeSchema = z.object({
-  type: z.enum(["buy", "sell", "deposit", "withdraw"]),
-  ticker: z.string().max(12).optional(),
+  type: z.enum(["buy", "sell", "deposit", "withdraw", "dividend", "tax"]),
+  ticker: z.string().max(32).optional(),
+  coingecko_id: z.string().max(80).optional(),
   asset_name: z.string().max(120).optional(),
   asset_type: z.enum(["stock", "crypto", "metal"]).optional(),
   sector: z.string().max(80).optional(),
@@ -36,7 +37,7 @@ const tradeSchema = z.object({
   order_sizing: z.enum(["units", "notional"]).optional(),
   fx_rate: z.number().optional(),
   fx_source: z.string().optional(),
-  /** Required for buy and sell. Deposit and withdraw ignore it. */
+  /** Required for buy and sell. Cash lines ignore it. */
   confirm: z.boolean().optional(),
 });
 
