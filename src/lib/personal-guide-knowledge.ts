@@ -58,7 +58,6 @@ Helpful internal links to mention when relevant:
 - /how-to-maximize-results
 - /free-trial
 - /pricing
-- /own-the-bots
 - Dashboard after signup
 
 ## Free plan & pricing (high level)

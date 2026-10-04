@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { BOT_STOX_AVATAR, BOT_KOINS_AVATAR, LOGO_MARK_IMG } from "../../../../assets/files";
 import { DownloadPanel } from "./DownloadPanel";
 import {
-  ArrowRight,
   BadgeCheck,
   Cpu,
   FileSpreadsheet,
@@ -159,7 +158,7 @@ export default async function SuccessPage({
                   </section>
 
                   {/* ─── Getting started ─── */}
-                  <section className="mx-auto max-w-4xl px-4 pb-10 sm:px-6">
+                  <section className="mx-auto max-w-4xl px-4 pb-20 sm:px-6">
                     <div className="rounded-3xl border border-border/70 bg-card/60 p-6 sm:p-8">
                       <h2 className="font-display text-lg font-bold tracking-tight sm:text-xl">
                         Get running in 3 steps
@@ -189,17 +188,6 @@ export default async function SuccessPage({
                         straight to the installer.
                       </p>
                     </div>
-                  </section>
-
-                  {/* ─── Secondary ─── */}
-                  <section className="mx-auto max-w-3xl px-4 pb-20 text-center sm:px-6">
-                    <p className="text-sm text-muted-foreground">Want the other engine too?</p>
-                    <Button asChild variant="outline" className="mt-3">
-                      <Link href="/own-the-bots">
-                        Back to Own the Bots
-                        <ArrowRight className="size-4" />
-                      </Link>
-                    </Button>
                   </section>
                 </>
               )}

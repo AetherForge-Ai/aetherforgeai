@@ -9,7 +9,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
     "/performance",
     "/how-it-works",
     "/pricing",
-    "/own-the-bots",          // ← added
     "/login",
     "/register",
     "/privacy-policy",

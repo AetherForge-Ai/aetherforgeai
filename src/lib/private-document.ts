@@ -17,7 +17,6 @@ const CACHEABLE_MARKETING_PATHS = new Set([
   "/docs",
   "/blog",
   "/performance",
-  "/own-the-bots",
 ]);
 
 const PRIVATE_APP_PREFIXES = [
