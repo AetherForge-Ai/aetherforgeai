@@ -50,6 +50,7 @@ const publicRoutes = [
   "/performance",
   "/dashboard", // guests get the member signup prompt; no portfolio or account data
   "/markets", // full-page Stock Markets browser — read-only preview for guests
+  "/tax", // general Inland Revenue information — not personal tax advice
   "/market-news", // guest preview of headlines; the page renders no portfolio
   "/projections", // Top-50 weekly projections per market — read-only preview for guests
   "/login",

@@ -23,6 +23,7 @@ import { fetchLivePrice, isLiveDataConfigured, fetchCryptoQuotes } from "@/lib/m
 import { getMetalsSpot } from "@/lib/metals";
 import {
   checkFillSanity,
+  aucklandDateISO,
   aucklandDateTimeISO,
   ADVISORY_NOTE,
   type PriceSource,
@@ -34,8 +35,9 @@ import { venueForTicker, fifoApplySell, type FifoLot } from "@/lib/ledger-schema
 import { logLedgerAudit, appendAuditNote } from "@/lib/ledger-audit";
 import { feedEntryForTicker } from "@/lib/feed-mapping";
 import { withUserTradeLock } from "@/lib/trade-lock";
+import { applyPaperCashMove } from "@/lib/paper-cash";
 
-export type TxType = "buy" | "sell" | "deposit" | "withdraw";
+export type TxType = "buy" | "sell" | "deposit" | "withdraw" | "dividend" | "tax";
 export type TxAssetType = "stock" | "crypto" | "metal";
 
 /** Map a metal holding's ticker (GOLD/SILVER) to the spot-price key. */
@@ -61,8 +63,10 @@ export interface TransactionInput {
   quantity?: number; // units traded
   price?: number; // native price per unit (= fill_price)
   fees?: number; // native fees
-  // Cash fields (deposit / withdraw)
+  // Cash fields (deposit / withdraw / dividend / tax)
   amount?: number; // NZD
+  /** CoinGecko id when the name came from the extended crypto or DEX list. */
+  coingecko_id?: string;
   // Common
   notes?: string;
   executed_at?: string; // ISO; defaults to now
@@ -205,14 +209,26 @@ async function applyTransactionUnlocked(user: AppUser, input: TransactionInput):
   const notes = (input.notes || "").slice(0, 500);
 
   // ---------- Cash-only movements ----------
-  if (input.type === "deposit" || input.type === "withdraw") {
+  if (input.type === "deposit" || input.type === "withdraw" || input.type === "dividend" || input.type === "tax") {
     const amount = Math.max(0, Number(input.amount) || 0);
     if (amount <= 0) throw new Error("Amount must be greater than 0");
-    if (input.type === "withdraw" && amount > currentCash + 1e-6) {
-      throw new Error("Insufficient cash balance for this withdrawal");
+    if ((input.type === "withdraw" || input.type === "tax") && amount > currentCash + 1e-6) {
+      throw new Error(
+        input.type === "tax"
+          ? "Insufficient cash balance for this tax line"
+          : "Insufficient cash balance for this withdrawal"
+      );
     }
-    const delta = input.type === "deposit" ? amount : -amount;
+    const delta = input.type === "deposit" || input.type === "dividend" ? amount : -amount;
     const newCash = round(currentCash + delta);
+    const assetName =
+      input.type === "deposit"
+        ? "Cash deposit"
+        : input.type === "withdraw"
+          ? "Cash withdrawal"
+          : input.type === "dividend"
+            ? "Dividend"
+            : "Tax";
 
     console.log(`[transactions] ${input.type} ${amount} NZD for user ${user._id} → cash ${newCash}`);
     await totalumSdk.crud.editRecordById("user", user._id, { cash_balance: newCash });
@@ -220,7 +236,7 @@ async function applyTransactionUnlocked(user: AppUser, input: TransactionInput):
     const rec = await totalumSdk.crud.createRecord("transaction", {
       type: input.type,
       asset_type: "cash",
-      asset_name: input.type === "deposit" ? "Cash deposit" : "Cash withdrawal",
+      asset_name: assetName,
       quantity: amount,
       price: 1,
       fees: 0,
@@ -239,7 +255,7 @@ async function applyTransactionUnlocked(user: AppUser, input: TransactionInput):
   if (!ticker) throw new Error("Ticker is required");
   const assetType: TxAssetType = input.asset_type || "stock";
   const quantity = Number(input.quantity) || 0;
-  const price = Number(input.price) || 0;
+  let price = Number(input.price) || 0;
   const fees = Math.max(0, Number(input.fees) || 0);
   if (quantity <= 0) throw new Error("Quantity must be greater than 0");
   if (price <= 0) throw new Error("Price must be greater than 0");
@@ -274,7 +290,7 @@ async function applyTransactionUnlocked(user: AppUser, input: TransactionInput):
       order_sizing: input.order_sizing || "units",
       instrument_type: assetType === "crypto" ? "crypto" : assetType === "metal" ? "metal" : "equity",
       venue: venueForTicker(ticker, assetType),
-      asset_id: assetType === "crypto" ? canonicalCryptoId(ticker) : (feedEntryForTicker(ticker)?.providerId || ticker),
+      asset_id: assetType === "crypto" ? input.coingecko_id || canonicalCryptoId(ticker) : (feedEntryForTicker(ticker)?.providerId || ticker),
       trade_datetime: aucklandDateTimeISO(executedAt),
       notes,
       executed_at: executedAt,
@@ -294,7 +310,12 @@ async function applyTransactionUnlocked(user: AppUser, input: TransactionInput):
   let liveSpot: number | null = null;
   try {
     if (assetType === "crypto") {
-      const quotes = await fetchCryptoQuotes([ticker]);
+      const quotes = await fetchCryptoQuotes(
+        [ticker],
+        input.coingecko_id
+          ? { ids: { [ticker.toUpperCase()]: input.coingecko_id }, strictCoinGecko: [ticker] }
+          : undefined
+      );
       liveSpot = quotes[ticker.toUpperCase()]?.price ?? null;
     } else if (assetType === "metal") {
       const key = metalKeyForTicker(ticker);
@@ -307,6 +328,17 @@ async function applyTransactionUnlocked(user: AppUser, input: TransactionInput):
     }
   } catch (err) {
     console.error(`[transactions] Live spot for sanity check failed (${ticker}):`, err);
+  }
+
+  if (assetType === "crypto") {
+    const tradeDay = (input.trade_date || input.executed_at || "").slice(0, 10);
+    const tradingToday = !/^\d{4}-\d{2}-\d{2}$/.test(tradeDay) || tradeDay === aucklandDateISO(executedAt);
+    if (tradingToday) {
+      if (!(liveSpot != null && liveSpot > 0)) {
+        throw new Error(`${ticker} live price unavailable`);
+      }
+      price = liveSpot;
+    }
   }
 
   const sanity = checkFillSanity({
@@ -377,8 +409,18 @@ async function applyTransactionUnlocked(user: AppUser, input: TransactionInput):
       console.error("[transactions] Duplicate-buy check failed (non-fatal):", err);
     }
 
-    const costNative = quantity * price + fees;
-    const costNZD = round(nativeToNzd(costNative, currency, rates));
+    const moved = applyPaperCashMove({
+      side: "buy",
+      quantity,
+      price,
+      fees,
+      currency,
+      rates,
+      cashNZD: currentCash,
+      shares: holding?.shares || 0,
+    });
+    if (!moved.ok) throw new Error(moved.error || `${ticker} live price unavailable`);
+    const costNZD = round(-moved.cashDeltaNZD);
     if (costNZD > currentCash + 1e-6) {
       throw new Error(
         `Insufficient cash — this buy needs NZ$${costNZD.toFixed(2)} and you have NZ$${currentCash.toFixed(2)} available.`
@@ -404,7 +446,12 @@ async function applyTransactionUnlocked(user: AppUser, input: TransactionInput):
       let current_price = referencePrice(ticker, price);
       try {
         if (assetType === "crypto") {
-          const quotes = await fetchCryptoQuotes([ticker]);
+          const quotes = await fetchCryptoQuotes(
+            [ticker],
+            input.coingecko_id
+              ? { ids: { [ticker.toUpperCase()]: input.coingecko_id }, strictCoinGecko: [ticker] }
+              : undefined
+          );
           const live = quotes[ticker.toUpperCase()]?.price;
           if (live && live > 0) current_price = live;
         } else if (assetType === "metal") {
@@ -442,11 +489,11 @@ async function applyTransactionUnlocked(user: AppUser, input: TransactionInput):
       console.log(`[transactions] BUY opened new position ${ticker} (${quantity} @ ${price} ${currency})`);
     }
 
-    const newCash = round(currentCash - costNZD);
+    const newCash = moved.cashNZD;
     const createdNew = !holding;
     const previousShares = round(holding?.shares || 0, 6);
     const previousAvg = round(holding?.purchase_price || 0, 6);
-    const expectedShares = createdNew ? round(quantity, 6) : round(previousShares + quantity, 6);
+    const expectedShares = moved.shares;
     let ledgerId: string | undefined;
     try {
     await totalumSdk.crud.editRecordById("user", user._id, { cash_balance: newCash });
@@ -471,7 +518,7 @@ async function applyTransactionUnlocked(user: AppUser, input: TransactionInput):
       asset_type: assetType,
       instrument_type: assetType === "crypto" ? "crypto" : assetType === "metal" ? "metal" : "equity",
       venue: venueForTicker(ticker, assetType),
-      asset_id: assetType === "crypto" ? canonicalCryptoId(ticker) : (feed?.providerId || ticker),
+      asset_id: assetType === "crypto" ? input.coingecko_id || canonicalCryptoId(ticker) : (feed?.providerId || ticker),
       quantity: round(quantity, 6),
       price: round(price, 6),
       fill_price: round(price, 6),
@@ -546,9 +593,19 @@ async function applyTransactionUnlocked(user: AppUser, input: TransactionInput):
     throw new Error(`You only hold ${round(heldShares, 6)} unit(s) of ${ticker}`);
   }
   const avgCost = holding.purchase_price || 0;
-  const proceedsNative = quantity * price - fees;
   const realizedNative = quantity * (price - avgCost) - fees;
-  const proceedsNZD = round(nativeToNzd(proceedsNative, currency, rates));
+  const sold = applyPaperCashMove({
+    side: "sell",
+    quantity,
+    price,
+    fees,
+    currency,
+    rates,
+    cashNZD: currentCash,
+    shares: heldShares,
+  });
+  if (!sold.ok) throw new Error(sold.error || `${ticker} live price unavailable`);
+  const proceedsNZD = sold.cashDeltaNZD;
   // FIFO-style split: price P&L at sell FX; FX P&L vs lot FX (legacy avg uses buy FX ≈ current if unknown).
   const sellFx = nzdPerUnit(currency, input.fx_rate ?? rates[currency] ?? 1);
   const lotFx = Number(holding.fx_rate) || sellFx;
@@ -565,12 +622,11 @@ async function applyTransactionUnlocked(user: AppUser, input: TransactionInput):
   const legacyRealizedNZD = round(nativeToNzd(realizedNative, currency, rates));
   const realizedBooked = Math.abs(sellFx - lotFx) < 1e-9 ? legacyRealizedNZD : realizedNZD;
 
-  const remaining = heldShares - quantity;
-  const closed = remaining <= 1e-6;
-  const expectedRemaining = closed ? 0 : round(remaining, 6);
+  const closed = sold.shares <= 1e-6;
+  const expectedRemaining = sold.shares;
   let holdingId: string | null = holding._id;
   let ledgerId: string | undefined;
-  const newCash = round(currentCash + proceedsNZD);
+  const newCash = sold.cashNZD;
   try {
   if (closed) {
     // Position fully closed — remove it from the tracked holdings and retire alerts.

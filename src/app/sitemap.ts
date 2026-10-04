@@ -16,6 +16,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     "/ai-disclaimer",
     "/docs",
     "/blog",
+    "/tax",
   ];
   return routes.map((path) => ({
     url: `${siteUrl}${path}`,

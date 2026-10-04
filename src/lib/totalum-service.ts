@@ -21,6 +21,10 @@ import {
   type TotalumSynthesis,
 } from "@/lib/totalum-engine";
 import { softenHeadmasterLanguage, type HeadmasterIdea } from "@/lib/headmaster-trust";
+import {
+  illustratedPathFromPayloads,
+  type IllustratedPathRecord,
+} from "@/lib/book-log";
 
 export async function loadTotalumSynthesis(userId: string): Promise<TotalumSynthesis> {
   const [stocksRes, metalsRes, userRes, spot, fx] = await Promise.all([
@@ -149,4 +153,39 @@ export async function loadReportFindings(userId: string): Promise<ReportFindings
   );
 
   return { hasStox: !!stox, hasKoins: !!koins, ideas, contextBlock };
+}
+
+/** The illustrated path saved with the latest Headmaster report, if one exists. */
+export async function loadHeadmasterIllustratedPath(userId: string): Promise<IllustratedPathRecord | null> {
+  try {
+    const res = await totalumSdk.crud.query("report", {
+      _filter: { user: userId, bot: "headmaster" },
+      _sort: { createdAt: "desc" },
+      _limit: 8,
+    });
+    const payloads = ((res?.data as Array<{ payload?: unknown }> | undefined) || []).map((row) => row.payload);
+    return illustratedPathFromPayloads(payloads);
+  } catch (err) {
+    console.error("[totalum] Failed to load the saved Headmaster path (non-fatal):", err);
+    return null;
+  }
+}
+
+/** Persist this report's illustrated path so a later week can measure the miss. */
+export async function saveHeadmasterIllustratedPath(
+  userId: string,
+  path: IllustratedPathRecord
+): Promise<void> {
+  await totalumSdk.crud.createRecord("report", {
+    title: "Headmaster intelligence report",
+    user: userId,
+    bot: "headmaster",
+    market_label: "Headmaster",
+    executive_summary: "Headmaster illustrated path",
+    payload: JSON.stringify({ illustratedPath: path }),
+    emailed: "no",
+    ai_enhanced: "no",
+    generated_at: new Date(path.issuedAtMs).toISOString(),
+    trigger: "manual",
+  });
 }

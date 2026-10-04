@@ -86,6 +86,26 @@ export function nzdWhole(value: number): string {
  */
 export const BOOK_CASH_RESERVE_PCT = 10;
 
+/**
+ * The one reserve sentence for Stox, Koins, and Headmaster.
+ * Dollars and the cap. A bare "about 10%" is not this sentence.
+ */
+export function sharedReserveSentence(cashNZD: number, bookNZD?: number): string {
+  const cash = Math.max(0, Number.isFinite(cashNZD) ? cashNZD : 0);
+  const book = Math.max(cash, Math.max(0, bookNZD != null && Number.isFinite(bookNZD) ? bookNZD : cash));
+  const retained = bookCashReserve(book).retainedNZD;
+  const deployable = Math.max(0, Math.round((cash - retained) * 100) / 100);
+  const money = (value: number) => {
+    const rounded = Math.round(value * 100) / 100;
+    const showCents = Math.abs(rounded - Math.round(rounded)) >= 0.005;
+    return rounded.toLocaleString("en-NZ", {
+      minimumFractionDigits: showCents ? 2 : 0,
+      maximumFractionDigits: 2,
+    });
+  };
+  return `Cash on book NZ$${money(cash)}. Cash reserve NZ$${money(retained)}, capped at NZ$${money(retained)} (10% of the live book of NZ$${money(book)}). Illustrate at most NZ$${money(deployable)} from that cash — the same cash rule as the Headmaster skeleton.`;
+}
+
 export function bookCashReserve(bookNZD: number): {
   reservePct: number;
   retainedNZD: number;
@@ -240,9 +260,16 @@ export function executiveBriefFromPlan(plan: AllocationPlan): string {
     `Illustrative ${plan.modelName} skeleton (${plan.riskLabel.toLowerCase()}): ${mix}.`,
     cashSentence,
     plan.formula || allocationFormula(plan),
-    `The target mix models about ${plan.projectedReturnPct}% annual return at about ${plan.projectedVolPct}% volatility on the sleeves that would be deployed. Undeployed cash is not given a return. That is a pathway, not a forecast and not an instruction.`,
+    modelViewSentence(plan.projectedReturnPct, plan.projectedVolPct),
+    sharedReserveSentence(plan.cashOnBookNZD, plan.totalValueNZD),
     "AetherForge does not trade for you. This is portfolio intelligence, not personalised financial advice.",
   ].join(" ");
+}
+
+/** A near-zero return and volatility is not printed as a 0.00% forecast. */
+export function modelViewSentence(ret: number, vol: number): string {
+  if (Math.abs(ret) < 0.05 && Math.abs(vol) < 0.05) return "The model has no view.";
+  return `The target mix models about ${ret}% annual return at about ${vol}% volatility on the sleeves that would be deployed. Undeployed cash is not given a return. That is a pathway, not a forecast and not an instruction.`;
 }
 
 export function illustrativeActionLabel(action: IllustrativeAction): string {

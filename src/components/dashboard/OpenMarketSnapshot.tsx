@@ -270,9 +270,6 @@ export function OpenMarketSnapshot({ onBought }: { onBought?: () => void }) {
             A quick pulse of all four markets — index performance, breadth &amp; today&apos;s top movers.
           </p>
         </div>
-        <span className="hidden shrink-0 items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-transform group-hover:scale-[1.03] sm:inline-flex">
-          <TrendingUp className="size-4" /> View Snapshot
-        </span>
       </button>
 
       {/* Snapshot modal */}

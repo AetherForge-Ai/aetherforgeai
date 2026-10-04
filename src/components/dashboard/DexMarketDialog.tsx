@@ -1,0 +1,106 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { api } from "@/lib/api";
+import { fmtPrice } from "@/lib/crypto-market";
+import type { DexTokenRow } from "@/lib/crypto-dex";
+import { Loader2, RefreshCw } from "lucide-react";
+
+/**
+ * Live decentralized-token list. A missing print is labelled unavailable.
+ */
+export function DexMarketDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const [rows, setRows] = useState<DexTokenRow[]>([]);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function load() {
+    setLoading(true);
+    setError(null);
+    const res = await api.get<DexTokenRow[]>("/api/crypto/dex");
+    setLoading(false);
+    if (res.ok && Array.isArray(res.data)) {
+      setRows(res.data);
+      setNotice(typeof res.notice === "string" ? res.notice : null);
+      return;
+    }
+    setRows([]);
+    setNotice(null);
+    setError(typeof res.error === "string" ? res.error : "Live decentralized-token prices are unavailable.");
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    void load();
+  }, [open]);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="flex max-h-[92vh] w-[96vw] max-w-4xl flex-col gap-0 overflow-hidden p-0">
+        <DialogHeader className="border-b border-border/60 px-5 py-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <DialogTitle>Top Decentralized Exchanges Ranked by 24 Hours of Market</DialogTitle>
+              <DialogDescription>
+                Live CoinGecko prices for decentralized tokens. A missing print is unavailable.
+                {notice ? ` ${notice}` : ""}
+              </DialogDescription>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading} className="shrink-0 gap-1.5">
+              {loading ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
+              Refresh
+            </Button>
+          </div>
+        </DialogHeader>
+        <div className="min-h-0 flex-1 overflow-auto px-5 py-4">
+          {loading && rows.length === 0 ? (
+            <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
+              <Loader2 className="mr-2 size-4 animate-spin" /> Loading live prices…
+            </div>
+          ) : error ? (
+            <p className="py-10 text-center text-sm text-muted-foreground">{error}</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-background text-left text-xs uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="py-2 pr-3 font-medium">Token</th>
+                  <th className="py-2 pr-3 font-medium">Network</th>
+                  <th className="py-2 text-right font-medium">Price</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={`${row.symbol}-${row.id}`} className="border-t border-border/40">
+                    <td className="py-2 pr-3">
+                      <span className="font-semibold">{row.symbol}</span>
+                      <span className="ml-2 text-muted-foreground">{row.name}</span>
+                    </td>
+                    <td className="py-2 pr-3 text-muted-foreground">{row.network || "Unavailable"}</td>
+                    <td className="tnum py-2 text-right">
+                      {row.priceUnavailable || !(row.price != null && row.price > 0) ? "Unavailable" : fmtPrice(row.price)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}

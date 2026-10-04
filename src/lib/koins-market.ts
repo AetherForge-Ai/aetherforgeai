@@ -16,6 +16,8 @@ import "server-only";
  */
 
 import { getTop500 } from "@/lib/crypto-source";
+import { fetchDexTop400, fetchTop400 } from "@/lib/crypto-coingecko";
+import { dexRowToCoin } from "@/lib/crypto-dex";
 import { analyzeSecurity, type SecurityIntel } from "@/lib/market-intel";
 import { resolveSevenDayChange, type CoinMarket } from "@/lib/crypto-market";
 
@@ -82,23 +84,46 @@ const TTL_MS = 60_000;
  * a total data-source failure so callers can fall back gracefully to the
  * deterministic core universe (the report never goes blank).
  */
-export async function fetchCryptoMarketIntel(limit = 500): Promise<SecurityIntel[]> {
+async function liveCryptoUniverse(): Promise<CoinMarket[]> {
+  const bySymbol = new Map<string, CoinMarket>();
+  const take = (coin: CoinMarket) => {
+    const key = (coin.symbol || "").toUpperCase();
+    if (!key || !(coin.price > 0) || coin.priceUnavailable) return;
+    if (!bySymbol.has(key)) bySymbol.set(key, coin);
+  };
+  try {
+    const top = await fetchTop400();
+    top.coins.forEach(take);
+  } catch (err) {
+    console.error("[koins-market] CoinGecko top 400 failed — keeping the existing market sweep:", err);
+    try {
+      const fallback = await getTop500();
+      fallback.forEach(take);
+    } catch (fallbackErr) {
+      console.error("[koins-market] existing crypto sweep failed:", fallbackErr);
+    }
+  }
+  try {
+    const dex = await fetchDexTop400({ maxMs: 8000 });
+    dex.rows.forEach((row, index) => take(dexRowToCoin(row, 1000 + index)));
+  } catch (err) {
+    console.error("[koins-market] DEX list unavailable — held names still stay on the report:", err);
+  }
+  return [...bySymbol.values()];
+}
+
+export async function fetchCryptoMarketIntel(limit = 800): Promise<SecurityIntel[]> {
   if (cache && Date.now() - cache.at < TTL_MS) return cache.value;
 
-  let coins: CoinMarket[] = [];
-  try {
-    coins = await getTop500();
-  } catch (err) {
-    console.error("[koins-market] getTop500 failed — full crypto-market intel unavailable:", err);
-    return [];
-  }
+  const coins = await liveCryptoUniverse();
+  if (!coins.length) return [];
 
   const intel = coins
     .filter((c) => c && c.symbol && isFinite(c.price) && c.price > 0)
     .slice(0, limit)
     .map((c) => coinToIntel(c));
 
-  console.log(`[koins-market] Built full crypto-market intel for ${intel.length} coins (live top-500 sweep)`);
+  console.log(`[koins-market] Built full crypto-market intel for ${intel.length} coins`);
   cache = { at: Date.now(), value: intel };
   return intel;
 }

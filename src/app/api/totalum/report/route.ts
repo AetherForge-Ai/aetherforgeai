@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
-import { loadTotalumSynthesis, loadReportFindings } from "@/lib/totalum-service";
+import { loadTotalumSynthesis, loadReportFindings, loadHeadmasterIllustratedPath, saveHeadmasterIllustratedPath } from "@/lib/totalum-service";
 import { isFullHeadmaster } from "../route";
 import { renderTotalumReport } from "@/lib/totalum-report-html";
 import { buildStrategy, type GoalKey } from "@/lib/totalum-engine";
 import { HEADMASTER_BOT_LABEL } from "@/lib/report-language";
-import { sanitizeHeadmasterReportHtml, scopeHeadmasterIdeas } from "@/lib/headmaster-trust";
+import { modelViewSentence, sanitizeHeadmasterReportHtml, scopeHeadmasterIdeas } from "@/lib/headmaster-trust";
+import { fullBookFromPositions, publishSharedBookLog, illustratedPathDecision } from "@/lib/book-log";
 
 export const dynamic = "force-dynamic";
 
@@ -37,10 +38,34 @@ export async function GET(req: Request) {
     const goal = (GOALS.includes(goalParam as GoalKey) ? goalParam : "balanced_growth") as GoalKey;
     const includeWatchlist = url.searchParams.get("watchlist") === "1";
 
-    const [synthesis, findings] = await Promise.all([
+    const [synthesis, findings, priorPath] = await Promise.all([
       loadTotalumSynthesis(user._id),
       loadReportFindings(user._id),
+      loadHeadmasterIllustratedPath(user._id),
     ]);
+    const book = fullBookFromPositions(synthesis.positions);
+    const week = synthesis.scenarios.find((row) => row.horizon === "7D");
+    const illustrated7dPct = week && Number.isFinite(week.basePct) ? week.basePct : null;
+    const now = Date.now();
+    const pathDecision = illustratedPathDecision({
+      saved: priorPath,
+      nowMs: now,
+      illustrated7dPct,
+      netWorthNZD: book.netWorthNZD,
+    });
+    publishSharedBookLog({
+      ...book,
+      sleeveLabel: "Sleeve",
+      illustrated7dPct,
+      priorIllustratedPath: pathDecision.pathMiss ? priorPath : null,
+    });
+    if (pathDecision.save) {
+      try {
+        await saveHeadmasterIllustratedPath(user._id, pathDecision.save);
+      } catch (saveErr) {
+        console.error("[api/totalum/report] Failed to persist the illustrated path (non-fatal):", saveErr);
+      }
+    }
     const strategy = synthesis.isEmpty ? null : buildStrategy(synthesis, goal);
     const heldTickers = synthesis.positions
       .filter((p) => p.assetClass !== "cash")
@@ -53,6 +78,9 @@ export async function GET(req: Request) {
         strategy,
         engine: HEADMASTER_BOT_LABEL,
         watchlist: includeWatchlist ? scoped.watchlist : [],
+        book,
+        pathMiss: pathDecision.pathMiss,
+        modelView: modelViewSentence(synthesis.expectedAnnualReturnPct, synthesis.expectedAnnualVolPct),
       }),
       strategy?.plan
     );

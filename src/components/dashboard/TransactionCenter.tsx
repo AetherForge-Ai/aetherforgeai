@@ -17,6 +17,7 @@ import { ADVISORY_NOTE } from "@/lib/fill-integrity-client";
 import { formatMoney, currencyForTicker, type CurrencyCode } from "@/lib/currency";
 import { useFxRates } from "@/hooks/useFxRates";
 import { buildTradePreview, type TradePreview } from "@/lib/trade-preview";
+import { displayedCashImpact } from "@/lib/ledger-cash-lines";
 import { bumpHoldingsGeneration } from "@/lib/holdings-generation";
 import { useTradeReviewGate } from "@/lib/trade-review-gate";
 import { TradeReview } from "@/components/dashboard/TradeReview";
@@ -83,7 +84,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 
-type TxType = "buy" | "sell" | "deposit" | "withdraw";
+type TxType = "buy" | "sell" | "deposit" | "withdraw" | "dividend" | "tax";
 type AssetType = "stock" | "crypto" | "metal";
 
 /** Buyable asset classes shown in the Buy dialog — metals expand to Gold + Silver. */
@@ -155,6 +156,8 @@ const TYPE_META: Record<TxType, { label: string; icon: React.ElementType; cls: s
   sell: { label: "Sell", icon: Minus, cls: "bg-rose-500/15 text-rose-600" },
   deposit: { label: "Deposit", icon: ArrowDownToLine, cls: "bg-sky-500/15 text-sky-600" },
   withdraw: { label: "Withdraw", icon: ArrowUpFromLine, cls: "bg-amber-500/15 text-amber-600" },
+  dividend: { label: "Dividend", icon: PiggyBank, cls: "bg-emerald-500/15 text-emerald-700" },
+  tax: { label: "Tax", icon: Receipt, cls: "bg-rose-500/15 text-rose-700" },
 };
 
 /** A KPI tile matching the dashboard's card language. */
@@ -197,6 +200,43 @@ function CashCard({
       </p>
       {sub && <p className="mt-1 text-xs text-muted-foreground">{sub}</p>}
     </div>
+  );
+}
+
+function CashLineSection({
+  title,
+  empty,
+  rows,
+}: {
+  title: string;
+  empty: string;
+  rows: TransactionRow[];
+}) {
+  return (
+    <section className="rounded-2xl border border-border/60 bg-card/40 p-4">
+      <h3 className="font-display text-sm font-bold tracking-wide">{title}</h3>
+      {rows.length === 0 ? (
+        <p className="mt-3 text-sm text-muted-foreground">{empty}</p>
+      ) : (
+        <ul className="mt-3 space-y-2">
+          {rows.map((row) => {
+            const amount = displayedCashImpact(row.type, row.total);
+            return (
+              <li key={row._id} className="flex items-baseline justify-between gap-3 text-sm">
+                <span className="min-w-0">
+                  <span className="font-medium">{row.asset_name || title}</span>
+                  {row.notes ? <span className="mt-0.5 block truncate text-xs text-muted-foreground">{row.notes}</span> : null}
+                </span>
+                <span className={cn("tnum shrink-0 font-semibold", amount >= 0 ? "text-emerald-600" : "text-rose-600")}>
+                  {amount >= 0 ? "+" : ""}
+                  {formatMoney(amount, NZD)}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
   );
 }
 
@@ -462,6 +502,16 @@ export function TransactionCenter({
           <Button size="sm" variant="ghost" onClick={() => openMode("withdraw")}>
             <ArrowUpFromLine className="mr-1.5 size-4" /> Withdraw
           </Button>
+          {layout === "ledger" && (
+            <>
+              <Button size="sm" variant="outline" onClick={() => openMode("dividend")}>
+                <PiggyBank className="mr-1.5 size-4" /> Record dividend
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => openMode("tax")}>
+                <Receipt className="mr-1.5 size-4" /> Record tax
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
@@ -551,7 +601,7 @@ export function TransactionCenter({
                   const Icon = meta.icon;
                   const cur = (t.currency as CurrencyCode) || NZD;
                   const isTrade = t.type === "buy" || t.type === "sell";
-                  const total = t.total ?? 0;
+                  const total = displayedCashImpact(t.type, t.total);
                   return (
                     <tr key={t._id} className="border-b border-border/30 last:border-0 hover:bg-background/40">
                       <td className="px-4 py-2.5">
@@ -611,8 +661,22 @@ export function TransactionCenter({
         )}
         <p className="mt-3 px-1 text-[11px] text-muted-foreground">
           Every transaction is recorded with fees and automatically adjusts your cash balance. Sells book realized
-          P&amp;L against your average cost.
+          P&amp;L against your average cost. A dividend adds cash. A tax line reduces cash. Neither changes a holding quantity.
         </p>
+        {layout === "ledger" && (
+          <div className="mt-6 grid gap-4 lg:grid-cols-2">
+            <CashLineSection
+              title="DIVIDENDS"
+              empty="No dividends recorded."
+              rows={(ledger?.transactions ?? []).filter((row) => row.type === "dividend")}
+            />
+            <CashLineSection
+              title="TAX"
+              empty="No tax lines recorded."
+              rows={(ledger?.transactions ?? []).filter((row) => row.type === "tax")}
+            />
+          </div>
+        )}
       </div>
 
       <AllTransactionsDialog
@@ -760,6 +824,8 @@ function AllTransactionsDialog({
     { key: "sell", label: "Sells" },
     { key: "deposit", label: "Deposits" },
     { key: "withdraw", label: "Withdrawals" },
+    { key: "dividend", label: "Dividends" },
+    { key: "tax", label: "Tax" },
   ];
 
   return (
@@ -860,7 +926,7 @@ function AllTransactionsDialog({
                   const Icon = meta.icon;
                   const cur = (t.currency as CurrencyCode) || NZD;
                   const isTrade = t.type === "buy" || t.type === "sell";
-                  const total = t.total ?? 0;
+                  const total = displayedCashImpact(t.type, t.total);
                   return (
                     <tr key={t._id} className="border-b border-border/30 last:border-0 hover:bg-background/40">
                       <td className="py-3 pr-3">
@@ -989,6 +1055,7 @@ export function TransactionDialog({
     if (open && preferredAssetType) setAssetType(preferredAssetType);
   }, [open, preferredAssetType]);
   const [ticker, setTicker] = useState("");
+  const [coinGeckoId, setCoinGeckoId] = useState("");
   const [assetName, setAssetName] = useState("");
   const [quantity, setQuantity] = useState("");
   const [price, setPrice] = useState("");
@@ -1025,10 +1092,10 @@ export function TransactionDialog({
   const isMetal = assetType === "metal";
   // Which Buy asset-class chip is active (metals are keyed by their ticker).
   const selectedAssetKey = isMetal ? ticker.toLowerCase() : assetType;
-  // Lock the Share Price to the live market price only for a BUY dated today AND
-  // when a live quote is actually available. Otherwise the field stays editable so
-  // the user is never blocked (past dates, or a today with no live quote).
-  const priceLocked = mode === "buy" && isToday && !liveUnavailable;
+  // Lock today's buy price to the live print. A crypto name with no live print
+  // stays blank. An equity with no print can still be typed.
+  const cryptoLiveMissing = mode === "buy" && assetType === "crypto" && liveUnavailable;
+  const priceLocked = (mode === "buy" && isToday && !liveUnavailable) || cryptoLiveMissing;
 
   // Keep fee presets in sync with notional for buys AND sells, including the
   // US retail fixed fee (percent is 0, so a percent-only effect used to skip it).
@@ -1172,26 +1239,30 @@ export function TransactionDialog({
   }
 
   /** Fetch the live price for a symbol via the shared quote endpoint (null if none). */
-  async function fetchLivePrice(sym: string, type: AssetType): Promise<number | null> {
+  async function fetchLivePrice(sym: string, type: AssetType, coinId?: string): Promise<number | null> {
+    const id = coinId ? `&id=${encodeURIComponent(coinId)}` : "";
     const res = await api.get<{ price: number | null }>(
-      `/api/tickers/quote?symbol=${encodeURIComponent(sym)}&type=${type}`
+      `/api/tickers/quote?symbol=${encodeURIComponent(sym)}&type=${type}${id}`
     );
     return res.ok && res.data?.price && res.data.price > 0 ? res.data.price : null;
   }
 
   /** Lock the Share Price field to today's live price (or unlock for manual entry). */
-  async function lockToLivePrice(sym: string, type: AssetType) {
+  async function lockToLivePrice(sym: string, type: AssetType, coinId?: string) {
     setPriceLoading(true);
     setLiveUnavailable(false);
-    const live = await fetchLivePrice(sym, type);
+    const live = await fetchLivePrice(sym, type, coinId);
     setPriceLoading(false);
     if (live != null) {
       setPrice(String(live));
       setLiveUnavailable(false);
       console.log(`[transaction-center] Locked ${sym} to today's live price: ${live}`);
+    } else if (type === "crypto") {
+      setPrice("");
+      setLiveUnavailable(true);
+      console.warn(`[transaction-center] ${sym} live price unavailable`);
     } else {
-      // Edge case — market closed / invalid ticker / provider outage. Never block the
-      // user: unlock the field so they can type the price manually.
+      // Market closed or an unrecognised equity ticker. A past print can still be typed.
       setLiveUnavailable(true);
       console.warn(`[transaction-center] No live price for ${sym} today — unlocking for manual entry.`);
     }
@@ -1266,6 +1337,9 @@ export function TransactionDialog({
     }
     if (!t && !selectedHolding?.metalSourceId) return toast.error("Ticker is required");
     if (!(q > 0)) return toast.error("Quantity must be greater than 0");
+    if (assetType === "crypto" && (liveUnavailable || !(px > 0))) {
+      return toast.error(`${t || "This name"} live price unavailable`);
+    }
     if (!(px > 0)) return toast.error("Price must be greater than 0");
     if (mode === "sell") {
       if (!selectedHolding) return toast.error("Select a holding you own to sell");
@@ -1308,6 +1382,9 @@ export function TransactionDialog({
       }
       if (!t && !selectedHolding?.metalSourceId) return toast.error("Ticker is required");
       if (!(q > 0)) return toast.error("Quantity must be greater than 0");
+      if (assetType === "crypto" && (liveUnavailable || !(p > 0)) && !selectedHolding?.metalSourceId) {
+        return toast.error(`${t || "This name"} live price unavailable`);
+      }
       if (!(p > 0) && !selectedHolding?.metalSourceId) return toast.error("Price must be greater than 0");
       if (mode === "sell") {
         if (!selectedHolding) return toast.error("Select a holding you own to sell");
@@ -1326,6 +1403,7 @@ export function TransactionDialog({
       const a = Number(amount);
       if (!(a > 0)) return toast.error("Amount must be greater than 0");
       if (mode === "withdraw" && a > cash + 1e-6) return toast.error("Insufficient cash balance");
+      if (mode === "tax" && a > cash + 1e-6) return toast.error("Insufficient cash balance for this tax line");
       if (submittingRef.current) return;
       submittingRef.current = true;
     }
@@ -1416,6 +1494,7 @@ export function TransactionDialog({
       // Record the chosen transaction date (buy). yyyy-mm-dd → server stores as Date.
       if (mode === "buy" && executedDate) payload.executed_at = executedDate;
       payload.confirm = true;
+      if (coinGeckoId) payload.coingecko_id = coinGeckoId;
     } else {
       payload.amount = Number(amount);
     }
@@ -1432,6 +1511,8 @@ export function TransactionDialog({
         sell: "Sale recorded",
         deposit: "Funds added",
         withdraw: "Withdrawal recorded",
+        dividend: "Dividend recorded",
+        tax: "Tax line recorded",
       };
       toast.success(labels[mode]);
       if (isTrade) bumpHoldingsGeneration();
@@ -1449,12 +1530,16 @@ export function TransactionDialog({
     sell: "Sell / Remove a position",
     deposit: "Add funds to cash",
     withdraw: "Withdraw cash",
+    dividend: "Record a dividend",
+    tax: "Record a tax line",
   };
   const descriptions: Record<TxType, string> = {
     buy: "Buying debits your cash balance and re-averages your cost basis.",
     sell: "Selling credits your cash and books realized P&L against your average cost.",
     deposit: "Add investable cash to your account (NZD).",
     withdraw: "Withdraw available cash from your account (NZD).",
+    dividend: "A dividend increases cash by the amount you record. The holding quantity stays the same.",
+    tax: "A tax line reduces cash by the amount you record. The holding quantity stays the same.",
   };
 
   function requestExplicitClose() {
@@ -1603,9 +1688,14 @@ export function TransactionDialog({
                       const sym = coin.symbol.toUpperCase();
                       setTicker(sym);
                       setAssetName(coin.name);
+                      setCoinGeckoId(coin.id || "");
                       setSearchQuery("");
-                      if (isToday) void lockToLivePrice(sym, "crypto");
-                      else if (coin.price > 0) setPrice(String(coin.price));
+                      if (isToday) void lockToLivePrice(sym, "crypto", coin.id);
+                      else if (coin.price > 0 && !coin.priceUnavailable) setPrice(String(coin.price));
+                      else {
+                        setPrice("");
+                        setLiveUnavailable(true);
+                      }
                     }}
                   />
                 ) : (
@@ -1762,6 +1852,11 @@ export function TransactionDialog({
                       <strong>Locked to today&apos;s live price.</strong> Because the date is today, this is the
                       current market price and can&apos;t be edited. Pick an earlier date to enter the price you paid.
                     </span>
+                  </p>
+                ) : cryptoLiveMissing ? (
+                  <p className="-mt-1 flex items-start gap-1.5 text-xs leading-relaxed text-amber-600">
+                    <Info className="mt-0.5 size-3.5 shrink-0" />
+                    <span>Live price unavailable.</span>
                   </p>
                 ) : isToday && liveUnavailable ? (
                   <p className="-mt-1 flex items-start gap-1.5 text-xs leading-relaxed text-amber-600">

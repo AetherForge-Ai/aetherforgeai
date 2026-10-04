@@ -8,7 +8,7 @@
  */
 
 import type { ConvictionLevel, SecurityIntel } from "@/lib/market-intel";
-import { bookCashReserve } from "@/lib/headmaster-trust";
+import { bookCashReserve, sharedReserveSentence } from "@/lib/headmaster-trust";
 
 export type CanonicalAction = "SELL" | "TRIM" | "HOLD" | "BUY" | "ACCUMULATE";
 
@@ -150,27 +150,12 @@ export interface LiveCashFigures {
   bookNZD: number;
 }
 
-function formatRuleNzd(value: number): string {
-  const rounded = Math.round((Number.isFinite(value) ? value : 0) * 100) / 100;
-  const showCents = Math.abs(rounded - Math.round(rounded)) >= 0.005;
-  return rounded.toLocaleString("en-NZ", {
-    minimumFractionDigits: showCents ? 2 : 0,
-    maximumFractionDigits: 2,
-  });
-}
-
 /**
  * One cash rule for Stox, Koins, and Headmaster.
  * Shows the live ledger cash. Retained cash is about 10% of the live book.
  */
 export function liveCashRuleSentence(cashNZD: number, bookNZD?: number): string {
-  const cash = Math.max(0, Number.isFinite(cashNZD) ? cashNZD : 0);
-  const book = Math.max(cash, Math.max(0, bookNZD != null && Number.isFinite(bookNZD) ? bookNZD : cash));
-  const retained = bookCashReserve(book).retainedNZD;
-  const deployable = Math.max(0, Math.round((cash - retained) * 100) / 100);
-  return (
-    `Cash on book NZ$${formatRuleNzd(cash)}. Keep about NZ$${retained.toLocaleString("en-NZ")} (10% of the live book) in reserve and illustrate at most NZ$${formatRuleNzd(deployable)} from that cash — the same cash rule as the Headmaster skeleton.`
-  );
+  return sharedReserveSentence(cashNZD, bookNZD);
 }
 
 function cashRuleClause(cash: number, book?: number): string {
@@ -187,7 +172,7 @@ export function rewriteLegacyCashIllustration(text: string, figures?: LiveCashFi
   const replacement =
     figures && figures.cashNZD > 0
       ? liveCashRuleSentence(figures.cashNZD, figures.bookNZD)
-      : "Use the live cash balance. Keep about 10% of the live book in reserve — the same cash rule as the Headmaster skeleton.";
+      : "Use the live cash balance and the shared cash-reserve cap — the same cash rule as the Headmaster skeleton.";
   const collapsed: string[] = [];
   for (const sentence of splitSentences(text)) {
     const next = LEGACY_CASH_ILLUSTRATION.test(sentence) ? replacement : sentence;

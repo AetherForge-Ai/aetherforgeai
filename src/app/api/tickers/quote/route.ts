@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { fetchYahooQuote } from "@/lib/yahoo-finance";
 import { fetchCryptoQuotes } from "@/lib/market-data";
 import { getMetalsSpot } from "@/lib/metals";
+import { CANONICAL_CRYPTO_IDS } from "@/lib/crypto-ids";
+import { lookupCryptoId } from "@/lib/crypto-id-registry";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +35,16 @@ export async function GET(req: Request) {
 
     // Crypto path — priced from the same Swyftx-primary source as the rest of the app.
     if (type === "crypto") {
-      const quotes = await fetchCryptoQuotes([symbol]);
+      const explicitId = (searchParams.get("id") || "").trim();
+      const remembered = lookupCryptoId(symbol);
+      const coinId = explicitId || remembered || "";
+      const knownName = Object.prototype.hasOwnProperty.call(CANONICAL_CRYPTO_IDS, symbol);
+      // An id from the extended list must not be replaced with a guessed Yahoo print.
+      const strict = Boolean(explicitId || (remembered && !knownName));
+      const quotes = await fetchCryptoQuotes(
+        [symbol],
+        coinId ? { ids: { [symbol]: coinId }, ...(strict ? { strictCoinGecko: [symbol] } : {}) } : undefined
+      );
       const price = quotes[symbol]?.price ?? null;
       console.log(`[api/tickers/quote] (crypto) ${symbol} → ${price ? `$${price} USD` : "no quote"}`);
       return NextResponse.json({

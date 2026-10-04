@@ -1,7 +1,6 @@
 "use client";
 
 import { MarketsExplorer } from "@/components/dashboard/MarketsExplorer";
-import { OpenMarketSnapshot } from "@/components/dashboard/OpenMarketSnapshot";
 import { bindActiveAccount } from "@/lib/account-identity";
 import { LineChart, Globe } from "lucide-react";
 
@@ -35,11 +34,6 @@ export function MarketsPageContent({
             table says so instead of spinning.
           </p>
         </div>
-      </div>
-
-      {/* Quick cross-market pulse — prominent near the top of the page */}
-      <div className="mt-6">
-        <OpenMarketSnapshot />
       </div>
 
       {/* Live browser */}
