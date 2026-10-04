@@ -28,6 +28,7 @@ import {
   Tag,
   Newspaper,
   Trophy,
+  Scale,
   MessageSquare,
   Settings,
   Compass,
@@ -51,6 +52,7 @@ const NAV_LINKS: { href: string; label: string; icon: React.ComponentType<{ clas
   { href: "/performance", label: "Example results", icon: Trophy },
   { href: "/market-news", label: "Market News", icon: Newspaper },
   { href: "/markets", label: "Stock Markets", icon: LineChart },
+  { href: "/tax", label: "TAX", icon: Scale },
   { href: "/pricing", label: "Pricing", icon: Tag },
 ];
 

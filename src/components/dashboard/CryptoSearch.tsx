@@ -29,6 +29,8 @@ import {
   noteDialogSearchQuery,
 } from "@/lib/dialog-guards";
 import { useCryptoMarkets } from "@/hooks/useCryptoMarkets";
+import { api } from "@/lib/api";
+import { dexRowToCoin, type DexTokenRow } from "@/lib/crypto-dex";
 import { coinLogo, fmtPrice, fmtPct, pctColor, GENERIC_COIN_ICON, type CoinMarket } from "@/lib/crypto-market";
 
 export function CryptoSearch({
@@ -58,6 +60,19 @@ export function CryptoSearch({
   );
   // Only auto-fetch the universe once the picker is opened.
   const { coins, loading } = useCryptoMarkets(open);
+  const [dexCoins, setDexCoins] = React.useState<CoinMarket[]>([]);
+
+  React.useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    void api.get<DexTokenRow[]>("/api/crypto/dex").then((res) => {
+      if (cancelled || !res.ok || !Array.isArray(res.data)) return;
+      setDexCoins(res.data.map((row, index) => dexRowToCoin(row, 1000 + index)));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
 
   // Keep the dialog search guard for the whole popover lifetime (same as
   // TickerSearch) — do not clear on fetch settle or holdings re-renders will
@@ -70,13 +85,19 @@ export function CryptoSearch({
     markDialogSearchGuard(30_000);
   }, [open, loading]);
 
+  const universe = React.useMemo(() => {
+    const seen = new Set(coins.map((coin) => coin.symbol.toUpperCase()));
+    const extra = dexCoins.filter((coin) => !seen.has(coin.symbol.toUpperCase()));
+    return [...coins, ...extra];
+  }, [coins, dexCoins]);
+
   const results = React.useMemo(() => {
     const q = query.trim().toLowerCase();
     const base = q
-      ? coins.filter((c) => c.symbol.toLowerCase().includes(q) || c.name.toLowerCase().includes(q))
-      : coins;
+      ? universe.filter((c) => c.symbol.toLowerCase().includes(q) || c.name.toLowerCase().includes(q))
+      : universe;
     return base.slice(0, 60);
-  }, [coins, query]);
+  }, [universe, query]);
 
   function pick(c: CoinMarket) {
     markDialogSelectGuard();
@@ -163,7 +184,9 @@ export function CryptoSearch({
                     />
                     <span className="font-display text-sm font-bold">{c.symbol}</span>
                     <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">{c.name}</span>
-                    <span className="tnum shrink-0 text-right text-sm font-semibold">{fmtPrice(c.price)}</span>
+                    <span className="tnum shrink-0 text-right text-sm font-semibold">
+                      {c.priceUnavailable || !(c.price > 0) ? "Unavailable" : fmtPrice(c.price)}
+                    </span>
                     <span className={cn("tnum w-14 shrink-0 text-right text-[0.68rem] font-medium", pctColor(c.change24h))}>
                       {fmtPct(c.change24h)}
                     </span>

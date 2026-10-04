@@ -24,6 +24,7 @@ export interface ApiResponse<T = unknown> {
   /** Session user echoed by account-scoped routes. Required before applying. */
   userId?: string;
   total?: number;
+  notice?: string | null;
   error?: any;
   status?: number;
   /** True when the request was aborted because the active account changed. */

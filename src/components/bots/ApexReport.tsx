@@ -582,7 +582,7 @@ export function ApexReportView({ report: source }: { report: ApexReport }) {
         <div>
           <div className="grid grid-cols-1 gap-2 min-[420px]:grid-cols-3">
             <div className="min-w-0 rounded-lg border border-border/60 bg-card/40 p-3">
-              <div className="text-[11px] text-muted-foreground">Total Worth · {report.portfolio.currency}</div>
+              <div className="text-[11px] text-muted-foreground">Sleeve · {report.portfolio.currency}</div>
               <div className="mt-0.5 break-words text-base font-semibold sm:text-lg">
                 {formatMoney(report.portfolio.value, report.portfolio.currency)}
               </div>
@@ -603,10 +603,31 @@ export function ApexReportView({ report: source }: { report: ApexReport }) {
           </div>
           {report.portfolio.currency === "NZD" && (
             <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground/80">
-              Total worth is aggregated in NZD — Australian (.AX) holdings display in AUD and US holdings in USD, then
-              convert to NZD here.
+              The sleeve figure is this bot&apos;s holdings. Australian (.AX) holdings are shown in AUD and US holdings in USD on their cards.
             </p>
           )}
+          {report.bookSentence && (
+            <p className="mt-2 text-sm leading-relaxed">{report.bookSentence}</p>
+          )}
+          {report.reserveSentence && (
+            <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{report.reserveSentence}</p>
+          )}
+        </div>
+      )}
+
+      {!report.portfolio && report.bookSentence && (
+        <div className="space-y-1">
+          <p className="text-sm leading-relaxed">{report.bookSentence}</p>
+          {report.reserveSentence && (
+            <p className="text-sm leading-relaxed text-muted-foreground">{report.reserveSentence}</p>
+          )}
+        </div>
+      )}
+
+      {report.closedCallSentence && (
+        <div className="rounded-xl border border-border/60 bg-card/40 p-4">
+          <div className="text-sm font-semibold">Closed-call score</div>
+          <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{report.closedCallSentence}</p>
         </div>
       )}
 

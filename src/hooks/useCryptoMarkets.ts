@@ -20,10 +20,11 @@ interface Store {
   fetchedAt: number; // epoch ms of last successful load (0 = never)
   loading: boolean;
   error: string | null;
+  notice: string | null;
   inflight: Promise<void> | null;
 }
 
-const store: Store = { coins: [], fetchedAt: 0, loading: false, error: null, inflight: null };
+const store: Store = { coins: [], fetchedAt: 0, loading: false, error: null, notice: null, inflight: null };
 const subscribers = new Set<() => void>();
 
 function notify() {
@@ -48,6 +49,7 @@ async function load(force = false): Promise<void> {
         store.coins = res.data;
         store.fetchedAt = Date.now();
         store.error = null;
+        store.notice = typeof res.notice === "string" ? res.notice : null;
         console.log(`[useCryptoMarkets] loaded ${res.data.length} coins`);
       } else if (res.status === 401) {
         store.error = null;
@@ -72,6 +74,7 @@ export interface UseCryptoMarkets {
   loading: boolean;
   refreshing: boolean;
   error: string | null;
+  notice: string | null;
   lastUpdated: Date | null;
   refresh: () => void;
 }
@@ -105,6 +108,7 @@ export function useCryptoMarkets(active = true): UseCryptoMarkets {
     loading: store.loading && store.coins.length === 0,
     refreshing: store.loading && store.coins.length > 0,
     error: store.error,
+    notice: store.notice,
     lastUpdated: store.fetchedAt ? new Date(store.fetchedAt) : null,
     refresh,
   };

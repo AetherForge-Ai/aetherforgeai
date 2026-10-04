@@ -9,7 +9,7 @@
  * with.
  */
 
-export type TxDialogMode = "buy" | "sell" | "deposit" | "withdraw";
+export type TxDialogMode = "buy" | "sell" | "deposit" | "withdraw" | "dividend" | "tax";
 
 export interface TxDialogSnapshot {
   /** Stable for the lifetime of an open dialog. Bumps only on account switch. */

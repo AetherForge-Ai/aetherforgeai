@@ -6,7 +6,7 @@ import { isFullHeadmaster } from "../route";
 import { createGrokChatCompletion, isGrokConfigured, type GrokMessage } from "@/lib/grok";
 import { buildStrategy, type TotalumSynthesis } from "@/lib/totalum-engine";
 import type { ReportFindings } from "@/lib/totalum-service";
-import { requestsWatchlist, scopeHeadmasterIdeas } from "@/lib/headmaster-trust";
+import { modelViewSentence, requestsWatchlist, scopeHeadmasterIdeas } from "@/lib/headmaster-trust";
 
 export const dynamic = "force-dynamic";
 
@@ -51,7 +51,7 @@ function buildStrategistContext(s: TotalumSynthesis): string {
     `- Default Balanced Growth skeleton (same calculation as the Strategy tab): retained cash ${nzd(skeleton.plan.retainedCashNZD)} (${skeleton.plan.targetCashPct}%). Illustrated cash reallocation ${nzd(skeleton.plan.cashToReallocateNZD)}.`,
     `- ${skeleton.plan.formula}`,
     `- Diversification score: ${s.diversificationScore}/100 (${s.concentrationLabel}, HHI ${s.hhi})`,
-    `- Expected: ≈${s.expectedAnnualReturnPct}% annual return at ≈${s.expectedAnnualVolPct}% volatility`,
+    `- ${modelViewSentence(s.expectedAnnualReturnPct, s.expectedAnnualVolPct)}`,
     "",
     "ASSET-CLASS ALLOCATION:"
   );
