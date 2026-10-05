@@ -47,6 +47,24 @@ export interface CoinMarket {
 export const LIVE_CRYPTO_UNAVAILABLE =
   "Live crypto prices are unavailable right now. Please try again shortly.";
 
+/** Shown when a coin detail request fails. Same family as the list failure — never a parse dump. */
+export const COIN_DETAIL_SOURCE_DOWN = "Live data for this coin is unavailable right now.";
+
+/** Shown when a DEX row has no CoinGecko id the detail page can load. */
+export const COIN_DETAIL_UNAVAILABLE = "Live detail for this token is unavailable.";
+
+/**
+ * CoinGecko slug used by /api/crypto/coin/[id].
+ * Pool addresses and GeckoTerminal ids (eth_0x…) are not slugs.
+ */
+export function resolvableCoinId(id: string | null | undefined): string | null {
+  const raw = (id || "").trim().toLowerCase();
+  if (!raw || raw.length > 80) return null;
+  if (raw.includes("0x")) return null;
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(raw)) return null;
+  return raw;
+}
+
 export function coinHasLivePrice(coin: Pick<CoinMarket, "price" | "priceUnavailable">): boolean {
   return typeof coin.price === "number" && Number.isFinite(coin.price) && coin.price > 0 && !coin.priceUnavailable;
 }
