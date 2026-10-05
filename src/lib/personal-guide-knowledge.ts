@@ -290,8 +290,7 @@ export function personalGuideFallbackReply(userMessage: string): string {
   if (/how (does|do)|how\b.{0,40}\bworks|what is aether|get started|\btrial\b/.test(q)) {
     return (
       `AetherForge tracks markets you already hold. It never places trades or holds your money.\n\n` +
-      `${SIGNUP_LINK} Then add your stocks, crypto, or metals on the Dashboard.\n\n` +
-      `Ask about one bot if you want the next step. A longer guide is [/how-it-works](/how-it-works).`
+      `${SIGNUP_LINK} Then add what you hold on the Dashboard.`
     );
   }
 

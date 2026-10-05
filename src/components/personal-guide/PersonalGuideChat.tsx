@@ -29,26 +29,22 @@ const ENTRY_CARDS: EntryCard[] = [
   {
     id: "how-works",
     title: "How it works",
-    prompt:
-      "Explain how AetherForge works in two or three short sentences. One idea, plain language, no bullet list. Then invite me to start free.",
+    prompt: "How does AetherForge work?",
   },
   {
     id: "bots",
     title: "What the bots do",
-    prompt:
-      "What do Stox, Koins, and The Headmaster do? Two or three short sentences, plain language, no list.",
+    prompt: "What do Stox, Koins, and The Headmaster do?",
   },
   {
     id: "buy-assets",
     title: "Buying stocks or crypto",
-    prompt:
-      "I'm unsure how to buy stocks or crypto. A few short sentences on the basics, then how AetherForge helps me track holdings. No long list.",
+    prompt: "How do I buy stocks or crypto?",
   },
   {
     id: "maximize",
     title: "First step on the free plan",
-    prompt:
-      "What is the single first step on the free plan? One step, plain language, then invite me to start free.",
+    prompt: "What is the first step on the free plan?",
   },
 ];
 
