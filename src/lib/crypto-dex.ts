@@ -3,7 +3,7 @@
  * A missing price stays null. Nothing here invents a print.
  */
 
-import type { CoinMarket } from "@/lib/crypto-market";
+import { resolvableCoinId, type CoinMarket } from "@/lib/crypto-market";
 
 export interface DexTokenRow {
   id: string;
@@ -14,12 +14,15 @@ export interface DexTokenRow {
   volume24h: number | null;
   network: string;
   dex: string;
+  /** CoinGecko slug when the pool token carries one. Null when detail cannot be loaded. */
+  detailId: string | null;
 }
 
 interface IncludedToken {
   symbol: string;
   name: string;
   coinId: string;
+  detailId: string | null;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -41,10 +44,13 @@ function includedTokens(payload: Record<string, unknown>): Map<string, IncludedT
     const attrs = asRecord(row.attributes) || {};
     const symbol = String(attrs.symbol || "").trim().toUpperCase();
     if (!id || !symbol) continue;
+    const gecko = typeof attrs.coingecko_coin_id === "string" ? attrs.coingecko_coin_id : "";
+    const detailId = resolvableCoinId(gecko);
     out.set(id, {
       symbol,
       name: String(attrs.name || symbol),
-      coinId: String(attrs.coingecko_coin_id || id),
+      coinId: detailId || id,
+      detailId,
     });
   }
   return out;
@@ -120,6 +126,7 @@ export function parseMegafilterPage(payload: unknown, fallbackNetwork = ""): Dex
       volume24h: volume != null && volume > 0 ? volume : null,
       network: dexNetworkLabel(relId(pool, "network") || fallbackNetwork),
       dex: relId(pool, "dex") || "",
+      detailId: token?.detailId ?? null,
     });
   }
   return rows;
@@ -137,8 +144,10 @@ function dexHasLivePrice(row: DexTokenRow): boolean {
 function preferDexRow(prev: DexTokenRow, next: DexTokenRow): DexTokenRow {
   const prevLive = dexHasLivePrice(prev);
   const nextLive = dexHasLivePrice(next);
-  if (prevLive !== nextLive) return nextLive ? next : prev;
-  return dexVolume(next) > dexVolume(prev) ? next : prev;
+  const chosen =
+    prevLive !== nextLive ? (nextLive ? next : prev) : dexVolume(next) > dexVolume(prev) ? next : prev;
+  const detailId = chosen.detailId || prev.detailId || next.detailId || null;
+  return detailId === chosen.detailId ? chosen : { ...chosen, detailId };
 }
 
 /**

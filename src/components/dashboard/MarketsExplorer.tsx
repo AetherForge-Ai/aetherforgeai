@@ -1,14 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
 import { EXCHANGES, EXCHANGE_META, formatMarketPrice, type Exchange } from "@/lib/market-intel";
 import { BuyDialog, type BuyTarget } from "@/components/dashboard/BuyDialog";
-import { StockDetailDialog, type DetailTarget } from "@/components/dashboard/StockDetailDialog";
-import { CoinDetailModal } from "@/components/dashboard/crypto/CoinDetailModal";
 import { DexMarketDialog } from "@/components/dashboard/DexMarketDialog";
+import { explorerDetailHref, marketsTabHref, type MarketsTab } from "@/lib/market-detail-routes";
 import { useCryptoMarkets } from "@/hooks/useCryptoMarkets";
 import { fmtPrice, LIVE_CRYPTO_UNAVAILABLE } from "@/lib/crypto-market";
 import { cn } from "@/lib/utils";
@@ -57,7 +58,7 @@ export interface MarketPayload {
 type SortKey = "symbol" | "price" | "changePct" | "volume" | "marketCap";
 
 /** A tab is either a stock exchange or the live crypto universe. */
-type Tab = Exchange | "CRYPTO";
+type Tab = MarketsTab;
 
 /**
  * Normalized row rendered by the table — stock rows (from /api/all-markets) and
@@ -79,7 +80,7 @@ interface DisplayRow {
   marketCap: number | null;
   live: boolean;
   exchange?: Exchange; // stock rows only — needed to open the stock detail view
-  coinId?: string; // crypto rows only — opens the coin detail modal
+  coinId?: string; // crypto rows only — CoinGecko id for /markets/crypto/[id]
   blockchain?: string;
   priceUnavailable?: boolean;
 }
@@ -131,6 +132,8 @@ export function MarketsExplorer({
   active = true,
   className,
   allowBuy = true,
+  initialTab = null,
+  syncTab = false,
 }: {
   onBought?: () => void;
   /** When false the component skips fetching (e.g. modal is closed). */
@@ -138,8 +141,13 @@ export function MarketsExplorer({
   className?: string;
   /** Public /markets hides the Buy column. Dashboard paper-trade keeps it. */
   allowBuy?: boolean;
+  /** From /markets?tab= so a detail page can return to the same board. */
+  initialTab?: Tab | null;
+  /** Write the selected tab into the /markets query. Off inside the dashboard modal. */
+  syncTab?: boolean;
 }) {
-  const [tab, setTab] = useState<Tab>("NASDAQ");
+  const router = useRouter();
+  const [tab, setTab] = useState<Tab>(initialTab ?? "NASDAQ");
   const [data, setData] = useState<MarketPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -151,14 +159,20 @@ export function MarketsExplorer({
   /** Live Yahoo matches for tickers outside the curated exchange list (e.g. CIP.AX). */
   const [remoteHits, setRemoteHits] = useState<DisplayRow[]>([]);
   const [remoteLoading, setRemoteLoading] = useState(false);
-  const [detailTarget, setDetailTarget] = useState<DetailTarget | null>(null);
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [coinId, setCoinId] = useState<string | null>(null);
-  const [coinOpen, setCoinOpen] = useState(false);
   const [cryptoPage, setCryptoPage] = useState(0);
   const [dexOpen, setDexOpen] = useState(false);
 
   const isCryptoTab = tab === "CRYPTO";
+
+  useEffect(() => {
+    if (initialTab) setTab(initialTab);
+  }, [initialTab]);
+
+  function selectTab(next: Tab) {
+    setTab(next);
+    if (!syncTab) return;
+    router.replace(marketsTabHref(next), { scroll: false });
+  }
 
   // CoinGecko top 400. A missing print stays unavailable. Shares the cached store.
   const crypto = useCryptoMarkets(active && isCryptoTab);
@@ -396,20 +410,21 @@ export function MarketsExplorer({
     setBuyOpen(true);
   }
 
-  function openDetail(r: DisplayRow) {
-    if (r.coinId) {
-      setCoinId(r.coinId);
-      setCoinOpen(true);
-      return;
-    }
-    setDetailTarget({
-      symbol: r.symbol,
-      ticker: r.ticker,
-      name: r.name,
-      exchange: r.exchange ?? (tab as Exchange),
-      currency: r.currency,
-    });
-    setDetailOpen(true);
+  function detailHref(r: DisplayRow): string {
+    return explorerDetailHref(
+      {
+        coinId: r.coinId,
+        ticker: r.ticker,
+        symbol: r.symbol,
+        name: r.name,
+        exchange: r.exchange ?? null,
+      },
+      {
+        buy: allowBuy,
+        asset: r.coinId || isCryptoTab ? "crypto" : "stock",
+        fallbackExchange: !r.coinId && !isCryptoTab ? (tab as Exchange) : null,
+      }
+    );
   }
 
   const SortHead = ({ label, k, align = "right" }: { label: string; k: SortKey; align?: "left" | "right" }) => (
@@ -438,7 +453,7 @@ export function MarketsExplorer({
           return (
             <button
               key={ex}
-              onClick={() => setTab(ex)}
+              onClick={() => selectTab(ex)}
               className={cn(
                 "rounded-xl border px-3.5 py-2 text-sm font-semibold transition-colors",
                 activeEx
@@ -452,7 +467,7 @@ export function MarketsExplorer({
         })}
         {/* Crypto — top 100 by market cap from the live crypto feed */}
         <button
-          onClick={() => setTab("CRYPTO")}
+          onClick={() => selectTab("CRYPTO")}
           className={cn(
             "flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-sm font-semibold transition-colors",
             isCryptoTab
@@ -575,14 +590,13 @@ export function MarketsExplorer({
                   <tr key={r.key} className="border-b border-border/30 last:border-0 hover:bg-background/40">
                     <td className="py-2.5 pr-3">
                       <div className="flex items-center gap-2">
-                        {/* Clickable ticker → detailed stock view (chart, stats, AI) */}
-                        <button
-                          onClick={() => openDetail(r)}
+                        <Link
+                          href={detailHref(r)}
                           className="font-display font-semibold text-primary underline-offset-4 transition-colors hover:text-primary hover:underline"
                           title={`View ${r.symbol} details`}
                         >
                           {r.symbol}
-                        </button>
+                        </Link>
                         {!r.live && (
                           <span className="rounded bg-muted/60 px-1 py-0.5 text-[0.55rem] font-semibold uppercase text-muted-foreground">
                             ref
@@ -688,18 +702,7 @@ export function MarketsExplorer({
         }}
       />
 
-      {/* Detailed stock view — chart, key stats & Stox AI analysis pane */}
-      <StockDetailDialog
-        open={detailOpen}
-        onOpenChange={setDetailOpen}
-        target={detailTarget}
-        canBuy={allowBuy && !!onBought}
-        onBought={onBought}
-      />
-
-      {/* Detailed crypto view — live chart, metrics & Koins AI analysis */}
-      <CoinDetailModal coinId={coinId} open={coinOpen} onOpenChange={setCoinOpen} />
-      <DexMarketDialog open={dexOpen} onOpenChange={setDexOpen} />
+      <DexMarketDialog open={dexOpen} onOpenChange={setDexOpen} allowBuy={allowBuy} />
     </div>
   );
 }
