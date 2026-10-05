@@ -5,8 +5,8 @@ import "server-only";
  *
  * The Koins Full Report must cover the COMPLETE cryptocurrency market — not the
  * 18-name core universe used by the deterministic engine. This module fetches
- * the live top-500 market (Swyftx primary via SWYFTX_API_KEY, CoinGecko
- * fallback) and runs every coin through the SAME technical engine the equities
+ * the same resilient top-400 list as the Crypto tab (CoinGecko, then Swyftx /
+ * Yahoo) plus the public DEX list, and runs every coin through the SAME technical engine the equities
  * board uses (`analyzeSecurity`), producing a full `SecurityIntel[]` spine.
  *
  * This is the data layer that gives Koins genuine feature parity with Stox:
@@ -15,8 +15,8 @@ import "server-only";
  * NEVER mixed with NZX / ASX / NASDAQ / DOW equity data.
  */
 
-import { getTop500 } from "@/lib/crypto-source";
-import { fetchDexTop400, fetchTop400 } from "@/lib/crypto-coingecko";
+import { loadTop400Markets } from "@/lib/crypto-source";
+import { fetchDexTop400 } from "@/lib/crypto-coingecko";
 import { dexRowToCoin } from "@/lib/crypto-dex";
 import { analyzeSecurity, type SecurityIntel } from "@/lib/market-intel";
 import { resolveSevenDayChange, type CoinMarket } from "@/lib/crypto-market";
@@ -92,16 +92,10 @@ async function liveCryptoUniverse(): Promise<CoinMarket[]> {
     if (!bySymbol.has(key)) bySymbol.set(key, coin);
   };
   try {
-    const top = await fetchTop400();
+    const top = await loadTop400Markets();
     top.coins.forEach(take);
   } catch (err) {
-    console.error("[koins-market] CoinGecko top 400 failed — keeping the existing market sweep:", err);
-    try {
-      const fallback = await getTop500();
-      fallback.forEach(take);
-    } catch (fallbackErr) {
-      console.error("[koins-market] existing crypto sweep failed:", fallbackErr);
-    }
+    console.error("[koins-market] crypto sweep failed — held names still stay on the report:", err);
   }
   try {
     const dex = await fetchDexTop400({ maxMs: 8000 });

@@ -20,11 +20,14 @@ const sellBody = {
 };
 
 function jsonResponse(body: unknown, status = 200): Response {
+  const text = JSON.stringify(body);
   return {
     ok: status >= 200 && status < 300,
     status,
+    headers: { get: (name: string) => (name.toLowerCase() === "content-type" ? "application/json" : null) },
+    text: async () => text,
     json: async () => body,
-  } as Response;
+  } as unknown as Response;
 }
 
 afterEach(() => {

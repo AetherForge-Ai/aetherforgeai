@@ -57,8 +57,45 @@ function relId(pool: Record<string, unknown>, name: string): string {
   return data ? String(data.id || "") : "";
 }
 
-/** One megafilter page → base-token rows. Duplicate pools in the page are kept; the caller dedupes. */
-export function parseMegafilterPage(payload: unknown): DexTokenRow[] {
+const NETWORK_LABEL: Record<string, string> = {
+  eth: "Ethereum",
+  ethereum: "Ethereum",
+  solana: "Solana",
+  bsc: "BNB Chain",
+  "binance-smart-chain": "BNB Chain",
+  base: "Base",
+  arbitrum: "Arbitrum",
+  polygon_pos: "Polygon",
+  "polygon-pos": "Polygon",
+  avax: "Avalanche",
+  avalanche: "Avalanche",
+  optimism: "Optimism",
+  "optimistic-ethereum": "Optimism",
+  ton: "TON",
+  aptos: "Aptos",
+  worldchain: "World Chain",
+  "world-chain": "World Chain",
+  robinhood: "Robinhood Chain",
+};
+
+/** Public pool network id → a readable chain name. An empty id stays Unavailable. */
+export function dexNetworkLabel(id: string | null | undefined): string {
+  const key = (id || "").trim().toLowerCase();
+  if (!key) return "Unavailable";
+  if (NETWORK_LABEL[key]) return NETWORK_LABEL[key];
+  return key
+    .split(/[_-]/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+/**
+ * One pool page → base-token rows.
+ * `fallbackNetwork` covers GeckoTerminal network pool pages, which omit the network relationship.
+ * Duplicate pools in the page are kept; the caller dedupes.
+ */
+export function parseMegafilterPage(payload: unknown, fallbackNetwork = ""): DexTokenRow[] {
   const root = asRecord(payload);
   if (!root) return [];
   const tokens = includedTokens(root);
@@ -81,7 +118,7 @@ export function parseMegafilterPage(payload: unknown): DexTokenRow[] {
       price: live,
       priceUnavailable: live == null,
       volume24h: volume != null && volume > 0 ? volume : null,
-      network: relId(pool, "network") || "Unavailable",
+      network: dexNetworkLabel(relId(pool, "network") || fallbackNetwork),
       dex: relId(pool, "dex") || "",
     });
   }

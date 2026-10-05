@@ -13,11 +13,11 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   try {
     const chart = await getCoinChart(id, days);
     return NextResponse.json({ ok: true, data: chart });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error(`[api/crypto/chart/${id}] error:`, err);
     return NextResponse.json(
-      { ok: false, error: err?.message || "Failed to load chart" },
-      { status: 502 }
+      { ok: false, error: "Live data for this coin is unavailable right now." },
+      { headers: { "cache-control": "no-store" } }
     );
   }
 }

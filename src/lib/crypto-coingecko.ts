@@ -57,12 +57,25 @@ async function cached<T>(key: string, ttlMs: number, loader: () => Promise<T>): 
 }
 
 async function cgFetch(path: string): Promise<any> {
-  const res = await fetch(`${CG_BASE}${path}`, { headers: cgHeaders(), cache: "no-store" });
+  const res = await fetch(`${CG_BASE}${path}`, {
+    headers: cgHeaders(),
+    cache: "no-store",
+    signal: AbortSignal.timeout(8_000),
+  });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
     throw new Error(`CoinGecko ${res.status} on ${path}: ${body.slice(0, 200)}`);
   }
-  return res.json();
+  const type = res.headers.get("content-type") || "";
+  const text = await res.text();
+  if (!type.includes("json") && !text.trim().startsWith("{") && !text.trim().startsWith("[")) {
+    throw new Error(`CoinGecko returned a non-JSON body on ${path}`);
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`CoinGecko returned a non-JSON body on ${path}`);
+  }
 }
 
 /* ------------------------------ Top-500 scan ----------------------------- */
@@ -231,40 +244,110 @@ export interface DexPage {
 }
 
 /**
- * Top decentralized tokens by 24-hour pool volume.
- * Official on-chain megafilter, paged slowly. A 429 stops the walk.
+ * GeckoTerminal's public pool API. CoinGecko's on-chain megafilter refuses
+ * keyless calls (HTTP 401), which is why the DEX list was empty.
+ * 30 calls/minute: pages are sequential with a gap, and a 429 stops the walk.
+ */
+const GT_BASE = "https://api.geckoterminal.com/api/v2";
+const DEX_NETWORKS = ["eth", "solana", "bsc", "base", "arbitrum", "polygon_pos", "avax", "optimism", "ton", "aptos"];
+const DEX_GAP_MS = 2_100;
+const DEX_PAGE_CAP = 3;
+
+async function gtFetch(path: string): Promise<unknown> {
+  const res = await fetch(`${GT_BASE}${path}`, {
+    headers: { accept: "application/json" },
+    cache: "no-store",
+    signal: AbortSignal.timeout(8_000),
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(`GeckoTerminal ${res.status} on ${path}: ${text.slice(0, 160)}`);
+  }
+  const type = res.headers.get("content-type") || "";
+  if (!type.includes("json") && !text.trim().startsWith("{") && !text.trim().startsWith("[")) {
+    throw new Error(`GeckoTerminal returned a non-JSON body on ${path}`);
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`GeckoTerminal returned a non-JSON body on ${path}`);
+  }
+}
+
+interface DexCache extends DexPage {
+  budgetMs: number;
+}
+
+/**
+ * Top decentralized tokens by 24-hour pool volume on the public GeckoTerminal API.
+ * A fuller caller may refresh a short cached walk. A dead source keeps the last good list.
+ * An empty cold load throws so the route says the list is unavailable instead of painting a blank table.
  */
 export async function fetchDexTop400(opts?: { maxMs?: number }): Promise<DexPage> {
-  return cached(`dex400:${opts?.maxMs || 0}`, 10 * 60_000, async () => {
-    const started = Date.now();
-    const collected: DexTokenRow[] = [];
-    let notice: string | null = null;
-    for (let page = 1; page <= 20; page++) {
-      if (opts?.maxMs && Date.now() - started > opts.maxMs) {
-        notice = "Further rows are unavailable.";
-        break;
-      }
-      if (dedupeDexTokens(collected, 400).length >= 400) break;
-      if (page > 1) await sleep(1100);
-      try {
-        const payload = await cgFetch(
-          `/onchain/pools/megafilter?include=base_token,quote_token,dex,network&sort=h24_volume_usd_desc&page=${page}`
-        );
-        const rows = parseMegafilterPage(payload);
-        if (!rows.length) break;
-        collected.push(...rows);
-      } catch (err) {
-        console.error(`[crypto-coingecko] DEX page ${page} unavailable:`, err);
-        notice = "Further rows are unavailable.";
-        break;
-      }
+  const budget = opts?.maxMs && opts.maxMs > 0 ? opts.maxMs : 18_000;
+  const hit = store.get("dex400") as CacheEntry<DexCache> | undefined;
+  const fresh = !!hit && Date.now() - hit.at < 10 * 60_000 && hit.value.rows.length > 0;
+  if (fresh && hit && (hit.value.rows.length >= 400 || hit.value.budgetMs >= budget)) {
+    return hit.value;
+  }
+  try {
+    const page = await walkDexPools(budget);
+    const value: DexCache = { ...page, budgetMs: budget };
+    store.set("dex400", { at: Date.now(), value });
+    return value;
+  } catch (err) {
+    if (hit?.value.rows.length) {
+      console.error("[crypto-coingecko] DEX load failed — serving the last good list:", err);
+      return hit.value;
     }
-    const rows = dedupeDexTokens(collected, 400);
-    if (rows.length < 400 && !notice) notice = "Further rows are unavailable.";
-    rememberCryptoIds(rows.map((row) => ({ symbol: row.symbol, id: row.id })));
-    console.log(`[crypto-coingecko] fetchDexTop400 → ${rows.length} tokens`);
-    return { rows, notice: rows.length >= 400 ? null : notice || "Further rows are unavailable." };
-  });
+    throw err;
+  }
+}
+
+async function walkDexPools(budget: number): Promise<DexPage> {
+  const started = Date.now();
+  const collected: DexTokenRow[] = [];
+  let notice: string | null = null;
+  let calls = 0;
+  const jobs: { network: string; page: number }[] = [];
+  for (let page = 1; page <= DEX_PAGE_CAP; page++) {
+    for (const network of DEX_NETWORKS) jobs.push({ network, page });
+  }
+
+  for (const job of jobs) {
+    if (dedupeDexTokens(collected, 400).length >= 400) break;
+    if (Date.now() - started > budget) {
+      notice = "Further rows are unavailable.";
+      break;
+    }
+    if (calls > 0) {
+      if (Date.now() + DEX_GAP_MS - started > budget) {
+        notice = "Further rows are unavailable.";
+        break;
+      }
+      await sleep(DEX_GAP_MS);
+    }
+    calls += 1;
+    try {
+      const payload = await gtFetch(
+        `/networks/${job.network}/pools?include=base_token,quote_token,dex&sort=h24_volume_usd_desc&page=${job.page}`
+      );
+      const rows = parseMegafilterPage(payload, job.network);
+      if (rows.length) collected.push(...rows);
+      } catch (err) {
+        console.error(`[crypto-coingecko] DEX ${job.network} page ${job.page} unavailable:`, err);
+        notice = "Further rows are unavailable.";
+        const message = err instanceof Error ? err.message : "";
+        // A 429 is account-wide, so further pages in this walk will fail too.
+        if (message.includes("429")) break;
+      }
+  }
+
+  const rows = dedupeDexTokens(collected, 400);
+  if (!rows.length) throw new Error("Live decentralized-token prices are unavailable.");
+  rememberCryptoIds(rows.map((row) => ({ symbol: row.symbol, id: row.id })));
+  console.log(`[crypto-coingecko] fetchDexTop400 → ${rows.length} tokens`);
+  return { rows, notice: rows.length >= 400 ? null : notice };
 }
 
 /* ------------------------------ Coin detail ------------------------------ */

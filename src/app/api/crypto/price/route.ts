@@ -12,9 +12,10 @@ import { fetchSpotPrices } from "@/lib/crypto-swyftx";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
+  let symbol = "";
   try {
     const url = new URL(req.url);
-    const symbol = (url.searchParams.get("symbol") || "").trim().toUpperCase();
+    symbol = (url.searchParams.get("symbol") || "").trim().toUpperCase();
     if (!symbol) {
       return NextResponse.json({ ok: false, error: "Missing symbol" }, { status: 400 });
     }
@@ -82,14 +83,14 @@ export async function GET(req: Request) {
 
     console.warn(`[api/crypto/price] No live price found for ${symbol}`);
     return NextResponse.json(
-      { ok: false, error: `No live price available for ${symbol}` },
-      { status: 404 }
+      { ok: false, error: `${symbol} live price unavailable` },
+      { headers: { "cache-control": "no-store" } }
     );
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[api/crypto/price] error:", err);
     return NextResponse.json(
-      { ok: false, error: err?.message || "Failed to load crypto price" },
-      { status: 500 }
+      { ok: false, error: symbol ? `${symbol} live price unavailable` : "live price unavailable" },
+      { headers: { "cache-control": "no-store" } }
     );
   }
 }

@@ -10,7 +10,7 @@ import { StockDetailDialog, type DetailTarget } from "@/components/dashboard/Sto
 import { CoinDetailModal } from "@/components/dashboard/crypto/CoinDetailModal";
 import { DexMarketDialog } from "@/components/dashboard/DexMarketDialog";
 import { useCryptoMarkets } from "@/hooks/useCryptoMarkets";
-import { fmtPrice } from "@/lib/crypto-market";
+import { fmtPrice, LIVE_CRYPTO_UNAVAILABLE } from "@/lib/crypto-market";
 import { cn } from "@/lib/utils";
 import {
   Search,
@@ -561,9 +561,11 @@ export function MarketsExplorer({
                 <td colSpan={(allowBuy ? 9 : 8) + (isCryptoTab ? 1 : 0)} className="py-12 text-center text-sm text-muted-foreground">
                   {query
                     ? `No tickers match “${query}”.`
-                    : (isCryptoTab ? crypto.error : loadError)
-                      ? "Market prices failed to load. Use refresh to try again."
-                      : "No rows returned for this market."}
+                    : isCryptoTab
+                      ? crypto.error || LIVE_CRYPTO_UNAVAILABLE
+                      : loadError
+                        ? "Market prices failed to load. Use refresh to try again."
+                        : "No rows returned for this market."}
                 </td>
               </tr>
             ) : (
