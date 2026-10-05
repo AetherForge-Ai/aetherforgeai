@@ -11,6 +11,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { api } from "@/lib/api";
+import { clientFacingError } from "@/lib/api-json";
 import type { CoinMarket } from "@/lib/crypto-market";
 
 const TTL_MS = 60_000;
@@ -51,14 +52,17 @@ async function load(force = false): Promise<void> {
         store.error = null;
         store.notice = typeof res.notice === "string" ? res.notice : null;
         console.log(`[useCryptoMarkets] loaded ${res.data.length} coins`);
-      } else if (res.status === 401) {
+      } else if (res.status === 401 || store.coins.length > 0) {
+        // Keep the last good table. A failed refresh must not replace it with a parse error.
         store.error = null;
       } else {
-        store.error = typeof res.error === "string" ? res.error : "Failed to load crypto markets";
+        store.error = clientFacingError("/api/crypto/markets", res.error);
         console.error("[useCryptoMarkets] load failed:", res.error);
       }
     } catch {
-      store.error = store.coins.length ? null : "Crypto markets are unavailable right now.";
+      store.error = store.coins.length
+        ? null
+        : clientFacingError("/api/crypto/markets", "Live crypto prices are unavailable right now. Please try again shortly.");
     } finally {
       store.loading = false;
       store.inflight = null;

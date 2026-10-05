@@ -43,6 +43,33 @@ export interface CoinMarket {
   priceUnavailable?: boolean;
 }
 
+/** Shown when a crypto route fails. Never a parse exception or an upstream body. */
+export const LIVE_CRYPTO_UNAVAILABLE =
+  "Live crypto prices are unavailable right now. Please try again shortly.";
+
+export function coinHasLivePrice(coin: Pick<CoinMarket, "price" | "priceUnavailable">): boolean {
+  return typeof coin.price === "number" && Number.isFinite(coin.price) && coin.price > 0 && !coin.priceUnavailable;
+}
+
+/**
+ * Map an existing price feed (Swyftx, Yahoo, or a prior list) into the top-400
+ * table. A missing print is dropped. A missing chain is Unavailable. No price is filled in.
+ */
+export function rankedFallbackPage(
+  coins: CoinMarket[],
+  limit = 400
+): { coins: CoinMarket[]; notice: string | null } {
+  const live = coins.filter(coinHasLivePrice).slice(0, limit).map((coin) => ({
+    ...coin,
+    blockchain: coin.blockchain || "Unavailable",
+    priceUnavailable: false,
+  }));
+  return {
+    coins: live,
+    notice: live.length >= limit ? null : "Further rows are unavailable.",
+  };
+}
+
 /**
  * Blockchain label for a CoinGecko coin.
  * An empty platforms object is native. A failed platform list is unavailable.
