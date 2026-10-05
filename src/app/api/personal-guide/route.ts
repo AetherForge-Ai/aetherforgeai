@@ -62,7 +62,7 @@ export async function POST(req: Request) {
 
     const reply = await createGrokChatCompletion({
       messages,
-      maxTokens: 550,
+      maxTokens: 280,
       temperature: 0.65,
     });
 
