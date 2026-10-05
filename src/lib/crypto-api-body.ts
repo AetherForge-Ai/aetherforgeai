@@ -3,6 +3,7 @@
  * Status stays 200 so Cloudflare does not replace the body with "error code: 502".
  */
 
+import { DEX_FURTHER_NOTICE } from "@/lib/crypto-dex";
 import { LIVE_CRYPTO_UNAVAILABLE } from "@/lib/crypto-market";
 
 export const LIVE_DEX_UNAVAILABLE = "Live decentralized-token prices are unavailable.";
@@ -14,9 +15,15 @@ export function marketsBody(coins: unknown[] | null | undefined, notice: string 
   return { ok: true as const, data: coins, total: coins.length, notice };
 }
 
-export function dexBody(rows: unknown[] | null | undefined, notice: string | null) {
-  if (!rows || rows.length === 0) {
+export function dexBody(rows: unknown[] | null | undefined, opts?: { collecting?: boolean }) {
+  const list = Array.isArray(rows) ? rows : [];
+  if (list.length === 0 && !opts?.collecting) {
     return { ok: false as const, error: LIVE_DEX_UNAVAILABLE };
   }
-  return { ok: true as const, data: rows, total: rows.length, notice };
+  return {
+    ok: true as const,
+    data: list,
+    total: list.length,
+    notice: list.length > 0 && list.length < 400 ? DEX_FURTHER_NOTICE : null,
+  };
 }

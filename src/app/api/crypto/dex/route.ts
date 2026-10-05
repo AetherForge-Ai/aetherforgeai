@@ -1,7 +1,8 @@
 /**
  * GET /api/crypto/dex
- * Live decentralized tokens from the public GeckoTerminal API.
- * Always JSON. An empty or failed source is a plain sentence, never an HTTP 502.
+ * Returns the DEX rows already collected. The walk that fills toward 400
+ * continues in the background and does not hold this response.
+ * Always JSON. A source that is fully down is a plain sentence, never an HTTP 502.
  */
 import { NextResponse } from "next/server";
 import { dexBody } from "@/lib/crypto-api-body";
@@ -12,12 +13,12 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const page = await fetchDexTop400();
-    return NextResponse.json(dexBody(page.rows, page.notice), {
+    return NextResponse.json(dexBody(page.rows, { collecting: !page.sourceDown }), {
       headers: { "cache-control": "no-store" },
     });
   } catch (err: unknown) {
     console.error("[api/crypto/dex] error:", err);
-    return NextResponse.json(dexBody(null, null), {
+    return NextResponse.json(dexBody(null), {
       headers: { "cache-control": "no-store" },
     });
   }

@@ -125,19 +125,43 @@ export function parseMegafilterPage(payload: unknown, fallbackNetwork = ""): Dex
   return rows;
 }
 
-/** Keep the first live row for each symbol, then a priced-missing row if that is all we have. */
+function dexVolume(row: DexTokenRow): number {
+  return row.volume24h != null && row.volume24h > 0 ? row.volume24h : 0;
+}
+
+function dexHasLivePrice(row: DexTokenRow): boolean {
+  return !row.priceUnavailable && row.price != null && row.price > 0;
+}
+
+/** Highest 24h volume wins. A live price beats a row with no print. */
+function preferDexRow(prev: DexTokenRow, next: DexTokenRow): DexTokenRow {
+  const prevLive = dexHasLivePrice(prev);
+  const nextLive = dexHasLivePrice(next);
+  if (prevLive !== nextLive) return nextLive ? next : prev;
+  return dexVolume(next) > dexVolume(prev) ? next : prev;
+}
+
+/**
+ * One row per symbol: the highest 24-hour volume, preferring a live price.
+ * The list is then ranked by that volume, with no-volume rows last, and capped.
+ */
 export function dedupeDexTokens(rows: DexTokenRow[], limit = 400): DexTokenRow[] {
   const bySymbol = new Map<string, DexTokenRow>();
   for (const row of rows) {
     const key = row.symbol.toUpperCase();
     const prev = bySymbol.get(key);
-    if (!prev) {
-      bySymbol.set(key, row);
-      continue;
-    }
-    if (prev.priceUnavailable && !row.priceUnavailable) bySymbol.set(key, row);
+    bySymbol.set(key, prev ? preferDexRow(prev, row) : row);
   }
-  return [...bySymbol.values()].slice(0, limit);
+  return [...bySymbol.values()]
+    .sort((a, b) => {
+      const av = dexVolume(a);
+      const bv = dexVolume(b);
+      if (av === 0 && bv === 0) return 0;
+      if (av === 0) return 1;
+      if (bv === 0) return -1;
+      return bv - av;
+    })
+    .slice(0, limit);
 }
 
 export function dexRowToCoin(row: DexTokenRow, rank: number): CoinMarket {
@@ -167,4 +191,113 @@ export function dexRowToCoin(row: DexTokenRow, rank: number): CoinMarket {
     blockchain: row.network || "Unavailable",
     priceUnavailable: row.priceUnavailable || !(row.price != null && row.price > 0),
   };
+}
+
+/** A stored pool page is dropped once it is older than this. The price is not shown as live. */
+export const DEX_STALE_MS = 30 * 60 * 1000;
+export const DEX_TARGET_COUNT = 400;
+export const DEX_FURTHER_NOTICE = "Further rows are unavailable.";
+export const DEX_PAGE_CAP = 8;
+
+/** Liquid public networks. Ids match GeckoTerminal `/networks`. */
+export const DEX_NETWORKS = [
+  "eth",
+  "solana",
+  "bsc",
+  "base",
+  "arbitrum",
+  "polygon_pos",
+  "avax",
+  "optimism",
+  "ton",
+  "aptos",
+  "sui-network",
+  "scroll",
+  "linea",
+  "blast",
+  "zksync",
+  "mantle",
+  "ronin",
+  "sei-network",
+  "pulsechain",
+  "core",
+] as const;
+
+export interface DexStoredPage {
+  network: string;
+  page: number;
+  fetchedAt: number;
+  rows: DexTokenRow[];
+}
+
+export function dexSlotKey(network: string, page: number): string {
+  return `${network}:${page}`;
+}
+
+export function dexTargets(pageCap = DEX_PAGE_CAP): { network: string; page: number }[] {
+  const targets: { network: string; page: number }[] = [];
+  for (let page = 1; page <= pageCap; page++) {
+    for (const network of DEX_NETWORKS) targets.push({ network, page });
+  }
+  return targets;
+}
+
+export function isDexPageFresh(fetchedAt: number, now: number, staleMs = DEX_STALE_MS): boolean {
+  return now - fetchedAt <= staleMs;
+}
+
+/** Fresh pages only, ranked by 24h volume. A stale page contributes nothing. */
+export function freshDexRows(pages: DexStoredPage[], now: number, staleMs = DEX_STALE_MS): DexTokenRow[] {
+  const byKey = new Map(pages.map((page) => [dexSlotKey(page.network, page.page), page]));
+  const collected: DexTokenRow[] = [];
+  for (const target of dexTargets()) {
+    const slot = byKey.get(dexSlotKey(target.network, target.page));
+    if (!slot || !isDexPageFresh(slot.fetchedAt, now, staleMs)) continue;
+    collected.push(...slot.rows);
+  }
+  return dedupeDexTokens(collected, DEX_TARGET_COUNT);
+}
+
+export function dexListNotice(rowCount: number): string | null {
+  if (rowCount <= 0 || rowCount >= DEX_TARGET_COUNT) return null;
+  return DEX_FURTHER_NOTICE;
+}
+
+/**
+ * Next missing or stale page. Skips deeper pages when the previous page is fresh and empty.
+ * Returns null once 400 fresh tokens are already collected, and skips keys blocked until later.
+ */
+export function nextDexTarget(
+  pages: DexStoredPage[],
+  now: number,
+  blockedUntil: Record<string, number> = {},
+  staleMs = DEX_STALE_MS
+): { network: string; page: number } | null {
+  if (freshDexRows(pages, now, staleMs).length >= DEX_TARGET_COUNT) return null;
+  const byKey = new Map(pages.map((page) => [dexSlotKey(page.network, page.page), page]));
+  for (const target of dexTargets()) {
+    const key = dexSlotKey(target.network, target.page);
+    if ((blockedUntil[key] ?? 0) > now) continue;
+    if (target.page > 1) {
+      const prev = byKey.get(dexSlotKey(target.network, target.page - 1));
+      if (!prev || !isDexPageFresh(prev.fetchedAt, now, staleMs) || prev.rows.length === 0) continue;
+    }
+    const slot = byKey.get(key);
+    if (!slot || !isDexPageFresh(slot.fetchedAt, now, staleMs)) return target;
+  }
+  return null;
+}
+
+/** Milliseconds to wait so a walk stays inside 30 calls a minute and does not bunch. */
+export function dexCallWaitMs(
+  callTimes: number[],
+  now: number,
+  limit = 30,
+  windowMs = 60_000,
+  minGapMs = 2_000
+): number {
+  const recent = callTimes.filter((t) => now - t < windowMs).sort((a, b) => a - b);
+  if (recent.length >= limit) return Math.max(0, windowMs - (now - recent[0]));
+  if (!recent.length) return 0;
+  return Math.max(0, minGapMs - (now - recent[recent.length - 1]));
 }
