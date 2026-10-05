@@ -2,16 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import {
-  Bot,
-  HelpCircle,
-  LineChart,
-  Loader2,
-  Rocket,
-  Send,
-  Sparkles,
-  X,
-} from "lucide-react";
+import { Loader2, Send, X } from "lucide-react";
 import { Markdown } from "@/components/Markdown";
 import { PERSONAL_GUIDE_SIGNUP_URL } from "@/lib/personal-guide-knowledge";
 import { cn } from "@/lib/utils";
@@ -21,8 +12,6 @@ type Msg = { role: "user" | "assistant"; content: string };
 type EntryCard = {
   id: string;
   title: string;
-  subtitle: string;
-  icon: React.ComponentType<{ className?: string }>;
   /** If set, card navigates to signup instead of chatting. */
   href?: string;
   /** Prompt sent to the Help Assistant when the card is clicked. */
@@ -33,44 +22,37 @@ type EntryCard = {
 const ENTRY_CARDS: EntryCard[] = [
   {
     id: "start-free",
-    title: "Get Started Now Free",
-    subtitle: "Create your free account in minutes",
-    icon: Rocket,
+    title: "Start free",
     href: PERSONAL_GUIDE_SIGNUP_URL,
     primary: true,
   },
   {
     id: "how-works",
-    title: "Don't understand how AetherForgeAI works?",
-    subtitle: "A clear walkthrough of the site",
-    icon: HelpCircle,
-    prompt: "I don't understand how AetherForgeAI works. Please explain it simply and professionally.",
-  },
-  {
-    id: "buy-assets",
-    title: "Unsure of how to buy stocks or crypto?",
-    subtitle: "Educational overview, then track in AetherForge",
-    icon: LineChart,
-    prompt: "I'm unsure how to buy stocks or crypto. Please explain the basics simply, then how AetherForge helps me track holdings.",
+    title: "How it works",
+    prompt:
+      "Explain how AetherForge works in two or three short sentences. One idea, plain language, no bullet list. Then invite me to start free.",
   },
   {
     id: "bots",
-    title: "What do Stox, Koins and The Headmaster do?",
-    subtitle: "Meet the AI bots in plain language",
-    icon: Bot,
-    prompt: "What do Stox, Koins and The Headmaster do? Keep it simple and professional.",
+    title: "What the bots do",
+    prompt:
+      "What do Stox, Koins, and The Headmaster do? Two or three short sentences, plain language, no list.",
+  },
+  {
+    id: "buy-assets",
+    title: "Buying stocks or crypto",
+    prompt:
+      "I'm unsure how to buy stocks or crypto. A few short sentences on the basics, then how AetherForge helps me track holdings. No long list.",
   },
   {
     id: "maximize",
-    title: "How do I get the most from the free plan?",
-    subtitle: "Practical first steps after signup",
-    icon: Sparkles,
-    prompt: "How do I get the most from the free plan? Give me clear first steps.",
+    title: "First step on the free plan",
+    prompt:
+      "What is the single first step on the free plan? One step, plain language, then invite me to start free.",
   },
 ];
 
-const WELCOME =
-  "Welcome — I'm your **Help Assistant**. Choose a card below, or type a question.";
+const WELCOME = "Pick a topic, or ask a short question.";
 
 export function PersonalGuideChat({
   onDismiss,
@@ -80,9 +62,7 @@ export function PersonalGuideChat({
   /** When false, the window is visible but the avatar hasn't landed yet. */
   showSeatedCharacter?: boolean;
 }) {
-  const [messages, setMessages] = useState<Msg[]>([
-    { role: "assistant", content: WELCOME },
-  ]);
+  const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [showCards, setShowCards] = useState(true);
@@ -183,16 +163,13 @@ export function PersonalGuideChat({
             <p className="font-display text-sm font-bold tracking-wide text-amber-300">
               Help Assistant
             </p>
-            <p className="truncate text-[11px] text-emerald-100/70">
-              Professional site help · not financial advice
-            </p>
           </div>
         </div>
       </div>
 
       <div
         ref={scrollRef}
-        className="flex-1 space-y-3 overflow-y-auto rounded-b-2xl px-3 py-3"
+        className="flex-1 space-y-2 overflow-y-auto rounded-b-2xl px-3 py-2.5"
       >
         {messages.map((m, i) => (
           <div
@@ -201,16 +178,16 @@ export function PersonalGuideChat({
           >
             <div
               className={cn(
-                "max-w-[92%] rounded-2xl px-3 py-2 text-sm leading-relaxed",
+                "max-w-[92%] rounded-2xl px-3 py-1.5 text-[13px] leading-snug",
                 m.role === "user"
                   ? "bg-amber-400 text-amber-950"
-                  : "border border-amber-400/25 bg-[#0c3a28] text-emerald-50"
+                  : "border border-amber-400/20 bg-[#0c3a28] text-emerald-50"
               )}
             >
               {m.role === "assistant" ? (
                 <Markdown
                   content={m.content}
-                  className="prose-invert text-sm [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_a]:text-amber-300"
+                  className="text-[13px] leading-snug text-emerald-50 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_a]:text-amber-300 [&_p]:my-1 [&_p]:text-[13px] [&_p]:leading-snug [&_p]:text-emerald-50 [&_ul]:my-1.5 [&_ol]:my-1.5 [&_li]:text-[13px] [&_li]:leading-snug [&_li]:text-emerald-50 [&_strong]:text-amber-50"
                 />
               ) : (
                 <p className="whitespace-pre-wrap">{m.content}</p>
@@ -219,42 +196,20 @@ export function PersonalGuideChat({
           </div>
         ))}
 
-        {showCards && messages.length <= 1 && !sending ? (
-          <div className="grid gap-2 pt-0.5">
+        {showCards && messages.length === 0 && !sending ? (
+          <div className="grid gap-1.5">
+            <p className="px-0.5 text-[13px] leading-snug text-emerald-50/90">{WELCOME}</p>
             {ENTRY_CARDS.map((card) => {
-              const Icon = card.icon;
               const className = cn(
-                "flex w-full items-start gap-2.5 rounded-xl border px-3 py-2.5 text-left transition",
+                "w-full rounded-lg border px-2.5 py-1.5 text-left text-[13px] font-medium leading-snug transition",
                 card.primary
-                  ? "border-amber-400/55 bg-amber-400/15 hover:bg-amber-400/25"
-                  : "border-amber-400/25 bg-[#0c3a28]/80 hover:border-amber-400/45 hover:bg-[#0f4f35]/70"
-              );
-              const inner = (
-                <>
-                  <span
-                    className={cn(
-                      "mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg",
-                      card.primary
-                        ? "bg-amber-400 text-amber-950"
-                        : "bg-amber-400/15 text-amber-300"
-                    )}
-                  >
-                    <Icon className="size-4" />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-[13px] font-semibold leading-snug text-amber-50">
-                      {card.title}
-                    </span>
-                    <span className="mt-0.5 block text-[11px] leading-snug text-emerald-100/65">
-                      {card.subtitle}
-                    </span>
-                  </span>
-                </>
+                  ? "border-amber-400/70 bg-amber-400 text-amber-950 hover:bg-amber-300"
+                  : "border-amber-400/20 bg-[#0c3a28]/70 text-amber-50 hover:border-amber-400/40"
               );
               if (card.href) {
                 return (
                   <Link key={card.id} href={card.href} className={className}>
-                    {inner}
+                    {card.title}
                   </Link>
                 );
               }
@@ -265,7 +220,7 @@ export function PersonalGuideChat({
                   onClick={() => card.prompt && send(card.prompt)}
                   className={className}
                 >
-                  {inner}
+                  {card.title}
                 </button>
               );
             })}
@@ -275,7 +230,7 @@ export function PersonalGuideChat({
         {sending && (
           <div className="flex items-center gap-2 text-xs text-emerald-100/70">
             <Loader2 className="size-3.5 animate-spin text-amber-300" />
-            Help Assistant is thinking…
+            Thinking…
           </div>
         )}
       </div>
@@ -291,7 +246,7 @@ export function PersonalGuideChat({
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Or type a question…"
+            placeholder="Ask a short question"
             className="h-9 flex-1 rounded-xl border border-amber-400/25 bg-[#0a2f22] px-3 text-sm text-emerald-50 placeholder:text-emerald-100/40 focus:border-amber-400/50 focus:outline-none"
             maxLength={1500}
           />
@@ -308,14 +263,16 @@ export function PersonalGuideChat({
             )}
           </button>
         </form>
-        <div className="mt-1.5 flex items-center justify-between gap-2 px-0.5">
+        <div className="mt-1 flex items-center justify-between gap-2 px-0.5">
           <p className="text-[10px] text-emerald-100/50">Educational only · not advice</p>
-          <Link
-            href={PERSONAL_GUIDE_SIGNUP_URL}
-            className="text-[10px] font-semibold text-amber-300 hover:underline"
-          >
-            Start free →
-          </Link>
+          {messages.length > 0 ? (
+            <Link
+              href={PERSONAL_GUIDE_SIGNUP_URL}
+              className="text-[10px] font-semibold text-amber-300 hover:underline"
+            >
+              Start free →
+            </Link>
+          ) : null}
         </div>
       </div>
     </div>
