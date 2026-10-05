@@ -31,11 +31,11 @@ export async function GET(req: Request) {
       `[api/crypto/spot] ${symbols.length} symbols → ${Object.keys(snap.quotes).length} live @ ${snap.updatedAt}`
     );
     return NextResponse.json({ ok: true, data: snap });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[api/crypto/spot] error:", err);
     return NextResponse.json(
-      { ok: false, error: err?.message || "Failed to load crypto spot" },
-      { status: 500 }
+      { ok: false, error: "Live crypto prices are unavailable right now. Please try again shortly." },
+      { headers: { "cache-control": "no-store" } }
     );
   }
 }

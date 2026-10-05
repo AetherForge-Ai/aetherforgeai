@@ -17,6 +17,7 @@ import {
   stableConfirmDecision,
   TRADE_SESSION_MISMATCH,
 } from "@/lib/trade-commit-session";
+import { parseApiBody } from "@/lib/api-json";
 
 export interface ApiResponse<T = unknown> {
   ok: boolean;
@@ -108,8 +109,12 @@ async function request<T>(
         return { ok: false, status: 401, error: "Unauthorized" };
       }
     }
-    const json = (await res.json()) as ApiResponse<T>;
-    if (json && typeof json === "object") json.status = res.status;
+    const parsed = parseApiBody(url, res.headers.get("content-type"), await res.text(), res.status);
+    if (parsed.ok === false) {
+      return { ok: false, status: res.status, error: parsed.error };
+    }
+    const json = parsed.json as unknown as ApiResponse<T>;
+    json.status = res.status;
     return json;
   } catch (err) {
     if (options?.signal?.aborted) {

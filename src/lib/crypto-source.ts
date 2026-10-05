@@ -15,8 +15,11 @@ import * as swyftx from "@/lib/crypto-swyftx";
 import * as coingecko from "@/lib/crypto-coingecko";
 import * as yahoo from "@/lib/crypto-yahoo";
 import {
+  coinHasLivePrice,
   coinLogo,
+  LIVE_CRYPTO_UNAVAILABLE,
   mergeSevenDayChanges,
+  rankedFallbackPage,
   resolveSevenDayChange,
   sevenDayBoardIsMissing,
   type CoinMarket,
@@ -24,6 +27,8 @@ import {
   type CoinChart,
 } from "@/lib/crypto-market";
 import { canonicalCryptoId, normalizeCryptoTicker } from "@/lib/crypto-ids";
+
+type RankedCryptoPage = Awaited<ReturnType<typeof coingecko.fetchTop400>>;
 
 function toCgId(id: string): string {
   const t = normalizeCryptoTicker(id);
@@ -166,6 +171,44 @@ export async function getTop500(): Promise<CoinMarket[]> {
   if (!merged.length) throw new Error("All crypto market sources failed (Swyftx, CoinGecko, Yahoo)");
   console.log(`[crypto-source] crypto universe → ${merged.length} coins`);
   return hydrateSevenDay(await ensurePinnedCoins(merged));
+}
+
+let lastGoodTop400: RankedCryptoPage | null = null;
+
+/**
+ * Top 400 for the Crypto tab and the Koins sweep.
+ * CoinGecko first. When that rate-limits or fails, the existing Swyftx → CoinGecko → Yahoo
+ * sweep supplies real prices. The last good list is only used when every live source fails.
+ * Prices are never filled in.
+ */
+export async function loadTop400Markets(): Promise<RankedCryptoPage> {
+  try {
+    const page = await coingecko.fetchTop400();
+    if (page.coins.some(coinHasLivePrice)) {
+      lastGoodTop400 = page;
+      return page;
+    }
+    console.error("[crypto-source] CoinGecko top 400 had no live prices");
+  } catch (err) {
+    console.error("[crypto-source] CoinGecko top 400 failed — using the existing sweep:", err);
+  }
+
+  try {
+    const fallback = rankedFallbackPage(await getTop500());
+    if (fallback.coins.length) {
+      lastGoodTop400 = fallback;
+      console.log(`[crypto-source] top 400 via existing sweep (${fallback.coins.length})`);
+      return fallback;
+    }
+  } catch (err) {
+    console.error("[crypto-source] existing crypto sweep failed:", err);
+  }
+
+  if (lastGoodTop400?.coins.length) {
+    console.error("[crypto-source] serving the last good crypto list");
+    return lastGoodTop400;
+  }
+  throw new Error(LIVE_CRYPTO_UNAVAILABLE);
 }
 
 export async function getCoinDetail(id: string): Promise<CoinDetail> {

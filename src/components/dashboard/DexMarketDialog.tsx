@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
+import { clientFacingError } from "@/lib/api-json";
 import { fmtPrice } from "@/lib/crypto-market";
 import type { DexTokenRow } from "@/lib/crypto-dex";
 import { Loader2, RefreshCw } from "lucide-react";
@@ -34,14 +35,15 @@ export function DexMarketDialog({
     setError(null);
     const res = await api.get<DexTokenRow[]>("/api/crypto/dex");
     setLoading(false);
-    if (res.ok && Array.isArray(res.data)) {
+    if (res.ok && Array.isArray(res.data) && res.data.length > 0) {
       setRows(res.data);
       setNotice(typeof res.notice === "string" ? res.notice : null);
+      setError(null);
       return;
     }
     setRows([]);
     setNotice(null);
-    setError(typeof res.error === "string" ? res.error : "Live decentralized-token prices are unavailable.");
+    setError(clientFacingError("/api/crypto/dex", res.error || "Live decentralized-token prices are unavailable."));
   }
 
   useEffect(() => {

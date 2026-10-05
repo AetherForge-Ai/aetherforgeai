@@ -1,25 +1,25 @@
 /**
  * GET /api/crypto/markets
- * CoinGecko top 400 by market cap, with a blockchain label.
- * A missing page is said. Prices are not invented.
+ * Top 400 by market cap. CoinGecko, then the existing Swyftx / Yahoo sweep.
+ * Always JSON. A failed source is a plain sentence, never an HTTP 502
+ * (Cloudflare replaces that body with text).
  */
 import { NextResponse } from "next/server";
-import { fetchTop400 } from "@/lib/crypto-coingecko";
+import { marketsBody } from "@/lib/crypto-api-body";
+import { loadTop400Markets } from "@/lib/crypto-source";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const page = await fetchTop400();
-    return NextResponse.json({
-      ok: true,
-      data: page.coins,
-      total: page.coins.length,
-      notice: page.notice,
+    const page = await loadTop400Markets();
+    return NextResponse.json(marketsBody(page.coins, page.notice), {
+      headers: { "cache-control": "no-store" },
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Live crypto prices are unavailable.";
     console.error("[api/crypto/markets] error:", err);
-    return NextResponse.json({ ok: false, error: message }, { status: 502 });
+    return NextResponse.json(marketsBody(null, null), {
+      headers: { "cache-control": "no-store" },
+    });
   }
 }
