@@ -87,13 +87,13 @@ export function DexMarketDialog({
         <div className="min-h-0 flex-1 overflow-auto px-5 py-4">
           {loading && rows.length === 0 ? (
             <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
-              <Loader2 className="mr-2 size-4 animate-spin" /> Loading live prices…
+              <Loader2 className="mr-2 size-4 animate-spin" /> Loading live decentralized-token prices…
             </div>
           ) : error ? (
             <p className="py-10 text-center text-sm text-muted-foreground">{error}</p>
           ) : rows.length === 0 ? (
             <p className="py-10 text-center text-sm text-muted-foreground">
-              {notice || "Further rows are unavailable."}
+              Loading live decentralized-token prices…
             </p>
           ) : (
             <table className="w-full text-sm">

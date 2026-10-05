@@ -125,19 +125,43 @@ export function parseMegafilterPage(payload: unknown, fallbackNetwork = ""): Dex
   return rows;
 }
 
-/** Keep the first live row for each symbol, then a priced-missing row if that is all we have. */
+function dexVolume(row: DexTokenRow): number {
+  return row.volume24h != null && row.volume24h > 0 ? row.volume24h : 0;
+}
+
+function dexHasLivePrice(row: DexTokenRow): boolean {
+  return !row.priceUnavailable && row.price != null && row.price > 0;
+}
+
+/** Highest 24h volume wins. A live price beats a row with no print. */
+function preferDexRow(prev: DexTokenRow, next: DexTokenRow): DexTokenRow {
+  const prevLive = dexHasLivePrice(prev);
+  const nextLive = dexHasLivePrice(next);
+  if (prevLive !== nextLive) return nextLive ? next : prev;
+  return dexVolume(next) > dexVolume(prev) ? next : prev;
+}
+
+/**
+ * One row per symbol: the highest 24-hour volume, preferring a live price.
+ * The list is then ranked by that volume, with no-volume rows last, and capped.
+ */
 export function dedupeDexTokens(rows: DexTokenRow[], limit = 400): DexTokenRow[] {
   const bySymbol = new Map<string, DexTokenRow>();
   for (const row of rows) {
     const key = row.symbol.toUpperCase();
     const prev = bySymbol.get(key);
-    if (!prev) {
-      bySymbol.set(key, row);
-      continue;
-    }
-    if (prev.priceUnavailable && !row.priceUnavailable) bySymbol.set(key, row);
+    bySymbol.set(key, prev ? preferDexRow(prev, row) : row);
   }
-  return [...bySymbol.values()].slice(0, limit);
+  return [...bySymbol.values()]
+    .sort((a, b) => {
+      const av = dexVolume(a);
+      const bv = dexVolume(b);
+      if (av === 0 && bv === 0) return 0;
+      if (av === 0) return 1;
+      if (bv === 0) return -1;
+      return bv - av;
+    })
+    .slice(0, limit);
 }
 
 export function dexRowToCoin(row: DexTokenRow, rank: number): CoinMarket {
@@ -222,7 +246,7 @@ export function isDexPageFresh(fetchedAt: number, now: number, staleMs = DEX_STA
   return now - fetchedAt <= staleMs;
 }
 
-/** Fresh pages only, in target order, deduped. A stale page contributes nothing. */
+/** Fresh pages only, ranked by 24h volume. A stale page contributes nothing. */
 export function freshDexRows(pages: DexStoredPage[], now: number, staleMs = DEX_STALE_MS): DexTokenRow[] {
   const byKey = new Map(pages.map((page) => [dexSlotKey(page.network, page.page), page]));
   const collected: DexTokenRow[] = [];
@@ -235,7 +259,8 @@ export function freshDexRows(pages: DexStoredPage[], now: number, staleMs = DEX_
 }
 
 export function dexListNotice(rowCount: number): string | null {
-  return rowCount >= DEX_TARGET_COUNT ? null : DEX_FURTHER_NOTICE;
+  if (rowCount <= 0 || rowCount >= DEX_TARGET_COUNT) return null;
+  return DEX_FURTHER_NOTICE;
 }
 
 /**

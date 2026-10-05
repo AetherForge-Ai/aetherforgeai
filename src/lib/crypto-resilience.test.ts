@@ -156,15 +156,20 @@ describe("GeckoTerminal pool pages", () => {
   });
 });
 
-function dexRow(symbol: string, price: number | null): DexTokenRow {
+function dexRow(
+  symbol: string,
+  price: number | null,
+  volume: number | null = price != null && price > 0 ? 10 : null,
+  network = "Ethereum"
+): DexTokenRow {
   return {
     id: symbol.toLowerCase(),
     symbol,
     name: symbol,
     price,
     priceUnavailable: !(price != null && price > 0),
-    volume24h: price != null && price > 0 ? 10 : null,
-    network: "Ethereum",
+    volume24h: volume != null && volume > 0 ? volume : null,
+    network,
     dex: "uniswap_v2",
   };
 }
@@ -185,10 +190,34 @@ describe("DEX page store", () => {
     expect(rows.some((row) => row.symbol === "OLD" || row.price === 0)).toBe(false);
   });
 
-  it("keeps the notice only while the fresh list is under 400", () => {
-    expect(dexListNotice(0)).toBe(DEX_FURTHER_NOTICE);
+  it("keeps the notice only while a partial fresh list is under 400", () => {
+    expect(dexListNotice(0)).toBeNull();
+    expect(dexListNotice(1)).toBe(DEX_FURTHER_NOTICE);
     expect(dexListNotice(399)).toBe(DEX_FURTHER_NOTICE);
     expect(dexListNotice(400)).toBeNull();
+  });
+
+  it("ranks a higher-volume solana token above a lower-volume eth token", () => {
+    const rows = freshDexRows(
+      [
+        stored("eth", 1, now, [dexRow("LOW", 2, 100, "Ethereum")]),
+        stored("solana", 1, now, [dexRow("HIGH", 3, 9_000, "Solana"), dexRow("QUIET", 1, null, "Solana")]),
+      ],
+      now
+    );
+    expect(rows.map((row) => row.symbol)).toEqual(["HIGH", "LOW", "QUIET"]);
+    expect(rows[0].network).toBe("Solana");
+    expect(rows[0].volume24h).toBe(9_000);
+    const sameSymbol = freshDexRows(
+      [
+        stored("eth", 1, now, [dexRow("WETH", 1, 50, "Ethereum")]),
+        stored("solana", 1, now, [dexRow("WETH", null, 8_000, "Solana")]),
+      ],
+      now
+    );
+    expect(sameSymbol).toHaveLength(1);
+    expect(sameSymbol[0].price).toBe(1);
+    expect(sameSymbol[0].network).toBe("Ethereum");
   });
 
   it("fills a missing page, skips past an empty page, and does not refetch once 400 are fresh", () => {
@@ -217,8 +246,11 @@ describe("DEX page store", () => {
       ok: true,
       data: [],
       total: 0,
-      notice: "Further rows are unavailable.",
+      notice: null,
     });
+    const partial = dexBody([{ symbol: "SOL" }], { collecting: true });
+    expect(partial.ok).toBe(true);
+    if (partial.ok) expect(partial.notice).toBe("Further rows are unavailable.");
     const ready = dexBody(Array.from({ length: 400 }, (_, index) => ({ symbol: `T${index}` })), { collecting: true });
     expect(ready.ok).toBe(true);
     if (ready.ok) expect(ready.notice).toBeNull();
