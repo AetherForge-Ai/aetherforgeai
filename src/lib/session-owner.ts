@@ -167,10 +167,13 @@ const PROTECTED_ACCOUNT_PREFIXES = [
   "/api/reports",
   "/api/portfolio-coach",
   "/api/ticker-analysis",
-  "/api/personal-guide",
 ] as const;
 
-/** Account APIs whose body is one member's book. Spot metals stay public. */
+/**
+ * Account APIs whose body is one member's book. Spot metals stay public.
+ * /api/personal-guide is the signed-out homepage Help Assistant. It has no
+ * member book, so it must stay off this list or visitors only get a 401.
+ */
 export function isProtectedAccountApi(pathname: string): boolean {
   if (pathname === "/api/session/logout") return false;
   if (

@@ -124,6 +124,7 @@ describe("session owner", () => {
     expect(anonymousAccountApi("/api/metals/lot-1", "DELETE")).toBe("unauthorized");
     expect(anonymousAccountApi("/api/metals/spot", "GET")).toBeNull();
     expect(anonymousAccountApi("/api/ticker", "GET")).toBeNull();
+    expect(anonymousAccountApi("/api/personal-guide", "POST")).toBeNull();
     expect(anonymousAccountApi("/api/session/logout", "POST")).toBeNull();
     expect(anonymousAccountApi("/dashboard", "GET")).toBeNull();
   });
