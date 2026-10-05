@@ -2,6 +2,7 @@
 
 import { MarketsExplorer } from "@/components/dashboard/MarketsExplorer";
 import { bindActiveAccount } from "@/lib/account-identity";
+import type { MarketsTab } from "@/lib/market-detail-routes";
 import { LineChart, Globe } from "lucide-react";
 
 /**
@@ -11,9 +12,12 @@ import { LineChart, Globe } from "lucide-react";
 export function MarketsPageContent({
   preview = false,
   userId = null,
+  initialTab = null,
 }: {
   preview?: boolean;
   userId?: string | null;
+  /** /markets?tab= so Back from a detail page reopens the same board. */
+  initialTab?: MarketsTab | null;
 }) {
   // Bind before BuyDialog's effect. This page sits outside AccountOwnerGuard,
   // so an unbound shell made the cash request start with userId null and the
@@ -41,7 +45,13 @@ export function MarketsPageContent({
         <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-muted-foreground">
           <Globe className="size-4 text-primary" /> Market snapshot
         </div>
-        <MarketsExplorer active className="h-[70vh]" allowBuy={false} />
+        <MarketsExplorer
+          active
+          className="h-[70vh]"
+          allowBuy={false}
+          initialTab={initialTab}
+          syncTab
+        />
       </div>
 
       {preview && (

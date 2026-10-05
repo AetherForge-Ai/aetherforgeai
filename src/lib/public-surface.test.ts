@@ -101,6 +101,15 @@ describe("public surface routes", () => {
     expect(markets).not.toContain("Reduce");
     const explorer = read("src/components/dashboard/MarketsExplorer.tsx");
     expect(explorer).toContain("allowBuy &&");
+    expect(explorer).not.toContain("CoinDetailModal");
+    expect(explorer).not.toContain("StockDetailDialog");
+    expect(explorer).toContain("explorerDetailHref");
+    expect(read("src/components/dashboard/CryptoAssetPage.tsx")).toContain("Markets · Crypto");
+    expect(read("src/components/dashboard/StockAssetPage.tsx")).toContain("stockBackHref");
+    expect(read("src/app/markets/crypto/[id]/page.tsx")).toContain('sp.buy === "1"');
+    expect(read("src/app/markets/stock/[ticker]/page.tsx")).toContain('sp.buy === "1"');
+    expect(read("src/components/dashboard/crypto/CoinDetailView.tsx")).toContain("COIN_DETAIL_SOURCE_DOWN");
+    expect(read("src/components/dashboard/crypto/CoinDetailView.tsx")).not.toMatch(/<!DOCTYPE|Unexpected token/);
     const dashboard = read("src/components/dashboard/AllMarkets.tsx");
     expect(dashboard).toContain("<MarketsExplorer");
     expect(dashboard).not.toContain("allowBuy={false}");

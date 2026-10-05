@@ -149,6 +149,7 @@ describe("GeckoTerminal pool pages", () => {
     expect(bull?.price).toBe(73.91);
     expect(bull?.priceUnavailable).toBe(false);
     expect(bull?.network).toBe("Ethereum");
+    expect(bull?.detailId).toBeNull();
     expect(missing?.price).toBeNull();
     expect(missing?.priceUnavailable).toBe(true);
     expect(dexNetworkLabel("")).toBe("Unavailable");
@@ -171,6 +172,7 @@ function dexRow(
     volume24h: volume != null && volume > 0 ? volume : null,
     network,
     dex: "uniswap_v2",
+    detailId: null,
   };
 }
 

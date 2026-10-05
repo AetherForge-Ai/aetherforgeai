@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import {
   Dialog,
   DialogContent,
@@ -11,19 +12,29 @@ import {
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { clientFacingError } from "@/lib/api-json";
-import { fmtPrice } from "@/lib/crypto-market";
+import { fmtPrice, resolvableCoinId } from "@/lib/crypto-market";
+import { cryptoDetailHref, unavailableCryptoHref } from "@/lib/market-detail-routes";
 import type { DexTokenRow } from "@/lib/crypto-dex";
 import { Loader2, RefreshCw } from "lucide-react";
 
 /**
  * Live decentralized-token list. A missing print is labelled unavailable.
  */
+function dexDetailHref(row: DexTokenRow, allowBuy: boolean): string {
+  const id = resolvableCoinId(row.detailId);
+  if (!id) return unavailableCryptoHref({ symbol: row.symbol, name: row.name });
+  return cryptoDetailHref(id, { buy: allowBuy });
+}
+
 export function DexMarketDialog({
   open,
   onOpenChange,
+  allowBuy = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Dashboard explorer keeps Buy on the detail page. Public /markets does not. */
+  allowBuy?: boolean;
 }) {
   const [rows, setRows] = useState<DexTokenRow[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
@@ -108,7 +119,12 @@ export function DexMarketDialog({
                 {rows.map((row) => (
                   <tr key={`${row.symbol}-${row.id}`} className="border-t border-border/40">
                     <td className="py-2 pr-3">
-                      <span className="font-semibold">{row.symbol}</span>
+                      <Link
+                        href={dexDetailHref(row, allowBuy)}
+                        className="font-semibold text-primary underline-offset-4 hover:underline"
+                      >
+                        {row.symbol}
+                      </Link>
                       <span className="ml-2 text-muted-foreground">{row.name}</span>
                     </td>
                     <td className="py-2 pr-3 text-muted-foreground">{row.network || "Unavailable"}</td>

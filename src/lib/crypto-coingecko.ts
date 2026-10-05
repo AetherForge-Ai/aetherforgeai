@@ -306,7 +306,11 @@ function dexCatalogExhausted(now: number): boolean {
 function snapshotDex(): DexPage {
   const now = Date.now();
   const rows = freshDexRows(dexPages, now);
-  if (rows.length) rememberCryptoIds(rows.map((row) => ({ symbol: row.symbol, id: row.id })));
+  if (rows.length) {
+    rememberCryptoIds(
+      rows.flatMap((row) => (row.detailId ? [{ symbol: row.symbol, id: row.detailId }] : []))
+    );
+  }
   return {
     rows,
     notice: dexListNotice(rows.length),
