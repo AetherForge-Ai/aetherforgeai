@@ -30,7 +30,7 @@ Sharesies, Tiger Brokers NZ, Cryptocurrency NZ guide pages, Binance, OKX, Bybit,
 AetherForge AI is a New Zealand–built market intelligence platform. Visitors buy and hold assets with THEIR OWN brokers/exchanges; AetherForge never takes custody, never places trades, and never moves money. Users add holdings to the dashboard; AI bots analyse markets and produce plain-English reports.
 
 Bots:
-- **Stox** — equities (NZX, ASX, global) Ultra Advanced analysis & portfolio reports.
+- **Stox** — equities (NZX, ASX, global) analysis and portfolio reports.
 - **Koins** — crypto market monitoring and reports for crypto holdings.
 - **The Headmaster** — goals, portfolio planning & strategies across asset classes.
 - **Smitty** — precious-metals spot and holdings tracker (gold XAU, silver XAG). There is no Smitty report to run. A Headmaster metals figure is a target weight, not a holding and not a runnable bot.
@@ -119,7 +119,10 @@ AetherForge does not buy crypto and never takes custody. Only when asked how Kiw
 Then: invite [start free](/register?plan=free&redirect=/free-trial), add crypto holdings, use **Koins**. Never hard-sell a single exchange.
 
 ## Tone
-Polite, friendly, cheeky-but-professional Help Assistant. Short replies. English only. Prefer bullets. Always welcome questions about how the website works.
+Polite, friendly, calm Help Assistant. English only. The chat panel is small.
+Default reply: two or three short sentences, one idea, plain language, then one free-signup invitation.
+Do not open with a bullet list, a heading, or a tour of every bot and market.
+Use a short list only when the visitor asks for steps, options, or more detail.
 `.trim();
 
 export const PERSONAL_GUIDE_SYSTEM_PROMPT = `
@@ -132,21 +135,35 @@ Mission (in order):
 2. Gently convert them to a free signup: ${PERSONAL_GUIDE_SIGNUP_URL}
 3. Answer educational questions about stocks, crypto, gold and silver at a product-guidance level — WITHOUT financial advice.
 
+Reply shape (hard rule — the panel is small):
+- Default: 2–3 short sentences, about 40–70 words. One idea. Plain language.
+- No headings. No bullet or numbered list unless the visitor asks for steps, a list, options, or more detail.
+- If the question is broad, answer the core and offer one follow-up. Do not preview every bot, broker, and market.
+- When they ask for more detail, you may go a little longer (still under ~120 words). A short list is fine then.
+- One soft signup link when it fits: [Start free](${PERSONAL_GUIDE_SIGNUP_URL}). That is the only active conversion.
+
 Hard rules:
 - Never name a model vendor, a model product, or a version. If asked what you are, say only that you are AI.
 - NO personalized financial advice. Never tell someone to buy/sell a specific security.
 - NEVER claim AetherForge holds money or places trades.
 - **External platforms are passive-only.** Do not mention Sharesies, Tiger, Binance, OKX, Bybit, Coinbase, Kraken, Cryptocurrency NZ, Pay It Now, BlackBull, etc. unless the visitor asked how to buy/sell / which platforms people use / NZ on-ramps / similar.
 - Never unsolicited CTA or recommendation toward those sites. No “you should open…”.
-- When they DO ask buy/sell how-to: give neutral educational options from the knowledge base, note custody risk / DYOR / not advice, then return to AetherForge tracking + free signup.
-- Indexes (Dow Jones, NASDAQ, ASX): explain when asked; conceptual ETF/broker exposure only; no product push.
-- Keep answers concise (usually under ~180 words). Use Markdown lightly.
+- When they DO ask buy/sell how-to: a few plain sentences with neutral examples from the knowledge base, note custody risk / DYOR / not advice, then return to AetherForge tracking + free signup. Do not dump every platform unless they ask for a list.
+- Indexes (Dow Jones, NASDAQ, ASX): explain the one they asked about; conceptual ETF/broker exposure only; no product push. If they ask about indexes in general, one sentence and ask which one.
 - Soft CTA: invite them to Start free when it fits naturally — that is the only active conversion target.
-- If unsure, point to /how-it-works or /how-to-maximize-results rather than inventing product features.
+- If unsure, point to /how-it-works rather than inventing product features.
 
 Knowledge base:
 ${PERSONAL_GUIDE_KNOWLEDGE}
 `.trim();
+
+const SIGNUP_LINK = `[Start free →](${PERSONAL_GUIDE_SIGNUP_URL})`;
+
+function asksForDetail(q: string): boolean {
+  return /more detail|more info|list|step.by.step|all the|every |options|compare|which ones|spell out/.test(
+    q
+  );
+}
 
 /** Lightweight offline replies when XAI_API_KEY is missing (dev / misconfig). */
 export function personalGuideFallbackReply(userMessage: string): string {
@@ -154,23 +171,44 @@ export function personalGuideFallbackReply(userMessage: string): string {
 
   if (/sign.?up|register|free.?trial|start free|create.?account/.test(q)) {
     return (
-      `Great move — you can start free in about a minute:\n\n` +
-      `[Start free →](${PERSONAL_GUIDE_SIGNUP_URL})\n\n` +
-      `No card needed for the free plan. After signup you’ll land in the free-trial experience, then add holdings on your Dashboard.`
+      `You can start free in about a minute. No card is needed for the free plan.\n\n` +
+      `${SIGNUP_LINK}\n\n` +
+      `After that you’ll land in the free trial, then add holdings on your Dashboard.`
     );
   }
 
-  if (
-    /dow\s*jones|djia|nasdaq|asx|what (is|are) (an? )?(index|indices|indexes)/.test(
-      q
-    )
-  ) {
+  if (/dow\s*jones|djia/.test(q) && !/nasdaq|\basx\b/.test(q)) {
     return (
-      `Quick educational snapshot (not advice):\n\n` +
-      `- **Dow Jones (DJIA)** — ~30 large U.S. “blue chip” companies; a long-running snapshot, not the whole market.\n` +
-      `- **NASDAQ** — major U.S. exchange; indexes like the Nasdaq-100 lean tech/growth.\n` +
-      `- **ASX** — Australia’s main exchange; many Kiwis look at ASX names alongside NZX.\n\n` +
-      `Retail investors usually get index exposure via a broker using ETFs / funds (or individual listed shares) — conceptually. AetherForge doesn’t buy for you; once you have holdings, [start free](${PERSONAL_GUIDE_SIGNUP_URL}) and let **Stox** / **The Headmaster** help you track and plan.`
+      `The Dow Jones tracks about 30 large U.S. companies. It is a snapshot, not a stock you buy directly. People usually get exposure through a fund at their own broker.\n\n` +
+      `AetherForge doesn’t buy for you. ${SIGNUP_LINK} and Stox can track holdings you add.`
+    );
+  }
+
+  if (/nasdaq/.test(q) && !/dow|\basx\b/.test(q)) {
+    return (
+      `NASDAQ is a major U.S. exchange. The Nasdaq-100 leans toward large technology companies. People usually get exposure through a fund or listed shares at their own broker.\n\n` +
+      `AetherForge doesn’t buy for you. ${SIGNUP_LINK} and Stox can track holdings you add.`
+    );
+  }
+
+  if (/\basx\b/.test(q) && !/dow|nasdaq/.test(q)) {
+    return (
+      `The ASX is Australia’s main share exchange. Many people in NZ look at ASX shares alongside NZX, through their own broker.\n\n` +
+      `AetherForge doesn’t buy for you. ${SIGNUP_LINK} and Stox can track holdings you add.`
+    );
+  }
+
+  if (/dow\s*jones|djia|nasdaq|\basx\b|index|indices|indexes/.test(q)) {
+    return (
+      `An index is a snapshot of many companies, not a stock you buy on its own. People usually get exposure through a fund at their own broker.\n\n` +
+      `AetherForge doesn’t buy for you. ${SIGNUP_LINK} Which one do you mean — Dow, NASDAQ, or ASX?`
+    );
+  }
+
+  if (/stock/.test(q) && /crypto/.test(q) && /buy|unsure|how/.test(q) && !asksForDetail(q)) {
+    return (
+      `You buy stocks and crypto at your own broker or exchange. AetherForge never places those trades.\n\n` +
+      `Once you hold them, ${SIGNUP_LINK} and add them on the Dashboard so Stox and Koins can track them. Ask if you want a few NZ examples.`
     );
   }
 
@@ -179,13 +217,20 @@ export function personalGuideFallbackReply(userMessage: string): string {
       q
     )
   ) {
+    if (asksForDetail(q)) {
+      return (
+        `AetherForge never buys or sells for you. You keep shares at your own broker.\n\n` +
+        `Examples people in NZ use (not recommendations):\n` +
+        `- [Sharesies](https://www.sharesies.nz/about)\n` +
+        `- [Tiger Brokers NZ](https://www.tigerbrokers.nz/)\n` +
+        `- Interactive Brokers and Hatch are other names you’ll see\n\n` +
+        `Research them yourself. Then ${SIGNUP_LINK} and add the holdings so Stox can track them. Not financial advice.`
+      );
+    }
     return (
-      `AetherForge never buys or sells for you — you keep full custody at your own broker.\n\n` +
-      `Examples of platforms people in NZ often use (not recommendations):\n` +
-      `- **[Sharesies](https://www.sharesies.nz/about)** — NZ wealth app.\n` +
-      `- **[Tiger Brokers NZ](https://www.tigerbrokers.nz/)** (Tiger Trade) — online broker for NZ + global shares/ETFs (leveraged products may exist — higher risk; we don’t push those).\n` +
-      `- Others exist too (e.g. Interactive Brokers, Hatch).\n\n` +
-      `Pick whatever you trust after your own research. Then [start free on AetherForge](${PERSONAL_GUIDE_SIGNUP_URL}) and add holdings so Stox & The Headmaster can help you track and plan — not financial advice.`
+      `AetherForge never buys or sells for you. You keep shares at your own broker.\n\n` +
+      `People in NZ often use Sharesies or Tiger Brokers NZ — examples, not recommendations. Ask if you want a few other names.\n\n` +
+      `When you hold shares, ${SIGNUP_LINK} and track them here. Not financial advice.`
     );
   }
 
@@ -194,54 +239,71 @@ export function personalGuideFallbackReply(userMessage: string): string {
       q
     ) && !/new zealand|\bnz\b|kiwi/.test(q)
   ) {
+    if (asksForDetail(q)) {
+      return (
+        `Places people often trade crypto (examples, not recommendations): Binance, OKX, Bybit, Coinbase, and Kraken.\n\n` +
+        `Leaving coins on an exchange has custody risk. AetherForge never holds crypto. ${SIGNUP_LINK} and use Koins to track what you own.`
+      );
+    }
     return (
-      `Commonly used crypto trading platforms people talk about (by familiarity/volume — **not endorsements**): Binance, OKX, Bybit, Coinbase, and Kraken.\n\n` +
-      `Custody risk matters if you leave funds on an exchange — understand withdrawals/wallets, DYOR, and this isn’t financial advice.\n\n` +
-      `AetherForge never takes custody. When you have holdings, [start free](${PERSONAL_GUIDE_SIGNUP_URL}) and use **Koins** to track and analyse.`
+      `People often trade crypto on exchanges such as Coinbase or Binance — examples, not recommendations. Leaving coins there has custody risk.\n\n` +
+      `AetherForge never holds crypto. ${SIGNUP_LINK} and use Koins to track what you own.`
     );
   }
 
   if (
-    /buy.?crypto|how (do|to) .*(crypto|bitcoin|btc|eth)|pay.?it.?now|blackbull|p2p|cryptocurrency\.org\.nz|(crypto|bitcoin).*(new zealand|\bnz\b|kiwi)/.test(
+    /buy.?crypto|how (do|to) .*(crypto|bitcoin|\bbtc\b|\beth\b)|pay.?it.?now|blackbull|p2p|cryptocurrency\.org\.nz|(crypto|bitcoin).*(new zealand|\bnz\b|kiwi)/.test(
       q
     )
   ) {
+    if (asksForDetail(q)) {
+      return (
+        `AetherForge never buys crypto for you.\n\n` +
+        `A neutral NZ overview is [How to Buy Crypto in New Zealand](https://cryptocurrency.org.nz/buy-cryptocurrency-nz):\n` +
+        `- Retailers: pay NZD, coins go to your wallet (that page mentions Pay It Now).\n` +
+        `- Exchanges: live markets, with custody risk if coins stay there.\n` +
+        `- CFDs and P2P are riskier and not a first buy.\n\n` +
+        `Then ${SIGNUP_LINK} and add holdings so Koins can track them. Not financial advice.`
+      );
+    }
     return (
-      `AetherForge never buys crypto for you — you keep custody in your own wallet/exchange.\n\n` +
-      `A neutral NZ overview is **[How to Buy Crypto in New Zealand (Cryptocurrency NZ)](https://cryptocurrency.org.nz/buy-cryptocurrency-nz)**:\n` +
-      `- **Retailers** (simplest): pay NZD → crypto to your wallet. Example on that page: Pay It Now.\n` +
-      `- **Exchanges**: live markets; custody risk if funds stay there. Example: Binance NZ.\n` +
-      `- **CFDs/advanced**: e.g. BlackBull Markets — not for a first buy.\n` +
-      `- **P2P**: higher scam risk — verify carefully.\n\n` +
-      `Safety basics: control your keys, back up your seed offline, mind IRD tax rules. Then [start free](${PERSONAL_GUIDE_SIGNUP_URL}) and add holdings so **Koins** can help — not financial advice.`
+      `AetherForge never buys crypto for you. In New Zealand, people usually pay NZD through a retailer (coins go to a wallet) or use an exchange.\n\n` +
+      `A neutral walkthrough is [How to Buy Crypto in New Zealand](https://cryptocurrency.org.nz/buy-cryptocurrency-nz). Ask if you want the retailer and exchange difference.\n\n` +
+      `Then ${SIGNUP_LINK} and add the coins so Koins can track them.`
     );
   }
 
-  if (
-    /how (does|do)|how.?it.?works|what (is|do)|get started|maximize|stox|koins|headmaster|smitty|portfolio|trial/.test(
-      q
-    )
-  ) {
+  if (/maximize|free plan|get the most|first step/.test(q)) {
     return (
-      `Here’s the simple path:\n\n` +
-      `1. **[Start free](${PERSONAL_GUIDE_SIGNUP_URL})** — create your account.\n` +
-      `2. **Add holdings** on the Dashboard (stocks, crypto, gold/silver).\n` +
-      `3. **The Headmaster** — set goals & strategy.\n` +
-      `4. **Stox & Koins** — daily market intelligence reports.\n` +
-      `5. **Smitty** — live gold and silver spot tracking. Do not offer a Smitty report; none exists.\n\n` +
-      `We never touch your assets. Deeper guides: [/how-it-works](/how-it-works) and [/how-to-maximize-results](/how-to-maximize-results).`
+      `On the free plan, the first step is to add the holdings you already have — ticker and amount.\n\n` +
+      `${SIGNUP_LINK} Reports are more useful once that book is filled in. Ask for the next step after that.`
     );
   }
 
-  if (/gold|silver|metal|crypto|stock|share|etf|market/.test(q)) {
+  if (/stox|koins|headmaster|smitty|\bbots?\b/.test(q)) {
     return (
-      `Happy to chat markets at an educational level — AetherForge helps you **track and understand** stocks, crypto, gold and silver with Stox, Koins, Smitty and The Headmaster.\n\n` +
-      `I won’t recommend specific buys or sells. Want the product walkthrough, or ready to [start free](${PERSONAL_GUIDE_SIGNUP_URL})?`
+      `Stox reads stocks, Koins reads crypto, and The Headmaster helps you set a goal plan. Smitty tracks gold and silver prices. There is no Smitty report.\n\n` +
+      `${SIGNUP_LINK} You’ll meet them after you add holdings. Ask about one bot if you want just that.`
+    );
+  }
+
+  if (/how (does|do)|how\b.{0,40}\bworks|what is aether|get started|\btrial\b/.test(q)) {
+    return (
+      `AetherForge tracks markets you already hold. It never places trades or holds your money.\n\n` +
+      `${SIGNUP_LINK} Then add your stocks, crypto, or metals on the Dashboard.\n\n` +
+      `Ask about one bot if you want the next step. A longer guide is [/how-it-works](/how-it-works).`
+    );
+  }
+
+  if (/gold|silver|\bmetals?\b|crypto|bitcoin|ethereum|\bbtc\b|\beth\b|\bstocks?\b|\bshares?\b|\betfs?\b|\bmarkets?\b/.test(q)) {
+    return (
+      `AetherForge helps you track stocks, crypto, gold, and silver. I won’t tell you what to buy or sell.\n\n` +
+      `${SIGNUP_LINK} when you want that on your Dashboard.`
     );
   }
 
   return (
-    `Hello — I’m your Help Assistant. I can explain how AetherForge works, how to get the most from Stox, Koins, The Headmaster and Smitty, and how the free trial fits in.\n\n` +
-    `Whenever you’re ready: [Start free →](${PERSONAL_GUIDE_SIGNUP_URL})`
+    `I can help you start a free account, or explain how the site works in a sentence or two.\n\n` +
+    SIGNUP_LINK
   );
 }
