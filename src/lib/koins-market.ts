@@ -98,7 +98,7 @@ async function liveCryptoUniverse(): Promise<CoinMarket[]> {
     console.error("[koins-market] crypto sweep failed — held names still stay on the report:", err);
   }
   try {
-    const dex = await fetchDexTop400({ maxMs: 8000 });
+    const dex = await fetchDexTop400();
     dex.rows.forEach((row, index) => take(dexRowToCoin(row, 1000 + index)));
   } catch (err) {
     console.error("[koins-market] DEX list unavailable — held names still stay on the report:", err);

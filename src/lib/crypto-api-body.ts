@@ -14,9 +14,15 @@ export function marketsBody(coins: unknown[] | null | undefined, notice: string 
   return { ok: true as const, data: coins, total: coins.length, notice };
 }
 
-export function dexBody(rows: unknown[] | null | undefined, notice: string | null) {
-  if (!rows || rows.length === 0) {
+export function dexBody(rows: unknown[] | null | undefined, opts?: { collecting?: boolean }) {
+  const list = Array.isArray(rows) ? rows : [];
+  if (list.length === 0 && !opts?.collecting) {
     return { ok: false as const, error: LIVE_DEX_UNAVAILABLE };
   }
-  return { ok: true as const, data: rows, total: rows.length, notice };
+  return {
+    ok: true as const,
+    data: list,
+    total: list.length,
+    notice: list.length >= 400 ? null : "Further rows are unavailable.",
+  };
 }
