@@ -29,27 +29,36 @@ export function DexMarketDialog({
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-
-  async function load() {
-    setLoading(true);
-    setError(null);
-    const res = await api.get<DexTokenRow[]>("/api/crypto/dex");
-    setLoading(false);
-    if (res.ok && Array.isArray(res.data) && res.data.length > 0) {
-      setRows(res.data);
-      setNotice(typeof res.notice === "string" ? res.notice : null);
-      setError(null);
-      return;
-    }
-    setRows([]);
-    setNotice(null);
-    setError(clientFacingError("/api/crypto/dex", res.error || "Live decentralized-token prices are unavailable."));
-  }
+  const [refreshTick, setRefreshTick] = useState(0);
 
   useEffect(() => {
     if (!open) return;
-    void load();
-  }, [open]);
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    async function load(initial: boolean) {
+      if (initial) setLoading(true);
+      const res = await api.get<DexTokenRow[]>("/api/crypto/dex");
+      if (cancelled) return;
+      if (initial) setLoading(false);
+      if (res.ok && Array.isArray(res.data)) {
+        setRows(res.data);
+        setNotice(typeof res.notice === "string" ? res.notice : null);
+        setError(null);
+        if (res.data.length < 400) timer = setTimeout(() => void load(false), 2_000);
+        return;
+      }
+      setRows([]);
+      setNotice(null);
+      setError(clientFacingError("/api/crypto/dex", res.error || "Live decentralized-token prices are unavailable."));
+    }
+
+    void load(true);
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [open, refreshTick]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -59,11 +68,17 @@ export function DexMarketDialog({
             <div>
               <DialogTitle>Top Decentralized Exchanges Ranked by 24 Hours of Market</DialogTitle>
               <DialogDescription>
-                Live CoinGecko prices for decentralized tokens. A missing print is unavailable.
+                Live pool prices for decentralized tokens. A missing print is unavailable.
                 {notice ? ` ${notice}` : ""}
               </DialogDescription>
             </div>
-            <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading} className="shrink-0 gap-1.5">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setRefreshTick((tick) => tick + 1)}
+              disabled={loading}
+              className="shrink-0 gap-1.5"
+            >
               {loading ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
               Refresh
             </Button>
@@ -72,10 +87,14 @@ export function DexMarketDialog({
         <div className="min-h-0 flex-1 overflow-auto px-5 py-4">
           {loading && rows.length === 0 ? (
             <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
-              <Loader2 className="mr-2 size-4 animate-spin" /> Loading live prices…
+              <Loader2 className="mr-2 size-4 animate-spin" /> Loading live decentralized-token prices…
             </div>
           ) : error ? (
             <p className="py-10 text-center text-sm text-muted-foreground">{error}</p>
+          ) : rows.length === 0 ? (
+            <p className="py-10 text-center text-sm text-muted-foreground">
+              Loading live decentralized-token prices…
+            </p>
           ) : (
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-background text-left text-xs uppercase tracking-wide text-muted-foreground">
