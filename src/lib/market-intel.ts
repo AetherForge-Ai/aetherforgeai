@@ -638,7 +638,9 @@ export function isExchangeRegularSession(ex: Exchange, now = new Date()): boolea
  */
 export function priceSessionLabel(ex: Exchange, now = new Date()): string {
   const name = ex === "NZX" || ex === "ASX" ? ex : "US";
-  return isExchangeRegularSession(ex, now) ? `Delayed ~20 min · ${name}` : "At close";
+  if (!isExchangeRegularSession(ex, now)) return "At close";
+  // TODO(owner): confirm the US share-price delay. The brief states "~20 min" for NZX only.
+  return ex === "NZX" ? "Delayed ~20 min · NZX" : `Delayed · ${name}`;
 }
 
 /**

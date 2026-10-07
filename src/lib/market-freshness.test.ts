@@ -11,6 +11,10 @@ import {
 const AFTER_CLOSE = new Date("2026-10-07T08:00:00.000Z");
 /** Wednesday 7 Oct 2026, 2:14 pm NZDT. NZX is open. */
 const NZX_OPEN = new Date("2026-10-07T01:14:00.000Z");
+/** Wednesday 7 Oct 2026, 10:30 am Sydney. ASX is open. */
+const ASX_OPEN = new Date("2026-10-06T23:30:00.000Z");
+/** Wednesday 7 Oct 2026, 10:00 am New York. US cash session is open. */
+const US_OPEN = new Date("2026-10-07T14:00:00.000Z");
 
 describe("equity freshness", () => {
   it("labels a shut weekday as close or last close, and keeps the API live flag false", () => {
@@ -27,6 +31,11 @@ describe("equity freshness", () => {
     const quoted = new Date("2026-10-07T01:14:00.000Z");
     expect(equityFreshnessLabel("NZX", NZX_OPEN, quoted).label).toBe("Delayed ~20 min · NZX · quote 2:14 pm NZDT");
     expect(equityFreshnessLabel("NZX", NZX_OPEN).label).toBe("Delayed ~20 min · NZX");
+    expect(equityFreshnessLabel("ASX", ASX_OPEN).label).toBe("Delayed · ASX");
+    expect(equityFreshnessLabel("ASX", ASX_OPEN, ASX_OPEN).label).toMatch(/^Delayed · ASX · quote /);
+    expect(equityFreshnessLabel("US", US_OPEN).label).toBe("Delayed · US");
+    expect(equityFreshnessLabel("US", US_OPEN, US_OPEN).label).toMatch(/^Delayed · US · quote /);
+    expect(equityFreshnessLabel("US", US_OPEN, US_OPEN).label).not.toContain("~20");
     expect(equityFreshnessLabel("NZX", NZX_OPEN).live).toBe(false);
     expect(equityApiLive("NZX", true, NZX_OPEN)).toBe(true);
   });

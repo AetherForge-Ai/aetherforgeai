@@ -44,13 +44,43 @@ describe("signup consent", () => {
       }
     );
     expect(created).toEqual({ _id: "user-1", email: "a@b.co" });
-    expect(calls).toHaveLength(2);
-    expect(calls[1]).not.toHaveProperty("age_confirmed");
-    expect(calls[1]).not.toHaveProperty("terms_accepted_at");
-    expect(calls[1]).not.toHaveProperty("terms_version");
+    expect(calls).toHaveLength(3);
     expect(calls[1]).not.toHaveProperty("country");
+    expect(calls[1]).toHaveProperty("age_confirmed", "yes");
+    expect(calls[2]).not.toHaveProperty("age_confirmed");
+    expect(calls[2]).not.toHaveProperty("terms_accepted_at");
+    expect(calls[2]).not.toHaveProperty("terms_version");
+    expect(calls[2]).not.toHaveProperty("country");
     expect(warn).toHaveBeenCalledWith("[consent] user columns missing");
     warn.mockRestore();
+  });
+
+  it("retries without country only and keeps the consent columns", async () => {
+    const calls: Record<string, unknown>[] = [];
+    const created = await createUserWithConsentFallback(
+      {
+        email: "a@b.co",
+        age_confirmed: "yes",
+        terms_accepted_at: "2026-10-07T06:00:00.000Z",
+        terms_version: TERMS_VERSION,
+        country: "New Zealand",
+      },
+      async (row) => {
+        calls.push(row);
+        if ("country" in row) {
+          return { record: null, error: { errorMessage: "unknown field country" } };
+        }
+        return { record: { _id: "user-2", email: row.email }, error: null };
+      }
+    );
+    expect(created).toEqual({ _id: "user-2", email: "a@b.co" });
+    expect(calls).toHaveLength(2);
+    expect(calls[1]).not.toHaveProperty("country");
+    expect(calls[1]).toMatchObject({
+      age_confirmed: "yes",
+      terms_accepted_at: "2026-10-07T06:00:00.000Z",
+      terms_version: TERMS_VERSION,
+    });
   });
 
   it("does not retry a signup failure that is not a missing column", async () => {

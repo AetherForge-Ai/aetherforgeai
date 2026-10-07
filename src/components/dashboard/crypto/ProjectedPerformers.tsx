@@ -126,7 +126,7 @@ export function ProjectedPerformers({
         <DialogContent className="flex max-h-[90vh] w-[96vw] max-w-4xl flex-col gap-0 overflow-hidden p-0">
           <DialogHeader className="border-b border-border/60 px-5 py-4 sm:px-6">
             <DialogTitle className="font-display text-lg">
-              Top 20 Actual Performers <span className="text-muted-foreground">— Full 500 Coin Scan</span>
+              Top 20 Actual Performers <span className="text-muted-foreground">— {cryptoCoveragePhrase(coins.length)}</span>
             </DialogTitle>
             <DialogDescription className="text-xs">{formulaText(coins.length)}</DialogDescription>
           </DialogHeader>

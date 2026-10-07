@@ -5,8 +5,8 @@ import { api } from "@/lib/api";
 import { tickerLiveLabel } from "@/lib/ticker-feed";
 import { PUBLIC_PRICE_QUIET } from "@/lib/data-sources";
 import { cn } from "@/lib/utils";
-import { formatDailyRate, formatMoney } from "@/lib/currency";
-import { cryptoFreshnessLabel, exchangeFreshnessLabel, latestQuoteTime } from "@/lib/market-freshness";
+import { formatMoney } from "@/lib/currency";
+import { cryptoFreshnessLabel, exchangeFreshnessLabel, latestQuoteTime, metalUpdatedPhrase } from "@/lib/market-freshness";
 
 /**
  * Market tape. Prices come only from GET /api/ticker (one live pipeline).
@@ -126,6 +126,7 @@ interface MetalsSpotFeed {
   silver: MetalSpot;
   live: boolean;
   asOf?: string;
+  quotedAt?: string | null;
 }
 
 function MetalsSpotBanner() {
@@ -138,7 +139,7 @@ function MetalsSpotBanner() {
       const res = await api.get<MetalsSpotFeed>("/api/metals/spot");
       if (active && res.ok && res.data?.gold && res.data.silver) {
         setSpot(res.data);
-        console.log("[metals-banner] Spot loaded:", res.data.live ? "live" : "est", res.data);
+        console.log("[metals-banner] Spot loaded:", res.data.live ? "spot" : "est", res.data);
       } else if (active) {
         setFailed(true);
         console.error("[metals-banner] Spot fetch failed:", res.error);
@@ -188,10 +189,15 @@ function MetalsSpotBanner() {
             "rounded-full px-2 py-0.5 text-[0.58rem] font-bold uppercase tracking-wide",
             spot?.live ? "bg-emerald-500/15 text-emerald-600" : "bg-muted text-muted-foreground"
           )}
-          title={spot?.asOf ? formatDailyRate(spot.asOf) : "Spot price"}
+          title={spot?.live ? "Spot price" : "Estimated price"}
         >
-          {spot ? "Spot" : failed ? "Failed" : "…"}
-          {spot?.asOf ? ` · ${formatDailyRate(spot.asOf)}` : ""}
+          {!spot
+            ? failed
+              ? "Failed"
+              : "…"
+            : spot.live
+              ? metalUpdatedPhrase(spot.quotedAt) ?? "Spot"
+              : "Est."}
         </span>
       </div>
     </div>
