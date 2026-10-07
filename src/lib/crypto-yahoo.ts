@@ -7,6 +7,7 @@
 import "server-only";
 import type { CoinMarket, CoinDetail, CoinChart } from "@/lib/crypto-market";
 import { CANONICAL_CRYPTO_IDS, CRYPTO_DISPLAY_NAMES, normalizeCryptoTicker } from "@/lib/crypto-ids";
+import { yahooSymbolFor } from "@/lib/crypto-vendors";
 import { coinLogo, sevenDayReturnPct } from "@/lib/crypto-market";
 
 const YAHOO_CHART = "https://query1.finance.yahoo.com/v8/finance/chart";
@@ -26,7 +27,7 @@ export const YAHOO_MAJOR: string[] = [
 ];
 
 function yahooSymbol(ticker: string): string {
-  return `${normalizeCryptoTicker(ticker)}-USD`;
+  return yahooSymbolFor(ticker).symbol;
 }
 
 function resolveTicker(idOrTicker: string): string {
