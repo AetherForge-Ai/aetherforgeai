@@ -7,7 +7,7 @@ import { referencePrice } from "@/lib/market";
 import { fetchLiveQuotes, fetchCryptoLiveSnapshot } from "@/lib/market-data";
 import { evaluateCryptoAlert } from "@/lib/crypto-live";
 import { alertTickerKey, alertVisibleInBook, inferAlertAssetType, type DeskHolding } from "@/lib/alert-desk";
-import { CRYPTO_DIRECTORY } from "@/lib/apex";
+import { CRYPTO_DIRECTORY } from "@/lib/crypto-directory";
 import { getMetalsSpot } from "@/lib/metals";
 
 const createSchema = z.object({

@@ -59,7 +59,7 @@ export function modelRangeLine(outlook?: {
  * "reduces" are not a reason to drop a story.
  */
 export const PUBLISHER_SIGNAL_WORD =
-  /\bstocks?\s+to\s+(?:buy|sell)\b|\b(?:buy|sell)\s+rating\b|\bstrong\s+buy\b|\b(?:upgrade|upgraded|upgrades)\s+to\s+buy\b|\b(?:downgrade|downgraded|downgrades)\s+to\s+sell\b|\breasons?\s+to\s+(?:buy|sell)\b|\b(?:buy|sell)\s+now\b/i;
+  /\bstocks?\s+to\s+(?:buy|sell)\b|\b(?:buy|sell)\s+rating\b|\bstrong\s+buy\b|\b(?:upgrade|upgraded|upgrades)\s+to\s+buy\b|\b(?:downgrade|downgraded|downgrades)\s+to\s+sell\b|\breasons?\s+to\s+(?:buy|sell)\b|\b(?:buy|sell)\s+now\b|\bbetter buy\b|\bwhich(?:\s+[a-z0-9.]+){0,6}\s+is the better (?:buy|value)\b|\bvs\.?\s+\S[^:]{0,80}:\s*which\b[^.?\n]{0,80}\b(?:better|value|buy)\b/i;
 
 export function publisherTextHasSignalWord(text: string): boolean {
   return PUBLISHER_SIGNAL_WORD.test(text);

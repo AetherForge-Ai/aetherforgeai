@@ -19,7 +19,7 @@
 import "server-only";
 
 import { type AssetClass, type MarketCode, type NewsItem } from "@/lib/market-intel";
-import { hasArticlePath, isOffTopicStory, prepareNewsFeed } from "@/lib/news-present";
+import { decodeHtmlEntities, hasArticlePath, isOffTopicStory, prepareNewsFeed } from "@/lib/news-present";
 import { keywordSentiment } from "@/lib/news-sentiment";
 
 const NEWS_TTL_MS = 4 * 60 * 60 * 1000; // ~4h — refreshes at least daily
@@ -62,17 +62,12 @@ export function formatRelativeTime(when: Date | string | number): string {
 }
 
 function stripHtml(html: string): string {
-  return html
+  const text = html
     .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
     .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
     .replace(/\s+/g, " ")
     .trim();
+  return decodeHtmlEntities(text);
 }
 
 function decodeXml(s: string): string {
@@ -137,15 +132,18 @@ function relevanceFor(text: string, assetClass: AssetClass, market: MarketCode |
 function toNewsItem(raw: RawStory, assetClass: AssetClass): NewsItem | null {
   if (!raw.url.startsWith("http") || !hasArticlePath(raw.url)) return null;
   if (Number.isNaN(raw.publishedAt.getTime())) return null;
-  const blob = `${raw.headline} ${raw.summary}`;
+  const headline = decodeHtmlEntities(raw.headline);
+  const summary = decodeHtmlEntities(raw.summary || raw.headline);
+  const source = decodeHtmlEntities(raw.source);
+  const blob = `${headline} ${summary}`;
   const market = raw.marketHint ?? inferMarket(blob, assetClass === "crypto" ? "CRYPTO" : "Global");
   const { sentiment } = keywordSentiment(blob);
   const url = raw.url;
   const publishedOn = raw.publishedAt.toISOString();
   return {
-    headline: raw.headline.slice(0, 220),
-    summary: (raw.summary || raw.headline).slice(0, 420),
-    source: raw.source.slice(0, 80) || "Market Wire",
+    headline: headline.slice(0, 220),
+    summary: summary.slice(0, 420),
+    source: source.slice(0, 80) || "Market Wire",
     market,
     impact: sentiment,
     relevance: relevanceFor(blob, assetClass, market),
@@ -284,9 +282,9 @@ async function fetchYahooSearchNews(query: string, count = 8): Promise<RawStory[
         const publishedAt = new Date(n.providerPublishTime * 1000);
         const img = n.thumbnail?.resolutions?.[0]?.url;
         return {
-          headline: String(n.title || "").trim(),
-          summary: String(n.summary || n.title || "").trim(),
-          source: String(n.publisher || "Yahoo Finance"),
+          headline: decodeHtmlEntities(String(n.title || "").trim()),
+          summary: decodeHtmlEntities(String(n.summary || n.title || "").trim()),
+          source: decodeHtmlEntities(String(n.publisher || "Yahoo Finance")),
           url: String(n.link || ""),
           publishedAt,
           imageUrl: img,
@@ -350,12 +348,12 @@ async function fetchCryptoCompareNews(limit = 12): Promise<RawStory[]> {
     if (!Array.isArray(json.Data)) return [];
     return json.Data.slice(0, limit).flatMap((n) => {
       if (!n.published_on || !String(n.url || "").startsWith("http")) return [];
-      const title = String(n.title || "");
-      const body = String(n.body || "");
+      const title = decodeHtmlEntities(String(n.title || ""));
+      const body = decodeHtmlEntities(String(n.body || ""));
       return [{
         headline: title,
         summary: body.slice(0, 420) || title,
-        source: String(n.source_info?.name || n.source || "Crypto Wire"),
+        source: decodeHtmlEntities(String(n.source_info?.name || n.source || "Crypto Wire")),
         url: String(n.url || n.guid || ""),
         publishedAt: n.published_on ? new Date(Number(n.published_on) * 1000) : new Date(NaN),
         imageUrl: n.imageurl ? String(n.imageurl) : undefined,

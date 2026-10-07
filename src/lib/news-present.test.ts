@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { NewsItem } from "@/lib/market-intel";
-import { isOffTopicStory, prepareNewsFeed, sourceForUrl } from "@/lib/news-present";
+import { decodeHtmlEntities, isOffTopicStory, prepareNewsFeed, sourceForUrl } from "@/lib/news-present";
 
 const cpi: NewsItem = {
   headline: "US CPI prints cooler than expected; rate-cut odds for the next FOMC firm up",
@@ -265,6 +265,9 @@ describe("public market news", () => {
     );
 
     expect(isOffTopicStory("Election debates return to Auckland", "Leaders met last night")).toBe(true);
+    expect(isOffTopicStory("What financial advisers think wealthy people can teach us", "Investors and the market.")).toBe(true);
+    expect(isOffTopicStory("FRN Variable Rate Fix", "LONDON. As Agent Bank, please be advised of the following rate.")).toBe(true);
+    expect(isOffTopicStory("JPMorgan tops Evident AI banking index for fifth straight year", "A vendor ranking.")).toBe(true);
     const titles = feed.map((item) => item.headline).join(" ");
     expect(titles).not.toMatch(/froyo|jaguar|bin collectors|election debate/i);
     const rnz = feed.find((item) => item.url.includes("inflation-ocr"));
@@ -278,5 +281,145 @@ describe("public market news", () => {
     for (const item of feed) {
       expect(item.publishedOn && item.publishedOn <= "2026-10-07").toBe(true);
     }
+  });
+
+  it("decodes HTML entities in headline, summary and source and leaves the URL unchanged", () => {
+    const url = "https://www.businessdesk.co.nz/article/aroa-symphony?tsrc=rss&utm_source=bd";
+    const feed = prepareNewsFeed([
+      {
+        headline: "Aroa&#039;s Symphony potential not priced in, Bell Potter says",
+        source: "Bell &amp; Potter",
+        market: "NZX",
+        impact: "Neutral",
+        relevance: 70,
+        time: "1d ago",
+        publishedOn: "2026-10-06",
+        summary: "Bell Potter&#8217;s note says the shares&#8217; potential is &quot;not priced in&quot; &amp; still open.",
+        url,
+      },
+    ]);
+    const item = feed.find((row) => row.url === url);
+    expect(item?.headline).toBe("Aroa's Symphony potential not priced in, Bell Potter says");
+    expect(item?.summary).toContain("Bell Potter\u2019s note");
+    expect(item?.summary).toContain('"not priced in"');
+    expect(item?.summary).toContain("& still open");
+    expect(item?.url).toBe(url);
+    expect(item?.url).toContain("tsrc=rss&utm_source=bd");
+    expect(decodeHtmlEntities("Bell &amp; Potter")).toBe("Bell & Potter");
+    expect(decodeHtmlEntities("Aroa&amp;#039;s")).toBe("Aroa's");
+    expect(decodeHtmlEntities("it&#x2019;s")).toBe("it\u2019s");
+    expect(item?.headline).toContain("Symphony");
+  });
+
+  it("drops the retest off-topic stories and recommendation headlines, and keeps macro", () => {
+    const dated = {
+      impact: "Neutral" as const,
+      relevance: 50,
+      time: "1d ago",
+      publishedOn: "2026-10-06",
+    };
+    const feed = prepareNewsFeed([
+      {
+        ...dated,
+        headline: "France's appetite for 'magic money' has turned into a debt bomb",
+        source: "BusinessDesk",
+        market: "US",
+        summary: "A French fiscal story. Bond yields and the debt market are the focus.",
+        url: "https://www.businessdesk.co.nz/article/france-magic-money",
+      },
+      {
+        ...dated,
+        headline: "What financial advisers think wealthy people can teach us",
+        source: "RNZ",
+        market: "NZX",
+        summary: "A personal-finance column about investors and the market.",
+        url: "https://www.rnz.co.nz/news/business/financial-advisers-wealthy",
+      },
+      {
+        ...dated,
+        headline: "FRN Variable Rate Fix",
+        source: "ASX",
+        market: "ASX",
+        summary: "LONDON. As Agent Bank, please be advised of the following rate.",
+        url: "https://www.asx.com.au/news/frn-variable-rate-fix",
+      },
+      {
+        ...dated,
+        headline: "JPMorgan tops Evident AI banking index for fifth straight year",
+        source: "qz.com",
+        market: "ASX",
+        summary: "A vendor ranking of banks, carried on an equities feed.",
+        url: "https://qz.com/jpmorgan-evident-ai-banking-index",
+      },
+      {
+        ...dated,
+        headline: "Sector Update: Financial Stocks Softer Wednesday Afternoon",
+        source: "Yahoo Finance",
+        market: "CRYPTO",
+        summary: "Financial stocks were softer in the afternoon session.",
+        url: "https://finance.yahoo.com/news/sector-update-financial-stocks",
+      },
+      {
+        ...dated,
+        headline: "Stock Market Today: Dow Cuts Sharp Losses As Some Techs Rally; AbbVie Breaks Out",
+        source: "Yahoo Finance",
+        market: "CRYPTO",
+        summary: "The Dow cut its losses as some tech shares rallied.",
+        url: "https://finance.yahoo.com/news/stock-market-today-dow",
+      },
+      {
+        ...dated,
+        headline: "Sector Update: Financial Stocks Softer Wednesday Afternoon",
+        source: "Yahoo Finance",
+        market: "US",
+        summary: "Financial stocks were softer in the US session.",
+        url: "https://finance.yahoo.com/news/sector-update-financial-stocks-us",
+      },
+      {
+        ...dated,
+        headline: "HRMY vs. CSLLY: Which Stock Is the Better Value Option?",
+        source: "Yahoo Finance",
+        market: "ASX",
+        summary: "A comparison of two listed names.",
+        url: "https://finance.yahoo.com/news/hrmy-vs-cslly-better-value",
+      },
+      {
+        ...dated,
+        headline: "Apple vs. Microsoft: Which is the better buy",
+        source: "Yahoo Finance",
+        market: "US",
+        summary: "A Better Buy comparison of two stocks.",
+        url: "https://finance.yahoo.com/news/apple-vs-microsoft-better-buy",
+      },
+      {
+        ...dated,
+        headline: "Fed to hold rates",
+        source: "Reuters",
+        market: "US",
+        summary: "The Federal Reserve is set to hold rates.",
+        url: "https://www.reuters.com/markets/us/fed-to-hold-rates-retest",
+      },
+      {
+        ...dated,
+        headline: "RBA reduces cash rate",
+        source: "Reuters",
+        market: "ASX",
+        summary: "The Reserve Bank reduces the cash rate.",
+        url: "https://www.reuters.com/markets/australia/rba-reduces-cash-rate-retest",
+      },
+    ]);
+    const titles = feed.map((item) => item.headline).join("\n");
+    expect(titles).not.toMatch(/magic money|financial advisers|FRN Variable|Evident AI|Dow Cuts|Better Value|better buy/i);
+    expect(feed.filter((item) => /Softer Wednesday/i.test(item.headline))).toHaveLength(1);
+    expect(feed.some((item) => item.market === "CRYPTO" && /Financial Stocks|Dow Cuts/i.test(item.headline))).toBe(false);
+    const usWrap = feed.find((item) => item.url.endsWith("financial-stocks-us"));
+    expect(usWrap?.headline).toMatch(/Financial Stocks Softer/);
+    expect(usWrap?.url).toBe("https://finance.yahoo.com/news/sector-update-financial-stocks-us");
+    expect(feed.find((item) => item.headline === "Fed to hold rates")?.url).toBe(
+      "https://www.reuters.com/markets/us/fed-to-hold-rates-retest"
+    );
+    expect(feed.find((item) => item.headline === "RBA reduces cash rate")?.url).toBe(
+      "https://www.reuters.com/markets/australia/rba-reduces-cash-rate-retest"
+    );
   });
 });
