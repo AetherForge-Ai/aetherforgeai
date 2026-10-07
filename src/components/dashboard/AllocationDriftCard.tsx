@@ -159,14 +159,14 @@ export function AllocationDriftCard({
             </Button>
             {rows.some((r) => r.key === "metals" && r.deltaNZD >= 25) && (
               <Button asChild size="sm" variant="outline">
-                <Link href="/dashboard/transactions?buy=metal">
+                <Link href="/dashboard/transactions?buy=gold">
                   <Coins className="mr-1.5 size-3.5" /> Save as paper metal
                 </Link>
               </Button>
             )}
           </div>
           <p className="mt-2 text-[0.65rem] text-muted-foreground">
-            Ideas are not fills. Paper gold/silver via Transaction Centre → Buy → Gold/Silver, or open the metals desk. Record broker fills when you act.
+            Ideas are not fills. Save as paper metal opens gold in Record a transaction. Record silver the same way. Record broker fills when you act.
           </p>
         </div>
       )}

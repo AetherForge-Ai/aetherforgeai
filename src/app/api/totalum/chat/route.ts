@@ -37,7 +37,7 @@ function buildStrategistContext(s: TotalumSynthesis): string {
   if (s.isEmpty) {
     return (
       "The member's unified book is empty — no equities, crypto, metals OR cash yet. " +
-      "Encourage them to deposit cash in the Transaction Center and/or add positions in Stox, Koins and the Precious Metals tracker. " +
+      "Encourage them to deposit cash in the Transaction Centre and/or add positions in Stox, Koins and the Precious Metals tracker. " +
       "Cash alone is enough to open the allocation skeleton. Do not invent tickers to buy."
     );
   }
@@ -94,7 +94,7 @@ function ideaBlock(message: string, s: TotalumSynthesis, findings: ReportFinding
 /** Deterministic fallback answer when the AI provider is not configured. */
 function deterministicReply(message: string, s: TotalumSynthesis, findings: ReportFindings): string {
   if (s.isEmpty) {
-    return `Your unified book is empty — no cash, equities, crypto or metals yet. **Deposit cash** in the Transaction Center and/or add positions in **Stox**, **Koins**, and the **Precious Metals** tracker. Cash alone is enough to open an allocation skeleton. I will not invent tickers.\n\n_Portfolio intelligence, not personalised financial advice. AetherForge does not trade for you._`;
+    return `Your unified book is empty — no cash, equities, crypto or metals yet. **Deposit cash** in the Transaction Centre and/or add positions in **Stox**, **Koins**, and the **Precious Metals** tracker. Cash alone is enough to open an allocation skeleton. I will not invent tickers.\n\n_Portfolio intelligence, not personalised financial advice. AetherForge does not trade for you._`;
   }
   const top = s.classAllocation[0];
   const worstStress = [...s.stressTests].sort((a, b) => a.impactNZD - b.impactNZD)[0];

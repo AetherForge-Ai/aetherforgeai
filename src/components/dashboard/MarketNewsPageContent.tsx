@@ -2,7 +2,6 @@
 
 import { MarketIntelProvider } from "@/components/dashboard/MarketIntelContext";
 import { NewsFeed } from "@/components/dashboard/NewsFeed";
-import { DashboardSectionTitle } from "@/components/dashboard/DashboardSectionTitle";
 import { Newspaper } from "lucide-react";
 
 /**
@@ -26,7 +25,6 @@ export function MarketNewsPageContent({ preview = false }: { preview?: boolean }
         </div>
 
         <div className="mt-8">
-          <DashboardSectionTitle title="Market News" />
           <NewsFeed />
         </div>
 

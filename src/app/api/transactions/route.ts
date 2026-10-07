@@ -9,7 +9,7 @@ import { TRADE_CONFIRM_REQUIRED } from "@/lib/trade-confirm";
 export const dynamic = "force-dynamic";
 
 const tradeSchema = z.object({
-  type: z.enum(["buy", "sell", "deposit", "withdraw", "dividend", "tax"]),
+  type: z.enum(["buy", "sell", "deposit", "withdraw", "dividend", "tax", "opening_balance", "correction"]),
   ticker: z.string().max(32).optional(),
   coingecko_id: z.string().max(80).optional(),
   asset_name: z.string().max(120).optional(),
@@ -98,8 +98,8 @@ export async function POST(req: Request) {
     const input = parsed.data;
 
     // Per-type required-field guards (clear errors instead of silent NaNs).
-    if (input.type === "buy" || input.type === "sell") {
-      if (input.confirm !== true) {
+    if (input.type === "buy" || input.type === "sell" || input.type === "correction" || (input.type === "opening_balance" && input.ticker)) {
+      if (input.type !== "correction" && input.confirm !== true) {
         return NextResponse.json({ ok: false, error: TRADE_CONFIRM_REQUIRED }, { status: 400 });
       }
       if (!input.ticker) {

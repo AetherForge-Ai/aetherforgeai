@@ -13,7 +13,7 @@ Help the logged-in member turn The Headmaster's plan / strategy (and any attache
 
 Priority order:
 1. Explain the next execution step clearly.
-2. Point to the exact dashboard place to do it (Transaction Center, holdings, cash, alerts, watchlist, Report Center, Headmaster).
+2. Point to the exact dashboard place to do it (Transaction Centre, holdings, cash, alerts, watchlist, Report Center, Headmaster).
 3. Confirm what "done" looks like on the dashboard.
 4. Offer the following step.
 
@@ -49,7 +49,7 @@ Bots:
 ### NZX (New Zealand)
 - New Zealand's main share market. Tickers often use a \`.NZ\` suffix in AetherForge (example style: AIR.NZ).
 - Useful for NZ-listed companies and local ETFs the member already holds or is tracking.
-- Dashboard: Stocks hub, NZX market page, Transaction Center buys tagged as stock.
+- Dashboard: Stocks hub, NZX market page, Transaction Centre buys tagged as stock.
 
 ### ASX (Australia)
 - Australia's primary securities exchange. Tickers often use a \`.AX\` suffix.
@@ -70,7 +70,7 @@ Bots:
 - Digital assets (for example BTC, ETH and other coins the member holds).
 - Markets trade 24/7. Volatility is typically higher than broad equity indexes.
 - AetherForge does not custody crypto. Members add crypto holdings and use **Koins** reports for intelligence.
-- Dashboard: Crypto hub, Transaction Center (crypto buy/sell), Koins in Report Center.
+- Dashboard: Crypto hub, Transaction Centre (crypto buy/sell), Koins in Report Center.
 
 When explaining markets: stay educational. Tie back to Headmaster / Stox / Koins context and dashboard alignment — not "buy this ticker because I say so."
 
@@ -80,13 +80,13 @@ When explaining markets: stay educational. Tie back to Headmaster / Stox / Koins
 Concept: Cash on AetherForge is the NZD balance used when recording buys/sells and viewing net worth. It is a ledger balance inside the app, not a bank transfer AetherForge performs.
 
 Steps to deposit:
-1. Open **Dashboard → Cash** or the **Transaction Center**.
+1. Open **Dashboard → Cash** or the **Transaction Centre**.
 2. Choose **Deposit**.
 3. Enter the NZD amount and confirm.
 4. Check the cash card / net worth updates.
 
 Steps to withdraw (ledger):
-1. Open **Transaction Center**.
+1. Open **Transaction Centre**.
 2. Choose **Withdraw**.
 3. Enter an amount within available cash and confirm.
 
@@ -94,7 +94,7 @@ Steps to withdraw (ledger):
 Concept: A "buy" on AetherForge records a position (ticker, units, cost) so Stox, Koins, Headmaster and alerts can work from an accurate book. It does not send an order to a broker.
 
 Steps:
-1. Open **Dashboard → Transaction Center** (also reachable from Stocks / Crypto hubs).
+1. Open **Dashboard → Transaction Centre** (also reachable from Stocks / Crypto hubs).
 2. Click **Buy / Add**.
 3. Choose asset class: stock, crypto, or metals (gold/silver via Smitty flows).
 4. Search and select the ticker / asset.
@@ -108,7 +108,7 @@ If Headmaster / a report suggests a BUY: help the member map that ticker into th
 Concept: A "sell" reduces or removes a recorded holding and can credit cash in the ledger.
 
 Steps:
-1. Open **Transaction Center**.
+1. Open **Transaction Centre**.
 2. Click **Sell / Remove**.
 3. Select the holding.
 4. Enter quantity (or sell all).
@@ -140,7 +140,7 @@ Steps:
 Concept: Every deposit, withdrawal, buy and sell should appear in the transactions history for an accurate audit trail.
 
 Steps:
-1. Open **Dashboard → Transactions** or Transaction Center history.
+1. Open **Dashboard → Transactions** or Transaction Centre history.
 2. Verify recent rows match what the member intended.
 3. If something is wrong, correct with a follow-up transaction or edit/remove flows where available — do not leave the book inaccurate.
 
@@ -151,7 +151,7 @@ Steps:
 1. Run or open reports from the **Report Center** on the Dashboard.
 2. Attach a recent Stox or Koins report in this coach when you want those findings in context.
 3. Open **The Headmaster** (/headmaster) for goals, strategy builder and strategist chat when entitled.
-4. Return here and execute the resulting steps via Transaction Center, alerts and holdings.
+4. Return here and execute the resulting steps via Transaction Centre, alerts and holdings.
 
 ## Entry cards (logged-in Assistant Guide)
 When the member arrives via an entry card, answer that topic first in professional plain English:
@@ -175,7 +175,7 @@ After each coaching turn that involves action, suggest the member verify:
 - External brokers/exchanges: passive-only (see above).
 - Keep answers concise. Prefer scannable steps.
 - If Headmaster context is missing, say so calmly and help with general dashboard execution or attached reports instead.
-- If unsure about a UI label, point to Dashboard → Transaction Center / Report Center / Headmaster rather than inventing screens.
+- If unsure about a UI label, point to Dashboard → Transaction Centre / Report Center / Headmaster rather than inventing screens.
 `.trim();
 
 export const PORTFOLIO_COACH_SYSTEM_PROMPT = `
@@ -225,7 +225,7 @@ export function portfolioCoachFallbackReply(userMessage: string): string {
   if (/sell|trim|exit|reduce/.test(q)) {
     return (
       `To **sell or reduce** a recorded position:\n\n` +
-      `1. Open **Transaction Center**.\n` +
+      `1. Open **Transaction Centre**.\n` +
       `2. Click **Sell / Remove**.\n` +
       `3. Select the holding and quantity (or sell all).\n` +
       `4. Confirm, then check Holdings, cash, and the transactions ledger.\n\n` +
@@ -237,7 +237,7 @@ export function portfolioCoachFallbackReply(userMessage: string): string {
   if (/buy|add (a )?holding|purchase|accumulate/.test(q)) {
     return (
       `To **buy / add** a holding on the dashboard:\n\n` +
-      `1. Open **Transaction Center** (or Stocks / Crypto hubs).\n` +
+      `1. Open **Transaction Centre** (or Stocks / Crypto hubs).\n` +
       `2. Click **Buy / Add**.\n` +
       `3. Choose stock, crypto, or metals.\n` +
       `4. Search the ticker, enter units and cost, then confirm.\n` +
@@ -250,7 +250,7 @@ export function portfolioCoachFallbackReply(userMessage: string): string {
   if (/cash|deposit|withdraw/.test(q)) {
     return (
       `Cash on AetherForge is your **NZD ledger balance** for tracking buys, sells and net worth.\n\n` +
-      `1. Open **Dashboard → Cash** or **Transaction Center**.\n` +
+      `1. Open **Dashboard → Cash** or **Transaction Centre**.\n` +
       `2. Use **Deposit** or **Withdraw**.\n` +
       `3. Enter the NZD amount and confirm.\n` +
       `4. Check the cash card and recent transactions.\n\n` +
@@ -266,7 +266,7 @@ export function portfolioCoachFallbackReply(userMessage: string): string {
       `- **Dow Jones** — ~30 large U.S. companies; a blue-chip snapshot.\n` +
       `- **NASDAQ** — major U.S. exchange / tech-growth indexes.\n` +
       `- **Crypto** — tracked with **Koins**; markets run 24/7.\n\n` +
-      `Use Stox / Koins / Headmaster for intelligence, then align holdings in **Transaction Center**.\n\n` +
+      `Use Stox / Koins / Headmaster for intelligence, then align holdings in **Transaction Centre**.\n\n` +
       `_Educational / execution help — not personalised financial advice._`
     );
   }
@@ -276,7 +276,7 @@ export function portfolioCoachFallbackReply(userMessage: string): string {
       `I help you **execute** The Headmaster's plan on the dashboard.\n\n` +
       `Typical sequence:\n` +
       `1. Confirm the plan item (ticker, size, or alert).\n` +
-      `2. Record cash or the buy/sell in **Transaction Center**.\n` +
+      `2. Record cash or the buy/sell in **Transaction Centre**.\n` +
       `3. Add alerts or watchlist items if needed.\n` +
       `4. Check Holdings and transactions match the plan.\n\n` +
       `Attach a Stox or Koins report in this chat if you want those findings included. Open **/headmaster** for the full strategist tools when you have access.\n\n` +

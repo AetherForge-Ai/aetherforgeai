@@ -36,8 +36,17 @@ import { logLedgerAudit, appendAuditNote } from "@/lib/ledger-audit";
 import { feedEntryForTicker } from "@/lib/feed-mapping";
 import { withUserTradeLock } from "@/lib/trade-lock";
 import { applyPaperCashMove } from "@/lib/paper-cash";
+import { planHoldingCorrection } from "@/lib/holding-correction";
 
-export type TxType = "buy" | "sell" | "deposit" | "withdraw" | "dividend" | "tax";
+export type TxType =
+  | "buy"
+  | "sell"
+  | "deposit"
+  | "withdraw"
+  | "dividend"
+  | "tax"
+  | "opening_balance"
+  | "correction";
 export type TxAssetType = "stock" | "crypto" | "metal";
 
 /** Map a metal holding's ticker (GOLD/SILVER) to the spot-price key. */
@@ -208,39 +217,53 @@ async function applyTransactionUnlocked(user: AppUser, input: TransactionInput):
   const executedAt = input.executed_at ? new Date(input.executed_at) : new Date();
   const notes = (input.notes || "").slice(0, 500);
 
-  // ---------- Cash-only movements ----------
-  if (input.type === "deposit" || input.type === "withdraw" || input.type === "dividend" || input.type === "tax") {
+  // ---------- Cash-only movements (opening balance with a ticker is a holding) ----------
+  const openingCash = input.type === "opening_balance" && !String(input.ticker || "").trim();
+  if (
+    input.type === "deposit" ||
+    input.type === "withdraw" ||
+    input.type === "dividend" ||
+    input.type === "tax" ||
+    openingCash
+  ) {
     const amount = Math.max(0, Number(input.amount) || 0);
+    const fee = Math.max(0, Number(input.fees) || 0);
     if (amount <= 0) throw new Error("Amount must be greater than 0");
-    if ((input.type === "withdraw" || input.type === "tax") && amount > currentCash + 1e-6) {
+    const credits = input.type === "deposit" || input.type === "dividend" || openingCash;
+    const delta = credits ? amount - fee : -(amount + fee);
+    if ((input.type === "withdraw" || input.type === "tax") && -delta > currentCash + 1e-6) {
       throw new Error(
         input.type === "tax"
           ? "Insufficient cash balance for this tax line"
           : "Insufficient cash balance for this withdrawal"
       );
     }
-    const delta = input.type === "deposit" || input.type === "dividend" ? amount : -amount;
     const newCash = round(currentCash + delta);
     const assetName =
-      input.type === "deposit"
+      input.asset_name ||
+      (input.type === "deposit"
         ? "Cash deposit"
         : input.type === "withdraw"
           ? "Cash withdrawal"
           : input.type === "dividend"
             ? "Dividend"
-            : "Tax";
+            : openingCash
+              ? "Opening balance"
+              : "Tax");
 
     console.log(`[transactions] ${input.type} ${amount} NZD for user ${user._id} → cash ${newCash}`);
     await totalumSdk.crud.editRecordById("user", user._id, { cash_balance: newCash });
 
     const rec = await totalumSdk.crud.createRecord("transaction", {
       type: input.type,
-      asset_type: "cash",
+      ticker: input.ticker ? String(input.ticker).toUpperCase() : undefined,
+      asset_type: input.type === "dividend" && input.ticker ? input.asset_type || "stock" : "cash",
       asset_name: assetName,
       quantity: amount,
       price: 1,
-      fees: 0,
+      fees: round(fee),
       total: round(delta),
+      cash_nzd: round(delta),
       realized_pnl: 0,
       currency: "NZD",
       notes,
@@ -259,6 +282,74 @@ async function applyTransactionUnlocked(user: AppUser, input: TransactionInput):
   const fees = Math.max(0, Number(input.fees) || 0);
   if (quantity <= 0) throw new Error("Quantity must be greater than 0");
   if (price <= 0) throw new Error("Price must be greater than 0");
+
+  // Opening balance and corrections adjust the holding through the ledger.
+  // They do not move cash and they do not replace the typed price with today's quote.
+  if (input.type === "correction" || input.type === "opening_balance") {
+    const currency = currencyForTicker(ticker, assetType);
+    const existing = await findHolding(user._id, ticker, assetType);
+    if (input.type === "correction" && !existing) {
+      throw new Error(`You don't hold ${ticker} to correct`);
+    }
+    const plan = planHoldingCorrection({
+      beforeShares: existing?.shares || 0,
+      afterShares: input.type === "opening_balance" ? (existing?.shares || 0) + quantity : quantity,
+      beforePrice: existing?.purchase_price || 0,
+      afterPrice: price,
+      note: notes,
+    });
+    let holdingId: string | null = existing?._id || null;
+    if (existing) {
+      const nextShares =
+        input.type === "opening_balance" ? round((existing.shares || 0) + quantity, 6) : round(quantity, 6);
+      const nextAvg =
+        input.type === "opening_balance"
+          ? nextShares > 0
+            ? ((existing.shares || 0) * (existing.purchase_price || 0) + quantity * price) / nextShares
+            : price
+          : price;
+      await totalumSdk.crud.editRecordById("stock", existing._id, {
+        shares: nextShares,
+        purchase_price: round(nextAvg, 6),
+      });
+    } else {
+      const info = lookupTicker(ticker);
+      const created = await totalumSdk.crud.createRecord("stock", {
+        ticker,
+        asset_type: assetType,
+        company_name: input.asset_name || (assetType === "metal" ? metalName(ticker) : info?.name) || ticker,
+        sector:
+          input.sector ||
+          info?.sector ||
+          (assetType === "crypto" ? "Digital Assets" : assetType === "metal" ? "Precious Metals" : "Other"),
+        shares: round(quantity, 6),
+        purchase_price: round(price, 6),
+        purchase_date: executedAt.toISOString(),
+        current_price: price,
+        user: user._id,
+      });
+      holdingId = created?.data?._id || null;
+    }
+    const rec = await totalumSdk.crud.createRecord("transaction", {
+      type: input.type,
+      ticker,
+      asset_name: input.asset_name || existing?.company_name || ticker,
+      asset_type: assetType,
+      quantity: round(quantity, 6),
+      price: round(price, 6),
+      fees: 0,
+      total: 0,
+      cash_nzd: 0,
+      realized_pnl: 0,
+      currency,
+      notes: input.type === "correction" ? plan.notes : notes || "Opening balance",
+      executed_at: executedAt,
+      user: user._id,
+      ...(holdingId ? { stock: holdingId } : {}),
+    });
+    console.log(`[transactions] ${input.type} ${ticker} qty=${quantity} @ ${price} ${currency} (cash unchanged)`);
+    return { transaction: rec?.data, cashBalance: currentCash, realizedNZD: 0, holdingId };
+  }
 
   // Recommendations / ideas must NOT book as filled trades or realized P&L.
   const executionStatus = input.execution_status || "filled";
@@ -853,6 +944,8 @@ export interface TransactionLedger {
   realizedYtd: number;
   realizedTotal: number;
   realizedYtdCount: number;
+  /** Dividends recorded in the ledger, in NZD. */
+  incomeNZD?: number;
 }
 
 /** Load a user's ledger plus cash + realized-P&L rollups (all NZD). */
@@ -900,11 +993,23 @@ export async function loadLedger(user: AppUser, limit = 60): Promise<Transaction
     }
   }
 
+  const dividendRes = await totalumSdk.crud.query("transaction", {
+    _filter: { user: user._id, type: "dividend" },
+    _limit: 5000,
+  });
+  const dividends = (dividendRes?.data as unknown as TransactionRow[]) || [];
+  let incomeTotal = 0;
+  for (const r of dividends) {
+    const amount = Number(r.total);
+    if (Number.isFinite(amount)) incomeTotal += Math.abs(amount);
+  }
+
   return {
     transactions: rows,
     cashBalance,
     realizedYtd: round(realizedYtd),
     realizedTotal: round(realizedTotal),
     realizedYtdCount,
+    incomeNZD: round(incomeTotal),
   };
 }
