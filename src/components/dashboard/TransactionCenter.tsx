@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
 import { ADVISORY_NOTE } from "@/lib/fill-integrity-client";
-import { formatDisplayDate, formatMoney, formatSignedMoney, currencyForTicker, type CurrencyCode } from "@/lib/currency";
+import { formatDisplayDate, formatMoney, formatSavedFx, formatSignedMoney, currencyForTicker, type CurrencyCode } from "@/lib/currency";
 import { useFxRates } from "@/hooks/useFxRates";
 import { buildTradePreview, type TradePreview } from "@/lib/trade-preview";
 import { ledgerDisplayedCash } from "@/lib/ledger-cash-lines";
@@ -108,6 +108,7 @@ interface TransactionRow {
   total?: number;
   realized_pnl?: number;
   currency?: string;
+  fx_rate?: number | null;
   cash_nzd?: number;
   fees_nzd?: number;
   notes?: string;
@@ -124,6 +125,10 @@ interface Ledger {
 }
 
 const NZD: CurrencyCode = "NZD";
+
+function savedFxLabel(row: { fx_rate?: number | null }): string {
+  return formatSavedFx(row.fx_rate) || "—";
+}
 
 function feeAmount(t: { fees?: number; fees_native?: number }): number {
   const n = Number(t.fees_native ?? t.fees);
@@ -587,6 +592,7 @@ export function TransactionCenter({
                   <th className="px-4 py-2.5 font-medium">Asset</th>
                   <th className="px-4 py-2.5 text-right font-medium">Qty × Price</th>
                   <th className="px-4 py-2.5 text-right font-medium">Fees</th>
+                  <th className="px-4 py-2.5 text-right font-medium">FX</th>
                   <th className="px-4 py-2.5 text-right font-medium">Cash impact</th>
                   <th className="px-4 py-2.5 text-right font-medium">Realised</th>
                   <th className="px-4 py-2.5 text-right font-medium">Date</th>
@@ -627,6 +633,7 @@ export function TransactionCenter({
                       <td className="tnum px-4 py-2.5 text-right text-muted-foreground">
                         {formatMoney(feeAmount(t), cur)}
                       </td>
+                      <td className="tnum px-4 py-2.5 text-right text-muted-foreground">{savedFxLabel(t)}</td>
                       <td
                         className={cn(
                           "tnum px-4 py-2.5 text-right font-medium",
@@ -904,6 +911,7 @@ function AllTransactionsDialog({
                 <th className="py-2.5 pr-3 text-left"><SortHead label="Asset" k="ticker" align="left" /></th>
                 <th className="py-2.5 px-3"><SortHead label="Qty" k="quantity" /></th>
                 <th className="py-2.5 px-3"><SortHead label="Price" k="price" /></th>
+                <th className="py-2.5 px-3 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">FX</th>
                 <th className="py-2.5 px-3"><SortHead label="Cash impact" k="total" /></th>
                 <th className="hidden py-2.5 px-3 md:table-cell"><SortHead label="Realised" k="realized" /></th>
                 <th className="py-2.5 pl-3"><SortHead label="Date" k="date" /></th>
@@ -912,7 +920,7 @@ function AllTransactionsDialog({
             <tbody>
               {pageRows.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-16 text-center text-sm text-muted-foreground">
+                  <td colSpan={8} className="py-16 text-center text-sm text-muted-foreground">
                     No transactions match your filters.
                   </td>
                 </tr>
@@ -953,6 +961,7 @@ function AllTransactionsDialog({
                       <td className="tnum py-3 px-3 text-right text-muted-foreground">
                         {isTrade ? formatMoney(t.price || 0, cur) : "—"}
                       </td>
+                      <td className="tnum py-3 px-3 text-right text-muted-foreground">{savedFxLabel(t)}</td>
                       <td
                         className={cn(
                           "tnum py-3 px-3 text-right font-medium",

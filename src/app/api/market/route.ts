@@ -7,7 +7,8 @@ import {
   fetchHistoriesForAssetClass,
   isLiveConfiguredFor,
 } from "@/lib/market-data";
-import { filterPublishedCrypto, loadCryptoBoardLive } from "@/lib/crypto-tape";
+import { filterPublishedCrypto, loadCryptoBoardLive, selectKoinsUniverse } from "@/lib/crypto-tape";
+import { CRYPTO_PROJECTIONS_PAUSED, CRYPTO_PROJECTIONS_PAUSE_MESSAGE } from "@/lib/projection-pause";
 import { toPublicPayload } from "@/lib/public-intel";
 
 export const dynamic = "force-dynamic";
@@ -16,8 +17,8 @@ export const dynamic = "force-dynamic";
  * GET /api/market?bot=stock|crypto
  * Returns the full analysed universe (technical intel per security) plus the
  * curated news feed for the requested bot. Stocks are anchored to Twelve Data
- * live prices (when a key is configured); crypto is anchored to CoinGecko
- * (no key required). Falls back to the deterministic engine on any error.
+ * live prices (when a key is configured); crypto uses the CoinGecko tape.
+ * A failed crypto load publishes no rows. Directory seed prices are equities-only.
  * Kept server-side so the market-data API key never reaches the client.
  */
 export async function GET(req: Request) {
@@ -30,6 +31,7 @@ export async function GET(req: Request) {
     let histories: Record<string, number[]> = {};
     let change24h: Record<string, number> = {};
     let live = false;
+    let cryptoBoardFailed = false;
 
     if (assetClass === "crypto") {
       try {
@@ -37,8 +39,9 @@ export async function GET(req: Request) {
         overrides = board.quotes;
         histories = board.histories;
         change24h = board.change24h;
-        live = Object.keys(overrides).length > 0 || Object.keys(histories).length > 0;
+        live = Object.keys(overrides).length > 0;
       } catch (err) {
+        cryptoBoardFailed = true;
         console.error("[api/market] Crypto tape failed:", err);
       }
     } else if (isLiveConfiguredFor(assetClass)) {
@@ -86,9 +89,22 @@ export async function GET(req: Request) {
       }
     }
 
-    const analysed = analyzeUniverse(overrides, assetClass, histories);
+    // Crypto never falls through to analyzeUniverse's directory seeds.
+    // Until the 10-coin hand-check is done, this feed publishes no rows and no projections.
+    const cryptoWithheld = assetClass === "crypto" && (CRYPTO_PROJECTIONS_PAUSED || cryptoBoardFailed || !live);
     const universe =
-      assetClass === "crypto" ? filterPublishedCrypto(analysed, { histories, change24h }) : analysed;
+      assetClass === "crypto"
+        ? selectKoinsUniverse({
+            paused: cryptoWithheld,
+            quotes: overrides,
+            rows: cryptoWithheld
+              ? []
+              : filterPublishedCrypto(analyzeUniverse(overrides, "crypto", histories), { histories, change24h }),
+            histories,
+            change24h,
+          })
+        : analyzeUniverse(overrides, assetClass, histories);
+    if (assetClass === "crypto") live = universe.length > 0;
     const news = await loadMarketNews(assetClass).catch((err) => {
       console.error("[api/market] Live news fetch failed — curated fallback:", err);
       return getMarketNews(assetClass);
@@ -100,7 +116,18 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       ok: true,
-      data: toPublicPayload({ bot: assetClass, live, universe, news }),
+      data: toPublicPayload({
+        bot: assetClass,
+        live,
+        universe,
+        news,
+        ...(assetClass === "crypto"
+          ? {
+              cryptoPaused: CRYPTO_PROJECTIONS_PAUSED,
+              cryptoPauseMessage: CRYPTO_PROJECTIONS_PAUSE_MESSAGE,
+            }
+          : {}),
+      }),
     });
   } catch (err: any) {
     console.error("[api/market] GET error:", err);

@@ -70,8 +70,8 @@ export function coinHasLivePrice(coin: Pick<CoinMarket, "price" | "priceUnavaila
 }
 
 /**
- * Map an existing price feed (Swyftx, Yahoo, or a prior list) into the top-400
- * table. A missing print is dropped. A missing chain is Unavailable. No price is filled in.
+ * Map an existing price feed into the crypto table.
+ * A missing print is dropped. A missing chain is left blank. No price is filled in.
  */
 export function rankedFallbackPage(
   coins: CoinMarket[],
@@ -79,25 +79,40 @@ export function rankedFallbackPage(
 ): { coins: CoinMarket[]; notice: string | null } {
   const live = coins.filter(coinHasLivePrice).slice(0, limit).map((coin) => ({
     ...coin,
-    blockchain: coin.blockchain || "Unavailable",
+    blockchain: coin.blockchain && coin.blockchain !== "Unavailable" ? coin.blockchain : "",
     priceUnavailable: false,
   }));
-  return {
-    coins: live,
-    notice: live.length >= limit ? null : "Further rows are unavailable.",
-  };
+  return { coins: live, notice: null };
+}
+
+/**
+ * Rolling 24h percent from a CoinGecko markets row.
+ * `price_change_percentage_24h` is the window CoinGecko and Kraken show.
+ * The `_in_currency` field is only a backup: with extra windows requested it has
+ * carried a longer change (TON printed about −12% against a −6% day).
+ */
+export function coingeckoRolling24h(row: {
+  price_change_percentage_24h?: number | null;
+  price_change_percentage_24h_in_currency?: number | { usd?: number | null } | null;
+}): number | null {
+  const rolling = row.price_change_percentage_24h;
+  if (typeof rolling === "number" && Number.isFinite(rolling)) return rolling;
+  const bag = row.price_change_percentage_24h_in_currency;
+  const alt = typeof bag === "number" ? bag : bag?.usd;
+  if (typeof alt === "number" && Number.isFinite(alt)) return alt;
+  return null;
 }
 
 /**
  * Blockchain label for a CoinGecko coin.
- * An empty platforms object is native. A failed platform list is unavailable.
+ * An empty platforms object is native. A failed platform list stays blank.
  * The id is not used to guess a chain.
  */
 export function blockchainLabel(
   platforms: Record<string, string> | null | undefined,
   listLoaded: boolean
 ): string {
-  if (!listLoaded) return "Unavailable";
+  if (!listLoaded) return "";
   const keys = platforms ? Object.keys(platforms).map((key) => key.trim()).filter(Boolean) : [];
   if (!keys.length) return "Native";
   return keys.map(prettyChain).join(", ");

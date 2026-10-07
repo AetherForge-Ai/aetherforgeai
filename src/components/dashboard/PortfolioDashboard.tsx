@@ -1492,7 +1492,8 @@ export function PortfolioDashboard({
       ) : null}
 
       {/* ───────────────────────── 3 · Stock portfolio overview ───────────────────────── */}
-      <div id="dash-stock-overview" className={cn("mt-10 scroll-mt-24", !isStocks && "hidden")}>
+      {isStocks ? (
+      <div id="dash-stock-overview" className="mt-10 scroll-mt-24">
       <DashboardGate
         preview={preview}
         title="Stock Portfolio Overview"
@@ -1578,9 +1579,11 @@ export function PortfolioDashboard({
       />
       </DashboardGate>
       </div>
+      ) : null}
 
       {/* ───────────────────────── 3b · Crypto currency overview ───────────────────────── */}
-      <div id="dash-crypto-overview" className={cn("mt-10 scroll-mt-24", !isCrypto && "hidden")}>
+      {isCrypto ? (
+      <div id="dash-crypto-overview" className="mt-10 scroll-mt-24">
       <DashboardGate
         preview={preview}
         title="Crypto Currency Overview"
@@ -1679,12 +1682,7 @@ export function PortfolioDashboard({
         holdings={cryptoOverviewSummary.holdings}
         baseCurrency={cryptoBookCurrency}
         loading={!balancesReady}
-        headerExtra={
-          <>
-            <CryptoLiveStatus updatedAt={cryptoLive.updatedAt} />
-            {preview ? null : <HoldingsCsvImport assetType="crypto" onImported={handleDataChanged} />}
-          </>
-        }
+        headerExtra={preview ? null : <HoldingsCsvImport assetType="crypto" onImported={handleDataChanged} />}
         nameLabel="Coin / Token"
         onAdd={openAdd}
         onBuy={(holding) => recordHolding(holding, "buy")}
@@ -1699,6 +1697,7 @@ export function PortfolioDashboard({
       </div>
       </DashboardGate>
       </div>
+      ) : null}
 
       {/* ───────────────────────── 3c · Precious metals (moved up for page flow) ───────────────────────── */}
       <div id="dash-metals-overview" className={cn("mt-10 scroll-mt-24", !isMetals && "hidden")}>
@@ -1864,7 +1863,7 @@ export function PortfolioDashboard({
       </div>
 
       {/* ───────────────────────── 5 · Holdings table (gated for guests) ───────────────────────── */}
-      <div className={cn("mt-8", !isStocks && "hidden")}>
+      <div className={cn("mt-8", !(isHome || isStocks) && "hidden")}>
       <DashboardGate
         preview={preview}
         title="Your Holdings"
@@ -1898,8 +1897,8 @@ export function PortfolioDashboard({
             </Button>
           </div>
         ) : (
-          <div>
-            <table className="w-full table-fixed text-xs">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[56rem] text-xs">
               <thead>
                 <tr className="border-b border-border/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
                   <th className="px-3 py-2"><HoldingHead label="Ticker" k="ticker" align="left" /></th>
@@ -1910,7 +1909,7 @@ export function PortfolioDashboard({
                   <th className="px-2 py-2"><HoldingHead label="Value" k="marketValue" /></th>
                   <th className="px-2 py-2"><HoldingHead label="%" k="weight" /></th>
                   <th className="px-2 py-2"><HoldingHead label="Gain" k="gain" /></th>
-                  <th className="px-6 py-3 text-right font-medium sr-only">Actions</th>
+                  <th className="sticky right-0 w-36 bg-card px-2 py-2 text-right font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -2011,7 +2010,7 @@ export function PortfolioDashboard({
                         </span>
                       </td>
                       {/* Actions */}
-                      <td className="px-6 py-3.5">
+                      <td className="sticky right-0 bg-card px-2 py-3.5">
                         <div className="flex items-center justify-end gap-1">
                           <button
                             type="button"
@@ -2028,15 +2027,17 @@ export function PortfolioDashboard({
                             Sell
                           </button>
                           <button
+                            type="button"
                             onClick={() => openEdit(h)}
-                            className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+                            className="relative z-10 grid size-8 shrink-0 place-items-center rounded-lg text-foreground transition-colors hover:bg-primary/10 hover:text-primary"
                             aria-label={`Edit ${h.ticker}`}
                           >
                             <Pencil className="size-4" />
                           </button>
                           <button
+                            type="button"
                             onClick={() => setDeleteTarget(h)}
-                            className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/15 hover:text-destructive"
+                            className="relative z-10 grid size-8 shrink-0 place-items-center rounded-lg text-foreground transition-colors hover:bg-destructive/15 hover:text-destructive"
                             aria-label={`Delete ${h.ticker}`}
                           >
                             <Trash2 className="size-4" />
@@ -2148,7 +2149,6 @@ export function PortfolioDashboard({
       <div className={cn("mt-6", !(isStocks || isCrypto) && "hidden")}>
         <CollapsibleSection
           title="Informational signals"
-          subtitle="Illustrative sell and buy scenarios — not personalised advice"
           icon={Radar}
           defaultOpen
         >

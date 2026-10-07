@@ -22,8 +22,8 @@ export interface AssetSearchPools {
 }
 
 const PINNED: AssetHit[] = [
-  { symbol: "PEPE", name: "Pepe", market: "Crypto", assetType: "crypto", id: "pepe" },
-  { symbol: "UNI", name: "Uniswap", market: "Crypto", assetType: "crypto", id: "uniswap" },
+  { symbol: "PEPE", name: "Pepe", market: "DEX", assetType: "crypto", id: "pepe" },
+  { symbol: "UNI", name: "Uniswap", market: "DEX", assetType: "crypto", id: "uniswap" },
   { symbol: "GOLD", name: "Gold", market: "Gold", assetType: "metal" },
   { symbol: "SILVER", name: "Silver", market: "Silver", assetType: "metal" },
 ];
@@ -41,14 +41,21 @@ export function searchAssets(query: string, pools: AssetSearchPools = {}): Asset
   const q = query.trim().toLowerCase();
   if (!q) return [];
   const all = [...PINNED, ...(pools.shares || []), ...(pools.coins || []), ...(pools.dex || [])];
-  const seen = new Set<string>();
+  const seen = new Map<string, number>();
   const hits: AssetHit[] = [];
   for (const hit of all) {
     if (!hit?.symbol) continue;
     const id = key(hit);
-    if (seen.has(id)) continue;
     if (!haystack(hit).includes(q)) continue;
-    seen.add(id);
+    const priced = hit.price != null && hit.price > 0;
+    const prev = seen.get(id);
+    if (prev != null) {
+      const earlier = hits[prev];
+      const earlierPriced = earlier.price != null && earlier.price > 0;
+      if (!earlierPriced && priced) hits[prev] = hit;
+      continue;
+    }
+    seen.set(id, hits.length);
     hits.push(hit);
   }
   hits.sort((a, b) => {
@@ -61,6 +68,9 @@ export function searchAssets(query: string, pools: AssetSearchPools = {}): Asset
     };
     const diff = rank(a) - rank(b);
     if (diff !== 0) return diff;
+    const ap = a.price != null && a.price > 0 ? 0 : 1;
+    const bp = b.price != null && b.price > 0 ? 0 : 1;
+    if (ap !== bp) return ap - bp;
     return a.name.localeCompare(b.name);
   });
   return hits.slice(0, 12);

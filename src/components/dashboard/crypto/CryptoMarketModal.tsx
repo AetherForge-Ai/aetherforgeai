@@ -113,7 +113,7 @@ export function CryptoMarketModal({
                 Crypto Market <span className="text-muted-foreground">— Live Top 500 Cryptocurrencies</span>
               </DialogTitle>
               <DialogDescription className="mt-0.5 flex items-center gap-2 text-xs">
-                Last updated: {lastLabel}
+                {lastUpdated ? `Last updated: ${lastLabel}` : "Live cryptocurrency prices"}
                 {refreshing && <Loader2 className="size-3 animate-spin" />}
               </DialogDescription>
             </div>
@@ -235,7 +235,6 @@ function Row({ coin, top, onClick }: { coin: CoinMarket; top: number; onClick: (
     >
       <span className="tnum text-xs text-muted-foreground">{coin.rank}</span>
       <span className="flex min-w-0 items-center gap-2 text-left">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={coin.image}
           alt=""

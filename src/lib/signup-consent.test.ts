@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { SECURITY_HEADERS } from "./security-headers";
 import {
@@ -60,6 +61,16 @@ describe("signup consent", () => {
 });
 
 describe("preview framing", () => {
+  it("sets security headers once, in next.config", () => {
+    const next = readFileSync("next.config.ts", "utf8");
+    const middleware = readFileSync("src/middleware.ts", "utf8");
+    expect(next).toContain("poweredByHeader: false");
+    expect(next).toContain("preserveDynamicSegmentTraces");
+    expect(next).toContain("SECURITY_HEADERS");
+    expect(middleware).not.toContain("SECURITY_HEADERS");
+    expect(middleware).not.toContain("addCspHeaders");
+  });
+
   it("allows the Totalum editor and leaves localhost out", () => {
     expect(SECURITY_HEADERS["Content-Security-Policy"]).toBe(
       "frame-ancestors 'self' https://web.totalum.app https://totalum-frontend-test.web.app"

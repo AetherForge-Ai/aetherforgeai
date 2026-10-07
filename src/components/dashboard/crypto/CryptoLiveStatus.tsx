@@ -17,7 +17,7 @@ export function CryptoLiveStatus({ updatedAt }: { updatedAt: number | null }) {
         </span>
         Live
       </span>
-      <span title="Pacific/Auckland">Last updated {label ?? "—"}</span>
+      {label ? <span title="Pacific/Auckland">Last updated {label}</span> : null}
     </div>
   );
 }

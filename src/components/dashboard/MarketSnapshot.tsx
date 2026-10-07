@@ -9,6 +9,7 @@ import {
 } from "@/lib/market-intel";
 import { cn } from "@/lib/utils";
 import { PUBLIC_CRYPTO_SOURCE } from "@/lib/data-sources";
+import { CRYPTO_PROJECTIONS_PAUSE_MESSAGE } from "@/lib/projection-pause";
 import { pctClass, fmtPct } from "@/components/dashboard/intel-ui";
 import { useMarketIntel } from "@/components/dashboard/MarketIntelContext";
 import { ArrowUpDown, Globe } from "lucide-react";
@@ -90,9 +91,10 @@ function MarketColumn({ code, label, sub, rows }: { code: MarketCode; label: str
 }
 
 export function MarketSnapshot() {
-  const { universe, live, bot } = useMarketIntel();
+  const { universe, live, bot, loading } = useMarketIntel();
   const snapshot = useMemo(() => getMarketSnapshot(universe ?? undefined), [universe]);
   const columns = bot === "crypto" ? CRYPTO_COLUMNS : STOCK_COLUMNS;
+  const cryptoQuiet = bot === "crypto" && !loading && (universe?.length ?? 0) === 0;
   return (
     <section>
       <div className="mb-4 flex items-center gap-3">
@@ -108,17 +110,19 @@ export function MarketSnapshot() {
                 live ? "bg-emerald-500/15 text-emerald-700" : "bg-muted text-muted-foreground"
               )}
             >
-              {live ? "● Live" : "Simulated"}
+              {cryptoQuiet ? "Paused" : live ? "● Live" : "Simulated"}
             </span>
           </div>
           <p className="text-xs text-muted-foreground">
-            {bot === "crypto"
-              ? `Digital-asset prices · ${PUBLIC_CRYPTO_SOURCE}`
-              : "Cross-market intelligence · NZX · ASX · US"}
+            {cryptoQuiet
+              ? CRYPTO_PROJECTIONS_PAUSE_MESSAGE
+              : bot === "crypto"
+                ? `Digital-asset prices · ${PUBLIC_CRYPTO_SOURCE}`
+                : "Cross-market intelligence · NZX · ASX · US"}
           </p>
         </div>
       </div>
-      <div className={cn("grid gap-4", bot === "crypto" ? "lg:grid-cols-1" : "lg:grid-cols-3")}>
+      <div className={cn("grid gap-4", bot === "crypto" ? "lg:grid-cols-1" : "lg:grid-cols-3", cryptoQuiet && "hidden")}>
         {columns.map((c) => (
           <MarketColumn key={c.code} code={c.code} label={c.label} sub={c.sub} rows={snapshot[c.code] ?? []} />
         ))}

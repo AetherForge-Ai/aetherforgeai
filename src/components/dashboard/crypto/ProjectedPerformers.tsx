@@ -85,7 +85,7 @@ export function ProjectedPerformers({
               </TooltipProvider>
             </h3>
             <p className="text-[0.66rem] text-muted-foreground">
-              Full 500-coin scan · last scan {lastLabel}
+              {lastUpdated ? `Full 500-coin scan · last scan ${lastLabel}` : "Full 500-coin scan"}
             </p>
           </div>
         </div>
@@ -161,7 +161,6 @@ export function ProjectedPerformers({
                 >
                   <span className="tnum text-xs font-semibold text-emerald-600">{i + 1}</span>
                   <span className="flex min-w-0 items-center gap-2 text-left">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={c.image}
                       alt=""
@@ -217,7 +216,6 @@ function PerformerCard({
       className="group flex items-center gap-3 rounded-xl border border-border/60 bg-background/40 px-3 py-2.5 text-left transition hover:border-emerald-500/40 hover:bg-emerald-500/5"
     >
       <span className="tnum w-4 shrink-0 text-center text-xs font-bold text-muted-foreground">{rank}</span>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={coin.image}
         alt=""

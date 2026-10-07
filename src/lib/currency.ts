@@ -199,6 +199,17 @@ export function formatFxInput(value: number): string {
   return roundFxRate(value).toFixed(4);
 }
 
+/**
+ * A rate that was saved on the ledger row, to 4 decimals.
+ * Missing, blank, and non-positive values stay blank so callers can show a dash
+ * instead of inventing NZD = 1.
+ */
+export function formatSavedFx(value: unknown): string {
+  if (value == null || value === "") return "";
+  const n = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+  return formatFxInput(n);
+}
+
 /** Quantities in messages, with a thousands separator. 9824 is '9,824'. */
 export function formatQuantity(value: number): string {
   if (!Number.isFinite(value)) return "0";
