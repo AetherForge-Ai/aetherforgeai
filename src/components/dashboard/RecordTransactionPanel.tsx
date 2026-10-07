@@ -337,6 +337,7 @@ export function RecordTransactionPanel({
           setHint(`Suggested close for ${formatDisplayDate(date)}. You can type over the price and the exchange rate.`);
         } else if (res.ok && kind === "correction") {
           if (!fxDirty && res.data?.fxRate && res.data.fxRate > 0) setFxRate(formatFxInput(res.data.fxRate));
+          setHint("The purchase price stays as recorded. You can type over the exchange rate.");
         } else {
           setHint(`No close was found for ${formatDisplayDate(date)}. Type the price you paid.`);
         }
