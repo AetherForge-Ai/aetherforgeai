@@ -42,7 +42,22 @@ export async function GET() {
     });
 
     const messages = (result?.data as any[]) || [];
-    return NextResponse.json({ ok: true, data: messages });
+    const stocksRes = await totalumSdk.crud.query("stock", {
+      _filter: { user: user._id },
+      _limit: 1,
+    });
+    const emptyBook = !((stocksRes?.data as unknown[]) || []).length;
+    const queryLimit = assistantQueryLimit(user.subscription_plan);
+    const used = queryLimit != null ? await freeAssistantUsedThisMonth(user._id) : 0;
+    return NextResponse.json({
+      ok: true,
+      data: {
+        messages,
+        remaining: queryLimit == null ? null : Math.max(0, queryLimit - used),
+        limit: queryLimit,
+        emptyBook,
+      },
+    });
   } catch (err: any) {
     console.error("[api/chat] GET error:", err);
     return NextResponse.json({ ok: false, error: err?.message || "Failed to load chat" }, { status: 500 });
@@ -104,12 +119,13 @@ export async function POST(req: Request) {
         content: m.content,
       })) as GrokMessage[];
 
+    const bookLine = stocks.length
+      ? `Here is their portfolio context — use it to answer questions:\n\n${context}`
+      : "Your book is empty. Add your holdings or cash and I can explain them.";
     const messages: GrokMessage[] = [
       {
         role: "system",
-        content:
-          `${ANALYST_SYSTEM_PROMPT}\n\n` +
-          `The user's name is ${user.name}. Here is their live portfolio context — use it to answer questions:\n\n${context}`,
+        content: `${ANALYST_SYSTEM_PROMPT}\n\nThe user's name is ${user.name}. ${bookLine}`,
       },
       ...history,
     ];
@@ -128,9 +144,15 @@ export async function POST(req: Request) {
       user: user._id,
     });
 
+    const usedAfter = queryLimit != null ? (await freeAssistantUsedThisMonth(user._id)) : null;
     return NextResponse.json({
       ok: true,
-      data: { reply, message: saved?.data ?? { role: "assistant", content: reply } },
+      data: {
+        reply,
+        message: saved?.data ?? { role: "assistant", content: reply },
+        remaining: queryLimit == null || usedAfter == null ? null : Math.max(0, queryLimit - usedAfter),
+        limit: queryLimit,
+      },
     });
   } catch (err: any) {
     console.error("[api/chat] POST error:", err);

@@ -127,6 +127,7 @@ export function PriceAlerts({
   assetType = "stock",
   holdingsReady = true,
   preview = false,
+  canCreate = true,
 }: {
   stocks: Stock[];
   /** Hub context — stock desk, crypto desk, or metals. */
@@ -137,6 +138,8 @@ export function PriceAlerts({
    */
   holdingsReady?: boolean;
   preview?: boolean;
+  /** Free plan hides the create button. Existing alerts stay visible. */
+  canCreate?: boolean;
 }) {
   const isCrypto = assetType === "crypto";
   const isMetal = assetType === "metal";
@@ -362,9 +365,13 @@ export function PriceAlerts({
             </p>
           </div>
         </div>
+        {canCreate ? (
         <Button onClick={openAdd} className="font-semibold">
           <Plus className="mr-1 size-4" /> New alert
         </Button>
+        ) : (
+          <a href="/pricing" className="text-sm font-medium text-primary hover:underline">Alerts are on a paid plan</a>
+        )}
       </div>
 
       <div className="mt-5">

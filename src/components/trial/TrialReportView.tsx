@@ -323,7 +323,7 @@ export function TrialReportView({
       {report.bot === "crypto" && report.cryptoMovers && (
         <div>
           <h3 className="mb-3 flex items-center gap-2 font-display text-lg font-bold">
-            <TrendingUp className="size-5 text-emerald-600" /> Top movers · top 100 cryptocurrencies
+            <TrendingUp className="size-5 text-emerald-600" /> Top movers · largest coins by market cap
           </h3>
           <div className="grid gap-4 md:grid-cols-2">
             <MoverList title="Top gainers · 24h" entries={report.cryptoMovers.gainers24h} accent="bg-emerald-500/10 text-emerald-600" />

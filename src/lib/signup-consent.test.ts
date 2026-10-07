@@ -28,7 +28,13 @@ describe("signup consent", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const calls: Record<string, unknown>[] = [];
     const created = await createUserWithConsentFallback(
-      { email: "a@b.co", age_confirmed: "yes", terms_accepted_at: "2026-10-07T06:00:00.000Z", terms_version: TERMS_VERSION },
+      {
+        email: "a@b.co",
+        age_confirmed: "yes",
+        terms_accepted_at: "2026-10-07T06:00:00.000Z",
+        terms_version: TERMS_VERSION,
+        country: "New Zealand",
+      },
       async (row) => {
         calls.push(row);
         if ("age_confirmed" in row) {
@@ -42,6 +48,7 @@ describe("signup consent", () => {
     expect(calls[1]).not.toHaveProperty("age_confirmed");
     expect(calls[1]).not.toHaveProperty("terms_accepted_at");
     expect(calls[1]).not.toHaveProperty("terms_version");
+    expect(calls[1]).not.toHaveProperty("country");
     expect(warn).toHaveBeenCalledWith("[consent] user columns missing");
     warn.mockRestore();
   });

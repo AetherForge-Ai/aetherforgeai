@@ -30,6 +30,7 @@ import {
   GENERIC_COIN_ICON,
   type RankedPerformer,
 } from "@/lib/crypto-market";
+import { cryptoCoveragePhrase } from "@/lib/crypto-coverage";
 import {
   TrendingUp,
   RefreshCw,
@@ -40,8 +41,9 @@ import {
   Loader2,
 } from "lucide-react";
 
-const FORMULA_TEXT =
-  "Ranked across a full 500-coin scan by a momentum composite (0.7 × 24h % + 0.3 × 7d %), positive-24h names only, with a $250k+ 24h-volume liquidity filter.";
+function formulaText(count: number): string {
+  return `Ranked across ${cryptoCoveragePhrase(count).toLowerCase()} by a momentum composite (0.7 × 24h % + 0.3 × 7d %), positive-24h names only, with a $250k+ 24h-volume liquidity filter.`;
+}
 
 export function ProjectedPerformers({
   active,
@@ -50,15 +52,11 @@ export function ProjectedPerformers({
   active: boolean;
   onSelectCoin: (id: string) => void;
 }) {
-  const { coins, loading, refreshing, lastUpdated, refresh } = useCryptoMarkets(active);
+  const { coins, loading, refreshing, refresh } = useCryptoMarkets(active);
   const [top20Open, setTop20Open] = useState(false);
 
   const top8 = useMemo(() => rankPerformers(coins, 8), [coins]);
   const top20 = useMemo(() => rankPerformers(coins, 20), [coins]);
-
-  const lastLabel = lastUpdated
-    ? lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-    : "—";
 
   return (
     <section className="rounded-2xl border border-border/60 bg-card/40 p-4 sm:p-5">
@@ -79,13 +77,13 @@ export function ProjectedPerformers({
                     </button>
                   </TooltipTrigger>
                   <TooltipContent className="max-w-xs text-xs leading-relaxed">
-                    {FORMULA_TEXT}
+                    {formulaText(coins.length)}
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             </h3>
             <p className="text-[0.66rem] text-muted-foreground">
-              {lastUpdated ? `Full 500-coin scan · last scan ${lastLabel}` : "Full 500-coin scan"}
+              {cryptoCoveragePhrase(coins.length)}
             </p>
           </div>
         </div>
@@ -110,7 +108,7 @@ export function ProjectedPerformers({
       {top8.marketBroadlyDown && !loading && (
         <div className="mt-3 flex items-start gap-2 rounded-xl border border-amber-500/25 bg-amber-500/8 px-3 py-2 text-[0.72rem] text-amber-700/90">
           <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
-          The market is broadly negative right now — these are the strongest relative names from the full 500-coin scan, not absolute gainers.
+          The market is broadly negative right now — these are the strongest relative names from {cryptoCoveragePhrase(coins.length).toLowerCase()}, not absolute gainers.
         </div>
       )}
 
@@ -130,7 +128,7 @@ export function ProjectedPerformers({
             <DialogTitle className="font-display text-lg">
               Top 20 Actual Performers <span className="text-muted-foreground">— Full 500 Coin Scan</span>
             </DialogTitle>
-            <DialogDescription className="text-xs">{FORMULA_TEXT}</DialogDescription>
+            <DialogDescription className="text-xs">{formulaText(coins.length)}</DialogDescription>
           </DialogHeader>
 
           <div className="min-h-0 flex-1 overflow-y-auto">

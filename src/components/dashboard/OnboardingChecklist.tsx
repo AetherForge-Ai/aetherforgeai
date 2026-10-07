@@ -6,6 +6,7 @@ import { CheckCircle2, Circle, Crown, Bell, LineChart, ShoppingCart } from "luci
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { onboardingProgress, type OnboardingStepId } from "@/lib/onboarding-steps";
+import { Wallet } from "lucide-react";
 
 /**
  * Lightweight onboarding for new NZ$10k (or any) paper books — Headmaster →
@@ -25,9 +26,15 @@ const COPY: Record<
     href: "/headmaster",
     icon: Crown,
   },
+  holding: {
+    title: "Add your first holding",
+    body: "Add your holdings or cash.",
+    href: "/dashboard/transactions",
+    icon: Wallet,
+  },
   buy: {
     title: "Record your first buys",
-    body: "Deposit cash if needed, then buy via the Transaction Centre — fill prices must match your broker.",
+    body: "Add your holdings or cash.",
     href: "/dashboard/transactions",
     icon: ShoppingCart,
   },
@@ -52,6 +59,7 @@ export function OnboardingChecklist({
   hasReport,
   alwaysShow = false,
   className,
+  plan = null,
 }: {
   hasCash: boolean;
   hasHoldings: boolean;
@@ -60,6 +68,7 @@ export function OnboardingChecklist({
   /** Dedicated /onboarding route — keep the list even after the book is finished. */
   alwaysShow?: boolean;
   className?: string;
+  plan?: string | null;
 }) {
   const [alertsDone, setAlertsDone] = useState<boolean | null>(
     hasAlerts === undefined ? null : !!hasAlerts
@@ -100,6 +109,7 @@ export function OnboardingChecklist({
     hasHoldings,
     hasAlerts: !!alertsDone,
     hasReport: !!reportDone,
+    plan,
   });
 
   if (probing) {
@@ -119,9 +129,7 @@ export function OnboardingChecklist({
 
   if (!alwaysShow && progress.finished) return null;
 
-  const buyBody = hasCash
-    ? "Buy via the Transaction Centre — fill prices must match your broker."
-    : COPY.buy.body;
+  const buyBody = "Add your holdings or cash.";
 
   return (
     <div

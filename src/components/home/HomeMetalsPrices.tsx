@@ -42,7 +42,7 @@ export function HomeMetalsPrices() {
   }, []);
 
   const stamp = spot?.asOf ? formatFxAsOf(spot.asOf) : "";
-  const status = !spot ? (failed ? "Spot prices failed to load." : "Loading spot prices…") : spot.live ? "Live" : "Estimated";
+  const status = !spot ? (failed ? "Spot prices failed to load." : "Loading spot prices…") : "Spot";
 
   return (
     <div className="mx-auto mt-6 grid w-full max-w-xl gap-3 sm:grid-cols-2">

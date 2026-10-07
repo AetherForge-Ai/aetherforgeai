@@ -472,7 +472,7 @@ export function PreciousMetals({
                         )}
                         title={spot?.live ? "Live spot price" : "Fallback price (live feed unavailable)"}
                       >
-                        {spot?.live ? "Live" : "Est."}
+                        {spot ? "Spot" : "Est."}
                       </span>
                     </div>
                     <p className="tnum mt-3 font-display text-2xl font-bold">
@@ -531,7 +531,7 @@ export function PreciousMetals({
                         )}
                         title={spot?.live ? "Live spot price" : "Fallback price (live feed unavailable)"}
                       >
-                        {spot?.live ? "Live" : "Est."}
+                        {spot ? "Spot" : "Est."}
                       </span>
                       <span className="font-display text-base font-bold">{meta.label} spot</span>
                       <Icon className={cn("size-5", meta.color)} />

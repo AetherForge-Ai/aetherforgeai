@@ -29,7 +29,7 @@ const GROUPS: Group[] = [
     rows: [
       { label: "Maximum holdings", cells: ["10", "25", "75", "Unlimited"] },
       { label: "Smitty gold & silver spot prices", cells: ["Read-only", true, true, true] },
-      { label: "Real-time P/L & allocation breakdown", cells: [true, true, true, true] },
+      { label: "P/L at latest available price", cells: [true, true, true, true] },
       { label: "Multi-timeframe charts & top gainers", cells: ["Basic", true, true, true] },
       { label: "Data export (CSV)", cells: [false, true, true, true] },
       { label: "CSV import of holdings", cells: [true, true, true, true] },

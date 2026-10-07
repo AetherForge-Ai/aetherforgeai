@@ -23,6 +23,7 @@ export type ExchangeSnapshot = {
     price: number | null;
     changePct: number | null;
     live: boolean;
+    freshness?: string;
   };
   breadth: { advancers: number; decliners: number; unchanged: number; total: number };
   topGainers: SnapshotMover[];
@@ -114,8 +115,8 @@ export function IndexMarketCard({
         <div className="mt-3 flex flex-1 flex-col">
           <p className="text-[0.65rem] uppercase tracking-wider text-muted-foreground">
             {idx.name}
-            {idx.live ? (
-              <span className="ml-1.5 text-emerald-600">● Live</span>
+            {idx.freshness ? (
+              <span className="ml-1.5 font-medium normal-case tracking-normal text-muted-foreground">{idx.freshness}</span>
             ) : null}
           </p>
           <p className="tnum mt-1 font-display text-2xl font-bold text-emerald-600">
