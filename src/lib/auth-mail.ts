@@ -2,7 +2,12 @@ import "server-only";
 import { sendTransactionalEmail } from "@/lib/send-transactional-mail";
 import { passwordResetEmail, verificationEmail } from "@/lib/transactional-mail";
 
-type AuthMailUser = { email: string; name?: string | null };
+type AuthMailUser = { email?: string | null; name?: string | null };
+
+function recipientEmail(user: AuthMailUser): string | null {
+  const email = user.email?.trim();
+  return email ? email : null;
+}
 
 /**
  * Better Auth 1.3.26 calls sendVerificationEmail from several routes and
@@ -15,32 +20,38 @@ export function isExplicitVerificationResend(request?: Request): boolean {
 }
 
 export async function sendAuthVerificationEmail(
-  data: { user: AuthMailUser; url: string },
+  data: { user: AuthMailUser; url: string; token?: string },
   request?: Request,
 ): Promise<void> {
-  console.log(`[auth] Sending verification email to ${data.user.email}`);
+  const email = recipientEmail(data.user);
+  if (!email) {
+    console.error("[auth] Verification email skipped: user has no email");
+    return;
+  }
+  console.log(`[auth] Sending verification email to ${email}`);
   try {
-    await sendTransactionalEmail(
-      verificationEmail({ to: data.user.email, name: data.user.name, url: data.url }),
-    );
-    console.log(`[auth] Verification email sent to ${data.user.email}`);
+    await sendTransactionalEmail(verificationEmail({ to: email, name: data.user.name, url: data.url }));
+    console.log(`[auth] Verification email sent to ${email}`);
   } catch (e) {
-    console.error(`[auth] Failed to send verification email to ${data.user.email}:`, e);
+    console.error(`[auth] Failed to send verification email to ${email}:`, e);
     if (isExplicitVerificationResend(request)) throw e;
   }
 }
 
 export async function sendAuthResetPassword(
-  data: { user: AuthMailUser; url: string },
+  data: { user: AuthMailUser; url: string; token?: string },
   _request?: Request,
 ): Promise<void> {
-  console.log(`[auth] Sending password reset email to ${data.user.email}`);
+  const email = recipientEmail(data.user);
+  if (!email) {
+    console.error("[auth] Password reset email skipped: user has no email");
+    return;
+  }
+  console.log(`[auth] Sending password reset email to ${email}`);
   try {
-    await sendTransactionalEmail(
-      passwordResetEmail({ to: data.user.email, name: data.user.name, url: data.url }),
-    );
-    console.log(`[auth] Password reset email sent to ${data.user.email}`);
+    await sendTransactionalEmail(passwordResetEmail({ to: email, name: data.user.name, url: data.url }));
+    console.log(`[auth] Password reset email sent to ${email}`);
   } catch (e) {
-    console.error(`[auth] Failed to send password reset email to ${data.user.email}:`, e);
+    console.error(`[auth] Failed to send password reset email to ${email}:`, e);
   }
 }
