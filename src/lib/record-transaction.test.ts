@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { formatDisplayDate, formatMoney, formatPriceInput, formatSignedMoney } from "@/lib/currency";
-import { PAPER_FEE_RATE, suggestedFee } from "@/lib/fee-rule";
+import { defaultFeePresetId } from "@/lib/broker-fees";
+import { PAPER_FEE_SUMMARY, suggestedFee } from "@/lib/fee-rule";
 import { ledgerDisplayedCash } from "@/lib/ledger-cash-lines";
 import { buildMovementPreview } from "@/lib/movement-preview";
+import { applyPaperCashMove } from "@/lib/paper-cash";
+import { paperFeeNZD } from "@/lib/report-topup";
+import { planSellFeeBackfill } from "@/lib/sell-fee-backfill";
 import { searchAssets } from "@/lib/asset-search";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -11,19 +15,124 @@ import { assessMovement, transactionProblems } from "@/lib/transaction-rules";
 const today = "2026-10-07";
 
 describe("paper fee rule", () => {
-  it("charges 0.50% of quantity × price on every buy and sell", () => {
-    expect(PAPER_FEE_RATE).toBe(0.005);
-    // 0.48 is 0.50% of a 96 notional — the small share-sell fee this replaces.
-    expect(suggestedFee("sell", 10, 9.6)).toBe(0.48);
-    expect(suggestedFee("buy", 10, 9.6)).toBe(0.48);
-    expect(suggestedFee("buy", 2, 100)).toBe(1);
+  it("defaults to zero on every transaction type and every asset", () => {
+    for (const type of ["buy", "sell", "dividend", "deposit", "withdraw", "tax", "opening_balance", "correction"]) {
+      expect(suggestedFee(type, 10, 9.6)).toBe(0);
+    }
+    expect(suggestedFee("buy", 2, 100)).toBe(0);
+    expect(suggestedFee("sell", 1, 4000)).toBe(0);
+    expect(PAPER_FEE_SUMMARY).toMatch(/NZ\$0\.00/);
+    expect(PAPER_FEE_SUMMARY).toMatch(/whatever you enter/);
+    expect(PAPER_FEE_SUMMARY).not.toMatch(/0\.50%|0\.5%/);
+    expect(defaultFeePresetId("AIA.NZ", "stock")).toBe("zero");
+    expect(defaultFeePresetId("CLW", "stock")).toBe("zero");
+    expect(defaultFeePresetId("PEPE", "crypto")).toBe("zero");
+    expect(defaultFeePresetId("GOLD", "metal")).toBe("zero");
+    expect(paperFeeNZD(1000, "ETH", "crypto")).toBe(0);
+    expect(
+      planSellFeeBackfill({
+        _id: "tx-clw",
+        type: "sell",
+        ticker: "CLW",
+        asset_type: "stock",
+        quantity: 10,
+        price: 4.2,
+        fees: 0,
+      })
+    ).toBeNull();
   });
 
-  it("suggests zero on cash movements and still returns a number", () => {
-    expect(suggestedFee("deposit", 0, 40)).toBe(0);
-    expect(suggestedFee("withdraw", 0, 40)).toBe(0);
-    expect(suggestedFee("tax", 0, 40)).toBe(0);
-    expect(suggestedFee("buy", 0, 0)).toBe(0);
+  it("applies a typed fee to cash and the ledger, and leaves an omitted fee at zero", () => {
+    const typed = buildMovementPreview({
+      type: "buy",
+      date: today,
+      asset: "AIA.NZ",
+      quantity: 10,
+      price: 9.6,
+      fee: 2.5,
+      currency: "NZD",
+      cashNzd: 1000,
+    });
+    expect(typed.feeNative).toBe(2.5);
+    expect(typed.feeNzd).toBe(2.5);
+    expect(typed.cashChangeNzd).toBe(-98.5);
+    expect(typed.cashAfterNzd).toBe(901.5);
+
+    const sold = buildMovementPreview({
+      type: "sell",
+      date: today,
+      asset: "PEPE",
+      quantity: 1000,
+      price: 0.004218,
+      fee: 1.25,
+      currency: "USD",
+      fxRate: 1.7,
+      cashNzd: 200,
+    });
+    expect(sold.feeNative).toBe(1.25);
+    expect(sold.cashChangeNzd).toBeCloseTo((1000 * 0.004218 - 1.25) * 1.7, 2);
+    expect(sold.cashAfterNzd).toBeCloseTo(200 + sold.cashChangeNzd, 2);
+
+    const cash = applyPaperCashMove({
+      side: "buy",
+      quantity: 10,
+      price: 9.6,
+      fees: 2.5,
+      currency: "NZD",
+      cashNZD: 1000,
+      shares: 0,
+    });
+    expect(cash.ok).toBe(true);
+    expect(cash.cashDeltaNZD).toBe(-98.5);
+    expect(cash.cashNZD).toBe(901.5);
+
+    const ledgerRow = {
+      type: "buy" as const,
+      fees: typed.feeNative,
+      fees_nzd: typed.feeNzd,
+      cash_nzd: typed.cashChangeNzd,
+      total: typed.cashChangeNzd,
+    };
+    expect(ledgerRow.fees).toBe(2.5);
+    expect(ledgerRow.fees_nzd).toBe(2.5);
+    expect(ledgerDisplayedCash(ledgerRow)).toBe(-98.5);
+
+    const omitted = buildMovementPreview({
+      type: "buy",
+      date: today,
+      asset: "AIA.NZ",
+      quantity: 10,
+      price: 9.6,
+      currency: "NZD",
+      cashNzd: 1000,
+    });
+    expect(omitted.feeNative).toBe(0);
+    expect(omitted.cashChangeNzd).toBe(-96);
+    expect(omitted.cashAfterNzd).toBe(904);
+
+    const gold = buildMovementPreview({
+      type: "sell",
+      date: today,
+      asset: "GOLD",
+      quantity: 1,
+      price: 4000,
+      currency: "NZD",
+      cashNzd: 100,
+    });
+    expect(gold.feeNative).toBe(0);
+    expect(gold.cashChangeNzd).toBe(4000);
+    expect(gold.cashAfterNzd).toBe(4100);
+
+    const untouched = applyPaperCashMove({
+      side: "sell",
+      quantity: 10,
+      price: 9.6,
+      currency: "NZD",
+      cashNZD: 100,
+      shares: 10,
+    });
+    expect(untouched.cashDeltaNZD).toBe(96);
+    expect(untouched.cashNZD).toBe(196);
   });
 });
 
@@ -256,6 +365,37 @@ describe("server-side movement rejection", () => {
     expect(panel).toContain("formatSignedMoney(preview.cashChangeNzd)");
     expect(panel).toContain("formatNzd(preview.cashAfterNzd)");
     expect(panel).toContain("formatMoneyWithNzd(preview.priceNative");
+  });
+
+  it("books only the typed fee on the server, the metal sell, and a holding correction", () => {
+    const read = (rel: string) => readFileSync(path.join(process.cwd(), rel), "utf8");
+    const writer = read("src/lib/transactions.ts");
+    expect(writer).toContain("const fees = Math.max(0, Number(input.fees) || 0)");
+    expect(writer).not.toContain("suggestedFee");
+    expect(writer).not.toContain("estimateFee");
+    expect(writer).not.toContain("0.005");
+    const post = read("src/app/api/transactions/route.ts");
+    expect(post).not.toContain("suggestedFee");
+    expect(post).not.toContain("estimateFee");
+    const metals = read("src/app/api/metals/[id]/route.ts");
+    expect(metals).toContain("let fees = 0");
+    expect(metals).not.toContain("estimateFee");
+    expect(metals).not.toContain("suggestedFee");
+    const metalBuy = read("src/app/api/metals/route.ts");
+    expect(metalBuy).not.toContain("estimateFee");
+    expect(metalBuy).not.toContain("suggestedFee");
+    const holding = read("src/app/api/stocks/[id]/route.ts");
+    expect(holding).not.toContain("estimateFee");
+    expect(holding).not.toContain("suggestedFee");
+    expect(read("src/lib/sell-fee-backfill.ts")).not.toContain("estimateFee");
+    expect(read("src/lib/report-topup.ts")).not.toContain("estimateFee");
+    expect(read("src/lib/fee-rule.ts")).not.toContain("0.005");
+    expect(read("src/lib/fee-rule.ts")).not.toContain("0.50%");
+    const panel = read("src/components/dashboard/RecordTransactionPanel.tsx");
+    expect(panel).toContain('id="record-fee"');
+    expect(panel).toContain("fees: Number(fee) || 0");
+    expect(panel).not.toContain("0.50%");
+    expect(read("src/app/trust/page.tsx")).toContain("PAPER_FEE_SUMMARY");
   });
 });
 

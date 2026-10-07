@@ -1,7 +1,6 @@
 /**
- * Broker fee presets (NZ English) — advisory estimates for paper fills.
- * Caps inspired by common NZ retail brokers (e.g. Sharesies-style NZ/AU/US).
- * Never claimed as a live broker quote; user can override.
+ * Broker fee presets (NZ English) — unused advisory shapes.
+ * A trade does not pick one of these. The booked fee is whatever was typed, and the default is zero.
  */
 
 export type FeeMarket = "NZ" | "AU" | "US" | "CRYPTO" | "METAL";
@@ -58,8 +57,7 @@ export function presetsForMarket(market: FeeMarket): FeePreset[] {
   return matched.length ? matched : FEE_PRESETS.filter((p) => p.id === "zero");
 }
 
-/** Market default used by Buy and Sell so a selected preset is actually booked. */
-export function defaultFeePresetId(ticker: string, assetType?: string | null): string {
-  const market = feeMarketFor(ticker, assetType);
-  return presetsForMarket(market).find((p) => p.id !== "zero")?.id ?? "zero";
+/** No preset is booked. The default fee is zero until the user types one. */
+export function defaultFeePresetId(_ticker: string, _assetType?: string | null): string {
+  return "zero";
 }
