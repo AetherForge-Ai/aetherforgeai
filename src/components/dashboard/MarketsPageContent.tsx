@@ -32,7 +32,7 @@ export function MarketsPageContent({
           <LineChart className="size-6" />
         </span>
         <div className="min-w-0 flex-1">
-          <h1 className="font-display text-2xl font-bold">Stock Markets</h1>
+          <h1 className="font-display text-2xl font-bold">Markets</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
             NZX, ASX and US prices, plus crypto. Quoted rows show a time. If the feed fails, the
             table says so instead of spinning.

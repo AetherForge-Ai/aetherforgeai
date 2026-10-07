@@ -26,6 +26,8 @@ export interface YahooQuote {
   currency: string;
   name?: string; // resolved company/instrument name (from chart meta), when available
   volume?: number; // regular-market session volume, when available
+  /** 10-day or 3-month average volume. Used only when the session print is implausible. */
+  averageVolume?: number;
   dayHigh?: number; // session high, when available
   dayLow?: number; // session low, when available
   open?: number; // session open, when available
@@ -119,6 +121,7 @@ async function fetchOne(yahooSymbol: string): Promise<YahooQuote | null> {
       currency: typeof meta.currency === "string" ? meta.currency : "USD",
       name: cleanInstrumentName(meta.longName) ?? cleanInstrumentName(meta.shortName),
       volume: isFinite(vol) && vol > 0 ? vol : undefined,
+      averageVolume: num(meta.averageDailyVolume10Day) ?? num(meta.averageDailyVolume3Month),
       dayHigh: num(meta.regularMarketDayHigh),
       dayLow: num(meta.regularMarketDayLow),
       open: num(meta.regularMarketOpen ?? meta.open),

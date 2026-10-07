@@ -19,12 +19,25 @@ export function withoutCryptoProjections<T extends { market?: string | null; ass
   return rows.filter((row) => !isCryptoProjectionRow(row));
 }
 
+/** Same order on every tab: projected percent times model confidence. */
+export function confidenceWeightedMove(row: { projected7dPct: number; confidence?: number | null }): number {
+  const confidence =
+    typeof row.confidence === "number" && Number.isFinite(row.confidence) ? row.confidence : 100;
+  return row.projected7dPct * (confidence / 100);
+}
+
+export function rankByConfidenceWeightedMove<T extends { projected7dPct: number; confidence?: number | null }>(
+  rows: T[],
+): T[] {
+  return [...rows].sort((a, b) => confidenceWeightedMove(b) - confidenceWeightedMove(a));
+}
+
 /** Rank equities only. Crypto rows are dropped before the Top 50 is cut. */
-export function assembleEquityProjections<T extends { market?: string | null; assetClass?: string | null; projected7dPct: number }>(
-  stockUniverse: T[],
-) {
+export function assembleEquityProjections<
+  T extends { market?: string | null; assetClass?: string | null; projected7dPct: number; confidence?: number | null },
+>(stockUniverse: T[]) {
   const stocks = withoutCryptoProjections(stockUniverse);
-  const combined = [...stocks].sort((a, b) => b.projected7dPct - a.projected7dPct).slice(0, 50);
+  const combined = rankByConfidenceWeightedMove(stocks).slice(0, 50);
   return {
     cryptoPaused: CRYPTO_PROJECTIONS_PAUSED,
     cryptoPauseMessage: CRYPTO_PROJECTIONS_PAUSE_MESSAGE,

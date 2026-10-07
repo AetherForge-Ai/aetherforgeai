@@ -103,14 +103,14 @@ const STEPS = [
     n: "07",
     icon: FileBarChart,
     title: "Receive your AI report",
-    body: "Get a detailed report on your dashboard and by email, downloadable as a PDF. The notes explain the figures. You decide, then place any trade on your own broker.",
+    body: "The report is on your dashboard. The notes explain the figures. You decide, then place any trade on your own broker.",
   },
 ];
 
 const REPORT_CONTENTS = [
   { icon: BarChart3, label: "Market breakdown", desc: "NZX, ASX and US tables when the price feed has rows, with the context around every ticker you keep." },
   { icon: TrendingUp, label: "What has performed well", desc: "Your top movers surfaced and ranked across 24h, 7-day and 30-day windows." },
-  { icon: LineChart, label: "Performance graphs", desc: "Clean 12-month history and continuation charts embedded right in the report." },
+  { icon: LineChart, label: "Performance graphs", desc: "30-day history (projections), ~6 months (stock charts)." },
   { icon: GaugeCircle, label: "7-day illustrative outlook", desc: "Probabilistic scenario ranges with confidence scores, momentum and continuation graphs. Not a guarantee." },
   { icon: ListChecks, label: "Plain-English notes", desc: "What the figures show, in sentences. Informational only — not personal financial advice." },
   { icon: Route, label: "Three scenarios", desc: "Three scenarios: a cautious, a middle and a high-volatility case, so you can see the range of outcomes." },
@@ -123,7 +123,7 @@ const BOTS = [
     subtitle: "Stock Market Intelligence",
     accent: "from-emerald-500/20 via-teal-500/10 to-transparent",
     ring: "border-emerald-500/30",
-    desc: "Sweeps NZX, ASX and global equities — compiling detailed tables, top-mover boards and 12-month continuation graphs for every share you keep.",
+    desc: "Sweeps NZX, ASX and global equities — compiling detailed tables and top-mover boards. Stock charts cover about six months.",
     tags: ["NZX", "ASX", "US & global equities"],
   },
   {
@@ -484,7 +484,7 @@ export default function HowItWorksPage() {
             <div className="flex flex-col justify-center rounded-3xl border border-primary/30 bg-gradient-to-br from-primary/15 to-card/40 p-6 text-center shadow-glow">
               <p className="font-display text-lg font-bold">Ready to run it?</p>
               <p className="mt-1.5 text-sm text-muted-foreground">
-                Your first full report is free — no card required.
+                3 reports a month free, no card.
               </p>
               <Button asChild className="mt-4 font-semibold">
                 <Link href="/register">
@@ -535,10 +535,10 @@ export default function HowItWorksPage() {
           <div className="mx-auto mb-10 max-w-2xl text-center">
             <p className="text-sm font-semibold uppercase tracking-wider text-primary">The engines</p>
             <h2 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">
-              Two specialised AI bots
+              3 AI bots plus Smitty, our metals tracker
             </h2>
             <p className="mt-3 text-muted-foreground">
-              Choose the right analyst for the job — or run both and let The Headmaster unify them.
+              Stox, Koins and The Headmaster are the three AI bots. Smitty tracks gold and silver spot prices.
             </p>
           </div>
           <div className="grid gap-6 md:grid-cols-2">

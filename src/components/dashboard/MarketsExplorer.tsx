@@ -151,7 +151,7 @@ export function MarketsExplorer({
   syncTab?: boolean;
 }) {
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>(initialTab ?? "NASDAQ");
+  const [tab, setTab] = useState<Tab>(initialTab ?? "NZX");
   const [data, setData] = useState<MarketPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -414,8 +414,8 @@ export function MarketsExplorer({
     : rows;
   const showHigh = !isCryptoTab || rows.some((r) => (r.dayHigh ?? 0) > 0);
   const showLow = !isCryptoTab || rows.some((r) => (r.dayLow ?? 0) > 0);
-  const showVolume = !isCryptoTab || rows.some((r) => (r.volume ?? 0) > 0);
-  const showCap = !isCryptoTab || rows.some((r) => (r.marketCap ?? 0) > 0);
+  const showVolume = rows.some((r) => (r.volume ?? 0) > 0);
+  const showCap = rows.some((r) => (r.marketCap ?? 0) > 0);
   const showChain = isCryptoTab && rows.some((r) => !!r.blockchain);
   const colSpan = 4 + Number(showHigh) + Number(showLow) + Number(showVolume) + Number(showCap) + Number(showChain) + Number(allowBuy);
 
@@ -515,9 +515,9 @@ export function MarketsExplorer({
             {(isCryptoTab ? crypto.error : loadError)
               ? (isCryptoTab ? crypto.error : loadError)
               : hasData || remoteHits.length
-              ? `${rows.length} of ${total}${remoteLoading ? " · searching…" : ""}${remoteHits.length && query.trim() ? ` · +${remoteHits.length} market match${remoteHits.length === 1 ? "" : "es"}` : ""}${liveCount > 0 ? ` · ${liveCount} quoted` : " · reference prices"}${asOf ? ` · ${fmtTime(asOf)}` : ""}`
+              ? `${total} names in the ${isCryptoTab ? "crypto" : tab} list${liveCount > 0 && liveCount !== total ? ` · ${liveCount} quoted` : ""}${remoteLoading ? " · searching…" : ""}${remoteHits.length && query.trim() ? ` · +${remoteHits.length} market match${remoteHits.length === 1 ? "" : "es"}` : ""}${asOf ? ` · ${fmtTime(asOf)}` : ""}`
               : loadingRows
-                ? "Loading prices…"
+                ? "Prices appear when the feed answers."
                 : "—"}
           </p>
           {!isCryptoTab && (data?.freshness || tab === "NZX" || tab === "ASX" || tab === "DOW" || tab === "NASDAQ") && (
@@ -629,6 +629,7 @@ export function MarketsExplorer({
                         )}
                       >
                         {up ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />}
+                        {r.changePct > 0 ? "+" : r.changePct < 0 ? "−" : ""}
                         {Math.abs(r.changePct).toFixed(2)}%
                       </span>
                       {/* Absolute session move ($) beneath the % — both requested */}

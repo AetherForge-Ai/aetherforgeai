@@ -17,7 +17,8 @@ describe("P0 pricing and free cap", () => {
     expect(pro?.featured).toBe(true);
     expect(pro?.monthlyPrice).toBe(49);
     expect(pro?.yearlyPrice).toBe(490);
-    expect(pro?.cta.label).toBe("Start with Pro");
+    expect(pro?.cta.label).toBe("Start 14-day Pro trial");
+    expect(pro?.badge).toBe("Recommended");
     expect(starter?.monthlyPrice).toBe(16);
     expect(starter?.yearlyPrice).toBe(160);
     expect(starter?.cta.label.toLowerCase()).not.toContain("pro");

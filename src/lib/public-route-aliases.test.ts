@@ -27,7 +27,7 @@ describe("legacy public routes", () => {
     expect(nav).toContain('{ href: "/performance", label: "Example results"');
     expect(nav).not.toContain('href: "/blog"');
     expect(nav).not.toContain("label: \"Live Results\"");
-    expect(nav).toContain('{ href: "/markets", label: "Stock Markets"');
+    expect(nav).toContain('{ href: "/markets", label: "Markets"');
     expect(nav).not.toContain('href: "/stock-markets"');
     expect(nav).not.toContain('href: "/live-results"');
     const middleware = read("src/middleware.ts");

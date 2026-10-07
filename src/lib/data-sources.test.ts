@@ -14,7 +14,13 @@ describe("public data-source copy", () => {
     expect(copy).toContain(PUBLIC_CRYPTO_SOURCE);
     expect(copy).not.toMatch(/\bTODO\b/);
     expect(copy).not.toMatch(/fallback|unavailable/i);
-    expect(copy).not.toMatch(/\b(Grok|ZENITH|ULTRA|Yahoo|Twelve Data|Swyftx)\b/);
+    expect(copy).not.toMatch(/\b(Grok|ZENITH|ULTRA)\b/);
+    expect(copy).not.toMatch(/licensed|GoGold/i);
+    expect(copy).toMatch(/Yahoo Finance/);
+    expect(copy).toMatch(/not a direct NZX or ASX feed/);
+    expect(copy).toMatch(/Twelve Data/);
+    expect(copy).toMatch(/Swyftx/);
+    expect(copy).toMatch(/gold-api\.com/);
   });
 
   it("replaces an internal fallback sentence", () => {

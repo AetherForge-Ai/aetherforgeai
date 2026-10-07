@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { analyzeUniverse, universeFor } from "@/lib/market-intel";
+import { analyzeUniverse, resolveExchange, universeFor, type MarketCode } from "@/lib/market-intel";
 import {
   fetchQuotesForAssetClass,
   fetchHistoriesForAssetClass,
@@ -7,7 +7,7 @@ import {
 } from "@/lib/market-data";
 import { loadCryptoBoardLive } from "@/lib/crypto-tape";
 import { CRYPTO_PROJECTION_HAND_CHECK } from "@/lib/crypto-vendors";
-import { assembleEquityProjections } from "@/lib/projection-pause";
+import { assembleEquityProjections, rankByConfidenceWeightedMove } from "@/lib/projection-pause";
 import { toPublicMarketRecord } from "@/lib/public-intel";
 import { quotedEquitySessionOpen } from "@/lib/market-freshness";
 
@@ -28,8 +28,12 @@ export const dynamic = "force-dynamic";
  *
  * Kept server-side so the market-data key never reaches the client.
  */
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const url = new URL(req.url);
+    const exchange = (url.searchParams.get("exchange") || "NZXASX").toUpperCase();
+    const page = Math.max(1, Number(url.searchParams.get("page")) || 1);
+    const limit = Math.min(25, Math.max(1, Number(url.searchParams.get("limit")) || 25));
     // --- Full equities universe (NZX + ASX + Dow + Nasdaq), live-anchored ----
     let overrides: Record<string, number> = {};
     let histories: Record<string, number[]> = {};
@@ -68,12 +72,36 @@ export async function GET() {
       return null;
     });
     const ranked = assembleEquityProjections(stockUniverse);
-    const publish = <T,>(rows: T[]) =>
-      rows.map((row) => toPublicMarketRecord(row as unknown as Record<string, unknown>));
+    const onExchange = (row: { ticker: string; market: string }) =>
+      resolveExchange(row.ticker, row.market as MarketCode);
+    const pool =
+      exchange === "ALL"
+        ? ranked.combined
+        : exchange === "NZXASX"
+          ? rankByConfidenceWeightedMove(
+              ranked.stockUniverse.filter((row) => {
+                const board = onExchange(row);
+                return board === "NZX" || board === "ASX";
+              }),
+            ).slice(0, 50)
+          : exchange === "NZX" || exchange === "ASX" || exchange === "DOW" || exchange === "NASDAQ"
+            ? rankByConfidenceWeightedMove(
+                ranked.stockUniverse.filter((row) => onExchange(row) === exchange),
+              ).slice(0, 50)
+            : ranked.combined;
+    const start = (page - 1) * limit;
+    const pageRows = pool.slice(start, start + limit);
+    const publish = (rows: typeof pageRows) =>
+      rows.map((row) => {
+        const pub = toPublicMarketRecord(row as unknown as Record<string, unknown>);
+        delete pub.history;
+        delete pub.projection;
+        return pub;
+      });
 
     console.log(
-      `[api/projections] Equity sweep: ${ranked.scanned.stocks} names → top ${ranked.combined.length} ` +
-        `(stock live=${stockLive}). Crypto projections paused.`
+      `[api/projections] Equity sweep: ${ranked.scanned.stocks} names → page ${page} ` +
+        `${pageRows.length}/${pool.length} (${exchange}, stock live=${stockLive}). Crypto projections paused.`
     );
 
     return NextResponse.json({
@@ -82,8 +110,13 @@ export async function GET() {
         live: stockLive,
         cryptoPaused: ranked.cryptoPaused,
         cryptoPauseMessage: ranked.cryptoPauseMessage,
-        combined: publish(ranked.combined),
-        stockUniverse: publish(ranked.stockUniverse),
+        exchange,
+        page,
+        limit,
+        total: pool.length,
+        rows: publish(pageRows),
+        combined: publish(pageRows),
+        stockUniverse: publish(pageRows),
         cryptoUniverse: [],
         scanned: ranked.scanned,
       },

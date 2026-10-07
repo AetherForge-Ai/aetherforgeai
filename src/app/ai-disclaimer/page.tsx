@@ -116,8 +116,11 @@ export default function AiDisclaimer() {
 
       <LegalSection heading="8. Questions">
         <p>
-          {/* TODO(owner): confirm the support@ mailbox before publishing an address. */}
-          If you have any questions about this disclaimer, use the contact form on the{" "}
+          If you have any questions about this disclaimer, email{" "}
+          <a href="mailto:admin@aetherforgeai.co.nz" className="text-primary hover:underline">
+            admin@aetherforgeai.co.nz
+          </a>{" "}
+          or use the contact form on the{" "}
           <a href="/about#contact" className="text-primary hover:underline">
             About
           </a>{" "}

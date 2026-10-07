@@ -1,6 +1,7 @@
 import { LegalShell, LegalSection } from "@/components/legal/LegalShell";
 import { LEGAL_ENTITY_NAME } from "@/lib/company";
 import { publicPageMetadata } from "@/lib/reviewed-book";
+import { PUBLIC_DATA_SOURCES_LINE } from "@/lib/data-sources";
 import {
   ANNUAL_TOOLKIT_LINE,
   LEGAL_UPDATED,
@@ -70,9 +71,8 @@ export default function TermsOfService() {
 
       <LegalSection heading="5. Subscriptions, billing & payment">
         <p>
-          Public pricing is billed monthly or yearly. Prices are shown on our pricing page.{" "}
-          {/* TODO(owner): confirm whether published prices include or exclude GST. Do not write "including GST" or "excluding GST" until then. */}
-          Payments are processed securely by Stripe; by subscribing you authorise us (through Stripe) to
+          Public pricing is billed monthly or yearly. Prices are shown on our pricing page. Payments are
+          processed securely by Stripe; by subscribing you authorise us (through Stripe) to
           charge your chosen payment method on a recurring basis until you cancel.
         </p>
         <p>{TRIAL_CARD_LINE}</p>
@@ -139,7 +139,7 @@ export default function TermsOfService() {
           the Service is provided on an &quot;as is&quot; and &quot;as available&quot; basis. We do not
           warrant that the Service, its AI-generated analysis, or any market data will be accurate,
           complete, uninterrupted, error-free or fit for any particular investment purpose. Market data
-          may be delayed, simulated or estimated. You are solely responsible for any decisions you make.
+          may be delayed. {PUBLIC_DATA_SOURCES_LINE} You are solely responsible for any decisions you make.
         </p>
       </LegalSection>
 
@@ -200,9 +200,12 @@ export default function TermsOfService() {
       </LegalSection>
 
       <LegalSection heading="17. Contact">
-        {/* TODO(owner): confirm the support@ mailbox before publishing an address. */}
         <p>
-          Questions about these terms can be sent through the contact form on the{" "}
+          Questions about these terms:{" "}
+          <a href="mailto:admin@aetherforgeai.co.nz" className="text-primary hover:underline">
+            admin@aetherforgeai.co.nz
+          </a>
+          . You can also use the contact form on the{" "}
           <a href="/about#contact" className="text-primary hover:underline">
             About
           </a>{" "}

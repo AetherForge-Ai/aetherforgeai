@@ -92,7 +92,7 @@ const STORY: { text: string; pull?: boolean }[] = [
     text: "My goal is to put plain-English market information in front of you, and leave every decision with you. You add your portfolio, note the levels you care about, and place any trade yourself.",
   },
   {
-    text: "After searching extensively, I discovered there was nothing quite like this available in New Zealand — nothing built specifically for our local markets with this empowering philosophy.",
+    text: "A point of difference: plain-English AI notes across NZX, ASX, crypto and metals in NZD.",
   },
   {
     text: "So I built AetherForge AI for my fellow New Zealanders. The notes are there to read. The decision stays yours.",
@@ -507,7 +507,7 @@ export function AboutContent() {
                       className="absolute right-4 top-4 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold text-white"
                       style={{ backgroundColor: "rgba(5,150,105,0.92)" }}
                     >
-                      <MapPin className="size-3.5" /> North Island, NZ
+                      <MapPin className="size-3.5" /> Pegasus, Canterbury
                     </span>
                   </div>
                 </div>
@@ -611,7 +611,7 @@ export function AboutContent() {
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block text-[11px] font-bold uppercase tracking-[0.14em] text-[#059669]">
-                          Enquiries &amp; sign-up
+                          Lukas · privacy requests
                         </span>
                         <span className="block truncate text-[15px] font-semibold text-[#0F172A]">
                           lukas@aetherforgeai.co.nz
@@ -628,7 +628,7 @@ export function AboutContent() {
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block text-[11px] font-bold uppercase tracking-[0.14em] text-[#94A3B8]">
-                          Accounts &amp; support
+                          General and customer matters
                         </span>
                         <span className="block truncate text-[15px] font-semibold text-[#0F172A]">
                           admin@aetherforgeai.co.nz

@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata = publicPageMetadata("/projections", {
   title: "Projections · AetherForge AI",
-  description: "Weekly top projections across NZX, ASX, US markets and crypto. General information, not personal advice.",
+  description: "Weekly top projections across NZX and ASX. Crypto projections are paused. General information, not personal advice.",
 });
 
 /**

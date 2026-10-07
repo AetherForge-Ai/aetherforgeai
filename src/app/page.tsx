@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { LEGAL_ENTITY_NAME } from "@/lib/company";
+import { BOT_COUNT_LINE } from "@/lib/public-copy";
+import { loadPublicTickerBounded } from "@/lib/public-ticker";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { SiteHeader } from "@/components/SiteHeader";
 import { MarketTicker } from "@/components/MarketTicker";
@@ -78,12 +80,13 @@ const STEPS = [
   },
 ] as const;
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const tape = await loadPublicTickerBounded();
   return (
     <div className="min-h-screen flex flex-col">
       <PersonalGuide />
       <SiteHeader />
-      <MarketTicker />
+      <MarketTicker initial={tape} />
       <main className="flex-1">
         <div className="chrome-dark relative min-h-screen bg-background bg-grid">
           <div className="pointer-events-none absolute inset-0 bg-aurora" />
@@ -117,9 +120,12 @@ export default function LandingPage() {
                   <div className="absolute -inset-4 rounded-3xl bg-gradient-to-br from-primary/20 via-transparent to-amber-400/10 blur-2xl" />
                   <img
                     src="/brand/home-hero-portfolio.png"
-                    alt="Welcome to your Dashboard overview"
+                    alt="Example screen of a paper portfolio overview"
                     className="relative w-full h-auto rounded-3xl border border-border/70 bg-card shadow-xl"
                   />
+                  <span className="absolute left-3 top-3 rounded-full border border-white/30 bg-zinc-950/80 px-3 py-1 text-xs font-semibold text-white">
+                    Example screen
+                  </span>
                 </div>
               </div>
             </section>
@@ -131,7 +137,7 @@ export default function LandingPage() {
                   The core of AetherForge
                 </p>
                 <h2 className="mt-3 font-grift-black text-3xl tracking-tight text-amber-400 sm:text-4xl">
-                  3 AI bots that research the markets with you
+                  {BOT_COUNT_LINE}
                 </h2>
                 <p className="mt-4 text-base leading-relaxed text-muted-foreground sm:text-lg">
                   Stox monitors stock markets, Koins monitors
