@@ -18,6 +18,7 @@ import { ownerIdOf } from "@/lib/report-book";
 import { alertIsEffectivelyArchived, heldQuantityForTicker } from "@/lib/alert-lifecycle";
 import { relockSeededReportPrices } from "@/lib/paper-quote-lock.server";
 import { reportEmailMessageId, reportEmailWasDelivered } from "@/lib/report-email";
+import { sendTransactionalEmail } from "@/lib/send-transactional-mail";
 import { publishSharedBookLog, fullBookSentence, fullBookFromHoldings, fullBookFromPositions } from "@/lib/book-log";
 import {
   annotateTickerCalls,
@@ -477,7 +478,7 @@ export async function generateReportForUser(
     const subjectPrefix = context === "scheduled" ? "Your scheduled briefing · " : "";
     if (holdings.length > 0) {
       try {
-        const sent = await totalumSdk.email.sendEmail({
+        const sent = await sendTransactionalEmail({
           to: [user.email],
           subject: `${subjectPrefix}${report.title} — ${generatedAtLabel}`,
           html,
