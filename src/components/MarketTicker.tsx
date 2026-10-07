@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { tickerLiveLabel } from "@/lib/ticker-feed";
+import { PUBLIC_PRICE_QUIET } from "@/lib/data-sources";
 import { cn } from "@/lib/utils";
 import { formatFxAsOf, formatMoney } from "@/lib/currency";
 
@@ -99,7 +100,7 @@ function TickerRow({
             ))}
           </div>
         ) : (
-          <span className="px-4 text-[0.72rem] text-muted-foreground">Prices unavailable</span>
+          <span className="px-4 text-[0.72rem] text-muted-foreground">{PUBLIC_PRICE_QUIET}</span>
         )}
         <div className="pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-zinc-950 to-transparent" />
         <div className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-zinc-950 to-transparent" />
@@ -179,7 +180,7 @@ function MetalsSpotBanner() {
             "rounded-full px-2 py-0.5 text-[0.58rem] font-bold uppercase tracking-wide",
             spot?.live ? "bg-emerald-500/15 text-emerald-600" : "bg-muted text-muted-foreground"
           )}
-          title={spot?.asOf ? formatFxAsOf(spot.asOf) : spot?.live ? "Live spot price" : "Estimated (live feed unavailable)"}
+          title={spot?.asOf ? formatFxAsOf(spot.asOf) : spot?.live ? "Live spot price" : "Estimated"}
         >
           {spot ? (spot.live ? "Live" : "Est.") : failed ? "Failed" : "…"}
           {spot?.asOf ? ` · ${formatFxAsOf(spot.asOf)}` : ""}
@@ -251,8 +252,8 @@ export function MarketTicker({ className, compact = false }: MarketTickerProps) 
   const liveTape = tickerLiveLabel({ live });
   const asOfLabel = formatAsOf(asOf);
   const providerLabel = [
-    providers.equities ? `Equities ${providers.equities}` : loaded ? "Equities unavailable" : null,
-    providers.crypto ? `Crypto ${providers.crypto}` : loaded ? "Crypto unavailable" : null,
+    providers.equities ? `Equities ${providers.equities}` : null,
+    providers.crypto ? `Crypto ${providers.crypto}` : null,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -291,7 +292,7 @@ export function MarketTicker({ className, compact = false }: MarketTickerProps) 
       <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 border-b border-emerald-500/20 bg-zinc-950 px-3 py-1.5 text-[0.6rem] text-muted-foreground">
         <span className="inline-flex items-center gap-1">
           <span className={cn("size-1.5 rounded-full", liveTape ? "bg-emerald-400" : "bg-muted-foreground/50")} />
-          {liveTape ?? "Unavailable"}
+          {liveTape ?? "Quiet"}
           {asOfLabel ? ` · as of ${asOfLabel}` : ""}
         </span>
         {providerLabel ? <span>{providerLabel}</span> : null}
