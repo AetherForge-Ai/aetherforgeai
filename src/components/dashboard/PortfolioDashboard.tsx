@@ -1895,16 +1895,14 @@ export function PortfolioDashboard({
             <table className="w-full table-fixed text-xs">
               <thead>
                 <tr className="border-b border-border/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                  <th className="px-6 py-3"><HoldingHead label="Ticker" k="ticker" align="left" /></th>
-                  <th className="px-3 py-3"><HoldingHead label="Purchase date" k="date" align="left" /></th>
-                  <th className="px-3 py-3"><HoldingHead label="Company name" k="company" align="left" /></th>
-                  <th className="px-3 py-3 font-medium">Exchange</th>
-                  <th className="px-3 py-3"><HoldingHead label="# shares" k="shares" /></th>
-                  <th className="px-3 py-3"><HoldingHead label="Price paid / share" k="purchase_price" /></th>
-                  <th className="px-3 py-3"><HoldingHead label="Current price / share" k="current_price" /></th>
-                  <th className="px-3 py-3"><HoldingHead label="Market value" k="marketValue" /></th>
-                  <th className="px-3 py-3"><HoldingHead label="% of Portfolio" k="weight" /></th>
-                  <th className="px-3 py-3"><HoldingHead label="Gain / Loss" k="gain" /></th>
+                  <th className="px-3 py-2"><HoldingHead label="Ticker" k="ticker" align="left" /></th>
+                  <th className="px-2 py-2"><HoldingHead label="Company" k="company" align="left" /></th>
+                  <th className="px-2 py-2"><HoldingHead label="Qty" k="shares" /></th>
+                  <th className="px-2 py-2"><HoldingHead label="Paid" k="purchase_price" /></th>
+                  <th className="px-2 py-2"><HoldingHead label="Now" k="current_price" /></th>
+                  <th className="px-2 py-2"><HoldingHead label="Value" k="marketValue" /></th>
+                  <th className="px-2 py-2"><HoldingHead label="%" k="weight" /></th>
+                  <th className="px-2 py-2"><HoldingHead label="Gain" k="gain" /></th>
                   <th className="px-6 py-3 text-right font-medium sr-only">Actions</th>
                 </tr>
               </thead>
@@ -1953,22 +1951,13 @@ export function PortfolioDashboard({
                         </button>
                       </td>
                       {/* Purchase date */}
-                      <td className="px-3 py-3.5">
-                        <span className="tnum whitespace-nowrap text-sm text-muted-foreground">
-                          {formatHoldingDate(h.purchase_date)}
-                        </span>
-                      </td>
-                      {/* Company name */}
-                      <td className="px-3 py-3.5">
-                        <p className="max-w-[16rem] truncate text-muted-foreground">
+                      <td className="px-2 py-2">
+                        <p className="truncate text-muted-foreground">
                           {h.company_name || h.sector || "—"}
                         </p>
-                      </td>
-                      {/* Exchange */}
-                      <td className="px-3 py-3.5">
-                        <span className="rounded-md border border-border/60 bg-background/40 px-2 py-0.5 text-[0.7rem] font-semibold text-muted-foreground">
-                          {exchange}
-                        </span>
+                        <p className="truncate text-[0.65rem] text-muted-foreground">
+                          {formatHoldingDate(h.purchase_date)} · {exchange}
+                        </p>
                       </td>
                       {/* # shares */}
                       <td className="tnum px-3 py-3.5 text-right text-muted-foreground">
@@ -1995,7 +1984,7 @@ export function PortfolioDashboard({
                       <td className="px-3 py-3.5 text-right">
                         <div className="flex flex-col items-end gap-1">
                           <span className="tnum font-medium">{h.weight.toFixed(1)}%</span>
-                          <span className="h-1 w-16 overflow-hidden rounded-full bg-muted/50">
+                          <span className="h-1 w-10 overflow-hidden rounded-full bg-muted/50">
                             <span
                               className="block h-full rounded-full bg-primary/70"
                               style={{ width: `${Math.min(100, Math.max(2, h.weight))}%` }}
