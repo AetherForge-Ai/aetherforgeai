@@ -12,6 +12,7 @@ import {
   trackAccountRequest,
 } from "@/lib/account-identity";
 import { formatFxAsOf, formatMoney } from "@/lib/currency";
+import { openRecordTransaction } from "@/lib/open-transaction";
 import { buildTradePreview, type TradePreview } from "@/lib/trade-preview";
 import { bumpHoldingsGeneration } from "@/lib/holdings-generation";
 import { useTradeReviewGate } from "@/lib/trade-review-gate";
@@ -426,9 +427,9 @@ export function PreciousMetals({
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1" />
           <div className="min-w-0 text-center">
-            <h2 className="font-display text-xl font-bold uppercase tracking-wide text-amber-400 underline decoration-amber-400 decoration-2 underline-offset-8 sm:text-2xl">
-              Precious Metals Overview
-            </h2>
+            <p className="text-sm text-muted-foreground">
+              Spot is shown in NZ dollars per ounce. Record gold or silver in the transaction panel so the ledger stays the book.
+            </p>
             <p className="mt-2 text-xs text-muted-foreground">
               Spot and holdings only. Smitty does not run a report.
               {spot?.asOf ? ` Taken ${formatFxAsOf(spot.asOf)}.` : ""}
@@ -566,95 +567,37 @@ export function PreciousMetals({
 
       <div className="p-6">
 
-        {/* Add form */}
-        <form
-          onSubmit={onBuyFormSubmit}
-          className="mt-6 grid grid-cols-1 gap-3 rounded-2xl border border-border/60 bg-background/40 p-4 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end"
-        >
-          <div className="space-y-1.5">
-            <Label className="text-xs">Metal</Label>
-            <Select
-              value={metal}
-              onValueChange={(v) => {
-                setMetal(v as MetalKey);
-                setDeskReview((prev) => (prev?.side === "buy" ? null : prev));
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="gold">Gold</SelectItem>
-                <SelectItem value="silver">Silver</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs" htmlFor="metal-oz">Ounces owned (oz)</Label>
-            <Input
-              id="metal-oz"
-              inputMode="decimal"
-              placeholder="e.g. 10"
-              value={ounces}
-              onChange={(e) => {
-                setOunces(e.target.value);
-                setDeskReview((prev) => (prev?.side === "buy" ? null : prev));
-              }}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs" htmlFor="metal-price">Purchase price / oz (NZD)</Label>
-            <Input
-              id="metal-price"
-              inputMode="decimal"
-              placeholder="e.g. 3200"
-              value={price}
-              onChange={(e) => {
-                setPrice(e.target.value);
-                setDeskReview((prev) => (prev?.side === "buy" ? null : prev));
-              }}
-            />
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {deskReview?.side === "buy" ? (
-              <Button
-                type="button"
-                disabled={adding || !confirmReady}
-                className="font-semibold"
-                onClick={() => void commitAdd(deskReview)}
-              >
-                {adding ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Plus className="mr-2 size-4" />}
-                Confirm buy
-              </Button>
-            ) : (
-              <Button type="submit" disabled={adding} className="font-semibold">
-                {adding ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Plus className="mr-2 size-4" />}
-                Review buy
-              </Button>
-            )}
-            {deskReview?.side === "buy" ? (
-              <Button
-                type="button"
-                variant="ghost"
-                disabled={adding}
-                onClick={() => {
-                  disarmReview();
-                  setDeskReview(null);
-                }}
-              >
-                Back
-              </Button>
-            ) : null}
-          </div>
-        </form>
-        {deskReview?.side === "buy" ? (
-          <div className="mt-3">
-            <TradeReview preview={deskReview.preview} />
-          </div>
-        ) : null}
+        <div className="mt-6 flex flex-wrap gap-2">
+          <Button
+            type="button"
+            className="font-semibold"
+            onClick={() =>
+              openRecordTransaction({
+                mode: "buy",
+                preferredAssetType: "metal",
+                seed: { ticker: "GOLD", name: "Gold", assetType: "metal", price: spotFor("gold") || undefined },
+              })
+            }
+          >
+            <Plus className="mr-2 size-4" /> Record gold
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="font-semibold"
+            onClick={() =>
+              openRecordTransaction({
+                mode: "buy",
+                preferredAssetType: "metal",
+                seed: { ticker: "SILVER", name: "Silver", assetType: "metal", price: spotFor("silver") || undefined },
+              })
+            }
+          >
+            <Plus className="mr-2 size-4" /> Record silver
+          </Button>
+        </div>
         <p className="mt-2 px-1 text-[0.7rem] text-muted-foreground">
-          Buying debits your cash balance and logs the purchase in the Transaction Center. Selling credits cash at
-          today's spot price and books your realized gain/loss.
+          Buys and sells are recorded in the transaction panel, including the paper fee, and written to the ledger.
         </p>
 
         {/* Holdings table */}
@@ -725,8 +668,23 @@ export function PreciousMetals({
                         </span>
                       </td>
                       <td className="py-3.5 pl-3 text-right">
-                        <Button asChild size="sm" variant="outline">
-                          <Link href="/dashboard/transactions">Sell</Link>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            openRecordTransaction({
+                              mode: "sell",
+                              preferredAssetType: "metal",
+                              seed: {
+                                ticker: lot.metal === "silver" ? "SILVER" : "GOLD",
+                                name: meta.label,
+                                assetType: "metal",
+                                price: spotPerOz || lot.purchasePerOz,
+                              },
+                            })
+                          }
+                        >
+                          Sell
                         </Button>
                       </td>
                     </tr>
@@ -803,12 +761,23 @@ export function PreciousMetals({
                         ) : (
                           <button
                             type="button"
-                            onClick={() => void openSellReview(h)}
-                            disabled={sellingId === h._id}
+                            onClick={() =>
+                              openRecordTransaction({
+                                mode: "sell",
+                                preferredAssetType: "metal",
+                                seed: {
+                                  ticker: h.metal === "silver" ? "SILVER" : "GOLD",
+                                  name: meta.label,
+                                  assetType: "metal",
+                                  price: spotPerOz || h.purchase_price_per_oz,
+                                  metalSourceId: h._id,
+                                },
+                              })
+                            }
                             className="inline-flex items-center gap-1 rounded-lg border border-border/60 px-2.5 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:border-rose-500/40 hover:bg-rose-500/10 hover:text-rose-600"
                             aria-label={`Sell ${meta.label}`}
                           >
-                            <Minus className="size-3.5" /> Review sell
+                            <Minus className="size-3.5" /> Sell
                           </button>
                         )}
                       </td>

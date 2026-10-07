@@ -10,7 +10,7 @@
  *     and returns it for immediate inline display.
  *  2. A history list of past reports, each downloadable as a PDF.
  *
- * NOTE: adding holdings now lives entirely in the Transaction Center (buy/sell),
+ * NOTE: adding holdings now lives entirely in the Transaction Centre (buy/sell),
  * so the old inline "Add ticker" form has been removed from here.
  */
 
@@ -143,7 +143,7 @@ export function ReportCenter({
   userId?: string | null;
   /** Live book already on the dashboard — used to rewrite stale empty-book copy. */
   holdings?: AccountHoldingRow[];
-  /** Retained for API compatibility with the dashboard; holdings are edited in the Transaction Center now. */
+  /** Retained for API compatibility with the dashboard; holdings are edited in the Transaction Centre now. */
   onHoldingsChanged?: () => void;
   /** Guest preview — read-only, no network calls. */
   preview?: boolean;
@@ -769,7 +769,7 @@ export function ReportCenter({
             <div className="border-t border-border/60 px-4 pb-4 pt-2">
         {history.length === 0 ? (
           <p className="rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground">
-            No reports yet — deposit cash or add holdings in the Transaction Center above, then run Stox, Koins or The Headmaster.
+            No reports yet — deposit cash or add holdings in the Transaction Centre above, then run Stox, Koins or The Headmaster.
           </p>
         ) : (
           <ul className="divide-y divide-border/50 overflow-hidden rounded-xl border border-border/60">

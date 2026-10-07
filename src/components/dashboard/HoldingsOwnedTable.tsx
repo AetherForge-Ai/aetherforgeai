@@ -67,6 +67,10 @@ type Props = {
   baseCurrency: CurrencyCode;
   loading?: boolean;
   onAdd?: () => void;
+  onBuy?: (h: HoldingMetrics) => void;
+  onSell?: (h: HoldingMetrics) => void;
+  /** Crypto tables say Coin / Token. Share tables say Name. */
+  nameLabel?: string;
   onEdit: (h: HoldingMetrics) => void;
   onDelete: (h: HoldingMetrics) => void;
   onOpenChart: (target: ChartTarget) => void;
@@ -86,6 +90,9 @@ export function HoldingsOwnedTable({
   baseCurrency,
   loading,
   onAdd,
+  onBuy,
+  onSell,
+  nameLabel = "Name",
   onEdit,
   onDelete,
   onOpenChart,
@@ -206,21 +213,17 @@ export function HoldingsOwnedTable({
           ) : null}
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        <div>
+          <table className="w-full table-fixed text-xs">
             <thead>
-              <tr className="border-b border-border/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                <th className="px-6 py-3">
+              <tr className="border-b border-border/50 text-left uppercase tracking-wide text-muted-foreground">
+                <th className="w-[22%] px-3 py-2">
                   <HoldingHead label="Ticker" k="ticker" align="left" />
                 </th>
-                <th className="px-3 py-3">
-                  <HoldingHead label="Purchase date" k="date" align="left" />
+                <th className="w-[18%] px-2 py-2">
+                  <HoldingHead label={nameLabel} k="company" align="left" />
                 </th>
-                <th className="px-3 py-3">
-                  <HoldingHead label="Name" k="company" align="left" />
-                </th>
-                <th className="px-3 py-3 font-medium">Exchange</th>
-                <th className="px-3 py-3">
+                <th className="px-2 py-2">
                   <HoldingHead label="Qty" k="shares" />
                 </th>
                 <th className="px-3 py-3">
@@ -250,7 +253,7 @@ export function HoldingsOwnedTable({
                     key={h._id}
                     className="border-b border-border/40 transition-colors last:border-0 hover:bg-background/40"
                   >
-                    <td className="px-6 py-3.5">
+                    <td className="px-3 py-2">
                       <button
                         type="button"
                         onClick={() =>
@@ -264,40 +267,20 @@ export function HoldingsOwnedTable({
                             currentPrice: h.current_price,
                           })
                         }
-                        className="group/tk flex items-center gap-3 rounded-lg text-left transition-colors hover:text-primary"
-                        title={`View last 7 days of ${h.ticker.replace(/\.(NZ|AX|L)$/, "")}`}
+                        className="group/tk min-w-0 rounded-lg text-left transition-colors hover:text-primary"
+                        title={`${exchange} · bought ${formatHoldingDate(h.purchase_date)}`}
                       >
-                        <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/12 font-display text-xs font-bold text-primary transition-colors group-hover/tk:bg-primary/20">
-                          {h.ticker.replace(/\.(NZ|AX|L)$/, "").slice(0, 4)}
-                        </span>
-                        <div className="flex items-center gap-1.5">
-                          <p className="font-semibold underline-offset-4 group-hover/tk:underline">
-                            {h.ticker.replace(/\.(NZ|AX|L)$/, "")}
-                          </p>
-                          <LineChart className="size-3.5 text-muted-foreground opacity-0 transition-opacity group-hover/tk:opacity-100" />
-                          <span
-                            className="rounded bg-muted/60 px-1.5 py-0.5 text-[0.6rem] font-semibold uppercase tracking-wide text-muted-foreground"
-                            title={CURRENCY_META[h.currency as keyof typeof CURRENCY_META]?.label || h.currency}
-                          >
-                            {h.currency}
-                          </span>
-                        </div>
+                        <p className="truncate font-semibold underline-offset-4 group-hover/tk:underline">
+                          {h.ticker.replace(/\.(NZ|AX|L)$/, "")}
+                          <span className="ml-1 font-normal text-muted-foreground">{h.currency}</span>
+                        </p>
+                        <p className="truncate text-[0.65rem] text-muted-foreground">
+                          {formatHoldingDate(h.purchase_date)} · {exchange}
+                        </p>
                       </button>
                     </td>
-                    <td className="px-3 py-3.5">
-                      <span className="tnum whitespace-nowrap text-sm text-muted-foreground">
-                        {formatHoldingDate(h.purchase_date)}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3.5">
-                      <p className="max-w-[16rem] truncate text-muted-foreground">
-                        {h.company_name || h.sector || "—"}
-                      </p>
-                    </td>
-                    <td className="px-3 py-3.5">
-                      <span className="rounded-md border border-border/60 bg-background/40 px-2 py-0.5 text-[0.7rem] font-semibold text-muted-foreground">
-                        {exchange}
-                      </span>
+                    <td className="px-2 py-2">
+                      <p className="truncate text-muted-foreground">{h.company_name || h.sector || "—"}</p>
                     </td>
                     <td className="tnum px-3 py-3.5 text-right text-muted-foreground">
                       {formatNumber(h.shares)}
@@ -337,8 +320,18 @@ export function HoldingsOwnedTable({
                         {formatPercent(h.gainPct)}
                       </span>
                     </td>
-                    <td className="px-6 py-3.5">
+                    <td className="px-2 py-2">
                       <div className="flex items-center justify-end gap-1">
+                        {onBuy ? (
+                          <button type="button" onClick={() => onBuy(h)} className="rounded-md px-1.5 py-1 text-[0.65rem] font-semibold text-primary hover:bg-primary/10">
+                            Buy
+                          </button>
+                        ) : null}
+                        {onSell ? (
+                          <button type="button" onClick={() => onSell(h)} className="rounded-md px-1.5 py-1 text-[0.65rem] font-semibold text-rose-600 hover:bg-rose-500/10">
+                            Sell
+                          </button>
+                        ) : null}
                         <button
                           onClick={() => onEdit(h)}
                           className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"

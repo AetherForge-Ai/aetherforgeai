@@ -11,6 +11,18 @@
 
 export type TxDialogMode = "buy" | "sell" | "deposit" | "withdraw" | "dividend" | "tax";
 
+/** Asset already chosen when Buy or Sell on a holding row opens the panel. */
+export interface TxSeed {
+  ticker: string;
+  name: string;
+  assetType: "stock" | "crypto" | "metal";
+  coinId?: string;
+  /** Live or last price, so the panel does not start blank. */
+  price?: number | null;
+  /** Dedicated metals-table id, when the row is not a ledger stock. */
+  metalSourceId?: string;
+}
+
 export interface TxDialogSnapshot {
   /** Stable for the lifetime of an open dialog. Bumps only on account switch. */
   mountId: number;
@@ -25,6 +37,7 @@ export interface TxDialogSnapshot {
    */
   cashKnown: boolean;
   preferredAssetType: "stock" | "crypto" | "metal" | null;
+  seed: TxSeed | null;
 }
 
 type DoneHandler = (ledger: unknown) => void;
@@ -40,6 +53,7 @@ let snapshot: TxDialogSnapshot = {
   cash: 0,
   cashKnown: false,
   preferredAssetType: null,
+  seed: null,
 };
 
 const listeners = new Set<() => void>();
@@ -98,6 +112,7 @@ export function publishTxDialog(
       cash: 0,
       cashKnown: false,
       mode: "buy",
+      seed: null,
     };
     emit();
     return { mountId: snapshot.mountId, ignoredSoftRefresh: false };
@@ -141,6 +156,7 @@ export function publishTxDialog(
       cashKnown: next.cashKnown === true,
       preferredAssetType:
         next.preferredAssetType !== undefined ? next.preferredAssetType : snapshot.preferredAssetType,
+      seed: next.seed !== undefined ? next.seed : null,
     };
     emit();
     return { mountId: snapshot.mountId, ignoredSoftRefresh: false };
@@ -154,7 +170,8 @@ export function publishTxDialog(
       (next.cashKnown === true && !snapshot.cashKnown) ||
       (next.userId != null && next.userId !== snapshot.userId) ||
       (next.mode != null && next.mode !== snapshot.mode) ||
-      (next.preferredAssetType !== undefined && next.preferredAssetType !== snapshot.preferredAssetType);
+      (next.preferredAssetType !== undefined && next.preferredAssetType !== snapshot.preferredAssetType) ||
+      (next.seed !== undefined && next.seed !== snapshot.seed);
     if (!changed) return { mountId: snapshot.mountId, ignoredSoftRefresh: false };
     snapshot = {
       ...snapshot,
@@ -165,6 +182,7 @@ export function publishTxDialog(
       cashKnown: next.cashKnown === true ? true : snapshot.cashKnown,
       preferredAssetType:
         next.preferredAssetType !== undefined ? next.preferredAssetType : snapshot.preferredAssetType,
+      seed: next.seed !== undefined ? next.seed : snapshot.seed,
     };
     emit();
   }
@@ -227,6 +245,7 @@ export function __resetTxDialogStoreForTests(): void {
     cash: 0,
     cashKnown: false,
     preferredAssetType: null,
+    seed: null,
   };
   onDone = () => {};
   onOpenChange = () => {};

@@ -15,6 +15,7 @@
  */
 
 import "server-only";
+import { barsFromYahoo, closeOnOrBefore } from "@/lib/historical-price";
 
 export interface YahooQuote {
   price: number;
@@ -603,4 +604,32 @@ export async function searchYahooSymbols(query: string, limit = 12): Promise<Yah
     `[yahoo] search "${q}" → ${results.length} matches (${probeResults.filter(Boolean).length} direct, ${named.length} named)`,
   );
   return results.slice(0, limit);
+}
+
+/**
+ * Daily close on or before a calendar day. Used to suggest a past fill price.
+ * Returns null when Yahoo has no bar — the caller keeps the field editable.
+ */
+export async function fetchYahooCloseOn(yahooSymbol: string, day: string): Promise<number | null> {
+  const want = (day || "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(want) || !yahooSymbol) return null;
+  const end = new Date(`${want}T00:00:00Z`);
+  if (Number.isNaN(end.getTime())) return null;
+  const period2 = Math.floor(end.getTime() / 1000) + 86400 * 2;
+  const period1 = period2 - 86400 * 21;
+  try {
+    const url = `${BASE}/${encodeURIComponent(yahooSymbol)}?interval=1d&period1=${period1}&period2=${period2}`;
+    const res = await yahooGet(url);
+    if (!res.ok) return null;
+    const json = (await res.json()) as {
+      chart?: { result?: Array<{ timestamp?: number[]; indicators?: { quote?: Array<{ close?: Array<number | null> }> } }> };
+    };
+    const result = json?.chart?.result?.[0];
+    const timestamps = result?.timestamp || [];
+    const closes = result?.indicators?.quote?.[0]?.close || [];
+    return closeOnOrBefore(barsFromYahoo(timestamps, closes), want);
+  } catch (err) {
+    console.error(`[yahoo] History failed for ${yahooSymbol} ${want}:`, err);
+    return null;
+  }
 }
