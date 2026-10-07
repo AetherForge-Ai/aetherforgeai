@@ -38,7 +38,7 @@ export function ExampleExplanationReport() {
             between the two figures printed above.
           </p>
           <p>
-            The note stops there. It does not say to buy, sell, or hold EXAMPLE.NZ. It does not say
+            The note stops there. It does not tell you what to do with EXAMPLE.NZ. It does not say
             the difference will continue, and it is not a result from a portfolio.
           </p>
         </div>
