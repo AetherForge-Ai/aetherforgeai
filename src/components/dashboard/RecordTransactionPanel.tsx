@@ -156,7 +156,7 @@ export function RecordTransactionPanel({
     const cur = seeded ? currencyForTicker(seeded.symbol, seeded.assetType) : "NZD";
     setCurrency(cur);
     setFxRate(cur === "NZD" ? "1" : String(rates[cur] || 1));
-    setFee(formatPriceInput(suggestedFee(nextKind, 0, Number(startPrice) || 0)) || "0.00");
+    setFee(suggestedFee(nextKind, 0, Number(startPrice) || 0).toFixed(2));
     disarmReview();
   }, [open, initialMode, seed, preferredAssetType, today, rates, disarmReview]);
 
@@ -685,11 +685,13 @@ export function RecordTransactionPanel({
                 id="record-fee"
                 inputMode="decimal"
                 value={fee}
+                placeholder="0.00"
                 onChange={(e) => {
                   setFee(e.target.value);
                   setFeeDirty(true);
                 }}
               />
+              <p className="text-[0.7rem] text-muted-foreground">Shown even at zero. Type over it with your broker's fee.</p>
             </div>
           </div>
           {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}

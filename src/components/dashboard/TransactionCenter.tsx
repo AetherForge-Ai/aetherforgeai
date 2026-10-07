@@ -27,7 +27,6 @@ import { CRYPTO_DIRECTORY } from "@/lib/apex";
 import { TickerSearch } from "@/components/dashboard/TickerSearch";
 import { CryptoSearch } from "@/components/dashboard/CryptoSearch";
 import { cn } from "@/lib/utils";
-import { defaultFeePresetId, estimateFee, feeMarketFor, presetsForMarket, type FeePreset } from "@/lib/broker-fees";
 import {
   keepDialogOpenOnPortalInteraction,
   keepDialogOpenWhilePopoverOpen,

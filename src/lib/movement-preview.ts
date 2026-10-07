@@ -25,7 +25,7 @@ export interface MovementInput {
   quantity?: number;
   /** Native price per unit, or the NZD amount for a cash movement. */
   price?: number;
-  /** Native fee. Omit to use the paper fee rule. */
+  /** Native fee. Omit to use the default of zero. */
   fee?: number | null;
   currency?: CurrencyCode;
   /** NZD received for 1 unit of the trade currency. */
