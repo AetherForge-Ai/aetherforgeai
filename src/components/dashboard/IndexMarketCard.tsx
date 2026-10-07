@@ -105,7 +105,7 @@ export function IndexMarketCard({
         </div>
       ) : !snap || idx?.price == null ? (
         <div className="mt-4 flex flex-1 flex-col justify-center">
-          <p className="text-sm text-muted-foreground">Index feed unavailable</p>
+          <p className="text-sm text-muted-foreground">Index feed is not shown right now</p>
           <p className="mt-1 text-xs text-muted-foreground/80">
             Retry with Refresh prices above.
           </p>

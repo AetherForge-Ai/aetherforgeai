@@ -20,6 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { Sparkline } from "./Sparkline";
 import { useCryptoMarkets } from "@/hooks/useCryptoMarkets";
+import { PUBLIC_COIN_SOURCE_LINE } from "@/lib/data-sources";
 import {
   rankPerformers,
   fmtPrice,
@@ -193,7 +194,7 @@ export function ProjectedPerformers({
             )}
           </div>
           <div className="border-t border-border/60 px-4 py-2 text-center text-[0.62rem] text-muted-foreground sm:px-6">
-            Data via Swyftx (may be delayed up to ~60s)
+            {PUBLIC_COIN_SOURCE_LINE}
           </div>
         </DialogContent>
       </Dialog>

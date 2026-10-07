@@ -44,12 +44,12 @@ const CONCEPTS: { icon: React.ElementType; term: string; def: string }[] = [
   {
     icon: Wallet,
     term: "Wallet",
-    def: "Software (or a hardware device) that stores your access to coins. It doesn't hold the coins themselves — those live on the blockchain — it holds the keys that prove the coins are yours.",
+    def: "Software (or a hardware device) that stores your access to coins. It doesn't keep the coins themselves — those live on the blockchain — it keeps the keys that prove the coins are yours.",
   },
   {
     icon: KeyRound,
     term: "Private key",
-    def: "A secret code that authorises spending from your wallet. Whoever holds the private key controls the funds — which is why “not your keys, not your coins” is the golden rule of self-custody.",
+    def: "A secret code that authorises spending from your wallet. Whoever has the private key controls the funds — which is why “not your keys, not your coins” is the golden rule of self-custody.",
   },
   {
     icon: Gauge,
@@ -59,7 +59,7 @@ const CONCEPTS: { icon: React.ElementType; term: string; def: string }[] = [
   {
     icon: ShieldQuestion,
     term: "Volatility",
-    def: "Crypto prices can move sharply in both directions. That potential for reward comes with real risk — position sizes should reflect what you can genuinely afford to hold through a downturn.",
+    def: "Crypto prices can move sharply in both directions. That potential for reward comes with real risk — only use money you can leave in place through a downturn.",
   },
 ];
 
@@ -152,7 +152,7 @@ export function CryptoInfoModal({
             {/* Where AetherForge fits */}
             <section className="rounded-2xl border border-primary/25 bg-primary/[0.06] p-4">
               <p className="text-sm leading-relaxed text-muted-foreground">
-                <span className="font-semibold text-foreground">Where AetherForge fits in:</span> you buy and
+                <span className="font-semibold text-foreground">Where AetherForge fits in:</span> you acquire and
                 custody crypto on your own exchange or wallet. AetherForge never touches your coins — our{" "}
                 <span className="font-medium text-foreground">Koins</span> bot simply analyses the market and
                 your holdings, then writes plain-English notes. Those notes are information, not an instruction to trade.

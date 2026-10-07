@@ -358,7 +358,7 @@ export function PriceAlerts({
               {isMetal ? "Metals price alerts" : isCrypto ? "Crypto price alerts" : "Share-price alerts"}
             </h2>
             <p className="text-sm text-muted-foreground">
-              Set trim, hard sell-out and take-profit rules with execution instructions.
+              Set trim, full-exit and take-profit rules. scenario: what a full exit would look like.
             </p>
           </div>
         </div>
@@ -376,7 +376,7 @@ export function PriceAlerts({
           </div>
         ) : alerts.length === 0 ? (
           <p className="rounded-xl border border-dashed border-border/60 p-5 text-sm text-muted-foreground">
-            No alerts yet. Create one to get execution instructions the moment a price hits your rules.
+            No alerts yet. Create one and the list marks it when a price hits your rules.
           </p>
         ) : (
           <ul className="grid gap-3 md:grid-cols-2">

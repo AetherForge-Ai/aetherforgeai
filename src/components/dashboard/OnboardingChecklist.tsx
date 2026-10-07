@@ -33,7 +33,7 @@ const COPY: Record<
   },
   alerts: {
     title: "Set a price alert",
-    body: "Protect a holding with a hard sell-out or trim rule.",
+    body: "Protect a holding with a full-exit level or trim rule.",
     href: "/dashboard/stocks",
     icon: Bell,
   },

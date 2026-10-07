@@ -16,7 +16,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   } catch (err: unknown) {
     console.error(`[api/crypto/chart/${id}] error:`, err);
     return NextResponse.json(
-      { ok: false, error: "Live data for this coin is unavailable right now." },
+      { ok: false, error: "Live data for this coin is not shown right now." },
       { headers: { "cache-control": "no-store" } }
     );
   }
