@@ -1,10 +1,11 @@
 import { LegalShell, LegalSection } from "@/components/legal/LegalShell";
+import { publicPageMetadata } from "@/lib/reviewed-book";
 
-export const metadata = {
+export const metadata = publicPageMetadata("/ai-disclaimer", {
   title: "AI Disclaimer — AetherForge AI",
   description:
     "Important disclaimer about AetherForge AI's AI-generated market analysis and New Zealand financial-advice law.",
-};
+});
 
 const UPDATED = "2 July 2026";
 

@@ -1,10 +1,16 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser, isStripeConfigured } from "@/lib/session";
+import { publicPageMetadata } from "@/lib/reviewed-book";
 import { headmasterDepth } from "@/lib/entitlements";
 import { AppShell } from "@/components/AppShell";
 import { TotalumConsole } from "@/components/totalum/TotalumConsole";
 
 export const dynamic = "force-dynamic";
+
+export const metadata = publicPageMetadata("/headmaster", {
+  title: "The Headmaster · AetherForge AI",
+  description: "Portfolio planning and strategies for your AetherForge paper book.",
+});
 
 /**
  * The Headmaster — Portfolio Planning and Strategies.

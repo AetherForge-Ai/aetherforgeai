@@ -1,10 +1,16 @@
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/session";
+import { publicPageMetadata } from "@/lib/reviewed-book";
 import { AppShell } from "@/components/AppShell";
 import { ChatAssistant } from "@/components/chat/ChatAssistant";
 import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
+
+export const metadata = publicPageMetadata("/chat", {
+  title: "Market Assistant · AetherForge AI",
+  description: "Ask the AetherForge assistant about the holdings on your paper book.",
+});
 
 /**
  * Market Assistant. Free includes a monthly query cap (see entitlements).

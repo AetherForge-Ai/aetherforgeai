@@ -9,6 +9,7 @@ import {
   type Stock,
 } from "@/lib/portfolio";
 import {
+  formatDisplayDate,
   formatMoney,
   baseCurrencyForBot,
   BASELINE_FX_TO_NZD,
@@ -26,7 +27,6 @@ import {
 } from "@/lib/metal-valuation";
 import { hubAllocationLabel } from "@/lib/hub-labels";
 import { portfolioLoadFailure } from "@/lib/trade-commit-session";
-import { StockDialog } from "@/components/dashboard/StockDialog";
 import {
   HoldingChartDialog,
   type HoldingChartTarget,
@@ -155,20 +155,14 @@ export interface DashboardSubscription {
 }
 
 function fmtDate(iso?: string | null): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("en-NZ", { day: "numeric", month: "short", year: "numeric" });
+  return formatDisplayDate(iso);
 }
 
 /** Derive the listing exchange for a holding from its ticker suffix. */
 // Compact, readable purchase date (e.g. "15 Jul 2026"). Legacy rows without a
 // stored date render an em-dash so the column never looks broken.
 function formatHoldingDate(iso?: string | null): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("en-NZ", { day: "2-digit", month: "short", year: "numeric" });
+  return formatDisplayDate(iso);
 }
 
 function exchangeForTicker(ticker: string, assetType?: string | null): string {
@@ -473,8 +467,6 @@ export function PortfolioDashboard({
   // Public troy-oz spot. Independent of the metals-desk entitlement gate so a
   // ledger GOLD lot is marked even when /api/metals is empty or rejected.
   const [publicSpot, setPublicSpot] = useState<MetalSpotPerOz | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editing, setEditing] = useState<Stock | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Stock | null>(null);
   const [deleting, setDeleting] = useState(false);
   // Holding "last 7 days" chart popup — opened by clicking a ticker in the table.
@@ -1135,8 +1127,23 @@ export function PortfolioDashboard({
   }
 
   function openEdit(stock: Stock) {
-    setEditing(stock);
-    setDialogOpen(true);
+    const assetType = stock.asset_type === "crypto" ? "crypto" : stock.asset_type === "metal" ? "metal" : "stock";
+    openRecordTransaction({
+      mode: "correction",
+      userId,
+      holdings: allStocks,
+      cash: cashBalance,
+      cashKnown: cashLoaded,
+      seed: {
+        ticker: stock.ticker,
+        name: stock.company_name || stock.ticker,
+        assetType,
+        price: stock.purchase_price,
+        quantity: stock.shares,
+        purchaseDate: stock.purchase_date,
+        holdingId: stock._id,
+      },
+    });
   }
 
   function recordHolding(
@@ -2219,14 +2226,6 @@ export function PortfolioDashboard({
       {/* Buy/Add is mounted once from the root layout (TransactionDialogHost),
           not under this stocks/transactions tree. A live-price hydrate on
           /dashboard/stocks must not remount it mid ticker-search. */}
-
-      <StockDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        editing={editing}
-        onSaved={handleDataChanged}
-        defaultAssetType={bot}
-      />
 
       {/* Last-7-days performance chart for a clicked holding ticker */}
       <HoldingChartDialog

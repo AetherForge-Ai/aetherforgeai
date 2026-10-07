@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { formatDisplayDate, formatMoney, formatPriceInput, formatSignedMoney } from "@/lib/currency";
+import {
+  formatDisplayDate,
+  formatFxInput,
+  formatMoney,
+  formatPriceInput,
+  formatQuantity,
+  formatSignedMoney,
+} from "@/lib/currency";
 import { defaultFeePresetId } from "@/lib/broker-fees";
 import { PAPER_FEE_SUMMARY, suggestedFee } from "@/lib/fee-rule";
 import { ledgerDisplayedCash } from "@/lib/ledger-cash-lines";
@@ -7,7 +14,9 @@ import { buildMovementPreview } from "@/lib/movement-preview";
 import { applyPaperCashMove } from "@/lib/paper-cash";
 import { paperFeeNZD } from "@/lib/report-topup";
 import { planSellFeeBackfill } from "@/lib/sell-fee-backfill";
-import { searchAssets } from "@/lib/asset-search";
+import { dexSearchHits, searchAssets } from "@/lib/asset-search";
+import { dexPriceForSymbol, type DexTokenRow } from "@/lib/crypto-dex";
+import { openingFx, priceForBooking, publicPageMetadata, ratesForBooking } from "@/lib/reviewed-book";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { assessMovement, transactionProblems } from "@/lib/transaction-rules";
@@ -393,7 +402,7 @@ describe("server-side movement rejection", () => {
     expect(read("src/lib/fee-rule.ts")).not.toContain("0.50%");
     const panel = read("src/components/dashboard/RecordTransactionPanel.tsx");
     expect(panel).toContain('id="record-fee"');
-    expect(panel).toContain("fees: Number(fee) || 0");
+    expect(panel).toContain("fees: preview.feeNative");
     expect(panel).not.toContain("0.50%");
     expect(read("src/app/trust/page.tsx")).toContain("PAPER_FEE_SUMMARY");
   });
@@ -403,5 +412,237 @@ describe("one asset search", () => {
   it("finds PEPE and Uniswap without choosing an asset type first", () => {
     expect(searchAssets("PEPE").some((hit) => hit.symbol === "PEPE")).toBe(true);
     expect(searchAssets("uniswap").some((hit) => hit.name === "Uniswap")).toBe(true);
+  });
+});
+
+describe("reviewed figures are the figures that are saved", () => {
+  const read = (rel: string) => readFileSync(path.join(process.cwd(), rel), "utf8");
+
+  it("books the reviewed WOR.AX price and FX, not today's snapshot", () => {
+    const reviewed = buildMovementPreview({
+      type: "buy",
+      date: "2026-10-01",
+      asset: "WOR.AX",
+      quantity: 1,
+      price: 9.52,
+      fee: 0,
+      currency: "AUD",
+      fxRate: 1.2378,
+      cashNzd: 1000,
+      hasAsset: true,
+    });
+    expect(reviewed.priceNative).toBe(9.52);
+    expect(reviewed.fxRate).toBe(1.2378);
+    expect(reviewed.cashChangeNzd).toBe(-11.78);
+    const todaySnapshot = { NZD: 1 as const, USD: 1.67, AUD: 1.2419 };
+    const booked = applyPaperCashMove({
+      side: "buy",
+      quantity: reviewed.quantity,
+      price: priceForBooking(reviewed.priceNative, 9.55),
+      fees: 0,
+      currency: "AUD",
+      rates: ratesForBooking("AUD", reviewed.fxRate, todaySnapshot),
+      cashNZD: 1000,
+      shares: 0,
+    });
+    expect(booked.cashDeltaNZD).toBe(reviewed.cashChangeNzd);
+    expect(booked.cashDeltaNZD).not.toBe(-11.82);
+  });
+
+  it("keeps a reviewed SOL fill when a newer spot arrives before save", () => {
+    const reviewed = buildMovementPreview({
+      type: "sell",
+      date: "2026-10-07",
+      asset: "SOL",
+      quantity: 0.5,
+      price: 118.75,
+      fee: 0,
+      currency: "USD",
+      fxRate: 1.6715,
+      cashNzd: 500,
+      hasAsset: true,
+    });
+    expect(formatMoney(reviewed.priceNative, "USD")).toBe("US$118.75");
+    const bookedPrice = priceForBooking(reviewed.priceNative, 118.79);
+    expect(bookedPrice).toBe(118.75);
+    const rates = ratesForBooking("USD", reviewed.fxRate, { NZD: 1, USD: 1.68, AUD: 1.2419 });
+    const booked = applyPaperCashMove({
+      side: "sell",
+      quantity: reviewed.quantity,
+      price: bookedPrice,
+      fees: 0,
+      currency: "USD",
+      rates,
+      cashNZD: 500,
+      shares: 1,
+    });
+    expect(booked.cashDeltaNZD).toBe(reviewed.cashChangeNzd);
+    const repriced = buildMovementPreview({
+      type: "sell",
+      date: "2026-10-07",
+      asset: "SOL",
+      quantity: 0.5,
+      price: 118.79,
+      fee: 0,
+      currency: "USD",
+      fxRate: reviewed.fxRate,
+      cashNzd: 500,
+      hasAsset: true,
+    });
+    expect(booked.cashDeltaNZD).not.toBe(repriced.cashChangeNzd);
+    const writer = read("src/lib/transactions.ts");
+    expect(writer).toContain("price = priceForBooking(price, liveSpot)");
+    expect(writer).toContain("ratesForBooking(currency, input.fx_rate, fx.ratesToNZD)");
+    expect(writer).not.toContain("price = liveSpot");
+    const panel = read("src/components/dashboard/RecordTransactionPanel.tsx");
+    expect(panel).toContain("payload.price = preview.priceNative");
+    expect(panel).toContain("payload.fx_rate = preview.fxRate");
+    expect(panel).toContain("purchase_price: preview.priceNative");
+    expect(panel).not.toContain("payload.price = Number(price)");
+  });
+});
+
+describe("row sell uses the same FX as the add panel", () => {
+  it("leaves the field blank until the live rate arrives, then shows 4 decimals", () => {
+    expect(openingFx({ currency: "AUD", live: false, liveRate: 1.09 })).toBeNull();
+    expect(openingFx({ currency: "AUD", live: true, liveRate: 1.2419490651849387 })).toBe("1.2419");
+    expect(openingFx({ currency: "NZD", live: false, liveRate: 1 })).toBe("1.0000");
+    const panel = readFileSync(path.join(process.cwd(), "src/components/dashboard/RecordTransactionPanel.tsx"), "utf8");
+    expect(panel).toContain("openingFx(");
+    expect(panel).not.toContain("String(rates[");
+    expect(panel).not.toContain("cash after still loading");
+    expect(panel).toContain("Loading cash…");
+  });
+});
+
+describe("DEX tokens", () => {
+  const pepe = dexSearchHits([
+    { symbol: "PEPE", name: "Pepe", price: 0.00000912, id: "pool-pepe", detailId: "pepe" },
+  ]);
+  const uni = dexSearchHits([
+    { symbol: "UNI", name: "Uniswap", price: 7.42, id: "pool-uni" },
+  ]);
+
+  it("returns a DEX badge and a live price ahead of the coin-list row", () => {
+    const hits = searchAssets("PEPE", {
+      dex: pepe,
+      coins: [{ symbol: "PEPE", name: "Pepe", market: "Crypto", assetType: "crypto", id: "pepe" }],
+    });
+    expect(hits[0]?.market).toBe("DEX");
+    expect(hits[0]?.price).toBeGreaterThan(0);
+    expect(hits.some((hit) => hit.market === "DEX" && hit.symbol === "PEPE")).toBe(true);
+    const uniswap = searchAssets("uniswap", { dex: uni });
+    expect(uniswap.some((hit) => hit.market === "DEX" && hit.name === "Uniswap" && (hit.price || 0) > 0)).toBe(true);
+    const row: DexTokenRow = {
+      id: "pool-pepe",
+      symbol: "PEPE",
+      name: "Pepe",
+      price: 0.00000912,
+      priceUnavailable: false,
+      volume24h: 1,
+      network: "Ethereum",
+      dex: "uniswap",
+      detailId: "pepe",
+    };
+    expect(dexPriceForSymbol("PEPE", [row])).toBe(0.00000912);
+    const quote = readFileSync(path.join(process.cwd(), "src/app/api/tickers/quote/route.ts"), "utf8");
+    expect(quote).toContain("dexPriceForSymbol");
+    expect(quote).toContain('market !== "dex"');
+    const panel = readFileSync(path.join(process.cwd(), "src/components/dashboard/RecordTransactionPanel.tsx"), "utf8");
+    expect(panel).toContain('asset.market === "DEX" ? "&market=dex"');
+    expect(panel).toContain('if (kind !== "dividend") return found');
+  });
+});
+
+describe("display formatters", () => {
+  it("shows FX to 4 decimals, dates without a leading zero, and grouped quantities", () => {
+    expect(formatFxInput(1.2419490651849387)).toBe("1.2419");
+    expect(formatFxInput(1.7788213529715213)).toBe("1.7788");
+    expect(formatDisplayDate("2026-10-04")).toBe("4 Oct 2026");
+    expect(formatDisplayDate("2026-10-01")).toBe("1 Oct 2026");
+    expect(formatDisplayDate("2026-07-08")).toBe("8 Jul 2026");
+    expect(formatPriceInput(9.510307)).toBe("9.51");
+    expect(formatQuantity(9824)).toBe("9,824");
+    const held = transactionProblems({
+      type: "sell",
+      date: today,
+      today,
+      quantity: 10000,
+      price: 1,
+      held: 9824,
+      hasAsset: true,
+      cashKnown: true,
+      cashAfterNzd: 10,
+      needsCash: false,
+    });
+    expect(held.join(" ")).toContain("9,824");
+    expect(held.join(" ")).not.toContain("9824");
+    const dashboard = readFileSync(path.join(process.cwd(), "src/components/dashboard/PortfolioDashboard.tsx"), "utf8");
+    const table = readFileSync(path.join(process.cwd(), "src/components/dashboard/HoldingsOwnedTable.tsx"), "utf8");
+    expect(dashboard).toContain("return formatDisplayDate(iso)");
+    expect(table).toContain("return formatDisplayDate(iso)");
+    expect(dashboard).not.toContain('day: "2-digit"');
+    expect(readFileSync(path.join(process.cwd(), "src/components/performance/LiveExamplesGallery.tsx"), "utf8")).toContain(
+      'const TODAY_LABEL = "8 Jul 2026"'
+    );
+  });
+});
+
+describe("holding edit writes a ledger correction", () => {
+  it("opens the record panel instead of the old edit form", () => {
+    const dashboard = readFileSync(path.join(process.cwd(), "src/components/dashboard/PortfolioDashboard.tsx"), "utf8");
+    expect(dashboard).toContain('mode: "correction"');
+    expect(dashboard).not.toContain("StockDialog");
+    expect(dashboard).toContain("holdingId: stock._id");
+    const dialog = readFileSync(path.join(process.cwd(), "src/components/dashboard/TransactionDialog.tsx"), "utf8");
+    expect(dialog).toContain("Correct this holding");
+    expect(dialog).not.toContain("Update the date, amount or purchase price for this position");
+    const edit = readFileSync(path.join(process.cwd(), "src/app/api/stocks/[id]/route.ts"), "utf8");
+    expect(edit).toContain("executed_at: nextDay ? `${nextDay}T12:00:00.000Z`");
+    expect(edit).toContain("fromHoldingEdit: true");
+  });
+});
+
+describe("public page canonical URLs", () => {
+  const pages = [
+    "/trust",
+    "/tax",
+    "/markets",
+    "/terms-of-service",
+    "/privacy-policy",
+    "/ai-disclaimer",
+    "/pricing",
+    "/docs",
+    "/about",
+    "/blog",
+    "/performance",
+    "/how-it-works",
+    "/how-to-maximize-results",
+    "/projections",
+    "/market-news",
+    "/free-trial",
+  ];
+
+  it("points canonical and og:url at the page itself", () => {
+    for (const page of pages) {
+      const meta = publicPageMetadata(page, { title: "Title", description: "Description" });
+      expect(meta.alternates?.canonical).toBe(page);
+      expect(meta.openGraph && "url" in meta.openGraph ? meta.openGraph.url : null).toBe(page);
+      const file = readFileSync(path.join(process.cwd(), `src/app${page}/page.tsx`), "utf8");
+      expect(file).toContain(`publicPageMetadata("${page}"`);
+    }
+    const crypto = readFileSync(path.join(process.cwd(), "src/app/markets/crypto/[id]/page.tsx"), "utf8");
+    const stock = readFileSync(path.join(process.cwd(), "src/app/markets/stock/[ticker]/page.tsx"), "utf8");
+    expect(crypto).toContain("generateMetadata");
+    expect(crypto).toContain("publicPageMetadata(`/markets/crypto/${id}`");
+    expect(stock).toContain("generateMetadata");
+    expect(stock).toContain("publicPageMetadata(`/markets/stock/${ticker}`");
+    const trust = readFileSync(path.join(process.cwd(), "src/app/trust/page.tsx"), "utf8");
+    expect(trust).toContain("<SiteHeader");
+    expect(trust).toContain('aria-label="Footer"');
+    const login = readFileSync(path.join(process.cwd(), "src/app/login/layout.tsx"), "utf8");
+    expect(login).toContain('publicPageMetadata("/login"');
+    const stocks = readFileSync(path.join(process.cwd(), "src/app/dashboard/stocks/page.tsx"), "utf8");
+    expect(stocks).toContain('publicPageMetadata("/dashboard/stocks"');
   });
 });

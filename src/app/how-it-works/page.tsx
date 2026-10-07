@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ExampleExplanationReport } from "@/components/how-it-works/ExampleExplanationReport";
 import type { Metadata } from "next";
+import { publicPageMetadata } from "@/lib/reviewed-book";
 import { LEGAL_ENTITY_NAME } from "@/lib/company";
 import { SiteHeader } from "@/components/SiteHeader";
 import { BrandLogo } from "@/components/BrandLogo";
@@ -34,12 +35,11 @@ import {
   Layers,
 } from "lucide-react";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = publicPageMetadata("/how-it-works", {
   title: "How It Works — AetherForge AI",
   description:
     "You buy your shares, crypto, gold and silver through your own broker — AetherForge AI never touches your assets. See the exact step-by-step process, what each AI report contains, where to buy, and plain-English guides to shares, crypto and precious metals.",
-  alternates: { canonical: "/how-it-works" },
-};
+});
 
 /* -------------------------------------------------------------------------- */
 /*  Data                                                                      */

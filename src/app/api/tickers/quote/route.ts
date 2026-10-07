@@ -4,6 +4,8 @@ import { fetchCryptoQuotes } from "@/lib/market-data";
 import { getMetalsSpot } from "@/lib/metals";
 import { CANONICAL_CRYPTO_IDS } from "@/lib/crypto-ids";
 import { lookupCryptoId } from "@/lib/crypto-id-registry";
+import { fetchDexTop400 } from "@/lib/crypto-coingecko";
+import { dexPriceForSymbol } from "@/lib/crypto-dex";
 
 export const dynamic = "force-dynamic";
 
@@ -33,19 +35,39 @@ export async function GET(req: Request) {
       });
     }
 
-    // Crypto path — priced from the same Swyftx-primary source as the rest of the app.
+    // Crypto path — CoinGecko for the coin list, GeckoTerminal when the row is DEX
+    // or the coin list has no print.
     if (type === "crypto") {
+      const market = (searchParams.get("market") || "").trim().toLowerCase();
       const explicitId = (searchParams.get("id") || "").trim();
       const remembered = lookupCryptoId(symbol);
       const coinId = explicitId || remembered || "";
       const knownName = Object.prototype.hasOwnProperty.call(CANONICAL_CRYPTO_IDS, symbol);
       // An id from the extended list must not be replaced with a guessed Yahoo print.
       const strict = Boolean(explicitId || (remembered && !knownName));
-      const quotes = await fetchCryptoQuotes(
-        [symbol],
-        coinId ? { ids: { [symbol]: coinId }, ...(strict ? { strictCoinGecko: [symbol] } : {}) } : undefined
-      );
-      const price = quotes[symbol]?.price ?? null;
+      let price: number | null = null;
+      // A DEX row prices from GeckoTerminal. A coin-list miss falls through to the same list.
+      if (market !== "dex") {
+        try {
+          const quotes = await fetchCryptoQuotes(
+            [symbol],
+            coinId
+              ? { ids: { [symbol]: coinId }, ...(strict ? { strictCoinGecko: [symbol] } : {}) }
+              : undefined
+          );
+          price = quotes[symbol]?.price ?? null;
+        } catch (err) {
+          console.error(`[api/tickers/quote] coin price for ${symbol} failed:`, err);
+        }
+      }
+      if (!(price != null && price > 0)) {
+        try {
+          const dex = await fetchDexTop400();
+          price = dexPriceForSymbol(symbol, dex.rows);
+        } catch (err) {
+          console.error(`[api/tickers/quote] DEX price for ${symbol} failed:`, err);
+        }
+      }
       console.log(`[api/tickers/quote] (crypto) ${symbol} → ${price ? `$${price} USD` : "no quote"}`);
       return NextResponse.json({
         ok: true,

@@ -154,27 +154,57 @@ export function formatPriceInput(value: number): string {
   return text.replace(/(\.\d*?[1-9])0+$/, "$1").replace(/\.0+$/, "");
 }
 
+const DISPLAY_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function displayDateParts(input: string | Date): { day: number; month: number; year: number } | null {
+  if (typeof input === "string") {
+    const ymd = /^(\d{4})-(\d{2})-(\d{2})/.exec(input.trim());
+    if (ymd) return { year: Number(ymd[1]), month: Number(ymd[2]), day: Number(ymd[3]) };
+  }
+  const date = input instanceof Date ? input : new Date(input);
+  if (Number.isNaN(date.getTime())) return null;
+  const parts = new Intl.DateTimeFormat("en-NZ", {
+    timeZone: "Pacific/Auckland",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const year = Number(parts.find((part) => part.type === "year")?.value);
+  const month = Number(parts.find((part) => part.type === "month")?.value);
+  const day = Number(parts.find((part) => part.type === "day")?.value);
+  if (!year || !month || !day) return null;
+  return { year, month, day };
+}
+
 /**
  * Calendar date as '4 Oct 2026'. A yyyy-mm-dd string is that civil date,
  * not UTC midnight (which would show the previous day in New Zealand).
+ * The day is never padded, so 4 October is '4 Oct 2026'.
  */
 export function formatDisplayDate(input?: string | Date | null): string {
   if (input == null || input === "") return "—";
-  if (typeof input === "string") {
-    const ymd = /^(\d{4})-(\d{2})-(\d{2})/.exec(input.trim());
-    if (ymd) {
-      const local = new Date(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]));
-      return local.toLocaleDateString("en-NZ", { day: "numeric", month: "short", year: "numeric" });
-    }
-  }
-  const date = input instanceof Date ? input : new Date(input);
-  if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleDateString("en-NZ", {
-    timeZone: "Pacific/Auckland",
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  const parts = displayDateParts(input);
+  if (!parts || parts.month < 1 || parts.month > 12) return "—";
+  return `${parts.day} ${DISPLAY_MONTHS[parts.month - 1]} ${parts.year}`;
+}
+
+/** NZD received for 1 unit of a foreign currency, shown to 4 decimals. */
+export function roundFxRate(value: number): number {
+  if (!(value > 0) || !Number.isFinite(value)) return value;
+  return Math.round((value + Number.EPSILON) * 10000) / 10000;
+}
+
+export function formatFxInput(value: number): string {
+  if (!(value > 0) || !Number.isFinite(value)) return "";
+  return roundFxRate(value).toFixed(4);
+}
+
+/** Quantities in messages, with a thousands separator. 9824 is '9,824'. */
+export function formatQuantity(value: number): string {
+  if (!Number.isFinite(value)) return "0";
+  const abs = Math.abs(value);
+  const maximumFractionDigits = abs > 0 && abs < 1 ? 8 : 4;
+  return new Intl.NumberFormat("en-NZ", { maximumFractionDigits, useGrouping: true }).format(value);
 }
 
 /** NZ dollars to 2 decimal places, e.g. NZ$2.20 or -NZ$21,598.34. */

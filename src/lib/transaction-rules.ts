@@ -3,7 +3,7 @@
  * Messages are shown inline on the Record a transaction panel.
  */
 
-import { formatDisplayDate } from "@/lib/currency";
+import { formatDisplayDate, formatQuantity } from "@/lib/currency";
 import type { RecordKind } from "@/lib/movement-preview";
 
 export interface RecordCheck {
@@ -48,7 +48,7 @@ export function transactionProblems(input: RecordCheck): string[] {
   if (input.type === "sell") {
     if (!(input.held > 0)) problems.push("You don't hold this asset, so it can't be sold.");
     else if (input.quantity > input.held + 1e-6) {
-      problems.push(`You hold ${trimQty(input.held)}. A sell can't be larger than that.`);
+      problems.push(`You hold ${formatQuantity(input.held)}. A sell can't be larger than that.`);
     }
     if (input.firstBuyDate && input.date && input.date < input.firstBuyDate) {
       problems.push(
@@ -79,10 +79,6 @@ export function transactionProblems(input: RecordCheck): string[] {
     problems.push("This would take cash below zero.");
   }
   return problems;
-}
-
-function trimQty(n: number): string {
-  return String(Math.round(n * 1e6) / 1e6);
 }
 
 /**

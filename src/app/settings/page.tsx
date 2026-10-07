@@ -1,11 +1,17 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser, isStripeConfigured } from "@/lib/session";
+import { publicPageMetadata } from "@/lib/reviewed-book";
 import { AppShell } from "@/components/AppShell";
 import { SettingsClient } from "@/components/settings/SettingsClient";
 import { RedirectSignedOut } from "@/components/auth/RedirectSignedOut";
 import { resolveDisplayName } from "@/lib/user-display";
 
 export const dynamic = "force-dynamic";
+
+export const metadata = publicPageMetadata("/settings", {
+  title: "Settings · AetherForge AI",
+  description: "Account settings for your AetherForge paper book.",
+});
 
 export default async function SettingsPage() {
   const user = await getCurrentUser();

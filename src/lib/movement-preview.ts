@@ -3,7 +3,7 @@
  * Cash change is signed: a buy, withdrawal or tax line is negative.
  */
 
-import { nativeToNzd, type CurrencyCode, type FxRatesToNZD, BASELINE_FX_TO_NZD } from "@/lib/currency";
+import { nativeToNzd, roundFxRate, type CurrencyCode, type FxRatesToNZD, BASELINE_FX_TO_NZD } from "@/lib/currency";
 import { suggestedFee } from "@/lib/fee-rule";
 
 export type RecordKind =
@@ -65,7 +65,8 @@ function ratesFor(currency: CurrencyCode, fxRate: number): FxRatesToNZD {
 export function buildMovementPreview(input: MovementInput): MovementPreview {
   const type = input.type;
   const currency: CurrencyCode = input.currency || "NZD";
-  const fxRate = currency === "NZD" ? 1 : input.fxRate && input.fxRate > 0 ? input.fxRate : BASELINE_FX_TO_NZD[currency];
+  const fxRate =
+    currency === "NZD" ? 1 : input.fxRate && input.fxRate > 0 ? roundFxRate(input.fxRate) : BASELINE_FX_TO_NZD[currency];
   const rates = ratesFor(currency, fxRate);
   const quantity = Math.max(0, Number(input.quantity) || 0);
   const price = Math.max(0, Number(input.price) || 0);
