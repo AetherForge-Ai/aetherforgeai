@@ -4,6 +4,7 @@ import { bearer } from "better-auth/plugins";
 import { nextCookies } from "better-auth/next-js";
 import { totalumAdapter } from "@/lib/better-auth-totalum-adapter";
 import { totalumSdk } from "@/lib/totalum";
+import { sendAuthResetPassword, sendAuthVerificationEmail } from "@/lib/auth-mail";
 import { APIError } from "better-auth/api";
 import { SIGNUP_CONSENT_ERROR, TERMS_VERSION, ageConfirmed, consentFields } from "@/lib/signup-consent";
 
@@ -37,49 +38,10 @@ export const auth = betterAuth({
     // PASSWORD RECOVERY - Enabled. Sends a branded reset email via TotalumSDK.
     // Powers /forgot-password and /reset-password pages.
     // =========================================================================
-    sendResetPassword: async ({ user, url }) => {
-      console.log(`[auth] Sending password reset email to ${user.email}`);
-      try {
-        await totalumSdk.email.sendEmail({
-          to: [user.email],
-          subject: "Reset your AetherForge password",
-          fromName: "AetherForge AI",
-          html: `
-            <div style="margin:0;padding:0;background-color:#070b16;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-              <div style="max-width:520px;margin:0 auto;padding:40px 24px;">
-                <div style="text-align:center;margin-bottom:28px;">
-                  <span style="font-size:22px;font-weight:800;letter-spacing:-0.5px;background:linear-gradient(90deg,#22d3ee,#a78bfa);-webkit-background-clip:text;background-clip:text;color:#22d3ee;">AetherForge AI</span>
-                </div>
-                <div style="background:linear-gradient(180deg,#0d1424,#0a101e);border:1px solid rgba(34,211,238,0.18);border-radius:18px;padding:34px 30px;">
-                  <h2 style="margin:0 0 14px;font-size:22px;color:#f1f5f9;">Reset your password</h2>
-                  <p style="margin:0 0 10px;font-size:15px;line-height:1.6;color:#a9b4c7;">
-                    Hi ${user.name || "there"}, we received a request to reset the password for your AetherForge account.
-                  </p>
-                  <p style="margin:0 0 26px;font-size:15px;line-height:1.6;color:#a9b4c7;">
-                    Click the button below to choose a new password. This secure link expires in 1 hour.
-                  </p>
-                  <div style="text-align:center;margin:0 0 26px;">
-                    <a href="${url}" style="display:inline-block;padding:14px 34px;border-radius:12px;background:linear-gradient(90deg,#22d3ee,#a78bfa);color:#070b16;font-weight:700;font-size:15px;text-decoration:none;">Reset Password</a>
-                  </div>
-                  <p style="margin:0 0 8px;font-size:13px;line-height:1.6;color:#7c8598;">
-                    If the button doesn't work, copy and paste this link into your browser:
-                  </p>
-                  <p style="margin:0 0 22px;font-size:12px;line-height:1.5;word-break:break-all;color:#22d3ee;">${url}</p>
-                  <p style="margin:0;font-size:13px;line-height:1.6;color:#7c8598;border-top:1px solid rgba(148,163,184,0.14);padding-top:18px;">
-                    If you didn't request a password reset, you can safely ignore this email — your password will stay the same.
-                  </p>
-                </div>
-                <p style="text-align:center;margin:22px 0 0;font-size:12px;color:#5b6478;">© AetherForge AI · Automated security message</p>
-              </div>
-            </div>
-          `,
-        });
-        console.log(`[auth] Password reset email sent to ${user.email}`);
-      } catch (e) {
-        console.error(`[auth] Failed to send password reset email to ${user.email}:`, e);
-        throw e;
-      }
-    },
+    // Log a failed reset and do not rethrow. /forgot-password should always
+    // show the same success message, including when the address is unknown
+    // to the mailer or the send is rejected.
+    sendResetPassword: sendAuthResetPassword,
     resetPasswordTokenExpiresIn: 3600,
   },
 
@@ -98,49 +60,10 @@ export const auth = betterAuth({
     // The `url` Better Auth builds points at /api/auth/verify-email?token=...&
     // callbackURL=/verify-email — clicking it verifies the address then redirects
     // the browser to our branded /verify-email success page.
-    sendVerificationEmail: async ({ user, url }) => {
-      console.log(`[auth] Sending verification email to ${user.email}`);
-      try {
-        await totalumSdk.email.sendEmail({
-          to: [user.email],
-          subject: "Verify your email to activate AetherForge AI",
-          fromName: "AetherForge AI",
-          html: `
-            <div style="margin:0;padding:0;background-color:#070b16;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-              <div style="max-width:520px;margin:0 auto;padding:40px 24px;">
-                <div style="text-align:center;margin-bottom:28px;">
-                  <span style="font-size:22px;font-weight:800;letter-spacing:-0.5px;background:linear-gradient(90deg,#22d3ee,#a78bfa);-webkit-background-clip:text;background-clip:text;color:#22d3ee;">AetherForge AI</span>
-                </div>
-                <div style="background:linear-gradient(180deg,#0d1424,#0a101e);border:1px solid rgba(34,211,238,0.18);border-radius:18px;padding:34px 30px;">
-                  <h2 style="margin:0 0 14px;font-size:22px;color:#f1f5f9;">Confirm your email address</h2>
-                  <p style="margin:0 0 10px;font-size:15px;line-height:1.6;color:#a9b4c7;">
-                    Welcome${user.name ? `, ${user.name}` : ""}! You're one step away from your AetherForge portfolio command center.
-                  </p>
-                  <p style="margin:0 0 26px;font-size:15px;line-height:1.6;color:#a9b4c7;">
-                    Verify your email to activate your account and unlock your dashboard, holdings and projections.
-                  </p>
-                  <div style="text-align:center;margin:0 0 26px;">
-                    <a href="${url}" style="display:inline-block;padding:14px 34px;border-radius:12px;background:linear-gradient(90deg,#22d3ee,#a78bfa);color:#070b16;font-weight:700;font-size:15px;text-decoration:none;">Verify My Email</a>
-                  </div>
-                  <p style="margin:0 0 8px;font-size:13px;line-height:1.6;color:#7c8598;">
-                    If the button doesn't work, copy and paste this link into your browser:
-                  </p>
-                  <p style="margin:0 0 22px;font-size:12px;line-height:1.5;word-break:break-all;color:#22d3ee;">${url}</p>
-                  <p style="margin:0;font-size:13px;line-height:1.6;color:#7c8598;border-top:1px solid rgba(148,163,184,0.14);padding-top:18px;">
-                    If you didn't create an AetherForge account, you can safely ignore this email.
-                  </p>
-                </div>
-                <p style="text-align:center;margin:22px 0 0;font-size:12px;color:#5b6478;">© AetherForge AI · Automated security message</p>
-              </div>
-            </div>
-          `,
-        });
-        console.log(`[auth] Verification email sent to ${user.email}`);
-      } catch (e) {
-        console.error(`[auth] Failed to send verification email to ${user.email}:`, e);
-        throw e;
-      }
-    },
+    // Sign-up awaits this after the user exists. A mail failure is logged and
+    // swallowed there so registration still reaches "check your email".
+    // POST /send-verification-email (Resend) rethrows so the button can show an error.
+    sendVerificationEmail: sendAuthVerificationEmail,
   },
 
   // ===========================================================================
