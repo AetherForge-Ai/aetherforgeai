@@ -16,6 +16,7 @@ import {
   isProtectedAccountApi,
   requestHasSessionToken,
 } from "@/lib/session-owner";
+import { SECURITY_HEADERS } from "@/lib/security-headers";
 
 const isProduction = process.env.NODE_ENV === "production";
 const appUrl = process.env.NEXT_PUBLIC_APP_URL || "";
@@ -105,9 +106,13 @@ function addCorsHeaders(response: NextResponse, request: NextRequest) {
   return response;
 }
 
-// Set CSP to allow iframe embedding from any domain and remove X-Frame-Options
+// HSTS, nosniff, referrer policy, and frame-ancestors 'self'.
+// Replaces the old frame-ancestors * so the login page cannot be framed
+// by another site. The Totalum preview parents are not same-origin.
 function addCspHeaders(response: NextResponse) {
-  response.headers.set("Content-Security-Policy", "frame-ancestors *");
+  for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
+    response.headers.set(key, value);
+  }
   response.headers.delete("X-Frame-Options");
   return response;
 }
