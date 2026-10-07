@@ -7,7 +7,7 @@ import {
   fetchHistoriesForAssetClass,
   isLiveConfiguredFor,
 } from "@/lib/market-data";
-import { loadCryptoBoardLive } from "@/lib/crypto-tape";
+import { filterPublishedCrypto, loadCryptoBoardLive } from "@/lib/crypto-tape";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +27,7 @@ export async function GET(req: Request) {
     const tickers = universeFor(assetClass).map((e) => e.ticker);
     let overrides: Record<string, number> = {};
     let histories: Record<string, number[]> = {};
+    let change24h: Record<string, number> = {};
     let live = false;
 
     if (assetClass === "crypto") {
@@ -34,6 +35,7 @@ export async function GET(req: Request) {
         const board = await loadCryptoBoardLive(tickers);
         overrides = board.quotes;
         histories = board.histories;
+        change24h = board.change24h;
         live = Object.keys(overrides).length > 0 || Object.keys(histories).length > 0;
       } catch (err) {
         console.error("[api/market] Crypto tape failed:", err);
@@ -83,7 +85,9 @@ export async function GET(req: Request) {
       }
     }
 
-    const universe = analyzeUniverse(overrides, assetClass, histories);
+    const analysed = analyzeUniverse(overrides, assetClass, histories);
+    const universe =
+      assetClass === "crypto" ? filterPublishedCrypto(analysed, { histories, change24h }) : analysed;
     const news = await loadMarketNews(assetClass).catch((err) => {
       console.error("[api/market] Live news fetch failed — curated fallback:", err);
       return getMarketNews(assetClass);
