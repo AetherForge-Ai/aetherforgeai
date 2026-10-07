@@ -10,7 +10,6 @@ import {
 import { cn } from "@/lib/utils";
 import { pctClass, fmtPct, ExchangeChip, publicMarketNote } from "@/components/dashboard/intel-ui";
 import { useMarketIntel } from "@/components/dashboard/MarketIntelContext";
-import { BuyDialog, type BuyTarget } from "@/components/dashboard/BuyDialog";
 import { Button } from "@/components/ui/button";
 import {
   LineChart,
@@ -18,7 +17,6 @@ import {
   TrendingDown,
   RefreshCw,
   Loader2,
-  ShoppingCart,
   ArrowUp,
   ArrowDown,
 } from "lucide-react";
@@ -134,14 +132,6 @@ export function ProjectionsPanel({
   const [selected, setSelected] = useState<string>("");
   const sel = leaders.find((l) => l.ticker === selected) ?? leaders[0];
 
-  const [buyTarget, setBuyTarget] = useState<BuyTarget | null>(null);
-  const [buyOpen, setBuyOpen] = useState(false);
-
-  function openBuy(s: SecurityIntel) {
-    setBuyTarget({ ticker: s.ticker, name: s.name, assetType: assetClass, price: s.price });
-    setBuyOpen(true);
-  }
-
   if (!sel) return null;
 
   return (
@@ -234,16 +224,9 @@ export function ProjectionsPanel({
               </div>
               <p className="text-xs text-muted-foreground">{sel.name} · {sel.sector}</p>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="text-right">
-                <p className="tnum font-display text-lg font-bold">{formatMarketPrice(sel.price, sel.currency)}</p>
-                <p className={cn("tnum text-xs font-semibold", pctClass(sel.projected7dPct))}>
-                  {fmtPct(sel.projected7dPct)} projected · {sel.confidence}% confidence
-                </p>
-              </div>
-              <Button size="sm" className="h-9 gap-1.5 px-3 font-semibold shadow-glow" onClick={() => openBuy(sel)}>
-                <ShoppingCart className="size-4" /> Buy
-              </Button>
+            <div className="text-right">
+              <p className="tnum font-display text-lg font-bold">{formatMarketPrice(sel.price, sel.currency)}</p>
+              <p className="tnum text-xs font-semibold text-muted-foreground">{sel.confidence}% model agreement</p>
             </div>
           </div>
 
@@ -286,22 +269,12 @@ export function ProjectionsPanel({
             </p>
             <p className="mt-1.5 text-sm leading-relaxed text-foreground/90">{publicMarketNote(sel.reasoning)}</p>
             <p className="mt-2 text-xs text-muted-foreground">
-              Projected <span className={cn("font-semibold", pctClass(sel.projected7dPct))}>{fmtPct(sel.projected7dPct)}</span> over
-              the next 7 sessions at {sel.confidence}% model confidence · conviction score {sel.score}/100.
+              Model agreement {sel.confidence}%. This is a calculation from past prices, not a forecast you should act on.
             </p>
           </div>
         </div>
       </div>
 
-      <BuyDialog
-        open={buyOpen}
-        onOpenChange={setBuyOpen}
-        target={buyTarget}
-        onDone={() => {
-          setBuyOpen(false);
-          onBought?.();
-        }}
-      />
     </section>
   );
 }

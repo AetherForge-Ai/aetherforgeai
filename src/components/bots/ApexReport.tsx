@@ -8,6 +8,7 @@
 
 import * as React from "react";
 import { Badge } from "@/components/ui/badge";
+import { scrubPublicCopy } from "@/lib/public-intel";
 import { formatPercent } from "@/lib/portfolio";
 import { formatMoney } from "@/lib/currency";
 import { sanitizeGuardedReport } from "@/lib/report-consistency";
@@ -20,23 +21,6 @@ import type {
   PortfolioPathway,
 } from "@/lib/apex";
 import type { BriefingOutlookRow } from "@/lib/briefing";
-
-function signalTone(signal: TickerAnalysis["signal"]): string {
-  switch (signal) {
-    case "Strong Buy":
-      return "bg-emerald-500/15 text-emerald-600 border-emerald-500/30";
-    case "Buy":
-    case "Accumulate":
-      return "bg-teal-500/15 text-teal-700 border-teal-500/30";
-    case "Hold":
-      return "bg-sky-500/15 text-sky-700 border-sky-500/30";
-    case "Watch":
-      return "bg-amber-500/15 text-amber-700 border-amber-500/30";
-    case "Reduce":
-    case "Sell":
-      return "bg-rose-500/15 text-rose-700 border-rose-500/30";
-  }
-}
 
 function pctTone(v: number): string {
   return v > 0 ? "text-emerald-600" : v < 0 ? "text-rose-600" : "text-muted-foreground";
@@ -87,9 +71,7 @@ function TickerCard({ t }: { t: TickerAnalysis }) {
         <div>
           <div className="flex items-center gap-2">
             <span className="font-semibold tracking-tight">{t.ticker}</span>
-            <Badge variant="outline" className={signalTone(t.signal)}>
-              {t.signal}
-            </Badge>
+            <Badge variant="outline">Technical snapshot</Badge>
           </div>
           <p className="text-xs text-muted-foreground">{t.name}</p>
         </div>
@@ -140,12 +122,12 @@ function TickerCard({ t }: { t: TickerAnalysis }) {
               {p.targetPct > 0 ? "+" : ""}
               {p.targetPct}%
             </div>
-            <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground line-clamp-3">{p.narrative}</p>
+            <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground line-clamp-3">{scrubPublicCopy(p.narrative)}</p>
           </div>
         ))}
       </div>
 
-      <p className="mt-3 text-xs leading-relaxed text-muted-foreground/90">{t.note}</p>
+      <p className="mt-3 text-xs leading-relaxed text-muted-foreground/90">{scrubPublicCopy(t.note)}</p>
     </div>
   );
 }
