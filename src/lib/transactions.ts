@@ -229,6 +229,27 @@ async function applyTransactionUnlocked(user: AppUser, input: TransactionInput):
     const amount = Math.max(0, Number(input.amount) || 0);
     const fee = Math.max(0, Number(input.fees) || 0);
     if (amount <= 0) throw new Error("Amount must be greater than 0");
+    if (input.type === "dividend") {
+      const ticker = normalizeTicker(input.ticker || "");
+      if (!ticker) throw new Error("A dividend has to be linked to a holding you already have.");
+      const assetType: TxAssetType = input.asset_type || "stock";
+      const existing = await findHolding(user._id, ticker, assetType);
+      const sharesHeld = Number(existing?.shares) || 0;
+      if (!(sharesHeld > 0)) {
+        const metalKey = ticker === "GOLD" ? "gold" : ticker === "SILVER" ? "silver" : "";
+        let metalHeld = false;
+        if (metalKey) {
+          const metals = await totalumSdk.crud.query("precious_metal", {
+            _filter: { user: user._id },
+            _limit: 50,
+          });
+          metalHeld = ((metals?.data as Array<{ metal?: string; ounces?: number }>) || []).some(
+            (row) => String(row.metal || "").toLowerCase() === metalKey && Number(row.ounces) > 0
+          );
+        }
+        if (!metalHeld) throw new Error("A dividend has to be linked to a holding you already have.");
+      }
+    }
     const credits = input.type === "deposit" || input.type === "dividend" || openingCash;
     const delta = credits ? amount - fee : -(amount + fee);
     if ((input.type === "withdraw" || input.type === "tax") && -delta > currentCash + 1e-6) {
@@ -697,6 +718,9 @@ async function applyTransactionUnlocked(user: AppUser, input: TransactionInput):
   });
   if (!sold.ok) throw new Error(sold.error || `${ticker} live price unavailable`);
   const proceedsNZD = sold.cashDeltaNZD;
+  if (proceedsNZD < -1e-6 && sold.cashNZD < -1e-6) {
+    throw new Error("This would take cash below zero.");
+  }
   // FIFO-style split: price P&L at sell FX; FX P&L vs lot FX (legacy avg uses buy FX ≈ current if unknown).
   const sellFx = nzdPerUnit(currency, input.fx_rate ?? rates[currency] ?? 1);
   const lotFx = Number(holding.fx_rate) || sellFx;
@@ -877,6 +901,9 @@ async function recordMetalTradeUnlocked(
     total = round(-cost);
   } else {
     total = round(gross - fees);
+    if (total < -1e-6 && round(currentCash + total) < -1e-6) {
+      throw new Error("This would take cash below zero.");
+    }
     const avg = Number(input.avgCostNZD) || 0;
     realizedNZD = round(ounces * (price - avg) - fees);
   }

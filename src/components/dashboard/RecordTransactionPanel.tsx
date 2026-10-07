@@ -263,10 +263,17 @@ export function RecordTransactionPanel({
       })),
     [coins]
   );
-  const results = useMemo(
-    () => searchAssets(query, { shares: shareHits, coins: coinHits, dex }),
-    [query, shareHits, coinHits, dex]
+  const heldHits = useMemo(
+    () => book.filter((row) => row.quantity > 0).map(holdingHit),
+    [book]
   );
+  const results = useMemo(() => {
+    const found = searchAssets(query, { shares: shareHits, coins: coinHits, dex });
+    if (kind !== "dividend") return found;
+    const owned = new Set(heldHits.map((hit) => hit.symbol.toUpperCase()));
+    if (!query.trim()) return heldHits.slice(0, 12);
+    return found.filter((hit) => owned.has(hit.symbol.toUpperCase()));
+  }, [query, shareHits, coinHits, dex, kind, heldHits]);
 
   const held = useMemo(() => {
     if (!asset) return null;
@@ -378,7 +385,8 @@ export function RecordTransactionPanel({
       hasAsset: !!asset,
       cashKnown: bookKnown || cashKnown,
       cashAfterNzd: next.cashAfterNzd,
-      needsCash: kind === "buy" || kind === "withdraw" || kind === "tax",
+      cashChangeNzd: next.cashChangeNzd,
+      needsCash: next.cashChangeNzd < -1e-6 || kind === "buy" || kind === "withdraw" || kind === "tax",
     });
     setProblems(messages);
     if (messages.length) return;
@@ -393,7 +401,14 @@ export function RecordTransactionPanel({
     try {
       if (kind === "sell" && (metalId || held?.metalSourceId)) {
         const id = metalId || held?.metalSourceId;
-        const url = `/api/metals/${id}?ounces=${encodeURIComponent(String(preview.quantity))}&confirm=true`;
+        const params = new URLSearchParams({
+          ounces: String(preview.quantity),
+          confirm: "true",
+          price: String(preview.priceNzd),
+          fees: String(preview.feeNzd),
+          date: preview.date,
+        });
+        const url = `/api/metals/${id}?${params.toString()}`;
         const res = await api.delete(url, { confirm: true });
         if (!res.ok) {
           toast.error(typeof res.error === "string" ? res.error : "Could not record that sale.");
@@ -525,19 +540,23 @@ export function RecordTransactionPanel({
                     data-testid="record-search"
                     value={query}
                     placeholder={
-                      kind === "opening_balance"
-                        ? "Search a share, coin, gold or silver — or leave empty for opening cash"
-                        : "Search shares, coins, DEX tokens, gold or silver"
+                      kind === "dividend"
+                        ? "Search a holding you already have"
+                        : kind === "opening_balance"
+                          ? "Search a share, coin, gold or silver — or leave empty for opening cash"
+                          : "Search shares, coins, DEX tokens, gold or silver"
                     }
                     onChange={(e) => setQuery(e.target.value)}
                     autoComplete="off"
                   />
-                  {query.trim() ? (
+                  {kind === "dividend" || query.trim() ? (
                     <ul className="max-h-48 overflow-auto rounded-lg border border-border/70" data-testid="record-results">
                       {searching && results.length === 0 ? (
                         <li className="px-3 py-2 text-sm text-muted-foreground">Searching…</li>
                       ) : results.length === 0 ? (
-                        <li className="px-3 py-2 text-sm text-muted-foreground">Nothing matches that search.</li>
+                        <li className="px-3 py-2 text-sm text-muted-foreground">
+                          {kind === "dividend" ? "No holding matches that search." : "Nothing matches that search."}
+                        </li>
                       ) : (
                         results.map((hit) => (
                           <li key={`${hit.market}-${hit.symbol}-${hit.id || ""}`}>
@@ -751,6 +770,25 @@ function earliest(a?: string, b?: string | null): string {
   const right = dayOf(b);
   if (left && right) return left < right ? left : right;
   return left || right || "";
+}
+
+function holdingHit(row: BookHolding): AssetHit {
+  const market: AssetMarket =
+    row.assetType === "metal"
+      ? row.ticker.toUpperCase() === "SILVER"
+        ? "Silver"
+        : "Gold"
+      : row.assetType === "crypto"
+        ? "Crypto"
+        : marketForShare("", row.ticker);
+  return {
+    symbol: row.ticker,
+    name: row.name,
+    market,
+    assetType: row.assetType,
+    id: row.coinId,
+    price: row.price,
+  };
 }
 
 function marketForShare(label: string | undefined, symbol: string): AssetMarket {

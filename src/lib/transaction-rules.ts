@@ -18,6 +18,8 @@ export interface RecordCheck {
   hasAsset: boolean;
   cashKnown: boolean;
   cashAfterNzd: number;
+  /** Signed cash change. When set, only a reduction can take cash below zero. */
+  cashChangeNzd?: number;
   needsCash: boolean;
 }
 
@@ -52,9 +54,17 @@ export function transactionProblems(input: RecordCheck): string[] {
     }
   }
 
+  if (input.type === "dividend" && input.hasAsset && !(input.held > 0)) {
+    problems.push("A dividend has to be linked to a holding you already have.");
+  }
+
+  const reducesCash =
+    input.cashChangeNzd == null
+      ? input.type === "buy" || input.type === "withdraw" || input.type === "tax"
+      : input.cashChangeNzd < -1e-6;
   if (input.needsCash && !input.cashKnown) {
     problems.push("Cash is still loading. Wait until the balance matches the book.");
-  } else if (input.cashAfterNzd < -1e-6 && (input.type === "buy" || input.type === "withdraw" || input.type === "tax")) {
+  } else if (input.cashAfterNzd < -1e-6 && reducesCash) {
     problems.push("This would take cash below zero.");
   }
   return problems;

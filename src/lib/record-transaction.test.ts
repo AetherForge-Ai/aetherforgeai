@@ -70,6 +70,53 @@ describe("record validation", () => {
       }).join(" ")
     ).toMatch(/below zero/);
   });
+
+  it("blocks a sell whose fee would take cash below zero", () => {
+    expect(
+      transactionProblems({
+        ...base,
+        quantity: 1,
+        held: 4,
+        cashAfterNzd: -2,
+        cashChangeNzd: -5,
+      }).join(" ")
+    ).toMatch(/below zero/);
+  });
+
+  it("still allows a sell that adds cash when the balance is already short", () => {
+    expect(
+      transactionProblems({
+        ...base,
+        quantity: 1,
+        held: 4,
+        cashAfterNzd: -2,
+        cashChangeNzd: 10,
+      }).join(" ")
+    ).not.toMatch(/below zero/);
+  });
+
+  it("links a dividend to a holding you already have", () => {
+    expect(
+      transactionProblems({
+        ...base,
+        type: "dividend",
+        quantity: 0,
+        price: 12,
+        held: 0,
+        hasAsset: true,
+      }).join(" ")
+    ).toMatch(/linked to a holding/);
+    expect(
+      transactionProblems({
+        ...base,
+        type: "dividend",
+        quantity: 0,
+        price: 12,
+        held: 10,
+        hasAsset: true,
+      }).join(" ")
+    ).not.toMatch(/linked to a holding/);
+  });
 });
 
 describe("withdraw and tax cash sign", () => {

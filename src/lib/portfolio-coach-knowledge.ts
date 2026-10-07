@@ -94,13 +94,12 @@ Steps to withdraw (ledger):
 Concept: A "buy" on AetherForge records a position (ticker, units, cost) so Stox, Koins, Headmaster and alerts can work from an accurate book. It does not send an order to a broker.
 
 Steps:
-1. Open **Dashboard → Transaction Centre** (also reachable from Stocks / Crypto hubs).
-2. Click **Buy / Add**.
-3. Choose asset class: stock, crypto, or metals (gold/silver via Smitty flows).
-4. Search and select the ticker / asset.
-5. Enter units (shares or coin amount), price / cost basis, and date if needed.
-6. Confirm. The holding should appear in Holdings and update totals.
-7. Optional: add a **watchlist** entry or **share-price alert** for follow-up.
+1. Open **Dashboard** and click **Add**, or open **Transaction Centre**. Either opens **Record a transaction**.
+2. Leave the type on **Buy**.
+3. Search in the one box. It covers shares, coins, DEX tokens, gold and silver. You do not pick an asset class first.
+4. Enter units, price, date and the fee (the panel suggests the paper fee). Review, then confirm.
+5. The holding should appear in Holdings and update totals.
+6. Optional: add a **watchlist** entry or **share-price alert** for follow-up.
 
 If Headmaster / a report suggests a BUY: help the member map that ticker into these steps. Remind them to execute at their broker first if they are making a real-world trade, then record it here.
 
@@ -108,12 +107,10 @@ If Headmaster / a report suggests a BUY: help the member map that ticker into th
 Concept: A "sell" reduces or removes a recorded holding and can credit cash in the ledger.
 
 Steps:
-1. Open **Transaction Centre**.
-2. Click **Sell / Remove**.
-3. Select the holding.
-4. Enter quantity (or sell all).
-5. Confirm price/date details as prompted.
-6. Check Holdings, cash, and the transactions ledger.
+1. On the holding row, click **Sell** (the asset is already filled in). Or open **Record a transaction** and choose **Sell**.
+2. Enter the quantity (or the full amount held).
+3. Check the date, price, exchange rate and fee. Review shows the cash change, then confirm.
+4. Check Holdings, cash, and the transactions ledger.
 
 If the plan says trim or exit: walk one position at a time. Confirm the dashboard matches the intended residual weight.
 
@@ -225,10 +222,10 @@ export function portfolioCoachFallbackReply(userMessage: string): string {
   if (/sell|trim|exit|reduce/.test(q)) {
     return (
       `To **sell or reduce** a recorded position:\n\n` +
-      `1. Open **Transaction Centre**.\n` +
-      `2. Click **Sell / Remove**.\n` +
-      `3. Select the holding and quantity (or sell all).\n` +
-      `4. Confirm, then check Holdings, cash, and the transactions ledger.\n\n` +
+      `1. On the holding row, click **Sell**, or open **Record a transaction** and choose **Sell**.\n` +
+      `2. Enter the quantity (or sell all).\n` +
+      `3. Review the date, price, fee and cash change, then confirm.\n` +
+      `4. Check Holdings, cash, and the transactions ledger.\n\n` +
       `If you traded at your broker first, record the same result here so the dashboard stays aligned.\n\n` +
       `_Educational / execution help — not personalised financial advice._`
     );
@@ -237,11 +234,11 @@ export function portfolioCoachFallbackReply(userMessage: string): string {
   if (/buy|add (a )?holding|purchase|accumulate/.test(q)) {
     return (
       `To **buy / add** a holding on the dashboard:\n\n` +
-      `1. Open **Transaction Centre** (or Stocks / Crypto hubs).\n` +
-      `2. Click **Buy / Add**.\n` +
-      `3. Choose stock, crypto, or metals.\n` +
-      `4. Search the ticker, enter units and cost, then confirm.\n` +
-      `5. Verify it appears under Holdings and that cash updated if you used ledger cash.\n\n` +
+      `1. Click **Add** (or open **Transaction Centre**) to open **Record a transaction**.\n` +
+      `2. Leave the type on **Buy**.\n` +
+      `3. Search shares, coins, DEX tokens, gold or silver in the one box.\n` +
+      `4. Enter units, price and the fee, review, then confirm.\n` +
+      `5. Verify it appears under Holdings and that cash updated.\n\n` +
       `AetherForge records your book — it does not send broker orders.\n\n` +
       `_Educational / execution help — not personalised financial advice._`
     );
@@ -288,7 +285,7 @@ export function portfolioCoachFallbackReply(userMessage: string): string {
     `I am your **Assistant Guide**.\n\n` +
     `I can help you:\n` +
     `- Turn Headmaster plans into dashboard steps\n` +
-    `- Buy / add, sell / remove, and manage cash\n` +
+    `- Record a buy, a sell, or a cash movement\n` +
     `- Set share-price alerts and review transactions\n` +
     `- Use attached Stox or Koins reports for the next action\n\n` +
     `Tell me the next plan item you want to align, or ask how a dashboard action works.\n\n` +
