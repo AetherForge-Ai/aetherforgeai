@@ -24,6 +24,7 @@ import {
   Minus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { scrubPublicCopy } from "@/lib/public-intel";
 import type {
   TrialReport,
   TrialTickerAnalysis,
@@ -43,14 +44,6 @@ function fmtPct(v: number): string {
 function pctClass(v: number): string {
   return v > 0 ? "text-emerald-600" : v < 0 ? "text-rose-600" : "text-muted-foreground";
 }
-
-const SIGNAL_STYLE: Record<TrialTickerAnalysis["signal"], string> = {
-  "Strong Buy": "bg-emerald-500/15 text-emerald-600 ring-emerald-500/30",
-  Accumulate: "bg-cyan-500/15 text-cyan-700 ring-cyan-500/30",
-  Hold: "bg-violet-500/15 text-violet-700 ring-violet-500/30",
-  Watch: "bg-amber-500/15 text-amber-700 ring-amber-500/30",
-  Reduce: "bg-rose-500/15 text-rose-600 ring-rose-500/30",
-};
 
 /* ------------------------------ small bits ------------------------------ */
 
@@ -152,8 +145,8 @@ function TickerCard({ t }: { t: TrialTickerAnalysis }) {
           <div>
             <div className="flex items-center gap-2">
               <span className="font-display text-lg font-bold">{t.symbol}</span>
-              <span className={cn("rounded-full px-2 py-0.5 text-[0.62rem] font-bold uppercase ring-1", SIGNAL_STYLE[t.signal])}>
-                {t.signal}
+              <span className="rounded-full px-2 py-0.5 text-[0.62rem] font-bold uppercase ring-1 bg-muted text-muted-foreground">
+                Snapshot
               </span>
             </div>
             <p className="text-xs text-muted-foreground">
@@ -208,7 +201,7 @@ function TickerCard({ t }: { t: TrialTickerAnalysis }) {
         </div>
       )}
 
-      <p className="mt-4 text-xs leading-relaxed text-muted-foreground">{renderInline(t.note)}</p>
+      <p className="mt-4 text-xs leading-relaxed text-muted-foreground">{renderInline(scrubPublicCopy(t.note))}</p>
     </div>
   );
 }
