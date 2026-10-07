@@ -15,6 +15,7 @@ import {
   CRYPTO_PROJECTIONS_PAUSE_MESSAGE,
   withoutCryptoProjections,
 } from "@/lib/projection-pause";
+import { modelRangeLine } from "@/lib/public-intel";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -209,10 +210,9 @@ function ProjectionRow({ rank, s, showMarket = false }: { rank: number; s: Secur
                   <Sparkles className="size-3.5" /> Reasoning &amp; analysis
                 </p>
                 <p className="text-sm leading-relaxed text-muted-foreground">{publicMarketNote(s.reasoning)}</p>
-                <p className="mt-2 text-xs text-muted-foreground/80">
-                  <span className="font-medium text-foreground/80">Conviction:</span>{" "}
-                  {s.conviction} — {s.convictionReason}
-                </p>
+                {modelRangeLine(s.outlook) ? (
+                  <p className="mt-2 text-xs leading-relaxed text-muted-foreground/80">{modelRangeLine(s.outlook)}</p>
+                ) : null}
               </div>
               <div className="grid grid-cols-3 gap-2 sm:w-64">
                 {[

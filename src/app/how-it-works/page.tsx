@@ -38,7 +38,7 @@ import {
 export const metadata: Metadata = publicPageMetadata("/how-it-works", {
   title: "How It Works — AetherForge AI",
   description:
-    "You buy your shares, crypto, gold and silver through your own broker — AetherForge AI never touches your assets. See the exact step-by-step process, what each AI report contains, where to buy, and plain-English guides to shares, crypto and precious metals.",
+    "You purchase your shares, crypto, gold and silver through your own broker — AetherForge AI never touches your assets. See the exact step-by-step process, what each AI report contains, where to acquire them, and plain-English guides to shares, crypto and precious metals.",
 });
 
 /* -------------------------------------------------------------------------- */
@@ -48,7 +48,7 @@ export const metadata: Metadata = publicPageMetadata("/how-it-works", {
 const OVERVIEW_PILLARS = [
   {
     icon: ShoppingCart,
-    title: "You buy — anywhere you like",
+    title: "You purchase — anywhere you like",
     body: "Purchase your shares, crypto, gold or silver through any broker or exchange you already trust. Nothing about your buying changes.",
   },
   {
@@ -67,14 +67,14 @@ const STEPS = [
   {
     n: "01",
     icon: ShoppingCart,
-    title: "Buy your assets elsewhere",
+    title: "Acquire your assets elsewhere",
     body: "Purchase your shares, crypto, gold or silver through your chosen platform — Sharesies, Tiger Trade, Interactive Brokers, an exchange or a bullion dealer.",
   },
   {
     n: "02",
     icon: LineChart,
     title: "Open your Dashboard",
-    body: "Log in to AetherForge AI and head to your private Dashboard — your command centre for everything you hold.",
+    body: "Log in to AetherForge AI and head to your private Dashboard — your command centre for everything you keep.",
   },
   {
     n: "03",
@@ -86,13 +86,13 @@ const STEPS = [
     n: "04",
     icon: Bell,
     title: "Set alerts on your holdings",
-    body: "You can note a hard-sell level or a trim marker on a holding. The alert is information that a price was reached. It is not an instruction to sell or trim.",
+    body: "You can note a full-exit level or a trim marker on a holding. The alert is information that a price was reached. It is not an instruction.",
   },
   {
     n: "05",
     icon: KeySquare,
     title: "Run The Headmaster — Portfolio Planning and Strategies",
-    body: "The Headmaster can lay out a goal plan across the book you entered. It is general information, not personalised advice, and it does not tell you what to buy or sell.",
+    body: "The Headmaster can lay out a goal plan across the book you entered. It is general information, not personalised advice, and it does not tell you what to do next.",
   },
   {
     n: "06",
@@ -109,12 +109,12 @@ const STEPS = [
 ];
 
 const REPORT_CONTENTS = [
-  { icon: BarChart3, label: "Market breakdown", desc: "NZX, ASX and US tables when the price feed has rows, with the context around every ticker you hold." },
+  { icon: BarChart3, label: "Market breakdown", desc: "NZX, ASX and US tables when the price feed has rows, with the context around every ticker you keep." },
   { icon: TrendingUp, label: "What has performed well", desc: "Your top movers surfaced and ranked across 24h, 7-day and 30-day windows." },
   { icon: LineChart, label: "Performance graphs", desc: "Clean 12-month history and continuation charts embedded right in the report." },
   { icon: GaugeCircle, label: "7-day illustrative outlook", desc: "Probabilistic scenario ranges with confidence scores, momentum and continuation graphs. Not a guarantee." },
-  { icon: ListChecks, label: "Plain-English notes", desc: "What the figures show, in sentences. Informational only — not a recommendation to buy, sell, or hold." },
-  { icon: Route, label: "Three pathways forward", desc: "Low Risk · Balanced · High Risk routes so you choose the path that fits you." },
+  { icon: ListChecks, label: "Plain-English notes", desc: "What the figures show, in sentences. Informational only — not personal financial advice." },
+  { icon: Route, label: "Three scenarios", desc: "Three scenarios: a cautious, a middle and a high-volatility case, so you can see the range of outcomes." },
 ];
 
 const BOTS = [
@@ -124,7 +124,7 @@ const BOTS = [
     subtitle: "Stock Market Intelligence",
     accent: "from-emerald-500/20 via-teal-500/10 to-transparent",
     ring: "border-emerald-500/30",
-    desc: "Sweeps NZX, ASX and global equities — compiling detailed tables, top-mover boards and 12-month continuation graphs for every share you hold.",
+    desc: "Sweeps NZX, ASX and global equities — compiling detailed tables, top-mover boards and 12-month continuation graphs for every share you keep.",
     tags: ["NZX", "ASX", "US & global equities"],
   },
   {
@@ -153,7 +153,7 @@ const STOCK_PLATFORMS: Platform[] = [
     name: "Sharesies",
     tag: "Beginner-friendly · NZ & US shares",
     region: "New Zealand",
-    desc: "A hugely popular New Zealand platform that lets you buy NZX, ASX and US shares and ETFs with as little as one cent. Simple, mobile-first and ideal for first-time investors.",
+    desc: "A hugely popular New Zealand platform that lets you acquire NZX, ASX and US shares and ETFs with as little as one cent. Simple, mobile-first and ideal for first-time investors.",
     url: "https://www.sharesies.nz",
     mono: "S",
     accent: "from-orange-500/20 to-transparent",
@@ -190,9 +190,9 @@ const STOCK_PLATFORMS: Platform[] = [
 const CRYPTO_PLATFORMS: Platform[] = [
   {
     name: "Easy Crypto",
-    tag: "Buy in NZD · own wallet",
+    tag: "NZD · own wallet",
     region: "New Zealand",
-    desc: "A service for buying and selling major cryptocurrencies, with coins sent to your own wallet.",
+    desc: "A service for acquiring and exiting major cryptocurrencies, with coins sent to your own wallet.",
     url: "https://easycrypto.com/nz",
     mono: "EC",
     accent: "from-emerald-500/20 to-transparent",
@@ -210,7 +210,7 @@ const CRYPTO_PLATFORMS: Platform[] = [
     name: "Coinbase",
     tag: "Beginner-friendly · listed company",
     region: "Global",
-    desc: "A publicly listed US exchange with a simple interface that's popular with newcomers. Buy, sell and hold hundreds of digital assets with a familiar, guided flow.",
+    desc: "A publicly listed US exchange with a simple interface that's popular with newcomers. Acquire, exit or keep hundreds of digital assets with a familiar, guided flow.",
     url: "https://www.coinbase.com",
     mono: "C",
     accent: "from-blue-500/20 to-transparent",
@@ -231,7 +231,7 @@ const METAL_PLATFORMS: Platform[] = [
     name: "MyGold",
     tag: "Bullion dealer · NZ",
     region: "New Zealand",
-    desc: "A New Zealand bullion dealer offering gold and silver bars and coins at competitive margins, with buy-back options and vaulted storage for larger holdings.",
+    desc: "A New Zealand bullion dealer offering gold and silver bars and coins at competitive margins, with repurchase options and vaulted storage for larger holdings.",
     url: "https://mygold.co.nz",
     mono: "MG",
     accent: "from-yellow-500/20 to-transparent",
@@ -250,18 +250,18 @@ const METAL_PLATFORMS: Platform[] = [
 const BUY_GUIDES = [
   {
     icon: Building2,
-    title: "How to buy & sell shares",
+    title: "How to acquire and exit shares",
     color: "text-emerald-600",
     steps: [
       "Open an account with a broker like Sharesies, Tiger Trade or Interactive Brokers and verify your identity.",
       "Deposit funds from your bank, then search for a company by its ticker (e.g. FPH.NZ, AAPL).",
-      "Place a buy order for the number of shares — or dollar amount — you want, and confirm.",
-      "To sell later, place a sell order; proceeds settle back to your account, ready to withdraw.",
+      "Place an order for the number of shares — or dollar amount — you want, and confirm.",
+      "To exit later, place an order to close the position; proceeds settle back to your account, ready to withdraw.",
     ],
   },
   {
     icon: Coins,
-    title: "How to buy cryptocurrency",
+    title: "How to acquire cryptocurrency",
     color: "text-amber-600",
     steps: [
       "Create an account on an exchange such as Easy Crypto, Kraken or Coinbase and complete verification.",
@@ -272,12 +272,12 @@ const BUY_GUIDES = [
   },
   {
     icon: Landmark,
-    title: "How to buy gold & silver",
+    title: "How to acquire gold and silver",
     color: "text-yellow-600",
     steps: [
       "Choose physical bullion (bars/coins) from a dealer like the NZ Mint, MyGold or BullionStar.",
       "Compare the price against the live spot rate plus the dealer's premium.",
-      "Buy and arrange insured delivery to you, or secure vaulted storage with the dealer.",
+      "Place the order and arrange insured delivery to you, or secure vaulted storage with the dealer.",
       "Track your holdings in AetherForge by entering the units and price you paid.",
     ],
   },
@@ -399,9 +399,9 @@ export default function HowItWorksPage() {
             You own your assets. <span className="text-gradient">We forge the intelligence.</span>
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-lg leading-relaxed text-muted-foreground">
-            You buy your shares, crypto, silver or gold wherever you like — Sharesies, Tiger Trade,
+            You purchase your shares, crypto, silver or gold wherever you like — Sharesies, Tiger Trade,
             Interactive Brokers or any broker. AetherForge AI never touches your assets. You enter what
-            you hold, and Stox and Koins return informational scenarios. You still execute elsewhere.
+            you keep, and Stox and Koins return informational scenarios. You still execute elsewhere.
           </p>
           <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
             <Button asChild size="lg" className="h-12 px-8 text-base font-semibold shadow-glow">
@@ -572,15 +572,15 @@ export default function HowItWorksPage() {
           </div>
         </section>
 
-        {/* 4 · Where to buy — platform windows */}
-        <section id="where-to-buy" className="mx-auto max-w-7xl scroll-mt-24 px-4 py-12 sm:px-6 lg:px-8">
+        {/* 4 · Where to acquire — platform windows */}
+        <section id="where-to-acquire" className="mx-auto max-w-7xl scroll-mt-24 px-4 py-12 sm:px-6 lg:px-8">
           <div className="mx-auto mb-10 max-w-2xl text-center">
-            <p className="text-sm font-semibold uppercase tracking-wider text-primary">Where to buy</p>
+            <p className="text-sm font-semibold uppercase tracking-wider text-primary">Where to acquire</p>
             <h2 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">
-              Trusted platforms to buy your assets
+              Trusted platforms to acquire your assets
             </h2>
             <p className="mt-3 text-muted-foreground">
-              You buy and hold everything on these platforms — then track and analyse it here. Links open in a
+              You acquire and keep everything on these platforms — then track and analyse it here. Links open in a
               new tab. We&apos;re not affiliated with, and don&apos;t earn from, any provider listed.
             </p>
           </div>
@@ -712,7 +712,7 @@ export default function HowItWorksPage() {
             {[
               {
                 icon: Lock,
-                title: "We never hold your assets",
+                title: "We never take custody of your assets",
                 body: "Your shares, coins and metals stay in your own accounts. AetherForge has zero access to move or spend them.",
               },
               {

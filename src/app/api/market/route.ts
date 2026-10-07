@@ -7,6 +7,7 @@ import {
   fetchHistoriesForAssetClass,
   isLiveConfiguredFor,
 } from "@/lib/market-data";
+import { toPublicPayload } from "@/lib/public-intel";
 
 export const dynamic = "force-dynamic";
 
@@ -85,7 +86,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       ok: true,
-      data: { bot: assetClass, live, universe, news },
+      data: toPublicPayload({ bot: assetClass, live, universe, news }),
     });
   } catch (err: any) {
     console.error("[api/market] GET error:", err);

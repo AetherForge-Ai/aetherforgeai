@@ -6,6 +6,7 @@ import {
   isLiveConfiguredFor,
 } from "@/lib/market-data";
 import { assembleEquityProjections } from "@/lib/projection-pause";
+import { toPublicMarketRecord } from "@/lib/public-intel";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,8 @@ export async function GET() {
     }
     const stockUniverse = analyzeUniverse(overrides, "stock", histories);
     const ranked = assembleEquityProjections(stockUniverse);
+    const publish = <T,>(rows: T[]) =>
+      rows.map((row) => toPublicMarketRecord(row as unknown as Record<string, unknown>));
 
     console.log(
       `[api/projections] Equity sweep: ${ranked.scanned.stocks} names → top ${ranked.combined.length} ` +
@@ -57,7 +60,12 @@ export async function GET() {
       ok: true,
       data: {
         live: stockLive,
-        ...ranked,
+        cryptoPaused: ranked.cryptoPaused,
+        cryptoPauseMessage: ranked.cryptoPauseMessage,
+        combined: publish(ranked.combined),
+        stockUniverse: publish(ranked.stockUniverse),
+        cryptoUniverse: [],
+        scanned: ranked.scanned,
       },
     });
   } catch (err: any) {
