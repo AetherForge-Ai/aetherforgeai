@@ -657,18 +657,18 @@ export function TransactionCenter({
           </div>
         )}
         <p className="mt-3 px-1 text-[11px] text-muted-foreground">
-          Every transaction is recorded with fees and automatically adjusts your cash balance. Sells book realized
+          Every transaction is recorded with fees and automatically adjusts your cash balance. Sells book realised
           P&amp;L against your average cost. A dividend adds cash. A tax line reduces cash. Neither changes a holding quantity.
         </p>
         {layout === "ledger" && (
           <div className="mt-6 grid gap-4 lg:grid-cols-2">
             <CashLineSection
-              title="DIVIDENDS"
+              title="Dividends"
               empty="No dividends recorded."
               rows={(ledger?.transactions ?? []).filter((row) => row.type === "dividend")}
             />
             <CashLineSection
-              title="TAX"
+              title="Tax"
               empty="No tax lines recorded."
               rows={(ledger?.transactions ?? []).filter((row) => row.type === "tax")}
             />

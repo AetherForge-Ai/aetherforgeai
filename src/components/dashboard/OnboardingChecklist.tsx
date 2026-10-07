@@ -21,7 +21,7 @@ const COPY: Record<
 > = {
   headmaster: {
     title: "Meet The Headmaster",
-    body: "Set a target allocation for stocks, crypto, metals and cash. Paper gold/silver via Transaction Centre Buy → Gold/Silver.",
+    body: "Set a target allocation for stocks, crypto, metals and cash. Record paper gold or silver from Add.",
     href: "/headmaster",
     icon: Crown,
   },
