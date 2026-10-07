@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import {
   ArrowRight,
   ShieldCheck,
@@ -17,7 +16,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { SiteHeader } from "@/components/SiteHeader";
-import { LOGO_MARK_IMG, ABOUT_HERO_IMG, FOUNDER_PORTRAIT_IMG } from "../../../assets/files";
+import { ABOUT_HERO_IMG, FOUNDER_PORTRAIT_IMG } from "../../../assets/files";
 import { FOUNDER_NAME, LEGAL_ENTITY_NAME, NZBN, REGISTERED_OFFICE } from "@/lib/company";
 
 /* ---- Official brand marks (lucide dropped brand icons) ---- */
@@ -310,13 +309,6 @@ export function AboutContent() {
     }
     const top = el.getBoundingClientRect().top + window.scrollY - 84;
     window.scrollTo({ top, behavior: "smooth" });
-  }
-
-  function handleNav(e: React.MouseEvent, href: string, anchor?: boolean) {
-    if (anchor) {
-      e.preventDefault();
-      scrollToId(href.replace("#", ""));
-    }
   }
 
   return (
@@ -730,75 +722,6 @@ export function AboutContent() {
         </div>
       </section>
 
-      {/* ─────────────────────────  FOOTER  ───────────────────────── */}
-      <footer className="bg-[#0F172A] py-14">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col items-center gap-8 text-center sm:flex-row sm:items-start sm:justify-between sm:text-left">
-            <div className="max-w-sm">
-              <Link href="/" className="inline-flex items-center gap-2.5">
-                <span className="grid size-9 place-items-center rounded-xl bg-white/10 p-1 ring-1 ring-white/15">
-                  <img src={LOGO_MARK_IMG} alt="AetherForge AI" className="h-full w-full object-contain" />
-                </span>
-                <span className="font-display text-[1.05rem] font-bold tracking-tight text-white">
-                  AetherForge<span style={{ color: "#34D399" }}> AI</span>
-                </span>
-              </Link>
-              <p className="mt-4 text-sm leading-relaxed text-white/60">
-                AetherForge AI — Helping New Zealanders take control of their financial future.
-              </p>
-              <div className="mt-5 flex items-center justify-center gap-2.5 sm:justify-start">
-                {SOCIAL_LINKS.map(({ label, href, Icon }) => (
-                  <a
-                    key={label}
-                    href={href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={`AetherForge AI on ${label}`}
-                    title={label}
-                    className="grid size-10 place-items-center rounded-full border border-white/15 bg-white/5 text-white/80 transition-all hover:-translate-y-0.5 hover:border-[#34D399]/50 hover:bg-[#34D399]/15 hover:text-white"
-                  >
-                    <Icon className="size-4" />
-                  </a>
-                ))}
-              </div>
-            </div>
-
-            <nav className="grid grid-cols-2 gap-x-10 gap-y-2.5 text-sm">
-              <Link href="/" className="text-white/70 transition-colors hover:text-white">
-                Home
-              </Link>
-              <Link href="/how-it-works" className="text-white/70 transition-colors hover:text-white">
-                How It Works
-              </Link>
-              <Link href="/docs" className="text-white/70 transition-colors hover:text-white">
-                Docs
-              </Link>
-              <Link href="/pricing" className="text-white/70 transition-colors hover:text-white">
-                Pricing
-              </Link>
-              <a
-                href="#contact"
-                onClick={(e) => handleNav(e, "#contact", true)}
-                className="text-white/70 transition-colors hover:text-white"
-              >
-                Contact
-              </a>
-              <Link href="/privacy-policy" className="text-white/70 transition-colors hover:text-white">
-                Privacy
-              </Link>
-              <Link href="/terms-of-service" className="text-white/70 transition-colors hover:text-white">
-                Terms
-              </Link>
-            </nav>
-          </div>
-
-          <div className="mt-10 border-t border-white/10 pt-6 text-center">
-            <p className="text-xs leading-relaxed text-white/50">
-              © 2026 {LEGAL_ENTITY_NAME}. All rights reserved.
-            </p>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }

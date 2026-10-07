@@ -1,6 +1,7 @@
 import { LegalShell, LegalSection } from "@/components/legal/LegalShell";
 import { LEGAL_ENTITY_NAME } from "@/lib/company";
 import { publicPageMetadata } from "@/lib/reviewed-book";
+import { ANALYTICS_NOTICE, LEGAL_UPDATED, PROCESSORS } from "@/lib/public-copy";
 
 export const metadata = publicPageMetadata("/privacy-policy", {
   title: "AI Privacy Policy — AetherForge AI",
@@ -8,7 +9,7 @@ export const metadata = publicPageMetadata("/privacy-policy", {
     "How AetherForge AI collects, uses and protects your personal information under the New Zealand Privacy Act 2020.",
 });
 
-const UPDATED = "2 July 2026";
+const UPDATED = LEGAL_UPDATED;
 
 export default function PrivacyPolicy() {
   return (
@@ -38,8 +39,9 @@ export default function PrivacyPolicy() {
         </p>
         <ul className="list-disc space-y-1.5 pl-5">
           <li>
-            <strong className="text-foreground/90">Account information</strong> — your name and email
-            address when you register, and authentication details managed by our sign-in provider.
+            <strong className="text-foreground/90">Account information</strong> — your name, email
+            address and country when you register, and authentication details managed by our sign-in
+            provider.
           </li>
           <li>
             <strong className="text-foreground/90">Portfolio data</strong> — the tickers, share
@@ -81,11 +83,11 @@ export default function PrivacyPolicy() {
 
       <LegalSection heading="4. Artificial intelligence & automated processing">
         <p>
-          AetherForge AI uses third-party large-language-model providers to generate market analysis.
-          The holdings and prompts you submit may be transmitted to these AI providers solely to
-          produce your reports. We do not use your personal financial data to train third-party AI
-          models, and we do not make automated decisions that produce legal or similarly significant
-          effects about you. AI-generated content is informational only — see our{" "}
+          AetherForge AI uses an AI provider to write plain-English notes. The holdings and prompts you
+          submit may be transmitted to that provider solely to produce those notes. We do not use your
+          personal financial data to train third-party AI models, and we do not make automated decisions
+          that produce legal or similarly significant effects about you. AI-written notes are
+          informational only — see our{" "}
           <a href="/ai-disclaimer" className="text-primary hover:underline">
             AI Disclaimer
           </a>
@@ -97,8 +99,14 @@ export default function PrivacyPolicy() {
         <p>We do not sell your personal information. We may disclose it only:</p>
         <ul className="list-disc space-y-1.5 pl-5">
           <li>
-            to trusted service providers who help us operate the service (for example hosting, payment
-            processing with Stripe, and AI analysis), bound by confidentiality obligations;
+            to the processors named below, bound by confidentiality obligations:
+            <ul className="mt-2 list-disc space-y-1.5 pl-5">
+              {PROCESSORS.map((processor) => (
+                <li key={processor.name}>
+                  <strong className="text-foreground/90">{processor.name}</strong> — {processor.role}.
+                </li>
+              ))}
+            </ul>
           </li>
           <li>where you have authorised the disclosure;</li>
           <li>
@@ -114,10 +122,12 @@ export default function PrivacyPolicy() {
 
       <LegalSection heading="6. Sending information overseas (IPP 12)">
         <p>
-          Some of our service providers (including cloud hosting and AI providers) are located outside
-          New Zealand. Where we disclose personal information overseas, we take reasonable steps to
-          ensure it is protected by comparable safeguards to those under the Privacy Act 2020, or we
-          rely on an exception permitted by IPP 12 (such as your authorisation).
+          Some of the processors named in section 5 are located outside New Zealand. That list includes
+          Cloudflare, Stripe, an AI provider, Google Analytics, Totalum on Google Cloud, CoinGecko, and
+          licensed market-data vendors for shares, metals and foreign exchange. Where we disclose
+          personal information overseas, we take reasonable steps to ensure it is protected by
+          comparable safeguards to those under the Privacy Act 2020, or we rely on an exception
+          permitted by IPP 12 (such as your authorisation).
         </p>
       </LegalSection>
 
@@ -169,20 +179,22 @@ export default function PrivacyPolicy() {
 
       <LegalSection heading="12. Cookies & analytics">
         <p>
-          We use essential cookies to keep you signed in and to secure the service, and limited
-          analytics to understand usage. You can control cookies through your browser settings, although
-          disabling essential cookies may affect functionality.
+          We use essential cookies to keep you signed in and to secure the service. {ANALYTICS_NOTICE}{" "}
+          You can control cookies through your browser settings, although disabling essential cookies
+          may affect functionality.
         </p>
       </LegalSection>
 
       <LegalSection heading="13. Complaints & contact">
         <p>
+          {/* TODO(owner): confirm the privacy@ mailbox before publishing an address. */}
           If you have a question, wish to exercise your privacy rights, or want to make a complaint about
-          how we have handled your personal information, please contact our Privacy Officer at{" "}
-          <a href="mailto:privacy@aetherforgeai.co.nz" className="text-primary hover:underline">
-            privacy@aetherforgeai.co.nz
-          </a>
-          . We take privacy complaints seriously and will work with you to resolve them.
+          how we have handled your personal information, please use the contact form on the{" "}
+          <a href="/about#contact" className="text-primary hover:underline">
+            About
+          </a>{" "}
+          page and mark it for the Privacy Officer. We take privacy complaints seriously and will work with
+          you to resolve them.
         </p>
         <p>
           If you are not satisfied with our response, you have the right to complain to the Office of the

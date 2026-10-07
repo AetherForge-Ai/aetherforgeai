@@ -19,7 +19,7 @@
 import "server-only";
 
 import { type AssetClass, type MarketCode, type NewsItem } from "@/lib/market-intel";
-import { hasArticlePath, officialPublicNews, prepareNewsFeed } from "@/lib/news-present";
+import { hasArticlePath, isOffTopicStory, prepareNewsFeed } from "@/lib/news-present";
 import { keywordSentiment } from "@/lib/news-sentiment";
 
 const NEWS_TTL_MS = 4 * 60 * 60 * 1000; // ~4h — refreshes at least daily
@@ -220,6 +220,7 @@ function parseFeedXml(xml: string, sourceFallback: string, marketHint?: MarketCo
     const desc =
       stripHtml(tagBetween(block, "description") || tagBetween(block, "summary") || tagBetween(block, "content") || "") ||
       title;
+    if (isOffTopicStory(title, desc)) continue;
     const imageUrl =
       attrIn(block, "media:content", "url") ||
       attrIn(block, "media:thumbnail", "url") ||
@@ -291,7 +292,7 @@ async function fetchYahooSearchNews(query: string, count = 8): Promise<RawStory[
           imageUrl: img,
         } as RawStory;
       })
-      .filter((s): s is RawStory => !!s && s.headline.length >= 12 && s.url.startsWith("http") && hasArticlePath(s.url));
+      .filter((s): s is RawStory => !!s && s.headline.length >= 12 && s.url.startsWith("http") && hasArticlePath(s.url) && !isOffTopicStory(s.headline, s.summary));
   } catch (err) {
     console.error(`[market-news] Yahoo search failed for "${query}":`, err);
     return [];
@@ -452,7 +453,7 @@ export async function loadMarketNews(assetClass: AssetClass = "stock"): Promise<
     console.error(`[market-news] loadMarketNews(${assetClass}) failed:`, err);
   }
 
-  const fallback = officialPublicNews();
+  const fallback = prepareNewsFeed([]);
   writeCache(cacheKey, fallback);
   return fallback;
 }

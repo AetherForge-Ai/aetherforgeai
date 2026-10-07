@@ -16,6 +16,7 @@ import {
   withoutCryptoProjections,
 } from "@/lib/projection-pause";
 import { modelRangeLine } from "@/lib/public-intel";
+import { ENGINE_PARAGRAPH } from "@/lib/public-copy";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -114,11 +115,10 @@ function MethodologyModal() {
           <div>
             <p className="font-semibold text-foreground">The 7-day projection</p>
             <p>
-              Each name is scored by a deterministic technical-analysis engine that blends trend
-              (SMA 20/50), momentum (RSI, MACD), mean-reversion (Bollinger position), realised
-              volatility (ATR) and support/resistance structure into a probabilistic 7-day outlook.
-              The <span className="font-medium text-foreground">Projected</span> figure is the
-              central expected move over the next seven sessions — the same seven-step horizon the model builds.
+              {ENGINE_PARAGRAPH} The engine blends trend (SMA 20/50), momentum (RSI, MACD),
+              mean-reversion (Bollinger position), realised volatility (ATR) and support/resistance
+              structure into a 7-day range. The <span className="font-medium text-foreground">Projected</span>{" "}
+              figure is the central point of that calculated range.
             </p>
           </div>
           <div>
@@ -134,9 +134,8 @@ function MethodologyModal() {
           <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-xs text-amber-200/90">
             <p className="font-semibold text-amber-200">Not financial advice</p>
             <p className="mt-1">
-              Projections are AI-generated general information under the Financial Markets Conduct
-              Act 2013 — not personalised financial advice. Markets are uncertain; always do your
-              own research and consult a licensed adviser before investing.
+              {ENGINE_PARAGRAPH} This is general information under the Financial Markets Conduct Act
+              2013, not personalised financial advice.
             </p>
           </div>
         </div>
@@ -435,8 +434,8 @@ export function ProjectionsExplorer() {
 
       {/* Footnote */}
       <p className="text-center text-xs text-muted-foreground/80">
-        Projections are AI-generated general information — not personalised financial advice under
-        the Financial Markets Conduct Act 2013. A failed load says so. Markets are uncertain.
+        {ENGINE_PARAGRAPH} This is general information, not personalised financial advice under the
+        Financial Markets Conduct Act 2013. A failed load says so. Markets are uncertain.
       </p>
     </div>
   );

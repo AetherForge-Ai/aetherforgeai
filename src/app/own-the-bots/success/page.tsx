@@ -2,7 +2,6 @@ import { publicPageMetadata } from "@/lib/reviewed-book";
 import { LEGAL_ENTITY_NAME } from "@/lib/company";
 import Link from "next/link";
 import { SiteHeader } from "@/components/SiteHeader";
-import { BrandLogo } from "@/components/BrandLogo";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { BOT_STOX_AVATAR, BOT_KOINS_AVATAR, LOGO_MARK_IMG } from "../../../../assets/files";
@@ -198,17 +197,10 @@ export default async function SuccessPage({
           </div>
         </div>
 
-        <footer className="border-t border-border/60">
-          <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-            <div className="flex flex-col items-center gap-4 text-center sm:flex-row sm:justify-between sm:text-left">
-              <BrandLogo markClassName="size-9" wordmarkClassName="text-base" />
-              <p className="max-w-md text-xs leading-relaxed text-muted-foreground">
-                © {new Date().getFullYear()} AetherForge AI · {LEGAL_ENTITY_NAME}. Your bot
-                package is for informational use only and is not licensed financial advice.
-              </p>
-            </div>
-          </div>
-        </footer>
+        <p className="mx-auto max-w-7xl px-4 py-10 text-center text-xs leading-relaxed text-muted-foreground sm:px-6 lg:px-8">
+          © {new Date().getFullYear()} AetherForge AI · {LEGAL_ENTITY_NAME}. Your bot package is for
+          informational use only and is not licensed financial advice.
+        </p>
       </div>
     </div>
   );

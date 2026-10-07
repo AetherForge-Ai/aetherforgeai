@@ -6,6 +6,7 @@ import { FeatureComparison } from "@/components/pricing/FeatureComparison";
 import { PricingFAQ } from "@/components/pricing/PricingFAQ";
 import { DisclaimerNotice } from "@/components/legal/DisclaimerNotice";
 import { PRICING_TIERS } from "@/lib/plans";
+import { SECURITY_LINE } from "@/lib/public-copy";
 import { Button } from "@/components/ui/button";
 import {
   ShieldCheck,
@@ -27,7 +28,7 @@ const TRUST_ITEMS = [
   { icon: ShieldCheck, label: "14-day trial on Starter and Pro" },
   { icon: RefreshCcw, label: "Cancel or downgrade anytime" },
   { icon: Lock, label: "Secure payments via Stripe" },
-  { icon: Fingerprint, label: "Your data stays private — bank-grade security" },
+  { icon: Fingerprint, label: SECURITY_LINE },
   { icon: MapPin, label: "Built in New Zealand for NZ investors" },
 ];
 
@@ -92,6 +93,7 @@ export default function PricingPage() {
             Cancel anytime <span className="text-primary">•</span> Secure Stripe checkout{" "}
             <span className="text-primary">•</span> No hidden fees
           </p>
+          {/* TODO(owner): confirm whether published prices include or exclude GST. Do not write "including GST" or "excluding GST" until then. */}
         </section>
 
         {/* 2 + 3 · Billing toggle + pricing cards */}
