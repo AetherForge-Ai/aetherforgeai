@@ -8,7 +8,8 @@ import {
   IndexMarketCard,
   type ExchangeSnapshot,
 } from "@/components/dashboard/IndexMarketCard";
-import { formatMoney } from "@/lib/currency";
+import { formatMoney, formatSignedMoney } from "@/lib/currency";
+import { ledgerDisplayedCash } from "@/lib/ledger-cash-lines";
 import { cn } from "@/lib/utils";
 import { ArrowRight, BookOpen, Coins, Landmark, Wallet } from "lucide-react";
 
@@ -16,6 +17,10 @@ type LedgerRow = {
   type?: string;
   ticker?: string | null;
   amount?: number | null;
+  total?: number | null;
+  cash_nzd?: number | null;
+  fees_nzd?: number | null;
+  quantity?: number | null;
   executed_at?: string | null;
   notes?: string | null;
 };
@@ -218,7 +223,7 @@ function LedgerCard({
                 {r.ticker || r.notes || "—"}
               </span>
               <span className="tnum shrink-0 font-medium text-foreground">
-                {r.amount != null ? formatMoney(Math.abs(r.amount), "NZD") : "—"}
+                {formatSignedMoney(ledgerDisplayedCash(r))}
               </span>
             </li>
           ))

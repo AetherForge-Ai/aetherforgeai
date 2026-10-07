@@ -1,7 +1,7 @@
 import "server-only";
 
 /**
- * The one-time Free-Trial "ZENITH MODE · ULTRA ADVANCED" report engine.
+ * The one-time complimentary trial report.
  *
  * Orchestrates the whole trial deliverable end-to-end for a single non-subscribed
  * signed-up user:
@@ -14,8 +14,8 @@ import "server-only";
  *          history per selected ticker.
  *   2. Builds per-ticker deep analysis + fact-based forward predictions grounded
  *      in the real numbers, integrating the user's own holdings (shares/avg price).
- *   3. Asks Grok 4.6 for an ULTRA executive summary + key findings (non-fatal).
- *   4. Renders the Zenith HTML → PDF, emails it (PDF attached), and persists both
+ *   3. Asks for an executive summary and key findings (non-fatal).
+ *   4. Renders the HTML report → PDF, emails it (PDF attached), and persists both
  *      a `report` record and a `free_trial_run` record.
  *
  * SERVER-ONLY. Every network step degrades gracefully; nothing here throws up into
@@ -93,7 +93,7 @@ function nzDateLabel(d: Date): string {
   });
 }
 
-/** Map a 0-100 conviction sentiment to a Zenith signal. */
+/** Map a 0-100 conviction sentiment to a signal. */
 function signalFromSentiment(sentiment: number): TrialSignal {
   if (sentiment >= 72) return "Strong Buy";
   if (sentiment >= 58) return "Accumulate";
@@ -188,7 +188,7 @@ function tickerNote(t: {
 /* =============================== CRYPTO ================================== */
 
 async function buildCryptoReport(user: TrialUser, inputs: TrialTickerInput[]): Promise<TrialReport> {
-  console.log(`[trial-report] Building CRYPTO Zenith report for ${user._id} (${inputs.length} tickers)`);
+  console.log(`[trial-report] Building crypto report for ${user._id} (${inputs.length} tickers)`);
 
   const [coins, news] = await Promise.all([fetchTopCryptos(100), fetchCryptoNews(12)]);
   const dataLive = coins.length > 0;
@@ -269,8 +269,8 @@ async function buildCryptoReport(user: TrialUser, inputs: TrialTickerInput[]): P
 
   const base: TrialReport = {
     bot: "crypto",
-    mode: "ZENITH MODE · ULTRA ADVANCED",
-    title: "Crypto Zenith Intelligence Briefing",
+    mode: "Intelligent AI bot",
+    title: "Crypto intelligence briefing",
     marketLabel: "Global digital-asset market",
     scopeLabel: dataLive ? "Full scope · Top 100 cryptocurrencies analysed" : "Top digital assets (modelled)",
     generatedAtLabel: nzDateLabel(new Date()),
@@ -344,7 +344,7 @@ function deriveCryptoFindings(coins: CoinMarket[], tickers: TrialTickerAnalysis[
 /* =============================== STOCKS ================================== */
 
 async function buildStockReport(user: TrialUser, inputs: TrialTickerInput[]): Promise<TrialReport> {
-  console.log(`[trial-report] Building STOCK Zenith report for ${user._id} (${inputs.length} tickers)`);
+  console.log(`[trial-report] Building stock report for ${user._id} (${inputs.length} tickers)`);
 
   const { intel: universeIntel, boards } = await fetchStockUniverse();
   const dataLive = boards.live;
@@ -427,8 +427,8 @@ async function buildStockReport(user: TrialUser, inputs: TrialTickerInput[]): Pr
 
   const base: TrialReport = {
     bot: "stock",
-    mode: "ZENITH MODE · ULTRA ADVANCED",
-    title: "NZX + ASX Zenith Intelligence Briefing",
+    mode: "Intelligent AI bot",
+    title: "NZX and ASX intelligence briefing",
     marketLabel: "New Zealand (NZX) + Australia (ASX) equities",
     scopeLabel: `Full scope · entire NZX + ASX universe (${boards.universeSize} names) analysed`,
     generatedAtLabel: nzDateLabel(new Date()),
@@ -547,7 +547,7 @@ function fallbackSummary(report: TrialReport): string {
       : `the entire NZX + ASX universe${report.stockMovers ? ` (${report.stockMovers.universeSize} names)` : ""}`;
   const lead = report.tickers[0];
   return (
-    `This **ZENITH MODE** briefing analyses ${scope} and drills into your ${report.tickers.length} selected ` +
+    `This briefing analyses ${scope} and drills into your ${report.tickers.length} selected ` +
     `${report.bot === "crypto" ? "asset" : "ticker"}${report.tickers.length === 1 ? "" : "s"}. ` +
     (lead
       ? `**${lead.symbol}** carries a **${lead.signal}** posture with a 7-day model read of **${lead.predictions[0].expectedMovePct >= 0 ? "+" : ""}${lead.predictions[0].expectedMovePct}%** and a 12-month momentum of **${lead.momentum12moPct >= 0 ? "+" : ""}${lead.momentum12moPct}%**. `
@@ -560,7 +560,7 @@ function fallbackSummary(report: TrialReport): string {
   );
 }
 
-/* ----------------------------- Grok layer ------------------------------- */
+/* ----------------------------- Narrative layer -------------------------- */
 
 async function enhanceWithGrok(report: TrialReport): Promise<boolean> {
   if (!isZenithConfigured() || !report.tickers.length) return false;
@@ -589,7 +589,7 @@ async function enhanceWithGrok(report: TrialReport): Promise<boolean> {
         },
         {
           role: "user",
-          content: `Market: ${report.marketLabel}. Scope: ${report.scopeLabel}.\n${moversLine}\nSelected holdings:\n${lines}\n\nWrite the ULTRA executive summary now.`,
+          content: `Market: ${report.marketLabel}. Scope: ${report.scopeLabel}.\n${moversLine}\nSelected holdings:\n${lines}\n\nWrite the executive summary now.`,
         },
       ],
     });
@@ -608,13 +608,13 @@ async function enhanceWithGrok(report: TrialReport): Promise<boolean> {
         const findings = kf.split(/\n+/).map((l) => l.replace(/^[-*\d.\s]+/, "").trim()).filter((l) => l.length > 12).slice(0, 4);
         if (findings.length >= 3) report.keyFindings = findings;
       } catch (kfErr) {
-        console.error("[trial-report] Grok key-findings pass failed (non-fatal):", kfErr);
+        console.error("[trial-report] Key-findings pass failed (non-fatal):", kfErr);
       }
-      console.log(`[trial-report] Grok ULTRA narrative applied`);
+      console.log(`[trial-report] Narrative applied`);
       return true;
     }
   } catch (err) {
-    console.error("[trial-report] Grok enhancement failed (non-fatal):", err);
+    console.error("[trial-report] Narrative enhancement failed (non-fatal):", err);
   }
   return false;
 }
@@ -628,7 +628,7 @@ export async function generateTrialReport(args: {
 }): Promise<GeneratedTrialReport> {
   const { user, bot } = args;
   const inputs = args.tickers.slice(0, 3);
-  console.log(`[trial-report] === Zenith trial run start · user=${user._id} bot=${bot} tickers=${inputs.map((i) => i.symbol).join(",")} ===`);
+  console.log(`[trial-report] === Trial run start · user=${user._id} bot=${bot} tickers=${inputs.map((i) => i.symbol).join(",")} ===`);
 
   const report = bot === "crypto" ? await buildCryptoReport(user, inputs) : await buildStockReport(user, inputs);
 
@@ -643,7 +643,7 @@ export async function generateTrialReport(args: {
   try {
     const pdf = await totalumSdk.files.createPdfFromHtml({
       html,
-      name: `AetherForge-Zenith-${bot}-${now.getTime()}.pdf`,
+      name: `AetherForge-${bot}-${now.getTime()}.pdf`,
     });
     pdfFileName = (pdf?.data as any)?.fileName ?? null;
     pdfUrl = (pdf?.data as any)?.url ?? null;
@@ -657,15 +657,15 @@ export async function generateTrialReport(args: {
   try {
     await totalumSdk.email.sendEmail({
       to: [user.email],
-      subject: `⚡ ${report.title} — your one-time ZENITH report`,
+      subject: `⚡ ${report.title} — your one-time report`,
       html,
-      fromName: "AetherForge AI · Zenith",
+      fromName: "AetherForge AI",
       ...(pdfUrl
         ? { attachments: [{ filename: `${report.title}.pdf`, url: pdfUrl, contentType: "application/pdf" }] }
         : {}),
     });
     emailed = true;
-    console.log(`[trial-report] Zenith report emailed to ${user.email}`);
+    console.log(`[trial-report] Report emailed to ${user.email}`);
   } catch (mailErr) {
     console.error("[trial-report] Email delivery failed (non-fatal):", mailErr);
   }
@@ -711,6 +711,6 @@ export async function generateTrialReport(args: {
     console.error("[trial-report] Failed to persist free_trial_run (non-fatal):", runErr);
   }
 
-  console.log(`[trial-report] === Zenith trial run complete · emailed=${emailed} aiEnhanced=${report.aiEnhanced} ===`);
+  console.log(`[trial-report] === Trial run complete · emailed=${emailed} aiEnhanced=${report.aiEnhanced} ===`);
   return { report, pdfUrl, reportId, runId, emailed, aiEnhanced: report.aiEnhanced };
 }

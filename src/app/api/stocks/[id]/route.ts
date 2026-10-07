@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
-import { checkFillSanity, ADVISORY_NOTE } from "@/lib/fill-integrity";
+import { checkFillSanity, ADVISORY_NOTE, aucklandDateISO } from "@/lib/fill-integrity";
+import { movementCivilDay } from "@/lib/transaction-rules";
 import { fetchCryptoQuotes, fetchLivePrice, isLiveDataConfigured } from "@/lib/market-data";
 import { logLedgerAudit, appendAuditNote } from "@/lib/ledger-audit";
 import { totalumSdk } from "@/lib/totalum";
 import { normalizeTicker, lookupTicker } from "@/lib/market";
+import { applyTransaction } from "@/lib/transactions";
+import { planHoldingCorrection } from "@/lib/holding-correction";
 
 const updateSchema = z.object({
   ticker: z.string().min(1).max(12).optional(),
@@ -52,6 +55,14 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
       return NextResponse.json({ ok: false, error: parsed.error.flatten() }, { status: 400 });
     }
 
+    if (parsed.data.purchase_date) {
+      const today = aucklandDateISO();
+      const day = movementCivilDay(parsed.data.purchase_date, today);
+      if (day > today) {
+        return NextResponse.json({ ok: false, error: "The date can't be in the future." }, { status: 400 });
+      }
+    }
+
     const patch: Record<string, unknown> = { ...parsed.data };
     delete patch.soft_override_confirmed;
     delete patch.typed_live_override;
@@ -95,10 +106,14 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
       }
       patch.fill_price = fill;
       if (liveSpot) patch.mark_price = liveSpot;
-      patch.notes = appendAuditNote(
-        String(parsed.data.notes || owned.notes || ""),
-        `Edited fill/qty. ${ADVISORY_NOTE}`
-      );
+      const plan = planHoldingCorrection({
+        beforeShares: Number(owned.shares) || 0,
+        afterShares: qty,
+        beforePrice: Number(owned.purchase_price) || 0,
+        afterPrice: fill,
+        note: parsed.data.notes,
+      });
+      patch.notes = appendAuditNote(String(parsed.data.notes || owned.notes || ""), `${plan.notes} ${ADVISORY_NOTE}`);
       logLedgerAudit({
         action: "holding_edit",
         ticker,
@@ -106,6 +121,25 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
         before: { shares: owned.shares, purchase_price: owned.purchase_price },
         after: { shares: qty, purchase_price: fill },
       });
+      if (plan.changed) {
+        const heldType = (owned.asset_type || assetType) as "stock" | "crypto" | "metal";
+        await applyTransaction(
+          user,
+          {
+            type: "correction",
+            ticker,
+            asset_type: heldType === "metal" ? "metal" : heldType === "crypto" ? "crypto" : "stock",
+            asset_name: String(owned.company_name || ticker),
+            quantity: qty,
+            price: fill,
+            notes: plan.notes,
+            executed_at: new Date().toISOString(),
+          },
+          { fromHoldingEdit: true }
+        );
+        delete patch.shares;
+        delete patch.purchase_price;
+      }
     }
 
     await totalumSdk.crud.editRecordById("stock", id, patch);

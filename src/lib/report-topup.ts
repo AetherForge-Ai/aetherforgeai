@@ -3,7 +3,6 @@
  * Existing sections stay. These helpers only add a score, a size, or a sentence.
  */
 
-import { estimateFee, feeMarketFor, presetsForMarket } from "@/lib/broker-fees";
 import { modelByKey } from "@/lib/totalum-engine";
 import type { TickerAnalysis } from "@/lib/apex";
 import type { SharedBookLog } from "@/lib/book-log";
@@ -176,11 +175,9 @@ export function illustratedSizeNZD(input: {
   return Math.round(sized * 100) / 100;
 }
 
-export function paperFeeNZD(notionalNZD: number, ticker: string, assetType: "stock" | "crypto"): number {
-  const market = feeMarketFor(ticker, assetType);
-  const preset = presetsForMarket(market).find((p) => p.id !== "zero");
-  if (!preset) return 0;
-  return estimateFee(Math.max(0, notionalNZD), preset);
+/** Reports do not invent a brokerage figure. The default is zero. */
+export function paperFeeNZD(_notionalNZD: number, _ticker: string, _assetType: "stock" | "crypto"): number {
+  return 0;
 }
 
 /** Always names the paper fee, including zero. */

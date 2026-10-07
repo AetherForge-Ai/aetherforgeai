@@ -281,6 +281,9 @@ export default function LandingPage() {
           <Link href="/pricing" className="hover:text-foreground">
             Pricing
           </Link>
+          <Link href="/trust" className="hover:text-foreground">
+            How the books work
+          </Link>
           <Link href="/ai-disclaimer" className="hover:text-foreground">
             AI disclaimer
           </Link>

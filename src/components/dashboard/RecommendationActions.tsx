@@ -135,7 +135,7 @@ export function RecommendationActions({
     });
     setBusy(null);
     if (!res.ok) return toast.error(typeof res.error === "string" ? res.error : "Could not save");
-    toast.success(status === "idea" ? "Saved as idea (not a fill)" : "Marked paper-traded (no realized P&L)");
+    toast.success(status === "idea" ? "Saved as idea (not a fill)" : "Marked paper-traded (no realised P&L)");
     onDone?.();
   }
 

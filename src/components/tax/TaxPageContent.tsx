@@ -26,7 +26,7 @@ export function TaxPageContent() {
   return (
     <article className="mx-auto w-full max-w-3xl px-4 py-10 sm:px-6">
       <p className="text-xs font-semibold uppercase tracking-wide text-primary">New Zealand</p>
-      <h1 className="mt-2 font-display text-3xl font-bold">TAX</h1>
+      <h1 className="mt-2 font-display text-3xl font-bold">Tax</h1>
       <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
         This is general information and not personal tax advice.
       </p>

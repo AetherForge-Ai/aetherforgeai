@@ -45,7 +45,7 @@ const CRYPTO_STAGES = [
   "Sweeping 24h / 7d / 30d performance across all 100 majors…",
   "Pulling 12-month price history for your assets…",
   "Scanning worldwide crypto news wires…",
-  "Running ZENITH momentum & mean-reversion models…",
+  "Running the momentum and mean-reversion models…",
   "AI composing your executive briefing…",
   "Rendering PDF & dispatching to your inbox…",
 ];
@@ -54,7 +54,7 @@ const STOCK_STAGES = [
   "Sweeping the entire NZX + ASX universe…",
   "Pulling 12-month price history for your tickers…",
   "Computing RSI / MACD / momentum signals…",
-  "Running ZENITH forward-projection models…",
+  "Running the forward-projection models…",
   "AI composing your executive briefing…",
   "Rendering PDF & dispatching to your inbox…",
 ];
@@ -143,7 +143,7 @@ export function TrialExperience({ userName }: { userName?: string }) {
         })),
     };
 
-    console.log("[trial] Running Zenith report:", payload);
+    console.log("[trial] Running report:", payload);
     const res = await api.post<RunResponse>("/api/free-trial/run", payload);
 
     if (timerRef.current) clearInterval(timerRef.current);
@@ -154,7 +154,7 @@ export function TrialExperience({ userName }: { userName?: string }) {
       setTimeout(() => {
         setResult(res.data!);
         setRunning(false);
-        toast.success("Your ZENITH report is ready.");
+        toast.success("Your report is ready.");
       }, 700);
     } else {
       const msg = typeof res.error === "string" ? res.error : res.error?.message || "Something went wrong generating your report.";
@@ -171,9 +171,9 @@ export function TrialExperience({ userName }: { userName?: string }) {
       <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
         <TrialReportView report={result.report} pdfUrl={result.pdfUrl} email={result.email} emailed={result.emailed} />
         <div className="mt-8 overflow-hidden rounded-3xl border border-primary/40 bg-gradient-to-br from-primary/12 to-card/50 p-6 text-center">
-          <h3 className="font-display text-xl font-bold">That was your one-time ZENITH run</h3>
+          <h3 className="font-display text-xl font-bold">That was your one-time report</h3>
           <p className="mx-auto mt-1 max-w-xl text-sm text-muted-foreground">
-            Subscribe to run unlimited ULTRA ADVANCED reports across both bots, add live price alerts and receive scheduled
+            Subscribe to run unlimited reports from the intelligent AI bots, add live price alerts and receive scheduled
             9am briefings straight to your inbox.
           </p>
           <Link
@@ -200,7 +200,7 @@ export function TrialExperience({ userName }: { userName?: string }) {
             </span>
           </div>
           <h2 className="mt-6 font-display text-xl font-bold">
-            {asset === "crypto" ? "ZENITH MODE · ULTRA ADVANCED" : "Running ULTRA ADVANCED analysis"}
+            Intelligent AI bot
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Bot is processing {filledSymbols.join(", ")} against{" "}
@@ -245,14 +245,14 @@ export function TrialExperience({ userName }: { userName?: string }) {
       {/* Hero */}
       <div className="text-center">
         <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/15 px-3 py-1 text-xs font-semibold text-primary ring-1 ring-primary/25">
-          <Zap className="size-3.5" /> One-time free ZENITH report
+          <Zap className="size-3.5" /> One-time free report
         </span>
         <h1 className="mt-4 font-display text-3xl font-bold sm:text-4xl">
           {userName ? `Welcome, ${userName}. ` : ""}Run your complimentary intelligence report
         </h1>
         <p className="mx-auto mt-2 max-w-xl text-sm text-muted-foreground">
-          Enter up to <strong className="text-foreground">3 tickers</strong>, pick a bot, and we&apos;ll generate a full
-          ULTRA ADVANCED report — with your portfolio integrated — and email it to you. This is a one-time run.
+          Enter up to <strong className="text-foreground">3 tickers</strong>, pick a bot, and we&apos;ll generate an
+          intelligent AI bot report — with your portfolio integrated — and email it to you. This is a one-time run.
         </p>
       </div>
 
@@ -273,7 +273,7 @@ export function TrialExperience({ userName }: { userName?: string }) {
             </span>
             <span>
               <span className="block text-sm font-semibold">Crypto bot</span>
-              <span className="block text-xs text-muted-foreground">ZENITH · top 100 cryptos</span>
+              <span className="block text-xs text-muted-foreground">Top 100 cryptos</span>
             </span>
           </button>
           <button
@@ -402,7 +402,7 @@ export function TrialExperience({ userName }: { userName?: string }) {
         className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 font-display text-base font-bold text-primary-foreground shadow-glow transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
       >
         <Sparkles className="size-5" />
-        {asset === "crypto" ? "Run ZENITH crypto report" : "Run ULTRA stock report"}
+        {asset === "crypto" ? "Run crypto report" : "Run stock report"}
       </button>
       <p className="mt-3 text-center text-xs text-muted-foreground">
         Delivered to your email &amp; shown here · one-time free run · no card required
