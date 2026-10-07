@@ -16,17 +16,19 @@ import "server-only";
 import { totalumSdk } from "@/lib/totalum";
 import type { AppUser } from "@/lib/session";
 import { adaptiveFractionDigits, currencyForTicker, nativeToNzd, ensureNzdPerUsd, ensureNzdPerAud, formatQuantity, type CurrencyCode } from "@/lib/currency";
-import { priceForBooking, ratesForBooking, reviewedFxAllowed } from "@/lib/reviewed-book";
+import { dexPriceForSymbol, priceForBooking, ratesForBooking, reviewedFxAllowed } from "@/lib/reviewed-book";
 import { alertsToArchive, positionIsClosed } from "@/lib/alert-lifecycle";
 import { getFxSnapshot, historicalNzdPerUnit } from "@/lib/fx";
 import { normalizeTicker, lookupTicker, referencePrice } from "@/lib/market";
 import { fetchLivePrice, isLiveDataConfigured, fetchCryptoQuotes } from "@/lib/market-data";
+import { dexQuoteRows } from "@/lib/crypto-coingecko";
 import { getMetalsSpot } from "@/lib/metals";
 import {
   checkFillSanity,
   aucklandDateISO,
   aucklandDateTimeISO,
   ADVISORY_NOTE,
+  SANITY_RATIO_SOFT,
   type PriceSource,
   type ExecutionStatus,
   type OrderSizing,
@@ -584,6 +586,24 @@ async function applyTransactionUnlocked(
           : undefined
       );
       liveSpot = quotes[ticker.toUpperCase()]?.price ?? null;
+      // Majors that already match the coin list skip this. A DEX fill uses GeckoTerminal
+      // when the coin list is missing or further from the reviewed price than 15%.
+      const coinAgrees =
+        liveSpot != null && liveSpot > 0 && Math.abs(price / liveSpot - 1) <= SANITY_RATIO_SOFT;
+      if (!coinAgrees) {
+        try {
+          const rows = await dexQuoteRows(ticker);
+          const dex = dexPriceForSymbol(ticker, rows);
+          if (dex != null && dex > 0) {
+            const nearerDex =
+              !(liveSpot != null && liveSpot > 0) ||
+              Math.abs(price / dex - 1) < Math.abs(price / liveSpot - 1);
+            if (nearerDex) liveSpot = dex;
+          }
+        } catch (dexErr) {
+          console.error(`[transactions] DEX spot for sanity check failed (${ticker}):`, dexErr);
+        }
+      }
     } else if (assetType === "metal") {
       const key = metalKeyForTicker(ticker);
       if (key) {
