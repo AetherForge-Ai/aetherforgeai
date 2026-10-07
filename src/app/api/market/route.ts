@@ -7,6 +7,7 @@ import {
   fetchHistoriesForAssetClass,
   isLiveConfiguredFor,
 } from "@/lib/market-data";
+import { loadCryptoBoardLive } from "@/lib/crypto-tape";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +29,16 @@ export async function GET(req: Request) {
     let histories: Record<string, number[]> = {};
     let live = false;
 
-    if (isLiveConfiguredFor(assetClass)) {
+    if (assetClass === "crypto") {
+      try {
+        const board = await loadCryptoBoardLive(tickers);
+        overrides = board.quotes;
+        histories = board.histories;
+        live = Object.keys(overrides).length > 0 || Object.keys(histories).length > 0;
+      } catch (err) {
+        console.error("[api/market] Crypto tape failed:", err);
+      }
+    } else if (isLiveConfiguredFor(assetClass)) {
       // Fetch live intraday quotes AND real recent daily-close histories in
       // parallel. The histories are what make signals + 7-day projections track
       // each security's ACTUAL momentum (so the lists reflect real performance

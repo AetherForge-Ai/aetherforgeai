@@ -16,6 +16,7 @@
 
 import "server-only";
 import { barsFromYahoo, closeOnOrBefore } from "@/lib/historical-price";
+import { yahooSymbolFor } from "@/lib/crypto-vendors";
 
 export interface YahooQuote {
   price: number;
@@ -430,10 +431,9 @@ export function yahooEquitySymbol(ticker: string): string {
   return ticker.toUpperCase();
 }
 
-/** Map an internal crypto ticker to its Yahoo symbol (BTC → BTC-USD). */
+/** Map an internal crypto ticker to its Yahoo symbol. Mapped names do not use a guessed ticker. */
 export function yahooCryptoSymbol(ticker: string): string {
-  const t = ticker.toUpperCase().replace(/-?USDT?$/, "");
-  return `${t}-USD`;
+  return yahooSymbolFor(ticker).symbol;
 }
 
 /**

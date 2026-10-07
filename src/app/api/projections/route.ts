@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
-import { analyzeUniverse, universeFor, type SecurityIntel } from "@/lib/market-intel";
+import { analyzeUniverse, universeFor } from "@/lib/market-intel";
 import {
   fetchQuotesForAssetClass,
   fetchHistoriesForAssetClass,
   isLiveConfiguredFor,
 } from "@/lib/market-data";
-import { fetchCryptoMarketIntel } from "@/lib/koins-market";
+import { loadCryptoBoardLive } from "@/lib/crypto-tape";
+import { CRYPTO_PROJECTION_HAND_CHECK } from "@/lib/crypto-vendors";
+import { assembleEquityProjections } from "@/lib/projection-pause";
 
 export const dynamic = "force-dynamic";
 
@@ -16,15 +18,13 @@ export const dynamic = "force-dynamic";
  * across the COMPLETE investable universe:
  *   • Equities — the full NZX + ASX + NASDAQ + DOW JONES universe, anchored to
  *     live prices + real 30-day histories.
- *   • Crypto — the COMPLETE live cryptocurrency market (top-500 via Swyftx →
- *     CoinGecko), each coin run through the same technical engine.
- * It then ranks every name across ALL markets combined by projected 7-day %
- * increase (strictly highest → lowest) and returns the TOP 50, each still
- * carrying its own `market` so the UI can label it (NASDAQ, Crypto, NZX, …).
+ * Crypto uses the same price and history service as /api/market?bot=crypto.
+ * Those rows stay off this board until the 10-coin hand-check is done
+ * (BTC, ETH, SOL, BNB, XRP, ARB, TON, JUP, UNI, APT).
+ * It then ranks equities by projected 7-day % increase (highest → lowest)
+ * and returns the TOP 50.
  *
- * The per-market universes are returned too so the page's individual exchange
- * tabs (incl. the full crypto tab) render from the same single fetch.
- * Kept server-side so the market-data / Swyftx keys never reach the client.
+ * Kept server-side so the market-data key never reaches the client.
  */
 export async function GET() {
   try {
@@ -50,35 +50,32 @@ export async function GET() {
     }
     const stockUniverse = analyzeUniverse(overrides, "stock", histories);
 
-    // --- Complete live cryptocurrency market (top-500) ----------------------
-    const cryptoIntel = await fetchCryptoMarketIntel().catch((err) => {
-      console.error("[api/projections] Crypto full-market intel failed:", err);
-      return [] as SecurityIntel[];
+    // Same tape as the crypto market bot. The board stays paused, so the
+    // prints are checked and logged, then left off the ranking.
+    const cryptoTickers = Array.from(
+      new Set([...universeFor("crypto").map((row) => row.ticker), ...CRYPTO_PROJECTION_HAND_CHECK])
+    );
+    await loadCryptoBoardLive(cryptoTickers).catch((err) => {
+      console.error("[api/projections] Crypto tape failed:", err);
+      return null;
     });
-    const cryptoLive = cryptoIntel.length > 0;
-    // Fall back to the deterministic core crypto universe so the crypto leg is
-    // never empty (the page can never go blank).
-    const cryptoUniverse = cryptoIntel.length ? cryptoIntel : analyzeUniverse({}, "crypto");
-
-    // --- Combined TOP 50 across ALL markets, strictly highest → lowest % -----
-    const combined = [...stockUniverse, ...cryptoUniverse]
-      .slice()
-      .sort((a, b) => b.projected7dPct - a.projected7dPct)
-      .slice(0, 50);
+    const ranked = assembleEquityProjections(stockUniverse);
 
     console.log(
-      `[api/projections] Combined sweep: ${stockUniverse.length} equities + ${cryptoUniverse.length} crypto ` +
-        `→ top ${combined.length} (stock live=${stockLive}, crypto live=${cryptoLive})`
+      `[api/projections] Equity sweep: ${ranked.scanned.stocks} names → top ${ranked.combined.length} ` +
+        `(stock live=${stockLive}). Crypto projections paused.`
     );
 
     return NextResponse.json({
       ok: true,
       data: {
-        live: stockLive || cryptoLive,
-        combined,
-        stockUniverse,
-        cryptoUniverse,
-        scanned: { stocks: stockUniverse.length, crypto: cryptoUniverse.length },
+        live: stockLive,
+        cryptoPaused: ranked.cryptoPaused,
+        cryptoPauseMessage: ranked.cryptoPauseMessage,
+        combined: ranked.combined,
+        stockUniverse: ranked.stockUniverse,
+        cryptoUniverse: ranked.cryptoUniverse,
+        scanned: ranked.scanned,
       },
     });
   } catch (err: any) {

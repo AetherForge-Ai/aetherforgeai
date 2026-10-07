@@ -17,6 +17,7 @@
  */
 
 import "server-only";
+import { yahooSymbolFor } from "@/lib/crypto-vendors";
 
 export interface GoogleQuote {
   price: number;
@@ -151,10 +152,9 @@ async function mapLimited<T, R>(items: T[], limit: number, fn: (item: T) => Prom
   return results;
 }
 
-/** Map an internal crypto ticker to its Google Finance symbol (BTC → BTC-USD). */
+/** Map an internal crypto ticker to its Google Finance symbol. Mapped names use the vendor symbol. */
 export function googleCryptoSymbol(ticker: string): string {
-  const t = ticker.toUpperCase().replace(/-?USDT?$/, "");
-  return `${t}-USD`;
+  return yahooSymbolFor(ticker).symbol;
 }
 
 /**

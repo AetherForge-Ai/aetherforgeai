@@ -11,6 +11,7 @@ import {
   type SecurityIntel,
 } from "@/lib/market-intel";
 import { pctClass, fmtPct, ExchangeChip, publicMarketNote } from "@/components/dashboard/intel-ui";
+import { CRYPTO_PROJECTIONS_PAUSE_MESSAGE } from "@/lib/projection-pause";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -33,6 +34,8 @@ import {
 
 interface ProjectionsPayload {
   live: boolean;
+  cryptoPaused?: boolean;
+  cryptoPauseMessage?: string;
   combined: SecurityIntel[];
   stockUniverse: SecurityIntel[];
   cryptoUniverse: SecurityIntel[];
@@ -53,7 +56,7 @@ const TABS: TabDef[] = [
   { key: "ASX", label: "ASX", sub: "Australia" },
   { key: "DOW", label: "Dow Jones", sub: "US blue-chip" },
   { key: "NASDAQ", label: "Nasdaq", sub: "US tech & growth" },
-  { key: "CRYPTO", label: "Crypto", sub: "Entire crypto market" },
+  { key: "CRYPTO", label: "Crypto", sub: "Paused" },
 ];
 
 /** Readable market label for a security (NZX · ASX · Dow Jones · NASDAQ · Crypto). */
@@ -237,6 +240,7 @@ export function ProjectionsExplorer() {
   const [stockUniverse, setStockUniverse] = useState<SecurityIntel[]>([]);
   const [cryptoUniverse, setCryptoUniverse] = useState<SecurityIntel[]>([]);
   const [combined, setCombined] = useState<SecurityIntel[]>([]);
+  const [pauseMessage, setPauseMessage] = useState(CRYPTO_PROJECTIONS_PAUSE_MESSAGE);
   const [live, setLive] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -258,9 +262,10 @@ export function ProjectionsExplorer() {
         (res.data.stockUniverse?.length ?? 0) +
         (res.data.cryptoUniverse?.length ?? 0);
       if (returned === 0) throw new Error("The projection engine failed to return rows.");
-      setStockUniverse(res.data.stockUniverse || []);
-      setCryptoUniverse(res.data.cryptoUniverse || []);
-      setCombined(res.data.combined || []);
+      setStockUniverse((res.data.stockUniverse || []).filter((row) => row.market !== "CRYPTO" && row.assetClass !== "crypto"));
+      setCryptoUniverse(res.data.cryptoPaused ? [] : res.data.cryptoUniverse || []);
+      setCombined((res.data.combined || []).filter((row) => row.market !== "CRYPTO" && row.assetClass !== "crypto"));
+      setPauseMessage(res.data.cryptoPauseMessage || CRYPTO_PROJECTIONS_PAUSE_MESSAGE);
       setLive(!!res.data.live);
       console.log(
         `[projections] Loaded ${res.data.scanned?.stocks || 0} equities + ${res.data.scanned?.crypto || 0} crypto ` +
@@ -326,9 +331,8 @@ export function ProjectionsExplorer() {
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
             <span className="font-medium text-foreground">All Markets</span> ranks the Top 50 highest
-            projected 7-day movers across <span className="font-medium text-foreground">every market
-            combined</span> — NASDAQ, Dow Jones, NZX, ASX and the entire crypto market — sorted strictly
-            highest to lowest and labelled by market. Switch tabs for a single market&apos;s Top 50.
+            projected 7-day movers across NZX, ASX, Dow Jones and Nasdaq, sorted strictly highest to
+            lowest and labelled by market. Crypto projections are paused. Live coin prices are still on Markets.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -374,7 +378,7 @@ export function ProjectionsExplorer() {
                   isActive ? "bg-primary/20 text-primary" : "bg-muted/50 text-muted-foreground"
                 )}
               >
-                {loading ? "··" : `Top ${count}`}
+                {loading ? "··" : t.key === "CRYPTO" ? "Paused" : `Top ${count}`}
               </span>
             </button>
           );
@@ -397,6 +401,10 @@ export function ProjectionsExplorer() {
               <RefreshCw className="size-4" /> Try again
             </Button>
           </div>
+        </div>
+      ) : active === "CRYPTO" ? (
+        <div className="grid place-items-center rounded-2xl border border-border/60 bg-card/40 py-16 text-center">
+          <p className="max-w-md text-sm leading-relaxed text-muted-foreground">{pauseMessage}</p>
         </div>
       ) : activeList.length === 0 ? (
         <div className="grid place-items-center rounded-2xl border border-border/60 bg-card/40 py-16 text-center text-sm text-muted-foreground">
