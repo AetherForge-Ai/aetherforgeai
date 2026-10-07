@@ -116,8 +116,7 @@ export function TickerAnalysisPane({
     setInput("");
     setHidden(false);
     ask(); // no question → default professional read
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [symbol, signedIn, isPending]);
+  }, [symbol, signedIn, isPending, ask]);
 
   // Keep the transcript scrolled to the newest message.
   useEffect(() => {
