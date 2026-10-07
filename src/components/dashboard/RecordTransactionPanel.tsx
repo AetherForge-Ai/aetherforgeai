@@ -504,6 +504,7 @@ export function RecordTransactionPanel({
                     setKind(item.id);
                     setProblems([]);
                     setStep("edit");
+                    if (item.id === "dividend") setQuery("");
                   }}
                   className={cn(
                     "rounded-lg border px-2.5 py-1.5 text-xs font-semibold",
