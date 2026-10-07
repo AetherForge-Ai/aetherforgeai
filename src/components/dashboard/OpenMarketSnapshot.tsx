@@ -46,6 +46,7 @@ interface ExchangeSnapshot {
     changePct: number | null;
     changeAbs: number | null;
     live: boolean;
+    freshness?: string;
   };
   breadth: { advancers: number; decliners: number; unchanged: number; total: number };
   avgChangePct: number;
@@ -131,7 +132,7 @@ function ExchangeCard({
           <p className="truncate text-[0.66rem] text-muted-foreground">{s.index.name}</p>
         </div>
         <div className="shrink-0 text-right">
-          {s.index.live && s.index.price != null ? (
+          {s.index.price != null ? (
             <>
               <p className="tnum text-sm font-bold">{idxNumFmt.format(s.index.price)}</p>
               <p className={cn("tnum flex items-center justify-end gap-0.5 text-xs font-semibold", pctClass(s.index.changePct))}>
@@ -141,9 +142,12 @@ function ExchangeCard({
                 )}
                 {Math.abs(s.index.changePct ?? 0).toFixed(2)}%
               </p>
+              {s.index.freshness ? (
+                <p className="mt-0.5 max-w-[12rem] text-[0.6rem] font-medium text-muted-foreground">{s.index.freshness}</p>
+              ) : null}
             </>
           ) : (
-            <span className="text-[0.66rem] text-muted-foreground">Index closed</span>
+            <span className="text-[0.66rem] text-muted-foreground">Index feed is not shown right now</span>
           )}
         </div>
       </div>
@@ -250,8 +254,6 @@ export function OpenMarketSnapshot({ onBought }: { onBought?: () => void }) {
     setDetailOpen(true);
   }
 
-  const asOf = data?.asOf ? new Date(data.asOf) : null;
-
   return (
     <section>
       {/* Prominent dashboard card — opens the market overview */}
@@ -314,13 +316,12 @@ export function OpenMarketSnapshot({ onBought }: { onBought?: () => void }) {
                     <ExchangeCard key={s.exchange} s={s} onOpen={openDetail} />
                   ))}
                 </div>
-                {asOf && (
-                  <p className="mt-4 text-center text-[0.62rem] text-muted-foreground">
-                    {data.exchanges.some((s) => s.liveCount > 0) ? "Quoted prices" : "Reference prices"} · as of{" "}
-                    {asOf.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · NZX
-                    quotes may be delayed ~20 min
-                  </p>
-                )}
+                <p className="mt-4 text-center text-[0.62rem] text-muted-foreground">
+                  {data.exchanges
+                    .map((s) => s.index.freshness)
+                    .filter(Boolean)
+                    .join(" · ") || "Quoted prices use the latest available print"}
+                </p>
               </>
             ) : null}
           </div>

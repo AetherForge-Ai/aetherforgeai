@@ -218,7 +218,7 @@ function ProjectionRow({ rank, s, showMarket = false }: { rank: number; s: Secur
                   { k: "RSI", v: s.rsi.toFixed(0) },
                   { k: "MACD", v: s.macdSignal },
                   { k: "vs SMA20", v: fmtPct(s.vsSma20) },
-                  { k: "7d", v: fmtPct(s.change7d) },
+                  { k: "+7d", v: fmtPct(s.projected7dPct) },
                   { k: "30d", v: fmtPct(s.change30d) },
                   { k: "Score", v: s.score.toFixed(0) },
                 ].map((m) => (
@@ -243,7 +243,6 @@ export function ProjectionsExplorer() {
   const [stockUniverse, setStockUniverse] = useState<SecurityIntel[]>([]);
   const [combined, setCombined] = useState<SecurityIntel[]>([]);
   const [pauseMessage, setPauseMessage] = useState(CRYPTO_PROJECTIONS_PAUSE_MESSAGE);
-  const [live, setLive] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -265,7 +264,6 @@ export function ProjectionsExplorer() {
       setStockUniverse(stocks);
       setCombined(ranked);
       setPauseMessage(res.data.cryptoPauseMessage || CRYPTO_PROJECTIONS_PAUSE_MESSAGE);
-      setLive(!!res.data.live);
       console.log(
         `[projections] Loaded ${res.data.scanned?.stocks || stocks.length} equities ` +
           `→ ${ranked.length} combined (live: ${res.data.live}). Crypto projections paused.`
@@ -312,15 +310,6 @@ export function ProjectionsExplorer() {
           <div className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
             <TrendingUp className="size-3.5" />
             Next 7 days
-            {live && (
-              <span className="ml-1 inline-flex items-center gap-1 text-emerald-600">
-                <span className="relative flex size-1.5">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400" />
-                  <span className="relative inline-flex size-1.5 rounded-full bg-emerald-400" />
-                </span>
-                Live data
-              </span>
-            )}
           </div>
           <h1 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">
             Weekly Market <span className="text-gradient">Projections</span>

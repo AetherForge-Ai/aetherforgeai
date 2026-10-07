@@ -12,17 +12,20 @@ export function OnboardingPageClient() {
   const [ready, setReady] = useState(false);
   const [hasCash, setHasCash] = useState(false);
   const [hasHoldings, setHasHoldings] = useState(false);
+  const [plan, setPlan] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const [stocks, ledger] = await Promise.all([
+      const [stocks, ledger, session] = await Promise.all([
         api.get<unknown[]>("/api/stocks"),
         api.get<{ cashBalance?: number }>("/api/transactions"),
+        api.get<{ user?: { subscription_plan?: string | null } | null }>("/api/session"),
       ]);
       if (cancelled) return;
       setHasHoldings(!!(stocks.ok && Array.isArray(stocks.data) && stocks.data.length > 0));
       setHasCash(typeof ledger.data?.cashBalance === "number" && ledger.data.cashBalance > 0);
+      setPlan(session.data?.user?.subscription_plan ?? null);
       setReady(true);
     })();
     return () => {
@@ -38,7 +41,7 @@ export function OnboardingPageClient() {
       </p>
       <div className="mt-6">
         {ready ? (
-          <OnboardingChecklist hasCash={hasCash} hasHoldings={hasHoldings} alwaysShow />
+          <OnboardingChecklist hasCash={hasCash} hasHoldings={hasHoldings} alwaysShow plan={plan} />
         ) : (
           <p className="text-sm text-muted-foreground">Loading your checklist…</p>
         )}

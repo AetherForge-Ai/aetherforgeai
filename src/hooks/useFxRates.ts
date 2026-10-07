@@ -27,9 +27,15 @@ export function useFxRates(): {
   useEffect(() => {
     let active = true;
     (async () => {
-      const res = await api.get<{ ratesToNZD: FxRatesToNZD; live: boolean; asOf?: string }>("/api/fx");
+      const res = await api.get<{
+        ratesToNZD: FxRatesToNZD;
+        live?: boolean;
+        sourced?: boolean;
+        asOf?: string;
+      }>("/api/fx");
       if (!active) return;
-      if (res.ok && res.data?.ratesToNZD && res.data.live && res.data.asOf) {
+      const sourced = res.data?.sourced === true || (res.data?.sourced == null && res.data?.live === true);
+      if (res.ok && res.data?.ratesToNZD && sourced && res.data.asOf) {
         console.log("[useFxRates] FX rates loaded:", res.data.ratesToNZD);
         setRates(res.data.ratesToNZD);
         setLive(true);

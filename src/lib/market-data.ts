@@ -24,12 +24,15 @@ import { fetchGoogleCryptoQuotes, googleCryptoSymbol } from "@/lib/google-financ
 import { fetchSpotPrices as fetchSwyftxSpot } from "@/lib/crypto-swyftx";
 import { canonicalCryptoId } from "@/lib/crypto-ids";
 import { bullionDisplayName, isBullionHolding } from "@/lib/metal-valuation";
+import { cryptoFreshnessLabel, latestQuoteTime } from "@/lib/market-freshness";
 
 export interface LiveQuote {
   price: number;
   changePct: number; // last-session % change
   /** Present when the feed could tell live vs last session close. */
   asOf?: "live" | "close";
+  /** Vendor quote time. Fetch time is not stored here. */
+  quotedAt?: string;
 }
 
 const PROVIDER = (process.env.MARKET_DATA_PROVIDER || "twelvedata").toLowerCase();
@@ -154,7 +157,7 @@ async function fetchYahooEquityQuotes(tickers: string[]): Promise<Record<string,
   const yq = await fetchYahooQuotesBatched(map);
   const out: Record<string, LiveQuote> = {};
   for (const [t, q] of Object.entries(yq)) {
-    out[t] = { price: q.price, changePct: q.changePct, asOf: q.asOf };
+    out[t] = { price: q.price, changePct: q.changePct, asOf: q.asOf, ...(q.quotedAt ? { quotedAt: q.quotedAt } : {}) };
   }
   return out;
 }
@@ -260,6 +263,48 @@ function coingeckoId(ticker: string): string {
   return canonicalCryptoId(ticker);
 }
 
+function isoFromUnix(value: unknown): string | undefined {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return undefined;
+  const ms = n > 1e12 ? n : n * 1000;
+  const date = new Date(ms);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
+
+/**
+ * Stamp vendor quote times onto coins that already have a price.
+ * Prices already chosen are left untouched.
+ */
+async function fillMissingCryptoQuoteTimes(
+  quotes: Record<string, LiveQuote>,
+  ids?: Record<string, string>
+): Promise<void> {
+  const missing = Object.keys(quotes).filter((t) => quotes[t]?.price > 0 && !quotes[t]?.quotedAt);
+  if (!missing.length) return;
+  const idMap = new Map<string, string>();
+  missing.forEach((t) => idMap.set(ids?.[t] || coingeckoId(t), t));
+  const idList = Array.from(idMap.keys()).join(",");
+  try {
+    const url = `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(
+      idList
+    )}&vs_currencies=usd&include_last_updated_at=true`;
+    const headers: Record<string, string> = { Accept: "application/json" };
+    if (process.env.COINGECKO_API_KEY) headers["x-cg-demo-api-key"] = process.env.COINGECKO_API_KEY;
+    const res = await fetch(url, { headers });
+    if (!res.ok) return;
+    const json = (await res.json()) as Record<string, { last_updated_at?: number }>;
+    for (const [id, row] of Object.entries(json)) {
+      const internal = idMap.get(id);
+      if (!internal || !quotes[internal] || quotes[internal].quotedAt) continue;
+      const quotedAt = isoFromUnix(row?.last_updated_at);
+      if (!quotedAt) continue;
+      quotes[internal] = { ...quotes[internal], quotedAt };
+    }
+  } catch (err) {
+    console.error("[market-data] CoinGecko quote-time lookup failed:", err);
+  }
+}
+
 /** Crypto is live without a key, but allow disabling via env if ever needed. */
 export function isCryptoLiveConfigured(): boolean {
   return process.env.CRYPTO_DATA_DISABLED !== "1";
@@ -327,20 +372,28 @@ export async function fetchCryptoQuotes(
     try {
       const url = `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(
         ids
-      )}&vs_currencies=usd&include_24hr_change=true`;
+      )}&vs_currencies=usd&include_24hr_change=true&include_last_updated_at=true`;
       const headers: Record<string, string> = { Accept: "application/json" };
       if (process.env.COINGECKO_API_KEY) headers["x-cg-demo-api-key"] = process.env.COINGECKO_API_KEY;
 
       const res = await fetch(url, { headers });
       if (res.ok) {
-        const json = (await res.json()) as Record<string, { usd?: number; usd_24h_change?: number }>;
+        const json = (await res.json()) as Record<
+          string,
+          { usd?: number; usd_24h_change?: number; last_updated_at?: number }
+        >;
         for (const [id, q] of Object.entries(json)) {
           const internal = idMap.get(id);
           if (!internal || !q) continue;
           const price = Number(q.usd);
           const changePct = Number(q.usd_24h_change ?? 0);
           if (isFinite(price) && price > 0) {
-            out[internal] = { price, changePct: isFinite(changePct) ? changePct : 0 };
+            const quotedAt = isoFromUnix(q.last_updated_at);
+            out[internal] = {
+              price,
+              changePct: isFinite(changePct) ? changePct : 0,
+              ...(quotedAt ? { quotedAt } : {}),
+            };
           }
         }
         console.log(`[market-data] CoinGecko filled ${Object.keys(out).length}/${unique.length} coins (cumulative)`);
@@ -364,7 +417,12 @@ export async function fetchCryptoQuotes(
       const yq = await fetchYahooCryptoLiveQuotes(map);
       let filled = 0;
       for (const [t, q] of Object.entries(yq)) {
-        out[t] = { price: q.price, changePct: q.changePct, asOf: "live" };
+        out[t] = {
+          price: q.price,
+          changePct: q.changePct,
+          asOf: "live",
+          ...(q.quotedAt ? { quotedAt: q.quotedAt } : {}),
+        };
         filled++;
       }
       if (filled) {
@@ -401,6 +459,8 @@ export async function fetchCryptoQuotes(
     }
   }
 
+  await fillMissingCryptoQuoteTimes(out, opts?.ids);
+
   // Persist whatever we resolved (covers the common Swyftx-only path, which no
   // fallback stage touches) so repeat lookups within the TTL are instant.
   // Every crypto print is live — never an equity "at close" flag.
@@ -416,8 +476,8 @@ export async function fetchCryptoQuotes(
 let cryptoSnap: { at: number; quotes: Record<string, LiveQuote> } | null = null;
 let cryptoSnapInflight: Promise<{
   quotes: Record<string, LiveQuote>;
-  updatedAt: string;
-  live: true;
+  updatedAt: string | null;
+  live: boolean;
 }> | null = null;
 let cryptoSnapInflightKey = "";
 
@@ -427,20 +487,29 @@ let cryptoSnapInflightKey = "";
  * poll, alert evaluation, and the book refresh do not each hit Swyftx/CoinGecko.
  * Quotes are always `asOf: "live"` — cash-session state is not consulted.
  */
+function cryptoSnapshotStamp(quotes: Record<string, LiveQuote>, symbols: string[]) {
+  const updated = latestQuoteTime(symbols.map((t) => quotes[t]?.quotedAt));
+  const freshness = cryptoFreshnessLabel(updated);
+  return {
+    updatedAt: updated ? updated.toISOString() : null,
+    live: freshness.live,
+  };
+}
+
 export async function fetchCryptoLiveSnapshot(tickers: string[]): Promise<{
   quotes: Record<string, LiveQuote>;
-  updatedAt: string;
-  live: true;
+  updatedAt: string | null;
+  live: boolean;
 }> {
   const unique = normalizeCryptoSymbols(tickers);
   if (!unique.length) {
-    return { quotes: {}, updatedAt: new Date().toISOString(), live: true };
+    return { quotes: {}, updatedAt: null, live: false };
   }
   const key = unique.join(",");
   const fresh = cryptoSnap != null && Date.now() - cryptoSnap.at < CRYPTO_SNAPSHOT_TTL_MS;
   if (fresh && unique.every((t) => (cryptoSnap!.quotes[t]?.price ?? 0) > 0)) {
     const quotes = Object.fromEntries(unique.map((t) => [t, stampCryptoQuoteLive(cryptoSnap!.quotes[t])]));
-    return { quotes, updatedAt: new Date(cryptoSnap!.at).toISOString(), live: true };
+    return { quotes, ...cryptoSnapshotStamp(quotes, unique) };
   }
   if (cryptoSnapInflight && cryptoSnapInflightKey === key) return cryptoSnapInflight;
 
@@ -455,7 +524,7 @@ export async function fetchCryptoLiveSnapshot(tickers: string[]): Promise<{
     const picked = Object.fromEntries(
       unique.filter((t) => (quotes[t]?.price ?? 0) > 0).map((t) => [t, stampCryptoQuoteLive(quotes[t])])
     );
-    return { quotes: picked, updatedAt: new Date(at).toISOString(), live: true as const };
+    return { quotes: picked, ...cryptoSnapshotStamp(picked, unique) };
   })();
 
   cryptoSnapInflightKey = key;

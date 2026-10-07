@@ -6,6 +6,7 @@ import {
   type Exchange,
 } from "@/lib/market-intel";
 import { fetchYahooQuotes, yahooEquitySymbol, type YahooQuote } from "@/lib/yahoo-finance";
+import { equityApiLive, exchangeFreshnessLabel, latestQuoteTime, parseQuoteTime } from "@/lib/market-freshness";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,11 @@ export interface AllMarketsRow {
   dayLow: number | null; // session low
   volume: number | null;
   marketCap: number | null; // where Yahoo exposes it
-  live: boolean; // true when this row came from a genuine live quote
+  /** True only while this exchange's session is open and a quote arrived. */
+  live: boolean;
+  /** True when a vendor quote priced the row. Closed sessions stay quoted. */
+  quoted: boolean;
+  freshness: string;
 }
 
 /**
@@ -58,9 +63,14 @@ export async function GET(req: Request) {
       console.error(`[api/all-markets] Live quote fetch failed for ${exchange}:`, err);
     }
 
+    const quotedAt = latestQuoteTime(Object.values(quotes).map((q) => q.quotedAt));
+    const freshness = exchangeFreshnessLabel(exchange, new Date(), quotedAt);
+
     const rows: AllMarketsRow[] = entries.map((e) => {
       const q = quotes[e.ticker];
-      const live = !!q && q.price > 0;
+      const quoted = !!q && q.price > 0;
+      const live = equityApiLive(exchange, quoted);
+      const rowQuote = parseQuoteTime(q?.quotedAt);
       return {
         ticker: e.ticker,
         symbol: e.ticker.replace(/\.(NZ|AX|L)$/i, ""),
@@ -68,20 +78,23 @@ export async function GET(req: Request) {
         sector: e.sector,
         exchange: resolveExchange(e.ticker, e.market),
         currency: meta.currency,
-        price: live ? q!.price : e.basePrice,
-        changePct: live ? Number(q!.changePct.toFixed(2)) : 0,
-        changeAbs: live ? Number(q!.changeAbs.toFixed(4)) : 0,
-        dayHigh: live && typeof q!.dayHigh === "number" ? q!.dayHigh : null,
-        dayLow: live && typeof q!.dayLow === "number" ? q!.dayLow : null,
-        volume: live && typeof q!.volume === "number" ? q!.volume : null,
-        marketCap: live && typeof q!.marketCap === "number" ? q!.marketCap : null,
+        price: quoted ? q!.price : e.basePrice,
+        changePct: quoted ? Number(q!.changePct.toFixed(2)) : 0,
+        changeAbs: quoted ? Number(q!.changeAbs.toFixed(4)) : 0,
+        dayHigh: quoted && typeof q!.dayHigh === "number" ? q!.dayHigh : null,
+        dayLow: quoted && typeof q!.dayLow === "number" ? q!.dayLow : null,
+        volume: quoted && typeof q!.volume === "number" ? q!.volume : null,
+        marketCap: quoted && typeof q!.marketCap === "number" ? q!.marketCap : null,
         live,
+        quoted,
+        freshness: exchangeFreshnessLabel(exchange, new Date(), rowQuote).label,
       };
     });
 
+    const quotedCount = rows.filter((r) => r.quoted).length;
     const liveCount = rows.filter((r) => r.live).length;
     console.log(
-      `[api/all-markets] ${exchange}: ${liveCount}/${rows.length} rows live-priced`
+      `[api/all-markets] ${exchange}: ${quotedCount}/${rows.length} rows quoted, live=${liveCount > 0}`
     );
 
     return NextResponse.json({
@@ -92,9 +105,10 @@ export async function GET(req: Request) {
         sub: meta.sub,
         currency: meta.currency,
         live: liveCount > 0,
-        liveCount,
+        liveCount: quotedCount,
         total: rows.length,
-        asOf: new Date().toISOString(),
+        asOf: quotedAt ? quotedAt.toISOString() : null,
+        freshness: freshness.label,
         rows,
       },
     });

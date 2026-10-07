@@ -1,23 +1,18 @@
 "use client";
 
-import { formatAucklandHms } from "@/lib/crypto-live";
+import { cryptoFreshnessLabel } from "@/lib/market-freshness";
 
-/** Pulsing Live mark plus the last successful refresh, in Pacific/Auckland. */
+/** Vendor quote time for the crypto book. Live only when that time is under five minutes old. */
 export function CryptoLiveStatus({ updatedAt }: { updatedAt: number | null }) {
-  const label = updatedAt != null ? formatAucklandHms(new Date(updatedAt)) : null;
+  const freshness = cryptoFreshnessLabel(updatedAt != null ? new Date(updatedAt) : null);
   return (
     <div
       className="inline-flex flex-wrap items-center gap-2 text-xs text-muted-foreground"
       data-testid="crypto-live-status"
     >
-      <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-600">
-        <span className="relative flex size-1.5" aria-hidden>
-          <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400/70" />
-          <span className="relative inline-flex size-1.5 rounded-full bg-emerald-400" />
-        </span>
-        Live
+      <span title="Pacific/Auckland" className={freshness.live ? "font-semibold text-emerald-600" : undefined}>
+        {freshness.label}
       </span>
-      {label ? <span title="Pacific/Auckland">Last updated {label}</span> : null}
     </div>
   );
 }

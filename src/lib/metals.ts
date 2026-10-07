@@ -31,6 +31,8 @@ export interface MetalsSpot {
   /** true when the USD→NZD conversion used live FX (vs the baseline table). */
   fxLive: boolean;
   asOf: string; // ISO timestamp
+  /** gold-api updatedAt. Absent on the hard-coded fallback. */
+  quotedAt: string | null;
 }
 
 /**
@@ -50,16 +52,17 @@ const TTL_MS = 2 * 60 * 1000;
 let cache: { snapshot: MetalsSpot; fetchedAtMs: number } | null = null;
 
 /** Fetch one metal's USD/oz spot from the keyless gold-api.com endpoint. */
-async function fetchMetalUsd(metal: MetalKey): Promise<number> {
+async function fetchMetalUsd(metal: MetalKey): Promise<{ price: number; updatedAt: string | null }> {
   const res = await fetch(`https://api.gold-api.com/price/${SYMBOL[metal]}`, {
     headers: { Accept: "application/json" },
     next: { revalidate: 120 },
   } as RequestInit);
   if (!res.ok) throw new Error(`gold-api HTTP ${res.status} for ${metal}`);
-  const json = (await res.json()) as { price?: number };
+  const json = (await res.json()) as { price?: number; updatedAt?: string };
   const price = Number(json?.price);
   if (!isFinite(price) || price <= 0) throw new Error(`gold-api bad price for ${metal}`);
-  return price;
+  const updatedAt = typeof json?.updatedAt === "string" && json.updatedAt.trim() ? json.updatedAt : null;
+  return { price, updatedAt };
 }
 
 /**
@@ -76,14 +79,16 @@ export async function getMetalsSpot(nowMs?: number): Promise<MetalsSpot> {
   let goldUsd = BASELINE_USD_PER_OZ.gold;
   let silverUsd = BASELINE_USD_PER_OZ.silver;
   let live = false;
+  let quotedAt: string | null = null;
   try {
     const [g, s] = await Promise.all([fetchMetalUsd("gold"), fetchMetalUsd("silver")]);
-    goldUsd = g;
-    silverUsd = s;
+    goldUsd = g.price;
+    silverUsd = s.price;
     live = true;
-    console.log(`[metals] Live spot resolved — gold $${g.toFixed(2)}/oz, silver $${s.toFixed(2)}/oz`);
+    quotedAt = g.updatedAt ?? s.updatedAt;
+    console.log(`[metals] Spot resolved — gold $${g.price.toFixed(2)}/oz, silver $${s.price.toFixed(2)}/oz`);
   } catch (err) {
-    console.error("[metals] Live spot fetch failed, using baseline prices:", err);
+    console.error("[metals] Spot fetch failed, using baseline prices:", err);
   }
 
   const toNzd = (usd: number) => convertCurrency(usd, "USD", "NZD", fx.ratesToNZD);
@@ -93,6 +98,7 @@ export async function getMetalsSpot(nowMs?: number): Promise<MetalsSpot> {
     live,
     fxLive: fx.live,
     asOf: new Date(t).toISOString(),
+    quotedAt,
   };
 
   cache = { snapshot, fetchedAtMs: t };

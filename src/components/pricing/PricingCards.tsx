@@ -16,7 +16,7 @@ import {
   type PricingTier,
   type PlanKey,
 } from "@/lib/plans";
-import { formatFxAsOf, formatUsdWithRate, usdPerNzd } from "@/lib/currency";
+import { formatDailyRate, formatUsdWithRate, usdPerNzd } from "@/lib/currency";
 import { ANNUAL_TOOLKIT_LINE, TRIAL_CARD_LINE } from "@/lib/public-copy";
 import { useFxRates } from "@/hooks/useFxRates";
 import {
@@ -320,7 +320,7 @@ export function PricingCards() {
         {TRIAL_CARD_LINE}{" "}
         Ultimate is Talk to us.{" "}
         {ready && asOf
-          ? `Every US$ figure on this page uses 1 NZD = US$${usdPerNzd(fx).toFixed(4)}, taken ${formatFxAsOf(asOf)}.`
+          ? `Every US$ figure on this page uses 1 NZD = US$${usdPerNzd(fx).toFixed(4)}, ${formatDailyRate(asOf)}.`
           : "US$ figures use one exchange rate, shown once it has been taken."}
       </p>
     </div>

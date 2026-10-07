@@ -594,7 +594,7 @@ function StrategyTab({ initialSynthesis }: { initialSynthesis: TotalumSynthesis 
 
       {initialSynthesis.isEmpty && (
         <p className="text-sm text-muted-foreground">
-          Deposit cash in the Transaction Centre and/or add equities, crypto or metals. Cash alone is enough to open an allocation skeleton.
+          Add your holdings or cash in the Transaction Centre, including equities, crypto or metals. Cash alone is enough to open an allocation skeleton.
         </p>
       )}
     </div>
@@ -867,7 +867,7 @@ export function TotalumConsole({
           <Layers className="mx-auto size-8 text-muted-foreground" />
           <h3 className="mt-3 text-lg font-semibold">Your unified book is empty</h3>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-            Deposit cash in the Transaction Centre, or add equities in Stox, coins in Koins, and gold/silver in Precious
+            Add your holdings or cash in the Transaction Centre, or add equities in Stox, coins in Koins, and gold/silver in Precious
             Metals. Cash alone is enough to open an allocation skeleton for the current book.
           </p>
           <Button asChild className="mt-4">

@@ -17,9 +17,10 @@ import { CryptoMarketModal } from "./CryptoMarketModal";
 import { CoinDetailModal } from "./CoinDetailModal";
 import { ProjectedPerformers } from "./ProjectedPerformers";
 import { useCryptoMarkets } from "@/hooks/useCryptoMarkets";
+import { cryptoCoveragePhrase } from "@/lib/crypto-coverage";
 import { LineChart, TrendingUp } from "lucide-react";
 
-export function CryptoMarketSection() {
+export function CryptoMarketSection({ showProjected = true }: { showProjected?: boolean }) {
   const [marketOpen, setMarketOpen] = useState(false);
   const [coinId, setCoinId] = useState<string | null>(null);
   const [coinOpen, setCoinOpen] = useState(false);
@@ -46,7 +47,7 @@ export function CryptoMarketSection() {
             <p className="text-xs text-muted-foreground">
               {loading && coins.length === 0
                 ? "Loading live market data…"
-                : `Live Swyftx data on the top ${coins.length || 500} cryptocurrencies by market cap`}
+                : `${cryptoCoveragePhrase(coins.length)} · USD`}
             </p>
           </div>
         </div>
@@ -57,7 +58,12 @@ export function CryptoMarketSection() {
       </div>
 
       {/* Projected Performers (full-500 scan) */}
-      <ProjectedPerformers active onSelectCoin={openCoin} />
+      {showProjected ? <ProjectedPerformers active onSelectCoin={openCoin} /> : (
+        <p className="rounded-2xl border border-border/70 bg-card/40 p-4 text-sm text-muted-foreground">
+          Projected performers are on a paid plan.{" "}
+          <a href="/pricing" className="font-medium text-primary hover:underline">See plans</a>
+        </p>
+      )}
 
       {/* Modals — table stays mounted to preserve state; detail layers above it */}
       <CryptoMarketModal open={marketOpen} onOpenChange={setMarketOpen} onSelectCoin={openCoin} />
