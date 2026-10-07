@@ -58,4 +58,25 @@ describe("public market payloads", () => {
       "Technical snapshot: RSI 10 (oversold), below its 20-day average. Volatility: high.",
     );
   });
+
+  it("leaves every field of a kept publisher story unchanged", () => {
+    const imageUrl = "https://img.example.com/sell-off-reduced.jpg";
+    const source = "Reuters sell desk";
+    const payload = toPublicPayload({
+      news: [
+        {
+          headline: "Fonterra publishes a milk-price note",
+          summary: "A dated note on the Fonterra site.",
+          url: "https://www.fonterra.com/nz/en/news/milk-price.html",
+          imageUrl,
+          source,
+        },
+      ],
+    });
+    const story = (payload as { news: Array<Record<string, string>> }).news[0];
+    expect(story.imageUrl).toBe(imageUrl);
+    expect(story.source).toBe(source);
+    expect(story.headline).toBe("Fonterra publishes a milk-price note");
+    expect(story.url).toBe("https://www.fonterra.com/nz/en/news/milk-price.html");
+  });
 });

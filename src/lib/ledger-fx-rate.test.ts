@@ -19,13 +19,17 @@ vi.mock("@/lib/totalum", () => ({
   },
 }));
 
+const historicalNzdPerUnit = vi.hoisted(() =>
+  vi.fn(async (_currency: string, day?: string | null) => (day === "2024-10-01" ? 1.64 : null))
+);
+
 vi.mock("@/lib/fx", () => ({
   getFxSnapshot: vi.fn(async () => ({
-    ratesToNZD: { NZD: 1, USD: 1.75, AUD: 1.12 },
+    ratesToNZD: { NZD: 1, USD: 1.78, AUD: 1.12 },
     live: true,
     asOf: "2026-10-07T00:00:00.000Z",
   })),
-  historicalNzdPerUnit: vi.fn(async () => null),
+  historicalNzdPerUnit,
 }));
 
 import { applyTransaction } from "@/lib/transactions";
@@ -122,6 +126,35 @@ describe("opening balance fx_rate", () => {
       trade_date: "2026-10-01",
     });
     expect(transactionPayload()).not.toHaveProperty("fx_rate");
+  });
+
+  it("saves a back-dated rate taken from executed_at when it matches that day's rate", async () => {
+    await applyTransaction(user, {
+      type: "opening_balance",
+      ticker: "AAPL",
+      asset_type: "stock",
+      quantity: 2,
+      price: 100,
+      fx_rate: 1.64,
+      executed_at: "2024-10-01",
+    });
+    expect(historicalNzdPerUnit).toHaveBeenCalledWith("USD", "2024-10-01");
+    expect(transactionPayload()?.fx_rate).toBe(1.64);
+  });
+
+  it("still rejects a back-dated rate that matches neither that day nor today's snapshot", async () => {
+    await expect(
+      applyTransaction(user, {
+        type: "opening_balance",
+        ticker: "AAPL",
+        asset_type: "stock",
+        quantity: 2,
+        price: 100,
+        fx_rate: 2.5,
+        executed_at: "2024-10-01",
+      })
+    ).rejects.toThrow(REVIEWED_FX_REJECTED);
+    expect(createRecord.mock.calls.some((entry) => entry[0] === "transaction")).toBe(false);
   });
 
   it("refuses a reviewed rate more than 5% from the snapshot", async () => {

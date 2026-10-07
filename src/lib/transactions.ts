@@ -487,11 +487,14 @@ async function applyTransactionUnlocked(
   if (quantity <= 0) throw new Error("Quantity must be greater than 0");
   if (price <= 0) throw new Error("Price must be greater than 0");
 
+  // The panel sends the reviewed day as executed_at. trade_date is optional.
+  const tradeDay = movementCivilDay(input.trade_date || input.executed_at, aucklandDateISO());
+
   // Opening balance and corrections adjust the holding through the ledger.
   // They do not move cash and they do not replace the typed price with today's quote.
   if (input.type === "correction" || input.type === "opening_balance") {
     const currency = currencyForTicker(ticker, assetType);
-    await rejectOutOfBandFx(currency, input.fx_rate, input.trade_date);
+    await rejectOutOfBandFx(currency, input.fx_rate, tradeDay);
     const existing = await findHolding(user._id, ticker, assetType);
     if (input.type === "correction" && !existing) {
       throw new Error(`You don't hold ${ticker} to correct`);
@@ -565,7 +568,7 @@ async function applyTransactionUnlocked(
       `${executionStatus.toUpperCase()} recorded — not a broker fill. ${ADVISORY_NOTE}`
     );
     const ideaCurrency = currencyForTicker(ticker, assetType);
-    await rejectOutOfBandFx(ideaCurrency, input.fx_rate, input.trade_date);
+    await rejectOutOfBandFx(ideaCurrency, input.fx_rate, tradeDay);
     const rec = await totalumSdk.crud.createRecord("transaction", {
       type: input.type,
       ticker,
@@ -685,7 +688,7 @@ async function applyTransactionUnlocked(
 
   const currency = currencyForTicker(ticker, assetType);
   const fx = await getFxSnapshot();
-  const historicalFx = await historicalNzdPerUnit(currency, input.trade_date);
+  const historicalFx = await historicalNzdPerUnit(currency, tradeDay);
   const fxCheck = reviewedFxAllowed({
     currency,
     reviewed: input.fx_rate,

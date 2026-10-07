@@ -90,15 +90,7 @@ function publisherStoryOrDrop(row: Record<string, unknown>): Record<string, unkn
     .filter((value): value is string => typeof value === "string")
     .join("\n");
   if (publisherTextHasSignalWord(publisherBits)) return DROPPED_STORY;
-  const next: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(row)) {
-    if (key === "headline" || key === "summary" || key === "url") {
-      next[key] = value;
-      continue;
-    }
-    next[key] = scrubValue(value);
-  }
-  return next;
+  return { ...row };
 }
 
 function scrubValue(value: unknown): unknown {
