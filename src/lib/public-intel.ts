@@ -53,7 +53,18 @@ export function modelRangeLine(outlook?: {
   return `Model range for the next 7 days: ${fmt(low)} to ${fmt(high)} (central ${fmt(mid, 2)}). This is a calculation from past prices, not a forecast you should act on.`;
 }
 
-/** Drop recommendation words from any string that might reach a public payload. */
+/**
+ * Words the public scrubber would rewrite. A third-party story that matches
+ * is dropped whole. Headlines and URLs are never edited.
+ */
+export const PUBLISHER_SIGNAL_WORD =
+  /size positions|strong buy|\b(buy|sell|hold)\b|reduce|conviction|\bsignals?\b/i;
+
+export function publisherTextHasSignalWord(text: string): boolean {
+  return PUBLISHER_SIGNAL_WORD.test(text);
+}
+
+/** Drop recommendation words from AetherForge copy. Never use this on a publisher headline or URL. */
 export function scrubPublicCopy(text: string): string {
   return text
     .replace(/size positions/gi, "the outcome range")
@@ -67,10 +78,38 @@ export function scrubPublicCopy(text: string): string {
     .trim();
 }
 
+const DROPPED_STORY = Symbol("dropped-publisher-story");
+
+function isPublisherStory(row: Record<string, unknown>): boolean {
+  return typeof row.headline === "string" && (typeof row.url === "string" || typeof row.summary === "string");
+}
+
+function publisherStoryOrDrop(row: Record<string, unknown>): Record<string, unknown> | typeof DROPPED_STORY {
+  const publisherBits = Object.values(row)
+    .filter((value): value is string => typeof value === "string")
+    .join("\n");
+  if (publisherTextHasSignalWord(publisherBits)) return DROPPED_STORY;
+  const next: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(row)) {
+    if (key === "headline" || key === "summary" || key === "url") {
+      next[key] = value;
+      continue;
+    }
+    next[key] = scrubValue(value);
+  }
+  return next;
+}
+
 function scrubValue(value: unknown): unknown {
   if (typeof value === "string") return scrubPublicCopy(value);
-  if (Array.isArray(value)) return value.map(scrubValue);
-  if (value && typeof value === "object") return toPublicMarketRecord(value as Record<string, unknown>);
+  if (Array.isArray(value)) {
+    return value.map(scrubValue).filter((item) => item !== DROPPED_STORY);
+  }
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    if (isPublisherStory(record)) return publisherStoryOrDrop(record);
+    return toPublicMarketRecord(record);
+  }
   return value;
 }
 

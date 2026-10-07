@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
+import { useSession } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -58,6 +59,8 @@ function FormattedReply({ text }: { text: string }) {
   );
 }
 
+const recentAutoAsk = new Map<string, number>();
+
 export function TickerAnalysisPane({
   symbol,
   name,
@@ -68,6 +71,8 @@ export function TickerAnalysisPane({
   /** Label for the assistant — "Stox" for equities, "Koins" for crypto. */
   botName?: string;
 }) {
+  const { data: session, isPending } = useSession();
+  const signedIn = Boolean(session?.user);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -76,6 +81,12 @@ export function TickerAnalysisPane({
 
   const ask = useCallback(
     async (question?: string) => {
+      if (!question) {
+        const key = symbol.toUpperCase();
+        const previous = recentAutoAsk.get(key) ?? 0;
+        if (Date.now() - previous < 1500) return;
+        recentAutoAsk.set(key, Date.now());
+      }
       setLoading(true);
       if (question) setTurns((t) => [...t, { role: "user", content: question }]);
       console.log(`[ticker-analysis] Asking ${botName} about ${symbol}`);
@@ -87,23 +98,26 @@ export function TickerAnalysisPane({
       if (res.ok && res.data?.reply) {
         setHidden(false);
         setTurns((t) => [...t, { role: "assistant", content: res.data!.reply }]);
-      } else {
+      } else if (res.status !== 401) {
         console.error("[ticker-analysis] Failed:", res.error);
         if (!question) setHidden(true);
+      } else if (!question) {
+        setHidden(true);
       }
       setLoading(false);
     },
     [symbol, name, botName]
   );
 
-  // Auto-run the opening analysis whenever the ticker changes.
+  // Auto-run only for a signed-in member. A guest must not hit the 401 route.
   useEffect(() => {
+    if (isPending || !signedIn) return;
     setTurns([]);
     setInput("");
     setHidden(false);
     ask(); // no question → default professional read
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [symbol]);
+  }, [symbol, signedIn, isPending]);
 
   // Keep the transcript scrolled to the newest message.
   useEffect(() => {
@@ -118,6 +132,7 @@ export function TickerAnalysisPane({
     ask(q);
   }
 
+  if (isPending || !signedIn) return null;
   if (hidden && turns.length === 0 && !loading) return null;
 
   return (

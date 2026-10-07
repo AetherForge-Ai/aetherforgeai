@@ -31,6 +31,7 @@ import {
   type RankedPerformer,
 } from "@/lib/crypto-market";
 import { cryptoCoveragePhrase } from "@/lib/crypto-coverage";
+import { CRYPTO_PROJECTIONS_PAUSED, CRYPTO_PROJECTIONS_PAUSE_MESSAGE } from "@/lib/projection-pause";
 import {
   TrendingUp,
   RefreshCw,
@@ -57,6 +58,15 @@ export function ProjectedPerformers({
 
   const top8 = useMemo(() => rankPerformers(coins, 8), [coins]);
   const top20 = useMemo(() => rankPerformers(coins, 20), [coins]);
+
+  if (CRYPTO_PROJECTIONS_PAUSED) {
+    return (
+      <section className="rounded-2xl border border-border/60 bg-card/40 p-4 sm:p-5">
+        <h3 className="font-display text-base font-semibold">Projected Performers</h3>
+        <p className="mt-2 text-sm text-muted-foreground">{CRYPTO_PROJECTIONS_PAUSE_MESSAGE}</p>
+      </section>
+    );
+  }
 
   return (
     <section className="rounded-2xl border border-border/60 bg-card/40 p-4 sm:p-5">

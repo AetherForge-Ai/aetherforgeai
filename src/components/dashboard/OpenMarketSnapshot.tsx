@@ -217,7 +217,22 @@ function ExchangeCard({
  * NZX · ASX · Dow Jones · NASDAQ. Every ticker is clickable → detailed view.
  * Mirrors the ALL Markets card styling so the two CTAs sit together naturally.
  */
-export function OpenMarketSnapshot({ onBought }: { onBought?: () => void }) {
+export function OpenMarketSnapshot({
+  onBought,
+  scope = "equity",
+}: {
+  onBought?: () => void;
+  scope?: "equity" | "crypto";
+}) {
+  const cardTitle = scope === "crypto" ? "Crypto market pulse" : "Open Market Snapshot";
+  const cardBody =
+    scope === "crypto"
+      ? "A quick pulse of the crypto market — breadth and today's movers."
+      : "A quick pulse of all four markets — index performance, breadth & today's top movers.";
+  const dialogBody =
+    scope === "crypto"
+      ? "Quoted coin rows show a time. A failed load says so."
+      : "NZX, ASX, Dow Jones and NASDAQ. Quoted rows show a time. A failed load says so.";
   const [open, setOpen] = useState(false);
   const [data, setData] = useState<SnapshotPayload | null>(null);
   const [loading, setLoading] = useState(false);
@@ -266,11 +281,9 @@ export function OpenMarketSnapshot({ onBought }: { onBought?: () => void }) {
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <h2 className="font-display text-lg font-bold">Open Market Snapshot</h2>
+            <h2 className="font-display text-lg font-bold">{cardTitle}</h2>
           </div>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            A quick pulse of all four markets — index performance, breadth &amp; today&apos;s top movers.
-          </p>
+          <p className="mt-0.5 text-sm text-muted-foreground">{cardBody}</p>
         </div>
       </button>
 
@@ -280,11 +293,9 @@ export function OpenMarketSnapshot({ onBought }: { onBought?: () => void }) {
           <DialogHeader className="flex-row items-start justify-between gap-3 border-b border-border/60 px-5 py-4 sm:px-6">
             <div>
               <DialogTitle className="flex items-center gap-2 font-display text-xl">
-                <Activity className="size-5 text-emerald-600" /> Open Market Snapshot
+                <Activity className="size-5 text-emerald-600" /> {cardTitle}
               </DialogTitle>
-              <DialogDescription>
-                NZX, ASX, Dow Jones and NASDAQ. Quoted rows show a time. A failed load says so.
-              </DialogDescription>
+              <DialogDescription>{dialogBody}</DialogDescription>
             </div>
             <Button
               variant="outline"

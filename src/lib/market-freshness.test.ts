@@ -34,7 +34,8 @@ describe("equity freshness", () => {
     expect(equityFreshnessLabel("ASX", ASX_OPEN).label).toBe("Delayed · ASX");
     expect(equityFreshnessLabel("ASX", ASX_OPEN, ASX_OPEN).label).toMatch(/^Delayed · ASX · quote /);
     expect(equityFreshnessLabel("US", US_OPEN).label).toBe("Delayed · US");
-    expect(equityFreshnessLabel("US", US_OPEN, US_OPEN).label).toMatch(/^Delayed · US · quote /);
+    expect(equityFreshnessLabel("US", US_OPEN, US_OPEN).label).toBe("Delayed · US · quote 10:00 am New York");
+    expect(equityFreshnessLabel("US", US_OPEN, US_OPEN).label).not.toContain("GMT");
     expect(equityFreshnessLabel("US", US_OPEN, US_OPEN).label).not.toContain("~20");
     expect(equityFreshnessLabel("NZX", NZX_OPEN).live).toBe(false);
     expect(equityApiLive("NZX", true, NZX_OPEN)).toBe(true);

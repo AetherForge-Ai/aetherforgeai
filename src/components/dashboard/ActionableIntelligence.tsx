@@ -159,8 +159,8 @@ export function ActionableIntelligence({
             <p className="font-display font-bold text-rose-200">Downside scenario flagged</p>
             <p className="text-sm text-rose-200/80">
               {sellRecommendations.length} holding{sellRecommendations.length === 1 ? "" : "s"} in your portfolio{" "}
-              {sellRecommendations.length === 1 ? "is" : "are"} modelled with elevated downside risk. Below is a
-              scenario: what a full exit would look like. AetherForge does not trade for you.
+              {sellRecommendations.length === 1 ? "is" : "are"} modelled with elevated downside risk. A scenario
+              shows what a full exit would look like. AetherForge does not trade for you.
             </p>
           </div>
         </div>
@@ -209,7 +209,7 @@ export function ActionableIntelligence({
                     </div>
                   </div>
                   <p className="mt-1.5 text-[0.72rem] leading-relaxed text-muted-foreground">
-                    scenario: what a full exit would look like
+                    A scenario shows what a full exit would look like.
                   </p>
                 </div>
               ))}

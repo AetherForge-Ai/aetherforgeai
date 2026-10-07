@@ -78,7 +78,82 @@ describe("public market news", () => {
     ]);
     const item = feed.find((row) => row.url.includes("fonterra.com"));
     expect(item?.source).toBe("Fonterra");
+    expect(item?.headline).toBe("Fonterra publishes a milk-price note");
+    expect(item?.url).toBe("https://www.fonterra.com/nz/en/news/milk-price.html");
     expect(item?.time).toMatch(/12 Sept? 2026/);
+  });
+
+  it("drops a publisher story with a signal word instead of rewriting the headline or url", () => {
+    const headline = "3 Reasons to Sell CHD and 1 Stock to Buy Instead";
+    const url = "https://finance.yahoo.com/news/3-reasons-sell-chd-1-144847718.html";
+    const feed = prepareNewsFeed([
+      {
+        headline,
+        source: "Yahoo Finance",
+        market: "US",
+        impact: "Neutral",
+        relevance: 40,
+        time: "1d ago",
+        publishedOn: "2026-10-06",
+        summary: "A publisher note.",
+        url,
+      },
+    ]);
+    const blob = JSON.stringify(feed);
+    expect(blob).not.toContain(headline);
+    expect(blob).not.toContain("3-reasons-");
+    expect(blob).not.toContain("CHD");
+  });
+
+  it("drops mis-tagged election, France, UK miner and data-release stories", () => {
+    const feed = prepareNewsFeed([
+      {
+        headline: "Election 2026 first leaders' debate billed as a Royal Rumble",
+        source: "RNZ",
+        market: "NZX",
+        impact: "Neutral",
+        relevance: 40,
+        time: "1d ago",
+        publishedOn: "2026-10-06",
+        summary: "A politics story carried on a market feed.",
+        url: "https://www.rnz.co.nz/news/political/leaders-debate",
+      },
+      {
+        headline: "France's appetite for magic money meets the debt market",
+        source: "Reuters",
+        market: "NZX",
+        impact: "Bearish",
+        relevance: 50,
+        time: "1d ago",
+        publishedOn: "2026-10-06",
+        summary: "Paris is still funding the deficit.",
+        url: "https://www.reuters.com/markets/europe/france-debt-note",
+      },
+      {
+        headline: "Deutsche Bank raises targets on UK miners",
+        source: "Reuters",
+        market: "ASX",
+        impact: "Bullish",
+        relevance: 50,
+        time: "1d ago",
+        publishedOn: "2026-10-06",
+        summary: "London-listed mining names were marked higher.",
+        url: "https://www.reuters.com/markets/uk-miners-note",
+      },
+      {
+        headline: "Data Virtualization – Global Strategic Business Report",
+        source: "GlobeNewswire",
+        market: "US",
+        impact: "Neutral",
+        relevance: 30,
+        time: "1d ago",
+        publishedOn: "2026-10-06",
+        summary: "A press release about a software market.",
+        url: "https://www.globenewswire.com/news-release/data-virtualization-report",
+      },
+    ]);
+    const titles = feed.map((item) => item.headline).join(" ");
+    expect(titles).not.toMatch(/leaders' debate|France|UK miners|Data Virtualization/i);
   });
 
   it("dates future events as scheduled, labels NZ macro, and drops lifestyle stories", () => {

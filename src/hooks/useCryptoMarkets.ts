@@ -15,6 +15,7 @@ import { clientFacingError } from "@/lib/api-json";
 import type { CoinMarket } from "@/lib/crypto-market";
 
 const TTL_MS = 60_000;
+const STALL_MS = 10_000;
 
 interface Store {
   coins: CoinMarket[];
@@ -102,7 +103,19 @@ export function useCryptoMarkets(active = true): UseCryptoMarkets {
     if (!active) return;
     void load(false).catch(() => {});
     const iv = setInterval(() => void load(false).catch(() => {}), TTL_MS);
-    return () => clearInterval(iv);
+    const stall = window.setTimeout(() => {
+      if (store.loading && store.coins.length === 0) {
+        store.loading = false;
+        if (!store.error) {
+          store.error = "Live crypto prices are taking longer than expected. Please try again shortly.";
+        }
+        notify();
+      }
+    }, STALL_MS);
+    return () => {
+      clearInterval(iv);
+      window.clearTimeout(stall);
+    };
   }, [active]);
 
   const refresh = useCallback(() => void load(true).catch(() => {}), []);

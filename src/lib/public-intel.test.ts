@@ -30,12 +30,27 @@ describe("public market payloads", () => {
           reasoning: "Sell · MACD histogram is negative.",
         },
       ],
-      news: [{ headline: "Fed may Reduce rates", summary: "Traders sell into the print. Strong Buy chatter." }],
+      news: [
+        {
+          headline: "Fed may Reduce rates",
+          summary: "Traders sell into the print. Strong Buy chatter.",
+          url: "https://finance.yahoo.com/news/fed-may-sell-rates.html",
+        },
+        {
+          headline: "Fonterra publishes a milk-price note",
+          summary: "A dated note on the Fonterra site.",
+          url: "https://www.fonterra.com/nz/en/news/milk-price.html",
+        },
+      ],
     });
 
     const json = JSON.stringify(payload);
     expect(json).not.toMatch(PUBLIC_ADVICE_LEAK);
     expect(json).not.toMatch(/size positions/i);
+    expect(json).not.toContain("Fed may");
+    expect(json).not.toContain("fed-may-sell-rates");
+    expect(json).toContain("Fonterra publishes a milk-price note");
+    expect(json).toContain("https://www.fonterra.com/nz/en/news/milk-price.html");
     expect(json).toContain("Technical snapshot:");
     expect(json).toContain("oversold");
     expect(json).toContain("above its 20-day average");

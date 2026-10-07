@@ -616,7 +616,7 @@ export function PreciousMetals({
             </span>
             <p className="mt-3 font-medium">No metals tracked yet</p>
             <p className="mt-1 max-w-xs text-sm text-muted-foreground">
-              Add how many ounces of gold or silver you own and what you paid — we'll value it live.
+              Add how many ounces of gold or silver you own and what you paid — we'll mark it at Spot, or Est. when the price is not live.
             </p>
           </div>
         ) : (

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { ArrowDown, ArrowUp, Loader2 } from "lucide-react";
+import { ArrowDown, ArrowUp } from "lucide-react";
 
 type ExchangeKey = "NZX" | "ASX" | "NASDAQ" | "DOW";
 
@@ -101,8 +101,10 @@ export function IndexMarketCard({
       </h3>
 
       {busy ? (
-        <div className="mt-6 flex flex-1 items-center justify-center text-muted-foreground">
-          <Loader2 className="size-5 animate-spin" />
+        <div className="mt-4 flex flex-1 flex-col gap-2" aria-hidden>
+          <div className="h-3 w-24 animate-pulse rounded bg-muted/50" />
+          <div className="h-8 w-32 animate-pulse rounded bg-muted/50" />
+          <div className="h-3 w-16 animate-pulse rounded bg-muted/50" />
         </div>
       ) : !snap || idx?.price == null ? (
         <div className="mt-4 flex flex-1 flex-col justify-center">

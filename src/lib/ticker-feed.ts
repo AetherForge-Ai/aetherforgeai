@@ -5,7 +5,7 @@
  * stays empty instead of falling back to a demo book.
  */
 
-import { cryptoFreshnessLabel, latestQuoteTime } from "@/lib/market-freshness";
+import { cryptoFreshnessLabel, equitySessionOpen, latestQuoteTime } from "@/lib/market-freshness";
 
 export interface TapeSymbol {
   symbol: string;
@@ -78,7 +78,10 @@ export interface TapeRow {
 
 export interface TickerTapeFeed {
   rows: { nzx: TapeRow[]; asx: TapeRow[]; crypto: TapeRow[] };
-  /** True only for rows filled from the live quote pipeline on this response. */
+  /**
+   * Crypto is true when a coin quote arrived.
+   * Equities is true only while a quoted exchange (NZX or ASX) is in its regular session.
+   */
   live: { crypto: boolean; equities: boolean };
   providers: { equities: string | null; crypto: string | null };
   /** ISO timestamp of this pipeline read. Null when nothing live was returned. */
@@ -138,20 +141,25 @@ export function composeTickerTape(input: {
   equityProvider: string;
   cryptoProvider: string;
   asOf: string;
+  /** Session clock. Defaults to now so a closed exchange is not marked live. */
+  now?: Date;
 }): TickerTapeFeed {
   const nzx = takeLive(TICKER_TAPE.nzx, input.equityQuotes, input.equityProvider, input.asOf);
   const asx = takeLive(TICKER_TAPE.asx, input.equityQuotes, input.equityProvider, input.asOf);
   const crypto = takeLive(TICKER_TAPE.crypto, input.cryptoQuotes, input.cryptoProvider, input.asOf);
-  const equities = nzx.length + asx.length > 0;
+  const now = input.now ?? new Date();
+  const equityRows = nzx.length + asx.length > 0;
+  const equitiesLive =
+    (nzx.length > 0 && equitySessionOpen("NZX", now)) || (asx.length > 0 && equitySessionOpen("ASX", now));
   const cryptoLive = crypto.length > 0;
   return {
     rows: { nzx, asx, crypto },
-    live: { crypto: cryptoLive, equities },
+    live: { crypto: cryptoLive, equities: equitiesLive },
     providers: {
-      equities: equities ? input.equityProvider : null,
+      equities: equityRows ? input.equityProvider : null,
       crypto: cryptoLive ? input.cryptoProvider : null,
     },
-    asOf: equities || cryptoLive ? input.asOf : null,
+    asOf: equityRows || cryptoLive ? input.asOf : null,
   };
 }
 

@@ -464,10 +464,11 @@ export function PortfolioDashboard({
   const [metalSpot, setMetalSpot] = useState<{
     gold: { nzdPerOz: number };
     silver: { nzdPerOz: number };
+    live?: boolean;
   } | null>(null);
   // Public troy-oz spot. Independent of the metals-desk entitlement gate so a
   // ledger GOLD lot is marked even when /api/metals is empty or rejected.
-  const [publicSpot, setPublicSpot] = useState<MetalSpotPerOz | null>(null);
+  const [publicSpot, setPublicSpot] = useState<(MetalSpotPerOz & { live?: boolean }) | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Stock | null>(null);
   const [deleting, setDeleting] = useState(false);
   // Holding "last 7 days" chart popup — opened by clicking a ticker in the table.
@@ -669,7 +670,7 @@ export function PortfolioDashboard({
         purchase_price_per_oz: number;
         user?: string;
       }[];
-      spot: { gold: { nzdPerOz: number }; silver: { nzdPerOz: number } };
+      spot: { gold: { nzdPerOz: number }; silver: { nzdPerOz: number }; live?: boolean };
     }>>>;
     try {
       res = await api.get("/api/metals", { signal: tracked.signal });
@@ -721,7 +722,7 @@ export function PortfolioDashboard({
   }, []);
 
   const loadPublicSpot = useCallback(async () => {
-    const res = await api.get<MetalSpotPerOz>("/api/metals/spot");
+    const res = await api.get<MetalSpotPerOz & { live?: boolean }>("/api/metals/spot");
     if (res.ok && res.data?.gold) {
       setPublicSpot(res.data);
     }
@@ -901,6 +902,7 @@ export function PortfolioDashboard({
   // Stock KPIs already exclude them. The stock holdings table uses that same
   // equity filter — bullion is listed only on the metals hub.
   const spotForMarks = publicSpot ?? metalSpot;
+  const metalsSpotLive = (publicSpot?.live ?? metalSpot?.live) === true;
   const metalStocks = useMemo(() => {
     const bullion = allStocks.filter((s) => isBullionHolding(s.asset_type, s.ticker, s.company_name));
     // Always rewrite a persisted equity print (~US$44.65) to NZD per troy ounce.
@@ -1361,6 +1363,8 @@ export function PortfolioDashboard({
         metalsPositions={preciousMetalHoldings.length + metalStocks.length}
         recentLedger={recentLedger}
         balancesLoading={!balancesReady}
+        ledgerLoading={!preview && !cashLoaded}
+        metalsSpotLive={metalsSpotLive}
       />
       <ReturnsSplitCard
         holdings={[...stockHoldings, ...cryptoHoldings]}
@@ -1453,7 +1457,9 @@ export function PortfolioDashboard({
             ) : (
               <AnimatedMoney value={showMetalsTotal} currency="NZD" className="tnum mt-2 font-display text-xl font-bold text-emerald-600" />
             )}
-            <p className="mt-1 text-[0.7rem] text-muted-foreground">Live holdings from metals trades</p>
+            <p className="mt-1 text-[0.7rem] text-muted-foreground">
+              {metalsSpotLive ? "Spot" : "Est."} holdings from metals trades
+            </p>
           </div>
         </div>
       )}
@@ -1756,7 +1762,11 @@ export function PortfolioDashboard({
             <div className="flex items-center gap-2 text-sm font-semibold">
               <Landmark className="size-4 text-primary" /> Totals owned
             </div>
-            <p className="text-xs text-muted-foreground">Everything you hold, valued live in NZD</p>
+            <p className="text-xs text-muted-foreground">
+              {isMetals
+                ? `Everything you hold, ${metalsSpotLive ? "Spot" : "Est."} in NZD`
+                : "Everything you hold, in NZD"}
+            </p>
           </div>
           {/* Live-updating market value + net worth — animates as prices move */}
           <div className="flex items-end gap-6">
@@ -2197,12 +2207,16 @@ export function PortfolioDashboard({
       <div className={cn("mt-6", !(isStocks || isCrypto) && "hidden")}>
         <CollapsibleSection
           title="Market Insights"
-          subtitle="Cross-exchange browser, open-market snapshot, top movers & projected performers"
+          subtitle={
+            isCrypto
+              ? "Coin browser, market pulse, top movers and projected performers"
+              : "Cross-exchange browser, open-market snapshot, top movers and projected performers"
+          }
           icon={Compass}
         >
           <div className="grid gap-4 lg:grid-cols-2">
-            <AllMarkets onBought={handleDataChanged} />
-            <OpenMarketSnapshot onBought={handleDataChanged} />
+            <AllMarkets onBought={handleDataChanged} scope={isCrypto ? "crypto" : "equity"} />
+            <OpenMarketSnapshot onBought={handleDataChanged} scope={isCrypto ? "crypto" : "equity"} />
           </div>
           <div className="mt-8">
             <TopMovers />
@@ -2236,7 +2250,7 @@ export function PortfolioDashboard({
 
       {/* AI report companion */}
       <div className="mt-6">
-        <AnalysisPanel holdingsCount={summary.holdingsCount} />
+        <AnalysisPanel holdingsCount={summary.holdingsCount} scope={isCrypto ? "crypto" : "equity"} />
       </div>
 
       {/* ───────────────────────── 11 · Report Center (The Headmaster + Stox + Koins) — gated for guests ───────────────────────── */}

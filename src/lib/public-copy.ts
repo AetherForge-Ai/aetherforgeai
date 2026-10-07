@@ -43,13 +43,15 @@ export const ANNUAL_TOOLKIT_LINE =
 export const PROCESSORS: { name: string; role: string }[] = [
   { name: "Cloudflare", role: "public site and network" },
   { name: "Stripe", role: "subscription payments. We never see your card number" },
-  { name: "An AI provider", role: "plain-English notes. The provider's name is not published here" },
+  // TODO(owner): name the AI provider when it is confirmed. Public copy stays "An AI provider".
+  { name: "An AI provider", role: "plain-English notes on calculated figures" },
   { name: "Google Analytics", role: "which pages are used" },
   { name: "Totalum on Google Cloud", role: "account storage" },
   { name: "CoinGecko", role: "crypto prices" },
+  // TODO(owner): name the share-price, metals and FX vendors when they are confirmed.
   {
     name: "Licensed market-data vendors",
-    role: "share prices, metals and foreign exchange. Those vendor names are not published here",
+    role: "share prices, metals and foreign exchange",
   },
 ];
 

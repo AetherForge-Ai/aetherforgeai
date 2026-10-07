@@ -45,9 +45,10 @@ describe("single live ticker tape", () => {
       equityProvider: "Yahoo Finance",
       cryptoProvider: "CoinGecko",
       asOf: AS_OF,
+      now: new Date(AS_OF),
     });
 
-    expect(feed.live).toEqual({ equities: true, crypto: true });
+    expect(feed.live).toEqual({ equities: false, crypto: true });
     expect(tickerLiveLabel(feed)).toBeNull();
     expect(
       tickerLiveLabel({
@@ -80,6 +81,21 @@ describe("single live ticker tape", () => {
       ...prices(feed.rows.crypto),
     ];
     for (const stale of SET_B) expect(shown).not.toContain(stale);
+  });
+
+  it("marks equities live only while NZX or ASX is in session", () => {
+    const open = new Date("2026-10-07T01:14:00.000Z");
+    const feed = composeTickerTape({
+      equityQuotes: { "AIR.NZ": { price: SET_A["AIR.NZ"], changePct: 0.1 } },
+      cryptoQuotes: {},
+      equityProvider: "Yahoo Finance",
+      cryptoProvider: "CoinGecko",
+      asOf: open.toISOString(),
+      now: open,
+    });
+    expect(feed.rows.nzx).toHaveLength(1);
+    expect(feed.live.equities).toBe(true);
+    expect(feed.providers.equities).toBe("Yahoo Finance");
   });
 
   it("does not invent prices or a LIVE label when the pipeline returns nothing", () => {

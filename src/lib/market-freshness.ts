@@ -105,12 +105,19 @@ export function formatSessionDate(iso: string): string {
 }
 
 function formatQuoteClock(quotedAt: Date, timeZone: string): string {
-  return new Intl.DateTimeFormat("en-NZ", {
+  const clock = new Intl.DateTimeFormat("en-NZ", {
     timeZone,
     hour: "numeric",
     minute: "2-digit",
-    timeZoneName: "short",
   }).format(quotedAt);
+  if (timeZone === "America/New_York") return `${clock} New York`;
+  const zoneName = new Intl.DateTimeFormat("en-NZ", {
+    timeZone,
+    timeZoneName: "short",
+  })
+    .formatToParts(quotedAt)
+    .find((part) => part.type === "timeZoneName")?.value;
+  return zoneName ? `${clock} ${zoneName}` : clock;
 }
 
 export function parseQuoteTime(value: string | number | Date | null | undefined): Date | null {

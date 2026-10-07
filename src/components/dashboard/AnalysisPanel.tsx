@@ -7,7 +7,13 @@ import { api } from "@/lib/api";
 import { Sparkles, Loader2, RefreshCw, FileText } from "lucide-react";
 import { toast } from "sonner";
 
-export function AnalysisPanel({ holdingsCount }: { holdingsCount: number }) {
+export function AnalysisPanel({
+  holdingsCount,
+  scope = "equity",
+}: {
+  holdingsCount: number;
+  scope?: "equity" | "crypto";
+}) {
   const [report, setReport] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -60,8 +66,9 @@ export function AnalysisPanel({ holdingsCount }: { holdingsCount: number }) {
             <Sparkles className="size-7" />
           </span>
           <p className="mt-4 max-w-sm text-sm text-muted-foreground">
-            Generate an on-demand equity report covering allocation, risk, and outlook — tailored to
-            your portfolio.
+            {scope === "crypto"
+              ? "Generate an on-demand crypto report covering allocation, risk, and outlook — tailored to your coin book."
+              : "Generate an on-demand equity report covering allocation, risk, and outlook — tailored to your portfolio."}
           </p>
           <Button onClick={generate} disabled={loading} className="mt-5 font-semibold shadow-glow">
             {loading ? (

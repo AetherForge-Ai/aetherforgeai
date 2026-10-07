@@ -239,9 +239,9 @@ export function buildActionableIntelligence(
   const holdings = enrichHoldings(stocks);
   const heldTickers = new Set(holdings.map((h) => h.stock.ticker.toUpperCase()));
 
-  // SELL recommendations — current holdings flagged Reduce/Sell.
+  // Exit list — score below 42 is the same band as Reduce and Sell.
   const sellRecommendations: SellRecommendation[] = holdings
-    .filter((h) => h.intel.signal === "Sell" || h.intel.signal === "Reduce")
+    .filter((h) => h.intel.score < 42)
     .sort((a, b) => a.intel.score - b.intel.score)
     .map((h) => ({
       ticker: h.stock.ticker,
@@ -251,7 +251,7 @@ export function buildActionableIntelligence(
       reasoning: h.intel.reasoning,
       weight: h.weight,
       gainPct: h.gainPct,
-      urgency: h.intel.signal === "Sell" || h.weight >= 15 ? "high" : "medium",
+      urgency: h.intel.score < 28 || h.weight >= 15 ? "high" : "medium",
     }));
 
   // BUY candidates — high-conviction names NOT already held, ranked across the
@@ -272,7 +272,7 @@ export function buildActionableIntelligence(
   // conviction score as a tie-breaker. Show the top 20 across all markets.
   const buyCandidates: BuyCandidate[] = candidatePool
     .filter((i) => !heldTickers.has(i.ticker.toUpperCase()))
-    .filter((i) => i.signal === "Strong Buy" || i.signal === "Buy")
+    .filter((i) => i.score >= 58)
     .filter((i) => !priceMatchesUniverseSeed(i.ticker, i.price))
     .sort((a, b) => {
       const growthDiff = (b.projected7dPct ?? 0) - (a.projected7dPct ?? 0);
@@ -341,7 +341,7 @@ export function buildActionableIntelligence(
           .map((b) => b.ticker)
           .join(" & ")
           ? `Overweight ${buyCandidates.slice(0, 2).map((b) => b.ticker).join(" & ")}`
-          : "Overweight your two strongest Strong-Buy signals",
+          : "Overweight the two strongest momentum names",
         "Use tight stops (~5-7%) to cap downside on the concentrated book",
         "Accept elevated volatility for the higher projected return",
       ],

@@ -36,6 +36,10 @@ type Props = {
   recentLedger?: LedgerRow[];
   /** True while cash/holdings are still loading — never flash NZ$0 as real data. */
   balancesLoading?: boolean;
+  /** Ledger paints from cash/transactions and does not wait on market prices. */
+  ledgerLoading?: boolean;
+  /** Spot only when the metals quote itself is live. Otherwise Est. */
+  metalsSpotLive?: boolean;
   className?: string;
 };
 
@@ -206,7 +210,11 @@ function LedgerCard({
       )}
 
       <ul className="mt-3 flex-1 space-y-1.5">
-        {latest.length === 0 ? (
+        {loading ? (
+          [0, 1, 2, 3].map((i) => (
+            <li key={i} className="h-8 animate-pulse rounded-lg bg-muted/40" aria-hidden />
+          ))
+        ) : latest.length === 0 ? (
           <li className="rounded-lg border border-dashed border-border/70 px-3 py-4 text-center text-xs text-muted-foreground">
             No trades yet — buys, sells, deposits and withdrawals land here.
           </li>
@@ -310,6 +318,8 @@ export function DashboardHomeGrid({
   metalsPositions,
   recentLedger = [],
   balancesLoading = false,
+  ledgerLoading = false,
+  metalsSpotLive = false,
   className,
 }: Props) {
   const { byExchange, loading: marketsLoading } = useSharedMarketSnapshots();
@@ -400,13 +410,17 @@ export function DashboardHomeGrid({
           poster="/brand/precious-metals-smitty.png"
           metricLabel="Metals value · NZD"
           metricValue={balancesLoading ? "…" : formatMoney(metalsTotalNZD, "NZD")}
-          hint="Live gold and silver spot. Not a report."
+          hint={
+            metalsSpotLive
+              ? "Spot gold and silver. Not a report."
+              : "Est. gold and silver. Not a report."
+          }
         />
         <LedgerCard
           href="/dashboard/transactions"
           rows={recentLedger}
           cashBalance={cashBalance}
-          loading={balancesLoading}
+          loading={ledgerLoading}
         />
       </div>
 
