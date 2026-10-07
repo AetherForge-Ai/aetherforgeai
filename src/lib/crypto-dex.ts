@@ -132,6 +132,14 @@ export function parseMegafilterPage(payload: unknown, fallbackNetwork = ""): Dex
   return rows;
 }
 
+/** USD price from the DEX list for this symbol. Null when that token has no print. */
+export function dexPriceForSymbol(symbol: string, rows: DexTokenRow[]): number | null {
+  const want = symbol.trim().toUpperCase();
+  if (!want) return null;
+  const hit = rows.find((row) => row.symbol.toUpperCase() === want && row.price != null && row.price > 0);
+  return hit?.price ?? null;
+}
+
 function dexVolume(row: DexTokenRow): number {
   return row.volume24h != null && row.volume24h > 0 ? row.volume24h : 0;
 }

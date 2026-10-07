@@ -12,7 +12,7 @@ import { planHoldingCorrection } from "@/lib/holding-correction";
 
 const updateSchema = z.object({
   ticker: z.string().min(1).max(12).optional(),
-  asset_type: z.enum(["stock", "crypto"]).optional(),
+  asset_type: z.enum(["stock", "crypto", "metal"]).optional(),
   shares: z.number().positive().optional(),
   purchase_price: z.number().positive().optional(),
   purchase_date: z.string().optional(),
@@ -76,7 +76,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
     }
 
     const ticker = String(patch.ticker || owned.ticker);
-    const assetType = (patch.asset_type || owned.asset_type || "stock") as "stock" | "crypto";
+    const assetType = (patch.asset_type || owned.asset_type || "stock") as "stock" | "crypto" | "metal";
     const qty = Number(patch.shares ?? owned.shares);
     const fill = Number(patch.purchase_price ?? owned.purchase_price);
     let liveSpot: number | null = null;
@@ -121,7 +121,10 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
         before: { shares: owned.shares, purchase_price: owned.purchase_price },
         after: { shares: qty, purchase_price: fill },
       });
-      if (plan.changed) {
+      const nextDay = parsed.data.purchase_date ? movementCivilDay(parsed.data.purchase_date, aucklandDateISO()) : "";
+      const prevDay = owned.purchase_date ? movementCivilDay(String(owned.purchase_date), aucklandDateISO()) : "";
+      const dateChanged = Boolean(nextDay && nextDay !== prevDay);
+      if (plan.changed || dateChanged) {
         const heldType = (owned.asset_type || assetType) as "stock" | "crypto" | "metal";
         await applyTransaction(
           user,
@@ -133,7 +136,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
             quantity: qty,
             price: fill,
             notes: plan.notes,
-            executed_at: new Date().toISOString(),
+            executed_at: nextDay ? `${nextDay}T12:00:00.000Z` : new Date().toISOString(),
           },
           { fromHoldingEdit: true }
         );

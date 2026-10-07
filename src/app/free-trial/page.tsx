@@ -4,8 +4,14 @@ import { getCurrentUser, hasPaidSubscription } from "@/lib/session";
 import { SiteHeader } from "@/components/SiteHeader";
 import { TrialExperience } from "@/components/trial/TrialExperience";
 import { Sparkles, ArrowRight, CheckCircle2 } from "lucide-react";
+import { publicPageMetadata } from "@/lib/reviewed-book";
 
 export const dynamic = "force-dynamic";
+
+export const metadata = publicPageMetadata("/free-trial", {
+  title: "Free trial · AetherForge AI",
+  description: "One complimentary paper-portfolio report. Not a broker, and not financial advice.",
+});
 
 /**
  * /free-trial — the one-time complimentary report.

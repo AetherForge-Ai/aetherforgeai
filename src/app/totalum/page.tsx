@@ -1,6 +1,12 @@
 import { redirect } from "next/navigation";
+import { publicPageMetadata } from "@/lib/reviewed-book";
 
 export const dynamic = "force-dynamic";
+
+export const metadata = publicPageMetadata("/totalum", {
+  title: "The Headmaster · AetherForge AI",
+  description: "This address now opens The Headmaster.",
+});
 
 /**
  * Legacy route. The bot formerly called "Totalum" is now "The Headmaster",

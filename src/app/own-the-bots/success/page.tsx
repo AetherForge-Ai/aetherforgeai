@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import { publicPageMetadata } from "@/lib/reviewed-book";
 import { LEGAL_ENTITY_NAME } from "@/lib/company";
 import Link from "next/link";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -17,9 +17,11 @@ import {
   Terminal,
 } from "lucide-react";
 
-export const metadata: Metadata = {
-  title: "Your download is ready | AetherForge AI",
-  description: "Thank you for your purchase — download your protected AetherForge bot package.",
+export const metadata = {
+  ...publicPageMetadata("/own-the-bots/success", {
+    title: "Your download is ready | AetherForge AI",
+    description: "Thank you for your purchase — download your protected AetherForge bot package.",
+  }),
   robots: { index: false, follow: false },
 };
 

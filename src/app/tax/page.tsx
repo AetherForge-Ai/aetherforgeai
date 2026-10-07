@@ -1,14 +1,14 @@
 import { getCurrentUser } from "@/lib/session";
 import { AppShell } from "@/components/AppShell";
 import { TaxPageContent } from "@/components/tax/TaxPageContent";
+import { publicPageMetadata } from "@/lib/reviewed-book";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = {
+export const metadata = publicPageMetadata("/tax", {
   title: "Tax · AetherForge AI",
-  description:
-    "This is general information and not personal tax advice.",
-};
+  description: "This is general information and not personal tax advice.",
+});
 
 export default async function TaxPage() {
   const user = await getCurrentUser();

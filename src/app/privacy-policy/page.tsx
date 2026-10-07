@@ -1,11 +1,12 @@
 import { LegalShell, LegalSection } from "@/components/legal/LegalShell";
 import { LEGAL_ENTITY_NAME } from "@/lib/company";
+import { publicPageMetadata } from "@/lib/reviewed-book";
 
-export const metadata = {
+export const metadata = publicPageMetadata("/privacy-policy", {
   title: "AI Privacy Policy — AetherForge AI",
   description:
     "How AetherForge AI collects, uses and protects your personal information under the New Zealand Privacy Act 2020.",
-};
+});
 
 const UPDATED = "2 July 2026";
 

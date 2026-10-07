@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { Metadata } from "next";
+import { publicPageMetadata } from "@/lib/reviewed-book";
 import { LEGAL_ENTITY_NAME } from "@/lib/company";
 import { SiteHeader } from "@/components/SiteHeader";
 import { BrandLogo } from "@/components/BrandLogo";
@@ -12,19 +12,11 @@ import {
   LineChart,
 } from "lucide-react";
 
-export const metadata: Metadata = {
+export const metadata = publicPageMetadata("/performance", {
   title: "Example results — paper portfolio snapshots | AetherForge AI",
   description:
     "Timestamped screenshots of an AetherForge paper portfolio. Illustrative only — not a trading platform, not a broker, and not a promise of future returns.",
-  alternates: { canonical: "/performance" },
-  openGraph: {
-    title: "Example results — one dated paper book | AetherForge AI",
-    description:
-      "Timestamped paper-portfolio snapshots across NZX, ASX, US equities, crypto and metals. Illustrative only — not a broker and not a guarantee.",
-    url: "/performance",
-    type: "website",
-  },
-};
+});
 
 const SAMPLE_NOTES = [
   {

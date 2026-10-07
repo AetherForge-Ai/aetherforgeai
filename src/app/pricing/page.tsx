@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { publicPageMetadata } from "@/lib/reviewed-book";
 import { SiteHeader } from "@/components/SiteHeader";
 import { PricingCards } from "@/components/pricing/PricingCards";
 import { FeatureComparison } from "@/components/pricing/FeatureComparison";
@@ -16,12 +17,11 @@ import {
   Sparkles,
 } from "lucide-react";
 
-export const metadata = {
+export const metadata = publicPageMetadata("/pricing", {
   title: "Pricing — AetherForge AI | Simple, powerful market intelligence",
   description:
     "Start with Pro at NZ$49/month for Stox, Koins and the full Headmaster. Free and Starter stay available. Informational market intelligence — not financial advice, and we don't trade for you.",
-  alternates: { canonical: "/pricing" },
-};
+});
 
 const TRUST_ITEMS = [
   { icon: ShieldCheck, label: "14-day trial on Starter and Pro" },
