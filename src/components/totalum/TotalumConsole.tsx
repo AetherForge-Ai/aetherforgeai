@@ -95,7 +95,7 @@ const GOALS: { key: GoalKey; name: string; risk: string }[] = [
 function LockedUpsell() {
   const features = [
     { icon: Layers, title: "Portfolio Synthesis", body: "One unified NZD view across Stox, Koins & precious metals." },
-    { icon: Compass, title: "Strategy Builder", body: "Goal-based model portfolios with exact rebalancing to target." },
+    { icon: Compass, title: "Strategy Builder", body: "Goal-based model portfolios with rebalancing scenarios to target." },
     { icon: TrendingUp, title: "Scenario Simulator", body: "Bull / base / bear pathways over 7d, 30d, 90d and 12 months." },
     { icon: ShieldAlert, title: "Risk & Stress Testing", body: "Crypto winters, corrections and risk-off flights, quantified." },
     { icon: Bot, title: "Chief Strategist AI", body: "“How should I rebalance if BTC drops 20%?” — answered." },

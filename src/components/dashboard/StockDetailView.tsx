@@ -296,7 +296,7 @@ export function StockDetailView({
           </ResponsiveContainer>
         ) : (
           <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-border/60 text-xs text-muted-foreground">
-            <BarChart3 className="mr-2 size-4" /> Price history unavailable
+            <BarChart3 className="mr-2 size-4" /> Price history is not shown for this range
           </div>
         )}
       </div>

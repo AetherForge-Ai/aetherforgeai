@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatMarketPrice, type AssetClass, type SecurityIntel } from "@/lib/market-intel";
 import { useMarketIntel } from "@/components/dashboard/MarketIntelContext";
-import { SignalBadge, pctClass, fmtPct } from "@/components/dashboard/intel-ui";
+import { pctClass, fmtPct } from "@/components/dashboard/intel-ui";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Star, Plus, X, Loader2 } from "lucide-react";
@@ -139,7 +139,6 @@ export function WatchlistPanel({
                       <span className="font-display text-sm font-semibold">
                         {item.ticker.replace(/\.(NZ|AX)$/, "")}
                       </span>
-                      {intel && <SignalBadge signal={intel.signal} />}
                     </div>
                     <p className="truncate text-[0.68rem] text-muted-foreground">{item.name}</p>
                   </div>

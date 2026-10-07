@@ -9,6 +9,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { PUBLIC_COIN_SOURCE_LINE } from "@/lib/data-sources";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -214,7 +215,7 @@ export function CryptoMarketModal({
         {/* Footer / attribution */}
         <div className="flex items-center justify-between gap-2 border-t border-border/60 px-4 py-2 text-[0.62rem] text-muted-foreground sm:px-6">
           <span className="inline-flex items-center gap-1">
-            <Info className="size-3" /> Data via Swyftx (may be delayed up to ~60s)
+            <Info className="size-3" /> {PUBLIC_COIN_SOURCE_LINE}
           </span>
           <span className="tnum">
             Showing {total} of {coins.length} coins

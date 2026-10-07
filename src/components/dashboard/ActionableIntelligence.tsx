@@ -5,13 +5,12 @@ import type { Stock } from "@/lib/portfolio";
 import { buildActionableIntelligence } from "@/lib/analytics";
 import { formatMarketPrice, type AssetClass, type SecurityIntel } from "@/lib/market-intel";
 import { cn } from "@/lib/utils";
-import { pctClass, fmtPct, SignalBadge, ExchangeChip } from "@/components/dashboard/intel-ui";
+import { pctClass, fmtPct, ExchangeChip } from "@/components/dashboard/intel-ui";
 import { useMarketIntel } from "@/components/dashboard/MarketIntelContext";
 import { isTransactionDialogOpen } from "@/lib/transaction-sticky";
 import { getTxDialogSnapshot, subscribeTxDialog } from "@/lib/transaction-dialog-store";
-import { BuyDialog, type BuyTarget } from "@/components/dashboard/BuyDialog";
-import { RecommendationActions } from "@/components/dashboard/RecommendationActions";
 import { api } from "@/lib/api";
+import { technicalSnapshot } from "@/lib/public-intel";
 import { Button } from "@/components/ui/button";
 import {
   AlertTriangle,
@@ -22,7 +21,6 @@ import {
   Rocket,
   RefreshCw,
   Loader2,
-  ShoppingCart,
   ChevronDown,
 } from "lucide-react";
 
@@ -115,18 +113,18 @@ export function ActionableIntelligence({
     () => buildActionableIntelligence(stocks, assetClass, combinedUniverse),
     [stocks, assetClass, combinedUniverse]
   );
-  const { actionRequired, sellRecommendations, buyCandidates, pathways } = intel;
+  const { actionRequired, sellRecommendations } = intel;
 
-  const [buyTarget, setBuyTarget] = useState<BuyTarget | null>(null);
-  const [buyOpen, setBuyOpen] = useState(false);
-  const [buysMinimized, setBuysMinimized] = useState(false);
+  const snapshots = useMemo(() => {
+    const held = new Set(stocks.map((s) => s.ticker.toUpperCase()));
+    return (combinedUniverse || [])
+      .filter((row) => row.market !== "CRYPTO" && row.assetClass !== "crypto")
+      .filter((row) => !held.has(row.ticker.toUpperCase()))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 12);
+  }, [combinedUniverse, stocks]);
 
-  function openBuy(c: (typeof buyCandidates)[number]) {
-    // Route the Buy dialog to the correct asset class from the candidate's market.
-    const type: AssetClass = c.market === "CRYPTO" ? "crypto" : "stock";
-    setBuyTarget({ ticker: c.ticker, name: c.name, assetType: type, price: c.price });
-    setBuyOpen(true);
-  }
+  const [snapshotsMinimized, setSnapshotsMinimized] = useState(false);
 
   function handleRefresh() {
     refresh();
@@ -140,9 +138,9 @@ export function ActionableIntelligence({
           <Scale className="size-4" />
         </span>
         <div>
-          <h2 className="font-display text-lg font-bold">Informational signals</h2>
+          <h2 className="font-display text-lg font-bold">Market snapshots</h2>
           <p className="text-xs text-muted-foreground">
-            Illustrative scenarios from your holdings and the wider universe. Not personalised advice — you execute elsewhere.
+            Technical snapshots from your holdings and the wider share universe. Not personalised advice — you execute elsewhere.
           </p>
         </div>
       </div>
@@ -155,8 +153,8 @@ export function ActionableIntelligence({
             <p className="font-display font-bold text-rose-200">Downside scenario flagged</p>
             <p className="text-sm text-rose-200/80">
               {sellRecommendations.length} holding{sellRecommendations.length === 1 ? "" : "s"} in your portfolio{" "}
-              {sellRecommendations.length === 1 ? "is" : "are"} modelled with elevated downside risk. The sell
-              scenarios below are illustrative. AetherForge does not sell for you.
+              {sellRecommendations.length === 1 ? "is" : "are"} modelled with elevated downside risk. Below is a
+              scenario: what a full exit would look like. AetherForge does not trade for you.
             </p>
           </div>
         </div>
@@ -166,7 +164,7 @@ export function ActionableIntelligence({
           <div>
             <p className="font-display font-bold text-emerald-200">No urgent exits</p>
             <p className="text-sm text-emerald-200/80">
-              None of your current holdings flag a sell scenario this session. Illustrative buy scenarios
+              None of your current holdings flag a full-exit scenario this session. Market snapshots
               are listed below. They are not an instruction to deploy cash.
             </p>
           </div>
@@ -177,12 +175,12 @@ export function ActionableIntelligence({
         {/* SELL recommendations */}
         <div className="rounded-2xl border border-border/70 bg-card/40 p-5">
           <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-rose-700">
-            <ArrowDownRight className="size-4" /> Illustrative sell scenarios
+            <ArrowDownRight className="size-4" /> Full-exit scenarios
             <span className="text-xs font-normal text-muted-foreground">(from your holdings)</span>
           </div>
           {sellRecommendations.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">
-              No holdings currently flag a sell signal.
+              No holdings currently flag a full-exit scenario.
             </p>
           ) : (
             <div className="space-y-3">
@@ -191,7 +189,6 @@ export function ActionableIntelligence({
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <span className="font-display text-sm font-bold">{r.ticker.replace(/\.(NZ|AX)$/, "")}</span>
-                      <SignalBadge signal={r.signal} />
                       {r.urgency === "high" && (
                         <span className="rounded-full bg-rose-500/20 px-2 py-0.5 text-[0.6rem] font-bold uppercase text-rose-700">
                           Urgent
@@ -205,7 +202,9 @@ export function ActionableIntelligence({
                       </p>
                     </div>
                   </div>
-                  <p className="mt-1.5 text-[0.72rem] leading-relaxed text-muted-foreground">{r.reasoning}</p>
+                  <p className="mt-1.5 text-[0.72rem] leading-relaxed text-muted-foreground">
+                    scenario: what a full exit would look like
+                  </p>
                 </div>
               ))}
             </div>
@@ -217,25 +216,25 @@ export function ActionableIntelligence({
           <div className="flex items-center gap-2 px-4 py-3 sm:px-5">
             <button
               type="button"
-              onClick={() => setBuysMinimized((m) => !m)}
-              aria-expanded={!buysMinimized}
+              onClick={() => setSnapshotsMinimized((m) => !m)}
+              aria-expanded={!snapshotsMinimized}
               className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm font-semibold text-emerald-700"
             >
               <ArrowUpRight className="size-4 shrink-0" />
-              <span className="truncate">Illustrative buy scenarios</span>
+              <span className="truncate">Market snapshots</span>
               <span className="hidden text-xs font-normal text-muted-foreground sm:inline">
-                (not held - NZX - ASX - DJIA - NASDAQ - Crypto)
+                (not held · NZX · ASX · DJIA · NASDAQ)
               </span>
               <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[0.65rem] font-semibold text-emerald-700">
-                {buyCandidates.length}
+                {snapshots.length}
               </span>
               <span className="ml-auto shrink-0 text-xs font-medium text-muted-foreground">
-                {buysMinimized ? "Expand" : "Minimize"}
+                {snapshotsMinimized ? "Expand" : "Minimize"}
               </span>
               <ChevronDown
                 className={cn(
                   "size-4 shrink-0 text-muted-foreground transition-transform duration-300",
-                  !buysMinimized && "rotate-180"
+                  !snapshotsMinimized && "rotate-180"
                 )}
               />
             </button>
@@ -258,18 +257,18 @@ export function ActionableIntelligence({
           <div
             className={cn(
               "grid transition-all duration-300 ease-out",
-              buysMinimized ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100"
+              snapshotsMinimized ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100"
             )}
           >
             <div className="overflow-hidden">
               <div className="border-t border-border/60 px-4 pb-4 pt-3 sm:px-5 sm:pb-5">
-                {buyCandidates.length === 0 ? (
+                {snapshots.length === 0 ? (
                   <p className="py-6 text-center text-sm text-muted-foreground">
-                    No fresh buy signals right now.
+                    No share-market snapshots right now.
                   </p>
                 ) : (
                   <div className="space-y-3">
-                    {buyCandidates.map((c) => (
+                    {snapshots.map((c) => (
                       <div
                         key={c.ticker}
                         className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3"
@@ -280,32 +279,21 @@ export function ActionableIntelligence({
                               {c.ticker.replace(/\.(NZ|AX)$/, "")}
                             </span>
                             <ExchangeChip ticker={c.ticker} market={c.market} />
-                            <SignalBadge signal={c.signal} />
                           </div>
                           <div className="text-right">
                             <p className="tnum text-sm font-medium">
                               {formatMarketPrice(c.price, c.currency)}
                             </p>
-                            <p className="text-[0.62rem] text-muted-foreground">
-                              <span className={pctClass(c.projected7dPct)}>
-                                {fmtPct(c.projected7dPct)}
-                              </span>{" "}
-                              - {c.confidence}% conf.
-                            </p>
                           </div>
                         </div>
                         <p className="mt-1.5 text-[0.72rem] leading-relaxed text-muted-foreground">
-                          {c.reasoning}
+                          {technicalSnapshot({
+                            rsi: c.rsi,
+                            vsSma20: c.vsSma20,
+                            regime: c.regime,
+                            dailyVolPct: c.dailyVolPct,
+                          })}
                         </p>
-                        <div className="mt-2.5 flex justify-end">
-                          <Button
-                            size="sm"
-                            className="h-7 gap-1.5 px-3 text-xs font-semibold shadow-glow"
-                            onClick={() => openBuy(c)}
-                          >
-                            <ShoppingCart className="size-3.5" /> Buy
-                          </Button>
-                        </div>
                       </div>
                     ))}
                   </div>
@@ -321,11 +309,19 @@ export function ActionableIntelligence({
         </div>
       </div>
 
-      {/* Forward pathways */}
+      {/* Three outcome ranges. No rating and no forward percentage in the heading. */}
       <div>
-        <p className="mb-3 text-sm font-semibold">Three forward pathways</p>
+        <p className="mb-3 text-sm font-semibold">
+          Three scenarios: a cautious, a middle and a high-volatility case, so you can see the range of outcomes.
+        </p>
         <div className="grid gap-4 md:grid-cols-3">
-          {pathways.map((p) => {
+          {(
+            [
+              { name: "Cautious", risk: "Low Risk" as const, body: "A narrower outcome range from recent prices." },
+              { name: "Middle", risk: "Balanced" as const, body: "The central outcome range from recent prices." },
+              { name: "High volatility", risk: "High Risk" as const, body: "A wider outcome range when realised volatility is elevated." },
+            ] as const
+          ).map((p) => {
             const Icon = PATHWAY_ICON[p.risk];
             return (
               <div key={p.name} className={cn("rounded-2xl border p-5", PATHWAY_TONE[p.risk])}>
@@ -337,57 +333,15 @@ export function ActionableIntelligence({
                     {p.risk}
                   </span>
                 </div>
-                <div className="mt-3 flex items-end gap-3">
-                  <div>
-                    <p className="text-[0.62rem] uppercase text-muted-foreground">7-day target</p>
-                    <p className={cn("tnum font-display text-xl font-bold", pctClass(p.targetPct))}>{fmtPct(p.targetPct)}</p>
-                  </div>
-                  <div>
-                    <p className="text-[0.62rem] uppercase text-muted-foreground">Probability</p>
-                    <p className="tnum font-display text-xl font-bold">{p.probability}%</p>
-                  </div>
-                </div>
-                <p className="mt-3 text-[0.72rem] text-muted-foreground">{p.summary}</p>
-                <ul className="mt-3 space-y-1.5">
-                  {p.steps.map((s, i) => (
-                    <li key={i} className="flex gap-2 text-[0.72rem] text-foreground/80">
-                      <span className="mt-1 size-1.5 shrink-0 rounded-full bg-primary" />
-                      {s}
-                    </li>
-                  ))}
-                </ul>
+                <p className="mt-3 text-[0.72rem] text-muted-foreground">{p.body}</p>
               </div>
             );
           })}
         </div>
         <p className="mt-3 text-[0.68rem] italic text-muted-foreground">
-          Informational market intelligence only - not personalised financial advice.
+          Informational market intelligence only. Not personalised financial advice.
         </p>
       </div>
-
-      {buyOpen && buyTarget && (
-        <div className="mb-2">
-          <RecommendationActions
-            target={{
-              ticker: buyTarget.ticker,
-              name: buyTarget.name,
-              assetType: (buyTarget as any).assetType === "crypto" || (buyTarget as any).asset_type === "crypto" ? "crypto" : "stock",
-              signalPrice: buyTarget.price,
-              livePrice: buyTarget.price,
-            }}
-            onDone={() => {}}
-          />
-        </div>
-      )}
-      <BuyDialog
-        open={buyOpen}
-        onOpenChange={setBuyOpen}
-        target={buyTarget}
-        onDone={() => {
-          setBuyOpen(false);
-          onBought?.();
-        }}
-      />
     </section>
   );
 }

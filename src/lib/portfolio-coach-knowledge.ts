@@ -115,13 +115,13 @@ Steps:
 If the plan says trim or exit: walk one position at a time. Confirm the dashboard matches the intended residual weight.
 
 ### Share-price alerts
-Concept: Alerts watch a ticker and surface trim / sell-out style rules when live price conditions are met. They are reminders and execution prompts inside AetherForge — not broker orders.
+Concept: Alerts watch a ticker and surface trim rules and a scenario: what a full exit would look like, when live price conditions are met. They are reminders inside AetherForge — not broker orders.
 
 Steps:
 1. Open the **Share-price alerts** section on the Dashboard (member feature).
 2. Click **New alert**.
 3. Choose the ticker (held or followed).
-4. Set the rule fields (for example trim guidance and hard sell-out price) as shown in the dialog.
+4. Set the rule fields (for example trim guidance and a full-exit price) as shown in the dialog.
 5. Save. Review status (active / triggered) later.
 6. Edit or remove alerts from the same list when the plan changes.
 
@@ -212,7 +212,7 @@ export function portfolioCoachFallbackReply(userMessage: string): string {
       `1. Open the Dashboard and find **Share-price alerts**.\n` +
       `2. Click **New alert**.\n` +
       `3. Choose the ticker.\n` +
-      `4. Enter your trim guidance and hard sell-out price fields.\n` +
+      `4. Enter your trim guidance and full-exit price fields.\n` +
       `5. Save, then check the alert list for status.\n\n` +
       `Alerts remind you inside AetherForge. They do not place broker orders.\n\n` +
       `_Educational / execution help — not personalised financial advice._`
