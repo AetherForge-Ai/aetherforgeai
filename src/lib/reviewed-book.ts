@@ -13,6 +13,8 @@ import {
   type FxRatesToNZD,
 } from "@/lib/currency";
 
+export { dexPriceForSymbol } from "@/lib/crypto-dex";
+
 /** The fill price that was reviewed. A newer live spot is ignored. */
 export function priceForBooking(submitted: number, _liveSpot?: number | null): number {
   return Number(submitted) || 0;

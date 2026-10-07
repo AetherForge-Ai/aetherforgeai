@@ -377,6 +377,32 @@ export async function fetchDexTop400(): Promise<DexPage> {
   return snapshotDex();
 }
 
+/**
+ * Pools for one symbol. GeckoTerminal search is first; the stored top list fills gaps.
+ * A failed call contributes nothing rather than a made-up price.
+ */
+export async function dexQuoteRows(symbol: string): Promise<DexTokenRow[]> {
+  const want = symbol.trim();
+  const collected: DexTokenRow[] = [];
+  if (want) {
+    try {
+      const payload = await gtFetch(
+        `/search/pools?query=${encodeURIComponent(want)}&include=base_token,quote_token,dex`
+      );
+      collected.push(...parseMegafilterPage(payload));
+    } catch (err) {
+      console.error(`[crypto-coingecko] DEX search for ${want} failed:`, err);
+    }
+  }
+  try {
+    const page = await fetchDexTop400();
+    collected.push(...page.rows);
+  } catch (err) {
+    console.error(`[crypto-coingecko] DEX list for ${want || "quote"} failed:`, err);
+  }
+  return collected;
+}
+
 /* ------------------------------ Coin detail ------------------------------ */
 
 function stripHtml(s: string | undefined | null): string {

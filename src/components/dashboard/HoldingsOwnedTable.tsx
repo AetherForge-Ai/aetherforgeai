@@ -201,8 +201,8 @@ export function HoldingsOwnedTable({
           ) : null}
         </div>
       ) : (
-        <div>
-          <table className="w-full table-fixed text-xs">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[52rem] text-xs">
             <thead>
               <tr className="border-b border-border/50 text-left uppercase tracking-wide text-muted-foreground">
                 <th className="w-[22%] px-3 py-2">
@@ -226,7 +226,7 @@ export function HoldingsOwnedTable({
                 <th className="px-2 py-2">
                   <HoldingHead label="Gain" k="gain" />
                 </th>
-                <th className="w-[7.5rem] px-2 py-2 text-right font-medium"> </th>
+                <th className="sticky right-0 w-40 bg-card px-2 py-2 text-right font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -293,8 +293,8 @@ export function HoldingsOwnedTable({
                         {formatPercent(h.gainPct)}
                       </span>
                     </td>
-                    <td className="px-1 py-2">
-                      <div className="flex flex-wrap items-center justify-end gap-0.5">
+                    <td className="sticky right-0 bg-card px-1 py-2">
+                      <div className="flex flex-nowrap items-center justify-end gap-0.5">
                         {onBuy ? (
                           <button type="button" onClick={() => onBuy(h)} className="rounded-md px-1.5 py-1 text-[0.65rem] font-semibold text-primary hover:bg-primary/10">
                             Buy
@@ -306,15 +306,17 @@ export function HoldingsOwnedTable({
                           </button>
                         ) : null}
                         <button
+                          type="button"
                           onClick={() => onEdit(h)}
-                          className="grid size-6 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+                          className="relative z-10 grid size-8 shrink-0 place-items-center rounded-lg text-foreground transition-colors hover:bg-primary/10 hover:text-primary"
                           aria-label={`Edit ${h.ticker}`}
                         >
                           <Pencil className="size-4" />
                         </button>
                         <button
+                          type="button"
                           onClick={() => onDelete(h)}
-                          className="grid size-6 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/15 hover:text-destructive"
+                          className="relative z-10 grid size-8 shrink-0 place-items-center rounded-lg text-foreground transition-colors hover:bg-destructive/15 hover:text-destructive"
                           aria-label={`Delete ${h.ticker}`}
                         >
                           <Trash2 className="size-4" />

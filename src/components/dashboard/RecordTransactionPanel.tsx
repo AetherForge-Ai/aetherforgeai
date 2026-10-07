@@ -112,7 +112,7 @@ export function RecordTransactionPanel({
   const [quantity, setQuantity] = useState("");
   const [price, setPrice] = useState("");
   const [currency, setCurrency] = useState<CurrencyCode>("NZD");
-  const [fxRate, setFxRate] = useState("1");
+  const [fxRate, setFxRate] = useState("");
   const [fee, setFee] = useState("0.00");
   const [feeDirty, setFeeDirty] = useState(false);
   const [priceDirty, setPriceDirty] = useState(false);
@@ -123,13 +123,14 @@ export function RecordTransactionPanel({
   const [problems, setProblems] = useState<string[]>([]);
   const [hint, setHint] = useState("");
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const [book, setBook] = useState<BookHolding[]>(holdings);
   const [bookCash, setBookCash] = useState(cash);
   const [bookKnown, setBookKnown] = useState(cashKnown);
   const [firstBuys, setFirstBuys] = useState<Record<string, string>>({});
   const [metalId, setMetalId] = useState<string | undefined>(seed?.metalSourceId);
   const opened = useRef(false);
-  const { beginReviewGuard, armReview, disarmReview, claimCommit, releaseCommit } = useTradeReviewGate();
+  const { beginReviewGuard, armReview, disarmReview, claimCommit, releaseCommit, confirmReady } = useTradeReviewGate();
 
   useEffect(() => {
     if (!open) {
@@ -144,6 +145,7 @@ export function RecordTransactionPanel({
     setPreview(null);
     setProblems([]);
     setHint("");
+    setSaveError("");
     setQuery("");
     setNotes("");
     setFeeDirty(false);
@@ -295,10 +297,14 @@ export function RecordTransactionPanel({
   }, [kind, quantity, price, feeDirty]);
 
   useEffect(() => {
-    if (!open || fxDirty || date !== today || step === "review") return;
+    if (!open || fxDirty || step === "review") return;
+    const seededDay = dayOf(seed?.purchaseDate);
+    if (initialMode === "correction" && seededDay && seededDay !== today) return;
+    if (kind === "correction" && date !== today) return;
+    if (date !== today) return;
     const next = openingFx({ currency, live: fxLive, liveRate: rates[currency] });
     if (next) setFxRate(next);
-  }, [open, fxDirty, date, today, currency, fxLive, rates, step]);
+  }, [open, fxDirty, date, today, currency, fxLive, rates, step, kind, initialMode, seed]);
 
   useEffect(() => {
     if (!open || !asset || step === "review") return;
@@ -307,6 +313,8 @@ export function RecordTransactionPanel({
     const sym = asset.symbol;
     const type = asset.assetType;
     let cancel = false;
+    const fetchingClose = date !== today;
+    if (kind === "correction" && fetchingClose && !fxDirty) setFxRate("");
     setHint(date === today ? "Fetching today's price…" : `Fetching the close for ${formatDisplayDate(date)}…`);
     void (async () => {
       if (date === today) {
@@ -413,9 +421,15 @@ export function RecordTransactionPanel({
     setStep("review");
   }
 
+  function failSave(message: string) {
+    setSaveError(message);
+    toast.error(message);
+  }
+
   async function confirm() {
-    if (step !== "review" || !preview || saving || !claimCommit()) return;
+    if (step !== "review" || !preview || saving || !confirmReady || !claimCommit()) return;
     setSaving(true);
+    setSaveError("");
     try {
       if (kind === "sell" && (metalId || held?.metalSourceId)) {
         const id = metalId || held?.metalSourceId;
@@ -429,7 +443,7 @@ export function RecordTransactionPanel({
         const url = `/api/metals/${id}?${params.toString()}`;
         const res = await api.delete(url, { confirm: true });
         if (!res.ok) {
-          toast.error(typeof res.error === "string" ? res.error : "Could not record that sale.");
+          failSave(typeof res.error === "string" ? res.error : "Could not record that sale.");
           return;
         }
         bumpHoldingsGeneration();
@@ -441,7 +455,7 @@ export function RecordTransactionPanel({
       }
       if (kind === "correction") {
         if (!seed?.holdingId) {
-          toast.error("This correction needs the holding it belongs to.");
+          failSave("This correction needs the holding it belongs to.");
           return;
         }
         const res = await api.put(`/api/stocks/${seed.holdingId}`, {
@@ -453,7 +467,7 @@ export function RecordTransactionPanel({
           notes: notes.trim() || undefined,
         });
         if (!res.ok) {
-          toast.error(typeof res.error === "string" ? res.error : "Could not record that correction.");
+          failSave(typeof res.error === "string" ? res.error : "Could not record that correction.");
           return;
         }
         bumpHoldingsGeneration();
@@ -497,7 +511,7 @@ export function RecordTransactionPanel({
       }
       const res = await api.post("/api/transactions", payload);
       if (!res.ok) {
-        toast.error(typeof res.error === "string" ? res.error : "Could not record that transaction.");
+        failSave(typeof res.error === "string" ? res.error : "Could not record that transaction.");
         return;
       }
       if (showQty) bumpHoldingsGeneration();
@@ -532,6 +546,11 @@ export function RecordTransactionPanel({
           <ReviewRow label="Fee" value={formatMoneyWithNzd(preview.feeNative, preview.currency, preview.feeNzd)} />
           <ReviewRow label="Cash change" value={formatSignedMoney(preview.cashChangeNzd)} />
           <ReviewRow label="Cash after" value={formatNzd(preview.cashAfterNzd)} />
+          {saveError ? (
+            <p role="alert" className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-700">
+              {saveError}
+            </p>
+          ) : null}
         </div>
       ) : (
         <div className="space-y-4">
@@ -723,7 +742,16 @@ export function RecordTransactionPanel({
               <Input
                 id="record-fx"
                 inputMode="decimal"
-                value={cashMovement || currency === "NZD" ? "1.0000" : fxRate}
+                value={
+                  kind === "correction" && hint.startsWith("Fetching the close") && !fxDirty
+                    ? ""
+                    : cashMovement || currency === "NZD"
+                      ? "1.0000"
+                      : fxRate
+                }
+                placeholder={
+                  kind === "correction" && hint.startsWith("Fetching the close") && !fxDirty ? "Loading" : undefined
+                }
                 onChange={(e) => {
                   setFxRate(e.target.value);
                   setFxDirty(true);
@@ -795,9 +823,19 @@ export function RecordTransactionPanel({
           </Button>
         ) : null}
         {step === "review" ? (
-          <Button type="button" className="font-semibold" onClick={() => void confirm()} disabled={saving}>
-            {saving ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
-            Confirm
+          <Button
+            type="button"
+            className="font-semibold"
+            onClick={() => void confirm()}
+            disabled={saving || !confirmReady}
+          >
+            {saving ? (
+              <>
+                <Loader2 className="mr-2 size-4 animate-spin" /> Saving…
+              </>
+            ) : (
+              "Confirm"
+            )}
           </Button>
         ) : (
           <Button type="button" className="font-semibold" onClick={review}>

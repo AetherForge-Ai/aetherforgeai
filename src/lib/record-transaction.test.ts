@@ -3,6 +3,7 @@ import {
   formatDisplayDate,
   formatFxInput,
   formatMoney,
+  formatSavedFx,
   formatPriceInput,
   formatQuantity,
   formatSignedMoney,
@@ -410,8 +411,11 @@ describe("server-side movement rejection", () => {
 
 describe("one asset search", () => {
   it("finds PEPE and Uniswap without choosing an asset type first", () => {
-    expect(searchAssets("PEPE").some((hit) => hit.symbol === "PEPE")).toBe(true);
-    expect(searchAssets("uniswap").some((hit) => hit.name === "Uniswap")).toBe(true);
+    const pepe = searchAssets("PEPE");
+    expect(pepe.some((hit) => hit.symbol === "PEPE")).toBe(true);
+    expect(pepe[0]?.market).toBe("DEX");
+    const uni = searchAssets("uniswap");
+    expect(uni.some((hit) => hit.name === "Uniswap" && hit.market === "DEX")).toBe(true);
   });
 });
 
@@ -573,9 +577,12 @@ describe("DEX tokens", () => {
     const quote = readFileSync(path.join(process.cwd(), "src/app/api/tickers/quote/route.ts"), "utf8");
     expect(quote).toContain("dexPriceForSymbol");
     expect(quote).toContain('market !== "dex"');
+    expect(quote).toContain('market === "dex"');
+    expect(quote).toContain("dexQuoteRows");
     const panel = readFileSync(path.join(process.cwd(), "src/components/dashboard/RecordTransactionPanel.tsx"), "utf8");
     expect(panel).toContain('asset.market === "DEX" ? "&market=dex"');
     expect(panel).toContain('if (kind !== "dividend") return found');
+    expect(panel).toContain("Saving…");
   });
 });
 
@@ -583,6 +590,10 @@ describe("display formatters", () => {
   it("shows FX to 4 decimals, dates without a leading zero, and grouped quantities", () => {
     expect(formatFxInput(1.2419490651849387)).toBe("1.2419");
     expect(formatFxInput(1.7788213529715213)).toBe("1.7788");
+    expect(formatSavedFx(1.2419490651849387)).toBe("1.2419");
+    expect(formatSavedFx(null)).toBe("");
+    expect(formatSavedFx(undefined)).toBe("");
+    expect(formatSavedFx("")).toBe("");
     expect(formatDisplayDate("2026-10-04")).toBe("4 Oct 2026");
     expect(formatDisplayDate("2026-10-01")).toBe("1 Oct 2026");
     expect(formatDisplayDate("2026-07-08")).toBe("8 Jul 2026");

@@ -15,7 +15,7 @@
 import "server-only";
 import { totalumSdk } from "@/lib/totalum";
 import type { AppUser } from "@/lib/session";
-import { currencyForTicker, nativeToNzd, ensureNzdPerUsd, ensureNzdPerAud, formatQuantity, type CurrencyCode } from "@/lib/currency";
+import { adaptiveFractionDigits, currencyForTicker, nativeToNzd, ensureNzdPerUsd, ensureNzdPerAud, formatQuantity, type CurrencyCode } from "@/lib/currency";
 import { priceForBooking, ratesForBooking, reviewedFxAllowed } from "@/lib/reviewed-book";
 import { alertsToArchive, positionIsClosed } from "@/lib/alert-lifecycle";
 import { getFxSnapshot, historicalNzdPerUnit } from "@/lib/fx";
@@ -113,6 +113,13 @@ export interface TransactionResult {
 function round(n: number, decimals = 2): number {
   const f = 10 ** decimals;
   return Math.round((n + Number.EPSILON) * f) / f;
+}
+
+/** Keep a sub-cent fill (PEPE) instead of collapsing it at 6 decimals. */
+function roundFillPrice(n: number): number {
+  if (!Number.isFinite(n)) return n;
+  const digits = Math.max(6, adaptiveFractionDigits(Math.abs(n) || 0));
+  return round(n, digits);
 }
 
 /** NZD per 1 unit of the trade currency. Sub-1 quotes are the wrong direction. */
@@ -479,7 +486,7 @@ async function applyTransactionUnlocked(
           : price;
       await totalumSdk.crud.editRecordById("stock", existing._id, {
         shares: nextShares,
-        purchase_price: round(nextAvg, 6),
+        purchase_price: roundFillPrice(nextAvg),
       });
     } else {
       const info = lookupTicker(ticker);
@@ -492,7 +499,7 @@ async function applyTransactionUnlocked(
           info?.sector ||
           (assetType === "crypto" ? "Digital Assets" : assetType === "metal" ? "Precious Metals" : "Other"),
         shares: round(quantity, 6),
-        purchase_price: round(price, 6),
+        purchase_price: roundFillPrice(price),
         purchase_date: executedAt.toISOString(),
         current_price: price,
         user: user._id,
@@ -505,7 +512,7 @@ async function applyTransactionUnlocked(
       asset_name: input.asset_name || existing?.company_name || ticker,
       asset_type: assetType,
       quantity: round(quantity, 6),
-      price: round(price, 6),
+      price: roundFillPrice(price),
       fees: 0,
       total: 0,
       cash_nzd: 0,
@@ -533,8 +540,8 @@ async function applyTransactionUnlocked(
       asset_name: input.asset_name || lookupTicker(ticker)?.name || ticker,
       asset_type: assetType,
       quantity: round(quantity, 6),
-      price: round(price, 6),
-      fill_price: round(price, 6),
+      price: roundFillPrice(price),
+      fill_price: roundFillPrice(price),
       fees: round(fees),
       total: 0,
       realized_pnl: 0,
@@ -696,7 +703,7 @@ async function applyTransactionUnlocked(
       const newAvg = newShares > 0 ? (oldShares * oldAvg + quantity * price + fees) / newShares : price;
       await totalumSdk.crud.editRecordById("stock", holding._id, {
         shares: round(newShares, 6),
-        purchase_price: round(newAvg, 6),
+        purchase_price: roundFillPrice(newAvg),
       });
       holdingId = holding._id;
       console.log(`[transactions] BUY ${quantity} ${ticker} → ${newShares} @ avg ${round(newAvg, 4)} (${currency})`);
@@ -740,7 +747,7 @@ async function applyTransactionUnlocked(
           info?.sector ||
           (assetType === "crypto" ? "Digital Assets" : assetType === "metal" ? "Precious Metals" : "Other"),
         shares: round(quantity, 6),
-        purchase_price: round(avgWithFees, 6),
+        purchase_price: roundFillPrice(avgWithFees),
         purchase_date: executedAt.toISOString(),
         current_price,
         user: user._id,
@@ -780,8 +787,8 @@ async function applyTransactionUnlocked(
       venue: venueForTicker(ticker, assetType),
       asset_id: assetType === "crypto" ? input.coingecko_id || canonicalCryptoId(ticker) : (feed?.providerId || ticker),
       quantity: round(quantity, 6),
-      price: round(price, 6),
-      fill_price: round(price, 6),
+      price: roundFillPrice(price),
+      fill_price: roundFillPrice(price),
       fill_currency: currency,
       signal_price: input.signal_price ?? null,
       mark_price: liveSpot,
@@ -910,7 +917,7 @@ async function applyTransactionUnlocked(
     asset_name: input.asset_name || holding.company_name || ticker,
     asset_type: assetType,
     quantity: round(quantity, 6),
-    price: round(price, 6),
+    price: roundFillPrice(price),
     fees: round(fees),
     fees_native: round(fees),
     fees_nzd: round(nativeToNzd(fees, currency, rates)),
@@ -919,7 +926,7 @@ async function applyTransactionUnlocked(
     realized_price_pnl_nzd: Math.abs(sellFx - lotFx) < 1e-9 ? legacyRealizedNZD : realizedPriceNZD,
     realized_fx_pnl_nzd: Math.abs(sellFx - lotFx) < 1e-9 ? 0 : realizedFxNZD,
     realized_pnl_nzd: realizedBooked,
-    fill_price: round(price, 6),
+    fill_price: roundFillPrice(price),
     fill_currency: currency,
     execution_status: "filled",
     price_source: input.price_source || "user_fill",

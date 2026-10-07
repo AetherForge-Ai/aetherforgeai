@@ -4,8 +4,8 @@ import { fetchCryptoQuotes } from "@/lib/market-data";
 import { getMetalsSpot } from "@/lib/metals";
 import { CANONICAL_CRYPTO_IDS } from "@/lib/crypto-ids";
 import { lookupCryptoId } from "@/lib/crypto-id-registry";
-import { fetchDexTop400 } from "@/lib/crypto-coingecko";
-import { dexPriceForSymbol } from "@/lib/crypto-dex";
+import { dexQuoteRows } from "@/lib/crypto-coingecko";
+import { dexPriceForSymbol } from "@/lib/reviewed-book";
 
 export const dynamic = "force-dynamic";
 
@@ -35,8 +35,8 @@ export async function GET(req: Request) {
       });
     }
 
-    // Crypto path — CoinGecko for the coin list, GeckoTerminal when the row is DEX
-    // or the coin list has no print.
+    // Crypto path — a DEX row uses GeckoTerminal first (as /trust states), then CoinGecko.
+    // Majors stay on the coin list, with GeckoTerminal only when that list has no print.
     if (type === "crypto") {
       const market = (searchParams.get("market") || "").trim().toLowerCase();
       const explicitId = (searchParams.get("id") || "").trim();
@@ -46,8 +46,7 @@ export async function GET(req: Request) {
       // An id from the extended list must not be replaced with a guessed Yahoo print.
       const strict = Boolean(explicitId || (remembered && !knownName));
       let price: number | null = null;
-      // A DEX row prices from GeckoTerminal. A coin-list miss falls through to the same list.
-      if (market !== "dex") {
+      const readCoinList = async (): Promise<number | null> => {
         try {
           const quotes = await fetchCryptoQuotes(
             [symbol],
@@ -55,18 +54,34 @@ export async function GET(req: Request) {
               ? { ids: { [symbol]: coinId }, ...(strict ? { strictCoinGecko: [symbol] } : {}) }
               : undefined
           );
-          price = quotes[symbol]?.price ?? null;
+          return quotes[symbol]?.price ?? null;
         } catch (err) {
           console.error(`[api/tickers/quote] coin price for ${symbol} failed:`, err);
+          return null;
         }
-      }
-      if (!(price != null && price > 0)) {
+      };
+      const readDex = async (): Promise<number | null> => {
         try {
-          const dex = await fetchDexTop400();
-          price = dexPriceForSymbol(symbol, dex.rows);
+          const rows = await dexQuoteRows(symbol);
+          const tagged = coinId
+            ? rows.filter((row) => row.detailId === coinId || row.id === coinId)
+            : [];
+          const taggedPrice = tagged.length ? dexPriceForSymbol(symbol, tagged) : null;
+          return taggedPrice != null && taggedPrice > 0 ? taggedPrice : dexPriceForSymbol(symbol, rows);
         } catch (err) {
           console.error(`[api/tickers/quote] DEX price for ${symbol} failed:`, err);
+          return null;
         }
+      };
+      // A DEX row prices from GeckoTerminal. A coin-list miss falls through to the same list.
+      if (market !== "dex") {
+        price = await readCoinList();
+      }
+      if (!(price != null && price > 0)) {
+        price = await readDex();
+      }
+      if (market === "dex" && !(price != null && price > 0)) {
+        price = await readCoinList();
       }
       console.log(`[api/tickers/quote] (crypto) ${symbol} → ${price ? `$${price} USD` : "no quote"}`);
       return NextResponse.json({
