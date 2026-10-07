@@ -123,7 +123,11 @@ export async function fetchTopCryptos(limit = 100): Promise<CoinMarket[]> {
         price: Number(r.current_price) || 0,
         marketCap: Number(r.market_cap) || 0,
         rank: Number(r.market_cap_rank) || i + 1,
-        change24h: Number(r.price_change_percentage_24h_in_currency ?? r.price_change_percentage_24h ?? 0),
+        change24h: Number(
+          typeof r.price_change_percentage_24h === "number"
+            ? r.price_change_percentage_24h
+            : r.price_change_percentage_24h_in_currency ?? 0
+        ),
         change7d: Number(r.price_change_percentage_7d_in_currency ?? 0),
         change30d: Number(r.price_change_percentage_30d_in_currency ?? 0),
       }));

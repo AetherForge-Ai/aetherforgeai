@@ -37,7 +37,6 @@ export function DexMarketDialog({
   allowBuy?: boolean;
 }) {
   const [rows, setRows] = useState<DexTokenRow[]>([]);
-  const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [refreshTick, setRefreshTick] = useState(0);
@@ -53,14 +52,12 @@ export function DexMarketDialog({
       if (cancelled) return;
       if (initial) setLoading(false);
       if (res.ok && Array.isArray(res.data)) {
-        setRows(res.data);
-        setNotice(typeof res.notice === "string" ? res.notice : null);
+        setRows(res.data.filter((row) => row.price != null && row.price > 0 && !row.priceUnavailable));
         setError(null);
         if (res.data.length < 400) timer = setTimeout(() => void load(false), 2_000);
         return;
       }
       setRows([]);
-      setNotice(null);
       setError(clientFacingError("/api/crypto/dex", res.error || "Live decentralized-token prices are unavailable."));
     }
 
@@ -79,8 +76,7 @@ export function DexMarketDialog({
             <div>
               <DialogTitle>Top Decentralized Exchanges Ranked by 24 Hours of Market</DialogTitle>
               <DialogDescription>
-                Live pool prices for decentralized tokens. A missing print is unavailable.
-                {notice ? ` ${notice}` : ""}
+                Live pool prices for decentralized tokens.
               </DialogDescription>
             </div>
             <Button
@@ -127,10 +123,10 @@ export function DexMarketDialog({
                       </Link>
                       <span className="ml-2 text-muted-foreground">{row.name}</span>
                     </td>
-                    <td className="py-2 pr-3 text-muted-foreground">{row.network || "Unavailable"}</td>
-                    <td className="tnum py-2 text-right">
-                      {row.priceUnavailable || !(row.price != null && row.price > 0) ? "Unavailable" : fmtPrice(row.price)}
+                    <td className="py-2 pr-3 text-muted-foreground">
+                      {row.network && row.network !== "Unavailable" ? row.network : ""}
                     </td>
+                    <td className="tnum py-2 text-right">{fmtPrice(row.price)}</td>
                   </tr>
                 ))}
               </tbody>

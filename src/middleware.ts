@@ -16,8 +16,6 @@ import {
   isProtectedAccountApi,
   requestHasSessionToken,
 } from "@/lib/session-owner";
-import { SECURITY_HEADERS } from "@/lib/security-headers";
-
 const isProduction = process.env.NODE_ENV === "production";
 const appUrl = process.env.NEXT_PUBLIC_APP_URL || "";
 // Extract origin from app URL (e.g. "https://my-app.com" from "https://my-app.com/")
@@ -106,15 +104,6 @@ function addCorsHeaders(response: NextResponse, request: NextRequest) {
   return response;
 }
 
-// HSTS, nosniff, referrer policy, and frame-ancestors for this site plus the Totalum editor.
-function addCspHeaders(response: NextResponse) {
-  for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
-    response.headers.set(key, value);
-  }
-  response.headers.delete("X-Frame-Options");
-  return response;
-}
-
 function applyHeaderMap(response: NextResponse, headers: Record<string, string>) {
   for (const [key, value] of Object.entries(headers)) {
     if (key.toLowerCase() === "vary") {
@@ -191,7 +180,7 @@ function stripLeakedAuthCookies(
 function finish(response: NextResponse, request: NextRequest, signedIn: boolean) {
   const { pathname } = request.nextUrl;
   addCorsHeaders(response, request);
-  addCspHeaders(response);
+  // HSTS, CSP, nosniff and Referrer-Policy are set once in next.config.ts headers().
   applyCachePolicy(response, pathname);
   stripLeakedAuthCookies(response, pathname, request.method, signedIn);
   // After the strip, so the clearing Set-Cookie is what the browser stores.

@@ -14,7 +14,7 @@ import {
   type DexStoredPage,
   type DexTokenRow,
 } from "@/lib/crypto-dex";
-import { LIVE_CRYPTO_UNAVAILABLE, rankedFallbackPage, type CoinMarket } from "@/lib/crypto-market";
+import { LIVE_CRYPTO_UNAVAILABLE, coingeckoRolling24h, rankedFallbackPage, type CoinMarket } from "@/lib/crypto-market";
 
 function coin(partial: Partial<CoinMarket> & Pick<CoinMarket, "symbol" | "price">): CoinMarket {
   return {
@@ -102,7 +102,7 @@ describe("client JSON guard", () => {
 });
 
 describe("ranked fallback prices", () => {
-  it("keeps a live print, drops a missing one, and labels the chain Unavailable", () => {
+  it("keeps a live print, drops a missing one, and leaves a missing chain blank", () => {
     const page = rankedFallbackPage([
       coin({ symbol: "BTC", price: 86000, rank: 1 }),
       coin({ symbol: "ZERO", price: 0, rank: 2, priceUnavailable: true }),
@@ -110,10 +110,13 @@ describe("ranked fallback prices", () => {
     ]);
     expect(page.coins.map((row) => row.symbol)).toEqual(["BTC", "ETH"]);
     expect(page.coins[0].price).toBe(86000);
-    expect(page.coins[0].blockchain).toBe("Unavailable");
+    expect(page.coins[0].blockchain).toBe("");
     expect(page.coins[1].blockchain).toBe("Native");
     expect(page.coins.some((row) => row.price === 0)).toBe(false);
-    expect(page.notice).toBe("Further rows are unavailable.");
+    expect(page.notice).toBeNull();
+    expect(page.coins.some((row) => row.blockchain === "Unavailable")).toBe(false);
+    expect(coingeckoRolling24h({ price_change_percentage_24h: -6.4, price_change_percentage_24h_in_currency: -12.35 })).toBe(-6.4);
+    expect(coingeckoRolling24h({ price_change_percentage_24h_in_currency: { usd: -6.1 } })).toBe(-6.1);
   });
 });
 

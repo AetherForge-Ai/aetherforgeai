@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { formatSavedFx } from "@/lib/currency";
 import { getStableSessionUser } from "@/lib/session";
 import { canExportCsv } from "@/lib/entitlements";
 import { loadLedger, type TransactionRow } from "@/lib/transactions";
@@ -40,7 +41,7 @@ function rowCells(t: TransactionRow): string[] {
     extra.fees_native ?? t.fees ?? "",
     extra.fees_nzd ?? "",
     extra.native_notional ?? (t.quantity && t.price ? t.quantity * t.price : ""),
-    extra.fx_rate ?? "",
+    formatSavedFx(extra.fx_rate),
     String(extra.fx_source || ""),
     extra.cash_nzd ?? t.total ?? "",
     extra.realized_price_pnl_nzd ?? "",

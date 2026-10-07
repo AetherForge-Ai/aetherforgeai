@@ -67,13 +67,15 @@ export async function fetchYahooCryptoQuote(
   const r = j?.chart?.result?.[0];
   if (!r) return null;
   const price = Number(r.meta?.regularMarketPrice);
-  const prev = Number(r.meta?.chartPreviousClose ?? r.meta?.previousClose);
   if (!(price > 0)) return null;
   const closes: number[] = (r.indicators?.quote?.[0]?.close || []).filter(
     (n: unknown): n is number => typeof n === "number" && isFinite(n) && n > 0
   );
-  const prior = closes.length >= 2 ? closes[closes.length - 2] : prev;
-  const changePct = prior > 0 ? ((price - prior) / prior) * 100 : prev > 0 ? ((price - prev) / prev) * 100 : 0;
+  // regularMarketChangePercent is Yahoo's rolling day. chartPreviousClose on this
+  // 7d request is the start of the week (TON printed about −12% against a −6% day).
+  // The CoinGecko id the-open-network is the right asset; the window was not.
+  const reported = Number(r.meta?.regularMarketChangePercent);
+  const changePct = Number.isFinite(reported) ? reported : 0;
   return { price, changePct, change7d: sevenDayReturnPct(closes), sparkline7d: closes };
 }
 

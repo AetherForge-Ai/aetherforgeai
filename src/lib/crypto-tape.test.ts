@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { dailyCloses, loadCryptoBoard, settleCryptoRows } from "./crypto-tape";
+import { dailyCloses, loadCryptoBoard, selectKoinsUniverse, settleCryptoRows } from "./crypto-tape";
 
 describe("crypto tape", () => {
   it("hides a row when only a fallback answers and logs it", () => {
@@ -51,11 +51,32 @@ describe("crypto tape", () => {
 
   it("is the price and history service for both public crypto routes", () => {
     const read = (rel: string) => readFileSync(path.join(process.cwd(), rel), "utf8");
-    expect(read("src/app/api/market/route.ts")).toContain("loadCryptoBoardLive");
-    expect(read("src/app/api/market/route.ts")).toContain("filterPublishedCrypto");
+    const market = read("src/app/api/market/route.ts");
+    const tape = read("src/lib/crypto-tape.ts");
+    expect(market).toContain("loadCryptoBoardLive");
+    expect(market).toContain("filterPublishedCrypto");
+    expect(market).toContain("selectKoinsUniverse");
+    expect(market).toContain("CRYPTO_PROJECTIONS_PAUSED");
+    expect(tape).not.toContain("fetchYahooCryptoLiveQuotes");
+    expect(tape).toContain("fallbackPrices: async () => ({})");
     expect(read("src/app/api/projections/route.ts")).toContain("loadCryptoBoardLive");
     expect(read("src/app/api/projections/route.ts")).not.toContain("fetchCryptoMarketIntel");
     expect(read("src/lib/projection-pause.ts")).toContain("CRYPTO_PROJECTIONS_PAUSED = true");
+  });
+
+  it("publishes no Koins rows while the hand-check is open or the live board is empty", () => {
+    const row = { ticker: "BTC", price: 84000, projected7dPct: 4, confidence: 70 };
+    expect(selectKoinsUniverse({ paused: true, quotes: { BTC: 84000 }, rows: [row] })).toEqual([]);
+    expect(selectKoinsUniverse({ paused: false, quotes: {}, rows: [row] })).toEqual([]);
+    expect(
+      selectKoinsUniverse({
+        paused: false,
+        quotes: { BTC: 84000 },
+        rows: [row],
+        histories: { BTC: [80000, 84000] },
+        change24h: { BTC: 5 },
+      })
+    ).toEqual([row]);
   });
 
   it("drops a row when price, support, or low is not positive", () => {

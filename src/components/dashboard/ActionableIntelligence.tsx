@@ -118,11 +118,15 @@ export function ActionableIntelligence({
   const snapshots = useMemo(() => {
     const held = new Set(stocks.map((s) => s.ticker.toUpperCase()));
     return (combinedUniverse || [])
-      .filter((row) => row.market !== "CRYPTO" && row.assetClass !== "crypto")
+      .filter((row) =>
+        assetClass === "crypto"
+          ? row.market === "CRYPTO" || row.assetClass === "crypto"
+          : row.market !== "CRYPTO" && row.assetClass !== "crypto"
+      )
       .filter((row) => !held.has(row.ticker.toUpperCase()))
       .sort((a, b) => b.score - a.score)
       .slice(0, 12);
-  }, [combinedUniverse, stocks]);
+  }, [combinedUniverse, stocks, assetClass]);
 
   const [snapshotsMinimized, setSnapshotsMinimized] = useState(false);
 
@@ -140,7 +144,9 @@ export function ActionableIntelligence({
         <div>
           <h2 className="font-display text-lg font-bold">Market snapshots</h2>
           <p className="text-xs text-muted-foreground">
-            Technical snapshots from your holdings and the wider share universe. Not personalised advice — you execute elsewhere.
+            {assetClass === "crypto"
+              ? "Technical snapshots from your coins and the wider crypto market. Not personalised advice — you execute elsewhere."
+              : "Technical snapshots from your holdings and the wider share universe. Not personalised advice — you execute elsewhere."}
           </p>
         </div>
       </div>
@@ -223,7 +229,7 @@ export function ActionableIntelligence({
               <ArrowUpRight className="size-4 shrink-0" />
               <span className="truncate">Market snapshots</span>
               <span className="hidden text-xs font-normal text-muted-foreground sm:inline">
-                (not held · NZX · ASX · DJIA · NASDAQ)
+                {assetClass === "crypto" ? "(not held · crypto)" : "(not held · NZX · ASX · DJIA · NASDAQ)"}
               </span>
               <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[0.65rem] font-semibold text-emerald-700">
                 {snapshots.length}
@@ -264,7 +270,7 @@ export function ActionableIntelligence({
               <div className="border-t border-border/60 px-4 pb-4 pt-3 sm:px-5 sm:pb-5">
                 {snapshots.length === 0 ? (
                   <p className="py-6 text-center text-sm text-muted-foreground">
-                    No share-market snapshots right now.
+                    {assetClass === "crypto" ? "No crypto snapshots right now." : "No share-market snapshots right now."}
                   </p>
                 ) : (
                   <div className="space-y-3">
