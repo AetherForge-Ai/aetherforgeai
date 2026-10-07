@@ -3,6 +3,7 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { BrandLogo } from "@/components/BrandLogo";
 import { PAPER_FEE_SUMMARY } from "@/lib/fee-rule";
 import { publicPageMetadata } from "@/lib/reviewed-book";
+import { PUBLIC_DATA_SOURCES_LINE } from "@/lib/data-sources";
 
 export const metadata = publicPageMetadata("/trust", {
   title: "How the books work · AetherForge AI",
@@ -32,9 +33,8 @@ export default function TrustPage() {
           <section className="mt-8 space-y-2">
             <h2 className="font-display text-lg font-bold">Where prices come from</h2>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              Share prices use public market data. The coin list uses CoinGecko. DEX tokens use GeckoTerminal. Gold and
-              silver use a published spot price, shown in NZ dollars per ounce. Exchange rates use a daily FX feed. A past
-              date suggests that day’s close and that day’s rate. You can type over either figure before you confirm.
+              {PUBLIC_DATA_SOURCES_LINE} A past date suggests that day’s close and that day’s rate. You can type over
+              either figure before you confirm.
             </p>
           </section>
 

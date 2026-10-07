@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { api } from "@/lib/api";
 import { clientFacingError } from "@/lib/api-json";
+import { PUBLIC_COIN_SOURCE_LINE, publicCoinDescription } from "@/lib/data-sources";
 import { cn } from "@/lib/utils";
 import { TickerAnalysisPane } from "@/components/dashboard/TickerAnalysisPane";
 import { BuyDialog, type BuyTarget } from "@/components/dashboard/BuyDialog";
@@ -380,7 +381,7 @@ export function CoinDetailView({
           </ResponsiveContainer>
         ) : (
           <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-border/60 text-xs text-muted-foreground">
-            <BarChart3 className="mr-2 size-4" /> Price history unavailable
+            <BarChart3 className="mr-2 size-4" /> Price history is not shown for this range
           </div>
         )}
       </div>
@@ -448,7 +449,7 @@ export function CoinDetailView({
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             About {detail.name}
           </p>
-          <p className="text-sm leading-relaxed text-muted-foreground">{detail.description}</p>
+          <p className="text-sm leading-relaxed text-muted-foreground">{publicCoinDescription(detail.description)}</p>
           <div className="mt-3 flex flex-wrap gap-2">
             {detail.homepage && (
               <a href={detail.homepage} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-lg border border-border/60 bg-background/40 px-2.5 py-1 text-xs hover:border-primary/40">
@@ -489,7 +490,7 @@ export function CoinDetailView({
       )}
 
       <p className="mt-4 text-center text-[0.62rem] text-muted-foreground">
-        Data via Swyftx (may be delayed up to ~60s)
+        {PUBLIC_COIN_SOURCE_LINE}
       </p>
     </>
   );
