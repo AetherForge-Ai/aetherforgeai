@@ -8,7 +8,7 @@
  * stale rates. Results are cached in-memory for the process lifetime (TTL).
  */
 
-import { BASELINE_FX_TO_NZD, normalizeFxRates, type FxRatesToNZD } from "./currency";
+import { BASELINE_FX_TO_NZD, normalizeFxRates, type CurrencyCode, type FxRatesToNZD } from "./currency";
 
 export interface FxSnapshot {
   ratesToNZD: FxRatesToNZD;
@@ -56,6 +56,30 @@ async function fetchLiveRatesToNZD(): Promise<FxRatesToNZD> {
     AUD: 1 / audPerNzd,
     USD: 1 / usdPerNzd,
   });
+}
+
+/**
+ * NZD per 1 unit of currency on a past trade date (Frankfurter).
+ * Null when the day is missing or the feed has no print. Today's snapshot is separate.
+ */
+export async function historicalNzdPerUnit(
+  currency: CurrencyCode,
+  day: string | null | undefined
+): Promise<number | null> {
+  if (currency === "NZD") return 1;
+  if (!day || !/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
+  try {
+    const res = await fetch(`https://api.frankfurter.app/${day}?from=${currency}&to=NZD`, {
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return null;
+    const json = (await res.json()) as { rates?: { NZD?: number } };
+    const rate = Number(json?.rates?.NZD);
+    return rate > 0 && Number.isFinite(rate) ? rate : null;
+  } catch (err) {
+    console.error("[fx] Historical rate lookup failed:", err);
+    return null;
+  }
 }
 
 /**

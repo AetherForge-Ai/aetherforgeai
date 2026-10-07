@@ -18,6 +18,44 @@ export function priceForBooking(submitted: number, _liveSpot?: number | null): n
   return Number(submitted) || 0;
 }
 
+/** A client FX rate may sit this far from the snapshot or the trade-date rate. */
+export const REVIEWED_FX_BAND = 0.05;
+
+export const REVIEWED_FX_REJECTED =
+  "That exchange rate is too far from the market rate for this trade date. Use a rate within 5% of it.";
+
+function directedFx(currency: CurrencyCode, rate: number): number {
+  if (currency === "USD") return ensureNzdPerUsd(rate);
+  if (currency === "AUD") return ensureNzdPerAud(rate);
+  return rate;
+}
+
+function withinBand(reviewed: number, reference: number): boolean {
+  if (!(reference > 0) || !Number.isFinite(reference)) return false;
+  return Math.abs(reviewed - reference) / reference <= REVIEWED_FX_BAND;
+}
+
+/**
+ * A reviewed FX rate is booked only when it is within 5% of today's snapshot
+ * or the historical rate for that trade date. NZD and a blank rate are left alone.
+ */
+export function reviewedFxAllowed(input: {
+  currency: CurrencyCode;
+  reviewed: number | null | undefined;
+  snapshot: number;
+  historical?: number | null;
+}): { ok: true } | { ok: false; message: string } {
+  if (input.currency === "NZD") return { ok: true };
+  const raw = Number(input.reviewed);
+  if (!(raw > 0) || !Number.isFinite(raw)) return { ok: true };
+  const reviewed = directedFx(input.currency, raw);
+  const references = [input.snapshot, input.historical]
+    .filter((rate): rate is number => typeof rate === "number" && rate > 0 && Number.isFinite(rate))
+    .map((rate) => directedFx(input.currency, rate));
+  if (!references.length || references.some((rate) => withinBand(reviewed, rate))) return { ok: true };
+  return { ok: false, message: REVIEWED_FX_REJECTED };
+}
+
 /**
  * FX table for the cash movement. The reviewed NZD-per-unit rate replaces
  * the snapshot for that currency, so a back-dated trade keeps the rate on screen.
