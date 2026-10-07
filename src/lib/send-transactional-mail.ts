@@ -1,24 +1,32 @@
 import "server-only";
+import type { EmailPayloadI } from "totalum-api-sdk";
 import { totalumSdk } from "@/lib/totalum";
-import { prepareOutboundMail, type OutboundMail, type PreparedMail } from "@/lib/transactional-mail";
+import { prepareOutboundMail, type OutboundMail } from "@/lib/transactional-mail";
 
 /**
- * Sends one transactional message with both the HTML part (`html`, the field
- * EmailPayloadI actually posts) and a plain-text part (`text`).
+ * Posts one message using only documented EmailPayloadI fields.
+ * `text` is kept off the payload. sendEmail does not throw: a missing result
+ * or `errors` is a failure so callers do not log a send that Totalum rejected.
  */
 export async function sendTransactionalEmail(mail: OutboundMail) {
-  const prepared: PreparedMail = prepareOutboundMail(mail);
-  const payload = {
+  const prepared = prepareOutboundMail(mail);
+  const payload: EmailPayloadI = {
     to: prepared.to,
     subject: prepared.subject,
     html: prepared.html,
-    text: prepared.text,
     ...(prepared.fromName ? { fromName: prepared.fromName } : {}),
     ...(prepared.replyTo ? { replyTo: prepared.replyTo } : {}),
     ...(prepared.cc ? { cc: prepared.cc } : {}),
     ...(prepared.bcc ? { bcc: prepared.bcc } : {}),
     ...(prepared.attachments ? { attachments: prepared.attachments } : {}),
-    ...(prepared.from ? { from: prepared.from } : {}),
   };
-  return totalumSdk.email.sendEmail(payload);
+  const result = await totalumSdk.email.sendEmail(payload);
+  if (result == null) {
+    throw new Error("Email sender returned no result.");
+  }
+  if (result.errors) {
+    const message = result.errors.errorMessage?.trim();
+    throw new Error(message || "Email sender rejected the message.");
+  }
+  return result;
 }

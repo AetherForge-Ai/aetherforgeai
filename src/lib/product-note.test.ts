@@ -370,7 +370,7 @@ describe("product note sender", () => {
     const deliver = live.slice(live.indexOf("export async function deliverProductNote"));
     expect(deliver.indexOf("productNoteSendingEnabled()")).toBeGreaterThan(-1);
     expect(deliver.indexOf("productNoteSendingEnabled()")).toBeLessThan(deliver.indexOf("sendTransactionalEmail"));
-    expect(deliver).toContain("text: message.text");
+    expect(deliver).not.toContain("text:");
     expect(readFileSync("wrangler.jsonc", "utf8")).not.toContain("crons");
     expect(readFileSync("src/app/api/cron/product-notes/route.ts", "utf8")).toContain("No cron trigger is installed");
   });

@@ -1,14 +1,13 @@
 /**
  * Bodies for Totalum `email.sendEmail`.
  *
- * totalum-api-sdk 3.0.8 `EmailPayloadI` (EmailService.d.ts) names the HTML
- * field `html` and has no `text` field. `EmailService.sendEmail` still posts
- * the whole object, so a `text` property is delivered beside `html`.
+ * totalum-api-sdk 3.0.8 `EmailPayloadI` posts `html` and does not define
+ * `text`. The plain-text string built here is for tests and for checking the
+ * body is non-empty. The sender must not post it.
  *
  * Inline `style` attributes are stripped before delivery (see
- * totalum-docs/totalum-sdk/10-send-emails.md). The verification and reset
- * templates were only those attributes, with no plain-text part, so the
- * message that arrived was `text/plain` with an empty body.
+ * totalum-docs/totalum-sdk/10-send-emails.md). The verification HTML therefore
+ * uses headings, paragraphs, and a visible copy of the absolute URL.
  */
 
 export interface MailAttachment {
@@ -27,7 +26,10 @@ export interface OutboundMail {
   cc?: string[];
   bcc?: string[];
   attachments?: MailAttachment[];
-  /** Posted for the product note. The SDK type list does not include it. */
+  /**
+   * Checked by the product-note sender. EmailPayloadI does not define it,
+   * so it is not posted.
+   */
   from?: string;
 }
 

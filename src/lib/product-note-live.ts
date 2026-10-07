@@ -285,9 +285,9 @@ export async function loadRegisteredRecipients(): Promise<{ email: string }[]> {
 /**
  * Hands one note to the existing mail sender.
  * Refuses unless the switch is on, so a direct call cannot send by accident.
- * The SDK documents fromName and replyTo. `from` is also posted so the admin
- * mailbox is requested; the platform type list does not include that field.
- * `text` is the plain part. The note already renders one.
+ * The SDK documents fromName and replyTo. `from` is checked here and is not
+ * posted: EmailPayloadI does not include it. The plain-text note stays on the
+ * message and is not posted either.
  */
 export async function deliverProductNote(message: OutboundProductNote): Promise<void> {
   if (!productNoteSendingEnabled()) {
@@ -300,10 +300,8 @@ export async function deliverProductNote(message: OutboundProductNote): Promise<
     to: [message.to],
     subject: message.subject,
     html: message.html,
-    text: message.text,
     fromName: message.fromName,
     replyTo: message.replyTo,
-    from: message.from,
   });
   if (!reportEmailWasDelivered(result)) {
     throw new Error("Product note was not accepted by the mail sender.");
