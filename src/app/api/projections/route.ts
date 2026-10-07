@@ -5,6 +5,8 @@ import {
   fetchHistoriesForAssetClass,
   isLiveConfiguredFor,
 } from "@/lib/market-data";
+import { loadCryptoBoardLive } from "@/lib/crypto-tape";
+import { CRYPTO_PROJECTION_HAND_CHECK } from "@/lib/crypto-vendors";
 import { assembleEquityProjections } from "@/lib/projection-pause";
 import { toPublicMarketRecord } from "@/lib/public-intel";
 
@@ -17,8 +19,9 @@ export const dynamic = "force-dynamic";
  * across the COMPLETE investable universe:
  *   • Equities — the full NZX + ASX + NASDAQ + DOW JONES universe, anchored to
  *     live prices + real 30-day histories.
- * Crypto rows are omitted. The Crypto tab shows a pause message until coin
- * history and the live price come from one checked source.
+ * Crypto uses the same price and history service as /api/market?bot=crypto.
+ * Those rows stay off this board until the 10-coin hand-check is done
+ * (BTC, ETH, SOL, BNB, XRP, ARB, TON, JUP, UNI, APT).
  * It then ranks equities by projected 7-day % increase (highest → lowest)
  * and returns the TOP 50, each still carrying its own `market`.
  *
@@ -47,6 +50,16 @@ export async function GET() {
       stockLive = Object.keys(overrides).length > 0 || Object.keys(histories).length > 0;
     }
     const stockUniverse = analyzeUniverse(overrides, "stock", histories);
+
+    // Same tape as the crypto market bot. The board stays paused, so the
+    // prints are checked and logged, then left off the ranking.
+    const cryptoTickers = Array.from(
+      new Set([...universeFor("crypto").map((row) => row.ticker), ...CRYPTO_PROJECTION_HAND_CHECK])
+    );
+    await loadCryptoBoardLive(cryptoTickers).catch((err) => {
+      console.error("[api/projections] Crypto tape failed:", err);
+      return null;
+    });
     const ranked = assembleEquityProjections(stockUniverse);
     const publish = <T,>(rows: T[]) =>
       rows.map((row) => toPublicMarketRecord(row as unknown as Record<string, unknown>));

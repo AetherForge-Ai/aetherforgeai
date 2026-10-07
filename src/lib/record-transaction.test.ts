@@ -16,7 +16,7 @@ import { paperFeeNZD } from "@/lib/report-topup";
 import { planSellFeeBackfill } from "@/lib/sell-fee-backfill";
 import { dexSearchHits, searchAssets } from "@/lib/asset-search";
 import { dexPriceForSymbol, type DexTokenRow } from "@/lib/crypto-dex";
-import { openingFx, priceForBooking, publicPageMetadata, ratesForBooking } from "@/lib/reviewed-book";
+import { openingFx, priceForBooking, publicPageMetadata, ratesForBooking, reviewedFxAllowed } from "@/lib/reviewed-book";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { assessMovement, transactionProblems } from "@/lib/transaction-rules";
@@ -499,6 +499,31 @@ describe("reviewed figures are the figures that are saved", () => {
     expect(panel).toContain("payload.fx_rate = preview.fxRate");
     expect(panel).toContain("purchase_price: preview.priceNative");
     expect(panel).not.toContain("payload.price = Number(price)");
+  });
+});
+
+describe("reviewed FX stays near the market rate", () => {
+  it("books a back-dated rate within 5% of that day's rate", () => {
+    const allowed = reviewedFxAllowed({
+      currency: "AUD",
+      reviewed: 1.22,
+      snapshot: 1.7,
+      historical: 1.2,
+    });
+    expect(allowed.ok).toBe(true);
+    expect(priceForBooking(9.52, 9.55)).toBe(9.52);
+    expect(ratesForBooking("AUD", 1.22, { NZD: 1, USD: 1.7, AUD: 1.7 }).AUD).toBe(1.22);
+  });
+
+  it("rejects a rate that matches neither the snapshot nor the trade date", () => {
+    const rejected = reviewedFxAllowed({
+      currency: "USD",
+      reviewed: 1.1,
+      snapshot: 1.7,
+      historical: 1.2,
+    });
+    expect(rejected.ok).toBe(false);
+    if (!rejected.ok) expect(rejected.message).toMatch(/within 5%/);
   });
 });
 

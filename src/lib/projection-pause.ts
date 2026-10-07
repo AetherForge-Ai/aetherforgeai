@@ -1,6 +1,7 @@
 /**
- * Crypto projections stay off until the coin history and live price agree.
- * This is the projections layer only. It does not call or change the crypto price service.
+ * Crypto projections stay paused until the owner finishes the 10-coin hand-check
+ * in crypto-vendors.ts (BTC, ETH, SOL, BNB, XRP, ARB, TON, JUP, UNI, APT).
+ * Do not set CRYPTO_PROJECTIONS_PAUSED to false before that check.
  */
 
 export const CRYPTO_PROJECTIONS_PAUSED = true;

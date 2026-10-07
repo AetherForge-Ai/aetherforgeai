@@ -3,6 +3,8 @@
  * Used by live quotes, fill-integrity spot lookup, and repair tooling.
  */
 
+import { vendorFor } from "@/lib/crypto-vendors";
+
 export type FeedKind = "yahoo" | "coingecko" | "metals" | "swyftx";
 
 export interface FeedMapEntry {
@@ -39,5 +41,17 @@ export const FEED_MAPPING: FeedMapEntry[] = [
 
 export function feedEntryForTicker(ticker: string): FeedMapEntry | undefined {
   const t = (ticker || "").toUpperCase().trim();
+  const vendor = vendorFor(t);
+  if (vendor) {
+    return {
+      ticker: vendor.ticker,
+      name: vendor.name,
+      asset_type: "crypto",
+      feed: "coingecko",
+      providerId: vendor.coingecko,
+      currency: "USD",
+      notes: "USD per 1 whole token",
+    };
+  }
   return FEED_MAPPING.find((e) => e.ticker === t);
 }
