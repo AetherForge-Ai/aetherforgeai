@@ -65,6 +65,7 @@ const publicRoutes = [
   "/privacy-policy",
   "/terms-of-service",
   "/ai-disclaimer",
+  "/trust",
   "/free-trial",
   "/chat", // Market Assistant — guests see a sign-in prompt; members are not sent to pricing
   "/own-the-bots",

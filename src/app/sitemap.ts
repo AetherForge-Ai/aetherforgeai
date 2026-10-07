@@ -14,6 +14,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     "/privacy-policy",
     "/terms-of-service",
     "/ai-disclaimer",
+    "/trust",
     "/docs",
     "/blog",
     "/tax",
