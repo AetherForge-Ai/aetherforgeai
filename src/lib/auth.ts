@@ -395,9 +395,13 @@ export const auth = betterAuth({
             throw new APIError("BAD_REQUEST", { message: SIGNUP_CONSENT_ERROR });
           }
           const consent = consentFields();
+          const recordWithCountry = user as typeof user & { country?: unknown };
+          // TODO(owner): Totalum user.country must exist for the signup country to persist.
+          // createUserWithConsentFallback drops country when that column is missing.
           return {
             data: {
               ...user,
+              country: typeof recordWithCountry.country === "string" ? recordWithCountry.country : undefined,
               age_confirmed: consent.age_confirmed,
               terms_accepted_at: consent.terms_accepted_at,
               terms_version: consent.terms_version || TERMS_VERSION,

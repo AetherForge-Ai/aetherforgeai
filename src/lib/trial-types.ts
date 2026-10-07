@@ -98,7 +98,7 @@ export interface TrialReport {
   mode: string;
   title: string;
   marketLabel: string;
-  scopeLabel: string; // "Top 100 cryptocurrencies" | "Entire NZX + ASX market"
+  scopeLabel: string;
   generatedAtLabel: string;
   dataLive: boolean;
   executiveSummary: string;

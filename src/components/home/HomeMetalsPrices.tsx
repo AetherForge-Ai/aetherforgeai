@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { formatMoney, formatFxAsOf } from "@/lib/currency";
+import { formatMoney } from "@/lib/currency";
+import { metalUpdatedPhrase } from "@/lib/market-freshness";
 
 interface MetalSpot {
   usdPerOz: number;
@@ -14,6 +15,7 @@ interface MetalsSpot {
   silver: MetalSpot;
   live: boolean;
   asOf: string;
+  quotedAt?: string | null;
 }
 
 /**
@@ -41,8 +43,12 @@ export function HomeMetalsPrices() {
     };
   }, []);
 
-  const stamp = spot?.asOf ? formatFxAsOf(spot.asOf) : "";
-  const status = !spot ? (failed ? "Spot prices failed to load." : "Loading spot prices…") : spot.live ? "Live" : "Estimated";
+  const updated = spot?.live ? metalUpdatedPhrase(spot.quotedAt) : null;
+  const status = !spot
+    ? failed
+      ? "Spot prices failed to load."
+      : "Loading spot prices…"
+    : updated ?? (spot.live ? "Spot" : "Estimated");
 
   return (
     <div className="mx-auto mt-6 grid w-full max-w-xl gap-3 sm:grid-cols-2">
@@ -73,7 +79,7 @@ export function HomeMetalsPrices() {
         );
       })}
       <p className="sm:col-span-2 text-center text-xs text-muted-foreground">
-        {spot ? `${status}${stamp ? ` · ${stamp}` : ""}` : status}
+        {status}
       </p>
     </div>
   );

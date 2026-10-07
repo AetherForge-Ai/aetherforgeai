@@ -28,4 +28,15 @@ describe("onboardingProgress", () => {
     expect(progress.completed).toBe(3);
     expect(progress.finished).toBe(true);
   });
+
+  it("replaces Headmaster for Free and Starter with a holding step they can finish", () => {
+    const free = onboardingProgress({ hasHoldings: true, hasAlerts: false, hasReport: false, plan: "free" });
+    expect(free.steps.some((step) => step.id === "headmaster")).toBe(false);
+    expect(free.steps.find((step) => step.id === "holding")).toMatchObject({ done: true, optional: true });
+    expect(free.steps.some((step) => step.id === "alerts")).toBe(false);
+    const starter = onboardingProgress({ hasHoldings: false, plan: "starter_monthly" });
+    expect(starter.steps.find((step) => step.id === "holding")?.done).toBe(false);
+    const pro = onboardingProgress({ hasHoldings: false, plan: "pro_monthly" });
+    expect(pro.steps.find((step) => step.id === "headmaster")?.optional).toBe(true);
+  });
 });

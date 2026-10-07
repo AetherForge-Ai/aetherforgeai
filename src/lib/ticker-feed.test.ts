@@ -48,7 +48,17 @@ describe("single live ticker tape", () => {
     });
 
     expect(feed.live).toEqual({ equities: true, crypto: true });
-    expect(tickerLiveLabel(feed)).toBe("LIVE");
+    expect(tickerLiveLabel(feed)).toBeNull();
+    expect(
+      tickerLiveLabel({
+        ...feed,
+        rows: {
+          ...feed.rows,
+          crypto: feed.rows.crypto.map((row) => ({ ...row, quotedAt: new Date().toISOString() })),
+        },
+      })
+    ).toBe("LIVE");
+    expect(tickerLiveLabel({ live: { crypto: false, equities: true } })).toBeNull();
     expect(feed.providers).toEqual({ equities: "Yahoo Finance", crypto: "CoinGecko" });
     expect(feed.asOf).toBe(AS_OF);
     expect(feed.rows.nzx.map((row) => [row.symbol, row.price])).toEqual([

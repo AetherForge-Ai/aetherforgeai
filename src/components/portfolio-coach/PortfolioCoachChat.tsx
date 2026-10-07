@@ -253,7 +253,7 @@ export function PortfolioCoachChat({
       setBookLoading(false);
       if (s.isEmpty) {
         setHeadmasterPlan(
-          "Headmaster snapshot: book is empty. Guide the member to deposit cash and add holdings first."
+          "Headmaster snapshot: book is empty. Guide the member to add holdings or cash first."
         );
         return;
       }

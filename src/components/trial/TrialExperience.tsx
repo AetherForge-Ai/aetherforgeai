@@ -41,8 +41,8 @@ const CRYPTO_SUGGEST = ["BTC", "ETH", "SOL", "XRP", "ADA", "DOGE", "AVAX", "LINK
 const STOCK_SUGGEST = ["AIR.NZ", "FPH.NZ", "SPK.NZ", "MEL.NZ", "BHP.AX", "CBA.AX", "CSL.AX", "FMG.AX"];
 
 const CRYPTO_STAGES = [
-  "Connecting to the top-100 crypto market feed…",
-  "Sweeping 24h / 7d / 30d performance across all 100 majors…",
+  "Connecting to the crypto market feed…",
+  "Sweeping 24h / 7d / 30d performance across the largest coins by market cap…",
   "Pulling 12-month price history for your assets…",
   "Scanning worldwide crypto news wires…",
   "Running the momentum and mean-reversion models…",
@@ -204,7 +204,7 @@ export function TrialExperience({ userName }: { userName?: string }) {
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Bot is processing {filledSymbols.join(", ")} against{" "}
-            {asset === "crypto" ? "the top 100 cryptocurrencies" : "the entire NZX + ASX market"}.
+            {asset === "crypto" ? "the largest coins by market cap" : "the entire NZX + ASX market"}.
           </p>
 
           <ul className="mx-auto mt-7 max-w-md space-y-2 text-left">
@@ -273,7 +273,7 @@ export function TrialExperience({ userName }: { userName?: string }) {
             </span>
             <span>
               <span className="block text-sm font-semibold">Crypto bot</span>
-              <span className="block text-xs text-muted-foreground">Top 100 cryptos</span>
+              <span className="block text-xs text-muted-foreground">Largest coins by market cap</span>
             </span>
           </button>
           <button
@@ -376,7 +376,7 @@ export function TrialExperience({ userName }: { userName?: string }) {
           {asset === "crypto" ? (
             <>
               <strong className="text-foreground">Full scope:</strong> the engine analyses the{" "}
-              <strong className="text-foreground">top 100 cryptocurrencies</strong> — top movers over 24h / 7d / 30d,
+              <strong className="text-foreground">largest coins by market cap</strong> — top movers over 24h / 7d / 30d,
               illustrative scenario ranges, worldwide crypto news, and a 12-month momentum graph for each coin you enter.
             </>
           ) : (

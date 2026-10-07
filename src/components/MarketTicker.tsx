@@ -5,7 +5,8 @@ import { api } from "@/lib/api";
 import { tickerLiveLabel } from "@/lib/ticker-feed";
 import { PUBLIC_PRICE_QUIET } from "@/lib/data-sources";
 import { cn } from "@/lib/utils";
-import { formatFxAsOf, formatMoney } from "@/lib/currency";
+import { formatMoney } from "@/lib/currency";
+import { cryptoFreshnessLabel, exchangeFreshnessLabel, latestQuoteTime, metalUpdatedPhrase } from "@/lib/market-freshness";
 
 /**
  * Market tape. Prices come only from GET /api/ticker (one live pipeline).
@@ -21,6 +22,7 @@ interface Quote {
   currency?: string;
   provider?: string;
   asOf?: string;
+  quotedAt?: string | null;
 }
 
 const VENUES = {
@@ -75,11 +77,13 @@ function TickerRow({
   animationClass,
   label,
   live,
+  status,
 }: {
   quotes: Quote[];
   animationClass: string;
   label: string;
   live: boolean;
+  status?: string;
 }) {
   const doubled = [...quotes, ...quotes];
   return (
@@ -89,6 +93,10 @@ function TickerRow({
         {live ? (
           <span className="rounded bg-emerald-500/20 px-1 py-px text-[0.55rem] tracking-wide text-emerald-300">
             Live
+          </span>
+        ) : status ? (
+          <span className="max-w-[14rem] truncate text-[0.55rem] font-medium normal-case tracking-normal text-zinc-300">
+            {status}
           </span>
         ) : null}
       </span>
@@ -118,6 +126,7 @@ interface MetalsSpotFeed {
   silver: MetalSpot;
   live: boolean;
   asOf?: string;
+  quotedAt?: string | null;
 }
 
 function MetalsSpotBanner() {
@@ -130,7 +139,7 @@ function MetalsSpotBanner() {
       const res = await api.get<MetalsSpotFeed>("/api/metals/spot");
       if (active && res.ok && res.data?.gold && res.data.silver) {
         setSpot(res.data);
-        console.log("[metals-banner] Spot loaded:", res.data.live ? "live" : "est", res.data);
+        console.log("[metals-banner] Spot loaded:", res.data.live ? "spot" : "est", res.data);
       } else if (active) {
         setFailed(true);
         console.error("[metals-banner] Spot fetch failed:", res.error);
@@ -180,10 +189,15 @@ function MetalsSpotBanner() {
             "rounded-full px-2 py-0.5 text-[0.58rem] font-bold uppercase tracking-wide",
             spot?.live ? "bg-emerald-500/15 text-emerald-600" : "bg-muted text-muted-foreground"
           )}
-          title={spot?.asOf ? formatFxAsOf(spot.asOf) : spot?.live ? "Live spot price" : "Estimated"}
+          title={spot?.live ? "Spot price" : "Estimated price"}
         >
-          {spot ? (spot.live ? "Live" : "Est.") : failed ? "Failed" : "…"}
-          {spot?.asOf ? ` · ${formatFxAsOf(spot.asOf)}` : ""}
+          {!spot
+            ? failed
+              ? "Failed"
+              : "…"
+            : spot.live
+              ? metalUpdatedPhrase(spot.quotedAt) ?? "Spot"
+              : "Est."}
         </span>
       </div>
     </div>
@@ -249,7 +263,10 @@ export function MarketTicker({ className, compact = false }: MarketTickerProps) 
     };
   }, []);
 
-  const liveTape = tickerLiveLabel({ live });
+  const liveTape = tickerLiveLabel({ live, rows: { crypto } });
+  const nzxStatus = exchangeFreshnessLabel("NZX").label;
+  const asxStatus = exchangeFreshnessLabel("ASX").label;
+  const cryptoStatus = cryptoFreshnessLabel(latestQuoteTime(crypto.map((row) => row.quotedAt)));
   const asOfLabel = formatAsOf(asOf);
   const providerLabel = [
     providers.equities ? `Equities ${providers.equities}` : null,
@@ -277,7 +294,8 @@ export function MarketTicker({ className, compact = false }: MarketTickerProps) 
           quotes={blend}
           animationClass="animate-ticker"
           label="Markets"
-          live={liveTape === "LIVE"}
+          live={false}
+          status={nzxStatus}
         />
       </div>
     );
@@ -285,15 +303,20 @@ export function MarketTicker({ className, compact = false }: MarketTickerProps) 
 
   return (
     <div className={cn("w-full", className)}>
-      <TickerRow quotes={nzx} animationClass="animate-ticker" label="NZX 50" live={live.equities} />
-      <TickerRow quotes={asx} animationClass="animate-ticker-reverse" label="ASX 200" live={live.equities} />
-      <TickerRow quotes={crypto} animationClass="animate-ticker-slow" label="Crypto" live={live.crypto} />
+      <TickerRow quotes={nzx} animationClass="animate-ticker" label="NZX 50" live={false} status={nzxStatus} />
+      <TickerRow quotes={asx} animationClass="animate-ticker-reverse" label="ASX 200" live={false} status={asxStatus} />
+      <TickerRow
+        quotes={crypto}
+        animationClass="animate-ticker-slow"
+        label="Crypto"
+        live={false}
+        status={cryptoStatus.label}
+      />
       <MetalsSpotBanner />
       <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 border-b border-emerald-500/20 bg-zinc-950 px-3 py-1.5 text-[0.6rem] text-muted-foreground">
         <span className="inline-flex items-center gap-1">
           <span className={cn("size-1.5 rounded-full", liveTape ? "bg-emerald-400" : "bg-muted-foreground/50")} />
-          {liveTape ?? "Quiet"}
-          {asOfLabel ? ` · as of ${asOfLabel}` : ""}
+          {cryptoStatus.live ? cryptoStatus.label : nzx.length || asx.length ? nzxStatus : "Quiet"}
         </span>
         {providerLabel ? <span>{providerLabel}</span> : null}
         <a href={VENUES.nzx} target="_blank" rel="noopener noreferrer" className="hover:text-foreground hover:underline">

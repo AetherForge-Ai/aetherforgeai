@@ -32,10 +32,27 @@ export function consentFields(now = new Date()): {
 
 export const CONSENT_COLUMN_KEYS = ["age_confirmed", "terms_accepted_at", "terms_version"] as const;
 
+/**
+ * Columns the signup create may omit when Totalum does not have them yet.
+ * `country` is the country chosen on the register form.
+ * TODO(owner): the Totalum user.country column must exist for that choice to persist.
+ */
+export const SIGNUP_OPTIONAL_COLUMN_KEYS = [...CONSENT_COLUMN_KEYS, "country"] as const;
+
+export function withoutCountry<T extends Record<string, unknown>>(row: T): T {
+  const next = { ...row };
+  delete next.country;
+  return next;
+}
+
 export function withoutConsentColumns<T extends Record<string, unknown>>(row: T): T {
   const next = { ...row };
-  for (const key of CONSENT_COLUMN_KEYS) delete next[key];
+  for (const key of SIGNUP_OPTIONAL_COLUMN_KEYS) delete next[key];
   return next;
+}
+
+function rowHasConsent(row: Record<string, unknown>): boolean {
+  return CONSENT_COLUMN_KEYS.some((key) => row[key] != null && row[key] !== "");
 }
 
 function errorText(error: unknown): string {
@@ -56,35 +73,44 @@ function errorText(error: unknown): string {
 export function isUnknownConsentFieldError(error: unknown): boolean {
   const text = errorText(error).toLowerCase();
   if (!text.trim()) return false;
-  if (CONSENT_COLUMN_KEYS.some((key) => text.includes(key))) return true;
+  if (SIGNUP_OPTIONAL_COLUMN_KEYS.some((key) => text.includes(key))) return true;
   return /unknown (field|property|column)|does not exist|not found|invalid (field|property)|no such (field|property|column)/.test(text);
 }
 
-function payloadHasConsent(row: Record<string, unknown>): boolean {
-  return CONSENT_COLUMN_KEYS.some((key) => row[key] != null && row[key] !== "");
+async function attemptCreate<T>(
+  payload: Record<string, unknown>,
+  create: (row: Record<string, unknown>) => Promise<{ record: T | null; error: unknown }>
+): Promise<{ record: T | null; error: unknown }> {
+  try {
+    return await create(payload);
+  } catch (error) {
+    return { record: null, error };
+  }
 }
 
 /**
- * Create the user with consent columns. If Totalum rejects those columns,
- * create the account without them so signup still succeeds.
+ * Create the user with consent columns.
+ * A missing country column is retried first on its own, so the consent record is kept.
+ * Consent columns are dropped only if that second create is also rejected.
  */
 export async function createUserWithConsentFallback<T>(
   payload: Record<string, unknown>,
   create: (row: Record<string, unknown>) => Promise<{ record: T | null; error: unknown }>
 ): Promise<T | null> {
-  let first: { record: T | null; error: unknown };
-  try {
-    first = await create(payload);
-  } catch (error) {
-    first = { record: null, error };
-  }
+  const first = await attemptCreate(payload, create);
   if (first.record) return first.record;
-  if (!payloadHasConsent(payload) || !isUnknownConsentFieldError(first.error)) return null;
-  console.warn("[consent] user columns missing");
-  try {
-    const second = await create(withoutConsentColumns(payload));
-    return second.record;
-  } catch {
-    return null;
+  if (!isUnknownConsentFieldError(first.error)) return null;
+
+  let current = payload;
+  if (payload.country != null && payload.country !== "") {
+    current = withoutCountry(payload);
+    const countryRetry = await attemptCreate(current, create);
+    if (countryRetry.record) return countryRetry.record;
+    if (!isUnknownConsentFieldError(countryRetry.error)) return null;
   }
+
+  if (!rowHasConsent(current)) return null;
+  console.warn("[consent] user columns missing");
+  const stripped = await attemptCreate(withoutConsentColumns(current), create);
+  return stripped.record;
 }

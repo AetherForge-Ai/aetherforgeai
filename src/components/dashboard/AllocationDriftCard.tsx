@@ -92,7 +92,7 @@ export function AllocationDriftCard({
     return (
       <div className={cn("rounded-2xl border border-dashed border-border/60 p-5 text-sm text-muted-foreground", className)}>
         <p className="font-semibold text-foreground">Allocation vs strategy</p>
-        <p className="mt-1">Deposit cash or add holdings to see live drift against Headmaster targets.</p>
+        <p className="mt-1">Add your holdings or cash to see drift against Headmaster targets.</p>
       </div>
     );
   }

@@ -769,7 +769,7 @@ export function ReportCenter({
             <div className="border-t border-border/60 px-4 pb-4 pt-2">
         {history.length === 0 ? (
           <p className="rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground">
-            No reports yet — deposit cash or add holdings in the Transaction Centre above, then run Stox, Koins or The Headmaster.
+            No reports yet — add your holdings or cash in the Transaction Centre above, then run Stox, Koins or The Headmaster.
           </p>
         ) : (
           <ul className="divide-y divide-border/50 overflow-hidden rounded-xl border border-border/60">

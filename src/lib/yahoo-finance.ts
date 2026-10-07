@@ -34,6 +34,8 @@ export interface YahooQuote {
   marketCap?: number; // market capitalisation, when Yahoo exposes it on chart meta
   exchangeLabel?: string; // friendly exchange label (ASX / NZX / NASDAQ / NYSE), when resolvable
   exchangeTimezone?: string; // IANA timezone of the listing exchange, when available
+  /** Vendor quote time (regularMarketTime). Absent when Yahoo did not send one. */
+  quotedAt?: string;
 }
 
 /**
@@ -126,6 +128,7 @@ async function fetchOne(yahooSymbol: string): Promise<YahooQuote | null> {
       exchangeLabel: EXCHANGE_LABELS[String(meta.exchangeName)],
       exchangeTimezone:
         typeof meta.exchangeTimezoneName === "string" ? meta.exchangeTimezoneName : undefined,
+      quotedAt: isoFromYahooTime(meta.regularMarketTime),
     };
     CACHE.set(yahooSymbol, { quote, at: Date.now() });
     return quote;
@@ -286,11 +289,22 @@ function positiveNum(v: unknown): number | undefined {
   return isFinite(n) && n > 0 ? n : undefined;
 }
 
+/** Yahoo epoch seconds (or ms). Not a substitute for a missing timestamp. */
+function isoFromYahooTime(value: unknown): string | undefined {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return undefined;
+  const ms = n > 1e12 ? n : n * 1000;
+  const date = new Date(ms);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
+
 export type YahooBatchedQuote = {
   price: number;
   changePct: number;
   /** "live" = last traded/intraday print; "close" = last official session close. */
   asOf: "live" | "close";
+  /** Vendor quote time when the spark node carried one. */
+  quotedAt?: string;
 };
 
 /**
@@ -314,7 +328,10 @@ function resolveSparkQuote(node: any): YahooBatchedQuote | null {
   const basis = prevClose ?? (closes.length >= 2 ? closes[closes.length - 2] : price);
   const changePct = basis > 0 ? ((price - basis) / basis) * 100 : 0;
   const asOf: "live" | "close" = intraday !== undefined ? "live" : "close";
-  return { price, changePct: isFinite(changePct) ? changePct : 0, asOf };
+  const times = Array.isArray(node.timestamp) ? node.timestamp : [];
+  const lastTs = times.length ? times[times.length - 1] : undefined;
+  const quotedAt = isoFromYahooTime(node.regularMarketTime) ?? isoFromYahooTime(lastTs);
+  return { price, changePct: isFinite(changePct) ? changePct : 0, asOf, ...(quotedAt ? { quotedAt } : {}) };
 }
 
 function parseSparkBySymbol(json: Record<string, any>): Record<string, any> {
@@ -329,6 +346,8 @@ function parseSparkBySymbol(json: Record<string, any>): Record<string, any> {
           previousClose: resp?.meta?.previousClose,
           fulldayPrice: resp?.meta?.regularMarketPrice ?? resp?.meta?.chartPreviousClose,
           regularMarketPrice: resp?.meta?.regularMarketPrice,
+          regularMarketTime: resp?.meta?.regularMarketTime,
+          timestamp: resp?.timestamp,
         };
       }
     }
@@ -361,7 +380,12 @@ export async function fetchYahooQuotesBatched(
   for (const [internal, ySym] of entries) {
     const c = CACHE.get(ySym);
     if (c && Date.now() - c.at <= TTL_MS) {
-      out[internal] = { price: c.quote.price, changePct: c.quote.changePct, asOf: "live" };
+      out[internal] = {
+        price: c.quote.price,
+        changePct: c.quote.changePct,
+        asOf: "live",
+        ...(c.quote.quotedAt ? { quotedAt: c.quote.quotedAt } : {}),
+      };
     } else {
       stale.push([internal, ySym]);
     }
@@ -443,12 +467,12 @@ export function yahooCryptoSymbol(ticker: string): string {
  */
 export async function fetchYahooCryptoLiveQuotes(
   map: Record<string, string>
-): Promise<Record<string, { price: number; changePct: number }>> {
+): Promise<Record<string, { price: number; changePct: number; quotedAt?: string }>> {
   if (!Object.keys(map).length) return {};
   const batched = await fetchYahooQuotesBatched(map);
-  const out: Record<string, { price: number; changePct: number }> = {};
+  const out: Record<string, { price: number; changePct: number; quotedAt?: string }> = {};
   for (const [internal, q] of Object.entries(batched)) {
-    if (q.price > 0) out[internal] = { price: q.price, changePct: q.changePct };
+    if (q.price > 0) out[internal] = { price: q.price, changePct: q.changePct, ...(q.quotedAt ? { quotedAt: q.quotedAt } : {}) };
   }
   return out;
 }

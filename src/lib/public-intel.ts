@@ -44,13 +44,13 @@ export function modelRangeLine(outlook?: {
   const high = outlook?.base?.highPct;
   const mid = outlook?.expectedPct;
   if (typeof low !== "number" || typeof high !== "number" || typeof mid !== "number") return null;
-  const fmt = (n: number) => {
-    const abs = Math.abs(n).toFixed(0);
+  const fmt = (n: number, dp = 0) => {
+    const abs = Math.abs(n).toFixed(dp);
     if (n > 0) return `+${abs}%`;
     if (n < 0) return `−${abs}%`;
     return "0%";
   };
-  return `Model range for the next 7 days: ${fmt(low)} to ${fmt(high)} (central ${fmt(mid)}). This is a calculation from past prices, not a forecast you should act on.`;
+  return `Model range for the next 7 days: ${fmt(low)} to ${fmt(high)} (central ${fmt(mid, 2)}). This is a calculation from past prices, not a forecast you should act on.`;
 }
 
 /** Drop recommendation words from any string that might reach a public payload. */

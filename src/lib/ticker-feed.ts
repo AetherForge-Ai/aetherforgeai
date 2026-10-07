@@ -5,6 +5,8 @@
  * stays empty instead of falling back to a demo book.
  */
 
+import { cryptoFreshnessLabel, latestQuoteTime } from "@/lib/market-freshness";
+
 export interface TapeSymbol {
   symbol: string;
   name: string;
@@ -59,6 +61,8 @@ export interface TapeQuote {
   price: number;
   changePct: number;
   provider?: string;
+  /** Vendor quote time. The pipeline asOf is not copied here. */
+  quotedAt?: string | null;
 }
 
 export interface TapeRow {
@@ -69,6 +73,7 @@ export interface TapeRow {
   currency: string;
   provider: string;
   asOf: string;
+  quotedAt?: string | null;
 }
 
 export interface TickerTapeFeed {
@@ -117,6 +122,7 @@ function takeLive(
       currency: symbol.currency,
       provider: hit.provider?.trim() || fallbackProvider,
       asOf,
+      quotedAt: hit.quotedAt ?? null,
     });
   }
   return rows;
@@ -149,7 +155,12 @@ export function composeTickerTape(input: {
   };
 }
 
-/** The word LIVE is reserved for a tape that actually contains pipeline quotes. */
-export function tickerLiveLabel(feed: { live: { crypto: boolean; equities: boolean } }): "LIVE" | null {
-  return feed.live.crypto || feed.live.equities ? "LIVE" : null;
+/** LIVE is only a crypto quote at most five minutes old. Equity rows never use it. */
+export function tickerLiveLabel(feed: {
+  live: { crypto: boolean; equities: boolean };
+  rows?: { crypto?: Array<{ quotedAt?: string | null }> };
+}): "LIVE" | null {
+  if (!feed.live.crypto) return null;
+  const latest = latestQuoteTime((feed.rows?.crypto ?? []).map((row) => row.quotedAt));
+  return cryptoFreshnessLabel(latest).live ? "LIVE" : null;
 }

@@ -64,14 +64,19 @@ async function pull(): Promise<void> {
       try {
         const res = await api.get<{
           quotes: Record<string, CryptoSpot>;
-          updatedAt: string;
-          live: true;
+          updatedAt: string | null;
+          live: boolean;
         }>(`/api/crypto/spot?symbols=${encodeURIComponent(key)}`);
         if (isTransactionDialogOpen()) return;
         if (res.ok && res.data?.quotes) {
-          const next = applyCryptoPollSuccess(store, res.data.quotes, Date.now());
+          const vendorMs = res.data.updatedAt ? Date.parse(res.data.updatedAt) : Number.NaN;
+          const next = applyCryptoPollSuccess(
+            store,
+            res.data.quotes,
+            Number.isFinite(vendorMs) ? vendorMs : store.updatedAt ?? 0
+          );
           store.quotes = next.quotes;
-          store.updatedAt = next.updatedAt;
+          store.updatedAt = Number.isFinite(vendorMs) ? vendorMs : null;
           notify();
         } else if (!res.aborted && res.status !== 401) {
           console.error("[crypto-live] spot poll failed:", res.error);

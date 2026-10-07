@@ -6,6 +6,7 @@ import {
   type Exchange,
 } from "@/lib/market-intel";
 import { fetchYahooQuotes, yahooEquitySymbol, type YahooQuote } from "@/lib/yahoo-finance";
+import { equityApiLive, exchangeFreshnessLabel, parseQuoteTime } from "@/lib/market-freshness";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +53,7 @@ export interface ExchangeSnapshot {
     changePct: number | null;
     changeAbs: number | null;
     live: boolean;
+    freshness: string;
   };
   breadth: { advancers: number; decliners: number; unchanged: number; total: number };
   avgChangePct: number; // average session % move across live constituents
@@ -137,7 +139,9 @@ export async function GET() {
         const topLosers = sorted.slice(-3).reverse().filter((m) => m.changePct < 0);
 
         const iq = indexQuotes[exchange];
-        const indexLive = !!iq && iq.price > 0;
+        const indexQuoted = !!iq && iq.price > 0;
+        const indexLive = equityApiLive(exchange, indexQuoted);
+        const indexFresh = exchangeFreshnessLabel(exchange, new Date(), parseQuoteTime(iq?.quotedAt));
 
         return {
           exchange,
@@ -146,10 +150,11 @@ export async function GET() {
           currency: meta.currency,
           index: {
             name: INDEX_NAME[exchange],
-            price: indexLive ? iq!.price : null,
-            changePct: indexLive ? Number(iq!.changePct.toFixed(2)) : null,
-            changeAbs: indexLive ? Number(iq!.changeAbs.toFixed(2)) : null,
+            price: indexQuoted ? iq!.price : null,
+            changePct: indexQuoted ? Number(iq!.changePct.toFixed(2)) : null,
+            changeAbs: indexQuoted ? Number(iq!.changeAbs.toFixed(2)) : null,
             live: indexLive,
+            freshness: indexFresh.label,
           },
           breadth: {
             advancers,

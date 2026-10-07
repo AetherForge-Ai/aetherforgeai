@@ -272,7 +272,7 @@ async function buildCryptoReport(user: TrialUser, inputs: TrialTickerInput[]): P
     mode: "Intelligent AI bot",
     title: "Crypto intelligence briefing",
     marketLabel: "Global digital-asset market",
-    scopeLabel: dataLive ? "Full scope · Top 100 cryptocurrencies analysed" : "Top digital assets (modelled)",
+    scopeLabel: dataLive ? "Full scope · largest coins by market cap" : "Digital assets (modelled)",
     generatedAtLabel: nzDateLabel(new Date()),
     dataLive,
     executiveSummary: "",
@@ -304,13 +304,13 @@ function cryptoMarketPredictions(coins: CoinMarket[], _g: number): MarketPredict
 
   const preds: MarketPrediction[] = [
     {
-      headline: `${breadthPct >= 50 ? "Broad-based bid" : "Selective tape"} — ${breadthUp}/100 majors green over 24h`,
-      detail: `Top-100 breadth sits at ${breadthPct}% advancing. With the 24h average at ${a24 >= 0 ? "+" : ""}${a24}% and 7d at ${a7 >= 0 ? "+" : ""}${a7}%, the next leg is ${breadthPct >= 55 && a7 > 0 ? "biased higher as momentum broadens" : breadthPct <= 40 ? "vulnerable to a shakeout before continuation" : "range-bound pending a breadth expansion"}.`,
+      headline: `${breadthPct >= 50 ? "Broad-based bid" : "Selective tape"} — ${breadthUp}/${coins.length} coins green over 24h`,
+      detail: `Breadth sits at ${breadthPct}% advancing. With the 24h average at ${a24 >= 0 ? "+" : ""}${a24}% and 7d at ${a7 >= 0 ? "+" : ""}${a7}%, the next leg is ${breadthPct >= 55 && a7 > 0 ? "biased higher as momentum broadens" : breadthPct <= 40 ? "vulnerable to a shakeout before continuation" : "range-bound pending a breadth expansion"}.`,
       confidence: Math.round(clamp(55 + Math.abs(a7) * 0.8, 48, 86)),
     },
     {
       headline: `30-day trend ${a30 >= 0 ? "constructive" : "corrective"} at ${a30 >= 0 ? "+" : ""}${a30}% average`,
-      detail: `Across the top 100, the 30-day average move is ${a30 >= 0 ? "+" : ""}${a30}%. ${a30 >= 0 ? "Higher-beta L1s and L2s should continue to outrun majors if risk appetite holds." : "Expect majors to hold up better than the long tail until breadth repairs."}`,
+      detail: `Across the largest coins by market cap, the 30-day average move is ${a30 >= 0 ? "+" : ""}${a30}%. ${a30 >= 0 ? "Higher-beta L1s and L2s should continue to outrun majors if risk appetite holds." : "Expect majors to hold up better than the long tail until breadth repairs."}`,
       confidence: Math.round(clamp(50 + Math.abs(a30) * 0.4, 45, 80)),
     },
   ];
@@ -330,7 +330,7 @@ function deriveCryptoFindings(coins: CoinMarket[], tickers: TrialTickerAnalysis[
     const topGainer = [...coins].sort((a, b) => b.change24h - a.change24h)[0];
     const topLoser = [...coins].sort((a, b) => a.change24h - b.change24h)[0];
     out.push(
-      `Across the **top 100 cryptocurrencies**, **${topGainer.symbol}** leads the 24h tape at **${topGainer.change24h >= 0 ? "+" : ""}${round(topGainer.change24h, 2)}%**, while **${topLoser.symbol}** lags at **${round(topLoser.change24h, 2)}%**.`
+      `Across the **largest coins by market cap**, **${topGainer.symbol}** leads the 24h tape at **${topGainer.change24h >= 0 ? "+" : ""}${round(topGainer.change24h, 2)}%**, while **${topLoser.symbol}** lags at **${round(topLoser.change24h, 2)}%**.`
     );
   }
   tickers.forEach((t) => {
@@ -573,7 +573,7 @@ async function enhanceWithGrok(report: TrialReport): Promise<boolean> {
       .join("\n");
     const moversLine =
       report.bot === "crypto" && report.cryptoMovers
-        ? `Top-100 24h gainers: ${report.cryptoMovers.gainers24h.slice(0, 5).map((m) => `${m.symbol} ${m.changePct}%`).join(", ")}.`
+        ? `24h gainers: ${report.cryptoMovers.gainers24h.slice(0, 5).map((m) => `${m.symbol} ${m.changePct}%`).join(", ")}.`
         : report.stockMovers
           ? `NZX/ASX gainers: ${report.stockMovers.gainers.slice(0, 5).map((m) => `${m.symbol} ${m.changePct}%`).join(", ")}.`
           : "";

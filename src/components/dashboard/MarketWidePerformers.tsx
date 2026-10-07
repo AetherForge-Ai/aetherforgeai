@@ -7,10 +7,10 @@ import {
   resolveExchange,
   EXCHANGE_META,
   formatMarketPrice,
-  priceSessionLabel,
   type SecurityIntel,
   type Exchange,
 } from "@/lib/market-intel";
+import { exchangeFreshnessLabel } from "@/lib/market-freshness";
 import { pctClass, fmtPct, publicMarketNote } from "@/components/dashboard/intel-ui";
 import {
   StockDetailDialog,
@@ -91,7 +91,7 @@ export function MarketWidePerformers({ onBought }: { onBought?: () => void }) {
     return ranked;
   }, [universe, tab]);
 
-  const sessionLabel = priceSessionLabel(tab);
+  const sessionLabel = exchangeFreshnessLabel(tab).label;
 
   // Per-exchange counts for the tab labels.
   const counts = useMemo(() => {
