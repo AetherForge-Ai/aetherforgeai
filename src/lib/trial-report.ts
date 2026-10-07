@@ -304,7 +304,7 @@ function cryptoMarketPredictions(coins: CoinMarket[], _g: number): MarketPredict
 
   const preds: MarketPrediction[] = [
     {
-      headline: `${breadthPct >= 50 ? "Broad-based bid" : "Selective tape"} — ${breadthUp}/100 majors green over 24h`,
+      headline: `${breadthPct >= 50 ? "Broad-based bid" : "Selective tape"} — ${breadthUp}/${coins.length} coins green over 24h`,
       detail: `Breadth sits at ${breadthPct}% advancing. With the 24h average at ${a24 >= 0 ? "+" : ""}${a24}% and 7d at ${a7 >= 0 ? "+" : ""}${a7}%, the next leg is ${breadthPct >= 55 && a7 > 0 ? "biased higher as momentum broadens" : breadthPct <= 40 ? "vulnerable to a shakeout before continuation" : "range-bound pending a breadth expansion"}.`,
       confidence: Math.round(clamp(55 + Math.abs(a7) * 0.8, 48, 86)),
     },

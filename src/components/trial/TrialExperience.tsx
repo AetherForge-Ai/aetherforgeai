@@ -42,7 +42,7 @@ const STOCK_SUGGEST = ["AIR.NZ", "FPH.NZ", "SPK.NZ", "MEL.NZ", "BHP.AX", "CBA.AX
 
 const CRYPTO_STAGES = [
   "Connecting to the crypto market feed…",
-  "Sweeping 24h / 7d / 30d performance across all 100 majors…",
+  "Sweeping 24h / 7d / 30d performance across the largest coins by market cap…",
   "Pulling 12-month price history for your assets…",
   "Scanning worldwide crypto news wires…",
   "Running the momentum and mean-reversion models…",

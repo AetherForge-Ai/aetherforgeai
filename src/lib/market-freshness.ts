@@ -126,6 +126,15 @@ export function parseQuoteTime(value: string | number | Date | null | undefined)
 }
 
 /**
+ * Open-session delay words.
+ * The 7 Oct 2026 brief states "~20 min" for NZX. ASX has no confirmed figure.
+ * TODO(owner): confirm the US share-price delay. Do not print a minute figure until it is known.
+ */
+function openDelayWords(venue: EquityVenue): string {
+  return venue === "NZX" ? "Delayed ~20 min" : "Delayed";
+}
+
+/**
  * Equity label. Open sessions are delayed, never "Live".
  * A missing quote clock is left off — the fetch time is not substituted.
  */
@@ -138,8 +147,9 @@ export function equityFreshnessLabel(
   if (equitySessionOpen(exchange, now)) {
     const name = venue === "US" ? "US" : venue;
     const clock = quotedAt ? formatQuoteClock(quotedAt, ZONE[venue]) : "";
+    const delay = openDelayWords(venue);
     return {
-      label: clock ? `Delayed ~20 min · ${name} · quote ${clock}` : `Delayed ~20 min · ${name}`,
+      label: clock ? `${delay} · ${name} · quote ${clock}` : `${delay} · ${name}`,
       live: false,
     };
   }
@@ -180,6 +190,13 @@ export function dailyRateLabel(asOf: Date | string | null | undefined): string {
   if (!date) return "Daily rate";
   const wall = zonedParts(date, "Pacific/Auckland");
   return `Daily rate · ${formatSessionDate(wall.iso)}`;
+}
+
+/** "Spot · updated 2:20 am NZDT" from gold-api updatedAt. Null when that field is absent. Never says Live. */
+export function metalUpdatedPhrase(quotedAt: string | null | undefined): string | null {
+  const date = parseQuoteTime(quotedAt ?? null);
+  if (!date) return null;
+  return `Spot · updated ${formatQuoteClock(date, "Pacific/Auckland")}`;
 }
 
 /** Newest finite vendor timestamp. Fetch time is not a substitute. */

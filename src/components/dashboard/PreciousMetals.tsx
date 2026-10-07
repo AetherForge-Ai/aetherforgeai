@@ -11,7 +11,8 @@ import {
   responseUserId,
   trackAccountRequest,
 } from "@/lib/account-identity";
-import { formatFxAsOf, formatMoney } from "@/lib/currency";
+import { formatMoney } from "@/lib/currency";
+import { metalUpdatedPhrase } from "@/lib/market-freshness";
 import { openRecordTransaction } from "@/lib/open-transaction";
 import { buildTradePreview, type TradePreview } from "@/lib/trade-preview";
 import { bumpHoldingsGeneration } from "@/lib/holdings-generation";
@@ -64,6 +65,7 @@ interface MetalsSpot {
   live: boolean;
   fxLive: boolean;
   asOf: string;
+  quotedAt?: string | null;
 }
 
 const METAL_META: Record<MetalKey, { label: string; icon: React.ElementType; color: string; ring: string }> = {
@@ -397,7 +399,7 @@ export function PreciousMetals({
         <h2 className="font-display text-xl font-bold">Smitty spot prices</h2>
         <p className="mt-2 max-w-xl text-sm text-muted-foreground">
           Gold and silver spot prices are visible on this plan. Recording bullion holdings is on a paid plan.
-          {spot?.asOf ? ` Taken ${formatFxAsOf(spot.asOf)}.` : gold || loading ? "" : " Spot prices failed to load."}
+          {metalUpdatedPhrase(spot?.quotedAt) ? ` ${metalUpdatedPhrase(spot?.quotedAt)}.` : gold || loading ? "" : " Spot prices failed to load."}
         </p>
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
           <div className="rounded-2xl border border-[var(--gold)]/40 bg-[var(--gold)]/10 p-4">
@@ -432,7 +434,7 @@ export function PreciousMetals({
             </p>
             <p className="mt-2 text-xs text-muted-foreground">
               Spot and holdings only. Smitty does not run a report.
-              {spot?.asOf ? ` Taken ${formatFxAsOf(spot.asOf)}.` : ""}
+              {metalUpdatedPhrase(spot?.quotedAt) ? ` ${metalUpdatedPhrase(spot?.quotedAt)}.` : ""}
             </p>
           </div>
           <div className="flex min-w-0 flex-1 justify-end">
@@ -470,9 +472,9 @@ export function PreciousMetals({
                           "rounded-full px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wide",
                           spot?.live ? "bg-emerald-500/15 text-emerald-600" : "bg-muted text-muted-foreground",
                         )}
-                        title={spot?.live ? "Live spot price" : "Fallback price (live feed unavailable)"}
+                        title={spot?.live ? "Spot price" : "Estimated price"}
                       >
-                        {spot ? "Spot" : "Est."}
+                        {spot?.live ? "Spot" : "Est."}
                       </span>
                     </div>
                     <p className="tnum mt-3 font-display text-2xl font-bold">
@@ -529,9 +531,9 @@ export function PreciousMetals({
                           "rounded-full px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wide",
                           spot?.live ? "bg-emerald-500/15 text-emerald-600" : "bg-muted text-muted-foreground",
                         )}
-                        title={spot?.live ? "Live spot price" : "Fallback price (live feed unavailable)"}
+                        title={spot?.live ? "Spot price" : "Estimated price"}
                       >
-                        {spot ? "Spot" : "Est."}
+                        {spot?.live ? "Spot" : "Est."}
                       </span>
                       <span className="font-display text-base font-bold">{meta.label} spot</span>
                       <Icon className={cn("size-5", meta.color)} />

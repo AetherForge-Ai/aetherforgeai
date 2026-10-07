@@ -14,9 +14,10 @@ export interface FxSnapshot {
   ratesToNZD: FxRatesToNZD;
   /** Always false. A daily rate is not an intraday quote. */
   live: boolean;
-  /** True when the rate was fetched today, false when the baseline table is in use. */
+  /** True when the rate was fetched, false when the baseline table is in use or the provider sent no rate time. */
   sourced: boolean;
-  asOf: string; // ISO timestamp of when we resolved these
+  /** Provider rate time (open.er-api time_last_update_unix) as ISO. Null when that field is missing or the baseline table is in use. Never the fetch clock. */
+  asOf: string | null;
 }
 
 // One-hour in-memory cache. FX moves slowly enough that hourly is plenty and
@@ -29,7 +30,16 @@ let cache: { snapshot: FxSnapshot; fetchedAtMs: number } | null = null;
  *   { result: "success", base_code: "NZD", rates: { AUD: 0.92, USD: 0.60, ... } }
  * i.e. 1 NZD = rates[X] units of X. We want the inverse: 1 X = (1/rates[X]) NZD.
  */
-async function fetchLiveRatesToNZD(): Promise<FxRatesToNZD> {
+/** open.er-api time_last_update_unix → ISO. Missing or invalid is null, never the fetch clock. */
+export function providerRateAsOf(unix: unknown): string | null {
+  const n = typeof unix === "number" ? unix : typeof unix === "string" && unix.trim() ? Number(unix) : NaN;
+  if (!Number.isFinite(n) || n <= 0) return null;
+  const ms = n > 1e12 ? n : n * 1000;
+  const date = new Date(ms);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+async function fetchLiveRatesToNZD(): Promise<{ rates: FxRatesToNZD; asOf: string | null }> {
   const res = await fetch("https://open.er-api.com/v6/latest/NZD", {
     // Revalidate hourly at the platform layer too.
     next: { revalidate: 3600 },
@@ -40,6 +50,7 @@ async function fetchLiveRatesToNZD(): Promise<FxRatesToNZD> {
   const json = (await res.json()) as {
     result?: string;
     rates?: Record<string, number>;
+    time_last_update_unix?: number;
   };
 
   if (json.result !== "success" || !json.rates) {
@@ -54,11 +65,14 @@ async function fetchLiveRatesToNZD(): Promise<FxRatesToNZD> {
   // er-api base NZD: rates.USD is USD per 1 NZD (~0.57), NOT NZD per 1 USD.
   // Invert, then run the direction guard so a payload that is already NZD-per-USD
   // (or a missed invert) cannot be stored as a sub-1 multiplier.
-  return normalizeFxRates({
-    NZD: 1,
-    AUD: 1 / audPerNzd,
-    USD: 1 / usdPerNzd,
-  });
+  return {
+    rates: normalizeFxRates({
+      NZD: 1,
+      AUD: 1 / audPerNzd,
+      USD: 1 / usdPerNzd,
+    }),
+    asOf: providerRateAsOf(json.time_last_update_unix),
+  };
 }
 
 /**
@@ -97,15 +111,15 @@ export async function getFxSnapshot(nowMs?: number): Promise<FxSnapshot> {
   }
 
   try {
-    const ratesToNZD = await fetchLiveRatesToNZD();
+    const fetched = await fetchLiveRatesToNZD();
     const snapshot: FxSnapshot = {
-      ratesToNZD,
+      ratesToNZD: fetched.rates,
       live: false,
-      sourced: true,
-      asOf: new Date(t).toISOString(),
+      sourced: fetched.asOf != null,
+      asOf: fetched.asOf,
     };
     cache = { snapshot, fetchedAtMs: t };
-    console.log("[fx] Live FX rates resolved:", ratesToNZD);
+    console.log("[fx] Live FX rates resolved:", fetched.rates);
     return snapshot;
   } catch (err) {
     console.error("[fx] Live FX fetch failed, using baseline rates:", err);
@@ -113,7 +127,7 @@ export async function getFxSnapshot(nowMs?: number): Promise<FxSnapshot> {
       ratesToNZD: { ...BASELINE_FX_TO_NZD },
       live: false,
       sourced: false,
-      asOf: new Date(t).toISOString(),
+      asOf: null,
     };
     // Cache the baseline briefly too so we don't hammer a failing endpoint.
     cache = { snapshot, fetchedAtMs: t };
