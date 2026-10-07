@@ -103,6 +103,7 @@ export function publicPageMetadata(path: string, input: { title: string; descrip
       description: input.description,
       url: canonical,
       type: "website",
+      images: [{ url: "/brand/og-1200x630.png", width: 1200, height: 630, alt: "AetherForge AI" }],
     },
   };
 }

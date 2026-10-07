@@ -2,9 +2,8 @@ import Link from "next/link";
 import { ExampleExplanationReport } from "@/components/how-it-works/ExampleExplanationReport";
 import type { Metadata } from "next";
 import { publicPageMetadata } from "@/lib/reviewed-book";
-import { LEGAL_ENTITY_NAME } from "@/lib/company";
 import { SiteHeader } from "@/components/SiteHeader";
-import { BrandLogo } from "@/components/BrandLogo";
+import { DATA_SHARING_LINE } from "@/lib/public-copy";
 import { Button } from "@/components/ui/button";
 import { CryptoInfoModal } from "@/components/how-it-works/CryptoInfoModal";
 import {
@@ -723,7 +722,7 @@ export default function HowItWorksPage() {
               {
                 icon: Store,
                 title: "Private by design",
-                body: "Every holding, report and conversation is scoped strictly to your account. Your data is never shared.",
+                body: `Every holding, report and conversation is scoped strictly to your account. ${DATA_SHARING_LINE}`,
               },
             ].map((t) => (
               <div key={t.title} className="rounded-3xl border border-border/70 bg-card/40 p-7">
@@ -758,36 +757,6 @@ export default function HowItWorksPage() {
           </div>
         </section>
 
-        {/* Footer */}
-        <footer className="border-t border-border/60">
-          <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-            <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-start sm:justify-between">
-              <div className="max-w-sm text-center sm:text-left">
-                <BrandLogo animated markClassName="size-11" wordmarkClassName="text-lg" />
-                <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-                  {LEGAL_ENTITY_NAME}, a New Zealand limited company. Market intelligence for NZX, ASX
-                  and global markets.
-                </p>
-              </div>
-              <div className="grid grid-cols-2 gap-x-10 gap-y-2 text-sm text-muted-foreground">
-                <Link href="/how-it-works" className="hover:text-foreground">How it works</Link>
-                <Link href="/pricing" className="hover:text-foreground">Pricing</Link>
-                <Link href="/login" className="hover:text-foreground">Log in</Link>
-                <Link href="/register" className="hover:text-foreground">Sign up</Link>
-                <Link href="/privacy-policy" className="hover:text-foreground">Privacy</Link>
-                <Link href="/terms-of-service" className="hover:text-foreground">Terms</Link>
-                <Link href="/ai-disclaimer" className="hover:text-foreground">AI Disclaimer</Link>
-              </div>
-            </div>
-            <div className="mt-10 border-t border-border/50 pt-6 text-center text-xs leading-relaxed text-muted-foreground">
-              <p>
-                © {new Date().getFullYear()} {LEGAL_ENTITY_NAME}. For
-                informational purposes only. Not licensed financial advice under the Financial Markets
-                Conduct Act 2013. Platform links are provided for convenience only and are not endorsements.
-              </p>
-            </div>
-          </div>
-        </footer>
       </div>
     </div>
   );

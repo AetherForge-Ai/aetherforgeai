@@ -13,9 +13,10 @@ export async function generateMetadata({
   params: Promise<{ ticker: string }>;
 }): Promise<Metadata> {
   const { ticker } = await params;
+  const label = decodeURIComponent(ticker);
   return publicPageMetadata(`/markets/stock/${ticker}`, {
-    title: "Stock · Markets · AetherForge AI",
-    description: "A share from the AetherForge markets list. Paper research, not a broker.",
+    title: `${label} · Stock · AetherForge AI`,
+    description: `${label} on AetherForge markets. Paper research, not a broker.`,
   });
 }
 

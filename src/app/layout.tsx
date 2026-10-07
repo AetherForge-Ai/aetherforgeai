@@ -9,6 +9,8 @@ import { ScriptExecutor } from "@/components/ScriptExecutor";
 import { DevToolsHandler } from "@/components/DevToolsHandler";
 import { GlobalErrorCatcher } from "@/components/GlobalErrorCatcher";
 import { GoogleTag } from "@/components/GoogleTag";
+import { AnalyticsNotice } from "@/components/AnalyticsNotice";
+import { SiteFooter } from "@/components/SiteFooter";
 import { Toaster } from "@/components/ui/sonner";
 import { PortfolioCoach } from "@/components/portfolio-coach";
 import { TransactionDialogHost } from "@/components/dashboard/TransactionDialogHost";
@@ -35,7 +37,6 @@ const siteUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.aetherforgeai.co
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
-  alternates: { canonical: "/" },
   title: "AetherForge AI — Intelligent Market Analysis",
   description:
     "AetherForge AI is market intelligence for a paper portfolio: NZX, ASX and global markets, with AI research on the positions you enter. Not a broker, and not financial advice.",
@@ -50,7 +51,7 @@ export const metadata: Metadata = {
     title: "AetherForge AI — Intelligent Market Analysis",
     description:
       "Market intelligence for NZX, ASX and global markets, from FORGE INTELLIGENCE LIMITED, a New Zealand limited company.",
-    images: [{ url: "/brand/aetherforge-icon-512.png", width: 512, height: 512, alt: "AetherForge AI" }],
+    images: [{ url: "/brand/og-1200x630.png", width: 1200, height: 630, alt: "AetherForge AI" }],
     type: "website",
     url: siteUrl,
     siteName: "AetherForge AI",
@@ -90,7 +91,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <DevToolsHandler />
           <div className="min-h-screen flex flex-col">
             <main className="flex-1">{children}</main>
+            <SiteFooter />
           </div>
+          <AnalyticsNotice />
           <PortfolioCoach />
           {/* Single Buy/Add host for every dashboard subpage. Lives outside
               PortfolioDashboard so the stocks hub's live-price hydrate cannot

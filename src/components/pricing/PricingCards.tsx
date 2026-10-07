@@ -17,6 +17,7 @@ import {
   type PlanKey,
 } from "@/lib/plans";
 import { formatFxAsOf, formatUsdWithRate, usdPerNzd } from "@/lib/currency";
+import { ANNUAL_TOOLKIT_LINE, TRIAL_CARD_LINE } from "@/lib/public-copy";
 import { useFxRates } from "@/hooks/useFxRates";
 import {
   Check,
@@ -295,7 +296,7 @@ export function PricingCards() {
 
               {/* Highlights */}
               <ul className="mt-6 space-y-2.5">
-                {tier.highlights.map((h) => (
+                {(annual && tier.id !== "free" ? [...tier.highlights, ANNUAL_TOOLKIT_LINE] : tier.highlights).map((h) => (
                   <li key={h} className="flex items-start gap-2.5 text-sm text-muted-foreground">
                     <span className="mt-0.5 grid size-4 shrink-0 place-items-center rounded-full bg-primary/15 text-primary">
                       <Check className="size-2.5" />
@@ -316,7 +317,7 @@ export function PricingCards() {
 
       <p className="mt-8 text-center text-xs text-muted-foreground">
         All prices in NZD. Annual billing is 12 months for the price of 10 (save ~{ANNUAL_SAVINGS_PCT}%).
-        Starter and Pro include a 14-day trial and a card is collected at checkout. Cancel anytime.
+        {TRIAL_CARD_LINE}
         Ultimate is Talk to us.{" "}
         {ready && asOf
           ? `Every US$ figure on this page uses 1 NZD = US$${usdPerNzd(fx).toFixed(4)}, taken ${formatFxAsOf(asOf)}.`

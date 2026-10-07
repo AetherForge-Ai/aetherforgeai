@@ -25,15 +25,16 @@ export const OFFICIAL_OCR_NEWS: NewsItem = {
  * card is that printed release date.
  */
 export const BLS_CPI_NEWS: NewsItem = {
-  headline: "BLS schedules the September 2026 CPI for 14 October 2026",
+  headline: "BLS has scheduled the September 2026 CPI release",
   source: "U.S. Bureau of Labor Statistics",
   market: "US",
   impact: "Neutral",
   relevance: 90,
-  time: "14 Oct 2026",
-  publishedOn: "2026-10-14",
+  time: "4 Oct 2026 · Scheduled: 14 Oct",
+  publishedOn: "2026-10-04",
+  scheduledFor: "2026-10-14",
   summary:
-    "The U.S. Bureau of Labor Statistics CPI page says the Consumer Price Index for September 2026 is scheduled to be released on 14 October 2026 at 8:30 a.m. Eastern Time. This card links to that page. The index itself was not on the page when this card was written.",
+    "The U.S. Bureau of Labor Statistics CPI page lists a future release. This card is the schedule we collected on 4 October 2026. The index itself was not on the page when this card was written.",
   url: "https://www.bls.gov/cpi/",
 };
 
@@ -84,6 +85,81 @@ export function sourceForUrl(url: string, fallback: string): string {
   }
 }
 
+const OFF_TOPIC =
+  /\b(froyo|frozen yogh?urt|jaguar|bin collectors?|election debates?|lifestyle|celebrity|red carpet|recipe|premiere|stuntwomen|carjacking|liquor licences)\b/i;
+
+const MARKET_SIGNAL =
+  /\b(share|shares|stock|stocks|market|markets|nzx|asx|nasdaq|dow|s&p|rbnz|rba|ocr|cpi|inflation|gdp|earnings|dividend|ipo|bond|currency|oil|iron|bank|bitcoin|crypto|ethereum|fed|fomc|treasury|index|investor|trading|economy|economic|fonterra|profit|revenue|nzd|usd|aud|gold|silver|commodity|equity|listing|cash rate|interest)\b/i;
+
+const CRYPTO_HOST = /(beincrypto|coindesk|cointelegraph|theblock|decrypt|cryptoslate)\./i;
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** Lifestyle, motoring and other non-market headlines. */
+export function isOffTopicStory(headline: string, summary = ""): boolean {
+  const blob = `${headline} ${summary}`;
+  if (OFF_TOPIC.test(blob)) return true;
+  return !MARKET_SIGNAL.test(blob);
+}
+
+export function aucklandDay(when: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Pacific/Auckland",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(when);
+}
+
+export function scheduledLabel(isoDay: string): string {
+  const [, month, day] = isoDay.slice(0, 10).split("-");
+  const monthName = MONTHS[Number(month) - 1] || month;
+  return `Scheduled: ${Number(day)} ${monthName}`;
+}
+
+function isNzMacro(item: NewsItem): boolean {
+  const blob = `${item.headline} ${item.summary} ${item.source} ${item.url}`;
+  if (/rbnz|reserve bank of new zealand|official cash rate|\bocr\b/i.test(blob)) return true;
+  const rnz = item.source === "RNZ" || /rnz\.co\.nz/i.test(item.url);
+  return rnz && /\b(ocr|official cash rate|cpi|inflation|gdp|unemployment|monetary policy|interest rate|reserve bank)\b/i.test(blob);
+}
+
+function withDisplayTags(item: NewsItem): NewsItem {
+  const next: NewsItem = { ...item };
+  if (CRYPTO_HOST.test(item.url)) next.market = "CRYPTO";
+  if (isNzMacro(next)) next.marketLabel = "NZ macro";
+  return next;
+}
+
+/** Card date is the publish or collection day. A future event is labelled Scheduled. */
+export function presentNewsTiming(item: NewsItem, now = new Date()): NewsItem {
+  const today = aucklandDay(now);
+  const published = (item.publishedOn || "").slice(0, 10);
+  const scheduled = (item.scheduledFor || "").slice(0, 10);
+  const next = withDisplayTags(item);
+  if (scheduled && scheduled > today) {
+    const collected = published && published <= today ? published : today;
+    return {
+      ...next,
+      publishedOn: collected,
+      scheduledFor: scheduled,
+      time: `${formatNewsDate(collected)} · ${scheduledLabel(scheduled)}`,
+    };
+  }
+  if (published && published > today) {
+    return {
+      ...next,
+      publishedOn: today,
+      scheduledFor: published,
+      time: `${formatNewsDate(today)} · ${scheduledLabel(published)}`,
+    };
+  }
+  if (published) {
+    return { ...next, publishedOn: published, time: formatNewsDate(published) };
+  }
+  return next;
+}
+
 export function formatNewsDate(when: string | Date): string {
   const date = typeof when === "string" ? new Date(when.length === 10 ? `${when}T00:00:00+12:00` : when) : when;
   if (Number.isNaN(date.getTime())) return "Date not stated";
@@ -124,7 +200,7 @@ export function hasArticlePath(url: string): boolean {
  * date. Items with no publisher date are dropped — a date is not invented.
  * The stale 3.25% cash-rate line is replaced by the Reserve Bank card.
  */
-export function prepareNewsFeed(items: NewsItem[]): NewsItem[] {
+export function prepareNewsFeed(items: NewsItem[], now = new Date()): NewsItem[] {
   const prepared: NewsItem[] = [];
   let hasOcr = false;
   let hasCpi = false;
@@ -144,10 +220,10 @@ export function prepareNewsFeed(items: NewsItem[]): NewsItem[] {
       continue;
     }
     if (!item.publishedOn || !hasArticlePath(item.url)) continue;
+    if (isOffTopicStory(item.headline, item.summary)) continue;
     prepared.push({
       ...item,
       source: sourceForUrl(item.url, item.source),
-      time: formatNewsDate(item.publishedOn),
     });
   }
 
@@ -156,5 +232,5 @@ export function prepareNewsFeed(items: NewsItem[]): NewsItem[] {
     const at = prepared.findIndex((item) => item.headline === OFFICIAL_OCR_NEWS.headline);
     prepared.splice(at + 1, 0, BLS_CPI_NEWS);
   }
-  return prepared;
+  return prepared.map((item) => presentNewsTiming(item, now));
 }

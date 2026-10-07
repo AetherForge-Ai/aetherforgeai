@@ -1474,11 +1474,15 @@ export interface NewsItem {
   headline: string;
   source: string;
   market: MarketCode | "Global";
+  /** Shown instead of `market` when the story is NZ macro or another display tag. */
+  marketLabel?: string;
   impact: "Bullish" | "Bearish" | "Neutral";
   relevance: number; // 0-100 relevance to NZ/AU investors
   time: string;
-  /** Calendar day the item is dated (YYYY-MM-DD). */
+  /** Calendar day the item is dated (YYYY-MM-DD). Never later than the collection day. */
   publishedOn?: string;
+  /** A future event date. The card shows it as "Scheduled: 14 Oct", not as the card date. */
+  scheduledFor?: string;
   /** Short article body shown in the dashboard news popup. */
   summary: string;
   /** Canonical / publisher link for the story. */

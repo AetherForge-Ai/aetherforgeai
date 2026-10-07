@@ -1,0 +1,39 @@
+import Link from "next/link";
+import { LEGAL_ENTITY_NAME, NZBN, REGISTERED_OFFICE } from "@/lib/company";
+import { SUPPORT_MAILBOX_LABEL } from "@/lib/public-copy";
+
+const LINKS = [
+  { href: "/privacy-policy", label: "Privacy Policy" },
+  { href: "/terms-of-service", label: "Terms" },
+  { href: "/ai-disclaimer", label: "AI Disclaimer" },
+  { href: "/trust", label: "Trust" },
+  { href: "/about#contact", label: "Contact" },
+  { href: "/docs", label: "Docs" },
+  { href: "/pricing", label: "Pricing" },
+] as const;
+
+/**
+ * The one site footer. Legal links and the company block are the same on every route.
+ * TODO(owner): confirm the support@ mailbox before publishing an address.
+ */
+export function SiteFooter() {
+  return (
+    <footer className="border-t border-border/60 bg-background pb-24" aria-label="Footer">
+      <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-8 sm:px-6 lg:px-8">
+        <nav className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground" aria-label="Legal">
+          {LINKS.map((item) => (
+            <Link key={item.href} href={item.href} className="hover:text-foreground">
+              {item.label}
+            </Link>
+          ))}
+        </nav>
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          {LEGAL_ENTITY_NAME} · NZBN {NZBN} · {REGISTERED_OFFICE} · {SUPPORT_MAILBOX_LABEL} ·{" "}
+          <a href="tel:0800238437" className="hover:text-foreground">
+            0800 238 437
+          </a>
+        </p>
+      </div>
+    </footer>
+  );
+}

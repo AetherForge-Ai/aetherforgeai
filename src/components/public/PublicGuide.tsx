@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
-import { BrandLogo } from "@/components/BrandLogo";
 import { DisclaimerNotice } from "@/components/legal/DisclaimerNotice";
 
 export type GuideLink = {
@@ -58,24 +57,6 @@ export function PublicGuide({
           </ul>
 
           <DisclaimerNotice variant="full" className="mt-10" />
-
-          <div className="mt-10 flex flex-col items-start justify-between gap-4 border-t border-border/60 pt-8 sm:flex-row sm:items-center">
-            <BrandLogo />
-            <nav className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
-              <Link href="/about" className="hover:text-foreground">
-                About
-              </Link>
-              <Link href="/privacy-policy" className="hover:text-foreground">
-                Privacy
-              </Link>
-              <Link href="/terms-of-service" className="hover:text-foreground">
-                Terms
-              </Link>
-              <Link href="/ai-disclaimer" className="hover:text-foreground">
-                AI Disclaimer
-              </Link>
-            </nav>
-          </div>
         </section>
       </div>
     </div>

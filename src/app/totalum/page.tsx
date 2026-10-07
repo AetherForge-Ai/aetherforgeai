@@ -4,7 +4,7 @@ import { publicPageMetadata } from "@/lib/reviewed-book";
 export const dynamic = "force-dynamic";
 
 export const metadata = publicPageMetadata("/totalum", {
-  title: "The Headmaster · AetherForge AI",
+  title: "Legacy Headmaster address · AetherForge AI",
   description: "This address now opens The Headmaster.",
 });
 
