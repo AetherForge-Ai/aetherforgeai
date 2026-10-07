@@ -16,9 +16,9 @@ import "server-only";
 import { totalumSdk } from "@/lib/totalum";
 import type { AppUser } from "@/lib/session";
 import { currencyForTicker, nativeToNzd, ensureNzdPerUsd, ensureNzdPerAud, formatQuantity, type CurrencyCode } from "@/lib/currency";
-import { priceForBooking, ratesForBooking } from "@/lib/reviewed-book";
+import { priceForBooking, ratesForBooking, reviewedFxAllowed } from "@/lib/reviewed-book";
 import { alertsToArchive, positionIsClosed } from "@/lib/alert-lifecycle";
-import { getFxSnapshot } from "@/lib/fx";
+import { getFxSnapshot, historicalNzdPerUnit } from "@/lib/fx";
 import { normalizeTicker, lookupTicker, referencePrice } from "@/lib/market";
 import { fetchLivePrice, isLiveDataConfigured, fetchCryptoQuotes } from "@/lib/market-data";
 import { getMetalsSpot } from "@/lib/metals";
@@ -627,6 +627,14 @@ async function applyTransactionUnlocked(
 
   const currency = currencyForTicker(ticker, assetType);
   const fx = await getFxSnapshot();
+  const historicalFx = await historicalNzdPerUnit(currency, input.trade_date);
+  const fxCheck = reviewedFxAllowed({
+    currency,
+    reviewed: input.fx_rate,
+    snapshot: fx.ratesToNZD[currency],
+    historical: historicalFx,
+  });
+  if (fxCheck.ok === false) throw new Error(fxCheck.message);
   const rates = ratesForBooking(currency, input.fx_rate, fx.ratesToNZD);
 
   const holding = await findHolding(user._id, ticker, assetType);

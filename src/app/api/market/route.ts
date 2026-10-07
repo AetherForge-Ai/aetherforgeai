@@ -7,6 +7,7 @@ import {
   fetchHistoriesForAssetClass,
   isLiveConfiguredFor,
 } from "@/lib/market-data";
+import { filterPublishedCrypto, loadCryptoBoardLive } from "@/lib/crypto-tape";
 import { toPublicPayload } from "@/lib/public-intel";
 
 export const dynamic = "force-dynamic";
@@ -27,9 +28,20 @@ export async function GET(req: Request) {
     const tickers = universeFor(assetClass).map((e) => e.ticker);
     let overrides: Record<string, number> = {};
     let histories: Record<string, number[]> = {};
+    let change24h: Record<string, number> = {};
     let live = false;
 
-    if (isLiveConfiguredFor(assetClass)) {
+    if (assetClass === "crypto") {
+      try {
+        const board = await loadCryptoBoardLive(tickers);
+        overrides = board.quotes;
+        histories = board.histories;
+        change24h = board.change24h;
+        live = Object.keys(overrides).length > 0 || Object.keys(histories).length > 0;
+      } catch (err) {
+        console.error("[api/market] Crypto tape failed:", err);
+      }
+    } else if (isLiveConfiguredFor(assetClass)) {
       // Fetch live intraday quotes AND real recent daily-close histories in
       // parallel. The histories are what make signals + 7-day projections track
       // each security's ACTUAL momentum (so the lists reflect real performance
@@ -74,7 +86,9 @@ export async function GET(req: Request) {
       }
     }
 
-    const universe = analyzeUniverse(overrides, assetClass, histories);
+    const analysed = analyzeUniverse(overrides, assetClass, histories);
+    const universe =
+      assetClass === "crypto" ? filterPublishedCrypto(analysed, { histories, change24h }) : analysed;
     const news = await loadMarketNews(assetClass).catch((err) => {
       console.error("[api/market] Live news fetch failed — curated fallback:", err);
       return getMarketNews(assetClass);
