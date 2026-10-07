@@ -13,14 +13,16 @@ export function isCryptoProjectionRow(row: { market?: string | null; assetClass?
   return row.market === "CRYPTO" || row.assetClass === "crypto";
 }
 
-export function withoutCryptoProjections<T extends { market?: string | null; assetClass?: string | null }>(rows: T[]): T[] {
+export function withoutCryptoProjections<T extends { market?: string | null; assetClass?: string | null }>(
+  rows: T[],
+): T[] {
   return rows.filter((row) => !isCryptoProjectionRow(row));
 }
 
 /** Rank equities only. Crypto rows are dropped before the Top 50 is cut. */
-export function assembleEquityProjections<
-  T extends { market?: string | null; assetClass?: string | null; projected7dPct: number },
->(stockUniverse: T[]) {
+export function assembleEquityProjections<T extends { market?: string | null; assetClass?: string | null; projected7dPct: number }>(
+  stockUniverse: T[],
+) {
   const stocks = withoutCryptoProjections(stockUniverse);
   const combined = [...stocks].sort((a, b) => b.projected7dPct - a.projected7dPct).slice(0, 50);
   return {

@@ -1,19 +1,17 @@
 import { NextResponse } from "next/server";
 import { fetchCryptoQuotes, fetchLiveQuotes } from "@/lib/market-data";
 import {
-  CRYPTO_TAPE_PROVIDER,
   TICKER_TAPE,
   composeTickerTape,
-  equityTapeProvider,
 } from "@/lib/ticker-feed";
+import { PUBLIC_CRYPTO_SOURCE, PUBLIC_EQUITY_SOURCE } from "@/lib/data-sources";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 /**
  * GET /api/ticker — the single public tape.
- * Equities: Twelve Data when that key is configured, otherwise Yahoo Finance.
- * Crypto: the live crypto pipeline (CoinGecko and its live fallbacks).
+ * Public provider names come from the shared data-source copy.
  * A symbol with no quote is omitted. Demo snapshots are not served and are
  * not labelled LIVE.
  */
@@ -37,17 +35,21 @@ export async function GET() {
     console.error("[api/ticker] Equity live fetch failed:", err);
   }
 
-  const equityProvider = equityTapeProvider();
   const feed = composeTickerTape({
     equityQuotes,
     cryptoQuotes,
-    equityProvider,
-    cryptoProvider: CRYPTO_TAPE_PROVIDER,
+    equityProvider: PUBLIC_EQUITY_SOURCE,
+    cryptoProvider: PUBLIC_CRYPTO_SOURCE,
     asOf,
   });
+  const label = (rows: typeof feed.rows.nzx, provider: string) =>
+    rows.map((row) => ({ ...row, provider }));
+  feed.rows.nzx = label(feed.rows.nzx, PUBLIC_EQUITY_SOURCE);
+  feed.rows.asx = label(feed.rows.asx, PUBLIC_EQUITY_SOURCE);
+  feed.rows.crypto = label(feed.rows.crypto, PUBLIC_CRYPTO_SOURCE);
 
   console.log(
-    `[api/ticker] Served rows — crypto ${feed.live.crypto ? "live" : "unavailable"} (${feed.rows.crypto.length}), equities ${feed.live.equities ? "live" : "unavailable"} (${feed.rows.nzx.length + feed.rows.asx.length})`
+    `[api/ticker] Served rows — crypto ${feed.live.crypto ? "live" : "quiet"} (${feed.rows.crypto.length}), equities ${feed.live.equities ? "live" : "quiet"} (${feed.rows.nzx.length + feed.rows.asx.length})`
   );
 
   return NextResponse.json(
@@ -56,8 +58,8 @@ export async function GET() {
       data: {
         ...feed,
         sources: {
-          equities: equityProvider,
-          crypto: CRYPTO_TAPE_PROVIDER,
+          equities: PUBLIC_EQUITY_SOURCE,
+          crypto: PUBLIC_CRYPTO_SOURCE,
           nzx: "https://www.nzx.com/markets/NZSX",
           asx: "https://www.asx.com.au/markets/company/TLX",
           cryptoVenue: "https://www.coingecko.com/",

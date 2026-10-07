@@ -8,6 +8,7 @@ import {
   type SecurityIntel,
 } from "@/lib/market-intel";
 import { cn } from "@/lib/utils";
+import { PUBLIC_CRYPTO_SOURCE } from "@/lib/data-sources";
 import { pctClass, fmtPct } from "@/components/dashboard/intel-ui";
 import { useMarketIntel } from "@/components/dashboard/MarketIntelContext";
 import { ArrowUpDown, Globe } from "lucide-react";
@@ -112,7 +113,7 @@ export function MarketSnapshot() {
           </div>
           <p className="text-xs text-muted-foreground">
             {bot === "crypto"
-              ? "Real-time digital-asset intelligence · CoinGecko"
+              ? `Digital-asset prices · ${PUBLIC_CRYPTO_SOURCE}`
               : "Cross-market intelligence · NZX · ASX · US"}
           </p>
         </div>

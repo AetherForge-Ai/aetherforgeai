@@ -11,7 +11,11 @@ import {
   type SecurityIntel,
 } from "@/lib/market-intel";
 import { pctClass, fmtPct, ExchangeChip, publicMarketNote } from "@/components/dashboard/intel-ui";
-import { CRYPTO_PROJECTIONS_PAUSE_MESSAGE } from "@/lib/projection-pause";
+import {
+  CRYPTO_PROJECTIONS_PAUSE_MESSAGE,
+  withoutCryptoProjections,
+} from "@/lib/projection-pause";
+import { modelRangeLine } from "@/lib/public-intel";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -65,7 +69,7 @@ function marketLabelFor(s: SecurityIntel): string {
   return EXCHANGE_META[resolveExchange(s.ticker, s.market)].label;
 }
 
-/** Confidence meter — a compact 0–100 conviction bar. */
+/** Confidence meter — a compact 0–100 agreement bar. */
 function Confidence({ value }: { value: number }) {
   const v = Math.max(0, Math.min(100, Math.round(value)));
   const tone =
@@ -101,8 +105,9 @@ function MethodologyModal() {
           <div>
             <p className="font-semibold text-foreground">Market data</p>
             <p>
-              Prices and 30-day histories are requested for NZX, ASX, Dow and Nasdaq equities, and
-              for crypto. Rows appear when that feed answers. If it does not, the page says the
+              Prices and 30-day histories are requested for NZX, ASX, Dow and Nasdaq equities.
+              Crypto projections are paused while a data issue is fixed. Live coin prices stay on
+              Markets. Share rows appear when that feed answers. If it does not, the page says the
               engine failed.
             </p>
           </div>
@@ -119,11 +124,11 @@ function MethodologyModal() {
           <div>
             <p className="font-semibold text-foreground">Ranking &amp; confidence</p>
             <p>
-              The <span className="font-medium text-foreground">All Markets</span> view scans every
-              market — NASDAQ, Dow Jones, NZX, ASX and the entire crypto market — and ranks the Top 50
-              strictly by projected 7-day % increase, highest to lowest, each labelled by its market.
-              Each single-market tab is ordered by the conviction-weighted projected move (projection ×
-              model confidence). Confidence reflects how strongly the indicators agree.
+              The <span className="font-medium text-foreground">All Markets</span> view ranks NZX, ASX,
+              Dow Jones and Nasdaq names and shows the Top 50 by projected 7-day % increase, highest to
+              lowest, each labelled by its market. Crypto projections are paused. Each share-market tab
+              is ordered by the confidence-weighted projected move (projection × model confidence).
+              Confidence reflects how strongly the indicators agree.
             </p>
           </div>
           <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-xs text-amber-200/90">
@@ -205,10 +210,9 @@ function ProjectionRow({ rank, s, showMarket = false }: { rank: number; s: Secur
                   <Sparkles className="size-3.5" /> Reasoning &amp; analysis
                 </p>
                 <p className="text-sm leading-relaxed text-muted-foreground">{publicMarketNote(s.reasoning)}</p>
-                <p className="mt-2 text-xs text-muted-foreground/80">
-                  <span className="font-medium text-foreground/80">Conviction:</span>{" "}
-                  {s.conviction} — {s.convictionReason}
-                </p>
+                {modelRangeLine(s.outlook) ? (
+                  <p className="mt-2 text-xs leading-relaxed text-muted-foreground/80">{modelRangeLine(s.outlook)}</p>
+                ) : null}
               </div>
               <div className="grid grid-cols-3 gap-2 sm:w-64">
                 {[
@@ -238,7 +242,6 @@ function ProjectionRow({ rank, s, showMarket = false }: { rank: number; s: Secur
 
 export function ProjectionsExplorer() {
   const [stockUniverse, setStockUniverse] = useState<SecurityIntel[]>([]);
-  const [cryptoUniverse, setCryptoUniverse] = useState<SecurityIntel[]>([]);
   const [combined, setCombined] = useState<SecurityIntel[]>([]);
   const [pauseMessage, setPauseMessage] = useState(CRYPTO_PROJECTIONS_PAUSE_MESSAGE);
   const [live, setLive] = useState(false);
@@ -257,19 +260,16 @@ export function ProjectionsExplorer() {
         signal: AbortSignal.timeout(25_000),
       });
       if (!res.ok || !res.data) throw new Error(res.error?.toString() || "The projection engine failed to return rows.");
-      const returned =
-        (res.data.combined?.length ?? 0) +
-        (res.data.stockUniverse?.length ?? 0) +
-        (res.data.cryptoUniverse?.length ?? 0);
-      if (returned === 0) throw new Error("The projection engine failed to return rows.");
-      setStockUniverse((res.data.stockUniverse || []).filter((row) => row.market !== "CRYPTO" && row.assetClass !== "crypto"));
-      setCryptoUniverse(res.data.cryptoPaused ? [] : res.data.cryptoUniverse || []);
-      setCombined((res.data.combined || []).filter((row) => row.market !== "CRYPTO" && row.assetClass !== "crypto"));
+      const stocks = withoutCryptoProjections(res.data.stockUniverse || []);
+      const ranked = withoutCryptoProjections(res.data.combined || []);
+      if (stocks.length + ranked.length === 0) throw new Error("The projection engine failed to return rows.");
+      setStockUniverse(stocks);
+      setCombined(ranked);
       setPauseMessage(res.data.cryptoPauseMessage || CRYPTO_PROJECTIONS_PAUSE_MESSAGE);
       setLive(!!res.data.live);
       console.log(
-        `[projections] Loaded ${res.data.scanned?.stocks || 0} equities + ${res.data.scanned?.crypto || 0} crypto ` +
-          `→ ${res.data.combined?.length || 0} combined (live: ${res.data.live})`
+        `[projections] Loaded ${res.data.scanned?.stocks || stocks.length} equities ` +
+          `→ ${ranked.length} combined (live: ${res.data.live}). Crypto projections paused.`
       );
     } catch (err) {
       console.error("[projections] Load failed:", err);
@@ -285,12 +285,10 @@ export function ProjectionsExplorer() {
     load(false);
   }, [load]);
 
-  // Pre-compute each tab's list. "All Markets" is the server-ranked Top 50 across
-  // every market combined (strictly highest → lowest projected %); each exchange
-  // tab is its own conviction-weighted Top 50; Crypto spans the ENTIRE market.
+  // "All Markets" is the server-ranked Top 50 of equities. Crypto is paused.
   const listsByTab = useMemo(() => {
     const out: Record<TabKey, SecurityIntel[]> = {
-      ALL: combined,
+      ALL: withoutCryptoProjections(combined),
       NZX: [],
       ASX: [],
       DOW: [],
@@ -301,9 +299,8 @@ export function ProjectionsExplorer() {
       const forEx = stockUniverse.filter((s) => resolveExchange(s.ticker, s.market) === ex);
       out[ex as TabKey] = getProjectionLeaders(50, forEx);
     }
-    out.CRYPTO = getProjectionLeaders(50, cryptoUniverse);
     return out;
-  }, [combined, stockUniverse, cryptoUniverse]);
+  }, [combined, stockUniverse]);
 
   const activeList = listsByTab[active];
   const showMarket = active === "ALL";
@@ -332,7 +329,7 @@ export function ProjectionsExplorer() {
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
             <span className="font-medium text-foreground">All Markets</span> ranks the Top 50 highest
             projected 7-day movers across NZX, ASX, Dow Jones and Nasdaq, sorted strictly highest to
-            lowest and labelled by market. Crypto projections are paused. Live coin prices are still on Markets.
+            lowest and labelled by market. Switch tabs for a single share market&apos;s Top 50.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -403,7 +400,7 @@ export function ProjectionsExplorer() {
           </div>
         </div>
       ) : active === "CRYPTO" ? (
-        <div className="grid place-items-center rounded-2xl border border-border/60 bg-card/40 py-16 text-center">
+        <div className="grid place-items-center rounded-2xl border border-border/60 bg-card/40 px-6 py-16 text-center">
           <p className="max-w-md text-sm leading-relaxed text-muted-foreground">{pauseMessage}</p>
         </div>
       ) : activeList.length === 0 ? (

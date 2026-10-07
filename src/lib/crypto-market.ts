@@ -45,13 +45,13 @@ export interface CoinMarket {
 
 /** Shown when a crypto route fails. Never a parse exception or an upstream body. */
 export const LIVE_CRYPTO_UNAVAILABLE =
-  "Live crypto prices are unavailable right now. Please try again shortly.";
+  "Live crypto prices are not shown right now. Please try again shortly.";
 
 /** Shown when a coin detail request fails. Same family as the list failure — never a parse dump. */
-export const COIN_DETAIL_SOURCE_DOWN = "Live data for this coin is unavailable right now.";
+export const COIN_DETAIL_SOURCE_DOWN = "Live data for this coin is not shown right now.";
 
 /** Shown when a DEX row has no CoinGecko id the detail page can load. */
-export const COIN_DETAIL_UNAVAILABLE = "Live detail for this token is unavailable.";
+export const COIN_DETAIL_UNAVAILABLE = "Live detail for this token is not shown.";
 
 /**
  * CoinGecko slug used by /api/crypto/coin/[id].

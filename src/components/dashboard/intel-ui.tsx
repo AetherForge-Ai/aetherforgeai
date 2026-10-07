@@ -35,7 +35,8 @@ export function publicMarketNote(text: string): string {
   return next;
 }
 
-export function SignalBadge({ signal, className }: { signal: SecurityIntel["signal"]; className?: string }) {
+export function SignalBadge({ signal, className }: { signal?: SecurityIntel["signal"] | null; className?: string }) {
+  if (!signal || !SIGNAL_STYLES[signal]) return null;
   return (
     <span
       className={cn(

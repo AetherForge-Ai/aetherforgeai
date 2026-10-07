@@ -8,6 +8,7 @@ import {
 import { loadCryptoBoardLive } from "@/lib/crypto-tape";
 import { CRYPTO_PROJECTION_HAND_CHECK } from "@/lib/crypto-vendors";
 import { assembleEquityProjections } from "@/lib/projection-pause";
+import { toPublicMarketRecord } from "@/lib/public-intel";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,7 @@ export const dynamic = "force-dynamic";
  * Those rows stay off this board until the 10-coin hand-check is done
  * (BTC, ETH, SOL, BNB, XRP, ARB, TON, JUP, UNI, APT).
  * It then ranks equities by projected 7-day % increase (highest → lowest)
- * and returns the TOP 50.
+ * and returns the TOP 50, each still carrying its own `market`.
  *
  * Kept server-side so the market-data key never reaches the client.
  */
@@ -60,6 +61,8 @@ export async function GET() {
       return null;
     });
     const ranked = assembleEquityProjections(stockUniverse);
+    const publish = <T,>(rows: T[]) =>
+      rows.map((row) => toPublicMarketRecord(row as unknown as Record<string, unknown>));
 
     console.log(
       `[api/projections] Equity sweep: ${ranked.scanned.stocks} names → top ${ranked.combined.length} ` +
@@ -72,9 +75,9 @@ export async function GET() {
         live: stockLive,
         cryptoPaused: ranked.cryptoPaused,
         cryptoPauseMessage: ranked.cryptoPauseMessage,
-        combined: ranked.combined,
-        stockUniverse: ranked.stockUniverse,
-        cryptoUniverse: ranked.cryptoUniverse,
+        combined: publish(ranked.combined),
+        stockUniverse: publish(ranked.stockUniverse),
+        cryptoUniverse: [],
         scanned: ranked.scanned,
       },
     });

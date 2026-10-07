@@ -30,7 +30,7 @@ describe("markets detail routes", () => {
     expect(unavailableCryptoHref({ symbol: "BULL", name: "BULL" })).toBe(
       "/markets/crypto/unavailable?symbol=BULL&name=BULL"
     );
-    expect(COIN_DETAIL_UNAVAILABLE).toBe("Live detail for this token is unavailable.");
+    expect(COIN_DETAIL_UNAVAILABLE).toBe("Live detail for this token is not shown.");
     expect(COIN_DETAIL_UNAVAILABLE).not.toMatch(/<!DOCTYPE|Unexpected token|0\.00/);
   });
 
