@@ -177,7 +177,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, data: { reply, source: "fallback" } });
     }
 
-    return NextResponse.json({ ok: true, data: { reply, source: "grok" } });
+    return NextResponse.json({ ok: true, data: { reply, source: "ai" } });
   } catch (err: any) {
     console.error("[api/totalum/chat] POST error:", err);
     return NextResponse.json({ ok: false, error: err?.message || "Failed to reach the strategist" }, { status: 500 });

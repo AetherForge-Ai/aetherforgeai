@@ -14,7 +14,7 @@
 export const ZENITH_STATE_LABEL = "AI";
 
 /** Short form for compact badges. */
-export const ZENITH_STATE_SHORT = "Ultra Advanced ZENITH State";
+export const ZENITH_STATE_SHORT = "AI";
 
 /** Default xAI model for the ZENITH state (override with XAI_MODEL). */
 export const ZENITH_MODEL_DEFAULT = "grok-4.6";

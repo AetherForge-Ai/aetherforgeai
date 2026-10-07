@@ -6,7 +6,16 @@ function read(rel: string) {
   return readFileSync(path.join(process.cwd(), rel), "utf8");
 }
 
-const MODEL_NAME = /\b(SuperGrok|Grok|xAI|grok-4(?:\.\d+)?|Claude|Gemini|GPT-\d|gpt-4)\b/;
+const MODEL_NAME = /\b(SuperGrok|Grok|xAI|grok-4(?:\.\d+)?|Claude|Gemini|GPT-\d|gpt-4|ZENITH|ULTRA)\b/i;
+
+/** Comments and import paths are not rendered. String literals and JSX still are. */
+function visibleCopy(source: string): string {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/(^|[^:])\/\/.*$/gm, "$1")
+    .replace(/^\s*import\s[\s\S]*?from\s+["'][^"']+["'];?/gm, "")
+    .replace(/\/(?:\\\/|[^/\n])+\/[gimsuy]*/g, "");
+}
 
 const PUBLIC_COPY = [
   "src/app/page.tsx",
@@ -30,13 +39,18 @@ const PUBLIC_COPY = [
   "src/lib/plans.ts",
   "src/lib/report-html.ts",
   "src/lib/trial-report-html.ts",
+  "src/lib/trial-report.ts",
   "src/lib/product-note.ts",
+  "src/app/free-trial/page.tsx",
+  "src/app/api/free-trial/run/route.ts",
+  "src/components/TopNav.tsx",
+  "src/components/dashboard/YearlyToolkit.tsx",
 ];
 
 describe("public copy does not name a model", () => {
   it("says AI on user-facing pages, reports, and metadata", () => {
     for (const rel of PUBLIC_COPY) {
-      const text = read(rel);
+      const text = visibleCopy(read(rel));
       expect(text, rel).not.toMatch(MODEL_NAME);
     }
     const zenith = read("src/lib/zenith.ts");

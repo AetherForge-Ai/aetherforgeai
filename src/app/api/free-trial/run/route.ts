@@ -7,7 +7,7 @@ import type { BotKind } from "@/lib/trial-types";
 /**
  * POST /api/free-trial/run
  *
- * Runs the ONE-TIME "ZENITH MODE · ULTRA ADVANCED" trial report for a signed-up,
+ * Runs the one-time complimentary trial report for a signed-up,
  * non-subscribed user who has not yet consumed their single trial.
  *
  * Gate (all must hold):
@@ -45,7 +45,7 @@ export async function POST(req: Request) {
     }
     if ((fresh?.trial_used ?? user.trial_used) === "yes") {
       return NextResponse.json(
-        { ok: false, error: "You've already used your one-time free Zenith report. Subscribe for unlimited reports." },
+        { ok: false, error: "You've already used your one-time free report. Subscribe for unlimited reports." },
         { status: 409 }
       );
     }
