@@ -1,8 +1,14 @@
 ﻿import { getCurrentUser } from "@/lib/session";
+import { publicPageMetadata } from "@/lib/reviewed-book";
 import { AppShell } from "@/components/AppShell";
 import { MarketNewsPageContent } from "@/components/dashboard/MarketNewsPageContent";
 
 export const dynamic = "force-dynamic";
+
+export const metadata = publicPageMetadata("/market-news", {
+  title: "Market News · AetherForge AI",
+  description: "Market headlines for the exchanges and assets AetherForge follows. Not a broker, and not financial advice.",
+});
 
 /**
  * /market-news — dedicated Market News page (same header/footer chrome as other app pages).

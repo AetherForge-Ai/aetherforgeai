@@ -23,7 +23,7 @@ import {
 } from "../../../assets/files";
 
 // Dated folder for the 7–8 July 2026 sample.
-const TODAY_LABEL = "8/7/2026";
+const TODAY_LABEL = "8 Jul 2026";
 
 type Proof = {
   src: string;

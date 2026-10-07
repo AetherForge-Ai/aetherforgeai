@@ -9,7 +9,7 @@
  * with.
  */
 
-export type TxDialogMode = "buy" | "sell" | "deposit" | "withdraw" | "dividend" | "tax";
+export type TxDialogMode = "buy" | "sell" | "deposit" | "withdraw" | "dividend" | "tax" | "correction";
 
 /** Asset already chosen when Buy or Sell on a holding row opens the panel. */
 export interface TxSeed {
@@ -21,6 +21,10 @@ export interface TxSeed {
   price?: number | null;
   /** Dedicated metals-table id, when the row is not a ledger stock. */
   metalSourceId?: string;
+  /** Holding Edit: the owned row, its quantity, and the date already on the book. */
+  holdingId?: string;
+  quantity?: number;
+  purchaseDate?: string | null;
 }
 
 export interface TxDialogSnapshot {

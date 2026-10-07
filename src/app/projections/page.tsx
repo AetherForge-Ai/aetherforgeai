@@ -1,8 +1,14 @@
 import { getCurrentUser } from "@/lib/session";
+import { publicPageMetadata } from "@/lib/reviewed-book";
 import { AppShell } from "@/components/AppShell";
 import { ProjectionsExplorer } from "@/components/dashboard/ProjectionsExplorer";
 
 export const dynamic = "force-dynamic";
+
+export const metadata = publicPageMetadata("/projections", {
+  title: "Projections · AetherForge AI",
+  description: "Weekly top projections across NZX, ASX, US markets and crypto. General information, not personal advice.",
+});
 
 /**
  * /projections — the weekly "Top Projections" browser. A Top-50 board per market

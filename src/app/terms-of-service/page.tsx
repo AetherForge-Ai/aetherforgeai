@@ -1,11 +1,11 @@
 import { LegalShell, LegalSection } from "@/components/legal/LegalShell";
 import { LEGAL_ENTITY_NAME } from "@/lib/company";
+import { publicPageMetadata } from "@/lib/reviewed-book";
 
-export const metadata = {
+export const metadata = publicPageMetadata("/terms-of-service", {
   title: "Terms & Conditions — AetherForge AI",
-  description:
-    `The terms and conditions governing your use of AetherForge AI, the trading name of ${LEGAL_ENTITY_NAME}.`,
-};
+  description: `The terms and conditions governing your use of AetherForge AI, the trading name of ${LEGAL_ENTITY_NAME}.`,
+});
 
 const UPDATED = "2 July 2026";
 

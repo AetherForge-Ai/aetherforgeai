@@ -6,19 +6,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
-import { searchAssets, type AssetHit, type AssetMarket } from "@/lib/asset-search";
+import { dexSearchHits, searchAssets, type AssetHit, type AssetMarket } from "@/lib/asset-search";
 import { PAPER_FEE_SUMMARY, suggestedFee } from "@/lib/fee-rule";
 import { buildMovementPreview, type MovementPreview, type RecordKind } from "@/lib/movement-preview";
 import { transactionProblems } from "@/lib/transaction-rules";
 import {
   currencyForTicker,
   formatDisplayDate,
+  formatFxInput,
   formatMoneyWithNzd,
   formatNzd,
   formatPriceInput,
+  formatQuantity,
   formatSignedMoney,
   type CurrencyCode,
 } from "@/lib/currency";
+import { openingFx } from "@/lib/reviewed-book";
 import { useFxRates } from "@/hooks/useFxRates";
 import { useCryptoMarkets } from "@/hooks/useCryptoMarkets";
 import { dexRowToCoin, type DexTokenRow } from "@/lib/crypto-dex";
@@ -97,7 +100,7 @@ export function RecordTransactionPanel({
   onRequestClose: () => void;
 }) {
   const today = useMemo(() => todayISO(), [open]);
-  const { rates } = useFxRates();
+  const { rates, live: fxLive } = useFxRates();
   const { coins } = useCryptoMarkets(open);
   const [dex, setDex] = useState<AssetHit[]>([]);
   const [kind, setKind] = useState<RecordKind>(initialMode);
@@ -155,10 +158,14 @@ export function RecordTransactionPanel({
     setPrice(startPrice);
     const cur = seeded ? currencyForTicker(seeded.symbol, seeded.assetType) : "NZD";
     setCurrency(cur);
-    setFxRate(cur === "NZD" ? "1" : String(rates[cur] || 1));
+    const seededDay = dayOf(seed?.purchaseDate);
+    if (nextKind === "correction" && seededDay) setDate(seededDay);
+    if (seed?.quantity && seed.quantity > 0) setQuantity(String(seed.quantity));
+    if (nextKind === "correction") setPriceDirty(true);
+    setFxRate(openingFx({ currency: cur, live: fxLive, liveRate: rates[cur] }) || "");
     setFee(suggestedFee(nextKind, 0, Number(startPrice) || 0).toFixed(2));
     disarmReview();
-  }, [open, initialMode, seed, preferredAssetType, today, rates, disarmReview]);
+  }, [open, initialMode, seed, preferredAssetType, today, rates, fxLive, disarmReview]);
 
   useEffect(() => {
     if (!open) return;
@@ -203,16 +210,7 @@ export function RecordTransactionPanel({
     let cancel = false;
     void api.get<DexTokenRow[]>("/api/crypto/dex").then((res) => {
       if (cancel || !res.ok || !Array.isArray(res.data)) return;
-      setDex(
-        res.data.map((row) => ({
-          symbol: row.symbol,
-          name: row.name || row.symbol,
-          market: "DEX" as const,
-          assetType: "crypto" as const,
-          id: row.detailId || row.id,
-          price: row.price,
-        }))
-      );
+      setDex(dexSearchHits(res.data));
     });
     return () => {
       cancel = true;
@@ -286,8 +284,8 @@ export function RecordTransactionPanel({
     );
   }, [asset, book, metalId]);
 
-  const showAsset = kind === "buy" || kind === "sell" || kind === "dividend" || kind === "opening_balance";
-  const showQty = kind === "buy" || kind === "sell" || (kind === "opening_balance" && !!asset);
+  const showAsset = kind === "buy" || kind === "sell" || kind === "dividend" || kind === "opening_balance" || kind === "correction";
+  const showQty = kind === "buy" || kind === "sell" || kind === "correction" || (kind === "opening_balance" && !!asset);
   const cashMovement = !showQty;
 
   useEffect(() => {
@@ -297,7 +295,15 @@ export function RecordTransactionPanel({
   }, [kind, quantity, price, feeDirty]);
 
   useEffect(() => {
-    if (!open || !asset || priceDirty) return;
+    if (!open || fxDirty || date !== today || step === "review") return;
+    const next = openingFx({ currency, live: fxLive, liveRate: rates[currency] });
+    if (next) setFxRate(next);
+  }, [open, fxDirty, date, today, currency, fxLive, rates, step]);
+
+  useEffect(() => {
+    if (!open || !asset || step === "review") return;
+    if (kind === "correction" && date === today) return;
+    if (kind !== "correction" && priceDirty) return;
     const sym = asset.symbol;
     const type = asset.assetType;
     let cancel = false;
@@ -305,8 +311,9 @@ export function RecordTransactionPanel({
     void (async () => {
       if (date === today) {
         const id = asset.id ? `&id=${encodeURIComponent(asset.id)}` : "";
+        const market = asset.market === "DEX" ? "&market=dex" : "";
         const res = await api.get<{ price: number | null }>(
-          `/api/tickers/quote?symbol=${encodeURIComponent(sym)}&type=${type}${id}`
+          `/api/tickers/quote?symbol=${encodeURIComponent(sym)}&type=${type}${id}${market}`
         );
         if (cancel || priceDirty) return;
         if (res.ok && res.data?.price && res.data.price > 0) {
@@ -322,12 +329,14 @@ export function RecordTransactionPanel({
         const res = await api.get<{ price: number | null; currency?: CurrencyCode; fxRate?: number }>(
           `/api/tickers/history?symbol=${encodeURIComponent(sym)}&type=${type}&date=${date}`
         );
-        if (cancel || priceDirty) return;
-        if (res.ok && res.data?.price && res.data.price > 0) {
+        if (cancel || (kind !== "correction" && priceDirty)) return;
+        if (res.ok && res.data?.price && res.data.price > 0 && kind !== "correction") {
           setPrice(formatPriceInput(res.data.price));
-          if (!fxDirty && res.data.fxRate && res.data.fxRate > 0) setFxRate(String(res.data.fxRate));
+          if (!fxDirty && res.data.fxRate && res.data.fxRate > 0) setFxRate(formatFxInput(res.data.fxRate));
           if (res.data.currency) setCurrency(res.data.currency);
           setHint(`Suggested close for ${formatDisplayDate(date)}. You can type over the price and the exchange rate.`);
+        } else if (res.ok && kind === "correction") {
+          if (!fxDirty && res.data?.fxRate && res.data.fxRate > 0) setFxRate(formatFxInput(res.data.fxRate));
         } else {
           setHint(`No close was found for ${formatDisplayDate(date)}. Type the price you paid.`);
         }
@@ -336,7 +345,7 @@ export function RecordTransactionPanel({
     return () => {
       cancel = true;
     };
-  }, [open, asset, date, today, priceDirty, fxDirty]);
+  }, [open, asset, date, today, priceDirty, fxDirty, step, kind]);
 
   function chooseAsset(hit: AssetHit) {
     setAsset(hit);
@@ -345,14 +354,18 @@ export function RecordTransactionPanel({
     setFxDirty(false);
     const cur = currencyForTicker(hit.symbol, hit.assetType);
     setCurrency(cur);
-    if (!fxDirty) setFxRate(cur === "NZD" ? "1" : String(rates[cur] || 1));
+    if (date === today) {
+      setFxRate(openingFx({ currency: cur, live: fxLive, liveRate: rates[cur] }) || "");
+    }
+    if (hit.market === "DEX" && hit.price && hit.price > 0) setPrice(formatPriceInput(hit.price));
     const match = book.find((h) => h.ticker.toUpperCase() === hit.symbol.toUpperCase());
     setMetalId(match?.metalSourceId);
     if (kind === "sell" && match && !(Number(quantity) > 0)) setQuantity(String(match.quantity));
   }
 
   function buildPreview(): MovementPreview {
-    const fx = currency === "NZD" ? 1 : Number(fxRate) || rates[currency] || 1;
+    const parsedFx = Number(fxRate);
+    const fx = currency === "NZD" ? 1 : parsedFx > 0 ? parsedFx : 0;
     return buildMovementPreview({
       type: kind,
       date,
@@ -370,6 +383,10 @@ export function RecordTransactionPanel({
 
   function review() {
     if (!beginReviewGuard() || saving) return;
+    if ((kind === "buy" || kind === "sell") && currency !== "NZD" && !(Number(fxRate) > 0)) {
+      setProblems(["The exchange rate is still loading. Wait for today's rate, or type the one from your broker."]);
+      return;
+    }
     const next = buildPreview();
     const first = asset
       ? earliest(firstBuys[asset.symbol.toUpperCase()], held?.purchaseDate)
@@ -421,23 +438,47 @@ export function RecordTransactionPanel({
         onRequestClose();
         return;
       }
+      if (kind === "correction") {
+        if (!seed?.holdingId) {
+          toast.error("This correction needs the holding it belongs to.");
+          return;
+        }
+        const res = await api.put(`/api/stocks/${seed.holdingId}`, {
+          ticker: preview.asset,
+          asset_type: asset?.assetType || seed.assetType,
+          shares: preview.quantity,
+          purchase_price: preview.priceNative,
+          purchase_date: preview.date,
+          notes: notes.trim() || undefined,
+        });
+        if (!res.ok) {
+          toast.error(typeof res.error === "string" ? res.error : "Could not record that correction.");
+          return;
+        }
+        bumpHoldingsGeneration();
+        toast.success("Correction recorded");
+        const ledger = await api.get("/api/transactions");
+        onDone(ledger.data);
+        onRequestClose();
+        return;
+      }
       const payload: Record<string, unknown> = {
         type: kind,
         notes: notes.trim() || undefined,
-        executed_at: date,
-        fees: Number(fee) || 0,
+        executed_at: preview.date,
+        fees: preview.feeNative,
       };
       if (showQty && asset) {
         payload.ticker = asset.symbol.toUpperCase();
         payload.asset_type = asset.assetType;
         payload.asset_name = asset.name;
-        payload.quantity = Number(quantity);
-        payload.price = Number(price);
-        payload.fx_rate = Number(fxRate) || undefined;
+        payload.quantity = preview.quantity;
+        payload.price = preview.priceNative;
+        payload.fx_rate = preview.fxRate;
         payload.confirm = true;
         if (asset.id && asset.assetType === "crypto") payload.coingecko_id = asset.id;
       } else {
-        payload.amount = Number(price);
+        payload.amount = preview.priceNative;
         if (kind === "dividend" && asset) {
           payload.ticker = asset.symbol.toUpperCase();
           payload.asset_type = asset.assetType;
@@ -447,8 +488,8 @@ export function RecordTransactionPanel({
           payload.ticker = asset.symbol.toUpperCase();
           payload.asset_type = asset.assetType;
           payload.asset_name = asset.name;
-          payload.quantity = Number(quantity);
-          payload.price = Number(price);
+          payload.quantity = preview.quantity;
+          payload.price = preview.priceNative;
           payload.confirm = true;
           delete payload.amount;
         }
@@ -481,18 +522,23 @@ export function RecordTransactionPanel({
           <ReviewRow label="Type" value={KINDS.find((k) => k.id === preview.type)?.label || preview.type} />
           {preview.asset ? <ReviewRow label="Asset" value={preview.assetName && preview.assetName !== preview.asset ? `${preview.asset} · ${preview.assetName}` : preview.asset} /> : null}
           <ReviewRow label="Date" value={formatDisplayDate(preview.date)} />
-          {showQty ? <ReviewRow label="Quantity" value={String(preview.quantity)} /> : null}
+          {showQty ? <ReviewRow label="Quantity" value={formatQuantity(preview.quantity)} /> : null}
           <ReviewRow
             label={showQty ? "Price" : "Amount"}
             value={formatMoneyWithNzd(preview.priceNative, preview.currency, preview.priceNzd)}
           />
-          <ReviewRow label="Exchange rate" value={preview.fxRate === 1 ? "1 NZD" : `${trimRate(preview.fxRate)} NZD per 1 ${preview.currency}`} />
+          <ReviewRow label="Exchange rate" value={preview.fxRate === 1 ? "1.0000 NZD" : `${formatFxInput(preview.fxRate)} NZD per 1 ${preview.currency}`} />
           <ReviewRow label="Fee" value={formatMoneyWithNzd(preview.feeNative, preview.currency, preview.feeNzd)} />
           <ReviewRow label="Cash change" value={formatSignedMoney(preview.cashChangeNzd)} />
           <ReviewRow label="Cash after" value={formatNzd(preview.cashAfterNzd)} />
         </div>
       ) : (
         <div className="space-y-4">
+          {kind === "correction" ? (
+            <p className="text-sm text-muted-foreground">
+              This writes a correction on the ledger for {asset?.symbol || "this holding"}. Cash does not move.
+            </p>
+          ) : (
           <div className="space-y-2">
             <Label>Type</Label>
             <div className="flex flex-wrap gap-1.5" data-testid="record-types" role="group" aria-label="Transaction type">
@@ -517,6 +563,7 @@ export function RecordTransactionPanel({
               ))}
             </div>
           </div>
+          )}
 
           {showAsset ? (
             <div className="space-y-2">
@@ -530,9 +577,11 @@ export function RecordTransactionPanel({
                   <span className={cn("shrink-0 rounded px-1.5 py-0.5 text-[0.65rem] font-bold uppercase", badgeClass(asset.market))}>
                     {asset.market}
                   </span>
-                  <button type="button" className="text-xs font-semibold text-primary" onClick={() => setAsset(null)}>
-                    Change
-                  </button>
+                  {kind === "correction" ? null : (
+                    <button type="button" className="text-xs font-semibold text-primary" onClick={() => setAsset(null)}>
+                      Change
+                    </button>
+                  )}
                 </div>
               ) : (
                 <>
@@ -659,7 +708,8 @@ export function RecordTransactionPanel({
                 onChange={(e) => {
                   const next = e.target.value as CurrencyCode;
                   setCurrency(next);
-                  if (!fxDirty) setFxRate(next === "NZD" ? "1" : String(rates[next] || 1));
+                  setFxDirty(false);
+                  setFxRate(openingFx({ currency: next, live: fxLive, liveRate: rates[next] }) || "");
                 }}
               >
                 <option value="NZD">NZD</option>
@@ -672,7 +722,7 @@ export function RecordTransactionPanel({
               <Input
                 id="record-fx"
                 inputMode="decimal"
-                value={cashMovement ? "1" : fxRate}
+                value={cashMovement || currency === "NZD" ? "1.0000" : fxRate}
                 onChange={(e) => {
                   setFxRate(e.target.value);
                   setFxDirty(true);
@@ -705,13 +755,16 @@ export function RecordTransactionPanel({
               How the books work
             </Link>
           </p>
-          {livePreview ? (
+          {!(bookKnown || cashKnown) ||
+          ((kind === "buy" || kind === "sell") && currency !== "NZD" && !(Number(fxRate) > 0)) ? (
+            <p className="text-sm text-muted-foreground">Loading cash…</p>
+          ) : livePreview ? (
             <p className="text-sm">
               Cash change{" "}
               <span className={cn("tnum font-semibold", livePreview.cashChangeNzd < 0 ? "text-rose-600" : "text-emerald-700")}>
                 {formatSignedMoney(livePreview.cashChangeNzd)}
               </span>
-              <span className="text-muted-foreground"> · cash after {bookKnown || cashKnown ? formatNzd(livePreview.cashAfterNzd) : "still loading"}</span>
+              <span className="text-muted-foreground"> · cash after {formatNzd(livePreview.cashAfterNzd)}</span>
             </p>
           ) : null}
           {problems.length > 0 ? (
@@ -762,10 +815,6 @@ function ReviewRow({ label, value }: { label: string; value: string }) {
       <span className="tnum text-right font-medium">{value}</span>
     </div>
   );
-}
-
-function trimRate(n: number): string {
-  return (Math.round(n * 10000) / 10000).toString();
 }
 
 function earliest(a?: string, b?: string | null): string {

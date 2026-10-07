@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { publicPageMetadata } from "@/lib/reviewed-book";
 import { getCurrentUser } from "@/lib/session";
 import { AppShell } from "@/components/AppShell";
 import { resolveDisplayName } from "@/lib/user-display";
@@ -7,7 +8,10 @@ import { OnboardingPageClient } from "@/components/dashboard/OnboardingPageClien
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Onboarding — AetherForge AI",
+  ...publicPageMetadata("/onboarding", {
+    title: "Onboarding — AetherForge AI",
+    description: "Set up your paper book on AetherForge.",
+  }),
   robots: { index: false, follow: false },
 };
 

@@ -1,14 +1,23 @@
 import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/session";
+import { publicPageMetadata } from "@/lib/reviewed-book";
 import { MarketsAppFrame } from "@/components/dashboard/MarketsAppFrame";
 import { StockAssetPage } from "@/components/dashboard/StockAssetPage";
 import { exchangeFromTicker, normalizeStockTicker, parseExchange } from "@/lib/market-detail-routes";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Stock · Markets · AetherForge AI",
-};
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ ticker: string }>;
+}): Promise<Metadata> {
+  const { ticker } = await params;
+  return publicPageMetadata(`/markets/stock/${ticker}`, {
+    title: "Stock · Markets · AetherForge AI",
+    description: "A share from the AetherForge markets list. Paper research, not a broker.",
+  });
+}
 
 /**
  * /markets/stock/[ticker] — shareable equity page.

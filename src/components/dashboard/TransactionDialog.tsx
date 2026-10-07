@@ -92,9 +92,13 @@ export function TransactionDialog({
         }}
       >
         <DialogHeader className="shrink-0 space-y-1 px-4 pt-4 pr-12 sm:px-6 sm:pt-6">
-          <DialogTitle className="font-display text-xl">Record a transaction</DialogTitle>
+          <DialogTitle className="font-display text-xl">
+            {mode === "correction" ? "Correct this holding" : "Record a transaction"}
+          </DialogTitle>
           <DialogDescription>
-            Shares, coins, DEX tokens, gold and silver, or a cash movement. One search, then review before anything is written.
+            {mode === "correction"
+              ? "Update the date, amount or price. Confirming writes a correction on the ledger. It does not overwrite the holding in silence."
+              : "Shares, coins, DEX tokens, gold and silver, or a cash movement. One search, then review before anything is written."}
           </DialogDescription>
         </DialogHeader>
         <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 sm:px-6">
