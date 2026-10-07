@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { ReactNode } from "react";
 import { SiteHeader } from "@/components/SiteHeader";
-import { BrandLogo } from "@/components/BrandLogo";
 import { ArrowLeft } from "lucide-react";
 
 interface LegalShellProps {
@@ -49,20 +48,6 @@ export function LegalShell({ title, subtitle, updated, children }: LegalShellPro
             </div>
           </div>
 
-          <div className="mt-8 flex flex-col items-center justify-between gap-4 border-t border-border/60 pt-8 text-xs text-muted-foreground sm:flex-row">
-            <BrandLogo />
-            <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
-              <Link href="/terms-of-service" className="hover:text-foreground">
-                Terms &amp; Conditions
-              </Link>
-              <Link href="/privacy-policy" className="hover:text-foreground">
-                AI Privacy Act
-              </Link>
-              <Link href="/ai-disclaimer" className="hover:text-foreground">
-                AI Disclaimer
-              </Link>
-            </div>
-          </div>
         </div>
       </div>
     </div>

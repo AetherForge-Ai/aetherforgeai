@@ -9,9 +9,10 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
+  const label = decodeURIComponent(id);
   return publicPageMetadata(`/markets/crypto/${id}`, {
-    title: "Crypto · Markets · AetherForge AI",
-    description: "A coin from the AetherForge markets list. Paper research, not a broker.",
+    title: `${label} · Crypto · AetherForge AI`,
+    description: `${label} on AetherForge markets. Paper research, not a broker.`,
   });
 }
 

@@ -1,13 +1,20 @@
 import { LegalShell, LegalSection } from "@/components/legal/LegalShell";
 import { LEGAL_ENTITY_NAME } from "@/lib/company";
 import { publicPageMetadata } from "@/lib/reviewed-book";
+import {
+  ANNUAL_TOOLKIT_LINE,
+  LEGAL_UPDATED,
+  REFUND_FAQ,
+  TRIAL_CARD_LINE,
+  TRIAL_FAQ,
+} from "@/lib/public-copy";
 
 export const metadata = publicPageMetadata("/terms-of-service", {
   title: "Terms & Conditions — AetherForge AI",
   description: `The terms and conditions governing your use of AetherForge AI, the trading name of ${LEGAL_ENTITY_NAME}.`,
 });
 
-const UPDATED = "2 July 2026";
+const UPDATED = LEGAL_UPDATED;
 
 export default function TermsOfService() {
   return (
@@ -64,12 +71,13 @@ export default function TermsOfService() {
 
       <LegalSection heading="5. Subscriptions, billing & payment">
         <p>
-          Public pricing is billed monthly or yearly. Prices are shown on our pricing page and are
-          stated in the applicable currency. An existing weekly plan, if it is already on the account,
-          continues to bill weekly until it is changed. Payments are processed securely by Stripe; by
-          subscribing you authorise us (through Stripe) to charge your chosen payment method on a
-          recurring basis until you cancel.
+          Public pricing is billed monthly or yearly. Prices are shown on our pricing page.{" "}
+          {/* TODO(owner): confirm whether published prices include or exclude GST. Do not write "including GST" or "excluding GST" until then. */}
+          Payments are processed securely by Stripe; by subscribing you authorise us (through Stripe) to
+          charge your chosen payment method on a recurring basis until you cancel.
         </p>
+        <p>{TRIAL_FAQ}</p>
+        <p>{TRIAL_CARD_LINE}</p>
         <ul className="list-disc space-y-1.5 pl-5">
           <li>Subscriptions renew automatically at the end of each billing period unless cancelled.</li>
           <li>You may cancel at any time; cancellation takes effect at the end of the current paid period.</li>
@@ -78,20 +86,16 @@ export default function TermsOfService() {
             period you have already paid for.
           </li>
         </ul>
-        <p>
-          Because the Service is a digital product supplied and accessed immediately, subscription fees
-          are generally non-refundable except where a refund is required by the Consumer Guarantees Act
-          1993 or other New Zealand law. Nothing in these terms limits your rights under that Act.
-        </p>
+        <p>{REFUND_FAQ}</p>
+        <p>Nothing in these terms limits your rights under the Consumer Guarantees Act 1993.</p>
       </LegalSection>
 
       <LegalSection heading="6. Annual member toolkit">
         <p>
-          Customers on an annual plan may download our professional Excel investor toolkit (Portfolio
-          Tracker and Transactions spreadsheets). These files are provided for your own personal
-          record-keeping. You may use and modify them for your own purposes but must not resell or
-          redistribute them. The figures they contain reflect the data you enter and are your
-          responsibility.
+          Customers on an annual plan may download our {ANNUAL_TOOLKIT_LINE}. These files are provided
+          for your own personal record-keeping. You may use and modify them for your own purposes but
+          must not resell or redistribute them. The figures they contain reflect the data you enter and
+          are your responsibility.
         </p>
       </LegalSection>
 
@@ -198,12 +202,13 @@ export default function TermsOfService() {
       </LegalSection>
 
       <LegalSection heading="17. Contact">
+        {/* TODO(owner): confirm the support@ mailbox before publishing an address. */}
         <p>
-          Questions about these terms can be sent to{" "}
-          <a href="mailto:support@aetherforgeai.co.nz" className="text-primary hover:underline">
-            support@aetherforgeai.co.nz
-          </a>
-          .
+          Questions about these terms can be sent through the contact form on the{" "}
+          <a href="/about#contact" className="text-primary hover:underline">
+            About
+          </a>{" "}
+          page.
         </p>
       </LegalSection>
     </LegalShell>

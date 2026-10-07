@@ -60,7 +60,7 @@ export function NewsFeed() {
                     IMPACT_STYLES[n.impact],
                   )}
                 >
-                  {n.impact}
+                  AetherForge tag · {n.impact}
                 </span>
                 <span className="text-[0.66rem] tabular-nums text-muted-foreground">{n.time}</span>
               </div>
@@ -72,7 +72,7 @@ export function NewsFeed() {
               </p>
 
               <p className="text-xs leading-relaxed text-muted-foreground">
-                {n.source} · {n.market}
+                {n.source} · {n.marketLabel || n.market}
               </p>
 
               <div className="flex items-end justify-between gap-2 pt-1">
@@ -81,7 +81,7 @@ export function NewsFeed() {
                     {n.relevance}
                   </span>
                   <span className="mt-1 text-[0.55rem] uppercase tracking-wider text-muted-foreground">
-                    relevance
+                    AetherForge tag
                   </span>
                 </div>
                 <span className="text-[0.66rem] font-semibold text-primary">Read article →</span>
@@ -103,10 +103,10 @@ export function NewsFeed() {
                       IMPACT_STYLES[active.impact],
                     )}
                   >
-                    {active.impact}
+                    AetherForge tag · {active.impact}
                   </span>
                   <span className="text-xs text-muted-foreground">
-                    {active.source} · {active.market} · {active.time}
+                    {active.source} · {active.marketLabel || active.market} · {active.time}
                   </span>
                 </div>
                 <DialogTitle className="font-display text-left text-xl font-bold leading-snug text-foreground">

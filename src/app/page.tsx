@@ -1,10 +1,17 @@
 import Link from "next/link";
 import { LEGAL_ENTITY_NAME } from "@/lib/company";
+import { publicPageMetadata } from "@/lib/reviewed-book";
 import { SiteHeader } from "@/components/SiteHeader";
 import { MarketTicker } from "@/components/MarketTicker";
 import { HomeBottomCta, HomeHeroCtas } from "@/components/home/HomeSessionCtas";
 import { PersonalGuide } from "@/components/personal-guide";
 import { HomeMetalsPrices } from "@/components/home/HomeMetalsPrices";
+
+export const metadata = publicPageMetadata("/", {
+  title: "AetherForge AI — Intelligent Market Analysis",
+  description:
+    "AetherForge AI is market intelligence for a paper portfolio: NZX, ASX and global markets, with AI research on the positions you enter. Not a broker, and not financial advice.",
+});
 
 const BOTS = [
   {
@@ -264,34 +271,6 @@ export default function LandingPage() {
           </div>
         </div>
       </main>
-      <footer className="border-t border-border/60 bg-background">
-        <nav
-          aria-label="Footer"
-          className="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-x-6 gap-y-2 px-4 py-8 text-sm text-muted-foreground"
-        >
-          <Link href="/privacy-policy" className="hover:text-foreground">
-            Privacy
-          </Link>
-          <Link href="/terms-of-service" className="hover:text-foreground">
-            Terms
-          </Link>
-          <Link href="/about#contact" className="hover:text-foreground">
-            Contact
-          </Link>
-          <Link href="/pricing" className="hover:text-foreground">
-            Pricing
-          </Link>
-          <Link href="/trust" className="hover:text-foreground">
-            How the books work
-          </Link>
-          <Link href="/ai-disclaimer" className="hover:text-foreground">
-            AI disclaimer
-          </Link>
-          <Link href="/docs" className="hover:text-foreground">
-            Docs
-          </Link>
-        </nav>
-      </footer>
     </div>
   );
 }

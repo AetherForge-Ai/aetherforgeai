@@ -675,7 +675,13 @@ describe("public page canonical URLs", () => {
     expect(stock).toContain("publicPageMetadata(`/markets/stock/${ticker}`");
     const trust = readFileSync(path.join(process.cwd(), "src/app/trust/page.tsx"), "utf8");
     expect(trust).toContain("<SiteHeader");
-    expect(trust).toContain('aria-label="Footer"');
+    expect(trust).toContain('href="/"');
+    const footer = readFileSync(path.join(process.cwd(), "src/components/SiteFooter.tsx"), "utf8");
+    expect(footer).toContain('aria-label="Footer"');
+    expect(footer).toContain("Privacy Policy");
+    expect(footer).toContain('label: "Terms"');
+    expect(footer).toContain("NZBN");
+    expect(readFileSync(path.join(process.cwd(), "src/app/layout.tsx"), "utf8")).toContain("<SiteFooter");
     const login = readFileSync(path.join(process.cwd(), "src/app/login/layout.tsx"), "utf8");
     expect(login).toContain('publicPageMetadata("/login"');
     const stocks = readFileSync(path.join(process.cwd(), "src/app/dashboard/stocks/page.tsx"), "utf8");

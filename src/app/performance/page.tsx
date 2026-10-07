@@ -2,7 +2,6 @@ import Link from "next/link";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { LEGAL_ENTITY_NAME } from "@/lib/company";
 import { SiteHeader } from "@/components/SiteHeader";
-import { BrandLogo } from "@/components/BrandLogo";
 import { LiveExamplesGallery } from "@/components/performance/LiveExamplesGallery";
 import {
   Zap,
@@ -127,43 +126,19 @@ export default function PerformancePage() {
           </p>
         </section>
 
-        {/* ──────────────────  FOOTER + DISCLAIMER  ────────────────── */}
-        <footer className="border-t border-border/60">
+        <section className="border-t border-border/60">
           <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-            <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-start sm:justify-between">
-              <div className="max-w-sm text-center sm:text-left">
-                <BrandLogo animated markClassName="size-11" wordmarkClassName="text-lg" />
-                <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-                  {LEGAL_ENTITY_NAME}, a New Zealand limited company. Market intelligence for NZX, ASX
-                  and global markets.
-                </p>
-              </div>
-              <div className="grid grid-cols-2 gap-x-10 gap-y-2 text-sm text-muted-foreground">
-                <Link href="/performance" className="hover:text-foreground">Example results</Link>
-                <Link href="/how-it-works" className="hover:text-foreground">How it works</Link>
-                <Link href="/pricing" className="hover:text-foreground">Pricing</Link>
-                <Link href="/about" className="hover:text-foreground">About</Link>
-                <Link href="/privacy-policy" className="hover:text-foreground">Privacy</Link>
-                <Link href="/terms-of-service" className="hover:text-foreground">Terms</Link>
-                <Link href="/ai-disclaimer" className="hover:text-foreground">AI Disclaimer</Link>
-                <Link href="/docs" className="hover:text-foreground">Docs</Link>
-              </div>
-            </div>
-
-            {/* Risk disclaimer */}
-            <div className="mt-10 border-t border-border/50 pt-6">
-              <p className="text-center text-xs leading-relaxed text-muted-foreground/70">
-                Example screenshots are illustrative. AetherForge does not execute trades and is not a
-                licensed financial advice service. Past paper-portfolio changes are not a reliable
-                indicator of future results. Markets can fall as well as rise.
-              </p>
-              <p className="mt-3 text-center text-xs leading-relaxed text-muted-foreground/70">
-                © {new Date().getFullYear()} {LEGAL_ENTITY_NAME}. For informational purposes only. Not
-                licensed financial advice under the Financial Markets Conduct Act 2013.
-              </p>
-            </div>
+            <p className="text-center text-xs leading-relaxed text-muted-foreground/70">
+              Example screenshots are illustrative. AetherForge does not execute trades and is not a
+              licensed financial advice service. Past paper-portfolio changes are not a reliable
+              indicator of future results. Markets can fall as well as rise.
+            </p>
+            <p className="mt-3 text-center text-xs leading-relaxed text-muted-foreground/70">
+              © {new Date().getFullYear()} {LEGAL_ENTITY_NAME}. For informational purposes only. Not
+              licensed financial advice under the Financial Markets Conduct Act 2013.
+            </p>
           </div>
-        </footer>
+        </section>
       </div>
     </div>
   );

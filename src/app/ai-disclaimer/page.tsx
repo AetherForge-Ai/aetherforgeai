@@ -1,5 +1,6 @@
 import { LegalShell, LegalSection } from "@/components/legal/LegalShell";
 import { publicPageMetadata } from "@/lib/reviewed-book";
+import { ENGINE_PARAGRAPH, LEGAL_UPDATED } from "@/lib/public-copy";
 
 export const metadata = publicPageMetadata("/ai-disclaimer", {
   title: "AI Disclaimer — AetherForge AI",
@@ -7,7 +8,7 @@ export const metadata = publicPageMetadata("/ai-disclaimer", {
     "Important disclaimer about AetherForge AI's AI-generated market analysis and New Zealand financial-advice law.",
 });
 
-const UPDATED = "2 July 2026";
+const UPDATED = LEGAL_UPDATED;
 
 export default function AiDisclaimer() {
   return (
@@ -52,8 +53,7 @@ export default function AiDisclaimer() {
 
       <LegalSection heading="3. How our AI works and its limitations">
         <p>
-          Our reports are generated using artificial intelligence and large language models applied to
-          market data and news. AI systems have important limitations you must understand:
+          {ENGINE_PARAGRAPH} AI notes have important limitations you must understand:
         </p>
         <ul className="list-disc space-y-1.5 pl-5">
           <li>
@@ -116,12 +116,13 @@ export default function AiDisclaimer() {
 
       <LegalSection heading="8. Questions">
         <p>
-          If you have any questions about this disclaimer, please contact us at{" "}
-          <a href="mailto:support@aetherforgeai.co.nz" className="text-primary hover:underline">
-            support@aetherforgeai.co.nz
-          </a>
-          . By continuing to use AetherForge AI you acknowledge that you have read and understood this
-          disclaimer.
+          {/* TODO(owner): confirm the support@ mailbox before publishing an address. */}
+          If you have any questions about this disclaimer, use the contact form on the{" "}
+          <a href="/about#contact" className="text-primary hover:underline">
+            About
+          </a>{" "}
+          page. By continuing to use
+          AetherForge AI you acknowledge that you have read and understood this disclaimer.
         </p>
       </LegalSection>
     </LegalShell>

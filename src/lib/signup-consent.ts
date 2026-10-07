@@ -1,8 +1,8 @@
 /**
- * Signup consent. The published Terms date is 2 July 2026.
+ * Signup consent. The published Terms date is 7 October 2026.
  * Bump TERMS_VERSION only when those Terms are re-issued.
  */
-export const TERMS_VERSION = "2026-07-02";
+export const TERMS_VERSION = "2026-10-07";
 
 export const SIGNUP_CONSENT_ERROR = "Confirm you are 18 or over before creating an account.";
 

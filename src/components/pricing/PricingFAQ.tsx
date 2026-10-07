@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { REFUND_FAQ, TRIAL_FAQ } from "@/lib/public-copy";
 
 const FAQS: { q: string; a: string }[] = [
   {
@@ -19,7 +20,7 @@ const FAQS: { q: string; a: string }[] = [
   },
   {
     q: "Do you offer refunds?",
-    a: "Paid plans start with a 14-day trial of the plan you choose, so you can explore it before you're charged. If you're ever billed in error or something isn't right, reach out and we'll make it right — we don't believe in trapping customers.",
+    a: REFUND_FAQ,
   },
   {
     q: "What is included with The Headmaster?",
@@ -31,7 +32,7 @@ const FAQS: { q: string; a: string }[] = [
   },
   {
     q: "Can I try Pro before committing?",
-    a: "Yes. Starter and Pro each begin with a 14-day trial of that plan. A card is collected at checkout, nothing is charged until the trial ends, and you can cancel before then. Ultimate is founder-led — use Talk to us rather than self-serve checkout.",
+    a: TRIAL_FAQ,
   },
   {
     q: "Do you have discounts for students or charities?",

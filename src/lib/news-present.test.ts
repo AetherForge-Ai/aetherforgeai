@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { NewsItem } from "@/lib/market-intel";
-import { prepareNewsFeed, sourceForUrl } from "@/lib/news-present";
+import { isOffTopicStory, prepareNewsFeed, sourceForUrl } from "@/lib/news-present";
 
 const cpi: NewsItem = {
   headline: "US CPI prints cooler than expected; rate-cut odds for the next FOMC firm up",
@@ -32,7 +32,7 @@ describe("public market news", () => {
     expect(first.headline).toMatch(/2\.75%/);
     expect(first.source).toBe("Reserve Bank of New Zealand");
     expect(first.url).toContain("rbnz.govt.nz");
-    expect(first.time).toBe("2 Sep 2026");
+    expect(first.time).toMatch(/2 Sept? 2026/);
     expect(second.source).toBe("U.S. Bureau of Labor Statistics");
     expect(second.url).toBe("https://www.bls.gov/cpi/");
     expect(second.headline).not.toMatch(/cooler than expected/);
@@ -79,5 +79,84 @@ describe("public market news", () => {
     const item = feed.find((row) => row.url.includes("fonterra.com"));
     expect(item?.source).toBe("Fonterra");
     expect(item?.time).toMatch(/12 Sept? 2026/);
+  });
+
+  it("dates future events as scheduled, labels NZ macro, and drops lifestyle stories", () => {
+    const now = new Date("2026-10-07T12:00:00+13:00");
+    const feed = prepareNewsFeed(
+      [
+        {
+          headline: "Froyo's made a comeback in London cafes",
+          source: "BBC",
+          market: "Global",
+          impact: "Neutral",
+          relevance: 20,
+          time: "1d ago",
+          publishedOn: "2026-10-06",
+          summary: "A lifestyle piece about frozen yogurt.",
+          url: "https://www.bbc.com/news/articles/froyo-comeback",
+        },
+        {
+          headline: "Jaguar unveils a new electric concept",
+          source: "BBC",
+          market: "Global",
+          impact: "Neutral",
+          relevance: 20,
+          time: "1d ago",
+          publishedOn: "2026-10-06",
+          summary: "A car story from the business feed.",
+          url: "https://www.bbc.com/news/articles/jaguar-unveils",
+        },
+        {
+          headline: "Auckland bin collectors dumped a new roster",
+          source: "RNZ",
+          market: "NZX",
+          impact: "Neutral",
+          relevance: 70,
+          time: "1d ago",
+          publishedOn: "2026-10-06",
+          summary: "A council story that is not a market story.",
+          url: "https://www.rnz.co.nz/news/national/bin-collectors",
+        },
+        {
+          headline: "RNZ reports inflation steadied ahead of the next OCR decision",
+          source: "RNZ",
+          market: "NZX",
+          impact: "Neutral",
+          relevance: 80,
+          time: "1d ago",
+          publishedOn: "2026-10-05",
+          summary: "A macro note on inflation and the Reserve Bank.",
+          url: "https://www.rnz.co.nz/news/business/inflation-ocr",
+        },
+        {
+          headline: "Bitcoin dips below $84,000 as traders watch the S&P",
+          source: "BeInCrypto",
+          market: "US",
+          impact: "Bullish",
+          relevance: 60,
+          time: "1d ago",
+          publishedOn: "2026-10-06",
+          summary: "A crypto desk note that mentions the S&P.",
+          url: "https://beincrypto.com/bitcoin-sp-note",
+        },
+      ],
+      now
+    );
+
+    expect(isOffTopicStory("Election debates return to Auckland", "Leaders met last night")).toBe(true);
+    const titles = feed.map((item) => item.headline).join(" ");
+    expect(titles).not.toMatch(/froyo|jaguar|bin collectors|election debate/i);
+    const rnz = feed.find((item) => item.url.includes("inflation-ocr"));
+    expect(rnz?.marketLabel).toBe("NZ macro");
+    expect(feed.find((item) => item.url.includes("the-official-cash-rate"))?.marketLabel).toBe("NZ macro");
+    const crypto = feed.find((item) => item.url.includes("beincrypto.com"));
+    expect(crypto?.market).toBe("CRYPTO");
+    const cpi = feed.find((item) => item.url === "https://www.bls.gov/cpi/");
+    expect(cpi?.time).toContain("Scheduled: 14 Oct");
+    expect(cpi?.publishedOn && cpi.publishedOn <= "2026-10-07").toBe(true);
+    for (const item of feed) {
+      expect(item.publishedOn && item.publishedOn <= "2026-10-07").toBe(true);
+    }
   });
 });

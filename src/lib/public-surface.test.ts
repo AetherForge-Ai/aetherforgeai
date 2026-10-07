@@ -90,6 +90,13 @@ describe("public surface routes", () => {
     expect(read("src/app/blog/page.tsx")).toContain("/market-news");
     expect(middleware).toContain('"/market-news"');
     expect(read("src/app/blog/page.tsx")).toContain("no articles");
+    expect(sitemap).toContain('"/markets"');
+    expect(sitemap).toContain('"/market-news"');
+    expect(sitemap).toContain('"/tax"');
+    expect(sitemap).toContain('"/how-it-works"');
+    expect(sitemap).not.toContain('"/login"');
+    expect(sitemap).not.toContain('"/register"');
+    expect(sitemap).not.toContain('"/projections"');
   });
 
   it("uses the shared site header on About and prompts signed-out dashboard clicks", () => {
