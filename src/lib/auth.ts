@@ -396,8 +396,8 @@ export const auth = betterAuth({
           }
           const consent = consentFields();
           const recordWithCountry = user as typeof user & { country?: unknown };
-          // TODO(owner): Totalum user.country must exist for the signup country to persist.
-          // createUserWithConsentFallback drops country when that column is missing.
+          // TODO(owner): country, age_confirmed, terms_accepted_at and terms_version now exist.
+          // createUserWithConsentFallback still strips them only if Totalum returns an unknown-field error.
           return {
             data: {
               ...user,

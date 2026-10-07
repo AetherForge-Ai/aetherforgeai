@@ -1,4 +1,9 @@
 import type { NewsItem } from "@/lib/market-intel";
+import { publisherTextHasSignalWord } from "@/lib/public-intel";
+
+/** Pull-check marker for the publisher-verbatim news gate. */
+export const P1_FOLLOWUP_PUBLISHER_HEADLINES_VERBATIM =
+  "p1-followup-publisher-headlines-verbatim-92fa";
 
 /**
  * Official cash rate as published by the Reserve Bank of New Zealand.
@@ -86,7 +91,7 @@ export function sourceForUrl(url: string, fallback: string): string {
 }
 
 const OFF_TOPIC =
-  /\b(froyo|frozen yogh?urt|jaguar|bin collectors?|election debates?|lifestyle|celebrity|red carpet|recipe|premiere|stuntwomen|carjacking|liquor licences)\b/i;
+  /\b(froyo|frozen yogh?urt|jaguar|bin collectors?|election debates?|leaders['’]?\s+debate|royal rumble|data virtuali[sz]ation|strategic business report|lifestyle|celebrity|red carpet|recipe|premiere|stuntwomen|carjacking|liquor licences)\b/i;
 
 const MARKET_SIGNAL =
   /\b(share|shares|stock|stocks|market|markets|nzx|asx|nasdaq|dow|s&p|rbnz|rba|ocr|cpi|inflation|gdp|earnings|dividend|ipo|bond|currency|oil|iron|bank|bitcoin|crypto|ethereum|fed|fomc|treasury|index|investor|trading|economy|economic|fonterra|profit|revenue|nzd|usd|aud|gold|silver|commodity|equity|listing|cash rate|interest)\b/i;
@@ -171,6 +176,39 @@ export function formatNewsDate(when: string | Date): string {
   });
 }
 
+const NZ_ANCHOR = /\b(nzx|\.nz\b|nze|rbnz|new zealand|auckland|wellington|fonterra|\bocr\b|kiwi)\b/i;
+const AU_ANCHOR = /\b(asx|\.ax\b|rba|australia|australian|sydney|melbourne|\bbhp\b)\b/i;
+const US_ANCHOR = /\b(nasdaq|dow jones|s&p|wall street|nyse|federal reserve|\bfed\b|\bfomc\b|\bu\.s\.\b|united states)\b/i;
+
+/**
+ * Feed hints stamp NZX/ASX/US even when the story is about somewhere else.
+ * A contradicted tag is dropped. A single clear market can replace it.
+ */
+function alignStoryMarket(item: NewsItem): NewsItem | null {
+  const blob = `${item.headline} ${item.summary}`;
+  const nz = NZ_ANCHOR.test(blob);
+  const au = AU_ANCHOR.test(blob);
+  const us = US_ANCHOR.test(blob);
+  const france = /\b(france|french|paris)\b/i.test(blob);
+  const election = /\b(election|leaders['’]?\s+debate|royal rumble)\b/i.test(blob);
+  const ukMiners = /\b(uk|u\.k\.|britain|british)\b/i.test(blob) && /\bminers?\b/i.test(blob);
+  const dataRelease = /\b(data virtuali[sz]ation|strategic business report)\b/i.test(blob);
+
+  const contradicted =
+    (item.market === "NZX" && (france || election) && !nz) ||
+    (item.market === "ASX" && ukMiners && !au) ||
+    (item.market === "US" && dataRelease && !us);
+
+  if (!contradicted) return item;
+
+  const supported: NewsItem["market"][] = [];
+  if (nz) supported.push("NZX");
+  if (au) supported.push("ASX");
+  if (us) supported.push("US");
+  if (supported.length === 1) return { ...item, market: supported[0] };
+  return null;
+}
+
 function isStaleOcr(item: NewsItem): boolean {
   const blob = `${item.headline} ${item.summary}`;
   return /official cash rate|\bOCR\b/i.test(blob) && /3\.25/.test(blob);
@@ -221,8 +259,14 @@ export function prepareNewsFeed(items: NewsItem[], now = new Date()): NewsItem[]
     }
     if (!item.publishedOn || !hasArticlePath(item.url)) continue;
     if (isOffTopicStory(item.headline, item.summary)) continue;
+    if (publisherTextHasSignalWord(`${item.headline}\n${item.summary}\n${item.url}\n${item.source}`)) continue;
+    const aligned = alignStoryMarket(item);
+    if (!aligned) continue;
     prepared.push({
-      ...item,
+      ...aligned,
+      headline: item.headline,
+      summary: item.summary,
+      url: item.url,
       source: sourceForUrl(item.url, item.source),
     });
   }

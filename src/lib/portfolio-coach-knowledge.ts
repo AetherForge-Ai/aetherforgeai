@@ -115,7 +115,7 @@ Steps:
 If the plan says trim or exit: walk one position at a time. Confirm the dashboard matches the intended residual weight.
 
 ### Share-price alerts
-Concept: Alerts watch a ticker and surface trim rules and a scenario: what a full exit would look like, when live price conditions are met. They are reminders inside AetherForge — not broker orders.
+Concept: Alerts watch a ticker and surface trim rules, plus a scenario that shows what a full exit would look like, when price conditions are met. They are reminders inside AetherForge — not broker orders.
 
 Steps:
 1. Open the **Share-price alerts** section on the Dashboard (member feature).

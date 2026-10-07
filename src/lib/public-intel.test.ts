@@ -30,17 +30,53 @@ describe("public market payloads", () => {
           reasoning: "Sell · MACD histogram is negative.",
         },
       ],
-      news: [{ headline: "Fed may Reduce rates", summary: "Traders sell into the print. Strong Buy chatter." }],
+      news: [
+        {
+          headline: "Fed may Reduce rates",
+          summary: "Traders sell into the print. Strong Buy chatter.",
+          url: "https://finance.yahoo.com/news/fed-may-sell-rates.html",
+        },
+        {
+          headline: "Fonterra publishes a milk-price note",
+          summary: "A dated note on the Fonterra site.",
+          url: "https://www.fonterra.com/nz/en/news/milk-price.html",
+        },
+      ],
     });
 
     const json = JSON.stringify(payload);
     expect(json).not.toMatch(PUBLIC_ADVICE_LEAK);
     expect(json).not.toMatch(/size positions/i);
+    expect(json).not.toContain("Fed may");
+    expect(json).not.toContain("fed-may-sell-rates");
+    expect(json).toContain("Fonterra publishes a milk-price note");
+    expect(json).toContain("https://www.fonterra.com/nz/en/news/milk-price.html");
     expect(json).toContain("Technical snapshot:");
     expect(json).toContain("oversold");
     expect(json).toContain("above its 20-day average");
     expect(technicalSnapshot({ rsi: 10, vsSma20: -4, regime: "High Volatility" })).toBe(
       "Technical snapshot: RSI 10 (oversold), below its 20-day average. Volatility: high.",
     );
+  });
+
+  it("leaves every field of a kept publisher story unchanged", () => {
+    const imageUrl = "https://img.example.com/sell-off-reduced.jpg";
+    const source = "Reuters sell desk";
+    const payload = toPublicPayload({
+      news: [
+        {
+          headline: "Fonterra publishes a milk-price note",
+          summary: "A dated note on the Fonterra site.",
+          url: "https://www.fonterra.com/nz/en/news/milk-price.html",
+          imageUrl,
+          source,
+        },
+      ],
+    });
+    const story = (payload as { news: Array<Record<string, string>> }).news[0];
+    expect(story.imageUrl).toBe(imageUrl);
+    expect(story.source).toBe(source);
+    expect(story.headline).toBe("Fonterra publishes a milk-price note");
+    expect(story.url).toBe("https://www.fonterra.com/nz/en/news/milk-price.html");
   });
 });

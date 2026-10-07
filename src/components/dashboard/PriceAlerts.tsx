@@ -361,7 +361,7 @@ export function PriceAlerts({
               {isMetal ? "Metals price alerts" : isCrypto ? "Crypto price alerts" : "Share-price alerts"}
             </h2>
             <p className="text-sm text-muted-foreground">
-              Set trim, full-exit and take-profit rules. scenario: what a full exit would look like.
+              Set trim, full-exit and take-profit rules. A scenario shows what a full exit would look like.
             </p>
           </div>
         </div>

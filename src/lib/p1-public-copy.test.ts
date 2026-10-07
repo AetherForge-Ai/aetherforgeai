@@ -37,7 +37,8 @@ describe("P1 public copy", () => {
     }
     const terms = read("src/app/terms-of-service/page.tsx");
     expect(terms).not.toMatch(/weekly/i);
-    expect(terms).toContain("{TRIAL_FAQ}");
+    expect(terms).not.toContain("TRIAL_FAQ");
+    expect(terms).not.toContain("Yes. Starter and Pro each begin");
     expect(terms).toContain("{TRIAL_CARD_LINE}");
     expect(terms).toContain("{REFUND_FAQ}");
     expect(terms).toContain("Prices are shown on our pricing page.");
@@ -112,6 +113,8 @@ describe("P1 public copy", () => {
       .map((file) => renderedCopy(read(file)))
       .join("\n");
     expect(rendered).not.toMatch(/not confirmed/i);
+    expect(rendered).not.toMatch(/not published here/i);
+    expect(rendered).not.toMatch(/A past date suggests/);
     expect(rendered).not.toMatch(/until it is confirmed/i);
     expect(rendered).not.toMatch(/until the company confirms/i);
     expect(rendered).toContain("https://x.com/aetherforgeAi_");

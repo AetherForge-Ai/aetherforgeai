@@ -18,6 +18,7 @@ import { CoinDetailModal } from "./CoinDetailModal";
 import { ProjectedPerformers } from "./ProjectedPerformers";
 import { useCryptoMarkets } from "@/hooks/useCryptoMarkets";
 import { cryptoCoveragePhrase } from "@/lib/crypto-coverage";
+import { CRYPTO_PROJECTIONS_PAUSED, CRYPTO_PROJECTIONS_PAUSE_MESSAGE } from "@/lib/projection-pause";
 import { LineChart, TrendingUp } from "lucide-react";
 
 export function CryptoMarketSection({ showProjected = true }: { showProjected?: boolean }) {
@@ -45,9 +46,11 @@ export function CryptoMarketSection({ showProjected = true }: { showProjected?: 
           <div>
             <p className="font-display text-base font-semibold">Institutional Crypto Terminal</p>
             <p className="text-xs text-muted-foreground">
-              {loading && coins.length === 0
-                ? "Loading live market data…"
-                : `${cryptoCoveragePhrase(coins.length)} · USD`}
+              {CRYPTO_PROJECTIONS_PAUSED && (loading || coins.length === 0)
+                ? CRYPTO_PROJECTIONS_PAUSE_MESSAGE
+                : loading && coins.length === 0
+                  ? "Loading live market data…"
+                  : `${cryptoCoveragePhrase(coins.length)} · USD`}
             </p>
           </div>
         </div>

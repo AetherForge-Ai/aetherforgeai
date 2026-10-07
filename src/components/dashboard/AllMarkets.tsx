@@ -16,8 +16,22 @@ import { Globe, Layers } from "lucide-react";
  * MarketsExplorer (live cross-exchange table). The full-page version of the
  * same browser lives at /markets (the Stock Markets nav item).
  */
-export function AllMarkets({ onBought }: { onBought?: () => void }) {
+export function AllMarkets({
+  onBought,
+  scope = "equity",
+}: {
+  onBought?: () => void;
+  scope?: "equity" | "crypto";
+}) {
   const [open, setOpen] = useState(false);
+  const blurb =
+    scope === "crypto"
+      ? "Coin prices, change and volume. A failed load says so."
+      : "NZX, ASX, Dow Jones and NASDAQ — price, change and volume. A failed load says so.";
+  const dialogBlurb =
+    scope === "crypto"
+      ? "Prices across the coin list. Search a name. A failed load says so."
+      : "Prices across the exchanges. Pick a market and search. A failed load says so.";
 
   return (
     <section>
@@ -33,9 +47,7 @@ export function AllMarkets({ onBought }: { onBought?: () => void }) {
           <div className="flex items-center gap-2">
             <h2 className="font-display text-lg font-bold">ALL Markets</h2>
           </div>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            NZX, ASX, Dow Jones and NASDAQ — price, change and volume. A failed load says so.
-          </p>
+          <p className="mt-0.5 text-sm text-muted-foreground">{blurb}</p>
         </div>
         <span className="hidden shrink-0 items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-transform group-hover:scale-[1.03] sm:inline-flex">
           <Layers className="size-4" /> Search Markets
@@ -49,12 +61,15 @@ export function AllMarkets({ onBought }: { onBought?: () => void }) {
             <DialogTitle className="flex items-center gap-2 font-display text-xl">
               <Globe className="size-5 text-primary" /> ALL Markets
             </DialogTitle>
-            <DialogDescription>
-              Prices across the exchanges. Pick a market and search. A failed load says so.
-            </DialogDescription>
+            <DialogDescription>{dialogBlurb}</DialogDescription>
           </DialogHeader>
 
-          <MarketsExplorer active={open} onBought={onBought} className="min-h-0 flex-1" />
+          <MarketsExplorer
+            active={open}
+            onBought={onBought}
+            className="min-h-0 flex-1"
+            initialTab={scope === "crypto" ? "CRYPTO" : null}
+          />
         </DialogContent>
       </Dialog>
     </section>

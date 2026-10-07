@@ -1153,11 +1153,8 @@ function deriveSignal(input: {
     notes.push("price is pressing the lower Bollinger band");
   }
 
-  // Forward projection (largest weight)
+  // Forward projection still moves the score. The old "+X%" sentence is not built.
   score += clamp(projected7dPct * 3, -22, 22);
-  if (projected7dPct > 1.5) notes.push(`7-day model projects +${projected7dPct}%`);
-  else if (projected7dPct < -1.5) notes.push(`7-day model projects ${projected7dPct}%`);
-  else notes.push("7-day model projects a broadly flat tape");
 
   score = Math.round(clamp(score, 2, 98));
 
@@ -1168,7 +1165,7 @@ function deriveSignal(input: {
   else if (score >= 28) signal = "Reduce";
   else signal = "Sell";
 
-  const reasoning = `${signal} · ${notes.join("; ")}.`;
+  const reasoning = notes.length ? `${notes.join("; ")}.` : "";
   return { signal, score, reasoning };
 }
 

@@ -16,7 +16,7 @@ import "server-only";
 import { totalumSdk } from "@/lib/totalum";
 import type { AppUser } from "@/lib/session";
 import { adaptiveFractionDigits, currencyForTicker, nativeToNzd, ensureNzdPerUsd, ensureNzdPerAud, formatQuantity, type CurrencyCode } from "@/lib/currency";
-import { dexPriceForSymbol, priceForBooking, ratesForBooking, reviewedFxAllowed } from "@/lib/reviewed-book";
+import { dexPriceForSymbol, ledgerFxRate, priceForBooking, ratesForBooking, reviewedFxAllowed } from "@/lib/reviewed-book";
 import { alertsToArchive, positionIsClosed } from "@/lib/alert-lifecycle";
 import { getFxSnapshot, historicalNzdPerUnit } from "@/lib/fx";
 import { normalizeTicker, lookupTicker, referencePrice } from "@/lib/market";
@@ -129,6 +129,32 @@ function nzdPerUnit(currency: CurrencyCode, quoted: number): number {
   if (currency === "USD") return ensureNzdPerUsd(quoted);
   if (currency === "AUD") return ensureNzdPerAud(quoted);
   return 1;
+}
+
+/** Refuse a member-typed rate that sits more than 5% from the snapshot or the trade-date rate. */
+async function rejectOutOfBandFx(
+  currency: CurrencyCode,
+  reviewed: number | null | undefined,
+  tradeDate?: string | null
+) {
+  const raw = Number(reviewed);
+  if (currency === "NZD" || !(raw > 0) || !Number.isFinite(raw)) return;
+  const [fx, historical] = await Promise.all([
+    getFxSnapshot(),
+    historicalNzdPerUnit(currency, tradeDate),
+  ]);
+  const check = reviewedFxAllowed({
+    currency,
+    reviewed: raw,
+    snapshot: fx.ratesToNZD[currency],
+    historical,
+  });
+  if (check.ok === false) throw new Error(check.message);
+}
+
+function fxRateFields(currency: CurrencyCode, reviewed: number | null | undefined): { fx_rate?: number } {
+  const rate = ledgerFxRate(currency, reviewed);
+  return rate == null ? {} : { fx_rate: rate };
 }
 
 /** Archive price alerts once a stock or crypto position is fully sold. */
@@ -461,10 +487,14 @@ async function applyTransactionUnlocked(
   if (quantity <= 0) throw new Error("Quantity must be greater than 0");
   if (price <= 0) throw new Error("Price must be greater than 0");
 
+  // The panel sends the reviewed day as executed_at. trade_date is optional.
+  const tradeDay = movementCivilDay(input.trade_date || input.executed_at, aucklandDateISO());
+
   // Opening balance and corrections adjust the holding through the ledger.
   // They do not move cash and they do not replace the typed price with today's quote.
   if (input.type === "correction" || input.type === "opening_balance") {
     const currency = currencyForTicker(ticker, assetType);
+    await rejectOutOfBandFx(currency, input.fx_rate, tradeDay);
     const existing = await findHolding(user._id, ticker, assetType);
     if (input.type === "correction" && !existing) {
       throw new Error(`You don't hold ${ticker} to correct`);
@@ -520,6 +550,7 @@ async function applyTransactionUnlocked(
       cash_nzd: 0,
       realized_pnl: 0,
       currency,
+      ...fxRateFields(currency, input.fx_rate),
       notes: input.type === "correction" ? plan.notes : notes || "Opening balance",
       executed_at: executedAt,
       user: user._id,
@@ -536,6 +567,8 @@ async function applyTransactionUnlocked(
       input.notes,
       `${executionStatus.toUpperCase()} recorded — not a broker fill. ${ADVISORY_NOTE}`
     );
+    const ideaCurrency = currencyForTicker(ticker, assetType);
+    await rejectOutOfBandFx(ideaCurrency, input.fx_rate, tradeDay);
     const rec = await totalumSdk.crud.createRecord("transaction", {
       type: input.type,
       ticker,
@@ -550,8 +583,9 @@ async function applyTransactionUnlocked(
       realized_price_pnl_nzd: 0,
       realized_fx_pnl_nzd: 0,
       realized_pnl_nzd: 0,
-      currency: currencyForTicker(ticker, assetType),
-      fill_currency: currencyForTicker(ticker, assetType),
+      currency: ideaCurrency,
+      fill_currency: ideaCurrency,
+      ...fxRateFields(ideaCurrency, input.fx_rate),
       execution_status: executionStatus,
       price_source: input.price_source || "bot_signal",
       signal_price: input.signal_price ?? price,
@@ -654,7 +688,7 @@ async function applyTransactionUnlocked(
 
   const currency = currencyForTicker(ticker, assetType);
   const fx = await getFxSnapshot();
-  const historicalFx = await historicalNzdPerUnit(currency, input.trade_date);
+  const historicalFx = await historicalNzdPerUnit(currency, tradeDay);
   const fxCheck = reviewedFxAllowed({
     currency,
     reviewed: input.fx_rate,
@@ -1102,6 +1136,7 @@ async function recordMetalTradeUnlocked(
     total,
     realized_pnl: realizedNZD,
     currency: "NZD",
+    fx_rate: nzdPerUnit("NZD", 0),
     notes,
     executed_at: executedAt,
     user: user._id,

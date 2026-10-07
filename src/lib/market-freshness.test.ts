@@ -5,6 +5,7 @@ import {
   equityApiLive,
   equityFreshnessLabel,
   equitySessionDate,
+  quotedEquitySessionOpen,
 } from "@/lib/market-freshness";
 
 /** Wednesday 7 Oct 2026, 9:00 pm NZDT. US cash session has not opened. */
@@ -34,10 +35,15 @@ describe("equity freshness", () => {
     expect(equityFreshnessLabel("ASX", ASX_OPEN).label).toBe("Delayed · ASX");
     expect(equityFreshnessLabel("ASX", ASX_OPEN, ASX_OPEN).label).toMatch(/^Delayed · ASX · quote /);
     expect(equityFreshnessLabel("US", US_OPEN).label).toBe("Delayed · US");
-    expect(equityFreshnessLabel("US", US_OPEN, US_OPEN).label).toMatch(/^Delayed · US · quote /);
+    expect(equityFreshnessLabel("US", US_OPEN, US_OPEN).label).toBe("Delayed · US · quote 10:00 am New York");
+    expect(equityFreshnessLabel("US", US_OPEN, US_OPEN).label).not.toContain("GMT");
     expect(equityFreshnessLabel("US", US_OPEN, US_OPEN).label).not.toContain("~20");
     expect(equityFreshnessLabel("NZX", NZX_OPEN).live).toBe(false);
     expect(equityApiLive("NZX", true, NZX_OPEN)).toBe(true);
+    expect(quotedEquitySessionOpen(["NZX", "ASX", "US"], AFTER_CLOSE)).toBe(false);
+    expect(quotedEquitySessionOpen(["NZX", "ASX"], NZX_OPEN)).toBe(true);
+    expect(quotedEquitySessionOpen(["US"], US_OPEN)).toBe(true);
+    expect(quotedEquitySessionOpen([], US_OPEN)).toBe(false);
   });
 
   it("uses the previous weekday before the open", () => {
