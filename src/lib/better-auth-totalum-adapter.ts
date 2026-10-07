@@ -3,6 +3,7 @@ import { TotalumApiSdk } from "totalum-api-sdk";
 import type { Adapter } from "better-auth";
 import { createAdapterFactory } from "better-auth/adapters";
 import { sessionWriteResult } from "@/lib/trade-commit-session";
+import { createUserWithConsentFallback } from "@/lib/signup-consent";
 
 // ==================== Type Definitions ====================
 
@@ -306,13 +307,13 @@ export function totalumAdapter(
             delete snakeCaseData._id;
           }
 
-          const response = await client.crud.createRecord(
-            tableName,
-            snakeCaseData
-          );
-
-          // createRecord now returns the full created record
-          const record = unwrapTotalumResponse(response);
+          const record =
+            data.model === "user"
+              ? await createUserWithConsentFallback(snakeCaseData, async (row) => {
+                  const response = await client.crud.createRecord(tableName, row);
+                  return { record: unwrapTotalumResponse(response), error: response?.errors ?? null };
+                })
+              : unwrapTotalumResponse(await client.crud.createRecord(tableName, snakeCaseData));
 
           if (!record) {
             throw new Error(`Failed to create ${data.model}`);

@@ -106,9 +106,7 @@ function addCorsHeaders(response: NextResponse, request: NextRequest) {
   return response;
 }
 
-// HSTS, nosniff, referrer policy, and frame-ancestors 'self'.
-// Replaces the old frame-ancestors * so the login page cannot be framed
-// by another site. The Totalum preview parents are not same-origin.
+// HSTS, nosniff, referrer policy, and frame-ancestors for this site plus the Totalum editor.
 function addCspHeaders(response: NextResponse) {
   for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
     response.headers.set(key, value);
