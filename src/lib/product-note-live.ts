@@ -1,6 +1,7 @@
 import "server-only";
 
 import { totalumSdk } from "@/lib/totalum";
+import { sendTransactionalEmail } from "@/lib/send-transactional-mail";
 import { createGrokChatCompletion, isZenithConfigured } from "@/lib/grok";
 import { CRYPTO_UNIVERSE, entriesForExchange, type Exchange } from "@/lib/market-intel";
 import { yahooCryptoSymbol, yahooEquitySymbol } from "@/lib/yahoo-finance";
@@ -286,6 +287,7 @@ export async function loadRegisteredRecipients(): Promise<{ email: string }[]> {
  * Refuses unless the switch is on, so a direct call cannot send by accident.
  * The SDK documents fromName and replyTo. `from` is also posted so the admin
  * mailbox is requested; the platform type list does not include that field.
+ * `text` is the plain part. The note already renders one.
  */
 export async function deliverProductNote(message: OutboundProductNote): Promise<void> {
   if (!productNoteSendingEnabled()) {
@@ -294,15 +296,15 @@ export async function deliverProductNote(message: OutboundProductNote): Promise<
   if (message.from !== PRODUCT_NOTE_FROM || message.replyTo !== PRODUCT_NOTE_FROM) {
     throw new Error("Product note from address is not the admin mailbox.");
   }
-  const payload = {
+  const result = await sendTransactionalEmail({
     to: [message.to],
     subject: message.subject,
     html: message.html,
+    text: message.text,
     fromName: message.fromName,
     replyTo: message.replyTo,
     from: message.from,
-  };
-  const result = await totalumSdk.email.sendEmail(payload);
+  });
   if (!reportEmailWasDelivered(result)) {
     throw new Error("Product note was not accepted by the mail sender.");
   }

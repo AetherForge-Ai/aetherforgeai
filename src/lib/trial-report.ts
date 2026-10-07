@@ -23,6 +23,7 @@ import "server-only";
  */
 
 import { totalumSdk } from "@/lib/totalum";
+import { sendTransactionalEmail } from "@/lib/send-transactional-mail";
 import { createZenithCompletion, isZenithConfigured } from "@/lib/grok";
 import { analyzeSecurity, type MarketCode } from "@/lib/market-intel";
 import { fetchQuotesForAssetClass } from "@/lib/market-data";
@@ -655,7 +656,7 @@ export async function generateTrialReport(args: {
   // Email
   let emailed = false;
   try {
-    await totalumSdk.email.sendEmail({
+    await sendTransactionalEmail({
       to: [user.email],
       subject: `⚡ ${report.title} — your one-time report`,
       html,
