@@ -4,8 +4,7 @@ import { bearer } from "better-auth/plugins";
 import { nextCookies } from "better-auth/next-js";
 import { totalumAdapter } from "@/lib/better-auth-totalum-adapter";
 import { totalumSdk } from "@/lib/totalum";
-import { sendTransactionalEmail } from "@/lib/send-transactional-mail";
-import { passwordResetEmail, verificationEmail } from "@/lib/transactional-mail";
+import { sendAuthResetPassword, sendAuthVerificationEmail } from "@/lib/auth-mail";
 import { APIError } from "better-auth/api";
 import { SIGNUP_CONSENT_ERROR, TERMS_VERSION, ageConfirmed, consentFields } from "@/lib/signup-consent";
 
@@ -39,16 +38,10 @@ export const auth = betterAuth({
     // PASSWORD RECOVERY - Enabled. Sends a branded reset email via TotalumSDK.
     // Powers /forgot-password and /reset-password pages.
     // =========================================================================
-    sendResetPassword: async ({ user, url }) => {
-      console.log(`[auth] Sending password reset email to ${user.email}`);
-      try {
-        await sendTransactionalEmail(passwordResetEmail({ to: user.email, name: user.name, url }));
-        console.log(`[auth] Password reset email sent to ${user.email}`);
-      } catch (e) {
-        console.error(`[auth] Failed to send password reset email to ${user.email}:`, e);
-        throw e;
-      }
-    },
+    // Log a failed reset and do not rethrow. /forgot-password should always
+    // show the same success message, including when the address is unknown
+    // to the mailer or the send is rejected.
+    sendResetPassword: sendAuthResetPassword,
     resetPasswordTokenExpiresIn: 3600,
   },
 
@@ -67,16 +60,10 @@ export const auth = betterAuth({
     // The `url` Better Auth builds points at /api/auth/verify-email?token=...&
     // callbackURL=/verify-email — clicking it verifies the address then redirects
     // the browser to our branded /verify-email success page.
-    sendVerificationEmail: async ({ user, url }) => {
-      console.log(`[auth] Sending verification email to ${user.email}`);
-      try {
-        await sendTransactionalEmail(verificationEmail({ to: user.email, name: user.name, url }));
-        console.log(`[auth] Verification email sent to ${user.email}`);
-      } catch (e) {
-        console.error(`[auth] Failed to send verification email to ${user.email}:`, e);
-        throw e;
-      }
-    },
+    // Sign-up awaits this after the user exists. A mail failure is logged and
+    // swallowed there so registration still reaches "check your email".
+    // POST /send-verification-email (Resend) rethrows so the button can show an error.
+    sendVerificationEmail: sendAuthVerificationEmail,
   },
 
   // ===========================================================================
