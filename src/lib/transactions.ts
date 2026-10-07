@@ -634,7 +634,7 @@ async function applyTransactionUnlocked(
     snapshot: fx.ratesToNZD[currency],
     historical: historicalFx,
   });
-  if (!fxCheck.ok) throw new Error(fxCheck.message);
+  if (fxCheck.ok === false) throw new Error(fxCheck.message);
   const rates = ratesForBooking(currency, input.fx_rate, fx.ratesToNZD);
 
   const holding = await findHolding(user._id, ticker, assetType);
