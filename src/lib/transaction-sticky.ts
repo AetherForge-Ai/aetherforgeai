@@ -4,7 +4,7 @@
  * change so a prior account's sticky open cannot reopen on another session.
  */
 
-export type StickyTxMode = "buy" | "sell" | "deposit" | "withdraw" | "dividend" | "tax";
+export type StickyTxMode = "buy" | "sell" | "deposit" | "withdraw" | "dividend" | "tax" | "correction";
 
 let stickyTxOpen = false;
 let stickyTxMode: StickyTxMode = "buy";

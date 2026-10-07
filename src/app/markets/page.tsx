@@ -2,8 +2,14 @@ import { getCurrentUser } from "@/lib/session";
 import { AppShell } from "@/components/AppShell";
 import { MarketsPageContent } from "@/components/dashboard/MarketsPageContent";
 import { parseMarketsTab } from "@/lib/market-detail-routes";
+import { publicPageMetadata } from "@/lib/reviewed-book";
 
 export const dynamic = "force-dynamic";
+
+export const metadata = publicPageMetadata("/markets", {
+  title: "Markets · AetherForge AI",
+  description: "NZX, ASX, Dow Jones and NASDAQ prices on AetherForge. Paper research, not a broker.",
+});
 
 /**
  * /markets — the full-page "Stock Markets" browser (linked prominently from the

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { publicPageMetadata } from "@/lib/reviewed-book";
 import { LEGAL_ENTITY_NAME } from "@/lib/company";
 import { SiteHeader } from "@/components/SiteHeader";
 import { BrandLogo } from "@/components/BrandLogo";
@@ -26,11 +27,11 @@ import {
   Trophy,
 } from "lucide-react";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = publicPageMetadata("/how-to-maximize-results", {
   title: "How to Maximize Results with AetherForge AI",
   description:
     "The complete framework for extracting maximum clarity, consistency and edge from Stox, Koins and The Headmaster — build an accurate portfolio, run daily briefings, and follow a disciplined weekly routine.",
-};
+});
 
 /* ---------------------------------------------------------------- data */
 

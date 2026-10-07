@@ -1,13 +1,14 @@
-import type { Metadata } from "next";
+import { publicPageMetadata } from "@/lib/reviewed-book";
 import { getCurrentUser } from "@/lib/session";
 import { MarketsAppFrame } from "@/components/dashboard/MarketsAppFrame";
 import { CryptoAssetPage } from "@/components/dashboard/CryptoAssetPage";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
+export const metadata = publicPageMetadata("/markets/crypto/unavailable", {
   title: "Crypto · Markets · AetherForge AI",
-};
+  description: "This DEX token does not have a CoinGecko page. The price on the DEX list is still the one to record.",
+});
 
 /**
  * DEX rows with no CoinGecko id land here instead of a blank overlay.

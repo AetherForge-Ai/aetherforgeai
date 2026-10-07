@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { formatQuantity } from "@/lib/currency";
 import { z } from "zod";
 import { getTradeSessionUser } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
@@ -95,7 +96,7 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
       }
       if (requested > heldOunces + 1e-9) {
         return NextResponse.json(
-          { ok: false, error: `You only hold ${heldOunces} oz of ${metal}` },
+          { ok: false, error: `You only hold ${formatQuantity(heldOunces)} oz of ${metal}` },
           { status: 400 }
         );
       }

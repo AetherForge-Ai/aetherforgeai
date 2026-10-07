@@ -1,12 +1,11 @@
-import type { Metadata } from "next";
 import { PublicGuide } from "@/components/public/PublicGuide";
+import { publicPageMetadata } from "@/lib/reviewed-book";
 
-export const metadata: Metadata = {
+export const metadata = publicPageMetadata("/docs", {
   title: "Docs — AetherForge AI",
   description:
     "How AetherForge AI works, the AI disclaimer, pricing questions, and the policies that apply. Not a broker. Not licensed financial advice.",
-  alternates: { canonical: "/docs" },
-};
+});
 
 export default function DocsPage() {
   return (

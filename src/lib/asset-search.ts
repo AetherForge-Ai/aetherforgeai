@@ -52,12 +52,37 @@ export function searchAssets(query: string, pools: AssetSearchPools = {}): Asset
     hits.push(hit);
   }
   hits.sort((a, b) => {
-    const as = a.symbol.toLowerCase();
-    const bs = b.symbol.toLowerCase();
-    const aExact = as === q ? 0 : as.startsWith(q) ? 1 : 2;
-    const bExact = bs === q ? 0 : bs.startsWith(q) ? 1 : 2;
-    if (aExact !== bExact) return aExact - bExact;
+    const rank = (hit: AssetHit) => {
+      const symbol = hit.symbol.toLowerCase();
+      const exact = symbol === q ? 0 : symbol.startsWith(q) ? 1 : 2;
+      // A DEX row stays reachable beside a CoinGecko coin of the same name.
+      const venue = hit.market === "DEX" ? 0 : 1;
+      return exact * 2 + venue;
+    };
+    const diff = rank(a) - rank(b);
+    if (diff !== 0) return diff;
     return a.name.localeCompare(b.name);
   });
   return hits.slice(0, 12);
+}
+
+/** Record-panel rows for the DEX list. The badge is DEX, and a live price is kept. */
+export function dexSearchHits(
+  rows: Array<{ symbol?: string; name?: string; id?: string; detailId?: string | null; price?: number | null }>
+): AssetHit[] {
+  const hits: AssetHit[] = [];
+  for (const row of rows) {
+    const symbol = String(row.symbol || "").trim().toUpperCase();
+    if (!symbol) continue;
+    const price = Number(row.price);
+    hits.push({
+      symbol,
+      name: String(row.name || symbol),
+      market: "DEX",
+      assetType: "crypto",
+      id: row.detailId || row.id,
+      price: price > 0 ? price : null,
+    });
+  }
+  return hits;
 }

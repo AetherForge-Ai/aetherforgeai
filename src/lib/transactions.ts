@@ -15,7 +15,8 @@
 import "server-only";
 import { totalumSdk } from "@/lib/totalum";
 import type { AppUser } from "@/lib/session";
-import { currencyForTicker, nativeToNzd, ensureNzdPerUsd, ensureNzdPerAud, type CurrencyCode } from "@/lib/currency";
+import { currencyForTicker, nativeToNzd, ensureNzdPerUsd, ensureNzdPerAud, formatQuantity, type CurrencyCode } from "@/lib/currency";
+import { priceForBooking, ratesForBooking } from "@/lib/reviewed-book";
 import { alertsToArchive, positionIsClosed } from "@/lib/alert-lifecycle";
 import { getFxSnapshot } from "@/lib/fx";
 import { normalizeTicker, lookupTicker, referencePrice } from "@/lib/market";
@@ -589,16 +590,8 @@ async function applyTransactionUnlocked(
     console.error(`[transactions] Live spot for sanity check failed (${ticker}):`, err);
   }
 
-  if (assetType === "crypto") {
-    const tradeDay = (input.trade_date || input.executed_at || "").slice(0, 10);
-    const tradingToday = !/^\d{4}-\d{2}-\d{2}$/.test(tradeDay) || tradeDay === aucklandDateISO(executedAt);
-    if (tradingToday) {
-      if (!(liveSpot != null && liveSpot > 0)) {
-        throw new Error(`${ticker} live price unavailable`);
-      }
-      price = liveSpot;
-    }
-  }
+  // The reviewed price is the fill. A newer live spot is only the sanity check.
+  price = priceForBooking(price, liveSpot);
 
   const sanity = checkFillSanity({
     ticker,
@@ -634,7 +627,7 @@ async function applyTransactionUnlocked(
 
   const currency = currencyForTicker(ticker, assetType);
   const fx = await getFxSnapshot();
-  const rates = fx.ratesToNZD;
+  const rates = ratesForBooking(currency, input.fx_rate, fx.ratesToNZD);
 
   const holding = await findHolding(user._id, ticker, assetType);
 
@@ -849,7 +842,7 @@ async function applyTransactionUnlocked(
   if (!holding) throw new Error(`You don't hold ${ticker} to sell`);
   const heldShares = holding.shares || 0;
   if (quantity > heldShares + 1e-6) {
-    throw new Error(`You only hold ${round(heldShares, 6)} unit(s) of ${ticker}`);
+    throw new Error(`You only hold ${formatQuantity(heldShares)} unit(s) of ${ticker}`);
   }
   const avgCost = holding.purchase_price || 0;
   const realizedNative = quantity * (price - avgCost) - fees;
