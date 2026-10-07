@@ -12,7 +12,7 @@
  * Extra: live price and the last history close must stay within 3× of each other.
  */
 
-import { coingeckoIdFor, normalizeCryptoTicker, yahooSymbolFor } from "@/lib/crypto-vendors";
+import { coingeckoIdFor, normalizeCryptoTicker } from "@/lib/crypto-vendors";
 
 export const CRYPTO_SANITY_RATIO = 3;
 
@@ -303,25 +303,14 @@ async function liveCoingeckoHistory(id: string): Promise<number[]> {
   return dailyCloses(json.prices || []);
 }
 
-async function liveFallbackPrices(tickers: string[]): Promise<Record<string, number>> {
-  const { fetchYahooCryptoLiveQuotes } = await import("@/lib/yahoo-finance");
-  const map = Object.fromEntries(tickers.map((ticker) => [ticker, yahooSymbolFor(ticker).symbol]));
-  const quotes = await fetchYahooCryptoLiveQuotes(map);
-  const out: Record<string, number> = {};
-  for (const [ticker, quote] of Object.entries(quotes)) {
-    if (quote.price > 0) out[ticker] = quote.price;
-  }
-  return out;
-}
-
-/** Cached live board. Both public crypto routes call this. */
+/** Cached live board. Both public crypto routes call this. No Yahoo or seed prices. */
 export async function loadCryptoBoardLive(tickers: string[]): Promise<CryptoBoard> {
   const key = Array.from(new Set(tickers.map(boardTicker).filter(Boolean))).sort().join(",");
   if (cache && cache.key === key && Date.now() - cache.at < TTL_MS) return cache.value;
   const value = await loadCryptoBoard(tickers, {
     coingeckoPrices: liveCoingeckoPrices,
     coingeckoHistory: liveCoingeckoHistory,
-    fallbackPrices: liveFallbackPrices,
+    fallbackPrices: async () => ({}),
   });
   cache = { key, at: Date.now(), value };
   if (value.hidden.length) {
@@ -362,5 +351,27 @@ export function filterPublishedCrypto<T extends PublishedCryptoRow>(
     if (!reason) return true;
     console.warn(`[crypto-sanity] ${ticker}: ${reason}`);
     return false;
+  });
+}
+
+/**
+ * Rows for /api/market?bot=crypto.
+ * An empty board, a failed load, or an unfinished hand-check publishes nothing.
+ * Directory seed prices are not a substitute.
+ */
+export function selectKoinsUniverse<T extends PublishedCryptoRow>(input: {
+  paused: boolean;
+  quotes: Record<string, number>;
+  rows: T[];
+  histories?: Record<string, number[]>;
+  change24h?: Record<string, number>;
+}): T[] {
+  if (input.paused || Object.keys(input.quotes).length === 0) return [];
+  return filterPublishedCrypto(input.rows, {
+    histories: input.histories,
+    change24h: input.change24h,
+  }).filter((row) => {
+    const ticker = boardTicker(row.ticker);
+    return input.quotes[row.ticker] != null || input.quotes[ticker] != null;
   });
 }

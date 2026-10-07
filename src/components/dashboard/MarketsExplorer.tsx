@@ -11,7 +11,7 @@ import { BuyDialog, type BuyTarget } from "@/components/dashboard/BuyDialog";
 import { DexMarketDialog } from "@/components/dashboard/DexMarketDialog";
 import { explorerDetailHref, marketsTabHref, type MarketsTab } from "@/lib/market-detail-routes";
 import { useCryptoMarkets } from "@/hooks/useCryptoMarkets";
-import { fmtPrice, LIVE_CRYPTO_UNAVAILABLE } from "@/lib/crypto-market";
+import { coinHasLivePrice, fmtPrice } from "@/lib/crypto-market";
 import { cn } from "@/lib/utils";
 import {
   Search,
@@ -331,6 +331,7 @@ export function MarketsExplorer({
     let all: DisplayRow[];
     if (isCryptoTab) {
       const top = [...crypto.coins]
+        .filter((c) => coinHasLivePrice(c))
         .sort((a, b) => (a.rank ?? 999999) - (b.rank ?? 999999))
         .slice(0, CRYPTO_TOP_N);
       all = top.map((c) => ({
@@ -348,7 +349,7 @@ export function MarketsExplorer({
         marketCap: c.marketCap ?? null,
         live: !c.priceUnavailable && c.price > 0,
         coinId: c.id,
-        blockchain: c.blockchain || "—",
+        blockchain: c.blockchain && c.blockchain !== "Unavailable" ? c.blockchain : "",
         priceUnavailable: !!c.priceUnavailable || !(c.price > 0),
       }));
     } else {
@@ -514,7 +515,6 @@ export function MarketsExplorer({
           {isCryptoTab && (
             <p className="flex items-center gap-1 text-[0.62rem] text-muted-foreground/80">
               <Bitcoin className="size-3" /> Top {CRYPTO_TOP_N} cryptocurrencies by market cap · USD
-              {crypto.notice ? ` · ${crypto.notice}` : ""}
             </p>
           )}
         </div>
@@ -577,7 +577,7 @@ export function MarketsExplorer({
                   {query
                     ? `No tickers match “${query}”.`
                     : isCryptoTab
-                      ? crypto.error || LIVE_CRYPTO_UNAVAILABLE
+                      ? "No live crypto prices right now."
                       : loadError
                         ? "Market prices failed to load. Use refresh to try again."
                         : "No rows returned for this market."}
@@ -640,7 +640,7 @@ export function MarketsExplorer({
                     </td>
                     {isCryptoTab && (
                       <td className="max-w-[10rem] py-2.5 pl-3 text-right text-xs text-muted-foreground">
-                        {r.blockchain || "—"}
+                        {r.blockchain || ""}
                       </td>
                     )}
                     {allowBuy && (

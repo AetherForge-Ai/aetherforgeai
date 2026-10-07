@@ -12,7 +12,7 @@
  */
 
 import "server-only";
-import { blockchainLabel, resolveSevenDayChange, type CoinMarket, type CoinDetail, type CoinChart } from "@/lib/crypto-market";
+import { blockchainLabel, coingeckoRolling24h, resolveSevenDayChange, type CoinMarket, type CoinDetail, type CoinChart } from "@/lib/crypto-market";
 import { rememberCryptoIds } from "@/lib/crypto-id-registry";
 import {
   DEX_NETWORKS,
@@ -129,7 +129,7 @@ function mapMarketRow(r: CgMarketRow): CoinMarket {
     fdv: r.fully_diluted_valuation ?? null,
     volume24h: r.total_volume ?? 0,
     change1h: r.price_change_percentage_1h_in_currency ?? null,
-    change24h: r.price_change_percentage_24h_in_currency ?? r.price_change_percentage_24h ?? 0,
+    change24h: coingeckoRolling24h(r) ?? 0,
     change7d:
       resolveSevenDayChange(r.price_change_percentage_7d_in_currency, r.sparkline_in_7d?.price) ?? 0,
     high24h: r.high_24h ?? null,
@@ -213,7 +213,6 @@ export async function fetchTop400(): Promise<RankedCryptoPage> {
     const common =
       "vs_currency=usd&order=market_cap_desc&per_page=250&sparkline=false" +
       "&price_change_percentage=1h,24h,7d";
-    let notice: string | null = null;
     const pages: CgMarketRow[] = [];
     try {
       const first = (await cgFetch(`/coins/markets?${common}&page=1`)) as CgMarketRow[];
@@ -228,7 +227,6 @@ export async function fetchTop400(): Promise<RankedCryptoPage> {
       pages.push(...(second || []));
     } catch (err) {
       console.error("[crypto-coingecko] top 400 page 2 unavailable:", err);
-      notice = "Further rows are unavailable.";
     }
     const byId = new Map<string, CoinMarket>();
     for (const row of pages) {
@@ -242,10 +240,10 @@ export async function fetchTop400(): Promise<RankedCryptoPage> {
       ...coin,
       blockchain: blockchainLabel(platforms?.get(coin.id), listLoaded),
     }));
-    if (coins.length < 400 && !notice) notice = "Further rows are unavailable.";
+    coins = coins.filter((coin) => typeof coin.price === "number" && coin.price > 0);
     rememberCryptoIds(coins.map((coin) => ({ symbol: coin.symbol, id: coin.id })));
     console.log(`[crypto-coingecko] fetchTop400 → ${coins.length} coins`);
-    return { coins, notice };
+    return { coins, notice: null };
   });
 }
 
@@ -437,7 +435,10 @@ export async function fetchCoinDetail(id: string): Promise<CoinDetail> {
       high24h: num(m.high_24h?.usd),
       low24h: num(m.low_24h?.usd),
       change1h: num(m.price_change_percentage_1h_in_currency?.usd),
-      change24h: num(m.price_change_percentage_24h_in_currency?.usd) ?? num(m.price_change_percentage_24h),
+      change24h: coingeckoRolling24h({
+        price_change_percentage_24h: num(m.price_change_percentage_24h),
+        price_change_percentage_24h_in_currency: m.price_change_percentage_24h_in_currency,
+      }),
       change7d: num(m.price_change_percentage_7d_in_currency?.usd),
       change30d: num(m.price_change_percentage_30d_in_currency?.usd),
       change1y: num(m.price_change_percentage_1y_in_currency?.usd),

@@ -385,7 +385,7 @@ describe("extended crypto and DEX paper trades", () => {
 describe("blockchain and DEX rows", () => {
   it("labels a native coin, an unavailable list, and a real platform without guessing", () => {
     expect(blockchainLabel({}, true)).toBe("Native");
-    expect(blockchainLabel(null, false)).toBe("Unavailable");
+    expect(blockchainLabel(null, false)).toBe("");
     expect(blockchainLabel({ ethereum: "0xabc" }, true)).toBe("Ethereum");
   });
 

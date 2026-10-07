@@ -1682,12 +1682,7 @@ export function PortfolioDashboard({
         holdings={cryptoOverviewSummary.holdings}
         baseCurrency={cryptoBookCurrency}
         loading={!balancesReady}
-        headerExtra={
-          <>
-            <CryptoLiveStatus updatedAt={cryptoLive.updatedAt} />
-            {preview ? null : <HoldingsCsvImport assetType="crypto" onImported={handleDataChanged} />}
-          </>
-        }
+        headerExtra={preview ? null : <HoldingsCsvImport assetType="crypto" onImported={handleDataChanged} />}
         nameLabel="Coin / Token"
         onAdd={openAdd}
         onBuy={(holding) => recordHolding(holding, "buy")}
@@ -2154,7 +2149,6 @@ export function PortfolioDashboard({
       <div className={cn("mt-6", !(isStocks || isCrypto) && "hidden")}>
         <CollapsibleSection
           title="Informational signals"
-          subtitle="Illustrative sell and buy scenarios — not personalised advice"
           icon={Radar}
           defaultOpen
         >

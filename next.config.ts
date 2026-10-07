@@ -109,8 +109,9 @@ const nextConfig: NextConfig = {
       ...PUBLIC_ROUTE_ALIASES.map((row) => ({ ...row, permanent: false })),
     ];
   },
-  // Cache-Control is applied once in middleware.ts. A global headers()
-  // entry was appended on top of that and duplicated the directive.
+  // Cache-Control is applied once in middleware.ts.
+  // Security headers are applied once in headers() above. Setting them in
+  // middleware as well comma-joins the value (max-age=86400, max-age=86400).
   webpack: (config, { dev, isServer, nextRuntime, webpack }) => {
     if (dev) {
       config.watchOptions = {
