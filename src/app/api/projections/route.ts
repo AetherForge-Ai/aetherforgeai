@@ -9,6 +9,7 @@ import { loadCryptoBoardLive } from "@/lib/crypto-tape";
 import { CRYPTO_PROJECTION_HAND_CHECK } from "@/lib/crypto-vendors";
 import { assembleEquityProjections } from "@/lib/projection-pause";
 import { toPublicMarketRecord } from "@/lib/public-intel";
+import { quotedEquitySessionOpen } from "@/lib/market-freshness";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +48,13 @@ export async function GET() {
       ]);
       overrides = Object.fromEntries(Object.entries(quotes).map(([t, q]) => [t, q.price]));
       histories = hist;
-      stockLive = Object.keys(overrides).length > 0 || Object.keys(histories).length > 0;
+      const quotedMarkets = universeFor("stock")
+        .filter((entry) => {
+          const price = overrides[entry.ticker];
+          return typeof price === "number" && price > 0;
+        })
+        .map((entry) => entry.market);
+      stockLive = quotedEquitySessionOpen(quotedMarkets);
     }
     const stockUniverse = analyzeUniverse(overrides, "stock", histories);
 

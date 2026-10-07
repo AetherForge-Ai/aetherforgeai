@@ -2214,9 +2214,9 @@ export function PortfolioDashboard({
           }
           icon={Compass}
         >
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className={cn("grid gap-4", !isCrypto && "lg:grid-cols-2")}>
             <AllMarkets onBought={handleDataChanged} scope={isCrypto ? "crypto" : "equity"} />
-            <OpenMarketSnapshot onBought={handleDataChanged} scope={isCrypto ? "crypto" : "equity"} />
+            {isCrypto ? null : <OpenMarketSnapshot onBought={handleDataChanged} />}
           </div>
           <div className="mt-8">
             <TopMovers />

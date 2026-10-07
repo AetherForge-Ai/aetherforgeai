@@ -59,8 +59,6 @@ function FormattedReply({ text }: { text: string }) {
   );
 }
 
-const recentAutoAsk = new Map<string, number>();
-
 export function TickerAnalysisPane({
   symbol,
   name,
@@ -78,15 +76,10 @@ export function TickerAnalysisPane({
   const [loading, setLoading] = useState(false);
   const [hidden, setHidden] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const autoAskedFor = useRef<string | null>(null);
 
   const ask = useCallback(
     async (question?: string) => {
-      if (!question) {
-        const key = symbol.toUpperCase();
-        const previous = recentAutoAsk.get(key) ?? 0;
-        if (Date.now() - previous < 1500) return;
-        recentAutoAsk.set(key, Date.now());
-      }
       setLoading(true);
       if (question) setTurns((t) => [...t, { role: "user", content: question }]);
       console.log(`[ticker-analysis] Asking ${botName} about ${symbol}`);
@@ -109,13 +102,15 @@ export function TickerAnalysisPane({
     [symbol, name, botName]
   );
 
-  // Auto-run only for a signed-in member. A guest must not hit the 401 route.
+  // Auto-run once per ticker for a signed-in member. A guest must not hit the 401 route.
   useEffect(() => {
     if (isPending || !signedIn) return;
+    if (autoAskedFor.current === symbol) return;
+    autoAskedFor.current = symbol;
     setTurns([]);
     setInput("");
     setHidden(false);
-    ask(); // no question → default professional read
+    void ask();
   }, [symbol, signedIn, isPending, ask]);
 
   // Keep the transcript scrolled to the newest message.

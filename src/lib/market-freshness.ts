@@ -178,6 +178,16 @@ export function equityApiLive(exchange: Exchange, quoted: boolean, now = new Dat
   return quoted && equitySessionOpen(exchange, now);
 }
 
+/** True when at least one quoted equity venue is inside its regular session. */
+export function quotedEquitySessionOpen(markets: ReadonlyArray<string>, now = new Date()): boolean {
+  for (const market of markets) {
+    const exchange: Exchange | null =
+      market === "NZX" ? "NZX" : market === "ASX" ? "ASX" : market === "US" || market === "DOW" || market === "NASDAQ" ? "DOW" : null;
+    if (exchange && equitySessionOpen(exchange, now)) return true;
+  }
+  return false;
+}
+
 export function cryptoFreshnessLabel(
   quotedAt: Date | null,
   now = new Date()

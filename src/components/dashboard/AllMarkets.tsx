@@ -64,7 +64,12 @@ export function AllMarkets({
             <DialogDescription>{dialogBlurb}</DialogDescription>
           </DialogHeader>
 
-          <MarketsExplorer active={open} onBought={onBought} className="min-h-0 flex-1" />
+          <MarketsExplorer
+            active={open}
+            onBought={onBought}
+            className="min-h-0 flex-1"
+            initialTab={scope === "crypto" ? "CRYPTO" : null}
+          />
         </DialogContent>
       </Dialog>
     </section>

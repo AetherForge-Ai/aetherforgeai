@@ -54,11 +54,12 @@ export function modelRangeLine(outlook?: {
 }
 
 /**
- * Words the public scrubber would rewrite. A third-party story that matches
- * is dropped whole. Headlines and URLs are never edited.
+ * Recommendation phrasing only. A third-party story that matches is dropped
+ * whole. Headlines and URLs are never edited. Macro words such as "hold" and
+ * "reduces" are not a reason to drop a story.
  */
 export const PUBLISHER_SIGNAL_WORD =
-  /size positions|strong buy|\b(buy|sell|hold)\b|reduce|conviction|\bsignals?\b/i;
+  /\bstocks?\s+to\s+(?:buy|sell)\b|\b(?:buy|sell)\s+rating\b|\bstrong\s+buy\b|\b(?:upgrade|upgraded|upgrades)\s+to\s+buy\b|\b(?:downgrade|downgraded|downgrades)\s+to\s+sell\b|\breasons?\s+to\s+(?:buy|sell)\b|\b(?:buy|sell)\s+now\b/i;
 
 export function publisherTextHasSignalWord(text: string): boolean {
   return PUBLISHER_SIGNAL_WORD.test(text);

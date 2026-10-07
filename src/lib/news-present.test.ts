@@ -105,6 +105,51 @@ describe("public market news", () => {
     expect(blob).not.toContain("CHD");
   });
 
+  it("keeps macro stories that say hold or reduces, and still drops a sell recommendation", () => {
+    const feed = prepareNewsFeed([
+      {
+        headline: "Fed to hold rates",
+        source: "Reuters",
+        market: "US",
+        impact: "Neutral",
+        relevance: 70,
+        time: "1d ago",
+        publishedOn: "2026-10-06",
+        summary: "The Federal Reserve is set to hold rates.",
+        url: "https://www.reuters.com/markets/us/fed-to-hold-rates",
+      },
+      {
+        headline: "RBA reduces cash rate",
+        source: "Reuters",
+        market: "ASX",
+        impact: "Bullish",
+        relevance: 70,
+        time: "1d ago",
+        publishedOn: "2026-10-06",
+        summary: "The Reserve Bank reduces the cash rate.",
+        url: "https://www.reuters.com/markets/australia/rba-reduces-cash-rate",
+      },
+      {
+        headline: "3 Reasons to Sell CHD and 1 Stock to Buy Instead",
+        source: "Yahoo Finance",
+        market: "US",
+        impact: "Neutral",
+        relevance: 40,
+        time: "1d ago",
+        publishedOn: "2026-10-06",
+        summary: "A publisher recommendation.",
+        url: "https://finance.yahoo.com/news/3-reasons-sell-chd-1-144847718.html",
+      },
+    ]);
+    const hold = feed.find((item) => item.headline === "Fed to hold rates");
+    const rba = feed.find((item) => item.headline === "RBA reduces cash rate");
+    expect(hold?.url).toBe("https://www.reuters.com/markets/us/fed-to-hold-rates");
+    expect(rba?.headline).toBe("RBA reduces cash rate");
+    expect(rba?.url).toBe("https://www.reuters.com/markets/australia/rba-reduces-cash-rate");
+    expect(feed.some((item) => /sell chd/i.test(item.headline))).toBe(false);
+    expect(JSON.stringify(feed)).not.toContain("3-reasons-sell-chd");
+  });
+
   it("drops mis-tagged election, France, UK miner and data-release stories", () => {
     const feed = prepareNewsFeed([
       {

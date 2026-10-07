@@ -5,6 +5,7 @@ import {
   equityApiLive,
   equityFreshnessLabel,
   equitySessionDate,
+  quotedEquitySessionOpen,
 } from "@/lib/market-freshness";
 
 /** Wednesday 7 Oct 2026, 9:00 pm NZDT. US cash session has not opened. */
@@ -39,6 +40,10 @@ describe("equity freshness", () => {
     expect(equityFreshnessLabel("US", US_OPEN, US_OPEN).label).not.toContain("~20");
     expect(equityFreshnessLabel("NZX", NZX_OPEN).live).toBe(false);
     expect(equityApiLive("NZX", true, NZX_OPEN)).toBe(true);
+    expect(quotedEquitySessionOpen(["NZX", "ASX", "US"], AFTER_CLOSE)).toBe(false);
+    expect(quotedEquitySessionOpen(["NZX", "ASX"], NZX_OPEN)).toBe(true);
+    expect(quotedEquitySessionOpen(["US"], US_OPEN)).toBe(true);
+    expect(quotedEquitySessionOpen([], US_OPEN)).toBe(false);
   });
 
   it("uses the previous weekday before the open", () => {

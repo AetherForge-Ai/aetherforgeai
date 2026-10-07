@@ -32,6 +32,19 @@ function directedFx(currency: CurrencyCode, rate: number): number {
   return rate;
 }
 
+/**
+ * NZD per 1 unit stored on a ledger row.
+ * NZD is 1. A blank or non-positive rate is omitted. The baseline table is never substituted.
+ */
+export function ledgerFxRate(currency: CurrencyCode, reviewed: number | null | undefined): number | undefined {
+  if (currency === "NZD") return 1;
+  const raw = Number(reviewed);
+  if (!(raw > 0) || !Number.isFinite(raw)) return undefined;
+  const directed = directedFx(currency, raw);
+  if (!(directed > 0) || !Number.isFinite(directed)) return undefined;
+  return directed;
+}
+
 function withinBand(reviewed: number, reference: number): boolean {
   if (!(reference > 0) || !Number.isFinite(reference)) return false;
   return Math.abs(reviewed - reference) / reference <= REVIEWED_FX_BAND;
