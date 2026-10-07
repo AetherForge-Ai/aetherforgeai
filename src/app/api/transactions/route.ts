@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getStableSessionUser, getTradeSessionUser } from "@/lib/session";
-import { applyTransaction, loadLedger } from "@/lib/transactions";
+import { applyTransaction, loadLedger, movementRejectionForUser } from "@/lib/transactions";
 import { hasForeignOwner, requestClaimsOtherUser } from "@/lib/account-guard";
 import { accountMismatchResponse, privateJson } from "@/lib/account-response";
 import { TRADE_CONFIRM_REQUIRED } from "@/lib/trade-confirm";
@@ -9,7 +9,7 @@ import { TRADE_CONFIRM_REQUIRED } from "@/lib/trade-confirm";
 export const dynamic = "force-dynamic";
 
 const tradeSchema = z.object({
-  type: z.enum(["buy", "sell", "deposit", "withdraw", "dividend", "tax"]),
+  type: z.enum(["buy", "sell", "deposit", "withdraw", "dividend", "tax", "opening_balance", "correction"]),
   ticker: z.string().max(32).optional(),
   coingecko_id: z.string().max(80).optional(),
   asset_name: z.string().max(120).optional(),
@@ -97,8 +97,17 @@ export async function POST(req: Request) {
 
     const input = parsed.data;
 
+    // Corrections are not a public ledger type. Holding Edit writes them after
+    // it has confirmed the row belongs to this signed-in user.
+    if (input.type === "correction") {
+      return NextResponse.json(
+        { ok: false, error: "A correction can only be recorded from Holding Edit on a holding you own." },
+        { status: 400 }
+      );
+    }
+
     // Per-type required-field guards (clear errors instead of silent NaNs).
-    if (input.type === "buy" || input.type === "sell") {
+    if (input.type === "buy" || input.type === "sell" || (input.type === "opening_balance" && input.ticker)) {
       if (input.confirm !== true) {
         return NextResponse.json({ ok: false, error: TRADE_CONFIRM_REQUIRED }, { status: 400 });
       }
@@ -113,6 +122,11 @@ export async function POST(req: Request) {
       }
     } else if (!input.amount) {
       return NextResponse.json({ ok: false, error: "Amount is required" }, { status: 400 });
+    }
+
+    const rejection = await movementRejectionForUser(user, input, { fromHoldingEdit: false });
+    if (rejection) {
+      return NextResponse.json({ ok: false, error: rejection }, { status: 400 });
     }
 
     const result = await applyTransaction(user, input);

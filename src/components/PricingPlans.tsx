@@ -29,7 +29,7 @@ export function PricingPlans() {
   const [startingFree, setStartingFree] = useState(false);
 
   function handleFreeTrial() {
-    // Already signed in → open the one-time ZENITH trial dashboard.
+    // Already signed in → open the one-time trial dashboard.
     if (session?.user) {
       setStartingFree(true);
       console.log("[pricing] Opening one-time free-trial experience");

@@ -21,6 +21,7 @@ import {
 import { BrandLogo } from "@/components/BrandLogo";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { openRecordTransaction } from "@/lib/open-transaction";
 import {
   Home,
   LayoutDashboard,
@@ -38,6 +39,7 @@ import {
   Sparkles,
   FileSpreadsheet,
   ChevronDown,
+  Plus,
 } from "lucide-react";
 
 /**
@@ -46,15 +48,25 @@ import {
  * portfolio/markets/projections all keep this same top bar. Section-level
  * sub-navigation lives inside each page (secondary tabs), never up here.
  */
-const NAV_LINKS: { href: string; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+type NavLink = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
+
+const PRIMARY_LINKS: NavLink[] = [
   { href: "/", label: "Home", icon: Home },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/performance", label: "Example results", icon: Trophy },
-  { href: "/market-news", label: "Market News", icon: Newspaper },
+];
+
+const MARKET_LINKS: NavLink[] = [
   { href: "/markets", label: "Stock Markets", icon: LineChart },
-  { href: "/tax", label: "TAX", icon: Scale },
+  { href: "/market-news", label: "Market News", icon: Newspaper },
+];
+
+const MORE_LINKS: NavLink[] = [
+  { href: "/performance", label: "Example results", icon: Trophy },
+  { href: "/tax", label: "Tax", icon: Scale },
   { href: "/pricing", label: "Pricing", icon: Tag },
 ];
+
+const NAV_LINKS: NavLink[] = [...PRIMARY_LINKS, ...MARKET_LINKS, ...MORE_LINKS];
 
 function initials(name: string) {
   return (name || "U")
@@ -92,7 +104,7 @@ async function downloadToolkit(setBusy: (b: boolean) => void) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "Ultra-Advanced-Portfolio-Tracker-Stocks-Crypto-NZD.xlsx";
+    a.download = "AetherForge-Portfolio-Tracker-Stocks-Crypto-NZD.xlsx";
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -107,6 +119,68 @@ async function downloadToolkit(setBusy: (b: boolean) => void) {
   }
 }
 
+function NavAnchor({
+  item,
+  pathname,
+  onDashboardClick,
+}: {
+  item: NavLink;
+  pathname: string;
+  onDashboardClick: (event: React.MouseEvent) => void;
+}) {
+  const active = isActivePath(pathname, item.href);
+  return (
+    <Link
+      href={item.href}
+      onClick={item.href === "/dashboard" ? onDashboardClick : undefined}
+      className={cn(
+        "relative rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+        active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+      )}
+    >
+      <span className="flex items-center gap-1.5">{item.label}</span>
+      {active && <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-primary" />}
+    </Link>
+  );
+}
+
+function NavMenu({
+  label,
+  links,
+  pathname,
+  onDashboardClick,
+}: {
+  label: string;
+  links: NavLink[];
+  pathname: string;
+  onDashboardClick: (event: React.MouseEvent) => void;
+}) {
+  const active = links.some((item) => isActivePath(pathname, item.href));
+  return (
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger
+        className={cn(
+          "relative inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium",
+          active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+        )}
+      >
+        {label}
+        <ChevronDown className="size-3.5" />
+        {active && <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-primary" />}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="z-[100] w-52">
+        {links.map((item) => (
+          <DropdownMenuItem key={item.href} asChild>
+            <Link href={item.href} onClick={item.href === "/dashboard" ? onDashboardClick : undefined}>
+              <item.icon className="size-4" /> {item.label}
+            </Link>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 function DesktopLinks({
   pathname,
   onDashboardClick,
@@ -116,27 +190,11 @@ function DesktopLinks({
 }) {
   return (
     <nav className="hidden items-center gap-1 lg:flex">
-      {NAV_LINKS.map((item) => {
-        const active = isActivePath(pathname, item.href);
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            onClick={item.href === "/dashboard" ? onDashboardClick : undefined}
-            className={cn(
-              "relative rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-              active
-                ? "text-foreground"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            <span className="flex items-center gap-1.5">{item.label}</span>
-            {active && (
-              <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-primary" />
-            )}
-          </Link>
-        );
-      })}
+      {PRIMARY_LINKS.map((item) => (
+        <NavAnchor key={item.href} item={item} pathname={pathname} onDashboardClick={onDashboardClick} />
+      ))}
+      <NavMenu label="Markets" links={MARKET_LINKS} pathname={pathname} onDashboardClick={onDashboardClick} />
+      <NavMenu label="More" links={MORE_LINKS} pathname={pathname} onDashboardClick={onDashboardClick} />
     </nav>
   );
 }
@@ -269,7 +327,50 @@ function MobileDrawer({
           <BrandLogo />
         </div>
         <nav className="mt-6 space-y-1">
-          {NAV_LINKS.map((item) => {
+          {PRIMARY_LINKS.map((item) => {
+            const active = isActivePath(pathname, item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={(event) => {
+                  setOpen(false);
+                  if (item.href === "/dashboard") onDashboardClick(event);
+                }}
+                className={cn(
+                  "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+                  active
+                    ? "bg-primary/12 text-primary ring-1 ring-primary/20"
+                    : "text-muted-foreground hover:bg-card hover:text-foreground",
+                )}
+              >
+                <item.icon className="size-4" />
+                {item.label}
+              </Link>
+            );
+          })}
+          <p className="px-3 pt-3 text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground">Markets</p>
+          {MARKET_LINKS.map((item) => {
+            const active = isActivePath(pathname, item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setOpen(false)}
+                className={cn(
+                  "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+                  active
+                    ? "bg-primary/12 text-primary ring-1 ring-primary/20"
+                    : "text-muted-foreground hover:bg-card hover:text-foreground",
+                )}
+              >
+                <item.icon className="size-4" />
+                {item.label}
+              </Link>
+            );
+          })}
+          <p className="px-3 pt-3 text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground">More</p>
+          {MORE_LINKS.map((item) => {
             const active = isActivePath(pathname, item.href);
             return (
               <Link
@@ -356,6 +457,15 @@ export function TopNav() {
 
         {/* Right: auth cluster */}
         <div className="flex items-center gap-2">
+          {loggedIn ? (
+            <Button
+              size="sm"
+              className="font-semibold shadow-glow"
+              onClick={() => openRecordTransaction({ mode: "buy" })}
+            >
+              <Plus className="mr-1.5 size-4" /> Add
+            </Button>
+          ) : null}
           {pending ? (
             <div className="h-9 w-24 animate-pulse rounded-full bg-muted/60" />
           ) : loggedIn && user ? (

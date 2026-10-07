@@ -32,6 +32,9 @@ import {
   type HoldingChartTarget,
 } from "@/components/dashboard/HoldingChartDialog";
 import { TransactionCenter } from "@/components/dashboard/TransactionCenter";
+import { openRecordTransaction } from "@/lib/open-transaction";
+import { ReturnsSplitCard } from "@/components/dashboard/ReturnsSplitCard";
+import { useFxRates } from "@/hooks/useFxRates";
 import { isTransactionDialogOpen } from "@/lib/transaction-sticky";
 import {
   acceptAccountPayload,
@@ -443,8 +446,20 @@ export function PortfolioDashboard({
     return readCachedCashNZD(userId) ?? 0;
   });
   const [recentLedger, setRecentLedger] = useState<
-    { type?: string; ticker?: string | null; amount?: number | null; executed_at?: string | null; notes?: string | null }[]
+    {
+      type?: string;
+      ticker?: string | null;
+      amount?: number | null;
+      total?: number | null;
+      cash_nzd?: number | null;
+      fees_nzd?: number | null;
+      quantity?: number | null;
+      executed_at?: string | null;
+      notes?: string | null;
+    }[]
   >([]);
+  const [incomeNzd, setIncomeNzd] = useState(0);
+  const { rates: fxRates } = useFxRates();
   const [metalsValueNZD, setMetalsValueNZD] = useState(preview ? PREVIEW_METALS_NZD : 0);
   // Raw precious_metal holdings (from /api/metals) so we can surface them in the
   // main Transaction Center Sell/Remove list and unify the two systems.
@@ -580,10 +595,14 @@ export function PortfolioDashboard({
       const res = await api.get<{
         cashBalance: number;
         userId?: string;
+        incomeNZD?: number;
         transactions?: {
           type?: string;
           ticker?: string;
           total?: number;
+          cash_nzd?: number;
+          fees_nzd?: number;
+          quantity?: number;
           amount?: number;
           executed_at?: string;
           notes?: string;
@@ -623,11 +642,16 @@ export function PortfolioDashboard({
         const rows = (res.data.transactions || []).slice(0, 6).map((r) => ({
           type: r.type,
           ticker: r.ticker ?? null,
+          total: r.total ?? null,
+          cash_nzd: r.cash_nzd ?? null,
+          fees_nzd: r.fees_nzd ?? null,
+          quantity: r.quantity ?? null,
           amount: r.total ?? r.amount ?? null,
           executed_at: r.executed_at ?? null,
           notes: r.notes ?? null,
         }));
         setRecentLedger(rows);
+        setIncomeNzd(typeof res.data.incomeNZD === "number" ? res.data.incomeNZD : 0);
         setCashLoaded(true);
       } else {
         console.error("[dashboard] Failed to load cash balance:", res.error);
@@ -1100,13 +1124,39 @@ export function PortfolioDashboard({
       });
       return;
     }
-    setEditing(null);
-    setDialogOpen(true);
+    openRecordTransaction({
+      mode: "buy",
+      userId,
+      holdings: allStocks,
+      cash: cashBalance,
+      cashKnown: cashLoaded,
+      preferredAssetType: isCrypto ? "crypto" : isMetals ? "metal" : isStocks ? "stock" : null,
+    });
   }
 
   function openEdit(stock: Stock) {
     setEditing(stock);
     setDialogOpen(true);
+  }
+
+  function recordHolding(
+    holding: { ticker: string; company_name?: string; asset_type?: string | null; current_price?: number },
+    mode: "buy" | "sell"
+  ) {
+    const assetType = holding.asset_type === "crypto" ? "crypto" : holding.asset_type === "metal" ? "metal" : "stock";
+    openRecordTransaction({
+      mode,
+      userId,
+      holdings: allStocks,
+      cash: cashBalance,
+      cashKnown: cashLoaded,
+      seed: {
+        ticker: holding.ticker,
+        name: holding.company_name || holding.ticker,
+        assetType,
+        price: holding.current_price,
+      },
+    });
   }
 
   async function confirmDelete() {
@@ -1291,6 +1341,7 @@ export function PortfolioDashboard({
       ) : null}
 
       {isHome && (
+      <>
       <DashboardHomeGrid
         cashBalance={cashBalance}
         stockTotalNZD={stockTotalNZD}
@@ -1302,6 +1353,13 @@ export function PortfolioDashboard({
         recentLedger={recentLedger}
         balancesLoading={!balancesReady}
       />
+      <ReturnsSplitCard
+        holdings={[...stockHoldings, ...cryptoHoldings]}
+        incomeNzd={incomeNzd}
+        rates={fxRates}
+        loading={!balancesReady}
+      />
+      </>
       )}
 
       {isHome && !preview && balancesReady && (
@@ -1433,11 +1491,11 @@ export function PortfolioDashboard({
         title="Stock Portfolio Overview"
         description="Your live KPIs — total worth, unrealised P&L, 7-day alpha, portfolio health, Sharpe & win rate."
       >
-        <DashboardSectionTitle
-          title="Stock Portfolio Overview"
-          avatarSrc="/brand/bot-stox-fullbody.png"
-          avatarAlt="Stox AI bot"
-          avatarPose="lean"
+        <ReturnsSplitCard
+          holdings={stockOverviewSummary.holdings}
+          incomeNzd={incomeNzd}
+          rates={fxRates}
+          loading={!balancesReady}
         />
 
       {/* KPI cards — stocks */}
@@ -1450,7 +1508,7 @@ export function PortfolioDashboard({
           loading={!balancesReady}
         />
         <StatCard
-          label="Unrealized P&L"
+          label="Unrealised P&L"
           value={formatMoney(stockOverviewSummary.totalGain, "NZD")}
           sub={formatPercent(stockOverviewSummary.totalGainPct)}
           icon={stockOverviewSummary.totalGain >= 0 ? TrendingUp : TrendingDown}
@@ -1505,6 +1563,8 @@ export function PortfolioDashboard({
         loading={!balancesReady}
         headerExtra={preview ? null : <HoldingsCsvImport assetType="stock" onImported={handleDataChanged} />}
         onAdd={openAdd}
+        onBuy={(holding) => recordHolding(holding, "buy")}
+        onSell={(holding) => recordHolding(holding, "sell")}
         onEdit={openEdit}
         onDelete={setDeleteTarget}
         onOpenChart={setChartTarget}
@@ -1519,11 +1579,11 @@ export function PortfolioDashboard({
         title="Crypto Currency Overview"
         description="Live crypto KPIs and market terminal — total worth, unrealised P&L, health and projected movers."
       >
-        <DashboardSectionTitle
-          title="Crypto Currency Overview"
-          avatarSrc="/brand/bot-koins-fullbody.png"
-          avatarAlt="Koins AI bot"
-          avatarPose="flip"
+        <ReturnsSplitCard
+          holdings={cryptoOverviewSummary.holdings}
+          incomeNzd={incomeNzd}
+          rates={fxRates}
+          loading={!balancesReady}
         />
         <div className="mb-4 flex flex-wrap items-center justify-center gap-3">
           <CryptoLiveStatus updatedAt={cryptoLive.updatedAt} />
@@ -1554,7 +1614,7 @@ export function PortfolioDashboard({
           loading={!balancesReady}
         />
         <StatCard
-          label="Unrealized P&L"
+          label="Unrealised P&L"
           value={formatMoney(cryptoOverviewSummary.totalGain, cryptoBookCurrency)}
           sub={formatPercent(cryptoOverviewSummary.totalGainPct)}
           icon={cryptoOverviewSummary.totalGain >= 0 ? TrendingUp : TrendingDown}
@@ -1618,7 +1678,10 @@ export function PortfolioDashboard({
             {preview ? null : <HoldingsCsvImport assetType="crypto" onImported={handleDataChanged} />}
           </>
         }
+        nameLabel="Coin / Token"
         onAdd={openAdd}
+        onBuy={(holding) => recordHolding(holding, "buy")}
+        onSell={(holding) => recordHolding(holding, "sell")}
         onEdit={openEdit}
         onDelete={setDeleteTarget}
         onOpenChart={setChartTarget}
@@ -1821,27 +1884,25 @@ export function PortfolioDashboard({
             </span>
             <p className="mt-4 font-medium">Your portfolio is empty</p>
             <p className="mt-1 max-w-xs text-sm text-muted-foreground">
-              Buy your first shares in the Transaction Center below to start tracking gains, losses, and allocation.
+              Record a transaction to start tracking gains, losses, and allocation.
             </p>
             <Button onClick={openAdd} className="mt-5 font-semibold">
               <Plus className="mr-2 size-4" /> Add your first holding
             </Button>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div>
+            <table className="w-full table-fixed text-xs">
               <thead>
                 <tr className="border-b border-border/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                  <th className="px-6 py-3"><HoldingHead label="Ticker" k="ticker" align="left" /></th>
-                  <th className="px-3 py-3"><HoldingHead label="Purchase date" k="date" align="left" /></th>
-                  <th className="px-3 py-3"><HoldingHead label="Company name" k="company" align="left" /></th>
-                  <th className="px-3 py-3 font-medium">Exchange</th>
-                  <th className="px-3 py-3"><HoldingHead label="# shares" k="shares" /></th>
-                  <th className="px-3 py-3"><HoldingHead label="Price paid / share" k="purchase_price" /></th>
-                  <th className="px-3 py-3"><HoldingHead label="Current price / share" k="current_price" /></th>
-                  <th className="px-3 py-3"><HoldingHead label="Market value" k="marketValue" /></th>
-                  <th className="px-3 py-3"><HoldingHead label="% of Portfolio" k="weight" /></th>
-                  <th className="px-3 py-3"><HoldingHead label="Gain / Loss" k="gain" /></th>
+                  <th className="px-3 py-2"><HoldingHead label="Ticker" k="ticker" align="left" /></th>
+                  <th className="px-2 py-2"><HoldingHead label="Company" k="company" align="left" /></th>
+                  <th className="px-2 py-2"><HoldingHead label="Qty" k="shares" /></th>
+                  <th className="px-2 py-2"><HoldingHead label="Paid" k="purchase_price" /></th>
+                  <th className="px-2 py-2"><HoldingHead label="Now" k="current_price" /></th>
+                  <th className="px-2 py-2"><HoldingHead label="Value" k="marketValue" /></th>
+                  <th className="px-2 py-2"><HoldingHead label="%" k="weight" /></th>
+                  <th className="px-2 py-2"><HoldingHead label="Gain" k="gain" /></th>
                   <th className="px-6 py-3 text-right font-medium sr-only">Actions</th>
                 </tr>
               </thead>
@@ -1890,22 +1951,13 @@ export function PortfolioDashboard({
                         </button>
                       </td>
                       {/* Purchase date */}
-                      <td className="px-3 py-3.5">
-                        <span className="tnum whitespace-nowrap text-sm text-muted-foreground">
-                          {formatHoldingDate(h.purchase_date)}
-                        </span>
-                      </td>
-                      {/* Company name */}
-                      <td className="px-3 py-3.5">
-                        <p className="max-w-[16rem] truncate text-muted-foreground">
+                      <td className="px-2 py-2">
+                        <p className="truncate text-muted-foreground">
                           {h.company_name || h.sector || "—"}
                         </p>
-                      </td>
-                      {/* Exchange */}
-                      <td className="px-3 py-3.5">
-                        <span className="rounded-md border border-border/60 bg-background/40 px-2 py-0.5 text-[0.7rem] font-semibold text-muted-foreground">
-                          {exchange}
-                        </span>
+                        <p className="truncate text-[0.65rem] text-muted-foreground">
+                          {formatHoldingDate(h.purchase_date)} · {exchange}
+                        </p>
                       </td>
                       {/* # shares */}
                       <td className="tnum px-3 py-3.5 text-right text-muted-foreground">
@@ -1932,7 +1984,7 @@ export function PortfolioDashboard({
                       <td className="px-3 py-3.5 text-right">
                         <div className="flex flex-col items-end gap-1">
                           <span className="tnum font-medium">{h.weight.toFixed(1)}%</span>
-                          <span className="h-1 w-16 overflow-hidden rounded-full bg-muted/50">
+                          <span className="h-1 w-10 overflow-hidden rounded-full bg-muted/50">
                             <span
                               className="block h-full rounded-full bg-primary/70"
                               style={{ width: `${Math.min(100, Math.max(2, h.weight))}%` }}
@@ -1954,6 +2006,20 @@ export function PortfolioDashboard({
                       {/* Actions */}
                       <td className="px-6 py-3.5">
                         <div className="flex items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            onClick={() => recordHolding(h, "buy")}
+                            className="rounded-md px-1.5 py-1 text-[0.65rem] font-semibold text-primary hover:bg-primary/10"
+                          >
+                            Buy
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => recordHolding(h, "sell")}
+                            className="rounded-md px-1.5 py-1 text-[0.65rem] font-semibold text-rose-600 hover:bg-rose-500/10"
+                          >
+                            Sell
+                          </button>
                           <button
                             onClick={() => openEdit(h)}
                             className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"

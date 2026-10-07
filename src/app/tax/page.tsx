@@ -5,7 +5,7 @@ import { TaxPageContent } from "@/components/tax/TaxPageContent";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "TAX · AetherForge AI",
+  title: "Tax · AetherForge AI",
   description:
     "This is general information and not personal tax advice.",
 };

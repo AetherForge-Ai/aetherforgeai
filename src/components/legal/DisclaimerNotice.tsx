@@ -91,6 +91,10 @@ export function DisclaimerNotice({
         capital; past performance does not
         guarantee future results. Always do your own research and consult a licensed financial
         adviser.{" "}
+        <Link href="/trust" className="font-medium text-primary hover:underline">
+          How the books work
+        </Link>
+        {" · "}
         <Link href="/ai-disclaimer" className="font-medium text-primary hover:underline">
           Full disclaimer
         </Link>

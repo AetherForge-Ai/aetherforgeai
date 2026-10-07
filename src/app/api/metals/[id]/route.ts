@@ -102,11 +102,41 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
       sellOunces = requested;
     }
 
-    // Resolve today's spot (NZD/oz) as the sale price.
-    const spot = await getMetalsSpot();
-    const spotNZD = spot[metal]?.nzdPerOz || 0;
-    if (!(spotNZD > 0)) {
-      return NextResponse.json({ ok: false, error: "Could not resolve live spot price" }, { status: 502 });
+    // The transaction panel sends the reviewed price, fee and date.
+    // Older callers omit them and still sell at today's spot.
+    const priceParam = url.searchParams.get("price");
+    const feesParam = url.searchParams.get("fees");
+    const dateParam = url.searchParams.get("date");
+    let priceNZD = 0;
+    let pricedByCaller = false;
+    if (priceParam != null && priceParam !== "") {
+      const requested = Number(priceParam);
+      if (!Number.isFinite(requested) || requested <= 0) {
+        return NextResponse.json({ ok: false, error: "price must be a positive number" }, { status: 400 });
+      }
+      priceNZD = requested;
+      pricedByCaller = true;
+    } else {
+      const spot = await getMetalsSpot();
+      priceNZD = spot[metal]?.nzdPerOz || 0;
+      if (!(priceNZD > 0)) {
+        return NextResponse.json({ ok: false, error: "Could not resolve live spot price" }, { status: 502 });
+      }
+    }
+    let fees = 0;
+    if (feesParam != null && feesParam !== "") {
+      const requested = Number(feesParam);
+      if (!Number.isFinite(requested) || requested < 0) {
+        return NextResponse.json({ ok: false, error: "fees must be zero or greater" }, { status: 400 });
+      }
+      fees = requested;
+    }
+    let executedAt: Date | undefined;
+    if (dateParam != null && dateParam !== "") {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+        return NextResponse.json({ ok: false, error: "date must be yyyy-mm-dd" }, { status: 400 });
+      }
+      executedAt = new Date(`${dateParam}T12:00:00.000Z`);
     }
 
     const isPartial = sellOunces < heldOunces - 1e-9;
@@ -126,9 +156,15 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
         side: "sell",
         metal,
         ounces: sellOunces,
-        pricePerOzNZD: spotNZD,
+        pricePerOzNZD: priceNZD,
         avgCostNZD: avgCost,
-        notes: isPartial ? `Partial sell ${sellOunces} oz at spot` : "Sold at spot",
+        fees,
+        executedAt,
+        notes: isPartial
+          ? `Partial sell ${sellOunces} oz`
+          : pricedByCaller
+            ? "Sold"
+            : "Sold at spot",
       });
     } catch (err) {
       if (remaining <= 1e-9) {
@@ -151,15 +187,15 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
     if (remaining <= 1e-9) {
       await archiveClosedPositionAlerts(user._id, metal === "gold" ? "GOLD" : "SILVER", 0);
       console.log(
-        `[api/metals/${id}] SOLD ALL ${sellOunces}oz ${metal} @ ${spotNZD} NZD for user ${user._id} → cash ${trade.cashBalance}, realized ${trade.realizedNZD}`
+        `[api/metals/${id}] SOLD ALL ${sellOunces}oz ${metal} @ ${priceNZD} NZD for user ${user._id} → cash ${trade.cashBalance}, realized ${trade.realizedNZD}`
       );
     } else {
       console.log(
-        `[api/metals/${id}] PARTIAL SELL ${sellOunces}oz ${metal} @ ${spotNZD} NZD (remaining ${remaining}oz) for user ${user._id} → cash ${trade.cashBalance}, realized ${trade.realizedNZD}`
+        `[api/metals/${id}] PARTIAL SELL ${sellOunces}oz ${metal} @ ${priceNZD} NZD (remaining ${remaining}oz) for user ${user._id} → cash ${trade.cashBalance}, realized ${trade.realizedNZD}`
       );
     }
 
-    const proceeds = Math.abs(trade.transaction?.total ?? sellOunces * spotNZD);
+    const proceeds = Math.abs(trade.transaction?.total ?? sellOunces * priceNZD);
 
     return NextResponse.json({
       ok: true,
@@ -168,7 +204,7 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
         cashBalance: trade.cashBalance,
         realizedNZD: trade.realizedNZD,
         proceeds,
-        pricePerOzNZD: spotNZD,
+        pricePerOzNZD: priceNZD,
         soldOunces: sellOunces,
         remainingOunces: remaining <= 1e-9 ? 0 : remaining,
         partial: isPartial,

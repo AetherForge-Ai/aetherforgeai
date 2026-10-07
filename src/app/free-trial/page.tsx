@@ -8,7 +8,7 @@ import { Sparkles, ArrowRight, CheckCircle2 } from "lucide-react";
 export const dynamic = "force-dynamic";
 
 /**
- * /free-trial — the ONE-TIME temporary "Zenith" dashboard.
+ * /free-trial — the one-time complimentary report.
  *
  * Server gate:
  *   · not signed in            → /register (carry plan + redirect back here)
@@ -45,11 +45,11 @@ export default async function FreeTrialPage() {
           <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-600 ring-1 ring-emerald-500/25">
             <CheckCircle2 className="size-3.5" /> Trial complete
           </span>
-          <h1 className="mt-4 font-display text-3xl font-bold sm:text-4xl">You&apos;ve used your one-time ZENITH report</h1>
+          <h1 className="mt-4 font-display text-3xl font-bold sm:text-4xl">You&apos;ve used your one-time report</h1>
           <p className="mx-auto mt-3 max-w-lg text-sm text-muted-foreground">
             Your complimentary run has already been generated and emailed to{" "}
-            <span className="font-medium text-foreground">{user.email}</span>. To keep running unlimited ULTRA ADVANCED
-            reports across both bots — plus live price alerts and scheduled 9am briefings — pick a subscription.
+            <span className="font-medium text-foreground">{user.email}</span>. To keep running unlimited reports from the
+            intelligent AI bots — plus live price alerts and scheduled 9am briefings — pick a subscription.
           </p>
           <div className="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Link

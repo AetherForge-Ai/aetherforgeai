@@ -145,13 +145,57 @@ export function adaptiveFractionDigits(value: number): number {
   return Math.min(10, Math.max(2, sig - exp - 1));
 }
 
-/** Input-friendly price text (hard-sell seeds, etc.) that keeps sub-cent precision. */
+/** Input-friendly price text. Amounts from $1 use 2 decimals. Sub-dollar keeps precision. */
 export function formatPriceInput(value: number): string {
   if (!Number.isFinite(value)) return "";
+  if (Math.abs(value) >= 1) return value.toFixed(2);
   const digits = adaptiveFractionDigits(value);
   const text = value.toFixed(digits);
-  if (Math.abs(value) >= 1) return text;
   return text.replace(/(\.\d*?[1-9])0+$/, "$1").replace(/\.0+$/, "");
+}
+
+/**
+ * Calendar date as '4 Oct 2026'. A yyyy-mm-dd string is that civil date,
+ * not UTC midnight (which would show the previous day in New Zealand).
+ */
+export function formatDisplayDate(input?: string | Date | null): string {
+  if (input == null || input === "") return "—";
+  if (typeof input === "string") {
+    const ymd = /^(\d{4})-(\d{2})-(\d{2})/.exec(input.trim());
+    if (ymd) {
+      const local = new Date(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]));
+      return local.toLocaleDateString("en-NZ", { day: "numeric", month: "short", year: "numeric" });
+    }
+  }
+  const date = input instanceof Date ? input : new Date(input);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString("en-NZ", {
+    timeZone: "Pacific/Auckland",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+/** NZ dollars to 2 decimal places, e.g. NZ$2.20 or -NZ$21,598.34. */
+export function formatNzd(value: number): string {
+  return formatMoney(value, "NZD", { decimals: 2 });
+}
+
+/** Signed money. A reduction keeps the minus; a gain gets a plus. Zero is NZ$0.00 with no plus. */
+export function formatSignedMoney(value: number, currency: CurrencyCode = "NZD"): string {
+  const decimals = currency === "NZD" || Math.abs(value) >= 1 ? 2 : undefined;
+  const text = formatMoney(value, currency, decimals != null ? { decimals } : {});
+  if (value > 0) return `+${text}`;
+  return text;
+}
+
+/** Native amount, with the NZ dollar value beside it when the currency is not NZD. */
+export function formatMoneyWithNzd(amount: number, currency: CurrencyCode, nzd: number): string {
+  const decimals = currency === "NZD" || Math.abs(amount) >= 1 ? 2 : undefined;
+  const native = formatMoney(amount, currency, decimals != null ? { decimals } : {});
+  if (currency === "NZD") return native;
+  return `${native} · ${formatNzd(nzd)}`;
 }
 
 /** Format a monetary value in a specific currency (e.g. "AU$1,234.50"). */
@@ -162,7 +206,9 @@ export function formatMoney(
 ): string {
   const meta = CURRENCY_META[currency] ?? CURRENCY_META.USD;
   const abs = Math.abs(value);
-  const decimals = opts.decimals ?? adaptiveFractionDigits(value);
+  // Book money from $1 is always 2 decimals (NZ$2.20, not NZ$2.2000).
+  // Sub-dollar prints keep extra places so a fraction of a cent is not $0.00.
+  const decimals = opts.decimals ?? (abs >= 1 ? 2 : adaptiveFractionDigits(value));
   // Sub-dollar prices: cap the fraction at the adaptive width but don't force
   // trailing zeros out to 8 places. $1 and up stay fixed-width.
   const minDigits = opts.compact ? 0 : abs > 0 && abs < 1 ? Math.min(2, decimals) : decimals;
