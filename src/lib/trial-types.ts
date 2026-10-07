@@ -1,5 +1,5 @@
 /**
- * Shared, PURE types for the one-time Free-Trial "Zenith Mode" report.
+ * Shared types for the one-time complimentary trial report.
  *
  * No server-only imports — this module is safe to import from BOTH the server
  * report engine (`trial-report.ts`) and the client result view
@@ -94,7 +94,7 @@ export interface MarketPrediction {
 
 export interface TrialReport {
   bot: BotKind;
-  /** Marketing mode label, e.g. "ZENITH MODE · ULTRA ADVANCED". */
+  /** Marketing mode label shown on the report, e.g. "Intelligent AI bot". */
   mode: string;
   title: string;
   marketLabel: string;

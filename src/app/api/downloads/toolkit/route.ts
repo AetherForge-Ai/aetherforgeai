@@ -16,8 +16,8 @@ function decodeToolkit(): Uint8Array {
   return bytes;
 }
 
-// GET /api/downloads/toolkit — streams the professional Excel investor toolkit
-// (Ultra Advanced Portfolio Tracker — Stocks + Crypto, NZD).
+// GET /api/downloads/toolkit — streams the Excel investor toolkit
+// (AetherForge portfolio tracker — stocks and crypto, NZD).
 // Gated to signed-in customers on an annual (yearly / dual_yearly) plan.
 export async function GET() {
   try {

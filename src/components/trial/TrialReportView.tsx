@@ -423,7 +423,7 @@ export function TrialReportView({
       )}
 
       <p className="rounded-2xl border border-border/50 bg-background/30 p-4 text-center text-xs leading-relaxed text-muted-foreground">
-        This was your one-time complimentary ZENITH report. Informational market intelligence only — not financial advice.
+        This was your one-time complimentary report. Informational market intelligence only — not financial advice.
         Predictions are model-derived from real market data and are not guarantees.
       </p>
     </div>

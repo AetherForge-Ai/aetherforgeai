@@ -4,7 +4,9 @@ import { PAPER_FEE_RATE, suggestedFee } from "@/lib/fee-rule";
 import { ledgerDisplayedCash } from "@/lib/ledger-cash-lines";
 import { buildMovementPreview } from "@/lib/movement-preview";
 import { searchAssets } from "@/lib/asset-search";
-import { transactionProblems } from "@/lib/transaction-rules";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { assessMovement, transactionProblems } from "@/lib/transaction-rules";
 
 const today = "2026-10-07";
 
@@ -50,10 +52,18 @@ describe("record validation", () => {
     );
   });
 
-  it("blocks a sell dated before the first buy", () => {
-    expect(
-      transactionProblems({ ...base, quantity: 1, held: 4, date: "2026-08-01" }).join(" ")
-    ).toMatch(/before the first buy/);
+  it("blocks a sell dated before the first buy and prints the day, not the ISO date", () => {
+    const message = transactionProblems({
+      ...base,
+      quantity: 1,
+      held: 4,
+      date: "2026-08-01",
+      firstBuyDate: "2026-10-04",
+    }).join(" ");
+    expect(message).toMatch(/before the first buy/);
+    expect(message).toContain(formatDisplayDate("2026-10-04"));
+    expect(message).toContain("4 Oct 2026");
+    expect(message).not.toContain("2026-10-04");
   });
 
   it("blocks cash going below zero", () => {
@@ -164,6 +174,88 @@ describe("formatting helpers", () => {
     expect(formatPriceInput(7377.8396179091)).toBe("7377.84");
     expect(formatDisplayDate("2026-10-04")).toBe("4 Oct 2026");
     expect(formatMoney(0.1842, "USD")).toContain("0.1842");
+  });
+});
+
+describe("server-side movement rejection", () => {
+  const sell = {
+    type: "sell" as const,
+    date: "2026-10-01",
+    today,
+    quantity: 5,
+    price: 10,
+    held: 4,
+    firstBuyDate: "2026-09-01",
+    hasAsset: true,
+    cashKnown: true,
+    cashAfterNzd: 100,
+    needsCash: false,
+  };
+  const owned = {
+    type: "correction" as const,
+    date: today,
+    today,
+    quantity: 8,
+    price: 2,
+    held: 8,
+    hasAsset: true,
+    cashKnown: true,
+    cashAfterNzd: 100,
+    needsCash: false,
+    fromHoldingEdit: true,
+  };
+
+  it("rejects a future date, an oversell, a sell before the first buy, and cash below zero", () => {
+    expect(assessMovement({ ...sell, type: "buy", date: "2026-10-08", held: 0, quantity: 1 })).toMatch(/future/);
+    expect(assessMovement(sell)).toMatch(/can't be larger/);
+    expect(
+      assessMovement({ ...sell, quantity: 1, held: 4, date: "2026-08-01", firstBuyDate: "2026-10-04" })
+    ).toBe(`This sell is dated before the first buy of this asset (${formatDisplayDate("2026-10-04")}).`);
+    expect(
+      assessMovement({
+        ...sell,
+        type: "withdraw",
+        quantity: 0,
+        price: 50,
+        held: 0,
+        hasAsset: false,
+        cashAfterNzd: -1,
+        needsCash: true,
+      })
+    ).toMatch(/below zero/);
+  });
+
+  it("refuses a correction that did not come from Holding Edit", () => {
+    expect(assessMovement({ ...owned, fromHoldingEdit: false })).toBe(
+      "A correction can only be recorded from Holding Edit on a holding you own."
+    );
+  });
+
+  it("still rejects a Holding Edit correction that is negative, in the future, or not this holding", () => {
+    expect(assessMovement({ ...owned, quantity: -2 })).toMatch(/greater than zero/);
+    expect(assessMovement({ ...owned, quantity: 0 })).toMatch(/greater than zero/);
+    expect(assessMovement({ ...owned, date: "2026-10-08" })).toMatch(/future/);
+    expect(assessMovement({ ...owned, held: 0 })).toMatch(/holding you own/);
+    expect(assessMovement(owned)).toBeNull();
+  });
+
+  it("wires the same rejection into POST /api/transactions and Holding Edit", () => {
+    const read = (rel: string) => readFileSync(path.join(process.cwd(), rel), "utf8");
+    const post = read("src/app/api/transactions/route.ts");
+    expect(post).toContain("movementRejectionForUser");
+    expect(post).toContain("fromHoldingEdit: false");
+    expect(post).toContain("A correction can only be recorded from Holding Edit on a holding you own.");
+    const edit = read("src/app/api/stocks/[id]/route.ts");
+    expect(edit).toContain('type: "correction"');
+    expect(edit).toContain("fromHoldingEdit: true");
+    expect(edit).toContain("The date can't be in the future.");
+    const writer = read("src/lib/transactions.ts");
+    expect(writer).toContain("movementRejectionForUser(user, input, opts)");
+    const panel = read("src/components/dashboard/RecordTransactionPanel.tsx");
+    expect(panel).toContain("formatDisplayDate(preview.date)");
+    expect(panel).toContain("formatSignedMoney(preview.cashChangeNzd)");
+    expect(panel).toContain("formatNzd(preview.cashAfterNzd)");
+    expect(panel).toContain("formatMoneyWithNzd(preview.priceNative");
   });
 });
 

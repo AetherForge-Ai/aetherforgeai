@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Ultra-light inline sparkline (pure SVG, no chart lib) for the 500-row table —
+ * Compact inline sparkline (pure SVG, no chart lib) for the 500-row table —
  * cheap enough to render hundreds of times without jank. Colour reflects the
  * net direction of the series (last vs first point).
  */

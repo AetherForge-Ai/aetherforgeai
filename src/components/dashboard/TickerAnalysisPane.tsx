@@ -12,7 +12,7 @@ import { Bot, Loader2, Send, Sparkles } from "lucide-react";
  * On open it auto-runs a professional read on the ticker (grounded with a fresh
  * live quote server-side), then lets the user ask focused follow-up questions.
  *
- * It talks to POST /api/ticker-analysis — the SAME Grok backend that powers the
+ * It talks to POST /api/ticker-analysis — the same AI backend that powers the
  * main AI Assistant — so it never touches or disturbs the persistent Stox/Koins
  * chat history on /chat.
  */

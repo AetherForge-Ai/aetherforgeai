@@ -37,6 +37,8 @@ import { feedEntryForTicker } from "@/lib/feed-mapping";
 import { withUserTradeLock } from "@/lib/trade-lock";
 import { applyPaperCashMove } from "@/lib/paper-cash";
 import { planHoldingCorrection } from "@/lib/holding-correction";
+import { buildMovementPreview } from "@/lib/movement-preview";
+import { assessMovement, movementCivilDay } from "@/lib/transaction-rules";
 
 export type TxType =
   | "buy"
@@ -201,17 +203,162 @@ function qtyMatches(actual: number | null, expected: number): boolean {
   return actual != null && Math.abs(actual - expected) <= 1e-4;
 }
 
+/** Earliest buy day for this account and ticker, falling back to the holding's purchase date. */
+async function earliestBuyDay(userId: string, ticker: string, purchaseDate?: string | null): Promise<string | null> {
+  let earliest = purchaseDate ? movementCivilDay(purchaseDate, "") : "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(earliest)) earliest = "";
+  try {
+    const res = await totalumSdk.crud.query("transaction", {
+      _filter: { user: userId, type: "buy", ticker },
+      _limit: 200,
+    });
+    for (const row of (res?.data as Array<{ executed_at?: string; trade_date?: string }>) || []) {
+      const raw = String(row.trade_date || row.executed_at || "").trim();
+      if (!raw) continue;
+      const day = movementCivilDay(raw, "");
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) continue;
+      if (!earliest || day < earliest) earliest = day;
+    }
+  } catch (err) {
+    console.error(`[transactions] First-buy lookup failed for ${ticker}:`, err);
+  }
+  return earliest || null;
+}
+
+/**
+ * The same blocks the Record a transaction panel applies, read against this account's book.
+ * A correction posted here is refused. Holding Edit passes fromHoldingEdit after it has
+ * already confirmed the row belongs to the signed-in user.
+ */
+export async function movementRejectionForUser(
+  user: AppUser,
+  input: TransactionInput,
+  opts: { fromHoldingEdit?: boolean } = {}
+): Promise<string | null> {
+  const today = aucklandDateISO();
+  const date = movementCivilDay(input.trade_date || input.executed_at, today);
+  const fromHoldingEdit = !!opts.fromHoldingEdit;
+  const ticker = normalizeTicker(input.ticker || "");
+  const assetType: TxAssetType = input.asset_type || "stock";
+  const hasTicker = Boolean(ticker);
+  const ideaOnly =
+    (input.type === "buy" || input.type === "sell") &&
+    (input.execution_status === "idea" || input.execution_status === "paper");
+
+  if (ideaOnly) {
+    return assessMovement({
+      type: input.type,
+      date,
+      today,
+      quantity: Number(input.quantity) || 0,
+      price: Number(input.price) || 0,
+      held: Number.POSITIVE_INFINITY,
+      hasAsset: hasTicker,
+      cashKnown: true,
+      cashAfterNzd: 0,
+      cashChangeNzd: 0,
+      needsCash: false,
+      fromHoldingEdit,
+    });
+  }
+
+  const fallbackCash = typeof user.cash_balance === "number" ? user.cash_balance : 0;
+  const cash = await readUserCash(user._id, fallbackCash);
+  const openingCash = input.type === "opening_balance" && !hasTicker;
+  const cashLine =
+    input.type === "deposit" ||
+    input.type === "withdraw" ||
+    input.type === "dividend" ||
+    input.type === "tax" ||
+    openingCash;
+
+  let held = 0;
+  let purchaseDate: string | null = null;
+  if (hasTicker && (input.type === "sell" || input.type === "dividend" || input.type === "correction" || input.type === "buy")) {
+    const existing = await findHolding(user._id, ticker, assetType);
+    held = Number(existing?.shares) || 0;
+    purchaseDate = existing?.purchase_date ? String(existing.purchase_date) : null;
+    if (input.type === "dividend" && !(held > 0) && (ticker === "GOLD" || ticker === "SILVER")) {
+      const metalKey = ticker === "GOLD" ? "gold" : "silver";
+      const metals = await totalumSdk.crud.query("precious_metal", {
+        _filter: { user: user._id },
+        _limit: 50,
+      });
+      const ounces = ((metals?.data as Array<{ metal?: string; ounces?: number }>) || []).find(
+        (row) => String(row.metal || "").toLowerCase() === metalKey && Number(row.ounces) > 0
+      );
+      if (ounces) held = Number(ounces.ounces) || 0;
+    }
+  }
+
+  const firstBuyDate =
+    input.type === "sell" && ticker ? await earliestBuyDay(user._id, ticker, purchaseDate) : null;
+  const price = cashLine ? Number(input.amount) || 0 : Number(input.price) || 0;
+  const quantity = Number(input.quantity) || 0;
+  const currency = cashLine ? "NZD" : currencyForTicker(ticker || "X", assetType);
+  let fxRate = input.fx_rate;
+  if (!cashLine && currency !== "NZD" && !(fxRate && fxRate > 0)) {
+    try {
+      const fx = await getFxSnapshot();
+      fxRate = fx.ratesToNZD[currency];
+    } catch (err) {
+      console.error("[transactions] FX snapshot for the movement check failed:", err);
+    }
+  }
+  const previewHasAsset = input.type === "opening_balance" ? hasTicker : cashLine ? input.type === "dividend" && hasTicker : hasTicker;
+  const preview = buildMovementPreview({
+    type: input.type,
+    date,
+    asset: ticker,
+    quantity,
+    price,
+    fee: Math.max(0, Number(input.fees) || 0),
+    currency,
+    fxRate,
+    cashNzd: cash,
+    hasAsset: previewHasAsset,
+  });
+
+  return assessMovement({
+    type: input.type,
+    date,
+    today,
+    quantity,
+    price,
+    held,
+    firstBuyDate,
+    hasAsset: previewHasAsset,
+    cashKnown: true,
+    cashAfterNzd: preview.cashAfterNzd,
+    cashChangeNzd: preview.cashChangeNzd,
+    needsCash:
+      preview.cashChangeNzd < -1e-6 || input.type === "buy" || input.type === "withdraw" || input.type === "tax",
+    fromHoldingEdit,
+  });
+}
+
 /**
  * Apply a transaction: mutate holdings + cash, then write the ledger row.
  * Fills for one account run one at a time. Cash and the holding are re-read
  * inside that lock. If the ledger row cannot be paired with the holding
  * quantity, both writes are undone — a row is never left without its shares.
  */
-export async function applyTransaction(user: AppUser, input: TransactionInput): Promise<TransactionResult> {
-  return withUserTradeLock(user._id, () => applyTransactionUnlocked(user, input));
+export async function applyTransaction(
+  user: AppUser,
+  input: TransactionInput,
+  opts?: { fromHoldingEdit?: boolean }
+): Promise<TransactionResult> {
+  return withUserTradeLock(user._id, () => applyTransactionUnlocked(user, input, opts));
 }
 
-async function applyTransactionUnlocked(user: AppUser, input: TransactionInput): Promise<TransactionResult> {
+async function applyTransactionUnlocked(
+  user: AppUser,
+  input: TransactionInput,
+  opts?: { fromHoldingEdit?: boolean }
+): Promise<TransactionResult> {
+  const rejection = await movementRejectionForUser(user, input, opts);
+  if (rejection) throw new Error(rejection);
+
   const fallbackCash = typeof user.cash_balance === "number" ? user.cash_balance : 0;
   const currentCash = await readUserCash(user._id, fallbackCash);
   const executedAt = input.executed_at ? new Date(input.executed_at) : new Date();

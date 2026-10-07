@@ -75,7 +75,7 @@ function BotCard({ bot, onOpen }: { bot: BotDef; onOpen: () => void }) {
         </div>
         <div className="min-w-0">
           <Badge variant="outline" className="mb-2 border-primary/30 bg-primary/10 text-primary">
-            ⚡ ZENITH State
+            Intelligent AI bot
           </Badge>
           <h3 className="text-lg font-semibold leading-tight tracking-tight">{bot.name}</h3>
           <p className="mt-0.5 text-xs text-muted-foreground">{bot.subtitle}</p>
@@ -92,7 +92,7 @@ function BotCard({ bot, onOpen }: { bot: BotDef; onOpen: () => void }) {
       <p className="mt-4 text-sm leading-relaxed text-muted-foreground">{bot.blurb}</p>
 
       <Button onClick={onOpen} className="mt-5 w-full" variant="secondary">
-        View a sample ZENITH report
+        View a sample report
       </Button>
     </div>
   );
@@ -164,7 +164,7 @@ export function BotShowcase() {
                       <span className="text-sm font-normal text-muted-foreground">· {activeBot.subtitle}</span>
                     </DialogTitle>
                     <DialogDescription className="text-left">
-                      Sample ZENITH State report — illustrative data, real subscriber layout. This is what lands in your
+                      Sample report — illustrative data, real subscriber layout. This is what lands in your
                       dashboard when the bot runs.
                     </DialogDescription>
                   </div>
@@ -177,7 +177,8 @@ export function BotShowcase() {
 
               <div className="mt-4 flex flex-col items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 p-5 text-center">
                 <p className="text-sm font-medium">
-                  Unlock live ZENITH reports on your own {activeBot.kind === "crypto" ? "coins" : "tickers"}.
+                  Unlock live reports from this intelligent AI bot on your own{" "}
+                  {activeBot.kind === "crypto" ? "coins" : "tickers"}.
                 </p>
                 <Button asChild className="w-full sm:w-auto">
                   <Link href="/pricing">Choose a plan &amp; activate this bot</Link>

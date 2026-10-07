@@ -36,7 +36,7 @@ export function YearlyToolkit() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "Ultra-Advanced-Portfolio-Tracker-Stocks-Crypto-NZD.xlsx";
+      a.download = "AetherForge-Portfolio-Tracker-Stocks-Crypto-NZD.xlsx";
       document.body.appendChild(a);
       a.click();
       a.remove();
