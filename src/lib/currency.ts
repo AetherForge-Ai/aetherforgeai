@@ -294,6 +294,19 @@ export function usdPerNzd(rates: FxRatesToNZD = BASELINE_FX_TO_NZD): number {
   return 1 / ensureNzdPerUsd(rates.USD);
 }
 
+/** Daily FX caption, e.g. "Daily rate · 4 Oct 2026". The clock is not part of a daily rate. */
+export function formatDailyRate(asOfIso: string): string {
+  const date = new Date(asOfIso);
+  if (Number.isNaN(date.getTime())) return "Daily rate";
+  const wall = date.toLocaleDateString("en-NZ", {
+    timeZone: "Pacific/Auckland",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+  return `Daily rate · ${wall}`;
+}
+
 /** Auckland wall time for the single FX snapshot, e.g. "4 Oct 2026, 3:06 pm NZST". */
 export function formatFxAsOf(asOfIso: string): string {
   const date = new Date(asOfIso);
@@ -322,7 +335,7 @@ export function formatUsdWithRate(
   // The printed rate is the rate used. Four decimal places is what the caption shows.
   const rate = Number(usdPerNzd(rates).toFixed(4));
   const amount = formatMoney(nzd * rate, "USD", { decimals: opts.decimals ?? 2 });
-  const taken = formatFxAsOf(asOfIso);
+  const taken = formatDailyRate(asOfIso);
   const suffix = opts.suffix ?? "";
   return `≈ ${amount}${suffix} · 1 NZD = US$${rate.toFixed(4)}${taken ? ` · ${taken}` : ""}`;
 }

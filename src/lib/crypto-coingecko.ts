@@ -115,6 +115,7 @@ interface CgMarketRow {
   atl: number | null;
   atl_date: string | null;
   sparkline_in_7d?: { price: number[] } | null;
+  last_updated?: string | null;
 }
 
 function mapMarketRow(r: CgMarketRow): CoinMarket {
@@ -143,6 +144,7 @@ function mapMarketRow(r: CgMarketRow): CoinMarket {
     atlDate: r.atl_date ?? null,
     sparkline7d: r.sparkline_in_7d?.price ?? [],
     priceUnavailable: !(typeof r.current_price === "number" && r.current_price > 0),
+    quotedAt: r.last_updated || null,
   };
 }
 

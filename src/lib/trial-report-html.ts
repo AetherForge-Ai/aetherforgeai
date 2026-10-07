@@ -309,7 +309,7 @@ function marketPredictionsBlock(report: TrialReport): string {
 function cryptoMoversSection(report: TrialReport): string {
   const b = report.cryptoMovers;
   if (!b) return "";
-  return `<h2 style="font-size:15px;color:${INK};margin:26px 0 8px">📊 Top movers across the top 100 cryptocurrencies</h2>
+  return `<h2 style="font-size:15px;color:${INK};margin:26px 0 8px">📊 Top movers across the largest coins by market cap</h2>
     <table width="100%" style="border-collapse:separate;border-spacing:10px 0"><tr>
       <td style="width:50%;vertical-align:top">${moverBoard("Top gainers · 24h", GREEN, b.gainers24h)}</td>
       <td style="width:50%;vertical-align:top">${moverBoard("Top losers · 24h", RED, b.losers24h)}</td>

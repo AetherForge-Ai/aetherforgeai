@@ -21,6 +21,8 @@ import {
 import { cn } from "@/lib/utils";
 import { Sparkline } from "./Sparkline";
 import { useCryptoMarkets } from "@/hooks/useCryptoMarkets";
+import { cryptoCoveragePhrase } from "@/lib/crypto-coverage";
+import { cryptoFreshnessLabel, latestQuoteTime } from "@/lib/market-freshness";
 import {
   selectCoins,
   fmtPrice,
@@ -58,7 +60,7 @@ export function CryptoMarketModal({
   onOpenChange: (v: boolean) => void;
   onSelectCoin: (id: string) => void;
 }) {
-  const { coins, loading, refreshing, error, lastUpdated, refresh } = useCryptoMarkets(open);
+  const { coins, loading, refreshing, error, refresh } = useCryptoMarkets(open);
 
   // Toolbar state is preserved across close/reopen because this component stays
   // mounted in the section wrapper (Radix just toggles visibility).
@@ -98,9 +100,8 @@ export function CryptoMarketModal({
   const endIdx = Math.min(total, Math.ceil((scrollTop + viewportH) / ROW_H) + OVERSCAN);
   const visible = rows.slice(startIdx, endIdx);
 
-  const lastLabel = lastUpdated
-    ? lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
-    : "—";
+  const coverage = cryptoCoveragePhrase(coins.length);
+  const freshness = cryptoFreshnessLabel(latestQuoteTime(coins.map((coin) => coin.quotedAt)));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -110,10 +111,10 @@ export function CryptoMarketModal({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <DialogTitle className="font-display text-xl">
-                Crypto Market <span className="text-muted-foreground">— Live Top 500 Cryptocurrencies</span>
+                Crypto Market <span className="text-muted-foreground">— {coverage}</span>
               </DialogTitle>
               <DialogDescription className="mt-0.5 flex items-center gap-2 text-xs">
-                {lastUpdated ? `Last updated: ${lastLabel}` : "Live cryptocurrency prices"}
+                {freshness.label}
                 {refreshing && <Loader2 className="size-3 animate-spin" />}
               </DialogDescription>
             </div>
@@ -185,7 +186,7 @@ export function CryptoMarketModal({
         >
           {loading ? (
             <div className="flex h-full items-center justify-center text-muted-foreground">
-              <Loader2 className="mr-2 size-5 animate-spin" /> Loading top 500 cryptocurrencies…
+              <Loader2 className="mr-2 size-5 animate-spin" /> Loading cryptocurrencies…
             </div>
           ) : error && coins.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center gap-3 text-sm text-muted-foreground">

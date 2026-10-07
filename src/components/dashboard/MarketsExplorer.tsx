@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
 import { EXCHANGES, EXCHANGE_META, formatMarketPrice, type Exchange } from "@/lib/market-intel";
 import { BuyDialog, type BuyTarget } from "@/components/dashboard/BuyDialog";
-import { DexMarketDialog } from "@/components/dashboard/DexMarketDialog";
+import { cryptoCoveragePhrase } from "@/lib/crypto-coverage";
 import { explorerDetailHref, marketsTabHref, type MarketsTab } from "@/lib/market-detail-routes";
 import { useCryptoMarkets } from "@/hooks/useCryptoMarkets";
 import { coinHasLivePrice, fmtPrice } from "@/lib/crypto-market";
@@ -41,6 +41,8 @@ export interface MarketRow {
   volume: number | null;
   marketCap: number | null;
   live: boolean;
+  quoted?: boolean;
+  freshness?: string;
 }
 
 export interface MarketPayload {
@@ -51,7 +53,8 @@ export interface MarketPayload {
   live: boolean;
   liveCount: number;
   total: number;
-  asOf: string;
+  asOf: string | null;
+  freshness?: string;
   rows: MarketRow[];
 }
 
@@ -79,6 +82,7 @@ interface DisplayRow {
   volume: number | null;
   marketCap: number | null;
   live: boolean;
+  quoted: boolean;
   exchange?: Exchange; // stock rows only — needed to open the stock detail view
   coinId?: string; // crypto rows only — CoinGecko id for /markets/crypto/[id]
   blockchain?: string;
@@ -160,7 +164,6 @@ export function MarketsExplorer({
   const [remoteHits, setRemoteHits] = useState<DisplayRow[]>([]);
   const [remoteLoading, setRemoteLoading] = useState(false);
   const [cryptoPage, setCryptoPage] = useState(0);
-  const [dexOpen, setDexOpen] = useState(false);
 
   const isCryptoTab = tab === "CRYPTO";
 
@@ -277,6 +280,7 @@ export function MarketsExplorer({
           volume: null,
           marketCap: null,
           live: false,
+          quoted: false,
           exchange,
         });
       }
@@ -295,7 +299,8 @@ export function MarketsExplorer({
                     ...r,
                     price: qr.data!.price!,
                     changePct: qr.data!.changePct ?? 0,
-                    live: true,
+                    live: false,
+                    quoted: true,
                   }
                 : r
             )
@@ -345,9 +350,10 @@ export function MarketsExplorer({
         changeAbs: (c.price * (c.change24h ?? 0)) / 100,
         dayHigh: c.high24h,
         dayLow: c.low24h,
-        volume: c.volume24h ?? null,
-        marketCap: c.marketCap ?? null,
+        volume: c.volume24h > 0 ? c.volume24h : null,
+        marketCap: c.marketCap > 0 ? c.marketCap : null,
         live: !c.priceUnavailable && c.price > 0,
+        quoted: !c.priceUnavailable && c.price > 0,
         coinId: c.id,
         blockchain: c.blockchain && c.blockchain !== "Unavailable" ? c.blockchain : "",
         priceUnavailable: !!c.priceUnavailable || !(c.price > 0),
@@ -367,6 +373,7 @@ export function MarketsExplorer({
         volume: r.volume,
         marketCap: r.marketCap,
         live: r.live,
+        quoted: r.quoted ?? r.price > 0,
         exchange: r.exchange,
       }));
     }
@@ -398,13 +405,19 @@ export function MarketsExplorer({
   const cryptoListed = Math.min(CRYPTO_TOP_N, crypto.coins.length);
   const total = isCryptoTab ? cryptoListed : data?.total ?? 0;
   const liveCount = isCryptoTab ? cryptoListed : data?.liveCount ?? 0;
-  const asOf = isCryptoTab ? crypto.lastUpdated?.toISOString() ?? "" : data?.asOf ?? "";
+  const asOf = isCryptoTab ? "" : data?.asOf ?? "";
   const hasData = isCryptoTab ? crypto.coins.length > 0 : !!data;
   const cryptoPageCount = Math.max(1, Math.ceil(rows.length / CRYPTO_PAGE_SIZE));
   const cryptoPageSafe = Math.min(cryptoPage, cryptoPageCount - 1);
   const visibleRows = isCryptoTab
     ? rows.slice(cryptoPageSafe * CRYPTO_PAGE_SIZE, cryptoPageSafe * CRYPTO_PAGE_SIZE + CRYPTO_PAGE_SIZE)
     : rows;
+  const showHigh = !isCryptoTab || rows.some((r) => (r.dayHigh ?? 0) > 0);
+  const showLow = !isCryptoTab || rows.some((r) => (r.dayLow ?? 0) > 0);
+  const showVolume = !isCryptoTab || rows.some((r) => (r.volume ?? 0) > 0);
+  const showCap = !isCryptoTab || rows.some((r) => (r.marketCap ?? 0) > 0);
+  const showChain = isCryptoTab && rows.some((r) => !!r.blockchain);
+  const colSpan = 4 + Number(showHigh) + Number(showLow) + Number(showVolume) + Number(showCap) + Number(showChain) + Number(allowBuy);
 
   function openBuy(r: DisplayRow) {
     setBuyTarget({ ticker: r.ticker, name: r.name, assetType: r.coinId ? "crypto" : "stock", price: r.price });
@@ -466,7 +479,7 @@ export function MarketsExplorer({
             </button>
           );
         })}
-        {/* Crypto — top 100 by market cap from the live crypto feed */}
+        {/* Crypto coverage is the row count, rounded, not the fetch size. */}
         <button
           onClick={() => selectTab("CRYPTO")}
           className={cn(
@@ -507,14 +520,14 @@ export function MarketsExplorer({
                 ? "Loading prices…"
                 : "—"}
           </p>
-          {tab === "NZX" && (
+          {!isCryptoTab && (data?.freshness || tab === "NZX" || tab === "ASX" || tab === "DOW" || tab === "NASDAQ") && (
             <p className="flex items-center gap-1 text-[0.62rem] text-muted-foreground/80">
-              <Clock className="size-3" /> NZX quotes may be delayed ~20 min
+              <Clock className="size-3" /> {data?.freshness || "Latest available price"}
             </p>
           )}
           {isCryptoTab && (
             <p className="flex items-center gap-1 text-[0.62rem] text-muted-foreground/80">
-              <Bitcoin className="size-3" /> Top {CRYPTO_TOP_N} cryptocurrencies by market cap · USD
+              <Bitcoin className="size-3" /> {cryptoCoveragePhrase(cryptoListed)} · USD
             </p>
           )}
         </div>
@@ -531,28 +544,25 @@ export function MarketsExplorer({
               </th>
               <th className="py-2.5 px-3"><SortHead label="Price" k="price" /></th>
               <th className="py-2.5 px-3"><SortHead label="Change" k="changePct" /></th>
+              {showHigh && (
               <th className="hidden py-2.5 px-3 lg:table-cell text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 High
               </th>
+              )}
+              {showLow && (
               <th className="hidden py-2.5 px-3 lg:table-cell text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Low
               </th>
+              )}
+              {showVolume && (
               <th className="hidden py-2.5 px-3 md:table-cell"><SortHead label="Volume" k="volume" /></th>
+              )}
+              {showCap && (
               <th className="hidden py-2.5 px-3 xl:table-cell"><SortHead label="Mkt Cap" k="marketCap" /></th>
-              {isCryptoTab && (
-                <th className="py-2.5 pl-3 text-right">
-                  <div className="flex flex-col items-end gap-1">
-                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Blockchain</span>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="h-auto max-w-[16rem] whitespace-normal text-left text-[0.68rem] leading-snug"
-                      onClick={() => setDexOpen(true)}
-                    >
-                      Top Decentralized Exchanges Ranked by 24 Hours of Market
-                    </Button>
-                  </div>
+              )}
+              {showChain && (
+                <th className="py-2.5 pl-3 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Blockchain
                 </th>
               )}
               {allowBuy && (
@@ -566,14 +576,14 @@ export function MarketsExplorer({
             {loadingRows && rows.length === 0 ? (
               [...Array(12)].map((_, i) => (
                 <tr key={i} className="border-b border-border/30">
-                  <td colSpan={(allowBuy ? 9 : 8) + (isCryptoTab ? 1 : 0)} className="py-2">
+                  <td colSpan={colSpan} className="py-2">
                     <div className="h-8 animate-pulse rounded-lg bg-muted/40" />
                   </td>
                 </tr>
               ))
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={(allowBuy ? 9 : 8) + (isCryptoTab ? 1 : 0)} className="py-12 text-center text-sm text-muted-foreground">
+                <td colSpan={colSpan} className="py-12 text-center text-sm text-muted-foreground">
                   {query
                     ? `No tickers match “${query}”.`
                     : isCryptoTab
@@ -597,7 +607,7 @@ export function MarketsExplorer({
                         >
                           {r.symbol}
                         </Link>
-                        {!r.live && (
+                        {!r.quoted && (
                           <span className="rounded bg-muted/60 px-1 py-0.5 text-[0.55rem] font-semibold uppercase text-muted-foreground">
                             ref
                           </span>
@@ -623,22 +633,30 @@ export function MarketsExplorer({
                       </span>
                       {/* Absolute session move ($) beneath the % — both requested */}
                       <span className={cn("tnum block text-[0.62rem]", up ? "text-emerald-600/70" : "text-rose-600/70")}>
-                        {r.live ? fmtAbs(r.changeAbs, r.price) : "—"}
+                        {r.quoted ? fmtAbs(r.changeAbs, r.price) : "—"}
                       </span>
                     </td>
+                    {showHigh && (
                     <td className="tnum hidden py-2.5 px-3 text-right text-muted-foreground lg:table-cell">
                       {r.dayHigh ? (r.coinId ? fmtPrice(r.dayHigh) : formatMarketPrice(r.dayHigh, r.currency)) : "—"}
                     </td>
+                    )}
+                    {showLow && (
                     <td className="tnum hidden py-2.5 px-3 text-right text-muted-foreground lg:table-cell">
                       {r.dayLow ? (r.coinId ? fmtPrice(r.dayLow) : formatMarketPrice(r.dayLow, r.currency)) : "—"}
                     </td>
+                    )}
+                    {showVolume && (
                     <td className="tnum hidden py-2.5 px-3 text-right text-muted-foreground md:table-cell">
                       {fmtVolume(r.volume)}
                     </td>
+                    )}
+                    {showCap && (
                     <td className="tnum hidden py-2.5 px-3 text-right text-muted-foreground xl:table-cell">
                       {fmtCap(r.marketCap, r.currency)}
                     </td>
-                    {isCryptoTab && (
+                    )}
+                    {showChain && (
                       <td className="max-w-[10rem] py-2.5 pl-3 text-right text-xs text-muted-foreground">
                         {r.blockchain || ""}
                       </td>
@@ -664,7 +682,7 @@ export function MarketsExplorer({
           <p className="text-xs text-muted-foreground">
             Showing {cryptoPageSafe * CRYPTO_PAGE_SIZE + 1}–
             {Math.min(rows.length, (cryptoPageSafe + 1) * CRYPTO_PAGE_SIZE)} of {rows.length}
-            {crypto.coins.length > CRYPTO_TOP_N ? ` · top ${CRYPTO_TOP_N} by market cap` : ""}
+            {` · ${cryptoCoveragePhrase(rows.length)}`}
           </p>
           <div className="flex items-center gap-2">
             <Button
@@ -702,7 +720,6 @@ export function MarketsExplorer({
         }}
       />
 
-      <DexMarketDialog open={dexOpen} onOpenChange={setDexOpen} allowBuy={allowBuy} />
     </div>
   );
 }

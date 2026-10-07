@@ -53,7 +53,7 @@ function buildHeadmasterContextBlock(
   if (synthesis.isEmpty) {
     lines.push(
       "Headmaster book snapshot: empty (no cash, equities, crypto or metals recorded yet).",
-      "Coach the member to deposit cash and/or add holdings in Transaction Centre before alignment checks."
+      "Coach the member to add holdings or cash in the Transaction Centre before alignment checks."
     );
   } else {
     lines.push(

@@ -13,6 +13,7 @@
  */
 
 import { formatMoney } from "@/lib/currency";
+import { alignProjectedFigures } from "@/lib/projection-figure";
 import { officialPublicNews } from "@/lib/news-present";
 
 export type MarketCode = "NZX" | "ASX" | "US" | "CRYPTO";
@@ -630,9 +631,14 @@ export function isExchangeRegularSession(ex: Exchange, now = new Date()): boolea
   return mins >= 9 * 60 + 30 && mins < 16 * 60; // 09:30–16:00 ET
 }
 
-/** Short label for a price print on an exchange. */
-export function priceSessionLabel(ex: Exchange, now = new Date()): "Live" | "At close" {
-  return isExchangeRegularSession(ex, now) ? "Live" : "At close";
+/**
+ * Short label for a price print. Never "Live" — that word is reserved for a
+ * fresh crypto quote. Dated labels live in market-freshness (imported by the UI)
+ * so this module does not cycle.
+ */
+export function priceSessionLabel(ex: Exchange, now = new Date()): string {
+  const name = ex === "NZX" || ex === "ASX" ? ex : "US";
+  return isExchangeRegularSession(ex, now) ? `Delayed ~20 min · ${name}` : "At close";
 }
 
 /**
@@ -1319,8 +1325,9 @@ export function analyzeSecurity(
     convictionReason: conviction.reason,
     reasoning,
   };
-  if (!useReal) CACHE.set(key, intel);
-  return intel;
+  const aligned = alignProjectedFigures(intel);
+  if (!useReal) CACHE.set(key, aligned);
+  return aligned;
 }
 
 /* ------------------------------ Aggregations ---------------------------- */

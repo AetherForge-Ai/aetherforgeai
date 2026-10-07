@@ -104,14 +104,16 @@ export function MarketSnapshot() {
         <div className="flex-1">
           <div className="flex items-center gap-2">
             <h2 className="font-display text-lg font-bold">Market snapshot</h2>
+            {cryptoQuiet || !live ? (
             <span
               className={cn(
                 "rounded-full px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wider",
-                live ? "bg-emerald-500/15 text-emerald-700" : "bg-muted text-muted-foreground"
+                "bg-muted text-muted-foreground"
               )}
             >
-              {cryptoQuiet ? "Paused" : live ? "● Live" : "Simulated"}
+              {cryptoQuiet ? "Paused" : "Simulated"}
             </span>
+            ) : null}
           </div>
           <p className="text-xs text-muted-foreground">
             {cryptoQuiet

@@ -28,13 +28,24 @@ export function ChatAssistant() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(true);
+  const [remaining, setRemaining] = useState<number | null>(null);
+  const [limit, setLimit] = useState<number | null>(null);
+  const [emptyBook, setEmptyBook] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     (async () => {
-      const res = await api.get<ChatMessage[]>("/api/chat");
+      const res = await api.get<{
+        messages?: ChatMessage[];
+        remaining?: number | null;
+        limit?: number | null;
+        emptyBook?: boolean;
+      }>("/api/chat");
       if (res.ok && res.data) {
-        setMessages(res.data);
+        setMessages(Array.isArray(res.data.messages) ? res.data.messages : []);
+        setRemaining(typeof res.data.remaining === "number" ? res.data.remaining : null);
+        setLimit(typeof res.data.limit === "number" ? res.data.limit : null);
+        setEmptyBook(!!res.data.emptyBook);
       } else {
         console.error("[chat] Failed to load history:", res.error);
       }
@@ -55,11 +66,16 @@ export function ChatAssistant() {
     setSending(true);
     console.log("[chat] Sending message:", content);
 
-    const res = await api.post<{ reply: string }>("/api/chat", { message: content });
+    const res = await api.post<{ reply: string; remaining?: number | null; limit?: number | null }>("/api/chat", {
+      message: content,
+    });
     setSending(false);
 
     if (res.ok && res.data?.reply) {
       setMessages((prev) => [...prev, { role: "assistant", content: res.data!.reply }]);
+      if (typeof res.data.remaining === "number") setRemaining(res.data.remaining);
+      if (typeof res.data.limit === "number") setLimit(res.data.limit);
+      else if (remaining != null) setRemaining(Math.max(0, remaining - 1));
     } else {
       console.error("[chat] Send failed:", res.error);
       toast.error("The assistant could not respond. Please try again.");
@@ -97,6 +113,7 @@ export function ChatAssistant() {
           <div>
             <h1 className="font-display text-xl font-bold">AI Market Assistant</h1>
             <p className="text-xs text-muted-foreground">
+              {limit != null && remaining != null ? `${remaining} of ${limit} questions left this month. ` : null}
               Informational scenarios about your book. Not financial advice — we don&apos;t trade for you.{" "}
               <a href="/ai-disclaimer" className="font-medium text-primary hover:underline">
                 Disclaimer
@@ -126,8 +143,9 @@ export function ChatAssistant() {
             </span>
             <h2 className="mt-5 font-display text-2xl font-bold">What would you like to understand?</h2>
             <p className="mt-2 max-w-md text-sm text-muted-foreground">
-              I have context on your live portfolio. Ask me anything about your holdings, risk, or
-              the broader market.
+              {emptyBook
+                ? "Your book is empty. Add your holdings or cash and I can explain them."
+                : "Ask me anything about your holdings, risk, or the broader market."}
             </p>
             <div className="mt-7 grid w-full max-w-lg gap-3 sm:grid-cols-2">
               {SUGGESTIONS.map((s) => (

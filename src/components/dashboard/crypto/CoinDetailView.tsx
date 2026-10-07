@@ -396,34 +396,49 @@ export function CoinDetailView({
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <Metric label="Market Cap" value={fmtCompactUsd(detail.marketCap)} />
-            <Metric label="Fully Diluted Val" value={fmtCompactUsd(detail.fdv)} />
-            <Metric label="24h Volume" value={fmtCompactUsd(detail.volume24h)} />
+            {(detail.marketCap ?? 0) > 0 ? <Metric label="Market Cap" value={fmtCompactUsd(detail.marketCap)} /> : null}
+            {(detail.fdv ?? 0) > 0 ? <Metric label="Fully Diluted Val" value={fmtCompactUsd(detail.fdv)} /> : null}
+            {(detail.volume24h ?? 0) > 0 ? <Metric label="24h Volume" value={fmtCompactUsd(detail.volume24h)} /> : null}
+            {(detail.circulatingSupply ?? 0) > 0 ? (
+              <Metric
+                label="Circulating"
+                value={fmtCompactNum(detail.circulatingSupply)}
+                sub={supplyPct != null ? `${supplyPct.toFixed(0)}% of max` : detail.symbol}
+              />
+            ) : null}
+            {(detail.totalSupply ?? 0) > 0 ? (
+              <Metric label="Total Supply" value={fmtCompactNum(detail.totalSupply)} />
+            ) : null}
             <Metric
-              label="Circulating"
-              value={fmtCompactNum(detail.circulatingSupply)}
-              sub={supplyPct != null ? `${supplyPct.toFixed(0)}% of max` : detail.symbol}
-            />
-            <Metric label="Total Supply" value={fmtCompactNum(detail.totalSupply)} />
-            <Metric label="Max Supply" value={detail.maxSupply ? fmtCompactNum(detail.maxSupply) : "∞"} />
-            <Metric
-              label="All-Time High"
-              value={fmtPrice(detail.ath)}
-              sub={
-                detail.athChangePct != null
-                  ? `${fmtPct(detail.athChangePct)} · ${fmtShortDate(detail.athDate)}`
-                  : fmtShortDate(detail.athDate)
+              label="Max Supply"
+              value={
+                detail.maxSupply != null && Number.isFinite(detail.maxSupply) && detail.maxSupply > 0
+                  ? fmtCompactNum(detail.maxSupply)
+                  : "Not available"
               }
             />
-            <Metric
-              label="All-Time Low"
-              value={fmtPrice(detail.atl)}
-              sub={
-                detail.atlChangePct != null
-                  ? `${fmtPct(detail.atlChangePct)} · ${fmtShortDate(detail.atlDate)}`
-                  : fmtShortDate(detail.atlDate)
-              }
-            />
+            {(detail.ath ?? 0) > 0 ? (
+              <Metric
+                label="All-Time High"
+                value={fmtPrice(detail.ath)}
+                sub={
+                  detail.athChangePct != null
+                    ? `${fmtPct(detail.athChangePct)} · ${fmtShortDate(detail.athDate)}`
+                    : fmtShortDate(detail.athDate)
+                }
+              />
+            ) : null}
+            {(detail.atl ?? 0) > 0 ? (
+              <Metric
+                label="All-Time Low"
+                value={fmtPrice(detail.atl)}
+                sub={
+                  detail.atlChangePct != null
+                    ? `${fmtPct(detail.atlChangePct)} · ${fmtShortDate(detail.atlDate)}`
+                    : fmtShortDate(detail.atlDate)
+                }
+              />
+            ) : null}
           </div>
         )}
       </div>

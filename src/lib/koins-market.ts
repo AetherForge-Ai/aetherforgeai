@@ -19,6 +19,7 @@ import { loadTop400Markets } from "@/lib/crypto-source";
 import { fetchDexTop400 } from "@/lib/crypto-coingecko";
 import { dexRowToCoin } from "@/lib/crypto-dex";
 import { analyzeSecurity, type SecurityIntel } from "@/lib/market-intel";
+import { alignProjectedFigures } from "@/lib/projection-figure";
 import { resolveSevenDayChange, type CoinMarket } from "@/lib/crypto-market";
 
 function round(v: number, dp = 2): number {
@@ -58,7 +59,7 @@ export function coinToIntel(c: CoinMarket): SecurityIntel {
       ? round(clamp(base.projected7dPct, -12, 12), 2)
       : round(clamp(0.5 * base.projected7dPct + 0.4 * change7d + 0.1 * change1d, -45, 45), 2);
 
-  return {
+  return alignProjectedFigures({
     ...base,
     ticker: c.symbol,
     name: c.name,
@@ -70,7 +71,7 @@ export function coinToIntel(c: CoinMarket): SecurityIntel {
     change1d,
     change7d,
     projected7dPct,
-  };
+  });
 }
 
 let cache: { at: number; value: SecurityIntel[] } | null = null;

@@ -12,7 +12,10 @@ import { BASELINE_FX_TO_NZD, normalizeFxRates, type CurrencyCode, type FxRatesTo
 
 export interface FxSnapshot {
   ratesToNZD: FxRatesToNZD;
-  live: boolean; // true if pulled from the live endpoint, false if baseline
+  /** Always false. A daily rate is not an intraday quote. */
+  live: boolean;
+  /** True when the rate was fetched today, false when the baseline table is in use. */
+  sourced: boolean;
   asOf: string; // ISO timestamp of when we resolved these
 }
 
@@ -97,7 +100,8 @@ export async function getFxSnapshot(nowMs?: number): Promise<FxSnapshot> {
     const ratesToNZD = await fetchLiveRatesToNZD();
     const snapshot: FxSnapshot = {
       ratesToNZD,
-      live: true,
+      live: false,
+      sourced: true,
       asOf: new Date(t).toISOString(),
     };
     cache = { snapshot, fetchedAtMs: t };
@@ -108,6 +112,7 @@ export async function getFxSnapshot(nowMs?: number): Promise<FxSnapshot> {
     const snapshot: FxSnapshot = {
       ratesToNZD: { ...BASELINE_FX_TO_NZD },
       live: false,
+      sourced: false,
       asOf: new Date(t).toISOString(),
     };
     // Cache the baseline briefly too so we don't hammer a failing endpoint.

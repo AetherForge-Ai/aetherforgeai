@@ -71,6 +71,7 @@ export function TickerAnalysisPane({
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [hidden, setHidden] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const ask = useCallback(
@@ -83,18 +84,12 @@ export function TickerAnalysisPane({
         name,
         question,
       });
-      if (res.ok && res.data) {
+      if (res.ok && res.data?.reply) {
+        setHidden(false);
         setTurns((t) => [...t, { role: "assistant", content: res.data!.reply }]);
       } else {
         console.error("[ticker-analysis] Failed:", res.error);
-        setTurns((t) => [
-          ...t,
-          {
-            role: "assistant",
-            content:
-              "I couldn't complete that analysis right now. Please try again in a moment.",
-          },
-        ]);
+        if (!question) setHidden(true);
       }
       setLoading(false);
     },
@@ -105,6 +100,7 @@ export function TickerAnalysisPane({
   useEffect(() => {
     setTurns([]);
     setInput("");
+    setHidden(false);
     ask(); // no question → default professional read
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [symbol]);
@@ -122,6 +118,8 @@ export function TickerAnalysisPane({
     ask(q);
   }
 
+  if (hidden && turns.length === 0 && !loading) return null;
+
   return (
     <div className="flex h-full min-h-0 flex-col rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/8 to-card/40">
       <div className="flex items-center gap-2 border-b border-border/60 px-4 py-3">
@@ -133,7 +131,7 @@ export function TickerAnalysisPane({
             {botName} AI <Sparkles className="size-3.5 text-primary" />
           </p>
           <p className="truncate text-[0.66rem] text-muted-foreground">
-            Live analysis of {symbol}
+            AI note · {symbol}
           </p>
         </div>
       </div>

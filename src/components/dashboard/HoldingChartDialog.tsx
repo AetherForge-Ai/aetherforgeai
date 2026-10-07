@@ -275,8 +275,7 @@ export function HoldingChartDialog({
               </div>
 
               <p className="mt-3 text-[0.62rem] leading-relaxed text-muted-foreground">
-                Most recent daily closes, ending with the latest live price. Prices from Yahoo Finance;
-                NZX quotes may be delayed ~20 minutes. Educational only — not financial advice.
+                Most recent daily closes, ending with the latest available price. Educational only — not financial advice.
               </p>
             </>
           )}

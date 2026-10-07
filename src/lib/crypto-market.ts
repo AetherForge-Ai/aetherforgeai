@@ -41,6 +41,8 @@ export interface CoinMarket {
   blockchain?: string;
   /** True when this row has no live print. Do not treat price 0 as a quote. */
   priceUnavailable?: boolean;
+  /** Vendor quote time from the market list, when the feed sent one. */
+  quotedAt?: string | null;
 }
 
 /** Shown when a crypto route fails. Never a parse exception or an upstream body. */

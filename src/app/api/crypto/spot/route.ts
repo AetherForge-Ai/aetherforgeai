@@ -22,7 +22,7 @@ export async function GET(req: Request) {
     if (!symbols.length) {
       return NextResponse.json({
         ok: true,
-        data: { quotes: {}, updatedAt: new Date().toISOString(), live: true },
+        data: { quotes: {}, updatedAt: null, live: false },
       });
     }
 

@@ -59,7 +59,8 @@ import { ReportCenter } from "@/components/dashboard/ReportCenter";
 import { PriceAlerts } from "@/components/dashboard/PriceAlerts";
 import { PreciousMetals } from "@/components/dashboard/PreciousMetals";
 import { planLabel } from "@/lib/plans";
-import { checkTickerQuota, limitScope, resolveTickerLimit } from "@/lib/entitlements";
+import { checkTickerQuota, isFreeReportPlan, limitScope, resolveTickerLimit } from "@/lib/entitlements";
+import { PL_AT_LATEST_PRICE } from "@/lib/market-freshness";
 import { computePortfolioMetrics } from "@/lib/analytics";
 import { AllMarkets } from "@/components/dashboard/AllMarkets";
 import { OpenMarketSnapshot } from "@/components/dashboard/OpenMarketSnapshot";
@@ -492,6 +493,7 @@ export function PortfolioDashboard({
     [subscription.tickerLimit, subscription.plan]
   );
   const tickerLimit = useMemo(() => resolveTickerLimit(planUser), [planUser]);
+  const freePlan = isFreeReportPlan(subscription.plan);
   const scope = useMemo(() => limitScope(subscription.plan), [subscription.plan]);
   const quota = useMemo(
     () => checkTickerQuota(planUser, allStocks, bot),
@@ -1374,13 +1376,21 @@ export function PortfolioDashboard({
           <OnboardingChecklist
             hasCash={cashBalance > 0}
             hasHoldings={allStocks.length > 0 || preciousMetalHoldings.length > 0}
+            plan={subscription.plan}
           />
+          {freePlan ? (
+            <p className="rounded-2xl border border-border/70 bg-card/40 p-4 text-sm text-muted-foreground">
+              Allocation drift is on a paid plan.{" "}
+              <a href="/pricing" className="font-medium text-primary hover:underline">See plans</a>
+            </p>
+          ) : (
           <AllocationDriftCard
             stockNZD={stockTotalNZD}
             cryptoNZD={cryptoTotalNZD}
             metalsNZD={metalsValueNZD + metalStockTotalNZD}
             cashNZD={cashBalance}
           />
+          )}
         </div>
       )}
 
@@ -1497,7 +1507,7 @@ export function PortfolioDashboard({
       <DashboardGate
         preview={preview}
         title="Stock Portfolio Overview"
-        description="Your live KPIs — total worth, unrealised P&L, 7-day alpha, portfolio health, Sharpe & win rate."
+        description="Your KPIs — total worth and P/L at the latest available price."
       >
         <ReturnsSplitCard
           holdings={stockOverviewSummary.holdings}
@@ -1516,13 +1526,15 @@ export function PortfolioDashboard({
           loading={!balancesReady}
         />
         <StatCard
-          label="Unrealised P&L"
+          label={PL_AT_LATEST_PRICE}
           value={formatMoney(stockOverviewSummary.totalGain, "NZD")}
           sub={formatPercent(stockOverviewSummary.totalGainPct)}
           icon={stockOverviewSummary.totalGain >= 0 ? TrendingUp : TrendingDown}
           tone={stockOverviewSummary.totalGain >= 0 ? "up" : "down"}
           loading={!balancesReady}
         />
+        {freePlan ? null : (
+        <>
         <StatCard
           label="7-Day alpha potential"
           value={`${stockOverviewMetrics.alphaPotentialPct >= 0 ? "+" : ""}${stockOverviewMetrics.alphaPotentialPct.toFixed(2)}%`}
@@ -1551,9 +1563,17 @@ export function PortfolioDashboard({
           }
           loading={!balancesReady}
         />
+        </>
+        )}
       </div>
+      {freePlan ? (
+        <p className="mt-4 rounded-2xl border border-border/70 bg-card/40 p-4 text-sm text-muted-foreground">
+          7-day alpha, portfolio health and Sharpe are on a paid plan.{" "}
+          <a href="/pricing" className="font-medium text-primary hover:underline">See plans</a>
+        </p>
+      ) : null}
 
-      {stockOverviewSummary.holdingsCount > 0 && (
+      {!freePlan && stockOverviewSummary.holdingsCount > 0 && (
         <div className="mt-4 grid grid-cols-2 gap-4 rounded-2xl border border-border/70 bg-card/40 p-4 sm:grid-cols-4">
           <MiniMetric icon={Activity} label="Ann. volatility" value={`${stockOverviewMetrics.volatility.toFixed(1)}%`} />
           <MiniMetric icon={Gauge} label="Sharpe ratio" value={stockOverviewMetrics.sharpe.toFixed(2)} />
@@ -1587,7 +1607,7 @@ export function PortfolioDashboard({
       <DashboardGate
         preview={preview}
         title="Crypto Currency Overview"
-        description="Live crypto KPIs and market terminal — total worth, unrealised P&L, health and projected movers."
+        description="Crypto KPIs — total worth and P/L at the latest available price."
       >
         <ReturnsSplitCard
           holdings={cryptoOverviewSummary.holdings}
@@ -1624,13 +1644,15 @@ export function PortfolioDashboard({
           loading={!balancesReady}
         />
         <StatCard
-          label="Unrealised P&L"
+          label={PL_AT_LATEST_PRICE}
           value={formatMoney(cryptoOverviewSummary.totalGain, cryptoBookCurrency)}
           sub={formatPercent(cryptoOverviewSummary.totalGainPct)}
           icon={cryptoOverviewSummary.totalGain >= 0 ? TrendingUp : TrendingDown}
           tone={cryptoOverviewSummary.totalGain >= 0 ? "up" : "down"}
           loading={!balancesReady}
         />
+        {freePlan ? null : (
+        <>
         <StatCard
           label="7-Day alpha potential"
           value={`${cryptoOverviewMetrics.alphaPotentialPct >= 0 ? "+" : ""}${cryptoOverviewMetrics.alphaPotentialPct.toFixed(2)}%`}
@@ -1664,9 +1686,11 @@ export function PortfolioDashboard({
           }
           loading={!balancesReady}
         />
+        </>
+        )}
       </div>
 
-      {cryptoOverviewSummary.holdingsCount > 0 && (
+      {!freePlan && cryptoOverviewSummary.holdingsCount > 0 && (
         <div className="mt-4 grid grid-cols-2 gap-4 rounded-2xl border border-border/70 bg-card/40 p-4 sm:grid-cols-4">
           <MiniMetric icon={Activity} label="Ann. volatility" value={`${cryptoOverviewMetrics.volatility.toFixed(1)}%`} />
           <MiniMetric icon={Gauge} label="Sharpe ratio" value={cryptoOverviewMetrics.sharpe.toFixed(2)} />
@@ -1693,7 +1717,7 @@ export function PortfolioDashboard({
       />
 
       <div className="mt-6">
-        <CryptoMarketSection />
+        <CryptoMarketSection showProjected={!freePlan} />
       </div>
       </DashboardGate>
       </div>
@@ -1719,6 +1743,7 @@ export function PortfolioDashboard({
               assetType="metal"
               holdingsReady={!loading && metalsLoaded}
               preview={preview}
+              canCreate={!freePlan}
             />
           </DashboardGate>
         </div>
@@ -2072,6 +2097,7 @@ export function PortfolioDashboard({
             assetType={isCrypto ? "crypto" : "stock"}
             holdingsReady={!loading}
             preview={preview}
+            canCreate={!freePlan}
           />
         </DashboardGate>
       </div>
@@ -2093,6 +2119,7 @@ export function PortfolioDashboard({
               assetType="stock"
               holdingsReady={!loading}
               preview={preview}
+              canCreate={!freePlan}
             />
           </DashboardGate>
           <DashboardGate
@@ -2105,6 +2132,7 @@ export function PortfolioDashboard({
               assetType="crypto"
               holdingsReady={!loading}
               preview={preview}
+              canCreate={!freePlan}
             />
           </DashboardGate>
           <DashboardGate
@@ -2117,6 +2145,7 @@ export function PortfolioDashboard({
               assetType="metal"
               holdingsReady={!loading && metalsLoaded}
               preview={preview}
+              canCreate={!freePlan}
             />
           </DashboardGate>
         </div>
@@ -2152,7 +2181,14 @@ export function PortfolioDashboard({
           icon={Radar}
           defaultOpen
         >
+          {freePlan ? (
+            <p className="text-sm text-muted-foreground">
+              Informational signals beyond basic P/L are on a paid plan.{" "}
+              <a href="/pricing" className="font-medium text-primary hover:underline">See plans</a>
+            </p>
+          ) : (
           <ActionableIntelligence stocks={stocks} assetClass={bot} onBought={handleDataChanged} />
+          )}
         </CollapsibleSection>
       </div>
 
@@ -2172,7 +2208,14 @@ export function PortfolioDashboard({
             <TopMovers />
           </div>
           <div className="mt-8">
+            {freePlan ? (
+              <p className="text-sm text-muted-foreground">
+                Projected performers are on a paid plan.{" "}
+                <a href="/pricing" className="font-medium text-primary hover:underline">See plans</a>
+              </p>
+            ) : (
             <MarketWidePerformers onBought={handleDataChanged} />
+            )}
           </div>
         </CollapsibleSection>
       </div>

@@ -32,9 +32,16 @@ export function consentFields(now = new Date()): {
 
 export const CONSENT_COLUMN_KEYS = ["age_confirmed", "terms_accepted_at", "terms_version"] as const;
 
+/**
+ * Columns the signup create may omit when Totalum does not have them yet.
+ * `country` is the country chosen on the register form.
+ * TODO(owner): the Totalum user.country column must exist for that choice to persist.
+ */
+export const SIGNUP_OPTIONAL_COLUMN_KEYS = [...CONSENT_COLUMN_KEYS, "country"] as const;
+
 export function withoutConsentColumns<T extends Record<string, unknown>>(row: T): T {
   const next = { ...row };
-  for (const key of CONSENT_COLUMN_KEYS) delete next[key];
+  for (const key of SIGNUP_OPTIONAL_COLUMN_KEYS) delete next[key];
   return next;
 }
 
@@ -56,12 +63,12 @@ function errorText(error: unknown): string {
 export function isUnknownConsentFieldError(error: unknown): boolean {
   const text = errorText(error).toLowerCase();
   if (!text.trim()) return false;
-  if (CONSENT_COLUMN_KEYS.some((key) => text.includes(key))) return true;
+  if (SIGNUP_OPTIONAL_COLUMN_KEYS.some((key) => text.includes(key))) return true;
   return /unknown (field|property|column)|does not exist|not found|invalid (field|property)|no such (field|property|column)/.test(text);
 }
 
 function payloadHasConsent(row: Record<string, unknown>): boolean {
-  return CONSENT_COLUMN_KEYS.some((key) => row[key] != null && row[key] !== "");
+  return SIGNUP_OPTIONAL_COLUMN_KEYS.some((key) => row[key] != null && row[key] !== "");
 }
 
 /**
