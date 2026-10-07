@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { toNextJsHandler } from "better-auth/next-js";
 import { NextResponse } from "next/server";
-import { SIGNUP_CONSENT_ERROR, validateSignupConsent } from "@/lib/signup-consent";
+import { validateSignupConsent } from "@/lib/signup-consent";
 
 const handler = toNextJsHandler(auth);
 
@@ -19,8 +19,8 @@ export async function POST(req: Request) {
   if (signingUp) {
     const body = await req.clone().json().catch(() => null);
     const consent = validateSignupConsent(body);
-    if (!consent.ok) {
-      return NextResponse.json({ message: consent.error || SIGNUP_CONSENT_ERROR }, { status: 400 });
+    if (consent.ok === false) {
+      return NextResponse.json({ message: consent.error }, { status: 400 });
     }
   }
   const signingOut = /\/sign-out\/?$/.test(pathname);
