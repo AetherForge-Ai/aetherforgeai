@@ -12,6 +12,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { BrandLogo } from "@/components/BrandLogo";
 import { MailCheck, ShieldCheck, Loader2, Inbox } from "lucide-react";
 import { COUNTRIES } from "@/lib/countries";
+import { Checkbox } from "@/components/ui/checkbox";
+import { TERMS_VERSION } from "@/lib/signup-consent";
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -28,6 +30,7 @@ export default function RegisterPage() {
   // before any session is granted. We flip to a "check your email" confirmation.
   const [registeredEmail, setRegisteredEmail] = useState<string | null>(null);
   const [resendState, setResendState] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
 
   // Prefill the email when arriving from the pricing free-trial CTA (?email=...).
   useEffect(() => {
@@ -67,6 +70,12 @@ export default function RegisterPage() {
       return;
     }
 
+    if (!ageConfirmed) {
+      setError("Confirm you are 18 or over before creating an account.");
+      setLoading(false);
+      return;
+    }
+
     try {
       const fullName = `${formData.firstName.trim()} ${formData.lastName.trim()}`;
       const result = await signUp.email({
@@ -76,6 +85,8 @@ export default function RegisterPage() {
         first_name: formData.firstName.trim(),
         last_name: formData.lastName.trim(),
         country: formData.country.trim(),
+        age_confirmed: "yes",
+        terms_version: TERMS_VERSION,
         // Where Better Auth sends the browser after the verification link is clicked.
         callbackURL: "/verify-email",
       } as any);
@@ -296,10 +307,34 @@ export default function RegisterPage() {
             </div>
           </CardContent>
           <CardFooter className="flex flex-col space-y-4 pt-4">
+            <label htmlFor="age-confirmed" className="flex items-start gap-3 text-left text-sm leading-relaxed text-muted-foreground">
+              <Checkbox
+                id="age-confirmed"
+                checked={ageConfirmed}
+                onCheckedChange={(checked) => setAgeConfirmed(checked === true)}
+                className="mt-0.5"
+                aria-required="true"
+              />
+              <span>
+                I am 18 or over. By signing up I agree to the{" "}
+                <Link href="/terms-of-service" className="font-semibold text-primary underline-offset-2 hover:underline">
+                  Terms of Service
+                </Link>
+                {" "}and{" "}
+                <Link href="/privacy-policy" className="font-semibold text-primary underline-offset-2 hover:underline">
+                  Privacy Policy
+                </Link>
+                , and I&apos;ve read the{" "}
+                <Link href="/ai-disclaimer" className="font-semibold text-primary underline-offset-2 hover:underline">
+                  AI Disclaimer
+                </Link>
+                . AetherForge gives general information, not financial advice.
+              </span>
+            </label>
             <Button
               type="submit"
               className="w-full h-11 text-base font-semibold transition-all hover:scale-[1.02]"
-              disabled={loading}
+              disabled={loading || !ageConfirmed}
             >
               {loading ? "Creating account..." : "Sign Up"}
             </Button>

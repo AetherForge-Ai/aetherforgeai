@@ -4,6 +4,8 @@ import { bearer } from "better-auth/plugins";
 import { nextCookies } from "better-auth/next-js";
 import { totalumAdapter } from "@/lib/better-auth-totalum-adapter";
 import { totalumSdk } from "@/lib/totalum";
+import { APIError } from "better-auth/api";
+import { SIGNUP_CONSENT_ERROR, TERMS_VERSION, ageConfirmed, consentFields } from "@/lib/signup-consent";
 
 // TESTING_MODE is set only by the test:serve script (npm run test:serve).
 // When active, use LOCAL_NEXTJS_PROJECT_TESTING_URL so that CORS, baseURL,
@@ -366,6 +368,43 @@ export const auth = betterAuth({
         required: false,
         input: true,
       },
+      // Stored on the Totalum user row. Strings, because the adapter does not persist booleans.
+      age_confirmed: {
+        type: "string",
+        required: false,
+        input: true,
+      },
+      terms_accepted_at: {
+        type: "string",
+        required: false,
+        input: true,
+      },
+      terms_version: {
+        type: "string",
+        required: false,
+        input: true,
+      },
+    },
+  },
+  databaseHooks: {
+    user: {
+      create: {
+        before: async (user) => {
+          const record = user as typeof user & { age_confirmed?: unknown };
+          if (!ageConfirmed(record.age_confirmed)) {
+            throw new APIError("BAD_REQUEST", { message: SIGNUP_CONSENT_ERROR });
+          }
+          const consent = consentFields();
+          return {
+            data: {
+              ...user,
+              age_confirmed: consent.age_confirmed,
+              terms_accepted_at: consent.terms_accepted_at,
+              terms_version: consent.terms_version || TERMS_VERSION,
+            },
+          };
+        },
+      },
     },
   },
 });
@@ -391,4 +430,7 @@ export interface ExtendedUser {
   country?: string | null;
   phone?: string | null;
   secondary_email?: string | null;
+  age_confirmed?: string | null;
+  terms_accepted_at?: string | null;
+  terms_version?: string | null;
 }
