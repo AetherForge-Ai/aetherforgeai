@@ -6,7 +6,7 @@ import { FeatureComparison } from "@/components/pricing/FeatureComparison";
 import { PricingFAQ } from "@/components/pricing/PricingFAQ";
 import { DisclaimerNotice } from "@/components/legal/DisclaimerNotice";
 import { PRICING_TIERS } from "@/lib/plans";
-import { GST_STATEMENT, SECURITY_LINE } from "@/lib/public-copy";
+import { SECURITY_LINE } from "@/lib/public-copy";
 import { Button } from "@/components/ui/button";
 import {
   ShieldCheck,
@@ -93,7 +93,7 @@ export default function PricingPage() {
             Cancel anytime <span className="text-primary">•</span> Secure Stripe checkout{" "}
             <span className="text-primary">•</span> No hidden fees
           </p>
-          <p className="mt-3 text-sm text-muted-foreground">{GST_STATEMENT}</p>
+          {/* TODO(owner): confirm whether published prices include or exclude GST. Do not write "including GST" or "excluding GST" until then. */}
         </section>
 
         {/* 2 + 3 · Billing toggle + pricing cards */}

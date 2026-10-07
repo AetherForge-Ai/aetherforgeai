@@ -80,8 +80,7 @@ export default function TrustPage() {
               <Link href="/about#contact" className="font-semibold text-primary underline-offset-2 hover:underline">
                 contact form
               </Link>{" "}
-              and put &quot;Security report&quot; in the message. A security mailbox is not listed here until it is
-              confirmed.
+              and put &quot;Security report&quot; in the message.
             </p>
           </section>
 

@@ -193,8 +193,8 @@ export default function PrivacyPolicy() {
           <a href="/about#contact" className="text-primary hover:underline">
             About
           </a>{" "}
-          page and mark it for the Privacy Officer. A privacy mailbox is not listed here until it is
-          confirmed. We take privacy complaints seriously and will work with you to resolve them.
+          page and mark it for the Privacy Officer. We take privacy complaints seriously and will work with
+          you to resolve them.
         </p>
         <p>
           If you are not satisfied with our response, you have the right to complain to the Office of the

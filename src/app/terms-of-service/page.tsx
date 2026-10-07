@@ -3,7 +3,6 @@ import { LEGAL_ENTITY_NAME } from "@/lib/company";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import {
   ANNUAL_TOOLKIT_LINE,
-  GST_STATEMENT,
   LEGAL_UPDATED,
   REFUND_FAQ,
   TRIAL_CARD_LINE,
@@ -72,7 +71,8 @@ export default function TermsOfService() {
 
       <LegalSection heading="5. Subscriptions, billing & payment">
         <p>
-          Public pricing is billed monthly or yearly. Prices are shown on our pricing page. {GST_STATEMENT}{" "}
+          Public pricing is billed monthly or yearly. Prices are shown on our pricing page.{" "}
+          {/* TODO(owner): confirm whether published prices include or exclude GST. Do not write "including GST" or "excluding GST" until then. */}
           Payments are processed securely by Stripe; by subscribing you authorise us (through Stripe) to
           charge your chosen payment method on a recurring basis until you cancel.
         </p>
@@ -208,7 +208,7 @@ export default function TermsOfService() {
           <a href="/about#contact" className="text-primary hover:underline">
             About
           </a>{" "}
-          page. A support mailbox is not listed here until it is confirmed.
+          page.
         </p>
       </LegalSection>
     </LegalShell>

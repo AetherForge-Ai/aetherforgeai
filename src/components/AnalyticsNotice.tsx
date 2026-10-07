@@ -27,7 +27,7 @@ export function AnalyticsNotice() {
     <div
       role="region"
       aria-label="Analytics notice"
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-border/70 bg-background/95 px-4 py-3 shadow-lg backdrop-blur sm:px-6"
+      className="fixed bottom-0 left-0 right-[5.5rem] z-40 border-t border-border/70 bg-background/95 px-4 py-3 shadow-lg backdrop-blur sm:right-[18rem] sm:px-6"
     >
       <div className="mx-auto flex max-w-7xl flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-foreground">

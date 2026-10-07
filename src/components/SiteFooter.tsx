@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { LEGAL_ENTITY_NAME, NZBN, REGISTERED_OFFICE } from "@/lib/company";
-import { SUPPORT_MAILBOX_LABEL } from "@/lib/public-copy";
 
 const LINKS = [
   { href: "/privacy-policy", label: "Privacy Policy" },
@@ -17,6 +16,7 @@ const LINKS = [
  * TODO(owner): confirm the support@ mailbox before publishing an address.
  */
 export function SiteFooter() {
+  const year = new Date().getFullYear();
   return (
     <footer className="border-t border-border/60 bg-background pb-24" aria-label="Footer">
       <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-8 sm:px-6 lg:px-8">
@@ -28,10 +28,14 @@ export function SiteFooter() {
           ))}
         </nav>
         <p className="text-xs leading-relaxed text-muted-foreground">
-          {LEGAL_ENTITY_NAME} · NZBN {NZBN} · {REGISTERED_OFFICE} · {SUPPORT_MAILBOX_LABEL} ·{" "}
+          {LEGAL_ENTITY_NAME} · NZBN {NZBN} · {REGISTERED_OFFICE} ·{" "}
           <a href="tel:0800238437" className="hover:text-foreground">
             0800 238 437
           </a>
+        </p>
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          © {year} {LEGAL_ENTITY_NAME}. For informational purposes only. Not licensed financial advice
+          under the Financial Markets Conduct Act 2013.
         </p>
       </div>
     </footer>

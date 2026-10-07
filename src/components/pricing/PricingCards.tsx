@@ -316,8 +316,8 @@ export function PricingCards() {
       </div>
 
       <p className="mt-8 text-center text-xs text-muted-foreground">
-        All prices in NZD. Annual billing is 12 months for the price of 10 (save ~{ANNUAL_SAVINGS_PCT}%).
-        {TRIAL_CARD_LINE}
+        All prices in NZD. Annual billing is 12 months for the price of 10 (save ~{ANNUAL_SAVINGS_PCT}%).{" "}
+        {TRIAL_CARD_LINE}{" "}
         Ultimate is Talk to us.{" "}
         {ready && asOf
           ? `Every US$ figure on this page uses 1 NZD = US$${usdPerNzd(fx).toFixed(4)}, taken ${formatFxAsOf(asOf)}.`

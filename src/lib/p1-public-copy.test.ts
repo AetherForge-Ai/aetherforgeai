@@ -1,10 +1,10 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { ANNUAL_SAVINGS_PCT } from "./plans";
 import {
   ANALYTICS_NOTICE,
   ENGINE_PARAGRAPH,
-  GST_STATEMENT,
   LEGAL_UPDATED,
   REFUND_FAQ,
   TRIAL_CARD_LINE,
@@ -14,6 +14,14 @@ import { TERMS_VERSION } from "./signup-consent";
 
 function read(rel: string) {
   return readFileSync(path.join(process.cwd(), rel), "utf8");
+}
+
+/** Comments are not shown. Collapse whitespace the way the page does. */
+function renderedCopy(source: string): string {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/(^|[^:])\/\/.*$/gm, "$1")
+    .replace(/\s+/g, " ");
 }
 
 describe("P1 public copy", () => {
@@ -32,16 +40,31 @@ describe("P1 public copy", () => {
     expect(terms).toContain("{TRIAL_FAQ}");
     expect(terms).toContain("{TRIAL_CARD_LINE}");
     expect(terms).toContain("{REFUND_FAQ}");
-    expect(terms).toContain("GST_STATEMENT");
+    expect(terms).toContain("Prices are shown on our pricing page.");
+    expect(terms).not.toContain("GST_STATEMENT");
+    expect(terms).toContain("TODO(owner): confirm whether published prices include or exclude GST.");
+    expect(read("src/app/pricing/page.tsx")).toContain(
+      "TODO(owner): confirm whether published prices include or exclude GST."
+    );
+    expect(read("src/app/pricing/page.tsx")).not.toContain("GST_STATEMENT");
+    expect(read("src/lib/public-copy.ts")).not.toContain("GST_STATEMENT");
+    expect(read("src/lib/public-copy.ts")).not.toContain("SUPPORT_MAILBOX_LABEL");
     expect(TRIAL_FAQ).toMatch(/14-day trial/);
     expect(TRIAL_CARD_LINE).toMatch(/card is collected at checkout/);
     expect(REFUND_FAQ).toMatch(/we'll make it right/);
-    expect(read("src/app/pricing/page.tsx")).toContain("GST_STATEMENT");
     expect(read("src/components/pricing/PricingFAQ.tsx")).toContain("REFUND_FAQ");
     expect(read("src/components/pricing/PricingFAQ.tsx")).toContain("TRIAL_FAQ");
     expect(read("src/components/pricing/PricingCards.tsx")).toContain("TRIAL_CARD_LINE");
-    expect(GST_STATEMENT).toMatch(/GST/);
-    expect(GST_STATEMENT).not.toMatch(/including GST|excluding GST/);
+  });
+
+  it("renders the pricing footnote with a space around the trial line", () => {
+    const cards = read("src/components/pricing/PricingCards.tsx");
+    expect(cards).toContain('%).{" "}');
+    expect(cards).toContain('{TRIAL_CARD_LINE}{" "}');
+    const rendered = `(save ~${ANNUAL_SAVINGS_PCT}%). ${TRIAL_CARD_LINE} Ultimate is Talk to us.`;
+    expect(rendered).toBe(
+      "(save ~16.67%). Starter and Pro include a 14-day trial and a card is collected at checkout. Cancel anytime. Ultimate is Talk to us."
+    );
   });
 
   it("uses one engine paragraph on projections and the AI disclaimer", () => {
@@ -68,5 +91,32 @@ describe("P1 public copy", () => {
     expect(read("src/components/AnalyticsNotice.tsx")).toContain("ANALYTICS_NOTICE");
     expect(ANALYTICS_NOTICE).toBe("We use Google Analytics to see which pages are used.");
     expect(read("src/app/layout.tsx")).toContain("<AnalyticsNotice");
+  });
+
+  it("does not tell a visitor that a fact is unconfirmed", () => {
+    const rendered = [
+      "src/lib/public-copy.ts",
+      "src/components/SiteFooter.tsx",
+      "src/components/AnalyticsNotice.tsx",
+      "src/components/pricing/PricingCards.tsx",
+      "src/components/pricing/PricingFAQ.tsx",
+      "src/components/about/AboutContent.tsx",
+      "src/app/terms-of-service/page.tsx",
+      "src/app/privacy-policy/page.tsx",
+      "src/app/ai-disclaimer/page.tsx",
+      "src/app/trust/page.tsx",
+      "src/app/pricing/page.tsx",
+      "src/app/how-it-works/page.tsx",
+      "src/app/how-to-maximize-results/page.tsx",
+    ]
+      .map((file) => renderedCopy(read(file)))
+      .join("\n");
+    expect(rendered).not.toMatch(/not confirmed/i);
+    expect(rendered).not.toMatch(/until it is confirmed/i);
+    expect(rendered).not.toMatch(/until the company confirms/i);
+    expect(rendered).toContain("https://x.com/aetherforgeAi_");
+    expect(rendered).toContain("https://www.facebook.com/profile.php?id=61591701002008");
+    expect(rendered).toContain("https://www.linkedin.com/in/aether-forge-ai-27659b423/");
+    expect(read("src/components/about/AboutContent.tsx")).not.toContain("<footer");
   });
 });

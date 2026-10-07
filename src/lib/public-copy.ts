@@ -29,9 +29,6 @@ export const TRIAL_CARD_LINE =
 export const REFUND_FAQ =
   "Paid plans start with a 14-day trial of the plan you choose, so you can explore it before you're charged. If you're ever billed in error or something isn't right, reach out and we'll make it right — we don't believe in trapping customers.";
 
-export const GST_STATEMENT =
-  "Prices are in NZD. GST is not stated as included or excluded until the company confirms which applies.";
-
 export const DATA_SHARING_LINE =
   "Your data is never sold. It's shared only with the processors listed in our Privacy Policy.";
 
@@ -42,8 +39,6 @@ export const ANALYTICS_NOTICE = "We use Google Analytics to see which pages are 
 
 export const ANNUAL_TOOLKIT_LINE =
   "professional Excel investor toolkit (Portfolio Tracker and Transactions spreadsheets)";
-
-export const SUPPORT_MAILBOX_LABEL = "support@ (mailbox not confirmed)";
 
 export const PROCESSORS: { name: string; role: string }[] = [
   { name: "Cloudflare", role: "public site and network" },

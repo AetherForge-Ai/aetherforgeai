@@ -121,7 +121,7 @@ export default function AiDisclaimer() {
           <a href="/about#contact" className="text-primary hover:underline">
             About
           </a>{" "}
-          page. A support mailbox is not listed here until it is confirmed. By continuing to use
+          page. By continuing to use
           AetherForge AI you acknowledge that you have read and understood this disclaimer.
         </p>
       </LegalSection>
