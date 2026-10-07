@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
+import { useSession } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -68,11 +69,14 @@ export function TickerAnalysisPane({
   /** Label for the assistant — "Stox" for equities, "Koins" for crypto. */
   botName?: string;
 }) {
+  const { data: session, isPending } = useSession();
+  const signedIn = Boolean(session?.user);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [hidden, setHidden] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const autoAskedFor = useRef<string | null>(null);
 
   const ask = useCallback(
     async (question?: string) => {
@@ -87,23 +91,27 @@ export function TickerAnalysisPane({
       if (res.ok && res.data?.reply) {
         setHidden(false);
         setTurns((t) => [...t, { role: "assistant", content: res.data!.reply }]);
-      } else {
+      } else if (res.status !== 401) {
         console.error("[ticker-analysis] Failed:", res.error);
         if (!question) setHidden(true);
+      } else if (!question) {
+        setHidden(true);
       }
       setLoading(false);
     },
     [symbol, name, botName]
   );
 
-  // Auto-run the opening analysis whenever the ticker changes.
+  // Auto-run once per ticker for a signed-in member. A guest must not hit the 401 route.
   useEffect(() => {
+    if (isPending || !signedIn) return;
+    if (autoAskedFor.current === symbol) return;
+    autoAskedFor.current = symbol;
     setTurns([]);
     setInput("");
     setHidden(false);
-    ask(); // no question → default professional read
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [symbol]);
+    void ask();
+  }, [symbol, signedIn, isPending, ask]);
 
   // Keep the transcript scrolled to the newest message.
   useEffect(() => {
@@ -118,6 +126,7 @@ export function TickerAnalysisPane({
     ask(q);
   }
 
+  if (isPending || !signedIn) return null;
   if (hidden && turns.length === 0 && !loading) return null;
 
   return (

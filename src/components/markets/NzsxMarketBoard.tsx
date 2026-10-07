@@ -81,7 +81,11 @@ export function NzsxMarketBoard() {
       </p>
 
       {loading || !view ? (
-        <p className="mt-8 text-sm text-muted-foreground">Loading the NZX snapshot…</p>
+        <div className="mt-8 space-y-3" aria-hidden>
+          <div className="h-4 w-48 animate-pulse rounded bg-muted/50" />
+          <div className="h-10 w-40 animate-pulse rounded bg-muted/50" />
+          <div className="h-24 animate-pulse rounded-xl bg-muted/40" />
+        </div>
       ) : (
         <div className="mt-8 space-y-8">
           <p data-testid="nzsx-freshness" className="text-sm leading-relaxed text-muted-foreground">

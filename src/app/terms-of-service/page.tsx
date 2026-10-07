@@ -6,7 +6,6 @@ import {
   LEGAL_UPDATED,
   REFUND_FAQ,
   TRIAL_CARD_LINE,
-  TRIAL_FAQ,
 } from "@/lib/public-copy";
 
 export const metadata = publicPageMetadata("/terms-of-service", {
@@ -76,7 +75,6 @@ export default function TermsOfService() {
           Payments are processed securely by Stripe; by subscribing you authorise us (through Stripe) to
           charge your chosen payment method on a recurring basis until you cancel.
         </p>
-        <p>{TRIAL_FAQ}</p>
         <p>{TRIAL_CARD_LINE}</p>
         <ul className="list-disc space-y-1.5 pl-5">
           <li>Subscriptions renew automatically at the end of each billing period unless cancelled.</li>

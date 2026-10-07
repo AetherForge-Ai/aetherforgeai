@@ -37,8 +37,7 @@ export default function TrustPage() {
           <section className="mt-8 space-y-2">
             <h2 className="font-display text-lg font-bold">Where prices come from</h2>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              {PUBLIC_DATA_SOURCES_LINE} A past date suggests that day’s close and that day’s rate. You can type over
-              either figure before you confirm.
+              {PUBLIC_DATA_SOURCES_LINE}
             </p>
           </section>
 

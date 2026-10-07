@@ -87,27 +87,24 @@ export async function GET() {
     const indexMap: Record<string, string> = {};
     for (const ex of EXCHANGES) indexMap[ex] = INDEX_SYMBOL[ex];
 
-    let indexQuotes: Record<string, YahooQuote> = {};
-    try {
-      indexQuotes = await fetchYahooQuotes(indexMap);
-    } catch (err) {
+    const indexPromise = fetchYahooQuotes(indexMap).catch((err) => {
       console.error("[api/market-snapshot] index fetch failed:", err);
-    }
+      return {} as Record<string, YahooQuote>;
+    });
 
     const snapshots = await Promise.all(
       EXCHANGES.map(async (exchange): Promise<ExchangeSnapshot> => {
         const meta = EXCHANGE_META[exchange];
         const entries = entriesForExchange(exchange).slice(0, MAX_CONSTITUENTS);
 
-        // Live quotes for the whole exchange universe (cached 60s upstream).
+        // Constituent quotes start with the index request, not after it.
         const map: Record<string, string> = {};
         for (const e of entries) map[e.ticker] = yahooEquitySymbol(e.ticker);
-        let quotes: Record<string, YahooQuote> = {};
-        try {
-          quotes = await fetchYahooQuotes(map);
-        } catch (err) {
+        const quotesPromise = fetchYahooQuotes(map).catch((err) => {
           console.error(`[api/market-snapshot] ${exchange} constituents failed:`, err);
-        }
+          return {} as Record<string, YahooQuote>;
+        });
+        const [quotes, indexQuotes] = await Promise.all([quotesPromise, indexPromise]);
 
         const movers: SnapshotMover[] = [];
         let advancers = 0;

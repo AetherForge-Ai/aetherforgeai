@@ -105,12 +105,19 @@ export function formatSessionDate(iso: string): string {
 }
 
 function formatQuoteClock(quotedAt: Date, timeZone: string): string {
-  return new Intl.DateTimeFormat("en-NZ", {
+  const clock = new Intl.DateTimeFormat("en-NZ", {
     timeZone,
     hour: "numeric",
     minute: "2-digit",
-    timeZoneName: "short",
   }).format(quotedAt);
+  if (timeZone === "America/New_York") return `${clock} New York`;
+  const zoneName = new Intl.DateTimeFormat("en-NZ", {
+    timeZone,
+    timeZoneName: "short",
+  })
+    .formatToParts(quotedAt)
+    .find((part) => part.type === "timeZoneName")?.value;
+  return zoneName ? `${clock} ${zoneName}` : clock;
 }
 
 export function parseQuoteTime(value: string | number | Date | null | undefined): Date | null {
@@ -169,6 +176,16 @@ export function exchangeFreshnessLabel(
 /** API `live` is true only while that equity session is open and a quote arrived. */
 export function equityApiLive(exchange: Exchange, quoted: boolean, now = new Date()): boolean {
   return quoted && equitySessionOpen(exchange, now);
+}
+
+/** True when at least one quoted equity venue is inside its regular session. */
+export function quotedEquitySessionOpen(markets: ReadonlyArray<string>, now = new Date()): boolean {
+  for (const market of markets) {
+    const exchange: Exchange | null =
+      market === "NZX" ? "NZX" : market === "ASX" ? "ASX" : market === "US" || market === "DOW" || market === "NASDAQ" ? "DOW" : null;
+    if (exchange && equitySessionOpen(exchange, now)) return true;
+  }
+  return false;
 }
 
 export function cryptoFreshnessLabel(

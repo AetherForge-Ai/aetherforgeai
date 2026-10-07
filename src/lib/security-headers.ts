@@ -2,6 +2,7 @@
  * Response headers for the public site.
  *
  * frame-ancestors allows this site and the Totalum editor preview.
+ * TODO(owner): totalum-frontend-test.web.app stays because Totalum's preview may need it. Do not remove it until that preview is confirmed unused.
  * localhost is omitted so a production response never trusts a local parent.
  * ScriptExecutor only runs outside production.
  *
