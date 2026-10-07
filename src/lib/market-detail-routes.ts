@@ -14,7 +14,7 @@ import type { Exchange } from "@/lib/market-intel";
 
 export { resolvableCoinId, COIN_DETAIL_UNAVAILABLE };
 
-export const STOCK_DETAIL_UNAVAILABLE = "Live data for this ticker is unavailable right now.";
+export const STOCK_DETAIL_UNAVAILABLE = "Live data for this ticker is not shown right now.";
 
 export type MarketsTab = Exchange | "CRYPTO";
 

@@ -348,7 +348,7 @@ export function MarketsExplorer({
         marketCap: c.marketCap ?? null,
         live: !c.priceUnavailable && c.price > 0,
         coinId: c.id,
-        blockchain: c.blockchain || "Unavailable",
+        blockchain: c.blockchain || "—",
         priceUnavailable: !!c.priceUnavailable || !(c.price > 0),
       }));
     } else {
@@ -390,7 +390,7 @@ export function MarketsExplorer({
 
   // Live-price formatter — crypto needs micro-price precision, stocks are currency-aware.
   const showPrice = (r: DisplayRow) =>
-    r.priceUnavailable ? "Unavailable" : r.coinId ? fmtPrice(r.price) : formatMarketPrice(r.price, r.currency);
+    r.priceUnavailable ? "—" : r.coinId ? fmtPrice(r.price) : formatMarketPrice(r.price, r.currency);
 
   // Unified loading + status across both data sources.
   const loadingRows = isCryptoTab ? crypto.loading : loading;
@@ -640,7 +640,7 @@ export function MarketsExplorer({
                     </td>
                     {isCryptoTab && (
                       <td className="max-w-[10rem] py-2.5 pl-3 text-right text-xs text-muted-foreground">
-                        {r.blockchain || "Unavailable"}
+                        {r.blockchain || "—"}
                       </td>
                     )}
                     {allowBuy && (
