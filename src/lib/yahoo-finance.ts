@@ -75,6 +75,25 @@ function yahooGet(url: string, timeoutMs = 8000): Promise<Response> {
 
 const CACHE = new Map<string, { quote: YahooQuote; at: number }>();
 
+/** Prior daily close from a 5d window. Null when Yahoo does not send two closes. */
+async function priorDailyClose(yahooSymbol: string): Promise<number | null> {
+  try {
+    const url = `${BASE}/${encodeURIComponent(yahooSymbol)}?interval=1d&range=5d`;
+    const res = await yahooGet(url);
+    if (!res.ok) return null;
+    const json = (await res.json()) as {
+      chart?: { result?: Array<{ indicators?: { quote?: Array<{ close?: unknown[] }> } }> };
+    };
+    const closes = json?.chart?.result?.[0]?.indicators?.quote?.[0]?.close;
+    if (!Array.isArray(closes)) return null;
+    const prints = closes.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0);
+    return prints.length >= 2 ? prints[prints.length - 2] : null;
+  } catch (err) {
+    console.error(`[yahoo] prior close failed for ${yahooSymbol}:`, err);
+    return null;
+  }
+}
+
 /** Fetch a single Yahoo symbol's current quote, or null on any failure. */
 async function fetchOne(yahooSymbol: string): Promise<YahooQuote | null> {
   const cached = CACHE.get(yahooSymbol);
@@ -133,6 +152,15 @@ async function fetchOne(yahooSymbol: string): Promise<YahooQuote | null> {
         typeof meta.exchangeTimezoneName === "string" ? meta.exchangeTimezoneName : undefined,
       quotedAt: isoFromYahooTime(meta.regularMarketTime),
     };
+    if (changeIsFlat(quote.changePct)) {
+      const prior = await priorDailyClose(yahooSymbol);
+      const change = prior == null ? null : sessionChangePct(quote.price, prior);
+      if (prior != null && change != null && !changeIsFlat(change)) {
+        quote.prevClose = prior;
+        quote.changePct = change;
+        quote.changeAbs = quote.price - prior;
+      }
+    }
     CACHE.set(yahooSymbol, { quote, at: Date.now() });
     return quote;
   } catch (err) {
@@ -286,6 +314,21 @@ export async function fetchYahooHistories(
   return out;
 }
 
+/** A 2dp print of 0.00% is flat. A missing number is treated as flat so a later daily pass can fill it. */
+export function changeIsFlat(changePct: number): boolean {
+  return !Number.isFinite(changePct) || Number(changePct.toFixed(2)) === 0;
+}
+
+/**
+ * Session change from the last close and the prior close.
+ * Returns null when either print is missing. Does not invent a zero.
+ */
+export function sessionChangePct(last: number, prior: number): number | null {
+  if (!(prior > 0) || !Number.isFinite(last) || !Number.isFinite(prior)) return null;
+  const change = ((last - prior) / prior) * 100;
+  return Number.isFinite(change) ? change : null;
+}
+
 /** Positive finite number helper for Yahoo spark / chart nodes. */
 function positiveNum(v: unknown): number | undefined {
   const n = Number(v);
@@ -377,9 +420,12 @@ export async function fetchYahooQuotesBatched(
 
   const out: Record<string, YahooBatchedQuote> = {};
   const stale: [string, string][] = [];
+  const flat: [string, string][] = [];
 
   // Serve fresh entries straight from the single-quote cache (populated by
   // fetchOne / this function) so a repeat scan within the TTL costs nothing.
+  // A cached 0.00% still goes through the daily pass below. A closed 1d window
+  // often sets chartPreviousClose equal to the last price.
   for (const [internal, ySym] of entries) {
     const c = CACHE.get(ySym);
     if (c && Date.now() - c.at <= TTL_MS) {
@@ -389,11 +435,11 @@ export async function fetchYahooQuotesBatched(
         asOf: "live",
         ...(c.quote.quotedAt ? { quotedAt: c.quote.quotedAt } : {}),
       };
+      if (changeIsFlat(c.quote.changePct)) flat.push([internal, ySym]);
     } else {
       stale.push([internal, ySym]);
     }
   }
-  if (!stale.length) return out;
 
   const ingestChunk = async (
     chunk: [string, string][],
@@ -446,6 +492,48 @@ export async function fetchYahooQuotesBatched(
     }
     await mapLimited(missChunks, CONCURRENCY, async (chunk) => {
       await ingestChunk(chunk, "5d", "1d", true);
+    });
+  }
+
+  // Pass 3: a flat 1d print gets the prior daily close when Yahoo has one.
+  for (const [internal, ySym] of stale) {
+    if (out[internal] && changeIsFlat(out[internal].changePct)) flat.push([internal, ySym]);
+  }
+  const seenFlat = new Set<string>();
+  const flatUnique = flat.filter(([internal]) => {
+    if (seenFlat.has(internal)) return false;
+    seenFlat.add(internal);
+    return true;
+  });
+  if (flatUnique.length) {
+    const flatChunks: [string, string][][] = [];
+    for (let i = 0; i < flatUnique.length; i += HIST_CHUNK) {
+      flatChunks.push(flatUnique.slice(i, i + HIST_CHUNK));
+    }
+    await mapLimited(flatChunks, CONCURRENCY, async (chunk) => {
+      const symbols = chunk.map(([, y]) => y).join(",");
+      try {
+        const url = `${SPARK_BASE}?symbols=${encodeURIComponent(symbols)}&range=5d&interval=1d`;
+        const res = await yahooGet(url);
+        if (!res.ok) return;
+        const json = (await res.json()) as Record<string, any>;
+        const bySymbol = parseSparkBySymbol(json);
+        for (const [internal, ySym] of chunk) {
+          const existing = out[internal];
+          if (!existing || !changeIsFlat(existing.changePct)) continue;
+          const node = bySymbol[ySym];
+          const closes = Array.isArray(node?.close)
+            ? node.close.map((v: unknown) => Number(v)).filter((v: number) => Number.isFinite(v) && v > 0)
+            : [];
+          const prior = closes.length >= 2 ? closes[closes.length - 2] : undefined;
+          const basis = prior ?? positiveNum(node?.previousClose);
+          const change = basis ? sessionChangePct(existing.price, basis) : null;
+          if (change == null || changeIsFlat(change)) continue;
+          existing.changePct = change;
+        }
+      } catch (err) {
+        console.error(`[yahoo] daily change pass failed for ${chunk.length}:`, err);
+      }
     });
   }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { NewsItem } from "@/lib/market-intel";
-import { decodeHtmlEntities, isOffTopicStory, prepareNewsFeed, sourceForUrl } from "@/lib/news-present";
+import { decodeHtmlEntities, isMarginalInvestorStory, isOffTopicStory, prepareNewsFeed, sourceForUrl } from "@/lib/news-present";
 
 const cpi: NewsItem = {
   headline: "US CPI prints cooler than expected; rate-cut odds for the next FOMC firm up",
@@ -424,6 +424,12 @@ describe("public market news", () => {
   });
 
   it("keeps Paris, French and adviser market stories, and still drops the retest columns", () => {
+    expect(isMarginalInvestorStory("The Trump Dividend is the trade of the year", "A Motley Fool opinion.")).toBe(true);
+    expect(isMarginalInvestorStory("Digital assets and Zero", "An opinion piece.")).toBe(true);
+    expect(isMarginalInvestorStory("Profile: Vietnam's asset manager", "A firm profile, not a quote.")).toBe(true);
+    expect(isMarginalInvestorStory("Vietnam index rises 1.20% after the open", "The index gained.")).toBe(false);
+    expect(isOffTopicStory("The Trump Dividend is the trade of the year")).toBe(true);
+    expect(isOffTopicStory("Bitcoin ETF records inflows", "The price rose 1.20%.")).toBe(false);
     expect(isOffTopicStory("Fisher Funds shares rise after KiwiSaver inflows", "Advisers point to the inflows.")).toBe(false);
     expect(isOffTopicStory("FMA warns financial advisers over crypto marketing", "A notice to the market.")).toBe(false);
     expect(isOffTopicStory("Wall Street banks trim financial adviser headcount")).toBe(false);

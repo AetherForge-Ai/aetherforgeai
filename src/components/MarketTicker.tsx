@@ -63,22 +63,16 @@ function TickerCell({ q, price }: { q: Quote; price: string }) {
         {q.symbol}
       </span>
       <span className="tnum text-[0.78rem] text-zinc-100">{price}</span>
-      {stale && flat ? (
-        <span className="text-[0.7rem] text-zinc-400">
-          {asOf ? `No change figure · as of ${asOf}` : "No change figure"}
-        </span>
-      ) : (
-        <span
-          className={cn(
-            "tnum inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[0.7rem] font-semibold",
-            flat ? "bg-zinc-800 text-zinc-300" : up ? "bg-emerald-500/20 text-emerald-300" : "bg-rose-500/20 text-rose-300"
-          )}
-        >
-          <span aria-hidden="true">{flat ? "·" : up ? "▲" : "▼"}</span>
-          {formatSignedPercent(q.change)}
-          {asOf ? <span className="font-medium normal-case"> as of {asOf}</span> : null}
-        </span>
-      )}
+      <span
+        className={cn(
+          "tnum inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[0.7rem] font-semibold",
+          flat ? "bg-zinc-800 text-zinc-300" : up ? "bg-emerald-500/20 text-emerald-300" : "bg-rose-500/20 text-rose-300"
+        )}
+      >
+        <span aria-hidden="true">{flat ? "·" : up ? "▲" : "▼"}</span>
+        {formatSignedPercent(q.change)}
+        {stale && asOf ? <span className="font-medium normal-case"> as of {asOf}</span> : null}
+      </span>
     </span>
   );
 }

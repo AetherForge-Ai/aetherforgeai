@@ -146,6 +146,25 @@ export function decodeHtmlEntities(input: string): string {
 const MARKET_SIGNAL =
   /\b(share|shares|stock|stocks|market|markets|nzx|asx|nasdaq|dow|s&p|rbnz|rba|ocr|cpi|inflation|gdp|earnings|dividend|ipo|bond|currency|oil|iron|banks?|bitcoin|crypto|ethereum|fed|fomc|treasury|index|investor|trading|economy|economic|fonterra|profit|revenue|nzd|usd|aud|gold|silver|commodity|equity|listing|cash rate|interest)\b/i;
 
+/**
+ * Stories that matched a market word but are not a price, rate, or listing
+ * an NZ investor would use. Legitimate market stories stay: a headline needs
+ * one of these patterns, not merely a weak word such as "market".
+ */
+export function isMarginalInvestorStory(headline: string, summary = ""): boolean {
+  const blob = `${headline} ${summary}`;
+  if (/\btrump\s+dividend\b/i.test(blob)) return true;
+  if (/\bdigital assets?\b/i.test(blob) && /\bzero\b/i.test(blob) && !/\b(bitcoin|ethereum|price|etf|sec|regulation|\d+(\.\d+)?%)\b/i.test(blob)) {
+    return true;
+  }
+  const vietnamProfile = /\bvietnam\b/i.test(blob) && /\b(asset[- ]manager|profile|interview)\b/i.test(blob);
+  const quotedMove =
+    /\b(shares?|stocks?|index|nzx|asx|nasdaq)\b/i.test(blob) &&
+    /\b(rise|rose|rises|fall|fell|falls|jump|jumped|slid|slide|gain|gained|drop|dropped|\d+(\.\d+)?%)\b/i.test(blob);
+  if (vietnamProfile && !quotedMove) return true;
+  return false;
+}
+
 const CRYPTO_HOST = /(beincrypto|coindesk|cointelegraph|theblock|decrypt|cryptoslate)\./i;
 
 /** A crypto-feed card has to be about a digital asset. Equity wraps are dropped. */
@@ -158,6 +177,7 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 export function isOffTopicStory(headline: string, summary = ""): boolean {
   const blob = `${headline} ${summary}`;
   if (OFF_TOPIC.test(blob)) return true;
+  if (isMarginalInvestorStory(headline, summary)) return true;
   if (CRYPTO_ASSET.test(blob)) return false;
   return !MARKET_SIGNAL.test(blob);
 }
