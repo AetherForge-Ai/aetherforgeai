@@ -1002,3 +1002,34 @@ These pages identify the company and do not state a registered office or an addr
 - Trust. Emails only. No postal address.
 - Organization JSON-LD in the root layout. The postal address block was removed. That block was structured data, not a statutory notice.
 
+## Weekly email unsubscribe confirmation — 11 Oct 2026
+
+Marker: `pull-check:weekly-unsub-confirm-2026-10-11`
+
+Source comment: `pull-check:weekly-unsub-confirm-2026-10-11` in `src/lib/weekly-email.ts`, `src/app/api/weekly-email/unsubscribe/route.ts`, and `src/lib/weekly-email-live.ts`.
+
+Branch `cursor/weekly-unsub-confirm-a147` from develop. One draft pull request into `develop`. Do not merge it from this note. Nothing was published. No Totalum AI Pull. No email was sent. Auth, login, register, security headers, consent, apex, and `next.config.ts` were not edited. Public copy says "AI" only. `WEEKLY_EMAIL_SEND` still has to be exactly `on` before a Monday email can go out. The signed token check, the opt-out write, and that hard-off flag are unchanged.
+
+A mail scanner that prefetches the unsubscribe link used to store the opt-out, because the link was a GET that wrote the preference. The GET now only shows a confirmation page.
+
+### Confirm before opt-out — fixed
+
+- Status: fixed
+- Files: `src/lib/weekly-email.ts`, `src/lib/weekly-email.test.ts`, `src/app/api/weekly-email/unsubscribe/route.ts`, `src/lib/weekly-email-live.ts`
+- URL / steps:
+  1. `npm test -- src/lib/weekly-email.test.ts`
+  2. `npm run check-types-errors`
+  3. `npm run build`
+  4. Open a signed link, `GET /api/weekly-email/unsubscribe?token=...`. Read the page. Do not press the button. Read the stored preference for that account (the hidden `AF-WEM` watchlist name).
+  5. Press `Confirm` on that page (a same-origin POST whose form field `token` is the signed token). Read the page again, then press `Confirm` a second time with the same token.
+  6. POST the same URL with a changed token, and open a changed token with GET.
+  7. POST a valid token with an `Origin` on another site.
+- Expected: step 4 shows the heading `Stop the weekly email?`, a `Confirm` button, and `noindex` (meta and `X-Robots-Tag`). The preference is unchanged. No email is sent.
+- Expected: step 5 shows `Weekly email is off` and the sentence `Weekly email is off for this account. No email was sent.` The preference is off. The stored ISO week on that row stays as it was. The second confirm stays off and keeps that week.
+- Expected: step 6 says `This unsubscribe link is not valid. No email was sent.` The preference is unchanged from whatever it was before that bad token.
+- Expected: step 7 does not change the preference. The page says the request did not come from this site.
+
+### List-Unsubscribe headers — not sent
+
+`sendTransactionalEmail` posts Totalum `EmailPayloadI`. That type has no custom header field. The documented fields are `to`, `subject`, `html`, `fromName`, `cc`, `bcc`, `replyTo`, and `attachments`. RFC 8058 `List-Unsubscribe` and `List-Unsubscribe-Post` are not added to the Monday email. The message still contains the unsubscribe link in the body. A mailbox one-click unsubscribe is not advertised. The note is on `deliverWeeklyEmail` in `src/lib/weekly-email-live.ts`.
+
