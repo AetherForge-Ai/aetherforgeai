@@ -124,7 +124,7 @@ export default function PrivacyPolicy() {
         <p>
           Some of the processors named in section 5 are located outside New Zealand. That list includes
           Cloudflare, Stripe, an AI provider, Google Analytics, Totalum on Google Cloud, Yahoo Finance,
-          Twelve Data, CoinGecko, Swyftx, GeckoTerminal, gold-api.com, ExchangeRate-API and Frankfurter.
+          CoinGecko, Swyftx, GeckoTerminal, gold-api.com, ExchangeRate-API and Frankfurter.
           Where we disclose
           personal information overseas, we take reasonable steps to ensure it is protected by
           comparable safeguards to those under the Privacy Act 2020, or we rely on an exception

@@ -53,7 +53,6 @@ export const PROCESSORS: { name: string; role: string }[] = [
   { name: "Google Analytics", role: "which pages are used" },
   { name: "Totalum on Google Cloud", role: "account storage" },
   { name: "Yahoo Finance", role: "prices for NZX-listed, ASX-listed and US shares" },
-  { name: "Twelve Data", role: "share quotes when a quote key is configured" },
   { name: "CoinGecko", role: "crypto prices" },
   { name: "Swyftx", role: "crypto prices when that feed answers" },
   { name: "GeckoTerminal", role: "DEX token prices" },

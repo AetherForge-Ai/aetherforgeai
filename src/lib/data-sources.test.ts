@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   PUBLIC_COIN_SOURCE_LINE,
@@ -18,9 +20,12 @@ describe("public data-source copy", () => {
     expect(copy).not.toMatch(/licensed|GoGold/i);
     expect(copy).toMatch(/Yahoo Finance/);
     expect(copy).toMatch(/not a direct NZX or ASX feed/);
-    expect(copy).toMatch(/Twelve Data/);
+    expect(copy).not.toMatch(/Twelve Data|official|licensed|real-time/i);
     expect(copy).toMatch(/Swyftx/);
     expect(copy).toMatch(/gold-api\.com/);
+    expect(readFileSync(path.join(process.cwd(), "src/lib/data-sources.ts"), "utf8")).toContain(
+      "P2-POLISH-PULL-CHECK",
+    );
   });
 
   it("replaces an internal fallback sentence", () => {

@@ -1,9 +1,14 @@
 /**
+ * P2-POLISH-PULL-CHECK
+ *
  * Public data-source wording. One place so the home strip, /api/ticker, /trust,
  * Terms, Privacy and coin pages name the same sources.
  *
  * The names match the calls in the code:
- * shares — Yahoo Finance (query1.finance.yahoo.com); Twelve Data only when a key is set
+ * shares — Yahoo Finance (query1.finance.yahoo.com). A Twelve Data call exists in
+ * fetchLiveQuotes only when MARKET_DATA_API_KEY is set. wrangler.jsonc sets no
+ * vars, so that key is not part of the production config in this repo. Public
+ * copy does not name Twelve Data.
  * crypto — CoinGecko, then Swyftx when that feed answers; Yahoo Finance is also called
  * DEX — GeckoTerminal
  * metals — api.gold-api.com (not a dealer feed)
@@ -22,7 +27,7 @@ export const PUBLIC_FX_SOURCE = "ExchangeRate-API";
 
 export const PUBLIC_DATA_SOURCES_LINE =
   "Prices for NZX- and ASX-listed shares, and for US shares, come from public market data (Yahoo Finance). " +
-  "They are not a direct NZX or ASX feed. When a quote key is configured, some portfolio quotes are read from Twelve Data first. " +
+  "They are not a direct NZX or ASX feed. " +
   `Crypto prices come from ${PUBLIC_CRYPTO_SOURCE}, and from Swyftx when that feed answers. ` +
   `DEX token prices come from ${PUBLIC_DEX_SOURCE}. ` +
   `Gold and silver spot prices come from ${PUBLIC_METALS_SOURCE}. ` +
