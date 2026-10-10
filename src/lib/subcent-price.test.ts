@@ -58,7 +58,7 @@ describe("U1 sub-cent unit prices", () => {
     expect(preview.priceNzd).toBeLessThan(0.01);
     const shown = formatMoneyWithNzd(preview.priceNative, "USD", preview.priceNzd);
     expect(shown).toContain("0.00001");
-    expect(shown).not.toContain("NZ$0.00");
+    expect(shown).not.toMatch(/NZ\$0\.00(?!\d)/);
     expect(shown).not.toMatch(/US\$0\.01(?!\d)/);
     expect(formatNzd(preview.cashChangeNzd)).toMatch(/NZ\$20\.00/);
     expect(preview.cashAfterNzd).toBeCloseTo(99_980, 2);
@@ -121,6 +121,6 @@ describe("U1 sub-cent unit prices", () => {
     });
     expect(plan.notes).toContain("0.00001");
     expect(plan.notes).toContain("0.0000040399");
-    expect(plan.notes).not.toContain("0.00");
+    expect(plan.notes).not.toMatch(/(^|\s)0\.00(?!\d)/);
   });
 });
