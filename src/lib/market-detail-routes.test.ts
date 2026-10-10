@@ -73,7 +73,9 @@ describe("markets detail routes", () => {
 
   it("reads the markets tab the back link writes", () => {
     expect(marketsTabHref("CRYPTO")).toBe("/markets?tab=crypto");
+    expect(marketsTabHref("DEX")).toBe("/markets?tab=dex");
     expect(parseMarketsTab("crypto")).toBe("CRYPTO");
+    expect(parseMarketsTab("dex")).toBe("DEX");
     expect(parseMarketsTab("nasdaq")).toBe("NASDAQ");
     expect(parseMarketsTab("nope")).toBeNull();
     expect(unavailableTokenLabel("BULL", "BULL")).toBe("BULL");

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { LEGAL_ENTITY_NAME } from "@/lib/company";
-import { BOT_COUNT_LINE } from "@/lib/public-copy";
+import { BOT_COUNT_LINE, PAPER_BOOK_STATEMENT } from "@/lib/public-copy";
 import { loadPublicTickerBounded } from "@/lib/public-ticker";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -104,7 +104,7 @@ export default async function LandingPage() {
                   <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
                     Track stocks, crypto and precious metals,
                     then use Stox, Koins and The Headmaster to turn market data into
-                    illustrative scenarios and a goal plan. You execute elsewhere.
+                    illustrative scenarios and a goal plan. {PAPER_BOOK_STATEMENT}
                   </p>
                   <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
                     Not financial advice. {LEGAL_ENTITY_NAME} is not a licensed financial

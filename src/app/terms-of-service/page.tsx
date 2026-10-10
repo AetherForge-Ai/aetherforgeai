@@ -5,6 +5,7 @@ import { PUBLIC_DATA_SOURCES_LINE } from "@/lib/data-sources";
 import {
   ANNUAL_TOOLKIT_LINE,
   LEGAL_UPDATED,
+  PAPER_BOOK_STATEMENT,
   REFUND_FAQ,
   TRIAL_CARD_LINE,
 } from "@/lib/public-copy";
@@ -38,6 +39,10 @@ export default function TermsOfService() {
           tables, charts and related informational content covering New Zealand (NZX), Australian (ASX)
           and global markets, including digital assets. Features available to you depend on your
           subscription plan.
+        </p>
+        <p>
+          {PAPER_BOOK_STATEMENT} AetherForge is not a broker and does not execute trades, transfer cash,
+          or hold assets for you.
         </p>
         <p>
           <strong className="text-foreground/90">
