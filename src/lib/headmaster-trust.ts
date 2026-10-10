@@ -104,8 +104,8 @@ export function bookCashReserve(bookNZD: number): {
   retainedNZD: number;
   deployableNZD: number;
 } {
-  const book = Math.max(0, Math.round(Number.isFinite(bookNZD) ? bookNZD : 0));
-  const retainedNZD = book > 0 ? Math.round((book * BOOK_CASH_RESERVE_PCT) / 100) : 0;
+  const book = Math.max(0, roundCents(Number.isFinite(bookNZD) ? bookNZD : 0));
+  const retainedNZD = book > 0 ? roundCents((book * BOOK_CASH_RESERVE_PCT) / 100) : 0;
   return {
     reservePct: BOOK_CASH_RESERVE_PCT,
     retainedNZD,
@@ -113,9 +113,14 @@ export function bookCashReserve(bookNZD: number): {
   };
 }
 
-function whole(value: number): number {
+/** Money stays in cents. NZ$33,291.47 must not become NZ$33,291.00. */
+function roundCents(value: number): number {
   if (!Number.isFinite(value)) return 0;
-  return Math.round(value);
+  return Math.round(value * 100) / 100;
+}
+
+function whole(value: number): number {
+  return roundCents(value);
 }
 
 function weight1(value: number, total: number): number {
@@ -170,7 +175,7 @@ export function buildAllocationPlan(input: AllocationPlanInput): AllocationPlan 
     deltas[key] = targetValue - current[key];
   }
   const nonCashSum = nonCash.reduce((s, k) => s + deltas[k], 0);
-  const gap = -cashDelta - nonCashSum;
+  const gap = roundCents(-cashDelta - nonCashSum);
   if (gap !== 0) {
     let idx: PlanAssetClass = "equities";
     for (const key of nonCash) {

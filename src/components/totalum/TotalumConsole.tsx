@@ -198,6 +198,13 @@ function SynthesisTab({ s }: { s: TotalumSynthesis }) {
       <p className="text-sm text-muted-foreground">
         Facts from the current book: values, weights, concentration, and model return/volatility. This tab does not suggest trades.
       </p>
+      {s.sleeveNotes?.length ? (
+        <ul className="space-y-1 text-sm">
+          {s.sleeveNotes.map((note) => (
+            <li key={note}>{note}</li>
+          ))}
+        </ul>
+      ) : null}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Kpi label="Total Wealth" value={nzd(s.totalValueNZD)} sub="Unified · NZD base" />
         <Kpi label="Unrealised P/L" value={nzd(s.totalGainNZD)} sub={pct(s.totalGainPct)} accent={gainClass(s.totalGainNZD)} />
