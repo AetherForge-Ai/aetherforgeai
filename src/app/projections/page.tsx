@@ -6,16 +6,15 @@ import { ProjectionsExplorer } from "@/components/dashboard/ProjectionsExplorer"
 export const dynamic = "force-dynamic";
 
 export const metadata = publicPageMetadata("/projections", {
-  title: "Projections · AetherForge AI",
-  description: "Weekly top projections across NZX and ASX. Crypto projections are paused. General information, not personal advice.",
+  title: "Projections — AetherForge AI",
+  description: "Weekly projections across NZX and ASX. Each equity tab lists the names that came back, up to 50. Crypto projections are paused. General information, not personal advice.",
 });
 
 /**
- * /projections — the weekly "Top Projections" browser. A Top-50 board per market
- * (NZX · ASX · Dow Jones · Nasdaq · Crypto) with rank, price, projected 7-day
- * move, confidence, signal and the reasoning behind every call. Market-wide public
- * intelligence, so it's viewable by guests and members alike (a strong acquisition
- * surface) — the same global top nav frames it, no sidebar.
+ * /projections — weekly projections. Each equity tab lists the names that came
+ * back, up to 50, with rank, price, projected 7-day move, confidence and the
+ * reasoning behind every call. Crypto projections stay paused. Guests and
+ * members can read the page.
  */
 export default async function ProjectionsPage() {
   const user = await getCurrentUser();
