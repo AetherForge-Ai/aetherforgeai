@@ -98,13 +98,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               identifier: NZBN,
               url: siteUrl,
               logo: `${siteUrl}/brand/forge-intelligence-logo.png`,
-              address: {
-                "@type": "PostalAddress",
-                streetAddress: "39 Lakeside Drive",
-                addressLocality: "Pegasus",
-                postalCode: "7612",
-                addressCountry: "NZ",
-              },
             }),
           }}
         />
