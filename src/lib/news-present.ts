@@ -3,6 +3,8 @@ import { formatDisplayDate } from "@/lib/currency";
 import { isPublishedUsCpiDay, usCpiDateLabel } from "@/lib/us-cpi-schedule";
 import { publisherTextHasSignalWord } from "@/lib/public-intel";
 
+/** pull-check:research-retest-2026-10-11 */
+
 /** Pull-check marker for the publisher-verbatim news gate. */
 export const P1_FOLLOWUP_PUBLISHER_HEADLINES_VERBATIM =
   "p1-followup-publisher-headlines-verbatim-92fa";
@@ -98,6 +100,17 @@ export function sourceForUrl(url: string, fallback: string): string {
 const OFF_TOPIC =
   /\b(froyo|frozen yogh?urt|jaguar|bin collectors?|election debates?|leaders['’]?\s+debate|royal rumble|data virtuali[sz]ation|strategic business report|lifestyle|celebrity|red carpet|recipe|premiere|stuntwomen|carjacking|liquor licences|wealthy people can teach|variable rate fix|as agent bank|evident\s+ai)\b|\btops\b.{0,80}\bbanking index\b/i;
 
+/**
+ * Jersey residency columns (BBC "wealthy residents" / high-value residency).
+ * A Jersey listing or a price move does not match: it needs both the island and
+ * the residency wording.
+ */
+function isJerseyWealthColumn(headline: string, summary = ""): boolean {
+  const blob = `${headline} ${summary}`;
+  if (!/\bjersey\b/i.test(blob)) return false;
+  return /\b(wealthy|high[- ]value residents?|residency scheme)\b/i.test(blob);
+}
+
 const NAMED_ENTITIES: Record<string, string> = {
   amp: "&",
   lt: "<",
@@ -177,6 +190,7 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 export function isOffTopicStory(headline: string, summary = ""): boolean {
   const blob = `${headline} ${summary}`;
   if (OFF_TOPIC.test(blob)) return true;
+  if (isJerseyWealthColumn(headline, summary)) return true;
   if (isMarginalInvestorStory(headline, summary)) return true;
   if (CRYPTO_ASSET.test(blob)) return false;
   return !MARKET_SIGNAL.test(blob);

@@ -8,10 +8,10 @@ function read(rel: string) {
 }
 
 describe("H9 sitemap and robots", () => {
-  it("lists lastmod, includes /projections, and drops /blog", () => {
+  it("lists lastmod, leaves /projections and /blog off the sitemap", () => {
     const rows = sitemap();
     const byPath = new Map(rows.map((row) => [new URL(row.url).pathname, row]));
-    expect(byPath.get("/projections")?.lastModified).toBe("2026-10-10");
+    expect(byPath.has("/projections")).toBe(false);
     expect(byPath.has("/blog")).toBe(false);
     expect(byPath.get("/performance")?.changeFrequency).toBe("yearly");
     expect(byPath.get("/performance")?.lastModified).toBe("2026-07-08");

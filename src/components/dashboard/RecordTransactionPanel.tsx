@@ -9,7 +9,7 @@ import { api } from "@/lib/api";
 import { dexSearchHits, searchAssets, type AssetHit, type AssetMarket } from "@/lib/asset-search";
 import { cleanChain, dexFromHolding, isDexSource } from "@/lib/dex-source";
 import { PAPER_FEE_SUMMARY, suggestedFee } from "@/lib/fee-rule";
-import { buildMovementPreview, type MovementPreview, type RecordKind } from "@/lib/movement-preview";
+import { buildMovementPreview, movementNzdTotal, type MovementPreview, type RecordKind } from "@/lib/movement-preview";
 import { transactionProblems } from "@/lib/transaction-rules";
 import { distributionLabel } from "@/lib/income-label";
 import {
@@ -574,6 +574,9 @@ export function RecordTransactionPanel({
   }
 
   const livePreview = step === "edit" ? buildPreview() : preview;
+  const nzdTotal = livePreview
+    ? movementNzdTotal(livePreview, currency === "NZD" ? 1 : Number(fxRate))
+    : null;
   const movementBlocked =
     problems.length > 0 ||
     transactionProblems({
@@ -619,6 +622,12 @@ export function RecordTransactionPanel({
           />
           <ReviewRow label="Exchange rate" value={preview.fxRate === 1 ? "1.0000 NZD" : `${formatFxInput(preview.fxRate)} NZD per 1 ${preview.currency}`} />
           <ReviewRow label="Fee" value={formatMoneyWithNzd(preview.feeNative, preview.currency, preview.feeNzd)} />
+          {nzdTotal ? (
+            <ReviewRow
+              label="Total"
+              value={nzdTotal.fx ? `${nzdTotal.nzd} · ${nzdTotal.fx}` : nzdTotal.nzd}
+            />
+          ) : null}
           <ReviewRow label="Cash change" value={cashNote ? "Still loading" : formatSignedMoney(preview.cashChangeNzd)} />
           <ReviewRow label="Cash after" value={cashNote ? "Still loading" : formatNzd(preview.cashAfterNzd)} />
           {saveError ? (
@@ -871,6 +880,12 @@ export function RecordTransactionPanel({
             </div>
           </div>
           {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
+          {step === "edit" && nzdTotal ? (
+            <p className="text-sm" data-testid="record-nzd-total">
+              Total <span className="tnum font-semibold">{nzdTotal.nzd}</span>
+              {nzdTotal.fx ? <span className="text-muted-foreground"> · {nzdTotal.fx}</span> : null}
+            </p>
+          ) : null}
           <div className="space-y-1.5">
             <Label htmlFor="record-notes">Notes</Label>
             <Input id="record-notes" value={notes} placeholder="Optional note for the ledger" onChange={(e) => setNotes(e.target.value)} />

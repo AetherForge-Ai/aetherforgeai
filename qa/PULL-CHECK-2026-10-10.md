@@ -12,6 +12,7 @@ Markers:
 - `pull-check:track-a2-2026-10-10`
 - `pull-check:track-b-p0-2026-10-11`
 - `pull-check:track-b-2-2026-10-11`
+- `pull-check:research-retest-2026-10-11`
 
 Branch: `cursor/qa-m10-m15-l6-l17-b236`
 PR: https://github.com/AetherForge-Ai/aetherforgeai/pull/247
@@ -733,6 +734,72 @@ Branch `cursor/track-b-p0-bb35` from develop `87dfce1`. PR https://github.com/Ae
 - `npm run build`: passed again after that follow-up (Next.js 15.3.9). The build skipped its own lint step. Better Auth logged the default secret in this environment. No secret was added.
 - This batch did not edit `src/lib/auth.ts`, `src/lib/auth-mail.ts`, `src/lib/transactional-mail.ts`, `src/lib/send-transactional-mail.ts`, or the send-verification route. It did edit the news filter and the news fetch cap. Crypto projections stay paused. No list was removed. No email was sent. Nothing was published.
 
+## Research retest — 11 Oct 2026
+
+Marker: `pull-check:research-retest-2026-10-11`
+
+Branch `cursor/research-retest-9985` from develop. One draft pull request into `develop`. Nothing was published. No Totalum AI Pull. No email was sent. `src/app/tax` and `src/lib` tax files were not edited. Auth, mail, login, register, security headers, and consent were not edited. `preserveDynamicSegmentTraces` is unchanged. Public copy says "AI" only. Crypto projections stay paused (`CRYPTO_PROJECTIONS_PAUSED` remains true).
+
+### 1 — Jersey residency column — fixed
+
+- Status: fixed
+- Files: `src/lib/news-present.ts`, `src/lib/news-present.test.ts`
+- Choice: a story is off-topic only when it names Jersey and also says wealthy, high-value residents, or a residency scheme. A Jersey listing or a price move still passes.
+- URL / steps: `npm test` on `src/lib/news-present.test.ts`. Then open `/market-news` and search the HTML for "high value residents" and "Jersey residency".
+- Expected: "Industry leaders discuss Jersey's high value residents scheme" and "Number of wealthy people given Jersey residency doubles in 2025" are absent. "Jersey Electricity shares rise 2%", LVMH, FMA, and gold vs bitcoin stay in the unit feed.
+
+### 2 — /projections index — fixed, page kept
+
+- Status: fixed. The URL still returns the equity page.
+- Files: `src/app/sitemap.ts`, `src/app/projections/page.tsx`, `src/lib/sitemap-hygiene.test.ts`, `src/lib/public-surface.test.ts`
+- Choice: `noindex` (`robots: { index: false, follow: false }`) and the path is left out of `sitemap.xml`. A redirect was not used. Signed-in and guest readers still open NZX and ASX tabs on `/projections` from the More nav. A redirect would break that URL. Crypto projections on the page stay paused.
+- URL / steps: `curl -sI` `/projections` and `curl` `/sitemap.xml`. Confirm the More nav still points at `/projections`.
+- Expected: `/projections` is HTTP 200 with `x-robots-tag` or a robots meta of `noindex`. `sitemap.xml` has no `/projections`. `/dashboard` equity projections are unchanged.
+
+### 3 — data-dgst — benign
+
+- Status: not a thrown render error. No code change.
+- Files: read only. React DOM server bundle `node_modules/react-dom/cjs/react-dom-server.node.production.js` (the `$RC` bootstrap around the `setAttribute("data-dgst",e)` script, and `$RX` which sets `dataset.dgst` only when a digest argument is passed). The unused `stringToPrecomputedChunk` templates that mention `data-dgst` are not assigned.
+- Why: every streamed page inlines that bootstrap. `$RC` writes a real `data-dgst` attribute only when its third argument, the error digest, is present. A digest on an element, or `$RX` called with a digest string, would mean a suspense boundary client-rendered after a server error.
+- URL / steps: after `npm run build` and `next start`, `curl` `/markets`, `/market-news`, `/terms`, `/changelog`, `/privacy`, and `/trust`. Count `data-dgst="` (an attribute with a value) separately from the bootstrap text `setAttribute("data-dgst"`.
+- Expected: the bootstrap text is present. No `data-dgst="` attribute and no `$RX` call with a digest. `/terms` redirects to `/terms-of-service` and `/privacy` to `/privacy-policy` (path aliases in `next.config.ts`, not a host redirect).
+
+### 4 — GoGold — not used
+
+- Status: not added. The wording stays honest.
+- Files: read only. `src/lib/metals.ts` fetches `https://api.gold-api.com/price/`. `src/lib/data-sources.ts` names `gold-api.com`. `src/lib/data-sources.test.ts` expects the public copy not to match GoGold.
+- Expected: public supplier lines still say gold-api.com. They do not say GoGold.
+
+### 5 — Free dashboard — fixed
+
+- Status: fixed
+- Files: `src/components/dashboard/DashboardHomeGrid.tsx`, `src/components/dashboard/PortfolioDashboard.tsx`, `src/components/dashboard/crypto/CryptoMarketSection.tsx`, `src/lib/market-freshness.ts`, `src/lib/movement-preview.ts`, `src/components/dashboard/RecordTransactionPanel.tsx`, `src/lib/market-freshness.test.ts`, `src/lib/record-transaction.test.ts`
+- (a) Pause: the home crypto card, the crypto overview on a Free plan, and the crypto projected-performers placeholder use `CRYPTO_PROJECTIONS_PAUSE_MESSAGE` while crypto projections are paused. The pause stays after coins load. Live holdings and the Crypto Market button stay. A stock Free plan still says projected performers are on a paid plan. Paid crypto books can still show the 7-day illustrative outlook the pause sentence already names.
+- (b) Metals: the home sentence uses `metalsHomeHint`, the same rule as the tape badge. A quote that is not live says "Est. gold and silver. Not a report." A live gold-api quote with `quotedAt` says "Spot · updated {clock} gold and silver. Not a report." It does not say Live. A live quote with no clock still says "Spot gold and silver. Not a report." Forcing Est. onto a live gold-api quote would disagree with the tape.
+- (c) Preview: a buy or sell with quantity, price, and a real FX rate shows Total as the absolute NZD cash change (fee included) and `formatFxInput` ("1.7420 NZD per 1 USD"). That line is outside the cash-loading gate and the review cash note. A missing or zero foreign rate stays hidden, so the baseline table is not painted as today's rate. "Loading cash…" still covers cash after.
+- URL / steps: sign in on Free, open `/dashboard` and read the crypto card and the metals card after `/api/metals/spot` returns. Open Record a transaction, enter a USD buy with a rate, and read Total before cash finishes loading. `npm test` covers the Jersey feed, `metalsHomeHint`, and `movementNzdTotal`.
+
+### 6 — Apex host — not a code change
+
+- Status: reported. No apex, middleware, or `next.config.ts` edit.
+- What the repo does: `src/lib/apex.ts` is the report engine. It does not choose a hostname. `src/middleware.ts` does not redirect apex to www or www to apex. `next.config.ts` `redirects()` are path aliases only (`/privacy` to `/privacy-policy`, `/terms` to `/terms-of-service`). The default site URL in the layout, sitemap, and robots is `https://www.aetherforgeai.co.nz`. Stripe scripts (`scripts/cleanup-stripe-webhooks.ts`, `scripts/reprovision-stripe-webhooks.mjs`) say www 301s to `https://aetherforgeai.co.nz` and that Stripe must be registered on the apex because it does not follow redirects.
+- What a port-80 timeout means: nothing answered on that host. The app never sees the request. A Cloudflare "Always Use HTTPS" rule still answers on port 80 with a redirect. A timeout means the apex DNS record is missing, not proxied, or not pointed at the same Cloudflare zone as www.
+- What Lukas would set: an apex A, AAAA, or CNAME on the same Cloudflare zone as www, proxied (orange cloud). HTTP on port 80 must answer, even if the only answer is the HTTPS redirect. Pick one canonical host. This repo's sitemap and Open Graph default to www. Stripe and the Terms host notes treat the apex as canonical. Add one Cloudflare redirect between apex and www, and HTTP to HTTPS, so both names land on the chosen host. Do not register the Stripe webhook on the name that redirects.
+
+### Left untouched
+
+`src/app/tax` and tax files under `src/lib` were not edited. Auth, mail, login, register, consent, and security headers were not edited. `preserveDynamicSegmentTraces` is unchanged. No model or provider name was added. No official, licensed, or real-time data claim was added. GoGold was not added. Crypto projections stay paused. Nothing was published.
+
+### Checked here
+
+Local checks on 11 Oct 2026 (NZ) against commit `cd35b41`, then this note. `npm run check-types-errors` passed. `npm test` passed (102 files, 496 tests). `npm run build` passed (Next.js 15.3.9). The build skipped its own lint step. Better Auth logged the default secret in this environment. No secret was added.
+
+`next start` on port 3456, this machine, not the live site:
+
+- `/projections` returned 200. The HTML has `<meta name="robots" content="noindex, nofollow"/>`. There was no `x-robots-tag` header. `/sitemap.xml` contains the word projections 0 times.
+- `/terms` returned 307 to `/terms-of-service`. `/privacy` returned 307 to `/privacy-policy`.
+- `dgst` counts: `/changelog`, `/trust`, `/projections`, `/terms-of-service`, and `/privacy-policy` each had one `setAttribute("data-dgst",e)` inside the `$RC` bootstrap and zero `data-dgst="` attributes. `/markets` and `/market-news` had zero `dgst` of either kind. No `$RX` call carried a digest. The server log for those reads had no React render digest. A GeckoTerminal 429 on a DEX fetch is a vendor limit, not a page error.
+- `/market-news` HTML did not contain "high value residents", "Jersey residency", or "wealthy residents". The unit feed is what keeps Jersey Electricity, LVMH, FMA, and gold vs bitcoin. The live feed on this machine did not happen to include a Jersey Electricity story.
 ## Track B item 2
 
 NZ tax pack. Draft PRs only. Nothing here publishes, sends email, or removes a Stox, Koins, or Headmaster list. Crypto projections stay paused. Prices stay NZ$0 / NZ$16 / NZ$49 / NZ$199. No new database columns. Marker `pull-check:track-b-2-2026-10-11` is in `src/lib/dividend-ledger.ts`, `src/lib/tax-disclaimer.ts`, `src/lib/nz-tax-year.ts`, `src/lib/taxable-income.ts`, `src/lib/fif-working-paper.ts`, `src/lib/tax-realised.ts`, and the Markers list above.

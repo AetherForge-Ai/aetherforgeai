@@ -5,6 +5,8 @@ import {
   equityApiLive,
   equityFreshnessLabel,
   equitySessionDate,
+  metalUpdatedPhrase,
+  metalsHomeHint,
   quotedEquitySessionOpen,
 } from "@/lib/market-freshness";
 
@@ -69,5 +71,14 @@ describe("crypto and FX freshness", () => {
   it("labels FX as a daily rate and never live", () => {
     expect(dailyRateLabel("2026-10-07T06:40:00.000Z")).toBe("Daily rate · 7 Oct 2026");
     expect(dailyRateLabel(null)).toBe("Daily rate");
+  });
+
+  it("labels home metals Est. until the quote is live, then the same clock as the tape", () => {
+    expect(metalsHomeHint(false, "2026-10-07T13:20:00.000Z")).toBe("Est. gold and silver. Not a report.");
+    const phrase = metalUpdatedPhrase("2026-10-07T13:20:00.000Z");
+    expect(phrase).toMatch(/^Spot · updated /);
+    expect(phrase).not.toContain("Live");
+    expect(metalsHomeHint(true, "2026-10-07T13:20:00.000Z")).toBe(`${phrase} gold and silver. Not a report.`);
+    expect(metalsHomeHint(true, null)).toBe("Spot gold and silver. Not a report.");
   });
 });
