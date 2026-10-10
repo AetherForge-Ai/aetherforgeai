@@ -380,7 +380,10 @@ export function ProjectionsExplorer() {
         </div>
       ) : active === "CRYPTO" ? (
         <div className="grid place-items-center rounded-2xl border border-border/60 bg-card/40 px-6 py-16 text-center">
-          <p className="max-w-md text-sm leading-relaxed text-muted-foreground">{pauseMessage}</p>
+          <div className="max-w-md space-y-2">
+            <h2 className="font-display text-lg font-semibold">Crypto projections are paused</h2>
+            <p className="text-sm leading-relaxed text-muted-foreground">{pauseMessage}</p>
+          </div>
         </div>
       ) : activeList.length === 0 ? (
         <div className="grid place-items-center rounded-2xl border border-border/60 bg-card/40 py-16 text-center text-sm text-muted-foreground">
