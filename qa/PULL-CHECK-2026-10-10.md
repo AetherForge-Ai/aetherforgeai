@@ -747,4 +747,5 @@ NZ tax pack. Draft PRs only. Nothing here publishes, sends email, or removes a S
 - Expected, an older dividend with no prefix and cash NZ$25.00: gross, credits, withholding and DRP are blank (an em dash on the page, empty CSV cells). Cash stays NZ$25.00 and is not added into gross.
 - Expected, the page says `Indicative, not tax advice.` Signed out, the page has no sample row and says no dividends are recorded until you sign in. `/tax` still says it does not yet produce tax reports until TB-2d.
 - DRP does not change the share count. That is left for Lukas.
+- Checked on this branch: `npm run check-types-errors` passed. eslint on the TB-2a source files passed. `npm test` 103 files, 502 tests passed. `npm run build` passed (Next.js 15.3.9). A local `next start` of `/tax/dividends` returned the indicative label, "No dividends recorded", and a sign-in link. It did not contain a sample amount or `[DIV:`. `/tax` still contains "does not yet produce tax reports". Nothing was published. No email was sent.
 
