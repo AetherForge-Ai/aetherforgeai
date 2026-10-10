@@ -3,8 +3,10 @@ import { getCurrentUser } from "@/lib/session";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { MarketsAppFrame } from "@/components/dashboard/MarketsAppFrame";
 import { CryptoAssetPage } from "@/components/dashboard/CryptoAssetPage";
+import { PublicCryptoPrices } from "@/components/markets/PublicCryptoPrices";
 import { resolvableCoinId } from "@/lib/crypto-market";
-import { loadCryptoQuoteLine } from "@/lib/public-market-index";
+import { formatPublicCryptoPrice } from "@/lib/crypto-price-chain";
+import { loadPublicCryptoPrint } from "@/lib/crypto-price-feed";
 
 export const dynamic = "force-dynamic";
 
@@ -32,13 +34,17 @@ export default async function CryptoDetailPage({
   const user = await getCurrentUser();
   const coinId = resolvableCoinId(id);
   const allowBuy = !!user && sp.buy === "1";
-  const quoteLine = coinId ? await loadCryptoQuoteLine(coinId) : null;
+  const print = coinId ? await loadPublicCryptoPrint(coinId) : null;
+  const quotedLine = print && print.price > 0 ? formatPublicCryptoPrice(print) : "";
 
   return (
     <MarketsAppFrame user={user}>
-      <p className="mx-auto w-full max-w-6xl px-4 pt-6 text-sm text-muted-foreground sm:px-6 lg:px-8" data-ticker-quote>
-        {quoteLine ?? `${decodeURIComponent(id)} Price not in this response.`}
-      </p>
+      <div className="mx-auto w-full max-w-6xl px-4 pt-6 sm:px-6 lg:px-8">
+        <PublicCryptoPrices
+          prints={print && print.price > 0 ? [print] : []}
+          empty={`${decodeURIComponent(id)} No earlier price is stored for this coin.`}
+        />
+      </div>
       <CryptoAssetPage
         coinId={coinId}
         unavailable={!coinId}
@@ -46,6 +52,7 @@ export default async function CryptoDetailPage({
         signedIn={!!user}
         openFromQuery={sp.buy === "1"}
         market={sp.market === "dex" ? "DEX" : "Crypto"}
+        quotedLine={quotedLine || null}
       />
     </MarketsAppFrame>
   );

@@ -7,6 +7,8 @@
  * TODO(owner): have a qualified NZ adviser check the re-issued Terms, Privacy Policy and AI Disclaimer.
  */
 
+import { swyftxPublicDisplay } from "@/lib/swyftx-display";
+
 /** pull-check:track-b-p0-2026-10-11 */
 
 /** General and customer mail. Privacy requests use PRIVACY_OFFICER_EMAIL. */
@@ -175,26 +177,40 @@ export const AI_SENT_CATEGORIES = {
   ],
 } as const satisfies Record<string, readonly string[]>;
 
-export const PROCESSORS: { name: string; role: string }[] = [
-  { name: "Cloudflare", role: "public site and network" },
-  { name: "Stripe", role: "subscription payments. We never see your card number" },
-  // Public copy does not name a model or a provider. Retention at that service is not set by this request.
-  { name: "A third-party AI service", role: "plain-English notes and assistant replies" },
-  { name: "Google Analytics", role: "which pages are used" },
-  { name: "Totalum on Google Cloud", role: "account storage" },
-  { name: "Yahoo Finance", role: "prices for NZX-listed, ASX-listed and US shares" },
-  { name: "CoinGecko", role: "crypto prices" },
-  { name: "Swyftx", role: "crypto prices when that feed answers" },
-  { name: "GeckoTerminal", role: "DEX token prices" },
-  { name: "gold-api.com", role: "gold and silver spot prices" },
-  { name: "ExchangeRate-API", role: "daily foreign-exchange rates" },
-  { name: "Frankfurter", role: "foreign-exchange rates on past trade dates" },
-];
+function marketProcessors(): { name: string; role: string }[] {
+  const rows: { name: string; role: string }[] = [{ name: "CoinGecko", role: "crypto prices" }];
+  if (swyftxPublicDisplay()) {
+    rows.push({ name: "Swyftx", role: "crypto prices when that feed is shown" });
+  }
+  rows.push(
+    { name: "Kraken", role: "crypto prices" },
+    { name: "Coinbase", role: "crypto prices" },
+    { name: "Yahoo Finance", role: "prices for NZX-listed, ASX-listed and US shares, and mapped crypto quotes" },
+    { name: "GeckoTerminal", role: "DEX token prices" }
+  );
+  return rows;
+}
+
+/** Request-time processor list. Swyftx is included only when SWYFTX_PUBLIC_DISPLAY is on. */
+export function PROCESSORS(): { name: string; role: string }[] {
+  return [
+    { name: "Cloudflare", role: "public site and network" },
+    { name: "Stripe", role: "subscription payments. We never see your card number" },
+    // Public copy does not name a model or a provider. Retention at that service is not set by this request.
+    { name: "A third-party AI service", role: "plain-English notes and assistant replies" },
+    { name: "Google Analytics", role: "which pages are used" },
+    { name: "Totalum on Google Cloud", role: "account storage" },
+    ...marketProcessors(),
+    { name: "gold-api.com", role: "gold and silver spot prices" },
+    { name: "ExchangeRate-API", role: "daily foreign-exchange rates" },
+    { name: "Frankfurter", role: "foreign-exchange rates on past trade dates" },
+  ];
+}
 
 export const FRESHNESS_PLAIN = [
   "NZX and ASX figures are delayed during the regular session, or the last close after that session ends.",
   "US share figures are the last close in New York once that session has ended.",
-  "Crypto quotes are current when the quote itself is current. If it is older, the page should show the time it was updated.",
+  "Crypto quotes are delayed or indicative. The page shows the as-of time when it has one.",
   "Foreign-exchange rates are a daily rate.",
   "Profit and loss uses the latest available price.",
 ].join(" ");

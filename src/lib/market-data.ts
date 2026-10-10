@@ -1,7 +1,7 @@
 /**
- * Live market-data provider (server-only).
+ * Market-data provider (server-only).
  *
- * When `MARKET_DATA_API_KEY` is configured, this fetches real-time quotes from a
+ * When `MARKET_DATA_API_KEY` is configured, this fetches quotes from a
  * market-data API (default: Twelve Data — supports NZX, ASX and US markets on a
  * single key). When no key is present, callers fall back to the deterministic
  * market-intel engine, so the app is fully functional with or without a key.
@@ -17,11 +17,10 @@ import {
   yahooEquitySymbol,
   yahooCryptoSymbol,
   fetchYahooQuotesBatched,
-  fetchYahooCryptoLiveQuotes,
 } from "@/lib/yahoo-finance";
 import { CRYPTO_SNAPSHOT_TTL_MS, normalizeCryptoSymbols, stampCryptoQuoteLive } from "@/lib/crypto-live";
-import { fetchGoogleCryptoQuotes, googleCryptoSymbol } from "@/lib/google-finance";
-import { fetchSpotPrices as fetchSwyftxSpot } from "@/lib/crypto-swyftx";
+import { acceptCryptoPrint, fillMissingPublicQuotes } from "@/lib/crypto-price-feed";
+import { publicSourceAllowed } from "@/lib/swyftx-display";
 import { canonicalCryptoId } from "@/lib/crypto-ids";
 import { bullionDisplayName, isBullionHolding } from "@/lib/metal-valuation";
 import { cryptoFreshnessLabel, latestQuoteTime } from "@/lib/market-freshness";
@@ -33,6 +32,10 @@ export interface LiveQuote {
   asOf?: "live" | "close";
   /** Vendor quote time. Fetch time is not stored here. */
   quotedAt?: string;
+  /** Which feed produced this print. */
+  source?: string;
+  /** True when this is the last price that passed the sanity check. */
+  stale?: boolean;
 }
 
 const PROVIDER = (process.env.MARKET_DATA_PROVIDER || "twelvedata").toLowerCase();
@@ -254,9 +257,9 @@ export async function fetchLivePrice(ticker: string): Promise<number | null> {
 /* ============================ Crypto (CoinGecko) ========================= */
 
 /**
- * CoinGecko provides real-time crypto prices with NO API KEY on the free tier,
- * so the Crypto Bot is always live. Symbol → CoinGecko id mapping for our
- * universe; unknown symbols are lower-cased as a best-effort id guess.
+ * CoinGecko prices need no API key on the demo tier. They can be delayed.
+ * Symbol → CoinGecko id mapping for our universe; unknown symbols are
+ * lower-cased as a best-effort id guess.
  */
 /** Canonical IDs live in crypto-ids.ts (including JUP → jupiter-exchange-solana). */
 function coingeckoId(ticker: string): string {
@@ -314,7 +317,8 @@ const CRYPTO_CACHE = new Map<string, LiveQuote>();
 let cryptoStamp = 0;
 
 /**
- * Fetch live crypto quotes (Swyftx → CoinGecko → Yahoo → Google). Returns a map
+ * Crypto quotes in chain order: CoinGecko, then Kraken, Coinbase, and mapped
+ * Yahoo. Swyftx is included only when SWYFTX_PUBLIC_DISPLAY is on. Returns a map
  * keyed by the ORIGINAL ticker (e.g. "BTC"). Returns {} on any error so callers
  * fall back to the last stored price.
  *
@@ -336,38 +340,26 @@ export async function fetchCryptoQuotes(
     !opts?.bypassCache &&
     CRYPTO_CACHE.size &&
     Date.now() - cryptoStamp <= TTL_MS &&
-    unique.every((t) => CRYPTO_CACHE.get(t))
+    unique.every((t) => {
+      const hit = CRYPTO_CACHE.get(t);
+      return !!hit && publicSourceAllowed(hit.source);
+    })
   ) {
     return Object.fromEntries(unique.map((t) => [t, stampCryptoQuoteLive(CRYPTO_CACHE.get(t)!)]));
   }
 
   const out: Record<string, LiveQuote> = {};
+  const origin: Record<string, string> = {};
 
-  // 1) Swyftx FIRST — the user's own exchange, authenticated with SWYFTX_API_KEY.
-  //    It's the most reliable source and, unlike keyless CoinGecko, never rate-
-  //    limits us, so the Buy/Sell price lock ALWAYS resolves to a live price.
-  try {
-    const sx = await fetchSwyftxSpot(unique);
-    for (const [t, q] of Object.entries(sx)) {
-      if (q.price > 0) out[t] = { price: q.price, changePct: q.changePct };
-    }
-    if (Object.keys(out).length) {
-      console.log(`[market-data] Swyftx priced ${Object.keys(out).length}/${unique.length} coins`);
-    }
-  } catch (err) {
-    console.error("[market-data] Swyftx crypto spot failed (falling back to CoinGecko):", err);
-  }
-
-  // An explicit CoinGecko id that misses is left unpriced. Yahoo and Google
-  // are not asked to invent a print for that name.
+  // An explicit CoinGecko id that misses is left unpriced. Later feeds are not
+  // asked to invent a print for that name.
   const strict = new Set((opts?.strictCoinGecko || []).map((t) => t.toUpperCase()));
 
-  // 2) CoinGecko — fill only the coins Swyftx could not price.
-  const cgMissing = unique.filter((t) => !out[t]);
-  if (cgMissing.length) {
+  // 1) CoinGecko for every symbol.
+  if (unique.length) {
     // idMap: coingecko id -> internal ticker
     const idMap = new Map<string, string>();
-    cgMissing.forEach((t) => idMap.set(opts?.ids?.[t] || coingeckoId(t), t));
+    unique.forEach((t) => idMap.set(opts?.ids?.[t] || coingeckoId(t), t));
     const ids = Array.from(idMap.keys()).join(",");
     try {
       const url = `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(
@@ -394,81 +386,72 @@ export async function fetchCryptoQuotes(
               changePct: isFinite(changePct) ? changePct : 0,
               ...(quotedAt ? { quotedAt } : {}),
             };
+            origin[internal] = "coingecko";
           }
         }
-        console.log(`[market-data] CoinGecko filled ${Object.keys(out).length}/${unique.length} coins (cumulative)`);
+        console.log(`[market-data] CoinGecko priced ${Object.keys(out).length}/${unique.length} coins`);
       } else {
         console.error(`[market-data] CoinGecko HTTP ${res.status} for [${ids}]`);
       }
     } catch (err) {
-      console.error("[market-data] CoinGecko crypto fetch failed (falling back to Yahoo):", err);
+      console.error("[market-data] CoinGecko crypto fetch failed:", err);
     }
   }
 
-  // 3) Yahoo fallback — fill any coin still unpriced (rate limits, or a
-  // retired/renamed coin id) so the feed stays live PER-COIN instead of only
-  // when the entire upstream call fails. This is what keeps one dead symbol
-  // from silently decaying to its stale snapshot while the rest are live.
+  // 2) Shared chain for misses: Swyftx only when the display flag is on, then
+  // Kraken, Coinbase, and Yahoo for mapped symbols.
   const missing = unique.filter((t) => !out[t] && !strict.has(t));
   if (missing.length) {
     try {
-      const map = Object.fromEntries(missing.map((t) => [t, yahooCryptoSymbol(t)]));
-      // Batched Yahoo crypto spots — not the equity spark path's "market closed" label.
-      const yq = await fetchYahooCryptoLiveQuotes(map);
-      let filled = 0;
-      for (const [t, q] of Object.entries(yq)) {
+      const filled = await fillMissingPublicQuotes(missing);
+      for (const [t, print] of Object.entries(filled)) {
+        if (!print || !(print.price > 0) || !publicSourceAllowed(print.source)) continue;
         out[t] = {
-          price: q.price,
-          changePct: q.changePct,
-          asOf: "live",
-          ...(q.quotedAt ? { quotedAt: q.quotedAt } : {}),
+          price: print.price,
+          changePct: print.changePct ?? 0,
+          ...(print.quotedAt ? { quotedAt: print.quotedAt } : {}),
+          source: print.source,
         };
-        filled++;
-      }
-      if (filled) {
-        Object.entries(out).forEach(([t, v]) => CRYPTO_CACHE.set(t, v));
-        cryptoStamp = Date.now();
-        console.log(`[market-data] Yahoo crypto fallback filled ${filled}/${missing.length} coins`);
+        origin[t] = print.source;
       }
     } catch (err) {
-      console.error("[market-data] Yahoo crypto fallback failed:", err);
-    }
-  }
-
-  // Google Finance fallback — LAST RESORT. If a coin is STILL unpriced after
-  // both CoinGecko and Yahoo (rate limits, a retired/renamed id, an outage),
-  // scrape its Google Finance quote page: Google always surfaces a current live
-  // crypto price, so nothing is left on its stale synthetic seed.
-  const stillMissing = unique.filter((t) => !out[t] && !strict.has(t));
-  if (stillMissing.length) {
-    try {
-      const map = Object.fromEntries(stillMissing.map((t) => [t, googleCryptoSymbol(t)]));
-      const gq = await fetchGoogleCryptoQuotes(map);
-      let filled = 0;
-      for (const [t, q] of Object.entries(gq)) {
-        out[t] = { price: q.price, changePct: q.changePct, asOf: "live" };
-        filled++;
-      }
-      if (filled) {
-        Object.entries(out).forEach(([t, v]) => CRYPTO_CACHE.set(t, v));
-        cryptoStamp = Date.now();
-        console.log(`[market-data] Google Finance crypto fallback filled ${filled}/${stillMissing.length} coins`);
-      }
-    } catch (err) {
-      console.error("[market-data] Google Finance crypto fallback failed:", err);
+      console.error("[market-data] crypto chain fill failed:", err);
     }
   }
 
   await fillMissingCryptoQuoteTimes(out, opts?.ids);
 
-  // Persist whatever we resolved (covers the common Swyftx-only path, which no
-  // fallback stage touches) so repeat lookups within the TTL are instant.
-  // Every crypto print is live — never an equity "at close" flag.
-  if (Object.keys(out).length) {
-    Object.entries(out).forEach(([t, v]) => CRYPTO_CACHE.set(t, stampCryptoQuoteLive(v)));
+  // Drop a print that fails the sanity check. Do not replace it with zero.
+  const settled: Record<string, LiveQuote> = {};
+  for (const [t, candidate] of Object.entries(out)) {
+    if (!candidate || !(candidate.price > 0)) continue;
+    const source = origin[t] || candidate.source || "coingecko";
+    if (!publicSourceAllowed(source)) continue;
+    const accepted = acceptCryptoPrint(
+      t,
+      {
+        price: candidate.price,
+        changePct: candidate.changePct,
+        quotedAt: candidate.quotedAt,
+        source,
+      },
+      [],
+      source
+    );
+    if (!accepted || !(accepted.price > 0)) continue;
+    settled[t] = stampCryptoQuoteLive({
+      price: accepted.price,
+      changePct: accepted.changePct ?? 0,
+      ...(accepted.quotedAt ? { quotedAt: accepted.quotedAt } : {}),
+      source: accepted.source,
+      stale: false,
+    });
+  }
+  if (Object.keys(settled).length) {
+    Object.entries(settled).forEach(([t, v]) => CRYPTO_CACHE.set(t, v));
     cryptoStamp = Date.now();
   }
-  return Object.fromEntries(Object.entries(out).map(([t, v]) => [t, stampCryptoQuoteLive(v)]));
+  return settled;
 }
 
 /* Shared 24/7 snapshot — holdings page, alerts, and /api/stocks/refresh. */
@@ -484,8 +467,8 @@ let cryptoSnapInflightKey = "";
 /**
  * One cached crypto spot snapshot for every caller in this process. A fresh
  * snapshot that already covers the requested symbols is reused so the holdings
- * poll, alert evaluation, and the book refresh do not each hit Swyftx/CoinGecko.
- * Quotes are always `asOf: "live"` — cash-session state is not consulted.
+ * poll, alert evaluation, and the book refresh do not each hit the price feeds.
+ * Quotes stay on the 24/7 path and are not labelled as a cash-session close.
  */
 function cryptoSnapshotStamp(quotes: Record<string, LiveQuote>, symbols: string[]) {
   const updated = latestQuoteTime(symbols.map((t) => quotes[t]?.quotedAt));
@@ -537,8 +520,8 @@ export async function fetchCryptoLiveSnapshot(tickers: string[]): Promise<{
 }
 
 /**
- * Unified live-quote fetch by asset class. Stocks use Twelve Data (needs a key);
- * crypto uses CoinGecko (no key). Both fall back gracefully to `{}`.
+ * Unified quote fetch by asset class. Stocks use Twelve Data when a key is set;
+ * crypto uses the public price chain. Both fall back gracefully to `{}`.
  */
 export async function fetchQuotesForAssetClass(
   tickers: string[],

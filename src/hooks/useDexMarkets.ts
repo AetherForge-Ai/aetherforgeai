@@ -1,9 +1,8 @@
 "use client";
 
 /**
- * Shared client cache for the GeckoTerminal top-400 DEX list.
- * Same stale-while-revalidate shape as the coin list: one in-flight request,
- * and a short poll while the server is still filling toward 400.
+ * Shared client cache for the GeckoTerminal DEX list (up to 400).
+ * One in-flight request. The poll matches the 60 second server backoff.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -11,7 +10,7 @@ import { api } from "@/lib/api";
 import { clientFacingError } from "@/lib/api-json";
 import type { DexTokenRow } from "@/lib/crypto-dex";
 
-const TTL_MS = 20_000;
+const TTL_MS = 60_000;
 
 interface Store {
   rows: DexTokenRow[];

@@ -3,7 +3,7 @@ import { EmailAddress } from "@/components/EmailAddress";
 import { CUSTOMER_EMAIL, PRIVACY_OFFICER_EMAIL, PUBLIC_PHONE_DISPLAY, PUBLIC_PHONE_TEL } from "@/lib/public-copy";
 import { LEGAL_ENTITY_NAME } from "@/lib/company";
 import { publicPageMetadata } from "@/lib/reviewed-book";
-import { PUBLIC_DATA_SOURCES_LINE } from "@/lib/data-sources";
+import { publicDataSourcesLine } from "@/lib/data-sources";
 import {
   LEDGER_EXPORT_LINE,
   LEGAL_UPDATED,
@@ -146,7 +146,7 @@ export default function TermsOfService() {
           the Service is provided on an &quot;as is&quot; and &quot;as available&quot; basis. We do not
           warrant that the Service, its AI-generated analysis, or any market data will be accurate,
           complete, uninterrupted, error-free or fit for any particular investment purpose. Market data
-          may be delayed. {PUBLIC_DATA_SOURCES_LINE} You are solely responsible for any decisions you make.
+          may be delayed. {publicDataSourcesLine()} You are solely responsible for any decisions you make.
         </p>
       </LegalSection>
 

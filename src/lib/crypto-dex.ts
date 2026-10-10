@@ -1,9 +1,12 @@
 /**
  * Pure parser for CoinGecko on-chain pool pages.
  * A missing price stays null. Nothing here invents a print.
+ *
+ * pull-check:crypto-dex-400-2026-10-11
  */
 
 import { resolvableCoinId, type CoinMarket } from "@/lib/crypto-market";
+import { CRYPTO_SANITY_RATIO } from "@/lib/crypto-tape";
 
 export interface DexTokenRow {
   id: string;
@@ -18,6 +21,8 @@ export interface DexTokenRow {
   detailId: string | null;
   /** GeckoTerminal base-token id (network plus address). Dedupe key when present. */
   address?: string;
+  /** Pool reserve in USD. Missing means the row has not cleared a liquidity floor. */
+  reserveUsd?: number | null;
 }
 
 interface IncludedToken {
@@ -134,6 +139,7 @@ export function parseMegafilterPage(payload: unknown, fallbackNetwork = ""): Dex
     const price = num(attrs.base_token_price_usd);
     const live = price != null && price > 0 ? price : null;
     const volume = num(asRecord(attrs.volume_usd)?.h24);
+    const reserve = num(attrs.reserve_in_usd);
     const dexId = relId(pool, "dex");
     const address = relId(pool, "base_token");
     rows.push({
@@ -147,6 +153,7 @@ export function parseMegafilterPage(payload: unknown, fallbackNetwork = ""): Dex
       dex: dexNames.get(dexId) || dexId || "",
       detailId: token?.detailId ?? null,
       address,
+      reserveUsd: reserve != null && reserve > 0 ? reserve : null,
     });
   }
   return rows;
@@ -168,12 +175,41 @@ function dexHasLivePrice(row: DexTokenRow): boolean {
   return !row.priceUnavailable && row.price != null && row.price > 0;
 }
 
-/** Highest 24h volume wins. A live price beats a row with no print. */
+export function dexReserveUsd(row: DexTokenRow): number {
+  return row.reserveUsd != null && row.reserveUsd > 0 ? row.reserveUsd : 0;
+}
+
+/** True when two positive prints stay within CRYPTO_SANITY_RATIO. */
+export function dexPricesAgree(a: number, b: number, ratio = CRYPTO_SANITY_RATIO): boolean {
+  if (!(a > 0) || !(b > 0) || !Number.isFinite(a) || !Number.isFinite(b)) return false;
+  const span = a > b ? a / b : b / a;
+  return span <= ratio;
+}
+
+/** Pool reserve, in USD, required before a token is listed. Dust pools are left out. */
+export const DEX_LIQUIDITY_FLOOR_USD = 10_000;
+
+/** A published DEX row needs a live price and a reserve at or above the floor. */
+export function dexRowClearsFloor(row: DexTokenRow, floor = DEX_LIQUIDITY_FLOOR_USD): boolean {
+  return dexHasLivePrice(row) && dexReserveUsd(row) >= floor;
+}
+
+/** Highest 24h volume wins. A live price beats a row with no print. A 3× price split keeps the deeper reserve. */
 function preferDexRow(prev: DexTokenRow, next: DexTokenRow): DexTokenRow {
   const prevLive = dexHasLivePrice(prev);
   const nextLive = dexHasLivePrice(next);
-  const chosen =
-    prevLive !== nextLive ? (nextLive ? next : prev) : dexVolume(next) > dexVolume(prev) ? next : prev;
+  const disagree = prevLive && nextLive && !dexPricesAgree(prev.price as number, next.price as number);
+  const chosen = disagree
+    ? dexReserveUsd(next) > dexReserveUsd(prev)
+      ? next
+      : prev
+    : prevLive !== nextLive
+      ? nextLive
+        ? next
+        : prev
+      : dexVolume(next) > dexVolume(prev)
+        ? next
+        : prev;
   const detailId = chosen.detailId || prev.detailId || next.detailId || null;
   const address = chosen.address || prev.address || next.address;
   if (detailId === chosen.detailId && address === chosen.address) return chosen;
@@ -244,14 +280,18 @@ export const DEX_STALE_MS = 30 * 60 * 1000;
 export const DEX_TARGET_COUNT = 400;
 export const DEX_FURTHER_NOTICE = "Further rows are still loading.";
 export const DEX_EMPTY_NOTICE =
-  "GeckoTerminal did not return a token price (rate limit or the feed did not answer). This list is 0, not 400.";
-/** GeckoTerminal returns 20 pools per page. 400 unique tokens need 20 or more pages. */
+  "Showing 0 of up to 400. GeckoTerminal did not return a token price (rate limit or the feed did not answer).";
+/** GeckoTerminal returns 20 pools per page. The public API rejects page 11 and above. */
 export const DEX_POOLS_PER_PAGE = 20;
-export const DEX_PAGE_CAP = 20;
+export const DEX_PAGE_CAP = 10;
+/** Global trending list. It is not a network id on `/networks/{id}/pools`. */
+export const DEX_TRENDING = "trending";
 /** Parallel page fetches on a cold tab. High enough to cover several networks, low enough to avoid a burst of 429s. */
 export const DEX_FILL_CONCURRENCY = 5;
 /** Cold DEX tab budget. The response returns whatever arrived inside this window. */
 export const DEX_COLD_BUDGET_MS = 2_700;
+/** Wait after a 429, a miss, or a follow-up batch. Stays under the public 30 calls a minute. */
+export const DEX_BACKOFF_MS = 60_000;
 
 /** Liquid public networks. Ids match GeckoTerminal `/networks`. */
 export const DEX_NETWORKS = [
@@ -291,6 +331,7 @@ export function dexSlotKey(network: string, page: number): string {
 export function dexTargets(pageCap = DEX_PAGE_CAP): { network: string; page: number }[] {
   const targets: { network: string; page: number }[] = [];
   for (let page = 1; page <= pageCap; page++) {
+    targets.push({ network: DEX_TRENDING, page });
     for (const network of DEX_NETWORKS) targets.push({ network, page });
   }
   return targets;
@@ -307,7 +348,7 @@ export function freshDexRows(pages: DexStoredPage[], now: number, staleMs = DEX_
   for (const target of dexTargets()) {
     const slot = byKey.get(dexSlotKey(target.network, target.page));
     if (!slot || !isDexPageFresh(slot.fetchedAt, now, staleMs)) continue;
-    collected.push(...slot.rows);
+    collected.push(...slot.rows.filter((row) => dexRowClearsFloor(row)));
   }
   return dedupeDexTokens(collected, DEX_TARGET_COUNT);
 }
@@ -319,8 +360,9 @@ export function freshDexRows(pages: DexStoredPage[], now: number, staleMs = DEX_
 export function dexListNotice(rowCount: number, stalled = false): string | null {
   if (rowCount >= DEX_TARGET_COUNT) return null;
   if (rowCount <= 0) return DEX_EMPTY_NOTICE;
-  if (stalled) return `GeckoTerminal returned ${rowCount} tokens, not 400. The rate limit stopped the list.`;
-  return `GeckoTerminal returned ${rowCount} tokens, not 400. ${DEX_FURTHER_NOTICE}`;
+  const lead = `Showing ${rowCount} of up to 400.`;
+  if (stalled) return `${lead} The rate limit stopped the list.`;
+  return `${lead} ${DEX_FURTHER_NOTICE}`;
 }
 
 /**

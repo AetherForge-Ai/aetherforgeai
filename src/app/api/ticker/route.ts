@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { PUBLIC_CRYPTO_SOURCE, PUBLIC_EQUITY_SOURCE } from "@/lib/data-sources";
+import { PUBLIC_EQUITY_SOURCE, publicCryptoSourcesLabel } from "@/lib/data-sources";
 import { loadPublicTicker } from "@/lib/public-ticker";
 
 export const dynamic = "force-dynamic";
@@ -25,7 +25,7 @@ export async function GET() {
         ...feed,
         sources: {
           equities: PUBLIC_EQUITY_SOURCE,
-          crypto: PUBLIC_CRYPTO_SOURCE,
+          crypto: publicCryptoSourcesLabel(),
           nzx: "https://www.nzx.com/markets/NZSX",
           asx: "https://www.asx.com.au/markets/company/TLX",
           cryptoVenue: "https://www.coingecko.com/",

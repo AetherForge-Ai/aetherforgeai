@@ -1,7 +1,10 @@
 import "server-only";
 
 import { fetchDexTop400 } from "@/lib/crypto-coingecko";
-import { getCoinDetail, loadTop400Markets } from "@/lib/crypto-source";
+import { choosePublicPriceTab, formatPublicCryptoPrice, sourceLabel } from "@/lib/crypto-price-chain";
+import { publicSourceAllowed } from "@/lib/swyftx-display";
+import { loadPublicCryptoPrint, noteListedPrices, recallPublicTab, rememberPublicTab } from "@/lib/crypto-price-feed";
+import { loadTop400Markets } from "@/lib/crypto-source";
 import { formatDisplayDateTime, formatSignedPercent, formatUnitPrice } from "@/lib/currency";
 import { MARKET_INDEX_PAGE, type PublicMarketIndex, type PublicPriceRow, type PublicPriceTab } from "@/lib/public-market-types";
 import { boardCoverage, pageListings } from "@/lib/stock-catalog";
@@ -25,6 +28,12 @@ const BOARD_TITLE: Record<StockBoard, string> = {
   NASDAQ: "NASDAQ",
   NYSE: "NYSE",
 };
+
+function shownSource(source: string | undefined, fallback: string): string {
+  const id = (source || fallback).trim().toLowerCase();
+  if (!id || !publicSourceAllowed(id)) return "public market data";
+  return sourceLabel(id);
+}
 
 function asOfLabel(iso: string | null): string {
   if (!iso) return "as of not stated by the vendor";
@@ -86,41 +95,91 @@ async function loadEquityTab(board: StockBoard): Promise<PublicPriceTab> {
 }
 
 async function loadCryptoTab(): Promise<PublicPriceTab> {
-  const page = await loadTop400Markets();
-  const coins = page.coins.filter((coin) => coin.price > 0).slice(0, COIN_PAGE);
-  const rows = coins.map((coin) => ({
-    symbol: coin.symbol,
-    name: coin.name,
-    price: formatUnitPrice(coin.price, "USD"),
-    change: formatSignedPercent(coin.change24h),
-    href: `/markets/crypto/${encodeURIComponent(coin.id)}`,
-  }));
-  return {
-    id: "CRYPTO",
-    title: "Crypto",
-    asOf: asOfLabel(latestIso(coins.map((coin) => coin.quotedAt))),
-    rows,
-  };
+  try {
+    const page = await loadTop400Markets();
+    const coins = page.coins.filter((coin) => coin.price > 0).slice(0, COIN_PAGE);
+    const quotedAt = latestIso(coins.map((coin) => coin.quotedAt)) || new Date().toISOString();
+    noteListedPrices(
+      coins.map((coin) => ({
+        symbol: coin.symbol,
+        id: coin.id,
+        price: coin.price,
+        changePct: coin.change24h,
+        quotedAt: coin.quotedAt || quotedAt,
+        source: coin.source || "coingecko",
+      }))
+    );
+    const rows = coins.map((coin) => ({
+      symbol: coin.symbol,
+      name: coin.name,
+      price: formatUnitPrice(coin.price, "USD"),
+      change: formatSignedPercent(coin.change24h),
+      href: `/markets/crypto/${encodeURIComponent(coin.id)}`,
+      usd: coin.price,
+      changePct: coin.change24h,
+      quoteId: coin.id,
+      source: shownSource(coin.source, "coingecko"),
+      asOf: asOfLabel(coin.quotedAt || quotedAt),
+    }));
+    const tab = {
+      id: "CRYPTO",
+      title: "Crypto",
+      asOf: asOfLabel(latestIso(coins.map((coin) => coin.quotedAt))),
+      rows,
+    };
+    if (rows.length) rememberPublicTab(tab);
+    return choosePublicPriceTab(tab, recallPublicTab("CRYPTO"));
+  } catch (err) {
+    console.error("[public-market] crypto tab failed:", err instanceof Error ? err.message.slice(0, 160) : "failed");
+    return choosePublicPriceTab(
+      { id: "CRYPTO", title: "Crypto", asOf: "as of not stated by the vendor", rows: [] },
+      recallPublicTab("CRYPTO")
+    );
+  }
 }
 
 async function loadDexTab(): Promise<PublicPriceTab> {
-  const page = await fetchDexTop400();
-  const rows = page.rows
-    .filter((row) => typeof row.price === "number" && row.price > 0 && row.detailId)
-    .slice(0, COIN_PAGE)
-    .map((row) => ({
+  try {
+    const page = await fetchDexTop400();
+    const priced = page.rows
+      .filter((row) => typeof row.price === "number" && row.price > 0 && row.detailId)
+      .slice(0, COIN_PAGE);
+    const quotedAt = new Date().toISOString();
+    noteListedPrices(
+      priced.map((row) => ({
+        symbol: row.symbol,
+        id: row.detailId,
+        price: row.price as number,
+        quotedAt,
+        source: "geckoterminal",
+      }))
+    );
+    const rows = priced.map((row) => ({
       symbol: row.symbol,
       name: row.name,
       price: formatUnitPrice(row.price as number, "USD"),
       change: "change not stated",
       href: `/markets/crypto/${encodeURIComponent(row.detailId as string)}`,
+      usd: row.price as number,
+      quoteId: row.detailId as string,
+      source: shownSource("geckoterminal", "geckoterminal"),
+      asOf: asOfLabel(quotedAt),
     }));
-  return {
-    id: "DEX",
-    title: "DEX",
-    asOf: "as of not stated by the vendor",
-    rows,
-  };
+    const tab = {
+      id: "DEX",
+      title: "DEX",
+      asOf: "as of not stated by the vendor",
+      rows,
+    };
+    if (rows.length) rememberPublicTab(tab);
+    return choosePublicPriceTab(tab, recallPublicTab("DEX"));
+  } catch (err) {
+    console.error("[public-market] DEX tab failed:", err instanceof Error ? err.message.slice(0, 160) : "failed");
+    return choosePublicPriceTab(
+      { id: "DEX", title: "DEX", asOf: "as of not stated by the vendor", rows: [] },
+      recallPublicTab("DEX")
+    );
+  }
 }
 
 function equityFallback(id: StockBoard): PublicPriceTab {
@@ -161,18 +220,22 @@ async function buildIndex(): Promise<PublicMarketIndex> {
     within(loadEquityTab("DOW"), equityFallback("DOW"), EQUITY_BUDGET_MS),
     within(loadEquityTab("NASDAQ"), equityFallback("NASDAQ"), EQUITY_BUDGET_MS),
     within(loadEquityTab("NYSE"), equityFallback("NYSE"), EQUITY_BUDGET_MS),
-    within(loadCryptoTab(), { id: "CRYPTO", title: "Crypto", asOf: "as of not stated by the vendor", rows: [] }, ALT_BUDGET_MS).catch(() => ({
-      id: "CRYPTO",
-      title: "Crypto",
-      asOf: "as of not stated by the vendor",
-      rows: [] as PublicPriceRow[],
-    })),
-    within(loadDexTab(), { id: "DEX", title: "DEX", asOf: "as of not stated by the vendor", rows: [] }, ALT_BUDGET_MS).catch(() => ({
-      id: "DEX",
-      title: "DEX",
-      asOf: "as of not stated by the vendor",
-      rows: [] as PublicPriceRow[],
-    })),
+    within(loadCryptoTab(), { id: "CRYPTO", title: "Crypto", asOf: "as of not stated by the vendor", rows: [] }, ALT_BUDGET_MS)
+      .catch(() => ({
+        id: "CRYPTO",
+        title: "Crypto",
+        asOf: "as of not stated by the vendor",
+        rows: [] as PublicPriceRow[],
+      }))
+      .then((tab) => choosePublicPriceTab(tab, recallPublicTab("CRYPTO"))),
+    within(loadDexTab(), { id: "DEX", title: "DEX", asOf: "as of not stated by the vendor", rows: [] }, ALT_BUDGET_MS)
+      .catch(() => ({
+        id: "DEX",
+        title: "DEX",
+        asOf: "as of not stated by the vendor",
+        rows: [] as PublicPriceRow[],
+      }))
+      .then((tab) => choosePublicPriceTab(tab, recallPublicTab("DEX"))),
   ]);
   const tabs = [nzx, asx, dow, nasdaq, nyse, crypto, dex];
   return {
@@ -257,14 +320,9 @@ export async function loadStockQuoteLine(ticker: string): Promise<string | null>
   return value;
 }
 
-/** One crypto ticker page. Null when no source returns a price. */
+/** One crypto ticker page. The last good price is labelled when every source fails. */
 export async function loadCryptoQuoteLine(id: string): Promise<string | null> {
-  try {
-    const detail = await within<Awaited<ReturnType<typeof getCoinDetail>> | null>(getCoinDetail(id), null, 3000);
-    if (!detail || !(detail.price > 0)) return null;
-    const change = detail.change24h == null ? "change not stated" : formatSignedPercent(detail.change24h);
-    return `${detail.symbol} ${formatUnitPrice(detail.price, "USD")} ${change} as of not stated by the vendor`;
-  } catch {
-    return null;
-  }
+  const print = await loadPublicCryptoPrint(id);
+  if (!print || !(print.price > 0)) return null;
+  return formatPublicCryptoPrice(print) || null;
 }
