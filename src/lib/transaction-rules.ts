@@ -24,7 +24,27 @@ export interface RecordCheck {
   needsCash: boolean;
 }
 
-export function transactionProblems(input: RecordCheck): string[] {
+/** A typed trade number. "abc" is not a number. "-5" is a number. */
+export function parseTradeNumber(raw: string): { ok: true; value: number } | { ok: false } {
+  const text = raw.trim();
+  if (!/^[+-]?(?:\d+\.?\d*|\.\d+)$/.test(text)) return { ok: false };
+  const value = Number(text);
+  if (!Number.isFinite(value)) return { ok: false };
+  return { ok: true, value };
+}
+
+function positiveNumberProblem(raw: string | undefined, numeric: number, zeroMessage: string): string | null {
+  if (raw != null && raw.trim() !== "") {
+    const parsed = parseTradeNumber(raw);
+    if (!parsed.ok) return "Enter a number.";
+    if (!(parsed.value > 0)) return zeroMessage;
+    return null;
+  }
+  if (!(numeric > 0)) return zeroMessage;
+  return null;
+}
+
+export function transactionProblems(input: RecordCheck & { quantityRaw?: string; priceRaw?: string }): string[] {
   const problems: string[] = [];
   if (!input.date) problems.push("Choose a date.");
   else if (input.date > input.today) problems.push("The date can't be in the future.");
@@ -36,14 +56,20 @@ export function transactionProblems(input: RecordCheck): string[] {
       input.type === "dividend" ? "Choose the holding this dividend belongs to." : "Choose an asset."
     );
   }
-  if ((traded || (input.type === "opening_balance" && input.hasAsset)) && !(input.quantity > 0)) {
-    problems.push("Quantity must be greater than zero.");
+  const needsQuantity = traded || (input.type === "opening_balance" && input.hasAsset);
+  if (needsQuantity) {
+    const quantityProblem = positiveNumberProblem(input.quantityRaw, input.quantity, "Quantity must be greater than zero.");
+    if (quantityProblem) problems.push(quantityProblem);
   }
-  if ((traded || (input.type === "opening_balance" && input.hasAsset)) && !(input.price > 0)) {
-    problems.push("Price must be greater than zero.");
+  if (traded || (input.type === "opening_balance" && input.hasAsset)) {
+    const priceProblem = positiveNumberProblem(input.priceRaw, input.price, "Price must be greater than zero.");
+    if (priceProblem) problems.push(priceProblem);
   }
   const cashAmount = input.type === "deposit" || input.type === "withdraw" || input.type === "tax" || input.type === "dividend" || (input.type === "opening_balance" && !input.hasAsset);
-  if (cashAmount && !(input.price > 0)) problems.push("Amount must be greater than zero.");
+  if (cashAmount) {
+    const amountProblem = positiveNumberProblem(input.priceRaw, input.price, "Amount must be greater than zero.");
+    if (amountProblem) problems.push(amountProblem);
+  }
 
   if (input.type === "sell") {
     if (!(input.held > 0)) problems.push("You don't hold this asset, so it can't be sold.");
@@ -58,8 +84,10 @@ export function transactionProblems(input: RecordCheck): string[] {
   }
 
   if (input.type === "correction") {
-    if (!(input.quantity > 0)) problems.push("Quantity must be greater than zero.");
-    if (!(input.price > 0)) problems.push("Price must be greater than zero.");
+    const quantityProblem = positiveNumberProblem(input.quantityRaw, input.quantity, "Quantity must be greater than zero.");
+    if (quantityProblem) problems.push(quantityProblem);
+    const priceProblem = positiveNumberProblem(input.priceRaw, input.price, "Price must be greater than zero.");
+    if (priceProblem) problems.push(priceProblem);
     if (!(input.held > 0)) {
       problems.push("A correction can only be recorded from Holding Edit on a holding you own.");
     }
@@ -108,4 +136,12 @@ export function movementCivilDay(raw: string | undefined | null, today: string):
     month: "2-digit",
     day: "2-digit",
   }).format(parsed);
+}
+
+/** Keep the earlier civil day when a later buy is merged into an existing lot. */
+export function earlierCivilDay(existing: string | null | undefined, incoming: string): string {
+  const incomingDay = movementCivilDay(incoming, incoming.slice(0, 10) || "1970-01-01");
+  if (!existing) return incomingDay;
+  const prior = movementCivilDay(existing, incomingDay);
+  return prior <= incomingDay ? prior : incomingDay;
 }

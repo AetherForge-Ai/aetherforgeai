@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
 import { ADVISORY_NOTE } from "@/lib/fill-integrity-client";
 import { formatDisplayDate, formatMoney, formatSavedFx, formatSignedMoney, formatUnitPrice, currencyForTicker, type CurrencyCode } from "@/lib/currency";
+import { distributionLabel } from "@/lib/income-label";
 import { aucklandYmd } from "@/lib/entitlements";
 import { useFxRates } from "@/hooks/useFxRates";
 import { buildTradePreview, type TradePreview } from "@/lib/trade-preview";
@@ -219,6 +220,11 @@ function CashCard({
   );
 }
 
+function rowTypeLabel(row: { type: TxType; asset_type?: string }): string {
+  if (row.type === "dividend") return distributionLabel(row.asset_type);
+  return TYPE_META[row.type].label;
+}
+
 function CashLineSection({
   title,
   empty,
@@ -241,6 +247,9 @@ function CashLineSection({
               <li key={row._id} className="flex items-baseline justify-between gap-3 text-sm">
                 <span className="min-w-0">
                   <span className="font-medium">{row.asset_name || title}</span>
+                  <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                    {distributionLabel(row.asset_type)} · {formatDisplayDate(row.executed_at || row.createdAt)}
+                  </span>
                   {row.notes ? <span className="mt-0.5 block truncate text-xs text-muted-foreground">{row.notes}</span> : null}
                 </span>
                 <span className={cn("tnum shrink-0 font-semibold", amount >= 0 ? "text-emerald-600" : "text-rose-600")}>
@@ -612,7 +621,7 @@ export function TransactionCenter({
                             meta.cls
                           )}
                         >
-                          <Icon className="size-3" /> {meta.label}
+                          <Icon className="size-3" /> {rowTypeLabel(t)}
                         </span>
                       </td>
                       <td className="px-4 py-2.5">
@@ -667,8 +676,8 @@ export function TransactionCenter({
         {layout === "ledger" && (
           <div className="mt-6 grid gap-4 lg:grid-cols-2">
             <CashLineSection
-              title="Dividends"
-              empty="No dividends recorded."
+              title="Dividends and income"
+              empty="No dividends or income recorded."
               rows={(ledger?.transactions ?? []).filter((row) => row.type === "dividend")}
             />
             <CashLineSection
@@ -938,7 +947,7 @@ function AllTransactionsDialog({
                             meta.cls
                           )}
                         >
-                          <Icon className="size-3" /> {meta.label}
+                          <Icon className="size-3" /> {rowTypeLabel(t)}
                         </span>
                       </td>
                       <td className="py-3 pr-3">
