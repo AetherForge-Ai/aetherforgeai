@@ -6,7 +6,8 @@
 
 import "server-only";
 import type { CoinMarket, CoinDetail, CoinChart } from "@/lib/crypto-market";
-import { CANONICAL_CRYPTO_IDS, CRYPTO_DISPLAY_NAMES, normalizeCryptoTicker } from "@/lib/crypto-ids";
+import { CANONICAL_CRYPTO_IDS, normalizeCryptoTicker } from "@/lib/crypto-ids";
+import { coinDisplayName } from "@/lib/crypto-names";
 import { yahooSymbolFor } from "@/lib/crypto-vendors";
 import { coinLogo, sevenDayReturnPct } from "@/lib/crypto-market";
 
@@ -93,7 +94,7 @@ export async function fetchYahooMajorMarkets(): Promise<CoinMarket[]> {
       out.push({
         id: code.toLowerCase(),
         symbol: code,
-        name: CRYPTO_DISPLAY_NAMES[code] || code,
+        name: coinDisplayName(code),
         image: coinLogo(code),
         rank: idx + 1,
         price: q.price,
@@ -129,7 +130,7 @@ export async function fetchYahooCoinDetail(idOrTicker: string): Promise<CoinDeta
   return {
     id: ticker.toLowerCase(),
     symbol: ticker,
-    name: CRYPTO_DISPLAY_NAMES[ticker] || ticker,
+    name: coinDisplayName(ticker),
     image: coinLogo(ticker),
     rank: null,
     price: q.price,
@@ -152,7 +153,7 @@ export async function fetchYahooCoinDetail(idOrTicker: string): Promise<CoinDeta
     atl: null,
     atlDate: null,
     atlChangePct: null,
-    description: `${CRYPTO_DISPLAY_NAMES[ticker] || ticker} live USD quote via Yahoo Finance fallback (Swyftx/CoinGecko unavailable).`,
+    description: `${coinDisplayName(ticker)} live USD quote via Yahoo Finance fallback (Swyftx/CoinGecko unavailable).`,
     categories: ["Cryptocurrency"],
     homepage: null,
     explorer: null,

@@ -6,6 +6,8 @@ import { tickerLiveLabel } from "@/lib/ticker-feed";
 import { PUBLIC_PRICE_QUIET } from "@/lib/data-sources";
 import { cn } from "@/lib/utils";
 import { formatMoney } from "@/lib/currency";
+import { formatTapeItem, fxRateLine, type TapeDisplay } from "@/lib/tape-display";
+import { useFxRates } from "@/hooks/useFxRates";
 import { cryptoFreshnessLabel, exchangeFreshnessLabel, latestQuoteTime, metalUpdatedPhrase } from "@/lib/market-freshness";
 
 /**
@@ -31,10 +33,8 @@ const VENUES = {
   crypto: "https://www.coingecko.com/",
 };
 
-function formatPrice(q: Quote): string {
-  if (q.price >= 1000) return q.price.toLocaleString("en-NZ", { maximumFractionDigits: 0 });
-  if (q.price >= 1) return q.price.toFixed(2);
-  return q.price.toFixed(q.price < 0.1 ? 4 : 3);
+function formatPrice(q: Quote, display: TapeDisplay, rates: { USD: number; AUD: number; NZD: number }): string {
+  return formatTapeItem(q, display, rates);
 }
 
 function formatAsOf(iso: string | null | undefined): string {
@@ -50,14 +50,14 @@ function formatAsOf(iso: string | null | undefined): string {
   });
 }
 
-function TickerCell({ q }: { q: Quote }) {
+function TickerCell({ q, price }: { q: Quote; price: string }) {
   const up = q.change >= 0;
   return (
     <span className="inline-flex items-center gap-2 px-4 py-0.5 whitespace-nowrap">
       <span className="font-display text-[0.78rem] font-semibold tracking-tight text-emerald-300">
         {q.symbol}
       </span>
-      <span className="tnum text-[0.78rem] text-zinc-100">{formatPrice(q)}</span>
+      <span className="tnum text-[0.78rem] text-zinc-100">{price}</span>
       <span
         className={cn(
           "tnum inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[0.7rem] font-semibold",
@@ -78,12 +78,14 @@ function TickerRow({
   label,
   live,
   status,
+  priceFor,
 }: {
   quotes: Quote[];
   animationClass: string;
   label: string;
   live: boolean;
   status?: string;
+  priceFor: (q: Quote) => string;
 }) {
   const doubled = [...quotes, ...quotes];
   return (
@@ -104,7 +106,7 @@ function TickerRow({
         {quotes.length ? (
           <div className={cn("ticker-row flex w-max items-center", animationClass)}>
             {doubled.map((q, i) => (
-              <TickerCell key={`${q.symbol}-${i}`} q={q} />
+              <TickerCell key={`${q.symbol}-${i}`} q={q} price={priceFor(q)} />
             ))}
           </div>
         ) : (
@@ -237,6 +239,11 @@ export function MarketTicker({ className, compact = false, initial = null }: Mar
   });
   const [asOf, setAsOf] = useState<string | null>(initial?.asOf ?? null);
   const [loaded, setLoaded] = useState(hasTape(initial));
+  const [showNzd, setShowNzd] = useState(false);
+  const fx = useFxRates();
+  const fxReady = fx.ready && !!fx.asOf;
+  const display: TapeDisplay = showNzd && fxReady ? "NZD" : "native";
+  const priceFor = (q: Quote) => formatPrice(q, display, fx.rates);
 
   useEffect(() => {
     let active = true;
@@ -303,21 +310,35 @@ export function MarketTicker({ className, compact = false, initial = null }: Mar
           label="Markets"
           live={false}
           status={nzxStatus}
+          priceFor={priceFor}
         />
+        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-zinc-950 px-3 py-1 text-[0.6rem] text-muted-foreground">
+          <button
+            type="button"
+            className="rounded border border-emerald-500/30 px-2 py-0.5 font-semibold text-emerald-200 disabled:opacity-50"
+            disabled={!fxReady}
+            aria-pressed={display === "NZD"}
+            onClick={() => setShowNzd((on) => !on)}
+          >
+            {display === "NZD" ? "Showing NZ$" : "Show NZ$"}
+          </button>
+          <span>{fxReady ? fxRateLine(fx.rates) : "NZ$ prices appear when today's exchange rate loads."}</span>
+        </div>
       </div>
     );
   }
 
   return (
     <div className={cn("w-full", className)}>
-      <TickerRow quotes={nzx} animationClass="animate-ticker" label="NZX 50" live={false} status={nzxStatus} />
-      <TickerRow quotes={asx} animationClass="animate-ticker-reverse" label="ASX 200" live={false} status={asxStatus} />
+      <TickerRow quotes={nzx} animationClass="animate-ticker" label="NZX 50" live={false} status={nzxStatus} priceFor={priceFor} />
+      <TickerRow quotes={asx} animationClass="animate-ticker-reverse" label="ASX 200" live={false} status={asxStatus} priceFor={priceFor} />
       <TickerRow
         quotes={crypto}
         animationClass="animate-ticker-slow"
         label="Crypto"
         live={false}
         status={cryptoStatus.label}
+        priceFor={priceFor}
       />
       <MetalsSpotBanner />
       <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 border-b border-emerald-500/20 bg-zinc-950 px-3 py-1.5 text-[0.6rem] text-muted-foreground">
@@ -335,6 +356,16 @@ export function MarketTicker({ className, compact = false, initial = null }: Mar
         <a href={VENUES.crypto} target="_blank" rel="noopener noreferrer" className="hover:text-foreground hover:underline">
           CoinGecko
         </a>
+        <button
+          type="button"
+          className="rounded border border-emerald-500/30 px-2 py-0.5 font-semibold text-emerald-200 hover:text-white disabled:opacity-50"
+          disabled={!fxReady}
+          aria-pressed={display === "NZD"}
+          onClick={() => setShowNzd((on) => !on)}
+        >
+          {display === "NZD" ? "Showing NZ$" : "Show NZ$"}
+        </button>
+        <span>{fxReady ? fxRateLine(fx.rates) : "NZ$ prices appear when today's exchange rate loads."}</span>
       </div>
     </div>
   );

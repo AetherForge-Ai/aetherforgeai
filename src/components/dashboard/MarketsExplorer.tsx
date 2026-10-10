@@ -12,6 +12,9 @@ import { cryptoCoveragePhrase } from "@/lib/crypto-coverage";
 import { explorerDetailHref, marketsTabHref, type MarketsTab } from "@/lib/market-detail-routes";
 import { useCryptoMarkets } from "@/hooks/useCryptoMarkets";
 import { coinHasLivePrice, fmtPrice, formatAbsoluteChange, formatMarketChangePercent } from "@/lib/crypto-market";
+import { coinDisplayName } from "@/lib/crypto-names";
+import { formatFxInput, formatUnitPrice, usdToNzd } from "@/lib/currency";
+import { useFxRates } from "@/hooks/useFxRates";
 import { cn } from "@/lib/utils";
 import {
   Search,
@@ -162,6 +165,9 @@ export function MarketsExplorer({
   const [remoteHits, setRemoteHits] = useState<DisplayRow[]>([]);
   const [remoteLoading, setRemoteLoading] = useState(false);
   const [cryptoPage, setCryptoPage] = useState(0);
+  const [cryptoInNzd, setCryptoInNzd] = useState(false);
+  const fx = useFxRates();
+  const fxReady = fx.ready && !!fx.asOf;
   const loadGen = useRef(0);
 
   const isCryptoTab = tab === "CRYPTO";
@@ -359,7 +365,7 @@ export function MarketsExplorer({
         key: c.id,
         ticker: c.symbol.toUpperCase(),
         symbol: c.symbol.toUpperCase(),
-        name: c.name,
+        name: coinDisplayName(c.symbol, c.name),
         currency: "USD",
         price: c.price,
         changePct: c.change24h ?? 0,
@@ -413,8 +419,17 @@ export function MarketsExplorer({
   }, [isCryptoTab, crypto.coins, data, query, sortKey, sortDir, remoteHits]);
 
   // Live-price formatter — crypto needs micro-price precision, stocks are currency-aware.
-  const showPrice = (r: DisplayRow) =>
-    r.priceUnavailable ? "—" : r.coinId ? fmtPrice(r.price) : formatMarketPrice(r.price, r.currency);
+  const showNzd = isCryptoTab && cryptoInNzd && fxReady;
+  const showPrice = (r: DisplayRow) => {
+    if (r.priceUnavailable) return "—";
+    if (r.coinId && showNzd) return formatUnitPrice(usdToNzd(r.price, fx.rates.USD), "NZD");
+    return r.coinId ? fmtPrice(r.price) : formatMarketPrice(r.price, r.currency);
+  };
+  const showUnit = (value: number | null, r: DisplayRow) => {
+    if (!value) return "—";
+    if (r.coinId && showNzd) return formatUnitPrice(usdToNzd(value, fx.rates.USD), "NZD");
+    return r.coinId ? fmtPrice(value) : formatMarketPrice(value, r.currency);
+  };
 
   // Unified loading + status across both data sources.
   const loadingRows = isCryptoTab ? crypto.loading : loading;
@@ -546,8 +561,20 @@ export function MarketsExplorer({
           )}
           {isCryptoTab && (
             <p className="flex items-center gap-1 text-[0.62rem] text-muted-foreground/80">
-              <Bitcoin className="size-3" /> {cryptoCoveragePhrase(cryptoListed)} · USD
+              <Bitcoin className="size-3" /> {cryptoCoveragePhrase(cryptoListed)} · {showNzd ? "NZ$" : "USD"}
+              {fxReady ? ` · 1 USD = NZ$${formatFxInput(fx.rates.USD)}` : " · NZ$ prices appear when today's exchange rate loads."}
             </p>
+          )}
+          {isCryptoTab && (
+            <button
+              type="button"
+              className="rounded-lg border border-border/70 px-2.5 py-1 text-xs font-semibold disabled:opacity-50"
+              disabled={!fxReady}
+              aria-pressed={showNzd}
+              onClick={() => setCryptoInNzd((on) => !on)}
+            >
+              {showNzd ? "Showing NZ$" : "Show NZ$"}
+            </button>
           )}
         </div>
       </div>
@@ -559,7 +586,7 @@ export function MarketsExplorer({
             <tr className="border-b border-border/60">
               <th className="py-2.5 pr-3 text-left"><SortHead label="Ticker" k="symbol" align="left" /></th>
               <th className="hidden py-2.5 pr-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground sm:table-cell">
-                Company
+                {isCryptoTab ? "Name" : "Company"}
               </th>
               <th className="py-2.5 px-3"><SortHead label="Price" k="price" /></th>
               <th className="py-2.5 px-3"><SortHead label="Change" k="changePct" /></th>
@@ -658,12 +685,12 @@ export function MarketsExplorer({
                     </td>
                     {showHigh && (
                     <td className="tnum hidden py-2.5 px-3 text-right text-muted-foreground lg:table-cell">
-                      {r.dayHigh ? (r.coinId ? fmtPrice(r.dayHigh) : formatMarketPrice(r.dayHigh, r.currency)) : "—"}
+                      {showUnit(r.dayHigh, r)}
                     </td>
                     )}
                     {showLow && (
                     <td className="tnum hidden py-2.5 px-3 text-right text-muted-foreground lg:table-cell">
-                      {r.dayLow ? (r.coinId ? fmtPrice(r.dayLow) : formatMarketPrice(r.dayLow, r.currency)) : "—"}
+                      {showUnit(r.dayLow, r)}
                     </td>
                     )}
                     {showVolume && (

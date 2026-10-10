@@ -13,6 +13,7 @@
 
 import "server-only";
 import { blockchainLabel, coingeckoRolling24h, resolveSevenDayChange, type CoinMarket, type CoinDetail, type CoinChart } from "@/lib/crypto-market";
+import { coinDisplayName } from "@/lib/crypto-names";
 import { rememberCryptoIds } from "@/lib/crypto-id-registry";
 import {
   DEX_NETWORKS,
@@ -122,7 +123,7 @@ function mapMarketRow(r: CgMarketRow): CoinMarket {
   return {
     id: r.id,
     symbol: (r.symbol || "").toUpperCase(),
-    name: r.name,
+    name: coinDisplayName(r.symbol, r.name),
     image: r.image,
     rank: r.market_cap_rank ?? 999999,
     price: r.current_price ?? 0,
@@ -427,7 +428,7 @@ export async function fetchCoinDetail(id: string): Promise<CoinDetail> {
     return {
       id: d.id,
       symbol: (d.symbol || "").toUpperCase(),
-      name: d.name,
+      name: coinDisplayName(d.symbol, d.name),
       image: d.image?.large || d.image?.small || d.image?.thumb || "",
       rank: num(d.market_cap_rank),
       price: num(m.current_price?.usd) ?? 0,
