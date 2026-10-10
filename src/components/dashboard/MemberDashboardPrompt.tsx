@@ -88,7 +88,15 @@ export function DashboardEntryButton({
   variant?: "default" | "outline";
   size?: "default" | "lg";
 }) {
+  const { user } = useLiveSessionUser();
   const { onDashboardClick, dialog } = useMemberDashboardPrompt();
+  if (!user) {
+    return (
+      <Button asChild variant={variant} size={size} className={className}>
+        <Link href="/register">Start free</Link>
+      </Button>
+    );
+  }
   return (
     <>
       <Button type="button" variant={variant} size={size} className={className} onClick={onDashboardClick}>

@@ -99,8 +99,7 @@ const APEX_FEATURES = [
   "AI research reports",
   "7-day illustrative scenario ranges",
   "3 forward pathways — safe · medium-risk · volatile",
-  "12-month momentum & continuation graphs",
-  "Daily orchestrated email briefings",
+  "About six months of stock-chart history",
 ];
 
 export const PLANS: Plan[] = [
@@ -177,6 +176,12 @@ const STARTER_FEATURES = [
   "100 Market Assistant queries per month",
   "CSV export",
   "CSV import of holdings",
+  "P/L at latest available price",
+  "Multi-timeframe charts and top gainers",
+  "Basic strategy generation and simulation",
+  "Illustrative pathway scenarios",
+  "Email support",
+  "Priority processing",
   "14-day trial",
 ];
 
@@ -189,6 +194,12 @@ const PRO_FEATURES = [
   "500 Market Assistant queries per month",
   "CSV export",
   "CSV import of holdings",
+  "P/L at latest available price",
+  "Multi-timeframe charts and top gainers",
+  "Risk & stress testing",
+  "Illustrative pathway scenarios",
+  "Email support",
+  "Priority support",
   "14-day trial",
 ];
 
@@ -199,6 +210,8 @@ const ULTIMATE_FEATURES = [
   "Up to 5 seats",
   "White-label options",
   "Dedicated support",
+  "Strategy consultation calls",
+  "Unlimited Market Assistant queries",
 ];
 
 /**
@@ -491,9 +504,13 @@ export const PRICING_TIERS: PricingTier[] = [
       "Up to 10 holdings",
       "One of Stox or Koins",
       "Smitty spot prices (read-only)",
-      "3 AI research reports per month",
+      "3 reports a month, no card",
+      "P/L at latest available price",
+      "Basic multi-timeframe charts and top gainers",
+      "CSV import of holdings",
+      "Limited illustrative pathway scenarios",
       "20 Market Assistant queries per month",
-      "Basic portfolio P/L",
+      "Email support",
     ],
   },
   {
@@ -511,12 +528,12 @@ export const PRICING_TIERS: PricingTier[] = [
     id: "pro",
     name: "Pro",
     subtitle: "The complete experience for serious investors",
-    badge: "Most Popular",
+    badge: "Recommended",
     monthlyPrice: 49,
     yearlyPrice: 490,
     monthlyPlanKey: "pro_monthly",
     yearlyPlanKey: "pro_yearly",
-    cta: { label: "Start with Pro", kind: "checkout" },
+    cta: { label: "Start 14-day Pro trial", kind: "checkout" },
     featured: true,
     highlights: PRO_FEATURES,
   },

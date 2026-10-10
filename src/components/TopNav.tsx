@@ -56,7 +56,7 @@ const PRIMARY_LINKS: NavLink[] = [
 ];
 
 const MARKET_LINKS: NavLink[] = [
-  { href: "/markets", label: "Stock Markets", icon: LineChart },
+  { href: "/markets", label: "Markets", icon: LineChart },
   { href: "/market-news", label: "Market News", icon: Newspaper },
 ];
 
@@ -181,16 +181,23 @@ function NavMenu({
   );
 }
 
+function visiblePrimaryLinks(loggedIn: boolean): NavLink[] {
+  if (loggedIn) return PRIMARY_LINKS;
+  return PRIMARY_LINKS.filter((item) => item.href !== "/dashboard");
+}
+
 function DesktopLinks({
   pathname,
+  loggedIn,
   onDashboardClick,
 }: {
   pathname: string;
+  loggedIn: boolean;
   onDashboardClick: (event: React.MouseEvent) => void;
 }) {
   return (
     <nav className="hidden items-center gap-1 lg:flex">
-      {PRIMARY_LINKS.map((item) => (
+      {visiblePrimaryLinks(loggedIn).map((item) => (
         <NavAnchor key={item.href} item={item} pathname={pathname} onDashboardClick={onDashboardClick} />
       ))}
       <NavMenu label="Markets" links={MARKET_LINKS} pathname={pathname} onDashboardClick={onDashboardClick} />
@@ -327,7 +334,7 @@ function MobileDrawer({
           <BrandLogo />
         </div>
         <nav className="mt-6 space-y-1">
-          {PRIMARY_LINKS.map((item) => {
+          {visiblePrimaryLinks(loggedIn).map((item) => {
             const active = isActivePath(pathname, item.href);
             return (
               <Link
@@ -453,7 +460,7 @@ export function TopNav() {
         </div>
 
         {/* Center: primary links */}
-        <DesktopLinks pathname={pathname} onDashboardClick={memberDashboard.onDashboardClick} />
+        <DesktopLinks pathname={pathname} loggedIn={loggedIn} onDashboardClick={memberDashboard.onDashboardClick} />
 
         {/* Right: auth cluster */}
         <div className="flex items-center gap-2">

@@ -55,7 +55,9 @@ export interface ExchangeSnapshot {
     live: boolean;
     freshness: string;
   };
-  breadth: { advancers: number; decliners: number; unchanged: number; total: number };
+  breadth: { advancers: number; decliners: number; unchanged: number; total: number; quoted?: number };
+  /** "48 quoted of 60 names in the NZX list" — the list size and the quoted count. */
+  universeLabel?: string;
   avgChangePct: number; // average session % move across live constituents
   topGainers: SnapshotMover[];
   topLosers: SnapshotMover[];
@@ -157,8 +159,11 @@ export async function GET() {
             advancers,
             decliners,
             unchanged,
-            total: liveCount,
+            /** Names in this exchange list. Quoted names can be fewer. */
+            total: entries.length,
+            quoted: liveCount,
           },
+          universeLabel: `${liveCount} quoted of ${entries.length} names in the ${exchange} list`,
           avgChangePct: liveCount ? Number((sumPct / liveCount).toFixed(2)) : 0,
           topGainers,
           topLosers,

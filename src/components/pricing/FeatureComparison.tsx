@@ -118,7 +118,7 @@ export function FeatureComparison() {
                   {c}
                   {c === "Pro" && (
                     <span className="ml-1.5 rounded-full bg-primary/15 px-2 py-0.5 text-[0.58rem] font-bold uppercase text-primary">
-                      Popular
+                      Recommended
                     </span>
                   )}
                 </th>

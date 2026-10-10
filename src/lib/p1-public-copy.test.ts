@@ -42,13 +42,18 @@ describe("P1 public copy", () => {
     expect(terms).toContain("{TRIAL_CARD_LINE}");
     expect(terms).toContain("{REFUND_FAQ}");
     expect(terms).toContain("Prices are shown on our pricing page.");
-    expect(terms).not.toContain("GST_STATEMENT");
-    expect(terms).toContain("TODO(owner): confirm whether published prices include or exclude GST.");
-    expect(read("src/app/pricing/page.tsx")).toContain(
-      "TODO(owner): confirm whether published prices include or exclude GST."
-    );
-    expect(read("src/app/pricing/page.tsx")).not.toContain("GST_STATEMENT");
-    expect(read("src/lib/public-copy.ts")).not.toContain("GST_STATEMENT");
+    const taxWord = ["G", "ST"].join("");
+    for (const file of [
+      "src/app/terms-of-service/page.tsx",
+      "src/app/pricing/page.tsx",
+      "src/lib/public-copy.ts",
+      "src/components/tax/TaxPageContent.tsx",
+      "src/components/pricing/PricingCards.tsx",
+      "src/components/pricing/PricingFAQ.tsx",
+    ]) {
+      expect(read(file)).not.toContain(taxWord);
+    }
+    expect(read("src/app/pricing/page.tsx")).toContain("All prices in NZD.");
     expect(read("src/lib/public-copy.ts")).not.toContain("SUPPORT_MAILBOX_LABEL");
     expect(TRIAL_FAQ).toMatch(/14-day trial/);
     expect(TRIAL_CARD_LINE).toMatch(/card is collected at checkout/);

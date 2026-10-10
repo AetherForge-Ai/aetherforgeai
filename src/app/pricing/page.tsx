@@ -21,7 +21,7 @@ import {
 export const metadata = publicPageMetadata("/pricing", {
   title: "Pricing — AetherForge AI | Simple, powerful market intelligence",
   description:
-    "Start with Pro at NZ$49/month for Stox, Koins and the full Headmaster. Free and Starter stay available. Informational market intelligence — not financial advice, and we don't trade for you.",
+    "3 reports a month free, no card. Pro is NZ$49/month for Stox, Koins and the full Headmaster, with a 14-day trial. Informational market intelligence — not financial advice, and we don't trade for you.",
 });
 
 const TRUST_ITEMS = [
@@ -85,7 +85,7 @@ export default function PricingPage() {
             Simple pricing. <span className="text-gradient">Powerful market intelligence.</span>
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-base text-muted-foreground sm:text-lg">
-            Start with Pro at NZ$49/month — Stox, Koins and the full Headmaster. Free and Starter
+            3 reports a month free, no card. Pro is NZ$49/month — Stox, Koins and the full Headmaster. Free and Starter
             stay on the table. Reports are illustrative scenarios, not personalised advice, and you
             execute on your own broker.
           </p>
@@ -93,7 +93,7 @@ export default function PricingPage() {
             Cancel anytime <span className="text-primary">•</span> Secure Stripe checkout{" "}
             <span className="text-primary">•</span> No hidden fees
           </p>
-          {/* TODO(owner): confirm whether published prices include or exclude GST. Do not write "including GST" or "excluding GST" until then. */}
+          <p className="mt-3 text-sm text-muted-foreground">All prices in NZD.</p>
         </section>
 
         {/* 2 + 3 · Billing toggle + pricing cards */}
@@ -129,7 +129,7 @@ export default function PricingPage() {
         <section className="mx-auto max-w-6xl px-4 pt-24 sm:px-6 lg:px-8">
           <div className="relative overflow-hidden rounded-3xl border border-primary/40 bg-gradient-to-br from-primary/15 via-card/60 to-gold/10 px-6 py-14 text-center shadow-glow sm:px-12">
             <h2 className="mx-auto max-w-2xl font-display text-3xl font-extrabold tracking-tight sm:text-4xl">
-              Start with Pro for the full research desk
+              Start the 14-day Pro trial for the full research desk
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-muted-foreground">
               Pro is NZ$49/month and includes both bots plus The Headmaster. Free remains available if
@@ -138,7 +138,7 @@ export default function PricingPage() {
             <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Button asChild size="lg" className="h-12 px-7 font-semibold">
                 <a href="#pro">
-                  Start with Pro <ArrowRight className="ml-1.5 size-4" />
+                  Start 14-day Pro trial <ArrowRight className="ml-1.5 size-4" />
                 </a>
               </Button>
               <Button asChild size="lg" variant="outline" className="h-12 px-7 font-semibold">

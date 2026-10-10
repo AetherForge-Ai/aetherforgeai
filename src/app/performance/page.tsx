@@ -11,6 +11,11 @@ import {
   LineChart,
 } from "lucide-react";
 
+/**
+ * TODO(owner): publish a fresh weekly sample when a new dated capture of the paper book exists.
+ * Do not invent performance figures or a new sample book.
+ */
+
 export const metadata = publicPageMetadata("/performance", {
   title: "Example results — paper portfolio snapshots | AetherForge AI",
   description:
@@ -21,7 +26,7 @@ const SAMPLE_NOTES = [
   {
     icon: BadgeCheck,
     title: "One paper book",
-    body: "Every screenshot is the same paper portfolio on 7–8 July 2026. AetherForge did not place the trades.",
+    body: "Every screenshot is the same paper portfolio on 7 July 2026 and 8 July 2026. AetherForge did not place the trades.",
   },
   {
     icon: Zap,
@@ -54,8 +59,8 @@ export default function PerformancePage() {
           </h1>
           <div className="mt-6 space-y-4 text-base leading-relaxed text-muted-foreground sm:mt-8 sm:text-lg">
             <p>
-              These are timestamped screenshots from one paper portfolio on one session, from just
-              after 9am through to around the close that day. They show how the book was marked.
+              These are timestamped screenshots from one paper portfolio on 7 July 2026 and 8 July 2026,
+              from just after 9am through to around the close. They show how the book was marked.
               Treat them as a single dated sample.
             </p>
             <p>
@@ -64,7 +69,7 @@ export default function PerformancePage() {
             </p>
             <p>
               Over that day the paper portfolio showed about a 1.98% mark-to-market change across
-              8–9 hours. That is one example from one day. It is not a claim that AetherForge beats
+              8–9 hours. That is one example from that session. It is not a claim that AetherForge beats
               every platform, and it is not a promise that results will be positive again.
             </p>
             <p>

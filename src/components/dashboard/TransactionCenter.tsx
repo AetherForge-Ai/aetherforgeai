@@ -24,7 +24,7 @@ import { useTradeReviewGate } from "@/lib/trade-review-gate";
 import { TradeReview } from "@/components/dashboard/TradeReview";
 import { formatNumber, type Stock } from "@/lib/portfolio";
 import { lookupTicker } from "@/lib/market";
-import { CRYPTO_DIRECTORY } from "@/lib/apex";
+import { CRYPTO_DIRECTORY } from "@/lib/crypto-directory";
 import { TickerSearch } from "@/components/dashboard/TickerSearch";
 import { CryptoSearch } from "@/components/dashboard/CryptoSearch";
 import { cn } from "@/lib/utils";

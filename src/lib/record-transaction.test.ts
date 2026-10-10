@@ -619,7 +619,7 @@ describe("display formatters", () => {
     expect(table).toContain("return formatDisplayDate(iso)");
     expect(dashboard).not.toContain('day: "2-digit"');
     expect(readFileSync(path.join(process.cwd(), "src/components/performance/LiveExamplesGallery.tsx"), "utf8")).toContain(
-      'const TODAY_LABEL = "8 Jul 2026"'
+      'const TODAY_LABEL = "8 July 2026"'
     );
   });
 });

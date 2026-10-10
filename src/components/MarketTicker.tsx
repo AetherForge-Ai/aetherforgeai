@@ -208,6 +208,8 @@ interface MarketTickerProps {
   className?: string;
   /** Show all three banner rows (home) or a single compact row (dashboard). */
   compact?: boolean;
+  /** Server-rendered tape so the first HTML can include prices. */
+  initial?: TickerFeed | null;
 }
 
 interface TickerFeed {
@@ -219,17 +221,22 @@ interface TickerFeed {
 
 const EMPTY_LIVE = { crypto: false, equities: false };
 
-export function MarketTicker({ className, compact = false }: MarketTickerProps) {
-  const [nzx, setNzx] = useState<Quote[]>([]);
-  const [asx, setAsx] = useState<Quote[]>([]);
-  const [crypto, setCrypto] = useState<Quote[]>([]);
-  const [live, setLive] = useState(EMPTY_LIVE);
+function hasTape(feed: TickerFeed | null | undefined): boolean {
+  if (!feed?.rows) return false;
+  return feed.rows.nzx.length + feed.rows.asx.length + feed.rows.crypto.length > 0;
+}
+
+export function MarketTicker({ className, compact = false, initial = null }: MarketTickerProps) {
+  const [nzx, setNzx] = useState<Quote[]>(initial?.rows.nzx ?? []);
+  const [asx, setAsx] = useState<Quote[]>(initial?.rows.asx ?? []);
+  const [crypto, setCrypto] = useState<Quote[]>(initial?.rows.crypto ?? []);
+  const [live, setLive] = useState(initial?.live ?? EMPTY_LIVE);
   const [providers, setProviders] = useState<{ equities: string | null; crypto: string | null }>({
-    equities: null,
-    crypto: null,
+    equities: initial?.providers?.equities ?? null,
+    crypto: initial?.providers?.crypto ?? null,
   });
-  const [asOf, setAsOf] = useState<string | null>(null);
-  const [loaded, setLoaded] = useState(false);
+  const [asOf, setAsOf] = useState<string | null>(initial?.asOf ?? null);
+  const [loaded, setLoaded] = useState(hasTape(initial));
 
   useEffect(() => {
     let active = true;
@@ -281,7 +288,7 @@ export function MarketTicker({ className, compact = false }: MarketTickerProps) 
   if (!loaded) {
     return (
       <div className={cn("w-full border-y border-emerald-500/20 bg-zinc-950", className)}>
-        <p className="px-4 py-1.5 text-[0.72rem] text-muted-foreground">Loading market prices…</p>
+        <p className="px-4 py-1.5 text-[0.72rem] text-muted-foreground">Prices appear when the feed answers.</p>
       </div>
     );
   }

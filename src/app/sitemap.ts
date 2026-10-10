@@ -18,6 +18,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
     "/docs",
     "/blog",
     "/tax",
+    "/changelog",
+    "/stox",
+    "/koins",
+    "/smitty",
+    "/buy-the-bots",
   ];
   return routes.map((path) => ({
     url: `${siteUrl}${path}`,

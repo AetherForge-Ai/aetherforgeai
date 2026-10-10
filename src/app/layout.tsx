@@ -16,6 +16,7 @@ import { SiteFooter } from "@/components/SiteFooter";
 import { Toaster } from "@/components/ui/sonner";
 import { PortfolioCoach } from "@/components/portfolio-coach";
 import { TransactionDialogHost } from "@/components/dashboard/TransactionDialogHost";
+import { LEGAL_ENTITY_NAME, NZBN } from "@/lib/company";
 
 const sora = Sora({
   variable: "--font-display",
@@ -81,10 +82,30 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const headerList = await headers();
   const sessionMode = headerList.get("x-af-doc") === "member" ? "member" : "guest";
   return (
-    <html lang="en">
+    <html lang="en-NZ">
       <body
         className={`${sora.variable} ${manrope.variable} ${jetbrainsMono.variable} font-sans antialiased`}
       >
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "Organization",
+              name: LEGAL_ENTITY_NAME,
+              identifier: NZBN,
+              url: siteUrl,
+              logo: `${siteUrl}/brand/forge-intelligence-logo.png`,
+              address: {
+                "@type": "PostalAddress",
+                streetAddress: "39 Lakeside Drive",
+                addressLocality: "Pegasus",
+                postalCode: "7612",
+                addressCountry: "NZ",
+              },
+            }),
+          }}
+        />
         <DocumentSessionProvider mode={sessionMode}>
           {/* Consent Mode v2 starts denied. This script does not load gtag.js. */}
           <Script id="gtag-consent-default" strategy="beforeInteractive">

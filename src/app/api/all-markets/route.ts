@@ -7,10 +7,10 @@ import {
 } from "@/lib/market-intel";
 import { fetchYahooQuotes, yahooEquitySymbol, type YahooQuote } from "@/lib/yahoo-finance";
 import { equityApiLive, exchangeFreshnessLabel, latestQuoteTime, parseQuoteTime } from "@/lib/market-freshness";
+import { parseAllMarketsExchange } from "@/lib/all-markets-query";
+import { plausibleShareVolume } from "@/lib/share-volume";
 
 export const dynamic = "force-dynamic";
-
-const VALID: Exchange[] = ["NZX", "ASX", "DOW", "NASDAQ"];
 
 export interface AllMarketsRow {
   ticker: string; // internal ticker (e.g. BHP.AX)
@@ -46,8 +46,14 @@ export interface AllMarketsRow {
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
-    const raw = (url.searchParams.get("exchange") || "").toUpperCase();
-    const exchange = (VALID.includes(raw as Exchange) ? raw : "NASDAQ") as Exchange;
+    const parsed = parseAllMarketsExchange(url.searchParams.get("exchange"));
+    if (!parsed.ok) {
+      return NextResponse.json(
+        { ok: false, error: "Unknown exchange. Use NZX, ASX, DOW or NASDAQ." },
+        { status: 400 },
+      );
+    }
+    const exchange: Exchange = parsed.exchange;
 
     const entries = entriesForExchange(exchange);
     const meta = EXCHANGE_META[exchange];
@@ -83,7 +89,7 @@ export async function GET(req: Request) {
         changeAbs: quoted ? Number(q!.changeAbs.toFixed(4)) : 0,
         dayHigh: quoted && typeof q!.dayHigh === "number" ? q!.dayHigh : null,
         dayLow: quoted && typeof q!.dayLow === "number" ? q!.dayLow : null,
-        volume: quoted && typeof q!.volume === "number" ? q!.volume : null,
+        volume: quoted ? plausibleShareVolume(q!.volume, q!.averageVolume) : null,
         marketCap: quoted && typeof q!.marketCap === "number" ? q!.marketCap : null,
         live,
         quoted,

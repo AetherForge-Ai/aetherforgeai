@@ -251,14 +251,14 @@ export function PricingCards() {
                       </span>
                       <span className="mb-0.5 text-sm text-muted-foreground">/{annual ? "yr" : "mo"}</span>
                     </div>
-                    <p className="mt-1 text-xs font-medium text-muted-foreground/90">
-                      {ready && asOf
-                        ? formatUsdWithRate(price ?? 0, fx, asOf, {
-                            decimals: 2,
-                            suffix: `/${annual ? "yr" : "mo"}`,
-                          })
-                        : "US$ …"}
-                    </p>
+                    {ready && asOf ? (
+                      <p className="mt-1 text-xs font-medium text-muted-foreground/90">
+                        {formatUsdWithRate(price ?? 0, fx, asOf, {
+                          decimals: 2,
+                          suffix: `/${annual ? "yr" : "mo"}`,
+                        })}
+                      </p>
+                    ) : null}
                     <p className="mt-1.5 text-xs text-muted-foreground">
                       {annual ? (
                         <>
@@ -321,7 +321,7 @@ export function PricingCards() {
         Ultimate is Talk to us.{" "}
         {ready && asOf
           ? `Every US$ figure on this page uses 1 NZD = US$${usdPerNzd(fx).toFixed(4)}, ${formatDailyRate(asOf)}.`
-          : "US$ figures use one exchange rate, shown once it has been taken."}
+          : "A US dollar equivalent appears once the daily rate has been taken."}
       </p>
     </div>
   );

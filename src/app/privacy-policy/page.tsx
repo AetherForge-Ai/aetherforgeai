@@ -4,7 +4,7 @@ import { publicPageMetadata } from "@/lib/reviewed-book";
 import { ANALYTICS_NOTICE, LEGAL_UPDATED, PROCESSORS } from "@/lib/public-copy";
 
 export const metadata = publicPageMetadata("/privacy-policy", {
-  title: "AI Privacy Policy — AetherForge AI",
+  title: "Privacy Policy — AetherForge AI",
   description:
     "How AetherForge AI collects, uses and protects your personal information under the New Zealand Privacy Act 2020.",
 });
@@ -71,7 +71,7 @@ export default function PrivacyPolicy() {
           <li>create, secure and manage your account;</li>
           <li>generate AI market-intelligence reports based on the holdings you add;</li>
           <li>process subscription payments and manage your plan;</li>
-          <li>send you service updates, security notices and daily briefings you have subscribed to;</li>
+          <li>send you service updates and security notices;</li>
           <li>respond to your support enquiries; and</li>
           <li>maintain, protect and improve the security and performance of the service.</li>
         </ul>
@@ -124,9 +124,9 @@ export default function PrivacyPolicy() {
       <LegalSection heading="6. Sending information overseas (IPP 12)">
         <p>
           Some of the processors named in section 5 are located outside New Zealand. That list includes
-          Cloudflare, Stripe, an AI provider, Google Analytics, Totalum on Google Cloud, CoinGecko, and
-          licensed market-data vendors for shares, metals and foreign exchange. Google Analytics runs
-          only after you accept analytics cookies. Where we disclose
+          Cloudflare, Stripe, an AI provider, Google Analytics, Totalum on Google Cloud, Yahoo Finance,
+          CoinGecko, Swyftx, GeckoTerminal, gold-api.com, ExchangeRate-API and Frankfurter.
+          Google Analytics runs only after you accept analytics cookies. Where we disclose
           personal information overseas, we take reasonable steps to ensure it is protected by
           comparable safeguards to those under the Privacy Act 2020, or we rely on an exception
           permitted by IPP 12 (such as your authorisation).
@@ -191,9 +191,12 @@ export default function PrivacyPolicy() {
 
       <LegalSection heading="13. Complaints & contact">
         <p>
-          {/* TODO(owner): confirm the privacy@ mailbox before publishing an address. */}
           If you have a question, wish to exercise your privacy rights, or want to make a complaint about
-          how we have handled your personal information, please use the contact form on the{" "}
+          how we have handled your personal information, email the Privacy Officer at{" "}
+          <a href="mailto:lukas@aetherforgeai.co.nz" className="text-primary hover:underline">
+            lukas@aetherforgeai.co.nz
+          </a>
+          . You can also use the contact form on the{" "}
           <a href="/about#contact" className="text-primary hover:underline">
             About
           </a>{" "}
