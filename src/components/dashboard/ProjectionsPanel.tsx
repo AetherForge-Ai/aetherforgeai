@@ -10,6 +10,7 @@ import {
 import { cn } from "@/lib/utils";
 import { pctClass, fmtPct, ExchangeChip, publicMarketNote } from "@/components/dashboard/intel-ui";
 import { useMarketIntel } from "@/components/dashboard/MarketIntelContext";
+import { formatDisplayDateTime } from "@/lib/currency";
 import { Button } from "@/components/ui/button";
 import {
   LineChart,
@@ -165,7 +166,7 @@ export function ProjectionsPanel({
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Top 15 performers</p>
-            {lastUpdated && <p className="text-[0.6rem] text-muted-foreground">Updated {lastUpdated}</p>}
+            {lastUpdated && <p className="text-[0.6rem] text-muted-foreground">Updated {formatDisplayDateTime(lastUpdated)}</p>}
           </div>
           <div className="max-h-[26rem] space-y-2 overflow-y-auto pr-1">
             {leaders.map((l, i) => {

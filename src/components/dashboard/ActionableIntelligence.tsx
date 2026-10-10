@@ -11,6 +11,7 @@ import { isTransactionDialogOpen } from "@/lib/transaction-sticky";
 import { getTxDialogSnapshot, subscribeTxDialog } from "@/lib/transaction-dialog-store";
 import { api } from "@/lib/api";
 import { technicalSnapshot } from "@/lib/public-intel";
+import { formatDisplayDateTime } from "@/lib/currency";
 import { Button } from "@/components/ui/button";
 import {
   AlertTriangle,
@@ -306,7 +307,7 @@ export function ActionableIntelligence({
                 )}
                 {lastUpdated && (
                   <p className="mt-3 text-right text-[0.62rem] text-muted-foreground">
-                    Updated {lastUpdated}
+                    Updated {formatDisplayDateTime(lastUpdated)}
                   </p>
                 )}
               </div>

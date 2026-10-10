@@ -11,6 +11,7 @@ import {
   type Exchange,
 } from "@/lib/market-intel";
 import { exchangeFreshnessLabel } from "@/lib/market-freshness";
+import { formatDisplayClock } from "@/lib/currency";
 import { pctClass, fmtPct, publicMarketNote } from "@/components/dashboard/intel-ui";
 import {
   StockDetailDialog,
@@ -112,9 +113,7 @@ export function MarketWidePerformers({ onBought }: { onBought?: () => void }) {
     setDetailOpen(true);
   }
 
-  const updated = lastUpdated
-    ? new Date(lastUpdated).toLocaleTimeString("en-NZ", { hour: "2-digit", minute: "2-digit" })
-    : null;
+  const updated = lastUpdated ? formatDisplayClock(lastUpdated) : null;
 
   return (
     <section className="rounded-3xl border border-border/70 bg-card/50 p-6">

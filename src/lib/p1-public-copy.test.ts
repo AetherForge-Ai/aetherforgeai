@@ -27,7 +27,7 @@ function renderedCopy(source: string): string {
 describe("P1 public copy", () => {
   it("re-issues the legal pages on the same date as TERMS_VERSION", () => {
     expect(TERMS_VERSION).toBe("2026-10-07");
-    expect(LEGAL_UPDATED).toBe("7 October 2026");
+    expect(LEGAL_UPDATED).toBe("7 Oct 2026");
     for (const file of [
       "src/app/terms-of-service/page.tsx",
       "src/app/privacy-policy/page.tsx",
