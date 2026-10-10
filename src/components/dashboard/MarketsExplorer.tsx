@@ -11,7 +11,7 @@ import { BuyDialog, type BuyTarget } from "@/components/dashboard/BuyDialog";
 import { cryptoCoveragePhrase } from "@/lib/crypto-coverage";
 import { explorerDetailHref, marketsTabHref, type MarketsTab } from "@/lib/market-detail-routes";
 import { useCryptoMarkets } from "@/hooks/useCryptoMarkets";
-import { coinHasLivePrice, fmtPrice } from "@/lib/crypto-market";
+import { coinHasLivePrice, fmtPrice, formatAbsoluteChange, formatMarketChangePercent } from "@/lib/crypto-market";
 import { cn } from "@/lib/utils";
 import {
   Search,
@@ -108,11 +108,9 @@ function fmtCap(v: number | null, currency: string): string {
   return `${sym}${(v / (unit[1] as number)).toFixed(abs >= 1e9 ? 2 : 1)}${unit[0]}`;
 }
 
-/** A signed price move like "+0.42" / "−1.18" (session change in absolute terms). */
+/** A signed price move. Sub-cent coins keep significant digits (never +0.0000). */
 function fmtAbs(v: number, price: number): string {
-  const dp = price < 5 ? 4 : 2;
-  const sign = v > 0 ? "+" : v < 0 ? "−" : "";
-  return `${sign}${Math.abs(v).toFixed(dp)}`;
+  return formatAbsoluteChange(v, price);
 }
 
 function fmtTime(iso: string): string {
@@ -629,7 +627,7 @@ export function MarketsExplorer({
                         )}
                       >
                         {up ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />}
-                        {Math.abs(r.changePct).toFixed(2)}%
+                        {formatMarketChangePercent(r.changePct)}%
                       </span>
                       {/* Absolute session move ($) beneath the % — both requested */}
                       <span className={cn("tnum block text-[0.62rem]", up ? "text-emerald-600/70" : "text-rose-600/70")}>

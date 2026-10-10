@@ -10,6 +10,8 @@
  * the whole surface.
  */
 
+import { adaptiveFractionDigits } from "@/lib/currency";
+
 /* -------------------------------- Types --------------------------------- */
 
 /** One row from CoinGecko /coins/markets (top-500 scan). */
@@ -206,24 +208,58 @@ export const CHART_RANGES: ChartRange[] = ["1H", "24H", "7D", "30D", "90D", "1Y"
 
 /**
  * Professional price formatting with sensible, price-scaled decimals:
- *  ≥ $1,000 → 2dp w/ grouping · ≥ $1 → 2dp · < $1 → up to 6 significant digits
- *  · sub-cent micro-caps → up to 8 decimals so nothing renders as "$0.00".
+ *  ≥ $1 → 2dp · under $1 keeps significant digits so PEPE/FLOKI never print as $0.00 or $0.01.
  */
 export function fmtPrice(n: number | null | undefined): string {
   if (n == null || !isFinite(n)) return "—";
   const abs = Math.abs(n);
-  let maximumFractionDigits: number;
-  if (abs >= 1000) maximumFractionDigits = 2;
-  else if (abs >= 1) maximumFractionDigits = 2;
-  else if (abs >= 0.01) maximumFractionDigits = 4;
-  else if (abs >= 0.0001) maximumFractionDigits = 6;
-  else maximumFractionDigits = 8;
+  const maximumFractionDigits = abs >= 1 ? 2 : adaptiveFractionDigits(abs);
+  const minimumFractionDigits = abs >= 1 ? 2 : Math.min(2, maximumFractionDigits);
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
-    minimumFractionDigits: 2,
+    minimumFractionDigits,
     maximumFractionDigits,
   }).format(n);
+}
+
+/**
+ * Absolute session move under a market row.
+ * A sub-cent coin must not print a real move as +0.0000.
+ */
+export function formatAbsoluteChange(change: number, price: number): string {
+  if (!Number.isFinite(change)) return "—";
+  const abs = Math.abs(change);
+  if (abs === 0) return "0.00";
+  const reference = Math.abs(price);
+  const dp =
+    reference < 0.01 || abs < 0.0001
+      ? Math.min(12, Math.max(4, adaptiveFractionDigits(abs)))
+      : reference < 5
+        ? 4
+        : 2;
+  let body = abs.toFixed(dp);
+  if (Number(body) === 0) {
+    body = abs.toFixed(Math.min(12, adaptiveFractionDigits(abs)));
+  }
+  body = body.replace(/(\.\d*?[1-9])0+$/, "$1").replace(/\.0+$/, "");
+  const sign = change > 0 ? "+" : "−";
+  return `${sign}${body}`;
+}
+
+/**
+ * Percent text for a market change. A non-zero move is not shown as 0.00 or 0.0000.
+ * The caller adds the % sign. Zero is 0.00.
+ */
+export function formatMarketChangePercent(value: number): string {
+  if (!Number.isFinite(value)) return "—";
+  const abs = Math.abs(value);
+  if (abs === 0) return "0.00";
+  let text = abs.toFixed(2);
+  if (Number(text) === 0) {
+    text = abs.toFixed(Math.min(8, Math.max(4, adaptiveFractionDigits(abs)))).replace(/(\.\d*?[1-9])0+$/, "$1");
+  }
+  return text;
 }
 
 /** Compact USD notation for market caps / volumes → $1.23B, $45.6M, $12.3K. */

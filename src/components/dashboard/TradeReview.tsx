@@ -1,6 +1,6 @@
 "use client";
 
-import { formatMoney } from "@/lib/currency";
+import { formatMoney, formatUnitPrice } from "@/lib/currency";
 import { formatNumber } from "@/lib/portfolio";
 import type { TradePreview } from "@/lib/trade-preview";
 
@@ -20,8 +20,8 @@ export function TradeReview({ preview }: { preview: TradePreview }) {
   const same = native === "NZD";
   const price =
     same
-      ? formatMoney(preview.priceNative, "NZD")
-      : `${formatMoney(preview.priceNative, native)} · ${formatMoney(preview.priceNzd, "NZD")}`;
+      ? formatUnitPrice(preview.priceNative, "NZD")
+      : `${formatUnitPrice(preview.priceNative, native)} · ${formatUnitPrice(preview.priceNzd, "NZD")}`;
   const fee =
     preview.feeNative > 0
       ? same

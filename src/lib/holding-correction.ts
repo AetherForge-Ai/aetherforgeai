@@ -2,6 +2,8 @@
  * A holding edit is a ledger correction. The numbers are not overwritten in silence.
  */
 
+import { formatPriceInput } from "@/lib/currency";
+
 export interface CorrectionPlan {
   changed: boolean;
   type: "correction";
@@ -16,7 +18,9 @@ function qty(n: number): string {
 }
 
 function px(n: number): string {
-  return (Math.round((Number(n) || 0) * 100) / 100).toFixed(2);
+  const value = Number(n) || 0;
+  if (Math.abs(value) > 0 && Math.abs(value) < 1) return formatPriceInput(value);
+  return (Math.round(value * 100) / 100).toFixed(2);
 }
 
 export function planHoldingCorrection(input: {
