@@ -45,7 +45,7 @@ import { buildDividendRecord, paymentDateFx, withDividendNotes, type DividendPar
 import { buildMovementPreview } from "@/lib/movement-preview";
 import { assessMovement, earlierCivilDay, exceedsAvailableCash, movementCivilDay } from "@/lib/transaction-rules";
 import { dateOnlyInstant, lotCivilDay, resolveExecutedInstant } from "@/lib/executed-at";
-import { invalidateBookCache, readBookCache, writeBookCache } from "@/lib/book-cache";
+import { bookCacheEpoch, invalidateBookCache, readBookCache, writeBookCache } from "@/lib/book-cache";
 
 export type TxType =
   | "buy"
@@ -1298,8 +1298,9 @@ export async function loadLedger(user: AppUser, limit = 60): Promise<Transaction
   const key = `${user._id}:ledger:${limit}`;
   const cached = readBookCache<TransactionLedger>(key);
   if (cached) return cached;
+  const epoch = bookCacheEpoch(user._id);
   const ledger = await loadLedgerFresh(user, limit);
-  writeBookCache(key, ledger);
+  writeBookCache(key, ledger, epoch);
   return ledger;
 }
 

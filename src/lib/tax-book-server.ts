@@ -1,6 +1,6 @@
 import "server-only";
 
-import { readBookCache, writeBookCache } from "@/lib/book-cache";
+import { bookCacheEpoch, readBookCache, writeBookCache } from "@/lib/book-cache";
 import type { DividendSourceRow } from "@/lib/dividend-ledger";
 import type { TaxLedgerRow } from "@/lib/taxable-income";
 import { taxBookSummary } from "@/lib/tax-book";
@@ -10,8 +10,9 @@ import { totalumSdk } from "@/lib/totalum";
 async function cachedRead<T>(key: string, load: () => Promise<T>): Promise<T> {
   const hit = readBookCache<T>(key);
   if (hit) return hit;
+  const epoch = bookCacheEpoch(key.split(":")[0] || "");
   const value = await load();
-  writeBookCache(key, value);
+  writeBookCache(key, value, epoch);
   return value;
 }
 

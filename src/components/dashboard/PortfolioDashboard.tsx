@@ -74,6 +74,7 @@ import { MarketWidePerformers } from "@/components/dashboard/MarketWidePerformer
 import { CryptoMarketSection } from "@/components/dashboard/crypto/CryptoMarketSection";
 import { CryptoLiveStatus } from "@/components/dashboard/crypto/CryptoLiveStatus";
 import { applyLiveCryptoPrices } from "@/lib/crypto-live";
+import { applyBookedTradeToHoldings, type BookedTrade } from "@/lib/apply-booked-trade";
 import { holdingsActionAfterDialogClose, holdingsGeneration, holdingsResponseIsStale } from "@/lib/holdings-generation";
 import { resumeCryptoLivePoll, useLiveCryptoQuotes } from "@/hooks/useLiveCryptoQuotes";
 import { HoldingsOwnedTable } from "@/components/dashboard/HoldingsOwnedTable";
@@ -870,8 +871,19 @@ export function PortfolioDashboard({
     [userId]
   );
   const handleDataChanged = useCallback(
-    (updated?: { cashBalance?: number }) => {
+    (updated?: { cashBalance?: number; lastTransaction?: BookedTrade | null }) => {
       if (updated && typeof updated.cashBalance === "number") applyKnownCash(updated.cashBalance);
+      // Cash and the holding quantity land with the success toast. A later
+      // /api/stocks read can replace this with live marks; a pre-trade snapshot cannot.
+      if (updated?.lastTransaction) {
+        const pending = deferredHoldingsRef.current;
+        if (pending && pending.generation !== holdingsGeneration()) {
+          deferredHoldingsRef.current = null;
+        }
+        setAllStocks((rows) => applyBookedTradeToHoldings(rows, updated.lastTransaction));
+        holdingsHydratedRef.current = true;
+        setLoading(false);
+      }
       loadStocks();
       loadCash();
       loadMetals();
