@@ -14,6 +14,7 @@ Markers:
 - `pull-check:track-b-2-2026-10-11`
 - `pull-check:research-retest-2026-10-11`
 - `pull-check:tax-fixups-2026-10-11`
+- `pull-check:address-removed-2026-10-11`
 
 Branch: `cursor/qa-m10-m15-l6-l17-b236`
 PR: https://github.com/AetherForge-Ai/aetherforgeai/pull/247
@@ -964,4 +965,40 @@ The opt-out and the last ISO week stay on the existing watchlist fields. The tic
 ### Cost
 
 One completion for the ISO week, shared by every recipient. It is not one completion per person, and it does not use a report allowance. The cap is 1,500 input tokens and 450 output tokens. The rate used is the published short-context price for the completion the report service already calls (`grok-4.6` in `src/lib/zenith.ts`): US$2.00 per million input tokens and US$6.00 per million output tokens, from the provider pricing page updated 29 Sep 2026. The ceiling for that one note is US$0.0057, which is NZ$0.009519 at the baseline book rate 1.6700, so NZ$0.01 if rounded to cents. A shorter note of about 500 input tokens and 250 output tokens is about US$0.0025, under one NZ cent. If the week-note row cannot be saved, a later tick in a new process can spend one more completion. The mail host's per-message fee is separate and is still charged per recipient. The member-facing email and the privacy page do not name the model. The job does not call the completion while the sender flag is off, or when no verified projection exists.
+
+## Address removed — 11 Oct 2026
+
+Marker: `pull-check:address-removed-2026-10-11`
+
+Source comment: `pull-check:address-removed-2026-10-11` in `src/lib/company.ts`.
+
+This branch is from develop. One draft pull request into `develop`. Nothing was published. No Totalum AI Pull. No email was sent. Auth, login, register, security headers, consent, apex, and `next.config.ts` were not edited. The address string was not in those files. Public copy says "AI" only. `origin/develop` was already the base. `origin/main` is merged with the ours strategy so the tree stays develop plus this change. Every section already in this file stays.
+
+The registered office is a home address. It is removed from the site. No replacement address was added. The legal name `FORGE INTELLIGENCE LIMITED` stays, with `admin@aetherforgeai.co.nz` and `lukas@aetherforgeai.co.nz`.
+
+Git history still contains the old address. This change does not rewrite history. The working tree does not name the old street, suburb, or postcode.
+
+### Removed from the site — fixed
+
+- Status: fixed
+- Files: `src/lib/company.ts`, `src/components/SiteFooter.tsx`, `src/components/about/AboutContent.tsx`, `src/app/layout.tsx`, `src/lib/track-b-p0.test.ts`
+- URL / steps: open `/`, `/about`, `/terms-of-service`, `/privacy-policy`, and `/trust`. Read the footer and the About company block. View source and read the Organization JSON-LD.
+- Expected: the footer shows `FORGE INTELLIGENCE LIMITED`, the NZBN, both emails, and the phone. It does not show a street, a town, or a postcode. About shows the company name, the NZBN, the founder, and both emails. The portrait has no location badge. JSON-LD names the company and the NZBN and has no postal address. Terms, Privacy, and Trust still show both emails.
+
+### Verify on the live site
+
+- After Lukas publishes, view the HTML source of `https://aetherforgeai.co.nz/`, `https://aetherforgeai.co.nz/about`, `https://aetherforgeai.co.nz/terms-of-service`, `https://aetherforgeai.co.nz/privacy-policy`, and `https://aetherforgeai.co.nz/trust`.
+- Search the page source for the old street name, suburb and postcode (Lukas knows them).
+- Expected: no matches. The same HTML still contains `FORGE INTELLIGENCE LIMITED`, `admin@aetherforgeai.co.nz`, and `lukas@aetherforgeai.co.nz`.
+
+### Where a postal address may still be required
+
+These pages identify the company and do not state a registered office or an address for service. No address was invented. Lukas decides whether a non-home address must be added later.
+
+- Footer on every page. It shows the legal name and NZBN. It no longer shows a registered office.
+- About, company block. The "Registered office" label was removed with the street line.
+- Terms, section 17 Contact. Emails and phone only. No address for service of notices.
+- Privacy, section 13 Complaints & contact. Emails only.
+- Trust. Emails only. No postal address.
+- Organization JSON-LD in the root layout. The postal address block was removed. That block was structured data, not a statutory notice.
 
