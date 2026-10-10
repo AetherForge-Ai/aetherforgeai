@@ -634,7 +634,10 @@ describe("holding edit writes a ledger correction", () => {
     expect(dialog).toContain("Correct this holding");
     expect(dialog).not.toContain("Update the date, amount or purchase price for this position");
     const edit = readFileSync(path.join(process.cwd(), "src/app/api/stocks/[id]/route.ts"), "utf8");
-    expect(edit).toContain("executed_at: nextDay ? `${nextDay}T12:00:00.000Z`");
+    expect(edit).toContain("executed_at: civilDay");
+    expect(edit).toContain("trade_date: civilDay");
+    expect(edit).not.toContain("T12:00:00.000Z");
+    expect(edit).toContain("The date can't be in the future.");
     expect(edit).toContain("fromHoldingEdit: true");
   });
 });

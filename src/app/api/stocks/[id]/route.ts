@@ -126,6 +126,8 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
       const dateChanged = Boolean(nextDay && nextDay !== prevDay);
       if (plan.changed || dateChanged) {
         const heldType = (owned.asset_type || assetType) as "stock" | "crypto" | "metal";
+        // Same civil day a buy or sell sends. Noon UTC is the next calendar day in New Zealand.
+        const civilDay = nextDay || aucklandDateISO();
         await applyTransaction(
           user,
           {
@@ -136,7 +138,8 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
             quantity: qty,
             price: fill,
             notes: plan.notes,
-            executed_at: nextDay ? `${nextDay}T12:00:00.000Z` : new Date().toISOString(),
+            executed_at: civilDay,
+            trade_date: civilDay,
           },
           { fromHoldingEdit: true }
         );
