@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { MarketsExplorer } from "@/components/dashboard/MarketsExplorer";
+import { PublicMarketTables } from "@/components/markets/PublicMarketTables";
 import { bindActiveAccount } from "@/lib/account-identity";
 import type { MarketsTab } from "@/lib/market-detail-routes";
+import type { PublicMarketIndex } from "@/lib/public-market-types";
 import { LineChart, Globe } from "lucide-react";
 import { pageTitle } from "@/lib/page-title";
 
@@ -34,11 +36,14 @@ export function MarketsPageContent({
   preview = false,
   userId = null,
   initialTab = null,
+  index = null,
 }: {
   preview?: boolean;
   userId?: string | null;
   /** /markets?tab= so Back from a detail page reopens the same board. */
   initialTab?: MarketsTab | null;
+  /** Server-rendered first page of each tab. */
+  index?: PublicMarketIndex | null;
 }) {
   // Bind before BuyDialog's effect. This page sits outside AccountOwnerGuard,
   // so an unbound shell made the cash request start with userId null and the
@@ -85,6 +90,8 @@ export function MarketsPageContent({
           onTabChange={setTab}
         />
       </div>
+
+      {index ? <PublicMarketTables index={index} /> : null}
 
       {preview && (
         <p className="mt-4 text-center text-xs text-muted-foreground">

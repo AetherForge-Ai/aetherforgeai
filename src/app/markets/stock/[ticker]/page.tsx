@@ -4,6 +4,7 @@ import { publicPageMetadata } from "@/lib/reviewed-book";
 import { MarketsAppFrame } from "@/components/dashboard/MarketsAppFrame";
 import { StockAssetPage } from "@/components/dashboard/StockAssetPage";
 import { exchangeFromTicker, normalizeStockTicker, parseExchange } from "@/lib/market-detail-routes";
+import { loadStockQuoteLine } from "@/lib/public-market-index";
 
 export const dynamic = "force-dynamic";
 
@@ -38,9 +39,13 @@ export default async function StockDetailPage({
   const exchange = (ticker ? exchangeFromTicker(ticker) : null) ?? parseExchange(sp.exchange);
   const symbol = ticker ? ticker.replace(/\.(NZ|AX|L)$/i, "") : "";
   const allowBuy = !!user && sp.buy === "1";
+  const quoteLine = ticker ? await loadStockQuoteLine(ticker) : null;
 
   return (
     <MarketsAppFrame user={user}>
+      <p className="mx-auto w-full max-w-6xl px-4 pt-6 text-sm text-muted-foreground sm:px-6 lg:px-8" data-ticker-quote>
+        {quoteLine ?? (ticker ? `${ticker} Price not in this response.` : "Price not in this response.")}
+      </p>
       <StockAssetPage
         ticker={ticker ?? ""}
         symbol={symbol}
