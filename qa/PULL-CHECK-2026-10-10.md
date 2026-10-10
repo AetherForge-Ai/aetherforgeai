@@ -1436,7 +1436,7 @@ Auth, login logic, register logic, security headers, consent, apex, and `next.co
 
 ### Checks
 
-Recorded on the combined branch after vitest, `npm run check-types-errors`, and `npm run build`. Nothing was published. No email was sent.
+On `cursor/batch2-combined-adbc` from develop `47f44d9`, after the cherry-picks, the SuperGrok sentences, and the ours merge of `origin/main` `b886b2f`: `npm test` 133 files, 613 tests passed. The first run failed one assertion. `src/lib/plan-usage.test.ts` still read `/settings/billing` from `PricingFAQ.tsx` after the questions moved to `src/lib/pricing-faq.ts`. The assertion now reads the shared module and checks the component still renders `PRICING_FAQS`. Recheck: 613 tests passed. `npm run check-types-errors` passed. `npm run build` passed (Next.js 15.3.9). Nothing was published. No email was sent. A search for `pegasus`, `lakeside`, and `7612` outside `src/data/listings` returned zero hits.
 
 
 
