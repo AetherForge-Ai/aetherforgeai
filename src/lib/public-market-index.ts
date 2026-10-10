@@ -17,6 +17,8 @@ const COIN_PAGE = 25;
 const EQUITY_BUDGET_MS = 3000;
 const ALT_BUDGET_MS = 3000;
 const INDEX_TTL_MS = 5 * 60 * 1000;
+/** After a refresh that keeps the previous snapshot, wait before trying again. */
+const REFRESH_BACKOFF_MS = 60 * 1000;
 
 function asOfLabel(iso: string | null): string {
   if (!iso) return "as of not stated by the vendor";
@@ -144,6 +146,8 @@ async function buildIndex(): Promise<PublicMarketIndex> {
 
 let memo: { at: number; value: PublicMarketIndex } | null = null;
 let inflight: Promise<PublicMarketIndex> | null = null;
+/** Earliest time a warm snapshot may start another background refresh. */
+let nextRefreshAt = 0;
 
 function emptyIndex(): PublicMarketIndex {
   return {
@@ -161,9 +165,15 @@ function emptyIndex(): PublicMarketIndex {
 
 /** Keep a richer snapshot. A short timeout must not wipe a page that already had rows. */
 function remember(value: PublicMarketIndex) {
-  if (value.priceRowCount <= 0) return;
-  if (memo && value.priceRowCount < memo.value.priceRowCount) return;
-  memo = { at: Date.now(), value };
+  const now = Date.now();
+  const keepExisting =
+    value.priceRowCount <= 0 || (memo != null && value.priceRowCount < memo.value.priceRowCount);
+  if (keepExisting) {
+    if (memo && memo.value.priceRowCount > 0) nextRefreshAt = now + REFRESH_BACKOFF_MS;
+    return;
+  }
+  memo = { at: now, value };
+  nextRefreshAt = now + INDEX_TTL_MS;
 }
 
 function startBuild(): Promise<PublicMarketIndex> {
@@ -184,11 +194,12 @@ function startBuild(): Promise<PublicMarketIndex> {
  * First page of each markets tab.
  * A warm snapshot is returned immediately. After it is older than the TTL,
  * the next read still returns it and refreshes in the background.
+ * A refresh that keeps the old snapshot waits REFRESH_BACKOFF_MS before another try.
  * A cold read waits for the tab budget (EQUITY_BUDGET_MS). Empty tabs say the price is not in this response.
  */
 export async function loadPublicMarketIndex(): Promise<PublicMarketIndex> {
   if (memo && memo.value.priceRowCount > 0) {
-    if (Date.now() - memo.at >= INDEX_TTL_MS) void startBuild();
+    if (Date.now() >= nextRefreshAt) void startBuild();
     return memo.value;
   }
   const value = await startBuild();
