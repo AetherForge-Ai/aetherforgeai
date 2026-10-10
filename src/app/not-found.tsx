@@ -1,14 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { pageTitle } from "@/lib/page-title";
 
 export const metadata: Metadata = {
-  title: { absolute: "Page not found · AetherForge AI" },
+  title: { absolute: pageTitle("Page not found") },
   description: "That page is not on AetherForge AI.",
   robots: { index: false, follow: false },
   alternates: { canonical: "/404" },
   openGraph: {
-    title: "Page not found · AetherForge AI",
+    title: pageTitle("Page not found"),
     description: "That page is not on AetherForge AI.",
     url: "/404",
     type: "website",
