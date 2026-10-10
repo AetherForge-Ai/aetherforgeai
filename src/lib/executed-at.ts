@@ -89,6 +89,16 @@ export function lotCivilDay(raw: string | Date | null | undefined, fallback = ""
   return movementCivilDay(text, fallback || text.slice(0, 10));
 }
 
+/**
+ * A movement dated today keeps the clock. An earlier civil day stays date-only.
+ * pull-check:batch1-2026-10-11 R11
+ */
+export function executedAtForLedger(day: string, today: string, now = new Date()): string {
+  const chosen = day.trim();
+  if (chosen && chosen === today.trim()) return now.toISOString();
+  return chosen;
+}
+
 export function formatLedgerDateTime(input?: string | Date | null): string {
   if (input == null || input === "") return "";
   if (input instanceof Date) {

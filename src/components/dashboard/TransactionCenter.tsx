@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
 import { ADVISORY_NOTE } from "@/lib/fill-integrity-client";
 import { formatDisplayDate, formatMoney, formatSavedFx, formatSignedMoney, formatUnitPrice, currencyForTicker, type CurrencyCode } from "@/lib/currency";
+import { formatLedgerDateTime } from "@/lib/executed-at";
 import { aucklandDateISO } from "@/lib/fill-integrity";
 import { distributionLabel } from "@/lib/income-label";
 import { aucklandYmd } from "@/lib/entitlements";
@@ -292,7 +293,7 @@ function CashLineSection({
                 <span className="min-w-0">
                   <span className="font-medium">{row.asset_name || title}</span>
                   <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                    {distributionLabel(row.asset_type)} · {formatDisplayDate(row.executed_at || row.createdAt)}
+                    {distributionLabel(row.asset_type)} · {formatLedgerDateTime(row.executed_at || row.createdAt) || formatDisplayDate(row.executed_at || row.createdAt)}
                   </span>
                   {stripDexNotesPrefix(stripDividendNotesPrefix(row.notes)) ? (
                     <span className="mt-0.5 block truncate text-xs text-muted-foreground">
@@ -722,7 +723,7 @@ export function TransactionCenter({
                         )}
                       </td>
                       <td className="tnum px-4 py-2.5 text-right text-xs text-muted-foreground">
-                        {formatDisplayDate(t.executed_at || t.createdAt)}
+                        {formatLedgerDateTime(t.executed_at || t.createdAt) || formatDisplayDate(t.executed_at || t.createdAt)}
                       </td>
                     </tr>
                   );
@@ -1063,7 +1064,7 @@ function AllTransactionsDialog({
                         )}
                       </td>
                       <td className="tnum py-3 pl-3 text-right text-xs text-muted-foreground">
-                        {formatDisplayDate(t.executed_at || t.createdAt)}
+                        {formatLedgerDateTime(t.executed_at || t.createdAt) || formatDisplayDate(t.executed_at || t.createdAt)}
                       </td>
                     </tr>
                   );
