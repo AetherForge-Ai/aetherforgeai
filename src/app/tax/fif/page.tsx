@@ -116,7 +116,11 @@ export default async function FifPage({
 
             <h2 className="mt-8 font-display text-lg font-semibold">Attributing interests</h2>
             {paper.attributing.length === 0 ? (
-              <p className="mt-2 text-sm text-muted-foreground">No attributing overseas shares on this book.</p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {paper.peakCostNzd != null && paper.peakCostNzd > 0
+                  ? "No other overseas shares on this book. The cost above includes the Australian listings."
+                  : "No attributing overseas shares on this book."}
+              </p>
             ) : (
               paper.attributing.map((position) => (
                 <FifPositionCard
@@ -130,10 +134,10 @@ export default async function FifPage({
 
             <h2 className="mt-8 font-display text-lg font-semibold">Australian listings</h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              These are left out of the {formatNzd(50000)} total. Inland Revenue says the exemption applies when the
-              company is on the official ASX list, is Australian resident and not treated as resident in another country
+              Australian listings are included in the highest cost above. Inland Revenue says an exemption can apply when the
+              company is on the ASX list Inland Revenue names, is Australian resident and not treated as resident in another country
               under a treaty, maintains a franking account, and the stock is not stapled. This book cannot check those
-              four points. If one fails, add that cost back. Australian franking credits cannot be claimed in New
+              conditions. If you leave an exempt company out, remove that cost from the total. Australian franking credits cannot be claimed in New
               Zealand. Fair dividend rate and comparative value are not calculated for this group.
             </p>
             {paper.australian.length === 0 ? (

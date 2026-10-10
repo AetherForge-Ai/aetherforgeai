@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { roundMoney } from "@/lib/currency";
 import { buildDividendRecord, withDividendNotes } from "@/lib/dividend-ledger";
 import {
   buildFifPaper,
@@ -203,6 +204,56 @@ describe("FIF working paper", () => {
     expect(withFifMarketNotes(notes, 2027, null, null)).toBe("broker lot");
     const bothYears = withFifMarketNotes(notes, 2026, 100, null);
     expect(bothYears.startsWith("[FIFMV:2026:o=100.00][FIFMV:2027:o=1800.00;c=2000.00]")).toBe(true);
+  });
+
+  it("rounds half-up and does not let a one-cent booked cash replace the formula", () => {
+    expect(roundMoney(0.4 * 599.89)).toBe(239.96);
+    expect(roundMoney(11743.355)).toBe(11743.36);
+    expect(roundMoney(1.005)).toBe(1.01);
+    expect(roundMoney(-0.004)).toBe(0);
+    expect(Object.is(roundMoney(-0.004), -0)).toBe(false);
+
+    const fraction = paperFor([
+      buy({
+        ticker: "AAPL",
+        executed_at: "2025-06-01",
+        quantity: 0.4,
+        price: 599.89,
+        currency: "NZD",
+        fx_rate: 1,
+        cash_nzd: -239.95,
+      }),
+    ]);
+    expect(fraction.attributing[0].costNzd).toBe(239.96);
+    expect(fraction.peakCostNzd).toBe(239.96);
+
+    const wor = paperFor([
+      buy({
+        ticker: "WOR.AX",
+        executed_at: "2025-06-01",
+        quantity: 1,
+        price: 11743.355,
+        currency: "NZD",
+        fx_rate: 1,
+        cash_nzd: -11743.35,
+      }),
+    ]);
+    expect(wor.attributing).toHaveLength(0);
+    expect(wor.australian[0].costNzd).toBe(11743.36);
+    expect(wor.peakCostNzd).toBe(11743.36);
+    expect(fifThresholdSentence(wor)).toContain("NZ$11,743.36");
+    expect(fifThresholdSentence(wor)).not.toBe("No attributing overseas shares on this book.");
+
+    const five = paperFor([
+      buy({ ticker: "AAA", executed_at: "2025-06-01", quantity: 1, price: 10.005, currency: "NZD", fx_rate: 1 }),
+      buy({ ticker: "BBB", executed_at: "2025-06-02", quantity: 1, price: 10.005, currency: "NZD", fx_rate: 1 }),
+      buy({ ticker: "CCC", executed_at: "2025-06-03", quantity: 1, price: 10.005, currency: "NZD", fx_rate: 1 }),
+      buy({ ticker: "DDD", executed_at: "2025-06-04", quantity: 1, price: 10.005, currency: "NZD", fx_rate: 1 }),
+      buy({ ticker: "EEE", executed_at: "2025-06-05", quantity: 1, price: 10.005, currency: "NZD", fx_rate: 1 }),
+    ]);
+    const sum = roundMoney(five.attributing.reduce((total, row) => total + (row.costNzd || 0), 0));
+    expect(five.peakCostNzd).toBe(sum);
+    expect(sum).toBe(50.05);
   });
 
   it("does not call an empty book under the threshold", () => {
