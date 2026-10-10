@@ -252,6 +252,46 @@ export function visibleBullionLots(
   return [...fromLedger, ...fromDesk];
 }
 
+export interface HeldMetalRow {
+  metal: MetalKey;
+  ounces: number;
+  /** NZD per troy ounce used for the row. Spot when the lot has a market value, otherwise the price paid. */
+  pricePerOz: number;
+  valueNzd: number;
+}
+
+/**
+ * One row per metal that is actually held. An empty book returns no rows.
+ * pull-check:batch1-2026-10-11 B1-1
+ */
+export function heldMetalRows(lots: readonly VisibleBullionLot[]): HeldMetalRow[] {
+  const grouped = new Map<MetalKey, { ounces: number; valueNzd: number }>();
+  for (const lot of lots) {
+    const ounces = Number(lot.ounces);
+    if (!(ounces > 0)) continue;
+    const value =
+      lot.marketValueNZD > 0 ? lot.marketValueNZD : ounces * (Number(lot.purchasePerOz) || 0);
+    const current = grouped.get(lot.metal) ?? { ounces: 0, valueNzd: 0 };
+    grouped.set(lot.metal, {
+      ounces: current.ounces + ounces,
+      valueNzd: current.valueNzd + value,
+    });
+  }
+  const order: MetalKey[] = ["gold", "silver"];
+  return order.flatMap((metal) => {
+    const row = grouped.get(metal);
+    if (!row || !(row.ounces > 0)) return [];
+    return [
+      {
+        metal,
+        ounces: row.ounces,
+        pricePerOz: row.valueNzd > 0 ? row.valueNzd / row.ounces : 0,
+        valueNzd: row.valueNzd,
+      },
+    ];
+  });
+}
+
 /** Ounces × NZD per troy ounce. Never pass an equity share price here. */
 export function markToMarketBullionNZD(ounces: number, nzdPerTroyOz: number): number {
   const oz = Number(ounces);
