@@ -18,11 +18,13 @@ export function PublicGuide({
   title,
   lede,
   links,
+  notes,
 }: {
   kicker: string;
   title: string;
   lede: string;
   links: GuideLink[];
+  notes?: { title: string; body: string; tone?: "ok" | "amber" }[];
 }) {
   return (
     <div className="relative min-h-screen bg-grid">
@@ -37,6 +39,23 @@ export function PublicGuide({
         </section>
 
         <section className="mx-auto max-w-3xl px-4 pb-16 sm:px-6 lg:px-8">
+          {notes && notes.length > 0 ? (
+            <ul className="mb-6 space-y-2">
+              {notes.map((note) => (
+                <li
+                  key={note.title}
+                  className={
+                    note.tone === "amber"
+                      ? "rounded-2xl border border-amber-800/40 bg-amber-500/10 px-5 py-3 text-amber-950 dark:text-amber-50"
+                      : "rounded-2xl border border-border/70 bg-card/70 px-5 py-3"
+                  }
+                >
+                  <span className="block font-display text-base font-bold">{note.title}</span>
+                  <span className="mt-1 block text-sm">{note.body}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
           <ul className="space-y-3">
             {links.map((item) => (
               <li key={`${item.href}-${item.title}`}>

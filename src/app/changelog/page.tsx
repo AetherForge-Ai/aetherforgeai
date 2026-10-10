@@ -8,6 +8,11 @@ export const metadata = publicPageMetadata("/changelog", {
 
 const ENTRIES = [
   {
+    href: "/tax",
+    title: "11 Oct 2026 — Tax fixups and the Tax link",
+    body: "Develop 9dedb71. Auckland dates, realised lots, dividends, the CSV gate, metals loading, the home disclaimer, and a Tax link in the footer and navigation.",
+  },
+  {
     href: "/market-news",
     title: "11 Oct 2026 — News filter and projection index",
     body: "A Jersey residency column stays off the news feed. Equity projections stay on their page and are left out of the sitemap while crypto projections are paused.",
