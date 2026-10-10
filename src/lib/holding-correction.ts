@@ -61,15 +61,15 @@ export function collapseCorrectionNote(notes: string | null | undefined): string
 
 export function ensureCorrectionCurrency(notes: string, currency: CurrencyCode = "NZD"): string {
   return notes.replace(
-    /^(Correction:\s*\S+\s+at\s+)(\S+?)(\.?)(\s*→\s*\S+\s+at\s+)(\S+?)(\.?)/,
-    (_all, lead: string, before: string, _dot: string, mid: string, after: string) =>
-      `${lead}${correctionPriceToken(before, currency)}${mid}${correctionPriceToken(after, currency)}.`
+    /^(Correction:\s*\S+\s+at\s+)(\d[\d,]*(?:\.\d+)?)(\s*→\s*\S+\s+at\s+)(\d[\d,]*(?:\.\d+)?)/,
+    (_all, lead: string, before: string, mid: string, after: string) =>
+      `${lead}${correctionPriceToken(before, currency)}${mid}${correctionPriceToken(after, currency)}`
   );
 }
 
 export function parseCorrectionNote(notes: string | null | undefined): CorrectionSpan | null {
   const text = collapseCorrectionNote(notes);
-  const match = text.match(/^Correction:\s*(\S+)\s+at\s+(\S+)\s*→\s*(\S+)\s+at\s+(\S+?)\.?/);
+  const match = text.match(/^Correction:\s*(\S+)\s+at\s+(\S+)\s*→\s*(\S+)\s+at\s+(\S+)/);
   if (!match) return null;
   return {
     beforeQty: match[1],
