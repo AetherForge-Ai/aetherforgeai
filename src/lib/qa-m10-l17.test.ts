@@ -14,7 +14,7 @@ import {
   sameQuotedUnit,
 } from "@/lib/currency";
 import { dateOnlyInstant } from "@/lib/auckland-noon";
-import { formatLedgerDateTime, lotCivilDay, resolveExecutedInstant } from "@/lib/executed-at";
+import { executedAtForLedger, formatLedgerDateTime, lotCivilDay, resolveExecutedInstant } from "@/lib/executed-at";
 import { aucklandDateISO } from "@/lib/fill-integrity";
 import { computeSummary } from "@/lib/portfolio";
 import { SECURITY_HEADERS } from "@/lib/security-headers";
@@ -66,6 +66,13 @@ describe("M10 dates", () => {
     expect(noon.civilDay).toBe("2026-10-09");
     expect(noon.stored).toBe("2026-10-09T12:00:00+13:00");
     expect(formatLedgerDateTime(String(noon.stored))).toBe("9 Oct 2026");
+    const clock = executedAtForLedger("2026-10-10", "2026-10-10", now);
+    const kept = resolveExecutedInstant(clock, now);
+    expect(kept.hasClock).toBe(true);
+    expect(kept.civilDay).toBe("2026-10-10");
+    expect(formatLedgerDateTime(clock)).toBe("10 Oct 2026, 3:00 pm");
+    expect(formatDisplayDate(clock)).toBe("10 Oct 2026");
+    expect(executedAtForLedger("2026-10-01", "2026-10-10", now)).toBe("2026-10-01");
   });
 });
 
