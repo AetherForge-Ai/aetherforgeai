@@ -616,6 +616,7 @@ export function AboutContent() {
                         <span className="block truncate text-[15px] font-semibold text-[#0F172A]">
                           lukas@aetherforgeai.co.nz
                         </span>
+                        <span className="block text-xs text-[#64748B]">lukas at aetherforgeai.co.nz</span>
                       </span>
                       <ArrowRight className="size-4 text-[#94A3B8] transition-transform group-hover:translate-x-0.5 group-hover:text-[#059669]" />
                     </a>
@@ -633,6 +634,7 @@ export function AboutContent() {
                         <span className="block truncate text-[15px] font-semibold text-[#0F172A]">
                           admin@aetherforgeai.co.nz
                         </span>
+                        <span className="block text-xs text-[#64748B]">admin at aetherforgeai.co.nz</span>
                       </span>
                       <ArrowRight className="size-4 text-[#94A3B8] transition-transform group-hover:translate-x-0.5 group-hover:text-[#059669]" />
                     </a>

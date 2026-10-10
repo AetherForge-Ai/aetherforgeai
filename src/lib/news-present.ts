@@ -1,4 +1,5 @@
 import type { NewsItem } from "@/lib/market-intel";
+import { formatDisplayDate } from "@/lib/currency";
 import { isPublishedUsCpiDay, usCpiDateLabel } from "@/lib/us-cpi-schedule";
 import { publisherTextHasSignalWord } from "@/lib/public-intel";
 
@@ -24,7 +25,7 @@ export const OFFICIAL_OCR_NEWS: NewsItem = {
   time: "2 Sep 2026",
   publishedOn: "2026-09-02",
   summary:
-    "The Reserve Bank of New Zealand shows the Official Cash Rate at 2.75%, updated at 2:00pm on 2 September 2026. The next decision is scheduled for 2:00pm on 28 October 2026. This figure is the Bank's published rate.",
+    "The Reserve Bank of New Zealand shows the Official Cash Rate at 2.75%, updated at 2:00pm on 2 Sep 2026. The next decision is scheduled for 2:00pm on 28 Oct 2026. This figure is the Bank's published rate.",
   url: "https://www.rbnz.govt.nz/monetary-policy/about-monetary-policy/the-official-cash-rate",
 };
 
@@ -43,7 +44,7 @@ export const BLS_CPI_NEWS: NewsItem = {
   publishedOn: "2026-10-04",
   scheduledFor: "2026-10-14",
   summary:
-    "The U.S. Bureau of Labor Statistics CPI page lists a future release. This card is the schedule we collected on 4 October 2026. The index itself was not on the page when this card was written.",
+    "The U.S. Bureau of Labor Statistics CPI page lists a future release. This card is the schedule we collected on 4 Oct 2026. The index itself was not on the page when this card was written.",
   url: "https://www.bls.gov/cpi/",
 };
 
@@ -221,14 +222,8 @@ export function presentNewsTiming(item: NewsItem, now = new Date()): NewsItem {
 }
 
 export function formatNewsDate(when: string | Date): string {
-  const date = typeof when === "string" ? new Date(when.length === 10 ? `${when}T00:00:00+12:00` : when) : when;
-  if (Number.isNaN(date.getTime())) return "Date not stated";
-  return date.toLocaleDateString("en-NZ", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "Pacific/Auckland",
-  });
+  const wall = formatDisplayDate(when);
+  return wall === "—" ? "Date not stated" : wall;
 }
 
 const NZ_ANCHOR = /\b(nzx|\.nz\b|nze|rbnz|new zealand|auckland|wellington|fonterra|\bocr\b|kiwi)\b/i;

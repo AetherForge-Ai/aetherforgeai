@@ -148,6 +148,7 @@ export interface BullionHoldingLike {
   shares?: number | null;
   current_price?: number | null;
   purchase_price?: number | null;
+  purchase_date?: string | null;
 }
 
 /**
@@ -195,6 +196,8 @@ export interface VisibleBullionLot {
   purchasePerOz: number;
   /** ounces × NZD spot (or decontaminated per-oz cost when spot is missing). */
   marketValueNZD: number;
+  /** Auckland civil day or timestamp of the fill, when the lot has one. */
+  purchaseDate?: string | null;
   source: "ledger" | "desk";
 }
 
@@ -228,6 +231,7 @@ export function visibleBullionLots(
       ounces,
       purchasePerOz,
       marketValueNZD: markToMarketBullionNZD(ounces, mark),
+      purchaseDate: typeof row.purchase_date === "string" ? row.purchase_date : null,
       source: "ledger",
     });
   }

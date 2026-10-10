@@ -37,7 +37,7 @@ export const EMAIL_SUPPORT_LINE = "Every plan — including Free — includes em
 export const HISTORY_LENGTH_LINE = "30-day history (projections), ~6 months (stock charts).";
 
 /** Re-issue date for Terms, Privacy, and the AI Disclaimer. Keep TERMS_VERSION in sync. */
-export const LEGAL_UPDATED = "7 October 2026";
+export const LEGAL_UPDATED = "7 Oct 2026";
 
 export const ENGINE_PARAGRAPH =
   "Scores and projected ranges are calculated by a rules-based technical-analysis engine. AI writes the plain-English note that explains those calculated figures.";

@@ -10,6 +10,7 @@ function read(rel: string) {
 describe("H7 unknown URLs are missing pages", () => {
   it("returns missing for unknown paths and member for real private routes", () => {
     expect(documentAccess("/nope-404")).toBe("missing");
+    expect(documentAccess("/dex")).toBe("missing");
     expect(documentAccess("/plans")).toBe("missing");
     expect(documentAccess("/bots")).toBe("missing");
     expect(documentAccess("/sitemap")).toBe("missing");

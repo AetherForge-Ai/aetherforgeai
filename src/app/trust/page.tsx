@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { EmailAddress } from "@/components/EmailAddress";
 import { SiteHeader } from "@/components/SiteHeader";
 import { PAPER_FEE_SUMMARY } from "@/lib/fee-rule";
 import { publicPageMetadata } from "@/lib/reviewed-book";
@@ -75,9 +76,7 @@ export default function TrustPage() {
             <h2 className="font-display text-lg font-bold">Report a vulnerability</h2>
             <p className="text-sm leading-relaxed text-muted-foreground">
               If you find a security weakness, email{" "}
-              <a href="mailto:admin@aetherforgeai.co.nz" className="font-semibold text-primary underline-offset-2 hover:underline">
-                admin@aetherforgeai.co.nz
-              </a>{" "}
+              <EmailAddress email="admin@aetherforgeai.co.nz" className="font-semibold text-primary" />{" "}
               or use the{" "}
               <Link href="/about#contact" className="font-semibold text-primary underline-offset-2 hover:underline">
                 contact form

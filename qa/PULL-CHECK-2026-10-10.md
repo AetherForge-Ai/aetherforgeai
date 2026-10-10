@@ -7,10 +7,11 @@ Markers:
 - `pull-check:qa-2026-10-10-high-h5-h11`
 - `pull-check:qa-2026-10-10-high-h1-h4`
 - `pull-check:qa-2026-10-10-medium-m1-m9`
+- `pull-check:qa-2026-10-10-medium-m10-m15-low-l6-l17`
 
-Branch: `cursor/qa-h1-h4-report-logic-f485`
-PR: https://github.com/AetherForge-Ai/aetherforgeai/pull/243
-H5–H11 landed on develop as https://github.com/AetherForge-Ai/aetherforgeai/pull/242, merge `c72caf8886ac4bc48fec3cc68c505f7d7e6c1079`, tree `264f0f92505e26e322eb45ff81d721646e9fc6ca`. This branch then merged that develop tip. `origin/main` (`b87cefc83783938a13b1382d2e91a00824b5ec51`) is recorded with the ours strategy so the tree stays develop plus this change.
+Branch: `cursor/qa-m10-m15-l6-l17-b236`
+PR: https://github.com/AetherForge-Ai/aetherforgeai/pull/247
+H5–H11 landed on develop as https://github.com/AetherForge-Ai/aetherforgeai/pull/242, merge `c72caf8886ac4bc48fec3cc68c505f7d7e6c1079`, tree `264f0f92505e26e322eb45ff81d721646e9fc6ca`. M1–M9 landed on develop as https://github.com/AetherForge-Ai/aetherforgeai/pull/246, merge `5f27fe0445ccda90b7ea4545c88b389401ea48d4`, tree `11bd481b92c7d528f959100a519482129174ad10`. This branch merged that develop tip. `origin/main` (`2abc281528590898dae15f6ee4a59bc9fc0e4edc`, same tree) is recorded with the ours strategy so the tree stays develop plus this change.
 
 ## Needs Lukas
 
@@ -293,156 +294,157 @@ H5–H11 landed on develop as https://github.com/AetherForge-Ai/aetherforgeai/pu
 - URL / steps: open `/register?redirect=%2Fmarkets%2Fcrypto%2Fada%3Fbuy%3D1`, complete sign-up until the check-your-email panel, and use Go to Log In.
 - Expected: the link is `/login?redirect=%2Fmarkets%2Fcrypto%2Fada%3Fbuy%3D1`. After a successful login the browser goes to `/markets/crypto/ada?buy=1`.
 
-## M10 — not done
+## M10 — fixed
 
-- Status: not done. Another batch. This pull request does not change it.
-- Commit: none
-- Files: none in this pull request
-- URL / steps: Market News, Privacy and Terms dates, a stocks "Updated" line, the ADA chart axis, and the NASDAQ tab time.
-- Expected after a fix: dates look like "10 Oct 2026" or "2 Sep 2026" (never "Sept", "September", or "7 October 2026"), and times look like "10 Oct 2026, 3:47 pm" in NZ time. No ISO or UTC string such as `2026-10-10T02:47:53.208Z`.
+- Status: fixed
+- Commit: `e67a42e` (NASDAQ clock also in `d95e230`)
+- Files: `src/lib/currency.ts`, `src/lib/public-copy.ts`, `src/lib/news-present.ts`, `src/lib/market-freshness.ts`, `src/components/dashboard/crypto/CoinDetailView.tsx`, `src/components/dashboard/ActionableIntelligence.tsx`, `src/components/dashboard/ProjectionsPanel.tsx`, `src/components/dashboard/MarketWidePerformers.tsx`, `src/app/changelog/page.tsx`, `src/components/settings/SettingsClient.tsx`
+- URL / steps: Market News, Privacy and Terms updated lines, a stocks Updated line, an ADA chart axis, and a closed NASDAQ tab.
+- Expected: `2026-10-10T02:47:53.208Z` prints `10 Oct 2026, 3:47 pm`. September prints `Sep`. Legal updated line is `7 Oct 2026`. A closed session does not add a second `09:00 am` clock. The CPI release name still says September 2026.
 
-## M11 — not done
+## M11 — fixed
 
-- Status: not done. Another batch. This pull request does not change it.
-- Commit: none
-- Files: none in this pull request
-- URL / steps: dashboard cash, Headmaster amounts, a small loss row, and the drift figure on the dashboard and in Headmaster. Buy a name and compare cost with value.
-- Expected after a fix: NZ$ amounts use 2 decimal places (`NZ$100,000.00`, `NZ$0.00`). No "-0.00%" and no "-NZ$0.00". Drift uses "pp" in both places. A fresh buy at the same price shows NZ$0.00 gain.
+- Status: fixed
+- Commit: `1cf571d`, `a73662c`, `58c2cb9`
+- Files: `src/lib/currency.ts`, `src/lib/portfolio.ts`, `src/lib/headmaster-trust.ts`, `src/components/totalum/TotalumConsole.tsx`, `src/components/dashboard/AllocationDriftCard.tsx`, `src/components/dashboard/PreciousMetals.tsx`, `src/components/dashboard/PortfolioDashboard.tsx`, `src/components/dashboard/HoldingsOwnedTable.tsx`
+- URL / steps: dashboard cash, Headmaster amounts, drift on the dashboard and in Headmaster, a same-day buy whose stored unit price matches, and a large lot with a 0.004 price gap. Also a non-NZ$ token position whose native gain is under one cent.
+- Expected: NZ$ totals stay at 2 decimal places: `NZ$100,000.00` and `NZ$0.00`. No `-0.00%` and no `-NZ$0.00`. Drift is `pp` in both places. A same-day fill whose unit price still matches after stored precision (at least 6 decimal places) uses one rounding path and the gain is `NZ$0.00`. A gap that only disappears at 2 decimal places is a real gain: 100,000 shares times 0.004 stays `+NZ$400.00`. A non-NZ$ native gain under one cent keeps significant digits (`+US$0.0000040399`), not `US$0.00`.
 
-## M12 — not done
+## M12 — fixed
 
-- Status: not done. Another batch. This pull request does not change it.
-- Commit: none
-- Files: none in this pull request
-- URL / steps: view source on `/pricing` before client FX loads.
-- Expected after a fix: no "US$ …" placeholder in the server HTML. Either a server-side US$ estimate (FX 4 decimal places) or the line is hidden until it loads.
+- Status: fixed
+- Commit: `5f03370`
+- Files: `src/app/pricing/page.tsx`, `src/components/pricing/PricingCards.tsx`, `src/app/settings/page.tsx`, `src/components/settings/SettingsClient.tsx`, `src/hooks/useFxRates.ts`
+- URL / steps: view source on `/pricing` and the plan switcher in Settings.
+- Expected: the string `US$ …` is not in the HTML. When the cached FX snapshot has a time, the server HTML includes a US$ line at 4 decimal places. Otherwise the line stays hidden.
 
-## M13 — not done
+## M13 — fixed
 
-- Status: not done. Another batch. Report prints are H2. This pull request does not change the markets pages for this item.
-- Commit: none
-- Files: none in this pull request
-- URL / steps: the home ticker (TLX.AX) and the NASDAQ tab market-cap column.
-- Expected after a fix: a stale quote shows "as of" or is hidden, and US rows show market cap or the column is dropped for that tab. Until then "TLX.AX 15.85 ▲ +0.00%" can look stale and Mkt Cap can be "—" on every US row.
+- Status: fixed
+- Commit: `d95e230`
+- Files: `src/components/MarketTicker.tsx`, `src/components/dashboard/MarketsExplorer.tsx`
+- URL / steps: the home ticker, including a stale TLX.AX print, and the NASDAQ market-cap column.
+- Expected: a quote older than 18 hours with a 0.00% move shows `as of` and is not painted as a live up-move. The market-cap column is omitted unless most rows have a cap.
 
-## M14 — not done
+## M14 — fixed
 
-- Status: not done. Another batch. Security headers stay only in `next.config` `headers()`. This pull request does not add HSTS preload.
-- Commit: none
-- Files: none in this pull request
+- Status: fixed. X-Frame-Options is omitted on purpose. script-src is report-only on purpose. `security.txt` was already present.
+- Commit: `5457f47`
+- Files: `src/lib/security-headers.ts` (applied only from `next.config` `headers()`), `public/.well-known/security.txt`
 - URL / steps: response headers on a public page, and `/.well-known/security.txt`.
-- Expected after a fix: HSTS max-age of at least one year, preload only after Lukas says so, a Permissions-Policy, a script-src CSP that allows gtag only after consent, and a security.txt that points at the contact form. Until then max-age is 86400, security.txt is 404, and those policies are missing.
+- Expected: `Strict-Transport-Security: max-age=31536000; includeSubDomains` with no preload. `Permissions-Policy` includes camera, microphone, geolocation, and usb. The enforcing CSP remains `frame-ancestors 'self' https://web.totalum.app https://totalum-frontend-test.web.app` so the Totalum preview still loads. There is no `X-Frame-Options`, because SAMEORIGIN or DENY would block that preview. `Content-Security-Policy-Report-Only` is `script-src 'self' https://www.googletagmanager.com` without `unsafe-inline`, so Next inline scripts and the consent-gated tag are not blocked. security.txt contacts `admin@aetherforgeai.co.nz` and expires `2027-10-08`. Canonical host is the apex.
 
-## M15 — not done
+## M15 — partial
 
-- Status: not done. Another batch. This pull request does not change it.
-- Commit: none
-- Files: none in this pull request
-- URL / steps: `/login`, `/register`, a markets table row, and a holding row read with a screen reader.
-- Expected after a fix: login and register each have an h1. Email links have a visible mailto fallback. Duplicate company names are `aria-hidden`. Holding tickers read as "WOR.AX, AUD" and "PFI.NZ, NZD", not "WORAUD" and "PFINZD".
+- Status: partial. Login and register headings are the other batch. Those pages were not edited.
+- Commit: `6bad140`, `a73662c`, `d95e230`
+- Files: `src/components/EmailAddress.tsx`, `src/components/SiteFooter.tsx`, `src/app/trust/page.tsx`, `src/app/privacy-policy/page.tsx`, `src/app/terms-of-service/page.tsx`, `src/app/ai-disclaimer/page.tsx`, `src/components/about/AboutContent.tsx`, `src/components/dashboard/HoldingsOwnedTable.tsx`, `src/components/dashboard/PortfolioDashboard.tsx`, `src/components/dashboard/MarketsExplorer.tsx`
+- URL / steps: footer, Trust, Privacy, Terms, the AI disclaimer, About, a markets row, and a holding row. Do not use this pull request to judge `/login` or `/register` h1s.
+- Expected: each mailto keeps a visible `name at host` line. Duplicate market names are `aria-hidden`. A holding reads `WOR.AX, AUD` or `PFI.NZ, NZD`.
 
-## L6 — not done
+## L6 — fixed
 
-- Status: not done. Another batch.
-- Commit: none
-- Files: none in this pull request
-- URL / steps: dashboard onboarding checklist, after a cash deposit.
-- Expected after a fix: the count matches the number of steps (4, not "1/3 done"), and "Record your first buys" ticks when holdings or cash are recorded.
+- Status: fixed
+- Commit: `13e5cf7`
+- Files: `src/lib/onboarding-steps.ts`, `src/components/dashboard/OnboardingChecklist.tsx`
+- URL / steps: dashboard onboarding after a cash deposit and no holding.
+- Expected: a pro desk shows `1/4 done`. Record your first buys is ticked for cash or a holding. The card still hides when the required steps are done, even if Headmaster is open.
 
-## L7 — not done
+## L7 — partial
 
-- Status: not done. Another batch.
-- Commit: none
-- Files: none in this pull request
-- URL / steps: deposit Review dialog.
-- Expected after a fix: the "Review" heading does not overlap the subtitle.
+- Status: partial. Spacing was increased. This environment did not open the dialog in a browser.
+- Commit: `8f7b569`
+- Files: `src/components/dashboard/RecordTransactionPanel.tsx`, `src/components/dashboard/TransactionDialog.tsx`
+- URL / steps: open a deposit, then Review.
+- Expected: the Review heading uses `leading-snug` and space under the subtitle. The dialog title has extra right padding so the close control does not cover it.
 
-## L8 — not done
+## L8 — partial
 
-- Status: not done. Another batch. The Headmaster link loading state is H3 and is fixed. Other tiles are not.
-- Commit: none
-- Files: none in this pull request
-- URL / steps: reload `/dashboard` and watch tiles, the ledger, and metals.
-- Expected after a fix: session check and data fetches run together, and index and spot data are cached, so tiles are not still skeletons at 6–16 s.
+- Status: partial. Public feeds are warmed and cached. Private book data still waits for the session. Tile timing was not measured in a browser.
+- Commit: `436183d`
+- Files: `src/lib/public-feed-cache.ts`, `src/lib/api.ts`, `src/components/dashboard/DashboardSessionShell.tsx`, `src/components/markets/NzsxMarketPage.tsx`
+- URL / steps: reload `/dashboard`. The session check starts `/api/metals/spot` and `/api/market-snapshot` without awaiting them.
+- Expected: those two public responses are reused for 45 seconds. Holdings are not painted before the session matches. No new request waits on the session check before the public fetch starts.
 
-## L9 — not done
+## L9 — fixed
 
-- Status: not done. Another batch.
-- Commit: none
-- Files: none in this pull request
-- URL / steps: export the transactions CSV.
-- Expected after a fix: money at 2 decimal places, FX at 4 decimal places, full-precision unit prices, date-times like "10 Oct 2026, 3:47 pm", and FeesNZD, FxSource, and realised price/FX filled. No float artefacts such as "11.223099999999999".
+- Status: fixed
+- Commit: `68a5ac0`
+- Files: `src/lib/transaction-csv.ts`, `src/app/api/transactions/export/route.ts`
+- URL / steps: export the transactions CSV on a paid plan.
+- Expected: money is 2 decimal places (`14999.60`, not a float tail), FX is 4 decimal places, unit prices keep stored precision, DateTime_NZ is `10 Oct 2026, 3:47 pm`, FeesNZD and FxSource are filled, and a sell with a blank note says it was recorded on the paper book. A repeated correction sentence is stored once. A `[DEX:<Chain>]` prefix is removed from Notes. Venue and Chain are the columns after Notes.
 
-## L10 — not done
+## L10 — fixed
 
-- Status: not done. Another batch.
-- Commit: none
-- Files: none in this pull request
-- URL / steps: a WOR lot first bought 1 Oct 2026 and later merged. Open Edit.
-- Expected after a fix: the lot keeps "first bought 1 Oct 2026" rather than showing only the later average date.
+- Status: fixed
+- Commit: `73bd18c`, `a73662c`
+- Files: `src/lib/transactions.ts`, `src/lib/transaction-rules.ts`, `src/components/dashboard/PortfolioDashboard.tsx`, `src/components/dashboard/HoldingsOwnedTable.tsx`
+- URL / steps: merge a 1 Oct buy into a WOR lot dated 10 Oct, then read the holding row.
+- Expected: the stored day stays `2026-10-01` and the row says `first bought 1 Oct 2026`.
 
-## L11 — not done
+## L11 — fixed
 
-- Status: not done. Another batch.
-- Commit: none
-- Files: none in this pull request
-- URL / steps: a trade form. Type "abc" in quantity, then correct it. Preview a trade that should be blocked.
-- Expected after a fix: "Enter a number". The error clears when the input changes. No "cash after" figure is shown before the block.
+- Status: fixed
+- Commit: `8f7b569`
+- Files: `src/lib/transaction-rules.ts`, `src/components/dashboard/RecordTransactionPanel.tsx`
+- URL / steps: type `abc` in quantity, then change it. Preview a blocked movement.
+- Expected: the message is `Enter a number.` `-5` still says the quantity must be greater than zero. The message clears when the field changes. Cash after is hidden while the movement is blocked.
 
-## L12 — not done
+## L12 — fixed
 
-- Status: not done. Another batch.
-- Commit: none
-- Files: none in this pull request
-- URL / steps: dividend action on ADA and on Gold, then a dividend ledger row.
-- Expected after a fix: dividends are limited to shares and ETFs, or other assets are labelled Income, and the row shows a date.
+- Status: fixed
+- Commit: `8f7b569`
+- Files: `src/lib/income-label.ts`, `src/components/dashboard/RecordTransactionPanel.tsx`, `src/components/dashboard/TransactionCenter.tsx`
+- URL / steps: choose Dividend on ADA or Gold, then read the ledger row.
+- Expected: shares and ETFs say Dividend. Crypto, metal, and cash say Income. The ledger type stays dividend. The row shows the date.
 
-## L13 — not done
+## L13 — fixed
 
-- Status: not done. Another batch.
-- Commit: none
-- Files: none in this pull request
-- URL / steps: `/tax`, signed in.
-- Expected after a fix: the header is not stuck on "Loading market prices…". A summary of dividends and realised P&L is shown, with the IRD disclaimer. Existing IRD content stays.
+- Status: fixed
+- Commit: `3f006c0`, `d95e230`
+- Files: `src/lib/tax-book.ts`, `src/app/tax/page.tsx`, `src/components/tax/TaxPageContent.tsx`, `src/components/MarketTicker.tsx`
+- URL / steps: `/tax` while signed in.
+- Expected: the ticker request gives up after 8 seconds instead of sitting on a loading line. A loaded book shows dividends and realised P&L (a test book of NZ$25.00 and -NZ$10.86) and says Inland Revenue decides. Existing IRD sections stay. If the book cannot be read, the summary is omitted rather than invented.
 
-## L14 — not done
+## L14 — fixed
 
-- Status: not done. Another batch.
-- Commit: none
-- Files: none in this pull request
-- URL / steps: `/favicon.ico`, the web manifest, and `/dex`.
-- Expected after a fix: favicon and manifest respond. `/dex` is a real page or a 404, not a bounce to login.
+- Status: fixed. `/favicon.ico` was already a real 32×32 icon.
+- Commit: `d163592`
+- Files: `src/app/layout.tsx`, `public/site.webmanifest`, `src/lib/route-gate.test.ts`, `public/favicon.ico`
+- URL / steps: `/favicon.ico`, `/site.webmanifest`, and `/dex`.
+- Expected: the document head points at `/favicon.ico` and `/site.webmanifest`. `documentAccess("/dex")` is `missing`, so the route is a 404 and not a login redirect.
 
-## L15 — not done
+## L15 — fixed
 
-- Status: not done. Another batch.
-- Commit: none
-- Files: none in this pull request
+- Status: fixed
+- Commit: `6bad140`
+- Files: `src/app/terms-of-service/page.tsx`
 - URL / steps: Terms §1.
-- Expected after a fix: the host in Terms matches the canonical apex domain.
+- Expected: the host is `aetherforgeai.co.nz`.
 
-## L16 — not done
+## L16 — fixed
 
-- Status: not done. Another batch.
-- Commit: none
-- Files: none in this pull request
+- Status: fixed
+- Commit: `96f2f74`
+- Files: `assets/files.ts`, `src/assets/files.ts`, `public/brand/founder-portrait.jpeg`
 - URL / steps: `/about`, image URL.
-- Expected after a fix: the image is served from a public asset path, not a signed storage URL that expires in 2098.
+- Expected: the portrait is `/brand/founder-portrait.jpeg`.
 
-## L17 — not done
+## L17 — partial
 
-- Status: not done. Another batch.
-- Commit: none
-- Files: none in this pull request
-- URL / steps: Market News, view source and the relevance scores.
-- Expected after a fix: more than two cards are in the server HTML, and the scores ("98", "90") have a tooltip. The rest of the page is not stuck on "Loading market prices…".
+- Status: partial. The page server-renders the loaded feed when that feed has more than two cards. This environment did not confirm a live feed, so the fallback is the two official cards. The relevance tooltip is in place.
+- Commit: `28c5c74`
+- Files: `src/app/market-news/page.tsx`, `src/components/dashboard/MarketNewsPageContent.tsx`, `src/components/dashboard/NewsFeed.tsx`
+- URL / steps: `/market-news`, view source, and a relevance score.
+- Expected: when the news feed returns more than two stories, those stories are in the first HTML. Otherwise the two official cards are. A score has the title `Relevance is an AetherForge tag from 0 to 100. It is not a recommendation.` News ingestion was not edited.
 
 ## Checks
 
-- `npx tsc --noEmit --skipLibCheck`: passed after merging develop `c72caf8886ac4bc48fec3cc68c505f7d7e6c1079`.
-- `npx vitest run`: 87 files, 439 tests passed.
-- `npm run build` (`next build`): passed. Next.js 15.3.9. Exit 0. The build skipped linting. Better Auth logged that the default secret is in use in this environment; no secret was added.
+- `./node_modules/.bin/tsc --noEmit --skipLibCheck`: passed after the merge of develop `5f27fe04`.
+- `./node_modules/.bin/vitest run`: 96 files, 472 tests passed after that merge. The M1 single correction note and the DEX badge / hidden `[DEX:<Chain>]` prefix tests passed in the CSV and the ledger.
+- `./node_modules/.bin/eslint` on the files in this batch: 0 errors. Three existing unused-disable warnings remain in `NewsFeed.tsx` and `CoinDetailView.tsx`.
+- `npm run build` (`next build`): passed after that merge. Next.js 15.3.9. Exit 0. The build skipped linting. Better Auth logged that the default secret is in use in this environment; no secret was added.
 
 ## Left untouched on purpose
 
-`CRYPTO_PROJECTIONS_PAUSED` remains true. `CRYPTO_SANITY_RATIO` stays 3. Reviewed FX stays ±5%. `preserveDynamicSegmentTraces` is unchanged. Security headers stay in `next.config` `headers()` only. New books still start at NZ$0. The fee default stays NZ$0.00. `auth.ts`, auth mail, transactional mail, and news ingestion were not edited. No email was sent or enabled. Reports describe intelligent AI bots and do not name Grok, ZENITH, or ULTRA. No Totalum AI product name was added. Nothing was published. Contacts remain `admin@aetherforgeai.co.nz` and `lukas@aetherforgeai.co.nz`.
+`CRYPTO_PROJECTIONS_PAUSED` remains true. `CRYPTO_SANITY_RATIO` stays 3. Reviewed FX stays ±5%. `preserveDynamicSegmentTraces` is unchanged. Security headers stay in `next.config` `headers()` only. New books still start at NZ$0. The fee default stays NZ$0.00. This branch did not edit `src/lib/auth.ts`, auth mail, transactional mail, the send-verification route, or news ingestion. Register and login arrived with the #246 merge. Email sending stays hard off. No email was sent. Reports describe intelligent AI bots and do not name Grok, ZENITH, or ULTRA. No Totalum AI product name was added. Nothing was published. Contacts remain `admin@aetherforgeai.co.nz` and `lukas@aetherforgeai.co.nz`.

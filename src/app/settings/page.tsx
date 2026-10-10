@@ -5,6 +5,8 @@ import { AppShell } from "@/components/AppShell";
 import { SettingsClient } from "@/components/settings/SettingsClient";
 import { RedirectSignedOut } from "@/components/auth/RedirectSignedOut";
 import { resolveDisplayName } from "@/lib/user-display";
+import { getFxSnapshot } from "@/lib/fx";
+import type { FxRatesToNZD } from "@/lib/currency";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +18,14 @@ export const metadata = publicPageMetadata("/settings", {
 export default async function SettingsPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login?redirect=/settings");
+
+  let initialFx: { rates: FxRatesToNZD; asOf: string } | null = null;
+  try {
+    const snap = await getFxSnapshot();
+    if (snap.sourced && snap.asOf) initialFx = { rates: snap.ratesToNZD, asOf: snap.asOf };
+  } catch {
+    initialFx = null;
+  }
 
   return (
     <RedirectSignedOut redirectTo="/settings">
@@ -47,6 +57,7 @@ export default async function SettingsPage() {
             hasCustomer: !!user.stripe_customer_id,
             stripeConfigured: isStripeConfigured(),
           }}
+          initialFx={initialFx}
         />
       </AppShell>
     </RedirectSignedOut>

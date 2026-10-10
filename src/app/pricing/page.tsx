@@ -7,6 +7,8 @@ import { PricingFAQ } from "@/components/pricing/PricingFAQ";
 import { DisclaimerNotice } from "@/components/legal/DisclaimerNotice";
 import { APEX_DUAL_PUBLIC_NOTE, PUBLISHED_PLAN_PRICES } from "@/lib/plan-usage";
 import { PRICING_TIERS } from "@/lib/plans";
+import { getFxSnapshot } from "@/lib/fx";
+import type { FxRatesToNZD } from "@/lib/currency";
 import { SECURITY_LINE } from "@/lib/public-copy";
 import { pageTitle } from "@/lib/page-title";
 import { Button } from "@/components/ui/button";
@@ -70,7 +72,14 @@ function PricingSchema() {
   );
 }
 
-export default function PricingPage() {
+export default async function PricingPage() {
+  let initialFx: { rates: FxRatesToNZD; asOf: string } | null = null;
+  try {
+    const snap = await getFxSnapshot();
+    if (snap.sourced && snap.asOf) initialFx = { rates: snap.ratesToNZD, asOf: snap.asOf };
+  } catch {
+    initialFx = null;
+  }
   return (
     <div className="relative min-h-screen bg-grid">
       <div className="pointer-events-none absolute inset-0 bg-aurora" />
@@ -100,7 +109,7 @@ export default function PricingPage() {
 
         {/* 2 + 3 · Billing toggle + pricing cards */}
         <section id="plans" className="mx-auto max-w-6xl scroll-mt-24 px-4 pt-12 sm:px-6 lg:px-8">
-          <PricingCards />
+          <PricingCards initialFx={initialFx} />
           <div className="mx-auto mt-10 max-w-3xl rounded-3xl border border-border/70 bg-card/40 p-6 text-sm leading-relaxed text-muted-foreground">
             <h2 className="font-display text-base font-bold text-foreground">Apex Dual</h2>
             <p className="mt-2">{APEX_DUAL_PUBLIC_NOTE}</p>

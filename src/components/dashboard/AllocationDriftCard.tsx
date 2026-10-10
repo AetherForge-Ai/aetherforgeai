@@ -5,7 +5,7 @@ import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { formatMoney } from "@/lib/currency";
+import { formatDriftPp, formatMoney } from "@/lib/currency";
 import { Coins, Compass, Save } from "lucide-react";
 import { toast } from "sonner";
 
@@ -136,8 +136,7 @@ export function AllocationDriftCard({
                     Math.abs(r.drift) < 2 ? "text-emerald-600" : r.drift > 0 ? "text-amber-600" : "text-sky-600"
                   )}
                 >
-                  {r.drift >= 0 ? "+" : ""}
-                  {r.drift.toFixed(1)}pp
+                  {formatDriftPp(r.drift)}
                 </span>
               </span>
             </div>

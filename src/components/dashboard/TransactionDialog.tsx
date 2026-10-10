@@ -91,8 +91,8 @@ export function TransactionDialog({
           keepDialogOpenWhilePopoverOpen(e);
         }}
       >
-        <DialogHeader className="shrink-0 space-y-1 px-4 pt-4 pr-12 sm:px-6 sm:pt-6">
-          <DialogTitle className="font-display text-xl">
+        <DialogHeader className="shrink-0 space-y-1.5 px-4 pt-5 pr-14 sm:px-6 sm:pt-6">
+          <DialogTitle className="font-display text-xl leading-snug">
             {mode === "correction" ? "Correct this holding" : "Record a transaction"}
           </DialogTitle>
           <DialogDescription>

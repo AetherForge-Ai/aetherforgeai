@@ -12,17 +12,18 @@ import { BASELINE_FX_TO_NZD, type FxRatesToNZD } from "@/lib/currency";
  * baseline on any failure. Used to show the "≈ US$X" reference next to every
  * NZD price across the pricing, bot-purchase and billing screens.
  */
-export function useFxRates(): {
+export function useFxRates(initial?: { rates: FxRatesToNZD; asOf: string } | null): {
   rates: FxRatesToNZD;
   live: boolean;
   asOf: string | null;
   /** False until /api/fx answers, so the page does not paint a second baseline rate as "today". */
   ready: boolean;
 } {
-  const [rates, setRates] = useState<FxRatesToNZD>(BASELINE_FX_TO_NZD);
-  const [live, setLive] = useState(false);
-  const [asOf, setAsOf] = useState<string | null>(null);
-  const [ready, setReady] = useState(false);
+  const seed = initial?.asOf && initial.rates ? initial : null;
+  const [rates, setRates] = useState<FxRatesToNZD>(seed ? seed.rates : BASELINE_FX_TO_NZD);
+  const [live, setLive] = useState(!!seed);
+  const [asOf, setAsOf] = useState<string | null>(seed ? seed.asOf : null);
+  const [ready, setReady] = useState(!!seed);
 
   useEffect(() => {
     let active = true;
@@ -40,7 +41,7 @@ export function useFxRates(): {
         setRates(res.data.ratesToNZD);
         setLive(true);
         setAsOf(res.data.asOf);
-      } else {
+      } else if (!seed) {
         console.error("[useFxRates] No live FX snapshot; US$ figures stay blank:", res.error);
         setLive(false);
         setAsOf(null);
@@ -49,8 +50,10 @@ export function useFxRates(): {
     })().catch((err) => {
       console.error("[useFxRates] Failed to load FX rates; US$ figures stay blank:", err);
       if (!active) return;
-      setLive(false);
-      setAsOf(null);
+      if (!seed) {
+        setLive(false);
+        setAsOf(null);
+      }
       setReady(true);
     });
     return () => {

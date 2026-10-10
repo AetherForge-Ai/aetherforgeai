@@ -9,9 +9,15 @@ import { Newspaper } from "lucide-react";
  * Full-page Market News. Headlines come from GET /api/news so this page does
  * not download the full quote universe.
  */
-export function MarketNewsPageContent({ preview = false }: { preview?: boolean }) {
-  const [news, setNews] = useState<NewsItem[]>([]);
-  const [pending, setPending] = useState(true);
+export function MarketNewsPageContent({
+  preview = false,
+  initialNews = [],
+}: {
+  preview?: boolean;
+  initialNews?: NewsItem[];
+}) {
+  const [news, setNews] = useState<NewsItem[]>(initialNews);
+  const [pending, setPending] = useState(initialNews.length === 0);
   const [note, setNote] = useState<string | null>(null);
 
   useEffect(() => {
@@ -21,8 +27,8 @@ export function MarketNewsPageContent({ preview = false }: { preview?: boolean }
       .then((body: { news?: NewsItem[] }) => {
         if (!active) return;
         const rows = Array.isArray(body?.news) ? body.news : [];
-        setNews(rows);
-        setNote(rows.length ? null : "Headlines are not shown right now.");
+        if (rows.length) setNews(rows);
+        setNote(rows.length || initialNews.length ? null : "Headlines are not shown right now.");
       })
       .catch(() => {
         if (!active) return;

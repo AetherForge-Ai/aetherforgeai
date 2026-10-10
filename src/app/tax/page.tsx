@@ -2,6 +2,8 @@ import { getCurrentUser } from "@/lib/session";
 import { AppShell } from "@/components/AppShell";
 import { TaxPageContent } from "@/components/tax/TaxPageContent";
 import { publicPageMetadata } from "@/lib/reviewed-book";
+import { loadLedger } from "@/lib/transactions";
+import { taxBookSummary } from "@/lib/tax-book";
 
 export const dynamic = "force-dynamic";
 
@@ -22,9 +24,19 @@ export default async function TaxPage() {
       }
     : { name: "Guest", email: "Sign in to activate your account" };
 
+  let book: { dividendsNzd: number; realisedPnlNzd: number } | null = null;
+  if (user) {
+    try {
+      const ledger = await loadLedger(user, 1000);
+      book = taxBookSummary(ledger.transactions);
+    } catch {
+      book = null;
+    }
+  }
+
   return (
     <AppShell user={shellUser} guest={!user}>
-      <TaxPageContent />
+      <TaxPageContent book={book} />
     </AppShell>
   );
 }

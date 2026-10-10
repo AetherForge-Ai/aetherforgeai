@@ -1,0 +1,12 @@
+{
+  "name": "AetherForge AI",
+  "short_name": "AetherForge",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b1220",
+  "theme_color": "#0b1220",
+  "icons": [
+    { "src": "/favicon.ico", "sizes": "32x32", "type": "image/x-icon" },
+    { "src": "/brand/aetherforge-icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

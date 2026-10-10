@@ -7,6 +7,9 @@ import {
   currencyForTicker,
   convertCurrency,
   BASELINE_FX_TO_NZD,
+  freshQuotedFill,
+  roundMoney,
+  roundPositionGain,
   type CurrencyCode,
   type FxRatesToNZD,
 } from "@/lib/currency";
@@ -72,28 +75,37 @@ export function computeSummary(stocks: Stock[], opts: SummaryOptions = {}): Port
     const currency = currencyForTicker(s.ticker, s.asset_type || "stock");
     const costBasis = shares * purchase; // native
     const marketValue = shares * current; // native
-    const gain = marketValue - costBasis;
+    // Same-day fill whose stored unit price still matches: one rounding path.
+    // A 2-decimal print match on an older lot, or a 0.004 gap, stays a real gain.
+    const fresh = freshQuotedFill(purchase, current, s.purchase_date);
+    const costInBase = roundMoney(convertCurrency(costBasis, currency, baseCurrency, fx));
+    const valueInBase = fresh
+      ? costInBase
+      : roundMoney(convertCurrency(marketValue, currency, baseCurrency, fx));
+    const gain = fresh ? 0 : roundPositionGain(marketValue - costBasis, currency);
     const gainPct = costBasis > 0 ? (gain / costBasis) * 100 : 0;
     return {
       ...s,
       current_price: current,
       currency,
       costBasis,
-      marketValue,
+      marketValue: fresh ? costBasis : marketValue,
       gain,
       gainPct,
-      baseValue: convertCurrency(marketValue, currency, baseCurrency, fx),
+      baseValue: valueInBase,
       weight: 0,
     } as HoldingMetrics;
   });
 
   // Totals in base currency (native values converted per-holding).
-  const totalValue = enriched.reduce((sum, h) => sum + h.baseValue, 0);
-  const totalCost = enriched.reduce(
-    (sum, h) => sum + convertCurrency(h.costBasis, h.currency, baseCurrency, fx),
-    0
+  const totalValue = roundMoney(enriched.reduce((sum, h) => sum + h.baseValue, 0));
+  const totalCost = roundMoney(
+    enriched.reduce(
+      (sum, h) => sum + roundMoney(convertCurrency(h.costBasis, h.currency, baseCurrency, fx)),
+      0
+    )
   );
-  const totalGain = totalValue - totalCost;
+  const totalGain = roundMoney(totalValue - totalCost);
   const totalGainPct = totalCost > 0 ? (totalGain / totalCost) * 100 : 0;
 
   enriched.forEach((h) => {
@@ -144,8 +156,10 @@ export function formatCurrency(value: number, opts?: { compact?: boolean }): str
 
 export function formatPercent(value: number): string {
   if (!isFinite(value)) value = 0;
-  const sign = value > 0 ? "+" : "";
-  return `${sign}${value.toFixed(2)}%`;
+  const rounded = Number(value.toFixed(2));
+  if (rounded === 0) return "0.00%";
+  const sign = rounded > 0 ? "+" : "";
+  return `${sign}${rounded.toFixed(2)}%`;
 }
 
 export function formatNumber(value: number): string {

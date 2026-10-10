@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { api } from "@/lib/api";
+import { formatDisplayClock, formatDisplayDate, formatDisplayDateTime } from "@/lib/currency";
 import { clientFacingError } from "@/lib/api-json";
 import { PUBLIC_COIN_SOURCE_LINE, publicCoinDescription } from "@/lib/data-sources";
 import { paperAddSignupHref } from "@/lib/paper-add-link";
@@ -392,15 +393,12 @@ export function CoinDetailView({
                 domain={["dataMin", "dataMax"]}
                 scale="time"
                 tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
-                tickFormatter={(t) =>
-                  new Date(t).toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                    ...(range === "1H" || range === "24H"
-                      ? { hour: "2-digit", minute: "2-digit", month: undefined, day: undefined }
-                      : {}),
-                  })
-                }
+                tickFormatter={(t) => {
+                  const date = new Date(t);
+                  if (range === "1H" || range === "24H") return formatDisplayClock(date);
+                  const wall = formatDisplayDate(date);
+                  return wall.replace(/ \d{4}$/, "");
+                }}
                 minTickGap={48}
               />
               <YAxis
@@ -416,7 +414,7 @@ export function CoinDetailView({
                   borderRadius: 12,
                   fontSize: 12,
                 }}
-                labelFormatter={(t) => new Date(Number(t)).toLocaleString()}
+                labelFormatter={(t) => formatDisplayDateTime(new Date(Number(t)))}
                 formatter={(v) => [fmtPrice(Number(v)), "Price"]}
               />
               <Area type="monotone" dataKey="price" stroke={stroke} strokeWidth={2} fill={`url(#${gradientId})`} />

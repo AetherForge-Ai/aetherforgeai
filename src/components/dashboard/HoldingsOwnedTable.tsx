@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import type { HoldingMetrics } from "@/lib/portfolio";
 import { formatNumber, formatPercent } from "@/lib/portfolio";
-import { formatDisplayDate, formatMoney, formatUnitPrice, CURRENCY_META, type CurrencyCode } from "@/lib/currency";
+import { formatDisplayDate, formatMoney, formatSignedMoney, formatUnitPrice, CURRENCY_META, type CurrencyCode } from "@/lib/currency";
 import { listingExchangeLabel } from "@/lib/market-intel";
 import { dexFromHolding, dexSourceLabel, holdingTitle } from "@/lib/dex-source";
 import { cn } from "@/lib/utils";
@@ -260,14 +260,15 @@ export function HoldingsOwnedTable({
                           })
                         }
                         className="group/tk min-w-0 rounded-lg text-left transition-colors hover:text-primary"
-                        title={`${exchange} · bought ${formatHoldingDate(h.purchase_date)}`}
+                        aria-label={`${h.ticker}, ${h.currency}`}
+                        title={`${exchange} · first bought ${formatHoldingDate(h.purchase_date)}`}
                       >
                         <p className="truncate font-semibold underline-offset-4 group-hover/tk:underline">
                           {h.ticker.replace(/\.(NZ|AX|L)$/, "")}
                           <span className="ml-1 font-normal text-muted-foreground">{h.currency}</span>
                         </p>
                         <p className="truncate text-[0.65rem] text-muted-foreground">
-                          {formatHoldingDate(h.purchase_date)} · {exchange}
+                          {h.purchase_date ? `first bought ${formatHoldingDate(h.purchase_date)}` : "—"} · {exchange}
                         </p>
                       </button>
                     </td>
@@ -292,7 +293,7 @@ export function HoldingsOwnedTable({
                     </td>
                     <td className="overflow-hidden px-2 py-2 text-right">
                       <span className={cn("tnum font-medium", up ? "text-emerald-600" : "text-rose-600")}>
-                        {formatMoney(h.gain, h.currency)}
+                        {formatSignedMoney(h.gain, h.currency)}
                       </span>
                       <span
                         className={cn("tnum ml-1 block text-xs", up ? "text-emerald-600/80" : "text-rose-600/80")}

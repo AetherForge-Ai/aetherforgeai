@@ -5,6 +5,7 @@ import { DashboardSessionSkeleton } from "@/components/dashboard/AccountOwnerGua
 import { GuestDashboardGate } from "@/components/dashboard/GuestDashboardGate";
 import { NzsxMarketBoard } from "@/components/markets/NzsxMarketBoard";
 import { confirmDashboardSession } from "@/lib/auth-refresh";
+import { warmPublicFeeds } from "@/lib/public-feed-cache";
 
 /**
  * Member documents wait for this browser's session, then show the NZSX board.
@@ -20,6 +21,7 @@ export function NzsxMarketPage({ guestDocument }: { guestDocument: boolean }) {
     }
     let cancelled = false;
     setPhase("pending");
+    warmPublicFeeds();
     confirmDashboardSession().then((next) => {
       if (cancelled) return;
       setPhase(next ? "ready" : "guest");
