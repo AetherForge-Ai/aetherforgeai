@@ -3,7 +3,7 @@ import { ExampleExplanationReport } from "@/components/how-it-works/ExampleExpla
 import type { Metadata } from "next";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { SiteHeader } from "@/components/SiteHeader";
-import { DATA_SHARING_LINE, PAPER_BOOK_STATEMENT } from "@/lib/public-copy";
+import { BOT_COUNT_LINE, DATA_SHARING_LINE, FREE_REPORTS_LINE, PAPER_BOOK_STATEMENT, SMITTY_ROLE_LINE } from "@/lib/public-copy";
 import { Button } from "@/components/ui/button";
 import { CryptoInfoModal } from "@/components/how-it-works/CryptoInfoModal";
 import {
@@ -478,7 +478,7 @@ export default function HowItWorksPage() {
             <div className="flex flex-col justify-center rounded-3xl border border-primary/30 bg-gradient-to-br from-primary/15 to-card/40 p-6 text-center shadow-glow">
               <p className="font-display text-lg font-bold">Ready to run it?</p>
               <p className="mt-1.5 text-sm text-muted-foreground">
-                3 reports a month free, no card.
+                {FREE_REPORTS_LINE}
               </p>
               <Button asChild className="mt-4 font-semibold">
                 <Link href="/register">
@@ -529,10 +529,10 @@ export default function HowItWorksPage() {
           <div className="mx-auto mb-10 max-w-2xl text-center">
             <p className="text-sm font-semibold uppercase tracking-wider text-primary">The engines</p>
             <h2 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">
-              3 AI bots plus Smitty, our metals tracker
+              {BOT_COUNT_LINE}
             </h2>
             <p className="mt-3 text-muted-foreground">
-              Stox, Koins and The Headmaster are the three AI bots. Smitty tracks gold and silver spot prices.
+              Stox, Koins and The Headmaster are the three AI bots. {SMITTY_ROLE_LINE}
             </p>
           </div>
           <div className="grid gap-6 md:grid-cols-2">

@@ -9,9 +9,10 @@ import {
   REFUND_FAQ,
   TRIAL_CARD_LINE,
 } from "@/lib/public-copy";
+import { pageTitle } from "@/lib/page-title";
 
 export const metadata = publicPageMetadata("/terms-of-service", {
-  title: "Terms & Conditions — AetherForge AI",
+  title: pageTitle("Terms"),
   description: `The terms and conditions governing your use of AetherForge AI, the trading name of ${LEGAL_ENTITY_NAME}.`,
 });
 
@@ -20,14 +21,14 @@ const UPDATED = LEGAL_UPDATED;
 export default function TermsOfService() {
   return (
     <LegalShell
-      title="Terms & Conditions"
-      subtitle={`These Terms & Conditions govern your access to and use of AetherForge AI, the trading name of ${LEGAL_ENTITY_NAME}, a New Zealand limited company. These terms are governed by New Zealand law, including the Consumer Guarantees Act 1993, the Fair Trading Act 1986 and the Contract and Commercial Law Act 2017.`}
+      title="Terms"
+      subtitle={`These Terms govern your access to and use of AetherForge AI, the trading name of ${LEGAL_ENTITY_NAME}, a New Zealand limited company. These terms are governed by New Zealand law, including the Consumer Guarantees Act 1993, the Fair Trading Act 1986 and the Contract and Commercial Law Act 2017.`}
       updated={UPDATED}
     >
       <LegalSection heading="1. Agreement to these terms">
         <p>
           By creating an account or otherwise accessing or using AetherForge AI (the &quot;Service&quot;)
-          at www.aetherforgeai.co.nz, you agree to be bound by these Terms &amp; Conditions. If you do
+          at www.aetherforgeai.co.nz, you agree to be bound by these Terms. If you do
           not agree, you must not use the Service. If you are using the Service on behalf of an
           organisation, you confirm you have authority to bind that organisation.
         </p>
