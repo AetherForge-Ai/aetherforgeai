@@ -76,7 +76,7 @@ describe("M11 money", () => {
 
   it("zeros a same-day fill only when the stored unit price matches", () => {
     const session = new Date("2026-10-10T01:00:00.000Z");
-    expect(sameQuotedUnit(9.44, 9.43996)).toBe(false);
+    expect(sameQuotedUnit(9.44, 9.43996)).toBe(true);
     expect(sameQuotedUnit(10, 10.004)).toBe(false);
     expect(sameQuotedUnit(10, 10.0000004)).toBe(true);
     expect(freshQuotedFill(10, 10.0000004, "2026-10-10", session)).toBe(true);
@@ -135,6 +135,29 @@ describe("M11 money", () => {
     );
     expect(summary.holdings[0].gain).toBe(400);
     expect(formatSignedMoney(summary.holdings[0].gain)).toBe("+NZ$400.00");
+  });
+
+  it("zeros a fresh WOR buy when the live print matches the fill at 4 decimals", () => {
+    const summary = computeSummary(
+      [
+        {
+          _id: "wor",
+          ticker: "WOR.AX",
+          asset_type: "stock",
+          shares: 1000,
+          purchase_price: 9.44,
+          current_price: 9.43996,
+          purchase_date: aucklandDateISO(),
+        },
+      ],
+      { baseCurrency: "NZD", fxToNZD: { NZD: 1, USD: 1.67, AUD: 1.244 } }
+    );
+    const row = summary.holdings[0];
+    expect(row.currency).toBe("AUD");
+    expect(row.gain).toBe(0);
+    expect(formatSignedMoney(row.gain, "AUD")).toBe("AU$0.00");
+    expect(formatSignedPercent(row.gainPct)).toBe("0.00%");
+    expect(row.baseValue).toBe(roundMoney(1000 * 9.44 * 1.244));
   });
 
   it("does not print a non-NZ$ sub-cent position gain as US$0.00", () => {

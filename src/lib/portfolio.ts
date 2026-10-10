@@ -75,8 +75,8 @@ export function computeSummary(stocks: Stock[], opts: SummaryOptions = {}): Port
     const currency = currencyForTicker(s.ticker, s.asset_type || "stock");
     const costBasis = shares * purchase; // native
     const marketValue = shares * current; // native
-    // Same-day fill whose stored unit price still matches: one rounding path.
-    // A 2-decimal print match on an older lot, or a 0.004 gap, stays a real gain.
+    // Same-day fill whose unit price matches at 4 decimals: one rounding path.
+    // A 0.004 gap on an older lot stays a real gain.
     const fresh = freshQuotedFill(purchase, current, s.purchase_date);
     const costInBase = roundMoney(convertCurrency(costBasis, currency, baseCurrency, fx));
     const valueInBase = fresh

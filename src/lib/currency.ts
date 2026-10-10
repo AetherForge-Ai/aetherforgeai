@@ -340,13 +340,16 @@ function aucklandCivilDay(input: string | Date): string {
 }
 
 /**
- * True when two unit prices are the same after the stored precision
- * (at least 6 decimal places). A 2-decimal print match is not enough:
- * 10.000 and 10.004 both show as 10.00, and 100,000 shares times that
- * gap is a real gain.
+ * True when two unit prices are the same fill.
+ * From one cent, match at 4 decimal places so a fresh buy at 9.44 and a
+ * live print of 9.43996 are one price. A 0.004 gap (10 vs 10.004) stays
+ * different. Sub-cent quotes keep the stored precision.
  */
 export function sameQuotedUnit(paid: number, mark: number): boolean {
   if (!(paid > 0) || !(mark > 0) || !Number.isFinite(paid) || !Number.isFinite(mark)) return false;
+  if (Math.max(paid, mark) >= 0.01) {
+    return Math.round(paid * 10000) === Math.round(mark * 10000);
+  }
   return roundUnitPrice(paid) === roundUnitPrice(mark);
 }
 
