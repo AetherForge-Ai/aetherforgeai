@@ -2,31 +2,42 @@ import type { MetadataRoute } from "next";
 
 const siteUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.aetherforgeai.co.nz";
 
+/**
+ * Public sitemap. /blog stays off until there are posts.
+ * /performance is a dated sample, so it is not listed as daily.
+ */
+const ENTRIES: Array<{
+  path: string;
+  changeFrequency: "weekly" | "monthly" | "yearly";
+  priority: number;
+  lastModified: string;
+}> = [
+  { path: "", changeFrequency: "weekly", priority: 1, lastModified: "2026-10-10" },
+  { path: "/about", changeFrequency: "monthly", priority: 0.6, lastModified: "2026-10-10" },
+  { path: "/performance", changeFrequency: "yearly", priority: 0.4, lastModified: "2026-07-08" },
+  { path: "/how-it-works", changeFrequency: "monthly", priority: 0.7, lastModified: "2026-10-10" },
+  { path: "/pricing", changeFrequency: "monthly", priority: 0.8, lastModified: "2026-10-10" },
+  { path: "/markets", changeFrequency: "weekly", priority: 0.8, lastModified: "2026-10-10" },
+  { path: "/market-news", changeFrequency: "weekly", priority: 0.7, lastModified: "2026-10-10" },
+  { path: "/projections", changeFrequency: "weekly", priority: 0.7, lastModified: "2026-10-10" },
+  { path: "/privacy-policy", changeFrequency: "monthly", priority: 0.4, lastModified: "2026-10-10" },
+  { path: "/terms-of-service", changeFrequency: "monthly", priority: 0.4, lastModified: "2026-10-10" },
+  { path: "/ai-disclaimer", changeFrequency: "monthly", priority: 0.4, lastModified: "2026-10-10" },
+  { path: "/trust", changeFrequency: "monthly", priority: 0.6, lastModified: "2026-10-10" },
+  { path: "/docs", changeFrequency: "monthly", priority: 0.6, lastModified: "2026-10-10" },
+  { path: "/tax", changeFrequency: "monthly", priority: 0.5, lastModified: "2026-10-10" },
+  { path: "/changelog", changeFrequency: "monthly", priority: 0.3, lastModified: "2026-10-10" },
+  { path: "/stox", changeFrequency: "monthly", priority: 0.6, lastModified: "2026-10-10" },
+  { path: "/koins", changeFrequency: "monthly", priority: 0.6, lastModified: "2026-10-10" },
+  { path: "/smitty", changeFrequency: "monthly", priority: 0.5, lastModified: "2026-10-10" },
+  { path: "/buy-the-bots", changeFrequency: "monthly", priority: 0.4, lastModified: "2026-10-10" },
+];
+
 export default function sitemap(): MetadataRoute.Sitemap {
-  const routes = [
-    "",
-    "/about",
-    "/performance",
-    "/how-it-works",
-    "/pricing",
-    "/markets",
-    "/market-news",
-    "/privacy-policy",
-    "/terms-of-service",
-    "/ai-disclaimer",
-    "/trust",
-    "/docs",
-    "/blog",
-    "/tax",
-    "/changelog",
-    "/stox",
-    "/koins",
-    "/smitty",
-    "/buy-the-bots",
-  ];
-  return routes.map((path) => ({
-    url: `${siteUrl}${path}`,
-    changeFrequency: path === "" || path === "/performance" ? "daily" : "monthly",
-    priority: path === "" ? 1 : path === "/performance" ? 0.9 : 0.6,
+  return ENTRIES.map((entry) => ({
+    url: `${siteUrl}${entry.path}`,
+    lastModified: entry.lastModified,
+    changeFrequency: entry.changeFrequency,
+    priority: entry.priority,
   }));
 }

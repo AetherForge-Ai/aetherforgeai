@@ -23,7 +23,8 @@ import "server-only";
  */
 
 import { totalumSdk } from "@/lib/totalum";
-import { sendTransactionalEmail } from "@/lib/send-transactional-mail";
+import { activityEmailSendingEnabled, previewActivityEmail } from "@/lib/activity-email";
+import { readActivityEmailPrefs } from "@/lib/activity-email-server";
 import { createZenithCompletion, isZenithConfigured } from "@/lib/grok";
 import { analyzeSecurity, type MarketCode } from "@/lib/market-intel";
 import { fetchQuotesForAssetClass } from "@/lib/market-data";
@@ -653,20 +654,20 @@ export async function generateTrialReport(args: {
     console.error("[trial-report] PDF generation failed (non-fatal):", pdfErr);
   }
 
-  // Email
+  // Preview only. The activity-email flag stays off, so nothing is sent.
   let emailed = false;
   try {
-    await sendTransactionalEmail({
-      to: [user.email],
-      subject: `⚡ ${report.title} — your one-time report`,
-      html,
-      fromName: "AetherForge AI",
-      ...(pdfUrl
-        ? { attachments: [{ filename: `${report.title}.pdf`, url: pdfUrl, contentType: "application/pdf" }] }
-        : {}),
+    const prefs = await readActivityEmailPrefs();
+    const preview = previewActivityEmail({
+      kind: "report-ready",
+      to: user.email,
+      name: user.name,
+      prefs,
+      reportTitle: report.title,
+      when: now,
     });
-    emailed = true;
-    console.log(`[trial-report] Report emailed to ${user.email}`);
+    emailed = activityEmailSendingEnabled() && preview.sent;
+    console.log(`[trial-report] Report email preview (${preview.reason}) for user ${user._id}`);
   } catch (mailErr) {
     console.error("[trial-report] Email delivery failed (non-fatal):", mailErr);
   }

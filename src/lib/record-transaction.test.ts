@@ -618,9 +618,10 @@ describe("display formatters", () => {
     expect(dashboard).toContain("return formatDisplayDate(iso)");
     expect(table).toContain("return formatDisplayDate(iso)");
     expect(dashboard).not.toContain('day: "2-digit"');
-    expect(readFileSync(path.join(process.cwd(), "src/components/performance/LiveExamplesGallery.tsx"), "utf8")).toContain(
-      'const TODAY_LABEL = "8 July 2026"'
-    );
+    const gallery = readFileSync(path.join(process.cwd(), "src/components/performance/LiveExamplesGallery.tsx"), "utf8");
+    expect(gallery).toContain("const TODAY_LABEL = PERFORMANCE_SAMPLE.label");
+    expect(gallery).not.toContain("July");
+    expect(gallery).not.toContain("9:20am");
   });
 });
 

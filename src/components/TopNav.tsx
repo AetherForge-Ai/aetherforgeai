@@ -41,6 +41,8 @@ import {
   FileSpreadsheet,
   ChevronDown,
   Plus,
+  BookOpen,
+  Shield,
 } from "lucide-react";
 
 /**
@@ -65,6 +67,9 @@ const MORE_LINKS: NavLink[] = [
   { href: "/performance", label: "Example results", icon: Trophy },
   { href: "/tax", label: "Tax", icon: Scale },
   { href: "/pricing", label: "Pricing", icon: Tag },
+  { href: "/how-it-works", label: "How it works", icon: BookOpen },
+  { href: "/projections", label: "Projections", icon: Sparkles },
+  { href: "/trust", label: "Trust", icon: Shield },
 ];
 
 const NAV_LINKS: NavLink[] = [...PRIMARY_LINKS, ...MARKET_LINKS, ...MORE_LINKS];

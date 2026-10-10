@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { LEGAL_ENTITY_NAME } from "@/lib/company";
+import { PERFORMANCE_SAMPLE } from "@/lib/performance-sample";
 import { SiteHeader } from "@/components/SiteHeader";
 import { LiveExamplesGallery } from "@/components/performance/LiveExamplesGallery";
 import {
@@ -17,7 +18,7 @@ import {
  */
 
 export const metadata = publicPageMetadata("/performance", {
-  title: "Example results — paper portfolio snapshots | AetherForge AI",
+  title: "Example results · AetherForge AI",
   description:
     "Timestamped screenshots of an AetherForge paper portfolio. Illustrative only — not a trading platform, not a broker, and not a promise of future returns.",
 });
@@ -26,12 +27,12 @@ const SAMPLE_NOTES = [
   {
     icon: BadgeCheck,
     title: "One paper book",
-    body: "Every screenshot is the same paper portfolio on 7 July 2026 and 8 July 2026. AetherForge did not place the trades.",
+    body: "Every screenshot is the same paper portfolio on 7–8 Jul 2026. AetherForge did not place the trades.",
   },
   {
     icon: Zap,
     title: "One meaning of 1.98%",
-    body: "1.98% is the mark-to-market change from NZ$100,429 to the day's high of NZ$102,421.30, over about 8–9 hours. It is not a 7-day figure and not a forecast.",
+    body: PERFORMANCE_SAMPLE.definition,
   },
   {
     icon: BrainCircuit,
@@ -54,13 +55,14 @@ export default function PerformancePage() {
 
         {/* ─────────────────────────  INTRO  ───────────────────────── */}
         <section className="mx-auto max-w-3xl px-4 pt-14 pb-10 text-center sm:px-6 sm:pt-16 sm:pb-12 lg:px-8">
-          <h1 className="font-grift-black text-4xl tracking-tight text-amber-400 sm:text-5xl">
+          <p className="text-sm font-semibold uppercase tracking-wider text-primary">{PERFORMANCE_SAMPLE.label}</p>
+          <h1 className="mt-3 font-grift-black text-4xl tracking-tight text-amber-400 sm:text-5xl">
             Example results
           </h1>
           <div className="mt-6 space-y-4 text-base leading-relaxed text-muted-foreground sm:mt-8 sm:text-lg">
             <p>
-              These are timestamped screenshots from one paper portfolio on 7 July 2026 and 8 July 2026,
-              from just after 9am through to around the close. They show how the book was marked.
+              These are timestamped screenshots from one paper portfolio on 7–8 Jul 2026,
+              from just after 9:00 am through to around the close. They show how the book was marked.
               Treat them as a single dated sample.
             </p>
             <p>
@@ -68,8 +70,7 @@ export default function PerformancePage() {
               sample of one paper book.
             </p>
             <p>
-              Over that day the paper portfolio showed about a 1.98% mark-to-market change across
-              8–9 hours. That is one example from that session. It is not a claim that AetherForge beats
+              {PERFORMANCE_SAMPLE.definition} That is one example from that session. It is not a claim that AetherForge beats
               every platform, and it is not a promise that results will be positive again.
             </p>
             <p>
@@ -88,10 +89,10 @@ export default function PerformancePage() {
           <div className="mx-auto mt-12 flex max-w-3xl flex-col items-center gap-3 rounded-3xl border border-primary/20 bg-gradient-to-br from-primary/10 via-card/40 to-card/40 p-8 text-center">
             <LineChart className="size-8 text-primary" />
             <p className="font-display text-xl font-bold sm:text-2xl">
-              One paper book, 7–8 July 2026: NZ$100,429 to a day's high of NZ$102,421.30 (about 1.98%)
+              One paper book, {PERFORMANCE_SAMPLE.label}: {PERFORMANCE_SAMPLE.opening} to a day's high of {PERFORMANCE_SAMPLE.high} ({PERFORMANCE_SAMPLE.pct})
             </p>
             <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
-              Seven timestamped snapshots from a single session. The marks moved by about NZ$2,000
+              Seven timestamped snapshots from a single session. The marks moved by {PERFORMANCE_SAMPLE.move}
               on that day. That is one example. It is not a forecast, not a promise, and not money
               placed with a broker.{" "}
               <Link href="/ai-disclaimer" className="font-medium text-primary hover:underline">

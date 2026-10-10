@@ -44,6 +44,7 @@ import {
   type AccountHoldingRow,
 } from "@/lib/report-book";
 import { reportPayloadWasEmailed } from "@/lib/report-email";
+import { reportEmailModalNote, reportSavedToast } from "@/lib/report-email-copy";
 import {
   acceptAccountPayload,
   responseUserId,
@@ -509,11 +510,7 @@ export function ReportCenter({
     setLastReportAt((prev) => ({ ...prev, [kind]: new Date().toISOString() }));
     if (res.data.free) setFreeQuota(res.data.free);
     setNow(Date.now());
-    toast.success(
-      res.data.emailed
-        ? `Report ready — emailed to you and saved below.`
-        : `Report ready and saved below (email delivery is pending).`
-    );
+    toast.success(reportSavedToast(res.data.emailed === true));
     void loadHistory().catch(() => {});
   }
 
@@ -920,9 +917,7 @@ export function ReportCenter({
                 </div>
                 <DialogDescription className="break-words">
                   Searchable report text below — PDF download is optional.
-                  {reportEmailed
-                    ? " A copy was emailed to you."
-                    : " No report email was sent for this view."}
+                  {reportEmailModalNote(reportEmailed)}
                 </DialogDescription>
               </div>
               {lastPdfUrl && (

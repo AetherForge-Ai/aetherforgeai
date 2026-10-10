@@ -4,6 +4,7 @@ import {
   filterAnonymousAuthSetCookies,
   isAccountScopedClientUrl,
   isCacheableMarketingPath,
+  isCookieFreePath,
   isClearingSetCookie,
   isPrivateAppPath,
   isSharedCacheReplay,
@@ -64,6 +65,10 @@ describe("private document cache policy", () => {
     expect(shouldClearAnonymousAuthCookies("/api/auth/verify-email", "GET", false)).toBe(false);
     expect(shouldClearAnonymousAuthCookies("/dashboard", "GET", true)).toBe(false);
     expect(shouldClearAnonymousAuthCookies("/_next/static/chunks/app.js", "GET", false)).toBe(false);
+    expect(isCookieFreePath("/sitemap.xml")).toBe(true);
+    expect(isCookieFreePath("/robots.txt")).toBe(true);
+    expect(shouldClearAnonymousAuthCookies("/sitemap.xml", "GET", false)).toBe(false);
+    expect(shouldClearAnonymousAuthCookies("/robots.txt", "GET", false)).toBe(false);
   });
 
   it("treats a CDN hit or aged account payload as unsafe to paint", () => {

@@ -1,11 +1,14 @@
 import { PublicGuide } from "@/components/public/PublicGuide";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 
-export const metadata = publicPageMetadata("/blog", {
-  title: "Blog — AetherForge AI",
-  description:
-    "AetherForge AI does not publish a blog yet. Market headlines are on Market News. Example paper-portfolio snapshots are on Example results.",
-});
+export const metadata = {
+  ...publicPageMetadata("/blog", {
+    title: "Blog — AetherForge AI",
+    description:
+      "AetherForge AI does not publish a blog yet. Market headlines are on Market News. Example paper-portfolio snapshots are on Example results.",
+  }),
+  robots: { index: false, follow: false },
+};
 
 export default function BlogPage() {
   return (
