@@ -31,6 +31,7 @@ import {
 } from "@/lib/dividend-ledger";
 import type { PaperHoldingChoice } from "@/lib/paper-holding";
 import { TAX_INDICATIVE_LABEL } from "@/lib/tax-disclaimer";
+import { TAX_PACK_NOTE, type CompletenessItem } from "@/lib/tax-pack";
 
 function moneyCell(value: number | null): string {
   if (value == null) return "—";
@@ -48,6 +49,7 @@ export function DividendLedgerView({
   readError,
   csvAllowed = false,
   taxYear,
+  gaps = [],
 }: {
   signedIn: boolean;
   holdings: PaperHoldingChoice[];
@@ -55,6 +57,7 @@ export function DividendLedgerView({
   readError: boolean;
   csvAllowed?: boolean;
   taxYear: number;
+  gaps?: readonly CompletenessItem[];
 }) {
   const router = useRouter();
   const [listed, setListed] = useState(rows);
@@ -337,12 +340,32 @@ export function DividendLedgerView({
                 allowed={csvAllowed}
                 exportName="Dividends CSV"
               />
+              <CsvExportButton
+                href={`/api/tax/pack/pdf?paper=dividends&year=${taxYear}`}
+                allowed={csvAllowed}
+                exportName="Dividends PDF"
+                idleLabel="PDF"
+              />
               <Button type="button" variant="outline" onClick={() => window.print()}>
                 Print
               </Button>
             </div>
           ) : null}
         </div>
+        {signedIn ? <p className="mt-3 text-sm text-muted-foreground">{TAX_PACK_NOTE}</p> : null}
+        {signedIn && !readError ? (
+          gaps.length === 0 ? (
+            <p className="mt-3 text-sm text-muted-foreground">
+              No buys missing an exchange rate and no dividends missing a gross on the rows read for this page.
+            </p>
+          ) : (
+            <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+              {gaps.map((item) => (
+                <li key={`${item.code}:${item.detail}`}>{item.detail}</li>
+              ))}
+            </ul>
+          )
+        ) : null}
         {readError ? (
           <p className="mt-3 text-sm text-muted-foreground">The dividend ledger could not be read.</p>
         ) : listed.length === 0 ? (

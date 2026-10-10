@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { CsvExportButton } from "@/components/tax/CsvExportButton";
 import { PrintButton } from "@/components/tax/PrintButton";
+import { TaxCompletenessList } from "@/components/tax/TaxCompletenessList";
 import { TaxSectionNav } from "@/components/tax/TaxSectionNav";
 import { formatDisplayDate, formatNzd, formatSignedMoney } from "@/lib/currency";
 import { canExportCsv } from "@/lib/entitlements";
@@ -10,8 +11,9 @@ import { publicPageMetadata } from "@/lib/reviewed-book";
 import { getCurrentUser } from "@/lib/session";
 import { loadTaxRows } from "@/lib/tax-book-server";
 import { TAX_INDICATIVE_LABEL } from "@/lib/tax-disclaimer";
+import { salesSummary, TAX_PACK_NOTE, taxCompleteness } from "@/lib/tax-pack";
 import { realisedByTaxYear, REALISED_ASSUMPTIONS, type RealisedLine, type RealisedReport } from "@/lib/tax-realised";
-import { taxYearChoices } from "@/lib/taxable-income";
+import { taxYearChoices, type TaxLedgerRow } from "@/lib/taxable-income";
 
 export const dynamic = "force-dynamic";
 
@@ -79,6 +81,7 @@ function DisposalTable({ rows }: { rows: RealisedLine[] }) {
 }
 
 function ReportBody({ report }: { report: RealisedReport }) {
+  const summary = salesSummary(report);
   return (
     <>
       <h2 className="mt-8 font-display text-lg font-semibold">Other disposals</h2>
@@ -90,6 +93,15 @@ function ReportBody({ report }: { report: RealisedReport }) {
       <p className="mt-2 text-sm text-muted-foreground">Crypto disposals in NZ$, closed oldest first.</p>
       <DisposalTable rows={report.crypto} />
       <p className="mt-2 text-sm text-muted-foreground">Total {formatSignedMoney(report.cryptoTotalNzd)}.</p>
+
+      <h2 className="mt-8 font-display text-lg font-semibold">Sales summary</h2>
+      <p className="mt-2 text-sm text-muted-foreground">
+        Other disposals {summary.otherCount}, realised {formatSignedMoney(summary.otherRealisedNzd)}. Crypto disposals{" "}
+        {summary.cryptoCount}, FIFO {formatSignedMoney(summary.cryptoRealisedNzd)}, proceeds{" "}
+        {summary.cryptoProceedsNzd == null ? "blank" : formatNzd(summary.cryptoProceedsNzd)}, cost{" "}
+        {summary.cryptoCostNzd == null ? "blank" : formatNzd(summary.cryptoCostNzd)}. Combined{" "}
+        {formatSignedMoney(summary.combinedNzd)}.
+      </p>
 
       <h2 className="mt-8 font-display text-lg font-semibold">Combined</h2>
       <p className="mt-2 text-sm text-muted-foreground">
@@ -130,9 +142,11 @@ export default async function RealisedPage({
   let report: RealisedReport | null = null;
   let years = [current];
   let readError = false;
+  let ledgerRows: TaxLedgerRow[] = [];
   if (user) {
     try {
       const rows = await loadTaxRows(user._id);
+      ledgerRows = rows;
       years = taxYearChoices(rows, today);
       if (!years.includes(endingYear)) years = [endingYear, ...years];
       report = realisedByTaxYear(rows, endingYear);
@@ -173,8 +187,24 @@ export default async function RealisedPage({
               exportName="Realised CSV"
             />
           ) : null}
+          {user && report ? (
+            <CsvExportButton
+              href={`/api/tax/crypto/export?year=${endingYear}`}
+              allowed={canExportCsv(user.subscription_plan)}
+              exportName="Crypto disposals CSV"
+            />
+          ) : null}
+          {user && report ? (
+            <CsvExportButton
+              href={`/api/tax/pack/pdf?paper=realised&year=${endingYear}`}
+              allowed={canExportCsv(user.subscription_plan)}
+              exportName="Realised PDF"
+              idleLabel="PDF"
+            />
+          ) : null}
           {user && report ? <PrintButton /> : null}
         </div>
+        {user && report ? <p className="mt-3 text-sm text-muted-foreground">{TAX_PACK_NOTE}</p> : null}
         {!user ? (
           <p className="mt-6 text-sm text-muted-foreground">
             <a className="text-primary underline-offset-4 hover:underline" href="/login?redirect=%2Ftax%2Frealised">
@@ -187,6 +217,7 @@ export default async function RealisedPage({
         ) : report ? (
           <ReportBody report={report} />
         ) : null}
+        {user && report ? <TaxCompletenessList items={taxCompleteness(ledgerRows)} /> : null}
         <h2 className="mt-8 font-display text-lg font-semibold">Assumptions</h2>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
           {REALISED_ASSUMPTIONS.map((line) => (
