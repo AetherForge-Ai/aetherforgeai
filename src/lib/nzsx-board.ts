@@ -102,6 +102,9 @@ export function presentNzsxBoard(body: unknown, now = new Date()): NzsxBoardView
     gainers: movers(nzx?.topGainers),
     losers: movers(nzx?.topLosers),
     freshness,
-    universeNote: "Breadth uses one universe: the NZX names in this snapshot.",
+    universeNote:
+      typeof nzx?.universeLabel === "string" && nzx.universeLabel.trim()
+        ? nzx.universeLabel
+        : "Breadth uses one universe: the NZX names in this snapshot.",
   };
 }

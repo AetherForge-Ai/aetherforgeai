@@ -73,9 +73,12 @@ export default function TrustPage() {
 
           <section className="mt-8 space-y-2">
             <h2 className="font-display text-lg font-bold">Report a vulnerability</h2>
-            {/* TODO(owner): confirm a security mailbox before listing one. */}
             <p className="text-sm leading-relaxed text-muted-foreground">
-              If you find a security weakness, use the{" "}
+              If you find a security weakness, email{" "}
+              <a href="mailto:admin@aetherforgeai.co.nz" className="font-semibold text-primary underline-offset-2 hover:underline">
+                admin@aetherforgeai.co.nz
+              </a>{" "}
+              or use the{" "}
               <Link href="/about#contact" className="font-semibold text-primary underline-offset-2 hover:underline">
                 contact form
               </Link>{" "}

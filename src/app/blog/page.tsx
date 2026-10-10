@@ -4,7 +4,7 @@ import { publicPageMetadata } from "@/lib/reviewed-book";
 export const metadata = publicPageMetadata("/blog", {
   title: "Blog — AetherForge AI",
   description:
-    "AetherForge AI does not publish a blog yet. Market headlines are on Market News. Example paper-portfolio snapshots are on Live Results.",
+    "AetherForge AI does not publish a blog yet. Market headlines are on Market News. Example paper-portfolio snapshots are on Example results.",
 });
 
 export default function BlogPage() {
@@ -21,7 +21,7 @@ export default function BlogPage() {
         },
         {
           href: "/performance",
-          title: "Live Results",
+          title: "Example results",
           body: "Timestamped screenshots of one paper portfolio. Illustrative only — not a broker, and not a forecast.",
         },
         {

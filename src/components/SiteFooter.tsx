@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { LEGAL_ENTITY_NAME, NZBN, REGISTERED_OFFICE } from "@/lib/company";
+import { CUSTOMER_EMAIL } from "@/lib/public-copy";
 
 const LINKS = [
   { href: "/privacy-policy", label: "Privacy Policy" },
@@ -11,10 +12,7 @@ const LINKS = [
   { href: "/pricing", label: "Pricing" },
 ] as const;
 
-/**
- * The one site footer. Legal links and the company block are the same on every route.
- * TODO(owner): confirm the support@ mailbox before publishing an address.
- */
+/** The one site footer. Legal links and the company block are the same on every route. */
 export function SiteFooter() {
   const year = new Date().getFullYear();
   return (
@@ -29,6 +27,10 @@ export function SiteFooter() {
         </nav>
         <p className="text-xs leading-relaxed text-muted-foreground">
           {LEGAL_ENTITY_NAME} · NZBN {NZBN} · {REGISTERED_OFFICE} ·{" "}
+          <a href={`mailto:${CUSTOMER_EMAIL}`} className="hover:text-foreground">
+            {CUSTOMER_EMAIL}
+          </a>
+          {" · "}
           <a href="tel:0800238437" className="hover:text-foreground">
             0800 238 437
           </a>

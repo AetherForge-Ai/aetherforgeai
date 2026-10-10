@@ -31,7 +31,7 @@ export function HomeHeroCtas() {
         <>
           <Button asChild className="h-12 px-7 text-base shadow-glow">
             <Link href="/pricing#pro">
-              Start with Pro
+              Start 14-day Pro trial
               <ArrowRight className="size-4" />
             </Link>
           </Button>
@@ -44,20 +44,14 @@ export function HomeHeroCtas() {
           </Button>
         </>
       )}
-      <Button
-        asChild
-        variant={loggedIn ? "default" : "outline"}
-        className={
-          loggedIn
-            ? "h-12 px-7 text-base shadow-glow"
-            : "h-12 px-7 text-base border-white/20 bg-transparent text-white hover:bg-white/10 hover:text-white"
-        }
-      >
-        <Link href="/dashboard" onClick={memberDashboard.onDashboardClick}>
-          Open Dashboard
-        </Link>
-      </Button>
-      {memberDashboard.dialog}
+      {loggedIn ? (
+        <Button asChild className="h-12 px-7 text-base shadow-glow">
+          <Link href="/dashboard" onClick={memberDashboard.onDashboardClick}>
+            Open Dashboard
+          </Link>
+        </Button>
+      ) : null}
+      {loggedIn ? memberDashboard.dialog : null}
     </div>
   );
 }

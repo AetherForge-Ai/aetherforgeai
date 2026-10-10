@@ -47,7 +47,7 @@ export function HomeMetalsPrices() {
   const status = !spot
     ? failed
       ? "Spot prices failed to load."
-      : "Loading spot prices…"
+      : "Spot prices appear when the feed answers."
     : updated ?? (spot.live ? "Spot" : "Estimated");
 
   return (

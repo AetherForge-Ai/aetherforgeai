@@ -42,7 +42,7 @@ const BOTS: BotDef[] = [
     subtitle: "Stock Market Intelligence Monitor",
     mascot: BOT_STOX_AVATAR,
     blurb:
-      "Sweeps NZX, ASX and global equities in Apex Mode — compiling detailed tables, top-gainer boards and 12-month continuation graphs for every ticker you monitor.",
+      "Sweeps NZX, ASX and global equities — compiling detailed tables and top-mover boards. Stock charts cover about six months.",
     accent: "from-emerald-500/20 via-teal-500/10 to-transparent",
     tags: ["NZX", "ASX", "Global equities"],
   },

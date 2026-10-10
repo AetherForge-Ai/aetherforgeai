@@ -1,12 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import {
-  EXCHANGES,
   EXCHANGE_META,
   resolveExchange,
-  getProjectionLeaders,
   formatMarketPrice,
   type SecurityIntel,
 } from "@/lib/market-intel";
@@ -16,7 +14,8 @@ import {
   withoutCryptoProjections,
 } from "@/lib/projection-pause";
 import { modelRangeLine } from "@/lib/public-intel";
-import { ENGINE_PARAGRAPH } from "@/lib/public-copy";
+import { ENGINE_PARAGRAPH, HISTORY_LENGTH_LINE } from "@/lib/public-copy";
+import { scoreBandSentence } from "@/lib/score-band";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -47,7 +46,7 @@ interface ProjectionsPayload {
   scanned: { stocks: number; crypto: number };
 }
 
-type TabKey = "ALL" | "NZX" | "ASX" | "DOW" | "NASDAQ" | "CRYPTO";
+type TabKey = "NZXASX" | "ALL" | "NZX" | "ASX" | "DOW" | "NASDAQ" | "CRYPTO";
 
 interface TabDef {
   key: TabKey;
@@ -56,6 +55,7 @@ interface TabDef {
 }
 
 const TABS: TabDef[] = [
+  { key: "NZXASX", label: "NZX + ASX", sub: "Default" },
   { key: "ALL", label: "All Markets", sub: "Top 50 combined" },
   { key: "NZX", label: "NZX", sub: "New Zealand" },
   { key: "ASX", label: "ASX", sub: "Australia" },
@@ -106,7 +106,7 @@ function MethodologyModal() {
           <div>
             <p className="font-semibold text-foreground">Market data</p>
             <p>
-              Prices and 30-day histories are requested for NZX, ASX, Dow and Nasdaq equities.
+              {HISTORY_LENGTH_LINE} Prices are requested for NZX, ASX, Dow and Nasdaq equities.
               Crypto projections are paused while a data issue is fixed. Live coin prices stay on
               Markets. Share rows appear when that feed answers. If it does not, the page says the
               engine failed.
@@ -124,11 +124,9 @@ function MethodologyModal() {
           <div>
             <p className="font-semibold text-foreground">Ranking &amp; confidence</p>
             <p>
-              The <span className="font-medium text-foreground">All Markets</span> view ranks NZX, ASX,
-              Dow Jones and Nasdaq names and shows the Top 50 by projected 7-day % increase, highest to
-              lowest, each labelled by its market. Crypto projections are paused. Each share-market tab
-              is ordered by the confidence-weighted projected move (projection × model confidence).
-              Confidence reflects how strongly the indicators agree.
+              Every tab uses the same order: the projected 7-day percent times model confidence.
+              The page opens on NZX and ASX. Crypto projections are paused. A score of 0–33 is weak,
+              34–66 is moderate, and 67 or above is the top band.
             </p>
           </div>
           <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-xs text-amber-200/90">
@@ -209,6 +207,7 @@ function ProjectionRow({ rank, s, showMarket = false }: { rank: number; s: Secur
                   <Sparkles className="size-3.5" /> Reasoning &amp; analysis
                 </p>
                 <p className="text-sm leading-relaxed text-muted-foreground">{publicMarketNote(s.reasoning)}</p>
+                <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{scoreBandSentence(s.score)}</p>
                 {modelRangeLine(s.outlook) ? (
                   <p className="mt-2 text-xs leading-relaxed text-muted-foreground/80">{modelRangeLine(s.outlook)}</p>
                 ) : null}
@@ -240,38 +239,45 @@ function ProjectionRow({ rank, s, showMarket = false }: { rank: number; s: Secur
 }
 
 export function ProjectionsExplorer() {
-  const [stockUniverse, setStockUniverse] = useState<SecurityIntel[]>([]);
-  const [combined, setCombined] = useState<SecurityIntel[]>([]);
+  const [rows, setRows] = useState<SecurityIntel[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const [pauseMessage, setPauseMessage] = useState(CRYPTO_PROJECTIONS_PAUSE_MESSAGE);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [active, setActive] = useState<TabKey>("ALL");
+  const [active, setActive] = useState<TabKey>("NZXASX");
+  const pageSize = 25;
 
-  const load = useCallback(async (isRefresh: boolean) => {
+  const load = useCallback(async (tab: TabKey, pageNum: number, isRefresh: boolean) => {
+    if (tab === "CRYPTO") {
+      setRows([]);
+      setTotal(0);
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
     setError(null);
-    console.log("[projections] Fetching combined all-markets sweep…");
+    console.log(`[projections] Fetching ${tab} page ${pageNum}…`);
     try {
-      const res = await api.get<ProjectionsPayload>("/api/projections", {
-        signal: AbortSignal.timeout(25_000),
-      });
-      if (!res.ok || !res.data) throw new Error(res.error?.toString() || "The projection engine failed to return rows.");
-      const stocks = withoutCryptoProjections(res.data.stockUniverse || []);
-      const ranked = withoutCryptoProjections(res.data.combined || []);
-      if (stocks.length + ranked.length === 0) throw new Error("The projection engine failed to return rows.");
-      setStockUniverse(stocks);
-      setCombined(ranked);
-      setPauseMessage(res.data.cryptoPauseMessage || CRYPTO_PROJECTIONS_PAUSE_MESSAGE);
-      console.log(
-        `[projections] Loaded ${res.data.scanned?.stocks || stocks.length} equities ` +
-          `→ ${ranked.length} combined (live: ${res.data.live}). Crypto projections paused.`
+      const res = await api.get<ProjectionsPayload & { rows?: SecurityIntel[]; total?: number; page?: number }>(
+        `/api/projections?exchange=${tab}&page=${pageNum}&limit=${pageSize}`,
+        { signal: AbortSignal.timeout(25_000) },
       );
+      if (!res.ok || !res.data) throw new Error(res.error?.toString() || "The projection engine failed to return rows.");
+      const ranked = withoutCryptoProjections(res.data.rows || res.data.combined || []);
+      if (ranked.length === 0) throw new Error("The projection engine failed to return rows.");
+      setRows(ranked);
+      setTotal(typeof res.data.total === "number" ? res.data.total : ranked.length);
+      setPauseMessage(res.data.cryptoPauseMessage || CRYPTO_PROJECTIONS_PAUSE_MESSAGE);
+      console.log(`[projections] Loaded ${ranked.length} rows for ${tab} (live: ${res.data.live}).`);
     } catch (err) {
       console.error("[projections] Load failed:", err);
       const message = err instanceof Error ? err.message : "The projection engine failed to return rows.";
       setError(/abort|timeout|failed/i.test(message) ? "The projection engine failed to return rows." : message);
+      setRows([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -279,27 +285,11 @@ export function ProjectionsExplorer() {
   }, []);
 
   useEffect(() => {
-    load(false);
-  }, [load]);
+    load(active, page, false);
+  }, [active, page, load]);
 
-  // "All Markets" is the server-ranked Top 50 of equities. Crypto is paused.
-  const listsByTab = useMemo(() => {
-    const out: Record<TabKey, SecurityIntel[]> = {
-      ALL: withoutCryptoProjections(combined),
-      NZX: [],
-      ASX: [],
-      DOW: [],
-      NASDAQ: [],
-      CRYPTO: [],
-    };
-    for (const ex of EXCHANGES) {
-      const forEx = stockUniverse.filter((s) => resolveExchange(s.ticker, s.market) === ex);
-      out[ex as TabKey] = getProjectionLeaders(50, forEx);
-    }
-    return out;
-  }, [combined, stockUniverse]);
-
-  const activeList = listsByTab[active];
+  const activeList = rows;
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const showMarket = active === "ALL";
 
   return (
@@ -315,9 +305,8 @@ export function ProjectionsExplorer() {
             Weekly Market <span className="text-gradient">Projections</span>
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-            <span className="font-medium text-foreground">All Markets</span> ranks the Top 50 highest
-            projected 7-day movers across NZX, ASX, Dow Jones and Nasdaq, sorted strictly highest to
-            lowest and labelled by market. Switch tabs for a single share market&apos;s Top 50.
+            The table opens on NZX and ASX. Every tab uses the same order: projected 7-day percent
+            times model confidence. Crypto projections stay paused.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -325,7 +314,7 @@ export function ProjectionsExplorer() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => load(true)}
+            onClick={() => load(active, page, true)}
             disabled={refreshing || loading}
             className="gap-1.5"
           >
@@ -338,12 +327,14 @@ export function ProjectionsExplorer() {
       {/* Tabs */}
       <div className="flex flex-wrap gap-2">
         {TABS.map((t) => {
-          const count = listsByTab[t.key].length;
           const isActive = active === t.key;
           return (
             <button
               key={t.key}
-              onClick={() => setActive(t.key)}
+              onClick={() => {
+                setPage(1);
+                setActive(t.key);
+              }}
               className={cn(
                 "group flex items-center gap-2 rounded-xl border px-3.5 py-2 text-left transition-all",
                 isActive
@@ -363,7 +354,7 @@ export function ProjectionsExplorer() {
                   isActive ? "bg-primary/20 text-primary" : "bg-muted/50 text-muted-foreground"
                 )}
               >
-                {loading ? "··" : t.key === "CRYPTO" ? "Paused" : `Top ${count}`}
+                {t.key === "CRYPTO" ? "Paused" : t.key === active && !loading ? `${total}` : t.sub === "Default" ? "NZ" : ""}
               </span>
             </button>
           );
@@ -375,14 +366,14 @@ export function ProjectionsExplorer() {
         <div className="grid place-items-center rounded-2xl border border-border/60 bg-card/40 py-24">
           <div className="flex flex-col items-center gap-3 text-muted-foreground">
             <Loader2 className="size-7 animate-spin text-primary" />
-            <p className="text-sm">Running the projection engine…</p>
+            <p className="text-sm">The projection table fills when the engine answers.</p>
           </div>
         </div>
       ) : error ? (
         <div className="grid place-items-center rounded-2xl border border-rose-500/30 bg-rose-500/5 py-16 text-center">
           <div className="max-w-sm space-y-3">
             <p className="text-sm text-rose-700">{error}</p>
-            <Button variant="outline" size="sm" onClick={() => load(true)}>
+            <Button variant="outline" size="sm" onClick={() => load(active, page, true)}>
               <RefreshCw className="size-4" /> Try again
             </Button>
           </div>
@@ -418,6 +409,29 @@ export function ProjectionsExplorer() {
               </tbody>
             </table>
           </div>
+          {pageCount > 1 ? (
+            <div className="flex items-center justify-between gap-3 border-t border-border/60 px-4 py-3 text-sm">
+              <button
+                type="button"
+                className="font-semibold text-primary disabled:opacity-40"
+                disabled={page <= 1 || loading}
+                onClick={() => setPage((n) => Math.max(1, n - 1))}
+              >
+                Previous
+              </button>
+              <span className="text-muted-foreground">
+                Page {page} of {pageCount}
+              </span>
+              <button
+                type="button"
+                className="font-semibold text-primary disabled:opacity-40"
+                disabled={page >= pageCount || loading}
+                onClick={() => setPage((n) => n + 1)}
+              >
+                Next
+              </button>
+            </div>
+          ) : null}
         </div>
       )}
 

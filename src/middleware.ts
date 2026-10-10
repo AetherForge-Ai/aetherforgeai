@@ -48,7 +48,7 @@ const publicRoutes = [
   "/how",
   "/performance",
   "/dashboard", // guests get the member signup prompt; no portfolio or account data
-  "/markets", // full-page Stock Markets browser — read-only preview for guests
+  "/markets", // full-page Markets browser — read-only preview for guests
   "/tax", // general Inland Revenue information — not personal tax advice
   "/market-news", // guest preview of headlines; the page renders no portfolio
   "/projections", // Top-50 weekly projections per market — read-only preview for guests
@@ -70,6 +70,11 @@ const publicRoutes = [
   "/own-the-bots",
   "/docs",
   "/blog",
+  "/changelog",
+  "/stox",
+  "/koins",
+  "/smitty",
+  "/buy-the-bots",
 
   //stripe routes here
   "/stripe/demo",
@@ -127,6 +132,20 @@ function applyPublicMarketingCache(response: NextResponse) {
 }
 
 const STATIC_FILE = /\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|map|txt|xml|woff2?)$/i;
+
+/** Signed-out visitors are sent to login only for these member routes. */
+const memberRoutes = [
+  "/settings",
+  "/account",
+  "/profile",
+  "/onboarding",
+  "/headmaster",
+  "/totalum",
+];
+
+function matchesRoute(pathname: string, routes: string[]) {
+  return routes.some((route) => pathname === route || pathname.startsWith(`${route}/`));
+}
 
 function applyCachePolicy(response: NextResponse, pathname: string) {
   if (pathname.startsWith("/_next/") || STATIC_FILE.test(pathname)) return response;
@@ -231,35 +250,34 @@ export async function middleware(request: NextRequest) {
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   finish(response, request, signedIn);
 
-  // Allow all API routes and static files
+  // Allow all API routes and static files. /__missing is the internal 404 rewrite.
   if (
     pathname.startsWith("/api/") ||
     pathname.startsWith("/_next/") ||
-    pathname.includes(".")
+    pathname.includes(".") ||
+    pathname === "/__missing"
   ) {
     return response;
   }
 
-  // Allow public routes
-  if (publicRoutes.some((route) => pathname === route || pathname.startsWith(route + "/"))) {
+  if (matchesRoute(pathname, publicRoutes)) {
     return response;
   }
 
-  // Check session cookie for protected routes (lightweight Edge-compatible check)
-  // Better Auth uses "better-auth.session_token" or "__Secure-better-auth.session_token" (when secure)
-  // An empty leftover cookie is not a session — /settings, /account, /profile
-  // and /onboarding must go to login instead of painting the app shell.
-  if (!signedIn) {
-    // Redirect to login if no session cookie found
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("redirect", pathname);
-    const redirectResponse = NextResponse.redirect(loginUrl);
-    return finish(redirectResponse, request, false);
+  // Login redirect only for real member routes. Anything else is a 404.
+  if (matchesRoute(pathname, memberRoutes)) {
+    if (!signedIn) {
+      const loginUrl = new URL("/login", request.url);
+      loginUrl.searchParams.set("redirect", pathname);
+      const redirectResponse = NextResponse.redirect(loginUrl);
+      return finish(redirectResponse, request, false);
+    }
+    return response;
   }
 
-  // Cookie exists - allow access
-  // Note: Full session validation happens in Server Components/API routes
-  return response;
+  const missing = request.nextUrl.clone();
+  missing.pathname = "/__missing";
+  return finish(NextResponse.rewrite(missing), request, signedIn);
 }
 
 export const config = {
