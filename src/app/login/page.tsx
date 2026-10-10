@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import { signIn, sendVerificationEmail } from "@/lib/auth-client";
 import { waitForPostLoginSession } from "@/lib/auth-refresh";
 import { Button } from "@/components/ui/button";
@@ -13,23 +12,34 @@ import Link from "next/link";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { BrandLogo } from "@/components/BrandLogo";
 import { MailWarning, Loader2 } from "lucide-react";
+import {
+  clearLoginDraft,
+  clearLoginPassword,
+  failLoginDraft,
+  readLoginDraft,
+  subscribeLoginDraft,
+  writeLoginDraft,
+} from "@/lib/login-draft";
+import { postLoginPath } from "@/lib/safe-redirect";
 
-/** After a successful sign-in, land on Dashboard unless a specific in-app path was requested. */
-function postLoginPath(raw: string | null): string {
-  if (!raw || raw === "/" || raw.startsWith("/?") || raw.startsWith("//") || !raw.startsWith("/")) {
-    return "/dashboard";
-  }
-  return raw;
+function redirectTarget(): string {
+  if (typeof window === "undefined") return "/dashboard";
+  return postLoginPath(new URLSearchParams(window.location.search).get("redirect"));
 }
 
 function LoginForm() {
-  const searchParams = useSearchParams();
-  const redirect = postLoginPath(searchParams.get("redirect"));
-
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [draft, setDraft] = useState(readLoginDraft);
   const [loading, setLoading] = useState(false);
+  const [afterLogin, setAfterLogin] = useState("/dashboard");
+  const email = draft.email;
+  const password = draft.password;
+  const error = draft.error;
+
+  useEffect(() => subscribeLoginDraft(() => setDraft(readLoginDraft())), []);
+  useEffect(() => {
+    return () => clearLoginPassword();
+  }, []);
+  useEffect(() => setAfterLogin(redirectTarget()), []);
   // Set when login is blocked because the email isn't verified yet — we then
   // surface a dedicated panel with a "resend verification" action.
   const [needsVerification, setNeedsVerification] = useState(false);
@@ -37,30 +47,37 @@ function LoginForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
+    const typedEmail = email.trim();
+    const typedPassword = password;
+    if (!typedEmail || !typedPassword) {
+      failLoginDraft(email, password, "Enter your email and password.");
+      return;
+    }
+    writeLoginDraft({ error: "" });
     setNeedsVerification(false);
     setResendState("idle");
     setLoading(true);
 
     try {
       const result = await signIn.email({
-        email,
-        password,
+        email: typedEmail,
+        password: typedPassword,
       });
 
       // Check if login was successful
-      if (result.error) {
-        const status = (result.error as any)?.status;
-        const message = result.error.message || "";
+      if (!result || result.error) {
+        const status = (result?.error as { status?: number } | undefined)?.status;
+        const message = result?.error?.message || "";
         // Better Auth returns 403 (or a "not verified" message) when
         // requireEmailVerification blocks an unverified account. It also
         // automatically re-sends the verification email in that case.
         if (status === 403 || /verif/i.test(message)) {
-          console.log(`[login] Blocked: ${email} has not verified their email yet.`);
+          console.log(`[login] Blocked: ${typedEmail} has not verified their email yet.`);
+          writeLoginDraft({ email: typedEmail, password: typedPassword, error: "" });
           setNeedsVerification(true);
           setResendState("sent");
         } else {
-          setError(message || "Error signing in. Please check your credentials.");
+          failLoginDraft(typedEmail, typedPassword, message || "Error signing in. Please check your credentials.");
         }
         setLoading(false);
         return;
@@ -70,14 +87,16 @@ function LoginForm() {
       // delay sometimes navigates first and the book paints signed-out.
       const ready = await waitForPostLoginSession();
       if (!ready) {
-        setError("Signed in, but the session was not ready. Please try again.");
+        failLoginDraft(typedEmail, typedPassword, "Signed in, but the session was not ready. Please try again.");
         setLoading(false);
         return;
       }
-      window.location.href = redirect;
-    } catch (err: any) {
+      clearLoginDraft();
+      window.location.href = redirectTarget();
+    } catch (err: unknown) {
       console.error("Login error:", err);
-      setError(err.message || "Error signing in. Please check your credentials.");
+      const message = err instanceof Error ? err.message : "";
+      failLoginDraft(typedEmail, typedPassword, message || "Error signing in. Please check your credentials.");
       setLoading(false);
     }
   };
@@ -151,7 +170,7 @@ function LoginForm() {
                 type="email"
                 placeholder="you@example.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => writeLoginDraft({ email: e.target.value })}
                 required
                 className="h-11 transition-all focus:ring-2"
               />
@@ -170,7 +189,7 @@ function LoginForm() {
                 id="password"
                 placeholder="Enter your password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => writeLoginDraft({ password: e.target.value })}
                 required
                 autoComplete="current-password"
                 className="h-11 transition-all focus:ring-2"
@@ -187,7 +206,7 @@ function LoginForm() {
             </Button>
             <div className="text-sm text-center text-muted-foreground">
               Don&apos;t have an account?{" "}
-              <Link href="/register" className="font-semibold text-primary hover:underline transition-colors">
+              <Link href={afterLogin === "/dashboard" ? "/register" : `/register?redirect=${encodeURIComponent(afterLogin)}`} className="font-semibold text-primary hover:underline transition-colors">
                 Sign up here
               </Link>
             </div>
@@ -199,18 +218,5 @@ function LoginForm() {
 }
 
 export default function LoginPage() {
-  return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center px-4 bg-gradient-to-br from-background to-muted/20">
-        <Card className="w-full max-w-md shadow-xl border-2">
-          <CardHeader className="space-y-2 text-center pb-6">
-            <CardTitle className="text-3xl font-bold tracking-tight">Welcome Back</CardTitle>
-            <CardDescription className="text-base">Loading...</CardDescription>
-          </CardHeader>
-        </Card>
-      </div>
-    }>
-      <LoginForm />
-    </Suspense>
-  );
+  return <LoginForm />;
 }

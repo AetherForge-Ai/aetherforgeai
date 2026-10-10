@@ -4,6 +4,8 @@
  */
 
 import { formatDisplayDate, formatDisplayDateTime, formatSavedFx, roundMoney, roundUnitPrice } from "@/lib/currency";
+import { dexFromLedger, stripDexNotesPrefix } from "@/lib/dex-source";
+import { collapseCorrectionNote } from "@/lib/holding-correction";
 
 export type CsvRow = Record<string, unknown> & {
   type?: string;
@@ -61,7 +63,8 @@ export function csvFxSource(row: CsvRow): string {
 }
 
 export function csvNotes(row: CsvRow): string {
-  const notes = String(row.notes ?? "").trim();
+  const raw = row.notes == null ? "" : String(row.notes);
+  const notes = collapseCorrectionNote(stripDexNotesPrefix(raw)).trim();
   if (notes) return notes;
   if (row.type === "sell") return "Sell recorded on the paper book.";
   return "";
@@ -77,6 +80,11 @@ function blank(value: unknown): boolean {
 
 export function transactionCsvCells(row: CsvRow): string[] {
   const when = csvText(row.executed_at || row.createdAt);
+  const dex = dexFromLedger({
+    venue: typeof row.venue === "string" ? row.venue : null,
+    chain: typeof row.chain === "string" ? row.chain : null,
+    notes: row.notes == null ? null : String(row.notes),
+  });
   const currency = csvText(row.fill_currency || row.currency || "NZD");
   const notional =
     !blank(row.native_notional)
@@ -113,6 +121,8 @@ export function transactionCsvCells(row: CsvRow): string[] {
     blank(row.notional_native) ? "" : csvMoney(row.notional_native),
     csvText(row.broker),
     csvNotes(row),
+    dex.venue || "",
+    dex.chain || "",
   ];
 }
 

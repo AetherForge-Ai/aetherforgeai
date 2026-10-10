@@ -535,7 +535,7 @@ export function CoinDetailView({
         <div className="mt-5 border-t border-border/60 pt-4">
           {!showAnalysis ? (
             <Button onClick={() => setShowAnalysis(true)} className="w-full gap-1.5 font-semibold sm:w-auto">
-              <Sparkles className="size-4" /> Analyze {detail.symbol} with Crypto Bot
+              <Sparkles className="size-4" /> Analyse {detail.symbol} with Koins
             </Button>
           ) : (
             <div className="h-[420px]">

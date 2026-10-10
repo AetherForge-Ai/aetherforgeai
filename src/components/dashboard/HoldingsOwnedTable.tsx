@@ -5,6 +5,7 @@ import type { HoldingMetrics } from "@/lib/portfolio";
 import { formatNumber, formatPercent } from "@/lib/portfolio";
 import { formatDisplayDate, formatMoney, formatSignedMoney, formatUnitPrice, CURRENCY_META, type CurrencyCode } from "@/lib/currency";
 import { listingExchangeLabel } from "@/lib/market-intel";
+import { dexFromHolding, dexSourceLabel, holdingTitle } from "@/lib/dex-source";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,8 +34,13 @@ function formatHoldingDate(iso?: string | null): string {
   return formatDisplayDate(iso);
 }
 
-function exchangeForTicker(ticker: string, assetType?: string | null): string {
-  return listingExchangeLabel(ticker, assetType);
+function exchangeForTicker(
+  ticker: string,
+  assetType?: string | null,
+  venue?: string | null,
+  chain?: string | null
+): string {
+  return dexSourceLabel({ venue, market: venue, chain }) || listingExchangeLabel(ticker, assetType);
 }
 
 type ChartTarget = {
@@ -109,7 +115,7 @@ export function HoldingsOwnedTable({
         case "date":
           return h.purchase_date || "";
         case "company":
-          return h.company_name || h.sector || "";
+          return holdingTitle(h);
         case "shares":
           return h.shares;
         case "purchase_price":
@@ -232,7 +238,8 @@ export function HoldingsOwnedTable({
             <tbody>
               {sorted.map((h) => {
                 const up = h.gain >= 0;
-                const exchange = exchangeForTicker(h.ticker, h.asset_type);
+                const stored = dexFromHolding(h);
+                const exchange = exchangeForTicker(h.ticker, h.asset_type, stored.venue, stored.chain);
                 return (
                   <tr
                     key={h._id}
@@ -245,7 +252,7 @@ export function HoldingsOwnedTable({
                           onOpenChart({
                             ticker: h.ticker,
                             symbol: h.ticker.replace(/\.(NZ|AX|L)$/, ""),
-                            name: h.company_name || h.sector || h.ticker,
+                            name: holdingTitle(h),
                             exchange,
                             currency: h.currency,
                             purchasePrice: h.purchase_price,
@@ -266,7 +273,7 @@ export function HoldingsOwnedTable({
                       </button>
                     </td>
                     <td className="px-2 py-2">
-                      <p className="truncate text-muted-foreground">{h.company_name || h.sector || "—"}</p>
+                      <p className="truncate text-muted-foreground">{holdingTitle(h)}</p>
                     </td>
                     <td className="tnum overflow-hidden px-2 py-2 text-right text-muted-foreground">
                       {formatNumber(h.shares)}

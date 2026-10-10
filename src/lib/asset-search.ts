@@ -13,6 +13,8 @@ export interface AssetHit {
   /** CoinGecko or DEX id when the row is a coin. */
   id?: string;
   price?: number | null;
+  /** Readable chain when the row is a DEX token, such as Ethereum. */
+  chain?: string;
 }
 
 export interface AssetSearchPools {
@@ -78,13 +80,21 @@ export function searchAssets(query: string, pools: AssetSearchPools = {}): Asset
 
 /** Record-panel rows for the DEX list. The badge is DEX, and a live price is kept. */
 export function dexSearchHits(
-  rows: Array<{ symbol?: string; name?: string; id?: string; detailId?: string | null; price?: number | null }>
+  rows: Array<{
+    symbol?: string;
+    name?: string;
+    id?: string;
+    detailId?: string | null;
+    price?: number | null;
+    network?: string | null;
+  }>
 ): AssetHit[] {
   const hits: AssetHit[] = [];
   for (const row of rows) {
     const symbol = String(row.symbol || "").trim().toUpperCase();
     if (!symbol) continue;
     const price = Number(row.price);
+    const chain = String(row.network || "").trim();
     hits.push({
       symbol,
       name: String(row.name || symbol),
@@ -92,6 +102,7 @@ export function dexSearchHits(
       assetType: "crypto",
       id: row.detailId || row.id,
       price: price > 0 ? price : null,
+      chain: chain && chain !== "Unavailable" ? chain : undefined,
     });
   }
   return hits;

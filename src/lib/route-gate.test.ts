@@ -33,7 +33,7 @@ describe("H7 unknown URLs are missing pages", () => {
     expect(middleware).toContain("NextResponse.rewrite");
     expect(read("src/app/__missing/page.tsx")).toContain("notFound()");
     const notFound = read("src/app/not-found.tsx");
-    expect(notFound).toContain('title: { absolute: "Page not found · AetherForge AI" }');
+    expect(notFound).toContain('title: { absolute: pageTitle("Page not found") }');
     expect(notFound).toContain('url: "/404"');
     expect(notFound).toContain("canonical: \"/404\"");
     const config = read("next.config.ts");

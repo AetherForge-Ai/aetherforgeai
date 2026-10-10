@@ -15,7 +15,7 @@ export default function AiDisclaimer() {
   return (
     <LegalShell
       title="AI Disclaimer"
-      subtitle="Please read this disclaimer carefully. It explains the nature and limitations of the AI-generated market intelligence provided by AetherForge AI and how it relates to New Zealand financial-markets law. This disclaimer forms part of our Terms & Conditions."
+      subtitle="Please read this disclaimer carefully. It explains the nature and limitations of the AI-generated market intelligence provided by AetherForge AI and how it relates to New Zealand financial-markets law. This disclaimer forms part of our Terms."
       updated={UPDATED}
     >
       <LegalSection heading="1. Information only — not financial advice">

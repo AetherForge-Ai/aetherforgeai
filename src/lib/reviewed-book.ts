@@ -13,6 +13,7 @@ import {
   type CurrencyCode,
   type FxRatesToNZD,
 } from "@/lib/currency";
+import { pageTitle } from "@/lib/page-title";
 
 export { dexPriceForSymbol } from "@/lib/crypto-dex";
 
@@ -108,12 +109,13 @@ export function openingFx(input: {
 /** Canonical and Open Graph URL for one public page. Both point at that page. */
 export function publicPageMetadata(path: string, input: { title: string; description: string }): Metadata {
   const canonical = path.startsWith("/") ? path : `/${path}`;
+  const title = pageTitle(input.title);
   return {
-    title: input.title,
+    title,
     description: input.description,
     alternates: { canonical },
     openGraph: {
-      title: input.title,
+      title,
       description: input.description,
       url: canonical,
       type: "website",

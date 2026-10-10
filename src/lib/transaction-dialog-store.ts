@@ -21,6 +21,8 @@ export interface TxSeed {
   price?: number | null;
   /** DEX rows open with the DEX badge. Coin-list rows stay Crypto. */
   market?: "Crypto" | "DEX";
+  /** Readable chain kept with a DEX holding, such as Ethereum. */
+  chain?: string | null;
   /** Dedicated metals-table id, when the row is not a ledger stock. */
   metalSourceId?: string;
   /** Holding Edit: the owned row, its quantity, and the date already on the book. */

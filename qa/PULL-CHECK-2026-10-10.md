@@ -6,11 +6,12 @@ Markers:
 
 - `pull-check:qa-2026-10-10-high-h5-h11`
 - `pull-check:qa-2026-10-10-high-h1-h4`
+- `pull-check:qa-2026-10-10-medium-m1-m9`
 - `pull-check:qa-2026-10-10-medium-m10-m15-low-l6-l17`
 
-Branch: `cursor/qa-h1-h4-report-logic-f485`
-PR: https://github.com/AetherForge-Ai/aetherforgeai/pull/243
-H5–H11 landed on develop as https://github.com/AetherForge-Ai/aetherforgeai/pull/242, merge `c72caf8886ac4bc48fec3cc68c505f7d7e6c1079`, tree `264f0f92505e26e322eb45ff81d721646e9fc6ca`. This branch then merged that develop tip. `origin/main` (`b87cefc83783938a13b1382d2e91a00824b5ec51`) is recorded with the ours strategy so the tree stays develop plus this change.
+Branch: `cursor/qa-m10-m15-l6-l17-b236`
+PR: https://github.com/AetherForge-Ai/aetherforgeai/pull/247
+H5–H11 landed on develop as https://github.com/AetherForge-Ai/aetherforgeai/pull/242, merge `c72caf8886ac4bc48fec3cc68c505f7d7e6c1079`, tree `264f0f92505e26e322eb45ff81d721646e9fc6ca`. M1–M9 landed on develop as https://github.com/AetherForge-Ai/aetherforgeai/pull/246, merge `5f27fe0445ccda90b7ea4545c88b389401ea48d4`, tree `11bd481b92c7d528f959100a519482129174ad10`. This branch merged that develop tip. `origin/main` (`2abc281528590898dae15f6ee4a59bc9fc0e4edc`, same tree) is recorded with the ours strategy so the tree stays develop plus this change.
 
 ## Needs Lukas
 
@@ -213,77 +214,85 @@ H5–H11 landed on develop as https://github.com/AetherForge-Ai/aetherforgeai/pu
 - URL / steps: Transaction ledger.
 - Expected: the FX column shows 4 decimal places on non-NZD rows.
 
-## M1 — not done
+## M1 — fixed
 
-- Status: not done. Another batch. This pull request does not change it.
-- Commit: none
-- Files: none in this pull request
-- URL / steps: Transaction ledger, a correction row, and the CSV export. Open All transactions.
-- Expected after a fix: qty and price before → after in the row (for example 9000 at 2.22 → 9000 at 2.21). The note is written once. Tooltip: "Correction adjusts cost basis; cash unchanged." A Corrections filter and a Fee column exist. Until then the row still shows dashes and a duplicated note.
+- Status: fixed. A correction row shows quantity and price before and after. The note is stored once. The ledger tooltip is present. All transactions has a Corrections filter and a Fee column.
+- Commit: `bc9f77c`
+- Files: `src/lib/holding-correction.ts`, `src/lib/holding-correction.test.ts`, `src/app/api/transactions/export/route.ts`, `src/components/dashboard/TransactionCenter.tsx`
+- URL / steps: Transaction ledger, a correction row, the CSV export, and All transactions. Filter to Corrections.
+- Expected: the row shows 9000 at 2.22 → 9000 at 2.21. The CSV note is "Correction: 9000 at 2.22 → 9000 at 2.21." once. Tooltip: "Correction adjusts cost basis; cash unchanged." The Fee column is present.
 
-## M2 — not done
+## M2 — fixed
 
-- Status: not done. Another batch. This pull request does not change it.
-- Commit: none
-- Files: none in this pull request
-- URL / steps: sell a DEX token, then read the holding row and the ledger.
-- Expected after a fix: the source (DEX + chain) stays on the holding, the sell form, and the ledger. Until then the sell path shows "CRYPTO" and holdings say "· Crypto".
+- Status: fixed. A DEX buy keeps the venue and chain without a venue or chain column. The holding stores `DEX · <Chain>` in `stock.sector` (for example `DEX · Ethereum`). The ledger stores `[DEX:<Chain>] ` at the start of `transaction.notes`. The UI strips that prefix from the note and shows venue and chain in their own label. CSV Notes hides the prefix and adds Venue and Chain columns. Sector charts group every `DEX · …` tag as one DEX slice. The ledger DEX label shares the transaction table with M1 (`bc9f77c`).
+- Commit: `dfcdb21`, storage follow-up on this branch
+- Files: `src/lib/dex-source.ts`, `src/lib/dex-source.test.ts`, `src/lib/dex-storage.test.ts`, `src/lib/trade-schema.ts`, `src/lib/asset-search.ts`, `src/lib/transaction-dialog-store.ts`, `src/lib/portfolio.ts`, `src/lib/transactions.ts`, `src/app/api/transactions/route.ts`, `src/app/api/transactions/export/route.ts`, `src/lib/ledger-schema.ts`, `src/components/dashboard/BuyDialog.tsx`, `src/components/dashboard/MarketsExplorer.tsx`, `src/components/dashboard/HoldingsOwnedTable.tsx`, `src/components/dashboard/PortfolioDashboard.tsx`, `src/components/dashboard/RecordTransactionPanel.tsx`, `src/components/dashboard/TransactionCenter.tsx`
+- URL / steps: buy a DEX token (for example PEPE on Ethereum), open the holding row, then sell that holding. Export the ledger CSV.
+- Expected: the holding reads "· DEX · Ethereum". The sell badge says DEX plus Ethereum, including when the holding has sector `DEX · Ethereum` and no venue column. The ledger row shows the same source, and the visible note does not start with `[DEX:`. Sector allocation shows DEX once, not one slice per chain. CSV Venue is DEX and Chain is Ethereum.
 
-## M3 — not done
+## M3 — fixed
 
-- Status: not done. Another batch. This pull request does not change it.
-- Commit: none
-- Files: none in this pull request
-- URL / steps: `/login`. Submit email and password on the first quick attempt.
-- Expected after a fix: the form does not clear on mount, and a failed submit shows an error. Until then a fast first attempt can wipe email and password with no error.
+- Status: fixed. The login form does not remount through a search-params fallback. A failed submit keeps the typed email and password and shows an error.
+- Commit: `6488840`
+- Files: `src/app/login/page.tsx`, `src/lib/login-draft.ts`, `src/lib/safe-redirect.ts`
+- URL / steps: `/login`. Type an email and password and submit on the first attempt. A failed sign-in should leave both fields filled.
+- Expected: the fields stay filled and the page shows "Error signing in. Please check your credentials." (or the message returned by sign-in).
 
-## M4 — not done
+## M4 — fixed
 
-- Status: not done. Another batch. This pull request does not change it.
-- Commit: none
-- Files: none in this pull request
-- URL / steps: a Stox report catalyst line, and the matching Market News card for US CPI.
-- Expected after a fix: one date, "14 Oct 2026 (US)" or the same date in both places. Until then the catalyst can say "Tue 13 Oct" while news says "Scheduled: 14 Oct".
+- Status: fixed. The Stox catalyst and the BLS news card use the published US CPI day.
+- Commit: `396352b`
+- Files: `src/lib/us-cpi-schedule.ts`, `src/lib/us-cpi-schedule.test.ts`, `src/lib/econ-calendar.ts`, `src/lib/news-present.ts`
+- URL / steps: a Stox report catalyst for the week of 10 Oct 2026, and the Market News card for the BLS CPI schedule.
+- Expected: both say "14 Oct 2026 (US)". The news time contains "Scheduled: 14 Oct 2026 (US)". The catalyst does not say "Tue 13 Oct".
 
-## M5 — not done
+## M5 — fixed
 
-- Status: not done. Another batch. This pull request does not change it.
-- Commit: none
-- Files: none in this pull request
-- URL / steps: `/projections`, intro and the Nasdaq and crypto tabs.
-- Expected after a fix: the intro counts match the tabs (the page shows "Top 30 Nasdaq", not an unmatched "Top 50"), and the crypto pause is explained next to the Koins 7-day outlook. Until then those claims disagree.
+- Status: fixed. Projection copy matches the names that came back. Crypto projections stay paused, and the pause names the Koins 7-day outlook.
+- Commit: `db91939`
+- Files: `src/lib/projection-pause.ts`, `src/components/dashboard/ProjectionsExplorer.tsx`, `src/app/projections/page.tsx`
+- URL / steps: `/projections`. Read the intro, the All Markets tab, and the Crypto tab.
+- Expected: the intro says each equity tab lists the names that came back, up to 50, and the number on the tab is that count. All Markets says "Up to 50", not "Top 50 combined". The crypto tab says "Crypto projections on this page are paused while a data issue is fixed. Koins still writes a 7-day illustrative outlook on a book that has positions. Live coin prices stay on Markets."
 
-## M6 — not done
+## M6 — fixed
 
-- Status: not done. Another batch. This pull request does not change it.
-- Commit: none
-- Files: none in this pull request
-- URL / steps: Terms §5 and §6, `/pricing`, `/how-it-works`, and the pricing FAQ.
-- Expected after a fix: the 14-day trial is stated once. The annual Excel investor toolkit is either on `/pricing` or removed from Terms. "Your first full report is free" matches Free = 3 reports/month. "Every plan includes email support" matches the plan matrix. Plan numbers stay as they are.
+- Status: fixed. Terms §5 states the 14-day trial once. The pricing comparison shows the annual Excel toolkit. Free reports and email support use the shared lines. Plan numbers are unchanged.
+- Commit: `bce5aa2`
+- Files: `src/lib/public-copy.ts`, `src/app/terms-of-service/page.tsx`, `src/components/pricing/FeatureComparison.tsx`, `src/components/pricing/PricingFAQ.tsx`, `src/app/how-it-works/page.tsx`, `src/lib/p1-public-copy.test.ts`
+- URL / steps: Terms §5 and §6, `/pricing` Compare every plan, `/how-it-works`, and the pricing FAQ support answer.
+- Expected: Terms §5 shows "Starter and Pro include a 14-day trial and a card is collected at checkout. Cancel anytime." once, then the refund line with no second trial sentence. The comparison row "Excel investor toolkit (annual)" is Annual on Starter, Pro and Ultimate, and absent on Free. How it works says "3 reports a month free, no card." The FAQ says "Every plan — including Free — includes email support."
 
-## M7 — not done
+## M7 — fixed
 
-- Status: not done. Another batch. This pull request does not change it. L3 did not relabel the sweep.
-- Commit: none
-- Files: none in this pull request
-- URL / steps: home and Docs bot count, the dashboard Smitty line, an ADA market page, and a Koins report sweep heading.
-- Expected after a fix: the bot count is settled and Smitty is described as spot and holdings only. The ADA page says "Analyse ADA with Koins". The Koins sweep says "Biggest crypto gainers". Until then home can say "3 AI bots", the ADA page can say "Analyze ADA with Crypto Bot", and the sweep still says "Biggest share-price gainers…".
+- Status: fixed. The public count stays three AI bots plus Smitty for spot and holdings only. The ADA action uses Koins. Only the Koins sweep says crypto gainers. The Smitty sentence also lands in `bce5aa2` (`SMITTY_ROLE_LINE` on How it works).
+- Commit: `9cfaf23`
+- Files: `src/lib/public-copy.ts`, `src/app/page.tsx`, `src/app/how-it-works/page.tsx`, `src/components/bots/BotShowcase.tsx`, `src/components/dashboard/crypto/CoinDetailView.tsx`, `src/components/bots/ApexReport.tsx`, `src/lib/report-html.ts`, `src/lib/mover-sweep.ts`, `src/lib/mover-sweep.test.ts`
+- URL / steps: home, How it works, an ADA coin page (`/markets/crypto/cardano` or the ADA detail), and a Koins report sweep. Open a Stox report sweep as well.
+- Expected: "3 AI bots plus Smitty, our metals tracker" and "Smitty tracks gold and silver spot prices and holdings only. Smitty does not run a report." The coin button says "Analyse ADA with Koins". The Koins sweep says "Biggest crypto gainers". A Stox sweep still says "Biggest share-price gainers".
 
-## M8 — not done
+## M8 — fixed
 
-- Status: not done. Another batch. This pull request does not change it.
-- Commit: none
-- Files: none in this pull request
-- URL / steps: `/trust` and Privacy §5/§6 processor lists.
-- Expected after a fix: GeckoTerminal is in the processor lists, "licensed market data" matches what is actually used, and "daily briefings you have subscribed to" is removed or described. Until then Trust names GeckoTerminal for DEX tokens and the processor lists name only CoinGecko.
+- Status: fixed. GeckoTerminal is already in the shared processor list rendered on Trust and Privacy. Public copy says public market data, not licensed market data. Subscribed daily briefings are not described. This commit locks that with a regression test.
+- Commit: `51e5509`
+- Files: `src/lib/trust-sources.test.ts`, `src/lib/public-copy.ts`, `src/lib/data-sources.ts`, `src/app/trust/page.tsx`, `src/app/privacy-policy/page.tsx`
+- URL / steps: `/trust` "Who else handles data", and Privacy §5 and §6.
+- Expected: GeckoTerminal is listed for DEX token prices, next to CoinGecko. The sources line says "public market data (Yahoo Finance)". The pages do not say "licensed market data" or "daily briefings you have subscribed to".
 
-## M9 — not done
+## M9 — fixed
 
-- Status: not done. Another batch. This pull request does not change it.
-- Commit: none
-- Files: none in this pull request
-- URL / steps: Privacy title and H1, Terms title, `/pricing` and `/performance` titles.
-- Expected after a fix: one name per page and one title separator. Until then Privacy mixes "AI Privacy Policy" with "Privacy Policy", Terms mixes "Terms & Conditions", "Terms" and "Terms of Service", and separators mix "—", "·" and "|".
+- Status: fixed. Document titles use one em dash before AetherForge AI. The Terms page, the register link, Docs, and the AI disclaimer use the name Terms. The Terms title change is in `bce5aa2` because it shares the Terms page with M6. The register link text is in `03b8ba3`.
+- Commit: `7515a54`
+- Files: `src/lib/page-title.ts`, `src/lib/page-title.test.ts`, `src/lib/reviewed-book.ts`, `src/app/privacy-policy/page.tsx`, `src/app/terms-of-service/page.tsx`, `src/app/pricing/page.tsx`, `src/app/performance/page.tsx`, `src/app/docs/page.tsx`, `src/app/ai-disclaimer/page.tsx`, `src/app/not-found.tsx`, `src/components/dashboard/MarketsPageContent.tsx`, `src/app/register/page.tsx`
+- URL / steps: the browser title on Privacy, Terms, `/pricing`, and `/performance`. Read the Terms H1, the Docs link, and the register consent link.
+- Expected: "Privacy Policy — AetherForge AI", "Terms — AetherForge AI", "Pricing — AetherForge AI", "Example results — AetherForge AI". The Terms H1 is "Terms". Docs and register say "Terms".
+
+## Register redirect — fixed
+
+- Status: fixed. `/register?redirect=` keeps a same-origin relative path on the verified-email "Go to Log In" link and on "Sign in here". `https://`, `//`, `/\`, and an encoded `//` are dropped.
+- Commit: `03b8ba3`
+- Files: `src/app/register/page.tsx`, `src/lib/safe-redirect.ts`, `src/lib/login-draft.test.ts`, `src/app/login/page.tsx`
+- URL / steps: open `/register?redirect=%2Fmarkets%2Fcrypto%2Fada%3Fbuy%3D1`, complete sign-up until the check-your-email panel, and use Go to Log In.
+- Expected: the link is `/login?redirect=%2Fmarkets%2Fcrypto%2Fada%3Fbuy%3D1`. After a successful login the browser goes to `/markets/crypto/ada?buy=1`.
 
 ## M10 — fixed
 
@@ -363,7 +372,7 @@ H5–H11 landed on develop as https://github.com/AetherForge-Ai/aetherforgeai/pu
 - Commit: `68a5ac0`
 - Files: `src/lib/transaction-csv.ts`, `src/app/api/transactions/export/route.ts`
 - URL / steps: export the transactions CSV on a paid plan.
-- Expected: money is 2 decimal places (`14999.60`, not a float tail), FX is 4 decimal places, unit prices keep stored precision, DateTime_NZ is `10 Oct 2026, 3:47 pm`, FeesNZD and FxSource are filled, and a sell with a blank note says it was recorded on the paper book.
+- Expected: money is 2 decimal places (`14999.60`, not a float tail), FX is 4 decimal places, unit prices keep stored precision, DateTime_NZ is `10 Oct 2026, 3:47 pm`, FeesNZD and FxSource are filled, and a sell with a blank note says it was recorded on the paper book. A repeated correction sentence is stored once. A `[DEX:<Chain>]` prefix is removed from Notes. Venue and Chain are the columns after Notes.
 
 ## L10 — fixed
 

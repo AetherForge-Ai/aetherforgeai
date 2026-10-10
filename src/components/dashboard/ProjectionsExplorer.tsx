@@ -56,7 +56,7 @@ interface TabDef {
 
 const TABS: TabDef[] = [
   { key: "NZXASX", label: "NZX + ASX", sub: "Default" },
-  { key: "ALL", label: "All Markets", sub: "Top 50 combined" },
+  { key: "ALL", label: "All Markets", sub: "Up to 50" },
   { key: "NZX", label: "NZX", sub: "New Zealand" },
   { key: "ASX", label: "ASX", sub: "Australia" },
   { key: "DOW", label: "Dow Jones", sub: "US blue-chip" },
@@ -107,8 +107,7 @@ function MethodologyModal() {
             <p className="font-semibold text-foreground">Market data</p>
             <p>
               {HISTORY_LENGTH_LINE} Prices are requested for NZX, ASX, Dow and Nasdaq equities.
-              Crypto projections are paused while a data issue is fixed. Live coin prices stay on
-              Markets. Share rows appear when that feed answers. If it does not, the page says the
+              {" "}{CRYPTO_PROJECTIONS_PAUSE_MESSAGE} Share rows appear when that feed answers. If it does not, the page says the
               engine failed.
             </p>
           </div>
@@ -305,8 +304,9 @@ export function ProjectionsExplorer() {
             Weekly Market <span className="text-gradient">Projections</span>
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-            The table opens on NZX and ASX. Every tab uses the same order: projected 7-day percent
-            times model confidence. Crypto projections stay paused.
+            The table opens on NZX and ASX. Each equity tab lists the names that came back, up to 50,
+            and the number on the tab is that count. Every tab uses the same order: projected 7-day
+            percent times model confidence. {CRYPTO_PROJECTIONS_PAUSE_MESSAGE}
           </p>
         </div>
         <div className="flex items-center gap-2">

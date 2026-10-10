@@ -1,5 +1,6 @@
 import type { NewsItem } from "@/lib/market-intel";
 import { formatDisplayDate } from "@/lib/currency";
+import { isPublishedUsCpiDay, usCpiDateLabel } from "@/lib/us-cpi-schedule";
 import { publisherTextHasSignalWord } from "@/lib/public-intel";
 
 /** Pull-check marker for the publisher-verbatim news gate. */
@@ -39,7 +40,7 @@ export const BLS_CPI_NEWS: NewsItem = {
   market: "US",
   impact: "Neutral",
   relevance: 90,
-  time: "4 Oct 2026 · Scheduled: 14 Oct",
+  time: "4 Oct 2026 · Scheduled: 14 Oct 2026 (US)",
   publishedOn: "2026-10-04",
   scheduledFor: "2026-10-14",
   summary:
@@ -171,6 +172,7 @@ export function aucklandDay(when: Date = new Date()): string {
 }
 
 export function scheduledLabel(isoDay: string): string {
+  if (isPublishedUsCpiDay(isoDay)) return `Scheduled: ${usCpiDateLabel(isoDay)}`;
   const [, month, day] = isoDay.slice(0, 10).split("-");
   const monthName = MONTHS[Number(month) - 1] || month;
   return `Scheduled: ${Number(day)} ${monthName}`;

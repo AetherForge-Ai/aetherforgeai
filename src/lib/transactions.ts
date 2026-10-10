@@ -40,6 +40,7 @@ import { feedEntryForTicker } from "@/lib/feed-mapping";
 import { withUserTradeLock } from "@/lib/trade-lock";
 import { applyPaperCashMove } from "@/lib/paper-cash";
 import { planHoldingCorrection } from "@/lib/holding-correction";
+import { cleanChain, dexSectorTag, parseDexSector, withDexNotes } from "@/lib/dex-source";
 import { buildMovementPreview } from "@/lib/movement-preview";
 import { assessMovement, earlierCivilDay, movementCivilDay } from "@/lib/transaction-rules";
 
@@ -103,6 +104,10 @@ export interface TransactionInput {
   fx_rate?: number;
   fx_source?: string;
   fx_timestamp?: string;
+  /** DEX when the member picked a DEX token. Coin-list fills omit this. */
+  venue?: string;
+  /** Readable chain for a DEX token, such as Ethereum. */
+  chain?: string;
 }
 
 export interface TransactionResult {
@@ -110,6 +115,21 @@ export interface TransactionResult {
   cashBalance: number; // NZD after the movement
   realizedNZD: number; // realized P&L booked by this movement (sells only)
   holdingId?: string | null; // affected holding (null if fully closed)
+}
+
+/**
+ * DEX source lives in existing columns. stock.sector gets `DEX · <Chain>`.
+ * transaction.notes gets a `[DEX:<Chain>] ` prefix. venue and chain are not written.
+ */
+function dexStamp(
+  input: { venue?: string; chain?: string },
+  holding?: { venue?: string; chain?: string; sector?: string | null } | null
+): { isDex: boolean; chain: string | null; sector: string | null } {
+  const tagged = parseDexSector(holding?.sector);
+  const isDex = input.venue === "DEX" || holding?.venue === "DEX" || !!tagged;
+  if (!isDex) return { isDex: false, chain: null, sector: null };
+  const chain = cleanChain(input.chain) || cleanChain(holding?.chain) || tagged?.chain || null;
+  return { isDex: true, chain, sector: dexSectorTag(chain) };
 }
 
 function round(n: number, decimals = 2): number {
@@ -561,9 +581,14 @@ async function applyTransactionUnlocked(
   // Recommendations / ideas must NOT book as filled trades or realized P&L.
   const executionStatus = input.execution_status || "filled";
   if (executionStatus === "idea" || executionStatus === "paper") {
-    const notes = appendAuditNote(
-      input.notes,
-      `${executionStatus.toUpperCase()} recorded — not a broker fill. ${ADVISORY_NOTE}`
+    const stamp = dexStamp(input, null);
+    const notes = withDexNotes(
+      appendAuditNote(
+        input.notes,
+        `${executionStatus.toUpperCase()} recorded — not a broker fill. ${ADVISORY_NOTE}`
+      ),
+      stamp.chain,
+      stamp.isDex
     );
     const ideaCurrency = currencyForTicker(ticker, assetType);
     await rejectOutOfBandFx(ideaCurrency, input.fx_rate, tradeDay);
@@ -746,6 +771,7 @@ async function applyTransactionUnlocked(
       );
     }
     let holdingId: string;
+    const stamp = dexStamp(input, holding);
 
     if (holding) {
       const oldShares = holding.shares || 0;
@@ -761,6 +787,7 @@ async function applyTransactionUnlocked(
         shares: round(newShares, 6),
         purchase_price: roundFillPrice(newAvg),
         purchase_date: keptDay,
+        ...(stamp.sector ? { sector: stamp.sector } : {}),
       });
       holdingId = holding._id;
       console.log(`[transactions] BUY ${quantity} ${ticker} → ${newShares} @ avg ${round(newAvg, 4)} (${currency})`);
@@ -800,6 +827,7 @@ async function applyTransactionUnlocked(
         company_name:
           input.asset_name || (assetType === "metal" ? metalName(ticker) : info?.name) || ticker,
         sector:
+          stamp.sector ||
           input.sector ||
           info?.sector ||
           (assetType === "crypto" ? "Digital Assets" : assetType === "metal" ? "Precious Metals" : "Other"),
@@ -870,7 +898,7 @@ async function applyTransactionUnlocked(
       fees: round(fees),
       total: round(-costNZD),
       currency,
-      notes: auditNotes,
+      notes: withDexNotes(auditNotes, stamp.chain, stamp.isDex),
       executed_at: executedAt,
       user: user._id,
       ...(holdingId ? { stock: holdingId } : {}),
@@ -949,6 +977,7 @@ async function applyTransactionUnlocked(
   const legacyRealizedNZD = round(nativeToNzd(realizedNative, currency, rates));
   const realizedBooked = Math.abs(sellFx - lotFx) < 1e-9 ? legacyRealizedNZD : realizedNZD;
 
+  const stamp = dexStamp(input, holding);
   const closed = sold.shares <= 1e-6;
   const expectedRemaining = sold.shares;
   let holdingId: string | null = holding._id;
@@ -962,7 +991,10 @@ async function applyTransactionUnlocked(
     await archiveClosedPositionAlerts(user._id, ticker, 0);
     console.log(`[transactions] SELL closed position ${ticker} (${quantity} @ ${price} ${currency})`);
   } else {
-    await totalumSdk.crud.editRecordById("stock", holding._id, { shares: expectedRemaining });
+    await totalumSdk.crud.editRecordById("stock", holding._id, {
+      shares: expectedRemaining,
+      ...(stamp.sector ? { sector: stamp.sector } : {}),
+    });
     console.log(`[transactions] SELL ${quantity} ${ticker} → ${expectedRemaining} remaining`);
   }
 
@@ -992,7 +1024,7 @@ async function applyTransactionUnlocked(
     fx_rate: sellFx,
     cash_nzd: round(proceedsNZD),
     currency,
-    notes,
+    notes: withDexNotes(notes, stamp.chain, stamp.isDex),
     executed_at: executedAt,
     user: user._id,
     ...(holdingId ? { stock: holdingId } : {}),
@@ -1027,7 +1059,7 @@ async function applyTransactionUnlocked(
           ticker: holding.ticker,
           asset_type: holding.asset_type || assetType,
           company_name: holding.company_name,
-          sector: holding.sector,
+          sector: stamp.sector || holding.sector,
           shares: round(heldShares, 6),
           purchase_price: roundUnitPrice(avgCost),
           current_price: holding.current_price,

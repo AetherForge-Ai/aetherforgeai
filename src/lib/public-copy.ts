@@ -20,8 +20,18 @@ export const PRIVACY_OFFICER_EMAIL = "lukas@aetherforgeai.co.nz";
 export const PAPER_BOOK_STATEMENT =
   "AetherForge is a paper book: you record what you hold or would trade (cash, buys, sells, corrections, dividends) in NZ$. Real trades happen at your broker. We never move money.";
 
-/** Same sentence on the home page and How it works. */
+/** Same sentence on the home page and How it works. Smitty is not a fourth AI bot. */
 export const BOT_COUNT_LINE = "3 AI bots plus Smitty, our metals tracker";
+
+/** Spot and holdings only. Smitty does not run a report. */
+export const SMITTY_ROLE_LINE =
+  "Smitty tracks gold and silver spot prices and holdings only. Smitty does not run a report.";
+
+/** Free plan allowance. Pricing, How it works and the plan cards use this sentence. */
+export const FREE_REPORTS_LINE = "3 reports a month free, no card.";
+
+/** Matches the plan matrix: Email support is on for Free, Starter, Pro and Ultimate. */
+export const EMAIL_SUPPORT_LINE = "Every plan — including Free — includes email support.";
 
 /** Honest history lengths. Projections use 30 days. Stock charts use about six months. */
 export const HISTORY_LENGTH_LINE = "30-day history (projections), ~6 months (stock charts).";
@@ -39,7 +49,7 @@ export const TRIAL_CARD_LINE =
   "Starter and Pro include a 14-day trial and a card is collected at checkout. Cancel anytime.";
 
 export const REFUND_FAQ =
-  "Paid plans start with a 14-day trial of the plan you choose, so you can explore it before you're charged. If you're ever billed in error or something isn't right, reach out and we'll make it right — we don't believe in trapping customers.";
+  "If you're ever billed in error or something isn't right, reach out and we'll make it right — we don't believe in trapping customers.";
 
 export const DATA_SHARING_LINE =
   "Your data is never sold. It's shared only with the processors listed in our Privacy Policy.";

@@ -41,6 +41,8 @@ const HEADERS = [
   "NotionalNative",
   "Broker",
   "Notes",
+  "Venue",
+  "Chain",
 ];
 
 /**

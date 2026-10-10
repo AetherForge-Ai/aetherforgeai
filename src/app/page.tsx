@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { LEGAL_ENTITY_NAME } from "@/lib/company";
-import { BOT_COUNT_LINE, PAPER_BOOK_STATEMENT } from "@/lib/public-copy";
+import { BOT_COUNT_LINE, PAPER_BOOK_STATEMENT, SMITTY_ROLE_LINE } from "@/lib/public-copy";
 import { loadPublicTickerBounded } from "@/lib/public-ticker";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -144,7 +144,7 @@ export default async function LandingPage() {
                   crypto, and The Headmaster is the goal-planning bot — it builds a plan
                   with you from the goals you set. Reports are informational scenarios about
                   what is on your book. AetherForge does not trade for you and does not hold
-                  your assets.{" "}
+                  your assets. {SMITTY_ROLE_LINE}{" "}
                   <Link href="/ai-disclaimer" className="font-medium text-primary hover:underline">
                     Read the AI disclaimer
                   </Link>

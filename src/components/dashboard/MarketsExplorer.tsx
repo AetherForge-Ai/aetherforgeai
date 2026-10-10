@@ -527,6 +527,7 @@ export function MarketsExplorer({
       price: r.price > 0 ? r.price : undefined,
       coinId: r.coinId,
       market: paperMarketOf(r),
+      chain: r.blockchain && r.blockchain !== "—" ? r.blockchain : undefined,
     });
     setBuyOpen(true);
   }

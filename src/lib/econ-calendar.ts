@@ -15,6 +15,7 @@
  */
 
 import type { BotKind } from "@/lib/apex";
+import { publishedUsCpiIso, usCpiDateLabel } from "@/lib/us-cpi-schedule";
 
 export type EconRegion = "NZ" | "AU" | "US" | "Global";
 export type EconCategory =
@@ -45,6 +46,8 @@ export interface EconEvent {
 
 interface SeedEvent {
   date: string;
+  /** Overrides the weekday label when a publisher date is shown as a US day. */
+  dateLabel?: string;
   title: string;
   region: EconRegion;
   category: EconCategory;
@@ -192,19 +195,26 @@ function monthlyUsEvents(ref: Date): SeedEvent[] {
       note: "Monthly US jobs report — a top-tier catalyst for rate expectations, the USD and risk assets worldwide.",
     });
 
-    // US CPI is released mid-month (~13th on a business day).
-    const cpi = new Date(Date.UTC(year, month0, 13));
-    const wd = cpi.getUTCDay();
-    if (wd === 0) cpi.setUTCDate(14);
-    else if (wd === 6) cpi.setUTCDate(12);
+    // A published BLS day wins. Other months still use the mid-month business day.
+    // 14 Oct 2026 08:30 America/New_York is the next morning in New Zealand; the label stays the US day.
+    const published = publishedUsCpiIso(year, month0);
+    const cpi = published ? new Date(`${published}T00:00:00Z`) : new Date(Date.UTC(year, month0, 13));
+    if (!published) {
+      const wd = cpi.getUTCDay();
+      if (wd === 0) cpi.setUTCDate(14);
+      else if (wd === 6) cpi.setUTCDate(12);
+    }
     out.push({
       date: iso(cpi),
+      dateLabel: published ? usCpiDateLabel(published) : undefined,
       title: "US CPI inflation",
       region: "US",
       category: "Inflation",
       importance: "High",
       relevance: FED,
-      note: "Monthly US inflation print — the single biggest swing factor for Fed rate-cut odds, bonds, equities and crypto.",
+      note: published
+        ? "Monthly US inflation print on the US release day. That morning in New York is the next morning in New Zealand."
+        : "Monthly US inflation print — the single biggest swing factor for Fed rate-cut odds, bonds, equities and crypto.",
     });
   }
   return out;
@@ -238,7 +248,7 @@ export function getUpcomingEvents(bot: BotKind, fromISO?: string, days = 7): Eco
     seen.add(dedupeKey);
     events.push({
       date: e.date,
-      dateLabel: label(d),
+      dateLabel: e.dateLabel || label(d),
       daysAway: Math.round((t - startMs) / 86400000),
       title: e.title,
       region: e.region,

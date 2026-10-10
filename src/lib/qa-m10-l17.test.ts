@@ -197,6 +197,21 @@ describe("L6 L9 L10 L11 L12 L13", () => {
     expect(cells[16]).toBe("1.87");
     expect(cells[18]).toBe("1.2440");
     expect(cells[19]).toBe("daily");
+    expect(cells[28]).toBe("");
+    expect(cells[29]).toBe("");
+    expect(cells).toHaveLength(30);
+  });
+
+  it("writes one correction sentence and hides the DEX notes prefix", () => {
+    const notes =
+      "[DEX:Ethereum] Correction: 9000 at 2.22 → 9000 at 2.21. Correction: 9000 at 2.22 → 9000 at 2.21.";
+    const row = { type: "correction", notes, ticker: "PEPE", asset_type: "crypto" };
+    expect(csvNotes(row)).toBe("Correction: 9000 at 2.22 → 9000 at 2.21.");
+    expect(csvNotes(row)).not.toContain("[DEX:");
+    const cells = transactionCsvCells(row);
+    expect(cells[27]).toBe("Correction: 9000 at 2.22 → 9000 at 2.21.");
+    expect(cells[28]).toBe("DEX");
+    expect(cells[29]).toBe("Ethereum");
   });
 
   it("keeps the earlier civil day when a buy is merged", () => {
