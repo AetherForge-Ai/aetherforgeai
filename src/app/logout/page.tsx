@@ -3,30 +3,51 @@
 import { useEffect, useRef, useState } from "react";
 import { clearClientUserState } from "@/lib/client-user-state";
 import { invalidateLiveSessionProbe } from "@/lib/auth-refresh";
+import { classifySessionProbe, logoutFinish, type SessionProbe } from "@/lib/logout-finish";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { BrandLogo } from "@/components/BrandLogo";
 import { CheckCircle2, ShieldCheck, LogIn, Loader2 } from "lucide-react";
 
-async function sessionStillPresent(): Promise<boolean> {
+const LOGOUT_TIMEOUT_MS = 8000;
+
+function logoutSignal(): AbortSignal {
+  if (typeof AbortSignal.timeout === "function") return AbortSignal.timeout(LOGOUT_TIMEOUT_MS);
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), LOGOUT_TIMEOUT_MS);
+  return controller.signal;
+}
+
+async function probeSession(): Promise<SessionProbe> {
   invalidateLiveSessionProbe();
-  const res = await fetch("/api/session", {
-    method: "GET",
-    credentials: "include",
-    cache: "no-store",
-  });
-  if (!res.ok) return true;
-  const data = (await res.json().catch(() => null)) as { user?: { id?: string } | null } | null;
-  return !!data?.user?.id;
+  try {
+    const res = await fetch("/api/session", {
+      method: "GET",
+      credentials: "include",
+      cache: "no-store",
+      signal: logoutSignal(),
+    });
+    const data = res.ok
+      ? ((await res.json().catch(() => null)) as { user?: { id?: string } | null } | null)
+      : null;
+    return classifySessionProbe(res.status, data?.user?.id);
+  } catch {
+    return "unknown";
+  }
 }
 
 async function postLogout(): Promise<boolean> {
-  const res = await fetch("/api/session/logout", {
-    method: "POST",
-    credentials: "include",
-    cache: "no-store",
-  });
-  return res.ok;
+  try {
+    const res = await fetch("/api/session/logout", {
+      method: "POST",
+      credentials: "include",
+      cache: "no-store",
+      signal: logoutSignal(),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
 export default function LogoutPage() {
@@ -47,15 +68,18 @@ export default function LogoutPage() {
       try {
         clearClientUserState();
         invalidateLiveSessionProbe();
-        const posted = await postLogout();
-        if (!posted) throw new Error("Logout failed");
-        // One retry if the first response did not drop the cookie.
-        if (await sessionStillPresent()) {
-          await postLogout();
-          if (await sessionStillPresent()) {
-            setPhase("error");
-            return;
-          }
+        // pull-check:batch1-2026-10-11 R12 — a hung probe must not leave this spinner up.
+        let posted = await postLogout();
+        let probe: SessionProbe = posted ? await probeSession() : "unknown";
+        let step = logoutFinish(posted, probe, false);
+        if (step === "retry") {
+          posted = await postLogout();
+          probe = posted ? await probeSession() : "unknown";
+          step = logoutFinish(posted, probe, true);
+        }
+        if (step !== "done") {
+          setPhase("error");
+          return;
         }
         clearClientUserState();
         // Full navigation drops the client router cache of the signed-in dashboard.
