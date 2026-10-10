@@ -14,7 +14,7 @@ import {
   resolveCompanyNames,
 } from "@/lib/market-data";
 import { checkTickerQuota } from "@/lib/entitlements";
-import { checkFillSanity, ADVISORY_NOTE, aucklandDateTimeISO } from "@/lib/fill-integrity";
+import { checkFillSanity, ADVISORY_NOTE, aucklandDateISO, aucklandDateTimeISO } from "@/lib/fill-integrity";
 import { canonicalCryptoId } from "@/lib/crypto-ids";
 import { venueForTicker } from "@/lib/ledger-schema";
 import { feedEntryForTicker } from "@/lib/feed-mapping";
@@ -525,7 +525,7 @@ export async function POST(req: Request) {
       purchase_price,
       // Persist the purchase date (defaults to today when the client omits it), so
       // the holdings table can show + sort by it and P&L reflects the real entry day.
-      purchase_date: dateOnlyInstant(lotCivilDay(parsed.data.purchase_date || new Date().toISOString().slice(0, 10))),
+      purchase_date: dateOnlyInstant(lotCivilDay(parsed.data.purchase_date || aucklandDateISO())),
       current_price,
       user: user._id,
     };

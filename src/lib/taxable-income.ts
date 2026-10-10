@@ -15,6 +15,7 @@ import { TAX_INDICATIVE_LABEL } from "@/lib/tax-disclaimer";
 export interface TaxLedgerRow extends DividendSourceRow {
   quantity?: number | null;
   price?: number | null;
+  fill_price?: number | null;
   fees?: number | null;
   fees_nzd?: number | null;
   realized_pnl?: number | null;
@@ -167,6 +168,7 @@ export const TAXABLE_INCOME_CSV_COLUMNS = [
   "Imputation credits NZD",
   "Withholding NZD",
   "DRP reinvestment NZD",
+  "Cash without breakdown NZD",
   "Realised NZD",
   "Label",
 ] as const;
@@ -189,11 +191,12 @@ export function taxableIncomeCsv(report: TaxableIncomeReport, formatDate: (value
       report.label,
       formatDate(row.when),
       row.ticker,
-      "dividend",
+      row.legacyCashNzd != null ? "cash, no breakdown" : "dividend",
       cellMoney(row.grossNzd),
       cellMoney(row.imputationNzd),
       cellMoney(row.withholdingNzd),
       cellMoney(row.drpNzd),
+      cellMoney(row.legacyCashNzd),
       "",
       TAX_INDICATIVE_LABEL,
     ]);
@@ -204,6 +207,7 @@ export function taxableIncomeCsv(report: TaxableIncomeReport, formatDate: (value
       formatDate(row.when),
       row.ticker,
       "realised",
+      "",
       "",
       "",
       "",
@@ -221,6 +225,7 @@ export function taxableIncomeCsv(report: TaxableIncomeReport, formatDate: (value
     cellMoney(report.imputationNzd),
     cellMoney(report.withholdingNzd),
     cellMoney(report.drpNzd),
+    cellMoney(report.legacyCount > 0 ? report.legacyCashNzd : null),
     cellMoney(report.realisedNzd),
     TAX_INDICATIVE_LABEL,
   ]);

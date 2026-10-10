@@ -1,11 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CsvExportButton } from "@/components/tax/CsvExportButton";
+import { TaxSectionNav } from "@/components/tax/TaxSectionNav";
 import { api } from "@/lib/api";
+import { getActiveAccountUserId } from "@/lib/account-identity";
+import { writeCachedCashNZD } from "@/lib/client-user-state";
 import { currencyForTicker, formatDisplayDate, formatFxInput, formatNzd, type CurrencyCode } from "@/lib/currency";
 import {
   buildDividendRecord,
@@ -29,14 +33,22 @@ export function DividendLedgerView({
   holdings,
   rows,
   readError,
+  csvAllowed = false,
+  taxYear,
 }: {
   signedIn: boolean;
   holdings: PaperHoldingChoice[];
   rows: DividendView[];
   readError: boolean;
+  csvAllowed?: boolean;
+  taxYear: number;
 }) {
   const router = useRouter();
-  const totals = useMemo(() => summariseDividends(rows), [rows]);
+  const [listed, setListed] = useState(rows);
+  useEffect(() => {
+    setListed(rows);
+  }, [rows]);
+  const totals = useMemo(() => summariseDividends(listed), [listed]);
   const [holdingKeyValue, setHoldingKeyValue] = useState("");
   const [date, setDate] = useState("");
   const [gross, setGross] = useState("");
@@ -46,6 +58,7 @@ export function DividendLedgerView({
   const [fx, setFx] = useState("");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const [removingId, setRemovingId] = useState("");
   const [lookingUp, setLookingUp] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -114,6 +127,23 @@ export function DividendLedgerView({
       setWithholding("");
       setDrp("");
       setNote("");
+      const saved = res.data as { cashBalance?: number; lastTransaction?: { _id?: string } } | undefined;
+      if (saved && typeof saved.cashBalance === "number") {
+        writeCachedCashNZD(getActiveAccountUserId(), saved.cashBalance);
+        window.dispatchEvent(new CustomEvent("aetherforge-book-changed", { detail: { cashBalance: saved.cashBalance } }));
+      }
+      setListed((current) => [
+        {
+          id: String(saved?.lastTransaction?._id || ""),
+          when: date,
+          ticker: selected.ticker,
+          assetName: selected.name,
+          assetType: selected.assetType,
+          parts: preview.parts,
+          cashNzd: preview.parts.netCashNzd,
+        },
+        ...current,
+      ]);
       setMessage("Dividend recorded.");
       router.refresh();
     } finally {
@@ -121,10 +151,34 @@ export function DividendLedgerView({
     }
   }
 
+  async function removeDividend(id: string) {
+    if (!id) return;
+    setRemovingId(id);
+    setMessage("");
+    try {
+      const res = await api.delete<{ cash?: { after?: number } }>(`/api/transactions?id=${encodeURIComponent(id)}`);
+      if (!res.ok) {
+        setMessage(typeof res.error === "string" ? res.error : "That dividend was not removed.");
+        return;
+      }
+      const after = res.data?.cash?.after;
+      if (typeof after === "number") {
+        writeCachedCashNZD(getActiveAccountUserId(), after);
+        window.dispatchEvent(new CustomEvent("aetherforge-book-changed", { detail: { cashBalance: after } }));
+      }
+      setListed((current) => current.filter((row) => row.id !== id));
+      setMessage("Dividend removed.");
+      router.refresh();
+    } finally {
+      setRemovingId("");
+    }
+  }
+
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6">
       <p className="text-xs font-semibold uppercase tracking-wide text-primary">New Zealand</p>
       <h1 className="mt-2 font-display text-3xl font-bold">Dividend ledger</h1>
+      <TaxSectionNav current="/tax/dividends" />
       <p className="mt-4 text-sm leading-relaxed text-muted-foreground">{TAX_INDICATIVE_LABEL}</p>
       <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
         Record a dividend on a holding you already have. Gross, NZ imputation credits, withholding and DRP
@@ -198,7 +252,7 @@ export function DividendLedgerView({
                 <Input id="dividend-drp" inputMode="decimal" value={drp} onChange={(event) => setDrp(event.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="dividend-fx">Exchange rate</Label>
+                <Label htmlFor="dividend-fx">Payment-date rate</Label>
                 {currency === "NZD" ? (
                   <p id="dividend-fx" className="flex h-9 items-center text-sm">
                     1.0000 NZD
@@ -228,7 +282,9 @@ export function DividendLedgerView({
             <p className="text-sm text-muted-foreground">
               Gross {formatNzd(preview.parts.grossNzd)}. Imputation credits {formatNzd(preview.parts.imputationNzd)}.
               Withholding {formatNzd(preview.parts.withholdingNzd)}. DRP {formatNzd(preview.parts.drpNzd)}. Net cash{" "}
-              {formatNzd(preview.parts.netCashNzd)}. Rate {formatFxInput(preview.parts.fx)}.
+              {formatNzd(preview.parts.netCashNzd)}. Payment-date rate {formatFxInput(preview.parts.fx)} NZD per 1{" "}
+              {preview.parts.currency}
+              {date ? ` on ${date}` : ""}. A buy on that day keeps the rate stored on the trade, which can differ.
             </p>
           ) : null}
           {preview && preview.ok === false ? <p className="text-sm text-rose-700">{preview.message}</p> : null}
@@ -253,9 +309,7 @@ export function DividendLedgerView({
           <h2 className="font-display text-lg font-semibold">Dividends on this book</h2>
           {signedIn ? (
             <div className="flex gap-2 print:hidden">
-              <Button type="button" variant="outline" asChild>
-                <a href="/api/tax/dividends/export">CSV</a>
-              </Button>
+              <CsvExportButton href={`/api/tax/dividends/export?year=${taxYear}`} allowed={csvAllowed} />
               <Button type="button" variant="outline" onClick={() => window.print()}>
                 Print
               </Button>
@@ -264,7 +318,7 @@ export function DividendLedgerView({
         </div>
         {readError ? (
           <p className="mt-3 text-sm text-muted-foreground">The dividend ledger could not be read.</p>
-        ) : rows.length === 0 ? (
+        ) : listed.length === 0 ? (
           <p className="mt-3 text-sm text-muted-foreground">No dividends recorded.</p>
         ) : (
           <>
@@ -280,19 +334,24 @@ export function DividendLedgerView({
                     <th className="px-3 py-2 text-right font-medium">DRP</th>
                     <th className="px-3 py-2 text-right font-medium">FX</th>
                     <th className="px-3 py-2 text-right font-medium">Net cash</th>
+                    <th className="px-3 py-2 text-right font-medium print:hidden"> </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row, index) => (
-                    <tr key={`${row.ticker}-${row.when}-${index}`} className="border-b border-border/40 last:border-0">
+                  {listed.map((row, index) => (
+                    <tr key={`${row.id || row.ticker}-${row.when}-${index}`} className="border-b border-border/40 last:border-0">
                       <td className="px-3 py-2">{formatDisplayDate(row.when)}</td>
                       <td className="px-3 py-2">
                         {row.ticker || row.assetName || "—"}
                         {!row.parts ? (
                           <span className="mt-0.5 block text-xs text-muted-foreground">
-                            Cash recorded. Gross, credits, withholding and DRP were not recorded.
+                            Cash, no breakdown: {formatNzd(row.cashNzd)}. This cash is not added to gross.
                           </span>
-                        ) : null}
+                        ) : (
+                          <span className="mt-0.5 block text-xs text-muted-foreground">
+                            Payment-date rate {formatFxInput(row.parts.fx)}
+                          </span>
+                        )}
                       </td>
                       <td className="tnum px-3 py-2 text-right">{moneyCell(row.parts ? row.parts.grossNzd : null)}</td>
                       <td className="tnum px-3 py-2 text-right">{moneyCell(row.parts ? row.parts.imputationNzd : null)}</td>
@@ -300,17 +359,45 @@ export function DividendLedgerView({
                       <td className="tnum px-3 py-2 text-right">{moneyCell(row.parts ? row.parts.drpNzd : null)}</td>
                       <td className="tnum px-3 py-2 text-right">{row.parts ? formatFxInput(row.parts.fx) : "—"}</td>
                       <td className="tnum px-3 py-2 text-right">{formatNzd(row.parts ? row.parts.netCashNzd : row.cashNzd)}</td>
+                      <td className="px-3 py-2 text-right print:hidden">
+                        {row.id ? (
+                          <button
+                            type="button"
+                            className="text-xs font-semibold text-primary underline-offset-4 hover:underline disabled:text-muted-foreground"
+                            disabled={removingId === row.id}
+                            onClick={() => void removeDividend(row.id)}
+                          >
+                            {removingId === row.id ? "Removing…" : "Delete"}
+                          </button>
+                        ) : null}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
+                <tfoot>
+                  <tr className="border-t border-border/60 text-sm">
+                    <td className="px-3 py-2 font-medium" colSpan={2}>
+                      Combined
+                    </td>
+                    <td className="tnum px-3 py-2 text-right">{formatNzd(totals.grossNzd)}</td>
+                    <td className="tnum px-3 py-2 text-right">{formatNzd(totals.imputationNzd)}</td>
+                    <td className="tnum px-3 py-2 text-right">{formatNzd(totals.withholdingNzd)}</td>
+                    <td className="tnum px-3 py-2 text-right">{formatNzd(totals.drpNzd)}</td>
+                    <td className="px-3 py-2" />
+                    <td className="tnum px-3 py-2 text-right">
+                      {formatNzd(totals.netCashNzd + totals.legacyCashNzd)}
+                    </td>
+                    <td className="print:hidden" />
+                  </tr>
+                </tfoot>
               </table>
             </div>
             <p className="mt-3 text-sm text-muted-foreground">
-              Breakdown rows: gross {formatNzd(totals.grossNzd)}, imputation credits {formatNzd(totals.imputationNzd)},
+              Combined totals: gross {formatNzd(totals.grossNzd)}, imputation credits {formatNzd(totals.imputationNzd)},
               withholding {formatNzd(totals.withholdingNzd)}, DRP {formatNzd(totals.drpNzd)}, net cash{" "}
               {formatNzd(totals.netCashNzd)}.
               {totals.legacyCount > 0
-                ? ` Cash on ${totals.legacyCount} row${totals.legacyCount === 1 ? "" : "s"} without a breakdown: ${formatNzd(totals.legacyCashNzd)}. That cash is not added to gross.`
+                ? ` Cash, no breakdown: ${formatNzd(totals.legacyCashNzd)} on ${totals.legacyCount} row${totals.legacyCount === 1 ? "" : "s"}. That cash is not added to gross.`
                 : ""}
             </p>
           </>

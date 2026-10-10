@@ -7,7 +7,7 @@
  * pull-check:track-b-2-2026-10-11
  */
 
-import { formatNzd, roundMoney } from "@/lib/currency";
+import { formatNzd, roundFxRate, roundMoney } from "@/lib/currency";
 import { dividendViewFromRow } from "@/lib/dividend-ledger";
 import { lotCivilDay } from "@/lib/executed-at";
 import { inNzTaxYear, nzTaxYearLabel } from "@/lib/nz-tax-year";
@@ -41,7 +41,7 @@ export const FIF_SOURCES = [
 export const FIF_ASSUMPTIONS = [
   "This paper is indicative. It does not decide whether the FIF rules apply to you.",
   "A ticker ending in .NZ is treated as a New Zealand share and is left out.",
-  "A ticker ending in .AX is treated as Australian listed and is left out of the $50,000 total. Inland Revenue says the exemption applies when the company is on the official ASX list, is Australian resident and not treated as resident in another country under a treaty, maintains a franking account, and the stock is not stapled. This book cannot check those four points. If one fails, add that cost back.",
+  "A ticker ending in .AX is included in the NZ$50,000 cost total. Australian-exempt companies can be left out by the member when they are on the ASX list Inland Revenue names, are Australian resident and not treated as resident elsewhere under a treaty, maintain a franking account, and the stock is not stapled. This book cannot check those conditions.",
   "Crypto and metals are left out. This paper does not treat them as shares in a foreign company.",
   "Other share tickers are treated as attributing interests for this paper.",
   "Cost is quantity times price times the exchange rate stored on the buy, in NZ$. A foreign buy with no stored rate is not given a guessed rate, and the $50,000 test is then not calculated.",
@@ -121,8 +121,13 @@ function fxOf(row: TaxLedgerRow): number | null {
   return null;
 }
 
-function nzdCost(qty: number, price: number, fx: number): number {
-  return roundMoney(qty * price * fx);
+function nzdCost(qty: number, price: number, fx: number, bookedCash?: number | null): number {
+  const formula = roundMoney(qty * price * roundFxRate(fx));
+  if (typeof bookedCash === "number" && Number.isFinite(bookedCash)) {
+    const spent = roundMoney(Math.abs(bookedCash));
+    if (spent > 0 && Math.abs(spent - formula) <= 0.01) return spent;
+  }
+  return formula;
 }
 
 interface Lot {
@@ -208,7 +213,11 @@ export function fifThreshold(peakCostNzd: number | null): FifThreshold {
 
 /** Sentence shown on the working paper. An empty attributing book is not called "under". */
 export function fifThresholdSentence(paper: Pick<FifPaper, "peakCostNzd" | "threshold" | "attributing">): string {
-  if (paper.attributing.length === 0 && paper.threshold !== "unknown") {
+  if (
+    paper.attributing.length === 0 &&
+    !(paper.peakCostNzd != null && paper.peakCostNzd > 0) &&
+    paper.threshold !== "unknown"
+  ) {
     return "No attributing overseas shares on this book.";
   }
   if (paper.threshold === "unknown" || paper.peakCostNzd == null) {
@@ -274,7 +283,7 @@ export function buildFifPaper(input: {
   function attributingCost(): number | null {
     let total = 0;
     for (const book of books.values()) {
-      if (book.className !== "attributable") continue;
+      if (book.className !== "attributable" && book.className !== "australian") continue;
       if (book.working.unknown) return null;
       total = roundMoney(total + holdingCost(book.working.lots));
     }
@@ -316,7 +325,7 @@ export function buildFifPaper(input: {
     } else if (qty > 0 && price > 0) {
       if (fx == null) book.working.unknown = true;
       else {
-        const cost = nzdCost(qty, price, fx);
+        const cost = nzdCost(qty, price, fx, row.cash_nzd);
         addLot(book.working, qty, cost);
         if (inYear) book.working.costsInYearNzd = roundMoney(book.working.costsInYearNzd + cost);
       }

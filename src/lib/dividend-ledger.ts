@@ -37,6 +37,7 @@ export interface DividendParts {
 }
 
 export interface DividendSourceRow {
+  _id?: string;
   type?: string;
   ticker?: string | null;
   asset_name?: string | null;
@@ -51,6 +52,7 @@ export interface DividendSourceRow {
 }
 
 export interface DividendView {
+  id: string;
   when: string;
   ticker: string;
   assetName: string;
@@ -212,6 +214,7 @@ function cashOf(row: DividendSourceRow): number {
 
 export function dividendViewFromRow(row: DividendSourceRow): DividendView {
   return {
+    id: String(row._id || ""),
     when: String(row.executed_at || row.createdAt || ""),
     ticker: String(row.ticker || "").trim(),
     assetName: String(row.asset_name || "").trim(),
@@ -272,6 +275,7 @@ export const DIVIDEND_CSV_COLUMNS = [
   "Withholding NZD",
   "DRP reinvestment NZD",
   "Net cash NZD",
+  "Breakdown",
   "Label",
 ] as const;
 
@@ -301,9 +305,29 @@ export function dividendCsv(rows: readonly DividendView[], formatDate: (value: s
       csvMoneyCell(parts ? parts.withholdingNzd : null),
       csvMoneyCell(parts ? parts.drpNzd : null),
       csvMoneyCell(parts ? parts.netCashNzd : row.cashNzd),
+      parts ? "" : "cash, no breakdown",
       TAX_INDICATIVE_LABEL,
     ];
     lines.push(cells.map(csvEscape).join(","));
   }
+  const totals = summariseDividends(rows);
+  lines.push(
+    [
+      "",
+      "",
+      "",
+      "",
+      "",
+      csvMoneyCell(totals.grossNzd),
+      csvMoneyCell(totals.imputationNzd),
+      csvMoneyCell(totals.withholdingNzd),
+      csvMoneyCell(totals.drpNzd),
+      csvMoneyCell(roundMoney(totals.netCashNzd + totals.legacyCashNzd)),
+      totals.legacyCount > 0 ? "cash, no breakdown" : "",
+      TAX_INDICATIVE_LABEL,
+    ]
+      .map(csvEscape)
+      .join(",")
+  );
   return lines.join("\n");
 }

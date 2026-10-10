@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
+import { CsvExportButton } from "@/components/tax/CsvExportButton";
 import { PrintButton } from "@/components/tax/PrintButton";
-import { formatDisplayDate, formatSignedMoney } from "@/lib/currency";
+import { TaxSectionNav } from "@/components/tax/TaxSectionNav";
+import { formatDisplayDate, formatNzd, formatSignedMoney } from "@/lib/currency";
+import { canExportCsv } from "@/lib/entitlements";
 import { aucklandCivilToday, isNzTaxYearEnding, nzTaxYearEnding, nzTaxYearLabel } from "@/lib/nz-tax-year";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { getCurrentUser } from "@/lib/session";
@@ -12,10 +15,14 @@ import { taxYearChoices } from "@/lib/taxable-income";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = publicPageMetadata("/tax/realised", {
-  title: "Realised profit and loss · AetherForge AI",
-  description: "Indicative FIFO realised profit and loss for a New Zealand tax year. Not tax advice.",
-});
+export const metadata = {
+  ...publicPageMetadata("/tax/realised", {
+    title: "Realised profit and loss · AetherForge AI",
+    description: "Indicative FIFO realised profit and loss for a New Zealand tax year. Not tax advice.",
+  }),
+  // Member books can sit on this URL. Keep it reachable and leave it out of the index.
+  robots: { index: false, follow: false },
+};
 
 function moneyOrBlank(value: number | null): string {
   if (value == null) return "—";
@@ -44,7 +51,20 @@ function DisposalTable({ rows }: { rows: RealisedLine[] }) {
           {rows.map((row, index) => (
             <tr key={`${row.ticker}-${row.when}-${index}`} className="border-b border-border/40 last:border-0">
               <td className="px-3 py-2">{formatDisplayDate(row.when)}</td>
-              <td className="px-3 py-2">{row.ticker}</td>
+              <td className="px-3 py-2">
+                {row.ticker}
+                {row.lots.length > 0 ? (
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    {row.lots.map((lot, lotIndex) => (
+                      <span key={`${lot.acquired}-${lotIndex}`} className="block">
+                        Lot {formatDisplayDate(lot.acquired)} · qty {lot.quantity} · cost {formatNzd(lot.costBasisNzd)}
+                      </span>
+                    ))}
+                    {row.proceedsNzd != null ? <span className="block">Proceeds {formatNzd(row.proceedsNzd)}</span> : null}
+                  </span>
+                ) : null}
+                {row.diffNote ? <span className="mt-0.5 block text-xs text-muted-foreground">{row.diffNote}</span> : null}
+              </td>
               <td className="tnum px-3 py-2 text-right">{row.quantity}</td>
               <td className="tnum px-3 py-2 text-right">{moneyOrBlank(row.pricePnlNzd)}</td>
               <td className="tnum px-3 py-2 text-right">{moneyOrBlank(row.fxPnlNzd)}</td>
@@ -77,6 +97,9 @@ function ReportBody({ report }: { report: RealisedReport }) {
         counted as zero.
         {report.blankCount > 0
           ? ` ${report.blankCount} disposal${report.blankCount === 1 ? "" : "s"} ${report.blankCount === 1 ? "is" : "are"} blank because a rate or a lot was missing.`
+          : ""}
+        {report.storedDiffCount > 0
+          ? ` ${report.storedDiffCount} row${report.storedDiffCount === 1 ? "" : "s"} differ from the amount stored on the sell. The income summary keeps those stored amounts, including a stored NZ$0.00.`
           : ""}
       </p>
     </>
@@ -123,6 +146,7 @@ export default async function RealisedPage({
       <article className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6">
         <p className="text-xs font-semibold uppercase tracking-wide text-primary">New Zealand</p>
         <h1 className="mt-2 font-display text-3xl font-bold">Realised profit and loss</h1>
+        <TaxSectionNav current="/tax/realised" />
         <p className="mt-4 text-sm leading-relaxed text-muted-foreground">{TAX_INDICATIVE_LABEL}</p>
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
           FIFO working for {nzTaxYearLabel(endingYear)}. The taxable-income page still shows the realised amount stored
@@ -143,12 +167,10 @@ export default async function RealisedPage({
             </Link>
           ))}
           {user && report ? (
-            <Link
+            <CsvExportButton
               href={`/api/tax/realised/export?year=${endingYear}`}
-              className="rounded-lg border border-border/70 px-2.5 py-1.5 text-xs font-semibold"
-            >
-              CSV
-            </Link>
+              allowed={canExportCsv(user.subscription_plan)}
+            />
           ) : null}
           {user && report ? <PrintButton /> : null}
         </div>

@@ -110,6 +110,48 @@ describe("realised profit and loss", () => {
     );
   });
 
+  it("shows matched lots and a note when the sell stored NZ$0.00", () => {
+    const report = realisedByTaxYear(
+      [
+        {
+          type: "buy",
+          ticker: "WOR",
+          asset_type: "stock",
+          executed_at: "2026-10-10T18:33:00.000Z",
+          quantity: 0,
+          price: 0,
+          currency: "USD",
+          fx_rate: 1.782,
+          notes: "FILLED buy qty=1 fill=10 USD",
+        },
+        {
+          type: "sell",
+          ticker: "WOR",
+          asset_type: "stock",
+          executed_at: "2026-10-10T18:33:00.000Z",
+          quantity: 1,
+          price: 0,
+          fill_price: 4,
+          currency: "USD",
+          fx_rate: 1.782,
+          fees_nzd: 0,
+          realized_pnl_nzd: 0,
+        },
+      ],
+      2027
+    );
+    const line = report.other[0];
+    expect(formatDisplayDate(line.when)).toBe("11 Oct 2026");
+    expect(line.lots).toEqual([{ acquired: "2026-10-11", quantity: 1, costBasisNzd: 17.82 }]);
+    expect(line.proceedsNzd).toBe(7.13);
+    expect(line.realisedNzd).toBe(-10.69);
+    expect(line.storedRealisedNzd).toBe(0);
+    expect(line.diffNote).toContain("NZ$0.00");
+    expect(line.diffNote).toContain("NZ$-10.69");
+    expect(report.combinedNzd).toBe(-10.69);
+    expect(report.storedDiffCount).toBe(1);
+  });
+
   it("points the tax page at the working papers", () => {
     const page = read("src/components/tax/TaxPageContent.tsx");
     const realised = read("src/app/tax/realised/page.tsx");

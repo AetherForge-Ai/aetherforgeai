@@ -21,6 +21,7 @@ import { useRecoverableTurn } from "@/lib/use-recoverable-turn";
 import { cn } from "@/lib/utils";
 import { BOT_HEADMASTER_AVATAR } from "@/assets/files";
 import { bullionNzdPerOz, isBullionHolding } from "@/lib/metal-valuation";
+import { aucklandDateISO } from "@/lib/fill-integrity";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -380,7 +381,7 @@ export function PortfolioCoachChat({
         pushClass("Metals", metalsVal);
 
         applySynthesis({
-          asOf: new Date().toISOString().slice(0, 10),
+          asOf: aucklandDateISO(),
           totalValueNZD: total,
           cashBalanceNZD: cash,
           classAllocation: classes,
@@ -499,7 +500,7 @@ export function PortfolioCoachChat({
               cashBalanceNZD: cash,
               totalValueNZD: Math.max(Number(liveBook?.totalValueNZD || 0), cash),
               isEmpty: cash <= 0 && !((liveBook?.classAllocation || []).some((c) => (c.valueNZD || 0) > 0 || c.label !== "Cash")),
-              asOf: new Date().toISOString().slice(0, 10),
+              asOf: aucklandDateISO(),
             };
             if (cash > 0) liveBook.isEmpty = false;
             setBookSnapshot(liveBook);

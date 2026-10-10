@@ -109,19 +109,22 @@ describe("taxable income", () => {
       return shown === "—" ? "" : shown;
     });
     expect(csv.split("\n")[0]).toBe(
-      "Tax year,Date,Holding,Kind,Gross NZD,Imputation credits NZD,Withholding NZD,DRP reinvestment NZD,Realised NZD,Label"
+      "Tax year,Date,Holding,Kind,Gross NZD,Imputation credits NZD,Withholding NZD,DRP reinvestment NZD,Cash without breakdown NZD,Realised NZD,Label"
     );
     expect(csv).toContain(
-      '1 Apr 2026 to 31 Mar 2027,1 Apr 2026,FBU.NZ,dividend,100.00,28.00,33.00,0.00,,"Indicative, not tax advice."'
+      '1 Apr 2026 to 31 Mar 2027,1 Apr 2026,FBU.NZ,dividend,100.00,28.00,33.00,0.00,,,"Indicative, not tax advice."'
     );
     expect(csv).toContain(
-      '1 Apr 2026 to 31 Mar 2027,10 Oct 2026,CBA.AX,dividend,109.12,0.00,16.37,21.82,,"Indicative, not tax advice."'
+      '1 Apr 2026 to 31 Mar 2027,10 Oct 2026,CBA.AX,dividend,109.12,0.00,16.37,21.82,,,"Indicative, not tax advice."'
     );
     expect(csv).toContain(
-      '1 Apr 2026 to 31 Mar 2027,15 Jan 2027,AAPL,realised,,,,,40.50,"Indicative, not tax advice."'
+      '1 Apr 2026 to 31 Mar 2027,20 May 2026,AIR.NZ,"cash, no breakdown",,,,,25.00,,"Indicative, not tax advice."'
     );
     expect(csv).toContain(
-      '1 Apr 2026 to 31 Mar 2027,,,total,209.12,28.00,49.37,21.82,40.50,"Indicative, not tax advice."'
+      '1 Apr 2026 to 31 Mar 2027,15 Jan 2027,AAPL,realised,,,,,,40.50,"Indicative, not tax advice."'
+    );
+    expect(csv).toContain(
+      '1 Apr 2026 to 31 Mar 2027,,,total,209.12,28.00,49.37,21.82,25.00,40.50,"Indicative, not tax advice."'
     );
     expect(csv).not.toContain("MSFT");
     expect(csv).not.toContain("[DIV:");
