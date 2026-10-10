@@ -82,13 +82,22 @@ export interface ReportFindings {
    * Watchlist ideas are opt-in via scopeHeadmasterIdeas.
    */
   contextBlock: string;
+  /** Undefined when that bot has not been run. Zero means the report sized no new name. */
+  equitiesQualifying?: number;
+  cryptoQualifying?: number;
+  equitiesNotSized: string[];
+  cryptoNotSized: string[];
 }
 
 function stripMd(s: string): string {
   return (s || "").replace(/\*\*/g, "").replace(/_/g, "").trim();
 }
 
-function summariseReport(bot: BotKind, report: ApexReport, generatedAt: string): { text: string; ideas: ReportBuy[] } {
+function summariseReport(
+  bot: BotKind,
+  report: ApexReport,
+  generatedAt: string
+): { text: string; ideas: ReportBuy[]; qualifying: number; notSized: string[] } {
   const label = bot === "crypto" ? "KOINS (crypto)" : "STOX (equities)";
   const marketTag = bot === "crypto" ? "Koins (crypto)" : "Stox (equities)";
 
@@ -110,7 +119,12 @@ function summariseReport(bot: BotKind, report: ApexReport, generatedAt: string):
     "- Use it as background for the current book. Non-held names stay off the default Headmaster plan.",
   ].join("\n");
 
-  return { text, ideas };
+  const qualifying = (report.directRecommendations || []).filter(
+    (row) => !row.held && (row.action === "BUY" || row.action === "ACCUMULATE") && row.projected7dPct > 0
+  ).length;
+  const notSized = (report.notSized || []).map((row) => `${row.ticker} (${row.reason})`);
+
+  return { text, ideas, qualifying, notSized };
 }
 
 /**
@@ -119,7 +133,9 @@ function summariseReport(bot: BotKind, report: ApexReport, generatedAt: string):
  * Non-fatal: on any read/parse failure the affected side is simply absent.
  */
 export async function loadReportFindings(userId: string): Promise<ReportFindings> {
-  const loadOne = async (bot: BotKind): Promise<{ text: string; ideas: ReportBuy[] } | null> => {
+  const loadOne = async (
+    bot: BotKind
+  ): Promise<{ text: string; ideas: ReportBuy[]; qualifying: number; notSized: string[] } | null> => {
     try {
       const res = await totalumSdk.crud.query("report", {
         _filter: { user: userId, bot },
@@ -152,7 +168,16 @@ export async function loadReportFindings(userId: string): Promise<ReportFindings
     `[totalum] Report findings ingested for user ${userId}: Stox=${!!stox}, Koins=${!!koins}, ${ideas.length} named ideas (${ideas.filter((i) => !i.held).length} not held, withheld from default context)`
   );
 
-  return { hasStox: !!stox, hasKoins: !!koins, ideas, contextBlock };
+  return {
+    hasStox: !!stox,
+    hasKoins: !!koins,
+    ideas,
+    contextBlock,
+    equitiesQualifying: stox ? stox.qualifying : undefined,
+    cryptoQualifying: koins ? koins.qualifying : undefined,
+    equitiesNotSized: stox?.notSized ?? [],
+    cryptoNotSized: koins?.notSized ?? [],
+  };
 }
 
 /** The illustrated path saved with the latest Headmaster report, if one exists. */

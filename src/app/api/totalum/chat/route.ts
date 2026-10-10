@@ -50,7 +50,9 @@ function buildStrategistContext(s: TotalumSynthesis): string {
     `- Cash on book: ${nzd(s.cashBalanceNZD)} (${cashW.toFixed(1)}% of book). Liquidity reserve, not a single-name shock.`,
     `- Default Balanced Growth skeleton (same calculation as the Strategy tab): retained cash ${nzd(skeleton.plan.retainedCashNZD)} (${skeleton.plan.targetCashPct}%). Illustrated cash reallocation ${nzd(skeleton.plan.cashToReallocateNZD)}.`,
     `- ${skeleton.plan.formula}`,
-    `- Diversification score: ${s.diversificationScore}/100 (${s.concentrationLabel}, HHI ${s.hhi})`,
+    s.uninvestedBook
+      ? "- Not yet invested. Cash is the whole book, so this is not a concentration score."
+      : `- Diversification score: ${s.diversificationScore}/100 (${s.concentrationLabel}, HHI ${s.hhi})`,
     `- ${modelViewSentence(s.expectedAnnualReturnPct, s.expectedAnnualVolPct)}`,
     "",
     "ASSET-CLASS ALLOCATION:"
@@ -99,7 +101,9 @@ function deterministicReply(message: string, s: TotalumSynthesis, findings: Repo
   const top = s.classAllocation[0];
   const worstStress = [...s.stressTests].sort((a, b) => a.impactNZD - b.impactNZD)[0];
   const lines = [
-    `Here's the read on your **${nzd(s.totalValueNZD)}** unified book (${s.concentrationLabel}, diversification **${s.diversificationScore}/100**):`,
+    s.uninvestedBook
+      ? `Here's the read on your **${nzd(s.totalValueNZD)}** unified book (Not yet invested):`
+      : `Here's the read on your **${nzd(s.totalValueNZD)}** unified book (${s.concentrationLabel}, diversification **${s.diversificationScore}/100**):`,
     "",
     `- **Allocation:** ${s.classAllocation.map((c) => `${c.label} ${c.weight.toFixed(0)}%`).join(" · ")}`,
     `- **Largest sleeve:** ${top.label} at **${top.weight.toFixed(1)}%** (${nzd(top.valueNZD)}).`,

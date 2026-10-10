@@ -197,7 +197,11 @@ function SynthesisTab({ s }: { s: TotalumSynthesis }) {
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Kpi label="Total Wealth" value={nzd(s.totalValueNZD)} sub="Unified · NZD base" />
         <Kpi label="Unrealised P/L" value={nzd(s.totalGainNZD)} sub={pct(s.totalGainPct)} accent={gainClass(s.totalGainNZD)} />
-        <Kpi label="Diversification" value={`${s.diversificationScore}/100`} sub={s.concentrationLabel} />
+        <Kpi
+          label="Diversification"
+          value={s.uninvestedBook ? "Not yet invested" : `${s.diversificationScore}/100`}
+          sub={s.uninvestedBook ? "Cash is not a concentration score" : s.concentrationLabel}
+        />
         <Kpi label="Model view" value={modelView} sub="Annualised model" />
       </div>
 
@@ -205,7 +209,11 @@ function SynthesisTab({ s }: { s: TotalumSynthesis }) {
         <div className="mb-4 flex items-center gap-2">
           <Layers className="size-4 text-primary" />
           <h3 className="text-sm font-semibold">Asset-Class Allocation</h3>
-          <Badge variant="outline" className="ml-auto text-[11px]">HHI {s.hhi}</Badge>
+          {s.uninvestedBook ? (
+            <Badge variant="outline" className="ml-auto text-[11px]">Not yet invested</Badge>
+          ) : (
+            <Badge variant="outline" className="ml-auto text-[11px]">HHI {s.hhi}</Badge>
+          )}
         </div>
         <AllocationBar synthesis={s} />
       </Card>
@@ -505,6 +513,13 @@ function StrategyTab({ initialSynthesis }: { initialSynthesis: TotalumSynthesis 
               <Badge variant="outline" className="ml-auto">{strategy.riskLabel}</Badge>
             </div>
             <p className="mt-2 text-sm text-muted-foreground">{sanitizeHeadmasterDisplayText(strategy.narrative, strategy.plan)}</p>
+            {strategy.sleeveNotes?.length ? (
+              <ul className="mt-3 space-y-1 text-sm">
+                {strategy.sleeveNotes.map((note) => (
+                  <li key={note}>{sanitizeHeadmasterDisplayText(note, strategy.plan)}</li>
+                ))}
+              </ul>
+            ) : null}
             <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <Kpi label="Model view" value={modelViewSentence(strategy.projectedReturnPct, strategy.projectedVolPct)} sub="Pathway, not a forecast" />
               <Kpi label="Retained cash" value={nzd(strategy.plan.retainedCashNZD)} sub={`${strategy.plan.targetCashPct}% of the book`} />
