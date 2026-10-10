@@ -27,6 +27,7 @@ export interface LedgerTradeFields {
   venue?: Venue;
   asset_id?: string; // canonical id (coingecko / yahoo)
   quantity: number;
+  /** Unit price at full precision. A number column, not a 2dp currency amount. */
   fill_price: number;
   fill_currency: "NZD" | "AUD" | "USD";
   signal_price?: number | null;
@@ -58,6 +59,7 @@ export interface LedgerHoldingFields {
   venue?: Venue;
   asset_id?: string;
   quantity: number; // shares
+  /** Average unit price at full precision. Not rounded to 2dp before it is stored. */
   fill_price: number; // avg cost / purchase_price
   fill_currency: "NZD" | "AUD" | "USD";
   mark_price?: number | null;

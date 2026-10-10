@@ -4,6 +4,7 @@ import { accountMismatchResponse, privateJson } from "@/lib/account-response";
 import { z } from "zod";
 import { getStableSessionUser, getTradeSessionUser, isStripeConfigured } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
+import { normaliseUnitPrice, roundUnitPrice } from "@/lib/currency";
 import { lookupTicker, normalizeTicker, referencePrice } from "@/lib/market";
 import {
   fetchLivePrice,
@@ -346,8 +347,8 @@ export async function POST(req: Request) {
     try {
       if (assetType === "crypto") {
         const quotes = await fetchCryptoQuotes([ticker]);
-        const live = quotes[ticker.toUpperCase()]?.price;
-        if (live && live > 0) current_price = live;
+        const live = normaliseUnitPrice(quotes[ticker.toUpperCase()]?.price);
+        if (live) current_price = live;
       } else if (isLiveDataConfigured()) {
         const livePrice = await fetchLivePrice(ticker);
         if (livePrice && livePrice > 0) current_price = livePrice;
@@ -435,7 +436,7 @@ export async function POST(req: Request) {
         newShares > 0 ? (oldShares * oldAvg + addShares * purchase_price) / newShares : purchase_price;
       const patch = {
         shares: Math.round((newShares + Number.EPSILON) * 1e6) / 1e6,
-        purchase_price: Math.round((newAvg + Number.EPSILON) * 1e6) / 1e6,
+        purchase_price: roundUnitPrice(newAvg),
         current_price,
         company_name: company_name || sameSleeve.company_name,
         purchase_date: parsed.data.purchase_date || sameSleeve.purchase_date || new Date().toISOString().slice(0, 10),

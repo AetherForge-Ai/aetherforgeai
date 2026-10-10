@@ -73,7 +73,10 @@ export function lookupTicker(raw: string): TickerInfo | undefined {
 export function referencePrice(ticker: string, fallback: number): number {
   const info = lookupTicker(ticker);
   if (info) return info.price;
-  return Math.max(0.01, Number(fallback) || 0);
+  const n = Number(fallback);
+  // Unknown names, including sub-cent DEX tokens, keep the price that was typed.
+  // Flooring at 0.01 turned a 0.00001 fill into a phantom 1000× mark.
+  return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
 /**
@@ -81,7 +84,11 @@ export function referencePrice(ticker: string, fallback: number): number {
  * Deterministic-ish daily drift so a portfolio isn't uniformly red or green.
  */
 export function simulateTick(price: number): number {
+  if (!(price > 0) || !Number.isFinite(price)) return price;
   const drift = (Math.random() - 0.48) * 0.035; // slight upward bias, ±~3.5%
   const next = price * (1 + drift);
-  return Math.round(Math.max(0.01, next) * 100) / 100;
+  if (!(next > 0)) return price;
+  // Sub-cent prints stay at full precision. Prices from one cent keep 2 decimals.
+  if (next < 0.01) return Number(next.toPrecision(8));
+  return Math.round(next * 100) / 100;
 }

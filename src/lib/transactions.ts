@@ -15,7 +15,7 @@
 import "server-only";
 import { totalumSdk } from "@/lib/totalum";
 import type { AppUser } from "@/lib/session";
-import { adaptiveFractionDigits, currencyForTicker, nativeToNzd, ensureNzdPerUsd, ensureNzdPerAud, formatQuantity, type CurrencyCode } from "@/lib/currency";
+import { currencyForTicker, nativeToNzd, ensureNzdPerUsd, ensureNzdPerAud, formatQuantity, normaliseUnitPrice, roundUnitPrice, type CurrencyCode } from "@/lib/currency";
 import { dexPriceForSymbol, ledgerFxRate, priceForBooking, ratesForBooking, reviewedFxAllowed } from "@/lib/reviewed-book";
 import { alertsToArchive, positionIsClosed } from "@/lib/alert-lifecycle";
 import { getFxSnapshot, historicalNzdPerUnit } from "@/lib/fx";
@@ -117,11 +117,9 @@ function round(n: number, decimals = 2): number {
   return Math.round((n + Number.EPSILON) * f) / f;
 }
 
-/** Keep a sub-cent fill (PEPE) instead of collapsing it at 6 decimals. */
+/** Keep a sub-cent fill (PEPE at 0.00001) instead of collapsing it to 0.01. */
 function roundFillPrice(n: number): number {
-  if (!Number.isFinite(n)) return n;
-  const digits = Math.max(6, adaptiveFractionDigits(Math.abs(n) || 0));
-  return round(n, digits);
+  return roundUnitPrice(n);
 }
 
 /** NZD per 1 unit of the trade currency. Sub-1 quotes are the wrong direction. */
@@ -773,8 +771,8 @@ async function applyTransactionUnlocked(
               ? { ids: { [ticker.toUpperCase()]: input.coingecko_id }, strictCoinGecko: [ticker] }
               : undefined
           );
-          const live = quotes[ticker.toUpperCase()]?.price;
-          if (live && live > 0) current_price = live;
+          const live = normaliseUnitPrice(quotes[ticker.toUpperCase()]?.price);
+          if (live) current_price = live;
         } else if (assetType === "metal") {
           // Gold/silver price live at the NZD spot per troy ounce.
           const key = metalKeyForTicker(ticker);
@@ -813,7 +811,7 @@ async function applyTransactionUnlocked(
     const newCash = moved.cashNZD;
     const createdNew = !holding;
     const previousShares = round(holding?.shares || 0, 6);
-    const previousAvg = round(holding?.purchase_price || 0, 6);
+    const previousAvg = roundUnitPrice(holding?.purchase_price || 0);
     const expectedShares = moved.shares;
     let ledgerId: string | undefined;
     try {
@@ -1026,14 +1024,14 @@ async function applyTransactionUnlocked(
           company_name: holding.company_name,
           sector: holding.sector,
           shares: round(heldShares, 6),
-          purchase_price: round(avgCost, 6),
+          purchase_price: roundUnitPrice(avgCost),
           current_price: holding.current_price,
           user: user._id,
         })
         .catch((rollbackErr) => console.error("[transactions] Failed to restore closed holding:", rollbackErr));
     } else {
       await totalumSdk.crud
-        .editRecordById("stock", holding._id, { shares: round(heldShares, 6), purchase_price: round(avgCost, 6) })
+        .editRecordById("stock", holding._id, { shares: round(heldShares, 6), purchase_price: roundUnitPrice(avgCost) })
         .catch(() => undefined);
     }
     throw err instanceof Error ? err : new Error("Sell was not saved");

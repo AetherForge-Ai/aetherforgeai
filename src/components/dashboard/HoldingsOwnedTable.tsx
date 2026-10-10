@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import type { HoldingMetrics } from "@/lib/portfolio";
 import { formatNumber, formatPercent } from "@/lib/portfolio";
-import { formatDisplayDate, formatMoney, CURRENCY_META, type CurrencyCode } from "@/lib/currency";
+import { formatDisplayDate, formatMoney, formatUnitPrice, CURRENCY_META, type CurrencyCode } from "@/lib/currency";
 import { listingExchangeLabel } from "@/lib/market-intel";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -271,10 +271,10 @@ export function HoldingsOwnedTable({
                       {formatNumber(h.shares)}
                     </td>
                     <td className="tnum overflow-hidden break-all px-2 py-2 text-right text-muted-foreground">
-                      {formatMoney(h.purchase_price, h.currency)}
+                      {formatUnitPrice(h.purchase_price, h.currency)}
                     </td>
                     <td className="tnum overflow-hidden break-all px-2 py-2 text-right">
-                      {formatMoney(h.current_price, h.currency)}
+                      {formatUnitPrice(h.current_price, h.currency)}
                     </td>
                     <td className="tnum overflow-hidden px-2 py-2 text-right font-medium">
                       {formatMoney(h.marketValue, h.currency)}

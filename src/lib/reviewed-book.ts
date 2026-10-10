@@ -8,6 +8,7 @@ import {
   ensureNzdPerAud,
   ensureNzdPerUsd,
   formatFxInput,
+  normaliseUnitPrice,
   roundFxRate,
   type CurrencyCode,
   type FxRatesToNZD,
@@ -15,9 +16,9 @@ import {
 
 export { dexPriceForSymbol } from "@/lib/crypto-dex";
 
-/** The fill price that was reviewed. A newer live spot is ignored. */
+/** The fill price that was reviewed. A newer live spot is ignored. Sub-cent prices are not rounded. */
 export function priceForBooking(submitted: number, _liveSpot?: number | null): number {
-  return Number(submitted) || 0;
+  return normaliseUnitPrice(submitted) ?? 0;
 }
 
 /** A client FX rate may sit this far from the snapshot or the trade-date rate. */
