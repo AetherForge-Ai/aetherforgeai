@@ -117,8 +117,15 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <GlobalErrorCatcher />
           <ScriptExecutor />
           <DevToolsHandler />
-          <div className="min-h-screen flex flex-col">
-            <main className="flex-1">{children}</main>
+          <div className="flex min-h-screen min-w-0 flex-col overflow-x-clip">
+            <a
+              href="#main"
+              className="absolute left-4 top-4 z-[100] -translate-y-24 rounded-md bg-background px-3 py-2 text-sm font-semibold text-foreground shadow focus:translate-y-0"
+            >
+              Skip to content
+            </a>
+            {/* pull-check:batch1-2026-10-11 B1-13 */}
+            <main id="main" className="min-w-0 flex-1">{children}</main>
             <SiteFooter />
           </div>
           <AnalyticsNotice />
