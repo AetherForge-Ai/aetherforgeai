@@ -128,11 +128,12 @@ export function parseQuoteTime(value: string | number | Date | null | undefined)
 
 /**
  * Open-session delay words.
- * The 7 Oct 2026 brief states "~20 min" for NZX. ASX has no confirmed figure.
+ * The 7 Oct 2026 brief states "~20 min" for NZX. Yahoo Help's delay table, recorded in
+ * docs/data-licensing-options-2026-10-11.md, also lists ASX as 20 min.
  * TODO(owner): confirm the US share-price delay. Do not print a minute figure until it is known.
  */
 function openDelayWords(venue: EquityVenue): string {
-  return venue === "NZX" ? "Delayed ~20 min" : "Delayed";
+  return venue === "NZX" || venue === "ASX" ? "Delayed ~20 min" : "Delayed";
 }
 
 /**

@@ -3,14 +3,10 @@ import "server-only";
 import { fetchDexTop400 } from "@/lib/crypto-coingecko";
 import { getCoinDetail, loadTop400Markets } from "@/lib/crypto-source";
 import { formatDisplayDateTime, formatSignedPercent, formatUnitPrice } from "@/lib/currency";
-import {
-  entriesForExchange,
-  EXCHANGE_META,
-  formatMarketPrice,
-  type Exchange,
-} from "@/lib/market-intel";
 import { MARKET_INDEX_PAGE, type PublicMarketIndex, type PublicPriceRow, type PublicPriceTab } from "@/lib/public-market-types";
-import { fetchYahooQuote, fetchYahooQuotesBatched, yahooEquitySymbol, type YahooQuote } from "@/lib/yahoo-finance";
+import { boardCoverage, pageListings } from "@/lib/stock-catalog";
+import { loadSavedQuoteLine, loadStockBoardPage } from "@/lib/stock-board.server";
+import { PRICE_NOT_IN_RESPONSE, type StockBoard } from "@/lib/stock-markets";
 
 const COIN_PAGE = 25;
 /** Cold /markets waits this long, then says the price is not in the response. */
@@ -19,6 +15,16 @@ const ALT_BUDGET_MS = 3000;
 const INDEX_TTL_MS = 5 * 60 * 1000;
 /** After a refresh that keeps the previous snapshot, wait before trying again. */
 const REFRESH_BACKOFF_MS = 60 * 1000;
+/** Names are on the page. Try the price calls again soon when this response has no print. */
+const QUOTE_RETRY_MS = 15 * 1000;
+
+const BOARD_TITLE: Record<StockBoard, string> = {
+  NZX: "NZX",
+  ASX: "ASX",
+  DOW: "Dow Jones",
+  NASDAQ: "NASDAQ",
+  NYSE: "NYSE",
+};
 
 function asOfLabel(iso: string | null): string {
   if (!iso) return "as of not stated by the vendor";
@@ -52,30 +58,29 @@ async function within<T>(work: Promise<T>, fallback: T, ms: number): Promise<T> 
   }
 }
 
-async function loadEquityTab(exchange: Exchange): Promise<PublicPriceTab> {
-  const entries = entriesForExchange(exchange).slice(0, MARKET_INDEX_PAGE);
-  const map: Record<string, string> = {};
-  for (const entry of entries) map[entry.ticker] = yahooEquitySymbol(entry.ticker);
-  const quotes = await fetchYahooQuotesBatched(map);
-  const meta = EXCHANGE_META[exchange];
-  const rows: PublicPriceRow[] = [];
-  const times: Array<string | null | undefined> = [];
-  for (const entry of entries) {
-    const quote = quotes[entry.ticker];
-    if (!quote || !(quote.price > 0)) continue;
-    times.push(quote.quotedAt);
-    rows.push({
-      symbol: entry.ticker.replace(/\.(NZ|AX|L)$/i, ""),
-      name: entry.name,
-      price: formatMarketPrice(quote.price, meta.currency),
-      change: formatSignedPercent(quote.changePct),
-      href: `/markets/stock/${encodeURIComponent(entry.ticker)}`,
-    });
+async function loadEquityTab(board: StockBoard): Promise<PublicPriceTab> {
+  let page;
+  try {
+    page = await loadStockBoardPage(board, { page: 1, waitMs: 2_000 });
+  } catch (err) {
+    console.error(`[public-market-index] ${board} board failed:`, err);
+    return equityFallback(board);
   }
+  const rows: PublicPriceRow[] = page.rows.slice(0, MARKET_INDEX_PAGE).map((row) => ({
+    symbol: row.symbol,
+    name: row.name,
+    price: row.quoted ? row.priceLabel : PRICE_NOT_IN_RESPONSE,
+    change: row.quoted ? row.changeLabel : "change not stated",
+    href: `/markets/stock/${encodeURIComponent(row.ticker)}`,
+    source: row.source || "",
+    asOf: row.asOf,
+  }));
   return {
-    id: exchange,
-    title: meta.label,
-    asOf: asOfLabel(latestIso(times)),
+    id: board,
+    title: page.label,
+    asOf: page.asOf ? asOfLabel(page.asOf) : page.freshness,
+    coverage: page.coverage,
+    note: page.note,
     rows,
   };
 }
@@ -118,12 +123,44 @@ async function loadDexTab(): Promise<PublicPriceTab> {
   };
 }
 
+function equityFallback(id: StockBoard): PublicPriceTab {
+  const coverage = boardCoverage(id);
+  const page = pageListings(id, 1);
+  return {
+    id,
+    title: BOARD_TITLE[id],
+    asOf: "as of not stated by the vendor",
+    coverage: coverage.line,
+    note: coverage.note,
+    rows: page.rows.slice(0, MARKET_INDEX_PAGE).map((row) => ({
+      symbol: row.symbol,
+      name: row.name,
+      price: PRICE_NOT_IN_RESPONSE,
+      change: "change not stated",
+      href: `/markets/stock/${encodeURIComponent(row.ticker)}`,
+      source: "",
+      asOf: "as of not stated by the vendor",
+    })),
+  };
+}
+
+function stockTabsNeedQuotes(value: PublicMarketIndex): boolean {
+  return value.tabs.some(
+    (tab) =>
+      tab.id !== "CRYPTO" &&
+      tab.id !== "DEX" &&
+      tab.rows.length > 0 &&
+      tab.rows.every((row) => !row.price || row.price === PRICE_NOT_IN_RESPONSE)
+  );
+}
+
 async function buildIndex(): Promise<PublicMarketIndex> {
-  const [nzx, asx, dow, nasdaq, crypto, dex] = await Promise.all([
-    within(loadEquityTab("NZX"), { id: "NZX", title: "NZX", asOf: "as of not stated by the vendor", rows: [] }, EQUITY_BUDGET_MS),
-    within(loadEquityTab("ASX"), { id: "ASX", title: "ASX", asOf: "as of not stated by the vendor", rows: [] }, EQUITY_BUDGET_MS),
-    within(loadEquityTab("DOW"), { id: "DOW", title: "Dow Jones", asOf: "as of not stated by the vendor", rows: [] }, EQUITY_BUDGET_MS),
-    within(loadEquityTab("NASDAQ"), { id: "NASDAQ", title: "NASDAQ", asOf: "as of not stated by the vendor", rows: [] }, EQUITY_BUDGET_MS),
+  const [nzx, asx, dow, nasdaq, nyse, crypto, dex] = await Promise.all([
+    within(loadEquityTab("NZX"), equityFallback("NZX"), EQUITY_BUDGET_MS),
+    within(loadEquityTab("ASX"), equityFallback("ASX"), EQUITY_BUDGET_MS),
+    within(loadEquityTab("DOW"), equityFallback("DOW"), EQUITY_BUDGET_MS),
+    within(loadEquityTab("NASDAQ"), equityFallback("NASDAQ"), EQUITY_BUDGET_MS),
+    within(loadEquityTab("NYSE"), equityFallback("NYSE"), EQUITY_BUDGET_MS),
     within(loadCryptoTab(), { id: "CRYPTO", title: "Crypto", asOf: "as of not stated by the vendor", rows: [] }, ALT_BUDGET_MS).catch(() => ({
       id: "CRYPTO",
       title: "Crypto",
@@ -137,7 +174,7 @@ async function buildIndex(): Promise<PublicMarketIndex> {
       rows: [] as PublicPriceRow[],
     })),
   ]);
-  const tabs = [nzx, asx, dow, nasdaq, crypto, dex];
+  const tabs = [nzx, asx, dow, nasdaq, nyse, crypto, dex];
   return {
     tabs,
     priceRowCount: tabs.reduce((sum, tab) => sum + tab.rows.length, 0),
@@ -156,6 +193,7 @@ function emptyIndex(): PublicMarketIndex {
       { id: "ASX", title: "ASX", asOf: "as of not stated by the vendor", rows: [] },
       { id: "DOW", title: "Dow Jones", asOf: "as of not stated by the vendor", rows: [] },
       { id: "NASDAQ", title: "NASDAQ", asOf: "as of not stated by the vendor", rows: [] },
+      { id: "NYSE", title: "NYSE", asOf: "as of not stated by the vendor", rows: [] },
       { id: "CRYPTO", title: "Crypto", asOf: "as of not stated by the vendor", rows: [] },
       { id: "DEX", title: "DEX", asOf: "as of not stated by the vendor", rows: [] },
     ],
@@ -173,7 +211,7 @@ function remember(value: PublicMarketIndex) {
     return;
   }
   memo = { at: now, value };
-  nextRefreshAt = now + INDEX_TTL_MS;
+  nextRefreshAt = now + (stockTabsNeedQuotes(value) ? QUOTE_RETRY_MS : INDEX_TTL_MS);
 }
 
 function startBuild(): Promise<PublicMarketIndex> {
@@ -206,13 +244,17 @@ export async function loadPublicMarketIndex(): Promise<PublicMarketIndex> {
   return value.priceRowCount > 0 ? value : emptyIndex();
 }
 
-/** One equity ticker page. Null when Yahoo does not return a price. */
+const quoteMemo = new Map<string, { at: number; value: Promise<string | null> }>();
+
+/** One equity ticker page. The saved print is used when both providers fail. */
 export async function loadStockQuoteLine(ticker: string): Promise<string | null> {
-  const quote = await within<YahooQuote | null>(fetchYahooQuote(ticker), null, 3000);
-  if (!quote || !(quote.price > 0)) return null;
-  const currency = ticker.toUpperCase().endsWith(".NZ") ? "NZD" : ticker.toUpperCase().endsWith(".AX") ? "AUD" : "USD";
-  const when = quote.quotedAt ? asOfLabel(quote.quotedAt) : "as of not stated by the vendor";
-  return `${ticker} ${formatMarketPrice(quote.price, currency)} ${formatSignedPercent(quote.changePct)} ${when}`;
+  const key = ticker.trim().toUpperCase();
+  const now = Date.now();
+  const hit = quoteMemo.get(key);
+  if (hit && now - hit.at < 5_000) return hit.value;
+  const value = within(loadSavedQuoteLine(key), null, EQUITY_BUDGET_MS);
+  quoteMemo.set(key, { at: now, value });
+  return value;
 }
 
 /** One crypto ticker page. Null when no source returns a price. */

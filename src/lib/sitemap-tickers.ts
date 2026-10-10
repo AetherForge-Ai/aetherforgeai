@@ -1,13 +1,12 @@
 import { CRYPTO_VENDORS } from "@/lib/crypto-vendors";
-import { MARKET_UNIVERSE } from "@/lib/market-intel";
+import { catalogTickerPaths } from "@/lib/stock-catalog";
 
-/** Curated ticker pages. Built from the code lists, not from a live scrape. */
+/**
+ * Ticker pages that render a name from the stock catalog or a mapped crypto id.
+ * The stock list is capped inside catalogTickerPaths so the sitemap stays under 50,000 URLs.
+ */
 export function publicTickerPaths(): string[] {
-  const paths = new Set<string>();
-  for (const entry of MARKET_UNIVERSE) {
-    if (entry.market === "CRYPTO") continue;
-    paths.add(`/markets/stock/${encodeURIComponent(entry.ticker)}`);
-  }
+  const paths = new Set<string>(catalogTickerPaths());
   for (const vendor of Object.values(CRYPTO_VENDORS)) {
     if (!vendor.coingecko) continue;
     paths.add(`/markets/crypto/${encodeURIComponent(vendor.coingecko)}`);

@@ -4,17 +4,24 @@ import { getCurrentUser } from "@/lib/session";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { MarketsAppFrame } from "@/components/dashboard/MarketsAppFrame";
 import { StockAssetPage } from "@/components/dashboard/StockAssetPage";
-import { exchangeFromTicker, normalizeStockTicker, parseExchange } from "@/lib/market-detail-routes";
-import { EXCHANGE_META, MARKET_UNIVERSE } from "@/lib/market-intel";
+import { exchangeFromTicker, exchangeLabel, normalizeStockTicker, parseStockBoard } from "@/lib/market-detail-routes";
+import { MARKET_UNIVERSE } from "@/lib/market-intel";
 import { loadStockQuoteLine } from "@/lib/public-market-index";
+import { findListing, isSitemapStock } from "@/lib/stock-catalog";
+import { listingSentence, usPageShouldNoindex } from "@/lib/stock-markets";
 
 export const dynamic = "force-dynamic";
 
 function listingFor(ticker: string) {
-  const entry = MARKET_UNIVERSE.find((row) => row.ticker.toUpperCase() === ticker.toUpperCase());
-  const exchange = exchangeFromTicker(ticker);
-  const exchangeLabel = exchange ? EXCHANGE_META[exchange].label : entry?.market ?? "";
-  return { entry, exchangeLabel };
+  const catalog = findListing(ticker);
+  const universe = MARKET_UNIVERSE.find((row) => row.ticker.toUpperCase() === ticker.toUpperCase());
+  const entry = catalog
+    ? { name: catalog.name, sector: catalog.sector || universe?.sector || "Not stated", ticker: catalog.ticker }
+    : universe
+      ? { name: universe.name, sector: universe.sector, ticker: universe.ticker }
+      : undefined;
+  const board = catalog?.board ?? exchangeFromTicker(ticker);
+  return { entry, exchangeLabel: board ? exchangeLabel(board) : "", board };
 }
 
 export async function generateMetadata({
@@ -24,7 +31,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { ticker } = await params;
   const symbolKey = normalizeStockTicker(ticker) ?? decodeURIComponent(ticker);
-  const { entry, exchangeLabel } = listingFor(symbolKey);
+  const { entry, exchangeLabel, board } = listingFor(symbolKey);
   const symbol = symbolKey.replace(/\.(NZ|AX|L)$/i, "");
   if (!entry) {
     return publicPageMetadata(`/markets/stock/${ticker}`, {
@@ -32,10 +39,17 @@ export async function generateMetadata({
       description: `${symbolKey} on AetherForge markets. Paper research, not a broker.`,
     });
   }
-  return publicPageMetadata(`/markets/stock/${ticker}`, {
+  const inSitemap = isSitemapStock(entry.ticker);
+  const needsQuoteCheck = (board === "NASDAQ" || board === "NYSE") && !inSitemap;
+  const hasQuote = needsQuoteCheck ? !!(await loadStockQuoteLine(entry.ticker)) : false;
+  const meta = publicPageMetadata(`/markets/stock/${ticker}`, {
     title: `${entry.name} (${symbol}) · ${exchangeLabel} · AetherForge AI`,
-    description: `${entry.name} is in the ${entry.sector} list on ${exchangeLabel}. The price is shown when this response has one. Paper research, not a broker.`,
+    description: `${listingSentence(entry.name, entry.sector, exchangeLabel)} Symbol ${symbol}. The price is shown when this response has one. Paper research, not a broker.`,
   });
+  if (usPageShouldNoindex({ board, inSitemap, hasQuote })) {
+    return { ...meta, robots: { index: false, follow: true } };
+  }
+  return meta;
 }
 
 /**
@@ -54,7 +68,7 @@ export default async function StockDetailPage({
   const sp = await searchParams;
   const user = await getCurrentUser();
   const ticker = normalizeStockTicker(raw);
-  const exchange = (ticker ? exchangeFromTicker(ticker) : null) ?? parseExchange(sp.exchange);
+  const exchange = (ticker ? exchangeFromTicker(ticker) : null) ?? parseStockBoard(sp.exchange);
   const symbol = ticker ? ticker.replace(/\.(NZ|AX|L)$/i, "") : "";
   const allowBuy = !!user && sp.buy === "1";
   const listing = ticker ? listingFor(ticker) : { entry: undefined, exchangeLabel: "" };
@@ -68,7 +82,7 @@ export default async function StockDetailPage({
           <>
             <h1 className="font-display text-2xl font-bold">{listing.entry.name}</h1>
             <p className="text-sm text-muted-foreground">
-              {listing.entry.name} is in the {listing.entry.sector} list on {listing.exchangeLabel}.{" "}
+              {listingSentence(listing.entry.name, listing.entry.sector, listing.exchangeLabel)}{" "}
               {symbol} · {listing.exchangeLabel}.
             </p>
           </>

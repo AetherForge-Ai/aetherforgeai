@@ -28,7 +28,7 @@ export async function generateMetadata({
   }
   return publicPageMetadata("/markets", {
     title: "Markets · AetherForge AI",
-    description: "NZX, ASX, Dow Jones and NASDAQ prices on AetherForge. Paper research, not a broker.",
+    description: "NZX, ASX, Dow Jones, NASDAQ and NYSE prices on AetherForge. Counts say how many names are shown. Paper research, not a broker.",
   });
 }
 
