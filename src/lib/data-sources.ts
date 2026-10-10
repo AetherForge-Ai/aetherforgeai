@@ -28,6 +28,7 @@ export const PUBLIC_FX_SOURCE = "ExchangeRate-API";
 export const PUBLIC_DATA_SOURCES_LINE =
   "Prices for NZX- and ASX-listed shares, and for US shares, come from public market data (Yahoo Finance). " +
   "They are not a direct NZX or ASX feed. " +
+  "When a newer print is not in the response, the page shows the last saved print and its time. " +
   `Crypto prices come from ${PUBLIC_CRYPTO_SOURCE}, and from Swyftx when that feed answers. ` +
   `DEX token prices come from ${PUBLIC_DEX_SOURCE}. ` +
   `Gold and silver spot prices come from ${PUBLIC_METALS_SOURCE}. ` +

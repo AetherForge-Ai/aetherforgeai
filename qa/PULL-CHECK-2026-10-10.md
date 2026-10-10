@@ -915,3 +915,18 @@ Branch `cursor/tax-fixups-4f33` from develop. One draft pull request into `devel
 - URL / steps: sign in on a new account whose name is `QA`. Open `/dashboard` with no open share positions, including a book whose only stock rows have zero shares.
 - Expected: the greeting is `Welcome`, not `Welcome back, QA`. A saved real first name is used, for example `Welcome, Jane`. The Your holdings header says `No open positions` when the table is empty, and `1 position` when there is one. Header cash updates when a sell dialog closes, without a reload.
 
+## Stock markets — full lists
+
+- Marker: `pull-check:stock-markets-full-2026-10-11`
+- Status: fixed on this branch. Not merged. Does not Publish.
+- Files: `src/lib/stock-markets.ts`, `src/lib/stock-catalog.ts`, `src/lib/stock-board.server.ts`, `src/app/api/all-markets/route.ts`, `src/components/dashboard/MarketsExplorer.tsx`, `src/lib/public-market-index.ts`, `src/lib/sitemap-tickers.ts`, `docs/stock-market-sources-2026-10-11.md`
+- Source comment: `pull-check:stock-markets-full-2026-10-11` in `src/lib/stock-markets.ts` and `src/app/api/all-markets/route.ts`.
+- URL / steps:
+  1. Signed out, open `/markets`. Read NZX, ASX, Dow Jones, NASDAQ, and NYSE.
+  2. Each stock board shows `Showing N of M listed`, or the NYSE sentence that names the directory count. NZX is `Showing 60 of 178 listed`. ASX is `Showing 212 of 1923 listed`. Dow Jones is `Showing 30 of 30 listed`. NASDAQ is `Showing 4376 of 5622 listed`.
+  3. A price cell is a currency amount with a source and an as-of time, or the words `Not in this response`. It is not `0.00`, not blank, and the page does not stay on `Loading the list…`.
+  4. Use Next on NASDAQ. Search `FBU` on NZX and open Fletcher Building. The ticker page names Fletcher Building and either a price with an as-of time or `Price not in this response.`
+  5. Open `/sitemap.xml` and confirm `/markets/stock/FBU.NZ`, `/markets/stock/NVDA`, and `/markets/stock/JPM` are listed, and the file stays under 50,000 URLs.
+  6. Run `npx vitest run src/lib/stock-markets.test.ts`. The provider tests hang Yahoo, throw Twelve Data, and reject a zero price. The saved print stays.
+- Expected: the counts above. Delay labels stay `Delayed` or `Delayed ~20 min` for NZX and ASX. They do not say real-time, official, or licensed. Crypto projections stay paused. The reviewed FX guard in `src/lib/fx.ts` is unchanged.
+

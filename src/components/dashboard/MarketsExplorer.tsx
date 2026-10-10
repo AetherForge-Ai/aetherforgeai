@@ -6,7 +6,15 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
-import { EXCHANGES, EXCHANGE_META, formatMarketPrice, type Exchange } from "@/lib/market-intel";
+import { formatMarketPrice } from "@/lib/market-intel";
+import {
+  CHANGE_NOT_STATED,
+  PRICE_NOT_IN_RESPONSE,
+  STOCK_BOARDS,
+  STOCK_PAGE_SIZE,
+  type StockBoard,
+} from "@/lib/stock-markets";
+import type { PublicMarketIndex } from "@/lib/public-market-types";
 import { BuyDialog, type BuyTarget } from "@/components/dashboard/BuyDialog";
 import { cryptoCoveragePhrase, dexCoverageLine, dexTabLabel } from "@/lib/crypto-coverage";
 import { explorerDetailHref, marketsTabHref, type MarketsTab } from "@/lib/market-detail-routes";
@@ -42,11 +50,15 @@ export interface MarketRow {
   symbol: string;
   name: string;
   sector: string;
-  exchange: Exchange;
+  exchange: StockBoard;
   currency: "NZD" | "AUD" | "USD";
-  price: number;
-  changePct: number;
-  changeAbs: number;
+  price: number | null;
+  changePct: number | null;
+  changeAbs: number | null;
+  priceLabel?: string;
+  changeLabel?: string;
+  source?: string | null;
+  asOf?: string;
   dayHigh: number | null;
   dayLow: number | null;
   volume: number | null;
@@ -57,13 +69,18 @@ export interface MarketRow {
 }
 
 export interface MarketPayload {
-  exchange: Exchange;
+  exchange: StockBoard;
   label: string;
   sub: string;
   currency: "NZD" | "AUD" | "USD";
   live: boolean;
   liveCount: number;
   total: number;
+  matchTotal?: number;
+  page?: number;
+  pageCount?: number;
+  coverage?: string;
+  note?: string;
   asOf: string | null;
   freshness?: string;
   rows: MarketRow[];
@@ -85,16 +102,20 @@ interface DisplayRow {
   symbol: string; // display symbol
   name: string;
   currency: "NZD" | "AUD" | "USD";
-  price: number;
-  changePct: number;
-  changeAbs: number;
+  price: number | null;
+  changePct: number | null;
+  changeAbs: number | null;
+  priceLabel?: string;
+  changeLabel?: string;
+  source?: string | null;
+  rowAsOf?: string;
   dayHigh: number | null;
   dayLow: number | null;
   volume: number | null;
   marketCap: number | null;
   live: boolean;
   quoted: boolean;
-  exchange?: Exchange; // stock rows only — needed to open the stock detail view
+  exchange?: StockBoard; // stock rows only — needed to open the stock detail view
   coinId?: string; // crypto rows only — CoinGecko id for /markets/crypto/[id]
   blockchain?: string;
   dex?: string;
@@ -150,6 +171,7 @@ export function MarketsExplorer({
   initialTab = null,
   syncTab = false,
   onTabChange,
+  index = null,
 }: {
   onBought?: () => void;
   /** When false the component skips fetching (e.g. modal is closed). */
@@ -164,6 +186,8 @@ export function MarketsExplorer({
   /** Write the selected tab into the /markets query. Off inside the dashboard modal. */
   syncTab?: boolean;
   onTabChange?: (tab: Tab) => void;
+  /** Server-rendered first page. Shown until the board request returns, and kept if that request fails. */
+  index?: PublicMarketIndex | null;
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>(initialTab ?? "NZX");
@@ -179,6 +203,7 @@ export function MarketsExplorer({
   const [remoteHits, setRemoteHits] = useState<DisplayRow[]>([]);
   const [remoteLoading, setRemoteLoading] = useState(false);
   const [cryptoPage, setCryptoPage] = useState(0);
+  const [stockPage, setStockPage] = useState(1);
   const [cryptoInNzd, setCryptoInNzd] = useState(false);
   const fx = useFxRates();
   const fxReady = fx.ready && !!fx.asOf;
@@ -198,10 +223,13 @@ export function MarketsExplorer({
       // Invalidate an in-flight quote before the next load() starts, so the
       // previous exchange cannot paint under the new tab.
       loadGen.current += 1;
-      setData(null);
       setLoadError(null);
       setRemoteHits([]);
-      if (next !== "CRYPTO" && next !== "DEX") setLoading(true);
+      if (next !== "CRYPTO" && next !== "DEX") {
+        const seeded = seedFor(next);
+        setData(seeded);
+        setLoading(!seeded);
+      }
     }
     setTab(next);
     onTabChange?.(next);
@@ -213,19 +241,75 @@ export function MarketsExplorer({
   const crypto = useCryptoMarkets(active && isCoinTab);
   const dex = useDexMarkets(active && isDexTab);
 
-  // `silent` refresh keeps the current rows on screen (no skeleton flash) — used
-  // by the 30–60s auto-refresh so prices update seamlessly, live-ticker style.
-  const load = useCallback(async (ex: Exchange, silent = false) => {
+  const seedFor = useCallback((ex: StockBoard): MarketPayload | null => {
+    const tab = index?.tabs.find((row) => row.id === ex);
+    if (!tab?.rows.length) return null;
+    return {
+      exchange: ex,
+      label: tab.title,
+      sub: "",
+      currency: ex === "NZX" ? "NZD" : ex === "ASX" ? "AUD" : "USD",
+      live: false,
+      liveCount: tab.rows.filter((row) => row.price && row.price !== PRICE_NOT_IN_RESPONSE).length,
+      total: tab.rows.length,
+      page: 1,
+      pageCount: 1,
+      coverage: tab.coverage,
+      note: tab.note,
+      asOf: null,
+      freshness: tab.asOf,
+      rows: tab.rows.map((row) => {
+        const quoted = !!row.price && row.price !== PRICE_NOT_IN_RESPONSE;
+        const part = row.href.split("/").pop() || row.symbol;
+        let ticker = row.symbol;
+        try {
+          ticker = decodeURIComponent(part);
+        } catch {
+          ticker = row.symbol;
+        }
+        return {
+          ticker,
+          symbol: row.symbol,
+          name: row.name,
+          sector: "Not stated",
+          exchange: ex,
+          currency: ex === "NZX" ? "NZD" : ex === "ASX" ? "AUD" : "USD",
+          price: null,
+          changePct: null,
+          changeAbs: null,
+          priceLabel: row.price || PRICE_NOT_IN_RESPONSE,
+          changeLabel: row.change || CHANGE_NOT_STATED,
+          source: row.source || null,
+          asOf: row.asOf,
+          dayHigh: null,
+          dayLow: null,
+          volume: null,
+          marketCap: null,
+          live: false,
+          quoted,
+          freshness: row.asOf,
+        };
+      }),
+    };
+  }, [index]);
+
+  // `silent` refresh keeps the current rows on screen (no skeleton flash).
+  const load = useCallback(async (ex: StockBoard, silent = false, page = 1, q = "") => {
     const gen = ++loadGen.current;
     if (!silent) {
-      setLoading(true);
-      setData(null);
       setLoadError(null);
+      setData((current) => {
+        if (current?.exchange === ex && current.rows.length) return current;
+        return seedFor(ex);
+      });
+      setLoading(true);
     }
     console.log(`[markets-explorer] Loading prices for ${ex}…${silent ? " (auto)" : ""}`);
+    const params = new URLSearchParams({ exchange: ex, page: String(page) });
+    if (q.trim()) params.set("q", q.trim());
     try {
-      const res = await api.get<MarketPayload>(`/api/all-markets?exchange=${ex}&t=${Date.now()}`, {
-        signal: AbortSignal.timeout(20_000),
+      const res = await api.get<MarketPayload>(`/api/all-markets?${params.toString()}`, {
+        signal: AbortSignal.timeout(8_000),
       });
       if (gen !== loadGen.current) return;
       if (res.data?.exchange && res.data.exchange !== ex) return;
@@ -235,35 +319,38 @@ export function MarketsExplorer({
         console.log(`[markets-explorer] ${ex}: ${res.data.liveCount}/${res.data.total} quoted`);
       } else {
         console.error("[markets-explorer] Load failed:", res.error);
-        if (!silent) {
-          setData(null);
-          setLoadError("Market prices failed to load.");
-        }
+        if (!silent) setLoadError("The latest prices are not in this response. The saved page stays on screen.");
       }
     } catch (err) {
       if (gen !== loadGen.current) return;
       console.error("[markets-explorer] Load failed:", err);
-      if (!silent) {
-        setData(null);
-        setLoadError("Market prices failed to load.");
-      }
+      if (!silent) setLoadError("The latest prices are not in this response. The saved page stays on screen.");
     }
-    if (gen === loadGen.current && !silent) setLoading(false);
-  }, []);
+    if (gen === loadGen.current) setLoading(false);
+  }, [seedFor]);
 
   // Load stock exchange data whenever active + a stock tab is selected. (Crypto
   // is handled by the useCryptoMarkets hook above.)
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   useEffect(() => {
-    if (active && !isCryptoTab) load(tab as Exchange);
-  }, [active, tab, isCryptoTab, load]);
+    const timer = setTimeout(() => setDebouncedQuery(query.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [query]);
+  useEffect(() => {
+    setStockPage(1);
+  }, [debouncedQuery, tab]);
+
+  useEffect(() => {
+    if (active && !isCryptoTab) load(tab as StockBoard, false, stockPage, debouncedQuery);
+  }, [active, tab, isCryptoTab, load, stockPage, debouncedQuery]);
 
   // Auto-refresh live stock prices every 45s while the browser is open — no
   // skeleton flash, just fresh numbers. Paused when inactive or on the crypto tab.
   useEffect(() => {
     if (!active || isCryptoTab) return;
-    const id = setInterval(() => load(tab as Exchange, true), 45_000);
+    const id = setInterval(() => load(tab as StockBoard, true, stockPage, debouncedQuery), 45_000);
     return () => clearInterval(id);
-  }, [active, tab, isCryptoTab, load]);
+  }, [active, tab, isCryptoTab, load, stockPage, debouncedQuery]);
 
   // When the local curated list misses a ticker (e.g. CIP.AX), resolve via Yahoo
   // symbol search so Buy still appears for any ASX/NZX/US listing.
@@ -291,7 +378,7 @@ export function MarketsExplorer({
         return;
       }
       const tabLabel =
-        tab === "ASX" ? "ASX" : tab === "NZX" ? "NZX" : tab === "NASDAQ" ? "NASDAQ" : tab === "DOW" ? "NYSE" : "";
+        tab === "ASX" ? "ASX" : tab === "NZX" ? "NZX" : tab === "NASDAQ" ? "NASDAQ" : tab === "NYSE" ? "NYSE" : tab === "DOW" ? "NYSE" : "";
       const qUp = q.toUpperCase();
       const mapped: DisplayRow[] = [];
       for (const m of res.data) {
@@ -305,17 +392,19 @@ export function MarketsExplorer({
         if (!exactHit && !onTab) continue;
         const currency = label === "ASX" ? "AUD" : label === "NZX" ? "NZD" : "USD";
         const exchange = (
-          label === "ASX" ? "ASX" : label === "NZX" ? "NZX" : label === "NASDAQ" ? "NASDAQ" : "DOW"
-        ) as Exchange;
+          label === "ASX" ? "ASX" : label === "NZX" ? "NZX" : label === "NASDAQ" ? "NASDAQ" : label === "NYSE" ? "NYSE" : "DOW"
+        ) as StockBoard;
         mapped.push({
           key: `remote:${sym}`,
           ticker: sym,
           symbol: bare,
           name: m.name || sym,
           currency,
-          price: 0,
-          changePct: 0,
-          changeAbs: 0,
+          price: null,
+          changePct: null,
+          changeAbs: null,
+          priceLabel: PRICE_NOT_IN_RESPONSE,
+          changeLabel: CHANGE_NOT_STATED,
           dayHigh: null,
           dayLow: null,
           volume: null,
@@ -335,11 +424,13 @@ export function MarketsExplorer({
           if (cancelled || !qr.ok || !qr.data?.price) return;
           setRemoteHits((prev) =>
             prev.map((r) =>
-              r.ticker === row.ticker
+              r.ticker === row.ticker && qr.data!.price! > 0
                 ? {
                     ...r,
                     price: qr.data!.price!,
                     changePct: qr.data!.changePct ?? 0,
+                    priceLabel: undefined,
+                    changeLabel: undefined,
                     live: false,
                     quoted: true,
                   }
@@ -358,7 +449,7 @@ export function MarketsExplorer({
   function refresh() {
     if (isDexTab) dex.refresh();
     else if (isCoinTab) crypto.refresh();
-    else load(tab as Exchange);
+    else void load(tab as StockBoard, false, stockPage, debouncedQuery);
   }
 
   useEffect(() => {
@@ -430,15 +521,19 @@ export function MarketsExplorer({
         symbol: r.symbol,
         name: r.name,
         currency: r.currency,
-        price: r.price,
-        changePct: r.changePct,
-        changeAbs: r.changeAbs,
+        price: r.quoted && r.price != null && r.price > 0 ? r.price : null,
+        changePct: r.quoted ? r.changePct : null,
+        changeAbs: r.quoted ? r.changeAbs : null,
+        priceLabel: r.priceLabel,
+        changeLabel: r.changeLabel,
+        source: r.source,
+        rowAsOf: r.asOf,
         dayHigh: r.dayHigh,
         dayLow: r.dayLow,
         volume: r.volume,
         marketCap: r.marketCap,
-        live: r.live,
-        quoted: r.quoted ?? r.price > 0,
+        live: false,
+        quoted: !!r.quoted && r.price != null && r.price > 0,
         exchange: r.exchange,
       }));
     }
@@ -453,30 +548,39 @@ export function MarketsExplorer({
       : [];
     const merged = extras.length ? [...extras, ...filtered] : filtered;
     const dir = sortDir === "asc" ? 1 : -1;
+    const num = (value: number | null | undefined) => (value == null || !Number.isFinite(value) ? null : value);
     return [...merged].sort((a, b) => {
       if (sortKey === "symbol") return a.symbol.localeCompare(b.symbol) * dir;
-      if (sortKey === "volume") return ((a.volume ?? 0) - (b.volume ?? 0)) * dir;
-      if (sortKey === "marketCap") return ((a.marketCap ?? 0) - (b.marketCap ?? 0)) * dir;
-      return ((a[sortKey] as number) - (b[sortKey] as number)) * dir;
+      const av = sortKey === "volume" ? num(a.volume) : sortKey === "marketCap" ? num(a.marketCap) : num(a[sortKey]);
+      const bv = sortKey === "volume" ? num(b.volume) : sortKey === "marketCap" ? num(b.marketCap) : num(b[sortKey]);
+      if (av == null && bv == null) return a.symbol.localeCompare(b.symbol);
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      return (av - bv) * dir;
     });
   }, [isCoinTab, isDexTab, crypto.coins, dex.rows, data, query, sortKey, sortDir, remoteHits]);
 
   // Live-price formatter — crypto needs micro-price precision, stocks are currency-aware.
   const showNzd = isCryptoTab && cryptoInNzd && fxReady;
   const showPrice = (r: DisplayRow) => {
-    if (r.priceUnavailable) return "—";
-    if (r.coinId && showNzd) return formatUnitPrice(usdToNzd(r.price, fx.rates.USD), "NZD");
-    return r.coinId ? fmtPrice(r.price) : formatMarketPrice(r.price, r.currency);
+    if (r.coinId) {
+      if (r.priceUnavailable || !(r.price != null && r.price > 0)) return "—";
+      if (showNzd) return formatUnitPrice(usdToNzd(r.price, fx.rates.USD), "NZD");
+      return fmtPrice(r.price);
+    }
+    if (r.priceLabel && (!r.quoted || r.priceLabel === PRICE_NOT_IN_RESPONSE)) return r.priceLabel;
+    if (!(r.price != null && r.price > 0)) return PRICE_NOT_IN_RESPONSE;
+    return formatMarketPrice(r.price, r.currency);
   };
   const showUnit = (value: number | null, r: DisplayRow) => {
-    if (!value) return "—";
+    if (!value || !(value > 0)) return "—";
     if (r.coinId && showNzd) return formatUnitPrice(usdToNzd(value, fx.rates.USD), "NZD");
     return r.coinId ? fmtPrice(value) : formatMarketPrice(value, r.currency);
   };
 
   // Unified loading + status across both data sources.
   const loadingRows = isDexTab ? dex.loading : isCoinTab ? crypto.loading : loading;
-  const stockLoading = !isCryptoTab && loading;
+  const stockLoading = !isCryptoTab && loading && !(data?.rows.length);
   const cryptoListed = isDexTab ? Math.min(CRYPTO_TOP_N, dex.rows.length) : Math.min(CRYPTO_TOP_N, crypto.coins.length);
   const total = isCryptoTab ? cryptoListed : data?.total ?? 0;
   const liveCount = isCryptoTab ? cryptoListed : data?.liveCount ?? 0;
@@ -553,7 +657,7 @@ export function MarketsExplorer({
       {
         buy: allowBuy,
         asset: r.coinId || isCryptoTab ? "crypto" : "stock",
-        fallbackExchange: !r.coinId && !isCryptoTab ? (tab as Exchange) : null,
+        fallbackExchange: !r.coinId && !isCryptoTab ? (tab as StockBoard) : null,
       }
     );
   }
@@ -579,8 +683,9 @@ export function MarketsExplorer({
     <div className={cn("flex min-h-0 flex-col", className)}>
       {/* Exchange / asset-class selector */}
       <div className="flex flex-wrap items-center gap-2 border-b border-border/60 px-1 pb-3">
-        {EXCHANGES.map((ex) => {
+        {STOCK_BOARDS.map((ex) => {
           const activeEx = ex === tab;
+          const label = ex === "DOW" ? "Dow Jones" : ex;
           return (
             <button
               key={ex}
@@ -592,7 +697,7 @@ export function MarketsExplorer({
                   : "border-border/60 bg-background/40 text-muted-foreground hover:text-foreground"
               )}
             >
-              {EXCHANGE_META[ex].label}
+              {label}
             </button>
           );
         })}
@@ -642,13 +747,13 @@ export function MarketsExplorer({
             <Radio className={cn("size-3.5", liveCount > 0 ? "text-emerald-600" : "text-muted-foreground")} />
             {(isDexTab ? dex.error : isCoinTab ? crypto.error : loadError)
               ? (isDexTab ? dex.error : isCoinTab ? crypto.error : loadError)
-              : stockLoading
-              ? "Loading prices…"
               : hasData || remoteHits.length
-              ? `${total} names in the ${isCryptoTab ? "crypto" : tab} list${liveCount > 0 && liveCount !== total ? ` · ${liveCount} quoted` : ""}${remoteLoading ? " · searching…" : ""}${remoteHits.length && query.trim() ? ` · +${remoteHits.length} market match${remoteHits.length === 1 ? "" : "es"}` : ""}${asOf && !/last close|close ·/i.test(data?.freshness || "") ? ` · ${fmtTime(asOf)}` : ""}`
+              ? `${data?.coverage || `${total} names in the ${isCryptoTab ? "crypto" : tab} list`}${liveCount > 0 && liveCount !== total ? ` · ${liveCount} quoted on this page` : ""}${remoteLoading ? " · searching…" : ""}${remoteHits.length && query.trim() ? ` · +${remoteHits.length} market match${remoteHits.length === 1 ? "" : "es"}` : ""}`
+              : stockLoading
+              ? "Loading the list…"
               : loadingRows
                 ? "A price shows here after the feed returns a figure."
-                : "—"}
+                : PRICE_NOT_IN_RESPONSE}
           </p>
           {!isCryptoTab && !stockLoading && data && (
             <p className="flex items-center gap-1 text-[0.62rem] text-muted-foreground/80">
@@ -769,36 +874,51 @@ export function MarketsExplorer({
                         >
                           {r.symbol}
                         </Link>
-                        {!r.quoted && (
+                        {!r.quoted && !r.coinId && (
                           <span className="rounded bg-muted/60 px-1 py-0.5 text-[0.55rem] font-semibold uppercase text-muted-foreground">
-                            ref
+                            no print
                           </span>
                         )}
                       </div>
                       <span className="text-[0.66rem] text-muted-foreground sm:hidden" aria-hidden="true">{r.name}</span>
+                      {!r.coinId && (
+                        <span className="block text-[0.62rem] text-muted-foreground">
+                          {r.quoted ? `${r.source || "Last good"} · ${r.rowAsOf || ""}` : PRICE_NOT_IN_RESPONSE}
+                        </span>
+                      )}
                     </td>
                     <td className="hidden max-w-[16rem] truncate py-2.5 pr-3 text-muted-foreground sm:table-cell" aria-hidden="true">
                       {r.name}
+                      {!r.coinId && (
+                        <span className="block text-[0.62rem]">
+                          {r.quoted ? `${r.source || "Last good"} · ${r.rowAsOf || ""}` : PRICE_NOT_IN_RESPONSE}
+                        </span>
+                      )}
                     </td>
                     <td className="tnum py-2.5 px-3 text-right font-medium">
                       {showPrice(r)}
                     </td>
                     {showChange && (
                     <td className="py-2.5 px-3 text-right">
-                      <span
-                        className={cn(
-                          "tnum inline-flex items-center justify-end gap-0.5 font-semibold",
-                          up ? "text-emerald-600" : "text-rose-600"
-                        )}
-                      >
-                        {up ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />}
-                        {r.changePct > 0 ? "+" : r.changePct < 0 ? "−" : ""}
-                        {formatMarketChangePercent(r.changePct)}%
-                      </span>
-                      {/* Absolute session move ($) beneath the % — both requested */}
-                      <span className={cn("tnum block text-[0.62rem]", up ? "text-emerald-600/70" : "text-rose-600/70")}>
-                        {r.quoted ? fmtAbs(r.changeAbs, r.price) : "—"}
-                      </span>
+                      {r.quoted && r.changePct != null && r.price != null ? (
+                        <>
+                          <span
+                            className={cn(
+                              "tnum inline-flex items-center justify-end gap-0.5 font-semibold",
+                              up ? "text-emerald-600" : "text-rose-600"
+                            )}
+                          >
+                            {up ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />}
+                            {r.changePct > 0 ? "+" : r.changePct < 0 ? "−" : ""}
+                            {formatMarketChangePercent(r.changePct)}%
+                          </span>
+                          <span className={cn("tnum block text-[0.62rem]", up ? "text-emerald-600/70" : "text-rose-600/70")}>
+                            {fmtAbs(r.changeAbs ?? 0, r.price)}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">{r.changeLabel || CHANGE_NOT_STATED}</span>
+                      )}
                     </td>
                     )}
                     {showHigh && (
@@ -846,7 +966,7 @@ export function MarketsExplorer({
                     )}
                     {allowBuy && !isCryptoTab && (
                       <td className="py-2.5 pl-3 text-right">
-                        <Button size="sm" variant="outline" className="h-8 px-2.5" onClick={() => openBuy(r)}>
+                        <Button size="sm" variant="outline" className="h-8 px-2.5" disabled={!r.quoted || !(r.price != null && r.price > 0)} onClick={() => openBuy(r)}>
                           <ShoppingCart className="size-3.5 sm:mr-1.5" />
                           <span className="hidden sm:inline">Buy</span>
                         </Button>
@@ -859,6 +979,36 @@ export function MarketsExplorer({
           </tbody>
         </table>
       </div>
+
+      {!isCryptoTab && (data?.pageCount || 1) > 1 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/60 px-1 pt-3">
+          <p className="text-xs text-muted-foreground">
+            Page {data?.page || stockPage} of {data?.pageCount || 1}
+            {data?.coverage ? ` · ${data.coverage}` : ""}
+            {` · ${STOCK_PAGE_SIZE} names on this page`}
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={stockPage <= 1 || stockLoading}
+              onClick={() => setStockPage((p) => Math.max(1, p - 1))}
+            >
+              Previous
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={stockPage >= (data?.pageCount || 1) || stockLoading}
+              onClick={() => setStockPage((p) => p + 1)}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      )}
 
       {isCryptoTab && rows.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/60 px-1 pt-3">

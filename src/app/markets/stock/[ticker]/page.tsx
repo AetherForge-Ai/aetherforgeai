@@ -4,17 +4,23 @@ import { getCurrentUser } from "@/lib/session";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { MarketsAppFrame } from "@/components/dashboard/MarketsAppFrame";
 import { StockAssetPage } from "@/components/dashboard/StockAssetPage";
-import { exchangeFromTicker, normalizeStockTicker, parseExchange } from "@/lib/market-detail-routes";
-import { EXCHANGE_META, MARKET_UNIVERSE } from "@/lib/market-intel";
+import { exchangeFromTicker, exchangeLabel, normalizeStockTicker, parseStockBoard } from "@/lib/market-detail-routes";
+import { MARKET_UNIVERSE } from "@/lib/market-intel";
 import { loadStockQuoteLine } from "@/lib/public-market-index";
+import { findListing } from "@/lib/stock-catalog";
 
 export const dynamic = "force-dynamic";
 
 function listingFor(ticker: string) {
-  const entry = MARKET_UNIVERSE.find((row) => row.ticker.toUpperCase() === ticker.toUpperCase());
-  const exchange = exchangeFromTicker(ticker);
-  const exchangeLabel = exchange ? EXCHANGE_META[exchange].label : entry?.market ?? "";
-  return { entry, exchangeLabel };
+  const catalog = findListing(ticker);
+  const universe = MARKET_UNIVERSE.find((row) => row.ticker.toUpperCase() === ticker.toUpperCase());
+  const entry = catalog
+    ? { name: catalog.name, sector: catalog.sector || universe?.sector || "Not stated", ticker: catalog.ticker }
+    : universe
+      ? { name: universe.name, sector: universe.sector, ticker: universe.ticker }
+      : undefined;
+  const board = catalog?.board ?? exchangeFromTicker(ticker);
+  return { entry, exchangeLabel: board ? exchangeLabel(board) : "" };
 }
 
 export async function generateMetadata({
@@ -54,7 +60,7 @@ export default async function StockDetailPage({
   const sp = await searchParams;
   const user = await getCurrentUser();
   const ticker = normalizeStockTicker(raw);
-  const exchange = (ticker ? exchangeFromTicker(ticker) : null) ?? parseExchange(sp.exchange);
+  const exchange = (ticker ? exchangeFromTicker(ticker) : null) ?? parseStockBoard(sp.exchange);
   const symbol = ticker ? ticker.replace(/\.(NZ|AX|L)$/i, "") : "";
   const allowBuy = !!user && sp.buy === "1";
   const listing = ticker ? listingFor(ticker) : { entry: undefined, exchangeLabel: "" };

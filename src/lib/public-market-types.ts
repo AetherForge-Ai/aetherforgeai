@@ -6,6 +6,10 @@ export interface PublicPriceRow {
   price: string;
   change: string;
   href: string;
+  /** Vendor or saved-print label. Empty when this row has no price. */
+  source?: string;
+  /** Includes the words "as of" for this row. */
+  asOf?: string;
 }
 
 export interface PublicPriceTab {
@@ -13,6 +17,9 @@ export interface PublicPriceTab {
   title: string;
   /** Includes the words "as of" when a vendor time exists. */
   asOf: string;
+  /** "Showing N of M listed" for a stock board. */
+  coverage?: string;
+  note?: string;
   rows: PublicPriceRow[];
 }
 

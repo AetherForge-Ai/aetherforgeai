@@ -125,7 +125,8 @@ export function StockDetailView({
     console.log(`[stock-detail] Loading ${t.ticker}`);
     try {
       const res = await api.get<DetailPayload>(
-        `/api/stock-detail?symbol=${encodeURIComponent(t.ticker)}&t=${Date.now()}`
+        `/api/stock-detail?symbol=${encodeURIComponent(t.ticker)}&t=${Date.now()}`,
+        { signal: AbortSignal.timeout(8_000) }
       );
       if (res.ok && res.data && typeof res.data.quote?.price === "number" && res.data.quote.price > 0) {
         setData(res.data);
@@ -233,7 +234,7 @@ export function StockDetailView({
 
   const left = loading && !shownError ? (
     <div className="flex h-64 items-center justify-center text-muted-foreground">
-      <Loader2 className="mr-2 size-5 animate-spin" /> Loading live data…
+      <Loader2 className="mr-2 size-5 animate-spin" /> Loading the quote…
     </div>
   ) : shownError ? (
     <div className="flex h-64 flex-col items-center justify-center gap-3 text-center text-sm text-muted-foreground">

@@ -5,6 +5,7 @@ import { ArrowLeft, LineChart } from "lucide-react";
 import { StockDetailView } from "@/components/dashboard/StockDetailView";
 import { stockBackHref } from "@/lib/market-detail-routes";
 import type { Exchange } from "@/lib/market-intel";
+import type { StockBoard } from "@/lib/stock-markets";
 
 /**
  * Full-page stock detail. The ticker in the URL is the same symbol /api/stock-detail already takes.
@@ -18,11 +19,12 @@ export function StockAssetPage({
 }: {
   ticker: string;
   symbol: string;
-  exchange?: Exchange | null;
+  exchange?: StockBoard | null;
   allowBuy?: boolean;
   unavailable?: boolean;
 }) {
   const back = stockBackHref(ticker, exchange);
+  const detailExchange: Exchange | undefined = exchange && exchange !== "NYSE" ? exchange : undefined;
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
@@ -47,7 +49,7 @@ export function StockAssetPage({
               ? {
                   ticker: ticker || symbol,
                   symbol,
-                  exchange: exchange ?? undefined,
+                  exchange: detailExchange,
                 }
               : null
           }
