@@ -8,6 +8,7 @@ Markers:
 - `pull-check:qa-2026-10-10-high-h1-h4`
 - `pull-check:qa-2026-10-10-medium-m1-m9`
 - `pull-check:qa-2026-10-10-medium-m10-m15-low-l6-l17`
+- `pull-check:track-a1-2026-10-10`
 
 Branch: `cursor/qa-m10-m15-l6-l17-b236`
 PR: https://github.com/AetherForge-Ai/aetherforgeai/pull/247
@@ -437,6 +438,70 @@ H5–H11 landed on develop as https://github.com/AetherForge-Ai/aetherforgeai/pu
 - Files: `src/app/market-news/page.tsx`, `src/components/dashboard/MarketNewsPageContent.tsx`, `src/components/dashboard/NewsFeed.tsx`
 - URL / steps: `/market-news`, view source, and a relevance score.
 - Expected: when the news feed returns more than two stories, those stories are in the first HTML. Otherwise the two official cards are. A score has the title `Relevance is an AetherForge tag from 0 to 100. It is not a recommendation.` News ingestion was not edited.
+
+## Track A1
+
+Retest of the published build. These rows supersede the earlier H1, H2, H3, and H5 rows where the retest still failed. Stox, Koins, and Headmaster lists stay. Crypto projections stay paused.
+
+### U3 — partial
+
+- Status: partial. CoinGecko top 400 when the feed answers. The DEX list is whatever GeckoTerminal returned within its rate limit and may be under 400. Each GeckoTerminal page holds 20 pools, so 400 unique tokens need 20 or more pages. A cold tab fetches up to 5 pages at a time and returns within about 3 seconds with the rows that arrived. The CDN keeps that merged list (`s-maxage` and `stale-while-revalidate`). A later HTTP 429 does not replace a longer cached list with a shorter one. `CRYPTO_SANITY_RATIO` stays 3 and is not applied to this list.
+- Commit: `7690a58`, `ac2a97b`
+- Files: `src/lib/crypto-coingecko.ts`, `src/lib/crypto-source.ts`, `src/lib/crypto-market.ts`, `src/lib/crypto-names.ts`, `src/lib/crypto-dex.ts`, `src/lib/crypto-coverage.ts`, `src/components/dashboard/MarketsExplorer.tsx`, `src/components/dashboard/MarketsPageContent.tsx`, `src/app/api/crypto/dex/route.ts`, `src/app/how-it-works/page.tsx`
+- URL / steps: signed out, `/markets?tab=crypto`, then the DEX tab. Read the intro, the count under the search, the Blockchain column, the first page of names, and the DEX button. Also read Koins on `/how-it-works`.
+- Expected, CoinGecko returns 400: the count line is `The top 400 coins by market cap`. There is no short-list notice. Blockchain is `Native` or a platform name, not `—` on every row. These names are not the raw ticker: Mina Protocol, Axie Infinity, Kusama, EOS Network, Flow, Internet Computer, Aave, Zilliqa, Artificial Superintelligence Alliance, Curve DAO, Synthetix, yearn.finance, Ankr, Filecoin, Arkham.
+- Expected, CoinGecko returns N under 400 (backup example N = 89): the count line is `The top 89 coins by market cap`. Backup notice: `CoinGecko did not return a market list (rate limit or the feed did not answer). This list is the backup feed: 89 coins, not 400.` Page-2 notice: `CoinGecko did not return the second page (rate limit or plan cap). Showing N, not 400.` The intro and the count do not say Top 400.
+- Expected, DEX returns N under 400 (example N = 33): the button is `DEX top 33`. The subtitle is `Top 33 DEX tokens by 24-hour volume · GeckoTerminal`. While more pages can still load: `GeckoTerminal returned 33 tokens, not 400. Further rows are still loading.` When the rate limit stops the walk: `GeckoTerminal returned 33 tokens, not 400. The rate limit stopped the list.` Do not show `DEX top 400` or `Top 400 DEX tokens`.
+- Expected, DEX returns 400: the button is `DEX top 400`. The subtitle is `Top 400 DEX tokens by 24-hour volume · GeckoTerminal`. The notice is empty.
+- Expected, DEX returns 0: the button is `DEX`. The subtitle is `DEX list · GeckoTerminal returned 0 tokens, not 400`. The empty cell is `GeckoTerminal did not return a token price (rate limit or the feed did not answer). This list is 0, not 400.`
+- Expected, how-it-works: Koins says `Tracks up to 400 coins, depending on what the data feed returns`. It does not say `Tracks the top 400 coins`.
+
+### V1 — fixed
+
+- Status: fixed
+- Commit: `4b4801e`
+- Files: `src/lib/crypto-quote.ts`, `src/app/api/tickers/quote/route.ts`
+- URL / steps: signed in. Add a holding. Search PEPE and UNI. Choose the DEX row. Read the price hint. Compare with a sell of a holding that already has a price.
+- Expected: PEPE and UNI use the same coin-list price the sell form uses when GeckoTerminal search has no print. A search price is used when it is present. The hint is "Today's price is filled in." when a price comes back. An unknown pool id stays strict.
+
+### H1 — fixed
+
+- Status: fixed
+- Commit: `39e5c0d` (rating), `03b2813` (report assembly)
+- Files: `src/lib/report-consistency.ts`, `src/lib/report-copy.ts`, `src/lib/apex.ts`, `src/components/bots/ApexReport.tsx`
+- URL / steps: signed in, `/dashboard`. Run Koins, then Stox. Read the recommendation, the briefing, the momentum count, Balanced Growth, and the projected list.
+- Expected: one record per ticker. ADA with a 7-day midpoint of -0.63% is HOLD on the card, the recommendation, and the briefing. Both momentum lines say 0 of 1. The sentence is "does not issue a buy." and is not cut off at "does not issue a." A pathway target of -0.63% says it does not initiate a position. MAH.AX can lead the projected percents and its signal is not a buy. Projected top 10, not-sized names, pathways, and sweeps remain.
+
+### H2 — fixed
+
+- Status: fixed
+- Commit: `03b2813`, `5deed22`
+- Files: `src/lib/quote-review.ts`, `src/lib/apex.ts`, `src/lib/report-copy.ts`, `src/components/bots/ApexReport.tsx`, `src/lib/report-html.ts`
+- URL / steps: the same Stox and Koins reports. Full multi-timeframe mover sweep and the projected list. Read the note under each window.
+- Expected: large-cap caps are 20% (24h), 35% (7d) and 60% (30d). If a ticker's 24h print is withheld, its 7d and 30d prints are withheld too. These prints are data under review and are not in the top 10 or the projected leaders: LRCX +43.68% and AMGN +42.23% (24h), MDLZ +50.64% (7d), JPM +31.01% (7d, because JPM's 24h print is withheld), META +32.46% (7d, because META's 24h print is withheld), WETH +77.98%, USDG +27.66%, CRVUSD +29.82%. Each window that dropped rows says `N prints under review` (for example `4 prints under review`), counted before those rows leave the ranking. A large-cap 30-day move of +25% with a normal 24h print is shown, not hidden. A wrapped token that tracks its underlying, and a stablecoin move of a few tenths of a percent, can still show. BAT +33.16% (24h) can still show.
+
+### H3 — fixed
+
+- Status: fixed
+- Commit: `24e9643`
+- Files: `src/lib/headmaster-trust.ts`, `src/lib/totalum-engine.ts`, `src/app/api/totalum/route.ts`, `src/components/totalum/TotalumConsole.tsx`
+- URL / steps: signed in, `/headmaster`. Open Synthesis, then Strategy.
+- Expected: cash on book keeps cents (NZ$33,291.47, not NZ$33,291.00). When qualifying names cannot fill a sleeve, both tabs show the unallocated amount, for example "Equities sleeve: NZ$15,000.00 unallocated: not enough qualifying picks." A sleeve the qualifying names fill has no sentence. Synthesis and Strategy both remain.
+
+### H5 — fixed
+
+- Status: fixed
+- Commit: `230f3e8`
+- Files: `src/lib/plan-usage.ts`, `src/lib/account-plan.ts`, `src/components/settings/SettingsClient.tsx`, `src/lib/entitlements.ts` (unchanged helper, now used by billing and profile)
+- URL / steps: signed in. Open Plan & billing, the profile ticker line, and the dashboard holdings count.
+- Expected: all three use `resolveTickerLimit`. An Apex Dual account stamped 51 shows "4 / 51 per bot" on billing when 4 holdings are in use, "51 per bot" on the profile, and "4 / 51 per bot" on the dashboard. Without a stamp, Apex Dual stays "20 per bot".
+
+### Checks for Track A1
+
+- `./node_modules/.bin/tsc --noEmit --skipLibCheck`: passed.
+- `./node_modules/.bin/vitest run`: 101 files, 483 tests passed.
+- `./node_modules/.bin/eslint` on the Track A1 source files: 0 errors.
+- `npm run build` (`next build`): passed. Exit 0. Nothing was published.
 
 ## Checks
 

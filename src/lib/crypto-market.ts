@@ -11,6 +11,8 @@
  */
 
 import { adaptiveFractionDigits } from "@/lib/currency";
+import { listedMarketNotice } from "@/lib/crypto-coverage";
+import { coinDisplayName } from "@/lib/crypto-names";
 
 /* -------------------------------- Types --------------------------------- */
 
@@ -77,6 +79,42 @@ export function coinHasLivePrice(coin: Pick<CoinMarket, "price" | "priceUnavaila
  * Map an existing price feed into the crypto table.
  * A missing print is dropped. A missing chain is left blank. No price is filled in.
  */
+/**
+ * The markets table. Positive prices only, capped at 400, with the chain label
+ * when the platform list loaded. This does not apply the projection sanity ratio.
+ */
+export function assembleListedMarkets(
+  rows: CoinMarket[],
+  platforms: Map<string, Record<string, string>> | null,
+  reason: "page2" | "backup" | "short" | null = null
+): { coins: CoinMarket[]; notice: string | null } {
+  const listLoaded = platforms != null;
+  const seen = new Set<string>();
+  const coins = [...rows]
+    .filter((row) => row?.id && typeof row.price === "number" && row.price > 0)
+    .sort((a, b) => (a.rank ?? 999999) - (b.rank ?? 999999))
+    .filter((row) => {
+      if (seen.has(row.id)) return false;
+      seen.add(row.id);
+      return true;
+    })
+    .slice(0, 400)
+    .map((coin) => {
+      const labelled = blockchainLabel(platforms?.get(coin.id), listLoaded);
+      return {
+        ...coin,
+        name: coinDisplayName(coin.symbol, coin.name),
+        blockchain: labelled || (coin.blockchain && coin.blockchain !== "Unavailable" ? coin.blockchain : ""),
+      };
+    });
+  let notice = listedMarketNotice(coins.length, coins.length >= 400 ? null : reason);
+  if (!listLoaded && coins.length > 0) {
+    const chain = "The chain list did not load, so the Blockchain column is blank.";
+    notice = notice ? `${notice} ${chain}` : chain;
+  }
+  return { coins, notice };
+}
+
 export function rankedFallbackPage(
   coins: CoinMarket[],
   limit = 400

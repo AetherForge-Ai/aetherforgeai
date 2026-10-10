@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser, isStripeConfigured, type AppUser } from "@/lib/session";
-import { loadReportFindings, loadTotalumSynthesis } from "@/lib/totalum-service";
-import { buildStrategy, type GoalKey } from "@/lib/totalum-engine";
+import { loadReportFindings, loadTotalumSynthesis, type ReportFindings } from "@/lib/totalum-service";
+import { buildStrategy, sleeveNotesForSynthesis, type GoalKey } from "@/lib/totalum-engine";
+import type { SleevePickSource } from "@/lib/sleeve-fill";
 import { headmasterDepth, type HeadmasterDepth } from "@/lib/entitlements";
 import type { TotalumSynthesis } from "@/lib/totalum-engine";
 
@@ -44,6 +45,16 @@ const GOALS: [GoalKey, ...GoalKey[]] = [
   "high_risk_high_reward",
 ];
 
+function picksFromFindings(findings: ReportFindings): SleevePickSource | undefined {
+  if (!findings.hasStox && !findings.hasKoins) return undefined;
+  return {
+    equitiesQualifying: findings.equitiesQualifying,
+    cryptoQualifying: findings.cryptoQualifying,
+    equitiesNotSized: findings.equitiesNotSized,
+    cryptoNotSized: findings.cryptoNotSized,
+  };
+}
+
 const postSchema = z.object({
   goal: z.enum(GOALS).optional(),
 });
@@ -63,7 +74,17 @@ export async function GET() {
     }
 
     const depth = headmasterAccess(user);
-    const synthesis = presentSynthesis(await loadTotalumSynthesis(user._id), depth);
+    const [rawSynthesis, findings] = await Promise.all([
+      loadTotalumSynthesis(user._id),
+      loadReportFindings(user._id),
+    ]);
+    const synthesis = presentSynthesis(
+      {
+        ...rawSynthesis,
+        sleeveNotes: sleeveNotesForSynthesis(rawSynthesis, picksFromFindings(findings)),
+      },
+      depth
+    );
     return NextResponse.json({ ok: true, data: { synthesis, depth } });
   } catch (err: any) {
     console.error("[api/totalum] GET error:", err);
@@ -95,17 +116,15 @@ export async function POST(req: Request) {
       loadTotalumSynthesis(user._id),
       loadReportFindings(user._id),
     ]);
-    const synthesis = presentSynthesis(rawSynthesis, depth);
+    const synthesis = presentSynthesis(
+      {
+        ...rawSynthesis,
+        sleeveNotes: sleeveNotesForSynthesis(rawSynthesis, picksFromFindings(findings)),
+      },
+      depth
+    );
     const goal: GoalKey = parsed.data.goal ?? "balanced_growth";
-    const picks =
-      findings.hasStox || findings.hasKoins
-        ? {
-            equitiesQualifying: findings.equitiesQualifying,
-            cryptoQualifying: findings.cryptoQualifying,
-            equitiesNotSized: findings.equitiesNotSized,
-            cryptoNotSized: findings.cryptoNotSized,
-          }
-        : undefined;
+    const picks = picksFromFindings(findings);
     // Cash-only / any funded book builds a strategy; truly empty books return null.
     const strategy = synthesis.isEmpty ? null : buildStrategy(synthesis, goal, picks);
 

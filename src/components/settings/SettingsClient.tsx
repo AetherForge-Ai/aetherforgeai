@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { Loader2, User, CreditCard, Crown, ExternalLink, Sparkles, ShieldCheck, Mail, KeyRound, ArrowUpCircle, Check, Zap, CalendarClock, Camera } from "lucide-react";
 import Link from "next/link";
 import { PLANS, SALES_EMAIL, planByKey, planLabel, type Plan } from "@/lib/plans";
-import { isFreeReportPlan } from "@/lib/entitlements";
+import { limitScope, resolveTickerLimit } from "@/lib/entitlements";
 import { formatDisplayDate, formatUsdWithRate, type FxRatesToNZD } from "@/lib/currency";
 import { useFxRates } from "@/hooks/useFxRates";
 import { COUNTRIES } from "@/lib/countries";
@@ -149,7 +149,6 @@ export function SettingsClient({
       !String(p.key).startsWith("ultimate_") &&
       (p.priceId || p.key.startsWith("starter_") || p.key.startsWith("pro_"))
   );
-  const freeAccount = isFreeReportPlan(user.subscription_plan);
 
   const displayName = `${firstName} ${lastName}`.trim() || user.name;
 
@@ -475,11 +474,14 @@ export function SettingsClient({
             <div className="rounded-xl border border-border/60 bg-background/30 px-4 py-3">
               <p className="text-xs text-muted-foreground">Ticker limit</p>
               <p className="mt-0.5 text-sm font-medium">
-                {user.ticker_limit
-                  ? freeAccount
-                    ? `${Math.max(user.ticker_limit, 8)} holdings total`
-                    : `${user.ticker_limit} per bot`
-                  : "—"}
+                {(() => {
+                  const limit = resolveTickerLimit({
+                    ticker_limit: user.ticker_limit,
+                    subscription_plan: user.subscription_plan,
+                  });
+                  if (limit >= 100000) return "unlimited";
+                  return limitScope(user.subscription_plan) === "perBot" ? `${limit} per bot` : `${limit} holdings total`;
+                })()}
               </p>
             </div>
           </div>

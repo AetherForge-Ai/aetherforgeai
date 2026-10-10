@@ -27,6 +27,7 @@ import {
   type CoinChart,
 } from "@/lib/crypto-market";
 import { canonicalCryptoId, normalizeCryptoTicker } from "@/lib/crypto-ids";
+import { listedMarketNotice } from "@/lib/crypto-coverage";
 
 type RankedCryptoPage = Awaited<ReturnType<typeof coingecko.fetchTop400>>;
 
@@ -38,6 +39,8 @@ function toCgId(id: string): string {
 }
 
 const MIN_CRYPTO_UNIVERSE = 100;
+/** A CoinGecko page of at least this many live coins is kept. It is not replaced by the shorter backup list. */
+const MIN_COINGECKO_KEEP = 100;
 
 function coinKey(c: CoinMarket): string {
   return (c.symbol || c.id || "").toUpperCase();
@@ -184,11 +187,12 @@ let lastGoodTop400: RankedCryptoPage | null = null;
 export async function loadTop400Markets(): Promise<RankedCryptoPage> {
   try {
     const page = await coingecko.fetchTop400();
-    if (page.coins.some(coinHasLivePrice)) {
+    const live = page.coins.filter(coinHasLivePrice).length;
+    if (live >= MIN_COINGECKO_KEEP) {
       lastGoodTop400 = page;
       return page;
     }
-    console.error("[crypto-source] CoinGecko top 400 had no live prices");
+    console.error(`[crypto-source] CoinGecko top 400 kept ${live} live prices — below ${MIN_COINGECKO_KEEP}`);
   } catch (err) {
     console.error("[crypto-source] CoinGecko top 400 failed — using the existing sweep:", err);
   }
@@ -196,9 +200,13 @@ export async function loadTop400Markets(): Promise<RankedCryptoPage> {
   try {
     const fallback = rankedFallbackPage(await getTop500());
     if (fallback.coins.length) {
-      lastGoodTop400 = fallback;
+      const page = {
+        ...fallback,
+        notice: listedMarketNotice(fallback.coins.length, "backup"),
+      };
+      lastGoodTop400 = page;
       console.log(`[crypto-source] top 400 via existing sweep (${fallback.coins.length})`);
-      return fallback;
+      return page;
     }
   } catch (err) {
     console.error("[crypto-source] existing crypto sweep failed:", err);

@@ -28,7 +28,7 @@ describe("H8 tape currency and coin names", () => {
     expect(coinDisplayName("BAT", "BAT")).toBe("Basic Attention Token");
     expect(coinDisplayName("STRK", "STRK")).toBe("Starknet");
     expect(coinDisplayName("GALA", "")).toBe("Gala");
-    expect(coinDisplayName("EOS", "EOS")).toBe("EOS");
+    expect(coinDisplayName("EOS", "EOS")).toBe("EOS Network");
     expect(coinDisplayName("THETA", "THETA")).toBe("Theta Network");
     expect(coinDisplayName("APE", "APE")).toBe("ApeCoin");
     expect(coinDisplayName("WLD", "WLD")).toBe("Worldcoin");
