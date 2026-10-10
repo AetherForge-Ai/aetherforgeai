@@ -8,11 +8,24 @@ import { LIVE_CRYPTO_UNAVAILABLE } from "@/lib/crypto-market";
 
 export const LIVE_DEX_UNAVAILABLE = "Live decentralized-token prices are unavailable.";
 
+function knownStat(value: unknown): number | null {
+  const n = typeof value === "number" ? value : Number.NaN;
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/** A zero market cap or volume is unknown. The cell is an em dash, not 0. */
+export function presentMarketCoin<T extends { marketCap?: unknown; volume24h?: unknown }>(coin: T): T {
+  return { ...coin, marketCap: knownStat(coin.marketCap), volume24h: knownStat(coin.volume24h) };
+}
+
 export function marketsBody(coins: unknown[] | null | undefined, notice: string | null) {
   if (!coins || coins.length === 0) {
     return { ok: false as const, error: LIVE_CRYPTO_UNAVAILABLE };
   }
-  return { ok: true as const, data: coins, total: coins.length, notice };
+  const data = coins.map((coin) =>
+    coin && typeof coin === "object" ? presentMarketCoin(coin as { marketCap?: unknown; volume24h?: unknown }) : coin
+  );
+  return { ok: true as const, data, total: data.length, notice };
 }
 
 export function dexBody(

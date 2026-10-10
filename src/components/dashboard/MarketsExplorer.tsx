@@ -11,7 +11,6 @@ import {
   CHANGE_NOT_STATED,
   PRICE_NOT_IN_RESPONSE,
   STOCK_BOARDS,
-  STOCK_PAGE_SIZE,
   type StockBoard,
 } from "@/lib/stock-markets";
 import type { PublicMarketIndex } from "@/lib/public-market-types";
@@ -83,6 +82,8 @@ export interface MarketPayload {
   pageCount?: number;
   coverage?: string;
   note?: string;
+  unpricedCount?: number;
+  footnote?: string | null;
   asOf: string | null;
   freshness?: string;
   rows: MarketRow[];
@@ -197,9 +198,8 @@ export function MarketsExplorer({
   initialTab = null,
   syncTab = false,
   onTabChange,
-  seedCrypto = [],
-  seedDex = [],
   index = null,
+  dexCredit = "Powered by GeckoTerminal",
 }: {
   onBought?: () => void;
   /** When false the component skips fetching (e.g. modal is closed). */
@@ -214,12 +214,13 @@ export function MarketsExplorer({
   /** Write the selected tab into the /markets query. Off inside the dashboard modal. */
   syncTab?: boolean;
   onTabChange?: (tab: Tab) => void;
-  /** Server-rendered crypto and DEX rows. Shown until the client list arrives. */
-  seedCrypto?: PublicPriceRow[];
-  seedDex?: PublicPriceRow[];
-  /** Server-rendered stock boards. Shown until the board request returns, and kept if that request fails. */
+  /** Server-rendered boards. Crypto and DEX rows from this index show until the client list arrives. */
   index?: PublicMarketIndex | null;
+  /** Server-built credit. Defaults to GeckoTerminal. The second name is passed only when its display flag is on. */
+  dexCredit?: string;
 }) {
+  const seedCrypto = index?.tabs.find((row) => row.id === "CRYPTO")?.rows ?? [];
+  const seedDex = index?.tabs.find((row) => row.id === "DEX")?.rows ?? [];
   const router = useRouter();
   const [tab, setTab] = useState<Tab>(initialTab ?? "NZX");
   const [data, setData] = useState<MarketPayload | null>(null);
@@ -235,6 +236,7 @@ export function MarketsExplorer({
   const [remoteLoading, setRemoteLoading] = useState(false);
   const [cryptoPage, setCryptoPage] = useState(0);
   const [stockPage, setStockPage] = useState(1);
+  const [includeDerivatives, setIncludeDerivatives] = useState(false);
   const [cryptoInNzd, setCryptoInNzd] = useState(false);
   const fx = useFxRates();
   const fxReady = fx.ready && !!fx.asOf;
@@ -287,6 +289,7 @@ export function MarketsExplorer({
       pageCount: 1,
       coverage: tab.coverage,
       note: tab.note,
+      footnote: tab.footnote,
       asOf: null,
       freshness: tab.asOf,
       rows: tab.rows.map((row) => {
@@ -325,7 +328,7 @@ export function MarketsExplorer({
   }, [index]);
 
   // `silent` refresh keeps the current rows on screen (no skeleton flash).
-  const load = useCallback(async (ex: StockBoard, silent = false, page = 1, q = "") => {
+  const load = useCallback(async (ex: StockBoard, silent = false, page = 1, q = "", derivatives = false) => {
     const gen = ++loadGen.current;
     if (!silent) {
       setLoadError(null);
@@ -338,6 +341,7 @@ export function MarketsExplorer({
     console.log(`[markets-explorer] Loading prices for ${ex}…${silent ? " (auto)" : ""}`);
     const params = new URLSearchParams({ exchange: ex, page: String(page) });
     if (q.trim()) params.set("q", q.trim());
+    if ((ex === "NASDAQ" || ex === "NYSE") && derivatives) params.set("derivatives", "1");
     try {
       const res = await api.get<MarketPayload>(`/api/all-markets?${params.toString()}`, {
         signal: AbortSignal.timeout(8_000),
@@ -372,16 +376,16 @@ export function MarketsExplorer({
   }, [debouncedQuery, tab]);
 
   useEffect(() => {
-    if (active && !isCryptoTab) load(tab as StockBoard, false, stockPage, debouncedQuery);
-  }, [active, tab, isCryptoTab, load, stockPage, debouncedQuery]);
+    if (active && !isCryptoTab) load(tab as StockBoard, false, stockPage, debouncedQuery, includeDerivatives);
+  }, [active, tab, isCryptoTab, load, stockPage, debouncedQuery, includeDerivatives]);
 
   // Auto-refresh live stock prices every 45s while the browser is open — no
   // skeleton flash, just fresh numbers. Paused when inactive or on the crypto tab.
   useEffect(() => {
     if (!active || isCryptoTab) return;
-    const id = setInterval(() => load(tab as StockBoard, true, stockPage, debouncedQuery), 45_000);
+    const id = setInterval(() => load(tab as StockBoard, true, stockPage, debouncedQuery, includeDerivatives), 45_000);
     return () => clearInterval(id);
-  }, [active, tab, isCryptoTab, load, stockPage, debouncedQuery]);
+  }, [active, tab, isCryptoTab, load, stockPage, debouncedQuery, includeDerivatives]);
 
   // When the local curated list misses a ticker (e.g. CIP.AX), resolve via Yahoo
   // symbol search so Buy still appears for any ASX/NZX/US listing.
@@ -480,7 +484,7 @@ export function MarketsExplorer({
   function refresh() {
     if (isDexTab) dex.refresh();
     else if (isCoinTab) crypto.refresh();
-    else void load(tab as StockBoard, false, stockPage, debouncedQuery);
+    else void load(tab as StockBoard, false, stockPage, debouncedQuery, includeDerivatives);
   }
 
   useEffect(() => {
@@ -553,7 +557,9 @@ export function MarketsExplorer({
       }));
       }
     } else {
-      all = (data?.rows ?? []).map((r) => ({
+      all = (data?.rows ?? [])
+        .filter((r) => r.quoted && r.priceLabel !== PRICE_NOT_IN_RESPONSE)
+        .map((r) => ({
         key: r.ticker,
         ticker: r.ticker,
         symbol: r.symbol,
@@ -635,9 +641,9 @@ export function MarketsExplorer({
     : rows;
   const showHigh = !isCryptoTab;
   const showLow = !isCryptoTab;
-  const showVolume = !isDexTab && rows.some((r) => (r.volume ?? 0) > 0);
   const cappedRows = rows.filter((r) => (r.marketCap ?? 0) > 0).length;
-  const showCap = !isCryptoTab && rows.length > 0 && cappedRows * 2 > rows.length;
+  const showVolume = isCoinTab || (!isDexTab && rows.some((r) => (r.volume ?? 0) > 0));
+  const showCap = isCoinTab || (!isCryptoTab && rows.length > 0 && cappedRows * 2 > rows.length);
   const showChange = !isDexTab;
   const showChain = isCryptoTab;
   const showDex = isDexTab;
@@ -827,7 +833,23 @@ export function MarketsExplorer({
               {dex.notice ? ` · ${dex.notice}` : ""}
             </p>
           )}
-          {isDexTab && <p className="text-sm text-muted-foreground">Powered by GeckoTerminal</p>}
+          {isDexTab && <p className="text-sm text-muted-foreground">{dexCredit}</p>}
+          {(tab === "NASDAQ" || tab === "NYSE") && (
+            <label className="flex items-center gap-2 text-xs text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={includeDerivatives}
+                onChange={(event) => {
+                  setIncludeDerivatives(event.target.checked);
+                  setStockPage(1);
+                }}
+              />
+              Include warrants, units and rights
+            </label>
+          )}
+          {!isCryptoTab && data?.footnote ? (
+            <p className="text-xs text-muted-foreground">{data.footnote}</p>
+          ) : null}
         </div>
       </div>
 
@@ -1029,7 +1051,7 @@ export function MarketsExplorer({
           <p className="text-xs text-muted-foreground">
             Page {data?.page || stockPage} of {data?.pageCount || 1}
             {data?.coverage ? ` · ${data.coverage}` : ""}
-            {` · ${STOCK_PAGE_SIZE} names on this page`}
+            {` · ${rows.length} names on this page`}
           </p>
           <div className="flex items-center gap-2">
             <Button

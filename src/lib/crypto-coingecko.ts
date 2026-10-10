@@ -12,22 +12,31 @@
  */
 
 import "server-only";
+import { readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { assembleListedMarkets, coingeckoRolling24h, resolveSevenDayChange, type CoinMarket, type CoinDetail, type CoinChart } from "@/lib/crypto-market";
 import { coinDisplayName } from "@/lib/crypto-names";
 import { rememberCryptoIds } from "@/lib/crypto-id-registry";
+import { coinGeckoRetryDelayMs, coinGeckoStatusRetries, readMarketPage } from "@/lib/crypto-fetch-policy";
+import { dexscreenerPublicDisplay } from "@/lib/dexscreener-display";
 import {
   DEX_BACKOFF_MS,
   DEX_COLD_BUDGET_MS,
   DEX_STALE_MS,
   DEX_TRENDING,
+  DEX_TREND_PREFIX,
   dexListNotice,
   dexSlotKey,
   dexTargets,
   freshDexRows,
   mergeDexLists,
   mergeDexPages,
+  parseDexScreenerPairs,
   parseMegafilterPage,
+  resolveDexList,
   takeDexJobs,
+  type DexListKind,
   type DexStoredPage,
   type DexTokenRow,
 } from "@/lib/crypto-dex";
@@ -95,20 +104,27 @@ async function cgFetch(path: string, keyless = false): Promise<any> {
 }
 
 /**
- * A demo key that is rejected or rate-limited (401/429) is retried once without the key.
- * Keyless public calls are what returned the full pages in a direct check.
+ * Retry a markets page with a short backoff. A 401 on a demo key retries without the key.
+ * A failed attempt throws. It is not returned as an empty page.
  */
-async function cgFetchRetry(path: string): Promise<any> {
-  try {
-    return await cgFetch(path, false);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    if (process.env.COINGECKO_API_KEY && /\b(401|429)\b/.test(message)) {
-      console.error(`[crypto-coingecko] keyed call failed (${message.slice(0, 140)}). Retrying without the key.`);
-      return cgFetch(path, true);
+async function cgFetchRetry(path: string): Promise<unknown> {
+  let last: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const wait = coinGeckoRetryDelayMs(attempt);
+    if (wait) await sleep(wait);
+    try {
+      return await cgFetch(path, attempt > 0);
+    } catch (err) {
+      last = err;
+      const message = err instanceof Error ? err.message : String(err);
+      const status = Number(message.match(/CoinGecko (\d{3})/)?.[1] || 0);
+      const retry = coinGeckoStatusRetries(status) || /timeout|non-JSON/i.test(message);
+      const keyRejected = attempt === 0 && !!process.env.COINGECKO_API_KEY && /\b401\b/.test(message);
+      if (!retry && !keyRejected) throw err;
+      console.error(`[crypto-coingecko] ${path} attempt ${attempt + 1} failed: ${message.slice(0, 140)}`);
     }
-    throw err;
   }
+  throw last instanceof Error ? last : new Error("CoinGecko did not return a market page.");
 }
 
 /* ------------------------------ Top-500 scan ----------------------------- */
@@ -182,11 +198,14 @@ export async function fetchTop500(): Promise<CoinMarket[]> {
     const common =
       "vs_currency=usd&order=market_cap_desc&per_page=250&sparkline=true" +
       "&price_change_percentage=1h,24h,7d";
-    const p1 = (await cgFetchRetry(`/coins/markets?${common}&page=1`)) as CgMarketRow[];
-    const p2 = (await cgFetchRetry(`/coins/markets?${common}&page=2`).catch((err) => {
-      console.error("[crypto-coingecko] top 500 page 2 unavailable:", err);
-      return [] as CgMarketRow[];
-    })) as CgMarketRow[];
+    const p1 = readMarketPage(await cgFetchRetry(`/coins/markets?${common}&page=1`)) as CgMarketRow[] | null;
+    if (!p1?.length) throw new Error("Live crypto prices are unavailable.");
+    const p2 = (await cgFetchRetry(`/coins/markets?${common}&page=2`)
+      .then((body) => readMarketPage(body) as CgMarketRow[] | null)
+      .catch((err) => {
+        console.error("[crypto-coingecko] top 500 page 2 unavailable:", err);
+        return null;
+      })) ?? [];
 
     const byId = new Map<string, CoinMarket>();
     for (const row of [...(p1 || []), ...(p2 || [])]) {
@@ -230,8 +249,9 @@ async function loadPlatforms(): Promise<Map<string, Record<string, string>> | nu
 }
 
 const TOP400_FRESH_MS = 60_000;
-const TOP400_MAX_AGE_MS = 5 * 60 * 1000;
-const TOP400_COLD_MS = 3_000;
+/** Keep the last CoinGecko pages when a refresh fails, instead of switching lists. */
+const TOP400_LAST_GOOD_MS = 6 * 60 * 60 * 1000;
+const TOP400_COLD_MS = 7_000;
 const TOP400_BACKOFF_MS = 60_000;
 const TOP400_QUERY =
   "vs_currency=usd&order=market_cap_desc&per_page=250&sparkline=false" +
@@ -266,17 +286,19 @@ function note429(err: unknown) {
 async function refreshTop400(): Promise<RankedCryptoPage> {
   if (top400Inflight) return top400Inflight;
   top400Inflight = (async () => {
-    const first = (await cgFetchRetry(`/coins/markets?${TOP400_QUERY}&page=1`)) as CgMarketRow[];
+    const first = readMarketPage(await cgFetchRetry(`/coins/markets?${TOP400_QUERY}&page=1`)) as CgMarketRow[] | null;
     if (!first?.length) throw new Error("Live crypto prices are unavailable.");
     top400Entry = { at: Date.now(), value: assembleTop400(first, null, true) };
     const [second, platforms] = await Promise.all([
-      (cgFetchRetry(`/coins/markets?${TOP400_QUERY}&page=2`) as Promise<CgMarketRow[]>).catch((err) => {
-        console.error("[crypto-coingecko] top 400 page 2 unavailable:", note429(err));
-        return null;
-      }),
+      cgFetchRetry(`/coins/markets?${TOP400_QUERY}&page=2`)
+        .then((body) => readMarketPage(body) as CgMarketRow[] | null)
+        .catch((err) => {
+          console.error("[crypto-coingecko] top 400 page 2 unavailable:", note429(err));
+          return null;
+        }),
       loadPlatforms(),
     ]);
-    const page2 = Array.isArray(second) ? second : [];
+    const page2 = second ?? [];
     const page = assembleTop400([...first, ...page2], platforms, page2.length === 0);
     top400Entry = { at: Date.now(), value: page };
     const labelled = page.coins.filter((coin) => coin.blockchain).length;
@@ -296,7 +318,7 @@ async function refreshTop400(): Promise<RankedCryptoPage> {
 /** The latest CoinGecko snapshot, or null once it is older than the serve window. */
 export function peekTop400(): RankedCryptoPage | null {
   if (!top400Entry) return null;
-  if (Date.now() - top400Entry.at > TOP400_MAX_AGE_MS) return null;
+  if (Date.now() - top400Entry.at > TOP400_LAST_GOOD_MS) return null;
   return top400Entry.value;
 }
 
@@ -309,10 +331,10 @@ export function peekTop400(): RankedCryptoPage | null {
 export async function fetchTop400(): Promise<RankedCryptoPage> {
   const now = Date.now();
   if (top400Entry && now - top400Entry.at < TOP400_FRESH_MS) return top400Entry.value;
-  if (top400Entry && now < top400BackoffUntil && now - top400Entry.at < TOP400_MAX_AGE_MS) {
+  if (top400Entry && now < top400BackoffUntil && now - top400Entry.at < TOP400_LAST_GOOD_MS) {
     return top400Entry.value;
   }
-  if (top400Entry && now - top400Entry.at < TOP400_MAX_AGE_MS) {
+  if (top400Entry && now - top400Entry.at < TOP400_LAST_GOOD_MS) {
     void refreshTop400().catch(() => {});
     return top400Entry.value;
   }
@@ -339,13 +361,31 @@ export interface DexPage {
  * and a 429 does not replace it with a shorter list.
  */
 const GT_BASE = "https://api.geckoterminal.com/api/v2";
+/**
+ * Documented GeckoTerminal version header.
+ * A pool list without `include=base_token` has prices and no token symbols, so the
+ * parser drops every row. The public limit is 30 calls a minute. A 429 or a timeout
+ * used to become an empty list whose notice said a token price was missing.
+ */
+export const GECKOTERMINAL_ACCEPT = "application/json;version=20230302";
 const DEX_CACHE_KEY = "dex-merged";
 const DEX_MEMORY_FRESH_MS = 15_000;
 const DEX_CALL_TIMEOUT_MS = 2_200;
 
-async function gtFetch(path: string, timeoutMs = DEX_CALL_TIMEOUT_MS): Promise<unknown> {
+function geckoStatus(err: unknown): number {
+  const message = err instanceof Error ? err.message : String(err);
+  return Number(message.match(/GeckoTerminal (\d{3})/)?.[1] || 0);
+}
+
+function geckoRetries(err: unknown): boolean {
+  const status = geckoStatus(err);
+  const message = err instanceof Error ? err.message : String(err);
+  return status === 429 || status === 500 || status === 502 || status === 503 || status === 504 || /timeout|aborted|non-JSON/i.test(message);
+}
+
+async function gtFetchOnce(path: string, timeoutMs: number): Promise<unknown> {
   const res = await fetch(`${GT_BASE}${path}`, {
-    headers: { accept: "application/json" },
+    headers: { accept: GECKOTERMINAL_ACCEPT },
     cache: "no-store",
     signal: AbortSignal.timeout(timeoutMs),
   });
@@ -362,6 +402,29 @@ async function gtFetch(path: string, timeoutMs = DEX_CALL_TIMEOUT_MS): Promise<u
   } catch {
     throw new Error(`GeckoTerminal returned a non-JSON body on ${path}`);
   }
+}
+
+/**
+ * Up to three tries inside the caller's timeout. The first try uses half the
+ * budget so a timeout or a 429 can be repeated after a short pause.
+ */
+async function gtFetch(path: string, timeoutMs = DEX_CALL_TIMEOUT_MS): Promise<unknown> {
+  const started = Date.now();
+  let last: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const elapsed = Date.now() - started;
+    const remain = timeoutMs - elapsed;
+    if (remain < 350) break;
+    if (attempt > 0) await sleep(Math.min(400 * attempt, remain - 300));
+    const slice = Math.max(350, Math.min(remain, Math.floor(timeoutMs / 2)));
+    try {
+      return await gtFetchOnce(path, slice);
+    } catch (err) {
+      last = err;
+      if (!geckoRetries(err)) throw err;
+    }
+  }
+  throw last instanceof Error ? last : new Error("GeckoTerminal did not return a pool list.");
 }
 
 /** Quote lookups read this. The merged list itself lives in the TTL cache. */
@@ -384,33 +447,94 @@ function syncDexPages(pages: DexStoredPage[]) {
   dexPages.push(...pages);
 }
 
-function dexCatalogExhausted(pages: DexStoredPage[], now: number): boolean {
-  const firsts = dexTargets().filter((target) => target.page === 1);
-  return firsts.every((target) => {
-    const slot = pages.find((page) => page.network === target.network && page.page === 1);
-    return !!slot && now - slot.fetchedAt <= DEX_STALE_MS && slot.rows.length === 0;
-  });
-}
-
 function dexRequestPath(network: string, page: number): string {
   const include = "include=base_token,quote_token,dex,network";
   if (network === DEX_TRENDING) return `/networks/trending_pools?${include}&page=${page}`;
+  if (network.startsWith(DEX_TREND_PREFIX)) {
+    const id = network.slice(DEX_TREND_PREFIX.length);
+    return `/networks/${id}/trending_pools?${include}&page=${page}`;
+  }
   return `/networks/${network}/pools?${include}&sort=h24_volume_usd_desc&page=${page}`;
 }
 
-function snapshotDex(memory: DexMemory): DexPage {
+function snapshotDex(memory: DexMemory, kind: DexListKind = memory.rows.length ? "pools" : "empty"): DexPage {
   const rows = memory.rows.slice(0, 400);
   if (rows.length) {
     rememberCryptoIds(
       rows.flatMap((row) => (row.detailId ? [{ symbol: row.symbol, id: row.detailId }] : []))
     );
   }
-  const stalled = memory.rateLimited && rows.length < 400;
+  const stalled = kind === "pools" && memory.rateLimited && rows.length < 400 && rows.length > 0;
   return {
     rows,
-    notice: dexListNotice(rows.length, stalled),
-    sourceDown: rows.length === 0 && dexCatalogExhausted(memory.pages, Date.now()) && !memory.rateLimited,
+    notice: dexListNotice(rows.length, stalled, rows.length ? kind : "empty"),
+    sourceDown: kind === "empty" || rows.length === 0,
   };
+}
+
+const DEX_SNAPSHOT_FILE = path.join(tmpdir(), "aetherforge-dex-last-good.json");
+let dexLastGood: DexTokenRow[] = [];
+
+function rowLooksSaved(value: unknown): value is DexTokenRow {
+  if (!value || typeof value !== "object") return false;
+  const row = value as DexTokenRow;
+  return typeof row.symbol === "string" && row.symbol.length > 0 && typeof row.price === "number" && row.price > 0;
+}
+
+function readDexLastGood(): DexTokenRow[] {
+  if (dexLastGood.length) return dexLastGood;
+  try {
+    const parsed = JSON.parse(readFileSync(DEX_SNAPSHOT_FILE, "utf8")) as { rows?: unknown };
+    const rows = Array.isArray(parsed.rows) ? parsed.rows.filter(rowLooksSaved) : [];
+    dexLastGood = rows;
+    return rows;
+  } catch {
+    return [];
+  }
+}
+
+function rememberDexLastGood(rows: DexTokenRow[]) {
+  if (!rows.length) return;
+  dexLastGood = rows.slice(0, 400);
+  try {
+    writeFileSync(DEX_SNAPSHOT_FILE, JSON.stringify({ at: new Date().toISOString(), rows: dexLastGood }));
+  } catch (err) {
+    console.error(
+      "[crypto-coingecko] DEX snapshot was not saved:",
+      err instanceof Error ? err.message.slice(0, 120) : "failed"
+    );
+  }
+}
+
+/**
+ * DexScreener search is a list of pairs. priceUsd is on each pair.
+ * https://docs.dexscreener.com/api/reference — GET /latest/dex/search, no key.
+ */
+const DS_BASE = "https://api.dexscreener.com";
+const DS_QUERIES = ["USDC", "WETH", "SOL"];
+
+export async function fetchDexScreenerRows(): Promise<DexTokenRow[]> {
+  if (!dexscreenerPublicDisplay()) return [];
+  const lists = await Promise.all(
+    DS_QUERIES.map(async (query) => {
+      try {
+        const res = await fetch(`${DS_BASE}/latest/dex/search?q=${encodeURIComponent(query)}`, {
+          headers: { accept: "application/json" },
+          cache: "no-store",
+          signal: AbortSignal.timeout(1_800),
+        });
+        if (!res.ok) throw new Error(`DexScreener ${res.status}`);
+        return parseDexScreenerPairs(await res.json());
+      } catch (err) {
+        console.error(
+          `[crypto-coingecko] DexScreener ${query} did not return pairs:`,
+          err instanceof Error ? err.message.slice(0, 140) : "failed"
+        );
+        return [] as DexTokenRow[];
+      }
+    })
+  );
+  return lists.flat();
 }
 
 type DexFetchResult =
@@ -421,7 +545,8 @@ type DexFetchResult =
 async function fetchDexPage(network: string, page: number, timeoutMs: number): Promise<DexFetchResult> {
   try {
     const payload = await gtFetch(dexRequestPath(network, page), timeoutMs);
-    const rows = parseMegafilterPage(payload, network);
+    const labelNetwork = network.startsWith(DEX_TREND_PREFIX) ? network.slice(DEX_TREND_PREFIX.length) : network;
+    const rows = parseMegafilterPage(payload, labelNetwork);
     return { kind: "page", page: { network, page, fetchedAt: Date.now(), rows } };
   } catch (err) {
     const message = err instanceof Error ? err.message : "";
@@ -516,24 +641,41 @@ function scheduleDexFollowUp(rateLimited: boolean, rowCount: number) {
  * Up to 400 DEX tokens. A cold call waits at most DEX_COLD_BUDGET_MS and returns
  * what arrived. A list already cached is returned at once. A 429 never shrinks it.
  */
+async function dexPageFromMemory(memory: DexMemory): Promise<DexPage> {
+  if (memory.rows.length) {
+    rememberDexLastGood(memory.rows);
+    return snapshotDex(memory, "pools");
+  }
+  const screenerRows = dexscreenerPublicDisplay() ? await fetchDexScreenerRows() : [];
+  const resolved = resolveDexList({
+    poolRows: [],
+    screenerRows,
+    lastGood: readDexLastGood(),
+  });
+  const held: DexMemory = { ...memory, rows: resolved.rows };
+  return snapshotDex(held, resolved.kind);
+}
+
 export async function fetchDexTop400(): Promise<DexPage> {
   const memory = readDexMemory();
   syncDexPages(memory.pages);
   const now = Date.now();
   if (memory.rows.length >= 400 && now - memory.at < DEX_STALE_MS) {
-    return snapshotDex(memory);
+    rememberDexLastGood(memory.rows);
+    return snapshotDex(memory, "pools");
   }
   if (memory.rows.length > 0 && now - memory.at < DEX_MEMORY_FRESH_MS) {
     void fillDexMemory(memory.pages).then((next) => scheduleDexFollowUp(next.rateLimited, next.rows.length));
-    return snapshotDex(memory);
+    rememberDexLastGood(memory.rows);
+    return snapshotDex(memory, "pools");
   }
   const filled = await Promise.race([
     fillDexMemory(memory.pages),
     sleep(3_000).then(() => null),
   ]);
   const latest = filled ?? readDexMemory();
-  const page = snapshotDex(latest.rows.length ? latest : memory);
-  scheduleDexFollowUp(latest.rateLimited, page.rows.length);
+  const page = await dexPageFromMemory(latest.rows.length ? latest : memory);
+  if (page.rows.length && latest.rows.length) scheduleDexFollowUp(latest.rateLimited, page.rows.length);
   return page;
 }
 

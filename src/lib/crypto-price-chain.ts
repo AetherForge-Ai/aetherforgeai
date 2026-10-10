@@ -14,6 +14,7 @@
  */
 
 import { formatDisplayDateTime, formatUnitPrice } from "@/lib/currency";
+import { dexscreenerPublicDisplay } from "@/lib/dexscreener-display";
 import { CRYPTO_SANITY_RATIO } from "@/lib/crypto-tape";
 import type { PublicPriceRow, PublicPriceTab } from "@/lib/public-market-types";
 
@@ -84,6 +85,8 @@ export function sourceLabel(source: string): string {
       return "Yahoo Finance";
     case "geckoterminal":
       return "GeckoTerminal";
+    case "dexscreener":
+      return dexscreenerPublicDisplay() ? "DexScreener" : "public market data";
     case "google":
       return "Google Finance";
     default:

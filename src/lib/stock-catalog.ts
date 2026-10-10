@@ -7,6 +7,7 @@ import {
   LISTED_COUNT,
   SITEMAP_TICKER_CAP,
   SITEMAP_US_CAP,
+  boardCountClause,
   boardNote,
   coverageSentence,
   filterByQuery,
@@ -102,18 +103,42 @@ export function listingsFor(board: StockBoard): StockListing[] {
   return stockBoards()[board];
 }
 
-export function boardCoverage(board: StockBoard): { shown: number; listed: number; line: string; note: string } {
-  const shown = listingsFor(board).length;
-  const listed = LISTED_COUNT[board];
-  return { shown, listed, line: coverageSentence(shown, listed), note: boardNote(board) };
+export interface BoardView {
+  includeDerivatives?: boolean;
+}
+
+/** NASDAQ and NYSE hide warrants, units, rights, and test issues unless asked. */
+export function listingsForView(board: StockBoard, view?: BoardView): StockListing[] {
+  const rows = listingsFor(board);
+  if (view?.includeDerivatives || (board !== "NASDAQ" && board !== "NYSE")) return rows;
+  return rows.filter((row) => !isDerivativeOrTestSecurity(row.ticker, row.name));
+}
+
+export function boardCoverage(
+  board: StockBoard,
+  view?: BoardView
+): { shown: number; listed: number; line: string; note: string } {
+  const includeDerivatives = !!view?.includeDerivatives;
+  const shown = listingsForView(board, view).length;
+  const secBoard = board === "NASDAQ" || board === "NYSE";
+  const listed = secBoard ? shown : LISTED_COUNT[board];
+  const clause = boardCountClause(board, includeDerivatives && secBoard);
+  const line = coverageSentence(shown, listed);
+  return {
+    shown,
+    listed,
+    line: clause ? `${line}. ${clause}` : line,
+    note: boardNote(board),
+  };
 }
 
 export function pageListings(
   board: StockBoard,
   page: number,
-  query = ""
+  query = "",
+  view?: BoardView
 ): { rows: StockListing[]; total: number; page: number; pageCount: number } {
-  const filtered = filterByQuery(listingsFor(board), query);
+  const filtered = filterByQuery(listingsForView(board, view), query);
   const sliced = slicePage(filtered, page);
   return { rows: sliced.rows, total: filtered.length, page: sliced.page, pageCount: sliced.pageCount };
 }

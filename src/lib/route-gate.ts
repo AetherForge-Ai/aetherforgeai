@@ -43,6 +43,9 @@ const PUBLIC_DOCUMENT_ROUTES = [
   "/stripe/demo",
   "/stripe/success",
   "/stripe/cancel",
+  // Confirm page only. GET does not change the weekly email setting.
+  // pull-check:retest4-2026-10-11
+  "/unsubscribe",
 ];
 
 /** Real member pages. Signed-out visitors go to login. Everything else is a 404. */
