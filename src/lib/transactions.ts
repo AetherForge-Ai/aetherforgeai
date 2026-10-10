@@ -41,7 +41,7 @@ import { withUserTradeLock } from "@/lib/trade-lock";
 import { applyPaperCashMove } from "@/lib/paper-cash";
 import { planHoldingCorrection } from "@/lib/holding-correction";
 import { buildMovementPreview } from "@/lib/movement-preview";
-import { assessMovement, movementCivilDay } from "@/lib/transaction-rules";
+import { assessMovement, earlierCivilDay, movementCivilDay } from "@/lib/transaction-rules";
 
 export type TxType =
   | "buy"
@@ -753,9 +753,14 @@ async function applyTransactionUnlocked(
       const newShares = oldShares + quantity;
       // New weighted-average cost includes fees so cost basis stays honest.
       const newAvg = newShares > 0 ? (oldShares * oldAvg + quantity * price + fees) / newShares : price;
+      const keptDay = earlierCivilDay(
+        holding.purchase_date,
+        movementCivilDay(executedAt.toISOString(), aucklandDateISO())
+      );
       await totalumSdk.crud.editRecordById("stock", holding._id, {
         shares: round(newShares, 6),
         purchase_price: roundFillPrice(newAvg),
+        purchase_date: keptDay,
       });
       holdingId = holding._id;
       console.log(`[transactions] BUY ${quantity} ${ticker} → ${newShares} @ avg ${round(newAvg, 4)} (${currency})`);
