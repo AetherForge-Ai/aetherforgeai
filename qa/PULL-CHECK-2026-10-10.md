@@ -1273,3 +1273,5 @@ Sora, Manrope, and JetBrains Mono are latin variable woff2 files in `src/app/fon
 - URL / steps: open `/` and view source. Search the page source for `fonts.googleapis.com`. Read a heading, a paragraph, and a monospace figure.
 - Expected: view-source shows no `fonts.googleapis.com`. CSS variables stay `--font-display` (Sora 500–800), `--font-body` (Manrope 400–700), and `--font-mono-custom` (JetBrains Mono 400–600), with `font-display: swap`. Fonts look unchanged.
 
+Checks on this branch, with `fonts.googleapis.com` and `fonts.gstatic.com` pointed at `127.0.0.1`: `npm test` 121 files, 579 tests passed. `npm run check-types-errors` passed. `npm run build` passed (Next.js 15.3.9). Built CSS sets those three variables from `/_next/static/media/*.woff2`. Those files match the latin sources byte for byte. `next start` homepage HTML has no `fonts.googleapis.com` and no `fonts.gstatic.com`. Nothing was published.
+
