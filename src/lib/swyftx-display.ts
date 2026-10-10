@@ -7,15 +7,18 @@
  * list rows, charts, and API bodies are not shown. The flag is read on each call.
  */
 
+import { dexscreenerPublicDisplay } from "@/lib/dexscreener-display";
+
 export function swyftxPublicDisplay(): boolean {
   const raw = (process.env.SWYFTX_PUBLIC_DISPLAY || "").trim().toLowerCase();
   return raw === "1" || raw === "true" || raw === "on" || raw === "yes";
 }
 
-/** False only for a Swyftx source while the display flag is off. */
+/** False for a gated source while its display flag is off. */
 export function publicSourceAllowed(source: string | null | undefined): boolean {
   const id = (source || "").trim().toLowerCase();
   if (id === "swyftx" && !swyftxPublicDisplay()) return false;
+  if (id === "dexscreener" && !dexscreenerPublicDisplay()) return false;
   return true;
 }
 

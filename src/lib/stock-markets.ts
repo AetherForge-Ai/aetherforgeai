@@ -2,15 +2,17 @@
  * Stock board counts, quote checks, and the provider chain.
  *
  * pull-check:stock-markets-full-2026-10-11
+ * pull-check:retest4-2026-10-11
  *
  * Listing counts recorded 10 Oct 2026 (see docs/stock-market-sources-2026-10-11.md):
  *   NZX  60 names in this repo; 178 instruments on the NZSX page (172 share-category).
  *   ASX  217 names in this repo; 212 of those codes were in the ASX company file of 1,923.
  *   Dow  30 of 30 names already in this repo.
  *   NASDAQ tab was 90 US names that are not Dow, not a Nasdaq list.
- *     SEC company file: 4,376 tagged Nasdaq. Nasdaq directory file: 5,622 non-test symbols.
+ *     SEC company file: 4,376 tagged Nasdaq.
  *   NYSE had no tab. SEC company file: 3,290 tagged NYSE.
- *     Other-listed directory file: 2,900 non-test NYSE symbols.
+ * The other directory counts (Nasdaq 5,622 and other-listed NYSE 2,900) are in
+ * docs/stock-market-sources-2026-10-11.md. They are not the visitor "of M" figure.
  * The Nasdaq and ASX website terms do not allow this repo to copy those directories.
  * The SEC file is a US government work. Prices stay on the existing Yahoo call, then
  * Twelve Data only when MARKET_DATA_API_KEY is set.
@@ -47,15 +49,16 @@ export const BREAKER_OPEN_MS = 60_000;
 export const SNAPSHOT_FRESH_MS = 60_000;
 
 /**
- * Directory or index size used in "Showing N of M listed".
+ * Directory or index size used in "Showing N of M listed" for NZX, ASX, and Dow.
+ * NASDAQ and NYSE use the SEC file count for the population on screen.
  * These are counts from files and pages fetched on 10 Oct 2026, not a copied list.
  */
 export const LISTED_COUNT: Record<StockBoard, number> = {
   NZX: 178,
   ASX: 1923,
   DOW: 30,
-  NASDAQ: 5622,
-  NYSE: 2900,
+  NASDAQ: 4376,
+  NYSE: 3290,
 };
 
 /** Repo ASX codes that were not in the ASX company file dated 11 Oct 2026 06:14 AEDT. */
@@ -105,13 +108,30 @@ export function noteProviderResult(state: BreakerState, ok: boolean, now: number
   return { failures, openUntil: 0 };
 }
 
-/** Visitor line. Uses "Showing N of M listed" when the shown list is shorter than the count. */
+/**
+ * Visitor line. Always "Showing N of M listed" when a listed count exists.
+ * N is raised into M only as a guard, so the line never puts a larger N over a smaller M.
+ */
 export function coverageSentence(shown: number, listed: number): string {
   const n = Math.max(0, Math.round(Number(shown) || 0));
-  const m = Math.max(0, Math.round(Number(listed) || 0));
-  if (m > 0 && n <= m) return `Showing ${n} of ${m} listed`;
-  if (m > 0) return `Showing ${n} names. A directory file counted ${m} symbols.`;
+  const listedN = Math.max(0, Math.round(Number(listed) || 0));
+  const m = listedN > 0 ? Math.max(listedN, n) : 0;
+  if (m > 0) return `Showing ${n} of ${m} listed`;
   return `Showing ${n} listed`;
+}
+
+/** What the NASDAQ or NYSE count includes. Other boards have no extra clause. */
+export function boardCountClause(board: StockBoard, includeDerivatives: boolean): string {
+  if (board !== "NASDAQ" && board !== "NYSE") return "";
+  if (includeDerivatives) return "This count includes warrants, units and rights.";
+  return "This count is ordinary names. Warrants, units and rights are not included.";
+}
+
+export function unpricedFootnote(count: number): string | null {
+  const n = Math.max(0, Math.round(Number(count) || 0));
+  if (n <= 0) return null;
+  if (n === 1) return "1 listing has no price in this response";
+  return `${n} listings have no price in this response`;
 }
 
 export function boardNote(board: StockBoard): string {
@@ -125,9 +145,9 @@ export function boardNote(board: StockBoard): string {
     return "The 30 Dow Jones Industrial Average names kept in this repo.";
   }
   if (board === "NASDAQ") {
-    return `SEC company file tagged Nasdaq, retrieved 10 Oct 2026. 5,622 is the non-test symbol count in the Nasdaq directory file created 9 Oct 2026 21:31. ${FUND_TYPE_NOTE}. Not a direct exchange feed.`;
+    return `SEC company file tagged Nasdaq, retrieved 10 Oct 2026. ${FUND_TYPE_NOTE}. Not a direct exchange feed.`;
   }
-  return `SEC company file tagged NYSE, retrieved 10 Oct 2026. 2,900 is the non-test NYSE symbol count in the other-listed directory file created 9 Oct 2026 21:31. ${FUND_TYPE_NOTE}. Not a direct exchange feed.`;
+  return `SEC company file tagged NYSE, retrieved 10 Oct 2026. ${FUND_TYPE_NOTE}. Not a direct exchange feed.`;
 }
 
 export function sectorIsStated(sector: string | null | undefined): boolean {
@@ -155,6 +175,7 @@ export function isDerivativeOrTestSecurity(ticker: string, name: string): boolea
   if (/\btest\b/i.test(name || "")) return true;
   if (symbol.includes("TEST")) return true;
   if (/^Z[A-Z]ZZT$/.test(symbol)) return true;
+  if (/-(WT|WTA|UN|RI)$/.test(symbol)) return true;
   return /^[A-Z]{4}(W|U|R|WS|WT|WD|RT)$/.test(symbol);
 }
 

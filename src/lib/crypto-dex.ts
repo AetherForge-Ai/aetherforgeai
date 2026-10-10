@@ -1,11 +1,18 @@
 /**
- * Pure parser for CoinGecko on-chain pool pages.
+ * Pure parser for on-chain pool and trending pages.
  * A missing price stays null. Nothing here invents a print.
+ * The list is the pool or trending payload. It does not call a per-token price route.
+ *
+ * DexScreener pairs are the second list. GET /latest/dex/search is published
+ * without a key at https://docs.dexscreener.com/api/reference. priceUsd is on
+ * the pair, so that list does not call a per-token price route either.
  *
  * pull-check:crypto-dex-400-2026-10-11
+ * pull-check:retest4-2026-10-11
  */
 
 import { resolvableCoinId, type CoinMarket } from "@/lib/crypto-market";
+import { dexscreenerPublicDisplay } from "@/lib/dexscreener-display";
 import { CRYPTO_SANITY_RATIO } from "@/lib/crypto-tape";
 
 export interface DexTokenRow {
@@ -77,6 +84,14 @@ function includedTokens(payload: Record<string, unknown>): Map<string, IncludedT
   return out;
 }
 
+/** Left side of a pool name such as "USDC / WETH 0.01%". Used only when the included token is missing. */
+function symbolFromPoolName(name: string): string {
+  const left = name.split("/")[0]?.trim() ?? "";
+  const cleaned = left.replace(/\s+\d+(?:\.\d+)?%$/, "").trim().toUpperCase();
+  if (!/^[A-Z0-9][A-Z0-9.$-]{0,19}$/.test(cleaned)) return "";
+  return cleaned;
+}
+
 function relId(pool: Record<string, unknown>, name: string): string {
   const rels = asRecord(pool.relationships);
   const rel = rels ? asRecord(rels[name]) : null;
@@ -134,12 +149,12 @@ export function parseMegafilterPage(payload: unknown, fallbackNetwork = ""): Dex
     if (!pool) continue;
     const attrs = asRecord(pool.attributes) || {};
     const token = tokens.get(relId(pool, "base_token"));
-    const symbol = token?.symbol || "";
+    const symbol = token?.symbol || symbolFromPoolName(String(attrs.name || ""));
     if (!symbol) continue;
     const price = num(attrs.base_token_price_usd);
     const live = price != null && price > 0 ? price : null;
     const volume = num(asRecord(attrs.volume_usd)?.h24);
-    const reserve = num(attrs.reserve_in_usd);
+    const reserve = num(attrs.reserve_in_usd ?? attrs.reserve_usd);
     const dexId = relId(pool, "dex");
     const address = relId(pool, "base_token");
     rows.push({
@@ -189,9 +204,83 @@ export function dexPricesAgree(a: number, b: number, ratio = CRYPTO_SANITY_RATIO
 /** Pool reserve, in USD, required before a token is listed. Dust pools are left out. */
 export const DEX_LIQUIDITY_FLOOR_USD = 10_000;
 
-/** A published DEX row needs a live price and a reserve at or above the floor. */
+/**
+ * A published DEX row needs the price that came on the pool or pair.
+ * A stated reserve under the floor is left out. A missing reserve is not a
+ * failed per-token price call, so the row stays.
+ */
 export function dexRowClearsFloor(row: DexTokenRow, floor = DEX_LIQUIDITY_FLOOR_USD): boolean {
-  return dexHasLivePrice(row) && dexReserveUsd(row) >= floor;
+  if (!dexHasLivePrice(row)) return false;
+  if (row.reserveUsd == null) return true;
+  return dexReserveUsd(row) >= floor;
+}
+
+/**
+ * DexScreener GET /latest/dex/search body. Pairs carry priceUsd.
+ * https://docs.dexscreener.com/api/reference
+ */
+export function parseDexScreenerPairs(payload: unknown): DexTokenRow[] {
+  const root = asRecord(payload);
+  const pairs = Array.isArray(payload) ? payload : Array.isArray(root?.pairs) ? root.pairs : [];
+  const rows: DexTokenRow[] = [];
+  for (const raw of pairs) {
+    const pair = asRecord(raw);
+    if (!pair) continue;
+    const base = asRecord(pair.baseToken);
+    const symbol = String(base?.symbol || "").trim().toUpperCase();
+    if (!symbol) continue;
+    const price = num(pair.priceUsd);
+    const live = price != null && price > 0 ? price : null;
+    const volume = num(asRecord(pair.volume)?.h24);
+    const reserve = num(asRecord(pair.liquidity)?.usd);
+    const chain = String(pair.chainId || "").trim().toLowerCase();
+    const address = String(base?.address || "").trim().toLowerCase();
+    rows.push({
+      id: address ? `${chain}_${address}` : symbol.toLowerCase(),
+      symbol,
+      name: String(base?.name || symbol),
+      price: live,
+      priceUnavailable: live == null,
+      volume24h: volume != null && volume > 0 ? volume : null,
+      network: dexNetworkLabel(chain),
+      dex: String(pair.dexId || ""),
+      detailId: null,
+      address: address ? `${chain}_${address}` : "",
+      reserveUsd: reserve != null && reserve > 0 ? reserve : null,
+    });
+  }
+  return rows;
+}
+
+export type DexListKind = "pools" | "screener" | "snapshot" | "empty";
+
+/**
+ * Pool rows first, then DexScreener pairs, then the last saved list.
+ * An empty result is only the last case. No price is filled in.
+ */
+export function resolveDexList(input: {
+  poolRows: DexTokenRow[];
+  screenerRows: DexTokenRow[];
+  lastGood: DexTokenRow[];
+}): { rows: DexTokenRow[]; kind: DexListKind } {
+  const pools = dedupeDexTokens(
+    (input.poolRows || []).filter((row) => dexRowClearsFloor(row)),
+    DEX_TARGET_COUNT
+  );
+  if (pools.length) return { rows: pools, kind: "pools" };
+  const screener = dexscreenerPublicDisplay()
+    ? dedupeDexTokens(
+        (input.screenerRows || []).filter((row) => dexRowClearsFloor(row)),
+        DEX_TARGET_COUNT
+      )
+    : [];
+  if (screener.length) return { rows: screener, kind: "screener" };
+  const saved = dedupeDexTokens(
+    (input.lastGood || []).filter((row) => dexRowClearsFloor(row)),
+    DEX_TARGET_COUNT
+  );
+  if (saved.length) return { rows: saved, kind: "snapshot" };
+  return { rows: [], kind: "empty" };
 }
 
 /** Highest 24h volume wins. A live price beats a row with no print. A 3× price split keeps the deeper reserve. */
@@ -279,8 +368,15 @@ export function dexRowToCoin(row: DexTokenRow, rank: number): CoinMarket {
 export const DEX_STALE_MS = 30 * 60 * 1000;
 export const DEX_TARGET_COUNT = 400;
 export const DEX_FURTHER_NOTICE = "Further rows are still loading.";
-export const DEX_EMPTY_NOTICE =
-  "Showing 0 of up to 400. GeckoTerminal did not return a token price (rate limit or the feed did not answer).";
+/** Empty list with the display flag off. The second source is named only by dexEmptyNotice. */
+export const DEX_EMPTY_NOTICE = "Showing 0 of up to 400. GeckoTerminal did not return a token list.";
+
+export function dexEmptyNotice(): string {
+  if (dexscreenerPublicDisplay()) {
+    return "Showing 0 of up to 400. GeckoTerminal and DexScreener did not return a token list.";
+  }
+  return DEX_EMPTY_NOTICE;
+}
 /** GeckoTerminal returns 20 pools per page. The public API rejects page 11 and above. */
 export const DEX_POOLS_PER_PAGE = 20;
 export const DEX_PAGE_CAP = 10;
@@ -292,6 +388,15 @@ export const DEX_FILL_CONCURRENCY = 5;
 export const DEX_COLD_BUDGET_MS = 2_700;
 /** Wait after a 429, a miss, or a follow-up batch. Stays under the public 30 calls a minute. */
 export const DEX_BACKOFF_MS = 60_000;
+
+/**
+ * Per-network trending slot. It is not a network id on `/networks/{id}/pools`.
+ * The id after the prefix is the network, for example `trend:eth`.
+ */
+export const DEX_TREND_PREFIX = "trend:";
+
+/** Networks whose trending pool list is requested before the deeper pool pages. */
+export const DEX_TRENDING_NETWORKS = ["eth", "solana", "base", "bsc"] as const;
 
 /** Liquid public networks. Ids match GeckoTerminal `/networks`. */
 export const DEX_NETWORKS = [
@@ -329,9 +434,12 @@ export function dexSlotKey(network: string, page: number): string {
 }
 
 export function dexTargets(pageCap = DEX_PAGE_CAP): { network: string; page: number }[] {
-  const targets: { network: string; page: number }[] = [];
+  const targets: { network: string; page: number }[] = [{ network: DEX_TRENDING, page: 1 }];
+  for (const network of DEX_TRENDING_NETWORKS) {
+    targets.push({ network: `${DEX_TREND_PREFIX}${network}`, page: 1 });
+  }
   for (let page = 1; page <= pageCap; page++) {
-    targets.push({ network: DEX_TRENDING, page });
+    if (page > 1) targets.push({ network: DEX_TRENDING, page });
     for (const network of DEX_NETWORKS) targets.push({ network, page });
   }
   return targets;
@@ -357,11 +465,16 @@ export function freshDexRows(pages: DexStoredPage[], now: number, staleMs = DEX_
  * Honest DEX count. A full list has no notice.
  * `stalled` means the walk stopped (rate limit) rather than still filling.
  */
-export function dexListNotice(rowCount: number, stalled = false): string | null {
-  if (rowCount >= DEX_TARGET_COUNT) return null;
-  if (rowCount <= 0) return DEX_EMPTY_NOTICE;
+export function dexListNotice(rowCount: number, stalled = false, kind: DexListKind = "pools"): string | null {
+  if (kind === "empty" || rowCount <= 0) return dexEmptyNotice();
+  if (rowCount >= DEX_TARGET_COUNT && kind === "pools") return null;
   const lead = `Showing ${rowCount} of up to 400.`;
+  if (kind === "snapshot") return `${lead} Last saved DEX list. A newer list is not in this response.`;
+  if (kind === "screener" && dexscreenerPublicDisplay()) {
+    return `${lead} DexScreener list. GeckoTerminal did not return a token list.`;
+  }
   if (stalled) return `${lead} The rate limit stopped the list.`;
+  if (rowCount >= DEX_TARGET_COUNT) return null;
   return `${lead} ${DEX_FURTHER_NOTICE}`;
 }
 
@@ -440,6 +553,7 @@ export function mergeDexPages(previous: DexStoredPage[], incoming: DexStoredPage
  */
 export function mergeDexLists(previous: DexTokenRow[], incoming: DexTokenRow[], rateLimited: boolean): DexTokenRow[] {
   const next = dedupeDexTokens(incoming, DEX_TARGET_COUNT);
+  if (next.length === 0) return dedupeDexTokens(previous, DEX_TARGET_COUNT);
   if (!rateLimited || previous.length === 0) return next;
   const merged = dedupeDexTokens([...previous, ...incoming], DEX_TARGET_COUNT);
   return merged.length >= previous.length ? merged : dedupeDexTokens(previous, DEX_TARGET_COUNT);

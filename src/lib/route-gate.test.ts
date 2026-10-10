@@ -24,6 +24,7 @@ describe("H7 unknown URLs are missing pages", () => {
     expect(documentAccess("/dashboard")).toBe("public");
     expect(documentAccess("/stox")).toBe("public");
     expect(documentAccess("/koins")).toBe("public");
+    expect(documentAccess("/unsubscribe")).toBe("public");
   });
 
   it("rewrites a missing document to the 404 and keeps legacy redirects", () => {

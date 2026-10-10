@@ -17,6 +17,7 @@ import {
   noteProviderResult,
   quoteWithProviders,
   resolveEquityPrint,
+  unpricedFootnote,
   usPageShouldNoindex,
   type EquityPrint,
   type SavedPrint,
@@ -41,16 +42,34 @@ describe("stock board coverage", () => {
     expect(coverageSentence(60, 178)).toBe("Showing 60 of 178 listed");
     expect(coverageSentence(212, 1923)).toBe("Showing 212 of 1923 listed");
     expect(coverageSentence(30, 30)).toBe("Showing 30 of 30 listed");
-    expect(coverageSentence(4376, 5622)).toBe("Showing 4376 of 5622 listed");
-    expect(coverageSentence(3290, 2900)).toBe("Showing 3290 names. A directory file counted 2900 symbols.");
+    expect(coverageSentence(4376, 4376)).toBe("Showing 4376 of 4376 listed");
+    expect(coverageSentence(3290, 2900)).toBe("Showing 3290 of 3290 listed");
 
     expect(boardCoverage("NZX")).toMatchObject({ shown: 60, listed: 178, line: "Showing 60 of 178 listed" });
     expect(boardCoverage("ASX")).toMatchObject({ shown: 212, listed: 1923, line: "Showing 212 of 1923 listed" });
     expect(boardCoverage("DOW")).toMatchObject({ shown: 30, listed: 30, line: "Showing 30 of 30 listed" });
-    expect(boardCoverage("NASDAQ").shown).toBe(4376);
-    expect(boardCoverage("NASDAQ").line).toBe("Showing 4376 of 5622 listed");
-    expect(boardCoverage("NYSE").shown).toBe(3290);
-    expect(boardCoverage("NYSE").line).toContain("2900");
+    const nasdaqAll = listingsFor("NASDAQ");
+    const nasdaqOrdinary = nasdaqAll.filter((row) => !isDerivativeOrTestSecurity(row.ticker, row.name));
+    const nyseAll = listingsFor("NYSE");
+    const nyseOrdinary = nyseAll.filter((row) => !isDerivativeOrTestSecurity(row.ticker, row.name));
+    expect(nasdaqOrdinary.length).toBeLessThan(nasdaqAll.length);
+    expect(nyseOrdinary.length).toBeLessThan(nyseAll.length);
+    expect(boardCoverage("NASDAQ")).toMatchObject({
+      shown: nasdaqOrdinary.length,
+      listed: nasdaqOrdinary.length,
+    });
+    expect(boardCoverage("NASDAQ").line).toBe(
+      `Showing ${nasdaqOrdinary.length} of ${nasdaqOrdinary.length} listed. This count is ordinary names. Warrants, units and rights are not included.`
+    );
+    expect(boardCoverage("NYSE").line).toBe(
+      `Showing ${nyseOrdinary.length} of ${nyseOrdinary.length} listed. This count is ordinary names. Warrants, units and rights are not included.`
+    );
+    expect(boardCoverage("NASDAQ", { includeDerivatives: true }).line).toBe(
+      `Showing ${nasdaqAll.length} of ${nasdaqAll.length} listed. This count includes warrants, units and rights.`
+    );
+    expect(boardCoverage("NYSE", { includeDerivatives: true }).shown).toBe(nyseAll.length);
+    expect(boardCoverage("NASDAQ").line).not.toMatch(/5622|2900|directory file/);
+    expect(boardCoverage("NYSE").line).not.toMatch(/5622|2900|directory file/);
 
     expect(findListing("FBU.NZ")?.name).toBe("Fletcher Building");
     expect(findListing("BHP.AX")?.board).toBe("ASX");
@@ -74,6 +93,13 @@ describe("stock board coverage", () => {
     expect(isDerivativeOrTestSecurity("AACIW", "Aadi Bioscience, Inc. Warrant")).toBe(true);
     expect(isDerivativeOrTestSecurity("GROW", "U.S. Global Investors, Inc.")).toBe(false);
     expect(isDerivativeOrTestSecurity("ZVZZT", "NASDAQ TEST")).toBe(true);
+    expect(isDerivativeOrTestSecurity("ABC-WT", "Example Inc.")).toBe(true);
+    expect(isDerivativeOrTestSecurity("ABC-UN", "Example Inc.")).toBe(true);
+    expect(isDerivativeOrTestSecurity("ABC-RI", "Example Inc.")).toBe(true);
+    expect(isDerivativeOrTestSecurity("AIR", "AAR Corp.")).toBe(false);
+    expect(unpricedFootnote(0)).toBeNull();
+    expect(unpricedFootnote(1)).toBe("1 listing has no price in this response");
+    expect(unpricedFootnote(12)).toBe("12 listings have no price in this response");
     expect(hasRecentVerifiedPrice({ price: 12, quotedAt: "2026-10-09T00:00:00.000Z" }, Date.parse("2026-10-10T00:00:00.000Z"))).toBe(true);
     expect(hasRecentVerifiedPrice({ price: 0, quotedAt: "2026-10-09T00:00:00.000Z" }, Date.parse("2026-10-10T00:00:00.000Z"))).toBe(false);
     expect(usPageShouldNoindex({ board: "NASDAQ", inSitemap: false, hasQuote: false })).toBe(true);

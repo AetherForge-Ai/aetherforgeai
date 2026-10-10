@@ -6,12 +6,12 @@ import { publicSourceAllowed } from "@/lib/swyftx-display";
 import { loadPublicCryptoPrint, noteListedPrices, recallPublicTab, rememberPublicTab } from "@/lib/crypto-price-feed";
 import { loadTop400Markets } from "@/lib/crypto-source";
 import { formatDisplayDateTime, formatSignedPercent, formatUnitPrice } from "@/lib/currency";
-import { MARKET_INDEX_PAGE, type PublicMarketIndex, type PublicPriceRow, type PublicPriceTab } from "@/lib/public-market-types";
+import { PUBLIC_SEED_ROWS, type PublicMarketIndex, type PublicPriceRow, type PublicPriceTab } from "@/lib/public-market-types";
 import { boardCoverage, pageListings } from "@/lib/stock-catalog";
 import { loadSavedQuoteLine, loadStockBoardPage } from "@/lib/stock-board.server";
-import { PRICE_NOT_IN_RESPONSE, type StockBoard } from "@/lib/stock-markets";
+import { PRICE_NOT_IN_RESPONSE, unpricedFootnote, type StockBoard } from "@/lib/stock-markets";
 
-const COIN_PAGE = 25;
+const COIN_PAGE = PUBLIC_SEED_ROWS;
 /** Cold /markets waits this long, then says the price is not in the response. */
 const EQUITY_BUDGET_MS = 3000;
 const ALT_BUDGET_MS = 3000;
@@ -75,7 +75,7 @@ async function loadEquityTab(board: StockBoard): Promise<PublicPriceTab> {
     console.error(`[public-market-index] ${board} board failed:`, err);
     return equityFallback(board);
   }
-  const rows: PublicPriceRow[] = page.rows.slice(0, MARKET_INDEX_PAGE).map((row) => ({
+  const rows: PublicPriceRow[] = page.rows.slice(0, PUBLIC_SEED_ROWS).map((row) => ({
     symbol: row.symbol,
     name: row.name,
     price: row.quoted ? row.priceLabel : PRICE_NOT_IN_RESPONSE,
@@ -90,6 +90,7 @@ async function loadEquityTab(board: StockBoard): Promise<PublicPriceTab> {
     asOf: page.asOf ? asOfLabel(page.asOf) : page.freshness,
     coverage: page.coverage,
     note: page.note,
+    footnote: page.footnote || undefined,
     rows,
   };
 }
@@ -191,15 +192,8 @@ function equityFallback(id: StockBoard): PublicPriceTab {
     asOf: "as of not stated by the vendor",
     coverage: coverage.line,
     note: coverage.note,
-    rows: page.rows.slice(0, MARKET_INDEX_PAGE).map((row) => ({
-      symbol: row.symbol,
-      name: row.name,
-      price: PRICE_NOT_IN_RESPONSE,
-      change: "change not stated",
-      href: `/markets/stock/${encodeURIComponent(row.ticker)}`,
-      source: "",
-      asOf: "as of not stated by the vendor",
-    })),
+    footnote: unpricedFootnote(Math.min(PUBLIC_SEED_ROWS, page.rows.length)) ?? undefined,
+    rows: [],
   };
 }
 

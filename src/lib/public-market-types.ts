@@ -1,4 +1,6 @@
 export const MARKET_INDEX_PAGE = 50;
+/** Rows embedded in the /markets document. The browser loads the rest. */
+export const PUBLIC_SEED_ROWS = 12;
 
 export interface PublicPriceRow {
   symbol: string;
@@ -25,6 +27,8 @@ export interface PublicPriceTab {
   /** "Showing N of M listed" for a stock board. */
   coverage?: string;
   note?: string;
+  /** Listings on this page whose price was not in the response. */
+  footnote?: string;
   rows: PublicPriceRow[];
 }
 

@@ -9,6 +9,7 @@ import {
   CHANGE_NOT_STATED,
   PRICE_NOT_IN_RESPONSE,
   SNAPSHOT_FRESH_MS,
+  unpricedFootnote,
   freshBreaker,
   quoteWithProviders,
   type BreakerState,
@@ -62,6 +63,8 @@ export interface StockBoardPage {
   freshness: string;
   asOf: string | null;
   rows: StockBoardRow[];
+  unpricedCount: number;
+  footnote: string | null;
 }
 
 const memory = new Map<string, SavedPrint>();
@@ -319,23 +322,26 @@ function toRow(
 
 export async function loadStockBoardPage(
   board: StockBoard,
-  opts?: { page?: number; query?: string; now?: number; waitMs?: number }
+  opts?: { page?: number; query?: string; now?: number; waitMs?: number; includeDerivatives?: boolean }
 ): Promise<StockBoardPage> {
   const now = opts?.now ?? Date.now();
   const query = (opts?.query || "").trim().slice(0, 40);
-  const page = pageListings(board, opts?.page ?? 1, query);
-  const coverage = boardCoverage(board);
+  const view = { includeDerivatives: !!opts?.includeDerivatives };
+  const page = pageListings(board, opts?.page ?? 1, query, view);
+  const coverage = boardCoverage(board, view);
   const prints = await printsFor(
     page.rows.map((row) => row.ticker),
     now,
     opts?.waitMs
   );
-  const rows = page.rows.map((row) => toRow(row, prints[row.ticker] || null));
+  const built = page.rows.map((row) => toRow(row, prints[row.ticker] || null));
+  const rows = built.filter((row) => row.quoted);
+  const unpricedCount = built.length - rows.length;
   const times = rows.map((row) => parseQuoteTime(row.quotedAt)).filter((value): value is Date => !!value);
   const latest = times.sort((a, b) => b.getTime() - a.getTime())[0] || null;
   const meta = META[board];
   console.log(
-    `[stock-board] ${board} page ${page.page}/${page.pageCount}: ${rows.filter((row) => row.quoted).length}/${rows.length} quoted, catalog ${coverage.shown}`
+    `[stock-board] ${board} page ${page.page}/${page.pageCount}: ${rows.length} quoted, ${unpricedCount} without a price, catalog ${coverage.shown}`
   );
   return {
     board,
@@ -352,6 +358,8 @@ export async function loadStockBoardPage(
     freshness: equityFreshnessLabel(venue(board), new Date(now), latest).label,
     asOf: latest ? latest.toISOString() : null,
     rows,
+    unpricedCount,
+    footnote: unpricedFootnote(unpricedCount),
   };
 }
 
