@@ -948,7 +948,7 @@ Auth, mail, login, register, security headers, consent, apex, and `next.config.t
 
 ### B1-2 — fixed
 
-- Status: fixed. Draft https://github.com/AetherForge-Ai/aetherforgeai/pull/275 (`a55f970`, `cursor/b1-2-csv-lock-label-7f63`).
+- Status: fixed. Draft https://github.com/AetherForge-Ai/aetherforgeai/pull/275 (`9c91422`, `cursor/b1-2-csv-lock-label-7f63`).
 - Files: `src/lib/csv-lock-label.ts`, `src/components/tax/CsvExportButton.tsx`, `src/components/tax/DividendLedgerView.tsx`, `src/app/tax/income/page.tsx`, `src/app/tax/realised/page.tsx`, `src/components/dashboard/TransactionCenter.tsx`, `src/components/dashboard/PortfolioDashboard.tsx`, `src/lib/csv-lock-label.test.ts`. Source comment in `src/lib/csv-lock-label.ts`.
 - URL / steps: on Free, open `/tax/dividends`, `/tax/income`, `/tax/realised`, and the transaction ledger. Read the CSV control. On Starter or above, use the same control.
 - Expected: Free shows a disabled control whose visible label is `Export CSV — Starter and above`. The accessible name names the file, for example `Dividends CSV: Export CSV — Starter and above`. Free does not request the export URL. Starter and above download the file. A direct call to the export URL on Free still returns 403.
@@ -969,7 +969,7 @@ Auth, mail, login, register, security headers, consent, apex, and `next.config.t
 
 ### B1-5 — fixed for dividends and holdings
 
-- Status: fixed for the controls that exist. Draft https://github.com/AetherForge-Ai/aetherforgeai/pull/280 (`38020ce`, `cursor/b1-5-delete-confirm-7f63`).
+- Status: fixed for the controls that exist. Draft https://github.com/AetherForge-Ai/aetherforgeai/pull/280 (`3d92d35`, `cursor/b1-5-delete-confirm-7f63`).
 - Files: `src/components/tax/DividendLedgerView.tsx`, `src/components/dashboard/PortfolioDashboard.tsx`. Source comment in `src/components/tax/DividendLedgerView.tsx`.
 - URL / steps: signed in, open `/tax/dividends`. Press Delete on a dividend. Press Escape or Cancel. Press Delete again and confirm. Then, on `/dashboard`, remove a holding and cancel, then confirm.
 - Expected: the dividend dialog is titled `Delete this dividend?` and names the ticker and the NZD amount. Cancel leaves the row. Confirm removes it. The holding dialog names the quantity and the value. Cancel leaves the holding. Both dialogs are keyboard reachable (Cancel and the confirm action). There is no per-trade delete control. `DELETE /api/transactions` removes dividends only, so a trade row has nothing to confirm.
@@ -1004,10 +1004,10 @@ Auth, mail, login, register, security headers, consent, apex, and `next.config.t
 
 ### B1-9 — fixed
 
-- Status: fixed. Draft https://github.com/AetherForge-Ai/aetherforgeai/pull/285 (`19f2522`, `cursor/b1-9-news-relevance-7f63`).
+- Status: fixed. Draft https://github.com/AetherForge-Ai/aetherforgeai/pull/285 (`699859b`, `cursor/b1-9-news-relevance-7f63`).
 - Files: `src/lib/news-present.ts`, `src/lib/news-present.test.ts`. Source comment in `src/lib/news-present.ts`.
 - URL / steps: run `src/lib/news-present.test.ts`. The fixture is 30 market cards plus one held ticker and one off-topic card.
-- Expected: the 30 market cards stay. A card that names a held ticker (2 to 12 characters, word boundary) stays even if it would otherwise be off topic. Dropped cards are logged as `[news] dropped`. The existing Paris, French market, Jersey Electricity, and similar cards that the current tests require are still kept. Raw entity names are not printed as a separate field.
+- Expected: the 30 market cards stay, plus the Reserve Bank OCR card and the US CPI card that the public feed always adds, plus the held WOR.AX card. The lifestyle card is gone. A card that names a held ticker (2 to 12 characters, word boundary) stays even if it would otherwise be off topic. Dropped cards are logged as `[news] dropped`. The existing Paris, French market, Jersey Electricity, and similar cards that the current tests require are still kept. Raw entity names are not printed as a separate field.
 
 ### B1-10 — fixed
 
@@ -1039,7 +1039,7 @@ Auth, mail, login, register, security headers, consent, apex, and `next.config.t
 
 ### R10 — fixed
 
-- Status: fixed. Retest item 10. Draft https://github.com/AetherForge-Ai/aetherforgeai/pull/293 (`652488b`, `cursor/r10-fifo-income-7f63`).
+- Status: fixed. Retest item 10. Draft https://github.com/AetherForge-Ai/aetherforgeai/pull/293 (`70b6082`, `cursor/r10-fifo-income-7f63`).
 - Files: `src/lib/tax-realised.ts`, `src/lib/transactions.ts`, `src/app/tax/income/page.tsx`, `src/lib/tax-realised.test.ts`. Source comment in `src/lib/tax-realised.ts`.
 - URL / steps: record a new sell against two earlier buys at different prices. Open `/tax` realised and `/tax/income` for that tax year. Separately, keep an older sell whose stored total is −NZ$10.59 while FIFO is −NZ$10.67.
 - Expected: the new sell stores the FIFO price gain, the FIFO FX gain, and the fee-subtracted total in the existing realised columns. `/tax/income` shows that stored total. No new database column is used. Older rows are not rewritten. When the stored total and the FIFO total differ by at least half a cent, `/tax/income` shows one sentence with both figures: the stored amount and the FIFO amount, and the words `New sells store the FIFO figure.` When they match, that sentence is absent. If the history query fails, the new sell keeps the previous average-cost figure.
@@ -1057,4 +1057,26 @@ Auth, mail, login, register, security headers, consent, apex, and `next.config.t
 - Files: `src/app/logout/page.tsx`, `src/lib/logout-finish.ts`, `src/lib/logout-finish.test.ts`. Source comment in `src/lib/logout-finish.ts` and `src/app/logout/page.tsx`.
 - URL / steps: sign in, open `/logout`, and wait. Do not add `?done=1` by hand.
 - Expected: within about 8 seconds the address becomes `/logout?done=1` and the card says you have been logged out, or the card says `Sign-out did not finish` with `Try sign-out again`. The spinner `Signing you out…` does not stay up with no further change. A successful POST whose session check never returns still goes to the done card. A POST that times out shows the error card. `src/lib/auth.ts`, login, and register were not edited.
+
+### Checks
+
+Local, on each draft branch, after the fixes below. `npm test` is `vitest run`. `tsc` is `tsc --noEmit --skipLibCheck`. `build` is `NEXT_TELEMETRY_DISABLED=1 DISABLE_OPENNEXT=true next build`. Nothing was published. No email was sent.
+
+- B1-1: 528 tests passed, tsc passed, build passed.
+- B1-2: first tsc failed because the full-history dialog used `csvAllowed` without a prop. Fixed in `9c91422`. Recheck: 528 tests passed, tsc passed, build passed.
+- B1-3: 531 tests passed, tsc passed, build passed.
+- B1-4: 527 tests passed, tsc passed, build passed.
+- B1-5: first tsc failed because the holding dialog called `currencyForTicker` without an import. Fixed in `3d92d35`. Recheck: 527 tests passed, tsc passed, build passed.
+- B1-6: 528 tests passed, tsc passed, build passed.
+- R5: 527 tests passed, tsc passed, build passed.
+- B1-7: 529 tests passed, tsc passed, build passed.
+- B1-8: no new commit. The sitemap hygiene test is part of the suites above.
+- B1-9: the 30-card test first expected 31 rows and then called a hand-rolled logger as a Vitest spy. The public feed also adds the OCR and CPI cards, so the fixture is 33 rows, and the logger is asserted on its own. Fixed in `699859b`. Recheck: 528 tests passed, tsc passed, build passed.
+- B1-10: 527 tests passed, tsc passed, build passed.
+- B1-11: 528 tests passed, tsc passed, build passed.
+- B1-12: no code change, so no new test run.
+- B1-13: 528 tests passed, tsc passed, build passed.
+- R10: first tsc failed on the history-row cast. Fixed in `70b6082` by casting through `unknown`. Recheck: 528 tests passed, tsc passed, build passed.
+- R11: 527 tests passed, tsc passed, build passed.
+- R12: 529 tests passed, tsc passed, build passed.
 
