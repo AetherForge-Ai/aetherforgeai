@@ -35,6 +35,8 @@ import {
 } from "@/lib/fill-integrity";
 import { canonicalCryptoId } from "@/lib/crypto-ids";
 import { venueForTicker, fifoApplySell, type FifoLot } from "@/lib/ledger-schema";
+import { fifoStoredForSell } from "@/lib/tax-realised";
+import type { TaxLedgerRow } from "@/lib/taxable-income";
 import { logLedgerAudit, appendAuditNote } from "@/lib/ledger-audit";
 import { feedEntryForTicker } from "@/lib/feed-mapping";
 import { withUserTradeLock } from "@/lib/trade-lock";
@@ -1041,7 +1043,35 @@ async function applyTransactionUnlocked(
   const realizedNZD = round(realizedPriceNZD + realizedFxNZD);
   // Keep legacy native→NZD path as sanity floor when FIFO fx identical
   const legacyRealizedNZD = round(nzdAtBookRate(realizedNative, currency, rates));
-  const realizedBooked = Math.abs(sellFx - lotFx) < 1e-9 ? legacyRealizedNZD : realizedNZD;
+  let realizedBooked = Math.abs(sellFx - lotFx) < 1e-9 ? legacyRealizedNZD : realizedNZD;
+  let bookedPrice = Math.abs(sellFx - lotFx) < 1e-9 ? legacyRealizedNZD : realizedPriceNZD;
+  let bookedFx = Math.abs(sellFx - lotFx) < 1e-9 ? 0 : realizedFxNZD;
+  try {
+    const history = await totalumSdk.crud.query("transaction", {
+      _filter: { user: user._id },
+      _limit: 5000,
+    });
+    const prior = ((history?.data as TaxLedgerRow[]) || []).filter((row) => row && row.type);
+    const fromLots = fifoStoredForSell(prior, {
+      type: "sell",
+      ticker,
+      asset_type: assetType,
+      quantity,
+      price,
+      fees,
+      fees_nzd: round(nzdAtBookRate(fees, currency, rates)),
+      currency,
+      fx_rate: sellFx,
+      executed_at: String(executedStored),
+    });
+    if (fromLots) {
+      bookedPrice = fromLots.pricePnlNzd;
+      bookedFx = fromLots.fxPnlNzd;
+      realizedBooked = fromLots.realisedNzd;
+    }
+  } catch (err) {
+    console.error("[transactions] FIFO lot read failed, keeping the average-cost figure:", err);
+  }
 
   const stamp = dexStamp(input, holding);
   const closed = sold.shares <= 1e-6;
@@ -1078,8 +1108,8 @@ async function applyTransactionUnlocked(
     fees_nzd: round(nzdAtBookRate(fees, currency, rates)),
     total: round(proceedsNZD),
     realized_pnl: realizedBooked,
-    realized_price_pnl_nzd: Math.abs(sellFx - lotFx) < 1e-9 ? legacyRealizedNZD : realizedPriceNZD,
-    realized_fx_pnl_nzd: Math.abs(sellFx - lotFx) < 1e-9 ? 0 : realizedFxNZD,
+    realized_price_pnl_nzd: bookedPrice,
+    realized_fx_pnl_nzd: bookedFx,
     realized_pnl_nzd: realizedBooked,
     fill_price: roundFillPrice(price),
     fill_currency: currency,
