@@ -5,6 +5,9 @@ import { publisherTextHasSignalWord } from "@/lib/public-intel";
 export const P1_FOLLOWUP_PUBLISHER_HEADLINES_VERBATIM =
   "p1-followup-publisher-headlines-verbatim-92fa";
 
+/** Pull-check marker for the 8 Oct retest follow-ups (entities, relevance, signals, markets tabs). */
+export const P1_FOLLOWUP_RETEST_FIXES = "p1-followup-retest-entities-relevance-signals-tabs-90e2";
+
 /**
  * Official cash rate as published by the Reserve Bank of New Zealand.
  * Fetched 4 October 2026 from the page below: 2.75%, updated 2:00pm on 2 September 2026,
@@ -91,19 +94,69 @@ export function sourceForUrl(url: string, fallback: string): string {
 }
 
 const OFF_TOPIC =
-  /\b(froyo|frozen yogh?urt|jaguar|bin collectors?|election debates?|leaders['’]?\s+debate|royal rumble|data virtuali[sz]ation|strategic business report|lifestyle|celebrity|red carpet|recipe|premiere|stuntwomen|carjacking|liquor licences)\b/i;
+  /\b(froyo|frozen yogh?urt|jaguar|bin collectors?|election debates?|leaders['’]?\s+debate|royal rumble|data virtuali[sz]ation|strategic business report|lifestyle|celebrity|red carpet|recipe|premiere|stuntwomen|carjacking|liquor licences|wealthy people can teach|variable rate fix|as agent bank|evident\s+ai)\b|\btops\b.{0,80}\bbanking index\b/i;
+
+const NAMED_ENTITIES: Record<string, string> = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  nbsp: " ",
+  hellip: "…",
+  mdash: "—",
+  ndash: "–",
+  lsquo: "\u2018",
+  rsquo: "\u2019",
+  ldquo: "\u201c",
+  rdquo: "\u201d",
+  bull: "•",
+  middot: "·",
+};
+
+function decodeCodePoint(code: number): string | null {
+  if (!Number.isFinite(code) || code < 0 || code > 0x10ffff) return null;
+  if ((code >= 0xd800 && code <= 0xdfff) || (code < 32 && code !== 9 && code !== 10 && code !== 13)) return null;
+  try {
+    return String.fromCodePoint(code);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Named and numeric HTML entities become characters. Words stay as written.
+ * Call this on headline, summary and source only — never on a URL.
+ */
+export function decodeHtmlEntities(input: string): string {
+  let value = input;
+  for (let pass = 0; pass < 2; pass++) {
+    const next = value
+      .replace(/&#(\d+);/g, (match, digits: string) => decodeCodePoint(Number(digits)) ?? match)
+      .replace(/&#x([0-9a-f]+);/gi, (match, hex: string) => decodeCodePoint(parseInt(hex, 16)) ?? match)
+      .replace(/&([a-z][a-z0-9]+);/gi, (match, name: string) => NAMED_ENTITIES[name.toLowerCase()] ?? match);
+    if (next === value) break;
+    value = next;
+  }
+  return value;
+}
 
 const MARKET_SIGNAL =
-  /\b(share|shares|stock|stocks|market|markets|nzx|asx|nasdaq|dow|s&p|rbnz|rba|ocr|cpi|inflation|gdp|earnings|dividend|ipo|bond|currency|oil|iron|bank|bitcoin|crypto|ethereum|fed|fomc|treasury|index|investor|trading|economy|economic|fonterra|profit|revenue|nzd|usd|aud|gold|silver|commodity|equity|listing|cash rate|interest)\b/i;
+  /\b(share|shares|stock|stocks|market|markets|nzx|asx|nasdaq|dow|s&p|rbnz|rba|ocr|cpi|inflation|gdp|earnings|dividend|ipo|bond|currency|oil|iron|banks?|bitcoin|crypto|ethereum|fed|fomc|treasury|index|investor|trading|economy|economic|fonterra|profit|revenue|nzd|usd|aud|gold|silver|commodity|equity|listing|cash rate|interest)\b/i;
 
 const CRYPTO_HOST = /(beincrypto|coindesk|cointelegraph|theblock|decrypt|cryptoslate)\./i;
 
+/** A crypto-feed card has to be about a digital asset. Equity wraps are dropped. */
+const CRYPTO_ASSET =
+  /\b(bitcoin|btc|ethereum|ether|crypto(?:currency)?s?|digital assets?|blockchain|defi|stablecoins?|solana|altcoins?|dogecoin|ripple|xrp|cardano|binance|coinbase|nft|web3)\b|\beth\b/i;
+
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-/** Lifestyle, motoring and other non-market headlines. */
+/** Lifestyle, motoring and other non-market headlines. A digital-asset story is on-topic. */
 export function isOffTopicStory(headline: string, summary = ""): boolean {
   const blob = `${headline} ${summary}`;
   if (OFF_TOPIC.test(blob)) return true;
+  if (CRYPTO_ASSET.test(blob)) return false;
   return !MARKET_SIGNAL.test(blob);
 }
 
@@ -189,13 +242,20 @@ function alignStoryMarket(item: NewsItem): NewsItem | null {
   const nz = NZ_ANCHOR.test(blob);
   const au = AU_ANCHOR.test(blob);
   const us = US_ANCHOR.test(blob);
-  const france = /\b(france|french|paris)\b/i.test(blob);
   const election = /\b(election|leaders['’]?\s+debate|royal rumble)\b/i.test(blob);
   const ukMiners = /\b(uk|u\.k\.|britain|british)\b/i.test(blob) && /\bminers?\b/i.test(blob);
   const dataRelease = /\b(data virtuali[sz]ation|strategic business report)\b/i.test(blob);
+  // The retest column only. A Paris or French market story stays.
+  const franceDebtBomb =
+    /\bmagic money\b/i.test(blob) ||
+    (/\b(france|french)\b/i.test(blob) && /\bdebt bomb\b/i.test(blob));
+
+  if (franceDebtBomb) return null;
+  // The crypto feed only carries digital-asset stories. Equity wraps are dropped.
+  if (item.market === "CRYPTO" && !CRYPTO_ASSET.test(blob)) return null;
 
   const contradicted =
-    (item.market === "NZX" && (france || election) && !nz) ||
+    (item.market === "NZX" && election && !nz) ||
     (item.market === "ASX" && ukMiners && !au) ||
     (item.market === "US" && dataRelease && !us);
 
@@ -243,7 +303,14 @@ export function prepareNewsFeed(items: NewsItem[], now = new Date()): NewsItem[]
   let hasOcr = false;
   let hasCpi = false;
 
-  for (const item of items) {
+  for (const rawItem of items) {
+    const item: NewsItem = {
+      ...rawItem,
+      headline: decodeHtmlEntities(rawItem.headline),
+      summary: decodeHtmlEntities(rawItem.summary),
+      source: decodeHtmlEntities(rawItem.source),
+      url: rawItem.url,
+    };
     if (isStaleOcr(item)) continue;
     if (item.headline === OFFICIAL_OCR_NEWS.headline || item.url.includes("the-official-cash-rate")) {
       if (hasOcr) continue;
@@ -266,8 +333,8 @@ export function prepareNewsFeed(items: NewsItem[], now = new Date()): NewsItem[]
       ...aligned,
       headline: item.headline,
       summary: item.summary,
-      url: item.url,
-      source: sourceForUrl(item.url, item.source),
+      url: rawItem.url,
+      source: decodeHtmlEntities(sourceForUrl(rawItem.url, item.source)),
     });
   }
 

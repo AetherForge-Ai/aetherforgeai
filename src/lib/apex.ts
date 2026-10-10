@@ -41,6 +41,8 @@ import {
   type TapeRead,
 } from "./report-consistency";
 import { marketFeedUnavailableLine } from "./report-scope";
+import { CRYPTO_DIRECTORY } from "./crypto-directory";
+import { labelIntel } from "./security-signal";
 
 export type BotKind = "stock" | "crypto";
 
@@ -244,20 +246,6 @@ const DEMO_CRYPTO = [
   { ticker: "LINK", name: "Chainlink" },
 ];
 
-export const CRYPTO_DIRECTORY = [
-  { ticker: "BTC", name: "Bitcoin", price: 96850 },
-  { ticker: "ETH", name: "Ethereum", price: 3420 },
-  { ticker: "SOL", name: "Solana", price: 198.4 },
-  { ticker: "XRP", name: "XRP", price: 2.31 },
-  { ticker: "ADA", name: "Cardano", price: 0.98 },
-  { ticker: "LINK", name: "Chainlink", price: 24.7 },
-  { ticker: "DOGE", name: "Dogecoin", price: 0.38 },
-  { ticker: "AVAX", name: "Avalanche", price: 41.2 },
-  { ticker: "DOT", name: "Polkadot", price: 8.15 },
-  { ticker: "MATIC", name: "Polygon", price: 0.62 },
-  { ticker: "JUP", name: "Jupiter", price: 0.85 },
-];
-
 const SIGNALS: TickerAnalysis["signal"][] = ["Strong Buy", "Accumulate", "Hold", "Watch", "Reduce"];
 
 /* ----------------------------- Synthesis -------------------------------- */
@@ -364,7 +352,8 @@ function synthesizeTicker(
 
 /** Per-asset card built from the same SecurityIntel the recommendations use. */
 function tickerFromIntel(intel: SecurityIntel, _bot: BotKind): TickerAnalysis {
-  const rating = rateAsset(intel);
+  const rated = labelIntel(intel);
+  const rating = rateAsset(rated);
   const aligned = alignedProjection(intel);
   const history = intel.history.length ? intel.history : [{ label: "Now", price: intel.price }];
   const momentum: MomentumPoint[] = history.map((p) => ({ label: p.label, value: p.price }));
@@ -524,7 +513,7 @@ function buildProjectionLeaders(
   const hasIntel = !!(universeIntel && universeIntel.length);
   const hasLive = !!(overrides && Object.keys(overrides).length > 0);
   if (!hasIntel && !hasLive && !allowSynthetic) return [];
-  const list = hasIntel ? universeIntel! : analyzeUniverse(overrides, bot);
+  const list = (hasIntel ? universeIntel! : analyzeUniverse(overrides, bot)).map((row) => labelIntel(row));
   return getProjectionLeaders(10, list).map((s) => ({
     ticker: s.ticker,
     name: s.name,
@@ -621,9 +610,10 @@ function buildDirectRecommendations(
     : undefined;
 
   const fromHoldings: DirectRecommendation[] = holdings.map((h) => {
-    const intel =
+    const intel = labelIntel(
       intelByTicker.get(h.ticker.toUpperCase()) ??
-      analyzeSecurity(h.ticker, h.price > 0 ? h.price : undefined, h.name, h.market);
+        analyzeSecurity(h.ticker, h.price > 0 ? h.price : undefined, h.name, h.market)
+    );
     const aligned = alignedProjection(intel);
     const rating = rateAsset(intel);
     return {
@@ -659,9 +649,9 @@ function buildDirectRecommendations(
           // Directory seed is not an actionable price unless a live print replaced it.
           if (priceMatchesUniverseSeed(i.ticker, i.price) && live == null) return [];
           if (live != null && Math.abs(live - i.price) > 1e-6) {
-            return [analyzeSecurity(i.ticker, live, i.name, i.market)];
+            return [labelIntel(analyzeSecurity(i.ticker, live, i.name, i.market))];
           }
-          return [i];
+          return [labelIntel(i)];
         })
       : universeFor(bot)
           .filter((e) => !held.has(e.ticker.toUpperCase()))
@@ -670,7 +660,7 @@ function buildDirectRecommendations(
             // A supplied override map means this is a live report. Do not
             // quote the synthetic basePrice when Yahoo/the feed has no print.
             if (liveBook && live == null) return [];
-            const intel = analyzeSecurity(e.ticker, live, e.name, e.market);
+            const intel = labelIntel(analyzeSecurity(e.ticker, live, e.name, e.market));
             if (priceMatchesUniverseSeed(e.ticker, intel.price) && live == null) return [];
             return [intel];
           });

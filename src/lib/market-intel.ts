@@ -914,7 +914,7 @@ function projectForward(
   }
   const rawPct = ((path[path.length - 1] - last) / last) * 100;
   // Penny-priced series can imply +1000% in a week. Cap the claim and drop
-  // confidence so a wild slope is not shown as a high-conviction Strong Buy.
+  // confidence so a wild slope is not shown as a high score.
   const cap = 25 * volScale;
   const extreme = Math.abs(rawPct) > cap;
   const pct = round(clamp(rawPct, -cap, cap), 2);
@@ -1102,7 +1102,7 @@ function deriveSignal(input: {
   vsSma20: number;
   projected7dPct: number;
   bbPosition: number;
-}): { signal: SecurityIntel["signal"]; score: number; reasoning: string } {
+}): { score: number; reasoning: string } {
   const { rsi, macdHistogram, vsSma20, projected7dPct, bbPosition } = input;
   let score = 50;
   const notes: string[] = [];
@@ -1150,15 +1150,8 @@ function deriveSignal(input: {
 
   score = Math.round(clamp(score, 2, 98));
 
-  let signal: SecurityIntel["signal"];
-  if (score >= 72) signal = "Strong Buy";
-  else if (score >= 58) signal = "Buy";
-  else if (score >= 42) signal = "Hold";
-  else if (score >= 28) signal = "Reduce";
-  else signal = "Sell";
-
   const reasoning = notes.length ? `${notes.join("; ")}.` : "";
-  return { signal, score, reasoning };
+  return { score, reasoning };
 }
 
 /* --------------------------- Per-security intel ------------------------- */
@@ -1242,7 +1235,7 @@ export function analyzeSecurity(
   const vol = computeRealizedVol(series, 30);
   const levels = computeLevels(series, last);
 
-  const { signal, score, reasoning } = deriveSignal({
+  const { score, reasoning } = deriveSignal({
     rsi,
     macdHistogram: macd.histogram,
     vsSma20,
@@ -1310,7 +1303,9 @@ export function analyzeSecurity(
     resistance: levels.resistance,
     pivot: levels.pivot,
     outlook,
-    signal,
+    // Rating words stay on the report path. This shared engine is imported by
+    // public pages, so it keeps the score and a neutral placeholder only.
+    signal: "Hold",
     score,
     conviction: conviction.level,
     convictionReason: conviction.reason,
