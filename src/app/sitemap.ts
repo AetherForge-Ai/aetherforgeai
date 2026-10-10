@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { publicTickerPaths } from "@/lib/sitemap-tickers";
 
 const siteUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.aetherforgeai.co.nz";
 
@@ -26,7 +27,8 @@ const ENTRIES: Array<{
   { path: "/trust", changeFrequency: "monthly", priority: 0.6, lastModified: "2026-10-10" },
   { path: "/docs", changeFrequency: "monthly", priority: 0.6, lastModified: "2026-10-10" },
   { path: "/tax", changeFrequency: "monthly", priority: 0.5, lastModified: "2026-10-10" },
-  { path: "/changelog", changeFrequency: "monthly", priority: 0.3, lastModified: "2026-10-10" },
+  { path: "/changelog", changeFrequency: "monthly", priority: 0.3, lastModified: "2026-10-11" },
+  { path: "/status", changeFrequency: "weekly", priority: 0.4, lastModified: "2026-10-11" },
   { path: "/stox", changeFrequency: "monthly", priority: 0.6, lastModified: "2026-10-10" },
   { path: "/koins", changeFrequency: "monthly", priority: 0.6, lastModified: "2026-10-10" },
   { path: "/smitty", changeFrequency: "monthly", priority: 0.5, lastModified: "2026-10-10" },
@@ -34,10 +36,17 @@ const ENTRIES: Array<{
 ];
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  return ENTRIES.map((entry) => ({
+  const pages = ENTRIES.map((entry) => ({
     url: `${siteUrl}${entry.path}`,
     lastModified: entry.lastModified,
     changeFrequency: entry.changeFrequency,
     priority: entry.priority,
   }));
+  const tickers = publicTickerPaths().map((path) => ({
+    url: `${siteUrl}${path}`,
+    lastModified: "2026-10-11",
+    changeFrequency: "weekly" as const,
+    priority: 0.5,
+  }));
+  return [...pages, ...tickers];
 }

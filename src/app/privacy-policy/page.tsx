@@ -3,7 +3,7 @@ import { EmailAddress } from "@/components/EmailAddress";
 import { LEGAL_ENTITY_NAME } from "@/lib/company";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { pageTitle } from "@/lib/page-title";
-import { ANALYTICS_NOTICE, LEGAL_UPDATED, PROCESSORS } from "@/lib/public-copy";
+import { AI_REQUEST_LINES, ANALYTICS_NOTICE, CUSTOMER_EMAIL, LEGAL_UPDATED, PRIVACY_OFFICER_EMAIL, PROCESSORS } from "@/lib/public-copy";
 
 export const metadata = publicPageMetadata("/privacy-policy", {
   title: pageTitle("Privacy Policy"),
@@ -85,12 +85,11 @@ export default function PrivacyPolicy() {
       </LegalSection>
 
       <LegalSection heading="4. Artificial intelligence & automated processing">
+        {AI_REQUEST_LINES.map((line) => (
+          <p key={line.slice(0, 24)}>{line}</p>
+        ))}
         <p>
-          AetherForge AI uses an AI provider to write plain-English notes. The holdings and prompts you
-          submit may be transmitted to that provider solely to produce those notes. We do not use your
-          personal financial data to train third-party AI models, and we do not make automated decisions
-          that produce legal or similarly significant effects about you. AI-written notes are
-          informational only — see our{" "}
+          AI-written notes are informational only — see our{" "}
           <a href="/ai-disclaimer" className="text-primary hover:underline">
             AI Disclaimer
           </a>
@@ -127,7 +126,7 @@ export default function PrivacyPolicy() {
       <LegalSection heading="6. Sending information overseas (IPP 12)">
         <p>
           Some of the processors named in section 5 are located outside New Zealand. That list includes
-          Cloudflare, Stripe, an AI provider, Google Analytics, Totalum on Google Cloud, Yahoo Finance,
+          Cloudflare, Stripe, a third-party AI service, Google Analytics, Totalum on Google Cloud, Yahoo Finance,
           CoinGecko, Swyftx, GeckoTerminal, gold-api.com, ExchangeRate-API and Frankfurter.
           Google Analytics runs only after you accept analytics cookies. Where we disclose
           personal information overseas, we take reasonable steps to ensure it is protected by
@@ -195,8 +194,10 @@ export default function PrivacyPolicy() {
       <LegalSection heading="13. Complaints & contact">
         <p>
           If you have a question, wish to exercise your privacy rights, or want to make a complaint about
-          how we have handled your personal information, email the Privacy Officer at{" "}
-          <EmailAddress email="lukas@aetherforgeai.co.nz" className="text-primary" />
+          how we have handled your personal information, email{" "}
+          <EmailAddress email={CUSTOMER_EMAIL} className="text-primary" />
+          {" or the Privacy Officer at "}
+          <EmailAddress email={PRIVACY_OFFICER_EMAIL} className="text-primary" />
           . You can also use the contact form on the{" "}
           <a href="/about#contact" className="text-primary hover:underline">
             About

@@ -21,6 +21,10 @@ export function MarketNewsPageContent({
   const [note, setNote] = useState<string | null>(null);
 
   useEffect(() => {
+    if (initialNews.length > 2) {
+      setPending(false);
+      return;
+    }
     let active = true;
     fetch("/api/news")
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error(String(res.status)))))

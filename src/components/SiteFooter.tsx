@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { CookieSettingsLink } from "@/components/CookieSettingsLink";
 import { LEGAL_ENTITY_NAME, NZBN, REGISTERED_OFFICE } from "@/lib/company";
-import { CUSTOMER_EMAIL } from "@/lib/public-copy";
+import { CUSTOMER_EMAIL, PRIVACY_OFFICER_EMAIL, PUBLIC_PHONE_DISPLAY, PUBLIC_PHONE_TEL } from "@/lib/public-copy";
 import { EmailAddress } from "@/components/EmailAddress";
 
 const LINKS = [
@@ -10,6 +10,7 @@ const LINKS = [
   { href: "/ai-disclaimer", label: "AI Disclaimer" },
   { href: "/trust", label: "Trust" },
   { href: "/about#contact", label: "Contact" },
+  { href: "/status", label: "Status" },
   { href: "/docs", label: "Docs" },
   { href: "/pricing", label: "Pricing" },
 ] as const;
@@ -32,8 +33,10 @@ export function SiteFooter() {
           {LEGAL_ENTITY_NAME} · NZBN {NZBN} · {REGISTERED_OFFICE} ·{" "}
           <EmailAddress email={CUSTOMER_EMAIL} />
           {" · "}
-          <a href="tel:0800238437" className="hover:text-foreground">
-            0800 238 437
+          <EmailAddress email={PRIVACY_OFFICER_EMAIL} />
+          {" · "}
+          <a href={`tel:${PUBLIC_PHONE_TEL}`} className="hover:text-foreground">
+            {PUBLIC_PHONE_DISPLAY}
           </a>
         </p>
         <p className="text-xs leading-relaxed text-muted-foreground">

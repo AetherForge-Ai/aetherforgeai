@@ -22,7 +22,9 @@ import { type AssetClass, type MarketCode, type NewsItem } from "@/lib/market-in
 import { decodeHtmlEntities, hasArticlePath, isOffTopicStory, prepareNewsFeed } from "@/lib/news-present";
 import { keywordSentiment } from "@/lib/news-sentiment";
 
-const NEWS_TTL_MS = 4 * 60 * 60 * 1000; // ~4h — refreshes at least daily
+const NEWS_TTL_MS = 15 * 60 * 1000;
+/** One hung feed must not hold /market-news past the 0.8 s budget. */
+const NEWS_FETCH_MS = 500;
 const UA =
   "Mozilla/5.0 (compatible; AetherForgeAI/1.0; +https://www.aetherforgeai.co.nz)";
 
@@ -154,16 +156,13 @@ function toNewsItem(raw: RawStory, assetClass: AssetClass): NewsItem | null {
   };
 }
 
-async function fetchText(url: string, timeoutMs = 12_000): Promise<string | null> {
+async function fetchText(url: string, timeoutMs = NEWS_FETCH_MS): Promise<string | null> {
   try {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), timeoutMs);
     const res = await fetch(url, {
       headers: { Accept: "application/rss+xml, application/atom+xml, application/xml, text/xml, */*", "User-Agent": UA },
-      signal: ctrl.signal,
-      cache: "no-store",
+      signal: AbortSignal.timeout(timeoutMs),
+      next: { revalidate: 900 },
     });
-    clearTimeout(t);
     if (!res.ok) {
       console.error(`[market-news] HTTP ${res.status} for ${url}`);
       return null;
@@ -263,14 +262,11 @@ async function fetchYahooSearchNews(query: string, count = 8): Promise<RawStory[
     `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}` +
     `&newsCount=${count}&quotesCount=0&listsCount=0`;
   try {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 12_000);
     const res = await fetch(url, {
       headers: { Accept: "application/json", "User-Agent": UA },
-      signal: ctrl.signal,
-      cache: "no-store",
+      signal: AbortSignal.timeout(NEWS_FETCH_MS),
+      next: { revalidate: 900 },
     });
-    clearTimeout(t);
     if (!res.ok) {
       console.error(`[market-news] Yahoo search HTTP ${res.status} for "${query}"`);
       return [];
@@ -445,13 +441,11 @@ export async function loadMarketNews(assetClass: AssetClass = "stock"): Promise<
 
     const dated = prepareNewsFeed(live);
     console.log(`[market-news] Serving ${dated.length} dated ${assetClass} headlines (${live.length} from feeds)`);
-    writeCache(cacheKey, dated);
+    if (live.length >= 8) writeCache(cacheKey, dated);
     return dated;
   } catch (err) {
     console.error(`[market-news] loadMarketNews(${assetClass}) failed:`, err);
   }
 
-  const fallback = prepareNewsFeed([]);
-  writeCache(cacheKey, fallback);
-  return fallback;
+  return prepareNewsFeed([]);
 }

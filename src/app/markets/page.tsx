@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/session";
 import { AppShell } from "@/components/AppShell";
 import { MarketsPageContent } from "@/components/dashboard/MarketsPageContent";
 import { parseMarketsTab } from "@/lib/market-detail-routes";
+import { loadPublicMarketIndex } from "@/lib/public-market-index";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 
 export const dynamic = "force-dynamic";
@@ -43,11 +44,12 @@ export default async function MarketsPage({
 }) {
   const user = await getCurrentUser();
   const tab = parseMarketsTab((await searchParams).tab);
+  const index = await loadPublicMarketIndex();
 
   if (!user) {
     return (
       <AppShell guest user={{ name: "Guest", email: "Sign in to activate your account" }}>
-        <MarketsPageContent preview initialTab={tab} />
+        <MarketsPageContent preview initialTab={tab} index={index} />
       </AppShell>
     );
   }
@@ -62,7 +64,7 @@ export default async function MarketsPage({
         subscription_plan: user.subscription_plan,
       }}
     >
-      <MarketsPageContent userId={user.id} initialTab={tab} />
+      <MarketsPageContent userId={user.id} initialTab={tab} index={index} />
     </AppShell>
   );
 }

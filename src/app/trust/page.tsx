@@ -4,7 +4,16 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { PAPER_FEE_SUMMARY } from "@/lib/fee-rule";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { PUBLIC_DATA_SOURCES_LINE } from "@/lib/data-sources";
-import { DATA_SHARING_LINE, FRESHNESS_PLAIN, PAPER_BOOK_STATEMENT, PROCESSORS, SECURITY_LINE } from "@/lib/public-copy";
+import {
+  AI_REQUEST_LINES,
+  CUSTOMER_EMAIL,
+  DATA_SHARING_LINE,
+  FRESHNESS_PLAIN,
+  PAPER_BOOK_STATEMENT,
+  PRIVACY_OFFICER_EMAIL,
+  PROCESSORS,
+  SECURITY_LINE,
+} from "@/lib/public-copy";
 
 export const metadata = publicPageMetadata("/trust", {
   title: "Trust · AetherForge AI",
@@ -73,10 +82,21 @@ export default function TrustPage() {
           </section>
 
           <section className="mt-8 space-y-2">
+            <h2 className="font-display text-lg font-bold">What the AI does</h2>
+            {AI_REQUEST_LINES.map((line) => (
+              <p key={line.slice(0, 24)} className="text-sm leading-relaxed text-muted-foreground">
+                {line}
+              </p>
+            ))}
+          </section>
+
+          <section className="mt-8 space-y-2">
             <h2 className="font-display text-lg font-bold">Report a vulnerability</h2>
             <p className="text-sm leading-relaxed text-muted-foreground">
               If you find a security weakness, email{" "}
-              <EmailAddress email="admin@aetherforgeai.co.nz" className="font-semibold text-primary" />{" "}
+              <EmailAddress email={CUSTOMER_EMAIL} className="font-semibold text-primary" />
+              {" or "}
+              <EmailAddress email={PRIVACY_OFFICER_EMAIL} className="font-semibold text-primary" />{" "}
               or use the{" "}
               <Link href="/about#contact" className="font-semibold text-primary underline-offset-2 hover:underline">
                 contact form

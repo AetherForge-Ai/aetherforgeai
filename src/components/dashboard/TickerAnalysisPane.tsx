@@ -140,7 +140,7 @@ export function TickerAnalysisPane({
             {botName} AI <Sparkles className="size-3.5 text-primary" />
           </p>
           <p className="truncate text-[0.66rem] text-muted-foreground">
-            AI note · {symbol}
+            AI-written note · {symbol}
           </p>
         </div>
       </div>
