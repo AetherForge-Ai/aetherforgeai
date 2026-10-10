@@ -45,11 +45,13 @@ export const metadata: Metadata = {
     "AetherForge AI is market intelligence for a paper portfolio: NZX, ASX and global markets, with AI research on the positions you enter. Not a broker, and not financial advice.",
   icons: {
     icon: [
+      { url: "/favicon.ico", sizes: "32x32", type: "image/x-icon" },
       { url: "/brand/favicon-32.png", sizes: "32x32", type: "image/png" },
       { url: "/brand/aetherforge-icon-512.png", sizes: "512x512", type: "image/png" },
     ],
     apple: [{ url: "/brand/aetherforge-icon-512.png" }],
   },
+  manifest: "/site.webmanifest",
   openGraph: {
     title: "AetherForge AI — Intelligent Market Analysis",
     description:
