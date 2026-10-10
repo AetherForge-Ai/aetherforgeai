@@ -680,7 +680,7 @@ export function renderReportHtml(source: ApexReport, opts: RenderReportOptions):
 
         <p style="font-size:11px;color:${MUTE};line-height:1.6;border-top:1px solid ${LINE};padding-top:14px;margin-top:22px">
           AetherForge AI delivers informational market intelligence only. Nothing here is personalised financial advice,
-          a recommendation, or an offer to buy or sell any security or digital asset. We do not trade for you or hold your assets — you execute elsewhere.
+          a recommendation, or an offer to buy or sell any security or digital asset. AetherForge is a paper book. Real trades happen at your broker. We never move money.
           See aetherforgeai.co.nz/ai-disclaimer.
         </p>
       </div>

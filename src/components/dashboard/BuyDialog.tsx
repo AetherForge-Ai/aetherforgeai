@@ -8,6 +8,9 @@ export interface BuyTarget {
   name?: string;
   assetType?: "stock" | "crypto";
   price?: number;
+  coinId?: string;
+  /** DEX tokens keep the DEX badge in the Add panel. */
+  market?: "Crypto" | "DEX";
 }
 
 /**
@@ -38,6 +41,8 @@ export function BuyDialog({
         name: target.name || target.ticker,
         assetType,
         price: target.price,
+        coinId: target.coinId,
+        market: target.market,
       },
     });
     onOpenChange(false);

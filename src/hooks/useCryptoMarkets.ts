@@ -16,6 +16,7 @@ import type { CoinMarket } from "@/lib/crypto-market";
 
 const TTL_MS = 60_000;
 const STALL_MS = 10_000;
+let chainFollowUp = false;
 
 interface Store {
   coins: CoinMarket[];
@@ -53,6 +54,17 @@ async function load(force = false): Promise<void> {
         store.error = null;
         store.notice = typeof res.notice === "string" ? res.notice : null;
         console.log(`[useCryptoMarkets] loaded ${res.data.length} coins`);
+        // Blockchain labels can land a moment after the price list. One follow-up, not a loop.
+        if (
+          typeof window !== "undefined" &&
+          !chainFollowUp &&
+          res.data.length > 0 &&
+          res.data.every((coin) => !coin.blockchain)
+        ) {
+          chainFollowUp = true;
+          window.setTimeout(() => void load(true).catch(() => {}), 2_500);
+          window.setTimeout(() => void load(true).catch(() => {}), 12_000);
+        }
       } else if (res.status === 401 || store.coins.length > 0) {
         // Keep the last good table. A failed refresh must not replace it with a parse error.
         store.error = null;

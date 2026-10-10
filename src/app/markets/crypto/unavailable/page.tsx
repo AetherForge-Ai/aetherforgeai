@@ -16,14 +16,22 @@ export const metadata = publicPageMetadata("/markets/crypto/unavailable", {
 export default async function UnavailableCryptoPage({
   searchParams,
 }: {
-  searchParams: Promise<{ symbol?: string; name?: string }>;
+  searchParams: Promise<{ symbol?: string; name?: string; buy?: string }>;
 }) {
   const sp = await searchParams;
   const user = await getCurrentUser();
 
   return (
     <MarketsAppFrame user={user}>
-      <CryptoAssetPage coinId={null} unavailable symbol={sp.symbol ?? null} name={sp.name ?? null} />
+      <CryptoAssetPage
+        coinId={null}
+        unavailable
+        symbol={sp.symbol ?? null}
+        name={sp.name ?? null}
+        signedIn={!!user}
+        openFromQuery={sp.buy === "1"}
+        market="DEX"
+      />
     </MarketsAppFrame>
   );
 }

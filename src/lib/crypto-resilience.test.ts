@@ -142,6 +142,7 @@ describe("GeckoTerminal pool pages", () => {
         included: [
           { id: "eth_0xabc", type: "token", attributes: { symbol: "BULL", name: "BULL", coingecko_coin_id: null } },
           { id: "eth_0xdef", type: "token", attributes: { symbol: "NOPRICE", name: "No Price" } },
+          { id: "uniswap_v2", type: "dex", attributes: { name: "Uniswap V2" } },
         ],
       },
       "eth"
@@ -152,6 +153,7 @@ describe("GeckoTerminal pool pages", () => {
     expect(bull?.price).toBe(73.91);
     expect(bull?.priceUnavailable).toBe(false);
     expect(bull?.network).toBe("Ethereum");
+    expect(bull?.dex).toBe("Uniswap V2");
     expect(bull?.detailId).toBeNull();
     expect(missing?.price).toBeNull();
     expect(missing?.priceUnavailable).toBe(true);

@@ -3,7 +3,7 @@ import { ExampleExplanationReport } from "@/components/how-it-works/ExampleExpla
 import type { Metadata } from "next";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { SiteHeader } from "@/components/SiteHeader";
-import { DATA_SHARING_LINE } from "@/lib/public-copy";
+import { DATA_SHARING_LINE, PAPER_BOOK_STATEMENT } from "@/lib/public-copy";
 import { Button } from "@/components/ui/button";
 import { CryptoInfoModal } from "@/components/how-it-works/CryptoInfoModal";
 import {
@@ -22,9 +22,7 @@ import {
   BarChart3,
   Building2,
   Coins,
-  Bell,
   Bot,
-  KeySquare,
   Landmark,
   ShoppingCart,
   Sparkles,
@@ -37,7 +35,7 @@ import {
 export const metadata: Metadata = publicPageMetadata("/how-it-works", {
   title: "How It Works — AetherForge AI",
   description:
-    "You purchase your shares, crypto, gold and silver through your own broker — AetherForge AI never touches your assets. See the exact step-by-step process, what each AI report contains, where to acquire them, and plain-English guides to shares, crypto and precious metals.",
+    "AetherForge is a paper book: you record cash, buys, sells, corrections and dividends in NZ$. Real trades happen at your broker. We never move money.",
 });
 
 /* -------------------------------------------------------------------------- */
@@ -46,64 +44,64 @@ export const metadata: Metadata = publicPageMetadata("/how-it-works", {
 
 const OVERVIEW_PILLARS = [
   {
-    icon: ShoppingCart,
-    title: "You purchase — anywhere you like",
-    body: "Purchase your shares, crypto, gold or silver through any broker or exchange you already trust. Nothing about your buying changes.",
+    icon: Wallet,
+    title: "Record it on the paper book",
+    body: "Cash, buys, sells, corrections and dividends are entries in NZ$. A CSV of ticker, units and price paid can be imported as well.",
   },
   {
-    icon: Lock,
-    title: "You keep full custody",
-    body: "Your assets stay in your own accounts. AetherForge never holds, moves or has access to your money or holdings — ever.",
+    icon: Landmark,
+    title: "Real trades stay at your broker",
+    body: "A buy on AetherForge does not send an order. If you trade for real, you do that at your own broker.",
   },
   {
     icon: Bot,
     title: "We analyse and explain",
-    body: "You enter what you own. Stox and Koins study the markets and return plain-English, illustrative scenarios. They are informational — not personalised advice.",
+    body: "Stox, Koins and The Headmaster read the book you recorded and return plain-English, illustrative scenarios. They are informational — not personalised advice.",
   },
 ];
 
 const STEPS = [
   {
     n: "01",
-    icon: ShoppingCart,
-    title: "Acquire your assets elsewhere",
-    body: "Purchase your shares, crypto, gold or silver through your chosen platform — Sharesies, Tiger Trade, Interactive Brokers, an exchange or a bullion dealer.",
+    icon: LineChart,
+    title: "Open the paper book",
+    body: "Sign in and open your dashboard. A new book starts at NZ$0.00. Nothing is sent to a broker.",
   },
   {
     n: "02",
-    icon: LineChart,
-    title: "Open your Dashboard",
-    body: "Log in to AetherForge AI and head to your private Dashboard — your command centre for everything you keep.",
+    icon: Wallet,
+    title: "Record cash",
+    body: "Deposit the NZ$ you want on the book. That cash is a record. We never move money.",
   },
   {
     n: "03",
-    icon: Wallet,
-    title: "Enter your investment details",
-    body: "Add each holding by hand, or import a CSV with ticker, units, price paid, and a date when the file has one.",
+    icon: ShoppingCart,
+    title: "Record a buy",
+    body: "Search a share, a CoinGecko coin, a DEX token, or gold or silver. Record the quantity, the price and the fee. The fee starts at NZ$0.00.",
   },
   {
     n: "04",
-    icon: Bell,
-    title: "Set alerts on your holdings",
-    body: "You can note a full-exit level or a trim marker on a holding. The alert is information that a price was reached. It is not an instruction.",
+    icon: ListChecks,
+    title: "Record a sell, a correction or a dividend",
+    body: "A sell, a correction and a dividend use the same panel. A correction changes the cost basis. Cash does not move unless the entry is a buy, a sell, a dividend or cash itself.",
   },
   {
     n: "05",
-    icon: KeySquare,
-    title: "Run The Headmaster — Portfolio Planning and Strategies",
-    body: "The Headmaster can lay out a goal plan across the book you entered. It is general information, not personalised advice, and it does not tell you what to do next.",
+    icon: FileBarChart,
+    title: "Read the ledger",
+    body: "Cash, buys, sells, corrections and dividends stay in one NZ$ ledger. You can export that book as a CSV.",
   },
   {
     n: "06",
     icon: Bot,
-    title: "Run Stox or Koins",
-    body: "Fire up the Stox bot for shares or the Koins bot for crypto. Each runs an exhaustive, multi-timeframe sweep of your markets.",
+    title: "Read the notes",
+    body: "Stox, Koins and The Headmaster write informational notes about what you recorded. They do not place a trade.",
   },
   {
     n: "07",
-    icon: FileBarChart,
-    title: "Receive your AI report",
-    body: "The report is on your dashboard. The notes explain the figures. You decide, then place any trade on your own broker.",
+    icon: Landmark,
+    title: "Keep real trades at your broker",
+    body: "When you want a real holding, you place that trade at your broker. AetherForge is not a broker and does not execute.",
   },
 ];
 
@@ -132,8 +130,8 @@ const BOTS = [
     subtitle: "Crypto Market Intelligence",
     accent: "from-amber-500/20 via-orange-500/10 to-transparent",
     ring: "border-amber-500/30",
-    desc: "Tracks the largest coins by market cap and the wider digital-asset market — synthesising flows, news and sentiment into illustrative 7-day scenarios and forward pathways.",
-    tags: ["BTC", "ETH", "Largest coins by market cap"],
+    desc: "Tracks the top 400 coins by market cap and the wider digital-asset market — synthesising flows, news and sentiment into illustrative 7-day scenarios and forward pathways. Crypto projections on the projections page stay paused.",
+    tags: ["BTC", "ETH", "Top 400 coins by market cap"],
   },
 ];
 
@@ -395,12 +393,10 @@ export default function HowItWorksPage() {
             <Sparkles className="size-3.5" /> How AetherForge AI works
           </p>
           <h1 className="mt-6 font-display text-4xl font-bold tracking-tight sm:text-5xl">
-            You own your assets. <span className="text-gradient">We forge the intelligence.</span>
+            A paper book in NZ$. <span className="text-gradient">Notes on what you record.</span>
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-lg leading-relaxed text-muted-foreground">
-            You purchase your shares, crypto, silver or gold wherever you like — Sharesies, Tiger Trade,
-            Interactive Brokers or any broker. AetherForge AI never touches your assets. You enter what
-            you keep, and Stox and Koins return informational scenarios. You still execute elsewhere.
+            {PAPER_BOOK_STATEMENT}
           </p>
           <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
             <Button asChild size="lg" className="h-12 px-8 text-base font-semibold shadow-glow">
@@ -420,13 +416,11 @@ export default function HowItWorksPage() {
             <div className="mx-auto max-w-3xl text-center">
               <p className="text-sm font-semibold uppercase tracking-wider text-primary">The big idea</p>
               <h2 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">
-                Monitor and protect your investments — without ever giving up control
+                One trade flow, on a paper book
               </h2>
               <p className="mt-4 text-muted-foreground">
-                AetherForge AI is an informational research tool. You keep your money and your holdings in
-                your own broker and wallet accounts at all times. We never take custody, never place trades,
-                and never move a single dollar. Our job is to turn the markets into clarity — yours is to
-                decide.
+                {PAPER_BOOK_STATEMENT} Stox, Koins and The Headmaster then write informational notes about
+                that book. They do not place a trade.
               </p>
             </div>
             <div className="mt-10 grid gap-6 md:grid-cols-3">
@@ -443,8 +437,8 @@ export default function HowItWorksPage() {
             <div className="mt-8 flex items-center justify-center gap-3 rounded-2xl border border-primary/25 bg-primary/[0.06] px-5 py-4 text-center text-sm text-muted-foreground">
               <ShieldCheck className="size-5 shrink-0 text-primary" />
               <span>
-                <span className="font-semibold text-foreground">AetherForge AI is not a trading platform.</span>{" "}
-                We have no access to your assets — you stay in complete control on your chosen exchange.{" "}
+                <span className="font-semibold text-foreground">AetherForge AI is not a broker.</span>{" "}
+                Recording a buy does not send money. We never move money.{" "}
                 <Link href="/ai-disclaimer" className="font-medium text-primary hover:underline">
                   Full AI disclaimer
                 </Link>
@@ -459,10 +453,10 @@ export default function HowItWorksPage() {
           <div className="mx-auto mb-10 max-w-2xl text-center">
             <p className="text-sm font-semibold uppercase tracking-wider text-primary">Step by step</p>
             <h2 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">
-              From your broker to your report in seven steps
+              Record cash, buys, sells, corrections and dividends
             </h2>
             <p className="mt-3 text-muted-foreground">
-              A clear, repeatable process you control from start to finish.
+              One panel writes the paper book. Real trades happen at your broker.
             </p>
           </div>
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -574,13 +568,13 @@ export default function HowItWorksPage() {
         {/* 4 · Where to acquire — platform windows */}
         <section id="where-to-acquire" className="mx-auto max-w-7xl scroll-mt-24 px-4 py-12 sm:px-6 lg:px-8">
           <div className="mx-auto mb-10 max-w-2xl text-center">
-            <p className="text-sm font-semibold uppercase tracking-wider text-primary">Where to acquire</p>
+            <p className="text-sm font-semibold uppercase tracking-wider text-primary">Your broker</p>
             <h2 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">
-              Trusted platforms to acquire your assets
+              Where a real trade happens
             </h2>
             <p className="mt-3 text-muted-foreground">
-              You acquire and keep everything on these platforms — then track and analyse it here. Links open in a
-              new tab. We&apos;re not affiliated with, and don&apos;t earn from, any provider listed.
+              {PAPER_BOOK_STATEMENT} These are examples of brokers and dealers. Links open in a new tab.
+              We are not affiliated with, and do not earn from, any provider listed.
             </p>
           </div>
 
@@ -626,7 +620,7 @@ export default function HowItWorksPage() {
               How buying &amp; selling works
             </h2>
             <p className="mt-3 text-muted-foreground">
-              New to investing? Here&apos;s the simple version for each asset class.
+              These steps are what a broker or dealer does. On AetherForge you only record the result in NZ$. We never move money.
             </p>
           </div>
           <div className="grid gap-6 lg:grid-cols-3">
@@ -744,7 +738,7 @@ export default function HowItWorksPage() {
               Ready to put an AI analyst to work?
             </h2>
             <p className="mx-auto mt-3 max-w-xl text-muted-foreground">
-              Keep buying wherever you like — then let AetherForge turn your holdings into decisive clarity.
+              {PAPER_BOOK_STATEMENT}
             </p>
             <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
               <Button asChild size="lg" className="h-12 px-8 text-base font-semibold shadow-glow">
