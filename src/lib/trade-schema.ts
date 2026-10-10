@@ -34,6 +34,14 @@ export const tradeSchema = z.object({
   order_sizing: z.enum(["units", "notional"]).optional(),
   fx_rate: z.number().optional(),
   fx_source: z.string().optional(),
+  /** Gross dividend in the holding currency. Folded into the notes prefix. */
+  dividend_gross: z.number().positive().optional(),
+  /** NZ imputation credits in NZ$. */
+  dividend_imputation_nzd: z.number().min(0).optional(),
+  /** Withholding in the holding currency. */
+  dividend_withholding: z.number().min(0).optional(),
+  /** DRP reinvestment in the holding currency. */
+  dividend_drp: z.number().min(0).optional(),
   /** Required for buy and sell. Cash lines ignore it. */
   confirm: z.boolean().optional(),
   /** DEX fills only. Stored in stock.sector and a notes prefix, not a venue column. */

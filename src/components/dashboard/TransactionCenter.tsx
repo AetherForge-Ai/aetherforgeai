@@ -27,6 +27,7 @@ import {
   parseCorrectionNote,
 } from "@/lib/holding-correction";
 import { dexSourceLabel, stripDexNotesPrefix } from "@/lib/dex-source";
+import { stripDividendNotesPrefix } from "@/lib/dividend-ledger";
 import { bumpHoldingsGeneration } from "@/lib/holdings-generation";
 import { useTradeReviewGate } from "@/lib/trade-review-gate";
 import { TradeReview } from "@/components/dashboard/TradeReview";
@@ -159,7 +160,7 @@ function correctionQtyPrice(t: {
 } | null {
   if (t.type !== "correction") return null;
   const currency = ((t.currency as CurrencyCode) || NZD) as CurrencyCode;
-  const span = parseCorrectionNote(stripDexNotesPrefix(t.notes));
+  const span = parseCorrectionNote(stripDexNotesPrefix(stripDividendNotesPrefix(t.notes)));
   if (span) {
     const before = correctionPriceToken(span.beforePrice, currency);
     const after = correctionPriceToken(span.afterPrice, currency);
@@ -292,8 +293,10 @@ function CashLineSection({
                   <span className="mt-0.5 block truncate text-xs text-muted-foreground">
                     {distributionLabel(row.asset_type)} · {formatDisplayDate(row.executed_at || row.createdAt)}
                   </span>
-                  {stripDexNotesPrefix(row.notes) ? (
-                    <span className="mt-0.5 block truncate text-xs text-muted-foreground">{stripDexNotesPrefix(row.notes)}</span>
+                  {stripDexNotesPrefix(stripDividendNotesPrefix(row.notes)) ? (
+                    <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                      {stripDexNotesPrefix(stripDividendNotesPrefix(row.notes))}
+                    </span>
                   ) : null}
                 </span>
                 <span className={cn("tnum shrink-0 font-semibold", amount >= 0 ? "text-emerald-600" : "text-rose-600")}>
@@ -811,7 +814,7 @@ function AllTransactionsDialog({
         (t) =>
           (t.ticker || "").toLowerCase().includes(q) ||
           (t.asset_name || "").toLowerCase().includes(q) ||
-          (t.notes || "").toLowerCase().includes(q) ||
+          stripDexNotesPrefix(stripDividendNotesPrefix(t.notes)).toLowerCase().includes(q) ||
           t.type.toLowerCase().includes(q)
       );
     }

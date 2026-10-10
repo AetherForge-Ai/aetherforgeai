@@ -64,7 +64,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: parsed.error.flatten() }, { status: 400 });
     }
 
-    const input = parsed.data;
+    const input = { ...parsed.data };
+    if (input.type === "dividend" && input.dividend_gross != null && !(Number(input.amount) > 0)) {
+      input.amount = input.dividend_gross;
+    }
 
     // Corrections are not a public ledger type. Holding Edit writes them after
     // it has confirmed the row belongs to this signed-in user.
@@ -89,7 +92,7 @@ export async function POST(req: Request) {
           { status: 400 }
         );
       }
-    } else if (!input.amount) {
+    } else if (!(input.type === "dividend" && input.dividend_gross != null) && !input.amount) {
       return NextResponse.json({ ok: false, error: "Amount is required" }, { status: 400 });
     }
 

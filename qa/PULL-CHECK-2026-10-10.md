@@ -11,6 +11,7 @@ Markers:
 - `pull-check:track-a1-2026-10-10`
 - `pull-check:track-a2-2026-10-10`
 - `pull-check:track-b-p0-2026-10-11`
+- `pull-check:track-b-2-2026-10-11`
 
 Branch: `cursor/qa-m10-m15-l6-l17-b236`
 PR: https://github.com/AetherForge-Ai/aetherforgeai/pull/247
@@ -731,4 +732,19 @@ Branch `cursor/track-b-p0-bb35` from develop `87dfce1`. PR https://github.com/Ae
 - `npm run check-types-errors`: passed again after that follow-up.
 - `npm run build`: passed again after that follow-up (Next.js 15.3.9). The build skipped its own lint step. Better Auth logged the default secret in this environment. No secret was added.
 - This batch did not edit `src/lib/auth.ts`, `src/lib/auth-mail.ts`, `src/lib/transactional-mail.ts`, `src/lib/send-transactional-mail.ts`, or the send-verification route. It did edit the news filter and the news fetch cap. Crypto projections stay paused. No list was removed. No email was sent. Nothing was published.
+
+## Track B item 2
+
+NZ tax pack. Draft PRs only. Nothing here publishes, sends email, or removes a Stox, Koins, or Headmaster list. Crypto projections stay paused. Prices stay NZ$0 / NZ$16 / NZ$49 / NZ$199. No new database columns. Marker `pull-check:track-b-2-2026-10-11` is in `src/lib/dividend-ledger.ts`, `src/lib/tax-disclaimer.ts`, and the Markers list above.
+
+### TB-2a — dividend ledger
+
+- Status: in this draft
+- Files: `src/lib/dividend-ledger.ts`, `src/lib/dividend-ledger.test.ts`, `src/lib/tax-disclaimer.ts`, `src/lib/tax-book-server.ts`, `src/app/tax/dividends/page.tsx`, `src/components/tax/DividendLedgerView.tsx`, `src/app/api/tax/dividends/export/route.ts`, `src/app/api/tax/fx/route.ts`, `src/lib/transactions.ts`, `src/lib/trade-schema.ts`
+- URL / steps: signed in, open `/tax/dividends`. Record a dividend on a holding you already have. Then export the CSV.
+- Expected, NZ holding, payment date 10 Oct 2026, gross 100.00, imputation credits 28.00, withholding 33.00, DRP 0, rate 1.0000: the row shows gross NZ$100.00, imputation credits NZ$28.00, withholding NZ$33.00, DRP NZ$0.00, FX 1.0000, net cash NZ$67.00. Imputation is not taken off the cash. The visible note does not start with `[DIV:`. The CSV line is `10 Oct 2026,<ticker>,stock,NZD,1.0000,100.00,28.00,33.00,0.00,67.00,"Indicative, not tax advice."`
+- Expected, AUD holding, gross 100.00, imputation 0, withholding 15.00, DRP 20.00, rate 1.0912: gross NZ$109.12, withholding NZ$16.37, DRP NZ$21.82, net cash NZ$70.93. Working: 100 × 1.0912 = 109.12; 15 × 1.0912 = 16.368 rounds to 16.37; 20 × 1.0912 = 21.824 rounds to 21.82; 109.12 − 16.37 − 21.82 = 70.93.
+- Expected, an older dividend with no prefix and cash NZ$25.00: gross, credits, withholding and DRP are blank (an em dash on the page, empty CSV cells). Cash stays NZ$25.00 and is not added into gross.
+- Expected, the page says `Indicative, not tax advice.` Signed out, the page has no sample row and says no dividends are recorded until you sign in. `/tax` still says it does not yet produce tax reports until TB-2d.
+- DRP does not change the share count. That is left for Lukas.
 

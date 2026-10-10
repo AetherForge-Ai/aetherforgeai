@@ -120,6 +120,7 @@ describe("session owner", () => {
     expect(anonymousAccountApi("/api/stocks", "GET")).toBe("unauthorized");
     expect(anonymousAccountApi("/api/alerts", "GET")).toBe("unauthorized");
     expect(anonymousAccountApi("/api/transactions", "POST")).toBe("unauthorized");
+    expect(anonymousAccountApi("/api/tax/dividends/export", "GET")).toBe("unauthorized");
     expect(anonymousAccountApi("/api/metals", "GET")).toBe("unauthorized");
     expect(anonymousAccountApi("/api/metals/lot-1", "DELETE")).toBe("unauthorized");
     expect(anonymousAccountApi("/api/metals/spot", "GET")).toBeNull();

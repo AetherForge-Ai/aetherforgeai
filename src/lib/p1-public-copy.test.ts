@@ -48,6 +48,10 @@ describe("P1 public copy", () => {
       "src/app/pricing/page.tsx",
       "src/lib/public-copy.ts",
       "src/components/tax/TaxPageContent.tsx",
+      "src/components/tax/DividendLedgerView.tsx",
+      "src/app/tax/dividends/page.tsx",
+      "src/lib/dividend-ledger.ts",
+      "src/lib/tax-disclaimer.ts",
       "src/components/pricing/PricingCards.tsx",
       "src/components/pricing/PricingFAQ.tsx",
     ]) {
