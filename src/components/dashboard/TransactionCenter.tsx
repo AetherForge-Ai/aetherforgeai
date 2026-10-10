@@ -20,7 +20,7 @@ import { useFxRates } from "@/hooks/useFxRates";
 import { buildTradePreview, type TradePreview } from "@/lib/trade-preview";
 import { ledgerDisplayedCash } from "@/lib/ledger-cash-lines";
 import { CORRECTION_CASH_TOOLTIP, correctionChangeLabel, parseCorrectionNote } from "@/lib/holding-correction";
-import { dexSourceLabel } from "@/lib/dex-source";
+import { dexSourceLabel, stripDexNotesPrefix } from "@/lib/dex-source";
 import { bumpHoldingsGeneration } from "@/lib/holdings-generation";
 import { useTradeReviewGate } from "@/lib/trade-review-gate";
 import { TradeReview } from "@/components/dashboard/TradeReview";
@@ -146,7 +146,7 @@ function correctionQtyPrice(t: { type: string; notes?: string; quantity?: number
   label: string | null;
 } | null {
   if (t.type !== "correction") return null;
-  const span = parseCorrectionNote(t.notes);
+  const span = parseCorrectionNote(stripDexNotesPrefix(t.notes));
   if (span) {
     return {
       qty: `${span.beforeQty} → ${span.afterQty}`,
@@ -269,7 +269,9 @@ function CashLineSection({
               <li key={row._id} className="flex items-baseline justify-between gap-3 text-sm">
                 <span className="min-w-0">
                   <span className="font-medium">{row.asset_name || title}</span>
-                  {row.notes ? <span className="mt-0.5 block truncate text-xs text-muted-foreground">{row.notes}</span> : null}
+                  {stripDexNotesPrefix(row.notes) ? (
+                    <span className="mt-0.5 block truncate text-xs text-muted-foreground">{stripDexNotesPrefix(row.notes)}</span>
+                  ) : null}
                 </span>
                 <span className={cn("tnum shrink-0 font-semibold", amount >= 0 ? "text-emerald-600" : "text-rose-600")}>
                   {formatSignedMoney(amount, NZD)}

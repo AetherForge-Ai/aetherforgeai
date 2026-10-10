@@ -41,7 +41,13 @@ const tradeSchema = z.object({
   fx_source: z.string().optional(),
   /** Required for buy and sell. Cash lines ignore it. */
   confirm: z.boolean().optional(),
+  /** DEX fills only. Stored in stock.sector and a notes prefix, not a venue column. */
+  venue: z.literal("DEX").optional(),
+  /** Readable chain, such as Ethereum. Stored inside the sector tag and the notes prefix. */
+  chain: z.string().max(80).optional(),
 });
+
+export { tradeSchema };
 
 // GET /api/transactions — the user's ledger + cash balance + realized P&L rollups
 export async function GET(req: Request) {

@@ -27,6 +27,7 @@ import {
   type MetalSpotPerOz,
 } from "@/lib/metal-valuation";
 import { hubAllocationLabel } from "@/lib/hub-labels";
+import { dexFromHolding, holdingTitle } from "@/lib/dex-source";
 import { portfolioLoadFailure } from "@/lib/trade-commit-session";
 import {
   HoldingChartDialog,
@@ -992,7 +993,7 @@ export function PortfolioDashboard({
         case "ticker":
           return h.ticker.toLowerCase();
         case "company":
-          return (h.company_name || h.sector || "").toLowerCase();
+          return holdingTitle(h).toLowerCase();
         case "date":
           // Undated (legacy) rows sort to the bottom on desc / top on asc.
           return h.purchase_date ? new Date(h.purchase_date).getTime() : 0;
@@ -1164,8 +1165,8 @@ export function PortfolioDashboard({
         quantity: stock.shares,
         purchaseDate: stock.purchase_date,
         holdingId: stock._id,
-        market: stock.venue === "DEX" ? "DEX" : stock.asset_type === "crypto" ? "Crypto" : undefined,
-        chain: stock.chain,
+        market: dexFromHolding(stock).venue === "DEX" ? "DEX" : stock.asset_type === "crypto" ? "Crypto" : undefined,
+        chain: dexFromHolding(stock).chain,
       },
     });
   }
@@ -1178,10 +1179,12 @@ export function PortfolioDashboard({
       current_price?: number;
       venue?: string | null;
       chain?: string | null;
+      sector?: string | null;
     },
     mode: "buy" | "sell"
   ) {
     const assetType = holding.asset_type === "crypto" ? "crypto" : holding.asset_type === "metal" ? "metal" : "stock";
+    const stored = dexFromHolding(holding);
     openRecordTransaction({
       mode,
       userId,
@@ -1193,8 +1196,8 @@ export function PortfolioDashboard({
         name: holding.company_name || holding.ticker,
         assetType,
         price: holding.current_price,
-        market: holding.venue === "DEX" ? "DEX" : assetType === "crypto" ? "Crypto" : undefined,
-        chain: holding.chain,
+        market: stored.venue === "DEX" ? "DEX" : assetType === "crypto" ? "Crypto" : undefined,
+        chain: stored.chain,
       },
     });
   }
@@ -1993,7 +1996,7 @@ export function PortfolioDashboard({
                             setChartTarget({
                               ticker: h.ticker,
                               symbol: h.ticker.replace(/\.(NZ|AX|L)$/, ""),
-                              name: h.company_name || h.sector || h.ticker,
+                              name: holdingTitle(h),
                               exchange,
                               currency: h.currency,
                               purchasePrice: h.purchase_price,
@@ -2023,7 +2026,7 @@ export function PortfolioDashboard({
                       {/* Purchase date */}
                       <td className="px-2 py-2">
                         <p className="truncate text-muted-foreground">
-                          {h.company_name || h.sector || "—"}
+                          {holdingTitle(h)}
                         </p>
                         <p className="truncate text-[0.65rem] text-muted-foreground">
                           {formatHoldingDate(h.purchase_date)} · {exchange}

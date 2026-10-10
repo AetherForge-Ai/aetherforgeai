@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { formatPriceInput, formatSavedFx } from "@/lib/currency";
 import { collapseCorrectionNote } from "@/lib/holding-correction";
+import { dexFromLedger } from "@/lib/dex-source";
 import { getStableSessionUser } from "@/lib/session";
 import { canExportCsv } from "@/lib/entitlements";
 import { loadLedger, type TransactionRow } from "@/lib/transactions";
@@ -32,6 +33,7 @@ function csvUnitPrice(value: unknown): string {
 
 function rowCells(t: TransactionRow): string[] {
   const extra = t as TransactionRow & Record<string, unknown>;
+  const dex = dexFromLedger(t);
   return [
     csvDate(t.executed_at || t.createdAt),
     String(extra.trade_datetime || csvDate(t.executed_at || t.createdAt)),
@@ -60,7 +62,9 @@ function rowCells(t: TransactionRow): string[] {
     String(extra.order_sizing || "units"),
     extra.notional_native ?? "",
     String(extra.broker || ""),
-    collapseCorrectionNote(t.notes),
+    collapseCorrectionNote(dex.note),
+    dex.venue || "",
+    dex.chain || "",
   ].map((v) => cell(v));
 }
 
@@ -93,6 +97,8 @@ const HEADERS = [
   "NotionalNative",
   "Broker",
   "Notes",
+  "Venue",
+  "Chain",
 ];
 
 /**

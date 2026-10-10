@@ -6,6 +6,7 @@ Markers:
 
 - `pull-check:qa-2026-10-10-high-h5-h11`
 - `pull-check:qa-2026-10-10-high-h1-h4`
+- `pull-check:qa-2026-10-10-medium-m1-m9`
 
 Branch: `cursor/qa-h1-h4-report-logic-f485`
 PR: https://github.com/AetherForge-Ai/aetherforgeai/pull/243
@@ -222,11 +223,11 @@ H5–H11 landed on develop as https://github.com/AetherForge-Ai/aetherforgeai/pu
 
 ## M2 — fixed
 
-- Status: fixed. A DEX holding keeps the venue and chain through the sell form and the ledger. The ledger DEX label is in `bc9f77c` because it shares the transaction table with M1.
-- Commit: `dfcdb21`
-- Files: `src/lib/dex-source.ts`, `src/lib/dex-source.test.ts`, `src/lib/asset-search.ts`, `src/lib/transaction-dialog-store.ts`, `src/lib/portfolio.ts`, `src/lib/transactions.ts`, `src/components/dashboard/BuyDialog.tsx`, `src/components/dashboard/MarketsExplorer.tsx`, `src/components/dashboard/HoldingsOwnedTable.tsx`, `src/components/dashboard/PortfolioDashboard.tsx`, `src/components/dashboard/RecordTransactionPanel.tsx`, `src/components/dashboard/TransactionCenter.tsx`
-- URL / steps: buy a DEX token, open the holding row, then sell that holding.
-- Expected: the holding reads "· DEX" and the chain when one was stored (for example "· DEX · Ethereum"). The sell badge says DEX plus the chain. The ledger row shows the same source.
+- Status: fixed. A DEX buy keeps the venue and chain without a venue or chain column. The holding stores `DEX · <Chain>` in `stock.sector` (for example `DEX · Ethereum`). The ledger stores `[DEX:<Chain>] ` at the start of `transaction.notes`. The UI strips that prefix from the note and shows venue and chain in their own label. CSV Notes hides the prefix and adds Venue and Chain columns. Sector charts group every `DEX · …` tag as one DEX slice. The ledger DEX label shares the transaction table with M1 (`bc9f77c`).
+- Commit: `dfcdb21`, storage follow-up on this branch
+- Files: `src/lib/dex-source.ts`, `src/lib/dex-source.test.ts`, `src/lib/dex-storage.test.ts`, `src/lib/asset-search.ts`, `src/lib/transaction-dialog-store.ts`, `src/lib/portfolio.ts`, `src/lib/transactions.ts`, `src/app/api/transactions/route.ts`, `src/app/api/transactions/export/route.ts`, `src/lib/ledger-schema.ts`, `src/components/dashboard/BuyDialog.tsx`, `src/components/dashboard/MarketsExplorer.tsx`, `src/components/dashboard/HoldingsOwnedTable.tsx`, `src/components/dashboard/PortfolioDashboard.tsx`, `src/components/dashboard/RecordTransactionPanel.tsx`, `src/components/dashboard/TransactionCenter.tsx`
+- URL / steps: buy a DEX token (for example PEPE on Ethereum), open the holding row, then sell that holding. Export the ledger CSV.
+- Expected: the holding reads "· DEX · Ethereum". The sell badge says DEX plus Ethereum, including when the holding has sector `DEX · Ethereum` and no venue column. The ledger row shows the same source, and the visible note does not start with `[DEX:`. Sector allocation shows DEX once, not one slice per chain. CSV Venue is DEX and Chain is Ethereum.
 
 ## M3 — fixed
 

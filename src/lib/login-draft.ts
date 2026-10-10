@@ -39,6 +39,13 @@ export function clearLoginDraft(): void {
   publish();
 }
 
+/** Leaving the login page drops the password. Email and any error stay for a remount. */
+export function clearLoginPassword(): void {
+  if (!draft.password) return;
+  draft = { ...draft, password: "" };
+  publish();
+}
+
 export function subscribeLoginDraft(listener: () => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);

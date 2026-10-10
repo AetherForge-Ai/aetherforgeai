@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
 import { dexSearchHits, searchAssets, type AssetHit, type AssetMarket } from "@/lib/asset-search";
-import { cleanChain, isDexSource } from "@/lib/dex-source";
+import { cleanChain, dexFromHolding, isDexSource } from "@/lib/dex-source";
 import { PAPER_FEE_SUMMARY, suggestedFee } from "@/lib/fee-rule";
 import { buildMovementPreview, type MovementPreview, type RecordKind } from "@/lib/movement-preview";
 import { transactionProblems } from "@/lib/transaction-rules";
@@ -47,6 +47,8 @@ type BookHolding = {
   coinId?: string;
   venue?: string | null;
   chain?: string | null;
+  /** DEX fills store `DEX · <Chain>` here. There is no venue column. */
+  sector?: string | null;
 };
 
 const KINDS: { id: RecordKind; label: string }[] = [
@@ -880,7 +882,8 @@ function earliest(a?: string, b?: string | null): string {
 }
 
 function holdingHit(row: BookHolding): AssetHit {
-  const dex = isDexSource({ venue: row.venue, market: row.venue });
+  const stored = dexFromHolding(row);
+  const dex = isDexSource({ venue: stored.venue, market: stored.venue, sector: row.sector });
   const market: AssetMarket =
     row.assetType === "metal"
       ? row.ticker.toUpperCase() === "SILVER"
@@ -898,7 +901,7 @@ function holdingHit(row: BookHolding): AssetHit {
     assetType: row.assetType,
     id: row.coinId,
     price: row.price,
-    chain: cleanChain(row.chain) || undefined,
+    chain: stored.chain || undefined,
   };
 }
 
@@ -949,6 +952,7 @@ function fromStock(row: Record<string, unknown>): BookHolding {
     purchaseDate: typeof row.purchase_date === "string" ? row.purchase_date : undefined,
     venue: typeof row.venue === "string" ? row.venue : null,
     chain: cleanChain(row.chain),
+    sector: typeof row.sector === "string" ? row.sector : null,
   };
 }
 
@@ -979,7 +983,9 @@ export function bookHoldingFromStock(row: {
   metalSourceId?: string;
   venue?: string | null;
   chain?: string | null;
+  sector?: string | null;
 }): BookHolding {
+  const stored = dexFromHolding(row);
   return fromStock({
     _id: row._id,
     ticker: row.ticker,
@@ -989,7 +995,8 @@ export function bookHoldingFromStock(row: {
     current_price: row.current_price,
     purchase_price: row.purchase_price,
     purchase_date: row.purchase_date,
-    venue: row.venue,
-    chain: row.chain,
+    venue: stored.venue || row.venue,
+    chain: stored.chain,
+    sector: row.sector,
   });
 }

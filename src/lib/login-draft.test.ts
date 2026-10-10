@@ -1,7 +1,13 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it, beforeEach } from "vitest";
-import { clearLoginDraft, failLoginDraft, readLoginDraft, writeLoginDraft } from "@/lib/login-draft";
+import {
+  clearLoginDraft,
+  clearLoginPassword,
+  failLoginDraft,
+  readLoginDraft,
+  writeLoginDraft,
+} from "@/lib/login-draft";
 import { postLoginPath, safeRelativeRedirect } from "@/lib/safe-redirect";
 
 function read(rel: string) {
@@ -21,6 +27,17 @@ describe("M3 login draft", () => {
     expect(after.email).toBe("member@example.com");
     expect(after.password).toBe("secret-pass");
     expect(after.error).toMatch(/check your credentials/);
+  });
+
+  it("drops only the password when the login page unmounts", () => {
+    failLoginDraft("member@example.com", "secret-pass", "Error signing in. Please check your credentials.");
+    clearLoginPassword();
+    const left = readLoginDraft();
+    expect(left.email).toBe("member@example.com");
+    expect(left.password).toBe("");
+    expect(left.error).toMatch(/check your credentials/);
+    const page = read("src/app/login/page.tsx");
+    expect(page).toContain("clearLoginPassword");
   });
 });
 

@@ -14,6 +14,7 @@ import { BrandLogo } from "@/components/BrandLogo";
 import { MailWarning, Loader2 } from "lucide-react";
 import {
   clearLoginDraft,
+  clearLoginPassword,
   failLoginDraft,
   readLoginDraft,
   subscribeLoginDraft,
@@ -35,6 +36,9 @@ function LoginForm() {
   const error = draft.error;
 
   useEffect(() => subscribeLoginDraft(() => setDraft(readLoginDraft())), []);
+  useEffect(() => {
+    return () => clearLoginPassword();
+  }, []);
   useEffect(() => setAfterLogin(redirectTarget()), []);
   // Set when login is blocked because the email isn't verified yet — we then
   // surface a dedicated panel with a "resend verification" action.

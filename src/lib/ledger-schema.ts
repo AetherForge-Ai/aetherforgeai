@@ -103,6 +103,8 @@ export const CSV_EXPORT_COLUMNS = [
   "NotionalNative",
   "Broker",
   "Notes",
+  "Venue",
+  "Chain",
 ] as const;
 
 export type CsvExportColumn = (typeof CSV_EXPORT_COLUMNS)[number];

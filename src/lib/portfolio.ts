@@ -10,6 +10,7 @@ import {
   type CurrencyCode,
   type FxRatesToNZD,
 } from "@/lib/currency";
+import { sectorGroup } from "@/lib/dex-source";
 
 export interface Stock {
   _id: string;
@@ -22,9 +23,9 @@ export interface Stock {
   current_price: number;
   /** ISO date (yyyy-mm-dd) the holding was purchased. Absent on legacy rows. */
   purchase_date?: string | null;
-  /** DEX when the fill came from a DEX list. Absent on coin-list and legacy rows. */
+  /** Not a stored column. Readers fall back to the sector tag `DEX · <Chain>`. */
   venue?: string | null;
-  /** Readable chain for a DEX holding, such as Ethereum. */
+  /** Not a stored column. The chain lives inside that sector tag. */
   chain?: string | null;
   createdAt?: string;
   updatedAt?: string;
@@ -105,7 +106,7 @@ export function computeSummary(stocks: Stock[], opts: SummaryOptions = {}): Port
 
   const sectorMap: Record<string, number> = {};
   enriched.forEach((h) => {
-    const sector = h.sector || "Other";
+    const sector = sectorGroup(h.sector);
     sectorMap[sector] = (sectorMap[sector] || 0) + h.baseValue;
   });
   const sectorAllocation = Object.entries(sectorMap)
