@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -38,6 +39,7 @@ export function AllocationDriftCard({
   className?: string;
 }) {
   const [savedIdeas, setSavedIdeas] = useState<string[]>([]);
+  const [headmasterPending, setHeadmasterPending] = useState(false);
 
   const rows = useMemo(() => {
     const total = Math.max(0, stockNZD + cryptoNZD + metalsNZD + cashNZD);
@@ -109,7 +111,15 @@ export function AllocationDriftCard({
           </p>
         </div>
         <Button asChild size="sm" variant="outline">
-          <Link href="/headmaster">Open Headmaster</Link>
+          <Link href="/headmaster" aria-busy={headmasterPending} onClick={() => setHeadmasterPending(true)}>
+            {headmasterPending ? (
+              <span className="inline-flex items-center gap-1">
+                <Loader2 className="size-3.5 animate-spin" /> Opening The Headmaster…
+              </span>
+            ) : (
+              "Open Headmaster"
+            )}
+          </Link>
         </Button>
       </div>
 

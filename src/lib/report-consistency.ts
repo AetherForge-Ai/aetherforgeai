@@ -9,6 +9,7 @@
 
 import type { ConvictionLevel, SecurityIntel } from "@/lib/market-intel";
 import { bookCashReserve, sharedReserveSentence } from "@/lib/headmaster-trust";
+import { indefiniteArticle } from "@/lib/report-copy";
 
 export type CanonicalAction = "SELL" | "TRIM" | "HOLD" | "BUY" | "ACCUMULATE";
 
@@ -223,7 +224,7 @@ export function deploymentGuard(
         `${tape.bias} tape at ${tape.score}/100 with ${tape.level} conviction. ` +
         `Do not deploy the full cash balance.` +
         cashRuleClause(cash, book) +
-        ` New buys are limited to names inside a ${cap}% 7-day suitability cap and without speculative conviction.`,
+        ` New buys are limited to names inside ${indefiniteArticle(cap)} ${cap}% 7-day suitability cap and without speculative conviction.`,
     };
   }
   return {
@@ -243,11 +244,43 @@ export function candidateIsSuitable(
   input: RatingInput & { conviction: ConvictionLevel; projected7dPct: number },
   guard: DeploymentGuard
 ): boolean {
+  if (!(input.projected7dPct > 0)) return false;
   if (guard.mode === "defensive") return false;
   if (!rateAsset(input).positiveMomentum) return false;
   if (guard.mode === "starter" && input.conviction === "Speculative") return false;
   if (Math.abs(input.projected7dPct) > guard.projectionCapPct) return false;
   return true;
+}
+
+export interface UnsuitableInput extends RatingInput {
+  conviction: ConvictionLevel;
+  projected7dPct: number;
+  price?: number;
+  realizedVolPct?: number;
+  hasLivePrice?: boolean;
+}
+
+/**
+ * Why a buy-signal name is left off the sized list.
+ * Null means the name is suitable. Every other return is a visible reason.
+ */
+export function unsuitableReason(input: UnsuitableInput, guard: DeploymentGuard): string | null {
+  if (candidateIsSuitable(input, guard)) return null;
+  const pct = Math.round(input.projected7dPct * 100) / 100;
+  const signed = `${pct >= 0 ? "+" : ""}${pct}%`;
+  if (input.hasLivePrice === false) return "no live price";
+  if (guard.mode === "defensive") return "defensive tape";
+  if (!(input.projected7dPct > 0)) return `7-day projection ${signed} is not positive`;
+  if (guard.mode === "starter" && input.conviction === "Speculative") return "speculative conviction";
+  if (Math.abs(input.projected7dPct) > guard.projectionCapPct) {
+    return `7-day move ${signed} exceeds the ${guard.projectionCapPct}% suitability cap`;
+  }
+  if (typeof input.realizedVolPct === "number" && input.realizedVolPct >= 120) {
+    return `volatility ${Math.round(input.realizedVolPct)}%`;
+  }
+  if (typeof input.price === "number" && input.price > 0 && input.price < 0.001) return "price under the minimum";
+  if (!rateAsset(input).positiveMomentum) return "the rating is not a buy";
+  return "outside this tape's buy list";
 }
 
 function escapeRegExp(value: string): string {

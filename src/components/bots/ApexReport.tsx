@@ -77,7 +77,9 @@ function TickerCard({ t }: { t: TickerAnalysis }) {
         </div>
         <div className="text-right">
           <div className="font-mono text-sm">${t.price.toFixed(priceDp)}</div>
-          <div className={`text-xs ${pctTone(t.changePct)}`}>{formatPercent(t.changePct)} today</div>
+          <div className={`text-xs ${t.changeWithheld ? "text-muted-foreground" : pctTone(t.changePct)}`}>
+            {t.changeWithheld ? "data under review" : `${formatPercent(t.changePct)} today`}
+          </div>
         </div>
       </div>
 
@@ -185,7 +187,9 @@ function MarketMoversSection({ report }: { report: ApexReport }) {
                           <span className="text-muted-foreground/60">{i + 1}.</span>{" "}
                           <span className="font-medium">{m.ticker}</span>
                         </span>
-                        <span className={pctTone(m.changePct)}>{formatPercent(m.changePct)}</span>
+                        <span className={m.withheld ? "text-muted-foreground" : pctTone(m.changePct)}>
+                          {m.withheld ? "data under review" : formatPercent(m.changePct)}
+                        </span>
                       </li>
                     ))}
                   </ul>
@@ -283,7 +287,9 @@ function DirectRecommendationsSection({ report }: { report: ApexReport }) {
         <span className="font-semibold">{r.ticker}</span>
         <span className="text-xs text-muted-foreground">· {formatMoney(r.price, r.currency)}</span>
       </div>
-      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{r.detail}</p>
+      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+        <RichText text={r.detail} />
+      </p>
     </li>
   );
 
@@ -631,12 +637,16 @@ export function ApexReportView({ report: source }: { report: ApexReport }) {
                   <span className="text-muted-foreground">
                     <span className="font-medium text-foreground">{g.ticker}</span> · {g.name}
                   </span>
-                  <span className="text-emerald-600 font-mono">+{g.changePct}%</span>
+                  <span className={g.withheld ? "text-muted-foreground" : "text-emerald-600 font-mono"}>
+                    {g.withheld ? "data under review" : `+${g.changePct}%`}
+                  </span>
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-muted-foreground">Consolidating tape — no standout gainers this session.</p>
+            <p className="text-sm text-muted-foreground">
+              {report.sessionTapeNote || "Consolidating tape — no standout gainers this session."}
+            </p>
           )}
         </div>
         <div className="rounded-xl border border-border/60 bg-card/40 p-4">
@@ -645,7 +655,7 @@ export function ApexReportView({ report: source }: { report: ApexReport }) {
             {report.keyObservations.map((o, i) => (
               <li key={i} className="flex gap-2 text-sm text-muted-foreground">
                 <span className="text-primary">›</span>
-                <span>{o}</span>
+                <span><RichText text={o} /></span>
               </li>
             ))}
           </ul>
@@ -693,6 +703,23 @@ export function ApexReportView({ report: source }: { report: ApexReport }) {
 
       {/* Direct recommendations (sell/trim/buy/hold) */}
       <DirectRecommendationsSection report={report} />
+
+      {report.notSized && report.notSized.length > 0 && (
+        <div className="rounded-xl border border-border/60 bg-card/40 p-4">
+          <div className="text-sm font-semibold">Not sized this week</div>
+          <p className="mb-2 text-xs text-muted-foreground">
+            Buy-signal names left off the sized list. Each one keeps its reason.
+          </p>
+          <ul className="space-y-1.5">
+            {report.notSized.map((row) => (
+              <li key={row.ticker} className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
+                <span className="font-medium">{row.ticker}</span>
+                <span className="text-xs text-muted-foreground">{row.reason}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Three forward pathways + recommended route */}
       <PathwayPlanSection report={report} />

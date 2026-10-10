@@ -71,7 +71,7 @@ import { MarketWidePerformers } from "@/components/dashboard/MarketWidePerformer
 import { CryptoMarketSection } from "@/components/dashboard/crypto/CryptoMarketSection";
 import { CryptoLiveStatus } from "@/components/dashboard/crypto/CryptoLiveStatus";
 import { applyLiveCryptoPrices } from "@/lib/crypto-live";
-import { holdingsGeneration, holdingsResponseIsStale } from "@/lib/holdings-generation";
+import { holdingsActionAfterDialogClose, holdingsGeneration, holdingsResponseIsStale } from "@/lib/holdings-generation";
 import { resumeCryptoLivePoll, useLiveCryptoQuotes } from "@/hooks/useLiveCryptoQuotes";
 import { HoldingsOwnedTable } from "@/components/dashboard/HoldingsOwnedTable";
 import { HoldingsCsvImport } from "@/components/dashboard/HoldingsCsvImport";
@@ -377,6 +377,7 @@ export function PortfolioDashboard({
       setCashLoaded(false);
     }
     setRecentLedger([]);
+    if (!preview) setLedgerLoaded(false);
   }, [preview, userId]);
 
   // Keep the active bot in step with the hub page so crypto alerts/holdings
@@ -434,6 +435,7 @@ export function PortfolioDashboard({
     if (preview) return true;
     return readCachedCashNZD(userId) != null;
   });
+  const [ledgerLoaded, setLedgerLoaded] = useState(!!preview);
   const [metalsLoaded, setMetalsLoaded] = useState(!!preview);
   // Cash (NZD) + precious-metals value (NZD) power the "Totals owned" strip.
   // Scoped by userId — never rehydrate another account's balance from sessionStorage.
@@ -649,9 +651,11 @@ export function PortfolioDashboard({
         setRecentLedger(rows);
         setIncomeNzd(typeof res.data.incomeNZD === "number" ? res.data.incomeNZD : 0);
         setCashLoaded(true);
+        setLedgerLoaded(true);
       } else {
         console.error("[dashboard] Failed to load cash balance:", res.error);
         setCashLoaded(true);
+        setLedgerLoaded(true);
       }
     } finally {
       tracked.release();
@@ -744,25 +748,38 @@ export function PortfolioDashboard({
   // Apply a holdings body that arrived while Buy/Add was open. Identity is
   // re-checked so a 1T→TT switch cannot flush the previous account's rows.
   useEffect(() => {
+    let wasOpen = getTxDialogSnapshot().open;
+    let generationAtOpen: number | null = wasOpen ? holdingsGeneration() : null;
     return subscribeTxDialog(() => {
-      if (getTxDialogSnapshot().open) return;
+      const open = getTxDialogSnapshot().open;
+      if (open && !wasOpen) generationAtOpen = holdingsGeneration();
+      wasOpen = open;
+      if (open) return;
       resumeCryptoLivePoll();
       const pending = deferredHoldingsRef.current;
-      if (!pending) return;
+      const action = holdingsActionAfterDialogClose({
+        generationAtOpen,
+        generationNow: holdingsGeneration(),
+        pendingGeneration: pending?.generation ?? null,
+      });
+      generationAtOpen = null;
+      if (action === "keep") return;
+      if (action === "apply" && pending) {
+        deferredHoldingsRef.current = null;
+        if (pending.epoch !== getAccountEpoch() || pending.userId !== getActiveAccountUserId()) {
+          console.error("[dashboard] Dropping deferred holdings — account changed");
+          return;
+        }
+        setAllStocks(pending.rows);
+        holdingsHydratedRef.current = true;
+        setLoading(false);
+        return;
+      }
       deferredHoldingsRef.current = null;
-      if (pending.epoch !== getAccountEpoch() || pending.userId !== getActiveAccountUserId()) {
-        console.error("[dashboard] Dropping deferred holdings — account changed");
-        return;
-      }
-      if (holdingsResponseIsStale(pending.generation)) {
-        console.log("[dashboard] Dropping deferred holdings captured before a trade");
-        return;
-      }
-      setAllStocks(pending.rows);
-      holdingsHydratedRef.current = true;
-      setLoading(false);
+      console.log("[dashboard] Refetching holdings after the transaction dialog closed");
+      void loadStocks();
     });
-  }, []);
+  }, [loadStocks]);
 
   // Live net-worth updates — silently re-price holdings every 60s so the totals
   // fluctuate with the market (AnimatedMoney tweens each change smoothly). No
@@ -1364,7 +1381,7 @@ export function PortfolioDashboard({
         metalsPositions={preciousMetalHoldings.length + metalStocks.length}
         recentLedger={recentLedger}
         balancesLoading={!balancesReady}
-        ledgerLoading={!preview && !cashLoaded}
+        ledgerLoading={!preview && !ledgerLoaded}
         metalsSpotLive={metalsSpotLive}
       />
       <ReturnsSplitCard

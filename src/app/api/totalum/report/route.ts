@@ -66,7 +66,16 @@ export async function GET(req: Request) {
         console.error("[api/totalum/report] Failed to persist the illustrated path (non-fatal):", saveErr);
       }
     }
-    const strategy = synthesis.isEmpty ? null : buildStrategy(synthesis, goal);
+    const picks =
+      findings.hasStox || findings.hasKoins
+        ? {
+            equitiesQualifying: findings.equitiesQualifying,
+            cryptoQualifying: findings.cryptoQualifying,
+            equitiesNotSized: findings.equitiesNotSized,
+            cryptoNotSized: findings.cryptoNotSized,
+          }
+        : undefined;
+    const strategy = synthesis.isEmpty ? null : buildStrategy(synthesis, goal, picks);
     const heldTickers = synthesis.positions
       .filter((p) => p.assetClass !== "cash")
       .map((p) => p.label);

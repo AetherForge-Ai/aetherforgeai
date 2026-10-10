@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser, isStripeConfigured, type AppUser } from "@/lib/session";
-import { loadTotalumSynthesis } from "@/lib/totalum-service";
+import { loadReportFindings, loadTotalumSynthesis } from "@/lib/totalum-service";
 import { buildStrategy, type GoalKey } from "@/lib/totalum-engine";
 import { headmasterDepth, type HeadmasterDepth } from "@/lib/entitlements";
 import type { TotalumSynthesis } from "@/lib/totalum-engine";
@@ -91,10 +91,23 @@ export async function POST(req: Request) {
     }
 
     const depth = headmasterAccess(user);
-    const synthesis = presentSynthesis(await loadTotalumSynthesis(user._id), depth);
+    const [rawSynthesis, findings] = await Promise.all([
+      loadTotalumSynthesis(user._id),
+      loadReportFindings(user._id),
+    ]);
+    const synthesis = presentSynthesis(rawSynthesis, depth);
     const goal: GoalKey = parsed.data.goal ?? "balanced_growth";
+    const picks =
+      findings.hasStox || findings.hasKoins
+        ? {
+            equitiesQualifying: findings.equitiesQualifying,
+            cryptoQualifying: findings.cryptoQualifying,
+            equitiesNotSized: findings.equitiesNotSized,
+            cryptoNotSized: findings.cryptoNotSized,
+          }
+        : undefined;
     // Cash-only / any funded book builds a strategy; truly empty books return null.
-    const strategy = synthesis.isEmpty ? null : buildStrategy(synthesis, goal);
+    const strategy = synthesis.isEmpty ? null : buildStrategy(synthesis, goal, picks);
 
     console.log(`[api/totalum] POST built strategy '${goal}' for user ${user._id} (empty=${synthesis.isEmpty}, cash=${synthesis.cashBalanceNZD})`);
     return NextResponse.json({ ok: true, data: { synthesis, strategy } });
