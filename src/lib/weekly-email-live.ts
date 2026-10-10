@@ -218,6 +218,12 @@ export async function optOutWeeklyEmail(userId: string): Promise<void> {
  * Refuses unless WEEKLY_EMAIL_SEND is exactly "on".
  * `from` is checked and is not posted: EmailPayloadI does not include it.
  * The text part is kept on the message object and is not posted either.
+ *
+ * RFC 8058 List-Unsubscribe and List-Unsubscribe-Post are not posted.
+ * EmailPayloadI has no custom header field. The documented fields are to,
+ * subject, html, fromName, cc, bcc, replyTo, and attachments.
+ *
+ * pull-check:weekly-unsub-confirm-2026-10-11
  */
 export async function deliverWeeklyEmail(mail: OutboundMail): Promise<void> {
   if (!weeklyEmailSendingEnabled({ WEEKLY_EMAIL_SEND: process.env.WEEKLY_EMAIL_SEND })) {

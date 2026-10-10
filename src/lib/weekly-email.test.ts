@@ -14,6 +14,7 @@ import {
   encodeWeeklyEmailPreference,
   estimateWeeklyEmailCost,
   handleWeeklyEmailCron,
+  handleWeeklyEmailUnsubscribe,
   isoWeekFromAuckland,
   paidWeeklyEmailPlan,
   runWeeklyEmailJob,
@@ -240,6 +241,153 @@ describe("weekly email", () => {
     expect(sent).toHaveLength(0);
   });
 
+  it("shows a confirmation page on GET and opts out only on a same-origin POST", async () => {
+    const secret = "test-secret";
+    const token = await signWeeklyEmailToken("user-starter", secret, MONDAY_OPEN.getTime());
+    const store = createMemoryWeeklyEmailStore({ "user-starter": "v1|on|2026-W42" });
+    const opted: string[] = [];
+    const optOut = async (userId: string) => {
+      opted.push(userId);
+      await applyWeeklyEmailOptOut(store, userId);
+    };
+    const url = `https://aetherforgeai.co.nz/api/weekly-email/unsubscribe?token=${encodeURIComponent(token)}`;
+    const sameOrigin = {
+      get(name: string) {
+        const values: Record<string, string> = {
+          origin: "https://aetherforgeai.co.nz",
+          host: "aetherforgeai.co.nz",
+        };
+        return values[name.toLowerCase()] ?? null;
+      },
+    };
+
+    const viewed = await handleWeeklyEmailUnsubscribe({
+      method: "GET",
+      url,
+      headers: sameOrigin,
+      formToken: null,
+      secret,
+      optOut,
+      now: MONDAY_OPEN.getTime(),
+    });
+    expect(viewed.status).toBe(200);
+    expect(viewed.outcome).toBe("confirm");
+    expect(viewed.html).toContain("<h1>Stop the weekly email?</h1>");
+    expect(viewed.html).toContain('<meta name="robots" content="noindex">');
+    expect(viewed.html).toContain('method="post"');
+    expect(viewed.html).toContain(`value="${token}"`);
+    expect(viewed.html).toContain(">Confirm<");
+    expect(viewed.html).not.toContain("Weekly email is off for this account.");
+    expect(viewed.headers["x-robots-tag"]).toBe("noindex");
+    expect(viewed.headers["cache-control"]).toBe("no-store");
+    expect(opted).toEqual([]);
+    expect(decodeWeeklyEmailPreference(store.raw["user-starter"])).toEqual({
+      optedOut: false,
+      lastIsoWeek: "2026-W42",
+    });
+
+    const confirmed = await handleWeeklyEmailUnsubscribe({
+      method: "POST",
+      url,
+      headers: sameOrigin,
+      formToken: token,
+      secret,
+      optOut,
+      now: MONDAY_OPEN.getTime(),
+    });
+    expect(confirmed.status).toBe(200);
+    expect(confirmed.outcome).toBe("unsubscribed");
+    expect(confirmed.html).toContain("<h1>Weekly email is off</h1>");
+    expect(confirmed.html).toContain("Weekly email is off for this account. No email was sent.");
+    expect(confirmed.html).toContain("noindex");
+    expect(opted).toEqual(["user-starter"]);
+    expect(decodeWeeklyEmailPreference(store.raw["user-starter"])).toEqual({
+      optedOut: true,
+      lastIsoWeek: "2026-W42",
+    });
+
+    const again = await handleWeeklyEmailUnsubscribe({
+      method: "POST",
+      url,
+      headers: sameOrigin,
+      formToken: token,
+      secret,
+      optOut,
+      now: MONDAY_OPEN.getTime(),
+    });
+    expect(again.outcome).toBe("unsubscribed");
+    expect(decodeWeeklyEmailPreference(store.raw["user-starter"])).toEqual({
+      optedOut: true,
+      lastIsoWeek: "2026-W42",
+    });
+
+    const queryOnly = await handleWeeklyEmailUnsubscribe({
+      method: "POST",
+      url,
+      headers: sameOrigin,
+      formToken: null,
+      secret,
+      optOut,
+      now: MONDAY_OPEN.getTime(),
+    });
+    expect(queryOnly.status).toBe(400);
+    expect(queryOnly.outcome).toBe("invalid");
+    expect(opted).toEqual(["user-starter", "user-starter"]);
+
+    const bad = await handleWeeklyEmailUnsubscribe({
+      method: "POST",
+      url,
+      headers: sameOrigin,
+      formToken: `${token}x`,
+      secret,
+      optOut,
+      now: MONDAY_OPEN.getTime(),
+    });
+    expect(bad.status).toBe(400);
+    expect(bad.outcome).toBe("invalid");
+    expect(bad.html).toContain("This unsubscribe link is not valid. No email was sent.");
+    expect(opted).toEqual(["user-starter", "user-starter"]);
+
+    const badGet = await handleWeeklyEmailUnsubscribe({
+      method: "GET",
+      url: `${url}x`,
+      headers: sameOrigin,
+      formToken: null,
+      secret,
+      optOut,
+      now: MONDAY_OPEN.getTime(),
+    });
+    expect(badGet.status).toBe(400);
+    expect(badGet.outcome).toBe("invalid");
+    expect(opted).toEqual(["user-starter", "user-starter"]);
+
+    const crossSite = await handleWeeklyEmailUnsubscribe({
+      method: "POST",
+      url,
+      headers: {
+        get(name: string) {
+          const values: Record<string, string> = {
+            origin: "https://scanner.example",
+            host: "aetherforgeai.co.nz",
+          };
+          return values[name.toLowerCase()] ?? null;
+        },
+      },
+      formToken: token,
+      secret,
+      optOut,
+      now: MONDAY_OPEN.getTime(),
+    });
+    expect(crossSite.status).toBe(403);
+    expect(crossSite.outcome).toBe("forbidden");
+    expect(crossSite.html).toContain("The weekly email was not changed.");
+    expect(opted).toEqual(["user-starter", "user-starter"]);
+    expect(decodeWeeklyEmailPreference(store.raw["user-starter"])).toEqual({
+      optedOut: true,
+      lastIsoWeek: "2026-W42",
+    });
+  });
+
   it("renders test-only projections without a personal book or rating labels", () => {
     const board = sampleBoard();
     expect(board.projections.map((row) => row.ticker)).toEqual(["SAMP.NZ"]);
@@ -395,5 +543,14 @@ describe("weekly email", () => {
     expect(watchlist).toContain("WEEKLY_EMAIL_NOTE_TICKER");
     expect(read("src/lib/weekly-email.ts")).toContain("pull-check:weekly-email-2026-10-11");
     expect(read("qa/PULL-CHECK-2026-10-10.md")).toContain("pull-check:weekly-email-2026-10-11");
+    const unsubscribe = read("src/app/api/weekly-email/unsubscribe/route.ts");
+    expect(unsubscribe).toContain("pull-check:weekly-unsub-confirm-2026-10-11");
+    expect(unsubscribe).toContain("handleWeeklyEmailUnsubscribe");
+    expect(unsubscribe).toContain("formToken: null");
+    expect(read("src/lib/weekly-email.ts")).toContain("pull-check:weekly-unsub-confirm-2026-10-11");
+    expect(read("qa/PULL-CHECK-2026-10-10.md")).toContain("pull-check:weekly-unsub-confirm-2026-10-11");
+    expect(live).toContain("RFC 8058 List-Unsubscribe and List-Unsubscribe-Post are not posted.");
+    expect(live).toContain("pull-check:weekly-unsub-confirm-2026-10-11");
+    expect(read("src/lib/send-transactional-mail.ts")).not.toContain("List-Unsubscribe");
   });
 });
