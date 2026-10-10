@@ -8,6 +8,7 @@ import { DisclaimerNotice } from "@/components/legal/DisclaimerNotice";
 import { APEX_DUAL_PUBLIC_NOTE, PUBLISHED_PLAN_PRICES } from "@/lib/plan-usage";
 import { PRICING_TIERS } from "@/lib/plans";
 import { SECURITY_LINE } from "@/lib/public-copy";
+import { pageTitle } from "@/lib/page-title";
 import { Button } from "@/components/ui/button";
 import {
   ShieldCheck,
@@ -20,7 +21,7 @@ import {
 } from "lucide-react";
 
 export const metadata = publicPageMetadata("/pricing", {
-  title: "Pricing — AetherForge AI | Simple, powerful market intelligence",
+  title: pageTitle("Pricing"),
   description:
     "3 reports a month free, no card. Pro is NZ$49/month for Stox, Koins and the full Headmaster, with a 14-day trial. Informational market intelligence — not financial advice, and we don't trade for you.",
 });

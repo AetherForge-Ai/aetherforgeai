@@ -7,7 +7,7 @@
 export const CRYPTO_PROJECTIONS_PAUSED = true;
 
 export const CRYPTO_PROJECTIONS_PAUSE_MESSAGE =
-  "Crypto projections are paused while we fix a data issue. Live coin prices are still on Markets.";
+  "Crypto projections on this page are paused while a data issue is fixed. Koins still writes a 7-day illustrative outlook on a book that has positions. Live coin prices stay on Markets.";
 
 export function isCryptoProjectionRow(row: { market?: string | null; assetClass?: string | null }): boolean {
   return row.market === "CRYPTO" || row.assetClass === "crypto";

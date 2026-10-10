@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { publicPageMetadata } from "@/lib/reviewed-book";
+import { pageTitle } from "@/lib/page-title";
 import { LEGAL_ENTITY_NAME } from "@/lib/company";
 import { PERFORMANCE_SAMPLE } from "@/lib/performance-sample";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -18,7 +19,7 @@ import {
  */
 
 export const metadata = publicPageMetadata("/performance", {
-  title: "Example results · AetherForge AI",
+  title: pageTitle("Example results"),
   description:
     "Timestamped screenshots of an AetherForge paper portfolio. Illustrative only — not a trading platform, not a broker, and not a promise of future returns.",
 });

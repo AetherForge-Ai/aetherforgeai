@@ -14,6 +14,7 @@ import { MailCheck, ShieldCheck, Loader2, Inbox } from "lucide-react";
 import { COUNTRIES } from "@/lib/countries";
 import { Checkbox } from "@/components/ui/checkbox";
 import { TERMS_VERSION } from "@/lib/signup-consent";
+import { safeRelativeRedirect } from "@/lib/safe-redirect";
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -31,14 +32,18 @@ export default function RegisterPage() {
   const [registeredEmail, setRegisteredEmail] = useState<string | null>(null);
   const [resendState, setResendState] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [ageConfirmed, setAgeConfirmed] = useState(false);
+  const [loginHref, setLoginHref] = useState("/login");
 
   // Prefill the email when arriving from the pricing free-trial CTA (?email=...).
+  // A same-origin redirect (for example a coin page with buy=1) is passed to Log In.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const presetEmail = params.get("email");
     if (presetEmail) {
       setFormData((prev) => ({ ...prev, email: presetEmail }));
     }
+    const next = safeRelativeRedirect(params.get("redirect"));
+    setLoginHref(next ? `/login?redirect=${encodeURIComponent(next)}` : "/login");
   }, []);
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -194,7 +199,7 @@ export default function RegisterPage() {
           </CardContent>
           <CardFooter className="flex flex-col gap-3 pt-2">
             <Button asChild className="w-full h-11 text-base font-semibold">
-              <Link href="/login">Go to Log In</Link>
+              <Link href={loginHref}>Go to Log In</Link>
             </Button>
             <p className="text-xs text-center text-muted-foreground">
               Once verified, you can log in and access everything.
@@ -325,7 +330,7 @@ export default function RegisterPage() {
               <span>
                 I am 18 or over. By signing up I agree to the{" "}
                 <Link href="/terms-of-service" className="font-semibold text-primary underline-offset-2 hover:underline">
-                  Terms of Service
+                  Terms
                 </Link>
                 {" "}and{" "}
                 <Link href="/privacy-policy" className="font-semibold text-primary underline-offset-2 hover:underline">
@@ -351,7 +356,7 @@ export default function RegisterPage() {
             </p>
             <div className="text-sm text-center text-muted-foreground">
               Already have an account?{" "}
-              <Link href="/login" className="font-semibold text-primary hover:underline transition-colors">
+              <Link href={loginHref} className="font-semibold text-primary hover:underline transition-colors">
                 Sign in here
               </Link>
             </div>

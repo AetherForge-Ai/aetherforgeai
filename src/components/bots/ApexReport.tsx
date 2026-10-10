@@ -13,6 +13,7 @@ import { formatPercent } from "@/lib/portfolio";
 import { formatMoney } from "@/lib/currency";
 import { sanitizeGuardedReport } from "@/lib/report-consistency";
 import { labelMemberReport } from "@/lib/report-language";
+import { moverSweepCaption } from "@/lib/mover-sweep";
 import type {
   ApexReport,
   TickerAnalysis,
@@ -170,7 +171,7 @@ function MarketMoversSection({ report }: { report: ApexReport }) {
     <div className="rounded-xl border border-border/60 bg-card/40 p-4">
       <div className="text-sm font-semibold">Full multi-timeframe mover sweep · Top 10</div>
       <p className="mb-3 text-xs text-muted-foreground">
-        Biggest share-price gainers on each exchange over 24 hours, 7 days and the last month.
+        {moverSweepCaption(report.bot)}
       </p>
       <div className="space-y-4">
         {report.marketMovers.map((g) => (

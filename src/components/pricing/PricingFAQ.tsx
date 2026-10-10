@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { REFUND_FAQ, TRIAL_FAQ } from "@/lib/public-copy";
+import { EMAIL_SUPPORT_LINE, REFUND_FAQ, TRIAL_FAQ } from "@/lib/public-copy";
 
 const FAQS: { q: string; a: string }[] = [
   {
@@ -44,7 +44,7 @@ const FAQS: { q: string; a: string }[] = [
   },
   {
     q: "What kind of support do I get on each plan?",
-    a: "Every plan — including Free — includes email support. Pro adds priority support with faster response times, and Ultimate includes a dedicated account manager plus scheduled strategy consultation calls.",
+    a: `${EMAIL_SUPPORT_LINE} Pro adds priority support with faster response times, and Ultimate includes a dedicated account manager plus scheduled strategy consultation calls.`,
   },
 ];
 

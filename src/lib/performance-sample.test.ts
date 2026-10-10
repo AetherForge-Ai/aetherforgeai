@@ -27,7 +27,7 @@ describe("H10 example results", () => {
   it("keeps July, unspaced times and a second definition off the page", () => {
     const page = read("src/app/performance/page.tsx");
     const gallery = read("src/components/performance/LiveExamplesGallery.tsx");
-    expect(page).toContain('title: "Example results · AetherForge AI"');
+    expect(page).toContain('pageTitle("Example results")');
     expect(page).toContain("PERFORMANCE_SAMPLE");
     expect(page).not.toContain("July");
     expect(page).not.toContain("9:20am");

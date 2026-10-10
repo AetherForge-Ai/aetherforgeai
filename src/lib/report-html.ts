@@ -28,6 +28,7 @@ import type { IntelligenceBriefing, BriefingOutlookRow } from "@/lib/briefing";
 import { sanitizeGuardedReport } from "@/lib/report-consistency";
 import { labelMemberReport, stripReportModelLanguage } from "@/lib/report-language";
 import { fullBookSentence, type SharedBookLog } from "@/lib/book-log";
+import { moverSweepCaption } from "@/lib/mover-sweep";
 import type { ClosedCallScore } from "@/lib/report-topup";
 
 export interface ReportAlert {
@@ -287,7 +288,7 @@ function technicalsTable(techs: SecurityIntel[]): string {
 /* ------------------- Advanced multi-timeframe sweep blocks -------------- */
 
 /** Top-10 movers per exchange, across the 24h / 7d / 1-month windows. */
-function marketMoversBlock(groups: MarketMoversGroup[]): string {
+function marketMoversBlock(groups: MarketMoversGroup[], bot?: string): string {
   if (!groups.length) return "";
   const groupHtml = groups
     .map((g) => {
@@ -317,7 +318,7 @@ function marketMoversBlock(groups: MarketMoversGroup[]): string {
     })
     .join("");
   return `<h2 style="font-size:16px;color:${INK};margin:26px 0 4px">Full multi-timeframe mover sweep · Top 10</h2>
-    <div style="font-size:12px;color:${MUTE};margin:0 0 4px">Biggest share-price gainers across each exchange over the last 24 hours, 7 days and month.</div>
+    <div style="font-size:12px;color:${MUTE};margin:0 0 4px">${esc(moverSweepCaption(bot, "html"))}</div>
     ${groupHtml}`;
 }
 
@@ -664,7 +665,7 @@ export function renderReportHtml(source: ApexReport, opts: RenderReportOptions):
 
         ${report.briefing ? briefingBlock(report.briefing) : ""}
 
-        ${marketMoversBlock(report.marketMovers)}
+        ${marketMoversBlock(report.marketMovers, report.bot)}
 
         ${projectionLeadersBlock(report.projectionLeaders)}
 

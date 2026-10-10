@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { ApexReportView } from "@/components/bots/ApexReport";
 import { buildDemoReport, type BotKind } from "@/lib/apex";
+import { SMITTY_ROLE_LINE } from "@/lib/public-copy";
 import { BOT_STOX_AVATAR, BOT_KOINS_AVATAR, BOT_HEADMASTER_AVATAR } from "../../../assets/files";
 
 interface BotDef {
@@ -116,7 +117,7 @@ export function BotShowcase() {
           3 AI bots that research the markets with you
         </h2>
         <p className="mx-auto mt-4 max-w-2xl text-muted-foreground">
-          Stox monitors stock markets, Koins monitors crypto, and The Headmaster is the goal-planning bot. Reports are informational scenarios. AetherForge does not trade for you.
+          Stox monitors stock markets, Koins monitors crypto, and The Headmaster is the goal-planning bot. {SMITTY_ROLE_LINE} Reports are informational scenarios. AetherForge does not trade for you.
           
         </p>
       </div>

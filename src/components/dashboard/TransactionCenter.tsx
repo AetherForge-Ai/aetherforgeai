@@ -19,6 +19,8 @@ import { aucklandYmd } from "@/lib/entitlements";
 import { useFxRates } from "@/hooks/useFxRates";
 import { buildTradePreview, type TradePreview } from "@/lib/trade-preview";
 import { ledgerDisplayedCash } from "@/lib/ledger-cash-lines";
+import { CORRECTION_CASH_TOOLTIP, correctionChangeLabel, parseCorrectionNote } from "@/lib/holding-correction";
+import { dexSourceLabel, stripDexNotesPrefix } from "@/lib/dex-source";
 import { bumpHoldingsGeneration } from "@/lib/holdings-generation";
 import { useTradeReviewGate } from "@/lib/trade-review-gate";
 import { TradeReview } from "@/components/dashboard/TradeReview";
@@ -115,6 +117,8 @@ interface TransactionRow {
   notes?: string;
   executed_at?: string;
   createdAt?: string;
+  venue?: string | null;
+  chain?: string | null;
 }
 
 interface Ledger {
@@ -134,6 +138,30 @@ function savedFxLabel(row: { fx_rate?: number | null }): string {
 function feeAmount(t: { fees?: number; fees_native?: number }): number {
   const n = Number(t.fees_native ?? t.fees);
   return Number.isFinite(n) ? n : 0;
+}
+
+function correctionQtyPrice(t: { type: string; notes?: string; quantity?: number; price?: number }): {
+  qty: string;
+  price: string;
+  label: string | null;
+} | null {
+  if (t.type !== "correction") return null;
+  const span = parseCorrectionNote(stripDexNotesPrefix(t.notes));
+  if (span) {
+    return {
+      qty: `${span.beforeQty} → ${span.afterQty}`,
+      price: `${span.beforePrice} → ${span.afterPrice}`,
+      label: correctionChangeLabel(t.notes),
+    };
+  }
+  if (t.quantity || t.price) {
+    return {
+      qty: String(t.quantity ?? "—"),
+      price: String(t.price ?? "—"),
+      label: null,
+    };
+  }
+  return { qty: "—", price: "—", label: null };
 }
 
 /**
@@ -241,7 +269,9 @@ function CashLineSection({
               <li key={row._id} className="flex items-baseline justify-between gap-3 text-sm">
                 <span className="min-w-0">
                   <span className="font-medium">{row.asset_name || title}</span>
-                  {row.notes ? <span className="mt-0.5 block truncate text-xs text-muted-foreground">{row.notes}</span> : null}
+                  {stripDexNotesPrefix(row.notes) ? (
+                    <span className="mt-0.5 block truncate text-xs text-muted-foreground">{stripDexNotesPrefix(row.notes)}</span>
+                  ) : null}
                 </span>
                 <span className={cn("tnum shrink-0 font-semibold", amount >= 0 ? "text-emerald-600" : "text-rose-600")}>
                   {formatSignedMoney(amount, NZD)}
@@ -602,6 +632,7 @@ export function TransactionCenter({
                   const Icon = meta.icon;
                   const cur = (t.currency as CurrencyCode) || NZD;
                   const isTrade = t.type === "buy" || t.type === "sell";
+                  const change = correctionQtyPrice(t);
                   const total = rowCash(t);
                   return (
                     <tr key={t._id} className="border-b border-border/30 last:border-0 hover:bg-background/40">
@@ -611,6 +642,7 @@ export function TransactionCenter({
                             "inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-semibold",
                             meta.cls
                           )}
+                          title={t.type === "correction" ? CORRECTION_CASH_TOOLTIP : undefined}
                         >
                           <Icon className="size-3" /> {meta.label}
                         </span>
@@ -619,14 +651,17 @@ export function TransactionCenter({
                         {isTrade ? (
                           <div className="min-w-0">
                             <p className="font-semibold">{t.ticker}</p>
-                            <p className="truncate text-xs text-muted-foreground">{t.asset_name || "—"}</p>
+                            <p className="truncate text-xs text-muted-foreground">
+                              {t.asset_name || "—"}
+                              {dexSourceLabel(t) ? ` · ${dexSourceLabel(t)}` : ""}
+                            </p>
                           </div>
                         ) : (
                           <span className="text-muted-foreground">{t.asset_name || "Cash"}</span>
                         )}
                       </td>
-                      <td className="tnum px-4 py-2.5 text-right text-muted-foreground">
-                        {isTrade ? `${formatNumber(t.quantity || 0)} × ${formatUnitPrice(t.price || 0, cur)}` : "—"}
+                      <td className="tnum px-4 py-2.5 text-right text-muted-foreground" title={change ? CORRECTION_CASH_TOOLTIP : undefined}>
+                        {change?.label ? change.label : isTrade ? `${formatNumber(t.quantity || 0)} × ${formatUnitPrice(t.price || 0, cur)}` : "—"}
                       </td>
                       <td className="tnum px-4 py-2.5 text-right text-muted-foreground">
                         {formatMoney(feeAmount(t), cur)}
@@ -827,6 +862,7 @@ function AllTransactionsDialog({
     { key: "withdraw", label: "Withdrawals" },
     { key: "dividend", label: "Dividends" },
     { key: "tax", label: "Tax" },
+    { key: "correction", label: "Corrections" },
   ];
 
   return (
@@ -909,6 +945,7 @@ function AllTransactionsDialog({
                 <th className="py-2.5 pr-3 text-left"><SortHead label="Asset" k="ticker" align="left" /></th>
                 <th className="py-2.5 px-3"><SortHead label="Qty" k="quantity" /></th>
                 <th className="py-2.5 px-3"><SortHead label="Price" k="price" /></th>
+                <th className="py-2.5 px-3 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">Fee</th>
                 <th className="py-2.5 px-3 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">FX</th>
                 <th className="py-2.5 px-3"><SortHead label="Cash impact" k="total" /></th>
                 <th className="hidden py-2.5 px-3 md:table-cell"><SortHead label="Realised" k="realized" /></th>
@@ -918,7 +955,7 @@ function AllTransactionsDialog({
             <tbody>
               {pageRows.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-16 text-center text-sm text-muted-foreground">
+                  <td colSpan={9} className="py-16 text-center text-sm text-muted-foreground">
                     No transactions match your filters.
                   </td>
                 </tr>
@@ -928,6 +965,7 @@ function AllTransactionsDialog({
                   const Icon = meta.icon;
                   const cur = (t.currency as CurrencyCode) || NZD;
                   const isTrade = t.type === "buy" || t.type === "sell";
+                  const change = correctionQtyPrice(t);
                   const total = rowCash(t);
                   return (
                     <tr key={t._id} className="border-b border-border/30 last:border-0 hover:bg-background/40">
@@ -937,16 +975,18 @@ function AllTransactionsDialog({
                             "inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-semibold",
                             meta.cls
                           )}
+                          title={t.type === "correction" ? CORRECTION_CASH_TOOLTIP : undefined}
                         >
                           <Icon className="size-3" /> {meta.label}
                         </span>
                       </td>
                       <td className="py-3 pr-3">
-                        {isTrade ? (
+                        {isTrade || change ? (
                           <div className="min-w-0">
-                            <p className="font-semibold">{t.ticker}</p>
-                            <p className="max-w-[14rem] truncate text-xs text-muted-foreground">
-                              {t.asset_name || "—"}
+                            <p className="font-semibold">{t.ticker || t.asset_name || "—"}</p>
+                            <p className="max-w-[14rem] truncate text-xs text-muted-foreground" title={change ? CORRECTION_CASH_TOOLTIP : undefined}>
+                              {change?.label || t.asset_name || "—"}
+                              {dexSourceLabel(t) ? ` · ${dexSourceLabel(t)}` : ""}
                             </p>
                           </div>
                         ) : (
@@ -954,10 +994,13 @@ function AllTransactionsDialog({
                         )}
                       </td>
                       <td className="tnum py-3 px-3 text-right text-muted-foreground">
-                        {isTrade ? formatNumber(t.quantity || 0) : "—"}
+                        {change ? change.qty : isTrade ? formatNumber(t.quantity || 0) : "—"}
                       </td>
                       <td className="tnum py-3 px-3 text-right text-muted-foreground">
-                        {isTrade ? formatUnitPrice(t.price || 0, cur) : "—"}
+                        {change ? change.price : isTrade ? formatUnitPrice(t.price || 0, cur) : "—"}
+                      </td>
+                      <td className="tnum py-3 px-3 text-right text-muted-foreground">
+                        {formatMoney(feeAmount(t), cur)}
                       </td>
                       <td className="tnum py-3 px-3 text-right text-muted-foreground">{savedFxLabel(t)}</td>
                       <td
