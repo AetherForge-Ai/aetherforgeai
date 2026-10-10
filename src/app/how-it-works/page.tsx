@@ -130,8 +130,8 @@ const BOTS = [
     subtitle: "Crypto Market Intelligence",
     accent: "from-amber-500/20 via-orange-500/10 to-transparent",
     ring: "border-amber-500/30",
-    desc: "Tracks the top 400 coins by market cap and the wider digital-asset market — synthesising flows, news and sentiment into illustrative 7-day scenarios and forward pathways. Crypto projections on the projections page stay paused.",
-    tags: ["BTC", "ETH", "Top 400 coins by market cap"],
+    desc: "Tracks up to 400 coins, depending on what the data feed returns, and the wider digital-asset market — synthesising flows, news and sentiment into illustrative 7-day scenarios and forward pathways. Crypto projections on the projections page stay paused.",
+    tags: ["BTC", "ETH", "Up to 400 coins"],
   },
 ];
 

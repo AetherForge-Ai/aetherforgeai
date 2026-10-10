@@ -7,6 +7,7 @@ import { lookupCryptoId } from "@/lib/crypto-id-registry";
 import { dexQuoteRows } from "@/lib/crypto-coingecko";
 import { normaliseUnitPrice } from "@/lib/currency";
 import { dexPriceForSymbol } from "@/lib/reviewed-book";
+import { listedCryptoIsStrict, pickListedCryptoPrice } from "@/lib/crypto-quote";
 
 export const dynamic = "force-dynamic";
 
@@ -44,8 +45,9 @@ export async function GET(req: Request) {
       const remembered = lookupCryptoId(symbol);
       const coinId = explicitId || remembered || "";
       const knownName = Object.prototype.hasOwnProperty.call(CANONICAL_CRYPTO_IDS, symbol);
-      // An id from the extended list must not be replaced with a guessed Yahoo print.
-      const strict = Boolean(explicitId || (remembered && !knownName));
+      // A known coin (PEPE, UNI) uses the sell-form coin list even when the Add panel sends an id.
+      // An unknown extended id or a pool address stays strict so Yahoo cannot guess the wrong asset.
+      const strict = listedCryptoIsStrict(symbol, explicitId, remembered || "", knownName);
       let price: number | null = null;
       const readCoinList = async (): Promise<number | null> => {
         try {
@@ -74,16 +76,19 @@ export async function GET(req: Request) {
           return null;
         }
       };
-      // A DEX row prices from GeckoTerminal. A coin-list miss falls through to the same list.
+      // A DEX row prices from GeckoTerminal search, then the same coin list the sell form uses.
+      let coinListPrice: number | null = null;
+      let dexSearchPrice: number | null = null;
       if (market !== "dex") {
-        price = await readCoinList();
+        coinListPrice = await readCoinList();
       }
-      if (!(price != null && price > 0)) {
-        price = await readDex();
+      if (!(coinListPrice != null && coinListPrice > 0)) {
+        dexSearchPrice = await readDex();
       }
-      if (market === "dex" && !(price != null && price > 0)) {
-        price = await readCoinList();
+      if (market === "dex" && !(dexSearchPrice != null && dexSearchPrice > 0)) {
+        coinListPrice = await readCoinList();
       }
+      price = pickListedCryptoPrice({ market, dexPrice: dexSearchPrice, coinListPrice });
       const kept = normaliseUnitPrice(price);
       console.log(`[api/tickers/quote] (crypto) ${symbol} → ${kept ? `$${kept} USD` : "no quote"}`);
       return NextResponse.json({

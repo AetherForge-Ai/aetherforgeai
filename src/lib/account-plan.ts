@@ -71,5 +71,6 @@ export async function loadAccountPlan(user: AppUser, now = Date.now()): Promise<
     holdingsUsed,
     reportsUsed,
     assistantUsed,
+    tickerLimit: user.ticker_limit,
   });
 }

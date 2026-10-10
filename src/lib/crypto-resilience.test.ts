@@ -1,16 +1,25 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { clientFacingError, parseApiBody } from "@/lib/api-json";
 import { dexBody, marketsBody } from "@/lib/crypto-api-body";
 import {
+  DEX_COLD_BUDGET_MS,
+  DEX_FILL_CONCURRENCY,
   DEX_FURTHER_NOTICE,
+  DEX_NETWORKS,
+  DEX_PAGE_CAP,
+  DEX_POOLS_PER_PAGE,
   DEX_STALE_MS,
   dedupeDexTokens,
   dexCallWaitMs,
   dexListNotice,
   dexNetworkLabel,
+  dexResponseCacheControl,
   freshDexRows,
+  mergeDexLists,
   nextDexTarget,
   parseMegafilterPage,
+  takeDexJobs,
   type DexStoredPage,
   type DexTokenRow,
 } from "@/lib/crypto-dex";
@@ -197,10 +206,11 @@ describe("DEX page store", () => {
     expect(rows.some((row) => row.symbol === "OLD" || row.price === 0)).toBe(false);
   });
 
-  it("keeps the notice only while a partial fresh list is under 400", () => {
-    expect(dexListNotice(0)).toBeNull();
-    expect(dexListNotice(1)).toBe(DEX_FURTHER_NOTICE);
-    expect(dexListNotice(399)).toBe(DEX_FURTHER_NOTICE);
+  it("keeps an honest notice while a fresh list is under 400", () => {
+    expect(dexListNotice(0)).toMatch(/This list is 0, not 400/);
+    expect(dexListNotice(1)).toBe(`GeckoTerminal returned 1 tokens, not 400. ${DEX_FURTHER_NOTICE}`);
+    expect(dexListNotice(33, true)).toBe("GeckoTerminal returned 33 tokens, not 400. The rate limit stopped the list.");
+    expect(dexListNotice(399)).toContain("399");
     expect(dexListNotice(400)).toBeNull();
   });
 
@@ -247,17 +257,57 @@ describe("DEX page store", () => {
     expect(dexCallWaitMs(burst, now)).toBeLessThanOrEqual(60_000);
   });
 
+  it("dedupes by token address and keeps the same symbol on two chains", () => {
+    const eth = { ...dexRow("WETH", 3000, 100, "Ethereum"), address: "eth_0xaaa" };
+    const sol = { ...dexRow("WETH", 2990, 50, "Solana"), address: "solana_bbb" };
+    const again = { ...dexRow("WETH", 3001, 10, "Ethereum"), address: "eth_0xaaa" };
+    const rows = dedupeDexTokens([eth, sol, again], 400);
+    expect(rows).toHaveLength(2);
+    expect(rows.find((row) => row.address === "eth_0xaaa")?.price).toBe(3000);
+    expect(rows.some((row) => row.address === "solana_bbb")).toBe(true);
+  });
+
+  it("fetches several networks inside a 3 second budget and does not shrink on a 429", () => {
+    expect(DEX_POOLS_PER_PAGE).toBe(20);
+    expect(DEX_PAGE_CAP).toBeGreaterThanOrEqual(20);
+    expect(DEX_FILL_CONCURRENCY).toBeGreaterThanOrEqual(4);
+    expect(DEX_FILL_CONCURRENCY).toBeLessThanOrEqual(6);
+    expect(DEX_COLD_BUDGET_MS).toBeLessThanOrEqual(3_000);
+    const jobs = takeDexJobs([], now, {}, DEX_FILL_CONCURRENCY);
+    expect(jobs).toHaveLength(DEX_FILL_CONCURRENCY);
+    expect(jobs.every((job) => job.page === 1)).toBe(true);
+    expect(new Set(jobs.map((job) => job.network)).size).toBe(DEX_FILL_CONCURRENCY);
+    expect(jobs.map((job) => job.network)).toEqual(DEX_NETWORKS.slice(0, DEX_FILL_CONCURRENCY));
+    const previous = Array.from({ length: 40 }, (_, index) => ({
+      ...dexRow(`T${index}`, 1, 10),
+      address: `eth_0x${index}`,
+    }));
+    const incoming = [{ ...dexRow("NEW", 2, 10), address: "eth_0xnew" }];
+    const kept = mergeDexLists(previous, incoming, true);
+    expect(kept).toHaveLength(41);
+    expect(kept.some((row) => row.address === "eth_0x0")).toBe(true);
+    expect(mergeDexLists(previous, incoming, false)).toHaveLength(1);
+    expect(dexResponseCacheControl(400)).toMatch(/s-maxage=/);
+    expect(dexResponseCacheControl(33)).toMatch(/stale-while-revalidate=/);
+    expect(dexResponseCacheControl(33)).not.toMatch(/top 400/i);
+    const how = readFileSync("src/app/how-it-works/page.tsx", "utf8");
+    expect(how).toContain("Tracks up to 400 coins, depending on what the data feed returns");
+    expect(how).not.toContain("Tracks the top 400 coins");
+    const route = readFileSync("src/app/api/crypto/dex/route.ts", "utf8");
+    expect(route).toContain("dexResponseCacheControl");
+  });
+
   it("returns a collecting list as JSON and a dead source as a plain sentence", () => {
     const filling = dexBody([], { collecting: true });
-    expect(filling).toEqual({
-      ok: true,
-      data: [],
-      total: 0,
-      notice: null,
-    });
+    expect(filling.ok).toBe(true);
+    if (filling.ok) {
+      expect(filling.data).toEqual([]);
+      expect(filling.total).toBe(0);
+      expect(filling.notice).toMatch(/This list is 0, not 400/);
+    }
     const partial = dexBody([{ symbol: "SOL" }], { collecting: true });
     expect(partial.ok).toBe(true);
-    if (partial.ok) expect(partial.notice).toBe("Further rows are unavailable.");
+    if (partial.ok) expect(partial.notice).toMatch(/returned 1 tokens, not 400/);
     const ready = dexBody(Array.from({ length: 400 }, (_, index) => ({ symbol: `T${index}` })), { collecting: true });
     expect(ready.ok).toBe(true);
     if (ready.ok) expect(ready.notice).toBeNull();

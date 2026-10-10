@@ -43,7 +43,11 @@ describe("U3 crypto markets copy", () => {
     expect(explorer).toMatch(/Add to paper book/);
     expect(explorer).toMatch(/paperAddSignupHref/);
     expect(explorer).toMatch(/signedIn \?/);
-    expect(explorer).toMatch(/DEX top 400/);
+    expect(explorer).toMatch(/dexTabLabel/);
+    expect(explorer).not.toMatch(/cryptoListed \|\| 400/);
+    expect(explorer).not.toMatch(/No DEX token prices right now/);
+    expect(read("src/lib/crypto-coverage.ts")).toMatch(/DEX top 400/);
+    expect(read("src/components/dashboard/MarketsPageContent.tsx")).not.toMatch(/Top 400 coins by market cap from CoinGecko/);
     expect(explorer).toMatch(/Blockchain/);
     expect(explorer).toMatch(/isCryptoTab \? "Name" : "Company"/);
     expect(explorer).not.toMatch(/~90/);

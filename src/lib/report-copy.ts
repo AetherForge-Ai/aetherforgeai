@@ -31,6 +31,13 @@ export interface NamedMove {
  * The session line uses the same gainers the "Top gainers" list will show.
  * A withheld print is not called "no standout" and is not quoted as a percent.
  */
+/** "4 prints under review". Null when nothing was withheld. */
+export function printsUnderReviewLine(count: number): string | null {
+  const n = Math.max(0, Math.trunc(Number(count) || 0));
+  if (n <= 0) return null;
+  return n === 1 ? "1 print under review" : `${n} prints under review`;
+}
+
 export function sessionGainerSentence(validGainers: NamedMove[], withheldCount: number): string {
   const leader = validGainers[0];
   if (leader && leader.changePct > 0) {
@@ -60,10 +67,12 @@ export function aggressiveMomentumStep(
   return `Overweight ${named} — these names fit the suitability cap. They are not the top of the projected list.${lead}`;
 }
 
-/** A 0.00% pathway does not tell the reader to open a position. */
+/** A pathway whose 7-day target is not positive does not tell the reader to open a position. */
 export function balancedGrowthStep(targetPct: number, topBuy: string | null, bot: "stock" | "crypto"): string {
-  if (Math.abs(targetPct) < 0.005) {
-    return "This pathway's 7-day target is 0.00%, so it does not initiate a position.";
+  if (!(targetPct > 0)) {
+    const pct = Math.abs(targetPct) < 0.005 ? 0 : Math.round(targetPct * 100) / 100;
+    const signed = pct === 0 ? "0.00%" : `${pct}%`;
+    return `This pathway's 7-day target is ${signed}, so it does not initiate a position.`;
   }
   if (topBuy) {
     const pct = Math.round(targetPct * 100) / 100;
