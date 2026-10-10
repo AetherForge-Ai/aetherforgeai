@@ -52,6 +52,9 @@ describe("P1 public copy", () => {
       "src/app/tax/dividends/page.tsx",
       "src/lib/dividend-ledger.ts",
       "src/lib/tax-disclaimer.ts",
+      "src/app/tax/fif/page.tsx",
+      "src/components/tax/FifWorkingPaper.tsx",
+      "src/lib/fif-working-paper.ts",
       "src/components/pricing/PricingCards.tsx",
       "src/components/pricing/PricingFAQ.tsx",
     ]) {

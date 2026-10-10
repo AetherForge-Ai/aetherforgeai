@@ -735,7 +735,7 @@ Branch `cursor/track-b-p0-bb35` from develop `87dfce1`. PR https://github.com/Ae
 
 ## Track B item 2
 
-NZ tax pack. Draft PRs only. Nothing here publishes, sends email, or removes a Stox, Koins, or Headmaster list. Crypto projections stay paused. Prices stay NZ$0 / NZ$16 / NZ$49 / NZ$199. No new database columns. Marker `pull-check:track-b-2-2026-10-11` is in `src/lib/dividend-ledger.ts`, `src/lib/tax-disclaimer.ts`, and the Markers list above.
+NZ tax pack. Draft PRs only. Nothing here publishes, sends email, or removes a Stox, Koins, or Headmaster list. Crypto projections stay paused. Prices stay NZ$0 / NZ$16 / NZ$49 / NZ$199. No new database columns. Marker `pull-check:track-b-2-2026-10-11` is in `src/lib/dividend-ledger.ts`, `src/lib/tax-disclaimer.ts`, `src/lib/nz-tax-year.ts`, `src/lib/taxable-income.ts`, `src/lib/fif-working-paper.ts`, and the Markers list above.
 
 ### TB-2a — dividend ledger
 
@@ -759,4 +759,18 @@ NZ tax pack. Draft PRs only. Nothing here publishes, sends email, or removes a S
 - Expected, a dividend with cash NZ$25.00 and no breakdown is not added to gross. A sell with no stored realised amount is blank, not NZ$0.00.
 - Expected, the CSV total line is `1 Apr 2026 to 31 Mar 2027,,,total,209.12,28.00,49.37,21.82,40.50,"Indicative, not tax advice."` The page says `Indicative, not tax advice.`
 - Realised on this page is the amount stored on the sell. FIFO is TB-2d.
+
+### TB-2c — indicative FIF working paper
+
+- Status: in this draft
+- Files: `src/lib/fif-working-paper.ts`, `src/lib/fif-working-paper.test.ts`, `src/app/tax/fif/page.tsx`, `src/components/tax/FifWorkingPaper.tsx`, `src/app/api/tax/fif/route.ts`
+- URL / steps: signed in, open `/tax/fif`. Choose `1 Apr 2026 to 31 Mar 2027`. Enter opening and closing market values only for a holding you already have. Print the page. Do not expect a live price to fill 1 April or 31 March.
+- Expected, AAPL bought 1 Jun 2025, 100 shares at US$10.00, stored rate 1.6000, still held, opening market value NZ$1,800.00, closing market value NZ$2,000.00, and a dividend in that year with stored gross NZ$50.00 and no other buys or sells in the year: cost NZ$1,600.00 (100 × 10 × 1.6000). Fair dividend rate NZ$90.00 (1,800.00 × 0.05). Comparative value NZ$250.00, which is (2,000.00 + 50.00) − (1,800.00 + 0.00). The cost test says `Highest attributing cost in this income year is NZ$1,600.00. That is under NZ$50,000.00.`
+- Expected, the same AAPL cost plus CBA.AX cost NZ$10,000.00, FBU.NZ, and a crypto lot: the peak stays NZ$1,600.00. CBA.AX is listed under Australian listings with no fair dividend rate and no comparative value. FBU.NZ is listed as left out. Crypto is left out.
+- Expected, 4,000 shares at US$10.00 and rate 1.2500: 4,000 × 10 × 1.2500 = NZ$50,000.00. The sentence says `That is exactly NZ$50,000.00.` One more share at the same price and rate makes the peak NZ$50,012.50 and the sentence says `That is over NZ$50,000.00.`
+- Expected, buy 100 AAPL at US$10.00 rate 1.6000 on 1 May 2026, then sell 40 at US$12.00 rate 1.6000 on 1 Jun 2026: remaining cost NZ$960.00, peak cost NZ$1,600.00, sale proceeds NZ$768.00 (40 × 12 × 1.6000). Fair dividend rate stays 5% of the opening value you entered. A quick sale adjustment is not calculated. With opening NZ$1,800.00 and closing NZ$2,000.00, comparative value is −NZ$632.00: (2,000.00 + 768.00) − (1,800.00 + 1,600.00).
+- Expected, a foreign attributing buy with no stored rate: cost is `Not recorded` and the page says `The $50,000 cost test is not calculated because a foreign attributing buy has no stored exchange rate.` A blank opening market value is `Not recorded`, not NZ$0.00. An entered opening of 0.00 gives a fair dividend rate of NZ$0.00.
+- Expected, an empty book says `No attributing overseas shares on this book.` It does not say the cost is under NZ$50,000.00.
+- Expected, saving market values changes only `stock.notes`, in the form `[FIFMV:2027:o=1800.00;c=2000.00]`. The rest of the note stays. The page does not show `[FIFMV:`. The page says `Indicative, not tax advice.`
+- Sources on the page: Inland Revenue foreign investment funds, the exemptions page, the section CQ 5 article, TDS 26/01, and TDS 23/13.
 

@@ -8,10 +8,13 @@ import { totalumSdk } from "@/lib/totalum";
 export type { PaperHoldingChoice };
 
 type StockRow = {
+  _id?: string;
   ticker?: string;
   company_name?: string;
   asset_type?: string;
   shares?: number;
+  notes?: string | null;
+  user?: string | { _id?: string } | null;
 };
 
 type MetalRow = {
@@ -72,6 +75,32 @@ export async function loadDividendRows(userId: string): Promise<DividendSourceRo
       const tb = new Date(b.executed_at || 0).getTime();
       return (Number.isFinite(tb) ? tb : 0) - (Number.isFinite(ta) ? ta : 0);
     });
+}
+
+export type StockNoteRow = {
+  id: string;
+  ticker: string;
+  notes: string;
+  shares: number;
+  assetType: string;
+};
+
+/** Stock rows, including a zero balance, so a market value can sit in notes. */
+export async function loadStockNoteRows(userId: string): Promise<StockNoteRow[]> {
+  const res = await totalumSdk.crud.query("stock", { _filter: { user: userId }, _limit: 500 });
+  return ((res?.data as StockRow[]) || [])
+    .filter((row) => {
+      const owner = typeof row.user === "object" && row.user !== null ? row.user._id : row.user;
+      return !owner || String(owner) === String(userId);
+    })
+    .map((row) => ({
+      id: String(row._id || ""),
+      ticker: String(row.ticker || "").trim().toUpperCase(),
+      notes: String(row.notes || ""),
+      shares: Number(row.shares) || 0,
+      assetType: assetTypeOf(row.asset_type),
+    }))
+    .filter((row) => row.id && row.ticker);
 }
 
 /** Ledger rows for a tax year. The cap is 5,000. Rows past that cap are not in this read. */
