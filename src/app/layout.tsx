@@ -16,6 +16,7 @@ import { SiteFooter } from "@/components/SiteFooter";
 import { Toaster } from "@/components/ui/sonner";
 import { PortfolioCoach } from "@/components/portfolio-coach";
 import { TransactionDialogHost } from "@/components/dashboard/TransactionDialogHost";
+import { PwaRegister } from "@/components/PwaRegister";
 import { LEGAL_ENTITY_NAME, NZBN } from "@/lib/company";
 
 const sora = Sora({
@@ -128,6 +129,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               remount the dialog mid ticker-search. */}
           <TransactionDialogHost />
           <Toaster position="top-center" richColors />
+          <PwaRegister />
         </DocumentSessionProvider>
       </body>
     </html>
