@@ -52,6 +52,8 @@ import {
 import { isTransactionDialogOpen } from "@/lib/transaction-sticky";
 import { getTxDialogSnapshot, subscribeTxDialog } from "@/lib/transaction-dialog-store";
 import { Loader2, Lock, Play, FileDown, Mail, FileText, Sparkles, Clock, Zap, ArrowRight, ChevronDown, Eye } from "lucide-react";
+import { stripReportMarkdown } from "@/lib/report-copy";
+import { reportRunStatus } from "@/lib/dashboard-surface";
 
 type BotAccess = "stock" | "crypto" | "both" | "none";
 
@@ -158,6 +160,8 @@ export function ReportCenter({
   const [reportEmailed, setReportEmailed] = React.useState(false);
   const [reportsMinimized, setReportsMinimized] = React.useState(true);
   const [history, setHistory] = React.useState<PastReport[]>([]);
+  const [historyLoaded, setHistoryLoaded] = React.useState(preview);
+  const [headmasterPending, setHeadmasterPending] = React.useState(false);
   // Independent per-bot last-report timestamps → independent countdowns.
   const [lastReportAt, setLastReportAt] = React.useState<{ stock: string | null; crypto: string | null }>({
     stock: null,
@@ -203,7 +207,7 @@ export function ReportCenter({
   );
   const shownSummary = React.useCallback(
     (bot: BotKind, text: string) =>
-      userId ? reconcileNarrativeForAccount(userId, text, holdingRows, bot) : text,
+      stripReportMarkdown(userId ? reconcileNarrativeForAccount(userId, text, holdingRows, bot) : text),
     [holdingRows, userId]
   );
 
@@ -269,10 +273,14 @@ export function ReportCenter({
       });
     }
     if (data.quota) setServerQuota(data.quota);
+    setHistoryLoaded(true);
   }, []);
 
   const loadHistory = React.useCallback(async () => {
-    if (preview) return; // guest preview: no live report history fetch
+    if (preview) {
+      setHistoryLoaded(true);
+      return; // guest preview: no live report history fetch
+    }
     const tracked = trackAccountRequest();
     try {
       const res = await api.get<ReportsResponse>("/api/reports", { signal: tracked.signal });
@@ -315,6 +323,9 @@ export function ReportCenter({
         applyHistory(res.data);
       } else if (res.status !== 401) {
         console.error("[ReportCenter] Failed to load report history:", res.error);
+        setHistoryLoaded(true);
+      } else {
+        setHistoryLoaded(true);
       }
     } catch {
       /* history is optional; never reject the effect */
@@ -326,6 +337,7 @@ export function ReportCenter({
   React.useEffect(() => {
     // Drop the previous account's narratives immediately. The fetch is aborted
     // on switch and only applied when the response echoes this user.
+    if (!preview) setHistoryLoaded(false);
     setHistory([]);
     setLastReportAt({ stock: null, crypto: null });
     setServerCadence(null);
@@ -524,7 +536,14 @@ export function ReportCenter({
             A copy is emailed only when delivery succeeds, and only for a book that has positions.
           </p>
         </div>
-        <div className="text-right text-xs text-muted-foreground">
+        <div
+          className="text-right text-xs text-muted-foreground"
+          title={
+            tickerLimit
+              ? `${counts.total} of ${tickerLimit} tickers monitored${scope === "perBot" ? " on this bot" : ""}. The first number is how many you monitor. The second is your plan cap.`
+              : `${counts.total} tickers monitored`
+          }
+        >
           <div className="font-display text-lg font-bold text-foreground">
             {counts.total}
             {tickerLimit ? <span className="text-sm text-muted-foreground"> / {tickerLimit}{scope === "perBot" ? " per bot" : ""}</span> : null}
@@ -537,19 +556,25 @@ export function ReportCenter({
       <div
         className={cn(
           "mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border p-4",
-          anyLocked
-            ? "border-[var(--gold)]/40 bg-[var(--gold)]/10"
-            : "border-emerald-500/30 bg-emerald-500/10"
+          !preview && !historyLoaded
+            ? "border-border/60 bg-card/40"
+            : anyLocked
+              ? "border-[var(--gold)]/40 bg-[var(--gold)]/10"
+              : "border-emerald-500/30 bg-emerald-500/10"
         )}
       >
         <div className="flex items-center gap-3">
           <span
             className={cn(
               "flex size-9 items-center justify-center rounded-xl",
-              anyLocked ? "bg-[var(--gold)]/20 text-[var(--gold)]" : "bg-emerald-500/20 text-emerald-600"
+              !preview && !historyLoaded
+                ? "bg-muted text-muted-foreground"
+                : anyLocked
+                  ? "bg-[var(--gold)]/20 text-[var(--gold)]"
+                  : "bg-emerald-500/20 text-emerald-600"
             )}
           >
-            {anyLocked ? <Clock className="size-5" /> : <Zap className="size-5" />}
+            {!preview && !historyLoaded ? <Loader2 className="size-5 animate-spin" /> : anyLocked ? <Clock className="size-5" /> : <Zap className="size-5" />}
           </span>
           <div>
             <p className="text-sm font-semibold">
@@ -577,25 +602,33 @@ export function ReportCenter({
                 return (
                   <span key={k} className="inline-flex items-center gap-1">
                     <span className="font-medium text-foreground">{label}:</span>
-                    {q.allowed ? (
+                    {!preview && !historyLoaded ? (
+                      <span>{reportRunStatus(false, "")}</span>
+                    ) : q.allowed ? (
                       <span className="text-emerald-600">
-                        {formatReportCooldownLine({
-                          lastReportAt: q.lastReportAt,
-                          waitMs: 0,
-                          cadenceUnit: q.cadence.unit,
-                          perLabel: q.cadence.perLabel,
-                          now,
-                        })}
+                        {reportRunStatus(
+                          true,
+                          formatReportCooldownLine({
+                            lastReportAt: q.lastReportAt,
+                            waitMs: 0,
+                            cadenceUnit: q.cadence.unit,
+                            perLabel: q.cadence.perLabel,
+                            now,
+                          })
+                        )}
                       </span>
                     ) : (
                       <span className="text-[var(--gold)]">
-                        {formatReportCooldownLine({
-                          lastReportAt: q.lastReportAt,
-                          waitMs: q.waitMs,
-                          cadenceUnit: q.cadence.unit,
-                          perLabel: q.cadence.perLabel,
-                          now,
-                        })}
+                        {reportRunStatus(
+                          true,
+                          formatReportCooldownLine({
+                            lastReportAt: q.lastReportAt,
+                            waitMs: q.waitMs,
+                            cadenceUnit: q.cadence.unit,
+                            perLabel: q.cadence.perLabel,
+                            now,
+                          })
+                        )}
                       </span>
                     )}
                   </span>
@@ -711,6 +744,8 @@ export function ReportCenter({
       {/* The Headmaster · Portfolio Planning and Strategies — unifies Stox + Koins + metals */}
       <Link
         href="/headmaster"
+        aria-busy={headmasterPending}
+        onClick={() => setHeadmasterPending(true)}
         className="group relative mt-4 flex flex-col gap-4 overflow-hidden rounded-2xl border border-primary/30 bg-gradient-to-br from-violet-500/12 via-primary/10 to-transparent p-5 transition-all hover:border-primary/50 hover:shadow-glow sm:flex-row sm:items-center sm:justify-between"
       >
         <div className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-primary/15 blur-3xl" />
@@ -732,7 +767,15 @@ export function ReportCenter({
           </div>
         </div>
         <span className="relative inline-flex items-center gap-1.5 self-start rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground sm:self-auto">
-          Open The Headmaster <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+          {headmasterPending ? (
+            <>
+              <Loader2 className="size-4 animate-spin" /> Opening The Headmaster…
+            </>
+          ) : (
+            <>
+              Open The Headmaster <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+            </>
+          )}
         </span>
       </Link>
 
@@ -747,7 +790,7 @@ export function ReportCenter({
           <FileText className="size-4 shrink-0 text-primary" />
           <span>Your reports</span>
           <span className="rounded-full border border-border/60 bg-card/50 px-2 py-0.5 text-[0.65rem] font-semibold text-muted-foreground">
-            {history.length}
+            {preview || historyLoaded ? history.length : "…"}
           </span>
           <span className="ml-auto text-xs font-medium text-muted-foreground">
             {reportsMinimized ? "Expand" : "Minimize"}
@@ -767,7 +810,11 @@ export function ReportCenter({
         >
           <div className="overflow-hidden">
             <div className="border-t border-border/60 px-4 pb-4 pt-2">
-        {history.length === 0 ? (
+        {!preview && !historyLoaded ? (
+          <p className="rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground">
+            Loading…
+          </p>
+        ) : history.length === 0 ? (
           <p className="rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground">
             No reports yet — add your holdings or cash in the Transaction Centre above, then run Stox, Koins or The Headmaster.
           </p>
