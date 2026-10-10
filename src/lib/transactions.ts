@@ -1051,7 +1051,7 @@ async function applyTransactionUnlocked(
       _filter: { user: user._id },
       _limit: 5000,
     });
-    const prior = ((history?.data as TaxLedgerRow[]) || []).filter((row) => row && row.type);
+    const prior = ((history?.data as unknown as TaxLedgerRow[]) || []).filter((row) => row && row.type);
     const fromLots = fifoStoredForSell(prior, {
       type: "sell",
       ticker,
