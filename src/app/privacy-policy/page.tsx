@@ -103,7 +103,8 @@ export default function PrivacyPolicy() {
             <ul className="mt-2 list-disc space-y-1.5 pl-5">
               {PROCESSORS.map((processor) => (
                 <li key={processor.name}>
-                  <strong className="text-foreground/90">{processor.name}</strong> — {processor.role}.
+                  <strong className="text-foreground/90">{processor.name}</strong> — {processor.role}
+                  {processor.name === "Google Analytics" ? ", only after you accept analytics cookies" : ""}.
                 </li>
               ))}
             </ul>
@@ -124,7 +125,8 @@ export default function PrivacyPolicy() {
         <p>
           Some of the processors named in section 5 are located outside New Zealand. That list includes
           Cloudflare, Stripe, an AI provider, Google Analytics, Totalum on Google Cloud, CoinGecko, and
-          licensed market-data vendors for shares, metals and foreign exchange. Where we disclose
+          licensed market-data vendors for shares, metals and foreign exchange. Google Analytics runs
+          only after you accept analytics cookies. Where we disclose
           personal information overseas, we take reasonable steps to ensure it is protected by
           comparable safeguards to those under the Privacy Act 2020, or we rely on an exception
           permitted by IPP 12 (such as your authorisation).
@@ -180,8 +182,10 @@ export default function PrivacyPolicy() {
       <LegalSection heading="12. Cookies & analytics">
         <p>
           We use essential cookies to keep you signed in and to secure the service. {ANALYTICS_NOTICE}{" "}
-          You can control cookies through your browser settings, although disabling essential cookies
-          may affect functionality.
+          The Google Analytics tag is not loaded until you choose Accept. Decline leaves it off. You
+          can change that choice at any time from Cookie settings in the footer. You can also control
+          cookies through your browser settings, although disabling essential cookies may affect
+          functionality.
         </p>
       </LegalSection>
 

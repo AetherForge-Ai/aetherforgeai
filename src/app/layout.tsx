@@ -1,6 +1,7 @@
 // src/app/layout.tsx
 import React from "react";
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import { Sora, Manrope, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { headers } from "next/headers";
@@ -9,6 +10,7 @@ import { ScriptExecutor } from "@/components/ScriptExecutor";
 import { DevToolsHandler } from "@/components/DevToolsHandler";
 import { GlobalErrorCatcher } from "@/components/GlobalErrorCatcher";
 import { GoogleTag } from "@/components/GoogleTag";
+import { CONSENT_DEFAULT_DENIED_SNIPPET } from "@/lib/analytics-consent";
 import { AnalyticsNotice } from "@/components/AnalyticsNotice";
 import { SiteFooter } from "@/components/SiteFooter";
 import { Toaster } from "@/components/ui/sonner";
@@ -84,7 +86,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         className={`${sora.variable} ${manrope.variable} ${jetbrainsMono.variable} font-sans antialiased`}
       >
         <DocumentSessionProvider mode={sessionMode}>
-          {/* Google tag (gtag.js) — injected on every page/route */}
+          {/* Consent Mode v2 starts denied. This script does not load gtag.js. */}
+          <Script id="gtag-consent-default" strategy="beforeInteractive">
+            {CONSENT_DEFAULT_DENIED_SNIPPET}
+          </Script>
           <GoogleTag />
           <GlobalErrorCatcher />
           <ScriptExecutor />

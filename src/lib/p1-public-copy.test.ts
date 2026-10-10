@@ -90,7 +90,9 @@ describe("P1 public copy", () => {
     expect(tree).not.toMatch(/bank-grade/i);
     expect(read("src/app/privacy-policy/page.tsx")).toMatch(/country/);
     expect(read("src/components/AnalyticsNotice.tsx")).toContain("ANALYTICS_NOTICE");
-    expect(ANALYTICS_NOTICE).toBe("We use Google Analytics to see which pages are used.");
+    expect(ANALYTICS_NOTICE).toBe(
+      "Analytics stays off until you accept. Decline keeps it off. You can change this later from Cookie settings."
+    );
     expect(read("src/app/layout.tsx")).toContain("<AnalyticsNotice");
   });
 

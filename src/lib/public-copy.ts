@@ -35,7 +35,8 @@ export const DATA_SHARING_LINE =
 export const SECURITY_LINE =
   "Encrypted in transit (HTTPS). Payments handled by Stripe. We never see your card number.";
 
-export const ANALYTICS_NOTICE = "We use Google Analytics to see which pages are used.";
+export const ANALYTICS_NOTICE =
+  "Analytics stays off until you accept. Decline keeps it off. You can change this later from Cookie settings.";
 
 export const ANNUAL_TOOLKIT_LINE =
   "professional Excel investor toolkit (Portfolio Tracker and Transactions spreadsheets)";
