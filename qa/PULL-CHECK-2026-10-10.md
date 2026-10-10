@@ -789,3 +789,14 @@ Branch `cursor/research-retest-9985` from develop. One draft pull request into `
 
 `src/app/tax` and tax files under `src/lib` were not edited. Auth, mail, login, register, consent, and security headers were not edited. `preserveDynamicSegmentTraces` is unchanged. No model or provider name was added. No official, licensed, or real-time data claim was added. GoGold was not added. Crypto projections stay paused. Nothing was published.
 
+### Checked here
+
+Local checks on 11 Oct 2026 (NZ) against commit `cd35b41`, then this note. `npm run check-types-errors` passed. `npm test` passed (102 files, 496 tests). `npm run build` passed (Next.js 15.3.9). The build skipped its own lint step. Better Auth logged the default secret in this environment. No secret was added.
+
+`next start` on port 3456, this machine, not the live site:
+
+- `/projections` returned 200. The HTML has `<meta name="robots" content="noindex, nofollow"/>`. There was no `x-robots-tag` header. `/sitemap.xml` contains the word projections 0 times.
+- `/terms` returned 307 to `/terms-of-service`. `/privacy` returned 307 to `/privacy-policy`.
+- `dgst` counts: `/changelog`, `/trust`, `/projections`, `/terms-of-service`, and `/privacy-policy` each had one `setAttribute("data-dgst",e)` inside the `$RC` bootstrap and zero `data-dgst="` attributes. `/markets` and `/market-news` had zero `dgst` of either kind. No `$RX` call carried a digest. The server log for those reads had no React render digest. A GeckoTerminal 429 on a DEX fetch is a vendor limit, not a page error.
+- `/market-news` HTML did not contain "high value residents", "Jersey residency", or "wealthy residents". The unit feed is what keeps Jersey Electricity, LVMH, FMA, and gold vs bitcoin. The live feed on this machine did not happen to include a Jersey Electricity story.
+
