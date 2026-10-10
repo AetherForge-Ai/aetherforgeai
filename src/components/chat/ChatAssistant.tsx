@@ -179,7 +179,12 @@ export function ChatAssistant() {
                 )}
               >
                 {m.role === "assistant" ? (
-                  <Markdown content={m.content} className="[&>*:first-child]:mt-0 [&>*:last-child]:mb-0" />
+                  <>
+                    <p className="mb-1 text-[0.66rem] font-semibold uppercase tracking-wide text-muted-foreground">
+                      AI-written note
+                    </p>
+                    <Markdown content={m.content} className="[&>*:first-child]:mt-0 [&>*:last-child]:mb-0" />
+                  </>
                 ) : (
                   <p className="whitespace-pre-wrap leading-relaxed">{m.content}</p>
                 )}
