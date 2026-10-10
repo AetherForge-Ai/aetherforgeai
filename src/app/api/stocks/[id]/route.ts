@@ -69,6 +69,8 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
     delete patch.soft_override_confirmed;
     delete patch.typed_live_override;
     delete patch.cash_or_notional;
+    // A correction dates the ledger row. It does not move the lot's first buy.
+    delete patch.purchase_date;
     if (parsed.data.ticker) {
       const ticker = normalizeTicker(parsed.data.ticker);
       patch.ticker = ticker;

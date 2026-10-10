@@ -13,7 +13,7 @@ import {
   roundMoney,
   sameQuotedUnit,
 } from "@/lib/currency";
-import { formatLedgerDateTime, resolveExecutedInstant } from "@/lib/executed-at";
+import { formatLedgerDateTime, lotCivilDay, resolveExecutedInstant } from "@/lib/executed-at";
 import { aucklandDateISO } from "@/lib/fill-integrity";
 import { computeSummary } from "@/lib/portfolio";
 import { SECURITY_HEADERS } from "@/lib/security-headers";
@@ -303,6 +303,10 @@ describe("L6 L9 L10 L11 L12 L13", () => {
   it("keeps the earlier civil day when a buy is merged", () => {
     expect(earlierCivilDay("2026-10-10T01:00:00.000Z", "2026-10-01")).toBe("2026-10-01");
     expect(earlierCivilDay("2026-10-01", "2026-10-10")).toBe("2026-10-01");
+    expect(lotCivilDay("2026-10-09T12:00:00.000Z")).toBe("2026-10-09");
+    expect(lotCivilDay("2026-10-01T00:00:00.000Z")).toBe("2026-10-01");
+    const route = readFileSync("src/app/api/stocks/[id]/route.ts", "utf8");
+    expect(route).toContain("delete patch.purchase_date");
   });
 
   it("asks for a number when quantity is not numeric", () => {

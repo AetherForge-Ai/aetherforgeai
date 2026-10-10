@@ -43,7 +43,7 @@ import { planHoldingCorrection } from "@/lib/holding-correction";
 import { cleanChain, dexSectorTag, parseDexSector, withDexNotes } from "@/lib/dex-source";
 import { buildMovementPreview } from "@/lib/movement-preview";
 import { assessMovement, earlierCivilDay, movementCivilDay } from "@/lib/transaction-rules";
-import { resolveExecutedInstant } from "@/lib/executed-at";
+import { lotCivilDay, resolveExecutedInstant } from "@/lib/executed-at";
 import { invalidateBookCache, readBookCache, writeBookCache } from "@/lib/book-cache";
 
 export type TxType =
@@ -789,7 +789,7 @@ async function applyTransactionUnlocked(
       const newShares = oldShares + quantity;
       // New weighted-average cost includes fees so cost basis stays honest.
       const newAvg = newShares > 0 ? (oldShares * oldAvg + quantity * price + fees) / newShares : price;
-      const keptDay = earlierCivilDay(holding.purchase_date, resolved.civilDay);
+      const keptDay = earlierCivilDay(lotCivilDay(holding.purchase_date) || null, resolved.civilDay);
       await totalumSdk.crud.editRecordById("stock", holding._id, {
         shares: round(newShares, 6),
         purchase_price: roundFillPrice(newAvg),

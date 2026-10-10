@@ -29,6 +29,8 @@ import {
 } from "@/lib/metal-valuation";
 import { mergeFreshQuantities } from "@/lib/holding-snapshot";
 import { invalidateBookCache, readBookCache, writeBookCache } from "@/lib/book-cache";
+import { lotCivilDay } from "@/lib/executed-at";
+import { earlierCivilDay } from "@/lib/transaction-rules";
 import { TRADE_CONFIRM_REQUIRED } from "@/lib/trade-confirm";
 
 /**
@@ -188,6 +190,47 @@ async function overlayCompanyNames(holdings: any[]): Promise<void> {
   }
 }
 
+/** The lot date is the earliest buy. A later buy or a correction must not move it. */
+async function overlayEarliestBuyDates(holdings: any[], userId: string): Promise<void> {
+  if (!holdings.length) return;
+  let rows: Array<{ ticker?: string; executed_at?: string; trade_date?: string }> = [];
+  try {
+    const res = await totalumSdk.crud.query("transaction", {
+      _filter: { user: userId, type: "buy" },
+      _limit: 2000,
+    });
+    rows = (res?.data as typeof rows) || [];
+  } catch (err) {
+    console.error("[api/stocks] Earliest-buy lookup failed:", err);
+    return;
+  }
+  const earliest = new Map<string, string>();
+  for (const row of rows) {
+    const ticker = String(row.ticker || "").toUpperCase();
+    const day = lotCivilDay(row.trade_date || row.executed_at);
+    if (!ticker || !/^\d{4}-\d{2}-\d{2}$/.test(day)) continue;
+    const prev = earliest.get(ticker);
+    if (!prev || day < prev) earliest.set(ticker, day);
+  }
+  await Promise.all(
+    holdings.map(async (holding) => {
+      const ticker = String(holding.ticker || "").toUpperCase();
+      const first = earliest.get(ticker);
+      if (!first) return;
+      const stored = lotCivilDay(holding.purchase_date);
+      if (stored === first) return;
+      if (stored && stored < first) return;
+      holding.purchase_date = first;
+      if (!holding._id) return;
+      try {
+        await totalumSdk.crud.editRecordById("stock", holding._id, { purchase_date: first });
+      } catch (err) {
+        console.error(`[api/stocks] Could not keep the earliest buy date for ${ticker}:`, err);
+      }
+    })
+  );
+}
+
 const createSchema = z.object({
   ticker: z.string().min(1, "Ticker is required").max(12),
   asset_type: z.enum(["stock", "crypto"]).optional(),
@@ -260,7 +303,7 @@ export async function GET(req: Request) {
     // ticker (e.g. "WOR.AX" → "Worley Limited"). Both are independent + non-fatal.
     // Names first so the bullion price copy includes a corrected company_name.
     // Live prices (and the bullion spot persist) run after, on their own.
-    await overlayCompanyNames(stocks);
+    await Promise.all([overlayCompanyNames(stocks), overlayEarliestBuyDates(stocks, user._id)]);
     await overlayLivePrices(stocks);
 
     // Quote fetches outlive a buy that committed while this request was in
@@ -454,7 +497,10 @@ export async function POST(req: Request) {
         purchase_price: roundUnitPrice(newAvg),
         current_price,
         company_name: company_name || sameSleeve.company_name,
-        purchase_date: parsed.data.purchase_date || sameSleeve.purchase_date || new Date().toISOString().slice(0, 10),
+        purchase_date: earlierCivilDay(
+          sameSleeve.purchase_date,
+          parsed.data.purchase_date || lotCivilDay(sameSleeve.purchase_date)
+        ),
       };
       await totalumSdk.crud.editRecordById("stock", sameSleeve._id, patch);
       console.log(
