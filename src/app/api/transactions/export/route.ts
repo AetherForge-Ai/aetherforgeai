@@ -1,66 +1,15 @@
 import { NextResponse } from "next/server";
-import { formatPriceInput, formatSavedFx } from "@/lib/currency";
 import { getStableSessionUser } from "@/lib/session";
 import { canExportCsv } from "@/lib/entitlements";
 import { loadLedger, type TransactionRow } from "@/lib/transactions";
 import { requestClaimsOtherUser } from "@/lib/account-guard";
 import { accountMismatchResponse } from "@/lib/account-response";
+import { csvEscape, transactionCsvCells, type CsvRow } from "@/lib/transaction-csv";
 
 export const dynamic = "force-dynamic";
 
-function cell(value: unknown): string {
-  const s = value == null ? "" : String(value);
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
-
-function csvDate(iso?: string): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toISOString().slice(0, 10);
-}
-
-/** Unit prices under $1 keep their digits. They are not written as 0.01. */
-function csvUnitPrice(value: unknown): string {
-  if (value == null || value === "") return "";
-  const n = typeof value === "number" ? value : Number(value);
-  if (!Number.isFinite(n)) return String(value);
-  if (Math.abs(n) > 0 && Math.abs(n) < 1) return formatPriceInput(n);
-  return String(n);
-}
-
 function rowCells(t: TransactionRow): string[] {
-  const extra = t as TransactionRow & Record<string, unknown>;
-  return [
-    csvDate(t.executed_at || t.createdAt),
-    String(extra.trade_datetime || csvDate(t.executed_at || t.createdAt)),
-    String(extra.execution_status || "filled"),
-    t.type,
-    t.ticker || "",
-    t.asset_name || "",
-    t.asset_type || "",
-    String(extra.asset_id || ""),
-    t.quantity ?? "",
-    csvUnitPrice(extra.fill_price ?? t.price),
-    String(extra.fill_currency || t.currency || "NZD"),
-    String(extra.price_source || "user_fill"),
-    String(extra.price_as_at || ""),
-    extra.signal_price ?? "",
-    extra.mark_price ?? "",
-    extra.fees_native ?? t.fees ?? "",
-    extra.fees_nzd ?? "",
-    extra.native_notional ?? (t.quantity && t.price ? t.quantity * t.price : ""),
-    formatSavedFx(extra.fx_rate),
-    String(extra.fx_source || ""),
-    extra.cash_nzd ?? t.total ?? "",
-    extra.realized_price_pnl_nzd ?? "",
-    extra.realized_fx_pnl_nzd ?? "",
-    extra.realized_pnl_nzd ?? t.realized_pnl ?? "",
-    String(extra.order_sizing || "units"),
-    extra.notional_native ?? "",
-    String(extra.broker || ""),
-    t.notes || "",
-  ].map((v) => cell(v));
+  return transactionCsvCells(t as TransactionRow & CsvRow).map((value) => csvEscape(value));
 }
 
 const HEADERS = [
