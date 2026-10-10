@@ -323,6 +323,9 @@ export function AboutContent() {
           alt="Serene New Zealand rural landscape at golden hour"
           className="absolute inset-0 -z-20 h-full w-full object-cover"
         />
+        <p className="absolute bottom-3 right-4 z-10 max-w-xs text-right text-[0.65rem] leading-snug text-white/75">
+          Landscape photograph hosted on this site under the Unsplash Licence.
+        </p>
         {/* Navy cinematic gradient + emerald glow overlays */}
         <div
           className="absolute inset-0 -z-10"

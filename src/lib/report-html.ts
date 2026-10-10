@@ -23,7 +23,7 @@ import type {
 import { LEGAL_ENTITY_NAME } from "@/lib/company";
 import type { SecurityIntel } from "@/lib/market-intel";
 import type { ActionableIntelligence, PortfolioMetrics } from "@/lib/analytics";
-import type { CurrencyCode } from "@/lib/currency";
+import { currencyForTicker, formatMoney, formatUnitPrice, type CurrencyCode } from "@/lib/currency";
 import type { IntelligenceBriefing, BriefingOutlookRow } from "@/lib/briefing";
 import { sanitizeGuardedReport } from "@/lib/report-consistency";
 import { labelMemberReport, stripReportModelLanguage } from "@/lib/report-language";
@@ -66,23 +66,16 @@ function rich(text: string): string {
     .replace(/_([^_]+)_/g, "<em>$1</em>");
 }
 
-function money(v: number): string {
-  return "$" + (v ?? 0).toLocaleString("en-NZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+/** Currency-aware money. Two decimals from one cent. Sub-cent stays adaptive. */
+function moneyC(v: number, currency: CurrencyCode): string {
+  const val = v ?? 0;
+  const abs = Math.abs(val);
+  if (abs > 0 && abs < 0.01) return formatMoney(val, currency);
+  return formatMoney(val, currency, { decimals: 2 });
 }
 
-const CUR_SYMBOL: Record<CurrencyCode, string> = { NZD: "NZ$", AUD: "AU$", USD: "US$" };
-
-/** Currency-aware money (e.g. "AU$1,234.50"). Sub-$5 prices show more precision. */
-function moneyC(v: number, currency: CurrencyCode): string {
-  const sym = CUR_SYMBOL[currency] ?? "$";
-  const val = v ?? 0;
-  return (
-    sym +
-    val.toLocaleString("en-NZ", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: Math.abs(val) > 0 && Math.abs(val) < 5 ? 4 : 2,
-    })
-  );
+function quotedPrice(price: number, ticker: string, currency?: CurrencyCode): string {
+  return formatUnitPrice(price, currency || currencyForTicker(ticker));
 }
 
 function pct(v: number): string {
@@ -130,7 +123,6 @@ function signalBadge(signal: TickerAnalysis["signal"]): string {
 }
 
 function tickerBlock(t: TickerAnalysis): string {
-  const dp = t.price < 5 ? 4 : 2;
   const days = t.shortTerm
     .map(
       (d) => `<td style="text-align:center;padding:4px 2px;border:1px solid ${LINE};font-size:10px">
@@ -158,7 +150,7 @@ function tickerBlock(t: TickerAnalysis): string {
         <div style="font-size:12px;color:${MUTE}">${esc(t.name)}</div>
       </td>
       <td style="vertical-align:top;text-align:right">
-        <div style="font-family:monospace;font-size:14px;color:${INK}">${t.priceUnavailable ? "Unavailable" : `$${t.price.toFixed(dp)}`}</div>
+        <div style="font-family:monospace;font-size:14px;color:${INK}">${t.priceUnavailable ? "Unavailable" : quotedPrice(t.price, t.ticker)}</div>
         ${t.priceUnavailable ? "" : `<div style="font-size:11px;color:${t.changeWithheld ? MUTE : pctColor(t.changePct)}">${t.changeWithheld ? "data under review" : `${pct(t.changePct)} today`}</div>`}
       </td>
     </tr></table>
@@ -186,7 +178,7 @@ function alertsBlock(alerts: ReportAlert[]): string {
   if (!alerts.length) return "";
   const rows = alerts
     .map((a) => {
-      const cur = typeof a.currentPrice === "number" ? `$${a.currentPrice.toFixed(a.currentPrice < 5 ? 4 : 2)}` : "—";
+      const cur = typeof a.currentPrice === "number" ? quotedPrice(a.currentPrice, a.ticker) : "—";
       const trim =
         a.trimPct || a.trimTriggerDipPct
           ? `Trim ${a.trimPct ?? "—"}% on a ${a.trimTriggerDipPct ?? "—"}% dip`
@@ -195,7 +187,7 @@ function alertsBlock(alerts: ReportAlert[]): string {
         a.takeProfitMinPct || a.takeProfitMaxPct
           ? `Take profit ${a.takeProfitMinPct ?? "—"}–${a.takeProfitMaxPct ?? "—"}%`
           : "—";
-      const hard = typeof a.hardSellPrice === "number" ? `$${a.hardSellPrice.toFixed(2)}` : "—";
+      const hard = typeof a.hardSellPrice === "number" ? quotedPrice(a.hardSellPrice, a.ticker) : "—";
       const triggered =
         typeof a.currentPrice === "number" && typeof a.hardSellPrice === "number" && a.currentPrice <= a.hardSellPrice;
       return `<tr>
@@ -255,11 +247,10 @@ function technicalsTable(techs: SecurityIntel[]): string {
   if (!techs.length) return "";
   const rows = techs
     .map((t) => {
-      const dp = t.price < 5 ? 4 : 2;
       const sc = SIG_COLOR[t.signal];
       return `<tr>
         <td style="padding:7px;border:1px solid ${LINE};font-weight:600">${esc(t.ticker)}</td>
-        <td style="padding:7px;border:1px solid ${LINE};font-family:monospace">$${t.price.toFixed(dp)}</td>
+        <td style="padding:7px;border:1px solid ${LINE};font-family:monospace">${quotedPrice(t.price, t.ticker, t.currency)}</td>
         <td style="padding:7px;border:1px solid ${LINE};color:${t.rsi >= 70 ? RED : t.rsi <= 30 ? GREEN : INK}">${t.rsi.toFixed(0)}</td>
         <td style="padding:7px;border:1px solid ${LINE};color:${t.macdSignal === "Bullish" ? GREEN : t.macdSignal === "Bearish" ? RED : MUTE}">${esc(t.macdSignal)}</td>
         <td style="padding:7px;border:1px solid ${LINE}">${t.bbPosition.toFixed(0)}%</td>

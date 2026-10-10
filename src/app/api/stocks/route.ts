@@ -28,6 +28,9 @@ import {
   resolveHoldingMarkPrice,
 } from "@/lib/metal-valuation";
 import { mergeFreshQuantities } from "@/lib/holding-snapshot";
+import { invalidateBookCache, readBookCache, writeBookCache } from "@/lib/book-cache";
+import { dateOnlyInstant, lotCivilDay } from "@/lib/executed-at";
+import { earlierCivilDay } from "@/lib/transaction-rules";
 import { TRADE_CONFIRM_REQUIRED } from "@/lib/trade-confirm";
 
 /**
@@ -71,10 +74,8 @@ async function persistBullionMarks(holdings: any[]): Promise<void> {
 
 async function overlayLivePrices(holdings: any[]): Promise<void> {
   if (!holdings.length) return;
-  // Bullion first, and alone. An equity/crypto quote failure must not leave
-  // GOLD marked at the Yahoo Gold.com, Inc. print (~US$44).
-  await persistBullionMarks(holdings);
-
+  // Bullion is priced on its own so an equity quote cannot mark GOLD at the
+  // Yahoo Gold.com, Inc. print (~US$44). That lookup runs beside the other quotes.
   const equityTickers: string[] = [];
   const cryptoTickers: string[] = [];
   for (const s of holdings) {
@@ -83,15 +84,24 @@ async function overlayLivePrices(holdings: any[]): Promise<void> {
     if (route === "crypto") cryptoTickers.push(String(s.ticker));
     else equityTickers.push(String(s.ticker));
   }
-  if (!equityTickers.length && !cryptoTickers.length) return;
 
+  const quoteWork =
+    equityTickers.length || cryptoTickers.length
+      ? Promise.all([
+          isLiveDataConfigured() && equityTickers.length ? fetchLiveQuotes(equityTickers) : Promise.resolve({}),
+          cryptoTickers.length ? fetchCryptoQuotes(cryptoTickers) : Promise.resolve({}),
+        ])
+      : Promise.resolve([{}, {}] as const);
+
+  let equityQuotes: Record<string, { price: number }> = {};
+  let cryptoQuotes: Record<string, { price: number }> = {};
   try {
-    const [equityQuotes, cryptoQuotes] = await Promise.all([
-      isLiveDataConfigured() && equityTickers.length ? fetchLiveQuotes(equityTickers) : Promise.resolve({}),
-      cryptoTickers.length ? fetchCryptoQuotes(cryptoTickers) : Promise.resolve({}),
-    ]);
-    const equityMap = equityQuotes as Record<string, { price: number }>;
-    const cryptoMap = cryptoQuotes as Record<string, { price: number }>;
+    const [, quotes] = await Promise.all([persistBullionMarks(holdings), quoteWork]);
+    equityQuotes = quotes[0] as Record<string, { price: number }>;
+    cryptoQuotes = quotes[1] as Record<string, { price: number }>;
+    if (!equityTickers.length && !cryptoTickers.length) return;
+    const equityMap = equityQuotes;
+    const cryptoMap = cryptoQuotes;
     if (!Object.keys(equityMap).length && !Object.keys(cryptoMap).length) {
       console.warn("[api/stocks] No live equity/crypto quotes — serving stored prices for those holdings.");
       return;
@@ -180,6 +190,48 @@ async function overlayCompanyNames(holdings: any[]): Promise<void> {
   }
 }
 
+/** The lot date is the earliest buy. A later buy or a correction must not move it. */
+async function overlayEarliestBuyDates(holdings: any[], userId: string): Promise<void> {
+  if (!holdings.length) return;
+  let rows: Array<{ ticker?: string; executed_at?: string; trade_date?: string }> = [];
+  try {
+    const res = await totalumSdk.crud.query("transaction", {
+      _filter: { user: userId, type: "buy" },
+      _limit: 2000,
+    });
+    rows = (res?.data as typeof rows) || [];
+  } catch (err) {
+    console.error("[api/stocks] Earliest-buy lookup failed:", err);
+    return;
+  }
+  const earliest = new Map<string, string>();
+  for (const row of rows) {
+    const ticker = String(row.ticker || "").toUpperCase();
+    const day = lotCivilDay(row.trade_date || row.executed_at);
+    if (!ticker || !/^\d{4}-\d{2}-\d{2}$/.test(day)) continue;
+    const prev = earliest.get(ticker);
+    if (!prev || day < prev) earliest.set(ticker, day);
+  }
+  await Promise.all(
+    holdings.map(async (holding) => {
+      const ticker = String(holding.ticker || "").toUpperCase();
+      const first = earliest.get(ticker);
+      if (!first) return;
+      const stored = lotCivilDay(holding.purchase_date);
+      if (stored === first) return;
+      if (stored && stored < first) return;
+      const instant = dateOnlyInstant(first);
+      holding.purchase_date = instant;
+      if (!holding._id) return;
+      try {
+        await totalumSdk.crud.editRecordById("stock", holding._id, { purchase_date: instant });
+      } catch (err) {
+        console.error(`[api/stocks] Could not keep the earliest buy date for ${ticker}:`, err);
+      }
+    })
+  );
+}
+
 const createSchema = z.object({
   ticker: z.string().min(1, "Ticker is required").max(12),
   asset_type: z.enum(["stock", "crypto"]).optional(),
@@ -224,6 +276,11 @@ export async function GET(req: Request) {
     // friendly empty state prompting them to add their first holding instead.
 
     const assetType = new URL(req.url).searchParams.get("asset_type");
+    const cacheKey = `${user._id}:stocks:${assetType || "all"}`;
+    const cached = readBookCache<any[]>(cacheKey);
+    if (cached) {
+      return privateJson({ ok: true, userId: user._id, data: cached });
+    }
 
     const result = await totalumSdk.crud.query("stock", {
       _filter: { user: user._id },
@@ -247,7 +304,7 @@ export async function GET(req: Request) {
     // ticker (e.g. "WOR.AX" → "Worley Limited"). Both are independent + non-fatal.
     // Names first so the bullion price copy includes a corrected company_name.
     // Live prices (and the bullion spot persist) run after, on their own.
-    await overlayCompanyNames(stocks);
+    await Promise.all([overlayCompanyNames(stocks), overlayEarliestBuyDates(stocks, user._id)]);
     await overlayLivePrices(stocks);
 
     // Quote fetches outlive a buy that committed while this request was in
@@ -270,6 +327,7 @@ export async function GET(req: Request) {
       `[api/stocks] GET returned ${stocks.length} holdings for user ${user._id} (filter: ${assetType || "all"})`
     );
 
+    writeBookCache(cacheKey, stocks);
     return privateJson({ ok: true, userId: user._id, data: stocks });
   } catch (err: any) {
     console.error("[api/stocks] GET error:", err);
@@ -387,6 +445,7 @@ export async function POST(req: Request) {
       };
       const result = await totalumSdk.crud.createRecord("stock", record);
       logLedgerAudit({ action: `holding_${executionStatus}`, ticker, userId: user._id, after: record as any });
+      invalidateBookCache(user._id);
       return NextResponse.json({ ok: true, data: result?.data || record });
     }
 
@@ -439,12 +498,18 @@ export async function POST(req: Request) {
         purchase_price: roundUnitPrice(newAvg),
         current_price,
         company_name: company_name || sameSleeve.company_name,
-        purchase_date: parsed.data.purchase_date || sameSleeve.purchase_date || new Date().toISOString().slice(0, 10),
+        purchase_date: dateOnlyInstant(
+          earlierCivilDay(
+            sameSleeve.purchase_date,
+            parsed.data.purchase_date || lotCivilDay(sameSleeve.purchase_date)
+          )
+        ),
       };
       await totalumSdk.crud.editRecordById("stock", sameSleeve._id, patch);
       console.log(
         `[api/stocks] POST merged ${addShares} into existing ${ticker} for user ${user._id} → ${patch.shares} @ ${patch.purchase_price}`
       );
+      invalidateBookCache(user._id);
       return NextResponse.json({
         ok: true,
         data: { ...sameSleeve, ...patch, _id: sameSleeve._id, merged: true },
@@ -460,7 +525,7 @@ export async function POST(req: Request) {
       purchase_price,
       // Persist the purchase date (defaults to today when the client omits it), so
       // the holdings table can show + sort by it and P&L reflects the real entry day.
-      purchase_date: parsed.data.purchase_date || new Date().toISOString().slice(0, 10),
+      purchase_date: dateOnlyInstant(lotCivilDay(parsed.data.purchase_date || new Date().toISOString().slice(0, 10))),
       current_price,
       user: user._id,
     };
@@ -468,6 +533,7 @@ export async function POST(req: Request) {
     const result = await totalumSdk.crud.createRecord("stock", record);
     console.log(`[api/stocks] POST created holding ${ticker} for user ${user._id}`);
 
+    invalidateBookCache(user._id);
     return NextResponse.json({ ok: true, data: result?.data ?? record });
   } catch (err: any) {
     console.error("[api/stocks] POST error:", err);

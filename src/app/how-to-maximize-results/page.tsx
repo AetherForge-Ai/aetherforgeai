@@ -256,14 +256,14 @@ export default function MaximizeResultsPage() {
             <div className="flex-1">
               <h2 className="font-display text-2xl font-bold tracking-tight">Excel Transaction Tracker</h2>
               <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-                Keep flawless records of every buy, sell, dividend and cost-basis adjustment. Your professional
-                investor workbook comes pre-filled with your current holdings — download it, log religiously,
-                then mirror the data in your dashboard for the sharpest possible signals.
+                Yearly plans include a downloadable Excel investor toolkit template for buys, sells,
+                dividends, and cost-basis notes. The workbook is a blank template. It is not filled from
+                your holdings. Download it, keep your own records, and enter the figures you want in the dashboard.
               </p>
             </div>
             <Button asChild size="lg" className="shrink-0 font-semibold shadow-glow">
               <a href="/api/downloads/toolkit">
-                Download tracker <ArrowRight className="ml-1 size-4" />
+                Download template <ArrowRight className="ml-1 size-4" />
               </a>
             </Button>
           </div>

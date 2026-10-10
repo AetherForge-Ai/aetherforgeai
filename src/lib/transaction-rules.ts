@@ -101,12 +101,19 @@ export function transactionProblems(input: RecordCheck & { quantityRaw?: string;
     input.cashChangeNzd == null
       ? input.type === "buy" || input.type === "withdraw" || input.type === "tax"
       : input.cashChangeNzd < -1e-6;
-  if (input.needsCash && !input.cashKnown) {
-    problems.push("Cash is still loading. Wait until the balance matches the book.");
-  } else if (input.cashAfterNzd < -1e-6 && reducesCash) {
+  // An unknown balance does not block Review. The server reads cash itself.
+  if (input.cashKnown && input.cashAfterNzd < -1e-6 && reducesCash) {
     problems.push("This would take cash below zero.");
   }
   return problems;
+}
+
+/**
+ * Server-side cash guard for a buy, withdrawal, or tax line.
+ * Independent of whether Review was able to load the balance.
+ */
+export function exceedsAvailableCash(needed: number, available: number): boolean {
+  return Number.isFinite(needed) && Number.isFinite(available) && needed > available + 1e-6;
 }
 
 /**

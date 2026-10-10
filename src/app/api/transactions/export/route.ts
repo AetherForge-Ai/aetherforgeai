@@ -4,6 +4,7 @@ import { canExportCsv } from "@/lib/entitlements";
 import { loadLedger, type TransactionRow } from "@/lib/transactions";
 import { requestClaimsOtherUser } from "@/lib/account-guard";
 import { accountMismatchResponse } from "@/lib/account-response";
+import { CSV_EXPORT_COLUMNS } from "@/lib/ledger-schema";
 import { csvEscape, transactionCsvCells, type CsvRow } from "@/lib/transaction-csv";
 
 export const dynamic = "force-dynamic";
@@ -12,38 +13,7 @@ function rowCells(t: TransactionRow): string[] {
   return transactionCsvCells(t as TransactionRow & CsvRow).map((value) => csvEscape(value));
 }
 
-const HEADERS = [
-  "Date",
-  "DateTime_NZ",
-  "ExecutionStatus",
-  "Type",
-  "Ticker",
-  "AssetName",
-  "AssetType",
-  "AssetId",
-  "Quantity",
-  "FillPrice",
-  "FillCurrency",
-  "PriceSource",
-  "PriceAsAt",
-  "SignalPrice",
-  "MarkPriceAtExport",
-  "FeesNative",
-  "FeesNZD",
-  "NativeNotional",
-  "FxRate",
-  "FxSource",
-  "CashNZD",
-  "RealizedPricePnlNZD",
-  "RealizedFxPnlNZD",
-  "RealizedPnlNZD",
-  "OrderSizing",
-  "NotionalNative",
-  "Broker",
-  "Notes",
-  "Venue",
-  "Chain",
-];
+const HEADERS: readonly string[] = CSV_EXPORT_COLUMNS;
 
 /**
  * GET /api/transactions/export

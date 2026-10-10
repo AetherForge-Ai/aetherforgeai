@@ -1,8 +1,9 @@
 /**
  * A holding edit is a ledger correction. The numbers are not overwritten in silence.
+ * pull-check:track-a2-2026-10-10
  */
 
-import { formatPriceInput } from "@/lib/currency";
+import { formatUnitPrice, type CurrencyCode } from "@/lib/currency";
 
 export interface CorrectionPlan {
   changed: boolean;
@@ -24,26 +25,51 @@ export interface CorrectionSpan {
 }
 
 const CORRECTION_SENTENCE =
-  /^(Correction:\s*\S+\s+at\s+\S+\s*→\s*\S+\s+at\s+\S+)\.?/;
+  /^(Correction:\s*\S+\s+at\s+\S+\s*→\s*\S+\s+at\s+\S+\.?)(?:\s+Cash unchanged\.)?/;
 
-/** One copy of the correction sentence, then any extra note that is not that sentence. */
+function qty(n: number): string {
+  return String(Math.round((Number(n) || 0) * 1e6) / 1e6);
+}
+
+/** A price token already carrying a currency symbol is left alone. */
+export function correctionPriceToken(raw: string, currency: CurrencyCode = "NZD"): string {
+  const token = raw.trim().replace(/\.$/, "");
+  if (/\$/.test(token)) return token;
+  const n = Number(token.replace(/,/g, ""));
+  if (!Number.isFinite(n)) return token;
+  return formatUnitPrice(n, currency);
+}
+
+/** One correction sentence, then a labelled user note. Never a second "Correction:" line. */
 export function collapseCorrectionNote(notes: string | null | undefined): string {
-  const text = (notes || "").trim();
+  const text = (notes || "").replace(/\s+/g, " ").trim();
   if (!text) return "";
   const match = text.match(CORRECTION_SENTENCE);
   if (!match) return text;
-  const detail = match[1].endsWith(".") ? match[1] : `${match[1]}.`;
-  let rest = text;
-  while (rest.startsWith(detail) || rest.startsWith(match[1])) {
-    rest = rest.startsWith(detail) ? rest.slice(detail.length) : rest.slice(match[1].length);
-    rest = rest.trim().replace(/^\.\s*/, "");
+  let sentence = match[1].endsWith(".") ? match[1] : `${match[1]}.`;
+  if (!/Cash unchanged\.$/.test(sentence)) sentence = `${sentence} Cash unchanged.`;
+  let rest = text.slice(match[0].length).trim().replace(/^\.\s*/, "");
+  while (rest) {
+    const again = rest.match(CORRECTION_SENTENCE);
+    if (!again) break;
+    rest = rest.slice(again[0].length).trim().replace(/^\.\s*/, "");
   }
-  return rest ? `${detail} ${rest}` : detail;
+  if (!rest) return sentence;
+  const user = rest.replace(/^Note:\s*/i, "");
+  return `${sentence} Note: ${user}`;
+}
+
+export function ensureCorrectionCurrency(notes: string, currency: CurrencyCode = "NZD"): string {
+  return notes.replace(
+    /^(Correction:\s*\S+\s+at\s+)(\d[\d,]*(?:\.\d+)?)(\s*→\s*\S+\s+at\s+)(\d[\d,]*(?:\.\d+)?)/,
+    (_all, lead: string, before: string, mid: string, after: string) =>
+      `${lead}${correctionPriceToken(before, currency)}${mid}${correctionPriceToken(after, currency)}`
+  );
 }
 
 export function parseCorrectionNote(notes: string | null | undefined): CorrectionSpan | null {
   const text = collapseCorrectionNote(notes);
-  const match = text.match(/^Correction:\s*(\S+)\s+at\s+(\S+)\s*→\s*(\S+)\s+at\s+(\S+)\.?/);
+  const match = text.match(/^Correction:\s*(\S+)\s+at\s+(\S+)\s*→\s*(\S+)\s+at\s+(\S+)/);
   if (!match) return null;
   return {
     beforeQty: match[1],
@@ -53,21 +79,16 @@ export function parseCorrectionNote(notes: string | null | undefined): Correctio
   };
 }
 
-/** Row text such as "9000 at 2.22 → 9000 at 2.21". */
-export function correctionChangeLabel(notes: string | null | undefined): string | null {
+/** Row text such as "9000 at NZ$2.22 → 9000 at NZ$2.21". */
+export function correctionChangeLabel(
+  notes: string | null | undefined,
+  currency: CurrencyCode = "NZD"
+): string | null {
   const span = parseCorrectionNote(notes);
   if (!span) return null;
-  return `${span.beforeQty} at ${span.beforePrice} → ${span.afterQty} at ${span.afterPrice}`;
-}
-
-function qty(n: number): string {
-  return String(Math.round((Number(n) || 0) * 1e6) / 1e6);
-}
-
-function px(n: number): string {
-  const value = Number(n) || 0;
-  if (Math.abs(value) > 0 && Math.abs(value) < 1) return formatPriceInput(value);
-  return (Math.round(value * 100) / 100).toFixed(2);
+  const before = correctionPriceToken(span.beforePrice, currency);
+  const after = correctionPriceToken(span.afterPrice, currency);
+  return `${span.beforeQty} at ${before} → ${span.afterQty} at ${after}`;
 }
 
 export function planHoldingCorrection(input: {
@@ -75,12 +96,14 @@ export function planHoldingCorrection(input: {
   afterShares: number;
   beforePrice: number;
   afterPrice: number;
+  currency?: CurrencyCode;
   note?: string;
 }): CorrectionPlan {
+  const currency = input.currency ?? "NZD";
   const changed =
     Math.abs(input.beforeShares - input.afterShares) > 1e-8 ||
     Math.abs(input.beforePrice - input.afterPrice) > 1e-8;
-  const detail = `Correction: ${qty(input.beforeShares)} at ${px(input.beforePrice)} → ${qty(input.afterShares)} at ${px(input.afterPrice)}.`;
+  const detail = `Correction: ${qty(input.beforeShares)} at ${correctionPriceToken(String(input.beforePrice), currency)} → ${qty(input.afterShares)} at ${correctionPriceToken(String(input.afterPrice), currency)}. Cash unchanged.`;
   const extra = (input.note || "").trim();
   return {
     changed,

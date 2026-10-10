@@ -3,6 +3,8 @@
  * Persisted snapshots can be appended to transaction.notes / holding.notes.
  */
 
+import { formatDisplayDateTime } from "@/lib/currency";
+
 export interface AuditEvent {
   at: string; // ISO UTC
   at_nz: string;
@@ -18,12 +20,10 @@ export interface AuditEvent {
 const RING: AuditEvent[] = [];
 const RING_MAX = 500;
 
+/** Auckland wall clock, for example "10 Oct 2026, 10:57 pm". Never d/m/y. */
 export function aucklandStamp(d = new Date()): string {
-  return new Intl.DateTimeFormat("en-NZ", {
-    timeZone: "Pacific/Auckland",
-    dateStyle: "short",
-    timeStyle: "medium",
-  }).format(d);
+  const text = formatDisplayDateTime(d);
+  return text === "—" ? "" : text;
 }
 
 export function logLedgerAudit(ev: Omit<AuditEvent, "at" | "at_nz"> & { at?: string }): AuditEvent {

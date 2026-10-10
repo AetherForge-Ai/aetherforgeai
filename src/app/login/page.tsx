@@ -117,6 +117,7 @@ function LoginForm() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-6 px-4 bg-gradient-to-br from-background to-muted/20">
+      <h1 className="sr-only">Sign in</h1>
       <Link href="/" className="transition-opacity hover:opacity-90">
         <BrandLogo animated markClassName="size-12" wordmarkClassName="text-xl" />
       </Link>

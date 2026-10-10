@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLiveSessionUser } from "@/lib/use-live-session";
 import { useMemberDashboardPrompt } from "@/components/dashboard/MemberDashboardPrompt";
-import { planLabel } from "@/lib/plans";
+import { planIncludesToolkit, planLabel } from "@/lib/plans";
 import { headmasterDeskCopy } from "@/lib/entitlements";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -88,14 +88,14 @@ function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(href + "/");
 }
 
-/** Download the pre-filled Excel investor toolkit (yearly members only). */
+/** Download the Excel investor toolkit template (yearly plans). */
 async function downloadToolkit(setBusy: (b: boolean) => void) {
   setBusy(true);
   console.log("[toolkit] Requesting Excel toolkit download…");
   try {
     const res = await fetch("/api/downloads/toolkit", { method: "GET" });
     if (!res.ok) {
-      let message = "Could not generate your toolkit.";
+      let message = "Could not download the toolkit template.";
       try {
         const body = (await res.json()) as { ok: boolean; error?: string };
         if (body?.error) message = body.error;
@@ -239,7 +239,7 @@ function AccountMenu({
   const isActive = user.subscription_status === "active";
   // Runtime plan may be "dual_yearly" (broader than the narrowed type), so compare as string.
   const plan = String(user.subscription_plan || "");
-  const isYearly = plan === "yearly" || plan === "dual_yearly";
+  const isYearly = planIncludesToolkit(plan);
   const [busy, setBusy] = useState(false);
   // Controlled + non-modal so opening mid-page does not scroll-lock / jump the sticky
   // header and instantly dismiss the menu. Stays open until the avatar is clicked again

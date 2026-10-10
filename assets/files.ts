@@ -43,8 +43,7 @@ export const HERO_PORTFOLIO_SNAPSHOT_IMG =
 // ── About page imagery ──
 // Serene New Zealand rural landscape at golden hour (rolling hills / farmland)
 // — used as the cinematic hero backdrop on the About page.
-export const ABOUT_HERO_IMG =
-  "https://images.unsplash.com/photo-1444080748397-f442aa95c3e5?auto=format&fit=crop&w=2000&q=80";
+export const ABOUT_HERO_IMG = "/brand/about-hero.jpg";
 // The founder's real portrait — shown in the "Our Story" section of the About page.
 // The original passport-blue background was AI-retouched into a soft navy→emerald
 // studio backdrop (with a gentle vignette) so it blends with the site palette;

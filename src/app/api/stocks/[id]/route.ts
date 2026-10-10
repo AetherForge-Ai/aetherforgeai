@@ -9,6 +9,8 @@ import { totalumSdk } from "@/lib/totalum";
 import { normalizeTicker, lookupTicker } from "@/lib/market";
 import { applyTransaction } from "@/lib/transactions";
 import { planHoldingCorrection } from "@/lib/holding-correction";
+import { currencyForTicker } from "@/lib/currency";
+import { invalidateBookCache } from "@/lib/book-cache";
 
 const updateSchema = z.object({
   ticker: z.string().min(1).max(12).optional(),
@@ -67,6 +69,8 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
     delete patch.soft_override_confirmed;
     delete patch.typed_live_override;
     delete patch.cash_or_notional;
+    // A correction dates the ledger row. It does not move the lot's first buy.
+    delete patch.purchase_date;
     if (parsed.data.ticker) {
       const ticker = normalizeTicker(parsed.data.ticker);
       patch.ticker = ticker;
@@ -111,6 +115,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
         afterShares: qty,
         beforePrice: Number(owned.purchase_price) || 0,
         afterPrice: fill,
+        currency: currencyForTicker(ticker, assetType),
         note: parsed.data.notes,
       });
       patch.notes = appendAuditNote(String(parsed.data.notes || owned.notes || ""), `${plan.notes} ${ADVISORY_NOTE}`);
@@ -149,6 +154,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
     }
 
     await totalumSdk.crud.editRecordById("stock", id, patch);
+    invalidateBookCache(user._id);
     console.log(`[api/stocks/${id}] PUT updated for user ${user._id}`);
 
     return NextResponse.json({ ok: true, data: { _id: id, ...patch } });
@@ -171,6 +177,7 @@ export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string 
     }
 
     await totalumSdk.crud.deleteRecordById("stock", id);
+    invalidateBookCache(user._id);
     console.log(`[api/stocks/${id}] DELETE for user ${user._id}`);
 
     return NextResponse.json({ ok: true, data: { _id: id } });

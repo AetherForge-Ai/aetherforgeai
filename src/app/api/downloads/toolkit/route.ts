@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
+import { planIncludesToolkit } from "@/lib/plans";
 import { getCurrentUser, isStripeConfigured, hasActiveSubscription } from "@/lib/session";
 import { TOOLKIT_XLSX_BASE64, TOOLKIT_FILE_NAME } from "@/lib/toolkit-file";
 
 export const dynamic = "force-dynamic";
-
-const YEARLY_PLANS = new Set(["yearly", "dual_yearly"]);
 
 // Decode the embedded workbook once at module load (Workers-safe: atob is global).
 function decodeToolkit(): Uint8Array {
@@ -16,9 +15,9 @@ function decodeToolkit(): Uint8Array {
   return bytes;
 }
 
-// GET /api/downloads/toolkit — streams the Excel investor toolkit
-// (AetherForge portfolio tracker — stocks and crypto, NZD).
-// Gated to signed-in customers on an annual (yearly / dual_yearly) plan.
+// GET /api/downloads/toolkit — streams a static Excel investor toolkit template.
+// The workbook is not filled from holdings or from the ledger.
+// Gated to signed-in customers on a yearly plan.
 export async function GET() {
   try {
     const user = await getCurrentUser();
@@ -26,10 +25,10 @@ export async function GET() {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
 
-    // Entitlement: yearly subscribers only. When Stripe is configured we also
+    // Entitlement: yearly plans only. When Stripe is configured we also
     // require an active subscription; in demo mode (no Stripe key) a yearly
     // plan flag alone is enough so testers aren't locked out.
-    const isYearly = YEARLY_PLANS.has(user.subscription_plan || "");
+    const isYearly = planIncludesToolkit(user.subscription_plan);
     const entitled = isStripeConfigured()
       ? isYearly && hasActiveSubscription(user)
       : isYearly;
@@ -39,7 +38,7 @@ export async function GET() {
         `[downloads/toolkit] Denied for user ${user._id} (plan=${user.subscription_plan}, status=${user.subscription_status})`
       );
       return NextResponse.json(
-        { ok: false, error: "The Excel toolkit is available to annual subscribers only." },
+        { ok: false, error: "The Excel investor toolkit template is available on yearly plans only." },
         { status: 403 }
       );
     }

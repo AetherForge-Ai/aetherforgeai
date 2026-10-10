@@ -34,8 +34,8 @@ describe("H7 unknown URLs are missing pages", () => {
     expect(read("src/app/__missing/page.tsx")).toContain("notFound()");
     const notFound = read("src/app/not-found.tsx");
     expect(notFound).toContain('title: { absolute: pageTitle("Page not found") }');
-    expect(notFound).toContain('url: "/404"');
-    expect(notFound).toContain("canonical: \"/404\"");
+    expect(notFound).not.toContain('url: "/404"');
+    expect(notFound).not.toContain('canonical: "/404"');
     const config = read("next.config.ts");
     expect(config).toContain('source: "/privacy"');
     expect(config).toContain('source: "/how"');
