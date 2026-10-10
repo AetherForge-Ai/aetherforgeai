@@ -7,8 +7,11 @@ export const LEGAL_ENTITY_NAME = "FORGE INTELLIGENCE LIMITED";
 export const COMPANY_NUMBER = "9441313";
 export const NZBN = "9429053784568";
 
-/** Street address of the registered office on that record. Pegasus is listed twice (suburb and town). */
-export const REGISTERED_OFFICE = "39 Lakeside Drive, Pegasus, 7612, New Zealand";
+/**
+ * pull-check:address-removed-2026-10-11
+ * The registered office is a home address and is not published. Do not add a
+ * street, suburb, town, or postcode here. Keep the legal name and the public emails.
+ */
 
 /** Public founder name. The register lists the director as Lukas Armour SOUTHEY. */
 export const FOUNDER_NAME = "Lukas Southey";
