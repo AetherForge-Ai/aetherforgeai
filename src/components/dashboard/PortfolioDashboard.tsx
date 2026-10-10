@@ -13,6 +13,7 @@ import {
   formatSignedMoney,
   formatMoney,
   formatUnitPrice,
+  currencyForTicker,
   baseCurrencyForBot,
   BASELINE_FX_TO_NZD,
   CURRENCY_META,
