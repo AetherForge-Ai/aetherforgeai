@@ -16,11 +16,13 @@ import { assembleListedMarkets, coingeckoRolling24h, resolveSevenDayChange, type
 import { coinDisplayName } from "@/lib/crypto-names";
 import { rememberCryptoIds } from "@/lib/crypto-id-registry";
 import {
+  DEX_BACKOFF_MS,
   DEX_COLD_BUDGET_MS,
-  DEX_NETWORKS,
   DEX_STALE_MS,
+  DEX_TRENDING,
   dexListNotice,
   dexSlotKey,
+  dexTargets,
   freshDexRows,
   mergeDexLists,
   mergeDexPages,
@@ -228,12 +230,16 @@ async function loadPlatforms(): Promise<Map<string, Record<string, string>> | nu
 }
 
 const TOP400_FRESH_MS = 60_000;
+const TOP400_MAX_AGE_MS = 5 * 60 * 1000;
+const TOP400_COLD_MS = 3_000;
+const TOP400_BACKOFF_MS = 60_000;
 const TOP400_QUERY =
   "vs_currency=usd&order=market_cap_desc&per_page=250&sparkline=false" +
   "&price_change_percentage=1h,24h,7d";
 
 let top400Entry: { at: number; value: RankedCryptoPage } | null = null;
 let top400Inflight: Promise<RankedCryptoPage> | null = null;
+let top400BackoffUntil = 0;
 
 function assembleTop400(
   pages: CgMarketRow[],
@@ -246,57 +252,77 @@ function assembleTop400(
   return page;
 }
 
-/**
- * Page 1 first, then page 2 and the platform list together.
- * A three-way burst is what a demo key answers with 429, after which the
- * backup list (about 89 names, no chain) takes over.
- */
-async function loadTop400Pages(): Promise<{
-  rows: CgMarketRow[];
-  platforms: Map<string, Record<string, string>> | null;
-  page2Missing: boolean;
-}> {
-  const first = (await cgFetchRetry(`/coins/markets?${TOP400_QUERY}&page=1`)) as CgMarketRow[];
-  if (!first?.length) throw new Error("Live crypto prices are unavailable.");
-  const [second, platforms] = await Promise.all([
-    (cgFetchRetry(`/coins/markets?${TOP400_QUERY}&page=2`) as Promise<CgMarketRow[]>).catch((err) => {
-      console.error("[crypto-coingecko] top 400 page 2 unavailable:", err);
-      return null;
-    }),
-    loadPlatforms(),
-  ]);
-  const page2 = Array.isArray(second) ? second : [];
-  return { rows: [...first, ...page2], platforms, page2Missing: page2.length === 0 };
+function note429(err: unknown) {
+  const message = err instanceof Error ? err.message : String(err ?? "");
+  if (/\b429\b/.test(message)) top400BackoffUntil = Date.now() + TOP400_BACKOFF_MS;
+  return message.slice(0, 160);
 }
 
+/**
+ * Page 1 is stored as soon as it arrives, then page 2 and the platform list.
+ * A cold caller can return page 1 inside the 3s budget. Page 2 updates the same snapshot.
+ * The public markets endpoint allows 250 rows per page, so two pages cover 400.
+ */
 async function refreshTop400(): Promise<RankedCryptoPage> {
   if (top400Inflight) return top400Inflight;
   top400Inflight = (async () => {
-    const bundle = await loadTop400Pages();
-    const page = assembleTop400(bundle.rows, bundle.platforms, bundle.page2Missing);
+    const first = (await cgFetchRetry(`/coins/markets?${TOP400_QUERY}&page=1`)) as CgMarketRow[];
+    if (!first?.length) throw new Error("Live crypto prices are unavailable.");
+    top400Entry = { at: Date.now(), value: assembleTop400(first, null, true) };
+    const [second, platforms] = await Promise.all([
+      (cgFetchRetry(`/coins/markets?${TOP400_QUERY}&page=2`) as Promise<CgMarketRow[]>).catch((err) => {
+        console.error("[crypto-coingecko] top 400 page 2 unavailable:", note429(err));
+        return null;
+      }),
+      loadPlatforms(),
+    ]);
+    const page2 = Array.isArray(second) ? second : [];
+    const page = assembleTop400([...first, ...page2], platforms, page2.length === 0);
     top400Entry = { at: Date.now(), value: page };
     const labelled = page.coins.filter((coin) => coin.blockchain).length;
     console.log(`[crypto-coingecko] fetchTop400 → ${page.coins.length} coins, blockchain ${labelled}/${page.coins.length}`);
     return page;
-  })().finally(() => {
-    top400Inflight = null;
-  });
+  })()
+    .catch((err) => {
+      console.error("[crypto-coingecko] top 400 refresh failed:", note429(err));
+      throw err;
+    })
+    .finally(() => {
+      top400Inflight = null;
+    });
   return top400Inflight;
 }
 
+/** The latest CoinGecko snapshot, or null once it is older than the serve window. */
+export function peekTop400(): RankedCryptoPage | null {
+  if (!top400Entry) return null;
+  if (Date.now() - top400Entry.at > TOP400_MAX_AGE_MS) return null;
+  return top400Entry.value;
+}
+
 /**
- * CoinGecko top 400 by market cap.
- * A fresh list is returned immediately. A stale list is returned while a
- * refresh runs, so the tab does not wait on CoinGecko again.
+ * CoinGecko top 400 by market cap (two pages of 250).
+ * A fresh snapshot is returned immediately and refreshed in the background.
+ * A cold call waits at most 3 seconds and returns the page that arrived.
+ * A 429 backs off for 60 seconds. An expired snapshot is not served as padding.
  */
 export async function fetchTop400(): Promise<RankedCryptoPage> {
   const now = Date.now();
   if (top400Entry && now - top400Entry.at < TOP400_FRESH_MS) return top400Entry.value;
-  if (top400Entry) {
-    void refreshTop400().catch((err) => console.error("[crypto-coingecko] top 400 refresh failed:", err));
+  if (top400Entry && now < top400BackoffUntil && now - top400Entry.at < TOP400_MAX_AGE_MS) {
     return top400Entry.value;
   }
-  return refreshTop400();
+  if (top400Entry && now - top400Entry.at < TOP400_MAX_AGE_MS) {
+    void refreshTop400().catch(() => {});
+    return top400Entry.value;
+  }
+  const pending = refreshTop400();
+  const raced = await Promise.race([pending.catch(() => null), sleep(TOP400_COLD_MS).then(() => null)]);
+  if (raced && raced.coins.length) return raced;
+  const peeked = peekTop400();
+  if (peeked?.coins.length && top400Entry && now - top400Entry.at < TOP400_COLD_MS + 5_000) return peeked;
+  if (raced) return raced;
+  throw new Error("Live crypto prices are unavailable.");
 }
 
 export interface DexPage {
@@ -359,10 +385,17 @@ function syncDexPages(pages: DexStoredPage[]) {
 }
 
 function dexCatalogExhausted(pages: DexStoredPage[], now: number): boolean {
-  return DEX_NETWORKS.every((network) => {
-    const slot = pages.find((page) => page.network === network && page.page === 1);
+  const firsts = dexTargets().filter((target) => target.page === 1);
+  return firsts.every((target) => {
+    const slot = pages.find((page) => page.network === target.network && page.page === 1);
     return !!slot && now - slot.fetchedAt <= DEX_STALE_MS && slot.rows.length === 0;
   });
+}
+
+function dexRequestPath(network: string, page: number): string {
+  const include = "include=base_token,quote_token,dex,network";
+  if (network === DEX_TRENDING) return `/networks/trending_pools?${include}&page=${page}`;
+  return `/networks/${network}/pools?${include}&sort=h24_volume_usd_desc&page=${page}`;
 }
 
 function snapshotDex(memory: DexMemory): DexPage {
@@ -387,17 +420,14 @@ type DexFetchResult =
 
 async function fetchDexPage(network: string, page: number, timeoutMs: number): Promise<DexFetchResult> {
   try {
-    const payload = await gtFetch(
-      `/networks/${network}/pools?include=base_token,quote_token,dex&sort=h24_volume_usd_desc&page=${page}`,
-      timeoutMs
-    );
+    const payload = await gtFetch(dexRequestPath(network, page), timeoutMs);
     const rows = parseMegafilterPage(payload, network);
     return { kind: "page", page: { network, page, fetchedAt: Date.now(), rows } };
   } catch (err) {
     const message = err instanceof Error ? err.message : "";
     console.error(`[crypto-coingecko] DEX ${network} page ${page} unavailable:`, err);
     if (message.includes("429")) return { kind: "rate", network, page };
-    if (message.includes("GeckoTerminal 404")) {
+    if (message.includes("max number for page") || message.includes("GeckoTerminal 404")) {
       return { kind: "page", page: { network, page, fetchedAt: Date.now(), rows: [] } };
     }
     return { kind: "miss", network, page };
@@ -424,11 +454,11 @@ async function fillDexPages(seed: DexStoredPage[], budgetMs: number): Promise<{ 
     for (const result of results) {
       if (result.kind === "rate") {
         rateLimited = true;
-        blocked[dexSlotKey(result.network, result.page)] = Date.now() + 30_000;
+        blocked[dexSlotKey(result.network, result.page)] = Date.now() + DEX_BACKOFF_MS;
         continue;
       }
       if (result.kind === "miss") {
-        blocked[dexSlotKey(result.network, result.page)] = Date.now() + 2 * 60_000;
+        blocked[dexSlotKey(result.network, result.page)] = Date.now() + DEX_BACKOFF_MS;
         continue;
       }
       const key = dexSlotKey(result.page.network, result.page.page);
@@ -479,7 +509,7 @@ function scheduleDexFollowUp(rateLimited: boolean, rowCount: number) {
     void fillDexMemory(memory.pages)
       .then((next) => scheduleDexFollowUp(next.rateLimited, next.rows.length))
       .catch((err) => console.error("[crypto-coingecko] DEX follow-up failed:", err));
-  }, rateLimited ? 30_000 : 2_000);
+  }, DEX_BACKOFF_MS);
 }
 
 /**

@@ -6,6 +6,11 @@ export interface PublicPriceRow {
   price: string;
   change: string;
   href: string;
+  /** Numeric USD price when this row is a crypto or DEX print. */
+  usd?: number;
+  changePct?: number;
+  /** Coin slug for /markets/crypto/[id]. */
+  quoteId?: string;
 }
 
 export interface PublicPriceTab {

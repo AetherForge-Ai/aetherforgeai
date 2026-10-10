@@ -5,9 +5,24 @@
  * with top-500 scan as a secondary lookup. Never swallows into a silent empty.
  */
 import { NextResponse } from "next/server";
+import { formatPublicCryptoPrice, sourceLabel, type ChainPrint } from "@/lib/crypto-price-chain";
+import { acceptCryptoPrint, coverMissingCrypto, staleCryptoPrint } from "@/lib/crypto-price-feed";
 import { getTop500 } from "@/lib/crypto-source";
 import { fetchCryptoQuotes } from "@/lib/market-data";
 import { fetchSpotPrices } from "@/lib/crypto-swyftx";
+
+function pricePayload(symbol: string, print: ChainPrint) {
+  return {
+    symbol,
+    name: symbol,
+    price: print.price,
+    change24h: print.changePct,
+    source: sourceLabel(print.source),
+    quotedAt: print.quotedAt,
+    stale: print.stale,
+    label: formatPublicCryptoPrice(print),
+  };
+}
 
 export const dynamic = "force-dynamic";
 
@@ -24,17 +39,16 @@ export async function GET(req: Request) {
     try {
       const sx = await fetchSpotPrices([symbol]);
       if (sx[symbol]?.price > 0) {
-        console.log(`[api/crypto/price] ${symbol} → ${sx[symbol].price} (Swyftx spot)`);
-        return NextResponse.json({
-          ok: true,
-          data: {
-            symbol,
-            name: symbol,
-            price: sx[symbol].price,
-            change24h: sx[symbol].changePct,
-            source: "swyftx",
-          },
-        });
+        const accepted = acceptCryptoPrint(
+          symbol,
+          { price: sx[symbol].price, changePct: sx[symbol].changePct, source: "swyftx" },
+          [],
+          "swyftx"
+        );
+        if (accepted) {
+          console.log(`[api/crypto/price] ${symbol} → ${accepted.price} (Swyftx spot)`);
+          return NextResponse.json({ ok: true, data: pricePayload(symbol, accepted) });
+        }
       }
     } catch (err) {
       console.error("[api/crypto/price] Swyftx spot failed:", err);
@@ -52,7 +66,18 @@ export async function GET(req: Request) {
             name: symbol,
             price: hit.price,
             change24h: hit.changePct,
-            source: "quotes",
+            source: hit.source ? sourceLabel(hit.source) : "quotes",
+            quotedAt: hit.quotedAt ?? null,
+            stale: !!hit.stale,
+            label: formatPublicCryptoPrice({
+              symbol,
+              price: hit.price,
+              changePct: hit.changePct,
+              quotedAt: hit.quotedAt || new Date().toISOString(),
+              source: hit.source || "coingecko",
+              stale: !!hit.stale,
+              storedAt: Date.now(),
+            }),
           },
         });
       }
@@ -65,22 +90,33 @@ export async function GET(req: Request) {
       const coins = await getTop500();
       const hit = coins.find((c) => c.symbol.toUpperCase() === symbol && c.price > 0);
       if (hit) {
-        console.log(`[api/crypto/price] ${symbol} → ${hit.price} (top500)`);
-        return NextResponse.json({
-          ok: true,
-          data: {
-            symbol: hit.symbol,
-            name: hit.name,
-            price: hit.price,
-            change24h: hit.change24h,
-            source: "markets",
-          },
-        });
+        const accepted = acceptCryptoPrint(
+          hit.symbol,
+          { price: hit.price, changePct: hit.change24h, quotedAt: hit.quotedAt, source: "coingecko" },
+          [hit.id],
+          "coingecko"
+        );
+        if (accepted) {
+          console.log(`[api/crypto/price] ${symbol} → ${accepted.price} (top500)`);
+          return NextResponse.json({
+            ok: true,
+            data: { ...pricePayload(symbol, accepted), name: hit.name },
+          });
+        }
       }
     } catch (err) {
       console.error("[api/crypto/price] top500 failed:", err);
     }
 
+    const covered = await coverMissingCrypto(symbol);
+    if (covered && covered.price > 0) {
+      console.log(`[api/crypto/price] ${symbol} → ${covered.price} (${covered.stale ? "last good" : covered.source})`);
+      return NextResponse.json({ ok: true, data: pricePayload(symbol, covered) });
+    }
+    const last = staleCryptoPrint(symbol);
+    if (last && last.price > 0) {
+      return NextResponse.json({ ok: true, data: pricePayload(symbol, last) });
+    }
     console.warn(`[api/crypto/price] No live price found for ${symbol}`);
     return NextResponse.json(
       { ok: false, error: `${symbol} live price unavailable` },

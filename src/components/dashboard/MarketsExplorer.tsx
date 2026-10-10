@@ -9,7 +9,9 @@ import { api } from "@/lib/api";
 import { EXCHANGES, EXCHANGE_META, formatMarketPrice, type Exchange } from "@/lib/market-intel";
 import { BuyDialog, type BuyTarget } from "@/components/dashboard/BuyDialog";
 import { cryptoCoveragePhrase, dexCoverageLine, dexTabLabel } from "@/lib/crypto-coverage";
+import { DEX_EMPTY_NOTICE } from "@/lib/crypto-dex";
 import { explorerDetailHref, marketsTabHref, type MarketsTab } from "@/lib/market-detail-routes";
+import type { PublicPriceRow } from "@/lib/public-market-types";
 import { paperAddSignupHref } from "@/lib/paper-add-link";
 import { useCryptoMarkets } from "@/hooks/useCryptoMarkets";
 import { useDexMarkets } from "@/hooks/useDexMarkets";
@@ -102,6 +104,30 @@ interface DisplayRow {
   priceUnavailable?: boolean;
 }
 
+function seedDisplayRows(rows: PublicPriceRow[], market: "Crypto" | "DEX"): DisplayRow[] {
+  return rows
+    .filter((row) => typeof row.usd === "number" && row.usd > 0)
+    .map((row) => ({
+      key: row.href || row.symbol,
+      ticker: row.symbol.toUpperCase(),
+      symbol: row.symbol.toUpperCase(),
+      name: row.name,
+      currency: "USD" as const,
+      price: row.usd as number,
+      changePct: row.changePct ?? 0,
+      changeAbs: row.usd && row.changePct ? (row.usd * row.changePct) / 100 : 0,
+      dayHigh: null,
+      dayLow: null,
+      volume: null,
+      marketCap: null,
+      live: true,
+      quoted: true,
+      coinId: row.quoteId,
+      paperMarket: market,
+      priceUnavailable: false,
+    }));
+}
+
 /** Crypto tab shows the CoinGecko top 400 by market cap, 25 per page. */
 const CRYPTO_TOP_N = 400;
 const CRYPTO_PAGE_SIZE = 25;
@@ -150,6 +176,8 @@ export function MarketsExplorer({
   initialTab = null,
   syncTab = false,
   onTabChange,
+  seedCrypto = [],
+  seedDex = [],
 }: {
   onBought?: () => void;
   /** When false the component skips fetching (e.g. modal is closed). */
@@ -164,6 +192,9 @@ export function MarketsExplorer({
   /** Write the selected tab into the /markets query. Off inside the dashboard modal. */
   syncTab?: boolean;
   onTabChange?: (tab: Tab) => void;
+  /** Server-rendered first page. Shown until the client list arrives, so the table is not left on a loader. */
+  seedCrypto?: PublicPriceRow[];
+  seedDex?: PublicPriceRow[];
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>(initialTab ?? "NZX");
@@ -377,6 +408,9 @@ export function MarketsExplorer({
   const rows = useMemo<DisplayRow[]>(() => {
     let all: DisplayRow[];
     if (isDexTab) {
+      if (!dex.rows.length && seedDex.length) {
+        all = seedDisplayRows(seedDex, "DEX");
+      } else
       all = dex.rows.slice(0, CRYPTO_TOP_N).map((row) => ({
         key: `${row.symbol}:${row.id}:${row.network}`,
         ticker: row.symbol.toUpperCase(),
@@ -399,6 +433,9 @@ export function MarketsExplorer({
         priceUnavailable: row.priceUnavailable || !(row.price != null && row.price > 0),
       }));
     } else if (isCoinTab) {
+      if (!crypto.coins.length && seedCrypto.length) {
+        all = seedDisplayRows(seedCrypto, "Crypto");
+      } else {
       const top = [...crypto.coins]
         .filter((c) => coinHasLivePrice(c))
         .sort((a, b) => (a.rank ?? 999999) - (b.rank ?? 999999))
@@ -423,6 +460,7 @@ export function MarketsExplorer({
         paperMarket: "Crypto" as const,
         priceUnavailable: !!c.priceUnavailable || !(c.price > 0),
       }));
+      }
     } else {
       all = (data?.rows ?? []).map((r) => ({
         key: r.ticker,
@@ -459,7 +497,7 @@ export function MarketsExplorer({
       if (sortKey === "marketCap") return ((a.marketCap ?? 0) - (b.marketCap ?? 0)) * dir;
       return ((a[sortKey] as number) - (b[sortKey] as number)) * dir;
     });
-  }, [isCoinTab, isDexTab, crypto.coins, dex.rows, data, query, sortKey, sortDir, remoteHits]);
+  }, [isCoinTab, isDexTab, crypto.coins, dex.rows, seedCrypto, seedDex, data, query, sortKey, sortDir, remoteHits]);
 
   // Live-price formatter — crypto needs micro-price precision, stocks are currency-aware.
   const showNzd = isCryptoTab && cryptoInNzd && fxReady;
@@ -475,13 +513,17 @@ export function MarketsExplorer({
   };
 
   // Unified loading + status across both data sources.
-  const loadingRows = isDexTab ? dex.loading : isCoinTab ? crypto.loading : loading;
+  const seededCrypto = isCoinTab && crypto.coins.length === 0 && seedCrypto.some((row) => (row.usd ?? 0) > 0);
+  const seededDex = isDexTab && dex.rows.length === 0 && seedDex.some((row) => (row.usd ?? 0) > 0);
+  const loadingRows = isDexTab ? dex.loading && !seededDex : isCoinTab ? crypto.loading && !seededCrypto : loading;
   const stockLoading = !isCryptoTab && loading;
-  const cryptoListed = isDexTab ? Math.min(CRYPTO_TOP_N, dex.rows.length) : Math.min(CRYPTO_TOP_N, crypto.coins.length);
+  const cryptoListed = isDexTab
+    ? Math.min(CRYPTO_TOP_N, dex.rows.length || seedDex.length)
+    : Math.min(CRYPTO_TOP_N, crypto.coins.length || seedCrypto.length);
   const total = isCryptoTab ? cryptoListed : data?.total ?? 0;
   const liveCount = isCryptoTab ? cryptoListed : data?.liveCount ?? 0;
   const asOf = isCryptoTab ? "" : data?.asOf ?? "";
-  const hasData = isDexTab ? dex.rows.length > 0 : isCoinTab ? crypto.coins.length > 0 : !!data;
+  const hasData = isDexTab ? dex.rows.length > 0 || seededDex : isCoinTab ? crypto.coins.length > 0 || seededCrypto : !!data;
   const cryptoPageCount = Math.max(1, Math.ceil(rows.length / CRYPTO_PAGE_SIZE));
   const cryptoPageSafe = Math.min(cryptoPage, cryptoPageCount - 1);
   const visibleRows = isCryptoTab
@@ -662,6 +704,7 @@ export function MarketsExplorer({
               {crypto.notice ? ` · ${crypto.notice}` : ""}
             </p>
           )}
+          {isCoinTab && <p className="text-sm text-muted-foreground">Powered by CoinGecko</p>}
           {isCryptoTab && (
             <button
               type="button"
@@ -679,6 +722,7 @@ export function MarketsExplorer({
               {dex.notice ? ` · ${dex.notice}` : ""}
             </p>
           )}
+          {isDexTab && <p className="text-sm text-muted-foreground">Powered by GeckoTerminal</p>}
         </div>
       </div>
 
@@ -732,7 +776,7 @@ export function MarketsExplorer({
             </tr>
           </thead>
           <tbody>
-            {stockLoading || ((isCoinTab ? crypto.loading : isDexTab ? dex.loading : false) && rows.length === 0) ? (
+            {stockLoading || ((isCoinTab ? crypto.loading && !seededCrypto : isDexTab ? dex.loading && !seededDex : false) && rows.length === 0) ? (
               [...Array(12)].map((_, i) => (
                 <tr key={i} className="border-b border-border/30">
                   <td colSpan={colSpan} className="py-2">
@@ -746,9 +790,9 @@ export function MarketsExplorer({
                   {query
                     ? `No tickers match “${query}”.`
                     : isDexTab
-                      ? dex.notice || dex.error || "GeckoTerminal did not return a token price (rate limit or the feed did not answer). This list is 0, not 400."
+                      ? dex.notice || dex.error || DEX_EMPTY_NOTICE
                       : isCoinTab
-                      ? "No live crypto prices right now."
+                      ? "No earlier price is stored."
                       : loadError
                         ? "Market prices failed to load. Use refresh to try again."
                         : "No rows returned for this market."}

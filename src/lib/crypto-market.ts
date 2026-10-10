@@ -47,6 +47,8 @@ export interface CoinMarket {
   priceUnavailable?: boolean;
   /** Vendor quote time from the market list, when the feed sent one. */
   quotedAt?: string | null;
+  /** Contract addresses from the feed, lower-case. Used only to collapse duplicates. */
+  contracts?: string[];
 }
 
 /** Shown when a crypto route fails. Never a parse exception or an upstream body. */
@@ -79,6 +81,17 @@ export function coinHasLivePrice(coin: Pick<CoinMarket, "price" | "priceUnavaila
  * Map an existing price feed into the crypto table.
  * A missing print is dropped. A missing chain is left blank. No price is filled in.
  */
+/** Platform addresses long enough to be a contract. Symbols and empty strings are skipped. */
+function contractKeys(platforms: Record<string, string> | null | undefined): string[] {
+  if (!platforms) return [];
+  const out: string[] = [];
+  for (const value of Object.values(platforms)) {
+    const key = String(value || "").trim().toLowerCase();
+    if (key.length >= 8) out.push(key);
+  }
+  return out;
+}
+
 /**
  * The markets table. Positive prices only, capped at 400, with the chain label
  * when the platform list loaded. This does not apply the projection sanity ratio.
@@ -101,10 +114,12 @@ export function assembleListedMarkets(
     .slice(0, 400)
     .map((coin) => {
       const labelled = blockchainLabel(platforms?.get(coin.id), listLoaded);
+      const contracts = contractKeys(platforms?.get(coin.id));
       return {
         ...coin,
         name: coinDisplayName(coin.symbol, coin.name),
         blockchain: labelled || (coin.blockchain && coin.blockchain !== "Unavailable" ? coin.blockchain : ""),
+        contracts: contracts.length ? contracts : coin.contracts,
       };
     });
   let notice = listedMarketNotice(coins.length, coins.length >= 400 ? null : reason);

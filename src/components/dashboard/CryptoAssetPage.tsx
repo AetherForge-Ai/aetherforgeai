@@ -21,6 +21,7 @@ export function CryptoAssetPage({
   unavailable = false,
   symbol = null,
   name = null,
+  quotedLine = null,
 }: {
   coinId: string | null;
   allowBuy?: boolean;
@@ -31,6 +32,8 @@ export function CryptoAssetPage({
   unavailable?: boolean;
   symbol?: string | null;
   name?: string | null;
+  /** Server-rendered last good price. Shown instead of a loading skeleton. */
+  quotedLine?: string | null;
 }) {
   const label = unavailable ? unavailableTokenLabel(symbol, name) : null;
   const dexMarket = unavailable ? "DEX" : market;
@@ -116,6 +119,7 @@ export function CryptoAssetPage({
           paperMarket={dexMarket}
           unavailable={unavailable}
           variant="page"
+          quotedLine={quotedLine}
         />
       </div>
     </div>

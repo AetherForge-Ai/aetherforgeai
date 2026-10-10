@@ -22,6 +22,7 @@ import {
 import { CRYPTO_SNAPSHOT_TTL_MS, normalizeCryptoSymbols, stampCryptoQuoteLive } from "@/lib/crypto-live";
 import { fetchGoogleCryptoQuotes, googleCryptoSymbol } from "@/lib/google-finance";
 import { fetchSpotPrices as fetchSwyftxSpot } from "@/lib/crypto-swyftx";
+import { acceptCryptoPrint } from "@/lib/crypto-price-feed";
 import { canonicalCryptoId } from "@/lib/crypto-ids";
 import { bullionDisplayName, isBullionHolding } from "@/lib/metal-valuation";
 import { cryptoFreshnessLabel, latestQuoteTime } from "@/lib/market-freshness";
@@ -33,6 +34,10 @@ export interface LiveQuote {
   asOf?: "live" | "close";
   /** Vendor quote time. Fetch time is not stored here. */
   quotedAt?: string;
+  /** Which feed produced this print. */
+  source?: string;
+  /** True when this is the last price that passed the sanity check. */
+  stale?: boolean;
 }
 
 const PROVIDER = (process.env.MARKET_DATA_PROVIDER || "twelvedata").toLowerCase();
@@ -342,6 +347,7 @@ export async function fetchCryptoQuotes(
   }
 
   const out: Record<string, LiveQuote> = {};
+  const origin: Record<string, string> = {};
 
   // 1) Swyftx FIRST — the user's own exchange, authenticated with SWYFTX_API_KEY.
   //    It's the most reliable source and, unlike keyless CoinGecko, never rate-
@@ -349,7 +355,10 @@ export async function fetchCryptoQuotes(
   try {
     const sx = await fetchSwyftxSpot(unique);
     for (const [t, q] of Object.entries(sx)) {
-      if (q.price > 0) out[t] = { price: q.price, changePct: q.changePct };
+      if (q.price > 0) {
+        out[t] = { price: q.price, changePct: q.changePct };
+        origin[t] = "swyftx";
+      }
     }
     if (Object.keys(out).length) {
       console.log(`[market-data] Swyftx priced ${Object.keys(out).length}/${unique.length} coins`);
@@ -394,6 +403,7 @@ export async function fetchCryptoQuotes(
               changePct: isFinite(changePct) ? changePct : 0,
               ...(quotedAt ? { quotedAt } : {}),
             };
+            origin[internal] = "coingecko";
           }
         }
         console.log(`[market-data] CoinGecko filled ${Object.keys(out).length}/${unique.length} coins (cumulative)`);
@@ -423,11 +433,10 @@ export async function fetchCryptoQuotes(
           asOf: "live",
           ...(q.quotedAt ? { quotedAt: q.quotedAt } : {}),
         };
+        origin[t] = "yahoo";
         filled++;
       }
       if (filled) {
-        Object.entries(out).forEach(([t, v]) => CRYPTO_CACHE.set(t, v));
-        cryptoStamp = Date.now();
         console.log(`[market-data] Yahoo crypto fallback filled ${filled}/${missing.length} coins`);
       }
     } catch (err) {
@@ -447,11 +456,10 @@ export async function fetchCryptoQuotes(
       let filled = 0;
       for (const [t, q] of Object.entries(gq)) {
         out[t] = { price: q.price, changePct: q.changePct, asOf: "live" };
+        origin[t] = "google";
         filled++;
       }
       if (filled) {
-        Object.entries(out).forEach(([t, v]) => CRYPTO_CACHE.set(t, v));
-        cryptoStamp = Date.now();
         console.log(`[market-data] Google Finance crypto fallback filled ${filled}/${stillMissing.length} coins`);
       }
     } catch (err) {
@@ -461,14 +469,36 @@ export async function fetchCryptoQuotes(
 
   await fillMissingCryptoQuoteTimes(out, opts?.ids);
 
-  // Persist whatever we resolved (covers the common Swyftx-only path, which no
-  // fallback stage touches) so repeat lookups within the TTL are instant.
-  // Every crypto print is live — never an equity "at close" flag.
-  if (Object.keys(out).length) {
-    Object.entries(out).forEach(([t, v]) => CRYPTO_CACHE.set(t, stampCryptoQuoteLive(v)));
+  // Drop a print that fails the sanity check. Do not replace it with zero.
+  const settled: Record<string, LiveQuote> = {};
+  for (const [t, candidate] of Object.entries(out)) {
+    if (!candidate || !(candidate.price > 0)) continue;
+    const source = origin[t] || "coingecko";
+    const accepted = acceptCryptoPrint(
+      t,
+      {
+        price: candidate.price,
+        changePct: candidate.changePct,
+        quotedAt: candidate.quotedAt,
+        source,
+      },
+      [],
+      source
+    );
+    if (!accepted || !(accepted.price > 0)) continue;
+    settled[t] = stampCryptoQuoteLive({
+      price: accepted.price,
+      changePct: accepted.changePct ?? 0,
+      ...(accepted.quotedAt ? { quotedAt: accepted.quotedAt } : {}),
+      source: accepted.source,
+      stale: false,
+    });
+  }
+  if (Object.keys(settled).length) {
+    Object.entries(settled).forEach(([t, v]) => CRYPTO_CACHE.set(t, v));
     cryptoStamp = Date.now();
   }
-  return Object.fromEntries(Object.entries(out).map(([t, v]) => [t, stampCryptoQuoteLive(v)]));
+  return settled;
 }
 
 /* Shared 24/7 snapshot — holdings page, alerts, and /api/stocks/refresh. */

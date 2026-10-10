@@ -13,10 +13,13 @@
  *   GET  /markets/info/detail/{CODE}/            — description, 7d/30d change, supply, links
  *   GET  /charts/getBars/USD/{CODE}/ask/         — OHLC candles for sparklines + detail charts
  *
- * The public market endpoints work keyless; when `SWYFTX_API_KEY` is set we
- * authenticate with the user's account (higher rate limits). Everything is
- * wrapped in a TTL cache with stale-on-error so a transient Swyftx hiccup never
- * blanks the UI.
+ * The public market endpoints work keyless. When `SWYFTX_API_KEY` is set,
+ * production reads it from Totalum env vars (it is not committed and is not
+ * available in this workspace). The key is exchanged at POST /auth/refresh/
+ * for a short-lived access token, cached in this server process, and never
+ * written to a log. A missing or rejected key keeps the public routes.
+ * Everything is wrapped in a TTL cache with stale-on-error so a transient
+ * Swyftx hiccup never blanks the UI.
  *
  * Do NOT import from client components — reached only through /api/crypto/*.
  */
@@ -40,12 +43,23 @@ const SPARK_CONCURRENCY = 8;
 /* ------------------------------ Access token ----------------------------- */
 
 let tokenCache: { token: string; at: number } | null = null;
+let tokenInflight: Promise<string | null> | null = null;
 const TOKEN_TTL = 6 * 24 * 60 * 60 * 1000; // Swyftx access tokens last ~7 days
 
-async function getAccessToken(): Promise<string | null> {
-  const apiKey = process.env.SWYFTX_API_KEY;
-  if (!apiKey) return null; // keyless public access still works
-  if (tokenCache && Date.now() - tokenCache.at < TOKEN_TTL) return tokenCache.token;
+/**
+ * Strip the API key, bearer token, and access token from anything that might be logged.
+ * The key is read from SWYFTX_API_KEY and is never written to a log line.
+ */
+export function redactSwyftxLog(value: unknown): string {
+  let text = value instanceof Error ? value.message : String(value ?? "");
+  const key = process.env.SWYFTX_API_KEY;
+  if (key) text = text.split(key).join("[redacted]");
+  text = text.replace(/Bearer\s+\S+/gi, "Bearer [redacted]");
+  text = text.replace(/"(?:apiKey|accessToken|access_token)"\s*:\s*"[^"]*"/gi, '"secret":"[redacted]"');
+  return text.slice(0, 200);
+}
+
+async function exchangeAccessToken(apiKey: string): Promise<string | null> {
   try {
     const res = await fetch(`${SX_BASE}/auth/refresh/`, {
       method: "POST",
@@ -53,18 +67,33 @@ async function getAccessToken(): Promise<string | null> {
       body: JSON.stringify({ apiKey }),
       cache: "no-store",
     });
-    if (!res.ok) throw new Error(`auth/refresh ${res.status}: ${(await res.text()).slice(0, 160)}`);
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`auth/refresh ${res.status}: ${redactSwyftxLog(body)}`);
+    }
     const j = (await res.json()) as { accessToken?: string; access_token?: string };
     const token = j.accessToken || j.access_token;
-    if (!token) throw new Error("auth/refresh returned no accessToken");
+    if (!token) throw new Error("auth/refresh returned no access token");
     tokenCache = { token, at: Date.now() };
-    console.log("[crypto-swyftx] obtained Swyftx access token from API key");
+    console.log("[crypto-swyftx] Swyftx session started");
     return token;
   } catch (err) {
     // Non-fatal: fall back to keyless public access so the dashboard still works.
-    console.error("[crypto-swyftx] auth failed — continuing keyless:", err);
+    console.error("[crypto-swyftx] auth failed — continuing keyless:", redactSwyftxLog(err));
     return null;
   }
+}
+
+async function getAccessToken(): Promise<string | null> {
+  const apiKey = process.env.SWYFTX_API_KEY;
+  if (!apiKey) return null; // keyless public access still works
+  if (tokenCache && Date.now() - tokenCache.at < TOKEN_TTL) return tokenCache.token;
+  if (!tokenInflight) {
+    tokenInflight = exchangeAccessToken(apiKey).finally(() => {
+      tokenInflight = null;
+    });
+  }
+  return tokenInflight;
 }
 
 async function sxHeaders(): Promise<Record<string, string>> {
@@ -78,11 +107,15 @@ async function sxHeaders(): Promise<Record<string, string>> {
   return h;
 }
 
-async function sxGet(path: string): Promise<any> {
-  const res = await fetch(`${SX_BASE}${path}`, { headers: await sxHeaders(), cache: "no-store" });
+async function sxGet(path: string, timeoutMs = 8_000): Promise<any> {
+  const res = await fetch(`${SX_BASE}${path}`, {
+    headers: await sxHeaders(),
+    cache: "no-store",
+    signal: AbortSignal.timeout(timeoutMs),
+  });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`Swyftx ${res.status} on ${path}: ${body.slice(0, 200)}`);
+    throw new Error(`Swyftx ${res.status} on ${path}: ${redactSwyftxLog(body)}`);
   }
   return res.json();
 }
@@ -95,7 +128,16 @@ interface CacheEntry<T> {
 }
 const store = new Map<string, CacheEntry<any>>();
 
-async function cached<T>(key: string, ttlMs: number, loader: () => Promise<T>): Promise<T> {
+/** Clears the in-process session and quote caches. Tests call this. Production does not. */
+export function resetSwyftxForTests(scope: "all" | "data" = "all"): void {
+  store.clear();
+  if (scope === "all") {
+    tokenCache = null;
+    tokenInflight = null;
+  }
+}
+
+async function cached<T>(key: string, ttlMs: number, loader: () => Promise<T>, allowStale = true): Promise<T> {
   const hit = store.get(key) as CacheEntry<T> | undefined;
   const now = Date.now();
   if (hit && now - hit.at < ttlMs) return hit.value;
@@ -104,8 +146,8 @@ async function cached<T>(key: string, ttlMs: number, loader: () => Promise<T>): 
     store.set(key, { at: now, value });
     return value;
   } catch (err) {
-    if (hit) {
-      console.error(`[crypto-swyftx] "${key}" load failed — serving stale cache:`, err);
+    if (allowStale && hit) {
+      console.error(`[crypto-swyftx] "${key}" load failed — serving stale cache:`, redactSwyftxLog(err));
       return hit.value;
     }
     throw err;
@@ -150,19 +192,29 @@ interface SxRate {
 }
 
 /** All assets with rank / marketCap (USD) / volume (USD). Cached 60s. */
-async function getBasic(): Promise<SxBasic[]> {
-  return cached("basic", 60_000, async () => {
-    const rows = (await sxGet("/markets/info/basic/")) as SxBasic[];
-    return Array.isArray(rows) ? rows : [];
-  });
+async function getBasic(allowStale = true): Promise<SxBasic[]> {
+  return cached(
+    "basic",
+    60_000,
+    async () => {
+      const rows = (await sxGet("/markets/info/basic/", allowStale ? 8_000 : 2_500)) as SxBasic[];
+      return Array.isArray(rows) ? rows : [];
+    },
+    allowStale
+  );
 }
 
 /** Live USD price + 24h change keyed by numeric asset id. Cached 20s (frequent). */
-async function getUsdRates(): Promise<Record<string, SxRate>> {
-  return cached("rates:usd", 20_000, async () => {
-    const map = (await sxGet(`/live-rates/${USD_ID}/`)) as Record<string, SxRate>;
-    return map && typeof map === "object" ? map : {};
-  });
+async function getUsdRates(allowStale = true): Promise<Record<string, SxRate>> {
+  return cached(
+    "rates:usd",
+    20_000,
+    async () => {
+      const map = (await sxGet(`/live-rates/${USD_ID}/`, allowStale ? 8_000 : 2_500)) as Record<string, SxRate>;
+      return map && typeof map === "object" ? map : {};
+    },
+    allowStale
+  );
 }
 
 /**
@@ -188,7 +240,7 @@ async function getSparkMap(codes: string[]): Promise<Record<string, { series: nu
         }
       } catch (err) {
         // Per-coin failure is non-fatal — that coin just renders without a sparkline.
-        console.error(`[crypto-swyftx] sparkline for ${code} failed:`, err);
+        console.error(`[crypto-swyftx] sparkline for ${code} failed:`, redactSwyftxLog(err));
       }
     });
     console.log(`[crypto-swyftx] enriched ${Object.keys(out).length}/${codes.length} coins with 7d sparklines`);
@@ -219,7 +271,7 @@ export async function fetchTop500(): Promise<CoinMarket[]> {
   try {
     spark = await getSparkMap(topCodes);
   } catch (err) {
-    console.error("[crypto-swyftx] spark enrichment failed (serving prices without sparklines):", err);
+    console.error("[crypto-swyftx] spark enrichment failed (serving prices without sparklines):", redactSwyftxLog(err));
   }
 
   const coins: CoinMarket[] = rows.map(({ b, rate }) => {
@@ -255,6 +307,50 @@ export async function fetchTop500(): Promise<CoinMarket[]> {
   return coins;
 }
 
+/**
+ * Ranked Swyftx assets with a live USD price. No sparkline calls.
+ * Reads SWYFTX_API_KEY when it is set and continues keyless when it is absent or rejected.
+ * A failed call returns nothing. It does not reuse a stale list.
+ */
+export async function fetchRankedMarkets(limit = 400): Promise<CoinMarket[]> {
+  const [basic, rates] = await Promise.all([getBasic(false), getUsdRates(false)]);
+  const rows = basic
+    .filter((b) => b && b.code && !FIAT_DENY.has(b.code.toUpperCase()) && b.rank > 0)
+    .map((b) => ({ b, rate: rates[String(b.id)], mid: rates[String(b.id)] ? num(rates[String(b.id)].midPrice) : null }))
+    .filter((x) => x.rate && x.mid != null && x.mid > 0)
+    .sort((a, b) => a.b.rank - b.b.rank)
+    .slice(0, Math.max(0, limit));
+  const coins: CoinMarket[] = rows.map(({ b, rate }) => {
+    const code = b.code.toUpperCase();
+    return {
+      id: b.code.toLowerCase(),
+      symbol: code,
+      name: b.name || b.altName || code,
+      image: coinLogo(code),
+      rank: b.rank ?? 999999,
+      price: num(rate.midPrice) ?? 0,
+      marketCap: num(b.marketCap) ?? 0,
+      fdv: null,
+      volume24h: num(b.volume24H) ?? 0,
+      change1h: null,
+      change24h: num(rate.dailyPriceChange) ?? 0,
+      change7d: 0,
+      high24h: null,
+      low24h: null,
+      circulatingSupply: null,
+      totalSupply: null,
+      maxSupply: null,
+      ath: null,
+      athDate: null,
+      atl: null,
+      atlDate: null,
+      sparkline7d: [],
+    };
+  });
+  console.log(`[crypto-swyftx] fetchRankedMarkets → ${coins.length}`);
+  return coins;
+}
+
 /* ---------------------------- Spot price lookup -------------------------- */
 
 /**
@@ -287,7 +383,7 @@ export async function fetchSpotPrices(
     }
     console.log(`[crypto-swyftx] fetchSpotPrices → ${Object.keys(out).length}/${wanted.length} priced`);
   } catch (err) {
-    console.error("[crypto-swyftx] fetchSpotPrices failed:", err);
+    console.error("[crypto-swyftx] fetchSpotPrices failed:", redactSwyftxLog(err));
   }
   return out;
 }
