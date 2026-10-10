@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PUBLIC_ADVICE_LEAK, technicalSnapshot, toPublicPayload } from "./public-intel";
+import { PUBLIC_ADVICE_LEAK, publisherTextHasSignalWord, technicalSnapshot, toPublicPayload } from "./public-intel";
 
 describe("public market payloads", () => {
   it("drops ratings, conviction and sizing language", () => {
@@ -78,5 +78,48 @@ describe("public market payloads", () => {
     expect(story.source).toBe(source);
     expect(story.headline).toBe("Fonterra publishes a milk-price note");
     expect(story.url).toBe("https://www.fonterra.com/nz/en/news/milk-price.html");
+  });
+
+  it("drops stock better-buy headlines and keeps other which-is-better questions", () => {
+    expect(publisherTextHasSignalWord("HRMY vs. CSLLY: Which Stock Is the Better Value Option?")).toBe(true);
+    expect(publisherTextHasSignalWord("Apple vs. Microsoft: Which is the better buy")).toBe(true);
+    expect(publisherTextHasSignalWord("Better Buy: two listed names")).toBe(true);
+    expect(publisherTextHasSignalWord("Gold vs. bitcoin: which is the better inflation hedge?")).toBe(false);
+    expect(publisherTextHasSignalWord("Stocks vs. bonds: which will win as the Fed cuts?")).toBe(false);
+
+    const payload = toPublicPayload({
+      news: [
+        {
+          headline: "HRMY vs. CSLLY: Which Stock Is the Better Value Option?",
+          summary: "A comparison of two listed names.",
+          url: "https://finance.yahoo.com/news/hrmy-vs-cslly-better-value",
+        },
+        {
+          headline: "Apple vs. Microsoft: Which is the better buy",
+          summary: "A Better Buy comparison of two stocks.",
+          url: "https://finance.yahoo.com/news/apple-vs-microsoft-better-buy",
+        },
+        {
+          headline: "Gold vs. bitcoin: which is the better inflation hedge?",
+          summary: "A comparison of gold and bitcoin.",
+          url: "https://www.reuters.com/markets/gold-vs-bitcoin-hedge",
+        },
+        {
+          headline: "Stocks vs. bonds: which will win as the Fed cuts?",
+          summary: "Stocks and bonds ahead of a Fed cut.",
+          url: "https://www.reuters.com/markets/us/stocks-vs-bonds-fed-cuts",
+        },
+      ],
+    });
+    const headlines = (payload as { news: Array<{ headline: string; url: string }> }).news.map((item) => item.headline);
+    expect(headlines).toEqual([
+      "Gold vs. bitcoin: which is the better inflation hedge?",
+      "Stocks vs. bonds: which will win as the Fed cuts?",
+    ]);
+    const urls = (payload as { news: Array<{ url: string }> }).news.map((item) => item.url);
+    expect(urls).toEqual([
+      "https://www.reuters.com/markets/gold-vs-bitcoin-hedge",
+      "https://www.reuters.com/markets/us/stocks-vs-bonds-fed-cuts",
+    ]);
   });
 });

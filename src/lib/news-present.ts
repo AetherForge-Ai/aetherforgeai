@@ -94,7 +94,7 @@ export function sourceForUrl(url: string, fallback: string): string {
 }
 
 const OFF_TOPIC =
-  /\b(froyo|frozen yogh?urt|jaguar|bin collectors?|election debates?|leaders['’]?\s+debate|royal rumble|data virtuali[sz]ation|strategic business report|lifestyle|celebrity|red carpet|recipe|premiere|stuntwomen|carjacking|liquor licences|financial advisers?|financial advisors?|wealthy people can teach|variable rate fix|as agent bank|evident\s+ai)\b|\btops\b.{0,80}\bbanking index\b/i;
+  /\b(froyo|frozen yogh?urt|jaguar|bin collectors?|election debates?|leaders['’]?\s+debate|royal rumble|data virtuali[sz]ation|strategic business report|lifestyle|celebrity|red carpet|recipe|premiere|stuntwomen|carjacking|liquor licences|wealthy people can teach|variable rate fix|as agent bank|evident\s+ai)\b|\btops\b.{0,80}\bbanking index\b/i;
 
 const NAMED_ENTITIES: Record<string, string> = {
   amp: "&",
@@ -142,7 +142,7 @@ export function decodeHtmlEntities(input: string): string {
 }
 
 const MARKET_SIGNAL =
-  /\b(share|shares|stock|stocks|market|markets|nzx|asx|nasdaq|dow|s&p|rbnz|rba|ocr|cpi|inflation|gdp|earnings|dividend|ipo|bond|currency|oil|iron|bank|bitcoin|crypto|ethereum|fed|fomc|treasury|index|investor|trading|economy|economic|fonterra|profit|revenue|nzd|usd|aud|gold|silver|commodity|equity|listing|cash rate|interest)\b/i;
+  /\b(share|shares|stock|stocks|market|markets|nzx|asx|nasdaq|dow|s&p|rbnz|rba|ocr|cpi|inflation|gdp|earnings|dividend|ipo|bond|currency|oil|iron|banks?|bitcoin|crypto|ethereum|fed|fomc|treasury|index|investor|trading|economy|economic|fonterra|profit|revenue|nzd|usd|aud|gold|silver|commodity|equity|listing|cash rate|interest)\b/i;
 
 const CRYPTO_HOST = /(beincrypto|coindesk|cointelegraph|theblock|decrypt|cryptoslate)\./i;
 
@@ -152,10 +152,11 @@ const CRYPTO_ASSET =
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-/** Lifestyle, motoring and other non-market headlines. */
+/** Lifestyle, motoring and other non-market headlines. A digital-asset story is on-topic. */
 export function isOffTopicStory(headline: string, summary = ""): boolean {
   const blob = `${headline} ${summary}`;
   if (OFF_TOPIC.test(blob)) return true;
+  if (CRYPTO_ASSET.test(blob)) return false;
   return !MARKET_SIGNAL.test(blob);
 }
 
@@ -241,18 +242,20 @@ function alignStoryMarket(item: NewsItem): NewsItem | null {
   const nz = NZ_ANCHOR.test(blob);
   const au = AU_ANCHOR.test(blob);
   const us = US_ANCHOR.test(blob);
-  const france = /\b(france|french|paris)\b/i.test(blob);
   const election = /\b(election|leaders['’]?\s+debate|royal rumble)\b/i.test(blob);
   const ukMiners = /\b(uk|u\.k\.|britain|british)\b/i.test(blob) && /\bminers?\b/i.test(blob);
   const dataRelease = /\b(data virtuali[sz]ation|strategic business report)\b/i.test(blob);
+  // The retest column only. A Paris or French market story stays.
+  const franceDebtBomb =
+    /\bmagic money\b/i.test(blob) ||
+    (/\b(france|french)\b/i.test(blob) && /\bdebt bomb\b/i.test(blob));
 
-  // A French fiscal story is not an NZX, ASX or US story. Drop it.
-  if ((france || /\bmagic money\b/i.test(blob)) && !nz && !au && !us) return null;
+  if (franceDebtBomb) return null;
   // The crypto feed only carries digital-asset stories. Equity wraps are dropped.
   if (item.market === "CRYPTO" && !CRYPTO_ASSET.test(blob)) return null;
 
   const contradicted =
-    (item.market === "NZX" && (france || election) && !nz) ||
+    (item.market === "NZX" && election && !nz) ||
     (item.market === "ASX" && ukMiners && !au) ||
     (item.market === "US" && dataRelease && !us);
 

@@ -422,4 +422,128 @@ describe("public market news", () => {
       "https://www.reuters.com/markets/australia/rba-reduces-cash-rate-retest"
     );
   });
+
+  it("keeps Paris, French and adviser market stories, and still drops the retest columns", () => {
+    expect(isOffTopicStory("Fisher Funds shares rise after KiwiSaver inflows", "Advisers point to the inflows.")).toBe(false);
+    expect(isOffTopicStory("FMA warns financial advisers over crypto marketing", "A notice to the market.")).toBe(false);
+    expect(isOffTopicStory("Wall Street banks trim financial adviser headcount")).toBe(false);
+    expect(isOffTopicStory("What financial advisers think wealthy people can teach us", "Investors and the market.")).toBe(true);
+
+    const dated = {
+      impact: "Neutral" as const,
+      relevance: 60,
+      time: "1d ago",
+      publishedOn: "2026-10-06",
+    };
+    const feed = prepareNewsFeed([
+      {
+        ...dated,
+        headline: "LVMH shares slide in Paris",
+        source: "Reuters",
+        market: "NZX",
+        summary: "The luxury group's shares fell in the Paris session.",
+        url: "https://www.reuters.com/markets/europe/lvmh-shares-slide-paris",
+      },
+      {
+        ...dated,
+        headline: "French bond yields jump as budget fight weighs on euro",
+        source: "Reuters",
+        market: "US",
+        summary: "French government bond yields rose as the budget fight weighed on the euro.",
+        url: "https://www.reuters.com/markets/europe/french-bond-yields",
+      },
+      {
+        ...dated,
+        headline: "Airbus shares climb in Paris… US futures firm",
+        source: "Reuters",
+        market: "US",
+        summary: "Airbus shares climbed in Paris while US futures firmed.",
+        url: "https://www.reuters.com/markets/europe/airbus-shares-paris",
+      },
+      {
+        ...dated,
+        headline: "Bitcoin ETF debuts on Euronext Paris",
+        source: "CoinDesk",
+        market: "CRYPTO",
+        summary: "A bitcoin ETF listed on Euronext Paris.",
+        url: "https://www.coindesk.com/markets/bitcoin-etf-euronext-paris",
+      },
+      {
+        ...dated,
+        headline: "Paris Blockchain Week: Ripple unveils stablecoin plan",
+        source: "The Block",
+        market: "CRYPTO",
+        summary: "Ripple unveiled a stablecoin plan at Paris Blockchain Week.",
+        url: "https://www.theblock.co/news/paris-blockchain-week-ripple",
+      },
+      {
+        ...dated,
+        headline: "Fisher Funds shares rise after KiwiSaver inflows",
+        source: "BusinessDesk",
+        market: "NZX",
+        summary: "Advisers said KiwiSaver inflows lifted the shares.",
+        url: "https://www.businessdesk.co.nz/article/fisher-funds-kiwisaver",
+      },
+      {
+        ...dated,
+        headline: "FMA warns financial advisers over crypto marketing",
+        source: "RNZ",
+        market: "NZX",
+        summary: "The FMA warned financial advisers about crypto marketing.",
+        url: "https://www.rnz.co.nz/news/business/fma-financial-advisers-crypto",
+      },
+      {
+        ...dated,
+        headline: "Wall Street banks trim financial adviser headcount",
+        source: "Reuters",
+        market: "US",
+        summary: "Wall Street banks trimmed financial adviser headcount. Listed shares were little changed.",
+        url: "https://www.reuters.com/markets/us/banks-adviser-headcount",
+      },
+      {
+        ...dated,
+        headline: "Gold vs. bitcoin: which is the better inflation hedge?",
+        source: "Reuters",
+        market: "CRYPTO",
+        summary: "A comparison of gold and bitcoin as an inflation hedge.",
+        url: "https://www.reuters.com/markets/gold-vs-bitcoin-hedge",
+      },
+      {
+        ...dated,
+        headline: "Stocks vs. bonds: which will win as the Fed cuts?",
+        source: "Reuters",
+        market: "US",
+        summary: "Stocks and bonds ahead of a Fed cut.",
+        url: "https://www.reuters.com/markets/us/stocks-vs-bonds-fed-cuts",
+      },
+      {
+        ...dated,
+        headline: "France's debt bomb grows without a budget",
+        source: "Reuters",
+        market: "US",
+        summary: "The French fiscal gap is the story.",
+        url: "https://www.reuters.com/markets/europe/france-debt-bomb",
+      },
+    ]);
+    const titles = feed.map((item) => item.headline);
+    expect(titles).toEqual(expect.arrayContaining([
+      "LVMH shares slide in Paris",
+      "French bond yields jump as budget fight weighs on euro",
+      "Airbus shares climb in Paris… US futures firm",
+      "Bitcoin ETF debuts on Euronext Paris",
+      "Paris Blockchain Week: Ripple unveils stablecoin plan",
+      "Fisher Funds shares rise after KiwiSaver inflows",
+      "FMA warns financial advisers over crypto marketing",
+      "Wall Street banks trim financial adviser headcount",
+      "Gold vs. bitcoin: which is the better inflation hedge?",
+      "Stocks vs. bonds: which will win as the Fed cuts?",
+    ]));
+    expect(titles.join("\n")).not.toMatch(/debt bomb|wealthy people can teach/i);
+    expect(feed.find((item) => item.headline.startsWith("LVMH"))?.url).toBe(
+      "https://www.reuters.com/markets/europe/lvmh-shares-slide-paris"
+    );
+    expect(feed.find((item) => item.headline.startsWith("Gold vs"))?.url).toBe(
+      "https://www.reuters.com/markets/gold-vs-bitcoin-hedge"
+    );
+  });
 });
