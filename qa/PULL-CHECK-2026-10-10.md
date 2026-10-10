@@ -443,13 +443,18 @@ H5–H11 landed on develop as https://github.com/AetherForge-Ai/aetherforgeai/pu
 
 Retest of the published build. These rows supersede the earlier H1, H2, H3, and H5 rows where the retest still failed. Stox, Koins, and Headmaster lists stay. Crypto projections stay paused.
 
-### U3 — fixed
+### U3 — partial
 
-- Status: fixed
-- Commit: `7690a58`
-- Files: `src/lib/crypto-coingecko.ts`, `src/lib/crypto-source.ts`, `src/lib/crypto-market.ts`, `src/lib/crypto-names.ts`, `src/lib/crypto-dex.ts`, `src/lib/crypto-coverage.ts`, `src/components/dashboard/MarketsExplorer.tsx`, `src/components/dashboard/MarketsPageContent.tsx`
-- URL / steps: signed out, `/markets?tab=crypto`, then the DEX tab. Read the intro, the count under the search, the Blockchain column, and the first page of names.
-- Expected: the intro does not say Top 400 unless 400 rows are in the table. The count line is the number returned (The top 400 coins by market cap when CoinGecko returns 400). Blockchain is Native or a platform name, not a dash on every row. Names such as Mina Protocol, Axie Infinity, Kusama, EOS Network, Flow, Internet Computer, Aave, Zilliqa, Artificial Superintelligence Alliance, Curve DAO, Synthetix, yearn.finance, Ankr, Filecoin, and Arkham are not the raw ticker. The DEX tab says the number GeckoTerminal returned. If that number is under 400, the notice says the rate limit stopped the list or further rows are still loading. It does not say Top 400 when the table is empty or short. `CRYPTO_SANITY_RATIO` stays 3 and is not applied to this list.
+- Status: partial. CoinGecko top 400 when the feed answers. The DEX list is whatever GeckoTerminal returned within its rate limit and may be under 400. Each GeckoTerminal page holds 20 pools, so 400 unique tokens need 20 or more pages. A cold tab fetches up to 5 pages at a time and returns within about 3 seconds with the rows that arrived. The CDN keeps that merged list (`s-maxage` and `stale-while-revalidate`). A later HTTP 429 does not replace a longer cached list with a shorter one. `CRYPTO_SANITY_RATIO` stays 3 and is not applied to this list.
+- Commit: `7690a58`, `ac2a97b`
+- Files: `src/lib/crypto-coingecko.ts`, `src/lib/crypto-source.ts`, `src/lib/crypto-market.ts`, `src/lib/crypto-names.ts`, `src/lib/crypto-dex.ts`, `src/lib/crypto-coverage.ts`, `src/components/dashboard/MarketsExplorer.tsx`, `src/components/dashboard/MarketsPageContent.tsx`, `src/app/api/crypto/dex/route.ts`, `src/app/how-it-works/page.tsx`
+- URL / steps: signed out, `/markets?tab=crypto`, then the DEX tab. Read the intro, the count under the search, the Blockchain column, the first page of names, and the DEX button. Also read Koins on `/how-it-works`.
+- Expected, CoinGecko returns 400: the count line is `The top 400 coins by market cap`. There is no short-list notice. Blockchain is `Native` or a platform name, not `—` on every row. These names are not the raw ticker: Mina Protocol, Axie Infinity, Kusama, EOS Network, Flow, Internet Computer, Aave, Zilliqa, Artificial Superintelligence Alliance, Curve DAO, Synthetix, yearn.finance, Ankr, Filecoin, Arkham.
+- Expected, CoinGecko returns N under 400 (backup example N = 89): the count line is `The top 89 coins by market cap`. Backup notice: `CoinGecko did not return a market list (rate limit or the feed did not answer). This list is the backup feed: 89 coins, not 400.` Page-2 notice: `CoinGecko did not return the second page (rate limit or plan cap). Showing N, not 400.` The intro and the count do not say Top 400.
+- Expected, DEX returns N under 400 (example N = 33): the button is `DEX top 33`. The subtitle is `Top 33 DEX tokens by 24-hour volume · GeckoTerminal`. While more pages can still load: `GeckoTerminal returned 33 tokens, not 400. Further rows are still loading.` When the rate limit stops the walk: `GeckoTerminal returned 33 tokens, not 400. The rate limit stopped the list.` Do not show `DEX top 400` or `Top 400 DEX tokens`.
+- Expected, DEX returns 400: the button is `DEX top 400`. The subtitle is `Top 400 DEX tokens by 24-hour volume · GeckoTerminal`. The notice is empty.
+- Expected, DEX returns 0: the button is `DEX`. The subtitle is `DEX list · GeckoTerminal returned 0 tokens, not 400`. The empty cell is `GeckoTerminal did not return a token price (rate limit or the feed did not answer). This list is 0, not 400.`
+- Expected, how-it-works: Koins says `Tracks up to 400 coins, depending on what the data feed returns`. It does not say `Tracks the top 400 coins`.
 
 ### V1 — fixed
 
@@ -470,10 +475,10 @@ Retest of the published build. These rows supersede the earlier H1, H2, H3, and 
 ### H2 — fixed
 
 - Status: fixed
-- Commit: `03b2813`
-- Files: `src/lib/quote-review.ts`, `src/lib/apex.ts`
-- URL / steps: the same Stox and Koins reports. Full multi-timeframe mover sweep and the projected list.
-- Expected: these prints are data under review and are not in the top 10 or the projected leaders: LRCX +43.68% and AMGN +42.23% (24h), MDLZ +50.64%, JPM +31.01%, and META +32.46% (7d), WETH +77.98%, USDG +27.66%, CRVUSD +29.82%. A wrapped token that tracks its underlying, and a stablecoin move of a few tenths of a percent, can still show. BAT +33.16% (24h) can still show.
+- Commit: `03b2813`, `5deed22`
+- Files: `src/lib/quote-review.ts`, `src/lib/apex.ts`, `src/lib/report-copy.ts`, `src/components/bots/ApexReport.tsx`, `src/lib/report-html.ts`
+- URL / steps: the same Stox and Koins reports. Full multi-timeframe mover sweep and the projected list. Read the note under each window.
+- Expected: large-cap caps are 20% (24h), 35% (7d) and 60% (30d). If a ticker's 24h print is withheld, its 7d and 30d prints are withheld too. These prints are data under review and are not in the top 10 or the projected leaders: LRCX +43.68% and AMGN +42.23% (24h), MDLZ +50.64% (7d), JPM +31.01% (7d, because JPM's 24h print is withheld), META +32.46% (7d, because META's 24h print is withheld), WETH +77.98%, USDG +27.66%, CRVUSD +29.82%. Each window that dropped rows says `N prints under review` (for example `4 prints under review`), counted before those rows leave the ranking. A large-cap 30-day move of +25% with a normal 24h print is shown, not hidden. A wrapped token that tracks its underlying, and a stablecoin move of a few tenths of a percent, can still show. BAT +33.16% (24h) can still show.
 
 ### H3 — fixed
 
@@ -494,7 +499,7 @@ Retest of the published build. These rows supersede the earlier H1, H2, H3, and 
 ### Checks for Track A1
 
 - `./node_modules/.bin/tsc --noEmit --skipLibCheck`: passed.
-- `./node_modules/.bin/vitest run`: 101 files, 479 tests passed.
+- `./node_modules/.bin/vitest run`: 101 files, 483 tests passed.
 - `./node_modules/.bin/eslint` on the Track A1 source files: 0 errors.
 - `npm run build` (`next build`): passed. Exit 0. Nothing was published.
 
