@@ -210,6 +210,17 @@ export function metalUpdatedPhrase(quotedAt: string | null | undefined): string 
   return `Spot · updated ${formatQuoteClock(date, "Pacific/Auckland")}`;
 }
 
+/**
+ * Home metals sentence. Same rule as the tape badge: Est. when the quote is
+ * not live, otherwise the gold-api clock when one exists.
+ */
+export function metalsHomeHint(live: boolean, quotedAt?: string | null): string {
+  if (!live) return "Est. gold and silver. Not a report.";
+  const phrase = metalUpdatedPhrase(quotedAt);
+  if (phrase) return `${phrase} gold and silver. Not a report.`;
+  return "Spot gold and silver. Not a report.";
+}
+
 /** Newest finite vendor timestamp. Fetch time is not a substitute. */
 export function latestQuoteTime(values: Array<string | number | Date | null | undefined>): Date | null {
   let best: Date | null = null;

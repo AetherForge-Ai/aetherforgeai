@@ -46,7 +46,7 @@ export function CryptoMarketSection({ showProjected = true }: { showProjected?: 
           <div>
             <p className="font-display text-base font-semibold">Institutional Crypto Terminal</p>
             <p className="text-xs text-muted-foreground">
-              {CRYPTO_PROJECTIONS_PAUSED && (loading || coins.length === 0)
+              {CRYPTO_PROJECTIONS_PAUSED
                 ? CRYPTO_PROJECTIONS_PAUSE_MESSAGE
                 : loading && coins.length === 0
                   ? "Loading live market data…"
@@ -63,8 +63,14 @@ export function CryptoMarketSection({ showProjected = true }: { showProjected?: 
       {/* Projected Performers (full-500 scan) */}
       {showProjected ? <ProjectedPerformers active onSelectCoin={openCoin} /> : (
         <p className="rounded-2xl border border-border/70 bg-card/40 p-4 text-sm text-muted-foreground">
-          Projected performers are on a paid plan.{" "}
-          <a href="/pricing" className="font-medium text-primary hover:underline">See plans</a>
+          {CRYPTO_PROJECTIONS_PAUSED ? (
+            CRYPTO_PROJECTIONS_PAUSE_MESSAGE
+          ) : (
+            <>
+              Projected performers are on a paid plan.{" "}
+              <a href="/pricing" className="font-medium text-primary hover:underline">See plans</a>
+            </>
+          )}
         </p>
       )}
 
