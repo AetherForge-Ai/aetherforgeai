@@ -11,6 +11,7 @@ Markers:
 - `pull-check:track-a1-2026-10-10`
 - `pull-check:track-a2-2026-10-10`
 - `pull-check:track-b-p0-2026-10-11`
+- `pull-check:track-b-2-2026-10-11`
 
 Branch: `cursor/qa-m10-m15-l6-l17-b236`
 PR: https://github.com/AetherForge-Ai/aetherforgeai/pull/247
@@ -731,4 +732,61 @@ Branch `cursor/track-b-p0-bb35` from develop `87dfce1`. PR https://github.com/Ae
 - `npm run check-types-errors`: passed again after that follow-up.
 - `npm run build`: passed again after that follow-up (Next.js 15.3.9). The build skipped its own lint step. Better Auth logged the default secret in this environment. No secret was added.
 - This batch did not edit `src/lib/auth.ts`, `src/lib/auth-mail.ts`, `src/lib/transactional-mail.ts`, `src/lib/send-transactional-mail.ts`, or the send-verification route. It did edit the news filter and the news fetch cap. Crypto projections stay paused. No list was removed. No email was sent. Nothing was published.
+
+## Track B item 2
+
+NZ tax pack. Draft PRs only. Nothing here publishes, sends email, or removes a Stox, Koins, or Headmaster list. Crypto projections stay paused. Prices stay NZ$0 / NZ$16 / NZ$49 / NZ$199. No new database columns. Marker `pull-check:track-b-2-2026-10-11` is in `src/lib/dividend-ledger.ts`, `src/lib/tax-disclaimer.ts`, `src/lib/nz-tax-year.ts`, `src/lib/taxable-income.ts`, `src/lib/fif-working-paper.ts`, `src/lib/tax-realised.ts`, and the Markers list above.
+
+### TB-2a — dividend ledger
+
+- Status: in this draft
+- Files: `src/lib/dividend-ledger.ts`, `src/lib/dividend-ledger.test.ts`, `src/lib/tax-disclaimer.ts`, `src/lib/tax-book-server.ts`, `src/app/tax/dividends/page.tsx`, `src/components/tax/DividendLedgerView.tsx`, `src/app/api/tax/dividends/export/route.ts`, `src/app/api/tax/fx/route.ts`, `src/lib/transactions.ts`, `src/lib/trade-schema.ts`
+- URL / steps: signed in, open `/tax/dividends`. Record a dividend on a holding you already have. Then export the CSV.
+- Expected, NZ holding, payment date 10 Oct 2026, gross 100.00, imputation credits 28.00, withholding 33.00, DRP 0, rate 1.0000: the row shows gross NZ$100.00, imputation credits NZ$28.00, withholding NZ$33.00, DRP NZ$0.00, FX 1.0000, net cash NZ$67.00. Imputation is not taken off the cash. The visible note does not start with `[DIV:`. The CSV line is `10 Oct 2026,<ticker>,stock,NZD,1.0000,100.00,28.00,33.00,0.00,67.00,"Indicative, not tax advice."`
+- Expected, AUD holding, gross 100.00, imputation 0, withholding 15.00, DRP 20.00, rate 1.0912: gross NZ$109.12, withholding NZ$16.37, DRP NZ$21.82, net cash NZ$70.93. Working: 100 × 1.0912 = 109.12; 15 × 1.0912 = 16.368 rounds to 16.37; 20 × 1.0912 = 21.824 rounds to 21.82; 109.12 − 16.37 − 21.82 = 70.93.
+- Expected, an older dividend with no prefix and cash NZ$25.00: gross, credits, withholding and DRP are blank (an em dash on the page, empty CSV cells). Cash stays NZ$25.00 and is not added into gross.
+- Expected, the page says `Indicative, not tax advice.` Signed out, the page has no sample row and says no dividends are recorded until you sign in. `/tax` still says it does not yet produce tax reports until TB-2d.
+- DRP does not change the share count. That is left for Lukas.
+- Checked on this branch: `npm run check-types-errors` passed. eslint on the TB-2a source files passed. `npm test` 103 files, 502 tests passed. `npm run build` passed (Next.js 15.3.9). A local `next start` of `/tax/dividends` returned the indicative label, "No dividends recorded", and a sign-in link. It did not contain a sample amount or `[DIV:`. `/tax` still contains "does not yet produce tax reports". Nothing was published. No email was sent.
+
+### TB-2b — taxable-income export
+
+- Status: in this draft
+- Files: `src/lib/nz-tax-year.ts`, `src/lib/taxable-income.ts`, `src/lib/taxable-income.test.ts`, `src/app/tax/income/page.tsx`, `src/app/api/tax/income/export/route.ts`
+- URL / steps: signed in, open `/tax/income`. Choose the year `1 Apr 2026 to 31 Mar 2027`. Export the CSV. Print the page.
+- Expected, that year contains FBU.NZ on 1 Apr 2026 (gross 100.00, imputation credits 28.00, withholding 33.00, DRP 0.00), CBA.AX on 10 Oct 2026 (gross 109.12, imputation credits 0.00, withholding 16.37, DRP 21.82, rate 1.0912), and a sell of AAPL on 15 Jan 2027 with stored realised 40.50. Totals: gross NZ$209.12, imputation credits NZ$28.00, withholding NZ$49.37, DRP NZ$21.82, realised NZ$40.50.
+- Expected, a dividend on 31 Mar 2026 stays in the year ending 31 Mar 2026. A sell on 1 Apr 2027 stays in the year ending 31 Mar 2028. They are not in the 2027 totals.
+- Expected, a dividend with cash NZ$25.00 and no breakdown is not added to gross. A sell with no stored realised amount is blank, not NZ$0.00.
+- Expected, the CSV total line is `1 Apr 2026 to 31 Mar 2027,,,total,209.12,28.00,49.37,21.82,40.50,"Indicative, not tax advice."` The page says `Indicative, not tax advice.`
+- Realised on this page is the amount stored on the sell. FIFO is TB-2d.
+
+### TB-2c — indicative FIF working paper
+
+- Status: in this draft
+- Files: `src/lib/fif-working-paper.ts`, `src/lib/fif-working-paper.test.ts`, `src/app/tax/fif/page.tsx`, `src/components/tax/FifWorkingPaper.tsx`, `src/app/api/tax/fif/route.ts`
+- URL / steps: signed in, open `/tax/fif`. Choose `1 Apr 2026 to 31 Mar 2027`. Enter opening and closing market values only for a holding you already have. Print the page. Do not expect a live price to fill 1 April or 31 March.
+- Expected, AAPL bought 1 Jun 2025, 100 shares at US$10.00, stored rate 1.6000, still held, opening market value NZ$1,800.00, closing market value NZ$2,000.00, and a dividend in that year with stored gross NZ$50.00 and no other buys or sells in the year: cost NZ$1,600.00 (100 × 10 × 1.6000). Fair dividend rate NZ$90.00 (1,800.00 × 0.05). Comparative value NZ$250.00, which is (2,000.00 + 50.00) − (1,800.00 + 0.00). The cost test says `Highest attributing cost in this income year is NZ$1,600.00. That is under NZ$50,000.00.`
+- Expected, the same AAPL cost plus CBA.AX cost NZ$10,000.00, FBU.NZ, and a crypto lot: the peak stays NZ$1,600.00. CBA.AX is listed under Australian listings with no fair dividend rate and no comparative value. FBU.NZ is listed as left out. Crypto is left out.
+- Expected, 4,000 shares at US$10.00 and rate 1.2500: 4,000 × 10 × 1.2500 = NZ$50,000.00. The sentence says `That is exactly NZ$50,000.00.` One more share at the same price and rate makes the peak NZ$50,012.50 and the sentence says `That is over NZ$50,000.00.`
+- Expected, buy 100 AAPL at US$10.00 rate 1.6000 on 1 May 2026, then sell 40 at US$12.00 rate 1.6000 on 1 Jun 2026: remaining cost NZ$960.00, peak cost NZ$1,600.00, sale proceeds NZ$768.00 (40 × 12 × 1.6000). Fair dividend rate stays 5% of the opening value you entered. A quick sale adjustment is not calculated. With opening NZ$1,800.00 and closing NZ$2,000.00, comparative value is −NZ$632.00: (2,000.00 + 768.00) − (1,800.00 + 1,600.00).
+- Expected, a foreign attributing buy with no stored rate: cost is `Not recorded` and the page says `The $50,000 cost test is not calculated because a foreign attributing buy has no stored exchange rate.` A blank opening market value is `Not recorded`, not NZ$0.00. An entered opening of 0.00 gives a fair dividend rate of NZ$0.00.
+- Expected, an empty book says `No attributing overseas shares on this book.` It does not say the cost is under NZ$50,000.00.
+- Expected, saving market values changes only `stock.notes`, in the form `[FIFMV:2027:o=1800.00;c=2000.00]`. The rest of the note stays. The page does not show `[FIFMV:`. The page says `Indicative, not tax advice.`
+- Sources on the page: Inland Revenue foreign investment funds, the exemptions page, the section CQ 5 article, TDS 26/01, and TDS 23/13.
+- Checked on this branch: `npm run check-types-errors` passed. eslint on the TB-2c source files passed. `npm test` 105 files, 514 tests passed. `npm run build` passed (Next.js 15.3.9). A local `next start` of `/tax/fif` returned the indicative label, the FIF title, a sign-in link, and the Inland Revenue foreign investment funds link. It did not contain a sample cost or `[FIFMV:`. `/tax` still contains "does not yet produce tax reports" until TB-2d. Nothing was published. No email was sent.
+
+### TB-2d — realised profit and loss
+
+- Status: in this draft
+- Files: `src/lib/tax-realised.ts`, `src/lib/tax-realised.test.ts`, `src/app/tax/realised/page.tsx`, `src/app/api/tax/realised/export/route.ts`, `src/components/tax/TaxPageContent.tsx`
+- URL / steps: signed in, open `/tax/realised`. Choose `1 Apr 2026 to 31 Mar 2027`. Export the CSV. Then open `/tax` and confirm the old sentence is gone.
+- Expected, FBU.NZ buy 10 at NZ$2.00 on 1 May 2026, buy 10 at NZ$3.00 on 1 Jun 2026, sell 15 at NZ$4.00 on 1 Aug 2026, rate 1.0000, sell fee NZ$0.00: price gain NZ$25.00, FX gain NZ$0.00, realised NZ$25.00. Working: 10 × (4.00 − 2.00) = 20.00, plus 5 × (4.00 − 3.00) = 5.00.
+- Expected, the same sell with a sell fee of NZ$1.00: price gain stays NZ$25.00 and realised is NZ$24.00. Buy fees are not added on top of the stored buy price.
+- Expected, ETH buy 2 at US$100.00 rate 1.6000 on 2 Apr 2026, sell 1 at US$150.00 rate 1.7000 on 1 Sep 2026: price gain NZ$85.00 (1 × (150 − 100) × 1.7000), FX gain NZ$10.00 (1 × 100 × (1.7000 − 1.6000)), realised NZ$95.00. Crypto is in its own section.
+- Expected, both books in the year ending 31 Mar 2027: other total NZ$25.00, crypto total NZ$95.00, combined NZ$120.00. The CSV combined line is `1 Apr 2026 to 31 Mar 2027,,,combined,,,,,120.00,"Indicative, not tax advice."`
+- Expected, the remaining 5 FBU.NZ sold on 1 Apr 2027 at NZ$4.00 stay in the year ending 31 Mar 2028, realised NZ$5.00. They are not in the 2027 combined total. A correction row is not replayed.
+- Expected, a foreign buy with no stored rate makes the later sell blank, not NZ$0.00, and that blank is not added into the total.
+- Expected, `/tax` no longer says it does not yet produce tax reports. `/tax`, `/tax/dividends`, `/tax/income`, `/tax/fif` and `/tax/realised` each show `Indicative, not tax advice.` The taxable-income page still says its realised column is the amount stored on the sell, and it links to this FIFO paper.
+- CSV uses the same paid-plan gate as the transaction export. That gate is left for Lukas.
+- Checked on this branch: `npm run check-types-errors` passed. eslint on the TB-2d source files passed. `npm test` 106 files, 521 tests passed. `npm run build` passed (Next.js 15.3.9). A local `next start` returned 200 for `/tax`, `/tax/dividends`, `/tax/income`, `/tax/fif` and `/tax/realised`. Each showed `Indicative, not tax advice.` `/tax` did not contain "does not yet produce tax reports" and linked to the four papers. `/tax/realised` signed out showed a sign-in link and no sample gain. `GET /api/tax/realised/export` with no session returned 401. Nothing was published. No email was sent.
 
