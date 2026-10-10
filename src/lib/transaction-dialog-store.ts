@@ -19,6 +19,8 @@ export interface TxSeed {
   coinId?: string;
   /** Live or last price, so the panel does not start blank. */
   price?: number | null;
+  /** DEX rows open with the DEX badge. Coin-list rows stay Crypto. */
+  market?: "Crypto" | "DEX";
   /** Dedicated metals-table id, when the row is not a ledger stock. */
   metalSourceId?: string;
   /** Holding Edit: the owned row, its quantity, and the date already on the book. */

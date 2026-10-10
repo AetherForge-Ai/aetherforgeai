@@ -3,7 +3,7 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { PAPER_FEE_SUMMARY } from "@/lib/fee-rule";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { PUBLIC_DATA_SOURCES_LINE } from "@/lib/data-sources";
-import { DATA_SHARING_LINE, FRESHNESS_PLAIN, PROCESSORS, SECURITY_LINE } from "@/lib/public-copy";
+import { DATA_SHARING_LINE, FRESHNESS_PLAIN, PAPER_BOOK_STATEMENT, PROCESSORS, SECURITY_LINE } from "@/lib/public-copy";
 
 export const metadata = publicPageMetadata("/trust", {
   title: "Trust · AetherForge AI",
@@ -29,8 +29,8 @@ export default function TrustPage() {
           <section className="mt-8 space-y-2">
             <h2 className="font-display text-lg font-bold">Paper, not a broker</h2>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              Cash, holdings and the ledger are a paper book on AetherForge. Recording a buy does not send money to a
-              broker, an exchange, or a bank. A sell does not pay you. Nothing here moves real money.
+              {PAPER_BOOK_STATEMENT} Recording a buy does not send money to a broker, an exchange, or a bank. A sell
+              does not pay you.
             </p>
           </section>
 

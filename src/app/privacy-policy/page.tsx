@@ -44,8 +44,9 @@ export default function PrivacyPolicy() {
             provider.
           </li>
           <li>
-            <strong className="text-foreground/90">Portfolio data</strong> — the tickers, share
-            quantities, purchase prices and notes you choose to add to monitor your own holdings.
+            <strong className="text-foreground/90">Paper-book records</strong> — the cash, buys, sells,
+            corrections and dividends you record in NZ$, including tickers, quantities, prices, foreign-exchange
+            rates and notes, and the CSV export of that book.
           </li>
           <li>
             <strong className="text-foreground/90">Billing information</strong> — subscription plan,

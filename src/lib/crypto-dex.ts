@@ -34,6 +34,20 @@ function num(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function includedDexNames(payload: Record<string, unknown>): Map<string, string> {
+  const out = new Map<string, string>();
+  const included = Array.isArray(payload.included) ? payload.included : [];
+  for (const raw of included) {
+    const row = asRecord(raw);
+    if (!row || row.type !== "dex") continue;
+    const id = String(row.id || "");
+    const attrs = asRecord(row.attributes) || {};
+    const name = String(attrs.name || "").trim();
+    if (id && name) out.set(id, name);
+  }
+  return out;
+}
+
 function includedTokens(payload: Record<string, unknown>): Map<string, IncludedToken> {
   const out = new Map<string, IncludedToken>();
   const included = Array.isArray(payload.included) ? payload.included : [];
@@ -105,6 +119,7 @@ export function parseMegafilterPage(payload: unknown, fallbackNetwork = ""): Dex
   const root = asRecord(payload);
   if (!root) return [];
   const tokens = includedTokens(root);
+  const dexNames = includedDexNames(root);
   const data = Array.isArray(root.data) ? root.data : [];
   const rows: DexTokenRow[] = [];
   for (const raw of data) {
@@ -117,6 +132,7 @@ export function parseMegafilterPage(payload: unknown, fallbackNetwork = ""): Dex
     const price = num(attrs.base_token_price_usd);
     const live = price != null && price > 0 ? price : null;
     const volume = num(asRecord(attrs.volume_usd)?.h24);
+    const dexId = relId(pool, "dex");
     rows.push({
       id: token?.coinId || relId(pool, "base_token") || symbol.toLowerCase(),
       symbol,
@@ -125,7 +141,7 @@ export function parseMegafilterPage(payload: unknown, fallbackNetwork = ""): Dex
       priceUnavailable: live == null,
       volume24h: volume != null && volume > 0 ? volume : null,
       network: dexNetworkLabel(relId(pool, "network") || fallbackNetwork),
-      dex: relId(pool, "dex") || "",
+      dex: dexNames.get(dexId) || dexId || "",
       detailId: token?.detailId ?? null,
     });
   }

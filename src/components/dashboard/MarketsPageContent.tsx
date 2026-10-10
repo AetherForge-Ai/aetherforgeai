@@ -1,13 +1,33 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { MarketsExplorer } from "@/components/dashboard/MarketsExplorer";
 import { bindActiveAccount } from "@/lib/account-identity";
 import type { MarketsTab } from "@/lib/market-detail-routes";
 import { LineChart, Globe } from "lucide-react";
 
+function marketsHeading(tab: MarketsTab): { title: string; lede: string } {
+  if (tab === "CRYPTO") {
+    return {
+      title: "Crypto markets",
+      lede: "Top 400 coins by market cap from CoinGecko, in USD. The Blockchain column is the native chain or platform.",
+    };
+  }
+  if (tab === "DEX") {
+    return {
+      title: "DEX markets",
+      lede: "Top DEX tokens by 24-hour volume from GeckoTerminal. Each row shows the chain and the DEX.",
+    };
+  }
+  return {
+    title: "Markets",
+    lede: "NZX, ASX and US prices, plus crypto. Quoted rows show a time. If the feed fails, the table says so instead of spinning.",
+  };
+}
+
 /**
- * Full-page Stock Markets view. Wraps the shared MarketsExplorer in a spacious,
- * dashboard-consistent card. Buying is disabled in guest preview.
+ * Full-page markets view. Share Buy stays off. Members add crypto to the paper
+ * book; guests follow the same button to sign-up.
  */
 export function MarketsPageContent({
   preview = false,
@@ -23,6 +43,18 @@ export function MarketsPageContent({
   // so an unbound shell made the cash request start with userId null and the
   // apply-gate discarded the logged-in balance.
   bindActiveAccount(!preview && userId ? userId : null);
+  const [tab, setTab] = useState<MarketsTab>(initialTab ?? "NZX");
+
+  useEffect(() => {
+    if (initialTab) setTab(initialTab);
+  }, [initialTab]);
+
+  useEffect(() => {
+    const heading = marketsHeading(tab);
+    document.title = `${heading.title} · AetherForge AI`;
+  }, [tab]);
+
+  const heading = marketsHeading(tab);
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
@@ -32,11 +64,8 @@ export function MarketsPageContent({
           <LineChart className="size-6" />
         </span>
         <div className="min-w-0 flex-1">
-          <h1 className="font-display text-2xl font-bold">Markets</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            NZX, ASX and US prices, plus crypto. Quoted rows show a time. If the feed fails, the
-            table says so instead of spinning.
-          </p>
+          <h1 className="font-display text-2xl font-bold">{heading.title}</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">{heading.lede}</p>
         </div>
       </div>
 
@@ -49,8 +78,10 @@ export function MarketsPageContent({
           active
           className="h-[70vh]"
           allowBuy={false}
+          signedIn={!preview}
           initialTab={initialTab}
           syncTab
+          onTabChange={setTab}
         />
       </div>
 
