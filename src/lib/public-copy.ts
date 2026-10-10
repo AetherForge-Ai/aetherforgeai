@@ -13,6 +13,13 @@ export const CUSTOMER_EMAIL = "admin@aetherforgeai.co.nz";
 /** Privacy Officer, privacy requests, and the Lukas contact. */
 export const PRIVACY_OFFICER_EMAIL = "lukas@aetherforgeai.co.nz";
 
+/**
+ * One paper-book sentence for Trust, How it works, Privacy, Terms and the home page.
+ * Do not shorten it into "you execute elsewhere".
+ */
+export const PAPER_BOOK_STATEMENT =
+  "AetherForge is a paper book: you record what you hold or would trade (cash, buys, sells, corrections, dividends) in NZ$. Real trades happen at your broker. We never move money.";
+
 /** Same sentence on the home page and How it works. */
 export const BOT_COUNT_LINE = "3 AI bots plus Smitty, our metals tracker";
 

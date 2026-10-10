@@ -10,11 +10,14 @@ import { fetchDexTop400 } from "@/lib/crypto-coingecko";
 
 export const dynamic = "force-dynamic";
 
+/** Fresh for 30s, then stale-while-revalidate. The server keeps filling toward 400. */
+const CACHE_CONTROL = "public, max-age=30, stale-while-revalidate=300";
+
 export async function GET() {
   try {
     const page = await fetchDexTop400();
     return NextResponse.json(dexBody(page.rows, { collecting: !page.sourceDown }), {
-      headers: { "cache-control": "no-store" },
+      headers: { "cache-control": CACHE_CONTROL },
     });
   } catch (err: unknown) {
     console.error("[api/crypto/dex] error:", err);

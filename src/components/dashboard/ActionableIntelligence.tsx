@@ -145,8 +145,8 @@ export function ActionableIntelligence({
           <h2 className="font-display text-lg font-bold">Market snapshots</h2>
           <p className="text-xs text-muted-foreground">
             {assetClass === "crypto"
-              ? "Technical snapshots from your coins and the wider crypto market. Not personalised advice — you execute elsewhere."
-              : "Technical snapshots from your holdings and the wider share universe. Not personalised advice — you execute elsewhere."}
+              ? "Technical snapshots from your coins and the wider crypto market. Not personalised advice. Real trades happen at your broker. We never move money."
+              : "Technical snapshots from your holdings and the wider share universe. Not personalised advice. Real trades happen at your broker. We never move money."}
           </p>
         </div>
       </div>
