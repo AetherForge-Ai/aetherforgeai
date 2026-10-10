@@ -36,6 +36,7 @@ const PUBLIC_DOCUMENT_ROUTES = [
   "/blog",
   "/changelog",
   "/status",
+  "/offline",
   "/stox",
   "/koins",
   "/smitty",
