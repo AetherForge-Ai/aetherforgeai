@@ -5,6 +5,8 @@ import { applyTransaction, loadLedger, movementRejectionForUser } from "@/lib/tr
 import { hasForeignOwner, requestClaimsOtherUser } from "@/lib/account-guard";
 import { accountMismatchResponse, privateJson } from "@/lib/account-response";
 import { TRADE_CONFIRM_REQUIRED } from "@/lib/trade-confirm";
+import { previewActivityEmail } from "@/lib/activity-email";
+import { readActivityEmailPrefs } from "@/lib/activity-email-server";
 
 export const dynamic = "force-dynamic";
 
@@ -136,6 +138,21 @@ export async function POST(req: Request) {
     console.log(
       `[api/transactions] ${input.type} recorded for user ${user._id} — cash ${result.cashBalance}, realized ${result.realizedNZD}`
     );
+
+    try {
+      const prefs = await readActivityEmailPrefs();
+      previewActivityEmail({
+        kind: "trade-ledger",
+        to: user.email,
+        name: user.name,
+        prefs,
+        tradeLabel: input.type,
+        amountNzd: result.cashBalance,
+        when: input.trade_date || input.executed_at || new Date(),
+      });
+    } catch (mailErr) {
+      console.error("[api/transactions] Trade email preview failed (non-fatal):", mailErr);
+    }
 
     return NextResponse.json({
       ok: true,

@@ -8,7 +8,7 @@ import { REFUND_FAQ, TRIAL_FAQ } from "@/lib/public-copy";
 const FAQS: { q: string; a: string }[] = [
   {
     q: "Can I switch between monthly and annual billing?",
-    a: "Yes. You can move from monthly to annual (or back) at any time from your billing settings. When you switch to annual you immediately lock in the 16.67% saving, and any unused time on your current period is prorated toward the new plan automatically via Stripe.",
+    a: "Yes. You can move from monthly to annual (or back) at any time from Plan & billing in Settings (/settings/billing). When you switch to annual you immediately lock in the 16.67% saving, and any unused time on your current period is prorated toward the new plan automatically via Stripe.",
   },
   {
     q: "What happens when I hit my report or holding limits?",

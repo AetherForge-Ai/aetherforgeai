@@ -5,10 +5,12 @@ import { portfolioAliasRedirect } from "@/lib/portfolio-route-aliases";
 import {
   filterAnonymousAuthSetCookies,
   isCacheableMarketingPath,
+  isCookieFreePath,
   PUBLIC_MARKETING_CACHE_HEADERS,
   shouldClearAnonymousAuthCookies,
 } from "@/lib/private-document";
 import { publicAliasRedirect } from "@/lib/public-route-aliases";
+import { documentAccess } from "@/lib/route-gate";
 import {
   anonymousAccountApi,
   AUTH_COOKIE_NAMES,
@@ -37,50 +39,6 @@ function isAllowedOrigin(origin: string, request: NextRequest): boolean {
 
   return false;
 }
-
-// Public routes that don't require authentication
-const publicRoutes = [
-  "/",
-  "/about",
-  "/contact",
-  "/faq",
-  "/features",
-  "/how",
-  "/performance",
-  "/dashboard", // guests get the member signup prompt; no portfolio or account data
-  "/markets", // full-page Markets browser — read-only preview for guests
-  "/tax", // general Inland Revenue information — not personal tax advice
-  "/market-news", // guest preview of headlines; the page renders no portfolio
-  "/projections", // Top-50 weekly projections per market — read-only preview for guests
-  "/login",
-  "/register",
-  "/forgot-password",
-  "/reset-password",
-  "/verify-email", // email-verification landing page (success/error handling)
-  "/logout", // signs the user out then shows a confirmation screen
-  "/pricing",
-  "/how-it-works",
-  "/how-to-maximize-results",
-  "/privacy-policy",
-  "/terms-of-service",
-  "/ai-disclaimer",
-  "/trust",
-  "/free-trial",
-  "/chat", // Market Assistant — guests see a sign-in prompt; members are not sent to pricing
-  "/own-the-bots",
-  "/docs",
-  "/blog",
-  "/changelog",
-  "/stox",
-  "/koins",
-  "/smitty",
-  "/buy-the-bots",
-
-  //stripe routes here
-  "/stripe/demo",
-  "/stripe/success",
-  "/stripe/cancel",
-];
 
 function mergeVary(response: NextResponse, extra: string) {
   const existing = response.headers.get("Vary");
@@ -132,20 +90,6 @@ function applyPublicMarketingCache(response: NextResponse) {
 }
 
 const STATIC_FILE = /\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|map|txt|xml|woff2?)$/i;
-
-/** Signed-out visitors are sent to login only for these member routes. */
-const memberRoutes = [
-  "/settings",
-  "/account",
-  "/profile",
-  "/onboarding",
-  "/headmaster",
-  "/totalum",
-];
-
-function matchesRoute(pathname: string, routes: string[]) {
-  return routes.some((route) => pathname === route || pathname.startsWith(`${route}/`));
-}
 
 function applyCachePolicy(response: NextResponse, pathname: string) {
   if (pathname.startsWith("/_next/") || STATIC_FILE.test(pathname)) return response;
@@ -206,6 +150,7 @@ function finish(response: NextResponse, request: NextRequest, signedIn: boolean)
   // On OpenNext these middleware cookies override a session cookie the
   // handler attaches later in the same response.
   clearAnonymousAuthCookies(response, pathname, request.method, signedIn);
+  if (isCookieFreePath(pathname)) response.headers.delete("set-cookie");
   return response;
 }
 
@@ -260,12 +205,13 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  if (matchesRoute(pathname, publicRoutes)) {
+  const access = documentAccess(pathname);
+  if (access === "public") {
     return response;
   }
 
   // Login redirect only for real member routes. Anything else is a 404.
-  if (matchesRoute(pathname, memberRoutes)) {
+  if (access === "member") {
     if (!signedIn) {
       const loginUrl = new URL("/login", request.url);
       loginUrl.searchParams.set("redirect", pathname);
