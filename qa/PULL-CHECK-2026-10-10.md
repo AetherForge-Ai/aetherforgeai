@@ -1322,4 +1322,8 @@ Research retest of develop `2976445`, implemented from develop `48d2f2a1`. Draft
 - Confirm DexScreener pair rows may be shown. The API reference publishes `GET /latest/dex/search` without a key. The site terms page was not fully confirmed in this pass.
 - DNS, SPF, and Publish stay as previously noted. They are not part of this pull request.
 
+### Checks
+
+On `cursor/retest4-markets-dex-49e4`: `npm test` 122 files, 584 tests passed. `npm run check-types-errors` passed. `npm run build` passed (Next.js 15.3.9). The first typecheck failed because `equityFallback` set `asOf` twice. That second key was removed. Nothing was published. No email was sent.
+
 

@@ -9,7 +9,7 @@ import { formatDisplayDateTime, formatSignedPercent, formatUnitPrice } from "@/l
 import { PUBLIC_SEED_ROWS, type PublicMarketIndex, type PublicPriceRow, type PublicPriceTab } from "@/lib/public-market-types";
 import { boardCoverage, pageListings } from "@/lib/stock-catalog";
 import { loadSavedQuoteLine, loadStockBoardPage } from "@/lib/stock-board.server";
-import { PRICE_NOT_IN_RESPONSE, type StockBoard } from "@/lib/stock-markets";
+import { PRICE_NOT_IN_RESPONSE, unpricedFootnote, type StockBoard } from "@/lib/stock-markets";
 
 const COIN_PAGE = PUBLIC_SEED_ROWS;
 /** Cold /markets waits this long, then says the price is not in the response. */
@@ -192,10 +192,7 @@ function equityFallback(id: StockBoard): PublicPriceTab {
     asOf: "as of not stated by the vendor",
     coverage: coverage.line,
     note: coverage.note,
-    footnote: page.rows.length
-      ? `${Math.min(PUBLIC_SEED_ROWS, page.rows.length)} listings have no price in this response`
-      : undefined,
-    asOf: "as of not stated by the vendor",
+    footnote: unpricedFootnote(Math.min(PUBLIC_SEED_ROWS, page.rows.length)) ?? undefined,
     rows: [],
   };
 }
