@@ -57,6 +57,7 @@ const MEMBER_DOCUMENT_ROUTES = [
   "/headmaster",
   "/totalum",
   "/billing",
+  "/import",
 ];
 
 function normalise(pathname: string): string {
