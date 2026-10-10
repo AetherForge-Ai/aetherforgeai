@@ -16,7 +16,7 @@ const CACHE_CONTROL = "public, max-age=30, stale-while-revalidate=300";
 export async function GET() {
   try {
     const page = await fetchDexTop400();
-    return NextResponse.json(dexBody(page.rows, { collecting: !page.sourceDown }), {
+    return NextResponse.json(dexBody(page.rows, { collecting: !page.sourceDown, notice: page.notice }), {
       headers: { "cache-control": CACHE_CONTROL },
     });
   } catch (err: unknown) {

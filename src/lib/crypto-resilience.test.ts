@@ -197,10 +197,11 @@ describe("DEX page store", () => {
     expect(rows.some((row) => row.symbol === "OLD" || row.price === 0)).toBe(false);
   });
 
-  it("keeps the notice only while a partial fresh list is under 400", () => {
-    expect(dexListNotice(0)).toBeNull();
-    expect(dexListNotice(1)).toBe(DEX_FURTHER_NOTICE);
-    expect(dexListNotice(399)).toBe(DEX_FURTHER_NOTICE);
+  it("keeps an honest notice while a fresh list is under 400", () => {
+    expect(dexListNotice(0)).toMatch(/This list is 0, not 400/);
+    expect(dexListNotice(1)).toBe(`GeckoTerminal returned 1 tokens, not 400. ${DEX_FURTHER_NOTICE}`);
+    expect(dexListNotice(33, true)).toBe("GeckoTerminal returned 33 tokens, not 400. The rate limit stopped the list.");
+    expect(dexListNotice(399)).toContain("399");
     expect(dexListNotice(400)).toBeNull();
   });
 
@@ -249,15 +250,15 @@ describe("DEX page store", () => {
 
   it("returns a collecting list as JSON and a dead source as a plain sentence", () => {
     const filling = dexBody([], { collecting: true });
-    expect(filling).toEqual({
-      ok: true,
-      data: [],
-      total: 0,
-      notice: null,
-    });
+    expect(filling.ok).toBe(true);
+    if (filling.ok) {
+      expect(filling.data).toEqual([]);
+      expect(filling.total).toBe(0);
+      expect(filling.notice).toMatch(/This list is 0, not 400/);
+    }
     const partial = dexBody([{ symbol: "SOL" }], { collecting: true });
     expect(partial.ok).toBe(true);
-    if (partial.ok) expect(partial.notice).toBe("Further rows are unavailable.");
+    if (partial.ok) expect(partial.notice).toMatch(/returned 1 tokens, not 400/);
     const ready = dexBody(Array.from({ length: 400 }, (_, index) => ({ symbol: `T${index}` })), { collecting: true });
     expect(ready.ok).toBe(true);
     if (ready.ok) expect(ready.notice).toBeNull();

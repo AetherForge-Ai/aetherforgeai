@@ -229,7 +229,9 @@ export function dexRowToCoin(row: DexTokenRow, rank: number): CoinMarket {
 /** A stored pool page is dropped once it is older than this. The price is not shown as live. */
 export const DEX_STALE_MS = 30 * 60 * 1000;
 export const DEX_TARGET_COUNT = 400;
-export const DEX_FURTHER_NOTICE = "Further rows are unavailable.";
+export const DEX_FURTHER_NOTICE = "Further rows are still loading.";
+export const DEX_EMPTY_NOTICE =
+  "GeckoTerminal did not return a token price (rate limit or the feed did not answer). This list is 0, not 400.";
 export const DEX_PAGE_CAP = 8;
 
 /** Liquid public networks. Ids match GeckoTerminal `/networks`. */
@@ -291,9 +293,15 @@ export function freshDexRows(pages: DexStoredPage[], now: number, staleMs = DEX_
   return dedupeDexTokens(collected, DEX_TARGET_COUNT);
 }
 
-export function dexListNotice(rowCount: number): string | null {
-  if (rowCount <= 0 || rowCount >= DEX_TARGET_COUNT) return null;
-  return DEX_FURTHER_NOTICE;
+/**
+ * Honest DEX count. A full list has no notice.
+ * `stalled` means the walk stopped (rate limit) rather than still filling.
+ */
+export function dexListNotice(rowCount: number, stalled = false): string | null {
+  if (rowCount >= DEX_TARGET_COUNT) return null;
+  if (rowCount <= 0) return DEX_EMPTY_NOTICE;
+  if (stalled) return `GeckoTerminal returned ${rowCount} tokens, not 400. The rate limit stopped the list.`;
+  return `GeckoTerminal returned ${rowCount} tokens, not 400. ${DEX_FURTHER_NOTICE}`;
 }
 
 /**

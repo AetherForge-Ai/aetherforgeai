@@ -12,7 +12,7 @@
  */
 
 import "server-only";
-import { blockchainLabel, coingeckoRolling24h, resolveSevenDayChange, type CoinMarket, type CoinDetail, type CoinChart } from "@/lib/crypto-market";
+import { assembleListedMarkets, coingeckoRolling24h, resolveSevenDayChange, type CoinMarket, type CoinDetail, type CoinChart } from "@/lib/crypto-market";
 import { coinDisplayName } from "@/lib/crypto-names";
 import { rememberCryptoIds } from "@/lib/crypto-id-registry";
 import {
@@ -31,10 +31,10 @@ import {
 const CG_BASE = "https://api.coingecko.com/api/v3";
 
 /** Optional demo API key lifts the keyless rate limit; header is a no-op if unset. */
-function cgHeaders(): Record<string, string> {
+function cgHeaders(keyless = false): Record<string, string> {
   const h: Record<string, string> = { accept: "application/json" };
   const key = process.env.COINGECKO_API_KEY;
-  if (key) h["x-cg-demo-api-key"] = key;
+  if (key && !keyless) h["x-cg-demo-api-key"] = key;
   return h;
 }
 
@@ -68,9 +68,9 @@ async function cached<T>(key: string, ttlMs: number, loader: () => Promise<T>): 
   }
 }
 
-async function cgFetch(path: string): Promise<any> {
+async function cgFetch(path: string, keyless = false): Promise<any> {
   const res = await fetch(`${CG_BASE}${path}`, {
-    headers: cgHeaders(),
+    headers: cgHeaders(keyless),
     cache: "no-store",
     signal: AbortSignal.timeout(8_000),
   });
@@ -87,6 +87,23 @@ async function cgFetch(path: string): Promise<any> {
     return JSON.parse(text);
   } catch {
     throw new Error(`CoinGecko returned a non-JSON body on ${path}`);
+  }
+}
+
+/**
+ * A demo key that is rejected or rate-limited (401/429) is retried once without the key.
+ * Keyless public calls are what returned the full pages in a direct check.
+ */
+async function cgFetchRetry(path: string): Promise<any> {
+  try {
+    return await cgFetch(path, false);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (process.env.COINGECKO_API_KEY && /\b(401|429)\b/.test(message)) {
+      console.error(`[crypto-coingecko] keyed call failed (${message.slice(0, 140)}). Retrying without the key.`);
+      return cgFetch(path, true);
+    }
+    throw err;
   }
 }
 
@@ -161,10 +178,11 @@ export async function fetchTop500(): Promise<CoinMarket[]> {
     const common =
       "vs_currency=usd&order=market_cap_desc&per_page=250&sparkline=true" +
       "&price_change_percentage=1h,24h,7d";
-    const [p1, p2] = await Promise.all([
-      cgFetch(`/coins/markets?${common}&page=1`) as Promise<CgMarketRow[]>,
-      cgFetch(`/coins/markets?${common}&page=2`) as Promise<CgMarketRow[]>,
-    ]);
+    const p1 = (await cgFetchRetry(`/coins/markets?${common}&page=1`)) as CgMarketRow[];
+    const p2 = (await cgFetchRetry(`/coins/markets?${common}&page=2`).catch((err) => {
+      console.error("[crypto-coingecko] top 500 page 2 unavailable:", err);
+      return [] as CgMarketRow[];
+    })) as CgMarketRow[];
 
     const byId = new Map<string, CoinMarket>();
     for (const row of [...(p1 || []), ...(p2 || [])]) {
@@ -190,7 +208,7 @@ export interface RankedCryptoPage {
 async function loadPlatforms(): Promise<Map<string, Record<string, string>> | null> {
   try {
     return await cached("platforms", 6 * 60 * 60 * 1000, async () => {
-      const list = (await cgFetch("/coins/list?include_platform=true")) as Array<{
+      const list = (await cgFetchRetry("/coins/list?include_platform=true")) as Array<{
         id?: string;
         platforms?: Record<string, string>;
       }>;
@@ -217,61 +235,46 @@ let top400Inflight: Promise<RankedCryptoPage> | null = null;
 
 function assembleTop400(
   pages: CgMarketRow[],
-  platforms: Map<string, Record<string, string>> | null
+  platforms: Map<string, Record<string, string>> | null,
+  page2Missing: boolean
 ): RankedCryptoPage {
-  const byId = new Map<string, CoinMarket>();
-  for (const row of pages) {
-    if (!row?.id || byId.has(row.id)) continue;
-    byId.set(row.id, mapMarketRow(row));
-  }
-  const listLoaded = platforms != null;
-  const coins = Array.from(byId.values())
-    .sort((a, b) => a.rank - b.rank)
-    .slice(0, 400)
-    .map((coin) => ({
-      ...coin,
-      blockchain: blockchainLabel(platforms?.get(coin.id), listLoaded),
-    }))
-    .filter((coin) => typeof coin.price === "number" && coin.price > 0);
-  rememberCryptoIds(coins.map((coin) => ({ symbol: coin.symbol, id: coin.id })));
-  return { coins, notice: null };
+  const mapped = pages.filter((row) => row?.id).map((row) => mapMarketRow(row));
+  const page = assembleListedMarkets(mapped, platforms, page2Missing ? "page2" : platforms ? null : "short");
+  rememberCryptoIds(page.coins.map((coin) => ({ symbol: coin.symbol, id: coin.id })));
+  return page;
 }
 
 /**
- * Two market-cap pages in parallel. The platform list is not on this path:
- * a cold `/coins/list` payload is large, and waiting for it is the waterfall
- * that made the Crypto tab take more than 3 seconds.
+ * Page 1 first, then page 2 and the platform list together.
+ * A three-way burst is what a demo key answers with 429, after which the
+ * backup list (about 89 names, no chain) takes over.
  */
-async function loadTop400Pages(): Promise<CgMarketRow[]> {
-  const firstPromise = cgFetch(`/coins/markets?${TOP400_QUERY}&page=1`) as Promise<CgMarketRow[]>;
-  const secondPromise = (cgFetch(`/coins/markets?${TOP400_QUERY}&page=2`) as Promise<CgMarketRow[]>).catch((err) => {
-    console.error("[crypto-coingecko] top 400 page 2 unavailable:", err);
-    return [] as CgMarketRow[];
-  });
-  const [first, second] = await Promise.all([firstPromise, secondPromise]);
+async function loadTop400Pages(): Promise<{
+  rows: CgMarketRow[];
+  platforms: Map<string, Record<string, string>> | null;
+  page2Missing: boolean;
+}> {
+  const first = (await cgFetchRetry(`/coins/markets?${TOP400_QUERY}&page=1`)) as CgMarketRow[];
   if (!first?.length) throw new Error("Live crypto prices are unavailable.");
-  return [...first, ...(second || [])];
+  const [second, platforms] = await Promise.all([
+    (cgFetchRetry(`/coins/markets?${TOP400_QUERY}&page=2`) as Promise<CgMarketRow[]>).catch((err) => {
+      console.error("[crypto-coingecko] top 400 page 2 unavailable:", err);
+      return null;
+    }),
+    loadPlatforms(),
+  ]);
+  const page2 = Array.isArray(second) ? second : [];
+  return { rows: [...first, ...page2], platforms, page2Missing: page2.length === 0 };
 }
 
 async function refreshTop400(): Promise<RankedCryptoPage> {
   if (top400Inflight) return top400Inflight;
   top400Inflight = (async () => {
-    const pages = await loadTop400Pages();
-    const platformsReady = store.has("platforms");
-    const platformsPromise = loadPlatforms();
-    const platforms = platformsReady ? await platformsPromise : null;
-    const page = assembleTop400(pages, platforms);
+    const bundle = await loadTop400Pages();
+    const page = assembleTop400(bundle.rows, bundle.platforms, bundle.page2Missing);
     top400Entry = { at: Date.now(), value: page };
-    if (!platforms) {
-      void platformsPromise.then((map) => {
-        if (!map) return;
-        const enriched = assembleTop400(pages, map);
-        top400Entry = { at: Date.now(), value: enriched };
-        const labelled = enriched.coins.filter((coin) => coin.blockchain).length;
-        console.log(`[crypto-coingecko] fetchTop400 blockchain ${labelled}/${enriched.coins.length}`);
-      });
-    }
-    console.log(`[crypto-coingecko] fetchTop400 → ${page.coins.length} coins`);
+    const labelled = page.coins.filter((coin) => coin.blockchain).length;
+    console.log(`[crypto-coingecko] fetchTop400 → ${page.coins.length} coins, blockchain ${labelled}/${page.coins.length}`);
     return page;
   })().finally(() => {
     top400Inflight = null;
@@ -333,6 +336,7 @@ const dexPages: DexStoredPage[] = [];
 const dexCallTimes: number[] = [];
 const dexBlockedUntil: Record<string, number> = {};
 let dexWalk: Promise<void> | null = null;
+let dexRateLimited = false;
 
 function rememberDexPage(page: DexStoredPage) {
   const key = dexSlotKey(page.network, page.page);
@@ -356,10 +360,11 @@ function snapshotDex(): DexPage {
       rows.flatMap((row) => (row.detailId ? [{ symbol: row.symbol, id: row.detailId }] : []))
     );
   }
+  const stillWalking = nextDexTarget(dexPages, now, dexBlockedUntil) != null && !dexRateLimited;
   return {
     rows,
-    notice: dexListNotice(rows.length),
-    sourceDown: rows.length === 0 && dexCatalogExhausted(now),
+    notice: dexListNotice(rows.length, !stillWalking && rows.length < 400),
+    sourceDown: rows.length === 0 && dexCatalogExhausted(now) && !dexRateLimited,
   };
 }
 
@@ -390,8 +395,10 @@ async function dexWalkLoop(): Promise<void> {
         console.error(`[crypto-coingecko] DEX ${job.network} page ${job.page} unavailable:`, err);
         if (message.includes("GeckoTerminal 404")) {
           rememberDexPage({ network: job.network, page: job.page, fetchedAt: Date.now(), rows: [] });
-        } else if (message.includes("429")) {
+        } else         if (message.includes("429")) {
+          dexRateLimited = true;
           await sleep(30_000);
+          dexRateLimited = false;
         } else {
           dexBlockedUntil[key] = Date.now() + 2 * 60_000;
         }
@@ -413,16 +420,17 @@ function ensureDexWalk() {
   });
 }
 
-/** First pages of the busiest networks. Enough to paint the DEX tab inside the rate limit. */
-const DEX_PRIME_NETWORKS = ["eth", "solana", "bsc", "base", "arbitrum", "polygon_pos", "avax", "optimism", "ton", "sui-network"] as const;
-const DEX_PRIME_DEADLINE_MS = 2_400;
+/** Page 1 of the busiest networks, one call at a time. A parallel burst is what returns 429 and an empty tab. */
+const DEX_PRIME_NETWORKS = ["eth", "solana", "bsc", "base", "arbitrum", "polygon_pos", "avax", "optimism"] as const;
+const DEX_PRIME_DEADLINE_MS = 10_000;
+const DEX_PRIME_MAX_CALLS = 8;
 
 let dexPrime: Promise<void> | null = null;
 
-async function fetchDexStoredPage(network: string, page: number): Promise<void> {
+async function fetchDexStoredPage(network: string, page: number): Promise<"ok" | "rate" | "miss" | "fresh"> {
   const key = dexSlotKey(network, page);
   const existing = dexPages.find((slot) => dexSlotKey(slot.network, slot.page) === key);
-  if (existing && isDexPageFresh(existing.fetchedAt, Date.now())) return;
+  if (existing && isDexPageFresh(existing.fetchedAt, Date.now())) return "fresh";
   dexCallTimes.push(Date.now());
   try {
     const payload = await gtFetch(
@@ -431,37 +439,42 @@ async function fetchDexStoredPage(network: string, page: number): Promise<void> 
     const rows = parseMegafilterPage(payload, network);
     rememberDexPage({ network, page, fetchedAt: Date.now(), rows });
     delete dexBlockedUntil[key];
+    return rows.length ? "ok" : "miss";
   } catch (err) {
     const message = err instanceof Error ? err.message : "";
     console.error(`[crypto-coingecko] DEX prime ${network} page ${page} unavailable:`, err);
     if (message.includes("GeckoTerminal 404")) {
       rememberDexPage({ network, page, fetchedAt: Date.now(), rows: [] });
-    } else if (!message.includes("429")) {
-      dexBlockedUntil[key] = Date.now() + 2 * 60_000;
+      return "miss";
     }
+    if (message.includes("429")) {
+      dexRateLimited = true;
+      return "rate";
+    }
+    dexBlockedUntil[key] = Date.now() + 2 * 60_000;
+    return "miss";
   }
 }
 
 /**
- * Fill page 1 and 2 of the busiest networks together, then stop at the deadline
- * so a cold DEX tab still answers inside 3 seconds. The walk keeps going after.
+ * A few sequential page-1 calls, stopping on the first 429.
+ * The background walk continues toward 400 inside the 30-calls-a-minute gap.
  */
 function primeDexList(): Promise<void> {
   if (freshDexRows(dexPages, Date.now()).length >= 400) return Promise.resolve();
   if (!dexPrime) {
-    const jobs = DEX_PRIME_NETWORKS.flatMap((network) => [
-      { network, page: 1 },
-      { network, page: 2 },
-    ]);
     dexPrime = (async () => {
-      let cursor = 0;
-      async function worker() {
-        while (cursor < jobs.length) {
-          const job = jobs[cursor++];
-          await fetchDexStoredPage(job.network, job.page);
-        }
+      const started = Date.now();
+      let calls = 0;
+      for (const network of DEX_PRIME_NETWORKS) {
+        if (calls >= DEX_PRIME_MAX_CALLS) break;
+        if (Date.now() - started > DEX_PRIME_DEADLINE_MS) break;
+        if (freshDexRows(dexPages, Date.now()).length >= 400) break;
+        const outcome = await fetchDexStoredPage(network, 1);
+        if (outcome !== "fresh") calls += 1;
+        if (outcome === "rate") break;
+        if (calls < DEX_PRIME_NETWORKS.length) await sleep(250);
       }
-      await Promise.all([worker(), worker(), worker(), worker()]);
       console.log(`[crypto-coingecko] DEX prime → ${freshDexRows(dexPages, Date.now()).length} tokens`);
     })().finally(() => {
       dexPrime = null;
@@ -500,12 +513,8 @@ export async function dexQuoteRows(symbol: string): Promise<DexTokenRow[]> {
       console.error(`[crypto-coingecko] DEX search for ${want} failed:`, err);
     }
   }
-  try {
-    const page = await fetchDexTop400();
-    collected.push(...page.rows);
-  } catch (err) {
-    console.error(`[crypto-coingecko] DEX list for ${want || "quote"} failed:`, err);
-  }
+  // Already-fresh rows only. A quote must not start the top-400 walk.
+  collected.push(...freshDexRows(dexPages, Date.now()));
   return collected;
 }
 
