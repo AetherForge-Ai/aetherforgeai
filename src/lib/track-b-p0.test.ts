@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 import sitemap from "@/app/sitemap";
+import { AI_REQUEST_LINES, AI_SENT_CATEGORIES } from "@/lib/public-copy";
 import { changeIsFlat, sessionChangePct } from "@/lib/yahoo-finance";
 import { publicTickerPaths } from "@/lib/sitemap-tickers";
 
@@ -100,11 +101,25 @@ describe("Track B P0", () => {
     expect(note).not.toMatch(/\b(Grok|xAI|ZENITH|ULTRA|grok-4|enhanceWithGrok)\b/);
     const markets = read("src/lib/public-market-index.ts");
     expect(markets).toContain("const EQUITY_BUDGET_MS = 3000");
+    expect(markets).toContain("const REFRESH_BACKOFF_MS = 60 * 1000");
     expect(markets).toContain("refreshes in the background");
+    expect(markets).toContain("Date.now() >= nextRefreshAt");
     const stock = read("src/app/markets/stock/[ticker]/page.tsx");
     expect(stock).toContain("Create a free account");
     expect(stock).toContain("Add to your paper book");
     expect(stock).toContain("listing.entry.sector");
+  });
+
+  it("names every category the completion routes send", () => {
+    const lines = AI_REQUEST_LINES.join("\n");
+    for (const [endpoint, categories] of Object.entries(AI_SENT_CATEGORIES)) {
+      for (const category of categories) {
+        expect(lines, `${endpoint} missing “${category}”`).toContain(category);
+      }
+    }
+    expect(lines).toContain("does not include a card number");
+    expect(lines).toContain("does not set a retention period");
+    expect(lines).not.toMatch(/\b(Grok|xAI|ZENITH|ULTRA|grok-4|enhanceWithGrok)\b/);
   });
 
   it("keeps the licensing note as options and does not claim a licence", () => {
