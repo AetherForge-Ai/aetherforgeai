@@ -22,7 +22,7 @@ import {
   resolvableCoinId,
 } from "@/lib/crypto-market";
 import { coinDisplayName } from "@/lib/crypto-names";
-import { formatFxInput, formatUnitPrice, usdToNzd } from "@/lib/currency";
+import { formatDisplayClock, formatFxInput, formatUnitPrice, usdToNzd } from "@/lib/currency";
 import { cn } from "@/lib/utils";
 import {
   Search,
@@ -127,9 +127,8 @@ function fmtAbs(v: number, price: number): string {
 }
 
 function fmtTime(iso: string): string {
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return "";
-  return d.toLocaleTimeString("en-NZ", { hour: "2-digit", minute: "2-digit" });
+  const clock = formatDisplayClock(iso);
+  return clock === "—" ? "" : clock;
 }
 
 /**
@@ -491,7 +490,8 @@ export function MarketsExplorer({
   const showHigh = !isCryptoTab;
   const showLow = !isCryptoTab;
   const showVolume = !isDexTab && rows.some((r) => (r.volume ?? 0) > 0);
-  const showCap = !isCryptoTab && rows.some((r) => (r.marketCap ?? 0) > 0);
+  const cappedRows = rows.filter((r) => (r.marketCap ?? 0) > 0).length;
+  const showCap = !isCryptoTab && rows.length > 0 && cappedRows * 2 > rows.length;
   const showChange = !isDexTab;
   const showChain = isCryptoTab;
   const showDex = isDexTab;
@@ -644,7 +644,7 @@ export function MarketsExplorer({
               : stockLoading
               ? "Loading prices…"
               : hasData || remoteHits.length
-              ? `${total} names in the ${isCryptoTab ? "crypto" : tab} list${liveCount > 0 && liveCount !== total ? ` · ${liveCount} quoted` : ""}${remoteLoading ? " · searching…" : ""}${remoteHits.length && query.trim() ? ` · +${remoteHits.length} market match${remoteHits.length === 1 ? "" : "es"}` : ""}${asOf ? ` · ${fmtTime(asOf)}` : ""}`
+              ? `${total} names in the ${isCryptoTab ? "crypto" : tab} list${liveCount > 0 && liveCount !== total ? ` · ${liveCount} quoted` : ""}${remoteLoading ? " · searching…" : ""}${remoteHits.length && query.trim() ? ` · +${remoteHits.length} market match${remoteHits.length === 1 ? "" : "es"}` : ""}${asOf && !/last close|close ·/i.test(data?.freshness || "") ? ` · ${fmtTime(asOf)}` : ""}`
               : loadingRows
                 ? "Prices appear when the feed answers."
                 : "—"}
@@ -762,6 +762,7 @@ export function MarketsExplorer({
                           href={detailHref(r)}
                           className="font-display font-semibold text-primary underline-offset-4 transition-colors hover:text-primary hover:underline"
                           title={`View ${r.symbol} details`}
+                          aria-label={`${r.symbol}, ${r.name}`}
                         >
                           {r.symbol}
                         </Link>
@@ -771,9 +772,9 @@ export function MarketsExplorer({
                           </span>
                         )}
                       </div>
-                      <span className="text-[0.66rem] text-muted-foreground sm:hidden">{r.name}</span>
+                      <span className="text-[0.66rem] text-muted-foreground sm:hidden" aria-hidden="true">{r.name}</span>
                     </td>
-                    <td className="hidden max-w-[16rem] truncate py-2.5 pr-3 text-muted-foreground sm:table-cell">
+                    <td className="hidden max-w-[16rem] truncate py-2.5 pr-3 text-muted-foreground sm:table-cell" aria-hidden="true">
                       {r.name}
                     </td>
                     <td className="tnum py-2.5 px-3 text-right font-medium">
