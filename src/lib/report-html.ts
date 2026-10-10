@@ -158,7 +158,7 @@ function tickerBlock(t: TickerAnalysis): string {
       </td>
       <td style="vertical-align:top;text-align:right">
         <div style="font-family:monospace;font-size:14px;color:${INK}">${t.priceUnavailable ? "Unavailable" : `$${t.price.toFixed(dp)}`}</div>
-        ${t.priceUnavailable ? "" : `<div style="font-size:11px;color:${pctColor(t.changePct)}">${pct(t.changePct)} today</div>`}
+        ${t.priceUnavailable ? "" : `<div style="font-size:11px;color:${t.changeWithheld ? MUTE : pctColor(t.changePct)}">${t.changeWithheld ? "data under review" : `${pct(t.changePct)} today`}</div>`}
       </td>
     </tr></table>
     ${
@@ -300,7 +300,7 @@ function marketMoversBlock(groups: MarketMoversGroup[]): string {
                   <span style="color:${MUTE};font-size:10px">${i + 1}.</span>
                   <strong style="color:${INK}">${esc(m.ticker)}</strong>
                 </td>
-                <td style="padding:4px 6px;border-bottom:1px solid ${LINE};text-align:right;font-size:11px;color:${pctColor(m.changePct)};font-weight:600">${pct(m.changePct)}</td>
+                <td style="padding:4px 6px;border-bottom:1px solid ${LINE};text-align:right;font-size:11px;color:${m.withheld ? MUTE : pctColor(m.changePct)};font-weight:600">${m.withheld ? "data under review" : pct(m.changePct)}</td>
               </tr>`
             )
             .join("");
@@ -551,13 +551,19 @@ export function renderReportHtml(source: ApexReport, opts: RenderReportOptions):
     ? report.topGainers
         .map(
           (g) =>
-            `<li style="margin:4px 0"><strong>${esc(g.ticker)}</strong> · ${esc(g.name)} <span style="color:${GREEN};float:right">+${g.changePct}%</span></li>`
+            `<li style="margin:4px 0"><strong>${esc(g.ticker)}</strong> · ${esc(g.name)} <span style="color:${g.withheld ? MUTE : GREEN};float:right">${g.withheld ? "data under review" : `+${g.changePct}%`}</span></li>`
         )
         .join("")
-    : `<li style="color:${MUTE}">Consolidating tape — no standout gainers this session.</li>`;
+    : `<li style="color:${MUTE}">${esc(report.sessionTapeNote || "Consolidating tape — no standout gainers this session.")}</li>`;
+
+  const notSized = report.notSized?.length
+    ? `<h3 style="font-size:14px;margin:18px 0 6px">Not sized this week</h3><ul style="padding-left:18px;margin:0;font-size:12px">${report.notSized
+        .map((row) => `<li style="margin:4px 0"><strong>${esc(row.ticker)}</strong> — ${esc(row.reason)}</li>`)
+        .join("")}</ul>`
+    : "";
 
   const observations = report.keyObservations
-    .map((o) => `<li style="margin:4px 0;color:${MUTE}">${esc(o)}</li>`)
+    .map((o) => `<li style="margin:4px 0;color:${MUTE}">${rich(o)}</li>`)
     .join("");
 
   const news = report.newsSynthesis
@@ -653,6 +659,8 @@ export function renderReportHtml(source: ApexReport, opts: RenderReportOptions):
             <ul style="padding-left:18px;margin:0;font-size:13px">${observations}</ul>
           </td>
         </tr></table>
+
+        ${notSized}
 
         ${report.briefing ? briefingBlock(report.briefing) : ""}
 
