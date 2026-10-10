@@ -42,7 +42,7 @@ vi.mock("@/lib/metals", () => ({
   getMetalsSpot: vi.fn(async () => ({})),
 }));
 
-import { tradeSchema } from "@/app/api/transactions/route";
+import { tradeSchema } from "@/lib/trade-schema";
 import { bookHoldingFromStock } from "@/components/dashboard/RecordTransactionPanel";
 import { dexFromLedger, dexSourceLabel, stripDexNotesPrefix } from "@/lib/dex-source";
 import { computeSummary } from "@/lib/portfolio";

@@ -42,8 +42,10 @@ describe("M2 DEX source", () => {
     expect(book).toContain("withDexNotes");
     expect(book).not.toContain("dexRecordFields");
     const route = readFileSync(path.join(process.cwd(), "src/app/api/transactions/route.ts"), "utf8");
-    expect(route).toContain('venue: z.literal("DEX")');
-    expect(route).toContain("chain: z.string()");
+    const schema = readFileSync(path.join(process.cwd(), "src/lib/trade-schema.ts"), "utf8");
+    expect(route).toContain('from "@/lib/trade-schema"');
+    expect(schema).toContain('venue: z.literal("DEX")');
+    expect(schema).toContain("chain: z.string()");
   });
 
   it("reads a sector tag when the venue column is absent and groups every chain as DEX", () => {
