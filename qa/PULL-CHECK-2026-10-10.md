@@ -1328,3 +1328,4 @@ Research retest of develop `2976445`, implemented from develop `48d2f2a1`. Draft
 On `cursor/retest4-markets-dex-49e4`: `npm test` 122 files, 584 tests passed. `npm run check-types-errors` passed. `npm run build` passed (Next.js 15.3.9). The first typecheck failed because `equityFallback` set `asOf` twice. That second key was removed. After the DexScreener display gate: `npm test` 123 files, 587 tests passed. `npm run check-types-errors` passed. `npm run build` passed. Nothing was published. No email was sent.
 
 
+
