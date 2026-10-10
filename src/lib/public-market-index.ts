@@ -244,9 +244,17 @@ export async function loadPublicMarketIndex(): Promise<PublicMarketIndex> {
   return value.priceRowCount > 0 ? value : emptyIndex();
 }
 
+const quoteMemo = new Map<string, { at: number; value: Promise<string | null> }>();
+
 /** One equity ticker page. The saved print is used when both providers fail. */
 export async function loadStockQuoteLine(ticker: string): Promise<string | null> {
-  return within(loadSavedQuoteLine(ticker), null, EQUITY_BUDGET_MS);
+  const key = ticker.trim().toUpperCase();
+  const now = Date.now();
+  const hit = quoteMemo.get(key);
+  if (hit && now - hit.at < 5_000) return hit.value;
+  const value = within(loadSavedQuoteLine(key), null, EQUITY_BUDGET_MS);
+  quoteMemo.set(key, { at: now, value });
+  return value;
 }
 
 /** One crypto ticker page. Null when no source returns a price. */

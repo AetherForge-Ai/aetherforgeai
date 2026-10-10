@@ -1,13 +1,18 @@
 import nasdaqFile from "@/data/listings/sec-nasdaq.json";
 import nyseFile from "@/data/listings/sec-nyse.json";
+import seedFile from "@/data/listings/last-good.json";
 import { DOW_JONES_TICKERS, MARKET_UNIVERSE } from "@/lib/market-intel";
 import {
   ASX_CODES_ABSENT_FROM_FILE,
   LISTED_COUNT,
   SITEMAP_TICKER_CAP,
+  SITEMAP_US_CAP,
   boardNote,
   coverageSentence,
   filterByQuery,
+  hasRecentVerifiedPrice,
+  isDerivativeOrTestSecurity,
+  sectorIsStated,
   slicePage,
   type StockBoard,
   type StockListing,
@@ -128,17 +133,71 @@ export function findListing(ticker: string): StockListing | null {
   return null;
 }
 
-/** Ticker paths that render a company name from the catalog. Capped for the sitemap limit. */
-export function catalogTickerPaths(): string[] {
+function recentPriceTickers(now: number): Set<string> {
+  const out = new Set<string>();
+  const file = seedFile as Record<string, { price?: unknown; quotedAt?: unknown }>;
+  for (const [ticker, value] of Object.entries(file)) {
+    if (hasRecentVerifiedPrice(value, now)) out.add(ticker.toUpperCase());
+  }
+  return out;
+}
+
+let sitemapCache: { key: number; rows: StockListing[] } | null = null;
+
+/**
+ * Sitemap names: every NZX, ASX, and Dow listing, plus up to SITEMAP_US_CAP
+ * US names with a verified name and a stated sector or a recent saved price.
+ * Warrants, units, rights, and test-like issues are left out.
+ */
+export function sitemapStockListings(now = Date.now()): StockListing[] {
+  const key = Math.floor(now / 60_000);
+  if (sitemapCache && sitemapCache.key === key) return sitemapCache.rows;
+  const recent = recentPriceTickers(now);
   const seen = new Set<string>();
-  const paths: string[] = [];
-  for (const board of ["NZX", "ASX", "DOW", "NASDAQ", "NYSE"] as StockBoard[]) {
-    for (const row of listingsFor(board)) {
-      if (!row.name || seen.has(row.ticker)) continue;
-      seen.add(row.ticker);
-      paths.push(`/markets/stock/${encodeURIComponent(row.ticker)}`);
-      if (paths.length >= SITEMAP_TICKER_CAP) return paths;
+  const rows: StockListing[] = [];
+  const push = (row: StockListing) => {
+    if (!row.name || seen.has(row.ticker)) return false;
+    if (isDerivativeOrTestSecurity(row.ticker, row.name)) return false;
+    seen.add(row.ticker);
+    rows.push(row);
+    return true;
+  };
+  for (const board of ["NZX", "ASX", "DOW"] as const) {
+    for (const row of listingsFor(board)) push(row);
+  }
+  let us = 0;
+  for (const entry of MARKET_UNIVERSE) {
+    if (us >= SITEMAP_US_CAP) break;
+    if (entry.market === "NZX" || entry.market === "ASX" || entry.market === "CRYPTO") continue;
+    const listing = findListing(entry.ticker);
+    if (!listing || listing.board === "NZX" || listing.board === "ASX") continue;
+    if (seen.has(listing.ticker)) continue;
+    const sector = sectorIsStated(entry.sector) ? entry.sector : listing.sector;
+    const priced = recent.has(listing.ticker);
+    if (!sectorIsStated(sector) && !priced) continue;
+    if (push(listing)) us += 1;
+  }
+  if (us < SITEMAP_US_CAP) {
+    for (const board of ["NASDAQ", "NYSE"] as const) {
+      for (const row of listingsFor(board)) {
+        if (us >= SITEMAP_US_CAP) break;
+        if (!recent.has(row.ticker) || seen.has(row.ticker)) continue;
+        if (push(row)) us += 1;
+      }
     }
   }
-  return paths;
+  sitemapCache = { key, rows };
+  return rows;
+}
+
+export function isSitemapStock(ticker: string, now = Date.now()): boolean {
+  const key = ticker.trim().toUpperCase();
+  return sitemapStockListings(now).some((row) => row.ticker === key);
+}
+
+/** Ticker paths that render a company name from the catalog. Capped for the sitemap limit. */
+export function catalogTickerPaths(now = Date.now()): string[] {
+  return sitemapStockListings(now)
+    .slice(0, SITEMAP_TICKER_CAP)
+    .map((row) => `/markets/stock/${encodeURIComponent(row.ticker)}`);
 }

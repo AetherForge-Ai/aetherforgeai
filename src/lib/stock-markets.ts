@@ -25,6 +25,18 @@ export const STOCK_PAGE_SIZE = 50;
 /** Sitemap stays under the 50,000 URL limit, with room for the static pages. */
 export const SITEMAP_TICKER_CAP = 45_000;
 
+/**
+ * US names added to the sitemap beyond NZX, ASX, and Dow.
+ * A name qualifies with a verified name plus a stated sector or a recent saved price.
+ */
+export const SITEMAP_US_CAP = 300;
+
+/** A saved print is recent enough for the sitemap when it is inside this window. */
+export const SITEMAP_PRICE_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
+
+export const FUND_TYPE_NOTE =
+  "includes funds and other security types; type not stated by the source";
+
 export const PRICE_NOT_IN_RESPONSE = "Not in this response";
 export const CHANGE_NOT_STATED = "change not stated";
 
@@ -113,9 +125,62 @@ export function boardNote(board: StockBoard): string {
     return "The 30 Dow Jones Industrial Average names kept in this repo.";
   }
   if (board === "NASDAQ") {
-    return "SEC company file tagged Nasdaq, retrieved 10 Oct 2026. 5,622 is the non-test symbol count in the Nasdaq directory file created 9 Oct 2026 21:31, including funds. Not a direct exchange feed.";
+    return `SEC company file tagged Nasdaq, retrieved 10 Oct 2026. 5,622 is the non-test symbol count in the Nasdaq directory file created 9 Oct 2026 21:31. ${FUND_TYPE_NOTE}. Not a direct exchange feed.`;
   }
-  return "SEC company file tagged NYSE, retrieved 10 Oct 2026. 2,900 is the non-test NYSE symbol count in the other-listed directory file created 9 Oct 2026 21:31. Not a direct exchange feed.";
+  return `SEC company file tagged NYSE, retrieved 10 Oct 2026. 2,900 is the non-test NYSE symbol count in the other-listed directory file created 9 Oct 2026 21:31. ${FUND_TYPE_NOTE}. Not a direct exchange feed.`;
+}
+
+export function sectorIsStated(sector: string | null | undefined): boolean {
+  const value = (sector || "").trim();
+  return value.length > 0 && value.toLowerCase() !== "not stated";
+}
+
+/** Public sentence. A sector that was not stated is left out. */
+export function listingSentence(name: string, sector: string, exchange: string): string {
+  if (sectorIsStated(sector) && exchange) return `${name} is in the ${sector} list on ${exchange}.`;
+  if (exchange) return `${name} is listed on ${exchange}.`;
+  return name;
+}
+
+/**
+ * Warrants, units, rights, and test issues. Nasdaq often adds W, U, or R
+ * (or WS, WT, WD, RT) to a 4-letter issuer. Ordinary tickers such as GROW stay.
+ */
+export function isDerivativeOrTestSecurity(ticker: string, name: string): boolean {
+  const symbol = ticker
+    .trim()
+    .toUpperCase()
+    .replace(/\.(NZ|AX|L)$/i, "");
+  if (/\b(warrants?|units?|rights?)\b/i.test(name || "")) return true;
+  if (/\btest\b/i.test(name || "")) return true;
+  if (symbol.includes("TEST")) return true;
+  if (/^Z[A-Z]ZZT$/.test(symbol)) return true;
+  return /^[A-Z]{4}(W|U|R|WS|WT|WD|RT)$/.test(symbol);
+}
+
+export function hasRecentVerifiedPrice(
+  print: { price?: unknown; quotedAt?: unknown } | null | undefined,
+  now: number,
+  maxAgeMs = SITEMAP_PRICE_MAX_AGE_MS
+): boolean {
+  const price = Number(print?.price);
+  const quotedAt = typeof print?.quotedAt === "string" ? print.quotedAt : "";
+  if (!(price > 0) || !quotedAt) return false;
+  const at = Date.parse(quotedAt);
+  if (!Number.isFinite(at)) return false;
+  const age = now - at;
+  return age <= maxAgeMs && at <= now + 24 * 60 * 60 * 1000;
+}
+
+/** US pages outside the sitemap set with no quote stay reachable and unindexed. */
+export function usPageShouldNoindex(input: {
+  board: StockBoard | null;
+  inSitemap: boolean;
+  hasQuote: boolean;
+}): boolean {
+  if (input.board !== "NASDAQ" && input.board !== "NYSE") return false;
+  if (input.inSitemap) return false;
+  return !input.hasQuote;
 }
 
 export function slicePage<T>(rows: T[], page: number, pageSize = STOCK_PAGE_SIZE): {

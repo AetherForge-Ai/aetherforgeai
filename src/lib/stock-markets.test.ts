@@ -4,15 +4,20 @@ import { describe, expect, it } from "vitest";
 import sitemap from "@/app/sitemap";
 import { parseAllMarketsExchange, parseAllMarketsPage } from "@/lib/all-markets-query";
 import { parseMarketsTab } from "@/lib/market-detail-routes";
-import { boardCoverage, findListing, listingsFor } from "@/lib/stock-catalog";
+import { boardCoverage, findListing, isSitemapStock, listingsFor } from "@/lib/stock-catalog";
 import {
+  FUND_TYPE_NOTE,
   PRICE_NOT_IN_RESPONSE,
   breakerIsOpen,
   coverageSentence,
   freshBreaker,
+  hasRecentVerifiedPrice,
+  isDerivativeOrTestSecurity,
+  listingSentence,
   noteProviderResult,
   quoteWithProviders,
   resolveEquityPrint,
+  usPageShouldNoindex,
   type EquityPrint,
   type SavedPrint,
 } from "@/lib/stock-markets";
@@ -56,6 +61,29 @@ describe("stock board coverage", () => {
     expect(findListing("EA")).toBeNull();
     expect(listingsFor("ASX").some((row) => row.symbol === "ASK")).toBe(false);
     expect(listingsFor("NASDAQ").every((row) => row.name.length > 0)).toBe(true);
+    expect(boardCoverage("NASDAQ").note).toContain(FUND_TYPE_NOTE);
+    expect(boardCoverage("NYSE").note).toContain(FUND_TYPE_NOTE);
+    expect(listingSentence("Fletcher Building", "Materials", "NZX")).toBe(
+      "Fletcher Building is in the Materials list on NZX."
+    );
+    expect(listingSentence("Aadi Bioscience", "Not stated", "NASDAQ")).toBe(
+      "Aadi Bioscience is listed on NASDAQ."
+    );
+    expect(listingSentence("Aadi Bioscience", "Not stated", "NASDAQ")).not.toContain("Not stated");
+    expect(isDerivativeOrTestSecurity("AACIU", "Aadi Bioscience, Inc. Units")).toBe(true);
+    expect(isDerivativeOrTestSecurity("AACIW", "Aadi Bioscience, Inc. Warrant")).toBe(true);
+    expect(isDerivativeOrTestSecurity("GROW", "U.S. Global Investors, Inc.")).toBe(false);
+    expect(isDerivativeOrTestSecurity("ZVZZT", "NASDAQ TEST")).toBe(true);
+    expect(hasRecentVerifiedPrice({ price: 12, quotedAt: "2026-10-09T00:00:00.000Z" }, Date.parse("2026-10-10T00:00:00.000Z"))).toBe(true);
+    expect(hasRecentVerifiedPrice({ price: 0, quotedAt: "2026-10-09T00:00:00.000Z" }, Date.parse("2026-10-10T00:00:00.000Z"))).toBe(false);
+    expect(usPageShouldNoindex({ board: "NASDAQ", inSitemap: false, hasQuote: false })).toBe(true);
+    expect(usPageShouldNoindex({ board: "NASDAQ", inSitemap: false, hasQuote: true })).toBe(false);
+    expect(usPageShouldNoindex({ board: "NASDAQ", inSitemap: true, hasQuote: false })).toBe(false);
+    expect(usPageShouldNoindex({ board: "NZX", inSitemap: true, hasQuote: false })).toBe(false);
+    expect(isSitemapStock("NVDA")).toBe(true);
+    expect(isSitemapStock("JPM")).toBe(true);
+    expect(isSitemapStock("AACIU")).toBe(false);
+    expect(isSitemapStock("AACIW")).toBe(false);
   });
 
   it("reads the NYSE board and keeps a bad page number on the first page", () => {
@@ -164,6 +192,11 @@ describe("stock sitemap and the pull-check marker", () => {
     expect(paths.has("/markets/stock/FBU.NZ")).toBe(true);
     expect(paths.has("/markets/stock/NVDA")).toBe(true);
     expect(paths.has("/markets/stock/JPM")).toBe(true);
+    expect(paths.has("/markets/stock/AACIU")).toBe(false);
+    expect(paths.has("/markets/stock/AACIW")).toBe(false);
+    const stockPaths = [...paths].filter((href) => href.startsWith("/markets/stock/"));
+    expect(stockPaths.length).toBeGreaterThan(300);
+    expect(stockPaths.length).toBeLessThan(800);
     expect(paths.has("/projections")).toBe(false);
     const source = readFileSync(path.join(process.cwd(), "src/lib/stock-markets.ts"), "utf8");
     const qa = readFileSync(path.join(process.cwd(), "qa/PULL-CHECK-2026-10-10.md"), "utf8");

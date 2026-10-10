@@ -25,3 +25,18 @@ Twelve Data (`https://api.twelvedata.com/quote`) is called only when `MARKET_DAT
 Provider order on a stock page: Yahoo Finance, then Twelve Data if a key is set, then the last saved print. Each provider has its own timeout. Three failures open a 60 second circuit. A print at or below zero is dropped. A print more than double or less than half the saved price is held until a second print agrees with it. The row names the source and the vendor time. There is no new database column. Crypto files are not part of this change.
 
 Wikidata ASX tickers were counted and were fewer than the names already in the repo, so they are not used. Stooq and Yahoo bulk symbol lists were not copied. Their terms do not clearly allow storing a full exchange directory here.
+
+## Sitemap and thin US pages
+
+The SEC file has a company name and a ticker. It does not state a sector, and it has no ETF flag. NASDAQ and NYSE boards therefore say `includes funds and other security types; type not stated by the source`. Rows are not labelled ETF.
+
+`/sitemap.xml` lists:
+
+- every NZX name in this catalog
+- every ASX name in this catalog
+- every Dow Jones name in this catalog
+- at most 300 other US names that have a verified company name and either a stated sector from the repo list or a saved print whose time is within 14 days
+
+Warrants, units, rights, and test-like issues are left out of the sitemap. A name matches when it contains the words warrant, unit, right, or test. A ticker matches when a 4-letter issuer is followed by W, U, R, WS, WT, WD, or RT (for example AACIU and AACIW). Nasdaq test symbols of the form Z?ZZT are left out. A 4-letter ticker such as GROW stays.
+
+Other US pages stay on the site. When that response has no quote, the page sends `noindex` and `follow`. A visitor can still open it. NZX, ASX, Dow, and the US names that are in the sitemap stay indexable. A US page outside that set stays indexable when the response includes a quote.
