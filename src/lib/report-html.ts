@@ -307,6 +307,7 @@ function marketMoversBlock(groups: MarketMoversGroup[], bot?: string): string {
             .join("");
           return `<td style="vertical-align:top;width:33%;padding:0 6px">
             <div style="font-size:11px;font-weight:700;color:${BLUE};margin:0 0 4px">${esc(w.window)}</div>
+            ${w.reviewNote ? `<div style="font-size:10px;color:${MUTE};margin:0 0 4px">${esc(w.reviewNote)}</div>` : ""}
             <table width="100%" style="border-collapse:collapse">${rows || `<tr><td style="font-size:11px;color:${MUTE}">—</td></tr>`}</table>
           </td>`;
         })

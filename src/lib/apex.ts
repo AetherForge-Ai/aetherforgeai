@@ -46,6 +46,7 @@ import {
   balancedGrowthStep,
   namedCandidateLine,
   notSizedLine,
+  printsUnderReviewLine,
   sessionGainerSentence,
 } from "./report-copy";
 import { createQuoteBook, reviewSessionMove, type QuoteBook, type ReviewedMove } from "./quote-review";
@@ -123,7 +124,7 @@ export interface MoverRow {
 export interface MarketMoversGroup {
   market: MarketCode;
   label: string; // "New Zealand Exchange · NZX"
-  windows: { window: string; movers: MoverRow[] }[];
+  windows: { window: string; movers: MoverRow[]; /** Counted before withheld rows leave the ranking. */ withheldCount: number; reviewNote: string | null }[];
 }
 
 /** A high-conviction 7-day forward projection row. */
@@ -519,7 +520,7 @@ function buildMarketMovers(
     return markets.map((m) => ({
       market: m,
       label: MARKET_LABELS[m],
-      windows: MOVER_WINDOWS.map((w) => ({ window: w.window, movers: [] })),
+      windows: MOVER_WINDOWS.map((w) => ({ window: w.window, movers: [], withheldCount: 0, reviewNote: null })),
     }));
   }
   const list = hasIntel ? universeIntel! : analyzeUniverse(overrides, bot);
@@ -528,28 +529,33 @@ function buildMarketMovers(
     return {
       market: m,
       label: MARKET_LABELS[m],
-      windows: MOVER_WINDOWS.map((w) => ({
-        window: w.window,
-        movers: [...inMarket]
-          .map((s) => {
-            const window = w.key === "change1d" ? "1d" : w.key === "change7d" ? "7d" : "30d";
-            const reviewed = reviewedWindow(book, s, window);
-            return {
-              ticker: s.ticker,
-              name: s.name,
-              market: s.market,
-              currency: s.currency as CurrencyCode,
-              price: s.price,
-              changePct: reviewed?.withheld ? 0 : (reviewed?.changePct ?? (s[w.key] as number)),
-              withheld: reviewed?.withheld ?? false,
-              sortPct: reviewed?.withheld ? Number.NEGATIVE_INFINITY : (reviewed?.changePct ?? (s[w.key] as number)),
-            };
-          })
-          .filter((row) => !row.withheld)
-          .sort((a, b) => b.sortPct - a.sortPct)
-          .slice(0, 10)
-          .map(({ sortPct: _sort, ...row }) => row),
-      })),
+      windows: MOVER_WINDOWS.map((w) => {
+        const window = w.key === "change1d" ? "1d" : w.key === "change7d" ? "7d" : "30d";
+        const reviewedRows = inMarket.map((s) => {
+          const reviewed = reviewedWindow(book, s, window);
+          return {
+            ticker: s.ticker,
+            name: s.name,
+            market: s.market,
+            currency: s.currency as CurrencyCode,
+            price: s.price,
+            changePct: reviewed?.withheld ? 0 : (reviewed?.changePct ?? (s[w.key] as number)),
+            withheld: reviewed?.withheld ?? false,
+            sortPct: reviewed?.withheld ? Number.NEGATIVE_INFINITY : (reviewed?.changePct ?? (s[w.key] as number)),
+          };
+        });
+        const withheldCount = reviewedRows.filter((row) => row.withheld).length;
+        return {
+          window: w.window,
+          withheldCount,
+          reviewNote: printsUnderReviewLine(withheldCount),
+          movers: reviewedRows
+            .filter((row) => !row.withheld)
+            .sort((a, b) => b.sortPct - a.sortPct)
+            .slice(0, 10)
+            .map(({ sortPct: _sort, ...row }) => row),
+        };
+      }),
     };
   });
 }
@@ -1051,8 +1057,13 @@ function assembleReport(
     })
     .slice(0, 3)
     .map((row) => ({ ticker: row.ticker, name: row.name, changePct: row.changePct }));
-  const withheldSessionCount = sessionRows.filter((row) => row.withheld).length
-    + (sessionRows.length ? 0 : reviewedTickers.filter((ticker) => ticker.changeWithheld).length);
+  const sweepWithheld = marketMovers.reduce((sum, group) => {
+    const day = group.windows.find((window) => window.window === "Last 24 hours");
+    return sum + (day?.withheldCount ?? 0);
+  }, 0);
+  const withheldSessionCount = sweepWithheld > 0
+    ? sweepWithheld
+    : reviewedTickers.filter((ticker) => ticker.changeWithheld).length;
   const sessionTapeNote = sessionGainerSentence(topGainers, withheldSessionCount);
   const notSized = extras.notSized ?? [];
 

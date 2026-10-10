@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildLiveReport } from "@/lib/apex";
 import type { SecurityIntel } from "@/lib/market-intel";
+import { printsUnderReviewLine } from "@/lib/report-copy";
 
 function intel(partial: Partial<SecurityIntel> & Pick<SecurityIntel, "ticker">): SecurityIntel {
   const projected = partial.projected7dPct ?? 2;
@@ -60,8 +61,8 @@ describe("implausible moves stay out of rankings and projections", () => {
       intel({ ticker: "LRCX", change1d: 43.68, projected7dPct: 43.68 }),
       intel({ ticker: "AMGN", change1d: 42.23, projected7dPct: 42.23 }),
       intel({ ticker: "MDLZ", change7d: 50.64, projected7dPct: 4 }),
-      intel({ ticker: "JPM", change7d: 31.01, projected7dPct: 3 }),
-      intel({ ticker: "META", change7d: 32.46, change1d: 1, projected7dPct: 2 }),
+      intel({ ticker: "JPM", change1d: 30.34, change7d: 31.01, projected7dPct: 3 }),
+      intel({ ticker: "META", change1d: 28.9, change7d: 32.46, projected7dPct: 2 }),
       intel({ ticker: "WETH", market: "CRYPTO", assetClass: "crypto", change1d: 77.98, projected7dPct: 5 }),
       intel({ ticker: "USDG", market: "CRYPTO", assetClass: "crypto", change1d: 27.66, projected7dPct: 1 }),
       intel({ ticker: "CRVUSD", market: "CRYPTO", assetClass: "crypto", change1d: 29.82, projected7dPct: 1 }),
@@ -76,6 +77,17 @@ describe("implausible moves stay out of rankings and projections", () => {
       expect(stock.projectionLeaders.map((row) => row.ticker)).not.toContain(ticker);
     }
     expect(windowNames("Last 24 hours")).toContain("AAPL");
+    const us = stock.marketMovers.find((group) => group.market === "US");
+    const day = us?.windows.find((window) => window.window === "Last 24 hours");
+    const week = us?.windows.find((window) => window.window === "Last 7 days");
+    expect(day?.withheldCount).toBe(4);
+    expect(day?.reviewNote).toBe("4 prints under review");
+    expect(printsUnderReviewLine(day?.withheldCount ?? 0)).toBe(day?.reviewNote ?? null);
+    expect(week?.withheldCount).toBeGreaterThan(0);
+    expect(week?.reviewNote).toMatch(/prints under review/);
+    for (const ticker of ["JPM", "META", "MDLZ", "LRCX", "AMGN"]) {
+      expect(week?.movers.map((row) => row.ticker)).not.toContain(ticker);
+    }
     const crypto = buildLiveReport("crypto", [], { universeIntel: rows.filter((row) => row.assetClass === "crypto") });
     const cryptoDay = crypto.marketMovers.flatMap(
       (group) => group.windows.find((window) => window.window === "Last 24 hours")?.movers ?? []
@@ -84,5 +96,20 @@ describe("implausible moves stay out of rankings and projections", () => {
       expect(cryptoDay.find((row) => row.ticker === ticker)).toBeUndefined();
       expect(crypto.projectionLeaders.map((row) => row.ticker)).not.toContain(ticker);
     }
+  });
+
+  it("keeps a legitimate 25% 30-day move on a large cap", () => {
+    const report = buildLiveReport("stock", [], {
+      universeIntel: [intel({ ticker: "JPM", change1d: 2, change7d: 4, change30d: 25, projected7dPct: 1.1 })],
+    });
+    const month = report.marketMovers
+      .flatMap((group) => group.windows.find((window) => window.window === "Last month")?.movers ?? [])
+      .find((row) => row.ticker === "JPM");
+    expect(month?.withheld).toBe(false);
+    expect(month?.changePct).toBe(25);
+    const note = report.marketMovers
+      .flatMap((group) => group.windows)
+      .find((window) => window.window === "Last month")?.reviewNote;
+    expect(note).toBeNull();
   });
 });

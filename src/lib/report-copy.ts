@@ -31,6 +31,13 @@ export interface NamedMove {
  * The session line uses the same gainers the "Top gainers" list will show.
  * A withheld print is not called "no standout" and is not quoted as a percent.
  */
+/** "4 prints under review". Null when nothing was withheld. */
+export function printsUnderReviewLine(count: number): string | null {
+  const n = Math.max(0, Math.trunc(Number(count) || 0));
+  if (n <= 0) return null;
+  return n === 1 ? "1 print under review" : `${n} prints under review`;
+}
+
 export function sessionGainerSentence(validGainers: NamedMove[], withheldCount: number): string {
   const leader = validGainers[0];
   if (leader && leader.changePct > 0) {

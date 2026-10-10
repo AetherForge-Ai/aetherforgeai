@@ -185,6 +185,9 @@ function MarketMoversSection({ report }: { report: ApexReport }) {
               {g.windows.map((w) => (
                 <div key={w.window} className="rounded-lg border border-border/50 bg-background/40 p-2">
                   <div className="mb-1 text-[11px] font-medium text-muted-foreground">{w.window}</div>
+                  {w.reviewNote ? (
+                    <p className="mb-1 text-[10px] text-muted-foreground">{w.reviewNote}</p>
+                  ) : null}
                   <ul className="space-y-0.5">
                     {w.movers.map((m, i) => (
                       <li key={m.ticker} className="flex min-w-0 items-center justify-between gap-2 text-[11px]">

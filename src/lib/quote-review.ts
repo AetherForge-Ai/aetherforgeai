@@ -1,16 +1,23 @@
 /**
  * Session-move checks for Stox and Koins reports (H2).
  *
- * A large-cap print above the cap, a split-like jump, a cents/dollars mix-up,
- * a stale quote, or two different figures for one ticker are withheld. The
- * report shows "data under review" instead of the number. One ticker keeps
- * one figure per window inside a single report.
+ * A large-cap 24-hour print above 20%, a 7-day print above 35%, or a 30-day
+ * print above 60% is withheld, as is a split-like jump, a cents/dollars mix-up,
+ * a stale quote, or two different figures for one ticker. When the 24-hour
+ * print is withheld, the 7-day and 30-day prints for that ticker are withheld
+ * too. The report shows "data under review" instead of the number.
  */
 
 export const DATA_UNDER_REVIEW = "data under review";
 
 /** Configurable. Large-cap 24-hour moves above this are withheld. */
 export const LARGE_CAP_SESSION_MOVE_CAP_PCT = 20;
+
+/** Large-cap 7-day moves above this are withheld. A 24-hour withhold also covers this window. */
+export const LARGE_CAP_WEEK_MOVE_CAP_PCT = 35;
+
+/** Large-cap 30-day moves above this are withheld. A 24-hour withhold also covers this window. */
+export const LARGE_CAP_MONTH_MOVE_CAP_PCT = 60;
 
 /** Other listed shares. Above this, treat the print as a split or a bad quote. */
 export const EQUITY_SESSION_MOVE_CAP_PCT = 50;
@@ -21,8 +28,8 @@ export const CRYPTO_SESSION_MOVE_CAP_PCT = 80;
 const STALE_MS = 36 * 60 * 60 * 1000;
 
 /**
- * Names a 20% session move would be implausible for. The cap stays
- * LARGE_CAP_SESSION_MOVE_CAP_PCT so the list can grow without changing the rule.
+ * Names a 20% session move would be implausible for. The 24-hour cap stays
+ * LARGE_CAP_SESSION_MOVE_CAP_PCT. The 7-day cap is 35 and the 30-day cap is 60.
  */
 const LARGE_CAP_TICKERS = new Set(
   [
@@ -101,7 +108,11 @@ function windowCap(input: ReviewInput): number {
     if (input.window === "7d") return 120;
     return 200;
   }
-  if (large) return LARGE_CAP_SESSION_MOVE_CAP_PCT;
+  if (large) {
+    if (input.window === "7d") return LARGE_CAP_WEEK_MOVE_CAP_PCT;
+    if (input.window === "30d") return LARGE_CAP_MONTH_MOVE_CAP_PCT;
+    return LARGE_CAP_SESSION_MOVE_CAP_PCT;
+  }
   if (input.window === "1d") return EQUITY_SESSION_MOVE_CAP_PCT;
   if (input.window === "7d") return 80;
   return 150;
@@ -192,7 +203,8 @@ export function createQuoteBook() {
   const seen = new Map<string, { reported: number; result: ReviewedMove }>();
   return {
     review(input: ReviewInput): ReviewedMove {
-      const id = `${input.ticker.trim().toUpperCase()}|${input.window}`;
+      const ticker = input.ticker.trim().toUpperCase();
+      const id = `${ticker}|${input.window}`;
       const prior = seen.get(id);
       if (prior && Math.abs(prior.reported - input.reportedChangePct) > 0.05) {
         const withheld: ReviewedMove = {
@@ -208,6 +220,20 @@ export function createQuoteBook() {
         return withheld;
       }
       if (prior) return prior.result;
+      if (input.window !== "1d") {
+        const day = seen.get(`${ticker}|1d`);
+        if (day?.result.withheld) {
+          const withheld: ReviewedMove = {
+            changePct: 0,
+            withheld: true,
+            reason: "24-hour print is under review",
+            display: DATA_UNDER_REVIEW,
+          };
+          console.warn(`[quote-review] ${id} rejected: ${withheld.reason}`);
+          seen.set(id, { reported: input.reportedChangePct, result: withheld });
+          return withheld;
+        }
+      }
       const result = reviewSessionMove(input);
       if (result.withheld) {
         console.warn(`[quote-review] ${id} rejected: ${result.reason} (reported ${input.reportedChangePct})`);
