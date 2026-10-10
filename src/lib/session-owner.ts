@@ -162,6 +162,7 @@ const PROTECTED_ACCOUNT_PREFIXES = [
   "/api/stocks",
   "/api/alerts",
   "/api/transactions",
+  "/api/tax",
   "/api/profile",
   "/api/watchlist",
   "/api/reports",

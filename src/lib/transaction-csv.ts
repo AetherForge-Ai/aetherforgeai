@@ -12,6 +12,7 @@ import {
   type CurrencyCode,
 } from "@/lib/currency";
 import { dexFromLedger, stripDexNotesPrefix } from "@/lib/dex-source";
+import { stripDividendNotesPrefix } from "@/lib/dividend-ledger";
 import { formatLedgerDateTime } from "@/lib/executed-at";
 import { collapseCorrectionNote, ensureCorrectionCurrency } from "@/lib/holding-correction";
 
@@ -95,7 +96,9 @@ export function cleanNoteFigures(notes: string): string {
 export function csvNotes(row: CsvRow): string {
   const raw = row.notes == null ? "" : String(row.notes);
   const currency = String(row.fill_currency || row.currency || "NZD").toUpperCase() as CurrencyCode;
-  let notes = cleanNoteFigures(normaliseAuditDates(collapseCorrectionNote(stripDexNotesPrefix(raw)))).trim();
+  let notes = cleanNoteFigures(
+    normaliseAuditDates(collapseCorrectionNote(stripDexNotesPrefix(stripDividendNotesPrefix(raw))))
+  ).trim();
   if (notes.startsWith("Correction:")) notes = ensureCorrectionCurrency(notes, currency);
   if (notes) return notes;
   if (row.type === "sell") return "Sell recorded on the paper book.";

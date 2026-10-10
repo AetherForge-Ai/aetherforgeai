@@ -3,6 +3,8 @@ import { formatDisplayDate } from "@/lib/currency";
 import { isPublishedUsCpiDay, usCpiDateLabel } from "@/lib/us-cpi-schedule";
 import { publisherTextHasSignalWord } from "@/lib/public-intel";
 
+/** pull-check:research-retest-2026-10-11 */
+
 /** Pull-check marker for the publisher-verbatim news gate. */
 export const P1_FOLLOWUP_PUBLISHER_HEADLINES_VERBATIM =
   "p1-followup-publisher-headlines-verbatim-92fa";
