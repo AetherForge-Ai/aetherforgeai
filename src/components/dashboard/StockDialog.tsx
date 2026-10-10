@@ -73,6 +73,7 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
   // so we can show a confirmation hint. Cleared as soon as the user edits it by hand.
   const [pricePrefilled, setPricePrefilled] = useState(false);
   const [priceLoading, setPriceLoading] = useState(false);
+  const [staleNote, setStaleNote] = useState<string | null>(null);
   // True when the date is today but no live price could be fetched (market closed /
   // invalid ticker / provider down) — we then UNLOCK the field for manual entry.
   const [liveUnavailable, setLiveUnavailable] = useState(false);
@@ -150,25 +151,39 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
   }, [open, editing, defaultAssetType, todayStr, disarmReview]);
 
   /** Fetch the live price for a symbol. Crypto can pass a price already in hand. */
-  async function fetchLivePrice(sym: string, type: AssetType, carried?: number): Promise<number | null> {
-    if (type === "crypto" && carried && carried > 0) return carried;
-    const res = await api.get<{ price: number | null }>(
-      `/api/tickers/quote?symbol=${encodeURIComponent(sym)}&type=${type}`
+  async function fetchLivePrice(
+    sym: string,
+    type: AssetType,
+    carried?: number
+  ): Promise<{ price: number; stale: boolean; label: string | null } | null> {
+    if (type === "crypto" && carried && carried > 0) return { price: carried, stale: false, label: null };
+    const res = await api.get<{ price: number | null; stale?: boolean; label?: string | null }>(
+      `/api/tickers/quote?symbol=${encodeURIComponent(sym)}&type=${type}`,
+      { signal: AbortSignal.timeout(8_000) }
     );
-    return res.ok && res.data?.price && res.data.price > 0 ? res.data.price : null;
+    const price = res.ok ? res.data?.price : null;
+    if (!(price && price > 0)) return null;
+    return { price, stale: !!res.data?.stale, label: res.data?.label || null };
   }
 
   /** Lock the "paid for" field to today's live price (or unlock for manual entry). */
   async function lockToLivePrice(sym: string, type: AssetType, carried?: number) {
     setPriceLoading(true);
     setLiveUnavailable(false);
+    setStaleNote(null);
     const live = await fetchLivePrice(sym, type, carried);
     setPriceLoading(false);
-    if (live != null) {
-      setPurchasePrice(String(live));
+    if (live != null && live.stale) {
+      setPurchasePrice(String(live.price));
+      setPricePrefilled(true);
+      setLiveUnavailable(true);
+      setStaleNote(live.label || "Last good price. The live feeds did not return a newer price.");
+    } else if (live != null) {
+      setPurchasePrice(String(live.price));
       setPricePrefilled(false);
       setLiveUnavailable(false);
-      console.log(`[dashboard] Locked ${sym} to today's live price: ${live}`);
+      setStaleNote(null);
+      console.log(`[dashboard] Locked ${sym} to today's live price: ${live.price}`);
     } else {
       // Edge case — market closed / invalid ticker / provider outage. Never block
       // the user: unlock the field so they can type the amount manually.
@@ -212,9 +227,10 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
     const live = await fetchLivePrice(sym, "stock");
     setPriceLoading(false);
     if (live != null) {
-      setPurchasePrice(String(live));
+      setPurchasePrice(String(live.price));
       setPricePrefilled(true);
-      console.log(`[dashboard] Suggested live price for ${sym}: ${live}`);
+      setStaleNote(live.stale ? live.label : null);
+      console.log(`[dashboard] Suggested live price for ${sym}: ${live.price}`);
     }
   }
 
@@ -509,7 +525,11 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
           </div>
 
           {/* Contextual price hint */}
-          {priceLocked ? (
+          {staleNote ? (
+            <p className="-mt-1 text-xs leading-relaxed text-muted-foreground" data-ticker-quote>
+              {staleNote}
+            </p>
+          ) : priceLocked ? (
             <p className="-mt-1 flex items-start gap-1.5 text-xs leading-relaxed text-emerald-500">
               <Lock className="mt-0.5 size-3.5 shrink-0" />
               <span>

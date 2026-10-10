@@ -1,6 +1,6 @@
 /**
  * GET /api/crypto/markets
- * Top 400 by market cap. CoinGecko, then the existing Swyftx / Yahoo sweep.
+ * Top 400 by market cap. CoinGecko first. Swyftx fills only when SWYFTX_PUBLIC_DISPLAY is on. Yahoo majors are last.
  * Always JSON. A failed source is a plain sentence, never an HTTP 502
  * (Cloudflare replaces that body with text).
  */

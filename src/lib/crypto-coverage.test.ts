@@ -6,7 +6,7 @@ describe("crypto coverage phrase", () => {
     expect(cryptoCoverageCount(400)).toBe(400);
     expect(cryptoCoveragePhrase(400)).toBe("The top 400 coins by market cap");
     expect(cryptoCoverageCount(89)).toBe(89);
-    expect(cryptoCoveragePhrase(89)).toBe("The top 89 coins by market cap");
+    expect(cryptoCoveragePhrase(89)).toBe("Showing 89 of up to 400");
     expect(cryptoCoveragePhrase(89)).not.toMatch(/~/);
     expect(cryptoCoveragePhrase(500)).toBe("The top 400 coins by market cap");
   });

@@ -14,8 +14,10 @@ Markers:
 - `pull-check:track-b-2-2026-10-11`
 - `pull-check:research-retest-2026-10-11`
 - `pull-check:tax-fixups-2026-10-11`
-- `pull-check:address-removed-2026-10-11`
+- `pull-check:crypto-dex-400-2026-10-11`
 - `pull-check:weekly-email-2026-10-11`
+- `pull-check:weekly-unsub-confirm-2026-10-11`
+- `pull-check:address-removed-2026-10-11`
 - `pull-check:stock-markets-full-2026-10-11`
 
 Branch: `cursor/qa-m10-m15-l6-l17-b236`
@@ -918,6 +920,46 @@ Branch `cursor/tax-fixups-4f33` from develop. One draft pull request into `devel
 - URL / steps: sign in on a new account whose name is `QA`. Open `/dashboard` with no open share positions, including a book whose only stock rows have zero shares.
 - Expected: the greeting is `Welcome`, not `Welcome back, QA`. A saved real first name is used, for example `Welcome, Jane`. The Your holdings header says `No open positions` when the table is empty, and `1 position` when there is one. Header cash updates when a sell dialog closes, without a reload.
 
+## Crypto and DEX lists — 11 Oct 2026
+
+Marker: `pull-check:crypto-dex-400-2026-10-11`
+
+Source comment: `pull-check:crypto-dex-400-2026-10-11` in `src/lib/crypto-coverage.ts`, `src/lib/crypto-list.ts`, and `src/lib/crypto-dex.ts`.
+
+400 is a target for each of the Crypto and DEX tabs on `/markets`. The page states the count the feeds actually returned. Rows are not invented, and a shorter live result is not topped up with an older list. Crypto projections stay paused. `CRYPTO_SANITY_RATIO` stays 3. Reviewed FX stays ±5%. No new database columns. Auth, mail, login, register, security headers, consent, apex, and `next.config` were not edited. Nothing was published. No Totalum AI Pull. No GST change. Public copy says AI only.
+
+### Feeds checked on 10 Oct 2026
+
+- CoinGecko `GET /api/v3/coins/markets` (`per_page` max 250, `order=market_cap_desc`): page 1 returned 250 and page 2 returned 250 (ranks through the high 400s). Two pages cover a top 400. Demo plan, when a key is set, is 100 calls/minute and 10,000 calls/month, with attribution required (“Powered by CoinGecko”, at least 10pt, no partnership or official-source claim). The commercial licence column on the pricing page is on paid plans. This branch does not claim a licence. Keyless calls answered here; a 429 backs off for 60 seconds.
+- GeckoTerminal public API: 30 calls/minute. Trending pools and network top pools return 20 pools per page. Page 11 returns HTTP 401 (“allowed max number for page (10)”) unless the caller is on an Analyst plan. Ten pages times 20 pools is the public cap per list, before dedupe and the reserve floor, so 400 unique DEX tokens is not guaranteed.
+- Swyftx `GET /markets/info/basic/` answered keyless with 618 assets (587 ranked after fiat was removed). `SWYFTX_API_KEY` is optional. Production reads it from Totalum env vars. This workspace does not have the key. When the variable is set, the server POSTs it to Swyftx `/auth/refresh/`, caches the access token in the server process, and never logs the key or the token. When the variable is absent or the refresh is rejected, the public routes are used with no Authorization header. Tests mock those responses. Swyftx terms §3.5 say market data is for personal use and is not to be published without written approval. `SWYFTX_PUBLIC_DISPLAY` defaults off, so that list is not shown and is not used to fill the public tab. Flip the flag only after written approval.
+
+### Crypto tab
+
+- Status: partial until a live `/markets?tab=crypto` confirms the count. The list is CoinGecko page 1 then page 2. While `SWYFTX_PUBLIC_DISPLAY` is off, that backup list is not merged. Yahoo majors are used when the earlier list is empty. A cold read waits at most 3 seconds and keeps a snapshot for 60 seconds. A failed refresh waits 60 seconds. The table pages 25 rows at a time.
+- Files: `src/lib/crypto-coverage.ts`, `src/lib/crypto-list.ts`, `src/lib/crypto-source.ts`, `src/lib/crypto-coingecko.ts`, `src/lib/crypto-swyftx.ts`, `src/components/dashboard/MarketsExplorer.tsx`, `src/components/dashboard/MarketsPageContent.tsx`
+- URL / steps: `npm test` on `src/lib/crypto-swyftx.test.ts`, `src/lib/crypto-list.test.ts`, `src/lib/crypto-coverage.test.ts`, and `src/lib/crypto-resilience.test.ts`. The Swyftx test uses a fake key and mocked `/auth/refresh/`, `/markets/info/basic/`, and `/live-rates/` responses. It does not call Swyftx. Then open `/markets?tab=crypto`. Read the line under the search, the “Powered by CoinGecko” line (body text, not a tiny caption), and the pager. With no `SWYFTX_API_KEY`, the CoinGecko list still loads.
+- Expected, CoinGecko returns 400: the line is `The top 400 coins by market cap`. There is no short-list notice.
+- Expected, the feeds return N under 400: the line is `Showing N of up to 400`. The notice names the shortfall. The table does not add blank or repeated rows to reach 400.
+
+### DEX tab
+
+- Status: partial until a live `/markets?tab=dex` confirms the count. GeckoTerminal trending pools are fetched first, then top pools by 24-hour volume across chains, at most 10 pages each. Rows are deduped by token address. A pool is listed only when its USD reserve is at least 10,000. Two prices for the same token that differ by more than 3× keep the deeper reserve. A cold read stays inside 3 seconds (five calls). The next batch waits 60 seconds, under the 30 calls/minute public limit. The same 25-row pager is used.
+- Files: `src/lib/crypto-dex.ts`, `src/lib/crypto-coingecko.ts`, `src/app/api/crypto/dex/route.ts`, `src/hooks/useDexMarkets.ts`
+- URL / steps: open `/markets?tab=dex`. Read the button, the line under the search, and “Powered by GeckoTerminal”.
+- Expected, 400 tokens clear the floor: the button is `DEX top 400` and the line is `Top 400 DEX tokens by 24-hour volume · GeckoTerminal`.
+- Expected, N under 400: the line is `Showing N of up to 400`. While further pages can still load, the notice ends with `Further rows are still loading.` When a 429 stops the walk, the notice says the rate limit stopped the list. The button is `DEX top N`, or `DEX` when N is 0. Zero uses `Showing 0 of up to 400`.
+
+### Live prices when a feed fails — 11 Oct 2026
+
+- Status: partial until a signed-out visit to `/markets` and `/markets/crypto/bitcoin` confirms the first HTML contains a price. The chain and the last-good label are covered by `src/lib/crypto-price-chain.test.ts`.
+- Files: `src/lib/crypto-price-chain.ts`, `src/lib/crypto-price-feed.ts`, `src/components/markets/PublicCryptoPrices.tsx`, `src/components/markets/PublicMarketTables.tsx`, `src/app/markets/crypto/[id]/page.tsx`, `src/lib/public-market-index.ts`
+- Chain, in order: CoinGecko, then Swyftx only when `SWYFTX_PUBLIC_DISPLAY` is on, then Kraken public ticker, Coinbase Exchange public ticker, Yahoo Finance for mapped symbols only. DEX quotes ask GeckoTerminal first, and only pools with a USD reserve of at least 10,000. Binance, CoinPaprika, and CoinCap are not called. A guessed Yahoo symbol is not published. Google Finance is not called for these quotes.
+- Each provider has a 2.5s timeout. Two failures open that provider for 60 seconds. A price more than 3× from the last good price, or from another source in the same read, is dropped. When every provider fails, the page shows the last good price, the source name, and the as-of time, with the words `last good price`. It does not show zero, a blank price, or a stuck Loading state.
+- A warm snapshot is returned immediately. A background refresh runs about every 60 seconds, and a cold read waits at most 3 seconds. The first page of Crypto and DEX is in the HTML, and the interactive table uses those rows until the client list arrives.
+- URL / steps: `npm test` on `src/lib/crypto-price-chain.test.ts`. Then open `/markets?tab=crypto` and `/markets/crypto/bitcoin` while signed out. Read the price line in the first HTML.
+- Expected: the line names the coin, a non-zero price, `as of`, and the source. After a failed refresh the same line also says `last good price`. It does not say `Price not in this response` and it does not sit on `Loading`.
+- `SWYFTX_PUBLIC_DISPLAY` defaults off. While it is off, Swyftx prices, labels, list rows, charts, and API bodies are not shown. Production reads `SWYFTX_API_KEY` from Totalum env vars. Flip the display flag only after Swyftx’s written approval under terms §3.5.
 ## Weekly paid email — 11 Oct 2026
 
 Marker: `pull-check:weekly-email-2026-10-11`

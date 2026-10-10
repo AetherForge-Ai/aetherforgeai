@@ -3,18 +3,23 @@ import { describe, expect, it } from "vitest";
 import { clientFacingError, parseApiBody } from "@/lib/api-json";
 import { dexBody, marketsBody } from "@/lib/crypto-api-body";
 import {
+  DEX_BACKOFF_MS,
   DEX_COLD_BUDGET_MS,
   DEX_FILL_CONCURRENCY,
   DEX_FURTHER_NOTICE,
+  DEX_LIQUIDITY_FLOOR_USD,
   DEX_NETWORKS,
   DEX_PAGE_CAP,
   DEX_POOLS_PER_PAGE,
   DEX_STALE_MS,
+  DEX_TRENDING,
   dedupeDexTokens,
   dexCallWaitMs,
   dexListNotice,
   dexNetworkLabel,
+  dexPricesAgree,
   dexResponseCacheControl,
+  dexRowClearsFloor,
   freshDexRows,
   mergeDexLists,
   nextDexTarget,
@@ -187,6 +192,7 @@ function dexRow(
     network,
     dex: "uniswap_v2",
     detailId: null,
+    reserveUsd: 50_000,
   };
 }
 
@@ -207,9 +213,9 @@ describe("DEX page store", () => {
   });
 
   it("keeps an honest notice while a fresh list is under 400", () => {
-    expect(dexListNotice(0)).toMatch(/This list is 0, not 400/);
-    expect(dexListNotice(1)).toBe(`GeckoTerminal returned 1 tokens, not 400. ${DEX_FURTHER_NOTICE}`);
-    expect(dexListNotice(33, true)).toBe("GeckoTerminal returned 33 tokens, not 400. The rate limit stopped the list.");
+    expect(dexListNotice(0)).toMatch(/Showing 0 of up to 400/);
+    expect(dexListNotice(1)).toBe(`Showing 1 of up to 400. ${DEX_FURTHER_NOTICE}`);
+    expect(dexListNotice(33, true)).toBe("Showing 33 of up to 400. The rate limit stopped the list.");
     expect(dexListNotice(399)).toContain("399");
     expect(dexListNotice(400)).toBeNull();
   });
@@ -239,8 +245,11 @@ describe("DEX page store", () => {
 
   it("fills a missing page, skips past an empty page, and does not refetch once 400 are fresh", () => {
     const pages = [stored("eth", 1, now, [dexRow("BULL", 1)])];
-    expect(nextDexTarget(pages, now)).toEqual({ network: "solana", page: 1 });
-    const stale = [stored("eth", 1, now - DEX_STALE_MS - 1, [dexRow("OLD", 9)])];
+    expect(nextDexTarget(pages, now)).toEqual({ network: DEX_TRENDING, page: 1 });
+    const stale = [
+      stored(DEX_TRENDING, 1, now, [dexRow("NEW", 1)]),
+      stored("eth", 1, now - DEX_STALE_MS - 1, [dexRow("OLD", 9)]),
+    ];
     expect(nextDexTarget(stale, now)).toEqual({ network: "eth", page: 1 });
     const emptyEth = [stored("eth", 1, now, [])];
     expect(nextDexTarget(emptyEth, now)?.network).not.toBe("eth");
@@ -257,6 +266,23 @@ describe("DEX page store", () => {
     expect(dexCallWaitMs(burst, now)).toBeLessThanOrEqual(60_000);
   });
 
+  it("drops a pool under the liquidity floor and keeps the deeper reserve when prices disagree", () => {
+    const dust = { ...dexRow("DUST", 1, 9_000), reserveUsd: 100 };
+    const deep = { ...dexRow("DEEP", 2, 100), reserveUsd: DEX_LIQUIDITY_FLOOR_USD };
+    expect(dexRowClearsFloor(dust)).toBe(false);
+    expect(dexRowClearsFloor(deep)).toBe(true);
+    const rows = freshDexRows([stored("eth", 1, now, [dust, deep])], now);
+    expect(rows.map((row) => row.symbol)).toEqual(["DEEP"]);
+    expect(dexPricesAgree(1, 3)).toBe(true);
+    expect(dexPricesAgree(1, 4)).toBe(false);
+    const calm = { ...dexRow("WETH", 100, 10), address: "eth_0x1", reserveUsd: 20_000 };
+    const wild = { ...dexRow("WETH", 1_000, 50_000), address: "eth_0x1", reserveUsd: 80_000 };
+    const kept = dedupeDexTokens([calm, wild], 400);
+    expect(kept).toHaveLength(1);
+    expect(kept[0].price).toBe(1_000);
+    expect(kept[0].reserveUsd).toBe(80_000);
+  });
+
   it("dedupes by token address and keeps the same symbol on two chains", () => {
     const eth = { ...dexRow("WETH", 3000, 100, "Ethereum"), address: "eth_0xaaa" };
     const sol = { ...dexRow("WETH", 2990, 50, "Solana"), address: "solana_bbb" };
@@ -269,15 +295,17 @@ describe("DEX page store", () => {
 
   it("fetches several networks inside a 3 second budget and does not shrink on a 429", () => {
     expect(DEX_POOLS_PER_PAGE).toBe(20);
-    expect(DEX_PAGE_CAP).toBeGreaterThanOrEqual(20);
+    expect(DEX_PAGE_CAP).toBe(10);
+    expect(DEX_BACKOFF_MS).toBe(60_000);
+    expect(DEX_LIQUIDITY_FLOOR_USD).toBe(10_000);
     expect(DEX_FILL_CONCURRENCY).toBeGreaterThanOrEqual(4);
     expect(DEX_FILL_CONCURRENCY).toBeLessThanOrEqual(6);
     expect(DEX_COLD_BUDGET_MS).toBeLessThanOrEqual(3_000);
     const jobs = takeDexJobs([], now, {}, DEX_FILL_CONCURRENCY);
     expect(jobs).toHaveLength(DEX_FILL_CONCURRENCY);
     expect(jobs.every((job) => job.page === 1)).toBe(true);
-    expect(new Set(jobs.map((job) => job.network)).size).toBe(DEX_FILL_CONCURRENCY);
-    expect(jobs.map((job) => job.network)).toEqual(DEX_NETWORKS.slice(0, DEX_FILL_CONCURRENCY));
+    expect(jobs[0]).toEqual({ network: DEX_TRENDING, page: 1 });
+    expect(jobs.slice(1).map((job) => job.network)).toEqual(DEX_NETWORKS.slice(0, DEX_FILL_CONCURRENCY - 1));
     const previous = Array.from({ length: 40 }, (_, index) => ({
       ...dexRow(`T${index}`, 1, 10),
       address: `eth_0x${index}`,
@@ -303,11 +331,11 @@ describe("DEX page store", () => {
     if (filling.ok) {
       expect(filling.data).toEqual([]);
       expect(filling.total).toBe(0);
-      expect(filling.notice).toMatch(/This list is 0, not 400/);
+      expect(filling.notice).toMatch(/Showing 0 of up to 400/);
     }
     const partial = dexBody([{ symbol: "SOL" }], { collecting: true });
     expect(partial.ok).toBe(true);
-    if (partial.ok) expect(partial.notice).toMatch(/returned 1 tokens, not 400/);
+    if (partial.ok) expect(partial.notice).toMatch(/Showing 1 of up to 400/);
     const ready = dexBody(Array.from({ length: 400 }, (_, index) => ({ symbol: `T${index}` })), { collecting: true });
     expect(ready.ok).toBe(true);
     if (ready.ok) expect(ready.notice).toBeNull();

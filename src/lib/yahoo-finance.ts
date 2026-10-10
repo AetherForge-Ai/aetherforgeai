@@ -1,7 +1,7 @@
 /**
  * Yahoo Finance live-quote provider — SERVER-ONLY, KEYLESS.
  *
- * Yahoo's public chart endpoint (v8) returns real-time quotes for equities
+ * Yahoo's public chart endpoint (v8) returns quotes for equities
  * (NZX `.NZ`, ASX `.AX`, US), crypto (`BTC-USD`) and metals futures (`GC=F`,
  * `SI=F`) with NO API key — the same figures Google surfaces for a symbol. We
  * use it as the DEFAULT live source so the home-page ticker, dashboard and
