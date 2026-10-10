@@ -114,7 +114,7 @@ export function BotShowcase() {
       <div className="text-center">
         <p className="text-sm font-medium uppercase tracking-[0.2em] text-primary">The core of AetherForge</p>
         <h2 className="mt-3 font-grift-black text-3xl tracking-tight text-amber-400 md:text-4xl">
-          3 AI bots that research the markets with you
+          Three AI bots research the markets with you
         </h2>
         <p className="mx-auto mt-4 max-w-2xl text-muted-foreground">
           Stox monitors stock markets, Koins monitors crypto, and The Headmaster is the goal-planning bot. {SMITTY_ROLE_LINE} Reports are informational scenarios. AetherForge does not trade for you.
