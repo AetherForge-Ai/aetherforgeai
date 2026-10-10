@@ -15,6 +15,8 @@ Markers:
 - `pull-check:research-retest-2026-10-11`
 - `pull-check:tax-fixups-2026-10-11`
 - `pull-check:address-removed-2026-10-11`
+- `pull-check:weekly-email-2026-10-11`
+- `pull-check:stock-markets-full-2026-10-11`
 
 Branch: `cursor/qa-m10-m15-l6-l17-b236`
 PR: https://github.com/AetherForge-Ai/aetherforgeai/pull/247
@@ -1001,6 +1003,21 @@ These pages identify the company and do not state a registered office or an addr
 - Privacy, section 13 Complaints & contact. Emails only.
 - Trust. Emails only. No postal address.
 - Organization JSON-LD in the root layout. The postal address block was removed. That block was structured data, not a statutory notice.
+
+## Stock markets — full lists
+
+- Marker: `pull-check:stock-markets-full-2026-10-11`
+- Status: fixed on this branch. Not merged.
+- Files: `src/lib/stock-markets.ts`, `src/lib/stock-catalog.ts`, `src/lib/stock-board.server.ts`, `src/app/api/all-markets/route.ts`, `src/components/dashboard/MarketsExplorer.tsx`, `src/lib/public-market-index.ts`, `src/lib/sitemap-tickers.ts`, `docs/stock-market-sources-2026-10-11.md`
+- Source comment: `pull-check:stock-markets-full-2026-10-11` in `src/lib/stock-markets.ts` and `src/app/api/all-markets/route.ts`.
+- URL / steps:
+  1. Signed out, open `/markets`. Read NZX, ASX, Dow Jones, NASDAQ, and NYSE.
+  2. Each stock board shows `Showing N of M listed`, or the NYSE sentence that names the directory count. NZX is `Showing 60 of 178 listed`. ASX is `Showing 212 of 1923 listed`. Dow Jones is `Showing 30 of 30 listed`. NASDAQ is `Showing 4376 of 5622 listed`. NASDAQ and NYSE notes say `includes funds and other security types; type not stated by the source`.
+  3. A price cell is a currency amount with a source and an as-of time, or the words `Not in this response`. It is not `0.00`, not blank, and the page does not stay on `Loading the list…`.
+  4. Use Next on NASDAQ. Search `FBU` on NZX and open Fletcher Building. The ticker page names Fletcher Building and the Materials list on NZX, and either a price with an as-of time or `Price not in this response.` Open a US name whose sector is not stated. The sentence names the company and the exchange and does not say `Not stated`.
+  5. Open `/sitemap.xml` and confirm `/markets/stock/FBU.NZ`, `/markets/stock/NVDA`, and `/markets/stock/JPM` are listed. Confirm `/markets/stock/AACIU` and `/markets/stock/AACIW` are absent. The file stays under 50,000 URLs. A US page with no quote in the response sends `noindex` and still returns the page.
+  6. Run `npx vitest run src/lib/stock-markets.test.ts`. The provider tests hang Yahoo, throw Twelve Data, and reject a zero price. The saved print stays.
+- Expected: the counts above. Delay labels stay `Delayed` or `Delayed ~20 min` for NZX and ASX. They do not say real-time, official, or licensed. Crypto projections stay paused. The reviewed FX guard in `src/lib/fx.ts` is unchanged.
 
 ## Weekly email unsubscribe confirmation — 11 Oct 2026
 

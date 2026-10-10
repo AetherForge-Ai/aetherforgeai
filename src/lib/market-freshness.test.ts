@@ -34,8 +34,8 @@ describe("equity freshness", () => {
     const quoted = new Date("2026-10-07T01:14:00.000Z");
     expect(equityFreshnessLabel("NZX", NZX_OPEN, quoted).label).toBe("Delayed ~20 min · NZX · quote 2:14 pm NZDT");
     expect(equityFreshnessLabel("NZX", NZX_OPEN).label).toBe("Delayed ~20 min · NZX");
-    expect(equityFreshnessLabel("ASX", ASX_OPEN).label).toBe("Delayed · ASX");
-    expect(equityFreshnessLabel("ASX", ASX_OPEN, ASX_OPEN).label).toMatch(/^Delayed · ASX · quote /);
+    expect(equityFreshnessLabel("ASX", ASX_OPEN).label).toBe("Delayed ~20 min · ASX");
+    expect(equityFreshnessLabel("ASX", ASX_OPEN, ASX_OPEN).label).toMatch(/^Delayed ~20 min · ASX · quote /);
     expect(equityFreshnessLabel("US", US_OPEN).label).toBe("Delayed · US");
     expect(equityFreshnessLabel("US", US_OPEN, US_OPEN).label).toBe("Delayed · US · quote 10:00 am New York");
     expect(equityFreshnessLabel("US", US_OPEN, US_OPEN).label).not.toContain("GMT");
