@@ -39,6 +39,7 @@ const PUBLIC_DOCUMENT_ROUTES = [
   "/stox",
   "/koins",
   "/smitty",
+  "/headmaster",
   "/buy-the-bots",
   "/stripe/demo",
   "/stripe/success",
@@ -51,7 +52,6 @@ const MEMBER_DOCUMENT_ROUTES = [
   "/account",
   "/profile",
   "/onboarding",
-  "/headmaster",
   "/totalum",
   "/billing",
 ];

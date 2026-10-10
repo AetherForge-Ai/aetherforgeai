@@ -1,7 +1,8 @@
-import { redirect } from "next/navigation";
+import { BotGuide } from "@/components/public/BotGuide";
 import { getCurrentUser, isStripeConfigured } from "@/lib/session";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { headmasterDepth } from "@/lib/entitlements";
+import { BOT_GUIDES } from "@/lib/bot-guides";
 import { AppShell } from "@/components/AppShell";
 import { TotalumConsole } from "@/components/totalum/TotalumConsole";
 
@@ -18,7 +19,19 @@ export const metadata = publicPageMetadata("/headmaster", {
  */
 export default async function HeadmasterPage() {
   const user = await getCurrentUser();
-  if (!user) redirect("/login?redirect=/headmaster");
+  if (!user) {
+    return (
+      <BotGuide
+        title="The Headmaster"
+        lede="The Headmaster is the planning bot for the paper book. Signed-out visitors see this explanation and an example book. The member console stays behind sign-in."
+        body={BOT_GUIDES.headmaster}
+        images={[
+          { src: "/brand/bot-headmaster-fullbody.png", alt: "Illustration of the Headmaster character" },
+          { src: "/brand/aetherforge-mark.png", alt: "AetherForge mark" },
+        ]}
+      />
+    );
+  }
 
   // Any logged-in member can open the page. Free sees the upsell when Stripe is
   // configured. Starter gets the basic desk. Demo mode (no Stripe key) stays open.
