@@ -7,6 +7,7 @@
  * TODO(owner): have a qualified NZ adviser check the re-issued Terms, Privacy Policy and AI Disclaimer.
  */
 
+import { dexscreenerPublicDisplay } from "@/lib/dexscreener-display";
 import { swyftxPublicDisplay } from "@/lib/swyftx-display";
 
 /** pull-check:track-b-p0-2026-10-11 */
@@ -188,10 +189,13 @@ function marketProcessors(): { name: string; role: string }[] {
     { name: "Yahoo Finance", role: "prices for NZX-listed, ASX-listed and US shares, and mapped crypto quotes" },
     { name: "GeckoTerminal", role: "DEX token prices" }
   );
+  if (dexscreenerPublicDisplay()) {
+    rows.push({ name: "DexScreener", role: "DEX token prices when that feed is shown" });
+  }
   return rows;
 }
 
-/** Request-time processor list. Swyftx is included only when SWYFTX_PUBLIC_DISPLAY is on. */
+/** Request-time processor list. Swyftx and DexScreener are included only when their display flags are on. */
 export function PROCESSORS(): { name: string; role: string }[] {
   return [
     { name: "Cloudflare", role: "public site and network" },

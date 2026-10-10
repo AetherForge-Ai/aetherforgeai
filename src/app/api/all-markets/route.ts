@@ -12,6 +12,7 @@ export const dynamic = "force-dynamic";
  * "Not in this response". Directory seed prices are not used.
  *
  * pull-check:stock-markets-full-2026-10-11
+ * pull-check:retest4-2026-10-11
  */
 export async function GET(req: Request) {
   try {
@@ -26,6 +27,7 @@ export async function GET(req: Request) {
     const page = await loadStockBoardPage(parsed.exchange, {
       page: parseAllMarketsPage(url.searchParams.get("page")),
       query: url.searchParams.get("q") || "",
+      includeDerivatives: url.searchParams.get("derivatives") === "1",
     });
     const quotedCount = page.rows.filter((row) => row.quoted).length;
     return NextResponse.json({
@@ -45,6 +47,8 @@ export async function GET(req: Request) {
         note: page.note,
         asOf: page.asOf,
         freshness: page.freshness,
+        unpricedCount: page.unpricedCount,
+        footnote: page.footnote,
         rows: page.rows.map((row) => ({
           ticker: row.ticker,
           symbol: row.symbol,
@@ -69,6 +73,8 @@ export async function GET(req: Request) {
           freshness: row.quoted ? `${row.asOf} · ${row.source}` : row.priceLabel,
         })),
       },
+    }, {
+      headers: { "Cache-Control": "public, max-age=15, s-maxage=30, stale-while-revalidate=120" },
     });
   } catch (err: unknown) {
     console.error("[api/all-markets] GET error:", err);

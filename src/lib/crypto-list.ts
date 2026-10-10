@@ -1,8 +1,10 @@
 /**
  * Merge priced crypto rows from more than one feed.
  * Dedupe by symbol and by contract. Cap at 400. Never invent a row.
+ * Kraken and Coinbase are not inputs. They do not replace this list.
  *
  * pull-check:crypto-dex-400-2026-10-11
+ * pull-check:retest4-2026-10-11
  */
 
 import { MARKET_LIST_TARGET } from "@/lib/crypto-coverage";
@@ -116,4 +118,28 @@ export function mergeRankedCoins(lists: CoinMarket[][], limit = MARKET_LIST_TARG
       return (a.rank ?? 999999) - (b.rank ?? 999999);
     })
     .slice(0, Math.max(0, limit));
+}
+
+/**
+ * CoinGecko pages stay the list when they have any priced coin.
+ * A later feed fills symbols that are missing. It does not replace the pages.
+ * Yahoo is used only when CoinGecko and the optional backup list are empty.
+ */
+export function selectListedMarkets(input: {
+  coingecko: CoinMarket[];
+  page2Missing: boolean;
+  backup: CoinMarket[];
+  yahoo: CoinMarket[];
+}): { coins: CoinMarket[]; reason: "page2" | "backup" | "short" | null } {
+  const cg = (input.coingecko || []).filter(coinHasLivePrice);
+  if (cg.length) {
+    const merged = mergeRankedCoins([cg, input.backup || []]);
+    if (merged.length >= MARKET_LIST_TARGET) return { coins: merged, reason: null };
+    return { coins: merged, reason: input.page2Missing ? "page2" : "short" };
+  }
+  const backup = mergeRankedCoins([input.backup || []]);
+  if (backup.length) return { coins: backup, reason: "backup" };
+  const yahoo = mergeRankedCoins([input.yahoo || []]);
+  if (yahoo.length) return { coins: yahoo, reason: "backup" };
+  return { coins: [], reason: "short" };
 }

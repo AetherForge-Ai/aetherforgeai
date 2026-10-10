@@ -8,7 +8,6 @@ import {
   DEX_FILL_CONCURRENCY,
   DEX_FURTHER_NOTICE,
   DEX_LIQUIDITY_FLOOR_USD,
-  DEX_NETWORKS,
   DEX_PAGE_CAP,
   DEX_POOLS_PER_PAGE,
   DEX_STALE_MS,
@@ -250,7 +249,7 @@ describe("DEX page store", () => {
       stored(DEX_TRENDING, 1, now, [dexRow("NEW", 1)]),
       stored("eth", 1, now - DEX_STALE_MS - 1, [dexRow("OLD", 9)]),
     ];
-    expect(nextDexTarget(stale, now)).toEqual({ network: "eth", page: 1 });
+    expect(nextDexTarget(stale, now)).toEqual({ network: "trend:eth", page: 1 });
     const emptyEth = [stored("eth", 1, now, [])];
     expect(nextDexTarget(emptyEth, now)?.network).not.toBe("eth");
     expect(nextDexTarget(emptyEth, now)?.page).toBe(1);
@@ -305,7 +304,7 @@ describe("DEX page store", () => {
     expect(jobs).toHaveLength(DEX_FILL_CONCURRENCY);
     expect(jobs.every((job) => job.page === 1)).toBe(true);
     expect(jobs[0]).toEqual({ network: DEX_TRENDING, page: 1 });
-    expect(jobs.slice(1).map((job) => job.network)).toEqual(DEX_NETWORKS.slice(0, DEX_FILL_CONCURRENCY - 1));
+    expect(jobs.slice(1).map((job) => job.network)).toEqual(["trend:eth", "trend:solana", "trend:base", "trend:bsc"]);
     const previous = Array.from({ length: 40 }, (_, index) => ({
       ...dexRow(`T${index}`, 1, 10),
       address: `eth_0x${index}`,
