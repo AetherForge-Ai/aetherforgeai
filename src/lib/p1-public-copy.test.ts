@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { ANNUAL_SAVINGS_PCT } from "./plans";
+import { ANNUAL_SAVINGS_PCT, planIncludesToolkit } from "./plans";
 import {
   ANALYTICS_NOTICE,
   ENGINE_PARAGRAPH,
@@ -60,9 +60,23 @@ describe("P1 public copy", () => {
     expect(REFUND_FAQ).toMatch(/we'll make it right/);
     expect(REFUND_FAQ).not.toMatch(/14-day/);
     expect(read("src/components/pricing/FeatureComparison.tsx")).toContain("Transaction CSV export");
-    expect(read("src/components/pricing/FeatureComparison.tsx")).not.toContain("Excel investor toolkit");
+    expect(read("src/components/pricing/FeatureComparison.tsx")).toContain("Excel investor toolkit template");
+    expect(read("src/components/pricing/FeatureComparison.tsx")).toContain('"Yearly", "Yearly", "Yearly"');
+    expect(read("src/components/pricing/PricingCards.tsx")).toContain("Excel investor toolkit template");
     expect(read("src/app/terms-of-service/page.tsx")).toContain("LEDGER_EXPORT_LINE");
-    expect(read("src/lib/public-copy.ts")).toContain("An Excel workbook is not part of those plans");
+    expect(read("src/lib/public-copy.ts")).toContain("downloadable Excel investor toolkit template");
+    expect(read("src/lib/public-copy.ts")).not.toContain("figures already in the ledger");
+    expect(read("src/lib/public-copy.ts")).not.toContain("An Excel workbook is not part of those plans");
+    expect(planIncludesToolkit("starter_yearly")).toBe(true);
+    expect(planIncludesToolkit("pro_yearly")).toBe(true);
+    expect(planIncludesToolkit("ultimate_yearly")).toBe(true);
+    expect(planIncludesToolkit("yearly")).toBe(true);
+    expect(planIncludesToolkit("dual_yearly")).toBe(true);
+    expect(planIncludesToolkit("starter_monthly")).toBe(false);
+    expect(planIncludesToolkit("pro_monthly")).toBe(false);
+    expect(planIncludesToolkit("free")).toBe(false);
+    expect(read("src/app/api/downloads/toolkit/route.ts")).toContain("planIncludesToolkit");
+    expect(read("src/components/TopNav.tsx")).toContain("planIncludesToolkit");
     expect(read("src/components/pricing/PricingFAQ.tsx")).toContain("REFUND_FAQ");
     expect(read("src/components/pricing/PricingFAQ.tsx")).toContain("TRIAL_FAQ");
     expect(read("src/components/pricing/PricingCards.tsx")).toContain("TRIAL_CARD_LINE");
@@ -129,6 +143,9 @@ describe("P1 public copy", () => {
     expect(rendered).not.toMatch(/A past date suggests/);
     expect(rendered).not.toMatch(/until it is confirmed/i);
     expect(rendered).not.toMatch(/until the company confirms/i);
+    expect(rendered).not.toMatch(/pre-filled/i);
+    expect(rendered).not.toMatch(/pre-loaded/i);
+    expect(rendered).not.toMatch(/figures already in the ledger/i);
     expect(rendered).toContain("https://x.com/aetherforgeAi_");
     expect(rendered).toContain("https://www.facebook.com/profile.php?id=61591701002008");
     expect(rendered).toContain("https://www.linkedin.com/in/aether-forge-ai-27659b423/");

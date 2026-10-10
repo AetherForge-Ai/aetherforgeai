@@ -45,11 +45,11 @@ function SuccessContent() {
         </p>
 
         <div className="mt-5 rounded-2xl border border-[var(--gold)]/30 bg-[var(--gold)]/10 p-4 text-left">
-          <p className="text-sm font-semibold text-[var(--gold)]">Annual member perk</p>
+          <p className="text-sm font-semibold text-[var(--gold)]">Yearly plan</p>
           <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-            On an annual plan? Head to your dashboard to download your Professional Investor Toolkit —
-            working Excel Portfolio Tracker &amp; Transactions spreadsheets pre-filled with your
-            holdings.
+            On a yearly plan? From your dashboard you can download the Excel investor toolkit
+            template — a Portfolio Tracker and a Transactions spreadsheet. The file is a template.
+            It is not filled with your holdings.
           </p>
         </div>
 

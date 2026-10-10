@@ -300,7 +300,10 @@ export function PricingCards({
 
               {/* Highlights */}
               <ul className="mt-6 space-y-2.5">
-                {tier.highlights.map((h) => (
+                {(annual && !isFree
+                  ? [...tier.highlights, "Excel investor toolkit template"]
+                  : tier.highlights
+                ).map((h) => (
                   <li key={h} className="flex items-start gap-2.5 text-sm text-muted-foreground">
                     <span className="mt-0.5 grid size-4 shrink-0 place-items-center rounded-full bg-primary/15 text-primary">
                       <Check className="size-2.5" />

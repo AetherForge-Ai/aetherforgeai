@@ -6,10 +6,10 @@ import { toast } from "sonner";
 import { FileSpreadsheet, Download, Loader2, Table2, ListChecks, Gauge } from "lucide-react";
 
 /**
- * Annual-subscriber perk: a professional, working Excel investor toolkit
- * (Portfolio Tracker + Transactions ledger + Performance Summary) pre-filled
- * with the customer's own holdings. Only rendered for yearly / dual_yearly
- * subscribers; the download endpoint enforces the same entitlement server-side.
+ * Yearly-plan perk: a downloadable Excel investor toolkit template
+ * (Portfolio Tracker, Transactions ledger, Performance summary).
+ * The file is static. It is not filled from holdings or from the ledger.
+ * The download endpoint enforces the same yearly-plan check.
  */
 export function YearlyToolkit() {
   const [downloading, setDownloading] = useState(false);
@@ -20,7 +20,7 @@ export function YearlyToolkit() {
     try {
       const res = await fetch("/api/downloads/toolkit", { method: "GET" });
       if (!res.ok) {
-        let message = "Could not generate your toolkit.";
+        let message = "Could not download the toolkit template.";
         try {
           const body = (await res.json()) as { ok: boolean; error?: string };
           if (body?.error) message = body.error;
@@ -66,10 +66,10 @@ export function YearlyToolkit() {
             Your Professional Investor Toolkit
           </h2>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            As a yearly subscriber, you get our full suite of professional, ready-to-use Excel
-            spreadsheets — a <strong className="text-foreground/90">Portfolio Tracker</strong> and a{" "}
-            <strong className="text-foreground/90">Transactions ledger</strong> — pre-loaded with your
-            current holdings and powered by live formulas.
+            Yearly plans include a downloadable Excel investor toolkit template — a{" "}
+            <strong className="text-foreground/90">Portfolio Tracker</strong> and a{" "}
+            <strong className="text-foreground/90">Transactions ledger</strong>. The workbook is a
+            template with formulas. It is not filled with your holdings.
           </p>
           <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
             We strongly recommend you download this toolkit and use it every week to monitor your own
