@@ -4,7 +4,9 @@
  * The paper-book totals are the member's ledger, not a tax return.
  */
 
+import Link from "next/link";
 import { formatNzd, formatSignedMoney } from "@/lib/currency";
+import { TAX_INDICATIVE_LABEL } from "@/lib/tax-disclaimer";
 
 export type TaxBookFigures = {
   dividendsNzd: number;
@@ -41,8 +43,30 @@ export function TaxPageContent({ book = null }: { book?: TaxBookFigures | null }
       <h1 className="mt-2 font-display text-3xl font-bold">Tax</h1>
       <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
         This is general information and not personal tax advice. Last reviewed 8 Oct 2026.
-        AetherForge does not yet produce tax reports.
       </p>
+      <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{TAX_INDICATIVE_LABEL}</p>
+      <ul className="mt-4 list-disc space-y-1 pl-5 text-sm">
+        <li>
+          <Link href="/tax/dividends" className="text-primary underline-offset-4 hover:underline">
+            Dividend ledger
+          </Link>
+        </li>
+        <li>
+          <Link href="/tax/income" className="text-primary underline-offset-4 hover:underline">
+            Taxable income
+          </Link>
+        </li>
+        <li>
+          <Link href="/tax/fif" className="text-primary underline-offset-4 hover:underline">
+            FIF working paper
+          </Link>
+        </li>
+        <li>
+          <Link href="/tax/realised" className="text-primary underline-offset-4 hover:underline">
+            Realised profit and loss
+          </Link>
+        </li>
+      </ul>
       {book ? (
         <section className="mt-6 space-y-2 rounded-2xl border border-border/70 bg-card/40 p-4">
           <h2 className="font-display text-lg font-semibold">Your paper book</h2>

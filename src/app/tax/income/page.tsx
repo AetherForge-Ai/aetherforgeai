@@ -156,7 +156,13 @@ export default async function TaxableIncomePage({
         <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
           <li>This paper reads up to 5,000 ledger rows.</li>
           <li>A dividend saved without a breakdown is shown as cash only and is not added to gross.</li>
-          <li>Realised amounts are the figures stored on the sell, not a separate FIFO working.</li>
+          <li>
+            Realised amounts are the figures stored on the sell. The FIFO paper is the{" "}
+            <Link href="/tax/realised" className="text-primary underline-offset-4 hover:underline">
+              realised profit and loss
+            </Link>{" "}
+            page.
+          </li>
         </ul>
 
         <div className="mt-6 flex flex-wrap items-center gap-2 print:hidden">

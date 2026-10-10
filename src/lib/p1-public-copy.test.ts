@@ -55,6 +55,9 @@ describe("P1 public copy", () => {
       "src/app/tax/fif/page.tsx",
       "src/components/tax/FifWorkingPaper.tsx",
       "src/lib/fif-working-paper.ts",
+      "src/components/tax/TaxPageContent.tsx",
+      "src/app/tax/realised/page.tsx",
+      "src/lib/tax-realised.ts",
       "src/components/pricing/PricingCards.tsx",
       "src/components/pricing/PricingFAQ.tsx",
     ]) {

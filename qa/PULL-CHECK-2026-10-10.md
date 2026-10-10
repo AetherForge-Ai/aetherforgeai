@@ -735,7 +735,7 @@ Branch `cursor/track-b-p0-bb35` from develop `87dfce1`. PR https://github.com/Ae
 
 ## Track B item 2
 
-NZ tax pack. Draft PRs only. Nothing here publishes, sends email, or removes a Stox, Koins, or Headmaster list. Crypto projections stay paused. Prices stay NZ$0 / NZ$16 / NZ$49 / NZ$199. No new database columns. Marker `pull-check:track-b-2-2026-10-11` is in `src/lib/dividend-ledger.ts`, `src/lib/tax-disclaimer.ts`, `src/lib/nz-tax-year.ts`, `src/lib/taxable-income.ts`, `src/lib/fif-working-paper.ts`, and the Markers list above.
+NZ tax pack. Draft PRs only. Nothing here publishes, sends email, or removes a Stox, Koins, or Headmaster list. Crypto projections stay paused. Prices stay NZ$0 / NZ$16 / NZ$49 / NZ$199. No new database columns. Marker `pull-check:track-b-2-2026-10-11` is in `src/lib/dividend-ledger.ts`, `src/lib/tax-disclaimer.ts`, `src/lib/nz-tax-year.ts`, `src/lib/taxable-income.ts`, `src/lib/fif-working-paper.ts`, `src/lib/tax-realised.ts`, and the Markers list above.
 
 ### TB-2a — dividend ledger
 
@@ -773,5 +773,19 @@ NZ tax pack. Draft PRs only. Nothing here publishes, sends email, or removes a S
 - Expected, an empty book says `No attributing overseas shares on this book.` It does not say the cost is under NZ$50,000.00.
 - Expected, saving market values changes only `stock.notes`, in the form `[FIFMV:2027:o=1800.00;c=2000.00]`. The rest of the note stays. The page does not show `[FIFMV:`. The page says `Indicative, not tax advice.`
 - Sources on the page: Inland Revenue foreign investment funds, the exemptions page, the section CQ 5 article, TDS 26/01, and TDS 23/13.
-- Checked on this branch: `npm run check-types-errors` passed. eslint on the TB-2c source files passed. `npm test` 105 files, 514 tests passed. `npm run build` passed (Next.js 15.3.9). A local `next start` of `/tax/fif` returned the indicative label, the FIF title, a sign-in link, and the Inland Revenue foreign investment funds link. It did not contain a sample cost or `[FIFMV:`. `/tax` still contains "does not yet produce tax reports". Nothing was published. No email was sent.
+- Checked on this branch: `npm run check-types-errors` passed. eslint on the TB-2c source files passed. `npm test` 105 files, 514 tests passed. `npm run build` passed (Next.js 15.3.9). A local `next start` of `/tax/fif` returned the indicative label, the FIF title, a sign-in link, and the Inland Revenue foreign investment funds link. It did not contain a sample cost or `[FIFMV:`. `/tax` still contains "does not yet produce tax reports" until TB-2d. Nothing was published. No email was sent.
+
+### TB-2d — realised profit and loss
+
+- Status: in this draft
+- Files: `src/lib/tax-realised.ts`, `src/lib/tax-realised.test.ts`, `src/app/tax/realised/page.tsx`, `src/app/api/tax/realised/export/route.ts`, `src/components/tax/TaxPageContent.tsx`
+- URL / steps: signed in, open `/tax/realised`. Choose `1 Apr 2026 to 31 Mar 2027`. Export the CSV. Then open `/tax` and confirm the old sentence is gone.
+- Expected, FBU.NZ buy 10 at NZ$2.00 on 1 May 2026, buy 10 at NZ$3.00 on 1 Jun 2026, sell 15 at NZ$4.00 on 1 Aug 2026, rate 1.0000, sell fee NZ$0.00: price gain NZ$25.00, FX gain NZ$0.00, realised NZ$25.00. Working: 10 × (4.00 − 2.00) = 20.00, plus 5 × (4.00 − 3.00) = 5.00.
+- Expected, the same sell with a sell fee of NZ$1.00: price gain stays NZ$25.00 and realised is NZ$24.00. Buy fees are not added on top of the stored buy price.
+- Expected, ETH buy 2 at US$100.00 rate 1.6000 on 2 Apr 2026, sell 1 at US$150.00 rate 1.7000 on 1 Sep 2026: price gain NZ$85.00 (1 × (150 − 100) × 1.7000), FX gain NZ$10.00 (1 × 100 × (1.7000 − 1.6000)), realised NZ$95.00. Crypto is in its own section.
+- Expected, both books in the year ending 31 Mar 2027: other total NZ$25.00, crypto total NZ$95.00, combined NZ$120.00. The CSV combined line is `1 Apr 2026 to 31 Mar 2027,,,combined,,,,,120.00,"Indicative, not tax advice."`
+- Expected, the remaining 5 FBU.NZ sold on 1 Apr 2027 at NZ$4.00 stay in the year ending 31 Mar 2028, realised NZ$5.00. They are not in the 2027 combined total. A correction row is not replayed.
+- Expected, a foreign buy with no stored rate makes the later sell blank, not NZ$0.00, and that blank is not added into the total.
+- Expected, `/tax` no longer says it does not yet produce tax reports. `/tax`, `/tax/dividends`, `/tax/income`, `/tax/fif` and `/tax/realised` each show `Indicative, not tax advice.` The taxable-income page still says its realised column is the amount stored on the sell, and it links to this FIFO paper.
+- CSV uses the same paid-plan gate as the transaction export. That gate is left for Lukas.
 
