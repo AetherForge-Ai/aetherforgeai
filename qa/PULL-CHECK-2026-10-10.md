@@ -915,3 +915,45 @@ Branch `cursor/tax-fixups-4f33` from develop. One draft pull request into `devel
 - URL / steps: sign in on a new account whose name is `QA`. Open `/dashboard` with no open share positions, including a book whose only stock rows have zero shares.
 - Expected: the greeting is `Welcome`, not `Welcome back, QA`. A saved real first name is used, for example `Welcome, Jane`. The Your holdings header says `No open positions` when the table is empty, and `1 position` when there is one. Header cash updates when a sell dialog closes, without a reload.
 
+## Weekly paid email — 11 Oct 2026
+
+Marker: `pull-check:weekly-email-2026-10-11`
+
+Source comment: `pull-check:weekly-email-2026-10-11` in `src/lib/weekly-email.ts`, `src/lib/weekly-email-copy.ts`, `src/lib/weekly-email-live.ts`, `src/app/api/cron/weekly-email/route.ts`, `src/app/api/weekly-email/unsubscribe/route.ts`, and `src/app/api/admin/weekly-email/preview/route.ts`.
+
+Branch `cursor/weekly-paid-email-042e` from develop. One draft pull request into `develop`. Nothing was published. No Totalum AI Pull. No email was sent. Auth, login, register, security headers, consent, apex, and `next.config.ts` were not edited. No new database columns. Public copy says "AI" only. Crypto projections stay paused (`CRYPTO_PROJECTIONS_PAUSED` remains true).
+
+### What it does
+
+- Status: built, hard off
+- Files: `src/lib/weekly-email.ts`, `src/lib/weekly-email-copy.ts`, `src/lib/weekly-email-live.ts`, `src/lib/weekly-email.test.ts`, `src/app/api/cron/weekly-email/route.ts`, `src/app/api/weekly-email/unsubscribe/route.ts`, `src/app/api/admin/weekly-email/preview/route.ts`, `src/app/api/watchlist/route.ts`, `src/lib/public-copy.ts`, `src/app/privacy-policy/page.tsx`
+- URL / steps:
+  1. `npm test -- src/lib/weekly-email.test.ts`
+  2. With `WEEKLY_EMAIL_SEND` unset, `GET /api/cron/weekly-email` with the cron secret returns `sender: "off"` and `sent: 0`. A call with no secret is 401 or 503. It does not send.
+  3. Sign in as `lukas@aetherforgeai.co.nz` and open `/api/admin/weekly-email/preview`. The page says `Preview only. This was not sent.` Another account gets 404. Do not add `ai=1` unless you mean to spend one completion.
+  4. Open `/privacy-policy` and `/trust`. The weekly email sentence names the holding count, NZ$ totals, cash, allocation weights, and each holding's ticker, name, weight, value, and profit or loss. It says the email address is not sent and a report allowance is not used.
+- Expected: tests pass. The sample in the test is labelled test-only (`Sample Holdings Ltd`, `sample.member@example.test`) and that address is not in the HTML or text body. Money is `NZ$` to 2 decimal places. The book rates print to 4 decimal places (`1.6700`). The sample date is `12 Oct 2026`. The mail says `not financial advice`, includes the AI disclosure, and does not use Buy, Sell, or Strong Buy. Crypto projections stay paused. An empty book is skipped, not mailed. The same paid user is not sent twice in ISO week `2026-W42`.
+
+### Empty books
+
+A paid account with no open holdings is skipped. A cash balance on its own is not mailed. The existing report path already refuses an empty sleeve, and a Monday note with nothing to describe would still use a send. The admin preview says the email would be skipped.
+
+### Preference
+
+The opt-out and the last ISO week are stored on the existing watchlist fields `ticker`, `name`, `asset_type`, `market`, and `user`. The ticker is `AF-WEM`. It is not a new column. `GET /api/watchlist` hides that row, and `POST /api/watchlist` rejects that ticker. The browser toggle on `/settings/notifications` is a separate preview preference. The cron does not read it.
+
+### Needs Lukas
+
+- Leave `WEEKLY_EMAIL_SEND` unset, or set it to anything other than `on`, until you want a real send. The default is off. Tests use a mock sender and do not post mail.
+- Set `CRON_SECRET` before the route will run. Optional `WEEKLY_EMAIL_UNSUBSCRIBE_SECRET` signs the unsubscribe link. If it is unset, the cron secret is the signer. If both are unset, the job does not send.
+- Cron in Totalum or Cloudflare: `GET` or `POST` `https://www.aetherforgeai.co.nz/api/cron/weekly-email` with header `x-cron-secret`. Call it every 15 minutes from 07:00 through 08:59 Pacific/Auckland on Monday. One call sends at most 20 messages and stops after 20 seconds. Later calls in that window continue. The same account is skipped for the rest of that ISO week. No trigger is installed in this branch.
+- Mailbox: the code sets the from name `AetherForge AI`, reply-to `admin@aetherforgeai.co.nz`, and checks the from address `admin@aetherforgeai.co.nz`. The Totalum email payload does not post `from` or the plain-text part. The text version is built and tested. The visible From address is whatever the mailbox host is configured to use. Confirm that host sends as `admin@aetherforgeai.co.nz`, and confirm its daily send limit before the flag is turned on.
+- Send-approval gate: there is no second human approval once `WEEKLY_EMAIL_SEND=on`. If you want a per-week approval before the cron can send, say so. Until then the flag is the only switch.
+- Paid plans included when the flag is on: Starter, Pro, Ultimate, and the legacy Apex rows (`weekly`, `monthly`, `yearly`, `dual_yearly`), active, unexpired, and with a verified email. Free is excluded. Say if legacy Apex should be left out.
+- Privacy date is still `7 Oct 2026`. The weekly-email sentence was added without a Terms re-issue. Say if that date should move.
+- Regulatory: this email describes one person's paper book, in NZ$, with ideas about that book's weights. A footer that says it is not financial advice does not by itself decide the question. Under the Financial Markets Conduct Act 2013, personalised advice is advice that takes into account a person's particular financial situation or goals, and a general-information service has to stay on the general side of that line. A Monday email built from that member's holdings can be read as personalised advice even with the footer, the missing Buy/Sell labels, and the "ideas to consider" wording. AetherForge is not described here as a licensed financial advice provider. Have a qualified NZ adviser, and the FMA position you want to rely on, checked before any send. Do not enable the flag on the strength of this pull request alone.
+
+### Cost
+
+One email completion is capped at 1,500 input tokens and 450 output tokens. That cap is smaller than a full report. It does not call the report generator and it does not use a member's report allowance. The rate used is the published short-context price for the completion the report service already calls (`grok-4.6` in `src/lib/zenith.ts`): US$2.00 per million input tokens and US$6.00 per million output tokens, from the provider pricing page updated 29 Sep 2026. The ceiling is US$0.0057, which is NZ$0.009519 at the baseline book rate 1.6700, so NZ$0.01 if rounded to cents. A shorter note of about 500 input tokens and 250 output tokens is about US$0.0025, under one NZ cent. This estimate is the completion only. It does not include the mail host's per-message fee. The member-facing email and the privacy page do not name the model. The job does not call the completion while the sender flag is off.
+
