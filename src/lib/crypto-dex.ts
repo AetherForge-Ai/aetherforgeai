@@ -16,6 +16,8 @@ export interface DexTokenRow {
   dex: string;
   /** CoinGecko slug when the pool token carries one. Null when detail cannot be loaded. */
   detailId: string | null;
+  /** GeckoTerminal base-token id (network plus address). Dedupe key when present. */
+  address?: string;
 }
 
 interface IncludedToken {
@@ -133,8 +135,9 @@ export function parseMegafilterPage(payload: unknown, fallbackNetwork = ""): Dex
     const live = price != null && price > 0 ? price : null;
     const volume = num(asRecord(attrs.volume_usd)?.h24);
     const dexId = relId(pool, "dex");
+    const address = relId(pool, "base_token");
     rows.push({
-      id: token?.coinId || relId(pool, "base_token") || symbol.toLowerCase(),
+      id: token?.coinId || address || symbol.toLowerCase(),
       symbol,
       name: token?.name || symbol,
       price: live,
@@ -143,6 +146,7 @@ export function parseMegafilterPage(payload: unknown, fallbackNetwork = ""): Dex
       network: dexNetworkLabel(relId(pool, "network") || fallbackNetwork),
       dex: dexNames.get(dexId) || dexId || "",
       detailId: token?.detailId ?? null,
+      address,
     });
   }
   return rows;
@@ -171,21 +175,30 @@ function preferDexRow(prev: DexTokenRow, next: DexTokenRow): DexTokenRow {
   const chosen =
     prevLive !== nextLive ? (nextLive ? next : prev) : dexVolume(next) > dexVolume(prev) ? next : prev;
   const detailId = chosen.detailId || prev.detailId || next.detailId || null;
-  return detailId === chosen.detailId ? chosen : { ...chosen, detailId };
+  const address = chosen.address || prev.address || next.address;
+  if (detailId === chosen.detailId && address === chosen.address) return chosen;
+  return { ...chosen, detailId, address };
+}
+
+/** Address when the pool named one. Otherwise the symbol, so an old row still collapses. */
+function dexIdentity(row: DexTokenRow): string {
+  const address = (row.address || "").trim().toLowerCase();
+  if (address) return `addr:${address}`;
+  return `symbol:${row.symbol.trim().toUpperCase()}`;
 }
 
 /**
- * One row per symbol: the highest 24-hour volume, preferring a live price.
- * The list is then ranked by that volume, with no-volume rows last, and capped.
+ * One row per token address: the highest 24-hour volume, preferring a live price.
+ * The same symbol on two chains stays as two rows. The list is ranked by volume and capped.
  */
 export function dedupeDexTokens(rows: DexTokenRow[], limit = 400): DexTokenRow[] {
-  const bySymbol = new Map<string, DexTokenRow>();
+  const byIdentity = new Map<string, DexTokenRow>();
   for (const row of rows) {
-    const key = row.symbol.toUpperCase();
-    const prev = bySymbol.get(key);
-    bySymbol.set(key, prev ? preferDexRow(prev, row) : row);
+    const key = dexIdentity(row);
+    const prev = byIdentity.get(key);
+    byIdentity.set(key, prev ? preferDexRow(prev, row) : row);
   }
-  return [...bySymbol.values()]
+  return [...byIdentity.values()]
     .sort((a, b) => {
       const av = dexVolume(a);
       const bv = dexVolume(b);
@@ -232,7 +245,13 @@ export const DEX_TARGET_COUNT = 400;
 export const DEX_FURTHER_NOTICE = "Further rows are still loading.";
 export const DEX_EMPTY_NOTICE =
   "GeckoTerminal did not return a token price (rate limit or the feed did not answer). This list is 0, not 400.";
-export const DEX_PAGE_CAP = 8;
+/** GeckoTerminal returns 20 pools per page. 400 unique tokens need 20 or more pages. */
+export const DEX_POOLS_PER_PAGE = 20;
+export const DEX_PAGE_CAP = 20;
+/** Parallel page fetches on a cold tab. High enough to cover several networks, low enough to avoid a burst of 429s. */
+export const DEX_FILL_CONCURRENCY = 5;
+/** Cold DEX tab budget. The response returns whatever arrived inside this window. */
+export const DEX_COLD_BUDGET_MS = 2_700;
 
 /** Liquid public networks. Ids match GeckoTerminal `/networks`. */
 export const DEX_NETWORKS = [
@@ -341,4 +360,55 @@ export function dexCallWaitMs(
   if (recent.length >= limit) return Math.max(0, windowMs - (now - recent[0]));
   if (!recent.length) return 0;
   return Math.max(0, minGapMs - (now - recent[recent.length - 1]));
+}
+
+/** The next pages to fetch together. In-flight keys are blocked so a batch does not repeat one page. */
+export function takeDexJobs(
+  pages: DexStoredPage[],
+  now: number,
+  blockedUntil: Record<string, number> = {},
+  limit = DEX_FILL_CONCURRENCY
+): { network: string; page: number }[] {
+  const blocked = { ...blockedUntil };
+  const jobs: { network: string; page: number }[] = [];
+  for (let i = 0; i < limit; i++) {
+    const job = nextDexTarget(pages, now, blocked);
+    if (!job) break;
+    blocked[dexSlotKey(job.network, job.page)] = now + 60_000;
+    jobs.push(job);
+  }
+  return jobs;
+}
+
+/** Keep every stored page. A newer fetch of the same slot replaces the older one. */
+export function mergeDexPages(previous: DexStoredPage[], incoming: DexStoredPage[]): DexStoredPage[] {
+  const byKey = new Map<string, DexStoredPage>();
+  for (const page of previous) byKey.set(dexSlotKey(page.network, page.page), page);
+  for (const page of incoming) {
+    const key = dexSlotKey(page.network, page.page);
+    const prior = byKey.get(key);
+    if (!prior || page.fetchedAt >= prior.fetchedAt) byKey.set(key, page);
+  }
+  return [...byKey.values()];
+}
+
+/**
+ * A 429 must not replace a longer list with a shorter one.
+ * A clean fetch (no rate limit) may replace the list with what the feed returned.
+ */
+export function mergeDexLists(previous: DexTokenRow[], incoming: DexTokenRow[], rateLimited: boolean): DexTokenRow[] {
+  const next = dedupeDexTokens(incoming, DEX_TARGET_COUNT);
+  if (!rateLimited || previous.length === 0) return next;
+  const merged = dedupeDexTokens([...previous, ...incoming], DEX_TARGET_COUNT);
+  return merged.length >= previous.length ? merged : dedupeDexTokens(previous, DEX_TARGET_COUNT);
+}
+
+/**
+ * CDN holds the merged DEX list. A full list stays fresh longer.
+ * A short list revalidates sooner so the next request can add pages.
+ */
+export function dexResponseCacheControl(rowCount: number): string {
+  if (rowCount >= DEX_TARGET_COUNT) return "public, max-age=60, s-maxage=300, stale-while-revalidate=600";
+  if (rowCount > 0) return "public, max-age=15, s-maxage=30, stale-while-revalidate=300";
+  return "public, max-age=0, s-maxage=15, stale-while-revalidate=60";
 }
