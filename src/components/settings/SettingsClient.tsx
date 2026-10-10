@@ -14,7 +14,7 @@ import { Loader2, User, CreditCard, Crown, ExternalLink, Sparkles, ShieldCheck, 
 import Link from "next/link";
 import { PLANS, SALES_EMAIL, planByKey, planLabel, type Plan } from "@/lib/plans";
 import { isFreeReportPlan } from "@/lib/entitlements";
-import { formatUsdWithRate } from "@/lib/currency";
+import { formatDisplayDate, formatUsdWithRate, type FxRatesToNZD } from "@/lib/currency";
 import { useFxRates } from "@/hooks/useFxRates";
 import { COUNTRIES } from "@/lib/countries";
 import { SettingsSectionNav } from "@/components/settings/SettingsSectionNav";
@@ -46,10 +46,7 @@ interface SettingsUser {
 }
 
 function fmtDate(iso?: string | null): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("en-NZ", { day: "numeric", month: "short", year: "numeric" });
+  return formatDisplayDate(iso);
 }
 
 function botAccessLabel(access?: string | null): string {
@@ -101,7 +98,13 @@ async function fileToAvatarDataUrl(file: File): Promise<string> {
   return dataUrl;
 }
 
-export function SettingsClient({ user }: { user: SettingsUser }) {
+export function SettingsClient({
+  user,
+  initialFx = null,
+}: {
+  user: SettingsUser;
+  initialFx?: { rates: FxRatesToNZD; asOf: string } | null;
+}) {
   const split = (user.name || "").trim().split(/\s+/);
   const inferredFirst = user.first_name || split[0] || "";
   const inferredLast = user.last_name || (split.length > 1 ? split.slice(1).join(" ") : "");
@@ -136,7 +139,7 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
   const currentPrice = currentPlan?.price ?? 0;
   const preferredBot: "stock" | "crypto" = user.bot_access === "crypto" ? "crypto" : "stock";
   // Live NZD→USD rate so each NZ$ plan price shows its US$ equivalent.
-  const { rates: fx, asOf, ready } = useFxRates();
+  const { rates: fx, asOf, ready } = useFxRates(initialFx);
   // Other paid plans the member can switch to from their current subscription.
   // Ultimate stays founder-led. Do not offer it as a self-serve Stripe switch.
   const switchOptions = PLANS.filter(
@@ -585,11 +588,11 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
                       <span className="font-display text-xl font-bold">NZ${plan.price}</span>
                       <span className="text-xs text-muted-foreground"> / {plan.intervalLabel}</span>
                     </p>
-                    <p className="tnum text-[0.7rem] font-medium text-muted-foreground/90">
-                      {ready && asOf
-                        ? formatUsdWithRate(plan.price, fx, asOf, { decimals: 2, suffix: ` / ${plan.intervalLabel}` })
-                        : "US$ …"}
-                    </p>
+                    {ready && asOf ? (
+                      <p className="tnum text-[0.7rem] font-medium text-muted-foreground/90">
+                        {formatUsdWithRate(plan.price, fx, asOf, { decimals: 2, suffix: ` / ${plan.intervalLabel}` })}
+                      </p>
+                    ) : null}
 
                     <ul className="mt-2 space-y-1">
                       <li className="flex items-center gap-1.5 text-[0.72rem] text-muted-foreground">
