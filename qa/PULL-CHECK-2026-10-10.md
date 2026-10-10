@@ -1258,3 +1258,5 @@ Local, on each draft branch, after the fixes below. `npm test` is `vitest run`. 
 - R11: 527 tests passed, tsc passed, build passed.
 - R12: 529 tests passed, tsc passed, build passed.
 
+Combined branch `cursor/batch1-combined-7f63` from develop `2976445`, after the merges above and the ours merge of `origin/main` `26442b3`: `npm test` 121 files, 579 tests passed. `npm run check-types-errors` passed. `npm run build` passed (Next.js 15.3.9). No Batch 1 behavior was rewritten to resolve a conflict. `src/app/layout.tsx` kept the address removal and the skip link. `src/lib/track-b-p0.test.ts` kept the develop assertions and the "does not report uptime" line. `src/lib/market-data.ts` and `src/lib/public-market-index.ts` stayed as on develop.
+
