@@ -41,6 +41,7 @@ import { withUserTradeLock } from "@/lib/trade-lock";
 import { applyPaperCashMove } from "@/lib/paper-cash";
 import { planHoldingCorrection } from "@/lib/holding-correction";
 import { cleanChain, dexSectorTag, parseDexSector, withDexNotes } from "@/lib/dex-source";
+import { buildDividendRecord, paymentDateFx, withDividendNotes, type DividendParts } from "@/lib/dividend-ledger";
 import { buildMovementPreview } from "@/lib/movement-preview";
 import { assessMovement, earlierCivilDay, exceedsAvailableCash, movementCivilDay } from "@/lib/transaction-rules";
 import { dateOnlyInstant, lotCivilDay, resolveExecutedInstant } from "@/lib/executed-at";
@@ -106,6 +107,14 @@ export interface TransactionInput {
   fx_rate?: number;
   fx_source?: string;
   fx_timestamp?: string;
+  /** Gross dividend in the holding currency. Stored in the notes prefix, not a new column. */
+  dividend_gross?: number;
+  /** NZ imputation credits in NZ$. */
+  dividend_imputation_nzd?: number;
+  /** Withholding in the holding currency. */
+  dividend_withholding?: number;
+  /** DRP reinvestment in the holding currency. Does not change the share count. */
+  dividend_drp?: number;
   /** DEX when the member picked a DEX token. Coin-list fills omit this. */
   venue?: string;
   /** Readable chain for a DEX token, such as Ethereum. */
@@ -394,6 +403,45 @@ export async function movementRejectionForUser(
 }
 
 /**
+ * A dividend with a breakdown. Cash credited is net NZ$ (gross − withholding − DRP).
+ * The pieces live in the notes prefix. A missing payment-date rate is refused.
+ * The baseline FX table is not used.
+ */
+async function detailedDividendParts(
+  input: TransactionInput,
+  tradeDay: string
+): Promise<{ parts: DividendParts; fxSource: string }> {
+  const ticker = normalizeTicker(input.ticker || "");
+  const assetType: TxAssetType = input.asset_type || "stock";
+  const currency = currencyForTicker(ticker, assetType);
+  let fx = paymentDateFx(currency, input.fx_rate);
+  let fxSource = "payment-date";
+  if (currency === "NZD") {
+    fx = 1;
+    fxSource = "nzd";
+  } else if (input.fx_rate != null && Number(input.fx_rate) > 0) {
+    await rejectOutOfBandFx(currency, input.fx_rate, tradeDay);
+    fx = paymentDateFx(currency, input.fx_rate);
+    fxSource = input.fx_source || "payment-date";
+  } else {
+    const historical = await historicalNzdPerUnit(currency, tradeDay);
+    fx = paymentDateFx(currency, historical);
+    fxSource = "historical";
+  }
+  if (fx == null) throw new Error("Enter the NZD exchange rate for the payment date.");
+  const built = buildDividendRecord({
+    grossNative: Number(input.dividend_gross),
+    imputationNzd: Number(input.dividend_imputation_nzd) || 0,
+    withholdingNative: Number(input.dividend_withholding) || 0,
+    drpNative: Number(input.dividend_drp) || 0,
+    currency,
+    fx,
+  });
+  if (built.ok === false) throw new Error(built.message);
+  return { parts: built.parts, fxSource };
+}
+
+/**
  * Apply a transaction: mutate holdings + cash, then write the ledger row.
  * Fills for one account run one at a time. Cash and the holding are re-read
  * inside that lock. If the ledger row cannot be paired with the holding
@@ -436,9 +484,19 @@ async function applyTransactionUnlocked(
     input.type === "tax" ||
     openingCash
   ) {
-    const amount = Math.max(0, Number(input.amount) || 0);
-    const fee = Math.max(0, Number(input.fees) || 0);
-    if (amount <= 0) throw new Error("Amount must be greater than 0");
+    let amount = Math.max(0, Number(input.amount) || 0);
+    let fee = Math.max(0, Number(input.fees) || 0);
+    let dividendParts: DividendParts | null = null;
+    let dividendFxSource: string | undefined;
+    if (input.type === "dividend" && input.dividend_gross != null) {
+      const tradeDay = movementCivilDay(input.executed_at, aucklandDateISO());
+      const detailed = await detailedDividendParts(input, tradeDay);
+      dividendParts = detailed.parts;
+      dividendFxSource = detailed.fxSource;
+      amount = detailed.parts.netCashNzd;
+      fee = 0;
+    }
+    if (amount <= 0 && !dividendParts) throw new Error("Amount must be greater than 0");
     if (input.type === "dividend") {
       const ticker = normalizeTicker(input.ticker || "");
       if (!ticker) throw new Error("A dividend has to be linked to a holding you already have.");
@@ -490,14 +548,15 @@ async function applyTransactionUnlocked(
       ticker: input.ticker ? String(input.ticker).toUpperCase() : undefined,
       asset_type: input.type === "dividend" && input.ticker ? input.asset_type || "stock" : "cash",
       asset_name: assetName,
-      quantity: amount,
+      quantity: dividendParts ? dividendParts.grossNative : amount,
       price: 1,
       fees: round(fee),
       total: round(delta),
       cash_nzd: round(delta),
       realized_pnl: 0,
-      currency: "NZD",
-      notes,
+      currency: dividendParts ? dividendParts.currency : "NZD",
+      ...(dividendParts ? { fx_rate: dividendParts.fx, fx_source: dividendFxSource } : {}),
+      notes: dividendParts ? withDividendNotes(notes, dividendParts) : notes,
       executed_at: executedStored,
       user: user._id,
     });
