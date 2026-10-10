@@ -11,6 +11,7 @@ import { getCurrentUser } from "@/lib/session";
 import { loadTaxRows } from "@/lib/tax-book-server";
 import { TAX_INDICATIVE_LABEL } from "@/lib/tax-disclaimer";
 import { taxableIncome, taxYearChoices, type TaxableIncomeReport } from "@/lib/taxable-income";
+import { incomeReconciliationNote, realisedByTaxYear } from "@/lib/tax-realised";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +29,7 @@ function moneyOrBlank(value: number | null): string {
   return formatNzd(value);
 }
 
-function ReportTables({ report }: { report: TaxableIncomeReport }) {
+function ReportTables({ report, fifoNote }: { report: TaxableIncomeReport; fifoNote?: string | null }) {
   return (
     <>
       <h2 className="mt-8 font-display text-lg font-semibold">Dividends</h2>
@@ -107,6 +108,7 @@ function ReportTables({ report }: { report: TaxableIncomeReport }) {
         Gross {formatNzd(report.grossNzd)}. Imputation credits {formatNzd(report.imputationNzd)}. Withholding{" "}
         {formatNzd(report.withholdingNzd)}. DRP {formatNzd(report.drpNzd)}. Realised{" "}
         {formatSignedMoney(report.realisedNzd)}.
+        {fifoNote ? ` ${fifoNote}` : ""}
         {report.legacyCount > 0
           ? ` Cash, no breakdown: ${formatNzd(report.legacyCashNzd)} on ${report.legacyCount} row${report.legacyCount === 1 ? "" : "s"}. That cash is not added to gross.`
           : ""}
@@ -137,6 +139,7 @@ export default async function TaxableIncomePage({
   const endingYear = isNzTaxYearEnding(requested) ? requested : current;
 
   let report: TaxableIncomeReport | null = null;
+  let fifoNote: string | null = null;
   let years: number[] = [current];
   let readError = false;
   if (user) {
@@ -145,6 +148,7 @@ export default async function TaxableIncomePage({
       years = taxYearChoices(rows, today);
       if (!years.includes(endingYear)) years = [endingYear, ...years];
       report = taxableIncome(rows, endingYear);
+      fifoNote = incomeReconciliationNote(report.realisedNzd, realisedByTaxYear(rows, endingYear).combinedNzd);
     } catch {
       readError = true;
     }
@@ -207,7 +211,7 @@ export default async function TaxableIncomePage({
         ) : readError ? (
           <p className="mt-6 text-sm text-muted-foreground">The ledger could not be read.</p>
         ) : report ? (
-          <ReportTables report={report} />
+          <ReportTables report={report} fifoNote={fifoNote} />
         ) : null}
         <p className="mt-8 text-sm text-muted-foreground">{TAX_INDICATIVE_LABEL}</p>
       </article>
