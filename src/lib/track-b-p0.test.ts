@@ -66,7 +66,13 @@ describe("Track B P0", () => {
     for (const word of [town, street, postcode]) {
       let listed = "";
       try {
-        listed = execFileSync("git", ["grep", "-i", "-l", "-F", "--", word], { encoding: "utf8" });
+        // SEC listing names are generated data. A company name can contain the
+        // scanned word. Site copy and code stay in the scan.
+        listed = execFileSync(
+          "git",
+          ["grep", "-i", "-l", "-F", "-e", word, "--", ".", ":(exclude)src/data/listings"],
+          { encoding: "utf8" }
+        );
       } catch (error) {
         const failed = error as { status?: number; stdout?: string };
         if (failed.status !== 1) throw error;

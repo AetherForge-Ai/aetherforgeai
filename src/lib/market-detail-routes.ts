@@ -11,18 +11,20 @@ import {
   COIN_DETAIL_UNAVAILABLE,
 } from "@/lib/crypto-market";
 import type { Exchange } from "@/lib/market-intel";
+import type { StockBoard } from "@/lib/stock-markets";
 
 export { resolvableCoinId, COIN_DETAIL_UNAVAILABLE };
 
-export const STOCK_DETAIL_UNAVAILABLE = "Live data for this ticker is not shown right now.";
+export const STOCK_DETAIL_UNAVAILABLE = "A quote for this ticker is not in this response.";
 
-export type MarketsTab = Exchange | "CRYPTO" | "DEX";
+export type MarketsTab = StockBoard | "CRYPTO" | "DEX";
 
-const EXCHANGE_LABEL: Record<Exchange, string> = {
+const EXCHANGE_LABEL: Record<StockBoard, string> = {
   NZX: "NZX",
   ASX: "ASX",
   DOW: "Dow Jones",
   NASDAQ: "NASDAQ",
+  NYSE: "NYSE",
 };
 
 /** Yahoo / internal equity ticker: FPH.NZ, BHP.AX, BRK-B, AAPL. */
@@ -41,8 +43,14 @@ export function normalizeStockTicker(ticker: string | null | undefined): string 
 }
 
 export function parseExchange(value: string | null | undefined): Exchange | null {
+  const board = parseStockBoard(value);
+  if (board === "NYSE") return null;
+  return board;
+}
+
+export function parseStockBoard(value: string | null | undefined): StockBoard | null {
   const v = (value || "").trim().toUpperCase();
-  if (v === "NZX" || v === "ASX" || v === "DOW" || v === "NASDAQ") return v;
+  if (v === "NZX" || v === "ASX" || v === "DOW" || v === "NASDAQ" || v === "NYSE") return v;
   return null;
 }
 
@@ -55,7 +63,7 @@ export function exchangeFromTicker(ticker: string): Exchange | null {
   return null;
 }
 
-export function exchangeLabel(exchange: Exchange): string {
+export function exchangeLabel(exchange: StockBoard): string {
   return EXCHANGE_LABEL[exchange];
 }
 
@@ -68,7 +76,7 @@ export function parseMarketsTab(value: string | null | undefined): MarketsTab | 
   const v = (value || "").trim().toLowerCase();
   if (v === "crypto") return "CRYPTO";
   if (v === "dex") return "DEX";
-  if (v === "nzx" || v === "asx" || v === "dow" || v === "nasdaq") return v.toUpperCase() as Exchange;
+  if (v === "nzx" || v === "asx" || v === "dow" || v === "nasdaq" || v === "nyse") return v.toUpperCase() as StockBoard;
   return null;
 }
 
@@ -90,7 +98,7 @@ export function unavailableCryptoHref(opts?: { symbol?: string; name?: string })
 
 export function stockDetailHref(
   ticker: string,
-  opts?: { exchange?: Exchange | null; buy?: boolean }
+  opts?: { exchange?: StockBoard | null; buy?: boolean }
 ): string {
   const symbol = normalizeStockTicker(ticker);
   const fromSuffix = symbol ? exchangeFromTicker(symbol) : null;
@@ -103,7 +111,7 @@ export function stockDetailHref(
   return `/markets/stock/${encodeURIComponent(symbol)}${q ? `?${q}` : ""}`;
 }
 
-export function stockBackHref(ticker: string, exchange?: Exchange | null): { href: string; label: string } {
+export function stockBackHref(ticker: string, exchange?: StockBoard | null): { href: string; label: string } {
   const resolved = exchange ?? exchangeFromTicker(ticker);
   if (!resolved) return { href: "/markets", label: "Markets · Stocks" };
   return { href: marketsTabHref(resolved), label: `Markets · ${exchangeLabel(resolved)}` };
@@ -116,9 +124,9 @@ export function explorerDetailHref(
     ticker: string;
     symbol: string;
     name?: string;
-    exchange?: Exchange | null;
+    exchange?: StockBoard | null;
   },
-  opts?: { buy?: boolean; asset?: "crypto" | "stock"; fallbackExchange?: Exchange | null }
+  opts?: { buy?: boolean; asset?: "crypto" | "stock"; fallbackExchange?: StockBoard | null }
 ): string {
   if (row.coinId || opts?.asset === "crypto") {
     const id = resolvableCoinId(row.coinId);
