@@ -13,6 +13,8 @@
  * fallback). Crypto unit prices stay in USD; the NZ$ book uses usdToNzd.
  */
 
+import { aucklandNoonCivilDay } from "@/lib/auckland-noon";
+
 export type CurrencyCode = "NZD" | "AUD" | "USD";
 export type AssetType = "stock" | "crypto";
 
@@ -183,6 +185,11 @@ const DISPLAY_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", 
 
 function displayDateParts(input: string | Date): { day: number; month: number; year: number } | null {
   if (typeof input === "string") {
+    const noon = aucklandNoonCivilDay(input);
+    if (noon) {
+      const [year, month, day] = noon.split("-").map(Number);
+      return { year, month, day };
+    }
     const ymd = /^(\d{4})-(\d{2})-(\d{2})/.exec(input.trim());
     if (ymd) return { year: Number(ymd[1]), month: Number(ymd[2]), day: Number(ymd[3]) };
   }

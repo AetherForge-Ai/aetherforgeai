@@ -102,10 +102,6 @@ export function csvNotes(row: CsvRow): string {
   return "";
 }
 
-function csvNotApplicable(reason: string): string {
-  return `n/a — ${reason}`;
-}
-
 function csvText(value: unknown): string {
   return value == null ? "" : String(value);
 }
@@ -134,6 +130,20 @@ export function transactionCsvCells(row: CsvRow): string[] {
   const quoteTime = formatLedgerDateTime(csvText(row.price_as_at));
   const clock = formatLedgerDateTime(when);
   const isSell = row.type === "sell";
+  const signalBlank = blank(row.signal_price);
+  const markBlank = blank(row.mark_price);
+  const priceSplitBlank = blank(row.realized_price_pnl_nzd);
+  const fxSplitBlank = blank(row.realized_fx_pnl_nzd);
+  const dataNote = [
+    !assetId && cashOnly ? "Cash has no asset id." : "",
+    !assetId && !cashOnly && !csvText(row.ticker) ? "No canonical id stored." : "",
+    quoteTime ? "" : "Quote time was not stored.",
+    signalBlank ? (priceSource === "bot_signal" ? "Signal price was not stored." : "Not a signal fill.") : "",
+    markBlank ? "Not marked at export." : "",
+    isSell && (priceSplitBlank || fxSplitBlank) ? "Price and FX split was not stored." : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
   return [
     formatDisplayDate(when) === "—" ? "" : formatDisplayDate(when),
     clock,
@@ -142,32 +152,22 @@ export function transactionCsvCells(row: CsvRow): string[] {
     csvText(row.ticker),
     csvText(row.asset_name),
     csvText(row.asset_type),
-    assetId || (cashOnly ? csvNotApplicable("cash has no asset id") : csvText(row.ticker) || csvNotApplicable("no canonical id stored")),
+    assetId || (cashOnly ? "" : csvText(row.ticker)),
     blank(row.quantity) ? "" : csvText(row.quantity),
     csvUnitPrice(row.fill_price ?? row.price),
     currency,
     priceSource,
-    quoteTime || csvNotApplicable("quote time was not stored"),
-    blank(row.signal_price)
-      ? csvNotApplicable(priceSource === "bot_signal" ? "signal price was not stored" : "not a signal fill")
-      : csvUnitPrice(row.signal_price),
-    blank(row.mark_price) ? csvNotApplicable("not marked at export") : csvUnitPrice(row.mark_price),
+    quoteTime,
+    signalBlank ? "" : csvUnitPrice(row.signal_price),
+    markBlank ? "" : csvUnitPrice(row.mark_price),
     csvMoney(row.fees_native ?? row.fees ?? 0),
     csvFeesNzd(row),
     notional,
     formatSavedFx(row.fx_rate),
     csvFxSource(row),
     csvMoney(row.cash_nzd ?? row.total),
-    blank(row.realized_price_pnl_nzd)
-      ? isSell
-        ? csvNotApplicable("price and FX split was not stored")
-        : csvMoney(0)
-      : csvMoney(row.realized_price_pnl_nzd),
-    blank(row.realized_fx_pnl_nzd)
-      ? isSell
-        ? csvNotApplicable("price and FX split was not stored")
-        : csvMoney(0)
-      : csvMoney(row.realized_fx_pnl_nzd),
+    priceSplitBlank ? (isSell ? "" : csvMoney(0)) : csvMoney(row.realized_price_pnl_nzd),
+    fxSplitBlank ? (isSell ? "" : csvMoney(0)) : csvMoney(row.realized_fx_pnl_nzd),
     blank(row.realized_pnl_nzd) && blank(row.realized_pnl) ? csvMoney(0) : csvMoney(row.realized_pnl_nzd ?? row.realized_pnl),
     csvText(row.order_sizing || "units"),
     blank(row.notional_native) ? "" : csvMoney(row.notional_native),
@@ -175,6 +175,7 @@ export function transactionCsvCells(row: CsvRow): string[] {
     csvNotes(row),
     dex.venue || "",
     dex.chain || "",
+    dataNote,
   ];
 }
 

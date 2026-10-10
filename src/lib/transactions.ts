@@ -42,8 +42,8 @@ import { applyPaperCashMove } from "@/lib/paper-cash";
 import { planHoldingCorrection } from "@/lib/holding-correction";
 import { cleanChain, dexSectorTag, parseDexSector, withDexNotes } from "@/lib/dex-source";
 import { buildMovementPreview } from "@/lib/movement-preview";
-import { assessMovement, earlierCivilDay, movementCivilDay } from "@/lib/transaction-rules";
-import { lotCivilDay, resolveExecutedInstant } from "@/lib/executed-at";
+import { assessMovement, earlierCivilDay, exceedsAvailableCash, movementCivilDay } from "@/lib/transaction-rules";
+import { dateOnlyInstant, lotCivilDay, resolveExecutedInstant } from "@/lib/executed-at";
 import { invalidateBookCache, readBookCache, writeBookCache } from "@/lib/book-cache";
 
 export type TxType =
@@ -462,7 +462,7 @@ async function applyTransactionUnlocked(
     }
     const credits = input.type === "deposit" || input.type === "dividend" || openingCash;
     const delta = credits ? amount - fee : -(amount + fee);
-    if ((input.type === "withdraw" || input.type === "tax") && -delta > currentCash + 1e-6) {
+    if ((input.type === "withdraw" || input.type === "tax") && exceedsAvailableCash(-delta, currentCash)) {
       throw new Error(
         input.type === "tax"
           ? "Insufficient cash balance for this tax line"
@@ -560,7 +560,7 @@ async function applyTransactionUnlocked(
           (assetType === "crypto" ? "Digital Assets" : assetType === "metal" ? "Precious Metals" : "Other"),
         shares: round(quantity, 6),
         purchase_price: roundFillPrice(price),
-        purchase_date: resolved.civilDay,
+        purchase_date: dateOnlyInstant(resolved.civilDay),
         current_price: price,
         user: user._id,
       });
@@ -627,7 +627,7 @@ async function applyTransactionUnlocked(
       instrument_type: assetType === "crypto" ? "crypto" : assetType === "metal" ? "metal" : "equity",
       venue: venueForTicker(ticker, assetType),
       asset_id: assetType === "crypto" ? input.coingecko_id || canonicalCryptoId(ticker) : (feedEntryForTicker(ticker)?.providerId || ticker),
-      trade_datetime: resolved.hasClock ? aucklandDateTimeISO(resolved.instant) : resolved.civilDay,
+      trade_datetime: resolved.hasClock ? aucklandDateTimeISO(resolved.instant) : String(resolved.stored),
       notes,
       executed_at: executedStored,
       user: user._id,
@@ -775,7 +775,7 @@ async function applyTransactionUnlocked(
     });
     if (!moved.ok) throw new Error(moved.error || `${ticker} live price unavailable`);
     const costNZD = round(-moved.cashDeltaNZD);
-    if (costNZD > currentCash + 1e-6) {
+    if (exceedsAvailableCash(costNZD, currentCash)) {
       throw new Error(
         `Insufficient cash — this buy needs NZ$${costNZD.toFixed(2)} and you have NZ$${currentCash.toFixed(2)} available.`
       );
@@ -793,7 +793,7 @@ async function applyTransactionUnlocked(
       await totalumSdk.crud.editRecordById("stock", holding._id, {
         shares: round(newShares, 6),
         purchase_price: roundFillPrice(newAvg),
-        purchase_date: keptDay,
+        purchase_date: dateOnlyInstant(keptDay),
         ...(stamp.sector ? { sector: stamp.sector } : {}),
       });
       holdingId = holding._id;
@@ -840,7 +840,7 @@ async function applyTransactionUnlocked(
           (assetType === "crypto" ? "Digital Assets" : assetType === "metal" ? "Precious Metals" : "Other"),
         shares: round(quantity, 6),
         purchase_price: roundFillPrice(avgWithFees),
-        purchase_date: resolved.civilDay,
+        purchase_date: dateOnlyInstant(resolved.civilDay),
         current_price,
         user: user._id,
       });
@@ -886,7 +886,7 @@ async function applyTransactionUnlocked(
       mark_price: liveSpot,
       price_source: input.price_source || "user_fill",
       price_as_at: input.price_as_at || new Date().toISOString(),
-      trade_datetime: resolved.hasClock ? aucklandDateTimeISO(resolved.instant) : resolved.civilDay,
+      trade_datetime: resolved.hasClock ? aucklandDateTimeISO(resolved.instant) : String(resolved.stored),
       execution_status: "filled",
       order_sizing: input.order_sizing || "units",
       notional_native: round(quantity * price, 6),
@@ -1026,7 +1026,7 @@ async function applyTransactionUnlocked(
     fill_currency: currency,
     execution_status: "filled",
     price_source: input.price_source || "user_fill",
-    trade_datetime: resolved.hasClock ? aucklandDateTimeISO(resolved.instant) : resolved.civilDay,
+    trade_datetime: resolved.hasClock ? aucklandDateTimeISO(resolved.instant) : String(resolved.stored),
     mark_price: liveSpot,
     fx_rate: sellFx,
     cash_nzd: round(proceedsNZD),
@@ -1151,7 +1151,7 @@ async function recordMetalTradeUnlocked(
   let realizedNZD = 0;
   if (input.side === "buy") {
     const cost = round(gross + fees);
-    if (cost > currentCash + 1e-6) {
+    if (exceedsAvailableCash(cost, currentCash)) {
       throw new Error(
         `Insufficient cash — this buy needs NZ$${cost.toFixed(2)} and you have NZ$${currentCash.toFixed(2)} available.`
       );

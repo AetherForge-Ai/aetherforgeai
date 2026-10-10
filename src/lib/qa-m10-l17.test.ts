@@ -13,12 +13,13 @@ import {
   roundMoney,
   sameQuotedUnit,
 } from "@/lib/currency";
+import { dateOnlyInstant } from "@/lib/auckland-noon";
 import { formatLedgerDateTime, lotCivilDay, resolveExecutedInstant } from "@/lib/executed-at";
 import { aucklandDateISO } from "@/lib/fill-integrity";
 import { computeSummary } from "@/lib/portfolio";
 import { SECURITY_HEADERS } from "@/lib/security-headers";
 import { distributionLabel } from "@/lib/income-label";
-import { earlierCivilDay, parseTradeNumber, transactionProblems } from "@/lib/transaction-rules";
+import { earlierCivilDay, exceedsAvailableCash, parseTradeNumber, transactionProblems } from "@/lib/transaction-rules";
 import { csvFeesNzd, csvFxSource, csvMoney, csvNotes, csvUnitPrice, transactionCsvCells } from "@/lib/transaction-csv";
 import { taxBookSummary } from "@/lib/tax-book";
 import { onboardingProgress } from "@/lib/onboarding-steps";
@@ -43,11 +44,18 @@ describe("M10 dates", () => {
     expect(today.stored).toEqual(now);
     const past = resolveExecutedInstant("2026-10-01", now);
     expect(past.hasClock).toBe(false);
-    expect(past.stored).toBe("2026-10-01");
+    expect(past.stored).toBe("2026-10-01T12:00:00+13:00");
     expect(past.civilDay).toBe("2026-10-01");
+    expect(formatLedgerDateTime(String(past.stored))).toBe("1 Oct 2026");
+    expect(formatDisplayDate(String(past.stored))).toBe("1 Oct 2026");
+    expect(formatLedgerDateTime("2026-09-30T23:00:00.000Z")).toBe("1 Oct 2026");
+    expect(dateOnlyInstant("2026-07-01")).toBe("2026-07-01T12:00:00+12:00");
+    expect(lotCivilDay(String(past.stored))).toBe("2026-10-01");
     const noon = resolveExecutedInstant(new Date("2026-10-09T12:00:00.000Z"), now);
     expect(noon.hasClock).toBe(false);
-    expect(noon.stored).toBe("2026-10-09");
+    expect(noon.civilDay).toBe("2026-10-09");
+    expect(noon.stored).toBe("2026-10-09T12:00:00+13:00");
+    expect(formatLedgerDateTime(String(noon.stored))).toBe("9 Oct 2026");
   });
 });
 
@@ -240,9 +248,15 @@ describe("L6 L9 L10 L11 L12 L13", () => {
     expect(cells[16]).toBe("1.87");
     expect(cells[18]).toBe("1.2440");
     expect(cells[19]).toBe("daily");
+    expect(cells[13]).toBe("");
+    expect(cells[14]).toBe("");
+    expect(cells[21]).toBe("");
+    expect(cells[22]).toBe("");
     expect(cells[28]).toBe("");
     expect(cells[29]).toBe("");
-    expect(cells).toHaveLength(30);
+    expect(cells[30]).toContain("Not a signal fill.");
+    expect(cells[30]).not.toMatch(/\d/);
+    expect(cells).toHaveLength(31);
   });
 
   it("keeps a date-only row on its civil day and labels columns that do not apply", () => {
@@ -270,22 +284,28 @@ describe("L6 L9 L10 L11 L12 L13", () => {
     expect(cells[1]).toBe("9 Oct 2026");
     expect(cells[1]).not.toMatch(/1:00/);
     expect(cells[7]).toBe("GOLD");
-    expect(cells[12]).toBe("n/a — quote time was not stored");
-    expect(cells[13]).toBe("n/a — not a signal fill");
-    expect(cells[14]).toBe("n/a — not marked at export");
+    expect(cells[12]).toBe("");
+    expect(cells[13]).toBe("");
+    expect(cells[14]).toBe("");
     expect(cells[21]).toBe("0.00");
     expect(cells[22]).toBe("0.00");
+    expect(cells[30]).toContain("Quote time was not stored.");
+    expect(cells[30]).toContain("Not a signal fill.");
+    expect(cells[30]).toContain("Not marked at export.");
     const cash = transactionCsvCells({ type: "deposit", executed_at: "2026-10-10", currency: "NZD", total: 100 });
     expect(cash[1]).toBe("10 Oct 2026");
-    expect(cash[7]).toBe("n/a — cash has no asset id");
+    expect(cash[7]).toBe("");
+    expect(cash[30]).toContain("Cash has no asset id.");
     const unsold = transactionCsvCells({
       type: "sell",
       executed_at: "2026-10-10T02:47:53.208Z",
       ticker: "WOR.AX",
       currency: "AUD",
     });
-    expect(unsold[21]).toBe("n/a — price and FX split was not stored");
-    expect(unsold[22]).toBe("n/a — price and FX split was not stored");
+    expect(unsold[21]).toBe("");
+    expect(unsold[22]).toBe("");
+    expect(unsold[30]).toContain("Price and FX split was not stored.");
+    expect(unsold[21]).not.toMatch(/[A-Za-z]/);
   });
 
   it("writes one correction sentence and hides the DEX notes prefix", () => {
@@ -341,6 +361,16 @@ describe("L6 L9 L10 L11 L12 L13", () => {
       needsCash: true,
     });
     expect(waiting).toEqual([]);
+    expect(exceedsAvailableCash(10, 0)).toBe(true);
+    expect(exceedsAvailableCash(10, 9.99)).toBe(true);
+    expect(exceedsAvailableCash(10, 10)).toBe(false);
+    expect(exceedsAvailableCash(0, 0)).toBe(false);
+    const writer = readFileSync("src/lib/transactions.ts", "utf8");
+    expect(writer).toContain("exceedsAvailableCash(-delta, currentCash)");
+    expect(writer).toContain("exceedsAvailableCash(costNZD, currentCash)");
+    expect(writer).toContain("exceedsAvailableCash(cost, currentCash)");
+    expect(writer).toContain("cashKnown: true");
+    expect(writer).not.toMatch(/cashKnown:\s*(input|false)/);
   });
 
   it("labels dividends only for shares and ETFs", () => {

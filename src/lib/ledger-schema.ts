@@ -105,6 +105,7 @@ export const CSV_EXPORT_COLUMNS = [
   "Notes",
   "Venue",
   "Chain",
+  "Data note",
 ] as const;
 
 export type CsvExportColumn = (typeof CSV_EXPORT_COLUMNS)[number];

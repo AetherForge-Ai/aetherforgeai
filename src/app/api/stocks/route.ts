@@ -29,7 +29,7 @@ import {
 } from "@/lib/metal-valuation";
 import { mergeFreshQuantities } from "@/lib/holding-snapshot";
 import { invalidateBookCache, readBookCache, writeBookCache } from "@/lib/book-cache";
-import { lotCivilDay } from "@/lib/executed-at";
+import { dateOnlyInstant, lotCivilDay } from "@/lib/executed-at";
 import { earlierCivilDay } from "@/lib/transaction-rules";
 import { TRADE_CONFIRM_REQUIRED } from "@/lib/trade-confirm";
 
@@ -220,10 +220,11 @@ async function overlayEarliestBuyDates(holdings: any[], userId: string): Promise
       const stored = lotCivilDay(holding.purchase_date);
       if (stored === first) return;
       if (stored && stored < first) return;
-      holding.purchase_date = first;
+      const instant = dateOnlyInstant(first);
+      holding.purchase_date = instant;
       if (!holding._id) return;
       try {
-        await totalumSdk.crud.editRecordById("stock", holding._id, { purchase_date: first });
+        await totalumSdk.crud.editRecordById("stock", holding._id, { purchase_date: instant });
       } catch (err) {
         console.error(`[api/stocks] Could not keep the earliest buy date for ${ticker}:`, err);
       }
@@ -497,9 +498,11 @@ export async function POST(req: Request) {
         purchase_price: roundUnitPrice(newAvg),
         current_price,
         company_name: company_name || sameSleeve.company_name,
-        purchase_date: earlierCivilDay(
-          sameSleeve.purchase_date,
-          parsed.data.purchase_date || lotCivilDay(sameSleeve.purchase_date)
+        purchase_date: dateOnlyInstant(
+          earlierCivilDay(
+            sameSleeve.purchase_date,
+            parsed.data.purchase_date || lotCivilDay(sameSleeve.purchase_date)
+          )
         ),
       };
       await totalumSdk.crud.editRecordById("stock", sameSleeve._id, patch);
@@ -522,7 +525,7 @@ export async function POST(req: Request) {
       purchase_price,
       // Persist the purchase date (defaults to today when the client omits it), so
       // the holdings table can show + sort by it and P&L reflects the real entry day.
-      purchase_date: parsed.data.purchase_date || new Date().toISOString().slice(0, 10),
+      purchase_date: dateOnlyInstant(lotCivilDay(parsed.data.purchase_date || new Date().toISOString().slice(0, 10))),
       current_price,
       user: user._id,
     };
