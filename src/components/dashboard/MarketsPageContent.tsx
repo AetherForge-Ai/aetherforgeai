@@ -24,7 +24,7 @@ function marketsHeading(tab: MarketsTab): { title: string; lede: string } {
   }
   return {
     title: "Markets",
-    lede: "NZX, ASX and US prices, plus crypto. Quoted rows show a time. If the feed fails, the table says so instead of spinning.",
+    lede: "NZX, ASX, Dow Jones, NASDAQ and NYSE, plus crypto. Each stock board says how many names are shown against the listing count. Prices are delayed. A saved print shows its time.",
   };
 }
 
@@ -88,6 +88,7 @@ export function MarketsPageContent({
           initialTab={initialTab}
           syncTab
           onTabChange={setTab}
+          index={index}
           seedCrypto={index?.tabs.find((tab) => tab.id === "CRYPTO")?.rows ?? []}
           seedDex={index?.tabs.find((tab) => tab.id === "DEX")?.rows ?? []}
         />

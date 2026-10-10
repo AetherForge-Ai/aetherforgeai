@@ -51,6 +51,7 @@ export function publicDataSourcesLine(): string {
   return (
     "Prices for NZX- and ASX-listed shares, and for US shares, come from public market data (Yahoo Finance). " +
     "They are not a direct NZX or ASX feed. " +
+    "When a newer print is not in the response, the page shows the last saved print and its time. " +
     `Crypto prices come from ${englishList(cryptoSourceNames())}. ` +
     `DEX token prices come from ${PUBLIC_DEX_SOURCE}. ` +
     `Gold and silver spot prices come from ${PUBLIC_METALS_SOURCE}. ` +
