@@ -643,8 +643,9 @@ Lukas may later decide to retire the downloadable Excel investor toolkit templat
 
 ## Track A2 checks
 
-- `./node_modules/.bin/tsc --noEmit --skipLibCheck`: passed, including the toolkit, noon-Auckland date, and CSV follow-up.
-- `./node_modules/.bin/vitest run`: 96 files, 475 tests passed.
+- Merged `origin/develop` `caa54724` (tree `0f771ef2`) and recorded `origin/main` `1e0a38fc` with the ours strategy. The tree is develop plus the Track A2 changes.
+- `./node_modules/.bin/tsc --noEmit --skipLibCheck`: passed after that merge.
+- `./node_modules/.bin/vitest run`: 101 files, 486 tests passed.
 - `npm run build` (`next build`, Next.js 15.3.9): passed. Exit 0. The build skipped linting. Better Auth logged that the default secret is in use in this environment; no secret was added.
 
 ## Left untouched on purpose
