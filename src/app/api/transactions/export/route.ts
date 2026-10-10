@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { formatPriceInput, formatSavedFx } from "@/lib/currency";
+import { collapseCorrectionNote } from "@/lib/holding-correction";
 import { getStableSessionUser } from "@/lib/session";
 import { canExportCsv } from "@/lib/entitlements";
 import { loadLedger, type TransactionRow } from "@/lib/transactions";
@@ -59,7 +60,7 @@ function rowCells(t: TransactionRow): string[] {
     String(extra.order_sizing || "units"),
     extra.notional_native ?? "",
     String(extra.broker || ""),
-    t.notes || "",
+    collapseCorrectionNote(t.notes),
   ].map((v) => cell(v));
 }
 
