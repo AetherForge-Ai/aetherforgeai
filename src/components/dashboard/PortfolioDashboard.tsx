@@ -2263,6 +2263,7 @@ export function PortfolioDashboard({
           reloadSignal={ledgerSignal}
           preview={preview}
           userId={userId}
+          csvAllowed={!freePlan}
           preferredAssetType={
             isStocks ? "stock" : isCrypto ? "crypto" : undefined
           }

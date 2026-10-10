@@ -18,6 +18,7 @@ import { formatDisplayDate, formatMoney, formatSavedFx, formatSignedMoney, forma
 import { aucklandDateISO } from "@/lib/fill-integrity";
 import { distributionLabel } from "@/lib/income-label";
 import { aucklandYmd } from "@/lib/entitlements";
+import { CSV_LOCK_LABEL, csvLockAccessibleName } from "@/lib/csv-lock-label";
 import { useFxRates } from "@/hooks/useFxRates";
 import { buildTradePreview, type TradePreview } from "@/lib/trade-preview";
 import { ledgerDisplayedCash } from "@/lib/ledger-cash-lines";
@@ -323,6 +324,7 @@ export function TransactionCenter({
   preferredAssetType,
   layout = "full",
   userId = null,
+  csvAllowed = false,
 }: {
   /** Current holdings (both bots + precious metals) — used to power the Sell picker. */
   holdings: SellableHolding[];
@@ -338,6 +340,8 @@ export function TransactionCenter({
   layout?: "full" | "trading" | "ledger";
   /** Authenticated user id — binds sticky dialog + ignores stale ledger responses. */
   userId?: string | null;
+  /** Free plans see a lock chip and never call the export URL. */
+  csvAllowed?: boolean;
 }) {
   const [ledger, setLedger] = useState<Ledger | null>(null);
   const [loading, setLoading] = useState(!preview);
@@ -921,9 +925,22 @@ function AllTransactionsDialog({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={exportCsv} className="gap-1.5 font-semibold">
-              <Download className="size-4" /> Export CSV
-            </Button>
+            {csvAllowed ? (
+              <Button variant="outline" size="sm" onClick={exportCsv} className="gap-1.5 font-semibold">
+                <Download className="size-4" /> Export CSV
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled
+                aria-label={csvLockAccessibleName("Transactions CSV")}
+                className="gap-1.5 font-semibold"
+              >
+                {CSV_LOCK_LABEL}
+              </Button>
+            )}
             <button
               onClick={() => onOpenChange(false)}
               className="grid size-9 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/15 hover:text-destructive"

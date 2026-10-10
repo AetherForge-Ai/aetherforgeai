@@ -309,7 +309,11 @@ export function DividendLedgerView({
           <h2 className="font-display text-lg font-semibold">Dividends on this book</h2>
           {signedIn ? (
             <div className="flex gap-2 print:hidden">
-              <CsvExportButton href={`/api/tax/dividends/export?year=${taxYear}`} allowed={csvAllowed} />
+              <CsvExportButton
+                href={`/api/tax/dividends/export?year=${taxYear}`}
+                allowed={csvAllowed}
+                exportName="Dividends CSV"
+              />
               <Button type="button" variant="outline" onClick={() => window.print()}>
                 Print
               </Button>
