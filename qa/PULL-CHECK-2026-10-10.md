@@ -8,6 +8,7 @@ Markers:
 - `pull-check:qa-2026-10-10-high-h1-h4`
 - `pull-check:qa-2026-10-10-medium-m1-m9`
 - `pull-check:qa-2026-10-10-medium-m10-m15-low-l6-l17`
+- `pull-check:track-a2-2026-10-10`
 
 Branch: `cursor/qa-m10-m15-l6-l17-b236`
 PR: https://github.com/AetherForge-Ai/aetherforgeai/pull/247
@@ -444,6 +445,136 @@ H5–H11 landed on develop as https://github.com/AetherForge-Ai/aetherforgeai/pu
 - `./node_modules/.bin/vitest run`: 96 files, 472 tests passed after that merge. The M1 single correction note and the DEX badge / hidden `[DEX:<Chain>]` prefix tests passed in the CSV and the ledger.
 - `./node_modules/.bin/eslint` on the files in this batch: 0 errors. Three existing unused-disable warnings remain in `NewsFeed.tsx` and `CoinDetailView.tsx`.
 - `npm run build` (`next build`): passed after that merge. Next.js 15.3.9. Exit 0. The build skipped linting. Better Auth logged that the default secret is in use in this environment; no secret was added.
+
+## Track A2 — retest of the published build
+
+This section is the 10 Oct retest for Track A2 only. Older rows above stay as they were. Where this section names a different expected value, this section is the one to retest. Crypto projections stay paused. Nothing here publishes, sends email, or removes a Stox, Koins, or Headmaster list.
+
+Marker: `pull-check:track-a2-2026-10-10` in `src/lib/holding-correction.ts` and in the Markers list.
+
+### M1 — fixed
+
+- Status: fixed
+- Commit: `ccf9e36`, decimal follow-up `06f4427`
+- Files: `src/lib/holding-correction.ts`, `src/lib/holding-correction.test.ts`, `src/components/dashboard/TransactionCenter.tsx`, `src/lib/transaction-csv.ts`, `src/lib/transactions.ts`, `src/app/api/stocks/[id]/route.ts`
+- URL / steps: signed in, edit PFI.NZ from 9000 at NZ$2.22 to 9000 at NZ$2.21, open the ledger row, export the CSV.
+- Expected: the row reads `9000 at NZ$2.22 → 9000 at NZ$2.21` and shows `Correction adjusts cost basis; cash unchanged.` The CSV note is one line: `Correction: 9000 at NZ$2.22 → 9000 at NZ$2.21. Cash unchanged.`
+
+### M10 / L9 — fixed
+
+- Status: fixed
+- Commit: `356ad16`
+- Files: `src/lib/executed-at.ts`, `src/lib/transaction-csv.ts`, `src/lib/transactions.ts`, `src/lib/ledger-audit.ts`, `src/lib/currency.ts`, `src/app/api/metals/[id]/route.ts`, `src/lib/qa-m10-l17.test.ts`
+- URL / steps: record a trade today and a metal or share move dated 9 Oct 2026. Export the ledger CSV.
+- Expected: a real execution prints Auckland time, for example `10 Oct 2026, 3:47 pm`. A date with no clock prints the date only (`9 Oct 2026` or `10 Oct 2026`), never `1:00 pm` or `1:00 am`. Audit notes use `10 Oct 2026`, not `10/10/2026`. Money is 2 decimal places, FX is 4, unit prices keep their stored digits. Notes do not contain a long float such as `7476.61570345871`. Empty realised, quote-time, signal, and mark columns say why (`n/a — …`) or `0.00` when the row is not a sell.
+
+### M11 — fixed
+
+- Status: fixed
+- Commit: `18fb5f8`
+- Files: `src/lib/currency.ts`, `src/lib/portfolio.ts`, `src/lib/report-html.ts`, `src/components/bots/ApexReport.tsx`, `src/lib/qa-m10-l17.test.ts`
+- URL / steps: buy WOR.AX today at the same price the book shows. Open a Stox report that includes PFI.NZ.
+- Expected: a fresh buy at the same 4-decimal price shows `AU$0.00` and `0.00%`, and the NZ$ value matches the NZ$ cost. A 0.004 gap on 100,000 shares stays `+NZ$400.00`. Report prices show a currency and 2 decimal places (`NZ$2.22`). Extra digits appear only under one cent.
+
+### L7 — fixed
+
+- Status: fixed
+- Commit: `b0092f4`
+- Files: `src/components/dashboard/RecordTransactionPanel.tsx`, `src/lib/asset-search.ts`, `src/lib/record-transaction.test.ts`
+- URL / steps: open Record a transaction, choose Deposit. Search `PFI` on a buy first if you want to see rank, then switch to Deposit and review.
+- Expected: the amount starts empty. Review says Asset `Cash` and the amount is NZD only. It does not name Invesco or PFI. Searching `PFI` lists `PFI.NZ` before the US fund. The Review heading sits under its subtitle.
+
+### L8 — fixed
+
+- Status: fixed
+- Commit: `ec2c2e3`
+- Files: `src/lib/book-cache.ts`, `src/lib/transactions.ts`, `src/lib/transaction-rules.ts`, `src/app/api/stocks/route.ts`, `src/components/dashboard/RecordTransactionPanel.tsx`, `src/components/dashboard/PortfolioDashboard.tsx`
+- URL / steps: reload `/dashboard` and the ledger. Open Review on a deposit while cash is still loading.
+- Expected: dashboard figures show `Loading…` until the book returns. Ledger, cash, sells, and dividends are read together, and a repeat read within 12 seconds uses the cache. A trade clears that cache. Review is not blocked by `Cash is still loading.` It shows `Checking cash…`, then either the balance or `Cash is still loading. Confirm checks the balance before anything is written.`
+
+### L10 — fixed
+
+- Status: fixed
+- Commit: `798ff9e`
+- Files: `src/app/api/stocks/route.ts`, `src/app/api/stocks/[id]/route.ts`, `src/lib/transactions.ts`
+- URL / steps: buy WOR.AX dated 1 Oct 2026, then buy more on 10 Oct 2026. Correct PFI.NZ and revert the correction.
+- Expected: WOR still says `first bought 1 Oct 2026`. PFI stays on its earliest buy date. A correction does not write `purchase_date`.
+
+### H8 — fixed
+
+- Status: fixed
+- Commit: `6e23cb7`
+- Files: `src/lib/crypto-names.ts`, `src/lib/tape-display.test.ts`
+- URL / steps: `/markets`, crypto table, page 1.
+- Expected: MINA, AXS, KSM, FLOW, ICP, AAVE, ZIL, ARKM, FET, CRV, SNX, YFI, ANKR, and FIL show names (Mina Protocol, Axie Infinity, Kusama, Flow, Internet Computer, Aave, Zilliqa, Arkham, Artificial Superintelligence Alliance, Curve DAO Token, Synthetix, yearn.finance, Ankr, Filecoin). EOS stays EOS. Currency and NZ$ toggle stay as they were.
+
+### M15 — fixed
+
+- Status: fixed
+- Commit: `de3e6de`
+- Files: `src/app/login/page.tsx`, `src/app/register/page.tsx`
+- URL / steps: `/login` and `/register`. View the page heading.
+- Expected: each page has an `h1` (`Sign in`, `Create an account`, or `Check your email`). It is visually hidden. Sign-in and register behaviour is unchanged.
+
+### M5 — fixed
+
+- Status: fixed
+- Commit: `2edc702`
+- Files: `src/components/dashboard/ProjectionsExplorer.tsx`
+- URL / steps: projections, Crypto tab.
+- Expected: the tab stays `Paused`. The page says `Crypto projections are paused` and keeps the existing pause message. `CRYPTO_PROJECTIONS_PAUSED` is still true.
+
+### M6 — fixed
+
+- Status: fixed
+- Commit: `3e7d856`
+- Files: `src/lib/public-copy.ts`, `src/app/terms-of-service/page.tsx`, `src/components/pricing/PricingCards.tsx`, `src/components/pricing/FeatureComparison.tsx`
+- URL / steps: Terms §6, and `/pricing` on monthly and annual.
+- Expected: Terms no longer promise an annual Excel investor toolkit. They say published plans include the ledger and a CSV export, and that an Excel workbook is only for a legacy yearly membership. Pricing cards do not add that toolkit line. The comparison table says `Transaction CSV export`.
+
+### M7 — fixed
+
+- Status: fixed
+- Commit: `3e7d856` (home sentence) and `bed591a` (bot heading)
+- Files: `src/lib/public-copy.ts`, `src/components/bots/BotShowcase.tsx`
+- URL / steps: `/` and the bot section.
+- Expected: `Three AI bots — Stox, Koins and The Headmaster. Smitty tracks gold and silver spot and holdings only.` Smitty is not described as a fourth AI bot.
+
+### M13 — fixed
+
+- Status: fixed
+- Commit: `16d988b`
+- Files: `src/components/MarketTicker.tsx`
+- URL / steps: home ticker, TLX.AX.
+- Expected: a flat stale quote says `No change figure · as of 9 Oct 2026` (or the real quote date). It does not invent a 0.00% move.
+
+### M14 — fixed
+
+- Status: fixed, by keeping the current policy
+- Commit: `146b2ec`
+- Files: `src/lib/security-headers.ts`
+- URL / steps: response headers on `/`.
+- Expected: `script-src` stays on `Content-Security-Policy-Report-Only`. It is not enforced, because Next inline scripts and the consent-gated gtag have no nonce. There is no `X-Frame-Options`. `frame-ancestors` still allows `'self'`, `https://web.totalum.app`, and `https://totalum-frontend-test.web.app`, so the Totalum preview keeps working.
+
+### L16 — fixed
+
+- Status: fixed
+- Commit: `373f58b`
+- Files: `assets/files.ts`, `src/assets/files.ts`, `src/components/about/AboutContent.tsx`, `public/brand/about-hero.jpg`
+- URL / steps: `/about`, hero image request.
+- Expected: the hero is `/brand/about-hero.jpg` on this site, not `images.unsplash.com`. The page notes the Unsplash Licence. The photograph is the same landscape the page already described. Unsplash does not require a photographer credit, and this page did not name one.
+
+### 404 share URL — fixed
+
+- Status: fixed
+- Commit: `373f58b`
+- Files: `src/app/not-found.tsx`, `src/lib/route-gate.test.ts`
+- URL / steps: open a missing URL such as `/nope-404` and read `og:url`.
+- Expected: the 404 response does not set `og:url` or a canonical to `/404`. The title stays `Page not found — AetherForge AI`. This replaces the earlier H7 expectation that `og:url` would end in `/404`.
+
+## Track A2 checks
+
+- Tests, typecheck, lint, and build: recorded after they run on this branch.
 
 ## Left untouched on purpose
 
