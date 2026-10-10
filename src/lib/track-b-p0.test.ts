@@ -74,19 +74,37 @@ describe("Track B P0", () => {
   });
 
   it("states only the public AI facts, with no model name", () => {
+    const trust = read("src/app/trust/page.tsx");
+    const privacy = read("src/app/privacy-policy/page.tsx");
+    expect(trust).toContain("AI_REQUEST_LINES");
+    expect(privacy).toContain("AI_REQUEST_LINES");
     const blob = [
-      read("src/app/trust/page.tsx"),
-      read("src/app/privacy-policy/page.tsx"),
+      trust,
+      privacy,
+      read("src/lib/public-copy.ts"),
       read("src/components/chat/ChatAssistant.tsx"),
       read("src/components/dashboard/TickerAnalysisPane.tsx"),
       read("src/components/trial/TrialReportView.tsx"),
     ].join("\n");
     expect(blob).toMatch(/third-party AI service/);
     expect(blob).toContain("AI-written note");
-    expect(blob).not.toMatch(/\b(Grok|xAI|ZENITH|ULTRA|grok-4)\b/);
+    expect(blob).toContain("holding count");
+    expect(blob).toContain("cash balance");
+    expect(blob).toContain("retained-cash target");
+    expect(blob).toContain("stress-test impacts in NZ$ and percent");
+    expect(blob).toContain("does not include a card number");
+    expect(blob).not.toMatch(/\b(Grok|xAI|ZENITH|ULTRA|grok-4|enhanceWithGrok)\b/);
     const note = read("docs/ai-disclosure-for-lukas-2026-10-11.md");
     expect(note).toContain("to be confirmed by Lukas");
-    expect(note).not.toMatch(/\b(Grok|xAI|ZENITH|ULTRA|grok-4)\b/);
+    expect(note).toContain("the trial summary function in src/lib/trial-report.ts");
+    expect(note).not.toMatch(/\b(Grok|xAI|ZENITH|ULTRA|grok-4|enhanceWithGrok)\b/);
+    const markets = read("src/lib/public-market-index.ts");
+    expect(markets).toContain("const EQUITY_BUDGET_MS = 3000");
+    expect(markets).toContain("refreshes in the background");
+    const stock = read("src/app/markets/stock/[ticker]/page.tsx");
+    expect(stock).toContain("Create a free account");
+    expect(stock).toContain("Add to your paper book");
+    expect(stock).toContain("listing.entry.sector");
   });
 
   it("keeps the licensing note as options and does not claim a licence", () => {

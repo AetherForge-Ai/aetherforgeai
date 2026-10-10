@@ -1,12 +1,21 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { getCurrentUser } from "@/lib/session";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { MarketsAppFrame } from "@/components/dashboard/MarketsAppFrame";
 import { StockAssetPage } from "@/components/dashboard/StockAssetPage";
 import { exchangeFromTicker, normalizeStockTicker, parseExchange } from "@/lib/market-detail-routes";
+import { EXCHANGE_META, MARKET_UNIVERSE } from "@/lib/market-intel";
 import { loadStockQuoteLine } from "@/lib/public-market-index";
 
 export const dynamic = "force-dynamic";
+
+function listingFor(ticker: string) {
+  const entry = MARKET_UNIVERSE.find((row) => row.ticker.toUpperCase() === ticker.toUpperCase());
+  const exchange = exchangeFromTicker(ticker);
+  const exchangeLabel = exchange ? EXCHANGE_META[exchange].label : entry?.market ?? "";
+  return { entry, exchangeLabel };
+}
 
 export async function generateMetadata({
   params,
@@ -14,16 +23,25 @@ export async function generateMetadata({
   params: Promise<{ ticker: string }>;
 }): Promise<Metadata> {
   const { ticker } = await params;
-  const label = decodeURIComponent(ticker);
+  const symbolKey = normalizeStockTicker(ticker) ?? decodeURIComponent(ticker);
+  const { entry, exchangeLabel } = listingFor(symbolKey);
+  const symbol = symbolKey.replace(/\.(NZ|AX|L)$/i, "");
+  if (!entry) {
+    return publicPageMetadata(`/markets/stock/${ticker}`, {
+      title: `${symbolKey} · Stock · AetherForge AI`,
+      description: `${symbolKey} on AetherForge markets. Paper research, not a broker.`,
+    });
+  }
   return publicPageMetadata(`/markets/stock/${ticker}`, {
-    title: `${label} · Stock · AetherForge AI`,
-    description: `${label} on AetherForge markets. Paper research, not a broker.`,
+    title: `${entry.name} (${symbol}) · ${exchangeLabel} · AetherForge AI`,
+    description: `${entry.name} is in the ${entry.sector} list on ${exchangeLabel}. The price is shown when this response has one. Paper research, not a broker.`,
   });
 }
 
 /**
  * /markets/stock/[ticker] — shareable equity page.
  * [ticker] is the internal symbol /api/stock-detail already accepts (FPH.NZ, BHP.AX, AAPL).
+ * The name, exchange and sector come from the list in the repo. The price comes from the feed.
  */
 export default async function StockDetailPage({
   params,
@@ -39,13 +57,37 @@ export default async function StockDetailPage({
   const exchange = (ticker ? exchangeFromTicker(ticker) : null) ?? parseExchange(sp.exchange);
   const symbol = ticker ? ticker.replace(/\.(NZ|AX|L)$/i, "") : "";
   const allowBuy = !!user && sp.buy === "1";
+  const listing = ticker ? listingFor(ticker) : { entry: undefined, exchangeLabel: "" };
   const quoteLine = ticker ? await loadStockQuoteLine(ticker) : null;
+  const addHref = ticker ? `/markets/stock/${encodeURIComponent(ticker)}?buy=1` : "/register";
 
   return (
     <MarketsAppFrame user={user}>
-      <p className="mx-auto w-full max-w-6xl px-4 pt-6 text-sm text-muted-foreground sm:px-6 lg:px-8" data-ticker-quote>
-        {quoteLine ?? (ticker ? `${ticker} Price not in this response.` : "Price not in this response.")}
-      </p>
+      <section className="mx-auto w-full max-w-6xl space-y-2 px-4 pt-6 sm:px-6 lg:px-8" data-stock-listing>
+        {listing.entry ? (
+          <>
+            <h1 className="font-display text-2xl font-bold">{listing.entry.name}</h1>
+            <p className="text-sm text-muted-foreground">
+              {listing.entry.name} is in the {listing.entry.sector} list on {listing.exchangeLabel}.{" "}
+              {symbol} · {listing.exchangeLabel}.
+            </p>
+          </>
+        ) : (
+          <h1 className="font-display text-2xl font-bold">{ticker || "Stock"}</h1>
+        )}
+        <p className="text-sm text-muted-foreground" data-ticker-quote>
+          {quoteLine ?? (ticker ? `${ticker} Price not in this response.` : "Price not in this response.")}
+        </p>
+        {user ? (
+          <Link href={addHref} className="inline-block text-sm font-semibold text-primary underline-offset-2 hover:underline">
+            Add to your paper book
+          </Link>
+        ) : (
+          <Link href="/register" className="inline-block text-sm font-semibold text-primary underline-offset-2 hover:underline">
+            Create a free account
+          </Link>
+        )}
+      </section>
       <StockAssetPage
         ticker={ticker ?? ""}
         symbol={symbol}

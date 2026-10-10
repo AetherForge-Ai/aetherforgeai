@@ -13,8 +13,9 @@ import { MARKET_INDEX_PAGE, type PublicMarketIndex, type PublicPriceRow, type Pu
 import { fetchYahooQuote, fetchYahooQuotesBatched, yahooEquitySymbol, type YahooQuote } from "@/lib/yahoo-finance";
 
 const COIN_PAGE = 25;
-const EQUITY_BUDGET_MS = 12000;
-const ALT_BUDGET_MS = 5000;
+/** Cold /markets waits this long, then says the price is not in the response. */
+const EQUITY_BUDGET_MS = 3000;
+const ALT_BUDGET_MS = 3000;
 const INDEX_TTL_MS = 5 * 60 * 1000;
 
 function asOfLabel(iso: string | null): string {
@@ -144,17 +145,54 @@ async function buildIndex(): Promise<PublicMarketIndex> {
 let memo: { at: number; value: PublicMarketIndex } | null = null;
 let inflight: Promise<PublicMarketIndex> | null = null;
 
-/** First page of each markets tab. Cached in this process. A failed tab is an empty list, not a made-up price. */
-export async function loadPublicMarketIndex(): Promise<PublicMarketIndex> {
-  if (memo && Date.now() - memo.at < INDEX_TTL_MS && memo.value.priceRowCount > 0) return memo.value;
+function emptyIndex(): PublicMarketIndex {
+  return {
+    tabs: [
+      { id: "NZX", title: "NZX", asOf: "as of not stated by the vendor", rows: [] },
+      { id: "ASX", title: "ASX", asOf: "as of not stated by the vendor", rows: [] },
+      { id: "DOW", title: "Dow Jones", asOf: "as of not stated by the vendor", rows: [] },
+      { id: "NASDAQ", title: "NASDAQ", asOf: "as of not stated by the vendor", rows: [] },
+      { id: "CRYPTO", title: "Crypto", asOf: "as of not stated by the vendor", rows: [] },
+      { id: "DEX", title: "DEX", asOf: "as of not stated by the vendor", rows: [] },
+    ],
+    priceRowCount: 0,
+  };
+}
+
+/** Keep a richer snapshot. A short timeout must not wipe a page that already had rows. */
+function remember(value: PublicMarketIndex) {
+  if (value.priceRowCount <= 0) return;
+  if (memo && value.priceRowCount < memo.value.priceRowCount) return;
+  memo = { at: Date.now(), value };
+}
+
+function startBuild(): Promise<PublicMarketIndex> {
   if (!inflight) {
-    inflight = buildIndex().finally(() => {
-      inflight = null;
-    });
+    inflight = buildIndex()
+      .then((value) => {
+        remember(value);
+        return value;
+      })
+      .finally(() => {
+        inflight = null;
+      });
   }
-  const value = await inflight;
-  if (value.priceRowCount > 0) memo = { at: Date.now(), value };
-  return value;
+  return inflight;
+}
+
+/**
+ * First page of each markets tab.
+ * A warm snapshot is returned immediately. After it is older than the TTL,
+ * the next read still returns it and refreshes in the background.
+ * A cold read waits for the tab budget (EQUITY_BUDGET_MS). Empty tabs say the price is not in this response.
+ */
+export async function loadPublicMarketIndex(): Promise<PublicMarketIndex> {
+  if (memo && memo.value.priceRowCount > 0) {
+    if (Date.now() - memo.at >= INDEX_TTL_MS) void startBuild();
+    return memo.value;
+  }
+  const value = await startBuild();
+  return value.priceRowCount > 0 ? value : emptyIndex();
 }
 
 /** One equity ticker page. Null when Yahoo does not return a price. */
