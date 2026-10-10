@@ -33,6 +33,8 @@ export interface BriefingOutlookRow {
   conviction: ConvictionLevel;
   signal: SecurityIntel["signal"];
   outlook: ProbabilisticOutlook;
+  /** Present when FORECAST_LAYER is on. */
+  forecastView?: import("@/lib/forecast-present").ForecastView;
 }
 
 export interface OverallConviction {

@@ -93,6 +93,8 @@ export interface TickerAnalysis {
   priceUnavailable?: boolean;
   /** 24-hour move failed the quote check. Show "data under review", not changePct. */
   changeWithheld?: boolean;
+  /** Present when FORECAST_LAYER is on. The card uses it instead of a confidence percent. */
+  forecastView?: import("@/lib/forecast-present").ForecastView;
   /** 7-day base range, stated odds, bear-band kill price, and recent realised vol. */
   call?: {
     horizon: string;
@@ -137,6 +139,8 @@ export interface ProjectionRow {
   projected7dPct: number;
   confidence: number;
   signal: SecurityIntel["signal"];
+  /** Present when FORECAST_LAYER is on. */
+  forecastView?: import("@/lib/forecast-present").ForecastView;
 }
 
 /** Regional / sector news grouped by geography. */

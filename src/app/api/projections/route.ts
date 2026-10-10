@@ -10,6 +10,8 @@ import { CRYPTO_PROJECTION_HAND_CHECK } from "@/lib/crypto-vendors";
 import { assembleEquityProjections, rankByConfidenceWeightedMove } from "@/lib/projection-pause";
 import { toPublicMarketRecord } from "@/lib/public-intel";
 import { quotedEquitySessionOpen } from "@/lib/market-freshness";
+import { applyForecastLayer } from "@/lib/forecast-apply";
+import { forecastLayerEnabled, forecastLogEnabled } from "@/lib/forecast-flags";
 
 export const dynamic = "force-dynamic";
 
@@ -91,11 +93,28 @@ export async function GET(req: Request) {
             : ranked.combined;
     const start = (page - 1) * limit;
     const pageRows = pool.slice(start, start + limit);
+    if (forecastLayerEnabled() || forecastLogEnabled()) {
+      try {
+        await applyForecastLayer({
+          bot: "stox",
+          surface: "projections",
+          assetClass: "stock",
+          rows: pageRows,
+          histories,
+          nowMs: Date.now(),
+        });
+      } catch (err) {
+        console.error("[api/projections] Forecast layer failed:", err);
+      }
+    }
     const publish = (rows: typeof pageRows) =>
       rows.map((row) => {
+        const view = forecastLayerEnabled() ? row.forecastView : undefined;
         const pub = toPublicMarketRecord(row as unknown as Record<string, unknown>);
         delete pub.history;
         delete pub.projection;
+        delete pub.forecastView;
+        if (view) pub.forecastView = view;
         return pub;
       });
 

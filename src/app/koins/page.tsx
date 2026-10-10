@@ -14,6 +14,11 @@ export default function KoinsPage() {
       lede="Koins is one of the three AI bots. It reads crypto prices and writes plain-English notes about the coins on your paper book. Crypto projections on the projections page are paused. Koins does not place a trade."
       links={[
         {
+          href: "/track-record",
+          title: "Track record",
+          body: "Forecasts Koins shows, once they are on the public log. Crypto projections on the projections page stay paused. The page starts empty.",
+        },
+        {
           href: "/markets",
           title: "Markets",
           body: "Crypto prices, when that feed answers.",

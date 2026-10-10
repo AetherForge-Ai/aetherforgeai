@@ -33,6 +33,9 @@ import { loadTotalumSynthesis } from "@/lib/totalum-service";
 import type { TotalumSynthesis } from "@/lib/totalum-engine";
 import { portfolioIsLoaded, readPortfolioBook, type CoveragePosition } from "@/lib/report-scope";
 import { isBullionHolding } from "@/lib/metal-valuation";
+import { isDexSource } from "@/lib/dex-source";
+import { applyForecastLayer } from "@/lib/forecast-apply";
+import { forecastLayerEnabled, forecastLogEnabled } from "@/lib/forecast-flags";
 
 /**
  * Minimal shape of the user needed to build + deliver a report. Both the
@@ -442,6 +445,34 @@ export async function generateReportForUser(
   delivered.bookSentence = fullBookSentence(bookLog);
   delivered.reserveSentence = bookLog.reserveSentence;
   delivered.closedCallSentence = closedCallScore.sentence;
+  if (forecastLayerEnabled() || forecastLogEnabled()) {
+    try {
+      const dexTickers = new Set<string>();
+      for (const row of scoped) {
+        const ticker = String(row.ticker || "").toUpperCase();
+        if (!ticker) continue;
+        if (isDexSource({ venue: row.venue, sector: row.sector, notes: row.notes, market: row.market })) dexTickers.add(ticker);
+      }
+      const layerRows = [...technicals];
+      const seen = new Set(layerRows.map((row) => row.ticker.toUpperCase()));
+      for (const row of marketTechnicals) {
+        if (!seen.has(row.ticker.toUpperCase())) layerRows.push(row);
+      }
+      await applyForecastLayer({
+        bot: bot === "crypto" ? "koins" : "stox",
+        surface: "report",
+        assetClass: bot,
+        rows: layerRows,
+        dexTickers,
+        tickers: delivered.tickers,
+        leaders: delivered.projectionLeaders,
+        briefing: delivered.briefing,
+        nowMs: now.getTime(),
+      });
+    } catch (err) {
+      console.error("[report-service] Forecast layer failed (non-fatal):", err);
+    }
+  }
   const html = renderReportHtml(delivered, {
     userName: user.name || undefined,
     generatedAtLabel,

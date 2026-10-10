@@ -14,6 +14,11 @@ export default function StoxPage() {
       lede="Stox is one of the three AI bots. It reads NZX, ASX and US share prices and writes plain-English notes about the shares on your paper book. It does not place a trade."
       links={[
         {
+          href: "/track-record",
+          title: "Track record",
+          body: "Forecasts Stox shows, and the later price, once they are on the public log. The page starts empty.",
+        },
+        {
           href: "/markets",
           title: "Markets",
           body: "Share prices for NZX, ASX and US lists, when the feed answers.",

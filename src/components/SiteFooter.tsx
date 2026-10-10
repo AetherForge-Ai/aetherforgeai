@@ -11,6 +11,7 @@ const LINKS = [
   { href: "/trust", label: "Trust" },
   { href: "/about#contact", label: "Contact" },
   { href: "/status", label: "Status" },
+  { href: "/track-record", label: "Track record" },
   { href: "/docs", label: "Docs" },
   { href: "/tax", label: "Tax" },
   { href: "/pricing", label: "Pricing" },

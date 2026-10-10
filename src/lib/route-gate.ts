@@ -11,6 +11,7 @@ const PUBLIC_DOCUMENT_ROUTES = [
   "/features",
   "/how",
   "/performance",
+  "/track-record",
   "/dashboard",
   "/markets",
   "/tax",

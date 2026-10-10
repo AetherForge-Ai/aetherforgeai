@@ -65,6 +65,7 @@ const MARKET_LINKS: NavLink[] = [
 
 const MORE_LINKS: NavLink[] = [
   { href: "/performance", label: "Example results", icon: Trophy },
+  { href: "/track-record", label: "Track record", icon: Trophy },
   { href: "/tax", label: "Tax", icon: Scale },
   { href: "/pricing", label: "Pricing", icon: Tag },
   { href: "/how-it-works", label: "How it works", icon: BookOpen },

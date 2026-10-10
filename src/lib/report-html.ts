@@ -122,6 +122,16 @@ function signalBadge(signal: TickerAnalysis["signal"]): string {
   )}</span>`;
 }
 
+function forecastNoteHtml(view: NonNullable<TickerAnalysis["forecastView"]>): string {
+  return `<div style="font-size:11px;color:${MUTE};line-height:1.5;margin-top:8px">
+    <div style="color:${INK};font-weight:600">${esc(view.headline)}</div>
+    <div>${esc(view.why)}</div>
+    <div>${esc(view.probabilityLabel)}</div>
+    <div>${esc(view.sourceLabel)}</div>
+    <div>${esc(view.delayLabel)}</div>
+  </div>`;
+}
+
 function tickerBlock(t: TickerAnalysis): string {
   const days = t.shortTerm
     .map(
@@ -135,7 +145,7 @@ function tickerBlock(t: TickerAnalysis): string {
   const paths = t.pathways
     .map(
       (p) => `<td style="padding:8px;border:1px solid ${LINE};vertical-align:top;width:33%">
-        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:${MUTE}">${esc(p.name)} · ${p.probability}%</div>
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:${MUTE}">${esc(p.name)}${t.forecastView ? "" : ` · ${p.probability}%`}</div>
         <div style="font-size:15px;font-weight:700;color:${pctColor(p.targetPct)}">${p.targetPct > 0 ? "+" : ""}${p.targetPct}%</div>
         <div style="font-size:10px;color:${MUTE};line-height:1.35;margin-top:2px">${esc(p.narrative)}</div>
       </td>`
@@ -163,14 +173,19 @@ function tickerBlock(t: TickerAnalysis): string {
     </div>
     ${sparkline(t.momentum, t.momentum12moPct >= 0)}
 
-    <div style="font-size:11px;color:${MUTE};margin:8px 0 4px">7-day illustrative scenario</div>
+    ${t.forecastView ? forecastNoteHtml(t.forecastView) : ""}
+    ${
+      t.forecastView && t.forecastView.stance !== "directional"
+        ? ""
+        : `<div style="font-size:11px;color:${MUTE};margin:8px 0 4px">7-day illustrative scenario</div>
     <table width="100%" style="border-collapse:collapse"><tr>${days}</tr></table>
 
     <div style="font-size:11px;color:${MUTE};margin:10px 0 4px">Three forward pathways</div>
     <table width="100%" style="border-collapse:collapse"><tr>${paths}</tr></table>`
+    }`
     }
 
-    <p style="font-size:11px;color:${MUTE};line-height:1.5;margin:10px 0 0">${esc(t.note)}</p>
+    ${t.forecastView ? "" : `<p style="font-size:11px;color:${MUTE};line-height:1.5;margin:10px 0 0">${esc(t.note)}</p>`}
   </div>`;
 }
 
@@ -255,8 +270,12 @@ function technicalsTable(techs: SecurityIntel[]): string {
         <td style="padding:7px;border:1px solid ${LINE};color:${t.macdSignal === "Bullish" ? GREEN : t.macdSignal === "Bearish" ? RED : MUTE}">${esc(t.macdSignal)}</td>
         <td style="padding:7px;border:1px solid ${LINE}">${t.bbPosition.toFixed(0)}%</td>
         <td style="padding:7px;border:1px solid ${LINE};color:${pctColor(t.vsSma20)}">${pct(t.vsSma20)}</td>
-        <td style="padding:7px;border:1px solid ${LINE};color:${pctColor(t.projected7dPct)};font-weight:600">${pct(t.projected7dPct)} <span style="color:${MUTE};font-weight:400">(${t.confidence}%)</span></td>
-        <td style="padding:7px;border:1px solid ${LINE}"><span style="color:${sc};font-weight:600">${esc(t.signal)}</span></td>
+        <td style="padding:7px;border:1px solid ${LINE};color:${pctColor(t.projected7dPct)};font-weight:600">${
+          t.forecastView && t.forecastView.stance !== "directional"
+            ? esc(t.forecastView.tableLabel)
+            : `${pct(t.projected7dPct)} <span style="color:${MUTE};font-weight:400">(${t.forecastView ? esc(t.forecastView.tableLabel) : `${t.confidence}%`})</span>`
+        }</td>
+        <td style="padding:7px;border:1px solid ${LINE}"><span style="color:${sc};font-weight:600">${t.forecastView ? esc(t.forecastView.tableLabel) : esc(t.signal)}</span></td>
       </tr>`;
     })
     .join("");
@@ -323,8 +342,12 @@ function projectionLeadersBlock(rows: ProjectionRow[]): string {
         <td style="padding:6px 7px;border:1px solid ${LINE};font-size:11px"><span style="color:${MUTE}">${i + 1}.</span> <strong>${esc(r.ticker)}</strong> <span style="color:${MUTE}">· ${esc(r.name)}</span></td>
         <td style="padding:6px 7px;border:1px solid ${LINE};font-size:11px;text-align:center">${esc(r.market)}</td>
         <td style="padding:6px 7px;border:1px solid ${LINE};font-family:monospace;font-size:11px;text-align:right">${moneyC(r.price, r.currency)}</td>
-        <td style="padding:6px 7px;border:1px solid ${LINE};font-size:12px;text-align:right;color:${pctColor(r.projected7dPct)};font-weight:700">${pct(r.projected7dPct)}</td>
-        <td style="padding:6px 7px;border:1px solid ${LINE};font-size:11px;text-align:right;color:${MUTE}">${r.confidence}%</td>
+        <td style="padding:6px 7px;border:1px solid ${LINE};font-size:12px;text-align:right;color:${pctColor(r.projected7dPct)};font-weight:700">${
+          r.forecastView && r.forecastView.stance !== "directional" ? esc(r.forecastView.tableLabel) : pct(r.projected7dPct)
+        }</td>
+        <td style="padding:6px 7px;border:1px solid ${LINE};font-size:11px;text-align:right;color:${MUTE}">${
+          r.forecastView ? esc(r.forecastView.tableLabel) : `${r.confidence}%`
+        }</td>
       </tr>`
     )
     .join("");
@@ -400,15 +423,15 @@ function directRecommendationsBlock(recs: DirectRecommendation[]): string {
 }
 
 /** Three forward pathways with steps + the single recommended route. */
-function pathwayPlanBlock(plan: PathwayPlan): string {
+function pathwayPlanBlock(plan: PathwayPlan, hideOdds = false): string {
   if (!plan.pathways.length) return "";
   const cols = plan.pathways
     .map((p) => {
       const rec = p.recommended;
       return `<td style="padding:12px;border:2px solid ${rec ? BLUE : LINE};border-radius:8px;vertical-align:top;width:33%;background:${rec ? BLUE + "0a" : "#fff"}">
-        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:${MUTE}">${esc(p.risk)} · ${p.probability}% odds</div>
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:${MUTE}">${esc(p.risk)}${hideOdds ? "" : ` · ${p.probability}% odds`}</div>
         <div style="font-weight:700;font-size:14px;color:${INK}">${esc(p.name)}${rec ? ` <span style="color:${BLUE};font-size:10px;font-weight:700">★ ILLUSTRATIVE</span>` : ""}</div>
-        <div style="font-size:16px;font-weight:700;color:${pctColor(p.targetPct)}">${pct(p.targetPct)} <span style="font-size:10px;color:${MUTE};font-weight:400">7-day target</span></div>
+        <div style="font-size:16px;font-weight:700;color:${pctColor(p.targetPct)}">${pct(p.targetPct)} <span style="font-size:10px;color:${MUTE};font-weight:400">${hideOdds ? "7-day model midpoint" : "7-day target"}</span></div>
         <div style="font-size:11px;color:${MUTE};margin:4px 0 6px;line-height:1.4">${esc(p.summary)}</div>
         <ol style="padding-left:16px;margin:0;font-size:11px;color:${INK};line-height:1.5">
           ${p.steps.map((s) => `<li style="margin:3px 0">${esc(s)}</li>`).join("")}
@@ -438,19 +461,26 @@ function sgn(x: number): string {
 
 function outlookRow(r: BriefingOutlookRow): string {
   const { base, bull, bear } = r.outlook;
+  const layered = Boolean(r.forecastView);
   const cell = (label: string, lo: number, hi: number, prob: number, color: string) =>
     `<td style="padding:7px 8px;border-top:1px solid ${LINE};text-align:center">
        <div style="font-size:12px;color:${color};font-weight:700">${sgn(lo)} … ${sgn(hi)}</div>
-       <div style="font-size:10px;color:${MUTE}">${label} · ${prob}%</div>
+       ${layered ? "" : `<div style="font-size:10px;color:${MUTE}">${label} · ${prob}%</div>`}
      </td>`;
+  const call =
+    layered && r.forecastView?.stance !== "directional"
+      ? `<td colspan="3" style="padding:7px 8px;border-top:1px solid ${LINE};font-size:11px;color:${MUTE}">${esc(r.forecastView?.headline || "")}</td>`
+      : `${cell("Bear", bear.lowPct, bear.highPct, bear.probability, RED)}
+    ${cell("Base", base.lowPct, base.highPct, base.probability, INK)}
+    ${cell("Bull", bull.lowPct, bull.highPct, bull.probability, GREEN)}`;
   return `<tr>
     <td style="padding:7px 8px;border-top:1px solid ${LINE}">
       <div style="font-weight:700;color:${INK};font-size:12px">${esc(r.ticker)}</div>
-      <div style="font-size:10px;color:${MUTE}">${esc(r.regime)} · <span style="color:${convColor(r.conviction)}">${esc(r.conviction)} conv.</span></div>
+      <div style="font-size:10px;color:${MUTE}">${
+        layered ? esc(r.forecastView?.tableLabel || "") : `${esc(r.regime)} · <span style="color:${convColor(r.conviction)}">${esc(r.conviction)} conv.</span>`
+      }</div>
     </td>
-    ${cell("Bear", bear.lowPct, bear.highPct, bear.probability, RED)}
-    ${cell("Base", base.lowPct, base.highPct, base.probability, INK)}
-    ${cell("Bull", bull.lowPct, bull.highPct, bull.probability, GREEN)}
+    ${call}
   </tr>`;
 }
 
@@ -485,7 +515,9 @@ function briefingBlock(b: IntelligenceBriefing): string {
       <!-- Overall conviction -->
       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">
         <span style="display:inline-block;padding:4px 11px;border-radius:999px;background:${biasColor(b.overall.bias)}1a;color:${biasColor(b.overall.bias)};font-size:12px;font-weight:700">${esc(b.overall.bias)} bias</span>
-        <span style="display:inline-block;padding:4px 11px;border-radius:999px;background:${convColor(b.overall.level)}1a;color:${convColor(b.overall.level)};font-size:12px;font-weight:700">${esc(b.overall.level)} conviction</span>
+        <span style="display:inline-block;padding:4px 11px;border-radius:999px;background:${convColor(b.overall.level)}1a;color:${convColor(b.overall.level)};font-size:12px;font-weight:700">${
+          b.outlook.some((row) => row.forecastView) ? "Not a probability" : `${esc(b.overall.level)} conviction`
+        }</span>
         <span style="display:inline-block;padding:4px 11px;border-radius:999px;background:#f1f5f9;color:${INK};font-size:12px;font-weight:700">Net ${b.overall.score}/100</span>
         <span style="display:inline-block;padding:4px 11px;border-radius:999px;background:${b.sentiment.label === "Bullish" ? GREEN : b.sentiment.label === "Bearish" ? RED : MUTE}1a;color:${b.sentiment.label === "Bullish" ? GREEN : b.sentiment.label === "Bearish" ? RED : MUTE};font-size:12px;font-weight:700">Sentiment ${esc(b.sentiment.label)} ${b.sentiment.score}/100</span>
       </div>
@@ -670,7 +702,7 @@ export function renderReportHtml(source: ApexReport, opts: RenderReportOptions):
 
         ${directRecommendationsBlock(report.directRecommendations)}
 
-        ${pathwayPlanBlock(report.pathwayPlan)}
+        ${pathwayPlanBlock(report.pathwayPlan, report.tickers.some((row) => row.forecastView) || report.projectionLeaders.some((row) => row.forecastView))}
 
         ${alertsBlock(opts.alerts || [])}
 

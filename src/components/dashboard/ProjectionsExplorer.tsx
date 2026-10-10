@@ -179,12 +179,20 @@ function ProjectionRow({ rank, s, showMarket = false }: { rank: number; s: Secur
           <span className="tnum text-sm font-medium">{formatMarketPrice(s.price, s.currency)}</span>
         </td>
         <td className="px-2 py-3 text-right">
-          <span className={cn("tnum text-sm font-bold", pctClass(s.projected7dPct))}>
-            {fmtPct(s.projected7dPct)}
-          </span>
+          {s.forecastView && s.forecastView.stance !== "directional" ? (
+            <span className="text-xs text-muted-foreground">{s.forecastView.tableLabel}</span>
+          ) : (
+            <span className={cn("tnum text-sm font-bold", pctClass(s.projected7dPct))}>
+              {fmtPct(s.projected7dPct)}
+            </span>
+          )}
         </td>
         <td className="hidden px-2 py-3 md:table-cell">
-          <Confidence value={s.confidence} />
+          {s.forecastView ? (
+            <span className="text-xs text-muted-foreground">{s.forecastView.tableLabel}</span>
+          ) : (
+            <Confidence value={s.confidence} />
+          )}
         </td>
         <td className="px-2 py-3 pr-3 text-right">
           <button
@@ -205,6 +213,15 @@ function ProjectionRow({ rank, s, showMarket = false }: { rank: number; s: Secur
                 <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-primary">
                   <Sparkles className="size-3.5" /> Reasoning &amp; analysis
                 </p>
+                {s.forecastView ? (
+                  <div className="mb-2 space-y-1 text-sm leading-relaxed text-muted-foreground">
+                    <p className="font-medium text-foreground">{s.forecastView.headline}</p>
+                    <p>{s.forecastView.why}</p>
+                    <p>{s.forecastView.probabilityLabel}</p>
+                    <p>{s.forecastView.sourceLabel}</p>
+                    <p>{s.forecastView.delayLabel}</p>
+                  </div>
+                ) : null}
                 <p className="text-sm leading-relaxed text-muted-foreground">{publicMarketNote(s.reasoning)}</p>
                 <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{scoreBandSentence(s.score)}</p>
                 {modelRangeLine(s.outlook) ? (
@@ -401,7 +418,9 @@ export function ProjectionsExplorer() {
                   <th className="hidden px-2 py-2.5 font-semibold sm:table-cell">Name</th>
                   <th className="px-2 py-2.5 text-right font-semibold">Price</th>
                   <th className="px-2 py-2.5 text-right font-semibold">Projected 7d</th>
-                  <th className="hidden px-2 py-2.5 font-semibold md:table-cell">Confidence</th>
+                  <th className="hidden px-2 py-2.5 font-semibold md:table-cell">
+                    {rows.some((row) => row.forecastView) ? "Note" : "Confidence"}
+                  </th>
                   <th className="px-2 py-2.5 pr-3 text-right font-semibold">Detail</th>
                 </tr>
               </thead>

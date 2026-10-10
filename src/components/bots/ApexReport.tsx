@@ -68,6 +68,25 @@ function shownCopy(text: string, scrub: boolean): string {
   return scrub ? scrubPublicCopy(text) : text;
 }
 
+function reportUsesForecastLayer(report: ApexReport): boolean {
+  if (report.tickers?.some((row) => row.forecastView)) return true;
+  if (report.projectionLeaders?.some((row) => row.forecastView)) return true;
+  if (report.briefing?.outlook.some((row) => row.forecastView)) return true;
+  return false;
+}
+
+function ForecastNote({ view }: { view: NonNullable<TickerAnalysis["forecastView"]> }) {
+  return (
+    <div className="mt-3 space-y-1 text-xs leading-relaxed text-muted-foreground">
+      <p className="font-medium text-foreground">{view.headline}</p>
+      <p>{view.why}</p>
+      <p>{view.probabilityLabel}</p>
+      <p>{view.sourceLabel}</p>
+      <p>{view.delayLabel}</p>
+    </div>
+  );
+}
+
 function TickerCard({ t, scrub }: { t: TickerAnalysis; scrub: boolean }) {
   return (
     <div className="rounded-xl border border-border/60 bg-card/40 p-4">
@@ -100,7 +119,11 @@ function TickerCard({ t, scrub }: { t: TickerAnalysis; scrub: boolean }) {
         </div>
       </div>
 
+      {t.forecastView ? <ForecastNote view={t.forecastView} /> : null}
+
       {/* 7-day short-term predictions */}
+      {!t.forecastView || t.forecastView.stance === "directional" ? (
+      <>
       <div className="mt-3">
         <div className="text-[11px] text-muted-foreground mb-1">7-day illustrative scenario</div>
         <div className="grid grid-cols-7 gap-1">
@@ -122,7 +145,7 @@ function TickerCard({ t, scrub }: { t: TickerAnalysis; scrub: boolean }) {
           <div key={p.name} className="rounded-md border border-border/50 bg-background/40 p-2">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{p.name}</span>
-              <span className="text-[10px] text-muted-foreground">{p.probability}%</span>
+              {t.forecastView ? null : <span className="text-[10px] text-muted-foreground">{p.probability}%</span>}
             </div>
             <div className={`text-sm font-semibold ${pctTone(p.targetPct)}`}>
               {p.targetPct > 0 ? "+" : ""}
@@ -132,8 +155,12 @@ function TickerCard({ t, scrub }: { t: TickerAnalysis; scrub: boolean }) {
           </div>
         ))}
       </div>
+      </>
+      ) : null}
 
-      <p className="mt-3 text-xs leading-relaxed text-muted-foreground/90">{shownCopy(t.note, scrub)}</p>
+      {t.forecastView ? null : (
+        <p className="mt-3 text-xs leading-relaxed text-muted-foreground/90">{shownCopy(t.note, scrub)}</p>
+      )}
     </div>
   );
 }
@@ -226,8 +253,16 @@ function ProjectionLeadersSection({ report }: { report: ApexReport }) {
             </span>
             <span className="flex shrink-0 items-center gap-2">
               <span className="font-mono text-xs text-muted-foreground">{formatMoney(r.price, r.currency)}</span>
-              <span className={`font-mono ${pctTone(r.projected7dPct)}`}>{formatPercent(r.projected7dPct)}</span>
-              <span className="text-[11px] text-muted-foreground/70">{r.confidence}%</span>
+              {r.forecastView && r.forecastView.stance !== "directional" ? (
+                <span className="text-[11px] text-muted-foreground">{r.forecastView.tableLabel}</span>
+              ) : (
+                <>
+                  <span className={`font-mono ${pctTone(r.projected7dPct)}`}>{formatPercent(r.projected7dPct)}</span>
+                  <span className="text-[11px] text-muted-foreground/70">
+                    {r.forecastView ? r.forecastView.tableLabel : `${r.confidence}%`}
+                  </span>
+                </>
+              )}
             </span>
           </div>
         ))}
@@ -347,13 +382,17 @@ function PathwayPlanSection({ report }: { report: ApexReport }) {
     >
       <div className="flex items-center justify-between text-[10px] uppercase tracking-wide text-muted-foreground">
         <span>
-          {p.risk} · {p.probability}%
+          {p.risk}
+          {reportUsesForecastLayer(report) ? "" : ` · ${p.probability}%`}
         </span>
         {p.recommended && <span className="font-bold text-primary">★ Illustrative</span>}
       </div>
       <div className="mt-0.5 text-sm font-semibold">{p.name}</div>
       <div className={`text-base font-bold ${pctTone(p.targetPct)}`}>
-        {formatPercent(p.targetPct)} <span className="text-[10px] font-normal text-muted-foreground">7-day target</span>
+        {formatPercent(p.targetPct)}{" "}
+        <span className="text-[10px] font-normal text-muted-foreground">
+          {reportUsesForecastLayer(report) ? "7-day model midpoint" : "7-day target"}
+        </span>
       </div>
       <p className="mt-1 text-[11px] leading-snug text-muted-foreground">{p.summary}</p>
       <ol className="mt-2 list-decimal space-y-1 pl-4 text-[11px] leading-snug text-foreground/90">
@@ -392,6 +431,7 @@ function convTone(level: string): string {
 
 function OutlookRow({ r }: { r: BriefingOutlookRow }) {
   const { base, bull, bear } = r.outlook;
+  const layered = Boolean(r.forecastView);
   const Cell = ({ label, lo, hi, prob, tone }: { label: string; lo: number; hi: number; prob: number; tone: string }) => (
     <td className="border-t border-border/50 px-1 py-1.5 text-center align-top">
       <div className={`break-words text-[10px] font-semibold leading-tight [overflow-wrap:anywhere] sm:text-[11px] ${tone}`}>
@@ -399,9 +439,11 @@ function OutlookRow({ r }: { r: BriefingOutlookRow }) {
         {lo}% … {hi >= 0 ? "+" : ""}
         {hi}%
       </div>
-      <div className="text-[9px] text-muted-foreground">
-        {label} · {prob}%
-      </div>
+      {layered ? null : (
+        <div className="text-[9px] text-muted-foreground">
+          {label} · {prob}%
+        </div>
+      )}
     </td>
   );
   return (
@@ -409,12 +451,24 @@ function OutlookRow({ r }: { r: BriefingOutlookRow }) {
       <td className="border-t border-border/50 px-2 py-1.5">
         <div className="text-xs font-semibold">{r.ticker}</div>
         <div className="text-[9px] text-muted-foreground">
-          {r.regime} · <span className={convTone(r.conviction).split(" ")[0]}>{r.conviction}</span>
+          {layered ? r.forecastView?.tableLabel : (
+            <>
+              {r.regime} · <span className={convTone(r.conviction).split(" ")[0]}>{r.conviction}</span>
+            </>
+          )}
         </div>
       </td>
-      <Cell label="Bear" lo={bear.lowPct} hi={bear.highPct} prob={bear.probability} tone="text-red-600" />
-      <Cell label="Base" lo={base.lowPct} hi={base.highPct} prob={base.probability} tone="text-foreground" />
-      <Cell label="Bull" lo={bull.lowPct} hi={bull.highPct} prob={bull.probability} tone="text-emerald-600" />
+      {layered && r.forecastView?.stance !== "directional" ? (
+        <td colSpan={3} className="border-t border-border/50 px-2 py-1.5 text-[11px] text-muted-foreground">
+          {r.forecastView.headline}
+        </td>
+      ) : (
+        <>
+          <Cell label="Bear" lo={bear.lowPct} hi={bear.highPct} prob={bear.probability} tone="text-red-600" />
+          <Cell label="Base" lo={base.lowPct} hi={base.highPct} prob={base.probability} tone="text-foreground" />
+          <Cell label="Bull" lo={bull.lowPct} hi={bull.highPct} prob={bull.probability} tone="text-emerald-600" />
+        </>
+      )}
     </tr>
   );
 }
@@ -448,7 +502,7 @@ function BriefingSection({ report }: { report: ApexReport }) {
           {b.overall.bias} bias
         </Badge>
         <Badge variant="outline" className={convTone(b.overall.level)}>
-          {b.overall.level} conviction
+          {reportUsesForecastLayer(report) ? "Not a probability" : `${b.overall.level} conviction`}
         </Badge>
         <Badge variant="outline" className="border-border/60 text-muted-foreground">
           Net {b.overall.score}/100

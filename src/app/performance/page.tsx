@@ -77,7 +77,11 @@ export default function PerformancePage() {
             <p>
               The screenshots use market data that was available at those times. AetherForge is a
               paper portfolio and research tool — it does not place trades, and past examples are
-              not a forecast.
+              not a forecast. The{" "}
+              <Link href="/track-record" className="font-medium text-primary hover:underline">
+                track record
+              </Link>{" "}
+              is a separate log of forecasts. It starts empty.
             </p>
           </div>
         </section>

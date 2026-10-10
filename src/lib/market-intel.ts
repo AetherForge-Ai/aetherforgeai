@@ -115,6 +115,8 @@ export interface SecurityIntel {
   conviction: ConvictionLevel; // explicit conviction bucket
   convictionReason: string; // short why for the conviction level
   reasoning: string;
+  /** Set only when FORECAST_LAYER is on. Absent on the ordinary engine output. */
+  forecastView?: import("@/lib/forecast-present").ForecastView;
 }
 
 /* ------------------------------ Universe -------------------------------- */
