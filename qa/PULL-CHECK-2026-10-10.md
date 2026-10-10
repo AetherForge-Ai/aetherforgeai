@@ -773,4 +773,5 @@ NZ tax pack. Draft PRs only. Nothing here publishes, sends email, or removes a S
 - Expected, an empty book says `No attributing overseas shares on this book.` It does not say the cost is under NZ$50,000.00.
 - Expected, saving market values changes only `stock.notes`, in the form `[FIFMV:2027:o=1800.00;c=2000.00]`. The rest of the note stays. The page does not show `[FIFMV:`. The page says `Indicative, not tax advice.`
 - Sources on the page: Inland Revenue foreign investment funds, the exemptions page, the section CQ 5 article, TDS 26/01, and TDS 23/13.
+- Checked on this branch: `npm run check-types-errors` passed. eslint on the TB-2c source files passed. `npm test` 105 files, 514 tests passed. `npm run build` passed (Next.js 15.3.9). A local `next start` of `/tax/fif` returned the indicative label, the FIF title, a sign-in link, and the Inland Revenue foreign investment funds link. It did not contain a sample cost or `[FIFMV:`. `/tax` still contains "does not yet produce tax reports". Nothing was published. No email was sent.
 
