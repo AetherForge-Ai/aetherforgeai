@@ -63,10 +63,12 @@ export function searchAssets(query: string, pools: AssetSearchPools = {}): Asset
   hits.sort((a, b) => {
     const rank = (hit: AssetHit) => {
       const symbol = hit.symbol.toLowerCase();
-      const exact = symbol === q ? 0 : symbol.startsWith(q) ? 1 : 2;
-      // A DEX row stays reachable beside a CoinGecko coin of the same name.
-      const venue = hit.market === "DEX" ? 0 : 1;
-      return exact * 2 + venue;
+      const localListing = symbol === q || symbol === `${q}.nz` || symbol === `${q}.ax`;
+      const exact = localListing ? 0 : symbol.startsWith(q) ? 1 : 2;
+      // DEX stays ahead of a coin-list row. NZX and ASX stay ahead of a US fund with the same letters.
+      const venue =
+        hit.market === "DEX" ? 0 : hit.market === "NZX" ? 1 : hit.market === "ASX" ? 2 : hit.market === "Crypto" ? 3 : 4;
+      return exact * 10 + venue;
     };
     const diff = rank(a) - rank(b);
     if (diff !== 0) return diff;

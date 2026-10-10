@@ -414,6 +414,13 @@ describe("one asset search", () => {
     const pepe = searchAssets("PEPE");
     expect(pepe.some((hit) => hit.symbol === "PEPE")).toBe(true);
     expect(pepe[0]?.market).toBe("DEX");
+    const pfi = searchAssets("PFI", {
+      shares: [
+        { symbol: "PFI", name: "Invesco Dorsey Wright Financial Momentum ETF", market: "US", assetType: "stock" },
+        { symbol: "PFI.NZ", name: "Property for Industry", market: "NZX", assetType: "stock" },
+      ],
+    });
+    expect(pfi[0]?.symbol).toBe("PFI.NZ");
     const uni = searchAssets("uniswap");
     expect(uni.some((hit) => hit.name === "Uniswap" && hit.market === "DEX")).toBe(true);
   });

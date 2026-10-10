@@ -159,12 +159,13 @@ export function RecordTransactionPanel({
     setFxDirty(false);
     setDate(today);
     const seeded = seedFrom(seed, preferredAssetType);
-    setAsset(seeded);
-    setMetalId(seed?.metalSourceId);
+    const cashKind = isCashKind(nextKind);
+    setAsset(cashKind ? null : seeded);
+    setMetalId(cashKind ? undefined : seed?.metalSourceId);
     setQuantity("");
-    const startPrice = seed?.price && seed.price > 0 ? formatPriceInput(seed.price) : "";
+    const startPrice = cashKind || !(seed?.price && seed.price > 0) ? "" : formatPriceInput(seed.price);
     setPrice(startPrice);
-    const cur = seeded ? currencyForTicker(seeded.symbol, seeded.assetType) : "NZD";
+    const cur = cashKind || !seeded ? "NZD" : currencyForTicker(seeded.symbol, seeded.assetType);
     setCurrency(cur);
     const seededDay = dayOf(seed?.purchaseDate);
     if (nextKind === "correction" && seededDay) setDate(seededDay);
@@ -381,18 +382,19 @@ export function RecordTransactionPanel({
   function buildPreview(): MovementPreview {
     const parsedFx = Number(fxRate);
     const fx = currency === "NZD" ? 1 : parsedFx > 0 ? parsedFx : 0;
+    const cashOnly = isCashKind(kind);
     return buildMovementPreview({
       type: kind,
       date,
-      asset: asset?.symbol,
-      assetName: asset?.name,
-      quantity: Number(quantity) || 0,
+      asset: cashOnly ? undefined : asset?.symbol,
+      assetName: cashOnly ? undefined : asset?.name,
+      quantity: cashOnly ? 0 : Number(quantity) || 0,
       price: Number(price) || 0,
       fee: Number(fee) || 0,
-      currency: cashMovement ? "NZD" : currency,
+      currency: cashOnly || cashMovement ? "NZD" : currency,
       fxRate: fx,
       cashNzd: bookKnown ? bookCash : cash,
-      hasAsset: !!asset,
+      hasAsset: cashOnly ? false : !!asset,
     });
   }
 
@@ -565,11 +567,15 @@ export function RecordTransactionPanel({
       {step === "review" && preview ? (
         <div className="space-y-3" data-testid="record-review">
           <div className="space-y-1.5 pt-1">
-            <p className="font-display text-base font-bold leading-snug">Review</p>
-            <p className="text-xs leading-snug text-muted-foreground">Nothing is written until you confirm.</p>
+            <p className="font-display text-base font-bold leading-tight">Review</p>
+            <p className="text-xs leading-normal text-muted-foreground">Nothing is written until you confirm.</p>
           </div>
           <ReviewRow label="Type" value={kindLabel(preview.type)} />
-          {preview.asset ? <ReviewRow label="Asset" value={preview.assetName && preview.assetName !== preview.asset ? `${preview.asset} · ${preview.assetName}` : preview.asset} /> : null}
+          {isCashKind(preview.type) ? (
+            <ReviewRow label="Asset" value="Cash" />
+          ) : preview.asset ? (
+            <ReviewRow label="Asset" value={preview.assetName && preview.assetName !== preview.asset ? `${preview.asset} · ${preview.assetName}` : preview.asset} />
+          ) : null}
           <ReviewRow label="Date" value={formatDisplayDate(preview.date)} />
           {showQty ? <ReviewRow label="Quantity" value={formatQuantity(preview.quantity)} /> : null}
           <ReviewRow
@@ -605,6 +611,15 @@ export function RecordTransactionPanel({
                     setProblems([]);
                     setStep("edit");
                     if (item.id === "dividend") setQuery("");
+                    if (isCashKind(item.id)) {
+                      setAsset(null);
+                      setQuery("");
+                      setPrice("");
+                      setQuantity("");
+                      setCurrency("NZD");
+                      setPriceDirty(false);
+                      setHint("");
+                    }
                   }}
                   className={cn(
                     "rounded-lg border px-2.5 py-1.5 text-xs font-semibold",
@@ -901,6 +916,10 @@ function ReviewRow({ label, value }: { label: string; value: string }) {
       <span className="tnum text-right font-medium">{value}</span>
     </div>
   );
+}
+
+function isCashKind(id: RecordKind): boolean {
+  return id === "deposit" || id === "withdraw" || id === "tax";
 }
 
 function earliest(a?: string, b?: string | null): string {
