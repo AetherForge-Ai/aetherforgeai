@@ -651,7 +651,7 @@ Lukas may later decide to retire the downloadable Excel investor toolkit templat
 
 ## Left untouched on purpose
 
-`CRYPTO_PROJECTIONS_PAUSED` remains true. `CRYPTO_SANITY_RATIO` stays 3. Reviewed FX stays ±5%. `preserveDynamicSegmentTraces` is unchanged. Security headers stay in `next.config` `headers()` only. New books still start at NZ$0. The fee default stays NZ$0.00. This branch did not edit `src/lib/auth.ts`, auth mail, transactional mail, the send-verification route, or news ingestion. Register and login arrived with the #246 merge. Email sending stays hard off. No email was sent. Reports describe intelligent AI bots and do not name Grok, ZENITH, or ULTRA. No Totalum AI product name was added. Nothing was published. Contacts remain `admin@aetherforgeai.co.nz` and `lukas@aetherforgeai.co.nz`.
+`CRYPTO_PROJECTIONS_PAUSED` remains true. `CRYPTO_SANITY_RATIO` stays 3. Reviewed FX stays ±5%. `preserveDynamicSegmentTraces` is unchanged. Security headers stay in `next.config` `headers()` only. New books still start at NZ$0. The fee default stays NZ$0.00. This branch did not edit `src/lib/auth.ts`, auth mail, transactional mail, the send-verification route, or news ingestion. Register and login arrived with the #246 merge. Email sending stays hard off. No email was sent. Reports describe intelligent AI bots and do not name a model or a provider. No Totalum AI product name was added. Nothing was published. Contacts remain `admin@aetherforgeai.co.nz` and `lukas@aetherforgeai.co.nz`.
 
 ## Track B P0
 
@@ -686,13 +686,14 @@ Branch `cursor/track-b-p0-bb35` from develop `87dfce1`. PR https://github.com/Ae
 
 ### P0-4 — fixed on this machine
 
-- Status: fixed in the local production server
-- Commit: `d08381a62b1bfd1c407ccc031e3b1a9fc3e73c9b`
+- Status: fixed in the local production server. Review follow-up: the equity wait is 3 seconds, a stored snapshot is served at once, and a later read refreshes it in the background. A cold miss still prints "No prices in this response."
+- Commit: `d08381a62b1bfd1c407ccc031e3b1a9fc3e73c9b`. Review follow-up `d0530cc812029408fdc2cd3c9f7019cd04b81fbf`.
 - Files: `src/lib/public-market-index.ts`, `src/lib/public-market-types.ts`, `src/lib/sitemap-tickers.ts`, `src/components/markets/PublicMarketTables.tsx`, `src/components/dashboard/MarketsPageContent.tsx`, `src/app/markets/page.tsx`, `src/app/markets/stock/[ticker]/page.tsx`, `src/app/markets/crypto/[id]/page.tsx`, `src/app/sitemap.ts`
 - URL / steps: `curl` `/markets`, `/markets/stock/FBU.NZ`, and `/sitemap.xml`.
 - Expected: at least 50 `data-price-row` rows and an as-of time in the markets HTML. The sitemap lists ticker paths.
 - Checked here: `/markets` returned 230 `data-price-row` rows in 1.78 s. As-of lines included `as of 9 Oct 2026, 4:55 pm` (NZX), `as of 9 Oct 2026, 6:12 pm` (ASX), `as of 10 Oct 2026, 9:00 am` (Dow Jones and NASDAQ), and `as of 11 Oct 2026, 12:51 am` (crypto, from the feed's `last_updated`). Sitemap listed `/status`, 397 `/markets/stock/` paths, and 20 `/markets/crypto/` paths. `FBU.NZ` HTML included `FBU.NZ NZ$3.42 0.00% as of 9 Oct 2026, 4:59 pm`.
-- Partial: 25 DEX rows say `change not stated` and `as of not stated by the vendor`, because that feed has no change and no quote time. Six equity rows printed `0.00%`. A blank vendor response would say `No prices in this response.` This curl had none of those empty tabs. The live site was not curled.
+- Partial: 25 DEX rows say `change not stated` and `as of not stated by the vendor`, because that feed has no change and no quote time. Six equity rows printed `0.00%`. A blank vendor response says `No prices in this response.` The first curl had none of those empty tabs. The live site was not curled.
+- Sitemap choice: keep the stock paths and put a real listing on each page (name, exchange, sector from the repo list, price with as-of when the feed returns one, and a link to add the name or create an account, plus a title and description that use that name). The repo list has no market-cap field, so a "top 100 by market cap" cut would have been a guess. The pages stay force-dynamic.
 
 ### P0-5 — fixed on this machine
 
@@ -706,12 +707,12 @@ Branch `cursor/track-b-p0-bb35` from develop `87dfce1`. PR https://github.com/Ae
 
 ### P0-6 — fixed, retention left for Lukas
 
-- Status: public wording fixed. Vendor retention is not stated on the site.
-- Commit: `109cff756f61705b77eb98c2b785831409ebee99`. The processor name is also in `5e9ee8f48f03e67a29c15edd68034f5415269550`.
+- Status: public wording fixed after the review. The first wording understated the book figures. Vendor retention is still not stated on the site.
+- Commit: `109cff756f61705b77eb98c2b785831409ebee99`. The processor name is also in `5e9ee8f48f03e67a29c15edd68034f5415269550`. Review follow-up `3779e8b0da4f73ffbc24ddb386f2209c90ce2304`.
 - Files: `src/app/trust/page.tsx`, `src/app/privacy-policy/page.tsx`, `src/components/chat/ChatAssistant.tsx`, `src/components/dashboard/TickerAnalysisPane.tsx`, `src/components/trial/TrialReportView.tsx`, `docs/ai-disclosure-for-lukas-2026-10-11.md`
 - URL / steps: `/trust` section "What the AI does", Privacy section 4, a ticker note, the assistant, and a trial note when `aiEnhanced` is true.
-- Expected: the page says a third-party AI service writes the labelled plain-English notes, lists the fields the code can send, and says the sending code does not set a retention period. It does not name a model or a provider. Retention and training at the service are "to be confirmed by Lukas" in the page-free note only.
-- Partial: a stored member report still sets `aiEnhanced` to false. Its summary is the rules text, not the "AI-written note" label. Whether the live host has the API variable set is UNVERIFIED (`wrangler.jsonc` does not set it).
+- Expected: the page says a third-party AI service writes the labelled plain-English notes. It lists the assistant holding count, total market value, total cost, total unrealised profit or loss, best and worst performer, sector weights, and for each holding the ticker, name, sector, share count, average price, current price, value, profit or loss, and weight. It lists the Portfolio Execution Coach name and, when a Headmaster book is available, the cash balance. It lists the Headmaster chat cash balance, cash weight, retained-cash target, and stress-test impacts in NZ$ and percent. It says the request does not include a card number, and that the sending code does not set a retention period. It does not name a model or a provider. Retention and training at the service are "to be confirmed by Lukas" in the page-free note only.
+- Partial: a stored member report still sets `aiEnhanced` to false. Its summary is the rules text, not the "AI-written note" label. Whether the live host has the API variable set is UNVERIFIED (`wrangler.jsonc` does not set it). The Lukas note now says "the trial summary function in src/lib/trial-report.ts" and does not use the old function identifier.
 
 ### P0-7 — fixed
 
@@ -726,7 +727,7 @@ Branch `cursor/track-b-p0-bb35` from develop `87dfce1`. PR https://github.com/Ae
 
 - `npm run check-types-errors`: passed.
 - eslint on the changed source files: passed, no output.
-- `npm test`: 102 files, 493 tests passed, including `src/lib/news-present.test.ts` and `src/lib/track-b-p0.test.ts`.
-- `npm run build`: passed (Next.js 15.3.9). The build skipped its own lint step. Better Auth logged the default secret in this environment. No secret was added.
+- `npm test`: 102 files, 493 tests passed on the first Track B run. After the review fixes, `src/lib/record-transaction.test.ts` and `src/lib/track-b-p0.test.ts` passed, and `npm run check-types-errors` passed again.
+- `npm run build`: passed again after the review fixes (Next.js 15.3.9). The build skipped its own lint step. Better Auth logged the default secret in this environment. No secret was added.
 - This batch did not edit `src/lib/auth.ts`, `src/lib/auth-mail.ts`, `src/lib/transactional-mail.ts`, `src/lib/send-transactional-mail.ts`, or the send-verification route. It did edit the news filter and the news fetch cap. Crypto projections stay paused. No list was removed. No email was sent. Nothing was published.
 
