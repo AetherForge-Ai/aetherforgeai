@@ -29,6 +29,9 @@ describe("U1 sub-cent unit prices", () => {
     expect(normaliseUnitPrice(0.0000040399)).toBeCloseTo(0.0000040399, 12);
     expect(roundUnitPrice(PRICE)).toBe(PRICE);
     expect(roundUnitPrice(0.0000040399)).toBeCloseTo(0.0000040399, 12);
+    expect(roundUnitPrice(17.456789)).toBe(17.456789);
+    expect(roundUnitPrice(12.345)).toBe(12.345);
+    expect(roundUnitPrice(0.123456)).toBe(0.123456);
     expect(priceForBooking(PRICE, 0.01)).toBe(PRICE);
 
     expect(formatPriceInput(PRICE)).toBe("0.00001");
@@ -38,6 +41,17 @@ describe("U1 sub-cent unit prices", () => {
     expect(fmtPrice(0.00002797)).toContain("0.00002797");
     expect(fmtPrice(0.0000040399)).not.toMatch(/\$0\.01(?!\d)/);
     expect(fmtPrice(PRICE)).toContain("0.00001");
+  });
+
+  it("keeps at least 6 decimal places on a stored fill", () => {
+    expect(roundUnitPrice(17.456789)).toBe(17.456789);
+    expect(roundUnitPrice(12.345)).toBe(12.345);
+    expect(roundUnitPrice(0.123456)).toBe(0.123456);
+    expect(roundUnitPrice(0.00001)).toBe(0.00001);
+    expect(roundUnitPrice(0.0000040399)).toBeCloseTo(0.0000040399, 12);
+    expect(roundUnitPrice(17.456789)).not.toBe(17.46);
+    expect(roundUnitPrice(12.345)).not.toBe(12.35);
+    expect(roundUnitPrice(0.123456)).not.toBe(0.1235);
   });
 
   it("keeps the NZ$ unit price and rounds only the NZ$ total", () => {

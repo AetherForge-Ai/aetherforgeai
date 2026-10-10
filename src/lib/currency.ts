@@ -146,16 +146,18 @@ export function adaptiveFractionDigits(value: number): number {
 }
 
 /**
- * Persist a unit price without collapsing a sub-cent print.
- * 0.00001 stays 0.00001. It is never lifted to 0.01.
- * Amounts from $1 keep 2 decimals (4 between $1 and $5).
+ * Persist a unit price. Stored fills keep at least 6 decimal places, and more
+ * when the price is sub-cent, so 17.456789, 12.345, 0.00001 and 0.0000040399
+ * all stay intact. Display formatting is separate and stays adaptive.
+ * pull-check:qa-2026-10-10-urgent-u1-u2-u4
  */
 export function roundUnitPrice(n: number): number {
   if (!Number.isFinite(n)) return n;
   const abs = Math.abs(n);
   if (abs === 0) return 0;
-  const digits = abs >= 1 ? (abs < 5 ? 4 : 2) : adaptiveFractionDigits(abs);
-  return Number(n.toFixed(digits));
+  const digits = Math.max(6, adaptiveFractionDigits(abs));
+  const f = 10 ** digits;
+  return Math.round((n + Number.EPSILON) * f) / f;
 }
 
 /**
