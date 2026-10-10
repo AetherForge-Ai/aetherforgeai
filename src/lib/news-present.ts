@@ -186,6 +186,25 @@ const CRYPTO_ASSET =
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
+/** A held ticker keeps a market story that would otherwise miss the word list. */
+export function mentionsHoldingTicker(
+  headline: string,
+  summary: string,
+  tickers: readonly string[]
+): boolean {
+  const blob = `${headline} ${summary}`.toUpperCase();
+  return tickers.some((ticker) => {
+    const symbol = ticker.trim().toUpperCase();
+    if (symbol.length < 2 || symbol.length > 12) return false;
+    const escaped = symbol.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`\\b${escaped}\\b`).test(blob);
+  });
+}
+
+function noteDroppedNews(reason: string, headline: string) {
+  console.info(`[news] dropped ${reason}: ${headline}`);
+}
+
 /** Lifestyle, motoring and other non-market headlines. A digital-asset story is on-topic. */
 export function isOffTopicStory(headline: string, summary = ""): boolean {
   const blob = `${headline} ${summary}`;
@@ -328,8 +347,14 @@ export function hasArticlePath(url: string): boolean {
  * Public news list. The source name follows the link. Every card has a calendar
  * date. Items with no publisher date are dropped — a date is not invented.
  * The stale 3.25% cash-rate line is replaced by the Reserve Bank card.
+ * A holding ticker is kept. Dropped cards are logged.
+ * pull-check:batch1-2026-10-11 B1-9
  */
-export function prepareNewsFeed(items: NewsItem[], now = new Date()): NewsItem[] {
+export function prepareNewsFeed(
+  items: NewsItem[],
+  now = new Date(),
+  holdingTickers: readonly string[] = []
+): NewsItem[] {
   const prepared: NewsItem[] = [];
   let hasOcr = false;
   let hasCpi = false;
@@ -342,7 +367,10 @@ export function prepareNewsFeed(items: NewsItem[], now = new Date()): NewsItem[]
       source: decodeHtmlEntities(rawItem.source),
       url: rawItem.url,
     };
-    if (isStaleOcr(item)) continue;
+    if (isStaleOcr(item)) {
+      noteDroppedNews("stale-ocr", item.headline);
+      continue;
+    }
     if (item.headline === OFFICIAL_OCR_NEWS.headline || item.url.includes("the-official-cash-rate")) {
       if (hasOcr) continue;
       hasOcr = true;
@@ -355,11 +383,24 @@ export function prepareNewsFeed(items: NewsItem[], now = new Date()): NewsItem[]
       prepared.push(BLS_CPI_NEWS);
       continue;
     }
-    if (!item.publishedOn || !hasArticlePath(item.url)) continue;
-    if (isOffTopicStory(item.headline, item.summary)) continue;
-    if (publisherTextHasSignalWord(`${item.headline}\n${item.summary}\n${item.url}\n${item.source}`)) continue;
+    if (!item.publishedOn || !hasArticlePath(item.url)) {
+      noteDroppedNews("undated-or-homepage", item.headline);
+      continue;
+    }
+    const held = mentionsHoldingTicker(item.headline, item.summary, holdingTickers);
+    if (!held && isOffTopicStory(item.headline, item.summary)) {
+      noteDroppedNews("off-topic", item.headline);
+      continue;
+    }
+    if (publisherTextHasSignalWord(`${item.headline}\n${item.summary}\n${item.url}\n${item.source}`)) {
+      noteDroppedNews("signal-word", item.headline);
+      continue;
+    }
     const aligned = alignStoryMarket(item);
-    if (!aligned) continue;
+    if (!aligned) {
+      noteDroppedNews("market-tag", item.headline);
+      continue;
+    }
     prepared.push({
       ...aligned,
       headline: item.headline,
