@@ -46,7 +46,7 @@ export default function DocsPage() {
         },
         {
           href: "/terms-of-service",
-          title: "Terms of service",
+          title: "Terms",
           body: "The terms that apply to using AetherForge AI.",
         },
       ]}

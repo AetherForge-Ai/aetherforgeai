@@ -73,6 +73,7 @@ const GROUPS: Group[] = [
     rows: [
       { label: "Report generation speed", cells: ["Standard", "Priority", "Fastest", "Fastest"] },
       { label: "Email support", cells: [true, true, true, true] },
+      { label: "Excel investor toolkit (annual)", cells: [false, "Annual", "Annual", "Annual"] },
       { label: "Priority processing", cells: [false, true, true, true] },
       { label: "Strategy consultation calls", cells: [false, false, false, true] },
     ],

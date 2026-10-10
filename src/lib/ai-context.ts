@@ -1,4 +1,5 @@
 import "server-only";
+import { sectorGroup } from "@/lib/dex-source";
 import { computeSummary, formatCurrency, formatPercent, type Stock } from "@/lib/portfolio";
 
 /**
@@ -39,7 +40,7 @@ export function buildPortfolioContext(stocks: Stock[]): string {
   lines.push("", "HOLDINGS DETAIL:");
   s.holdings.forEach((h) => {
     lines.push(
-      `- ${h.ticker} (${h.company_name || h.ticker}) | ${h.sector || "Other"} | ` +
+      `- ${h.ticker} (${h.company_name || h.ticker}) | ${sectorGroup(h.sector)} | ` +
         `${h.shares} shares @ avg ${formatCurrency(h.purchase_price)}, now ${formatCurrency(
           h.current_price
         )} | value ${formatCurrency(h.marketValue)} | P/L ${formatPercent(h.gainPct)} | ` +

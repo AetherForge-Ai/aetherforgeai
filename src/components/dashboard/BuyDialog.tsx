@@ -11,6 +11,8 @@ export interface BuyTarget {
   coinId?: string;
   /** DEX tokens keep the DEX badge in the Add panel. */
   market?: "Crypto" | "DEX";
+  /** Readable chain, carried onto the holding and the ledger. */
+  chain?: string | null;
 }
 
 /**
@@ -43,6 +45,7 @@ export function BuyDialog({
         price: target.price,
         coinId: target.coinId,
         market: target.market,
+        chain: target.chain,
       },
     });
     onOpenChange(false);

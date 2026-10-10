@@ -5,6 +5,7 @@ import { MarketsExplorer } from "@/components/dashboard/MarketsExplorer";
 import { bindActiveAccount } from "@/lib/account-identity";
 import type { MarketsTab } from "@/lib/market-detail-routes";
 import { LineChart, Globe } from "lucide-react";
+import { pageTitle } from "@/lib/page-title";
 
 function marketsHeading(tab: MarketsTab): { title: string; lede: string } {
   if (tab === "CRYPTO") {
@@ -51,7 +52,7 @@ export function MarketsPageContent({
 
   useEffect(() => {
     const heading = marketsHeading(tab);
-    document.title = `${heading.title} · AetherForge AI`;
+    document.title = pageTitle(heading.title);
   }, [tab]);
 
   const heading = marketsHeading(tab);
