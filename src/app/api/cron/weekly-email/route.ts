@@ -10,17 +10,19 @@ import { weeklyEmailUnsubscribeHref, renderWeeklyEmail } from "@/lib/weekly-emai
 import {
   completeWeeklyEmailNote,
   deliverWeeklyEmail,
+  liveWeeklyEmailNoteStore,
   liveWeeklyEmailStore,
-  loadWeeklyEmailBook,
+  loadWeeklyEmailBoard,
   loadWeeklyEmailCandidates,
 } from "@/lib/weekly-email-live";
 
 /**
  * GET|POST /api/cron/weekly-email
  *
- * Monday morning paper-book email for a paid plan.
+ * Monday morning projections email for a paid plan.
  * Pacific/Auckland, 07:00 through 08:59. One tick sends a bounded batch.
  * Later ticks in that window continue. The same user is not sent twice in one ISO week.
+ * Every recipient gets the same market-wide board. An empty board skips the send.
  *
  * WEEKLY_EMAIL_SEND must be exactly "on" or this route returns without sending.
  * CRON_SECRET is also required. If it is missing the route stays closed.
@@ -32,7 +34,10 @@ import {
 export const dynamic = "force-dynamic";
 
 async function handle(req: Request) {
-  const secret = weeklyEmailUnsubscribeSecret(process.env);
+  const secret = weeklyEmailUnsubscribeSecret({
+    WEEKLY_EMAIL_UNSUBSCRIBE_SECRET: process.env.WEEKLY_EMAIL_UNSUBSCRIBE_SECRET,
+    CRON_SECRET: process.env.CRON_SECRET,
+  });
   const result = await handleWeeklyEmailCron({
     url: req.url,
     headers: req.headers,
@@ -44,7 +49,8 @@ async function handle(req: Request) {
     now: new Date(),
     users: await loadUsersIfConfigured(req),
     store: liveWeeklyEmailStore,
-    loadBook: loadWeeklyEmailBook,
+    noteStore: liveWeeklyEmailNoteStore,
+    loadBoard: () => loadWeeklyEmailBoard(new Date()),
     render: renderWeeklyEmail,
     complete: completeWeeklyEmailNote,
     send: deliverWeeklyEmail,
@@ -53,8 +59,8 @@ async function handle(req: Request) {
       return weeklyEmailUnsubscribeHref(await signWeeklyEmailToken(userId, secret));
     },
   });
-  if (result.body.sender === "off") {
-    console.log(`[weekly-email] sender off (${result.body.reason}). No email sent.`);
+  if (result.body.sender === "off" || result.body.reason === "no-projections") {
+    console.log(`[weekly-email] ${result.body.reason}. No email sent.`);
   }
   return NextResponse.json(result.body, { status: result.status });
 }
@@ -69,7 +75,7 @@ async function loadUsersIfConfigured(req: Request) {
   const bearer = req.headers.get("authorization");
   const token = bearer?.toLowerCase().startsWith("bearer ") ? bearer.slice(7).trim() : "";
   if (presented !== process.env.CRON_SECRET && token !== process.env.CRON_SECRET) return [];
-  if (!weeklyEmailSendingEnabled(process.env)) return [];
+  if (!weeklyEmailSendingEnabled({ WEEKLY_EMAIL_SEND: process.env.WEEKLY_EMAIL_SEND })) return [];
   if (!weeklyEmailWindow(new Date()).open) return [];
   return loadWeeklyEmailCandidates();
 }

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
 import { normalizeTicker, lookupTicker } from "@/lib/market";
-import { WEEKLY_EMAIL_LEDGER_TICKER } from "@/lib/weekly-email";
+import { WEEKLY_EMAIL_LEDGER_TICKER, WEEKLY_EMAIL_NOTE_TICKER } from "@/lib/weekly-email";
 
 const createSchema = z.object({
   ticker: z.string().min(1, "Ticker is required").max(16),
@@ -30,9 +30,10 @@ export async function GET(req: Request) {
       _limit: 500,
     });
 
-    let items = ((result?.data as any[]) || []).filter(
-      (item) => String(item?.ticker || "").toUpperCase() !== WEEKLY_EMAIL_LEDGER_TICKER,
-    );
+    let items = ((result?.data as any[]) || []).filter((item) => {
+      const ticker = String(item?.ticker || "").toUpperCase();
+      return ticker !== WEEKLY_EMAIL_LEDGER_TICKER && ticker !== WEEKLY_EMAIL_NOTE_TICKER;
+    });
     if (assetType === "stock" || assetType === "crypto") {
       items = items.filter((w) => (w.asset_type || "stock") === assetType);
     }
@@ -63,7 +64,7 @@ export async function POST(req: Request) {
 
     const assetType = parsed.data.asset_type || "stock";
     const ticker = assetType === "crypto" ? parsed.data.ticker.toUpperCase() : normalizeTicker(parsed.data.ticker);
-    if (ticker === WEEKLY_EMAIL_LEDGER_TICKER) {
+    if (ticker === WEEKLY_EMAIL_LEDGER_TICKER || ticker === WEEKLY_EMAIL_NOTE_TICKER) {
       return NextResponse.json({ ok: false, error: "That ticker cannot be added." }, { status: 400 });
     }
     const info = assetType === "crypto" ? undefined : lookupTicker(ticker);

@@ -1,7 +1,8 @@
 /**
- * Monday paper-book email for a paid plan.
+ * Monday projections email for a paid plan.
  * Sending is off unless WEEKLY_EMAIL_SEND is exactly "on".
  * Nothing in this file contacts a mailbox or an AI service.
+ * The same market-wide board is mailed to each recipient. No account book is read.
  *
  * pull-check:weekly-email-2026-10-11
  */
@@ -11,16 +12,18 @@ import { isFreeReportPlan, normalizePlanKey } from "@/lib/entitlements";
 import { CUSTOMER_EMAIL } from "@/lib/public-copy";
 import type { OutboundMail } from "@/lib/transactional-mail";
 import {
-  composeWeeklyEmail,
+  scrubWeeklyAiNote,
   weeklyEmailPrompt,
-  withWeeklyEmailHeading,
-  type WeeklyEmailBook,
+  type WeeklyEmailBoard,
   type WeeklyEmailRenderInput,
 } from "@/lib/weekly-email-copy";
 
 export const WEEKLY_EMAIL_FROM = CUSTOMER_EMAIL;
 export const WEEKLY_EMAIL_FROM_NAME = "AetherForge AI";
+/** Opt-out and last ISO week. Not a holding. */
 export const WEEKLY_EMAIL_LEDGER_TICKER = "AF-WEM";
+/** Shared AI note for the ISO week. Not a holding. */
+export const WEEKLY_EMAIL_NOTE_TICKER = "AF-WEN";
 
 /** One cron tick sends at most this many messages. */
 export const WEEKLY_EMAIL_SEND_LIMIT = 20;
@@ -71,8 +74,6 @@ export interface WeeklyEmailCandidate {
   subscriptionStatus?: string | null;
   subscriptionPlan?: string | null;
   subscriptionExpiresAt?: string | null;
-  /** Existing cash_balance, read for the paper-book totals. */
-  cashNzd?: number;
 }
 
 export interface WeeklyEmailPreference {
@@ -95,10 +96,41 @@ export type WeeklyEmailSkip =
   | "not-paid"
   | "expired"
   | "opted-out"
-  | "empty-book"
-  | "book-unavailable"
   | "already-sent"
   | "preference-unreadable";
+
+export interface WeeklyEmailNoteStore {
+  read(isoWeek: string): Promise<string | null>;
+  write(isoWeek: string, note: string): Promise<void>;
+}
+
+export function encodeWeeklyEmailNote(isoWeek: string, note: string): string {
+  return `v1|${isoWeek}|${note.replace(/\s+/g, " ").trim()}`;
+}
+
+/** A note saved for a different week is ignored. */
+export function decodeWeeklyEmailNote(raw: string | null | undefined, isoWeek: string): string | null {
+  if (!raw?.trim()) return null;
+  const match = /^v1\|(\d{4}-W\d{2})\|([\s\S]+)$/.exec(raw.trim());
+  if (!match || match[1] !== isoWeek) return null;
+  const note = match[2].trim();
+  return note || null;
+}
+
+export function createMemoryWeeklyEmailNoteStore(
+  seed: Record<string, string> = {},
+): WeeklyEmailNoteStore & { raw: Record<string, string> } {
+  const raw = { ...seed };
+  return {
+    raw,
+    async read(isoWeek) {
+      return decodeWeeklyEmailNote(raw[isoWeek], isoWeek);
+    },
+    async write(isoWeek, note) {
+      raw[isoWeek] = encodeWeeklyEmailNote(isoWeek, note);
+    },
+  };
+}
 
 export function weeklyEmailSendingEnabled(env?: { WEEKLY_EMAIL_SEND?: string | null }): boolean {
   return env?.WEEKLY_EMAIL_SEND === "on";
@@ -335,13 +367,15 @@ function bump(skipped: Partial<Record<WeeklyEmailSkip, number>>, reason: WeeklyE
 /**
  * One Monday tick. `send` is injected so tests never touch a mailbox.
  * The week is claimed before send so a retry does not post a second copy.
+ * Projections are loaded once. The AI note is loaded or written once for the ISO week.
  */
 export async function runWeeklyEmailJob(args: {
   now: Date;
   env?: { WEEKLY_EMAIL_SEND?: string | null; WEEKLY_EMAIL_UNSUBSCRIBE_SECRET?: string | null; CRON_SECRET?: string | null };
   users: WeeklyEmailCandidate[];
   store: WeeklyEmailStore;
-  loadBook: (user: WeeklyEmailCandidate) => Promise<WeeklyEmailBook>;
+  loadBoard: () => Promise<WeeklyEmailBoard | null>;
+  noteStore?: WeeklyEmailNoteStore;
   render: (input: WeeklyEmailRenderInput) => Promise<OutboundMail> | OutboundMail;
   complete?: (prompt: string) => Promise<string | null>;
   send: (mail: OutboundMail) => Promise<void>;
@@ -389,11 +423,34 @@ export async function runWeeklyEmailJob(args: {
     };
   }
 
+  let board: WeeklyEmailBoard | null = null;
+  try {
+    board = await args.loadBoard();
+  } catch {
+    console.error("[weekly-email] projections unavailable");
+    board = null;
+  }
+  if (!board || board.projections.length === 0) {
+    console.log("[weekly-email] no verified projections. No email sent.");
+    return {
+      ok: true,
+      sent: 0,
+      sender: "on",
+      reason: "no-projections",
+      isoWeek: window.isoWeek,
+      scanned: 0,
+      deferred: 0,
+      skipped: {},
+      failed: 0,
+    };
+  }
+
   const deadline = Date.now() + WEEKLY_EMAIL_RUNTIME_MS;
   const skipped: Partial<Record<WeeklyEmailSkip, number>> = {};
   let sent = 0;
   let failed = 0;
   let index = 0;
+  let aiNote: string | null | undefined;
   const users = args.users.slice(0, WEEKLY_EMAIL_SCAN_LIMIT);
 
   for (; index < users.length; index++) {
@@ -401,7 +458,7 @@ export async function runWeeklyEmailJob(args: {
     const user = users[index];
     try {
       const gate = selectWeeklyEmailRecipient(user, args.now);
-      if (!gate.ok) {
+      if (gate.ok === false) {
         bump(skipped, gate.reason);
         continue;
       }
@@ -418,29 +475,12 @@ export async function runWeeklyEmailJob(args: {
         bump(skipped, "already-sent");
         continue;
       }
-      const book = await args.loadBook(user);
-      if (!book.loaded) {
-        bump(skipped, "book-unavailable");
-        continue;
-      }
-      const draft = composeWeeklyEmail(book);
-      if (!draft) {
-        bump(skipped, "empty-book");
-        continue;
-      }
-      const facts = withWeeklyEmailHeading(draft.facts, user.name ?? null, args.now);
-      let aiNote: string | null = null;
-      if (args.complete) {
-        try {
-          aiNote = await args.complete(weeklyEmailPrompt(facts));
-        } catch {
-          console.error(`[weekly-email] ai failed user=${user.id}`);
-          aiNote = null;
-        }
+      if (aiNote === undefined) {
+        aiNote = await weeklyEmailNoteForWeek(window.isoWeek, board, args.noteStore, args.complete);
       }
       const mail = await args.render({
         to: user.email.trim(),
-        facts,
+        board,
         aiNote,
         unsubscribeUrl: await args.unsubscribeUrl(user.id),
       });
@@ -467,6 +507,37 @@ export async function runWeeklyEmailJob(args: {
   };
 }
 
+async function weeklyEmailNoteForWeek(
+  isoWeek: string,
+  board: WeeklyEmailBoard,
+  noteStore: WeeklyEmailNoteStore | undefined,
+  complete: ((prompt: string) => Promise<string | null>) | undefined,
+): Promise<string | null> {
+  if (noteStore) {
+    try {
+      const saved = scrubWeeklyAiNote(await noteStore.read(isoWeek));
+      if (saved) return saved;
+    } catch {
+      console.error("[weekly-email] week note unreadable");
+    }
+  }
+  if (!complete) return null;
+  try {
+    const note = scrubWeeklyAiNote(await complete(weeklyEmailPrompt(board)));
+    if (note && noteStore) {
+      try {
+        await noteStore.write(isoWeek, note);
+      } catch {
+        console.error("[weekly-email] week note not stored");
+      }
+    }
+    return note;
+  } catch {
+    console.error("[weekly-email] ai failed");
+    return null;
+  }
+}
+
 export async function handleWeeklyEmailCron(args: {
   url: string;
   headers: { get(name: string): string | null };
@@ -474,7 +545,8 @@ export async function handleWeeklyEmailCron(args: {
   now: Date;
   users: WeeklyEmailCandidate[];
   store: WeeklyEmailStore;
-  loadBook: (user: WeeklyEmailCandidate) => Promise<WeeklyEmailBook>;
+  loadBoard: () => Promise<WeeklyEmailBoard | null>;
+  noteStore?: WeeklyEmailNoteStore;
   render: (input: WeeklyEmailRenderInput) => Promise<OutboundMail> | OutboundMail;
   complete?: (prompt: string) => Promise<string | null>;
   send: (mail: OutboundMail) => Promise<void>;

@@ -1,47 +1,53 @@
 /**
- * Live reads for the Monday paper-book email.
+ * Live reads for the Monday projections email.
  * Mail leaves this file only through deliverWeeklyEmail, and only when the flag is on.
+ * No account book is loaded. One market-wide board is shared by every recipient.
  *
  * pull-check:weekly-email-2026-10-11
  */
 
 import "server-only";
-import { getFxSnapshot } from "@/lib/fx";
 import { createGrokChatCompletion, isGrokConfigured } from "@/lib/grok";
+import {
+  fetchHistoriesForAssetClass,
+  fetchQuotesForAssetClass,
+  isLiveConfiguredFor,
+} from "@/lib/market-data";
+import { universeFor } from "@/lib/market-intel";
 import { reportEmailWasDelivered } from "@/lib/report-email";
-import { loadStockRowsForAccount } from "@/lib/report-service";
 import { sendTransactionalEmail } from "@/lib/send-transactional-mail";
 import { totalumSdk } from "@/lib/totalum";
-import { isBullionHolding } from "@/lib/metal-valuation";
-import type { Stock } from "@/lib/portfolio";
 import { CUSTOMER_EMAIL } from "@/lib/public-copy";
-import { yahooEquitySymbol, fetchYahooHistories } from "@/lib/yahoo-finance";
+import { composeWeeklyProjections, type WeeklyEmailBoard, type WeeklyEmailSeriesInput } from "@/lib/weekly-email-copy";
 import {
   WEEKLY_EMAIL_FROM,
   WEEKLY_EMAIL_FROM_NAME,
   WEEKLY_EMAIL_LEDGER_TICKER,
+  WEEKLY_EMAIL_NOTE_TICKER,
   WEEKLY_EMAIL_OUTPUT_TOKEN_CAP,
   WEEKLY_EMAIL_SCAN_LIMIT,
   applyWeeklyEmailOptOut,
+  decodeWeeklyEmailNote,
   decodeWeeklyEmailPreference,
+  encodeWeeklyEmailNote,
   encodeWeeklyEmailPreference,
   weeklyEmailSendingEnabled,
   type WeeklyEmailCandidate,
+  type WeeklyEmailNoteStore,
   type WeeklyEmailStore,
 } from "@/lib/weekly-email";
-import type { WeeklyEmailBook } from "@/lib/weekly-email-copy";
 import type { OutboundMail } from "@/lib/transactional-mail";
 
-const SERIES_CAP = 8;
-const SERIES_TIMEOUT_MS = 8_000;
-
 const AI_SYSTEM = [
-  "You are AI writing a short general-information note about a paper book.",
+  "You are AI writing a short general-information note about market-wide indicative projections.",
   "Use only the figures in the user message. Do not invent prices, dates, or events.",
   "Do not give an instruction. Do not use the words buy, sell, hold, accumulate, or reduce.",
   "Do not name a model or a provider. If asked what you are, say only that you are AI.",
+  "Do not refer to any person's holdings, cash, profit or loss, or account.",
   "Four short sentences.",
 ].join(" ");
+
+const memoryNotes = new Map<string, string>();
 
 function ownerId(row: { user?: unknown }): string {
   const user = row.user;
@@ -63,7 +69,6 @@ export function candidateFromUserRow(row: Record<string, unknown>): WeeklyEmailC
     subscriptionPlan: typeof row.subscription_plan === "string" ? row.subscription_plan : null,
     subscriptionExpiresAt:
       typeof row.subscription_expires_at === "string" ? row.subscription_expires_at : null,
-    cashNzd: typeof row.cash_balance === "number" ? row.cash_balance : 0,
   };
 }
 
@@ -84,75 +89,45 @@ export async function loadWeeklyEmailUser(userId: string): Promise<WeeklyEmailCa
   return candidate.id ? candidate : null;
 }
 
-async function withTimeout<T>(work: Promise<T>, ms: number): Promise<T | null> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<null>((resolve) => {
-    timer = setTimeout(() => resolve(null), ms);
-  });
-  try {
-    return await Promise.race([work, timeout]);
-  } finally {
-    if (timer) clearTimeout(timer);
+/**
+ * The projections page's equity universe, limited to names with a real close series.
+ * Crypto histories are not requested. Metals have no projection series in that feature.
+ */
+export async function loadWeeklyEmailBoard(now = new Date()): Promise<WeeklyEmailBoard | null> {
+  const entries = universeFor("stock");
+  const tickers = entries.map((entry) => entry.ticker);
+  let histories: Record<string, number[]> = {};
+  let quotes: Record<string, { price?: number; quotedAt?: string }> = {};
+  if (isLiveConfiguredFor("stock") && tickers.length) {
+    const [quoteResult, historyResult] = await Promise.all([
+      fetchQuotesForAssetClass(tickers, "stock").catch(() => {
+        console.error("[weekly-email] equity quotes unavailable");
+        return {} as Awaited<ReturnType<typeof fetchQuotesForAssetClass>>;
+      }),
+      fetchHistoriesForAssetClass(tickers, "stock").catch(() => {
+        console.error("[weekly-email] close series unavailable");
+        return {} as Record<string, number[]>;
+      }),
+    ]);
+    quotes = quoteResult;
+    histories = historyResult;
   }
-}
-
-async function loadStockSeries(stocks: Stock[]): Promise<Record<string, number[]>> {
-  const equities = stocks.filter((stock) => stock.asset_type !== "crypto" && !isBullionHolding(stock.asset_type, stock.ticker, stock.company_name));
-  const map: Record<string, string> = {};
-  for (const stock of equities.slice(0, SERIES_CAP)) {
-    map[stock.ticker] = yahooEquitySymbol(stock.ticker);
-  }
-  if (!Object.keys(map).length) return {};
-  try {
-    const series = await withTimeout(fetchYahooHistories(map), SERIES_TIMEOUT_MS);
-    return series || {};
-  } catch {
-    console.error("[weekly-email] close series unavailable");
-    return {};
-  }
-}
-
-export async function loadWeeklyEmailBook(user: WeeklyEmailCandidate & { cashNzd?: number }): Promise<WeeklyEmailBook> {
-  const loaded = await loadStockRowsForAccount(user.id);
-  if (!loaded.bookLoaded) {
-    return { loaded: false, stocks: [], cashNzd: 0, fx: { NZD: 1, USD: 1.67, AUD: 1.09 }, series: {} };
-  }
-  const stocks: Stock[] = [];
-  for (const row of loaded.rows) {
-    const ticker = String(row.ticker || "").trim().toUpperCase();
-    const shares = Number(row.shares) || 0;
-    if (!ticker || ticker === WEEKLY_EMAIL_LEDGER_TICKER || !(shares > 0)) continue;
-    const asset = isBullionHolding(row.asset_type, ticker, row.company_name)
-      ? "metal"
-      : row.asset_type === "crypto"
-        ? "crypto"
-        : "stock";
-    const purchase = Number(row.purchase_price) || 0;
-    const current = Number(row.current_price) > 0 ? Number(row.current_price) : purchase;
-    stocks.push({
-      _id: String(row._id || ticker),
-      ticker,
-      asset_type: asset,
-      company_name: typeof row.company_name === "string" ? row.company_name : ticker,
-      sector: typeof row.sector === "string" ? row.sector : undefined,
-      shares,
-      purchase_price: purchase,
-      current_price: current,
-      purchase_date: typeof row.purchase_date === "string" ? row.purchase_date : null,
+  const rows: WeeklyEmailSeriesInput[] = [];
+  for (const entry of entries) {
+    const series = histories[entry.ticker] || histories[entry.ticker.toUpperCase()];
+    if (!series?.length) continue;
+    const quote = quotes[entry.ticker] || quotes[entry.ticker.toUpperCase()];
+    rows.push({
+      ticker: entry.ticker,
+      name: entry.name,
+      market: entry.market,
+      series,
+      price: typeof quote?.price === "number" ? quote.price : null,
+      quotedAt: quote?.quotedAt ?? null,
+      assetKind: "stock",
     });
   }
-  let fx = { NZD: 1, USD: 1.67, AUD: 1.09 };
-  let fxSourced = false;
-  try {
-    const snapshot = await getFxSnapshot();
-    fx = snapshot.ratesToNZD;
-    fxSourced = snapshot.sourced;
-  } catch {
-    fxSourced = false;
-  }
-  const series = await loadStockSeries(stocks);
-  const cash = typeof user.cashNzd === "number" ? user.cashNzd : 0;
-  return { loaded: true, stocks, cashNzd: cash, fx, series, fxSourced };
+  return composeWeeklyProjections({ rows, now });
 }
 
 async function findLedger(userId: string): Promise<{ id: string; name: string } | null> {
@@ -195,6 +170,45 @@ export const liveWeeklyEmailStore: WeeklyEmailStore = {
   },
 };
 
+async function findWeekNote(): Promise<{ id: string; name: string } | null> {
+  const res = await totalumSdk.crud.query("watchlist", {
+    _filter: { ticker: WEEKLY_EMAIL_NOTE_TICKER },
+    _limit: 5,
+  });
+  const rows = ((res as { data?: { _id?: string; name?: string; ticker?: string }[] })?.data || []);
+  const row = rows.find((item) => String(item.ticker || "").toUpperCase() === WEEKLY_EMAIL_NOTE_TICKER);
+  if (!row?._id) return null;
+  return { id: String(row._id), name: typeof row.name === "string" ? row.name : "" };
+}
+
+/** One scrubbed note per ISO week, reused by later ticks in this process and from the stored row. */
+export const liveWeeklyEmailNoteStore: WeeklyEmailNoteStore = {
+  async read(isoWeek) {
+    const cached = memoryNotes.get(isoWeek);
+    if (cached) return cached;
+    const row = await findWeekNote();
+    const note = decodeWeeklyEmailNote(row?.name, isoWeek);
+    if (note) memoryNotes.set(isoWeek, note);
+    return note;
+  },
+  async write(isoWeek, note) {
+    const text = note.replace(/\s+/g, " ").trim();
+    memoryNotes.set(isoWeek, text);
+    const name = encodeWeeklyEmailNote(isoWeek, text);
+    const existing = await findWeekNote();
+    if (existing) {
+      await totalumSdk.crud.editRecordById("watchlist", existing.id, { name });
+      return;
+    }
+    await totalumSdk.crud.createRecord("watchlist", {
+      ticker: WEEKLY_EMAIL_NOTE_TICKER,
+      name,
+      asset_type: "stock",
+      market: "US",
+    });
+  },
+};
+
 export async function optOutWeeklyEmail(userId: string): Promise<void> {
   await applyWeeklyEmailOptOut(liveWeeklyEmailStore, userId);
 }
@@ -206,7 +220,7 @@ export async function optOutWeeklyEmail(userId: string): Promise<void> {
  * The text part is kept on the message object and is not posted either.
  */
 export async function deliverWeeklyEmail(mail: OutboundMail): Promise<void> {
-  if (!weeklyEmailSendingEnabled(process.env)) {
+  if (!weeklyEmailSendingEnabled({ WEEKLY_EMAIL_SEND: process.env.WEEKLY_EMAIL_SEND })) {
     throw new Error("Weekly email sender is off.");
   }
   if (mail.from !== WEEKLY_EMAIL_FROM || mail.replyTo !== WEEKLY_EMAIL_FROM) {

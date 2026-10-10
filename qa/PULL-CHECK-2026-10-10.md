@@ -923,6 +923,8 @@ Source comment: `pull-check:weekly-email-2026-10-11` in `src/lib/weekly-email.ts
 
 Branch `cursor/weekly-paid-email-042e` from develop. Draft pull request: https://github.com/AetherForge-Ai/aetherforgeai/pull/269 into `develop`. Do not merge it from this note. Nothing was published. No Totalum AI Pull. No email was sent. Auth, login, register, security headers, consent, apex, and `next.config.ts` were not edited. No new database columns. Public copy says "AI" only. Crypto projections stay paused (`CRYPTO_PROJECTIONS_PAUSED` remains true).
 
+Brief change: the email does not contain a person's portfolio. No holdings, values, cash, profit or loss, allocation, positions, or ideas about that book. It shows only the week-ahead projections from the existing projections feature. The same board goes to every verified paid account. No per-user data is sent to AI.
+
 ### What it does
 
 - Status: built, hard off
@@ -930,17 +932,23 @@ Branch `cursor/weekly-paid-email-042e` from develop. Draft pull request: https:/
 - URL / steps:
   1. `npm test -- src/lib/weekly-email.test.ts`
   2. With `WEEKLY_EMAIL_SEND` unset, `GET /api/cron/weekly-email` with the cron secret returns `sender: "off"` and `sent: 0`. A call with no secret is 401 or 503. It does not send.
-  3. Sign in as `lukas@aetherforgeai.co.nz` and open `/api/admin/weekly-email/preview`. The page says `Preview only. This was not sent.` Another account gets 404. Do not add `ai=1` unless you mean to spend one completion.
-  4. Open `/privacy-policy` and `/trust`. The weekly email sentence names the holding count, NZ$ totals, cash, allocation weights, and each holding's ticker, name, weight, value, and profit or loss. It says the email address is not sent and a report allowance is not used.
-- Expected: tests pass. The sample in the test is labelled test-only (`Sample Holdings Ltd`, `sample.member@example.test`) and that address is not in the HTML or text body. Money is `NZ$` to 2 decimal places. The book rates print to 4 decimal places (`1.6700`). The sample date is `12 Oct 2026`. The mail says `not financial advice`, includes the AI disclosure, and does not use Buy, Sell, or Strong Buy. Crypto projections stay paused. An empty book is skipped, not mailed. The same paid user is not sent twice in ISO week `2026-W42`.
+  3. Sign in as `lukas@aetherforgeai.co.nz` and open `/api/admin/weekly-email/preview`. The page says `Preview only. This was not sent.` Another account gets 404. Do not add `ai=1` unless you mean to spend one completion. The preview is the market-wide board, not that account's book.
+  4. Open `/privacy-policy`. The weekly sentence says the email can send the market-wide indicative projections (ticker, name, market, indicative percent, as-of label) and that it does not send a person's holdings, values, cash, profit or loss, allocation, or email address.
+- Expected: tests pass. The sample is test-only (`Sample Listings Ltd`, `SAMP.NZ`, `sample.member@example.test`). That address is not in the HTML or text. The sample price is `NZ$12.20`. The email date is `12 Oct 2026`. The NZX as-of label names the prior session close (`9 Oct 2026`), not a live quote. The mail says `indicative`, names the source, says `not financial advice`, includes the AI disclosure, and does not use Buy, Sell, or Strong Buy. Crypto rows do not appear. A metal row does not appear. A series shorter than 40 closes does not appear. If nothing verified remains, `reason` is `no-projections` and nothing is sent. The same paid user is not sent twice in ISO week `2026-W42`. Two paid users in one tick share one AI note.
 
-### Empty books
+### What is included
 
-A paid account with no open holdings is skipped. A cash balance on its own is not mailed. The existing report path already refuses an empty sleeve, and a Monday note with nothing to describe would still use a send. The admin preview says the email would be skipped.
+Stocks only, and only when a real daily-close series of at least 40 points is available. The figure is `analyzeSecurity` from `src/lib/market-intel.ts`, ranked with `rankByConfidenceWeightedMove`, cut at 50, the same order and cap as the projections page. A missing series is not filled with the synthetic seeded walk. The live loader uses the stock universe, quotes, and histories the projections route already uses. It does not request crypto histories.
+
+Crypto projections stay paused and are dropped even if a series is handed in. Precious-metal projections are not produced by that feature (there is no metal universe and no metal close series; Yahoo `GOLD` is an equity, not bullion). The email says so and does not invent a metal figure.
+
+### When nothing is verified
+
+If the board has no verified projection, the tick sends nothing. It does not mail an empty note, and it does not call the completion. The admin preview says the email would be skipped.
 
 ### Preference
 
-The opt-out and the last ISO week are stored on the existing watchlist fields `ticker`, `name`, `asset_type`, `market`, and `user`. The ticker is `AF-WEM`. It is not a new column. `GET /api/watchlist` hides that row, and `POST /api/watchlist` rejects that ticker. The browser toggle on `/settings/notifications` is a separate preview preference. The cron does not read it.
+The opt-out and the last ISO week stay on the existing watchlist fields. The ticker is `AF-WEM`. It is not a holding and it is not a new column. `GET /api/watchlist` hides it, and `POST /api/watchlist` rejects it. The shared AI note for the ISO week, when it can be saved, uses a second hidden ticker `AF-WEN` on the same existing fields. The browser toggle on `/settings/notifications` is a separate preview preference. The cron does not read it.
 
 ### Needs Lukas
 
@@ -951,9 +959,9 @@ The opt-out and the last ISO week are stored on the existing watchlist fields `t
 - Send-approval gate: there is no second human approval once `WEEKLY_EMAIL_SEND=on`. If you want a per-week approval before the cron can send, say so. Until then the flag is the only switch.
 - Paid plans included when the flag is on: Starter, Pro, Ultimate, and the legacy Apex rows (`weekly`, `monthly`, `yearly`, `dual_yearly`), active, unexpired, and with a verified email. Free is excluded. Say if legacy Apex should be left out.
 - Privacy date is still `7 Oct 2026`. The weekly-email sentence was added without a Terms re-issue. Say if that date should move.
-- Regulatory: this email describes one person's paper book, in NZ$, with ideas about that book's weights. A footer that says it is not financial advice does not by itself decide the question. Under the Financial Markets Conduct Act 2013, personalised advice is advice that takes into account a person's particular financial situation or goals, and a general-information service has to stay on the general side of that line. A Monday email built from that member's holdings can be read as personalised advice even with the footer, the missing Buy/Sell labels, and the "ideas to consider" wording. AetherForge is not described here as a licensed financial advice provider. Have a qualified NZ adviser, and the FMA position you want to rely on, checked before any send. Do not enable the flag on the strength of this pull request alone.
+- Regulatory: this email is the same market-wide projection list for every recipient. It does not use that person's holdings, so it is not built as a personalised book review. It still projects prices of named securities. A footer that says it is not financial advice does not by itself decide whether that is financial advice under the Financial Markets Conduct Act 2013. AetherForge is not described here as a licensed financial advice provider. Have a qualified NZ adviser, and the FMA position you want to rely on, checked before any send. Do not enable the flag on the strength of this pull request alone.
 
 ### Cost
 
-One email completion is capped at 1,500 input tokens and 450 output tokens. That cap is smaller than a full report. It does not call the report generator and it does not use a member's report allowance. The rate used is the published short-context price for the completion the report service already calls (`grok-4.6` in `src/lib/zenith.ts`): US$2.00 per million input tokens and US$6.00 per million output tokens, from the provider pricing page updated 29 Sep 2026. The ceiling is US$0.0057, which is NZ$0.009519 at the baseline book rate 1.6700, so NZ$0.01 if rounded to cents. A shorter note of about 500 input tokens and 250 output tokens is about US$0.0025, under one NZ cent. This estimate is the completion only. It does not include the mail host's per-message fee. The member-facing email and the privacy page do not name the model. The job does not call the completion while the sender flag is off.
+One completion for the ISO week, shared by every recipient. It is not one completion per person, and it does not use a report allowance. The cap is 1,500 input tokens and 450 output tokens. The rate used is the published short-context price for the completion the report service already calls (`grok-4.6` in `src/lib/zenith.ts`): US$2.00 per million input tokens and US$6.00 per million output tokens, from the provider pricing page updated 29 Sep 2026. The ceiling for that one note is US$0.0057, which is NZ$0.009519 at the baseline book rate 1.6700, so NZ$0.01 if rounded to cents. A shorter note of about 500 input tokens and 250 output tokens is about US$0.0025, under one NZ cent. If the week-note row cannot be saved, a later tick in a new process can spend one more completion. The mail host's per-message fee is separate and is still charged per recipient. The member-facing email and the privacy page do not name the model. The job does not call the completion while the sender flag is off, or when no verified projection exists.
 

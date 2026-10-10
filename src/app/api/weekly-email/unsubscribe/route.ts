@@ -29,7 +29,10 @@ function page(message: string, status: number) {
 }
 
 export async function GET(req: Request) {
-  const secret = weeklyEmailUnsubscribeSecret(process.env);
+  const secret = weeklyEmailUnsubscribeSecret({
+    WEEKLY_EMAIL_UNSUBSCRIBE_SECRET: process.env.WEEKLY_EMAIL_UNSUBSCRIBE_SECRET,
+    CRON_SECRET: process.env.CRON_SECRET,
+  });
   const token = new URL(req.url).searchParams.get("token") || "";
   const userId = secret ? await verifyWeeklyEmailToken(token, secret) : null;
   if (!userId) {
