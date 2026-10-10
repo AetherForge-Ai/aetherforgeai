@@ -18,6 +18,7 @@ import { api } from "@/lib/api";
 import { SiteHeader } from "@/components/SiteHeader";
 import { ABOUT_HERO_IMG, FOUNDER_PORTRAIT_IMG } from "../../../assets/files";
 import { FOUNDER_NAME, LEGAL_ENTITY_NAME, NZBN, REGISTERED_OFFICE } from "@/lib/company";
+import { CUSTOMER_EMAIL, PRIVACY_OFFICER_EMAIL } from "@/lib/public-copy";
 
 /* ---- Official brand marks (lucide dropped brand icons) ---- */
 function XLogo({ className }: { className?: string }) {
@@ -606,7 +607,7 @@ export function AboutContent() {
                   <h3 className="font-display text-lg font-bold text-[#0F172A]">Email us</h3>
                   <div className="mt-4 space-y-3">
                     <a
-                      href="mailto:lukas@aetherforgeai.co.nz"
+                      href={`mailto:${PRIVACY_OFFICER_EMAIL}`}
                       className="group flex items-center gap-3 rounded-xl border border-[#0F172A]/8 bg-[#F8FAFC] px-4 py-3.5 transition-all hover:border-[#059669]/40 hover:bg-white"
                     >
                       <span className="grid size-10 place-items-center rounded-lg bg-[#059669]/10 text-[#059669]">
@@ -617,14 +618,14 @@ export function AboutContent() {
                           Lukas · privacy requests
                         </span>
                         <span className="block truncate text-[15px] font-semibold text-[#0F172A]">
-                          lukas@aetherforgeai.co.nz
+                          {PRIVACY_OFFICER_EMAIL}
                         </span>
                         <span className="block text-xs text-[#64748B]">lukas at aetherforgeai.co.nz</span>
                       </span>
                       <ArrowRight className="size-4 text-[#94A3B8] transition-transform group-hover:translate-x-0.5 group-hover:text-[#059669]" />
                     </a>
                     <a
-                      href="mailto:admin@aetherforgeai.co.nz"
+                      href={`mailto:${CUSTOMER_EMAIL}`}
                       className="group flex items-center gap-3 rounded-xl border border-[#0F172A]/8 bg-[#F8FAFC] px-4 py-3.5 transition-all hover:border-[#059669]/40 hover:bg-white"
                     >
                       <span className="grid size-10 place-items-center rounded-lg bg-[#059669]/10 text-[#059669]">
@@ -635,7 +636,7 @@ export function AboutContent() {
                           General and customer matters
                         </span>
                         <span className="block truncate text-[15px] font-semibold text-[#0F172A]">
-                          admin@aetherforgeai.co.nz
+                          {CUSTOMER_EMAIL}
                         </span>
                         <span className="block text-xs text-[#64748B]">admin at aetherforgeai.co.nz</span>
                       </span>

@@ -10,6 +10,7 @@ Markers:
 - `pull-check:qa-2026-10-10-medium-m10-m15-low-l6-l17`
 - `pull-check:track-a1-2026-10-10`
 - `pull-check:track-a2-2026-10-10`
+- `pull-check:track-b-p0-2026-10-11`
 
 Branch: `cursor/qa-m10-m15-l6-l17-b236`
 PR: https://github.com/AetherForge-Ai/aetherforgeai/pull/247
@@ -650,4 +651,84 @@ Lukas may later decide to retire the downloadable Excel investor toolkit templat
 
 ## Left untouched on purpose
 
-`CRYPTO_PROJECTIONS_PAUSED` remains true. `CRYPTO_SANITY_RATIO` stays 3. Reviewed FX stays ±5%. `preserveDynamicSegmentTraces` is unchanged. Security headers stay in `next.config` `headers()` only. New books still start at NZ$0. The fee default stays NZ$0.00. This branch did not edit `src/lib/auth.ts`, auth mail, transactional mail, the send-verification route, or news ingestion. Register and login arrived with the #246 merge. Email sending stays hard off. No email was sent. Reports describe intelligent AI bots and do not name Grok, ZENITH, or ULTRA. No Totalum AI product name was added. Nothing was published. Contacts remain `admin@aetherforgeai.co.nz` and `lukas@aetherforgeai.co.nz`.
+`CRYPTO_PROJECTIONS_PAUSED` remains true. `CRYPTO_SANITY_RATIO` stays 3. Reviewed FX stays ±5%. `preserveDynamicSegmentTraces` is unchanged. Security headers stay in `next.config` `headers()` only. New books still start at NZ$0. The fee default stays NZ$0.00. This branch did not edit `src/lib/auth.ts`, auth mail, transactional mail, the send-verification route, or news ingestion. Register and login arrived with the #246 merge. Email sending stays hard off. No email was sent. Reports describe intelligent AI bots and do not name a model or a provider. No Totalum AI product name was added. Nothing was published. Contacts remain `admin@aetherforgeai.co.nz` and `lukas@aetherforgeai.co.nz`.
+
+## Track B P0
+
+Branch `cursor/track-b-p0-bb35` from develop `87dfce1`. PR https://github.com/AetherForge-Ai/aetherforgeai/pull/255. Marker `pull-check:track-b-p0-2026-10-11` is in `src/lib/public-copy.ts` and in the Markers list above. Local checks on 11 Oct 2026 (NZ): `npm run check-types-errors` passed, eslint on the changed source files passed, `npm test` passed (102 files, 493 tests), `npm run build` passed. Curl figures below are from `next start` on this machine, not from the live site. Nothing was published. No email was sent.
+
+### P0-1 — not changed
+
+- Status: not changed. No clear cause outside the signup mail files this batch was told not to edit.
+- Commit: none
+- Files: read only. `src/lib/auth.ts` sets `emailVerification.sendVerificationEmail` to `sendAuthVerificationEmail`. `src/lib/send-transactional-mail.ts` posts `html` and keeps `text` off the payload. The send-verification route and `auth-mail.ts` / `transactional-mail.ts` are the rest of that path.
+- URL / steps: a fresh signup, timed on a live inbox. That timing is separate from this branch.
+- Expected: a message with a body and a working link in under 60 seconds.
+- Partial: this branch does not change that path, so it does not claim the live timing.
+
+### P0-2 — fixed
+
+- Status: fixed
+- Commit: `5e9ee8f48f03e67a29c15edd68034f5415269550` for the footer, About, and Terms. Privacy and Trust list both addresses in `109cff756f61705b77eb98c2b785831409ebee99`.
+- Files: `src/lib/public-copy.ts`, `src/components/SiteFooter.tsx`, `src/components/EmailAddress.tsx` (unchanged; it already prints the mailto and the "at" line), `src/components/about/AboutContent.tsx`, `src/app/terms-of-service/page.tsx`, `src/app/privacy-policy/page.tsx`, `src/app/trust/page.tsx`
+- URL / steps: open `/markets` (the footer is on every page), `/about#contact`, `/terms-of-service` section 17, `/privacy-policy` contact, `/trust` vulnerability.
+- Expected: `admin@aetherforgeai.co.nz` and `lukas@aetherforgeai.co.nz`, each as a mailto, plus the words "admin at aetherforgeai.co.nz" and "lukas at aetherforgeai.co.nz". Terms also shows phone `0800 238 437`.
+- Checked here: the local `/markets` HTML contains both mailto links, both "at" lines, and `href="/status"`.
+
+### P0-3 — written, Lukas decides
+
+- Status: options written. No option is chosen.
+- Commit: `ae21b3182f2ce8db4d087a0c62cf14290a87f2f7`
+- Files: `docs/data-licensing-options-2026-10-11.md` (force-added; `/docs/` is gitignored)
+- URL / steps: read the file. It is not a site page.
+- Expected: options only, from the code and from vendor pages fetched on 11 Oct 2026. It does not claim an NZX or ASX licence.
+- Partial: CoinGecko API terms and pricing returned a challenge page, so those clauses are marked UNVERIFIED. The GeckoTerminal API terms page was not fetched. Swyftx terms were not fetched. Frankfurter's fetched docs name `api.frankfurter.dev` while the code calls `api.frankfurter.app`.
+
+### P0-4 — fixed on this machine
+
+- Status: fixed in the local production server. Review follow-up: the equity wait is 3 seconds, a stored snapshot is served at once, and a later read refreshes it in the background. A refresh that does not replace that snapshot waits 60 seconds before another try. A cold miss still prints "No prices in this response."
+- Commit: `d08381a62b1bfd1c407ccc031e3b1a9fc3e73c9b`. Review follow-up `d0530cc812029408fdc2cd3c9f7019cd04b81fbf`. Backoff `18f1f9d`.
+- Files: `src/lib/public-market-index.ts`, `src/lib/public-market-types.ts`, `src/lib/sitemap-tickers.ts`, `src/components/markets/PublicMarketTables.tsx`, `src/components/dashboard/MarketsPageContent.tsx`, `src/app/markets/page.tsx`, `src/app/markets/stock/[ticker]/page.tsx`, `src/app/markets/crypto/[id]/page.tsx`, `src/app/sitemap.ts`
+- URL / steps: `curl` `/markets`, `/markets/stock/FBU.NZ`, and `/sitemap.xml`.
+- Expected: at least 50 `data-price-row` rows and an as-of time in the markets HTML. The sitemap lists ticker paths.
+- Checked here: after the review build, a cold `/markets` returned 230 `data-price-row` rows in 2.06 s (time to first byte 2.06 s). The next read of the same process returned the same 230 rows in 0.03 s. As-of lines on the earlier read included `as of 9 Oct 2026, 4:55 pm` (NZX), `as of 9 Oct 2026, 6:12 pm` (ASX), `as of 10 Oct 2026, 9:00 am` (Dow Jones and NASDAQ), and `as of 11 Oct 2026, 12:51 am` (crypto, from the feed's `last_updated`). Sitemap listed `/status`, 397 `/markets/stock/` paths, and 20 `/markets/crypto/` paths. `FBU.NZ` HTML included the name Fletcher Building, the Materials list on NZX, `FBU.NZ NZ$3.42 0.00% as of 9 Oct 2026, 4:59 pm`, the title `Fletcher Building (FBU) · NZX — AetherForge AI`, and a link to create an account. The signed-out page does not show the add link.
+- Partial: 25 DEX rows say `change not stated` and `as of not stated by the vendor`, because that feed has no change and no quote time. Six equity rows printed `0.00%`. A blank vendor response says `No prices in this response.` Neither local read had an empty tab, because the feed returned rows inside the 3 second wait. The live site was not curled.
+- Sitemap choice: keep the stock paths and put a real listing on each page (name, exchange, sector from the repo list, price with as-of when the feed returns one, and a link to add the name or create an account, plus a title and description that use that name). The repo list has no market-cap field, so a "top 100 by market cap" cut would have been a guess. The pages stay force-dynamic.
+
+### P0-5 — fixed on this machine
+
+- Status: fixed in the local production server. Headline probes from #234 still pass.
+- Commit: `8b2d8764eb4608a3f6850986fab24c689d9c9d5e`
+- Files: `src/components/MarketTicker.tsx`, `src/lib/yahoo-finance.ts`, `src/lib/news-present.ts`, `src/lib/news-present.test.ts`, `src/lib/market-news.ts`, `src/components/dashboard/MarketNewsPageContent.tsx`
+- URL / steps: home tape after `/api/ticker` returns; `/market-news` five times; the news unit tests.
+- Expected: every tape row has a change percent. The three marginal shapes (Trump Dividend, a digital-assets Zero opinion, a Vietnam asset-manager profile) are off-topic. A Vietnam index move stays. `/market-news` time to first byte under 0.8 s on five fetches.
+- Checked here: `/api/ticker` returned changes such as AIR.NZ `+1.30%` and SPK.NZ `-1.49%`, with `quotedAt` `2026-10-09T03:55:00.000Z`. The cell always prints `formatSignedPercent`. `/market-news` time to first byte was 0.534 s, then 0.019 s, 0.023 s, 0.012 s, and 0.011 s. The first HTML had 20 headings, including the RBNZ 2.75% card and the scheduled CPI card, plus NZ lines (Squirrel plans to list; NZX-listed company) and US market headlines.
+- Partial: some of those 20 are US opinion columns that still match a market word. This batch does not drop every Motley Fool dividend story. The 0.8 s figure is this machine, not Cloudflare. A feed that exceeds 500 ms is dropped for that request and is not cached unless at least eight live stories arrived.
+
+### P0-6 — fixed, retention left for Lukas
+
+- Status: public wording fixed after the second review. The first two wordings left out coach and Headmaster categories the routes send. Vendor retention is still not stated on the site.
+- Commit: `109cff756f61705b77eb98c2b785831409ebee99`. The processor name is also in `5e9ee8f48f03e67a29c15edd68034f5415269550`. Review follow-up `3779e8b0da4f73ffbc24ddb386f2209c90ce2304`. Category follow-up `6fefefe`.
+- Files: `src/app/trust/page.tsx`, `src/app/privacy-policy/page.tsx`, `src/components/chat/ChatAssistant.tsx`, `src/components/dashboard/TickerAnalysisPane.tsx`, `src/components/trial/TrialReportView.tsx`, `docs/ai-disclosure-for-lukas-2026-10-11.md`
+- URL / steps: `/trust` section "What the AI does", Privacy section 4, a ticker note, the assistant, and a trial note when `aiEnhanced` is true.
+- Expected: the page says a third-party AI service writes the labelled plain-English notes. It lists the assistant holding count, total market value, total cost, total unrealised profit or loss, best and worst performer, sector weights, and for each holding the ticker, name, sector, share count, average price, current price, value, profit or loss, and weight. For the Portfolio Execution Coach it also lists the diversification score and its label, allocation values in NZ$, the top eight positions with name, asset class, weight and value, the latest Stox and Koins findings, and the Headmaster ideas for names in the book. For the Headmaster chat it also lists total value, total cost and profit or loss, each asset class with its value and position count, the top eight positions with name, asset class, weight, value and profit or loss, concentration-risk notes, the bull, base and bear scenario pathways, the diversification score and HHI, a calculated yearly return and volatility, the illustrated cash reallocation, and the Headmaster ideas block. A ticker note includes the question you typed. It says the request does not include a card number, and that the sending code does not set a retention period. It does not name a model or a provider. Retention and training at the service are "to be confirmed by Lukas" in the page-free note only. `AI_SENT_CATEGORIES` in `src/lib/public-copy.ts` is the typed list, and the test fails if one of those phrases is missing from the lines.
+- Partial: a stored member report still sets `aiEnhanced` to false. Its summary is the rules text, not the "AI-written note" label. Whether the live host has the API variable set is UNVERIFIED (`wrangler.jsonc` does not set it). The Lukas note now says "the trial summary function in src/lib/trial-report.ts" and does not use the old function identifier.
+
+### P0-7 — fixed
+
+- Status: fixed
+- Commit: `4b37113c19c83ba69145c9523e655a3efc9e4d2c`. The footer Status link is in `5e9ee8f48f03e67a29c15edd68034f5415269550`. Sitemap `/status` is in `d08381a62b1bfd1c407ccc031e3b1a9fc3e73c9b`.
+- Files: `src/app/changelog/page.tsx`, `src/app/status/page.tsx`, `src/lib/route-gate.ts`, `src/components/SiteFooter.tsx`, `src/app/sitemap.ts`
+- URL / steps: `/changelog`, `/status`, footer Status link.
+- Expected: one line each for the develop commits on 10 Oct 2026 and 11 Oct 2026. No 9 Oct line, because `git log origin/develop` has no commit that day. Status says "Status updates are posted here." and links `/trust` and `/changelog`. It does not say "All systems normal".
+- Partial: there is no health check in the repo, so the page does not report uptime.
+
+### Track B checks
+
+- `npm run check-types-errors`: passed.
+- eslint on the changed source files: passed, no output.
+- `npm test`: 102 files, 494 tests passed after the category follow-up (`6fefefe`), including the typed category list.
+- `npm run check-types-errors`: passed again after that follow-up.
+- `npm run build`: passed again after that follow-up (Next.js 15.3.9). The build skipped its own lint step. Better Auth logged the default secret in this environment. No secret was added.
+- This batch did not edit `src/lib/auth.ts`, `src/lib/auth-mail.ts`, `src/lib/transactional-mail.ts`, `src/lib/send-transactional-mail.ts`, or the send-verification route. It did edit the news filter and the news fetch cap. Crypto projections stay paused. No list was removed. No email was sent. Nothing was published.
+

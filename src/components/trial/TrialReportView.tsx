@@ -281,7 +281,7 @@ export function TrialReportView({
           </span>
           {report.aiEnhanced && (
             <span className="inline-flex items-center gap-1 rounded-full bg-violet-500/15 px-3 py-1 text-xs font-semibold text-violet-700 ring-1 ring-violet-500/30">
-              ✨ AI
+              AI-written note
             </span>
           )}
         </div>

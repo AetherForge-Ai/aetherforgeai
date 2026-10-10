@@ -3,15 +3,24 @@
  * Exported strings are shown to visitors. They must not contain the word TODO,
  * a model name, or an invented owner-only fact.
  *
- * TODO(owner): confirm the AI provider name. Public copy says "an AI provider" until then.
+ * Public copy says "a third-party AI service" and "AI". It does not name a model or a provider.
  * TODO(owner): have a qualified NZ adviser check the re-issued Terms, Privacy Policy and AI Disclaimer.
  */
+
+/** pull-check:track-b-p0-2026-10-11 */
 
 /** General and customer mail. Privacy requests use PRIVACY_OFFICER_EMAIL. */
 export const CUSTOMER_EMAIL = "admin@aetherforgeai.co.nz";
 
 /** Privacy Officer, privacy requests, and the Lukas contact. */
 export const PRIVACY_OFFICER_EMAIL = "lukas@aetherforgeai.co.nz";
+
+/** Both public contact addresses. Footer, About, Terms, Privacy and Trust show both. */
+export const PUBLIC_CONTACT_EMAILS = [CUSTOMER_EMAIL, PRIVACY_OFFICER_EMAIL] as const;
+
+/** The number already printed on the footer. */
+export const PUBLIC_PHONE_DISPLAY = "0800 238 437";
+export const PUBLIC_PHONE_TEL = "0800238437";
 
 /**
  * One paper-book sentence for Trust, How it works, Privacy, Terms and the home page.
@@ -64,11 +73,96 @@ export const ANALYTICS_NOTICE =
 export const LEDGER_EXPORT_LINE =
   "Published plans include the paper ledger and a CSV export of your transactions. Yearly billing also includes a downloadable Excel investor toolkit template. That file is a blank template. It is not filled with your holdings, and it is not a copy of the figures in the ledger.";
 
+/**
+ * What a completion request can include. Each sentence is true of the server
+ * routes that post it. Retention at the service is not stated here.
+ */
+export const AI_REQUEST_LINES = [
+  "Scores and projected ranges are calculated by a rules-based engine. A third-party AI service writes the plain-English note on a ticker and the replies in the assistant, the Portfolio Execution Coach, and the Headmaster chat. Those notes are labelled “AI-written note”. A stored member report for Stox, Koins or Headmaster marks its summary as not AI-enhanced, because that summary is built from the calculated figures.",
+  "The assistant can send your name, the question you typed, and recent messages in that chat. When the paper book has holdings, it can also send the holding count, the total market value, the total cost, the total unrealised profit or loss, the best and worst performer, the sector weights, and for each holding the ticker, the name, the sector, the share count, the average price, the current price, the value, the profit or loss, and the weight.",
+  "The Portfolio Execution Coach can send your name, your question, and recent messages in that chat. When a Headmaster book is available it can also send the cash balance, the total value, the profit or loss, the diversification score and its label, and the allocation weights and values in NZ$, including cash. It can send the top eight positions with name, asset class, weight and value, the latest Stox and Koins findings, and the Headmaster ideas for names in the book. It can send a plan you typed and report text you attached.",
+  "The Headmaster chat can send your name, your question, and recent messages in that chat. It can send the total value, the total cost, the profit or loss, the cash balance, the cash weight, the retained-cash target, the illustrated cash reallocation, and the working that produces that reallocation. It can send each asset class with its weight, its value in NZ$ and its position count, the top eight positions with name, asset class, weight, value and profit or loss, concentration-risk notes, stress-test impacts in NZ$ and percent, and the bull, base and bear scenario pathways. When the book is invested it can send the diversification score and HHI. It can send a calculated yearly return and volatility for the mix. It can send the latest Stox and Koins findings, and the Headmaster ideas block. Names outside the book are included only when you ask for a watchlist.",
+  "A ticker note can send your name, the ticker, the question you typed, and the quote used for that note. If you leave the question blank, the request still includes a short default question.",
+  "The request does not include a card number. The code that sends the request does not set a retention period.",
+] as const;
+
+/**
+ * Phrases that must appear in AI_REQUEST_LINES. Each one is a category the
+ * named route puts in the completion request. Checked by the Track B test.
+ */
+export const AI_SENT_CATEGORIES = {
+  "/api/chat": [
+    "your name",
+    "the question you typed",
+    "recent messages",
+    "the holding count",
+    "the total market value",
+    "the total cost",
+    "the total unrealised profit or loss",
+    "the best and worst performer",
+    "the sector weights",
+    "the ticker",
+    "the name",
+    "the sector",
+    "the share count",
+    "the average price",
+    "the current price",
+    "the value",
+    "the profit or loss",
+    "the weight",
+  ],
+  "/api/portfolio-coach": [
+    "your name",
+    "the question you typed",
+    "recent messages",
+    "the cash balance",
+    "the total value",
+    "the profit or loss",
+    "the diversification score and its label",
+    "the allocation weights and values in NZ$",
+    "the top eight positions with name, asset class, weight and value",
+    "the latest Stox and Koins findings",
+    "the Headmaster ideas for names in the book",
+    "a plan you typed",
+    "report text you attached",
+  ],
+  "/api/totalum/chat": [
+    "your name",
+    "the question you typed",
+    "recent messages",
+    "the total value",
+    "the total cost",
+    "the profit or loss",
+    "the cash balance",
+    "the cash weight",
+    "the retained-cash target",
+    "the illustrated cash reallocation",
+    "the working that produces that reallocation",
+    "its value in NZ$ and its position count",
+    "the top eight positions with name, asset class, weight, value and profit or loss",
+    "concentration-risk notes",
+    "stress-test impacts in NZ$ and percent",
+    "the bull, base and bear scenario pathways",
+    "the diversification score and HHI",
+    "a calculated yearly return and volatility",
+    "the latest Stox and Koins findings",
+    "the Headmaster ideas block",
+    "Names outside the book are included only when you ask for a watchlist",
+  ],
+  "/api/ticker-analysis": [
+    "your name",
+    "the ticker",
+    "the question you typed",
+    "the quote used for that note",
+    "a short default question",
+  ],
+} as const satisfies Record<string, readonly string[]>;
+
 export const PROCESSORS: { name: string; role: string }[] = [
   { name: "Cloudflare", role: "public site and network" },
   { name: "Stripe", role: "subscription payments. We never see your card number" },
-  // TODO(owner): name the AI provider when it is confirmed. Public copy stays "An AI provider".
-  { name: "An AI provider", role: "plain-English notes on calculated figures" },
+  // Public copy does not name a model or a provider. Retention at that service is not set by this request.
+  { name: "A third-party AI service", role: "plain-English notes and assistant replies" },
   { name: "Google Analytics", role: "which pages are used" },
   { name: "Totalum on Google Cloud", role: "account storage" },
   { name: "Yahoo Finance", role: "prices for NZX-listed, ASX-listed and US shares" },
