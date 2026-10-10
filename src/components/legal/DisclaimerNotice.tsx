@@ -38,7 +38,7 @@ export function DisclaimerNotice({
       >
         <div className="flex items-start gap-3">
           <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-500" aria-hidden />
-          <div className="space-y-2 text-xs leading-relaxed text-muted-foreground">
+          <div className="space-y-2 text-sm leading-relaxed text-foreground">
             <p>
               <strong className="font-semibold text-foreground/90">
                 Important — this is not financial advice.
@@ -81,7 +81,7 @@ export function DisclaimerNotice({
       role="note"
       aria-label="Financial disclaimer"
     >
-      <p className="mx-auto max-w-4xl text-[11px] leading-relaxed text-muted-foreground">
+      <p className="mx-auto max-w-4xl text-sm leading-relaxed text-foreground">
         <strong className="font-semibold text-foreground/80">Not financial advice.</strong>{" "}
         AetherForge AI ({LEGAL_ENTITY_NAME}) provides general market information and AI-generated
         analysis for informational purposes only. We are not financial advisers and this is not
