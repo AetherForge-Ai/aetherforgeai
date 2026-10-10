@@ -296,7 +296,7 @@ H5–H11 landed on develop as https://github.com/AetherForge-Ai/aetherforgeai/pu
 ## M11 — fixed
 
 - Status: fixed
-- Commit: `1cf571d`, `a73662c`, review fix on this branch
+- Commit: `1cf571d`, `a73662c`, `58c2cb9`
 - Files: `src/lib/currency.ts`, `src/lib/portfolio.ts`, `src/lib/headmaster-trust.ts`, `src/components/totalum/TotalumConsole.tsx`, `src/components/dashboard/AllocationDriftCard.tsx`, `src/components/dashboard/PreciousMetals.tsx`, `src/components/dashboard/PortfolioDashboard.tsx`, `src/components/dashboard/HoldingsOwnedTable.tsx`
 - URL / steps: dashboard cash, Headmaster amounts, drift on the dashboard and in Headmaster, a same-day buy whose stored unit price matches, and a large lot with a 0.004 price gap. Also a non-NZ$ token position whose native gain is under one cent.
 - Expected: NZ$ totals stay at 2 decimal places: `NZ$100,000.00` and `NZ$0.00`. No `-0.00%` and no `-NZ$0.00`. Drift is `pp` in both places. A same-day fill whose unit price still matches after stored precision (at least 6 decimal places) uses one rounding path and the gain is `NZ$0.00`. A gap that only disappears at 2 decimal places is a real gain: 100,000 shares times 0.004 stays `+NZ$400.00`. A non-NZ$ native gain under one cent keeps significant digits (`+US$0.0000040399`), not `US$0.00`.
