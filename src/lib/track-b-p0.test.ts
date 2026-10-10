@@ -59,7 +59,7 @@ describe("Track B P0", () => {
     }
   });
 
-  it("keeps the removed address out of tracked files except the live-site search note", () => {
+  it("keeps the removed address out of tracked files", () => {
     const town = ["Peg", "asus"].join("");
     const street = ["Lake", "side"].join("");
     const postcode = ["76", "12"].join("");
@@ -76,7 +76,7 @@ describe("Track B P0", () => {
         .split("\n")
         .map((line) => line.trim())
         .filter(Boolean);
-      expect(files, word).toEqual(["qa/PULL-CHECK-2026-10-10.md"]);
+      expect(files, word).toEqual([]);
     }
   });
 

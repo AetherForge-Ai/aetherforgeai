@@ -922,11 +922,11 @@ Marker: `pull-check:address-removed-2026-10-11`
 
 Source comment: `pull-check:address-removed-2026-10-11` in `src/lib/company.ts`.
 
-Branch `cursor/remove-pegasus-address-c57f` from develop. One draft pull request into `develop`. Nothing was published. No Totalum AI Pull. No email was sent. Auth, login, register, security headers, consent, apex, and `next.config.ts` were not edited. The address string was not in those files. Public copy says "AI" only.
+This branch is from develop. One draft pull request into `develop`. Nothing was published. No Totalum AI Pull. No email was sent. Auth, login, register, security headers, consent, apex, and `next.config.ts` were not edited. The address string was not in those files. Public copy says "AI" only. `origin/develop` was already the base. `origin/main` is merged with the ours strategy so the tree stays develop plus this change. Every section already in this file stays.
 
 The registered office is a home address. It is removed from the site. No replacement address was added. The legal name `FORGE INTELLIGENCE LIMITED` stays, with `admin@aetherforgeai.co.nz` and `lukas@aetherforgeai.co.nz`.
 
-Git history still contains the old address. This change does not rewrite history.
+Git history still contains the old address. This change does not rewrite history. The working tree does not name the old street, suburb, or postcode.
 
 ### Removed from the site — fixed
 
@@ -938,7 +938,7 @@ Git history still contains the old address. This change does not rewrite history
 ### Verify on the live site
 
 - After Lukas publishes, view the HTML source of `https://aetherforgeai.co.nz/`, `https://aetherforgeai.co.nz/about`, `https://aetherforgeai.co.nz/terms-of-service`, `https://aetherforgeai.co.nz/privacy-policy`, and `https://aetherforgeai.co.nz/trust`.
-- Search that HTML for the word Pegasus. Also search for Lakeside and 7612.
+- Search the page source for the old street name, suburb and postcode (Lukas knows them).
 - Expected: no matches. The same HTML still contains `FORGE INTELLIGENCE LIMITED`, `admin@aetherforgeai.co.nz`, and `lukas@aetherforgeai.co.nz`.
 
 ### Where a postal address may still be required
