@@ -199,6 +199,7 @@ export function MarketsExplorer({
   syncTab = false,
   onTabChange,
   index = null,
+  dexCredit = "Powered by GeckoTerminal",
 }: {
   onBought?: () => void;
   /** When false the component skips fetching (e.g. modal is closed). */
@@ -215,6 +216,8 @@ export function MarketsExplorer({
   onTabChange?: (tab: Tab) => void;
   /** Server-rendered boards. Crypto and DEX rows from this index show until the client list arrives. */
   index?: PublicMarketIndex | null;
+  /** Server-built credit. Defaults to GeckoTerminal. The second name is passed only when its display flag is on. */
+  dexCredit?: string;
 }) {
   const seedCrypto = index?.tabs.find((row) => row.id === "CRYPTO")?.rows ?? [];
   const seedDex = index?.tabs.find((row) => row.id === "DEX")?.rows ?? [];
@@ -830,7 +833,7 @@ export function MarketsExplorer({
               {dex.notice ? ` · ${dex.notice}` : ""}
             </p>
           )}
-          {isDexTab && <p className="text-sm text-muted-foreground">Powered by GeckoTerminal and DexScreener</p>}
+          {isDexTab && <p className="text-sm text-muted-foreground">{dexCredit}</p>}
           {(tab === "NASDAQ" || tab === "NYSE") && (
             <label className="flex items-center gap-2 text-xs text-muted-foreground">
               <input

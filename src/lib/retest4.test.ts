@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { GET as unsubscribeGet } from "@/app/unsubscribe/route";
 import { marketsBody, presentMarketCoin } from "@/lib/crypto-api-body";
 import { coinGeckoRetryDelayMs, coinGeckoStatusRetries, readMarketPage } from "@/lib/crypto-fetch-policy";
@@ -68,6 +68,10 @@ function dex(symbol: string, price: number | null, reserveUsd: number | null): D
 }
 
 describe("pull-check:retest4-2026-10-11", () => {
+  afterEach(() => {
+    delete process.env.DEXSCREENER_PUBLIC_DISPLAY;
+  });
+
   it("keeps the marker in the sources and the QA note", () => {
     const qa = read("qa/PULL-CHECK-2026-10-10.md");
     expect(qa).toContain("pull-check:retest4-2026-10-11");
@@ -124,9 +128,15 @@ describe("pull-check:retest4-2026-10-11", () => {
     });
     expect(pairs[0]?.price).toBe(2.5);
     expect(pairs[0]?.network).toBe("Solana");
+    delete process.env.DEXSCREENER_PUBLIC_DISPLAY;
+    const hidden = resolveDexList({ poolRows: [], screenerRows: pairs, lastGood: [] });
+    expect(hidden.kind).toBe("empty");
+    expect(dexListNotice(0).toLowerCase()).not.toContain("dexscreener");
+    process.env.DEXSCREENER_PUBLIC_DISPLAY = "on";
     const fromScreener = resolveDexList({ poolRows: [], screenerRows: pairs, lastGood: [] });
     expect(fromScreener.kind).toBe("screener");
     expect(dexListNotice(fromScreener.rows.length, false, fromScreener.kind)).toContain("DexScreener list");
+    delete process.env.DEXSCREENER_PUBLIC_DISPLAY;
 
     const saved = [dex("SAVED", 3, 20_000)];
     const fromSaved = resolveDexList({ poolRows: [], screenerRows: [], lastGood: saved });
@@ -186,7 +196,8 @@ describe("pull-check:retest4-2026-10-11", () => {
     expect(source).not.toMatch(/from ["']@\/lib\/crypto-(kraken|coinbase)/);
     expect(source).toContain("They do not replace this list");
     expect(source).toContain("SWYFTX_PUBLIC_DISPLAY");
-    expect(publicDataSourcesLine()).toContain("DexScreener");
+    expect(publicDataSourcesLine().toLowerCase()).not.toContain("dexscreener");
+    expect(publicDataSourcesLine()).toContain("GeckoTerminal");
     expect(publicDataSourcesLine()).not.toMatch(/fallback|unavailable|official|licensed|real-time/i);
     expect(PUBLIC_SEED_ROWS).toBe(12);
   });

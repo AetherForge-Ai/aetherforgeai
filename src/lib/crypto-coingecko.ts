@@ -19,11 +19,13 @@ import { assembleListedMarkets, coingeckoRolling24h, resolveSevenDayChange, type
 import { coinDisplayName } from "@/lib/crypto-names";
 import { rememberCryptoIds } from "@/lib/crypto-id-registry";
 import { coinGeckoRetryDelayMs, coinGeckoStatusRetries, readMarketPage } from "@/lib/crypto-fetch-policy";
+import { dexscreenerPublicDisplay } from "@/lib/dexscreener-display";
 import {
   DEX_BACKOFF_MS,
   DEX_COLD_BUDGET_MS,
   DEX_STALE_MS,
   DEX_TRENDING,
+  DEX_TREND_PREFIX,
   dexListNotice,
   dexSlotKey,
   dexTargets,
@@ -359,13 +361,31 @@ export interface DexPage {
  * and a 429 does not replace it with a shorter list.
  */
 const GT_BASE = "https://api.geckoterminal.com/api/v2";
+/**
+ * Documented GeckoTerminal version header.
+ * A pool list without `include=base_token` has prices and no token symbols, so the
+ * parser drops every row. The public limit is 30 calls a minute. A 429 or a timeout
+ * used to become an empty list whose notice said a token price was missing.
+ */
+export const GECKOTERMINAL_ACCEPT = "application/json;version=20230302";
 const DEX_CACHE_KEY = "dex-merged";
 const DEX_MEMORY_FRESH_MS = 15_000;
 const DEX_CALL_TIMEOUT_MS = 2_200;
 
-async function gtFetch(path: string, timeoutMs = DEX_CALL_TIMEOUT_MS): Promise<unknown> {
+function geckoStatus(err: unknown): number {
+  const message = err instanceof Error ? err.message : String(err);
+  return Number(message.match(/GeckoTerminal (\d{3})/)?.[1] || 0);
+}
+
+function geckoRetries(err: unknown): boolean {
+  const status = geckoStatus(err);
+  const message = err instanceof Error ? err.message : String(err);
+  return status === 429 || status === 500 || status === 502 || status === 503 || status === 504 || /timeout|aborted|non-JSON/i.test(message);
+}
+
+async function gtFetchOnce(path: string, timeoutMs: number): Promise<unknown> {
   const res = await fetch(`${GT_BASE}${path}`, {
-    headers: { accept: "application/json" },
+    headers: { accept: GECKOTERMINAL_ACCEPT },
     cache: "no-store",
     signal: AbortSignal.timeout(timeoutMs),
   });
@@ -382,6 +402,29 @@ async function gtFetch(path: string, timeoutMs = DEX_CALL_TIMEOUT_MS): Promise<u
   } catch {
     throw new Error(`GeckoTerminal returned a non-JSON body on ${path}`);
   }
+}
+
+/**
+ * Up to three tries inside the caller's timeout. The first try uses half the
+ * budget so a timeout or a 429 can be repeated after a short pause.
+ */
+async function gtFetch(path: string, timeoutMs = DEX_CALL_TIMEOUT_MS): Promise<unknown> {
+  const started = Date.now();
+  let last: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const elapsed = Date.now() - started;
+    const remain = timeoutMs - elapsed;
+    if (remain < 350) break;
+    if (attempt > 0) await sleep(Math.min(400 * attempt, remain - 300));
+    const slice = Math.max(350, Math.min(remain, Math.floor(timeoutMs / 2)));
+    try {
+      return await gtFetchOnce(path, slice);
+    } catch (err) {
+      last = err;
+      if (!geckoRetries(err)) throw err;
+    }
+  }
+  throw last instanceof Error ? last : new Error("GeckoTerminal did not return a pool list.");
 }
 
 /** Quote lookups read this. The merged list itself lives in the TTL cache. */
@@ -407,6 +450,10 @@ function syncDexPages(pages: DexStoredPage[]) {
 function dexRequestPath(network: string, page: number): string {
   const include = "include=base_token,quote_token,dex,network";
   if (network === DEX_TRENDING) return `/networks/trending_pools?${include}&page=${page}`;
+  if (network.startsWith(DEX_TREND_PREFIX)) {
+    const id = network.slice(DEX_TREND_PREFIX.length);
+    return `/networks/${id}/trending_pools?${include}&page=${page}`;
+  }
   return `/networks/${network}/pools?${include}&sort=h24_volume_usd_desc&page=${page}`;
 }
 
@@ -466,7 +513,8 @@ function rememberDexLastGood(rows: DexTokenRow[]) {
 const DS_BASE = "https://api.dexscreener.com";
 const DS_QUERIES = ["USDC", "WETH", "SOL"];
 
-async function fetchDexScreenerRows(): Promise<DexTokenRow[]> {
+export async function fetchDexScreenerRows(): Promise<DexTokenRow[]> {
+  if (!dexscreenerPublicDisplay()) return [];
   const lists = await Promise.all(
     DS_QUERIES.map(async (query) => {
       try {
@@ -479,7 +527,7 @@ async function fetchDexScreenerRows(): Promise<DexTokenRow[]> {
         return parseDexScreenerPairs(await res.json());
       } catch (err) {
         console.error(
-          `[crypto-coingecko] DexScreener ${query} unavailable:`,
+          `[crypto-coingecko] DexScreener ${query} did not return pairs:`,
           err instanceof Error ? err.message.slice(0, 140) : "failed"
         );
         return [] as DexTokenRow[];
@@ -497,7 +545,8 @@ type DexFetchResult =
 async function fetchDexPage(network: string, page: number, timeoutMs: number): Promise<DexFetchResult> {
   try {
     const payload = await gtFetch(dexRequestPath(network, page), timeoutMs);
-    const rows = parseMegafilterPage(payload, network);
+    const labelNetwork = network.startsWith(DEX_TREND_PREFIX) ? network.slice(DEX_TREND_PREFIX.length) : network;
+    const rows = parseMegafilterPage(payload, labelNetwork);
     return { kind: "page", page: { network, page, fetchedAt: Date.now(), rows } };
   } catch (err) {
     const message = err instanceof Error ? err.message : "";
@@ -597,13 +646,12 @@ async function dexPageFromMemory(memory: DexMemory): Promise<DexPage> {
     rememberDexLastGood(memory.rows);
     return snapshotDex(memory, "pools");
   }
-  const screenerRows = await fetchDexScreenerRows();
+  const screenerRows = dexscreenerPublicDisplay() ? await fetchDexScreenerRows() : [];
   const resolved = resolveDexList({
     poolRows: [],
     screenerRows,
     lastGood: readDexLastGood(),
   });
-  if (resolved.kind === "screener") rememberDexLastGood(resolved.rows);
   const held: DexMemory = { ...memory, rows: resolved.rows };
   return snapshotDex(held, resolved.kind);
 }

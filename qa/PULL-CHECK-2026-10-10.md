@@ -1268,9 +1268,10 @@ Research retest of develop `2976445`, implemented from develop `48d2f2a1`. Draft
 
 - Status: fixed in this draft.
 - The list is parsed from GeckoTerminal pool and trending pages (`base_token_price_usd` on the pool). A missing reserve does not drop a priced pool. A stated reserve under $10,000 is left out.
-- When that list is empty, pairs come from DexScreener `GET /latest/dex/search` (https://docs.dexscreener.com/api/reference, no key, `priceUsd` on the pair). That call is not a per-token price route.
-- A non-empty list is written to memory and to `aetherforge-dex-last-good.json` in the temp directory. An empty response does not wipe that list.
-- The empty sentence is used only when pools, DexScreener, and the saved list are all empty: `Showing 0 of up to 400. GeckoTerminal and DexScreener did not return a token list.`
+- DexScreener `GET /latest/dex/search` is fetched and named only when `DEXSCREENER_PUBLIC_DISPLAY` is on. The default is off. With the flag off, the tab uses GeckoTerminal pools and trending lists, then the last saved GeckoTerminal list.
+- A non-empty GeckoTerminal list is written to memory and to `aetherforge-dex-last-good.json` in the temp directory. An empty response does not wipe that list. DexScreener rows are not written into that file.
+- The empty sentence is used only when the GeckoTerminal lists and the saved list are empty. With the flag off it does not name DexScreener.
+- Checked from this host on 10 Oct 2026: `GET /networks/trending_pools` returns HTTP 200 and 20 pools with `base_token_price_usd`, `reserve_in_usd`, and included token symbols when `include=base_token` is set. The same call without `include` returns 20 pools and zero included tokens, and the parser then has no symbol. No rate-limit header was sent, and the versioned Accept header was not required for that 200. The empty tab on develop `2976445` used one sentence for every empty collect, including a 429, a timeout inside the 3 second budget, and a page whose rows were dropped. A page with no included token was one way every row was dropped. The list now sends `Accept: application/json;version=20230302`, retries a 429, 5xx, or timeout inside the same budget, and asks for trending pools on eth, solana, base, and bsc as well as the global trending list.
 - Verify: `npx vitest run src/lib/retest4.test.ts src/lib/crypto-resilience.test.ts`. Open `/markets?tab=dex`. The tab shows rows, or the last saved list, or that empty sentence. It does not say a per-token price was missing when the pool list itself failed.
 
 ### 2 — Crypto rows, market cap, and volume
@@ -1319,11 +1320,11 @@ Research retest of develop `2976445`, implemented from develop `48d2f2a1`. Draft
 
 ### Needs Lukas
 
-- Confirm DexScreener pair rows may be shown. The API reference publishes `GET /latest/dex/search` without a key. The site terms page was not fully confirmed in this pass.
+- DexScreener stays off until `DEXSCREENER_PUBLIC_DISPLAY` is set. The API terms allow a limited revocable licence and prohibit making the API Services available for third parties. Whether a public page counts is still for Lukas.
 - DNS, SPF, and Publish stay as previously noted. They are not part of this pull request.
 
 ### Checks
 
-On `cursor/retest4-markets-dex-49e4`: `npm test` 122 files, 584 tests passed. `npm run check-types-errors` passed. `npm run build` passed (Next.js 15.3.9). The first typecheck failed because `equityFallback` set `asOf` twice. That second key was removed. Nothing was published. No email was sent.
+On `cursor/retest4-markets-dex-49e4`: `npm test` 122 files, 584 tests passed. `npm run check-types-errors` passed. `npm run build` passed (Next.js 15.3.9). The first typecheck failed because `equityFallback` set `asOf` twice. That second key was removed. After the DexScreener display gate: `npm test` 123 files, 587 tests passed. `npm run check-types-errors` passed. `npm run build` passed. Nothing was published. No email was sent.
 
 

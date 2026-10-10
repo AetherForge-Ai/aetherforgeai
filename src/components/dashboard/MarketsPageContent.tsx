@@ -37,6 +37,7 @@ export function MarketsPageContent({
   userId = null,
   initialTab = null,
   index = null,
+  dexCredit = "Powered by GeckoTerminal",
 }: {
   preview?: boolean;
   userId?: string | null;
@@ -44,6 +45,8 @@ export function MarketsPageContent({
   initialTab?: MarketsTab | null;
   /** Server-rendered first page of each tab. */
   index?: PublicMarketIndex | null;
+  /** Passed through from the server page so a display flag is not baked into this file. */
+  dexCredit?: string;
 }) {
   // Bind before BuyDialog's effect. This page sits outside AccountOwnerGuard,
   // so an unbound shell made the cash request start with userId null and the
@@ -89,6 +92,7 @@ export function MarketsPageContent({
           syncTab
           onTabChange={setTab}
           index={index}
+          dexCredit={dexCredit}
         />
       </div>
 

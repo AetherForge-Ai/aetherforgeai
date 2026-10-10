@@ -12,6 +12,7 @@
  */
 
 import { resolvableCoinId, type CoinMarket } from "@/lib/crypto-market";
+import { dexscreenerPublicDisplay } from "@/lib/dexscreener-display";
 import { CRYPTO_SANITY_RATIO } from "@/lib/crypto-tape";
 
 export interface DexTokenRow {
@@ -83,6 +84,14 @@ function includedTokens(payload: Record<string, unknown>): Map<string, IncludedT
   return out;
 }
 
+/** Left side of a pool name such as "USDC / WETH 0.01%". Used only when the included token is missing. */
+function symbolFromPoolName(name: string): string {
+  const left = name.split("/")[0]?.trim() ?? "";
+  const cleaned = left.replace(/\s+\d+(?:\.\d+)?%$/, "").trim().toUpperCase();
+  if (!/^[A-Z0-9][A-Z0-9.$-]{0,19}$/.test(cleaned)) return "";
+  return cleaned;
+}
+
 function relId(pool: Record<string, unknown>, name: string): string {
   const rels = asRecord(pool.relationships);
   const rel = rels ? asRecord(rels[name]) : null;
@@ -140,7 +149,7 @@ export function parseMegafilterPage(payload: unknown, fallbackNetwork = ""): Dex
     if (!pool) continue;
     const attrs = asRecord(pool.attributes) || {};
     const token = tokens.get(relId(pool, "base_token"));
-    const symbol = token?.symbol || "";
+    const symbol = token?.symbol || symbolFromPoolName(String(attrs.name || ""));
     if (!symbol) continue;
     const price = num(attrs.base_token_price_usd);
     const live = price != null && price > 0 ? price : null;
@@ -259,10 +268,12 @@ export function resolveDexList(input: {
     DEX_TARGET_COUNT
   );
   if (pools.length) return { rows: pools, kind: "pools" };
-  const screener = dedupeDexTokens(
-    (input.screenerRows || []).filter((row) => dexRowClearsFloor(row)),
-    DEX_TARGET_COUNT
-  );
+  const screener = dexscreenerPublicDisplay()
+    ? dedupeDexTokens(
+        (input.screenerRows || []).filter((row) => dexRowClearsFloor(row)),
+        DEX_TARGET_COUNT
+      )
+    : [];
   if (screener.length) return { rows: screener, kind: "screener" };
   const saved = dedupeDexTokens(
     (input.lastGood || []).filter((row) => dexRowClearsFloor(row)),
@@ -357,8 +368,15 @@ export function dexRowToCoin(row: DexTokenRow, rank: number): CoinMarket {
 export const DEX_STALE_MS = 30 * 60 * 1000;
 export const DEX_TARGET_COUNT = 400;
 export const DEX_FURTHER_NOTICE = "Further rows are still loading.";
-export const DEX_EMPTY_NOTICE =
-  "Showing 0 of up to 400. GeckoTerminal and DexScreener did not return a token list.";
+/** Empty list with the display flag off. The second source is named only by dexEmptyNotice. */
+export const DEX_EMPTY_NOTICE = "Showing 0 of up to 400. GeckoTerminal did not return a token list.";
+
+export function dexEmptyNotice(): string {
+  if (dexscreenerPublicDisplay()) {
+    return "Showing 0 of up to 400. GeckoTerminal and DexScreener did not return a token list.";
+  }
+  return DEX_EMPTY_NOTICE;
+}
 /** GeckoTerminal returns 20 pools per page. The public API rejects page 11 and above. */
 export const DEX_POOLS_PER_PAGE = 20;
 export const DEX_PAGE_CAP = 10;
@@ -370,6 +388,15 @@ export const DEX_FILL_CONCURRENCY = 5;
 export const DEX_COLD_BUDGET_MS = 2_700;
 /** Wait after a 429, a miss, or a follow-up batch. Stays under the public 30 calls a minute. */
 export const DEX_BACKOFF_MS = 60_000;
+
+/**
+ * Per-network trending slot. It is not a network id on `/networks/{id}/pools`.
+ * The id after the prefix is the network, for example `trend:eth`.
+ */
+export const DEX_TREND_PREFIX = "trend:";
+
+/** Networks whose trending pool list is requested before the deeper pool pages. */
+export const DEX_TRENDING_NETWORKS = ["eth", "solana", "base", "bsc"] as const;
 
 /** Liquid public networks. Ids match GeckoTerminal `/networks`. */
 export const DEX_NETWORKS = [
@@ -407,9 +434,12 @@ export function dexSlotKey(network: string, page: number): string {
 }
 
 export function dexTargets(pageCap = DEX_PAGE_CAP): { network: string; page: number }[] {
-  const targets: { network: string; page: number }[] = [];
+  const targets: { network: string; page: number }[] = [{ network: DEX_TRENDING, page: 1 }];
+  for (const network of DEX_TRENDING_NETWORKS) {
+    targets.push({ network: `${DEX_TREND_PREFIX}${network}`, page: 1 });
+  }
   for (let page = 1; page <= pageCap; page++) {
-    targets.push({ network: DEX_TRENDING, page });
+    if (page > 1) targets.push({ network: DEX_TRENDING, page });
     for (const network of DEX_NETWORKS) targets.push({ network, page });
   }
   return targets;
@@ -436,11 +466,13 @@ export function freshDexRows(pages: DexStoredPage[], now: number, staleMs = DEX_
  * `stalled` means the walk stopped (rate limit) rather than still filling.
  */
 export function dexListNotice(rowCount: number, stalled = false, kind: DexListKind = "pools"): string | null {
-  if (kind === "empty" || rowCount <= 0) return DEX_EMPTY_NOTICE;
+  if (kind === "empty" || rowCount <= 0) return dexEmptyNotice();
   if (rowCount >= DEX_TARGET_COUNT && kind === "pools") return null;
   const lead = `Showing ${rowCount} of up to 400.`;
   if (kind === "snapshot") return `${lead} Last saved DEX list. A newer list is not in this response.`;
-  if (kind === "screener") return `${lead} DexScreener list. GeckoTerminal did not return a token list.`;
+  if (kind === "screener" && dexscreenerPublicDisplay()) {
+    return `${lead} DexScreener list. GeckoTerminal did not return a token list.`;
+  }
   if (stalled) return `${lead} The rate limit stopped the list.`;
   if (rowCount >= DEX_TARGET_COUNT) return null;
   return `${lead} ${DEX_FURTHER_NOTICE}`;
