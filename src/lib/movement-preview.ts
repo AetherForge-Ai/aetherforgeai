@@ -83,7 +83,8 @@ export function buildMovementPreview(input: MovementInput): MovementPreview {
       ? suggestedFee(type, quantity, price)
       : Math.max(0, Number(input.fee) || 0);
   const feeNzd = round2(nativeToNzd(feeNative, currency, rates));
-  const priceNzd = round2(nativeToNzd(price, currency, rates));
+  // Unit price stays exact. Only the NZ$ cash totals below are rounded to 2dp.
+  const priceNzd = nativeToNzd(price, currency, rates);
   let cashChange = 0;
   if (type === "buy") {
     cashChange = -round2(nativeToNzd(quantity * price + feeNative, currency, rates));

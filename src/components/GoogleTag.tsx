@@ -1,43 +1,51 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Script from "next/script";
+import {
+  CONSENT_CHANGE_EVENT,
+  googleMeasurementId,
+  readAnalyticsChoice,
+  shouldLoadGtag,
+} from "@/lib/analytics-consent";
 
 /**
- * Google tag (gtag.js) — loaded once here and rendered from the root layout, so
- * it is injected into the <head> of EVERY page/route automatically (no need to
- * edit each page individually).
- *
- * The measurement / tag ID is read from the public env var
- * NEXT_PUBLIC_GOOGLE_TAG_ID (e.g. "G-XXXXXXXXXX" for GA4, "GT-XXXXXXX" for a
- * Google tag, or "AW-XXXXXXXXX" for Google Ads). If the variable is not set the
- * component renders nothing — so the site keeps working until the ID is added.
- *
- * strategy="afterInteractive" is the Google-recommended load timing: the tag
- * loads right after the page becomes interactive, keeping it out of the critical
- * render path while still firing on the initial page view.
+ * Google Analytics loads only after Accept. The first render never includes gtag.js.
+ * Consent Mode v2 default denied is the inline script in the root layout.
  */
 export function GoogleTag() {
-  const tagId = process.env.NEXT_PUBLIC_GOOGLE_TAG_ID;
+  const tagId = googleMeasurementId();
+  const [allowed, setAllowed] = useState(false);
 
-  if (!tagId) {
-    // No ID configured yet — nothing to inject. Logged to aid debugging setup.
-    if (process.env.NODE_ENV !== "production") {
-      console.warn(
-        "[GoogleTag] NEXT_PUBLIC_GOOGLE_TAG_ID is not set — Google tag not injected."
-      );
-    }
-    return null;
-  }
+  useEffect(() => {
+    const apply = () => {
+      const choice = readAnalyticsChoice();
+      setAllowed(shouldLoadGtag(choice, tagId));
+      const gtag = (window as Window & { gtag?: (...args: unknown[]) => void }).gtag;
+      if (choice === "denied" && typeof gtag === "function") {
+        gtag("consent", "update", {
+          ad_storage: "denied",
+          ad_user_data: "denied",
+          ad_personalization: "denied",
+          analytics_storage: "denied",
+          functionality_storage: "denied",
+          personalization_storage: "denied",
+        });
+      }
+    };
+    apply();
+    window.addEventListener(CONSENT_CHANGE_EVENT, apply);
+    return () => window.removeEventListener(CONSENT_CHANGE_EVENT, apply);
+  }, [tagId]);
+
+  if (!allowed || !tagId) return null;
 
   return (
     <>
-      <Script
-        id="gtag-src"
-        src={`https://www.googletagmanager.com/gtag/js?id=${tagId}`}
-        strategy="afterInteractive"
-      />
+      <Script id="gtag-src" src={`https://www.googletagmanager.com/gtag/js?id=${tagId}`} strategy="afterInteractive" />
       <Script id="gtag-init" strategy="afterInteractive">
         {`
-          window.dataLayer = window.dataLayer || [];
-          function gtag(){dataLayer.push(arguments);}
+          gtag('consent', 'update', { analytics_storage: 'granted' });
           gtag('js', new Date());
           gtag('config', '${tagId}');
         `}

@@ -14,7 +14,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
 import { ADVISORY_NOTE } from "@/lib/fill-integrity-client";
-import { formatDisplayDate, formatMoney, formatSavedFx, formatSignedMoney, currencyForTicker, type CurrencyCode } from "@/lib/currency";
+import { formatDisplayDate, formatMoney, formatSavedFx, formatSignedMoney, formatUnitPrice, currencyForTicker, type CurrencyCode } from "@/lib/currency";
+import { aucklandYmd } from "@/lib/entitlements";
 import { useFxRates } from "@/hooks/useFxRates";
 import { buildTradePreview, type TradePreview } from "@/lib/trade-preview";
 import { ledgerDisplayedCash } from "@/lib/ledger-cash-lines";
@@ -143,12 +144,9 @@ function feeAmount(t: { fees?: number; fees_native?: number }): number {
 export { isTransactionDialogOpen } from "@/lib/transaction-sticky";
 
 
-/** Local yyyy-mm-dd for "today" — the boundary that flips the live-price lock on/off. */
+/** Auckland yyyy-mm-dd, matching buy, sell, and correction. */
 function todayISO(): string {
-  const d = new Date();
-  // Use local date parts so "today" matches the user's calendar, not UTC.
-  const off = d.getTimezoneOffset() * 60000;
-  return new Date(d.getTime() - off).toISOString().slice(0, 10);
+  return aucklandYmd();
 }
 
 function rowCash(t: TransactionRow): number {
@@ -628,7 +626,7 @@ export function TransactionCenter({
                         )}
                       </td>
                       <td className="tnum px-4 py-2.5 text-right text-muted-foreground">
-                        {isTrade ? `${formatNumber(t.quantity || 0)} × ${formatMoney(t.price || 0, cur)}` : "—"}
+                        {isTrade ? `${formatNumber(t.quantity || 0)} × ${formatUnitPrice(t.price || 0, cur)}` : "—"}
                       </td>
                       <td className="tnum px-4 py-2.5 text-right text-muted-foreground">
                         {formatMoney(feeAmount(t), cur)}
@@ -959,7 +957,7 @@ function AllTransactionsDialog({
                         {isTrade ? formatNumber(t.quantity || 0) : "—"}
                       </td>
                       <td className="tnum py-3 px-3 text-right text-muted-foreground">
-                        {isTrade ? formatMoney(t.price || 0, cur) : "—"}
+                        {isTrade ? formatUnitPrice(t.price || 0, cur) : "—"}
                       </td>
                       <td className="tnum py-3 px-3 text-right text-muted-foreground">{savedFxLabel(t)}</td>
                       <td

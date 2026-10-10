@@ -21,6 +21,7 @@ import {
   formatSignedMoney,
   type CurrencyCode,
 } from "@/lib/currency";
+import { aucklandYmd } from "@/lib/entitlements";
 import { openingFx } from "@/lib/reviewed-book";
 import { useFxRates } from "@/hooks/useFxRates";
 import { useCryptoMarkets } from "@/hooks/useCryptoMarkets";
@@ -55,10 +56,9 @@ const KINDS: { id: RecordKind; label: string }[] = [
   { id: "opening_balance", label: "Opening balance" },
 ];
 
+/** Auckland calendar day, so a correction dated today is allowed while UTC is still yesterday. */
 function todayISO(): string {
-  const d = new Date();
-  const off = d.getTimezoneOffset() * 60000;
-  return new Date(d.getTime() - off).toISOString().slice(0, 10);
+  return aucklandYmd();
 }
 
 function dayOf(iso?: string | null): string {

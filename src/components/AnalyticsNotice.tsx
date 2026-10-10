@@ -2,24 +2,40 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import {
+  OPEN_COOKIE_SETTINGS_EVENT,
+  readAnalyticsChoice,
+  writeAnalyticsChoice,
+  type AnalyticsChoice,
+} from "@/lib/analytics-consent";
 import { ANALYTICS_NOTICE } from "@/lib/public-copy";
 
-const STORAGE_KEY = "af-analytics-notice";
+const choiceClass =
+  "min-w-[7.5rem] rounded-md border border-border bg-background px-3 py-1.5 text-sm font-semibold text-foreground hover:bg-muted";
 
 /**
- * First-visit analytics notice. It is in the first HTML response.
- * A later visit hides it after the browser has stored a dismissal.
+ * Equal-weight Accept and Decline. The tag stays off until Accept.
+ * Cookie settings in the footer opens this again.
  */
 export function AnalyticsNotice() {
   const [hidden, setHidden] = useState(false);
 
   useEffect(() => {
-    try {
-      if (window.localStorage.getItem(STORAGE_KEY) === "dismissed") setHidden(true);
-    } catch {
-      /* Private mode can block storage. Leave the notice visible. */
-    }
+    const stored = readAnalyticsChoice();
+    setHidden(stored === "granted" || stored === "denied");
+    const open = () => setHidden(false);
+    window.addEventListener(OPEN_COOKIE_SETTINGS_EVENT, open);
+    return () => window.removeEventListener(OPEN_COOKIE_SETTINGS_EVENT, open);
   }, []);
+
+  function choose(choice: AnalyticsChoice) {
+    try {
+      writeAnalyticsChoice(choice);
+    } catch {
+      /* Private mode can block storage. Still hide it for this view. */
+    }
+    setHidden(true);
+  }
 
   if (hidden) return null;
 
@@ -36,20 +52,14 @@ export function AnalyticsNotice() {
             Privacy Policy
           </Link>
         </p>
-        <button
-          type="button"
-          className="rounded-md border border-border/70 px-3 py-1.5 text-sm font-semibold hover:bg-muted"
-          onClick={() => {
-            try {
-              window.localStorage.setItem(STORAGE_KEY, "dismissed");
-            } catch {
-              /* Still hide it for this view. */
-            }
-            setHidden(true);
-          }}
-        >
-          Dismiss
-        </button>
+        <div className="flex gap-2">
+          <button type="button" className={choiceClass} onClick={() => choose("granted")}>
+            Accept
+          </button>
+          <button type="button" className={choiceClass} onClick={() => choose("denied")}>
+            Decline
+          </button>
+        </div>
       </div>
     </div>
   );
