@@ -83,7 +83,7 @@ describe("FIF working paper", () => {
     );
   });
 
-  it("leaves Australian, New Zealand, crypto and metals out of the $50,000 total", () => {
+  it("includes Australian listings in the $50,000 total and leaves New Zealand, crypto and metals out", () => {
     const paper = paperFor([
       buy({ ticker: "AAPL", executed_at: "2025-06-01", quantity: 100, price: 10, fx_rate: 1.6 }),
       buy({ ticker: "CBA.AX", executed_at: "2025-06-01", quantity: 100, price: 100, currency: "AUD", fx_rate: 1 }),
@@ -91,7 +91,7 @@ describe("FIF working paper", () => {
       buy({ ticker: "ETH", asset_type: "crypto", executed_at: "2025-06-01", quantity: 2, price: 100, currency: "USD", fx_rate: 1.6 }),
       buy({ ticker: "GOLD", asset_type: "metal", executed_at: "2025-06-01", quantity: 1, price: 4000, currency: "NZD", fx_rate: 1 }),
     ]);
-    expect(paper.peakCostNzd).toBe(1600);
+    expect(paper.peakCostNzd).toBe(11600);
     expect(paper.australian.map((row) => row.ticker)).toEqual(["CBA.AX"]);
     expect(paper.australian[0].costNzd).toBe(10000);
     expect(paper.australian[0].fdrNzd).toBeNull();

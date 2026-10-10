@@ -300,7 +300,7 @@ export function MarketTicker({ className, compact = false, initial = null }: Mar
   if (!loaded) {
     return (
       <div className={cn("w-full border-y border-emerald-500/20 bg-zinc-950", className)}>
-        <p className="px-4 py-1.5 text-[0.72rem] text-muted-foreground">Prices appear when the feed answers.</p>
+        <p className="px-4 py-1.5 text-[0.72rem] text-muted-foreground">A price shows here after the feed returns a figure.</p>
       </div>
     );
   }

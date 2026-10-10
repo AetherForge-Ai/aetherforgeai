@@ -17,6 +17,7 @@ const PLACEHOLDER_NAMES = new Set([
   "admin",
   "demo",
   "there",
+  "qa",
 ]);
 
 export type NameSource = {

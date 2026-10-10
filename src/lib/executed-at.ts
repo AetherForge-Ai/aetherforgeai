@@ -30,17 +30,16 @@ export function isUnknownClock(value: string): boolean {
   return DATE_ONLY.test(text) || INVENTED_CLOCK.test(text) || aucklandNoonCivilDay(text) != null;
 }
 
-function dateOnlyExecution(civil: string, now: Date, today: string): ResolvedExecution {
-  if (civil === today) return { stored: now, civilDay: today, hasClock: true, instant: now };
+function dateOnlyExecution(civil: string): ResolvedExecution {
   const stored = dateOnlyInstant(civil);
   return { stored, civilDay: civil, hasClock: false, instant: new Date(stored) };
 }
 
 /**
- * Today with no clock is the moment the row is saved.
- * A past date with no clock is stored as noon Pacific/Auckland so the
- * Totalum date field receives an instant, and the display stays the date.
+ * A date with no clock, including today, is noon Pacific/Auckland.
+ * Storing "now" made a morning in Auckland keep the previous UTC day.
  * A real timestamp is kept.
+ * pull-check:tax-fixups-2026-10-11
  */
 export function resolveExecutedInstant(
   raw: string | Date | undefined | null,
@@ -58,9 +57,9 @@ export function resolveExecutedInstant(
   const dateOnly = text.match(DATE_ONLY);
   const invented = text.match(INVENTED_CLOCK);
   const civil = dateOnly?.[1] || invented?.[1];
-  if (civil) return dateOnlyExecution(civil, now, today);
+  if (civil) return dateOnlyExecution(civil);
   const noonDay = aucklandNoonCivilDay(text);
-  if (noonDay) return dateOnlyExecution(noonDay, now, today);
+  if (noonDay) return dateOnlyExecution(noonDay);
   const parsed = new Date(text);
   if (Number.isNaN(parsed.getTime())) return { stored: now, civilDay: today, hasClock: true, instant: now };
   return {
@@ -71,10 +70,6 @@ export function resolveExecutedInstant(
   };
 }
 
-/**
- * Auckland date, and the clock only when one was stored.
- * Unknown clocks return the civil date alone, for example "9 Oct 2026".
- */
 /**
  * Civil day for a lot. Date-only text and the old noon/midnight carriers
  * keep their yyyy-mm-dd prefix. A real timestamp uses the Auckland day.

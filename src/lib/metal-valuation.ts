@@ -146,6 +146,7 @@ export interface BullionHoldingLike {
   company_name?: string | null;
   sector?: string | null;
   shares?: number | null;
+  quantity?: number | null;
   current_price?: number | null;
   purchase_price?: number | null;
   purchase_date?: string | null;
@@ -222,7 +223,7 @@ export function visibleBullionLots(
         companyName: row.company_name,
         sector: row.sector,
       }) ?? "gold";
-    const ounces = Number(row.shares) || 0;
+    const ounces = Number(row.shares ?? row.quantity) || 0;
     const purchasePerOz = Number(row.purchase_price) || 0;
     const mark = bullionMarkForHolding(row, spot);
     fromLedger.push({

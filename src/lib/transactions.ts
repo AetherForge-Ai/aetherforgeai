@@ -15,7 +15,7 @@
 import "server-only";
 import { totalumSdk } from "@/lib/totalum";
 import type { AppUser } from "@/lib/session";
-import { currencyForTicker, nativeToNzd, ensureNzdPerUsd, ensureNzdPerAud, formatCleanNumber, formatQuantity, normaliseUnitPrice, roundUnitPrice, type CurrencyCode } from "@/lib/currency";
+import { currencyForTicker, nzdAtBookRate, ensureNzdPerUsd, ensureNzdPerAud, formatCleanNumber, formatQuantity, normaliseUnitPrice, roundFxRate, roundUnitPrice, type CurrencyCode } from "@/lib/currency";
 import { dexPriceForSymbol, ledgerFxRate, priceForBooking, ratesForBooking, reviewedFxAllowed } from "@/lib/reviewed-book";
 import { alertsToArchive, positionIsClosed } from "@/lib/alert-lifecycle";
 import { getFxSnapshot, historicalNzdPerUnit } from "@/lib/fx";
@@ -155,8 +155,8 @@ function roundFillPrice(n: number): number {
 
 /** NZD per 1 unit of the trade currency. Sub-1 quotes are the wrong direction. */
 function nzdPerUnit(currency: CurrencyCode, quoted: number): number {
-  if (currency === "USD") return ensureNzdPerUsd(quoted);
-  if (currency === "AUD") return ensureNzdPerAud(quoted);
+  if (currency === "USD") return roundFxRate(ensureNzdPerUsd(quoted));
+  if (currency === "AUD") return roundFxRate(ensureNzdPerAud(quoted));
   return 1;
 }
 
@@ -951,7 +951,7 @@ async function applyTransactionUnlocked(
       notional_native: round(quantity * price, 6),
       native_notional: round(quantity * price, 6),
       fees_native: round(fees),
-      fees_nzd: round(nativeToNzd(fees, currency, rates)),
+      fees_nzd: round(nzdAtBookRate(fees, currency, rates)),
       fx_rate: fxRate,
       fx_timestamp: input.fx_timestamp || new Date().toISOString(),
       fx_source: input.fx_source || "fx_snapshot",
@@ -1040,7 +1040,7 @@ async function applyTransactionUnlocked(
   const realizedFxNZD = fifo.realized_fx_pnl_nzd;
   const realizedNZD = round(realizedPriceNZD + realizedFxNZD);
   // Keep legacy native→NZD path as sanity floor when FIFO fx identical
-  const legacyRealizedNZD = round(nativeToNzd(realizedNative, currency, rates));
+  const legacyRealizedNZD = round(nzdAtBookRate(realizedNative, currency, rates));
   const realizedBooked = Math.abs(sellFx - lotFx) < 1e-9 ? legacyRealizedNZD : realizedNZD;
 
   const stamp = dexStamp(input, holding);
@@ -1075,7 +1075,7 @@ async function applyTransactionUnlocked(
     price: roundFillPrice(price),
     fees: round(fees),
     fees_native: round(fees),
-    fees_nzd: round(nativeToNzd(fees, currency, rates)),
+    fees_nzd: round(nzdAtBookRate(fees, currency, rates)),
     total: round(proceedsNZD),
     realized_pnl: realizedBooked,
     realized_price_pnl_nzd: Math.abs(sellFx - lotFx) < 1e-9 ? legacyRealizedNZD : realizedPriceNZD,

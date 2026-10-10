@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { FifPositionCard } from "@/components/tax/FifWorkingPaper";
 import { PrintButton } from "@/components/tax/PrintButton";
+import { TaxSectionNav } from "@/components/tax/TaxSectionNav";
 import { formatNzd } from "@/lib/currency";
 import {
   FIF_ASSUMPTIONS,
@@ -19,10 +20,14 @@ import { taxYearChoices } from "@/lib/taxable-income";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = publicPageMetadata("/tax/fif", {
-  title: "FIF working paper · AetherForge AI",
-  description: "Indicative foreign investment fund working paper. Not tax advice.",
-});
+export const metadata = {
+  ...publicPageMetadata("/tax/fif", {
+    title: "FIF working paper · AetherForge AI",
+    description: "Indicative foreign investment fund working paper. Not tax advice.",
+  }),
+  // Member books can sit on this URL. Keep it reachable and leave it out of the index.
+  robots: { index: false, follow: false },
+};
 
 export default async function FifPage({
   searchParams,
@@ -70,6 +75,7 @@ export default async function FifPage({
       <article className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6">
         <p className="text-xs font-semibold uppercase tracking-wide text-primary">New Zealand</p>
         <h1 className="mt-2 font-display text-3xl font-bold">FIF working paper</h1>
+        <TaxSectionNav current="/tax/fif" />
         <p className="mt-4 text-sm leading-relaxed text-muted-foreground">{TAX_INDICATIVE_LABEL}</p>
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
           Indicative foreign investment fund paper for {nzTaxYearLabel(endingYear)}. Cost is taken from your ledger.

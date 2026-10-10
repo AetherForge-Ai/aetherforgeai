@@ -6,6 +6,7 @@ import { requestClaimsOtherUser } from "@/lib/account-guard";
 import { accountMismatchResponse } from "@/lib/account-response";
 import { CSV_EXPORT_COLUMNS } from "@/lib/ledger-schema";
 import { csvEscape, transactionCsvCells, type CsvRow } from "@/lib/transaction-csv";
+import { aucklandDateISO } from "@/lib/fill-integrity";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +37,7 @@ export async function GET(req: Request) {
     const ledger = await loadLedger(user, 1000);
     const lines = ledger.transactions.map((t) => rowCells(t).join(","));
     const csv = [HEADERS.join(","), ...lines].join("\n");
-    const filename = `transactions-${new Date().toISOString().slice(0, 10)}.csv`;
+    const filename = `transactions-${aucklandDateISO()}.csv`;
     return new NextResponse(csv, {
       status: 200,
       headers: {

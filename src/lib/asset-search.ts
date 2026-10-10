@@ -30,6 +30,34 @@ const PINNED: AssetHit[] = [
   { symbol: "SILVER", name: "Silver", market: "Silver", assetType: "metal" },
 ];
 
+/** Leveraged and inverse products rank after the ordinary equity with the same letters. */
+export function isLeveragedListing(symbol: string, name = ""): boolean {
+  const s = symbol.toUpperCase();
+  const n = name.toLowerCase();
+  if (/[0-9](?:L|S)$/.test(s)) return true;
+  if (/(?:^|[^A-Z0-9])X[0-9]/.test(s) || /[0-9]X/.test(s)) return true;
+  if (/[23]X/.test(s)) return true;
+  return n.includes("leveraged") || n.includes("ultra");
+}
+
+/**
+ * Lower is a better match. An exact bare ticker beats a suffixed listing,
+ * and both beat a leveraged product that merely starts with the same letters.
+ */
+export function tickerMatchRank(symbol: string, name: string, query: string): number {
+  const q = query.trim().toUpperCase();
+  const sym = symbol.trim().toUpperCase();
+  const bare = sym.split(".")[0];
+  const penalty = isLeveragedListing(sym, name) ? 40 : 0;
+  if (!q) return 100 + penalty;
+  if (sym === q) return penalty;
+  if (bare === q) return 1 + penalty;
+  if (bare.startsWith(q) || sym.startsWith(q)) return 10 + penalty;
+  const hay = `${sym} ${name}`.toUpperCase();
+  if (hay.includes(q)) return 20 + penalty;
+  return 50 + penalty;
+}
+
 function haystack(hit: AssetHit): string {
   return `${hit.symbol} ${hit.name}`.toLowerCase();
 }
@@ -68,7 +96,8 @@ export function searchAssets(query: string, pools: AssetSearchPools = {}): Asset
       // DEX stays ahead of a coin-list row. NZX and ASX stay ahead of a US fund with the same letters.
       const venue =
         hit.market === "DEX" ? 0 : hit.market === "NZX" ? 1 : hit.market === "ASX" ? 2 : hit.market === "Crypto" ? 3 : 4;
-      return exact * 10 + venue;
+      const leveraged = isLeveragedListing(hit.symbol, hit.name) ? 30 : 0;
+      return exact * 10 + venue + leveraged;
     };
     const diff = rank(a) - rank(b);
     if (diff !== 0) return diff;

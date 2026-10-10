@@ -4,6 +4,7 @@
  * A missing exchange rate is left blank. The baseline FX table is not used.
  *
  * pull-check:track-b-2-2026-10-11
+ * pull-check:tax-fixups-2026-10-11
  */
 
 import { roundMoney } from "@/lib/currency";
@@ -24,7 +25,14 @@ export const REALISED_ASSUMPTIONS = [
   "Corrections are not replayed.",
   "A blank disposal is not counted as zero. Totals add only the disposals that have a figure.",
   "This paper reads up to 5,000 ledger rows.",
+  "The income summary keeps the realised amount stored on the sell. When that stored amount differs from this FIFO line, the row says so.",
 ] as const;
+
+export interface RealisedLot {
+  acquired: string;
+  quantity: number;
+  costBasisNzd: number;
+}
 
 export type RealisedSection = "other" | "crypto";
 
@@ -38,6 +46,12 @@ export interface RealisedLine {
   fxPnlNzd: number | null;
   feeNzd: number | null;
   realisedNzd: number | null;
+  lots: RealisedLot[];
+  proceedsNzd: number | null;
+  /** Amount stored on the sell. Null when the sell did not store one. */
+  storedRealisedNzd: number | null;
+  /** Set when the stored amount and the FIFO figure differ. */
+  diffNote: string | null;
 }
 
 export interface RealisedReport {
@@ -50,6 +64,8 @@ export interface RealisedReport {
   combinedNzd: number;
   /** Disposals left blank because a rate or a lot was missing. */
   blankCount: number;
+  /** Rows whose stored sell amount differs from the FIFO figure. */
+  storedDiffCount: number;
   assumptions: readonly string[];
 }
 
@@ -76,6 +92,34 @@ function isCrypto(row: TaxLedgerRow): boolean {
   return String(row.asset_type || "").toLowerCase() === "crypto";
 }
 
+function movementQty(row: TaxLedgerRow): number {
+  const qty = Number(row.quantity);
+  if (qty > 0) return qty;
+  const match = String(row.notes || "").match(/\bqty=([0-9]*\.?[0-9]+)/i);
+  const parsed = match ? Number(match[1]) : 0;
+  return parsed > 0 ? parsed : 0;
+}
+
+function movementPrice(row: TaxLedgerRow): number {
+  const price = Number(row.price);
+  if (price > 0) return price;
+  const fill = Number(row.fill_price);
+  if (fill > 0) return fill;
+  const match = String(row.notes || "").match(/\bfill=([0-9]*\.?[0-9]+)/i);
+  const parsed = match ? Number(match[1]) : 0;
+  return parsed > 0 ? parsed : 0;
+}
+
+function storedRealised(row: TaxLedgerRow): number | null {
+  if (typeof row.realized_pnl_nzd === "number" && Number.isFinite(row.realized_pnl_nzd)) {
+    return roundMoney(row.realized_pnl_nzd);
+  }
+  if (typeof row.realized_pnl === "number" && Number.isFinite(row.realized_pnl)) {
+    return roundMoney(row.realized_pnl);
+  }
+  return null;
+}
+
 export function realisedByTaxYear(rows: readonly TaxLedgerRow[], endingYear: number): RealisedReport {
   const books = new Map<string, OpenLot[]>();
   const events = rows
@@ -87,6 +131,7 @@ export function realisedByTaxYear(rows: readonly TaxLedgerRow[], endingYear: num
   const other: RealisedLine[] = [];
   const crypto: RealisedLine[] = [];
   let blankCount = 0;
+  let storedDiffCount = 0;
 
   for (const event of events) {
     const row = event.row;
@@ -94,8 +139,8 @@ export function realisedByTaxYear(rows: readonly TaxLedgerRow[], endingYear: num
     if (!ticker) continue;
     const lots = books.get(ticker) || [];
     books.set(ticker, lots);
-    const qty = Number(row.quantity) || 0;
-    const price = Number(row.price) || 0;
+    const qty = movementQty(row);
+    const price = movementPrice(row);
     if (!(qty > 0)) continue;
     if (row.type === "sell") {
       const fx = fxOf(row);
@@ -106,7 +151,19 @@ export function realisedByTaxYear(rows: readonly TaxLedgerRow[], endingYear: num
       const missingLot = closed.closedPairs.some((pair) => Boolean((pair.buy as OpenLot).missingRate));
       const inYear = inNzTaxYear(event.day, endingYear);
       if (!inYear) continue;
-      const incomplete = fx == null || fee == null || missingLot || qty - closedQty > 1e-6;
+      const incomplete = fx == null || fee == null || missingLot || qty - closedQty > 1e-6 || !(price > 0);
+      const matched = closed.closedPairs.map((pair) => ({
+        acquired: pair.buy.tradeDatetime,
+        quantity: pair.qty,
+        costBasisNzd: roundMoney(pair.qty * pair.buy.fillPrice * (pair.buy.fxRate > 0 ? pair.buy.fxRate : 0)),
+      }));
+      const fifoNzd = incomplete ? null : roundMoney(closed.realized_pnl_nzd - (fee || 0));
+      const stored = storedRealised(row);
+      const diffNote =
+        fifoNzd != null && stored != null && Math.abs(fifoNzd - stored) >= 0.005
+          ? `Ledger stored NZ$${stored.toFixed(2)} on this sell. This FIFO line is NZ$${fifoNzd.toFixed(2)}. The income summary keeps the stored amount.`
+          : null;
+      if (diffNote) storedDiffCount += 1;
       const line: RealisedLine = {
         when: event.day,
         ticker,
@@ -116,7 +173,11 @@ export function realisedByTaxYear(rows: readonly TaxLedgerRow[], endingYear: num
         pricePnlNzd: incomplete ? null : closed.realized_price_pnl_nzd,
         fxPnlNzd: incomplete ? null : closed.realized_fx_pnl_nzd,
         feeNzd: incomplete ? null : fee,
-        realisedNzd: incomplete ? null : roundMoney(closed.realized_pnl_nzd - (fee || 0)),
+        realisedNzd: fifoNzd,
+        lots: matched,
+        proceedsNzd: incomplete || fx == null ? null : roundMoney(qty * price * fx - (fee || 0)),
+        storedRealisedNzd: stored,
+        diffNote,
       };
       if (incomplete) blankCount += 1;
       (line.section === "crypto" ? crypto : other).push(line);
@@ -148,6 +209,7 @@ export function realisedByTaxYear(rows: readonly TaxLedgerRow[], endingYear: num
     cryptoTotalNzd,
     combinedNzd: roundMoney(otherTotalNzd + cryptoTotalNzd),
     blankCount,
+    storedDiffCount,
     assumptions: REALISED_ASSUMPTIONS,
   };
 }

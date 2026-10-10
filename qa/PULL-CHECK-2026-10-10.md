@@ -13,6 +13,7 @@ Markers:
 - `pull-check:track-b-p0-2026-10-11`
 - `pull-check:track-b-2-2026-10-11`
 - `pull-check:research-retest-2026-10-11`
+- `pull-check:tax-fixups-2026-10-11`
 
 Branch: `cursor/qa-m10-m15-l6-l17-b236`
 PR: https://github.com/AetherForge-Ai/aetherforgeai/pull/247
@@ -856,4 +857,61 @@ NZ tax pack. Draft PRs only. Nothing here publishes, sends email, or removes a S
 - Expected, `/tax` no longer says it does not yet produce tax reports. `/tax`, `/tax/dividends`, `/tax/income`, `/tax/fif` and `/tax/realised` each show `Indicative, not tax advice.` The taxable-income page still says its realised column is the amount stored on the sell, and it links to this FIFO paper.
 - CSV uses the same paid-plan gate as the transaction export. That gate is left for Lukas.
 - Checked on this branch: `npm run check-types-errors` passed. eslint on the TB-2d source files passed. `npm test` 106 files, 521 tests passed. `npm run build` passed (Next.js 15.3.9). A local `next start` returned 200 for `/tax`, `/tax/dividends`, `/tax/income`, `/tax/fif` and `/tax/realised`. Each showed `Indicative, not tax advice.` `/tax` did not contain "does not yet produce tax reports" and linked to the four papers. `/tax/realised` signed out showed a sign-in link and no sample gain. `GET /api/tax/realised/export` with no session returned 401. Nothing was published. No email was sent.
+
+## Tax fixups — 11 Oct 2026
+
+Marker: `pull-check:tax-fixups-2026-10-11`
+
+Source comment: `pull-check:tax-fixups-2026-10-11` in `src/lib/tax-realised.ts`, `src/lib/currency.ts`, and `src/lib/executed-at.ts`.
+
+Branch `cursor/tax-fixups-4f33` from develop. One draft pull request into `develop`. Nothing was published. No Totalum AI Pull. No email was sent. Auth, mail, login, register, security headers, consent, and `next.config.ts` were not edited. `preserveDynamicSegmentTraces` is unchanged. No new database columns. Public copy says "AI" only. Crypto projections stay paused (`CRYPTO_PROJECTIONS_PAUSED` remains true).
+
+### Dates — fixed
+
+- Status: fixed
+- Files: `src/lib/executed-at.ts`, `src/lib/currency.ts`, `src/lib/qa-m10-l17.test.ts`
+- URL / steps: `npm test` on `src/lib/qa-m10-l17.test.ts`. Then, signed in, record a buy or dividend with the payment date set to today's New Zealand date and no clock, while UTC is still the previous date (for example 7:33 am on 11 Oct 2026, which is `2026-10-10T18:33:00.000Z`).
+- Expected: the saved row and the tax pages show `11 Oct 2026`, not `10 Oct 2026`. A date-only value, including today, is stored as noon Pacific/Auckland (`hasClock` false). A real timestamp still shows the Auckland day. An old UTC-midnight or UTC-noon carrier keeps its date prefix.
+
+### Realised lots and the income difference — fixed
+
+- Status: fixed
+- Files: `src/lib/tax-realised.ts`, `src/app/tax/realised/page.tsx`, `src/lib/tax-realised.test.ts`
+- URL / steps: signed in, open `/tax/realised` for `1 Apr 2026 to 31 Mar 2027`. Read a sell that matched more than one buy, and a sell whose ledger stored realised is NZ$0.00 while FIFO is not.
+- Expected, the FBU.NZ example still shows price gain NZ$25.00, FX gain NZ$0.00, realised NZ$25.00. Each matched lot shows the acquisition date, quantity, and cost basis in NZD. The row also shows the sale date, proceeds in NZD, and the price, FX, sell fee, and realised split.
+- Expected, a WOR-style sell stored at NZ$0.00 shows a note with the stored NZ$0.00 and the FIFO figure. Combined on this page stays the FIFO total. `/tax/income` keeps the stored amount, so the two pages can differ by that note. A missing rate stays blank, not NZ$0.00.
+
+### Dividends — fixed
+
+- Status: fixed
+- Files: `src/components/tax/DividendLedgerView.tsx`, `src/lib/dividend-ledger.ts`, `src/lib/taxable-income.ts`, `src/app/api/transactions/route.ts`, `src/app/api/tax/dividends/export/route.ts`
+- URL / steps: signed in, open `/tax/dividends`. Record a dividend on a holding you already have, using today's New Zealand date. Then open `/tax/income` and the dividend CSV.
+- Expected: the new row appears without a manual reload, and the dashboard Cash balance updates from the same save when that dashboard is open. The payment-date rate is labelled as the rate on that date, and a buy on the same day can keep a different stored rate.
+- Expected, a cash-only dividend is a `cash, no breakdown` line on the income summary and in the income CSV. It is not added to gross. Combined totals on `/tax/dividends` include gross, imputation credits, withholding, DRP, and net cash, and they name the cash-only amount separately.
+- Expected, Delete on a dividend removes that row and reverses its cash. The CSV file name includes the tax year, for example `dividend-ledger-2027.csv`.
+
+### Search, CSV gate, and navigation — fixed
+
+- Status: fixed
+- Files: `src/lib/asset-search.ts`, `src/app/api/tickers/search/route.ts`, `src/components/dashboard/RecordTransactionPanel.tsx`, `src/components/tax/CsvExportButton.tsx`, `src/components/tax/TaxSectionNav.tsx`, `src/app/ledger/page.tsx`, `src/components/SiteFooter.tsx`
+- URL / steps: on Sell, search `AAPL` while the book holds AAPL and not a leveraged product. On Add, search `AAPL`. On a Free plan, open `/tax/dividends`, `/tax/income`, and `/tax/realised` and use the CSV control. Open `/ledger`.
+- Expected: Sell lists only holdings on the book. AAPL ranks above AAPLX3L. Free CSV is a disabled control reading `Starter and above` with a link to `/pricing`. The click does not replace the page with JSON. The server still returns 403 `not_entitled` if the export URL is called directly.
+- Expected: `/ledger` redirects to `/dashboard/transactions` (the same alias path as `/transactions`). `/tax`, `/tax/dividends`, `/tax/income`, `/tax/fif`, and `/tax/realised` link to each other. The footer and the dashboard home link to `/tax`. The four sub-pages send `noindex`. `/tax/income` is titled `Income summary (indicative)`.
+
+### FIF, copy, metals, and the home disclaimer — fixed
+
+- Status: fixed
+- Files: `src/lib/fif-working-paper.ts`, `src/components/tax/TaxPageContent.tsx`, `src/components/dashboard/PreciousMetals.tsx`, `src/app/page.tsx`, `src/lib/home-disclaimer.test.ts`
+- URL / steps: open `/tax/fif` with AAPL cost NZ$1,600.00 and CBA.AX cost NZ$10,000.00. Open `/tax`. Open `/dashboard/metals` with 2.0062 oz gold. Open `/`.
+- Expected: the NZ$50,000 total is NZ$11,600.00. Australian-listed shares are included. The page notes that an Australian-exempt company can be left out by the member. A one-cent gap between a formula and the cash stored on the buy uses the stored cash. New Zealand, crypto, and metals stay out.
+- Expected: `/tax` is shorter than the previous Inland Revenue paste. It names the foreign tax credit cap and 15 percent US withholding, and it links the Inland Revenue pages. It says `Indicative, not tax advice.`
+- Expected: the metals page does not say `No metals tracked yet` while the book is still loading, and it does not say that once the gold ounces are on the book. Totals owned leaves `Loading…` once cash and metals have loaded or failed.
+- Expected: the home page still contains `Not financial advice. AetherForge AI is not a licensed financial advice provider, and we don't place trades or take custody.` That sentence sits below `Ready to take care of your Portfolio?`, not under the first title. The rest of the home copy is unchanged.
+
+### Dashboard wording — fixed
+
+- Status: fixed
+- Files: `src/lib/user-display.ts`, `src/components/dashboard/PortfolioDashboard.tsx`
+- URL / steps: sign in on a new account whose name is `QA`. Open `/dashboard` with no open share positions, including a book whose only stock rows have zero shares.
+- Expected: the greeting is `Welcome`, not `Welcome back, QA`. A saved real first name is used, for example `Welcome, Jane`. The Your holdings header says `No open positions` when the table is empty, and `1 position` when there is one. Header cash updates when a sell dialog closes, without a reload.
 

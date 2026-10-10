@@ -5,6 +5,7 @@
  */
 
 import Link from "next/link";
+import { TaxSectionNav } from "@/components/tax/TaxSectionNav";
 import { formatNzd, formatSignedMoney } from "@/lib/currency";
 import { TAX_INDICATIVE_LABEL } from "@/lib/tax-disclaimer";
 
@@ -34,6 +35,10 @@ const SOURCES = [
     href: "https://www.ird.govt.nz/foreign-investment-funds",
     label: "Inland Revenue — Foreign investment funds",
   },
+  {
+    href: "https://www.ird.govt.nz/income-tax/income-tax-for-individuals/types-of-individual-income/foreign-income/foreign-tax-credits",
+    label: "Inland Revenue — Foreign tax credits",
+  },
 ] as const;
 
 export function TaxPageContent({ book = null }: { book?: TaxBookFigures | null }) {
@@ -41,6 +46,7 @@ export function TaxPageContent({ book = null }: { book?: TaxBookFigures | null }
     <article className="mx-auto w-full max-w-3xl px-4 py-10 sm:px-6">
       <p className="text-xs font-semibold uppercase tracking-wide text-primary">New Zealand</p>
       <h1 className="mt-2 font-display text-3xl font-bold">Tax</h1>
+      <TaxSectionNav current="/tax" />
       <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
         This is general information and not personal tax advice. Last reviewed 8 Oct 2026.
       </p>
@@ -53,7 +59,7 @@ export function TaxPageContent({ book = null }: { book?: TaxBookFigures | null }
         </li>
         <li>
           <Link href="/tax/income" className="text-primary underline-offset-4 hover:underline">
-            Taxable income
+            Income summary (indicative)
           </Link>
         </li>
         <li>
@@ -81,90 +87,34 @@ export function TaxPageContent({ book = null }: { book?: TaxBookFigures | null }
       <section className="mt-8 space-y-3">
         <h2 className="font-display text-lg font-semibold">Cryptoassets</h2>
         <p className="text-sm leading-relaxed text-muted-foreground">
-          Cryptoassets are treated as a form of property for tax purposes. While there are different
-          types of cryptoassets, the tax treatment depends on the characteristics and use of the
-          cryptoassets. It does not depend on what they are called.
-        </p>
-        <p className="text-sm leading-relaxed text-muted-foreground">
-          Cryptoassets are not financial arrangements, they are excepted financial arrangements
-          (except those economically equivalent to debt arrangements). This means that if your
-          cryptoassets are trading stock they are valued at cost at the end of the tax year.
-        </p>
-        <p className="text-sm leading-relaxed text-muted-foreground">
-          You need to file an income tax return - IR3 when you have taxable income from a cryptoasset
-          activity.
+          Inland Revenue treats cryptoassets as property. The tax result follows how the asset is used,
+          including when it was acquired in order to sell or exchange it. A disposal can produce income
+          or a loss. The linked pages set out the return and the New Zealand dollar figures.
         </p>
       </section>
 
       <section className="mt-8 space-y-3">
-        <h2 className="font-display text-lg font-semibold">Acquiring cryptoassets to sell or exchange</h2>
+        <h2 className="font-display text-lg font-semibold">Share dividends and foreign tax credits</h2>
         <p className="text-sm leading-relaxed text-muted-foreground">
-          If you acquire cryptoassets for the purpose of disposing of them you need to pay income tax
-          on any profit you make. For example, if you buy or mine cryptoassets to sell or exchange
-          them. If you make a loss when you sell your cryptoassets you may be able to claim this loss.
+          Dividends, including dividends from foreign companies, can be taxable income. A New Zealand
+          company often withholds tax before the cash is paid. A foreign dividend may have had tax
+          withheld overseas. United States portfolio dividends are often reduced by 15 percent before
+          the cash arrives. Inland Revenue&apos;s foreign tax credit is capped at the New Zealand tax on
+          that same foreign income, so the credit cannot be larger than the New Zealand tax on it.
         </p>
         <p className="text-sm leading-relaxed text-muted-foreground">
-          If your purpose for getting cryptoassets is to sell or exchange them, you&apos;ll need to pay
-          income tax when you do. You may have more than one purpose for your cryptoassets at the time
-          you acquire them. It is your main purpose that matters. Inland Revenue looks at your purpose
-          at the time you acquire (for example, buy or mine) your cryptoassets. If that purpose changes
-          later on, it does not matter.
-        </p>
-        <p className="text-sm leading-relaxed text-muted-foreground">
-          To claim a loss, you need to show that if you&apos;d made a profit it would have been taxable.
-          You may still need to pay income tax even if you did not acquire your cryptoassets for the
-          main purpose of disposing of them, such as if you&apos;re carrying on a profit-making scheme.
-        </p>
-      </section>
-
-      <section className="mt-8 space-y-3">
-        <h2 className="font-display text-lg font-semibold">Taxing cryptoasset income</h2>
-        <p className="text-sm leading-relaxed text-muted-foreground">
-          You need to file an income tax return - IR3 when you have taxable income from a cryptoasset
-          activity. Before you can add your cryptoasset net income (or loss) in your income tax return
-          you must calculate the New Zealand dollar value of your cryptoasset transactions and work out
-          your cryptoasset income and expenses.
-        </p>
-        <p className="text-sm leading-relaxed text-muted-foreground">
-          There are other rules you need to be aware of if your cryptoassets are trading stock.
-        </p>
-      </section>
-
-      <section className="mt-8 space-y-3">
-        <h2 className="font-display text-lg font-semibold">Share investments</h2>
-        <p className="text-sm leading-relaxed text-muted-foreground">
-          Dividends companies pay are taxable income — this includes dividends from foreign companies.
-        </p>
-        <p className="text-sm leading-relaxed text-muted-foreground">
-          When a New Zealand company pays a dividend, they&apos;ll generally withhold tax and pay it to
-          Inland Revenue on your behalf. The dividend income and tax credits will be added to your
-          income tax assessment or individual income return IR3. You will need to check the amounts are
-          correct.
-        </p>
-        <p className="text-sm leading-relaxed text-muted-foreground">
-          When you get a dividend from a foreign company, you need to pay tax in New Zealand. You will
-          need to check if tax has been withheld and paid in New Zealand. If the amounts have not been
-          added to your individual income tax return IR3, you will need to self-report this
-          information. If you receive foreign dividends, you should file an Overseas income summary -
-          IR1261 and claim foreign tax credits.
+          The share-investment and foreign-tax-credit pages linked below are the Inland Revenue
+          descriptions of those rules, including the overseas income summary IR1261.
         </p>
       </section>
 
       <section className="mt-8 space-y-3">
         <h2 className="font-display text-lg font-semibold">Foreign investment funds</h2>
         <p className="text-sm leading-relaxed text-muted-foreground">
-          If you are a New Zealand tax resident, some overseas shares and other foreign investments can
-          fall under the foreign investment fund (FIF) rules. Inland Revenue explains who those rules
-          can apply to and how FIF income is calculated.
-        </p>
-        <p className="text-sm">
-          <a
-            href="https://www.ird.govt.nz/foreign-investment-funds"
-            className="text-primary underline-offset-4 hover:underline"
-            rel="noreferrer"
-          >
-            Inland Revenue — Foreign investment funds
-          </a>
+          Some overseas shares held by a New Zealand tax resident can fall under the foreign investment
+          fund rules. Inland Revenue explains when those rules can apply and how the income is
+          calculated. The working paper on this site includes Australian-listed shares in the NZ$50,000
+          cost total. A holding that meets the Australian exemption can be left out by the member.
         </p>
       </section>
 
