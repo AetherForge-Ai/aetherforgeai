@@ -73,6 +73,19 @@ export const ANALYTICS_NOTICE =
 export const LEDGER_EXPORT_LINE =
   "Published plans include the paper ledger and a CSV export of your transactions. Yearly billing also includes a downloadable Excel investor toolkit template. That file is a blank template. It is not filled with your holdings, and it is not a copy of the figures in the ledger.";
 
+/**
+ * What a completion request can include. Each sentence is true of the server
+ * routes that post it. Retention at the service is not stated here.
+ */
+export const AI_REQUEST_LINES = [
+  "Scores and projected ranges are calculated by a rules-based engine. A third-party AI service writes the plain-English note on a ticker and the replies in the assistant, the Portfolio Execution Coach, and the Headmaster chat. Those notes are labelled “AI-written note”. A stored member report for Stox, Koins or Headmaster marks its summary as not AI-enhanced, because that summary is built from the calculated figures.",
+  "The assistant can send your name, the question you typed, and recent messages in that chat. When the paper book has holdings, it can also send the holding count, the total market value, the total cost, the total unrealised profit or loss, the best and worst performer, the sector weights, and for each holding the ticker, the name, the sector, the share count, the average price, the current price, the value, the profit or loss, and the weight.",
+  "The Portfolio Execution Coach can send your name, your question, and recent messages in that chat. When a Headmaster book is available it can also send the cash balance, the total value, the profit or loss, and the allocation weights, including cash. It can send a plan you typed and report text you attached.",
+  "The Headmaster chat can send your name, your question, and recent messages in that chat, plus the cash balance, the cash weight, the retained-cash target, and stress-test impacts in NZ$ and percent.",
+  "A ticker note can send your name, the ticker, and the quote used for that note.",
+  "The request does not include a card number. The code that sends the request does not set a retention period.",
+] as const;
+
 export const PROCESSORS: { name: string; role: string }[] = [
   { name: "Cloudflare", role: "public site and network" },
   { name: "Stripe", role: "subscription payments. We never see your card number" },

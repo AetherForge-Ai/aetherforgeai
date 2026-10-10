@@ -5,6 +5,7 @@ import { PAPER_FEE_SUMMARY } from "@/lib/fee-rule";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { PUBLIC_DATA_SOURCES_LINE } from "@/lib/data-sources";
 import {
+  AI_REQUEST_LINES,
   CUSTOMER_EMAIL,
   DATA_SHARING_LINE,
   FRESHNESS_PLAIN,
@@ -82,19 +83,11 @@ export default function TrustPage() {
 
           <section className="mt-8 space-y-2">
             <h2 className="font-display text-lg font-bold">What the AI does</h2>
-            <p className="text-sm leading-relaxed text-muted-foreground">
-              Scores and projected ranges are calculated by a rules-based engine. A third-party AI service
-              writes the plain-English note on a ticker and the replies in the assistant. Those notes are
-              labelled “AI-written note”. A stored member report for Stox, Koins or Headmaster marks its
-              summary as not AI-enhanced, because that summary is built from the calculated figures.
-            </p>
-            <p className="text-sm leading-relaxed text-muted-foreground">
-              When a note or an answer is requested, the server sends the text of that request to the
-              third-party AI service. The text can include the question you typed, your name, recent
-              messages in that chat, the ticker and quote used for that note, and figures already
-              calculated for the paper book (tickers, quantities and prices). The request does not include
-              a card number. The code that sends the request does not set a retention period.
-            </p>
+            {AI_REQUEST_LINES.map((line) => (
+              <p key={line.slice(0, 24)} className="text-sm leading-relaxed text-muted-foreground">
+                {line}
+              </p>
+            ))}
           </section>
 
           <section className="mt-8 space-y-2">

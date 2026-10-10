@@ -3,7 +3,7 @@ import { EmailAddress } from "@/components/EmailAddress";
 import { LEGAL_ENTITY_NAME } from "@/lib/company";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { pageTitle } from "@/lib/page-title";
-import { ANALYTICS_NOTICE, CUSTOMER_EMAIL, LEGAL_UPDATED, PRIVACY_OFFICER_EMAIL, PROCESSORS } from "@/lib/public-copy";
+import { AI_REQUEST_LINES, ANALYTICS_NOTICE, CUSTOMER_EMAIL, LEGAL_UPDATED, PRIVACY_OFFICER_EMAIL, PROCESSORS } from "@/lib/public-copy";
 
 export const metadata = publicPageMetadata("/privacy-policy", {
   title: pageTitle("Privacy Policy"),
@@ -85,16 +85,11 @@ export default function PrivacyPolicy() {
       </LegalSection>
 
       <LegalSection heading="4. Artificial intelligence & automated processing">
+        {AI_REQUEST_LINES.map((line) => (
+          <p key={line.slice(0, 24)}>{line}</p>
+        ))}
         <p>
-          A third-party AI service writes plain-English notes and answers questions in the assistant.
-          Those notes are labelled “AI-written note”. Scores and ranges on Stox, Koins and Headmaster
-          reports are calculated by a rules-based engine. A stored member report marks that summary as
-          not AI-enhanced. When a note or an answer is requested, the server sends the text of that
-          request. The text can include the question you typed, your name, recent messages in that chat,
-          the ticker and quote used for that note, and figures already calculated for the paper book
-          (tickers, quantities and prices). The request does not include a card number. The code that
-          sends the request does not set a retention period. AI-written notes are informational only —
-          see our{" "}
+          AI-written notes are informational only — see our{" "}
           <a href="/ai-disclaimer" className="text-primary hover:underline">
             AI Disclaimer
           </a>
