@@ -8,10 +8,11 @@
  *
  * Cloudflare "Always Use HTTPS" is a dashboard toggle and is not in this repo.
  * HSTS is one year with includeSubDomains. preload is omitted until Lukas agrees.
- * X-Frame-Options is omitted: SAMEORIGIN or DENY would block the Totalum preview
- * that frame-ancestors deliberately allows.
- * script-src is report-only. An enforcing script-src would block Next inline
- * scripts and the consent-gated analytics tag.
+ * X-Frame-Options is omitted on purpose. SAMEORIGIN or DENY would block the
+ * Totalum preview at https://web.totalum.app, which frame-ancestors allows.
+ * script-src stays report-only. Enforcing it is not safe here: Next.js inline
+ * scripts and the consent-gated gtag have no nonce, so an enforcing script-src
+ * would break the page and the analytics tag.
  * pull-check:qa-2026-10-10-medium-m10-m15-low-l6-l17
  */
 export const SECURITY_HEADERS = {
