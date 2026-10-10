@@ -1,7 +1,7 @@
 /**
  * Yahoo Finance crypto fallback — keyless charts + quotes for major coins.
- * Used when Swyftx/CoinGecko are rate-limited or unreachable so the Crypto tab
- * never stays permanently "unavailable".
+ * Used when CoinGecko is rate-limited or unreachable so the Crypto tab
+ * still has mapped major coins.
  */
 
 import "server-only";
@@ -13,7 +13,7 @@ import { coinLogo, sevenDayReturnPct } from "@/lib/crypto-market";
 
 const YAHOO_CHART = "https://query1.finance.yahoo.com/v8/finance/chart";
 
-/** Fallback universe when Swyftx and CoinGecko are both down. Kept at 100 so the Stock Markets Crypto tab is never a short list. */
+/** Major-coin list used when the earlier feeds are short. Kept at 100 so the Crypto tab is not a handful of names. */
 export const YAHOO_MAJOR: string[] = [
   "BTC", "ETH", "USDT", "BNB", "SOL", "XRP", "USDC", "DOGE", "ADA", "TRX",
   "AVAX", "TON", "SHIB", "DOT", "LINK", "BCH", "SUI", "HBAR", "XLM", "LTC",
@@ -153,7 +153,7 @@ export async function fetchYahooCoinDetail(idOrTicker: string): Promise<CoinDeta
     atl: null,
     atlDate: null,
     atlChangePct: null,
-    description: `${coinDisplayName(ticker)} live USD quote via Yahoo Finance fallback (Swyftx/CoinGecko unavailable).`,
+    description: `${coinDisplayName(ticker)} indicative USD quote. The as-of time is shown with the price.`,
     categories: ["Cryptocurrency"],
     homepage: null,
     explorer: null,

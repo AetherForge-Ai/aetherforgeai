@@ -13,13 +13,13 @@ function marketsHeading(tab: MarketsTab): { title: string; lede: string } {
   if (tab === "CRYPTO") {
     return {
       title: "Crypto markets",
-      lede: "Coins by market cap from CoinGecko, in USD. The line under the search is the number this list returned. The Blockchain column is the native chain or platform.",
+      lede: "Coins by market cap, in USD. The line under the search is how many this list returned, up to 400.",
     };
   }
   if (tab === "DEX") {
     return {
       title: "DEX markets",
-      lede: "DEX tokens by 24-hour volume from GeckoTerminal. The line under the search is the number this list returned. Each row shows the chain and the DEX.",
+      lede: "DEX tokens by 24-hour volume. The line under the search is how many this list returned, up to 400. Each row shows the chain and the DEX.",
     };
   }
   return {
@@ -89,6 +89,8 @@ export function MarketsPageContent({
           syncTab
           onTabChange={setTab}
           index={index}
+          seedCrypto={index?.tabs.find((tab) => tab.id === "CRYPTO")?.rows ?? []}
+          seedDex={index?.tabs.find((tab) => tab.id === "DEX")?.rows ?? []}
         />
       </div>
 

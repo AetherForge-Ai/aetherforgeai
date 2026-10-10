@@ -12,7 +12,7 @@ import {
 import { api } from "@/lib/api";
 import { formatDisplayClock, formatDisplayDate, formatDisplayDateTime } from "@/lib/currency";
 import { clientFacingError } from "@/lib/api-json";
-import { PUBLIC_COIN_SOURCE_LINE, publicCoinDescription } from "@/lib/data-sources";
+import { publicCoinDescription, publicCoinSourceLine } from "@/lib/data-sources";
 import { paperAddSignupHref } from "@/lib/paper-add-link";
 import { cn } from "@/lib/utils";
 import { TickerAnalysisPane } from "@/components/dashboard/TickerAnalysisPane";
@@ -86,6 +86,7 @@ export function CoinDetailView({
   paperMarket = "Crypto",
   unavailable = false,
   variant = "page",
+  quotedLine = null,
 }: {
   coinId: string | null;
   /** False while a dialog is closed so it does not fetch in the background. */
@@ -100,6 +101,8 @@ export function CoinDetailView({
   /** DEX row with no CoinGecko id. Do not call the coin API. */
   unavailable?: boolean;
   variant?: "page" | "dialog";
+  /** Labelled price from the server snapshot. Kept on screen when the detail request fails. */
+  quotedLine?: string | null;
 }) {
   const signedIn = signedInProp ?? variant === "dialog";
   const slug = resolvableCoinId(coinId);
@@ -124,19 +127,21 @@ export function CoinDetailView({
     setError(null);
     console.log(`[coin-detail] loading ${id}`);
     try {
-      const res = await api.get<CoinDetail>(`/api/crypto/coin/${encodeURIComponent(id)}`);
+      const res = await api.get<CoinDetail>(`/api/crypto/coin/${encodeURIComponent(id)}`, {
+        signal: AbortSignal.timeout(8_000),
+      });
       if (res.ok && res.data && typeof res.data.price === "number" && res.data.price > 0) {
         setDetail(res.data);
       } else {
-        setError(clientFacingError(`/api/crypto/coin/${id}`, res.error || COIN_DETAIL_SOURCE_DOWN));
+        setError(quotedLine ? null : clientFacingError(`/api/crypto/coin/${id}`, res.error || COIN_DETAIL_SOURCE_DOWN));
         setDetail(null);
       }
     } catch {
-      setError(COIN_DETAIL_SOURCE_DOWN);
+      setError(quotedLine ? null : COIN_DETAIL_SOURCE_DOWN);
       setDetail(null);
     }
     setLoading(false);
-  }, []);
+  }, [quotedLine]);
 
   useEffect(() => {
     if (!active) return;
@@ -248,7 +253,19 @@ export function CoinDetailView({
     market: paperMarket,
   });
 
-  const title = !detail && shownError && !loading ? (
+  const title = quotedLine && !detail ? (
+    <div>
+      {variant === "dialog" ? (
+        <DialogTitle className="font-display text-xl" data-ticker-quote>
+          {quotedLine}
+        </DialogTitle>
+      ) : (
+        <h1 className="font-display text-xl font-semibold" data-ticker-quote>
+          {quotedLine}
+        </h1>
+      )}
+    </div>
+  ) : !detail && shownError && !loading ? (
     variant === "dialog" ? (
       <DialogTitle className="font-display text-xl">Crypto</DialogTitle>
     ) : (
@@ -343,7 +360,11 @@ export function CoinDetailView({
     </div>
   );
 
-  const body = shownError ? (
+  const body = !detail && quotedLine ? (
+    <p className="text-sm text-muted-foreground" data-ticker-quote>
+      {quotedLine}
+    </p>
+  ) : shownError ? (
     <div className="flex h-56 flex-col items-center justify-center gap-3 text-center text-sm text-muted-foreground">
       {shownError}
       {!blocked && slug && (
@@ -375,7 +396,13 @@ export function CoinDetailView({
       <div className="h-64 w-full">
         {chartLoading && chartData.length === 0 ? (
           <div className="flex h-full items-center justify-center text-muted-foreground">
-            <Loader2 className="mr-2 size-5 animate-spin" /> Loading chart…
+            {quotedLine ? (
+              "Price history is not shown yet."
+            ) : (
+              <>
+                <Loader2 className="mr-2 size-5 animate-spin" /> Loading chart…
+              </>
+            )}
           </div>
         ) : chartData.length > 1 ? (
           <ResponsiveContainer width="100%" height="100%">
@@ -546,7 +573,7 @@ export function CoinDetailView({
       )}
 
       <p className="mt-4 text-center text-[0.62rem] text-muted-foreground">
-        {PUBLIC_COIN_SOURCE_LINE}
+        {detail?.sourceLine || publicCoinSourceLine(detail?.source)}
       </p>
     </>
   );

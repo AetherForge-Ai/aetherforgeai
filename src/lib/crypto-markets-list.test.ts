@@ -97,7 +97,7 @@ describe("markets list is not filtered by the crypto sanity ratio", () => {
   it("names the shortfall instead of claiming 400", () => {
     const page = assembleListedMarkets([coin("BTC", 1, 100)], new Map([["btc", {}]]), "page2");
     expect(page.coins).toHaveLength(1);
-    expect(page.notice).toMatch(/Showing 1, not 400/);
+    expect(page.notice).toMatch(/Showing 1 of up to 400/);
     expect(page.coins[0].blockchain).toBe("Native");
     expect(coinDisplayName("EOS", "EOS")).toBe("EOS Network");
     expect(coinDisplayName("AAVE", "Aave")).toBe("Aave");
