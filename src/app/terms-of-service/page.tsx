@@ -4,7 +4,7 @@ import { LEGAL_ENTITY_NAME } from "@/lib/company";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { PUBLIC_DATA_SOURCES_LINE } from "@/lib/data-sources";
 import {
-  ANNUAL_TOOLKIT_LINE,
+  LEDGER_EXPORT_LINE,
   LEGAL_UPDATED,
   PAPER_BOOK_STATEMENT,
   REFUND_FAQ,
@@ -95,12 +95,11 @@ export default function TermsOfService() {
         <p>Nothing in these terms limits your rights under the Consumer Guarantees Act 1993.</p>
       </LegalSection>
 
-      <LegalSection heading="6. Annual member toolkit">
+      <LegalSection heading="6. Records you can export">
         <p>
-          Customers on an annual plan may download our {ANNUAL_TOOLKIT_LINE}. These files are provided
-          for your own personal record-keeping. You may use and modify them for your own purposes but
-          must not resell or redistribute them. The figures they contain reflect the data you enter and
-          are your responsibility.
+          {LEDGER_EXPORT_LINE} Any file you download is for your own personal record-keeping. You may use
+          and modify it for your own purposes but must not resell or redistribute it. The figures reflect
+          the data you enter and are your responsibility.
         </p>
       </LegalSection>
 

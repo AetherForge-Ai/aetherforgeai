@@ -132,12 +132,13 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
       }
       fees = requested;
     }
-    let executedAt: Date | undefined;
+    let executedAt: string | undefined;
     if (dateParam != null && dateParam !== "") {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
         return NextResponse.json({ ok: false, error: "date must be yyyy-mm-dd" }, { status: 400 });
       }
-      executedAt = new Date(`${dateParam}T12:00:00.000Z`);
+      // A chosen day is a civil date. Noon UTC would print as 1:00 am the next day.
+      executedAt = dateParam;
     }
 
     const isPartial = sellOunces < heldOunces - 1e-9;

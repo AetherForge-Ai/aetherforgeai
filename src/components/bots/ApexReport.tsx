@@ -10,7 +10,7 @@ import * as React from "react";
 import { Badge } from "@/components/ui/badge";
 import { scrubPublicCopy } from "@/lib/public-intel";
 import { formatPercent } from "@/lib/portfolio";
-import { formatMoney } from "@/lib/currency";
+import { currencyForTicker, formatMoney, formatUnitPrice } from "@/lib/currency";
 import { sanitizeGuardedReport } from "@/lib/report-consistency";
 import { labelMemberReport } from "@/lib/report-language";
 import { moverSweepCaption } from "@/lib/mover-sweep";
@@ -69,7 +69,6 @@ function shownCopy(text: string, scrub: boolean): string {
 }
 
 function TickerCard({ t, scrub }: { t: TickerAnalysis; scrub: boolean }) {
-  const priceDp = t.price < 5 ? 4 : 2;
   return (
     <div className="rounded-xl border border-border/60 bg-card/40 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -81,7 +80,7 @@ function TickerCard({ t, scrub }: { t: TickerAnalysis; scrub: boolean }) {
           <p className="text-xs text-muted-foreground">{t.name}</p>
         </div>
         <div className="text-right">
-          <div className="font-mono text-sm">${t.price.toFixed(priceDp)}</div>
+          <div className="font-mono text-sm">{formatUnitPrice(t.price, currencyForTicker(t.ticker))}</div>
           <div className={`text-xs ${t.changeWithheld ? "text-muted-foreground" : pctTone(t.changePct)}`}>
             {t.changeWithheld ? "data under review" : `${formatPercent(t.changePct)} today`}
           </div>

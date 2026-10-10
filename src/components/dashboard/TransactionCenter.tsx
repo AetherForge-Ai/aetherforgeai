@@ -20,7 +20,12 @@ import { aucklandYmd } from "@/lib/entitlements";
 import { useFxRates } from "@/hooks/useFxRates";
 import { buildTradePreview, type TradePreview } from "@/lib/trade-preview";
 import { ledgerDisplayedCash } from "@/lib/ledger-cash-lines";
-import { CORRECTION_CASH_TOOLTIP, correctionChangeLabel, parseCorrectionNote } from "@/lib/holding-correction";
+import {
+  CORRECTION_CASH_TOOLTIP,
+  correctionChangeLabel,
+  correctionPriceToken,
+  parseCorrectionNote,
+} from "@/lib/holding-correction";
 import { dexSourceLabel, stripDexNotesPrefix } from "@/lib/dex-source";
 import { bumpHoldingsGeneration } from "@/lib/holdings-generation";
 import { useTradeReviewGate } from "@/lib/trade-review-gate";
@@ -141,18 +146,27 @@ function feeAmount(t: { fees?: number; fees_native?: number }): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-function correctionQtyPrice(t: { type: string; notes?: string; quantity?: number; price?: number }): {
+function correctionQtyPrice(t: {
+  type: string;
+  notes?: string;
+  quantity?: number;
+  price?: number;
+  currency?: string;
+}): {
   qty: string;
   price: string;
   label: string | null;
 } | null {
   if (t.type !== "correction") return null;
+  const currency = ((t.currency as CurrencyCode) || NZD) as CurrencyCode;
   const span = parseCorrectionNote(stripDexNotesPrefix(t.notes));
   if (span) {
+    const before = correctionPriceToken(span.beforePrice, currency);
+    const after = correctionPriceToken(span.afterPrice, currency);
     return {
       qty: `${span.beforeQty} → ${span.afterQty}`,
-      price: `${span.beforePrice} → ${span.afterPrice}`,
-      label: correctionChangeLabel(t.notes),
+      price: `${before} → ${after}`,
+      label: correctionChangeLabel(t.notes, currency),
     };
   }
   if (t.quantity || t.price) {
@@ -669,8 +683,17 @@ export function TransactionCenter({
                           <span className="text-muted-foreground">{t.asset_name || "Cash"}</span>
                         )}
                       </td>
-                      <td className="tnum px-4 py-2.5 text-right text-muted-foreground" title={change ? CORRECTION_CASH_TOOLTIP : undefined}>
-                        {change?.label ? change.label : isTrade ? `${formatNumber(t.quantity || 0)} × ${formatUnitPrice(t.price || 0, cur)}` : "—"}
+                      <td className="tnum px-4 py-2.5 text-right text-muted-foreground">
+                        {change?.label ? (
+                          <div>
+                            <p>{change.label}</p>
+                            <p className="text-[11px] leading-snug text-muted-foreground">{CORRECTION_CASH_TOOLTIP}</p>
+                          </div>
+                        ) : isTrade ? (
+                          `${formatNumber(t.quantity || 0)} × ${formatUnitPrice(t.price || 0, cur)}`
+                        ) : (
+                          "—"
+                        )}
                       </td>
                       <td className="tnum px-4 py-2.5 text-right text-muted-foreground">
                         {formatMoney(feeAmount(t), cur)}
@@ -993,10 +1016,15 @@ function AllTransactionsDialog({
                         {isTrade || change ? (
                           <div className="min-w-0">
                             <p className="font-semibold">{t.ticker || t.asset_name || "—"}</p>
-                            <p className="max-w-[14rem] truncate text-xs text-muted-foreground" title={change ? CORRECTION_CASH_TOOLTIP : undefined}>
+                            <p className="max-w-[16rem] text-xs text-muted-foreground">
                               {change?.label || t.asset_name || "—"}
                               {dexSourceLabel(t) ? ` · ${dexSourceLabel(t)}` : ""}
                             </p>
+                            {change ? (
+                              <p className="max-w-[16rem] text-[11px] leading-snug text-muted-foreground">
+                                {CORRECTION_CASH_TOOLTIP}
+                              </p>
+                            ) : null}
                           </div>
                         ) : (
                           <span className="text-muted-foreground">{t.asset_name || "Cash"}</span>

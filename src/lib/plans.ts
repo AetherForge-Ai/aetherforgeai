@@ -610,6 +610,13 @@ export function isSelfServeCheckoutPlan(plan: Plan | undefined): boolean {
   return !!publicPriceSlot(plan.key);
 }
 
+/** Yearly billing includes the static Excel investor toolkit template. */
+export function planIncludesToolkit(plan?: string | null): boolean {
+  const key = String(plan || "");
+  const found = planByKey(key) ?? LEGACY_SUBSCRIPTION_PLANS.find((item) => item.key === key);
+  return found?.interval === "year";
+}
+
 /** Human label for a plan key (falls back gracefully for legacy values). */
 export function planLabel(key?: string | null): string {
   if (key === "free") return FREE_PLAN.name;

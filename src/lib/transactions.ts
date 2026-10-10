@@ -15,7 +15,7 @@
 import "server-only";
 import { totalumSdk } from "@/lib/totalum";
 import type { AppUser } from "@/lib/session";
-import { currencyForTicker, nativeToNzd, ensureNzdPerUsd, ensureNzdPerAud, formatQuantity, normaliseUnitPrice, roundUnitPrice, type CurrencyCode } from "@/lib/currency";
+import { currencyForTicker, nativeToNzd, ensureNzdPerUsd, ensureNzdPerAud, formatCleanNumber, formatQuantity, normaliseUnitPrice, roundUnitPrice, type CurrencyCode } from "@/lib/currency";
 import { dexPriceForSymbol, ledgerFxRate, priceForBooking, ratesForBooking, reviewedFxAllowed } from "@/lib/reviewed-book";
 import { alertsToArchive, positionIsClosed } from "@/lib/alert-lifecycle";
 import { getFxSnapshot, historicalNzdPerUnit } from "@/lib/fx";
@@ -42,7 +42,9 @@ import { applyPaperCashMove } from "@/lib/paper-cash";
 import { planHoldingCorrection } from "@/lib/holding-correction";
 import { cleanChain, dexSectorTag, parseDexSector, withDexNotes } from "@/lib/dex-source";
 import { buildMovementPreview } from "@/lib/movement-preview";
-import { assessMovement, earlierCivilDay, movementCivilDay } from "@/lib/transaction-rules";
+import { assessMovement, earlierCivilDay, exceedsAvailableCash, movementCivilDay } from "@/lib/transaction-rules";
+import { dateOnlyInstant, lotCivilDay, resolveExecutedInstant } from "@/lib/executed-at";
+import { invalidateBookCache, readBookCache, writeBookCache } from "@/lib/book-cache";
 
 export type TxType =
   | "buy"
@@ -402,7 +404,13 @@ export async function applyTransaction(
   input: TransactionInput,
   opts?: { fromHoldingEdit?: boolean }
 ): Promise<TransactionResult> {
-  return withUserTradeLock(user._id, () => applyTransactionUnlocked(user, input, opts));
+  return withUserTradeLock(user._id, async () => {
+    try {
+      return await applyTransactionUnlocked(user, input, opts);
+    } finally {
+      invalidateBookCache(user._id);
+    }
+  });
 }
 
 async function applyTransactionUnlocked(
@@ -415,7 +423,8 @@ async function applyTransactionUnlocked(
 
   const fallbackCash = typeof user.cash_balance === "number" ? user.cash_balance : 0;
   const currentCash = await readUserCash(user._id, fallbackCash);
-  const executedAt = input.executed_at ? new Date(input.executed_at) : new Date();
+  const resolved = resolveExecutedInstant(input.executed_at);
+  const executedStored = resolved.stored;
   const notes = (input.notes || "").slice(0, 500);
 
   // ---------- Cash-only movements (opening balance with a ticker is a holding) ----------
@@ -453,7 +462,7 @@ async function applyTransactionUnlocked(
     }
     const credits = input.type === "deposit" || input.type === "dividend" || openingCash;
     const delta = credits ? amount - fee : -(amount + fee);
-    if ((input.type === "withdraw" || input.type === "tax") && -delta > currentCash + 1e-6) {
+    if ((input.type === "withdraw" || input.type === "tax") && exceedsAvailableCash(-delta, currentCash)) {
       throw new Error(
         input.type === "tax"
           ? "Insufficient cash balance for this tax line"
@@ -489,7 +498,7 @@ async function applyTransactionUnlocked(
       realized_pnl: 0,
       currency: "NZD",
       notes,
-      executed_at: executedAt,
+      executed_at: executedStored,
       user: user._id,
     });
     return { transaction: rec?.data, cashBalance: newCash, realizedNZD: 0, holdingId: null };
@@ -506,7 +515,7 @@ async function applyTransactionUnlocked(
   if (price <= 0) throw new Error("Price must be greater than 0");
 
   // The panel sends the reviewed day as executed_at. trade_date is optional.
-  const tradeDay = movementCivilDay(input.trade_date || input.executed_at, aucklandDateISO());
+  const tradeDay = input.trade_date ? movementCivilDay(input.trade_date, resolved.civilDay) : resolved.civilDay;
 
   // Opening balance and corrections adjust the holding through the ledger.
   // They do not move cash and they do not replace the typed price with today's quote.
@@ -522,6 +531,7 @@ async function applyTransactionUnlocked(
       afterShares: input.type === "opening_balance" ? (existing?.shares || 0) + quantity : quantity,
       beforePrice: existing?.purchase_price || 0,
       afterPrice: price,
+      currency,
       note: notes,
     });
     let holdingId: string | null = existing?._id || null;
@@ -550,7 +560,7 @@ async function applyTransactionUnlocked(
           (assetType === "crypto" ? "Digital Assets" : assetType === "metal" ? "Precious Metals" : "Other"),
         shares: round(quantity, 6),
         purchase_price: roundFillPrice(price),
-        purchase_date: executedAt.toISOString(),
+        purchase_date: dateOnlyInstant(resolved.civilDay),
         current_price: price,
         user: user._id,
       });
@@ -570,7 +580,7 @@ async function applyTransactionUnlocked(
       currency,
       ...fxRateFields(currency, input.fx_rate),
       notes: input.type === "correction" ? plan.notes : notes || "Opening balance",
-      executed_at: executedAt,
+      executed_at: executedStored,
       user: user._id,
       ...(holdingId ? { stock: holdingId } : {}),
     });
@@ -617,9 +627,9 @@ async function applyTransactionUnlocked(
       instrument_type: assetType === "crypto" ? "crypto" : assetType === "metal" ? "metal" : "equity",
       venue: venueForTicker(ticker, assetType),
       asset_id: assetType === "crypto" ? input.coingecko_id || canonicalCryptoId(ticker) : (feedEntryForTicker(ticker)?.providerId || ticker),
-      trade_datetime: aucklandDateTimeISO(executedAt),
+      trade_datetime: resolved.hasClock ? aucklandDateTimeISO(resolved.instant) : String(resolved.stored),
       notes,
-      executed_at: executedAt,
+      executed_at: executedStored,
       user: user._id,
     });
     logLedgerAudit({
@@ -765,7 +775,7 @@ async function applyTransactionUnlocked(
     });
     if (!moved.ok) throw new Error(moved.error || `${ticker} live price unavailable`);
     const costNZD = round(-moved.cashDeltaNZD);
-    if (costNZD > currentCash + 1e-6) {
+    if (exceedsAvailableCash(costNZD, currentCash)) {
       throw new Error(
         `Insufficient cash — this buy needs NZ$${costNZD.toFixed(2)} and you have NZ$${currentCash.toFixed(2)} available.`
       );
@@ -779,14 +789,11 @@ async function applyTransactionUnlocked(
       const newShares = oldShares + quantity;
       // New weighted-average cost includes fees so cost basis stays honest.
       const newAvg = newShares > 0 ? (oldShares * oldAvg + quantity * price + fees) / newShares : price;
-      const keptDay = earlierCivilDay(
-        holding.purchase_date,
-        movementCivilDay(executedAt.toISOString(), aucklandDateISO())
-      );
+      const keptDay = earlierCivilDay(lotCivilDay(holding.purchase_date) || null, resolved.civilDay);
       await totalumSdk.crud.editRecordById("stock", holding._id, {
         shares: round(newShares, 6),
         purchase_price: roundFillPrice(newAvg),
-        purchase_date: keptDay,
+        purchase_date: dateOnlyInstant(keptDay),
         ...(stamp.sector ? { sector: stamp.sector } : {}),
       });
       holdingId = holding._id;
@@ -833,7 +840,7 @@ async function applyTransactionUnlocked(
           (assetType === "crypto" ? "Digital Assets" : assetType === "metal" ? "Precious Metals" : "Other"),
         shares: round(quantity, 6),
         purchase_price: roundFillPrice(avgWithFees),
-        purchase_date: executedAt.toISOString(),
+        purchase_date: dateOnlyInstant(resolved.civilDay),
         current_price,
         user: user._id,
       });
@@ -854,7 +861,7 @@ async function applyTransactionUnlocked(
     const fxRate = nzdPerUnit(currency, input.fx_rate ?? rates[currency] ?? 1);
     const auditNotes = appendAuditNote(
       notes,
-      `FILLED buy qty=${quantity} fill=${price} ${currency} live=${liveSpot ?? "n/a"} source=${input.price_source || "user_fill"}. ${ADVISORY_NOTE}`
+      `FILLED buy qty=${quantity} fill=${formatCleanNumber(price)} ${currency} live=${liveSpot == null ? "n/a" : formatCleanNumber(liveSpot)} source=${input.price_source || "user_fill"}. ${ADVISORY_NOTE}`
     );
     logLedgerAudit({
       action: "fill_buy",
@@ -879,7 +886,7 @@ async function applyTransactionUnlocked(
       mark_price: liveSpot,
       price_source: input.price_source || "user_fill",
       price_as_at: input.price_as_at || new Date().toISOString(),
-      trade_datetime: aucklandDateTimeISO(executedAt),
+      trade_datetime: resolved.hasClock ? aucklandDateTimeISO(resolved.instant) : String(resolved.stored),
       execution_status: "filled",
       order_sizing: input.order_sizing || "units",
       notional_native: round(quantity * price, 6),
@@ -899,7 +906,7 @@ async function applyTransactionUnlocked(
       total: round(-costNZD),
       currency,
       notes: withDexNotes(auditNotes, stamp.chain, stamp.isDex),
-      executed_at: executedAt,
+      executed_at: executedStored,
       user: user._id,
       ...(holdingId ? { stock: holdingId } : {}),
     });
@@ -1019,13 +1026,13 @@ async function applyTransactionUnlocked(
     fill_currency: currency,
     execution_status: "filled",
     price_source: input.price_source || "user_fill",
-    trade_datetime: aucklandDateTimeISO(executedAt),
+    trade_datetime: resolved.hasClock ? aucklandDateTimeISO(resolved.instant) : String(resolved.stored),
     mark_price: liveSpot,
     fx_rate: sellFx,
     cash_nzd: round(proceedsNZD),
     currency,
     notes: withDexNotes(notes, stamp.chain, stamp.isDex),
-    executed_at: executedAt,
+    executed_at: executedStored,
     user: user._id,
     ...(holdingId ? { stock: holdingId } : {}),
   });
@@ -1100,10 +1107,16 @@ export async function recordMetalTrade(
     avgCostNZD?: number; // sells only — for realized P&L vs the cost paid
     fees?: number;
     notes?: string;
-    executedAt?: Date;
+    executedAt?: Date | string;
   }
 ): Promise<MetalTradeResult> {
-  return withUserTradeLock(user._id, () => recordMetalTradeUnlocked(user, input));
+  return withUserTradeLock(user._id, async () => {
+    try {
+      return await recordMetalTradeUnlocked(user, input);
+    } finally {
+      invalidateBookCache(user._id);
+    }
+  });
 }
 
 async function recordMetalTradeUnlocked(
@@ -1116,7 +1129,7 @@ async function recordMetalTradeUnlocked(
     avgCostNZD?: number;
     fees?: number;
     notes?: string;
-    executedAt?: Date;
+    executedAt?: Date | string;
   }
 ): Promise<MetalTradeResult> {
   const currentCash = await readUserCash(user._id, typeof user.cash_balance === "number" ? user.cash_balance : 0);
@@ -1129,7 +1142,8 @@ async function recordMetalTradeUnlocked(
   const gross = ounces * price;
   const ticker = input.metal === "gold" ? "GOLD" : "SILVER";
   const assetName = input.metal === "gold" ? "Gold bullion" : "Silver bullion";
-  const executedAt = input.executedAt || new Date();
+  const metalWhen = resolveExecutedInstant(input.executedAt);
+  const executedStored = metalWhen.stored;
   const notes = (input.notes || "").slice(0, 500);
 
   // `total` is the signed cash impact (buys debit, sells credit).
@@ -1137,7 +1151,7 @@ async function recordMetalTradeUnlocked(
   let realizedNZD = 0;
   if (input.side === "buy") {
     const cost = round(gross + fees);
-    if (cost > currentCash + 1e-6) {
+    if (exceedsAvailableCash(cost, currentCash)) {
       throw new Error(
         `Insufficient cash — this buy needs NZ$${cost.toFixed(2)} and you have NZ$${currentCash.toFixed(2)} available.`
       );
@@ -1173,7 +1187,7 @@ async function recordMetalTradeUnlocked(
     currency: "NZD",
     fx_rate: nzdPerUnit("NZD", 0),
     notes,
-    executed_at: executedAt,
+    executed_at: executedStored,
     user: user._id,
   });
   ledgerId = (rec?.data as { _id?: string } | undefined)?._id;
@@ -1222,12 +1236,32 @@ export interface TransactionLedger {
 
 /** Load a user's ledger plus cash + realized-P&L rollups (all NZD). */
 export async function loadLedger(user: AppUser, limit = 60): Promise<TransactionLedger> {
-  // Recent rows for the ledger table…
-  const recentRes = await totalumSdk.crud.query("transaction", {
-    _filter: { user: user._id },
-    _sort: { executed_at: "desc", createdAt: "desc" },
-    _limit: limit,
-  });
+  const key = `${user._id}:ledger:${limit}`;
+  const cached = readBookCache<TransactionLedger>(key);
+  if (cached) return cached;
+  const ledger = await loadLedgerFresh(user, limit);
+  writeBookCache(key, ledger);
+  return ledger;
+}
+
+async function loadLedgerFresh(user: AppUser, limit: number): Promise<TransactionLedger> {
+  const fallbackCash = typeof user.cash_balance === "number" ? user.cash_balance : 0;
+  const [recentRes, cashBalance, sellsRes, dividendRes] = await Promise.all([
+    totalumSdk.crud.query("transaction", {
+      _filter: { user: user._id },
+      _sort: { executed_at: "desc", createdAt: "desc" },
+      _limit: limit,
+    }),
+    readUserCash(user._id, fallbackCash),
+    totalumSdk.crud.query("transaction", {
+      _filter: { user: user._id, type: "sell" },
+      _limit: 5000,
+    }),
+    totalumSdk.crud.query("transaction", {
+      _filter: { user: user._id, type: "dividend" },
+      _limit: 5000,
+    }),
+  ]);
   const rows = ((recentRes?.data as unknown as TransactionRow[]) || [])
     .map((r) => ({
       ...r,
@@ -1238,17 +1272,6 @@ export async function loadLedger(user: AppUser, limit = 60): Promise<Transaction
       const tb = new Date(b.executed_at || b.createdAt || 0).getTime();
       return (Number.isFinite(tb) ? tb : 0) - (Number.isFinite(ta) ? ta : 0);
     });
-  const cashBalance = await readUserCash(
-    user._id,
-    typeof user.cash_balance === "number" ? user.cash_balance : 0
-  );
-
-  // …and ALL sell rows (realized P&L must reflect the full history, not just
-  // the recent page). Sells are a small subset, so this stays cheap.
-  const sellsRes = await totalumSdk.crud.query("transaction", {
-    _filter: { user: user._id, type: "sell" },
-    _limit: 5000,
-  });
   const sells = (sellsRes?.data as unknown as TransactionRow[]) || [];
 
   const yearStart = new Date(new Date().getFullYear(), 0, 1).getTime();
@@ -1265,10 +1288,6 @@ export async function loadLedger(user: AppUser, limit = 60): Promise<Transaction
     }
   }
 
-  const dividendRes = await totalumSdk.crud.query("transaction", {
-    _filter: { user: user._id, type: "dividend" },
-    _limit: 5000,
-  });
   const dividends = (dividendRes?.data as unknown as TransactionRow[]) || [];
   let incomeTotal = 0;
   for (const r of dividends) {

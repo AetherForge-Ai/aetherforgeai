@@ -13,6 +13,8 @@
  * fallback). Crypto unit prices stay in USD; the NZ$ book uses usdToNzd.
  */
 
+import { aucklandNoonCivilDay } from "@/lib/auckland-noon";
+
 export type CurrencyCode = "NZD" | "AUD" | "USD";
 export type AssetType = "stock" | "crypto";
 
@@ -183,6 +185,11 @@ const DISPLAY_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", 
 
 function displayDateParts(input: string | Date): { day: number; month: number; year: number } | null {
   if (typeof input === "string") {
+    const noon = aucklandNoonCivilDay(input);
+    if (noon) {
+      const [year, month, day] = noon.split("-").map(Number);
+      return { year, month, day };
+    }
     const ymd = /^(\d{4})-(\d{2})-(\d{2})/.exec(input.trim());
     if (ymd) return { year: Number(ymd[1]), month: Number(ymd[2]), day: Number(ymd[3]) };
   }
@@ -283,9 +290,25 @@ export function formatQuantity(value: number): string {
 }
 
 /**
- * Book money to the cent. A value that rounds to zero is 0, never -0,
- * so a display cannot print '-NZ$0.00' or '-0.00%'.
+ * A figure for an audit note. Enough digits for a sub-cent quote, without
+ * the binary tail (7476.61570345871, 0.00000402332293400169).
  */
+export function formatCleanNumber(value: number): string {
+  if (!Number.isFinite(value)) return "n/a";
+  if (value === 0) return "0";
+  const abs = Math.abs(value);
+  const sig = abs < 0.01 ? 10 : 8;
+  const precise = Number(value.toPrecision(sig));
+  if (!Number.isFinite(precise) || precise === 0) return "0";
+  const exp = Math.floor(Math.log10(Math.abs(precise)));
+  const dp = Math.min(12, Math.max(0, sig - exp - 1));
+  return precise
+    .toFixed(dp)
+    .replace(/(\.\d*?[1-9])0+$/, "$1")
+    .replace(/\.0+$/, "");
+}
+
+/** Book money to the cent. A value that rounds to zero is 0, never -0. */
 export function roundMoney(value: number): number {
   if (!Number.isFinite(value)) return 0;
   const rounded = Math.round((value + Number.EPSILON) * 100) / 100;
@@ -324,13 +347,16 @@ function aucklandCivilDay(input: string | Date): string {
 }
 
 /**
- * True when two unit prices are the same after the stored precision
- * (at least 6 decimal places). A 2-decimal print match is not enough:
- * 10.000 and 10.004 both show as 10.00, and 100,000 shares times that
- * gap is a real gain.
+ * True when two unit prices are the same fill.
+ * From one cent, match at 4 decimal places so a fresh buy at 9.44 and a
+ * live print of 9.43996 are one price. A 0.004 gap (10 vs 10.004) stays
+ * different. Sub-cent quotes keep the stored precision.
  */
 export function sameQuotedUnit(paid: number, mark: number): boolean {
   if (!(paid > 0) || !(mark > 0) || !Number.isFinite(paid) || !Number.isFinite(mark)) return false;
+  if (Math.max(paid, mark) >= 0.01) {
+    return Math.round(paid * 10000) === Math.round(mark * 10000);
+  }
   return roundUnitPrice(paid) === roundUnitPrice(mark);
 }
 

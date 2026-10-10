@@ -64,7 +64,9 @@ function TickerCell({ q, price }: { q: Quote; price: string }) {
       </span>
       <span className="tnum text-[0.78rem] text-zinc-100">{price}</span>
       {stale && flat ? (
-        <span className="text-[0.7rem] text-zinc-400">{asOf ? `as of ${asOf}` : "as of an earlier close"}</span>
+        <span className="text-[0.7rem] text-zinc-400">
+          {asOf ? `No change figure · as of ${asOf}` : "No change figure"}
+        </span>
       ) : (
         <span
           className={cn(
