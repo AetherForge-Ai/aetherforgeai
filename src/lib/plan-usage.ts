@@ -9,10 +9,12 @@ import {
   isFreeReportPlan,
   isProPlan,
   isStarterPlan,
+  limitScope,
   monthlyReportLimit,
   normalizePlanKey,
+  resolveTickerLimit,
 } from "@/lib/entitlements";
-import { planByKey, planLabel } from "@/lib/plans";
+import { planLabel } from "@/lib/plans";
 
 export const PUBLISHED_PLAN_LADDER =
   "Free, Starter, Pro and Ultimate. Holdings 10 / 25 / 75 / unlimited. Reports 3 / 15 / unlimited. Market Assistant 20 / 100 / 500, and unlimited on Ultimate.";
@@ -40,34 +42,25 @@ export interface PlanSnapshot {
   upgradeHref: "/pricing";
 }
 
-function holdingsCap(plan?: string | null): { cap: string; scopeNote: string } {
+function holdingsCap(plan?: string | null, tickerLimit?: number | null): { cap: string; scopeNote: string } {
   const key = normalizePlanKey(plan);
+  const limit = resolveTickerLimit({ subscription_plan: plan, ticker_limit: tickerLimit });
+  const scope = limitScope(plan);
+  const cap = limit >= 100000 ? "unlimited" : scope === "perBot" ? `${limit} per bot` : String(limit);
+  const shared = "This account uses the same holdings cap as the dashboard and profile.";
   if (key === "dual_yearly" || key === "apex_dual") {
     return {
-      cap: "20 per bot",
-      scopeNote: "Apex Dual counts holdings per bot. The published ladder is 10 / 25 / 75 / unlimited.",
+      cap,
+      scopeNote: `Apex Dual counts holdings per bot. ${shared}`,
     };
   }
-  if (key.startsWith("ultimate")) {
-    return { cap: "unlimited", scopeNote: "Ultimate does not cap holdings." };
-  }
+  if (limit >= 100000) return { cap, scopeNote: "Ultimate does not cap holdings." };
   if (isFreeReportPlan(plan)) {
-    return { cap: "10", scopeNote: "Free counts holdings across the whole book." };
+    return { cap, scopeNote: `Free counts holdings across the whole book. ${shared}` };
   }
-  if (isStarterPlan(plan)) {
-    return { cap: "25", scopeNote: "Starter counts holdings per bot." };
-  }
-  if (isProPlan(plan)) {
-    return { cap: "75", scopeNote: "Pro counts holdings per bot." };
-  }
-  const stamped = planByKey(key);
-  if (stamped && stamped.tickerLimit >= 100000) {
-    return { cap: "unlimited", scopeNote: "" };
-  }
-  if (stamped) {
-    return { cap: String(stamped.tickerLimit), scopeNote: "This legacy plan uses the cap stored on the account." };
-  }
-  return { cap: "10", scopeNote: "Free counts holdings across the whole book." };
+  if (isStarterPlan(plan)) return { cap, scopeNote: `Starter counts holdings per bot. ${shared}` };
+  if (isProPlan(plan)) return { cap, scopeNote: `Pro counts holdings per bot. ${shared}` };
+  return { cap, scopeNote: shared };
 }
 
 function capLabel(limit: number | null): string {
@@ -105,8 +98,10 @@ export function describeAccountPlan(input: {
   holdingsUsed: number | null;
   reportsUsed: number | null;
   assistantUsed: number | null;
+  /** Stamped account cap. The same number the dashboard and profile resolve. */
+  tickerLimit?: number | null;
 }): PlanSnapshot {
-  const holdings = holdingsCap(input.plan);
+  const holdings = holdingsCap(input.plan, input.tickerLimit);
   const reports = capLabel(monthlyReportLimit(input.plan));
   const assistant = capLabel(assistantQueryLimit(input.plan));
   return {

@@ -46,6 +46,7 @@ import {
   balancedGrowthStep,
   namedCandidateLine,
   notSizedLine,
+  printsUnderReviewLine,
   sessionGainerSentence,
 } from "./report-copy";
 import { createQuoteBook, reviewSessionMove, type QuoteBook, type ReviewedMove } from "./quote-review";
@@ -123,7 +124,7 @@ export interface MoverRow {
 export interface MarketMoversGroup {
   market: MarketCode;
   label: string; // "New Zealand Exchange · NZX"
-  windows: { window: string; movers: MoverRow[] }[];
+  windows: { window: string; movers: MoverRow[]; /** Counted before withheld rows leave the ranking. */ withheldCount: number; reviewNote: string | null }[];
 }
 
 /** A high-conviction 7-day forward projection row. */
@@ -371,10 +372,8 @@ function synthesizeTicker(
 function tickerFromIntel(intel: SecurityIntel, _bot: BotKind): TickerAnalysis {
   const rated = labelIntel(intel);
   const aligned = alignedProjection(intel);
-  let rating = rateAsset(rated);
-  if ((rating.action === "BUY" || rating.action === "ACCUMULATE") && !(aligned.pct > 0)) {
-    rating = { action: "HOLD", cardSignal: "Hold", positiveMomentum: false };
-  }
+  const rating = rateAsset(rated);
+  const bare = rateAsset({ signal: rated.signal, macdSignal: rated.macdSignal, regime: rated.regime });
   const history = intel.history.length ? intel.history : [{ label: "Now", price: intel.price }];
   const momentum: MomentumPoint[] = history.map((p) => ({ label: p.label, value: p.price }));
   let remaining = aligned.pct;
@@ -411,8 +410,7 @@ function tickerFromIntel(intel: SecurityIntel, _bot: BotKind): TickerAnalysis {
       narrative: `Bull case ${spPct(intel.outlook.bull.lowPct)} to ${spPct(intel.outlook.bull.highPct)}.`,
     },
   ];
-  const downgradedBuy =
-    (rateAsset(rated).action === "BUY" || rateAsset(rated).action === "ACCUMULATE") && !(aligned.pct > 0);
+  const downgradedBuy = bare.positiveMomentum && !rating.positiveMomentum;
   const signedPct = `${aligned.pct >= 0 ? "+" : ""}${aligned.pct}%`;
   const momentumNote = downgradedBuy
     ? `The 7-day projection is ${signedPct}, so this report does not issue a buy.`
@@ -522,7 +520,7 @@ function buildMarketMovers(
     return markets.map((m) => ({
       market: m,
       label: MARKET_LABELS[m],
-      windows: MOVER_WINDOWS.map((w) => ({ window: w.window, movers: [] })),
+      windows: MOVER_WINDOWS.map((w) => ({ window: w.window, movers: [], withheldCount: 0, reviewNote: null })),
     }));
   }
   const list = hasIntel ? universeIntel! : analyzeUniverse(overrides, bot);
@@ -531,40 +529,61 @@ function buildMarketMovers(
     return {
       market: m,
       label: MARKET_LABELS[m],
-      windows: MOVER_WINDOWS.map((w) => ({
-        window: w.window,
-        movers: [...inMarket]
-          .sort((a, b) => (b[w.key] as number) - (a[w.key] as number))
-          .slice(0, 10)
-          .map((s) => {
-            const window = w.key === "change1d" ? "1d" : w.key === "change7d" ? "7d" : "30d";
-            const reviewed = reviewedWindow(book, s, window);
-            return {
-              ticker: s.ticker,
-              name: s.name,
-              market: s.market,
-              currency: s.currency as CurrencyCode,
-              price: s.price,
-              changePct: reviewed?.withheld ? 0 : (reviewed?.changePct ?? (s[w.key] as number)),
-              withheld: reviewed?.withheld ?? false,
-            };
-          }),
-      })),
+      windows: MOVER_WINDOWS.map((w) => {
+        const window = w.key === "change1d" ? "1d" : w.key === "change7d" ? "7d" : "30d";
+        const reviewedRows = inMarket.map((s) => {
+          const reviewed = reviewedWindow(book, s, window);
+          return {
+            ticker: s.ticker,
+            name: s.name,
+            market: s.market,
+            currency: s.currency as CurrencyCode,
+            price: s.price,
+            changePct: reviewed?.withheld ? 0 : (reviewed?.changePct ?? (s[w.key] as number)),
+            withheld: reviewed?.withheld ?? false,
+            sortPct: reviewed?.withheld ? Number.NEGATIVE_INFINITY : (reviewed?.changePct ?? (s[w.key] as number)),
+          };
+        });
+        const withheldCount = reviewedRows.filter((row) => row.withheld).length;
+        return {
+          window: w.window,
+          withheldCount,
+          reviewNote: printsUnderReviewLine(withheldCount),
+          movers: reviewedRows
+            .filter((row) => !row.withheld)
+            .sort((a, b) => b.sortPct - a.sortPct)
+            .slice(0, 10)
+            .map(({ sortPct: _sort, ...row }) => row),
+        };
+      }),
     };
   });
 }
 
-/** The top-10 highest-conviction 7-day forward projections across the sweep. */
+function projectionCardSignal(intel: SecurityIntel): SecurityIntel["signal"] {
+  const card = rateAsset(intel).cardSignal;
+  if (card === "Accumulate" || card === "Watch") return "Hold";
+  return card;
+}
+
+function quoteUnderReview(book: QuoteBook | undefined, row: SecurityIntel): boolean {
+  if (!book) return false;
+  return (["1d", "7d", "30d"] as const).some((window) => reviewedWindow(book, row, window)?.withheld);
+}
+
 function buildProjectionLeaders(
   bot: BotKind,
   overrides?: Record<string, number>,
   universeIntel?: SecurityIntel[],
-  allowSynthetic = true
+  allowSynthetic = true,
+  book?: QuoteBook
 ): ProjectionRow[] {
   const hasIntel = !!(universeIntel && universeIntel.length);
   const hasLive = !!(overrides && Object.keys(overrides).length > 0);
   if (!hasIntel && !hasLive && !allowSynthetic) return [];
-  const list = (hasIntel ? universeIntel! : analyzeUniverse(overrides, bot)).map((row) => labelIntel(row));
+  const list = (hasIntel ? universeIntel! : analyzeUniverse(overrides, bot))
+    .map((row) => labelIntel(row))
+    .filter((row) => !quoteUnderReview(book, row));
   return getProjectionLeaders(10, list)
     .map((s) => ({
       ticker: s.ticker,
@@ -574,7 +593,7 @@ function buildProjectionLeaders(
       price: s.price,
       projected7dPct: alignedProjection(s).pct,
       confidence: s.confidence,
-      signal: s.signal,
+      signal: projectionCardSignal(s),
     }))
     .sort((a, b) => b.projected7dPct - a.projected7dPct || a.ticker.localeCompare(b.ticker));
 }
@@ -670,12 +689,12 @@ function buildDirectRecommendations(
         analyzeSecurity(h.ticker, h.price > 0 ? h.price : undefined, h.name, h.market)
     );
     const aligned = alignedProjection(intel);
-    let rating = rateAsset(intel);
-    let detail = holdingDetail(rating.action, h.ticker, aligned.range, aligned.probability, aligned.pct);
-    if ((rating.action === "BUY" || rating.action === "ACCUMULATE") && !(aligned.pct > 0)) {
-      rating = { ...rating, action: "HOLD", cardSignal: "Hold", positiveMomentum: false };
-      detail = `Hold ${h.ticker} — the 7-day projection is ${spPct(aligned.pct)}, so this report does not issue a buy.`;
-    }
+    const rating = rateAsset(intel);
+    const bare = rateAsset({ signal: intel.signal, macdSignal: intel.macdSignal, regime: intel.regime });
+    const detail =
+      bare.positiveMomentum && !rating.positiveMomentum
+        ? `Hold ${h.ticker} — the 7-day projection is ${spPct(aligned.pct)}, so this report does not issue a buy.`
+        : holdingDetail(rating.action, h.ticker, aligned.range, aligned.probability, aligned.pct);
     return {
       ticker: h.ticker,
       name: h.name,
@@ -1038,8 +1057,13 @@ function assembleReport(
     })
     .slice(0, 3)
     .map((row) => ({ ticker: row.ticker, name: row.name, changePct: row.changePct }));
-  const withheldSessionCount = sessionRows.filter((row) => row.withheld).length
-    + (sessionRows.length ? 0 : reviewedTickers.filter((ticker) => ticker.changeWithheld).length);
+  const sweepWithheld = marketMovers.reduce((sum, group) => {
+    const day = group.windows.find((window) => window.window === "Last 24 hours");
+    return sum + (day?.withheldCount ?? 0);
+  }, 0);
+  const withheldSessionCount = sweepWithheld > 0
+    ? sweepWithheld
+    : reviewedTickers.filter((ticker) => ticker.changeWithheld).length;
   const sessionTapeNote = sessionGainerSentence(topGainers, withheldSessionCount);
   const notSized = extras.notSized ?? [];
 
@@ -1145,7 +1169,7 @@ function assembleReport(
     tickers: reviewedTickers,
     portfolio: extras.portfolio,
     marketMovers,
-    projectionLeaders: buildProjectionLeaders(bot, marketOverrides, universeIntel, !extras.marketFeedUnavailable),
+    projectionLeaders: buildProjectionLeaders(bot, marketOverrides, universeIntel, !extras.marketFeedUnavailable, book),
     regionalNews: buildRegionalNews(bot),
     directRecommendations: extras.directRecommendations,
     pathwayPlan: extras.pathwayPlan,

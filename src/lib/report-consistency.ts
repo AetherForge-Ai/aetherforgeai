@@ -19,6 +19,10 @@ export interface RatingInput {
   signal: SecurityIntel["signal"];
   macdSignal: SecurityIntel["macdSignal"];
   regime: string;
+  /** Present on a full intel row. A buy whose 7-day midpoint is not positive is a hold. */
+  projected7dPct?: number;
+  outlook?: SecurityIntel["outlook"];
+  confidence?: number;
 }
 
 export interface TapeRead {
@@ -71,22 +75,44 @@ export function readTape(
  * The only action a report may show for this asset.
  * A bearish MACD, or a downtrend that is also MACD-bearish, cannot be a buy.
  */
+/** 7-day midpoint when the row carries an outlook. Undefined when the caller only passed a tape. */
+export function ratingProjectionPct(input: RatingInput): number | undefined {
+  if (!input.outlook && typeof input.projected7dPct !== "number") return undefined;
+  return alignedProjection({
+    projected7dPct: input.projected7dPct ?? 0,
+    outlook: input.outlook,
+    confidence: input.confidence ?? 0,
+  }).pct;
+}
+
 export function canonicalAction(input: RatingInput): CanonicalAction {
   const downAndBearish = input.regime === "Trending Down" && input.macdSignal === "Bearish";
-  if (downAndBearish && input.signal !== "Sell" && input.signal !== "Reduce") return "HOLD";
-  if ((input.signal === "Strong Buy" || input.signal === "Buy") && input.macdSignal === "Bearish") return "HOLD";
-  switch (input.signal) {
-    case "Sell":
-      return "SELL";
-    case "Reduce":
-      return "TRIM";
-    case "Strong Buy":
-      return "ACCUMULATE";
-    case "Buy":
-      return "BUY";
-    default:
-      return "HOLD";
+  let action: CanonicalAction;
+  if (downAndBearish && input.signal !== "Sell" && input.signal !== "Reduce") action = "HOLD";
+  else if ((input.signal === "Strong Buy" || input.signal === "Buy") && input.macdSignal === "Bearish") action = "HOLD";
+  else {
+    switch (input.signal) {
+      case "Sell":
+        action = "SELL";
+        break;
+      case "Reduce":
+        action = "TRIM";
+        break;
+      case "Strong Buy":
+        action = "ACCUMULATE";
+        break;
+      case "Buy":
+        action = "BUY";
+        break;
+      default:
+        action = "HOLD";
+    }
   }
+  const projection = ratingProjectionPct(input);
+  if ((action === "BUY" || action === "ACCUMULATE") && typeof projection === "number" && !(projection > 0)) {
+    return "HOLD";
+  }
+  return action;
 }
 
 export function cardSignalFor(action: CanonicalAction): CardSignal {
@@ -303,8 +329,11 @@ function stanceOf(action: CanonicalAction): Stance {
 }
 
 function claimedStance(window: string): Stance | null {
-  if (/\b(STRONG BUY|ACCUMULATE|ACCUMULATION)\b/.test(window) || /\bADD\b/.test(window)) return "constructive";
-  if (/\bBUY\b/.test(window)) return "constructive";
+  const text = window
+    .replace(/\b(?:DOES NOT|DO NOT|DON'?T|NEVER)\s+ISSUE\s+A\s+BUY\b/g, "")
+    .replace(/\bNOT\s+A\s+BUY\b/g, "");
+  if (/\b(STRONG BUY|ACCUMULATE|ACCUMULATION)\b/.test(text) || /\bADD\b/.test(text)) return "constructive";
+  if (/\bBUY\b/.test(text)) return "constructive";
   if (/\b(SELL|EXIT)\b/.test(window)) return "defensive";
   if (/\b(TRIM|REDUCE)\b/.test(window)) return "defensive";
   if (/\bHOLD\b/.test(window)) return "hold";

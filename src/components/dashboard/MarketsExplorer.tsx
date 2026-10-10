@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
 import { EXCHANGES, EXCHANGE_META, formatMarketPrice, type Exchange } from "@/lib/market-intel";
 import { BuyDialog, type BuyTarget } from "@/components/dashboard/BuyDialog";
-import { cryptoCoveragePhrase } from "@/lib/crypto-coverage";
+import { cryptoCoveragePhrase, dexCoverageLine, dexTabLabel } from "@/lib/crypto-coverage";
 import { explorerDetailHref, marketsTabHref, type MarketsTab } from "@/lib/market-detail-routes";
 import { paperAddSignupHref } from "@/lib/paper-add-link";
 import { useCryptoMarkets } from "@/hooks/useCryptoMarkets";
@@ -617,7 +617,7 @@ export function MarketsExplorer({
               : "border-border/60 bg-background/40 text-muted-foreground hover:text-foreground"
           )}
         >
-          DEX top 400
+          {dexTabLabel(dex.rows.length)}
         </button>
         <div className="ml-auto flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={refresh} disabled={loadingRows}>
@@ -659,6 +659,7 @@ export function MarketsExplorer({
             <p className="flex items-center gap-1 text-[0.62rem] text-muted-foreground/80">
               <Bitcoin className="size-3" /> {cryptoCoveragePhrase(cryptoListed)} · {showNzd ? "NZ$" : "USD"}
               {fxReady ? ` · 1 USD = NZ$${formatFxInput(fx.rates.USD)}` : " · NZ$ prices appear when today's exchange rate loads."}
+              {crypto.notice ? ` · ${crypto.notice}` : ""}
             </p>
           )}
           {isCryptoTab && (
@@ -674,7 +675,8 @@ export function MarketsExplorer({
           )}
           {isDexTab && (
             <p className="flex items-center gap-1 text-[0.62rem] text-muted-foreground/80">
-              <Bitcoin className="size-3" /> Top {cryptoListed || 400} DEX tokens by 24-hour volume · GeckoTerminal
+              <Bitcoin className="size-3" /> {dexCoverageLine(cryptoListed)}
+              {dex.notice ? ` · ${dex.notice}` : ""}
             </p>
           )}
         </div>
@@ -744,7 +746,7 @@ export function MarketsExplorer({
                   {query
                     ? `No tickers match “${query}”.`
                     : isDexTab
-                      ? "No DEX token prices right now."
+                      ? dex.notice || dex.error || "GeckoTerminal did not return a token price (rate limit or the feed did not answer). This list is 0, not 400."
                       : isCoinTab
                       ? "No live crypto prices right now."
                       : loadError
@@ -864,7 +866,7 @@ export function MarketsExplorer({
             Showing {cryptoPageSafe * CRYPTO_PAGE_SIZE + 1}–
             {Math.min(rows.length, (cryptoPageSafe + 1) * CRYPTO_PAGE_SIZE)} of {rows.length}
             {isDexTab
-              ? ` · Top ${Math.min(CRYPTO_TOP_N, rows.length)} DEX tokens by 24-hour volume`
+              ? ` · ${dexCoverageLine(rows.length)}`
               : ` · ${cryptoCoveragePhrase(rows.length)}`}
           </p>
           <div className="flex items-center gap-2">

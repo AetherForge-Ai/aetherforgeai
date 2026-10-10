@@ -216,6 +216,11 @@ export interface TotalumSynthesis {
   /** Ledger cash in NZD (0 when none). Included in totalValueNZD when > 0. */
   cashBalanceNZD: number;
   /**
+   * Unfilled sleeve amounts for the default balanced-growth skeleton.
+   * The same sentences the Strategy tab shows when that goal is selected.
+   */
+  sleeveNotes?: string[];
+  /**
    * True only when the book has no securities, no metals AND no cash.
    * Cash-only members are NOT empty — Strategy Builder and Strategist work.
    */
@@ -555,6 +560,7 @@ export function buildSynthesis(input: SynthesisInput): TotalumSynthesis {
     asOf: spot.asOf,
     spot: { goldNzdPerOz: round(spot.gold.nzdPerOz), silverNzdPerOz: round(spot.silver.nzdPerOz) },
     cashBalanceNZD,
+    sleeveNotes: [],
     // Empty only when there is nothing to plan with — cash alone is enough.
     isEmpty: totalValueNZD <= 0,
   };
@@ -765,6 +771,12 @@ export function buildStrategy(
     narrative: plan.narrative,
     sleeveNotes,
   };
+}
+
+/** Sleeve sentences for Synthesis. Same helper the Strategy tab uses, on the default goal. */
+export function sleeveNotesForSynthesis(synthesis: TotalumSynthesis, picks?: SleevePickSource): string[] {
+  if (synthesis.isEmpty || !picks) return [];
+  return buildStrategy(synthesis, "balanced_growth", picks).sleeveNotes;
 }
 
 function riskParamsForGoal(goal: GoalKey): StrategyBlueprint["riskParameters"] {

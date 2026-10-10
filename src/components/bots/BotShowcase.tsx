@@ -173,7 +173,7 @@ export function BotShowcase() {
               </DialogHeader>
 
               <div className="mt-2">
-                <ApexReportView report={reports[activeBot.kind]} />
+                <ApexReportView report={reports[activeBot.kind]} scrubCopy />
               </div>
 
               <div className="mt-4 flex flex-col items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 p-5 text-center">

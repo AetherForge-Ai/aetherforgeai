@@ -11,13 +11,13 @@ function marketsHeading(tab: MarketsTab): { title: string; lede: string } {
   if (tab === "CRYPTO") {
     return {
       title: "Crypto markets",
-      lede: "Top 400 coins by market cap from CoinGecko, in USD. The Blockchain column is the native chain or platform.",
+      lede: "Coins by market cap from CoinGecko, in USD. The line under the search is the number this list returned. The Blockchain column is the native chain or platform.",
     };
   }
   if (tab === "DEX") {
     return {
       title: "DEX markets",
-      lede: "Top DEX tokens by 24-hour volume from GeckoTerminal. Each row shows the chain and the DEX.",
+      lede: "DEX tokens by 24-hour volume from GeckoTerminal. The line under the search is the number this list returned. Each row shows the chain and the DEX.",
     };
   }
   return {

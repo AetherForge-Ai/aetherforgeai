@@ -103,12 +103,12 @@ describe("cash deployment guard", () => {
   it("caps a neutral speculative tape and refuses the full cash balance", () => {
     const guard = deploymentGuard("stock", neutralTape, 12696);
     expect(guard.mode).toBe("starter");
-    // NZ$12,696 keeps 10% (NZ$1,270) and illustrates NZ$11,426 — same rule as Headmaster.
-    expect(guard.maxDeployFraction).toBeCloseTo(11426 / 12696, 5);
+    // NZ$12,696.00 keeps 10% (NZ$1,269.60) and illustrates NZ$11,426.40.
+    expect(guard.maxDeployFraction).toBeCloseTo(11426.4 / 12696, 5);
     expect(guard.headline).toMatch(/Do not deploy the full cash balance/);
     expect(guard.headline).toMatch(/12,696/);
-    expect(guard.headline).toMatch(/1,270/);
-    expect(guard.headline).toMatch(/11,426/);
+    expect(guard.headline).toMatch(/1,269\.60/);
+    expect(guard.headline).toMatch(/11,426\.40/);
     expect(guard.headline).not.toMatch(/75%/);
     expect(
       candidateIsSuitable(
