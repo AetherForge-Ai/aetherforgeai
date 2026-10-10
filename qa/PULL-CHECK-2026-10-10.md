@@ -749,3 +749,14 @@ NZ tax pack. Draft PRs only. Nothing here publishes, sends email, or removes a S
 - DRP does not change the share count. That is left for Lukas.
 - Checked on this branch: `npm run check-types-errors` passed. eslint on the TB-2a source files passed. `npm test` 103 files, 502 tests passed. `npm run build` passed (Next.js 15.3.9). A local `next start` of `/tax/dividends` returned the indicative label, "No dividends recorded", and a sign-in link. It did not contain a sample amount or `[DIV:`. `/tax` still contains "does not yet produce tax reports". Nothing was published. No email was sent.
 
+### TB-2b — taxable-income export
+
+- Status: in this draft
+- Files: `src/lib/nz-tax-year.ts`, `src/lib/taxable-income.ts`, `src/lib/taxable-income.test.ts`, `src/app/tax/income/page.tsx`, `src/app/api/tax/income/export/route.ts`
+- URL / steps: signed in, open `/tax/income`. Choose the year `1 Apr 2026 to 31 Mar 2027`. Export the CSV. Print the page.
+- Expected, that year contains FBU.NZ on 1 Apr 2026 (gross 100.00, imputation credits 28.00, withholding 33.00, DRP 0.00), CBA.AX on 10 Oct 2026 (gross 109.12, imputation credits 0.00, withholding 16.37, DRP 21.82, rate 1.0912), and a sell of AAPL on 15 Jan 2027 with stored realised 40.50. Totals: gross NZ$209.12, imputation credits NZ$28.00, withholding NZ$49.37, DRP NZ$21.82, realised NZ$40.50.
+- Expected, a dividend on 31 Mar 2026 stays in the year ending 31 Mar 2026. A sell on 1 Apr 2027 stays in the year ending 31 Mar 2028. They are not in the 2027 totals.
+- Expected, a dividend with cash NZ$25.00 and no breakdown is not added to gross. A sell with no stored realised amount is blank, not NZ$0.00.
+- Expected, the CSV total line is `1 Apr 2026 to 31 Mar 2027,,,total,209.12,28.00,49.37,21.82,40.50,"Indicative, not tax advice."` The page says `Indicative, not tax advice.`
+- Realised on this page is the amount stored on the sell. FIFO is TB-2d.
+

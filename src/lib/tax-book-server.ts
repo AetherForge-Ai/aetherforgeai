@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { DividendSourceRow } from "@/lib/dividend-ledger";
+import type { TaxLedgerRow } from "@/lib/taxable-income";
 import type { PaperHoldingChoice } from "@/lib/paper-holding";
 import { totalumSdk } from "@/lib/totalum";
 
@@ -71,4 +72,17 @@ export async function loadDividendRows(userId: string): Promise<DividendSourceRo
       const tb = new Date(b.executed_at || 0).getTime();
       return (Number.isFinite(tb) ? tb : 0) - (Number.isFinite(ta) ? ta : 0);
     });
+}
+
+/** Ledger rows for a tax year. The cap is 5,000. Rows past that cap are not in this read. */
+export async function loadTaxRows(userId: string): Promise<TaxLedgerRow[]> {
+  const res = await totalumSdk.crud.query("transaction", {
+    _filter: { user: userId },
+    _limit: 5000,
+  });
+  const rows = (res?.data as unknown as TaxLedgerRow[]) || [];
+  return rows.map((row) => ({
+    ...row,
+    executed_at: row.executed_at || row.createdAt || "",
+  }));
 }
