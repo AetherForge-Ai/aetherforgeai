@@ -691,8 +691,8 @@ Branch `cursor/track-b-p0-bb35` from develop `87dfce1`. PR https://github.com/Ae
 - Files: `src/lib/public-market-index.ts`, `src/lib/public-market-types.ts`, `src/lib/sitemap-tickers.ts`, `src/components/markets/PublicMarketTables.tsx`, `src/components/dashboard/MarketsPageContent.tsx`, `src/app/markets/page.tsx`, `src/app/markets/stock/[ticker]/page.tsx`, `src/app/markets/crypto/[id]/page.tsx`, `src/app/sitemap.ts`
 - URL / steps: `curl` `/markets`, `/markets/stock/FBU.NZ`, and `/sitemap.xml`.
 - Expected: at least 50 `data-price-row` rows and an as-of time in the markets HTML. The sitemap lists ticker paths.
-- Checked here: `/markets` returned 230 `data-price-row` rows in 1.78 s. As-of lines included `as of 9 Oct 2026, 4:55 pm` (NZX), `as of 9 Oct 2026, 6:12 pm` (ASX), `as of 10 Oct 2026, 9:00 am` (Dow Jones and NASDAQ), and `as of 11 Oct 2026, 12:51 am` (crypto, from the feed's `last_updated`). Sitemap listed `/status`, 397 `/markets/stock/` paths, and 20 `/markets/crypto/` paths. `FBU.NZ` HTML included `FBU.NZ NZ$3.42 0.00% as of 9 Oct 2026, 4:59 pm`.
-- Partial: 25 DEX rows say `change not stated` and `as of not stated by the vendor`, because that feed has no change and no quote time. Six equity rows printed `0.00%`. A blank vendor response says `No prices in this response.` The first curl had none of those empty tabs. The live site was not curled.
+- Checked here: after the review build, a cold `/markets` returned 230 `data-price-row` rows in 2.06 s (time to first byte 2.06 s). The next read of the same process returned the same 230 rows in 0.03 s. As-of lines on the earlier read included `as of 9 Oct 2026, 4:55 pm` (NZX), `as of 9 Oct 2026, 6:12 pm` (ASX), `as of 10 Oct 2026, 9:00 am` (Dow Jones and NASDAQ), and `as of 11 Oct 2026, 12:51 am` (crypto, from the feed's `last_updated`). Sitemap listed `/status`, 397 `/markets/stock/` paths, and 20 `/markets/crypto/` paths. `FBU.NZ` HTML included the name Fletcher Building, the Materials list on NZX, `FBU.NZ NZ$3.42 0.00% as of 9 Oct 2026, 4:59 pm`, the title `Fletcher Building (FBU) · NZX — AetherForge AI`, and a link to create an account. The signed-out page does not show the add link.
+- Partial: 25 DEX rows say `change not stated` and `as of not stated by the vendor`, because that feed has no change and no quote time. Six equity rows printed `0.00%`. A blank vendor response says `No prices in this response.` Neither local read had an empty tab, because the feed returned rows inside the 3 second wait. The live site was not curled.
 - Sitemap choice: keep the stock paths and put a real listing on each page (name, exchange, sector from the repo list, price with as-of when the feed returns one, and a link to add the name or create an account, plus a title and description that use that name). The repo list has no market-cap field, so a "top 100 by market cap" cut would have been a guess. The pages stay force-dynamic.
 
 ### P0-5 — fixed on this machine
@@ -727,7 +727,8 @@ Branch `cursor/track-b-p0-bb35` from develop `87dfce1`. PR https://github.com/Ae
 
 - `npm run check-types-errors`: passed.
 - eslint on the changed source files: passed, no output.
-- `npm test`: 102 files, 493 tests passed on the first Track B run. After the review fixes, `src/lib/record-transaction.test.ts` and `src/lib/track-b-p0.test.ts` passed, and `npm run check-types-errors` passed again.
+- `npm test`: 102 files, 493 tests passed again after the review fixes, including the stock-page canonical string.
+- `npm run check-types-errors`: passed again after the review fixes.
 - `npm run build`: passed again after the review fixes (Next.js 15.3.9). The build skipped its own lint step. Better Auth logged the default secret in this environment. No secret was added.
 - This batch did not edit `src/lib/auth.ts`, `src/lib/auth-mail.ts`, `src/lib/transactional-mail.ts`, `src/lib/send-transactional-mail.ts`, or the send-verification route. It did edit the news filter and the news fetch cap. Crypto projections stay paused. No list was removed. No email was sent. Nothing was published.
 
