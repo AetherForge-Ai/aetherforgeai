@@ -23,7 +23,7 @@ export async function generateMetadata({
   if (tab === "DEX") {
     return publicPageMetadata("/markets?tab=dex", {
       title: "DEX markets · AetherForge AI",
-      description: "DEX tokens by 24-hour volume from GeckoTerminal, with chain and DEX. The page states the count it returned. Paper research, not a broker.",
+      description: "DEX tokens by 24-hour volume from GeckoTerminal and DexScreener, with chain and DEX. The page states the count it returned. Paper research, not a broker.",
     });
   }
   return publicPageMetadata("/markets", {

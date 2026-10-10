@@ -89,8 +89,6 @@ export function MarketsPageContent({
           syncTab
           onTabChange={setTab}
           index={index}
-          seedCrypto={index?.tabs.find((tab) => tab.id === "CRYPTO")?.rows ?? []}
-          seedDex={index?.tabs.find((tab) => tab.id === "DEX")?.rows ?? []}
         />
       </div>
 

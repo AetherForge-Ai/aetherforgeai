@@ -11,7 +11,8 @@
  * copy does not name Twelve Data.
  * crypto — CoinGecko, then Kraken, Coinbase, and Yahoo Finance for mapped symbols.
  *   Swyftx is named only when SWYFTX_PUBLIC_DISPLAY is on.
- * DEX — GeckoTerminal
+ * DEX — GeckoTerminal, and DexScreener when that list is empty
+ *   (https://docs.dexscreener.com/api/reference, GET /latest/dex/search, no key)
  * metals — api.gold-api.com (not a dealer feed)
  * FX — open.er-api.com daily; Frankfurter for a past trade date
  *
@@ -26,6 +27,7 @@ import { publicSourceAllowed, swyftxPublicDisplay } from "@/lib/swyftx-display";
 export const PUBLIC_EQUITY_SOURCE = "Yahoo Finance";
 export const PUBLIC_CRYPTO_SOURCE = "CoinGecko";
 export const PUBLIC_DEX_SOURCE = "GeckoTerminal";
+export const PUBLIC_DEX_SECOND_SOURCE = "DexScreener";
 export const PUBLIC_METALS_SOURCE = "gold-api.com";
 export const PUBLIC_FX_SOURCE = "ExchangeRate-API";
 
@@ -53,7 +55,7 @@ export function publicDataSourcesLine(): string {
     "They are not a direct NZX or ASX feed. " +
     "When a newer print is not in the response, the page shows the last saved print and its time. " +
     `Crypto prices come from ${englishList(cryptoSourceNames())}. ` +
-    `DEX token prices come from ${PUBLIC_DEX_SOURCE}. ` +
+    `DEX token prices come from ${PUBLIC_DEX_SOURCE} and ${PUBLIC_DEX_SECOND_SOURCE}. ` +
     `Gold and silver spot prices come from ${PUBLIC_METALS_SOURCE}. ` +
     `Foreign-exchange rates are a daily rate from ${PUBLIC_FX_SOURCE}. Past trade-date rates use Frankfurter. ` +
     "Prices may be delayed and are for information only. " +

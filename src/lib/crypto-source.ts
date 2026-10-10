@@ -27,7 +27,7 @@ import {
 } from "@/lib/crypto-market";
 import { canonicalCryptoId, normalizeCryptoTicker } from "@/lib/crypto-ids";
 import { listedMarketNotice } from "@/lib/crypto-coverage";
-import { mergeRankedCoins } from "@/lib/crypto-list";
+import { selectListedMarkets } from "@/lib/crypto-list";
 import { publicCoinDescription, publicCoinSourceLine } from "@/lib/data-sources";
 import { swyftxPublicDisplay } from "@/lib/swyftx-display";
 
@@ -210,9 +210,12 @@ function liveCoins(page: RankedCryptoPage | null | undefined): CoinMarket[] {
  * Top 400 for the Crypto tab and the Koins sweep.
  * CoinGecko pages 1 and 2 by market cap. When that list is short and
  * SWYFTX_PUBLIC_DISPLAY is on, the backup list fills symbols that are not
- * already present. Yahoo is used when the earlier lists returned nothing.
+ * already present. Yahoo is used only when those lists returned nothing.
+ * Kraken and Coinbase quote one symbol. They do not replace this list.
  * A snapshot younger than 60 seconds is returned as-is. A failed refresh waits 60 seconds.
  * Old rows are not appended to a shorter live result.
+ *
+ * pull-check:retest4-2026-10-11
  */
 async function buildTopList(): Promise<RankedCryptoPage> {
   const started = Date.now();
@@ -233,56 +236,58 @@ async function buildTopList(): Promise<RankedCryptoPage> {
         })
     : Promise.resolve([] as CoinMarket[]);
 
+  const pendingCg = coingecko.fetchTop400();
   let cgPage: RankedCryptoPage | null = null;
   try {
-    cgPage = await Promise.race([
-      coingecko.fetchTop400(),
-      sleep(LIST_COLD_MS).then(() => null),
-    ]);
+    cgPage = await Promise.race([pendingCg, sleep(LIST_COLD_MS).then(() => null)]);
+    if (!cgPage?.coins.length) cgPage = (await pendingCg) ?? coingecko.peekTop400();
   } catch (err) {
     console.error("[crypto-source] CoinGecko top list failed:", err instanceof Error ? err.message.slice(0, 160) : "failed");
     listBackoffUntil = Date.now() + LIST_BACKOFF_MS;
+    cgPage = coingecko.peekTop400();
   }
 
   const peeked = cgPage ?? coingecko.peekTop400();
   const cgCoins = tagSource(liveCoins(peeked), "coingecko");
-  if (cgCoins.length >= 400) {
-    const page = pageFrom(cgCoins, null);
-    listSnap = { at: Date.now(), page };
-    return page;
-  }
-
   const left = LIST_COLD_MS - (Date.now() - started);
-  if (sxRows == null && left > 100) await Promise.race([sxTask, sleep(left)]);
+  if (sxRows == null && left > 100) await Promise.race([sxTask, sleep(Math.max(0, left))]);
   const sx = sxRows ?? [];
-  let coins = mergeRankedCoins([cgCoins, sx]);
-  const page2Missed = (peeked?.notice || "").includes("second page");
-  let reason: "page2" | "backup" | "short" | null = !cgCoins.length && coins.length ? "backup" : page2Missed ? "page2" : "short";
-  if (!coins.length) {
+  let yahooRows: CoinMarket[] = [];
+  if (!cgCoins.length && !sx.length) {
     try {
-      const yahooRows = await Promise.race([
-        yahoo.fetchYahooMajorMarkets(),
-        sleep(1_000).then(() => [] as CoinMarket[]),
-      ]);
-      coins = mergeRankedCoins([tagSource(yahooRows, "yahoo")]);
-      reason = coins.length ? "backup" : "short";
+      yahooRows = tagSource(
+        await Promise.race([yahoo.fetchYahooMajorMarkets(), sleep(1_000).then(() => [] as CoinMarket[])]),
+        "yahoo"
+      );
     } catch (err) {
-      console.error("[crypto-source] Yahoo crypto fallback failed:", err instanceof Error ? err.message.slice(0, 160) : "failed");
-      reason = "short";
+      console.error("[crypto-source] Yahoo crypto list failed:", err instanceof Error ? err.message.slice(0, 160) : "failed");
+      yahooRows = [];
     }
   }
-  if (!coins.length) {
+  const page2Missed = (peeked?.notice || "").includes("second page");
+  const selected = selectListedMarkets({
+    coingecko: cgCoins,
+    page2Missing: page2Missed,
+    backup: sx,
+    yahoo: yahooRows,
+  });
+  if (!selected.coins.length) {
     listBackoffUntil = Date.now() + LIST_BACKOFF_MS;
     throw new Error(LIVE_CRYPTO_UNAVAILABLE);
   }
-  const page = pageFrom(coins, reason);
+  const page = pageFrom(selected.coins, selected.reason);
   listSnap = { at: Date.now(), page };
-  void Promise.all([sxTask]).then(() => {
+  void Promise.all([sxTask, pendingCg.catch(() => null)]).then(() => {
     const doneCg = tagSource(liveCoins(coingecko.peekTop400()), "coingecko");
-    const done = mergeRankedCoins([doneCg.length ? doneCg : cgCoins, sxRows ?? []]);
-    if (!done.length) return;
-    const doneReason = done.length >= 400 ? null : (coingecko.peekTop400()?.notice || "").includes("second page") ? "page2" : reason;
-    listSnap = { at: Date.now(), page: pageFrom(done, doneReason) };
+    if (!doneCg.length) return;
+    const done = selectListedMarkets({
+      coingecko: doneCg,
+      page2Missing: (coingecko.peekTop400()?.notice || "").includes("second page"),
+      backup: sxRows ?? [],
+      yahoo: [],
+    });
+    if (!done.coins.length) return;
+    listSnap = { at: Date.now(), page: pageFrom(done.coins, done.reason) };
   });
   return page;
 }

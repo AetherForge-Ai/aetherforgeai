@@ -84,6 +84,8 @@ export function sourceLabel(source: string): string {
       return "Yahoo Finance";
     case "geckoterminal":
       return "GeckoTerminal";
+    case "dexscreener":
+      return "DexScreener";
     case "google":
       return "Google Finance";
     default:

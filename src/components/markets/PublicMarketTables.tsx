@@ -33,6 +33,7 @@ export function PublicMarketTables({ index }: { index: PublicMarketIndex }) {
           ) : null}
           {tab.coverage ? <p className="mt-1 text-sm text-muted-foreground">{tab.coverage}</p> : null}
           {tab.note ? <p className="text-xs text-muted-foreground">{tab.note}</p> : null}
+          {tab.footnote ? <p className="text-xs text-muted-foreground">{tab.footnote}</p> : null}
           {tab.rows.length === 0 ? (
             <p className="mt-2 text-sm text-muted-foreground">
               {cryptoTab ? "No earlier price is stored." : "No prices in this response."}
