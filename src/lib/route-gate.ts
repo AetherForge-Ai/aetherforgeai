@@ -33,6 +33,7 @@ const PUBLIC_DOCUMENT_ROUTES = [
   "/chat",
   "/own-the-bots",
   "/docs",
+  "/help",
   "/blog",
   "/changelog",
   "/status",

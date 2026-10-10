@@ -28,6 +28,7 @@ const ENTRIES: Array<{
   { path: "/ai-disclaimer", changeFrequency: "monthly", priority: 0.4, lastModified: "2026-10-10" },
   { path: "/trust", changeFrequency: "monthly", priority: 0.6, lastModified: "2026-10-10" },
   { path: "/docs", changeFrequency: "monthly", priority: 0.6, lastModified: "2026-10-10" },
+  { path: "/help", changeFrequency: "monthly", priority: 0.5, lastModified: "2026-10-10" },
   { path: "/tax", changeFrequency: "monthly", priority: 0.5, lastModified: "2026-10-10" },
   { path: "/changelog", changeFrequency: "monthly", priority: 0.3, lastModified: "2026-10-11" },
   { path: "/status", changeFrequency: "weekly", priority: 0.4, lastModified: "2026-10-11" },

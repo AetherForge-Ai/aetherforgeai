@@ -1,6 +1,6 @@
 import { EMAIL_SUPPORT_LINE, REFUND_FAQ, TRIAL_FAQ } from "@/lib/public-copy";
 
-/** Visible pricing questions. FAQ schema uses this same list. */
+/** Visible pricing questions. FAQ schema and help search use this same list. */
 export const PRICING_FAQS: { q: string; a: string }[] = [
   {
     q: "Can I switch between monthly and annual billing?",
