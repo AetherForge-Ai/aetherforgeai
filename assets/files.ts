@@ -49,8 +49,7 @@ export const ABOUT_HERO_IMG =
 // The original passport-blue background was AI-retouched into a soft navy→emerald
 // studio backdrop (with a gentle vignette) so it blends with the site palette;
 // the face, glasses and shirt are preserved exactly.
-export const FOUNDER_PORTRAIT_IMG =
-  "https://storage.googleapis.com/totalum-live-bucket/aetherforgeai/files/founder-portrait-navy-1783445071851.jpeg?GoogleAccessId=totalum-live%40totalum-live.iam.gserviceaccount.com&Expires=2414165072&Signature=dH%2FOwDzGSS%2F7k3YWzhUA4kV2Sy6FdzWuSYsvkhsmubPuTQn2iPdL5uHkUdCK3%2B999xbFxtFKKCDFsOKKuxk5KcVjZMpVEK36aHK%2FdsL%2BNXJbP2VrqYIvsQ5C0gzOhYxhaCke3qcnx3y1ErY7xnnXSclO6hCJKG4u4fLw%2BRhaCGMp8RrGj9u3D%2Bwf8hVUMCOG6Otv5BcIuaGAqpLEA9PcRL67gyFYxsYGiBNwRP6Ta1%2FEDnsuDz5Do%2B4mdbod6o13nCmMmxtrTYYCxhovXUmGQISIXvTWpCFWBQv4oZCLnyLajqAfFbK96lT%2B5nqKOv0csveFXEA1VyOmz4bEox0KVg%3D%3D";
+export const FOUNDER_PORTRAIT_IMG = "/brand/founder-portrait.jpeg";
 
 // AI-generated Apex bot mascots (cartoon geeks deep in thought).
 export const BOT_STOCK_MASCOT =
