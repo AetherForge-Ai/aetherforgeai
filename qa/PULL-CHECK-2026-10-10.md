@@ -1008,7 +1008,7 @@ Marker: `pull-check:weekly-unsub-confirm-2026-10-11`
 
 Source comment: `pull-check:weekly-unsub-confirm-2026-10-11` in `src/lib/weekly-email.ts`, `src/app/api/weekly-email/unsubscribe/route.ts`, and `src/lib/weekly-email-live.ts`.
 
-Branch `cursor/weekly-unsub-confirm-a147` from develop. One draft pull request into `develop`. Do not merge it from this note. Nothing was published. No Totalum AI Pull. No email was sent. Auth, login, register, security headers, consent, apex, and `next.config.ts` were not edited. Public copy says "AI" only. `WEEKLY_EMAIL_SEND` still has to be exactly `on` before a Monday email can go out. The signed token check, the opt-out write, and that hard-off flag are unchanged.
+Branch `cursor/weekly-unsub-confirm-a147` from develop. Draft pull request: https://github.com/AetherForge-Ai/aetherforgeai/pull/276 into `develop`. Do not merge it from this note. Nothing was published. No Totalum AI Pull. No email was sent. Auth, login, register, security headers, consent, apex, and `next.config.ts` were not edited. Public copy says "AI" only. `WEEKLY_EMAIL_SEND` still has to be exactly `on` before a Monday email can go out. The signed token check, the opt-out write, and that hard-off flag are unchanged.
 
 A mail scanner that prefetches the unsubscribe link used to store the opt-out, because the link was a GET that wrote the preference. The GET now only shows a confirmation page.
 
