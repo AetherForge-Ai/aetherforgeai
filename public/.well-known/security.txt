@@ -1,4 +1,4 @@
 Contact: mailto:admin@aetherforgeai.co.nz
 Expires: 2027-10-08T00:00:00.000Z
 Preferred-Languages: en
-Canonical: https://www.aetherforgeai.co.nz/.well-known/security.txt
+Canonical: https://aetherforgeai.co.nz/.well-known/security.txt

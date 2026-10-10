@@ -1,4 +1,5 @@
 import { LegalShell, LegalSection } from "@/components/legal/LegalShell";
+import { EmailAddress } from "@/components/EmailAddress";
 import { LEGAL_ENTITY_NAME } from "@/lib/company";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { PUBLIC_DATA_SOURCES_LINE } from "@/lib/data-sources";
@@ -28,7 +29,7 @@ export default function TermsOfService() {
       <LegalSection heading="1. Agreement to these terms">
         <p>
           By creating an account or otherwise accessing or using AetherForge AI (the &quot;Service&quot;)
-          at www.aetherforgeai.co.nz, you agree to be bound by these Terms. If you do
+          at aetherforgeai.co.nz, you agree to be bound by these Terms. If you do
           not agree, you must not use the Service. If you are using the Service on behalf of an
           organisation, you confirm you have authority to bind that organisation.
         </p>
@@ -208,9 +209,7 @@ export default function TermsOfService() {
       <LegalSection heading="17. Contact">
         <p>
           Questions about these terms:{" "}
-          <a href="mailto:admin@aetherforgeai.co.nz" className="text-primary hover:underline">
-            admin@aetherforgeai.co.nz
-          </a>
+          <EmailAddress email="admin@aetherforgeai.co.nz" className="text-primary" />
           . You can also use the contact form on the{" "}
           <a href="/about#contact" className="text-primary hover:underline">
             About

@@ -1,4 +1,5 @@
 import { LegalShell, LegalSection } from "@/components/legal/LegalShell";
+import { EmailAddress } from "@/components/EmailAddress";
 import { LEGAL_ENTITY_NAME } from "@/lib/company";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { pageTitle } from "@/lib/page-title";
@@ -195,9 +196,7 @@ export default function PrivacyPolicy() {
         <p>
           If you have a question, wish to exercise your privacy rights, or want to make a complaint about
           how we have handled your personal information, email the Privacy Officer at{" "}
-          <a href="mailto:lukas@aetherforgeai.co.nz" className="text-primary hover:underline">
-            lukas@aetherforgeai.co.nz
-          </a>
+          <EmailAddress email="lukas@aetherforgeai.co.nz" className="text-primary" />
           . You can also use the contact form on the{" "}
           <a href="/about#contact" className="text-primary hover:underline">
             About

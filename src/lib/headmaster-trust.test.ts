@@ -100,7 +100,7 @@ describe("Headmaster allocation plan", () => {
     expect(brief).not.toMatch(/dry powder/i);
     expect(brief).toMatch(/does not trade for you/i);
     expect(plan.narrative).toBe(brief);
-    expect(plan.formula).toMatch(/11,048 − retained cash NZ\$1,994/);
+    expect(plan.formula).toMatch(/11,048(?:\.00)? − retained cash NZ\$1,994(?:\.00)?/);
     expect(plan.formula).toContain("NZ$9,054");
   });
 

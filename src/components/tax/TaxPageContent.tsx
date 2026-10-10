@@ -1,7 +1,15 @@
 /**
- * General information drawn from the four Inland Revenue pages linked below.
+ * General information drawn from the Inland Revenue pages linked below.
  * Sentences that are not on those pages are left out.
+ * The paper-book totals are the member's ledger, not a tax return.
  */
+
+import { formatNzd, formatSignedMoney } from "@/lib/currency";
+
+export type TaxBookFigures = {
+  dividendsNzd: number;
+  realisedPnlNzd: number;
+};
 
 const SOURCES = [
   {
@@ -26,15 +34,25 @@ const SOURCES = [
   },
 ] as const;
 
-export function TaxPageContent() {
+export function TaxPageContent({ book = null }: { book?: TaxBookFigures | null }) {
   return (
     <article className="mx-auto w-full max-w-3xl px-4 py-10 sm:px-6">
       <p className="text-xs font-semibold uppercase tracking-wide text-primary">New Zealand</p>
       <h1 className="mt-2 font-display text-3xl font-bold">Tax</h1>
       <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-        This is general information and not personal tax advice. Last reviewed 8 October 2026.
+        This is general information and not personal tax advice. Last reviewed 8 Oct 2026.
         AetherForge does not yet produce tax reports.
       </p>
+      {book ? (
+        <section className="mt-6 space-y-2 rounded-2xl border border-border/70 bg-card/40 p-4">
+          <h2 className="font-display text-lg font-semibold">Your paper book</h2>
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            Dividends and income on this book: {formatNzd(book.dividendsNzd)}. Realised profit and loss:{" "}
+            {formatSignedMoney(book.realisedPnlNzd)}. These figures are from your paper book. They are not a tax
+            return. Inland Revenue decides what is income.
+          </p>
+        </section>
+      ) : null}
 
       <section className="mt-8 space-y-3">
         <h2 className="font-display text-lg font-semibold">Cryptoassets</h2>

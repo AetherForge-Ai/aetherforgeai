@@ -55,6 +55,7 @@ import type {
   GoalKey,
 } from "@/lib/totalum-engine";
 import { illustrativeActionLabel, modelViewSentence, sanitizeHeadmasterDisplayText, turnProgressLabel } from "@/lib/headmaster-trust";
+import { formatDriftPp, formatNzd } from "@/lib/currency";
 import { useRecoverableTurn } from "@/lib/use-recoverable-turn";
 import { cn } from "@/lib/utils";
 import { headmasterDeskCopy } from "@/lib/entitlements";
@@ -66,10 +67,13 @@ import { BOT_HEADMASTER_AVATAR } from "../../../assets/files";
 
 function nzd(v: number, compact = false): string {
   if (!isFinite(v)) v = 0;
-  return `NZ$${new Intl.NumberFormat("en-NZ", {
-    notation: compact ? "compact" : "standard",
-    maximumFractionDigits: compact ? 1 : 0,
-  }).format(v)}`;
+  if (compact) {
+    return `NZ$${new Intl.NumberFormat("en-NZ", {
+      notation: "compact",
+      maximumFractionDigits: 1,
+    }).format(v)}`;
+  }
+  return formatNzd(v);
 }
 function pct(v: number): string {
   return `${v > 0 ? "+" : ""}${v.toFixed(2)}%`;
@@ -562,7 +566,7 @@ function StrategyTab({ initialSynthesis }: { initialSynthesis: TotalumSynthesis 
                       <td className="px-2 py-2 text-right tabular-nums">{m.currentWeight.toFixed(1)}%</td>
                       <td className="px-2 py-2 text-right tabular-nums">{m.targetWeight}%</td>
                       <td className={`px-2 py-2 text-right tabular-nums ${m.driftPct > 0 ? "text-rose-500" : m.driftPct < 0 ? "text-emerald-500" : "text-muted-foreground"}`}>
-                        {m.driftPct > 0 ? "+" : ""}{m.driftPct.toFixed(1)}%
+                        {formatDriftPp(m.driftPct)}
                       </td>
                       <td className="px-2 py-2 text-center">
                         <Badge

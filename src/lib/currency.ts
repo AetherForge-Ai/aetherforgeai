@@ -204,13 +204,52 @@ function displayDateParts(input: string | Date): { day: number; month: number; y
 /**
  * Calendar date as '4 Oct 2026'. A yyyy-mm-dd string is that civil date,
  * not UTC midnight (which would show the previous day in New Zealand).
- * The day is never padded, so 4 October is '4 Oct 2026'.
+ * The day is never padded, so 4 October is '4 Oct 2026'. Month is always
+ * the three-letter form ('Sep', never 'Sept').
  */
 export function formatDisplayDate(input?: string | Date | null): string {
   if (input == null || input === "") return "—";
   const parts = displayDateParts(input);
   if (!parts || parts.month < 1 || parts.month > 12) return "—";
   return `${parts.day} ${DISPLAY_MONTHS[parts.month - 1]} ${parts.year}`;
+}
+
+/**
+ * Auckland wall clock as '10 Oct 2026, 3:47 pm'. Hour is not zero-padded.
+ * The month comes from the same list as formatDisplayDate, so server and
+ * client cannot disagree on 'Sep' versus 'Sept'.
+ */
+export function formatDisplayDateTime(input?: string | Date | null): string {
+  if (input == null || input === "") return "—";
+  const date = input instanceof Date ? input : new Date(input);
+  if (Number.isNaN(date.getTime())) return "—";
+  const parts = new Intl.DateTimeFormat("en-NZ", {
+    timeZone: "Pacific/Auckland",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "numeric",
+    minute: "2-digit",
+    hourCycle: "h12",
+  }).formatToParts(date);
+  const read = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? "";
+  const year = Number(read("year"));
+  const month = Number(read("month"));
+  const day = Number(read("day"));
+  let hour = Number(read("hour"));
+  const minute = read("minute").padStart(2, "0");
+  const period = read("dayPeriod").replace(/\./g, "").toLowerCase();
+  if (!year || !month || !day || month < 1 || month > 12 || !Number.isFinite(hour)) return "—";
+  if (hour === 0) hour = 12;
+  const suffix = period.startsWith("a") ? "am" : period.startsWith("p") ? "pm" : period;
+  return `${day} ${DISPLAY_MONTHS[month - 1]} ${year}, ${hour}:${minute} ${suffix}`.trim();
+}
+
+/** Auckland clock only, e.g. '3:47 pm'. No leading zero on the hour. */
+export function formatDisplayClock(input?: string | Date | null): string {
+  const full = formatDisplayDateTime(input);
+  const comma = full.indexOf(", ");
+  return comma === -1 ? full : full.slice(comma + 2);
 }
 
 /** NZD received for 1 unit of a foreign currency, shown to 4 decimals. */
@@ -243,17 +282,114 @@ export function formatQuantity(value: number): string {
   return new Intl.NumberFormat("en-NZ", { maximumFractionDigits, useGrouping: true }).format(value);
 }
 
-/** NZ dollars to 2 decimal places, e.g. NZ$2.20 or -NZ$21,598.34. */
-export function formatNzd(value: number): string {
-  return formatMoney(value, "NZD", { decimals: 2 });
+/**
+ * Book money to the cent. A value that rounds to zero is 0, never -0,
+ * so a display cannot print '-NZ$0.00' or '-0.00%'.
+ */
+export function roundMoney(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  const rounded = Math.round((value + Number.EPSILON) * 100) / 100;
+  return rounded === 0 ? 0 : rounded;
 }
 
-/** Signed money. A reduction keeps the minus; a gain gets a plus. Zero is NZ$0.00 with no plus. */
+/**
+ * Round at an explicit decimal width. Two places and under use roundMoney.
+ * Wider widths keep sub-cent digits (0.0000040399 at 8 places stays 0.00000404)
+ * and still collapse -0 to 0.
+ */
+function roundAtDecimals(value: number, decimals: number): number {
+  if (!Number.isFinite(value)) return 0;
+  if (decimals <= 2) return roundMoney(value);
+  const rounded = Number(value.toFixed(decimals));
+  return rounded === 0 ? 0 : rounded;
+}
+
+/** Auckland civil day. A yyyy-mm-dd string is that day; a timestamp is Auckland. */
+function aucklandCivilDay(input: string | Date): string {
+  if (typeof input === "string") {
+    const text = input.trim();
+    if (!text) return "";
+    if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+    const date = new Date(text);
+    if (Number.isNaN(date.getTime())) return "";
+    return aucklandCivilDay(date);
+  }
+  if (Number.isNaN(input.getTime())) return "";
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Pacific/Auckland",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(input);
+}
+
+/**
+ * True when two unit prices are the same after the stored precision
+ * (at least 6 decimal places). A 2-decimal print match is not enough:
+ * 10.000 and 10.004 both show as 10.00, and 100,000 shares times that
+ * gap is a real gain.
+ */
+export function sameQuotedUnit(paid: number, mark: number): boolean {
+  if (!(paid > 0) || !(mark > 0) || !Number.isFinite(paid) || !Number.isFinite(mark)) return false;
+  return roundUnitPrice(paid) === roundUnitPrice(mark);
+}
+
+/**
+ * Zero a gain only when the stored unit price still matches the quote and
+ * the position was filled on this Auckland day. An older lot, or any lot
+ * whose prices differ inside 6 decimal places, keeps the full-precision gain.
+ */
+export function freshQuotedFill(
+  paid: number,
+  mark: number,
+  purchaseDate: string | null | undefined,
+  now: Date = new Date()
+): boolean {
+  if (!sameQuotedUnit(paid, mark)) return false;
+  const filled = aucklandCivilDay(String(purchaseDate ?? ""));
+  if (!filled) return false;
+  return filled === aucklandCivilDay(now);
+}
+
+/**
+ * Native position gain. NZ$ amounts, and anything from one cent, round to
+ * the cent. A non-NZ$ gain under one cent keeps its digits so a token move
+ * is not stored as 0. Negative zero is 0.
+ */
+export function roundPositionGain(value: number, currency: CurrencyCode = "NZD"): number {
+  if (!Number.isFinite(value) || value === 0) return 0;
+  if (currency !== "NZD" && Math.abs(value) < 0.01) return value;
+  return roundMoney(value);
+}
+
+/** NZ dollars to 2 decimal places, e.g. NZ$2.20 or -NZ$21,598.34. */
+export function formatNzd(value: number): string {
+  return formatMoney(roundMoney(value), "NZD", { decimals: 2 });
+}
+
+/**
+ * Signed money. NZ$ totals stay at 2 decimal places. A non-NZ$ native gain
+ * under one cent uses the adaptive unit format, so it is not 'US$0.00'.
+ * Zero has no sign.
+ */
 export function formatSignedMoney(value: number, currency: CurrencyCode = "NZD"): string {
-  const decimals = currency === "NZD" || Math.abs(value) >= 1 ? 2 : undefined;
-  const text = formatMoney(value, currency, decimals != null ? { decimals } : {});
-  if (value > 0) return `+${text}`;
+  if (currency !== "NZD" && Number.isFinite(value) && Math.abs(value) > 0 && Math.abs(value) < 0.01) {
+    const text = formatMoney(value, currency);
+    return value > 0 ? `+${text}` : text;
+  }
+  const rounded = roundMoney(value);
+  const text = formatMoney(rounded, currency, { decimals: 2 });
+  if (rounded > 0) return `+${text}`;
   return text;
+}
+
+/** Allocation drift in percentage points, e.g. '-55.0pp'. Zero is never negative. */
+export function formatDriftPp(value: number, decimals = 1): string {
+  if (!Number.isFinite(value)) return `${(0).toFixed(decimals)}pp`;
+  const rounded = Number(value.toFixed(decimals));
+  if (rounded === 0) return `${(0).toFixed(decimals)}pp`;
+  const sign = rounded > 0 ? "+" : "";
+  return `${sign}${rounded.toFixed(decimals)}pp`;
 }
 
 /**
@@ -290,15 +426,16 @@ export function formatMoney(
   opts: { compact?: boolean; decimals?: number } = {}
 ): string {
   const meta = CURRENCY_META[currency] ?? CURRENCY_META.USD;
-  const abs = Math.abs(value);
+  const signed = opts.decimals == null ? value : roundAtDecimals(value, opts.decimals);
+  const abs = Math.abs(signed);
   // Book money from $1 is always 2 decimals (NZ$2.20, not NZ$2.2000).
   // Sub-dollar prints keep extra places so a fraction of a cent is not $0.00.
-  const decimals = opts.decimals ?? (abs >= 1 ? 2 : adaptiveFractionDigits(value));
+  const decimals = opts.decimals ?? (abs >= 1 ? 2 : adaptiveFractionDigits(signed));
   // Sub-dollar prices: cap the fraction at the adaptive width but don't force
   // trailing zeros out to 8 places. $1 and up stay fixed-width.
   const minDigits = opts.compact ? 0 : abs > 0 && abs < 1 ? Math.min(2, decimals) : decimals;
   const maxDigits = opts.compact ? Math.min(2, decimals) : decimals;
-  const sign = value < 0 ? "-" : "";
+  const sign = signed < 0 ? "-" : "";
   try {
     const formatted = new Intl.NumberFormat(meta.locale, {
       minimumFractionDigits: minDigits,
@@ -340,30 +477,15 @@ export function usdPerNzd(rates: FxRatesToNZD = BASELINE_FX_TO_NZD): number {
 
 /** Daily FX caption, e.g. "Daily rate · 4 Oct 2026". The clock is not part of a daily rate. */
 export function formatDailyRate(asOfIso: string): string {
-  const date = new Date(asOfIso);
-  if (Number.isNaN(date.getTime())) return "Daily rate";
-  const wall = date.toLocaleDateString("en-NZ", {
-    timeZone: "Pacific/Auckland",
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  const wall = formatDisplayDate(asOfIso);
+  if (wall === "—") return "Daily rate";
   return `Daily rate · ${wall}`;
 }
 
-/** Auckland wall time for the single FX snapshot, e.g. "4 Oct 2026, 3:06 pm NZST". */
+/** Auckland wall time for the single FX snapshot, e.g. "4 Oct 2026, 3:06 pm". */
 export function formatFxAsOf(asOfIso: string): string {
-  const date = new Date(asOfIso);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleString("en-NZ", {
-    timeZone: "Pacific/Auckland",
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZoneName: "short",
-  });
+  const wall = formatDisplayDateTime(asOfIso);
+  return wall === "—" ? "" : wall;
 }
 
 /**
@@ -384,8 +506,11 @@ export function formatUsdWithRate(
   return `≈ ${amount}${suffix} · 1 NZD = US$${rate.toFixed(4)}${taken ? ` · ${taken}` : ""}`;
 }
 
-/** Short signed percent, e.g. "+2.4%". */
+/** Short signed percent, e.g. "+2.4%". A figure that rounds to zero has no minus. */
 export function formatSignedPercent(value: number, decimals = 2): string {
-  const s = value.toFixed(decimals);
-  return `${value > 0 ? "+" : ""}${s}%`;
+  if (!Number.isFinite(value)) return `${(0).toFixed(decimals)}%`;
+  const rounded = Number(value.toFixed(decimals));
+  if (rounded === 0) return `${(0).toFixed(decimals)}%`;
+  const sign = rounded > 0 ? "+" : "";
+  return `${sign}${rounded.toFixed(decimals)}%`;
 }

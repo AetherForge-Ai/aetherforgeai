@@ -16,7 +16,7 @@ import {
   type PricingTier,
   type PlanKey,
 } from "@/lib/plans";
-import { formatDailyRate, formatUsdWithRate, usdPerNzd } from "@/lib/currency";
+import { formatDailyRate, formatUsdWithRate, usdPerNzd, type FxRatesToNZD } from "@/lib/currency";
 import { ANNUAL_TOOLKIT_LINE, TRIAL_CARD_LINE } from "@/lib/public-copy";
 import { useFxRates } from "@/hooks/useFxRates";
 import {
@@ -42,14 +42,18 @@ function monthlyEquivalent(yearly: number): string {
   return (yearly / 12).toLocaleString("en-US", { maximumFractionDigits: 0 });
 }
 
-export function PricingCards() {
+export function PricingCards({
+  initialFx = null,
+}: {
+  initialFx?: { rates: FxRatesToNZD; asOf: string } | null;
+}) {
   const router = useRouter();
   const { data: session } = useSession();
   const [period, setPeriod] = useState<BillingPeriod>("monthly");
   const [bot, setBot] = useState<BotChoice>("stock");
   const [loadingTier, setLoadingTier] = useState<string | null>(null);
-  // Live NZD→USD rate so each NZ$ price shows its US$ equivalent underneath.
-  const { rates: fx, asOf, ready } = useFxRates();
+  // A server snapshot paints the US$ line in the first HTML. The client hook refreshes it.
+  const { rates: fx, asOf, ready } = useFxRates(initialFx);
 
   const annual = period === "annual";
 

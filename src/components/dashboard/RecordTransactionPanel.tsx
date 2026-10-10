@@ -11,6 +11,7 @@ import { cleanChain, dexFromHolding, isDexSource } from "@/lib/dex-source";
 import { PAPER_FEE_SUMMARY, suggestedFee } from "@/lib/fee-rule";
 import { buildMovementPreview, type MovementPreview, type RecordKind } from "@/lib/movement-preview";
 import { transactionProblems } from "@/lib/transaction-rules";
+import { distributionLabel } from "@/lib/income-label";
 import {
   currencyForTicker,
   formatDisplayDate,
@@ -411,6 +412,8 @@ export function RecordTransactionPanel({
       today,
       quantity: Number(quantity) || 0,
       price: Number(price) || 0,
+      quantityRaw: showQty ? quantity : undefined,
+      priceRaw: price,
       held: held?.quantity || 0,
       firstBuyDate: first || null,
       hasAsset: !!asset,
@@ -535,16 +538,37 @@ export function RecordTransactionPanel({
   }
 
   const livePreview = step === "edit" ? buildPreview() : preview;
+  const movementBlocked =
+    problems.length > 0 ||
+    transactionProblems({
+      type: kind,
+      date,
+      today,
+      quantity: Number(quantity) || 0,
+      price: Number(price) || 0,
+      quantityRaw: showQty ? quantity : undefined,
+      priceRaw: price,
+      held: held?.quantity || 0,
+      hasAsset: !!asset,
+      cashKnown: bookKnown || cashKnown,
+      cashAfterNzd: livePreview?.cashAfterNzd ?? 0,
+      cashChangeNzd: livePreview?.cashChangeNzd ?? 0,
+      needsCash: (livePreview?.cashChangeNzd ?? 0) < -1e-6 || kind === "buy" || kind === "withdraw" || kind === "tax",
+    }).length > 0;
+  const kindLabel = (id: RecordKind) => {
+    if (id === "dividend" && asset) return distributionLabel(asset.assetType);
+    return KINDS.find((item) => item.id === id)?.label || id;
+  };
 
   return (
     <div data-testid="record-transaction-panel">
       {step === "review" && preview ? (
         <div className="space-y-3" data-testid="record-review">
-          <div>
-            <p className="font-display text-base font-bold">Review</p>
-            <p className="text-xs text-muted-foreground">Nothing is written until you confirm.</p>
+          <div className="space-y-1.5 pt-1">
+            <p className="font-display text-base font-bold leading-snug">Review</p>
+            <p className="text-xs leading-snug text-muted-foreground">Nothing is written until you confirm.</p>
           </div>
-          <ReviewRow label="Type" value={KINDS.find((k) => k.id === preview.type)?.label || preview.type} />
+          <ReviewRow label="Type" value={kindLabel(preview.type)} />
           {preview.asset ? <ReviewRow label="Asset" value={preview.assetName && preview.assetName !== preview.asset ? `${preview.asset} · ${preview.assetName}` : preview.asset} /> : null}
           <ReviewRow label="Date" value={formatDisplayDate(preview.date)} />
           {showQty ? <ReviewRow label="Quantity" value={formatQuantity(preview.quantity)} /> : null}
@@ -588,7 +612,7 @@ export function RecordTransactionPanel({
                   )}
                   aria-pressed={kind === item.id}
                 >
-                  {item.label}
+                  {kindLabel(item.id)}
                 </button>
               ))}
             </div>
@@ -703,7 +727,10 @@ export function RecordTransactionPanel({
                   inputMode="decimal"
                   value={quantity}
                   placeholder={asset?.assetType === "metal" ? "Ounces, for example 0.5" : "How many units"}
-                  onChange={(e) => setQuantity(e.target.value)}
+                  onChange={(e) => {
+                    setQuantity(e.target.value);
+                    setProblems([]);
+                  }}
                 />
               </div>
             ) : (
@@ -717,6 +744,7 @@ export function RecordTransactionPanel({
                   onChange={(e) => {
                     setPrice(e.target.value);
                     setPriceDirty(true);
+                    setProblems([]);
                   }}
                 />
               </div>
@@ -732,6 +760,7 @@ export function RecordTransactionPanel({
                   onChange={(e) => {
                     setPrice(e.target.value);
                     setPriceDirty(true);
+                    setProblems([]);
                   }}
                 />
               </div>
@@ -805,7 +834,7 @@ export function RecordTransactionPanel({
           {!(bookKnown || cashKnown) ||
           ((kind === "buy" || kind === "sell") && currency !== "NZD" && !(Number(fxRate) > 0)) ? (
             <p className="text-sm text-muted-foreground">Loading cash…</p>
-          ) : livePreview ? (
+          ) : livePreview && !movementBlocked ? (
             <p className="text-sm">
               Cash change{" "}
               <span className={cn("tnum font-semibold", livePreview.cashChangeNzd < 0 ? "text-rose-600" : "text-emerald-700")}>

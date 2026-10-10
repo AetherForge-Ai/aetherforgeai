@@ -10,6 +10,7 @@
  * TODO(owner): metals vendor is unconfirmed. Do not label metals "Live".
  */
 
+import { formatDisplayDate } from "@/lib/currency";
 import { isExchangeRegularSession, type Exchange } from "@/lib/market-intel";
 
 export const PL_AT_LATEST_PRICE = "P/L at latest available price";
@@ -94,14 +95,7 @@ export function equitySessionDate(venue: EquityVenue, now = new Date()): string 
 }
 
 export function formatSessionDate(iso: string): string {
-  const [year, month, day] = iso.split("-").map(Number);
-  const noon = new Date(Date.UTC(year, month - 1, day, 12));
-  return new Intl.DateTimeFormat("en-NZ", {
-    timeZone: "UTC",
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(noon);
+  return formatDisplayDate(iso);
 }
 
 function formatQuoteClock(quotedAt: Date, timeZone: string): string {

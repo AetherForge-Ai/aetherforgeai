@@ -5,7 +5,7 @@ import { api } from "@/lib/api";
 import { tickerLiveLabel } from "@/lib/ticker-feed";
 import { PUBLIC_PRICE_QUIET } from "@/lib/data-sources";
 import { cn } from "@/lib/utils";
-import { formatMoney } from "@/lib/currency";
+import { formatDisplayDate, formatMoney, formatSignedPercent } from "@/lib/currency";
 import { formatTapeItem, fxRateLine, type TapeDisplay } from "@/lib/tape-display";
 import { useFxRates } from "@/hooks/useFxRates";
 import { cryptoFreshnessLabel, exchangeFreshnessLabel, latestQuoteTime, metalUpdatedPhrase } from "@/lib/market-freshness";
@@ -37,37 +37,46 @@ function formatPrice(q: Quote, display: TapeDisplay, rates: { USD: number; AUD: 
   return formatTapeItem(q, display, rates);
 }
 
+const STALE_QUOTE_MS = 18 * 60 * 60 * 1000;
+
 function formatAsOf(iso: string | null | undefined): string {
   if (!iso) return "";
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleString("en-NZ", {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZoneName: "short",
-  });
+  const wall = formatDisplayDate(iso);
+  return wall === "—" ? "" : wall;
+}
+
+function quoteIsStale(quotedAt: string | null | undefined): boolean {
+  if (!quotedAt) return false;
+  const at = new Date(quotedAt).getTime();
+  if (!Number.isFinite(at)) return false;
+  return Date.now() - at > STALE_QUOTE_MS;
 }
 
 function TickerCell({ q, price }: { q: Quote; price: string }) {
-  const up = q.change >= 0;
+  const flat = Number(q.change.toFixed(2)) === 0;
+  const up = !flat && q.change > 0;
+  const stale = quoteIsStale(q.quotedAt);
+  const asOf = stale ? formatAsOf(q.quotedAt) : "";
   return (
     <span className="inline-flex items-center gap-2 px-4 py-0.5 whitespace-nowrap">
       <span className="font-display text-[0.78rem] font-semibold tracking-tight text-emerald-300">
         {q.symbol}
       </span>
       <span className="tnum text-[0.78rem] text-zinc-100">{price}</span>
-      <span
-        className={cn(
-          "tnum inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[0.7rem] font-semibold",
-          up ? "bg-emerald-500/20 text-emerald-300" : "bg-rose-500/20 text-rose-300"
-        )}
-      >
-        <span aria-hidden="true">{up ? "▲" : "▼"}</span>
-        {up ? "+" : ""}
-        {q.change.toFixed(2)}%
-      </span>
+      {stale && flat ? (
+        <span className="text-[0.7rem] text-zinc-400">{asOf ? `as of ${asOf}` : "as of an earlier close"}</span>
+      ) : (
+        <span
+          className={cn(
+            "tnum inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[0.7rem] font-semibold",
+            flat ? "bg-zinc-800 text-zinc-300" : up ? "bg-emerald-500/20 text-emerald-300" : "bg-rose-500/20 text-rose-300"
+          )}
+        >
+          <span aria-hidden="true">{flat ? "·" : up ? "▲" : "▼"}</span>
+          {formatSignedPercent(q.change)}
+          {asOf ? <span className="font-medium normal-case"> as of {asOf}</span> : null}
+        </span>
+      )}
     </span>
   );
 }
@@ -248,7 +257,7 @@ export function MarketTicker({ className, compact = false, initial = null }: Mar
   useEffect(() => {
     let active = true;
     const loadFeed = async () => {
-      const res = await api.get<TickerFeed>("/api/ticker");
+      const res = await api.get<TickerFeed>("/api/ticker", { signal: AbortSignal.timeout(8000) });
       if (!active) return;
       if (res.ok && res.data?.rows) {
         setNzx(res.data.rows.nzx ?? []);

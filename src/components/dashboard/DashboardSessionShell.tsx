@@ -8,6 +8,7 @@ import {
   type DashboardView,
 } from "@/components/dashboard/PortfolioDashboard";
 import { confirmDashboardSession } from "@/lib/auth-refresh";
+import { warmPublicFeeds } from "@/lib/public-feed-cache";
 import type { DashboardSessionUser } from "@/lib/dashboard-session";
 
 /**
@@ -39,6 +40,7 @@ export function DashboardSessionShell({
     let cancelled = false;
     setPhase("pending");
     setSession(null);
+    warmPublicFeeds();
     confirmDashboardSession().then((next) => {
       if (cancelled) return;
       if (!next) {

@@ -12,9 +12,9 @@ import { Wallet } from "lucide-react";
  * Lightweight onboarding for new NZ$10k (or any) paper books — Headmaster →
  * first buys → alerts → Stox/Koins. Advisory only; never executes trades.
  *
- * Required progress is buys / alerts / report (3). Headmaster stays optional
- * so a filled book cannot sit at 1/4. The card stays up until those three
- * are done, unless `alwaysShow` (the /onboarding page).
+ * The fraction matches the steps on the card. A cash deposit ticks the first
+ * buy. The card stays up until the required steps are done, unless
+ * `alwaysShow` (the /onboarding page).
  */
 const COPY: Record<
   OnboardingStepId,
@@ -107,6 +107,7 @@ export function OnboardingChecklist({
   const probing = alertsDone === null || reportDone === null;
   const progress = onboardingProgress({
     hasHoldings,
+    hasCash,
     hasAlerts: !!alertsDone,
     hasReport: !!reportDone,
     plan,

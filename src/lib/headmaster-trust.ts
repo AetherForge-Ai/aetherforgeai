@@ -6,6 +6,7 @@
  * scenario-based. Non-held names stay off the default plan.
  */
 
+import { formatNzd } from "@/lib/currency";
 import { stripReportModelLanguage } from "@/lib/report-language";
 
 export type PlanAssetClass = "equities" | "crypto" | "metals" | "cash";
@@ -75,8 +76,7 @@ const CLASSES: PlanAssetClass[] = ["equities", "crypto", "metals", "cash"];
 export const ASSISTANT_TURN_TIMEOUT_MS = 20_000;
 
 export function nzdWhole(value: number): string {
-  const n = Math.round(Number.isFinite(value) ? value : 0);
-  return `NZ$${n.toLocaleString("en-NZ")}`;
+  return formatNzd(value);
 }
 
 /**
@@ -95,15 +95,8 @@ export function sharedReserveSentence(cashNZD: number, bookNZD?: number): string
   const book = Math.max(cash, Math.max(0, bookNZD != null && Number.isFinite(bookNZD) ? bookNZD : cash));
   const retained = bookCashReserve(book).retainedNZD;
   const deployable = Math.max(0, Math.round((cash - retained) * 100) / 100);
-  const money = (value: number) => {
-    const rounded = Math.round(value * 100) / 100;
-    const showCents = Math.abs(rounded - Math.round(rounded)) >= 0.005;
-    return rounded.toLocaleString("en-NZ", {
-      minimumFractionDigits: showCents ? 2 : 0,
-      maximumFractionDigits: 2,
-    });
-  };
-  return `Cash on book NZ$${money(cash)}. Cash reserve NZ$${money(retained)}, capped at NZ$${money(retained)} (10% of the live book of NZ$${money(book)}). Illustrate at most NZ$${money(deployable)} from that cash — the same cash rule as the Headmaster skeleton.`;
+  const money = (value: number) => formatNzd(value);
+  return `Cash on book ${money(cash)}. Cash reserve ${money(retained)}, capped at ${money(retained)} (10% of the live book of ${money(book)}). Illustrate at most ${money(deployable)} from that cash — the same cash rule as the Headmaster skeleton.`;
 }
 
 export function bookCashReserve(bookNZD: number): {

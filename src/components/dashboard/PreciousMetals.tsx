@@ -11,7 +11,7 @@ import {
   responseUserId,
   trackAccountRequest,
 } from "@/lib/account-identity";
-import { formatMoney } from "@/lib/currency";
+import { formatMoney, formatNzd, formatSignedMoney, formatSignedPercent, freshQuotedFill, roundMoney } from "@/lib/currency";
 import { metalUpdatedPhrase } from "@/lib/market-freshness";
 import { openRecordTransaction } from "@/lib/open-transaction";
 import { buildTradePreview, type TradePreview } from "@/lib/trade-preview";
@@ -230,9 +230,9 @@ export function PreciousMetals({
       value += lot.marketValueNZD;
       cost += lot.ounces * lot.purchasePerOz;
     }
-    const gain = value - cost;
+    const gain = roundMoney(value - cost);
     const gainPct = cost > 0 ? (gain / cost) * 100 : 0;
-    return { value, cost, gain, gainPct };
+    return { value: roundMoney(value), cost: roundMoney(cost), gain, gainPct };
   }, [metals, ledgerRows, spotFor]);
 
   async function readCashNzd(): Promise<number | null> {
@@ -638,10 +638,14 @@ export function PreciousMetals({
                   const meta = METAL_META[lot.metal];
                   const Icon = meta.icon;
                   const spotPerOz = spotFor(lot.metal);
-                  const cost = lot.ounces * lot.purchasePerOz;
-                  const gain = lot.marketValueNZD - cost;
+                  const paid = lot.purchasePerOz;
+                  const mark = spotPerOz || paid;
+                  const fresh = freshQuotedFill(paid, mark, lot.purchaseDate);
+                  const cost = roundMoney(lot.ounces * paid);
+                  const value = fresh ? cost : roundMoney(lot.marketValueNZD);
+                  const gain = fresh ? 0 : roundMoney(value - cost);
                   const gainPct = cost > 0 ? (gain / cost) * 100 : 0;
-                  const up = gain >= 0;
+                  const up = gain > 0;
                   return (
                     <tr key={lot.id} className="border-b border-border/40 last:border-0 hover:bg-background/40">
                       <td className="py-3.5 pr-3">
@@ -660,13 +664,13 @@ export function PreciousMetals({
                         {formatMoney(lot.purchasePerOz, "NZD")}
                       </td>
                       <td className="tnum px-3 py-3.5 text-right">{formatMoney(spotPerOz || lot.purchasePerOz, "NZD")}</td>
-                      <td className="tnum px-3 py-3.5 text-right font-medium">{formatMoney(lot.marketValueNZD, "NZD")}</td>
+                      <td className="tnum px-3 py-3.5 text-right font-medium">{formatNzd(value)}</td>
                       <td className="px-3 py-3.5 text-right">
-                        <span className={cn("tnum font-medium", up ? "text-emerald-600" : "text-rose-600")}>
-                          {up ? "+" : ""}{formatMoney(gain, "NZD")}
+                        <span className={cn("tnum font-medium", up ? "text-emerald-600" : gain < 0 ? "text-rose-600" : "text-muted-foreground")}>
+                          {formatSignedMoney(gain)}
                         </span>
-                        <span className={cn("tnum block text-xs", up ? "text-emerald-600/80" : "text-rose-600/80")}>
-                          {up ? "+" : ""}{gainPct.toFixed(2)}%
+                        <span className={cn("tnum block text-xs", up ? "text-emerald-600/80" : gain < 0 ? "text-rose-600/80" : "text-muted-foreground")}>
+                          {formatSignedPercent(gainPct)}
                         </span>
                       </td>
                       <td className="py-3.5 pl-3 text-right">
@@ -696,11 +700,13 @@ export function PreciousMetals({
                   const meta = METAL_META[h.metal];
                   const Icon = meta.icon;
                   const spotPerOz = spotFor(h.metal);
-                  const value = h.ounces * spotPerOz;
-                  const cost = h.ounces * h.purchase_price_per_oz;
-                  const gain = value - cost;
+                  const paid = h.purchase_price_per_oz;
+                  const mark = spotPerOz || paid;
+                  const cost = roundMoney(h.ounces * paid);
+                  const value = roundMoney(h.ounces * mark);
+                  const gain = roundMoney(value - cost);
                   const gainPct = cost > 0 ? (gain / cost) * 100 : 0;
-                  const up = gain >= 0;
+                  const up = gain > 0;
                   const reviewing = deskReview?.side === "sell" && deskReview.id === h._id;
                   return (
                     <Fragment key={h._id}>
@@ -720,13 +726,13 @@ export function PreciousMetals({
                         {formatMoney(h.purchase_price_per_oz, "NZD")}
                       </td>
                       <td className="tnum px-3 py-3.5 text-right">{formatMoney(spotPerOz, "NZD")}</td>
-                      <td className="tnum px-3 py-3.5 text-right font-medium">{formatMoney(value, "NZD")}</td>
+                      <td className="tnum px-3 py-3.5 text-right font-medium">{formatNzd(value)}</td>
                       <td className="px-3 py-3.5 text-right">
-                        <span className={cn("tnum font-medium", up ? "text-emerald-600" : "text-rose-600")}>
-                          {up ? "+" : ""}{formatMoney(gain, "NZD")}
+                        <span className={cn("tnum font-medium", up ? "text-emerald-600" : gain < 0 ? "text-rose-600" : "text-muted-foreground")}>
+                          {formatSignedMoney(gain)}
                         </span>
-                        <span className={cn("tnum block text-xs", up ? "text-emerald-600/80" : "text-rose-600/80")}>
-                          {up ? "+" : ""}{gainPct.toFixed(2)}%
+                        <span className={cn("tnum block text-xs", up ? "text-emerald-600/80" : gain < 0 ? "text-rose-600/80" : "text-muted-foreground")}>
+                          {formatSignedPercent(gainPct)}
                         </span>
                       </td>
                       <td className="py-3.5 pl-3 text-right">
