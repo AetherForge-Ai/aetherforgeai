@@ -206,10 +206,10 @@ describe("L6 L9 L10 L11 L12 L13", () => {
     const notes =
       "[DEX:Ethereum] Correction: 9000 at 2.22 → 9000 at 2.21. Correction: 9000 at 2.22 → 9000 at 2.21.";
     const row = { type: "correction", notes, ticker: "PEPE", asset_type: "crypto" };
-    expect(csvNotes(row)).toBe("Correction: 9000 at 2.22 → 9000 at 2.21.");
+    expect(csvNotes(row)).toBe("Correction: 9000 at NZ$2.22 → 9000 at NZ$2.21. Cash unchanged.");
     expect(csvNotes(row)).not.toContain("[DEX:");
     const cells = transactionCsvCells(row);
-    expect(cells[27]).toBe("Correction: 9000 at 2.22 → 9000 at 2.21.");
+    expect(cells[27]).toBe("Correction: 9000 at NZ$2.22 → 9000 at NZ$2.21. Cash unchanged.");
     expect(cells[28]).toBe("DEX");
     expect(cells[29]).toBe("Ethereum");
   });

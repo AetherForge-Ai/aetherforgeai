@@ -3,9 +3,16 @@
  * the stored precision (at least 6 decimal places before trailing zeros).
  */
 
-import { formatDisplayDate, formatDisplayDateTime, formatSavedFx, roundMoney, roundUnitPrice } from "@/lib/currency";
+import {
+  formatDisplayDate,
+  formatDisplayDateTime,
+  formatSavedFx,
+  roundMoney,
+  roundUnitPrice,
+  type CurrencyCode,
+} from "@/lib/currency";
 import { dexFromLedger, stripDexNotesPrefix } from "@/lib/dex-source";
-import { collapseCorrectionNote } from "@/lib/holding-correction";
+import { collapseCorrectionNote, ensureCorrectionCurrency } from "@/lib/holding-correction";
 
 export type CsvRow = Record<string, unknown> & {
   type?: string;
@@ -64,7 +71,9 @@ export function csvFxSource(row: CsvRow): string {
 
 export function csvNotes(row: CsvRow): string {
   const raw = row.notes == null ? "" : String(row.notes);
-  const notes = collapseCorrectionNote(stripDexNotesPrefix(raw)).trim();
+  const currency = String(row.fill_currency || row.currency || "NZD").toUpperCase() as CurrencyCode;
+  let notes = collapseCorrectionNote(stripDexNotesPrefix(raw)).trim();
+  if (notes.startsWith("Correction:")) notes = ensureCorrectionCurrency(notes, currency);
   if (notes) return notes;
   if (row.type === "sell") return "Sell recorded on the paper book.";
   return "";

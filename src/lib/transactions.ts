@@ -522,6 +522,7 @@ async function applyTransactionUnlocked(
       afterShares: input.type === "opening_balance" ? (existing?.shares || 0) + quantity : quantity,
       beforePrice: existing?.purchase_price || 0,
       afterPrice: price,
+      currency,
       note: notes,
     });
     let holdingId: string | null = existing?._id || null;

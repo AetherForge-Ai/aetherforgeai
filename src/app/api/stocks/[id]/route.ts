@@ -9,6 +9,7 @@ import { totalumSdk } from "@/lib/totalum";
 import { normalizeTicker, lookupTicker } from "@/lib/market";
 import { applyTransaction } from "@/lib/transactions";
 import { planHoldingCorrection } from "@/lib/holding-correction";
+import { currencyForTicker } from "@/lib/currency";
 
 const updateSchema = z.object({
   ticker: z.string().min(1).max(12).optional(),
@@ -111,6 +112,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
         afterShares: qty,
         beforePrice: Number(owned.purchase_price) || 0,
         afterPrice: fill,
+        currency: currencyForTicker(ticker, assetType),
         note: parsed.data.notes,
       });
       patch.notes = appendAuditNote(String(parsed.data.notes || owned.notes || ""), `${plan.notes} ${ADVISORY_NOTE}`);
