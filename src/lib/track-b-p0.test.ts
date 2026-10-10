@@ -88,7 +88,7 @@ describe("Track B P0", () => {
 
   it("keeps the status page free of a fake uptime line", () => {
     const status = read("src/app/status/page.tsx");
-    expect(status).toContain("Status updates are posted here.");
+    expect(status).toContain("does not report uptime");
     expect(status).toContain('href: "/trust"');
     expect(status).toContain('href: "/changelog"');
     expect(status).not.toContain("All systems normal");

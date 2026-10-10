@@ -3,6 +3,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CsvExportButton } from "@/components/tax/CsvExportButton";
@@ -59,6 +69,7 @@ export function DividendLedgerView({
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [removingId, setRemovingId] = useState("");
+  const [pendingDelete, setPendingDelete] = useState<DividendView | null>(null);
   const [lookingUp, setLookingUp] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -151,15 +162,15 @@ export function DividendLedgerView({
     }
   }
 
-  async function removeDividend(id: string) {
-    if (!id) return;
+  async function removeDividend(id: string): Promise<boolean> {
+    if (!id) return false;
     setRemovingId(id);
     setMessage("");
     try {
       const res = await api.delete<{ cash?: { after?: number } }>(`/api/transactions?id=${encodeURIComponent(id)}`);
       if (!res.ok) {
         setMessage(typeof res.error === "string" ? res.error : "That dividend was not removed.");
-        return;
+        return false;
       }
       const after = res.data?.cash?.after;
       if (typeof after === "number") {
@@ -169,6 +180,7 @@ export function DividendLedgerView({
       setListed((current) => current.filter((row) => row.id !== id));
       setMessage("Dividend removed.");
       router.refresh();
+      return true;
     } finally {
       setRemovingId("");
     }
@@ -287,7 +299,10 @@ export function DividendLedgerView({
               {date ? ` on ${date}` : ""}. A buy on that day keeps the rate stored on the trade, which can differ.
             </p>
           ) : null}
-          {preview && preview.ok === false ? <p className="text-sm text-rose-700">{preview.message}</p> : null}
+          {/* pull-check:batch1-2026-10-11 R5 — the missing-rate error waits until lookup finishes. */}
+          {preview && preview.ok === false && !lookingUp ? (
+            <p className="text-sm text-rose-700">{preview.message}</p>
+          ) : null}
           {message ? <p className="text-sm text-muted-foreground">{message}</p> : null}
           {holdings.length > 0 ? (
             <Button type="submit" disabled={saving}>
@@ -309,7 +324,11 @@ export function DividendLedgerView({
           <h2 className="font-display text-lg font-semibold">Dividends on this book</h2>
           {signedIn ? (
             <div className="flex gap-2 print:hidden">
-              <CsvExportButton href={`/api/tax/dividends/export?year=${taxYear}`} allowed={csvAllowed} />
+              <CsvExportButton
+                href={`/api/tax/dividends/export?year=${taxYear}`}
+                allowed={csvAllowed}
+                exportName="Dividends CSV"
+              />
               <Button type="button" variant="outline" onClick={() => window.print()}>
                 Print
               </Button>
@@ -365,7 +384,7 @@ export function DividendLedgerView({
                             type="button"
                             className="text-xs font-semibold text-primary underline-offset-4 hover:underline disabled:text-muted-foreground"
                             disabled={removingId === row.id}
-                            onClick={() => void removeDividend(row.id)}
+                            onClick={() => setPendingDelete(row)}
                           >
                             {removingId === row.id ? "Removing…" : "Delete"}
                           </button>
@@ -404,6 +423,38 @@ export function DividendLedgerView({
         )}
         <p className="mt-4 text-sm text-muted-foreground">{TAX_INDICATIVE_LABEL}</p>
       </section>
+      {/* pull-check:batch1-2026-10-11 B1-5 — name and amount before a dividend is deleted. */}
+      <AlertDialog open={pendingDelete != null} onOpenChange={(open) => !open && !removingId && setPendingDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this dividend?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingDelete
+                ? `${pendingDelete.ticker || pendingDelete.assetName || "Dividend"} · ${formatNzd(
+                    pendingDelete.parts ? pendingDelete.parts.netCashNzd : pendingDelete.cashNzd
+                  )}. Cancel keeps the row.`
+                : "Cancel keeps the row."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={!!removingId}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!!removingId || !pendingDelete?.id}
+              onClick={(event) => {
+                event.preventDefault();
+                const id = pendingDelete?.id;
+                if (id) {
+                  void removeDividend(id).then((ok) => {
+                    if (ok) setPendingDelete(null);
+                  });
+                }
+              }}
+            >
+              {removingId ? "Removing…" : "Delete dividend"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

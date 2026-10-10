@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { BOT_HEADMASTER_AVATAR } from "@/assets/files";
 import { bullionNzdPerOz, isBullionHolding } from "@/lib/metal-valuation";
 import { aucklandDateISO } from "@/lib/fill-integrity";
+import { coachRequestsTotalum } from "@/lib/entitlements";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -197,10 +198,15 @@ function formatBookSnapshot(s: BookSnapshot): string {
 export function PortfolioCoachChat({
   onMinimize,
   userId,
+  plan,
+  panelOpen = true,
 }: {
   onMinimize: () => void;
   /** Stable per-member key so chat history follows across the site. */
   userId: string;
+  /** Signed-in plan. Free never calls GET /api/totalum. */
+  plan?: string | null;
+  panelOpen?: boolean;
 }) {
   const initial = useMemo(() => {
     if (typeof window === "undefined") {
@@ -396,6 +402,11 @@ export function PortfolioCoachChat({
 
     (async () => {
       try {
+        // pull-check:batch1-2026-10-11 B1-4 — closed or Free guide does not hit /api/totalum.
+        if (!coachRequestsTotalum(plan, panelOpen)) {
+          await loadLedgerFallback();
+          return;
+        }
         const res = await fetch("/api/totalum", { credentials: "include" });
         const json = (await res.json()) as {
           ok?: boolean;
@@ -414,7 +425,7 @@ export function PortfolioCoachChat({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [panelOpen, plan]);
 
   async function loadReports() {
     setReportsLoading(true);

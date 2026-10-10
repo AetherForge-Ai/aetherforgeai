@@ -7,10 +7,10 @@
  * pull-check:tax-fixups-2026-10-11
  */
 
-import { roundMoney } from "@/lib/currency";
+import { formatSignedMoney, roundMoney } from "@/lib/currency";
 import { lotCivilDay } from "@/lib/executed-at";
 import { fifoApplySell, type FifoLot } from "@/lib/ledger-schema";
-import { inNzTaxYear, nzTaxYearLabel } from "@/lib/nz-tax-year";
+import { inNzTaxYear, nzTaxYearEnding, nzTaxYearLabel } from "@/lib/nz-tax-year";
 import { TAX_INDICATIVE_LABEL } from "@/lib/tax-disclaimer";
 import type { TaxLedgerRow } from "@/lib/taxable-income";
 
@@ -25,7 +25,7 @@ export const REALISED_ASSUMPTIONS = [
   "Corrections are not replayed.",
   "A blank disposal is not counted as zero. Totals add only the disposals that have a figure.",
   "This paper reads up to 5,000 ledger rows.",
-  "The income summary keeps the realised amount stored on the sell. When that stored amount differs from this FIFO line, the row says so.",
+  "A new sell stores this FIFO figure: price gain plus FX gain, minus the sell fee. The income summary shows that stored figure. When an older sell differs, the income page names both numbers.",
 ] as const;
 
 export interface RealisedLot {
@@ -212,6 +212,33 @@ export function realisedByTaxYear(rows: readonly TaxLedgerRow[], endingYear: num
     storedDiffCount,
     assumptions: REALISED_ASSUMPTIONS,
   };
+}
+
+/**
+ * The figure a new sell should store. Same lots, price, FX and fee as the realised page.
+ * pull-check:batch1-2026-10-11 R10
+ */
+export function fifoStoredForSell(
+  prior: readonly TaxLedgerRow[],
+  sell: TaxLedgerRow
+): { pricePnlNzd: number; fxPnlNzd: number; realisedNzd: number } | null {
+  const day = lotCivilDay(sell.executed_at || sell.createdAt, "");
+  const ending = nzTaxYearEnding(day);
+  if (!day || ending == null) return null;
+  const ticker = String(sell.ticker || "").trim().toUpperCase();
+  const report = realisedByTaxYear([...prior, { ...sell, type: "sell" }], ending);
+  const lines = [...report.other, ...report.crypto].filter((line) => line.ticker === ticker && line.when === day);
+  const line = lines[lines.length - 1];
+  if (!line || line.realisedNzd == null || line.pricePnlNzd == null || line.fxPnlNzd == null) return null;
+  return { pricePnlNzd: line.pricePnlNzd, fxPnlNzd: line.fxPnlNzd, realisedNzd: line.realisedNzd };
+}
+
+/** One income total. A difference from the FIFO paper is explained, not shown as a second headline. */
+export function incomeReconciliationNote(storedNzd: number, fifoNzd: number): string | null {
+  const stored = roundMoney(storedNzd);
+  const fifo = roundMoney(fifoNzd);
+  if (Math.abs(stored - fifo) < 0.005) return null;
+  return `This page shows one realised total, the amount stored on each sell: ${formatSignedMoney(stored)}. The realised page's FIFO total for the same sells is ${formatSignedMoney(fifo)}. New sells store the FIFO figure. An older sell can still differ.`;
 }
 
 export const REALISED_CSV_COLUMNS = [

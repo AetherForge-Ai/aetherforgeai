@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { NewsItem } from "@/lib/market-intel";
-import { decodeHtmlEntities, isMarginalInvestorStory, isOffTopicStory, prepareNewsFeed, sourceForUrl } from "@/lib/news-present";
+import { decodeHtmlEntities, isMarginalInvestorStory, isOffTopicStory, mentionsHoldingTicker, prepareNewsFeed, sourceForUrl } from "@/lib/news-present";
 
 const cpi: NewsItem = {
   headline: "US CPI prints cooler than expected; rate-cut odds for the next FOMC firm up",
@@ -587,4 +587,70 @@ describe("public market news", () => {
       "https://www.reuters.com/markets/gold-vs-bitcoin-hedge"
     );
   });
+
+  it("keeps 30 NZ, AU, US or holding cards and drops a lifestyle card", () => {
+    const dated = {
+      impact: "Neutral" as const,
+      relevance: 50,
+      time: "1d ago",
+      publishedOn: "2026-10-06",
+      source: "Reuters",
+    };
+    const markets = ["NZX", "ASX", "US"] as const;
+    const cards: NewsItem[] = Array.from({ length: 30 }, (_, index) => {
+      const market = markets[index % 3];
+      const headline =
+        market === "NZX"
+          ? `NZX share ${index} rises after the OCR review`
+          : market === "ASX"
+            ? `ASX share ${index} rises in Sydney trade`
+            : `Nasdaq share ${index} rises ahead of the Fed`;
+      return {
+        ...dated,
+        market,
+        headline,
+        summary: "Listed shares moved. No raw &amp; entity.",
+        url: `https://www.reuters.com/markets/card-${index}`,
+      };
+    });
+    cards.push({
+      ...dated,
+      market: "NZX",
+      headline: "Froyo's made a comeback in London cafes",
+      summary: "A lifestyle note.",
+      url: "https://www.bbc.com/news/froyo-london",
+    });
+    cards.push({
+      ...dated,
+      market: "US",
+      headline: "WOR.AX updates its project timetable",
+      summary: "The company published a timetable.",
+      url: "https://www.reuters.com/markets/wor-timetable",
+    });
+    const info = viSpy();
+    const feed = prepareNewsFeed(cards, new Date("2026-10-08T00:00:00Z"), ["WOR.AX"]);
+    info.mockRestore();
+    // The public feed always adds the Reserve Bank and US CPI cards.
+    expect(feed).toHaveLength(33);
+    expect(feed.map((item) => item.headline).join("\n")).not.toMatch(/&#|&amp;|froyo/i);
+    expect(feed.some((item) => item.headline.startsWith("WOR.AX"))).toBe(true);
+    expect(mentionsHoldingTicker("WOR.AX updates its project timetable", "", ["WOR.AX"])).toBe(true);
+    info.toHaveBeenCalled();
+  });
 });
+
+function viSpy() {
+  const calls: unknown[][] = [];
+  const original = console.info;
+  console.info = (...args: unknown[]) => {
+    calls.push(args);
+  };
+  return {
+    mockRestore() {
+      console.info = original;
+    },
+    toHaveBeenCalled() {
+      expect(calls.length).toBeGreaterThan(0);
+    },
+  };
+}

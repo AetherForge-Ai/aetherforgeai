@@ -45,6 +45,7 @@ export const FIF_ASSUMPTIONS = [
   "Crypto and metals are left out. This paper does not treat them as shares in a foreign company.",
   "Other share tickers are treated as attributing interests for this paper.",
   "Cost is quantity times price times the exchange rate stored on the buy, in NZ$. A foreign buy with no stored rate is not given a guessed rate, and the $50,000 test is then not calculated.",
+  "NZ$ figures round half-up to the cent. 0.4 × 599.89 is NZ$239.96. A booked cash figure one cent away does not replace that result.",
   "The $50,000 test uses the highest total cost of attributing lots open at any point in the income year, including lots still open on 1 April. It is cost, not market value.",
   "Exactly NZ$50,000.00 is reported as at the limit. The public exemptions page says the de minimis exemption is for attributing interests that cost less than NZ$50,000. The Tax Technical article on section CQ 5 says FIF income arises when the total cost at any time in the income year is more than $50,000. This paper does not choose which sentence applies at exactly NZ$50,000.00.",
   "Fair dividend rate shown here is 5% of the opening market value you entered. TDS 26/01 describes the formula as (0.05 × opening value) + quick sale adjustment. This paper does not calculate a quick sale adjustment.",
@@ -125,7 +126,8 @@ function nzdCost(qty: number, price: number, fx: number, bookedCash?: number | n
   const formula = roundMoney(qty * price * roundFxRate(fx));
   if (typeof bookedCash === "number" && Number.isFinite(bookedCash)) {
     const spent = roundMoney(Math.abs(bookedCash));
-    if (spent > 0 && Math.abs(spent - formula) <= 0.01) return spent;
+    // Same cent as the ledger formula. A one-cent neighbour (11,743.35 vs 11,743.36) stays on the formula.
+    if (spent > 0 && spent === formula) return spent;
   }
   return formula;
 }

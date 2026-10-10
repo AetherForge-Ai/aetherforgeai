@@ -18,7 +18,7 @@ import { buildTradePreview, type TradePreview } from "@/lib/trade-preview";
 import { bumpHoldingsGeneration } from "@/lib/holdings-generation";
 import { useTradeReviewGate } from "@/lib/trade-review-gate";
 import { TradeReview } from "@/components/dashboard/TradeReview";
-import { visibleBullionLots, type MetalSpotPerOz } from "@/lib/metal-valuation";
+import { heldMetalRows, visibleBullionLots, type MetalSpotPerOz } from "@/lib/metal-valuation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -74,9 +74,9 @@ const METAL_META: Record<MetalKey, { label: string; icon: React.ElementType; col
 };
 
 /**
- * PreciousMetals — bonus dashboard section (free for active paying members).
- * Members log their gold / silver holdings in troy ounces and the price/oz they
- * paid; today's value is computed live from the current-day spot price (NZD).
+ * PreciousMetals — gold and silver on the paper book.
+ * Free accounts record bullion through the transaction panel. Today's value
+ * uses the current-day spot price in NZD when that feed has answered.
  */
 export interface LedgerBullionLot {
   _id: string;
@@ -393,15 +393,16 @@ export function PreciousMetals({
     }
   }
 
-  /* ---------------------------- Read-only spots --------------------------- */
+  /* ---------------------------- Spot + holdings --------------------------- */
   if (!entitled) {
     const gold = effectiveSpot?.gold;
     const silver = effectiveSpot?.silver;
+    const held = heldMetalRows(ledgerRows);
     return (
       <div className="rounded-3xl border border-border/70 bg-card/50 p-6 sm:p-8">
         <h2 className="font-display text-xl font-bold">Smitty spot prices</h2>
         <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-          Gold and silver spot prices are visible on this plan. Recording bullion holdings is on a paid plan.
+          Gold and silver spot prices are on this page. Record ounces from the transaction panel. The ledger is the book.
           {metalUpdatedPhrase(spot?.quotedAt) ? ` ${metalUpdatedPhrase(spot?.quotedAt)}.` : gold || loading ? "" : " Spot prices failed to load."}
         </p>
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
@@ -420,6 +421,62 @@ export function PreciousMetals({
             </p>
           </div>
         </div>
+        <div className="mt-5 flex flex-wrap gap-2">
+          <Button
+            type="button"
+            className="font-semibold"
+            onClick={() =>
+              openRecordTransaction({
+                mode: "buy",
+                preferredAssetType: "metal",
+                seed: { ticker: "GOLD", name: "Gold", assetType: "metal", price: gold?.nzdPerOz },
+              })
+            }
+          >
+            <Plus className="mr-2 size-4" /> Record gold
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="font-semibold"
+            onClick={() =>
+              openRecordTransaction({
+                mode: "buy",
+                preferredAssetType: "metal",
+                seed: { ticker: "SILVER", name: "Silver", assetType: "metal", price: silver?.nzdPerOz },
+              })
+            }
+          >
+            <Plus className="mr-2 size-4" /> Record silver
+          </Button>
+        </div>
+        {held.length > 0 ? (
+          <div className="mt-5 overflow-x-auto">
+            <table className="w-full text-sm">
+              <caption className="sr-only">Bullion holdings</caption>
+              <thead>
+                <tr className="border-b border-border/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                  <th className="py-2 pr-3 font-medium">Metal</th>
+                  <th className="px-3 py-2 text-right font-medium">Quantity</th>
+                  <th className="px-3 py-2 text-right font-medium">Price per oz</th>
+                  <th className="py-2 pl-3 text-right font-medium">NZD value</th>
+                </tr>
+              </thead>
+              <tbody>
+                {held.map((row) => (
+                  <tr key={row.metal} className="border-b border-border/40 last:border-0">
+                    <td className="py-3 pr-3 font-semibold">{METAL_META[row.metal].label}</td>
+                    <td className="tnum px-3 py-3 text-right">
+                      Held: {row.ounces.toLocaleString("en-NZ", { maximumFractionDigits: 4 })} oz
+                    </td>
+                    <td className="tnum px-3 py-3 text-right">{formatMoney(row.pricePerOz, "NZD")}</td>
+                    <td className="tnum py-3 pl-3 text-right font-medium">{formatNzd(row.valueNzd)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -604,6 +661,16 @@ export function PreciousMetals({
         <p className="mt-2 px-1 text-[0.7rem] text-muted-foreground">
           Buys and sells are recorded in the transaction panel, including the paper fee, and written to the ledger.
         </p>
+        {heldMetalRows(ledgerRows).length > 0 ? (
+          <ul className="mt-4 space-y-1 text-sm">
+            {heldMetalRows(ledgerRows).map((row) => (
+              <li key={row.metal}>
+                Held: {row.ounces.toLocaleString("en-NZ", { maximumFractionDigits: 4 })} oz {METAL_META[row.metal].label} at{" "}
+                {formatMoney(row.pricePerOz, "NZD")} per oz ({formatNzd(row.valueNzd)})
+              </li>
+            ))}
+          </ul>
+        ) : null}
 
         {/* Holdings table */}
         {(loading || !ledgerReady) && metals.length === 0 && ledgerRows.length === 0 ? (

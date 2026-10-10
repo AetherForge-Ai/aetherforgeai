@@ -28,7 +28,7 @@ import {
   resolveHoldingMarkPrice,
 } from "@/lib/metal-valuation";
 import { mergeFreshQuantities } from "@/lib/holding-snapshot";
-import { invalidateBookCache, readBookCache, writeBookCache } from "@/lib/book-cache";
+import { bookCacheEpoch, invalidateBookCache, readBookCache, writeBookCache } from "@/lib/book-cache";
 import { dateOnlyInstant, lotCivilDay } from "@/lib/executed-at";
 import { earlierCivilDay } from "@/lib/transaction-rules";
 import { TRADE_CONFIRM_REQUIRED } from "@/lib/trade-confirm";
@@ -277,6 +277,7 @@ export async function GET(req: Request) {
 
     const assetType = new URL(req.url).searchParams.get("asset_type");
     const cacheKey = `${user._id}:stocks:${assetType || "all"}`;
+    const cacheEpoch = bookCacheEpoch(user._id);
     const cached = readBookCache<any[]>(cacheKey);
     if (cached) {
       return privateJson({ ok: true, userId: user._id, data: cached });
@@ -327,7 +328,9 @@ export async function GET(req: Request) {
       `[api/stocks] GET returned ${stocks.length} holdings for user ${user._id} (filter: ${assetType || "all"})`
     );
 
-    writeBookCache(cacheKey, stocks);
+    if (!writeBookCache(cacheKey, stocks, cacheEpoch)) {
+      console.log("[api/stocks] Dropped cache write — a trade landed while this read was in flight");
+    }
     return privateJson({ ok: true, userId: user._id, data: stocks });
   } catch (err: any) {
     console.error("[api/stocks] GET error:", err);

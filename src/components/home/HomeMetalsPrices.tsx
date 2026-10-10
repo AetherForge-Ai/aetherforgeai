@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { formatMoney } from "@/lib/currency";
+import { formatDisplayDateTime, formatMoney } from "@/lib/currency";
 import { metalUpdatedPhrase } from "@/lib/market-freshness";
 
 interface MetalSpot {
@@ -22,8 +22,9 @@ interface MetalsSpot {
  * Homepage gold and silver cards. Same /api/metals/spot payload and the same
  * money format as Smitty, so the figures cannot drift apart.
  */
-export function HomeMetalsPrices() {
-  const [spot, setSpot] = useState<MetalsSpot | null>(null);
+export function HomeMetalsPrices({ initial = null }: { initial?: MetalsSpot | null }) {
+  const seeded = initial?.live && initial.quotedAt ? initial : null;
+  const [spot, setSpot] = useState<MetalsSpot | null>(seeded);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
@@ -74,6 +75,7 @@ export function HomeMetalsPrices() {
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
               {row ? `${formatMoney(row.usdPerOz, "USD")}/oz` : "Same feed as Smitty"}
+              {row && spot?.quotedAt ? ` as of ${formatDisplayDateTime(spot.quotedAt)}` : ""}
             </p>
           </div>
         );

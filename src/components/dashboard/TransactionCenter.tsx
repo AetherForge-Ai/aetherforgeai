@@ -15,9 +15,11 @@ import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
 import { ADVISORY_NOTE } from "@/lib/fill-integrity-client";
 import { formatDisplayDate, formatMoney, formatSavedFx, formatSignedMoney, formatUnitPrice, currencyForTicker, type CurrencyCode } from "@/lib/currency";
+import { formatLedgerDateTime } from "@/lib/executed-at";
 import { aucklandDateISO } from "@/lib/fill-integrity";
 import { distributionLabel } from "@/lib/income-label";
 import { aucklandYmd } from "@/lib/entitlements";
+import { CSV_LOCK_LABEL, csvLockAccessibleName } from "@/lib/csv-lock-label";
 import { useFxRates } from "@/hooks/useFxRates";
 import { buildTradePreview, type TradePreview } from "@/lib/trade-preview";
 import { ledgerDisplayedCash } from "@/lib/ledger-cash-lines";
@@ -292,7 +294,7 @@ function CashLineSection({
                 <span className="min-w-0">
                   <span className="font-medium">{row.asset_name || title}</span>
                   <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                    {distributionLabel(row.asset_type)} · {formatDisplayDate(row.executed_at || row.createdAt)}
+                    {distributionLabel(row.asset_type)} · {formatLedgerDateTime(row.executed_at || row.createdAt) || formatDisplayDate(row.executed_at || row.createdAt)}
                   </span>
                   {stripDexNotesPrefix(stripDividendNotesPrefix(row.notes)) ? (
                     <span className="mt-0.5 block truncate text-xs text-muted-foreground">
@@ -323,6 +325,7 @@ export function TransactionCenter({
   preferredAssetType,
   layout = "full",
   userId = null,
+  csvAllowed = false,
 }: {
   /** Current holdings (both bots + precious metals) — used to power the Sell picker. */
   holdings: SellableHolding[];
@@ -338,6 +341,8 @@ export function TransactionCenter({
   layout?: "full" | "trading" | "ledger";
   /** Authenticated user id — binds sticky dialog + ignores stale ledger responses. */
   userId?: string | null;
+  /** Free plans see a lock chip and never call the export URL. */
+  csvAllowed?: boolean;
 }) {
   const [ledger, setLedger] = useState<Ledger | null>(null);
   const [loading, setLoading] = useState(!preview);
@@ -722,7 +727,7 @@ export function TransactionCenter({
                         )}
                       </td>
                       <td className="tnum px-4 py-2.5 text-right text-xs text-muted-foreground">
-                        {formatDisplayDate(t.executed_at || t.createdAt)}
+                        {formatLedgerDateTime(t.executed_at || t.createdAt) || formatDisplayDate(t.executed_at || t.createdAt)}
                       </td>
                     </tr>
                   );
@@ -755,6 +760,7 @@ export function TransactionCenter({
         open={allOpen}
         onOpenChange={setAllOpen}
         transactions={ledger?.transactions ?? []}
+        csvAllowed={csvAllowed}
       />
     </div>
     </>
@@ -775,10 +781,12 @@ function AllTransactionsDialog({
   open,
   onOpenChange,
   transactions,
+  csvAllowed = false,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   transactions: TransactionRow[];
+  csvAllowed?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | TxType>("all");
@@ -921,9 +929,22 @@ function AllTransactionsDialog({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={exportCsv} className="gap-1.5 font-semibold">
-              <Download className="size-4" /> Export CSV
-            </Button>
+            {csvAllowed ? (
+              <Button variant="outline" size="sm" onClick={exportCsv} className="gap-1.5 font-semibold">
+                <Download className="size-4" /> Export CSV
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled
+                aria-label={csvLockAccessibleName("Transactions CSV")}
+                className="gap-1.5 font-semibold"
+              >
+                {CSV_LOCK_LABEL}
+              </Button>
+            )}
             <button
               onClick={() => onOpenChange(false)}
               className="grid size-9 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/15 hover:text-destructive"
@@ -1063,7 +1084,7 @@ function AllTransactionsDialog({
                         )}
                       </td>
                       <td className="tnum py-3 pl-3 text-right text-xs text-muted-foreground">
-                        {formatDisplayDate(t.executed_at || t.createdAt)}
+                        {formatLedgerDateTime(t.executed_at || t.createdAt) || formatDisplayDate(t.executed_at || t.createdAt)}
                       </td>
                     </tr>
                   );
