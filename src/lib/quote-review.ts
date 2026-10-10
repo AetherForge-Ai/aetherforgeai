@@ -32,8 +32,24 @@ const LARGE_CAP_TICKERS = new Set(
     "AAPL", "MSFT", "META", "GOOGL", "GOOG", "AMZN", "NVDA", "TSLA", "JPM", "CDW", "V", "MA", "UNH",
     "JNJ", "XOM", "AVGO", "LLY", "WMT", "HD", "COST", "BAC", "NFLX", "ORCL", "AMD", "INTC", "CSCO",
     "DIS", "KO", "PEP", "CVX", "MRK", "TMO", "MCD", "ABT", "QCOM", "IBM", "GE", "CAT", "GS", "MS",
-    "NKE", "BA", "VRTX",
+    "NKE", "BA", "VRTX", "LRCX", "AMGN", "MDLZ",
   ].map((ticker) => ticker.toUpperCase())
+);
+
+/** A stablecoin that moves more than this, on any window, is not a real peg move. */
+export const STABLECOIN_MOVE_CAP_PCT = 3;
+
+/** A wrapped token that moves more than this, without tracking its underlying, is withheld. */
+export const WRAPPED_MOVE_CAP_PCT = 12;
+
+const STABLECOIN_TICKERS = new Set(
+  ["USDG", "CRVUSD", "USDC", "USDT", "DAI", "FDUSD", "TUSD", "USDE", "PYUSD", "USDP", "GUSD", "FRAX", "LUSD", "USDD"].map(
+    (ticker) => ticker.toUpperCase()
+  )
+);
+
+const WRAPPED_TICKERS = new Set(
+  ["WETH", "WBTC", "BTCB", "WBNB", "STETH", "WSTETH", "WBETH"].map((ticker) => ticker.toUpperCase())
 );
 
 const SPLIT_RATIOS = [2, 3, 4, 5, 10, 20, 0.5, 1 / 3, 0.25, 0.2, 0.1, 0.05];
@@ -55,6 +71,8 @@ export interface ReviewInput {
   nowMs?: number;
   market?: string | null;
   currency?: string | null;
+  /** Underlying asset's change, for a wrapped token. Agreement within 5 points keeps the print. */
+  underlyingChangePct?: number | null;
 }
 
 export interface ReviewedMove {
@@ -74,17 +92,16 @@ function near(ratio: number, target: number, tolerance = 0.03): boolean {
 }
 
 function windowCap(input: ReviewInput): number {
+  const ticker = input.ticker.trim().toUpperCase();
+  if (STABLECOIN_TICKERS.has(ticker)) return STABLECOIN_MOVE_CAP_PCT;
+  if (WRAPPED_TICKERS.has(ticker)) return WRAPPED_MOVE_CAP_PCT;
   const large = input.assetClass === "stock" && isLargeCapTicker(input.ticker);
   if (input.assetClass === "crypto") {
     if (input.window === "1d") return CRYPTO_SESSION_MOVE_CAP_PCT;
     if (input.window === "7d") return 120;
     return 200;
   }
-  if (large) {
-    if (input.window === "1d") return LARGE_CAP_SESSION_MOVE_CAP_PCT;
-    if (input.window === "7d") return 35;
-    return 60;
-  }
+  if (large) return LARGE_CAP_SESSION_MOVE_CAP_PCT;
   if (input.window === "1d") return EQUITY_SESSION_MOVE_CAP_PCT;
   if (input.window === "7d") return 80;
   return 150;
@@ -145,7 +162,21 @@ export function reviewSessionMove(input: ReviewInput): ReviewedMove {
     if (Math.abs(input.secondSourceChangePct - reported) > 8) return keep("second source disagrees", true);
   }
 
-  if (Math.abs(reported) > windowCap(input)) {
+  const ticker = input.ticker.trim().toUpperCase();
+  if (STABLECOIN_TICKERS.has(ticker) && Math.abs(reported) > STABLECOIN_MOVE_CAP_PCT) {
+    return keep("stablecoin move is above a few percent", true);
+  }
+  let tracksUnderlying = false;
+  if (WRAPPED_TICKERS.has(ticker)) {
+    const underlying = input.underlyingChangePct;
+    tracksUnderlying =
+      typeof underlying === "number" && Number.isFinite(underlying) && Math.abs(reported - underlying) <= 5;
+    if (!tracksUnderlying && Math.abs(reported) > WRAPPED_MOVE_CAP_PCT) {
+      return keep("wrapped token does not track its underlying", true);
+    }
+  }
+
+  if (!tracksUnderlying && Math.abs(reported) > windowCap(input)) {
     const large = input.assetClass === "stock" && isLargeCapTicker(input.ticker);
     return keep(large ? "above the large-cap session guard" : "above the session move guard", true);
   }

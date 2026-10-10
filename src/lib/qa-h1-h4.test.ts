@@ -131,8 +131,7 @@ describe("H1 report logic", () => {
       const row = report.marketMovers
         .flatMap((group) => group.windows.find((window) => window.window === "Last 24 hours")?.movers ?? [])
         .find((mover) => mover.ticker === ticker);
-      expect(row?.withheld).toBe(true);
-      expect(row?.changePct).toBe(0);
+      expect(row).toBeUndefined();
     }
     expect(JSON.stringify(report)).not.toMatch(/\b(Grok|ZENITH|ULTRA)\b/);
   });

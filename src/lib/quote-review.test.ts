@@ -29,6 +29,42 @@ describe("quote review", () => {
     expect(LARGE_CAP_SESSION_MOVE_CAP_PCT).toBe(20);
   });
 
+  it("withholds the retest's implausible moves on every window", () => {
+    const cases: Array<{ ticker: string; assetClass: "stock" | "crypto"; window: "1d" | "7d" | "30d"; reportedChangePct: number; reason: string }> = [
+      { ticker: "LRCX", assetClass: "stock", window: "1d", reportedChangePct: 43.68, reason: "above the large-cap session guard" },
+      { ticker: "AMGN", assetClass: "stock", window: "1d", reportedChangePct: 42.23, reason: "above the large-cap session guard" },
+      { ticker: "MDLZ", assetClass: "stock", window: "7d", reportedChangePct: 50.64, reason: "above the large-cap session guard" },
+      { ticker: "JPM", assetClass: "stock", window: "7d", reportedChangePct: 31.01, reason: "above the large-cap session guard" },
+      { ticker: "META", assetClass: "stock", window: "7d", reportedChangePct: 32.46, reason: "above the large-cap session guard" },
+      { ticker: "WETH", assetClass: "crypto", window: "1d", reportedChangePct: 77.98, reason: "wrapped token does not track its underlying" },
+      { ticker: "BTCB", assetClass: "crypto", window: "1d", reportedChangePct: 36.11, reason: "wrapped token does not track its underlying" },
+      { ticker: "USDG", assetClass: "crypto", window: "1d", reportedChangePct: 27.66, reason: "stablecoin move is above a few percent" },
+      { ticker: "CRVUSD", assetClass: "crypto", window: "1d", reportedChangePct: 29.82, reason: "stablecoin move is above a few percent" },
+    ];
+    for (const row of cases) {
+      const reviewed = reviewSessionMove({ ...row, price: 10 });
+      expect(reviewed.withheld, row.ticker).toBe(true);
+      expect(reviewed.display).toBe(DATA_UNDER_REVIEW);
+      expect(reviewed.reason).toBe(row.reason);
+    }
+    expect(
+      reviewSessionMove({ ticker: "WETH", assetClass: "crypto", price: 3000, reportedChangePct: 3, window: "7d" }).withheld
+    ).toBe(false);
+    expect(
+      reviewSessionMove({
+        ticker: "WETH",
+        assetClass: "crypto",
+        price: 3000,
+        reportedChangePct: 14,
+        underlyingChangePct: 12,
+        window: "1d",
+      }).withheld
+    ).toBe(false);
+    expect(
+      reviewSessionMove({ ticker: "USDC", assetClass: "crypto", price: 1, reportedChangePct: 0.4, window: "30d" }).withheld
+    ).toBe(false);
+  });
+
   it("keeps a crypto 24-hour move under the crypto cap", () => {
     const reviewed = reviewSessionMove({
       ticker: "BAT",
