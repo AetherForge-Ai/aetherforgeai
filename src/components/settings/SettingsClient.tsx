@@ -17,6 +17,7 @@ import { isFreeReportPlan } from "@/lib/entitlements";
 import { formatUsdWithRate } from "@/lib/currency";
 import { useFxRates } from "@/hooks/useFxRates";
 import { COUNTRIES } from "@/lib/countries";
+import { SettingsSectionNav } from "@/components/settings/SettingsSectionNav";
 import {
   Select,
   SelectContent,
@@ -275,6 +276,7 @@ export function SettingsClient({ user }: { user: SettingsUser }) {
         <p className="mt-1 text-sm text-muted-foreground">
           Manage your profile and subscription.
         </p>
+        <SettingsSectionNav current="profile" />
       </div>
 
       {/* Profile */}
