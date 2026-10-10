@@ -1,5 +1,7 @@
 import { PublicGuide } from "@/components/public/PublicGuide";
+import { JsonLd } from "@/components/public/JsonLd";
 import { publicPageMetadata } from "@/lib/reviewed-book";
+import { breadcrumbJsonLd } from "@/lib/public-schema";
 
 export const metadata = publicPageMetadata("/docs", {
   title: "Docs — AetherForge AI",
@@ -9,6 +11,13 @@ export const metadata = publicPageMetadata("/docs", {
 
 export default function DocsPage() {
   return (
+    <>
+    <JsonLd
+      data={breadcrumbJsonLd([
+        { name: "Home", path: "/" },
+        { name: "Docs", path: "/docs" },
+      ])}
+    />
     <PublicGuide
       kicker="AetherForge AI · Docs"
       title="Docs"
@@ -56,5 +65,6 @@ export default function DocsPage() {
         },
       ]}
     />
+    </>
   );
 }
