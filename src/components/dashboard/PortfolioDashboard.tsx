@@ -10,6 +10,7 @@ import {
 } from "@/lib/portfolio";
 import {
   formatDisplayDate,
+  formatSignedMoney,
   formatMoney,
   formatUnitPrice,
   baseCurrencyForBot,
@@ -1990,6 +1991,7 @@ export function PortfolioDashboard({
                             })
                           }
                           className="group/tk flex items-center gap-3 rounded-lg text-left transition-colors hover:text-primary"
+                          aria-label={`${h.ticker}, ${h.currency}`}
                           title={`View last 7 days of ${h.ticker.replace(/\.(NZ|AX|L)$/, "")}`}
                         >
                           <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/12 font-display text-xs font-bold text-primary transition-colors group-hover/tk:bg-primary/20">
@@ -2015,7 +2017,7 @@ export function PortfolioDashboard({
                           {h.company_name || h.sector || "—"}
                         </p>
                         <p className="truncate text-[0.65rem] text-muted-foreground">
-                          {formatHoldingDate(h.purchase_date)} · {exchange}
+                          {h.purchase_date ? `first bought ${formatHoldingDate(h.purchase_date)}` : "—"} · {exchange}
                         </p>
                       </td>
                       {/* # shares */}
@@ -2054,7 +2056,7 @@ export function PortfolioDashboard({
                       {/* Gain / Loss */}
                       <td className="px-3 py-3.5 text-right">
                         <span className={cn("tnum font-medium", up ? "text-emerald-600" : "text-rose-600")}>
-                          {formatMoney(h.gain, h.currency)}
+                          {formatSignedMoney(h.gain, h.currency)}
                         </span>
                         <span
                           className={cn("tnum ml-1 block text-xs", up ? "text-emerald-600/80" : "text-rose-600/80")}
