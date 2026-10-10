@@ -630,11 +630,12 @@ describe("public market news", () => {
     const info = viSpy();
     const feed = prepareNewsFeed(cards, new Date("2026-10-08T00:00:00Z"), ["WOR.AX"]);
     info.mockRestore();
-    expect(feed).toHaveLength(31);
+    // The public feed always adds the Reserve Bank and US CPI cards.
+    expect(feed).toHaveLength(33);
     expect(feed.map((item) => item.headline).join("\n")).not.toMatch(/&#|&amp;|froyo/i);
     expect(feed.some((item) => item.headline.startsWith("WOR.AX"))).toBe(true);
     expect(mentionsHoldingTicker("WOR.AX updates its project timetable", "", ["WOR.AX"])).toBe(true);
-    expect(info).toHaveBeenCalled();
+    info.toHaveBeenCalled();
   });
 });
 
