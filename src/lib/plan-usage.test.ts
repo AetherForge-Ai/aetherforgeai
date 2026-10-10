@@ -57,7 +57,7 @@ describe("H5 plan and billing", () => {
     });
     expect(starter.planName).toBe("Starter");
     expect(starter.renewal).toBe("10 Nov 2026");
-    expect(starter.holdings).toBe("11 / 25");
+    expect(starter.holdings).toBe("11 / 25 per bot");
     expect(starter.reports).toBe("6 / 15");
     expect(starter.assistant).toBe("21 / 100");
 
@@ -69,7 +69,7 @@ describe("H5 plan and billing", () => {
       assistantUsed: 0,
     });
     expect(pro.planName).toBe("Pro");
-    expect(pro.holdings).toBe("0 / 75");
+    expect(pro.holdings).toBe("0 / 75 per bot");
     expect(pro.reports).toBe("0 / unlimited");
     expect(pro.assistant).toBe("0 / 500");
 
@@ -94,6 +94,16 @@ describe("H5 plan and billing", () => {
     });
     expect(dual.planName).toBe("Apex Dual");
     expect(dual.holdings).toBe("3 / 20 per bot");
+    const stamped = describeAccountPlan({
+      plan: "dual_yearly",
+      status: "active",
+      holdingsUsed: 4,
+      reportsUsed: null,
+      assistantUsed: 1,
+      tickerLimit: 51,
+    });
+    expect(stamped.holdings).toBe("4 / 51 per bot");
+    expect(stamped.scopeNote).toMatch(/same holdings cap as the dashboard and profile/);
     expect(dual.reports).toBe("— / unlimited");
     expect(dual.assistant).toBe("1 / unlimited");
     expect(dual.apexNote).toBe(APEX_DUAL_PUBLIC_NOTE);
