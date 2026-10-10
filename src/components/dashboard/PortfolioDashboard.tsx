@@ -422,6 +422,7 @@ export function PortfolioDashboard({
   const [allStocks, setAllStocks] = useState<Stock[]>(preview ? PREVIEW_STOCKS : []);
   /** After first /api/stocks hydrate — later overlays may be deferred while Buy/Add is open. */
   const holdingsHydratedRef = useRef(!!preview);
+  const cashEpochRef = useRef(0);
   /**
    * Latest accepted holdings body while Buy/Add is open. Applied when the
    * dialog closes so the stocks hub does not reconcile under an in-progress
@@ -554,12 +555,14 @@ export function PortfolioDashboard({
             requestUserId: tracked.userId,
             responseUserId: echoed,
           });
+          setLoading(false);
           return;
         }
         // A buy/sell that committed while this request was in flight bumped the
         // generation. The body still has the pre-trade quantity — drop it.
         if (holdingsResponseIsStale(capturedGen)) {
           console.log("[dashboard] Ignoring holdings snapshot captured before a trade");
+          setLoading(false);
           return;
         }
         // Defer EVERY live-price hydrate while Buy/Add is open, including the
@@ -597,6 +600,7 @@ export function PortfolioDashboard({
   /** Cash + recent rows from /api/transactions — same ledger as the Transactions page. */
   const loadCash = useCallback(async () => {
     const tracked = trackAccountRequest();
+    const seenCash = cashEpochRef.current;
     try {
       const res = await api.get<{
         cashBalance: number;
@@ -642,6 +646,7 @@ export function PortfolioDashboard({
           });
           return;
         }
+        if (seenCash !== cashEpochRef.current) return;
         const bal = res.data.cashBalance;
         setCashBalance(bal);
         writeCachedCashNZD(tracked.userId, bal);
@@ -697,6 +702,7 @@ export function PortfolioDashboard({
         requestUserId: tracked.userId,
         responseUserId: echoed,
       });
+      setMetalsLoaded(true);
       return;
     }
     if (res.ok && res.data?.spot) {
@@ -712,6 +718,7 @@ export function PortfolioDashboard({
           requestUserId: tracked.userId,
           responseUserId: echoed,
         });
+        setMetalsLoaded(true);
         return;
       }
       const { metals, spot } = res.data;
@@ -853,11 +860,33 @@ export function PortfolioDashboard({
   }, [preview]);
 
   // Called whenever holdings or cash change (transactions, edits, deletes).
-  const handleDataChanged = useCallback(() => {
-    loadStocks();
-    loadCash();
-    loadMetals();
-  }, [loadStocks, loadCash, loadMetals]);
+  const applyKnownCash = useCallback(
+    (bal: number) => {
+      cashEpochRef.current += 1;
+      setCashBalance(bal);
+      writeCachedCashNZD(userId, bal);
+      setCashLoaded(true);
+    },
+    [userId]
+  );
+  const handleDataChanged = useCallback(
+    (updated?: { cashBalance?: number }) => {
+      if (updated && typeof updated.cashBalance === "number") applyKnownCash(updated.cashBalance);
+      loadStocks();
+      loadCash();
+      loadMetals();
+    },
+    [applyKnownCash, loadStocks, loadCash, loadMetals]
+  );
+
+  useEffect(() => {
+    const onBook = (event: Event) => {
+      const detail = (event as CustomEvent<{ cashBalance?: number }>).detail;
+      handleDataChanged(detail);
+    };
+    window.addEventListener("aetherforge-book-changed", onBook);
+    return () => window.removeEventListener("aetherforge-book-changed", onBook);
+  }, [handleDataChanged]);
 
   // Metals buy/sell also moves cash + writes the ledger — reload the top-level
   // totals AND signal the Transaction Center to refresh its ledger/cash cards.
@@ -974,7 +1003,10 @@ export function PortfolioDashboard({
   }, [allStocks, preciousAsStocks, metalStocks]);
 
   // Same equity book as Value in Stocks — never append bullion rows.
-  const tableStocks = stockOnly;
+  const tableStocks = useMemo(
+    () => stockOnly.filter((row) => (Number(row.shares) || 0) > 1e-9),
+    [stockOnly]
+  );
   const tableSummary = useMemo(
     () => computeSummary(tableStocks, { baseCurrency, fxToNZD }),
     [tableStocks, baseCurrency, fxToNZD]
@@ -1289,8 +1321,8 @@ export function PortfolioDashboard({
             {preview
               ? "Live preview"
               : userName.trim()
-                ? `Welcome back, ${userName.trim()}`
-                : "Welcome back"}
+                ? `Welcome, ${userName.trim()}`
+                : "Welcome"}
           </p>
           {!isHome ? (
             <Link
@@ -1303,6 +1335,11 @@ export function PortfolioDashboard({
           <h1 className="mt-2 font-grift-black text-2xl uppercase tracking-wide text-amber-400 sm:text-3xl lg:text-4xl">
             {pageTitle}
           </h1>
+          {isHome && !preview ? (
+            <Link href="/tax" className="mt-2 inline-flex text-sm font-semibold text-primary hover:underline">
+              Tax papers
+            </Link>
+          ) : null}
         </div>
         {preview ? (
           <Button asChild className="font-semibold shadow-glow">
@@ -1397,7 +1434,7 @@ export function PortfolioDashboard({
         stockTotalNZD={stockTotalNZD}
         cryptoTotalNZD={cryptoTotalNZD}
         metalsTotalNZD={metalsValueNZD + metalStockTotalNZD}
-        stockPositions={stockHoldings.length}
+        stockPositions={stockHoldings.filter((row) => (Number(row.shares) || 0) > 1e-9).length}
         cryptoPositions={cryptoHoldings.length}
         metalsPositions={preciousMetalHoldings.length + metalStocks.length}
         recentLedger={recentLedger}
@@ -1781,6 +1818,7 @@ export function PortfolioDashboard({
           plan={subscription.plan}
           onChanged={handleMetalsChanged}
           ledgerLots={metalStocks}
+          ledgerReady={!loading}
           spot={spotForMarks}
         />
         <div className="mt-6">
@@ -1953,7 +1991,11 @@ export function PortfolioDashboard({
         <div className="flex items-center justify-between border-b border-border/60 px-6 py-4">
           <h2 className="font-display text-lg font-bold">Your holdings</h2>
           <span className="text-xs text-muted-foreground">
-            {!balancesReady ? "…" : `${tableSummary.holdingsCount} positions`}
+            {!balancesReady
+              ? "…"
+              : tableSummary.holdingsCount === 0
+                ? "No open positions"
+                : `${tableSummary.holdingsCount} position${tableSummary.holdingsCount === 1 ? "" : "s"}`}
           </span>
         </div>
 

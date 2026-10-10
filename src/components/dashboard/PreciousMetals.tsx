@@ -93,6 +93,7 @@ export function PreciousMetals({
   plan,
   onChanged,
   ledgerLots = [],
+  ledgerReady = true,
   spot: parentSpot = null,
 }: {
   entitled: boolean;
@@ -101,6 +102,8 @@ export function PreciousMetals({
   onChanged?: () => void;
   /** GOLD/SILVER rows from the stock ledger (Transaction Centre buys). */
   ledgerLots?: LedgerBullionLot[];
+  /** False while the parent stock book is still loading. */
+  ledgerReady?: boolean;
   /** NZD troy-oz spot already loaded by the dashboard, if any. */
   spot?: MetalSpotPerOz | null;
 }) {
@@ -603,7 +606,7 @@ export function PreciousMetals({
         </p>
 
         {/* Holdings table */}
-        {loading && metals.length === 0 && ledgerRows.length === 0 ? (
+        {(loading || !ledgerReady) && metals.length === 0 && ledgerRows.length === 0 ? (
           <div className="mt-6 space-y-3">
             {[...Array(2)].map((_, i) => (
               <div key={i} className="h-12 animate-pulse rounded-lg bg-muted/40" />

@@ -7,7 +7,8 @@
 import {
   BASELINE_FX_TO_NZD,
   formatQuantity,
-  nativeToNzd,
+  nzdAtBookRate,
+  roundMoney,
   type CurrencyCode,
   type FxRatesToNZD,
 } from "@/lib/currency";
@@ -53,7 +54,7 @@ export function applyPaperCashMove(input: PaperCashMove): PaperCashResult {
     if (quantity > shares + 1e-6) {
       return { ...unchanged, error: `You only hold ${formatQuantity(shares)}` };
     }
-    const proceedsNZD = round(nativeToNzd(quantity * price - fees, input.currency, rates));
+    const proceedsNZD = roundMoney(nzdAtBookRate(quantity * price - fees, input.currency, rates));
     const left = round(shares - quantity, 6);
     return {
       ok: true,
@@ -62,7 +63,7 @@ export function applyPaperCashMove(input: PaperCashMove): PaperCashResult {
       cashDeltaNZD: proceedsNZD,
     };
   }
-  const costNZD = round(nativeToNzd(quantity * price + fees, input.currency, rates));
+  const costNZD = roundMoney(nzdAtBookRate(quantity * price + fees, input.currency, rates));
   return {
     ok: true,
     cashNZD: round(cashNZD - costNZD),

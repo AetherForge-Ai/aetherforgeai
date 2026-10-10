@@ -137,6 +137,7 @@ describe("dividend ledger", () => {
           ticker: "CBA.AX",
           assetName: "Commonwealth Bank",
           assetType: "stock",
+          id: "",
           parts: aud.parts,
           cashNzd: aud.parts.netCashNzd,
         },
@@ -155,12 +156,12 @@ describe("dividend ledger", () => {
       }
     );
     expect(csv.split("\n")[0]).toBe(
-      "Payment date,Holding,Asset type,Currency,FX,Gross NZD,Imputation credits NZD,Withholding NZD,DRP reinvestment NZD,Net cash NZD,Label"
+      "Payment date,Holding,Asset type,Currency,FX,Gross NZD,Imputation credits NZD,Withholding NZD,DRP reinvestment NZD,Net cash NZD,Breakdown,Label"
     );
     expect(csv).toContain(
-      '10 Oct 2026,CBA.AX,stock,AUD,1.0912,109.12,0.00,16.37,21.82,70.93,"Indicative, not tax advice."'
+      '10 Oct 2026,CBA.AX,stock,AUD,1.0912,109.12,0.00,16.37,21.82,70.93,,"Indicative, not tax advice."'
     );
-    expect(csv).toContain('1 Apr 2026,FBU.NZ,stock,,,,,,,25.00,"Indicative, not tax advice."');
+    expect(csv).toContain('1 Apr 2026,FBU.NZ,stock,,,,,,,25.00,"cash, no breakdown","Indicative, not tax advice."');
     expect(csv).toContain(TAX_INDICATIVE_LABEL);
     expect(csv).not.toContain("[DIV:");
   });

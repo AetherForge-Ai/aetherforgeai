@@ -2,8 +2,7 @@ import { getCurrentUser } from "@/lib/session";
 import { AppShell } from "@/components/AppShell";
 import { TaxPageContent } from "@/components/tax/TaxPageContent";
 import { publicPageMetadata } from "@/lib/reviewed-book";
-import { loadLedger } from "@/lib/transactions";
-import { taxBookSummary } from "@/lib/tax-book";
+import { loadTaxBookFigures } from "@/lib/tax-book-server";
 
 export const dynamic = "force-dynamic";
 
@@ -27,8 +26,7 @@ export default async function TaxPage() {
   let book: { dividendsNzd: number; realisedPnlNzd: number } | null = null;
   if (user) {
     try {
-      const ledger = await loadLedger(user, 1000);
-      book = taxBookSummary(ledger.transactions);
+      book = await loadTaxBookFigures(user._id);
     } catch {
       book = null;
     }

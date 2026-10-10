@@ -106,14 +106,6 @@ export default async function LandingPage() {
                     then use Stox, Koins and The Headmaster to turn market data into
                     illustrative scenarios and a goal plan. {PAPER_BOOK_STATEMENT}
                   </p>
-                  <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
-                    Not financial advice. {LEGAL_ENTITY_NAME} is not a licensed financial
-                    advice provider, and we don&apos;t place trades or take custody.{" "}
-                    <Link href="/ai-disclaimer" className="font-medium text-primary hover:underline">
-                      AI disclaimer
-                    </Link>
-                    .
-                  </p>
                   <HomeHeroCtas />
                 </div>
                 <div className="relative">
@@ -273,6 +265,17 @@ export default async function LandingPage() {
 
                 <HomeBottomCta />
               </div>
+            </section>
+
+            <section className="mx-auto max-w-3xl px-4 pb-16 sm:px-6 lg:px-8" aria-label="Disclaimer">
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                Not financial advice. {LEGAL_ENTITY_NAME} is not a licensed financial
+                advice provider, and we don&apos;t place trades or take custody.{" "}
+                <Link href="/ai-disclaimer" className="font-medium text-primary hover:underline">
+                  AI disclaimer
+                </Link>
+                .
+              </p>
             </section>
           </div>
         </div>

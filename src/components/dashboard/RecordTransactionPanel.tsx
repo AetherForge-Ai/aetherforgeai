@@ -278,6 +278,14 @@ export function RecordTransactionPanel({
   );
   const results = useMemo(() => {
     const found = searchAssets(query, { shares: shareHits, coins: coinHits, dex });
+    if (kind === "sell") {
+      const q = query.trim().toLowerCase();
+      const owned = heldHits.filter((hit) => {
+        if (!q) return true;
+        return `${hit.symbol} ${hit.name}`.toLowerCase().includes(q);
+      });
+      return owned.slice(0, 12);
+    }
     if (kind !== "dividend") return found;
     const owned = new Set(heldHits.map((hit) => hit.symbol.toUpperCase()));
     if (!query.trim()) return heldHits.slice(0, 12);

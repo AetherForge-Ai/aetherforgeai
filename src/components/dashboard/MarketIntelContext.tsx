@@ -89,7 +89,8 @@ export function MarketIntelProvider({ bot = "stock", children }: { bot?: AssetCl
         applyPayload(res.data);
         return;
       }
-      console.error("[market-intel] Failed to load /api/market, using official cards:", res.error);
+      if (res.aborted) return;
+      console.warn("[market-intel] /api/market did not return a list:", res.error);
       setNews(getMarketNews(bot));
       setNewsNote("Other headlines could not be loaded. The cards below are the items we could check.");
       setLoading(false);

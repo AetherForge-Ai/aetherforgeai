@@ -5,6 +5,7 @@ import { canExportCsv } from "@/lib/entitlements";
 import { requestClaimsOtherUser } from "@/lib/account-guard";
 import { accountMismatchResponse } from "@/lib/account-response";
 import { getStableSessionUser } from "@/lib/session";
+import { aucklandCivilToday, inNzTaxYear, isNzTaxYearEnding, nzTaxYearEnding } from "@/lib/nz-tax-year";
 import { loadDividendRows } from "@/lib/tax-book-server";
 
 export const dynamic = "force-dynamic";
@@ -26,7 +27,11 @@ export async function GET(req: Request) {
         { status: 403 }
       );
     }
-    const rows = (await loadDividendRows(user._id)).map(dividendViewFromRow);
+    const requested = Number(new URL(req.url).searchParams.get("year"));
+    const endingYear = isNzTaxYearEnding(requested) ? requested : nzTaxYearEnding(aucklandCivilToday());
+    const rows = (await loadDividendRows(user._id))
+      .map(dividendViewFromRow)
+      .filter((row) => (endingYear == null ? true : inNzTaxYear(row.when, endingYear)));
     const csv = dividendCsv(rows, (value) => {
       const shown = formatDisplayDate(value);
       return shown === "—" ? "" : shown;
@@ -35,7 +40,7 @@ export async function GET(req: Request) {
       status: 200,
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": 'attachment; filename="dividend-ledger.csv"',
+        "Content-Disposition": `attachment; filename="dividend-ledger-${endingYear ?? "book"}.csv"`,
         "Cache-Control": "no-store",
       },
     });

@@ -36,6 +36,11 @@ describe("resolveGreetingName", () => {
     expect(resolveDisplayName({ name: "Aroha Ngata", email: "aroha@example.com" })).toBe("Aroha Ngata");
   });
 
+  it("does not greet a QA label on a new account", () => {
+    expect(resolveGreetingName({ name: "QA", email: "qa@example.com" })).toBe("");
+    expect(resolveDisplayName({ name: "QA", email: "qa@example.com" })).toBe("");
+  });
+
   it("returns empty when nothing trustworthy is available", () => {
     expect(resolveGreetingName(null)).toBe("");
     expect(resolveDisplayName({ name: "Test", email: "" })).toBe("");

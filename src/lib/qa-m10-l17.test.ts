@@ -40,8 +40,10 @@ describe("M10 dates", () => {
     expect(formatLedgerDateTime("2026-10-10T02:47:53.208Z")).toBe("10 Oct 2026, 3:47 pm");
     const now = new Date("2026-10-10T02:00:00.000Z");
     const today = resolveExecutedInstant("2026-10-10", now);
-    expect(today.hasClock).toBe(true);
-    expect(today.stored).toEqual(now);
+    expect(today.hasClock).toBe(false);
+    expect(today.civilDay).toBe("2026-10-10");
+    expect(today.stored).toBe("2026-10-10T12:00:00+13:00");
+    expect(formatDisplayDate(String(today.stored))).toBe("10 Oct 2026");
     const past = resolveExecutedInstant("2026-10-01", now);
     expect(past.hasClock).toBe(false);
     expect(past.stored).toBe("2026-10-01T12:00:00+13:00");
@@ -51,6 +53,14 @@ describe("M10 dates", () => {
     expect(formatLedgerDateTime("2026-09-30T23:00:00.000Z")).toBe("1 Oct 2026");
     expect(dateOnlyInstant("2026-07-01")).toBe("2026-07-01T12:00:00+12:00");
     expect(lotCivilDay(String(past.stored))).toBe("2026-10-01");
+    const morning = new Date("2026-10-10T18:33:00.000Z");
+    const typedToday = resolveExecutedInstant("2026-10-11", morning);
+    expect(typedToday.hasClock).toBe(false);
+    expect(typedToday.civilDay).toBe("2026-10-11");
+    expect(formatDisplayDate(String(typedToday.stored))).toBe("11 Oct 2026");
+    expect(formatDisplayDate(morning)).toBe("11 Oct 2026");
+    expect(formatDisplayDate(morning.toISOString())).toBe("11 Oct 2026");
+    expect(lotCivilDay(String(typedToday.stored))).toBe("2026-10-11");
     const noon = resolveExecutedInstant(new Date("2026-10-09T12:00:00.000Z"), now);
     expect(noon.hasClock).toBe(false);
     expect(noon.civilDay).toBe("2026-10-09");

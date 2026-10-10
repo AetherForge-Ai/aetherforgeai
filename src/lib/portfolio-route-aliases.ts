@@ -5,6 +5,7 @@
  */
 export const PORTFOLIO_ROUTE_ALIASES = [
   { source: "/transactions", destination: "/dashboard/transactions" },
+  { source: "/ledger", destination: "/dashboard/transactions" },
   { source: "/alerts", destination: "/dashboard/alerts" },
   { source: "/notifications", destination: "/dashboard/alerts" },
 ] as const;

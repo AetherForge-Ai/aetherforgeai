@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
+import { CsvExportButton } from "@/components/tax/CsvExportButton";
 import { PrintButton } from "@/components/tax/PrintButton";
+import { TaxSectionNav } from "@/components/tax/TaxSectionNav";
 import { formatDisplayDate, formatNzd, formatSignedMoney } from "@/lib/currency";
+import { canExportCsv } from "@/lib/entitlements";
 import { aucklandCivilToday, isNzTaxYearEnding, nzTaxYearEnding, nzTaxYearLabel } from "@/lib/nz-tax-year";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { getCurrentUser } from "@/lib/session";
@@ -11,10 +14,14 @@ import { taxableIncome, taxYearChoices, type TaxableIncomeReport } from "@/lib/t
 
 export const dynamic = "force-dynamic";
 
-export const metadata = publicPageMetadata("/tax/income", {
-  title: "Taxable income · AetherForge AI",
-  description: "Indicative taxable-income summary for a New Zealand tax year. Not tax advice.",
-});
+export const metadata = {
+  ...publicPageMetadata("/tax/income", {
+    title: "Income summary (indicative) · AetherForge AI",
+    description: "Indicative income summary for a New Zealand tax year. Not tax advice.",
+  }),
+  // Member books can sit on this URL. Keep it reachable and leave it out of the index.
+  robots: { index: false, follow: false },
+};
 
 function moneyOrBlank(value: number | null): string {
   if (value == null) return "—";
@@ -48,7 +55,7 @@ function ReportTables({ report }: { report: TaxableIncomeReport }) {
                     {row.ticker || "—"}
                     {row.legacyCashNzd != null ? (
                       <span className="mt-0.5 block text-xs text-muted-foreground">
-                        Cash recorded {formatNzd(row.legacyCashNzd)}. Gross, credits and withholding were not recorded.
+                        Cash, no breakdown: {formatNzd(row.legacyCashNzd)}. This cash is not added to gross.
                       </span>
                     ) : null}
                   </td>
@@ -101,7 +108,7 @@ function ReportTables({ report }: { report: TaxableIncomeReport }) {
         {formatNzd(report.withholdingNzd)}. DRP {formatNzd(report.drpNzd)}. Realised{" "}
         {formatSignedMoney(report.realisedNzd)}.
         {report.legacyCount > 0
-          ? ` Cash on ${report.legacyCount} dividend${report.legacyCount === 1 ? "" : "s"} without a breakdown: ${formatNzd(report.legacyCashNzd)}. That cash is not added to gross.`
+          ? ` Cash, no breakdown: ${formatNzd(report.legacyCashNzd)} on ${report.legacyCount} row${report.legacyCount === 1 ? "" : "s"}. That cash is not added to gross.`
           : ""}
       </p>
     </>
@@ -147,7 +154,8 @@ export default async function TaxableIncomePage({
     <AppShell user={shellUser} guest={!user}>
       <article className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6">
         <p className="text-xs font-semibold uppercase tracking-wide text-primary">New Zealand</p>
-        <h1 className="mt-2 font-display text-3xl font-bold">Taxable income</h1>
+        <h1 className="mt-2 font-display text-3xl font-bold">Income summary (indicative)</h1>
+        <TaxSectionNav current="/tax/income" />
         <p className="mt-4 text-sm leading-relaxed text-muted-foreground">{TAX_INDICATIVE_LABEL}</p>
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
           Summary for the income year {nzTaxYearLabel(endingYear)}. The year runs from 1 April to 31 March. Dividends
@@ -180,12 +188,10 @@ export default async function TaxableIncomePage({
             </Link>
           ))}
           {user && report ? (
-            <Link
+            <CsvExportButton
               href={`/api/tax/income/export?year=${endingYear}`}
-              className="rounded-lg border border-border/70 px-2.5 py-1.5 text-xs font-semibold"
-            >
-              CSV
-            </Link>
+              allowed={canExportCsv(user.subscription_plan)}
+            />
           ) : null}
           {user && report ? <PrintButton /> : null}
         </div>

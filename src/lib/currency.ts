@@ -183,15 +183,24 @@ export function formatPriceInput(value: number): string {
 
 const DISPLAY_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
+const DATE_ONLY = /^(\d{4}-\d{2}-\d{2})$/;
+/** UTC midnight and UTC noon were never a chosen clock. Keep their date prefix. */
+const INVENTED_UTC_CLOCK = /^(\d{4}-\d{2}-\d{2})T(?:00:00:00(?:\.\d+)?|12:00:00(?:\.\d+)?)Z$/;
+
+function prefixDay(day: string): { day: number; month: number; year: number } | null {
+  const [year, month, date] = day.split("-").map(Number);
+  if (!year || !month || !date) return null;
+  return { year, month, day: date };
+}
+
 function displayDateParts(input: string | Date): { day: number; month: number; year: number } | null {
   if (typeof input === "string") {
-    const noon = aucklandNoonCivilDay(input);
-    if (noon) {
-      const [year, month, day] = noon.split("-").map(Number);
-      return { year, month, day };
-    }
-    const ymd = /^(\d{4})-(\d{2})-(\d{2})/.exec(input.trim());
-    if (ymd) return { year: Number(ymd[1]), month: Number(ymd[2]), day: Number(ymd[3]) };
+    const text = input.trim();
+    const noon = aucklandNoonCivilDay(text);
+    if (noon) return prefixDay(noon);
+    if (DATE_ONLY.test(text)) return prefixDay(text);
+    const invented = text.match(INVENTED_UTC_CLOCK);
+    if (invented) return prefixDay(invented[1]);
   }
   const date = input instanceof Date ? input : new Date(input);
   if (Number.isNaN(date.getTime())) return null;
@@ -209,10 +218,12 @@ function displayDateParts(input: string | Date): { day: number; month: number; y
 }
 
 /**
- * Calendar date as '4 Oct 2026'. A yyyy-mm-dd string is that civil date,
- * not UTC midnight (which would show the previous day in New Zealand).
- * The day is never padded, so 4 October is '4 Oct 2026'. Month is always
- * the three-letter form ('Sep', never 'Sept').
+ * Calendar date as '4 Oct 2026'. A yyyy-mm-dd string is that civil date.
+ * Noon in Pacific/Auckland keeps that civil day. Old UTC midnight and UTC
+ * noon carriers keep their date prefix. Any other timestamp uses the
+ * Pacific/Auckland calendar day, including a morning when UTC is still
+ * the previous date.
+ * pull-check:tax-fixups-2026-10-11
  */
 export function formatDisplayDate(input?: string | Date | null): string {
   if (input == null || input === "") return "—";
@@ -257,6 +268,22 @@ export function formatDisplayClock(input?: string | Date | null): string {
   const full = formatDisplayDateTime(input);
   const comma = full.indexOf(", ");
   return comma === -1 ? full : full.slice(comma + 2);
+}
+
+/**
+ * Native amount in NZD at the 4-decimal book rate.
+ * Booking and the holdings card both use this so a rate of 1.782034
+ * does not print one cent away from the cash that was stored.
+ */
+export function nzdAtBookRate(
+  amount: number,
+  currency: CurrencyCode,
+  rates: FxRatesToNZD = BASELINE_FX_TO_NZD
+): number {
+  if (currency === "NZD") return amount;
+  const table = normalizeFxRates(rates);
+  const rate = roundFxRate(currency === "USD" ? table.USD : table.AUD);
+  return amount * rate;
 }
 
 /** NZD received for 1 unit of a foreign currency, shown to 4 decimals. */
@@ -327,12 +354,16 @@ function roundAtDecimals(value: number, decimals: number): number {
   return rounded === 0 ? 0 : rounded;
 }
 
-/** Auckland civil day. A yyyy-mm-dd string is that day; a timestamp is Auckland. */
+/** Auckland civil day. Date-only text, Auckland noon, and invented UTC clocks keep their prefix. */
 function aucklandCivilDay(input: string | Date): string {
   if (typeof input === "string") {
     const text = input.trim();
     if (!text) return "";
-    if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+    const noon = aucklandNoonCivilDay(text);
+    if (noon) return noon;
+    if (DATE_ONLY.test(text)) return text;
+    const invented = text.match(INVENTED_UTC_CLOCK);
+    if (invented) return invented[1];
     const date = new Date(text);
     if (Number.isNaN(date.getTime())) return "";
     return aucklandCivilDay(date);

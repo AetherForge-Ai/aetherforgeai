@@ -647,7 +647,7 @@ export function MarketsExplorer({
               : hasData || remoteHits.length
               ? `${total} names in the ${isCryptoTab ? "crypto" : tab} list${liveCount > 0 && liveCount !== total ? ` · ${liveCount} quoted` : ""}${remoteLoading ? " · searching…" : ""}${remoteHits.length && query.trim() ? ` · +${remoteHits.length} market match${remoteHits.length === 1 ? "" : "es"}` : ""}${asOf && !/last close|close ·/i.test(data?.freshness || "") ? ` · ${fmtTime(asOf)}` : ""}`
               : loadingRows
-                ? "Prices appear when the feed answers."
+                ? "A price shows here after the feed returns a figure."
                 : "—"}
           </p>
           {!isCryptoTab && !stockLoading && data && (

@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
 import { ADVISORY_NOTE } from "@/lib/fill-integrity-client";
 import { formatDisplayDate, formatMoney, formatSavedFx, formatSignedMoney, formatUnitPrice, currencyForTicker, type CurrencyCode } from "@/lib/currency";
+import { aucklandDateISO } from "@/lib/fill-integrity";
 import { distributionLabel } from "@/lib/income-label";
 import { aucklandYmd } from "@/lib/entitlements";
 import { useFxRates } from "@/hooks/useFxRates";
@@ -326,7 +327,7 @@ export function TransactionCenter({
   /** Current holdings (both bots + precious metals) — used to power the Sell picker. */
   holdings: SellableHolding[];
   /** Called after any trade so the parent can reload holdings + prices. */
-  onChanged: () => void;
+  onChanged: (updated?: { cashBalance?: number }) => void;
   /** Increment to force a ledger reload (e.g. after a metals buy/sell elsewhere). */
   reloadSignal?: number;
   /** Guest preview — read-only, no network calls. */
@@ -539,7 +540,7 @@ export function TransactionCenter({
       if (updated && typeof updated === "object" && "cashBalance" in updated) {
         setLedger(updated as Ledger);
       }
-      onChanged();
+      onChanged(updated && typeof updated === "object" && "cashBalance" in updated ? (updated as Ledger) : undefined);
     },
     onOpenChange: (next) => setOpen(next),
   });
@@ -864,7 +865,7 @@ function AllTransactionsDialog({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `transactions-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `transactions-${aucklandDateISO()}.csv`;
     document.body.appendChild(a);
     a.click();
     a.remove();

@@ -5,9 +5,11 @@
 
 import {
   currencyForTicker,
-  convertCurrency,
   BASELINE_FX_TO_NZD,
   freshQuotedFill,
+  normalizeFxRates,
+  nzdAtBookRate,
+  roundFxRate,
   roundMoney,
   roundPositionGain,
   type CurrencyCode,
@@ -64,6 +66,16 @@ export interface SummaryOptions {
   fxToNZD?: FxRatesToNZD;
 }
 
+/** Same 4-decimal FX path as the cash booking, then into the portfolio currency. */
+function amountInBase(amount: number, currency: CurrencyCode, base: CurrencyCode, fx: FxRatesToNZD): number {
+  if (currency === base) return amount;
+  const nzd = nzdAtBookRate(amount, currency, fx);
+  if (base === "NZD") return nzd;
+  const table = normalizeFxRates(fx);
+  const rate = roundFxRate(base === "USD" ? table.USD : table.AUD);
+  return rate > 0 ? nzd / rate : nzd;
+}
+
 export function computeSummary(stocks: Stock[], opts: SummaryOptions = {}): PortfolioSummary {
   const baseCurrency = opts.baseCurrency ?? "USD";
   const fx = opts.fxToNZD ?? BASELINE_FX_TO_NZD;
@@ -78,10 +90,10 @@ export function computeSummary(stocks: Stock[], opts: SummaryOptions = {}): Port
     // Same-day fill whose unit price matches at 4 decimals: one rounding path.
     // A 0.004 gap on an older lot stays a real gain.
     const fresh = freshQuotedFill(purchase, current, s.purchase_date);
-    const costInBase = roundMoney(convertCurrency(costBasis, currency, baseCurrency, fx));
+    const costInBase = roundMoney(amountInBase(costBasis, currency, baseCurrency, fx));
     const valueInBase = fresh
       ? costInBase
-      : roundMoney(convertCurrency(marketValue, currency, baseCurrency, fx));
+      : roundMoney(amountInBase(marketValue, currency, baseCurrency, fx));
     const gain = fresh ? 0 : roundPositionGain(marketValue - costBasis, currency);
     const gainPct = costBasis > 0 ? (gain / costBasis) * 100 : 0;
     return {
@@ -101,7 +113,7 @@ export function computeSummary(stocks: Stock[], opts: SummaryOptions = {}): Port
   const totalValue = roundMoney(enriched.reduce((sum, h) => sum + h.baseValue, 0));
   const totalCost = roundMoney(
     enriched.reduce(
-      (sum, h) => sum + roundMoney(convertCurrency(h.costBasis, h.currency, baseCurrency, fx)),
+      (sum, h) => sum + roundMoney(amountInBase(h.costBasis, h.currency, baseCurrency, fx)),
       0
     )
   );

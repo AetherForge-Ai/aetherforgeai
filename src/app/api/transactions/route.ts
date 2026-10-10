@@ -7,6 +7,9 @@ import { accountMismatchResponse, privateJson } from "@/lib/account-response";
 import { TRADE_CONFIRM_REQUIRED } from "@/lib/trade-confirm";
 import { previewActivityEmail } from "@/lib/activity-email";
 import { readActivityEmailPrefs } from "@/lib/activity-email-server";
+import { invalidateBookCache } from "@/lib/book-cache";
+import { planOrApplyLedgerReversal } from "@/lib/ledger-reversal-apply";
+import { totalumSdk } from "@/lib/totalum";
 
 export const dynamic = "force-dynamic";
 
@@ -134,5 +137,42 @@ export async function POST(req: Request) {
       { ok: false, error: err?.message || "Failed to record transaction" },
       { status: 400 }
     );
+  }
+}
+
+/**
+ * DELETE /api/transactions?id= — remove one dividend the signed-in user owns.
+ * Reuses the ledger reversal (cash is inverted, the row is deleted).
+ * Buys and sells stay on the holding edit path.
+ */
+export async function DELETE(req: Request) {
+  try {
+    const user = await getTradeSessionUser();
+    if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    if (user.identityConflict || requestClaimsOtherUser(req, user._id)) {
+      return accountMismatchResponse(user._id);
+    }
+    const id = new URL(req.url).searchParams.get("id")?.trim() || "";
+    if (!id) return NextResponse.json({ ok: false, error: "A dividend id is required." }, { status: 400 });
+    const loaded = await totalumSdk.crud.getRecordById("transaction", id);
+    const row = (loaded as { data?: { _id?: string; type?: string; user?: string | { _id?: string } } })?.data;
+    if (!row?._id) return NextResponse.json({ ok: false, error: "That dividend was not found." }, { status: 404 });
+    const owner = typeof row.user === "object" && row.user ? row.user._id : row.user;
+    if (String(owner || "") !== String(user._id)) {
+      return NextResponse.json({ ok: false, error: "That dividend was not found." }, { status: 404 });
+    }
+    if (String(row.type || "") !== "dividend") {
+      return NextResponse.json(
+        { ok: false, error: "Only a dividend can be removed from this page." },
+        { status: 400 }
+      );
+    }
+    const result = await planOrApplyLedgerReversal(id, true);
+    invalidateBookCache(user._id);
+    return NextResponse.json({ ok: true, data: result });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "That dividend was not removed.";
+    console.error("[api/transactions] DELETE error:", err);
+    return NextResponse.json({ ok: false, error: message }, { status: 400 });
   }
 }
