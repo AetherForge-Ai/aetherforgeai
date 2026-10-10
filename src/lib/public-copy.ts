@@ -3,15 +3,24 @@
  * Exported strings are shown to visitors. They must not contain the word TODO,
  * a model name, or an invented owner-only fact.
  *
- * TODO(owner): confirm the AI provider name. Public copy says "an AI provider" until then.
+ * Public copy says "a third-party AI service" and "AI". It does not name a model or a provider.
  * TODO(owner): have a qualified NZ adviser check the re-issued Terms, Privacy Policy and AI Disclaimer.
  */
+
+/** pull-check:track-b-p0-2026-10-11 */
 
 /** General and customer mail. Privacy requests use PRIVACY_OFFICER_EMAIL. */
 export const CUSTOMER_EMAIL = "admin@aetherforgeai.co.nz";
 
 /** Privacy Officer, privacy requests, and the Lukas contact. */
 export const PRIVACY_OFFICER_EMAIL = "lukas@aetherforgeai.co.nz";
+
+/** Both public contact addresses. Footer, About, Terms, Privacy and Trust show both. */
+export const PUBLIC_CONTACT_EMAILS = [CUSTOMER_EMAIL, PRIVACY_OFFICER_EMAIL] as const;
+
+/** The number already printed on the footer. */
+export const PUBLIC_PHONE_DISPLAY = "0800 238 437";
+export const PUBLIC_PHONE_TEL = "0800238437";
 
 /**
  * One paper-book sentence for Trust, How it works, Privacy, Terms and the home page.
@@ -67,8 +76,8 @@ export const LEDGER_EXPORT_LINE =
 export const PROCESSORS: { name: string; role: string }[] = [
   { name: "Cloudflare", role: "public site and network" },
   { name: "Stripe", role: "subscription payments. We never see your card number" },
-  // TODO(owner): name the AI provider when it is confirmed. Public copy stays "An AI provider".
-  { name: "An AI provider", role: "plain-English notes on calculated figures" },
+  // Public copy does not name a model or a provider. Retention at that service is not set by this request.
+  { name: "A third-party AI service", role: "plain-English notes and assistant replies" },
   { name: "Google Analytics", role: "which pages are used" },
   { name: "Totalum on Google Cloud", role: "account storage" },
   { name: "Yahoo Finance", role: "prices for NZX-listed, ASX-listed and US shares" },
