@@ -83,6 +83,7 @@ export const AI_REQUEST_LINES = [
   "The Portfolio Execution Coach can send your name, your question, and recent messages in that chat. When a Headmaster book is available it can also send the cash balance, the total value, the profit or loss, the diversification score and its label, and the allocation weights and values in NZ$, including cash. It can send the top eight positions with name, asset class, weight and value, the latest Stox and Koins findings, and the Headmaster ideas for names in the book. It can send a plan you typed and report text you attached.",
   "The Headmaster chat can send your name, your question, and recent messages in that chat. It can send the total value, the total cost, the profit or loss, the cash balance, the cash weight, the retained-cash target, the illustrated cash reallocation, and the working that produces that reallocation. It can send each asset class with its weight, its value in NZ$ and its position count, the top eight positions with name, asset class, weight, value and profit or loss, concentration-risk notes, stress-test impacts in NZ$ and percent, and the bull, base and bear scenario pathways. When the book is invested it can send the diversification score and HHI. It can send a calculated yearly return and volatility for the mix. It can send the latest Stox and Koins findings, and the Headmaster ideas block. Names outside the book are included only when you ask for a watchlist.",
   "A ticker note can send your name, the ticker, the question you typed, and the quote used for that note. If you leave the question blank, the request still includes a short default question.",
+  "A weekly projections email, when that email is enabled, can send the market-wide indicative 7-day projections already on the projections page: the ticker, the name, the market, the indicative percent, and the as-of label. It does not send a person's holdings, values, cash, profit or loss, or allocation. It does not send the email address. It does not use a report allowance. One note is written for the week and reused for each recipient.",
   "The request does not include a card number. The code that sends the request does not set a retention period.",
 ] as const;
 
@@ -155,6 +156,22 @@ export const AI_SENT_CATEGORIES = {
     "the question you typed",
     "the quote used for that note",
     "a short default question",
+  ],
+  "/api/cron/weekly-email": [
+    "market-wide indicative 7-day projections",
+    "the ticker",
+    "the name",
+    "the market",
+    "the indicative percent",
+    "the as-of label",
+    "It does not send a person's holdings",
+    "values",
+    "cash",
+    "profit or loss",
+    "allocation",
+    "It does not send the email address",
+    "It does not use a report allowance",
+    "One note is written for the week",
   ],
 } as const satisfies Record<string, readonly string[]>;
 

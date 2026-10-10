@@ -73,6 +73,12 @@ export default function PrivacyPolicy() {
         <ul className="list-disc space-y-1.5 pl-5">
           <li>create, secure and manage your account;</li>
           <li>generate AI market-intelligence reports based on the holdings you add;</li>
+          <li>
+            prepare a weekly projections email for a paid plan when that email is switched on. The message
+            uses the same market-wide indicative projections described in section 4. It does not include the
+            holdings, values, cash, profit or loss, or allocation on the account. That email stays off until
+            it is enabled, and each message includes an unsubscribe link;
+          </li>
           <li>process subscription payments and manage your plan;</li>
           <li>send you service updates and security notices;</li>
           <li>respond to your support enquiries; and</li>
