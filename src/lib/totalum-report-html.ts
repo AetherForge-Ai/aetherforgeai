@@ -158,6 +158,7 @@ export function renderTotalumReport(
     <section>
       <h2>Executive brief</h2>
       <p>${esc(show(strategy.narrative))}</p>
+      ${(strategy.sleeveNotes || []).map((note) => `<p>${esc(show(note))}</p>`).join("")}
       <p class="muted"><strong>Retained cash:</strong> ${nzd(strategy.plan.retainedCashNZD)} (${strategy.plan.targetCashPct}% of ${nzd(strategy.plan.totalValueNZD)}). <strong>Illustrated cash reallocation:</strong> ${nzd(strategy.plan.cashToReallocateNZD)}. Cash on book: ${nzd(strategy.plan.cashOnBookNZD)}.</p>
       <p class="muted">${esc(show(strategy.formula))}</p>
       ${
@@ -249,7 +250,7 @@ export function renderTotalumReport(
   <div class="kpis">
     <div class="kpi"><div class="l">Total wealth</div><div class="v">${nzd(s.totalValueNZD)}</div></div>
     <div class="kpi"><div class="l">Unrealised P/L</div><div class="v" style="color:${gainColor}">${nzd(s.totalGainNZD)}</div></div>
-    <div class="kpi"><div class="l">Diversification</div><div class="v">${s.diversificationScore}/100</div></div>
+    <div class="kpi"><div class="l">Diversification</div><div class="v">${s.uninvestedBook ? "Not yet invested" : `${s.diversificationScore}/100`}</div></div>
     <div class="kpi"><div class="l">Model view</div><div class="v" style="font-size:14px;line-height:1.35">${esc(modelView)}</div></div>
   </div>
   <p>${esc(bookLine)}</p>
@@ -259,7 +260,7 @@ export function renderTotalumReport(
     <h2>Asset-Class Allocation</h2>
     <table><thead><tr><th>Class</th><th class="num">Weight</th><th class="num">Value</th><th class="num">Positions</th></tr></thead>
     <tbody>${allocRows}</tbody></table>
-    <p class="muted" style="margin-top:8px">Concentration: <strong>${esc(s.concentrationLabel)}</strong> (HHI ${s.hhi}).</p>
+    <p class="muted" style="margin-top:8px">${s.uninvestedBook ? "Not yet invested. Cash is not scored as concentration." : `Concentration: <strong>${esc(s.concentrationLabel)}</strong> (HHI ${s.hhi}).`}</p>
   </section>
 
   <section>

@@ -38,6 +38,7 @@ type BookSnapshot = {
   totalValueNZD?: number;
   cashBalanceNZD?: number;
   diversificationScore?: number;
+  uninvestedBook?: boolean;
   concentrationLabel?: string;
   classAllocation?: { label: string; weight: number; valueNZD?: number }[];
   isEmpty?: boolean;
@@ -174,7 +175,9 @@ function formatBookSnapshot(s: BookSnapshot): string {
     `- **Total value:** ${nzd(s.totalValueNZD)}`,
     `- **Cash:** ${nzd(s.cashBalanceNZD)}`,
   ];
-  if (s.diversificationScore != null) {
+  if (s.uninvestedBook) {
+    bits.push("- **Diversification:** Not yet invested");
+  } else if (s.diversificationScore != null) {
     bits.push(
       `- **Diversification:** ${s.diversificationScore}/100` +
         (s.concentrationLabel ? ` (${s.concentrationLabel})` : "")
@@ -266,9 +269,11 @@ export function PortfolioCoachChat({
           (s.asOf ? ` (as of ${s.asOf})` : "") +
           ".",
         `Cash about ${nzd(s.cashBalanceNZD)}.`,
-        s.diversificationScore != null
-          ? `Diversification ${s.diversificationScore}/100 (${s.concentrationLabel || "n/a"}).`
-          : "",
+        s.uninvestedBook
+          ? "Not yet invested. Cash is not a concentration score."
+          : s.diversificationScore != null
+            ? `Diversification ${s.diversificationScore}/100 (${s.concentrationLabel || "n/a"}).`
+            : "",
         alloc ? `Allocation: ${alloc}.` : "",
       ].filter(Boolean);
       setHeadmasterPlan(bits.join("\n"));

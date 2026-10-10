@@ -26,6 +26,7 @@ import {
 } from "@/lib/currency";
 import { bullionNzdPerOz, isBullionHolding } from "@/lib/metal-valuation";
 import { buildAllocationPlan, type AllocationPlan, type IllustrativeAction } from "@/lib/headmaster-trust";
+import { sleeveFillNotes, type SleevePickSource } from "@/lib/sleeve-fill";
 
 /* ------------------------------------------------------------------ *
  * Inputs
@@ -185,6 +186,8 @@ export interface StrategyBlueprint {
   projectedReturnPct: number;
   projectedVolPct: number;
   narrative: string;
+  /** Unfilled sleeve amounts when the sized Stox or Koins names cannot reach the target. */
+  sleeveNotes: string[];
 }
 
 export interface TotalumSynthesis {
@@ -198,6 +201,8 @@ export interface TotalumSynthesis {
   hhi: number; // 0-10000 (Herfindahl over individual positions)
   concentrationLabel: string;
   diversificationScore: number; // 0-100
+  /** Cash is the whole book. Do not score it as concentration. */
+  uninvestedBook: boolean;
   concentrationRisks: ConcentrationRisk[];
   correlationNotes: string[];
   expectedAnnualReturnPct: number;
@@ -434,8 +439,17 @@ export function buildSynthesis(input: SynthesisInput): TotalumSynthesis {
     positions.reduce((s, p) => s + Math.pow(p.weight, 2), 0),
     0
   );
-  const concentrationLabel =
-    hhi >= 4000 ? "Highly Concentrated" : hhi >= 2000 ? "Concentrated" : hhi >= 1200 ? "Moderate" : "Well Diversified";
+  const investedPositions = positions.filter((p) => p.assetClass !== "cash");
+  const uninvestedBook = investedPositions.length === 0 && totalValueNZD > 0;
+  const concentrationLabel = uninvestedBook
+    ? "Not yet invested"
+    : hhi >= 4000
+      ? "Highly Concentrated"
+      : hhi >= 2000
+        ? "Concentrated"
+        : hhi >= 1200
+          ? "Moderate"
+          : "Well Diversified";
 
   // Diversification score: reward multiple classes + low HHI.
   const classCount = classAllocation.length;
@@ -444,8 +458,18 @@ export function buildSynthesis(input: SynthesisInput): TotalumSynthesis {
   const diversificationScore = round(clamp(0.65 * hhiScore + 0.35 * classScore, 0, 100), 0);
 
   // Concentration risks — single names >25% and asset classes >70%.
+  // An all-cash book is not invested, so it gets one note instead of two 100% lines.
   const concentrationRisks: ConcentrationRisk[] = [];
-  positions.forEach((p) => {
+  if (uninvestedBook) {
+    const cash = positions.find((p) => p.assetClass === "cash");
+    concentrationRisks.push({
+      label: cash?.label ?? "Cash (NZD)",
+      weight: cash?.weight ?? 100,
+      note: "Not yet invested. Cash is the whole book, so this is not a concentration score.",
+      severity: "medium",
+    });
+  }
+  if (!uninvestedBook) positions.forEach((p) => {
     if (p.assetClass === "cash") {
       if (p.weight >= 25) {
         concentrationRisks.push({
@@ -466,7 +490,7 @@ export function buildSynthesis(input: SynthesisInput): TotalumSynthesis {
       });
     }
   });
-  classAllocation.forEach((c) => {
+  if (!uninvestedBook) classAllocation.forEach((c) => {
     if (c.assetClass === "cash" && c.weight >= 70) {
       concentrationRisks.push({
         label: `${c.label} class`,
@@ -487,7 +511,9 @@ export function buildSynthesis(input: SynthesisInput): TotalumSynthesis {
   });
 
   // Correlation notes (qualitative, deterministic).
-  const correlationNotes = buildCorrelationNotes(classAllocation);
+  const correlationNotes = uninvestedBook
+    ? ["Not yet invested. Correlation is not scored until the book holds a market position."]
+    : buildCorrelationNotes(classAllocation);
 
   // Expected return and volatility from DEPLOYED sleeves only.
   // Ledger cash is not a returning asset: a cash book must not print the
@@ -517,6 +543,7 @@ export function buildSynthesis(input: SynthesisInput): TotalumSynthesis {
     hhi,
     concentrationLabel,
     diversificationScore,
+    uninvestedBook,
     concentrationRisks,
     correlationNotes,
     expectedAnnualReturnPct,
@@ -656,7 +683,11 @@ function buildStressTests(
  * Strategy Builder — allocation skeleton from one cash/class calculation
  * ------------------------------------------------------------------ */
 
-export function buildStrategy(synthesis: TotalumSynthesis, goal: GoalKey): StrategyBlueprint {
+export function buildStrategy(
+  synthesis: TotalumSynthesis,
+  goal: GoalKey,
+  picks?: SleevePickSource
+): StrategyBlueprint {
   const model = modelByKey(goal) ?? MODEL_PORTFOLIOS[1];
   const total = synthesis.totalValueNZD;
   const classes: AssetClassKey[] = ["equities", "crypto", "metals", "cash"];
@@ -695,6 +726,17 @@ export function buildStrategy(synthesis: TotalumSynthesis, goal: GoalKey): Strat
     projectedVolPct: projVol,
   });
 
+  const sleeveNotes = sleeveFillNotes({
+    totalNZD: total,
+    maxPositionWeightPct: riskParameters.maxPositionWeight,
+    moves: plan.moves.map((move) => ({
+      assetClass: move.assetClass,
+      targetValueNZD: move.targetValueNZD,
+      currentValueNZD: move.currentValueNZD,
+    })),
+    picks,
+  });
+
   const rebalance: RebalanceMove[] = plan.moves.map((m) => ({
     assetClass: m.assetClass,
     label: m.label,
@@ -721,6 +763,7 @@ export function buildStrategy(synthesis: TotalumSynthesis, goal: GoalKey): Strat
     projectedReturnPct: projReturn,
     projectedVolPct: projVol,
     narrative: plan.narrative,
+    sleeveNotes,
   };
 }
 

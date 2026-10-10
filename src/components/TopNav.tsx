@@ -33,6 +33,7 @@ import {
   MessageSquare,
   Settings,
   Compass,
+  Loader2,
   LogOut,
   Menu,
   Crown,
@@ -206,6 +207,19 @@ function DesktopLinks({
   );
 }
 
+function HeadmasterMenuLink({ plan }: { plan?: string | null }) {
+  const [pending, setPending] = useState(false);
+  return (
+    <Link href="/headmaster" aria-busy={pending} onClick={() => setPending(true)}>
+      {pending ? <Loader2 className="size-4 animate-spin" /> : <Compass className="size-4" />}
+      {pending ? "Opening The Headmaster…" : "The Headmaster"}
+      <span className="ml-auto rounded bg-primary/15 px-1.5 py-px text-[9px] font-bold uppercase text-primary">
+        {headmasterDeskCopy(plan).badge}
+      </span>
+    </Link>
+  );
+}
+
 function AccountMenu({
   user,
 }: {
@@ -276,7 +290,7 @@ function AccountMenu({
           <Link href="/chat"><MessageSquare className="size-4" /> Market Assistant</Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <Link href="/headmaster"><Compass className="size-4" /> The Headmaster <span className="ml-auto rounded bg-primary/15 px-1.5 py-px text-[9px] font-bold uppercase text-primary">{headmasterDeskCopy(user.subscription_plan).badge}</span></Link>
+          <HeadmasterMenuLink plan={user.subscription_plan} />
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link href="/settings"><Settings className="size-4" /> Account &amp; Settings</Link>
