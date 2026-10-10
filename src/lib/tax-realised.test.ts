@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { formatDisplayDate } from "@/lib/currency";
-import { realisedByTaxYear, realisedCsv, type RealisedReport } from "@/lib/tax-realised";
+import { fifoStoredForSell, incomeReconciliationNote, realisedByTaxYear, realisedCsv, type RealisedReport } from "@/lib/tax-realised";
 import type { TaxLedgerRow } from "@/lib/taxable-income";
 
 function read(rel: string) {
@@ -25,6 +25,18 @@ const cryptoBook: TaxLedgerRow[] = [
 ];
 
 describe("realised profit and loss", () => {
+  it("books a new sell at the same FIFO figure the realised page shows", () => {
+    const prior = shareBook.slice(0, 2);
+    const booked = fifoStoredForSell(prior, shareBook[2]);
+    expect(booked?.realisedNzd).toBe(25);
+    expect(booked?.pricePnlNzd).toBe(25);
+    expect(booked?.fxPnlNzd).toBe(0);
+    expect(incomeReconciliationNote(-10.59, -10.67)).toContain("FIFO");
+    expect(incomeReconciliationNote(-10.59, -10.67)).toContain("-NZ$10.59");
+    expect(incomeReconciliationNote(-10.59, -10.67)).toContain("-NZ$10.67");
+    expect(incomeReconciliationNote(25, 25)).toBeNull();
+  });
+
   it("closes share lots oldest first", () => {
     const report = realisedByTaxYear(shareBook, 2027);
     expect(report.other).toHaveLength(1);

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { LEGAL_ENTITY_NAME } from "@/lib/company";
 import { BOT_COUNT_LINE, PAPER_BOOK_STATEMENT, SMITTY_ROLE_LINE } from "@/lib/public-copy";
 import { loadPublicTickerBounded } from "@/lib/public-ticker";
+import { getMetalsSpot } from "@/lib/metals";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { SiteHeader } from "@/components/SiteHeader";
 import { MarketTicker } from "@/components/MarketTicker";
@@ -81,12 +82,19 @@ const STEPS = [
 ] as const;
 
 export default async function LandingPage() {
-  const tape = await loadPublicTickerBounded();
+  const [tape, metals] = await Promise.all([
+    loadPublicTickerBounded(),
+    Promise.race([
+      getMetalsSpot().catch(() => null),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500)),
+    ]),
+  ]);
+  const metalsInitial = metals?.live && metals.quotedAt ? metals : null;
   return (
     <div className="min-h-screen flex flex-col">
       <PersonalGuide />
       <SiteHeader />
-      <MarketTicker initial={tape} />
+      <MarketTicker initial={tape} initialMetals={metalsInitial} />
       <main className="flex-1">
         <div className="chrome-dark relative min-h-screen bg-background bg-grid">
           <div className="pointer-events-none absolute inset-0 bg-aurora" />
@@ -190,7 +198,7 @@ export default async function LandingPage() {
                     alt="Smitty with gold and silver at the forge"
                     className="w-full h-auto rounded-3xl border border-border/70 shadow-xl"
                   />
-                  <HomeMetalsPrices />
+                  <HomeMetalsPrices initial={metalsInitial} />
                 </div>
 
                 {/* Copy + cutout, top-aligned with large image */}

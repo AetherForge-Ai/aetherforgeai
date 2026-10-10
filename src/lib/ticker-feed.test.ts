@@ -109,6 +109,14 @@ describe("single live ticker tape", () => {
     expect(feed.rows.nzx).toEqual([]);
     expect(feed.rows.asx).toEqual([]);
     expect(feed.rows.crypto).toEqual([]);
+    const missingChange = composeTickerTape({
+      equityQuotes: { "AIR.NZ": { price: SET_A["AIR.NZ"] } },
+      cryptoQuotes: {},
+      equityProvider: "Yahoo Finance",
+      cryptoProvider: "CoinGecko",
+      asOf: AS_OF,
+    });
+    expect(missingChange.rows.nzx).toEqual([]);
     expect(feed.live).toEqual({ equities: false, crypto: false });
     expect(feed.providers).toEqual({ equities: null, crypto: null });
     expect(feed.asOf).toBeNull();

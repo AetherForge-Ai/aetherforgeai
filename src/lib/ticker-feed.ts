@@ -59,7 +59,8 @@ export const TICKER_TAPE: { nzx: TapeSymbol[]; asx: TapeSymbol[]; crypto: TapeSy
 
 export interface TapeQuote {
   price: number;
-  changePct: number;
+  /** Absent when the feed did not send a change. Those rows are omitted. */
+  changePct?: number;
   provider?: string;
   /** Vendor quote time. The pipeline asOf is not copied here. */
   quotedAt?: string | null;
@@ -116,7 +117,10 @@ function takeLive(
     const hit = quotes[symbol.symbol.toUpperCase()];
     const price = hit?.price;
     if (price == null || !Number.isFinite(price) || price <= 0) continue;
-    const change = hit && Number.isFinite(hit.changePct) ? hit.changePct : 0;
+    // A row without a finite change is omitted. Zero is a real unchanged print.
+    // pull-check:batch1-2026-10-11 B1-10
+    if (!hit || !Number.isFinite(hit.changePct)) continue;
+    const change = hit.changePct;
     rows.push({
       symbol: symbol.symbol,
       name: symbol.name,

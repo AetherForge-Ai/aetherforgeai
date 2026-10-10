@@ -335,10 +335,21 @@ export function formatCleanNumber(value: number): string {
     .replace(/\.0+$/, "");
 }
 
-/** Book money to the cent. A value that rounds to zero is 0, never -0. */
+/**
+ * Book money to the cent, half-up (away from zero).
+ * 0.4 × 599.89 = 239.956 is NZ$239.96. 11743.355 is NZ$11,743.36.
+ * Number#toFixed(2) is not used: it prints 11743.355 as 11743.35.
+ * A value that rounds to zero is 0, never -0.
+ * pull-check:batch1-2026-10-11 B1-6
+ */
 export function roundMoney(value: number): number {
   if (!Number.isFinite(value)) return 0;
-  const rounded = Math.round((value + Number.EPSILON) * 100) / 100;
+  const negative = value < 0;
+  const scaled = (Math.abs(value) * 100).toFixed(8);
+  const [whole, frac = ""] = scaled.split(".");
+  let cents = Number(whole);
+  if (Number(frac[0] || "0") >= 5) cents += 1;
+  const rounded = (negative ? -cents : cents) / 100;
   return rounded === 0 ? 0 : rounded;
 }
 

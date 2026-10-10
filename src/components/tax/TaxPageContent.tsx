@@ -8,6 +8,7 @@ import Link from "next/link";
 import { TaxSectionNav } from "@/components/tax/TaxSectionNav";
 import { formatNzd, formatSignedMoney } from "@/lib/currency";
 import { TAX_INDICATIVE_LABEL } from "@/lib/tax-disclaimer";
+import { TAX_PAGE_EXAMPLE, TAX_PAGE_SUMMARIES } from "@/lib/tax-public-summary";
 
 export type TaxBookFigures = {
   dividendsNzd: number;
@@ -116,6 +117,17 @@ export function TaxPageContent({ book = null }: { book?: TaxBookFigures | null }
           calculated. The working paper on this site includes Australian-listed shares in the NZ$50,000
           cost total. A holding that meets the Australian exemption can be left out by the member.
         </p>
+      </section>
+
+      <section className="mt-8 space-y-4">
+        <h2 className="font-display text-lg font-semibold">What each page does</h2>
+        {TAX_PAGE_SUMMARIES.map((section) => (
+          <div key={section.title} className="space-y-2">
+            <h3 className="font-display text-base font-semibold">{section.title}</h3>
+            <p className="text-sm leading-relaxed text-muted-foreground">{section.body}</p>
+          </div>
+        ))}
+        <p className="text-sm leading-relaxed text-muted-foreground">{TAX_PAGE_EXAMPLE}</p>
       </section>
 
       <section className="mt-8 space-y-3">

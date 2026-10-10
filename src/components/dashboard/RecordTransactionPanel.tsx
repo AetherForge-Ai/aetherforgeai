@@ -24,6 +24,7 @@ import {
   type CurrencyCode,
 } from "@/lib/currency";
 import { aucklandYmd } from "@/lib/entitlements";
+import { executedAtForLedger } from "@/lib/executed-at";
 import { openingFx } from "@/lib/reviewed-book";
 import { useFxRates } from "@/hooks/useFxRates";
 import { useCryptoMarkets } from "@/hooks/useCryptoMarkets";
@@ -532,7 +533,7 @@ export function RecordTransactionPanel({
       const payload: Record<string, unknown> = {
         type: kind,
         notes: notes.trim() || undefined,
-        executed_at: preview.date,
+        executed_at: executedAtForLedger(preview.date, today),
         fees: preview.feeNative,
       };
       if (showQty && asset) {

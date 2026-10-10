@@ -37,26 +37,16 @@ function formatPrice(q: Quote, display: TapeDisplay, rates: { USD: number; AUD: 
   return formatTapeItem(q, display, rates);
 }
 
-const STALE_QUOTE_MS = 18 * 60 * 60 * 1000;
-
 function formatAsOf(iso: string | null | undefined): string {
   if (!iso) return "";
   const wall = formatDisplayDate(iso);
   return wall === "—" ? "" : wall;
 }
 
-function quoteIsStale(quotedAt: string | null | undefined): boolean {
-  if (!quotedAt) return false;
-  const at = new Date(quotedAt).getTime();
-  if (!Number.isFinite(at)) return false;
-  return Date.now() - at > STALE_QUOTE_MS;
-}
-
 function TickerCell({ q, price }: { q: Quote; price: string }) {
   const flat = Number(q.change.toFixed(2)) === 0;
   const up = !flat && q.change > 0;
-  const stale = quoteIsStale(q.quotedAt);
-  const asOf = stale ? formatAsOf(q.quotedAt) : "";
+  const asOf = formatAsOf(q.quotedAt);
   return (
     <span className="inline-flex items-center gap-2 px-4 py-0.5 whitespace-nowrap">
       <span className="font-display text-[0.78rem] font-semibold tracking-tight text-emerald-300">
@@ -71,7 +61,7 @@ function TickerCell({ q, price }: { q: Quote; price: string }) {
       >
         <span aria-hidden="true">{flat ? "·" : up ? "▲" : "▼"}</span>
         {formatSignedPercent(q.change)}
-        {stale && asOf ? <span className="font-medium normal-case"> as of {asOf}</span> : null}
+        {asOf ? <span className="font-medium normal-case"> as of {asOf}</span> : null}
       </span>
     </span>
   );
@@ -136,8 +126,9 @@ interface MetalsSpotFeed {
   quotedAt?: string | null;
 }
 
-function MetalsSpotBanner() {
-  const [spot, setSpot] = useState<MetalsSpotFeed | null>(null);
+function MetalsSpotBanner({ initial = null }: { initial?: MetalsSpotFeed | null }) {
+  const seeded = initial?.live && initial.quotedAt ? initial : null;
+  const [spot, setSpot] = useState<MetalsSpotFeed | null>(seeded);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
@@ -217,6 +208,8 @@ interface MarketTickerProps {
   compact?: boolean;
   /** Server-rendered tape so the first HTML can include prices. */
   initial?: TickerFeed | null;
+  /** Server-rendered metals spot. Baseline prices are not passed in. */
+  initialMetals?: MetalsSpotFeed | null;
 }
 
 interface TickerFeed {
@@ -233,7 +226,7 @@ function hasTape(feed: TickerFeed | null | undefined): boolean {
   return feed.rows.nzx.length + feed.rows.asx.length + feed.rows.crypto.length > 0;
 }
 
-export function MarketTicker({ className, compact = false, initial = null }: MarketTickerProps) {
+export function MarketTicker({ className, compact = false, initial = null, initialMetals = null }: MarketTickerProps) {
   const [nzx, setNzx] = useState<Quote[]>(initial?.rows.nzx ?? []);
   const [asx, setAsx] = useState<Quote[]>(initial?.rows.asx ?? []);
   const [crypto, setCrypto] = useState<Quote[]>(initial?.rows.crypto ?? []);
@@ -345,7 +338,7 @@ export function MarketTicker({ className, compact = false, initial = null }: Mar
         status={cryptoStatus.label}
         priceFor={priceFor}
       />
-      <MetalsSpotBanner />
+      <MetalsSpotBanner initial={initialMetals} />
       <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 border-b border-emerald-500/20 bg-zinc-950 px-3 py-1.5 text-[0.6rem] text-muted-foreground">
         <span className="inline-flex items-center gap-1">
           <span className={cn("size-1.5 rounded-full", liveTape ? "bg-emerald-400" : "bg-muted-foreground/50")} />
