@@ -7,12 +7,19 @@
  * ScriptExecutor only runs outside production.
  *
  * Cloudflare "Always Use HTTPS" is a dashboard toggle and is not in this repo.
- * HSTS here is max-age=86400. Raise it to 15552000 after a clean week.
+ * HSTS is one year with includeSubDomains. preload is omitted until Lukas agrees.
+ * X-Frame-Options is omitted: SAMEORIGIN or DENY would block the Totalum preview
+ * that frame-ancestors deliberately allows.
+ * script-src is report-only. An enforcing script-src would block Next inline
+ * scripts and the consent-gated analytics tag.
  */
 export const SECURITY_HEADERS = {
-  "Strict-Transport-Security": "max-age=86400",
+  "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
   "Content-Security-Policy":
     "frame-ancestors 'self' https://web.totalum.app https://totalum-frontend-test.web.app",
+  "Content-Security-Policy-Report-Only":
+    "script-src 'self' https://www.googletagmanager.com; object-src 'none'; base-uri 'self'",
+  "Permissions-Policy": "camera=(), microphone=(), geolocation=(), usb=()",
   "X-Content-Type-Options": "nosniff",
   "Referrer-Policy": "strict-origin-when-cross-origin",
 } as const;
