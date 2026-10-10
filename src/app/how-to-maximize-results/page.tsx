@@ -29,7 +29,7 @@ import {
 export const metadata: Metadata = publicPageMetadata("/how-to-maximize-results", {
   title: "How to Maximize Results with AetherForge AI",
   description:
-    "The complete framework for extracting maximum clarity, consistency and edge from Stox, Koins and The Headmaster — build an accurate portfolio, run daily briefings, and follow a disciplined weekly routine.",
+    "The complete framework for extracting maximum clarity, consistency and edge from Stox, Koins and The Headmaster — build an accurate portfolio and follow a disciplined weekly routine.",
 });
 
 /* ---------------------------------------------------------------- data */
@@ -369,13 +369,13 @@ export default function MaximizeResultsPage() {
               {/* quick tool jump */}
               <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
                 <Link
-                  href="/dashboard"
+                  href="/stox"
                   className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-background/50 px-4 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
                 >
                   <TrendingUp className="size-4 text-primary" /> Stox
                 </Link>
                 <Link
-                  href="/dashboard"
+                  href="/koins"
                   className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-background/50 px-4 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
                 >
                   <Bitcoin className="size-4 text-primary" /> Koins

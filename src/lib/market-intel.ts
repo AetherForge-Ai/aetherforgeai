@@ -14,6 +14,7 @@
 
 import { formatMoney } from "@/lib/currency";
 import { alignProjectedFigures } from "@/lib/projection-figure";
+import { rankByConfidenceWeightedMove } from "@/lib/projection-pause";
 import { officialPublicNews } from "@/lib/news-present";
 
 export type MarketCode = "NZX" | "ASX" | "US" | "CRYPTO";
@@ -1083,23 +1084,14 @@ function deriveConviction(input: {
   regime: MarketRegime;
 }): { level: ConvictionLevel; reason: string } {
   const { score, confidence, regime } = input;
-  const edge = Math.abs(score - 50); // 0 (neutral) … 48 (extreme)
+  const band = score >= 67 ? "strong" : score >= 34 ? "moderate" : "weak";
+  const reason = `${band} score band (score ${score}/100)`;
   if (regime === "High Volatility" || confidence < 48) {
-    return {
-      level: "Speculative",
-      reason:
-        regime === "High Volatility"
-          ? "elevated realised volatility widens the outcome range"
-          : "low model confidence in the current tape",
-    };
+    return { level: "Speculative", reason };
   }
-  if (edge >= 20 && confidence >= 68) {
-    return { level: "High", reason: `strong directional edge (score ${score}/100) with ${confidence}% model confidence` };
-  }
-  if (edge >= 10 && confidence >= 55) {
-    return { level: "Moderate", reason: `a moderate edge (score ${score}/100) confirmed across indicators` };
-  }
-  return { level: "Low", reason: "signals are mixed with no decisive edge this week" };
+  if (score >= 67) return { level: "High", reason };
+  if (score >= 34) return { level: "Moderate", reason };
+  return { level: "Low", reason };
 }
 
 /* ------------------------------ Signal logic ---------------------------- */
@@ -1429,9 +1421,7 @@ export function getTopMovers(
 
 /** Highest-conviction 7-day projected movers across the whole universe. */
 export function getProjectionLeaders(count = 6, list: SecurityIntel[] = allIntel()): SecurityIntel[] {
-  return [...list]
-    .sort((a, b) => b.projected7dPct * (b.confidence / 100) - a.projected7dPct * (a.confidence / 100))
-    .slice(0, count);
+  return rankByConfidenceWeightedMove(list).slice(0, count);
 }
 
 /**

@@ -3,16 +3,21 @@
  * Exported strings are shown to visitors. They must not contain the word TODO,
  * a model name, or an invented owner-only fact.
  *
- * TODO(owner): confirm whether published prices include or exclude GST. Do not write "including GST" or "excluding GST" until then.
  * TODO(owner): confirm the AI provider name. Public copy says "an AI provider" until then.
- * TODO(owner): confirm the share-price vendor name before naming it in the processor list.
- * TODO(owner): confirm the Yahoo licence position for prices in a paid product.
- * TODO(owner): confirm the metals spot vendor name.
- * TODO(owner): confirm the FX vendor name.
- * TODO(owner): confirm the support@ mailbox before publishing an address.
- * TODO(owner): confirm the privacy@ mailbox before publishing an address.
  * TODO(owner): have a qualified NZ adviser check the re-issued Terms, Privacy Policy and AI Disclaimer.
  */
+
+/** General and customer mail. Privacy requests use PRIVACY_OFFICER_EMAIL. */
+export const CUSTOMER_EMAIL = "admin@aetherforgeai.co.nz";
+
+/** Privacy Officer, privacy requests, and the Lukas contact. */
+export const PRIVACY_OFFICER_EMAIL = "lukas@aetherforgeai.co.nz";
+
+/** Same sentence on the home page and How it works. */
+export const BOT_COUNT_LINE = "3 AI bots plus Smitty, our metals tracker";
+
+/** Honest history lengths. Projections use 30 days. Stock charts use about six months. */
+export const HISTORY_LENGTH_LINE = "30-day history (projections), ~6 months (stock charts).";
 
 /** Re-issue date for Terms, Privacy, and the AI Disclaimer. Keep TERMS_VERSION in sync. */
 export const LEGAL_UPDATED = "7 October 2026";
@@ -47,12 +52,13 @@ export const PROCESSORS: { name: string; role: string }[] = [
   { name: "An AI provider", role: "plain-English notes on calculated figures" },
   { name: "Google Analytics", role: "which pages are used" },
   { name: "Totalum on Google Cloud", role: "account storage" },
+  { name: "Yahoo Finance", role: "prices for NZX-listed, ASX-listed and US shares" },
   { name: "CoinGecko", role: "crypto prices" },
-  // TODO(owner): name the share-price, metals and FX vendors when they are confirmed.
-  {
-    name: "Licensed market-data vendors",
-    role: "share prices, metals and foreign exchange",
-  },
+  { name: "Swyftx", role: "crypto prices when that feed answers" },
+  { name: "GeckoTerminal", role: "DEX token prices" },
+  { name: "gold-api.com", role: "gold and silver spot prices" },
+  { name: "ExchangeRate-API", role: "daily foreign-exchange rates" },
+  { name: "Frankfurter", role: "foreign-exchange rates on past trade dates" },
 ];
 
 export const FRESHNESS_PLAIN = [

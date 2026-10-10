@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { assembleEquityProjections, CRYPTO_PROJECTIONS_PAUSE_MESSAGE } from "./projection-pause";
+import {
+  assembleEquityProjections,
+  CRYPTO_PROJECTIONS_PAUSE_MESSAGE,
+  rankByConfidenceWeightedMove,
+} from "./projection-pause";
 
 describe("crypto projections pause", () => {
   it("drops crypto rows from the combined ranking and the crypto list", () => {
@@ -17,5 +21,15 @@ describe("crypto projections pause", () => {
     expect(payload.combined.map((row) => row.ticker)).toEqual(["BHP.AX", "AIR.NZ"]);
     expect(payload.stockUniverse.map((row) => row.ticker)).toEqual(["AIR.NZ", "BHP.AX"]);
     expect(JSON.stringify(payload)).not.toMatch(/"market":"CRYPTO"/);
+  });
+
+  it("orders crypto rows by percent times confidence, the same rule as the other tabs", () => {
+    const ordered = rankByConfidenceWeightedMove([
+      { ticker: "SAND", market: "CRYPTO", projected7dPct: 27.81, confidence: 40 },
+      { ticker: "AAA", market: "CRYPTO", projected7dPct: 10, confidence: 90 },
+      { ticker: "LOW", market: "CRYPTO", projected7dPct: 20, confidence: 30 },
+    ]);
+    // 27.81 × 40 beats 10 × 90, which beats 20 × 30.
+    expect(ordered.map((row) => row.ticker)).toEqual(["SAND", "AAA", "LOW"]);
   });
 });

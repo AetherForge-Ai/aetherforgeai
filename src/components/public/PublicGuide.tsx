@@ -39,7 +39,7 @@ export function PublicGuide({
         <section className="mx-auto max-w-3xl px-4 pb-16 sm:px-6 lg:px-8">
           <ul className="space-y-3">
             {links.map((item) => (
-              <li key={item.href}>
+              <li key={`${item.href}-${item.title}`}>
                 <Link
                   href={item.href}
                   className="group flex items-start justify-between gap-4 rounded-2xl border border-border/70 bg-card/70 px-5 py-4 transition-colors hover:border-primary/40"
