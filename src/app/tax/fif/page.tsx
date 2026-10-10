@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
+import { CsvExportButton } from "@/components/tax/CsvExportButton";
 import { FifPositionCard } from "@/components/tax/FifWorkingPaper";
 import { PrintButton } from "@/components/tax/PrintButton";
+import { TaxCompletenessList } from "@/components/tax/TaxCompletenessList";
 import { TaxSectionNav } from "@/components/tax/TaxSectionNav";
+import { canExportCsv } from "@/lib/entitlements";
 import { formatNzd } from "@/lib/currency";
 import {
   FIF_ASSUMPTIONS,
@@ -16,7 +19,8 @@ import { publicPageMetadata } from "@/lib/reviewed-book";
 import { getCurrentUser } from "@/lib/session";
 import { loadStockNoteRows, loadTaxRows } from "@/lib/tax-book-server";
 import { TAX_INDICATIVE_LABEL } from "@/lib/tax-disclaimer";
-import { taxYearChoices } from "@/lib/taxable-income";
+import { TAX_PACK_NOTE, taxCompleteness } from "@/lib/tax-pack";
+import { taxYearChoices, type TaxLedgerRow } from "@/lib/taxable-income";
 
 export const dynamic = "force-dynamic";
 
@@ -54,9 +58,11 @@ export default async function FifPage({
   let years = [current];
   let saveable = new Set<string>();
   let readError = false;
+  let ledgerRows: TaxLedgerRow[] = [];
   if (user) {
     try {
       const [rows, stocks] = await Promise.all([loadTaxRows(user._id), loadStockNoteRows(user._id)]);
+      ledgerRows = rows;
       years = taxYearChoices(rows, today);
       if (!years.includes(endingYear)) years = [endingYear, ...years];
       paper = buildFifPaper({
@@ -97,8 +103,24 @@ export default async function FifPage({
               {nzTaxYearLabel(year)}
             </Link>
           ))}
-          {user && !readError ? <PrintButton /> : null}
+          {user && !readError ? (
+            <>
+              <CsvExportButton
+                href={`/api/tax/fif/export?year=${endingYear}`}
+                allowed={canExportCsv(user.subscription_plan)}
+                exportName="FIF CSV"
+              />
+              <CsvExportButton
+                href={`/api/tax/pack/pdf?paper=fif&year=${endingYear}`}
+                allowed={canExportCsv(user.subscription_plan)}
+                exportName="FIF PDF"
+                idleLabel="PDF"
+              />
+              <PrintButton />
+            </>
+          ) : null}
         </div>
+        {user && !readError ? <p className="mt-3 text-sm text-muted-foreground">{TAX_PACK_NOTE}</p> : null}
 
         {!user ? (
           <p className="mt-6 text-sm text-muted-foreground">
@@ -160,6 +182,8 @@ export default async function FifPage({
             ) : null}
           </>
         )}
+
+        {user && !readError ? <TaxCompletenessList items={taxCompleteness(ledgerRows)} /> : null}
 
         <h2 className="mt-8 font-display text-lg font-semibold">Assumptions</h2>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
