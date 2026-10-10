@@ -686,8 +686,8 @@ Branch `cursor/track-b-p0-bb35` from develop `87dfce1`. PR https://github.com/Ae
 
 ### P0-4 — fixed on this machine
 
-- Status: fixed in the local production server. Review follow-up: the equity wait is 3 seconds, a stored snapshot is served at once, and a later read refreshes it in the background. A cold miss still prints "No prices in this response."
-- Commit: `d08381a62b1bfd1c407ccc031e3b1a9fc3e73c9b`. Review follow-up `d0530cc812029408fdc2cd3c9f7019cd04b81fbf`.
+- Status: fixed in the local production server. Review follow-up: the equity wait is 3 seconds, a stored snapshot is served at once, and a later read refreshes it in the background. A refresh that does not replace that snapshot waits 60 seconds before another try. A cold miss still prints "No prices in this response."
+- Commit: `d08381a62b1bfd1c407ccc031e3b1a9fc3e73c9b`. Review follow-up `d0530cc812029408fdc2cd3c9f7019cd04b81fbf`. Backoff `18f1f9d`.
 - Files: `src/lib/public-market-index.ts`, `src/lib/public-market-types.ts`, `src/lib/sitemap-tickers.ts`, `src/components/markets/PublicMarketTables.tsx`, `src/components/dashboard/MarketsPageContent.tsx`, `src/app/markets/page.tsx`, `src/app/markets/stock/[ticker]/page.tsx`, `src/app/markets/crypto/[id]/page.tsx`, `src/app/sitemap.ts`
 - URL / steps: `curl` `/markets`, `/markets/stock/FBU.NZ`, and `/sitemap.xml`.
 - Expected: at least 50 `data-price-row` rows and an as-of time in the markets HTML. The sitemap lists ticker paths.
@@ -707,11 +707,11 @@ Branch `cursor/track-b-p0-bb35` from develop `87dfce1`. PR https://github.com/Ae
 
 ### P0-6 — fixed, retention left for Lukas
 
-- Status: public wording fixed after the review. The first wording understated the book figures. Vendor retention is still not stated on the site.
-- Commit: `109cff756f61705b77eb98c2b785831409ebee99`. The processor name is also in `5e9ee8f48f03e67a29c15edd68034f5415269550`. Review follow-up `3779e8b0da4f73ffbc24ddb386f2209c90ce2304`.
+- Status: public wording fixed after the second review. The first two wordings left out coach and Headmaster categories the routes send. Vendor retention is still not stated on the site.
+- Commit: `109cff756f61705b77eb98c2b785831409ebee99`. The processor name is also in `5e9ee8f48f03e67a29c15edd68034f5415269550`. Review follow-up `3779e8b0da4f73ffbc24ddb386f2209c90ce2304`. Category follow-up `6fefefe`.
 - Files: `src/app/trust/page.tsx`, `src/app/privacy-policy/page.tsx`, `src/components/chat/ChatAssistant.tsx`, `src/components/dashboard/TickerAnalysisPane.tsx`, `src/components/trial/TrialReportView.tsx`, `docs/ai-disclosure-for-lukas-2026-10-11.md`
 - URL / steps: `/trust` section "What the AI does", Privacy section 4, a ticker note, the assistant, and a trial note when `aiEnhanced` is true.
-- Expected: the page says a third-party AI service writes the labelled plain-English notes. It lists the assistant holding count, total market value, total cost, total unrealised profit or loss, best and worst performer, sector weights, and for each holding the ticker, name, sector, share count, average price, current price, value, profit or loss, and weight. It lists the Portfolio Execution Coach name and, when a Headmaster book is available, the cash balance. It lists the Headmaster chat cash balance, cash weight, retained-cash target, and stress-test impacts in NZ$ and percent. It says the request does not include a card number, and that the sending code does not set a retention period. It does not name a model or a provider. Retention and training at the service are "to be confirmed by Lukas" in the page-free note only.
+- Expected: the page says a third-party AI service writes the labelled plain-English notes. It lists the assistant holding count, total market value, total cost, total unrealised profit or loss, best and worst performer, sector weights, and for each holding the ticker, name, sector, share count, average price, current price, value, profit or loss, and weight. For the Portfolio Execution Coach it also lists the diversification score and its label, allocation values in NZ$, the top eight positions with name, asset class, weight and value, the latest Stox and Koins findings, and the Headmaster ideas for names in the book. For the Headmaster chat it also lists total value, total cost and profit or loss, each asset class with its value and position count, the top eight positions with name, asset class, weight, value and profit or loss, concentration-risk notes, the bull, base and bear scenario pathways, the diversification score and HHI, a calculated yearly return and volatility, the illustrated cash reallocation, and the Headmaster ideas block. A ticker note includes the question you typed. It says the request does not include a card number, and that the sending code does not set a retention period. It does not name a model or a provider. Retention and training at the service are "to be confirmed by Lukas" in the page-free note only. `AI_SENT_CATEGORIES` in `src/lib/public-copy.ts` is the typed list, and the test fails if one of those phrases is missing from the lines.
 - Partial: a stored member report still sets `aiEnhanced` to false. Its summary is the rules text, not the "AI-written note" label. Whether the live host has the API variable set is UNVERIFIED (`wrangler.jsonc` does not set it). The Lukas note now says "the trial summary function in src/lib/trial-report.ts" and does not use the old function identifier.
 
 ### P0-7 — fixed
@@ -727,8 +727,8 @@ Branch `cursor/track-b-p0-bb35` from develop `87dfce1`. PR https://github.com/Ae
 
 - `npm run check-types-errors`: passed.
 - eslint on the changed source files: passed, no output.
-- `npm test`: 102 files, 493 tests passed again after the review fixes, including the stock-page canonical string.
-- `npm run check-types-errors`: passed again after the review fixes.
-- `npm run build`: passed again after the review fixes (Next.js 15.3.9). The build skipped its own lint step. Better Auth logged the default secret in this environment. No secret was added.
+- `npm test`: 102 files, 494 tests passed after the category follow-up (`6fefefe`), including the typed category list.
+- `npm run check-types-errors`: passed again after that follow-up.
+- `npm run build`: passed again after that follow-up (Next.js 15.3.9). The build skipped its own lint step. Better Auth logged the default secret in this environment. No secret was added.
 - This batch did not edit `src/lib/auth.ts`, `src/lib/auth-mail.ts`, `src/lib/transactional-mail.ts`, `src/lib/send-transactional-mail.ts`, or the send-verification route. It did edit the news filter and the news fetch cap. Crypto projections stay paused. No list was removed. No email was sent. Nothing was published.
 
