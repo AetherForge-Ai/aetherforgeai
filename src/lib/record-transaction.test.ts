@@ -3,6 +3,7 @@ import {
   formatDisplayDate,
   formatFxInput,
   formatMoney,
+  formatNzd,
   formatSavedFx,
   formatPriceInput,
   formatQuantity,
@@ -11,7 +12,7 @@ import {
 import { defaultFeePresetId } from "@/lib/broker-fees";
 import { PAPER_FEE_SUMMARY, suggestedFee } from "@/lib/fee-rule";
 import { ledgerDisplayedCash } from "@/lib/ledger-cash-lines";
-import { buildMovementPreview } from "@/lib/movement-preview";
+import { buildMovementPreview, movementNzdTotal } from "@/lib/movement-preview";
 import { applyPaperCashMove } from "@/lib/paper-cash";
 import { paperFeeNZD } from "@/lib/report-topup";
 import { planSellFeeBackfill } from "@/lib/sell-fee-backfill";
@@ -548,6 +549,39 @@ describe("row sell uses the same FX as the add panel", () => {
     expect(panel).not.toContain("String(rates[");
     expect(panel).not.toContain("cash after still loading");
     expect(panel).toContain("Loading cash…");
+    expect(panel).toContain('data-testid="record-nzd-total"');
+    expect(panel).toContain("movementNzdTotal");
+  });
+
+  it("shows the NZD total and a 4dp rate for a USD buy, and hides a missing rate", () => {
+    const preview = buildMovementPreview({
+      type: "buy",
+      date: today,
+      asset: "AAPL",
+      quantity: 2,
+      price: 10,
+      fee: 1.25,
+      currency: "USD",
+      fxRate: 1.74195,
+      cashNzd: 0,
+    });
+    const shown = movementNzdTotal(preview, 1.74195);
+    expect(shown?.fx).toBe("1.7420 NZD per 1 USD");
+    expect(shown?.nzd).toBe(formatNzd(Math.abs(preview.cashChangeNzd)));
+    expect(shown?.nzd).toMatch(/^NZ\$/);
+    expect(movementNzdTotal(preview, 0)).toBeNull();
+    const hidden = buildMovementPreview({
+      type: "buy",
+      date: today,
+      asset: "AAPL",
+      quantity: 2,
+      price: 10,
+      fee: 0,
+      currency: "USD",
+      fxRate: 0,
+      cashNzd: 500,
+    });
+    expect(movementNzdTotal(hidden, 0)).toBeNull();
   });
 });
 

@@ -64,6 +64,7 @@ import { PreciousMetals } from "@/components/dashboard/PreciousMetals";
 import { planLabel } from "@/lib/plans";
 import { checkTickerQuota, isFreeReportPlan, limitScope, resolveTickerLimit } from "@/lib/entitlements";
 import { PL_AT_LATEST_PRICE } from "@/lib/market-freshness";
+import { CRYPTO_PROJECTIONS_PAUSED, CRYPTO_PROJECTIONS_PAUSE_MESSAGE } from "@/lib/projection-pause";
 import { computePortfolioMetrics } from "@/lib/analytics";
 import { AllMarkets } from "@/components/dashboard/AllMarkets";
 import { OpenMarketSnapshot } from "@/components/dashboard/OpenMarketSnapshot";
@@ -476,7 +477,9 @@ export function PortfolioDashboard({
   } | null>(null);
   // Public troy-oz spot. Independent of the metals-desk entitlement gate so a
   // ledger GOLD lot is marked even when /api/metals is empty or rejected.
-  const [publicSpot, setPublicSpot] = useState<(MetalSpotPerOz & { live?: boolean }) | null>(null);
+  const [publicSpot, setPublicSpot] = useState<
+    (MetalSpotPerOz & { live?: boolean; quotedAt?: string | null }) | null
+  >(null);
   const [deleteTarget, setDeleteTarget] = useState<Stock | null>(null);
   const [deleting, setDeleting] = useState(false);
   // Holding "last 7 days" chart popup — opened by clicking a ticker in the table.
@@ -732,7 +735,7 @@ export function PortfolioDashboard({
   }, []);
 
   const loadPublicSpot = useCallback(async () => {
-    const res = await api.get<MetalSpotPerOz & { live?: boolean }>("/api/metals/spot");
+    const res = await api.get<MetalSpotPerOz & { live?: boolean; quotedAt?: string | null }>("/api/metals/spot");
     if (res.ok && res.data?.gold) {
       setPublicSpot(res.data);
     }
@@ -1401,6 +1404,7 @@ export function PortfolioDashboard({
         balancesLoading={!balancesReady}
         ledgerLoading={!preview && !ledgerLoaded}
         metalsSpotLive={metalsSpotLive}
+        metalsQuotedAt={publicSpot?.quotedAt ?? null}
       />
       <ReturnsSplitCard
         holdings={[...stockHoldings, ...cryptoHoldings]}
@@ -1731,6 +1735,11 @@ export function PortfolioDashboard({
         </>
         )}
       </div>
+      {freePlan && CRYPTO_PROJECTIONS_PAUSED ? (
+        <p className="mt-4 rounded-2xl border border-border/70 bg-card/40 p-4 text-sm text-muted-foreground">
+          {CRYPTO_PROJECTIONS_PAUSE_MESSAGE}
+        </p>
+      ) : null}
 
       {!freePlan && cryptoOverviewSummary.holdingsCount > 0 && (
         <div className="mt-4 grid grid-cols-2 gap-4 rounded-2xl border border-border/70 bg-card/40 p-4 sm:grid-cols-4">
@@ -2261,8 +2270,14 @@ export function PortfolioDashboard({
           <div className="mt-8">
             {freePlan ? (
               <p className="text-sm text-muted-foreground">
-                Projected performers are on a paid plan.{" "}
-                <a href="/pricing" className="font-medium text-primary hover:underline">See plans</a>
+                {isCrypto && CRYPTO_PROJECTIONS_PAUSED ? (
+                  CRYPTO_PROJECTIONS_PAUSE_MESSAGE
+                ) : (
+                  <>
+                    Projected performers are on a paid plan.{" "}
+                    <a href="/pricing" className="font-medium text-primary hover:underline">See plans</a>
+                  </>
+                )}
               </p>
             ) : (
             <MarketWidePerformers onBought={handleDataChanged} />

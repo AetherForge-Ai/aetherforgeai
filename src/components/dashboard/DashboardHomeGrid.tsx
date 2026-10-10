@@ -9,6 +9,8 @@ import {
   type ExchangeSnapshot,
 } from "@/components/dashboard/IndexMarketCard";
 import { formatMoney, formatSignedMoney } from "@/lib/currency";
+import { metalsHomeHint } from "@/lib/market-freshness";
+import { CRYPTO_PROJECTIONS_PAUSED, CRYPTO_PROJECTIONS_PAUSE_MESSAGE } from "@/lib/projection-pause";
 import { ledgerDisplayedCash } from "@/lib/ledger-cash-lines";
 import { cn } from "@/lib/utils";
 import { ArrowRight, BookOpen, Coins, Landmark, Wallet } from "lucide-react";
@@ -40,6 +42,8 @@ type Props = {
   ledgerLoading?: boolean;
   /** Spot only when the metals quote itself is live. Otherwise Est. */
   metalsSpotLive?: boolean;
+  /** gold-api updatedAt. The home sentence uses the same clock as the tape. */
+  metalsQuotedAt?: string | null;
   className?: string;
 };
 
@@ -320,6 +324,7 @@ export function DashboardHomeGrid({
   balancesLoading = false,
   ledgerLoading = false,
   metalsSpotLive = false,
+  metalsQuotedAt = null,
   className,
 }: Props) {
   const { byExchange, loading: marketsLoading } = useSharedMarketSnapshots();
@@ -401,7 +406,11 @@ export function DashboardHomeGrid({
           poster="/brand/bot-koins.png"
           metricLabel="Market value · NZD"
           metricValue={balancesLoading ? "…" : formatMoney(cryptoTotalNZD, "NZD")}
-          hint="Koins tracks BTC, ETH and your coin book"
+          hint={
+            CRYPTO_PROJECTIONS_PAUSED
+              ? CRYPTO_PROJECTIONS_PAUSE_MESSAGE
+              : "Koins tracks BTC, ETH and your coin book"
+          }
         />
         <OverviewCard
           title="Precious Metals Overview"
@@ -410,11 +419,7 @@ export function DashboardHomeGrid({
           poster="/brand/precious-metals-smitty.png"
           metricLabel="Metals value · NZD"
           metricValue={balancesLoading ? "…" : formatMoney(metalsTotalNZD, "NZD")}
-          hint={
-            metalsSpotLive
-              ? "Spot gold and silver. Not a report."
-              : "Est. gold and silver. Not a report."
-          }
+          hint={metalsHomeHint(metalsSpotLive, metalsQuotedAt)}
         />
         <LedgerCard
           href="/dashboard/transactions"

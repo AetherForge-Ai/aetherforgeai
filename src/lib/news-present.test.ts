@@ -434,6 +434,16 @@ describe("public market news", () => {
     expect(isOffTopicStory("FMA warns financial advisers over crypto marketing", "A notice to the market.")).toBe(false);
     expect(isOffTopicStory("Wall Street banks trim financial adviser headcount")).toBe(false);
     expect(isOffTopicStory("What financial advisers think wealthy people can teach us", "Investors and the market.")).toBe(true);
+    expect(
+      isOffTopicStory(
+        "Industry leaders discuss Jersey's high value residents scheme",
+        "The BBC column is about the island's residency scheme.",
+      ),
+    ).toBe(true);
+    expect(
+      isOffTopicStory("Number of wealthy people given Jersey residency doubles in 2025", "A residency count."),
+    ).toBe(true);
+    expect(isOffTopicStory("Jersey Electricity shares rise 2%", "The listed utility's shares rose.")).toBe(false);
 
     const dated = {
       impact: "Neutral" as const,
@@ -524,6 +534,30 @@ describe("public market news", () => {
       },
       {
         ...dated,
+        headline: "Industry leaders discuss Jersey's high value residents scheme",
+        source: "BBC",
+        market: "NZX",
+        summary: "Leaders discussed Jersey's high value residents scheme and the island economy.",
+        url: "https://www.bbc.com/news/articles/jersey-high-value-residents",
+      },
+      {
+        ...dated,
+        headline: "Number of wealthy people given Jersey residency doubles in 2025",
+        source: "BBC",
+        market: "NZX",
+        summary: "Wealthy residents given Jersey residency doubled.",
+        url: "https://www.bbc.com/news/articles/jersey-wealthy-residency-2025",
+      },
+      {
+        ...dated,
+        headline: "Jersey Electricity shares rise 2%",
+        source: "Reuters",
+        market: "NZX",
+        summary: "Jersey Electricity shares rose 2% in the session.",
+        url: "https://www.reuters.com/markets/jersey-electricity-shares",
+      },
+      {
+        ...dated,
         headline: "France's debt bomb grows without a budget",
         source: "Reuters",
         market: "US",
@@ -543,8 +577,9 @@ describe("public market news", () => {
       "Wall Street banks trim financial adviser headcount",
       "Gold vs. bitcoin: which is the better inflation hedge?",
       "Stocks vs. bonds: which will win as the Fed cuts?",
+      "Jersey Electricity shares rise 2%",
     ]));
-    expect(titles.join("\n")).not.toMatch(/debt bomb|wealthy people can teach/i);
+    expect(titles.join("\n")).not.toMatch(/debt bomb|wealthy people can teach|high value residents|Jersey residency/i);
     expect(feed.find((item) => item.headline.startsWith("LVMH"))?.url).toBe(
       "https://www.reuters.com/markets/europe/lvmh-shares-slide-paris"
     );

@@ -8,6 +8,11 @@ export const metadata = publicPageMetadata("/changelog", {
 
 const ENTRIES = [
   {
+    href: "/market-news",
+    title: "11 Oct 2026 — News filter and projection index",
+    body: "A Jersey residency column stays off the news feed. Equity projections stay on their page and are left out of the sitemap while crypto projections are paused.",
+  },
+  {
     href: "/markets",
     title: "11 Oct 2026 — Ledger dates, corrections, CSV and plan copy",
     body: "Develop 87dfce1. Ledger dates, holding corrections, the CSV export, and plan copy.",

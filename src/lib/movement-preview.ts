@@ -3,7 +3,15 @@
  * Cash change is signed: a buy, withdrawal or tax line is negative.
  */
 
-import { nativeToNzd, roundFxRate, type CurrencyCode, type FxRatesToNZD, BASELINE_FX_TO_NZD } from "@/lib/currency";
+import {
+  formatFxInput,
+  formatNzd,
+  nativeToNzd,
+  roundFxRate,
+  type CurrencyCode,
+  type FxRatesToNZD,
+  BASELINE_FX_TO_NZD,
+} from "@/lib/currency";
 import { suggestedFee } from "@/lib/fee-rule";
 
 export type RecordKind =
@@ -114,5 +122,27 @@ export function buildMovementPreview(input: MovementInput): MovementPreview {
     feeNzd,
     cashChangeNzd: cashChange,
     cashAfterNzd: round2(cashNzd + cashChange),
+  };
+}
+
+/**
+ * NZD total for a buy or sell preview. Non-NZD needs the rate the reader typed
+ * or that today's feed returned. A zero rate stays hidden so a baseline table
+ * is not shown as today's rate. Cash still loading does not hide this total.
+ */
+export function movementNzdTotal(
+  preview: Pick<MovementPreview, "type" | "quantity" | "priceNative" | "currency" | "fxRate" | "cashChangeNzd">,
+  enteredFx?: number,
+): { nzd: string; fx: string | null } | null {
+  if (preview.type !== "buy" && preview.type !== "sell") return null;
+  if (!(preview.quantity > 0) || !(preview.priceNative > 0)) return null;
+  if (preview.currency === "NZD") {
+    return { nzd: formatNzd(Math.abs(preview.cashChangeNzd)), fx: null };
+  }
+  const rate = enteredFx != null ? enteredFx : preview.fxRate;
+  if (!(rate > 0)) return null;
+  return {
+    nzd: formatNzd(Math.abs(preview.cashChangeNzd)),
+    fx: `${formatFxInput(rate)} NZD per 1 ${preview.currency}`,
   };
 }
