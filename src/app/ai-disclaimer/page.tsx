@@ -1,4 +1,5 @@
 import { LegalShell, LegalSection } from "@/components/legal/LegalShell";
+import { EmailAddress } from "@/components/EmailAddress";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { ENGINE_PARAGRAPH, LEGAL_UPDATED } from "@/lib/public-copy";
 
@@ -117,9 +118,7 @@ export default function AiDisclaimer() {
       <LegalSection heading="8. Questions">
         <p>
           If you have any questions about this disclaimer, email{" "}
-          <a href="mailto:admin@aetherforgeai.co.nz" className="text-primary hover:underline">
-            admin@aetherforgeai.co.nz
-          </a>{" "}
+          <EmailAddress email="admin@aetherforgeai.co.nz" className="text-primary" />{" "}
           or use the contact form on the{" "}
           <a href="/about#contact" className="text-primary hover:underline">
             About

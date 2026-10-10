@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CookieSettingsLink } from "@/components/CookieSettingsLink";
 import { LEGAL_ENTITY_NAME, NZBN, REGISTERED_OFFICE } from "@/lib/company";
 import { CUSTOMER_EMAIL } from "@/lib/public-copy";
+import { EmailAddress } from "@/components/EmailAddress";
 
 const LINKS = [
   { href: "/privacy-policy", label: "Privacy Policy" },
@@ -29,9 +30,7 @@ export function SiteFooter() {
         </nav>
         <p className="text-xs leading-relaxed text-muted-foreground">
           {LEGAL_ENTITY_NAME} · NZBN {NZBN} · {REGISTERED_OFFICE} ·{" "}
-          <a href={`mailto:${CUSTOMER_EMAIL}`} className="hover:text-foreground">
-            {CUSTOMER_EMAIL}
-          </a>
+          <EmailAddress email={CUSTOMER_EMAIL} />
           {" · "}
           <a href="tel:0800238437" className="hover:text-foreground">
             0800 238 437
