@@ -13,6 +13,7 @@ import {
   formatSignedMoney,
   formatMoney,
   formatUnitPrice,
+  currencyForTicker,
   baseCurrencyForBot,
   BASELINE_FX_TO_NZD,
   CURRENCY_META,
@@ -2403,8 +2404,12 @@ export function PortfolioDashboard({
           <AlertDialogHeader>
             <AlertDialogTitle>Remove {deleteTarget?.ticker}?</AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently removes this holding from your portfolio. This action cannot be
-              undone.
+              {deleteTarget
+                ? `This removes ${formatNumber(deleteTarget.shares)} of ${deleteTarget.ticker} (${formatMoney(
+                    deleteTarget.shares * (deleteTarget.current_price || deleteTarget.purchase_price || 0),
+                    currencyForTicker(deleteTarget.ticker)
+                  )} at the price on screen). Cancel keeps the holding.`
+                : "Cancel keeps the holding."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
