@@ -1,8 +1,12 @@
 // src/app/layout.tsx
+// Sora, Manrope, and JetBrains Mono are latin variable woff2 files under the
+// SIL Open Font Licence, Version 1.1. The licence text for each face is shipped
+// beside the file: src/app/fonts/sora-OFL.txt, manrope-OFL.txt, and
+// jetbrains-mono-OFL.txt. The build does not fetch fonts.googleapis.com.
 import React from "react";
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
-import { Sora, Manrope, JetBrains_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { headers } from "next/headers";
 import { DocumentSessionProvider } from "@/components/DocumentSession";
@@ -18,20 +22,24 @@ import { PortfolioCoach } from "@/components/portfolio-coach";
 import { TransactionDialogHost } from "@/components/dashboard/TransactionDialogHost";
 import { LEGAL_ENTITY_NAME, NZBN } from "@/lib/company";
 
-const sora = Sora({
+// pull-check:fonts-local-2026-10-11
+const sora = localFont({
+  src: "./fonts/sora-latin.woff2",
   variable: "--font-display",
-  subsets: ["latin"],
-  weight: ["500", "600", "700", "800"],
+  weight: "500 800",
+  display: "swap",
 });
-const manrope = Manrope({
+const manrope = localFont({
+  src: "./fonts/manrope-latin.woff2",
   variable: "--font-body",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: "400 700",
+  display: "swap",
 });
-const jetbrainsMono = JetBrains_Mono({
+const jetbrainsMono = localFont({
+  src: "./fonts/jetbrains-mono-latin.woff2",
   variable: "--font-mono-custom",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
+  weight: "400 600",
+  display: "swap",
 });
 
 // Canonical public site URL. Uses the configured app URL when present, otherwise
