@@ -8,6 +8,7 @@ Markers:
 - `pull-check:qa-2026-10-10-high-h1-h4`
 - `pull-check:qa-2026-10-10-medium-m1-m9`
 - `pull-check:qa-2026-10-10-medium-m10-m15-low-l6-l17`
+- `pull-check:track-a1-2026-10-10`
 
 Branch: `cursor/qa-m10-m15-l6-l17-b236`
 PR: https://github.com/AetherForge-Ai/aetherforgeai/pull/247
@@ -437,6 +438,65 @@ H5–H11 landed on develop as https://github.com/AetherForge-Ai/aetherforgeai/pu
 - Files: `src/app/market-news/page.tsx`, `src/components/dashboard/MarketNewsPageContent.tsx`, `src/components/dashboard/NewsFeed.tsx`
 - URL / steps: `/market-news`, view source, and a relevance score.
 - Expected: when the news feed returns more than two stories, those stories are in the first HTML. Otherwise the two official cards are. A score has the title `Relevance is an AetherForge tag from 0 to 100. It is not a recommendation.` News ingestion was not edited.
+
+## Track A1
+
+Retest of the published build. These rows supersede the earlier H1, H2, H3, and H5 rows where the retest still failed. Stox, Koins, and Headmaster lists stay. Crypto projections stay paused.
+
+### U3 — fixed
+
+- Status: fixed
+- Commit: `7690a58`
+- Files: `src/lib/crypto-coingecko.ts`, `src/lib/crypto-source.ts`, `src/lib/crypto-market.ts`, `src/lib/crypto-names.ts`, `src/lib/crypto-dex.ts`, `src/lib/crypto-coverage.ts`, `src/components/dashboard/MarketsExplorer.tsx`, `src/components/dashboard/MarketsPageContent.tsx`
+- URL / steps: signed out, `/markets?tab=crypto`, then the DEX tab. Read the intro, the count under the search, the Blockchain column, and the first page of names.
+- Expected: the intro does not say Top 400 unless 400 rows are in the table. The count line is the number returned (The top 400 coins by market cap when CoinGecko returns 400). Blockchain is Native or a platform name, not a dash on every row. Names such as Mina Protocol, Axie Infinity, Kusama, EOS Network, Flow, Internet Computer, Aave, Zilliqa, Artificial Superintelligence Alliance, Curve DAO, Synthetix, yearn.finance, Ankr, Filecoin, and Arkham are not the raw ticker. The DEX tab says the number GeckoTerminal returned. If that number is under 400, the notice says the rate limit stopped the list or further rows are still loading. It does not say Top 400 when the table is empty or short. `CRYPTO_SANITY_RATIO` stays 3 and is not applied to this list.
+
+### V1 — fixed
+
+- Status: fixed
+- Commit: `4b4801e`
+- Files: `src/lib/crypto-quote.ts`, `src/app/api/tickers/quote/route.ts`
+- URL / steps: signed in. Add a holding. Search PEPE and UNI. Choose the DEX row. Read the price hint. Compare with a sell of a holding that already has a price.
+- Expected: PEPE and UNI use the same coin-list price the sell form uses when GeckoTerminal search has no print. A search price is used when it is present. The hint is "Today's price is filled in." when a price comes back. An unknown pool id stays strict.
+
+### H1 — fixed
+
+- Status: fixed
+- Commit: `39e5c0d` (rating), `03b2813` (report assembly)
+- Files: `src/lib/report-consistency.ts`, `src/lib/report-copy.ts`, `src/lib/apex.ts`, `src/components/bots/ApexReport.tsx`
+- URL / steps: signed in, `/dashboard`. Run Koins, then Stox. Read the recommendation, the briefing, the momentum count, Balanced Growth, and the projected list.
+- Expected: one record per ticker. ADA with a 7-day midpoint of -0.63% is HOLD on the card, the recommendation, and the briefing. Both momentum lines say 0 of 1. The sentence is "does not issue a buy." and is not cut off at "does not issue a." A pathway target of -0.63% says it does not initiate a position. MAH.AX can lead the projected percents and its signal is not a buy. Projected top 10, not-sized names, pathways, and sweeps remain.
+
+### H2 — fixed
+
+- Status: fixed
+- Commit: `03b2813`
+- Files: `src/lib/quote-review.ts`, `src/lib/apex.ts`
+- URL / steps: the same Stox and Koins reports. Full multi-timeframe mover sweep and the projected list.
+- Expected: these prints are data under review and are not in the top 10 or the projected leaders: LRCX +43.68% and AMGN +42.23% (24h), MDLZ +50.64%, JPM +31.01%, and META +32.46% (7d), WETH +77.98%, USDG +27.66%, CRVUSD +29.82%. A wrapped token that tracks its underlying, and a stablecoin move of a few tenths of a percent, can still show. BAT +33.16% (24h) can still show.
+
+### H3 — fixed
+
+- Status: fixed
+- Commit: `24e9643`
+- Files: `src/lib/headmaster-trust.ts`, `src/lib/totalum-engine.ts`, `src/app/api/totalum/route.ts`, `src/components/totalum/TotalumConsole.tsx`
+- URL / steps: signed in, `/headmaster`. Open Synthesis, then Strategy.
+- Expected: cash on book keeps cents (NZ$33,291.47, not NZ$33,291.00). When qualifying names cannot fill a sleeve, both tabs show the unallocated amount, for example "Equities sleeve: NZ$15,000.00 unallocated: not enough qualifying picks." A sleeve the qualifying names fill has no sentence. Synthesis and Strategy both remain.
+
+### H5 — fixed
+
+- Status: fixed
+- Commit: `230f3e8`
+- Files: `src/lib/plan-usage.ts`, `src/lib/account-plan.ts`, `src/components/settings/SettingsClient.tsx`, `src/lib/entitlements.ts` (unchanged helper, now used by billing and profile)
+- URL / steps: signed in. Open Plan & billing, the profile ticker line, and the dashboard holdings count.
+- Expected: all three use `resolveTickerLimit`. An Apex Dual account stamped 51 shows "4 / 51 per bot" on billing when 4 holdings are in use, "51 per bot" on the profile, and "4 / 51 per bot" on the dashboard. Without a stamp, Apex Dual stays "20 per bot".
+
+### Checks for Track A1
+
+- `./node_modules/.bin/tsc --noEmit --skipLibCheck`: passed.
+- `./node_modules/.bin/vitest run`: 101 files, 479 tests passed.
+- `./node_modules/.bin/eslint` on the Track A1 source files: 0 errors.
+- `npm run build` (`next build`): passed. Exit 0. Nothing was published.
 
 ## Checks
 
