@@ -12,6 +12,7 @@
  * that frame-ancestors deliberately allows.
  * script-src is report-only. An enforcing script-src would block Next inline
  * scripts and the consent-gated analytics tag.
+ * pull-check:qa-2026-10-10-medium-m10-m15-low-l6-l17
  */
 export const SECURITY_HEADERS = {
   "Strict-Transport-Security": "max-age=31536000; includeSubDomains",

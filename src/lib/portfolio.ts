@@ -7,8 +7,9 @@ import {
   currencyForTicker,
   convertCurrency,
   BASELINE_FX_TO_NZD,
+  freshQuotedFill,
   roundMoney,
-  sameQuotedUnit,
+  roundPositionGain,
   type CurrencyCode,
   type FxRatesToNZD,
 } from "@/lib/currency";
@@ -69,20 +70,21 @@ export function computeSummary(stocks: Stock[], opts: SummaryOptions = {}): Port
     const currency = currencyForTicker(s.ticker, s.asset_type || "stock");
     const costBasis = shares * purchase; // native
     const marketValue = shares * current; // native
-    // A fresh fill and its mark share one cent rounding, so the gain is 0.00.
-    const quotedSame = sameQuotedUnit(purchase, current);
+    // Same-day fill whose stored unit price still matches: one rounding path.
+    // A 2-decimal print match on an older lot, or a 0.004 gap, stays a real gain.
+    const fresh = freshQuotedFill(purchase, current, s.purchase_date);
     const costInBase = roundMoney(convertCurrency(costBasis, currency, baseCurrency, fx));
-    const valueInBase = quotedSame
+    const valueInBase = fresh
       ? costInBase
       : roundMoney(convertCurrency(marketValue, currency, baseCurrency, fx));
-    const gain = quotedSame ? 0 : roundMoney(marketValue - costBasis);
+    const gain = fresh ? 0 : roundPositionGain(marketValue - costBasis, currency);
     const gainPct = costBasis > 0 ? (gain / costBasis) * 100 : 0;
     return {
       ...s,
       current_price: current,
       currency,
       costBasis,
-      marketValue: quotedSame ? costBasis : marketValue,
+      marketValue: fresh ? costBasis : marketValue,
       gain,
       gainPct,
       baseValue: valueInBase,

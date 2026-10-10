@@ -293,15 +293,73 @@ export function roundMoney(value: number): number {
 }
 
 /**
- * True when two unit prices print as the same quote. A fresh fill and its
- * mark then share one NZ$ rounding path and the gain is NZ$0.00.
+ * Round at an explicit decimal width. Two places and under use roundMoney.
+ * Wider widths keep sub-cent digits (0.0000040399 at 8 places stays 0.00000404)
+ * and still collapse -0 to 0.
+ */
+function roundAtDecimals(value: number, decimals: number): number {
+  if (!Number.isFinite(value)) return 0;
+  if (decimals <= 2) return roundMoney(value);
+  const rounded = Number(value.toFixed(decimals));
+  return rounded === 0 ? 0 : rounded;
+}
+
+/** Auckland civil day. A yyyy-mm-dd string is that day; a timestamp is Auckland. */
+function aucklandCivilDay(input: string | Date): string {
+  if (typeof input === "string") {
+    const text = input.trim();
+    if (!text) return "";
+    if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+    const date = new Date(text);
+    if (Number.isNaN(date.getTime())) return "";
+    return aucklandCivilDay(date);
+  }
+  if (Number.isNaN(input.getTime())) return "";
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Pacific/Auckland",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(input);
+}
+
+/**
+ * True when two unit prices are the same after the stored precision
+ * (at least 6 decimal places). A 2-decimal print match is not enough:
+ * 10.000 and 10.004 both show as 10.00, and 100,000 shares times that
+ * gap is a real gain.
  */
 export function sameQuotedUnit(paid: number, mark: number): boolean {
   if (!(paid > 0) || !(mark > 0) || !Number.isFinite(paid) || !Number.isFinite(mark)) return false;
-  if (paid === mark) return true;
-  const digits = Math.max(adaptiveFractionDigits(paid), adaptiveFractionDigits(mark));
-  const scale = 10 ** digits;
-  return Math.round(paid * scale) === Math.round(mark * scale);
+  return roundUnitPrice(paid) === roundUnitPrice(mark);
+}
+
+/**
+ * Zero a gain only when the stored unit price still matches the quote and
+ * the position was filled on this Auckland day. An older lot, or any lot
+ * whose prices differ inside 6 decimal places, keeps the full-precision gain.
+ */
+export function freshQuotedFill(
+  paid: number,
+  mark: number,
+  purchaseDate: string | null | undefined,
+  now: Date = new Date()
+): boolean {
+  if (!sameQuotedUnit(paid, mark)) return false;
+  const filled = aucklandCivilDay(String(purchaseDate ?? ""));
+  if (!filled) return false;
+  return filled === aucklandCivilDay(now);
+}
+
+/**
+ * Native position gain. NZ$ amounts, and anything from one cent, round to
+ * the cent. A non-NZ$ gain under one cent keeps its digits so a token move
+ * is not stored as 0. Negative zero is 0.
+ */
+export function roundPositionGain(value: number, currency: CurrencyCode = "NZD"): number {
+  if (!Number.isFinite(value) || value === 0) return 0;
+  if (currency !== "NZD" && Math.abs(value) < 0.01) return value;
+  return roundMoney(value);
 }
 
 /** NZ dollars to 2 decimal places, e.g. NZ$2.20 or -NZ$21,598.34. */
@@ -309,8 +367,16 @@ export function formatNzd(value: number): string {
   return formatMoney(roundMoney(value), "NZD", { decimals: 2 });
 }
 
-/** Signed money at 2 decimal places. A gain gets a plus. Zero has no sign. */
+/**
+ * Signed money. NZ$ totals stay at 2 decimal places. A non-NZ$ native gain
+ * under one cent uses the adaptive unit format, so it is not 'US$0.00'.
+ * Zero has no sign.
+ */
 export function formatSignedMoney(value: number, currency: CurrencyCode = "NZD"): string {
+  if (currency !== "NZD" && Number.isFinite(value) && Math.abs(value) > 0 && Math.abs(value) < 0.01) {
+    const text = formatMoney(value, currency);
+    return value > 0 ? `+${text}` : text;
+  }
   const rounded = roundMoney(value);
   const text = formatMoney(rounded, currency, { decimals: 2 });
   if (rounded > 0) return `+${text}`;
@@ -360,7 +426,7 @@ export function formatMoney(
   opts: { compact?: boolean; decimals?: number } = {}
 ): string {
   const meta = CURRENCY_META[currency] ?? CURRENCY_META.USD;
-  const signed = opts.decimals != null ? roundMoney(value) : value;
+  const signed = opts.decimals == null ? value : roundAtDecimals(value, opts.decimals);
   const abs = Math.abs(signed);
   // Book money from $1 is always 2 decimals (NZ$2.20, not NZ$2.2000).
   // Sub-dollar prints keep extra places so a fraction of a cent is not $0.00.

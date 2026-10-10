@@ -4,12 +4,15 @@ import {
   formatDisplayDate,
   formatDisplayDateTime,
   formatDriftPp,
+  formatMoney,
   formatNzd,
   formatSignedMoney,
   formatSignedPercent,
+  freshQuotedFill,
   roundMoney,
   sameQuotedUnit,
 } from "@/lib/currency";
+import { aucklandDateISO } from "@/lib/fill-integrity";
 import { computeSummary } from "@/lib/portfolio";
 import { SECURITY_HEADERS } from "@/lib/security-headers";
 import { distributionLabel } from "@/lib/income-label";
@@ -41,26 +44,101 @@ describe("M11 money", () => {
     expect(formatDriftPp(0)).toBe("0.0pp");
   });
 
-  it("uses one rounding path when the quoted unit price matches", () => {
-    expect(sameQuotedUnit(9.44, 9.43996)).toBe(true);
-    const summary = computeSummary(
+  it("keeps sub-cent digits when an explicit width is wider than 2", () => {
+    expect(formatMoney(0.0000040399, "USD", { decimals: 6 })).toBe("US$0.000004");
+    expect(formatMoney(0.0000040399, "USD", { decimals: 8 })).toBe("US$0.00000404");
+    expect(formatMoney(0.00002797, "USD", { decimals: 6 })).toBe("US$0.000028");
+    expect(formatMoney(0.00002797, "USD", { decimals: 8 })).toBe("US$0.00002797");
+    expect(formatMoney(17.456789, "USD", { decimals: 8 })).toBe("US$17.45678900");
+    expect(formatMoney(-1e-12, "USD", { decimals: 8 })).toBe("US$0.00000000");
+    expect(formatMoney(-1e-12, "USD", { decimals: 8 }).startsWith("-")).toBe(false);
+  });
+
+  it("zeros a same-day fill only when the stored unit price matches", () => {
+    const session = new Date("2026-10-10T01:00:00.000Z");
+    expect(sameQuotedUnit(9.44, 9.43996)).toBe(false);
+    expect(sameQuotedUnit(10, 10.004)).toBe(false);
+    expect(sameQuotedUnit(10, 10.0000004)).toBe(true);
+    expect(freshQuotedFill(10, 10.0000004, "2026-10-10", session)).toBe(true);
+    expect(freshQuotedFill(10, 10.0000004, "2026-10-09", session)).toBe(false);
+    expect(freshQuotedFill(10, 10.004, "2026-10-10", session)).toBe(false);
+    expect(freshQuotedFill(10, 10, null, session)).toBe(false);
+
+    const fresh = computeSummary(
       [
         {
-          _id: "wor",
-          ticker: "WOR.AX",
+          _id: "fresh",
+          ticker: "ABC.NZ",
           asset_type: "stock",
-          shares: 1000,
-          purchase_price: 9.44,
-          current_price: 9.43996,
+          shares: 100000,
+          purchase_price: 10,
+          current_price: 10.0000004,
+          purchase_date: aucklandDateISO(),
         },
       ],
       { baseCurrency: "NZD", fxToNZD: BASE }
     );
-    const holding = summary.holdings[0];
-    expect(holding.gain).toBe(0);
-    expect(formatNzd(holding.baseValue)).toBe(formatNzd(roundMoney(1000 * 9.44 * BASE.AUD)));
-    expect(summary.totalGain).toBe(0);
-    expect(formatSignedMoney(summary.totalGain)).toBe("NZ$0.00");
+    expect(fresh.holdings[0].gain).toBe(0);
+    expect(formatSignedMoney(fresh.totalGain)).toBe("NZ$0.00");
+
+    const older = computeSummary(
+      [
+        {
+          _id: "older",
+          ticker: "ABC.NZ",
+          asset_type: "stock",
+          shares: 100000,
+          purchase_price: 10,
+          current_price: 10.0000004,
+          purchase_date: "2020-01-02",
+        },
+      ],
+      { baseCurrency: "NZD", fxToNZD: BASE }
+    );
+    expect(older.holdings[0].gain).toBe(0.04);
+  });
+
+  it("keeps a 0.004 gap on 100,000 shares", () => {
+    const summary = computeSummary(
+      [
+        {
+          _id: "wide",
+          ticker: "ABC.NZ",
+          asset_type: "stock",
+          shares: 100000,
+          purchase_price: 10,
+          current_price: 10.004,
+          purchase_date: aucklandDateISO(),
+        },
+      ],
+      { baseCurrency: "NZD", fxToNZD: BASE }
+    );
+    expect(summary.holdings[0].gain).toBe(400);
+    expect(formatSignedMoney(summary.holdings[0].gain)).toBe("+NZ$400.00");
+  });
+
+  it("does not print a non-NZ$ sub-cent position gain as US$0.00", () => {
+    const summary = computeSummary(
+      [
+        {
+          _id: "pepe",
+          ticker: "PEPE",
+          asset_type: "crypto",
+          shares: 1,
+          purchase_price: 0.00001,
+          current_price: 0.0000140399,
+          purchase_date: "2020-01-02",
+        },
+      ],
+      { baseCurrency: "NZD", fxToNZD: BASE }
+    );
+    const gain = summary.holdings[0].gain;
+    expect(summary.holdings[0].currency).toBe("USD");
+    expect(gain).toBeCloseTo(0.0000040399, 12);
+    expect(formatSignedMoney(gain, "USD")).toBe("+US$0.0000040399");
+    expect(formatSignedMoney(0.00002797, "USD")).toBe("+US$0.00002797");
+    expect(formatSignedMoney(gain, "USD")).not.toBe("US$0.00");
+    expect(formatSignedMoney(-0.0000040399, "USD")).toBe("-US$0.0000040399");
   });
 });
 

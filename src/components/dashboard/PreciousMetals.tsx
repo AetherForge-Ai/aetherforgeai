@@ -11,7 +11,7 @@ import {
   responseUserId,
   trackAccountRequest,
 } from "@/lib/account-identity";
-import { formatMoney, formatNzd, formatSignedMoney, formatSignedPercent, roundMoney, sameQuotedUnit } from "@/lib/currency";
+import { formatMoney, formatNzd, formatSignedMoney, formatSignedPercent, freshQuotedFill, roundMoney } from "@/lib/currency";
 import { metalUpdatedPhrase } from "@/lib/market-freshness";
 import { openRecordTransaction } from "@/lib/open-transaction";
 import { buildTradePreview, type TradePreview } from "@/lib/trade-preview";
@@ -640,10 +640,10 @@ export function PreciousMetals({
                   const spotPerOz = spotFor(lot.metal);
                   const paid = lot.purchasePerOz;
                   const mark = spotPerOz || paid;
-                  const sameQuote = sameQuotedUnit(paid, mark);
+                  const fresh = freshQuotedFill(paid, mark, lot.purchaseDate);
                   const cost = roundMoney(lot.ounces * paid);
-                  const value = sameQuote ? cost : roundMoney(lot.marketValueNZD);
-                  const gain = sameQuote ? 0 : roundMoney(value - cost);
+                  const value = fresh ? cost : roundMoney(lot.marketValueNZD);
+                  const gain = fresh ? 0 : roundMoney(value - cost);
                   const gainPct = cost > 0 ? (gain / cost) * 100 : 0;
                   const up = gain > 0;
                   return (
@@ -702,10 +702,9 @@ export function PreciousMetals({
                   const spotPerOz = spotFor(h.metal);
                   const paid = h.purchase_price_per_oz;
                   const mark = spotPerOz || paid;
-                  const sameQuote = sameQuotedUnit(paid, mark);
                   const cost = roundMoney(h.ounces * paid);
-                  const value = sameQuote ? cost : roundMoney(h.ounces * mark);
-                  const gain = sameQuote ? 0 : roundMoney(value - cost);
+                  const value = roundMoney(h.ounces * mark);
+                  const gain = roundMoney(value - cost);
                   const gainPct = cost > 0 ? (gain / cost) * 100 : 0;
                   const up = gain > 0;
                   const reviewing = deskReview?.side === "sell" && deskReview.id === h._id;
