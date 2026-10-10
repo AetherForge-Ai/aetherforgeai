@@ -440,11 +440,11 @@ H5–H11 landed on develop as https://github.com/AetherForge-Ai/aetherforgeai/pu
 
 ## Checks
 
-- `./node_modules/.bin/tsc --noEmit --skipLibCheck`: passed (re-run after the #247 review fix).
-- `./node_modules/.bin/vitest run`: 88 files, 453 tests passed (re-run after the #247 review fix).
+- `./node_modules/.bin/tsc --noEmit --skipLibCheck`: passed after the merge of develop `5f27fe04`.
+- `./node_modules/.bin/vitest run`: 96 files, 472 tests passed after that merge. The M1 single correction note and the DEX badge / hidden `[DEX:<Chain>]` prefix tests passed in the CSV and the ledger.
 - `./node_modules/.bin/eslint` on the files in this batch: 0 errors. Three existing unused-disable warnings remain in `NewsFeed.tsx` and `CoinDetailView.tsx`.
-- `npm run build` (`next build`): passed, including a re-run after the #247 review fix. Next.js 15.3.9. Exit 0. The build skipped linting. Better Auth logged that the default secret is in use in this environment; no secret was added.
+- `npm run build` (`next build`): passed after that merge. Next.js 15.3.9. Exit 0. The build skipped linting. Better Auth logged that the default secret is in use in this environment; no secret was added.
 
 ## Left untouched on purpose
 
-`CRYPTO_PROJECTIONS_PAUSED` remains true. `CRYPTO_SANITY_RATIO` stays 3. Reviewed FX stays ±5%. `preserveDynamicSegmentTraces` is unchanged. Security headers stay in `next.config` `headers()` only. New books still start at NZ$0. The fee default stays NZ$0.00. `src/lib/auth.ts`, auth mail, transactional mail, the send-verification route, news ingestion, and the register and login pages were not edited. Email sending stays hard off. No email was sent. Reports describe intelligent AI bots and do not name Grok, ZENITH, or ULTRA. No Totalum AI product name was added. Nothing was published. Contacts remain `admin@aetherforgeai.co.nz` and `lukas@aetherforgeai.co.nz`.
+`CRYPTO_PROJECTIONS_PAUSED` remains true. `CRYPTO_SANITY_RATIO` stays 3. Reviewed FX stays ±5%. `preserveDynamicSegmentTraces` is unchanged. Security headers stay in `next.config` `headers()` only. New books still start at NZ$0. The fee default stays NZ$0.00. This branch did not edit `src/lib/auth.ts`, auth mail, transactional mail, the send-verification route, or news ingestion. Register and login arrived with the #246 merge. Email sending stays hard off. No email was sent. Reports describe intelligent AI bots and do not name Grok, ZENITH, or ULTRA. No Totalum AI product name was added. Nothing was published. Contacts remain `admin@aetherforgeai.co.nz` and `lukas@aetherforgeai.co.nz`.
