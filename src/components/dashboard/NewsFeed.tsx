@@ -88,7 +88,10 @@ export function NewsFeed({
 
               <div className="flex items-end justify-between gap-2 pt-1">
                 <div className="flex flex-col">
-                  <span className="font-display text-lg font-bold leading-none text-primary">
+                  <span
+                    className="font-display text-lg font-bold leading-none text-primary"
+                    title="Relevance is an AetherForge tag from 0 to 100. It is not a recommendation."
+                  >
                     {n.relevance}
                   </span>
                   <span className="mt-1 text-[0.55rem] uppercase tracking-wider text-muted-foreground">

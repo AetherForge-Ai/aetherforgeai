@@ -2,6 +2,9 @@
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { AppShell } from "@/components/AppShell";
 import { MarketNewsPageContent } from "@/components/dashboard/MarketNewsPageContent";
+import { loadMarketNews } from "@/lib/market-news";
+import { officialPublicNews } from "@/lib/news-present";
+import type { NewsItem } from "@/lib/market-intel";
 
 export const dynamic = "force-dynamic";
 
@@ -16,11 +19,18 @@ export const metadata = publicPageMetadata("/market-news", {
  */
 export default async function MarketNewsPage() {
   const user = await getCurrentUser();
+  let initialNews: NewsItem[] = officialPublicNews();
+  try {
+    const loaded = await loadMarketNews("stock");
+    if (loaded.length > 2) initialNews = loaded;
+  } catch {
+    initialNews = officialPublicNews();
+  }
 
   if (!user) {
     return (
       <AppShell guest user={{ name: "Guest", email: "Sign in to activate your account" }}>
-        <MarketNewsPageContent preview />
+        <MarketNewsPageContent preview initialNews={initialNews} />
       </AppShell>
     );
   }
@@ -35,7 +45,7 @@ export default async function MarketNewsPage() {
         subscription_plan: user.subscription_plan,
       }}
     >
-      <MarketNewsPageContent />
+      <MarketNewsPageContent initialNews={initialNews} />
     </AppShell>
   );
 }
