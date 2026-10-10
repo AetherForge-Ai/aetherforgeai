@@ -14,6 +14,7 @@ Markers:
 - `pull-check:track-b-2-2026-10-11`
 - `pull-check:research-retest-2026-10-11`
 - `pull-check:tax-fixups-2026-10-11`
+- `pull-check:batch1-2026-10-11`
 
 Branch: `cursor/qa-m10-m15-l6-l17-b236`
 PR: https://github.com/AetherForge-Ai/aetherforgeai/pull/247
@@ -914,4 +915,146 @@ Branch `cursor/tax-fixups-4f33` from develop. One draft pull request into `devel
 - Files: `src/lib/user-display.ts`, `src/components/dashboard/PortfolioDashboard.tsx`
 - URL / steps: sign in on a new account whose name is `QA`. Open `/dashboard` with no open share positions, including a book whose only stock rows have zero shares.
 - Expected: the greeting is `Welcome`, not `Welcome back, QA`. A saved real first name is used, for example `Welcome, Jane`. The Your holdings header says `No open positions` when the table is empty, and `1 position` when there is one. Header cash updates when a sell dialog closes, without a reload.
+
+## Batch 1 — 11 Oct 2026
+
+<!-- pull-check:batch1-2026-10-11 -->
+
+Marker: `pull-check:batch1-2026-10-11`
+
+Source comment `pull-check:batch1-2026-10-11` is in the files named under each ID below. Draft pull requests only, into `develop`. Nothing was published. No Totalum AI Pull. No email was sent. No new database columns. Prices stay NZ$0 / NZ$16 / NZ$49 / NZ$199, all in NZD. Public copy says "AI" only. Crypto projections stay paused. Contacts stay `admin@aetherforgeai.co.nz` and `lukas@aetherforgeai.co.nz`.
+
+Auth, mail, login, register, security headers, consent, apex, and `next.config.ts` were not edited. Crypto library files, DEX and crypto market tabs, stock market listing and provider code, and weekly email were not edited.
+
+### Needs Lukas
+
+- D-A. The share-price vendor licence is unconfirmed. `/status` therefore says "Equity quotes", not a vendor name. Do not call the feed Yahoo until that licence is confirmed.
+- D-B. Public copy stays "AI". No model or provider name.
+- D-C. No security credential is claimed here.
+- D-D. GST stays out. No GST line was added.
+- D-E. FMC Act wording was not changed.
+- D-F. The tax pack stays labelled indicative. An accountant still needs to review the method before it is marketed.
+- D-G. Holding caps, trial, and refund policy were not changed.
+- B1-12. Enforcing CSP and adding COOP needs `next.config.ts` or `src/lib/security-headers.ts`, and seven days of zero report-only violations. Those files were not edited. There is no record here of seven clean days. CSP stays `Content-Security-Policy-Report-Only`.
+- Publish. No production Publish was made. The changelog line for `9dedb71` is a develop note, not a claim that production was published.
+- R12. Sign-out now stops on the page after 8 seconds. `src/lib/auth.ts` was not edited. If `POST /api/session/logout` still never returns because `auth.api.signOut` hangs, that call needs a look in auth, which this batch did not touch.
+
+### B1-1 — fixed
+
+- Status: fixed. Draft https://github.com/AetherForge-Ai/aetherforgeai/pull/274 (`46e22bc`, `cursor/b1-1-metals-held-row-7f63`).
+- Files: `src/lib/metal-valuation.ts`, `src/components/dashboard/PreciousMetals.tsx`, `src/lib/metal-valuation.test.ts`. Source comment in `src/lib/metal-valuation.ts`.
+- URL / steps: sign in on Free. Open `/dashboard/metals` with no gold or silver. Then record 0.01 oz gold from the transaction panel and open `/dashboard/metals` again. Read the sentence under "Smitty spot prices" and the holdings table.
+- Expected: an empty book has no holdings row and does not say "Recording bullion holdings is on a paid plan". With 0.01 oz gold the table shows Metal, Quantity (oz), Price per oz, and NZD value, and a line `Held: 0.01 oz`. The same page says "Record ounces from the transaction panel." Spot still shows gold and silver per ounce in NZD when a quote is present.
+
+### B1-2 — fixed
+
+- Status: fixed. Draft https://github.com/AetherForge-Ai/aetherforgeai/pull/275 (`a55f970`, `cursor/b1-2-csv-lock-label-7f63`).
+- Files: `src/lib/csv-lock-label.ts`, `src/components/tax/CsvExportButton.tsx`, `src/components/tax/DividendLedgerView.tsx`, `src/app/tax/income/page.tsx`, `src/app/tax/realised/page.tsx`, `src/components/dashboard/TransactionCenter.tsx`, `src/components/dashboard/PortfolioDashboard.tsx`, `src/lib/csv-lock-label.test.ts`. Source comment in `src/lib/csv-lock-label.ts`.
+- URL / steps: on Free, open `/tax/dividends`, `/tax/income`, `/tax/realised`, and the transaction ledger. Read the CSV control. On Starter or above, use the same control.
+- Expected: Free shows a disabled control whose visible label is `Export CSV — Starter and above`. The accessible name names the file, for example `Dividends CSV: Export CSV — Starter and above`. Free does not request the export URL. Starter and above download the file. A direct call to the export URL on Free still returns 403.
+
+### B1-3 — fixed
+
+- Status: fixed. Draft https://github.com/AetherForge-Ai/aetherforgeai/pull/277 (`344704b`, `cursor/b1-3-dashboard-refresh-7f63`).
+- Files: `src/lib/book-cache.ts`, `src/lib/apply-booked-trade.ts`, `src/app/api/stocks/route.ts`, `src/lib/transactions.ts`, `src/lib/tax-book-server.ts`, `src/components/dashboard/PortfolioDashboard.tsx`, plus the two new tests. Source comment in `src/lib/book-cache.ts` and `src/lib/apply-booked-trade.ts`.
+- URL / steps: signed in on `/dashboard`, record a buy. Watch Cash, Value in stocks, the holdings table, and the ledger from the moment the success toast appears. Do not reload.
+- Expected: within 1 second of the success toast, cash and the new holding match the trade. The ledger row is present. A slow holdings response that started before the trade does not put the old share count back. The save itself can still take a few seconds while the book is written. The cards must not stay stale after the toast.
+
+### B1-4 — fixed
+
+- Status: fixed. Draft https://github.com/AetherForge-Ai/aetherforgeai/pull/278 (`197a0e9`, `cursor/b1-4-totalum-403-7f63`).
+- Files: `src/lib/entitlements.ts`, `src/components/portfolio-coach/PortfolioCoach.tsx`, `src/components/portfolio-coach/PortfolioCoachChat.tsx`, `src/lib/p0-batch.test.ts`. Source comment in `src/lib/entitlements.ts` and `src/components/portfolio-coach/PortfolioCoachChat.tsx`.
+- URL / steps: on Free, load `/dashboard` and move across signed-in pages, including a trade. In the network panel, filter `totalum`. Leave the Assistant Guide closed. Then open it.
+- Expected: zero requests to `/api/totalum` while the guide is closed, including across navigations. Opening the guide on Free uses the ledger fallback and does not call `/api/totalum`. A paid plan with the guide open may call it. No Totalum AI Pull was added.
+
+### B1-5 — fixed for dividends and holdings
+
+- Status: fixed for the controls that exist. Draft https://github.com/AetherForge-Ai/aetherforgeai/pull/280 (`38020ce`, `cursor/b1-5-delete-confirm-7f63`).
+- Files: `src/components/tax/DividendLedgerView.tsx`, `src/components/dashboard/PortfolioDashboard.tsx`. Source comment in `src/components/tax/DividendLedgerView.tsx`.
+- URL / steps: signed in, open `/tax/dividends`. Press Delete on a dividend. Press Escape or Cancel. Press Delete again and confirm. Then, on `/dashboard`, remove a holding and cancel, then confirm.
+- Expected: the dividend dialog is titled `Delete this dividend?` and names the ticker and the NZD amount. Cancel leaves the row. Confirm removes it. The holding dialog names the quantity and the value. Cancel leaves the holding. Both dialogs are keyboard reachable (Cancel and the confirm action). There is no per-trade delete control. `DELETE /api/transactions` removes dividends only, so a trade row has nothing to confirm.
+
+### B1-6 — fixed
+
+- Status: fixed. Draft https://github.com/AetherForge-Ai/aetherforgeai/pull/281 (`80d70e8`, `cursor/b1-6-fif-rounding-7f63`).
+- Files: `src/lib/currency.ts`, `src/lib/fif-working-paper.ts`, `src/app/tax/fif/page.tsx`, `src/lib/fif-working-paper.test.ts`. Source comment in `src/lib/currency.ts`.
+- URL / steps: open `/tax/fif` for a book whose only overseas cost is Australian, including a line of 0.4 × 599.89 and a WOR line whose formula is 11743.355 with stored cash 11743.35. Export the FIF CSV if the page offers it, or compare the on-page cents with the working-paper total. Also run the five-holding fixture in `src/lib/fif-working-paper.test.ts` (five lines of 10.005).
+- Expected: 0.4 × 599.89 prints NZ$239.96, not NZ$239.95. WOR cost prints NZ$11,743.36, the same cent as half-up rounding, not the stored NZ$11,743.35. Half-up is away from zero and is named in the assumptions. When the peak is above zero and the only overseas shares are Australian, the page says `No other overseas shares on this book. The cost above includes the Australian listings.` It does not say `No attributing overseas shares` in that case. An empty book with a zero peak still says `No attributing overseas shares on this book.` Five holdings of 10.005 sum to 50.05, matching the printed total.
+
+### R5 — fixed
+
+- Status: fixed. Retest item 5. Draft https://github.com/AetherForge-Ai/aetherforgeai/pull/282 (`76633c3`, `cursor/r5-fx-lookup-error-7f63`).
+- Files: `src/components/tax/DividendLedgerView.tsx`. Source comment in that file.
+- URL / steps: signed in, open the dividend form for a foreign ticker and watch the exchange-rate field while the lookup is in progress. Then try a date that returns no rate.
+- Expected: the red `Enter the NZD exchange rate` message is absent while the lookup is running. After the lookup finishes with no rate, the message may show.
+
+### B1-7 — fixed
+
+- Status: fixed. Draft https://github.com/AetherForge-Ai/aetherforgeai/pull/283 (`b740a79`, `cursor/b1-7-changelog-status-7f63`).
+- Files: `src/app/changelog/page.tsx`, `src/app/status/page.tsx`, `src/components/public/PublicGuide.tsx`, `src/lib/status-feeds.ts`, `src/lib/status-feeds.server.ts`, `src/lib/status-feeds.test.ts`, `src/lib/track-b-p0.test.ts`. Source comment in `src/lib/status-feeds.ts`.
+- URL / steps: open `/changelog`. Open `/status`.
+- Expected: the first changelog entry is `Develop 9dedb71` and names Auckland dates, realised lots, dividends, the CSV gate, metals loading, the home disclaimer, and a Tax link in the footer and navigation. `/status` lists Equity quotes, Crypto quotes, Exchange rates, and Metals spot. Each row is either an Auckland date and time taken from that feed's own timestamp, or amber `unavailable`. A missing time, a baseline rate, or a timestamp older than 7 days is `unavailable`. The page does not claim uptime and does not invent a clock from the moment of the fetch.
+
+### B1-8 — already on develop
+
+- Status: already satisfied on develop `9dedb71`. No pull request.
+- Files: `src/app/blog/page.tsx`, `src/app/sitemap.ts`, `src/lib/sitemap-hygiene.test.ts`.
+- URL / steps: open `/blog`. View source for the robots meta. Open `/sitemap.xml` and search for `blog`.
+- Expected: `/blog` returns the page with `noindex`. `/blog` is not in the sitemap. There is no indexable empty blog.
+
+### B1-9 — fixed
+
+- Status: fixed. Draft https://github.com/AetherForge-Ai/aetherforgeai/pull/285 (`19f2522`, `cursor/b1-9-news-relevance-7f63`).
+- Files: `src/lib/news-present.ts`, `src/lib/news-present.test.ts`. Source comment in `src/lib/news-present.ts`.
+- URL / steps: run `src/lib/news-present.test.ts`. The fixture is 30 market cards plus one held ticker and one off-topic card.
+- Expected: the 30 market cards stay. A card that names a held ticker (2 to 12 characters, word boundary) stays even if it would otherwise be off topic. Dropped cards are logged as `[news] dropped`. The existing Paris, French market, Jersey Electricity, and similar cards that the current tests require are still kept. Raw entity names are not printed as a separate field.
+
+### B1-10 — fixed
+
+- Status: fixed. Draft https://github.com/AetherForge-Ai/aetherforgeai/pull/286 (`03d4db7`, `cursor/b1-10-home-ticker-7f63`).
+- Files: `src/lib/ticker-feed.ts`, `src/components/MarketTicker.tsx`, `src/components/home/HomeMetalsPrices.tsx`, `src/app/page.tsx`, `src/lib/ticker-feed.test.ts`. Source comment in `src/lib/ticker-feed.ts`.
+- URL / steps: `curl` `/` and read the first HTML for the header ticker and the home metals block. A quote with a price and no finite change percent must not appear.
+- Expected: every ticker row in the HTML has a price and a change percent. A real zero change stays. Home metals and the ticker are in the first HTML when a live quote has `quotedAt`. Each of those rows includes `as of` and that timestamp. A metals baseline with no live timestamp is not shown as a live price. No price is invented.
+
+### B1-11 — fixed
+
+- Status: fixed. Draft https://github.com/AetherForge-Ai/aetherforgeai/pull/291 (`1bc218f`, `cursor/b1-11-tax-summary-7f63`). `/tax` and `/status` were already in `src/app/sitemap.ts` on develop.
+- Files: `src/lib/tax-public-summary.ts`, `src/components/tax/TaxPageContent.tsx`, `src/lib/tax-public-summary.test.ts`. Source comment in `src/lib/tax-public-summary.ts`.
+- URL / steps: open `/tax` while signed out. Read "What each page does". Confirm `/sitemap.xml` contains `/tax` and `/status`. Confirm `/tax/dividends`, `/tax/income`, `/tax/fif`, and `/tax/realised` send `noindex`.
+- Expected: the public summary is at least 400 words (the module counts 622). The fixture starts with `Example.` and says it is not a customer's book. There is no email address and no personal book in that fixture. `/tax` stays indexable.
+
+### B1-12 — reported, not changed
+
+- Status: not changed. Needs Lukas. No pull request.
+- Files: none. `next.config.ts` and `src/lib/security-headers.ts` were not edited.
+- URL / steps: read the response headers on `/`.
+- Expected: `Content-Security-Policy-Report-Only` is still the policy. It was not promoted to an enforcing `Content-Security-Policy`. COOP was not added. The consent banner still gates analytics. Enforcement waits on seven days of zero violations and on an edit to a protected file.
+
+### B1-13 — fixed
+
+- Status: fixed. Draft https://github.com/AetherForge-Ai/aetherforgeai/pull/292 (`d18c8b2`, `cursor/b1-13-a11y-contrast-7f63`). Retest item 9 is the signed-in disclaimer.
+- Files: `src/app/layout.tsx`, `src/components/legal/DisclaimerNotice.tsx`, `src/lib/a11y-batch1.test.ts`. Source comment in `src/app/layout.tsx`.
+- URL / steps: load any page and press Tab once. Then sign in and read the disclaimer bar on the home shell. At a 390px width, open `/`, `/pricing`, `/markets`, `/tax`, and `/dashboard`.
+- Expected: the first Tab shows `Skip to content`, and activating it moves to `#main`. The signed-in disclaimer uses `text-sm` and `text-foreground` (the 11px muted line is gone). The legal sentence is unchanged, including "not a licensed financial advice provider". The page itself does not scroll sideways at 390px. A table inside its own scroller may still scroll. The public home disclaimer in `src/app/page.tsx` was left unchanged so it does not collide with B1-10.
+
+### R10 — fixed
+
+- Status: fixed. Retest item 10. Draft https://github.com/AetherForge-Ai/aetherforgeai/pull/293 (`652488b`, `cursor/r10-fifo-income-7f63`).
+- Files: `src/lib/tax-realised.ts`, `src/lib/transactions.ts`, `src/app/tax/income/page.tsx`, `src/lib/tax-realised.test.ts`. Source comment in `src/lib/tax-realised.ts`.
+- URL / steps: record a new sell against two earlier buys at different prices. Open `/tax` realised and `/tax/income` for that tax year. Separately, keep an older sell whose stored total is −NZ$10.59 while FIFO is −NZ$10.67.
+- Expected: the new sell stores the FIFO price gain, the FIFO FX gain, and the fee-subtracted total in the existing realised columns. `/tax/income` shows that stored total. No new database column is used. Older rows are not rewritten. When the stored total and the FIFO total differ by at least half a cent, `/tax/income` shows one sentence with both figures: the stored amount and the FIFO amount, and the words `New sells store the FIFO figure.` When they match, that sentence is absent. If the history query fails, the new sell keeps the previous average-cost figure.
+
+### R11 — fixed
+
+- Status: fixed. Retest item 11. Draft https://github.com/AetherForge-Ai/aetherforgeai/pull/290 (`e4dace0`, `cursor/r11-ledger-time-7f63`).
+- Files: `src/lib/executed-at.ts`, `src/components/dashboard/RecordTransactionPanel.tsx`, `src/components/dashboard/TransactionCenter.tsx`, `src/lib/qa-m10-l17.test.ts`. Source comment in `src/lib/executed-at.ts`.
+- URL / steps: record a trade dated today. Read the ledger row and export CSV. Record another trade dated yesterday.
+- Expected: today's row shows the Auckland date and the time, for example `10 Oct 2026, 3:00 pm`. The CSV date column is that Auckland day. The CSV clock column has the time. Yesterday's row stays date-only. A date-only value passed to `resolveExecutedInstant` still has no invented clock.
+
+### R12 — fixed on the page
+
+- Status: fixed on the logout page. Draft https://github.com/AetherForge-Ai/aetherforgeai/pull/294 (`a918516`, `cursor/r12-logout-complete-7f63`).
+- Files: `src/app/logout/page.tsx`, `src/lib/logout-finish.ts`, `src/lib/logout-finish.test.ts`. Source comment in `src/lib/logout-finish.ts` and `src/app/logout/page.tsx`.
+- URL / steps: sign in, open `/logout`, and wait. Do not add `?done=1` by hand.
+- Expected: within about 8 seconds the address becomes `/logout?done=1` and the card says you have been logged out, or the card says `Sign-out did not finish` with `Try sign-out again`. The spinner `Signing you out…` does not stay up with no further change. A successful POST whose session check never returns still goes to the done card. A POST that times out shows the error card. `src/lib/auth.ts`, login, and register were not edited.
 
