@@ -14,6 +14,9 @@ Markers:
 - `pull-check:track-b-2-2026-10-11`
 - `pull-check:research-retest-2026-10-11`
 - `pull-check:tax-fixups-2026-10-11`
+- `pull-check:address-removed-2026-10-11`
+- `pull-check:weekly-email-2026-10-11`
+- `pull-check:stock-markets-full-2026-10-11`
 
 Branch: `cursor/qa-m10-m15-l6-l17-b236`
 PR: https://github.com/AetherForge-Ai/aetherforgeai/pull/247
@@ -915,18 +918,104 @@ Branch `cursor/tax-fixups-4f33` from develop. One draft pull request into `devel
 - URL / steps: sign in on a new account whose name is `QA`. Open `/dashboard` with no open share positions, including a book whose only stock rows have zero shares.
 - Expected: the greeting is `Welcome`, not `Welcome back, QA`. A saved real first name is used, for example `Welcome, Jane`. The Your holdings header says `No open positions` when the table is empty, and `1 position` when there is one. Header cash updates when a sell dialog closes, without a reload.
 
+## Weekly paid email — 11 Oct 2026
+
+Marker: `pull-check:weekly-email-2026-10-11`
+
+Source comment: `pull-check:weekly-email-2026-10-11` in `src/lib/weekly-email.ts`, `src/lib/weekly-email-copy.ts`, `src/lib/weekly-email-live.ts`, `src/app/api/cron/weekly-email/route.ts`, `src/app/api/weekly-email/unsubscribe/route.ts`, and `src/app/api/admin/weekly-email/preview/route.ts`.
+
+Branch `cursor/weekly-paid-email-042e` from develop. Draft pull request: https://github.com/AetherForge-Ai/aetherforgeai/pull/269 into `develop`. Do not merge it from this note. Nothing was published. No Totalum AI Pull. No email was sent. Auth, login, register, security headers, consent, apex, and `next.config.ts` were not edited. No new database columns. Public copy says "AI" only. Crypto projections stay paused (`CRYPTO_PROJECTIONS_PAUSED` remains true).
+
+Brief change: the email does not contain a person's portfolio. No holdings, values, cash, profit or loss, allocation, positions, or ideas about that book. It shows only the week-ahead projections from the existing projections feature. The same board goes to every verified paid account. No per-user data is sent to AI.
+
+### What it does
+
+- Status: built, hard off
+- Files: `src/lib/weekly-email.ts`, `src/lib/weekly-email-copy.ts`, `src/lib/weekly-email-live.ts`, `src/lib/weekly-email.test.ts`, `src/app/api/cron/weekly-email/route.ts`, `src/app/api/weekly-email/unsubscribe/route.ts`, `src/app/api/admin/weekly-email/preview/route.ts`, `src/app/api/watchlist/route.ts`, `src/lib/public-copy.ts`, `src/app/privacy-policy/page.tsx`
+- URL / steps:
+  1. `npm test -- src/lib/weekly-email.test.ts`
+  2. With `WEEKLY_EMAIL_SEND` unset, `GET /api/cron/weekly-email` with the cron secret returns `sender: "off"` and `sent: 0`. A call with no secret is 401 or 503. It does not send.
+  3. Sign in as `lukas@aetherforgeai.co.nz` and open `/api/admin/weekly-email/preview`. The page says `Preview only. This was not sent.` Another account gets 404. Do not add `ai=1` unless you mean to spend one completion. The preview is the market-wide board, not that account's book.
+  4. Open `/privacy-policy`. The weekly sentence says the email can send the market-wide indicative projections (ticker, name, market, indicative percent, as-of label) and that it does not send a person's holdings, values, cash, profit or loss, allocation, or email address.
+- Expected: tests pass. The sample is test-only (`Sample Listings Ltd`, `SAMP.NZ`, `sample.member@example.test`). That address is not in the HTML or text. The sample price is `NZ$12.20`. The email date is `12 Oct 2026`. The NZX as-of label names the prior session close (`9 Oct 2026`), not a live quote. The mail says `indicative`, names the source, says `not financial advice`, includes the AI disclosure, and does not use Buy, Sell, or Strong Buy. Crypto rows do not appear. A metal row does not appear. A series shorter than 40 closes does not appear. If nothing verified remains, `reason` is `no-projections` and nothing is sent. The same paid user is not sent twice in ISO week `2026-W42`. Two paid users in one tick share one AI note.
+
+### What is included
+
+Stocks only, and only when a real daily-close series of at least 40 points is available. The figure is `analyzeSecurity` from `src/lib/market-intel.ts`, ranked with `rankByConfidenceWeightedMove`, cut at 50, the same order and cap as the projections page. A missing series is not filled with the synthetic seeded walk. The live loader uses the stock universe, quotes, and histories the projections route already uses. It does not request crypto histories.
+
+Crypto projections stay paused and are dropped even if a series is handed in. Precious-metal projections are not produced by that feature (there is no metal universe and no metal close series; Yahoo `GOLD` is an equity, not bullion). The email says so and does not invent a metal figure.
+
+### When nothing is verified
+
+If the board has no verified projection, the tick sends nothing. It does not mail an empty note, and it does not call the completion. The admin preview says the email would be skipped.
+
+### Preference
+
+The opt-out and the last ISO week stay on the existing watchlist fields. The ticker is `AF-WEM`. It is not a holding and it is not a new column. `GET /api/watchlist` hides it, and `POST /api/watchlist` rejects it. The shared AI note for the ISO week, when it can be saved, uses a second hidden ticker `AF-WEN` on the same existing fields. The browser toggle on `/settings/notifications` is a separate preview preference. The cron does not read it.
+
+### Needs Lukas
+
+- Leave `WEEKLY_EMAIL_SEND` unset, or set it to anything other than `on`, until you want a real send. The default is off. Tests use a mock sender and do not post mail.
+- Set `CRON_SECRET` before the route will run. Optional `WEEKLY_EMAIL_UNSUBSCRIBE_SECRET` signs the unsubscribe link. If it is unset, the cron secret is the signer. If both are unset, the job does not send.
+- Cron in Totalum or Cloudflare: `GET` or `POST` `https://www.aetherforgeai.co.nz/api/cron/weekly-email` with header `x-cron-secret`. Call it every 15 minutes from 07:00 through 08:59 Pacific/Auckland on Monday. One call sends at most 20 messages and stops after 20 seconds. Later calls in that window continue. The same account is skipped for the rest of that ISO week. No trigger is installed in this branch.
+- Mailbox: the code sets the from name `AetherForge AI`, reply-to `admin@aetherforgeai.co.nz`, and checks the from address `admin@aetherforgeai.co.nz`. The Totalum email payload does not post `from` or the plain-text part. The text version is built and tested. The visible From address is whatever the mailbox host is configured to use. Confirm that host sends as `admin@aetherforgeai.co.nz`, and confirm its daily send limit before the flag is turned on.
+- Send-approval gate: there is no second human approval once `WEEKLY_EMAIL_SEND=on`. If you want a per-week approval before the cron can send, say so. Until then the flag is the only switch.
+- Paid plans included when the flag is on: Starter, Pro, Ultimate, and the legacy Apex rows (`weekly`, `monthly`, `yearly`, `dual_yearly`), active, unexpired, and with a verified email. Free is excluded. Say if legacy Apex should be left out.
+- Privacy date is still `7 Oct 2026`. The weekly-email sentence was added without a Terms re-issue. Say if that date should move.
+- Regulatory: this email is the same market-wide projection list for every recipient. It does not use that person's holdings, so it is not built as a personalised book review. It still projects prices of named securities. A footer that says it is not financial advice does not by itself decide whether that is financial advice under the Financial Markets Conduct Act 2013. AetherForge is not described here as a licensed financial advice provider. Have a qualified NZ adviser, and the FMA position you want to rely on, checked before any send. Do not enable the flag on the strength of this pull request alone.
+
+### Cost
+
+One completion for the ISO week, shared by every recipient. It is not one completion per person, and it does not use a report allowance. The cap is 1,500 input tokens and 450 output tokens. The rate used is the published short-context price for the completion the report service already calls (`grok-4.6` in `src/lib/zenith.ts`): US$2.00 per million input tokens and US$6.00 per million output tokens, from the provider pricing page updated 29 Sep 2026. The ceiling for that one note is US$0.0057, which is NZ$0.009519 at the baseline book rate 1.6700, so NZ$0.01 if rounded to cents. A shorter note of about 500 input tokens and 250 output tokens is about US$0.0025, under one NZ cent. If the week-note row cannot be saved, a later tick in a new process can spend one more completion. The mail host's per-message fee is separate and is still charged per recipient. The member-facing email and the privacy page do not name the model. The job does not call the completion while the sender flag is off, or when no verified projection exists.
+
+## Address removed — 11 Oct 2026
+
+Marker: `pull-check:address-removed-2026-10-11`
+
+Source comment: `pull-check:address-removed-2026-10-11` in `src/lib/company.ts`.
+
+This branch is from develop. One draft pull request into `develop`. Nothing was published. No Totalum AI Pull. No email was sent. Auth, login, register, security headers, consent, apex, and `next.config.ts` were not edited. The address string was not in those files. Public copy says "AI" only. `origin/develop` was already the base. `origin/main` is merged with the ours strategy so the tree stays develop plus this change. Every section already in this file stays.
+
+The registered office is a home address. It is removed from the site. No replacement address was added. The legal name `FORGE INTELLIGENCE LIMITED` stays, with `admin@aetherforgeai.co.nz` and `lukas@aetherforgeai.co.nz`.
+
+Git history still contains the old address. This change does not rewrite history. The working tree does not name the old street, suburb, or postcode.
+
+### Removed from the site — fixed
+
+- Status: fixed
+- Files: `src/lib/company.ts`, `src/components/SiteFooter.tsx`, `src/components/about/AboutContent.tsx`, `src/app/layout.tsx`, `src/lib/track-b-p0.test.ts`
+- URL / steps: open `/`, `/about`, `/terms-of-service`, `/privacy-policy`, and `/trust`. Read the footer and the About company block. View source and read the Organization JSON-LD.
+- Expected: the footer shows `FORGE INTELLIGENCE LIMITED`, the NZBN, both emails, and the phone. It does not show a street, a town, or a postcode. About shows the company name, the NZBN, the founder, and both emails. The portrait has no location badge. JSON-LD names the company and the NZBN and has no postal address. Terms, Privacy, and Trust still show both emails.
+
+### Verify on the live site
+
+- After Lukas publishes, view the HTML source of `https://aetherforgeai.co.nz/`, `https://aetherforgeai.co.nz/about`, `https://aetherforgeai.co.nz/terms-of-service`, `https://aetherforgeai.co.nz/privacy-policy`, and `https://aetherforgeai.co.nz/trust`.
+- Search the page source for the old street name, suburb and postcode (Lukas knows them).
+- Expected: no matches. The same HTML still contains `FORGE INTELLIGENCE LIMITED`, `admin@aetherforgeai.co.nz`, and `lukas@aetherforgeai.co.nz`.
+
+### Where a postal address may still be required
+
+These pages identify the company and do not state a registered office or an address for service. No address was invented. Lukas decides whether a non-home address must be added later.
+
+- Footer on every page. It shows the legal name and NZBN. It no longer shows a registered office.
+- About, company block. The "Registered office" label was removed with the street line.
+- Terms, section 17 Contact. Emails and phone only. No address for service of notices.
+- Privacy, section 13 Complaints & contact. Emails only.
+- Trust. Emails only. No postal address.
+- Organization JSON-LD in the root layout. The postal address block was removed. That block was structured data, not a statutory notice.
+
 ## Stock markets — full lists
 
 - Marker: `pull-check:stock-markets-full-2026-10-11`
-- Status: fixed on this branch. Not merged. Does not Publish.
+- Status: fixed on this branch. Not merged.
 - Files: `src/lib/stock-markets.ts`, `src/lib/stock-catalog.ts`, `src/lib/stock-board.server.ts`, `src/app/api/all-markets/route.ts`, `src/components/dashboard/MarketsExplorer.tsx`, `src/lib/public-market-index.ts`, `src/lib/sitemap-tickers.ts`, `docs/stock-market-sources-2026-10-11.md`
 - Source comment: `pull-check:stock-markets-full-2026-10-11` in `src/lib/stock-markets.ts` and `src/app/api/all-markets/route.ts`.
 - URL / steps:
   1. Signed out, open `/markets`. Read NZX, ASX, Dow Jones, NASDAQ, and NYSE.
-  2. Each stock board shows `Showing N of M listed`, or the NYSE sentence that names the directory count. NZX is `Showing 60 of 178 listed`. ASX is `Showing 212 of 1923 listed`. Dow Jones is `Showing 30 of 30 listed`. NASDAQ is `Showing 4376 of 5622 listed`.
+  2. Each stock board shows `Showing N of M listed`, or the NYSE sentence that names the directory count. NZX is `Showing 60 of 178 listed`. ASX is `Showing 212 of 1923 listed`. Dow Jones is `Showing 30 of 30 listed`. NASDAQ is `Showing 4376 of 5622 listed`. NASDAQ and NYSE notes say `includes funds and other security types; type not stated by the source`.
   3. A price cell is a currency amount with a source and an as-of time, or the words `Not in this response`. It is not `0.00`, not blank, and the page does not stay on `Loading the list…`.
-  4. Use Next on NASDAQ. Search `FBU` on NZX and open Fletcher Building. The ticker page names Fletcher Building and either a price with an as-of time or `Price not in this response.`
-  5. Open `/sitemap.xml` and confirm `/markets/stock/FBU.NZ`, `/markets/stock/NVDA`, and `/markets/stock/JPM` are listed, and the file stays under 50,000 URLs.
+  4. Use Next on NASDAQ. Search `FBU` on NZX and open Fletcher Building. The ticker page names Fletcher Building and the Materials list on NZX, and either a price with an as-of time or `Price not in this response.` Open a US name whose sector is not stated. The sentence names the company and the exchange and does not say `Not stated`.
+  5. Open `/sitemap.xml` and confirm `/markets/stock/FBU.NZ`, `/markets/stock/NVDA`, and `/markets/stock/JPM` are listed. Confirm `/markets/stock/AACIU` and `/markets/stock/AACIW` are absent. The file stays under 50,000 URLs. A US page with no quote in the response sends `noindex` and still returns the page.
   6. Run `npx vitest run src/lib/stock-markets.test.ts`. The provider tests hang Yahoo, throw Twelve Data, and reject a zero price. The saved print stays.
 - Expected: the counts above. Delay labels stay `Delayed` or `Delayed ~20 min` for NZX and ASX. They do not say real-time, official, or licensed. Crypto projections stay paused. The reviewed FX guard in `src/lib/fx.ts` is unchanged.
 
