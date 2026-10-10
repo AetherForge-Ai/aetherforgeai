@@ -2,6 +2,7 @@
  * One public crypto-coverage line, taken from the rows actually shown.
  * The Crypto tab is the CoinGecko top 400. Do not round the count.
  */
+// pull-check:qa-2026-10-10-urgent-u3-u5
 
 export function cryptoCoverageCount(rowCount: number): number {
   const count = Math.max(0, Math.round(Number(rowCount) || 0));

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -11,6 +12,7 @@ import {
 import { api } from "@/lib/api";
 import { clientFacingError } from "@/lib/api-json";
 import { PUBLIC_COIN_SOURCE_LINE, publicCoinDescription } from "@/lib/data-sources";
+import { paperAddSignupHref } from "@/lib/paper-add-link";
 import { cn } from "@/lib/utils";
 import { TickerAnalysisPane } from "@/components/dashboard/TickerAnalysisPane";
 import { BuyDialog, type BuyTarget } from "@/components/dashboard/BuyDialog";
@@ -78,18 +80,27 @@ export function CoinDetailView({
   coinId,
   active = true,
   allowBuy = false,
+  signedIn: signedInProp,
+  openFromQuery = false,
+  paperMarket = "Crypto",
   unavailable = false,
   variant = "page",
 }: {
   coinId: string | null;
   /** False while a dialog is closed so it does not fetch in the background. */
   active?: boolean;
-  /** Dashboard explorer passes this. Public /markets leaves it false. */
+  /** Page sets this only when the viewer is signed in and the query is buy=1. */
   allowBuy?: boolean;
+  /** Public pages pass the session. The dashboard dialog is a member. */
+  signedIn?: boolean;
+  /** True only when the page query is buy=1. Does not open the panel by itself. */
+  openFromQuery?: boolean;
+  paperMarket?: "Crypto" | "DEX";
   /** DEX row with no CoinGecko id. Do not call the coin API. */
   unavailable?: boolean;
   variant?: "page" | "dialog";
 }) {
+  const signedIn = signedInProp ?? variant === "dialog";
   const slug = resolvableCoinId(coinId);
   const blocked = unavailable || !slug;
   const gradientId = useId().replace(/:/g, "");
@@ -202,7 +213,7 @@ export function CoinDetailView({
   const openedFromQuery = useRef(false);
 
   useEffect(() => {
-    if (!allowBuy || openedFromQuery.current || !detail || !(detail.price > 0)) return;
+    if (!signedIn || !openFromQuery || openedFromQuery.current || !allowBuy || !detail || !(detail.price > 0)) return;
     openedFromQuery.current = true;
     setBuyTarget({
       ticker: detail.symbol,
@@ -210,10 +221,10 @@ export function CoinDetailView({
       assetType: "crypto",
       price: detail.price,
       coinId: detail.id,
-      market: "Crypto",
+      market: paperMarket,
     });
     setBuyOpen(true);
-  }, [allowBuy, detail]);
+  }, [signedIn, openFromQuery, allowBuy, detail, paperMarket]);
   const shownError = blocked ? COIN_DETAIL_UNAVAILABLE : error;
 
   function openBuy() {
@@ -224,10 +235,17 @@ export function CoinDetailView({
       assetType: "crypto",
       price: detail.price,
       coinId: detail.id,
-      market: "Crypto",
+      market: paperMarket,
     });
     setBuyOpen(true);
   }
+
+  const signupHref = paperAddSignupHref({
+    coinId: detail?.id || coinId,
+    symbol: detail?.symbol,
+    name: detail?.name,
+    market: paperMarket,
+  });
 
   const title = !detail && shownError && !loading ? (
     variant === "dialog" ? (
@@ -307,9 +325,17 @@ export function CoinDetailView({
         </p>
         {canAdd && (
           <div className="mt-2">
-            <Button size="sm" variant="outline" onClick={openBuy} className="gap-1.5 font-semibold">
-              <ShoppingCart className="size-3.5" /> Add to paper book
-            </Button>
+            {signedIn ? (
+              <Button size="sm" variant="outline" onClick={openBuy} className="gap-1.5 font-semibold">
+                <ShoppingCart className="size-3.5" /> Add to paper book
+              </Button>
+            ) : (
+              <Button asChild size="sm" variant="outline" className="gap-1.5 font-semibold">
+                <Link href={signupHref}>
+                  <ShoppingCart className="size-3.5" /> Add to paper book
+                </Link>
+              </Button>
+            )}
           </div>
         )}
       </div>
@@ -539,12 +565,14 @@ export function CoinDetailView({
           {body}
         </div>
       </div>
-      <BuyDialog
-        open={buyOpen}
-        onOpenChange={setBuyOpen}
-        target={buyTarget}
-        onDone={() => setBuyOpen(false)}
-      />
+      {signedIn ? (
+        <BuyDialog
+          open={buyOpen}
+          onOpenChange={setBuyOpen}
+          target={buyTarget}
+          onDone={() => setBuyOpen(false)}
+        />
+      ) : null}
     </>
   );
 }

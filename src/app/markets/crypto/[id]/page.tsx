@@ -24,7 +24,7 @@ export default async function CryptoDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ buy?: string }>;
+  searchParams: Promise<{ buy?: string; market?: string }>;
 }) {
   const { id } = await params;
   const sp = await searchParams;
@@ -34,7 +34,14 @@ export default async function CryptoDetailPage({
 
   return (
     <MarketsAppFrame user={user}>
-      <CryptoAssetPage coinId={coinId} unavailable={!coinId} allowBuy={allowBuy} />
+      <CryptoAssetPage
+        coinId={coinId}
+        unavailable={!coinId}
+        allowBuy={allowBuy}
+        signedIn={!!user}
+        openFromQuery={sp.buy === "1"}
+        market={sp.market === "dex" ? "DEX" : "Crypto"}
+      />
     </MarketsAppFrame>
   );
 }

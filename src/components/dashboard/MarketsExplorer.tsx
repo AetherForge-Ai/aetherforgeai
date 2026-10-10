@@ -10,6 +10,7 @@ import { EXCHANGES, EXCHANGE_META, formatMarketPrice, type Exchange } from "@/li
 import { BuyDialog, type BuyTarget } from "@/components/dashboard/BuyDialog";
 import { cryptoCoveragePhrase } from "@/lib/crypto-coverage";
 import { explorerDetailHref, marketsTabHref, type MarketsTab } from "@/lib/market-detail-routes";
+import { paperAddSignupHref } from "@/lib/paper-add-link";
 import { useCryptoMarkets } from "@/hooks/useCryptoMarkets";
 import { useDexMarkets } from "@/hooks/useDexMarkets";
 import {
@@ -143,6 +144,7 @@ export function MarketsExplorer({
   active = true,
   className,
   allowBuy = true,
+  signedIn = true,
   initialTab = null,
   syncTab = false,
   onTabChange,
@@ -153,6 +155,8 @@ export function MarketsExplorer({
   className?: string;
   /** Public /markets hides the share Buy column. Crypto and DEX rows always offer Add. */
   allowBuy?: boolean;
+  /** Guests get a sign-up link. Members open the paper-book panel. Dashboard defaults to signed in. */
+  signedIn?: boolean;
   /** From /markets?tab= so a detail page can return to the same board. */
   initialTab?: Tab | null;
   /** Write the selected tab into the /markets query. Off inside the dashboard modal. */
@@ -495,16 +499,30 @@ export function MarketsExplorer({
     setBuyOpen(true);
   }
 
+  function paperMarketOf(r: DisplayRow): "Crypto" | "DEX" {
+    return r.paperMarket || (isDexTab ? "DEX" : "Crypto");
+  }
+
   function openPaperAdd(r: DisplayRow) {
+    if (!signedIn) return;
     setBuyTarget({
       ticker: r.ticker,
       name: r.name,
       assetType: "crypto",
       price: r.price > 0 ? r.price : undefined,
       coinId: r.coinId,
-      market: r.paperMarket || (isDexTab ? "DEX" : "Crypto"),
+      market: paperMarketOf(r),
     });
     setBuyOpen(true);
+  }
+
+  function paperSignupHref(r: DisplayRow): string {
+    return paperAddSignupHref({
+      coinId: r.coinId,
+      symbol: r.symbol,
+      name: r.name,
+      market: paperMarketOf(r),
+    });
   }
 
   function detailHref(r: DisplayRow): string {
@@ -784,9 +802,15 @@ export function MarketsExplorer({
                     )}
                     {showAdd && (
                       <td className="py-2.5 pl-3 text-right">
-                        <Button size="sm" variant="outline" className="h-8 px-2.5" onClick={() => openPaperAdd(r)}>
-                          Add to paper book
-                        </Button>
+                        {signedIn ? (
+                          <Button size="sm" variant="outline" className="h-8 px-2.5" onClick={() => openPaperAdd(r)}>
+                            Add to paper book
+                          </Button>
+                        ) : (
+                          <Button asChild size="sm" variant="outline" className="h-8 px-2.5">
+                            <Link href={paperSignupHref(r)}>Add to paper book</Link>
+                          </Button>
+                        )}
                       </td>
                     )}
                     {allowBuy && !isCryptoTab && (
@@ -840,15 +864,17 @@ export function MarketsExplorer({
         </div>
       )}
 
-      <BuyDialog
-        open={buyOpen}
-        onOpenChange={setBuyOpen}
-        target={buyTarget}
-        onDone={() => {
-          setBuyOpen(false);
-          onBought?.();
-        }}
-      />
+      {signedIn ? (
+        <BuyDialog
+          open={buyOpen}
+          onOpenChange={setBuyOpen}
+          target={buyTarget}
+          onDone={() => {
+            setBuyOpen(false);
+            onBought?.();
+          }}
+        />
+      ) : null}
 
     </div>
   );

@@ -26,8 +26,8 @@ function marketsHeading(tab: MarketsTab): { title: string; lede: string } {
 }
 
 /**
- * Full-page Stock Markets view. Wraps the shared MarketsExplorer in a spacious,
- * dashboard-consistent card. Buying is disabled in guest preview.
+ * Full-page markets view. Share Buy stays off. Members add crypto to the paper
+ * book; guests follow the same button to sign-up.
  */
 export function MarketsPageContent({
   preview = false,
@@ -78,6 +78,7 @@ export function MarketsPageContent({
           active
           className="h-[70vh]"
           allowBuy={false}
+          signedIn={!preview}
           initialTab={initialTab}
           syncTab
           onTabChange={setTab}
