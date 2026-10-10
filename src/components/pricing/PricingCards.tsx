@@ -17,7 +17,7 @@ import {
   type PlanKey,
 } from "@/lib/plans";
 import { formatDailyRate, formatUsdWithRate, usdPerNzd, type FxRatesToNZD } from "@/lib/currency";
-import { ANNUAL_TOOLKIT_LINE, TRIAL_CARD_LINE } from "@/lib/public-copy";
+import { TRIAL_CARD_LINE } from "@/lib/public-copy";
 import { useFxRates } from "@/hooks/useFxRates";
 import {
   Check,
@@ -300,7 +300,7 @@ export function PricingCards({
 
               {/* Highlights */}
               <ul className="mt-6 space-y-2.5">
-                {(annual && tier.id !== "free" ? [...tier.highlights, ANNUAL_TOOLKIT_LINE] : tier.highlights).map((h) => (
+                {tier.highlights.map((h) => (
                   <li key={h} className="flex items-start gap-2.5 text-sm text-muted-foreground">
                     <span className="mt-0.5 grid size-4 shrink-0 place-items-center rounded-full bg-primary/15 text-primary">
                       <Check className="size-2.5" />

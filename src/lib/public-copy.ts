@@ -21,7 +21,8 @@ export const PAPER_BOOK_STATEMENT =
   "AetherForge is a paper book: you record what you hold or would trade (cash, buys, sells, corrections, dividends) in NZ$. Real trades happen at your broker. We never move money.";
 
 /** Same sentence on the home page and How it works. Smitty is not a fourth AI bot. */
-export const BOT_COUNT_LINE = "3 AI bots plus Smitty, our metals tracker";
+export const BOT_COUNT_LINE =
+  "Three AI bots — Stox, Koins and The Headmaster. Smitty tracks gold and silver spot and holdings only.";
 
 /** Spot and holdings only. Smitty does not run a report. */
 export const SMITTY_ROLE_LINE =
@@ -60,8 +61,8 @@ export const SECURITY_LINE =
 export const ANALYTICS_NOTICE =
   "Analytics stays off until you accept. Decline keeps it off. You can change this later from Cookie settings.";
 
-export const ANNUAL_TOOLKIT_LINE =
-  "professional Excel investor toolkit (Portfolio Tracker and Transactions spreadsheets)";
+export const LEDGER_EXPORT_LINE =
+  "Published plans include the paper ledger and a CSV export of your transactions. An Excel workbook is not part of those plans. A legacy yearly membership may still download a personal workbook of the figures already in the ledger.";
 
 export const PROCESSORS: { name: string; role: string }[] = [
   { name: "Cloudflare", role: "public site and network" },

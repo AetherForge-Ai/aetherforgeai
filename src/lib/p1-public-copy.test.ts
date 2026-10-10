@@ -59,7 +59,10 @@ describe("P1 public copy", () => {
     expect(TRIAL_CARD_LINE).toMatch(/card is collected at checkout/);
     expect(REFUND_FAQ).toMatch(/we'll make it right/);
     expect(REFUND_FAQ).not.toMatch(/14-day/);
-    expect(read("src/components/pricing/FeatureComparison.tsx")).toContain("Excel investor toolkit (annual)");
+    expect(read("src/components/pricing/FeatureComparison.tsx")).toContain("Transaction CSV export");
+    expect(read("src/components/pricing/FeatureComparison.tsx")).not.toContain("Excel investor toolkit");
+    expect(read("src/app/terms-of-service/page.tsx")).toContain("LEDGER_EXPORT_LINE");
+    expect(read("src/lib/public-copy.ts")).toContain("An Excel workbook is not part of those plans");
     expect(read("src/components/pricing/PricingFAQ.tsx")).toContain("REFUND_FAQ");
     expect(read("src/components/pricing/PricingFAQ.tsx")).toContain("TRIAL_FAQ");
     expect(read("src/components/pricing/PricingCards.tsx")).toContain("TRIAL_CARD_LINE");
