@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/session";
 import { AppShell } from "@/components/AppShell";
 import { MarketsPageContent } from "@/components/dashboard/MarketsPageContent";
@@ -6,10 +7,29 @@ import { publicPageMetadata } from "@/lib/reviewed-book";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = publicPageMetadata("/markets", {
-  title: "Markets · AetherForge AI",
-  description: "NZX, ASX, Dow Jones and NASDAQ prices on AetherForge. Paper research, not a broker.",
-});
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}): Promise<Metadata> {
+  const tab = parseMarketsTab((await searchParams).tab);
+  if (tab === "CRYPTO") {
+    return publicPageMetadata("/markets?tab=crypto", {
+      title: "Crypto markets · AetherForge AI",
+      description: "Top 400 coins by market cap from CoinGecko, with the native chain or platform. Paper research, not a broker.",
+    });
+  }
+  if (tab === "DEX") {
+    return publicPageMetadata("/markets?tab=dex", {
+      title: "DEX markets · AetherForge AI",
+      description: "Top DEX tokens by 24-hour volume from GeckoTerminal, with chain and DEX. Paper research, not a broker.",
+    });
+  }
+  return publicPageMetadata("/markets", {
+    title: "Markets · AetherForge AI",
+    description: "NZX, ASX, Dow Jones and NASDAQ prices on AetherForge. Paper research, not a broker.",
+  });
+}
 
 /**
  * /markets — the full-page "Stock Markets" browser (linked prominently from the

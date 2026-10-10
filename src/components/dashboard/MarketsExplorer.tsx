@@ -11,7 +11,8 @@ import { BuyDialog, type BuyTarget } from "@/components/dashboard/BuyDialog";
 import { cryptoCoveragePhrase } from "@/lib/crypto-coverage";
 import { explorerDetailHref, marketsTabHref, type MarketsTab } from "@/lib/market-detail-routes";
 import { useCryptoMarkets } from "@/hooks/useCryptoMarkets";
-import { coinHasLivePrice, fmtPrice } from "@/lib/crypto-market";
+import { useDexMarkets } from "@/hooks/useDexMarkets";
+import { coinHasLivePrice, fmtPrice, resolvableCoinId } from "@/lib/crypto-market";
 import { cn } from "@/lib/utils";
 import {
   Search,
@@ -86,6 +87,8 @@ interface DisplayRow {
   exchange?: Exchange; // stock rows only — needed to open the stock detail view
   coinId?: string; // crypto rows only — CoinGecko id for /markets/crypto/[id]
   blockchain?: string;
+  dex?: string;
+  paperMarket?: "Crypto" | "DEX";
   priceUnavailable?: boolean;
 }
 
@@ -138,17 +141,19 @@ export function MarketsExplorer({
   allowBuy = true,
   initialTab = null,
   syncTab = false,
+  onTabChange,
 }: {
   onBought?: () => void;
   /** When false the component skips fetching (e.g. modal is closed). */
   active?: boolean;
   className?: string;
-  /** Public /markets hides the Buy column. Dashboard paper-trade keeps it. */
+  /** Public /markets hides the share Buy column. Crypto and DEX rows always offer Add. */
   allowBuy?: boolean;
   /** From /markets?tab= so a detail page can return to the same board. */
   initialTab?: Tab | null;
   /** Write the selected tab into the /markets query. Off inside the dashboard modal. */
   syncTab?: boolean;
+  onTabChange?: (tab: Tab) => void;
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>(initialTab ?? "NZX");
@@ -166,7 +171,10 @@ export function MarketsExplorer({
   const [cryptoPage, setCryptoPage] = useState(0);
   const loadGen = useRef(0);
 
-  const isCryptoTab = tab === "CRYPTO";
+  const isCoinTab = tab === "CRYPTO";
+  const isDexTab = tab === "DEX";
+  /** Coin list or DEX list — neither is a share exchange. */
+  const isCryptoTab = isCoinTab || isDexTab;
 
   useEffect(() => {
     if (initialTab) setTab(initialTab);
@@ -180,15 +188,17 @@ export function MarketsExplorer({
       setData(null);
       setLoadError(null);
       setRemoteHits([]);
-      if (next !== "CRYPTO") setLoading(true);
+      if (next !== "CRYPTO" && next !== "DEX") setLoading(true);
     }
     setTab(next);
+    onTabChange?.(next);
     if (!syncTab) return;
     router.replace(marketsTabHref(next), { scroll: false });
   }
 
   // CoinGecko top 400. A missing print stays unavailable. Shares the cached store.
-  const crypto = useCryptoMarkets(active && isCryptoTab);
+  const crypto = useCryptoMarkets(active && isCoinTab);
+  const dex = useDexMarkets(active && isDexTab);
 
   // `silent` refresh keeps the current rows on screen (no skeleton flash) — used
   // by the 30–60s auto-refresh so prices update seamlessly, live-ticker style.
@@ -333,7 +343,8 @@ export function MarketsExplorer({
   }, [active, isCryptoTab, query, tab]);
 
   function refresh() {
-    if (isCryptoTab) crypto.refresh();
+    if (isDexTab) dex.refresh();
+    else if (isCoinTab) crypto.refresh();
     else load(tab as Exchange);
   }
 
@@ -352,7 +363,29 @@ export function MarketsExplorer({
   // Normalize the active data source (stock exchange OR crypto) into DisplayRow[].
   const rows = useMemo<DisplayRow[]>(() => {
     let all: DisplayRow[];
-    if (isCryptoTab) {
+    if (isDexTab) {
+      all = dex.rows.slice(0, CRYPTO_TOP_N).map((row) => ({
+        key: `${row.symbol}:${row.id}:${row.network}`,
+        ticker: row.symbol.toUpperCase(),
+        symbol: row.symbol.toUpperCase(),
+        name: row.name && row.name.toUpperCase() !== row.symbol.toUpperCase() ? row.name : row.name || row.symbol,
+        currency: "USD" as const,
+        price: row.price || 0,
+        changePct: 0,
+        changeAbs: 0,
+        dayHigh: null,
+        dayLow: null,
+        volume: row.volume24h,
+        marketCap: null,
+        live: !row.priceUnavailable && (row.price || 0) > 0,
+        quoted: !row.priceUnavailable && (row.price || 0) > 0,
+        coinId: resolvableCoinId(row.detailId) || undefined,
+        blockchain: row.network && row.network !== "Unavailable" ? row.network : "",
+        dex: row.dex || "",
+        paperMarket: "DEX" as const,
+        priceUnavailable: row.priceUnavailable || !(row.price != null && row.price > 0),
+      }));
+    } else if (isCoinTab) {
       const top = [...crypto.coins]
         .filter((c) => coinHasLivePrice(c))
         .sort((a, b) => (a.rank ?? 999999) - (b.rank ?? 999999))
@@ -361,8 +394,8 @@ export function MarketsExplorer({
         key: c.id,
         ticker: c.symbol.toUpperCase(),
         symbol: c.symbol.toUpperCase(),
-        name: c.name,
-        currency: "USD",
+        name: c.name || c.symbol,
+        currency: "USD" as const,
         price: c.price,
         changePct: c.change24h ?? 0,
         changeAbs: (c.price * (c.change24h ?? 0)) / 100,
@@ -374,6 +407,7 @@ export function MarketsExplorer({
         quoted: !c.priceUnavailable && c.price > 0,
         coinId: c.id,
         blockchain: c.blockchain && c.blockchain !== "Unavailable" ? c.blockchain : "",
+        paperMarket: "Crypto" as const,
         priceUnavailable: !!c.priceUnavailable || !(c.price > 0),
       }));
     } else {
@@ -412,34 +446,60 @@ export function MarketsExplorer({
       if (sortKey === "marketCap") return ((a.marketCap ?? 0) - (b.marketCap ?? 0)) * dir;
       return ((a[sortKey] as number) - (b[sortKey] as number)) * dir;
     });
-  }, [isCryptoTab, crypto.coins, data, query, sortKey, sortDir, remoteHits]);
+  }, [isCoinTab, isDexTab, crypto.coins, dex.rows, data, query, sortKey, sortDir, remoteHits]);
 
   // Live-price formatter — crypto needs micro-price precision, stocks are currency-aware.
   const showPrice = (r: DisplayRow) =>
     r.priceUnavailable ? "—" : r.coinId ? fmtPrice(r.price) : formatMarketPrice(r.price, r.currency);
 
   // Unified loading + status across both data sources.
-  const loadingRows = isCryptoTab ? crypto.loading : loading;
+  const loadingRows = isDexTab ? dex.loading : isCoinTab ? crypto.loading : loading;
   const stockLoading = !isCryptoTab && loading;
-  const cryptoListed = Math.min(CRYPTO_TOP_N, crypto.coins.length);
+  const cryptoListed = isDexTab ? Math.min(CRYPTO_TOP_N, dex.rows.length) : Math.min(CRYPTO_TOP_N, crypto.coins.length);
   const total = isCryptoTab ? cryptoListed : data?.total ?? 0;
   const liveCount = isCryptoTab ? cryptoListed : data?.liveCount ?? 0;
   const asOf = isCryptoTab ? "" : data?.asOf ?? "";
-  const hasData = isCryptoTab ? crypto.coins.length > 0 : !!data;
+  const hasData = isDexTab ? dex.rows.length > 0 : isCoinTab ? crypto.coins.length > 0 : !!data;
   const cryptoPageCount = Math.max(1, Math.ceil(rows.length / CRYPTO_PAGE_SIZE));
   const cryptoPageSafe = Math.min(cryptoPage, cryptoPageCount - 1);
   const visibleRows = isCryptoTab
     ? rows.slice(cryptoPageSafe * CRYPTO_PAGE_SIZE, cryptoPageSafe * CRYPTO_PAGE_SIZE + CRYPTO_PAGE_SIZE)
     : rows;
-  const showHigh = !isCryptoTab || rows.some((r) => (r.dayHigh ?? 0) > 0);
-  const showLow = !isCryptoTab || rows.some((r) => (r.dayLow ?? 0) > 0);
-  const showVolume = rows.some((r) => (r.volume ?? 0) > 0);
-  const showCap = rows.some((r) => (r.marketCap ?? 0) > 0);
-  const showChain = isCryptoTab && rows.some((r) => !!r.blockchain);
-  const colSpan = 4 + Number(showHigh) + Number(showLow) + Number(showVolume) + Number(showCap) + Number(showChain) + Number(allowBuy);
+  const showHigh = !isCryptoTab;
+  const showLow = !isCryptoTab;
+  const showVolume = !isDexTab && rows.some((r) => (r.volume ?? 0) > 0);
+  const showCap = !isCryptoTab && rows.some((r) => (r.marketCap ?? 0) > 0);
+  const showChange = !isDexTab;
+  const showChain = isCryptoTab;
+  const showDex = isDexTab;
+  const showAdd = isCryptoTab;
+  const colSpan =
+    2 +
+    Number(showChange) +
+    1 +
+    Number(showHigh) +
+    Number(showLow) +
+    Number(showVolume) +
+    Number(showCap) +
+    Number(showChain) +
+    Number(showDex) +
+    Number(showAdd) +
+    Number(allowBuy && !isCryptoTab);
 
   function openBuy(r: DisplayRow) {
     setBuyTarget({ ticker: r.ticker, name: r.name, assetType: r.coinId ? "crypto" : "stock", price: r.price });
+    setBuyOpen(true);
+  }
+
+  function openPaperAdd(r: DisplayRow) {
+    setBuyTarget({
+      ticker: r.ticker,
+      name: r.name,
+      assetType: "crypto",
+      price: r.price > 0 ? r.price : undefined,
+      coinId: r.coinId,
+      market: r.paperMarket || (isDexTab ? "DEX" : "Crypto"),
+    });
     setBuyOpen(true);
   }
 
@@ -510,6 +570,17 @@ export function MarketsExplorer({
         >
           <Bitcoin className="size-4" /> Crypto
         </button>
+        <button
+          onClick={() => selectTab("DEX")}
+          className={cn(
+            "rounded-xl border px-3.5 py-2 text-sm font-semibold transition-colors",
+            isDexTab
+              ? "border-primary bg-primary text-primary-foreground shadow-glow"
+              : "border-border/60 bg-background/40 text-muted-foreground hover:text-foreground"
+          )}
+        >
+          DEX top 400
+        </button>
         <div className="ml-auto flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={refresh} disabled={loadingRows}>
             {loadingRows ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
@@ -522,7 +593,7 @@ export function MarketsExplorer({
         <div className="relative w-full max-w-xs">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Search ticker or company…"
+            placeholder={isCryptoTab ? "Search ticker or name…" : "Search ticker or company…"}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="pl-9"
@@ -531,8 +602,8 @@ export function MarketsExplorer({
         <div className="flex flex-col items-end gap-0.5">
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <Radio className={cn("size-3.5", liveCount > 0 ? "text-emerald-600" : "text-muted-foreground")} />
-            {(isCryptoTab ? crypto.error : loadError)
-              ? (isCryptoTab ? crypto.error : loadError)
+            {(isDexTab ? dex.error : isCoinTab ? crypto.error : loadError)
+              ? (isDexTab ? dex.error : isCoinTab ? crypto.error : loadError)
               : stockLoading
               ? "Loading prices…"
               : hasData || remoteHits.length
@@ -546,9 +617,14 @@ export function MarketsExplorer({
               <Clock className="size-3" /> {data.freshness || "Latest available price"}
             </p>
           )}
-          {isCryptoTab && (
+          {isCoinTab && (
             <p className="flex items-center gap-1 text-[0.62rem] text-muted-foreground/80">
               <Bitcoin className="size-3" /> {cryptoCoveragePhrase(cryptoListed)} · USD
+            </p>
+          )}
+          {isDexTab && (
+            <p className="flex items-center gap-1 text-[0.62rem] text-muted-foreground/80">
+              <Bitcoin className="size-3" /> Top {cryptoListed || 400} DEX tokens by 24-hour volume · GeckoTerminal
             </p>
           )}
         </div>
@@ -561,10 +637,10 @@ export function MarketsExplorer({
             <tr className="border-b border-border/60">
               <th className="py-2.5 pr-3 text-left"><SortHead label="Ticker" k="symbol" align="left" /></th>
               <th className="hidden py-2.5 pr-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground sm:table-cell">
-                Company
+                {isCryptoTab ? "Name" : "Company"}
               </th>
               <th className="py-2.5 px-3"><SortHead label="Price" k="price" /></th>
-              <th className="py-2.5 px-3"><SortHead label="Change" k="changePct" /></th>
+              {showChange && <th className="py-2.5 px-3"><SortHead label="Change" k="changePct" /></th>}
               {showHigh && (
               <th className="hidden py-2.5 px-3 lg:table-cell text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 High
@@ -583,10 +659,20 @@ export function MarketsExplorer({
               )}
               {showChain && (
                 <th className="py-2.5 pl-3 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Blockchain
+                  {isDexTab ? "Chain" : "Blockchain"}
                 </th>
               )}
-              {allowBuy && (
+              {showDex && (
+                <th className="py-2.5 pl-3 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  DEX
+                </th>
+              )}
+              {showAdd && (
+                <th className="py-2.5 pl-3 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Paper book
+                </th>
+              )}
+              {allowBuy && !isCryptoTab && (
                 <th className="py-2.5 pl-3 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Buy
                 </th>
@@ -594,7 +680,7 @@ export function MarketsExplorer({
             </tr>
           </thead>
           <tbody>
-            {stockLoading || (isCryptoTab && crypto.loading && rows.length === 0) ? (
+            {stockLoading || ((isCoinTab ? crypto.loading : isDexTab ? dex.loading : false) && rows.length === 0) ? (
               [...Array(12)].map((_, i) => (
                 <tr key={i} className="border-b border-border/30">
                   <td colSpan={colSpan} className="py-2">
@@ -607,7 +693,9 @@ export function MarketsExplorer({
                 <td colSpan={colSpan} className="py-12 text-center text-sm text-muted-foreground">
                   {query
                     ? `No tickers match “${query}”.`
-                    : isCryptoTab
+                    : isDexTab
+                      ? "No DEX token prices right now."
+                      : isCoinTab
                       ? "No live crypto prices right now."
                       : loadError
                         ? "Market prices failed to load. Use refresh to try again."
@@ -642,6 +730,7 @@ export function MarketsExplorer({
                     <td className="tnum py-2.5 px-3 text-right font-medium">
                       {showPrice(r)}
                     </td>
+                    {showChange && (
                     <td className="py-2.5 px-3 text-right">
                       <span
                         className={cn(
@@ -658,6 +747,7 @@ export function MarketsExplorer({
                         {r.quoted ? fmtAbs(r.changeAbs, r.price) : "—"}
                       </span>
                     </td>
+                    )}
                     {showHigh && (
                     <td className="tnum hidden py-2.5 px-3 text-right text-muted-foreground lg:table-cell">
                       {r.dayHigh ? (r.coinId ? fmtPrice(r.dayHigh) : formatMarketPrice(r.dayHigh, r.currency)) : "—"}
@@ -680,10 +770,22 @@ export function MarketsExplorer({
                     )}
                     {showChain && (
                       <td className="max-w-[10rem] py-2.5 pl-3 text-right text-xs text-muted-foreground">
-                        {r.blockchain || ""}
+                        {r.blockchain || "—"}
                       </td>
                     )}
-                    {allowBuy && (
+                    {showDex && (
+                      <td className="max-w-[10rem] py-2.5 pl-3 text-right text-xs text-muted-foreground">
+                        {r.dex || "—"}
+                      </td>
+                    )}
+                    {showAdd && (
+                      <td className="py-2.5 pl-3 text-right">
+                        <Button size="sm" variant="outline" className="h-8 px-2.5" onClick={() => openPaperAdd(r)}>
+                          Add to paper book
+                        </Button>
+                      </td>
+                    )}
+                    {allowBuy && !isCryptoTab && (
                       <td className="py-2.5 pl-3 text-right">
                         <Button size="sm" variant="outline" className="h-8 px-2.5" onClick={() => openBuy(r)}>
                           <ShoppingCart className="size-3.5 sm:mr-1.5" />
@@ -704,7 +806,9 @@ export function MarketsExplorer({
           <p className="text-xs text-muted-foreground">
             Showing {cryptoPageSafe * CRYPTO_PAGE_SIZE + 1}–
             {Math.min(rows.length, (cryptoPageSafe + 1) * CRYPTO_PAGE_SIZE)} of {rows.length}
-            {` · ${cryptoCoveragePhrase(rows.length)}`}
+            {isDexTab
+              ? ` · Top ${Math.min(CRYPTO_TOP_N, rows.length)} DEX tokens by 24-hour volume`
+              : ` · ${cryptoCoveragePhrase(rows.length)}`}
           </p>
           <div className="flex items-center gap-2">
             <Button

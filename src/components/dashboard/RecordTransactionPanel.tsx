@@ -898,7 +898,9 @@ function seedFrom(seed: TxSeed | null | undefined, preferred?: "stock" | "crypto
           ? "Silver"
           : "Gold"
         : assetType === "crypto"
-          ? "Crypto"
+          ? seed.market === "DEX"
+            ? "DEX"
+            : "Crypto"
           : marketForShare("", seed.ticker);
     return { symbol: seed.ticker.toUpperCase(), name: seed.name || seed.ticker, market, assetType, id: seed.coinId, price: seed.price };
   }

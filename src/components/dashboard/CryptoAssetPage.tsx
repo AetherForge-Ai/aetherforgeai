@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { ArrowLeft, Bitcoin } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { CoinDetailView } from "@/components/dashboard/crypto/CoinDetailView";
 import { marketsTabHref, unavailableTokenLabel } from "@/lib/market-detail-routes";
+import { openRecordTransaction } from "@/lib/open-transaction";
 
 /**
  * Full-page coin detail. The blocks match the old overlay; the URL is the page.
@@ -37,10 +39,33 @@ export function CryptoAssetPage({
           <Bitcoin className="size-6" />
         </span>
         <div>
-          <p className="text-sm font-semibold text-muted-foreground">Stock Markets</p>
+          <p className="text-sm font-semibold text-muted-foreground">Crypto markets</p>
           {label ? <p className="font-display text-lg font-semibold">{label}</p> : null}
         </div>
       </div>
+
+      {unavailable && symbol ? (
+        <div className="mt-4">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() =>
+              openRecordTransaction({
+                mode: "buy",
+                preferredAssetType: "crypto",
+                seed: {
+                  ticker: symbol,
+                  name: name || symbol,
+                  assetType: "crypto",
+                  market: "DEX",
+                },
+              })
+            }
+          >
+            Add to paper book
+          </Button>
+        </div>
+      ) : null}
 
       <div className="mt-6 overflow-hidden rounded-3xl border border-border/70 bg-card/50">
         <CoinDetailView coinId={coinId} allowBuy={allowBuy} unavailable={unavailable} variant="page" />

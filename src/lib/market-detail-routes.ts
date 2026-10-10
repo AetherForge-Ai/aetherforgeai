@@ -16,7 +16,7 @@ export { resolvableCoinId, COIN_DETAIL_UNAVAILABLE };
 
 export const STOCK_DETAIL_UNAVAILABLE = "Live data for this ticker is not shown right now.";
 
-export type MarketsTab = Exchange | "CRYPTO";
+export type MarketsTab = Exchange | "CRYPTO" | "DEX";
 
 const EXCHANGE_LABEL: Record<Exchange, string> = {
   NZX: "NZX",
@@ -60,13 +60,14 @@ export function exchangeLabel(exchange: Exchange): string {
 }
 
 export function marketsTabHref(tab: MarketsTab): string {
-  const q = tab === "CRYPTO" ? "crypto" : tab.toLowerCase();
+  const q = tab === "CRYPTO" ? "crypto" : tab === "DEX" ? "dex" : tab.toLowerCase();
   return `/markets?tab=${q}`;
 }
 
 export function parseMarketsTab(value: string | null | undefined): MarketsTab | null {
   const v = (value || "").trim().toLowerCase();
   if (v === "crypto") return "CRYPTO";
+  if (v === "dex") return "DEX";
   if (v === "nzx" || v === "asx" || v === "dow" || v === "nasdaq") return v.toUpperCase() as Exchange;
   return null;
 }

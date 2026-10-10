@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -178,7 +178,7 @@ export function CoinDetailView({
   useEffect(() => {
     if (variant !== "page" || !detail?.name) return;
     const prev = document.title;
-    document.title = `${detail.name} (${detail.symbol}) · Markets`;
+    document.title = `${detail.name} (${detail.symbol}) · Crypto markets`;
     return () => {
       document.title = prev;
     };
@@ -198,7 +198,22 @@ export function CoinDetailView({
       ? (detail.circulatingSupply / detail.maxSupply) * 100
       : null;
 
-  const canBuy = allowBuy && !!detail && detail.price > 0;
+  const canAdd = !!detail && detail.price > 0;
+  const openedFromQuery = useRef(false);
+
+  useEffect(() => {
+    if (!allowBuy || openedFromQuery.current || !detail || !(detail.price > 0)) return;
+    openedFromQuery.current = true;
+    setBuyTarget({
+      ticker: detail.symbol,
+      name: detail.name,
+      assetType: "crypto",
+      price: detail.price,
+      coinId: detail.id,
+      market: "Crypto",
+    });
+    setBuyOpen(true);
+  }, [allowBuy, detail]);
   const shownError = blocked ? COIN_DETAIL_UNAVAILABLE : error;
 
   function openBuy() {
@@ -208,6 +223,8 @@ export function CoinDetailView({
       name: detail.name,
       assetType: "crypto",
       price: detail.price,
+      coinId: detail.id,
+      market: "Crypto",
     });
     setBuyOpen(true);
   }
@@ -288,10 +305,10 @@ export function CoinDetailView({
           {up ? <ArrowUp className="size-3.5" /> : <ArrowDown className="size-3.5" />}
           {fmtPct(change24h)} <span className="font-normal opacity-70">24h</span>
         </p>
-        {canBuy && (
+        {canAdd && (
           <div className="mt-2">
-            <Button size="sm" onClick={openBuy} className="gap-1.5 font-semibold">
-              <ShoppingCart className="size-3.5" /> Buy {detail.symbol}
+            <Button size="sm" variant="outline" onClick={openBuy} className="gap-1.5 font-semibold">
+              <ShoppingCart className="size-3.5" /> Add to paper book
             </Button>
           </div>
         )}
@@ -522,14 +539,12 @@ export function CoinDetailView({
           {body}
         </div>
       </div>
-      {allowBuy && (
-        <BuyDialog
-          open={buyOpen}
-          onOpenChange={setBuyOpen}
-          target={buyTarget}
-          onDone={() => setBuyOpen(false)}
-        />
-      )}
+      <BuyDialog
+        open={buyOpen}
+        onOpenChange={setBuyOpen}
+        target={buyTarget}
+        onDone={() => setBuyOpen(false)}
+      />
     </>
   );
 }
