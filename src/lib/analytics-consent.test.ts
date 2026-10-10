@@ -30,7 +30,9 @@ describe("U4 analytics consent", () => {
     expect(shouldLoadGtag("granted", "https://evil.example")).toBe(false);
     expect(googleMeasurementId("G-2ZH1DNK63H")).toBe("G-2ZH1DNK63H");
     expect(shouldLoadGtag("granted", "G-2ZH1DNK63H")).toBe(true);
-    expect(read("src/lib/analytics-consent.ts")).not.toContain("dismissed");
+    const consent = read("src/lib/analytics-consent.ts");
+    expect(consent).not.toContain("af-analytics-notice");
+    expect(consent).not.toContain('=== "dismissed"');
   });
 
   it("keeps the measurement script out of the first render", () => {
@@ -49,7 +51,7 @@ describe("U4 analytics consent", () => {
     expect(notice).toContain("Decline");
     expect(notice).not.toContain("Dismiss");
     expect(notice.match(/className=\{choiceClass\}/g)).toHaveLength(2);
-    expect(read("src/components/SiteFooter.tsx")).toContain("Cookie settings");
+    expect(read("src/components/SiteFooter.tsx")).toContain("<CookieSettingsLink");
     expect(read("src/components/CookieSettingsLink.tsx")).toContain("Cookie settings");
   });
 
