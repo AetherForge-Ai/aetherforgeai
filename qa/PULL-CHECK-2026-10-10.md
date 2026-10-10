@@ -921,7 +921,7 @@ Marker: `pull-check:weekly-email-2026-10-11`
 
 Source comment: `pull-check:weekly-email-2026-10-11` in `src/lib/weekly-email.ts`, `src/lib/weekly-email-copy.ts`, `src/lib/weekly-email-live.ts`, `src/app/api/cron/weekly-email/route.ts`, `src/app/api/weekly-email/unsubscribe/route.ts`, and `src/app/api/admin/weekly-email/preview/route.ts`.
 
-Branch `cursor/weekly-paid-email-042e` from develop. One draft pull request into `develop`. Nothing was published. No Totalum AI Pull. No email was sent. Auth, login, register, security headers, consent, apex, and `next.config.ts` were not edited. No new database columns. Public copy says "AI" only. Crypto projections stay paused (`CRYPTO_PROJECTIONS_PAUSED` remains true).
+Branch `cursor/weekly-paid-email-042e` from develop. Draft pull request: https://github.com/AetherForge-Ai/aetherforgeai/pull/269 into `develop`. Do not merge it from this note. Nothing was published. No Totalum AI Pull. No email was sent. Auth, login, register, security headers, consent, apex, and `next.config.ts` were not edited. No new database columns. Public copy says "AI" only. Crypto projections stay paused (`CRYPTO_PROJECTIONS_PAUSED` remains true).
 
 ### What it does
 
