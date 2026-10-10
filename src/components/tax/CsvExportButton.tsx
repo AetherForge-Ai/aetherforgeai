@@ -2,12 +2,23 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { CSV_LOCK_LABEL, csvLockAccessibleName } from "@/lib/csv-lock-label";
 
 /**
  * Paid CSV download. A Free plan never follows the export URL, so a 403
  * JSON body cannot replace the page. The server gate stays in place.
+ * pull-check:batch1-2026-10-11 B1-2
  */
-export function CsvExportButton({ href, allowed }: { href: string; allowed: boolean }) {
+export function CsvExportButton({
+  href,
+  allowed,
+  exportName,
+}: {
+  href: string;
+  allowed: boolean;
+  /** Which file is locked, e.g. "Dividends CSV". */
+  exportName?: string;
+}) {
   const [locked, setLocked] = useState(!allowed);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
@@ -23,7 +34,7 @@ export function CsvExportButton({ href, allowed }: { href: string; allowed: bool
         const body = (await res.json().catch(() => null)) as { data?: { code?: string } } | null;
         if (res.status === 403 || body?.data?.code === "not_entitled") {
           setLocked(true);
-          setNote("CSV export is included on Starter and above.");
+          setNote(csvLockAccessibleName(exportName));
           return;
         }
         setNote("The CSV could not be downloaded.");
@@ -50,9 +61,10 @@ export function CsvExportButton({ href, allowed }: { href: string; allowed: bool
         <button
           type="button"
           disabled
+          aria-label={csvLockAccessibleName(exportName)}
           className="rounded-lg border border-border/70 px-2.5 py-1.5 text-xs font-semibold text-muted-foreground"
         >
-          Starter and above
+          {CSV_LOCK_LABEL}
         </button>
         <Link href="/pricing" className="text-xs font-semibold text-primary underline-offset-4 hover:underline">
           See plans

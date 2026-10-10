@@ -191,6 +191,7 @@ export default async function TaxableIncomePage({
             <CsvExportButton
               href={`/api/tax/income/export?year=${endingYear}`}
               allowed={canExportCsv(user.subscription_plan)}
+              exportName="Income CSV"
             />
           ) : null}
           {user && report ? <PrintButton /> : null}

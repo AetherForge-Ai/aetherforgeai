@@ -170,6 +170,7 @@ export default async function RealisedPage({
             <CsvExportButton
               href={`/api/tax/realised/export?year=${endingYear}`}
               allowed={canExportCsv(user.subscription_plan)}
+              exportName="Realised CSV"
             />
           ) : null}
           {user && report ? <PrintButton /> : null}
