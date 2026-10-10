@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
+  formatCleanNumber,
   formatDisplayDate,
   formatDisplayDateTime,
   formatDriftPp,
@@ -12,6 +13,7 @@ import {
   roundMoney,
   sameQuotedUnit,
 } from "@/lib/currency";
+import { formatLedgerDateTime, resolveExecutedInstant } from "@/lib/executed-at";
 import { aucklandDateISO } from "@/lib/fill-integrity";
 import { computeSummary } from "@/lib/portfolio";
 import { SECURITY_HEADERS } from "@/lib/security-headers";
@@ -28,6 +30,24 @@ describe("M10 dates", () => {
     expect(formatDisplayDateTime("2026-10-10T02:47:53.208Z")).toBe("10 Oct 2026, 3:47 pm");
     expect(formatDisplayDate("2026-09-02")).toBe("2 Sep 2026");
     expect(formatDisplayDate("2026-09-02")).not.toMatch(/Sept/);
+  });
+
+  it("hides a clock that was never chosen", () => {
+    expect(formatLedgerDateTime("2026-10-10")).toBe("10 Oct 2026");
+    expect(formatLedgerDateTime("2026-10-10T00:00:00.000Z")).toBe("10 Oct 2026");
+    expect(formatLedgerDateTime("2026-10-09T12:00:00.000Z")).toBe("9 Oct 2026");
+    expect(formatLedgerDateTime("2026-10-10T02:47:53.208Z")).toBe("10 Oct 2026, 3:47 pm");
+    const now = new Date("2026-10-10T02:00:00.000Z");
+    const today = resolveExecutedInstant("2026-10-10", now);
+    expect(today.hasClock).toBe(true);
+    expect(today.stored).toEqual(now);
+    const past = resolveExecutedInstant("2026-10-01", now);
+    expect(past.hasClock).toBe(false);
+    expect(past.stored).toBe("2026-10-01");
+    expect(past.civilDay).toBe("2026-10-01");
+    const noon = resolveExecutedInstant(new Date("2026-10-09T12:00:00.000Z"), now);
+    expect(noon.hasClock).toBe(false);
+    expect(noon.stored).toBe("2026-10-09");
   });
 });
 
@@ -200,6 +220,49 @@ describe("L6 L9 L10 L11 L12 L13", () => {
     expect(cells[28]).toBe("");
     expect(cells[29]).toBe("");
     expect(cells).toHaveLength(30);
+  });
+
+  it("keeps a date-only row on its civil day and labels columns that do not apply", () => {
+    expect(formatCleanNumber(7476.61570345871)).toBe("7476.6157");
+    expect(formatCleanNumber(0.00000402332293400169)).not.toContain("32293400169");
+    const row = {
+      type: "buy",
+      executed_at: "2026-10-09T12:00:00.000Z",
+      ticker: "GOLD",
+      asset_type: "metal",
+      quantity: 2.0062,
+      price: 7476.62,
+      currency: "NZD",
+      fx_rate: 1,
+      notes:
+        "[audit 10/10/2026, 10:57:02 pm] FILLED buy qty=2.0062 fill=7476.62 NZD live=7476.61570345871 source=user_fill.",
+    };
+    const notes = csvNotes(row);
+    expect(notes).toContain("[audit 10 Oct 2026, 10:57 pm]");
+    expect(notes).not.toContain("10/10/2026");
+    expect(notes).not.toContain("7476.61570345871");
+    expect(notes).toContain("live=7476.6157");
+    const cells = transactionCsvCells(row);
+    expect(cells[0]).toBe("9 Oct 2026");
+    expect(cells[1]).toBe("9 Oct 2026");
+    expect(cells[1]).not.toMatch(/1:00/);
+    expect(cells[7]).toBe("GOLD");
+    expect(cells[12]).toBe("n/a — quote time was not stored");
+    expect(cells[13]).toBe("n/a — not a signal fill");
+    expect(cells[14]).toBe("n/a — not marked at export");
+    expect(cells[21]).toBe("0.00");
+    expect(cells[22]).toBe("0.00");
+    const cash = transactionCsvCells({ type: "deposit", executed_at: "2026-10-10", currency: "NZD", total: 100 });
+    expect(cash[1]).toBe("10 Oct 2026");
+    expect(cash[7]).toBe("n/a — cash has no asset id");
+    const unsold = transactionCsvCells({
+      type: "sell",
+      executed_at: "2026-10-10T02:47:53.208Z",
+      ticker: "WOR.AX",
+      currency: "AUD",
+    });
+    expect(unsold[21]).toBe("n/a — price and FX split was not stored");
+    expect(unsold[22]).toBe("n/a — price and FX split was not stored");
   });
 
   it("writes one correction sentence and hides the DEX notes prefix", () => {

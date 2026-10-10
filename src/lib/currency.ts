@@ -283,9 +283,25 @@ export function formatQuantity(value: number): string {
 }
 
 /**
- * Book money to the cent. A value that rounds to zero is 0, never -0,
- * so a display cannot print '-NZ$0.00' or '-0.00%'.
+ * A figure for an audit note. Enough digits for a sub-cent quote, without
+ * the binary tail (7476.61570345871, 0.00000402332293400169).
  */
+export function formatCleanNumber(value: number): string {
+  if (!Number.isFinite(value)) return "n/a";
+  if (value === 0) return "0";
+  const abs = Math.abs(value);
+  const sig = abs < 0.01 ? 10 : 8;
+  const precise = Number(value.toPrecision(sig));
+  if (!Number.isFinite(precise) || precise === 0) return "0";
+  const exp = Math.floor(Math.log10(Math.abs(precise)));
+  const dp = Math.min(12, Math.max(0, sig - exp - 1));
+  return precise
+    .toFixed(dp)
+    .replace(/(\.\d*?[1-9])0+$/, "$1")
+    .replace(/\.0+$/, "");
+}
+
+/** Book money to the cent. A value that rounds to zero is 0, never -0. */
 export function roundMoney(value: number): number {
   if (!Number.isFinite(value)) return 0;
   const rounded = Math.round((value + Number.EPSILON) * 100) / 100;
