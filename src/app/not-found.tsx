@@ -7,11 +7,9 @@ export const metadata: Metadata = {
   title: { absolute: pageTitle("Page not found") },
   description: "That page is not on AetherForge AI.",
   robots: { index: false, follow: false },
-  alternates: { canonical: "/404" },
   openGraph: {
     title: pageTitle("Page not found"),
     description: "That page is not on AetherForge AI.",
-    url: "/404",
     type: "website",
   },
 };
