@@ -65,6 +65,40 @@ describe("public copy does not name a model", () => {
     expect(read("src/lib/grok.ts")).not.toContain("throw new Error(`Grok");
     expect(read("src/lib/grok.ts")).not.toContain('throw new Error("Grok');
   });
+
+  it("names SuperGrok only on the trust page and the privacy policy", () => {
+    const allowed = ["src/app/trust/page.tsx", "src/app/privacy-policy/page.tsx"];
+    for (const rel of allowed) {
+      const text = visibleCopy(read(rel));
+      expect(text, rel).toContain("SuperGrok");
+      expect(text, rel).toContain("No retention period is set by our code.");
+      expect(text.replaceAll("SuperGrok", ""), rel).not.toMatch(MODEL_NAME);
+    }
+    const elsewhere = [
+      ...PUBLIC_COPY,
+      "src/lib/public-copy.ts",
+      "src/lib/trust-facts.ts",
+      "src/lib/pricing-faq.ts",
+      "src/lib/public-schema.ts",
+      "src/lib/bot-guides.ts",
+      "src/lib/weekly-email-copy.ts",
+      "src/lib/report-copy.ts",
+      "src/app/changelog/page.tsx",
+      "src/app/help/page.tsx",
+      "src/app/returns/page.tsx",
+      "src/app/stox/page.tsx",
+      "src/app/koins/page.tsx",
+      "src/app/smitty/page.tsx",
+      "src/app/headmaster/page.tsx",
+      "src/app/ai-disclaimer/page.tsx",
+      "src/components/public/BotGuide.tsx",
+    ];
+    for (const rel of elsewhere) {
+      const text = visibleCopy(read(rel));
+      expect(text, rel).not.toContain("SuperGrok");
+      expect(text, rel).not.toMatch(MODEL_NAME);
+    }
+  });
 });
 
 describe("public surface routes", () => {
@@ -83,10 +117,16 @@ describe("public surface routes", () => {
     expect(gate).toContain('"/blog"');
     expect(sitemap).toContain('"/docs"');
     expect(sitemap).not.toContain('"/blog"');
-    expect(read("src/app/docs/page.tsx")).toContain("/how-it-works");
-    expect(read("src/app/docs/page.tsx")).toContain("/ai-disclaimer");
-    expect(read("src/app/docs/page.tsx")).toContain("/pricing#faq");
-    expect(read("src/app/docs/page.tsx")).not.toContain('href: "/blog"');
+    const docs = read("src/app/docs/page.tsx");
+    const docLinks = read("src/lib/help-index.ts");
+    expect(docs).toContain("DOC_LINKS");
+    expect(docs).toContain("breadcrumbJsonLd");
+    expect(docLinks).toContain('href: "/how-it-works"');
+    expect(docLinks).toContain('href: "/ai-disclaimer"');
+    expect(docLinks).toContain('href: "/pricing#faq"');
+    expect(docLinks).toContain('href: "/returns"');
+    expect(docLinks).not.toContain('href: "/blog"');
+    expect(docs).not.toContain('href: "/blog"');
     expect(read("src/app/blog/page.tsx")).toContain("/market-news");
     expect(read("src/app/blog/page.tsx")).toContain("index: false");
     expect(gate).toContain('"/market-news"');

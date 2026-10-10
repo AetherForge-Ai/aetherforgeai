@@ -66,11 +66,16 @@ describe("trust page facts", () => {
     expect(TRUST_PAGE_LOG[0].date).toBe("10 Oct 2026");
   });
 
-  it("does not name a provider or claim a credential that is not held", () => {
-    const blob = [read("src/lib/trust-facts.ts"), read("src/app/trust/page.tsx")].join("\n");
+  it("names SuperGrok on the page and does not claim a credential that is not held", () => {
+    const facts = read("src/lib/trust-facts.ts");
+    const page = read("src/app/trust/page.tsx");
+    const blob = `${facts}\n${page}`;
     const taxWord = ["G", "ST"].join("");
     expect(blob).not.toContain(taxWord);
-    expect(blob).not.toMatch(/\b(SuperGrok|Grok|xAI|Claude|Gemini|GPT-\d|ZENITH|ULTRA)\b/);
+    expect(facts).not.toMatch(/\b(SuperGrok|Grok|xAI|Claude|Gemini|GPT-\d|ZENITH|ULTRA)\b/);
+    expect(page).toContain("The third-party AI service in those sentences is SuperGrok.");
+    expect(page).toContain("No retention period is set by our code.");
+    expect(page.replaceAll("SuperGrok", "")).not.toMatch(/\b(Grok|xAI|Claude|Gemini|GPT-\d|ZENITH|ULTRA)\b/);
     expect(blob).not.toMatch(/2FA|two-factor|TOTP|SOC 2|penetration test|encryption at rest/i);
     expect(blob).not.toMatch(/\breal-time\b|\bofficial\b|\blicensed\b/i);
   });

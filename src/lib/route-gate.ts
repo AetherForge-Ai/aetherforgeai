@@ -11,6 +11,9 @@ const PUBLIC_DOCUMENT_ROUTES = [
   "/features",
   "/how",
   "/performance",
+  // Money-weighted and time-weighted return. A figure needs a valuation.
+  // pull-check:batch2-2026-10-11
+  "/returns",
   "/dashboard",
   "/markets",
   "/tax",

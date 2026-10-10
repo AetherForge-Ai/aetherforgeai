@@ -1,7 +1,8 @@
 /**
  * Facts the trust page may state. Each sentence is taken from a header,
  * a processor row, the AI request lines, the privacy policy, or security.txt.
- * No hosting region. No AI provider name. No security credential.
+ * No hosting region. No security credential. The page names the AI provider.
+ * This module does not.
  *
  * pull-check:batch2-2026-10-11 B2-5
  */
@@ -34,6 +35,10 @@ export const TRUST_PAGE_LOG = [
     date: "10 Oct 2026",
     change:
       "Transport header, storage name, AI retention, deletion, export and breach contact, each taken from the code or the privacy policy.",
+  },
+  {
+    date: "11 Oct 2026",
+    change: "The AI provider is named on this page. No retention period is set by our code.",
   },
 ] as const;
 

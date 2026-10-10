@@ -24,6 +24,13 @@ import {
   trustTransportLine,
 } from "@/lib/trust-facts";
 
+/** Shown on this page only. Other pages keep the unnamed third-party row. */
+function disclosedProcessors() {
+  return PROCESSORS().map((processor) =>
+    processor.name === "A third-party AI service" ? { ...processor, name: "SuperGrok" } : processor,
+  );
+}
+
 export const metadata = publicPageMetadata("/trust", {
   title: "Trust · AetherForge AI",
   description: "Data sources, freshness, processors, security, and how to report a vulnerability.",
@@ -69,7 +76,7 @@ export default function TrustPage() {
             <h2 className="font-display text-lg font-bold">Who else handles data</h2>
             <p className="text-sm leading-relaxed text-muted-foreground">{DATA_SHARING_LINE}</p>
             <ul className="list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-muted-foreground">
-              {PROCESSORS().map((processor) => (
+              {disclosedProcessors().map((processor) => (
                 <li key={processor.name}>
                   <span className="font-semibold text-foreground">{processor.name}</span> — {processor.role}.
                 </li>
@@ -117,6 +124,9 @@ export default function TrustPage() {
                 {line}
               </p>
             ))}
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              The third-party AI service in those sentences is SuperGrok. No retention period is set by our code.
+            </p>
           </section>
 
           <section className="mt-8 space-y-2">

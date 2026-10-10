@@ -6,6 +6,7 @@
  * the payment currency, at the payment date.
  *
  * pull-check:track-b-2-2026-10-11
+ * pull-check:batch2-2026-10-11 B2-3
  */
 
 import {
