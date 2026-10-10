@@ -759,6 +759,7 @@ export function TransactionCenter({
         open={allOpen}
         onOpenChange={setAllOpen}
         transactions={ledger?.transactions ?? []}
+        csvAllowed={csvAllowed}
       />
     </div>
     </>
@@ -779,10 +780,12 @@ function AllTransactionsDialog({
   open,
   onOpenChange,
   transactions,
+  csvAllowed = false,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   transactions: TransactionRow[];
+  csvAllowed?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | TxType>("all");
