@@ -157,6 +157,15 @@ export function headmasterDepth(plan?: string | null): HeadmasterDepth {
   return "full";
 }
 
+/**
+ * The Assistant Guide sits on every signed-in page. A Free plan uses the
+ * ledger already on screen and must not call GET /api/totalum.
+ * pull-check:batch1-2026-10-11 B1-4
+ */
+export function coachRequestsTotalum(plan?: string | null, panelOpen = true): boolean {
+  return panelOpen && headmasterDepth(plan) !== "none";
+}
+
 /** Auckland-month report cap. Null means the rolling paid cadence applies (unlimited). */
 export function monthlyReportLimit(plan?: string | null): number | null {
   if (isFreeReportPlan(plan)) return FREE_REPORTS_PER_MONTH;
