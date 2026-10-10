@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -164,6 +164,7 @@ export function MarketsExplorer({
   const [remoteHits, setRemoteHits] = useState<DisplayRow[]>([]);
   const [remoteLoading, setRemoteLoading] = useState(false);
   const [cryptoPage, setCryptoPage] = useState(0);
+  const loadGen = useRef(0);
 
   const isCryptoTab = tab === "CRYPTO";
 
@@ -172,6 +173,15 @@ export function MarketsExplorer({
   }, [initialTab]);
 
   function selectTab(next: Tab) {
+    if (next !== tab) {
+      // Invalidate an in-flight quote before the next load() starts, so the
+      // previous exchange cannot paint under the new tab.
+      loadGen.current += 1;
+      setData(null);
+      setLoadError(null);
+      setRemoteHits([]);
+      if (next !== "CRYPTO") setLoading(true);
+    }
     setTab(next);
     if (!syncTab) return;
     router.replace(marketsTabHref(next), { scroll: false });
@@ -183,12 +193,19 @@ export function MarketsExplorer({
   // `silent` refresh keeps the current rows on screen (no skeleton flash) — used
   // by the 30–60s auto-refresh so prices update seamlessly, live-ticker style.
   const load = useCallback(async (ex: Exchange, silent = false) => {
-    if (!silent) setLoading(true);
+    const gen = ++loadGen.current;
+    if (!silent) {
+      setLoading(true);
+      setData(null);
+      setLoadError(null);
+    }
     console.log(`[markets-explorer] Loading prices for ${ex}…${silent ? " (auto)" : ""}`);
     try {
       const res = await api.get<MarketPayload>(`/api/all-markets?exchange=${ex}&t=${Date.now()}`, {
         signal: AbortSignal.timeout(20_000),
       });
+      if (gen !== loadGen.current) return;
+      if (res.data?.exchange && res.data.exchange !== ex) return;
       if (res.ok && res.data?.rows?.length) {
         setData(res.data);
         setLoadError(null);
@@ -201,13 +218,14 @@ export function MarketsExplorer({
         }
       }
     } catch (err) {
+      if (gen !== loadGen.current) return;
       console.error("[markets-explorer] Load failed:", err);
       if (!silent) {
         setData(null);
         setLoadError("Market prices failed to load.");
       }
     }
-    if (!silent) setLoading(false);
+    if (gen === loadGen.current && !silent) setLoading(false);
   }, []);
 
   // Load stock exchange data whenever active + a stock tab is selected. (Crypto
@@ -402,6 +420,7 @@ export function MarketsExplorer({
 
   // Unified loading + status across both data sources.
   const loadingRows = isCryptoTab ? crypto.loading : loading;
+  const stockLoading = !isCryptoTab && loading;
   const cryptoListed = Math.min(CRYPTO_TOP_N, crypto.coins.length);
   const total = isCryptoTab ? cryptoListed : data?.total ?? 0;
   const liveCount = isCryptoTab ? cryptoListed : data?.liveCount ?? 0;
@@ -514,15 +533,17 @@ export function MarketsExplorer({
             <Radio className={cn("size-3.5", liveCount > 0 ? "text-emerald-600" : "text-muted-foreground")} />
             {(isCryptoTab ? crypto.error : loadError)
               ? (isCryptoTab ? crypto.error : loadError)
+              : stockLoading
+              ? "Loading prices…"
               : hasData || remoteHits.length
               ? `${rows.length} of ${total}${remoteLoading ? " · searching…" : ""}${remoteHits.length && query.trim() ? ` · +${remoteHits.length} market match${remoteHits.length === 1 ? "" : "es"}` : ""}${liveCount > 0 ? ` · ${liveCount} quoted` : " · reference prices"}${asOf ? ` · ${fmtTime(asOf)}` : ""}`
               : loadingRows
                 ? "Loading prices…"
                 : "—"}
           </p>
-          {!isCryptoTab && (data?.freshness || tab === "NZX" || tab === "ASX" || tab === "DOW" || tab === "NASDAQ") && (
+          {!isCryptoTab && !stockLoading && data && (
             <p className="flex items-center gap-1 text-[0.62rem] text-muted-foreground/80">
-              <Clock className="size-3" /> {data?.freshness || "Latest available price"}
+              <Clock className="size-3" /> {data.freshness || "Latest available price"}
             </p>
           )}
           {isCryptoTab && (
@@ -573,7 +594,7 @@ export function MarketsExplorer({
             </tr>
           </thead>
           <tbody>
-            {loadingRows && rows.length === 0 ? (
+            {stockLoading || (isCryptoTab && crypto.loading && rows.length === 0) ? (
               [...Array(12)].map((_, i) => (
                 <tr key={i} className="border-b border-border/30">
                   <td colSpan={colSpan} className="py-2">

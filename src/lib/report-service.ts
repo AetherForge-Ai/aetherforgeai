@@ -19,6 +19,7 @@ import { alertIsEffectivelyArchived, heldQuantityForTicker } from "@/lib/alert-l
 import { relockSeededReportPrices } from "@/lib/paper-quote-lock.server";
 import { reportEmailMessageId, reportEmailWasDelivered } from "@/lib/report-email";
 import { sendTransactionalEmail } from "@/lib/send-transactional-mail";
+import { labelIntel } from "@/lib/security-signal";
 import { publishSharedBookLog, fullBookSentence, fullBookFromHoldings, fullBookFromPositions } from "@/lib/book-log";
 import {
   annotateTickerCalls,
@@ -238,7 +239,7 @@ export async function generateReportForUser(
   }));
 
   const technicals: SecurityIntel[] = stockObjs.map((s) =>
-    analyzeSecurity(s.ticker, s.current_price || undefined, s.company_name)
+    labelIntel(analyzeSecurity(s.ticker, s.current_price || undefined, s.company_name))
   );
   const metrics = computePortfolioMetrics(stockObjs);
 
@@ -280,11 +281,13 @@ export async function generateReportForUser(
     }
   }
 
-  const marketTechnicals: SecurityIntel[] = universeIntel?.length
-    ? universeIntel
-    : Object.keys(marketOverrides).length > 0
-      ? analyzeUniverse(marketOverrides, bot)
-      : [];
+  const marketTechnicals: SecurityIntel[] = (
+    universeIntel?.length
+      ? universeIntel
+      : Object.keys(marketOverrides).length > 0
+        ? analyzeUniverse(marketOverrides, bot)
+        : []
+  ).map((row) => labelIntel(row));
   const marketFeedUnavailable = marketTechnicals.length === 0;
   if (marketFeedUnavailable) {
     console.error(`[report-service] ${bot} market feed unavailable — report will say so and will not invent quotes`);
