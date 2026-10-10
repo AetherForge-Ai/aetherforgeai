@@ -5,6 +5,7 @@ import { getMetalsSpot } from "@/lib/metals";
 import { CANONICAL_CRYPTO_IDS } from "@/lib/crypto-ids";
 import { lookupCryptoId } from "@/lib/crypto-id-registry";
 import { dexQuoteRows } from "@/lib/crypto-coingecko";
+import { normaliseUnitPrice } from "@/lib/currency";
 import { dexPriceForSymbol } from "@/lib/reviewed-book";
 
 export const dynamic = "force-dynamic";
@@ -83,10 +84,11 @@ export async function GET(req: Request) {
       if (market === "dex" && !(price != null && price > 0)) {
         price = await readCoinList();
       }
-      console.log(`[api/tickers/quote] (crypto) ${symbol} → ${price ? `$${price} USD` : "no quote"}`);
+      const kept = normaliseUnitPrice(price);
+      console.log(`[api/tickers/quote] (crypto) ${symbol} → ${kept ? `$${kept} USD` : "no quote"}`);
       return NextResponse.json({
         ok: true,
-        data: { symbol, price, currency: price ? "USD" : null, changePct: null },
+        data: { symbol, price: kept, currency: kept ? "USD" : null, changePct: null },
       });
     }
 

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CookieSettingsLink } from "@/components/CookieSettingsLink";
 import { LEGAL_ENTITY_NAME, NZBN, REGISTERED_OFFICE } from "@/lib/company";
 import { CUSTOMER_EMAIL } from "@/lib/public-copy";
 
@@ -24,6 +25,7 @@ export function SiteFooter() {
               {item.label}
             </Link>
           ))}
+          <CookieSettingsLink />
         </nav>
         <p className="text-xs leading-relaxed text-muted-foreground">
           {LEGAL_ENTITY_NAME} · NZBN {NZBN} · {REGISTERED_OFFICE} ·{" "}

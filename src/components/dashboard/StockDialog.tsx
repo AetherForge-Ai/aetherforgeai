@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2, Check, Lock, CalendarDays, Info } from "lucide-react";
 import { api } from "@/lib/api";
 import { currencyForTicker } from "@/lib/currency";
+import { aucklandYmd } from "@/lib/entitlements";
 import { useFxRates } from "@/hooks/useFxRates";
 import { buildTradePreview, type TradePreview } from "@/lib/trade-preview";
 import { TradeReview } from "@/components/dashboard/TradeReview";
@@ -45,12 +46,9 @@ interface StockDialogProps {
   defaultAssetType?: AssetType;
 }
 
-/** Local yyyy-mm-dd for "today" — the boundary that flips the price lock on/off. */
+/** Auckland yyyy-mm-dd. Today is allowed even when the UTC date is still yesterday. */
 function todayISO(): string {
-  const d = new Date();
-  // Use local date parts so "today" matches the user's calendar, not UTC.
-  const off = d.getTimezoneOffset() * 60000;
-  return new Date(d.getTime() - off).toISOString().slice(0, 10);
+  return aucklandYmd();
 }
 
 export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAssetType = "stock" }: StockDialogProps) {

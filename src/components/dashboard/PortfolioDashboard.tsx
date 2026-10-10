@@ -11,6 +11,7 @@ import {
 import {
   formatDisplayDate,
   formatMoney,
+  formatUnitPrice,
   baseCurrencyForBot,
   BASELINE_FX_TO_NZD,
   CURRENCY_META,
@@ -2006,11 +2007,11 @@ export function PortfolioDashboard({
                       </td>
                       {/* Price paid / share */}
                       <td className="tnum px-3 py-3.5 text-right text-muted-foreground">
-                        {formatMoney(h.purchase_price, h.currency)}
+                        {formatUnitPrice(h.purchase_price, h.currency)}
                       </td>
                       {/* Current price / share */}
                       <td className="tnum px-3 py-3.5 text-right">
-                        {formatMoney(h.current_price, h.currency)}
+                        {formatUnitPrice(h.current_price, h.currency)}
                       </td>
                       {/* Current total market value */}
                       <td className="tnum px-3 py-3.5 text-right font-medium">

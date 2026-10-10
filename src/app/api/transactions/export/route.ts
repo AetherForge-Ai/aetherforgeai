@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { formatSavedFx } from "@/lib/currency";
+import { formatPriceInput, formatSavedFx } from "@/lib/currency";
 import { getStableSessionUser } from "@/lib/session";
 import { canExportCsv } from "@/lib/entitlements";
 import { loadLedger, type TransactionRow } from "@/lib/transactions";
@@ -20,6 +20,15 @@ function csvDate(iso?: string): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** Unit prices under $1 keep their digits. They are not written as 0.01. */
+function csvUnitPrice(value: unknown): string {
+  if (value == null || value === "") return "";
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) return String(value);
+  if (Math.abs(n) > 0 && Math.abs(n) < 1) return formatPriceInput(n);
+  return String(n);
+}
+
 function rowCells(t: TransactionRow): string[] {
   const extra = t as TransactionRow & Record<string, unknown>;
   return [
@@ -32,7 +41,7 @@ function rowCells(t: TransactionRow): string[] {
     t.asset_type || "",
     String(extra.asset_id || ""),
     t.quantity ?? "",
-    extra.fill_price ?? t.price ?? "",
+    csvUnitPrice(extra.fill_price ?? t.price),
     String(extra.fill_currency || t.currency || "NZD"),
     String(extra.price_source || "user_fill"),
     String(extra.price_as_at || ""),

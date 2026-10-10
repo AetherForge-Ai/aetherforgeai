@@ -142,7 +142,32 @@ export function adaptiveFractionDigits(value: number): number {
   if (abs >= 1) return abs < 5 ? 4 : 2;
   const sig = abs >= 0.01 ? 4 : 6;
   const exp = Math.floor(Math.log10(abs));
-  return Math.min(10, Math.max(2, sig - exp - 1));
+  return Math.min(12, Math.max(2, sig - exp - 1));
+}
+
+/**
+ * Persist a unit price. Stored fills keep at least 6 decimal places, and more
+ * when the price is sub-cent, so 17.456789, 12.345, 0.00001 and 0.0000040399
+ * all stay intact. Display formatting is separate and stays adaptive.
+ * pull-check:qa-2026-10-10-urgent-u1-u2-u4
+ */
+export function roundUnitPrice(n: number): number {
+  if (!Number.isFinite(n)) return n;
+  const abs = Math.abs(n);
+  if (abs === 0) return 0;
+  const digits = Math.max(6, adaptiveFractionDigits(abs));
+  const f = 10 ** digits;
+  return Math.round((n + Number.EPSILON) * f) / f;
+}
+
+/**
+ * A DEX or crypto quote, unchanged when it is a positive finite price.
+ * Quote normalisation must not round 0.0000040399 up to 0.01.
+ */
+export function normaliseUnitPrice(value: number | null | undefined): number | null {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n) || !(n > 0)) return null;
+  return n;
 }
 
 /** Input-friendly price text. Amounts from $1 use 2 decimals. Sub-dollar keeps precision. */
@@ -231,12 +256,31 @@ export function formatSignedMoney(value: number, currency: CurrencyCode = "NZD")
   return text;
 }
 
+/**
+ * Unit price. Sub-cent amounts, including the NZ$ equivalent of a unit, keep
+ * their significant digits. NZ$0.00 is only used when the unit price is zero.
+ */
+export function formatUnitPrice(value: number, currency: CurrencyCode = "USD"): string {
+  if (!Number.isFinite(value)) return formatMoney(0, currency, { decimals: 2 });
+  // Under $1 the adaptive width keeps a sub-cent print. From $1 the existing
+  // scale applies: 4 decimals under $5, 2 decimals from $5.
+  return formatMoney(value, currency);
+}
+
+/** True when an NZ$ figure is a non-zero unit price under one cent. */
+function subCentUnit(value: number): boolean {
+  const abs = Math.abs(value);
+  return abs > 0 && abs < 0.01;
+}
+
 /** Native amount, with the NZ dollar value beside it when the currency is not NZD. */
 export function formatMoneyWithNzd(amount: number, currency: CurrencyCode, nzd: number): string {
-  const decimals = currency === "NZD" || Math.abs(amount) >= 1 ? 2 : undefined;
-  const native = formatMoney(amount, currency, decimals != null ? { decimals } : {});
+  const native = subCentUnit(amount) || (currency !== "NZD" && Math.abs(amount) > 0 && Math.abs(amount) < 1)
+    ? formatUnitPrice(amount, currency)
+    : formatMoney(amount, currency, { decimals: 2 });
   if (currency === "NZD") return native;
-  return `${native} · ${formatNzd(nzd)}`;
+  const nzdText = subCentUnit(nzd) ? formatUnitPrice(nzd, "NZD") : formatNzd(nzd);
+  return `${native} · ${nzdText}`;
 }
 
 /** Format a monetary value in a specific currency (e.g. "AU$1,234.50"). */
