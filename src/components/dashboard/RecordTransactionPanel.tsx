@@ -129,6 +129,8 @@ export function RecordTransactionPanel({
   const [problems, setProblems] = useState<string[]>([]);
   const [hint, setHint] = useState("");
   const [saving, setSaving] = useState(false);
+  const [checkingCash, setCheckingCash] = useState(false);
+  const [cashNote, setCashNote] = useState("");
   const [saveError, setSaveError] = useState("");
   const [book, setBook] = useState<BookHolding[]>(holdings);
   const [bookCash, setBookCash] = useState(cash);
@@ -379,7 +381,7 @@ export function RecordTransactionPanel({
     if (kind === "sell" && match && !(Number(quantity) > 0)) setQuantity(String(match.quantity));
   }
 
-  function buildPreview(): MovementPreview {
+  function buildPreview(cashBalance?: number): MovementPreview {
     const parsedFx = Number(fxRate);
     const fx = currency === "NZD" ? 1 : parsedFx > 0 ? parsedFx : 0;
     const cashOnly = isCashKind(kind);
@@ -393,18 +395,34 @@ export function RecordTransactionPanel({
       fee: Number(fee) || 0,
       currency: cashOnly || cashMovement ? "NZD" : currency,
       fxRate: fx,
-      cashNzd: bookKnown ? bookCash : cash,
+      cashNzd: cashBalance != null ? cashBalance : bookKnown ? bookCash : cash,
       hasAsset: cashOnly ? false : !!asset,
     });
   }
 
-  function review() {
-    if (!beginReviewGuard() || saving) return;
+  async function review() {
+    if (!beginReviewGuard() || saving || checkingCash) return;
     if ((kind === "buy" || kind === "sell") && currency !== "NZD" && !(Number(fxRate) > 0)) {
       setProblems(["The exchange rate is still loading. Wait for today's rate, or type the one from your broker."]);
       return;
     }
-    const next = buildPreview();
+    let known = bookKnown || cashKnown;
+    let balance = known ? (bookKnown ? bookCash : cash) : cash;
+    if (!known) {
+      setCheckingCash(true);
+      try {
+        const tx = await api.get<{ cashBalance?: number }>("/api/transactions");
+        if (tx.ok && tx.data && typeof tx.data.cashBalance === "number") {
+          balance = tx.data.cashBalance;
+          known = true;
+          setBookCash(balance);
+          setBookKnown(true);
+        }
+      } finally {
+        setCheckingCash(false);
+      }
+    }
+    const next = buildPreview(known ? balance : undefined);
     const first = asset
       ? earliest(firstBuys[asset.symbol.toUpperCase()], held?.purchaseDate)
       : "";
@@ -418,14 +436,15 @@ export function RecordTransactionPanel({
       priceRaw: price,
       held: held?.quantity || 0,
       firstBuyDate: first || null,
-      hasAsset: !!asset,
-      cashKnown: bookKnown || cashKnown,
-      cashAfterNzd: next.cashAfterNzd,
+      hasAsset: isCashKind(kind) ? false : !!asset,
+      cashKnown: known,
+      cashAfterNzd: known ? next.cashAfterNzd : 0,
       cashChangeNzd: next.cashChangeNzd,
-      needsCash: next.cashChangeNzd < -1e-6 || kind === "buy" || kind === "withdraw" || kind === "tax",
+      needsCash: known && (next.cashChangeNzd < -1e-6 || kind === "buy" || kind === "withdraw" || kind === "tax"),
     });
     setProblems(messages);
     if (messages.length) return;
+    setCashNote(known ? "" : "Cash is still loading. Confirm checks the balance before anything is written.");
     setPreview(next);
     armReview();
     setStep("review");
@@ -441,6 +460,21 @@ export function RecordTransactionPanel({
     setSaving(true);
     setSaveError("");
     try {
+      if (!(bookKnown || cashKnown)) {
+        const tx = await api.get<{ cashBalance?: number }>("/api/transactions");
+        const loaded = tx.ok && tx.data && typeof tx.data.cashBalance === "number" ? tx.data.cashBalance : null;
+        if (loaded != null) {
+          setBookCash(loaded);
+          setBookKnown(true);
+          if (preview.cashChangeNzd < -1e-6 && loaded + preview.cashChangeNzd < -0.009) {
+            failSave("This would take cash below zero.");
+            return;
+          }
+        } else if (preview.cashChangeNzd < -1e-6 || kind === "buy" || kind === "withdraw" || kind === "tax") {
+          failSave("Cash is still loading. Wait a moment, then confirm.");
+          return;
+        }
+      }
       if (kind === "sell" && (metalId || held?.metalSourceId)) {
         const id = metalId || held?.metalSourceId;
         const params = new URLSearchParams({
@@ -570,6 +604,7 @@ export function RecordTransactionPanel({
             <p className="font-display text-base font-bold leading-tight">Review</p>
             <p className="text-xs leading-normal text-muted-foreground">Nothing is written until you confirm.</p>
           </div>
+          {cashNote ? <p className="text-sm text-muted-foreground">{cashNote}</p> : null}
           <ReviewRow label="Type" value={kindLabel(preview.type)} />
           {isCashKind(preview.type) ? (
             <ReviewRow label="Asset" value="Cash" />
@@ -584,8 +619,8 @@ export function RecordTransactionPanel({
           />
           <ReviewRow label="Exchange rate" value={preview.fxRate === 1 ? "1.0000 NZD" : `${formatFxInput(preview.fxRate)} NZD per 1 ${preview.currency}`} />
           <ReviewRow label="Fee" value={formatMoneyWithNzd(preview.feeNative, preview.currency, preview.feeNzd)} />
-          <ReviewRow label="Cash change" value={formatSignedMoney(preview.cashChangeNzd)} />
-          <ReviewRow label="Cash after" value={formatNzd(preview.cashAfterNzd)} />
+          <ReviewRow label="Cash change" value={cashNote ? "Still loading" : formatSignedMoney(preview.cashChangeNzd)} />
+          <ReviewRow label="Cash after" value={cashNote ? "Still loading" : formatNzd(preview.cashAfterNzd)} />
           {saveError ? (
             <p role="alert" className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-700">
               {saveError}
@@ -900,8 +935,14 @@ export function RecordTransactionPanel({
             )}
           </Button>
         ) : (
-          <Button type="button" className="font-semibold" onClick={review}>
-            Review
+          <Button type="button" className="font-semibold" onClick={() => void review()} disabled={checkingCash}>
+            {checkingCash ? (
+              <>
+                <Loader2 className="mr-2 size-4 animate-spin" /> Checking cash…
+              </>
+            ) : (
+              "Review"
+            )}
           </Button>
         )}
       </div>

@@ -10,6 +10,7 @@ import { normalizeTicker, lookupTicker } from "@/lib/market";
 import { applyTransaction } from "@/lib/transactions";
 import { planHoldingCorrection } from "@/lib/holding-correction";
 import { currencyForTicker } from "@/lib/currency";
+import { invalidateBookCache } from "@/lib/book-cache";
 
 const updateSchema = z.object({
   ticker: z.string().min(1).max(12).optional(),
@@ -151,6 +152,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
     }
 
     await totalumSdk.crud.editRecordById("stock", id, patch);
+    invalidateBookCache(user._id);
     console.log(`[api/stocks/${id}] PUT updated for user ${user._id}`);
 
     return NextResponse.json({ ok: true, data: { _id: id, ...patch } });
@@ -173,6 +175,7 @@ export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string 
     }
 
     await totalumSdk.crud.deleteRecordById("stock", id);
+    invalidateBookCache(user._id);
     console.log(`[api/stocks/${id}] DELETE for user ${user._id}`);
 
     return NextResponse.json({ ok: true, data: { _id: id } });

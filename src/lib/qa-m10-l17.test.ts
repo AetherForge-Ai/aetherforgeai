@@ -323,6 +323,20 @@ describe("L6 L9 L10 L11 L12 L13", () => {
     });
     expect(messages).toContain("Enter a number.");
     expect(messages).not.toContain("Quantity must be greater than zero.");
+    const waiting = transactionProblems({
+      type: "deposit",
+      date: "2026-10-10",
+      today: "2026-10-10",
+      quantity: 0,
+      price: 50,
+      held: 0,
+      hasAsset: false,
+      cashKnown: false,
+      cashAfterNzd: 0,
+      cashChangeNzd: 50,
+      needsCash: true,
+    });
+    expect(waiting).toEqual([]);
   });
 
   it("labels dividends only for shares and ETFs", () => {

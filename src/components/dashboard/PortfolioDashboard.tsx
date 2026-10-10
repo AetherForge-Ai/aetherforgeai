@@ -237,7 +237,10 @@ function StatCard({
         </span>
       </div>
       {loading ? (
-        <div className="mt-3 h-8 w-28 animate-pulse rounded-md bg-muted/50" aria-hidden aria-label="Loading" />
+        <div className="mt-3 space-y-2" aria-busy="true">
+          <div className="h-8 w-28 animate-pulse rounded-md bg-muted/50" aria-hidden />
+          <p className="text-xs text-muted-foreground">Loading…</p>
+        </div>
       ) : (
         <p
           className={cn(

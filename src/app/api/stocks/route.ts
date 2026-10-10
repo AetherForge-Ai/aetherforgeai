@@ -28,6 +28,7 @@ import {
   resolveHoldingMarkPrice,
 } from "@/lib/metal-valuation";
 import { mergeFreshQuantities } from "@/lib/holding-snapshot";
+import { invalidateBookCache, readBookCache, writeBookCache } from "@/lib/book-cache";
 import { TRADE_CONFIRM_REQUIRED } from "@/lib/trade-confirm";
 
 /**
@@ -71,10 +72,8 @@ async function persistBullionMarks(holdings: any[]): Promise<void> {
 
 async function overlayLivePrices(holdings: any[]): Promise<void> {
   if (!holdings.length) return;
-  // Bullion first, and alone. An equity/crypto quote failure must not leave
-  // GOLD marked at the Yahoo Gold.com, Inc. print (~US$44).
-  await persistBullionMarks(holdings);
-
+  // Bullion is priced on its own so an equity quote cannot mark GOLD at the
+  // Yahoo Gold.com, Inc. print (~US$44). That lookup runs beside the other quotes.
   const equityTickers: string[] = [];
   const cryptoTickers: string[] = [];
   for (const s of holdings) {
@@ -83,15 +82,24 @@ async function overlayLivePrices(holdings: any[]): Promise<void> {
     if (route === "crypto") cryptoTickers.push(String(s.ticker));
     else equityTickers.push(String(s.ticker));
   }
-  if (!equityTickers.length && !cryptoTickers.length) return;
 
+  const quoteWork =
+    equityTickers.length || cryptoTickers.length
+      ? Promise.all([
+          isLiveDataConfigured() && equityTickers.length ? fetchLiveQuotes(equityTickers) : Promise.resolve({}),
+          cryptoTickers.length ? fetchCryptoQuotes(cryptoTickers) : Promise.resolve({}),
+        ])
+      : Promise.resolve([{}, {}] as const);
+
+  let equityQuotes: Record<string, { price: number }> = {};
+  let cryptoQuotes: Record<string, { price: number }> = {};
   try {
-    const [equityQuotes, cryptoQuotes] = await Promise.all([
-      isLiveDataConfigured() && equityTickers.length ? fetchLiveQuotes(equityTickers) : Promise.resolve({}),
-      cryptoTickers.length ? fetchCryptoQuotes(cryptoTickers) : Promise.resolve({}),
-    ]);
-    const equityMap = equityQuotes as Record<string, { price: number }>;
-    const cryptoMap = cryptoQuotes as Record<string, { price: number }>;
+    const [, quotes] = await Promise.all([persistBullionMarks(holdings), quoteWork]);
+    equityQuotes = quotes[0] as Record<string, { price: number }>;
+    cryptoQuotes = quotes[1] as Record<string, { price: number }>;
+    if (!equityTickers.length && !cryptoTickers.length) return;
+    const equityMap = equityQuotes;
+    const cryptoMap = cryptoQuotes;
     if (!Object.keys(equityMap).length && !Object.keys(cryptoMap).length) {
       console.warn("[api/stocks] No live equity/crypto quotes — serving stored prices for those holdings.");
       return;
@@ -224,6 +232,11 @@ export async function GET(req: Request) {
     // friendly empty state prompting them to add their first holding instead.
 
     const assetType = new URL(req.url).searchParams.get("asset_type");
+    const cacheKey = `${user._id}:stocks:${assetType || "all"}`;
+    const cached = readBookCache<any[]>(cacheKey);
+    if (cached) {
+      return privateJson({ ok: true, userId: user._id, data: cached });
+    }
 
     const result = await totalumSdk.crud.query("stock", {
       _filter: { user: user._id },
@@ -270,6 +283,7 @@ export async function GET(req: Request) {
       `[api/stocks] GET returned ${stocks.length} holdings for user ${user._id} (filter: ${assetType || "all"})`
     );
 
+    writeBookCache(cacheKey, stocks);
     return privateJson({ ok: true, userId: user._id, data: stocks });
   } catch (err: any) {
     console.error("[api/stocks] GET error:", err);
@@ -387,6 +401,7 @@ export async function POST(req: Request) {
       };
       const result = await totalumSdk.crud.createRecord("stock", record);
       logLedgerAudit({ action: `holding_${executionStatus}`, ticker, userId: user._id, after: record as any });
+      invalidateBookCache(user._id);
       return NextResponse.json({ ok: true, data: result?.data || record });
     }
 
@@ -445,6 +460,7 @@ export async function POST(req: Request) {
       console.log(
         `[api/stocks] POST merged ${addShares} into existing ${ticker} for user ${user._id} → ${patch.shares} @ ${patch.purchase_price}`
       );
+      invalidateBookCache(user._id);
       return NextResponse.json({
         ok: true,
         data: { ...sameSleeve, ...patch, _id: sameSleeve._id, merged: true },
@@ -468,6 +484,7 @@ export async function POST(req: Request) {
     const result = await totalumSdk.crud.createRecord("stock", record);
     console.log(`[api/stocks] POST created holding ${ticker} for user ${user._id}`);
 
+    invalidateBookCache(user._id);
     return NextResponse.json({ ok: true, data: result?.data ?? record });
   } catch (err: any) {
     console.error("[api/stocks] POST error:", err);

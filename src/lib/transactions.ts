@@ -44,6 +44,7 @@ import { cleanChain, dexSectorTag, parseDexSector, withDexNotes } from "@/lib/de
 import { buildMovementPreview } from "@/lib/movement-preview";
 import { assessMovement, earlierCivilDay, movementCivilDay } from "@/lib/transaction-rules";
 import { resolveExecutedInstant } from "@/lib/executed-at";
+import { invalidateBookCache, readBookCache, writeBookCache } from "@/lib/book-cache";
 
 export type TxType =
   | "buy"
@@ -403,7 +404,13 @@ export async function applyTransaction(
   input: TransactionInput,
   opts?: { fromHoldingEdit?: boolean }
 ): Promise<TransactionResult> {
-  return withUserTradeLock(user._id, () => applyTransactionUnlocked(user, input, opts));
+  return withUserTradeLock(user._id, async () => {
+    try {
+      return await applyTransactionUnlocked(user, input, opts);
+    } finally {
+      invalidateBookCache(user._id);
+    }
+  });
 }
 
 async function applyTransactionUnlocked(
@@ -1103,7 +1110,13 @@ export async function recordMetalTrade(
     executedAt?: Date | string;
   }
 ): Promise<MetalTradeResult> {
-  return withUserTradeLock(user._id, () => recordMetalTradeUnlocked(user, input));
+  return withUserTradeLock(user._id, async () => {
+    try {
+      return await recordMetalTradeUnlocked(user, input);
+    } finally {
+      invalidateBookCache(user._id);
+    }
+  });
 }
 
 async function recordMetalTradeUnlocked(
@@ -1223,12 +1236,32 @@ export interface TransactionLedger {
 
 /** Load a user's ledger plus cash + realized-P&L rollups (all NZD). */
 export async function loadLedger(user: AppUser, limit = 60): Promise<TransactionLedger> {
-  // Recent rows for the ledger table…
-  const recentRes = await totalumSdk.crud.query("transaction", {
-    _filter: { user: user._id },
-    _sort: { executed_at: "desc", createdAt: "desc" },
-    _limit: limit,
-  });
+  const key = `${user._id}:ledger:${limit}`;
+  const cached = readBookCache<TransactionLedger>(key);
+  if (cached) return cached;
+  const ledger = await loadLedgerFresh(user, limit);
+  writeBookCache(key, ledger);
+  return ledger;
+}
+
+async function loadLedgerFresh(user: AppUser, limit: number): Promise<TransactionLedger> {
+  const fallbackCash = typeof user.cash_balance === "number" ? user.cash_balance : 0;
+  const [recentRes, cashBalance, sellsRes, dividendRes] = await Promise.all([
+    totalumSdk.crud.query("transaction", {
+      _filter: { user: user._id },
+      _sort: { executed_at: "desc", createdAt: "desc" },
+      _limit: limit,
+    }),
+    readUserCash(user._id, fallbackCash),
+    totalumSdk.crud.query("transaction", {
+      _filter: { user: user._id, type: "sell" },
+      _limit: 5000,
+    }),
+    totalumSdk.crud.query("transaction", {
+      _filter: { user: user._id, type: "dividend" },
+      _limit: 5000,
+    }),
+  ]);
   const rows = ((recentRes?.data as unknown as TransactionRow[]) || [])
     .map((r) => ({
       ...r,
@@ -1239,17 +1272,6 @@ export async function loadLedger(user: AppUser, limit = 60): Promise<Transaction
       const tb = new Date(b.executed_at || b.createdAt || 0).getTime();
       return (Number.isFinite(tb) ? tb : 0) - (Number.isFinite(ta) ? ta : 0);
     });
-  const cashBalance = await readUserCash(
-    user._id,
-    typeof user.cash_balance === "number" ? user.cash_balance : 0
-  );
-
-  // …and ALL sell rows (realized P&L must reflect the full history, not just
-  // the recent page). Sells are a small subset, so this stays cheap.
-  const sellsRes = await totalumSdk.crud.query("transaction", {
-    _filter: { user: user._id, type: "sell" },
-    _limit: 5000,
-  });
   const sells = (sellsRes?.data as unknown as TransactionRow[]) || [];
 
   const yearStart = new Date(new Date().getFullYear(), 0, 1).getTime();
@@ -1266,10 +1288,6 @@ export async function loadLedger(user: AppUser, limit = 60): Promise<Transaction
     }
   }
 
-  const dividendRes = await totalumSdk.crud.query("transaction", {
-    _filter: { user: user._id, type: "dividend" },
-    _limit: 5000,
-  });
   const dividends = (dividendRes?.data as unknown as TransactionRow[]) || [];
   let incomeTotal = 0;
   for (const r of dividends) {

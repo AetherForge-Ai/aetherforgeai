@@ -101,9 +101,8 @@ export function transactionProblems(input: RecordCheck & { quantityRaw?: string;
     input.cashChangeNzd == null
       ? input.type === "buy" || input.type === "withdraw" || input.type === "tax"
       : input.cashChangeNzd < -1e-6;
-  if (input.needsCash && !input.cashKnown) {
-    problems.push("Cash is still loading. Wait until the balance matches the book.");
-  } else if (input.cashAfterNzd < -1e-6 && reducesCash) {
+  // An unknown balance does not block Review. Confirm fetches it and then checks.
+  if (input.cashKnown && input.cashAfterNzd < -1e-6 && reducesCash) {
     problems.push("This would take cash below zero.");
   }
   return problems;
