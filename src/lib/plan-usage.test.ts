@@ -123,7 +123,12 @@ describe("H5 plan and billing", () => {
     expect(billing).not.toMatch(/GST/i);
     expect(billing).not.toContain("stripe.checkout");
     expect(notifications).toContain("Notifications");
-    expect(read("src/components/settings/NotificationsPanel.tsx")).toContain("Report ready");
+    const prefs = read("src/lib/notification-prefs.ts");
+    expect(prefs).toContain('label: "Report ready"');
+    expect(prefs).toContain('label: "Trade and ledger"');
+    expect(prefs).toContain('label: "Weekly summary"');
+    expect(prefs).toContain('label: "Product news"');
+    expect(read("src/components/settings/NotificationsPanel.tsx")).toContain("EMAIL_PREF_FIELDS");
     expect(read("src/components/settings/NotificationsPanel.tsx")).toContain("No email was sent.");
     expect(alias).toContain('redirect("/settings/billing")');
     expect(config).toContain('source: "/billing"');

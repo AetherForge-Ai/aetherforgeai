@@ -24,7 +24,7 @@ async function countReports(userId: string, now: number): Promise<number | null>
       _sort: { createdAt: "desc" },
       _limit: 200,
     });
-    const rows = (res?.data as { generated_at?: string; createdAt?: string }[]) || [];
+    const rows = (res?.data as unknown as { generated_at?: string; createdAt?: string }[]) || [];
     return countReportsInAucklandMonth(
       rows.map((row) => row.generated_at || row.createdAt),
       now,
