@@ -18,7 +18,12 @@ const CACHEABLE_MARKETING_PATHS = new Set([
   "/docs",
   "/blog",
   "/performance",
+  "/sitemap.xml",
+  "/robots.txt",
 ]);
+
+/** Cacheable files that must not set or clear cookies. */
+const COOKIE_FREE_PATHS = new Set(["/sitemap.xml", "/robots.txt"]);
 
 const PRIVATE_APP_PREFIXES = [
   "/dashboard",
@@ -46,6 +51,10 @@ export function normalizePathname(pathname: string): string {
 
 export function isCacheableMarketingPath(pathname: string): boolean {
   return CACHEABLE_MARKETING_PATHS.has(normalizePathname(pathname));
+}
+
+export function isCookieFreePath(pathname: string): boolean {
+  return COOKIE_FREE_PATHS.has(normalizePathname(pathname));
 }
 
 /** App shells whose HTML must never be stored or shared across sessions. */
@@ -118,6 +127,7 @@ export function shouldClearAnonymousAuthCookies(
   if (hasSessionToken) return false;
   if (anonymousResponseMaySetAuthCookie(pathname, method)) return false;
   const path = normalizePathname(pathname);
+  if (isCookieFreePath(path)) return false;
   if (isCacheableMarketingPath(path)) return false;
   if (STATIC_PREFIXES.some((prefix) => path === prefix || path.startsWith(prefix))) return false;
   return true;

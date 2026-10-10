@@ -6,6 +6,7 @@ const siteUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.aetherforgeai.co
 /**
  * robots.txt — allow crawling of public pages, disallow the authenticated app
  * surface and API, and point crawlers to the sitemap.
+ * This file is the sitemap line. public/robots.txt must not shadow it.
  */
 export default function robots(): MetadataRoute.Robots {
   return {
