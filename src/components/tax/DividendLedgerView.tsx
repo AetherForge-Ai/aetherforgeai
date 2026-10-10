@@ -299,7 +299,10 @@ export function DividendLedgerView({
               {date ? ` on ${date}` : ""}. A buy on that day keeps the rate stored on the trade, which can differ.
             </p>
           ) : null}
-          {preview && preview.ok === false ? <p className="text-sm text-rose-700">{preview.message}</p> : null}
+          {/* pull-check:batch1-2026-10-11 R5 — the missing-rate error waits until lookup finishes. */}
+          {preview && preview.ok === false && !lookingUp ? (
+            <p className="text-sm text-rose-700">{preview.message}</p>
+          ) : null}
           {message ? <p className="text-sm text-muted-foreground">{message}</p> : null}
           {holdings.length > 0 ? (
             <Button type="submit" disabled={saving}>
