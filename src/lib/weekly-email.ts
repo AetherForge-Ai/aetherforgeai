@@ -5,12 +5,13 @@
  * The same market-wide board is mailed to each recipient. No account book is read.
  *
  * pull-check:weekly-email-2026-10-11
+ * pull-check:weekly-unsub-confirm-2026-10-11
  */
 
 import { aucklandClock } from "@/lib/product-note";
 import { isFreeReportPlan, normalizePlanKey } from "@/lib/entitlements";
 import { CUSTOMER_EMAIL } from "@/lib/public-copy";
-import type { OutboundMail } from "@/lib/transactional-mail";
+import { escapeHtml, type OutboundMail } from "@/lib/transactional-mail";
 import {
   scrubWeeklyAiNote,
   weeklyEmailPrompt,
@@ -603,4 +604,197 @@ export async function handleWeeklyEmailCron(args: {
       },
     };
   }
+}
+
+export type WeeklyEmailUnsubscribeOutcome =
+  | "confirm"
+  | "unsubscribed"
+  | "invalid"
+  | "forbidden"
+  | "failed";
+
+export interface WeeklyEmailUnsubscribeResult {
+  status: number;
+  html: string;
+  headers: Record<string, string>;
+  outcome: WeeklyEmailUnsubscribeOutcome;
+  userId: string | null;
+}
+
+const UNSUBSCRIBE_PAGE_HEADERS: Record<string, string> = {
+  "content-type": "text/html; charset=utf-8",
+  "cache-control": "no-store",
+  "x-robots-tag": "noindex",
+};
+
+/**
+ * A mail prefetch is a GET. It must not store an opt-out.
+ * The signed token stays in the confirmation form. The POST must come from
+ * this site. Token verification is the same HMAC check as before.
+ *
+ * pull-check:weekly-unsub-confirm-2026-10-11
+ */
+function unsubscribeDocument(title: string, inner: string): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex">
+<title>${escapeHtml(title)}</title>
+<style>
+  .mail { font-family: Georgia, "Times New Roman", serif; color: #1c1917; line-height: 1.45; max-width: 36rem; }
+  button { font: inherit; padding: 0.4rem 0.9rem; }
+</style>
+</head>
+<body>
+<div class="mail">
+  <h1>${escapeHtml(title)}</h1>
+  ${inner}
+</div>
+</body>
+</html>`;
+}
+
+function unsubscribeResult(
+  status: number,
+  outcome: WeeklyEmailUnsubscribeOutcome,
+  title: string,
+  inner: string,
+  userId: string | null,
+): WeeklyEmailUnsubscribeResult {
+  return {
+    status,
+    outcome,
+    userId,
+    html: unsubscribeDocument(title, inner),
+    headers: UNSUBSCRIBE_PAGE_HEADERS,
+  };
+}
+
+function invalidUnsubscribePage(): WeeklyEmailUnsubscribeResult {
+  return unsubscribeResult(
+    400,
+    "invalid",
+    "Weekly email",
+    "<p>This unsubscribe link is not valid. No email was sent.</p>",
+    null,
+  );
+}
+
+/**
+ * True when the browser posted the confirmation form to this host.
+ * Origin is compared with the request URL. The Host header is the other
+ * allowed match, because a proxy can present a different internal URL.
+ */
+export function weeklyEmailPostIsSameOrigin(
+  url: string,
+  headers: { get(name: string): string | null },
+): boolean {
+  const originHeader = headers.get("origin");
+  let origin: URL | null = null;
+  if (originHeader) {
+    try {
+      origin = new URL(originHeader);
+    } catch {
+      return false;
+    }
+  } else {
+    const site = (headers.get("sec-fetch-site") || "").toLowerCase();
+    if (site === "cross-site" || site === "same-site") return false;
+    const referer = headers.get("referer");
+    if (referer) {
+      try {
+        origin = new URL(referer);
+      } catch {
+        return false;
+      }
+    } else {
+      return site === "same-origin";
+    }
+  }
+  if (!origin || origin.origin === "null") return false;
+
+  let requestUrl: URL;
+  try {
+    requestUrl = new URL(url);
+  } catch {
+    return false;
+  }
+  if (origin.origin === requestUrl.origin) return true;
+
+  const host = (headers.get("host") || "").split(",")[0].trim().toLowerCase();
+  if (!host || origin.host.toLowerCase() !== host) return false;
+  if (origin.protocol === "https:") return true;
+  return origin.protocol === "http:" && requestUrl.protocol === "http:";
+}
+
+export async function handleWeeklyEmailUnsubscribe(args: {
+  method: string;
+  url: string;
+  headers: { get(name: string): string | null };
+  formToken: string | null;
+  secret: string | null;
+  optOut: (userId: string) => Promise<void>;
+  now?: number;
+}): Promise<WeeklyEmailUnsubscribeResult> {
+  const now = args.now ?? Date.now();
+  const secret = args.secret || "";
+  let requestUrl: URL;
+  try {
+    requestUrl = new URL(args.url);
+  } catch {
+    return invalidUnsubscribePage();
+  }
+  if (args.method === "GET") {
+    const token = requestUrl.searchParams.get("token") || "";
+    const userId = secret ? await verifyWeeklyEmailToken(token, secret, now) : null;
+    if (!userId) return invalidUnsubscribePage();
+    return unsubscribeResult(
+      200,
+      "confirm",
+      "Stop the weekly email?",
+      `<p>Confirm to stop the Monday projections email for this account. Opening this page does not change that setting. No email is sent.</p>
+<form method="post" action="/api/weekly-email/unsubscribe">
+  <input type="hidden" name="token" value="${escapeHtml(token)}">
+  <button type="submit">Confirm</button>
+</form>`,
+      null,
+    );
+  }
+  if (args.method !== "POST") {
+    return unsubscribeResult(405, "invalid", "Weekly email", "<p>This unsubscribe link is not valid. No email was sent.</p>", null);
+  }
+
+  const formToken = args.formToken || "";
+  const userId = secret ? await verifyWeeklyEmailToken(formToken, secret, now) : null;
+  if (!userId) return invalidUnsubscribePage();
+  if (!weeklyEmailPostIsSameOrigin(args.url, args.headers)) {
+    return unsubscribeResult(
+      403,
+      "forbidden",
+      "Weekly email",
+      "<p>This request did not come from this site. The weekly email was not changed. No email was sent.</p>",
+      null,
+    );
+  }
+  try {
+    await args.optOut(userId);
+  } catch {
+    console.error("[weekly-email] unsubscribe failed");
+    return unsubscribeResult(
+      500,
+      "failed",
+      "Weekly email",
+      `<p>The preference could not be saved. Write to ${escapeHtml(CUSTOMER_EMAIL)}. No email was sent.</p>`,
+      null,
+    );
+  }
+  console.log(`[weekly-email] unsubscribed user=${userId}`);
+  return unsubscribeResult(
+    200,
+    "unsubscribed",
+    "Weekly email is off",
+    "<p>Weekly email is off for this account. No email was sent.</p>",
+    userId,
+  );
 }
