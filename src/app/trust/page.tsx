@@ -14,6 +14,15 @@ import {
   PROCESSORS,
   SECURITY_LINE,
 } from "@/lib/public-copy";
+import {
+  TRUST_PAGE_LOG,
+  trustBreachLine,
+  trustDeletionLine,
+  trustExportLine,
+  trustRetentionLine,
+  trustStorageLine,
+  trustTransportLine,
+} from "@/lib/trust-facts";
 
 export const metadata = publicPageMetadata("/trust", {
   title: "Trust · AetherForge AI",
@@ -74,6 +83,26 @@ export default function TrustPage() {
               {SECURITY_LINE} The book is tied to your signed-in account. Another member cannot read it. We do not ask
               for a broker login, and we do not store a password for a bank or an exchange.
             </p>
+            <p className="text-sm leading-relaxed text-muted-foreground">{trustTransportLine()}</p>
+          </section>
+
+          <section className="mt-8 space-y-2">
+            <h2 className="font-display text-lg font-bold">Where the book is stored</h2>
+            <p className="text-sm leading-relaxed text-muted-foreground">{trustStorageLine()}</p>
+          </section>
+
+          <section className="mt-8 space-y-2">
+            <h2 className="font-display text-lg font-bold">Retention, deletion and export</h2>
+            <p className="text-sm leading-relaxed text-muted-foreground">{trustRetentionLine()}</p>
+            <p className="text-sm leading-relaxed text-muted-foreground">{trustDeletionLine()}</p>
+            <p className="text-sm leading-relaxed text-muted-foreground">{trustExportLine()}</p>
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              The full wording is in the{" "}
+              <Link href="/privacy-policy" className="font-semibold text-primary underline-offset-2 hover:underline">
+                privacy policy
+              </Link>
+              .
+            </p>
           </section>
 
           <section className="mt-8 space-y-2">
@@ -92,6 +121,14 @@ export default function TrustPage() {
 
           <section className="mt-8 space-y-2">
             <h2 className="font-display text-lg font-bold">Report a vulnerability</h2>
+            <p className="text-sm leading-relaxed text-muted-foreground">{trustBreachLine()}</p>
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              The contact file is{" "}
+              <Link href="/.well-known/security.txt" className="font-semibold text-primary underline-offset-2 hover:underline">
+                security.txt
+              </Link>
+              .
+            </p>
             <p className="text-sm leading-relaxed text-muted-foreground">
               If you find a security weakness, email{" "}
               <EmailAddress email={CUSTOMER_EMAIL} className="font-semibold text-primary" />
@@ -103,6 +140,17 @@ export default function TrustPage() {
               </Link>{" "}
               and put &quot;Security report&quot; in the message.
             </p>
+          </section>
+
+          <section className="mt-8 space-y-2">
+            <h2 className="font-display text-lg font-bold">Changes on this page</h2>
+            <ul className="list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-muted-foreground">
+              {TRUST_PAGE_LOG.map((entry) => (
+                <li key={entry.date}>
+                  {entry.date}: {entry.change}
+                </li>
+              ))}
+            </ul>
           </section>
 
           <section className="mt-8 space-y-2">
