@@ -464,9 +464,9 @@ Marker: `pull-check:track-a2-2026-10-10` in `src/lib/holding-correction.ts` and 
 
 - Status: fixed
 - Commit: `356ad16`
-- Files: `src/lib/executed-at.ts`, `src/lib/transaction-csv.ts`, `src/lib/transactions.ts`, `src/lib/ledger-audit.ts`, `src/lib/currency.ts`, `src/app/api/metals/[id]/route.ts`, `src/lib/qa-m10-l17.test.ts`
+- Files: `src/lib/executed-at.ts`, `src/lib/auckland-noon.ts`, `src/lib/transaction-csv.ts`, `src/lib/transactions.ts`, `src/lib/ledger-audit.ts`, `src/lib/ledger-schema.ts`, `src/lib/currency.ts`, `src/app/api/metals/[id]/route.ts`, `src/app/api/transactions/export/route.ts`, `src/app/api/stocks/route.ts`, `src/lib/qa-m10-l17.test.ts`
 - URL / steps: record a trade today and a metal or share move dated 9 Oct 2026. Export the ledger CSV.
-- Expected: a real execution prints Auckland time, for example `10 Oct 2026, 3:47 pm`. A date with no clock prints the date only (`9 Oct 2026` or `10 Oct 2026`), never `1:00 pm` or `1:00 am`. Audit notes use `10 Oct 2026`, not `10/10/2026`. Money is 2 decimal places, FX is 4, unit prices keep their stored digits. Notes do not contain a long float such as `7476.61570345871`. Empty realised, quote-time, signal, and mark columns say why (`n/a — …`) or `0.00` when the row is not a sell.
+- Expected: a real execution prints Auckland time, for example `10 Oct 2026, 3:47 pm`. A date with no clock prints the date only (`9 Oct 2026` or `10 Oct 2026`), never `1:00 pm` or `1:00 am`. A past date-only save is stored as noon Pacific/Auckland, for example `2026-10-01T12:00:00+13:00` in October and `2026-07-01T12:00:00+12:00` in July, because a Totalum date field wants an instant. The screen and the CSV still show the date only. Audit notes use `10 Oct 2026`, not `10/10/2026`. Money is 2 decimal places, FX is 4, unit prices keep their stored digits. Notes do not contain a long float such as `7476.61570345871`. Numeric cells stay empty when a figure was not stored (`SignalPrice`, `MarkPriceAtExport`, and a sell's price/FX split). The reason is in `Data note`, so a spreadsheet sum of those columns still works. A buy that is not a sell shows `0.00` in the realised columns.
 
 ### M11 — fixed
 
@@ -490,7 +490,7 @@ Marker: `pull-check:track-a2-2026-10-10` in `src/lib/holding-correction.ts` and 
 - Commit: `ec2c2e3`
 - Files: `src/lib/book-cache.ts`, `src/lib/transactions.ts`, `src/lib/transaction-rules.ts`, `src/app/api/stocks/route.ts`, `src/components/dashboard/RecordTransactionPanel.tsx`, `src/components/dashboard/PortfolioDashboard.tsx`
 - URL / steps: reload `/dashboard` and the ledger. Open Review on a deposit while cash is still loading.
-- Expected: dashboard figures show `Loading…` until the book returns. Ledger, cash, sells, and dividends are read together, and a repeat read within 12 seconds uses the cache. A trade clears that cache. Review is not blocked by `Cash is still loading.` It shows `Checking cash…`, then either the balance or `Cash is still loading. Confirm checks the balance before anything is written.`
+- Expected: dashboard figures show `Loading…` until the book returns. Ledger, cash, sells, and dividends are read together, and a repeat read within 12 seconds uses the cache. A trade clears that cache. Review is not blocked by `Cash is still loading.` It shows `Checking cash…`, then either the balance or `Cash is still loading. Confirm checks the balance before anything is written.` If that load fails, the server still refuses a buy, withdrawal, or tax line that would take cash below zero. That check reads the account balance. It does not trust the client's cash flag.
 
 ### L10 — fixed
 
@@ -528,9 +528,13 @@ Marker: `pull-check:track-a2-2026-10-10` in `src/lib/holding-correction.ts` and 
 
 - Status: fixed
 - Commit: `3e7d856`
-- Files: `src/lib/public-copy.ts`, `src/app/terms-of-service/page.tsx`, `src/components/pricing/PricingCards.tsx`, `src/components/pricing/FeatureComparison.tsx`
+- Files: `src/lib/public-copy.ts`, `src/lib/plans.ts`, `src/app/terms-of-service/page.tsx`, `src/components/pricing/PricingCards.tsx`, `src/components/pricing/FeatureComparison.tsx`, `src/components/dashboard/YearlyToolkit.tsx`, `src/components/TopNav.tsx`, `src/app/stripe/success/page.tsx`, `src/app/how-to-maximize-results/page.tsx`, `src/app/api/downloads/toolkit/route.ts`
 - URL / steps: Terms §6, and `/pricing` on monthly and annual.
-- Expected: Terms no longer promise an annual Excel investor toolkit. They say published plans include the ledger and a CSV export, and that an Excel workbook is only for a legacy yearly membership. Pricing cards do not add that toolkit line. The comparison table says `Transaction CSV export`.
+- Expected: yearly billing includes a downloadable Excel investor toolkit template. Terms §6, the annual pricing cards, and the comparison row `Excel investor toolkit template` (`Yearly` on Starter, Pro, and Ultimate; absent on Free) say that. The file is a blank template. It is not filled with holdings, and it is not a copy of the ledger. `Transaction CSV export` stays on every plan. The download route allows yearly plans (`yearly`, `dual_yearly`, `starter_yearly`, `pro_yearly`, `ultimate_yearly`) and refuses monthly plans.
+
+### Decision — Excel toolkit template
+
+Lukas may later decide to retire the downloadable Excel investor toolkit template. Until that decision, yearly plans keep the download. The route still streams the static workbook.
 
 ### M7 — fixed
 
