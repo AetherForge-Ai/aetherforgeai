@@ -1,10 +1,9 @@
 /**
  * Server-only Swyftx data access for the Crypto Market feature.
  *
- * Swyftx (https://swyftx.com) is the user's Australian crypto exchange. This
- * module is a drop-in replacement for `crypto-coingecko.ts` — it exposes the
- * exact same shape (`fetchTop500` / `fetchCoinDetail` / `fetchCoinChart`) so the
- * whole Crypto Market surface keeps working unchanged, now priced off Swyftx.
+ * Optional crypto feed. Public pages call it only when SWYFTX_PUBLIC_DISPLAY
+ * is on. It exposes the same shapes as the CoinGecko module
+ * (`fetchTop500` / `fetchCoinDetail` / `fetchCoinChart`).
  *
  * Endpoints used (all documented at https://docs.swyftx.com.au):
  *   POST /auth/refresh/                          — API key → short-lived access token
@@ -354,13 +353,10 @@ export async function fetchRankedMarkets(limit = 400): Promise<CoinMarket[]> {
 /* ---------------------------- Spot price lookup -------------------------- */
 
 /**
- * Live USD spot price + 24h change for specific tickers (e.g. ["BTC","ETH"]).
+ * USD spot price + 24h change for specific tickers (e.g. ["BTC","ETH"]).
  *
- * This is the PRIMARY source for the Buy/Sell price lock: Swyftx is the user's
- * own exchange and — authenticated with `SWYFTX_API_KEY` — never rate-limits us
- * the way keyless CoinGecko does, so a live crypto price always resolves. Keyed
- * by UPPERCASE ticker; any ticker Swyftx can't price is simply omitted so the
- * caller can fall back per-coin. Never throws.
+ * Used inside the price chain only when SWYFTX_PUBLIC_DISPLAY is on. Keyed by
+ * UPPERCASE ticker; any ticker this feed can't price is omitted. Never throws.
  */
 export async function fetchSpotPrices(
   tickers: string[]

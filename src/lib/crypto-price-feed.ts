@@ -18,6 +18,7 @@ import {
   type ChainPrint,
   type ChainProvider,
 } from "@/lib/crypto-price-chain";
+import { gatePublicPrint, publicSourceAllowed, swyftxPublicDisplay } from "@/lib/swyftx-display";
 import { CRYPTO_VENDORS, coingeckoIdFor, yahooSymbolFor } from "@/lib/crypto-vendors";
 import type { PublicPriceTab } from "@/lib/public-market-types";
 import { fetchYahooCryptoLiveQuotes } from "@/lib/yahoo-finance";
@@ -53,7 +54,7 @@ let warmTimer: ReturnType<typeof setTimeout> | null = null;
 function buildProviders(): ChainProvider[] {
   return [
     { id: "coingecko", quote: quoteCoinGecko },
-    { id: "swyftx", quote: quoteSwyftx },
+    { id: "swyftx", available: () => swyftxPublicDisplay(), quote: quoteSwyftx },
     { id: "kraken", quote: quoteKraken },
     { id: "coinbase", quote: quoteCoinbase },
     { id: "yahoo", quote: quoteYahoo },
@@ -215,15 +216,20 @@ async function warmKnown() {
   }
 }
 
+function publish(print: ChainPrint | null): ChainPrint | null {
+  return gatePublicPrint(print);
+}
+
 export function acceptCryptoPrint(
   symbol: string,
   candidate: ChainCandidate,
   aliases: string[] = [],
   source = candidate.source || "coingecko"
 ): ChainPrint | null {
+  if (!publicSourceAllowed(source) || !publicSourceAllowed(candidate.source)) return null;
   const print = book.acceptCandidate(symbol, { ...candidate, source }, aliases, source);
   if (print) scheduleWarm();
-  return print;
+  return publish(print);
 }
 
 export function noteListedPrices(
@@ -262,7 +268,30 @@ export function recallPublicTab(id: string): PublicPriceTab | null {
 }
 
 export function staleCryptoPrint(key: string): ChainPrint | null {
-  return book.markStale(key);
+  return publish(book.markStale(key));
+}
+
+/**
+ * Symbols CoinGecko did not price. The chain continues at Swyftx (only when the
+ * display flag is on), then Kraken, Coinbase, and mapped Yahoo.
+ */
+export async function fillMissingPublicQuotes(symbols: string[]): Promise<Record<string, ChainPrint>> {
+  const out: Record<string, ChainPrint> = {};
+  const queue = [...new Set(symbols.map((symbol) => symbol.trim().toUpperCase()).filter(Boolean))];
+  const workers = Array.from({ length: Math.min(4, queue.length) }, async () => {
+    while (queue.length) {
+      const symbol = queue.shift();
+      if (!symbol) return;
+      try {
+        const print = publish(await book.quote(symbol, { skip: ["coingecko"] }));
+        if (print && print.price > 0 && !print.stale) out[symbol] = print;
+      } catch (err) {
+        console.error("[crypto-price] fill failed:", err instanceof Error ? err.message.slice(0, 160) : "failed");
+      }
+    }
+  });
+  await Promise.all(workers);
+  return out;
 }
 
 /**
@@ -272,7 +301,7 @@ export async function loadPublicCryptoPrint(idOrSymbol: string): Promise<ChainPr
   const raw = idOrSymbol.trim();
   if (!raw) return null;
   try {
-    const cached = book.peek(raw);
+    const cached = publish(book.peek(raw));
     if (cached && cached.price > 0 && Date.now() - cached.storedAt < FRESH_MS && !cached.stale) {
       scheduleWarm();
       return cached;
@@ -290,16 +319,19 @@ export async function loadPublicCryptoPrint(idOrSymbol: string): Promise<ChainPr
       new Promise<null>((resolve) => setTimeout(() => resolve(null), COLD_MS)),
     ]);
     if (raced && raced.price > 0) {
-      if (!symbol) book.remember(raced, [raw]);
-      scheduleWarm();
-      return raced;
+      const shown = publish(raced);
+      if (shown) {
+        if (!symbol) book.remember(shown, [raw]);
+        scheduleWarm();
+        return shown;
+      }
     }
-    const last = book.peek(raw) ?? (symbol ? book.peek(symbol) : null);
-    return last && last.price > 0 ? book.markStale(symbol || last.symbol) : null;
+    const last = publish(book.peek(raw) ?? (symbol ? book.peek(symbol) : null));
+    return last && last.price > 0 ? publish(book.markStale(symbol || last.symbol)) : null;
   } catch (err) {
     console.error("[crypto-price] public quote failed:", err instanceof Error ? err.message.slice(0, 160) : "failed");
-    const last = book.peek(raw);
-    return last && last.price > 0 ? book.markStale(last.symbol) : null;
+    const last = publish(book.peek(raw));
+    return last && last.price > 0 ? publish(book.markStale(last.symbol)) : null;
   }
 }
 
@@ -320,11 +352,11 @@ export async function coverMissingCrypto(symbol: string, dex = false): Promise<C
       book.quote(code, { dex }),
       new Promise<null>((resolve) => setTimeout(() => resolve(null), COLD_MS)),
     ]);
-    if (raced && raced.price > 0) return raced;
-    return book.markStale(code);
+    if (raced && raced.price > 0) return publish(raced);
+    return publish(book.markStale(code));
   } catch (err) {
     console.error("[crypto-price] cover failed:", err instanceof Error ? err.message.slice(0, 160) : "failed");
-    return book.markStale(code);
+    return publish(book.markStale(code));
   }
 }
 

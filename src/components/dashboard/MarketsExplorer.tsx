@@ -78,7 +78,7 @@ type Tab = MarketsTab;
 
 /**
  * Normalized row rendered by the table — stock rows (from /api/all-markets) and
- * crypto rows (from the top-500 Swyftx universe) are both mapped into this shape
+ * crypto rows (from the CoinGecko-first list) are both mapped into this shape
  * so a single table, sort and search cover every asset class.
  */
 interface DisplayRow {

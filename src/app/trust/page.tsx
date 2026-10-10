@@ -3,7 +3,7 @@ import { EmailAddress } from "@/components/EmailAddress";
 import { SiteHeader } from "@/components/SiteHeader";
 import { PAPER_FEE_SUMMARY } from "@/lib/fee-rule";
 import { publicPageMetadata } from "@/lib/reviewed-book";
-import { PUBLIC_DATA_SOURCES_LINE } from "@/lib/data-sources";
+import { publicDataSourcesLine } from "@/lib/data-sources";
 import {
   AI_REQUEST_LINES,
   CUSTOMER_EMAIL,
@@ -47,7 +47,7 @@ export default function TrustPage() {
           <section className="mt-8 space-y-2">
             <h2 className="font-display text-lg font-bold">Where prices come from</h2>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              {PUBLIC_DATA_SOURCES_LINE}
+              {publicDataSourcesLine()}
             </p>
           </section>
 
@@ -60,7 +60,7 @@ export default function TrustPage() {
             <h2 className="font-display text-lg font-bold">Who else handles data</h2>
             <p className="text-sm leading-relaxed text-muted-foreground">{DATA_SHARING_LINE}</p>
             <ul className="list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-muted-foreground">
-              {PROCESSORS.map((processor) => (
+              {PROCESSORS().map((processor) => (
                 <li key={processor.name}>
                   <span className="font-semibold text-foreground">{processor.name}</span> — {processor.role}.
                 </li>

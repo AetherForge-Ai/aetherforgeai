@@ -94,7 +94,7 @@ async function loadCryptoTab(): Promise<PublicPriceTab> {
         price: coin.price,
         changePct: coin.change24h,
         quotedAt: coin.quotedAt || quotedAt,
-        source: "coingecko",
+        source: coin.source || "coingecko",
       }))
     );
     const rows = coins.map((coin) => ({

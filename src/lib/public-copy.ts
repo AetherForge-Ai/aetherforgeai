@@ -7,6 +7,8 @@
  * TODO(owner): have a qualified NZ adviser check the re-issued Terms, Privacy Policy and AI Disclaimer.
  */
 
+import { swyftxPublicDisplay } from "@/lib/swyftx-display";
+
 /** pull-check:track-b-p0-2026-10-11 */
 
 /** General and customer mail. Privacy requests use PRIVACY_OFFICER_EMAIL. */
@@ -83,6 +85,7 @@ export const AI_REQUEST_LINES = [
   "The Portfolio Execution Coach can send your name, your question, and recent messages in that chat. When a Headmaster book is available it can also send the cash balance, the total value, the profit or loss, the diversification score and its label, and the allocation weights and values in NZ$, including cash. It can send the top eight positions with name, asset class, weight and value, the latest Stox and Koins findings, and the Headmaster ideas for names in the book. It can send a plan you typed and report text you attached.",
   "The Headmaster chat can send your name, your question, and recent messages in that chat. It can send the total value, the total cost, the profit or loss, the cash balance, the cash weight, the retained-cash target, the illustrated cash reallocation, and the working that produces that reallocation. It can send each asset class with its weight, its value in NZ$ and its position count, the top eight positions with name, asset class, weight, value and profit or loss, concentration-risk notes, stress-test impacts in NZ$ and percent, and the bull, base and bear scenario pathways. When the book is invested it can send the diversification score and HHI. It can send a calculated yearly return and volatility for the mix. It can send the latest Stox and Koins findings, and the Headmaster ideas block. Names outside the book are included only when you ask for a watchlist.",
   "A ticker note can send your name, the ticker, the question you typed, and the quote used for that note. If you leave the question blank, the request still includes a short default question.",
+  "A weekly projections email, when that email is enabled, can send the market-wide indicative 7-day projections already on the projections page: the ticker, the name, the market, the indicative percent, and the as-of label. It does not send a person's holdings, values, cash, profit or loss, or allocation. It does not send the email address. It does not use a report allowance. One note is written for the week and reused for each recipient.",
   "The request does not include a card number. The code that sends the request does not set a retention period.",
 ] as const;
 
@@ -156,28 +159,58 @@ export const AI_SENT_CATEGORIES = {
     "the quote used for that note",
     "a short default question",
   ],
+  "/api/cron/weekly-email": [
+    "market-wide indicative 7-day projections",
+    "the ticker",
+    "the name",
+    "the market",
+    "the indicative percent",
+    "the as-of label",
+    "It does not send a person's holdings",
+    "values",
+    "cash",
+    "profit or loss",
+    "allocation",
+    "It does not send the email address",
+    "It does not use a report allowance",
+    "One note is written for the week",
+  ],
 } as const satisfies Record<string, readonly string[]>;
 
-export const PROCESSORS: { name: string; role: string }[] = [
-  { name: "Cloudflare", role: "public site and network" },
-  { name: "Stripe", role: "subscription payments. We never see your card number" },
-  // Public copy does not name a model or a provider. Retention at that service is not set by this request.
-  { name: "A third-party AI service", role: "plain-English notes and assistant replies" },
-  { name: "Google Analytics", role: "which pages are used" },
-  { name: "Totalum on Google Cloud", role: "account storage" },
-  { name: "Yahoo Finance", role: "prices for NZX-listed, ASX-listed and US shares" },
-  { name: "CoinGecko", role: "crypto prices" },
-  { name: "Swyftx", role: "crypto prices when that feed answers" },
-  { name: "GeckoTerminal", role: "DEX token prices" },
-  { name: "gold-api.com", role: "gold and silver spot prices" },
-  { name: "ExchangeRate-API", role: "daily foreign-exchange rates" },
-  { name: "Frankfurter", role: "foreign-exchange rates on past trade dates" },
-];
+function marketProcessors(): { name: string; role: string }[] {
+  const rows: { name: string; role: string }[] = [{ name: "CoinGecko", role: "crypto prices" }];
+  if (swyftxPublicDisplay()) {
+    rows.push({ name: "Swyftx", role: "crypto prices when that feed is shown" });
+  }
+  rows.push(
+    { name: "Kraken", role: "crypto prices" },
+    { name: "Coinbase", role: "crypto prices" },
+    { name: "Yahoo Finance", role: "prices for NZX-listed, ASX-listed and US shares, and mapped crypto quotes" },
+    { name: "GeckoTerminal", role: "DEX token prices" }
+  );
+  return rows;
+}
+
+/** Request-time processor list. Swyftx is included only when SWYFTX_PUBLIC_DISPLAY is on. */
+export function PROCESSORS(): { name: string; role: string }[] {
+  return [
+    { name: "Cloudflare", role: "public site and network" },
+    { name: "Stripe", role: "subscription payments. We never see your card number" },
+    // Public copy does not name a model or a provider. Retention at that service is not set by this request.
+    { name: "A third-party AI service", role: "plain-English notes and assistant replies" },
+    { name: "Google Analytics", role: "which pages are used" },
+    { name: "Totalum on Google Cloud", role: "account storage" },
+    ...marketProcessors(),
+    { name: "gold-api.com", role: "gold and silver spot prices" },
+    { name: "ExchangeRate-API", role: "daily foreign-exchange rates" },
+    { name: "Frankfurter", role: "foreign-exchange rates on past trade dates" },
+  ];
+}
 
 export const FRESHNESS_PLAIN = [
   "NZX and ASX figures are delayed during the regular session, or the last close after that session ends.",
   "US share figures are the last close in New York once that session has ended.",
-  "Crypto quotes are current when the quote itself is current. If it is older, the page should show the time it was updated.",
+  "Crypto quotes are delayed or indicative. The page shows the as-of time when it has one.",
   "Foreign-exchange rates are a daily rate.",
   "Profit and loss uses the latest available price.",
 ].join(" ");

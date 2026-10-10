@@ -13,7 +13,7 @@ function marketsHeading(tab: MarketsTab): { title: string; lede: string } {
   if (tab === "CRYPTO") {
     return {
       title: "Crypto markets",
-      lede: "Coins by market cap, in USD. The line under the search is how many this list returned, up to 400. Swyftx is added only when CoinGecko returns fewer names.",
+      lede: "Coins by market cap, in USD. The line under the search is how many this list returned, up to 400.",
     };
   }
   if (tab === "DEX") {

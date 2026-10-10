@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { CookieSettingsLink } from "@/components/CookieSettingsLink";
-import { LEGAL_ENTITY_NAME, NZBN, REGISTERED_OFFICE } from "@/lib/company";
+import { LEGAL_ENTITY_NAME, NZBN } from "@/lib/company";
 import { CUSTOMER_EMAIL, PRIVACY_OFFICER_EMAIL, PUBLIC_PHONE_DISPLAY, PUBLIC_PHONE_TEL } from "@/lib/public-copy";
 import { EmailAddress } from "@/components/EmailAddress";
 
@@ -31,7 +31,7 @@ export function SiteFooter() {
           <CookieSettingsLink />
         </nav>
         <p className="text-xs leading-relaxed text-muted-foreground">
-          {LEGAL_ENTITY_NAME} · NZBN {NZBN} · {REGISTERED_OFFICE} ·{" "}
+          {LEGAL_ENTITY_NAME} · NZBN {NZBN} ·{" "}
           <EmailAddress email={CUSTOMER_EMAIL} />
           {" · "}
           <EmailAddress email={PRIVACY_OFFICER_EMAIL} />

@@ -49,6 +49,8 @@ export interface CoinMarket {
   quotedAt?: string | null;
   /** Contract addresses from the feed, lower-case. Used only to collapse duplicates. */
   contracts?: string[];
+  /** Feed that produced this row. Omitted when the row is not shown. */
+  source?: string;
 }
 
 /** Shown when a crypto route fails. Never a parse exception or an upstream body. */
@@ -229,6 +231,10 @@ export interface CoinDetail {
   twitter: string | null;
   reddit: string | null;
   github: string | null;
+  /** Feed that produced this detail. */
+  source?: string;
+  /** Visitor line for the price source. Computed on the server. */
+  sourceLine?: string;
 }
 
 export interface ChartPoint {

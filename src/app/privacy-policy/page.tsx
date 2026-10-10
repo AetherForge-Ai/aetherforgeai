@@ -73,6 +73,12 @@ export default function PrivacyPolicy() {
         <ul className="list-disc space-y-1.5 pl-5">
           <li>create, secure and manage your account;</li>
           <li>generate AI market-intelligence reports based on the holdings you add;</li>
+          <li>
+            prepare a weekly projections email for a paid plan when that email is switched on. The message
+            uses the same market-wide indicative projections described in section 4. It does not include the
+            holdings, values, cash, profit or loss, or allocation on the account. That email stays off until
+            it is enabled, and each message includes an unsubscribe link;
+          </li>
           <li>process subscription payments and manage your plan;</li>
           <li>send you service updates and security notices;</li>
           <li>respond to your support enquiries; and</li>
@@ -103,7 +109,7 @@ export default function PrivacyPolicy() {
           <li>
             to the processors named below, bound by confidentiality obligations:
             <ul className="mt-2 list-disc space-y-1.5 pl-5">
-              {PROCESSORS.map((processor) => (
+              {PROCESSORS().map((processor) => (
                 <li key={processor.name}>
                   <strong className="text-foreground/90">{processor.name}</strong> — {processor.role}
                   {processor.name === "Google Analytics" ? ", only after you accept analytics cookies" : ""}.
@@ -125,9 +131,11 @@ export default function PrivacyPolicy() {
 
       <LegalSection heading="6. Sending information overseas (IPP 12)">
         <p>
-          Some of the processors named in section 5 are located outside New Zealand. That list includes
-          Cloudflare, Stripe, a third-party AI service, Google Analytics, Totalum on Google Cloud, Yahoo Finance,
-          CoinGecko, Swyftx, GeckoTerminal, gold-api.com, ExchangeRate-API and Frankfurter.
+          Some of the processors named in section 5 are located outside New Zealand. That list includes{" "}
+          {PROCESSORS()
+            .map((processor) => processor.name)
+            .join(", ")}
+          . DEX prices in that list come from GeckoTerminal.
           Google Analytics runs only after you accept analytics cookies. Where we disclose
           personal information overseas, we take reasonable steps to ensure it is protected by
           comparable safeguards to those under the Privacy Act 2020, or we rely on an exception

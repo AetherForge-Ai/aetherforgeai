@@ -10,12 +10,13 @@ import { dexPriceForSymbol } from "@/lib/reviewed-book";
 import { listedCryptoIsStrict, pickListedCryptoPrice } from "@/lib/crypto-quote";
 import { formatPublicCryptoPrice, sourceLabel } from "@/lib/crypto-price-chain";
 import { coverMissingCrypto } from "@/lib/crypto-price-feed";
+import { gatePublicPrint } from "@/lib/swyftx-display";
 
 export const dynamic = "force-dynamic";
 
 /**
- * GET /api/tickers/quote?symbol=CBA.AX&type=stock|crypto|metal — live price for a chosen symbol.
- * Equities use Yahoo Finance (keyless); crypto uses the Swyftx-primary crypto feed;
+ * GET /api/tickers/quote?symbol=CBA.AX&type=stock|crypto|metal — quote for a chosen symbol.
+ * Equities use Yahoo Finance (keyless); crypto uses the shared price chain;
  * metals (GOLD/SILVER) use the live NZD spot per troy ounce. Returns
  * { symbol, price, currency, changePct }. `price` is null when the quote can't be
  * resolved (never throws) — the caller falls back to manual entry.
@@ -97,7 +98,7 @@ export async function GET(req: Request) {
       let source: string | null = null;
       let quotedAt: string | null = null;
       if (!(kept != null && kept > 0)) {
-        const covered = await coverMissingCrypto(symbol, market === "dex");
+        const covered = gatePublicPrint(await coverMissingCrypto(symbol, market === "dex"));
         if (covered && covered.price > 0) {
           kept = covered.price;
           stale = covered.stale;

@@ -17,7 +17,7 @@ import {
 import { api } from "@/lib/api";
 import { SiteHeader } from "@/components/SiteHeader";
 import { ABOUT_HERO_IMG, FOUNDER_PORTRAIT_IMG } from "../../../assets/files";
-import { FOUNDER_NAME, LEGAL_ENTITY_NAME, NZBN, REGISTERED_OFFICE } from "@/lib/company";
+import { FOUNDER_NAME, LEGAL_ENTITY_NAME, NZBN } from "@/lib/company";
 import { CUSTOMER_EMAIL, PRIVACY_OFFICER_EMAIL } from "@/lib/public-copy";
 
 /* ---- Official brand marks (lucide dropped brand icons) ---- */
@@ -507,12 +507,6 @@ export function AboutContent() {
                       <p className="font-display text-base font-bold text-white">{FOUNDER_NAME}</p>
                       <p className="mt-0.5 text-sm text-white/80">Founder · {LEGAL_ENTITY_NAME}</p>
                     </div>
-                    <span
-                      className="absolute right-4 top-4 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold text-white"
-                      style={{ backgroundColor: "rgba(5,150,105,0.92)" }}
-                    >
-                      <MapPin className="size-3.5" /> Pegasus, Canterbury
-                    </span>
                   </div>
                 </div>
               </Reveal>
@@ -706,14 +700,6 @@ export function AboutContent() {
                     <p className="font-semibold text-[#0F172A]">Company</p>
                     <p>{LEGAL_ENTITY_NAME}</p>
                     <p>NZBN {NZBN}</p>
-                    <p className="flex items-start gap-2">
-                      <MapPin className="mt-0.5 size-4 shrink-0 text-[#64748B]" />
-                      <span>
-                        Registered office
-                        <br />
-                        {REGISTERED_OFFICE}
-                      </span>
-                    </p>
                     <p>Founder: {FOUNDER_NAME}</p>
                   </div>
                 </div>

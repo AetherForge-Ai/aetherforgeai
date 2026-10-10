@@ -2,12 +2,12 @@
  * Crypto data source selector (server-only).
  *
  * Cascade (never leave the Crypto tab dark):
- *   1) Swyftx (user exchange)
- *   2) CoinGecko (may 429 keyless)
+ *   1) CoinGecko
+ *   2) Swyftx, only when SWYFTX_PUBLIC_DISPLAY is on
  *   3) Yahoo Finance major-coin fallback
  *
- * Id namespaces: Swyftx/Yahoo use short codes ("btc"); CoinGecko uses slugs
- * ("bitcoin"). Fallback paths remap via canonicalCryptoId.
+ * Id namespaces: short codes ("btc") and CoinGecko slugs ("bitcoin").
+ * Fallback paths remap via canonicalCryptoId.
  */
 
 import "server-only";
@@ -28,6 +28,8 @@ import {
 import { canonicalCryptoId, normalizeCryptoTicker } from "@/lib/crypto-ids";
 import { listedMarketNotice } from "@/lib/crypto-coverage";
 import { mergeRankedCoins } from "@/lib/crypto-list";
+import { publicCoinDescription, publicCoinSourceLine } from "@/lib/data-sources";
+import { swyftxPublicDisplay } from "@/lib/swyftx-display";
 
 type RankedCryptoPage = Awaited<ReturnType<typeof coingecko.fetchTop400>>;
 
@@ -127,36 +129,41 @@ async function hydrateSevenDay(coins: CoinMarket[]): Promise<CoinMarket[]> {
   }
 }
 
+function tagSource(rows: CoinMarket[], source: string): CoinMarket[] {
+  return rows.map((row) => ({ ...row, source: row.source || source }));
+}
+
+function hideSwyftxRows(rows: CoinMarket[]): CoinMarket[] {
+  if (swyftxPublicDisplay()) return rows;
+  return rows.filter((row) => row.source !== "swyftx");
+}
+
 export async function getTop500(): Promise<CoinMarket[]> {
   const parts: CoinMarket[][] = [];
 
   try {
-    const coins = await swyftx.fetchTop500();
+    const coins = await coingecko.fetchTop500();
     if (coins && coins.length > 0) {
-      console.log(`[crypto-source] top500 via Swyftx (${coins.length})`);
-      if (coins.length >= MIN_CRYPTO_UNIVERSE) return hydrateSevenDay(await ensurePinnedCoins(coins));
-      parts.push(coins);
+      console.log(`[crypto-source] top500 via CoinGecko (${coins.length})`);
+      const tagged = tagSource(coins, "coingecko");
+      if (tagged.length >= MIN_CRYPTO_UNIVERSE) return hydrateSevenDay(await ensurePinnedCoins(tagged));
+      parts.push(tagged);
     } else {
-      throw new Error("Swyftx returned an empty market list");
+      throw new Error("CoinGecko returned an empty market list");
     }
   } catch (err) {
-    console.error("[crypto-source] Swyftx top500 failed — trying CoinGecko:", err);
+    console.error("[crypto-source] CoinGecko top500 failed:", err instanceof Error ? err.message.slice(0, 160) : "failed");
   }
 
-  if (mergeByRank(parts).length < MIN_CRYPTO_UNIVERSE) {
+  if (swyftxPublicDisplay() && mergeByRank(parts).length < MIN_CRYPTO_UNIVERSE) {
     try {
-      const coins = await coingecko.fetchTop500();
+      const coins = await swyftx.fetchTop500();
       if (coins && coins.length > 0) {
-        console.log(`[crypto-source] top500 via CoinGecko (${coins.length})`);
-        parts.push(coins);
-        if (mergeByRank(parts).length >= MIN_CRYPTO_UNIVERSE && parts.length === 1) {
-          return hydrateSevenDay(await ensurePinnedCoins(coins));
-        }
-      } else {
-        throw new Error("CoinGecko returned an empty market list");
+        console.log(`[crypto-source] top500 backup list (${coins.length})`);
+        parts.push(tagSource(coins, "swyftx"));
       }
     } catch (err) {
-      console.error("[crypto-source] CoinGecko top500 failed — Yahoo major fallback:", err);
+      console.error("[crypto-source] backup top500 failed:", err instanceof Error ? err.message.slice(0, 160) : "failed");
     }
   }
 
@@ -164,12 +171,12 @@ export async function getTop500(): Promise<CoinMarket[]> {
     const y = await yahoo.fetchYahooMajorMarkets();
     if (y.length) {
       console.log(`[crypto-source] topping up via Yahoo major (${y.length})`);
-      parts.push(y);
+      parts.push(tagSource(y, "yahoo"));
     }
   }
 
-  const merged = mergeByRank(parts);
-  if (!merged.length) throw new Error("All crypto market sources failed (Swyftx, CoinGecko, Yahoo)");
+  const merged = hideSwyftxRows(mergeByRank(parts));
+  if (!merged.length) throw new Error("All crypto market sources failed");
   console.log(`[crypto-source] crypto universe → ${merged.length} coins`);
   return hydrateSevenDay(await ensurePinnedCoins(merged));
 }
@@ -188,7 +195,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 function pageFrom(coins: CoinMarket[], reason: "page2" | "backup" | "short" | null): RankedCryptoPage {
-  const capped = coins.slice(0, 400);
+  const capped = hideSwyftxRows(coins).slice(0, 400);
   return {
     coins: capped,
     notice: capped.length >= 400 ? null : listedMarketNotice(capped.length, reason),
@@ -201,25 +208,30 @@ function liveCoins(page: RankedCryptoPage | null | undefined): CoinMarket[] {
 
 /**
  * Top 400 for the Crypto tab and the Koins sweep.
- * CoinGecko pages 1 and 2 by market cap. When that list is short, Swyftx fills
- * symbols that are not already present. Yahoo is only used when both returned nothing.
+ * CoinGecko pages 1 and 2 by market cap. When that list is short and
+ * SWYFTX_PUBLIC_DISPLAY is on, the backup list fills symbols that are not
+ * already present. Yahoo is used when the earlier lists returned nothing.
  * A snapshot younger than 60 seconds is returned as-is. A failed refresh waits 60 seconds.
  * Old rows are not appended to a shorter live result.
  */
 async function buildTopList(): Promise<RankedCryptoPage> {
   const started = Date.now();
-  let sxRows: CoinMarket[] | null = null;
-  const sxTask = swyftx
-    .fetchRankedMarkets(400)
-    .then((rows) => {
-      sxRows = rows;
-      return rows;
-    })
-    .catch((err) => {
-      console.error("[crypto-source] Swyftx ranked list failed:", err instanceof Error ? err.message.slice(0, 160) : "failed");
-      sxRows = [];
-      return [] as CoinMarket[];
-    });
+  const showSwyftx = swyftxPublicDisplay();
+  let sxRows: CoinMarket[] | null = showSwyftx ? null : [];
+  const sxTask = showSwyftx
+    ? swyftx
+        .fetchRankedMarkets(400)
+        .then((rows) => {
+          const tagged = tagSource(rows, "swyftx");
+          sxRows = tagged;
+          return tagged;
+        })
+        .catch((err) => {
+          console.error("[crypto-source] ranked backup list failed:", err instanceof Error ? err.message.slice(0, 160) : "failed");
+          sxRows = [];
+          return [] as CoinMarket[];
+        })
+    : Promise.resolve([] as CoinMarket[]);
 
   let cgPage: RankedCryptoPage | null = null;
   try {
@@ -233,7 +245,7 @@ async function buildTopList(): Promise<RankedCryptoPage> {
   }
 
   const peeked = cgPage ?? coingecko.peekTop400();
-  const cgCoins = liveCoins(peeked);
+  const cgCoins = tagSource(liveCoins(peeked), "coingecko");
   if (cgCoins.length >= 400) {
     const page = pageFrom(cgCoins, null);
     listSnap = { at: Date.now(), page };
@@ -252,7 +264,7 @@ async function buildTopList(): Promise<RankedCryptoPage> {
         yahoo.fetchYahooMajorMarkets(),
         sleep(1_000).then(() => [] as CoinMarket[]),
       ]);
-      coins = mergeRankedCoins([yahooRows]);
+      coins = mergeRankedCoins([tagSource(yahooRows, "yahoo")]);
       reason = coins.length ? "backup" : "short";
     } catch (err) {
       console.error("[crypto-source] Yahoo crypto fallback failed:", err instanceof Error ? err.message.slice(0, 160) : "failed");
@@ -266,7 +278,7 @@ async function buildTopList(): Promise<RankedCryptoPage> {
   const page = pageFrom(coins, reason);
   listSnap = { at: Date.now(), page };
   void Promise.all([sxTask]).then(() => {
-    const doneCg = liveCoins(coingecko.peekTop400());
+    const doneCg = tagSource(liveCoins(coingecko.peekTop400()), "coingecko");
     const done = mergeRankedCoins([doneCg.length ? doneCg : cgCoins, sxRows ?? []]);
     if (!done.length) return;
     const doneReason = done.length >= 400 ? null : (coingecko.peekTop400()?.notice || "").includes("second page") ? "page2" : reason;
@@ -275,11 +287,18 @@ async function buildTopList(): Promise<RankedCryptoPage> {
   return page;
 }
 
+function releasePage(page: RankedCryptoPage): RankedCryptoPage {
+  if (swyftxPublicDisplay()) return page;
+  const coins = page.coins.filter((coin) => coin.source !== "swyftx");
+  if (coins.length === page.coins.length) return page;
+  return pageFrom(coins, coins.length >= 400 ? null : "short");
+}
+
 export async function loadTop400Markets(): Promise<RankedCryptoPage> {
   const now = Date.now();
-  if (listSnap && now - listSnap.at < LIST_FRESH_MS) return listSnap.page;
+  if (listSnap && now - listSnap.at < LIST_FRESH_MS) return releasePage(listSnap.page);
   if (!listSnap && now < listBackoffUntil) throw new Error(LIVE_CRYPTO_UNAVAILABLE);
-  if (listSnap && now < listBackoffUntil && now - listSnap.at < LIST_MAX_AGE_MS) return listSnap.page;
+  if (listSnap && now < listBackoffUntil && now - listSnap.at < LIST_MAX_AGE_MS) return releasePage(listSnap.page);
   if (!listInflight) {
     listInflight = buildTopList().finally(() => {
       listInflight = null;
@@ -291,51 +310,64 @@ export async function loadTop400Markets(): Promise<RankedCryptoPage> {
       listBackoffUntil = Date.now() + LIST_BACKOFF_MS;
       console.error("[crypto-source] background crypto list failed:", err instanceof Error ? err.message.slice(0, 160) : "failed");
     });
-    return listSnap.page;
+    return releasePage(listSnap.page);
   }
   try {
     const raced = await Promise.race([pending, sleep(LIST_COLD_MS).then(() => null)]);
-    if (raced?.coins.length) return raced;
+    if (raced?.coins.length) return releasePage(raced);
   } catch (err) {
     listBackoffUntil = Date.now() + LIST_BACKOFF_MS;
     console.error("[crypto-source] crypto list failed:", err instanceof Error ? err.message.slice(0, 160) : "failed");
   }
-  if (listSnap && Date.now() - listSnap.at < LIST_MAX_AGE_MS && listSnap.page.coins.length) return listSnap.page;
+  if (listSnap && Date.now() - listSnap.at < LIST_MAX_AGE_MS && listSnap.page.coins.length) return releasePage(listSnap.page);
   const peeked = coingecko.peekTop400();
   if (peeked && liveCoins(peeked).length) return pageFrom(liveCoins(peeked), "short");
   throw new Error(LIVE_CRYPTO_UNAVAILABLE);
 }
 
+function presentDetail(detail: CoinDetail, source: string): CoinDetail {
+  return {
+    ...detail,
+    source,
+    sourceLine: publicCoinSourceLine(source),
+    description: publicCoinDescription(detail.description),
+  };
+}
+
 export async function getCoinDetail(id: string): Promise<CoinDetail> {
   const code = normalizeCryptoTicker(id);
   try {
-    return await swyftx.fetchCoinDetail(code);
+    return presentDetail(await coingecko.fetchCoinDetail(toCgId(id)), "coingecko");
   } catch (err) {
-    console.error(`[crypto-source] Swyftx detail(${id}) failed:`, err);
+    console.error(`[crypto-source] CoinGecko detail(${id}) failed:`, err instanceof Error ? err.message.slice(0, 160) : "failed");
   }
-  try {
-    return await coingecko.fetchCoinDetail(toCgId(id));
-  } catch (err) {
-    console.error(`[crypto-source] CoinGecko detail(${id}) failed:`, err);
+  if (swyftxPublicDisplay()) {
+    try {
+      return presentDetail(await swyftx.fetchCoinDetail(code), "swyftx");
+    } catch (err) {
+      console.error(`[crypto-source] detail backup(${id}) failed:`, err instanceof Error ? err.message.slice(0, 160) : "failed");
+    }
   }
-  return yahoo.fetchYahooCoinDetail(id);
+  return presentDetail(await yahoo.fetchYahooCoinDetail(id), "yahoo");
 }
 
 export async function getCoinChart(id: string, days: string): Promise<CoinChart> {
   const code = normalizeCryptoTicker(id);
   try {
-    const chart = await swyftx.fetchCoinChart(code, days);
-    if (chart.prices.length > 0) return chart;
-    throw new Error("Swyftx returned an empty chart series");
-  } catch (err) {
-    console.error(`[crypto-source] Swyftx chart(${id}) failed:`, err);
-  }
-  try {
     const chart = await coingecko.fetchCoinChart(toCgId(id), days);
     if (chart.prices.length > 0) return chart;
     throw new Error("CoinGecko returned an empty chart series");
   } catch (err) {
-    console.error(`[crypto-source] CoinGecko chart(${id}) failed:`, err);
+    console.error(`[crypto-source] CoinGecko chart(${id}) failed:`, err instanceof Error ? err.message.slice(0, 160) : "failed");
+  }
+  if (swyftxPublicDisplay()) {
+    try {
+      const chart = await swyftx.fetchCoinChart(code, days);
+      if (chart.prices.length > 0) return chart;
+      throw new Error("backup chart returned an empty series");
+    } catch (err) {
+      console.error(`[crypto-source] chart backup(${id}) failed:`, err instanceof Error ? err.message.slice(0, 160) : "failed");
+    }
   }
   return yahoo.fetchYahooCoinChart(id, days);
 }

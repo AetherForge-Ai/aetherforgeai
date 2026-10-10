@@ -12,7 +12,7 @@ import {
 import { api } from "@/lib/api";
 import { formatDisplayClock, formatDisplayDate, formatDisplayDateTime } from "@/lib/currency";
 import { clientFacingError } from "@/lib/api-json";
-import { PUBLIC_COIN_SOURCE_LINE, publicCoinDescription } from "@/lib/data-sources";
+import { publicCoinDescription, publicCoinSourceLine } from "@/lib/data-sources";
 import { paperAddSignupHref } from "@/lib/paper-add-link";
 import { cn } from "@/lib/utils";
 import { TickerAnalysisPane } from "@/components/dashboard/TickerAnalysisPane";
@@ -573,7 +573,7 @@ export function CoinDetailView({
       )}
 
       <p className="mt-4 text-center text-[0.62rem] text-muted-foreground">
-        {PUBLIC_COIN_SOURCE_LINE}
+        {detail?.sourceLine || publicCoinSourceLine(detail?.source)}
       </p>
     </>
   );

@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -32,6 +33,51 @@ describe("Track B P0", () => {
     expect(copy).toContain("0800 238 437");
     expect(read("src/components/SiteFooter.tsx")).toContain('href: "/status"');
     expect(read("src/lib/public-copy.ts")).toContain("pull-check:track-b-p0-2026-10-11");
+    expect(read("src/lib/company.ts")).toContain("pull-check:address-removed-2026-10-11");
+    expect(read("src/lib/company.ts")).not.toContain("REGISTERED_OFFICE");
+    expect(read("src/components/SiteFooter.tsx")).not.toContain("REGISTERED_OFFICE");
+    expect(read("src/components/about/AboutContent.tsx")).not.toContain("REGISTERED_OFFICE");
+    expect(read("src/components/about/AboutContent.tsx")).not.toContain("Registered office");
+    expect(read("src/app/layout.tsx")).not.toContain("streetAddress");
+    expect(read("src/app/layout.tsx")).not.toContain("PostalAddress");
+    const town = ["Peg", "asus"].join("");
+    const street = ["Lake", "side"].join("");
+    const postcode = ["76", "12"].join("");
+    for (const rel of [
+      "src/lib/company.ts",
+      "src/components/SiteFooter.tsx",
+      "src/components/about/AboutContent.tsx",
+      "src/app/layout.tsx",
+      "src/app/terms-of-service/page.tsx",
+      "src/app/privacy-policy/page.tsx",
+      "src/app/trust/page.tsx",
+    ]) {
+      const text = read(rel);
+      expect(text.includes(town), rel).toBe(false);
+      expect(text.includes(street), rel).toBe(false);
+      expect(text.includes(postcode), rel).toBe(false);
+    }
+  });
+
+  it("keeps the removed address out of tracked files", () => {
+    const town = ["Peg", "asus"].join("");
+    const street = ["Lake", "side"].join("");
+    const postcode = ["76", "12"].join("");
+    for (const word of [town, street, postcode]) {
+      let listed = "";
+      try {
+        listed = execFileSync("git", ["grep", "-i", "-l", "-F", "--", word], { encoding: "utf8" });
+      } catch (error) {
+        const failed = error as { status?: number; stdout?: string };
+        if (failed.status !== 1) throw error;
+        listed = failed.stdout ?? "";
+      }
+      const files = listed
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean);
+      expect(files, word).toEqual([]);
+    }
   });
 
   it("keeps the status page free of a fake uptime line", () => {

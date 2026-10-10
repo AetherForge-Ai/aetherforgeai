@@ -3,6 +3,7 @@
  * pull-check:crypto-dex-400-2026-10-11
  *
  * Spot order: CoinGecko, Swyftx, Kraken, Coinbase, Yahoo Finance.
+ * Public callers omit Swyftx unless SWYFTX_PUBLIC_DISPLAY is on.
  * DEX adds GeckoTerminal first.
  * Binance, CoinPaprika, and CoinCap are not called: their display terms were not
  * confirmed for this page. A guessed Yahoo symbol is not used.
@@ -45,6 +46,8 @@ export interface ChainProvider {
   id: string;
   /** DEX quotes only. Spot reads skip these. */
   dexOnly?: boolean;
+  /** When this returns false the provider is not called and is not a failure. */
+  available?: () => boolean;
   quote(symbol: string): Promise<ChainCandidate | null>;
 }
 
@@ -256,7 +259,7 @@ export class CryptoPriceBook {
   }
 
   private ordered(dex: boolean, skip: Set<string>): ChainProvider[] {
-    const list = this.providers.filter((provider) => !skip.has(provider.id));
+    const list = this.providers.filter((provider) => !skip.has(provider.id) && provider.available?.() !== false);
     if (!dex) return list.filter((provider) => !provider.dexOnly);
     return [...list.filter((provider) => provider.dexOnly), ...list.filter((provider) => !provider.dexOnly)];
   }

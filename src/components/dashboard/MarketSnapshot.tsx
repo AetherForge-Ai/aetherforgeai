@@ -8,7 +8,7 @@ import {
   type SecurityIntel,
 } from "@/lib/market-intel";
 import { cn } from "@/lib/utils";
-import { PUBLIC_CRYPTO_SOURCE } from "@/lib/data-sources";
+import { publicCryptoSourcesLabel } from "@/lib/data-sources";
 import { CRYPTO_PROJECTIONS_PAUSE_MESSAGE } from "@/lib/projection-pause";
 import { pctClass, fmtPct } from "@/components/dashboard/intel-ui";
 import { useMarketIntel } from "@/components/dashboard/MarketIntelContext";
@@ -119,7 +119,7 @@ export function MarketSnapshot() {
             {cryptoQuiet
               ? CRYPTO_PROJECTIONS_PAUSE_MESSAGE
               : bot === "crypto"
-                ? `Digital-asset prices · ${PUBLIC_CRYPTO_SOURCE}`
+                ? `Digital-asset prices · ${publicCryptoSourcesLabel()}`
                 : "Cross-market intelligence · NZX · ASX · US"}
           </p>
         </div>
