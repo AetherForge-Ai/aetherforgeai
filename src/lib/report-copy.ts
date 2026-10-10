@@ -60,10 +60,12 @@ export function aggressiveMomentumStep(
   return `Overweight ${named} — these names fit the suitability cap. They are not the top of the projected list.${lead}`;
 }
 
-/** A 0.00% pathway does not tell the reader to open a position. */
+/** A pathway whose 7-day target is not positive does not tell the reader to open a position. */
 export function balancedGrowthStep(targetPct: number, topBuy: string | null, bot: "stock" | "crypto"): string {
-  if (Math.abs(targetPct) < 0.005) {
-    return "This pathway's 7-day target is 0.00%, so it does not initiate a position.";
+  if (!(targetPct > 0)) {
+    const pct = Math.abs(targetPct) < 0.005 ? 0 : Math.round(targetPct * 100) / 100;
+    const signed = pct === 0 ? "0.00%" : `${pct}%`;
+    return `This pathway's 7-day target is ${signed}, so it does not initiate a position.`;
   }
   if (topBuy) {
     const pct = Math.round(targetPct * 100) / 100;

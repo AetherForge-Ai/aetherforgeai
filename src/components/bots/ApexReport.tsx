@@ -64,7 +64,11 @@ function MomentumChart({ series, positive }: { series: MomentumPoint[]; positive
   );
 }
 
-function TickerCard({ t }: { t: TickerAnalysis }) {
+function shownCopy(text: string, scrub: boolean): string {
+  return scrub ? scrubPublicCopy(text) : text;
+}
+
+function TickerCard({ t, scrub }: { t: TickerAnalysis; scrub: boolean }) {
   const priceDp = t.price < 5 ? 4 : 2;
   return (
     <div className="rounded-xl border border-border/60 bg-card/40 p-4">
@@ -125,12 +129,12 @@ function TickerCard({ t }: { t: TickerAnalysis }) {
               {p.targetPct > 0 ? "+" : ""}
               {p.targetPct}%
             </div>
-            <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground line-clamp-3">{scrubPublicCopy(p.narrative)}</p>
+            <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground line-clamp-3">{shownCopy(p.narrative, scrub)}</p>
           </div>
         ))}
       </div>
 
-      <p className="mt-3 text-xs leading-relaxed text-muted-foreground/90">{scrubPublicCopy(t.note)}</p>
+      <p className="mt-3 text-xs leading-relaxed text-muted-foreground/90">{shownCopy(t.note, scrub)}</p>
     </div>
   );
 }
@@ -543,7 +547,7 @@ function BriefingSection({ report }: { report: ApexReport }) {
   );
 }
 
-export function ApexReportView({ report: source }: { report: ApexReport }) {
+export function ApexReportView({ report: source, scrubCopy = false }: { report: ApexReport; scrubCopy?: boolean }) {
   // Stored View, including recommendation rows, always re-applies the cash guard.
   const report = labelMemberReport(sanitizeGuardedReport(source));
   return (
@@ -709,7 +713,7 @@ export function ApexReportView({ report: source }: { report: ApexReport }) {
         <div className="rounded-xl border border-border/60 bg-card/40 p-4">
           <div className="text-sm font-semibold">Not sized this week</div>
           <p className="mb-2 text-xs text-muted-foreground">
-            Buy-signal names left off the sized list. Each one keeps its reason.
+            Names left off the sized list. Each one keeps its reason.
           </p>
           <ul className="space-y-1.5">
             {report.notSized.map((row) => (
@@ -732,7 +736,7 @@ export function ApexReportView({ report: source }: { report: ApexReport }) {
         </div>
         <div className="grid gap-3">
           {report.tickers.map((t) => (
-            <TickerCard key={t.ticker} t={t} />
+            <TickerCard key={t.ticker} t={t} scrub={scrubCopy} />
           ))}
         </div>
       </div>
