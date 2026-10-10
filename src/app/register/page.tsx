@@ -101,6 +101,13 @@ export default function RegisterPage() {
       // Email verification is REQUIRED before access — no session is created yet.
       // Show the "check your email" confirmation instead of routing to the dashboard.
       console.log(`[register] Account created for ${formData.email} — verification email dispatched.`);
+      void fetch("/api/account/activity-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "welcome", name: fullName }),
+      }).catch((err) => {
+        console.error("[register] Welcome preview failed:", err);
+      });
       setRegisteredEmail(formData.email);
       setLoading(false);
     } catch (err: any) {

@@ -76,27 +76,28 @@ describe("public surface routes", () => {
     expect(about).toContain("Send us a message");
   });
 
-  it("publishes /docs and /blog as public pages in middleware and the sitemap", () => {
-    const middleware = read("src/middleware.ts");
+  it("keeps /docs public and leaves /blog out of the sitemap until there are posts", () => {
+    const gate = read("src/lib/route-gate.ts");
     const sitemap = read("src/app/sitemap.ts");
-    for (const route of ['"/docs"', '"/blog"']) {
-      expect(middleware).toContain(route);
-      expect(sitemap).toContain(route);
-    }
+    expect(gate).toContain('"/docs"');
+    expect(gate).toContain('"/blog"');
+    expect(sitemap).toContain('"/docs"');
+    expect(sitemap).not.toContain('"/blog"');
     expect(read("src/app/docs/page.tsx")).toContain("/how-it-works");
     expect(read("src/app/docs/page.tsx")).toContain("/ai-disclaimer");
     expect(read("src/app/docs/page.tsx")).toContain("/pricing#faq");
     expect(read("src/app/docs/page.tsx")).not.toContain('href: "/blog"');
     expect(read("src/app/blog/page.tsx")).toContain("/market-news");
-    expect(middleware).toContain('"/market-news"');
+    expect(read("src/app/blog/page.tsx")).toContain("index: false");
+    expect(gate).toContain('"/market-news"');
     expect(read("src/app/blog/page.tsx")).toContain("no articles");
     expect(sitemap).toContain('"/markets"');
     expect(sitemap).toContain('"/market-news"');
     expect(sitemap).toContain('"/tax"');
     expect(sitemap).toContain('"/how-it-works"');
+    expect(sitemap).toContain('"/projections"');
     expect(sitemap).not.toContain('"/login"');
     expect(sitemap).not.toContain('"/register"');
-    expect(sitemap).not.toContain('"/projections"');
   });
 
   it("uses the shared site header on About and prompts signed-out dashboard clicks", () => {

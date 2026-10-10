@@ -5,6 +5,7 @@ import { PricingCards } from "@/components/pricing/PricingCards";
 import { FeatureComparison } from "@/components/pricing/FeatureComparison";
 import { PricingFAQ } from "@/components/pricing/PricingFAQ";
 import { DisclaimerNotice } from "@/components/legal/DisclaimerNotice";
+import { APEX_DUAL_PUBLIC_NOTE, PUBLISHED_PLAN_PRICES } from "@/lib/plan-usage";
 import { PRICING_TIERS } from "@/lib/plans";
 import { SECURITY_LINE } from "@/lib/public-copy";
 import { Button } from "@/components/ui/button";
@@ -99,6 +100,11 @@ export default function PricingPage() {
         {/* 2 + 3 · Billing toggle + pricing cards */}
         <section id="plans" className="mx-auto max-w-6xl scroll-mt-24 px-4 pt-12 sm:px-6 lg:px-8">
           <PricingCards />
+          <div className="mx-auto mt-10 max-w-3xl rounded-3xl border border-border/70 bg-card/40 p-6 text-sm leading-relaxed text-muted-foreground">
+            <h2 className="font-display text-base font-bold text-foreground">Apex Dual</h2>
+            <p className="mt-2">{APEX_DUAL_PUBLIC_NOTE}</p>
+            <p className="mt-2">{PUBLISHED_PLAN_PRICES}</p>
+          </div>
         </section>
 
         {/* 4 · Feature comparison */}

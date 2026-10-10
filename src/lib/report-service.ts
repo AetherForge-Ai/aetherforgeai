@@ -17,8 +17,8 @@ import { formatAucklandDateTime } from "@/lib/entitlements";
 import { ownerIdOf } from "@/lib/report-book";
 import { alertIsEffectivelyArchived, heldQuantityForTicker } from "@/lib/alert-lifecycle";
 import { relockSeededReportPrices } from "@/lib/paper-quote-lock.server";
-import { reportEmailMessageId, reportEmailWasDelivered } from "@/lib/report-email";
-import { sendTransactionalEmail } from "@/lib/send-transactional-mail";
+import { previewActivityEmail, activityEmailSendingEnabled } from "@/lib/activity-email";
+import { readActivityEmailPrefs } from "@/lib/activity-email-server";
 import { labelIntel } from "@/lib/security-signal";
 import { publishSharedBookLog, fullBookSentence, fullBookFromHoldings, fullBookFromPositions } from "@/lib/book-log";
 import {
@@ -478,24 +478,21 @@ export async function generateReportForUser(
       console.error("[report-service] PDF generation failed:", pdfErr);
     }
 
-    const subjectPrefix = context === "scheduled" ? "Your scheduled briefing · " : "";
     if (holdings.length > 0) {
       try {
-        const sent = await sendTransactionalEmail({
-          to: [user.email],
-          subject: `${subjectPrefix}${report.title} — ${generatedAtLabel}`,
-          html,
-          fromName: "AetherForge AI",
-          ...(pdfUrl
-            ? { attachments: [{ filename: `${report.title}.pdf`, url: pdfUrl, contentType: "application/pdf" }] }
-            : {}),
+        const prefs = await readActivityEmailPrefs();
+        const preview = previewActivityEmail({
+          kind: "report-ready",
+          to: user.email,
+          name: user.name,
+          prefs,
+          reportTitle: report.title,
+          when: now,
         });
-        emailed = reportEmailWasDelivered(sent);
-        emailMessageId = reportEmailMessageId(sent);
-        if (emailed) console.log(`[report-service] Report emailed to ${user.email}`);
-        else console.error("[report-service] Report email was not accepted; the card will not say Emailed.");
+        emailed = activityEmailSendingEnabled() && preview.sent;
+        console.log(`[report-service] Report email preview (${preview.reason}) for user ${user._id}`);
       } catch (mailErr) {
-        console.error("[report-service] Email delivery failed (non-fatal):", mailErr);
+        console.error("[report-service] Report email preview failed (non-fatal):", mailErr);
       }
     } else {
       console.log(`[report-service] ${bot} report saved without email — this sleeve has no positions`);

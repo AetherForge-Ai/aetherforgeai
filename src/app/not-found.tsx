@@ -1,5 +1,19 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+
+export const metadata: Metadata = {
+  title: { absolute: "Page not found · AetherForge AI" },
+  description: "That page is not on AetherForge AI.",
+  robots: { index: false, follow: false },
+  alternates: { canonical: "/404" },
+  openGraph: {
+    title: "Page not found · AetherForge AI",
+    description: "That page is not on AetherForge AI.",
+    url: "/404",
+    type: "website",
+  },
+};
 
 export default function NotFound() {
   return (
