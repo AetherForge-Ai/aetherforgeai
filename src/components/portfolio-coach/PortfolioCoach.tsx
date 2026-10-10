@@ -147,9 +147,14 @@ export function PortfolioCoach() {
 
       {uiReady ? (
         <>
-          <div className={cn(!open && "hidden")} aria-hidden={!open}>
-            <PortfolioCoachChat onMinimize={minimize} userId={userId} />
-          </div>
+          {open ? (
+            <PortfolioCoachChat
+              onMinimize={minimize}
+              userId={userId}
+              plan={liveUser?.subscription_plan}
+              panelOpen
+            />
+          ) : null}
 
           {!open ? (
             <button

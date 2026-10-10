@@ -4,6 +4,7 @@ import {
   assistantQueryLimit,
   canExportCsv,
   checkTickerQuota,
+  coachRequestsTotalum,
   headmasterDepth,
   monthlyReportLimit,
   resolveTickerLimit,
@@ -67,6 +68,9 @@ describe("P0 pricing and free cap", () => {
     expect(headmasterDepth("starter_monthly")).toBe("basic");
     expect(headmasterDepth("pro_yearly")).toBe("full");
     expect(headmasterDepth("ultimate_monthly")).toBe("full");
+    expect(coachRequestsTotalum("free", true)).toBe(false);
+    expect(coachRequestsTotalum("starter_monthly", false)).toBe(false);
+    expect(coachRequestsTotalum("starter_monthly", true)).toBe(true);
   });
 
   it("does not let a legacy stamp of 3 lock Free below 10 holdings", () => {
