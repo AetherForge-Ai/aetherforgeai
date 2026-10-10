@@ -1164,12 +1164,21 @@ export function PortfolioDashboard({
         quantity: stock.shares,
         purchaseDate: stock.purchase_date,
         holdingId: stock._id,
+        market: stock.venue === "DEX" ? "DEX" : stock.asset_type === "crypto" ? "Crypto" : undefined,
+        chain: stock.chain,
       },
     });
   }
 
   function recordHolding(
-    holding: { ticker: string; company_name?: string; asset_type?: string | null; current_price?: number },
+    holding: {
+      ticker: string;
+      company_name?: string;
+      asset_type?: string | null;
+      current_price?: number;
+      venue?: string | null;
+      chain?: string | null;
+    },
     mode: "buy" | "sell"
   ) {
     const assetType = holding.asset_type === "crypto" ? "crypto" : holding.asset_type === "metal" ? "metal" : "stock";
@@ -1184,6 +1193,8 @@ export function PortfolioDashboard({
         name: holding.company_name || holding.ticker,
         assetType,
         price: holding.current_price,
+        market: holding.venue === "DEX" ? "DEX" : assetType === "crypto" ? "Crypto" : undefined,
+        chain: holding.chain,
       },
     });
   }

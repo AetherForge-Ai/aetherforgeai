@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
 import { dexSearchHits, searchAssets, type AssetHit, type AssetMarket } from "@/lib/asset-search";
+import { cleanChain, isDexSource } from "@/lib/dex-source";
 import { PAPER_FEE_SUMMARY, suggestedFee } from "@/lib/fee-rule";
 import { buildMovementPreview, type MovementPreview, type RecordKind } from "@/lib/movement-preview";
 import { transactionProblems } from "@/lib/transaction-rules";
@@ -44,6 +45,8 @@ type BookHolding = {
   purchaseDate?: string;
   metalSourceId?: string;
   coinId?: string;
+  venue?: string | null;
+  chain?: string | null;
 };
 
 const KINDS: { id: RecordKind; label: string }[] = [
@@ -492,6 +495,11 @@ export function RecordTransactionPanel({
         payload.fx_rate = preview.fxRate;
         payload.confirm = true;
         if (asset.id && asset.assetType === "crypto") payload.coingecko_id = asset.id;
+        if (asset.market === "DEX") {
+          payload.venue = "DEX";
+          const chain = cleanChain(asset.chain);
+          if (chain) payload.chain = chain;
+        }
       } else {
         payload.amount = preview.priceNative;
         if (kind === "dividend" && asset) {
@@ -597,6 +605,9 @@ export function RecordTransactionPanel({
                   <span className={cn("shrink-0 rounded px-1.5 py-0.5 text-[0.65rem] font-bold uppercase", badgeClass(asset.market))}>
                     {asset.market}
                   </span>
+                  {asset.market === "DEX" && asset.chain ? (
+                    <span className="shrink-0 text-[0.65rem] font-semibold text-muted-foreground">{asset.chain}</span>
+                  ) : null}
                   {kind === "correction" ? null : (
                     <button type="button" className="text-xs font-semibold text-primary" onClick={() => setAsset(null)}>
                       Change
@@ -639,8 +650,13 @@ export function RecordTransactionPanel({
                                 <span className="font-semibold">{hit.symbol}</span>
                                 <span className="ml-2 text-muted-foreground">{hit.name}</span>
                               </span>
-                              <span className={cn("shrink-0 rounded px-1.5 py-0.5 text-[0.65rem] font-bold uppercase", badgeClass(hit.market))}>
-                                {hit.market}
+                              <span className="flex shrink-0 items-center gap-1">
+                                <span className={cn("rounded px-1.5 py-0.5 text-[0.65rem] font-bold uppercase", badgeClass(hit.market))}>
+                                  {hit.market}
+                                </span>
+                                {hit.market === "DEX" && hit.chain ? (
+                                  <span className="text-[0.65rem] font-semibold text-muted-foreground">{hit.chain}</span>
+                                ) : null}
                               </span>
                             </button>
                           </li>
@@ -864,13 +880,16 @@ function earliest(a?: string, b?: string | null): string {
 }
 
 function holdingHit(row: BookHolding): AssetHit {
+  const dex = isDexSource({ venue: row.venue, market: row.venue });
   const market: AssetMarket =
     row.assetType === "metal"
       ? row.ticker.toUpperCase() === "SILVER"
         ? "Silver"
         : "Gold"
       : row.assetType === "crypto"
-        ? "Crypto"
+        ? dex
+          ? "DEX"
+          : "Crypto"
         : marketForShare("", row.ticker);
   return {
     symbol: row.ticker,
@@ -879,6 +898,7 @@ function holdingHit(row: BookHolding): AssetHit {
     assetType: row.assetType,
     id: row.coinId,
     price: row.price,
+    chain: cleanChain(row.chain) || undefined,
   };
 }
 
@@ -902,7 +922,15 @@ function seedFrom(seed: TxSeed | null | undefined, preferred?: "stock" | "crypto
             ? "DEX"
             : "Crypto"
           : marketForShare("", seed.ticker);
-    return { symbol: seed.ticker.toUpperCase(), name: seed.name || seed.ticker, market, assetType, id: seed.coinId, price: seed.price };
+    return {
+      symbol: seed.ticker.toUpperCase(),
+      name: seed.name || seed.ticker,
+      market,
+      assetType,
+      id: seed.coinId,
+      price: seed.price,
+      chain: cleanChain(seed.chain) || undefined,
+    };
   }
   if (preferred === "metal") return { symbol: "GOLD", name: "Gold", market: "Gold", assetType: "metal" };
   return null;
@@ -919,6 +947,8 @@ function fromStock(row: Record<string, unknown>): BookHolding {
     quantity: Number(row.shares) || 0,
     price: Number(row.current_price) || Number(row.purchase_price) || 0,
     purchaseDate: typeof row.purchase_date === "string" ? row.purchase_date : undefined,
+    venue: typeof row.venue === "string" ? row.venue : null,
+    chain: cleanChain(row.chain),
   };
 }
 
@@ -947,6 +977,8 @@ export function bookHoldingFromStock(row: {
   purchase_price?: number;
   purchase_date?: string | null;
   metalSourceId?: string;
+  venue?: string | null;
+  chain?: string | null;
 }): BookHolding {
   return fromStock({
     _id: row._id,
@@ -957,5 +989,7 @@ export function bookHoldingFromStock(row: {
     current_price: row.current_price,
     purchase_price: row.purchase_price,
     purchase_date: row.purchase_date,
+    venue: row.venue,
+    chain: row.chain,
   });
 }

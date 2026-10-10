@@ -40,6 +40,7 @@ import { feedEntryForTicker } from "@/lib/feed-mapping";
 import { withUserTradeLock } from "@/lib/trade-lock";
 import { applyPaperCashMove } from "@/lib/paper-cash";
 import { planHoldingCorrection } from "@/lib/holding-correction";
+import { cleanChain } from "@/lib/dex-source";
 import { buildMovementPreview } from "@/lib/movement-preview";
 import { assessMovement, movementCivilDay } from "@/lib/transaction-rules";
 
@@ -103,6 +104,10 @@ export interface TransactionInput {
   fx_rate?: number;
   fx_source?: string;
   fx_timestamp?: string;
+  /** DEX when the member picked a DEX token. Coin-list fills omit this. */
+  venue?: string;
+  /** Readable chain for a DEX token, such as Ethereum. */
+  chain?: string;
 }
 
 export interface TransactionResult {
@@ -110,6 +115,15 @@ export interface TransactionResult {
   cashBalance: number; // NZD after the movement
   realizedNZD: number; // realized P&L booked by this movement (sells only)
   holdingId?: string | null; // affected holding (null if fully closed)
+}
+
+function dexRecordFields(
+  input: { venue?: string; chain?: string },
+  holding?: { venue?: string; chain?: string } | null
+): { venue?: "DEX"; chain?: string } {
+  if (input.venue !== "DEX" && holding?.venue !== "DEX") return {};
+  const chain = cleanChain(input.chain) || cleanChain(holding?.chain);
+  return chain ? { venue: "DEX", chain } : { venue: "DEX" };
 }
 
 function round(n: number, decimals = 2): number {
@@ -746,6 +760,7 @@ async function applyTransactionUnlocked(
       );
     }
     let holdingId: string;
+    const source = dexRecordFields(input, holding);
 
     if (holding) {
       const oldShares = holding.shares || 0;
@@ -756,6 +771,7 @@ async function applyTransactionUnlocked(
       await totalumSdk.crud.editRecordById("stock", holding._id, {
         shares: round(newShares, 6),
         purchase_price: roundFillPrice(newAvg),
+        ...source,
       });
       holdingId = holding._id;
       console.log(`[transactions] BUY ${quantity} ${ticker} → ${newShares} @ avg ${round(newAvg, 4)} (${currency})`);
@@ -803,6 +819,7 @@ async function applyTransactionUnlocked(
         purchase_date: executedAt.toISOString(),
         current_price,
         user: user._id,
+        ...source,
       });
       holdingId = created?.data?._id;
       console.log(`[transactions] BUY opened new position ${ticker} (${quantity} @ ${price} ${currency})`);
@@ -836,7 +853,8 @@ async function applyTransactionUnlocked(
       asset_name: input.asset_name || holding?.company_name || lookupTicker(ticker)?.name || ticker,
       asset_type: assetType,
       instrument_type: assetType === "crypto" ? "crypto" : assetType === "metal" ? "metal" : "equity",
-      venue: venueForTicker(ticker, assetType),
+      venue: source.venue || venueForTicker(ticker, assetType),
+      ...(source.chain ? { chain: source.chain } : {}),
       asset_id: assetType === "crypto" ? input.coingecko_id || canonicalCryptoId(ticker) : (feed?.providerId || ticker),
       quantity: round(quantity, 6),
       price: roundFillPrice(price),
@@ -944,6 +962,7 @@ async function applyTransactionUnlocked(
   const legacyRealizedNZD = round(nativeToNzd(realizedNative, currency, rates));
   const realizedBooked = Math.abs(sellFx - lotFx) < 1e-9 ? legacyRealizedNZD : realizedNZD;
 
+  const source = dexRecordFields(input, holding);
   const closed = sold.shares <= 1e-6;
   const expectedRemaining = sold.shares;
   let holdingId: string | null = holding._id;
@@ -957,7 +976,7 @@ async function applyTransactionUnlocked(
     await archiveClosedPositionAlerts(user._id, ticker, 0);
     console.log(`[transactions] SELL closed position ${ticker} (${quantity} @ ${price} ${currency})`);
   } else {
-    await totalumSdk.crud.editRecordById("stock", holding._id, { shares: expectedRemaining });
+    await totalumSdk.crud.editRecordById("stock", holding._id, { shares: expectedRemaining, ...source });
     console.log(`[transactions] SELL ${quantity} ${ticker} → ${expectedRemaining} remaining`);
   }
 
@@ -990,13 +1009,15 @@ async function applyTransactionUnlocked(
     notes,
     executed_at: executedAt,
     user: user._id,
+    venue: source.venue || venueForTicker(ticker, assetType),
+    ...(source.chain ? { chain: source.chain } : {}),
     ...(holdingId ? { stock: holdingId } : {}),
   });
   ledgerId = (rec?.data as { _id?: string } | undefined)?._id;
   if (!closed) {
     let actual = await readHoldingShares(holding._id);
     if (!qtyMatches(actual, expectedRemaining)) {
-      await totalumSdk.crud.editRecordById("stock", holding._id, { shares: expectedRemaining });
+      await totalumSdk.crud.editRecordById("stock", holding._id, { shares: expectedRemaining, ...source });
       actual = await readHoldingShares(holding._id);
     }
     if (!qtyMatches(actual, expectedRemaining)) {
@@ -1027,6 +1048,7 @@ async function applyTransactionUnlocked(
           purchase_price: roundUnitPrice(avgCost),
           current_price: holding.current_price,
           user: user._id,
+          ...dexRecordFields(input, holding),
         })
         .catch((rollbackErr) => console.error("[transactions] Failed to restore closed holding:", rollbackErr));
     } else {

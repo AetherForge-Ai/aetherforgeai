@@ -5,6 +5,7 @@ import type { HoldingMetrics } from "@/lib/portfolio";
 import { formatNumber, formatPercent } from "@/lib/portfolio";
 import { formatDisplayDate, formatMoney, formatUnitPrice, CURRENCY_META, type CurrencyCode } from "@/lib/currency";
 import { listingExchangeLabel } from "@/lib/market-intel";
+import { dexSourceLabel } from "@/lib/dex-source";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,8 +34,13 @@ function formatHoldingDate(iso?: string | null): string {
   return formatDisplayDate(iso);
 }
 
-function exchangeForTicker(ticker: string, assetType?: string | null): string {
-  return listingExchangeLabel(ticker, assetType);
+function exchangeForTicker(
+  ticker: string,
+  assetType?: string | null,
+  venue?: string | null,
+  chain?: string | null
+): string {
+  return dexSourceLabel({ venue, market: venue, chain }) || listingExchangeLabel(ticker, assetType);
 }
 
 type ChartTarget = {
@@ -232,7 +238,7 @@ export function HoldingsOwnedTable({
             <tbody>
               {sorted.map((h) => {
                 const up = h.gain >= 0;
-                const exchange = exchangeForTicker(h.ticker, h.asset_type);
+                const exchange = exchangeForTicker(h.ticker, h.asset_type, h.venue, h.chain);
                 return (
                   <tr
                     key={h._id}

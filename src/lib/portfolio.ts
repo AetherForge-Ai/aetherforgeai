@@ -22,6 +22,10 @@ export interface Stock {
   current_price: number;
   /** ISO date (yyyy-mm-dd) the holding was purchased. Absent on legacy rows. */
   purchase_date?: string | null;
+  /** DEX when the fill came from a DEX list. Absent on coin-list and legacy rows. */
+  venue?: string | null;
+  /** Readable chain for a DEX holding, such as Ethereum. */
+  chain?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
