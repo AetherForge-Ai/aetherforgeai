@@ -498,7 +498,7 @@ Marker: `pull-check:track-a2-2026-10-10` in `src/lib/holding-correction.ts` and 
 - Commit: `798ff9e`
 - Files: `src/app/api/stocks/route.ts`, `src/app/api/stocks/[id]/route.ts`, `src/lib/transactions.ts`
 - URL / steps: buy WOR.AX dated 1 Oct 2026, then buy more on 10 Oct 2026. Correct PFI.NZ and revert the correction.
-- Expected: WOR still says `first bought 1 Oct 2026`. PFI stays on its earliest buy date. A correction does not write `purchase_date`.
+- Expected: WOR still says `first bought 1 Oct 2026`. The stored `purchase_date` for that past day is noon Auckland (`2026-10-01T12:00:00+13:00`), and the label stays the date. PFI stays on its earliest buy date. A correction does not write `purchase_date`.
 
 ### H8 — fixed
 
@@ -578,9 +578,8 @@ Lukas may later decide to retire the downloadable Excel investor toolkit templat
 
 ## Track A2 checks
 
-- `./node_modules/.bin/tsc --noEmit --skipLibCheck`: passed.
+- `./node_modules/.bin/tsc --noEmit --skipLibCheck`: passed, including the toolkit, noon-Auckland date, and CSV follow-up.
 - `./node_modules/.bin/vitest run`: 96 files, 475 tests passed.
-- `./node_modules/.bin/eslint` on the Track A2 files: 0 errors.
 - `npm run build` (`next build`, Next.js 15.3.9): passed. Exit 0. The build skipped linting. Better Auth logged that the default secret is in use in this environment; no secret was added.
 
 ## Left untouched on purpose
