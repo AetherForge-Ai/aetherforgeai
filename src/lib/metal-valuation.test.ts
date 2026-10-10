@@ -13,6 +13,7 @@ import {
   netWorthNZD,
   quoteRouteForHolding,
   resolveHoldingMarkPrice,
+  heldMetalRows,
   visibleBullionLots,
 } from "@/lib/metal-valuation";
 
@@ -324,5 +325,31 @@ describe("Headmaster synthesis metals allocation", () => {
     const metals = syn.classAllocation.find((c) => c.assetClass === "metals");
     expect(metals!.valueNZD).toBeCloseTo(markToMarketBullionNZD(OUNCES, SPOT_NZD_PER_OZ), 2);
     expect(metals!.weight).toBe(100);
+  });
+});
+
+describe("held metal rows", () => {
+  it("shows 0.01 oz gold with a price and NZD value, and nothing when the book is empty", () => {
+    const lots = visibleBullionLots(
+      [
+        {
+          _id: "g1",
+          ticker: "GOLD",
+          asset_type: "metal",
+          shares: 0.01,
+          purchase_price: 7000,
+          current_price: 44.65,
+        },
+      ],
+      [],
+      { gold: { nzdPerOz: 7200 }, silver: { nzdPerOz: 90 } }
+    );
+    const rows = heldMetalRows(lots);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].metal).toBe("gold");
+    expect(rows[0].ounces).toBeCloseTo(0.01, 6);
+    expect(rows[0].pricePerOz).toBeGreaterThan(1000);
+    expect(rows[0].valueNzd).toBeCloseTo(0.01 * rows[0].pricePerOz, 2);
+    expect(heldMetalRows([])).toEqual([]);
   });
 });
