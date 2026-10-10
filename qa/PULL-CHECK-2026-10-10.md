@@ -574,7 +574,10 @@ Marker: `pull-check:track-a2-2026-10-10` in `src/lib/holding-correction.ts` and 
 
 ## Track A2 checks
 
-- Tests, typecheck, lint, and build: recorded after they run on this branch.
+- `./node_modules/.bin/tsc --noEmit --skipLibCheck`: passed.
+- `./node_modules/.bin/vitest run`: 96 files, 475 tests passed.
+- `./node_modules/.bin/eslint` on the Track A2 files: 0 errors.
+- `npm run build` (`next build`, Next.js 15.3.9): passed. Exit 0. The build skipped linting. Better Auth logged that the default secret is in use in this environment; no secret was added.
 
 ## Left untouched on purpose
 
