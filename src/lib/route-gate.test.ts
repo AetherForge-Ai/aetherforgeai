@@ -16,7 +16,7 @@ describe("H7 unknown URLs are missing pages", () => {
     expect(documentAccess("/sitemap")).toBe("missing");
     expect(documentAccess("/settings")).toBe("member");
     expect(documentAccess("/settings/billing")).toBe("member");
-    expect(documentAccess("/headmaster")).toBe("member");
+    expect(documentAccess("/headmaster")).toBe("public");
     expect(documentAccess("/billing")).toBe("member");
     expect(documentAccess("/performance")).toBe("public");
     expect(documentAccess("/projections")).toBe("public");

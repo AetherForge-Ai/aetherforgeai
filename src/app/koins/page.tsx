@@ -1,33 +1,21 @@
-import { PublicGuide } from "@/components/public/PublicGuide";
+import { BotGuide } from "@/components/public/BotGuide";
+import { BOT_GUIDES } from "@/lib/bot-guides";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 
 export const metadata = publicPageMetadata("/koins", {
   title: "Koins — AetherForge AI",
-  description: "Koins is the crypto bot. It writes informational notes about the coins on your paper book.",
+  description: "Koins is the crypto bot. It writes informational notes about the coins on your paper book. Crypto projections stay paused.",
 });
 
 export default function KoinsPage() {
   return (
-    <PublicGuide
-      kicker="AetherForge AI · Bots"
+    <BotGuide
       title="Koins"
-      lede="Koins is one of the three AI bots. It reads crypto prices and writes plain-English notes about the coins on your paper book. Crypto projections on the projections page are paused. Koins does not place a trade."
-      links={[
-        {
-          href: "/markets",
-          title: "Markets",
-          body: "Crypto prices, when that feed answers.",
-        },
-        {
-          href: "/how-it-works",
-          title: "How it works",
-          body: "How a report is put together, and what you still decide yourself.",
-        },
-        {
-          href: "/pricing",
-          title: "Pricing",
-          body: "3 reports a month free, no card.",
-        },
+      lede="Koins is the crypto bot. It writes plain-English notes about the coins on your paper book. Crypto projections stay paused. Koins does not place a trade."
+      body={BOT_GUIDES.koins}
+      images={[
+        { src: "/brand/bot-koins.png", alt: "Illustration of the Koins character" },
+        { src: "/brand/bot-koins-fullbody.png", alt: "Full-length illustration of the Koins character" },
       ]}
     />
   );
