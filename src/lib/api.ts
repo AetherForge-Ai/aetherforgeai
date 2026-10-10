@@ -18,6 +18,7 @@ import {
   TRADE_SESSION_MISMATCH,
 } from "@/lib/trade-commit-session";
 import { parseApiBody } from "@/lib/api-json";
+import { readPublicFeed, rememberPublicFeed } from "@/lib/public-feed-cache";
 
 export interface ApiResponse<T = unknown> {
   ok: boolean;
@@ -126,7 +127,13 @@ async function request<T>(
 
 export const api = {
   get<T>(url: string, init?: ApiInit): Promise<ApiResponse<T>> {
-    return request<T>(url, { signal: init?.signal });
+    if (!init?.signal) {
+      const cached = readPublicFeed<T>(url);
+      if (cached) return cached;
+    }
+    const pending = request<T>(url, { signal: init?.signal });
+    if (!init?.signal) rememberPublicFeed(url, pending);
+    return pending;
   },
 
   post<T>(url: string, body: unknown, init?: ApiInit): Promise<ApiResponse<T>> {
