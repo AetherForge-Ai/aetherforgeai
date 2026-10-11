@@ -7,11 +7,14 @@ import { TAX_INDICATIVE_LABEL } from "@/lib/tax-disclaimer";
 import {
   buildDividendRecord,
   dividendCsv,
+  dividendIncome,
   dividendViewFromRow,
+  expectedDividend,
   parseDividendNotes,
   stripDividendNotesPrefix,
   summariseDividends,
   withDividendNotes,
+  type DividendView,
 } from "@/lib/dividend-ledger";
 
 function read(rel: string) {
@@ -180,6 +183,68 @@ describe("dividend ledger", () => {
     const notes = withDividendNotes("interim", built.parts);
     expect(csvNotes({ type: "dividend", notes, currency: "NZD" })).toBe("interim");
     expect(csvNotes({ type: "dividend", notes: withDividendNotes("", built.parts), currency: "NZD" })).toBe("");
+  });
+
+  it("groups three dividends by month and tax year and matches the CSV", () => {
+    const nz = buildDividendRecord({
+      grossNative: 100,
+      imputationNzd: 28,
+      withholdingNative: 0,
+      drpNative: 0,
+      currency: "NZD",
+      fx: 1,
+    });
+    const us = buildDividendRecord({
+      grossNative: 100,
+      imputationNzd: 0,
+      withholdingNative: 15,
+      drpNative: 0,
+      currency: "USD",
+      fx: 1.67,
+    });
+    const drp = buildDividendRecord({
+      grossNative: 40,
+      imputationNzd: 0,
+      withholdingNative: 0,
+      drpNative: 40,
+      currency: "NZD",
+      fx: 1,
+    });
+    expect(nz.ok && us.ok && drp.ok).toBe(true);
+    if (!nz.ok || !us.ok || !drp.ok) return;
+    const rows: DividendView[] = [
+      { id: "nz", when: "2026-03-31", ticker: "AIR.NZ", assetName: "", assetType: "stock", parts: nz.parts, cashNzd: nz.parts.netCashNzd },
+      { id: "us", when: "2026-04-01", ticker: "AAPL", assetName: "", assetType: "stock", parts: us.parts, cashNzd: us.parts.netCashNzd },
+      { id: "drp", when: "2026-03-31", ticker: "FPH.NZ", assetName: "", assetType: "stock", parts: drp.parts, cashNzd: drp.parts.netCashNzd },
+    ];
+    expect(us.parts.withholdingNzd).toBe(25.05);
+    expect(us.parts.netCashNzd).toBe(141.95);
+    const income = dividendIncome(rows, { asOf: "2026-04-01", costNzd: 1000, valueNzd: 2000 });
+    expect(income.cashNzd).toBe(241.95);
+    expect(income.totalReturnNzd).toBe(281.95);
+    expect(income.years.map((year) => [year.endingYear, year.netCashNzd, year.drpNzd, year.totalReturnNzd])).toEqual([
+      [2026, 100, 40, 140],
+      [2027, 141.95, 0, 141.95],
+    ]);
+    expect(income.months.map((month) => month.month)).toEqual(["2026-03", "2026-04"]);
+    expect(income.drp.map((row) => row.ticker)).toEqual(["FPH.NZ"]);
+    expect(income.trailingGrossNzd).toBe(307);
+    expect(income.yieldOnCost).toBeCloseTo(0.307, 10);
+    expect(income.yieldOnValue).toBeCloseTo(0.1535, 10);
+    expect(dividendIncome(rows).yieldOnCost).toBeNull();
+    expect(expectedDividend({ date: "", ticker: "AIR.NZ" })).toBeNull();
+    expect(expectedDividend({ date: "2026-05-01", ticker: "AIR.NZ", amountNzd: 12 })?.date).toBe("2026-05-01");
+
+    const csv = dividendCsv(rows, (value) => value.slice(0, 10));
+    const totals = summariseDividends(rows);
+    const last = csv.trim().split("\n").at(-1) || "";
+    const cells = last.split(",");
+    expect(cells[5]).toBe(totals.grossNzd.toFixed(2));
+    expect(cells[6]).toBe(totals.imputationNzd.toFixed(2));
+    expect(cells[7]).toBe(totals.withholdingNzd.toFixed(2));
+    expect(cells[8]).toBe(totals.drpNzd.toFixed(2));
+    expect(cells[9]).toBe((totals.netCashNzd + totals.legacyCashNzd).toFixed(2));
+    expect(income.cashNzd).toBe(totals.netCashNzd);
   });
 
   it("keeps the marker and does not name a model on the dividend page", () => {

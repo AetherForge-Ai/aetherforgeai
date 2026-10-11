@@ -1,0 +1,4 @@
+# Synthetic fixture. Not a customer file.
+Trade Date,Action,Symbol,Quantity,Price,Commission,Currency,FX Rate,Value
+2026-03-01,BUY,MSFT,1,400.00,3.00,USD,1.6500,400.00
+2026-03-02,SELL,TSLA,0.5,200.00,3.00,USD,1.6500,100.00

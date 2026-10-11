@@ -1,0 +1,4 @@
+# Synthetic fixture. Not a customer file.
+ClientAccountID,AssetClass,Symbol,TradeDate,Quantity,TradePrice,IBCommission,Buy/Sell,CurrencyPrimary,FXRateToBase,Proceeds
+U0000000,STK,NVDA,20260304,3,100.25,-1.00,BUY,USD,1.6600,-300.75
+U0000000,STK,BHP.AX,20260305,-10,45.10,-1.50,SELL,AUD,1.0900,451.00

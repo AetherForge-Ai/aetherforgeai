@@ -123,7 +123,8 @@ describe("H5 plan and billing", () => {
     const alias = read("src/app/billing/page.tsx");
     const config = read("next.config.ts");
     const pricing = read("src/app/pricing/page.tsx");
-    const faq = read("src/components/pricing/PricingFAQ.tsx");
+    const faq = read("src/lib/pricing-faq.ts");
+    expect(read("src/components/pricing/PricingFAQ.tsx")).toContain("PRICING_FAQS");
     expect(billing).toContain("Plan & billing");
     expect(billing).toContain("Current plan");
     expect(billing).toContain("Holdings");

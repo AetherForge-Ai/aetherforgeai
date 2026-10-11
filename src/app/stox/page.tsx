@@ -1,4 +1,5 @@
-import { PublicGuide } from "@/components/public/PublicGuide";
+import { BotGuide } from "@/components/public/BotGuide";
+import { BOT_GUIDES } from "@/lib/bot-guides";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 
 export const metadata = publicPageMetadata("/stox", {
@@ -8,26 +9,13 @@ export const metadata = publicPageMetadata("/stox", {
 
 export default function StoxPage() {
   return (
-    <PublicGuide
-      kicker="AetherForge AI · Bots"
+    <BotGuide
       title="Stox"
-      lede="Stox is one of the three AI bots. It reads NZX, ASX and US share prices and writes plain-English notes about the shares on your paper book. It does not place a trade."
-      links={[
-        {
-          href: "/markets",
-          title: "Markets",
-          body: "Share prices for NZX, ASX and US lists, when the feed answers.",
-        },
-        {
-          href: "/how-it-works",
-          title: "How it works",
-          body: "How a report is put together, and what you still decide yourself.",
-        },
-        {
-          href: "/pricing",
-          title: "Pricing",
-          body: "3 reports a month free, no card. Paid plans add Stox with Koins.",
-        },
+      lede="Stox is the share-market bot. It writes plain-English notes about the shares on your paper book. It does not place a trade."
+      body={BOT_GUIDES.stox}
+      images={[
+        { src: "/brand/bot-stox.png", alt: "Illustration of the Stox character" },
+        { src: "/brand/bot-stox-fullbody.png", alt: "Full-length illustration of the Stox character" },
       ]}
     />
   );
