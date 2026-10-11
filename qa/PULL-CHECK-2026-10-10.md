@@ -1438,7 +1438,7 @@ Auth, login, register, security headers, consent, apex, and `next.config.ts` wer
 
 On `cursor/batch2-combined-adbc` from develop `47f44d9`, after the cherry-picks, the SuperGrok sentences, and the ours merge of `origin/main` `b886b2f`: `npm test` 133 files, 613 tests passed. `npm run check-types-errors` passed. `npm run build` passed (Next.js 15.3.9). Nothing was published. No email was sent. A search for the removed street, suburb and postcode outside the listing data returned zero hits.
 
-Review fixes on the same branch: login and register match develop. SuperGrok stays on `/trust` and in Privacy section 4. The processor list says "our AI provider". Broker import counts duplicate occurrences, totals only the rows that will be saved, lists skipped rows and blocks the save until they are acknowledged, and makes the paper deposit opt-in unless cash would go negative. The checks below are filled after the retest.
+Review fixes on the same branch, head after this note. `origin/develop` was already `47f44d9`, so the merge added nothing. Login and register match develop. SuperGrok stays on `/trust` and in Privacy section 4. Privacy sections 5 and 6 say "our AI provider". Broker import counts duplicate occurrences, totals only the rows that will be saved, lists skipped rows and blocks the save until they are acknowledged, and makes the paper deposit opt-in unless cash would go negative. After those fixes: `npm test` 133 files, 617 tests passed. `npm run check-types-errors` passed. `npm run build` passed (Next.js 15.3.9). Nothing was published. No email was sent. The tracked-file search for the removed street, suburb and postcode, outside the listing data, returned zero hits.
 
 
 
