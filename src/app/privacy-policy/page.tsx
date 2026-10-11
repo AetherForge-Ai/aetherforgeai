@@ -13,10 +13,10 @@ export const metadata = publicPageMetadata("/privacy-policy", {
 
 const UPDATED = LEGAL_UPDATED;
 
-/** Privacy section 4 and the processor list on this page. Other pages stay unnamed. */
-function disclosedProcessors() {
+/** Sections 5 and 6. The provider name stays in section 4 only. */
+function listedProcessors() {
   return PROCESSORS().map((processor) =>
-    processor.name === "A third-party AI service" ? { ...processor, name: "SuperGrok" } : processor,
+    processor.name === "A third-party AI service" ? { ...processor, name: "our AI provider" } : processor,
   );
 }
 
@@ -102,8 +102,7 @@ export default function PrivacyPolicy() {
           <p key={line.slice(0, 24)}>{line}</p>
         ))}
         <p>
-          The third-party AI service in those sentences is SuperGrok. The processor for those notes and replies is
-          SuperGrok. No retention period is set by our code.
+          The third-party AI service in those sentences is SuperGrok. No retention period is set by our code.
         </p>
         <p>
           AI-written notes are informational only — see our{" "}
@@ -120,7 +119,7 @@ export default function PrivacyPolicy() {
           <li>
             to the processors named below, bound by confidentiality obligations:
             <ul className="mt-2 list-disc space-y-1.5 pl-5">
-              {disclosedProcessors().map((processor) => (
+              {listedProcessors().map((processor) => (
                 <li key={processor.name}>
                   <strong className="text-foreground/90">{processor.name}</strong> — {processor.role}
                   {processor.name === "Google Analytics" ? ", only after you accept analytics cookies" : ""}.
@@ -143,7 +142,7 @@ export default function PrivacyPolicy() {
       <LegalSection heading="6. Sending information overseas (IPP 12)">
         <p>
           Some of the processors named in section 5 are located outside New Zealand. That list includes{" "}
-          {disclosedProcessors()
+          {listedProcessors()
             .map((processor) => processor.name)
             .join(", ")}
           . DEX prices in that list come from GeckoTerminal.

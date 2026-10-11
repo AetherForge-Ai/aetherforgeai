@@ -74,6 +74,13 @@ describe("public copy does not name a model", () => {
       expect(text, rel).toContain("No retention period is set by our code.");
       expect(text.replaceAll("SuperGrok", ""), rel).not.toMatch(MODEL_NAME);
     }
+    const privacy = read("src/app/privacy-policy/page.tsx");
+    const section4 = privacy.slice(privacy.indexOf('heading="4.'), privacy.indexOf('heading="5.'));
+    const processorList = privacy.slice(privacy.indexOf('heading="5.'));
+    expect(section4).toContain("SuperGrok");
+    expect(processorList).not.toContain("SuperGrok");
+    expect(processorList).toContain("listedProcessors");
+    expect(privacy).toContain('name: "our AI provider"');
     const elsewhere = [
       ...PUBLIC_COPY,
       "src/lib/public-copy.ts",

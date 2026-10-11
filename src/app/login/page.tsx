@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { BrandLogo } from "@/components/BrandLogo";
@@ -117,12 +117,13 @@ function LoginForm() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-6 px-4 bg-gradient-to-br from-background to-muted/20">
+      <h1 className="sr-only">Sign in</h1>
       <Link href="/" className="transition-opacity hover:opacity-90">
         <BrandLogo animated markClassName="size-12" wordmarkClassName="text-xl" />
       </Link>
       <Card className="w-full max-w-md shadow-xl border-2">
         <CardHeader className="space-y-2 text-center pb-6">
-          <h1 className="text-3xl font-bold tracking-tight">Welcome Back</h1>
+          <CardTitle className="text-3xl font-bold tracking-tight">Welcome Back</CardTitle>
           <CardDescription className="text-base">
             Enter your email and password to access your account
           </CardDescription>

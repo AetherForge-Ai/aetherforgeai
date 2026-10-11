@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { BrandLogo } from "@/components/BrandLogo";
@@ -142,6 +142,7 @@ export default function RegisterPage() {
   if (registeredEmail) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-6 px-4 bg-gradient-to-br from-background to-muted/20">
+        <h1 className="sr-only">Check your email</h1>
         <Link href="/" className="transition-opacity hover:opacity-90">
           <BrandLogo animated markClassName="size-12" wordmarkClassName="text-xl" />
         </Link>
@@ -150,7 +151,7 @@ export default function RegisterPage() {
             <div className="mx-auto flex size-16 items-center justify-center rounded-2xl bg-primary/10 ring-1 ring-primary/20">
               <MailCheck className="size-8 text-primary" />
             </div>
-            <h1 className="text-2xl font-bold tracking-tight">Check your email</h1>
+            <CardTitle className="text-2xl font-bold tracking-tight">Check your email</CardTitle>
             <CardDescription className="text-base">
               We&apos;ve sent a verification link to
               <br />
@@ -215,12 +216,13 @@ export default function RegisterPage() {
   // -------------------------------------------------------------------------
   return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-6 px-4 bg-gradient-to-br from-background to-muted/20">
+      <h1 className="sr-only">Create an account</h1>
       <Link href="/" className="transition-opacity hover:opacity-90">
         <BrandLogo animated markClassName="size-12" wordmarkClassName="text-xl" />
       </Link>
       <Card className="w-full max-w-md shadow-xl border-2">
         <CardHeader className="space-y-2 text-center pb-6">
-          <h1 className="text-3xl font-bold tracking-tight">Create Account</h1>
+          <CardTitle className="text-3xl font-bold tracking-tight">Create Account</CardTitle>
           <CardDescription className="text-base">
             Enter your information to get started
           </CardDescription>

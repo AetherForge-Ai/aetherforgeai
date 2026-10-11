@@ -3,8 +3,11 @@ import { requestClaimsOtherUser } from "@/lib/account-guard";
 import { accountMismatchResponse } from "@/lib/account-response";
 import {
   importDuplicateKey,
+  importFailureReport,
+  importWriteOrder,
   importWrites,
   planBrokerImport,
+  validateImportForWrite,
   type ColumnMap,
   type ImportPlan,
   type ImportTrade,
@@ -27,10 +30,13 @@ function publicPlan(plan: ImportPlan) {
     needsMapping: plan.needsMapping,
     unsupported: plan.unsupported,
     duplicateCount: plan.duplicates.length,
+    duplicates: plan.duplicates.map((row) => ({ line: row.line, date: row.date, ticker: row.ticker, side: row.side })),
     toWrite: plan.toWrite,
     fundingDeposits: plan.fundingDeposits,
+    fundingNeeded: plan.fundingNeeded,
     sourceTotals: plan.sourceTotals,
     importedTotals: plan.importedTotals,
+    totalsMessage: plan.totalsMessage,
   };
 }
 
@@ -90,6 +96,8 @@ export async function POST(req: Request) {
       consent?: unknown;
       action?: unknown;
       mapping?: unknown;
+      acknowledgeSkipped?: unknown;
+      fundBuys?: unknown;
     };
     const text = typeof body.text === "string" ? body.text : "";
     if (text.length > MAX_CHARS) {
@@ -102,12 +110,15 @@ export async function POST(req: Request) {
     }
 
     const mapping = mappingOf(body.mapping);
+    const acknowledgeSkipped = body.acknowledgeSkipped === true;
+    const fundBuys = body.fundBuys === false ? false : body.fundBuys === true ? true : undefined;
     const openingCashNzd = typeof user.cash_balance === "number" ? user.cash_balance : 0;
-    const preview = planBrokerImport(text, { mapping, openingCashNzd });
-    if (body.confirm !== true || !importWrites(preview)) {
+    const preview = planBrokerImport(text, { mapping, openingCashNzd, fundBuys });
+    if (body.confirm !== true || !importWrites(preview, acknowledgeSkipped)) {
+      const blocked = body.confirm === true && !importWrites(preview, acknowledgeSkipped);
       return NextResponse.json({
-        ok: preview.error == null,
-        error: preview.error,
+        ok: blocked ? false : preview.error == null,
+        error: blocked ? validateImportForWrite(preview, acknowledgeSkipped) || preview.error : preview.error,
         data: publicPlan(preview),
       });
     }
@@ -115,44 +126,72 @@ export async function POST(req: Request) {
     const committed = planBrokerImport(text, {
       mapping,
       openingCashNzd,
+      fundBuys,
       existingKeys: await existingKeys(user._id),
     });
-    if (!importWrites(committed)) {
+    const invalid = validateImportForWrite(committed, acknowledgeSkipped);
+    if (invalid || !importWrites(committed, acknowledgeSkipped)) {
       return NextResponse.json({
-        ok: committed.error == null,
-        error: committed.error,
+        ok: false,
+        error: invalid || committed.error || "Nothing was written.",
         data: { ...publicPlan(committed), written: 0 },
       });
     }
 
     const written: ImportTrade[] = [];
-    for (const deposit of committed.fundingDeposits) {
-      await applyTransaction(user, {
-        type: "deposit",
-        amount: deposit.amountNzd,
-        executed_at: deposit.date,
-        trade_date: deposit.date,
-        notes: deposit.note,
-      });
-    }
-    const ordered = [...committed.toWrite].sort((a, b) => a.date.localeCompare(b.date) || a.line - b.line);
-    for (const row of ordered) {
-      await applyTransaction(user, {
-        type: row.side,
-        ticker: row.ticker,
-        asset_type: "stock",
-        quantity: row.quantity,
-        price: row.price,
-        fees: row.fee,
-        fx_rate: row.fx,
-        fx_source: "broker-file",
-        executed_at: row.date,
-        trade_date: row.date,
-        price_source: "broker_import",
-        broker: committed.broker || "file",
-        notes: `Imported from a ${committed.broker || "broker"} file.`,
-      });
-      written.push(row);
+    const writtenDeposits: { date: string; amountNzd: number }[] = [];
+    try {
+      for (const step of importWriteOrder(committed)) {
+        if (step.kind === "deposit") {
+          await applyTransaction(user, {
+            type: "deposit",
+            amount: step.amountNzd,
+            executed_at: step.date,
+            trade_date: step.date,
+            notes: step.note,
+          });
+          writtenDeposits.push({ date: step.date, amountNzd: step.amountNzd || 0 });
+          continue;
+        }
+        const row = step.trade;
+        if (!row) continue;
+        await applyTransaction(user, {
+          type: row.side,
+          ticker: row.ticker,
+          asset_type: "stock",
+          quantity: row.quantity,
+          price: row.price,
+          fees: row.fee,
+          fx_rate: row.fx,
+          fx_source: "broker-file",
+          executed_at: row.date,
+          trade_date: row.date,
+          price_source: "broker_import",
+          broker: committed.broker || "file",
+          notes: `Imported from a ${committed.broker || "broker"} file.`,
+        });
+        written.push(row);
+      }
+    } catch (err: unknown) {
+      const cause = err instanceof Error ? err.message : "The import was not saved.";
+      console.error("[api/import] write failed:", cause);
+      return NextResponse.json(
+        {
+          ok: false,
+          error: importFailureReport({
+            cause,
+            writtenTrades: written,
+            writtenDeposits,
+          }),
+          data: {
+            ...publicPlan(committed),
+            written: written.length,
+            writtenTrades: written.map((row) => ({ date: row.date, side: row.side, ticker: row.ticker })),
+            writtenDeposits,
+          },
+        },
+        { status: 400 }
+      );
     }
 
     return NextResponse.json({

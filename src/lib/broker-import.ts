@@ -58,11 +58,16 @@ export interface ImportPlan {
   unsupported: UnsupportedRow[];
   duplicates: ImportTrade[];
   toWrite: ImportTrade[];
-  /** Paper cash so a buy can be saved. Only for rows that will be written. */
+  /** Paper cash so a buy can be saved. Empty unless a deposit is chosen or required. */
   fundingDeposits: { date: string; amountNzd: number; note: string }[];
-  /** Sum of the file's value column, or quantity times price when that column is absent. */
+  /** True when a buy would make paper cash negative without a deposit. */
+  fundingNeeded: boolean;
+  /** Sum of the file's readable trade values, including rows later marked duplicate. */
   sourceTotals: Record<string, number>;
+  /** Sum of the rows that will be saved. Duplicates and skipped rows are left out. */
   importedTotals: Record<string, number>;
+  /** Compares the imported total with the rows that will be saved, and names skipped rows. */
+  totalsMessage: string;
 }
 
 const SIDE_KEYS = ["side", "type", "action", "buy/sell", "buy sell"];
@@ -146,10 +151,16 @@ function emptyPlan(error: string | null, headers: string[] = []): ImportPlan {
     duplicates: [],
     toWrite: [],
     fundingDeposits: [],
+    fundingNeeded: false,
     sourceTotals: {},
     importedTotals: {},
+    totalsMessage: "",
   };
 }
+
+/** Shown with every paper deposit. Cash goes up. XIRR treats the deposit as money added. */
+export const FUNDING_DISCLOSURE =
+  "A paper deposit adds that amount to paper cash. It is not money from the broker file. XIRR counts a deposit as money you added, so the money-weighted return changes.";
 
 function addTotal(bag: Record<string, number>, currency: string, amount: number) {
   bag[currency] = roundMoney((bag[currency] || 0) + amount);
@@ -193,13 +204,21 @@ function currencyOf(raw: string, ticker: string): ImportCurrency | null {
 
 /**
  * Parse a file and decide what would be written.
- * `existingKeys` are duplicate keys already on the book.
+ * `existingKeys` are duplicate keys already on the book, one per stored fill.
+ * Two identical fills in this file are both kept until stored fills cover them.
  * `openingCashNzd` is the paper cash available before this file.
+ * `fundBuys` defaults to on only when a buy would make cash negative.
  * An error plan writes nothing: no trades and no funding deposit.
  */
 export function planBrokerImport(
   text: string,
-  options?: { mapping?: ColumnMap; existingKeys?: Iterable<string>; openingCashNzd?: number }
+  options?: {
+    mapping?: ColumnMap;
+    existingKeys?: Iterable<string>;
+    openingCashNzd?: number;
+    /** False leaves out buys that would make paper cash negative. */
+    fundBuys?: boolean;
+  }
 ): ImportPlan {
   const lines = linesOf(text || "");
   if (!lines.length) return emptyPlan("The file is empty. Nothing was written.");
@@ -217,7 +236,7 @@ export function planBrokerImport(
     return plan;
   }
 
-  const known = new Set(options?.existingKeys || []);
+  const storedCounts = countKeys(options?.existingKeys || []);
   const rows: ImportTrade[] = [];
   const unsupported: UnsupportedRow[] = [];
   const sourceTotals: Record<string, number> = {};
@@ -297,63 +316,192 @@ export function planBrokerImport(
     return { ...emptyPlan("No trade rows were found. Nothing was written.", headerCells), broker };
   }
 
+  const stored = storedCounts;
+  const seenInFile = new Map<string, number>();
   const duplicates: ImportTrade[] = [];
-  const toWrite: ImportTrade[] = [];
+  const fresh: ImportTrade[] = [];
   for (const row of rows) {
     const key = importDuplicateKey(row);
-    if (known.has(key)) duplicates.push(row);
-    else {
-      known.add(key);
-      toWrite.push(row);
-    }
+    const occurrence = (seenInFile.get(key) || 0) + 1;
+    seenInFile.set(key, occurrence);
+    if (occurrence <= (stored.get(key) || 0)) duplicates.push(row);
+    else fresh.push(row);
   }
 
-  const importedTotals: Record<string, number> = {};
-  for (const row of rows) addTotal(importedTotals, row.currency, row.nativeValue);
-
   const fileError = rows.length === 0 ? "No buy or sell rows could be read. Nothing was written." : null;
-  return {
+  const cash = fileError
+    ? { toWrite: [] as ImportTrade[], deposits: [] as ImportPlan["fundingDeposits"], skipped: [] as UnsupportedRow[], fundingNeeded: false }
+    : applyCash(fresh, options?.openingCashNzd ?? 0, options?.fundBuys !== false);
+  const skipped = [...unsupported, ...cash.skipped];
+  const importedTotals: Record<string, number> = {};
+  for (const row of cash.toWrite) addTotal(importedTotals, row.currency, row.nativeValue);
+
+  const plan: ImportPlan = {
     broker: broker || "generic",
     error: fileError,
     headers: headerCells,
     needsMapping: false,
     rows,
-    unsupported,
+    unsupported: skipped,
     duplicates,
-    toWrite: fileError ? [] : toWrite,
-    fundingDeposits: fileError ? [] : fundingFor(toWrite, options?.openingCashNzd ?? 0),
+    toWrite: cash.toWrite,
+    fundingDeposits: cash.deposits,
+    fundingNeeded: cash.fundingNeeded,
     sourceTotals,
     importedTotals,
+    totalsMessage: "",
   };
+  plan.totalsMessage = describeTotals(plan);
+  return plan;
 }
 
-/** True only when the plan has trades to save and no file-level error. */
-export function importWrites(plan: ImportPlan): boolean {
-  return plan.error == null && plan.toWrite.length > 0;
+function countKeys(keys: Iterable<string>): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const key of keys) counts.set(key, (counts.get(key) || 0) + 1);
+  return counts;
 }
 
-function fundingFor(rows: ImportTrade[], openingCashNzd: number): ImportPlan["fundingDeposits"] {
+/** True only when the plan has trades to save, no file-level error, and skipped rows are acknowledged. */
+export function importWrites(plan: ImportPlan, acknowledgeSkipped = false): boolean {
+  return plan.error == null && plan.toWrite.length > 0 && (plan.unsupported.length === 0 || acknowledgeSkipped);
+}
+
+/** Reject a plan before any row is written. */
+export function validateImportForWrite(plan: ImportPlan, acknowledgeSkipped: boolean): string | null {
+  if (plan.error) return plan.error;
+  if (plan.toWrite.length === 0) return "No trades to save. Nothing was written.";
+  if (plan.unsupported.length > 0 && !acknowledgeSkipped) {
+    return "Skipped rows are listed in the review. Acknowledge them before saving. Nothing was written.";
+  }
+  for (const row of plan.toWrite) {
+    if (!row.date || !row.ticker || (row.side !== "buy" && row.side !== "sell") || !(row.quantity > 0) || !(row.price > 0) || !(row.fx > 0)) {
+      return `Line ${row.line} failed validation. Nothing was written.`;
+    }
+  }
+  for (const deposit of plan.fundingDeposits) {
+    if (!deposit.date || !(deposit.amountNzd > 0)) return "A paper deposit failed validation. Nothing was written.";
+  }
+  return null;
+}
+
+export interface ImportWriteStep {
+  kind: "deposit" | "trade";
+  date: string;
+  line: number;
+  amountNzd?: number;
+  note?: string;
+  trade?: ImportTrade;
+}
+
+/** Deposits first, then trades, each in date order. */
+export function importWriteOrder(plan: ImportPlan): ImportWriteStep[] {
+  const deposits = [...plan.fundingDeposits]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map((deposit, index) => ({
+      kind: "deposit" as const,
+      date: deposit.date,
+      line: index,
+      amountNzd: deposit.amountNzd,
+      note: deposit.note,
+    }));
+  const trades = [...plan.toWrite]
+    .sort((a, b) => a.date.localeCompare(b.date) || a.line - b.line)
+    .map((trade) => ({
+      kind: "trade" as const,
+      date: trade.date,
+      line: trade.line,
+      trade,
+    }));
+  return [...deposits, ...trades];
+}
+
+/** Names the rows that were saved, and says a later import will skip those rows. */
+export function importFailureReport(input: {
+  cause: string;
+  writtenTrades: { date: string; side: string; ticker: string }[];
+  writtenDeposits: { date: string; amountNzd: number }[];
+}): string {
+  if (input.writtenTrades.length === 0 && input.writtenDeposits.length === 0) {
+    return `${input.cause} Nothing was saved.`;
+  }
+  const trades = input.writtenTrades.length
+    ? input.writtenTrades.map((row) => `${row.date} ${row.side} ${row.ticker}`).join(", ")
+    : "no trades";
+  const deposits = input.writtenDeposits.length
+    ? input.writtenDeposits.map((row) => `${row.date} NZ$${row.amountNzd.toFixed(2)}`).join(", ")
+    : "no paper deposits";
+  return `${input.cause} Saved before this failure: ${trades}. Paper deposits saved before this failure: ${deposits}. A second import skips rows that match what was saved.`;
+}
+
+function applyCash(rows: ImportTrade[], openingCashNzd: number, allowFunding: boolean) {
   const ordered = [...rows].sort((a, b) => a.date.localeCompare(b.date) || a.line - b.line);
   let cash = roundMoney(openingCashNzd);
   const deposits: ImportPlan["fundingDeposits"] = [];
+  const skipped: UnsupportedRow[] = [];
+  const toWrite: ImportTrade[] = [];
+  let fundingNeeded = false;
   for (const row of ordered) {
     if (row.side === "sell") {
       const proceeds = roundMoney(Math.max(0, row.nativeValue - row.fee) * row.fx);
       cash = roundMoney(cash + proceeds);
+      toWrite.push(row);
       continue;
     }
     if (cash + 0.001 >= row.costNzd) {
       cash = roundMoney(cash - row.costNzd);
+      toWrite.push(row);
       continue;
     }
+    fundingNeeded = true;
     const topUp = roundMoney(row.costNzd - cash);
+    if (!allowFunding) {
+      skipped.push({
+        line: row.line,
+        reason: `Left out so paper cash does not go negative. A paper deposit of NZ$${topUp.toFixed(2)} was not chosen. ${FUNDING_DISCLOSURE}`,
+      });
+      continue;
+    }
     deposits.push({
       date: row.date,
       amountNzd: topUp,
-      note: "Paper cash recorded so the imported buys can be saved. The file did not include this cash balance.",
+      note: `Paper cash of NZ$${topUp.toFixed(2)} is recorded because this buy would otherwise make paper cash negative. The file did not include this balance. ${FUNDING_DISCLOSURE}`,
     });
     cash = 0;
+    toWrite.push(row);
   }
-  return deposits;
+  return { toWrite, deposits, skipped, fundingNeeded };
+}
+
+function describeTotals(plan: ImportPlan): string {
+  const written = sumTotals(plan.toWrite);
+  const parts = [totalsMatch(plan.importedTotals, written)
+    ? "Imported totals match the rows that will be saved."
+    : "Imported totals do not match the rows that will be saved."];
+  if (plan.duplicates.length > 0) {
+    parts.push(
+      `${plan.duplicates.length} duplicate ${plan.duplicates.length === 1 ? "row is" : "rows are"} already on the book and not in the imported total.`
+    );
+  }
+  if (plan.unsupported.length > 0) {
+    const listed = plan.unsupported.map((row) => `line ${row.line}: ${row.reason}`).join("; ");
+    parts.push(
+      `${plan.unsupported.length} skipped ${plan.unsupported.length === 1 ? "row is" : "rows are"} not in the imported total. ${listed}.`
+    );
+  }
+  return parts.join(" ");
+}
+
+function sumTotals(rows: ImportTrade[]): Record<string, number> {
+  const bag: Record<string, number> = {};
+  for (const row of rows) addTotal(bag, row.currency, row.nativeValue);
+  return bag;
+}
+
+function totalsMatch(left: Record<string, number>, right: Record<string, number>): boolean {
+  const keys = new Set([...Object.keys(left), ...Object.keys(right)]);
+  for (const key of keys) {
+    if (roundMoney(left[key] || 0) !== roundMoney(right[key] || 0)) return false;
+  }
+  return true;
 }
 

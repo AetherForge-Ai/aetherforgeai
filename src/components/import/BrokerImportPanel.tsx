@@ -15,8 +15,10 @@ type Preview = {
   duplicateCount: number;
   toWrite: ImportTrade[];
   fundingDeposits: ImportPlan["fundingDeposits"];
+  fundingNeeded: boolean;
   sourceTotals: Record<string, number>;
   importedTotals: Record<string, number>;
+  totalsMessage: string;
   written?: number;
 };
 
@@ -40,6 +42,8 @@ export function BrokerImportPanel() {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [consent, setConsent] = useState(false);
+  const [acknowledgeSkipped, setAcknowledgeSkipped] = useState(false);
+  const [fundBuys, setFundBuys] = useState<boolean | undefined>(undefined);
 
   async function readFile(file: File) {
     const body = await file.text();
@@ -48,15 +52,21 @@ export function BrokerImportPanel() {
     setPreview(null);
     setMessage("");
     setConsent(false);
+    setAcknowledgeSkipped(false);
+    setFundBuys(undefined);
   }
 
-  async function run(confirm: boolean) {
+  async function run(confirm: boolean, choice?: { fundBuys?: boolean; acknowledgeSkipped?: boolean }) {
+    const nextFund = choice && "fundBuys" in choice ? choice.fundBuys : fundBuys;
+    const nextAck = choice && "acknowledgeSkipped" in choice ? choice.acknowledgeSkipped : acknowledgeSkipped;
     setBusy(true);
     setMessage("");
     try {
       const res = await api.post<Preview>("/api/import", {
         text,
         confirm,
+        acknowledgeSkipped: nextAck,
+        fundBuys: nextFund,
         mapping: Object.values(mapping).some(Boolean) ? mapping : undefined,
       });
       if (res.data) setPreview(res.data);
@@ -98,7 +108,8 @@ export function BrokerImportPanel() {
       <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
         Upload a Sharesies, Hatch, or IBKR activity CSV, or map the columns yourself. Review the rows
         before anything is saved. A split, a dividend, or a row this page cannot read is listed and left
-        out. The same date, ticker, side, quantity and price is not saved twice.
+        out until you acknowledge it. Two identical fills in one file are both kept. A fill already saved
+        on the book is not saved again.
       </p>
 
       <form
@@ -161,12 +172,25 @@ export function BrokerImportPanel() {
             {preview.toWrite.length} to save. {preview.duplicateCount} already on the book.{" "}
             {preview.unsupported.length} left out.
           </p>
-          {preview.fundingDeposits.length > 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Paper cash of NZ$
-              {preview.fundingDeposits.reduce((sum, row) => sum + row.amountNzd, 0).toFixed(2)} will be recorded so
-              the buys can be saved. The file did not include that cash balance.
-            </p>
+          {preview.totalsMessage ? <p className="text-sm text-muted-foreground">{preview.totalsMessage}</p> : null}
+          {preview.fundingNeeded || preview.fundingDeposits.length > 0 ? (
+            <label className="flex items-start gap-2 text-sm" htmlFor="import-fund">
+              <input
+                id="import-fund"
+                type="checkbox"
+                className="mt-1"
+                checked={preview.fundingDeposits.length > 0}
+                onChange={(event) => {
+                  const next = event.target.checked;
+                  setFundBuys(next);
+                  void run(false, { fundBuys: next });
+                }}
+              />
+              <span>
+                {preview.fundingDeposits[0]?.note ||
+                  "Leave this off and a buy that would make paper cash negative is not saved. A paper deposit adds that amount to paper cash. It is not money from the broker file. XIRR counts a deposit as money you added, so the money-weighted return changes."}
+              </span>
+            </label>
           ) : null}
           <div className="overflow-x-auto rounded-2xl border border-border/70">
             <table className="w-full text-sm">
@@ -197,15 +221,31 @@ export function BrokerImportPanel() {
             </table>
           </div>
           {preview.unsupported.length > 0 ? (
-            <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-              {preview.unsupported.map((row) => (
-                <li key={`${row.line}-${row.reason}`}>
-                  Line {row.line}: {row.reason}
-                </li>
-              ))}
-            </ul>
+            <>
+              <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                {preview.unsupported.map((row) => (
+                  <li key={`${row.line}-${row.reason}`}>
+                    Line {row.line}: {row.reason}
+                  </li>
+                ))}
+              </ul>
+              <label className="flex items-start gap-2 text-sm" htmlFor="import-ack">
+                <input
+                  id="import-ack"
+                  type="checkbox"
+                  className="mt-1"
+                  checked={acknowledgeSkipped}
+                  onChange={(event) => setAcknowledgeSkipped(event.target.checked)}
+                />
+                <span>I have read the rows that will not be saved. They stay out of the book.</span>
+              </label>
+            </>
           ) : null}
-          <Button type="button" disabled={busy || preview.toWrite.length === 0} onClick={() => void run(true)}>
+          <Button
+            type="button"
+            disabled={busy || preview.toWrite.length === 0 || (preview.unsupported.length > 0 && !acknowledgeSkipped)}
+            onClick={() => void run(true)}
+          >
             {busy ? "Saving…" : "Save reviewed trades"}
           </Button>
         </section>

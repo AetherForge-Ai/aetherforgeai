@@ -1339,7 +1339,7 @@ Source comment `pull-check:batch2-2026-10-11` is in `src/lib/route-gate.ts` and 
 
 There is no B2-7 in this batch.
 
-Auth, login logic, register logic, security headers, consent, apex, and `next.config.ts` were not edited by the combination. #309 changes the sign-in, create-account and check-your-email headings from screen-reader-only to a visible `h1`. That is the only edit in those two page files.
+Auth, login, register, security headers, consent, apex, and `next.config.ts` were not edited. `src/app/login/page.tsx` and `src/app/register/page.tsx` match develop. The visible-heading change from #309 was reverted.
 
 `/returns` is on the public route list. The performance draft added the page and the sitemap row and did not add the route, so the gate would have rewritten it to the missing page. The union keeps `/unsubscribe` (retest4), `/import` (member), `/offline`, `/help`, and moves `/headmaster` to public.
 
@@ -1348,7 +1348,7 @@ Auth, login logic, register logic, security headers, consent, apex, and `next.co
 ### Needs Lukas
 
 - D-A. The share-price vendor licence is still unconfirmed. The tape badge says "Public market data (Yahoo Finance)" and "Delayed, not a direct NZX or ASX feed". It does not say real-time, official, or licensed. `/status` still says "Equity quotes".
-- D-B. Lukas confirmed the AI provider is SuperGrok. That name is on `/trust` and in Privacy section 4, and in the processor list those two pages render (Privacy sections 5 and 6 use the same list). Reports, emails, the changelog, metadata, and every other page still say "AI". `AI_REQUEST_LINES` still says "a third-party AI service" and "does not set a retention period". No retention period is set by our code. xAI's public API security FAQ describes a 30-day default and an optional zero-data-retention setting. This branch does not state that period, because the key's setting is not in the repo.
+- D-B. Lukas confirmed the AI provider is SuperGrok. That name is on `/trust` and in Privacy section 4 only. Privacy sections 5 and 6 say "our AI provider". Reports, emails, the changelog, metadata, and every other page still say "AI". `AI_REQUEST_LINES` still says "a third-party AI service" and "does not set a retention period". No retention period is set by our code. The provider's public API security FAQ describes a 30-day default and an optional zero-data-retention setting. This branch does not state that period, because the key's setting is not in the repo.
 - D-C. No security credential is claimed. No 2FA, SOC 2, or penetration test.
 - D-D. GST stays out.
 - D-F. The tax pack stays labelled indicative. An accountant still needs to review the method before it is marketed.
@@ -1362,7 +1362,7 @@ Auth, login logic, register logic, security headers, consent, apex, and `next.co
 - Status: fixed. Draft https://github.com/AetherForge-Ai/aetherforgeai/pull/299 (`c1f19b5`, `cursor/b2-1-broker-import-ec20`).
 - Files: `src/lib/broker-import.ts`, `src/lib/broker-import-hold.ts`, `src/app/import/page.tsx`, `src/app/api/import/route.ts`, `src/components/import/BrokerImportPanel.tsx`. Source comment in `src/lib/broker-import.ts`.
 - URL / steps: sign in. Open `/import`. Load each synthetic fixture in `src/lib/fixtures/broker-import/` (Sharesies, Hatch, IBKR, generic). Read the review rows. Confirm. Import the same file again. Then load `malformed.txt`.
-- Expected: `npx vitest run src/lib/broker-import.test.ts` passes. Each broker file's imported totals match the source to the cent. A second import of the same date, ticker, side, quantity and price adds 0 rows. A foreign row with no exchange rate is left out. No rate is guessed. A malformed file returns a clear error and writes nothing. Splits and dividends in the file are listed as unsupported and are not saved. Nothing is written before confirm. An unrecognised file is held in the server process only when the member consents, and it is not emailed. Paper cash is recorded only when a buy would otherwise be short, and the note says the file did not include that balance. `/import` is a member route and is disallowed in `robots`.
+- Expected: `npx vitest run src/lib/broker-import.test.ts` passes. Each broker file's imported totals match the rows that will be saved, to the cent. Two identical same-day fills in one file are both kept. A row is a duplicate only when stored fills already cover that occurrence, so a second import of the same file adds 0 rows. A foreign row with no exchange rate is left out. No rate is guessed. A malformed file returns a clear error and writes nothing. Splits, unreadable rows, and value mismatches are listed in the review and in the totals message, and the save stays blocked until they are acknowledged. Nothing is written before confirm. An unrecognised file is held in the server process only when the member consents, and it is not emailed. A paper deposit is off unless a buy would make paper cash negative, in which case the note says so and says the deposit raises cash and changes XIRR. Turning it off leaves that buy out. The write validates first, then writes deposits and trades in date order. If a write fails, the response names exactly what was saved and says a second import skips those rows. `/import` is a member route and is disallowed in `robots`.
 
 ### B2-2 — fixed
 
@@ -1409,9 +1409,9 @@ Auth, login logic, register logic, security headers, consent, apex, and `next.co
 ### B2-11 — fixed
 
 - Status: fixed. Draft https://github.com/AetherForge-Ai/aetherforgeai/pull/309 (`c4053fd`, `cursor/b2-11-public-schema-ec20`).
-- Files: `src/lib/public-schema.ts`, `src/lib/pricing-faq.ts`, `src/app/pricing/page.tsx`, `src/app/docs/page.tsx`, `src/app/login/page.tsx`, `src/app/register/page.tsx`. Source comment in `src/lib/public-schema.ts`.
-- URL / steps: `npx vitest run src/lib/public-schema.test.ts`. View source on `/pricing` and `/docs`. Open `/login` and `/register`.
-- Expected: FAQ, breadcrumb and SoftwareApplication JSON-LD are present. Offers are NZ$0, NZ$16, NZ$49 and NZ$199, with "All prices in NZD". There is no Review or AggregateRating schema. `/docs` has a breadcrumb list. Sign-in, create-account and check-your-email use a visible `h1`. The questions live in `src/lib/pricing-faq.ts`, the same list help search uses.
+- Files: `src/lib/public-schema.ts`, `src/lib/pricing-faq.ts`, `src/app/pricing/page.tsx`, `src/app/docs/page.tsx`. Source comment in `src/lib/public-schema.ts`. Login and register match develop.
+- URL / steps: `npx vitest run src/lib/public-schema.test.ts`. View source on `/pricing` and `/docs`.
+- Expected: FAQ, breadcrumb and SoftwareApplication JSON-LD are present. Offers are NZ$0, NZ$16, NZ$49 and NZ$199, with "All prices in NZD". There is no Review or AggregateRating schema. `/docs` has a breadcrumb list. Sign-in, create-account and check-your-email keep the screen-reader headings from develop. The questions live in `src/lib/pricing-faq.ts`, the same list help search uses.
 
 ### B2-12 — fixed
 
@@ -1432,11 +1432,13 @@ Auth, login logic, register logic, security headers, consent, apex, and `next.co
 - Status: fixed, with the provider name Lukas confirmed. Draft https://github.com/AetherForge-Ai/aetherforgeai/pull/304 (`ec684cc`, `cursor/b2-5-trust-facts-ec20`).
 - Files: `src/lib/trust-facts.ts`, `src/app/trust/page.tsx`, `src/app/privacy-policy/page.tsx`. Source comment in `src/lib/trust-facts.ts`. The name SuperGrok is only in the two page files.
 - URL / steps: `npx vitest run src/lib/trust-facts.test.ts src/lib/track-b-p0.test.ts src/lib/public-surface.test.ts`. Open `/trust`. Open `/privacy-policy` and read section 4, then the processor list. Search the Stox, Koins and Headmaster pages, a report, the changelog, and a weekly-email preview for SuperGrok.
-- Expected: transport is `max-age=31536000; includeSubDomains`. Storage is "Totalum on Google Cloud" / "account storage", with no region. Retention on the page says "No retention period is set by our code." Deletion and access copy the privacy policy, including "generally 20 working days". Export is the existing ledger sentence. Breach contact is `admin@aetherforgeai.co.nz`, security.txt expires 2027-10-08, and the notifiable-breach sentence is present. The page log has 10 Oct 2026 and 11 Oct 2026. `/trust` and Privacy section 4 name SuperGrok. The processor row on those two pages says SuperGrok. `AI_REQUEST_LINES` and `AI_SENT_CATEGORIES` do not contain SuperGrok. A scan of the other public pages fails if SuperGrok, Grok, xAI, or another model name appears there. No 2FA, SOC 2, penetration test, GST, real-time, official, or licensed claim.
+- Expected: transport is `max-age=31536000; includeSubDomains`. Storage is "Totalum on Google Cloud" / "account storage", with no region. Retention on the page says "No retention period is set by our code." Deletion and access copy the privacy policy, including "generally 20 working days". Export is the existing ledger sentence. Breach contact is `admin@aetherforgeai.co.nz`, security.txt expires 2027-10-08, and the notifiable-breach sentence is present. The page log has 10 Oct 2026 and 11 Oct 2026. `/trust` and Privacy section 4 name SuperGrok. Privacy sections 5 and 6 say "our AI provider" and do not use that name. `AI_REQUEST_LINES` and `AI_SENT_CATEGORIES` do not contain SuperGrok. A scan of the other public pages, emails, and reports fails if SuperGrok or another model name appears there. No 2FA, SOC 2, penetration test, GST, real-time, official, or licensed claim.
 
 ### Checks
 
-On `cursor/batch2-combined-adbc` from develop `47f44d9`, after the cherry-picks, the SuperGrok sentences, and the ours merge of `origin/main` `b886b2f`: `npm test` 133 files, 613 tests passed. The first run failed one assertion. `src/lib/plan-usage.test.ts` still read `/settings/billing` from `PricingFAQ.tsx` after the questions moved to `src/lib/pricing-faq.ts`. The assertion now reads the shared module and checks the component still renders `PRICING_FAQS`. Recheck: 613 tests passed. `npm run check-types-errors` passed. `npm run build` passed (Next.js 15.3.9). Nothing was published. No email was sent. A search for `pegasus`, `lakeside`, and `7612` outside `src/data/listings` returned zero hits.
+On `cursor/batch2-combined-adbc` from develop `47f44d9`, after the cherry-picks, the SuperGrok sentences, and the ours merge of `origin/main` `b886b2f`: `npm test` 133 files, 613 tests passed. `npm run check-types-errors` passed. `npm run build` passed (Next.js 15.3.9). Nothing was published. No email was sent. A search for the removed street, suburb and postcode outside the listing data returned zero hits.
+
+Review fixes on the same branch: login and register match develop. SuperGrok stays on `/trust` and in Privacy section 4. The processor list says "our AI provider". Broker import counts duplicate occurrences, totals only the rows that will be saved, lists skipped rows and blocks the save until they are acknowledged, and makes the paper deposit opt-in unless cash would go negative. The checks below are filled after the retest.
 
 
 
