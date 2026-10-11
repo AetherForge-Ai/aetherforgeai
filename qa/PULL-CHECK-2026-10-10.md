@@ -20,6 +20,7 @@ Markers:
 - `pull-check:address-removed-2026-10-11`
 - `pull-check:stock-markets-full-2026-10-11`
 - `pull-check:batch1-2026-10-11`
+- `pull-check:fonts-local-2026-10-11`
 
 Branch: `cursor/qa-m10-m15-l6-l17-b236`
 PR: https://github.com/AetherForge-Ai/aetherforgeai/pull/247
@@ -1260,6 +1261,20 @@ Local, on each draft branch, after the fixes below. `npm test` is `vitest run`. 
 
 Combined branch `cursor/batch1-combined-7f63` from develop `2976445`, after the merges above and the ours merge of `origin/main` `26442b3`: `npm test` 121 files, 579 tests passed. `npm run check-types-errors` passed. `npm run build` passed (Next.js 15.3.9). No Batch 1 behavior was rewritten to resolve a conflict. `src/app/layout.tsx` kept the address removal and the skip link. `src/lib/track-b-p0.test.ts` kept the develop assertions and the "does not report uptime" line. `src/lib/market-data.ts` and `src/lib/public-market-index.ts` stayed as on develop.
 
+## Local fonts — 11 Oct 2026
+
+Marker: `pull-check:fonts-local-2026-10-11`
+
+Source comment: `pull-check:fonts-local-2026-10-11` in `src/app/layout.tsx`.
+
+Sora, Manrope, and JetBrains Mono are latin variable woff2 files in `src/app/fonts/`. `src/app/layout.tsx` loads them with `next/font/local`. The build does not import `next/font/google` and does not request `fonts.googleapis.com`. Each face is under the SIL Open Font Licence, Version 1.1. The licence text is shipped beside the file: `src/app/fonts/sora-OFL.txt`, `src/app/fonts/manrope-OFL.txt`, and `src/app/fonts/jetbrains-mono-OFL.txt`.
+
+- Files: `src/app/layout.tsx`, `src/app/fonts/sora-latin.woff2`, `src/app/fonts/manrope-latin.woff2`, `src/app/fonts/jetbrains-mono-latin.woff2`, and the three licence texts. `next.config.ts`, security headers, and `preserveDynamicSegmentTraces` were not edited.
+- URL / steps: open `/` and view source. Search the page source for `fonts.googleapis.com`. Read a heading, a paragraph, and a monospace figure.
+- Expected: view-source shows no `fonts.googleapis.com`. CSS variables stay `--font-display` (Sora 500–800), `--font-body` (Manrope 400–700), and `--font-mono-custom` (JetBrains Mono 400–600), with `font-display: swap`. Fonts look unchanged.
+
+Checks on this branch, with `fonts.googleapis.com` and `fonts.gstatic.com` pointed at `127.0.0.1`: `npm test` 121 files, 579 tests passed. `npm run check-types-errors` passed. `npm run build` passed (Next.js 15.3.9). Built CSS sets those three variables from `/_next/static/media/*.woff2`. Those files match the latin sources byte for byte. `next start` homepage HTML has no `fonts.googleapis.com` and no `fonts.gstatic.com`. Nothing was published.
+
 ## pull-check:retest4-2026-10-11
 
 Research retest of develop `2976445`, implemented from develop `48d2f2a1`. Draft only. Not merged. No Publish. No Totalum AI Pull. No GST. Public copy says AI. Crypto projections stay paused. `SWYFTX_PUBLIC_DISPLAY` is unchanged and off unless that env value is set. Auth, login, register, security headers, consent, apex, and `next.config` were not edited. No new database column. No invented price, market cap, or volume.
@@ -1326,6 +1341,5 @@ Research retest of develop `2976445`, implemented from develop `48d2f2a1`. Draft
 ### Checks
 
 On `cursor/retest4-markets-dex-49e4`: `npm test` 122 files, 584 tests passed. `npm run check-types-errors` passed. `npm run build` passed (Next.js 15.3.9). The first typecheck failed because `equityFallback` set `asOf` twice. That second key was removed. After the DexScreener display gate: `npm test` 123 files, 587 tests passed. `npm run check-types-errors` passed. `npm run build` passed. Nothing was published. No email was sent.
-
 
 
