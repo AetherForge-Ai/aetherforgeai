@@ -31,11 +31,16 @@ describe("B2-1 broker import", () => {
     expect(write).toBeGreaterThan(check);
     expect(route).toContain("importFailureReport");
     expect(route).toContain("importWriteOrder");
-    expect(route).toContain("fundBuys");
+    expect(route).toContain("body.fundBuys === true");
+    const planner = readFileSync(path.join(process.cwd(), "src/lib/broker-import.ts"), "utf8");
+    expect(planner).toContain("options?.fundBuys === true");
+    const panel = readFileSync(path.join(process.cwd(), "src/components/import/BrokerImportPanel.tsx"), "utf8");
+    expect(panel).toContain("const [fundBuys, setFundBuys] = useState(false)");
+    expect(panel).toContain("checked={fundBuys}");
   });
 
   it("imports the synthetic Sharesies file and matches the source to the cent", () => {
-    const plan = planBrokerImport(fixture("sharesies.csv"));
+    const plan = planBrokerImport(fixture("sharesies.csv"), { fundBuys: true });
     expect(plan.error).toBeNull();
     expect(plan.broker).toBe("sharesies");
     expect(plan.toWrite.map((row) => `${row.side}:${row.ticker}`)).toEqual(["buy:AIR.NZ", "sell:AAPL"]);
@@ -55,7 +60,7 @@ describe("B2-1 broker import", () => {
   });
 
   it("imports the synthetic Hatch file", () => {
-    const plan = planBrokerImport(fixture("hatch.csv"));
+    const plan = planBrokerImport(fixture("hatch.csv"), { fundBuys: true });
     expect(plan.error).toBeNull();
     expect(plan.broker).toBe("hatch");
     expect(plan.toWrite).toHaveLength(2);
@@ -65,7 +70,7 @@ describe("B2-1 broker import", () => {
   });
 
   it("imports the synthetic IBKR file", () => {
-    const plan = planBrokerImport(fixture("ibkr.csv"));
+    const plan = planBrokerImport(fixture("ibkr.csv"), { fundBuys: true });
     expect(plan.error).toBeNull();
     expect(plan.broker).toBe("ibkr");
     expect(plan.toWrite.map((row) => `${row.date}:${row.side}:${row.ticker}`)).toEqual([
@@ -86,6 +91,7 @@ describe("B2-1 broker import", () => {
     expect(unmapped.toWrite).toHaveLength(0);
 
     const plan = planBrokerImport(text, {
+      fundBuys: true,
       mapping: {
         date: "When",
         ticker: "Code",
@@ -170,7 +176,7 @@ describe("B2-1 broker import", () => {
     const text = ["Date,Type,Instrument code,Quantity,Price,Value,Currency", "15/01/2026,Buy,AIR.NZ,10,2.00,20.00,NZD"].join(
       "\n"
     );
-    const funded = planBrokerImport(text, { openingCashNzd: 0 });
+    const funded = planBrokerImport(text, { openingCashNzd: 0, fundBuys: true });
     expect(funded.fundingNeeded).toBe(true);
     expect(funded.fundingDeposits).toHaveLength(1);
     expect(funded.toWrite).toHaveLength(1);
@@ -200,7 +206,7 @@ describe("B2-1 broker import", () => {
     expect(validateImportForWrite(plan, true)).toBeNull();
     const order = importWriteOrder(plan);
     expect(order.map((step) => step.kind)).toEqual(["trade"]);
-    const funded = planBrokerImport(text, { openingCashNzd: 0 });
+    const funded = planBrokerImport(text, { openingCashNzd: 0, fundBuys: true });
     const fundedOrder = importWriteOrder(funded);
     expect(fundedOrder.map((step) => step.kind)).toEqual(["deposit", "trade"]);
     expect(fundedOrder[0].date <= fundedOrder[1].date).toBe(true);
@@ -218,6 +224,25 @@ describe("B2-1 broker import", () => {
     expect(
       importFailureReport({ cause: "The book rejected the row.", writtenTrades: [], writtenDeposits: [] })
     ).toMatch(/Nothing was saved/);
+  });
+
+  it("leaves funding off unless fundBuys is true", () => {
+    const plan = planBrokerImport(fixture("sharesies.csv"));
+    expect(plan.fundingDeposits).toHaveLength(0);
+    expect(plan.fundingNeeded).toBe(true);
+    expect(plan.toWrite.map((row) => `${row.side}:${row.ticker}`)).toEqual(["sell:AAPL"]);
+    expect(plan.importedTotals).toEqual({ USD: 361 });
+    expect(plan.sourceTotals).toEqual({ NZD: 65, USD: 361 });
+    const reasons = plan.unsupported.map((row) => row.reason).join(" ");
+    expect(reasons).toMatch(/was not chosen/);
+    expect(reasons).toMatch(/XIRR/);
+    expect(reasons).toMatch(/Dividend/);
+    expect(reasons).toMatch(/Split/);
+    expect(plan.totalsMessage).toMatch(/was not chosen/);
+    expect(importWrites(plan)).toBe(false);
+    expect(validateImportForWrite(plan, false)).toMatch(/Acknowledge/);
+    expect(importWrites(plan, true)).toBe(true);
+    expect(validateImportForWrite(plan, true)).toBeNull();
   });
 
   it("writes nothing for a malformed file", () => {

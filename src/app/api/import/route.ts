@@ -111,7 +111,7 @@ export async function POST(req: Request) {
 
     const mapping = mappingOf(body.mapping);
     const acknowledgeSkipped = body.acknowledgeSkipped === true;
-    const fundBuys = body.fundBuys === false ? false : body.fundBuys === true ? true : undefined;
+    const fundBuys = body.fundBuys === true;
     const openingCashNzd = typeof user.cash_balance === "number" ? user.cash_balance : 0;
     const preview = planBrokerImport(text, { mapping, openingCashNzd, fundBuys });
     if (body.confirm !== true || !importWrites(preview, acknowledgeSkipped)) {

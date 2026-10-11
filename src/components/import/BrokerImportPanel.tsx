@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
-import type { ImportPlan, ImportTrade } from "@/lib/broker-import";
+import { FUNDING_DISCLOSURE, type ImportPlan, type ImportTrade } from "@/lib/broker-import";
 
 type Preview = {
   broker: ImportPlan["broker"];
@@ -43,7 +43,7 @@ export function BrokerImportPanel() {
   const [busy, setBusy] = useState(false);
   const [consent, setConsent] = useState(false);
   const [acknowledgeSkipped, setAcknowledgeSkipped] = useState(false);
-  const [fundBuys, setFundBuys] = useState<boolean | undefined>(undefined);
+  const [fundBuys, setFundBuys] = useState(false);
 
   async function readFile(file: File) {
     const body = await file.text();
@@ -53,7 +53,7 @@ export function BrokerImportPanel() {
     setMessage("");
     setConsent(false);
     setAcknowledgeSkipped(false);
-    setFundBuys(undefined);
+    setFundBuys(false);
   }
 
   async function run(confirm: boolean, choice?: { fundBuys?: boolean; acknowledgeSkipped?: boolean }) {
@@ -179,16 +179,18 @@ export function BrokerImportPanel() {
                 id="import-fund"
                 type="checkbox"
                 className="mt-1"
-                checked={preview.fundingDeposits.length > 0}
+                checked={fundBuys}
                 onChange={(event) => {
                   const next = event.target.checked;
                   setFundBuys(next);
-                  void run(false, { fundBuys: next });
+                  setAcknowledgeSkipped(false);
+                  void run(false, { fundBuys: next, acknowledgeSkipped: false });
                 }}
               />
               <span>
-                {preview.fundingDeposits[0]?.note ||
-                  "Leave this off and a buy that would make paper cash negative is not saved. A paper deposit adds that amount to paper cash. It is not money from the broker file. XIRR counts a deposit as money you added, so the money-weighted return changes."}
+                {fundBuys && preview.fundingDeposits[0]
+                  ? preview.fundingDeposits[0].note
+                  : `This starts unticked. A buy that would make paper cash negative is left out until you tick this. ${FUNDING_DISCLOSURE}`}
               </span>
             </label>
           ) : null}

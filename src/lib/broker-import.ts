@@ -207,7 +207,7 @@ function currencyOf(raw: string, ticker: string): ImportCurrency | null {
  * `existingKeys` are duplicate keys already on the book, one per stored fill.
  * Two identical fills in this file are both kept until stored fills cover them.
  * `openingCashNzd` is the paper cash available before this file.
- * `fundBuys` defaults to on only when a buy would make cash negative.
+ * `fundBuys` is off unless it is exactly true. A buy that would make paper cash negative is then skipped and listed.
  * An error plan writes nothing: no trades and no funding deposit.
  */
 export function planBrokerImport(
@@ -216,7 +216,7 @@ export function planBrokerImport(
     mapping?: ColumnMap;
     existingKeys?: Iterable<string>;
     openingCashNzd?: number;
-    /** False leaves out buys that would make paper cash negative. */
+    /** True records a paper deposit so a buy does not make cash negative. Off unless exactly true. */
     fundBuys?: boolean;
   }
 ): ImportPlan {
@@ -331,7 +331,7 @@ export function planBrokerImport(
   const fileError = rows.length === 0 ? "No buy or sell rows could be read. Nothing was written." : null;
   const cash = fileError
     ? { toWrite: [] as ImportTrade[], deposits: [] as ImportPlan["fundingDeposits"], skipped: [] as UnsupportedRow[], fundingNeeded: false }
-    : applyCash(fresh, options?.openingCashNzd ?? 0, options?.fundBuys !== false);
+    : applyCash(fresh, options?.openingCashNzd ?? 0, options?.fundBuys === true);
   const skipped = [...unsupported, ...cash.skipped];
   const importedTotals: Record<string, number> = {};
   for (const row of cash.toWrite) addTotal(importedTotals, row.currency, row.nativeValue);
