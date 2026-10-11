@@ -4,6 +4,8 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { PricingCards } from "@/components/pricing/PricingCards";
 import { FeatureComparison } from "@/components/pricing/FeatureComparison";
 import { PricingFAQ } from "@/components/pricing/PricingFAQ";
+import { JsonLd } from "@/components/public/JsonLd";
+import { breadcrumbJsonLd, faqJsonLd, softwareApplicationJsonLd } from "@/lib/public-schema";
 import { DisclaimerNotice } from "@/components/legal/DisclaimerNotice";
 import { APEX_DUAL_PUBLIC_NOTE, PUBLISHED_PLAN_PRICES } from "@/lib/plan-usage";
 import { PRICING_TIERS } from "@/lib/plans";
@@ -84,6 +86,14 @@ export default async function PricingPage() {
     <div className="relative min-h-screen bg-grid">
       <div className="pointer-events-none absolute inset-0 bg-aurora" />
       <PricingSchema />
+      <JsonLd data={faqJsonLd()} />
+      <JsonLd data={softwareApplicationJsonLd()} />
+      <JsonLd
+        data={breadcrumbJsonLd([
+          { name: "Home", path: "/" },
+          { name: "Pricing", path: "/pricing" },
+        ])}
+      />
       <div className="relative">
         <SiteHeader />
 

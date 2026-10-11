@@ -20,6 +20,8 @@ Markers:
 - `pull-check:address-removed-2026-10-11`
 - `pull-check:stock-markets-full-2026-10-11`
 - `pull-check:batch1-2026-10-11`
+- `pull-check:retest4-2026-10-11`
+- `pull-check:batch2-2026-10-11`
 
 Branch: `cursor/qa-m10-m15-l6-l17-b236`
 PR: https://github.com/AetherForge-Ai/aetherforgeai/pull/247
@@ -1326,6 +1328,117 @@ Research retest of develop `2976445`, implemented from develop `48d2f2a1`. Draft
 ### Checks
 
 On `cursor/retest4-markets-dex-49e4`: `npm test` 122 files, 584 tests passed. `npm run check-types-errors` passed. `npm run build` passed (Next.js 15.3.9). The first typecheck failed because `equityFallback` set `asOf` twice. That second key was removed. After the DexScreener display gate: `npm test` 123 files, 587 tests passed. `npm run check-types-errors` passed. `npm run build` passed. Nothing was published. No email was sent.
+
+## Batch 2 — 11 Oct 2026
+
+<!-- pull-check:batch2-2026-10-11 -->
+
+Marker: `pull-check:batch2-2026-10-11`
+
+Source comment `pull-check:batch2-2026-10-11` is in `src/lib/route-gate.ts` and in this section. Each item below also has `pull-check:batch2-2026-10-11 B2-N` in the file named under that item (B2-3 was added beside the existing `pull-check:track-b-2-2026-10-11` line in `src/lib/dividend-ledger.ts`). The combined branch is `cursor/batch2-combined-adbc`, taken from develop `47f44d9` (Batch 1 combined `48d2f2a`, stock markets, crypto and DEX, retest4). The eleven draft pull requests stay open and are superseded by this branch. They are not merged. `origin/main` (`b886b2f`) is recorded with the ours strategy so the mirror history is joined and the tree stays this branch. Nothing was published. No Totalum AI Pull. No email was sent. No new database columns. Prices stay NZ$0 / NZ$16 / NZ$49 / NZ$199, all in NZD. Crypto projections stay paused. `SWYFTX_PUBLIC_DISPLAY` and `DEXSCREENER_PUBLIC_DISPLAY` stay off unless those env values are set. Contacts stay `admin@aetherforgeai.co.nz` and `lukas@aetherforgeai.co.nz`.
+
+There is no B2-7 in this batch.
+
+Auth, login, register, security headers, consent, apex, and `next.config.ts` were not edited. `src/app/login/page.tsx` and `src/app/register/page.tsx` match develop. The visible-heading change from #309 was reverted.
+
+`/returns` is on the public route list. The performance draft added the page and the sitemap row and did not add the route, so the gate would have rewritten it to the missing page. The union keeps `/unsubscribe` (retest4), `/import` (member), `/offline`, `/help`, and moves `/headmaster` to public.
+
+`src/lib/pricing-faq.ts` is one module. FAQ schema and help search both read `PRICING_FAQS`. Docs keeps the breadcrumb JSON-LD and renders `DOC_LINKS`, including the Return link.
+
+### Needs Lukas
+
+- D-A. The share-price vendor licence is still unconfirmed. The tape badge says "Public market data (Yahoo Finance)" and "Delayed, not a direct NZX or ASX feed". It does not say real-time, official, or licensed. `/status` still says "Equity quotes".
+- D-B. Lukas confirmed the AI provider is SuperGrok. That name is on `/trust` and in Privacy section 4 only. Privacy sections 5 and 6 say "our AI provider". Reports, emails, the changelog, metadata, and every other page still say "AI". `AI_REQUEST_LINES` still says "a third-party AI service" and "does not set a retention period". No retention period is set by our code. The provider's public API security FAQ describes a 30-day default and an optional zero-data-retention setting. This branch does not state that period, because the key's setting is not in the repo.
+- D-C. No security credential is claimed. No 2FA, SOC 2, or penetration test.
+- D-D. GST stays out.
+- D-F. The tax pack stays labelled indicative. An accountant still needs to review the method before it is marketed.
+- D-G. Holding caps, trial, and refund policy were not changed.
+- Publish. No production Publish was made.
+- DexScreener stays off until `DEXSCREENER_PUBLIC_DISPLAY` is set.
+- DNS, SPF, and the weekly email stay as previously noted. The weekly email stays hard-off. Holding-watch notices stay a preview. `sent` is false. No email was sent.
+
+### B2-1 — fixed
+
+- Status: fixed. Draft https://github.com/AetherForge-Ai/aetherforgeai/pull/299 (`c1f19b5`, `cursor/b2-1-broker-import-ec20`).
+- Files: `src/lib/broker-import.ts`, `src/lib/broker-import-hold.ts`, `src/app/import/page.tsx`, `src/app/api/import/route.ts`, `src/components/import/BrokerImportPanel.tsx`. Source comment in `src/lib/broker-import.ts`.
+- URL / steps: sign in. Open `/import`. Load each synthetic fixture in `src/lib/fixtures/broker-import/` (Sharesies, Hatch, IBKR, generic). Read the review rows. Confirm. Import the same file again. Then load `malformed.txt`.
+- Expected: `npx vitest run src/lib/broker-import.test.ts` passes. Each broker file's imported totals match the rows that will be saved, to the cent. Two identical same-day fills in one file are both kept. A row is a duplicate only when stored fills already cover that occurrence, so a second import of the same file adds 0 rows. A foreign row with no exchange rate is left out. No rate is guessed. A malformed file returns a clear error and writes nothing. Splits, unreadable rows, and value mismatches are listed in the review and in the totals message, and the save stays blocked until they are acknowledged. Nothing is written before confirm. An unrecognised file is held in the server process only when the member consents, and it is not emailed. A paper deposit is off unless a buy would make paper cash negative, in which case the note says so and says the deposit raises cash and changes XIRR. Turning it off leaves that buy out. The write validates first, then writes deposits and trades in date order. If a write fails, the response names exactly what was saved and says a second import skips those rows. `/import` is a member route and is disallowed in `robots`.
+
+### B2-2 — fixed
+
+- Status: fixed. Draft https://github.com/AetherForge-Ai/aetherforgeai/pull/300 (`b5e6ca3`, `cursor/b2-2-performance-maths-ec20`).
+- Files: `src/lib/performance-math.ts`, `src/app/returns/page.tsx`, `src/lib/fixtures/performance-golden.json`. Source comment in `src/lib/performance-math.ts`.
+- URL / steps: `npx vitest run src/lib/performance-math.test.ts`. Open `/returns` signed out. Read `/sitemap.xml` for `/returns`.
+- Expected: the 20-transaction example matches an independent solver within 0.01%. Two 10% periods link to 21% time-weighted. Empty and single-deposit books are handled. XIRR uses a 365-day year and the spreadsheet sign convention. The benchmark label is delayed public market data, not a direct NZX or ASX feed. Periods are 1 month, 3 months, calendar year to date, 1 year, and since the first cash flow. `/returns` shows a figure only for a cash-only book whose balance equals deposits minus withdrawals. A book with holdings is left blank. Every figure shows its as-of date and source. `/returns` is public and is in the sitemap. Docs links to it.
+
+### B2-3 — fixed
+
+- Status: fixed. Draft https://github.com/AetherForge-Ai/aetherforgeai/pull/301 (`dc2182c`, `cursor/b2-3-dividend-income-ec20`).
+- Files: `src/lib/dividend-ledger.ts`, `src/components/tax/DividendLedgerView.tsx`. Source comment in `src/lib/dividend-ledger.ts`.
+- URL / steps: `npx vitest run src/lib/dividend-ledger.test.ts`. Signed in, open `/tax/dividends` with one NZ dividend that has imputation credits, one US dividend with 15% withholding, and one DRP.
+- Expected: income is grouped by month and by the 1 April–31 March tax year. DRP lines are listed on their own. Total return is net cash plus DRP. Imputation credits stay out of cash. Expected dividends are only dates the member types. Trailing yield on cost and on value is calculated when both bases are supplied, and left blank when they are not. CSV totals equal the page. 31 March stays in the earlier tax year. 1 April starts the next. The indicative label stays on the page and the CSV. This is not an accountant sign-off.
+
+### B2-4 — fixed
+
+- Status: fixed. Draft https://github.com/AetherForge-Ai/aetherforgeai/pull/302 (`ae021b6`, `cursor/b2-4-tax-pack-ec20`).
+- Files: `src/lib/tax-pack.ts`, `src/app/api/tax/pack/pdf/route.ts`, `src/app/api/tax/fif/export/route.ts`, `src/app/api/tax/crypto/export/route.ts`. Source comment in `src/lib/tax-pack.ts`.
+- URL / steps: `npx vitest run src/lib/tax-pack.test.ts`. On a paid plan, open `/tax/fif`, `/tax/realised`, `/tax/income`, and `/tax/dividends` and use the PDF control. Export the FIF CSV for a foreign buy with no stored exchange rate. Export the crypto disposal CSV for the example ETH book.
+- Expected: every PDF starts with "Indicative, not tax advice." and "This pack is not an accountant sign-off." The missing-FX FIF peak-cost cell is blank and repeats the on-screen reason. The example ETH book is proceeds NZ$255.00, cost NZ$160.00, FIFO NZ$95.00. Completeness lists "Buys missing FX rate" and "Dividends missing gross". The paid-plan gate matches the existing CSV exports. Free still does not download. No GST. No model name.
+
+### B2-6 — fixed
+
+- Status: fixed. Draft https://github.com/AetherForge-Ai/aetherforgeai/pull/306 (`ad48536`, `cursor/b2-6-price-badges-ec20`).
+- Files: `src/lib/price-confidence.ts`, `src/components/PriceConfidenceBadge.tsx`, `src/components/MarketTicker.tsx`. Source comment in `src/lib/price-confidence.ts`.
+- URL / steps: `npx vitest run src/lib/price-confidence.test.ts`. Open `/` and read the market tape badge (the coloured dot, and the screen-reader text).
+- Expected: each price has a source, a delay, a last-updated time, and a green, amber, or red mark. Amber means the last refresh did not return a quote and the previous print is still on screen. Red means two refreshes missed, or there is no quote. The why sentence is in the badge. Equity copy is "Public market data (Yahoo Finance)" and "Delayed, not a direct NZX or ASX feed". It does not say real-time, official, or licensed.
+
+### B2-8 — fixed
+
+- Status: fixed. Preview only. Draft https://github.com/AetherForge-Ai/aetherforgeai/pull/307 (`334cda4`, `cursor/b2-8-alerts-preview-ec20`).
+- Files: `src/lib/holding-alert.ts`, `src/app/api/alerts/preview/route.ts`. Source comment in `src/lib/holding-alert.ts`.
+- URL / steps: `npx vitest run src/lib/holding-alert.test.ts`. Signed in, `POST /api/alerts/preview` with a price-level, a percent-move, a news line, and a user-entered ex-dividend date. Repeat with a clock inside 22:00–07:00 Pacific/Auckland.
+- Expected: each notice includes the source, the time, and an unsubscribe pause. Quiet hours hold the notice. `sent` is always false. The module does not call a mailer. The route does not send email. No weekly email is sent.
+
+### B2-9 — fixed
+
+- Status: fixed. Draft https://github.com/AetherForge-Ai/aetherforgeai/pull/308 (`9b33465`, `cursor/b2-9-pwa-shell-ec20`).
+- Files: `public/sw.js`, `public/site.webmanifest`, `public/brand/aetherforge-icon-192.png`, `src/app/offline/page.tsx`, `src/lib/web-push.ts`. Source comment in `src/lib/web-push.ts`.
+- URL / steps: `npx vitest run src/lib/pwa-shell.test.ts`. Open `/offline`. Read the manifest icons.
+- Expected: the manifest names a 192px icon taken from the existing 512px mark. `/offline` is public, says the shell is stale, and shows the last time this browser stored the shell. Holdings are not on that page. `webPushConfigured` is true only when both `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` are set. No key is invented. The worker does not subscribe.
+
+### B2-11 — fixed
+
+- Status: fixed. Draft https://github.com/AetherForge-Ai/aetherforgeai/pull/309 (`c4053fd`, `cursor/b2-11-public-schema-ec20`).
+- Files: `src/lib/public-schema.ts`, `src/lib/pricing-faq.ts`, `src/app/pricing/page.tsx`, `src/app/docs/page.tsx`. Source comment in `src/lib/public-schema.ts`. Login and register match develop.
+- URL / steps: `npx vitest run src/lib/public-schema.test.ts`. View source on `/pricing` and `/docs`.
+- Expected: FAQ, breadcrumb and SoftwareApplication JSON-LD are present. Offers are NZ$0, NZ$16, NZ$49 and NZ$199, with "All prices in NZD". There is no Review or AggregateRating schema. `/docs` has a breadcrumb list. Sign-in, create-account and check-your-email keep the screen-reader headings from develop. The questions live in `src/lib/pricing-faq.ts`, the same list help search uses.
+
+### B2-12 — fixed
+
+- Status: fixed. Draft https://github.com/AetherForge-Ai/aetherforgeai/pull/310 (`5307375`, `cursor/b2-12-help-rss-ec20`).
+- Files: `src/app/help/page.tsx`, `src/lib/help-index.ts`, `src/app/rss.xml/route.ts`. Source comment in `src/lib/help-index.ts`.
+- URL / steps: `npx vitest run src/lib/help-rss.test.ts`. Open `/help` and search for "refund" and for "privacy". Open `/rss.xml`. Search `/sitemap.xml` for `help`, `blog`, and `projections`.
+- Expected: search hits the docs links and the pricing questions. A refund search finds "Do you offer refunds?". A privacy search finds `/privacy-policy`. The page does not publish an email response-time promise. Contact is `admin@aetherforgeai.co.nz`. `/help` is public and in the sitemap. `/blog` and `/projections` stay off the sitemap. RSS 2.0 item count matches the changelog. Status is 200. The feed contains "11 Oct 2026".
+
+### B2-10 — fixed
+
+- Status: fixed. Draft https://github.com/AetherForge-Ai/aetherforgeai/pull/311 (`0535d9d`, `cursor/b2-10-bot-guides-ec20`).
+- Files: `src/lib/bot-guides.ts`, `src/components/public/BotGuide.tsx`, `src/app/stox/page.tsx`, `src/app/koins/page.tsx`, `src/app/smitty/page.tsx`, `src/app/headmaster/page.tsx`. Source comment in `src/lib/bot-guides.ts`.
+- URL / steps: `npx vitest run src/lib/bot-guides.test.ts`. Open `/stox`, `/koins`, `/smitty`, and `/headmaster` while signed out.
+- Expected: each method note is at least 600 words. Two existing brand illustrations have alt text. The example book is read-only. Every example row is labelled Example and uses EXAMPLE.NZ and EXAMPLE-COIN. No price or profit is shown. Crypto projections stay paused. Share prices stay described as public delayed Yahoo Finance data, not a direct NZX or ASX feed. No model is named. Signed-out visitors can read `/headmaster`. The member console still renders only after sign-in. `/headmaster` is public in the route list and stays no-store.
+
+### B2-5 — fixed
+
+- Status: fixed, with the provider name Lukas confirmed. Draft https://github.com/AetherForge-Ai/aetherforgeai/pull/304 (`ec684cc`, `cursor/b2-5-trust-facts-ec20`).
+- Files: `src/lib/trust-facts.ts`, `src/app/trust/page.tsx`, `src/app/privacy-policy/page.tsx`. Source comment in `src/lib/trust-facts.ts`. The name SuperGrok is only in the two page files.
+- URL / steps: `npx vitest run src/lib/trust-facts.test.ts src/lib/track-b-p0.test.ts src/lib/public-surface.test.ts`. Open `/trust`. Open `/privacy-policy` and read section 4, then the processor list. Search the Stox, Koins and Headmaster pages, a report, the changelog, and a weekly-email preview for SuperGrok.
+- Expected: transport is `max-age=31536000; includeSubDomains`. Storage is "Totalum on Google Cloud" / "account storage", with no region. Retention on the page says "No retention period is set by our code." Deletion and access copy the privacy policy, including "generally 20 working days". Export is the existing ledger sentence. Breach contact is `admin@aetherforgeai.co.nz`, security.txt expires 2027-10-08, and the notifiable-breach sentence is present. The page log has 10 Oct 2026 and 11 Oct 2026. `/trust` and Privacy section 4 name SuperGrok. Privacy sections 5 and 6 say "our AI provider" and do not use that name. `AI_REQUEST_LINES` and `AI_SENT_CATEGORIES` do not contain SuperGrok. A scan of the other public pages, emails, and reports fails if SuperGrok or another model name appears there. No 2FA, SOC 2, penetration test, GST, real-time, official, or licensed claim.
+
+### Checks
+
+On `cursor/batch2-combined-adbc` from develop `47f44d9`, after the cherry-picks, the SuperGrok sentences, and the ours merge of `origin/main` `b886b2f`: `npm test` 133 files, 613 tests passed. `npm run check-types-errors` passed. `npm run build` passed (Next.js 15.3.9). Nothing was published. No email was sent. A search for the removed street, suburb and postcode outside the listing data returned zero hits.
+
+Review fixes on the same branch, head after this note. `origin/develop` was already `47f44d9`, so the merge added nothing. Login and register match develop. SuperGrok stays on `/trust` and in Privacy section 4. Privacy sections 5 and 6 say "our AI provider". Broker import counts duplicate occurrences, totals only the rows that will be saved, lists skipped rows and blocks the save until they are acknowledged, and makes the paper deposit opt-in unless cash would go negative. After those fixes: `npm test` 133 files, 617 tests passed. `npm run check-types-errors` passed. `npm run build` passed (Next.js 15.3.9). Nothing was published. No email was sent. The tracked-file search for the removed street, suburb and postcode, outside the listing data, returned zero hits.
 
 
 

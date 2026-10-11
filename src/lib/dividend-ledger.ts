@@ -6,6 +6,7 @@
  * the payment currency, at the payment date.
  *
  * pull-check:track-b-2-2026-10-11
+ * pull-check:batch2-2026-10-11 B2-3
  */
 
 import {
@@ -13,6 +14,8 @@ import {
   roundMoney,
   type CurrencyCode,
 } from "@/lib/currency";
+import { lotCivilDay } from "@/lib/executed-at";
+import { nzTaxYearEnding, nzTaxYearLabel } from "@/lib/nz-tax-year";
 import { TAX_INDICATIVE_LABEL } from "@/lib/tax-disclaimer";
 
 export type { CurrencyCode };
@@ -330,4 +333,156 @@ export function dividendCsv(rows: readonly DividendView[], formatDate: (value: s
       .join(",")
   );
   return lines.join("\n");
+}
+
+export interface MonthIncome {
+  month: string;
+  grossNzd: number;
+  imputationNzd: number;
+  withholdingNzd: number;
+  drpNzd: number;
+  netCashNzd: number;
+}
+
+export interface YearIncome {
+  endingYear: number;
+  label: string;
+  grossNzd: number;
+  imputationNzd: number;
+  withholdingNzd: number;
+  drpNzd: number;
+  netCashNzd: number;
+  /** Net cash plus DRP. Imputation credits are not included. */
+  totalReturnNzd: number;
+}
+
+export interface ExpectedDividend {
+  date: string;
+  ticker: string;
+  amountNzd: number | null;
+}
+
+export interface DividendIncome {
+  months: MonthIncome[];
+  years: YearIncome[];
+  drp: DividendView[];
+  cashNzd: number;
+  totalReturnNzd: number;
+  trailingGrossNzd: number;
+  /** Trailing gross divided by cost. Null when cost was not supplied. */
+  yieldOnCost: number | null;
+  /** Trailing gross divided by value. Null when value was not supplied. */
+  yieldOnValue: number | null;
+}
+
+function civilDay(value: string): string {
+  const day = lotCivilDay(value, "");
+  return /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : "";
+}
+
+function shiftYears(iso: string, years: number): string | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!match) return null;
+  const date = new Date(Date.UTC(Number(match[1]) + years, Number(match[2]) - 1, Number(match[3])));
+  return date.toISOString().slice(0, 10);
+}
+
+/** A date the member typed. A blank date is refused. No calendar is consulted. */
+export function expectedDividend(input: {
+  date: string;
+  ticker: string;
+  amountNzd?: number | null;
+}): ExpectedDividend | null {
+  const date = civilDay(input.date);
+  const ticker = input.ticker.trim().toUpperCase();
+  if (!date || !ticker) return null;
+  if (input.amountNzd == null) return { date, ticker, amountNzd: null };
+  if (!Number.isFinite(input.amountNzd) || input.amountNzd < 0) return null;
+  return { date, ticker, amountNzd: roundMoney(input.amountNzd) };
+}
+
+/**
+ * Income by month and tax year, DRP lines, cash, and trailing yield.
+ * Yield is omitted when cost or value is missing. Dates are not invented.
+ */
+export function dividendIncome(
+  rows: readonly DividendView[],
+  options?: { asOf?: string; costNzd?: number | null; valueNzd?: number | null }
+): DividendIncome {
+  const months = new Map<string, MonthIncome>();
+  const years = new Map<number, YearIncome>();
+  const drp: DividendView[] = [];
+  let cashNzd = 0;
+  let totalReturnNzd = 0;
+  const asOf = options?.asOf && civilDay(options.asOf) ? civilDay(options.asOf) : "";
+  const windowStart = asOf ? shiftYears(asOf, -1) : null;
+  let trailingGrossNzd = 0;
+
+  for (const row of rows) {
+    const day = civilDay(row.when);
+    const parts = row.parts;
+    const net = parts ? parts.netCashNzd : row.cashNzd;
+    cashNzd = roundMoney(cashNzd + net);
+    const drpNzd = parts?.drpNzd || 0;
+    totalReturnNzd = roundMoney(totalReturnNzd + net + drpNzd);
+    if (parts && parts.drpNzd > 0) drp.push(row);
+    if (!day || !parts) continue;
+
+    const monthKey = day.slice(0, 7);
+    const month = months.get(monthKey) || {
+      month: monthKey,
+      grossNzd: 0,
+      imputationNzd: 0,
+      withholdingNzd: 0,
+      drpNzd: 0,
+      netCashNzd: 0,
+    };
+    month.grossNzd = roundMoney(month.grossNzd + parts.grossNzd);
+    month.imputationNzd = roundMoney(month.imputationNzd + parts.imputationNzd);
+    month.withholdingNzd = roundMoney(month.withholdingNzd + parts.withholdingNzd);
+    month.drpNzd = roundMoney(month.drpNzd + parts.drpNzd);
+    month.netCashNzd = roundMoney(month.netCashNzd + parts.netCashNzd);
+    months.set(monthKey, month);
+
+    const ending = nzTaxYearEnding(day);
+    if (ending != null) {
+      const year = years.get(ending) || {
+        endingYear: ending,
+        label: nzTaxYearLabel(ending),
+        grossNzd: 0,
+        imputationNzd: 0,
+        withholdingNzd: 0,
+        drpNzd: 0,
+        netCashNzd: 0,
+        totalReturnNzd: 0,
+      };
+      year.grossNzd = roundMoney(year.grossNzd + parts.grossNzd);
+      year.imputationNzd = roundMoney(year.imputationNzd + parts.imputationNzd);
+      year.withholdingNzd = roundMoney(year.withholdingNzd + parts.withholdingNzd);
+      year.drpNzd = roundMoney(year.drpNzd + parts.drpNzd);
+      year.netCashNzd = roundMoney(year.netCashNzd + parts.netCashNzd);
+      year.totalReturnNzd = roundMoney(year.netCashNzd + year.drpNzd);
+      years.set(ending, year);
+    }
+
+    if (asOf && windowStart && day > windowStart && day <= asOf) {
+      trailingGrossNzd = roundMoney(trailingGrossNzd + parts.grossNzd);
+    }
+  }
+
+  const ratio = (base: number | null | undefined) => {
+    if (base == null || !(base > 0)) return null;
+    return trailingGrossNzd / base;
+  };
+
+  return {
+    months: [...months.values()].sort((a, b) => a.month.localeCompare(b.month)),
+    years: [...years.values()].sort((a, b) => a.endingYear - b.endingYear),
+    drp,
+    cashNzd,
+    totalReturnNzd,
+    trailingGrossNzd,
+    yieldOnCost: ratio(options?.costNzd),
+    yieldOnValue: ratio(options?.valueNzd),
+  };
 }

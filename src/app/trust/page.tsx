@@ -14,6 +14,22 @@ import {
   PROCESSORS,
   SECURITY_LINE,
 } from "@/lib/public-copy";
+import {
+  TRUST_PAGE_LOG,
+  trustBreachLine,
+  trustDeletionLine,
+  trustExportLine,
+  trustRetentionLine,
+  trustStorageLine,
+  trustTransportLine,
+} from "@/lib/trust-facts";
+
+/** Shown on this page only. Other pages keep the unnamed third-party row. */
+function disclosedProcessors() {
+  return PROCESSORS().map((processor) =>
+    processor.name === "A third-party AI service" ? { ...processor, name: "SuperGrok" } : processor,
+  );
+}
 
 export const metadata = publicPageMetadata("/trust", {
   title: "Trust · AetherForge AI",
@@ -60,7 +76,7 @@ export default function TrustPage() {
             <h2 className="font-display text-lg font-bold">Who else handles data</h2>
             <p className="text-sm leading-relaxed text-muted-foreground">{DATA_SHARING_LINE}</p>
             <ul className="list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-muted-foreground">
-              {PROCESSORS().map((processor) => (
+              {disclosedProcessors().map((processor) => (
                 <li key={processor.name}>
                   <span className="font-semibold text-foreground">{processor.name}</span> — {processor.role}.
                 </li>
@@ -73,6 +89,26 @@ export default function TrustPage() {
             <p className="text-sm leading-relaxed text-muted-foreground">
               {SECURITY_LINE} The book is tied to your signed-in account. Another member cannot read it. We do not ask
               for a broker login, and we do not store a password for a bank or an exchange.
+            </p>
+            <p className="text-sm leading-relaxed text-muted-foreground">{trustTransportLine()}</p>
+          </section>
+
+          <section className="mt-8 space-y-2">
+            <h2 className="font-display text-lg font-bold">Where the book is stored</h2>
+            <p className="text-sm leading-relaxed text-muted-foreground">{trustStorageLine()}</p>
+          </section>
+
+          <section className="mt-8 space-y-2">
+            <h2 className="font-display text-lg font-bold">Retention, deletion and export</h2>
+            <p className="text-sm leading-relaxed text-muted-foreground">{trustRetentionLine()}</p>
+            <p className="text-sm leading-relaxed text-muted-foreground">{trustDeletionLine()}</p>
+            <p className="text-sm leading-relaxed text-muted-foreground">{trustExportLine()}</p>
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              The full wording is in the{" "}
+              <Link href="/privacy-policy" className="font-semibold text-primary underline-offset-2 hover:underline">
+                privacy policy
+              </Link>
+              .
             </p>
           </section>
 
@@ -88,10 +124,21 @@ export default function TrustPage() {
                 {line}
               </p>
             ))}
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              The third-party AI service in those sentences is SuperGrok. No retention period is set by our code.
+            </p>
           </section>
 
           <section className="mt-8 space-y-2">
             <h2 className="font-display text-lg font-bold">Report a vulnerability</h2>
+            <p className="text-sm leading-relaxed text-muted-foreground">{trustBreachLine()}</p>
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              The contact file is{" "}
+              <Link href="/.well-known/security.txt" className="font-semibold text-primary underline-offset-2 hover:underline">
+                security.txt
+              </Link>
+              .
+            </p>
             <p className="text-sm leading-relaxed text-muted-foreground">
               If you find a security weakness, email{" "}
               <EmailAddress email={CUSTOMER_EMAIL} className="font-semibold text-primary" />
@@ -103,6 +150,17 @@ export default function TrustPage() {
               </Link>{" "}
               and put &quot;Security report&quot; in the message.
             </p>
+          </section>
+
+          <section className="mt-8 space-y-2">
+            <h2 className="font-display text-lg font-bold">Changes on this page</h2>
+            <ul className="list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-muted-foreground">
+              {TRUST_PAGE_LOG.map((entry) => (
+                <li key={entry.date}>
+                  {entry.date}: {entry.change}
+                </li>
+              ))}
+            </ul>
           </section>
 
           <section className="mt-8 space-y-2">
