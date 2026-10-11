@@ -13,11 +13,14 @@ export function CsvExportButton({
   href,
   allowed,
   exportName,
+  idleLabel = "CSV",
 }: {
   href: string;
   allowed: boolean;
   /** Which file is locked, e.g. "Dividends CSV". */
   exportName?: string;
+  /** Button text when the download is allowed. */
+  idleLabel?: string;
 }) {
   const [locked, setLocked] = useState(!allowed);
   const [busy, setBusy] = useState(false);
@@ -82,7 +85,7 @@ export function CsvExportButton({
         disabled={busy}
         className="rounded-lg border border-border/70 px-2.5 py-1.5 text-xs font-semibold"
       >
-        {busy ? "Preparing…" : "CSV"}
+        {busy ? "Preparing…" : idleLabel}
       </button>
       {note ? <span className="text-xs text-muted-foreground">{note}</span> : null}
     </span>

@@ -43,6 +43,7 @@ import {
   Plus,
   BookOpen,
   Shield,
+  FileUp,
 } from "lucide-react";
 
 /**
@@ -70,6 +71,7 @@ const MORE_LINKS: NavLink[] = [
   { href: "/how-it-works", label: "How it works", icon: BookOpen },
   { href: "/projections", label: "Projections", icon: Sparkles },
   { href: "/trust", label: "Trust", icon: Shield },
+  { href: "/import", label: "Import", icon: FileUp },
 ];
 
 const NAV_LINKS: NavLink[] = [...PRIMARY_LINKS, ...MARKET_LINKS, ...MORE_LINKS];

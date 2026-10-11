@@ -1,6 +1,7 @@
 import { AppShell } from "@/components/AppShell";
 import { DividendLedgerView } from "@/components/tax/DividendLedgerView";
 import { dividendViewFromRow } from "@/lib/dividend-ledger";
+import { taxCompleteness } from "@/lib/tax-pack";
 import { canExportCsv } from "@/lib/entitlements";
 import { aucklandCivilToday, nzTaxYearEnding } from "@/lib/nz-tax-year";
 import { publicPageMetadata } from "@/lib/reviewed-book";
@@ -33,6 +34,7 @@ export default async function DividendLedgerPage() {
   let rows: ReturnType<typeof dividendViewFromRow>[] = [];
   let holdings: Awaited<ReturnType<typeof loadOpenHoldings>> = [];
   let readError = false;
+  let gaps: ReturnType<typeof taxCompleteness> = [];
   if (user) {
     try {
       const [dividendRows, openHoldings] = await Promise.all([
@@ -40,6 +42,7 @@ export default async function DividendLedgerPage() {
         loadOpenHoldings(user._id),
       ]);
       rows = dividendRows.map(dividendViewFromRow);
+      gaps = taxCompleteness(dividendRows);
       holdings = openHoldings;
     } catch {
       readError = true;
@@ -55,6 +58,7 @@ export default async function DividendLedgerPage() {
         readError={readError}
         csvAllowed={!!user && canExportCsv(user.subscription_plan)}
         taxYear={nzTaxYearEnding(aucklandCivilToday()) ?? new Date().getFullYear()}
+        gaps={gaps}
       />
     </AppShell>
   );

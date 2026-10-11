@@ -20,6 +20,7 @@ import { SiteFooter } from "@/components/SiteFooter";
 import { Toaster } from "@/components/ui/sonner";
 import { PortfolioCoach } from "@/components/portfolio-coach";
 import { TransactionDialogHost } from "@/components/dashboard/TransactionDialogHost";
+import { PwaRegister } from "@/components/PwaRegister";
 import { LEGAL_ENTITY_NAME, NZBN } from "@/lib/company";
 
 // pull-check:fonts-local-2026-10-11
@@ -136,6 +137,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               remount the dialog mid ticker-search. */}
           <TransactionDialogHost />
           <Toaster position="top-center" richColors />
+          <PwaRegister />
         </DocumentSessionProvider>
       </body>
     </html>
