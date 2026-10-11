@@ -5,6 +5,7 @@ import { MarketsPageContent } from "@/components/dashboard/MarketsPageContent";
 import { parseMarketsTab } from "@/lib/market-detail-routes";
 import { loadPublicMarketIndex } from "@/lib/public-market-index";
 import { publicPageMetadata } from "@/lib/reviewed-book";
+import { dexscreenerPublicDisplay, dexPoweredByLine } from "@/lib/dexscreener-display";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,9 @@ export async function generateMetadata({
   if (tab === "DEX") {
     return publicPageMetadata("/markets?tab=dex", {
       title: "DEX markets · AetherForge AI",
-      description: "DEX tokens by 24-hour volume from GeckoTerminal, with chain and DEX. The page states the count it returned. Paper research, not a broker.",
+      description: dexscreenerPublicDisplay()
+        ? "DEX tokens by 24-hour volume from GeckoTerminal and DexScreener, with chain and DEX. The page states the count it returned. Paper research, not a broker."
+        : "DEX tokens by 24-hour volume from GeckoTerminal, with chain and DEX. The page states the count it returned. Paper research, not a broker.",
     });
   }
   return publicPageMetadata("/markets", {
@@ -49,7 +52,7 @@ export default async function MarketsPage({
   if (!user) {
     return (
       <AppShell guest user={{ name: "Guest", email: "Sign in to activate your account" }}>
-        <MarketsPageContent preview initialTab={tab} index={index} />
+        <MarketsPageContent preview initialTab={tab} index={index} dexCredit={dexPoweredByLine()} />
       </AppShell>
     );
   }
@@ -64,7 +67,7 @@ export default async function MarketsPage({
         subscription_plan: user.subscription_plan,
       }}
     >
-      <MarketsPageContent userId={user.id} initialTab={tab} index={index} />
+      <MarketsPageContent userId={user.id} initialTab={tab} index={index} dexCredit={dexPoweredByLine()} />
     </AppShell>
   );
 }

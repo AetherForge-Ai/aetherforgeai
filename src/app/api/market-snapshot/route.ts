@@ -5,14 +5,22 @@ import {
   EXCHANGES,
   type Exchange,
 } from "@/lib/market-intel";
-import { fetchYahooQuotes, yahooEquitySymbol, type YahooQuote } from "@/lib/yahoo-finance";
+import { fetchYahooQuotes, fetchYahooQuotesBatched, yahooEquitySymbol, type YahooQuote } from "@/lib/yahoo-finance";
 import { equityApiLive, exchangeFreshnessLabel, parseQuoteTime } from "@/lib/market-freshness";
 
 export const dynamic = "force-dynamic";
 
-/** In-process cache — four dashboard tiles share one response for ~45s. */
+/**
+ * In-process cache. A fresh snapshot is returned at once.
+ * After the TTL, the previous snapshot is returned and a new one is built in the background.
+ * Constituents use one Yahoo spark batch. The four index symbols stay on the quote call.
+ *
+ * pull-check:retest4-2026-10-11
+ */
 const SNAPSHOT_MEM_TTL_MS = 45_000;
+const SNAPSHOT_CACHE_CONTROL = "public, s-maxage=60, stale-while-revalidate=300";
 let snapshotMem: { at: number; body: unknown } | null = null;
+let snapshotInflight: Promise<unknown> | null = null;
 
 /** Cap constituents per exchange so the home tiles stay snappy (Yahoo batch). */
 const MAX_CONSTITUENTS = 48;
@@ -64,49 +72,48 @@ export interface ExchangeSnapshot {
   liveCount: number;
 }
 
-/**
- * GET /api/market-snapshot
- *
- * A quick, live "state of the markets" overview across all four exchanges
- * (NZX / ASX / Dow Jones / NASDAQ). For each it returns the headline index
- * performance, market breadth (advancers vs decliners), the average session
- * move and the top 3 gainers / losers — all pulled keyless from Yahoo Finance
- * server-side so the snapshot is genuinely live, not a frozen table.
- */
-export async function GET() {
-  try {
-    const now = Date.now();
-    if (snapshotMem && now - snapshotMem.at < SNAPSHOT_MEM_TTL_MS) {
-      return NextResponse.json(snapshotMem.body, {
-        headers: {
-          "Cache-Control": "public, s-maxage=45, stale-while-revalidate=120",
-          "X-Snapshot-Cache": "HIT",
-        },
-      });
+/** Absolute move implied by the percent change. Zero when the percent is missing. */
+function changeAbsFromPct(price: number, changePct: number): number {
+  if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(changePct) || changePct <= -100) return 0;
+  const prev = price / (1 + changePct / 100);
+  if (!Number.isFinite(prev) || prev <= 0) return 0;
+  return price - prev;
+}
+
+function snapshotResponse(body: unknown, cache: "HIT" | "STALE" | "MISS") {
+  return NextResponse.json(body, {
+    headers: {
+      "Cache-Control": SNAPSHOT_CACHE_CONTROL,
+      "X-Snapshot-Cache": cache,
+    },
+  });
+}
+
+async function buildSnapshotBody(): Promise<unknown> {
+    const indexMap: Record<string, string> = {};
+    const constituentMap: Record<string, string> = {};
+    const entriesByExchange = new Map<Exchange, ReturnType<typeof entriesForExchange>>();
+    for (const exchange of EXCHANGES) {
+      indexMap[exchange] = INDEX_SYMBOL[exchange];
+      const entries = entriesForExchange(exchange).slice(0, MAX_CONSTITUENTS);
+      entriesByExchange.set(exchange, entries);
+      for (const entry of entries) constituentMap[`${exchange}:${entry.ticker}`] = yahooEquitySymbol(entry.ticker);
     }
 
-    // One combined index request for all four headline indices.
-    const indexMap: Record<string, string> = {};
-    for (const ex of EXCHANGES) indexMap[ex] = INDEX_SYMBOL[ex];
+    const [quotes, indexQuotes] = await Promise.all([
+      fetchYahooQuotesBatched(constituentMap).catch((err) => {
+        console.error("[api/market-snapshot] constituent batch failed:", err);
+        return {} as Awaited<ReturnType<typeof fetchYahooQuotesBatched>>;
+      }),
+      fetchYahooQuotes(indexMap).catch((err) => {
+        console.error("[api/market-snapshot] index fetch failed:", err);
+        return {} as Record<string, YahooQuote>;
+      }),
+    ]);
 
-    const indexPromise = fetchYahooQuotes(indexMap).catch((err) => {
-      console.error("[api/market-snapshot] index fetch failed:", err);
-      return {} as Record<string, YahooQuote>;
-    });
-
-    const snapshots = await Promise.all(
-      EXCHANGES.map(async (exchange): Promise<ExchangeSnapshot> => {
+    const snapshots = EXCHANGES.map((exchange): ExchangeSnapshot => {
         const meta = EXCHANGE_META[exchange];
-        const entries = entriesForExchange(exchange).slice(0, MAX_CONSTITUENTS);
-
-        // Constituent quotes start with the index request, not after it.
-        const map: Record<string, string> = {};
-        for (const e of entries) map[e.ticker] = yahooEquitySymbol(e.ticker);
-        const quotesPromise = fetchYahooQuotes(map).catch((err) => {
-          console.error(`[api/market-snapshot] ${exchange} constituents failed:`, err);
-          return {} as Record<string, YahooQuote>;
-        });
-        const [quotes, indexQuotes] = await Promise.all([quotesPromise, indexPromise]);
+        const entries = entriesByExchange.get(exchange) || [];
 
         const movers: SnapshotMover[] = [];
         let advancers = 0;
@@ -116,20 +123,21 @@ export async function GET() {
         let liveCount = 0;
 
         for (const e of entries) {
-          const q = quotes[e.ticker];
+          const q = quotes[`${exchange}:${e.ticker}`];
           if (!q || q.price <= 0) continue;
           liveCount += 1;
           sumPct += q.changePct;
           if (q.changePct > 0.05) advancers += 1;
           else if (q.changePct < -0.05) decliners += 1;
           else unchanged += 1;
+          const changeAbs = changeAbsFromPct(q.price, q.changePct);
           movers.push({
             ticker: e.ticker,
             symbol: e.ticker.replace(/\.(NZ|AX|L)$/i, ""),
-            name: q.name || e.name,
+            name: e.name,
             price: q.price,
             changePct: Number(q.changePct.toFixed(2)),
-            changeAbs: Number(q.changeAbs.toFixed(4)),
+            changeAbs: Number(changeAbs.toFixed(4)),
           });
         }
 
@@ -169,28 +177,56 @@ export async function GET() {
           topLosers,
           liveCount,
         };
-      })
-    );
+    });
 
     console.log(
       `[api/market-snapshot] built ${snapshots.length} exchange snapshots ` +
         snapshots.map((s) => `${s.exchange}:${s.liveCount}`).join(" ")
     );
 
-    const body = {
+    return {
       ok: true,
       data: {
         asOf: new Date().toISOString(),
         exchanges: snapshots,
       },
     };
-    snapshotMem = { at: Date.now(), body };
-    return NextResponse.json(body, {
-      headers: {
-        "Cache-Control": "public, s-maxage=45, stale-while-revalidate=120",
-        "X-Snapshot-Cache": "MISS",
-      },
-    });
+}
+
+function startSnapshot(): Promise<unknown> {
+  if (!snapshotInflight) {
+    snapshotInflight = buildSnapshotBody()
+      .then((body) => {
+        snapshotMem = { at: Date.now(), body };
+        return body;
+      })
+      .finally(() => {
+        snapshotInflight = null;
+      });
+  }
+  return snapshotInflight;
+}
+
+/**
+ * GET /api/market-snapshot
+ *
+ * Headline index, breadth, and top movers for NZX, ASX, Dow Jones, and NASDAQ.
+ * Quotes come from Yahoo Finance. A cached snapshot is served while a newer one is built.
+ */
+export async function GET() {
+  try {
+    const now = Date.now();
+    if (snapshotMem && now - snapshotMem.at < SNAPSHOT_MEM_TTL_MS) {
+      return snapshotResponse(snapshotMem.body, "HIT");
+    }
+    if (snapshotMem) {
+      void startSnapshot().catch((err) => {
+        console.error("[api/market-snapshot] background refresh failed:", err);
+      });
+      return snapshotResponse(snapshotMem.body, "STALE");
+    }
+    const body = await startSnapshot();
+    return snapshotResponse(body, "MISS");
   } catch (err: any) {
     console.error("[api/market-snapshot] GET error:", err);
     return NextResponse.json(

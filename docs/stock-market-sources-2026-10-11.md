@@ -16,7 +16,7 @@ ASX terms, `https://www.asx.com.au/legals/terms-of-use`, fetched 10 Oct 2026: co
 
 Nasdaq Trader copyright page, `https://www.nasdaqtrader.com/Trader.aspx?id=CopyDisclaimMain`, fetched 10 Oct 2026: website content may not be copied except for fair use and one personal non-commercial copy, and it says Nasdaq stock symbols are proprietary. The directory files are not copied into this repo. The symbol counts above are facts from those files.
 
-SEC company file, `https://www.sec.gov/files/company_tickers_exchange.json`, retrieved 10 Oct 2026. It is a work of the United States government (17 U.S.C. § 105). The names and tickers tagged Nasdaq (4,376) and NYSE (3,290) are stored in `src/data/listings/sec-nasdaq.json` and `src/data/listings/sec-nyse.json`. That file does not include every fund in the Nasdaq directory, so the NASDAQ board says `Showing 4376 of 5622 listed`. The NYSE board has more SEC-tagged names than the 2,900 directory symbols, so it does not pretend one count contains the other.
+SEC company file, `https://www.sec.gov/files/company_tickers_exchange.json`, retrieved 10 Oct 2026. It is a work of the United States government (17 U.S.C. § 105). The names and tickers tagged Nasdaq (4,376) and NYSE (3,290) are stored in `src/data/listings/sec-nasdaq.json` and `src/data/listings/sec-nyse.json`. That file does not include every fund in the Nasdaq directory. The Nasdaq directory count (5,622) and the other-listed NYSE count (2,900) are recorded in this note only. They are not the visitor "of M" figure.
 
 Yahoo stays the first price call, as it already was. Yahoo terms, already quoted in `docs/data-licensing-options-2026-10-11.md`, restrict commercial reuse. This change does not say that display is permitted. Yahoo Help, recorded in that same note, lists NZX and ASX as 20 minutes. US minutes are still unconfirmed, so the US label stays `Delayed` without a minute figure.
 
@@ -40,3 +40,11 @@ The SEC file has a company name and a ticker. It does not state a sector, and it
 Warrants, units, rights, and test-like issues are left out of the sitemap. A name matches when it contains the words warrant, unit, right, or test. A ticker matches when a 4-letter issuer is followed by W, U, R, WS, WT, WD, or RT (for example AACIU and AACIW). Nasdaq test symbols of the form Z?ZZT are left out. A 4-letter ticker such as GROW stays.
 
 Other US pages stay on the site. When that response has no quote, the page sends `noindex` and `follow`. A visitor can still open it. NZX, ASX, Dow, and the US names that are in the sitemap stay indexable. A US page outside that set stays indexable when the response includes a quote.
+
+## Visitor count after pull-check:retest4-2026-10-11
+
+Visitor lines are `Showing N of M listed`. For NASDAQ and NYSE, M is the SEC-derived count of the population on screen, so N does not exceed M.
+
+The default NASDAQ and NYSE boards hide warrants, units, rights, and test-like issues. NYSE hyphen suffixes `-WT`, `-WTA`, `-UN`, and `-RI` are in that set. M is then the ordinary-name count. The control `Include warrants, units and rights` uses the full SEC population, and the line says those issues are included.
+
+The Nasdaq directory file (5,622 non-test symbols, created 9 Oct 2026 21:31) and the other-listed NYSE directory (2,900 non-test symbols) stay in this note. They are not printed on the boards.

@@ -1275,3 +1275,71 @@ Sora, Manrope, and JetBrains Mono are latin variable woff2 files in `src/app/fon
 
 Checks on this branch, with `fonts.googleapis.com` and `fonts.gstatic.com` pointed at `127.0.0.1`: `npm test` 121 files, 579 tests passed. `npm run check-types-errors` passed. `npm run build` passed (Next.js 15.3.9). Built CSS sets those three variables from `/_next/static/media/*.woff2`. Those files match the latin sources byte for byte. `next start` homepage HTML has no `fonts.googleapis.com` and no `fonts.gstatic.com`. Nothing was published.
 
+## pull-check:retest4-2026-10-11
+
+Research retest of develop `2976445`, implemented from develop `48d2f2a1`. Draft only. Not merged. No Publish. No Totalum AI Pull. No GST. Public copy says AI. Crypto projections stay paused. `SWYFTX_PUBLIC_DISPLAY` is unchanged and off unless that env value is set. Auth, login, register, security headers, consent, apex, and `next.config` were not edited. No new database column. No invented price, market cap, or volume.
+
+### 1 — DEX list
+
+- Status: fixed in this draft.
+- The list is parsed from GeckoTerminal pool and trending pages (`base_token_price_usd` on the pool). A missing reserve does not drop a priced pool. A stated reserve under $10,000 is left out.
+- DexScreener `GET /latest/dex/search` is fetched and named only when `DEXSCREENER_PUBLIC_DISPLAY` is on. The default is off. With the flag off, the tab uses GeckoTerminal pools and trending lists, then the last saved GeckoTerminal list.
+- A non-empty GeckoTerminal list is written to memory and to `aetherforge-dex-last-good.json` in the temp directory. An empty response does not wipe that list. DexScreener rows are not written into that file.
+- The empty sentence is used only when the GeckoTerminal lists and the saved list are empty. With the flag off it does not name DexScreener.
+- Checked from this host on 10 Oct 2026: `GET /networks/trending_pools` returns HTTP 200 and 20 pools with `base_token_price_usd`, `reserve_in_usd`, and included token symbols when `include=base_token` is set. The same call without `include` returns 20 pools and zero included tokens, and the parser then has no symbol. No rate-limit header was sent, and the versioned Accept header was not required for that 200. The empty tab on develop `2976445` used one sentence for every empty collect, including a 429, a timeout inside the 3 second budget, and a page whose rows were dropped. A page with no included token was one way every row was dropped. The list now sends `Accept: application/json;version=20230302`, retries a 429, 5xx, or timeout inside the same budget, and asks for trending pools on eth, solana, base, and bsc as well as the global trending list.
+- Verify: `npx vitest run src/lib/retest4.test.ts src/lib/crypto-resilience.test.ts`. Open `/markets?tab=dex`. The tab shows rows, or the last saved list, or that empty sentence. It does not say a per-token price was missing when the pool list itself failed.
+
+### 2 — Crypto rows, market cap, and volume
+
+- Status: fixed in this draft.
+- CoinGecko pages retry on 429 and 5xx with a short backoff. A non-array body is a failed page, not zero coins. A failed second page keeps page 1. Yahoo majors run only when CoinGecko and the optional Swyftx backup are both empty. Kraken and Coinbase are not list inputs.
+- `/api/crypto/markets` sends `null` for a market cap or 24h volume that is missing or 0. The coin table shows an em dash. The line stays `Showing N of up to 400`.
+- Verify: `npx vitest run src/lib/retest4.test.ts src/lib/crypto-list.test.ts`. Open `/markets?tab=crypto` and `/api/crypto/markets`. Count the rows. Confirm market cap and volume are figures or an em dash, not 0.
+
+### 3 — NYSE "Showing N of M"
+
+- Status: fixed in this draft.
+- M is the SEC-derived count of the population on screen. The other directory counts (Nasdaq 5,622 and other-listed NYSE 2,900) are only in `docs/stock-market-sources-2026-10-11.md`.
+- Verify: open `/markets?tab=nyse`. The line is `Showing N of M listed` and N is not greater than M. The page does not mention a directory file.
+
+### 4 — Warrants, units, rights, and test issues
+
+- Status: fixed in this draft.
+- Hidden on the default NASDAQ and NYSE boards. The checkbox `Include warrants, units and rights` shows them. The count line says whether those issues are included.
+- Verify: compare the default NASDAQ and NYSE lines with the checkbox on. A ticker such as one ending in W, U, R, or `-WT` is absent until the checkbox is on. `findListing` still resolves it.
+
+### 5 — Rows with no price
+
+- Status: fixed in this draft.
+- Default board rows are quotes only. The footnote is `N listings have no price in this response`. A quoted row with no vendor time still says `as of not stated by the vendor`.
+- Verify: open a stock board. Search the table for `Not in this response`. That sentence is not a row. The footnote states the count when some names had no price.
+
+### 6 — Coin page title and description
+
+- Status: fixed in this draft.
+- Example title: `Bitcoin (BTC) price in NZD — AetherForge AI` when the FX snapshot was sourced. Without a sourced FX rate the title uses USD. The description names the coin, the price, the as-of line, the source, and the market cap when that figure is known. JSON-LD is a WebPage document.
+- Verify: `npx vitest run src/lib/retest4.test.ts`. Open `/markets/crypto/bitcoin` and `/markets/crypto/ethereum`. View source. Titles differ. Each JSON-LD script parses and has `@type` `WebPage`.
+
+### 7 — Snapshot time and page weight
+
+- Status: fixed in this draft.
+- `/api/market-snapshot` loads constituents with one Yahoo spark batch and keeps the four index symbols on the quote call. A snapshot younger than 45 seconds is reused. After that, the previous body is returned while a new one is built. Cache-Control is `public, s-maxage=60, stale-while-revalidate=300`.
+- `/markets` seeds 12 rows per tab instead of 50. The explorer still loads pages of 50 from `/api/all-markets`. `/pricing` has no unused JSON blob to remove; the comparison and FAQ stay.
+- Verify: reload `/api/market-snapshot` twice. The second response header `X-Snapshot-Cache` is `HIT` inside 45 seconds. View source on `/markets` and confirm the first tables are short. Open `/pricing` and confirm the plans, FAQ, and disclaimer are still there.
+
+### 8 — /unsubscribe
+
+- Status: added. Confirm page only.
+- `GET /unsubscribe?token=...` shows the same confirmation form. The form posts to `/api/weekly-email/unsubscribe`. GET does not call the opt-out. POST is not implemented on `/unsubscribe`.
+- Verify: `npx vitest run src/lib/retest4.test.ts src/lib/weekly-email.test.ts`. Open `/unsubscribe?token=not-a-token`. The page says the link is not valid and does not say the weekly email is off.
+
+### Needs Lukas
+
+- DexScreener stays off until `DEXSCREENER_PUBLIC_DISPLAY` is set. The API terms allow a limited revocable licence and prohibit making the API Services available for third parties. Whether a public page counts is still for Lukas.
+- DNS, SPF, and Publish stay as previously noted. They are not part of this pull request.
+
+### Checks
+
+On `cursor/retest4-markets-dex-49e4`: `npm test` 122 files, 584 tests passed. `npm run check-types-errors` passed. `npm run build` passed (Next.js 15.3.9). The first typecheck failed because `equityFallback` set `asOf` twice. That second key was removed. After the DexScreener display gate: `npm test` 123 files, 587 tests passed. `npm run check-types-errors` passed. `npm run build` passed. Nothing was published. No email was sent.
+
+
