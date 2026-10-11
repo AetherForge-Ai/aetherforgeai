@@ -86,7 +86,7 @@ export default async function LandingPage() {
     loadPublicTickerBounded(),
     Promise.race([
       getMetalsSpot().catch(() => null),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500)),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 1200)),
     ]),
   ]);
   const metalsInitial = metals?.live && metals.quotedAt ? metals : null;

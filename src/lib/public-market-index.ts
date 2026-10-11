@@ -70,7 +70,7 @@ async function within<T>(work: Promise<T>, fallback: T, ms: number): Promise<T> 
 async function loadEquityTab(board: StockBoard): Promise<PublicPriceTab> {
   let page;
   try {
-    page = await loadStockBoardPage(board, { page: 1, waitMs: 2_000 });
+    page = await loadStockBoardPage(board, { page: 1, waitMs: 1_200, rowLimit: PUBLIC_SEED_ROWS });
   } catch (err) {
     console.error(`[public-market-index] ${board} board failed:`, err);
     return equityFallback(board);

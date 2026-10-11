@@ -8,6 +8,16 @@ export const metadata = publicPageMetadata("/changelog", {
 
 const ENTRIES = [
   {
+    href: "/markets",
+    title: "11 Oct 2026 — Crypto list snapshots and diagnostics",
+    body: "A saved CoinGecko list and a saved DEX list stay available when the live feed does not answer. An optional CoinGecko key can be set on the host. The admin diagnostics page reports status codes only.",
+  },
+  {
+    href: "/markets",
+    title: "11 Oct 2026 — Retest4 market lists",
+    body: "Develop 47f44d9. DEX lists, the crypto fill, coin titles, and the DexScreener display gate.",
+  },
+  {
     href: "/tax",
     title: "11 Oct 2026 — Tax fixups and the Tax link",
     body: "Develop 9dedb71. Auckland dates, realised lots, dividends, the CSV gate, metals loading, the home disclaimer, and a Tax link in the footer and navigation.",

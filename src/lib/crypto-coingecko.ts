@@ -15,10 +15,14 @@ import "server-only";
 import { readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { formatDisplayDateTime } from "@/lib/currency";
+import { noticeWithAsOf } from "@/lib/crypto-coverage";
 import { assembleListedMarkets, coingeckoRolling24h, resolveSevenDayChange, type CoinMarket, type CoinDetail, type CoinChart } from "@/lib/crypto-market";
 import { coinDisplayName } from "@/lib/crypto-names";
 import { rememberCryptoIds } from "@/lib/crypto-id-registry";
+import { coinGeckoEndpoint, redactSecrets } from "@/lib/coingecko-auth";
 import { coinGeckoRetryDelayMs, coinGeckoStatusRetries, readMarketPage } from "@/lib/crypto-fetch-policy";
+import { persistCryptoSnapshot, persistDexSnapshot, readDexSnapshot } from "@/lib/crypto-snapshot";
 import { dexscreenerPublicDisplay } from "@/lib/dexscreener-display";
 import {
   DEX_BACKOFF_MS,
@@ -41,15 +45,13 @@ import {
   type DexTokenRow,
 } from "@/lib/crypto-dex";
 
-const CG_BASE = "https://api.coingecko.com/api/v3";
-
-/** Optional demo API key lifts the keyless rate limit; header is a no-op if unset. */
-function cgHeaders(keyless = false): Record<string, string> {
-  const h: Record<string, string> = { accept: "application/json" };
-  const key = process.env.COINGECKO_API_KEY;
-  if (key && !keyless) h["x-cg-demo-api-key"] = key;
-  return h;
-}
+/**
+ * Demo key: x-cg-demo-api-key on api.coingecko.com.
+ * Pro key: x-cg-pro-api-key on pro-api.coingecko.com when COINGECKO_PRO=on.
+ * Keyless is the fallback. The key is never logged.
+ *
+ * pull-check:crypto-live-2026-10-11
+ */
 
 /* ------------------------------- TTL cache ------------------------------- */
 
@@ -82,14 +84,15 @@ async function cached<T>(key: string, ttlMs: number, loader: () => Promise<T>): 
 }
 
 async function cgFetch(path: string, keyless = false): Promise<any> {
-  const res = await fetch(`${CG_BASE}${path}`, {
-    headers: cgHeaders(keyless),
+  const endpoint = coinGeckoEndpoint(process.env, keyless);
+  const res = await fetch(`${endpoint.base}${path}`, {
+    headers: endpoint.headers,
     cache: "no-store",
     signal: AbortSignal.timeout(8_000),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`CoinGecko ${res.status} on ${path}: ${body.slice(0, 200)}`);
+    throw new Error(redactSecrets(`CoinGecko ${res.status} on ${path}: ${body.slice(0, 200)}`));
   }
   const type = res.headers.get("content-type") || "";
   const text = await res.text();
@@ -119,9 +122,9 @@ async function cgFetchRetry(path: string): Promise<unknown> {
       const message = err instanceof Error ? err.message : String(err);
       const status = Number(message.match(/CoinGecko (\d{3})/)?.[1] || 0);
       const retry = coinGeckoStatusRetries(status) || /timeout|non-JSON/i.test(message);
-      const keyRejected = attempt === 0 && !!process.env.COINGECKO_API_KEY && /\b401\b/.test(message);
+      const keyRejected = attempt === 0 && !!process.env.COINGECKO_API_KEY && /\b(401|403)\b/.test(message);
       if (!retry && !keyRejected) throw err;
-      console.error(`[crypto-coingecko] ${path} attempt ${attempt + 1} failed: ${message.slice(0, 140)}`);
+      console.error(`[crypto-coingecko] ${path} attempt ${attempt + 1} failed: ${redactSecrets(message)}`);
     }
   }
   throw last instanceof Error ? last : new Error("CoinGecko did not return a market page.");
@@ -274,8 +277,8 @@ function assembleTop400(
 
 function note429(err: unknown) {
   const message = err instanceof Error ? err.message : String(err ?? "");
-  if (/\b429\b/.test(message)) top400BackoffUntil = Date.now() + TOP400_BACKOFF_MS;
-  return message.slice(0, 160);
+  if (/\b(429|403|1015)\b/.test(message)) top400BackoffUntil = Date.now() + TOP400_BACKOFF_MS;
+  return redactSecrets(message);
 }
 
 /**
@@ -301,6 +304,8 @@ async function refreshTop400(): Promise<RankedCryptoPage> {
     const page2 = second ?? [];
     const page = assembleTop400([...first, ...page2], platforms, page2.length === 0);
     top400Entry = { at: Date.now(), value: page };
+    const tagged = page.coins.map((coin) => ({ ...coin, source: coin.source || "coingecko" }));
+    await persistCryptoSnapshot(tagged, new Date().toISOString());
     const labelled = page.coins.filter((coin) => coin.blockchain).length;
     console.log(`[crypto-coingecko] fetchTop400 → ${page.coins.length} coins, blockchain ${labelled}/${page.coins.length}`);
     return page;
@@ -380,7 +385,16 @@ function geckoStatus(err: unknown): number {
 function geckoRetries(err: unknown): boolean {
   const status = geckoStatus(err);
   const message = err instanceof Error ? err.message : String(err);
-  return status === 429 || status === 500 || status === 502 || status === 503 || status === 504 || /timeout|aborted|non-JSON/i.test(message);
+  return (
+    status === 403 ||
+    status === 429 ||
+    status === 1015 ||
+    status === 500 ||
+    status === 502 ||
+    status === 503 ||
+    status === 504 ||
+    /timeout|aborted|non-JSON/i.test(message)
+  );
 }
 
 async function gtFetchOnce(path: string, timeoutMs: number): Promise<unknown> {
@@ -496,14 +510,21 @@ function readDexLastGood(): DexTokenRow[] {
 function rememberDexLastGood(rows: DexTokenRow[]) {
   if (!rows.length) return;
   dexLastGood = rows.slice(0, 400);
+  const at = new Date().toISOString();
   try {
-    writeFileSync(DEX_SNAPSHOT_FILE, JSON.stringify({ at: new Date().toISOString(), rows: dexLastGood }));
+    writeFileSync(DEX_SNAPSHOT_FILE, JSON.stringify({ at, rows: dexLastGood }));
   } catch (err) {
+    console.error(
+      "[crypto-coingecko] DEX temp file was not saved:",
+      err instanceof Error ? err.message.slice(0, 120) : "failed"
+    );
+  }
+  void persistDexSnapshot(dexLastGood, at).catch((err) => {
     console.error(
       "[crypto-coingecko] DEX snapshot was not saved:",
       err instanceof Error ? err.message.slice(0, 120) : "failed"
     );
-  }
+  });
 }
 
 /**
@@ -658,6 +679,24 @@ async function dexPageFromMemory(memory: DexMemory): Promise<DexPage> {
 
 export async function fetchDexTop400(): Promise<DexPage> {
   const memory = readDexMemory();
+  if (!memory.rows.length && !readDexLastGood().length) {
+    const saved = await readDexSnapshot();
+    if (saved?.rows.length) {
+      rememberDexLastGood(saved.rows);
+      const held: DexMemory = { pages: memory.pages, rows: saved.rows, at: Date.parse(saved.at) || Date.now(), rateLimited: false };
+      store.set(DEX_CACHE_KEY, { at: held.at, value: held });
+      void fillDexMemory(memory.pages)
+        .then((next) => scheduleDexFollowUp(next.rateLimited, next.rows.length))
+        .catch((err) => console.error("[crypto-coingecko] DEX refresh failed:", err instanceof Error ? err.message.slice(0, 120) : "failed"));
+      const page = snapshotDex(held, "pools");
+      const label = formatDisplayDateTime(saved.at);
+      return {
+        ...page,
+        sourceDown: false,
+        notice: noticeWithAsOf(page.notice ? `${page.notice} Last saved GeckoTerminal list.` : "Last saved GeckoTerminal list.", label === "—" ? null : label),
+      };
+    }
+  }
   syncDexPages(memory.pages);
   const now = Date.now();
   if (memory.rows.length >= 400 && now - memory.at < DEX_STALE_MS) {

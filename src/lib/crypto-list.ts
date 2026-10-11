@@ -5,6 +5,7 @@
  *
  * pull-check:crypto-dex-400-2026-10-11
  * pull-check:retest4-2026-10-11
+ * pull-check:crypto-live-2026-10-11
  */
 
 import { MARKET_LIST_TARGET } from "@/lib/crypto-coverage";
@@ -129,14 +130,18 @@ export function selectListedMarkets(input: {
   coingecko: CoinMarket[];
   page2Missing: boolean;
   backup: CoinMarket[];
+  /** Last saved CoinGecko list. Used only when the live list is empty. */
+  saved?: CoinMarket[];
   yahoo: CoinMarket[];
-}): { coins: CoinMarket[]; reason: "page2" | "backup" | "short" | null } {
+}): { coins: CoinMarket[]; reason: "page2" | "backup" | "short" | "saved" | null } {
   const cg = (input.coingecko || []).filter(coinHasLivePrice);
   if (cg.length) {
     const merged = mergeRankedCoins([cg, input.backup || []]);
     if (merged.length >= MARKET_LIST_TARGET) return { coins: merged, reason: null };
     return { coins: merged, reason: input.page2Missing ? "page2" : "short" };
   }
+  const saved = mergeRankedCoins([input.saved || []]);
+  if (saved.length) return { coins: saved, reason: "saved" };
   const backup = mergeRankedCoins([input.backup || []]);
   if (backup.length) return { coins: backup, reason: "backup" };
   const yahoo = mergeRankedCoins([input.yahoo || []]);

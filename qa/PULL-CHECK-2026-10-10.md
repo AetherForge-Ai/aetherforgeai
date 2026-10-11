@@ -20,6 +20,8 @@ Markers:
 - `pull-check:address-removed-2026-10-11`
 - `pull-check:stock-markets-full-2026-10-11`
 - `pull-check:batch1-2026-10-11`
+- `pull-check:retest4-2026-10-11`
+- `pull-check:crypto-live-2026-10-11`
 
 Branch: `cursor/qa-m10-m15-l6-l17-b236`
 PR: https://github.com/AetherForge-Ai/aetherforgeai/pull/247
@@ -1326,6 +1328,51 @@ Research retest of develop `2976445`, implemented from develop `48d2f2a1`. Draft
 ### Checks
 
 On `cursor/retest4-markets-dex-49e4`: `npm test` 122 files, 584 tests passed. `npm run check-types-errors` passed. `npm run build` passed (Next.js 15.3.9). The first typecheck failed because `equityFallback` set `asOf` twice. That second key was removed. After the DexScreener display gate: `npm test` 123 files, 587 tests passed. `npm run check-types-errors` passed. `npm run build` passed. Nothing was published. No email was sent.
+
+## pull-check:crypto-live-2026-10-11
+
+Research retest of published develop `47f44d9`. Draft only. Not merged. No Publish. No Totalum AI Pull. No GST. Public copy says AI. Crypto projections stay paused. `SWYFTX_PUBLIC_DISPLAY` and `DEXSCREENER_PUBLIC_DISPLAY` stay off unless those env values are set. Auth, login, register, security headers, consent, apex, and `next.config` were not edited. No new database column. No invented price, market cap, or volume. API keys are not logged.
+
+Likely cause of the empty DEX tab and the 89-row Crypto tab: keyless CoinGecko and GeckoTerminal calls from the Cloudflare Workers egress are rate-limited or blocked (429, 403, or 1015). The previous last-good copy lived in the isolate and in a temp file. A new isolate starts empty, so the public route falls through to Yahoo majors (about 89 names, no market cap) or to the DEX empty sentence.
+
+### 1 — Optional CoinGecko key
+
+- Status: added.
+- `COINGECKO_API_KEY` is optional. A demo key is sent as `x-cg-demo-api-key` to `https://api.coingecko.com/api/v3`. `COINGECKO_PRO=on` sends `x-cg-pro-api-key` to `https://pro-api.coingecko.com/api/v3`. Keyless remains the fallback, including after a 401 or 403 on the keyed call. The key is not written to a log, a URL, or this diagnostics body. `wrangler.jsonc` does not set the key. Set it on the host (Totalum env) if the keyless call is blocked. Documented in `docs/data-licensing-options-2026-10-11.md` and `src/lib/coingecko-auth.ts`.
+- Verify: `npx vitest run src/lib/crypto-live-snapshot.test.ts`. Confirm the test name `pull-check:crypto-live-2026-10-11` passes. Do not print the env value.
+
+### 2 — Admin diagnostics
+
+- Status: added.
+- `GET /api/admin/crypto-diagnostics` is limited to `lukas@aetherforgeai.co.nz`, the same privacy-officer check as the weekly-email preview. Any other account gets 404. The JSON lists CoinGecko markets page 1, GeckoTerminal trending pools, Kraken, and Coinbase. Each row has a status code, latency, response size, parsed row count, and an error class of `429`, `403`, `timeout`, or `parse`. Bodies and keys are not included.
+- Verify: sign in as `lukas@aetherforgeai.co.nz` and open `/api/admin/crypto-diagnostics` after Publish. Read the four status codes. Sign in as another account and confirm 404. `npx vitest run src/lib/crypto-live-snapshot.test.ts`.
+
+### 3 — Last good list
+
+- Status: added.
+- The full list is stored in the Workers Cache API (`caches.default`). This runtime has no KV binding (`wrangler.jsonc` only binds ASSETS). A temp file does not survive an isolate. The cache does. A hidden watchlist row (`AF-CGS` for crypto, `AF-DXS` for DEX) is written only when the JSON is at most 24,000 characters, because that name field is the existing text slot used by `AF-WEM` and a 400-row list does not fit. The read waits at most 400ms and then continues. `GET /api/watchlist` hides those tickers. `POST /api/watchlist` rejects them.
+- Public pages read the saved list first. A background refresh replaces it when CoinGecko or GeckoTerminal answers. The notice includes the as-of time. Yahoo majors run only when no saved list exists. Market cap and volume columns stay hidden when every row lacks that figure.
+- Verify: `npx vitest run src/lib/crypto-live-snapshot.test.ts`. Open `/markets?tab=crypto` and `/markets?tab=dex`. A saved list shows its as-of. An empty DEX sentence appears only when no saved list exists.
+
+### 4 — NASDAQ count and NYSE preferred shares
+
+- Status: fixed in this draft.
+- NASDAQ paging dropped names with no price, so the line said `Showing 3648 of 3648 listed` while the pages summed to 3645. Every catalog row is now returned. A missing price stays `Not in this response` on that row. The summed pages match the line.
+- The eight NYSE preferred tickers `FLG-PU`, `NEE-PU`, `PSA-PU`, `TDS-PU`, `C-PR`, `PSA-PR`, `TFC-PR`, and `USB-PR` are hidden with warrants, units, and rights. The checkbox label names preferred shares. `findListing` still resolves them.
+- Verify: `npx vitest run src/lib/stock-markets.test.ts`. Open `/markets?tab=nasdaq` and page through. The row total matches `Showing N of N listed`. Open `/markets?tab=nyse` and confirm `FLG-PU` is absent until the checkbox is on.
+
+### 5 — Coin pages, changelog, and load time
+
+- Status: updated.
+- `/markets/crypto/bitcoin` describes `Bitcoin (BTC)` with the price, the as-of time, the source, and the market cap when that figure is known. The figure comes from the live print or the saved list.
+- The changelog names develop `47f44d9` and this saved-list change.
+- Home waits on the tape and metals together, and the tape now requests equity and crypto quotes at the same time, with an 1800ms cap. `/markets` quotes the 12 seeded names on each stock board instead of a full page of 50 before the HTML is sent.
+- Verify: view source on `/markets/crypto/bitcoin`. The description contains `Bitcoin (BTC)`. Open `/changelog` and read the `47f44d9` line.
+
+### Needs Lukas
+
+- Set `COINGECKO_API_KEY` on the host if the diagnostics page shows 429 or 403 for CoinGecko. Use `COINGECKO_PRO=on` only for a Pro key. Leave both display gates off.
+- Open `/api/admin/crypto-diagnostics` after Publish and record the four status codes.
 
 
 

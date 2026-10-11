@@ -15,7 +15,7 @@ import {
 } from "@/lib/stock-markets";
 import type { PublicMarketIndex } from "@/lib/public-market-types";
 import { BuyDialog, type BuyTarget } from "@/components/dashboard/BuyDialog";
-import { cryptoCoveragePhrase, dexCoverageLine, dexTabLabel } from "@/lib/crypto-coverage";
+import { columnHasFigure, cryptoCoveragePhrase, dexCoverageLine, dexTabLabel } from "@/lib/crypto-coverage";
 import { DEX_EMPTY_NOTICE } from "@/lib/crypto-dex";
 import { explorerDetailHref, marketsTabHref, type MarketsTab } from "@/lib/market-detail-routes";
 import type { PublicPriceRow } from "@/lib/public-market-types";
@@ -558,7 +558,6 @@ export function MarketsExplorer({
       }
     } else {
       all = (data?.rows ?? [])
-        .filter((r) => r.quoted && r.priceLabel !== PRICE_NOT_IN_RESPONSE)
         .map((r) => ({
         key: r.ticker,
         ticker: r.ticker,
@@ -642,8 +641,12 @@ export function MarketsExplorer({
   const showHigh = !isCryptoTab;
   const showLow = !isCryptoTab;
   const cappedRows = rows.filter((r) => (r.marketCap ?? 0) > 0).length;
-  const showVolume = isCoinTab || (!isDexTab && rows.some((r) => (r.volume ?? 0) > 0));
-  const showCap = isCoinTab || (!isCryptoTab && rows.length > 0 && cappedRows * 2 > rows.length);
+  const showVolume = isCoinTab
+    ? columnHasFigure(rows.map((r) => r.volume))
+    : !isDexTab && rows.some((r) => (r.volume ?? 0) > 0);
+  const showCap = isCoinTab
+    ? columnHasFigure(rows.map((r) => r.marketCap))
+    : !isCryptoTab && rows.length > 0 && cappedRows * 2 > rows.length;
   const showChange = !isDexTab;
   const showChain = isCryptoTab;
   const showDex = isDexTab;
@@ -844,7 +847,7 @@ export function MarketsExplorer({
                   setStockPage(1);
                 }}
               />
-              Include warrants, units and rights
+              Include warrants, units, rights, and preferred shares
             </label>
           )}
           {!isCryptoTab && data?.footnote ? (

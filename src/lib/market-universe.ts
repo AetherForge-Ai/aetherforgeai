@@ -1,5 +1,7 @@
 import "server-only";
 
+import { coinGeckoEndpoint } from "@/lib/coingecko-auth";
+
 /**
  * Market-universe data layer for the one-time Free-Trial "Zenith Mode" engine.
  *
@@ -91,12 +93,9 @@ function round(v: number, dp = 2): number {
 
 /* ============================ CRYPTO (CoinGecko) ========================= */
 
-const CG_BASE = "https://api.coingecko.com/api/v3";
-
-function cgHeaders(): Record<string, string> {
-  const h: Record<string, string> = { Accept: "application/json" };
-  if (process.env.COINGECKO_API_KEY) h["x-cg-demo-api-key"] = process.env.COINGECKO_API_KEY;
-  return h;
+function cgCall(path: string): { url: string; headers: Record<string, string> } {
+  const endpoint = coinGeckoEndpoint();
+  return { url: `${endpoint.base}${path}`, headers: endpoint.headers };
 }
 
 /**
@@ -106,10 +105,11 @@ function cgHeaders(): Record<string, string> {
 export async function fetchTopCryptos(limit = 100): Promise<CoinMarket[]> {
   return cached(`cg-top-${limit}`, TTL_MS, async () => {
     try {
-      const url =
-        `${CG_BASE}/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=${limit}` +
-        `&page=1&sparkline=false&price_change_percentage=24h,7d,30d`;
-      const res = await fetch(url, { headers: cgHeaders() });
+      const call = cgCall(
+        `/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=${limit}` +
+          `&page=1&sparkline=false&price_change_percentage=24h,7d,30d`
+      );
+      const res = await fetch(call.url, { headers: call.headers });
       if (!res.ok) {
         console.error(`[market-universe] CoinGecko markets HTTP ${res.status}`);
         return [];
@@ -144,8 +144,8 @@ export async function fetchTopCryptos(limit = 100): Promise<CoinMarket[]> {
 export async function fetchCryptoChart12mo(coinId: string): Promise<MonthPoint[]> {
   return cached(`cg-chart-${coinId}`, TTL_MS * 4, async () => {
     try {
-      const url = `${CG_BASE}/coins/${encodeURIComponent(coinId)}/market_chart?vs_currency=usd&days=365&interval=daily`;
-      const res = await fetch(url, { headers: cgHeaders() });
+      const call = cgCall(`/coins/${encodeURIComponent(coinId)}/market_chart?vs_currency=usd&days=365&interval=daily`);
+      const res = await fetch(call.url, { headers: call.headers });
       if (!res.ok) {
         console.error(`[market-universe] CoinGecko market_chart HTTP ${res.status} for ${coinId}`);
         return [];

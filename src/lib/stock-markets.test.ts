@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import sitemap from "@/app/sitemap";
 import { parseAllMarketsExchange, parseAllMarketsPage } from "@/lib/all-markets-query";
 import { parseMarketsTab } from "@/lib/market-detail-routes";
-import { boardCoverage, findListing, isSitemapStock, listingsFor } from "@/lib/stock-catalog";
+import { boardCoverage, findListing, isSitemapStock, listingsFor, pageListings } from "@/lib/stock-catalog";
 import {
   FUND_TYPE_NOTE,
   PRICE_NOT_IN_RESPONSE,
@@ -59,13 +59,13 @@ describe("stock board coverage", () => {
       listed: nasdaqOrdinary.length,
     });
     expect(boardCoverage("NASDAQ").line).toBe(
-      `Showing ${nasdaqOrdinary.length} of ${nasdaqOrdinary.length} listed. This count is ordinary names. Warrants, units and rights are not included.`
+      `Showing ${nasdaqOrdinary.length} of ${nasdaqOrdinary.length} listed. This count is ordinary names. Warrants, units, rights, and preferred shares are not included.`
     );
     expect(boardCoverage("NYSE").line).toBe(
-      `Showing ${nyseOrdinary.length} of ${nyseOrdinary.length} listed. This count is ordinary names. Warrants, units and rights are not included.`
+      `Showing ${nyseOrdinary.length} of ${nyseOrdinary.length} listed. This count is ordinary names. Warrants, units, rights, and preferred shares are not included.`
     );
     expect(boardCoverage("NASDAQ", { includeDerivatives: true }).line).toBe(
-      `Showing ${nasdaqAll.length} of ${nasdaqAll.length} listed. This count includes warrants, units and rights.`
+      `Showing ${nasdaqAll.length} of ${nasdaqAll.length} listed. This count includes warrants, units, rights, and preferred shares.`
     );
     expect(boardCoverage("NYSE", { includeDerivatives: true }).shown).toBe(nyseAll.length);
     expect(boardCoverage("NASDAQ").line).not.toMatch(/5622|2900|directory file/);
@@ -96,7 +96,13 @@ describe("stock board coverage", () => {
     expect(isDerivativeOrTestSecurity("ABC-WT", "Example Inc.")).toBe(true);
     expect(isDerivativeOrTestSecurity("ABC-UN", "Example Inc.")).toBe(true);
     expect(isDerivativeOrTestSecurity("ABC-RI", "Example Inc.")).toBe(true);
+    expect(isDerivativeOrTestSecurity("FLG-PU", "FLAGSTAR BANK, NATIONAL ASSOCIATION")).toBe(true);
+    expect(isDerivativeOrTestSecurity("NEE-PU", "NEXTERA ENERGY INC")).toBe(true);
+    expect(isDerivativeOrTestSecurity("PSA-PR", "Public Storage")).toBe(true);
+    expect(isDerivativeOrTestSecurity("JPM", "JPMORGAN CHASE & CO")).toBe(false);
     expect(isDerivativeOrTestSecurity("AIR", "AAR Corp.")).toBe(false);
+    expect(findListing("FLG-PU")?.board).toBe("NYSE");
+    expect(boardCoverage("NYSE").shown).toBe(nyseOrdinary.length);
     expect(unpricedFootnote(0)).toBeNull();
     expect(unpricedFootnote(1)).toBe("1 listing has no price in this response");
     expect(unpricedFootnote(12)).toBe("12 listings have no price in this response");
@@ -110,6 +116,18 @@ describe("stock board coverage", () => {
     expect(isSitemapStock("JPM")).toBe(true);
     expect(isSitemapStock("AACIU")).toBe(false);
     expect(isSitemapStock("AACIW")).toBe(false);
+    const preferred = ["FLG-PU", "NEE-PU", "PSA-PU", "TDS-PU", "C-PR", "PSA-PR", "TFC-PR", "USB-PR"];
+    expect(preferred.filter((ticker) => listingsFor("NYSE").some((row) => row.ticker === ticker))).toHaveLength(8);
+    for (const ticker of preferred) {
+      expect(isDerivativeOrTestSecurity(ticker, "Example")).toBe(true);
+      expect(listingsFor("NYSE").some((row) => row.ticker === ticker)).toBe(true);
+    }
+    const first = pageListings("NASDAQ", 1);
+    let paged = 0;
+    for (let page = 1; page <= first.pageCount; page++) paged += pageListings("NASDAQ", page).rows.length;
+    expect(paged).toBe(boardCoverage("NASDAQ").shown);
+    expect(paged).toBe(first.total);
+    expect(readFileSync("src/lib/stock-board.server.ts", "utf8")).not.toContain("built.filter((row) => row.quoted)");
   });
 
   it("reads the NYSE board and keeps a bad page number on the first page", () => {

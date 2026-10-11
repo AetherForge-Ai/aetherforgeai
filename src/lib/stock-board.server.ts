@@ -322,21 +322,23 @@ function toRow(
 
 export async function loadStockBoardPage(
   board: StockBoard,
-  opts?: { page?: number; query?: string; now?: number; waitMs?: number; includeDerivatives?: boolean }
+  opts?: { page?: number; query?: string; now?: number; waitMs?: number; includeDerivatives?: boolean; rowLimit?: number }
 ): Promise<StockBoardPage> {
   const now = opts?.now ?? Date.now();
   const query = (opts?.query || "").trim().slice(0, 40);
   const view = { includeDerivatives: !!opts?.includeDerivatives };
   const page = pageListings(board, opts?.page ?? 1, query, view);
   const coverage = boardCoverage(board, view);
+  const quoteRows = opts?.rowLimit && opts.rowLimit > 0 ? page.rows.slice(0, opts.rowLimit) : page.rows;
   const prints = await printsFor(
-    page.rows.map((row) => row.ticker),
+    quoteRows.map((row) => row.ticker),
     now,
     opts?.waitMs
   );
-  const built = page.rows.map((row) => toRow(row, prints[row.ticker] || null));
-  const rows = built.filter((row) => row.quoted);
-  const unpricedCount = built.length - rows.length;
+  // Every catalog row is returned. Dropping an unpriced name made "Showing N of N"
+  // disagree with the rows collected by paging.
+  const rows = quoteRows.map((row) => toRow(row, prints[row.ticker] || null));
+  const unpricedCount = rows.filter((row) => !row.quoted).length;
   const times = rows.map((row) => parseQuoteTime(row.quotedAt)).filter((value): value is Date => !!value);
   const latest = times.sort((a, b) => b.getTime() - a.getTime())[0] || null;
   const meta = META[board];
