@@ -3,7 +3,6 @@ import { getStableSessionUser } from "@/lib/session";
 import { hasForeignOwner, requestClaimsOtherUser } from "@/lib/account-guard";
 import { accountMismatchResponse, privateJson } from "@/lib/account-response";
 import { totalumSdk } from "@/lib/totalum";
-import { simulateTick } from "@/lib/market";
 import { fetchLiveQuotes, isLiveDataConfigured, fetchCryptoLiveSnapshot } from "@/lib/market-data";
 import { getMetalsSpot } from "@/lib/metals";
 import {
@@ -17,9 +16,9 @@ import { overlayFifoPurchasePrices } from "@/lib/fifo-cost-server";
 
 /**
  * POST /api/stocks/refresh
- * Refreshes every holding's current price. When a live market-data key is
- * configured, real quotes are used; otherwise a bounded random-walk tick keeps
- * the demo tape moving. Persists and returns the updated holdings.
+ * Refreshes every holding's current price from a live quote. An equity name
+ * with no quote keeps its stored current_price and is not written. Bullion
+ * and crypto keep the last real mark. Nothing here invents a price.
  */
 export const dynamic = "force-dynamic";
 
@@ -88,6 +87,10 @@ export async function POST(req: Request) {
         const key = ticker.toUpperCase();
         const route = quoteRouteForHolding(s.asset_type, ticker, s.company_name);
         const base = Number(s.current_price) || Number(s.purchase_price) || 0;
+        const equityQuote = route === "equity" ? equityMap[key]?.price : undefined;
+        if (route === "equity" && !(typeof equityQuote === "number" && equityQuote > 0)) {
+          return { ...s };
+        }
         const marked =
           route === "bullion"
             ? bullionMarkForHolding(s, metalsSpot)
@@ -96,18 +99,13 @@ export async function POST(req: Request) {
                 assetType: s.asset_type,
                 storedPrice: Number(s.current_price) || 0,
                 purchasePrice: Number(s.purchase_price) || 0,
-                equityQuote: route === "equity" ? equityMap[key]?.price : undefined,
+                equityQuote,
                 cryptoQuote: route === "crypto" ? cryptoMap[key]?.price : undefined,
               });
-        // Bullion never random-walks and never takes an equity print.
-        // Crypto trades 24/7 — when the live snapshot misses a coin, keep the
-        // last real mark. Do not invent a cash-session close or a random walk.
-        const next =
-          marked != null && marked > 0
-            ? marked
-            : route === "bullion" || route === "crypto"
-              ? base
-              : simulateTick(base);
+        // Bullion never takes an equity print. Crypto keeps the last real mark
+        // when the live snapshot misses a coin. Equity without a quote is
+        // returned above and is not written.
+        const next = marked != null && marked > 0 ? marked : base;
         const row = { ...s, current_price: next };
         if (Math.abs((Number(s.current_price) || 0) - next) < 1e-6) return row;
         try {
@@ -133,7 +131,7 @@ export async function POST(req: Request) {
     data = await overlayFifoPurchasePrices(data, user._id);
 
     console.log(
-      `[api/stocks/refresh] Updated ${updates.length} prices for user ${user._id} (source: ${usedLive ? "live" : "simulated"})`
+      `[api/stocks/refresh] Updated ${updates.length} prices for user ${user._id} (source: ${usedLive ? "live" : "stored"})`
     );
     return privateJson({ ok: true, userId: user._id, data });
   } catch (err: any) {

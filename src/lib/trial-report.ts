@@ -26,7 +26,7 @@ import { totalumSdk } from "@/lib/totalum";
 import { activityEmailSendingEnabled, previewActivityEmail } from "@/lib/activity-email";
 import { readActivityEmailPrefs } from "@/lib/activity-email-server";
 import { createZenithCompletion, isZenithConfigured } from "@/lib/grok";
-import { analyzeSecurity, type MarketCode } from "@/lib/market-intel";
+import { analyzeSecurity, intelIsHeld, NOT_ENOUGH_DAILY_HISTORY, type MarketCode } from "@/lib/market-intel";
 import { fetchQuotesForAssetClass } from "@/lib/market-data";
 import {
   fetchTopCryptos,
@@ -105,6 +105,13 @@ function signalFromSentiment(sentiment: number): TrialSignal {
 }
 
 /** Down-sample a MonthPoint series' overall % move (first→last). */
+function heldPredictions(): ForwardPrediction[] {
+  return [
+    { horizon: "7-day", direction: "flat", expectedMovePct: 0, confidence: 0, rationale: NOT_ENOUGH_DAILY_HISTORY },
+    { horizon: "30-day", direction: "flat", expectedMovePct: 0, confidence: 0, rationale: NOT_ENOUGH_DAILY_HISTORY },
+  ];
+}
+
 function seriesPct(points: MonthPoint[]): number {
   if (points.length < 2) return 0;
   const first = points[0].value;
@@ -206,10 +213,11 @@ async function buildCryptoReport(user: TrialUser, inputs: TrialTickerInput[]): P
     const coin = bySymbol.get(sym);
     // Fall back to the deterministic engine if the coin isn't in the top-100.
     const intel = analyzeSecurity(sym, coin?.price, coin?.name, "CRYPTO");
+    const held = intelIsHeld(intel);
 
-    const change24h = coin ? round(coin.change24h, 2) : intel.change1d;
-    const change7d = coin ? round(coin.change7d, 2) : intel.change7d;
-    const change30d = coin ? round(coin.change30d, 2) : intel.change30d;
+    const change24h = coin ? round(coin.change24h, 2) : 0;
+    const change7d = coin && Number.isFinite(coin.change7d) ? round(coin.change7d, 2) : 0;
+    const change30d = coin && Number.isFinite(coin.change30d) ? round(coin.change30d, 2) : 0;
     const price = coin?.price ?? intel.price;
 
     let momentum12mo: MonthPoint[] = [];
@@ -221,14 +229,13 @@ async function buildCryptoReport(user: TrialUser, inputs: TrialTickerInput[]): P
       }
     }
     const momentumIsLive = momentum12mo.length > 0;
-    if (!momentumIsLive) {
-      momentum12mo = intel.history.slice(-12).map((h, i) => ({ label: `M-${11 - i}`, value: h.price }));
-    }
-    const momentum12moPct = momentumIsLive ? seriesPct(momentum12mo) : intel.change30d;
+    const momentum12moPct = momentumIsLive ? seriesPct(momentum12mo) : 0;
 
-    const sentiment = clamp(intel.score, 2, 98);
-    const signal = signalFromSentiment(sentiment);
-    const predictions = buildPredictions({ change24h, change7d, change30d, momentum12moPct, rsi: intel.rsi });
+    const sentiment = held ? 0 : clamp(intel.score, 2, 98);
+    const signal = held ? "Watch" : signalFromSentiment(sentiment);
+    const predictions = held
+      ? heldPredictions()
+      : buildPredictions({ change24h, change7d, change30d, momentum12moPct, rsi: intel.rsi });
 
     const holding =
       input.shares && input.shares > 0
@@ -256,11 +263,11 @@ async function buildCryptoReport(user: TrialUser, inputs: TrialTickerInput[]): P
       momentumIsLive,
       signal,
       sentiment,
-      rsi: intel.rsi,
-      macdSignal: intel.macdSignal,
+      rsi: held ? null : intel.rsi,
+      macdSignal: held ? null : intel.macdSignal,
       predictions,
       holding,
-      note: tickerNote({ symbol: sym, assetClass: "crypto", change24h, change7d, change30d, momentum12moPct, signal, rsi: intel.rsi }),
+      note: held ? `${sym} — ${NOT_ENOUGH_DAILY_HISTORY}` : tickerNote({ symbol: sym, assetClass: "crypto", change24h, change7d, change30d, momentum12moPct, signal, rsi: intel.rsi }),
     });
   }
 
@@ -337,7 +344,9 @@ function deriveCryptoFindings(coins: CoinMarket[], tickers: TrialTickerAnalysis[
   }
   tickers.forEach((t) => {
     out.push(
-      `**${t.symbol}** — 24h ${t.change24h >= 0 ? "+" : ""}${t.change24h}% · 7d ${t.change7d >= 0 ? "+" : ""}${t.change7d}% · 12mo ${t.momentum12moPct >= 0 ? "+" : ""}${t.momentum12moPct}%; engine signal **${t.signal}**, 7-day model **${t.predictions[0].expectedMovePct >= 0 ? "+" : ""}${t.predictions[0].expectedMovePct}%**.`
+      t.predictions[0]?.rationale === NOT_ENOUGH_DAILY_HISTORY
+        ? `**${t.symbol}** — ${NOT_ENOUGH_DAILY_HISTORY}.`
+        : `**${t.symbol}** — 24h ${t.change24h >= 0 ? "+" : ""}${t.change24h}% · 7d ${t.change7d >= 0 ? "+" : ""}${t.change7d}% · 12mo ${t.momentum12moPct >= 0 ? "+" : ""}${t.momentum12moPct}%; engine signal **${t.signal}**, 7-day model **${t.predictions[0].expectedMovePct >= 0 ? "+" : ""}${t.predictions[0].expectedMovePct}%**.`
     );
   });
   return out;
@@ -367,10 +376,11 @@ async function buildStockReport(user: TrialUser, inputs: TrialTickerInput[]): Pr
     const market: MarketCode = sym.endsWith(".NZ") ? "NZX" : sym.endsWith(".AX") ? "ASX" : "US";
     const known = NZX_ASX_UNIVERSE.find((e) => e.ticker.toUpperCase() === sym.toUpperCase());
     const intel = analyzeSecurity(sym, q?.price, known?.name, market);
+    const held = intelIsHeld(intel);
 
-    const change24h = q?.changePct != null ? round(q.changePct, 2) : intel.change1d;
-    const change7d = intel.change7d;
-    const change30d = intel.change30d;
+    const change24h = q?.changePct != null ? round(q.changePct, 2) : 0;
+    const change7d = held ? 0 : intel.change7d;
+    const change30d = held ? 0 : intel.change30d;
     const price = q?.price ?? intel.price;
 
     let momentum12mo: MonthPoint[] = [];
@@ -380,14 +390,13 @@ async function buildStockReport(user: TrialUser, inputs: TrialTickerInput[]): Pr
       console.error(`[trial-report] stock chart failed for ${sym}:`, err);
     }
     const momentumIsLive = momentum12mo.length > 0;
-    if (!momentumIsLive) {
-      momentum12mo = intel.history.slice(-12).map((h, i) => ({ label: `M-${11 - i}`, value: h.price }));
-    }
-    const momentum12moPct = momentumIsLive ? seriesPct(momentum12mo) : intel.change30d;
+    const momentum12moPct = momentumIsLive ? seriesPct(momentum12mo) : 0;
 
-    const sentiment = clamp(intel.score, 2, 98);
-    const signal = signalFromSentiment(sentiment);
-    const predictions = buildPredictions({ change24h, change7d, change30d, momentum12moPct, rsi: intel.rsi });
+    const sentiment = held ? 0 : clamp(intel.score, 2, 98);
+    const signal = held ? "Watch" : signalFromSentiment(sentiment);
+    const predictions = held
+      ? heldPredictions()
+      : buildPredictions({ change24h, change7d, change30d, momentum12moPct, rsi: intel.rsi });
 
     const holding =
       input.shares && input.shares > 0
@@ -415,16 +424,16 @@ async function buildStockReport(user: TrialUser, inputs: TrialTickerInput[]): Pr
       momentumIsLive,
       signal,
       sentiment,
-      rsi: intel.rsi,
-      macdSignal: intel.macdSignal,
+      rsi: held ? null : intel.rsi,
+      macdSignal: held ? null : intel.macdSignal,
       predictions,
       holding,
-      note: tickerNote({ symbol: sym, assetClass: "stock", change24h, change7d, change30d, momentum12moPct, signal, rsi: intel.rsi }),
+      note: held ? `${sym} — ${NOT_ENOUGH_DAILY_HISTORY}` : tickerNote({ symbol: sym, assetClass: "stock", change24h, change7d, change30d, momentum12moPct, signal, rsi: intel.rsi }),
     });
   }
 
   const portfolio = buildPortfolio(tickers);
-  const predictions = stockMarketPredictions(universeIntel);
+  const predictions = stockMarketPredictions(universeIntel.filter((row) => !intelIsHeld(row)));
   const news = stockNewsFallback();
 
   const base: TrialReport = {
@@ -494,7 +503,9 @@ function deriveStockFindings(boards: TrialReport["stockMovers"], tickers: TrialT
   }
   tickers.forEach((t) => {
     out.push(
-      `**${t.symbol}** — 24h ${t.change24h >= 0 ? "+" : ""}${t.change24h}% · 7d ${t.change7d >= 0 ? "+" : ""}${t.change7d}% · 12mo ${t.momentum12moPct >= 0 ? "+" : ""}${t.momentum12moPct}%; engine signal **${t.signal}**, 7-day model **${t.predictions[0].expectedMovePct >= 0 ? "+" : ""}${t.predictions[0].expectedMovePct}%**.`
+      t.predictions[0]?.rationale === NOT_ENOUGH_DAILY_HISTORY
+        ? `**${t.symbol}** — ${NOT_ENOUGH_DAILY_HISTORY}.`
+        : `**${t.symbol}** — 24h ${t.change24h >= 0 ? "+" : ""}${t.change24h}% · 7d ${t.change7d >= 0 ? "+" : ""}${t.change7d}% · 12mo ${t.momentum12moPct >= 0 ? "+" : ""}${t.momentum12moPct}%; engine signal **${t.signal}**, 7-day model **${t.predictions[0].expectedMovePct >= 0 ? "+" : ""}${t.predictions[0].expectedMovePct}%**.`
     );
   });
   return out;

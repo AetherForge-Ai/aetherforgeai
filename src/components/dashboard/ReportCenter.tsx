@@ -934,7 +934,9 @@ export function ReportCenter({
               )}
             </div>
           </DialogHeader>
-          {report ? (
+          {report?.isDemo ? (
+            <p className="text-sm text-muted-foreground">Illustrative demo — not real market data.</p>
+          ) : report ? (
             <ApexReportView report={report} />
           ) : textOnly ? (
             <article className="min-w-0 max-w-full space-y-3 break-words text-sm leading-relaxed">

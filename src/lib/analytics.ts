@@ -113,7 +113,8 @@ function std(xs: number[]): number {
 }
 
 /** Enrich each holding with live technical intel + portfolio weight. */
-export function enrichHoldings(stocks: Stock[]): HoldingIntel[] {
+export function enrichHoldings(stocks: Stock[], known?: SecurityIntel[]): HoldingIntel[] {
+  const knownByTicker = new Map((known ?? []).map((row) => [row.ticker.toUpperCase(), row]));
   const withValue = stocks.map((s) => {
     const shares = Number(s.shares) || 0;
     const current = Number(s.current_price) || Number(s.purchase_price) || 0;
@@ -122,12 +123,14 @@ export function enrichHoldings(stocks: Stock[]): HoldingIntel[] {
   const totalValue = withValue.reduce((sum, w) => sum + w.marketValue, 0);
 
   return withValue.map(({ s, marketValue }) => {
-    const intel = analyzeSecurity(
-      s.ticker,
-      Number(s.current_price) || undefined,
-      s.company_name,
-      marketOverrideFor(s)
-    );
+    const intel =
+      knownByTicker.get(s.ticker.toUpperCase()) ??
+      analyzeSecurity(
+        s.ticker,
+        Number(s.current_price) || undefined,
+        s.company_name,
+        marketOverrideFor(s)
+      );
     const shares = Number(s.shares) || 0;
     const cost = shares * (Number(s.purchase_price) || 0);
     const gain = marketValue - cost;
@@ -141,8 +144,8 @@ export function enrichHoldings(stocks: Stock[]): HoldingIntel[] {
   });
 }
 
-export function computePortfolioMetrics(stocks: Stock[]): PortfolioMetrics {
-  const holdings = enrichHoldings(stocks);
+export function computePortfolioMetrics(stocks: Stock[], known?: SecurityIntel[]): PortfolioMetrics {
+  const holdings = enrichHoldings(stocks, known);
   const empty: PortfolioMetrics = {
     volatility: 0,
     sharpe: 0,
@@ -162,11 +165,12 @@ export function computePortfolioMetrics(stocks: Stock[]): PortfolioMetrics {
   );
 
   // Build a weighted portfolio daily-return series from each holding's history.
-  const len = Math.min(...holdings.map((h) => h.intel.history.length));
+  const readable = holdings.filter((h) => !h.intel.analysisHold && h.intel.history.length >= 2);
+  const len = readable.length ? Math.min(...readable.map((h) => h.intel.history.length)) : 0;
   const portReturns: number[] = [];
   for (let day = 1; day < len; day++) {
     let r = 0;
-    holdings.forEach((h) => {
+    readable.forEach((h) => {
       const prices = h.intel.history.map((p) => p.price);
       const prev = prices[prices.length - len + day - 1];
       const cur = prices[prices.length - len + day];
@@ -182,10 +186,10 @@ export function computePortfolioMetrics(stocks: Stock[]): PortfolioMetrics {
   const sharpe = annualVol > 0 ? round((annualReturn - RISK_FREE_ANNUAL) / annualVol, 2) : 0;
 
   // 7-day alpha potential (weighted projection).
-  const alphaPotentialPct = round(
-    holdings.reduce((s, h) => s + (h.weight / 100) * h.intel.projected7dPct, 0),
-    2
-  );
+  const projected = holdings.filter((h) => !h.intel.analysisHold && !h.intel.forwardOmitted);
+  const alphaPotentialPct = projected.length
+    ? round(projected.reduce((s, h) => s + (h.weight / 100) * h.intel.projected7dPct, 0), 2)
+    : 0;
   const alphaPotentialValue = round(totalValue * (alphaPotentialPct / 100), 2);
 
   // Diversification: distinct sectors relative to a healthy target of ~6.
@@ -241,7 +245,7 @@ export function buildActionableIntelligence(
 
   // Exit list — score below 42 is the same band as Reduce and Sell.
   const sellRecommendations: SellRecommendation[] = holdings
-    .filter((h) => h.intel.score < 42)
+    .filter((h) => !h.intel.analysisHold && h.intel.score < 42)
     .sort((a, b) => a.intel.score - b.intel.score)
     .map((h) => ({
       ticker: h.stock.ticker,
@@ -272,6 +276,7 @@ export function buildActionableIntelligence(
   // conviction score as a tie-breaker. Show the top 20 across all markets.
   const buyCandidates: BuyCandidate[] = candidatePool
     .filter((i) => !heldTickers.has(i.ticker.toUpperCase()))
+    .filter((i) => !i.analysisHold && !i.forwardOmitted)
     .filter((i) => i.score >= 58)
     .filter((i) => !priceMatchesUniverseSeed(i.ticker, i.price))
     .sort((a, b) => {

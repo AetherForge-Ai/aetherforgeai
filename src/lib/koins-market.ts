@@ -18,9 +18,8 @@ import "server-only";
 import { loadTop400Markets } from "@/lib/crypto-source";
 import { readSharedDexBoard } from "@/lib/crypto-board-store";
 import { dexRowToCoin } from "@/lib/crypto-dex";
-import { analyzeSecurity, type SecurityIntel } from "@/lib/market-intel";
+import { analyzeSecurity, NOT_ENOUGH_DAILY_HISTORY, type SecurityIntel } from "@/lib/market-intel";
 import { labelIntel } from "@/lib/security-signal";
-import { alignProjectedFigures } from "@/lib/projection-figure";
 import { resolveSevenDayChange, type CoinMarket } from "@/lib/crypto-market";
 
 function round(v: number, dp = 2): number {
@@ -28,40 +27,40 @@ function round(v: number, dp = 2): number {
   return Math.round(v * f) / f;
 }
 
-function clamp(v: number, lo: number, hi: number): number {
-  return Math.max(lo, Math.min(hi, v));
+function positiveSeries(series: number[] | null | undefined): number[] {
+  return (series || []).filter((point) => typeof point === "number" && isFinite(point) && point > 0);
 }
 
 /**
- * Convert one live top-500 coin into a full `SecurityIntel` row.
+ * Convert one live coin into a `SecurityIntel` row.
  *
- * The deterministic technical engine provides the structural read — RSI, MACD,
- * SMAs, regime, support/resistance, conviction — anchored to the coin's LIVE USD
- * price. We then overwrite the realised 24h / 7d moves with the exchange's
- * GENUINE figures and blend a transparent, bounded forward 7-day projection from
- * real momentum + the model's structural bias, so the board ranks on true market
- * performance. Market/asset-class/currency are FORCED to crypto so a symbol that
- * happens to collide with an equity ticker can never mislabel the row.
+ * RSI, MACD and regime come only from real daily closes (at least 40 points,
+ * such as a CoinGecko market_chart daily series). The hourly sparkline is not
+ * a daily series. Real 24h and 7d changes stay. Koins does not publish a
+ * 7-day projection, odds, conviction or a bull/base/bear outlook.
  */
-export function coinToIntel(c: CoinMarket): SecurityIntel {
-  const base = analyzeSecurity(c.symbol, c.price > 0 ? c.price : undefined, c.name, "CRYPTO");
+export function coinToIntel(c: CoinMarket, dailyCloses?: number[] | null): SecurityIntel {
+  const daily = positiveSeries(dailyCloses);
+  const series = daily.length >= 40 ? daily : undefined;
+  const base = analyzeSecurity(c.symbol, c.price > 0 ? c.price : undefined, c.name, "CRYPTO", series);
 
   const stated24h = c.moves ? c.moves.h24 : isFinite(c.change24h) ? c.change24h : null;
-  const change1d = stated24h != null ? round(stated24h, 2) : base.change1d;
-  // A missing 7-day print stays missing on the realised change. The forward
-  // projection stays inside ±12% so a seeded walk cannot print one shared model move.
   const live7d = c.moves ? c.moves.d7 : resolveSevenDayChange(c.change7d, c.sparkline7d);
-  const change7d = live7d != null ? round(live7d, 2) : base.change7d;
+  const published: Array<"1d" | "7d" | "30d"> = [];
+  let change1d = 0;
+  let change7d = 0;
+  if (stated24h != null && isFinite(stated24h)) {
+    change1d = round(stated24h, 2);
+    published.push("1d");
+  }
+  if (live7d != null && isFinite(live7d)) {
+    change7d = round(live7d, 2);
+    published.push("7d");
+  }
+  if (daily.length >= 40 && !base.analysisHold) published.push("30d");
 
-  // A live 7-day print can blend with the structural read. Anything outside ±12
-  // stays on the structural figure. The old ±45 clamp pinned names such as RSR at +45.00.
-  const blend = 0.5 * base.projected7dPct + 0.4 * change7d + 0.1 * change1d;
-  const projected7dPct =
-    live7d == null || Math.abs(blend) > 12
-      ? round(clamp(base.projected7dPct, -12, 12), 2)
-      : round(blend, 2);
-
-  return labelIntel(alignProjectedFigures({
+  const technicalHold = base.analysisHold ? NOT_ENOUGH_DAILY_HISTORY : null;
+  return labelIntel({
     ...base,
     ticker: c.symbol,
     name: c.name,
@@ -69,11 +68,27 @@ export function coinToIntel(c: CoinMarket): SecurityIntel {
     assetClass: "crypto",
     currency: "USD",
     sector: "Digital Assets",
-    price: c.price,
+    price: c.price > 0 ? c.price : base.price,
     change1d,
     change7d,
-    projected7dPct,
-  }));
+    change30d: daily.length >= 40 && !base.analysisHold ? base.change30d : 0,
+    projected7dPct: 0,
+    confidence: 0,
+    projection: [],
+    outlook: {
+      ...base.outlook,
+      expectedPct: 0,
+      sigma7Pct: 0,
+      base: { ...base.outlook.base, lowPct: 0, highPct: 0, lowPrice: 0, highPrice: 0, probability: 0 },
+      bull: { ...base.outlook.bull, lowPct: 0, highPct: 0, lowPrice: 0, highPrice: 0, probability: 0 },
+      bear: { ...base.outlook.bear, lowPct: 0, highPct: 0, lowPrice: 0, highPrice: 0, probability: 0 },
+    },
+    conviction: "Low",
+    convictionReason: "",
+    publishedChanges: published,
+    analysisHold: technicalHold,
+    forwardOmitted: true,
+  });
 }
 
 let cache: { at: number; value: SecurityIntel[] } | null = null;
