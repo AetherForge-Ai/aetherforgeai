@@ -9,6 +9,7 @@
 
 import "server-only";
 
+import { coinGeckoEndpoint, redactSecrets } from "@/lib/coingecko-auth";
 import { dexPriceForSymbol, dexReserveUsd, DEX_LIQUIDITY_FLOOR_USD } from "@/lib/crypto-dex";
 import { dexQuoteRows } from "@/lib/crypto-coingecko";
 import { fetchSpotPrices } from "@/lib/crypto-swyftx";
@@ -72,12 +73,6 @@ function symbolFor(input: string): string | null {
   return hit?.ticker ?? null;
 }
 
-function cgHeaders(): Record<string, string> {
-  const headers: Record<string, string> = { Accept: "application/json" };
-  if (process.env.COINGECKO_API_KEY) headers["x-cg-demo-api-key"] = process.env.COINGECKO_API_KEY;
-  return headers;
-}
-
 function isoFromUnix(value: unknown): string | null {
   const n = Number(value);
   if (!Number.isFinite(n) || n <= 0) return null;
@@ -89,11 +84,17 @@ function isoFromUnix(value: unknown): string | null {
 async function cgSimple(ids: string[]): Promise<Record<string, ChainCandidate>> {
   const unique = [...new Set(ids.map((id) => id.trim()).filter(Boolean))];
   if (!unique.length) return {};
-  const url = `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(
+  const path = `/simple/price?ids=${encodeURIComponent(
     unique.join(",")
   )}&vs_currencies=usd&include_24hr_change=true&include_last_updated_at=true`;
-  const res = await fetch(url, { headers: cgHeaders(), signal: AbortSignal.timeout(CHAIN_TIMEOUT_MS) });
-  if (!res.ok) throw new Error(`coingecko ${res.status}`);
+  const first = coinGeckoEndpoint();
+  let res = await fetch(`${first.base}${path}`, { headers: first.headers, signal: AbortSignal.timeout(CHAIN_TIMEOUT_MS) });
+  if (!res.ok && first.mode !== "keyless" && (res.status === 401 || res.status === 403 || res.status === 429)) {
+    console.error(`[crypto-price] CoinGecko ${res.status} on the keyed call. Retrying keyless.`);
+    const plain = coinGeckoEndpoint(process.env, true);
+    res = await fetch(`${plain.base}${path}`, { headers: plain.headers, signal: AbortSignal.timeout(CHAIN_TIMEOUT_MS) });
+  }
+  if (!res.ok) throw new Error(redactSecrets(`coingecko ${res.status}`));
   const json = (await res.json()) as Record<string, { usd?: number; usd_24h_change?: number; last_updated_at?: number }>;
   const out: Record<string, ChainCandidate> = {};
   for (const [id, row] of Object.entries(json)) {

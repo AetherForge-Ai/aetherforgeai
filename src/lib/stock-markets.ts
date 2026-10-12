@@ -123,8 +123,8 @@ export function coverageSentence(shown: number, listed: number): string {
 /** What the NASDAQ or NYSE count includes. Other boards have no extra clause. */
 export function boardCountClause(board: StockBoard, includeDerivatives: boolean): string {
   if (board !== "NASDAQ" && board !== "NYSE") return "";
-  if (includeDerivatives) return "This count includes warrants, units and rights.";
-  return "This count is ordinary names. Warrants, units and rights are not included.";
+  if (includeDerivatives) return "This count includes warrants, units, rights, and preferred shares.";
+  return "This count is ordinary names. Warrants, units, rights, and preferred shares are not included.";
 }
 
 export function unpricedFootnote(count: number): string | null {
@@ -176,6 +176,8 @@ export function isDerivativeOrTestSecurity(ticker: string, name: string): boolea
   if (symbol.includes("TEST")) return true;
   if (/^Z[A-Z]ZZT$/.test(symbol)) return true;
   if (/-(WT|WTA|UN|RI)$/.test(symbol)) return true;
+  // NYSE preferred classes such as FLG-PU, NEE-PU, and PSA-PR.
+  if (/-(PR|PU)$/.test(symbol)) return true;
   return /^[A-Z]{4}(W|U|R|WS|WT|WD|RT)$/.test(symbol);
 }
 

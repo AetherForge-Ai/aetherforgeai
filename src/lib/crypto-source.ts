@@ -26,8 +26,10 @@ import {
   type CoinChart,
 } from "@/lib/crypto-market";
 import { canonicalCryptoId, normalizeCryptoTicker } from "@/lib/crypto-ids";
-import { listedMarketNotice } from "@/lib/crypto-coverage";
+import { formatDisplayDateTime } from "@/lib/currency";
+import { listedMarketNotice, noticeWithAsOf } from "@/lib/crypto-coverage";
 import { selectListedMarkets } from "@/lib/crypto-list";
+import { persistCryptoSnapshot, readCryptoSnapshot, snapshotWorthSaving } from "@/lib/crypto-snapshot";
 import { publicCoinDescription, publicCoinSourceLine } from "@/lib/data-sources";
 import { swyftxPublicDisplay } from "@/lib/swyftx-display";
 
@@ -194,11 +196,16 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function pageFrom(coins: CoinMarket[], reason: "page2" | "backup" | "short" | null): RankedCryptoPage {
+function pageFrom(
+  coins: CoinMarket[],
+  reason: "page2" | "backup" | "short" | "saved" | null,
+  asOf: string | null = null
+): RankedCryptoPage {
   const capped = hideSwyftxRows(coins).slice(0, 400);
+  const label = asOf ? formatDisplayDateTime(asOf) : "";
   return {
     coins: capped,
-    notice: capped.length >= 400 ? null : listedMarketNotice(capped.length, reason),
+    notice: noticeWithAsOf(listedMarketNotice(capped.length, reason), label === "—" ? null : label),
   };
 }
 
@@ -210,7 +217,7 @@ function liveCoins(page: RankedCryptoPage | null | undefined): CoinMarket[] {
  * Top 400 for the Crypto tab and the Koins sweep.
  * CoinGecko pages 1 and 2 by market cap. When that list is short and
  * SWYFTX_PUBLIC_DISPLAY is on, the backup list fills symbols that are not
- * already present. Yahoo is used only when those lists returned nothing.
+ * already present. A saved CoinGecko list is next. Yahoo is used only when no saved list exists.
  * Kraken and Coinbase quote one symbol. They do not replace this list.
  * A snapshot younger than 60 seconds is returned as-is. A failed refresh waits 60 seconds.
  * Old rows are not appended to a shorter live result.
@@ -252,8 +259,17 @@ async function buildTopList(): Promise<RankedCryptoPage> {
   const left = LIST_COLD_MS - (Date.now() - started);
   if (sxRows == null && left > 100) await Promise.race([sxTask, sleep(Math.max(0, left))]);
   const sx = sxRows ?? [];
+  let savedRows: CoinMarket[] = [];
+  let savedAt: string | null = null;
+  if (!cgCoins.length) {
+    const saved = await readCryptoSnapshot();
+    if (saved?.coins.length) {
+      savedRows = tagSource(saved.coins, "coingecko");
+      savedAt = saved.at;
+    }
+  }
   let yahooRows: CoinMarket[] = [];
-  if (!cgCoins.length && !sx.length) {
+  if (!cgCoins.length && !sx.length && !savedRows.length) {
     try {
       yahooRows = tagSource(
         await Promise.race([yahoo.fetchYahooMajorMarkets(), sleep(1_000).then(() => [] as CoinMarket[])]),
@@ -269,14 +285,19 @@ async function buildTopList(): Promise<RankedCryptoPage> {
     coingecko: cgCoins,
     page2Missing: page2Missed,
     backup: sx,
+    saved: savedRows,
     yahoo: yahooRows,
   });
   if (!selected.coins.length) {
     listBackoffUntil = Date.now() + LIST_BACKOFF_MS;
     throw new Error(LIVE_CRYPTO_UNAVAILABLE);
   }
-  const page = pageFrom(selected.coins, selected.reason);
+  const asOf = selected.reason === "saved" ? savedAt : latestQuotedAt(selected.coins);
+  const page = pageFrom(selected.coins, selected.reason, asOf);
   listSnap = { at: Date.now(), page };
+  if (snapshotWorthSaving(tagSource(selected.coins, selected.reason === "saved" ? "coingecko" : cgCoins.length ? "coingecko" : ""))) {
+    await persistCryptoSnapshot(tagSource(selected.coins, "coingecko"), asOf || new Date().toISOString());
+  }
   void Promise.all([sxTask, pendingCg.catch(() => null)]).then(() => {
     const doneCg = tagSource(liveCoins(coingecko.peekTop400()), "coingecko");
     if (!doneCg.length) return;
@@ -284,12 +305,30 @@ async function buildTopList(): Promise<RankedCryptoPage> {
       coingecko: doneCg,
       page2Missing: (coingecko.peekTop400()?.notice || "").includes("second page"),
       backup: sxRows ?? [],
+      saved: [],
       yahoo: [],
     });
     if (!done.coins.length) return;
-    listSnap = { at: Date.now(), page: pageFrom(done.coins, done.reason) };
+    const doneAt = latestQuotedAt(done.coins);
+    listSnap = { at: Date.now(), page: pageFrom(done.coins, done.reason, doneAt) };
+    if (snapshotWorthSaving(tagSource(done.coins, "coingecko"))) {
+      void persistCryptoSnapshot(tagSource(done.coins, "coingecko"), doneAt || new Date().toISOString());
+    }
   });
   return page;
+}
+
+function latestQuotedAt(coins: CoinMarket[]): string | null {
+  let best = 0;
+  let iso: string | null = null;
+  for (const coin of coins) {
+    const at = Date.parse(coin.quotedAt || "");
+    if (Number.isFinite(at) && at >= best) {
+      best = at;
+      iso = coin.quotedAt || null;
+    }
+  }
+  return iso;
 }
 
 function releasePage(page: RankedCryptoPage): RankedCryptoPage {
@@ -299,18 +338,54 @@ function releasePage(page: RankedCryptoPage): RankedCryptoPage {
   return pageFrom(coins, coins.length >= 400 ? null : "short");
 }
 
+async function warmSavedList(): Promise<RankedCryptoPage | null> {
+  const saved = await readCryptoSnapshot();
+  if (!saved?.coins.length) return null;
+  const page = pageFrom(tagSource(saved.coins, "coingecko"), "saved", saved.at);
+  listSnap = { at: Date.now(), page };
+  return page;
+}
+
 export async function loadTop400Markets(): Promise<RankedCryptoPage> {
   const now = Date.now();
+  if (!listSnap) {
+    const warmed = await warmSavedList();
+    if (warmed?.coins.length) {
+      if (!listInflight) {
+        listInflight = buildTopList().finally(() => {
+          listInflight = null;
+        });
+      }
+      void listInflight.catch((err) => {
+        listBackoffUntil = Date.now() + LIST_BACKOFF_MS;
+        console.error("[crypto-source] background crypto list failed:", err instanceof Error ? err.message.slice(0, 160) : "failed");
+      });
+      return releasePage(warmed);
+    }
+  }
   if (listSnap && now - listSnap.at < LIST_FRESH_MS) return releasePage(listSnap.page);
+  if (listSnap && listSnap.page.coins.length >= 100 && (now < listBackoffUntil || now - listSnap.at >= LIST_FRESH_MS)) {
+    if (now - listSnap.at >= LIST_FRESH_MS && now >= listBackoffUntil) {
+      if (!listInflight) {
+        listInflight = buildTopList().finally(() => {
+          listInflight = null;
+        });
+      }
+      void listInflight.catch((err) => {
+        listBackoffUntil = Date.now() + LIST_BACKOFF_MS;
+        console.error("[crypto-source] background crypto list failed:", err instanceof Error ? err.message.slice(0, 160) : "failed");
+      });
+    }
+    return releasePage(listSnap.page);
+  }
   if (!listSnap && now < listBackoffUntil) throw new Error(LIVE_CRYPTO_UNAVAILABLE);
-  if (listSnap && now < listBackoffUntil && now - listSnap.at < LIST_MAX_AGE_MS) return releasePage(listSnap.page);
   if (!listInflight) {
     listInflight = buildTopList().finally(() => {
       listInflight = null;
     });
   }
   const pending = listInflight;
-  if (listSnap && now - listSnap.at < LIST_MAX_AGE_MS) {
+  if (listSnap && listSnap.page.coins.length) {
     void pending.catch((err) => {
       listBackoffUntil = Date.now() + LIST_BACKOFF_MS;
       console.error("[crypto-source] background crypto list failed:", err instanceof Error ? err.message.slice(0, 160) : "failed");
@@ -324,9 +399,11 @@ export async function loadTop400Markets(): Promise<RankedCryptoPage> {
     listBackoffUntil = Date.now() + LIST_BACKOFF_MS;
     console.error("[crypto-source] crypto list failed:", err instanceof Error ? err.message.slice(0, 160) : "failed");
   }
-  if (listSnap && Date.now() - listSnap.at < LIST_MAX_AGE_MS && listSnap.page.coins.length) return releasePage(listSnap.page);
+  if (listSnap && listSnap.page.coins.length) return releasePage(listSnap.page);
   const peeked = coingecko.peekTop400();
-  if (peeked && liveCoins(peeked).length) return pageFrom(liveCoins(peeked), "short");
+  if (peeked && liveCoins(peeked).length) return pageFrom(liveCoins(peeked), "short", latestQuotedAt(liveCoins(peeked)));
+  const saved = await readCryptoSnapshot();
+  if (saved?.coins.length) return pageFrom(tagSource(saved.coins, "coingecko"), "saved", saved.at);
   throw new Error(LIVE_CRYPTO_UNAVAILABLE);
 }
 

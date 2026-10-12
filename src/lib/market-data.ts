@@ -11,6 +11,7 @@
  * break pricing, reports or the dashboard.
  */
 
+import { coinGeckoEndpoint } from "@/lib/coingecko-auth";
 import {
   fetchYahooNames,
   fetchYahooHistories,
@@ -288,12 +289,11 @@ async function fillMissingCryptoQuoteTimes(
   missing.forEach((t) => idMap.set(ids?.[t] || coingeckoId(t), t));
   const idList = Array.from(idMap.keys()).join(",");
   try {
-    const url = `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(
+    const endpoint = coinGeckoEndpoint();
+    const url = `${endpoint.base}/simple/price?ids=${encodeURIComponent(
       idList
     )}&vs_currencies=usd&include_last_updated_at=true`;
-    const headers: Record<string, string> = { Accept: "application/json" };
-    if (process.env.COINGECKO_API_KEY) headers["x-cg-demo-api-key"] = process.env.COINGECKO_API_KEY;
-    const res = await fetch(url, { headers });
+    const res = await fetch(url, { headers: endpoint.headers });
     if (!res.ok) return;
     const json = (await res.json()) as Record<string, { last_updated_at?: number }>;
     for (const [id, row] of Object.entries(json)) {
@@ -362,13 +362,11 @@ export async function fetchCryptoQuotes(
     unique.forEach((t) => idMap.set(opts?.ids?.[t] || coingeckoId(t), t));
     const ids = Array.from(idMap.keys()).join(",");
     try {
-      const url = `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(
+      const endpoint = coinGeckoEndpoint();
+      const url = `${endpoint.base}/simple/price?ids=${encodeURIComponent(
         ids
       )}&vs_currencies=usd&include_24hr_change=true&include_last_updated_at=true`;
-      const headers: Record<string, string> = { Accept: "application/json" };
-      if (process.env.COINGECKO_API_KEY) headers["x-cg-demo-api-key"] = process.env.COINGECKO_API_KEY;
-
-      const res = await fetch(url, { headers });
+      const res = await fetch(url, { headers: endpoint.headers });
       if (res.ok) {
         const json = (await res.json()) as Record<
           string,

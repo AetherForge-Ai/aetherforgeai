@@ -12,6 +12,7 @@
  * Extra: live price and the last history close must stay within 3× of each other.
  */
 
+import { coinGeckoEndpoint } from "@/lib/coingecko-auth";
 import { coingeckoIdFor, normalizeCryptoTicker } from "@/lib/crypto-vendors";
 
 export const CRYPTO_SANITY_RATIO = 3;
@@ -262,14 +263,12 @@ export async function loadCryptoBoard(tickers: string[], io: CryptoTapeIo): Prom
   return settleCryptoRows(attempts);
 }
 
-const CG_BASE = "https://api.coingecko.com/api/v3";
 const TTL_MS = 60_000;
 let cache: { key: string; at: number; value: CryptoBoard } | null = null;
 
-function cgHeaders(): Record<string, string> {
-  const headers: Record<string, string> = { Accept: "application/json" };
-  if (process.env.COINGECKO_API_KEY) headers["x-cg-demo-api-key"] = process.env.COINGECKO_API_KEY;
-  return headers;
+function cgCall(path: string): { url: string; headers: Record<string, string> } {
+  const endpoint = coinGeckoEndpoint();
+  return { url: `${endpoint.base}${path}`, headers: endpoint.headers };
 }
 
 async function liveCoingeckoPrices(ids: { ticker: string; id: string }[]): Promise<Record<string, CryptoPrint>> {
@@ -280,8 +279,8 @@ async function liveCoingeckoPrices(ids: { ticker: string; id: string }[]): Promi
     list.push(row.ticker);
     tickersById.set(row.id, list);
   }
-  const url = `${CG_BASE}/simple/price?ids=${encodeURIComponent([...tickersById.keys()].join(","))}&vs_currencies=usd&include_24hr_change=true`;
-  const res = await fetch(url, { headers: cgHeaders(), cache: "no-store" });
+  const call = cgCall(`/simple/price?ids=${encodeURIComponent([...tickersById.keys()].join(","))}&vs_currencies=usd&include_24hr_change=true`);
+  const res = await fetch(call.url, { headers: call.headers, cache: "no-store" });
   if (!res.ok) throw new Error(`CoinGecko HTTP ${res.status}`);
   const json = (await res.json()) as Record<string, { usd?: number; usd_24h_change?: number }>;
   const out: Record<string, CryptoPrint> = {};
@@ -296,8 +295,8 @@ async function liveCoingeckoPrices(ids: { ticker: string; id: string }[]): Promi
 }
 
 async function liveCoingeckoHistory(id: string): Promise<number[]> {
-  const url = `${CG_BASE}/coins/${encodeURIComponent(id)}/market_chart?vs_currency=usd&days=30`;
-  const res = await fetch(url, { headers: cgHeaders(), cache: "no-store" });
+  const call = cgCall(`/coins/${encodeURIComponent(id)}/market_chart?vs_currency=usd&days=30`);
+  const res = await fetch(call.url, { headers: call.headers, cache: "no-store" });
   if (!res.ok) throw new Error(`CoinGecko history HTTP ${res.status} for ${id}`);
   const json = (await res.json()) as { prices?: Array<[number, number]> };
   return dailyCloses(json.prices || []);

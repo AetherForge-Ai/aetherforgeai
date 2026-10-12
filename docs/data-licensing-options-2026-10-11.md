@@ -11,7 +11,7 @@ Facts below were read from the code, from `wrangler.jsonc`, or from a public pag
 ## What the code calls
 
 - Shares: `https://query1.finance.yahoo.com` chart and spark (`src/lib/yahoo-finance.ts`). Twelve Data (`api.twelvedata.com`) runs only when `MARKET_DATA_API_KEY` is set (`src/lib/market-data.ts`). `wrangler.jsonc` does not set that key. Whether the live host sets it is UNVERIFIED.
-- Crypto: `https://api.coingecko.com/api/v3`. The header `x-cg-demo-api-key` is sent only when `COINGECKO_API_KEY` is set (`src/lib/crypto-coingecko.ts`). `wrangler.jsonc` does not set that key. Runtime value UNVERIFIED. Swyftx is `https://api.swyftx.com.au` when that feed answers (`src/lib/crypto-swyftx.ts`).
+- Crypto: `https://api.coingecko.com/api/v3` when keyless or when `COINGECKO_API_KEY` is a demo key. The demo header is `x-cg-demo-api-key`. `COINGECKO_PRO=on` switches the host to `https://pro-api.coingecko.com/api/v3` and the header to `x-cg-pro-api-key`. The key is not logged. A failed keyed call falls back to the keyless public host. `wrangler.jsonc` does not set the key. Runtime value UNVERIFIED. Set it in the host environment (Totalum env vars) if the keyless call is rate-limited. Swyftx is `https://api.swyftx.com.au` when that feed answers (`src/lib/crypto-swyftx.ts`).
 - DEX: `https://api.geckoterminal.com/api/v2` (`src/lib/crypto-coingecko.ts`).
 - Metals: `https://api.gold-api.com/price/` (`src/lib/metals.ts`).
 - FX: `https://open.er-api.com/v6/latest/NZD` for the daily table (`src/lib/fx.ts`). A failed read uses `BASELINE_FX_TO_NZD` in code. Past dates use `https://api.frankfurter.app/` (`src/lib/fx.ts`).
@@ -64,7 +64,7 @@ Swyftx terms were not fetched. UNVERIFIED.
 
 2. Ask Yahoo, or the exchange data provider named on the Yahoo help page, for written permission before NZX or ASX prices stay on a paid product. Until that permission is in hand, do not say the product is licensed, official, or real-time. A later choice can be to stop showing those prices on paid pages.
 
-3. CoinGecko: keep the keyless call, or buy a CoinGecko plan and set `COINGECKO_API_KEY` on the host. Do not add an attribution line, and do not claim a right to resell the feed, until someone has read the current API terms. Those terms were UNVERIFIED on 11 Oct 2026.
+3. CoinGecko: keep the keyless call, or set `COINGECKO_API_KEY` on the host. A demo key uses `x-cg-demo-api-key` on `api.coingecko.com`. `COINGECKO_PRO=on` uses the Pro host and `x-cg-pro-api-key`. Keyless remains the fallback. Do not add an attribution line, and do not claim a right to resell the feed, until someone has read the current API terms. Those terms were UNVERIFIED on 11 Oct 2026. The key is not written to logs.
 
 4. GeckoTerminal: keep the public line that DEX prices come from GeckoTerminal. The site terms say the API is free of charge and subject to API terms. Those API terms were UNVERIFIED. Do not claim a DEX licence.
 
