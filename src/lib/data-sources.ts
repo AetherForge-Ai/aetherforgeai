@@ -9,9 +9,10 @@
  * fetchLiveQuotes only when MARKET_DATA_API_KEY is set. wrangler.jsonc sets no
  * vars, so that key is not part of the production config in this repo. Public
  * copy does not name Twelve Data.
- * crypto — CoinGecko, then Kraken, Coinbase, and Yahoo Finance for mapped symbols.
+ * crypto — CoinGecko, CoinPaprika, CoinCap, Binance public tickers, then Kraken,
+ *   Coinbase, and Yahoo Finance for mapped symbols.
  *   Swyftx is named only when SWYFTX_PUBLIC_DISPLAY is on.
- * DEX — GeckoTerminal. DexScreener is named only when DEXSCREENER_PUBLIC_DISPLAY is on
+ * DEX — GeckoTerminal and DexPaprika. DexScreener is named only when DEXSCREENER_PUBLIC_DISPLAY is on
  *   (https://docs.dexscreener.com/api/reference, GET /latest/dex/search, no key).
  * metals — api.gold-api.com (not a dealer feed)
  * FX — open.er-api.com daily; Frankfurter for a past trade date
@@ -43,9 +44,15 @@ export function publicCryptoSourcesLabel(): string {
 }
 
 function cryptoSourceNames(): string[] {
-  const names = [PUBLIC_CRYPTO_SOURCE];
+  const names = [PUBLIC_CRYPTO_SOURCE, "CoinPaprika", "CoinCap", "Binance"];
   if (swyftxPublicDisplay()) names.push("Swyftx");
   names.push("Kraken", "Coinbase", PUBLIC_EQUITY_SOURCE);
+  return names;
+}
+
+function dexSourceNames(): string[] {
+  const names = [PUBLIC_DEX_SOURCE, "DexPaprika"];
+  if (dexscreenerPublicDisplay()) names.push(PUBLIC_DEX_SECOND_SOURCE);
   return names;
 }
 
@@ -56,9 +63,7 @@ export function publicDataSourcesLine(): string {
     "They are not a direct NZX or ASX feed. " +
     "When a newer print is not in the response, the page shows the last saved print and its time. " +
     `Crypto prices come from ${englishList(cryptoSourceNames())}. ` +
-    `DEX token prices come from ${
-      dexscreenerPublicDisplay() ? `${PUBLIC_DEX_SOURCE} and ${PUBLIC_DEX_SECOND_SOURCE}` : PUBLIC_DEX_SOURCE
-    }. ` +
+    `DEX token prices come from ${englishList(dexSourceNames())}. ` +
     `Gold and silver spot prices come from ${PUBLIC_METALS_SOURCE}. ` +
     `Foreign-exchange rates are a daily rate from ${PUBLIC_FX_SOURCE}. Past trade-date rates use Frankfurter. ` +
     "Prices may be delayed and are for information only. " +

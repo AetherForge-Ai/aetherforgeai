@@ -4,9 +4,24 @@ This file keeps both note sets after the merge of develop `3d05b6b` (#324).
 
 - U3, U7, V1, and P1: marker `pull-check:v3-tier1a-2026-10-12`
 - H2, H1, and T1–T5 from #324: marker `pull-check:v3-tier1b-2026-10-12`
+- Keyless crypto and DEX seed: marker `pull-check:v3-crypto-seed-2026-10-12`
 - Research retest 8: marker `pull-check:v3-retest8-2026-10-12`
 
 `qa/PULL-CHECK-2026-10-10.md` stays, with both supersession lines and every earlier section.
+
+## Keyless crypto seed
+
+`pull-check:v3-crypto-seed-2026-10-12`
+
+Live `/api/crypto/markets` and `/api/crypto/dex` were `ok: false` with 0 rows. Public Crypto showed "Live crypto prices are not shown right now" and DEX showed "Showing 0 of up to 400". `COINGECKO_API_KEY` and `CRON_SECRET` are unset, and `wrangler.jsonc` has no cron.
+
+The #318 snapshot (Workers Cache, temp file, hidden AF-CGS / AF-DXS rows) only stored a list after a complete CoinGecko or GeckoTerminal pull. A page read did not wait for that pull. It started a background refresh, and a short Worker isolate can freeze that work when the response ends. With the free CoinGecko call blocked or rate-limited, nothing was ever written, so there was no last-good list to serve. The earlier 89-coin backup was also refused: `parseCrypto` dropped lists under 100 rows, and a Yahoo list with no market cap could not be stored.
+
+A page request with an empty snapshot now waits on a keyless seed: CoinGecko's public market list, CoinPaprika, CoinCap, and Binance public tickers. Yahoo's mapped majors fill only when those lists are still short of 40. Prices that miss each other by more than 3× are dropped, not averaged. A stablecoin more than 2% from 1.00 is dropped. The stored rows keep their source and the snapshot time. The notice is `Prices as at … (NZ).` plus `Source: …` or `Sources: …`, and `The feed is delayed.` when the snapshot is older than 30 minutes. A later read serves that list. A shorter seed does not replace a longer one. DEX does the same with GeckoTerminal and DexPaprika. DexScreener and Swyftx stay off unless their display flags are on. No new database column. The hidden watchlist rows are still the only snapshot write, and only when the JSON fits.
+
+`/returns` is auth-only and is no longer in `sitemap.xml`.
+
+This note does not Publish, send email, or add GST. Public copy says AI. Stox, Koins, and Headmaster lists stay. Crypto projections stay paused.
 
 ## U3, U7, V1, and P1
 
@@ -35,7 +50,7 @@ Draft PR: https://github.com/AetherForge-Ai/aetherforgeai/pull/323 (not merged).
 
 ## Scheduler
 
-This runtime has no cron. `wrangler.jsonc` does not contain a cron trigger, and the product-note route already says no cron is installed. A page read returns the persisted snapshot (Workers Cache, a temp file, and the hidden AF-CGS / AF-DXS watchlist rows from #318 when the JSON fits). If that snapshot is missing or older than 30 minutes, the read starts one background refresh. A short Worker isolate can freeze that work when the response ends. `GET` or `POST /api/cron/crypto-snapshot` runs the same job to completion when `CRON_SECRET` matches `x-cron-secret` or `Authorization: Bearer`. The compare is `crypto.timingSafeEqual` on equal-length buffers. A different length is 401. A `?key=` or `?secret=` on this route is ignored. If `CRON_SECRET` is unset the route stays closed, refreshes nothing, and sends no email. A new list replaces the stored one only when it is complete: at least 95% of 400 rows, each with a name and a price, and a chain or a DEX name. A short fetch keeps the previous list.
+This runtime has no cron. `wrangler.jsonc` does not contain a cron trigger, and the product-note route already says no cron is installed. A page read returns the persisted snapshot (Workers Cache, a temp file, and the hidden AF-CGS / AF-DXS watchlist rows from #318 when the JSON fits). An empty snapshot is seeded on that request from the keyless sources in the section above. A stored list is served with its timestamp. If that snapshot is older than 30 minutes, the read also starts one background refresh. A short Worker isolate can freeze that work when the response ends. `GET` or `POST /api/cron/crypto-snapshot` runs the same job to completion when `CRON_SECRET` matches `x-cron-secret` or `Authorization: Bearer`. The compare is `crypto.timingSafeEqual` on equal-length buffers. A different length is 401. A `?key=` or `?secret=` on this route is ignored. If `CRON_SECRET` is unset the route stays closed, refreshes nothing, and sends no email. A shorter seed does not replace a longer stored list. A verified list is still stored when the snapshot is empty, including a list under 100 rows. A crypto list with at least 100 market-cap rows may replace a longer one. A shorter DEX list replaces a longer one only when the new list is complete.
 
 ## Needs Lukas
 
