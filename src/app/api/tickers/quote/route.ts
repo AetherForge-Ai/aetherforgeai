@@ -8,9 +8,10 @@ import { dexQuoteRows } from "@/lib/crypto-coingecko";
 import { normaliseUnitPrice } from "@/lib/currency";
 import { dexPriceForSymbol } from "@/lib/reviewed-book";
 import { listedCryptoIsStrict, pickListedCryptoPrice } from "@/lib/crypto-quote";
-import { formatPublicCryptoPrice, sourceLabel } from "@/lib/crypto-price-chain";
+import { sourceLabel } from "@/lib/crypto-price-chain";
 import { coverMissingCrypto } from "@/lib/crypto-price-feed";
 import { gatePublicPrint } from "@/lib/swyftx-display";
+import { formatDisplayDateTime } from "@/lib/currency";
 
 export const dynamic = "force-dynamic";
 
@@ -51,7 +52,20 @@ export async function GET(req: Request) {
       // A known coin (PEPE, UNI) uses the sell-form coin list even when the Add panel sends an id.
       // An unknown extended id or a pool address stays strict so Yahoo cannot guess the wrong asset.
       const strict = listedCryptoIsStrict(symbol, explicitId, remembered || "", knownName);
+      const network = (searchParams.get("network") || "").trim();
+      const address = (searchParams.get("address") || "").trim();
       let price: number | null = null;
+      let snapshotPrice: number | null = null;
+      try {
+        const { priceFromSnapshot, liveDexTokenPrice } = await import("@/lib/crypto-board-store");
+        const snap = await priceFromSnapshot({ symbol, coinId, address });
+        if (snap && snap.price > 0) snapshotPrice = snap.price;
+        if (!(snapshotPrice != null && snapshotPrice > 0) && network && address) {
+          snapshotPrice = await liveDexTokenPrice(network, address);
+        }
+      } catch (err) {
+        console.error(`[api/tickers/quote] snapshot price for ${symbol} failed:`, err instanceof Error ? err.message.slice(0, 120) : "failed");
+      }
       const readCoinList = async (): Promise<number | null> => {
         try {
           const quotes = await fetchCryptoQuotes(
@@ -79,17 +93,20 @@ export async function GET(req: Request) {
           return null;
         }
       };
-      // A DEX row prices from GeckoTerminal search, then the same coin list the sell form uses.
-      let coinListPrice: number | null = null;
+      // Snapshot first. A live GeckoTerminal token price is next. The coin list and
+      // pool search run only when those two have no print.
+      let coinListPrice: number | null = snapshotPrice;
       let dexSearchPrice: number | null = null;
-      if (market !== "dex") {
-        coinListPrice = await readCoinList();
-      }
       if (!(coinListPrice != null && coinListPrice > 0)) {
-        dexSearchPrice = await readDex();
-      }
-      if (market === "dex" && !(dexSearchPrice != null && dexSearchPrice > 0)) {
-        coinListPrice = await readCoinList();
+        if (market !== "dex") {
+          coinListPrice = await readCoinList();
+        }
+        if (!(coinListPrice != null && coinListPrice > 0)) {
+          dexSearchPrice = await readDex();
+        }
+        if (market === "dex" && !(dexSearchPrice != null && dexSearchPrice > 0)) {
+          coinListPrice = await readCoinList();
+        }
       }
       price = pickListedCryptoPrice({ market, dexPrice: dexSearchPrice, coinListPrice });
       let kept = normaliseUnitPrice(price);
@@ -104,7 +121,10 @@ export async function GET(req: Request) {
           stale = covered.stale;
           source = sourceLabel(covered.source);
           quotedAt = covered.quotedAt;
-          label = formatPublicCryptoPrice(covered);
+          const wall = formatDisplayDateTime(covered.quotedAt);
+          label = wall && wall !== "—"
+            ? `Live price was unavailable. A recent print is filled in (${wall}).`
+            : "Live price was unavailable. A recent print is filled in. You can type over it.";
         }
       }
       console.log(`[api/tickers/quote] (crypto) ${symbol} → ${kept ? `$${kept} USD` : "no quote"}`);
