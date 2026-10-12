@@ -15,7 +15,7 @@ import { getFxSnapshot } from "@/lib/fx";
 import { pageTitle } from "@/lib/page-title";
 import { presentMarketCoin } from "@/lib/crypto-api-body";
 import { presentListedCoin } from "@/lib/crypto-board";
-import { detailFromMarket, fmtCompactNum, fmtPct, fmtPrice } from "@/lib/crypto-market";
+import { detailFromMarket, fmtCompactNum, fmtPct, fmtPrice, stalePriceReason } from "@/lib/crypto-market";
 import { formatDisplayDateTime } from "@/lib/currency";
 import { cryptoDetailCopy, cryptoDetailJsonLd, vendorByCoingeckoId, type CryptoDetailFacts } from "@/lib/crypto-public-meta";
 
@@ -137,7 +137,10 @@ export default async function CryptoDetailPage({
           <dl className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4" data-coin-snapshot>
             <div>
               <dt className="text-xs text-muted-foreground">Price</dt>
-              <dd className="font-semibold">{fmtPrice(loaded.initialDetail.price)}</dd>
+              <dd className="font-semibold">
+                {stalePriceReason(loaded.initialDetail.quotedAt || loaded.facts.asOf) ||
+                  fmtPrice(loaded.initialDetail.price)}
+              </dd>
             </div>
             <div>
               <dt className="text-xs text-muted-foreground">As at</dt>

@@ -26,7 +26,14 @@ vi.mock("@/lib/market-data", () => ({
   resolveCompanyNames: async () => ({}),
 }));
 
-import { applyBookedTradeToHoldings, retainBookedHolding, snapshotOmitsBookedBuy } from "@/lib/apply-booked-trade";
+import {
+  applyBookedTradeToHoldings,
+  bookedGuardAfterEvent,
+  isPendingBookedRow,
+  retainBookedHolding,
+  reviewBookedSnapshot,
+  snapshotOmitsBookedBuy,
+} from "@/lib/apply-booked-trade";
 import { __resetBookCacheForTests } from "@/lib/book-cache";
 import { chainForTicker, DEX_REQUEST_FRESH_MS, pricesAsAtLabel, SNAPSHOT_REFRESH_MS } from "@/lib/crypto-board";
 import { coinsFromCoinGeckoMarkets } from "@/lib/crypto-keyless-seed";
@@ -62,7 +69,7 @@ afterEach(() => {
 });
 
 describe("retest 13 confirm and holdings", () => {
-  it("writes the ledger before cash, skips the share re-read, and stays under three write waves", async () => {
+  it("writes the ledger before cash and reads the holding back beside the cash write", async () => {
     const order: string[] = [];
     query.mockImplementation(async (collection: string) => {
       await wait(40);
@@ -86,7 +93,7 @@ describe("retest 13 confirm and holdings", () => {
       order.push(`get:${collection}`);
       await wait(40);
       if (collection === "user") return { data: { cash_balance: 100000 } };
-      return { data: { shares: 99 } };
+      return { data: { shares: 2 } };
     });
     editRecordById.mockImplementation(async (collection: string) => {
       order.push(`edit-start:${collection}`);
@@ -122,12 +129,15 @@ describe("retest 13 confirm and holdings", () => {
     expect(result.confirmSteps?.ledger).toBeGreaterThan(0);
     expect(result.confirmSteps?.cash).toBeGreaterThan(0);
     expect(result.confirmSteps?.cache).toBeGreaterThanOrEqual(0);
-    expect(order.filter((step) => step === "get:stock")).toEqual([]);
     const ledgerDone = order.indexOf("create-end:transaction");
     const cashStart = order.indexOf("edit-start:user");
+    const cashEnd = order.indexOf("edit-end:user");
+    const shareRead = order.indexOf("get:stock");
     const holdingStart = order.indexOf("edit-start:stock");
     expect(ledgerDone).toBeGreaterThan(-1);
     expect(cashStart).toBeGreaterThan(ledgerDone);
+    expect(shareRead).toBeGreaterThan(ledgerDone);
+    expect(shareRead).toBeLessThan(cashEnd);
     expect(holdingStart).toBeGreaterThan(-1);
     expect(holdingStart).toBeLessThan(ledgerDone);
     expect(elapsed).toBeLessThan(1000);
@@ -161,6 +171,92 @@ describe("retest 13 confirm and holdings", () => {
     );
     expect(merged.transactions?.map((row) => row._id)).toEqual(["tx-pepe", "old"]);
     expect(merged.cashBalance).toBe(40);
+  });
+
+  it("deletes an orphan buy ledger row when the holding write fails, and restores the holding when the ledger write fails", async () => {
+    query.mockImplementation(async (collection: string) => {
+      if (collection === "stock") {
+        return {
+          data: [{ _id: "air-1", ticker: "AIR.NZ", asset_type: "stock", shares: 1, purchase_price: 10, user: "user-live" }],
+        };
+      }
+      return { data: [] };
+    });
+    getRecordById.mockImplementation(async (collection: string) => {
+      if (collection === "user") return { data: { cash_balance: 100000 } };
+      return { data: { shares: 2 } };
+    });
+    deleteRecordById.mockResolvedValue({ data: {} });
+    editRecordById.mockImplementation(async (collection: string) => {
+      if (collection === "stock") throw new Error("holding write failed");
+      return { data: {} };
+    });
+    createRecord.mockImplementation(async () => ({ data: { _id: "ledger-buy-1", type: "buy" } }));
+    const buy = {
+      type: "buy" as const,
+      ticker: "AIR.NZ",
+      asset_type: "stock" as const,
+      quantity: 1,
+      price: 20,
+      confirm: true,
+      trade_date: "2026-10-12",
+    };
+    await expect(applyTransaction(user, buy, { rejectionChecked: true })).rejects.toThrow("holding write failed");
+    expect(deleteRecordById).toHaveBeenCalledWith("transaction", "ledger-buy-1");
+
+    deleteRecordById.mockClear();
+    editRecordById.mockReset();
+    editRecordById.mockResolvedValue({ data: {} });
+    createRecord.mockImplementation(async (collection: string) => {
+      if (collection === "transaction") throw new Error("ledger write failed");
+      return { data: { _id: "stock-1" } };
+    });
+    await expect(applyTransaction(user, buy, { rejectionChecked: true })).rejects.toThrow("ledger write failed");
+    expect(deleteRecordById).not.toHaveBeenCalled();
+    expect(editRecordById).toHaveBeenCalledWith("stock", "air-1", expect.objectContaining({ shares: 1 }));
+  });
+
+  it("deletes an orphan sell ledger row when the holding write fails, and restores the holding when the ledger write fails", async () => {
+    query.mockImplementation(async (collection: string) => {
+      if (collection === "stock") {
+        return {
+          data: [{ _id: "air-1", ticker: "AIR.NZ", asset_type: "stock", shares: 10, purchase_price: 10, user: "user-live" }],
+        };
+      }
+      return { data: [] };
+    });
+    getRecordById.mockImplementation(async (collection: string) => {
+      if (collection === "user") return { data: { cash_balance: 100000 } };
+      return { data: { shares: 9 } };
+    });
+    deleteRecordById.mockResolvedValue({ data: {} });
+    editRecordById.mockImplementation(async (collection: string) => {
+      if (collection === "stock") throw new Error("holding write failed");
+      return { data: {} };
+    });
+    createRecord.mockImplementation(async () => ({ data: { _id: "ledger-sell-1", type: "sell" } }));
+    const sell = {
+      type: "sell" as const,
+      ticker: "AIR.NZ",
+      asset_type: "stock" as const,
+      quantity: 1,
+      price: 20,
+      confirm: true,
+      trade_date: "2026-10-12",
+    };
+    await expect(applyTransaction(user, sell, { rejectionChecked: true })).rejects.toThrow("holding write failed");
+    expect(deleteRecordById).toHaveBeenCalledWith("transaction", "ledger-sell-1");
+
+    deleteRecordById.mockClear();
+    editRecordById.mockReset();
+    editRecordById.mockResolvedValue({ data: {} });
+    createRecord.mockImplementation(async (collection: string) => {
+      if (collection === "transaction") throw new Error("ledger write failed");
+      return { data: { _id: "stock-1" } };
+    });
+    await expect(applyTransaction(user, sell, { rejectionChecked: true })).rejects.toThrow("ledger write failed");
+    expect(deleteRecordById).not.toHaveBeenCalled();
+    expect(editRecordById).toHaveBeenCalledWith("stock", "air-1", expect.objectContaining({ shares: 10 }));
   });
 });
 
@@ -233,5 +329,47 @@ describe("retest 13 chains, names, sparkline and clocks", () => {
     expect(page).toContain("fmtPct(loaded.initialDetail.change1h)");
     expect(page).toContain("fmtPct(loaded.initialDetail.change7d)");
     expect(page).toContain("circulatingSupply");
+    expect(page).toContain("stalePriceReason(loaded.initialDetail.quotedAt || loaded.facts.asOf)");
+    const view = readFileSync("src/components/dashboard/crypto/CoinDetailView.tsx", "utf8");
+    expect(view).toContain("stalePriceReason(detail.quotedAt)");
+  });
+
+  it("drops a booked buy on delete and stops ignoring snapshots that never contain it", () => {
+    const buy = {
+      type: "buy",
+      ticker: "PEPE",
+      asset_type: "crypto",
+      quantity: 1000,
+      price: 0.00001,
+    };
+    const started = 1_000;
+    const armed = bookedGuardAfterEvent(null, buy, started);
+    expect(armed?.trade.ticker).toBe("PEPE");
+    const held = [
+      { _id: "pepe", ticker: "PEPE", asset_type: "crypto", shares: 1000, purchase_price: 0.00001, current_price: 0.00001 },
+      { _id: "bonk", ticker: "BONK", asset_type: "crypto", shares: 5, purchase_price: 1, current_price: 1 },
+      { _id: "pepe-share", ticker: "PEPE", asset_type: "stock", shares: 10, purchase_price: 1, current_price: 1 },
+    ];
+    expect(held.filter((row) => isPendingBookedRow(row, armed?.trade)).map((row) => row._id)).toEqual(["pepe"]);
+    expect(snapshotOmitsBookedBuy([{ ticker: "PEPE", quantity: 1000, assetClass: "shares" }], buy)).toBe(true);
+    expect(snapshotOmitsBookedBuy([{ ticker: "PEPE", quantity: 1000, assetClass: "crypto" }], buy)).toBe(false);
+
+    const first = reviewBookedSnapshot(armed, [], started + 1_000);
+    expect(first.apply).toBe(false);
+    expect(first.guard?.reads).toBe(1);
+    const deleted = bookedGuardAfterEvent(first.guard, { type: "delete", ticker: "PEPE" }, started + 2_000);
+    expect(deleted).toBeNull();
+    expect(reviewBookedSnapshot(deleted, [], started + 2_000).apply).toBe(true);
+    expect(bookedGuardAfterEvent(armed, { type: "sell", ticker: "PEPE", asset_type: "crypto" }, started)).toBeNull();
+    expect(bookedGuardAfterEvent(armed, { type: "correction", ticker: "PEPE" }, started)).toBeNull();
+    expect(bookedGuardAfterEvent(armed, { type: "account" }, started)).toBeNull();
+
+    const missing = reviewBookedSnapshot(armed, [], started + 1_000);
+    const givenUp = reviewBookedSnapshot(missing.guard, [], started + 2_000);
+    expect(givenUp.apply).toBe(true);
+    expect(givenUp.guard).toBeNull();
+    const expired = reviewBookedSnapshot(armed, [], started + 30_000);
+    expect(expired.apply).toBe(true);
+    expect(expired.guard).toBeNull();
   });
 });

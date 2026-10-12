@@ -106,11 +106,11 @@ export async function POST(req: Request) {
     // The book read overlaps the write. If it is still in flight when the
     // holding, ledger and cash writes finish, the response does not wait for
     // the 5000-row query. The client merges the new row into the ledger it has.
-    const priorLedger = loadLedger(user);
+    const priorLedger = loadLedger(user).catch(() => undefined);
     let priorReady: Awaited<ReturnType<typeof loadLedger>> | null = null;
     void priorLedger.then((book) => {
-      priorReady = book;
-    });
+      if (book) priorReady = book;
+    }).catch(() => undefined);
     const result = await applyTransaction(user, input, { priorLedger });
     const ledger = priorReady
       ? ledgerAfterBooking(priorReady, result)

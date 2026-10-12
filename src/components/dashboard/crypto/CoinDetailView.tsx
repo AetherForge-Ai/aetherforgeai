@@ -40,6 +40,7 @@ import {
 } from "lucide-react";
 import {
   fmtPrice,
+  stalePriceReason,
   fmtCompactUsd,
   fmtCompactNum,
   fmtPct,
@@ -362,7 +363,7 @@ export function CoinDetailView({
         </div>
       </div>
       <div className="text-right">
-        <p className="tnum font-display text-2xl font-bold">{fmtPrice(detail.price)}</p>
+        <p className="tnum font-display text-2xl font-bold">{stalePriceReason(detail.quotedAt) || fmtPrice(detail.price)}</p>
         {detail.quotedAt ? (
           <p className="text-[0.65rem] text-muted-foreground">{formatDisplayDateTime(detail.quotedAt)}</p>
         ) : null}
