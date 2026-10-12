@@ -9,6 +9,7 @@ import { resolvableCoinId } from "@/lib/crypto-market";
 import { formatPublicCryptoPrice, type ChainPrint } from "@/lib/crypto-price-chain";
 import { loadPublicCryptoPrint } from "@/lib/crypto-price-feed";
 import { peekTop400 } from "@/lib/crypto-coingecko";
+import { readCryptoSnapshot } from "@/lib/crypto-snapshot";
 import { getFxSnapshot } from "@/lib/fx";
 import { pageTitle } from "@/lib/page-title";
 import { cryptoDetailCopy, cryptoDetailJsonLd, vendorByCoingeckoId, type CryptoDetailFacts } from "@/lib/crypto-public-meta";
@@ -29,7 +30,11 @@ const loadCryptoDetailFacts = cache(async (id: string): Promise<{ facts: CryptoD
   const vendor = vendorByCoingeckoId(slug);
   const coinId = resolvableCoinId(id);
   const print = coinId ? await loadPublicCryptoPrint(coinId) : null;
-  const listed = peekTop400()?.coins.find((coin) => coin.id === slug) ?? null;
+  const saved = await readCryptoSnapshot();
+  const listed =
+    peekTop400()?.coins.find((coin) => coin.id === slug) ??
+    saved?.coins.find((coin) => coin.id === slug) ??
+    null;
   const priceUsd = print && print.price > 0 ? print.price : listed && listed.price > 0 ? listed.price : null;
   let priceNzd: number | null = null;
   let nzdSourced = false;
@@ -51,7 +56,7 @@ const loadCryptoDetailFacts = cache(async (id: string): Promise<{ facts: CryptoD
       priceUsd,
       priceNzd,
       nzdSourced,
-      asOf: print?.quotedAt || listed?.quotedAt || null,
+      asOf: print?.quotedAt || listed?.quotedAt || saved?.at || null,
       source: print?.source || (listed && priceUsd != null ? "coingecko" : null),
       marketCapUsd: marketCap,
     },
@@ -92,6 +97,9 @@ export default async function CryptoDetailPage({
     <MarketsAppFrame user={user}>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} />
       <div className="mx-auto w-full max-w-6xl px-4 pt-6 sm:px-6 lg:px-8">
+        <p className="text-sm leading-relaxed text-muted-foreground" data-coin-description>
+          {copy.description}
+        </p>
         <PublicCryptoPrices
           prints={print && print.price > 0 ? [print] : []}
           empty={`${decodeURIComponent(id)} No earlier price is stored for this coin.`}

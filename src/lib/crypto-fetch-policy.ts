@@ -11,9 +11,9 @@ export function coinGeckoRetryDelayMs(attempt: number): number {
   return 400 * n;
 }
 
-/** Retry these HTTP statuses. A 200 with a market array is not a retry. */
+/** Retry these HTTP statuses. A 200 with a market array is not a retry. 1015 is a Cloudflare block. */
 export function coinGeckoStatusRetries(status: number): boolean {
-  return status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
+  return status === 403 || status === 429 || status === 1015 || status === 500 || status === 502 || status === 503 || status === 504;
 }
 
 /**

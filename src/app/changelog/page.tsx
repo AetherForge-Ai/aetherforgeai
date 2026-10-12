@@ -16,6 +16,16 @@ export const CHANGELOG_ENTRIES = [
     href: "/import",
     title: "11 Oct 2026 — Batch 2",
     body: "Develop 18375819. Broker import, money-weighted and time-weighted return, dividends, the tax pack, trust, price badges, alerts, the installable shell, bot guides, schema, and the help feed.",
+    },
+  {
+    href: "/markets",
+    title: "11 Oct 2026 — Crypto list snapshots and diagnostics",
+    body: "A saved CoinGecko list and a saved DEX list stay available when the live feed does not answer. An optional CoinGecko key can be set on the host. The admin diagnostics page reports status codes only.",
+  },
+  {
+    href: "/markets",
+    title: "11 Oct 2026 — Retest4 market lists",
+    body: "Develop 47f44d9. DEX lists, the crypto fill, coin titles, and the DexScreener display gate.",
   },
   {
     href: "/tax",
