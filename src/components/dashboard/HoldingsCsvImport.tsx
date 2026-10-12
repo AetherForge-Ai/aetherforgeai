@@ -2,33 +2,16 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { api } from "@/lib/api";
-import { HOLDINGS_IMPORT_DRAFT_KEY, parseHoldingsCsv, type HoldingsCsvRow } from "@/lib/holdings-csv";
+import { HOLDINGS_IMPORT_DRAFT_KEY } from "@/lib/holdings-csv";
+import { BrokerImportPanel } from "@/components/import/BrokerImportPanel";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Loader2, Upload } from "lucide-react";
 
-function errorText(error: unknown): string {
-  if (typeof error === "string" && error.trim()) return error;
-  return "The server did not accept that row.";
-}
-
-function postRow(row: HoldingsCsvRow) {
-  return api.post("/api/stocks", {
-    ticker: row.ticker,
-    asset_type: row.assetType,
-    shares: row.units,
-    purchase_price: row.pricePaid,
-    purchase_date: row.date,
-    execution_status: "filled",
-    price_source: "broker_import",
-    confirm: true,
-  });
-}
-
 /**
- * Brings an existing book in. Columns are ticker, units and price paid.
- * A date is stored when the file has one. This is not a tax import.
+ * One importer for shares, crypto and the other books.
+ * The file is reviewed in a modal. Nothing is saved before Confirm.
  */
 export function HoldingsCsvImport({
   assetType,
@@ -39,48 +22,26 @@ export function HoldingsCsvImport({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const [fileName, setFileName] = useState("");
   const router = useRouter();
 
   async function onFile(file: File) {
     setBusy(true);
     try {
-      const text = await file.text();
+      const body = await file.text();
       if (assetType === "stock") {
         try {
-          sessionStorage.setItem(HOLDINGS_IMPORT_DRAFT_KEY, text);
+          sessionStorage.setItem(HOLDINGS_IMPORT_DRAFT_KEY, body);
         } catch {
           toast.error("That file could not be kept for review.");
           return;
         }
-        router.push("/import");
-        return;
       }
-      const parsed = parseHoldingsCsv(text);
-      const rows = parsed.rows.filter((row) => row.assetType === assetType);
-      const skipped = parsed.rows.length - rows.length;
-      if (!rows.length) {
-        toast.error(parsed.errors[0] || `No ${assetType === "crypto" ? "crypto" : "share"} rows in that file.`);
-        return;
-      }
-      let saved = 0;
-      const failures = [...parsed.errors];
-      for (const row of rows) {
-        const res = await postRow(row);
-        if (res.ok) saved += 1;
-        else failures.push(`${row.ticker}: ${errorText(res.error)}`);
-      }
-      if (saved) {
-        toast.success(
-          `Imported ${saved} ${assetType === "crypto" ? "coin" : "holding"}${saved === 1 ? "" : "s"}.`
-        );
-        onImported();
-      }
-      if (skipped) {
-        failures.push(
-          `${skipped} row${skipped === 1 ? "" : "s"} belonged to the other book and ${skipped === 1 ? "was" : "were"} left out.`
-        );
-      }
-      if (failures.length) toast.error(failures.slice(0, 3).join(" "));
+      setText(body);
+      setFileName(file.name);
+      setOpen(true);
     } catch (err) {
       console.error("[holdings-csv] import failed", err);
       toast.error("That file could not be read.");
@@ -113,6 +74,34 @@ export function HoldingsCsvImport({
         {busy ? <Loader2 className="mr-1.5 size-3.5 animate-spin" /> : <Upload className="mr-1.5 size-3.5" />}
         Import CSV
       </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Import CSV</DialogTitle>
+            <DialogDescription>Review the file before anything is saved.</DialogDescription>
+          </DialogHeader>
+          {open && text ? (
+            <BrokerImportPanel embedded initialText={text} initialFileName={fileName} onImported={onImported} />
+          ) : null}
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              if (assetType === "stock" && text) {
+                try {
+                  sessionStorage.setItem(HOLDINGS_IMPORT_DRAFT_KEY, text);
+                } catch {
+                  toast.error("That file could not be kept for review.");
+                  return;
+                }
+              }
+              router.push("/import");
+            }}
+          >
+            Open the import page
+          </Button>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

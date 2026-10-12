@@ -8,14 +8,25 @@
  * pull-check:batch2-2026-10-11 B2-1
  * pull-check:batch2-fixes-2026-10-12
  * pull-check:v3-retest9-2026-10-12
+ * pull-check:v3-dash1-2026-10-13
  */
 
 import { tickersForCompanyName } from "@/lib/broker-names";
 import { roundMoney } from "@/lib/currency";
 import { parseHoldingsDate, splitCsvLine, splitHoldingsTicker } from "@/lib/holdings-csv";
-import { lookupTicker } from "@/lib/market";
+import { knownImportSymbol } from "@/lib/import-symbols";
 
-export type ImportBroker = "sharesies" | "hatch" | "ibkr" | "generic";
+export type ImportBroker = "sharesies" | "hatch" | "kernel" | "stake" | "ibkr" | "binance" | "easycrypto" | "generic";
+export type BrokerConfidence = "high" | "medium" | "low";
+
+export interface BrokerDetection {
+  broker: ImportBroker | null;
+  /** Shown on the review, for example Sharesies. */
+  label: string;
+  confidence: BrokerConfidence;
+  /** 0 to 1. High is a distinctive header set. */
+  score: number;
+}
 export type ImportSide = "buy" | "sell";
 export type ImportCurrency = "NZD" | "AUD" | "USD";
 
@@ -50,6 +61,10 @@ export interface ImportTrade {
   nativeValue: number;
   /** Native value plus fee, converted to NZ$. */
   costNzd: number;
+  /** NZ$ cash movement. A buy is negative. A sell is the proceeds. */
+  cashEffectNzd: number;
+  /** Broker order id when the file has one. Empty when it does not. */
+  brokerRef: string;
 }
 
 export interface FxNeed {
@@ -60,10 +75,16 @@ export interface FxNeed {
 export interface UnsupportedRow {
   line: number;
   reason: string;
+  ticker?: string;
+  date?: string;
+  side?: string;
+  quantity?: number;
+  price?: number;
 }
 
 export interface ImportPlan {
   broker: ImportBroker | null;
+  detection: BrokerDetection;
   error: string | null;
   headers: string[];
   /** True when the file has a header row but no broker shape and no complete map. */
@@ -111,6 +132,23 @@ const MARKET_KEYS = ["market code", "market"];
 const CCY_KEYS = ["currency", "currencyprimary", "currency primary", "ccy"];
 const FX_KEYS = ["fx", "fx rate", "fxrate", "fxratetobase", "exchange rate"];
 const VALUE_KEYS = ["value", "amount", "proceeds"];
+const REF_KEYS = ["order id", "orderid", "reference", "trade id", "broker ref"];
+const BROKER_LABEL: Record<ImportBroker, string> = {
+  sharesies: "Sharesies",
+  hatch: "Hatch",
+  kernel: "Kernel",
+  stake: "Stake",
+  ibkr: "IBKR",
+  binance: "Binance",
+  easycrypto: "Easy Crypto",
+  generic: "Generic",
+};
+
+const GENERIC_DETECTION: BrokerDetection = { broker: null, label: "Generic", confidence: "low", score: 0.15 };
+
+function detectionOf(broker: ImportBroker, confidence: BrokerConfidence, score: number): BrokerDetection {
+  return { broker, label: BROKER_LABEL[broker], confidence, score };
+}
 const KNOWN_HEADERS = new Set([
   ...SIDE_KEYS,
   ...TICKER_KEYS,
@@ -173,18 +211,50 @@ function hasOrderId(headers: string[]): boolean {
   return headers.some((header) => header === "order id" || header.endsWith(" order id"));
 }
 
-function detectBroker(headers: string[]): ImportBroker | null {
-  if (hasHeader(headers, "instrument code") || hasHeader(headers, "instrument name")) return "sharesies";
+/** Header shape only. A Sharesies file is Sharesies, with a confidence level. */
+export function detectBroker(headers: string[]): BrokerDetection {
+  if (hasHeader(headers, "instrument code") || hasHeader(headers, "instrument name")) {
+    return detectionOf("sharesies", "high", 0.96);
+  }
   if (hasOrderId(headers) && (hasHeader(headers, "trade date") || hasHeader(headers, "transaction type") || hasHeader(headers, "market code"))) {
-    return "sharesies";
+    return detectionOf("sharesies", "high", 0.9);
   }
   if (hasHeader(headers, "transaction type") && hasHeader(headers, "market code") && (hasHeader(headers, "trade date") || hasHeader(headers, "date"))) {
-    return "sharesies";
+    return detectionOf("sharesies", "high", 0.92);
   }
-  if (hasHeader(headers, "clientaccountid") || hasHeader(headers, "buy/sell")) return "ibkr";
-  if (hasHeader(headers, "trade date") && hasHeader(headers, "action") && hasHeader(headers, "symbol")) return "hatch";
-  if ((hasHeader(headers, "company") || hasHeader(headers, "company name")) && hasHeader(headers, "type")) return "sharesies";
-  return null;
+  if ((hasHeader(headers, "company") || hasHeader(headers, "company name")) && hasHeader(headers, "type")) {
+    return detectionOf("sharesies", "medium", 0.74);
+  }
+  if (hasHeader(headers, "clientaccountid") || hasHeader(headers, "buy/sell")) return detectionOf("ibkr", "high", 0.95);
+  if (hasHeader(headers, "trade date") && hasHeader(headers, "action") && hasHeader(headers, "symbol")) {
+    return detectionOf("hatch", "high", 0.94);
+  }
+  if (headers.some((header) => header.includes("kernel")) || hasHeader(headers, "fund name")) {
+    return detectionOf("kernel", "high", 0.91);
+  }
+  if (hasHeader(headers, "fund") && hasHeader(headers, "units") && (hasHeader(headers, "amount") || hasHeader(headers, "price"))) {
+    return detectionOf("kernel", "medium", 0.7);
+  }
+  if (
+    headers.some((header) => header === "stake" || header.includes("stake id")) ||
+    (hasHeader(headers, "brokerage") && hasHeader(headers, "symbol") && (hasHeader(headers, "side") || hasHeader(headers, "units")))
+  ) {
+    return detectionOf("stake", "high", 0.9);
+  }
+  if (
+    headers.some((header) => header.includes("binance")) ||
+    hasHeader(headers, "utc time") ||
+    (hasHeader(headers, "pair") && hasHeader(headers, "executed"))
+  ) {
+    return detectionOf("binance", "high", 0.93);
+  }
+  if (
+    headers.some((header) => header.includes("easy crypto") || header.includes("easycrypto")) ||
+    (hasHeader(headers, "from currency") && hasHeader(headers, "to currency"))
+  ) {
+    return detectionOf("easycrypto", "high", 0.93);
+  }
+  return { ...GENERIC_DETECTION };
 }
 
 /** NZX and ASX market codes become a suffix. A code that already has one is left alone. */
@@ -248,22 +318,15 @@ function narrowTickers(tickers: string[], currency: ImportCurrency | null): stri
   return picked.length === 1 ? picked : tickers;
 }
 
-/** A code in the file is kept. `CODE / NAME` uses the listing when the code is wrong. A company name must match one listing, or the row asks. */
+/**
+ * A code in the file is kept, including `CODE / NAME`.
+ * APPL stays APPL. A company name with no code is used only when one listing matches.
+ */
 function resolveTicker(raw: string, currency: ImportCurrency | null): { ticker: string } | { reason: string } {
   const text = raw.trim();
   if (!text) return { reason: "Date, ticker, quantity or price could not be read." };
   const split = splitHoldingsTicker(text);
-  if (split) {
-    if (lookupTicker(split.code)) return { ticker: split.code };
-    const named = narrowTickers(tickersForCompanyName(split.name), currency);
-    if (named.length === 1) return { ticker: named[0] };
-    if (named.length > 1) {
-      return {
-        reason: `Company name "${split.name}" matches ${named.join(", ")}. Choose one ticker. Nothing was guessed.`,
-      };
-    }
-    return { ticker: split.code };
-  }
+  if (split) return { ticker: split.code };
   if (isTickerShaped(text)) return { ticker: text.toUpperCase() };
   const matches = tickersForCompanyName(text);
   if (!matches.length) {
@@ -298,9 +361,15 @@ function mapFromHeaders(headers: string[], explicit?: ColumnMap): Record<keyof C
   };
 }
 
-function emptyPlan(error: string | null, headers: string[] = [], unreadable = false): ImportPlan {
+function emptyPlan(
+  error: string | null,
+  headers: string[] = [],
+  unreadable = false,
+  detection: BrokerDetection = { ...GENERIC_DETECTION }
+): ImportPlan {
   return {
-    broker: null,
+    broker: detection.broker,
+    detection,
     error,
     headers,
     needsMapping: false,
@@ -347,20 +416,49 @@ function addTotal(bag: Record<string, number>, currency: string, amount: number)
   bag[currency] = roundMoney((bag[currency] || 0) + amount);
 }
 
+/** Stable hash of date, type, ticker, quantity, price and broker ref. */
+export function importRowHash(row: {
+  date: string;
+  ticker: string;
+  side: string;
+  quantity: number;
+  price: number;
+  brokerRef?: string;
+}): string {
+  const payload = [
+    row.date,
+    row.side.trim().toLowerCase(),
+    row.ticker.trim().toUpperCase(),
+    Number(row.quantity).toFixed(8),
+    Number(row.price).toFixed(8),
+    (row.brokerRef || "").trim(),
+  ].join("|");
+  let h1 = 0x811c9dc5;
+  let h2 = 0x811c9dc5 ^ 0x9e3779b9;
+  for (let i = 0; i < payload.length; i++) {
+    const code = payload.charCodeAt(i);
+    h1 ^= code;
+    h1 = Math.imul(h1, 0x01000193);
+    h2 ^= code;
+    h2 = Math.imul(h2, 0x01000193);
+  }
+  return `${(h1 >>> 0).toString(16).padStart(8, "0")}${(h2 >>> 0).toString(16).padStart(8, "0")}`;
+}
+
 export function importDuplicateKey(row: {
   date: string;
   ticker: string;
   side: string;
   quantity: number;
   price: number;
+  brokerRef?: string;
 }): string {
-  return [
-    row.date,
-    row.ticker.trim().toUpperCase(),
-    row.side.trim().toLowerCase(),
-    Number(row.quantity).toFixed(8),
-    Number(row.price).toFixed(8),
-  ].join("|");
+  return importRowHash(row);
+}
+
+export function brokerRefFromNotes(notes: string | null | undefined): string {
+  const match = String(notes || "").match(/(?:^|\s)ref=(\S+)/);
+  return match?.[1] || "";
 }
 
 function parseSide(raw: string): ImportSide | "unsupported" | null {
@@ -385,8 +483,8 @@ function currencyOf(raw: string, ticker: string): ImportCurrency | null {
 
 /**
  * Parse a file and decide what would be written.
- * `existingKeys` are duplicate keys already on the book, one per stored fill.
- * Two identical fills in this file are both kept until stored fills cover them.
+ * `existingKeys` are duplicate hashes already on the book.
+ * The same hash inside this file is a duplicate and is skipped. A broker ref keeps two fills apart.
  * `openingCashNzd` is the paper cash available before this file.
  * `fundBuys` is off unless it is exactly true. A buy that would make paper cash negative is then skipped and listed.
  * An error plan writes nothing: no trades and no funding deposit.
@@ -401,6 +499,8 @@ export function planBrokerImport(
     fundBuys?: boolean;
     /** Reviewed NZD per 1 unit for `${currency}|YYYY-MM-DD`. Null means the lookup had no rate. */
     reviewedRates?: Record<string, number | null>;
+    /** Line number to a ticker the member typed. A blank fix is ignored. Nothing is substituted on its own. */
+    tickerFixes?: Record<string, string>;
   }
 ): ImportPlan {
   const lines = linesOf(text || "");
@@ -411,13 +511,13 @@ export function planBrokerImport(
 
   const headerCells = splitCsvLine(lines[headerAt]).map(normHeader);
 
-  const broker = detectBroker(headerCells);
+  const detection = detectBroker(headerCells);
+  const broker = detection.broker;
   const columns = mapFromHeaders(headerCells, options?.mapping);
   const holdingsShape = columns.side < 0 && columns.ticker >= 0 && columns.quantity >= 0 && columns.price >= 0;
   const required = [columns.date, columns.ticker, columns.side, columns.quantity, columns.price];
   if (required.some((at) => at < 0) && !holdingsShape) {
-    const plan = emptyPlan(null, headerCells);
-    plan.broker = broker;
+    const plan = emptyPlan(null, headerCells, false, detection);
     plan.needsMapping = true;
     plan.error = "Choose the date, ticker, side, quantity and price columns. Nothing was written.";
     return plan;
@@ -431,6 +531,7 @@ export function planBrokerImport(
   const seenNeeds = new Set<string>();
   const nameAt = indexOf(headerCells, [...NAME_HEADERS]);
   const marketAt = indexOf(headerCells, MARKET_KEYS);
+  const refAt = indexOf(headerCells, REF_KEYS);
 
   lines.slice(headerAt + 1).forEach((line, index) => {
     const lineNo = headerAt + index + 2;
@@ -472,7 +573,9 @@ export function planBrokerImport(
       unsupported.push({ line: lineNo, reason: resolved.reason });
       return;
     }
-    const ticker = marketAt >= 0 ? withMarketSuffix(resolved.ticker, cells[marketAt] || "") : resolved.ticker;
+    const printed = marketAt >= 0 ? withMarketSuffix(resolved.ticker, cells[marketAt] || "") : resolved.ticker;
+    const fix = (options?.tickerFixes?.[String(lineNo)] || "").trim().toUpperCase();
+    const ticker = fix || printed;
     const quantity = Math.abs(quantityRaw);
     if (!(quantity > 0) || !(price > 0)) {
       unsupported.push({ line: lineNo, reason: "Quantity and price must be greater than zero." });
@@ -535,6 +638,24 @@ export function planBrokerImport(
     }
     addTotal(sourceTotals, currency, fileValue != null ? roundMoney(Math.abs(fileValue)) : nativeValue);
 
+    const usedFx = currency === "NZD" ? 1 : fx;
+    const costNzd = roundMoney((nativeValue + fee) * usedFx);
+    if (!knownImportSymbol(ticker)) {
+      unsupported.push({
+        line: lineNo,
+        ticker,
+        date,
+        side,
+        quantity,
+        price,
+        reason: `Ticker ${ticker} is not on the symbol list. It was left as printed. Fix the ticker or leave this row out.`,
+      });
+      return;
+    }
+
+    const brokerRef = refAt >= 0 ? (cells[refAt] || "").trim().replace(/\s+/g, "") : "";
+    const cashEffectNzd =
+      side === "sell" ? roundMoney(Math.max(0, nativeValue - fee) * usedFx) : roundMoney(-costNzd);
     rows.push({
       line: lineNo,
       date,
@@ -544,31 +665,33 @@ export function planBrokerImport(
       price,
       fee,
       currency,
-      fx: currency === "NZD" ? 1 : fx,
+      fx: usedFx,
       fxSource,
       fxLabel,
       nativeValue,
-      costNzd: roundMoney((nativeValue + fee) * (currency === "NZD" ? 1 : fx)),
+      costNzd,
+      cashEffectNzd,
+      brokerRef,
     });
   });
 
   if (!rows.length && !unsupported.length) {
-    const plan = emptyPlan("No trade rows were found. Nothing was written.", headerCells);
-    plan.broker = broker;
+    const plan = emptyPlan("No trade rows were found. Nothing was written.", headerCells, false, detection);
     if (!broker && !options?.mapping) plan.needsMapping = true;
     return plan;
   }
 
   const stored = storedCounts;
-  const seenInFile = new Map<string, number>();
+  const seenInFile = new Set<string>();
   const duplicates: ImportTrade[] = [];
   const fresh: ImportTrade[] = [];
   for (const row of rows) {
     const key = importDuplicateKey(row);
-    const occurrence = (seenInFile.get(key) || 0) + 1;
-    seenInFile.set(key, occurrence);
-    if (occurrence <= (stored.get(key) || 0)) duplicates.push(row);
-    else fresh.push(row);
+    if (seenInFile.has(key) || (stored.get(key) || 0) > 0) duplicates.push(row);
+    else {
+      seenInFile.add(key);
+      fresh.push(row);
+    }
   }
 
   const readableButUnmapped = !broker && !options?.mapping && rows.length === 0 && !holdingsShape;
@@ -581,7 +704,8 @@ export function planBrokerImport(
   for (const row of cash.toWrite) addTotal(importedTotals, row.currency, row.nativeValue);
 
   const plan: ImportPlan = {
-    broker: broker || "generic",
+    broker: broker || (rows.length || options?.mapping ? "generic" : detection.broker),
+    detection: broker ? detection : { ...detection, broker: rows.length ? "generic" : detection.broker, label: broker ? detection.label : "Generic" },
     error: readableButUnmapped
       ? "Choose the date, ticker, side, quantity and price columns. Nothing was written."
       : fileError,
