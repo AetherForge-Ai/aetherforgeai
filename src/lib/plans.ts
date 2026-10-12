@@ -181,7 +181,6 @@ const STARTER_FEATURES = [
   "Basic strategy generation and simulation",
   "Illustrative pathway scenarios",
   "Email support",
-  "Priority processing",
   "14-day trial",
 ];
 
@@ -203,14 +202,16 @@ const PRO_FEATURES = [
   "14-day trial",
 ];
 
+/**
+ * Ultimate differs from Pro in code by an uncapped holdings stamp
+ * (tickerLimit 100000) and no Market Assistant quota (assistantQueryLimit returns null).
+ */
+export const ULTIMATE_TAGLINE = "Unlimited holdings and unlimited Market Assistant queries.";
+
 const ULTIMATE_FEATURES = [
   "Unlimited holdings",
   "Everything in Pro",
-  "API access",
-  "Up to 5 seats",
-  "White-label options",
-  "Dedicated support",
-  "Strategy consultation calls",
+  "Dedicated email support",
   "Unlimited Market Assistant queries",
 ];
 
@@ -434,7 +435,7 @@ PLANS.push(
   {
     key: "ultimate_monthly",
     name: "Ultimate",
-    tagline: "For family offices, advisors & power users",
+    tagline: ULTIMATE_TAGLINE,
     price: 199,
     interval: "month",
     intervalLabel: "month",
@@ -448,7 +449,7 @@ PLANS.push(
   {
     key: "ultimate_yearly",
     name: "Ultimate",
-    tagline: "For family offices, advisors & power users",
+    tagline: ULTIMATE_TAGLINE,
     price: 1990,
     interval: "year",
     intervalLabel: "year",
@@ -540,7 +541,7 @@ export const PRICING_TIERS: PricingTier[] = [
   {
     id: "ultimate",
     name: "Ultimate",
-    subtitle: "Founder-led onboarding for teams, API access and custom reporting",
+    subtitle: ULTIMATE_TAGLINE,
     badge: "Founder-led",
     monthlyPrice: 199,
     yearlyPrice: 1990,

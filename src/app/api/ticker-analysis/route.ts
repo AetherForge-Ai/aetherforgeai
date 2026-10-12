@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
 import { ANALYST_SYSTEM_PROMPT } from "@/lib/ai-context";
 import { createGrokChatCompletion, type GrokMessage } from "@/lib/grok";
+import { tickerNoteCompletionMessages } from "@/lib/ai-request-payload";
 import { fetchYahooQuote, yahooEquitySymbol } from "@/lib/yahoo-finance";
 
 export const dynamic = "force-dynamic";
@@ -53,16 +54,13 @@ export async function POST(req: Request) {
       console.error("[api/ticker-analysis] quote grounding failed:", err);
     }
 
-    const messages: GrokMessage[] = [
-      {
-        role: "system",
-        content:
-          `${ANALYST_SYSTEM_PROMPT}\n\n` +
-          `You are analysing a SINGLE security for ${user.name}. Focus tightly on ${name || symbol} (${symbol}). ` +
-          `Use this live market data to ground your answer:\n${liveContext}`,
-      },
-      { role: "user", content: question },
-    ];
+    const messages: GrokMessage[] = tickerNoteCompletionMessages({
+      systemPrompt: ANALYST_SYSTEM_PROMPT,
+      symbol,
+      securityName: name,
+      liveContext,
+      question,
+    });
 
     console.log(`[api/ticker-analysis] Grok analysis for ${symbol} (user ${user._id})`);
     const reply = await createGrokChatCompletion({ messages, maxTokens: 700, temperature: 0.6 });

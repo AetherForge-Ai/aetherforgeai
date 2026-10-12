@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { CookieSettingsLink } from "@/components/CookieSettingsLink";
 import { LEGAL_ENTITY_NAME, NZBN } from "@/lib/company";
-import { CUSTOMER_EMAIL, PRIVACY_OFFICER_EMAIL } from "@/lib/public-copy";
+import { CUSTOMER_EMAIL, ONE_LINE_DISCLAIMER, PRIVACY_OFFICER_EMAIL } from "@/lib/public-copy";
 import { EmailAddress } from "@/components/EmailAddress";
 
 const LINKS = [
   { href: "/privacy-policy", label: "Privacy Policy" },
   { href: "/terms-of-service", label: "Terms" },
+  { href: "/refunds", label: "Refunds" },
   { href: "/ai-disclaimer", label: "AI Disclaimer" },
   { href: "/trust", label: "Trust" },
   { href: "/about#contact", label: "Contact" },
@@ -37,8 +38,7 @@ export function SiteFooter() {
           <EmailAddress email={PRIVACY_OFFICER_EMAIL} />
         </p>
         <p className="text-xs leading-relaxed text-muted-foreground">
-          © {year} {LEGAL_ENTITY_NAME}. For informational purposes only. Not licensed financial advice
-          under the Financial Markets Conduct Act 2013.
+          © {year} {LEGAL_ENTITY_NAME}. {ONE_LINE_DISCLAIMER}
         </p>
       </div>
     </footer>

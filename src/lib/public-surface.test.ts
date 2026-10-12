@@ -22,6 +22,7 @@ const PUBLIC_COPY = [
   "src/app/layout.tsx",
   "src/app/performance/page.tsx",
   "src/app/terms-of-service/page.tsx",
+  "src/app/refunds/page.tsx",
   "src/components/pricing/PricingCards.tsx",
   "src/components/pricing/PricingFAQ.tsx",
   "src/components/PricingPlans.tsx",
@@ -66,21 +67,31 @@ describe("public copy does not name a model", () => {
     expect(read("src/lib/grok.ts")).not.toContain('throw new Error("Grok');
   });
 
-  it("names SuperGrok only on the trust page and the privacy policy", () => {
-    const allowed = ["src/app/trust/page.tsx", "src/app/privacy-policy/page.tsx"];
+  it("names xAI (Grok) only through the legal disclosure pages", () => {
+    const allowed = [
+      "src/app/trust/page.tsx",
+      "src/app/privacy-policy/page.tsx",
+      "src/app/ai-disclaimer/page.tsx",
+      "src/app/terms-of-service/page.tsx",
+    ];
     for (const rel of allowed) {
       const text = visibleCopy(read(rel));
-      expect(text, rel).toContain("SuperGrok");
-      expect(text, rel).toContain("No retention period is set by our code.");
-      expect(text.replaceAll("SuperGrok", ""), rel).not.toMatch(MODEL_NAME);
+      expect(text, rel).toContain("AI_PROVIDER_API_SENTENCE");
+      expect(text, rel).not.toMatch(MODEL_NAME);
+      expect(text, rel).not.toMatch(/grok-\d/);
     }
+    const disclosure = read("src/lib/ai-provider-disclosure.ts");
+    expect(disclosure).toContain("xAI (Grok)");
+    expect(disclosure).toContain("up to 30 days");
+    expect(disclosure).not.toMatch(/grok-\d|SuperGrok/);
     const privacy = read("src/app/privacy-policy/page.tsx");
     const section4 = privacy.slice(privacy.indexOf('heading="4.'), privacy.indexOf('heading="5.'));
     const processorList = privacy.slice(privacy.indexOf('heading="5.'));
-    expect(section4).toContain("SuperGrok");
-    expect(processorList).not.toContain("SuperGrok");
+    expect(section4).toContain("AI_PROVIDER_API_SENTENCE");
     expect(processorList).toContain("listedProcessors");
-    expect(privacy).toContain('name: "our AI provider"');
+    expect(processorList).toContain("is in the USA");
+    expect(privacy).not.toContain('name: "our AI provider"');
+    expect(privacy).not.toContain("SuperGrok");
     const elsewhere = [
       ...PUBLIC_COPY,
       "src/lib/public-copy.ts",
@@ -97,7 +108,6 @@ describe("public copy does not name a model", () => {
       "src/app/koins/page.tsx",
       "src/app/smitty/page.tsx",
       "src/app/headmaster/page.tsx",
-      "src/app/ai-disclaimer/page.tsx",
       "src/components/public/BotGuide.tsx",
     ];
     for (const rel of elsewhere) {

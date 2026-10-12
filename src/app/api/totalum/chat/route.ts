@@ -7,6 +7,7 @@ import { createGrokChatCompletion, isGrokConfigured, type GrokMessage } from "@/
 import { buildStrategy, type TotalumSynthesis } from "@/lib/totalum-engine";
 import type { ReportFindings } from "@/lib/totalum-service";
 import { modelViewSentence, requestsWatchlist, scopeHeadmasterIdeas } from "@/lib/headmaster-trust";
+import { headmasterCompletionMessages } from "@/lib/ai-request-payload";
 
 export const dynamic = "force-dynamic";
 
@@ -160,16 +161,12 @@ export async function POST(req: Request) {
     }
 
     const history = (parsed.data.history ?? []).map((m) => ({ role: m.role, content: m.content })) as GrokMessage[];
-    const messages: GrokMessage[] = [
-      {
-        role: "system",
-        content:
-          `${STRATEGIST_SYSTEM_PROMPT}\n\n` +
-          `The member's name is ${user.name}. Here is their live unified portfolio snapshot — reason from it:\n\n${context}`,
-      },
-      ...history,
-      { role: "user", content: parsed.data.message.trim() },
-    ];
+    const messages: GrokMessage[] = headmasterCompletionMessages({
+      systemPrompt: STRATEGIST_SYSTEM_PROMPT,
+      context,
+      history,
+      userMessage: parsed.data.message.trim(),
+    });
 
     console.log(`[api/totalum/chat] Generating strategist reply for user ${user._id}`);
     let reply: string;

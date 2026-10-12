@@ -7,6 +7,7 @@
  * TODO(owner): have a qualified NZ adviser check the re-issued Terms, Privacy Policy and AI Disclaimer.
  */
 
+import { LEGAL_ENTITY_NAME } from "@/lib/company";
 import { dexscreenerPublicDisplay } from "@/lib/dexscreener-display";
 import { swyftxPublicDisplay } from "@/lib/swyftx-display";
 
@@ -15,6 +16,7 @@ import { swyftxPublicDisplay } from "@/lib/swyftx-display";
 /** pull-check:v3-retest10-2026-10-13 */
 
 /** The freephone is not published. It is out of credit. */
+/** TODO: restore phone when 0800 live */
 
 /** General and customer mail. Privacy requests use PRIVACY_OFFICER_EMAIL. */
 export const CUSTOMER_EMAIL = "admin@aetherforgeai.co.nz";
@@ -49,8 +51,21 @@ export const EMAIL_SUPPORT_LINE = "Every plan — including Free — includes em
 /** Honest history lengths. Projections use 30 days. Stock charts use about six months. */
 export const HISTORY_LENGTH_LINE = "30-day history (projections), ~6 months (stock charts).";
 
-/** Re-issue date for Terms, Privacy, and the AI Disclaimer. Keep TERMS_VERSION in sync. */
-export const LEGAL_UPDATED = "7 Oct 2026";
+/**
+ * Shown on Terms, Privacy, the AI Disclaimer, and Refunds.
+ * The signup consent stamp stays on TERMS_VERSION until that consent flow is re-issued.
+ */
+export const LEGAL_UPDATED = "13 Oct 2026";
+
+/** One line for the site footer and the AI Disclaimer. */
+export const ONE_LINE_DISCLAIMER = `General information only, not financial advice. ${LEGAL_ENTITY_NAME} is not a licensed financial advice provider.`;
+
+/** Annual refund rule approved 13 Oct 2026. Monthly plans use MONTHLY_CANCEL_RULE. */
+export const ANNUAL_REFUND_RULE =
+  "Annual plans: you can cancel within 14 days of your annual charge or renewal for a full refund. After 14 days there is no refund, but you keep access until the end of your paid year and the plan will not renew. We email you a reminder 7 days before each annual renewal. Billing errors are always refunded, and nothing here limits your rights under the Consumer Guarantees Act 1993.";
+
+export const MONTHLY_CANCEL_RULE =
+  "Monthly plans: you can cancel at any time and keep access until the end of the paid month.";
 
 export const ENGINE_PARAGRAPH =
   "Scores and projected ranges are calculated by a rules-based technical-analysis engine. AI writes the plain-English note that explains those calculated figures.";
@@ -81,11 +96,11 @@ export const LEDGER_EXPORT_LINE =
  * routes that post it. Retention at the service is not stated here.
  */
 export const AI_REQUEST_LINES = [
-  "Scores and projected ranges are calculated by a rules-based engine. A third-party AI service writes the plain-English note on a ticker and the replies in the assistant, the Portfolio Execution Coach, and the Headmaster chat. Those notes are labelled “AI-written note”. A stored member report for Stox, Koins or Headmaster marks its summary as not AI-enhanced, because that summary is built from the calculated figures.",
-  "The assistant can send your name, the question you typed, and recent messages in that chat. When the paper book has holdings, it can also send the holding count, the total market value, the total cost, the total unrealised profit or loss, the best and worst performer, the sector weights, and for each holding the ticker, the name, the sector, the share count, the average price, the current price, the value, the profit or loss, and the weight.",
-  "The Portfolio Execution Coach can send your name, your question, and recent messages in that chat. When a Headmaster book is available it can also send the cash balance, the total value, the profit or loss, the diversification score and its label, and the allocation weights and values in NZ$, including cash. It can send the top eight positions with name, asset class, weight and value, the latest Stox and Koins findings, and the Headmaster ideas for names in the book. It can send a plan you typed and report text you attached.",
-  "The Headmaster chat can send your name, your question, and recent messages in that chat. It can send the total value, the total cost, the profit or loss, the cash balance, the cash weight, the retained-cash target, the illustrated cash reallocation, and the working that produces that reallocation. It can send each asset class with its weight, its value in NZ$ and its position count, the top eight positions with name, asset class, weight, value and profit or loss, concentration-risk notes, stress-test impacts in NZ$ and percent, and the bull, base and bear scenario pathways. When the book is invested it can send the diversification score and HHI. It can send a calculated yearly return and volatility for the mix. It can send the latest Stox and Koins findings, and the Headmaster ideas block. Names outside the book are included only when you ask for a watchlist.",
-  "A ticker note can send your name, the ticker, the question you typed, and the quote used for that note. If you leave the question blank, the request still includes a short default question.",
+  "Scores and projected ranges are calculated by a rules-based engine. A third-party AI service writes the plain-English note on a ticker and the replies in the assistant, the Portfolio Notes Assistant, and the Headmaster chat. Those notes are labelled “AI-written note”. A stored member report for Stox, Koins or Headmaster marks its summary as not AI-enhanced, because that summary is built from the calculated figures.",
+  "The assistant can send the question you typed, and recent messages in that chat. When the paper book has holdings, it can also send the holding count, the total market value, the total cost, the total unrealised profit or loss, the best and worst performer, the sector weights, and for each holding the ticker, the name, the sector, the share count, the average price, the current price, the value, the profit or loss, and the weight.",
+  "The Portfolio Notes Assistant can send your question, and recent messages in that chat. When a Headmaster book is available it can also send the cash balance, the total value, the profit or loss, the diversification score and its label, and the allocation weights and values in NZ$, including cash. It can send the top eight positions with name, asset class, weight and value, the latest Stox and Koins findings, and the Headmaster ideas for names in the book. It can send a plan you typed and report text you attached.",
+  "The Headmaster chat can send your question, and recent messages in that chat. It can send the total value, the total cost, the profit or loss, the cash balance, the cash weight, the retained-cash target, the illustrated cash reallocation, and the working that produces that reallocation. It can send each asset class with its weight, its value in NZ$ and its position count, the top eight positions with name, asset class, weight, value and profit or loss, concentration-risk notes, stress-test impacts in NZ$ and percent, and the bull, base and bear scenario pathways. When the book is invested it can send the diversification score and HHI. It can send a calculated yearly return and volatility for the mix. It can send the latest Stox and Koins findings, and the Headmaster ideas block. Names outside the book are included only when you ask for a watchlist.",
+  "A ticker note can send the ticker, the question you typed, and the quote used for that note. If you leave the question blank, the request still includes a short default question.",
   "A weekly projections email, when that email is enabled, can send the market-wide indicative 7-day projections already on the projections page: the ticker, the name, the market, the indicative percent, and the as-of label. It does not send a person's holdings, values, cash, profit or loss, or allocation. It does not send the email address. It does not use a report allowance. One note is written for the week and reused for each recipient.",
   "The request does not include a card number. The code that sends the request does not set a retention period.",
 ] as const;
@@ -96,7 +111,6 @@ export const AI_REQUEST_LINES = [
  */
 export const AI_SENT_CATEGORIES = {
   "/api/chat": [
-    "your name",
     "the question you typed",
     "recent messages",
     "the holding count",
@@ -116,8 +130,7 @@ export const AI_SENT_CATEGORIES = {
     "the weight",
   ],
   "/api/portfolio-coach": [
-    "your name",
-    "the question you typed",
+    "your question",
     "recent messages",
     "the cash balance",
     "the total value",
@@ -131,8 +144,7 @@ export const AI_SENT_CATEGORIES = {
     "report text you attached",
   ],
   "/api/totalum/chat": [
-    "your name",
-    "the question you typed",
+    "your question",
     "recent messages",
     "the total value",
     "the total cost",
@@ -154,7 +166,6 @@ export const AI_SENT_CATEGORIES = {
     "Names outside the book are included only when you ask for a watchlist",
   ],
   "/api/ticker-analysis": [
-    "your name",
     "the ticker",
     "the question you typed",
     "the quote used for that note",

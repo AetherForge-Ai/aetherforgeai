@@ -1,7 +1,8 @@
 import { LegalShell, LegalSection } from "@/components/legal/LegalShell";
 import { EmailAddress } from "@/components/EmailAddress";
 import { publicPageMetadata } from "@/lib/reviewed-book";
-import { ENGINE_PARAGRAPH, LEGAL_UPDATED } from "@/lib/public-copy";
+import { AI_PROVIDER_API_SENTENCE } from "@/lib/ai-provider-disclosure";
+import { ENGINE_PARAGRAPH, LEGAL_UPDATED, ONE_LINE_DISCLAIMER } from "@/lib/public-copy";
 
 export const metadata = publicPageMetadata("/ai-disclaimer", {
   title: "AI Disclaimer — AetherForge AI",
@@ -21,9 +22,8 @@ export default function AiDisclaimer() {
       <LegalSection heading="1. Information only — not financial advice">
         <p>
           AetherForge AI provides general market information, data and AI-generated analysis for
-          educational and informational purposes only. It is{" "}
-          <strong className="text-foreground/90">not licensed financial advice</strong> and does not
-          take into account your particular financial situation, objectives, risk tolerance or needs.
+          educational and informational purposes only. {ONE_LINE_DISCLAIMER} It does not take into
+          account your particular financial situation, objectives, risk tolerance or needs.
         </p>
         <p>
           AetherForge AI is not a licensed financial advice provider under the Financial Markets Conduct
@@ -54,7 +54,8 @@ export default function AiDisclaimer() {
 
       <LegalSection heading="3. How our AI works and its limitations">
         <p>
-          {ENGINE_PARAGRAPH} AI notes have important limitations you must understand:
+          {ENGINE_PARAGRAPH} {AI_PROVIDER_API_SENTENCE} AI notes have important limitations you must
+          understand:
         </p>
         <ul className="list-disc space-y-1.5 pl-5">
           <li>
@@ -66,9 +67,14 @@ export default function AiDisclaimer() {
             scenarios — not statements of fact or guarantees of future results.
           </li>
           <li>
-            Market data used by the Service may be delayed, simulated, estimated or sourced from third
-            parties, and may contain errors.
+            Market data used by the Service is real public data from third parties. It is delayed, shown
+            with its as-of time where available, and may contain errors.
           </li>
+          <li>
+            Paper trades on AetherForge are simulated records you enter. No real orders are placed and no
+            money moves.
+          </li>
+          <li>Crypto projections are currently paused.</li>
           <li>AI output does not reflect real-time execution prices, fees, spreads, tax or slippage.</li>
         </ul>
         <p>
