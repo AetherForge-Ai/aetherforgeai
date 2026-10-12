@@ -245,7 +245,6 @@ export async function generateReportForUser(
   let technicals: SecurityIntel[] = stockObjs.map((s) =>
     labelIntel(analyzeSecurity(s.ticker, s.current_price || undefined, s.company_name))
   );
-  const metrics = computePortfolioMetrics(stockObjs);
 
   // FX rates so AUD (.AX) / USD holdings convert into the Stox NZD total.
   const fx = await getFxSnapshot();
@@ -285,7 +284,7 @@ export async function generateReportForUser(
   } catch (err) {
     console.error("[report-service] Universe live sweep failed:", err);
   }
-  if (bot !== "crypto" && Object.keys(equityHistories).length) {
+  if (bot !== "crypto") {
     technicals = stockObjs.map((s) => {
       const series = equityHistories[s.ticker] ?? equityHistories[s.ticker.toUpperCase()];
       return labelIntel(analyzeSecurity(s.ticker, s.current_price || undefined, s.company_name, undefined, series));
@@ -300,11 +299,19 @@ export async function generateReportForUser(
     const cryptoIntel = await fetchCryptoMarketIntel();
     if (cryptoIntel.length) {
       universeIntel = cryptoIntel;
+      const bySymbol = new Map(cryptoIntel.map((row) => [row.ticker.toUpperCase(), row]));
+      technicals = stockObjs.map((s) => {
+        const found = bySymbol.get(s.ticker.toUpperCase());
+        return found
+          ? labelIntel({ ...found, price: s.current_price || found.price })
+          : labelIntel(analyzeSecurity(s.ticker, s.current_price || undefined, s.company_name, "CRYPTO"));
+      });
       console.log(`[report-service] Koins full-market intel: ${cryptoIntel.length} coins feeding the report`);
     } else {
       console.error("[report-service] Koins full-market intel empty");
     }
   }
+  const metrics = computePortfolioMetrics(stockObjs, technicals);
 
   let marketTechnicals: SecurityIntel[] = (
     universeIntel?.length
@@ -360,7 +367,7 @@ export async function generateReportForUser(
   }));
   const portfolioLoaded = portfolioIsLoaded(readPortfolioBook(allRows, [], cashBalanceNZD), coveragePositions);
 
-  const tape = readTape(technicals);
+  const tape = readTape(technicals.filter((row) => !row.analysisHold));
   const prior = await loadPriorReportCalls(user._id, bot);
   const report = buildLiveReport(bot, holdings, {
     seedSalt: `${user._id}:${bot}:${context}:${Date.now()}`,

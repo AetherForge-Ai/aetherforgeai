@@ -7,7 +7,8 @@
 
 import type { ApexReport, MoverRow, ProjectionRow } from "@/lib/apex";
 import { sessionGainerSentence } from "@/lib/report-copy";
-import { projectionSitsOnClamp, reviewSessionMove } from "@/lib/quote-review";
+import { reviewSessionMove } from "@/lib/quote-review";
+import { KOINS_PROJECTIONS_OMITTED } from "@/lib/projection-pause";
 import {
   KOINS_SNAPSHOT_FRESH_MS,
   koinsUnavailableLine,
@@ -272,12 +273,8 @@ export function applyKoinsSweeps(report: ApexReport, board: KoinsBoardState, now
       };
     });
   }
-  const leaders = board.projections
-    .filter((row) => !excludedFromKoinsSweep(row.ticker) && !projectionSitsOnClamp(row.projected7dPct))
-    .slice(0, 10);
-  const projectionBlocked = forced || stale || !leaders.length || projectionsAreUniform(leaders);
-  report.projectionLeaders = projectionBlocked ? [] : leaders;
-  report.koinsUnavailableNote = projectionBlocked ? unavailable : null;
+  report.projectionLeaders = [];
+  report.koinsUnavailableNote = forced || stale ? unavailable : KOINS_PROJECTIONS_OMITTED;
   if (group) {
     const day = group.windows.find((row) => row.window === "Last 24 hours");
     const rankedGainers = (day?.movers ?? [])

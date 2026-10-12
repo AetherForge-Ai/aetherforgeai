@@ -264,10 +264,12 @@ export function executiveBriefFromPlan(plan: AllocationPlan): string {
   ].join(" ");
 }
 
-/** A near-zero return and volatility is not printed as a 0.00% forecast. */
+/** A near-zero return and volatility is not printed as a 0.00% figure. */
 export function modelViewSentence(ret: number, vol: number): string {
   if (Math.abs(ret) < 0.05 && Math.abs(vol) < 0.05) return "The model has no view.";
-  return `The target mix models about ${ret}% annual return at about ${vol}% volatility on the sleeves that would be deployed. Undeployed cash is not given a return. That is a pathway, not a forecast and not an instruction.`;
+  const expected = Number(ret).toFixed(2);
+  const volatility = Number(vol).toFixed(2);
+  return `Expected return (${expected}%) and volatility (${volatility}%) are fixed long-run planning assumptions, not a forecast. Undeployed cash is not given a return.`;
 }
 
 export function illustrativeActionLabel(action: IllustrativeAction): string {

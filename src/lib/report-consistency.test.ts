@@ -177,7 +177,8 @@ describe("cash deployment guard", () => {
 
   it("drops a seeded universe row unless a live print replaces it", () => {
     const seeded = analyzeSecurity("WOR.AX");
-    expect(seeded.price).toBe(14.85);
+    expect(seeded.analysisHold).toBe("Not enough daily history");
+    expect(seeded.price).toBe(0);
     const report = buildLiveReport("stock", [], {
       universeIntel: [seeded],
       marketOverrides: {},
@@ -617,8 +618,8 @@ describe("live report uses one rating", () => {
       { holdingIntel: [eth], tape, cashBalanceNZD: 0, universeIntel: [gala] }
     );
     expect(report.tickers[0]?.signal).toBe("Hold");
-    expect(report.tickers[0]?.note).toContain("HOLD");
-    expect(report.tickers[0]?.note).toContain("This is not a positive-momentum rating.");
+    expect(report.tickers[0]?.note).toContain("No 7-day projection is published");
+    expect(report.tickers[0]?.shortTerm).toEqual([]);
     expect(report.directRecommendations.find((r) => r.ticker === "ETH")?.action).toBe("HOLD");
     expect(report.executiveSummary).toMatch(/0 of 1/);
     expect(report.executiveSummary).toContain("HOLD ETH");
@@ -633,7 +634,7 @@ describe("live report uses one rating", () => {
     });
     expect(briefing.executiveSummary).toMatch(/0 of 1/);
     expect(briefing.executiveSummary).toContain("HOLD ETH");
-    expect(briefing.outlook[0]?.signal).toBe("Hold");
+    expect(briefing.outlook).toEqual([]);
     expect(briefing.keyObservations.join(" ")).toMatch(/0 of 1/);
   });
 });

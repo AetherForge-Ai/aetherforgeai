@@ -216,11 +216,9 @@ describe("Testing Technician r4", () => {
       { at: fresh, candidates, projections: [...clamps, ...valid] },
       now
     );
-    expect(swept.projectionLeaders).toHaveLength(10);
-    expect(swept.projectionLeaders.map((row) => row.ticker)).not.toEqual(
-      expect.arrayContaining(["FLR", "FUN", "PEPE", "PUMP", "SHIB"])
-    );
-    expect(swept.projectionLeaders.some((row) => Math.abs(Math.abs(row.projected7dPct) - 12) < 0.005)).toBe(false);
+    expect(swept.projectionLeaders).toEqual([]);
+    expect(swept.koinsUnavailableNote).toMatch(/does not publish a 7-day figure/);
+    expect(JSON.stringify(swept.projectionLeaders)).not.toContain("12");
     const held = projectionLeaderLine(1, projection("FLR", 12, 40));
     expect(held).toContain("data under review");
     expect(held).not.toContain("+12.00%");
@@ -242,7 +240,7 @@ describe("Testing Technician r4", () => {
       now
     );
     expect(onlyClamps.projectionLeaders).toEqual([]);
-    expect(onlyClamps.koinsUnavailableNote || "").toMatch(/unavailable/i);
+    expect(onlyClamps.koinsUnavailableNote || "").toMatch(/does not publish a 7-day figure/);
     expect(JSON.stringify(onlyClamps.projectionLeaders)).not.toContain("+12.00%");
   });
 

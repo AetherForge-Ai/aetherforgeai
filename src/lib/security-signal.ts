@@ -13,7 +13,11 @@ export function signalFromScore(score: number): SecurityIntel["signal"] {
   return "Sell";
 }
 
-export function labelIntel<T extends { score: number }>(row: T): T {
+export function labelIntel<T extends { score: number; analysisHold?: string | null }>(row: T): T {
+  if (row.analysisHold) {
+    if ((row as { signal?: string }).signal === "Hold") return row;
+    return { ...row, signal: "Hold" as SecurityIntel["signal"] };
+  }
   const signal = signalFromScore(row.score);
   if ((row as { signal?: string }).signal === signal) return row;
   return { ...row, signal };

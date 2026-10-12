@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import {
   getMarketSnapshot,
   formatMarketPrice,
+  intelIsHeld,
+  NOT_ENOUGH_DAILY_HISTORY,
   type MarketCode,
   type SecurityIntel,
 } from "@/lib/market-intel";
@@ -36,7 +38,8 @@ function MarketColumn({ code, label, sub, rows }: { code: MarketCode; label: str
     return list;
   }, [rows, sort]);
 
-  const avg = rows.reduce((s, r) => s + r.change1d, 0) / (rows.length || 1);
+  const priced = rows.filter((row) => !intelIsHeld(row));
+  const avg = priced.reduce((s, r) => s + r.change1d, 0) / (priced.length || 1);
 
   return (
     <div className="rounded-2xl border border-border/70 bg-card/40">
@@ -66,6 +69,7 @@ function MarketColumn({ code, label, sub, rows }: { code: MarketCode; label: str
       </div>
       <div className="divide-y divide-border/40">
         {sorted.slice(0, 12).map((r) => {
+          const held = intelIsHeld(r);
           const up = r.change1d >= 0;
           return (
             <div key={r.ticker} className="flex items-center gap-2 px-4 py-2.5 transition-colors hover:bg-background/40">
@@ -77,8 +81,8 @@ function MarketColumn({ code, label, sub, rows }: { code: MarketCode; label: str
               </div>
               <div className="text-right">
                 <p className="tnum text-sm font-medium">{formatMarketPrice(r.price, r.currency)}</p>
-                <p className={cn("tnum text-[0.72rem] font-semibold", pctClass(r.change1d))}>
-                  {up ? "▲" : "▼"} {fmtPct(r.change1d)}
+                <p className={cn("tnum text-[0.72rem] font-semibold", held ? "text-muted-foreground" : pctClass(r.change1d))}>
+                  {held ? NOT_ENOUGH_DAILY_HISTORY : `${up ? "▲" : "▼"} ${fmtPct(r.change1d)}`}
                 </p>
               </div>
             </div>

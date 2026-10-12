@@ -15,8 +15,9 @@ describe("report signal bands", () => {
   });
 
   it("labels a shared-engine row from its score", () => {
-    const row = analyzeSecurity("AIR.NZ");
-    expect(row.signal).toBe("Hold");
+    const closes = Array.from({ length: 40 }, (_, index) => 10 + index * 0.05);
+    const row = analyzeSecurity("AIR.NZ", closes[closes.length - 1], undefined, undefined, closes);
+    expect(row.analysisHold).toBeFalsy();
     expect(labelIntel(row).signal).toBe(signalFromScore(row.score));
     expect(row.convictionReason).not.toMatch(/size positions small/i);
   });

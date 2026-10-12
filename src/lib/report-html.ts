@@ -152,11 +152,11 @@ function tickerBlock(t: TickerAnalysis): string {
       </td>
       <td style="vertical-align:top;text-align:right">
         <div style="font-family:monospace;font-size:14px;color:${INK}">${t.priceUnavailable ? "Unavailable" : quotedPrice(t.price, t.ticker)}</div>
-        ${t.priceUnavailable ? "" : `<div style="font-size:11px;color:${t.changeWithheld ? MUTE : pctColor(t.changePct)}">${t.changeWithheld ? "data under review" : `${pct(t.changePct)} today`}</div>`}
+        ${t.priceUnavailable ? "" : `<div style="font-size:11px;color:${t.analysisUnavailable || t.changeWithheld ? MUTE : pctColor(t.changePct)}">${t.analysisUnavailable ? "Not enough daily history" : t.changeWithheld ? "data under review" : `${pct(t.changePct)} today`}</div>`}
       </td>
     </tr></table>
     ${
-      t.priceUnavailable
+      t.priceUnavailable || t.analysisUnavailable || !t.shortTerm.length
         ? ""
         : `<div style="display:flex;justify-content:space-between;font-size:11px;color:${MUTE};margin-top:10px">
       <span>${esc(t.momentumLabel ?? "12-month continuation / momentum")}</span>
@@ -407,15 +407,15 @@ function directRecommendationsBlock(recs: DirectRecommendation[]): string {
 }
 
 /** Three forward pathways with steps + the single recommended route. */
-function pathwayPlanBlock(plan: PathwayPlan): string {
+function pathwayPlanBlock(plan: PathwayPlan, bot?: string): string {
   if (!plan.pathways.length) return "";
   const cols = plan.pathways
     .map((p) => {
       const rec = p.recommended;
       return `<td style="padding:12px;border:2px solid ${rec ? BLUE : LINE};border-radius:8px;vertical-align:top;width:33%;background:${rec ? BLUE + "0a" : "#fff"}">
-        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:${MUTE}">${esc(p.risk)} · ${p.probability}% odds</div>
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:${MUTE}">${esc(p.risk)}${bot === "crypto" ? "" : ` · ${p.probability}% odds`}</div>
         <div style="font-weight:700;font-size:14px;color:${INK}">${esc(p.name)}${rec ? ` <span style="color:${BLUE};font-size:10px;font-weight:700">★ ILLUSTRATIVE</span>` : ""}</div>
-        <div style="font-size:16px;font-weight:700;color:${pctColor(p.targetPct)}">${pct(p.targetPct)} <span style="font-size:10px;color:${MUTE};font-weight:400">7-day target</span></div>
+        ${bot === "crypto" ? "" : `<div style="font-size:16px;font-weight:700;color:${pctColor(p.targetPct)}">${pct(p.targetPct)} <span style="font-size:10px;color:${MUTE};font-weight:400">7-day target</span></div>`}
         <div style="font-size:11px;color:${MUTE};margin:4px 0 6px;line-height:1.4">${esc(p.summary)}</div>
         <ol style="padding-left:16px;margin:0;font-size:11px;color:${INK};line-height:1.5">
           ${p.steps.map((s) => `<li style="margin:3px 0">${esc(s)}</li>`).join("")}
@@ -493,8 +493,8 @@ function briefingBlock(b: IntelligenceBriefing): string {
       <!-- Overall conviction -->
       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">
         <span style="display:inline-block;padding:4px 11px;border-radius:999px;background:${biasColor(b.overall.bias)}1a;color:${biasColor(b.overall.bias)};font-size:12px;font-weight:700">${esc(b.overall.bias)} bias</span>
-        <span style="display:inline-block;padding:4px 11px;border-radius:999px;background:${convColor(b.overall.level)}1a;color:${convColor(b.overall.level)};font-size:12px;font-weight:700">${esc(b.overall.level)} conviction</span>
-        <span style="display:inline-block;padding:4px 11px;border-radius:999px;background:#f1f5f9;color:${INK};font-size:12px;font-weight:700">Net ${b.overall.score}/100</span>
+        ${b.bot === "crypto" ? "" : `<span style="display:inline-block;padding:4px 11px;border-radius:999px;background:${convColor(b.overall.level)}1a;color:${convColor(b.overall.level)};font-size:12px;font-weight:700">${esc(b.overall.level)} conviction</span>
+        <span style="display:inline-block;padding:4px 11px;border-radius:999px;background:#f1f5f9;color:${INK};font-size:12px;font-weight:700">Net ${b.overall.score}/100</span>`}
         <span style="display:inline-block;padding:4px 11px;border-radius:999px;background:${b.sentiment.label === "Bullish" ? GREEN : b.sentiment.label === "Bearish" ? RED : MUTE}1a;color:${b.sentiment.label === "Bullish" ? GREEN : b.sentiment.label === "Bearish" ? RED : MUTE};font-size:12px;font-weight:700">Sentiment ${esc(b.sentiment.label)} ${b.sentiment.score}/100</span>
       </div>
       <div style="font-size:12px;color:${MUTE};margin:-4px 0 14px">${esc(b.overall.reason)}</div>
@@ -639,6 +639,7 @@ export function renderReportHtml(source: ApexReport, opts: RenderReportOptions):
 
         <h1 style="font-size:22px;margin:14px 0 2px;color:${INK}">${esc(report.title)}</h1>
         <div style="font-size:13px;color:${MUTE}">${esc(report.marketLabel)}${opts.userName ? ` · Prepared for ${esc(opts.userName)}` : ""}</div>
+        ${report.isDemo ? `<p style="margin:12px 0 0;padding:10px 12px;border:1px solid #f59e0b;background:#fffbeb;color:#92400e;border-radius:8px;font-size:13px;font-weight:600">Illustrative demo — not real market data.</p>` : ""}
 
         ${portfolio}
         ${closedCalls}
@@ -686,7 +687,7 @@ export function renderReportHtml(source: ApexReport, opts: RenderReportOptions):
 
         ${directRecommendationsBlock(report.directRecommendations)}
 
-        ${pathwayPlanBlock(report.pathwayPlan)}
+        ${pathwayPlanBlock(report.pathwayPlan, report.bot)}
 
         ${alertsBlock(opts.alerts || [])}
 

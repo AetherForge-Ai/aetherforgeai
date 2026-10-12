@@ -228,11 +228,13 @@ describe("Stox base print", () => {
     const zipReal = realRow("ZIP.AX");
     const mahSeed = analyzeSecurity("MAH.AX", mahReal.price);
     const zipSeed = analyzeSecurity("ZIP.AX", zipReal.price);
-    expect(mahSeed.projected7dPct).toBe(5.56);
-    expect(zipSeed.change1d).toBe(-13.9);
+    expect(mahSeed.analysisHold).toBe("Not enough daily history");
+    expect(zipSeed.analysisHold).toBe("Not enough daily history");
+    expect(mahSeed.projected7dPct).toBe(0);
+    expect(zipSeed.change1d).toBe(0);
     expect(zipReal.change1d).toBe(5.56);
     expect(mahReal.projected7dPct).not.toBe(zipReal.change1d);
-    expect(mahSeed.projected7dPct).not.toBe(zipSeed.change1d);
+    expect(mahSeed.projected7dPct).not.toBe(zipReal.change1d);
 
     const report = buildLiveReport("stock", [], {
       universeIntel: [mahReal, zipReal],
