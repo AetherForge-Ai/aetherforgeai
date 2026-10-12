@@ -5,6 +5,7 @@ import {
   clearLoginDraft,
   clearLoginPassword,
   failLoginDraft,
+  loginFieldValue,
   readLoginDraft,
   writeLoginDraft,
 } from "@/lib/login-draft";
@@ -27,6 +28,21 @@ describe("M3 login draft", () => {
     expect(after.email).toBe("member@example.com");
     expect(after.password).toBe("secret-pass");
     expect(after.error).toMatch(/check your credentials/);
+  });
+
+  it("keeps a browser-filled email and password when state is still empty", () => {
+    expect(loginFieldValue("", "member@example.com")).toBe("member@example.com");
+    expect(loginFieldValue("", "secret-pass")).toBe("secret-pass");
+    expect(loginFieldValue("typed@example.com", "other@example.com")).toBe("typed@example.com");
+    expect(loginFieldValue("secret-pass", "")).toBe("secret-pass");
+    expect(loginFieldValue("", "")).toBe("");
+    const page = read("src/app/login/page.tsx");
+    expect(page).toContain("loginFieldValue(email, emailRef.current?.value ?? \"\")");
+    expect(page).toContain("loginFieldValue(password, passwordRef.current?.value ?? \"\")");
+    expect(page).toContain("emailRef.current?.value ?? email");
+    expect(page).toContain("passwordRef.current?.value ?? password");
+    expect(page).not.toContain("value={email}");
+    expect(page).not.toContain("value={password}");
   });
 
   it("drops only the password when the login page unmounts", () => {

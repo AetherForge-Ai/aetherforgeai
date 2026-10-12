@@ -1,18 +1,20 @@
 /**
  * Last good crypto and DEX lists.
  *
- * An in-process map dies when a Cloudflare isolate stops. The temp file used
- * for DEX rows does not survive that either. This module writes the JSON to
- * the Workers Cache API (`caches.default`), which is part of this runtime
- * (wrangler.jsonc has no KV binding, only ASSETS) and outlives the isolate
- * in that colo. A hidden watchlist row is a second copy only when the JSON
- * fits the existing name field. Totalum reads are given a short timeout.
+ * On Workers the Cache API is per colo and the temp file is per isolate.
+ * The hidden watchlist rows AF-CGS and AF-DXS are the durable copy. They are
+ * read first. A colo cache or a temp file is used only when it is newer, or
+ * when the database row is missing. A read never comes back empty while any
+ * of those copies still has rows. The list is stored as compact arrays. When
+ * one name field is not enough, the rest is split across AF-CGS-1..N and
+ * AF-DXS-1..N. No new column.
  *
- * The tickers AF-CGS and AF-DXS are not holdings. Watchlist GET hides them
- * and POST rejects them.
+ * The tickers AF-CGS, AF-DXS and their numbered rows are not holdings.
+ * Watchlist GET hides them and POST rejects them.
  *
  * pull-check:crypto-live-2026-10-11
  * pull-check:v3-crypto-seed-2026-10-12
+ * pull-check:v3-retest10-2026-10-13
  */
 
 import "server-only";
@@ -20,21 +22,25 @@ import "server-only";
 import { readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { gzipSync, gunzipSync } from "node:zlib";
 import { dexSnapshotComplete } from "@/lib/crypto-board";
 import type { DexTokenRow } from "@/lib/crypto-dex";
-import type { CoinMarket } from "@/lib/crypto-market";
+import { resolvableCoinId, type CoinMarket } from "@/lib/crypto-market";
 import { publicSourceAllowed } from "@/lib/swyftx-display";
 import { totalumSdk } from "@/lib/totalum";
 
 export const CRYPTO_SNAPSHOT_TICKER = "AF-CGS";
 export const DEX_SNAPSHOT_TICKER = "AF-DXS";
 
-/** A Totalum read that takes longer than this is skipped. */
+/** A Cache API read that takes longer than this is skipped. The database row is not. */
 export const SNAPSHOT_READ_TIMEOUT_MS = 400;
+
+/** How long a cold read waits for the durable watchlist row when nothing else parsed. */
+export const SNAPSHOT_DB_TIMEOUT_MS = 2_500;
 
 /**
  * Watchlist `name` is the existing text field (same slot as AF-WEM).
- * A 400-row list is larger than this, so the full list stays on the Cache API.
+ * One field holds a compact chunk. A longer list continues on AF-CGS-1..N.
  */
 export const WATCHLIST_SNAPSHOT_MAX = 24_000;
 
@@ -144,8 +150,8 @@ export function coinFromSnapshot(value: Record<string, unknown>): CoinMarket {
     maxSupply: num(value.maxSupply),
     ath: num(value.ath),
     athDate: typeof value.athDate === "string" ? value.athDate : null,
-    atl: null,
-    atlDate: null,
+    atl: num(value.atl),
+    atlDate: typeof value.atlDate === "string" ? value.atlDate : null,
     sparkline7d: [],
     blockchain: typeof value.blockchain === "string" ? value.blockchain : "",
     quotedAt: typeof value.quotedAt === "string" ? value.quotedAt : null,
@@ -177,44 +183,86 @@ export function snapshotWorthSaving(coins: CoinMarket[]): boolean {
   return priced.length >= 100;
 }
 
-function compactRow(row: Record<string, unknown>): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const [key, item] of Object.entries(row)) {
-    if (item == null || item === "") continue;
-    out[key] = item;
-  }
-  return out;
+/** Eight significant figures. Small coin prices stay, and the name field stays short. */
+function roundCompact(value: number | null | undefined): number | null {
+  if (value == null || !Number.isFinite(value)) return null;
+  const abs = Math.abs(value);
+  if (abs === 0) return 0;
+  const factor = 10 ** (7 - Math.floor(Math.log10(abs)));
+  const rounded = Math.round(value * factor) / factor;
+  return Object.is(rounded, -0) ? 0 : rounded;
 }
 
 function encodeCrypto(coins: CoinMarket[], at: string): string {
-  const rows = coins.slice(0, 400).map((coin) =>
-    compactRow({
-      id: coin.id,
-      symbol: coin.symbol,
-      name: coin.name,
-      image: coin.image || "",
-      rank: coin.rank,
-      price: coin.price,
-      marketCap: coin.marketCap,
-      fdv: coin.fdv,
-      volume24h: coin.volume24h,
-      change1h: coin.change1h,
-      change24h: coin.change24h,
-      change7d: coin.change7d,
-      high24h: coin.high24h,
-      low24h: coin.low24h,
-      circulatingSupply: coin.circulatingSupply,
-      totalSupply: coin.totalSupply,
-      maxSupply: coin.maxSupply,
-      ath: coin.ath,
-      athDate: coin.athDate,
-      moves: coin.moves ?? null,
-      quotedAt: coin.quotedAt || null,
-      blockchain: coin.blockchain || "",
-      source: (coin.source || "coingecko").toLowerCase(),
-    })
-  );
-  return JSON.stringify({ v: 1, at, coins: rows });
+  const rows = coins.slice(0, 400).map((coin) => [
+    coin.id,
+    coin.symbol,
+    coin.name,
+    Math.round(coin.rank) || 999999,
+    roundCompact(coin.price),
+    roundCompact(coin.marketCap) ?? 0,
+    roundCompact(coin.volume24h) ?? 0,
+    roundCompact(coin.change24h) ?? 0,
+    roundCompact(coin.change7d) ?? 0,
+    roundCompact(coin.change1h),
+    roundCompact(coin.fdv),
+    roundCompact(coin.high24h),
+    roundCompact(coin.low24h),
+    roundCompact(coin.circulatingSupply),
+    roundCompact(coin.totalSupply),
+    roundCompact(coin.maxSupply),
+    roundCompact(coin.ath),
+    roundCompact(coin.atl),
+    coin.blockchain || "",
+    (coin.source || "coingecko").toLowerCase(),
+    coin.quotedAt || null,
+    coin.athDate || null,
+    coin.atlDate || null,
+    roundCompact(coin.moves?.h24 ?? null),
+    roundCompact(coin.moves?.d7 ?? null),
+    roundCompact(coin.moves?.d30 ?? null),
+    coin.image || "",
+  ]);
+  return JSON.stringify({ v: 2, at, n: rows.length, coins: rows });
+}
+
+function coinFromCompact(row: unknown[]): CoinMarket | null {
+  const id = row[0];
+  const symbol = row[1];
+  const price = num(row[4]);
+  if (typeof id !== "string" || typeof symbol !== "string" || price == null || !(price > 0)) return null;
+  const h24 = num(row[23]);
+  const d7 = num(row[24]);
+  const d30 = num(row[25]);
+  return {
+    id,
+    symbol: symbol.toUpperCase(),
+    name: typeof row[2] === "string" && row[2].trim() ? row[2] : symbol.toUpperCase(),
+    image: typeof row[26] === "string" ? row[26] : "",
+    rank: num(row[3]) ?? 999999,
+    price,
+    marketCap: num(row[5]) ?? 0,
+    fdv: num(row[10]),
+    volume24h: num(row[6]) ?? 0,
+    change1h: num(row[9]),
+    change24h: num(row[7]) ?? 0,
+    change7d: num(row[8]) ?? 0,
+    moves: h24 == null && d7 == null && d30 == null ? null : { h24, d7, d30 },
+    high24h: num(row[11]),
+    low24h: num(row[12]),
+    circulatingSupply: num(row[13]),
+    totalSupply: num(row[14]),
+    maxSupply: num(row[15]),
+    ath: num(row[16]),
+    athDate: typeof row[21] === "string" ? row[21] : null,
+    atl: num(row[17]),
+    atlDate: typeof row[22] === "string" ? row[22] : null,
+    sparkline7d: [],
+    blockchain: typeof row[18] === "string" ? row[18] : "",
+    quotedAt: typeof row[20] === "string" ? row[20] : null,
+    source: typeof row[19] === "string" && row[19].trim() ? row[19].trim().toLowerCase() : "coingecko",
+    priceUnavailable: false,
+  };
 }
 
 function parseCrypto(raw: string | null | undefined): CryptoSnapshot | null {
@@ -222,7 +270,11 @@ function parseCrypto(raw: string | null | undefined): CryptoSnapshot | null {
   try {
     const parsed = JSON.parse(raw) as { at?: unknown; coins?: unknown };
     const at = typeof parsed.at === "string" ? parsed.at : "";
-    const coins = Array.isArray(parsed.coins) ? parsed.coins.filter(coinLooksSaved).map((row) => coinFromSnapshot(row)) : [];
+    const list = Array.isArray(parsed.coins) ? parsed.coins : [];
+    const compact = list.length > 0 && list.every((row) => Array.isArray(row));
+    const coins = compact
+      ? list.map((row) => coinFromCompact(row as unknown[])).filter((row): row is CoinMarket => !!row)
+      : list.filter(coinLooksSaved).map((row) => coinFromSnapshot(row as Record<string, unknown>));
     if (!at || !coins.length) return null;
     return { at, coins };
   } catch {
@@ -231,24 +283,44 @@ function parseCrypto(raw: string | null | undefined): CryptoSnapshot | null {
 }
 
 function encodeDex(rows: DexTokenRow[], at: string, sources: string[] = []): string {
+  const live = rows.slice(0, 400);
   return JSON.stringify({
-    v: 1,
+    v: 2,
     at,
+    n: live.length,
     sources,
-    rows: rows.slice(0, 400).map((row) => ({
-      id: row.id,
-      symbol: row.symbol,
-      name: row.name,
-      price: row.price,
-      priceUnavailable: false,
-      volume24h: row.volume24h,
-      network: row.network,
-      dex: row.dex,
-      detailId: row.detailId,
-      address: row.address,
-      reserveUsd: row.reserveUsd,
-    })),
+    rows: live.map((row) => [
+      row.id,
+      row.symbol,
+      row.name,
+      roundCompact(row.price),
+      roundCompact(row.volume24h),
+      row.network,
+      row.dex,
+      row.detailId,
+      row.address || "",
+      roundCompact(row.reserveUsd),
+    ]),
   });
+}
+
+function dexFromCompact(row: unknown[]): DexTokenRow | null {
+  const symbol = row[1];
+  const price = num(row[3]);
+  if (typeof symbol !== "string" || !symbol || price == null || !(price > 0)) return null;
+  return {
+    id: typeof row[0] === "string" && row[0] ? row[0] : symbol,
+    symbol,
+    name: typeof row[2] === "string" && row[2] ? row[2] : symbol,
+    price,
+    priceUnavailable: false,
+    volume24h: num(row[4]),
+    network: typeof row[5] === "string" ? row[5] : "",
+    dex: typeof row[6] === "string" ? row[6] : "",
+    detailId: typeof row[7] === "string" ? row[7] : null,
+    address: typeof row[8] === "string" && row[8] ? row[8] : undefined,
+    reserveUsd: num(row[9]),
+  };
 }
 
 function parseDex(raw: string | null | undefined): DexSnapshot | null {
@@ -256,12 +328,16 @@ function parseDex(raw: string | null | undefined): DexSnapshot | null {
   try {
     const parsed = JSON.parse(raw) as { at?: unknown; rows?: unknown; sources?: unknown };
     const at = typeof parsed.at === "string" ? parsed.at : "";
-    const rows = Array.isArray(parsed.rows) ? parsed.rows.filter(dexLooksSaved) : [];
+    const list = Array.isArray(parsed.rows) ? parsed.rows : [];
+    const compact = list.length > 0 && list.every((row) => Array.isArray(row));
+    const rows = compact
+      ? list.map((row) => dexFromCompact(row as unknown[])).filter((row): row is DexTokenRow => !!row)
+      : list.filter(dexLooksSaved);
     const sources = Array.isArray(parsed.sources)
       ? parsed.sources.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
       : [];
     if (!at || !rows.length) return null;
-    return { at, rows, sources: sources.length ? sources : ["geckoterminal"] };
+    return { at, rows, sources };
   } catch {
     return null;
   }
@@ -325,14 +401,150 @@ async function findWatchlistRow(ticker: string): Promise<{ id: string; name: str
   return { id: String(row._id), name: typeof row.name === "string" ? row.name : "" };
 }
 
-async function readWatchlist(id: SnapshotId): Promise<string | null> {
-  const row = await findWatchlistRow(TICKER[id]);
-  return row?.name || null;
+function unpackWatchlist(raw: string): string {
+  if (!raw.startsWith("z1:")) return raw;
+  try {
+    return gunzipSync(Buffer.from(raw.slice(3), "base64")).toString("utf8");
+  } catch {
+    return "";
+  }
 }
 
-async function writeWatchlist(id: SnapshotId, body: string): Promise<boolean> {
+/** The full list, or null. A shorter prefix is not stored in its place. */
+export function fitWatchlistBody(body: string): string | null {
+  return packWatchlistBody(body);
+}
+
+export interface WatchlistPayload {
+  header: string;
+  chunks: string[];
+}
+
+function chunkTicker(id: SnapshotId, index: number): string {
+  return `${TICKER[id]}-${index}`;
+}
+
+function largestChunk(parsed: Record<string, unknown>, key: string, list: unknown[], start: number, max: number): { end: number; packed: string } | null {
+  let lo = start + 1;
+  let hi = list.length;
+  let best: { end: number; packed: string } | null = null;
+  while (lo <= hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    const body = JSON.stringify({
+      v: 2,
+      at: parsed.at,
+      n: list.length,
+      part: mid - start,
+      ...(Array.isArray(parsed.sources) ? { sources: parsed.sources } : {}),
+      [key]: list.slice(start, mid),
+    });
+    const packed = packWatchlistBody(body, max);
+    if (packed) {
+      best = { end: mid, packed };
+      lo = mid + 1;
+    } else if (mid === start + 1) {
+      return null;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  return best;
+}
+
+/**
+ * One name field when the compact list fits. Otherwise a header plus
+ * AF-CGS-1..N / AF-DXS-1..N chunks. Never a truncated prefix.
+ */
+export function splitWatchlistPayload(body: string, max = WATCHLIST_SNAPSHOT_MAX): WatchlistPayload | null {
+  const packed = packWatchlistBody(body, max);
+  if (packed) return { header: packed, chunks: [] };
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(body) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+  const key = Array.isArray(parsed.coins) ? "coins" : Array.isArray(parsed.rows) ? "rows" : "";
+  if (!key) return null;
+  const list = parsed[key] as unknown[];
+  const chunks: string[] = [];
+  let start = 0;
+  while (start < list.length) {
+    const slice = largestChunk(parsed, key, list, start, max);
+    if (!slice || slice.end <= start) return null;
+    chunks.push(slice.packed);
+    start = slice.end;
+  }
+  const header = JSON.stringify({
+    v: 2,
+    at: parsed.at,
+    n: list.length,
+    parts: chunks.length,
+    ...(Array.isArray(parsed.sources) ? { sources: parsed.sources } : {}),
+  });
+  if (header.length > max) return null;
+  return { header, chunks };
+}
+
+/** Join a header and its chunks back into one snapshot body. */
+export function joinWatchlistPayload(headerRaw: string, chunks: string[]): string | null {
+  const header = unpackWatchlist(headerRaw);
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(header) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+  if (typeof parsed.parts !== "number") return header;
+  const rows: unknown[] = [];
+  let listKey = "";
+  for (const chunk of chunks) {
+    let part: Record<string, unknown>;
+    try {
+      part = JSON.parse(unpackWatchlist(chunk)) as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+    const partKey = Array.isArray(part.coins) ? "coins" : Array.isArray(part.rows) ? "rows" : "";
+    if (!partKey) return null;
+    listKey = partKey;
+    rows.push(...(part[partKey] as unknown[]));
+  }
+  if (!listKey) return null;
+  const { parts: _parts, ...rest } = parsed;
+  void _parts;
+  return JSON.stringify({ ...rest, n: rows.length, [listKey]: rows });
+}
+
+/** Gzip into the existing name field when the JSON is longer than that field. */
+export function packWatchlistBody(body: string, max = WATCHLIST_SNAPSHOT_MAX): string | null {
+  if (body.length <= max) return body;
+  const packed = `z1:${gzipSync(Buffer.from(body, "utf8")).toString("base64")}`;
+  return packed.length <= max ? packed : null;
+}
+
+async function readWatchlist(id: SnapshotId): Promise<string | null> {
+  const row = await findWatchlistRow(TICKER[id]);
+  if (!row?.name) return null;
+  const raw = unpackWatchlist(row.name);
+  if (!raw) return null;
+  let parts = 0;
+  try {
+    const parsed = JSON.parse(raw) as { parts?: unknown };
+    parts = typeof parsed.parts === "number" ? parsed.parts : 0;
+  } catch {
+    return null;
+  }
+  if (parts < 1) return raw;
+  const stored = await Promise.all(
+    Array.from({ length: parts }, (_, index) => findWatchlistRow(chunkTicker(id, index + 1)))
+  );
+  if (stored.some((part) => !part?.name)) return null;
+  return joinWatchlistPayload(row.name, stored.map((part) => part?.name || ""));
+}
+
+async function writeNamedWatchlist(ticker: string, body: string): Promise<boolean> {
   if (body.length > WATCHLIST_SNAPSHOT_MAX) return false;
-  const ticker = TICKER[id];
   const existing = await findWatchlistRow(ticker);
   if (existing) {
     await totalumSdk.crud.editRecordById("watchlist", existing.id, { name: body });
@@ -347,20 +559,82 @@ async function writeWatchlist(id: SnapshotId, body: string): Promise<boolean> {
   return true;
 }
 
-async function defaultRead(id: SnapshotId): Promise<string | null> {
+async function writeWatchlist(id: SnapshotId, body: string): Promise<boolean> {
+  return writeNamedWatchlist(TICKER[id], body);
+}
+
+async function deleteExtraChunks(id: SnapshotId, keep: number): Promise<void> {
+  for (let index = keep + 1; index <= keep + 16; index += 1) {
+    const row = await findWatchlistRow(chunkTicker(id, index));
+    if (!row) continue;
+    await totalumSdk.crud.deleteRecordById("watchlist", row.id).catch(() => undefined);
+  }
+}
+
+function snapshotAt(raw: string | null | undefined): number {
+  if (!raw) return 0;
   try {
-    const cached = await readWorkersCache(id);
-    if (cached) return cached;
+    const at = Date.parse(String((JSON.parse(raw) as { at?: unknown }).at || ""));
+    return Number.isFinite(at) ? at : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function snapshotHasRows(id: SnapshotId, raw: string | null | undefined): boolean {
+  if (!raw) return false;
+  return id === "crypto" ? parseCrypto(raw) != null : parseDex(raw) != null;
+}
+
+/** Parsed rows, not the stamped count. A truncated body cannot claim the full list. */
+export function snapshotRowCount(id: SnapshotId, raw: string | null | undefined): number {
+  if (!raw) return 0;
+  if (id === "crypto") return parseCrypto(raw)?.coins.length ?? 0;
+  return parseDex(raw)?.rows.length ?? 0;
+}
+
+/**
+ * A newer copy wins. When both copies share a timestamp, the one with more
+ * rows wins, so a truncated database row does not hide a full local list.
+ */
+export function chooseSnapshotRaw(id: SnapshotId, db: string | null, local: string | null): string | null {
+  const durable = snapshotHasRows(id, db) ? db : null;
+  const nearby = snapshotHasRows(id, local) ? local : null;
+  if (durable && nearby) {
+    const atDurable = snapshotAt(durable);
+    const atNearby = snapshotAt(nearby);
+    if (atDurable !== atNearby) return atDurable > atNearby ? durable : nearby;
+    const rowsDurable = snapshotRowCount(id, durable);
+    const rowsNearby = snapshotRowCount(id, nearby);
+    if (rowsDurable !== rowsNearby) return rowsDurable > rowsNearby ? durable : nearby;
+    return durable;
+  }
+  return durable || nearby;
+}
+
+async function readLocalSnapshot(id: SnapshotId): Promise<string | null> {
+  try {
+    const cached = await withTimeout(readWorkersCache(id), SNAPSHOT_READ_TIMEOUT_MS);
+    if (cached && snapshotHasRows(id, cached)) return cached;
   } catch (err) {
     console.error("[crypto-snapshot] cache read failed:", err instanceof Error ? err.message.slice(0, 80) : "failed");
   }
-  try {
-    const stored = await readWatchlist(id);
-    if (stored) return stored;
-  } catch (err) {
+  const file = readTempFile(id);
+  return snapshotHasRows(id, file) ? file : null;
+}
+
+async function defaultRead(id: SnapshotId): Promise<string | null> {
+  const db = readWatchlist(id).catch((err) => {
     console.error("[crypto-snapshot] watchlist read failed:", err instanceof Error ? err.message.slice(0, 80) : "failed");
+    return null;
+  });
+  const fromLocal = await readLocalSnapshot(id);
+  if (fromLocal && snapshotHasRows(id, fromLocal)) {
+    const fromDb = await withTimeout(db, SNAPSHOT_READ_TIMEOUT_MS);
+    return chooseSnapshotRaw(id, fromDb, fromLocal);
   }
-  return readTempFile(id);
+  const late = await withTimeout(db, SNAPSHOT_DB_TIMEOUT_MS);
+  return chooseSnapshotRaw(id, late, fromLocal);
 }
 
 async function defaultWrite(id: SnapshotId, body: string): Promise<boolean> {
@@ -371,10 +645,19 @@ async function defaultWrite(id: SnapshotId, body: string): Promise<boolean> {
     console.error("[crypto-snapshot] cache write failed:", err instanceof Error ? err.message.slice(0, 80) : "failed");
   }
   writeTempFile(id, body);
-  if (body.length <= WATCHLIST_SNAPSHOT_MAX) {
-    void writeWatchlist(id, body).catch((err) => {
-      console.error("[crypto-snapshot] watchlist write failed:", err instanceof Error ? err.message.slice(0, 80) : "failed");
-    });
+  const split = splitWatchlistPayload(body);
+  if (!split) {
+    console.error("[crypto-snapshot] watchlist row was not saved: the list does not fit the name field");
+    return saved;
+  }
+  try {
+    saved = (await writeWatchlist(id, split.header)) || saved;
+    for (let index = 0; index < split.chunks.length; index += 1) {
+      saved = (await writeNamedWatchlist(chunkTicker(id, index + 1), split.chunks[index])) || saved;
+    }
+    await deleteExtraChunks(id, split.chunks.length);
+  } catch (err) {
+    console.error("[crypto-snapshot] watchlist write failed:", err instanceof Error ? err.message.slice(0, 80) : "failed");
   }
   return saved;
 }
@@ -396,8 +679,8 @@ function withTimeout<T>(work: Promise<T>, ms: number): Promise<T | null> {
 }
 
 async function readRaw(id: SnapshotId, timeoutMs: number): Promise<string | null> {
-  const read = durableOverride ? durableOverride.read(id) : defaultRead(id);
-  return withTimeout(read, timeoutMs);
+  if (durableOverride) return withTimeout(durableOverride.read(id), timeoutMs);
+  return defaultRead(id);
 }
 
 async function writeRaw(id: SnapshotId, body: string): Promise<void> {
@@ -450,11 +733,12 @@ export async function persistDexSnapshot(
   at = new Date().toISOString(),
   sources: string[] = []
 ): Promise<void> {
-  const live = rows.filter(dexLooksSaved).slice(0, 400);
+  const live = rows.filter((row) => dexLooksSaved(row) && !!resolvableCoinId(row.detailId)).slice(0, 400);
   if (!live.length) return;
   const existing = memoryDex ?? (await readDexSnapshot());
-  if (existing && existing.rows.length > live.length && !dexSnapshotComplete(live)) return;
-  const body = encodeDex(live, at, sources.length ? sources : existing?.sources || ["geckoterminal"]);
+  const existingLive = existing ? existing.rows.filter((row) => !!resolvableCoinId(row.detailId)) : [];
+  if (existing && existingLive.length > live.length && !dexSnapshotComplete(live)) return;
+  const body = encodeDex(live, at, sources.length ? sources : existing?.sources || []);
   const parsed = parseDex(body);
   if (!parsed) return;
   memoryDex = parsed;
@@ -463,5 +747,5 @@ export async function persistDexSnapshot(
 
 export function hiddenSnapshotTicker(ticker: string | null | undefined): boolean {
   const key = (ticker || "").trim().toUpperCase();
-  return key === CRYPTO_SNAPSHOT_TICKER || key === DEX_SNAPSHOT_TICKER;
+  return key === CRYPTO_SNAPSHOT_TICKER || key === DEX_SNAPSHOT_TICKER || /^AF-CGS-\d+$/.test(key) || /^AF-DXS-\d+$/.test(key);
 }

@@ -6,6 +6,7 @@
  */
 
 import type { ApexReport, MoverRow, ProjectionRow } from "@/lib/apex";
+import { sessionGainerSentence } from "@/lib/report-copy";
 import {
   KOINS_SNAPSHOT_FRESH_MS,
   koinsUnavailableLine,
@@ -241,5 +242,19 @@ export function applyKoinsSweeps(report: ApexReport, board: KoinsBoardState, now
   const projectionBlocked = forced || stale || !leaders.length || projectionsAreUniform(leaders);
   report.projectionLeaders = projectionBlocked ? [] : leaders;
   report.koinsUnavailableNote = projectionBlocked ? unavailable : null;
+  if (group) {
+    const day = group.windows.find((row) => row.window === "Last 24 hours");
+    const rankedGainers = (day?.movers ?? [])
+      .filter((row) => row.changePct > 0 && !row.withheld)
+      .slice(0, 3)
+      .map((row) => ({ ticker: row.ticker, name: row.name, changePct: row.changePct }));
+    const previousNote = report.sessionTapeNote;
+    const nextNote = sessionGainerSentence(rankedGainers, day?.withheldCount ?? 0);
+    report.topGainers = rankedGainers;
+    report.sessionTapeNote = nextNote;
+    if (previousNote && previousNote !== nextNote && report.keyObservations) {
+      report.keyObservations = report.keyObservations.map((line) => (line === previousNote ? nextNote : line));
+    }
+  }
   return report;
 }

@@ -109,7 +109,9 @@ describe("DEX buy storage", () => {
     expect(String(tx.notes).startsWith("[DEX:Ethereum] ")).toBe(true);
     expect(tx).not.toHaveProperty("chain");
     const visible = stripDexNotesPrefix(tx.notes);
-    expect(visible.startsWith("pool fill")).toBe(true);
+    expect(visible.startsWith("chain=Ethereum")).toBe(true);
+    expect(visible).toContain("pxat=");
+    expect(visible).toContain("pool fill");
     expect(visible).not.toContain("[DEX:");
     expect(dexFromLedger(tx)).toMatchObject({ venue: "DEX", chain: "Ethereum" });
     expect(dexSourceLabel({ notes: tx.notes, venue: tx.venue })).toBe("DEX · Ethereum");

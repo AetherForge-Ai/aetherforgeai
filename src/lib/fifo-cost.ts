@@ -6,8 +6,7 @@
 import { formatDisplayDate, formatSignedMoney, roundMoney } from "@/lib/currency";
 import { formatLedgerDateTime, isUnknownClock } from "@/lib/executed-at";
 import { buyLotDay, COST_METHOD_LABEL, ledgerDisplayWhen, movementHasClock } from "@/lib/lot-day";
-import { nzTaxYearEnding } from "@/lib/nz-tax-year";
-import { fifoRemainingUnitCosts, realisedByTaxYear, type RealisedLine } from "@/lib/tax-realised";
+import { allRealisedLines, fifoRemainingUnitCosts, type RealisedLine } from "@/lib/tax-realised";
 import type { TaxLedgerRow } from "@/lib/taxable-income";
 
 export { COST_METHOD_LABEL };
@@ -29,16 +28,7 @@ export function fifoTotals(
   rows: readonly TaxLedgerRow[],
   calendarYear: number
 ): { ytd: number; ytdCount: number; all: number; allCount: number } {
-  const years = new Set<number>([calendarYear, calendarYear + 1]);
-  for (const row of rows) {
-    const ending = nzTaxYearEnding(buyLotDay(row) || row.executed_at || row.createdAt);
-    if (ending != null) years.add(ending);
-  }
-  const lines: RealisedLine[] = [];
-  for (const year of years) {
-    const report = realisedByTaxYear(rows, year);
-    lines.push(...report.other, ...report.crypto);
-  }
+  const lines = allRealisedLines(rows);
   const counted = lines.filter((line) => line.realisedNzd != null);
   const ytdLines = counted.filter((line) => line.when.startsWith(String(calendarYear)));
   const sum = (list: RealisedLine[]) => roundMoney(list.reduce((total, line) => total + (line.realisedNzd ?? 0), 0));
@@ -46,20 +36,12 @@ export function fifoTotals(
 }
 
 function sellQueues(rows: readonly TaxLedgerRow[]): Map<string, RealisedLine[]> {
-  const years = new Set<number>();
-  for (const row of rows) {
-    const ending = nzTaxYearEnding(buyLotDay(row) || row.executed_at || row.createdAt);
-    if (ending != null) years.add(ending);
-  }
   const queues = new Map<string, RealisedLine[]>();
-  for (const year of [...years].sort((a, b) => a - b)) {
-    const report = realisedByTaxYear(rows, year);
-    for (const line of [...report.other, ...report.crypto]) {
-      const key = `${line.ticker}|${line.when}`;
-      const list = queues.get(key) || [];
-      list.push(line);
-      queues.set(key, list);
-    }
+  for (const line of allRealisedLines(rows)) {
+    const key = `${line.ticker}|${line.when}`;
+    const list = queues.get(key) || [];
+    list.push(line);
+    queues.set(key, list);
   }
   return queues;
 }

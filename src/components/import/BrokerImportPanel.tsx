@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
 import { FUNDING_DISCLOSURE, readImportPreview, suggestedColumnMap, type ImportPlan, type ImportTrade } from "@/lib/broker-import";
+import { HOLDINGS_IMPORT_DRAFT_KEY } from "@/lib/holdings-csv";
 import { formatDisplayDate, formatFxInput } from "@/lib/currency";
 
 const IMPORT_WAIT_MS = 30_000;
@@ -53,6 +54,22 @@ export function BrokerImportPanel() {
   const [fundBuys, setFundBuys] = useState(false);
   const [importError, setImportError] = useState("");
   const [fileKey, setFileKey] = useState(0);
+  const pendingDraft = useRef<string | null>(null);
+
+  useEffect(() => {
+    const draft = sessionStorage.getItem(HOLDINGS_IMPORT_DRAFT_KEY);
+    if (!draft) return;
+    sessionStorage.removeItem(HOLDINGS_IMPORT_DRAFT_KEY);
+    pendingDraft.current = draft;
+    setText(draft);
+    setFileName("holdings.csv");
+  }, []);
+
+  useEffect(() => {
+    if (!pendingDraft.current || text !== pendingDraft.current) return;
+    pendingDraft.current = null;
+    void run(false);
+  }, [text]);
 
   async function readFile(file: File) {
     const body = await file.text();

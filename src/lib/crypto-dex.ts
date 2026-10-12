@@ -11,6 +11,7 @@
  * pull-check:retest4-2026-10-11
  */
 
+import { canonicalCryptoId } from "@/lib/crypto-ids";
 import { resolvableCoinId, type CoinMarket } from "@/lib/crypto-market";
 import { dexscreenerPublicDisplay } from "@/lib/dexscreener-display";
 import { CRYPTO_SANITY_RATIO } from "@/lib/crypto-tape";
@@ -37,6 +38,42 @@ interface IncludedToken {
   name: string;
   coinId: string;
   detailId: string | null;
+}
+
+/**
+ * Detail slug for a pool token. A GeckoTerminal coin id wins. A known wrapped
+ * symbol is used when that feed did not send one. An unknown symbol stays null
+ * so the row is not given a guessed page.
+ */
+const DEX_DETAIL_BY_SYMBOL: Record<string, string> = {
+  WETH: "weth",
+  WBTC: "wrapped-bitcoin",
+  USDC: "usd-coin",
+  USDT: "tether",
+  DAI: "dai",
+  PEPE: "pepe",
+  LINK: "chainlink",
+  UNI: "uniswap",
+  SHIB: "shiba-inu",
+  AAVE: "aave",
+  LDO: "lido-dao",
+  SOL: "solana",
+  WBNB: "wbnb",
+  ETH: "ethereum",
+  BTC: "bitcoin",
+};
+
+export function dexDetailId(symbol: string, gecko?: string | null): string | null {
+  const fromGecko = resolvableCoinId(gecko);
+  if (fromGecko) return fromGecko;
+  const code = symbol.trim().toUpperCase();
+  if (!code) return null;
+  const canonical = canonicalCryptoId(code);
+  if (canonical && canonical !== code.toLowerCase()) {
+    const resolved = resolvableCoinId(canonical);
+    if (resolved) return resolved;
+  }
+  return resolvableCoinId(DEX_DETAIL_BY_SYMBOL[code]);
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -73,7 +110,7 @@ function includedTokens(payload: Record<string, unknown>): Map<string, IncludedT
     const symbol = String(attrs.symbol || "").trim().toUpperCase();
     if (!id || !symbol) continue;
     const gecko = typeof attrs.coingecko_coin_id === "string" ? attrs.coingecko_coin_id : "";
-    const detailId = resolvableCoinId(gecko);
+    const detailId = dexDetailId(symbol, gecko);
     out.set(id, {
       symbol,
       name: String(attrs.name || symbol),

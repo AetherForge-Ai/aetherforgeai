@@ -281,10 +281,14 @@ export function MarketTicker({ className, compact = false, initial = null, initi
   const priceFor = (q: Quote) => formatPrice(q, display, fx.rates);
 
   useEffect(() => {
+    const controller = new AbortController();
     let active = true;
     const loadFeed = async () => {
-      const res = await api.get<TickerFeed>("/api/ticker", { signal: AbortSignal.timeout(8000) });
-      if (!active) return;
+      const timeout = AbortSignal.timeout(8000);
+      const anySignal = (AbortSignal as unknown as { any?: (signals: AbortSignal[]) => AbortSignal }).any;
+      const signal = anySignal ? anySignal([controller.signal, timeout]) : timeout;
+      const res = await api.get<TickerFeed>("/api/ticker", { signal });
+      if (!active || res.aborted) return;
       if (res.ok && res.data?.rows) {
         setNzx(res.data.rows.nzx ?? []);
         setAsx(res.data.rows.asx ?? []);
@@ -305,6 +309,7 @@ export function MarketTicker({ className, compact = false, initial = null, initi
     return () => {
       active = false;
       clearInterval(id);
+      controller.abort();
     };
   }, []);
 

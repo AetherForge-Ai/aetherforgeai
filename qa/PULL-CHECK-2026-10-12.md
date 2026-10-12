@@ -605,3 +605,36 @@ Testing Technician retest of the same build, on this branch:
 14. A buy audit includes `chain=` and `pxat=`. `live=` uses the snapshot price when the form says the price came from the snapshot. A buy with no snapshot origin still says `live: n/a`.
 15. List routes serve the saved snapshot and do not seed when one exists. The dashboard loads the transaction book beside names and live marks.
 16. The ledger label and the CSV use the same 5000-row query. The page shows a range, or every row.
+
+## Research retest 10
+
+`pull-check:v3-retest10-2026-10-13`
+
+Build `v3-retest10-2026-10-13`. Live retest 10 ran on `v3-retest9-2026-10-12` (develop `21379513`). Nothing here Publishes, sends email, or adds GST. Public copy says AI. Crypto projections stay paused. `SWYFTX_PUBLIC_DISPLAY` and `DEXSCREENER_PUBLIC_DISPLAY` stay off. No new database columns.
+
+1. `/api/crypto/markets` was serving a stored 89-row Yahoo snapshot. The keyless refresh was detached, so the isolate dropped it before it could replace that list. The markets and detail reads now wait, bounded, for a richer seed. A list of at least 100 priced rows with market cap replaces Yahoo. A shorter list does not. Each source records status and a plain reason. A CoinGecko 401, 403 or 1020 says `refused this datacentre IP; Lukas can set COINGECKO_API_KEY`. That reason is on `GET /api/admin/crypto-diagnostics` with the last seed report and live probes for CoinPaprika and Binance. From this checkout's network the keyless hosts answered; the worker egress is only known after that diagnostics call.
+2. Yahoo detail fills 1h from the 5-minute chart and 30d from the one-month chart, and keeps the 7-day move. Max supply, FDV and the other size fields come from the richer snapshot or the stat donors. They stay blank when those hosts refuse the runtime.
+3. The ledger row shows the audit live figure on its own line (`live: n/a` or `live: <number>`), `data-testid="ledger-live"`.
+4. Currency effect on a typical open lot: 100 shares, mark 10 USD, quantity-weighted buy FX 1.60, valuation FX 1.65. Foreign value is 1,000. Currency effect is 1,000 × 0.05 = NZ$50. A closed lot is not in that sum. Research's ~55 against the live NZ$40.05 matches this rule when realised FX sits in Realised. The card says `Currency effect counts open lots only; realised FX is in Realised.`
+5. Public `/koins` on the live build already printed snapshot prices (BTC US$82,499.96 and the other majors). This branch does not remove that read.
+6. Public `/stox` on the live build already printed `Under review` and `MAH.AX reason: rating TRIM: momentum negative`. This branch does not remove that notice.
+7. The ticker no longer aborts its own feed at 8 seconds, and an abort is not logged. `/api/stocks` POST 400 was the holdings cell `APPL / APPLE INC` failing the 12-character ticker check. The stocks button now opens `/import` instead of posting that cell.
+8. Stocks `Import CSV` stores the file and opens the import review (preview, duplicates, skipped-row acknowledgement). `APPL / APPLE INC` and `AAPL / APPLE INC` both resolve to AAPL. A holdings file with no side column is treated as buys. A missing date stays a skipped row and blocks save until it is acknowledged. No exchange rate is guessed.
+9. DEX rows without a detail id are left out of the saved list and the public list. Wrapped symbols such as WETH and PEPE get a detail id. A short or DexPaprika-only list is refreshed inside the request so GeckoTerminal can replace it with the larger list.
+10. Tape rows and the tape's crypto provider use the snapshot source. A Yahoo snapshot says Yahoo Finance, not CoinGecko.
+
+## Testing Technician r3
+
+Same branch. Build stays `v3-retest10-2026-10-13`. No new database columns. No production writes.
+
+1. The durable copy is the hidden watchlist row. A read waits 2.5 seconds for that row when the colo cache and the temp file are empty, and it returns whichever copy has rows. Equal timestamps keep the copy with more rows. The list is compact arrays, split across AF-CGS-1..N and AF-DXS-1..N when one name field is not enough, and the row count is stamped. A truncated prefix is not stored.
+2. Signed-in markets and the public page both read that stored list first. Blockchain is filled for WSTETH, USDS, XMR, WBT, LEO, CBBTC and RAIN. The notice, including `Source:`, is the same line the public page and the signed-in table use.
+3. DEX no longer labels a DexPaprika list as GeckoTerminal. The public DEX source is the snapshot's own source.
+4. Public crypto and DEX `asOf` text is the snapshot notice, so `Source:` is in the server render.
+5. A confirm reads the snapshot without the 7-second seed. The independent reads still share one wait. The ledger row is inserted before cash is updated, and a failed cash write deletes that row. A second live-price fetch after that read is not made. A Yahoo-only or short stored list (under 300) waits up to 8 seconds for a richer seed. A longer list refreshes in the background. The ticker fetch times out at 8 seconds, and an abort is not logged as a feed failure.
+6. Header holdings and net worth snap together. Net worth is the sum of the rounded cash and the rounded holdings from that same render. The same holding id is counted once. When the ledger quantity is known, an aggregate row beside lots that already sum to that quantity is dropped, and a position read twice at that quantity is counted once. Lots of 10 and 10, and lots of 5, 3 and 2, stay.
+7. `idem=`, `live=`, `chain=`, `pxat=` and the `FILLED … source=` audit sentence are kept. Only the user's free text is trimmed, inside 4000 characters.
+8. The ledger values one FIFO walk and one open-lot walk per book array. Equity quotes share one in-flight fetch and the one-minute quote cache, including the Yahoo path.
+9. A name under review on any window leaves the 24-hour, 7-day and month lists. A non-large-cap 7-day move above 15% is under review. Large-cap week moves stay on the 35% guard, so JPM at 31.01% stays ranked.
+10. `Top gainers identified` is taken from that filtered 24-hour list. The forward projection no longer clamps to ±45.
+11. RENDER and DYDX are Render and dYdX on the markets body. Net worth adds the already-rounded parts, so it matches cash plus holdings to the cent.

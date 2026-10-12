@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import {
+  collapseDuplicateHoldings,
   computeSummary,
   formatPercent,
   formatNumber,
@@ -13,6 +14,7 @@ import {
   formatSignedMoney,
   formatMoney,
   roundMoney,
+  sumRoundedMoney,
   formatUnitPrice,
   currencyForTicker,
   baseCurrencyForBot,
@@ -968,13 +970,14 @@ export function PortfolioDashboard({
   const metrics = useMemo(() => computePortfolioMetrics(stocks), [stocks]);
 
   // Dedicated overviews (stock + crypto shown separately — no bot toggle)
+  const valuedHoldings = useMemo(() => collapseDuplicateHoldings(allStocks), [allStocks]);
   const stockOnly = useMemo(
-    () => allStocks.filter((s) => isListedStockHolding(s.asset_type, s.ticker, s.company_name)),
-    [allStocks]
+    () => valuedHoldings.filter((s) => isListedStockHolding(s.asset_type, s.ticker, s.company_name)),
+    [valuedHoldings]
   );
   const cryptoOnly = useMemo(
-    () => allStocks.filter((s) => s.asset_type === "crypto"),
-    [allStocks]
+    () => valuedHoldings.filter((s) => s.asset_type === "crypto"),
+    [valuedHoldings]
   );
   const cryptoLiveSymbols = useMemo(() => cryptoOnly.map((s) => s.ticker), [cryptoOnly]);
   // 24/7 spot poll for this hub only. Buy/Add pauses it inside the hook so a
@@ -1005,10 +1008,10 @@ export function PortfolioDashboard({
   const spotForMarks = publicSpot ?? metalSpot;
   const metalsSpotLive = (publicSpot?.live ?? metalSpot?.live) === true;
   const metalStocks = useMemo(() => {
-    const bullion = allStocks.filter((s) => isBullionHolding(s.asset_type, s.ticker, s.company_name));
+    const bullion = valuedHoldings.filter((s) => isBullionHolding(s.asset_type, s.ticker, s.company_name));
     // Always rewrite a persisted equity print (~US$44.65) to NZD per troy ounce.
     return markBookAtBullionSpot(bullion, spotForMarks);
-  }, [allStocks, spotForMarks]);
+  }, [valuedHoldings, spotForMarks]);
   const homeSplitPnlNzd = useMemo(() => {
     const stock = computeSummary(stockOnly, { baseCurrency: "NZD", fxToNZD }).totalGain;
     const crypto = computeSummary(cryptoMarked, { baseCurrency: "NZD", fxToNZD }).totalGain;
@@ -1178,8 +1181,8 @@ export function PortfolioDashboard({
   // Live market value of everything held (excludes idle cash) + full net worth.
   // `metalsValueNZD` = the precious_metal bonus store; `metalStockTotalNZD` =
   // metals traded through the ledger — distinct records, so no double-count.
-  const holdingsValueNZD = stockTotalNZD + cryptoTotalNZD + metalsValueNZD + metalStockTotalNZD;
-  const netWorthNZD = holdingsValueNZD + cashBalance;
+  const holdingsValueNZD = sumRoundedMoney([stockTotalNZD, cryptoTotalNZD, metalsValueNZD, metalStockTotalNZD]);
+  const netWorthNZD = sumRoundedMoney([holdingsValueNZD, cashBalance]);
   // One shared portfolio-ready gate: KPI totals AND stock/crypto/metals position
   // cards only paint real data together (or all skeletons). Never show a non-zero
   // net-worth snapshot alongside empty position cards from an incomplete load.
@@ -1427,6 +1430,7 @@ export function PortfolioDashboard({
                 <div className="mt-1 ml-auto h-7 w-24 animate-pulse rounded-md bg-muted/50" aria-hidden />
               ) : (
                 <AnimatedMoney
+                  snap
                   value={showHoldings}
                   currency="NZD"
                   className="tnum font-display text-xl font-bold text-emerald-600 sm:text-2xl"
@@ -1441,6 +1445,7 @@ export function PortfolioDashboard({
                 <div className="mt-1 ml-auto h-7 w-28 animate-pulse rounded-md bg-muted/50" aria-hidden />
               ) : (
                 <AnimatedMoney
+                  snap
                   value={showNetWorth}
                   currency="NZD"
                   className="tnum font-display text-xl font-bold text-emerald-600 sm:text-2xl"

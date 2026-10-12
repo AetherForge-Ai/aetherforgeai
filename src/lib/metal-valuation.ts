@@ -8,6 +8,8 @@
  * metals out of allocation and net worth.
  */
 
+import { sumRoundedMoney } from "@/lib/currency";
+
 export type MetalKey = "gold" | "silver";
 
 export type QuoteRoute = "equity" | "crypto" | "bullion";
@@ -375,5 +377,5 @@ export function netWorthNZD(parts: {
     const v = Number(n);
     return Number.isFinite(v) ? v : 0;
   });
-  return nums.reduce((s, n) => s + n, 0);
+  return sumRoundedMoney(nums);
 }

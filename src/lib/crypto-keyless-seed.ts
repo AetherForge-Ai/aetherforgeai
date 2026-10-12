@@ -13,6 +13,7 @@
 import { coinGeckoEndpoint, MARKET_USER_AGENT } from "@/lib/coingecko-auth";
 import { snapshotBlockchain } from "@/lib/crypto-board";
 import {
+  dexDetailId,
   dexNetworkLabel,
   dexRowClearsFloor,
   parseMegafilterPage,
@@ -91,6 +92,60 @@ export function installSeedFetch(fetcher: SeedFetch | null) {
 
 export function resetSeedFetch() {
   seedFetchOverride = null;
+  seedAttempts.clear();
+  lastSeedReport = [];
+}
+
+/** Shown when CoinGecko refuses this runtime. The key is never included. */
+export const COINGECKO_DATACENTRE_HINT = "refused this datacentre IP; Lukas can set COINGECKO_API_KEY";
+
+export interface SeedSourceReport {
+  source: string;
+  status: number | null;
+  rows: number;
+  reason: string | null;
+}
+
+const seedAttempts = new Map<string, SeedSourceReport>();
+let lastSeedReport: SeedSourceReport[] = [];
+
+export function lastCryptoSeedReport(): SeedSourceReport[] {
+  return lastSeedReport.map((row) => ({ ...row }));
+}
+
+/** One sentence for a failed keyless call. A 2xx status has no failure reason. */
+export function seedFailureReason(source: string, status: number | null): string | null {
+  if (status == null || (status >= 200 && status < 300)) return null;
+  const blocked = status === 401 || status === 403 || status === 1020;
+  const limited = status === 429 || status === 1015;
+  if (source === "coingecko" && blocked) return COINGECKO_DATACENTRE_HINT;
+  if (source === "coingecko" && limited) return "rate limited; Lukas can set COINGECKO_API_KEY";
+  if (blocked) return `HTTP ${status}; refused this datacentre IP`;
+  if (limited) return `HTTP ${status}; rate limited`;
+  return `HTTP ${status}`;
+}
+
+function noteSeed(source: string, status: number | null, rows: number, reason: string | null) {
+  seedAttempts.set(source, { source, status, rows, reason });
+  lastSeedReport = [...seedAttempts.values()];
+}
+
+function seedRichEnough(coins: CoinMarket[]): boolean {
+  if (coins.length < 100) return false;
+  const priced = coins.filter(
+    (coin) =>
+      coin.price > 0 &&
+      coin.marketCap > 0 &&
+      (coin.source || "") !== "yahoo" &&
+      (coin.source || "") !== "swyftx"
+  );
+  return priced.length >= 100;
+}
+
+function thrownSeedReason(err: unknown): string {
+  const name = err instanceof Error ? err.name : "";
+  if (name === "TimeoutError" || name === "AbortError") return "timeout";
+  return "request failed";
 }
 
 function sleep(ms: number): Promise<void> {
@@ -146,8 +201,8 @@ function blankCoin(partial: Partial<CoinMarket> & Pick<CoinMarket, "id" | "symbo
     maxSupply: partial.maxSupply ?? null,
     ath: partial.ath ?? null,
     athDate: partial.athDate ?? null,
-    atl: null,
-    atlDate: null,
+    atl: partial.atl ?? null,
+    atlDate: partial.atlDate ?? null,
     sparkline7d: [],
     blockchain: partial.blockchain || snapshotBlockchain(id, null, null),
     quotedAt: partial.quotedAt ?? null,
@@ -308,6 +363,8 @@ export function coinsFromCoinGeckoMarkets(body: unknown): CoinMarket[] {
         maxSupply: num(row.max_supply),
         ath: num(row.ath),
         athDate: typeof row.ath_date === "string" ? row.ath_date : null,
+        atl: num(row.atl),
+        atlDate: typeof row.atl_date === "string" ? row.atl_date : null,
         blockchain: snapshotBlockchain(id, null, typeof row.asset_platform_id === "string" ? row.asset_platform_id : null),
         quotedAt: typeof row.last_updated === "string" ? row.last_updated : null,
         source: "coingecko",
@@ -459,7 +516,7 @@ export function dexRowsFromPaprikaPools(body: unknown): DexTokenRow[] {
       volume24h: num(pool.volume_usd_24h),
       network: dexNetworkLabel(chain),
       dex: String(pool.dex_name || pool.dex_id || "").trim(),
-      detailId: canonicalCryptoId(symbol) !== symbol.toLowerCase() ? canonicalCryptoId(symbol) : null,
+      detailId: dexDetailId(symbol),
       address: address ? `${chain}_${address}` : "",
       reserveUsd: reserve,
     };
@@ -495,10 +552,13 @@ async function fetchCoinGeckoLists(onReady?: (rows: CoinMarket[]) => void): Prom
   const first = await readCoinGeckoPage(1);
   let coins = coinsFromCoinGeckoMarkets(first);
   if (coins.length) onReady?.(coins);
-  if (first.length < 250) return coins;
-  const second = await readCoinGeckoPage(2);
-  coins = coinsFromCoinGeckoMarkets([...first, ...second]);
-  if (coins.length) onReady?.(coins);
+  if (first.length >= 250) {
+    const second = await readCoinGeckoPage(2);
+    coins = coinsFromCoinGeckoMarkets([...first, ...second]);
+    if (coins.length) onReady?.(coins);
+  }
+  if (coins.length) noteSeed("coingecko", 200, coins.length, null);
+  else if (!seedAttempts.has("coingecko")) noteSeed("coingecko", null, 0, "no rows");
   return coins;
 }
 
@@ -512,10 +572,32 @@ async function readCoinGeckoPage(page: number): Promise<unknown[]> {
   }
   if (!res.ok) {
     console.error(`[crypto-seed] coingecko page ${page} status ${res.status}`);
+    noteSeed("coingecko", res.status, 0, seedFailureReason("coingecko", res.status));
     return [];
   }
   const body = await readJson(res);
   return Array.isArray(body) ? body : [];
+}
+
+async function fetchListedSeed(
+  source: string,
+  url: string,
+  parse: (body: unknown) => CoinMarket[],
+  headers: Record<string, string> = {}
+): Promise<CoinMarket[]> {
+  try {
+    const res = await fetchSeed(url, headers);
+    if (!res.ok) {
+      noteSeed(source, res.status, 0, seedFailureReason(source, res.status));
+      return [];
+    }
+    const rows = parse(await readJson(res));
+    noteSeed(source, res.status, rows.length, rows.length ? null : "no rows");
+    return rows;
+  } catch (err) {
+    noteSeed(source, null, 0, thrownSeedReason(err));
+    throw err;
+  }
 }
 
 async function settle<T>(label: string, work: Promise<T>, empty: T): Promise<T> {
@@ -536,30 +618,25 @@ export async function loadKeylessCryptoMarkets(opts?: { budgetMs?: number }): Pr
   };
   const jobs: Promise<void>[] = [
     settle("coingecko", fetchCoinGeckoLists(push), [] as CoinMarket[]).then(push),
-    settle(
-      "coinpaprika",
-      fetchSeed(PAPRIKA_TICKERS).then(async (res) => coinsFromCoinPaprika(await readJson(res))),
-      [] as CoinMarket[]
-    ).then(push),
-    settle(
-      "binance",
-      fetchSeed(BINANCE_TICKERS).then(async (res) => coinsFromBinanceTickers(await readJson(res))),
-      [] as CoinMarket[]
-    ).then(push),
+    settle("coinpaprika", fetchListedSeed("coinpaprika", PAPRIKA_TICKERS, coinsFromCoinPaprika), [] as CoinMarket[]).then(push),
+    settle("binance", fetchListedSeed("binance", BINANCE_TICKERS, coinsFromBinanceTickers), [] as CoinMarket[]).then(push),
   ];
   const capKey = (process.env.COINCAP_API_KEY || "").trim();
   if (capKey) {
     jobs.push(
       settle(
         "coincap",
-        fetchSeed(COINCAP_ASSETS, { authorization: `Bearer ${capKey}` }).then(async (res) => coinsFromCoinCap(await readJson(res))),
+        fetchListedSeed("coincap", COINCAP_ASSETS, coinsFromCoinCap, { authorization: `Bearer ${capKey}` }),
         [] as CoinMarket[]
       ).then(push)
     );
   }
   const done = Promise.all(jobs).then(() => "done" as const);
   while (Date.now() - started < budgetMs) {
-    if (mergeVerifiedSeedLists(lists).length >= YAHOO_BACKUP_FLOOR) return mergeVerifiedSeedLists(lists);
+    const merged = mergeVerifiedSeedLists(lists);
+    // Same bar as snapshotWorthSaving: at least 100 rows with a market cap, not Yahoo.
+    // A short or cap-less list must not end the seed while CoinGecko is still in flight.
+    if (seedRichEnough(merged)) return merged;
     const step = await Promise.race([done, sleep(50).then(() => "wait" as const)]);
     if (step === "done") break;
   }
@@ -580,7 +657,7 @@ export async function loadKeylessStatDonors(): Promise<CoinMarket[]> {
       }),
       settle(
         "coinpaprika-stats",
-        fetchSeed(PAPRIKA_TICKERS).then(async (res) => coinsFromCoinPaprika(await readJson(res))),
+        fetchListedSeed("coinpaprika", PAPRIKA_TICKERS, coinsFromCoinPaprika),
         [] as CoinMarket[]
       ).then((rows) => {
         if (rows.length) lists.push(rows);
@@ -609,14 +686,19 @@ async function fetchGeckoTerminalRows(): Promise<DexTokenRow[]> {
   const pages = await Promise.all(
     urls.map(async (url) => {
       const res = await fetchSeed(url, { accept: GT_ACCEPT, "user-agent": MARKET_USER_AGENT });
-      if (res.status === 429) return [] as DexTokenRow[];
-      if (!res.ok) return [] as DexTokenRow[];
+      if (!res.ok) {
+        noteSeed("geckoterminal", res.status, 0, seedFailureReason("geckoterminal", res.status));
+        return [] as DexTokenRow[];
+      }
       const body = await readJson(res);
       const network = url.includes("/networks/") && !url.includes("trending_pools") ? url.split("/networks/")[1]?.split("/")[0] || "" : "";
       return parseMegafilterPage(body, network).filter((row) => dexRowClearsFloor(row) && pegOk(row.symbol, row.price || 0));
     })
   );
-  return pages.flat();
+  const rows = pages.flat();
+  if (rows.length) noteSeed("geckoterminal", 200, rows.length, null);
+  else if (!seedAttempts.has("geckoterminal")) noteSeed("geckoterminal", null, 0, "no rows");
+  return rows;
 }
 
 async function fetchDexPaprikaRows(): Promise<DexTokenRow[]> {
@@ -624,11 +706,17 @@ async function fetchDexPaprikaRows(): Promise<DexTokenRow[]> {
     DEX_NETWORKS.map(async (network) => {
       const url = `https://api.dexpaprika.com/networks/${network}/pools/search?limit=30&orderBy=volume_usd_24h&sort=desc`;
       const res = await fetchSeed(url, { accept: "application/json", "user-agent": MARKET_USER_AGENT });
-      if (!res.ok) return [] as DexTokenRow[];
+      if (!res.ok) {
+        noteSeed("dexpaprika", res.status, 0, seedFailureReason("dexpaprika", res.status));
+        return [] as DexTokenRow[];
+      }
       return dexRowsFromPaprikaPools(await readJson(res));
     })
   );
-  return pages.flat();
+  const rows = pages.flat();
+  if (rows.length) noteSeed("dexpaprika", 200, rows.length, null);
+  else if (!seedAttempts.has("dexpaprika")) noteSeed("dexpaprika", null, 0, "no rows");
+  return rows;
 }
 
 export async function loadKeylessDexMarkets(opts?: { budgetMs?: number }): Promise<{ rows: DexTokenRow[]; sources: string[] }> {

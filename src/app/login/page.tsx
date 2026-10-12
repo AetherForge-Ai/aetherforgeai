@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { signIn, sendVerificationEmail } from "@/lib/auth-client";
 import { waitForPostLoginSession } from "@/lib/auth-refresh";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import {
   clearLoginDraft,
   clearLoginPassword,
   failLoginDraft,
+  loginFieldValue,
   readLoginDraft,
   subscribeLoginDraft,
   writeLoginDraft,
@@ -34,6 +35,8 @@ function LoginForm() {
   const email = draft.email;
   const password = draft.password;
   const error = draft.error;
+  const emailRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => subscribeLoginDraft(() => setDraft(readLoginDraft())), []);
   useEffect(() => {
@@ -47,8 +50,8 @@ function LoginForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const typedEmail = email.trim();
-    const typedPassword = password;
+    const typedEmail = (emailRef.current?.value ?? email).trim();
+    const typedPassword = passwordRef.current?.value ?? password;
     if (!typedEmail || !typedPassword) {
       failLoginDraft(email, password, "Enter your email and password.");
       return;
@@ -167,10 +170,11 @@ function LoginForm() {
             <div className="space-y-2">
               <Label htmlFor="email" className="text-sm font-semibold">Email Address</Label>
               <Input
+                ref={emailRef}
                 id="email"
                 type="email"
                 placeholder="you@example.com"
-                value={email}
+                value={loginFieldValue(email, emailRef.current?.value ?? "")}
                 onChange={(e) => writeLoginDraft({ email: e.target.value })}
                 required
                 className="h-11 transition-all focus:ring-2"
@@ -187,9 +191,10 @@ function LoginForm() {
                 </Link>
               </div>
               <PasswordInput
+                ref={passwordRef}
                 id="password"
                 placeholder="Enter your password"
-                value={password}
+                value={loginFieldValue(password, passwordRef.current?.value ?? "")}
                 onChange={(e) => writeLoginDraft({ password: e.target.value })}
                 required
                 autoComplete="current-password"

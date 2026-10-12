@@ -23,6 +23,16 @@ export function readLoginDraft(): LoginDraft {
   return draft;
 }
 
+/**
+ * Value to put back on a controlled login field.
+ * Browser autofill writes the DOM first. A later render whose state is still
+ * blank must not replace that text with an empty string.
+ */
+export function loginFieldValue(stateValue: string, domValue: string): string {
+  if (!stateValue && domValue) return domValue;
+  return stateValue;
+}
+
 export function writeLoginDraft(patch: Partial<LoginDraft>): LoginDraft {
   draft = { ...draft, ...patch };
   publish();
