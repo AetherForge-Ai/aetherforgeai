@@ -32,7 +32,7 @@ describe("report copy", () => {
 
   it("builds the session line from the same gainers", () => {
     const gainers = [{ ticker: "MILD.AX", changePct: 4.2 }];
-    expect(sessionGainerSentence(gainers, 1)).toBe("MILD.AX leads the session (+4.2%) and tops the gainer board.");
+    expect(sessionGainerSentence(gainers, 1)).toBe("MILD.AX leads the session (+4.20%) and tops the gainer board.");
     expect(sessionGainerSentence([], 2)).toBe(
       "Standout 24-hour prints are under review, so this report does not name a session leader."
     );
