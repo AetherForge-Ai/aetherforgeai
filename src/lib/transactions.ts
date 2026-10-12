@@ -263,10 +263,12 @@ function holdingFromList(rows: readonly any[], ticker: string, assetType: TxAsse
   );
 }
 
-/** One holdings read. A warm stocks response is reused; a miss is not queried again. */
+/**
+ * Stored holding rows for a write. One query, matched in memory.
+ * The /api/stocks cache is the FIFO book with live prices applied, so a buy
+ * must not average or roll back from those figures.
+ */
 async function loadHoldingsList(userId: string): Promise<any[]> {
-  const cached = readBookCache<any[]>(`${userId}:stocks:all`);
-  if (cached) return cached;
   const res = await totalumSdk.crud.query("stock", {
     _filter: { user: userId },
     _limit: 500,

@@ -56,7 +56,7 @@ import { presentMarketCoin } from "@/lib/crypto-api-body";
 import { chainForTicker, chainFromPaprikaCoin } from "@/lib/crypto-board";
 import { CONFIRM_QUOTE_FRESH_MS, confirmCryptoQuote } from "@/lib/crypto-board-store";
 import { installSnapshotDurable, resetCryptoSnapshotsForTests } from "@/lib/crypto-snapshot";
-import { __resetBookCacheForTests } from "@/lib/book-cache";
+import { __resetBookCacheForTests, writeBookCache } from "@/lib/book-cache";
 import { applyTransaction } from "@/lib/transactions";
 
 const user = {
@@ -165,6 +165,64 @@ describe("review of e2b7ebd", () => {
     expect(filters[0]).not.toHaveProperty("asset_type");
     expect(createRecord.mock.calls.some((call) => call[0] === "stock")).toBe(false);
     expect(editRecordById.mock.calls.some((call) => call[0] === "stock" && call[1] === "legacy-air")).toBe(true);
+  });
+
+  it("averages a buy from the stored holding, not the FIFO stocks cache", async () => {
+    writeBookCache("user-pr352:stocks:all", [
+      {
+        _id: "fifo-air",
+        ticker: "AIR.NZ",
+        asset_type: "stock",
+        shares: 10,
+        purchase_price: 20,
+        current_price: 18,
+        user: "user-pr352",
+      },
+    ]);
+    const filters: Array<Record<string, unknown>> = [];
+    query.mockImplementation(async (collection: string, args?: { _filter?: Record<string, unknown> }) => {
+      if (collection === "stock") {
+        filters.push(args?._filter || {});
+        return {
+          data: [
+            {
+              _id: "stored-air",
+              ticker: "air.nz",
+              shares: 10,
+              purchase_price: 1.5,
+              user: "user-pr352",
+            },
+          ],
+        };
+      }
+      return { data: [] };
+    });
+    createRecord.mockImplementation(async (collection: string) => {
+      if (collection === "transaction") return { data: {} };
+      return { data: { _id: `${collection}-1` } };
+    });
+    await expect(
+      applyTransaction(
+        user,
+        {
+          type: "buy",
+          ticker: "AIR.NZ",
+          asset_type: "stock",
+          quantity: 1,
+          price: 2,
+          trade_date: "2026-10-13",
+        },
+        { rejectionChecked: true }
+      )
+    ).rejects.toThrow(/not saved/i);
+    expect(filters).toHaveLength(1);
+    expect(filters[0]).not.toHaveProperty("asset_type");
+    const stockEdits = editRecordById.mock.calls.filter((call) => call[0] === "stock" && call[1] === "stored-air");
+    const averaged = stockEdits[0]?.[2] as { purchase_price?: number; shares?: number };
+    const rolledBack = stockEdits[stockEdits.length - 1]?.[2] as { purchase_price?: number; shares?: number };
+    expect(averaged.purchase_price).toBeCloseTo((10 * 1.5 + 2) / 11, 5);
+    expect(averaged.purchase_price).not.toBeCloseTo((10 * 20 + 2) / 11, 4);
+    expect(rolledBack).toMatchObject({ shares: 10, purchase_price: 1.5 });
   });
 
   it("refreshes a quote older than a minute and keeps the saved pxat when the refresh times out", async () => {
