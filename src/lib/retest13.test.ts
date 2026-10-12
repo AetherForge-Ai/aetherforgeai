@@ -146,10 +146,14 @@ describe("retest 13 and technician r6", () => {
     const store = read("src/lib/crypto-board-store.ts");
     expect(store).toContain("scheduleDetached");
     expect(store).toContain("boardNeedsRefresh(saved?.at, SNAPSHOT_REFRESH_MS)");
-    expect(store).toContain("if (stored && stored.price > 0) return stored");
-    expect(read("src/lib/transactions.ts")).toContain('scan: input.type !== "buy"');
+    expect(store).toContain("CONFIRM_QUOTE_FRESH_MS");
+    expect(store).toContain("age < CONFIRM_QUOTE_FRESH_MS");
+    expect(store).toContain("sleep(400)");
+    expect(read("src/lib/transactions.ts")).toContain("holdingFromList");
+    expect(read("src/lib/transactions.ts")).not.toContain('scan: input.type !== "buy"');
     const stocks = read("src/app/api/stocks/route.ts");
-    expect(stocks).toContain("needsBuyDates");
+    expect(stocks).toContain("loadLedger");
+    expect(stocks).toContain("if (needsBuyDates) overlayEarliestBuyDates");
     const dash = read("src/components/dashboard/PortfolioDashboard.tsx");
     expect(dash).toContain("holdingsRequestIsCurrent");
     expect(dash).not.toContain("setLedgerLoaded(true);\n    setMetalsLoaded(true);");

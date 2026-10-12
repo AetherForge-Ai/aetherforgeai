@@ -245,9 +245,8 @@ const TICKER_CHAIN: Record<string, string> = {
   spx: "Ethereum",
   nexo: "Ethereum",
   bera: "Berachain",
-  move: "Movement",
-  zk: "zkSync",
-  meth: "Mantle",
+  // MOVE and METH are Ethereum tokens. ZK is an Ethereum ERC-20. The feed's
+  // platform names the chain. A blank stays blank and the table shows — with a reason.
   rseth: "Ethereum",
   ezeth: "Ethereum",
 };
@@ -444,18 +443,18 @@ export interface PaprikaChainInput {
  */
 export function chainFromPaprikaCoin(row: PaprikaChainInput): string {
   const symbol = (row.symbol || "").trim().toLowerCase();
+  const contractPlatform = (row.contracts || []).map((item) => String(item?.platform || "").trim()).find(Boolean) || "";
+  const platform = contractPlatform || String(row.platform || "").trim();
+  if (platform) {
+    const labelled = platformLabel(platform);
+    if (labelled) return labelled;
+  }
   const known = symbol ? TICKER_CHAIN[symbol] || "" : "";
   const type = (row.type || "").trim().toLowerCase();
   if (type === "coin") {
     if (known) return known;
     const own = platformLabel(String(row.name || "").trim());
     return own && own.toLowerCase() !== symbol ? own : "";
-  }
-  const contractPlatform = (row.contracts || []).map((item) => String(item?.platform || "").trim()).find(Boolean) || "";
-  const platform = contractPlatform || String(row.platform || "").trim();
-  if (platform) {
-    const labelled = platformLabel(platform);
-    if (labelled) return labelled;
   }
   return known;
 }

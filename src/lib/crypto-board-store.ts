@@ -684,26 +684,40 @@ async function paprikaQuote(symbol: string): Promise<SnapshotPrice | null> {
   };
 }
 
-/** Confirm refreshes a quote older than a minute. The fill stays the reviewed price. */
+/** A saved quote younger than this is used as-is. An older one is refreshed. */
+export const CONFIRM_QUOTE_FRESH_MS = 60_000;
+
+/**
+ * Confirm uses a quote younger than a minute. An older quote is refreshed for
+ * at most 400ms. When that refresh does not return, the saved price is kept
+ * and its original quotedAt is the pxat.
+ */
 export async function confirmCryptoQuote(input: {
   symbol?: string | null;
   coinId?: string | null;
   address?: string | null;
 }): Promise<SnapshotPrice | null> {
   const stored = await priceFromSnapshot(input);
-  if (stored && stored.price > 0) return stored;
+  const parsed = stored?.quotedAt ? Date.parse(stored.quotedAt) : Number.NaN;
+  const age = Number.isFinite(parsed) ? Date.now() - parsed : Number.POSITIVE_INFINITY;
+  if (stored && stored.price > 0 && age >= 0 && age < CONFIRM_QUOTE_FRESH_MS) return stored;
   const symbol = (input.symbol || "").trim().toUpperCase();
   if (!symbol) return stored;
   try {
+    let timedOut = false;
     const fresh = await Promise.race([
       paprikaQuote(symbol),
-      sleep(400).then(() => null as SnapshotPrice | null),
+      sleep(400).then(() => {
+        timedOut = true;
+        return null as SnapshotPrice | null;
+      }),
     ]);
     if (fresh && fresh.price > 0) return fresh;
+    if (timedOut && stored && stored.price > 0) return stored;
   } catch (err) {
     console.error("[crypto-board] confirm quote refresh failed:", err instanceof Error ? err.message.slice(0, 80) : "failed");
   }
-  return stored;
+  return stored && stored.price > 0 ? stored : null;
 }
 
 export async function snapshotQuotesForSymbols(

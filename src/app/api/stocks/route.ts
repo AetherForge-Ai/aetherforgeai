@@ -34,6 +34,7 @@ import { collapseDuplicateHoldings } from "@/lib/portfolio";
 import { fifoRemainingShareQty } from "@/lib/tax-realised";
 import type { TaxLedgerRow } from "@/lib/taxable-income";
 import { bookCacheEpoch, invalidateBookCache, readBookCache, writeBookCache } from "@/lib/book-cache";
+import { loadLedger } from "@/lib/transactions";
 import { dateOnlyInstant, lotCivilDay } from "@/lib/executed-at";
 import { earlierCivilDay } from "@/lib/transaction-rules";
 import { TRADE_CONFIRM_REQUIRED } from "@/lib/trade-confirm";
@@ -290,18 +291,15 @@ export async function GET(req: Request) {
       return accountMismatchResponse(user._id);
     }
 
-    // Names, live marks, and the transaction book start together. FIFO and the
-    // earliest buy date are applied from that book. The read does not write dates.
+    // Names, live marks, and the transaction book start together. FIFO always
+    // reads that book. The earliest buy date is filled only when a lot date is missing.
     const needsBuyDates = stocks.some((row) => !lotCivilDay(row?.purchase_date));
-    const bookPromise = needsBuyDates
-      ? totalumSdk.crud.query("transaction", {
-          _filter: { user: user._id },
-          _limit: 5000,
-        })
-      : Promise.resolve({ data: [] as TaxLedgerRow[] });
+    const bookPromise = loadLedger(user).then(
+      (ledger) => (ledger.transactions || []) as unknown as TaxLedgerRow[]
+    );
     let abandonLive = false;
     const liveOverlay = overlayLivePrices(stocks, () => abandonLive);
-    const [, bookRes] = await Promise.all([
+    const [, book] = await Promise.all([
       overlayCompanyNames(stocks),
       bookPromise,
       Promise.race([
@@ -314,8 +312,7 @@ export async function GET(req: Request) {
         ),
       ]),
     ]);
-    const book = ((bookRes?.data as unknown as TaxLedgerRow[]) || []);
-    overlayEarliestBuyDates(stocks, book);
+    if (needsBuyDates) overlayEarliestBuyDates(stocks, book);
 
     // Quote fetches outlive a buy that committed while this request was in
     // flight. Re-read quantity only when a trade invalidated the book cache
