@@ -50,6 +50,8 @@ type Props = {
   cryptoReason?: string | null;
   metalsReason?: string | null;
   cashNote?: string | null;
+  /** Hide the cash/stocks/crypto/metals value cards. Position counts stay on the overview cards. */
+  hideValueCards?: boolean;
   className?: string;
 };
 
@@ -57,6 +59,11 @@ function shownMoney(loading: boolean, value: number | null): string {
   if (loading) return "…";
   if (value == null || !Number.isFinite(value)) return "—";
   return formatMoney(value, "NZD");
+}
+
+function positionCount(loading: boolean, count: number, one: string, many: string): string {
+  if (loading) return "…";
+  return `${count} ${count === 1 ? one : many}`;
 }
 
 function BalanceCard({
@@ -365,12 +372,14 @@ export function DashboardHomeGrid({
   cryptoReason = null,
   metalsReason = null,
   cashNote = null,
+  hideValueCards = false,
   className,
 }: Props) {
   const { byExchange, loading: marketsLoading } = useSharedMarketSnapshots();
 
   return (
     <div className={cn("mt-6 space-y-4", className)}>
+      {hideValueCards ? null : (
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <BalanceCard
           title="Cash Bal"
@@ -428,7 +437,9 @@ export function DashboardHomeGrid({
           snap
         />
       </div>
+      )}
 
+      {hideValueCards ? null : (
       <p className="text-center text-[0.7rem] text-muted-foreground sm:text-left">
         Cash Bal and the value boxes update from the same Transaction Ledger as{" "}
         <Link href="/dashboard/transactions" className="font-semibold text-primary underline-offset-2 hover:underline">
@@ -436,6 +447,7 @@ export function DashboardHomeGrid({
         </Link>
         {" "}— every buy, sell, deposit and withdraw.
       </p>
+      )}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <OverviewCard
@@ -443,9 +455,9 @@ export function DashboardHomeGrid({
           href="/dashboard/stocks"
           bot="stox"
           poster="/brand/bot-stox.png"
-          metricLabel="Market value · NZD"
-          metricValue={shownMoney(balancesLoading, stockTotalNZD)}
-          metricTitle={stockTotalNZD == null ? stockReason : null}
+          metricLabel={hideValueCards ? "Positions" : "Market value · NZD"}
+          metricValue={hideValueCards ? positionCount(balancesLoading, stockPositions, "position", "positions") : shownMoney(balancesLoading, stockTotalNZD)}
+          metricTitle={hideValueCards || stockTotalNZD != null ? null : stockReason}
           hint="Stox watches NZX · ASX · US equities for you"
         />
         <OverviewCard
@@ -453,9 +465,9 @@ export function DashboardHomeGrid({
           href="/dashboard/crypto"
           bot="koins"
           poster="/brand/bot-koins.png"
-          metricLabel="Market value · NZD"
-          metricValue={shownMoney(balancesLoading, cryptoTotalNZD)}
-          metricTitle={cryptoTotalNZD == null ? cryptoReason : null}
+          metricLabel={hideValueCards ? "Positions" : "Market value · NZD"}
+          metricValue={hideValueCards ? positionCount(balancesLoading, cryptoPositions, "coin", "coins") : shownMoney(balancesLoading, cryptoTotalNZD)}
+          metricTitle={hideValueCards || cryptoTotalNZD != null ? null : cryptoReason}
           hint={
             CRYPTO_PROJECTIONS_PAUSED
               ? CRYPTO_PROJECTIONS_PAUSE_MESSAGE
@@ -467,9 +479,9 @@ export function DashboardHomeGrid({
           href="/dashboard/metals"
           bot="smitty"
           poster="/brand/precious-metals-smitty.png"
-          metricLabel="Metals value · NZD"
-          metricValue={shownMoney(balancesLoading, metalsTotalNZD)}
-          metricTitle={metalsTotalNZD == null ? metalsReason : null}
+          metricLabel={hideValueCards ? "Positions" : "Metals value · NZD"}
+          metricValue={hideValueCards ? positionCount(balancesLoading, metalsPositions, "metal holding", "metal holdings") : shownMoney(balancesLoading, metalsTotalNZD)}
+          metricTitle={hideValueCards || metalsTotalNZD != null ? null : metalsReason}
           hint={metalsHomeHint(metalsSpotLive, metalsQuotedAt)}
         />
         <LedgerCard

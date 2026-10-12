@@ -165,6 +165,7 @@ export async function GET(req: Request) {
         name,
         assetType,
         currency: route === "bullion" ? "NZD" : currencyForTicker(ticker, route === "crypto" ? "crypto" : "stock"),
+        holdingId: row._id ? String(row._id) : null,
       };
     });
 

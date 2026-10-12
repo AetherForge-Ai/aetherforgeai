@@ -82,6 +82,11 @@ export interface SnapshotPosition {
   lots: SnapshotLot[];
   priceSource: string | null;
   priceAsOf: string | null;
+  /**
+   * Stock or metal-store id when exactly one is known for this ticker.
+   * Null when none or more than one was remembered. Not a database column.
+   */
+  holdingId: string | null;
 }
 
 export interface SnapshotGroup {
@@ -176,6 +181,8 @@ export interface SnapshotMark {
   reason?: string | null;
   source?: string | null;
   asOf?: string | null;
+  /** Stock row id. Omitted when this mark is only a price. */
+  holdingId?: string | null;
 }
 
 export interface SnapshotExtraPosition {
@@ -704,9 +711,25 @@ export function buildPortfolioSnapshot(input: SnapshotInput): PortfolioSnapshot 
   const fxSource = input.fxSource || (input.fxSourced ? "Exchange-rate feed" : "Exchange-rate feed");
   const fxSourced = input.fxSourced === true;
   const marks = new Map<string, SnapshotMark>();
+  const holdingIds = new Map<string, Set<string>>();
+  function rememberHoldingId(ticker: string, id: string | null | undefined) {
+    const clean = typeof id === "string" ? id.trim() : "";
+    if (!ticker || !clean) return;
+    const known = holdingIds.get(ticker) || new Set<string>();
+    known.add(clean);
+    holdingIds.set(ticker, known);
+  }
+  function soleHoldingId(ticker: string): string | null {
+    const known = holdingIds.get(ticker);
+    if (!known || known.size !== 1) return null;
+    const [only] = known;
+    return only || null;
+  }
   for (const mark of input.marks || []) {
     const ticker = upper(mark.ticker);
-    if (ticker) marks.set(ticker, mark);
+    if (!ticker) continue;
+    marks.set(ticker, mark);
+    rememberHoldingId(ticker, mark.holdingId);
   }
 
   const books = new Map<string, OpenLot[]>();
@@ -931,6 +954,7 @@ export function buildPortfolioSnapshot(input: SnapshotInput): PortfolioSnapshot 
       name: extra.name || extra.ticker,
     });
     books.set(ticker, lots);
+    rememberHoldingId(ticker, extra.id);
     if (extra.markPrice == null) {
       marks.set(ticker, {
         ticker,
@@ -1172,6 +1196,7 @@ export function buildPortfolioSnapshot(input: SnapshotInput): PortfolioSnapshot 
       lots: lotViews,
       priceSource: mark?.source || null,
       priceAsOf: mark?.asOf ? formatDisplayDate(mark.asOf) : null,
+      holdingId: soleHoldingId(ticker),
     });
     positionsByClass.set(assetClass, list);
   }
@@ -1217,6 +1242,7 @@ export function buildPortfolioSnapshot(input: SnapshotInput): PortfolioSnapshot 
       lots: [],
       priceSource: null,
       priceAsOf: null,
+      holdingId: soleHoldingId(ticker),
     });
     positionsByClass.set(sample.assetClass, list);
   }
