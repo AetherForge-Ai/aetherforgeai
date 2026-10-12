@@ -24,7 +24,7 @@ import {
   type SnapshotDurable,
   type SnapshotId,
 } from "@/lib/crypto-snapshot";
-import { readSharedCryptoBoard, readSharedDexBoard, resetSnapshotUpgradeBackoff, snapshotQuotesForSymbols, upgradeStoredCryptoBoard } from "@/lib/crypto-board-store";
+import { dexRefreshSettled, readSharedCryptoBoard, readSharedDexBoard, resetSnapshotUpgradeBackoff, snapshotQuotesForSymbols, upgradeStoredCryptoBoard } from "@/lib/crypto-board-store";
 import { trailingCloseChange } from "@/lib/crypto-yahoo";
 import { holdingsTickerFromCell, parseHoldingsCsv } from "@/lib/holdings-csv";
 import { splitReturns } from "@/lib/returns-split";
@@ -256,7 +256,10 @@ describe("pull-check:v3-retest10-2026-10-13", () => {
       included.push({ id: "uniswap", type: "dex", attributes: { name: "Uniswap", symbol: "", coingecko_coin_id: "" } } as (typeof included)[number]);
       return jsonResponse({ data, included });
     });
-    const board = await readSharedDexBoard({ revalidate: true });
+    const immediate = await readSharedDexBoard({ revalidate: true });
+    expect(immediate.rows.map((row) => row.symbol)).toEqual(["PEPE"]);
+    await dexRefreshSettled();
+    const board = await readSharedDexBoard();
     expect(board.rows.length).toBeGreaterThanOrEqual(16);
     expect(board.rows.every((row) => !!row.detailId)).toBe(true);
     expect(board.notice).toContain("GeckoTerminal");

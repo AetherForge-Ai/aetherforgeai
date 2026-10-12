@@ -102,7 +102,7 @@ export async function POST(req: Request) {
     // The book read overlaps the write. The response adds the new row and
     // uses that book's cash, so the header and the ledger share one figure.
     const priorLedger = loadLedger(user);
-    const result = await applyTransaction(user, input);
+    const result = await applyTransaction(user, input, { priorLedger });
     const ledger = ledgerAfterBooking(await priorLedger, result);
 
     console.log(

@@ -47,6 +47,7 @@ vi.mock("@/lib/market-data", () => ({
 
 vi.mock("@/lib/crypto-board-store", () => ({
   priceFromSnapshot,
+  confirmCryptoQuote: (input: unknown) => priceFromSnapshot(input),
 }));
 
 import { applyTransaction } from "@/lib/transactions";

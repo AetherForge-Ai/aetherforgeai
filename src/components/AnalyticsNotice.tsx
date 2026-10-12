@@ -51,6 +51,10 @@ export function AnalyticsNotice() {
           <Link href="/privacy-policy" className="font-semibold text-primary underline-offset-2 hover:underline">
             Privacy Policy
           </Link>
+          {" · "}
+          <Link href="/cookies" className="font-semibold text-primary underline-offset-2 hover:underline">
+            Cookies
+          </Link>
         </p>
         <div className="flex gap-2">
           <button type="button" className={choiceClass} onClick={() => choose("granted")}>

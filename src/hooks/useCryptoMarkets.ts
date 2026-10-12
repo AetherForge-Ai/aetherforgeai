@@ -24,10 +24,11 @@ interface Store {
   loading: boolean;
   error: string | null;
   notice: string | null;
+  asOf: string | null;
   inflight: Promise<void> | null;
 }
 
-const store: Store = { coins: [], fetchedAt: 0, loading: false, error: null, notice: null, inflight: null };
+const store: Store = { coins: [], fetchedAt: 0, loading: false, error: null, notice: null, asOf: null, inflight: null };
 const subscribers = new Set<() => void>();
 
 function notify() {
@@ -53,6 +54,8 @@ async function load(force = false): Promise<void> {
         store.fetchedAt = Date.now();
         store.error = null;
         store.notice = typeof res.notice === "string" ? res.notice : null;
+        const stamped = (res as { at?: unknown }).at;
+        store.asOf = typeof stamped === "string" && stamped ? stamped : store.asOf;
         console.log(`[useCryptoMarkets] loaded ${res.data.length} coins`);
         // Blockchain labels can land a moment after the price list. One follow-up, not a loop.
         const missingChain = res.data.filter((coin) => {
@@ -90,6 +93,7 @@ export interface UseCryptoMarkets {
   refreshing: boolean;
   error: string | null;
   notice: string | null;
+  asOf: string | null;
   lastUpdated: Date | null;
   refresh: () => void;
 }
@@ -136,6 +140,7 @@ export function useCryptoMarkets(active = true): UseCryptoMarkets {
     refreshing: store.loading && store.coins.length > 0,
     error: store.error,
     notice: store.notice,
+    asOf: store.asOf,
     lastUpdated: store.fetchedAt ? new Date(store.fetchedAt) : null,
     refresh,
   };

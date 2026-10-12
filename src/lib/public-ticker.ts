@@ -27,8 +27,8 @@ export async function loadPublicTicker(): Promise<TickerTapeFeed> {
       price: quote.price,
       changePct: quote.changePct,
       quotedAt: quote.quotedAt,
-      source: quote.source || "yahoo",
-      provider: sourceLabel(quote.source || "yahoo"),
+      source: quote.source || "",
+      provider: quote.source && publicSourceAllowed(quote.source) ? sourceLabel(quote.source) : "Source unavailable",
     };
   }
 

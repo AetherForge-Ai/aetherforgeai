@@ -94,7 +94,6 @@ const nextConfig: NextConfig = {
     return [
       { source: "/privacy", destination: "/privacy-policy", permanent: false },
       { source: "/terms", destination: "/terms-of-service", permanent: false },
-      { source: "/contact", destination: "/about#contact", permanent: false },
       { source: "/faq", destination: "/pricing#faq", permanent: false },
       { source: "/features", destination: "/how-it-works", permanent: false },
       { source: "/try", destination: "/free-trial", permanent: false },

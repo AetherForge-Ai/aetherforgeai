@@ -16,7 +16,7 @@ const CACHE_CONTROL = "public, max-age=30, stale-while-revalidate=300";
 export async function GET() {
   try {
     const page = await loadTop400Markets();
-    return NextResponse.json(marketsBody(page.coins, page.notice), {
+    return NextResponse.json(marketsBody(page.coins, page.notice, page.at), {
       headers: { "cache-control": CACHE_CONTROL },
     });
   } catch (err: unknown) {

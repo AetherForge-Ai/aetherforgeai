@@ -14,6 +14,8 @@ import {
   type ImportTrade,
 } from "@/lib/broker-import";
 import { commitImportInOrder, newImportBatchId, notesHaveBatch, stampImportNote, undoImportInOrder } from "@/lib/import-commit";
+import { readCryptoSnapshot } from "@/lib/crypto-snapshot";
+import { noteTradableCrypto } from "@/lib/import-crypto-universe";
 import { assetClassForSymbol } from "@/lib/import-symbols";
 import { planOrApplyLedgerReversal } from "@/lib/ledger-reversal-apply";
 import { backdatedRealisedNote } from "@/lib/fifo-cost";
@@ -127,6 +129,24 @@ function planPayload(plan: ImportPlan, rows: readonly TaxLedgerRow[], extra?: Re
   };
 }
 
+async function snapshotQuotePrices(): Promise<Record<string, number>> {
+  try {
+    const saved = await readCryptoSnapshot();
+    const quotes: Record<string, number> = {};
+    const symbols: string[] = [];
+    for (const coin of saved?.coins || []) {
+      const symbol = String(coin.symbol || "").trim().toUpperCase();
+      if (!symbol) continue;
+      symbols.push(symbol);
+      if (coin.price > 0) quotes[symbol] = coin.price;
+    }
+    noteTradableCrypto(symbols);
+    return quotes;
+  } catch {
+    return {};
+  }
+}
+
 async function planWithReviewedFx(
   text: string,
   options: {
@@ -137,7 +157,8 @@ async function planWithReviewedFx(
     tickerFixes?: Record<string, string>;
   }
 ) {
-  const draft = planBrokerImport(text, options);
+  const quotePrices = await snapshotQuotePrices();
+  const draft = planBrokerImport(text, { ...options, quotePrices });
   if (!draft.fxNeeds.length) return draft;
   const reviewedRates: Record<string, number | null> = {};
   for (const need of draft.fxNeeds) {
@@ -145,7 +166,7 @@ async function planWithReviewedFx(
     if (key in reviewedRates) continue;
     reviewedRates[key] = await historicalNzdPerUnit(need.currency, need.date);
   }
-  return planBrokerImport(text, { ...options, reviewedRates });
+  return planBrokerImport(text, { ...options, reviewedRates, quotePrices });
 }
 
 /** POST /api/import — preview writes nothing. Commit writes only a clean plan. */
@@ -216,7 +237,7 @@ export async function POST(req: Request) {
     const fundBuys = body.fundBuys === true;
     const openingCashNzd = typeof user.cash_balance === "number" ? user.cash_balance : 0;
     if (body.confirm !== true) {
-      const draft = planBrokerImport(text, { mapping, openingCashNzd, fundBuys, tickerFixes });
+      const draft = await planWithReviewedFx(text, { mapping, openingCashNzd, fundBuys, tickerFixes });
       if (draft.needsMapping) {
         return NextResponse.json({
           ok: true,
@@ -295,13 +316,14 @@ export async function POST(req: Request) {
           type: row.side,
           ticker: row.ticker,
           asset_type: assetClassForSymbol(row.ticker),
+          asset_name: row.assetName,
           quantity: row.quantity,
           price: row.price,
           fees: row.fee,
           fx_rate: row.fx,
           fx_source: row.fxSource === "reviewed-trade-date" ? "reviewed-trade-date" : "broker-file",
           fill_currency: row.currency,
-          executed_at: row.date,
+          executed_at: row.executedAt || row.date,
           trade_date: row.date,
           price_source: "broker_import",
           broker: committed.broker || "file",

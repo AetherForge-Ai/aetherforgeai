@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, Bitcoin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CoinDetailView } from "@/components/dashboard/crypto/CoinDetailView";
+import type { CoinDetail } from "@/lib/crypto-market";
 import { marketsTabHref, unavailableTokenLabel } from "@/lib/market-detail-routes";
 import { openRecordTransaction } from "@/lib/open-transaction";
 import { paperAddSignupHref } from "@/lib/paper-add-link";
@@ -22,6 +23,7 @@ export function CryptoAssetPage({
   symbol = null,
   name = null,
   quotedLine = null,
+  initialDetail = null,
 }: {
   coinId: string | null;
   allowBuy?: boolean;
@@ -34,6 +36,7 @@ export function CryptoAssetPage({
   name?: string | null;
   /** Server-rendered last good price. Shown instead of a loading skeleton. */
   quotedLine?: string | null;
+  initialDetail?: CoinDetail | null;
 }) {
   const label = unavailable ? unavailableTokenLabel(symbol, name) : null;
   const dexMarket = unavailable ? "DEX" : market;
@@ -120,6 +123,7 @@ export function CryptoAssetPage({
           unavailable={unavailable}
           variant="page"
           quotedLine={quotedLine}
+          initialDetail={initialDetail}
         />
       </div>
     </div>
