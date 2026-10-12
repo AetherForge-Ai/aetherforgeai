@@ -638,3 +638,5 @@ Same branch. Build stays `v3-retest10-2026-10-13`. No new database columns. No p
 9. A name under review on any window leaves the 24-hour, 7-day and month lists. A non-large-cap 7-day move above 15% is under review. Large-cap week moves stay on the 35% guard, so JPM at 31.01% stays ranked.
 10. `Top gainers identified` is taken from that filtered 24-hour list. The forward projection no longer clamps to ±45.
 11. RENDER and DYDX are Render and dYdX on the markets body. Net worth adds the already-rounded parts, so it matches cash plus holdings to the cent.
+
+pull-check:v3-dash1-2026-10-13
