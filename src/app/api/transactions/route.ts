@@ -104,7 +104,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: rejection }, { status: 400 });
     }
 
-    const result = await applyTransaction(user, input);
+    const result = await applyTransaction(user, input, { rejectionChecked: true });
     // Re-read the ledger so the client gets fresh rollups in one round-trip.
     const ledger = await loadLedger({ ...user, cash_balance: result.cashBalance });
 

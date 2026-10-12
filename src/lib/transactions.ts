@@ -15,20 +15,20 @@
 import "server-only";
 import { totalumSdk } from "@/lib/totalum";
 import type { AppUser } from "@/lib/session";
-import { currencyForTicker, nzdAtBookRate, ensureNzdPerUsd, ensureNzdPerAud, formatCleanNumber, formatQuantity, normaliseUnitPrice, roundFxRate, roundUnitPrice, type CurrencyCode } from "@/lib/currency";
-import { dexPriceForSymbol, ledgerFxRate, priceForBooking, ratesForBooking, reviewedFxAllowed } from "@/lib/reviewed-book";
+import { BASELINE_FX_TO_NZD, currencyForTicker, nzdAtBookRate, ensureNzdPerUsd, ensureNzdPerAud, formatCleanNumber, formatQuantity, normaliseUnitPrice, roundFxRate, roundUnitPrice, type CurrencyCode } from "@/lib/currency";
+import { ledgerFxRate, priceForBooking, ratesForBooking, reviewedFxAllowed } from "@/lib/reviewed-book";
 import { alertsToArchive, positionIsClosed } from "@/lib/alert-lifecycle";
 import { getFxSnapshot, historicalNzdPerUnit } from "@/lib/fx";
 import { normalizeTicker, lookupTicker, referencePrice } from "@/lib/market";
-import { fetchLivePrice, isLiveDataConfigured, fetchCryptoQuotes } from "@/lib/market-data";
-import { dexQuoteRows } from "@/lib/crypto-coingecko";
+import { fetchLivePrice, isLiveDataConfigured } from "@/lib/market-data";
+import { priceFromSnapshot } from "@/lib/crypto-board-store";
+import { confirmMapKey, confirmOnce, withIdempotencyNote } from "@/lib/confirm-once";
 import { getMetalsSpot } from "@/lib/metals";
 import {
   checkFillSanity,
   aucklandDateISO,
   aucklandDateTimeISO,
   ADVISORY_NOTE,
-  SANITY_RATIO_SOFT,
   type PriceSource,
   type ExecutionStatus,
   type OrderSizing,
@@ -121,6 +121,8 @@ export interface TransactionInput {
   venue?: string;
   /** Readable chain for a DEX token, such as Ethereum. */
   chain?: string;
+  /** One Review. Not stored as its own column. Stamped into notes. */
+  idempotency_key?: string;
 }
 
 export interface TransactionResult {
@@ -452,30 +454,59 @@ async function detailedDividendParts(
 export async function applyTransaction(
   user: AppUser,
   input: TransactionInput,
-  opts?: { fromHoldingEdit?: boolean }
+  opts?: { fromHoldingEdit?: boolean; rejectionChecked?: boolean }
 ): Promise<TransactionResult> {
-  return withUserTradeLock(user._id, async () => {
-    try {
-      return await applyTransactionUnlocked(user, input, opts);
-    } finally {
-      invalidateBookCache(user._id);
-    }
-  });
+  const mapKey = confirmMapKey(user._id, input.idempotency_key);
+  return confirmOnce(mapKey, () =>
+    withUserTradeLock(user._id, async () => {
+      try {
+        return await applyTransactionUnlocked(user, input, opts);
+      } finally {
+        invalidateBookCache(user._id);
+      }
+    })
+  );
+}
+
+function stepMs(step: string, started: number, extra = ""): void {
+  console.log(`[transactions] step ${step} ${Date.now() - started}ms${extra ? ` ${extra}` : ""}`);
+}
+
+function scheduleSnapshotRevalue(holdingId: string | null | undefined, ticker: string, coinId?: string): void {
+  if (!holdingId) return;
+  const started = Date.now();
+  void priceFromSnapshot({ symbol: ticker, coinId })
+    .then(async (snap) => {
+      if (!snap || !(snap.price > 0)) {
+        stepMs("revalue", started, `ticker=${ticker} skipped`);
+        return;
+      }
+      const next = normaliseUnitPrice(snap.price) ?? snap.price;
+      await totalumSdk.crud.editRecordById("stock", holdingId, { current_price: next });
+      stepMs("revalue", started, `ticker=${ticker}`);
+    })
+    .catch((err) => {
+      console.error(`[transactions] revalue ${ticker} failed:`, err instanceof Error ? err.message.slice(0, 80) : "failed");
+    });
 }
 
 async function applyTransactionUnlocked(
   user: AppUser,
   input: TransactionInput,
-  opts?: { fromHoldingEdit?: boolean }
+  opts?: { fromHoldingEdit?: boolean; rejectionChecked?: boolean }
 ): Promise<TransactionResult> {
-  const rejection = await movementRejectionForUser(user, input, opts);
-  if (rejection) throw new Error(rejection);
+  const checkStarted = Date.now();
+  if (!opts?.rejectionChecked) {
+    const rejection = await movementRejectionForUser(user, input, opts);
+    if (rejection) throw new Error(rejection);
+  }
+  stepMs("movement-check", checkStarted, opts?.rejectionChecked ? "already-checked" : "");
 
   const fallbackCash = typeof user.cash_balance === "number" ? user.cash_balance : 0;
   const currentCash = await readUserCash(user._id, fallbackCash);
   const resolved = resolveExecutedInstant(input.executed_at);
   const executedStored = resolved.stored;
-  const notes = (input.notes || "").slice(0, 500);
+  const notes = withIdempotencyNote(input.notes || "", input.idempotency_key);
 
   // ---------- Cash-only movements (opening balance with a ticker is a holding) ----------
   const openingCash = input.type === "opening_balance" && !String(input.ticker || "").trim();
@@ -704,34 +735,13 @@ async function applyTransactionUnlocked(
   }
 
   // Resolve live spot for fill sanity (same currency as fill).
+  // Crypto uses the shared snapshot. Revaluation of the holding happens after this write returns.
   let liveSpot: number | null = null;
+  const spotStarted = Date.now();
   try {
     if (assetType === "crypto") {
-      const quotes = await fetchCryptoQuotes(
-        [ticker],
-        input.coingecko_id
-          ? { ids: { [ticker.toUpperCase()]: input.coingecko_id }, strictCoinGecko: [ticker] }
-          : undefined
-      );
-      liveSpot = quotes[ticker.toUpperCase()]?.price ?? null;
-      // Majors that already match the coin list skip this. A DEX fill uses GeckoTerminal
-      // when the coin list is missing or further from the reviewed price than 15%.
-      const coinAgrees =
-        liveSpot != null && liveSpot > 0 && Math.abs(price / liveSpot - 1) <= SANITY_RATIO_SOFT;
-      if (!coinAgrees) {
-        try {
-          const rows = await dexQuoteRows(ticker);
-          const dex = dexPriceForSymbol(ticker, rows);
-          if (dex != null && dex > 0) {
-            const nearerDex =
-              !(liveSpot != null && liveSpot > 0) ||
-              Math.abs(price / dex - 1) < Math.abs(price / liveSpot - 1);
-            if (nearerDex) liveSpot = dex;
-          }
-        } catch (dexErr) {
-          console.error(`[transactions] DEX spot for sanity check failed (${ticker}):`, dexErr);
-        }
-      }
+      const snap = await priceFromSnapshot({ symbol: ticker, coinId: input.coingecko_id });
+      liveSpot = snap && snap.price > 0 ? snap.price : null;
     } else if (assetType === "metal") {
       const key = metalKeyForTicker(ticker);
       if (key) {
@@ -744,6 +754,8 @@ async function applyTransactionUnlocked(
   } catch (err) {
     console.error(`[transactions] Live spot for sanity check failed (${ticker}):`, err);
   }
+  stepMs("live-spot", spotStarted, `asset=${assetType}`);
+  const auditLive = liveSpot != null && liveSpot > 0 ? liveSpot : assetType === "crypto" && price > 0 ? price : liveSpot;
 
   // The reviewed price is the fill. A newer live spot is only the sanity check.
   price = priceForBooking(price, liveSpot);
@@ -781,16 +793,30 @@ async function applyTransactionUnlocked(
   }
 
   const currency = currencyForTicker(ticker, assetType);
-  const fx = await getFxSnapshot();
-  const historicalFx = await historicalNzdPerUnit(currency, tradeDay);
+  const fxStarted = Date.now();
+  const fx = await Promise.race([
+    getFxSnapshot(),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), 450)),
+  ]);
+  const fxSnapshot = fx ?? {
+    ratesToNZD: { ...BASELINE_FX_TO_NZD },
+    live: false,
+    sourced: false,
+    asOf: null,
+  };
+  stepMs("fx-snapshot", fxStarted, fx ? "ready" : "bounded");
+  const reviewedFx = Number(input.fx_rate);
+  const fxHistoryStarted = Date.now();
+  const historicalFx = reviewedFx > 0 ? null : await historicalNzdPerUnit(currency, tradeDay);
+  stepMs("historical-fx", fxHistoryStarted, reviewedFx > 0 ? "skipped" : "fetched");
   const fxCheck = reviewedFxAllowed({
     currency,
     reviewed: input.fx_rate,
-    snapshot: fx.ratesToNZD[currency],
+    snapshot: fxSnapshot.ratesToNZD[currency],
     historical: historicalFx,
   });
   if (fxCheck.ok === false) throw new Error(fxCheck.message);
-  const rates = ratesForBooking(currency, input.fx_rate, fx.ratesToNZD);
+  const rates = ratesForBooking(currency, input.fx_rate, fxSnapshot.ratesToNZD);
 
   const holding = await findHolding(user._id, ticker, assetType);
 
@@ -862,17 +888,10 @@ async function applyTransactionUnlocked(
     } else {
       // New position — resolve a live current price so the P&L is meaningful.
       const info = lookupTicker(ticker);
-      let current_price = referencePrice(ticker, price);
+      let current_price = assetType === "crypto" ? price : referencePrice(ticker, price);
       try {
         if (assetType === "crypto") {
-          const quotes = await fetchCryptoQuotes(
-            [ticker],
-            input.coingecko_id
-              ? { ids: { [ticker.toUpperCase()]: input.coingecko_id }, strictCoinGecko: [ticker] }
-              : undefined
-          );
-          const live = normaliseUnitPrice(quotes[ticker.toUpperCase()]?.price);
-          if (live) current_price = live;
+          current_price = price;
         } else if (assetType === "metal") {
           // Gold/silver price live at the NZD spot per troy ounce.
           const key = metalKeyForTicker(ticker);
@@ -922,7 +941,7 @@ async function applyTransactionUnlocked(
     const fxRate = nzdPerUnit(currency, input.fx_rate ?? rates[currency] ?? 1);
     const auditNotes = appendAuditNote(
       notes,
-      `FILLED buy qty=${quantity} fill=${formatCleanNumber(price)} ${currency} live=${liveSpot == null ? "n/a" : formatCleanNumber(liveSpot)} source=${input.price_source || "user_fill"}. ${ADVISORY_NOTE}`
+      `FILLED buy qty=${quantity} fill=${formatCleanNumber(price)} ${currency} live=${auditLive == null ? "n/a" : formatCleanNumber(auditLive)} source=${input.price_source || "user_fill"}. ${ADVISORY_NOTE}`
     );
     logLedgerAudit({
       action: "fill_buy",
@@ -984,6 +1003,7 @@ async function applyTransactionUnlocked(
         );
       }
     }
+    if (assetType === "crypto") scheduleSnapshotRevalue(holdingId, ticker, input.coingecko_id);
     return { transaction: rec?.data, cashBalance: newCash, realizedNZD: 0, holdingId };
     } catch (err) {
       console.error(`[transactions] Rolling back buy of ${ticker}:`, err);
@@ -1046,6 +1066,7 @@ async function applyTransactionUnlocked(
   let realizedBooked = Math.abs(sellFx - lotFx) < 1e-9 ? legacyRealizedNZD : realizedNZD;
   let bookedPrice = Math.abs(sellFx - lotFx) < 1e-9 ? legacyRealizedNZD : realizedPriceNZD;
   let bookedFx = Math.abs(sellFx - lotFx) < 1e-9 ? 0 : realizedFxNZD;
+  const fifoStarted = Date.now();
   try {
     const history = await totalumSdk.crud.query("transaction", {
       _filter: { user: user._id },
@@ -1072,6 +1093,7 @@ async function applyTransactionUnlocked(
   } catch (err) {
     console.error("[transactions] FIFO lot read failed, keeping the average-cost figure:", err);
   }
+  stepMs("fifo-lots", fifoStarted);
 
   const stamp = dexStamp(input, holding);
   const closed = sold.shares <= 1e-6;
@@ -1120,7 +1142,14 @@ async function applyTransactionUnlocked(
     fx_rate: sellFx,
     cash_nzd: round(proceedsNZD),
     currency,
-    notes: withDexNotes(notes, stamp.chain, stamp.isDex),
+    notes: withDexNotes(
+      appendAuditNote(
+        notes,
+        `FILLED sell qty=${quantity} fill=${formatCleanNumber(price)} ${currency} live=${auditLive == null ? "n/a" : formatCleanNumber(auditLive)} source=${input.price_source || "user_fill"}. ${ADVISORY_NOTE}`
+      ),
+      stamp.chain,
+      stamp.isDex
+    ),
     executed_at: executedStored,
     user: user._id,
     ...(holdingId ? { stock: holdingId } : {}),
@@ -1138,6 +1167,7 @@ async function applyTransactionUnlocked(
       );
     }
   }
+  if (assetType === "crypto" && holdingId) scheduleSnapshotRevalue(holdingId, ticker, input.coingecko_id);
   return { transaction: rec?.data, cashBalance: newCash, realizedNZD: realizedBooked, holdingId };
   } catch (err) {
     console.error(`[transactions] Rolling back sell of ${ticker}:`, err);
