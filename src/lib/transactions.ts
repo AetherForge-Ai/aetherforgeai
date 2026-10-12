@@ -8,8 +8,8 @@
  *   • Realized P&L — a sell books `quantity × (price − avgCost) − fees` (NZD).
  *
  * All cash is tracked in NZD (the Stox base currency). Trades priced in AUD/USD
- * are converted with live FX (baseline fallback) so the cash ledger is coherent
- * across exchanges. Every mutation is logged; nothing is silently swallowed.
+ * use the trade-date rate or a live snapshot. A timeout does not book the
+ * baseline table. Every mutation is logged; nothing is silently swallowed.
  */
 
 import "server-only";
@@ -17,19 +17,19 @@ import { totalumSdk } from "@/lib/totalum";
 import type { AppUser } from "@/lib/session";
 import { currencyForTicker, nzdAtBookRate, ensureNzdPerUsd, ensureNzdPerAud, formatCleanNumber, formatQuantity, normaliseUnitPrice, roundFxRate, roundUnitPrice, type CurrencyCode } from "@/lib/currency";
 import { fifoTotals } from "@/lib/fifo-cost";
-import { dexPriceForSymbol, ledgerFxRate, priceForBooking, ratesForBooking, reviewedFxAllowed } from "@/lib/reviewed-book";
+import { auditLivePrice, bookingFxDecision, ledgerFxRate, priceForBooking, ratesForBooking, reviewedFxAllowed } from "@/lib/reviewed-book";
 import { alertsToArchive, positionIsClosed } from "@/lib/alert-lifecycle";
 import { getFxSnapshot, historicalNzdPerUnit } from "@/lib/fx";
 import { normalizeTicker, lookupTicker, referencePrice } from "@/lib/market";
-import { fetchLivePrice, isLiveDataConfigured, fetchCryptoQuotes } from "@/lib/market-data";
-import { dexQuoteRows } from "@/lib/crypto-coingecko";
+import { fetchLivePrice, isLiveDataConfigured } from "@/lib/market-data";
+import { priceFromSnapshot } from "@/lib/crypto-board-store";
+import { confirmMapKey, confirmOnce, withIdempotencyNote } from "@/lib/confirm-once";
 import { getMetalsSpot } from "@/lib/metals";
 import {
   checkFillSanity,
   aucklandDateISO,
   aucklandDateTimeISO,
   ADVISORY_NOTE,
-  SANITY_RATIO_SOFT,
   type PriceSource,
   type ExecutionStatus,
   type OrderSizing,
@@ -128,6 +128,8 @@ export interface TransactionInput {
   venue?: string;
   /** Readable chain for a DEX token, such as Ethereum. */
   chain?: string;
+  /** One Review. Not stored as its own column. Stamped into notes. */
+  idempotency_key?: string;
 }
 
 export interface TransactionResult {
@@ -459,30 +461,85 @@ async function detailedDividendParts(
 export async function applyTransaction(
   user: AppUser,
   input: TransactionInput,
-  opts?: { fromHoldingEdit?: boolean }
+  opts?: { fromHoldingEdit?: boolean; rejectionChecked?: boolean }
 ): Promise<TransactionResult> {
-  return withUserTradeLock(user._id, async () => {
-    try {
-      return await applyTransactionUnlocked(user, input, opts);
-    } finally {
-      invalidateBookCache(user._id);
-    }
+  const mapKey = confirmMapKey(user._id, input.idempotency_key);
+  return confirmOnce(mapKey, () =>
+    withUserTradeLock(user._id, async () => {
+      try {
+        return await applyTransactionUnlocked(user, input, opts);
+      } finally {
+        invalidateBookCache(user._id);
+      }
+    })
+  );
+}
+
+function stepMs(step: string, started: number, extra = ""): void {
+  console.log(`[transactions] step ${step} ${Date.now() - started}ms${extra ? ` ${extra}` : ""}`);
+}
+
+/** A timeout is null and is not a rate. A finished lookup keeps its own null. */
+function firstWithin<T>(work: Promise<T>, ms: number): Promise<{ value: T | null; timedOut: boolean }> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      resolve({ value: null, timedOut: true });
+    }, ms);
+    work.then(
+      (value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve({ value, timedOut: false });
+      },
+      () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve({ value: null, timedOut: true });
+      }
+    );
   });
+}
+
+function scheduleSnapshotRevalue(holdingId: string | null | undefined, ticker: string, coinId?: string): void {
+  if (!holdingId) return;
+  const started = Date.now();
+  void priceFromSnapshot({ symbol: ticker, coinId })
+    .then(async (snap) => {
+      if (!snap || !(snap.price > 0)) {
+        stepMs("revalue", started, `ticker=${ticker} skipped`);
+        return;
+      }
+      const next = normaliseUnitPrice(snap.price) ?? snap.price;
+      await totalumSdk.crud.editRecordById("stock", holdingId, { current_price: next });
+      stepMs("revalue", started, `ticker=${ticker}`);
+    })
+    .catch((err) => {
+      console.error(`[transactions] revalue ${ticker} failed:`, err instanceof Error ? err.message.slice(0, 80) : "failed");
+    });
 }
 
 async function applyTransactionUnlocked(
   user: AppUser,
   input: TransactionInput,
-  opts?: { fromHoldingEdit?: boolean }
+  opts?: { fromHoldingEdit?: boolean; rejectionChecked?: boolean }
 ): Promise<TransactionResult> {
-  const rejection = await movementRejectionForUser(user, input, opts);
-  if (rejection) throw new Error(rejection);
+  const checkStarted = Date.now();
+  if (!opts?.rejectionChecked) {
+    const rejection = await movementRejectionForUser(user, input, opts);
+    if (rejection) throw new Error(rejection);
+  }
+  stepMs("movement-check", checkStarted, opts?.rejectionChecked ? "already-checked" : "");
 
   const fallbackCash = typeof user.cash_balance === "number" ? user.cash_balance : 0;
   const currentCash = await readUserCash(user._id, fallbackCash);
   const resolved = resolveExecutedInstant(input.executed_at);
   const executedStored = resolved.stored;
-  const notes = (input.notes || "").slice(0, 500);
+  const notes = withIdempotencyNote(input.notes || "", input.idempotency_key);
 
   // ---------- Cash-only movements (opening balance with a ticker is a holding) ----------
   const openingCash = input.type === "opening_balance" && !String(input.ticker || "").trim();
@@ -711,34 +768,13 @@ async function applyTransactionUnlocked(
   }
 
   // Resolve live spot for fill sanity (same currency as fill).
+  // Crypto uses the shared snapshot. Revaluation of the holding happens after this write returns.
   let liveSpot: number | null = null;
+  const spotStarted = Date.now();
   try {
     if (assetType === "crypto") {
-      const quotes = await fetchCryptoQuotes(
-        [ticker],
-        input.coingecko_id
-          ? { ids: { [ticker.toUpperCase()]: input.coingecko_id }, strictCoinGecko: [ticker] }
-          : undefined
-      );
-      liveSpot = quotes[ticker.toUpperCase()]?.price ?? null;
-      // Majors that already match the coin list skip this. A DEX fill uses GeckoTerminal
-      // when the coin list is missing or further from the reviewed price than 15%.
-      const coinAgrees =
-        liveSpot != null && liveSpot > 0 && Math.abs(price / liveSpot - 1) <= SANITY_RATIO_SOFT;
-      if (!coinAgrees) {
-        try {
-          const rows = await dexQuoteRows(ticker);
-          const dex = dexPriceForSymbol(ticker, rows);
-          if (dex != null && dex > 0) {
-            const nearerDex =
-              !(liveSpot != null && liveSpot > 0) ||
-              Math.abs(price / dex - 1) < Math.abs(price / liveSpot - 1);
-            if (nearerDex) liveSpot = dex;
-          }
-        } catch (dexErr) {
-          console.error(`[transactions] DEX spot for sanity check failed (${ticker}):`, dexErr);
-        }
-      }
+      const snap = await priceFromSnapshot({ symbol: ticker, coinId: input.coingecko_id });
+      liveSpot = snap && snap.price > 0 ? snap.price : null;
     } else if (assetType === "metal") {
       const key = metalKeyForTicker(ticker);
       if (key) {
@@ -751,6 +787,8 @@ async function applyTransactionUnlocked(
   } catch (err) {
     console.error(`[transactions] Live spot for sanity check failed (${ticker}):`, err);
   }
+  stepMs("live-spot", spotStarted, `asset=${assetType}`);
+  const auditLive = auditLivePrice(liveSpot);
 
   // The reviewed price is the fill. A newer live spot is only the sanity check.
   price = priceForBooking(price, liveSpot);
@@ -793,15 +831,24 @@ async function applyTransactionUnlocked(
     throw new Error(`${ticker}: bot_signal cannot be fill_price. ${ADVISORY_NOTE}`);
   }
 
-  const fx = await getFxSnapshot();
-  const historicalFx = await historicalNzdPerUnit(currency, tradeDay);
-  const fxCheck = reviewedFxAllowed({
+  const fxStarted = Date.now();
+  const fxHistoryStarted = Date.now();
+  const [fxLive, historicalFx] = await Promise.all([
+    firstWithin(getFxSnapshot(), 450),
+    currency === "NZD"
+      ? Promise.resolve({ value: 1 as number | null, timedOut: false })
+      : firstWithin(historicalNzdPerUnit(currency, tradeDay), 1200),
+  ]);
+  stepMs("fx-snapshot", fxStarted, fxLive.timedOut ? "bounded" : "ready");
+  stepMs("historical-fx", fxHistoryStarted, currency === "NZD" ? "nzd" : historicalFx.timedOut ? "bounded" : "fetched");
+  const fxDecision = bookingFxDecision({
     currency,
     reviewed: input.fx_rate,
-    snapshot: fx.ratesToNZD[currency],
-    historical: historicalFx,
+    snapshot: fxLive.value,
+    historical: historicalFx.value,
   });
-  if (fxCheck.ok === false) throw new Error(fxCheck.message);
+  if (fxDecision.ok === false) throw new Error(fxDecision.message);
+  const fx = { ratesToNZD: fxDecision.ratesToNZD };
   const rates = ratesForBooking(currency, input.fx_rate, fx.ratesToNZD);
 
   const holding = await findHolding(user._id, ticker, assetType);
@@ -874,17 +921,10 @@ async function applyTransactionUnlocked(
     } else {
       // New position — resolve a live current price so the P&L is meaningful.
       const info = lookupTicker(ticker);
-      let current_price = referencePrice(ticker, price);
+      let current_price = assetType === "crypto" ? price : referencePrice(ticker, price);
       try {
         if (assetType === "crypto") {
-          const quotes = await fetchCryptoQuotes(
-            [ticker],
-            input.coingecko_id
-              ? { ids: { [ticker.toUpperCase()]: input.coingecko_id }, strictCoinGecko: [ticker] }
-              : undefined
-          );
-          const live = normaliseUnitPrice(quotes[ticker.toUpperCase()]?.price);
-          if (live) current_price = live;
+          current_price = price;
         } else if (assetType === "metal") {
           // Gold/silver price live at the NZD spot per troy ounce.
           const key = metalKeyForTicker(ticker);
@@ -934,7 +974,7 @@ async function applyTransactionUnlocked(
     const fxRate = nzdPerUnit(currency, input.fx_rate ?? rates[currency] ?? 1);
     const auditNotes = appendAuditNote(
       notes,
-      `FILLED buy qty=${quantity} fill=${formatCleanNumber(price)} ${currency} live=${liveSpot == null ? "n/a" : formatCleanNumber(liveSpot)} source=${input.price_source || "user_fill"}. ${ADVISORY_NOTE}`
+      `FILLED buy qty=${quantity} fill=${formatCleanNumber(price)} ${currency} live=${auditLive == null ? "n/a" : formatCleanNumber(auditLive)} source=${input.price_source || "user_fill"}. ${ADVISORY_NOTE}`
     );
     logLedgerAudit({
       action: "fill_buy",
@@ -996,6 +1036,7 @@ async function applyTransactionUnlocked(
         );
       }
     }
+    if (assetType === "crypto") scheduleSnapshotRevalue(holdingId, ticker, input.coingecko_id);
     return { transaction: rec?.data, cashBalance: newCash, realizedNZD: 0, holdingId };
     } catch (err) {
       console.error(`[transactions] Rolling back buy of ${ticker}:`, err);
@@ -1058,6 +1099,7 @@ async function applyTransactionUnlocked(
   let realizedBooked = Math.abs(sellFx - lotFx) < 1e-9 ? legacyRealizedNZD : realizedNZD;
   let bookedPrice = Math.abs(sellFx - lotFx) < 1e-9 ? legacyRealizedNZD : realizedPriceNZD;
   let bookedFx = Math.abs(sellFx - lotFx) < 1e-9 ? 0 : realizedFxNZD;
+  const fifoStarted = Date.now();
   try {
     const history = await totalumSdk.crud.query("transaction", {
       _filter: { user: user._id },
@@ -1084,6 +1126,7 @@ async function applyTransactionUnlocked(
   } catch (err) {
     console.error("[transactions] FIFO lot read failed, keeping the average-cost figure:", err);
   }
+  stepMs("fifo-lots", fifoStarted);
 
   const stamp = dexStamp(input, holding);
   const closed = sold.shares <= 1e-6;
@@ -1132,7 +1175,14 @@ async function applyTransactionUnlocked(
     fx_rate: sellFx,
     cash_nzd: round(proceedsNZD),
     currency,
-    notes: withDexNotes(notes, stamp.chain, stamp.isDex),
+    notes: withDexNotes(
+      appendAuditNote(
+        notes,
+        `FILLED sell qty=${quantity} fill=${formatCleanNumber(price)} ${currency} live=${auditLive == null ? "n/a" : formatCleanNumber(auditLive)} source=${input.price_source || "user_fill"}. ${ADVISORY_NOTE}`
+      ),
+      stamp.chain,
+      stamp.isDex
+    ),
     executed_at: executedStored,
     user: user._id,
     ...(holdingId ? { stock: holdingId } : {}),
@@ -1150,6 +1200,7 @@ async function applyTransactionUnlocked(
       );
     }
   }
+  if (assetType === "crypto" && holdingId) scheduleSnapshotRevalue(holdingId, ticker, input.coingecko_id);
   return { transaction: rec?.data, cashBalance: newCash, realizedNZD: realizedBooked, holdingId };
   } catch (err) {
     console.error(`[transactions] Rolling back sell of ${ticker}:`, err);

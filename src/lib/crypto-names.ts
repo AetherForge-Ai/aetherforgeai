@@ -39,11 +39,31 @@ const COINGECKO_NAMES: Record<string, string> = {
   ANKR: "Ankr",
   FIL: "Filecoin",
   ARKM: "Arkham",
+  TRX: "TRON",
+  INJ: "Injective",
+  TIA: "Celestia",
+  ALGO: "Algorand",
+  XLM: "Stellar",
+  BCH: "Bitcoin Cash",
+  HBAR: "Hedera",
+  JTO: "Jito",
+  SEI: "Sei",
+  ONDO: "Ondo",
+  NEO: "Neo",
+  ROSE: "Oasis",
+  MKR: "Maker",
 };
+
+/**
+ * CoinGecko's own name is the ticker. Do not replace these with a longer label.
+ * pull-check:v3-tier1a-2026-10-12
+ */
+export const SYMBOL_IS_OFFICIAL_NAME = new Set(["BNB", "XRP", "USDC"]);
 
 export function coinDisplayName(symbol: string, feedName?: string | null): string {
   const ticker = (symbol || "").trim().toUpperCase();
   const fed = (feedName || "").trim();
+  if (SYMBOL_IS_OFFICIAL_NAME.has(ticker) && (!fed || fed.toUpperCase() === ticker)) return ticker;
   if (fed && fed.toUpperCase() !== ticker) return fed;
   return COINGECKO_NAMES[ticker] || CRYPTO_DISPLAY_NAMES[ticker] || fed || ticker;
 }

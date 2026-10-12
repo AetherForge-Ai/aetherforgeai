@@ -99,6 +99,16 @@ function num(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function parseMoves(value: unknown): { h24: number | null; d7: number | null; d30: number | null } | null {
+  if (!value || typeof value !== "object") return null;
+  const row = value as Record<string, unknown>;
+  const one = (key: string): number | null => {
+    if (row[key] == null || row[key] === "") return null;
+    return num(row[key]);
+  };
+  return { h24: one("h24"), d7: one("d7"), d30: one("d30") };
+}
+
 function coinLooksSaved(value: unknown): value is Record<string, unknown> {
   if (!value || typeof value !== "object") return false;
   const row = value as Record<string, unknown>;
@@ -122,6 +132,7 @@ export function coinFromSnapshot(value: Record<string, unknown>): CoinMarket {
     change1h: num(value.change1h),
     change24h: num(value.change24h) ?? 0,
     change7d: num(value.change7d) ?? 0,
+    moves: parseMoves(value.moves),
     high24h: num(value.high24h),
     low24h: num(value.low24h),
     circulatingSupply: num(value.circulatingSupply),
@@ -171,6 +182,7 @@ function encodeCrypto(coins: CoinMarket[], at: string): string {
     change1h: coin.change1h,
     change24h: coin.change24h,
     change7d: coin.change7d,
+    moves: coin.moves ?? null,
     quotedAt: coin.quotedAt || null,
     blockchain: coin.blockchain || "",
   }));

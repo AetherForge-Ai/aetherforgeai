@@ -139,6 +139,7 @@ export function RecordTransactionPanel({
   const [firstBuys, setFirstBuys] = useState<Record<string, string>>({});
   const [metalId, setMetalId] = useState<string | undefined>(seed?.metalSourceId);
   const opened = useRef(false);
+  const reviewKey = useRef("");
   const { beginReviewGuard, armReview, disarmReview, claimCommit, releaseCommit, confirmReady } = useTradeReviewGate();
 
   useEffect(() => {
@@ -338,16 +339,18 @@ export function RecordTransactionPanel({
       if (date === today) {
         const id = asset.id ? `&id=${encodeURIComponent(asset.id)}` : "";
         const market = asset.market === "DEX" ? "&market=dex" : "";
-        const res = await api.get<{ price: number | null }>(
+        const res = await api.get<{ price: number | null; label?: string | null }>(
           `/api/tickers/quote?symbol=${encodeURIComponent(sym)}&type=${type}${id}${market}`
         );
         if (cancel || priceDirty) return;
         if (res.ok && res.data?.price && res.data.price > 0) {
           setPrice(formatPriceInput(res.data.price));
-          setHint("Today's price is filled in. You can type over it.");
+          setHint(res.data.label || "Today's price is filled in. You can type over it.");
         } else if (asset.price && asset.price > 0) {
           setPrice(formatPriceInput(asset.price));
-          setHint("Live price was unavailable. A recent print is filled in. You can type over it.");
+          setHint(res.data?.label || "Live price was unavailable. A recent print is filled in. You can type over it.");
+        } else if (res.data?.label) {
+          setHint(res.data.label);
         } else {
           setHint("No price came back. Type the price you want to record.");
         }
@@ -411,6 +414,10 @@ export function RecordTransactionPanel({
 
   async function review() {
     if (!beginReviewGuard() || saving || checkingCash) return;
+    if ((kind === "buy" || kind === "sell") && showQty && !(Number(price) > 0)) {
+      setProblems(["Wait for today's price, or type the price you want to record."]);
+      return;
+    }
     if ((kind === "buy" || kind === "sell") && currency !== "NZD" && !(Number(fxRate) > 0)) {
       setProblems(["The exchange rate is still loading. Wait for today's rate, or type the one from your broker."]);
       return;
@@ -455,6 +462,10 @@ export function RecordTransactionPanel({
     if (messages.length) return;
     setCashNote(known ? "" : "Cash is still loading. Confirm checks the balance before anything is written.");
     setPreview(next);
+    if (!reviewKey.current) {
+      const random = globalThis.crypto?.randomUUID?.() || `${Date.now()}`;
+      reviewKey.current = random.slice(0, 80);
+    }
     armReview();
     setStep("review");
   }
@@ -544,6 +555,7 @@ export function RecordTransactionPanel({
         payload.price = preview.priceNative;
         payload.fx_rate = preview.fxRate;
         payload.confirm = true;
+        if (reviewKey.current) payload.idempotency_key = reviewKey.current;
         if (asset.id && asset.assetType === "crypto") payload.coingecko_id = asset.id;
         if (asset.market === "DEX") {
           payload.venue = "DEX";
@@ -936,6 +948,7 @@ export function RecordTransactionPanel({
             variant="ghost"
             disabled={saving}
             onClick={() => {
+              reviewKey.current = "";
               disarmReview();
               setStep("edit");
             }}
@@ -959,7 +972,12 @@ export function RecordTransactionPanel({
             )}
           </Button>
         ) : (
-          <Button type="button" className="font-semibold" onClick={() => void review()} disabled={checkingCash}>
+          <Button
+            type="button"
+            className="font-semibold"
+            onClick={() => void review()}
+            disabled={checkingCash || ((kind === "buy" || kind === "sell") && showQty && !(Number(price) > 0))}
+          >
             {checkingCash ? (
               <>
                 <Loader2 className="mr-2 size-4 animate-spin" /> Checking cash…

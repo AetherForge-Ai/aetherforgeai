@@ -16,6 +16,7 @@ import {
 import type { PublicMarketIndex } from "@/lib/public-market-types";
 import { BuyDialog, type BuyTarget } from "@/components/dashboard/BuyDialog";
 import { columnHasFigure, cryptoCoveragePhrase, dexCoverageLine, dexTabLabel } from "@/lib/crypto-coverage";
+import { countLine, stripLastGoodCell } from "@/lib/crypto-board";
 import { DEX_EMPTY_NOTICE } from "@/lib/crypto-dex";
 import { explorerDetailHref, marketsTabHref, type MarketsTab } from "@/lib/market-detail-routes";
 import type { PublicPriceRow } from "@/lib/public-market-types";
@@ -25,7 +26,6 @@ import { useDexMarkets } from "@/hooks/useDexMarkets";
 import { useFxRates } from "@/hooks/useFxRates";
 import {
   coinHasLivePrice,
-  fmtPrice,
   formatAbsoluteChange,
   formatMarketChangePercent,
   resolvableCoinId,
@@ -229,6 +229,7 @@ export function MarketsExplorer({
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("changePct");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [userSorted, setUserSorted] = useState(false);
   const [buyTarget, setBuyTarget] = useState<BuyTarget | null>(null);
   const [buyOpen, setBuyOpen] = useState(false);
   /** Live Yahoo matches for tickers outside the curated exchange list (e.g. CIP.AX). */
@@ -264,6 +265,7 @@ export function MarketsExplorer({
         setLoading(!seeded);
       }
     }
+    setUserSorted(false);
     setTab(next);
     onTabChange?.(next);
     if (!syncTab) return;
@@ -492,6 +494,7 @@ export function MarketsExplorer({
   }, [tab, query, sortKey, sortDir]);
 
   function toggleSort(key: SortKey) {
+    setUserSorted(true);
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     else {
       setSortKey(key);
@@ -507,10 +510,10 @@ export function MarketsExplorer({
         all = seedDisplayRows(seedDex, "DEX");
       } else
       all = dex.rows.slice(0, CRYPTO_TOP_N).map((row) => ({
-        key: `${row.symbol}:${row.id}:${row.network}`,
-        ticker: row.symbol.toUpperCase(),
-        symbol: row.symbol.toUpperCase(),
-        name: coinDisplayName(row.symbol, row.name),
+        key: `${stripLastGoodCell(row.network).toLowerCase()}|${stripLastGoodCell(row.address || row.id)}`,
+        ticker: stripLastGoodCell(row.symbol).toUpperCase(),
+        symbol: stripLastGoodCell(row.symbol).toUpperCase(),
+        name: coinDisplayName(row.symbol, stripLastGoodCell(row.name)),
         currency: "USD" as const,
         price: row.price || 0,
         changePct: 0,
@@ -522,8 +525,8 @@ export function MarketsExplorer({
         live: !row.priceUnavailable && (row.price || 0) > 0,
         quoted: !row.priceUnavailable && (row.price || 0) > 0,
         coinId: resolvableCoinId(row.detailId) || undefined,
-        blockchain: row.network && row.network !== "Unavailable" ? row.network : "",
-        dex: row.dex || "",
+        blockchain: stripLastGoodCell(row.network) && stripLastGoodCell(row.network) !== "Unavailable" ? stripLastGoodCell(row.network) : "",
+        dex: stripLastGoodCell(row.dex || ""),
         paperMarket: "DEX" as const,
         priceUnavailable: row.priceUnavailable || !(row.price != null && row.price > 0),
       }));
@@ -537,9 +540,9 @@ export function MarketsExplorer({
         .slice(0, CRYPTO_TOP_N);
       all = top.map((c) => ({
         key: c.id,
-        ticker: c.symbol.toUpperCase(),
-        symbol: c.symbol.toUpperCase(),
-        name: coinDisplayName(c.symbol, c.name),
+        ticker: stripLastGoodCell(c.symbol).toUpperCase(),
+        symbol: stripLastGoodCell(c.symbol).toUpperCase(),
+        name: coinDisplayName(c.symbol, stripLastGoodCell(c.name)),
         currency: "USD" as const,
         price: c.price,
         changePct: c.change24h ?? 0,
@@ -551,7 +554,7 @@ export function MarketsExplorer({
         live: !c.priceUnavailable && c.price > 0,
         quoted: !c.priceUnavailable && c.price > 0,
         coinId: c.id,
-        blockchain: c.blockchain && c.blockchain !== "Unavailable" ? c.blockchain : "",
+        blockchain: stripLastGoodCell(c.blockchain) && stripLastGoodCell(c.blockchain) !== "Unavailable" && stripLastGoodCell(c.blockchain) !== "Native" ? stripLastGoodCell(c.blockchain) : "",
         paperMarket: "Crypto" as const,
         priceUnavailable: !!c.priceUnavailable || !(c.price > 0),
       }));
@@ -590,6 +593,7 @@ export function MarketsExplorer({
       ? remoteHits.filter((r) => !seen.has(r.ticker.toUpperCase()))
       : [];
     const merged = extras.length ? [...extras, ...filtered] : filtered;
+    if (isCryptoTab && !userSorted) return merged;
     const dir = sortDir === "asc" ? 1 : -1;
     const num = (value: number | null | undefined) => (value == null || !Number.isFinite(value) ? null : value);
     return [...merged].sort((a, b) => {
@@ -601,15 +605,15 @@ export function MarketsExplorer({
       if (bv == null) return -1;
       return (av - bv) * dir;
     });
-  }, [isCoinTab, isDexTab, crypto.coins, dex.rows, seedCrypto, seedDex, data, query, sortKey, sortDir, remoteHits]);
+  }, [isCoinTab, isDexTab, isCryptoTab, userSorted, crypto.coins, dex.rows, seedCrypto, seedDex, data, query, sortKey, sortDir, remoteHits]);
 
   // Live-price formatter — crypto needs micro-price precision, stocks are currency-aware.
   const showNzd = isCryptoTab && cryptoInNzd && fxReady;
   const showPrice = (r: DisplayRow) => {
-    if (r.coinId) {
+    if (r.coinId || isCryptoTab) {
       if (r.priceUnavailable || !(r.price != null && r.price > 0)) return "—";
       if (showNzd) return formatUnitPrice(usdToNzd(r.price, fx.rates.USD), "NZD");
-      return fmtPrice(r.price);
+      return formatUnitPrice(r.price, "USD");
     }
     if (r.priceLabel && (!r.quoted || r.priceLabel === PRICE_NOT_IN_RESPONSE)) return r.priceLabel;
     if (!(r.price != null && r.price > 0)) return PRICE_NOT_IN_RESPONSE;
@@ -618,7 +622,7 @@ export function MarketsExplorer({
   const showUnit = (value: number | null, r: DisplayRow) => {
     if (!value || !(value > 0)) return "—";
     if (r.coinId && showNzd) return formatUnitPrice(usdToNzd(value, fx.rates.USD), "NZD");
-    return r.coinId ? fmtPrice(value) : formatMarketPrice(value, r.currency);
+    return r.coinId || isCryptoTab ? formatUnitPrice(value, "USD") : formatMarketPrice(value, r.currency);
   };
 
   // Unified loading + status across both data sources.
@@ -757,7 +761,7 @@ export function MarketsExplorer({
           onClick={() => selectTab("CRYPTO")}
           className={cn(
             "flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-sm font-semibold transition-colors",
-            isCryptoTab
+            isCoinTab
               ? "border-primary bg-primary text-primary-foreground shadow-glow"
               : "border-border/60 bg-background/40 text-muted-foreground hover:text-foreground"
           )}
@@ -773,7 +777,7 @@ export function MarketsExplorer({
               : "border-border/60 bg-background/40 text-muted-foreground hover:text-foreground"
           )}
         >
-          {dexTabLabel(dex.rows.length)}
+          {dex.rows.length >= 400 ? dexTabLabel(dex.rows.length) : "DEX"}
         </button>
         <div className="ml-auto flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={refresh} disabled={loadingRows}>
@@ -799,7 +803,9 @@ export function MarketsExplorer({
             {(isDexTab ? dex.error : isCoinTab ? crypto.error : loadError)
               ? (isDexTab ? dex.error : isCoinTab ? crypto.error : loadError)
               : hasData || remoteHits.length
-              ? `${data?.coverage || `${total} names in the ${isCryptoTab ? "crypto" : tab} list`}${liveCount > 0 && liveCount !== total ? ` · ${liveCount} quoted on this page` : ""}${remoteLoading ? " · searching…" : ""}${remoteHits.length && query.trim() ? ` · +${remoteHits.length} market match${remoteHits.length === 1 ? "" : "es"}` : ""}`
+              ? isCryptoTab
+                ? countLine(isDexTab ? "DEX tokens" : "coins", isDexTab ? dex.rows.length || seedDex.length : crypto.coins.length || seedCrypto.length)
+                : `${data?.coverage || `${total} names in the ${tab} list`}${liveCount > 0 && liveCount !== total ? ` · ${liveCount} quoted on this page` : ""}${remoteLoading ? " · searching…" : ""}${remoteHits.length && query.trim() ? ` · +${remoteHits.length} market match${remoteHits.length === 1 ? "" : "es"}` : ""}`
               : stockLoading
               ? "Loading the list…"
               : loadingRows
@@ -815,7 +821,6 @@ export function MarketsExplorer({
             <p className="flex items-center gap-1 text-[0.62rem] text-muted-foreground/80">
               <Bitcoin className="size-3" /> {cryptoCoveragePhrase(cryptoListed)} · {showNzd ? "NZ$" : "USD"}
               {fxReady ? ` · 1 USD = NZ$${formatFxInput(fx.rates.USD)}` : " · NZ$ prices appear when today's exchange rate loads."}
-              {crypto.notice ? ` · ${crypto.notice}` : ""}
             </p>
           )}
           {isCoinTab && <p className="text-sm text-muted-foreground">Powered by CoinGecko</p>}
@@ -833,7 +838,6 @@ export function MarketsExplorer({
           {isDexTab && (
             <p className="flex items-center gap-1 text-[0.62rem] text-muted-foreground/80">
               <Bitcoin className="size-3" /> {dexCoverageLine(cryptoListed)}
-              {dex.notice ? ` · ${dex.notice}` : ""}
             </p>
           )}
           {isDexTab && <p className="text-sm text-muted-foreground">{dexCredit}</p>}
@@ -855,6 +859,10 @@ export function MarketsExplorer({
           ) : null}
         </div>
       </div>
+
+      {isCryptoTab && (isDexTab ? dex.notice : crypto.notice) ? (
+        <p className="px-1 pb-2 text-xs text-muted-foreground">{isDexTab ? dex.notice : crypto.notice}</p>
+      ) : null}
 
       {/* Table — scrolls on BOTH axes so wide rows never push the page sideways on mobile */}
       <div className="min-h-0 flex-1 overflow-auto px-1 pb-2">
@@ -950,7 +958,7 @@ export function MarketsExplorer({
                         )}
                       </div>
                       <span className="text-[0.66rem] text-muted-foreground sm:hidden" aria-hidden="true">{r.name}</span>
-                      {!r.coinId && (
+                      {!isCryptoTab && !r.coinId && (
                         <span className="block text-[0.62rem] text-muted-foreground">
                           {r.quoted ? `${r.source || "Last good"} · ${r.rowAsOf || ""}` : PRICE_NOT_IN_RESPONSE}
                         </span>
@@ -958,7 +966,7 @@ export function MarketsExplorer({
                     </td>
                     <td className="hidden max-w-[16rem] truncate py-2.5 pr-3 text-muted-foreground sm:table-cell" aria-hidden="true">
                       {r.name}
-                      {!r.coinId && (
+                      {!isCryptoTab && !r.coinId && (
                         <span className="block text-[0.62rem]">
                           {r.quoted ? `${r.source || "Last good"} · ${r.rowAsOf || ""}` : PRICE_NOT_IN_RESPONSE}
                         </span>
@@ -1084,9 +1092,6 @@ export function MarketsExplorer({
           <p className="text-xs text-muted-foreground">
             Showing {cryptoPageSafe * CRYPTO_PAGE_SIZE + 1}–
             {Math.min(rows.length, (cryptoPageSafe + 1) * CRYPTO_PAGE_SIZE)} of {rows.length}
-            {isDexTab
-              ? ` · ${dexCoverageLine(rows.length)}`
-              : ` · ${cryptoCoveragePhrase(rows.length)}`}
           </p>
           <div className="flex items-center gap-2">
             <Button

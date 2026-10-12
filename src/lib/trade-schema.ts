@@ -48,4 +48,6 @@ export const tradeSchema = z.object({
   venue: z.literal("DEX").optional(),
   /** Readable chain, such as Ethereum. Stored inside the sector tag and the notes prefix. */
   chain: z.string().max(80).optional(),
+  /** One Review. A second click with the same key returns the first write. Not a database column. */
+  idempotency_key: z.string().max(80).optional(),
 });

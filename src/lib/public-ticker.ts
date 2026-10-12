@@ -1,4 +1,4 @@
-import { fetchCryptoQuotes, fetchLiveQuotes } from "@/lib/market-data";
+import { fetchLiveQuotes } from "@/lib/market-data";
 import { TICKER_TAPE, composeTickerTape, type TickerTapeFeed } from "@/lib/ticker-feed";
 import { PUBLIC_EQUITY_SOURCE, publicCryptoSourcesLabel } from "@/lib/data-sources";
 import { sourceLabel } from "@/lib/crypto-price-chain";
@@ -10,16 +10,27 @@ export async function loadPublicTicker(): Promise<TickerTapeFeed> {
   const equitySymbols = [...TICKER_TAPE.nzx, ...TICKER_TAPE.asx].map((row) => row.symbol);
   const cryptoSymbols = TICKER_TAPE.crypto.map((row) => row.symbol);
 
-  const [cryptoQuotes, equityQuotes] = await Promise.all([
-    fetchCryptoQuotes(cryptoSymbols).catch((err) => {
-      console.error("[ticker] Crypto live fetch failed:", err);
-      return {} as Awaited<ReturnType<typeof fetchCryptoQuotes>>;
+  const { snapshotQuotesForSymbols } = await import("@/lib/crypto-board-store");
+  const [cryptoRaw, equityQuotes] = await Promise.all([
+    snapshotQuotesForSymbols(cryptoSymbols).catch((err) => {
+      console.error("[ticker] Crypto snapshot read failed:", err instanceof Error ? err.message.slice(0, 120) : "failed");
+      return {} as Awaited<ReturnType<typeof snapshotQuotesForSymbols>>;
     }),
     fetchLiveQuotes(equitySymbols).catch((err) => {
       console.error("[ticker] Equity live fetch failed:", err);
       return {} as Awaited<ReturnType<typeof fetchLiveQuotes>>;
     }),
   ]);
+  const cryptoQuotes: Record<string, { price: number; changePct?: number; quotedAt: string | null; source: string; provider: string }> = {};
+  for (const [symbol, quote] of Object.entries(cryptoRaw)) {
+    cryptoQuotes[symbol] = {
+      price: quote.price,
+      changePct: quote.changePct,
+      quotedAt: quote.quotedAt,
+      source: "coingecko",
+      provider: "CoinGecko",
+    };
+  }
 
   const cryptoProvider = publicCryptoSourcesLabel();
   const feed = composeTickerTape({

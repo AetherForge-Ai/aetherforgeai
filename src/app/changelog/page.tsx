@@ -19,6 +19,11 @@ export const CHANGELOG_ENTRIES = [
     },
   {
     href: "/markets",
+    title: "12 Oct 2026 — One crypto snapshot for markets, Koins, and Confirm",
+    body: "Signed-in and public Crypto and DEX lists read the same saved snapshot. Names and chains come from that list. Koins ranks only when the snapshot is fresh and the moves are real. Confirm writes the reviewed price and returns. Revaluation follows. Crypto projections stay paused.",
+  },
+  {
+    href: "/markets",
     title: "11 Oct 2026 — Crypto list snapshots and diagnostics",
     body: "A saved CoinGecko list and a saved DEX list stay available when the live feed does not answer. An optional CoinGecko key can be set on the host. The admin diagnostics page reports status codes only.",
   },
