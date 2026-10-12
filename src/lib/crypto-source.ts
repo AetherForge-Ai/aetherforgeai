@@ -15,10 +15,14 @@ import * as swyftx from "@/lib/crypto-swyftx";
 import * as coingecko from "@/lib/crypto-coingecko";
 import * as yahoo from "@/lib/crypto-yahoo";
 import {
+  applyStatDonors,
   coinHasLivePrice,
   coinLogo,
+  detailFromMarket,
   LIVE_CRYPTO_UNAVAILABLE,
+  marketStatsMissing,
   mergeSevenDayChanges,
+  overlayCoinDetail,
   resolveSevenDayChange,
   sevenDayBoardIsMissing,
   type CoinMarket,
@@ -354,9 +358,23 @@ async function warmSavedList(): Promise<RankedCryptoPage | null> {
  * pull-check:v3-tier1a-2026-10-12
  * pull-check:v3-crypto-seed-2026-10-12
  */
+/** Fill empty cap, volume, range, supply and ATH from the keyless lists. Does not write the snapshot. */
+export async function enrichListedCoins(coins: CoinMarket[]): Promise<CoinMarket[]> {
+  if (!coins.length || !coins.some(marketStatsMissing)) return coins;
+  try {
+    const { loadKeylessStatDonors } = await import("@/lib/crypto-keyless-seed");
+    const donors = await loadKeylessStatDonors();
+    if (!donors.length) return coins;
+    return applyStatDonors(coins, donors);
+  } catch (err) {
+    console.error("[crypto-source] stat fill failed:", err instanceof Error ? err.message.slice(0, 120) : "failed");
+    return coins;
+  }
+}
+
 export async function loadTop400Markets(): Promise<RankedCryptoPage> {
   const { readSharedCryptoBoard } = await import("@/lib/crypto-board-store");
-  const board = await readSharedCryptoBoard();
+  const board = await readSharedCryptoBoard({ seed: false });
   return {
     coins: board.coins.slice(0, 400),
     notice: board.notice,
@@ -373,21 +391,54 @@ function presentDetail(detail: CoinDetail, source: string): CoinDetail {
   };
 }
 
+async function listedCoinForDetail(id: string, code: string): Promise<CoinMarket | null> {
+  try {
+    const { readSharedCryptoBoard } = await import("@/lib/crypto-board-store");
+    const board = await readSharedCryptoBoard({ seed: false });
+    const slug = id.trim().toLowerCase();
+    const symbol = code.toUpperCase();
+    const coin = board.coins.find((row) => row.id === slug || row.symbol.toUpperCase() === symbol) ?? null;
+    if (!coin) return null;
+    const [enriched] = await enrichListedCoins([coin]);
+    return enriched ?? coin;
+  } catch (err) {
+    console.error("[crypto-source] snapshot detail failed:", err instanceof Error ? err.message.slice(0, 120) : "failed");
+    return null;
+  }
+}
+
 export async function getCoinDetail(id: string): Promise<CoinDetail> {
   const code = normalizeCryptoTicker(id);
+  let detail: CoinDetail | null = null;
+  let source = "coingecko";
   try {
-    return presentDetail(await coingecko.fetchCoinDetail(toCgId(id)), "coingecko");
+    detail = await coingecko.fetchCoinDetail(toCgId(id));
+    source = "coingecko";
   } catch (err) {
     console.error(`[crypto-source] CoinGecko detail(${id}) failed:`, err instanceof Error ? err.message.slice(0, 160) : "failed");
   }
-  if (swyftxPublicDisplay()) {
+  if (!detail && swyftxPublicDisplay()) {
     try {
-      return presentDetail(await swyftx.fetchCoinDetail(code), "swyftx");
+      detail = await swyftx.fetchCoinDetail(code);
+      source = "swyftx";
     } catch (err) {
       console.error(`[crypto-source] detail backup(${id}) failed:`, err instanceof Error ? err.message.slice(0, 160) : "failed");
     }
   }
-  return presentDetail(await yahoo.fetchYahooCoinDetail(id), "yahoo");
+  if (!detail) {
+    try {
+      detail = await yahoo.fetchYahooCoinDetail(id);
+      source = "yahoo";
+    } catch (err) {
+      console.error(`[crypto-source] Yahoo detail(${id}) failed:`, err instanceof Error ? err.message.slice(0, 160) : "failed");
+    }
+  }
+  const listed = await listedCoinForDetail(id, code);
+  if (!detail) {
+    if (!listed || !(listed.price > 0)) throw new Error(`No detail for ${id}`);
+    return presentDetail(detailFromMarket(listed), listed.source || "snapshot");
+  }
+  return presentDetail(overlayCoinDetail(detail, listed), source);
 }
 
 export async function getCoinChart(id: string, days: string): Promise<CoinChart> {

@@ -150,8 +150,12 @@ describe("pull-check:v3-retest8-2026-10-12", () => {
       ],
       0
     );
-    expect(split.currencyEffectNzd).toBe(10);
+    expect(split.currencyEffectNzd).toBe(12);
+    expect(split.capitalGainNzd).toBe(32);
+    expect(split.otherNzd).toBe(0);
+    expect(split.totalNzd).toBe(44);
     expect(split.currencyNote).toMatch(/exchange rate/);
+    expect(split.currencyNote).toMatch(/foreign value/);
   });
 
   it("puts the FIFO read on a sell row that stored zero", () => {

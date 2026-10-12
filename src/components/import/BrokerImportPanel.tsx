@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
-import { FUNDING_DISCLOSURE, type ImportPlan, type ImportTrade } from "@/lib/broker-import";
+import { FUNDING_DISCLOSURE, readImportPreview, suggestedColumnMap, type ImportPlan, type ImportTrade } from "@/lib/broker-import";
 import { formatDisplayDate, formatFxInput } from "@/lib/currency";
 
 const IMPORT_WAIT_MS = 30_000;
@@ -104,6 +104,29 @@ export function BrokerImportPanel() {
       if (res.aborted) {
         setImportError(IMPORT_TIMEOUT);
         setPreview(null);
+        return;
+      }
+      const columnMap = readImportPreview(res);
+      if (columnMap) {
+        const data = res.data;
+        setPreview({
+          broker: data?.broker || "generic",
+          error: data?.error ?? null,
+          headers: columnMap.headers,
+          needsMapping: true,
+          unreadable: data?.unreadable,
+          unsupported: data?.unsupported || [],
+          duplicateCount: data?.duplicateCount || 0,
+          toWrite: data?.toWrite || [],
+          fundingDeposits: data?.fundingDeposits || [],
+          fundingNeeded: Boolean(data?.fundingNeeded),
+          sourceTotals: data?.sourceTotals || {},
+          importedTotals: data?.importedTotals || {},
+          totalsMessage: data?.totalsMessage || "",
+          written: data?.written,
+          fifoNote: data?.fifoNote,
+        });
+        setMapping((current) => (Object.values(current).some(Boolean) ? current : suggestedColumnMap(columnMap.headers)));
         return;
       }
       if (res.data) setPreview(res.data);
@@ -210,9 +233,10 @@ export function BrokerImportPanel() {
       </form>
 
       {preview?.needsMapping ? (
-        <fieldset className="mt-6 space-y-3 rounded-2xl border border-border/70 p-4">
+        <fieldset data-testid="column-map" className="mt-6 space-y-3 rounded-2xl border border-border/70 p-4">
           <legend className="px-1 font-display text-lg font-semibold">Match the columns</legend>
           <p className="text-sm text-muted-foreground">Nothing is saved until you review the file again.</p>
+          {preview.error ? <p className="text-sm text-muted-foreground">{preview.error}</p> : null}
           {MAP_FIELDS.map(([key, label]) => (
             <div key={key} className="grid gap-1 sm:grid-cols-[10rem_1fr] sm:items-center">
               <Label htmlFor={`map-${key}`}>{label}</Label>

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getStableSessionUser, getTradeSessionUser } from "@/lib/session";
-import { applyTransaction, loadLedger, movementRejectionForUser } from "@/lib/transactions";
+import { applyTransaction, ledgerAfterBooking, loadLedger } from "@/lib/transactions";
 import { tradeSchema } from "@/lib/trade-schema";
 import { hasForeignOwner, requestClaimsOtherUser } from "@/lib/account-guard";
 import { accountMismatchResponse, privateJson } from "@/lib/account-response";
@@ -99,33 +99,31 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Amount is required" }, { status: 400 });
     }
 
-    const rejection = await movementRejectionForUser(user, input, { fromHoldingEdit: false });
-    if (rejection) {
-      return NextResponse.json({ ok: false, error: rejection }, { status: 400 });
-    }
-
-    const result = await applyTransaction(user, input, { rejectionChecked: true });
-    // Re-read the ledger so the client gets fresh rollups in one round-trip.
-    const ledger = await loadLedger({ ...user, cash_balance: result.cashBalance });
+    // The book read overlaps the write. The response adds the new row and
+    // uses that book's cash, so the header and the ledger share one figure.
+    const priorLedger = loadLedger(user);
+    const result = await applyTransaction(user, input);
+    const ledger = ledgerAfterBooking(await priorLedger, result);
 
     console.log(
-      `[api/transactions] ${input.type} recorded for user ${user._id} — cash ${result.cashBalance}, realized ${result.realizedNZD}`
+      `[api/transactions] ${input.type} recorded for user ${user._id} — cash ${ledger.cashBalance}, realized ${result.realizedNZD}`
     );
 
-    try {
-      const prefs = await readActivityEmailPrefs();
-      previewActivityEmail({
-        kind: "trade-ledger",
-        to: user.email,
-        name: user.name,
-        prefs,
-        tradeLabel: input.type,
-        amountNzd: result.cashBalance,
-        when: input.trade_date || input.executed_at || new Date(),
+    void readActivityEmailPrefs()
+      .then((prefs) => {
+        previewActivityEmail({
+          kind: "trade-ledger",
+          to: user.email,
+          name: user.name,
+          prefs,
+          tradeLabel: input.type,
+          amountNzd: ledger.cashBalance,
+          when: input.trade_date || input.executed_at || new Date(),
+        });
+      })
+      .catch((mailErr) => {
+        console.error("[api/transactions] Trade email preview failed (non-fatal):", mailErr);
       });
-    } catch (mailErr) {
-      console.error("[api/transactions] Trade email preview failed (non-fatal):", mailErr);
-    }
 
     return NextResponse.json({
       ok: true,

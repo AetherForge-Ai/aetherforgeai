@@ -14,7 +14,7 @@ import { currencyForTicker, formatMoney, formatUnitPrice } from "@/lib/currency"
 import { sanitizeGuardedReport } from "@/lib/report-consistency";
 import { labelMemberReport } from "@/lib/report-language";
 import { moverSweepCaption } from "@/lib/mover-sweep";
-import { printUnderReviewLabel, PROJECTION_RANK_NOTE, projectionLeaderLine } from "@/lib/report-copy";
+import { memberUnderReviewLines, printUnderReviewLabel, PROJECTION_RANK_NOTE, projectionLeaderLine } from "@/lib/report-copy";
 import type {
   ApexReport,
   TickerAnalysis,
@@ -186,7 +186,7 @@ function MarketMoversSection({ report }: { report: ApexReport }) {
                 <div key={w.window} className="rounded-lg border border-border/50 bg-background/40 p-2">
                   <div className="mb-1 text-[11px] font-medium text-muted-foreground">{w.window}</div>
                   {w.reviewNote ? (
-                    <p className="mb-1 text-[10px] text-muted-foreground">{w.reviewNote}</p>
+                    <p className="mb-1 text-sm text-muted-foreground">{w.reviewNote}</p>
                   ) : null}
                   <ul className="space-y-0.5">
                     {w.movers.map((m, i) => (
@@ -199,7 +199,7 @@ function MarketMoversSection({ report }: { report: ApexReport }) {
                       </li>
                     ))}
                     {(w.underReview ?? []).map((row) => (
-                      <li key={row.ticker} className="text-[11px] text-muted-foreground">
+                      <li key={row.ticker} className="text-sm text-muted-foreground">
                         {printUnderReviewLabel(row.ticker)}
                       </li>
                     ))}
@@ -548,6 +548,7 @@ function BriefingSection({ report }: { report: ApexReport }) {
 export function ApexReportView({ report: source, scrubCopy = false }: { report: ApexReport; scrubCopy?: boolean }) {
   // Stored View, including recommendation rows, always re-applies the cash guard.
   const report = labelMemberReport(sanitizeGuardedReport(source));
+  const underReview = report.bot === "stock" ? memberUnderReviewLines(report) : [];
   return (
     <div className="min-w-0 max-w-full space-y-5 overflow-x-hidden">
       {/* Header */}
@@ -567,6 +568,17 @@ export function ApexReportView({ report: source, scrubCopy = false }: { report: 
           {report.generatedLabel}
         </Badge>
       </div>
+
+      {underReview.length ? (
+        <section className="rounded-xl border border-border/60 bg-card/40 p-4" aria-label="Under review">
+          <h2 className="text-sm font-semibold">Under review</h2>
+          {underReview.map((line) => (
+            <p key={line} className="mt-2 text-sm leading-relaxed text-muted-foreground">
+              {line}
+            </p>
+          ))}
+        </section>
+      ) : null}
 
       {/* Portfolio snapshot (live only) */}
       {report.portfolio && (

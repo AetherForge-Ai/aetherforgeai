@@ -121,6 +121,20 @@ export function ledgerDisplayedCash(row: {
   return displayedCashImpact(type, signed);
 }
 
+/** Cash the header and the ledger both show. It is the sum of the same rows. */
+export function cashFromLedgerRows(
+  rows: Array<{
+    type?: string | null;
+    total?: number | null;
+    cash_nzd?: number | null;
+    fees_nzd?: number | null;
+    quantity?: number | null;
+  }>
+): number {
+  const sum = rows.reduce((cash, row) => cash + ledgerDisplayedCash(row), 0);
+  return round2(sum);
+}
+
 export function ledgerSections(rows: LedgerRowLike[]): { dividends: LedgerRowLike[]; tax: LedgerRowLike[] } {
   return {
     dividends: rows.filter((r) => r.type === "dividend"),

@@ -29,8 +29,15 @@ describe("Track B P0", () => {
     const copy = read("src/lib/public-copy.ts");
     expect(copy).toContain("admin@aetherforgeai.co.nz");
     expect(copy).toContain("lukas@aetherforgeai.co.nz");
-    expect(read("src/app/terms-of-service/page.tsx")).toContain("PUBLIC_PHONE_DISPLAY");
-    expect(copy).toContain("0800 238 437");
+    expect(read("src/app/terms-of-service/page.tsx")).not.toContain("0800 238 437");
+    expect(read("src/app/terms-of-service/page.tsx")).not.toContain("PUBLIC_PHONE");
+    expect(copy).not.toContain("0800 238 437");
+    expect(copy).not.toContain("0800238437");
+    expect(read("src/components/SiteFooter.tsx")).not.toContain("0800 238 437");
+    expect(read("src/components/about/AboutContent.tsx")).not.toContain("0800 238 437");
+    expect(read("src/components/about/AboutContent.tsx")).not.toContain("0800238437");
+    expect(read("src/app/layout.tsx")).not.toContain("telephone");
+    expect(read("src/app/privacy-policy/page.tsx")).toContain("0800 803 909");
     expect(read("src/components/SiteFooter.tsx")).toContain('href: "/status"');
     expect(read("src/lib/public-copy.ts")).toContain("pull-check:track-b-p0-2026-10-11");
     expect(read("src/lib/company.ts")).toContain("pull-check:address-removed-2026-10-11");

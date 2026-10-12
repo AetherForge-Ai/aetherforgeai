@@ -59,7 +59,7 @@ export const TICKER_TAPE: { nzx: TapeSymbol[]; asx: TapeSymbol[]; crypto: TapeSy
 
 export interface TapeQuote {
   price: number;
-  /** Absent when the feed did not send a change. Those rows are omitted. */
+  /** Absent when the feed did not send a change. Equity rows are omitted. Crypto rows stay. */
   changePct?: number;
   provider?: string;
   /** Vendor quote time. The pipeline asOf is not copied here. */
@@ -70,7 +70,8 @@ export interface TapeRow {
   symbol: string;
   name: string;
   price: number;
-  change: number;
+  /** Null when the snapshot priced the coin and did not send a move. The tape shows an em dash. */
+  change: number | null;
   currency: string;
   provider: string;
   asOf: string;
@@ -106,21 +107,35 @@ export function equityTapeProvider(env?: {
   return "Yahoo Finance";
 }
 
+/** 24h move for the home tape. A snapshot change24h counts when moves.h24 was not stored. */
+export function snapshotTapeChange(coin: {
+  moves?: { h24?: number | null } | null;
+  change24h?: number | null;
+}): number | null {
+  const move = coin.moves?.h24;
+  if (typeof move === "number" && Number.isFinite(move)) return move;
+  if (typeof coin.change24h === "number" && Number.isFinite(coin.change24h)) return coin.change24h;
+  return null;
+}
+
 function takeLive(
   symbols: TapeSymbol[],
   quotes: Record<string, TapeQuote>,
   fallbackProvider: string,
-  asOf: string
+  asOf: string,
+  keepWithoutChange = false
 ): TapeRow[] {
   const rows: TapeRow[] = [];
   for (const symbol of symbols) {
     const hit = quotes[symbol.symbol.toUpperCase()];
     const price = hit?.price;
-    if (price == null || !Number.isFinite(price) || price <= 0) continue;
-    // A row without a finite change is omitted. Zero is a real unchanged print.
+    if (!hit || price == null || !Number.isFinite(price) || price <= 0) continue;
+    // Equities without a finite change are omitted. Zero is a real unchanged print.
+    // Crypto still shows a snapshot price, with an em dash when the move is absent.
     // pull-check:batch1-2026-10-11 B1-10
-    if (!hit || !Number.isFinite(hit.changePct)) continue;
-    const change = hit.changePct;
+    const hasChange = typeof hit.changePct === "number" && Number.isFinite(hit.changePct);
+    if (!hasChange && !keepWithoutChange) continue;
+    const change = hasChange ? hit.changePct : null;
     rows.push({
       symbol: symbol.symbol,
       name: symbol.name,
@@ -150,7 +165,7 @@ export function composeTickerTape(input: {
 }): TickerTapeFeed {
   const nzx = takeLive(TICKER_TAPE.nzx, input.equityQuotes, input.equityProvider, input.asOf);
   const asx = takeLive(TICKER_TAPE.asx, input.equityQuotes, input.equityProvider, input.asOf);
-  const crypto = takeLive(TICKER_TAPE.crypto, input.cryptoQuotes, input.cryptoProvider, input.asOf);
+  const crypto = takeLive(TICKER_TAPE.crypto, input.cryptoQuotes, input.cryptoProvider, input.asOf, true);
   const now = input.now ?? new Date();
   const equityRows = nzx.length + asx.length > 0;
   const equitiesLive =

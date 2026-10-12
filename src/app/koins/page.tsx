@@ -1,6 +1,9 @@
 import { BotGuide } from "@/components/public/BotGuide";
+import { KoinsSnapshotPrices } from "@/components/public/KoinsSnapshotPrices";
 import { BOT_GUIDES } from "@/lib/bot-guides";
 import { publicPageMetadata } from "@/lib/reviewed-book";
+
+export const dynamic = "force-dynamic";
 
 export const metadata = publicPageMetadata("/koins", {
   title: "Koins — AetherForge AI",
@@ -17,6 +20,7 @@ export default function KoinsPage() {
         { src: "/brand/bot-koins.png", alt: "Illustration of the Koins character" },
         { src: "/brand/bot-koins-fullbody.png", alt: "Full-length illustration of the Koins character" },
       ]}
+      extra={<KoinsSnapshotPrices />}
     />
   );
 }

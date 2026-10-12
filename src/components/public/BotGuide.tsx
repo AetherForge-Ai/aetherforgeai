@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -46,11 +47,13 @@ export function BotGuide({
   lede,
   body,
   images,
+  extra,
 }: {
   title: string;
   lede: string;
   body: string;
   images: { src: string; alt: string }[];
+  extra?: ReactNode;
 }) {
   return (
     <div className="relative min-h-screen bg-grid">
@@ -71,6 +74,7 @@ export function BotGuide({
               <p key={sentence.slice(0, 48)}>{sentence}</p>
             ))}
           </div>
+          {extra}
           <ExampleBook />
           <p className="mt-8 text-sm">
             <Link href="/how-it-works" className="font-semibold text-primary underline-offset-2 hover:underline">

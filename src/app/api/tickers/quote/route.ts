@@ -12,6 +12,7 @@ import { sourceLabel } from "@/lib/crypto-price-chain";
 import { coverMissingCrypto } from "@/lib/crypto-price-feed";
 import { gatePublicPrint } from "@/lib/swyftx-display";
 import { formatDisplayDateTime } from "@/lib/currency";
+import { chainForTicker } from "@/lib/crypto-board";
 
 export const dynamic = "force-dynamic";
 
@@ -56,10 +57,16 @@ export async function GET(req: Request) {
       const address = (searchParams.get("address") || "").trim();
       let price: number | null = null;
       let snapshotPrice: number | null = null;
+      let snapshotQuotedAt: string | null = null;
+      let pricedFromSnapshot = false;
       try {
         const { priceFromSnapshot, liveDexTokenPrice } = await import("@/lib/crypto-board-store");
         const snap = await priceFromSnapshot({ symbol, coinId, address });
-        if (snap && snap.price > 0) snapshotPrice = snap.price;
+        if (snap && snap.price > 0) {
+          snapshotPrice = snap.price;
+          snapshotQuotedAt = snap.quotedAt;
+          pricedFromSnapshot = true;
+        }
         if (!(snapshotPrice != null && snapshotPrice > 0) && network && address) {
           snapshotPrice = await liveDexTokenPrice(network, address);
         }
@@ -114,6 +121,10 @@ export async function GET(req: Request) {
       let label: string | null = null;
       let source: string | null = null;
       let quotedAt: string | null = null;
+      if (pricedFromSnapshot && kept != null && kept > 0) {
+        source = "snapshot";
+        quotedAt = snapshotQuotedAt;
+      }
       if (!(kept != null && kept > 0)) {
         const covered = gatePublicPrint(await coverMissingCrypto(symbol, market === "dex"));
         if (covered && covered.price > 0) {
@@ -138,6 +149,7 @@ export async function GET(req: Request) {
           stale,
           source,
           quotedAt,
+          chain: chainForTicker(symbol) || null,
           label,
         },
       });

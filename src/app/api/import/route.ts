@@ -152,6 +152,17 @@ export async function POST(req: Request) {
     const acknowledgeSkipped = body.acknowledgeSkipped === true;
     const fundBuys = body.fundBuys === true;
     const openingCashNzd = typeof user.cash_balance === "number" ? user.cash_balance : 0;
+    if (body.confirm !== true) {
+      const draft = planBrokerImport(text, { mapping, openingCashNzd, fundBuys });
+      if (draft.needsMapping) {
+        return NextResponse.json({
+          ok: true,
+          needsMapping: true,
+          error: draft.error,
+          data: { ...publicPlan(draft), fifoNote: null },
+        });
+      }
+    }
     const stored = await bookRows(user._id);
     const preview = await planWithReviewedFx(text, {
       mapping,

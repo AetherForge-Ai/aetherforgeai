@@ -46,6 +46,8 @@ export function PublicMarketTables({ index }: { index: PublicMarketIndex }) {
                   <th className="py-2 pr-3">Name</th>
                   <th className="py-2 pr-3">Price</th>
                   <th className="py-2 pr-3">Change</th>
+                  {cryptoTab ? <th className="py-2 pr-3">{tab.id === "DEX" ? "Chain" : "Blockchain"}</th> : null}
+                  {tab.id === "DEX" ? <th className="py-2 pr-3">DEX</th> : null}
                   <th className="py-2">Source</th>
                 </tr>
               </thead>
@@ -60,6 +62,8 @@ export function PublicMarketTables({ index }: { index: PublicMarketIndex }) {
                     <td className="py-1.5 pr-3">{row.name}</td>
                     <td className="py-1.5 pr-3 tnum">{row.price || "Not in this response"}</td>
                     <td className="py-1.5 pr-3 tnum">{row.change || "change not stated"}</td>
+                    {cryptoTab ? <td className="py-1.5 pr-3">{row.blockchain || "—"}</td> : null}
+                    {tab.id === "DEX" ? <td className="py-1.5 pr-3">{row.dex || "—"}</td> : null}
                     <td className="py-1.5 text-muted-foreground">
                       {row.source ? `${row.source}${row.asOf ? ` · ${row.asOf}` : ""}` : row.asOf || "Not in this response"}
                     </td>

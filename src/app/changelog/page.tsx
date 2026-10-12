@@ -8,6 +8,11 @@ export const metadata = publicPageMetadata("/changelog", {
 
 export const CHANGELOG_ENTRIES = [
   {
+    href: "/markets",
+    title: "12 Oct 2026 — Research retest",
+    body: "The freephone number is no longer shown. The home ticker reads the shared crypto snapshot. Market cap, volume and the related figures come from the keyless price list when the saved row does not have them. A missing figure is an em dash. Coin pages use the snapshot for supply and for the 1-hour, 7-day and 30-day moves. A missing live price is written as live=n/a. Sharesies files are recognised when the headers vary. A generic CSV opens the column map. The currency effect uses the foreign value of each lot. The ledger can show every row. Koins shows snapshot prices. A Stox report names a print under review and keeps a rating reason. The plain-English note is written by AI. Crypto, DEX, the ticker and Koins read one saved list, including chain and the names Render and dYdX. A DEX list older than about 10 minutes refreshes inside the request. Cash in the header follows the ledger after a buy. A buy audit includes chain= and pxat=, and live= only from a server snapshot price. The ledger count matches the CSV.",
+  },
+  {
     href: "/import",
     title: "12 Oct 2026 — Batch 2 retest fixes",
     body: "Sharesies company names map only when one listing matches. A foreign trade with no rate in the file uses the reviewed rate for that trade date. A readable CSV opens the column map. Return uses a stored mark, with its source and as-of, when the holding has one. /dividends opens the dividend ledger. The tax overview labels net cash and gross, and it is not an accountant sign-off. A CSV export of your transactions is on Starter and above. Report holdings counts follow the book. The return split adds up to the P/L figure.",

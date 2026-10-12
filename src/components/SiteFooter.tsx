@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { CookieSettingsLink } from "@/components/CookieSettingsLink";
 import { LEGAL_ENTITY_NAME, NZBN } from "@/lib/company";
-import { CUSTOMER_EMAIL, PRIVACY_OFFICER_EMAIL, PUBLIC_PHONE_DISPLAY, PUBLIC_PHONE_TEL } from "@/lib/public-copy";
+import { CUSTOMER_EMAIL, PRIVACY_OFFICER_EMAIL } from "@/lib/public-copy";
 import { EmailAddress } from "@/components/EmailAddress";
 
 const LINKS = [
@@ -35,10 +35,6 @@ export function SiteFooter() {
           <EmailAddress email={CUSTOMER_EMAIL} />
           {" · "}
           <EmailAddress email={PRIVACY_OFFICER_EMAIL} />
-          {" · "}
-          <a href={`tel:${PUBLIC_PHONE_TEL}`} className="hover:text-foreground">
-            {PUBLIC_PHONE_DISPLAY}
-          </a>
         </p>
         <p className="text-xs leading-relaxed text-muted-foreground">
           © {year} {LEGAL_ENTITY_NAME}. For informational purposes only. Not licensed financial advice

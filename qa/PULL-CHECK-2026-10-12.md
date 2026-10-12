@@ -579,3 +579,29 @@ The live retest ran on a build older than develop. Develop already had Tier 1A #
 12. After a save, the import form resets and the button leaves the saving state. A request that does not answer within 30 seconds shows an error and stops waiting.
 
 Verify: `npx vitest run src/lib/retest8.test.ts src/lib/broker-import.test.ts src/lib/performance-math.test.ts src/lib/returns-split.test.ts src/lib/batch2-fixes.test.ts`.
+
+## Research retest 9
+
+`pull-check:v3-retest9-2026-10-12`
+
+Build `v3-retest9-2026-10-12` on develop `b4d0007`. Public copy says AI. Nothing here Publishes, sends email, or adds GST. Crypto projections stay paused. No new database columns.
+
+1. The freephone `0800 238 437` is removed from the footer, contact, About, Terms and schema. The Privacy Commissioner number on the privacy policy stays.
+2. The home ticker crypto band reads the shared snapshot, including a price whose 24-hour move was stored as `change24h`.
+3. `/api/crypto` and `/api/crypto/markets` fill empty market cap, FDV, volume, 1-hour change, high, low, supply and ATH from CoinGecko markets and CoinPaprika tickers. A missing figure is null, which the screen shows as an em dash. A real zero is not written for those size fields.
+4. BTC and ETH detail pages overlay the snapshot, including 7-day change and max supply.
+5. A missing live price is the phrase `live: n/a` on the audit note, the audit log, the buy dialog and a ledger row.
+6. Sharesies detection normalises a BOM, quotes, case and spaces, and accepts Trade date, Instrument code, Market code, Transaction type, Transaction fee and Order ID.
+7. A preview with `needsMapping` returns before the ledger read, and the column map renders.
+8. Currency effect for a lot with a stored buy rate is (FX at valuation − FX at buy) × foreign value. Other is rounding.
+9. The ledger pages five rows at a time and has Show all.
+10. The Koins page reads snapshot prices. Stox reports and the Stox page show the under-review notice and the MAH.AX reason `rating TRIM: momentum negative`.
+
+Testing Technician retest of the same build, on this branch:
+
+11. Public HTML, the hydrated page, the signed-in list, the ticker and Koins read one snapshot. The largest saved list is kept. Blockchain is filled for the top coins, including USDT, WBTC and STETH on Ethereum, HYPE on Hyperliquid and ZEC on Zcash. RENDER is Render and DYDX is dYdX.
+12. A DEX snapshot older than about 10 minutes refreshes inside the request, bounded, so the delayed line can clear.
+13. Confirm overlaps the movement check, the book read and the cash write with the ledger row. The header cash snaps to the ledger sum and ignores a read that does not yet contain the new row.
+14. A buy audit includes `chain=` and `pxat=`. `live=` uses the snapshot price when the form says the price came from the snapshot. A buy with no snapshot origin still says `live: n/a`.
+15. List routes serve the saved snapshot and do not seed when one exists. The dashboard loads the transaction book beside names and live marks.
+16. The ledger label and the CSV use the same 5000-row query. The page shows a range, or every row.

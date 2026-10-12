@@ -144,8 +144,8 @@ function blankCoin(partial: Partial<CoinMarket> & Pick<CoinMarket, "id" | "symbo
     circulatingSupply: partial.circulatingSupply ?? null,
     totalSupply: partial.totalSupply ?? null,
     maxSupply: partial.maxSupply ?? null,
-    ath: null,
-    athDate: null,
+    ath: partial.ath ?? null,
+    athDate: partial.athDate ?? null,
     atl: null,
     atlDate: null,
     sparkline7d: [],
@@ -306,6 +306,8 @@ export function coinsFromCoinGeckoMarkets(body: unknown): CoinMarket[] {
         circulatingSupply: num(row.circulating_supply),
         totalSupply: num(row.total_supply),
         maxSupply: num(row.max_supply),
+        ath: num(row.ath),
+        athDate: typeof row.ath_date === "string" ? row.ath_date : null,
         blockchain: snapshotBlockchain(id, null, typeof row.asset_platform_id === "string" ? row.asset_platform_id : null),
         quotedAt: typeof row.last_updated === "string" ? row.last_updated : null,
         source: "coingecko",
@@ -345,6 +347,11 @@ export function coinsFromCoinPaprika(body: unknown): CoinMarket[] {
         change1h: num(usd?.percent_change_1h),
         change24h: change24h ?? 0,
         change7d: change7d ?? 0,
+        circulatingSupply: num(row.circulating_supply),
+        totalSupply: num(row.total_supply),
+        maxSupply: num(row.max_supply),
+        ath: num(usd?.ath_price),
+        athDate: typeof usd?.ath_date === "string" ? usd.ath_date : null,
         quotedAt: typeof row.last_updated === "string" ? row.last_updated : null,
         source: "coinpaprika",
         moves: { h24: change24h, d7: change7d, d30: change30d },
@@ -557,6 +564,38 @@ export async function loadKeylessCryptoMarkets(opts?: { budgetMs?: number }): Pr
     if (step === "done") break;
   }
   return mergeVerifiedSeedLists(lists);
+}
+
+let statDonorCache: { at: number; coins: CoinMarket[] } | null = null;
+const STAT_DONOR_TTL_MS = 5 * 60 * 1000;
+
+/** CoinGecko markets and CoinPaprika tickers, cached so a page read can fill empty stats. */
+export async function loadKeylessStatDonors(): Promise<CoinMarket[]> {
+  if (statDonorCache && Date.now() - statDonorCache.at < STAT_DONOR_TTL_MS) return statDonorCache.coins;
+  const lists: CoinMarket[][] = [];
+  await Promise.race([
+    Promise.all([
+      settle("coingecko-stats", fetchCoinGeckoLists(), [] as CoinMarket[]).then((rows) => {
+        if (rows.length) lists.push(rows);
+      }),
+      settle(
+        "coinpaprika-stats",
+        fetchSeed(PAPRIKA_TICKERS).then(async (res) => coinsFromCoinPaprika(await readJson(res))),
+        [] as CoinMarket[]
+      ).then((rows) => {
+        if (rows.length) lists.push(rows);
+      }),
+    ]),
+    sleep(6_500),
+  ]);
+  const coins = lists.flat();
+  if (coins.length) statDonorCache = { at: Date.now(), coins };
+  return coins;
+}
+
+/** Tests replace the donor cache along with the seed fetch. */
+export function resetStatDonorCache() {
+  statDonorCache = null;
 }
 
 async function fetchGeckoTerminalRows(): Promise<DexTokenRow[]> {

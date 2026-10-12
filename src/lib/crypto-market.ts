@@ -242,6 +242,178 @@ export interface CoinDetail {
   sourceLine?: string;
 }
 
+/** Size fields. Zero means the feed did not send a figure. A real change of 0% is not in this list. */
+export const MARKET_SIZE_FIELDS = [
+  "marketCap",
+  "fdv",
+  "volume24h",
+  "high24h",
+  "low24h",
+  "circulatingSupply",
+  "totalSupply",
+  "maxSupply",
+  "ath",
+] as const;
+
+export type MarketSizeField = (typeof MARKET_SIZE_FIELDS)[number];
+
+/** A positive figure. Zero and blanks are unavailable, so the cell is an em dash rather than 0. */
+export function positiveMarketStat(value: unknown): number | null {
+  const n = typeof value === "number" ? value : typeof value === "string" ? Number(value) : Number.NaN;
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function finiteChange(value: number | null | undefined): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+/** True when a saved row is still missing the figures CoinGecko or CoinPaprika can supply. */
+export function marketStatsMissing(coin: CoinMarket): boolean {
+  return (
+    positiveMarketStat(coin.marketCap) == null ||
+    positiveMarketStat(coin.volume24h) == null ||
+    coin.change1h == null ||
+    positiveMarketStat(coin.high24h) == null ||
+    positiveMarketStat(coin.low24h) == null ||
+    positiveMarketStat(coin.ath) == null
+  );
+}
+
+function preferChange(
+  current: number | null | undefined,
+  incoming: number | null | undefined,
+  zeroIsMissing: boolean
+): number | null {
+  const currentOk = finiteChange(current) != null && !(zeroIsMissing && current === 0);
+  if (currentOk) return current as number;
+  const next = finiteChange(incoming);
+  if (next == null || (zeroIsMissing && next === 0)) return finiteChange(current);
+  return next;
+}
+
+/** Copy cap, FDV, volume, range, supply and ATH from a donor when this row does not have them. */
+export function mergeCoinMarketStats(base: CoinMarket, donor: CoinMarket): CoinMarket {
+  const yahoo = (base.source || "").toLowerCase() === "yahoo";
+  const next: CoinMarket = { ...base, moves: base.moves ? { ...base.moves } : base.moves ?? null };
+  if (positiveMarketStat(next.marketCap) == null && positiveMarketStat(donor.marketCap) != null) next.marketCap = donor.marketCap;
+  if (positiveMarketStat(next.fdv) == null && positiveMarketStat(donor.fdv) != null) next.fdv = donor.fdv;
+  if (positiveMarketStat(next.volume24h) == null && positiveMarketStat(donor.volume24h) != null) next.volume24h = donor.volume24h;
+  if (positiveMarketStat(next.high24h) == null && positiveMarketStat(donor.high24h) != null) next.high24h = donor.high24h;
+  if (positiveMarketStat(next.low24h) == null && positiveMarketStat(donor.low24h) != null) next.low24h = donor.low24h;
+  if (positiveMarketStat(next.circulatingSupply) == null && positiveMarketStat(donor.circulatingSupply) != null) {
+    next.circulatingSupply = donor.circulatingSupply;
+  }
+  if (positiveMarketStat(next.totalSupply) == null && positiveMarketStat(donor.totalSupply) != null) next.totalSupply = donor.totalSupply;
+  if (positiveMarketStat(next.maxSupply) == null && positiveMarketStat(donor.maxSupply) != null) next.maxSupply = donor.maxSupply;
+  if (positiveMarketStat(next.ath) == null && positiveMarketStat(donor.ath) != null) next.ath = donor.ath;
+  if (!next.athDate && donor.athDate) next.athDate = donor.athDate;
+  next.change1h = preferChange(next.change1h, donor.change1h, false);
+  const day = preferChange(next.moves?.h24 ?? next.change24h, donor.moves?.h24 ?? donor.change24h, false);
+  const week = preferChange(next.moves?.d7 ?? next.change7d, donor.moves?.d7 ?? donor.change7d, yahoo);
+  const month = preferChange(next.moves?.d30, donor.moves?.d30, false);
+  if (day != null || week != null || month != null) {
+    next.moves = { h24: day, d7: week, d30: month };
+  }
+  if (week != null) next.change7d = week;
+  return next;
+}
+
+function donorRank(source: string | undefined): number {
+  const id = (source || "").toLowerCase();
+  if (id === "coingecko") return 0;
+  if (id === "coinpaprika") return 1;
+  return 5;
+}
+
+/** Fill empty stats from CoinGecko and CoinPaprika rows. A real price on the base row stays. */
+export function applyStatDonors(base: CoinMarket[], donors: CoinMarket[]): CoinMarket[] {
+  const grouped = new Map<string, CoinMarket[]>();
+  for (const donor of donors) {
+    const symbol = (donor.symbol || "").toUpperCase();
+    if (!symbol) continue;
+    const list = grouped.get(symbol) || [];
+    list.push(donor);
+    grouped.set(symbol, list);
+  }
+  return base.map((coin) => {
+    const matches = grouped.get(coin.symbol.toUpperCase()) || [];
+    const ordered = [...matches].sort((a, b) => donorRank(a.source) - donorRank(b.source));
+    return ordered.reduce((row, donor) => mergeCoinMarketStats(row, donor), coin);
+  });
+}
+
+/** Use snapshot moves and size fields when the detail call left them blank. */
+export function overlayCoinDetail(detail: CoinDetail, coin: CoinMarket | null | undefined): CoinDetail {
+  if (!coin) return detail;
+  const size = (current: number | null | undefined, incoming: number | null | undefined) =>
+    positiveMarketStat(current) ?? positiveMarketStat(incoming);
+  const change = (current: number | null | undefined, incoming: number | null | undefined) =>
+    finiteChange(current) ?? finiteChange(incoming);
+  return {
+    ...detail,
+    price: detail.price > 0 ? detail.price : coin.price,
+    marketCap: size(detail.marketCap, coin.marketCap),
+    fdv: size(detail.fdv, coin.fdv),
+    volume24h: size(detail.volume24h, coin.volume24h),
+    high24h: size(detail.high24h, coin.high24h),
+    low24h: size(detail.low24h, coin.low24h),
+    change1h: change(detail.change1h, coin.change1h),
+    change24h: change(detail.change24h, coin.moves?.h24 ?? coin.change24h),
+    change7d: change(detail.change7d, coin.moves?.d7 ?? coin.change7d),
+    change30d: change(detail.change30d, coin.moves?.d30),
+    circulatingSupply: size(detail.circulatingSupply, coin.circulatingSupply),
+    totalSupply: size(detail.totalSupply, coin.totalSupply),
+    maxSupply: size(detail.maxSupply, coin.maxSupply),
+    ath: size(detail.ath, coin.ath),
+    athDate: detail.athDate || coin.athDate || null,
+    rank: detail.rank ?? (Number.isFinite(coin.rank) && coin.rank < 999999 ? coin.rank : null),
+    image: detail.image || coin.image,
+    name: detail.name || coin.name,
+    symbol: detail.symbol || coin.symbol,
+  };
+}
+
+/** A detail page built only from the shared snapshot, when the live detail call did not answer. */
+export function detailFromMarket(coin: CoinMarket): CoinDetail {
+  return overlayCoinDetail(
+    {
+      id: coin.id,
+      symbol: coin.symbol,
+      name: coin.name,
+      image: coin.image,
+      rank: null,
+      price: 0,
+      marketCap: null,
+      fdv: null,
+      volume24h: null,
+      high24h: null,
+      low24h: null,
+      change1h: null,
+      change24h: null,
+      change7d: null,
+      change30d: null,
+      change1y: null,
+      circulatingSupply: null,
+      totalSupply: null,
+      maxSupply: null,
+      ath: null,
+      athDate: null,
+      athChangePct: null,
+      atl: null,
+      atlDate: null,
+      atlChangePct: null,
+      description: "",
+      categories: ["Cryptocurrency"],
+      homepage: null,
+      explorer: null,
+      twitter: null,
+      reddit: null,
+      github: null,
+    },
+    coin
+  );
+}
+
 export interface ChartPoint {
   t: number; // epoch ms
   price: number;

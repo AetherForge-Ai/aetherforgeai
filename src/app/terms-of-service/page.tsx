@@ -1,6 +1,6 @@
 import { LegalShell, LegalSection } from "@/components/legal/LegalShell";
 import { EmailAddress } from "@/components/EmailAddress";
-import { CUSTOMER_EMAIL, PRIVACY_OFFICER_EMAIL, PUBLIC_PHONE_DISPLAY, PUBLIC_PHONE_TEL } from "@/lib/public-copy";
+import { CUSTOMER_EMAIL, PRIVACY_OFFICER_EMAIL } from "@/lib/public-copy";
 import { LEGAL_ENTITY_NAME } from "@/lib/company";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { publicDataSourcesLine } from "@/lib/data-sources";
@@ -212,10 +212,6 @@ export default function TermsOfService() {
           <EmailAddress email={CUSTOMER_EMAIL} className="text-primary" />
           {" and "}
           <EmailAddress email={PRIVACY_OFFICER_EMAIL} className="text-primary" />
-          . Phone:{" "}
-          <a href={`tel:${PUBLIC_PHONE_TEL}`} className="text-primary hover:underline">
-            {PUBLIC_PHONE_DISPLAY}
-          </a>
           . You can also use the contact form on the{" "}
           <a href="/about#contact" className="text-primary hover:underline">
             About
