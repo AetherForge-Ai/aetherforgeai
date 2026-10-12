@@ -427,7 +427,27 @@ function unavailableAnalysis(ticker: string, name: string, price: number): Ticke
   };
 }
 
+function heldCryptoAnalysis(intel: SecurityIntel): TickerAnalysis {
+  const dayPublished = !!intel.publishedChanges?.includes("1d");
+  return {
+    ticker: intel.ticker,
+    name: intel.name,
+    price: intel.price,
+    changePct: dayPublished ? intel.change1d : 0,
+    changeWithheld: !dayPublished,
+    signal: "Watch",
+    sentiment: 0,
+    momentum: intel.price > 0 ? [{ label: "Now", value: intel.price }] : [],
+    momentum12moPct: 0,
+    shortTerm: [],
+    pathways: [],
+    note: `${intel.ticker} — ${NOT_ENOUGH_DAILY_HISTORY}. No 7-day projection is published.`,
+  };
+}
+
 function tickerFromIntel(intel: SecurityIntel, bot: BotKind): TickerAnalysis {
+  const cryptoCard = intel.forwardOmitted || bot === "crypto";
+  if (intelIsHeld(intel) && cryptoCard) return heldCryptoAnalysis(intel);
   if (intelIsHeld(intel)) return unavailableAnalysis(intel.ticker, intel.name, intel.price);
   const rated = labelIntel(intel);
   const aligned = alignedProjection(intel);
@@ -869,6 +889,19 @@ function buildDirectRecommendations(
         analyzeSecurity(h.ticker, h.price > 0 ? h.price : undefined, h.name, h.market)
     );
     if (intelIsHeld(intel)) {
+      const publishedTape =
+        intel.forwardOmitted || bot === "crypto"
+          ? [
+              intel.publishedChanges?.includes("1d")
+                ? `24h ${intel.change1d >= 0 ? "+" : ""}${intel.change1d.toFixed(2)}%`
+                : "",
+              intel.publishedChanges?.includes("7d")
+                ? `7d ${intel.change7d >= 0 ? "+" : ""}${intel.change7d.toFixed(2)}%`
+                : "",
+            ]
+              .filter(Boolean)
+              .join(" · ")
+          : "";
       return {
         ticker: h.ticker,
         name: h.name,
@@ -878,7 +911,9 @@ function buildDirectRecommendations(
         held: true,
         action: "HOLD" as const,
         urgency: "low" as const,
-        detail: `${h.ticker} — ${NOT_ENOUGH_DAILY_HISTORY}`,
+        detail: publishedTape
+          ? `${h.ticker} — ${publishedTape}. ${NOT_ENOUGH_DAILY_HISTORY}. No 7-day projection is published.`
+          : `${h.ticker} — ${NOT_ENOUGH_DAILY_HISTORY}`,
         analysisHold: NOT_ENOUGH_DAILY_HISTORY,
       };
     }

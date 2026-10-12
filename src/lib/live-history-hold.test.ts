@@ -131,6 +131,20 @@ describe("Koins publishes no forward outlook", () => {
     expect(row.outlook.base.probability).toBe(0);
     expect(row.outlook.bear.probability).toBe(0);
     expect(row.convictionReason).toBe("");
+    const report = buildLiveReport("crypto", [{ ticker: "ZZZ", name: "Zed", price: 2 }], {
+      universeIntel: [row],
+      holdingIntel: [row],
+    });
+    expect(report.tickers[0]?.changePct).toBe(1.25);
+    expect(report.tickers[0]?.changeWithheld).toBe(false);
+    expect(report.tickers[0]?.shortTerm).toEqual([]);
+    expect(report.tickers[0]?.pathways).toEqual([]);
+    expect(report.tickers[0]?.note).toContain(NOT_ENOUGH_DAILY_HISTORY);
+    expect(report.tickers[0]?.note).not.toMatch(/RSI|MACD/);
+    expect(report.directRecommendations[0]?.detail).toContain("+1.25%");
+    expect(report.directRecommendations[0]?.detail).toContain("+3.50%");
+    expect(report.directRecommendations[0]?.detail).not.toMatch(/RSI|MACD|\bodds\b|\bbull\b|\bbear\b/i);
+    expect(report.projectionLeaders).toEqual([]);
   });
 
   it("computes RSI from a stored sparkline and still omits the outlook", () => {
