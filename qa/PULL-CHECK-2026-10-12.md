@@ -134,7 +134,7 @@ Status: partial. Confirm no longer calls the live crypto quote or the DEX search
 
 This is not one SQL transaction. Totalum writes the holding, the cash balance, and the ledger row one call at a time, with the existing rollback if a later call fails. The FIFO lot read still queries up to 5,000 ledger rows and can dominate the wait. The idempotency map lives in one isolate, so two isolates can still each write once. The CSV export was not changed; its speed is the ledger read, and its columns are unchanged.
 
-Commit: `dbf4774`. Tests: `5d863ff`.
+Commit: `dbf4774`. Follow-up `b86b029` keeps `ratesForBooking(currency, input.fx_rate, fx.ratesToNZD)`. Tests: `5d863ff`. Pull-check: `946201d`.
 
 Files:
 
