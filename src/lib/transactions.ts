@@ -794,17 +794,17 @@ async function applyTransactionUnlocked(
 
   const currency = currencyForTicker(ticker, assetType);
   const fxStarted = Date.now();
-  const fx = await Promise.race([
+  const fxLive = await Promise.race([
     getFxSnapshot(),
     new Promise<null>((resolve) => setTimeout(() => resolve(null), 450)),
   ]);
-  const fxSnapshot = fx ?? {
+  const fx = fxLive ?? {
     ratesToNZD: { ...BASELINE_FX_TO_NZD },
     live: false,
     sourced: false,
     asOf: null,
   };
-  stepMs("fx-snapshot", fxStarted, fx ? "ready" : "bounded");
+  stepMs("fx-snapshot", fxStarted, fxLive ? "ready" : "bounded");
   const reviewedFx = Number(input.fx_rate);
   const fxHistoryStarted = Date.now();
   const historicalFx = reviewedFx > 0 ? null : await historicalNzdPerUnit(currency, tradeDay);
@@ -812,11 +812,11 @@ async function applyTransactionUnlocked(
   const fxCheck = reviewedFxAllowed({
     currency,
     reviewed: input.fx_rate,
-    snapshot: fxSnapshot.ratesToNZD[currency],
+    snapshot: fx.ratesToNZD[currency],
     historical: historicalFx,
   });
   if (fxCheck.ok === false) throw new Error(fxCheck.message);
-  const rates = ratesForBooking(currency, input.fx_rate, fxSnapshot.ratesToNZD);
+  const rates = ratesForBooking(currency, input.fx_rate, fx.ratesToNZD);
 
   const holding = await findHolding(user._id, ticker, assetType);
 
