@@ -63,6 +63,9 @@ export interface ReturnSplit {
   currencyEffectNzd: number;
   otherNzd: number;
   totalNzd: number;
+  /** Trade and ledger fees in NZ$, negative. Omitted by older callers. */
+  feesNzd?: number;
+  feesNote?: string;
   capitalNote: string;
   incomeNote: string;
   currencyNote: string;

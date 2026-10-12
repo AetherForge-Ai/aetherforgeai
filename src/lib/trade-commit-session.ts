@@ -21,7 +21,9 @@ export function isPortfolioSessionRead(url: string, method?: string): boolean {
     path === "/api/transactions" ||
     path.endsWith("/api/transactions") ||
     path === "/api/metals" ||
-    path.endsWith("/api/metals")
+    path.endsWith("/api/metals") ||
+    path === "/api/portfolio/snapshot" ||
+    path.endsWith("/api/portfolio/snapshot")
   );
 }
 
