@@ -44,7 +44,7 @@ export function publicCryptoSourcesLabel(): string {
 }
 
 function cryptoSourceNames(): string[] {
-  const names = [PUBLIC_CRYPTO_SOURCE, "CoinPaprika", "CoinCap", "Binance"];
+  const names = [PUBLIC_CRYPTO_SOURCE, "CoinCap", "Binance"];
   if (swyftxPublicDisplay()) names.push("Swyftx");
   names.push("Kraken", "Coinbase", PUBLIC_EQUITY_SOURCE);
   return names;

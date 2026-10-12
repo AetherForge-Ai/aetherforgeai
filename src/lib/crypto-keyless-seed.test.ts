@@ -243,7 +243,7 @@ describe("pull-check:v3-crypto-seed-2026-10-12", () => {
     expect(board.coins.length).toBeGreaterThanOrEqual(50);
     expect(board.coins.every((row) => row.price > 0)).toBe(true);
     expect(board.notice).toMatch(/Prices as at /);
-    expect(board.notice).toContain("Source: CoinPaprika.");
+    expect(board.notice).not.toContain("CoinPaprika");
     expect(board.at).toBeTruthy();
   });
 

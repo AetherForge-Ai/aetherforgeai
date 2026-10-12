@@ -1410,7 +1410,17 @@ export function buildPortfolioSnapshot(input: SnapshotInput): PortfolioSnapshot 
     capital:
       displayCapital == null
         ? emptyFigure("Capital is the price change on open lots and on lots already sold.", "A price or exchange rate is missing.", mathsSource, asOfLabel)
-        : figureFrom(displayCapital, "Capital is the price change on open lots, at the rate now, plus the price part of realised sales. Buy fees are in fees, not here.", [], formatNzd(displayCapital), mathsSource, asOfLabel),
+        : figureFrom(
+            displayCapital,
+            "Capital is the price change on open lots, at the rate now, plus the price part of realised sales. Buy fees are in fees, not here.",
+            [
+              "Each holding's gain on the stocks card is rounded to cents on its own line. This capital figure is rounded once for the whole book, so the two can differ by a few cents.",
+              "The stocks profit and loss card is shares only. This capital figure is the whole book, including crypto and metals.",
+            ],
+            formatNzd(displayCapital),
+            mathsSource,
+            asOfLabel
+          ),
     income: figureFrom(
       displayIncome,
       "Income is dividend gross minus withholding, in NZ$ at the payment-date rate. Interest recorded on the ledger is included. The total uses this net figure.",

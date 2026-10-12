@@ -92,7 +92,15 @@ import { MarketWidePerformers } from "@/components/dashboard/MarketWidePerformer
 import { CryptoMarketSection } from "@/components/dashboard/crypto/CryptoMarketSection";
 import { CryptoLiveStatus } from "@/components/dashboard/crypto/CryptoLiveStatus";
 import { applyLiveCryptoPrices } from "@/lib/crypto-live";
-import { applyBookedTradeToHoldings, type BookedTrade } from "@/lib/apply-booked-trade";
+import {
+  applyBookedTradeToHoldings,
+  bookedGuardAfterEvent,
+  isPendingBookedRow,
+  retainBookedHolding,
+  reviewBookedSnapshot,
+  type BookedGuard,
+  type BookedTrade,
+} from "@/lib/apply-booked-trade";
 import { beginHoldingsRequest, holdingsActionAfterDialogClose, holdingsGeneration, holdingsRequestIsCurrent, holdingsResponseIsStale } from "@/lib/holdings-generation";
 import { resumeCryptoLivePoll, useLiveCryptoQuotes } from "@/hooks/useLiveCryptoQuotes";
 import { useCryptoMarkets } from "@/hooks/useCryptoMarkets";
@@ -325,9 +333,10 @@ function openSnapshotPositions(snapshot: PortfolioSnapshot | null, id: SnapshotC
 function rowsFromSnapshot(
   positions: SnapshotPosition[],
   stocks: Stock[],
-  assetType: "stock" | "crypto" | "metal"
+  assetType: "stock" | "crypto" | "metal",
+  pending: BookedTrade | null = null
 ): HoldingMetrics[] {
-  return positions.map((position) => {
+  const rows = positions.map((position) => {
     const stock = stocks.find(
       (row) =>
         row.ticker.toUpperCase() === position.ticker.toUpperCase() &&
@@ -359,6 +368,44 @@ function rowsFromSnapshot(
       weight: position.weight.value != null ? position.weight.value * 100 : Number.NaN,
     };
   });
+  const seen = new Set(rows.map((row) => row.ticker.toUpperCase()));
+  const extras = pending
+    ? stocks.filter(
+        (stock) =>
+          (stock.asset_type || "stock") === assetType &&
+          isPendingBookedRow(stock, pending) &&
+          !seen.has(stock.ticker.toUpperCase())
+      )
+    : [];
+  for (const stock of extras) {
+    const price = Number(stock.current_price);
+    const paid = Number(stock.purchase_price);
+    const qty = Number(stock.shares);
+    const nativeValue = price > 0 ? qty * price : Number.NaN;
+    const nativeCost = paid > 0 ? qty * paid : Number.NaN;
+    const nativeGain = price > 0 && paid > 0 ? nativeValue - nativeCost : Number.NaN;
+    rows.push({
+      _id: stock._id,
+      ticker: stock.ticker,
+      asset_type: assetType,
+      company_name: stock.company_name,
+      sector: stock.sector,
+      shares: qty,
+      purchase_price: paid,
+      current_price: price,
+      purchase_date: stock.purchase_date || null,
+      venue: stock.venue,
+      chain: stock.chain,
+      currency: currencyForTicker(stock.ticker, assetType),
+      costBasis: nativeCost,
+      marketValue: nativeValue,
+      gain: nativeGain,
+      gainPct: nativeCost > 0 && Number.isFinite(nativeGain) ? (nativeGain / nativeCost) * 100 : Number.NaN,
+      baseValue: Number.NaN,
+      weight: Number.NaN,
+    });
+  }
+  return rows;
 }
 
 function MiniMetric({
@@ -654,7 +701,16 @@ export function PortfolioDashboard({
   // Tickers counted against the limit for the current bot/scope.
   const monitoredForLimit = scope === "total" ? holdingCounts.total : stocks.length;
 
-  const loadStocks = useCallback(async () => {
+  const bookedGuardRef = useRef<BookedGuard | null>(null);
+  const [bookedGuard, setBookedGuardState] = useState<BookedGuard | null>(null);
+  const setBookedGuard = useCallback((next: BookedGuard | null) => {
+    bookedGuardRef.current = next;
+    setBookedGuardState(next);
+  }, []);
+  useEffect(() => {
+    setBookedGuard(bookedGuardAfterEvent(bookedGuardRef.current, { type: "account" }));
+  }, [userId, setBookedGuard]);
+  const loadStocks = useCallback(async (opts?: { fresh?: boolean }) => {
     const capturedGen = holdingsGeneration();
     const requestSeq = beginHoldingsRequest();
     // Never re-arm `loading` after the initial hydrate. Flipping it true again
@@ -663,7 +719,8 @@ export function PortfolioDashboard({
     // existing-holdings path. Initial useState(!preview) already gates first paint.
     const tracked = trackAccountRequest();
     try {
-      const res = await api.get<Stock[]>(`/api/stocks`, { signal: tracked.signal });
+      const path = opts?.fresh ? "/api/stocks?fresh=1" : "/api/stocks";
+      const res = await api.get<Stock[]>(path, { signal: tracked.signal });
       if (res.aborted || tracked.epoch !== getAccountEpoch()) return;
       const echoed = responseUserId(res);
       if (res.status === 409 || res.error === "account-mismatch") {
@@ -711,7 +768,7 @@ export function PortfolioDashboard({
           console.log("[dashboard] Holdings hydrate deferred — Transaction dialog open");
         } else {
           deferredHoldingsRef.current = null;
-          setAllStocks(res.data);
+          setAllStocks((rows) => retainBookedHolding(rows, res.data || [], bookedGuardRef.current?.trade));
           holdingsHydratedRef.current = true;
           setLoading(false);
         }
@@ -907,6 +964,7 @@ export function PortfolioDashboard({
   const loadPortfolioSnapshot = useCallback(
     async (opts?: { force?: boolean }) => {
       if (preview) return;
+      const capturedGen = holdingsGeneration();
       const tracked = trackAccountRequest();
       try {
         const path = opts?.force ? "/api/portfolio/snapshot?fresh=1" : "/api/portfolio/snapshot";
@@ -929,6 +987,19 @@ export function PortfolioDashboard({
           setSnapshotReady(true);
           return;
         }
+        if (holdingsResponseIsStale(capturedGen)) {
+          console.log("[dashboard] Ignoring portfolio snapshot captured before a trade");
+          setSnapshotReady(true);
+          return;
+        }
+        const positions = (snapshot.groups || []).flatMap((group) => group.positions || []);
+        const decision = reviewBookedSnapshot(bookedGuardRef.current, positions, Date.now());
+        setBookedGuard(decision.guard);
+        if (!decision.apply) {
+          console.log("[dashboard] Snapshot omitted the coin just booked — keeping the on-screen book");
+          setSnapshotReady(true);
+          return;
+        }
         writePortfolioSnapshotCache(tracked.userId, snapshot);
         setBookSnapshot(snapshot);
         setSnapshotError(null);
@@ -941,7 +1012,7 @@ export function PortfolioDashboard({
         tracked.release();
       }
     },
-    [preview, userId]
+    [preview, setBookedGuard, userId]
   );
 
   useEffect(() => {
@@ -1098,6 +1169,7 @@ export function PortfolioDashboard({
       // Cash and the holding quantity land together from this response.
       // A later /api/stocks read can replace marks. It must not paint one side first.
       if (updated?.lastTransaction) {
+        setBookedGuard(bookedGuardAfterEvent(bookedGuardRef.current, updated.lastTransaction));
         const pending = deferredHoldingsRef.current;
         if (pending && pending.generation !== holdingsGeneration()) {
           deferredHoldingsRef.current = null;
@@ -1107,11 +1179,11 @@ export function PortfolioDashboard({
         setLoading(false);
       }
       clearPortfolioSnapshotCache(userId);
-      void Promise.all([loadStocks(), loadCash(), loadMetals(), loadPortfolioSnapshot({ force: true })]).finally(() =>
+      void Promise.all([loadStocks({ fresh: true }), loadCash(), loadMetals(), loadPortfolioSnapshot({ force: true })]).finally(() =>
         setHeaderFrozen(false)
       );
     },
-    [applyKnownCash, loadStocks, loadCash, loadMetals, loadPortfolioSnapshot, userId]
+    [applyKnownCash, loadStocks, loadCash, loadMetals, loadPortfolioSnapshot, setBookedGuard, userId]
   );
 
   useEffect(() => {
@@ -1255,12 +1327,18 @@ export function PortfolioDashboard({
     [tableStocks, baseCurrency, fxToNZD]
   );
   const snapshotShareRows = useMemo(
-    () => (preview || !bookSnapshot ? null : rowsFromSnapshot(openSnapshotPositions(bookSnapshot, "shares"), allStocks, "stock")),
-    [preview, bookSnapshot, allStocks]
+    () =>
+      preview || !bookSnapshot
+        ? null
+        : rowsFromSnapshot(openSnapshotPositions(bookSnapshot, "shares"), allStocks, "stock", bookedGuard?.trade ?? null),
+    [preview, bookSnapshot, allStocks, bookedGuard]
   );
   const snapshotCryptoRows = useMemo(
-    () => (preview || !bookSnapshot ? null : rowsFromSnapshot(openSnapshotPositions(bookSnapshot, "crypto"), allStocks, "crypto")),
-    [preview, bookSnapshot, allStocks]
+    () =>
+      preview || !bookSnapshot
+        ? null
+        : rowsFromSnapshot(openSnapshotPositions(bookSnapshot, "crypto"), allStocks, "crypto", bookedGuard?.trade ?? null),
+    [preview, bookSnapshot, allStocks, bookedGuard]
   );
   const tableHoldings = snapshotShareRows ?? tableSummary.holdings;
 
@@ -1711,6 +1789,7 @@ export function PortfolioDashboard({
     if (res.ok) {
       toast.success(`${deleteTarget.ticker} removed`);
       setDeleteTarget(null);
+      setBookedGuard(bookedGuardAfterEvent(bookedGuardRef.current, { type: "delete" }));
       handleDataChanged();
     } else {
       console.error("[dashboard] Delete failed:", res.error);
@@ -1927,6 +2006,11 @@ export function PortfolioDashboard({
         recentLedger={recentLedger}
         balancesLoading={!balancesReady}
         ledgerLoading={!preview && !ledgerLoaded}
+        ledgerCash={
+          preview
+            ? cashBalance
+            : (bookSnapshot?.kpis.cash.value ?? (cashLoaded ? cashBalance : null))
+        }
         metalsSpotLive={metalsSpotLive}
         metalsQuotedAt={publicSpot?.quotedAt ?? null}
         cashReason={cashReason}
