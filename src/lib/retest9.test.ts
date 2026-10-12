@@ -21,6 +21,7 @@ function coin(partial: Partial<CoinMarket> & Pick<CoinMarket, "symbol" | "price"
   return {
     id: partial.id || partial.symbol.toLowerCase(),
     symbol: partial.symbol,
+    price: partial.price,
     name: partial.name || partial.symbol,
     image: "",
     rank: partial.rank ?? 1,
@@ -257,7 +258,7 @@ describe("pull-check:v3-retest9-2026-10-12", () => {
   it("opens the column map whenever needsMapping is set", () => {
     const generic = planBrokerImport("Booked,What,Instrument,Units,Unit,Money\n2026-04-02,buy,WBC.AX,5,30.00,150.00");
     expect(generic.needsMapping).toBe(true);
-    expect(generic.broker).toBe("generic");
+    expect(generic.broker).toBeNull();
     expect(readImportPreview({ ok: true, needsMapping: true, data: { needsMapping: true, headers: generic.headers } })).toEqual({
       needsMapping: true,
       headers: generic.headers,

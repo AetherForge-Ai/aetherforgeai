@@ -403,7 +403,7 @@ export function planBrokerImport(
   const required = [columns.date, columns.ticker, columns.side, columns.quantity, columns.price];
   if (required.some((at) => at < 0)) {
     const plan = emptyPlan(null, headerCells);
-    plan.broker = broker || "generic";
+    plan.broker = broker;
     plan.needsMapping = true;
     plan.error = "Choose the date, ticker, side, quantity and price columns. Nothing was written.";
     return plan;

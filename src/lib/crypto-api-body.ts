@@ -13,7 +13,7 @@ export const LIVE_DEX_UNAVAILABLE = "Live decentralized-token prices are unavail
  * The cell is an em dash, not 0. A real 0% change is left as 0.
  */
 export function presentMarketCoin<T extends object>(coin: T): T {
-  const next = { ...coin } as T & Record<string, unknown>;
+  const next: Record<string, unknown> = { ...(coin as Record<string, unknown>) };
   for (const key of MARKET_SIZE_FIELDS) {
     if (key in next) next[key] = positiveMarketStat(next[key]);
   }

@@ -649,6 +649,7 @@ export function TransactionCenter({
             </p>
           </div>
         ) : (
+          <>
           <div className="overflow-x-auto rounded-2xl border border-border/50">
             <table className="w-full text-sm">
               <thead>
@@ -786,6 +787,7 @@ export function TransactionCenter({
               </div>
             </div>
           ) : null}
+          </>
         )}
         <p className="mt-3 px-1 text-[11px] text-muted-foreground">
           Every transaction is recorded with fees and automatically adjusts your cash balance. Sells book realised
