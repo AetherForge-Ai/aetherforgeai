@@ -1,5 +1,7 @@
 # Pull check — 10 Oct 2026
 
+Superseded for the 12 Oct 2026 check by qa/PULL-CHECK-2026-10-12.md. This file stays so the earlier markers remain.
+
 Retest after Lukas Publishes. This one file covers both batches. It does not Publish, send email, or remove a Stox, Koins, or Headmaster list. No credentials are in this file.
 
 Markers:
