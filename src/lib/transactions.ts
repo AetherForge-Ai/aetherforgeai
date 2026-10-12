@@ -134,6 +134,11 @@ export interface TransactionInput {
   quote_origin?: "snapshot";
   /** One Review. Not stored as its own column. Stamped into notes. */
   idempotency_key?: string;
+  /**
+   * Import confirm only. The ledger row is saved and cash is left for the caller,
+   * so the cash write can follow the row and roll back by id.
+   */
+  deferCash?: boolean;
 }
 
 export interface TransactionResult {
@@ -141,6 +146,11 @@ export interface TransactionResult {
   cashBalance: number; // NZD after the movement
   realizedNZD: number; // realized P&L booked by this movement (sells only)
   holdingId?: string | null; // affected holding (null if fully closed)
+  /** Set when deferCash left the cash write to the caller. */
+  ledgerId?: string;
+  pendingCash?: number;
+  previousCash?: number;
+  restoreHolding?: () => Promise<void>;
 }
 
 /**
@@ -636,9 +646,7 @@ async function applyTransactionUnlocked(
               : "Tax");
 
     console.log(`[transactions] ${input.type} ${amount} NZD for user ${user._id} → cash ${newCash}`);
-    await totalumSdk.crud.editRecordById("user", user._id, { cash_balance: newCash });
-
-    const rec = await totalumSdk.crud.createRecord("transaction", {
+    const cashRecord = {
       type: input.type,
       ticker: input.ticker ? String(input.ticker).toUpperCase() : undefined,
       asset_type: input.type === "dividend" && input.ticker ? input.asset_type || "stock" : "cash",
@@ -654,7 +662,23 @@ async function applyTransactionUnlocked(
       notes: dividendParts ? withDividendNotes(notes, dividendParts) : notes,
       executed_at: executedStored,
       user: user._id,
-    });
+    };
+    if (input.deferCash) {
+      const rec = await totalumSdk.crud.createRecord("transaction", cashRecord);
+      const ledgerId = (rec?.data as { _id?: string } | undefined)?._id;
+      if (!ledgerId) throw new Error("The cash row was not saved");
+      return {
+        transaction: rec?.data,
+        cashBalance: currentCash,
+        pendingCash: newCash,
+        previousCash: currentCash,
+        realizedNZD: 0,
+        holdingId: null,
+        ledgerId,
+      };
+    }
+    await totalumSdk.crud.editRecordById("user", user._id, { cash_balance: newCash });
+    const rec = await totalumSdk.crud.createRecord("transaction", cashRecord);
     return { transaction: rec?.data, cashBalance: newCash, realizedNZD: 0, holdingId: null };
   }
 
@@ -916,7 +940,8 @@ async function applyTransactionUnlocked(
   // ---- BUY ----
   if (input.type === "buy") {
     // Accidental double-submit guard: identical buy within 45s returns the prior row.
-    try {
+    // An import uses the file hash instead, and must not skip the cash step.
+    if (!input.deferCash) try {
       const now = Date.now();
       const dup = ((recentBuys?.data as any[]) || []).find((t) => {
         const at = new Date(t.executed_at || t.created_at || 0).getTime();
@@ -1079,6 +1104,39 @@ async function applyTransactionUnlocked(
     });
     ledgerId = (rec?.data as { _id?: string } | undefined)?._id;
     if (!ledgerId) throw new Error("Buy was not saved");
+    const restoreHolding = async () => {
+      if (holdingId && createdNew) {
+        await totalumSdk.crud.deleteRecordById("stock", holdingId).catch(() => undefined);
+      } else if (holdingId) {
+        await totalumSdk.crud
+          .editRecordById("stock", holdingId, { shares: previousShares, purchase_price: previousAvg })
+          .catch(() => undefined);
+      }
+    };
+    if (input.deferCash) {
+      if (holdingId) {
+        let actual = await readHoldingShares(holdingId);
+        if (!qtyMatches(actual, expectedShares)) {
+          await totalumSdk.crud.editRecordById("stock", holdingId, { shares: expectedShares });
+          actual = await readHoldingShares(holdingId);
+        }
+        if (!qtyMatches(actual, expectedShares)) {
+          throw new Error(
+            `Buy of ${ticker} was not saved — the holding quantity did not match the ledger, so nothing was committed.`
+          );
+        }
+      }
+      return {
+        transaction: rec?.data,
+        cashBalance: currentCash,
+        pendingCash: newCash,
+        previousCash: currentCash,
+        realizedNZD: 0,
+        holdingId,
+        ledgerId,
+        restoreHolding,
+      };
+    }
     const shareRead = holdingId ? readHoldingShares(holdingId) : Promise.resolve(null);
     const [, actualFirst] = await Promise.all([
       totalumSdk.crud.editRecordById("user", user._id, { cash_balance: newCash }),
@@ -1260,6 +1318,50 @@ async function applyTransactionUnlocked(
   });
   ledgerId = (rec?.data as { _id?: string } | undefined)?._id;
   if (!ledgerId) throw new Error("Sell was not saved");
+  const restoreHolding = async () => {
+    if (closed) {
+      await totalumSdk.crud
+        .createRecord("stock", {
+          ticker: holding.ticker,
+          asset_type: holding.asset_type || assetType,
+          company_name: holding.company_name,
+          sector: stamp.sector || holding.sector,
+          shares: round(heldShares, 6),
+          purchase_price: roundUnitPrice(avgCost),
+          current_price: holding.current_price,
+          user: user._id,
+        })
+        .catch(() => undefined);
+    } else {
+      await totalumSdk.crud
+        .editRecordById("stock", holding._id, { shares: round(heldShares, 6), purchase_price: roundUnitPrice(avgCost) })
+        .catch(() => undefined);
+    }
+  };
+  if (input.deferCash) {
+    if (!closed) {
+      let actual = await readHoldingShares(holding._id);
+      if (!qtyMatches(actual, expectedRemaining)) {
+        await totalumSdk.crud.editRecordById("stock", holding._id, { shares: expectedRemaining });
+        actual = await readHoldingShares(holding._id);
+      }
+      if (!qtyMatches(actual, expectedRemaining)) {
+        throw new Error(
+          `Sell of ${ticker} was not saved — the holding quantity did not match the ledger, so nothing was committed.`
+        );
+      }
+    }
+    return {
+      transaction: rec?.data,
+      cashBalance: currentCash,
+      pendingCash: newCash,
+      previousCash: currentCash,
+      realizedNZD: realizedBooked,
+      holdingId,
+      ledgerId,
+      restoreHolding,
+    };
+  }
   const shareRead = closed ? Promise.resolve(expectedRemaining) : readHoldingShares(holding._id);
   const [, actualFirst] = await Promise.all([
     totalumSdk.crud.editRecordById("user", user._id, { cash_balance: newCash }),

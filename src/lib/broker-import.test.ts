@@ -122,23 +122,25 @@ describe("B2-1 broker import", () => {
     }
   });
 
-  it("keeps two identical same-day fills and drops only covered occurrences", () => {
+  it("skips a repeated fill in the same file, and skips every row whose hash is already stored", () => {
     const text = [
       "Date,Type,Instrument code,Quantity,Price,Value,Currency",
       "15/01/2026,Buy,AIR.NZ,100,0.65,65.00,NZD",
       "15/01/2026,Buy,AIR.NZ,100,0.65,65.00,NZD",
     ].join("\n");
     const both = planBrokerImport(text, { openingCashNzd: 1000 });
-    expect(both.duplicates).toHaveLength(0);
-    expect(both.toWrite).toHaveLength(2);
-    expect(both.importedTotals).toEqual({ NZD: 130 });
+    expect(both.duplicates).toHaveLength(1);
+    expect(both.toWrite).toHaveLength(1);
+    expect(both.importedTotals).toEqual({ NZD: 65 });
+    expect(both.sourceTotals).toEqual({ NZD: 130 });
     expect(both.fundingDeposits).toHaveLength(0);
+    expect(both.totalsMessage).toMatch(/duplicate/);
 
     const key = importDuplicateKey(both.rows[0]);
     const oneStored = planBrokerImport(text, { openingCashNzd: 1000, existingKeys: [key] });
-    expect(oneStored.duplicates).toHaveLength(1);
-    expect(oneStored.toWrite).toHaveLength(1);
-    expect(oneStored.importedTotals).toEqual({ NZD: 65 });
+    expect(oneStored.duplicates).toHaveLength(2);
+    expect(oneStored.toWrite).toHaveLength(0);
+    expect(oneStored.importedTotals).toEqual({});
     expect(oneStored.sourceTotals).toEqual({ NZD: 130 });
     expect(oneStored.totalsMessage).toMatch(/duplicate/);
     expect(oneStored.totalsMessage).toMatch(/not in the imported total/);

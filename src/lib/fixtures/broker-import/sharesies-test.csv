@@ -1,0 +1,4 @@
+# Synthetic fixture. Not a customer file.
+Trade date,Instrument code,Instrument name,Market code,Quantity,Price,Transaction type,Currency,Amount,Transaction fee,Order ID,Exchange rate
+12/10/2026,AAPL,Apple Inc,US,1,180.00,Buy,USD,180.00,1.00,ORD-AAPL-1,1.6700
+12/10/2026,APPL,Apple Inc,US,2,330.00,Buy,USD,660.00,0,ORD-APPL-1,1.6975

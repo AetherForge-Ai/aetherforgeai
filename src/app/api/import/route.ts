@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requestClaimsOtherUser } from "@/lib/account-guard";
 import { accountMismatchResponse } from "@/lib/account-response";
 import {
+  brokerRefFromNotes,
   importDuplicateKey,
   importFailureReport,
   importWriteOrder,
@@ -12,9 +13,13 @@ import {
   type ImportPlan,
   type ImportTrade,
 } from "@/lib/broker-import";
+import { commitImportInOrder, newImportBatchId, notesHaveBatch, stampImportNote, undoImportInOrder } from "@/lib/import-commit";
+import { assetClassForSymbol } from "@/lib/import-symbols";
+import { planOrApplyLedgerReversal } from "@/lib/ledger-reversal-apply";
 import { backdatedRealisedNote } from "@/lib/fifo-cost";
 import type { TaxLedgerRow } from "@/lib/taxable-income";
 import { supportHold } from "@/lib/broker-import-hold";
+import { formatNzd, roundMoney } from "@/lib/currency";
 import { lotCivilDay } from "@/lib/executed-at";
 import { historicalNzdPerUnit } from "@/lib/fx";
 import { getTradeSessionUser } from "@/lib/session";
@@ -41,7 +46,20 @@ function publicPlan(plan: ImportPlan) {
     sourceTotals: plan.sourceTotals,
     importedTotals: plan.importedTotals,
     totalsMessage: plan.totalsMessage,
+    detection: plan.detection,
+    flagged: plan.duplicates,
   };
+}
+
+function fixesOf(value: unknown): Record<string, string> | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const fixes: Record<string, string> = {};
+  for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+    if (!/^\d+$/.test(key)) continue;
+    const ticker = String(raw || "").trim().toUpperCase();
+    if (ticker) fixes[key] = ticker;
+  }
+  return Object.keys(fixes).length ? fixes : undefined;
 }
 
 function mappingOf(value: unknown): ColumnMap | undefined {
@@ -87,7 +105,16 @@ function keysFrom(rows: readonly TaxLedgerRow[]): string[] {
     const price = Number(row.price);
     const ticker = String(row.ticker || "");
     if (!date || !ticker || !(quantity > 0) || !(price > 0)) continue;
-    keys.push(importDuplicateKey({ date, ticker, side: type, quantity, price }));
+    keys.push(
+      importDuplicateKey({
+        date,
+        ticker,
+        side: type,
+        quantity,
+        price,
+        brokerRef: brokerRefFromNotes(row.notes),
+      })
+    );
   }
   return keys;
 }
@@ -107,6 +134,7 @@ async function planWithReviewedFx(
     existingKeys?: Iterable<string>;
     openingCashNzd?: number;
     fundBuys?: boolean;
+    tickerFixes?: Record<string, string>;
   }
 ) {
   const draft = planBrokerImport(text, options);
@@ -137,6 +165,8 @@ export async function POST(req: Request) {
       mapping?: unknown;
       acknowledgeSkipped?: unknown;
       fundBuys?: unknown;
+      batchId?: unknown;
+      tickerFixes?: unknown;
     };
     const text = typeof body.text === "string" ? body.text : "";
     if (text.length > MAX_CHARS) {
@@ -148,12 +178,45 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, data: hold });
     }
 
+    if (body.action === "undo") {
+      const batchId = typeof body.batchId === "string" ? body.batchId.trim() : "";
+      if (!batchId) {
+        return NextResponse.json({ ok: false, error: "That import was not found. Nothing was changed." }, { status: 400 });
+      }
+      const loadLedger = bookRows;
+      const stored = await loadLedger(user._id);
+      const mine = stored
+        .filter((row) => notesHaveBatch(row.notes, batchId) && row._id)
+        .sort((a, b) => String(b.executed_at || "").localeCompare(String(a.executed_at || "")));
+      const outcome = await undoImportInOrder(
+        mine.map((row) => String(row._id)),
+        async (id) => {
+          await planOrApplyLedgerReversal(id, true);
+        }
+      );
+      if (outcome.error) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: `${outcome.error} Undone before this failure: ${outcome.undone.length}.`,
+            data: { undone: outcome.undone.length, batchId },
+          },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json({
+        ok: true,
+        data: { undone: outcome.undone.length, batchId },
+      });
+    }
+
     const mapping = mappingOf(body.mapping);
+    const tickerFixes = fixesOf(body.tickerFixes);
     const acknowledgeSkipped = body.acknowledgeSkipped === true;
     const fundBuys = body.fundBuys === true;
     const openingCashNzd = typeof user.cash_balance === "number" ? user.cash_balance : 0;
     if (body.confirm !== true) {
-      const draft = planBrokerImport(text, { mapping, openingCashNzd, fundBuys });
+      const draft = planBrokerImport(text, { mapping, openingCashNzd, fundBuys, tickerFixes });
       if (draft.needsMapping) {
         return NextResponse.json({
           ok: true,
@@ -169,6 +232,7 @@ export async function POST(req: Request) {
       openingCashNzd,
       fundBuys,
       existingKeys: keysFrom(stored),
+      tickerFixes,
     });
     if (body.confirm !== true || !importWrites(preview, acknowledgeSkipped)) {
       const blocked = body.confirm === true && !importWrites(preview, acknowledgeSkipped);
@@ -185,6 +249,7 @@ export async function POST(req: Request) {
       openingCashNzd,
       fundBuys,
       existingKeys: keysFrom(fresh),
+      tickerFixes,
     });
     const invalid = validateImportForWrite(committed, acknowledgeSkipped);
     if (invalid || !importWrites(committed, acknowledgeSkipped)) {
@@ -197,25 +262,39 @@ export async function POST(req: Request) {
 
     const written: ImportTrade[] = [];
     const writtenDeposits: { date: string; amountNzd: number }[] = [];
-    try {
-      for (const step of importWriteOrder(committed)) {
+    const batchId = newImportBatchId();
+    const brokerLabel = committed.detection?.label || committed.broker || "broker";
+    const outcome = await commitImportInOrder(importWriteOrder(committed), {
+      writeTrade: async (step) => {
         if (step.kind === "deposit") {
-          await applyTransaction(user, {
+          const result = await applyTransaction(user, {
             type: "deposit",
             amount: step.amountNzd,
             executed_at: step.date,
             trade_date: step.date,
-            notes: step.note,
+            notes: stampImportNote(step.note || "", batchId, ""),
+            deferCash: true,
           });
-          writtenDeposits.push({ date: step.date, amountNzd: step.amountNzd || 0 });
-          continue;
+          if (!result.ledgerId || result.pendingCash == null || result.previousCash == null) {
+            throw new Error("The paper deposit was not saved");
+          }
+          return {
+            id: result.ledgerId,
+            pendingCash: result.pendingCash,
+            previousCash: result.previousCash,
+            restoreHolding: result.restoreHolding,
+          };
         }
         const row = step.trade;
-        if (!row) continue;
-        await applyTransaction(user, {
+        if (!row) throw new Error("A trade row was missing. Nothing further was saved.");
+        const note =
+          row.fxSource === "reviewed-trade-date"
+            ? `Imported from a ${brokerLabel} file. Exchange rate: reviewed rate for the trade date.`
+            : `Imported from a ${brokerLabel} file.`;
+        const result = await applyTransaction(user, {
           type: row.side,
           ticker: row.ticker,
-          asset_type: "stock",
+          asset_type: assetClassForSymbol(row.ticker),
           quantity: row.quantity,
           price: row.price,
           fees: row.fee,
@@ -226,26 +305,46 @@ export async function POST(req: Request) {
           trade_date: row.date,
           price_source: "broker_import",
           broker: committed.broker || "file",
-          notes:
-            row.fxSource === "reviewed-trade-date"
-              ? `Imported from a ${committed.broker || "broker"} file. Exchange rate: reviewed rate for the trade date.`
-              : `Imported from a ${committed.broker || "broker"} file.`,
+          notes: stampImportNote(note, batchId, row.brokerRef),
+          deferCash: true,
         });
-        written.push(row);
-      }
-    } catch (err: unknown) {
-      const cause = err instanceof Error ? err.message : "The import was not saved.";
-      console.error("[api/import] write failed:", cause);
+        if (!result.ledgerId || result.pendingCash == null || result.previousCash == null) {
+          throw new Error(`Line ${row.line} was not saved`);
+        }
+        return {
+          id: result.ledgerId,
+          pendingCash: result.pendingCash,
+          previousCash: result.previousCash,
+          restoreHolding: result.restoreHolding,
+        };
+      },
+      writeCash: async (step, trade) => {
+        await totalumSdk.crud.editRecordById("user", user._id, { cash_balance: trade.pendingCash });
+        if (step.kind === "deposit") writtenDeposits.push({ date: step.date, amountNzd: step.amountNzd || 0 });
+        else if (step.trade) written.push(step.trade);
+      },
+      rollbackTrade: async (trade) => {
+        await totalumSdk.crud.deleteRecordById("transaction", trade.id);
+        if (trade.restoreHolding) await trade.restoreHolding();
+        await totalumSdk.crud.editRecordById("user", user._id, { cash_balance: trade.previousCash });
+      },
+    });
+    if (outcome.error) {
+      console.error("[api/import] write failed:", outcome.error);
       return NextResponse.json(
         {
           ok: false,
           error: importFailureReport({
-            cause,
+            cause: outcome.rolledBack
+              ? `${outcome.error} The failed row was removed.`
+              : outcome.error,
             writtenTrades: written,
             writtenDeposits,
           }),
           data: planPayload(committed, fresh, {
             written: written.length,
+            batchId,
+            rolledBack: outcome.rolledBack,
             writtenTrades: written.map((row) => ({ date: row.date, side: row.side, ticker: row.ticker })),
             writtenDeposits,
           }),
@@ -254,9 +353,16 @@ export async function POST(req: Request) {
       );
     }
 
+    const cashEffect = roundMoney(
+      written.reduce((sum, row) => sum + row.cashEffectNzd, 0) + writtenDeposits.reduce((sum, row) => sum + row.amountNzd, 0)
+    );
     return NextResponse.json({
       ok: true,
-      data: planPayload(committed, fresh, { written: written.length }),
+      data: planPayload(committed, fresh, {
+        written: written.length,
+        batchId,
+        summary: `${written.length} trade${written.length === 1 ? "" : "s"} saved. Cash effect ${formatNzd(cashEffect)}.`,
+      }),
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "The import was not saved.";
