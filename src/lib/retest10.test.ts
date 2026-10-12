@@ -139,7 +139,7 @@ afterEach(() => {
 describe("pull-check:v3-retest10-2026-10-13", () => {
   it("is marked on the public copy and the build version", () => {
     expect(read("src/lib/public-copy.ts")).toContain("pull-check:v3-retest10-2026-10-13");
-    expect(read("public/build-version.txt").trim()).toBe("v3-retest10-2026-10-13");
+    expect(read("public/build-version.txt").trim()).toBe("v3-dash1-2026-10-13");
     expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-retest10-2026-10-13");
     expect(read("src/lib/crypto-board-store.ts")).toContain("Never seed when a snapshot exists");
     expect(read("src/lib/crypto-source.ts")).toContain("readSharedCryptoBoard({ seed: false })");
@@ -262,7 +262,7 @@ describe("pull-check:v3-retest10-2026-10-13", () => {
     expect(board.notice).toContain("GeckoTerminal");
   });
 
-  it("sends the stocks CSV through review and reads APPL / APPLE INC as AAPL", () => {
+  it("sends the stocks CSV through review and does not rewrite a ticker code", () => {
     expect(holdingsTickerFromCell("BTC / BITCOIN")).toBe("BTC");
     expect(parseHoldingsCsv("ticker,units,price paid\nBTC / BITCOIN,0.5,80000\n").rows[0]).toMatchObject({
       ticker: "BTC",
@@ -273,7 +273,9 @@ describe("pull-check:v3-retest10-2026-10-13", () => {
       { openingCashNzd: 1_000_000 }
     );
     expect(named.needsMapping).toBe(false);
-    expect(named.toWrite.map((row) => `${row.side}:${row.ticker}`)).toEqual(["buy:AAPL", "buy:AAPL"]);
+    expect(named.toWrite.map((row) => `${row.side}:${row.ticker}`)).toEqual(["buy:AAPL"]);
+    expect(named.unsupported.some((row) => row.ticker === "APPL")).toBe(true);
+    expect(named.toWrite.some((row) => row.ticker === "APPL")).toBe(false);
 
     const dated = planBrokerImport(
       ["ticker,units,price paid,date", "FPH.NZ,1,10,2026-03-04", "AAPL,1,10,not-a-date"].join("\n"),

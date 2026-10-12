@@ -1,0 +1,151 @@
+/**
+ * Import confirm and undo.
+ * Each trade row is written, then its cash update. A failed cash update deletes that row by id.
+ * Rows are not started together. The batch id is a note stamp, like idem=.
+ */
+
+import type { ImportWriteStep } from "@/lib/broker-import";
+
+export interface ImportCommitTrade {
+  id: string;
+  pendingCash: number;
+  previousCash: number;
+  restoreHolding?: () => Promise<void>;
+}
+
+export interface ImportCommitIO {
+  writeTrade: (step: ImportWriteStep) => Promise<ImportCommitTrade>;
+  writeCash: (step: ImportWriteStep, trade: ImportCommitTrade) => Promise<void>;
+  rollbackTrade: (trade: ImportCommitTrade) => Promise<void>;
+}
+
+export interface ImportCommitResult {
+  written: ImportCommitTrade[];
+  error: string | null;
+  rolledBack: string | null;
+}
+
+/** One row at a time: ledger id first, then cash. Cash failure deletes that id and stops. */
+export async function commitImportInOrder(steps: readonly ImportWriteStep[], io: ImportCommitIO): Promise<ImportCommitResult> {
+  const written: ImportCommitTrade[] = [];
+  for (const step of steps) {
+    let trade: ImportCommitTrade;
+    try {
+      trade = await io.writeTrade(step);
+    } catch (err) {
+      return {
+        written,
+        error: err instanceof Error ? err.message : "The import was not saved.",
+        rolledBack: null,
+      };
+    }
+    try {
+      await io.writeCash(step, trade);
+    } catch (err) {
+      await io.rollbackTrade(trade);
+      return {
+        written,
+        error: err instanceof Error ? err.message : "The cash update failed.",
+        rolledBack: trade.id,
+      };
+    }
+    written.push(trade);
+  }
+  return { written, error: null, rolledBack: null };
+}
+
+export function newImportBatchId(): string {
+  const bytes = new Uint8Array(8);
+  const cryptoObj = globalThis.crypto;
+  if (cryptoObj?.getRandomValues) cryptoObj.getRandomValues(bytes);
+  else for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `imp${hex}`;
+}
+
+/** Keep any idem= stamp already on the note, and add the batch id and broker ref. */
+export function stampImportNote(notes: string, batchId: string, brokerRef: string): string {
+  let next = String(notes || "").trim();
+  const batch = batchId.trim();
+  if (batch) {
+    const token = `batch=${batch}`;
+    if (!next.includes(token)) next = `${next} ${token}`.trim();
+  }
+  const ref = brokerRef.trim().replace(/\s+/g, "");
+  if (ref) {
+    const token = `ref=${ref}`;
+    if (!next.includes(token)) next = `${next} ${token}`.trim();
+  }
+  return next;
+}
+
+export function notesHaveBatch(notes: string | null | undefined, batchId: string): boolean {
+  const id = batchId.trim();
+  if (!id) return false;
+  const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?:^|\\s)batch=${escaped}(?:\\s|$)`).test(String(notes || ""));
+}
+
+export async function undoImportInOrder(
+  ids: readonly string[],
+  apply: (id: string) => Promise<void>
+): Promise<{ undone: string[]; error: string | null }> {
+  const undone: string[] = [];
+  for (const id of ids) {
+    if (!id) continue;
+    try {
+      await apply(id);
+    } catch (err) {
+      return { undone, error: err instanceof Error ? err.message : "Undo stopped." };
+    }
+    undone.push(id);
+  }
+  return { undone, error: null };
+}
+
+export interface ColumnMapStore {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+}
+
+export function columnMapStorageKey(broker: string): string {
+  const name = (broker || "generic").trim().toLowerCase() || "generic";
+  return `af-import-column-map:${name}`;
+}
+
+const MAP_KEYS = ["date", "ticker", "side", "quantity", "price", "fee", "currency", "fx", "value"] as const;
+
+export function readSavedColumnMap(store: ColumnMapStore, broker: string): Record<string, string> | null {
+  let raw = "";
+  try {
+    raw = store.getItem(columnMapStorageKey(broker)) || "";
+  } catch {
+    return null;
+  }
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (!parsed || typeof parsed !== "object") return null;
+    const mapping: Record<string, string> = {};
+    for (const key of MAP_KEYS) {
+      const value = parsed[key];
+      if (typeof value === "string" && value.trim()) mapping[key] = value;
+    }
+    return Object.keys(mapping).length ? mapping : null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeSavedColumnMap(store: ColumnMapStore, broker: string, mapping: Record<string, string>): void {
+  const body: Record<string, string> = {};
+  for (const key of MAP_KEYS) {
+    const value = mapping[key];
+    if (typeof value === "string" && value.trim()) body[key] = value;
+  }
+  try {
+    store.setItem(columnMapStorageKey(broker), JSON.stringify(body));
+  } catch {
+    /* A full browser store must not block the review. */
+  }
+}
