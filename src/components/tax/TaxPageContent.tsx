@@ -7,6 +7,7 @@
 import Link from "next/link";
 import { TaxSectionNav } from "@/components/tax/TaxSectionNav";
 import { formatNzd, formatSignedMoney } from "@/lib/currency";
+import { taxGrossDividendSentence } from "@/lib/tax-book";
 import { COST_METHOD_LABEL } from "@/lib/lot-day";
 import { TAX_INDICATIVE_LABEL } from "@/lib/tax-disclaimer";
 import { TAX_PACK_NOTE } from "@/lib/tax-pack";
@@ -83,9 +84,7 @@ export function TaxPageContent({ book = null }: { book?: TaxBookFigures | null }
           <p className="text-sm text-muted-foreground">{COST_METHOD_LABEL}</p>
           <p className="text-sm leading-relaxed text-muted-foreground">
             Dividends on this book, net cash received: {formatNzd(book.dividendsNzd)}.{" "}
-            {book.dividendsGrossNzd == null
-              ? "Gross dividend is not on these rows, so it is not shown beside the net cash."
-              : `Gross dividend, before withholding: ${formatNzd(book.dividendsGrossNzd)}.`}{" "}
+            {taxGrossDividendSentence(book.dividendsGrossNzd)}{" "}
             Realised profit and loss: {formatSignedMoney(book.realisedPnlNzd)}. Net cash is the amount that landed
             in the paper book. Gross is the dividend before withholding, and only when that breakdown is on the row.
             These figures are from your paper book. They are not a tax return. {TAX_PACK_NOTE} {TAX_INDICATIVE_LABEL}{" "}

@@ -10,6 +10,7 @@ import {
   cashBookPoints,
   externalFlowsFromLedger,
   performanceReport,
+  performanceSourceLine,
   type PerformanceFigure,
   type PerformanceReport,
 } from "@/lib/performance-math";
@@ -38,16 +39,20 @@ function FigureLine({ label, figure }: { label: string; figure: PerformanceFigur
       <span className="font-semibold text-foreground">{label}: </span>
       <span className="tnum">{percent(figure.value)}</span>
       {figure.reason ? <span className="text-muted-foreground"> {figure.reason}</span> : null}
-      <span className="mt-0.5 block text-xs text-muted-foreground">
-        As of {figure.asOf}. Source: {figure.source}.
-      </span>
+      <span className="mt-0.5 block text-xs text-muted-foreground">{performanceSourceLine(figure)}</span>
     </p>
   );
 }
 
 function ReportBlock({ report }: { report: PerformanceReport }) {
   const rows: { label: string; figure: PerformanceFigure }[] = [
-    { label: "Money-weighted return (XIRR), since start", figure: report.xirr },
+    {
+      label:
+        report.xirr.annualised === false
+          ? "Period return, since start"
+          : "Money-weighted return (XIRR), since start",
+      figure: report.xirr,
+    },
     { label: "Time-weighted return, since start", figure: report.twr },
   ];
   if (report.benchmark) rows.push({ label: "Benchmark, bought on deposit dates", figure: report.benchmark });
@@ -60,7 +65,10 @@ function ReportBlock({ report }: { report: PerformanceReport }) {
         {(Object.keys(report.periods) as (keyof PerformanceReport["periods"])[]).map((period) => (
           <div key={period} className="rounded-xl border border-border/70 p-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-primary">{period}</p>
-            <FigureLine label="XIRR" figure={report.periods[period].xirr} />
+            <FigureLine
+              label={report.periods[period].xirr.annualised === false ? "Period return" : "XIRR"}
+              figure={report.periods[period].xirr}
+            />
             <FigureLine label="Time-weighted" figure={report.periods[period].twr} />
           </div>
         ))}

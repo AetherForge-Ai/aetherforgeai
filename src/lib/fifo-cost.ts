@@ -3,7 +3,7 @@
  * Nothing here writes a database row.
  */
 
-import { formatSignedMoney, roundMoney } from "@/lib/currency";
+import { formatDisplayDate, formatSignedMoney, roundMoney } from "@/lib/currency";
 import { formatLedgerDateTime, isUnknownClock } from "@/lib/executed-at";
 import { buyLotDay, COST_METHOD_LABEL, ledgerDisplayWhen, movementHasClock } from "@/lib/lot-day";
 import { nzTaxYearEnding } from "@/lib/nz-tax-year";
@@ -62,6 +62,97 @@ function sellQueues(rows: readonly TaxLedgerRow[]): Map<string, RealisedLine[]> 
     }
   }
   return queues;
+}
+
+function chronological<T extends TaxLedgerRow>(rows: readonly T[]): T[] {
+  return [...rows].sort((a, b) => {
+    const day = buyLotDay(a).localeCompare(buyLotDay(b));
+    if (day) return day;
+    const type = String(a.type || "").localeCompare(String(b.type || ""));
+    if (type) return type;
+    return String(a._id || "").localeCompare(String(b._id || ""));
+  });
+}
+
+/** FIFO realised NZ$ for each sell id. Null when the lot or the rate is incomplete. */
+export function fifoRealisedById(rows: readonly TaxLedgerRow[]): Map<string, number | null> {
+  const ordered = chronological(rows);
+  const queues = sellQueues(ordered);
+  const map = new Map<string, number | null>();
+  for (const row of ordered) {
+    if (row.type !== "sell") continue;
+    const id = String(row._id || "");
+    if (!id) continue;
+    const ticker = String(row.ticker || "").trim().toUpperCase();
+    const line = queues.get(`${ticker}|${buyLotDay(row)}`)?.shift();
+    map.set(id, line?.realisedNzd ?? null);
+  }
+  return map;
+}
+
+/** Replace a sell row's stored realised figure with the FIFO read. Does not persist. */
+export function applyFifoToLedgerRows<T extends { _id?: string; type?: string | null; realized_pnl?: number | null }>(
+  recent: readonly T[],
+  book: readonly TaxLedgerRow[]
+): T[] {
+  const byId = fifoRealisedById(book);
+  return recent.map((row) => {
+    if (row.type !== "sell" || !row._id) return row;
+    const fifo = byId.get(String(row._id));
+    if (fifo == null) return row;
+    return { ...row, realized_pnl: fifo };
+  });
+}
+
+export interface BackdatedTrade {
+  date: string;
+  ticker: string;
+  side: string;
+  quantity: number;
+  price: number;
+  currency?: string;
+  fx?: number;
+}
+
+/**
+ * When a new fill is dated before an existing sell, FIFO rematches that sell.
+ * The note names each earlier sell whose realised figure would change.
+ */
+export function backdatedRealisedNote(existing: readonly TaxLedgerRow[], incoming: readonly BackdatedTrade[]): string | null {
+  const trades = incoming.filter((row) => row.side === "buy" || row.side === "sell");
+  if (!trades.length || !existing.some((row) => row.type === "sell" && row._id)) return null;
+  const before = fifoRealisedById(existing);
+  const added: TaxLedgerRow[] = trades.map((trade, index) => ({
+    _id: `incoming-${index}`,
+    type: trade.side,
+    ticker: trade.ticker,
+    asset_type: "stock",
+    executed_at: trade.date,
+    quantity: trade.quantity,
+    price: trade.price,
+    currency: trade.currency || "NZD",
+    fx_rate: trade.currency && trade.currency !== "NZD" ? trade.fx ?? null : 1,
+    fees_nzd: 0,
+  }));
+  const after = fifoRealisedById([...existing, ...added]);
+  const changes: string[] = [];
+  for (const row of existing) {
+    if (row.type !== "sell" || !row._id) continue;
+    const id = String(row._id);
+    const prev = before.get(id);
+    const next = after.get(id);
+    if (prev == null && next == null) continue;
+    if (prev != null && next != null && Math.abs(prev - next) < 0.005) continue;
+    const ticker = String(row.ticker || "").trim().toUpperCase();
+    const day = buyLotDay(row);
+    const was = prev == null ? "blank" : formatSignedMoney(prev);
+    const would = next == null ? "blank" : formatSignedMoney(next);
+    changes.push(`${ticker} on ${formatDisplayDate(day)} was ${was} and would be ${would}`);
+  }
+  if (!changes.length) return null;
+  const shown = changes.slice(0, 8);
+  const more = changes.length > shown.length ? ` ${changes.length - shown.length} more sells would also change.` : "";
+  return `This file is dated before an earlier sell. FIFO matches oldest lots first, so earlier realised figures change: ${shown.join("; ")}.${more}`;
 }
 
 /** Copy FIFO price, FX and total onto sell rows for the CSV. Does not persist. */
