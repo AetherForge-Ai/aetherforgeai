@@ -13,7 +13,9 @@ describe("legacy public routes", () => {
       "/stock-markets": "/markets",
       "/live-results": "/performance",
       "/about-us": "/about",
+      "/dividends": "/tax/dividends",
     });
+    expect(publicAliasRedirect("/dividends")).toBe("/tax/dividends");
     expect(publicAliasRedirect("/stock-markets")).toBe("/markets");
     expect(publicAliasRedirect("/live-results/")).toBe("/performance");
     expect(publicAliasRedirect("/about-us")).toBe("/about");

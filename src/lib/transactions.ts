@@ -109,6 +109,12 @@ export interface TransactionInput {
   trade_date?: string; // yyyy-mm-dd Pacific/Auckland
   fx_rate?: number;
   fx_source?: string;
+  /**
+   * Trade currency from a broker file. Not a stored column.
+   * When set, this fill uses it instead of the ticker suffix.
+   * NZD skips the exchange-rate band. AUD and USD use the trade-date rate.
+   */
+  fill_currency?: CurrencyCode;
   fx_timestamp?: string;
   /** Gross dividend in the holding currency. Stored in the notes prefix, not a new column. */
   dividend_gross?: number;
@@ -749,6 +755,12 @@ async function applyTransactionUnlocked(
   // The reviewed price is the fill. A newer live spot is only the sanity check.
   price = priceForBooking(price, liveSpot);
 
+  const statedCurrency = input.fill_currency;
+  const currency: CurrencyCode =
+    statedCurrency === "NZD" || statedCurrency === "AUD" || statedCurrency === "USD"
+      ? statedCurrency
+      : currencyForTicker(ticker, assetType);
+
   const sanity = checkFillSanity({
     ticker,
     quantity,
@@ -757,7 +769,7 @@ async function applyTransactionUnlocked(
     cashOrNotional: input.cash_or_notional ?? input.notional_native ?? null,
     fees,
     cashNzd: input.cash_nzd ?? null,
-    fillCurrency: currencyForTicker(ticker, assetType),
+    fillCurrency: currency,
     assetType: assetType === "metal" ? "metal" : assetType,
     typedLiveOverride: input.typed_live_override,
     softOverrideConfirmed: !!input.soft_override_confirmed,
@@ -781,7 +793,6 @@ async function applyTransactionUnlocked(
     throw new Error(`${ticker}: bot_signal cannot be fill_price. ${ADVISORY_NOTE}`);
   }
 
-  const currency = currencyForTicker(ticker, assetType);
   const fx = await getFxSnapshot();
   const historicalFx = await historicalNzdPerUnit(currency, tradeDay);
   const fxCheck = reviewedFxAllowed({

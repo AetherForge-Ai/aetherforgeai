@@ -1,6 +1,8 @@
 import "server-only";
 
 import { bookCacheEpoch, readBookCache, writeBookCache } from "@/lib/book-cache";
+import type { MarkedHolding } from "@/lib/book-valuation";
+import { currencyForTicker } from "@/lib/currency";
 import type { DividendSourceRow } from "@/lib/dividend-ledger";
 import type { TaxLedgerRow } from "@/lib/taxable-income";
 import { aucklandCivilToday, nzTaxYearEnding } from "@/lib/nz-tax-year";
@@ -26,7 +28,10 @@ type StockRow = {
   company_name?: string;
   asset_type?: string;
   shares?: number;
+  current_price?: number | null;
   notes?: string | null;
+  updatedAt?: string | Date | null;
+  updated_at?: string | Date | null;
   user?: string | { _id?: string } | null;
 };
 
@@ -34,6 +39,12 @@ type MetalRow = {
   metal?: string;
   ounces?: number;
 };
+
+function stamp(value: string | Date | null | undefined): string | null {
+  if (!value) return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value.toISOString();
+  return String(value);
+}
 
 function assetTypeOf(value: string | undefined): "stock" | "crypto" | "metal" {
   const kind = String(value || "").toLowerCase();
@@ -73,6 +84,29 @@ async function loadOpenHoldingsFresh(userId: string): Promise<PaperHoldingChoice
     })
     .filter((row) => row.ticker && row.shares > 0 && !stocks.some((stock) => stock.ticker === row.ticker));
   return [...stocks, ...metals].sort((a, b) => a.ticker.localeCompare(b.ticker));
+}
+
+/** Stored marks for the return page. current_price is an existing column. No price is invented. */
+export async function loadHoldingMarks(userId: string): Promise<MarkedHolding[]> {
+  const res = await totalumSdk.crud.query("stock", { _filter: { user: userId }, _limit: 500 });
+  return ((res?.data as StockRow[]) || [])
+    .filter((row) => {
+      const owner = typeof row.user === "object" && row.user !== null ? row.user._id : row.user;
+      return !owner || String(owner) === String(userId);
+    })
+    .map((row) => {
+      const ticker = String(row.ticker || "").trim().toUpperCase();
+      const assetType = assetTypeOf(row.asset_type);
+      const price = Number(row.current_price);
+      return {
+        ticker,
+        shares: Number(row.shares) || 0,
+        currentPrice: price > 0 ? price : null,
+        currency: currencyForTicker(ticker, assetType),
+        updatedAt: stamp(row.updatedAt || row.updated_at),
+      };
+    })
+    .filter((row) => row.ticker && row.shares > 0);
 }
 
 /** Dividend rows only. The cap is 5,000. Older rows past that cap are not in this read. */

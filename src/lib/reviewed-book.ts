@@ -53,8 +53,8 @@ function withinBand(reviewed: number, reference: number): boolean {
 }
 
 /**
- * A reviewed FX rate is booked only when it is within 5% of today's snapshot
- * or the historical rate for that trade date. NZD and a blank rate are left alone.
+ * A reviewed FX rate is booked only when it is within 5% of the trade-date rate.
+ * Today's snapshot is used only when that date has no rate. NZD is not checked.
  */
 export function reviewedFxAllowed(input: {
   currency: CurrencyCode;
@@ -66,10 +66,11 @@ export function reviewedFxAllowed(input: {
   const raw = Number(input.reviewed);
   if (!(raw > 0) || !Number.isFinite(raw)) return { ok: true };
   const reviewed = directedFx(input.currency, raw);
-  const references = [input.snapshot, input.historical]
-    .filter((rate): rate is number => typeof rate === "number" && rate > 0 && Number.isFinite(rate))
-    .map((rate) => directedFx(input.currency, rate));
-  if (!references.length || references.some((rate) => withinBand(reviewed, rate))) return { ok: true };
+  const historical = Number(input.historical);
+  const dated = historical > 0 && Number.isFinite(historical) ? directedFx(input.currency, historical) : 0;
+  const snapshot = Number(input.snapshot);
+  const reference = dated > 0 ? dated : snapshot > 0 && Number.isFinite(snapshot) ? directedFx(input.currency, snapshot) : 0;
+  if (!(reference > 0) || withinBand(reviewed, reference)) return { ok: true };
   return { ok: false, message: REVIEWED_FX_REJECTED };
 }
 

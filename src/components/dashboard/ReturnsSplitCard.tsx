@@ -10,6 +10,7 @@ type HoldingLike = {
   currency?: CurrencyCode;
   ticker?: string;
   asset_type?: "stock" | "crypto" | "metal" | null;
+  purchase_date?: string | null;
 };
 
 /**
@@ -20,11 +21,14 @@ export function ReturnsSplitCard({
   holdings,
   incomeNzd,
   rates,
+  reportedPnlNzd,
   loading = false,
 }: {
   holdings: HoldingLike[];
   incomeNzd: number;
   rates: FxRatesToNZD;
+  /** P/L at the latest price, in NZ dollars. The lines add up to this figure. */
+  reportedPnlNzd?: number | null;
   loading?: boolean;
 }) {
   const split = splitReturns(
@@ -41,15 +45,19 @@ export function ReturnsSplitCard({
         markPrice: holding.current_price,
         currency,
         fxNow: currency === "NZD" ? 1 : rates[currency] || 1,
+        purchaseDate: holding.purchase_date,
       };
     }),
-    incomeNzd
+    incomeNzd,
+    reportedPnlNzd
   );
 
   const figures = [
     { label: "Capital gain", value: split.capitalGainNzd, note: split.capitalNote },
     { label: "Income", value: split.incomeNzd, note: split.incomeNote },
     { label: "Currency effect", value: split.currencyEffectNzd, note: split.currencyNote },
+    ...(split.otherNzd !== 0 ? [{ label: "Other", value: split.otherNzd, note: split.otherNote }] : []),
+    { label: "Total", value: split.totalNzd, note: split.totalNote },
   ];
 
   return (

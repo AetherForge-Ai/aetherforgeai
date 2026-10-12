@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { EmailAddress } from "@/components/EmailAddress";
+import { JsonLd } from "@/components/public/JsonLd";
 import { SiteHeader } from "@/components/SiteHeader";
 import { PAPER_FEE_SUMMARY } from "@/lib/fee-rule";
+import { breadcrumbJsonLd } from "@/lib/public-schema";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { publicDataSourcesLine } from "@/lib/data-sources";
 import {
@@ -43,6 +45,12 @@ export default function TrustPage() {
       <div className="relative">
         <SiteHeader />
         <main className="mx-auto max-w-2xl px-4 py-12 sm:px-6">
+          <JsonLd
+            data={breadcrumbJsonLd([
+              { name: "Home", path: "/" },
+              { name: "Trust", path: "/trust" },
+            ])}
+          />
           <Link href="/" className="text-sm font-semibold text-primary hover:underline">
             Back to home
           </Link>
