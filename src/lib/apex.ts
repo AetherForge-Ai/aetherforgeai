@@ -36,6 +36,7 @@ import {
   candidateIsSuitable,
   deploymentGuard,
   isConstructiveCard,
+  notBuyRatingReason,
   rateAsset,
   unsuitableReason,
   type DeploymentGuard,
@@ -47,6 +48,8 @@ import {
   namedCandidateLine,
   notSizedLine,
   printsUnderReviewLine,
+  PROJECTION_RANK_NOTE,
+  projectionRatingLabel,
   sessionGainerSentence,
 } from "./report-copy";
 import { createQuoteBook, reviewSessionMove, type QuoteBook, type ReviewedMove } from "./quote-review";
@@ -124,7 +127,15 @@ export interface MoverRow {
 export interface MarketMoversGroup {
   market: MarketCode;
   label: string; // "New Zealand Exchange · NZX"
-  windows: { window: string; movers: MoverRow[]; /** Counted before withheld rows leave the ranking. */ withheldCount: number; reviewNote: string | null }[];
+  windows: {
+    window: string;
+    movers: MoverRow[];
+    /** Withheld names, under the ranked list, with no percent. */
+    underReview: { ticker: string }[];
+    /** Counted before withheld rows leave the ranking. */
+    withheldCount: number;
+    reviewNote: string | null;
+  }[];
 }
 
 /** A high-conviction 7-day forward projection row. */
@@ -137,6 +148,8 @@ export interface ProjectionRow {
   projected7dPct: number;
   confidence: number;
   signal: SecurityIntel["signal"];
+  /** "BUY", "HOLD", or "Not a buy: <reason>". A rank is not this rating. */
+  ratingLabel: string;
 }
 
 /** Regional / sector news grouped by geography. */
@@ -178,6 +191,8 @@ export interface PathwayPlan {
   recommendedName: string;
   recommendationNote: string;
 }
+
+export { PROJECTION_RANK_NOTE };
 
 export interface ApexReport {
   bot: BotKind;
@@ -483,14 +498,24 @@ const MOVER_WINDOWS: { window: string; key: keyof SecurityIntel }[] = [
  * the 24-hour, 7-day and 1-month windows. Stocks yield NZX/ASX/US groups;
  * crypto yields a single digital-assets group.
  */
+export interface MarketsCrossCheck {
+  /** Session change on /markets, keyed by ticker. */
+  changePct?: Record<string, number>;
+  /** Previous run's session percent and price. */
+  prior?: Record<string, { changePct: number; price: number }>;
+}
+
 function reviewedWindow(
   book: QuoteBook | undefined,
   row: SecurityIntel,
-  window: "1d" | "7d" | "30d"
+  window: "1d" | "7d" | "30d",
+  cross?: MarketsCrossCheck
 ): ReviewedMove | null {
   if (!book) return null;
   const reported = window === "1d" ? row.change1d : window === "7d" ? row.change7d : row.change30d;
   const previous = row.history.length >= 2 ? row.history[row.history.length - 2]?.price : undefined;
+  const key = row.ticker.trim().toUpperCase();
+  const prior = window === "1d" ? cross?.prior?.[key] : undefined;
   return book.review({
     ticker: row.ticker,
     assetClass: row.assetClass === "crypto" ? "crypto" : "stock",
@@ -500,6 +525,9 @@ function reviewedWindow(
     previousClose: row.assetClass === "crypto" ? undefined : previous,
     reportedChangePct: reported,
     window,
+    marketsChangePct: window === "1d" ? cross?.changePct?.[key] : undefined,
+    priorChangePct: prior?.changePct,
+    priorPrice: prior?.price,
   });
 }
 
@@ -508,7 +536,8 @@ function buildMarketMovers(
   overrides?: Record<string, number>,
   universeIntel?: SecurityIntel[],
   allowSynthetic = true,
-  book?: QuoteBook
+  book?: QuoteBook,
+  cross?: MarketsCrossCheck
 ): MarketMoversGroup[] {
   // When a full-market intel set is supplied (e.g. the complete live crypto
   // market for a Koins report), the movers board is built from it directly —
@@ -520,7 +549,13 @@ function buildMarketMovers(
     return markets.map((m) => ({
       market: m,
       label: MARKET_LABELS[m],
-      windows: MOVER_WINDOWS.map((w) => ({ window: w.window, movers: [], withheldCount: 0, reviewNote: null })),
+      windows: MOVER_WINDOWS.map((w) => ({
+        window: w.window,
+        movers: [],
+        underReview: [],
+        withheldCount: 0,
+        reviewNote: null,
+      })),
     }));
   }
   const list = hasIntel ? universeIntel! : analyzeUniverse(overrides, bot);
@@ -532,7 +567,7 @@ function buildMarketMovers(
       windows: MOVER_WINDOWS.map((w) => {
         const window = w.key === "change1d" ? "1d" : w.key === "change7d" ? "7d" : "30d";
         const reviewedRows = inMarket.map((s) => {
-          const reviewed = reviewedWindow(book, s, window);
+          const reviewed = reviewedWindow(book, s, window, cross);
           return {
             ticker: s.ticker,
             name: s.name,
@@ -545,15 +580,21 @@ function buildMarketMovers(
           };
         });
         const withheldCount = reviewedRows.filter((row) => row.withheld).length;
+        const ranked = reviewedRows
+          .filter((row) => !row.withheld)
+          .sort((a, b) => b.sortPct - a.sortPct)
+          .slice(0, 10)
+          .map(({ sortPct: _sort, ...row }) => row);
+        const underReview = reviewedRows
+          .filter((row) => row.withheld)
+          .map((row) => ({ ticker: row.ticker }))
+          .sort((a, b) => a.ticker.localeCompare(b.ticker));
         return {
           window: w.window,
           withheldCount,
           reviewNote: printsUnderReviewLine(withheldCount),
-          movers: reviewedRows
-            .filter((row) => !row.withheld)
-            .sort((a, b) => b.sortPct - a.sortPct)
-            .slice(0, 10)
-            .map(({ sortPct: _sort, ...row }) => row),
+          movers: ranked,
+          underReview,
         };
       }),
     };
@@ -566,9 +607,9 @@ function projectionCardSignal(intel: SecurityIntel): SecurityIntel["signal"] {
   return card;
 }
 
-function quoteUnderReview(book: QuoteBook | undefined, row: SecurityIntel): boolean {
+function quoteUnderReview(book: QuoteBook | undefined, row: SecurityIntel, cross?: MarketsCrossCheck): boolean {
   if (!book) return false;
-  return (["1d", "7d", "30d"] as const).some((window) => reviewedWindow(book, row, window)?.withheld);
+  return (["1d", "7d", "30d"] as const).some((window) => reviewedWindow(book, row, window, cross)?.withheld);
 }
 
 function buildProjectionLeaders(
@@ -576,25 +617,32 @@ function buildProjectionLeaders(
   overrides?: Record<string, number>,
   universeIntel?: SecurityIntel[],
   allowSynthetic = true,
-  book?: QuoteBook
+  book?: QuoteBook,
+  notSized: { ticker: string; reason: string }[] = [],
+  cross?: MarketsCrossCheck
 ): ProjectionRow[] {
   const hasIntel = !!(universeIntel && universeIntel.length);
   const hasLive = !!(overrides && Object.keys(overrides).length > 0);
   if (!hasIntel && !hasLive && !allowSynthetic) return [];
   const list = (hasIntel ? universeIntel! : analyzeUniverse(overrides, bot))
     .map((row) => labelIntel(row))
-    .filter((row) => !quoteUnderReview(book, row));
+    .filter((row) => !quoteUnderReview(book, row, cross));
+  const reasonByTicker = new Map(notSized.map((row) => [row.ticker.toUpperCase(), row.reason]));
   return getProjectionLeaders(10, list)
-    .map((s) => ({
-      ticker: s.ticker,
-      name: s.name,
-      market: s.market,
-      currency: s.currency as CurrencyCode,
-      price: s.price,
-      projected7dPct: alignedProjection(s).pct,
-      confidence: s.confidence,
-      signal: projectionCardSignal(s),
-    }))
+    .map((s) => {
+      const signal = projectionCardSignal(s);
+      return {
+        ticker: s.ticker,
+        name: s.name,
+        market: s.market,
+        currency: s.currency as CurrencyCode,
+        price: s.price,
+        projected7dPct: alignedProjection(s).pct,
+        confidence: s.confidence,
+        signal,
+        ratingLabel: projectionRatingLabel(signal, reasonByTicker.get(s.ticker.toUpperCase())),
+      };
+    })
     .sort((a, b) => b.projected7dPct - a.projected7dPct || a.ticker.localeCompare(b.ticker));
 }
 
@@ -675,6 +723,10 @@ function buildDirectRecommendations(
      * the member can act on.
      */
     marketOverrides?: Record<string, number>;
+    /** Session prints withheld against /markets. Left off the buy list. */
+    printUnderReview?: string[];
+    /** Every skipped name, including those past the eight-line display cap. */
+    ratingReasons?: { ticker: string; reason: string }[];
   }
 ): DirectRecommendation[] {
   const held = new Set(holdings.map((h) => h.ticker.toUpperCase()));
@@ -755,20 +807,32 @@ function buildDirectRecommendations(
     const action = rateAsset(i).action;
     return action === "BUY" || action === "ACCUMULATE" || i.signal === "Strong Buy" || i.signal === "Buy";
   };
+  const underReview = new Set((opts?.printUnderReview ?? []).map((ticker) => ticker.toUpperCase()));
   const suitable = withOutlook.filter((row) => {
+    if (underReview.has(row.intel.ticker.toUpperCase())) return false;
     if (!(row.pct > 0)) return false;
     if (!guard) return looksLikeBuy(row.intel);
     return candidateIsSuitable({ ...row.intel, projected7dPct: row.pct }, guard);
   });
   const skippedDetails: { ticker: string; reason: string }[] = [];
+  const heldBack: { ticker: string; reason: string }[] = [];
   for (const row of withOutlook) {
-    if (!looksLikeBuy(row.intel)) continue;
+    if (underReview.has(row.intel.ticker.toUpperCase())) {
+      skippedDetails.push({ ticker: row.intel.ticker, reason: "print under review" });
+      continue;
+    }
+    if (!looksLikeBuy(row.intel)) {
+      heldBack.push({ ticker: row.intel.ticker, reason: notBuyRatingReason(row.intel) });
+      continue;
+    }
     if (!guard) {
       if (!(row.pct > 0)) {
         skippedDetails.push({
           ticker: row.intel.ticker,
           reason: `7-day projection ${spPct(row.pct)} is not positive`,
         });
+      } else if (!rateAsset(row.intel).positiveMomentum) {
+        skippedDetails.push({ ticker: row.intel.ticker, reason: notBuyRatingReason(row.intel) });
       }
       continue;
     }
@@ -784,6 +848,8 @@ function buildDirectRecommendations(
       });
     }
   }
+  skippedDetails.push(...heldBack);
+  if (opts?.ratingReasons) opts.ratingReasons.push(...skippedDetails);
   const shownSkipped = skippedDetails.slice(0, 8);
   if (opts?.skippedNames) opts.skippedNames.push(...shownSkipped.map((row) => `${row.ticker} (${row.reason})`));
   if (opts?.skippedDetails) opts.skippedDetails.push(...shownSkipped);
@@ -949,6 +1015,8 @@ interface ReportExtras {
   skippedSpeculative?: string[];
   /** Same names as skippedSpeculative, with the reason kept separate. */
   notSized?: { ticker: string; reason: string }[];
+  /** Full skip list used for the projected-row rating. The on-screen "Not sized" line stays capped. */
+  ratingReasons?: { ticker: string; reason: string }[];
   /** Live market sweep returned nothing. Seed directory prices must not fill the boards. */
   marketFeedUnavailable?: boolean;
 }
@@ -993,7 +1061,8 @@ function assembleReport(
   isDemo: boolean,
   extras: ReportExtras,
   marketOverrides?: Record<string, number>,
-  universeIntel?: SecurityIntel[]
+  universeIntel?: SecurityIntel[],
+  cross?: MarketsCrossCheck
 ): ApexReport {
   const book = createQuoteBook();
   const marketMovers = buildMarketMovers(
@@ -1001,7 +1070,8 @@ function assembleReport(
     marketOverrides,
     universeIntel,
     !extras.marketFeedUnavailable,
-    book
+    book,
+    cross
   );
   const sessionByTicker = new Map<string, MoverRow>();
   const sessionRows: MoverRow[] = [];
@@ -1169,7 +1239,15 @@ function assembleReport(
     tickers: reviewedTickers,
     portfolio: extras.portfolio,
     marketMovers,
-    projectionLeaders: buildProjectionLeaders(bot, marketOverrides, universeIntel, !extras.marketFeedUnavailable, book),
+    projectionLeaders: buildProjectionLeaders(
+      bot,
+      marketOverrides,
+      universeIntel,
+      !extras.marketFeedUnavailable,
+      book,
+      (extras.ratingReasons && extras.ratingReasons.length ? extras.ratingReasons : extras.notSized) ?? [],
+      cross
+    ),
     regionalNews: buildRegionalNews(bot),
     directRecommendations: extras.directRecommendations,
     pathwayPlan: extras.pathwayPlan,
@@ -1315,6 +1393,8 @@ export interface BuildLiveReportOptions {
    * empty instead of filling directory seed prices.
    */
   marketFeedUnavailable?: boolean;
+  /** /markets session change and the previous run's print. Stocks only. */
+  marketsCrossCheck?: MarketsCrossCheck;
 }
 
 /** A held name with no live print. The card stays; the price is not invented. */
@@ -1351,7 +1431,13 @@ export function buildLiveReport(
     cashBalanceNZD = 0,
     accountBookNZD,
     marketFeedUnavailable = false,
+    marketsCrossCheck,
   } = options;
+
+  const printUnderReview = marketsCrossCheck
+    ? sessionPrintsUnderReview(bot, marketFeedUnavailable ? {} : marketOverrides, marketFeedUnavailable ? undefined : universeIntel, !marketFeedUnavailable, marketsCrossCheck)
+    : [];
+  const ratingReasons: { ticker: string; reason: string }[] = [];
 
   const intelByTicker = new Map((holdingIntel ?? []).map((i) => [i.ticker.toUpperCase(), i]));
   const tickers = holdings
@@ -1386,6 +1472,8 @@ export function buildLiveReport(
     skippedDetails,
     marketOverrides: quotedMarket,
     accountBookNZD: bookForCash,
+    printUnderReview,
+    ratingReasons,
   });
   const pathwayPlan = buildPathwayPlan(
     analyzable,
@@ -1412,9 +1500,27 @@ export function buildLiveReport(
       guard,
       skippedSpeculative: skippedNames,
       notSized: skippedDetails,
+      ratingReasons,
       marketFeedUnavailable,
     },
     quotedMarket,
-    liveIntel
+    liveIntel,
+    marketsCrossCheck
   );
+}
+
+function sessionPrintsUnderReview(
+  bot: BotKind,
+  overrides: Record<string, number> | undefined,
+  universeIntel: SecurityIntel[] | undefined,
+  allowSynthetic: boolean,
+  cross: MarketsCrossCheck
+): string[] {
+  const groups = buildMarketMovers(bot, overrides, universeIntel, allowSynthetic, createQuoteBook(), cross);
+  const names = new Set<string>();
+  for (const group of groups) {
+    const day = group.windows.find((window) => window.window === "Last 24 hours");
+    for (const row of day?.underReview ?? []) names.add(row.ticker);
+  }
+  return [...names];
 }

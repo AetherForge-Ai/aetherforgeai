@@ -305,8 +305,42 @@ export function unsuitableReason(input: UnsuitableInput, guard: DeploymentGuard)
     return `volatility ${Math.round(input.realizedVolPct)}%`;
   }
   if (typeof input.price === "number" && input.price > 0 && input.price < 0.001) return "price under the minimum";
-  if (!rateAsset(input).positiveMomentum) return "the rating is not a buy";
+  if (!rateAsset(input).positiveMomentum) return notBuyRatingReason(input);
   return "outside this tape's buy list";
+}
+
+/**
+ * Why a projected name is not a buy, from the rating inputs themselves.
+ * "rating data unavailable" is only for a row with no signal, MACD, or regime.
+ */
+export function notBuyRatingReason(
+  input: Partial<RatingInput> & { price?: number; realizedVolPct?: number }
+): string {
+  const signal = typeof input.signal === "string" ? input.signal.trim() : "";
+  const macd = typeof input.macdSignal === "string" ? input.macdSignal.trim() : "";
+  const regime = typeof input.regime === "string" ? input.regime.trim() : "";
+  if (!signal && !macd && !regime) return "rating data unavailable";
+
+  const rating = rateAsset({
+    signal: (signal || "Hold") as RatingInput["signal"],
+    macdSignal: (macd || "Neutral") as RatingInput["macdSignal"],
+    regime: regime || "Range-Bound",
+    projected7dPct: input.projected7dPct,
+    outlook: input.outlook,
+    confidence: input.confidence,
+  });
+  const action = rating.action;
+  if (typeof input.realizedVolPct === "number" && input.realizedVolPct >= 120) {
+    return `rating ${action}: volatility ${Math.round(input.realizedVolPct)}%`;
+  }
+  if (typeof input.price === "number" && input.price > 0 && input.price < 0.001) {
+    return `rating ${action}: price under the minimum`;
+  }
+  if (macd === "Bearish" || regime === "Trending Down") {
+    return `rating ${action}: momentum negative`;
+  }
+  if (signal) return `rating ${action}: signal ${signal}`;
+  return "rating data unavailable";
 }
 
 function escapeRegExp(value: string): string {

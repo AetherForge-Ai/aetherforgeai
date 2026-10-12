@@ -118,7 +118,7 @@ function LockedUpsell() {
         <p className="mt-4 max-w-2xl text-muted-foreground">
           The ultimate AI agent that orchestrates <strong>Stox</strong> and <strong>Koins</strong> into a unified
           wealth-building system. The Headmaster sees your entire book — stocks, crypto and precious metals — and engineers
-          the allocation, strategy and risk controls to grow and protect it.
+          the allocation, strategy and risk controls to grow and protect it. Cost method: FIFO (first in, first out).
         </p>
 
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

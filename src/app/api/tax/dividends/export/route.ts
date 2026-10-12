@@ -6,6 +6,8 @@ import { requestClaimsOtherUser } from "@/lib/account-guard";
 import { accountMismatchResponse } from "@/lib/account-response";
 import { getStableSessionUser } from "@/lib/session";
 import { aucklandCivilToday, inNzTaxYear, isNzTaxYearEnding, nzTaxYearEnding } from "@/lib/nz-tax-year";
+import { aucklandDateISO } from "@/lib/fill-integrity";
+import { datedTaxCsvName } from "@/lib/lot-day";
 import { loadDividendRows } from "@/lib/tax-book-server";
 
 export const dynamic = "force-dynamic";
@@ -40,7 +42,7 @@ export async function GET(req: Request) {
       status: 200,
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": `attachment; filename="dividend-ledger-${endingYear ?? "book"}.csv"`,
+        "Content-Disposition": `attachment; filename="${datedTaxCsvName("dividend-ledger", endingYear ?? "book", aucklandDateISO())}"`,
         "Cache-Control": "no-store",
       },
     });

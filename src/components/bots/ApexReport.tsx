@@ -14,6 +14,7 @@ import { currencyForTicker, formatMoney, formatUnitPrice } from "@/lib/currency"
 import { sanitizeGuardedReport } from "@/lib/report-consistency";
 import { labelMemberReport } from "@/lib/report-language";
 import { moverSweepCaption } from "@/lib/mover-sweep";
+import { printUnderReviewLabel, PROJECTION_RANK_NOTE, projectionLeaderLine } from "@/lib/report-copy";
 import type {
   ApexReport,
   TickerAnalysis,
@@ -194,9 +195,12 @@ function MarketMoversSection({ report }: { report: ApexReport }) {
                           <span className="text-muted-foreground/60">{i + 1}.</span>{" "}
                           <span className="font-medium">{m.ticker}</span>
                         </span>
-                        <span className={m.withheld ? "text-muted-foreground" : pctTone(m.changePct)}>
-                          {m.withheld ? "data under review" : formatPercent(m.changePct)}
-                        </span>
+                        <span className={pctTone(m.changePct)}>{formatPercent(m.changePct)}</span>
+                      </li>
+                    ))}
+                    {(w.underReview ?? []).map((row) => (
+                      <li key={row.ticker} className="text-[11px] text-muted-foreground">
+                        {printUnderReviewLabel(row.ticker)}
                       </li>
                     ))}
                   </ul>
@@ -216,19 +220,11 @@ function ProjectionLeadersSection({ report }: { report: ApexReport }) {
   return (
     <div className="rounded-xl border border-border/60 bg-card/40 p-4">
       <div className="mb-2 text-sm font-semibold">Next 7 days · Top-10 projected movers</div>
+      <p className="mb-2 text-xs text-muted-foreground">{PROJECTION_RANK_NOTE}</p>
       <div className="space-y-1">
         {report.projectionLeaders.map((r, i) => (
-          <div key={r.ticker} className="flex min-w-0 flex-wrap items-center justify-between gap-2 text-sm">
-            <span className="min-w-0 truncate text-muted-foreground">
-              <span className="text-muted-foreground/60">{i + 1}.</span>{" "}
-              <span className="font-medium text-foreground">{r.ticker}</span>
-              <span className="text-muted-foreground/70"> · {r.market}</span>
-            </span>
-            <span className="flex shrink-0 items-center gap-2">
-              <span className="font-mono text-xs text-muted-foreground">{formatMoney(r.price, r.currency)}</span>
-              <span className={`font-mono ${pctTone(r.projected7dPct)}`}>{formatPercent(r.projected7dPct)}</span>
-              <span className="text-[11px] text-muted-foreground/70">{r.confidence}%</span>
-            </span>
+          <div key={r.ticker} className="text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">{projectionLeaderLine(i + 1, r)}</span>
           </div>
         ))}
       </div>

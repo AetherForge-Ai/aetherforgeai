@@ -7,6 +7,7 @@
 import Link from "next/link";
 import { TaxSectionNav } from "@/components/tax/TaxSectionNav";
 import { formatNzd, formatSignedMoney } from "@/lib/currency";
+import { COST_METHOD_LABEL } from "@/lib/lot-day";
 import { TAX_INDICATIVE_LABEL } from "@/lib/tax-disclaimer";
 import { TAX_PACK_NOTE } from "@/lib/tax-pack";
 import { TAX_PAGE_EXAMPLE, TAX_PAGE_SUMMARIES } from "@/lib/tax-public-summary";
@@ -79,6 +80,7 @@ export function TaxPageContent({ book = null }: { book?: TaxBookFigures | null }
       {book ? (
         <section className="mt-6 space-y-2 rounded-2xl border border-border/70 bg-card/40 p-4">
           <h2 className="font-display text-lg font-semibold">Your paper book</h2>
+          <p className="text-sm text-muted-foreground">{COST_METHOD_LABEL}</p>
           <p className="text-sm leading-relaxed text-muted-foreground">
             Dividends on this book, net cash received: {formatNzd(book.dividendsNzd)}.{" "}
             {book.dividendsGrossNzd == null

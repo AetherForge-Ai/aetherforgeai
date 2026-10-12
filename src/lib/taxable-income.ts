@@ -1,16 +1,18 @@
 /**
  * Taxable-income summary for one 1 April–31 March year.
  * Dividend pieces come from the notes prefix. A row without that prefix
- * is cash only and is not treated as gross. Realised gains are the amount
- * stored on the sell. FIFO is a separate paper.
+ * is cash only and is not treated as gross. Realised gains are FIFO, the
+ * same figure as the realised page. A stored sell amount is not a second total.
  *
  * pull-check:track-b-2-2026-10-11
  */
 
 import { roundMoney } from "@/lib/currency";
 import { dividendViewFromRow, type DividendSourceRow } from "@/lib/dividend-ledger";
+import { buyLotDay } from "@/lib/lot-day";
 import { inNzTaxYear, nzTaxYearEnding, nzTaxYearLabel } from "@/lib/nz-tax-year";
 import { TAX_INDICATIVE_LABEL } from "@/lib/tax-disclaimer";
+import { realisedByTaxYear } from "@/lib/tax-realised";
 
 export interface TaxLedgerRow extends DividendSourceRow {
   quantity?: number | null;
@@ -20,6 +22,10 @@ export interface TaxLedgerRow extends DividendSourceRow {
   fees_nzd?: number | null;
   realized_pnl?: number | null;
   realized_pnl_nzd?: number | null;
+  realized_price_pnl_nzd?: number | null;
+  realized_fx_pnl_nzd?: number | null;
+  trade_date?: string | null;
+  trade_datetime?: string | null;
 }
 
 export interface DividendIncomeLine {
@@ -60,14 +66,12 @@ function whenOf(row: TaxLedgerRow): string {
   return String(row.executed_at || row.createdAt || "");
 }
 
-function realisedAmount(row: TaxLedgerRow): number | null {
-  if (typeof row.realized_pnl_nzd === "number" && Number.isFinite(row.realized_pnl_nzd)) {
-    return roundMoney(row.realized_pnl_nzd);
-  }
-  if (typeof row.realized_pnl === "number" && Number.isFinite(row.realized_pnl)) {
-    return roundMoney(row.realized_pnl);
-  }
-  return null;
+function movementQty(row: TaxLedgerRow): number {
+  const qty = Number(row.quantity);
+  if (qty > 0) return qty;
+  const match = String(row.notes || "").match(/\bqty=([0-9]*\.?[0-9]+)/i);
+  const parsed = match ? Number(match[1]) : 0;
+  return parsed > 0 ? parsed : 0;
 }
 
 export function taxableIncome(rows: readonly TaxLedgerRow[], endingYear: number): TaxableIncomeReport {
@@ -118,17 +122,31 @@ export function taxableIncome(rows: readonly TaxLedgerRow[], endingYear: number)
         legacyCashNzd: null,
       });
     }
-    if (row.type === "sell") {
-      const amount = realisedAmount(row);
-      if (amount == null) realisedMissing += 1;
-      else realisedNzd = roundMoney(realisedNzd + amount);
-      realised.push({
-        when,
-        ticker: String(row.ticker || "").trim(),
-        assetType: String(row.asset_type || "").trim(),
-        realisedNzd: amount,
-      });
-    }
+  }
+
+  const paper = realisedByTaxYear(rows, endingYear);
+  const fifoLines = [...paper.other, ...paper.crypto];
+  const queues = new Map<string, typeof fifoLines>();
+  for (const line of fifoLines) {
+    const key = `${line.ticker}|${line.when}`;
+    const list = queues.get(key) || [];
+    list.push(line);
+    queues.set(key, list);
+  }
+  const sells = ordered.filter((row) => row.type === "sell" && inNzTaxYear(whenOf(row), endingYear));
+  for (const row of sells) {
+    const ticker = String(row.ticker || "").trim().toUpperCase();
+    const day = buyLotDay(row);
+    const line = queues.get(`${ticker}|${day}`)?.shift();
+    const amount = movementQty(row) > 0 ? (line?.realisedNzd ?? null) : null;
+    if (amount == null) realisedMissing += 1;
+    else realisedNzd = roundMoney(realisedNzd + amount);
+    realised.push({
+      when: line?.when || whenOf(row),
+      ticker: String(row.ticker || "").trim(),
+      assetType: String(row.asset_type || "").trim(),
+      realisedNzd: amount,
+    });
   }
 
   return {
@@ -229,5 +247,5 @@ export function taxableIncomeCsv(report: TaxableIncomeReport, formatDate: (value
     cellMoney(report.realisedNzd),
     TAX_INDICATIVE_LABEL,
   ]);
-  return lines.join("\n");
+  return `${lines.join("\n")}\n`;
 }
