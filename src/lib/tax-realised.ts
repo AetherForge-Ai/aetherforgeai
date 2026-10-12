@@ -120,7 +120,18 @@ function storedRealised(row: TaxLedgerRow): number | null {
   return null;
 }
 
-export function realisedByTaxYear(rows: readonly TaxLedgerRow[], endingYear: number): RealisedReport {
+const disposalCache = new WeakMap<object, RealisedLine[]>();
+
+/** One FIFO walk for every disposal. Later reads of the same book array reuse it. */
+export function allRealisedLines(rows: readonly TaxLedgerRow[]): RealisedLine[] {
+  const hit = disposalCache.get(rows);
+  if (hit) return hit;
+  const lines = walkDisposals(rows);
+  disposalCache.set(rows, lines);
+  return lines;
+}
+
+function walkDisposals(rows: readonly TaxLedgerRow[]): RealisedLine[] {
   const books = new Map<string, OpenLot[]>();
   const events = rows
     .filter((row) => row.type === "buy" || row.type === "sell" || row.type === "opening_balance")
@@ -128,10 +139,7 @@ export function realisedByTaxYear(rows: readonly TaxLedgerRow[], endingYear: num
     .filter((event) => event.day)
     .sort((a, b) => a.day.localeCompare(b.day) || String(a.row.type).localeCompare(String(b.row.type)));
 
-  const other: RealisedLine[] = [];
-  const crypto: RealisedLine[] = [];
-  let blankCount = 0;
-  let storedDiffCount = 0;
+  const lines: RealisedLine[] = [];
 
   for (const event of events) {
     const row = event.row;
@@ -149,8 +157,6 @@ export function realisedByTaxYear(rows: readonly TaxLedgerRow[], endingYear: num
       books.set(ticker, closed.remainingLots as OpenLot[]);
       const closedQty = closed.closedPairs.reduce((sum, pair) => sum + pair.qty, 0);
       const missingLot = closed.closedPairs.some((pair) => Boolean((pair.buy as OpenLot).missingRate));
-      const inYear = inNzTaxYear(event.day, endingYear);
-      if (!inYear) continue;
       const incomplete = fx == null || fee == null || missingLot || qty - closedQty > 1e-6 || !(price > 0);
       const matched = closed.closedPairs.map((pair) => ({
         acquired: pair.buy.tradeDatetime,
@@ -175,8 +181,7 @@ export function realisedByTaxYear(rows: readonly TaxLedgerRow[], endingYear: num
         storedRealisedNzd: stored,
         diffNote,
       };
-      if (incomplete) blankCount += 1;
-      (line.section === "crypto" ? crypto : other).push(line);
+      lines.push(line);
       continue;
     }
     if (!(price > 0)) continue;
@@ -191,11 +196,17 @@ export function realisedByTaxYear(rows: readonly TaxLedgerRow[], endingYear: num
     });
   }
 
-  const sum = (lines: RealisedLine[]) =>
-    roundMoney(lines.reduce((total, line) => total + (line.realisedNzd ?? 0), 0));
+  return lines;
+}
+
+export function realisedByTaxYear(rows: readonly TaxLedgerRow[], endingYear: number): RealisedReport {
+  const matched = allRealisedLines(rows).filter((line) => inNzTaxYear(line.when, endingYear));
+  const other = matched.filter((line) => line.section !== "crypto");
+  const crypto = matched.filter((line) => line.section === "crypto");
+  const sum = (group: RealisedLine[]) =>
+    roundMoney(group.reduce((total, line) => total + (line.realisedNzd ?? 0), 0));
   const otherTotalNzd = sum(other);
   const cryptoTotalNzd = sum(crypto);
-
   return {
     endingYear,
     label: nzTaxYearLabel(endingYear),
@@ -204,8 +215,8 @@ export function realisedByTaxYear(rows: readonly TaxLedgerRow[], endingYear: num
     otherTotalNzd,
     cryptoTotalNzd,
     combinedNzd: roundMoney(otherTotalNzd + cryptoTotalNzd),
-    blankCount,
-    storedDiffCount,
+    blankCount: matched.filter((line) => line.realisedNzd == null).length,
+    storedDiffCount: 0,
     assumptions: REALISED_ASSUMPTIONS,
   };
 }
@@ -269,6 +280,46 @@ function openBooks(rows: readonly TaxLedgerRow[]): Map<string, OpenLot[]> {
   return books;
 }
 
+const openFxCache = new WeakMap<object, { cost: Map<string, number>; qty: Map<string, number> }>();
+
+/** Cost-weighted and quantity-weighted open rates from one lot walk. */
+export function openFxMaps(rows: readonly TaxLedgerRow[]): { cost: Map<string, number>; qty: Map<string, number> } {
+  const hit = openFxCache.get(rows);
+  if (hit) return hit;
+  const cost = new Map<string, number>();
+  const qtyRates = new Map<string, number>();
+  for (const [ticker, lots] of openBooks(rows)) {
+    const open = lots.filter((lot) => lot.qty > 1e-12);
+    if (!open.length || open.some((lot) => lot.missingRate || !(lot.fxRate > 0))) continue;
+    let native = 0;
+    let costWeighted = 0;
+    let qty = 0;
+    let qtyWeighted = 0;
+    for (const lot of open) {
+      const lotCost = lot.qty * lot.fillPrice;
+      native += lotCost;
+      costWeighted += lotCost * lot.fxRate;
+      qty += lot.qty;
+      qtyWeighted += lot.qty * lot.fxRate;
+    }
+    if (native > 1e-9) cost.set(ticker, costWeighted / native);
+    if (qty > 1e-9) qtyRates.set(ticker, qtyWeighted / qty);
+  }
+  const maps = { cost, qty: qtyRates };
+  openFxCache.set(rows, maps);
+  return maps;
+}
+
+/** Open share quantity per ticker. Used to drop an aggregate row that repeats the lots. */
+export function fifoRemainingShareQty(rows: readonly TaxLedgerRow[]): Map<string, number> {
+  const qty = new Map<string, number>();
+  for (const [ticker, lots] of openBooks(rows)) {
+    const open = lots.reduce((sum, lot) => sum + lot.qty, 0);
+    if (open > 1e-9) qty.set(ticker, open);
+  }
+  return qty;
+}
+
 /** Native unit cost of whatever FIFO lots are still open. */
 export function fifoRemainingUnitCosts(rows: readonly TaxLedgerRow[]): Map<string, number> {
   const costs = new Map<string, number>();
@@ -287,20 +338,7 @@ export function fifoRemainingUnitCosts(rows: readonly TaxLedgerRow[]): Map<strin
  * line is not filled from a guess.
  */
 export function fifoRemainingCostFx(rows: readonly TaxLedgerRow[]): Map<string, number> {
-  const rates = new Map<string, number>();
-  for (const [ticker, lots] of openBooks(rows)) {
-    const open = lots.filter((lot) => lot.qty > 1e-12);
-    if (!open.length || open.some((lot) => lot.missingRate || !(lot.fxRate > 0))) continue;
-    let native = 0;
-    let weighted = 0;
-    for (const lot of open) {
-      const cost = lot.qty * lot.fillPrice;
-      native += cost;
-      weighted += cost * lot.fxRate;
-    }
-    if (native > 1e-9) rates.set(ticker, weighted / native);
-  }
-  return rates;
+  return openFxMaps(rows).cost;
 }
 
 /**
@@ -309,19 +347,7 @@ export function fifoRemainingCostFx(rows: readonly TaxLedgerRow[]): Map<string, 
  * A ticker is omitted when any open lot has no stored rate.
  */
 export function fifoRemainingQtyFx(rows: readonly TaxLedgerRow[]): Map<string, number> {
-  const rates = new Map<string, number>();
-  for (const [ticker, lots] of openBooks(rows)) {
-    const open = lots.filter((lot) => lot.qty > 1e-12);
-    if (!open.length || open.some((lot) => lot.missingRate || !(lot.fxRate > 0))) continue;
-    let qty = 0;
-    let weighted = 0;
-    for (const lot of open) {
-      qty += lot.qty;
-      weighted += lot.qty * lot.fxRate;
-    }
-    if (qty > 1e-9) rates.set(ticker, weighted / qty);
-  }
-  return rates;
+  return openFxMaps(rows).qty;
 }
 
 export const REALISED_CSV_COLUMNS = [

@@ -101,6 +101,30 @@ function parseNumber(raw: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/** `CODE / NAME` or `CODE | NAME`. The left token is the code the file printed. */
+export function splitHoldingsTicker(raw: string): { code: string; name: string } | null {
+  const match = raw.trim().match(/^([A-Za-z0-9][A-Za-z0-9.-]{0,14})\s*[/|]\s+(.+)$/);
+  if (!match) return null;
+  const code = match[1].toUpperCase();
+  const name = match[2].trim();
+  if (!code || !name) return null;
+  return { code, name };
+}
+
+/**
+ * A combined cell becomes the left code. Directory matching lives in the
+ * broker review, which can turn APPL / APPLE INC into AAPL.
+ */
+export function holdingsTickerFromCell(raw: string): string {
+  const text = raw.trim();
+  if (!text) return "";
+  const split = splitHoldingsTicker(text);
+  if (split) return split.code;
+  return text.toUpperCase();
+}
+
+export const HOLDINGS_IMPORT_DRAFT_KEY = "af-import-draft";
+
 function assetTypeFor(ticker: string, explicit: string | undefined): "stock" | "crypto" {
   const flag = (explicit ?? "").trim().toLowerCase();
   if (flag === "crypto" || flag === "coin") return "crypto";
@@ -145,7 +169,7 @@ export function parseHoldingsCsv(text: string): HoldingsCsvResult {
   body.forEach((line, index) => {
     const cells = splitCsvLine(line);
     const rowNo = hasHeader ? index + 2 : index + 1;
-    const ticker = (cells[resolvedTicker] ?? "").trim().toUpperCase();
+    const ticker = holdingsTickerFromCell(cells[resolvedTicker] ?? "");
     const units = parseNumber(cells[unitAt] ?? "");
     const pricePaid = parseNumber(cells[priceAt] ?? "");
     const dateRaw = dateAt >= 0 ? (cells[dateAt] ?? "").trim() : "";

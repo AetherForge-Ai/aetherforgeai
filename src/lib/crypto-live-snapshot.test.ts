@@ -242,6 +242,9 @@ describe("pull-check:crypto-live-2026-10-11", () => {
     expect(byId.coinbase.status).toBe(403);
     expect(hiddenSnapshotTicker(CRYPTO_SNAPSHOT_TICKER)).toBe(true);
     expect(hiddenSnapshotTicker(DEX_SNAPSHOT_TICKER)).toBe(true);
+    expect(hiddenSnapshotTicker("AF-CGS-1")).toBe(true);
+    expect(hiddenSnapshotTicker("AF-DXS-12")).toBe(true);
+    expect(hiddenSnapshotTicker("AAPL")).toBe(false);
     expect(read("src/app/api/watchlist/route.ts")).toContain("hiddenSnapshotTicker");
   });
 });

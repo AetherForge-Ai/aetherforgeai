@@ -5,7 +5,8 @@ import { getCurrentUser } from "@/lib/session";
 
 /**
  * GET /api/admin/crypto-diagnostics
- * Probes CoinGecko, GeckoTerminal, Kraken, and Coinbase from this runtime.
+ * Probes CoinGecko, CoinPaprika, Binance, GeckoTerminal, Kraken, and Coinbase from this runtime.
+ * The seed array is the last keyless attempt in this isolate, with a plain reason per source.
  * Restricted to the privacy-officer account. The body is status, latency,
  * size, row count, and an error class. It does not include keys or response bodies.
  *

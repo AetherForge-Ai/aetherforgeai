@@ -198,6 +198,14 @@ function todayISO(): string {
   return aucklandYmd();
 }
 
+/** The live figure from the fill audit, on its own line so a long note cannot hide it. */
+function ledgerLiveLine(notes?: string | null): string | null {
+  const text = String(notes || "");
+  if (/live=n\/a/i.test(text) || /live:\s*n\/a/i.test(text)) return "live: n/a";
+  const match = text.match(/live=([0-9]+(?:\.[0-9]+)?)/);
+  return match ? `live: ${match[1]}` : null;
+}
+
 /** The fill audit the book stored: live price, chain, and the quote time. */
 function visibleAudit(notes?: string | null): string {
   const text = String(notes || "");
@@ -714,6 +722,11 @@ export function TransactionCenter({
                             {visibleAudit(t.notes) ? (
                               <p className="truncate text-[11px] text-muted-foreground">{visibleAudit(t.notes)}</p>
                             ) : null}
+                            {ledgerLiveLine(t.notes) ? (
+                              <p data-testid="ledger-live" className="text-[11px] text-muted-foreground">
+                                {ledgerLiveLine(t.notes)}
+                              </p>
+                            ) : null}
                           </div>
                         ) : (
                           <span className="text-muted-foreground">{t.asset_name || "Cash"}</span>
@@ -1118,6 +1131,11 @@ function AllTransactionsDialog({
                             </p>
                             {visibleAudit(t.notes) ? (
                               <p className="max-w-[16rem] truncate text-[11px] text-muted-foreground">{visibleAudit(t.notes)}</p>
+                            ) : null}
+                            {ledgerLiveLine(t.notes) ? (
+                              <p data-testid="ledger-live" className="text-[11px] text-muted-foreground">
+                                {ledgerLiveLine(t.notes)}
+                              </p>
                             ) : null}
                             {change ? (
                               <p className="max-w-[16rem] text-[11px] leading-snug text-muted-foreground">

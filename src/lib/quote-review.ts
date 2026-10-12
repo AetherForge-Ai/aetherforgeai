@@ -24,9 +24,9 @@ export const EQUITY_SESSION_MOVE_CAP_PCT = 50;
 
 /**
  * Other listed shares over a week. Above this the print is under review and
- * leaves the 7-day rank. Large-cap week moves keep LARGE_CAP_WEEK_MOVE_CAP_PCT.
+ * leaves every rank list. Large-cap week moves keep LARGE_CAP_WEEK_MOVE_CAP_PCT.
  */
-export const EQUITY_WEEK_MOVE_CAP_PCT = 30;
+export const EQUITY_WEEK_MOVE_CAP_PCT = 15;
 
 /**
  * A ranked Stox row more than this many percentage points from the same
@@ -263,12 +263,14 @@ export function createQuoteBook() {
       }
       if (prior) return prior.result;
       if (input.window !== "1d") {
-        const day = seen.get(`${ticker}|1d`);
-        if (day?.result.withheld) {
+        const earlier = input.window === "30d" ? (["1d", "7d"] as const) : (["1d"] as const);
+        for (const window of earlier) {
+          const priorWindow = seen.get(`${ticker}|${window}`);
+          if (!priorWindow?.result.withheld) continue;
           const withheld: ReviewedMove = {
             changePct: 0,
             withheld: true,
-            reason: "24-hour print is under review",
+            reason: window === "1d" ? "24-hour print is under review" : "7-day print is under review",
             display: DATA_UNDER_REVIEW,
           };
           console.warn(`[quote-review] ${id} rejected: ${withheld.reason}`);

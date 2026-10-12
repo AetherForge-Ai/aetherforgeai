@@ -372,13 +372,40 @@ export async function enrichListedCoins(coins: CoinMarket[]): Promise<CoinMarket
   }
 }
 
+const AWAIT_LIST_UPGRADE_MS = 8_000;
+
+function storedListNeedsUpgrade(coins: { source?: string | null }[]): boolean {
+  if (!coins.length) return false;
+  if (coins.length < 300) return true;
+  return coins.every((coin) => (coin.source || "") === "yahoo");
+}
+
 export async function loadTop400Markets(): Promise<RankedCryptoPage> {
-  const { readSharedCryptoBoard } = await import("@/lib/crypto-board-store");
+  const { readSharedCryptoBoard, upgradeStoredCryptoBoard } = await import("@/lib/crypto-board-store");
   const board = await readSharedCryptoBoard({ seed: false });
+  if (storedListNeedsUpgrade(board.coins)) {
+    await upgradeStoredCryptoBoard(AWAIT_LIST_UPGRADE_MS);
+    const again = await readSharedCryptoBoard({ seed: false });
+    return {
+      coins: again.coins.slice(0, 400),
+      notice: again.notice,
+      at: again.at,
+    };
+  }
+  if (board.coins.length) {
+    void upgradeStoredCryptoBoard().catch(() => undefined);
+    return {
+      coins: board.coins.slice(0, 400),
+      notice: board.notice,
+      at: board.at,
+    };
+  }
+  await upgradeStoredCryptoBoard();
+  const again = await readSharedCryptoBoard({ seed: false });
   return {
-    coins: board.coins.slice(0, 400),
-    notice: board.notice,
-    at: board.at,
+    coins: again.coins.slice(0, 400),
+    notice: again.notice,
+    at: again.at,
   };
 }
 
@@ -393,7 +420,8 @@ function presentDetail(detail: CoinDetail, source: string): CoinDetail {
 
 async function listedCoinForDetail(id: string, code: string): Promise<CoinMarket | null> {
   try {
-    const { readSharedCryptoBoard } = await import("@/lib/crypto-board-store");
+    const { readSharedCryptoBoard, upgradeStoredCryptoBoard } = await import("@/lib/crypto-board-store");
+    await upgradeStoredCryptoBoard();
     const board = await readSharedCryptoBoard({ seed: false });
     const slug = id.trim().toLowerCase();
     const symbol = code.toUpperCase();
