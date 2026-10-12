@@ -51,6 +51,11 @@ export interface CoinMarket {
   contracts?: string[];
   /** Feed that produced this row. Omitted when the row is not shown. */
   source?: string;
+  /**
+   * Window moves from the snapshot. Null means the feed did not send a number.
+   * A real flat print is 0. Koins ranks from these fields.
+   */
+  moves?: { h24: number | null; d7: number | null; d30: number | null } | null;
 }
 
 /** Shown when a crypto route fails. Never a parse exception or an upstream body. */

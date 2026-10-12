@@ -6,15 +6,16 @@
  */
 import { NextResponse } from "next/server";
 import { dexBody } from "@/lib/crypto-api-body";
-import { fetchDexTop400 } from "@/lib/crypto-coingecko";
+import { readSharedDexBoard } from "@/lib/crypto-board-store";
 import { dexResponseCacheControl } from "@/lib/crypto-dex";
 
 export const dynamic = "force-dynamic";
 
+/** The signed-in DEX tab reads the same snapshot as the public page. */
 export async function GET() {
   try {
-    const page = await fetchDexTop400();
-    return NextResponse.json(dexBody(page.rows, { collecting: !page.sourceDown, notice: page.notice }), {
+    const page = await readSharedDexBoard();
+    return NextResponse.json(dexBody(page.rows, { notice: page.notice }), {
       headers: { "cache-control": dexResponseCacheControl(page.rows.length) },
     });
   } catch (err: unknown) {

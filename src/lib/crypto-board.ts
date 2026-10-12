@@ -1,0 +1,274 @@
+/**
+ * One market snapshot for every crypto consumer.
+ *
+ * Pure helpers: names, chains, DEX identity, completeness, and the
+ * "Prices as at" label. Network access lives in crypto-board-store.ts.
+ * This runtime has no cron trigger. Readers serve the persisted snapshot
+ * and a protected route refreshes it.
+ *
+ * pull-check:v3-tier1a-2026-10-12
+ */
+
+import { formatDisplayDateTime } from "@/lib/currency";
+import type { DexTokenRow } from "@/lib/crypto-dex";
+import { coinDisplayName, SYMBOL_IS_OFFICIAL_NAME } from "@/lib/crypto-names";
+import type { CoinMarket } from "@/lib/crypto-market";
+
+export const MARKET_SNAPSHOT_TARGET = 400;
+export const SNAPSHOT_COMPLETE_RATIO = 0.95;
+export const SNAPSHOT_STALE_MS = 30 * 60 * 1000;
+export const KOINS_SNAPSHOT_FRESH_MS = 60 * 60 * 1000;
+export const PLATFORM_DIRECTORY_TTL_MS = 24 * 60 * 60 * 1000;
+
+export const SNAPSHOT_COMPLETE_COUNT = Math.ceil(MARKET_SNAPSHOT_TARGET * SNAPSHOT_COMPLETE_RATIO);
+
+const LAST_GOOD_CELL = /^last good\s*[·•|\-–—:]+\s*/i;
+
+/** Native chain for an L1 whose platform list is empty. */
+const L1_CHAIN: Record<string, string> = {
+  bitcoin: "Bitcoin",
+  ethereum: "Ethereum",
+  solana: "Solana",
+  cardano: "Cardano",
+  binancecoin: "BNB Smart Chain",
+  ripple: "XRP Ledger",
+  tron: "TRON",
+  "bitcoin-cash": "Bitcoin Cash",
+  stellar: "Stellar",
+  algorand: "Algorand",
+  "hedera-hashgraph": "Hedera",
+  litecoin: "Litecoin",
+  dogecoin: "Dogecoin",
+  polkadot: "Polkadot",
+  "avalanche-2": "Avalanche",
+  near: "NEAR Protocol",
+  aptos: "Aptos",
+  sui: "Sui",
+  cosmos: "Cosmos",
+  "the-open-network": "TON",
+  "internet-computer": "Internet Computer",
+  "matic-network": "Polygon",
+  "polygon-ecosystem-token": "Polygon",
+  "ethena": "Ethereum",
+  "usd-coin": "Ethereum",
+};
+
+const PLATFORM_LABEL: Record<string, string> = {
+  ethereum: "Ethereum",
+  "binance-smart-chain": "BNB Smart Chain",
+  "polygon-pos": "Polygon",
+  solana: "Solana",
+  avalanche: "Avalanche",
+  "arbitrum-one": "Arbitrum",
+  "optimistic-ethereum": "Optimism",
+  base: "Base",
+  "the-open-network": "TON",
+  cardano: "Cardano",
+  tron: "TRON",
+  stellar: "Stellar",
+  algorand: "Algorand",
+  hedera: "Hedera",
+  "hedera-hashgraph": "Hedera",
+  "sei-network": "Sei",
+  sui: "Sui",
+  aptos: "Aptos",
+  ton: "TON",
+  "near-protocol": "NEAR Protocol",
+};
+
+export interface CoinDirectoryEntry {
+  name: string;
+  symbol: string;
+  platforms: Record<string, string>;
+}
+
+export interface WindowMoves {
+  h24: number | null;
+  d7: number | null;
+  d30: number | null;
+}
+
+export function stripLastGoodCell(value: string | null | undefined): string {
+  let text = String(value ?? "").trim();
+  let guard = 0;
+  while (LAST_GOOD_CELL.test(text) && guard < 4) {
+    text = text.replace(LAST_GOOD_CELL, "").trim();
+    guard += 1;
+  }
+  return text;
+}
+
+export function cellHasLastGood(value: string | null | undefined): boolean {
+  return /last good/i.test(String(value ?? ""));
+}
+
+export function snapshotAgeMs(iso: string | null | undefined, now = Date.now()): number | null {
+  const at = Date.parse(iso || "");
+  if (!Number.isFinite(at)) return null;
+  return Math.max(0, now - at);
+}
+
+export function snapshotIsStale(iso: string | null | undefined, now = Date.now(), maxAge = SNAPSHOT_STALE_MS): boolean {
+  const age = snapshotAgeMs(iso, now);
+  if (age == null) return true;
+  return age > maxAge;
+}
+
+/** One label above the table. The delayed sentence is only for a snapshot older than 30 minutes. */
+export function pricesAsAtLabel(iso: string | null | undefined, now = Date.now()): string | null {
+  if (!iso) return null;
+  const wall = formatDisplayDateTime(iso);
+  if (!wall || wall === "—") return null;
+  const base = `Prices as at ${wall} (NZ).`;
+  return snapshotIsStale(iso, now) ? `${base} The feed is delayed.` : base;
+}
+
+export function koinsUnavailableLine(iso: string | null | undefined): string {
+  const wall = iso ? formatDisplayDateTime(iso) : "";
+  const when = wall && wall !== "—" ? wall : "not stored";
+  return `Crypto market data is unavailable right now, so this list is not ranked. Last good snapshot: ${when}.`;
+}
+
+export function platformLabel(key: string): string {
+  const id = (key || "").trim().toLowerCase();
+  if (!id) return "";
+  if (PLATFORM_LABEL[id]) return PLATFORM_LABEL[id];
+  return id
+    .split("-")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+/**
+ * Blockchain for one snapshot row.
+ * An empty platform list is the native chain. A token uses its primary platform.
+ */
+export function snapshotBlockchain(
+  coinId: string,
+  platforms: Record<string, string> | null | undefined,
+  assetPlatformId?: string | null
+): string {
+  const id = (coinId || "").trim().toLowerCase();
+  const direct = (assetPlatformId || "").trim().toLowerCase();
+  if (direct) return platformLabel(direct);
+  const keys = platforms
+    ? Object.entries(platforms).filter(([key, value]) => key.trim() && String(value || "").trim())
+    : [];
+  if (keys.length) return platformLabel(keys[0][0]);
+  return L1_CHAIN[id] || "";
+}
+
+export function finiteMove(value: unknown): number | null {
+  if (value == null || value === "") return null;
+  const n = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+  return Number.isFinite(n) ? n : null;
+}
+
+export function displayCoinName(symbol: string, feedName: string | null | undefined, directoryName?: string | null): string {
+  const fromList = (directoryName || "").trim();
+  if (fromList) return coinDisplayName(symbol, fromList);
+  return coinDisplayName(symbol, feedName);
+}
+
+export function nameIsPublishable(symbol: string, name: string): boolean {
+  const ticker = (symbol || "").trim().toUpperCase();
+  const label = (name || "").trim();
+  if (!ticker || !label) return false;
+  if (label.toUpperCase() === ticker) return SYMBOL_IS_OFFICIAL_NAME.has(ticker);
+  return true;
+}
+
+export function cryptoRowComplete(coin: Pick<CoinMarket, "symbol" | "name" | "price" | "blockchain">): boolean {
+  return (
+    typeof coin.price === "number" &&
+    coin.price > 0 &&
+    nameIsPublishable(coin.symbol, coin.name) &&
+    Boolean(coin.blockchain && coin.blockchain !== "—" && coin.blockchain !== "Unavailable" && coin.blockchain !== "Native")
+  );
+}
+
+/** At least 95% of the 400-row target, each with a name, a price, and a chain. */
+export function cryptoSnapshotComplete(coins: CoinMarket[]): boolean {
+  const good = coins.filter(cryptoRowComplete);
+  return good.length >= SNAPSHOT_COMPLETE_COUNT;
+}
+
+export function dexIdentityKey(row: Pick<DexTokenRow, "network" | "address" | "symbol">): string {
+  const network = stripLastGoodCell(row.network).toLowerCase();
+  const address = stripLastGoodCell(row.address || "").toLowerCase();
+  if (address) return `${network}|${address}`;
+  const symbol = stripLastGoodCell(row.symbol).toUpperCase();
+  return symbol ? `${network}|symbol:${symbol}` : "";
+}
+
+function dexLiquidity(row: DexTokenRow): number {
+  const reserve = row.reserveUsd != null && row.reserveUsd > 0 ? row.reserveUsd : 0;
+  if (reserve > 0) return reserve;
+  return row.volume24h != null && row.volume24h > 0 ? row.volume24h : 0;
+}
+
+/** One row per network + token address. The highest-liquidity pool wins. */
+export function dedupeDexByNetworkAddress(rows: DexTokenRow[], limit = MARKET_SNAPSHOT_TARGET): DexTokenRow[] {
+  const best = new Map<string, DexTokenRow>();
+  const passthrough: DexTokenRow[] = [];
+  for (const raw of rows) {
+    const row = cleanDexRow(raw);
+    if (!row) continue;
+    const key = dexIdentityKey(row);
+    if (!key) {
+      passthrough.push(row);
+      continue;
+    }
+    const prev = best.get(key);
+    if (!prev || dexLiquidity(row) > dexLiquidity(prev)) best.set(key, row);
+  }
+  return [...best.values(), ...passthrough]
+    .sort((a, b) => dexLiquidity(b) - dexLiquidity(a))
+    .slice(0, limit);
+}
+
+export function cleanDexRow(row: DexTokenRow): DexTokenRow | null {
+  const symbol = stripLastGoodCell(row.symbol).toUpperCase();
+  const name = stripLastGoodCell(row.name);
+  const network = stripLastGoodCell(row.network);
+  const dex = stripLastGoodCell(row.dex);
+  const price = typeof row.price === "number" && row.price > 0 ? row.price : null;
+  if (!symbol || price == null) return null;
+  if (cellHasLastGood(symbol) || cellHasLastGood(name) || cellHasLastGood(network) || cellHasLastGood(dex)) return null;
+  return {
+    ...row,
+    symbol,
+    name: name && name.toUpperCase() !== symbol ? name : symbol,
+    network: network === "Unavailable" ? "" : network,
+    dex,
+    price,
+    priceUnavailable: false,
+    address: stripLastGoodCell(row.address || ""),
+  };
+}
+
+export function dexRowComplete(row: DexTokenRow): boolean {
+  const cleaned = cleanDexRow(row);
+  if (!cleaned) return false;
+  return Boolean(cleaned.network && cleaned.dex && cleaned.price && cleaned.price > 0 && cleaned.name);
+}
+
+export function dexSnapshotComplete(rows: DexTokenRow[]): boolean {
+  const unique = dedupeDexByNetworkAddress(rows, MARKET_SNAPSHOT_TARGET);
+  const good = unique.filter(dexRowComplete);
+  return good.length >= SNAPSHOT_COMPLETE_COUNT;
+}
+
+export function countLine(kind: "coins" | "DEX tokens", count: number): string {
+  const n = Math.max(0, Math.round(count));
+  return `${n} ${kind}`;
+}
+
+export function pageRangeLine(pageIndex: number, pageSize: number, total: number): string {
+  const count = Math.max(0, Math.round(total));
+  if (!count) return "Showing 0 of 400";
+  const start = pageIndex * pageSize + 1;
+  const end = Math.min(count, (pageIndex + 1) * pageSize);
+  return `Showing ${start}–${end} of ${count}`;
+}

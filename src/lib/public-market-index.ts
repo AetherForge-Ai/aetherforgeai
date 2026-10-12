@@ -1,6 +1,5 @@
 import "server-only";
 
-import { fetchDexTop400 } from "@/lib/crypto-coingecko";
 import { choosePublicPriceTab, formatPublicCryptoPrice, sourceLabel } from "@/lib/crypto-price-chain";
 import { publicSourceAllowed } from "@/lib/swyftx-display";
 import { loadPublicCryptoPrint, noteListedPrices, recallPublicTab, rememberPublicTab } from "@/lib/crypto-price-feed";
@@ -141,11 +140,12 @@ async function loadCryptoTab(): Promise<PublicPriceTab> {
 
 async function loadDexTab(): Promise<PublicPriceTab> {
   try {
-    const page = await fetchDexTop400();
+    const { readSharedDexBoard } = await import("@/lib/crypto-board-store");
+    const page = await readSharedDexBoard();
     const priced = page.rows
       .filter((row) => typeof row.price === "number" && row.price > 0 && row.detailId)
       .slice(0, COIN_PAGE);
-    const quotedAt = new Date().toISOString();
+    const quotedAt = page.at || new Date().toISOString();
     noteListedPrices(
       priced.map((row) => ({
         symbol: row.symbol,
