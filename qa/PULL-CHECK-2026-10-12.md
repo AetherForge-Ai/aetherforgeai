@@ -10,6 +10,13 @@ Base: `develop` at `add1d4e7f3315871a1916df83c70a4ac283fcf81` (Keep a last-good 
 Implementation commit: `1cf96b28aa600e350017d16d4bf6d6365eb0d91e`
 Pull-check commit: `13d4e6b5f6ac49198806e918b3853382c9b88f41`
 
+## Checks
+
+- `npx vitest run`: 135 files, 631 tests passed.
+- `npm run check-types-errors`: passed.
+- `npm run build`: passed (Next.js 15.3.9, compiled and generated 23 static pages).
+- Browser: the signed-in Stox report, ledger, holdings and tax screens were not opened in a browser. Those screens need the QA account. The exact strings are asserted in `src/lib/qa-tier1b.test.ts`.
+
 ## Written confirmation
 
 - Did not Publish.
