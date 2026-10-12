@@ -14,6 +14,7 @@
  *
  * pull-check:v3-tier1a-2026-10-12
  * pull-check:v3-crypto-seed-2026-10-12
+ * pull-check:v3-retest10-2026-10-13
  */
 
 import "server-only";
@@ -57,7 +58,7 @@ import {
   YAHOO_BACKUP_FLOOR,
 } from "@/lib/crypto-keyless-seed";
 import { coinDisplayName } from "@/lib/crypto-names";
-import type { CoinMarket } from "@/lib/crypto-market";
+import { resolvableCoinId, type CoinMarket } from "@/lib/crypto-market";
 import { persistCryptoSnapshot, persistDexSnapshot, readCryptoSnapshot, readDexSnapshot } from "@/lib/crypto-snapshot";
 import { publicSourceAllowed } from "@/lib/swyftx-display";
 
@@ -91,6 +92,15 @@ interface CacheGlobal {
 
 let directoryMemory: { at: number; entries: Map<string, CoinDirectoryEntry> } | null = null;
 let nextReaderAttemptAt = 0;
+let nextYahooUpgradeAt = 0;
+let nextDexUpgradeAt = 0;
+
+/** Tests start each case with a clear upgrade backoff. */
+export function resetSnapshotUpgradeBackoff() {
+  nextReaderAttemptAt = 0;
+  nextYahooUpgradeAt = 0;
+  nextDexUpgradeAt = 0;
+}
 
 export interface RefreshResult {
   cryptoReplaced: boolean;
@@ -438,7 +448,7 @@ function presentCrypto(coins: CoinMarket[], at: string | null): SharedCryptoBoar
 function presentDex(rows: DexTokenRow[], at: string | null, sources: string[]): SharedDexBoard {
   const unique = dedupeDexByNetworkAddress(rows)
     .map((row) => cleanDexRow(row))
-    .filter((row): row is DexTokenRow => !!row && dexRowComplete(row));
+    .filter((row): row is DexTokenRow => !!row && dexRowComplete(row) && !!resolvableCoinId(row.detailId));
   const notice = unique.length ? withFeedSource(pricesAsAtLabel(at), sources) : null;
   return {
     rows: unique,
@@ -451,6 +461,36 @@ function presentDex(rows: DexTokenRow[], at: string | null, sources: string[]): 
 
 /** Cold start only. A stored crypto list never waits on this. */
 const EMPTY_CRYPTO_SEED_MS = 7_000;
+
+/** A Yahoo-only or stale list may wait this long for a richer seed inside the request. */
+const YAHOO_UPGRADE_BOUND_MS = 8_000;
+
+function snapshotIsYahooOnly(coins: CoinMarket[]): boolean {
+  return coins.length > 0 && coins.every((coin) => (coin.source || "") === "yahoo");
+}
+
+/**
+ * The markets and detail reads await this. A detached refresh dies with the
+ * isolate, which is why a stored Yahoo list never gained market cap on live.
+ * The ticker and Koins keep the fast snapshot read.
+ */
+export async function upgradeStoredCryptoBoard(boundMs = YAHOO_UPGRADE_BOUND_MS): Promise<void> {
+  if (Date.now() < nextYahooUpgradeAt) return;
+  const saved = await readCryptoSnapshot();
+  if (!saved?.coins.length) return;
+  const yahooOnly = snapshotIsYahooOnly(saved.coins);
+  const stale = !saved.at || snapshotIsStale(saved.at);
+  if (!yahooOnly && !stale) return;
+  nextYahooUpgradeAt = Date.now() + 60_000;
+  await Promise.race([refreshCryptoSeed().catch(() => undefined), sleep(boundMs)]);
+}
+
+function dexSnapshotThin(rows: DexTokenRow[], sources: string[]): boolean {
+  const withId = rows.filter((row) => resolvableCoinId(row.detailId));
+  if (withId.length < 15) return true;
+  const names = sources.map((source) => source.toLowerCase());
+  return names.length > 0 && !names.includes("geckoterminal");
+}
 
 export async function readSharedCryptoBoard(opts?: { seed?: boolean }): Promise<SharedCryptoBoard> {
   const saved = await readCryptoSnapshot();
@@ -484,7 +524,8 @@ async function revalidateStaleBoards(): Promise<void> {
     !!crypto?.coins.length && crypto.coins.every((coin) => (coin.source || "") === "yahoo");
   const jobs: Promise<unknown>[] = [];
   if (!crypto?.coins.length || boardNeedsRefresh(crypto?.at) || cryptoYahoo) jobs.push(refreshCryptoSeed());
-  if (!dex?.rows.length || boardNeedsRefresh(dex?.at)) jobs.push(refreshDexSeed());
+  const dexThin = dexSnapshotThin(dex?.rows ?? [], dex?.sources ?? []);
+  if (!dex?.rows.length || boardNeedsRefresh(dex?.at) || dexThin) jobs.push(refreshDexSeed());
   if (!jobs.length) return;
   await Promise.race([Promise.all(jobs), sleep(DEX_REFRESH_BOUND_MS)]);
 }
@@ -493,7 +534,9 @@ export async function readSharedDexBoard(opts?: { seed?: boolean; revalidate?: b
   const saved = await readDexSnapshot();
   const visible = (saved?.rows ?? []).filter((row) => row.price != null && row.price > 0);
   if (visible.length) {
-    if (opts?.revalidate && boardNeedsRefresh(saved?.at)) {
+    const thin = dexSnapshotThin(visible, saved?.sources ?? []);
+    if (opts?.revalidate && (boardNeedsRefresh(saved?.at) || thin) && Date.now() >= nextDexUpgradeAt) {
+      nextDexUpgradeAt = Date.now() + 60_000;
       await revalidateStaleBoards();
       const again = await readDexSnapshot();
       const next = (again?.rows ?? []).filter((row) => row.price != null && row.price > 0);
@@ -556,7 +599,7 @@ export async function snapshotQuotesForSymbols(
     out[symbol] = {
       price: coin.price,
       changePct: change == null ? undefined : change,
-      source: "coingecko",
+      source: (coin.source || "yahoo").toLowerCase(),
       quotedAt: coin.quotedAt || board.at || null,
     };
   }

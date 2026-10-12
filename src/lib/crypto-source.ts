@@ -373,7 +373,8 @@ export async function enrichListedCoins(coins: CoinMarket[]): Promise<CoinMarket
 }
 
 export async function loadTop400Markets(): Promise<RankedCryptoPage> {
-  const { readSharedCryptoBoard } = await import("@/lib/crypto-board-store");
+  const { readSharedCryptoBoard, upgradeStoredCryptoBoard } = await import("@/lib/crypto-board-store");
+  await upgradeStoredCryptoBoard();
   const board = await readSharedCryptoBoard({ seed: false });
   return {
     coins: board.coins.slice(0, 400),
@@ -393,7 +394,8 @@ function presentDetail(detail: CoinDetail, source: string): CoinDetail {
 
 async function listedCoinForDetail(id: string, code: string): Promise<CoinMarket | null> {
   try {
-    const { readSharedCryptoBoard } = await import("@/lib/crypto-board-store");
+    const { readSharedCryptoBoard, upgradeStoredCryptoBoard } = await import("@/lib/crypto-board-store");
+    await upgradeStoredCryptoBoard();
     const board = await readSharedCryptoBoard({ seed: false });
     const slug = id.trim().toLowerCase();
     const symbol = code.toUpperCase();

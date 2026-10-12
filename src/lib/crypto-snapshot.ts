@@ -22,7 +22,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { dexSnapshotComplete } from "@/lib/crypto-board";
 import type { DexTokenRow } from "@/lib/crypto-dex";
-import type { CoinMarket } from "@/lib/crypto-market";
+import { resolvableCoinId, type CoinMarket } from "@/lib/crypto-market";
 import { publicSourceAllowed } from "@/lib/swyftx-display";
 import { totalumSdk } from "@/lib/totalum";
 
@@ -144,8 +144,8 @@ export function coinFromSnapshot(value: Record<string, unknown>): CoinMarket {
     maxSupply: num(value.maxSupply),
     ath: num(value.ath),
     athDate: typeof value.athDate === "string" ? value.athDate : null,
-    atl: null,
-    atlDate: null,
+    atl: num(value.atl),
+    atlDate: typeof value.atlDate === "string" ? value.atlDate : null,
     sparkline7d: [],
     blockchain: typeof value.blockchain === "string" ? value.blockchain : "",
     quotedAt: typeof value.quotedAt === "string" ? value.quotedAt : null,
@@ -208,6 +208,8 @@ function encodeCrypto(coins: CoinMarket[], at: string): string {
       maxSupply: coin.maxSupply,
       ath: coin.ath,
       athDate: coin.athDate,
+      atl: coin.atl,
+      atlDate: coin.atlDate,
       moves: coin.moves ?? null,
       quotedAt: coin.quotedAt || null,
       blockchain: coin.blockchain || "",
@@ -450,10 +452,11 @@ export async function persistDexSnapshot(
   at = new Date().toISOString(),
   sources: string[] = []
 ): Promise<void> {
-  const live = rows.filter(dexLooksSaved).slice(0, 400);
+  const live = rows.filter((row) => dexLooksSaved(row) && !!resolvableCoinId(row.detailId)).slice(0, 400);
   if (!live.length) return;
   const existing = memoryDex ?? (await readDexSnapshot());
-  if (existing && existing.rows.length > live.length && !dexSnapshotComplete(live)) return;
+  const existingLive = existing ? existing.rows.filter((row) => !!resolvableCoinId(row.detailId)) : [];
+  if (existing && existingLive.length > live.length && !dexSnapshotComplete(live)) return;
   const body = encodeDex(live, at, sources.length ? sources : existing?.sources || ["geckoterminal"]);
   const parsed = parseDex(body);
   if (!parsed) return;

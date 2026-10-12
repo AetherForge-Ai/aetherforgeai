@@ -605,3 +605,20 @@ Testing Technician retest of the same build, on this branch:
 14. A buy audit includes `chain=` and `pxat=`. `live=` uses the snapshot price when the form says the price came from the snapshot. A buy with no snapshot origin still says `live: n/a`.
 15. List routes serve the saved snapshot and do not seed when one exists. The dashboard loads the transaction book beside names and live marks.
 16. The ledger label and the CSV use the same 5000-row query. The page shows a range, or every row.
+
+## Research retest 10
+
+`pull-check:v3-retest10-2026-10-13`
+
+Build `v3-retest10-2026-10-13`. Live retest 10 ran on `v3-retest9-2026-10-12` (develop `21379513`). Nothing here Publishes, sends email, or adds GST. Public copy says AI. Crypto projections stay paused. `SWYFTX_PUBLIC_DISPLAY` and `DEXSCREENER_PUBLIC_DISPLAY` stay off. No new database columns.
+
+1. `/api/crypto/markets` was serving a stored 89-row Yahoo snapshot. The keyless refresh was detached, so the isolate dropped it before it could replace that list. The markets and detail reads now wait, bounded, for a richer seed. A list of at least 100 priced rows with market cap replaces Yahoo. A shorter list does not. Each source records status and a plain reason. A CoinGecko 401, 403 or 1020 says `refused this datacentre IP; Lukas can set COINGECKO_API_KEY`. That reason is on `GET /api/admin/crypto-diagnostics` with the last seed report and live probes for CoinPaprika and Binance. From this checkout's network the keyless hosts answered; the worker egress is only known after that diagnostics call.
+2. Yahoo detail fills 1h from the 5-minute chart and 30d from the one-month chart, and keeps the 7-day move. Max supply, FDV and the other size fields come from the richer snapshot or the stat donors. They stay blank when those hosts refuse the runtime.
+3. The ledger row shows the audit live figure on its own line (`live: n/a` or `live: <number>`), `data-testid="ledger-live"`.
+4. Currency effect on a typical open lot: 100 shares, mark 10 USD, quantity-weighted buy FX 1.60, valuation FX 1.65. Foreign value is 1,000. Currency effect is 1,000 × 0.05 = NZ$50. A closed lot is not in that sum. Research's ~55 against the live NZ$40.05 matches this rule when realised FX sits in Realised. The card says `Currency effect counts open lots only; realised FX is in Realised.`
+5. Public `/koins` on the live build already printed snapshot prices (BTC US$82,499.96 and the other majors). This branch does not remove that read.
+6. Public `/stox` on the live build already printed `Under review` and `MAH.AX reason: rating TRIM: momentum negative`. This branch does not remove that notice.
+7. The ticker no longer aborts its own feed at 8 seconds, and an abort is not logged. `/api/stocks` POST 400 was the holdings cell `APPL / APPLE INC` failing the 12-character ticker check. The stocks button now opens `/import` instead of posting that cell.
+8. Stocks `Import CSV` stores the file and opens the import review (preview, duplicates, skipped-row acknowledgement). `APPL / APPLE INC` and `AAPL / APPLE INC` both resolve to AAPL. A holdings file with no side column is treated as buys. A missing date stays a skipped row and blocks save until it is acknowledged. No exchange rate is guessed.
+9. DEX rows without a detail id are left out of the saved list and the public list. Wrapped symbols such as WETH and PEPE get a detail id. A short or DexPaprika-only list is refreshed inside the request so GeckoTerminal can replace it with the larger list.
+10. Tape rows and the tape's crypto provider use the snapshot source. A Yahoo snapshot says Yahoo Finance, not CoinGecko.
