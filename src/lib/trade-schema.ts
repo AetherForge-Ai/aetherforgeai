@@ -48,6 +48,10 @@ export const tradeSchema = z.object({
   venue: z.literal("DEX").optional(),
   /** Readable chain, such as Ethereum. Stored inside the sector tag and the notes prefix. */
   chain: z.string().max(80).optional(),
+  /** Quote time from the snapshot that filled the form. Not a new column. */
+  price_as_at: z.string().max(40).optional(),
+  /** The form price was the shared snapshot price. */
+  quote_origin: z.literal("snapshot").optional(),
   /** One Review. A second click with the same key returns the first write. Not a database column. */
   idempotency_key: z.string().max(80).optional(),
 });

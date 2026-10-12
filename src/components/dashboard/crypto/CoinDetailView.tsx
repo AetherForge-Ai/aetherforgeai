@@ -482,7 +482,7 @@ export function CoinDetailView({
               value={
                 detail.maxSupply != null && Number.isFinite(detail.maxSupply) && detail.maxSupply > 0
                   ? fmtCompactNum(detail.maxSupply)
-                  : "Not available"
+                  : "—"
               }
             />
             {(detail.ath ?? 0) > 0 ? (

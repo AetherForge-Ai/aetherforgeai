@@ -55,6 +55,7 @@ function BalanceCard({
   icon: Icon,
   highlight,
   loading,
+  snap = false,
 }: {
   title: string;
   href: string;
@@ -63,6 +64,7 @@ function BalanceCard({
   icon: ComponentType<{ className?: string }>;
   highlight?: boolean;
   loading?: boolean;
+  snap?: boolean;
 }) {
   return (
     <Link
@@ -90,6 +92,7 @@ function BalanceCard({
         <AnimatedMoney
           value={value}
           currency="NZD"
+          snap={snap}
           className="tnum mt-3 font-display text-xl font-bold text-emerald-600 sm:text-2xl"
         />
       )}
@@ -340,6 +343,7 @@ export function DashboardHomeGrid({
           icon={Wallet}
           highlight
           loading={balancesLoading}
+          snap
         />
         <BalanceCard
           title="Value in Stocks NZD"

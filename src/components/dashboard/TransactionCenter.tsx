@@ -125,6 +125,7 @@ interface TransactionRow {
   fx_rate?: number | null;
   cash_nzd?: number;
   fees_nzd?: number;
+  mark_price?: number | null;
   notes?: string;
   executed_at?: string;
   createdAt?: string;
@@ -195,6 +196,19 @@ export { isTransactionDialogOpen } from "@/lib/transaction-sticky";
 /** Auckland yyyy-mm-dd, matching buy, sell, and correction. */
 function todayISO(): string {
   return aucklandYmd();
+}
+
+/** The fill audit the book stored: live price, chain, and the quote time. */
+function visibleAudit(notes?: string | null): string {
+  const text = String(notes || "");
+  const bits = [
+    text.match(/live=n\/a/),
+    text.match(/live:\s*n\/a/),
+    text.match(/live=[0-9.]+/),
+    text.match(/chain=\S+/),
+    text.match(/pxat=\S+/),
+  ].flatMap((match) => (match ? [match[0]] : []));
+  return bits.join(" ");
 }
 
 function rowCash(t: TransactionRow): number {
@@ -349,6 +363,8 @@ export function TransactionCenter({
   const [loading, setLoading] = useState(!preview);
   const [open, setOpenRaw] = useState(() => getStickyTxOpen());
   const [allOpen, setAllOpen] = useState(false);
+  const [ledgerPage, setLedgerPage] = useState(0);
+  const [ledgerShowAll, setLedgerShowAll] = useState(false);
   const [mode, setModeRaw] = useState<TxType>(() => getStickyTxMode());
   const [deepLinkAsset, setDeepLinkAsset] = useState<"stock" | "crypto" | "metal" | null>(null);
   const loadGenRef = useRef(0);
@@ -614,7 +630,9 @@ export function TransactionCenter({
             <Receipt className="size-4 text-primary" /> {layout === "ledger" ? "Transaction ledger spreadsheet" : "Recent transactions"}
             {ledger && ledger.transactions.length > 0 && (
               <span className="text-xs font-normal text-muted-foreground">
-                · showing latest {Math.min(5, ledger.transactions.length)} of {ledger.transactions.length}
+                · {ledgerShowAll
+                  ? `showing all ${ledger.transactions.length}`
+                  : `showing ${ledgerPage * 5 + 1}–${Math.min(ledger.transactions.length, ledgerPage * 5 + 5)} of ${ledger.transactions.length}`}
               </span>
             )}
           </div>
@@ -646,6 +664,7 @@ export function TransactionCenter({
             </p>
           </div>
         ) : (
+          <>
           <div className="overflow-x-auto rounded-2xl border border-border/50">
             <table className="w-full text-sm">
               <thead>
@@ -661,7 +680,10 @@ export function TransactionCenter({
                 </tr>
               </thead>
               <tbody>
-                {ledger.transactions.slice(0, 5).map((t) => {
+                {(ledgerShowAll
+                  ? ledger.transactions
+                  : ledger.transactions.slice(ledgerPage * 5, ledgerPage * 5 + 5)
+                ).map((t) => {
                   const meta = TYPE_META[t.type];
                   const Icon = meta.icon;
                   const cur = (t.currency as CurrencyCode) || NZD;
@@ -689,6 +711,9 @@ export function TransactionCenter({
                               {t.asset_name || "—"}
                               {dexSourceLabel(t) ? ` · ${dexSourceLabel(t)}` : ""}
                             </p>
+                            {visibleAudit(t.notes) ? (
+                              <p className="truncate text-[11px] text-muted-foreground">{visibleAudit(t.notes)}</p>
+                            ) : null}
                           </div>
                         ) : (
                           <span className="text-muted-foreground">{t.asset_name || "Cash"}</span>
@@ -701,7 +726,10 @@ export function TransactionCenter({
                             <p className="text-[11px] leading-snug text-muted-foreground">{CORRECTION_CASH_TOOLTIP}</p>
                           </div>
                         ) : isTrade ? (
-                          `${formatNumber(t.quantity || 0)} × ${formatUnitPrice(t.price || 0, cur)}`
+                          <div>
+                            <p>{`${formatNumber(t.quantity || 0)} × ${formatUnitPrice(t.price || 0, cur)}`}</p>
+                            {!(Number(t.mark_price) > 0) ? <p className="text-[11px] text-muted-foreground">live: n/a</p> : null}
+                          </div>
                         ) : (
                           "—"
                         )}
@@ -737,6 +765,47 @@ export function TransactionCenter({
               </tbody>
             </table>
           </div>
+          {ledger.transactions.length > 5 ? (
+            <div data-testid="ledger-pager" className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+              <p>
+                {ledgerShowAll
+                  ? `1–${ledger.transactions.length} of ${ledger.transactions.length}`
+                  : `${ledgerPage * 5 + 1}–${Math.min(ledger.transactions.length, ledgerPage * 5 + 5)} of ${ledger.transactions.length}`}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {ledgerShowAll ? null : (
+                  <>
+                    <Button type="button" size="sm" variant="outline" className="h-8" disabled={ledgerPage <= 0} onClick={() => setLedgerPage((page) => Math.max(0, page - 1))}>
+                      Previous
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-8"
+                      disabled={(ledgerPage + 1) * 5 >= ledger.transactions.length}
+                      onClick={() => setLedgerPage((page) => page + 1)}
+                    >
+                      Next
+                    </Button>
+                  </>
+                )}
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8"
+                  onClick={() => {
+                    setLedgerShowAll((on) => !on);
+                    setLedgerPage(0);
+                  }}
+                >
+                  {ledgerShowAll ? "Show pages" : "Show all"}
+                </Button>
+              </div>
+            </div>
+          ) : null}
+          </>
         )}
         <p className="mt-3 px-1 text-[11px] text-muted-foreground">
           Every transaction is recorded with fees and automatically adjusts your cash balance. Sells book realised
@@ -1047,6 +1116,9 @@ function AllTransactionsDialog({
                               {change?.label || t.asset_name || "—"}
                               {dexSourceLabel(t) ? ` · ${dexSourceLabel(t)}` : ""}
                             </p>
+                            {visibleAudit(t.notes) ? (
+                              <p className="max-w-[16rem] truncate text-[11px] text-muted-foreground">{visibleAudit(t.notes)}</p>
+                            ) : null}
                             {change ? (
                               <p className="max-w-[16rem] text-[11px] leading-snug text-muted-foreground">
                                 {CORRECTION_CASH_TOOLTIP}

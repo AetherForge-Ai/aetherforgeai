@@ -29,7 +29,8 @@ import {
   resolveHoldingMarkPrice,
 } from "@/lib/metal-valuation";
 import { mergeFreshQuantities } from "@/lib/holding-snapshot";
-import { overlayFifoPurchasePrices } from "@/lib/fifo-cost-server";
+import { applyFifoPurchasePrices } from "@/lib/fifo-cost";
+import type { TaxLedgerRow } from "@/lib/taxable-income";
 import { bookCacheEpoch, invalidateBookCache, readBookCache, writeBookCache } from "@/lib/book-cache";
 import { dateOnlyInstant, lotCivilDay } from "@/lib/executed-at";
 import { earlierCivilDay } from "@/lib/transaction-rules";
@@ -195,46 +196,30 @@ async function overlayCompanyNames(holdings: any[]): Promise<void> {
   }
 }
 
-/** The lot date is the earliest buy. A later buy or a correction must not move it. */
-async function overlayEarliestBuyDates(holdings: any[], userId: string): Promise<void> {
+/** The lot date is the earliest buy. Applied in memory from the book already loaded. */
+function overlayEarliestBuyDates(
+  holdings: any[],
+  rows: Array<{ type?: string; ticker?: string; executed_at?: string; trade_date?: string }>
+): void {
   if (!holdings.length) return;
-  let rows: Array<{ ticker?: string; executed_at?: string; trade_date?: string }> = [];
-  try {
-    const res = await totalumSdk.crud.query("transaction", {
-      _filter: { user: userId, type: "buy" },
-      _limit: 2000,
-    });
-    rows = (res?.data as typeof rows) || [];
-  } catch (err) {
-    console.error("[api/stocks] Earliest-buy lookup failed:", err);
-    return;
-  }
   const earliest = new Map<string, string>();
   for (const row of rows) {
+    if (String(row.type || "") !== "buy") continue;
     const ticker = String(row.ticker || "").toUpperCase();
     const day = lotCivilDay(row.trade_date || row.executed_at);
     if (!ticker || !/^\d{4}-\d{2}-\d{2}$/.test(day)) continue;
     const prev = earliest.get(ticker);
     if (!prev || day < prev) earliest.set(ticker, day);
   }
-  await Promise.all(
-    holdings.map(async (holding) => {
-      const ticker = String(holding.ticker || "").toUpperCase();
-      const first = earliest.get(ticker);
-      if (!first) return;
-      const stored = lotCivilDay(holding.purchase_date);
-      if (stored === first) return;
-      if (stored && stored < first) return;
-      const instant = dateOnlyInstant(first);
-      holding.purchase_date = instant;
-      if (!holding._id) return;
-      try {
-        await totalumSdk.crud.editRecordById("stock", holding._id, { purchase_date: instant });
-      } catch (err) {
-        console.error(`[api/stocks] Could not keep the earliest buy date for ${ticker}:`, err);
-      }
-    })
-  );
+  for (const holding of holdings) {
+    const ticker = String(holding.ticker || "").toUpperCase();
+    const first = earliest.get(ticker);
+    if (!first) continue;
+    const stored = lotCivilDay(holding.purchase_date);
+    if (stored === first) continue;
+    if (stored && stored < first) continue;
+    holding.purchase_date = dateOnlyInstant(first);
+  }
 }
 
 const createSchema = z.object({
@@ -303,25 +288,29 @@ export async function GET(req: Request) {
       return accountMismatchResponse(user._id);
     }
 
-    // Re-price EVERY holding with live market data before returning, so the
-    // portfolio value the dashboard renders is accurate on first paint (not the
-    // last-stored/seeded price). Persists any that moved. Non-fatal on failure.
-    // In parallel, backfill real company names onto any holding stored as a bare
-    // ticker (e.g. "WOR.AX" → "Worley Limited"). Both are independent + non-fatal.
-    // Names first so the bullion price copy includes a corrected company_name.
-    // Live prices (and the bullion spot persist) run after, on their own.
-    await Promise.all([overlayCompanyNames(stocks), overlayEarliestBuyDates(stocks, user._id)]);
+    // Names, live marks, and the transaction book start together. FIFO and the
+    // earliest buy date are applied from that book. The read does not write dates.
+    const bookPromise = totalumSdk.crud.query("transaction", {
+      _filter: { user: user._id },
+      _limit: 5000,
+    });
     let abandonLive = false;
     const liveOverlay = overlayLivePrices(stocks, () => abandonLive);
-    await Promise.race([
-      liveOverlay,
-      new Promise<void>((resolve) =>
-        setTimeout(() => {
-          abandonLive = true;
-          resolve();
-        }, 1200)
-      ),
+    const [, bookRes] = await Promise.all([
+      overlayCompanyNames(stocks),
+      bookPromise,
+      Promise.race([
+        liveOverlay,
+        new Promise<void>((resolve) =>
+          setTimeout(() => {
+            abandonLive = true;
+            resolve();
+          }, 1200)
+        ),
+      ]),
     ]);
+    const book = ((bookRes?.data as unknown as TaxLedgerRow[]) || []);
+    overlayEarliestBuyDates(stocks, book);
 
     // Quote fetches outlive a buy that committed while this request was in
     // flight. Re-read quantity so the response cannot paint the pre-trade shares.
@@ -334,7 +323,7 @@ export async function GET(req: Request) {
     } catch (err) {
       console.error("[api/stocks] Quantity re-read failed (serving the overlay snapshot):", err);
     }
-    stocks = await overlayFifoPurchasePrices(stocks, user._id);
+    stocks = applyFifoPurchasePrices(stocks, book);
     stocks = stocks.map((row) => {
       const mark = lastGoodUnitPrice(row.current_price, null, row.purchase_price);
       if (!(mark > 0) || Number(row.current_price) > 0) return row;

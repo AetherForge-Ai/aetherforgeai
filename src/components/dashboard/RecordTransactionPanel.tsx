@@ -123,6 +123,9 @@ export function RecordTransactionPanel({
   const [fee, setFee] = useState("0.00");
   const [feeDirty, setFeeDirty] = useState(false);
   const [priceDirty, setPriceDirty] = useState(false);
+  const [quoteOrigin, setQuoteOrigin] = useState<"" | "snapshot">("");
+  const [priceAsAt, setPriceAsAt] = useState("");
+  const [quoteChain, setQuoteChain] = useState("");
   const [fxDirty, setFxDirty] = useState(false);
   const [notes, setNotes] = useState("");
   const [step, setStep] = useState<"edit" | "review">("edit");
@@ -160,6 +163,9 @@ export function RecordTransactionPanel({
     setNotes("");
     setFeeDirty(false);
     setPriceDirty(false);
+    setQuoteOrigin("");
+    setPriceAsAt("");
+    setQuoteChain("");
     setFxDirty(false);
     setDate(today);
     const seeded = seedFrom(seed, preferredAssetType);
@@ -339,13 +345,28 @@ export function RecordTransactionPanel({
       if (date === today) {
         const id = asset.id ? `&id=${encodeURIComponent(asset.id)}` : "";
         const market = asset.market === "DEX" ? "&market=dex" : "";
-        const res = await api.get<{ price: number | null; label?: string | null }>(
+        const res = await api.get<{
+          price: number | null;
+          label?: string | null;
+          source?: string | null;
+          quotedAt?: string | null;
+          chain?: string | null;
+        }>(
           `/api/tickers/quote?symbol=${encodeURIComponent(sym)}&type=${type}${id}${market}`
         );
         if (cancel || priceDirty) return;
         if (res.ok && res.data?.price && res.data.price > 0) {
           setPrice(formatPriceInput(res.data.price));
           setHint(res.data.label || "Today's price is filled in. You can type over it.");
+          if (res.data.source === "snapshot") {
+            setQuoteOrigin("snapshot");
+            setPriceAsAt(res.data.quotedAt || "");
+            setQuoteChain(res.data.chain || "");
+          } else {
+            setQuoteOrigin("");
+            setPriceAsAt("");
+            setQuoteChain("");
+          }
         } else if (asset.price && asset.price > 0) {
           setPrice(formatPriceInput(asset.price));
           setHint(res.data?.label || "Live price was unavailable. A recent print is filled in. You can type over it.");
@@ -381,6 +402,9 @@ export function RecordTransactionPanel({
     setAsset(hit);
     setQuery("");
     setPriceDirty(false);
+    setQuoteOrigin("");
+    setPriceAsAt("");
+    setQuoteChain("");
     setFxDirty(false);
     const cur = currencyForTicker(hit.symbol, hit.assetType);
     setCurrency(cur);
@@ -557,6 +581,13 @@ export function RecordTransactionPanel({
         payload.confirm = true;
         if (reviewKey.current) payload.idempotency_key = reviewKey.current;
         if (asset.id && asset.assetType === "crypto") payload.coingecko_id = asset.id;
+        if (quoteOrigin === "snapshot" && !priceDirty) {
+          payload.price_source = "live_quote";
+          payload.quote_origin = "snapshot";
+          if (priceAsAt) payload.price_as_at = priceAsAt;
+          const chain = cleanChain(quoteChain);
+          if (chain) payload.chain = chain;
+        }
         if (asset.market === "DEX") {
           payload.venue = "DEX";
           const chain = cleanChain(asset.chain);
@@ -824,6 +855,9 @@ export function RecordTransactionPanel({
                   onChange={(e) => {
                     setPrice(e.target.value);
                     setPriceDirty(true);
+                    setQuoteOrigin("");
+                    setPriceAsAt("");
+                    setQuoteChain("");
                     setProblems([]);
                   }}
                 />
@@ -840,6 +874,9 @@ export function RecordTransactionPanel({
                   onChange={(e) => {
                     setPrice(e.target.value);
                     setPriceDirty(true);
+                    setQuoteOrigin("");
+                    setPriceAsAt("");
+                    setQuoteChain("");
                     setProblems([]);
                   }}
                 />

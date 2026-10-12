@@ -4,18 +4,20 @@
  */
 
 import { dexListNotice } from "@/lib/crypto-dex";
-import { LIVE_CRYPTO_UNAVAILABLE } from "@/lib/crypto-market";
+import { LIVE_CRYPTO_UNAVAILABLE, MARKET_SIZE_FIELDS, positiveMarketStat } from "@/lib/crypto-market";
 
 export const LIVE_DEX_UNAVAILABLE = "Live decentralized-token prices are unavailable.";
 
-function knownStat(value: unknown): number | null {
-  const n = typeof value === "number" ? value : Number.NaN;
-  return Number.isFinite(n) && n > 0 ? n : null;
-}
-
-/** A zero market cap or volume is unknown. The cell is an em dash, not 0. */
-export function presentMarketCoin<T extends { marketCap?: unknown; volume24h?: unknown }>(coin: T): T {
-  return { ...coin, marketCap: knownStat(coin.marketCap), volume24h: knownStat(coin.volume24h) };
+/**
+ * A zero market cap, FDV, volume, high, low, supply or ATH is unknown.
+ * The cell is an em dash, not 0. A real 0% change is left as 0.
+ */
+export function presentMarketCoin<T extends object>(coin: T): T {
+  const next: Record<string, unknown> = { ...(coin as Record<string, unknown>) };
+  for (const key of MARKET_SIZE_FIELDS) {
+    if (key in next) next[key] = positiveMarketStat(next[key]);
+  }
+  return next as T;
 }
 
 export function marketsBody(coins: unknown[] | null | undefined, notice: string | null) {

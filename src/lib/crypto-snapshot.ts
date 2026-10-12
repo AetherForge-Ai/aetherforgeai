@@ -142,8 +142,8 @@ export function coinFromSnapshot(value: Record<string, unknown>): CoinMarket {
     circulatingSupply: num(value.circulatingSupply),
     totalSupply: num(value.totalSupply),
     maxSupply: num(value.maxSupply),
-    ath: null,
-    athDate: null,
+    ath: num(value.ath),
+    athDate: typeof value.athDate === "string" ? value.athDate : null,
     atl: null,
     atlDate: null,
     sparkline7d: [],
@@ -196,10 +196,18 @@ function encodeCrypto(coins: CoinMarket[], at: string): string {
       rank: coin.rank,
       price: coin.price,
       marketCap: coin.marketCap,
+      fdv: coin.fdv,
       volume24h: coin.volume24h,
       change1h: coin.change1h,
       change24h: coin.change24h,
       change7d: coin.change7d,
+      high24h: coin.high24h,
+      low24h: coin.low24h,
+      circulatingSupply: coin.circulatingSupply,
+      totalSupply: coin.totalSupply,
+      maxSupply: coin.maxSupply,
+      ath: coin.ath,
+      athDate: coin.athDate,
       moves: coin.moves ?? null,
       quotedAt: coin.quotedAt || null,
       blockchain: coin.blockchain || "",
@@ -422,7 +430,14 @@ export async function persistCryptoSnapshot(coins: CoinMarket[], at = new Date()
     .filter((coin) => coin.price > 0 && publicSourceAllowed(coin.source));
   if (!tagged.length) return;
   const existing = memoryCrypto ?? (await readCryptoSnapshot());
-  if (existing && existing.coins.length > tagged.length && !snapshotWorthSaving(tagged)) return;
+  // A shorter list must not replace a longer verified list, even when the
+  // shorter list itself has prices and market caps.
+  if (existing) {
+    const existingVerified = snapshotWorthSaving(existing.coins);
+    const incomingVerified = snapshotWorthSaving(tagged);
+    if (!incomingVerified) return;
+    if (existingVerified && existing.coins.length > tagged.length) return;
+  }
   const body = encodeCrypto(tagged, at);
   const parsed = parseCrypto(body);
   if (!parsed) return;

@@ -2,9 +2,9 @@
  * Shared crypto and DEX snapshot.
  *
  * Page reads return the persisted list. wrangler.jsonc has no cron trigger.
- * When the snapshot is missing, the page request seeds it from keyless
- * sources and waits for that seed. A stored list is served with its
- * timestamp. A stale list starts one background refresh. A short isolate
+ * A stored list is served as saved and is never seeded on the read.
+ * A completely empty crypto snapshot may seed once, and that wait is at most
+ * 7 seconds. A stale list starts one background refresh. A short isolate
  * can still freeze that background work. POST /api/cron/crypto-snapshot
  * runs the same job when CRON_SECRET matches.
  *
@@ -25,6 +25,7 @@ import { coinGeckoEndpoint } from "@/lib/coingecko-auth";
 import {
   MARKET_SNAPSHOT_TARGET,
   PLATFORM_DIRECTORY_TTL_MS,
+  SNAPSHOT_REFRESH_MS,
   SNAPSHOT_STALE_MS,
   cleanDexRow,
   countLine,
@@ -32,6 +33,7 @@ import {
   dexRowComplete,
   displayCoinName,
   finiteMove,
+  presentListedCoin,
   pricesAsAtLabel,
   snapshotBlockchain,
   snapshotIsStale,
@@ -46,6 +48,7 @@ import {
 } from "@/lib/crypto-dex";
 import { GECKOTERMINAL_ACCEPT } from "@/lib/crypto-coingecko";
 import { fetchYahooMajorMarkets } from "@/lib/crypto-yahoo";
+import { snapshotTapeChange } from "@/lib/ticker-feed";
 import {
   backupWithYahoo,
   loadKeylessCryptoMarkets,
@@ -167,8 +170,8 @@ function mapMarkets(body: unknown, directory: Map<string, CoinDirectoryEntry> | 
       circulatingSupply: finiteMove(row.circulating_supply),
       totalSupply: finiteMove(row.total_supply),
       maxSupply: finiteMove(row.max_supply),
-      ath: null,
-      athDate: null,
+      ath: finiteMove(row.ath),
+      athDate: typeof row.ath_date === "string" ? row.ath_date : null,
       atl: null,
       atlDate: null,
       sparkline7d: [],
@@ -420,10 +423,11 @@ function gateCoins(coins: CoinMarket[]): CoinMarket[] {
 }
 
 function presentCrypto(coins: CoinMarket[], at: string | null): SharedCryptoBoard {
-  const sources = coins.map((coin) => coin.source || "coingecko");
+  const listed = coins.map((coin) => presentListedCoin(coin));
+  const sources = listed.map((coin) => coin.source || "coingecko");
   const notice = coins.length ? withFeedSource(pricesAsAtLabel(at), sources) : null;
   return {
-    coins,
+    coins: listed,
     at,
     notice,
     delayed: snapshotIsStale(at, Date.now(), SNAPSHOT_STALE_MS),
@@ -445,24 +449,56 @@ function presentDex(rows: DexTokenRow[], at: string | null, sources: string[]): 
   };
 }
 
+/** Cold start only. A stored crypto list never waits on this. */
+const EMPTY_CRYPTO_SEED_MS = 7_000;
+
 export async function readSharedCryptoBoard(opts?: { seed?: boolean }): Promise<SharedCryptoBoard> {
   const saved = await readCryptoSnapshot();
-  const visible = gateCoins(saved?.coins ?? []);
-  if (visible.length) {
-    if (!saved?.at || snapshotIsStale(saved.at)) kickRefresh();
+  const stored = saved?.coins ?? [];
+  const visible = gateCoins(stored);
+  // Never seed when a snapshot exists, including when the caller passes seed: false.
+  if (stored.length) {
+    if (visible.length && (!saved?.at || snapshotIsStale(saved.at))) kickRefresh();
     return presentCrypto(visible, saved?.at ?? null);
   }
-  if (opts?.seed === false) return presentCrypto([], saved?.at ?? null);
-  await refreshCryptoSeed();
+  void opts;
+  await Promise.race([refreshCryptoSeed().catch(() => undefined), sleep(EMPTY_CRYPTO_SEED_MS)]);
   const again = await readCryptoSnapshot();
   return presentCrypto(gateCoins(again?.coins ?? []), again?.at ?? null);
 }
 
-export async function readSharedDexBoard(opts?: { seed?: boolean }): Promise<SharedDexBoard> {
+/** How long a stale DEX refresh may occupy the request. The seed budget fits inside this. */
+const DEX_REFRESH_BOUND_MS = 8_000;
+
+function boardNeedsRefresh(at: string | null | undefined): boolean {
+  return !at || snapshotIsStale(at, Date.now(), SNAPSHOT_REFRESH_MS);
+}
+
+/**
+ * Runs inside the request when the saved DEX list is older than about 10 minutes.
+ * A detached refresh dies with the isolate, so this wait is bounded.
+ */
+async function revalidateStaleBoards(): Promise<void> {
+  const [crypto, dex] = await Promise.all([readCryptoSnapshot(), readDexSnapshot()]);
+  const cryptoYahoo =
+    !!crypto?.coins.length && crypto.coins.every((coin) => (coin.source || "") === "yahoo");
+  const jobs: Promise<unknown>[] = [];
+  if (!crypto?.coins.length || boardNeedsRefresh(crypto?.at) || cryptoYahoo) jobs.push(refreshCryptoSeed());
+  if (!dex?.rows.length || boardNeedsRefresh(dex?.at)) jobs.push(refreshDexSeed());
+  if (!jobs.length) return;
+  await Promise.race([Promise.all(jobs), sleep(DEX_REFRESH_BOUND_MS)]);
+}
+
+export async function readSharedDexBoard(opts?: { seed?: boolean; revalidate?: boolean }): Promise<SharedDexBoard> {
   const saved = await readDexSnapshot();
   const visible = (saved?.rows ?? []).filter((row) => row.price != null && row.price > 0);
   if (visible.length) {
-    if (!saved?.at || snapshotIsStale(saved.at)) kickRefresh();
+    if (opts?.revalidate && boardNeedsRefresh(saved?.at)) {
+      await revalidateStaleBoards();
+      const again = await readDexSnapshot();
+      const next = (again?.rows ?? []).filter((row) => row.price != null && row.price > 0);
+      if (next.length) return presentDex(next, again?.at ?? null, again?.sources ?? ["geckoterminal"]);
+    }
     return presentDex(visible, saved?.at ?? null, saved?.sources ?? ["geckoterminal"]);
   }
   if (opts?.seed === false) return presentDex([], saved?.at ?? null, saved?.sources ?? []);
@@ -510,18 +546,18 @@ export async function priceFromSnapshot(input: {
 export async function snapshotQuotesForSymbols(
   symbols: string[]
 ): Promise<Record<string, { price: number; changePct?: number; source: string; quotedAt: string | null }>> {
-  const board = await readSharedCryptoBoard();
+  const board = await readSharedCryptoBoard({ seed: false });
   const out: Record<string, { price: number; changePct?: number; source: string; quotedAt: string | null }> = {};
   for (const raw of symbols) {
     const symbol = raw.trim().toUpperCase();
     const coin = board.coins.find((row) => row.symbol.toUpperCase() === symbol);
     if (!coin || !(coin.price > 0)) continue;
-    const change = coin.moves?.h24;
+    const change = snapshotTapeChange(coin);
     out[symbol] = {
       price: coin.price,
       changePct: change == null ? undefined : change,
       source: "coingecko",
-      quotedAt: coin.quotedAt || board.at,
+      quotedAt: coin.quotedAt || board.at || null,
     };
   }
   return out;
@@ -536,7 +572,7 @@ export async function koinsCandidatesFromSnapshot(): Promise<{
   at: string | null;
   candidates: import("@/lib/koins-quality").KoinsCandidate[];
 }> {
-  const board = await readSharedCryptoBoard();
+  const board = await readSharedCryptoBoard({ seed: false });
   const candidates = board.coins
     .filter((coin) => coin.price > 0)
     .map((coin) => ({

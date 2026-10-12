@@ -22,7 +22,7 @@ interface Quote {
   symbol: string;
   name: string;
   price: number;
-  change: number;
+  change: number | null;
   currency?: string;
   provider?: string;
   asOf?: string;
@@ -58,8 +58,9 @@ function TickerCell({
   delay: string;
   failedRefreshes: number;
 }) {
-  const flat = Number(q.change.toFixed(2)) === 0;
-  const up = !flat && q.change > 0;
+  const hasChange = q.change != null && Number.isFinite(q.change);
+  const flat = hasChange && Number(q.change.toFixed(2)) === 0;
+  const up = hasChange && !flat && q.change > 0;
   const asOf = formatAsOf(q.quotedAt);
   const badge = priceBadge({
     source: q.provider || source,
@@ -78,11 +79,11 @@ function TickerCell({
       <span
         className={cn(
           "tnum inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[0.7rem] font-semibold",
-          flat ? "bg-zinc-800 text-zinc-300" : up ? "bg-emerald-500/20 text-emerald-300" : "bg-rose-500/20 text-rose-300"
+          !hasChange || flat ? "bg-zinc-800 text-zinc-300" : up ? "bg-emerald-500/20 text-emerald-300" : "bg-rose-500/20 text-rose-300"
         )}
       >
-        <span aria-hidden="true">{flat ? "·" : up ? "▲" : "▼"}</span>
-        {formatSignedPercent(q.change)}
+        <span aria-hidden="true">{!hasChange || flat ? "·" : up ? "▲" : "▼"}</span>
+        {q.change == null ? "—" : formatSignedPercent(q.change)}
         {asOf ? <span className="font-medium normal-case"> as of {asOf}</span> : null}
       </span>
     </span>

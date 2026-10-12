@@ -16,12 +16,15 @@ export function AnimatedMoney({
   className,
   durationMs = 650,
   compact = false,
+  snap = false,
 }: {
   value: number;
   currency?: CurrencyCode;
   className?: string;
   durationMs?: number;
   compact?: boolean;
+  /** Cash is a ledger total. It jumps to the new figure instead of counting down. */
+  snap?: boolean;
 }) {
   const [display, setDisplay] = useState(value);
   const fromRef = useRef(value);
@@ -36,7 +39,7 @@ export function AnimatedMoney({
     const reduce =
       typeof window !== "undefined" &&
       window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    if (reduce || (from === 0 && to > 0)) {
+    if (snap || reduce || (from === 0 && to > 0)) {
       fromRef.current = to;
       setDisplay(to);
       return;
@@ -60,7 +63,7 @@ export function AnimatedMoney({
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       fromRef.current = to; // ensure next change tweens from the latest target
     };
-  }, [value, durationMs]);
+  }, [value, durationMs, snap]);
 
   return <span className={cn("tnum tabular-nums", className)}>{formatMoney(display, currency, { compact })}</span>;
 }

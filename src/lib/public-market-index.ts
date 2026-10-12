@@ -1,6 +1,6 @@
 import "server-only";
 
-import { pricesAsAtLabel } from "@/lib/crypto-board";
+import { MARKET_SNAPSHOT_TARGET, pricesAsAtLabel } from "@/lib/crypto-board";
 import { choosePublicPriceTab, formatPublicCryptoPrice, sourceLabel } from "@/lib/crypto-price-chain";
 import { publicSourceAllowed } from "@/lib/swyftx-display";
 import { loadPublicCryptoPrint, noteListedPrices, recallPublicTab, rememberPublicTab } from "@/lib/crypto-price-feed";
@@ -11,7 +11,8 @@ import { boardCoverage, pageListings } from "@/lib/stock-catalog";
 import { loadSavedQuoteLine, loadStockBoardPage } from "@/lib/stock-board.server";
 import { PRICE_NOT_IN_RESPONSE, unpricedFootnote, type StockBoard } from "@/lib/stock-markets";
 
-const COIN_PAGE = PUBLIC_SEED_ROWS;
+/** Crypto and DEX pages embed the shared snapshot, the same list the signed-in tab reads. */
+const COIN_PAGE = MARKET_SNAPSHOT_TARGET;
 /** Cold /markets waits this long, then says the price is not in the response. */
 const EQUITY_BUDGET_MS = 3000;
 const ALT_BUDGET_MS = 3000;
@@ -121,6 +122,7 @@ async function loadCryptoTab(): Promise<PublicPriceTab> {
       quoteId: coin.id,
       source: shownSource(coin.source, "coingecko"),
       asOf: asOfLabel(coin.quotedAt || quotedAt),
+      blockchain: coin.blockchain || "",
     }));
     const tab = {
       id: "CRYPTO",
@@ -166,6 +168,8 @@ async function loadDexTab(): Promise<PublicPriceTab> {
       quoteId: row.detailId as string,
       source: shownSource("geckoterminal", "geckoterminal"),
       asOf: asOfLabel(quotedAt),
+      blockchain: row.network || "",
+      dex: row.dex || "",
     }));
     const tab = {
       id: "DEX",
