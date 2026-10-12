@@ -53,7 +53,7 @@ describe("pull-check:v3-retest9-2026-10-12", () => {
   it("records the marker and the build", () => {
     expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-retest9-2026-10-12");
     expect(read("src/lib/public-copy.ts")).toContain("pull-check:v3-retest9-2026-10-12");
-    expect(read("public/build-version.txt").trim()).toBe("v3-dash1-2026-10-13");
+    expect(read("public/build-version.txt").trim()).toBe("v3-retest11-2026-10-13");
     expect(read("src/app/changelog/page.tsx")).toContain("12 Oct 2026 — Research retest");
     expect(read("src/app/changelog/page.tsx")).not.toMatch(/GPT|Claude|Gemini|OpenAI|Anthropic/);
   });
