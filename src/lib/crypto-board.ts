@@ -11,6 +11,7 @@
 
 import { formatDisplayDateTime } from "@/lib/currency";
 import type { DexTokenRow } from "@/lib/crypto-dex";
+import { canonicalCryptoId } from "@/lib/crypto-ids";
 import { coinDisplayName, SYMBOL_IS_OFFICIAL_NAME } from "@/lib/crypto-names";
 import type { CoinMarket } from "@/lib/crypto-market";
 
@@ -51,6 +52,117 @@ const L1_CHAIN: Record<string, string> = {
   "polygon-ecosystem-token": "Polygon",
   "ethena": "Ethereum",
   "usd-coin": "Ethereum",
+};
+
+/** Ticker or leftover id when the CoinGecko id is not in the native-chain list. */
+const TICKER_CHAIN: Record<string, string> = {
+  btc: "Bitcoin",
+  eth: "Ethereum",
+  usdt: "Ethereum",
+  bnb: "BNB Smart Chain",
+  sol: "Solana",
+  xrp: "XRP Ledger",
+  usdc: "Ethereum",
+  doge: "Dogecoin",
+  ada: "Cardano",
+  trx: "TRON",
+  avax: "Avalanche",
+  ton: "TON",
+  shib: "Ethereum",
+  dot: "Polkadot",
+  link: "Ethereum",
+  chainlink: "Ethereum",
+  bch: "Bitcoin Cash",
+  sui: "Sui",
+  hbar: "Hedera",
+  xlm: "Stellar",
+  ltc: "Litecoin",
+  uni: "Ethereum",
+  uniswap: "Ethereum",
+  pepe: "Ethereum",
+  near: "NEAR Protocol",
+  apt: "Aptos",
+  icp: "Internet Computer",
+  etc: "Ethereum Classic",
+  atom: "Cosmos",
+  vet: "VeChain",
+  render: "Solana",
+  fil: "Filecoin",
+  filecoin: "Filecoin",
+  arb: "Arbitrum",
+  arbitrum: "Arbitrum",
+  op: "Optimism",
+  optimism: "Optimism",
+  imx: "Ethereum",
+  inj: "Injective",
+  injective: "Injective",
+  stx: "Stacks",
+  aave: "Ethereum",
+  mkr: "Ethereum",
+  maker: "Ethereum",
+  grt: "Ethereum",
+  algo: "Algorand",
+  rune: "THORChain",
+  theta: "Theta",
+  egld: "MultiversX",
+  flow: "Flow",
+  xtz: "Tezos",
+  axs: "Ethereum",
+  eos: "EOS",
+  sand: "Ethereum",
+  mana: "Ethereum",
+  qnt: "Ethereum",
+  ldo: "Ethereum",
+  ape: "Ethereum",
+  comp: "Ethereum",
+  dydx: "Ethereum",
+  ens: "Ethereum",
+  crv: "Ethereum",
+  chz: "Ethereum",
+  mina: "Mina",
+  zec: "Zcash",
+  snx: "Ethereum",
+  gala: "Ethereum",
+  cake: "BNB Smart Chain",
+  kava: "Kava",
+  zil: "Zilliqa",
+  bat: "Ethereum",
+  gmx: "Arbitrum",
+  lrc: "Ethereum",
+  enj: "Ethereum",
+  iota: "IOTA",
+  neo: "Neo",
+  ksm: "Kusama",
+  dash: "Dash",
+  sushi: "Ethereum",
+  yfi: "Ethereum",
+  celo: "Celo",
+  rose: "Oasis",
+  ankr: "Ethereum",
+  skl: "Ethereum",
+  storj: "Ethereum",
+  audio: "Ethereum",
+  mask: "Ethereum",
+  api3: "Ethereum",
+  band: "Ethereum",
+  bal: "Ethereum",
+  "1inch": "Ethereum",
+  lunc: "Terra Classic",
+  fet: "Ethereum",
+  wld: "Ethereum",
+  tia: "Celestia",
+  sei: "Sei",
+  jup: "Solana",
+  bonk: "Solana",
+  wif: "Solana",
+  floki: "Ethereum",
+  pendle: "Ethereum",
+  ondo: "Ethereum",
+  pyth: "Solana",
+  jto: "Solana",
+  strk: "Starknet",
+  blur: "Ethereum",
+  arkm: "Ethereum",
 };
 
 const PLATFORM_LABEL: Record<string, string> = {
@@ -156,7 +268,21 @@ export function snapshotBlockchain(
     ? Object.entries(platforms).filter(([key, value]) => key.trim() && String(value || "").trim())
     : [];
   if (keys.length) return platformLabel(keys[0][0]);
-  return L1_CHAIN[id] || "";
+  return L1_CHAIN[id] || TICKER_CHAIN[id] || "";
+}
+
+/** Chain label for a ticker. Uses the canonical id, then the ticker itself. */
+export function chainForTicker(symbol: string): string {
+  const bare = (symbol || "").trim().toUpperCase().split(".")[0];
+  if (!bare) return "";
+  const fromId = snapshotBlockchain(canonicalCryptoId(bare), null, null);
+  if (fromId) return fromId;
+  return snapshotBlockchain(bare.toLowerCase(), null, null);
+}
+
+/** True when this list actually includes a CoinGecko print. */
+export function coingeckoSupplied(sources: Array<string | null | undefined>): boolean {
+  return sources.some((source) => (source || "").trim().toLowerCase() === "coingecko");
 }
 
 export function finiteMove(value: unknown): number | null {

@@ -10,7 +10,7 @@
  * pull-check:v3-crypto-seed-2026-10-12
  */
 
-import { coinGeckoEndpoint } from "@/lib/coingecko-auth";
+import { coinGeckoEndpoint, MARKET_USER_AGENT } from "@/lib/coingecko-auth";
 import { snapshotBlockchain } from "@/lib/crypto-board";
 import {
   dexNetworkLabel,
@@ -49,7 +49,8 @@ const CG_QUERY =
 const GT_ACCEPT = "application/json;version=20230302";
 const GT_BASE = "https://api.geckoterminal.com/api/v2";
 const PAPRIKA_TICKERS = "https://api.coinpaprika.com/v1/tickers?quotes=USD";
-const COINCAP_ASSETS = "https://api.coincap.io/v2/assets?limit=200";
+/** CoinCap v2's host does not resolve. v3 needs a key and is skipped without one. */
+const COINCAP_ASSETS = "https://rest.coincap.io/v3/assets?limit=200";
 const BINANCE_TICKERS = "https://data-api.binance.vision/api/v3/ticker/24hr";
 
 const DEX_NETWORKS = ["ethereum", "solana", "base", "bsc"] as const;
@@ -461,10 +462,14 @@ export function dexRowsFromPaprikaPools(body: unknown): DexTokenRow[] {
   return rows;
 }
 
-async function fetchSeed(url: string, headers: Record<string, string>): Promise<Response> {
+function seedHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  return { accept: "application/json", "user-agent": MARKET_USER_AGENT, ...extra };
+}
+
+async function fetchSeed(url: string, headers: Record<string, string> = {}): Promise<Response> {
   const impl = seedFetchOverride ?? fetch;
   return impl(url, {
-    headers,
+    headers: seedHeaders(headers),
     cache: "no-store",
     signal: AbortSignal.timeout(SOURCE_TIMEOUT_MS),
   });
@@ -479,9 +484,15 @@ async function readJson(res: Response): Promise<unknown> {
   }
 }
 
-async function fetchCoinGeckoLists(): Promise<CoinMarket[]> {
-  const pages = await Promise.all([1, 2].map(async (page) => readCoinGeckoPage(page)));
-  return coinsFromCoinGeckoMarkets(pages.flat());
+async function fetchCoinGeckoLists(onReady?: (rows: CoinMarket[]) => void): Promise<CoinMarket[]> {
+  const first = await readCoinGeckoPage(1);
+  let coins = coinsFromCoinGeckoMarkets(first);
+  if (coins.length) onReady?.(coins);
+  if (first.length < 250) return coins;
+  const second = await readCoinGeckoPage(2);
+  coins = coinsFromCoinGeckoMarkets([...first, ...second]);
+  if (coins.length) onReady?.(coins);
+  return coins;
 }
 
 async function readCoinGeckoPage(page: number): Promise<unknown[]> {
@@ -512,33 +523,39 @@ async function settle<T>(label: string, work: Promise<T>, empty: T): Promise<T> 
 export async function loadKeylessCryptoMarkets(opts?: { budgetMs?: number }): Promise<CoinMarket[]> {
   const budgetMs = opts?.budgetMs ?? KEYLESS_SEED_BUDGET_MS;
   const lists: CoinMarket[][] = [];
-  const jobs = [
-    settle("coingecko", fetchCoinGeckoLists(), [] as CoinMarket[]),
+  const started = Date.now();
+  const push = (rows: CoinMarket[]) => {
+    if (rows.length) lists.push(rows);
+  };
+  const jobs: Promise<void>[] = [
+    settle("coingecko", fetchCoinGeckoLists(push), [] as CoinMarket[]).then(push),
     settle(
       "coinpaprika",
-      fetchSeed(PAPRIKA_TICKERS, { accept: "application/json" }).then(async (res) => coinsFromCoinPaprika(await readJson(res))),
+      fetchSeed(PAPRIKA_TICKERS).then(async (res) => coinsFromCoinPaprika(await readJson(res))),
       [] as CoinMarket[]
-    ),
-    settle(
-      "coincap",
-      fetchSeed(COINCAP_ASSETS, { accept: "application/json" }).then(async (res) => coinsFromCoinCap(await readJson(res))),
-      [] as CoinMarket[]
-    ),
+    ).then(push),
     settle(
       "binance",
-      fetchSeed(BINANCE_TICKERS, { accept: "application/json" }).then(async (res) => coinsFromBinanceTickers(await readJson(res))),
+      fetchSeed(BINANCE_TICKERS).then(async (res) => coinsFromBinanceTickers(await readJson(res))),
       [] as CoinMarket[]
-    ),
+    ).then(push),
   ];
-  await Promise.race([
-    Promise.all(
-      jobs.map(async (job) => {
-        const rows = await job;
-        if (rows.length) lists.push(rows);
-      })
-    ),
-    sleep(budgetMs),
-  ]);
+  const capKey = (process.env.COINCAP_API_KEY || "").trim();
+  if (capKey) {
+    jobs.push(
+      settle(
+        "coincap",
+        fetchSeed(COINCAP_ASSETS, { authorization: `Bearer ${capKey}` }).then(async (res) => coinsFromCoinCap(await readJson(res))),
+        [] as CoinMarket[]
+      ).then(push)
+    );
+  }
+  const done = Promise.all(jobs).then(() => "done" as const);
+  while (Date.now() - started < budgetMs) {
+    if (mergeVerifiedSeedLists(lists).length >= YAHOO_BACKUP_FLOOR) return mergeVerifiedSeedLists(lists);
+    const step = await Promise.race([done, sleep(50).then(() => "wait" as const)]);
+    if (step === "done") break;
+  }
   return mergeVerifiedSeedLists(lists);
 }
 
@@ -552,7 +569,7 @@ async function fetchGeckoTerminalRows(): Promise<DexTokenRow[]> {
   ];
   const pages = await Promise.all(
     urls.map(async (url) => {
-      const res = await fetchSeed(url, { accept: GT_ACCEPT });
+      const res = await fetchSeed(url, { accept: GT_ACCEPT, "user-agent": MARKET_USER_AGENT });
       if (res.status === 429) return [] as DexTokenRow[];
       if (!res.ok) return [] as DexTokenRow[];
       const body = await readJson(res);
@@ -567,7 +584,7 @@ async function fetchDexPaprikaRows(): Promise<DexTokenRow[]> {
   const pages = await Promise.all(
     DEX_NETWORKS.map(async (network) => {
       const url = `https://api.dexpaprika.com/networks/${network}/pools/search?limit=30&orderBy=volume_usd_24h&sort=desc`;
-      const res = await fetchSeed(url, { accept: "application/json" });
+      const res = await fetchSeed(url, { accept: "application/json", "user-agent": MARKET_USER_AGENT });
       if (!res.ok) return [] as DexTokenRow[];
       return dexRowsFromPaprikaPools(await readJson(res));
     })

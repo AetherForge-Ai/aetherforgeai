@@ -360,6 +360,7 @@ export async function loadTop400Markets(): Promise<RankedCryptoPage> {
   return {
     coins: board.coins.slice(0, 400),
     notice: board.notice,
+    at: board.at,
   };
 }
 

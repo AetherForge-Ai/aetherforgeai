@@ -166,13 +166,12 @@ export async function loadTaxBookFigures(
   userId: string
 ): Promise<{ dividendsNzd: number; dividendsGrossNzd: number | null; realisedPnlNzd: number }> {
   return cachedRead(`${userId}:tax-figures`, async () => {
-    const [book, dividends] = await Promise.all([
-      totalumSdk.crud.query("transaction", { _filter: { user: userId }, _limit: 5000 }),
-      totalumSdk.crud.query("transaction", { _filter: { user: userId, type: "dividend" }, _limit: 5000 }),
-    ]);
-    const dividendRows = (dividends?.data as unknown as Parameters<typeof taxBookSummary>[0]) || [];
+    const book = await totalumSdk.crud.query("transaction", { _filter: { user: userId }, _limit: 5000 });
     const ending = nzTaxYearEnding(aucklandCivilToday());
     const ledger = (book?.data as unknown as TaxLedgerRow[]) || [];
+    const dividendRows = ledger.filter((row) => String((row as { type?: string }).type || "") === "dividend") as unknown as Parameters<
+      typeof taxBookSummary
+    >[0];
     const realised = ending == null ? 0 : realisedByTaxYear(ledger, ending).combinedNzd;
     const summary = taxBookSummary(dividendRows);
     return {

@@ -80,8 +80,18 @@ export interface KoinsCandidate {
   name: string;
   price: number;
   moves: WindowMoves;
+  /** Second source. An extreme or a duplicated percent stays only when this agrees. */
+  agree?: WindowMoves | null;
   projected7dPct?: number | null;
   confidence?: number | null;
+}
+
+const OUTLIER_CAP: Record<"24h" | "7d" | "30d", number> = { "24h": 40, "7d": 50, "30d": 60 };
+
+function sourcesAgree(row: KoinsCandidate, window: "24h" | "7d" | "30d", move: number): boolean {
+  if (!row.agree) return false;
+  const other = window === "24h" ? row.agree.h24 : window === "7d" ? row.agree.d7 : row.agree.d30;
+  return typeof other === "number" && Number.isFinite(other) && Math.abs(other - move) <= 3;
 }
 
 export function canonicalSweepSymbol(symbol: string): string {
@@ -141,8 +151,24 @@ export function rankGainers(
     }
     if (move > 0) positive.push(row);
   }
-  positive.sort((a, b) => (moveFor(b, window) as number) - (moveFor(a, window) as number) || a.symbol.localeCompare(b.symbol));
-  const movers: MoverRow[] = positive.slice(0, limit).map((row) => ({
+  const dupes = new Map<string, number>();
+  for (const row of positive) {
+    const key = (moveFor(row, window) as number).toFixed(2);
+    dupes.set(key, (dupes.get(key) || 0) + 1);
+  }
+  const kept: KoinsCandidate[] = [];
+  for (const row of positive) {
+    const move = moveFor(row, window) as number;
+    const extreme = Math.abs(move) > OUTLIER_CAP[window];
+    const cloned = (dupes.get(move.toFixed(2)) || 0) >= 2 && Math.abs(move) >= 20;
+    if ((extreme || cloned) && !sourcesAgree(row, window, move)) {
+      withheld += 1;
+      continue;
+    }
+    kept.push(row);
+  }
+  kept.sort((a, b) => (moveFor(b, window) as number) - (moveFor(a, window) as number) || a.symbol.localeCompare(b.symbol));
+  const movers: MoverRow[] = kept.slice(0, limit).map((row) => ({
     ticker: row.symbol.toUpperCase(),
     name: row.name,
     market: "CRYPTO",
@@ -151,7 +177,7 @@ export function rankGainers(
     changePct: moveFor(row, window) as number,
     withheld: false,
   }));
-  return { movers, withheld, gained: positive.length };
+  return { movers, withheld, gained: kept.length };
 }
 
 export function projectionsAreUniform(rows: Array<{ projected7dPct: number; confidence: number }>): boolean {
@@ -197,6 +223,9 @@ export function applyKoinsSweeps(report: ApexReport, board: KoinsBoardState, now
         return { window: slot.window, movers: [], underReview: [], withheldCount: 0, reviewNote: unavailable };
       }
       const ranked = rankGainers(board.candidates, slot.key);
+      if (ranked.gained === 0) {
+        return { window: slot.window, movers: [], underReview: [], withheldCount: ranked.withheld, reviewNote: unavailable };
+      }
       const notes = [printsUnderReviewAlways(ranked.withheld)];
       if (ranked.gained < 10) notes.push(onlyGainedLine(ranked.gained, slot.key));
       return {

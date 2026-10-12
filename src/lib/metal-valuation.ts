@@ -292,6 +292,16 @@ export function heldMetalRows(lots: readonly VisibleBullionLot[]): HeldMetalRow[
   });
 }
 
+/** Live print, then the stored mark, then the purchase price. Zero is not a price. */
+export function lastGoodUnitPrice(live?: number | null, stored?: number | null, purchase?: number | null): number {
+  const first = Number(live);
+  if (first > 0 && Number.isFinite(first)) return first;
+  const second = Number(stored);
+  if (second > 0 && Number.isFinite(second)) return second;
+  const third = Number(purchase);
+  return third > 0 && Number.isFinite(third) ? third : 0;
+}
+
 /** Ounces × NZD per troy ounce. Never pass an equity share price here. */
 export function markToMarketBullionNZD(ounces: number, nzdPerTroyOz: number): number {
   const oz = Number(ounces);
@@ -340,11 +350,11 @@ export function resolveHoldingMarkPrice(input: ResolveMarkInput): number | null 
     return mark > 0 ? mark : null;
   }
   if (route === "crypto") {
-    const q = Number(input.cryptoQuote);
-    return Number.isFinite(q) && q > 0 ? q : null;
+    const mark = lastGoodUnitPrice(input.cryptoQuote, input.storedPrice, input.purchasePrice);
+    return mark > 0 ? mark : null;
   }
-  const q = Number(input.equityQuote);
-  return Number.isFinite(q) && q > 0 ? q : null;
+  const mark = lastGoodUnitPrice(input.equityQuote, input.storedPrice, input.purchasePrice);
+  return mark > 0 ? mark : null;
 }
 
 /** Class weight in percent. Sub-ounce equity misquotes round toward 0% of a real book. */

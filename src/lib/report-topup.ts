@@ -200,6 +200,9 @@ export function tickerCallSentence(
     call && call.killPrice > 0
       ? `A level that kills the idea is ${call.killPrice}.`
       : "A level that kills the idea is not available from this print.";
+  if (ticker.signal === "Hold") {
+    return `${ticker.ticker}: horizon ${horizon}, range ${range}, ${odds}. ${kill} No new size: HOLD. ${paperFeeSentence(feeNZD)}`;
+  }
   const volNote =
     call?.realizedVolPct != null && call.realizedVolPct > 20
       ? " Illustrated size is smaller because recent volatility was high."
