@@ -89,6 +89,31 @@ export function withQuoteStamp(notes: string | null | undefined, chain: string |
   return `${body.slice(0, room).trimEnd()}\n${stamp}`.slice(0, 4000);
 }
 
+/**
+ * Put chain= and pxat= at the front of a 500-character note, with live= beside them.
+ * A notes column that keeps the prefix then still has the stamps. The old writer
+ * put them at the end of the FILLED sentence, after live=, so a short column
+ * kept live= and dropped chain= and pxat=.
+ */
+export function preserveQuoteStamp(notes: string | null | undefined, chain: string | null, priceAsAt: string | null): string {
+  const body = stripQuoteStamp(notes);
+  const parts: string[] = [];
+  const cleaned = (chain || "").trim();
+  if (cleaned) parts.push(`chain=${cleaned.replace(/\s+/g, "_")}`);
+  const at = (priceAsAt || "").trim();
+  if (at) parts.push(`pxat=${at.replace(/\s+/g, "")}`);
+  const live = body.match(/live=n\/a|live=[0-9.]+/i);
+  if (live) parts.push(live[0]);
+  const stamp = parts.join(" ");
+  if (!stamp) return body.slice(0, 500);
+  const rest = live
+    ? `${body.slice(0, live.index)}${body.slice((live.index ?? 0) + live[0].length)}`.replace(/[ \t]{2,}/g, " ").trim()
+    : body;
+  const room = 500 - stamp.length - 1;
+  const tail = room > 0 ? rest.slice(0, room).trim() : "";
+  return tail ? `${stamp} ${tail}` : stamp.slice(0, 500);
+}
+
 export function stripQuoteStamp(notes: string | null | undefined): string {
   return String(notes || "")
     .replace(/(^|\s)chain=\S+/g, "$1")

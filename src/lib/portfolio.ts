@@ -76,6 +76,56 @@ function amountInBase(amount: number, currency: CurrencyCode, base: CurrencyCode
   return rate > 0 ? nzd / rate : nzd;
 }
 
+/**
+ * One ticker can arrive twice: a copy of the same lot, or an aggregate row whose
+ * shares already equal the other rows. Those are not two positions. Distinct
+ * share counts stay as separate lots.
+ */
+export function collapseDuplicateHoldings<T extends { _id?: string; ticker?: string; shares?: number; asset_type?: string | null }>(
+  rows: readonly T[]
+): T[] {
+  const seen = new Set<string>();
+  const unique: T[] = [];
+  for (const row of rows) {
+    const id = String(row._id || "");
+    if (id) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+    }
+    unique.push(row);
+  }
+  const groups = new Map<string, T[]>();
+  for (const row of unique) {
+    const key = `${row.asset_type || "stock"}|${String(row.ticker || "").trim().toUpperCase()}`;
+    const list = groups.get(key) || [];
+    list.push(row);
+    groups.set(key, list);
+  }
+  const out: T[] = [];
+  for (const group of groups.values()) {
+    if (group.length < 2) {
+      if (group[0]) out.push(group[0]);
+      continue;
+    }
+    const shares = group.map((row) => Number(row.shares) || 0);
+    const aggregate = shares.findIndex((qty, index) => {
+      const others = shares.reduce((sum, value, at) => (at === index ? sum : sum + value), 0);
+      return qty > 0 && Math.abs(qty - others) <= 1e-4;
+    });
+    if (aggregate >= 0) {
+      out.push(group[aggregate]);
+      continue;
+    }
+    const same = shares.every((qty) => Math.abs(qty - shares[0]) <= 1e-4);
+    if (same) {
+      out.push(group[0]);
+      continue;
+    }
+    out.push(...group);
+  }
+  return out;
+}
+
 export function computeSummary(stocks: Stock[], opts: SummaryOptions = {}): PortfolioSummary {
   const baseCurrency = opts.baseCurrency ?? "USD";
   const fx = opts.fxToNZD ?? BASELINE_FX_TO_NZD;

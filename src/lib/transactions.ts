@@ -44,7 +44,7 @@ import { feedEntryForTicker } from "@/lib/feed-mapping";
 import { withUserTradeLock } from "@/lib/trade-lock";
 import { applyPaperCashMove } from "@/lib/paper-cash";
 import { planHoldingCorrection } from "@/lib/holding-correction";
-import { cleanChain, dexSectorTag, parseDexSector, withDexNotes, withQuoteStamp } from "@/lib/dex-source";
+import { cleanChain, dexSectorTag, parseDexSector, preserveQuoteStamp, withDexNotes, withQuoteStamp } from "@/lib/dex-source";
 import { buildDividendRecord, paymentDateFx, withDividendNotes, type DividendParts } from "@/lib/dividend-ledger";
 import { cashFromLedgerRows } from "@/lib/ledger-cash-lines";
 import { buildMovementPreview } from "@/lib/movement-preview";
@@ -166,8 +166,9 @@ function stampedTradeNotes(
   isDex: boolean,
   priceAsAt: string
 ): string {
-  const chain = assetType === "crypto" ? dexChain || chainForTicker(ticker) || null : null;
-  return withDexNotes(withQuoteStamp(body, chain, priceAsAt), dexChain, isDex);
+  const chain = assetType === "crypto" ? dexChain || chainForTicker(ticker) || null : dexChain || null;
+  const led = preserveQuoteStamp(withQuoteStamp(body, chain, priceAsAt), chain, priceAsAt);
+  return withDexNotes(led, dexChain, isDex);
 }
 
 function round(n: number, decimals = 2): number {
@@ -975,29 +976,12 @@ async function applyTransactionUnlocked(
     } else {
       // New position — resolve a live current price so the P&L is meaningful.
       const info = lookupTicker(ticker);
-      let current_price =
+      const current_price =
         liveSpot != null && liveSpot > 0
           ? liveSpot
           : assetType === "crypto"
             ? price
             : referencePrice(ticker, price);
-      if (!(liveSpot != null && liveSpot > 0)) {
-        try {
-          if (assetType === "metal") {
-            const key = metalKeyForTicker(ticker);
-            if (key) {
-              const spot = await getMetalsSpot();
-              const live = spot[key]?.nzdPerOz;
-              if (live && live > 0) current_price = live;
-            }
-          } else if (assetType !== "crypto" && isLiveDataConfigured()) {
-            const live = await fetchLivePrice(ticker);
-            if (live && live > 0) current_price = live;
-          }
-        } catch (err) {
-          console.error(`[transactions] Live price lookup failed for ${ticker} (non-fatal):`, err);
-        }
-      }
       const avgWithFees = (quantity * price + fees) / quantity;
       const created = await totalumSdk.crud.createRecord("stock", {
         ticker,
@@ -1046,7 +1030,7 @@ async function applyTransactionUnlocked(
       meta: { liveLabel: liveAuditText },
       after: { quantity, fill_price: price, cash_nzd: -costNZD, fx_rate: fxRate },
     });
-    const rec = await totalumSdk.crud.createRecord("transaction", {
+    const recPromise = totalumSdk.crud.createRecord("transaction", {
       type: "buy",
       ticker,
       asset_name: input.asset_name || holding?.company_name || lookupTicker(ticker)?.name || ticker,
@@ -1093,10 +1077,15 @@ async function applyTransactionUnlocked(
       user: user._id,
       ...(holdingId ? { stock: holdingId } : {}),
     });
-    ledgerId = (rec?.data as { _id?: string } | undefined)?._id;
-    await totalumSdk.crud.editRecordById("user", user._id, { cash_balance: newCash });
+    const cashWrite = totalumSdk.crud.editRecordById("user", user._id, { cash_balance: newCash });
+    const shareRead = holdingId ? readHoldingShares(holdingId) : Promise.resolve(null);
+    const tracked = recPromise.then((row) => {
+      ledgerId = (row?.data as { _id?: string } | undefined)?._id;
+      return row;
+    });
+    const [rec, , actualFirst] = await Promise.all([tracked, cashWrite, shareRead]);
     if (holdingId) {
-      let actual = await readHoldingShares(holdingId);
+      let actual = actualFirst;
       if (!qtyMatches(actual, expectedShares)) {
         await totalumSdk.crud.editRecordById("stock", holdingId, { shares: expectedShares });
         actual = await readHoldingShares(holdingId);
@@ -1229,7 +1218,7 @@ async function applyTransactionUnlocked(
     meta: { liveLabel: liveAuditText },
     after: { quantity, fill_price: price },
   });
-  const rec = await totalumSdk.crud.createRecord("transaction", {
+  const recPromise = totalumSdk.crud.createRecord("transaction", {
     type: "sell",
     ticker,
     asset_name: input.asset_name || holding.company_name || ticker,
@@ -1269,10 +1258,15 @@ async function applyTransactionUnlocked(
     user: user._id,
     ...(holdingId ? { stock: holdingId } : {}),
   });
-  ledgerId = (rec?.data as { _id?: string } | undefined)?._id;
-  await totalumSdk.crud.editRecordById("user", user._id, { cash_balance: newCash });
+  const cashWrite = totalumSdk.crud.editRecordById("user", user._id, { cash_balance: newCash });
+  const shareRead = closed ? Promise.resolve(expectedRemaining) : readHoldingShares(holding._id);
+  const tracked = recPromise.then((row) => {
+    ledgerId = (row?.data as { _id?: string } | undefined)?._id;
+    return row;
+  });
+  const [rec, , actualFirst] = await Promise.all([tracked, cashWrite, shareRead]);
   if (!closed) {
-    let actual = await readHoldingShares(holding._id);
+    let actual = actualFirst;
     if (!qtyMatches(actual, expectedRemaining)) {
       await totalumSdk.crud.editRecordById("stock", holding._id, { shares: expectedRemaining });
       actual = await readHoldingShares(holding._id);

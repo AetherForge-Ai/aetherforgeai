@@ -1,18 +1,19 @@
 /**
  * Last good crypto and DEX lists.
  *
- * An in-process map dies when a Cloudflare isolate stops. The temp file used
- * for DEX rows does not survive that either. This module writes the JSON to
- * the Workers Cache API (`caches.default`), which is part of this runtime
- * (wrangler.jsonc has no KV binding, only ASSETS) and outlives the isolate
- * in that colo. A hidden watchlist row is a second copy only when the JSON
- * fits the existing name field. Totalum reads are given a short timeout.
+ * On Workers the Cache API is per colo and the temp file is per isolate.
+ * The hidden watchlist rows AF-CGS and AF-DXS are the durable copy. They are
+ * read first. A colo cache or a temp file is used only when it is newer, or
+ * when the database row is missing. A read never comes back empty while any
+ * of those copies still has rows. Large JSON is gzipped into the existing
+ * name field. No new column.
  *
  * The tickers AF-CGS and AF-DXS are not holdings. Watchlist GET hides them
  * and POST rejects them.
  *
  * pull-check:crypto-live-2026-10-11
  * pull-check:v3-crypto-seed-2026-10-12
+ * pull-check:v3-retest10-2026-10-13
  */
 
 import "server-only";
@@ -20,6 +21,7 @@ import "server-only";
 import { readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { gzipSync, gunzipSync } from "node:zlib";
 import { dexSnapshotComplete } from "@/lib/crypto-board";
 import type { DexTokenRow } from "@/lib/crypto-dex";
 import { resolvableCoinId, type CoinMarket } from "@/lib/crypto-market";
@@ -29,8 +31,11 @@ import { totalumSdk } from "@/lib/totalum";
 export const CRYPTO_SNAPSHOT_TICKER = "AF-CGS";
 export const DEX_SNAPSHOT_TICKER = "AF-DXS";
 
-/** A Totalum read that takes longer than this is skipped. */
+/** A Cache API read that takes longer than this is skipped. The database row is not. */
 export const SNAPSHOT_READ_TIMEOUT_MS = 400;
+
+/** How long a cold read waits for the durable watchlist row when nothing else parsed. */
+export const SNAPSHOT_DB_TIMEOUT_MS = 2_500;
 
 /**
  * Watchlist `name` is the existing text field (same slot as AF-WEM).
@@ -263,7 +268,7 @@ function parseDex(raw: string | null | undefined): DexSnapshot | null {
       ? parsed.sources.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
       : [];
     if (!at || !rows.length) return null;
-    return { at, rows, sources: sources.length ? sources : ["geckoterminal"] };
+    return { at, rows, sources };
   } catch {
     return null;
   }
@@ -327,9 +332,56 @@ async function findWatchlistRow(ticker: string): Promise<{ id: string; name: str
   return { id: String(row._id), name: typeof row.name === "string" ? row.name : "" };
 }
 
+function unpackWatchlist(raw: string): string {
+  if (!raw.startsWith("z1:")) return raw;
+  try {
+    return gunzipSync(Buffer.from(raw.slice(3), "base64")).toString("utf8");
+  } catch {
+    return "";
+  }
+}
+
+/** Drop trailing rows until the gzipped list fits the existing name field. */
+export function fitWatchlistBody(body: string): string | null {
+  const direct = packWatchlistBody(body);
+  if (direct) return direct;
+  let parsed: { coins?: unknown[]; rows?: unknown[] };
+  try {
+    parsed = JSON.parse(body) as { coins?: unknown[]; rows?: unknown[] };
+  } catch {
+    return null;
+  }
+  const key = Array.isArray(parsed.coins) ? "coins" : Array.isArray(parsed.rows) ? "rows" : "";
+  if (!key) return null;
+  const list = (parsed as Record<string, unknown[]>)[key];
+  let lo = 1;
+  let hi = list.length - 1;
+  let best: string | null = null;
+  while (lo <= hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    const packed = packWatchlistBody(JSON.stringify({ ...parsed, [key]: list.slice(0, mid) }));
+    if (packed) {
+      best = packed;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  return best;
+}
+
+/** Gzip into the existing name field when the JSON is longer than that field. */
+export function packWatchlistBody(body: string, max = WATCHLIST_SNAPSHOT_MAX): string | null {
+  if (body.length <= max) return body;
+  const packed = `z1:${gzipSync(Buffer.from(body, "utf8")).toString("base64")}`;
+  return packed.length <= max ? packed : null;
+}
+
 async function readWatchlist(id: SnapshotId): Promise<string | null> {
   const row = await findWatchlistRow(TICKER[id]);
-  return row?.name || null;
+  if (!row?.name) return null;
+  const raw = unpackWatchlist(row.name);
+  return raw || null;
 }
 
 async function writeWatchlist(id: SnapshotId, body: string): Promise<boolean> {
@@ -349,20 +401,55 @@ async function writeWatchlist(id: SnapshotId, body: string): Promise<boolean> {
   return true;
 }
 
-async function defaultRead(id: SnapshotId): Promise<string | null> {
+function snapshotAt(raw: string | null | undefined): number {
+  if (!raw) return 0;
   try {
-    const cached = await readWorkersCache(id);
-    if (cached) return cached;
+    const at = Date.parse(String((JSON.parse(raw) as { at?: unknown }).at || ""));
+    return Number.isFinite(at) ? at : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function snapshotHasRows(id: SnapshotId, raw: string | null | undefined): boolean {
+  if (!raw) return false;
+  return id === "crypto" ? parseCrypto(raw) != null : parseDex(raw) != null;
+}
+
+/**
+ * The database row is preferred when it is at least as new as the local copy.
+ * Either copy is enough. An empty colo cache does not hide a stored list.
+ */
+export function chooseSnapshotRaw(id: SnapshotId, db: string | null, local: string | null): string | null {
+  const durable = snapshotHasRows(id, db) ? db : null;
+  const nearby = snapshotHasRows(id, local) ? local : null;
+  if (durable && nearby) return snapshotAt(durable) >= snapshotAt(nearby) ? durable : nearby;
+  return durable || nearby;
+}
+
+async function readLocalSnapshot(id: SnapshotId): Promise<string | null> {
+  try {
+    const cached = await withTimeout(readWorkersCache(id), SNAPSHOT_READ_TIMEOUT_MS);
+    if (cached && snapshotHasRows(id, cached)) return cached;
   } catch (err) {
     console.error("[crypto-snapshot] cache read failed:", err instanceof Error ? err.message.slice(0, 80) : "failed");
   }
-  try {
-    const stored = await readWatchlist(id);
-    if (stored) return stored;
-  } catch (err) {
+  const file = readTempFile(id);
+  return snapshotHasRows(id, file) ? file : null;
+}
+
+async function defaultRead(id: SnapshotId): Promise<string | null> {
+  const db = readWatchlist(id).catch((err) => {
     console.error("[crypto-snapshot] watchlist read failed:", err instanceof Error ? err.message.slice(0, 80) : "failed");
-  }
-  return readTempFile(id);
+    return null;
+  });
+  const local = readLocalSnapshot(id);
+  const fromDb = await withTimeout(db, SNAPSHOT_READ_TIMEOUT_MS);
+  const fromLocal = await local;
+  const ready = chooseSnapshotRaw(id, fromDb, fromLocal);
+  if (ready) return ready;
+  const late = await withTimeout(db, SNAPSHOT_DB_TIMEOUT_MS);
+  return chooseSnapshotRaw(id, late, fromLocal);
 }
 
 async function defaultWrite(id: SnapshotId, body: string): Promise<boolean> {
@@ -373,10 +460,15 @@ async function defaultWrite(id: SnapshotId, body: string): Promise<boolean> {
     console.error("[crypto-snapshot] cache write failed:", err instanceof Error ? err.message.slice(0, 80) : "failed");
   }
   writeTempFile(id, body);
-  if (body.length <= WATCHLIST_SNAPSHOT_MAX) {
-    void writeWatchlist(id, body).catch((err) => {
+  const watchBody = fitWatchlistBody(body);
+  if (watchBody) {
+    try {
+      saved = (await writeWatchlist(id, watchBody)) || saved;
+    } catch (err) {
       console.error("[crypto-snapshot] watchlist write failed:", err instanceof Error ? err.message.slice(0, 80) : "failed");
-    });
+    }
+  } else {
+    console.error("[crypto-snapshot] watchlist row was not saved: the list does not fit the name field");
   }
   return saved;
 }
@@ -457,7 +549,7 @@ export async function persistDexSnapshot(
   const existing = memoryDex ?? (await readDexSnapshot());
   const existingLive = existing ? existing.rows.filter((row) => !!resolvableCoinId(row.detailId)) : [];
   if (existing && existingLive.length > live.length && !dexSnapshotComplete(live)) return;
-  const body = encodeDex(live, at, sources.length ? sources : existing?.sources || ["geckoterminal"]);
+  const body = encodeDex(live, at, sources.length ? sources : existing?.sources || []);
   const parsed = parseDex(body);
   if (!parsed) return;
   memoryDex = parsed;

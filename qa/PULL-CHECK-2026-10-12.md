@@ -622,3 +622,19 @@ Build `v3-retest10-2026-10-13`. Live retest 10 ran on `v3-retest9-2026-10-12` (d
 8. Stocks `Import CSV` stores the file and opens the import review (preview, duplicates, skipped-row acknowledgement). `APPL / APPLE INC` and `AAPL / APPLE INC` both resolve to AAPL. A holdings file with no side column is treated as buys. A missing date stays a skipped row and blocks save until it is acknowledged. No exchange rate is guessed.
 9. DEX rows without a detail id are left out of the saved list and the public list. Wrapped symbols such as WETH and PEPE get a detail id. A short or DexPaprika-only list is refreshed inside the request so GeckoTerminal can replace it with the larger list.
 10. Tape rows and the tape's crypto provider use the snapshot source. A Yahoo snapshot says Yahoo Finance, not CoinGecko.
+
+## Testing Technician r3
+
+Same branch. Build stays `v3-retest10-2026-10-13`. No new database columns. No production writes.
+
+1. The durable copy is the hidden watchlist row. A read waits for that row when the colo cache and the temp file are empty, and it returns whichever copy has rows. A list that is longer than the name field is gzipped into that same field. An empty colo does not replace a stored list.
+2. Signed-in markets and the public page both read that stored list first. Blockchain is filled for WSTETH, USDS, XMR, WBT, LEO, CBBTC and RAIN. The notice, including `Source:`, is the same line the public page and the signed-in table use.
+3. DEX no longer labels a DexPaprika list as GeckoTerminal. The public DEX source is the snapshot's own source.
+4. Public crypto and DEX `asOf` text is the snapshot notice, so `Source:` is in the server render.
+5. A confirm reads the snapshot without the 7-second seed. The ledger insert, the cash write and the share re-read share one wait. A second live-price fetch after that read is not made.
+6. Header holdings and net worth snap together. Net worth is the sum of the rounded cash and the rounded holdings from that same render. An aggregate holding row, or two copies of one lot, is counted once. Two lots with different share counts stay.
+7. `chain=` and `pxat=` lead the note, with `live=` beside them, inside 500 characters. A column that keeps the start of the note used to keep `live=` and cut the stamps off the end.
+8. The ledger values one FIFO walk and one open-lot walk per book array. Equity quotes share one in-flight fetch and the one-minute quote cache, including the Yahoo path.
+9. A name under review on any window leaves the 24-hour, 7-day and month lists. A non-large-cap 7-day move above 15% is under review. Large-cap week moves stay on the 35% guard, so JPM at 31.01% stays ranked.
+10. `Top gainers identified` is taken from that filtered 24-hour list. The forward projection no longer clamps to ±45.
+11. RENDER and DYDX are Render and dYdX on the markets body. Net worth adds the already-rounded parts, so it matches cash plus holdings to the cent.

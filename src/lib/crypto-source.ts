@@ -374,12 +374,22 @@ export async function enrichListedCoins(coins: CoinMarket[]): Promise<CoinMarket
 
 export async function loadTop400Markets(): Promise<RankedCryptoPage> {
   const { readSharedCryptoBoard, upgradeStoredCryptoBoard } = await import("@/lib/crypto-board-store");
-  await upgradeStoredCryptoBoard();
   const board = await readSharedCryptoBoard({ seed: false });
+  if (board.coins.length) {
+    // A stored list is the page. The upgrade must not turn that list into an empty timeout.
+    void upgradeStoredCryptoBoard().catch(() => undefined);
+    return {
+      coins: board.coins.slice(0, 400),
+      notice: board.notice,
+      at: board.at,
+    };
+  }
+  await upgradeStoredCryptoBoard();
+  const again = await readSharedCryptoBoard({ seed: false });
   return {
-    coins: board.coins.slice(0, 400),
-    notice: board.notice,
-    at: board.at,
+    coins: again.coins.slice(0, 400),
+    notice: again.notice,
+    at: again.at,
   };
 }
 

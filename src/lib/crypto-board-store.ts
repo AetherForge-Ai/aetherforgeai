@@ -79,6 +79,7 @@ export interface SharedDexBoard {
   rows: DexTokenRow[];
   at: string | null;
   notice: string | null;
+  sources: string[];
   delayed: boolean;
   countLine: string;
 }
@@ -454,6 +455,7 @@ function presentDex(rows: DexTokenRow[], at: string | null, sources: string[]): 
     rows: unique,
     at,
     notice,
+    sources,
     delayed: snapshotIsStale(at, Date.now(), SNAPSHOT_STALE_MS),
     countLine: countLine("DEX tokens", unique.length),
   };
@@ -540,9 +542,9 @@ export async function readSharedDexBoard(opts?: { seed?: boolean; revalidate?: b
       await revalidateStaleBoards();
       const again = await readDexSnapshot();
       const next = (again?.rows ?? []).filter((row) => row.price != null && row.price > 0);
-      if (next.length) return presentDex(next, again?.at ?? null, again?.sources ?? ["geckoterminal"]);
+      if (next.length) return presentDex(next, again?.at ?? null, again?.sources ?? []);
     }
-    return presentDex(visible, saved?.at ?? null, saved?.sources ?? ["geckoterminal"]);
+    return presentDex(visible, saved?.at ?? null, saved?.sources ?? []);
   }
   if (opts?.seed === false) return presentDex([], saved?.at ?? null, saved?.sources ?? []);
   await refreshDexSeed();
@@ -566,22 +568,20 @@ export async function priceFromSnapshot(input: {
   const symbol = (input.symbol || "").trim().toUpperCase();
   const coinId = (input.coinId || "").trim().toLowerCase();
   const address = (input.address || "").trim().toLowerCase();
-  const [crypto, dex] = await Promise.all([
-    readSharedCryptoBoard({ seed: false }),
-    readSharedDexBoard({ seed: false }),
-  ]);
-  const coin = crypto.coins.find((row) => (coinId && row.id === coinId) || (symbol && row.symbol.toUpperCase() === symbol));
+  // The confirm path reads the stored rows. It does not cold-seed a 7s list.
+  const [crypto, dex] = await Promise.all([readCryptoSnapshot(), readDexSnapshot()]);
+  const coin = (crypto?.coins ?? []).find((row) => (coinId && row.id === coinId) || (symbol && row.symbol.toUpperCase() === symbol));
   if (coin && coin.price > 0) {
-    return { price: coin.price, quotedAt: crypto.at, source: "snapshot", stale: crypto.delayed };
+    return { price: coin.price, quotedAt: crypto?.at ?? null, source: "snapshot", stale: snapshotIsStale(crypto?.at) };
   }
-  const dexRow = dex.rows.find((row) => {
+  const dexRow = (dex?.rows ?? []).find((row) => {
     const rowAddress = (row.address || "").toLowerCase();
     if (address && rowAddress && (rowAddress === address || rowAddress.endsWith(address))) return true;
     if (coinId && (row.detailId === coinId || row.id === coinId)) return true;
     return symbol ? row.symbol.toUpperCase() === symbol : false;
   });
   if (dexRow?.price && dexRow.price > 0) {
-    return { price: dexRow.price, quotedAt: dex.at, source: "snapshot", stale: dex.delayed };
+    return { price: dexRow.price, quotedAt: dex?.at ?? null, source: "snapshot", stale: snapshotIsStale(dex?.at) };
   }
   return null;
 }

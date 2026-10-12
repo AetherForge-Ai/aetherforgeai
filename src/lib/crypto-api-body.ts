@@ -3,7 +3,9 @@
  * Status stays 200 so Cloudflare does not replace the body with "error code: 502".
  */
 
+import { chainForTicker } from "@/lib/crypto-board";
 import { dexListNotice } from "@/lib/crypto-dex";
+import { coinDisplayName } from "@/lib/crypto-names";
 import { LIVE_CRYPTO_UNAVAILABLE, MARKET_SIZE_FIELDS, positiveMarketStat } from "@/lib/crypto-market";
 
 export const LIVE_DEX_UNAVAILABLE = "Live decentralized-token prices are unavailable.";
@@ -16,6 +18,16 @@ export function presentMarketCoin<T extends object>(coin: T): T {
   const next: Record<string, unknown> = { ...(coin as Record<string, unknown>) };
   for (const key of MARKET_SIZE_FIELDS) {
     if (key in next) next[key] = positiveMarketStat(next[key]);
+  }
+  const symbol = typeof next.symbol === "string" ? next.symbol : "";
+  if (symbol) {
+    const fed = typeof next.name === "string" ? next.name : "";
+    next.name = coinDisplayName(symbol, fed);
+    const chain = typeof next.blockchain === "string" ? next.blockchain.trim() : "";
+    if (!chain || chain === "—" || chain === "Unavailable" || chain === "Native") {
+      const filled = chainForTicker(symbol);
+      if (filled) next.blockchain = filled;
+    }
   }
   return next as T;
 }
