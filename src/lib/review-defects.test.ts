@@ -266,6 +266,33 @@ describe("Confirm wiring for the review defects", () => {
     expect(auditLivePrice(0.000009)).toBe(0.000009);
   });
 
+  it("keeps live: n/a when a snapshot price exists but the form did not send quote_origin", async () => {
+    getFxSnapshot.mockResolvedValue({
+      ratesToNZD: { NZD: 1, USD: 1.78, AUD: 1.12 },
+      live: false,
+      sourced: true,
+      asOf: "2026-10-12T00:00:00.000Z",
+    });
+    priceFromSnapshot.mockResolvedValue({ price: 0.00000421, quotedAt: "2026-10-12T10:52:00.000Z", chain: "Ethereum" });
+    await applyTransaction(
+      user,
+      {
+        type: "buy",
+        ticker: "PEPE",
+        asset_type: "crypto",
+        quantity: 1000,
+        price: 0.00000421,
+        fx_rate: 1.78,
+        trade_date: "2026-10-12",
+      },
+      { rejectionChecked: true }
+    );
+    const notes = transactionPayload()?.notes || "";
+    expect(notes).toContain("live: n/a");
+    expect(notes).not.toContain("live=0.000004");
+    expect(notes).toContain("chain=Ethereum");
+  });
+
   it("stamps the snapshot price as live= when the form price came from it", async () => {
     getFxSnapshot.mockResolvedValue({
       ratesToNZD: { NZD: 1, USD: 1.78, AUD: 1.12 },
@@ -368,7 +395,8 @@ describe("idempotency stamp and cron secret", () => {
     const writer = readFileSync("src/lib/transactions.ts", "utf8");
     expect(writer).toContain("historicalNzdPerUnit(currency, tradeDay)");
     expect(writer).toContain("ratesForBooking(currency, input.fx_rate, fx.ratesToNZD)");
-    expect(writer).toContain("const auditLive = auditLivePrice(liveSpot)");
+    expect(writer).toContain("const auditLive = auditLivePrice(auditSpot)");
+    expect(writer).toContain('assetType === "crypto" && input.quote_origin !== "snapshot"');
     expect(writer).not.toContain("BASELINE_FX_TO_NZD");
     expect(writer).not.toContain("reviewedFx > 0 ? null");
   });

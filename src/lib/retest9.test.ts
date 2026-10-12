@@ -351,6 +351,8 @@ describe("pull-check:v3-retest9-2026-10-12", () => {
     expect(read("src/app/api/transactions/route.ts")).toContain("ledgerAfterBooking");
     expect(read("src/app/api/transactions/export/route.ts")).toContain("loadLedger(user, 5000)");
     expect(read("src/components/dashboard/TransactionCenter.tsx")).toContain("showing all");
+    expect(read("src/components/dashboard/TransactionCenter.tsx")).toContain("function visibleAudit");
+    expect(read("src/components/dashboard/TransactionCenter.tsx")).toContain("chain=\\S+");
     expect(read("src/components/dashboard/PortfolioDashboard.tsx")).toContain("expectedTxRef");
     expect(read("src/components/dashboard/AnimatedMoney.tsx")).toContain("snap");
     expect(read("src/app/api/stocks/route.ts")).toContain("bookPromise");

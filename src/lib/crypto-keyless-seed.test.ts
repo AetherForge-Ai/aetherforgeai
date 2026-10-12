@@ -171,6 +171,18 @@ describe("pull-check:v3-crypto-seed-2026-10-12", () => {
     expect(still?.at).toBe(at);
   });
 
+  it("does not replace a 400-coin verified list with a shorter verified page", async () => {
+    installSnapshotDurable(memoryDurable());
+    const at = "2026-10-12T03:00:00.000Z";
+    await persistCryptoSnapshot(many(400), at);
+    clearSnapshotMemory();
+    await persistCryptoSnapshot(many(250), "2026-10-12T04:00:00.000Z");
+    clearSnapshotMemory();
+    const still = await readCryptoSnapshot(50);
+    expect(still?.coins).toHaveLength(400);
+    expect(still?.at).toBe(at);
+  });
+
   it("seeds from CoinPaprika when CoinGecko is blocked and does not call gated hosts", async () => {
     delete process.env.COINGECKO_API_KEY;
     const urls: string[] = [];

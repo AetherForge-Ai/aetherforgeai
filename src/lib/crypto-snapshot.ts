@@ -430,7 +430,14 @@ export async function persistCryptoSnapshot(coins: CoinMarket[], at = new Date()
     .filter((coin) => coin.price > 0 && publicSourceAllowed(coin.source));
   if (!tagged.length) return;
   const existing = memoryCrypto ?? (await readCryptoSnapshot());
-  if (existing && existing.coins.length > tagged.length && !snapshotWorthSaving(tagged)) return;
+  // A shorter list must not replace a longer verified list, even when the
+  // shorter list itself has prices and market caps.
+  if (existing) {
+    const existingVerified = snapshotWorthSaving(existing.coins);
+    const incomingVerified = snapshotWorthSaving(tagged);
+    if (!incomingVerified) return;
+    if (existingVerified && existing.coins.length > tagged.length) return;
+  }
   const body = encodeCrypto(tagged, at);
   const parsed = parseCrypto(body);
   if (!parsed) return;

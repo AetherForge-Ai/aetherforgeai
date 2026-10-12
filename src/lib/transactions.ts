@@ -861,7 +861,10 @@ async function applyTransactionUnlocked(
   stepMs("confirm-reads", spotStarted, `asset=${assetType}`);
   let liveSpot = snapped;
   if (!(liveSpot != null && liveSpot > 0) && input.quote_origin === "snapshot" && price > 0) liveSpot = price;
-  const auditLive = auditLivePrice(liveSpot);
+  // The snapshot price is the sanity check for every crypto fill. It is written
+  // as live= only when this form filled that price from the snapshot.
+  const auditSpot = assetType === "crypto" && input.quote_origin !== "snapshot" ? null : liveSpot;
+  const auditLive = auditLivePrice(auditSpot);
   const liveAuditText = auditLive == null ? "live: n/a" : `live=${formatCleanNumber(auditLive)}`;
 
   // The reviewed price is the fill. A newer live spot is only the sanity check.
@@ -1501,15 +1504,14 @@ export function ledgerAfterBooking(
     const amount = Number(row.total);
     if (Number.isFinite(amount)) incomeTotal += Math.abs(amount);
   }
-  const rowHasCash =
-    !fresh ||
-    !tx ||
-    Number.isFinite(Number(tx.total)) ||
-    Number.isFinite(Number((tx as { cash_nzd?: number }).cash_nzd));
   const summed = transactions.length ? cashFromLedgerRows(transactions) : booked.cashBalance;
+  // Confirm already wrote this cash. A book that does not contain the opening
+  // balance must not replace it with the sum of the trade lines alone.
+  const cashBalance =
+    Number.isFinite(summed) && Math.abs(summed - booked.cashBalance) < 0.02 ? summed : booked.cashBalance;
   return {
     transactions: withFifo,
-    cashBalance: rowHasCash ? summed : booked.cashBalance,
+    cashBalance,
     realizedYtd: round(fifo.ytd),
     realizedTotal: round(fifo.all),
     realizedYtdCount: fifo.ytdCount,
@@ -1532,10 +1534,13 @@ export async function loadLedger(user: AppUser, limit = LEDGER_QUERY_LIMIT): Pro
 async function loadLedgerFresh(user: AppUser, limit: number): Promise<TransactionLedger> {
   const fallbackCash = typeof user.cash_balance === "number" ? user.cash_balance : 0;
   const cap = Math.min(LEDGER_QUERY_LIMIT, Math.max(1, limit));
-  const bookRes = await totalumSdk.crud.query("transaction", {
-    _filter: { user: user._id },
-    _limit: cap,
-  });
+  const [bookRes, storedCash] = await Promise.all([
+    totalumSdk.crud.query("transaction", {
+      _filter: { user: user._id },
+      _limit: cap,
+    }),
+    readUserCash(user._id, fallbackCash),
+  ]);
   const bookRows = ((bookRes?.data as unknown as TransactionRow[]) || []).map((r) => ({
     ...r,
     executed_at: (r as any).executed_at || (r as any).createdAt,
@@ -1551,7 +1556,8 @@ async function loadLedgerFresh(user: AppUser, limit: number): Promise<Transactio
   const withFifo = applyFifoToLedgerRows(rows, book);
   const costFxByTicker: Record<string, number> = {};
   for (const [ticker, rate] of fifoRemainingCostFx(book)) costFxByTicker[ticker] = rate;
-  const cashBalance = bookRows.length ? cashFromLedgerRows(bookRows) : await readUserCash(user._id, fallbackCash);
+  const summed = bookRows.length ? cashFromLedgerRows(bookRows) : storedCash;
+  const cashBalance = Math.abs(summed - storedCash) < 0.02 ? summed : storedCash;
   let incomeTotal = 0;
   for (const r of bookRows) {
     if (r.type !== "dividend") continue;

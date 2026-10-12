@@ -636,9 +636,7 @@ export function MarketsExplorer({
   const seededDex = isDexTab && dex.rows.length === 0 && seedDex.some((row) => (row.usd ?? 0) > 0);
   const loadingRows = isDexTab ? dex.loading && !seededDex : isCoinTab ? crypto.loading && !seededCrypto : loading;
   const stockLoading = !isCryptoTab && loading && !(data?.rows.length);
-  const cryptoListed = isDexTab
-    ? Math.min(CRYPTO_TOP_N, dex.rows.length || seedDex.length)
-    : Math.min(CRYPTO_TOP_N, crypto.coins.length || seedCrypto.length);
+  const cryptoListed = isCryptoTab ? Math.min(CRYPTO_TOP_N, rows.length) : 0;
   const total = isCryptoTab ? cryptoListed : data?.total ?? 0;
   const liveCount = isCryptoTab ? cryptoListed : data?.liveCount ?? 0;
   const asOf = isCryptoTab ? "" : data?.asOf ?? "";
@@ -810,7 +808,7 @@ export function MarketsExplorer({
               ? (isDexTab ? dex.error : isCoinTab ? crypto.error : loadError)
               : hasData || remoteHits.length
               ? isCryptoTab
-                ? countLine(isDexTab ? "DEX tokens" : "coins", isDexTab ? dex.rows.length || seedDex.length : crypto.coins.length || seedCrypto.length)
+                ? countLine(isDexTab ? "DEX tokens" : "coins", rows.length)
                 : `${data?.coverage || `${total} names in the ${tab} list`}${liveCount > 0 && liveCount !== total ? ` · ${liveCount} quoted on this page` : ""}${remoteLoading ? " · searching…" : ""}${remoteHits.length && query.trim() ? ` · +${remoteHits.length} market match${remoteHits.length === 1 ? "" : "es"}` : ""}`
               : stockLoading
               ? "Loading the list…"

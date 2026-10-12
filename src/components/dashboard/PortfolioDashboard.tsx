@@ -428,6 +428,7 @@ export function PortfolioDashboard({
   const holdingsHydratedRef = useRef(!!preview);
   const cashEpochRef = useRef(0);
   const expectedTxRef = useRef<string | null>(null);
+  const mutationCashRef = useRef<number | null>(null);
   /**
    * Latest accepted holdings body while Buy/Add is open. Applied when the
    * dialog closes so the stocks hub does not reconcile under an in-progress
@@ -657,8 +658,17 @@ export function PortfolioDashboard({
         if (seenCash !== cashEpochRef.current) return;
         const requiredId = expectedTxRef.current;
         const loaded = res.data.transactions || [];
+        const mutationCash = mutationCashRef.current;
         if (requiredId && !loaded.some((row) => row._id === requiredId)) return;
+        if (
+          requiredId &&
+          mutationCash != null &&
+          Math.abs(res.data.cashBalance - mutationCash) >= 0.02
+        ) {
+          return;
+        }
         expectedTxRef.current = null;
+        mutationCashRef.current = null;
         const bal = res.data.cashBalance;
         setCashBalance(bal);
         writeCachedCashNZD(tracked.userId, bal);
@@ -884,7 +894,10 @@ export function PortfolioDashboard({
   );
   const handleDataChanged = useCallback(
     (updated?: { cashBalance?: number; lastTransaction?: BookedTrade | null }) => {
-      if (updated && typeof updated.cashBalance === "number") applyKnownCash(updated.cashBalance);
+      if (updated && typeof updated.cashBalance === "number") {
+        mutationCashRef.current = updated.cashBalance;
+        applyKnownCash(updated.cashBalance);
+      }
       const bookedId = updated?.lastTransaction?._id ? String(updated.lastTransaction._id) : "";
       if (bookedId) expectedTxRef.current = bookedId;
       // Cash and the holding quantity land with the success toast. A later

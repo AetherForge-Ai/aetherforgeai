@@ -198,6 +198,18 @@ function todayISO(): string {
   return aucklandYmd();
 }
 
+/** The fill audit the book stored: live price, chain, and the quote time. */
+function visibleAudit(notes?: string | null): string {
+  const text = String(notes || "");
+  const bits = [
+    text.match(/live:\s*n\/a/),
+    text.match(/live=[0-9.]+/),
+    text.match(/chain=\S+/),
+    text.match(/pxat=\S+/),
+  ].flatMap((match) => (match ? [match[0]] : []));
+  return bits.join(" ");
+}
+
 function rowCash(t: TransactionRow): number {
   return ledgerDisplayedCash({
     type: t.type,
@@ -698,6 +710,9 @@ export function TransactionCenter({
                               {t.asset_name || "—"}
                               {dexSourceLabel(t) ? ` · ${dexSourceLabel(t)}` : ""}
                             </p>
+                            {visibleAudit(t.notes) ? (
+                              <p className="truncate text-[11px] text-muted-foreground">{visibleAudit(t.notes)}</p>
+                            ) : null}
                           </div>
                         ) : (
                           <span className="text-muted-foreground">{t.asset_name || "Cash"}</span>
@@ -1100,6 +1115,9 @@ function AllTransactionsDialog({
                               {change?.label || t.asset_name || "—"}
                               {dexSourceLabel(t) ? ` · ${dexSourceLabel(t)}` : ""}
                             </p>
+                            {visibleAudit(t.notes) ? (
+                              <p className="max-w-[16rem] truncate text-[11px] text-muted-foreground">{visibleAudit(t.notes)}</p>
+                            ) : null}
                             {change ? (
                               <p className="max-w-[16rem] text-[11px] leading-snug text-muted-foreground">
                                 {CORRECTION_CASH_TOOLTIP}
