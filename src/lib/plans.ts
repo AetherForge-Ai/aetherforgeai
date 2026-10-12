@@ -208,9 +208,7 @@ const ULTIMATE_FEATURES = [
   "Everything in Pro",
   "API access",
   "Up to 5 seats",
-  "White-label options",
-  "Dedicated support",
-  "Strategy consultation calls",
+  "Dedicated email support",
   "Unlimited Market Assistant queries",
 ];
 

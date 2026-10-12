@@ -690,6 +690,7 @@ describe("public page canonical URLs", () => {
     "/tax",
     "/markets",
     "/terms-of-service",
+    "/refunds",
     "/privacy-policy",
     "/ai-disclaimer",
     "/pricing",

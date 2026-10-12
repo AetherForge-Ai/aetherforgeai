@@ -59,6 +59,12 @@ function SuccessContent() {
           </Link>
         </Button>
 
+        <p className="mt-4 text-xs text-muted-foreground">
+          <Link href="/refunds" className="font-medium text-primary hover:underline">
+            Refunds & Cancellations
+          </Link>
+        </p>
+
         <p className="mt-4 flex items-center justify-center gap-2 text-xs text-muted-foreground">
           <Loader2 className="size-3 animate-spin" />
           Redirecting in {countdown}s…

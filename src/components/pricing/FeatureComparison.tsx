@@ -64,8 +64,7 @@ const GROUPS: Group[] = [
     rows: [
       { label: "API access", cells: [false, false, false, true] },
       { label: "Team / multiple users", cells: [false, false, false, "Up to 5"] },
-      { label: "Custom reports & white labelling", cells: [false, false, false, true] },
-      { label: "Priority support & dedicated manager", cells: [false, false, "Priority", "Dedicated"] },
+      { label: "Priority support", cells: [false, false, "Priority", "Dedicated email"] },
     ],
   },
   {
@@ -76,7 +75,6 @@ const GROUPS: Group[] = [
       { label: "Transaction CSV export", cells: [false, true, true, true] },
       { label: "Excel investor toolkit template", cells: [false, "Yearly", "Yearly", "Yearly"] },
       { label: "Priority processing", cells: [false, true, true, true] },
-      { label: "Strategy consultation calls", cells: [false, false, false, true] },
     ],
   },
 ];

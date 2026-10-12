@@ -16,6 +16,7 @@ import {
   PROCESSORS,
   SECURITY_LINE,
 } from "@/lib/public-copy";
+import { AI_PROVIDER_API_SENTENCE, nameAiProvider } from "@/lib/ai-provider-disclosure";
 import {
   TRUST_PAGE_LOG,
   trustBreachLine,
@@ -26,11 +27,9 @@ import {
   trustTransportLine,
 } from "@/lib/trust-facts";
 
-/** Shown on this page only. Other pages keep the unnamed third-party row. */
+/** Shown on this page. Other public pages keep the unnamed third-party row. */
 function disclosedProcessors() {
-  return PROCESSORS().map((processor) =>
-    processor.name === "A third-party AI service" ? { ...processor, name: "SuperGrok" } : processor,
-  );
+  return nameAiProvider(PROCESSORS());
 }
 
 export const metadata = publicPageMetadata("/trust", {
@@ -86,7 +85,8 @@ export default function TrustPage() {
             <ul className="list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-muted-foreground">
               {disclosedProcessors().map((processor) => (
                 <li key={processor.name}>
-                  <span className="font-semibold text-foreground">{processor.name}</span> — {processor.role}.
+                  <span className="font-semibold text-foreground">{processor.name}</span> — {processor.role}
+                  {processor.name === "Google Analytics" ? ", only after you accept analytics cookies" : ""}.
                 </li>
               ))}
             </ul>
@@ -132,9 +132,7 @@ export default function TrustPage() {
                 {line}
               </p>
             ))}
-            <p className="text-sm leading-relaxed text-muted-foreground">
-              The third-party AI service in those sentences is SuperGrok. No retention period is set by our code.
-            </p>
+            <p className="text-sm leading-relaxed text-muted-foreground">{AI_PROVIDER_API_SENTENCE}</p>
           </section>
 
           <section className="mt-8 space-y-2">

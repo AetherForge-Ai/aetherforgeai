@@ -27,6 +27,7 @@ const PUBLIC_DOCUMENT_ROUTES = [
   "/how-to-maximize-results",
   "/privacy-policy",
   "/terms-of-service",
+  "/refunds",
   "/ai-disclaimer",
   "/trust",
   "/free-trial",

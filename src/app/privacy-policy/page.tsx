@@ -3,6 +3,7 @@ import { EmailAddress } from "@/components/EmailAddress";
 import { LEGAL_ENTITY_NAME } from "@/lib/company";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { pageTitle } from "@/lib/page-title";
+import { AI_PROVIDER_API_SENTENCE, AI_PROVIDER_NAME, nameAiProvider } from "@/lib/ai-provider-disclosure";
 import { AI_REQUEST_LINES, ANALYTICS_NOTICE, CUSTOMER_EMAIL, LEGAL_UPDATED, PRIVACY_OFFICER_EMAIL, PROCESSORS } from "@/lib/public-copy";
 
 export const metadata = publicPageMetadata("/privacy-policy", {
@@ -13,11 +14,9 @@ export const metadata = publicPageMetadata("/privacy-policy", {
 
 const UPDATED = LEGAL_UPDATED;
 
-/** Sections 5 and 6. The provider name stays in section 4 only. */
+/** Sections 5 and 6 name the provider and its country. */
 function listedProcessors() {
-  return PROCESSORS().map((processor) =>
-    processor.name === "A third-party AI service" ? { ...processor, name: "our AI provider" } : processor,
-  );
+  return nameAiProvider(PROCESSORS(), { usa: true });
 }
 
 export default function PrivacyPolicy() {
@@ -101,9 +100,7 @@ export default function PrivacyPolicy() {
         {AI_REQUEST_LINES.map((line) => (
           <p key={line.slice(0, 24)}>{line}</p>
         ))}
-        <p>
-          The third-party AI service in those sentences is SuperGrok. No retention period is set by our code.
-        </p>
+        <p>{AI_PROVIDER_API_SENTENCE}</p>
         <p>
           AI-written notes are informational only — see our{" "}
           <a href="/ai-disclaimer" className="text-primary hover:underline">
@@ -145,7 +142,7 @@ export default function PrivacyPolicy() {
           {listedProcessors()
             .map((processor) => processor.name)
             .join(", ")}
-          . DEX prices in that list come from GeckoTerminal.
+          . DEX prices in that list come from GeckoTerminal. {AI_PROVIDER_NAME} is in the USA.
           Google Analytics runs only after you accept analytics cookies. Where we disclose
           personal information overseas, we take reasonable steps to ensure it is protected by
           comparable safeguards to those under the Privacy Act 2020, or we rely on an exception
