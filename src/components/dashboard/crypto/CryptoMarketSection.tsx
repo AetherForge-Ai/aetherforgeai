@@ -36,7 +36,7 @@ export function CryptoMarketSection({ showProjected = true }: { showProjected?: 
   }
 
   return (
-    <section className="min-h-[220px] space-y-4" aria-busy={loading && coins.length === 0 ? true : undefined}>
+    <section className="min-h-[35rem] space-y-4" aria-busy={loading && coins.length === 0 ? true : undefined}>
       {/* Primary CTA */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/10 to-card/40 p-4 sm:p-5">
         <div className="flex items-center gap-3">

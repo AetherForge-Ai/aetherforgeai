@@ -383,24 +383,17 @@ function storedListNeedsUpgrade(coins: { source?: string | null }[]): boolean {
 export async function loadTop400Markets(): Promise<RankedCryptoPage> {
   const { readSharedCryptoBoard, upgradeStoredCryptoBoard } = await import("@/lib/crypto-board-store");
   const board = await readSharedCryptoBoard({ seed: false });
-  if (storedListNeedsUpgrade(board.coins)) {
-    await upgradeStoredCryptoBoard(AWAIT_LIST_UPGRADE_MS);
-    const again = await readSharedCryptoBoard({ seed: false });
-    return {
-      coins: again.coins.slice(0, 400),
-      notice: again.notice,
-      at: again.at,
-    };
-  }
   if (board.coins.length) {
-    void upgradeStoredCryptoBoard().catch(() => undefined);
+    if (storedListNeedsUpgrade(board.coins)) {
+      void upgradeStoredCryptoBoard(AWAIT_LIST_UPGRADE_MS).catch(() => undefined);
+    }
     return {
       coins: board.coins.slice(0, 400),
       notice: board.notice,
       at: board.at,
     };
   }
-  await upgradeStoredCryptoBoard();
+  await upgradeStoredCryptoBoard(AWAIT_LIST_UPGRADE_MS);
   const again = await readSharedCryptoBoard({ seed: false });
   return {
     coins: again.coins.slice(0, 400),
@@ -421,11 +414,15 @@ function presentDetail(detail: CoinDetail, source: string): CoinDetail {
 async function listedCoinForDetail(id: string, code: string): Promise<CoinMarket | null> {
   try {
     const { readSharedCryptoBoard, upgradeStoredCryptoBoard } = await import("@/lib/crypto-board-store");
-    await upgradeStoredCryptoBoard();
-    const board = await readSharedCryptoBoard({ seed: false });
+    let board = await readSharedCryptoBoard({ seed: false });
     const slug = id.trim().toLowerCase();
     const symbol = code.toUpperCase();
-    const coin = board.coins.find((row) => row.id === slug || row.symbol.toUpperCase() === symbol) ?? null;
+    let coin = board.coins.find((row) => row.id === slug || row.symbol.toUpperCase() === symbol) ?? null;
+    if (!coin) {
+      await upgradeStoredCryptoBoard();
+      board = await readSharedCryptoBoard({ seed: false });
+      coin = board.coins.find((row) => row.id === slug || row.symbol.toUpperCase() === symbol) ?? null;
+    }
     if (!coin) return null;
     const [enriched] = await enrichListedCoins([coin]);
     return enriched ?? coin;

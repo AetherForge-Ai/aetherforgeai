@@ -115,7 +115,7 @@ describe("retest 11 ledger text and names", () => {
     expect(merged.blockchain).toBe("Solana");
     const blank = presentMarketCoin(coin({ symbol: "ZZZTEST", name: "ZZZTEST", source: "coinpaprika", blockchain: "" }));
     expect(blank.blockchain).toBe("");
-    expect(blank.blockchainReason).toBe("CoinPaprika did not send a platform for this coin.");
+    expect(blank.blockchainReason).toBe("The feed did not send a platform for this coin.");
   });
 });
 

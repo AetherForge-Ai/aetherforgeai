@@ -69,7 +69,7 @@ import { publicSourceAllowed } from "@/lib/swyftx-display";
 const DIRECTORY_FILE = path.join(tmpdir(), "aetherforge-coin-directory.json");
 const DIRECTORY_URL = "https://www.aetherforgeai.co.nz/__af/coin-directory";
 const MARKETS_QUERY =
-  "vs_currency=usd&order=market_cap_desc&per_page=250&sparkline=false&price_change_percentage=1h,24h,7d,30d";
+  "vs_currency=usd&order=market_cap_desc&per_page=250&sparkline=true&price_change_percentage=1h,24h,7d,30d";
 
 export interface SharedCryptoBoard {
   coins: CoinMarket[];
@@ -145,6 +145,14 @@ async function cgJson(pathAndQuery: string): Promise<unknown> {
   throw new Error(`CoinGecko ${lastStatus || "failed"}`);
 }
 
+function sparklinePrices(row: Record<string, unknown>): number[] {
+  const box = row.sparkline_in_7d;
+  if (!box || typeof box !== "object") return [];
+  const price = (box as { price?: unknown }).price;
+  if (!Array.isArray(price)) return [];
+  return price.map((point) => Number(point)).filter((point) => Number.isFinite(point) && point > 0);
+}
+
 function mapMarkets(body: unknown, directory: Map<string, CoinDirectoryEntry> | null): CoinMarket[] {
   if (!Array.isArray(body)) return [];
   const coins: CoinMarket[] = [];
@@ -189,7 +197,7 @@ function mapMarkets(body: unknown, directory: Map<string, CoinDirectoryEntry> | 
       athDate: typeof row.ath_date === "string" ? row.ath_date : null,
       atl: null,
       atlDate: null,
-      sparkline7d: [],
+      sparkline7d: sparklinePrices(row),
       blockchain,
       quotedAt: typeof row.last_updated === "string" ? row.last_updated : null,
       source: "coingecko",
@@ -369,6 +377,23 @@ async function runCryptoSeed(): Promise<{ cryptoReplaced: boolean; cryptoRows: n
   }
   if (!coins.length) return { cryptoReplaced: false, cryptoRows: 0 };
   try {
+    const directory = await loadDirectory();
+    if (directory) {
+      coins = coins.map((coin) => {
+        const listed = directory.get(coin.id);
+        if (!listed) return coin;
+        const fromPlatform = snapshotBlockchain(coin.id, listed.platforms, null);
+        return {
+          ...coin,
+          name: displayCoinName(coin.symbol, coin.name, listed.name),
+          blockchain: fromPlatform || coin.blockchain || "",
+        };
+      });
+    }
+  } catch (err) {
+    console.error("[crypto-board] platform directory was not applied:", err instanceof Error ? err.message.slice(0, 80) : "failed");
+  }
+  try {
     const previous = await readCryptoSnapshot();
     if (previous?.coins.length) {
       const { applyStatDonors } = await import("@/lib/crypto-market");
@@ -470,16 +495,39 @@ export async function refreshMarketSnapshots(): Promise<RefreshResult> {
  * A detached promise dies with the isolate. `after` keeps the refresh alive
  * until it writes the snapshot. Outside a request it runs immediately.
  */
-function scheduleDetached(start: () => Promise<unknown>): void {
+function afterHookAvailable(): boolean {
+  try {
+    const { after } = require("next/server") as { after?: unknown };
+    return typeof after === "function";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Start the refresh immediately. `after` keeps it alive after the response
+ * on the Next.js runtime. When `after` is missing, wait a short bound so the
+ * write can land before the isolate stops, then return the saved list.
+ */
+function scheduleDetached(start: () => Promise<unknown>, inlineMs = 0): Promise<void> {
   const job = start().catch((err) => {
     console.error("[crypto-board] background refresh failed:", err instanceof Error ? err.message.slice(0, 120) : "failed");
   });
+  let hooked = false;
   try {
     const { after } = require("next/server") as { after?: (task: () => Promise<unknown>) => void };
-    if (typeof after === "function") after(() => job);
+    if (typeof after === "function") {
+      after(() => job);
+      hooked = true;
+      console.log("[crypto-board] refresh kept alive with after()");
+    }
   } catch {
-    /* tests and scripts have no request scope; the job is already running */
+    hooked = false;
   }
+  if (hooked && inlineMs <= 0) return Promise.resolve();
+  const wait = inlineMs > 0 ? inlineMs : 400;
+  console.log(`[crypto-board] after() ${hooked ? "did not extend this read" : "is not available"} — refresh inline ${wait}ms`);
+  return Promise.race([job.then(() => undefined), sleep(wait)]).then(() => undefined);
 }
 
 function kickRefresh(): void {
@@ -503,13 +551,13 @@ function presentCrypto(coins: CoinMarket[], at: string | null): SharedCryptoBoar
   const sources = listed.map((coin) => coin.source || "coingecko");
   const short =
     coins.length > 0 && coins.length < MARKET_SNAPSHOT_TARGET ? listedMarketNotice(coins.length, "short") : null;
-  const asOf = [pricesAsAtLabel(at), short].filter(Boolean).join(" ");
+  const asOf = [pricesAsAtLabel(at, Date.now(), SNAPSHOT_REFRESH_MS), short].filter(Boolean).join(" ");
   const notice = coins.length ? withFeedSource(asOf || null, sources) : null;
   return {
     coins: listed,
     at,
     notice,
-    delayed: snapshotIsStale(at, Date.now(), SNAPSHOT_STALE_MS),
+    delayed: snapshotIsStale(at, Date.now(), SNAPSHOT_REFRESH_MS),
     countLine: countLine("coins", coins.length),
   };
 }
@@ -569,7 +617,10 @@ export async function readSharedCryptoBoard(opts?: { seed?: boolean }): Promise<
   const visible = gateCoins(stored);
   // Never seed when a snapshot exists, including when the caller passes seed: false.
   if (stored.length) {
-    if (visible.length && boardNeedsRefresh(saved?.at, SNAPSHOT_REFRESH_MS)) kickRefresh();
+    if (visible.length && boardNeedsRefresh(saved?.at, SNAPSHOT_REFRESH_MS)) {
+      if (afterHookAvailable()) kickRefresh();
+      else await scheduleDetached(() => refreshCryptoSeed(), 400);
+    }
     return presentCrypto(visible, saved?.at ?? null);
   }
   void opts;
