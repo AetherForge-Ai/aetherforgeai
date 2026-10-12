@@ -52,7 +52,6 @@ vi.mock("@/lib/crypto-board-store", () => ({
 
 import { applyTransaction } from "@/lib/transactions";
 import { coinToIntel } from "@/lib/koins-market";
-import { analyzeSecurity } from "@/lib/market-intel";
 import type { CoinMarket } from "@/lib/crypto-market";
 
 const user = {
@@ -397,16 +396,14 @@ describe("Koins universe after the develop merge", () => {
       priceUnavailable: false,
       moves: { h24: 3, d7: null, d30: null },
     } as CoinMarket;
-    const base = analyzeSecurity("ZZZ", 2, "Zed", "CRYPTO");
     const intel = coinToIntel(coin);
-    const clamped = Math.round(Math.max(-12, Math.min(12, base.projected7dPct)) * 100) / 100;
-    expect(intel.projected7dPct).toBe(clamped);
-    expect(intel.projected7dPct).toBeGreaterThanOrEqual(-12);
-    expect(intel.projected7dPct).toBeLessThanOrEqual(12);
+    expect(intel.forwardOmitted).toBe(true);
+    expect(intel.projected7dPct).toBe(0);
+    expect(intel.change1d).toBe(3);
     const src = readFileSync("src/lib/koins-market.ts", "utf8");
     expect(src).toContain("readSharedDexBoard");
     expect(src).toContain("dexRowToCoin");
-    expect(src).toContain("clamp(base.projected7dPct, -12, 12)");
+    expect(src).not.toContain("0.5 * base.projected7dPct");
     expect(src).toContain("held names still stay on the report");
   });
 });

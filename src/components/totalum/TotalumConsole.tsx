@@ -532,7 +532,7 @@ function StrategyTab({ initialSynthesis }: { initialSynthesis: TotalumSynthesis 
               </ul>
             ) : null}
             <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <Kpi label="Model view" value={modelViewSentence(strategy.projectedReturnPct, strategy.projectedVolPct)} sub="Pathway, not a forecast" />
+              <Kpi label="Model view" value={modelViewSentence(strategy.projectedReturnPct, strategy.projectedVolPct)} sub="Fixed long-run planning assumptions" />
               <Kpi label="Retained cash" value={nzd(strategy.plan.retainedCashNZD)} sub={`${strategy.plan.targetCashPct}% of the book`} />
               <Kpi
                 label="Cash reallocation"

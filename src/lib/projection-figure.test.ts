@@ -20,7 +20,8 @@ describe("one projected figure", () => {
   });
 
   it("keeps analyzeSecurity aligned across the three fields", () => {
-    const row = analyzeSecurity("AIR.NZ");
+    const closes = Array.from({ length: 40 }, (_, index) => 10 + index * 0.04);
+    const row = analyzeSecurity("AIR.NZ", closes[closes.length - 1], undefined, undefined, closes);
     expect(row.outlook.expectedPct).toBe(row.projected7dPct);
     expect(projectionPointPct(row.price, row.projection)).toBe(row.projected7dPct);
   });

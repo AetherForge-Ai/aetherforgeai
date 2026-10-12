@@ -6,9 +6,12 @@
  * a stale quote, or two different figures for one ticker. A non-large-cap week
  * print is withheld only when it sits outside a volatility-scaled band, or a
  * second source disagrees by more than a sane gap. A print that matches the
- * /markets quote is kept. When the 24-hour print is withheld, the 7-day and
- * 30-day prints for that ticker are withheld too. The report shows "data under
- * review" instead of the number.
+ * /markets quote is kept. A 7-day or month print is held when its base is
+ * missing or does not match the daily series, or the adjusted close when that
+ * series is on another scale. A 24-hour print that matches /markets is a
+ * different figure and stays. When the 24-hour print is withheld, the 7-day
+ * and 30-day prints for that ticker are withheld too. The report shows "data
+ * under review" instead of the number.
  */
 
 export const DATA_UNDER_REVIEW = "data under review";
@@ -112,6 +115,13 @@ export interface ReviewInput {
   priorPrice?: number | null;
   /** Realised 1-day volatility, in percent. Scales the week band. */
   dailyVolPct?: number | null;
+  /**
+   * Daily closes, oldest to newest. The 7-day and month bases are checked
+   * against this series. An empty array means the base is missing.
+   */
+  dailyCloses?: number[] | null;
+  /** Adjusted closes aligned with `dailyCloses`. Used when the raw base is on another scale. */
+  adjustedCloses?: number[] | null;
 }
 
 export interface ReviewedMove {
@@ -172,6 +182,73 @@ export function projectionSitsOnClamp(pct: number): boolean {
   return Number.isFinite(pct) && Math.abs(Math.abs(pct) - CRYPTO_PROJECTION_CLAMP_PCT) < 0.005;
 }
 
+function round2(pct: number): number {
+  return Math.round(pct * 100) / 100;
+}
+
+/** Sessions back from the last close. 1d = 1, 7d = 7, month = 30. */
+export function seriesLag(window: MoveWindow): number {
+  if (window === "1d") return 1;
+  if (window === "7d") return 7;
+  return 30;
+}
+
+/**
+ * Percent from `price` against the close `lag` sessions before the last print.
+ * Null when that base is not in the series.
+ */
+export function seriesWindowChangePct(closes: number[] | null | undefined, price: number, window: MoveWindow): number | null {
+  if (!Array.isArray(closes) || !(price > 0)) return null;
+  const lag = seriesLag(window);
+  if (closes.length <= lag) return null;
+  const base = closes[closes.length - 1 - lag];
+  if (!(base > 0) || !Number.isFinite(base)) return null;
+  const pct = ((price - base) / base) * 100;
+  return Number.isFinite(pct) ? round2(pct) : null;
+}
+
+/**
+ * A 7-day or month base fails when it is missing, disagrees with the daily
+ * series, or the raw series and the adjusted series are on different scales.
+ * No series means this check does not run, so an ordinary in-band print stays.
+ */
+export function equityBasePrintFailure(input: ReviewInput, reported: number): string | null {
+  const closes = Array.isArray(input.dailyCloses) ? input.dailyCloses : null;
+  let adjusted = Array.isArray(input.adjustedCloses) ? input.adjustedCloses : null;
+  if (!closes && !adjusted) return null;
+  if (closes && adjusted && adjusted.length !== closes.length) adjusted = null;
+
+  const lag = seriesLag(input.window);
+  const series = closes ?? adjusted;
+  if (!series) return null;
+  if (series.length <= lag || !(input.price > 0)) {
+    return input.window === "1d" ? null : "base print is missing from the daily series";
+  }
+
+  const rawPct = seriesWindowChangePct(series, input.price, input.window);
+  if (rawPct == null) return input.window === "1d" ? null : "base print is missing from the daily series";
+
+  if (closes && adjusted) {
+    const adjBase = adjusted[adjusted.length - 1 - lag];
+    const adjEnd = adjusted[adjusted.length - 1];
+    if (adjBase > 0 && adjEnd > 0) {
+      const adjPct = round2(((adjEnd - adjBase) / adjBase) * 100);
+      if (Math.abs(rawPct - adjPct) > SECOND_SOURCE_GAP_PP) {
+        const reported2 = round2(reported);
+        const matchesAdj = Math.abs(adjPct - reported2) <= 0.05;
+        const matchesRaw = Math.abs(rawPct - reported2) <= 0.05;
+        if (matchesAdj && !matchesRaw) return null;
+        return "base print does not match the adjusted close";
+      }
+    }
+  }
+
+  if (Math.abs(rawPct - round2(reported)) > 0.05) {
+    return adjusted && !closes ? "base print does not match the adjusted close" : "base print does not match the daily series";
+  }
+  return null;
+}
+
 function formatMove(pct: number): string {
   const rounded = Math.round(pct * 100) / 100;
   return `${rounded >= 0 ? "+" : ""}${rounded}%`;
@@ -180,20 +257,23 @@ function formatMove(pct: number): string {
 /** One print, checked against the previous close, a second source, and the cap. */
 export function reviewSessionMove(input: ReviewInput): ReviewedMove {
   const reported = Number.isFinite(input.reportedChangePct) ? input.reportedChangePct : 0;
-  if (printMatchesMarketsQuote(reported, input.marketsChangePct)) {
-    return {
-      changePct: Math.round(reported * 100) / 100,
-      withheld: false,
-      reason: null,
-      display: formatMove(reported),
-    };
-  }
   const keep = (reason: string | null, withheld = false): ReviewedMove => ({
     changePct: withheld ? 0 : Math.round(reported * 100) / 100,
     withheld,
     reason,
     display: withheld ? DATA_UNDER_REVIEW : formatMove(reported),
   });
+
+  // A session print that matches /markets is that session's own figure.
+  // It is not the 7-day or month base, so a bad base does not pull it.
+  if (input.window === "1d" && printMatchesMarketsQuote(reported, input.marketsChangePct)) {
+    return keep(null, false);
+  }
+
+  const baseFailure = equityBasePrintFailure(input, reported);
+  if (baseFailure) return keep(baseFailure, true);
+
+  if (printMatchesMarketsQuote(reported, input.marketsChangePct)) return keep(null, false);
 
   if (input.market === "ASX" && input.currency === "USD") return keep("possible currency mix-up (AU versus US)", true);
   if (input.market === "US" && input.currency === "AUD") return keep("possible currency mix-up (AU versus US)", true);

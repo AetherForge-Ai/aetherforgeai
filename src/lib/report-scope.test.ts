@@ -60,7 +60,7 @@ describe("Stox and Koins report scope", () => {
     expect(report.executiveSummary.toLowerCase()).toMatch(/market/);
     expect(claimsEmptyBook(report.executiveSummary)).toBe(true);
     expect(report.marketMovers.length).toBeGreaterThan(0);
-    expect(report.projectionLeaders.length).toBeGreaterThan(0);
+    expect(report.projectionLeaders).toEqual([]);
   });
 
   it("covers the loaded portfolio and the market together", () => {
@@ -110,7 +110,7 @@ describe("Stox and Koins report scope", () => {
     });
     expect(shown.isDemo).toBe(true);
     expect(shown.engine).toBe("AI");
-    expect(shown.generatedLabel).toBe("Sample report · illustrative data");
+    expect(shown.generatedLabel).toBe("Illustrative demo — not real market data.");
     expect(shown.executiveSummary).toContain("Advanced Micro Devices");
     expect(shown.executiveSummary.replace(/Advanced Micro Devices/g, "")).not.toMatch(
       /\b(ZENITH|Grok|ULTRA|advanced|grok-4\.6)\b/i

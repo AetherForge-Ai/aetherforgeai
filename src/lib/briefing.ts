@@ -82,7 +82,10 @@ export interface BuildBriefingArgs {
 }
 
 export function buildIntelligenceBriefing(args: BuildBriefingArgs): IntelligenceBriefing {
-  const { bot, marketLabel, technicals, events, sentiment } = args;
+  const { bot, marketLabel, events, sentiment } = args;
+  const heldNames = args.technicals.filter((row) => row.analysisHold).map((row) => row.ticker);
+  const technicals = args.technicals.filter((row) => !row.analysisHold);
+  const publishOutlook = bot !== "crypto";
   const assetWord = bot === "crypto" ? "assets" : "holdings";
   const n = technicals.length;
 
@@ -120,22 +123,32 @@ export function buildIntelligenceBriefing(args: BuildBriefingArgs): Intelligence
     .slice(0, 8)
     .map((t) => {
       const rating = rateAsset(t);
+      if (!publishOutlook) return `**${rating.action} ${t.ticker}** (${t.regime}, MACD ${t.macdSignal})`;
       const aligned = alignedProjection(t);
       return `**${rating.action} ${t.ticker}** (${t.regime}, MACD ${t.macdSignal}, 7-day base ${aligned.range})`;
     })
     .join("; ");
   const executiveSummary =
     (n
-      ? `The ${bot === "crypto" ? "Koins" : "Stox"} engine reads a **${bias.toLowerCase()}** 7-day posture across ${n} ${assetWord} ` +
-        `(${positiveMomentum} of ${n} carry a positive momentum signal; net ${netScore}/100 at ${avgConfidence}% average confidence). ` +
+      ? `The ${bot === "crypto" ? "Koins" : "Stox"} engine reads a **${bias.toLowerCase()}** posture across ${n} ${assetWord} ` +
+        (publishOutlook
+          ? `(${positiveMomentum} of ${n} carry a positive momentum signal; net ${netScore}/100 at ${avgConfidence}% average confidence). `
+          : `(${positiveMomentum} of ${n} carry a positive momentum signal). No 7-day projection is published. `) +
         (ratedLine ? `${ratedLine}. ` : "") +
-        (topName ? `Strongest model score is **${topName.ticker}** (${rateAsset(topName).action}, ${topName.conviction.toLowerCase()} conviction)${worstName && worstName !== topName ? `; weakest score is **${worstName.ticker}** (${rateAsset(worstName).action})` : ""}. `
+        (topName
+          ? publishOutlook
+            ? `Strongest model score is **${topName.ticker}** (${rateAsset(topName).action}, ${topName.conviction.toLowerCase()} conviction)${worstName && worstName !== topName ? `; weakest score is **${worstName.ticker}** (${rateAsset(worstName).action})` : ""}. `
+            : `Strongest technical score is **${topName.ticker}** (${rateAsset(topName).action})${worstName && worstName !== topName ? `; weakest score is **${worstName.ticker}** (${rateAsset(worstName).action})` : ""}. `
           : "")
-      : `No ${assetWord} are currently monitored for this bot — add tickers to receive a full probabilistic briefing. `) +
+      : heldNames.length
+        ? `${heldNames.join(", ")} — Not enough daily history. `
+        : `No ${assetWord} are currently monitored for this bot — add tickers to receive a full probabilistic briefing. `) +
     (bigCatalyst
       ? `Key catalyst this week: **${bigCatalyst.title}** (${bigCatalyst.dateLabel}). `
       : "No top-tier scheduled macro catalysts in the next 7 days. ") +
-    `All forward calls below are probabilistic ranges, not point targets.`;
+    (publishOutlook
+      ? `All forward calls below are probabilistic ranges, not point targets.`
+      : `Koins does not publish a 7-day outlook.`);
 
   // ---- Key observations (structure / momentum / sentiment) ------------
   const observations: string[] = [];
@@ -157,10 +170,16 @@ export function buildIntelligenceBriefing(args: BuildBriefingArgs): Intelligence
         (overbought.length ? `overbought (RSI≥70): ${overbought.join(", ")}. ` : "no overbought extremes. ") +
         (oversold.length ? `Oversold (RSI≤30): ${oversold.join(", ")}.` : "")
     );
-    const avgVol = Math.round((technicals.reduce((s, t) => s + t.realizedVolPct, 0) / n) * 10) / 10;
-    observations.push(
-      `Volatility: average annualised realised vol ${avgVol}% — 7-day 1σ swings average ±${Math.round((technicals.reduce((s, t) => s + t.outlook.sigma7Pct, 0) / n) * 10) / 10}%.`
-    );
+    const volRows = technicals.filter((row) => row.history.length >= 30);
+    if (volRows.length) {
+      const avgVol = (volRows.reduce((sum, row) => sum + row.realizedVolPct, 0) / volRows.length).toFixed(2);
+      const skipSigma = bot === "crypto" || args.technicals.some((row) => row.forwardOmitted);
+      observations.push(
+        skipSigma
+          ? `Volatility: average annualised realised vol ${avgVol}%.`
+          : `Volatility: average annualised realised vol ${avgVol}% — 7-day 1σ swings average ±${(volRows.reduce((sum, row) => sum + row.outlook.sigma7Pct, 0) / volRows.length).toFixed(2)}%.`
+      );
+    }
   }
   if (sentiment.headlines.length) {
     observations.push(
@@ -181,7 +200,7 @@ export function buildIntelligenceBriefing(args: BuildBriefingArgs): Intelligence
   if (!risks.length) risks.push("No acute risks flagged this week — the tape is orderly, but always position for the unexpected.");
 
   // ---- Probabilistic outlook rows -------------------------------------
-  const outlook: BriefingOutlookRow[] = [...technicals]
+  const outlook: BriefingOutlookRow[] = publishOutlook ? [...technicals]
     .sort((a, b) => CONV_RANK[a.conviction] - CONV_RANK[b.conviction] || Math.abs(b.score - 50) - Math.abs(a.score - 50))
     .slice(0, 12)
     .map((t) => ({
@@ -201,23 +220,25 @@ export function buildIntelligenceBriefing(args: BuildBriefingArgs): Intelligence
               ? "Buy"
               : "Hold",
       outlook: t.outlook,
-    }));
+    })) : [];
 
   // ---- Highlights: unusual / high-conviction --------------------------
   const highlights: string[] = [];
-  const topHigh = highConv.sort((a, b) => Math.abs(b.score - 50) - Math.abs(a.score - 50))[0];
+  const topHigh = publishOutlook ? highConv.sort((a, b) => Math.abs(b.score - 50) - Math.abs(a.score - 50))[0] : undefined;
   if (topHigh) {
     const c = topHigh.score >= 50 ? topHigh.outlook.bull : topHigh.outlook.bear;
     highlights.push(
       `⭐ High conviction: **${topHigh.ticker}** (${rateAsset(topHigh).action}) — base case ${rangeLabel(topHigh.outlook.base)} (${topHigh.outlook.base.probability}%), ${topHigh.score >= 50 ? "bull" : "bear"} case ${rangeLabel(c)} (${c.probability}%).`
     );
   }
-  for (const t of hotVol.slice(0, 2)) {
-    highlights.push(`⚠️ Unusual volatility: **${t.ticker}** — 7-day 1σ swing ±${t.outlook.sigma7Pct}% (regime: High Volatility).`);
-  }
-  const bigMove = [...technicals].sort((a, b) => Math.abs(b.outlook.expectedPct) - Math.abs(a.outlook.expectedPct))[0];
-  if (bigMove && Math.abs(bigMove.outlook.expectedPct) >= 3 && bigMove !== topHigh) {
-    highlights.push(`📈 Largest projected drift: **${bigMove.ticker}** at ${sp(bigMove.outlook.expectedPct)} central estimate over 7 days.`);
+  if (publishOutlook) {
+    for (const t of hotVol.slice(0, 2)) {
+      highlights.push(`⚠️ Unusual volatility: **${t.ticker}** — 7-day 1σ swing ±${t.outlook.sigma7Pct}% (regime: High Volatility).`);
+    }
+    const bigMove = [...technicals].sort((a, b) => Math.abs(b.outlook.expectedPct) - Math.abs(a.outlook.expectedPct))[0];
+    if (bigMove && Math.abs(bigMove.outlook.expectedPct) >= 3 && bigMove !== topHigh) {
+      highlights.push(`📈 Largest projected drift: **${bigMove.ticker}** at ${sp(bigMove.outlook.expectedPct)} central estimate over 7 days.`);
+    }
   }
 
   return {
