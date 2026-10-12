@@ -52,7 +52,14 @@ import {
   projectionRatingLabel,
   sessionGainerSentence,
 } from "./report-copy";
-import { createQuoteBook, reviewSessionMove, type QuoteBook, type ReviewedMove } from "./quote-review";
+import {
+  createQuoteBook,
+  printMatchesMarketsQuote,
+  projectionSitsOnClamp,
+  reviewSessionMove,
+  type QuoteBook,
+  type ReviewedMove,
+} from "./quote-review";
 import { marketFeedUnavailableLine } from "./report-scope";
 import { CRYPTO_DIRECTORY } from "./crypto-directory";
 import { labelIntel } from "./security-signal";
@@ -121,6 +128,8 @@ export interface MoverRow {
   changePct: number;
   /** The percent failed the quote check. Render "data under review" instead. */
   withheld?: boolean;
+  /** Session print matches /markets. A later window cannot pull this row off the list. */
+  marketsMatched?: boolean;
 }
 
 /** Top-10 movers for one exchange, across the 24h / 7d / 1-month windows. */
@@ -464,8 +473,8 @@ function tickerFromIntel(intel: SecurityIntel, _bot: BotKind): TickerAnalysis {
 }
 
 function spPct(n: number): string {
-  const rounded = round(n, 2);
-  return `${rounded >= 0 ? "+" : ""}${rounded}%`;
+  const text = (Number.isFinite(n) ? round(n, 2) : 0).toFixed(2);
+  return `${Number(text) > 0 ? "+" : ""}${text}%`;
 }
 
 const MARKET_LABELS: Record<MarketCode, string> = {
@@ -533,6 +542,7 @@ function reviewedWindow(
     marketsChangePct: window === "1d" ? cross?.changePct?.[key] : undefined,
     priorChangePct: prior?.changePct,
     priorPrice: prior?.price,
+    dailyVolPct: row.dailyVolPct,
   });
 }
 
@@ -572,23 +582,28 @@ function buildMarketMovers(
       windows: MOVER_WINDOWS.map((w) => {
         const window = w.key === "change1d" ? "1d" : w.key === "change7d" ? "7d" : "30d";
         const reviewedRows = inMarket.map((s) => {
+          const reported = s[w.key] as number;
+          const marketsPct = window === "1d" ? cross?.changePct?.[s.ticker.trim().toUpperCase()] : undefined;
+          const matched = printMatchesMarketsQuote(reported, marketsPct);
           const reviewed = reviewedWindow(book, s, window, cross);
+          const withheld = matched ? false : (reviewed?.withheld ?? false);
+          const changePct = withheld ? 0 : Number((matched ? reported : (reviewed?.changePct ?? reported)).toFixed(2));
           return {
             ticker: s.ticker,
             name: s.name,
             market: s.market,
             currency: s.currency as CurrencyCode,
             price: s.price,
-            changePct: reviewed?.withheld ? 0 : (reviewed?.changePct ?? (s[w.key] as number)),
-            withheld: reviewed?.withheld ?? false,
-            sortPct: reviewed?.withheld ? Number.NEGATIVE_INFINITY : (reviewed?.changePct ?? (s[w.key] as number)),
+            changePct,
+            withheld,
+            marketsMatched: matched,
+            sortPct: withheld ? Number.NEGATIVE_INFINITY : changePct,
           };
         });
         const withheldCount = reviewedRows.filter((row) => row.withheld).length;
         const ranked = reviewedRows
           .filter((row) => !row.withheld)
           .sort((a, b) => b.sortPct - a.sortPct)
-          .slice(0, 10)
           .map(({ sortPct: _sort, ...row }) => row);
         const underReview = reviewedRows
           .filter((row) => row.withheld)
@@ -606,10 +621,16 @@ function buildMarketMovers(
   }).map((group) => ({ ...group, windows: withholdAcrossWindows(group.windows) }));
 }
 
-/** A name under review on any window leaves every rank list, including 24 hours. */
+const MOVER_LIST_LIMIT = 10;
+
+/**
+ * A name under review on any window leaves the other rank lists, then each list
+ * is filled back to 10 from the next valid name. A row that matches /markets
+ * stays on its own list.
+ */
 export function withholdAcrossWindows<T extends {
   window: string;
-  movers: { ticker: string }[];
+  movers: { ticker: string; marketsMatched?: boolean }[];
   underReview: { ticker: string }[];
   withheldCount: number;
   reviewNote: string | null;
@@ -618,15 +639,20 @@ export function withholdAcrossWindows<T extends {
   for (const window of windows) {
     for (const row of window.underReview) blocked.add(row.ticker.toUpperCase());
   }
-  if (!blocked.size) return windows;
   return windows.map((window) => {
+    const keep = (row: { ticker: string; marketsMatched?: boolean }) =>
+      !!row.marketsMatched || !blocked.has(row.ticker.toUpperCase());
+    if (!blocked.size) return { ...window, movers: window.movers.slice(0, MOVER_LIST_LIMIT) };
+    const head = window.movers.slice(0, MOVER_LIST_LIMIT);
     const extra: { ticker: string }[] = [];
-    const movers = window.movers.filter((row) => {
-      if (!blocked.has(row.ticker.toUpperCase())) return true;
+    const keptHead = head.filter((row) => {
+      if (keep(row)) return true;
       extra.push({ ticker: row.ticker });
       return false;
     });
-    if (!extra.length) return window;
+    const keptRest = window.movers.slice(MOVER_LIST_LIMIT).filter(keep);
+    const movers = [...keptHead, ...keptRest].slice(0, MOVER_LIST_LIMIT);
+    if (!extra.length) return { ...window, movers };
     const underReview = [...window.underReview];
     for (const row of extra) {
       if (!underReview.some((item) => item.ticker.toUpperCase() === row.ticker.toUpperCase())) underReview.push(row);
@@ -664,7 +690,10 @@ function buildProjectionLeaders(
     .map((row) => labelIntel(row))
     .filter((row) => !quoteUnderReview(book, row, cross));
   const reasonByTicker = new Map(notSized.map((row) => [row.ticker.toUpperCase(), row.reason]));
-  return getProjectionLeaders(10, list)
+  const eligible = list.filter(
+    (row) => row.assetClass !== "crypto" || !projectionSitsOnClamp(alignedProjection(row).pct)
+  );
+  return getProjectionLeaders(10, eligible)
     .map((s) => {
       const signal = projectionCardSignal(s);
       return {

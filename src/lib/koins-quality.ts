@@ -7,6 +7,7 @@
 
 import type { ApexReport, MoverRow, ProjectionRow } from "@/lib/apex";
 import { sessionGainerSentence } from "@/lib/report-copy";
+import { projectionSitsOnClamp, reviewSessionMove } from "@/lib/quote-review";
 import {
   KOINS_SNAPSHOT_FRESH_MS,
   koinsUnavailableLine,
@@ -87,7 +88,18 @@ export interface KoinsCandidate {
   confidence?: number | null;
 }
 
-const OUTLIER_CAP: Record<"24h" | "7d" | "30d", number> = { "24h": 40, "7d": 50, "30d": 60 };
+/**
+ * Unreviewed prints beyond these bands are held before ranking.
+ * The 7-day band matches the Stox outlier review: a week print this large
+ * stays only when a second source agrees.
+ */
+const OUTLIER_CAP: Record<"24h" | "7d" | "30d", number> = { "24h": 40, "7d": 35, "30d": 60 };
+
+function reviewWindow(window: "24h" | "7d" | "30d"): "1d" | "7d" | "30d" {
+  if (window === "24h") return "1d";
+  if (window === "7d") return "7d";
+  return "30d";
+}
 
 function sourcesAgree(row: KoinsCandidate, window: "24h" | "7d" | "30d", move: number): boolean {
   if (!row.agree) return false;
@@ -160,9 +172,18 @@ export function rankGainers(
   const kept: KoinsCandidate[] = [];
   for (const row of positive) {
     const move = moveFor(row, window) as number;
+    const other = window === "24h" ? row.agree?.h24 : window === "7d" ? row.agree?.d7 : row.agree?.d30;
+    const reviewed = reviewSessionMove({
+      ticker: row.symbol,
+      assetClass: "crypto",
+      price: row.price,
+      reportedChangePct: move,
+      window: reviewWindow(window),
+      secondSourceChangePct: typeof other === "number" ? other : undefined,
+    });
     const extreme = Math.abs(move) > OUTLIER_CAP[window];
     const cloned = (dupes.get(move.toFixed(2)) || 0) >= 2 && Math.abs(move) >= 20;
-    if ((extreme || cloned) && !sourcesAgree(row, window, move)) {
+    if (reviewed.withheld || ((extreme || cloned) && !sourcesAgree(row, window, move))) {
       withheld += 1;
       continue;
     }
@@ -175,7 +196,7 @@ export function rankGainers(
     market: "CRYPTO",
     currency: "USD" as CurrencyCode,
     price: row.price,
-    changePct: moveFor(row, window) as number,
+    changePct: Number((moveFor(row, window) as number).toFixed(2)),
     withheld: false,
   }));
   return { movers, withheld, gained: kept.length };
@@ -238,7 +259,9 @@ export function applyKoinsSweeps(report: ApexReport, board: KoinsBoardState, now
       };
     });
   }
-  const leaders = board.projections.filter((row) => !excludedFromKoinsSweep(row.ticker));
+  const leaders = board.projections
+    .filter((row) => !excludedFromKoinsSweep(row.ticker) && !projectionSitsOnClamp(row.projected7dPct))
+    .slice(0, 10);
   const projectionBlocked = forced || stale || !leaders.length || projectionsAreUniform(leaders);
   report.projectionLeaders = projectionBlocked ? [] : leaders;
   report.koinsUnavailableNote = projectionBlocked ? unavailable : null;
