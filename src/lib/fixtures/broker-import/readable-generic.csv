@@ -1,0 +1,3 @@
+# Synthetic fixture. Not a customer file. Headers are not a broker layout.
+Booked,What,Instrument,Units,Unit,Money
+2026-04-02,buy,WBC.AX,5,30.00,150.00

@@ -8,10 +8,12 @@ import Link from "next/link";
 import { TaxSectionNav } from "@/components/tax/TaxSectionNav";
 import { formatNzd, formatSignedMoney } from "@/lib/currency";
 import { TAX_INDICATIVE_LABEL } from "@/lib/tax-disclaimer";
+import { TAX_PACK_NOTE } from "@/lib/tax-pack";
 import { TAX_PAGE_EXAMPLE, TAX_PAGE_SUMMARIES } from "@/lib/tax-public-summary";
 
 export type TaxBookFigures = {
   dividendsNzd: number;
+  dividendsGrossNzd?: number | null;
   realisedPnlNzd: number;
 };
 
@@ -78,9 +80,14 @@ export function TaxPageContent({ book = null }: { book?: TaxBookFigures | null }
         <section className="mt-6 space-y-2 rounded-2xl border border-border/70 bg-card/40 p-4">
           <h2 className="font-display text-lg font-semibold">Your paper book</h2>
           <p className="text-sm leading-relaxed text-muted-foreground">
-            Dividends and income on this book: {formatNzd(book.dividendsNzd)}. Realised profit and loss:{" "}
-            {formatSignedMoney(book.realisedPnlNzd)}. These figures are from your paper book. They are not a tax
-            return. Inland Revenue decides what is income.
+            Dividends on this book, net cash received: {formatNzd(book.dividendsNzd)}.{" "}
+            {book.dividendsGrossNzd == null
+              ? "Gross dividend is not on these rows, so it is not shown beside the net cash."
+              : `Gross dividend, before withholding: ${formatNzd(book.dividendsGrossNzd)}.`}{" "}
+            Realised profit and loss: {formatSignedMoney(book.realisedPnlNzd)}. Net cash is the amount that landed
+            in the paper book. Gross is the dividend before withholding, and only when that breakdown is on the row.
+            These figures are from your paper book. They are not a tax return. {TAX_PACK_NOTE} {TAX_INDICATIVE_LABEL}{" "}
+            Inland Revenue decides what is income.
           </p>
         </section>
       ) : null}

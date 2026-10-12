@@ -12,6 +12,7 @@ import {
   formatDisplayDate,
   formatSignedMoney,
   formatMoney,
+  roundMoney,
   formatUnitPrice,
   currencyForTicker,
   baseCurrencyForBot,
@@ -959,6 +960,10 @@ export function PortfolioDashboard({
     () => computeSummary(stockOnly, { baseCurrency: "NZD", fxToNZD }),
     [stockOnly, fxToNZD]
   );
+  const cryptoNzdGain = useMemo(
+    () => computeSummary(cryptoMarked, { baseCurrency: "NZD", fxToNZD }).totalGain,
+    [cryptoMarked, fxToNZD]
+  );
   const stockOverviewMetrics = useMemo(() => computePortfolioMetrics(stockOnly), [stockOnly]);
   const cryptoOverviewSummary = useMemo(
     () => computeSummary(cryptoMarked, { baseCurrency: cryptoBookCurrency, fxToNZD }),
@@ -976,6 +981,12 @@ export function PortfolioDashboard({
     // Always rewrite a persisted equity print (~US$44.65) to NZD per troy ounce.
     return markBookAtBullionSpot(bullion, spotForMarks);
   }, [allStocks, spotForMarks]);
+  const homeSplitPnlNzd = useMemo(() => {
+    const stock = computeSummary(stockOnly, { baseCurrency: "NZD", fxToNZD }).totalGain;
+    const crypto = computeSummary(cryptoMarked, { baseCurrency: "NZD", fxToNZD }).totalGain;
+    const metal = computeSummary(metalStocks, { baseCurrency: "NZD", fxToNZD }).totalGain;
+    return roundMoney(stock + crypto + metal);
+  }, [stockOnly, cryptoMarked, metalStocks, fxToNZD]);
 
   // Precious-metal holdings from the dedicated /api/metals table, mapped into
   // the same Stock shape so the Transaction Center Sell/Remove picker can show
@@ -1457,9 +1468,10 @@ export function PortfolioDashboard({
         metalsQuotedAt={publicSpot?.quotedAt ?? null}
       />
       <ReturnsSplitCard
-        holdings={[...stockHoldings, ...cryptoHoldings]}
+        holdings={[...stockHoldings, ...cryptoHoldings, ...metalStocks]}
         incomeNzd={incomeNzd}
         rates={fxRates}
+        reportedPnlNzd={homeSplitPnlNzd}
         loading={!balancesReady}
       />
       </>
@@ -1609,6 +1621,7 @@ export function PortfolioDashboard({
           holdings={stockOverviewSummary.holdings}
           incomeNzd={incomeNzd}
           rates={fxRates}
+          reportedPnlNzd={stockOverviewSummary.totalGain}
           loading={!balancesReady}
         />
 
@@ -1709,6 +1722,7 @@ export function PortfolioDashboard({
           holdings={cryptoOverviewSummary.holdings}
           incomeNzd={incomeNzd}
           rates={fxRates}
+          reportedPnlNzd={cryptoNzdGain}
           loading={!balancesReady}
         />
         <div className="mb-4 flex flex-wrap items-center justify-center gap-3">

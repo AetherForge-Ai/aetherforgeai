@@ -8,6 +8,16 @@ export const metadata = publicPageMetadata("/changelog", {
 
 export const CHANGELOG_ENTRIES = [
   {
+    href: "/import",
+    title: "12 Oct 2026 — Batch 2 retest fixes",
+    body: "Sharesies company names map only when one listing matches. A foreign trade with no rate in the file uses the reviewed rate for that trade date. A readable CSV opens the column map. Return uses a stored mark, with its source and as-of, when the holding has one. /dividends opens the dividend ledger. The tax overview labels net cash and gross, and it is not an accountant sign-off. A CSV export of your transactions is on Starter and above. Report holdings counts follow the book. The return split adds up to the P/L figure.",
+  },
+  {
+    href: "/import",
+    title: "11 Oct 2026 — Batch 2",
+    body: "Develop 18375819. Broker import, money-weighted and time-weighted return, dividends, the tax pack, trust, price badges, alerts, the installable shell, bot guides, schema, and the help feed.",
+  },
+  {
     href: "/tax",
     title: "11 Oct 2026 — Tax fixups and the Tax link",
     body: "Develop 9dedb71. Auckland dates, realised lots, dividends, the CSV gate, metals loading, the home disclaimer, and a Tax link in the footer and navigation.",

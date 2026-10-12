@@ -144,18 +144,72 @@ export function reportReadsAsNotCurrent(text: string): boolean {
   return (text || "").includes(NOT_CURRENT_REPORT_MARK);
 }
 
+function positionCount(holdings: LiveBookPosition[]): number {
+  const named = holdings.filter((holding) => holding.ticker).length;
+  return named || holdings.length;
+}
+
+/** Reports name the book. They do not name a model. */
+function stripModelNames(text: string): string {
+  return text
+    .replace(/\bSuper\s*Grok(?:\s*\d+(?:\.\d+)?)?\b/gi, "")
+    .replace(/\bgrok-\d+(?:\.\d+)?\b/gi, "")
+    .replace(/\bGrok\b/g, "")
+    .replace(/\bAI models?\b/gi, "the report")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\s+([,.;:])/g, "$1")
+    .trim();
+}
+
+function rewriteZeroOfZero(text: string, count: number): string {
+  return text.replace(/\b(\d+)\s+of\s+0\b/gi, `$1 of ${count}`);
+}
+
+function sentencesOf(text: string): string[] {
+  return text
+    .split(/\n+|(?<=[.!?])\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function dropEmptyBookSentences(text: string): string {
+  return sentencesOf(text)
+    .filter((sentence) => !claimsEmptyBook(sentence))
+    .join(" ")
+    .trim();
+}
+
+function dedupeSentences(text: string): string {
+  const seen = new Set<string>();
+  const kept: string[] = [];
+  for (const sentence of sentencesOf(text)) {
+    const key = sentence.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    kept.push(sentence);
+  }
+  return kept.join(" ");
+}
+
 function alignNarrativeToBook(text: string, holdings: LiveBookPosition[]): string {
   if (!holdings.length || !text) return text;
+  const count = positionCount(holdings);
   const named = mentionsHeldTicker(text, holdings);
-  if (!deniesLiveBook(text, holdings) && named) return text;
-  const lead = `Live book: ${holdings.length} position${holdings.length === 1 ? "" : "s"} — ${liveBookRoster(holdings)}.`;
-  if (deniesLiveBook(text, holdings)) {
-    // A matching buy (the report already names the ticker now on the book)
-    // is not a stale report. Keep the read and show the live roster.
-    if (named) return `${lead}\n\n${text}`;
-    return `${NOT_CURRENT_REPORT_MARK} It was prepared before these positions were on the account. ${lead}`;
+  const denies = deniesLiveBook(text, holdings);
+  const lead = `Live book: ${count} position${count === 1 ? "" : "s"} — ${liveBookRoster(holdings)}.`;
+  if (!denies && named) return stripModelNames(text);
+  if (denies && !named) {
+    return stripModelNames(
+      `${NOT_CURRENT_REPORT_MARK} It was prepared before these positions were on the account. ${lead}`
+    );
   }
-  return `${lead}\n\n${text}`;
+  let body = rewriteZeroOfZero(stripModelNames(text), count);
+  if (denies) body = dropEmptyBookSentences(body);
+  body = dedupeSentences(body);
+  if (!body) return lead;
+  if (/live book:/i.test(body)) return dedupeSentences(body);
+  if (denies || !named) return dedupeSentences(`${lead}\n\n${body}`.trim());
+  return body;
 }
 
 export interface GroundNarrativeResult {
@@ -201,24 +255,38 @@ export function reconcileStoredReport<T extends StoredReportShape>(
   const bot = report.bot === "crypto" ? "crypto" : "stock";
   if (!holdings.length) return applyPaperQuotes(sanitizeGuardedReport(report, figures));
   const next: T = { ...report };
+  const count = positionCount(holdings);
   if (typeof next.executiveSummary === "string") {
     next.executiveSummary = reconcileNarrativeWithLiveBook(next.executiveSummary, holdings, bot);
   }
   if (Array.isArray(next.keyObservations)) {
-    let observations = next.keyObservations.map((line) =>
-      deniesLiveBook(line, holdings) ? `Live book: ${liveBookRoster(holdings)}.` : line
-    );
-    if (!observations.some((line) => mentionsHeldTicker(line, holdings))) {
-      observations = [`Live book (${holdings.length}): ${liveBookRoster(holdings)}.`, ...observations];
+    const summarySentences = new Set(sentencesOf(next.executiveSummary || "").map((sentence) => sentence.toLowerCase()));
+    const seen = new Set<string>();
+    const observations: string[] = [];
+    for (const line of next.keyObservations) {
+      const rewritten = deniesLiveBook(line, holdings)
+        ? alignNarrativeToBook(line, holdings)
+        : rewriteZeroOfZero(stripModelNames(line), count);
+      const key = rewritten.trim().toLowerCase();
+      if (!key || seen.has(key) || summarySentences.has(key)) continue;
+      seen.add(key);
+      observations.push(rewritten);
+    }
+    if (!observations.some((line) => mentionsHeldTicker(line, holdings)) && !mentionsHeldTicker(next.executiveSummary || "", holdings)) {
+      observations.unshift(`Live book (${count}): ${liveBookRoster(holdings)}.`);
     }
     next.keyObservations = observations;
   }
   const note = next.pathwayPlan?.recommendationNote;
   if (next.pathwayPlan && typeof note === "string" && (deniesLiveBook(note, holdings) || !mentionsHeldTicker(note, holdings))) {
-    const cleaned = note.replace(/cash-ready\s*\/\s*empty holdings\s*—\s*/i, "");
+    const cleaned = dropEmptyBookSentences(
+      rewriteZeroOfZero(stripModelNames(note.replace(/cash-ready\s*\/\s*empty holdings\s*—\s*/i, "")), count)
+    );
+    const lead = `Live book holds ${liveBookRoster(holdings)}.`;
+    const body = dedupeSentences(cleaned);
     next.pathwayPlan = {
       ...next.pathwayPlan,
-      recommendationNote: `Live book holds ${liveBookRoster(holdings)}. ${cleaned}`.trim(),
+      recommendationNote: dedupeSentences(body.toLowerCase().includes(lead.toLowerCase()) ? body : `${lead} ${body}`).trim(),
     };
   }
   return applyPaperQuotes(sanitizeGuardedReport(next, figures));
