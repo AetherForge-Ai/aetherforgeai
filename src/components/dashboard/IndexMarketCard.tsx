@@ -83,8 +83,9 @@ export function IndexMarketCard({
     };
   }, [exchange, controlled, snapshot]);
 
-  const busy = controlled ? !!snapshotLoading && !snap : loading;
   const idx = snap?.index;
+  const priceMissing = !snap || idx?.price == null;
+  const busy = controlled ? !!snapshotLoading && priceMissing : loading || (priceMissing && !snap);
   const up = (idx?.changePct ?? 0) >= 0;
   const gainer = snap?.topGainers?.[0];
   const loser = snap?.topLosers?.[0];

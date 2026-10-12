@@ -259,7 +259,7 @@ const TOP400_LAST_GOOD_MS = 6 * 60 * 60 * 1000;
 const TOP400_COLD_MS = 7_000;
 const TOP400_BACKOFF_MS = 60_000;
 const TOP400_QUERY =
-  "vs_currency=usd&order=market_cap_desc&per_page=250&sparkline=false" +
+  "vs_currency=usd&order=market_cap_desc&per_page=250&sparkline=true" +
   "&price_change_percentage=1h,24h,7d";
 
 let top400Entry: { at: number; value: RankedCryptoPage } | null = null;

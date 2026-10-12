@@ -76,11 +76,15 @@ export function chainPricesAgree(a: number, b: number, ratio = CRYPTO_SANITY_RAT
 export function cryptoVenueForLabel(label: string | null | undefined): { label: string; href: string } {
   const text = String(label || "").trim();
   if (!text) return { label: "Source unavailable", href: "" };
-  const parts = text.split(",").map((part) => part.trim()).filter(Boolean);
+  const parts = text
+    .split(",")
+    .map((part) => part.trim())
+    .filter((part) => part && !/coinpaprika/i.test(part));
+  if (!parts.length) return { label: "The feed", href: "" };
   if (parts.length !== 1) return { label: parts.join(", "), href: "" };
   const first = parts[0];
   const key = first.toLowerCase();
-  if (key.includes("coinpaprika")) return { label: "CoinPaprika", href: "https://coinpaprika.com/" };
+  if (key.includes("coinpaprika")) return { label: "The feed", href: "" };
   if (key.includes("coingecko")) return { label: "CoinGecko", href: "https://www.coingecko.com/" };
   if (key.includes("coincap")) return { label: "CoinCap", href: "https://coincap.io/" };
   if (key.includes("binance")) return { label: "Binance", href: "https://www.binance.com/" };
@@ -105,7 +109,7 @@ export function sourceLabel(source: string): string {
     case "yahoo":
       return "Yahoo Finance";
     case "coinpaprika":
-      return "CoinPaprika";
+      return "";
     case "coincap":
       return "CoinCap";
     case "binance":

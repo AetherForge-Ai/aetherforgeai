@@ -14,9 +14,8 @@ export const LIVE_DEX_UNAVAILABLE = "Live decentralized-token prices are unavail
  * A zero market cap, FDV, volume, high, low, supply or ATH is unknown.
  * The cell is an em dash, not 0. A real 0% change is left as 0.
  */
-function feedDidNotSend(source: string, figure: string): string {
-  const who = source === "coinpaprika" ? "CoinPaprika" : "The feed";
-  return `${who} did not send ${figure}.`;
+function feedDidNotSend(_source: string, figure: string): string {
+  return `The feed did not send ${figure}.`;
 }
 
 export function presentMarketCoin<T extends object>(coin: T): T {

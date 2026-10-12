@@ -109,11 +109,11 @@ describe("retest 12 and technician r5", () => {
 
   it("does not name CoinGecko when the source is missing", () => {
     expect(publicCoinSourceLine("")).toBe("Source unavailable.");
-    expect(publicCoinSourceLine("coinpaprika")).toContain("CoinPaprika");
+    expect(publicCoinSourceLine("coinpaprika")).toBe("Source unavailable.");
     expect(publicCoinSourceLine("coingecko,coinpaprika")).toContain("CoinGecko");
-    expect(publicCoinSourceLine("coingecko,coinpaprika")).toContain("CoinPaprika");
+    expect(publicCoinSourceLine("coingecko,coinpaprika")).not.toContain("CoinPaprika");
     expect(cryptoVenueForLabel("").label).toBe("Source unavailable");
-    expect(cryptoVenueForLabel("CoinGecko, CoinPaprika").label).toBe("CoinGecko, CoinPaprika");
+    expect(cryptoVenueForLabel("CoinGecko, CoinPaprika").label).toBe("CoinGecko");
     expect(cryptoVenueForLabel("").href).toBe("");
   });
 
@@ -135,7 +135,7 @@ describe("retest 12 and technician r5", () => {
     expect(rows[0].circulatingSupply).toBeNull();
     const body = presentMarketCoin(rows[0]);
     expect(body.fdvReason).toMatch(/total supply/);
-    expect(body.circulatingReason).toMatch(/CoinPaprika did not send circulating supply/);
+    expect(body.circulatingReason).toMatch(/The feed did not send circulating supply/);
     expect(body.highReason).toMatch(/24-hour high/);
     expect(body.atlReason).toMatch(/all-time low/);
     expect(body.name).toBe("Dai");

@@ -72,6 +72,11 @@ const L1_CHAIN: Record<string, string> = {
   "wrapped-eeth": "Ethereum",
   hyperliquid: "Hyperliquid",
   zcash: "Zcash",
+  "xdce-crowd-sale": "XDC Network",
+  "flare-networks": "Flare",
+  "bitcoin-cash-sv": "Bitcoin SV",
+  "conflux-token": "Conflux",
+  "pi-network": "Pi Network",
 };
 
 /** Ticker or leftover id when the CoinGecko id is not in the native-chain list. */
@@ -249,6 +254,11 @@ const TICKER_CHAIN: Record<string, string> = {
   // platform names the chain. A blank stays blank and the table shows — with a reason.
   rseth: "Ethereum",
   ezeth: "Ethereum",
+  xdc: "XDC Network",
+  flr: "Flare",
+  bsv: "Bitcoin SV",
+  cfx: "Conflux",
+  pi: "Pi Network",
 };
 
 const PLATFORM_LABEL: Record<string, string> = {
