@@ -152,14 +152,20 @@ export function rankGainers(
   rows: KoinsCandidate[],
   window: "24h" | "7d" | "30d",
   limit = 10
-): { movers: MoverRow[]; withheld: number; gained: number } {
+): { movers: MoverRow[]; withheld: number; gained: number; held: { ticker: string }[] } {
   const candidates = rows.filter((row) => !excludedFromKoinsSweep(row.symbol) && row.price > 0);
   let withheld = 0;
+  const held: { ticker: string }[] = [];
+  const hold = (symbol: string) => {
+    withheld += 1;
+    const ticker = symbol.toUpperCase();
+    if (!held.some((row) => row.ticker === ticker)) held.push({ ticker });
+  };
   const positive: KoinsCandidate[] = [];
   for (const row of candidates) {
     const move = moveFor(row, window);
     if (move == null) {
-      withheld += 1;
+      hold(row.symbol);
       continue;
     }
     if (move > 0) positive.push(row);
@@ -184,11 +190,12 @@ export function rankGainers(
     const extreme = Math.abs(move) > OUTLIER_CAP[window];
     const cloned = (dupes.get(move.toFixed(2)) || 0) >= 2 && Math.abs(move) >= 20;
     if (reviewed.withheld || ((extreme || cloned) && !sourcesAgree(row, window, move))) {
-      withheld += 1;
+      hold(row.symbol);
       continue;
     }
     kept.push(row);
   }
+  held.sort((a, b) => a.ticker.localeCompare(b.ticker));
   kept.sort((a, b) => (moveFor(b, window) as number) - (moveFor(a, window) as number) || a.symbol.localeCompare(b.symbol));
   const movers: MoverRow[] = kept.slice(0, limit).map((row) => ({
     ticker: row.symbol.toUpperCase(),
@@ -199,7 +206,7 @@ export function rankGainers(
     changePct: Number((moveFor(row, window) as number).toFixed(2)),
     withheld: false,
   }));
-  return { movers, withheld, gained: kept.length };
+  return { movers, withheld, gained: kept.length, held };
 }
 
 export function projectionsAreUniform(rows: Array<{ projected7dPct: number; confidence: number }>): boolean {
@@ -246,14 +253,20 @@ export function applyKoinsSweeps(report: ApexReport, board: KoinsBoardState, now
       }
       const ranked = rankGainers(board.candidates, slot.key);
       if (ranked.gained === 0) {
-        return { window: slot.window, movers: [], underReview: [], withheldCount: ranked.withheld, reviewNote: unavailable };
+        return {
+          window: slot.window,
+          movers: [],
+          underReview: ranked.held,
+          withheldCount: ranked.withheld,
+          reviewNote: unavailable,
+        };
       }
       const notes = [printsUnderReviewAlways(ranked.withheld)];
       if (ranked.gained < 10) notes.push(onlyGainedLine(ranked.gained, slot.key));
       return {
         window: slot.window,
         movers: ranked.movers,
-        underReview: [],
+        underReview: ranked.held,
         withheldCount: ranked.withheld,
         reviewNote: notes.join(" "),
       };

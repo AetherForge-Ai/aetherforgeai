@@ -543,7 +543,7 @@ function BriefingSection({ report }: { report: ApexReport }) {
 export function ApexReportView({ report: source, scrubCopy = false }: { report: ApexReport; scrubCopy?: boolean }) {
   // Stored View, including recommendation rows, always re-applies the cash guard.
   const report = labelMemberReport(sanitizeGuardedReport(source));
-  const underReview = report.bot === "stock" ? memberUnderReviewLines(report) : [];
+  const underReview = memberUnderReviewLines(report);
   return (
     <div className="min-w-0 max-w-full space-y-5 overflow-x-hidden">
       {/* Header */}

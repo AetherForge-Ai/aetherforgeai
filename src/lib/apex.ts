@@ -517,6 +517,12 @@ export interface MarketsCrossCheck {
   changePct?: Record<string, number>;
   /** Previous run's session percent and price. */
   prior?: Record<string, { changePct: number; price: number }>;
+  /** Daily closes, oldest to newest, keyed by ticker. Checked against 7-day and month bases. */
+  dailyCloses?: Record<string, number[]>;
+  /** Adjusted closes aligned with `dailyCloses` for the same ticker. */
+  adjustedCloses?: Record<string, number[]>;
+  /** When set, a 7-day or month print with no daily series is held. */
+  requireDailySeries?: boolean;
 }
 
 function reviewedWindow(
@@ -530,6 +536,11 @@ function reviewedWindow(
   const previous = row.history.length >= 2 ? row.history[row.history.length - 2]?.price : undefined;
   const key = row.ticker.trim().toUpperCase();
   const prior = window === "1d" ? cross?.prior?.[key] : undefined;
+  const dailyCloses = cross?.dailyCloses?.[key] ?? cross?.dailyCloses?.[row.ticker];
+  const adjustedCloses = cross?.adjustedCloses?.[key] ?? cross?.adjustedCloses?.[row.ticker];
+  const series =
+    dailyCloses ??
+    (window !== "1d" && cross?.requireDailySeries && row.assetClass !== "crypto" ? [] : undefined);
   return book.review({
     ticker: row.ticker,
     assetClass: row.assetClass === "crypto" ? "crypto" : "stock",
@@ -543,6 +554,8 @@ function reviewedWindow(
     priorChangePct: prior?.changePct,
     priorPrice: prior?.price,
     dailyVolPct: row.dailyVolPct,
+    dailyCloses: series,
+    adjustedCloses,
   });
 }
 

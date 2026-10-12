@@ -557,7 +557,7 @@ export function renderReportHtml(source: ApexReport, opts: RenderReportOptions):
         .join("")
     : `<li style="color:${MUTE}">${esc(report.sessionTapeNote || "Consolidating tape — no standout gainers this session.")}</li>`;
 
-  const underReview = report.bot === "stock" ? memberUnderReviewLines(report) : [];
+  const underReview = memberUnderReviewLines(report);
   const stoxReview = underReview.length
     ? `<h3 style="font-size:14px;margin:18px 0 6px">Under review</h3>${underReview
         .map((line) => `<p style="font-size:14px;line-height:1.5;margin:0 0 12px">${esc(line)}</p>`)
