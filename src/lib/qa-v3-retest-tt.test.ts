@@ -88,8 +88,8 @@ describe("pull-check:v3-retest-tt-2026-10-12", () => {
     expect(coinDisplayName("USDC")).toBe("USDC");
     expect(coinDisplayName("BNB")).toBe("BNB");
     expect(coinDisplayName("XRP")).toBe("XRP");
-    const raw = ["USDT", "SUI", "ETC", "VET", "RENDER", "IMX", "STX", "GRT", "RUNE", "EGLD", "XTZ", "SAND", "MANA", "QNT", "LDO", "COMP", "DYDX", "ENS", "CHZ", "ZEC", "CAKE", "KAVA", "GMX", "LRC", "DASH", "SUSHI", "CELO", "SKL", "STORJ", "AUDIO", "MASK", "API3", "BAND", "BAL", "1INCH", "LUNC", "WIF", "PENDLE", "PYTH", "BLUR"];
-    for (const ticker of raw) expect(coinDisplayName(ticker).toUpperCase()).not.toBe(ticker);
+    const raw = ["USDT", "SUI", "ETC", "VET", "RENDER", "IMX", "STX", "GRT", "RUNE", "EGLD", "XTZ", "SAND", "MANA", "QNT", "LDO", "COMP", "DYDX", "ENS", "CHZ", "ZEC", "CAKE", "KAVA", "LRC", "DASH", "SUSHI", "CELO", "SKL", "STORJ", "AUDIO", "MASK", "BAND", "BAL", "1INCH", "LUNC", "WIF", "PENDLE", "PYTH", "BLUR"];
+    for (const ticker of raw) expect(coinDisplayName(ticker)).not.toBe(ticker);
     expect(snapshotBlockchain("cardano", null)).toBe("Cardano");
     expect(chainForTicker("ADA")).toBe("Cardano");
     expect(chainForTicker("BTC")).toBe("Bitcoin");

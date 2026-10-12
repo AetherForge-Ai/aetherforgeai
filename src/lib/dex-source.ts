@@ -83,7 +83,10 @@ export function withQuoteStamp(notes: string | null | undefined, chain: string |
   if (at) parts.push(`pxat=${at.replace(/\s+/g, "")}`);
   const stamp = parts.join(" ");
   if (!stamp) return body;
-  return body ? `${stamp}\n${body}` : stamp;
+  const next = body ? `${body}\n${stamp}` : stamp;
+  if (next.length <= 4000) return next;
+  const room = Math.max(0, 4000 - stamp.length - 1);
+  return `${body.slice(0, room).trimEnd()}\n${stamp}`.slice(0, 4000);
 }
 
 export function stripQuoteStamp(notes: string | null | undefined): string {
