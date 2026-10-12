@@ -359,7 +359,7 @@ export type YahooBatchedQuote = {
  * back to fullday / previous / chart previous close so closed markets never
  * return blank junk.
  */
-function resolveSparkQuote(node: any): YahooBatchedQuote | null {
+export function resolveSparkQuote(node: any): YahooBatchedQuote | null {
   if (!node) return null;
   const raw = Array.isArray(node.close) ? node.close : [];
   const closes = raw.map((v: any) => Number(v)).filter((v: number) => isFinite(v) && v > 0);
@@ -492,6 +492,21 @@ export async function fetchYahooQuotesBatched(
     }
     await mapLimited(missChunks, CONCURRENCY, async (chunk) => {
       await ingestChunk(chunk, "5d", "1d", true);
+    });
+  }
+
+  // Pass 2b: a spark batch can omit MFT.NZ or FBU.NZ. The chart quote still has a price.
+  const chartMissing = stale.filter(([internal]) => !out[internal]);
+  if (chartMissing.length) {
+    await mapLimited(chartMissing, 4, async ([internal, ySym]) => {
+      const quote = await fetchOne(ySym);
+      if (!quote || !(quote.price > 0) || out[internal]) return;
+      out[internal] = {
+        price: quote.price,
+        changePct: quote.changePct,
+        asOf: "close",
+        ...(quote.quotedAt ? { quotedAt: quote.quotedAt } : {}),
+      };
     });
   }
 

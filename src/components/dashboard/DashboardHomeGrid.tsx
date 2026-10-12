@@ -40,6 +40,8 @@ type Props = {
   balancesLoading?: boolean;
   /** Ledger paints from cash/transactions and does not wait on market prices. */
   ledgerLoading?: boolean;
+  /** Cash already known from the snapshot or the ledger, before the rows arrive. */
+  ledgerCash?: number | null;
   /** Spot only when the metals quote itself is live. Otherwise Est. */
   metalsSpotLive?: boolean;
   /** gold-api updatedAt. The home sentence uses the same clock as the tape. */
@@ -220,12 +222,14 @@ function LedgerCard({
   rows,
   cashBalance,
   loading,
+  cashLoading = false,
   blankReason,
 }: {
   href: string;
   rows: LedgerRow[];
   cashBalance: number | null;
   loading?: boolean;
+  cashLoading?: boolean;
   blankReason?: string | null;
 }) {
   const latest = rows.slice(0, 4);
@@ -243,7 +247,7 @@ function LedgerCard({
       <p className="mt-2 text-[0.7rem] uppercase tracking-wider text-muted-foreground">
         Cash on hand
       </p>
-      {loading ? (
+      {cashLoading || (loading && cashBalance == null) ? (
         <div className="mt-1 h-7 w-28 animate-pulse rounded-md bg-muted/50" aria-hidden />
       ) : cashBalance == null || !Number.isFinite(cashBalance) ? (
         <p className="tnum font-display text-lg font-bold text-muted-foreground" title={blankReason || "This figure was not stored."}>
@@ -320,15 +324,19 @@ async function loadMarketSnapshots(): Promise<ExchangeSnapshot[]> {
   return snapshotInflight;
 }
 
+function snapshotHasPrice(list: ExchangeSnapshot[]): boolean {
+  return list.some((row) => row.index?.price != null);
+}
+
 function useSharedMarketSnapshots() {
   const [exchanges, setExchanges] = useState<ExchangeSnapshot[]>(
     () => snapshotCache?.exchanges ?? []
   );
-  const [loading, setLoading] = useState(() => !snapshotCache);
+  const [loading, setLoading] = useState(() => !snapshotCache || !snapshotHasPrice(snapshotCache.exchanges));
 
   useEffect(() => {
     let alive = true;
-    const warm = snapshotCache && Date.now() - snapshotCache.at < SNAPSHOT_TTL_MS;
+    const warm = snapshotCache && Date.now() - snapshotCache.at < SNAPSHOT_TTL_MS && snapshotHasPrice(snapshotCache.exchanges);
     if (warm && snapshotCache) {
       setExchanges(snapshotCache.exchanges);
       setLoading(false);
@@ -365,6 +373,7 @@ export function DashboardHomeGrid({
   recentLedger = [],
   balancesLoading = false,
   ledgerLoading = false,
+  ledgerCash = null,
   metalsSpotLive = false,
   metalsQuotedAt = null,
   cashReason = null,
@@ -487,8 +496,9 @@ export function DashboardHomeGrid({
         <LedgerCard
           href="/dashboard/transactions"
           rows={recentLedger}
-          cashBalance={cashBalance}
+          cashBalance={ledgerCash ?? cashBalance}
           loading={ledgerLoading}
+          cashLoading={ledgerCash == null && cashBalance == null}
           blankReason={cashReason}
         />
       </div>

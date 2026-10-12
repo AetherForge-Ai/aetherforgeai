@@ -135,7 +135,20 @@ export function CoinDetailView({
         signal: AbortSignal.timeout(8_000),
       });
       if (res.ok && res.data && typeof res.data.price === "number" && res.data.price > 0) {
-        setDetail(res.data);
+        setDetail((prev) => {
+          if (keep && prev && prev.price > 0) {
+            return {
+              ...res.data!,
+              price: prev.price,
+              change24h: prev.change24h,
+              change1h: prev.change1h ?? res.data!.change1h,
+              change7d: prev.change7d ?? res.data!.change7d,
+              circulatingSupply: prev.circulatingSupply ?? res.data!.circulatingSupply,
+              quotedAt: prev.quotedAt || res.data!.quotedAt,
+            };
+          }
+          return res.data!;
+        });
       } else if (!keep) {
         setError(quotedLine ? null : clientFacingError(`/api/crypto/coin/${id}`, res.error || COIN_DETAIL_SOURCE_DOWN));
         setDetail(null);
@@ -210,24 +223,23 @@ export function CoinDetailView({
 
   const chartData = useMemo(() => {
     if (!chart) return [];
-    const sliced = sliceRange(chart, range).map((p) => ({ t: p.t, price: p.price }));
-    if (detail && detail.price > 0 && sliced.length) {
-      const last = sliced[sliced.length - 1];
-      sliced[sliced.length - 1] = { ...last, price: detail.price };
-    }
-    return sliced;
-  }, [chart, range, detail]);
-  const hourFromChart = useMemo(() => {
-    if (!chart || (range !== "1H" && range !== "24H") || !detail || !(detail.price > 0)) return null;
-    const hour = sliceRange(chart, "1H").map((p) => ({ t: p.t, price: p.price }));
-    if (hour.length < 2) return null;
-    hour[hour.length - 1] = { ...hour[hour.length - 1], price: detail.price };
-    return windowReturnPct(hour);
-  }, [chart, range, detail]);
-
-  const change24h = detail?.change24h ?? null;
-  const up = (change24h ?? 0) >= 0;
-  const stroke = chartData.length > 1 && chartData.at(-1)!.price >= chartData[0].price ? "#34d399" : "#fb7185";
+    return sliceRange(chart, range).map((p) => ({ t: p.t, price: p.price }));
+  }, [chart, range]);
+  const windowMove = useMemo(() => windowReturnPct(chartData), [chartData]);
+  const rangeLabel = range === "1H" ? "1h" : range === "24H" ? "24h" : range === "7D" ? "7d" : range === "30D" ? "30d" : range === "90D" ? "90d" : "1y";
+  const fallbackMove =
+    range === "1H"
+      ? detail?.change1h
+      : range === "24H"
+        ? detail?.change24h
+        : range === "7D"
+          ? detail?.change7d
+          : range === "30D"
+            ? detail?.change30d
+            : null;
+  const badgeMove = windowMove ?? fallbackMove ?? null;
+  const up = (badgeMove ?? 0) >= 0;
+  const stroke = up ? "#34d399" : "#fb7185";
 
   const supplyPct =
     detail?.circulatingSupply && detail?.maxSupply
@@ -351,6 +363,9 @@ export function CoinDetailView({
       </div>
       <div className="text-right">
         <p className="tnum font-display text-2xl font-bold">{fmtPrice(detail.price)}</p>
+        {detail.quotedAt ? (
+          <p className="text-[0.65rem] text-muted-foreground">{formatDisplayDateTime(detail.quotedAt)}</p>
+        ) : null}
         <p
           className={cn(
             "tnum mt-0.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold",
@@ -358,7 +373,7 @@ export function CoinDetailView({
           )}
         >
           {up ? <ArrowUp className="size-3.5" /> : <ArrowDown className="size-3.5" />}
-          {fmtPct(change24h)} <span className="font-normal opacity-70">24h</span>
+          {fmtPct(badgeMove)} <span className="font-normal opacity-70">{rangeLabel}</span>
         </p>
         {canAdd && (
           <div className="mt-2">
@@ -533,7 +548,7 @@ export function CoinDetailView({
       {detail && (
         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
           {[
-            { label: "1h", v: hourFromChart ?? detail.change1h },
+            { label: "1h", v: detail.change1h },
             { label: "24h", v: detail.change24h },
             { label: "7d", v: detail.change7d },
             { label: "30d", v: detail.change30d },

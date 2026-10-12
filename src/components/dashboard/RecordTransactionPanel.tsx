@@ -608,6 +608,7 @@ export function RecordTransactionPanel({
           delete payload.amount;
         }
       }
+      const postedAt = Date.now();
       const res = await api.post("/api/transactions", payload);
       if (!res.ok) {
         failSave(typeof res.error === "string" ? res.error : "Could not record that transaction.");
@@ -615,6 +616,7 @@ export function RecordTransactionPanel({
       }
       if (showQty) bumpHoldingsGeneration();
       toast.success("Transaction recorded");
+      console.log(`[confirm] toast=${Date.now() - postedAt} follow-ups=after-toast`);
       onDone(res.data);
       onRequestClose();
     } finally {

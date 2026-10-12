@@ -8,6 +8,7 @@ import {
   type DashboardView,
 } from "@/components/dashboard/PortfolioDashboard";
 import { confirmDashboardSession } from "@/lib/auth-refresh";
+import { prefetchDashboardBook } from "@/lib/dashboard-book-prefetch";
 import { warmPublicFeeds } from "@/lib/public-feed-cache";
 import type { DashboardSessionUser } from "@/lib/dashboard-session";
 
@@ -41,6 +42,7 @@ export function DashboardSessionShell({
     setPhase("pending");
     setSession(null);
     warmPublicFeeds();
+    prefetchDashboardBook();
     confirmDashboardSession().then((next) => {
       if (cancelled) return;
       if (!next) {

@@ -268,10 +268,12 @@ export async function GET(req: Request) {
     // corrupts their real portfolio, cash balance and P&L. The dashboard shows a
     // friendly empty state prompting them to add their first holding instead.
 
-    const assetType = new URL(req.url).searchParams.get("asset_type");
+    const url = new URL(req.url);
+    const assetType = url.searchParams.get("asset_type");
+    const fresh = url.searchParams.get("fresh") === "1";
     const cacheKey = `${user._id}:stocks:${assetType || "all"}`;
     const cacheEpoch = bookCacheEpoch(user._id);
-    const cached = readBookCache<any[]>(cacheKey);
+    const cached = fresh ? null : readBookCache<any[]>(cacheKey);
     if (cached) {
       return privateJson({ ok: true, userId: user._id, data: cached });
     }

@@ -45,7 +45,7 @@ const SOURCE_ORDER = [
 ];
 
 const CG_QUERY =
-  "vs_currency=usd&order=market_cap_desc&per_page=250&sparkline=false&price_change_percentage=1h,24h,7d,30d";
+  "vs_currency=usd&order=market_cap_desc&per_page=250&sparkline=true&price_change_percentage=1h,24h,7d,30d";
 
 const GT_ACCEPT = "application/json;version=20230302";
 const GT_BASE = "https://api.geckoterminal.com/api/v2";
@@ -332,6 +332,14 @@ export function backupWithYahoo(primary: CoinMarket[], yahoo: CoinMarket[], floo
   return mergeVerifiedSeedLists([base, tagged]);
 }
 
+function sparklineFromMarkets(row: Record<string, unknown>): number[] {
+  const box = row.sparkline_in_7d;
+  if (!box || typeof box !== "object") return [];
+  const price = (box as { price?: unknown }).price;
+  if (!Array.isArray(price)) return [];
+  return price.map((point) => Number(point)).filter((point) => Number.isFinite(point) && point > 0);
+}
+
 export function coinsFromCoinGeckoMarkets(body: unknown): CoinMarket[] {
   if (!Array.isArray(body)) return [];
   const coins: CoinMarket[] = [];
@@ -369,6 +377,7 @@ export function coinsFromCoinGeckoMarkets(body: unknown): CoinMarket[] {
         atl: num(row.atl),
         atlDate: typeof row.atl_date === "string" ? row.atl_date : null,
         blockchain: snapshotBlockchain(id, null, typeof row.asset_platform_id === "string" ? row.asset_platform_id : null),
+        sparkline7d: sparklineFromMarkets(row),
         quotedAt: typeof row.last_updated === "string" ? row.last_updated : null,
         source: "coingecko",
         moves: { h24: change24h, d7: change7d, d30: change30d },

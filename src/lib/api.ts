@@ -18,6 +18,7 @@ import {
   TRADE_SESSION_MISMATCH,
 } from "@/lib/trade-commit-session";
 import { parseApiBody } from "@/lib/api-json";
+import { takeDashboardPrefetch } from "@/lib/dashboard-book-prefetch";
 import { readPublicFeed, rememberPublicFeed } from "@/lib/public-feed-cache";
 
 export interface ApiResponse<T = unknown> {
@@ -44,8 +45,11 @@ async function request<T>(
   tradeRefreshUsed = false,
 ): Promise<ApiResponse<T>> {
   const confirmed = isConfirmedCommitBody(options?.body);
+  const confirmStarted = confirmed ? Date.now() : 0;
   if (confirmed && !alreadyRetried) {
+    const sessionStarted = Date.now();
     const aligned = await alignTradeSession(getActiveAccountUserId(), false);
+    console.log(`[confirm] session=${Date.now() - sessionStarted}`);
     const decision = stableConfirmDecision({
       ok: aligned.ok,
       userId: aligned.ok ? aligned.userId : null,
@@ -66,12 +70,25 @@ async function request<T>(
     if (uid && !headers.has("x-af-user-id")) headers.set("x-af-user-id", uid);
     // Always credentials + no-store: authenticated GETs must never reuse another
     // tab/session's cached ledger/cash (Buy/Add account-switch bug).
+    const method = (options?.method || "GET").toUpperCase();
+    if (method === "GET" && !url.includes("fresh=1")) {
+      const prefetched = takeDashboardPrefetch(url);
+      if (prefetched) {
+        const json = (await prefetched) as ApiResponse<T>;
+        if (json?.ok && json.data) {
+          json.status = json.status ?? 200;
+          return json;
+        }
+      }
+    }
+    const postStarted = confirmed ? Date.now() : 0;
     const res = await fetch(url, {
       ...options,
       headers,
       credentials: "include",
       cache: "no-store",
     });
+    if (confirmed) console.log(`[confirm] post=${Date.now() - postStarted} total=${Date.now() - confirmStarted}`);
     if (isAccountScopedClientUrl(url) && isSharedCacheReplay(res.headers)) {
       return { ok: false, status: 401, error: "Unauthorized" };
     }

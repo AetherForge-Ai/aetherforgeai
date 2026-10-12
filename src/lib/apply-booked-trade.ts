@@ -74,3 +74,40 @@ export function applyBookedTradeToHoldings<T extends HoldingSnapshot>(
       : item
   );
 }
+
+/**
+ * A holdings or snapshot body that started before the trade, or a read that
+ * has not seen the new row yet, must not wipe the coin just painted.
+ */
+export function retainBookedHolding<T extends HoldingSnapshot>(
+  current: readonly T[],
+  incoming: readonly T[],
+  trade: BookedTrade | null | undefined
+): T[] {
+  if (!trade) return [...incoming];
+  const type = String(trade.type || "").toLowerCase();
+  if (type !== "buy" && type !== "opening_balance") return [...incoming];
+  const ticker = String(trade.ticker || "").trim().toUpperCase();
+  const assetType = String(trade.asset_type || "stock").toLowerCase();
+  if (!ticker) return [...incoming];
+  const same = (row: HoldingSnapshot) =>
+    row.ticker.toUpperCase() === ticker && String(row.asset_type || "stock").toLowerCase() === assetType;
+  if (incoming.some((row) => same(row) && Number(row.shares) > 1e-9)) return [...incoming];
+  const kept = current.filter((row) => same(row) && Number(row.shares) > 1e-9);
+  if (!kept.length) return [...incoming];
+  return [...kept, ...incoming.filter((row) => !same(row))];
+}
+
+export function snapshotOmitsBookedBuy(
+  positions: ReadonlyArray<{ ticker?: string | null; quantity?: number | null }>,
+  trade: BookedTrade | null | undefined
+): boolean {
+  if (!trade) return false;
+  const type = String(trade.type || "").toLowerCase();
+  if (type !== "buy" && type !== "opening_balance") return false;
+  const ticker = String(trade.ticker || "").trim().toUpperCase();
+  if (!ticker) return false;
+  return !positions.some(
+    (row) => String(row.ticker || "").toUpperCase() === ticker && Number(row.quantity) > 1e-9
+  );
+}

@@ -55,8 +55,12 @@ export async function GET(req: Request) {
 
 // POST /api/transactions — record a buy / sell / deposit / withdraw
 export async function POST(req: Request) {
+  const responseStarted = Date.now();
+  let authMs = 0;
   try {
+    const authStarted = Date.now();
     const user = await getTradeSessionUser();
+    authMs = Date.now() - authStarted;
     if (!user) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
@@ -99,11 +103,29 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Amount is required" }, { status: 400 });
     }
 
-    // The book read overlaps the write. The response adds the new row and
-    // uses that book's cash, so the header and the ledger share one figure.
+    // The book read overlaps the write. If it is still in flight when the
+    // holding, ledger and cash writes finish, the response does not wait for
+    // the 5000-row query. The client merges the new row into the ledger it has.
     const priorLedger = loadLedger(user);
+    let priorReady: Awaited<ReturnType<typeof loadLedger>> | null = null;
+    void priorLedger.then((book) => {
+      priorReady = book;
+    });
     const result = await applyTransaction(user, input, { priorLedger });
-    const ledger = ledgerAfterBooking(await priorLedger, result);
+    const ledger = priorReady
+      ? ledgerAfterBooking(priorReady, result)
+      : {
+          transactions: result.transaction ? [result.transaction] : [],
+          cashBalance: result.cashBalance,
+          realizedYtd: 0,
+          realizedTotal: result.realizedNZD,
+          realizedYtdCount: 0,
+          ledgerPartial: true,
+        };
+    const steps = result.confirmSteps;
+    console.log(
+      `[transactions] confirm auth=${authMs} holdings=${steps?.holdings ?? "-"} quote=${steps?.quote ?? "-"} ledger=${steps?.ledger ?? "-"} cash=${steps?.cash ?? "-"} cache=${steps?.cache ?? "-"} response=${Date.now() - responseStarted}`
+    );
 
     console.log(
       `[api/transactions] ${input.type} recorded for user ${user._id} — cash ${ledger.cashBalance}, realized ${result.realizedNZD}`

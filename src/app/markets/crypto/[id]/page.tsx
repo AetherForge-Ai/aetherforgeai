@@ -15,7 +15,8 @@ import { getFxSnapshot } from "@/lib/fx";
 import { pageTitle } from "@/lib/page-title";
 import { presentMarketCoin } from "@/lib/crypto-api-body";
 import { presentListedCoin } from "@/lib/crypto-board";
-import { detailFromMarket } from "@/lib/crypto-market";
+import { detailFromMarket, fmtCompactNum, fmtPct, fmtPrice } from "@/lib/crypto-market";
+import { formatDisplayDateTime } from "@/lib/currency";
 import { cryptoDetailCopy, cryptoDetailJsonLd, vendorByCoingeckoId, type CryptoDetailFacts } from "@/lib/crypto-public-meta";
 
 export const dynamic = "force-dynamic";
@@ -132,10 +133,39 @@ export default async function CryptoDetailPage({
         <p className="text-sm leading-relaxed text-muted-foreground" data-coin-description>
           {copy.description}
         </p>
-        <PublicCryptoPrices
-          prints={print && print.price > 0 ? [print] : []}
-          empty={`${decodeURIComponent(id)} No earlier price is stored for this coin.`}
-        />
+        {loaded.initialDetail ? (
+          <dl className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4" data-coin-snapshot>
+            <div>
+              <dt className="text-xs text-muted-foreground">Price</dt>
+              <dd className="font-semibold">{fmtPrice(loaded.initialDetail.price)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">As at</dt>
+              <dd>{formatDisplayDateTime(loaded.initialDetail.quotedAt || loaded.facts.asOf)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">1h</dt>
+              <dd>{fmtPct(loaded.initialDetail.change1h)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">7d</dt>
+              <dd>{fmtPct(loaded.initialDetail.change7d)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">24h</dt>
+              <dd>{fmtPct(loaded.initialDetail.change24h)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">Circulating</dt>
+              <dd>{fmtCompactNum(loaded.initialDetail.circulatingSupply)}</dd>
+            </div>
+          </dl>
+        ) : (
+          <PublicCryptoPrices
+            prints={print && print.price > 0 ? [print] : []}
+            empty={`${decodeURIComponent(id)} No earlier price is stored for this coin.`}
+          />
+        )}
       </div>
       <CryptoAssetPage
         coinId={coinId}

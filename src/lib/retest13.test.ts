@@ -39,8 +39,9 @@ describe("retest 13 and technician r6", () => {
     expect(move).toBeCloseTo(0.5, 5);
     expect(windowReturnPct([{ price: 100 }])).toBeNull();
     const view = read("src/components/dashboard/crypto/CoinDetailView.tsx");
-    expect(view).toContain("hourFromChart ?? detail.change1h");
-    expect(view).toContain("price: detail.price");
+    expect(view).toContain("windowReturnPct(chartData)");
+    expect(view).toContain("fmtPrice(detail.price)");
+    expect(view).not.toContain("sliced[sliced.length - 1] = { ...last, price: detail.price }");
     const page = read("src/app/markets/crypto/[id]/page.tsx");
     expect(page).toContain("sourceLine: publicCoinSourceLine(priceSource)");
     expect(page).toContain("listed && listed.price > 0");
