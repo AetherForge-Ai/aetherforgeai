@@ -178,7 +178,8 @@ describe("retest 12 and technician r5", () => {
   it("serves a stored DEX list without waiting, and records a failed refresh", () => {
     const store = read("src/lib/crypto-board-store.ts");
     expect(store).toContain("DEX_REFRESH_BOUND_MS");
-    expect(store).toContain("void refreshDexSeed()");
+    expect(store).toContain("scheduleDetached");
+    expect(store).toContain("The last good list is the response.");
     expect(store).toContain("lastDexRefreshFailure");
     expect(read("src/lib/crypto-diagnostics.ts")).toContain("dexRefreshFailure");
   });

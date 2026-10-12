@@ -117,6 +117,10 @@ const COINGECKO_NAMES: Record<string, string> = {
   PENDLE: "Pendle",
   PYTH: "Pyth Network",
   BLUR: "Blur",
+  EURC: "Euro Coin",
+  GUSD: "Gemini Dollar",
+  BUSD: "Binance USD",
+  MX: "MX Token",
 };
 
 /**

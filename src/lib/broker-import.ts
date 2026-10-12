@@ -514,6 +514,16 @@ export function brokerRefFromNotes(notes: string | null | undefined): string {
   return match?.[1] || "";
 }
 
+function unsupportedRowReason(sideRaw: string): string {
+  const side = sideRaw.trim().toLowerCase();
+  const label = sideRaw.trim() || "blank type";
+  if (side === "deposit" || side === "withdrawal") {
+    return `Unsupported row (${label}). Deposits and withdrawals are not imported.`;
+  }
+  if (side === "split") return `Unsupported row (${label}). Splits are not imported.`;
+  return `Unsupported row (${label}). This row type is not imported.`;
+}
+
 function parseSide(raw: string): ImportSide | "unsupported" | null {
   const text = raw.trim().toLowerCase();
   if (!text) return null;
@@ -595,7 +605,7 @@ export function planBrokerImport(
     const sideRaw = holdingsShape ? "buy" : cells[columns.side] || "";
     const side = holdingsShape ? "buy" : parseSide(sideRaw);
     if (side === "unsupported") {
-      unsupported.push({ line: lineNo, reason: `Unsupported row (${sideRaw.trim() || "blank type"}). Splits are not imported.` });
+      unsupported.push({ line: lineNo, reason: unsupportedRowReason(sideRaw) });
       return;
     }
     if (side == null) {

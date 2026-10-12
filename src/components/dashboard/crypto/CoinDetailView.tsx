@@ -47,6 +47,7 @@ import {
   fmtShortDate,
   GENERIC_COIN_ICON,
   CHART_RANGES,
+  windowReturnPct,
   RANGE_TO_DAYS,
   COIN_DETAIL_SOURCE_DOWN,
   COIN_DETAIL_UNAVAILABLE,
@@ -209,8 +210,20 @@ export function CoinDetailView({
 
   const chartData = useMemo(() => {
     if (!chart) return [];
-    return sliceRange(chart, range).map((p) => ({ t: p.t, price: p.price }));
-  }, [chart, range]);
+    const sliced = sliceRange(chart, range).map((p) => ({ t: p.t, price: p.price }));
+    if (detail && detail.price > 0 && sliced.length) {
+      const last = sliced[sliced.length - 1];
+      sliced[sliced.length - 1] = { ...last, price: detail.price };
+    }
+    return sliced;
+  }, [chart, range, detail]);
+  const hourFromChart = useMemo(() => {
+    if (!chart || (range !== "1H" && range !== "24H") || !detail || !(detail.price > 0)) return null;
+    const hour = sliceRange(chart, "1H").map((p) => ({ t: p.t, price: p.price }));
+    if (hour.length < 2) return null;
+    hour[hour.length - 1] = { ...hour[hour.length - 1], price: detail.price };
+    return windowReturnPct(hour);
+  }, [chart, range, detail]);
 
   const change24h = detail?.change24h ?? null;
   const up = (change24h ?? 0) >= 0;
@@ -520,7 +533,7 @@ export function CoinDetailView({
       {detail && (
         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
           {[
-            { label: "1h", v: detail.change1h },
+            { label: "1h", v: hourFromChart ?? detail.change1h },
             { label: "24h", v: detail.change24h },
             { label: "7d", v: detail.change7d },
             { label: "30d", v: detail.change30d },

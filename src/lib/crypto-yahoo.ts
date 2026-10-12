@@ -35,9 +35,10 @@ function yahooSymbol(ticker: string): string {
 function resolveTicker(idOrTicker: string): string {
   const raw = (idOrTicker || "").trim();
   const code = normalizeCryptoTicker(raw);
-  for (const [t, cg] of Object.entries(CANONICAL_CRYPTO_IDS)) {
-    if (cg === raw.toLowerCase() || t === code) return t;
-  }
+  if (CANONICAL_CRYPTO_IDS[code]) return code;
+  const id = raw.toLowerCase();
+  const matches = Object.entries(CANONICAL_CRYPTO_IDS).filter(([, cg]) => cg === id);
+  if (matches.length === 1) return matches[0][0];
   return code;
 }
 

@@ -53,6 +53,10 @@ export function presentMarketCoin<T extends object>(coin: T): T {
     if (positiveMarketStat(next.high24h) == null) next.highReason = feedDidNotSend(source, "a 24-hour high");
     if (positiveMarketStat(next.low24h) == null) next.lowReason = feedDidNotSend(source, "a 24-hour low");
     if (positiveMarketStat(next.atl) == null) next.atlReason = feedDidNotSend(source, "an all-time low");
+    const spark = Array.isArray(next.sparkline7d) ? next.sparkline7d : [];
+    if (spark.length < 2 && typeof next.sparklineReason !== "string") {
+      next.sparklineReason = feedDidNotSend(source, "a 7-day sparkline");
+    }
     const fed = typeof next.name === "string" ? next.name : "";
     next.name = coinDisplayName(symbol, fed);
     const chain = typeof next.blockchain === "string" ? next.blockchain.trim() : "";

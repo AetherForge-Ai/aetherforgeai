@@ -349,7 +349,10 @@ export class CryptoPriceBook {
     this.alias.set(symbol.toLowerCase(), symbol);
     for (const alias of aliases) {
       const key = alias.trim().toLowerCase();
-      if (key) this.alias.set(key, symbol);
+      if (!key || key === symbol.toLowerCase()) continue;
+      const existing = this.alias.get(key);
+      if (existing && existing !== symbol) continue;
+      this.alias.set(key, symbol);
     }
   }
 
