@@ -8,15 +8,15 @@
  *   • Realized P&L — a sell books `quantity × (price − avgCost) − fees` (NZD).
  *
  * All cash is tracked in NZD (the Stox base currency). Trades priced in AUD/USD
- * are converted with live FX (baseline fallback) so the cash ledger is coherent
- * across exchanges. Every mutation is logged; nothing is silently swallowed.
+ * use the trade-date rate or a live snapshot. A timeout does not book the
+ * baseline table. Every mutation is logged; nothing is silently swallowed.
  */
 
 import "server-only";
 import { totalumSdk } from "@/lib/totalum";
 import type { AppUser } from "@/lib/session";
-import { BASELINE_FX_TO_NZD, currencyForTicker, nzdAtBookRate, ensureNzdPerUsd, ensureNzdPerAud, formatCleanNumber, formatQuantity, normaliseUnitPrice, roundFxRate, roundUnitPrice, type CurrencyCode } from "@/lib/currency";
-import { ledgerFxRate, priceForBooking, ratesForBooking, reviewedFxAllowed } from "@/lib/reviewed-book";
+import { currencyForTicker, nzdAtBookRate, ensureNzdPerUsd, ensureNzdPerAud, formatCleanNumber, formatQuantity, normaliseUnitPrice, roundFxRate, roundUnitPrice, type CurrencyCode } from "@/lib/currency";
+import { auditLivePrice, bookingFxDecision, ledgerFxRate, priceForBooking, ratesForBooking, reviewedFxAllowed } from "@/lib/reviewed-book";
 import { alertsToArchive, positionIsClosed } from "@/lib/alert-lifecycle";
 import { getFxSnapshot, historicalNzdPerUnit } from "@/lib/fx";
 import { normalizeTicker, lookupTicker, referencePrice } from "@/lib/market";
@@ -478,6 +478,32 @@ function stepMs(step: string, started: number, extra = ""): void {
   console.log(`[transactions] step ${step} ${Date.now() - started}ms${extra ? ` ${extra}` : ""}`);
 }
 
+/** A timeout is null and is not a rate. A finished lookup keeps its own null. */
+function firstWithin<T>(work: Promise<T>, ms: number): Promise<{ value: T | null; timedOut: boolean }> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      resolve({ value: null, timedOut: true });
+    }, ms);
+    work.then(
+      (value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve({ value, timedOut: false });
+      },
+      () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve({ value: null, timedOut: true });
+      }
+    );
+  });
+}
+
 function scheduleSnapshotRevalue(holdingId: string | null | undefined, ticker: string, coinId?: string): void {
   if (!holdingId) return;
   const started = Date.now();
@@ -761,7 +787,7 @@ async function applyTransactionUnlocked(
     console.error(`[transactions] Live spot for sanity check failed (${ticker}):`, err);
   }
   stepMs("live-spot", spotStarted, `asset=${assetType}`);
-  const auditLive = liveSpot != null && liveSpot > 0 ? liveSpot : assetType === "crypto" && price > 0 ? price : liveSpot;
+  const auditLive = auditLivePrice(liveSpot);
 
   // The reviewed price is the fill. A newer live spot is only the sanity check.
   price = priceForBooking(price, liveSpot);
@@ -805,28 +831,23 @@ async function applyTransactionUnlocked(
   }
 
   const fxStarted = Date.now();
-  const fxLive = await Promise.race([
-    getFxSnapshot(),
-    new Promise<null>((resolve) => setTimeout(() => resolve(null), 450)),
-  ]);
-  const fx = fxLive ?? {
-    ratesToNZD: { ...BASELINE_FX_TO_NZD },
-    live: false,
-    sourced: false,
-    asOf: null,
-  };
-  stepMs("fx-snapshot", fxStarted, fxLive ? "ready" : "bounded");
-  const reviewedFx = Number(input.fx_rate);
   const fxHistoryStarted = Date.now();
-  const historicalFx = reviewedFx > 0 ? null : await historicalNzdPerUnit(currency, tradeDay);
-  stepMs("historical-fx", fxHistoryStarted, reviewedFx > 0 ? "skipped" : "fetched");
-  const fxCheck = reviewedFxAllowed({
+  const [fxLive, historicalFx] = await Promise.all([
+    firstWithin(getFxSnapshot(), 450),
+    currency === "NZD"
+      ? Promise.resolve({ value: 1 as number | null, timedOut: false })
+      : firstWithin(historicalNzdPerUnit(currency, tradeDay), 1200),
+  ]);
+  stepMs("fx-snapshot", fxStarted, fxLive.timedOut ? "bounded" : "ready");
+  stepMs("historical-fx", fxHistoryStarted, currency === "NZD" ? "nzd" : historicalFx.timedOut ? "bounded" : "fetched");
+  const fxDecision = bookingFxDecision({
     currency,
     reviewed: input.fx_rate,
-    snapshot: fx.ratesToNZD[currency],
-    historical: historicalFx,
+    snapshot: fxLive.value,
+    historical: historicalFx.value,
   });
-  if (fxCheck.ok === false) throw new Error(fxCheck.message);
+  if (fxDecision.ok === false) throw new Error(fxDecision.message);
+  const fx = { ratesToNZD: fxDecision.ratesToNZD };
   const rates = ratesForBooking(currency, input.fx_rate, fx.ratesToNZD);
 
   const holding = await findHolding(user._id, ticker, assetType);

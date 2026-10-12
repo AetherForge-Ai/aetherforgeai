@@ -7,7 +7,7 @@ This file covers U3, U7, V1, and P1. `qa/PULL-CHECK-2026-10-10.md` stays and is 
 Repo: https://github.com/AetherForge-Ai/aetherforgeai
 Branch: `cursor/qa-u3-u7-v1-p1-04e9`
 Base: `develop` at `add1d4e` (Keep a last-good crypto and DEX list when the live feeds are blocked, #318).
-Draft PR: not opened. GitHub refused the create call with "must be a collaborator". The branch is pushed. Do not merge. Compare: https://github.com/AetherForge-Ai/aetherforgeai/compare/develop...cursor/qa-u3-u7-v1-p1-04e9
+Draft PR: https://github.com/AetherForge-Ai/aetherforgeai/pull/323 (not merged). The previous head `a81db072` includes the develop merge `bb5bc39`. Review fixes after that head are on this same branch. Do not merge.
 
 ## Confirmations
 
@@ -25,7 +25,7 @@ Draft PR: not opened. GitHub refused the create call with "must be a collaborato
 
 ## Scheduler
 
-This runtime has no cron. `wrangler.jsonc` does not contain a cron trigger, and the product-note route already says no cron is installed. A page read returns the persisted snapshot (Workers Cache, a temp file, and the hidden AF-CGS / AF-DXS watchlist rows from #318 when the JSON fits). If that snapshot is missing or older than 30 minutes, the read starts one background refresh. A short Worker isolate can freeze that work when the response ends. `GET` or `POST /api/cron/crypto-snapshot` runs the same job to completion when `CRON_SECRET` matches (`key`, `secret`, `x-cron-secret`, or `Authorization: Bearer`). If `CRON_SECRET` is unset the route stays closed, refreshes nothing, and sends no email. A new list replaces the stored one only when it is complete: at least 95% of 400 rows, each with a name and a price, and a chain or a DEX name. A short fetch keeps the previous list.
+This runtime has no cron. `wrangler.jsonc` does not contain a cron trigger, and the product-note route already says no cron is installed. A page read returns the persisted snapshot (Workers Cache, a temp file, and the hidden AF-CGS / AF-DXS watchlist rows from #318 when the JSON fits). If that snapshot is missing or older than 30 minutes, the read starts one background refresh. A short Worker isolate can freeze that work when the response ends. `GET` or `POST /api/cron/crypto-snapshot` runs the same job to completion when `CRON_SECRET` matches `x-cron-secret` or `Authorization: Bearer`. The compare is `crypto.timingSafeEqual` on equal-length buffers. A different length is 401. A `?key=` or `?secret=` on this route is ignored. If `CRON_SECRET` is unset the route stays closed, refreshes nothing, and sends no email. A new list replaces the stored one only when it is complete: at least 95% of 400 rows, each with a name and a price, and a chain or a DEX name. A short fetch keeps the previous list.
 
 ## Needs Lukas
 
@@ -124,25 +124,29 @@ Exact expected strings:
 - `Fetching today's price…` while the quote is in flight.
 - `Today's price is filled in. You can type over it.` with a PEPE price that keeps significant digits (about 0.000004) and a UNI price of about 7.5, once the snapshot has those coins.
 - `Live price was unavailable. A recent print is filled in (12 Oct 2026, 4:05 pm).` when only a stored print exists.
-- The audit note contains `live=<number>`, not `live=n/a`, for a crypto fill.
+- When the snapshot has a price, the audit note contains `live=<number>`. When it does not, the note contains `live=n/a`. The fill price is not copied into `live=`.
 - The panel does not show `Price must be greater than zero.` Review stays disabled until a price is present or typed.
 - `No price came back` is not shown while `/markets` has a price for that token.
 
 ## P1 — partial
 
-Status: partial. Confirm no longer calls the live crypto quote or the DEX search before it returns. When the reviewed FX rate is present, the historical Frankfurter call is skipped. A cold FX snapshot is bounded at 450 ms and then the baseline table is used. The route's movement check is not repeated inside the write. The holding mark is updated from the snapshot after the response is free to return. Confirm is disabled while `saving` is true. One Review sends one idempotency key. A second click in the same process waits on the first write, and the key is stamped into notes.
+Status: partial. Confirm no longer calls the live crypto quote or the DEX search before it returns. A non-NZD trade always asks for `historicalNzdPerUnit` on the trade date, inside a 1,200 ms bound, and that rate is passed to `reviewedFxAllowed`. A cold FX snapshot is bounded at 450 ms. A timeout, and an unsourced baseline table, are not booked. With no reviewed rate, the trade-date rate is used, then a live snapshot. If neither is present the write is refused with `Today's exchange rate did not load, and there is no rate for this trade date. Type the NZD rate, or try again.` A reviewed rate that matches today's snapshot and misses the trade-date rate is refused. The route's movement check is not repeated inside the write. The holding mark is updated from the snapshot after the response is free to return. Confirm is disabled while `saving` is true. One Review sends one idempotency key. A second click in the same process waits on the first write. The user note is cut first, then `idem=` is appended, so a 500-character note still ends with the stamp. An audit line with no snapshot price says `live=n/a`.
 
 This is not one SQL transaction. Totalum writes the holding, the cash balance, and the ledger row one call at a time, with the existing rollback if a later call fails. The FIFO lot read still queries up to 5,000 ledger rows and can dominate the wait. The idempotency map lives in one isolate, so two isolates can still each write once. The CSV export was not changed; its speed is the ledger read, and its columns are unchanged.
 
-Commit: `dbf4774`. Follow-up `b86b029` keeps `ratesForBooking(currency, input.fx_rate, fx.ratesToNZD)`. Tests: `5d863ff`. Pull-check: `946201d`.
+Commit: `dbf4774`. Follow-up `b86b029` keeps `ratesForBooking(currency, input.fx_rate, fx.ratesToNZD)`. The review fixes (no baseline on timeout, trade-date FX, timing-safe cron header, `live=n/a`, idempotency stamp) are the commit on this branch after `a81db072`. Tests: `5d863ff` and `src/lib/review-defects.test.ts`. Pull-check: `946201d`.
 
 Files:
 
 - `src/lib/transactions.ts`
+- `src/lib/reviewed-book.ts`
 - `src/lib/confirm-once.ts`
+- `src/lib/cron-header-secret.ts`
+- `src/app/api/cron/crypto-snapshot/route.ts`
 - `src/lib/trade-schema.ts`
 - `src/app/api/transactions/route.ts`
 - `src/components/dashboard/RecordTransactionPanel.tsx`
+- `src/lib/review-defects.test.ts`
 
 Verify:
 
@@ -156,7 +160,8 @@ Exact expected strings:
 - Toast: `Transaction recorded`.
 - Button while saving: `Saving…`, and the button is disabled.
 - Log lines: `[transactions] step movement-check`, `live-spot`, `fx-snapshot`, `historical-fx`, `fifo-lots`, and `revalue`.
-- Notes contain `live=<number>` and `idem=<key>`.
+- Notes contain `idem=<key>` at the end, including when the member note was already 500 characters.
+- Notes contain `live=<number>` when a snapshot price exists, and `live=n/a` when it does not.
 - Target: each Confirm reaches the toast in 3 s or less, the first in 5 s or less, and the first CSV starts in 3 s or less. The FIFO read and Totalum latency can still miss that target. This PR does not claim those times were measured against production Totalum.
 
 ## Not in this PR

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
+import * as crypto from "node:crypto";
 import { refreshMarketSnapshotsNow } from "@/lib/crypto-board-store";
-import { presentedCronSecret } from "@/lib/weekly-email";
+import { cronSecretBuffers, presentedHeaderCronSecret } from "@/lib/cron-header-secret";
 
 /**
  * GET|POST /api/cron/crypto-snapshot
@@ -12,6 +13,9 @@ import { presentedCronSecret } from "@/lib/weekly-email";
  * This route is the run that is allowed to finish.
  *
  * CRON_SECRET is required. If it is missing the route stays closed.
+ * The secret is read from x-cron-secret or Authorization: Bearer only.
+ * A query key or secret is ignored. The compare uses crypto.timingSafeEqual
+ * on equal-length buffers. A different length is 401 and does not throw.
  * This route does not send email.
  *
  * pull-check:v3-tier1a-2026-10-12
@@ -24,7 +28,8 @@ async function handle(req: Request) {
   if (!secret) {
     return NextResponse.json({ ok: false, refreshed: false, email: "none", reason: "cron-not-configured" }, { status: 503 });
   }
-  if (presentedCronSecret(req.url, req.headers) !== secret) {
+  const buffers = cronSecretBuffers(secret, presentedHeaderCronSecret(req.headers));
+  if (!buffers || !crypto.timingSafeEqual(buffers.expected, buffers.presented)) {
     return NextResponse.json({ ok: false, refreshed: false, email: "none", reason: "unauthorized" }, { status: 401 });
   }
   const started = Date.now();

@@ -25,9 +25,11 @@ export function withIdempotencyNote(notes: string, key: string | null | undefine
   const idem = (key || "").trim().slice(0, 80);
   if (!idem) return notes.slice(0, 500);
   const stamp = `idem=${idem}`;
-  if (notes.includes(stamp)) return notes.slice(0, 500);
-  const joined = `${notes}${notes ? " " : ""}${stamp}`;
-  return joined.slice(0, 500);
+  const sep = " ";
+  const room = 500 - stamp.length - sep.length;
+  const body = notes.split(stamp).join(" ").trim();
+  const head = room > 0 ? body.slice(0, room).trimEnd() : "";
+  return head ? `${head}${sep}${stamp}` : stamp;
 }
 
 /** Runs `work` once per key until it settles. A failed write can be retried. */
