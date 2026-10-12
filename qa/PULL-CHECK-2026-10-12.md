@@ -7,7 +7,7 @@ This file covers U3, U7, V1, and P1. `qa/PULL-CHECK-2026-10-10.md` stays and is 
 Repo: https://github.com/AetherForge-Ai/aetherforgeai
 Branch: `cursor/qa-u3-u7-v1-p1-04e9`
 Base: `develop` at `add1d4e` (Keep a last-good crypto and DEX list when the live feeds are blocked, #318).
-Draft PR: opened against `develop`. Do not merge.
+Draft PR: not opened. GitHub refused the create call with "must be a collaborator". The branch is pushed. Do not merge. Compare: https://github.com/AetherForge-Ai/aetherforgeai/compare/develop...cursor/qa-u3-u7-v1-p1-04e9
 
 ## Confirmations
 
