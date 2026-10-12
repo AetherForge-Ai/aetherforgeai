@@ -4,6 +4,7 @@ This file keeps both note sets after the merge of develop `3d05b6b` (#324).
 
 - U3, U7, V1, and P1: marker `pull-check:v3-tier1a-2026-10-12`
 - H2, H1, and T1–T5 from #324: marker `pull-check:v3-tier1b-2026-10-12`
+- Research retest 8: marker `pull-check:v3-retest8-2026-10-12`
 
 `qa/PULL-CHECK-2026-10-10.md` stays, with both supersession lines and every earlier section.
 
@@ -528,3 +529,29 @@ The two proposed times come from `2026-10-10T19:27:00.000Z` and `2026-10-10T19:3
 ## Reconciliation covered by tests
 
 `src/lib/qa-tier1b.test.ts` checks that, on the sample FIFO book, ledger YTD, income "Realised", the tax-page realised total, /tax/realised "Combined realised" and the CSV RealizedPnlNZD sum are all **-NZ$10.67**.
+
+## Research retest 8
+
+`pull-check:v3-retest8-2026-10-12`
+
+The live retest ran on a build older than develop. Develop already had Tier 1A #323 and Tier 1B #324. This section records what that develop tree already did, and what this branch changes. Nothing here Publishes, sends email, or adds GST. Public copy says AI.
+
+### Already on develop
+
+1. Sharesies detection. `docs/import-formats-2026-10-12.md` names `Instrument code`, `Instrument name`, or `Company` plus `Type`. `detectBroker` in `src/lib/broker-import.ts` uses those headers. `src/lib/fixtures/broker-import/sharesies.csv` and `sharesies-name.csv` plan as `sharesies`. The live build that said `generic` did not have this detector.
+2. Generic column map. A readable CSV that is not Sharesies, Hatch, or IBKR sets `needsMapping`. `BrokerImportPanel` shows "Match the columns" and sends the chosen headers on the next review. `readable-generic.csv` is the fixture.
+
+### Fixed on this branch
+
+3. The paper-deposit checkbox starts off and stays at the choice the member made when a file is chosen.
+4. The review shows each exchange rate to 4 decimal places and the source label (`Rate from the file`, `Reviewed rate for the trade date`, or `NZD`).
+5. The review counts fills already on the book with the same keys the save uses.
+6. Annualised XIRR is withheld when the span is under 90 days. The figure shown is the return over that period. Time-weighted return is shown, or the sentence that says the earlier book value was not stored. The source line does not end in `price..`. Dates on that line use the form `12 Oct 2026`.
+7. `/tax` receives `dividendsGrossNzd` from the dividend notes. A row with gross 0.45 and withholding 0.07 says `Gross dividend, before withholding: NZ$0.45.`
+8. `/tax/income-summary` redirects to `/tax/income`.
+9. Currency effect uses the cost-weighted exchange rate stored on the remaining buy lots.
+10. Ledger sell rows show the FIFO read for that row. A stored zero is not left on the screen when FIFO has a figure. The sample 100 shares bought at 1.00 and sold at 1.5608 reads NZ$56.08 on the row and in the card.
+11. A backdated import still rematches earlier sells under FIFO. The review names each earlier sell whose realised figure would change.
+12. After a save, the import form resets and the button leaves the saving state. A request that does not answer within 30 seconds shows an error and stops waiting.
+
+Verify: `npx vitest run src/lib/retest8.test.ts src/lib/broker-import.test.ts src/lib/performance-math.test.ts src/lib/returns-split.test.ts src/lib/batch2-fixes.test.ts`.

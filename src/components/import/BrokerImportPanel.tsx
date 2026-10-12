@@ -5,6 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
 import { FUNDING_DISCLOSURE, type ImportPlan, type ImportTrade } from "@/lib/broker-import";
+import { formatDisplayDate, formatFxInput } from "@/lib/currency";
+
+const IMPORT_WAIT_MS = 30_000;
+const IMPORT_TIMEOUT =
+  "The import did not answer in time. It may still be saving. Refresh the book before you try again.";
 
 type Preview = {
   broker: ImportPlan["broker"];
@@ -21,6 +26,7 @@ type Preview = {
   importedTotals: Record<string, number>;
   totalsMessage: string;
   written?: number;
+  fifoNote?: string | null;
 };
 
 const MAP_FIELDS = [
@@ -45,6 +51,8 @@ export function BrokerImportPanel() {
   const [consent, setConsent] = useState(false);
   const [acknowledgeSkipped, setAcknowledgeSkipped] = useState(false);
   const [fundBuys, setFundBuys] = useState(false);
+  const [importError, setImportError] = useState("");
+  const [fileKey, setFileKey] = useState(0);
 
   async function readFile(file: File) {
     const body = await file.text();
@@ -52,9 +60,31 @@ export function BrokerImportPanel() {
     setFileName(file.name);
     setPreview(null);
     setMessage("");
+    setImportError("");
     setConsent(false);
     setAcknowledgeSkipped(false);
-    setFundBuys(false);
+  }
+
+  async function postImport<T>(body: unknown): Promise<Awaited<ReturnType<typeof api.post<T>>>> {
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        api.post<T>("/api/import", body, { signal: controller.signal }),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => {
+            controller.abort();
+            reject(new Error("timeout"));
+          }, IMPORT_WAIT_MS);
+        }),
+      ]);
+    } catch (err) {
+      const timedOut = controller.signal.aborted || (err instanceof Error && err.message === "timeout");
+      if (timedOut) return { ok: false, error: IMPORT_TIMEOUT, aborted: true };
+      return { ok: false, error: "The import did not finish. Refresh the book before you try again." };
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   }
 
   async function run(confirm: boolean, choice?: { fundBuys?: boolean; acknowledgeSkipped?: boolean }) {
@@ -62,25 +92,37 @@ export function BrokerImportPanel() {
     const nextAck = choice && "acknowledgeSkipped" in choice ? choice.acknowledgeSkipped : acknowledgeSkipped;
     setBusy(true);
     setMessage("");
+    setImportError("");
     try {
-      const res = await api.post<Preview>("/api/import", {
+      const res = await postImport<Preview>({
         text,
         confirm,
         acknowledgeSkipped: nextAck,
         fundBuys: nextFund,
         mapping: Object.values(mapping).some(Boolean) ? mapping : undefined,
       });
+      if (res.aborted) {
+        setImportError(IMPORT_TIMEOUT);
+        setPreview(null);
+        return;
+      }
       if (res.data) setPreview(res.data);
       if (!res.ok) {
-        setMessage(typeof res.error === "string" ? res.error : "That file was not imported.");
+        setImportError(typeof res.error === "string" ? res.error : "That file was not imported.");
         return;
       }
       if (confirm) {
-        setMessage(
-          res.data?.written
-            ? `${res.data.written} trade${res.data.written === 1 ? "" : "s"} saved.`
-            : "No new trades were saved."
-        );
+        const saved = res.data?.written
+          ? `${res.data.written} trade${res.data.written === 1 ? "" : "s"} saved.`
+          : "No new trades were saved.";
+        setText("");
+        setFileName("");
+        setPreview(null);
+        setMapping({});
+        setConsent(false);
+        setAcknowledgeSkipped(false);
+        setFileKey((key) => key + 1);
+        setMessage(saved);
       }
     } finally {
       setBusy(false);
@@ -90,13 +132,22 @@ export function BrokerImportPanel() {
   async function keepForSupport() {
     setBusy(true);
     setMessage("");
+    setImportError("");
     try {
-      const res = await api.post<{ kept: boolean; reason: string }>("/api/import", {
+      const res = await postImport<{ kept: boolean; reason: string }>({
         action: "hold",
         text,
         consent,
       });
-      setMessage(res.data?.reason || (typeof res.error === "string" ? res.error : "The file was not kept."));
+      if (res.aborted) {
+        setImportError(IMPORT_TIMEOUT);
+        return;
+      }
+      if (!res.ok) {
+        setImportError(typeof res.error === "string" ? res.error : "The file was not kept.");
+        return;
+      }
+      setMessage(res.data?.reason || "The file was kept for support.");
     } finally {
       setBusy(false);
     }
@@ -124,6 +175,7 @@ export function BrokerImportPanel() {
           <Label htmlFor="import-file">Trade file</Label>
           <input
             id="import-file"
+            key={fileKey}
             type="file"
             accept=".csv,text/csv,text/plain"
             className="block w-full text-sm"
@@ -193,6 +245,7 @@ export function BrokerImportPanel() {
           </p>
           {preview.error ? <p className="text-sm text-muted-foreground">{preview.error}</p> : null}
           {preview.totalsMessage ? <p className="text-sm text-muted-foreground">{preview.totalsMessage}</p> : null}
+          {preview.fifoNote ? <p className="text-sm text-muted-foreground">{preview.fifoNote}</p> : null}
           <div className="overflow-x-auto rounded-2xl border border-border/70">
             <table className="w-full text-sm">
               <thead>
@@ -202,22 +255,22 @@ export function BrokerImportPanel() {
                   <th className="px-3 py-2 font-medium">Ticker</th>
                   <th className="px-3 py-2 text-right font-medium">Quantity</th>
                   <th className="px-3 py-2 text-right font-medium">Price</th>
+                  <th className="px-3 py-2 text-right font-medium">Exchange rate</th>
                   <th className="px-3 py-2 text-right font-medium">Value</th>
                 </tr>
               </thead>
               <tbody>
                 {preview.toWrite.map((row) => (
                   <tr key={`${row.line}-${row.ticker}`} className="border-b border-border/40 last:border-0">
-                    <td className="px-3 py-2">{row.date}</td>
+                    <td className="px-3 py-2">{formatDisplayDate(row.date)}</td>
                     <td className="px-3 py-2">{row.side}</td>
-                    <td className="px-3 py-2">
-                      {row.ticker}
-                      {row.fxSource === "reviewed-trade-date" ? (
-                        <span className="block text-xs text-muted-foreground">Reviewed rate for the trade date</span>
-                      ) : null}
-                    </td>
+                    <td className="px-3 py-2">{row.ticker}</td>
                     <td className="tnum px-3 py-2 text-right">{row.quantity}</td>
                     <td className="tnum px-3 py-2 text-right">{row.price.toFixed(2)}</td>
+                    <td className="tnum px-3 py-2 text-right">
+                      {formatFxInput(row.fx)}
+                      <span className="block text-xs text-muted-foreground">{row.fxLabel}</span>
+                    </td>
                     <td className="tnum px-3 py-2 text-right">
                       {row.nativeValue.toFixed(2)} {row.currency}
                     </td>
@@ -285,6 +338,11 @@ export function BrokerImportPanel() {
         </form>
       ) : null}
 
+      {importError ? (
+        <p className="mt-4 text-sm text-rose-600" role="alert">
+          {importError}
+        </p>
+      ) : null}
       {message ? (
         <p className="mt-4 text-sm text-muted-foreground" role="status">
           {message}
