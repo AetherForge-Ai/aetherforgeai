@@ -98,20 +98,29 @@ export function formatSessionDate(iso: string): string {
   return formatDisplayDate(iso);
 }
 
+const ZONE_SUFFIX: Record<string, string> = {
+  "Pacific/Auckland": "NZ",
+  "America/New_York": "New York",
+  "Australia/Sydney": "Sydney",
+};
+
+/** Hour and minute from formatToParts, with a fixed zone word. Server and browser agree. */
 function formatQuoteClock(quotedAt: Date, timeZone: string): string {
-  const clock = new Intl.DateTimeFormat("en-NZ", {
+  const parts = new Intl.DateTimeFormat("en-NZ", {
     timeZone,
     hour: "numeric",
     minute: "2-digit",
-  }).format(quotedAt);
-  if (timeZone === "America/New_York") return `${clock} New York`;
-  const zoneName = new Intl.DateTimeFormat("en-NZ", {
-    timeZone,
-    timeZoneName: "short",
-  })
-    .formatToParts(quotedAt)
-    .find((part) => part.type === "timeZoneName")?.value;
-  return zoneName ? `${clock} ${zoneName}` : clock;
+    hourCycle: "h12",
+  }).formatToParts(quotedAt);
+  const read = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? "";
+  let hour = Number(read("hour"));
+  const minute = read("minute").padStart(2, "0");
+  const period = read("dayPeriod").replace(/\./g, "").toLowerCase();
+  if (!Number.isFinite(hour)) return "";
+  if (hour === 0) hour = 12;
+  const suffix = period.startsWith("a") ? "am" : period.startsWith("p") ? "pm" : period;
+  const zone = ZONE_SUFFIX[timeZone] || "";
+  return zone ? `${hour}:${minute} ${suffix} ${zone}` : `${hour}:${minute} ${suffix}`;
 }
 
 export function parseQuoteTime(value: string | number | Date | null | undefined): Date | null {

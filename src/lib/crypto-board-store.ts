@@ -22,10 +22,12 @@ import "server-only";
 import { readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { listedMarketNotice } from "@/lib/crypto-coverage";
 import { coinGeckoEndpoint } from "@/lib/coingecko-auth";
 import {
   MARKET_SNAPSHOT_TARGET,
   PLATFORM_DIRECTORY_TTL_MS,
+  DEX_REQUEST_FRESH_MS,
   SNAPSHOT_REFRESH_MS,
   SNAPSHOT_STALE_MS,
   cleanDexRow,
@@ -436,7 +438,10 @@ function gateCoins(coins: CoinMarket[]): CoinMarket[] {
 function presentCrypto(coins: CoinMarket[], at: string | null): SharedCryptoBoard {
   const listed = coins.map((coin) => presentListedCoin(coin));
   const sources = listed.map((coin) => coin.source || "coingecko");
-  const notice = coins.length ? withFeedSource(pricesAsAtLabel(at), sources) : null;
+  const short =
+    coins.length > 0 && coins.length < MARKET_SNAPSHOT_TARGET ? listedMarketNotice(coins.length, "short") : null;
+  const asOf = [pricesAsAtLabel(at), short].filter(Boolean).join(" ");
+  const notice = coins.length ? withFeedSource(asOf || null, sources) : null;
   return {
     coins: listed,
     at,
@@ -450,13 +455,13 @@ function presentDex(rows: DexTokenRow[], at: string | null, sources: string[]): 
   const unique = dedupeDexByNetworkAddress(rows)
     .map((row) => cleanDexRow(row))
     .filter((row): row is DexTokenRow => !!row && dexRowComplete(row) && !!resolvableCoinId(row.detailId));
-  const notice = unique.length ? withFeedSource(pricesAsAtLabel(at), sources) : null;
+  const notice = unique.length ? withFeedSource(pricesAsAtLabel(at, Date.now(), DEX_REQUEST_FRESH_MS), sources) : null;
   return {
     rows: unique,
     at,
     notice,
     sources,
-    delayed: snapshotIsStale(at, Date.now(), SNAPSHOT_STALE_MS),
+    delayed: snapshotIsStale(at, Date.now(), DEX_REQUEST_FRESH_MS),
     countLine: countLine("DEX tokens", unique.length),
   };
 }
@@ -513,8 +518,8 @@ export async function readSharedCryptoBoard(opts?: { seed?: boolean }): Promise<
 /** How long a stale DEX refresh may occupy the request. The seed budget fits inside this. */
 const DEX_REFRESH_BOUND_MS = 8_000;
 
-function boardNeedsRefresh(at: string | null | undefined): boolean {
-  return !at || snapshotIsStale(at, Date.now(), SNAPSHOT_REFRESH_MS);
+function boardNeedsRefresh(at: string | null | undefined, maxAge = SNAPSHOT_REFRESH_MS): boolean {
+  return !at || snapshotIsStale(at, Date.now(), maxAge);
 }
 
 /**
@@ -528,7 +533,7 @@ async function revalidateStaleBoards(): Promise<void> {
   const jobs: Promise<unknown>[] = [];
   if (!crypto?.coins.length || boardNeedsRefresh(crypto?.at) || cryptoYahoo) jobs.push(refreshCryptoSeed());
   const dexThin = dexSnapshotThin(dex?.rows ?? [], dex?.sources ?? []);
-  if (!dex?.rows.length || boardNeedsRefresh(dex?.at) || dexThin) jobs.push(refreshDexSeed());
+  if (!dex?.rows.length || boardNeedsRefresh(dex?.at, DEX_REQUEST_FRESH_MS) || dexThin) jobs.push(refreshDexSeed());
   if (!jobs.length) return;
   await Promise.race([Promise.all(jobs), sleep(DEX_REFRESH_BOUND_MS)]);
 }
@@ -538,7 +543,7 @@ export async function readSharedDexBoard(opts?: { seed?: boolean; revalidate?: b
   const visible = (saved?.rows ?? []).filter((row) => row.price != null && row.price > 0);
   if (visible.length) {
     const thin = dexSnapshotThin(visible, saved?.sources ?? []);
-    if (opts?.revalidate && (boardNeedsRefresh(saved?.at) || thin) && Date.now() >= nextDexUpgradeAt) {
+    if (opts?.revalidate && (boardNeedsRefresh(saved?.at, DEX_REQUEST_FRESH_MS) || thin) && Date.now() >= nextDexUpgradeAt) {
       nextDexUpgradeAt = Date.now() + 60_000;
       await revalidateStaleBoards();
       const again = await readDexSnapshot();

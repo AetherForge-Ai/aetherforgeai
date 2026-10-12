@@ -12,7 +12,7 @@ import {
   type CurrencyCode,
 } from "@/lib/currency";
 import { chainForTicker } from "@/lib/crypto-board";
-import { chainFromNotes, dexFromLedger, priceAsAtFromNotes, stripDexNotesPrefix, stripQuoteStamp } from "@/lib/dex-source";
+import { chainFromNotes, dexFromLedger, priceAsAtFromNotes, stripDexNotesPrefix } from "@/lib/dex-source";
 import { stripDividendNotesPrefix } from "@/lib/dividend-ledger";
 import { formatLedgerDateTime } from "@/lib/executed-at";
 import { collapseCorrectionNote, ensureCorrectionCurrency } from "@/lib/holding-correction";
@@ -99,8 +99,9 @@ export function cleanNoteFigures(notes: string): string {
 export function csvNotes(row: CsvRow): string {
   const raw = row.notes == null ? "" : String(row.notes);
   const currency = String(row.fill_currency || row.currency || "NZD").toUpperCase() as CurrencyCode;
+  // chain= and pxat= stay in the export. The ledger table hides them.
   let notes = cleanNoteFigures(
-    normaliseAuditDates(collapseCorrectionNote(stripQuoteStamp(stripDexNotesPrefix(stripDividendNotesPrefix(raw)))))
+    normaliseAuditDates(collapseCorrectionNote(stripDexNotesPrefix(stripDividendNotesPrefix(raw))))
   ).trim();
   if (notes.startsWith("Correction:")) notes = ensureCorrectionCurrency(notes, currency);
   if (notes) return notes;

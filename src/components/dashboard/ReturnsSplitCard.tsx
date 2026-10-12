@@ -1,7 +1,7 @@
 "use client";
 
 import { currencyForTicker, formatNzd, type CurrencyCode, type FxRatesToNZD } from "@/lib/currency";
-import { splitReturns } from "@/lib/returns-split";
+import { splitReturns, type ReturnSplit, type ReturnSplitExtras } from "@/lib/returns-split";
 
 type HoldingLike = {
   shares: number;
@@ -13,31 +13,26 @@ type HoldingLike = {
   purchase_date?: string | null;
 };
 
-/**
- * Capital gain, dividend income, and the exchange-rate effect, each with a
- * plain-English note of how the figure is worked out.
- */
-export function ReturnsSplitCard({
+export function computeHoldingSplit({
   holdings,
   incomeNzd,
   rates,
   reportedPnlNzd,
   costFx,
   qtyFx,
-  loading = false,
+  realisedFxNzd,
+  foreignCash,
 }: {
   holdings: HoldingLike[];
   incomeNzd: number;
   rates: FxRatesToNZD;
-  /** P/L at the latest price, in NZ dollars. The lines add up to this figure. */
   reportedPnlNzd?: number | null;
-  /** Cost-weighted NZD rate stored on the remaining buy lots, by ticker. */
   costFx?: Record<string, number>;
-  /** Quantity-weighted NZD rate on the same lots. The currency line uses this. */
   qtyFx?: Record<string, number>;
-  loading?: boolean;
-}) {
-  const split = splitReturns(
+  realisedFxNzd?: number | null;
+  foreignCash?: ReturnSplitExtras["foreignCash"];
+}): ReturnSplit {
+  return splitReturns(
     holdings.map((holding) => {
       const currency =
         holding.currency ||
@@ -62,15 +57,59 @@ export function ReturnsSplitCard({
       };
     }),
     incomeNzd,
-    reportedPnlNzd
+    reportedPnlNzd,
+    { realisedFxNzd, foreignCash }
   );
+}
+
+/**
+ * Capital gain, dividend income, and the exchange-rate effect, each with a
+ * plain-English note of how the figure is worked out.
+ * Pass `split` when the page already computed the book once.
+ */
+export function ReturnsSplitCard({
+  holdings,
+  incomeNzd,
+  rates,
+  reportedPnlNzd,
+  costFx,
+  qtyFx,
+  realisedFxNzd,
+  split,
+  loading = false,
+}: {
+  holdings: HoldingLike[];
+  incomeNzd: number;
+  rates: FxRatesToNZD;
+  /** P/L at the latest price, in NZ dollars. The lines add up to this figure. */
+  reportedPnlNzd?: number | null;
+  /** Cost-weighted NZD rate stored on the remaining buy lots, by ticker. */
+  costFx?: Record<string, number>;
+  /** Quantity-weighted NZD rate on the same lots. */
+  qtyFx?: Record<string, number>;
+  realisedFxNzd?: number | null;
+  /** One snapshot shared by every page. Rounded only inside that call. */
+  split?: ReturnSplit | null;
+  loading?: boolean;
+}) {
+  const resolved =
+    split ??
+    computeHoldingSplit({
+      holdings,
+      incomeNzd,
+      rates,
+      reportedPnlNzd,
+      costFx,
+      qtyFx,
+      realisedFxNzd,
+    });
 
   const figures = [
-    { label: "Capital gain", value: split.capitalGainNzd, note: split.capitalNote },
-    { label: "Income", value: split.incomeNzd, note: split.incomeNote },
-    { label: "Currency effect", value: split.currencyEffectNzd, note: split.currencyNote },
-    ...(split.otherNzd !== 0 ? [{ label: "Other", value: split.otherNzd, note: split.otherNote }] : []),
-    { label: "Total", value: split.totalNzd, note: split.totalNote },
+    { label: "Capital gain", value: resolved.capitalGainNzd, note: resolved.capitalNote },
+    { label: "Income", value: resolved.incomeNzd, note: resolved.incomeNote },
+    { label: "Currency effect", value: resolved.currencyEffectNzd, note: resolved.currencyNote },
+    ...(resolved.otherNzd !== 0 ? [{ label: "Other", value: resolved.otherNzd, note: resolved.otherNote }] : []),
+    { label: "Total", value: resolved.totalNzd, note: resolved.totalNote },
   ];
 
   return (

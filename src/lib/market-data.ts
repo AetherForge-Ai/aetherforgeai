@@ -506,6 +506,21 @@ let cryptoSnapInflightKey = "";
  * poll, alert evaluation, and the book refresh do not each hit the price feeds.
  * Quotes stay on the 24/7 path and are not labelled as a cash-session close.
  */
+async function withSnapshotAsOf(stamped: { updatedAt: string | null; live: boolean }) {
+  if (stamped.updatedAt) return stamped;
+  try {
+    const { readSharedCryptoBoard } = await import("@/lib/crypto-board-store");
+    const board = await readSharedCryptoBoard({ seed: false });
+    const at = board.at ? new Date(board.at) : null;
+    if (at && !Number.isNaN(at.getTime())) {
+      return { updatedAt: at.toISOString(), live: cryptoFreshnessLabel(at).live };
+    }
+  } catch {
+    /* keep the null clock when the snapshot has no saved time */
+  }
+  return stamped;
+}
+
 function cryptoSnapshotStamp(quotes: Record<string, LiveQuote>, symbols: string[]) {
   const updated = latestQuoteTime(symbols.map((t) => quotes[t]?.quotedAt));
   const freshness = cryptoFreshnessLabel(updated);
@@ -528,7 +543,7 @@ export async function fetchCryptoLiveSnapshot(tickers: string[]): Promise<{
   const fresh = cryptoSnap != null && Date.now() - cryptoSnap.at < CRYPTO_SNAPSHOT_TTL_MS;
   if (fresh && unique.every((t) => (cryptoSnap!.quotes[t]?.price ?? 0) > 0)) {
     const quotes = Object.fromEntries(unique.map((t) => [t, stampCryptoQuoteLive(cryptoSnap!.quotes[t])]));
-    return { quotes, ...cryptoSnapshotStamp(quotes, unique) };
+    return { quotes, ...(await withSnapshotAsOf(cryptoSnapshotStamp(quotes, unique))) };
   }
   if (cryptoSnapInflight && cryptoSnapInflightKey === key) return cryptoSnapInflight;
 
@@ -543,7 +558,7 @@ export async function fetchCryptoLiveSnapshot(tickers: string[]): Promise<{
     const picked = Object.fromEntries(
       unique.filter((t) => (quotes[t]?.price ?? 0) > 0).map((t) => [t, stampCryptoQuoteLive(quotes[t])])
     );
-    return { quotes: picked, ...cryptoSnapshotStamp(picked, unique) };
+    return { quotes: picked, ...(await withSnapshotAsOf(cryptoSnapshotStamp(picked, unique))) };
   })();
 
   cryptoSnapInflightKey = key;
