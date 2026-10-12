@@ -9,6 +9,7 @@ import { formatDisplayDate, formatMoney, formatSignedPercent } from "@/lib/curre
 import { formatTapeItem, fxRateLine, type TapeDisplay } from "@/lib/tape-display";
 import { useFxRates } from "@/hooks/useFxRates";
 import { cryptoFreshnessLabel, exchangeFreshnessLabel, latestQuoteTime, metalUpdatedPhrase } from "@/lib/market-freshness";
+import { cryptoVenueForLabel } from "@/lib/crypto-price-chain";
 import { priceBadge } from "@/lib/price-confidence";
 import { PriceConfidenceBadge } from "@/components/PriceConfidenceBadge";
 
@@ -32,7 +33,6 @@ interface Quote {
 const VENUES = {
   nzx: "https://www.nzx.com/markets/NZSX",
   asx: "https://www.asx.com.au/markets/company/TLX",
-  crypto: "https://www.coingecko.com/",
 };
 
 function formatPrice(q: Quote, display: TapeDisplay, rates: { USD: number; AUD: number; NZD: number }): string {
@@ -430,8 +430,8 @@ export function MarketTicker({ className, compact = false, initial = null, initi
         <a href={VENUES.asx} target="_blank" rel="noopener noreferrer" className="hover:text-foreground hover:underline">
           ASX
         </a>
-        <a href={VENUES.crypto} target="_blank" rel="noopener noreferrer" className="hover:text-foreground hover:underline">
-          CoinGecko
+        <a href={cryptoVenueForLabel(providers.crypto).href} target="_blank" rel="noopener noreferrer" className="hover:text-foreground hover:underline">
+          {cryptoVenueForLabel(providers.crypto).label}
         </a>
         <button
           type="button"

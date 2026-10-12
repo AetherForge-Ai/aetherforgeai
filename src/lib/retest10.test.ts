@@ -316,7 +316,8 @@ describe("pull-check:v3-retest10-2026-10-13", () => {
       50
     );
     expect(split.currencyEffectNzd).toBe(50);
-    expect(split.currencyNote).toContain("Currency effect counts open lots only; realised FX is in Realised.");
-    expect(read("src/components/dashboard/TransactionCenter.tsx")).toContain('data-testid="ledger-live"');
+    expect(split.currencyNote).toContain("buy price");
+    expect(split.currencyNote).not.toContain("open lots only");
+    expect(read("src/components/dashboard/TransactionCenter.tsx")).not.toContain('data-testid="ledger-live"');
   });
 });

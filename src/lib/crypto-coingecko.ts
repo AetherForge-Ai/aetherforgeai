@@ -263,6 +263,7 @@ const TOP400_QUERY =
   "&price_change_percentage=1h,24h,7d";
 
 let top400Entry: { at: number; value: RankedCryptoPage } | null = null;
+let top400Partial: { at: number; value: RankedCryptoPage } | null = null;
 let top400Inflight: Promise<RankedCryptoPage> | null = null;
 let top400BackoffUntil = 0;
 
@@ -293,7 +294,8 @@ async function refreshTop400(): Promise<RankedCryptoPage> {
   top400Inflight = (async () => {
     const first = readMarketPage(await cgFetchRetry(`/coins/markets?${TOP400_QUERY}&page=1`)) as CgMarketRow[] | null;
     if (!first?.length) throw new Error("Live crypto prices are unavailable.");
-    top400Entry = { at: Date.now(), value: assembleTop400(first, null, true) };
+    // Page 1 is a cold-start peek only. It must not replace a list that already has platforms.
+    if (!top400Entry) top400Partial = { at: Date.now(), value: assembleTop400(first, null, true) };
     const [second, platforms] = await Promise.all([
       cgFetchRetry(`/coins/markets?${TOP400_QUERY}&page=2`)
         .then((body) => readMarketPage(body) as CgMarketRow[] | null)
@@ -305,6 +307,7 @@ async function refreshTop400(): Promise<RankedCryptoPage> {
     ]);
     const page2 = second ?? [];
     const page = assembleTop400([...first, ...page2], platforms, page2.length === 0);
+    top400Partial = null;
     top400Entry = { at: Date.now(), value: page };
     const tagged = page.coins.map((coin) => ({ ...coin, source: coin.source || "coingecko" }));
     await persistCryptoSnapshot(tagged, new Date().toISOString());
@@ -348,6 +351,7 @@ export async function fetchTop400(): Promise<RankedCryptoPage> {
   const pending = refreshTop400();
   const raced = await Promise.race([pending.catch(() => null), sleep(TOP400_COLD_MS).then(() => null)]);
   if (raced && raced.coins.length) return raced;
+  if (!top400Entry && top400Partial?.value.coins.length) return top400Partial.value;
   const peeked = peekTop400();
   if (peeked?.coins.length && top400Entry && now - top400Entry.at < TOP400_COLD_MS + 5_000) return peeked;
   if (raced) return raced;

@@ -370,7 +370,7 @@ describe("server-side movement rejection", () => {
     expect(edit).toContain("fromHoldingEdit: true");
     expect(edit).toContain("The date can't be in the future.");
     const writer = read("src/lib/transactions.ts");
-    expect(writer).toContain("movementRejectionForUser(user, input, opts)");
+    expect(writer).toContain("movementRejectionForUser(user, input, rejectionOpts)");
     const panel = read("src/components/dashboard/RecordTransactionPanel.tsx");
     expect(panel).toContain("formatDisplayDate(preview.date)");
     expect(panel).toContain("formatSignedMoney(preview.cashChangeNzd)");

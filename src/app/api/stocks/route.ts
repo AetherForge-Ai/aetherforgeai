@@ -315,15 +315,18 @@ export async function GET(req: Request) {
     overlayEarliestBuyDates(stocks, book);
 
     // Quote fetches outlive a buy that committed while this request was in
-    // flight. Re-read quantity so the response cannot paint the pre-trade shares.
-    try {
-      const fresh = await totalumSdk.crud.query("stock", {
-        _filter: { user: user._id },
-        _limit: 500,
-      });
-      stocks = mergeFreshQuantities(stocks, (fresh?.data as { _id?: string; shares?: number; purchase_price?: number }[]) || []);
-    } catch (err) {
-      console.error("[api/stocks] Quantity re-read failed (serving the overlay snapshot):", err);
+    // flight. Re-read quantity only when a trade invalidated the book cache
+    // during this request. A quiet read keeps the first snapshot.
+    if (bookCacheEpoch(user._id) !== cacheEpoch) {
+      try {
+        const fresh = await totalumSdk.crud.query("stock", {
+          _filter: { user: user._id },
+          _limit: 500,
+        });
+        stocks = mergeFreshQuantities(stocks, (fresh?.data as { _id?: string; shares?: number; purchase_price?: number }[]) || []);
+      } catch (err) {
+        console.error("[api/stocks] Quantity re-read failed (serving the overlay snapshot):", err);
+      }
     }
     stocks = applyFifoPurchasePrices(stocks, book);
     stocks = collapseDuplicateHoldings(stocks, fifoRemainingShareQty(book));

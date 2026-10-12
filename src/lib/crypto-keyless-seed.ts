@@ -11,7 +11,7 @@
  */
 
 import { coinGeckoEndpoint, MARKET_USER_AGENT } from "@/lib/coingecko-auth";
-import { snapshotBlockchain } from "@/lib/crypto-board";
+import { platformLabel, snapshotBlockchain } from "@/lib/crypto-board";
 import {
   dexDetailId,
   dexNetworkLabel,
@@ -392,6 +392,7 @@ export function coinsFromCoinPaprika(body: unknown): CoinMarket[] {
     const change24h = num(usd?.percent_change_24h);
     const change7d = num(usd?.percent_change_7d);
     const change30d = num(usd?.percent_change_30d);
+    const platform = typeof row.platform === "string" ? row.platform.trim() : "";
     coins.push(
       blankCoin({
         id,
@@ -400,15 +401,21 @@ export function coinsFromCoinPaprika(body: unknown): CoinMarket[] {
         rank: num(row.rank) ?? 999999,
         price,
         marketCap: num(usd?.market_cap) ?? 0,
+        fdv: num(usd?.fully_diluted_valuation) ?? num(row.fully_diluted_valuation),
         volume24h: num(usd?.volume_24h) ?? 0,
         change1h: num(usd?.percent_change_1h),
         change24h: change24h ?? 0,
         change7d: change7d ?? 0,
+        high24h: num(usd?.high_24h),
+        low24h: num(usd?.low_24h),
         circulatingSupply: num(row.circulating_supply),
         totalSupply: num(row.total_supply),
         maxSupply: num(row.max_supply),
         ath: num(usd?.ath_price),
         athDate: typeof usd?.ath_date === "string" ? usd.ath_date : null,
+        atl: num(usd?.atl_price),
+        atlDate: typeof usd?.atl_date === "string" ? usd.atl_date : null,
+        blockchain: platform ? platformLabel(platform) : snapshotBlockchain(id, null, null),
         quotedAt: typeof row.last_updated === "string" ? row.last_updated : null,
         source: "coinpaprika",
         moves: { h24: change24h, d7: change7d, d30: change30d },

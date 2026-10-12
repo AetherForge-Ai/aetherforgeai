@@ -290,21 +290,22 @@ describe("pull-check:v3-retest9-2026-10-12", () => {
       0,
       38.77
     );
-    expect(split.currencyEffectNzd).toBe(12);
-    expect(split.capitalGainNzd).toBe(32);
+    expect(split.currencyEffectNzd).toBe(10);
+    expect(split.capitalGainNzd).toBe(34);
     expect(split.otherNzd).toBe(0);
     expect(split.totalNzd).toBe(44);
     expect(Math.abs(split.otherNzd)).toBeLessThan(0.05);
     expect(split.otherNote).toMatch(/rounding/i);
-    expect(split.currencyNote).toMatch(/foreign value/);
+    expect(split.currencyNote).toMatch(/buy price/);
   });
 
   it("shows live=n/a, ledger paging, Koins snapshot prices and the Stox notice", () => {
     expect(read("src/lib/transactions.ts")).toContain("live=n/a");
     expect(read("src/lib/transactions.ts")).not.toContain('quote_origin === "snapshot" && price > 0');
     expect(read("src/components/dashboard/StockDialog.tsx")).toContain("live: n/a");
-    expect(read("src/components/dashboard/TransactionCenter.tsx")).toContain("live=n\\/a");
-    expect(read("src/components/dashboard/TransactionCenter.tsx")).toContain("live: n/a");
+    expect(read("src/lib/dex-source.ts")).toContain("export function displayLedgerNote");
+    expect(read("src/components/dashboard/TransactionCenter.tsx")).toContain("displayLedgerNote");
+    expect(read("src/components/dashboard/TransactionCenter.tsx")).not.toContain('data-testid="ledger-live"');
     expect(read("src/components/dashboard/TransactionCenter.tsx")).toContain('data-testid="ledger-pager"');
     expect(read("src/components/dashboard/TransactionCenter.tsx")).toContain("Show all");
     expect(read("src/app/koins/page.tsx")).toContain("KoinsSnapshotPrices");
@@ -365,8 +366,8 @@ describe("pull-check:v3-retest9-2026-10-12", () => {
     expect(read("src/app/api/transactions/route.ts")).toContain("ledgerAfterBooking");
     expect(read("src/app/api/transactions/export/route.ts")).toContain("loadLedger(user, 5000)");
     expect(read("src/components/dashboard/TransactionCenter.tsx")).toContain("showing all");
-    expect(read("src/components/dashboard/TransactionCenter.tsx")).toContain("function visibleAudit");
-    expect(read("src/components/dashboard/TransactionCenter.tsx")).toContain("chain=\\S+");
+    expect(read("src/lib/dex-source.ts")).toContain("export function displayLedgerNote");
+    expect(read("src/lib/transaction-csv.ts")).not.toContain("stripQuoteStamp");
     expect(read("src/components/dashboard/PortfolioDashboard.tsx")).toContain("expectedTxRef");
     expect(read("src/components/dashboard/AnimatedMoney.tsx")).toContain("snap");
     expect(read("src/app/api/stocks/route.ts")).toContain("bookPromise");

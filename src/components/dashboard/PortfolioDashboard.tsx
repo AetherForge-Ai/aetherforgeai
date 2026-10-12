@@ -13,7 +13,6 @@ import {
   formatDisplayDate,
   formatSignedMoney,
   formatMoney,
-  roundMoney,
   sumRoundedMoney,
   formatUnitPrice,
   currencyForTicker,
@@ -41,8 +40,7 @@ import {
 } from "@/components/dashboard/HoldingChartDialog";
 import { TransactionCenter } from "@/components/dashboard/TransactionCenter";
 import { openRecordTransaction } from "@/lib/open-transaction";
-import { ReturnsSplitCard } from "@/components/dashboard/ReturnsSplitCard";
-import { useFxRates } from "@/hooks/useFxRates";
+import { computeHoldingSplit, ReturnsSplitCard } from "@/components/dashboard/ReturnsSplitCard";
 import { isTransactionDialogOpen } from "@/lib/transaction-sticky";
 import {
   acceptAccountPayload,
@@ -474,7 +472,10 @@ export function PortfolioDashboard({
   const [incomeNzd, setIncomeNzd] = useState(0);
   const [costFx, setCostFx] = useState<Record<string, number>>({});
   const [qtyFx, setQtyFx] = useState<Record<string, number>>({});
-  const { rates: fxRates } = useFxRates();
+  const [realisedFxNzd, setRealisedFxNzd] = useState(0);
+  const headerPaint = useRef<{ holdings: number; net: number; stock: number; crypto: number; metals: number } | null>(null);
+  const liveHeaderRef = useRef<{ holdings: number | null; net: number | null; stock: number; crypto: number; metals: number } | null>(null);
+  const [headerFrozen, setHeaderFrozen] = useState(false);
   const [metalsValueNZD, setMetalsValueNZD] = useState(preview ? PREVIEW_METALS_NZD : 0);
   // Raw precious_metal holdings (from /api/metals) so we can surface them in the
   // main Transaction Center Sell/Remove list and unify the two systems.
@@ -618,6 +619,7 @@ export function PortfolioDashboard({
         incomeNZD?: number;
         costFxByTicker?: Record<string, number>;
         qtyFxByTicker?: Record<string, number>;
+        realisedFxNzd?: number;
         transactions?: {
           _id?: string;
           type?: string;
@@ -691,6 +693,7 @@ export function PortfolioDashboard({
         setIncomeNzd(typeof res.data.incomeNZD === "number" ? res.data.incomeNZD : 0);
         setCostFx(res.data.costFxByTicker || {});
         setQtyFx(res.data.qtyFxByTicker || {});
+        setRealisedFxNzd(typeof res.data.realisedFxNzd === "number" ? res.data.realisedFxNzd : 0);
         setCashLoaded(true);
         setLedgerLoaded(true);
       } else {
@@ -905,6 +908,17 @@ export function PortfolioDashboard({
       }
       const bookedId = updated?.lastTransaction?._id ? String(updated.lastTransaction._id) : "";
       if (bookedId) expectedTxRef.current = bookedId;
+      const painted = liveHeaderRef.current;
+      if (painted && painted.holdings != null && painted.net != null) {
+        headerPaint.current = {
+          holdings: painted.holdings,
+          net: painted.net,
+          stock: painted.stock,
+          crypto: painted.crypto,
+          metals: painted.metals,
+        };
+        setHeaderFrozen(true);
+      }
       // Cash and the holding quantity land with the success toast. A later
       // /api/stocks read can replace this with live marks; a pre-trade snapshot cannot.
       if (updated?.lastTransaction) {
@@ -916,9 +930,7 @@ export function PortfolioDashboard({
         holdingsHydratedRef.current = true;
         setLoading(false);
       }
-      loadStocks();
-      loadCash();
-      loadMetals();
+      void Promise.all([loadStocks(), loadCash(), loadMetals()]).finally(() => setHeaderFrozen(false));
     },
     [applyKnownCash, loadStocks, loadCash, loadMetals]
   );
@@ -991,10 +1003,6 @@ export function PortfolioDashboard({
     () => computeSummary(stockOnly, { baseCurrency: "NZD", fxToNZD }),
     [stockOnly, fxToNZD]
   );
-  const cryptoNzdGain = useMemo(
-    () => computeSummary(cryptoMarked, { baseCurrency: "NZD", fxToNZD }).totalGain,
-    [cryptoMarked, fxToNZD]
-  );
   const stockOverviewMetrics = useMemo(() => computePortfolioMetrics(stockOnly), [stockOnly]);
   const cryptoOverviewSummary = useMemo(
     () => computeSummary(cryptoMarked, { baseCurrency: cryptoBookCurrency, fxToNZD }),
@@ -1012,13 +1020,6 @@ export function PortfolioDashboard({
     // Always rewrite a persisted equity print (~US$44.65) to NZD per troy ounce.
     return markBookAtBullionSpot(bullion, spotForMarks);
   }, [valuedHoldings, spotForMarks]);
-  const homeSplitPnlNzd = useMemo(() => {
-    const stock = computeSummary(stockOnly, { baseCurrency: "NZD", fxToNZD }).totalGain;
-    const crypto = computeSummary(cryptoMarked, { baseCurrency: "NZD", fxToNZD }).totalGain;
-    const metal = computeSummary(metalStocks, { baseCurrency: "NZD", fxToNZD }).totalGain;
-    return roundMoney(stock + crypto + metal);
-  }, [stockOnly, cryptoMarked, metalStocks, fxToNZD]);
-
   // Precious-metal holdings from the dedicated /api/metals table, mapped into
   // the same Stock shape so the Transaction Center Sell/Remove picker can show
   // them alongside ordinary positions. Marked with metalSourceId so the sell
@@ -1191,6 +1192,33 @@ export function PortfolioDashboard({
   const showHoldings = balancesReady ? holdingsValueNZD : null;
   const showMetalsTotal = balancesReady ? metalsValueNZD + metalStockTotalNZD : null;
   const showNetWorth = balancesReady ? netWorthNZD : null;
+  if (!headerFrozen) {
+    liveHeaderRef.current = {
+      holdings: showHoldings,
+      net: showNetWorth,
+      stock: stockTotalNZD,
+      crypto: cryptoTotalNZD,
+      metals: metalsValueNZD + metalStockTotalNZD,
+    };
+  }
+  const paintedHeader = headerFrozen ? headerPaint.current : null;
+  const headerHoldings = paintedHeader ? paintedHeader.holdings : showHoldings;
+  const headerNet = paintedHeader ? paintedHeader.net : showNetWorth;
+  const headerStock = paintedHeader ? paintedHeader.stock : stockTotalNZD;
+  const headerCrypto = paintedHeader ? paintedHeader.crypto : cryptoTotalNZD;
+  const headerMetals = paintedHeader ? paintedHeader.metals : metalsValueNZD + metalStockTotalNZD;
+  const returnSplit = useMemo(
+    () =>
+      computeHoldingSplit({
+        holdings: [...stockHoldings, ...cryptoHoldings, ...metalStocks],
+        incomeNzd,
+        rates: fxToNZD,
+        costFx,
+        qtyFx,
+        realisedFxNzd,
+      }),
+    [stockHoldings, cryptoHoldings, metalStocks, incomeNzd, fxToNZD, costFx, qtyFx, realisedFxNzd]
+  );
   const kpiPending = !balancesReady;
 
   async function handleRefreshPrices() {
@@ -1426,12 +1454,12 @@ export function PortfolioDashboard({
               <p className="text-[0.68rem] font-semibold uppercase tracking-wide text-foreground">
                 Holdings value
               </p>
-              {showHoldings == null ? (
+              {headerHoldings == null ? (
                 <div className="mt-1 ml-auto h-7 w-24 animate-pulse rounded-md bg-muted/50" aria-hidden />
               ) : (
                 <AnimatedMoney
                   snap
-                  value={showHoldings}
+                  value={headerHoldings}
                   currency="NZD"
                   className="tnum font-display text-xl font-bold text-emerald-600 sm:text-2xl"
                 />
@@ -1441,12 +1469,12 @@ export function PortfolioDashboard({
               <p className="text-[0.68rem] font-semibold uppercase tracking-wide text-foreground">
                 Total net worth
               </p>
-              {showNetWorth == null ? (
+              {headerNet == null ? (
                 <div className="mt-1 ml-auto h-7 w-28 animate-pulse rounded-md bg-muted/50" aria-hidden />
               ) : (
                 <AnimatedMoney
                   snap
-                  value={showNetWorth}
+                  value={headerNet}
                   currency="NZD"
                   className="tnum font-display text-xl font-bold text-emerald-600 sm:text-2xl"
                 />
@@ -1490,9 +1518,9 @@ export function PortfolioDashboard({
       <>
       <DashboardHomeGrid
         cashBalance={cashBalance}
-        stockTotalNZD={stockTotalNZD}
-        cryptoTotalNZD={cryptoTotalNZD}
-        metalsTotalNZD={metalsValueNZD + metalStockTotalNZD}
+        stockTotalNZD={headerStock}
+        cryptoTotalNZD={headerCrypto}
+        metalsTotalNZD={headerMetals}
         stockPositions={stockHoldings.filter((row) => (Number(row.shares) || 0) > 1e-9).length}
         cryptoPositions={cryptoHoldings.length}
         metalsPositions={preciousMetalHoldings.length + metalStocks.length}
@@ -1505,10 +1533,8 @@ export function PortfolioDashboard({
       <ReturnsSplitCard
         holdings={[...stockHoldings, ...cryptoHoldings, ...metalStocks]}
         incomeNzd={incomeNzd}
-        rates={fxRates}
-        reportedPnlNzd={homeSplitPnlNzd}
-        costFx={costFx}
-        qtyFx={qtyFx}
+        rates={fxToNZD}
+        split={returnSplit}
         loading={!balancesReady}
       />
       </>
@@ -1656,12 +1682,10 @@ export function PortfolioDashboard({
         description="Your KPIs — total worth and P/L at the latest available price."
       >
         <ReturnsSplitCard
-          holdings={stockOverviewSummary.holdings}
+          holdings={[...stockHoldings, ...cryptoHoldings, ...metalStocks]}
           incomeNzd={incomeNzd}
-          rates={fxRates}
-          reportedPnlNzd={stockOverviewSummary.totalGain}
-          costFx={costFx}
-        qtyFx={qtyFx}
+          rates={fxToNZD}
+          split={returnSplit}
           loading={!balancesReady}
         />
 
@@ -1759,12 +1783,10 @@ export function PortfolioDashboard({
         description="Crypto KPIs — total worth and P/L at the latest available price."
       >
         <ReturnsSplitCard
-          holdings={cryptoOverviewSummary.holdings}
+          holdings={[...stockHoldings, ...cryptoHoldings, ...metalStocks]}
           incomeNzd={incomeNzd}
-          rates={fxRates}
-          reportedPnlNzd={cryptoNzdGain}
-          costFx={costFx}
-        qtyFx={qtyFx}
+          rates={fxToNZD}
+          split={returnSplit}
           loading={!balancesReady}
         />
         <div className="mb-4 flex flex-wrap items-center justify-center gap-3">
@@ -1928,7 +1950,8 @@ export function PortfolioDashboard({
                 <div className="mt-1 ml-auto h-6 w-24 animate-pulse rounded-md bg-muted/50" aria-hidden />
               ) : (
                 <AnimatedMoney
-                  value={showHoldings}
+                  snap
+                  value={headerHoldings ?? 0}
                   currency="NZD"
                   className="font-display text-lg font-bold text-foreground"
                 />
@@ -1946,7 +1969,8 @@ export function PortfolioDashboard({
                 <div className="mt-1 ml-auto h-8 w-32 animate-pulse rounded-md bg-muted/50" aria-hidden />
               ) : (
                 <AnimatedMoney
-                  value={showNetWorth}
+                  snap
+                  value={headerNet ?? 0}
                   currency="NZD"
                   className="font-display text-2xl font-bold text-primary"
                 />
@@ -1982,7 +2006,7 @@ export function PortfolioDashboard({
               {showHoldings == null ? (
                 <div className="h-4 w-16 animate-pulse rounded bg-muted/50" aria-hidden />
               ) : (
-                <AnimatedMoney value={showHoldings} currency="NZD" className="font-semibold text-foreground" />
+                <AnimatedMoney snap value={headerHoldings ?? 0} currency="NZD" className="font-semibold text-foreground" />
               )}
             </div>
           </div>
@@ -2381,7 +2405,7 @@ export function PortfolioDashboard({
             {isCrypto ? null : <OpenMarketSnapshot onBought={handleDataChanged} />}
           </div>
           <div className="mt-8">
-            <TopMovers />
+            <TopMovers assetClass={isCrypto ? "crypto" : "equity"} />
           </div>
           <div className="mt-8">
             {freePlan ? (

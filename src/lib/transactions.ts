@@ -37,7 +37,7 @@ import {
 import { chainForTicker } from "@/lib/crypto-board";
 import { canonicalCryptoId } from "@/lib/crypto-ids";
 import { venueForTicker, fifoApplySell, type FifoLot } from "@/lib/ledger-schema";
-import { fifoRemainingCostFx, fifoRemainingQtyFx, fifoStoredForSell } from "@/lib/tax-realised";
+import { fifoRemainingCostFx, fifoRemainingQtyFx, fifoStoredForSell, sumRealisedFxNzd } from "@/lib/tax-realised";
 import type { TaxLedgerRow } from "@/lib/taxable-income";
 import { logLedgerAudit, appendAuditNote } from "@/lib/ledger-audit";
 import { feedEntryForTicker } from "@/lib/feed-mapping";
@@ -326,7 +326,11 @@ async function earliestBuyDay(userId: string, ticker: string, purchaseDate?: str
 export async function movementRejectionForUser(
   user: AppUser,
   input: TransactionInput,
-  opts: { fromHoldingEdit?: boolean } = {}
+  opts: {
+    fromHoldingEdit?: boolean;
+    cashPromise?: Promise<number>;
+    holdingPromise?: Promise<{ shares?: number; purchase_date?: string | null } | null>;
+  } = {}
 ): Promise<string | null> {
   const today = aucklandDateISO();
   const date = movementCivilDay(input.trade_date || input.executed_at, today);
@@ -356,7 +360,6 @@ export async function movementRejectionForUser(
   }
 
   const fallbackCash = typeof user.cash_balance === "number" ? user.cash_balance : 0;
-  const cash = await readUserCash(user._id, fallbackCash);
   const openingCash = input.type === "opening_balance" && !hasTicker;
   const cashLine =
     input.type === "deposit" ||
@@ -364,11 +367,16 @@ export async function movementRejectionForUser(
     input.type === "dividend" ||
     input.type === "tax" ||
     openingCash;
+  const needsHolding =
+    hasTicker && (input.type === "sell" || input.type === "dividend" || input.type === "correction" || input.type === "buy");
+  const [cash, existing] = await Promise.all([
+    opts.cashPromise ?? readUserCash(user._id, fallbackCash),
+    needsHolding ? (opts.holdingPromise ?? findHolding(user._id, ticker, assetType)) : Promise.resolve(null),
+  ]);
 
   let held = 0;
   let purchaseDate: string | null = null;
-  if (hasTicker && (input.type === "sell" || input.type === "dividend" || input.type === "correction" || input.type === "buy")) {
-    const existing = await findHolding(user._id, ticker, assetType);
+  if (needsHolding) {
     held = Number(existing?.shares) || 0;
     purchaseDate = existing?.purchase_date ? String(existing.purchase_date) : null;
     if (input.type === "dividend" && !(held > 0) && (ticker === "GOLD" || ticker === "SILVER")) {
@@ -384,20 +392,21 @@ export async function movementRejectionForUser(
     }
   }
 
-  const firstBuyDate =
-    input.type === "sell" && ticker ? await earliestBuyDay(user._id, ticker, purchaseDate) : null;
   const price = cashLine ? Number(input.amount) || 0 : Number(input.price) || 0;
   const quantity = Number(input.quantity) || 0;
   const currency = cashLine ? "NZD" : currencyForTicker(ticker || "X", assetType);
   let fxRate = input.fx_rate;
-  if (!cashLine && currency !== "NZD" && !(fxRate && fxRate > 0)) {
-    try {
-      const fx = await getFxSnapshot();
-      fxRate = fx.ratesToNZD[currency];
-    } catch (err) {
-      console.error("[transactions] FX snapshot for the movement check failed:", err);
-    }
-  }
+  const needsFx = !cashLine && currency !== "NZD" && !(fxRate && fxRate > 0);
+  const [firstBuyDate, fxSnap] = await Promise.all([
+    input.type === "sell" && ticker ? earliestBuyDay(user._id, ticker, purchaseDate) : Promise.resolve(null),
+    needsFx
+      ? getFxSnapshot().catch((err) => {
+          console.error("[transactions] FX snapshot for the movement check failed:", err);
+          return null;
+        })
+      : Promise.resolve(null),
+  ]);
+  if (fxSnap) fxRate = fxSnap.ratesToNZD[currency];
   const previewHasAsset = input.type === "opening_balance" ? hasTicker : cashLine ? input.type === "dividend" && hasTicker : hasTicker;
   const preview = buildMovementPreview({
     type: input.type,
@@ -546,12 +555,17 @@ async function applyTransactionUnlocked(
   opts?: { fromHoldingEdit?: boolean; rejectionChecked?: boolean }
 ): Promise<TransactionResult> {
   const checkStarted = Date.now();
-  // The movement check reads cash and the holding. It runs beside those same
-  // reads instead of in front of them. rejectionChecked skips a second pass
-  // when the caller already did it.
-  const rejectionPromise = opts?.rejectionChecked
+  // Cash and the holding are read once and shared with the movement check.
+  const fallbackCash = typeof user.cash_balance === "number" ? user.cash_balance : 0;
+  const cashPromise = readUserCash(user._id, fallbackCash);
+  const sharedTicker = normalizeTicker(input.ticker || "");
+  const sharedAsset: TxAssetType = input.asset_type || "stock";
+  const holdingPromise = sharedTicker ? findHolding(user._id, sharedTicker, sharedAsset) : Promise.resolve(null);
+  const rejectionOpts = { ...opts, cashPromise, holdingPromise };
+  // The movement check runs beside the booking reads. rejectionChecked skips a second pass.
+  const rejectionPromise = rejectionOpts.rejectionChecked
     ? Promise.resolve(null as string | null)
-    : movementRejectionForUser(user, input, opts);
+    : movementRejectionForUser(user, input, rejectionOpts);
   let rejectionLogged = false;
   const takeRejection = async (): Promise<string | null> => {
     const rejection = await rejectionPromise;
@@ -562,11 +576,22 @@ async function applyTransactionUnlocked(
     return rejection;
   };
 
-  const fallbackCash = typeof user.cash_balance === "number" ? user.cash_balance : 0;
-  const cashPromise = readUserCash(user._id, fallbackCash);
   const resolved = resolveExecutedInstant(input.executed_at);
   const executedStored = resolved.stored;
   const notes = withIdempotencyNote(input.notes || "", input.idempotency_key);
+  const tradeDay = input.trade_date ? movementCivilDay(input.trade_date, resolved.civilDay) : resolved.civilDay;
+  const statedCurrency = input.fill_currency;
+  const bookingCurrency: CurrencyCode =
+    statedCurrency === "NZD" || statedCurrency === "AUD" || statedCurrency === "USD"
+      ? statedCurrency
+      : currencyForTicker(sharedTicker || "X", sharedAsset);
+  const datedFx =
+    input.type === "buy" || input.type === "sell" || input.type === "opening_balance" || input.type === "correction";
+  // The trade-date rate starts with cash and the holding. It is not fetched again later.
+  const historicalPromise =
+    !datedFx || bookingCurrency === "NZD"
+      ? Promise.resolve({ value: bookingCurrency === "NZD" ? (1 as number | null) : null, timedOut: false })
+      : firstWithin(historicalNzdPerUnit(bookingCurrency, tradeDay), 1200);
 
   // ---------- Cash-only movements (opening balance with a ticker is a holding) ----------
   const openingCash = input.type === "opening_balance" && !String(input.ticker || "").trim();
@@ -667,9 +692,6 @@ async function applyTransactionUnlocked(
   const fees = Math.max(0, Number(input.fees) || 0);
   if (quantity <= 0) throw new Error("Quantity must be greater than 0");
   if (price <= 0) throw new Error("Price must be greater than 0");
-
-  // The panel sends the reviewed day as executed_at. trade_date is optional.
-  const tradeDay = input.trade_date ? movementCivilDay(input.trade_date, resolved.civilDay) : resolved.civilDay;
 
   // Opening balance and corrections adjust the holding through the ledger.
   // They do not move cash and they do not replace the typed price with today's quote.
@@ -800,17 +822,8 @@ async function applyTransactionUnlocked(
     return { transaction: rec?.data, cashBalance: currentCash, realizedNZD: 0, holdingId: null };
   }
 
-  const statedCurrency = input.fill_currency;
-  const currency: CurrencyCode =
-    statedCurrency === "NZD" || statedCurrency === "AUD" || statedCurrency === "USD"
-      ? statedCurrency
-      : currencyForTicker(ticker, assetType);
+  const currency = bookingCurrency;
   const fxLivePromise = firstWithin(getFxSnapshot(), 450);
-  const historicalPromise =
-    currency === "NZD"
-      ? Promise.resolve({ value: 1 as number | null, timedOut: false })
-      : firstWithin(historicalNzdPerUnit(currency, tradeDay), 1200);
-  const holdingPromise = findHolding(user._id, ticker, assetType);
   const dupPromise =
     input.type === "buy"
       ? totalumSdk.crud.query("transaction", {
@@ -1464,8 +1477,10 @@ export interface TransactionLedger {
   incomeNZD?: number;
   /** Cost-weighted NZD rate still open on each ticker. Read from stored buy rates. */
   costFxByTicker?: Record<string, number>;
-  /** Quantity-weighted NZD rate still open on each ticker. The currency line uses this. */
+  /** Quantity-weighted NZD rate still open on each ticker. */
   qtyFxByTicker?: Record<string, number>;
+  /** Unrounded realised FX: Σ quantity closed × buy fill × (sell FX − buy FX). */
+  realisedFxNzd?: number;
 }
 
 /** One query serves the ledger page and the CSV. Paging happens in the UI. */
@@ -1492,6 +1507,7 @@ export function ledgerAfterBooking(
   const qtyFxByTicker: Record<string, number> = {};
   for (const [ticker, rate] of fifoRemainingCostFx(book)) costFxByTicker[ticker] = rate;
   for (const [ticker, rate] of fifoRemainingQtyFx(book)) qtyFxByTicker[ticker] = rate;
+  const realisedFxNzd = sumRealisedFxNzd(book);
   let incomeTotal = 0;
   for (const row of transactions) {
     if (row.type !== "dividend") continue;
@@ -1512,6 +1528,7 @@ export function ledgerAfterBooking(
     incomeNZD: round(incomeTotal),
     costFxByTicker,
     qtyFxByTicker,
+    realisedFxNzd,
   };
 }
 
@@ -1553,6 +1570,7 @@ async function loadLedgerFresh(user: AppUser, limit: number): Promise<Transactio
   const qtyFxByTicker: Record<string, number> = {};
   for (const [ticker, rate] of fifoRemainingCostFx(book)) costFxByTicker[ticker] = rate;
   for (const [ticker, rate] of fifoRemainingQtyFx(book)) qtyFxByTicker[ticker] = rate;
+  const realisedFxNzd = sumRealisedFxNzd(book);
   const summed = bookRows.length ? cashFromLedgerRows(bookRows) : storedCash;
   const cashBalance = Math.abs(summed - storedCash) < 0.02 ? summed : storedCash;
   let incomeTotal = 0;
@@ -1571,5 +1589,6 @@ async function loadLedgerFresh(user: AppUser, limit: number): Promise<Transactio
     incomeNZD: round(incomeTotal),
     costFxByTicker,
     qtyFxByTicker,
+    realisedFxNzd,
   };
 }
