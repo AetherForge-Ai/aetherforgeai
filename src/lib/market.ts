@@ -1,10 +1,8 @@
 /**
  * Lightweight market-data helper.
  *
- * This project has no external market-data API key, so we ship a curated
- * directory of well-known tickers (name, sector, a realistic reference price)
- * and simulate live price movement with a small random walk. When a user adds
- * an unknown ticker we still behave gracefully.
+ * Curated directory of well-known tickers (name, sector, a reference price).
+ * Live quotes come from the market-data feeds. This module does not invent a tick.
  *
  * Pure module — safe to import on both client and server.
  */
@@ -79,16 +77,3 @@ export function referencePrice(ticker: string, fallback: number): number {
   return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
-/**
- * Apply a bounded random-walk step to a price to simulate a market tick.
- * Deterministic-ish daily drift so a portfolio isn't uniformly red or green.
- */
-export function simulateTick(price: number): number {
-  if (!(price > 0) || !Number.isFinite(price)) return price;
-  const drift = (Math.random() - 0.48) * 0.035; // slight upward bias, ±~3.5%
-  const next = price * (1 + drift);
-  if (!(next > 0)) return price;
-  // Sub-cent prints stay at full precision. Prices from one cent keep 2 decimals.
-  if (next < 0.01) return Number(next.toPrecision(8));
-  return Math.round(next * 100) / 100;
-}

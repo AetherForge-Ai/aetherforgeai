@@ -650,3 +650,5 @@ pull-check:v3-retest13-2026-10-13
 pull-check:v3-dash-phase1-2026-10-13
 
 Retest 14 / TT r7 (#356): marker `pull-check:v3-retest14-2026-10-13`
+
+Retest 15 / synthetic-data removal (#357): marker `pull-check:v3-retest15-2026-10-13`

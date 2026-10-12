@@ -1,15 +1,11 @@
 /**
  * Market-intelligence engine.
  *
- * Institutional-grade, deterministic technical-analysis layer for AetherForge AI.
- * Ships a curated NZX / ASX / US universe and, for each security, synthesises a
- * realistic multi-month daily price series from a seeded RNG. From that series it
- * derives genuine technical indicators (SMA, RSI, MACD, Bollinger Bands), 1D/7D/30D
- * performance, a 7-day forward projection (linear regression + mean-reversion) and
- * an explicit BUY / SELL / HOLD signal with plain-English reasoning.
+ * Technicals, changes, projections and outlooks are computed only from a real
+ * daily-close series of at least 40 points. A shorter history returns the live
+ * price with those fields held.
  *
- * Pure module — no external API keys, safe to import on client AND server. The
- * seeded RNG keeps output stable across renders so charts never jump.
+ * Pure module — no external API keys, safe to import on client AND server.
  */
 
 import { formatMoney } from "@/lib/currency";
@@ -115,6 +111,25 @@ export interface SecurityIntel {
   conviction: ConvictionLevel; // explicit conviction bucket
   convictionReason: string; // short why for the conviction level
   reasoning: string;
+  /**
+   * Set when the row has fewer than 40 real closes. Technicals, changes,
+   * projections and the outlook are not a live read.
+   */
+  analysisHold?: string | null;
+  /** Windows whose change figures came from a real print or a real series. */
+  publishedChanges?: Array<"1d" | "7d" | "30d">;
+  /** Koins does not publish a 7-day figure, odds, conviction or an outlook. */
+  forwardOmitted?: boolean;
+}
+
+/** Shown when a 7-day or month read has no usable daily history. */
+export const NOT_ENOUGH_DAILY_HISTORY = "Not enough daily history";
+
+/** Card copy when a live holding has no series to analyse. */
+export const ANALYSIS_UNAVAILABLE = "Analysis unavailable — not enough market history";
+
+export function intelIsHeld(row: { analysisHold?: string | null } | null | undefined): boolean {
+  return typeof row?.analysisHold === "string" && row.analysisHold.length > 0;
 }
 
 /* ------------------------------ Universe -------------------------------- */
@@ -729,57 +744,9 @@ export function currencyForMarket(market: MarketCode): "NZD" | "AUD" | "USD" {
   return market === "NZX" ? "NZD" : market === "ASX" ? "AUD" : "USD";
 }
 
-/* --------------------------------- RNG ---------------------------------- */
-
-function hashSeed(str: string): number {
-  let h = 1779033703 ^ str.length;
-  for (let i = 0; i < str.length; i++) {
-    h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
-    h = (h << 13) | (h >>> 19);
-  }
-  return h >>> 0;
-}
-
-function mulberry32(seed: number) {
-  let a = seed;
-  return function () {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-// A single monthly-stable salt keeps the whole app's "market state" coherent
-// per calendar month without depending on Math.random / Date at import time.
-const MARKET_EPOCH = "aetherforge-2026-07";
-
 function round(v: number, dp = 2): number {
   const f = Math.pow(10, dp);
   return Math.round(v * f) / f;
-}
-
-/* ------------------------- Price-series synthesis ----------------------- */
-
-/**
- * Deterministic daily close series of `days` sessions, ending exactly at
- * `basePrice`. Uses a mild drift + volatility random walk seeded per ticker.
- */
-function dailySeries(ticker: string, basePrice: number, days = 140, volScale = 1): number[] {
-  const rnd = mulberry32(hashSeed(MARKET_EPOCH + "|" + ticker));
-  const drift = (rnd() - 0.45) * 0.6 * volScale; // total trend over the window
-  const vol = (0.012 + rnd() * 0.02) * volScale; // daily volatility (scaled for crypto)
-  const start = basePrice / (1 + drift);
-  const out: number[] = [];
-  let price = start;
-  for (let i = 0; i < days; i++) {
-    const step = drift / (days - 1) + (rnd() - 0.5) * vol * 2;
-    price = Math.max(0.01, price * (1 + step));
-    out.push(price);
-  }
-  out[out.length - 1] = basePrice; // pin the latest close to the quoted price
-  return out;
 }
 
 /* --------------------------- Technical indicators ----------------------- */
@@ -1156,7 +1123,82 @@ function deriveSignal(input: {
 
 /* --------------------------- Per-security intel ------------------------- */
 
-const CACHE = new Map<string, SecurityIntel>();
+const REAL_SERIES_MIN = 40;
+
+function blankCase(label: OutlookCase["label"]): OutlookCase {
+  return { label, lowPct: 0, highPct: 0, lowPrice: 0, highPrice: 0, probability: 0 };
+}
+
+function blankOutlook(): ProbabilisticOutlook {
+  return {
+    horizonDays: 7,
+    expectedPct: 0,
+    sigma7Pct: 0,
+    regime: "Range-Bound",
+    base: blankCase("Base"),
+    bull: blankCase("Bull"),
+    bear: blankCase("Bear"),
+  };
+}
+
+function cleanSeries(series: number[] | undefined): number[] | undefined {
+  if (!series || series.length < REAL_SERIES_MIN) return undefined;
+  const clean = series.filter((point) => isFinite(point) && point > 0);
+  return clean.length >= REAL_SERIES_MIN ? clean : undefined;
+}
+
+/** Live price only. Technicals, changes, projections and the outlook stay blank. */
+function heldSecurity(
+  ticker: string,
+  price: number,
+  name: string,
+  market: MarketCode,
+  sector: string
+): SecurityIntel {
+  const assetClass = assetClassForMarket(market);
+  const dp = price > 0 && price < 5 ? 4 : 2;
+  return {
+    ticker,
+    name,
+    sector,
+    market,
+    assetClass,
+    currency: currencyForMarket(market),
+    price: price > 0 ? round(price, dp) : 0,
+    change1d: 0,
+    change7d: 0,
+    change30d: 0,
+    history: [],
+    projection: [],
+    projected7dPct: 0,
+    confidence: 0,
+    rsi: 0,
+    macd: 0,
+    macdSignalLine: 0,
+    macdHistogram: 0,
+    macdSignal: "Neutral",
+    bbPosition: 0,
+    sma20: 0,
+    vsSma20: 0,
+    sma50: 0,
+    vsSma50: 0,
+    atrPct: 0,
+    realizedVolPct: 0,
+    dailyVolPct: 0,
+    regime: "Range-Bound",
+    support: 0,
+    resistance: 0,
+    pivot: 0,
+    outlook: blankOutlook(),
+    signal: "Hold",
+    score: 0,
+    conviction: "Low",
+    convictionReason: NOT_ENOUGH_DAILY_HISTORY,
+    reasoning: NOT_ENOUGH_DAILY_HISTORY,
+    analysisHold: NOT_ENOUGH_DAILY_HISTORY,
+    publishedChanges: [],
+  };
+}
 
 /** Full technical intelligence for one ticker. Overridable current price. */
 export function analyzeSecurity(
@@ -1165,31 +1207,13 @@ export function analyzeSecurity(
   nameOverride?: string,
   marketOverride?: MarketCode,
   /**
-   * REAL recent daily-close series (oldest→newest) from the live provider. When
-   * supplied with enough points, ALL technical intelligence — RSI, MACD, SMAs,
-   * realised change (1d/7d/30d) and the 7-day ridge projection — is computed from
-   * the security's ACTUAL price action instead of the synthetic seeded walk. This
-   * is what makes signals and projections track real momentum and change as the
-   * market moves.
+   * Real daily closes, oldest to newest. Fewer than 40 positive closes holds
+   * the row: live price only, no technicals, changes, projection or outlook.
    */
   seriesOverride?: number[]
 ): SecurityIntel {
-  // Real-series analyses are never cached (the series changes intraday and the
-  // key would churn); deterministic/price-only analyses keep the fast cache.
-  const cleanReal =
-    seriesOverride && seriesOverride.length >= 40
-      ? seriesOverride.filter((p) => isFinite(p) && p > 0)
-      : undefined;
-  const useReal = !!cleanReal && cleanReal.length >= 40;
-
-  const key = `${ticker}|${priceOverride ?? ""}|${marketOverride ?? ""}`;
-  if (!useReal) {
-    const cached = CACHE.get(key);
-    if (cached) return cached;
-  }
-
-  const entry = UNIVERSE_MAP[ticker];
-  const base = priceOverride ?? entry?.basePrice ?? 100;
+  const cleanReal = cleanSeries(seriesOverride);
+  const entry = UNIVERSE_MAP[ticker] ?? UNIVERSE_MAP[ticker.toUpperCase()];
   const market: MarketCode =
     entry?.market ??
     marketOverride ??
@@ -1197,22 +1221,18 @@ export function analyzeSecurity(
   const assetClass = assetClassForMarket(market);
   const name = nameOverride ?? entry?.name ?? ticker;
   const sector = entry?.sector ?? (assetClass === "crypto" ? "Digital Assets" : "General");
+  const livePrice =
+    priceOverride && priceOverride > 0
+      ? priceOverride
+      : cleanReal
+        ? cleanReal[cleanReal.length - 1]
+        : 0;
 
-  // Crypto swings ~2.2x harder than equities — feed that into the synthetic
-  // series and the ridge projection so signals reflect 24/7 volatility.
+  if (!cleanReal) return heldSecurity(ticker, livePrice, name, market, sector);
+
   const volScale = assetClass === "crypto" ? 2.2 : 1;
-
-  // Prefer the REAL close series; pin its final point to the live intraday price
-  // when one is supplied so the analysis and the ticker quote stay consistent.
-  let series: number[];
-  if (useReal && cleanReal) {
-    series =
-      priceOverride && priceOverride > 0
-        ? [...cleanReal.slice(0, -1), priceOverride]
-        : cleanReal;
-  } else {
-    series = dailySeries(ticker, base, 140, volScale);
-  }
+  const series =
+    priceOverride && priceOverride > 0 ? [...cleanReal.slice(0, -1), priceOverride] : cleanReal;
   const last = series[series.length - 1];
   const prev = series[series.length - 2] ?? last;
   const wk = series[series.length - 8] ?? last;
@@ -1310,20 +1330,17 @@ export function analyzeSecurity(
     conviction: conviction.level,
     convictionReason: conviction.reason,
     reasoning,
+    analysisHold: null,
+    publishedChanges: ["1d", "7d", "30d"],
   };
-  const aligned = alignProjectedFigures(intel);
-  if (!useReal) CACHE.set(key, aligned);
-  return aligned;
+  return alignProjectedFigures(intel);
 }
 
 /* ------------------------------ Aggregations ---------------------------- */
 
-const ALL_INTEL: Partial<Record<AssetClass, SecurityIntel[]>> = {};
-function allIntel(assetClass: AssetClass = "stock"): SecurityIntel[] {
-  if (!ALL_INTEL[assetClass]) {
-    ALL_INTEL[assetClass] = universeFor(assetClass).map((e) => analyzeSecurity(e.ticker));
-  }
-  return ALL_INTEL[assetClass]!;
+/** No directory board. A live report supplies prices and closes. */
+function allIntel(): SecurityIntel[] {
+  return [];
 }
 
 /**
@@ -1335,9 +1352,10 @@ function allIntel(assetClass: AssetClass = "stock"): SecurityIntel[] {
 export const LIVE_COVERAGE_FLOOR = 0.4;
 
 /**
- * Analyse a whole universe, anchoring each security to a live price (from the
- * market-data / CoinGecko provider). With no overrides this returns the cached
- * deterministic set. Keyed by the internal ticker (e.g. "BHP.AX").
+ * Analyse a whole universe, anchoring each security to a live price.
+ * With no live prices and no histories this returns nothing. A priced name
+ * with fewer than 40 closes stays on the board as held. Keyed by the internal
+ * ticker (e.g. "BHP.AX").
  *
  * SELF-CLEANING: when live prices are supplied we return ONLY the securities
  * that came back with a genuine live quote today, so any delisted / suspended /
@@ -1362,7 +1380,7 @@ export function analyzeUniverse(
   const universe = universeFor(assetClass);
   const hasPrices = !!priceOverrides && Object.keys(priceOverrides).length > 0;
   const hasHist = !!historyOverrides && Object.keys(historyOverrides).length > 0;
-  if (!hasPrices && !hasHist) return allIntel(assetClass);
+  if (!hasPrices && !hasHist) return [];
 
   const priced = universe.map((e) => {
     const raw = priceOverrides?.[e.ticker] ?? priceOverrides?.[e.ticker.toUpperCase()];
@@ -1412,7 +1430,9 @@ export function getTopMovers(
   list: SecurityIntel[] = allIntel()
 ): { gainers: SecurityIntel[]; losers: SecurityIntel[] } {
   const key = window === "1d" ? "change1d" : window === "7d" ? "change7d" : "change30d";
-  const sorted = [...list].sort((a, b) => (b[key] as number) - (a[key] as number));
+  const sorted = list
+    .filter((row) => !intelIsHeld(row) && (row.publishedChanges ? row.publishedChanges.includes(window) : true))
+    .sort((a, b) => (b[key] as number) - (a[key] as number));
   return {
     gainers: sorted.slice(0, count),
     losers: sorted.slice(-count).reverse(),
@@ -1421,7 +1441,7 @@ export function getTopMovers(
 
 /** Highest-conviction 7-day projected movers across the whole universe. */
 export function getProjectionLeaders(count = 6, list: SecurityIntel[] = allIntel()): SecurityIntel[] {
-  return rankByConfidenceWeightedMove(list).slice(0, count);
+  return rankByConfidenceWeightedMove(list.filter((row) => !intelIsHeld(row) && !row.forwardOmitted)).slice(0, count);
 }
 
 /**
@@ -1431,7 +1451,7 @@ export function getProjectionLeaders(count = 6, list: SecurityIntel[] = allIntel
  * dashboard's overall "Projected Movers" ranking reflects real market breadth.
  */
 export function getProjectionMovers(count = 15, list: SecurityIntel[] = allIntel()): SecurityIntel[] {
-  return [...list]
+  return list.filter((row) => !intelIsHeld(row) && !row.forwardOmitted)
     .sort(
       (a, b) =>
         Math.abs(b.projected7dPct) * (b.confidence / 100) -
@@ -1449,7 +1469,7 @@ export function getProjectionMovers(count = 15, list: SecurityIntel[] = allIntel
  * names — and it re-ranks as the market moves.
  */
 export function getTopPerformers(count = 15, list: SecurityIntel[] = allIntel()): SecurityIntel[] {
-  return [...list]
+  return list.filter((row) => !intelIsHeld(row) && !row.forwardOmitted)
     .map((s) => ({
       s,
       rank: s.projected7dPct * (s.confidence / 100) + s.change30d * 0.05 + s.change7d * 0.08,

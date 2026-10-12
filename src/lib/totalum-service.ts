@@ -93,7 +93,7 @@ function stripMd(s: string): string {
   return (s || "").replace(/\*\*/g, "").replace(/_/g, "").trim();
 }
 
-function summariseReport(
+export function summariseReport(
   bot: BotKind,
   report: ApexReport,
   generatedAt: string
@@ -101,7 +101,9 @@ function summariseReport(
   const label = bot === "crypto" ? "KOINS (crypto)" : "STOX (equities)";
   const marketTag = bot === "crypto" ? "Koins (crypto)" : "Stox (equities)";
 
-  const ideas: ReportBuy[] = (report.directRecommendations || []).map((r) => ({
+  const ideas: ReportBuy[] = (report.directRecommendations || [])
+    .filter((r) => !r.analysisHold)
+    .map((r) => ({
     ticker: r.ticker,
     name: r.name,
     market: marketTag,
@@ -120,7 +122,7 @@ function summariseReport(
   ].join("\n");
 
   const qualifying = (report.directRecommendations || []).filter(
-    (row) => !row.held && (row.action === "BUY" || row.action === "ACCUMULATE") && row.projected7dPct > 0
+    (row) => !row.analysisHold && !row.held && (row.action === "BUY" || row.action === "ACCUMULATE") && row.projected7dPct > 0
   ).length;
   const notSized = (report.notSized || []).map((row) => `${row.ticker} (${row.reason})`);
 

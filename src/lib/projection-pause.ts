@@ -7,7 +7,11 @@
 export const CRYPTO_PROJECTIONS_PAUSED = true;
 
 export const CRYPTO_PROJECTIONS_PAUSE_MESSAGE =
-  "Crypto projections on this page are paused while a data issue is fixed. Koins still writes a 7-day illustrative outlook on a book that has positions. Live coin prices stay on Markets.";
+  "Crypto projections are paused. Koins does not publish a 7-day figure, odds, conviction, or a bull, base, or bear outlook. Live coin prices stay on Markets.";
+
+/** Koins report projection list. The section stays; the figures do not. */
+export const KOINS_PROJECTIONS_OMITTED =
+  "Crypto projections are paused. This list does not publish a 7-day figure, odds, conviction, or a bull, base, or bear outlook.";
 
 export function isCryptoProjectionRow(row: { market?: string | null; assetClass?: string | null }): boolean {
   return row.market === "CRYPTO" || row.assetClass === "crypto";

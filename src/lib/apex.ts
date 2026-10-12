@@ -17,9 +17,15 @@ import {
   marketsForAssetClass,
   currencyForMarket,
   universeFor,
+  intelIsHeld,
+  NOT_ENOUGH_DAILY_HISTORY,
+  ANALYSIS_UNAVAILABLE,
   type MarketCode,
   type SecurityIntel,
 } from "./market-intel";
+
+/** Public sample reports carry this sentence. A signed-in live report does not. */
+export const ILLUSTRATIVE_DEMO_LABEL = "Illustrative demo — not real market data.";
 import {
   currencyForTicker,
   baseCurrencyForBot,
@@ -103,6 +109,8 @@ export interface TickerAnalysis {
   priceUnavailable?: boolean;
   /** 24-hour move failed the quote check. Show "data under review", not changePct. */
   changeWithheld?: boolean;
+  /** No real series. The card keeps the price and does not show a model path. */
+  analysisUnavailable?: boolean;
   /** 7-day base range, stated odds, bear-band kill price, and recent realised vol. */
   call?: {
     horizon: string;
@@ -181,6 +189,8 @@ export interface DirectRecommendation {
   baseRange?: string;
   urgency: "high" | "medium" | "low";
   held: boolean; // true if this is a current holding, false for new buy candidates
+  /** Set when the name has no usable daily history. Headmaster picks skip it. */
+  analysisHold?: string | null;
 }
 
 /** A forward pathway with concrete step-by-step actions. */
@@ -398,13 +408,71 @@ function synthesizeTicker(
 /* --------------------- Advanced-section computation --------------------- */
 
 /** Per-asset card built from the same SecurityIntel the recommendations use. */
-function tickerFromIntel(intel: SecurityIntel, _bot: BotKind): TickerAnalysis {
+function unavailableAnalysis(ticker: string, name: string, price: number): TickerAnalysis {
+  const quoted = price > 0 ? round(price, price < 5 ? 4 : 2) : 0;
+  return {
+    ticker,
+    name,
+    price: quoted,
+    changePct: 0,
+    changeWithheld: true,
+    analysisUnavailable: true,
+    signal: "Watch",
+    sentiment: 0,
+    momentum: quoted > 0 ? [{ label: "Now", value: quoted }] : [],
+    momentum12moPct: 0,
+    shortTerm: [],
+    pathways: [],
+    note: ANALYSIS_UNAVAILABLE,
+  };
+}
+
+function heldCryptoAnalysis(intel: SecurityIntel): TickerAnalysis {
+  const dayPublished = !!intel.publishedChanges?.includes("1d");
+  return {
+    ticker: intel.ticker,
+    name: intel.name,
+    price: intel.price,
+    changePct: dayPublished ? intel.change1d : 0,
+    changeWithheld: !dayPublished,
+    signal: "Watch",
+    sentiment: 0,
+    momentum: intel.price > 0 ? [{ label: "Now", value: intel.price }] : [],
+    momentum12moPct: 0,
+    shortTerm: [],
+    pathways: [],
+    note: `${intel.ticker} — ${NOT_ENOUGH_DAILY_HISTORY}. No 7-day projection is published.`,
+  };
+}
+
+function tickerFromIntel(intel: SecurityIntel, bot: BotKind): TickerAnalysis {
+  const cryptoCard = intel.forwardOmitted || bot === "crypto";
+  if (intelIsHeld(intel) && cryptoCard) return heldCryptoAnalysis(intel);
+  if (intelIsHeld(intel)) return unavailableAnalysis(intel.ticker, intel.name, intel.price);
   const rated = labelIntel(intel);
   const aligned = alignedProjection(intel);
   const rating = rateAsset(rated);
   const bare = rateAsset({ signal: rated.signal, macdSignal: rated.macdSignal, regime: rated.regime });
   const history = intel.history.length ? intel.history : [{ label: "Now", price: intel.price }];
   const momentum: MomentumPoint[] = history.map((p) => ({ label: p.label, value: p.price }));
+  if (intel.forwardOmitted || bot === "crypto") {
+    const dayPublished = !intel.publishedChanges || intel.publishedChanges.includes("1d");
+    return {
+      ticker: intel.ticker,
+      name: intel.name,
+      price: intel.price,
+      changePct: dayPublished ? intel.change1d : 0,
+      changeWithheld: !dayPublished,
+      signal: rating.cardSignal,
+      sentiment: 0,
+      momentum,
+      momentum12moPct: intel.publishedChanges?.includes("30d") ? intel.change30d : 0,
+      momentumLabel: intel.history.length ? "Recent price path" : undefined,
+      shortTerm: [],
+      pathways: [],
+      note: `${intel.ticker} — ${intel.regime}, MACD ${intel.macdSignal}, RSI ${intel.rsi}. No 7-day projection is published.`,
+    };
+  }
   let remaining = aligned.pct;
   const shortTerm: DayPrediction[] = [];
   for (let d = 1; d <= 7; d++) {
@@ -517,6 +585,12 @@ export interface MarketsCrossCheck {
   changePct?: Record<string, number>;
   /** Previous run's session percent and price. */
   prior?: Record<string, { changePct: number; price: number }>;
+  /** Daily closes, oldest to newest, keyed by ticker. Checked against 7-day and month bases. */
+  dailyCloses?: Record<string, number[]>;
+  /** Adjusted closes aligned with `dailyCloses` for the same ticker. */
+  adjustedCloses?: Record<string, number[]>;
+  /** When set, a 7-day or month print with no daily series is held. */
+  requireDailySeries?: boolean;
 }
 
 function reviewedWindow(
@@ -530,6 +604,11 @@ function reviewedWindow(
   const previous = row.history.length >= 2 ? row.history[row.history.length - 2]?.price : undefined;
   const key = row.ticker.trim().toUpperCase();
   const prior = window === "1d" ? cross?.prior?.[key] : undefined;
+  const dailyCloses = cross?.dailyCloses?.[key] ?? cross?.dailyCloses?.[row.ticker];
+  const adjustedCloses = cross?.adjustedCloses?.[key] ?? cross?.adjustedCloses?.[row.ticker];
+  const series =
+    dailyCloses ??
+    (window !== "1d" && cross?.requireDailySeries && row.assetClass !== "crypto" ? [] : undefined);
   return book.review({
     ticker: row.ticker,
     assetClass: row.assetClass === "crypto" ? "crypto" : "stock",
@@ -543,6 +622,8 @@ function reviewedWindow(
     priorChangePct: prior?.changePct,
     priorPrice: prior?.price,
     dailyVolPct: row.dailyVolPct,
+    dailyCloses: series,
+    adjustedCloses,
   });
 }
 
@@ -583,10 +664,11 @@ function buildMarketMovers(
         const window = w.key === "change1d" ? "1d" : w.key === "change7d" ? "7d" : "30d";
         const reviewedRows = inMarket.map((s) => {
           const reported = s[w.key] as number;
+          const published = s.publishedChanges ? s.publishedChanges.includes(window) : !intelIsHeld(s);
           const marketsPct = window === "1d" ? cross?.changePct?.[s.ticker.trim().toUpperCase()] : undefined;
-          const matched = printMatchesMarketsQuote(reported, marketsPct);
-          const reviewed = reviewedWindow(book, s, window, cross);
-          const withheld = matched ? false : (reviewed?.withheld ?? false);
+          const matched = published && printMatchesMarketsQuote(reported, marketsPct);
+          const reviewed = published ? reviewedWindow(book, s, window, cross) : null;
+          const withheld = !published || (matched ? false : (reviewed?.withheld ?? false));
           const changePct = withheld ? 0 : Number((matched ? reported : (reviewed?.changePct ?? reported)).toFixed(2));
           return {
             ticker: s.ticker,
@@ -688,6 +770,7 @@ function buildProjectionLeaders(
   if (!hasIntel && !hasLive && !allowSynthetic) return [];
   const list = (hasIntel ? universeIntel! : analyzeUniverse(overrides, bot))
     .map((row) => labelIntel(row))
+    .filter((row) => !intelIsHeld(row) && !row.forwardOmitted)
     .filter((row) => !quoteUnderReview(book, row, cross));
   const reasonByTicker = new Map(notSized.map((row) => [row.ticker.toUpperCase(), row.reason]));
   const eligible = list.filter(
@@ -805,6 +888,49 @@ function buildDirectRecommendations(
       intelByTicker.get(h.ticker.toUpperCase()) ??
         analyzeSecurity(h.ticker, h.price > 0 ? h.price : undefined, h.name, h.market)
     );
+    if (intelIsHeld(intel)) {
+      const publishedTape =
+        intel.forwardOmitted || bot === "crypto"
+          ? [
+              intel.publishedChanges?.includes("1d")
+                ? `24h ${intel.change1d >= 0 ? "+" : ""}${intel.change1d.toFixed(2)}%`
+                : "",
+              intel.publishedChanges?.includes("7d")
+                ? `7d ${intel.change7d >= 0 ? "+" : ""}${intel.change7d.toFixed(2)}%`
+                : "",
+            ]
+              .filter(Boolean)
+              .join(" · ")
+          : "";
+      return {
+        ticker: h.ticker,
+        name: h.name,
+        currency: h.currency,
+        price: intel.price > 0 ? intel.price : h.price,
+        projected7dPct: 0,
+        held: true,
+        action: "HOLD" as const,
+        urgency: "low" as const,
+        detail: publishedTape
+          ? `${h.ticker} — ${publishedTape}. ${NOT_ENOUGH_DAILY_HISTORY}. No 7-day projection is published.`
+          : `${h.ticker} — ${NOT_ENOUGH_DAILY_HISTORY}`,
+        analysisHold: NOT_ENOUGH_DAILY_HISTORY,
+      };
+    }
+    if (intel.forwardOmitted || bot === "crypto") {
+      const rating = rateAsset(intel);
+      return {
+        ticker: h.ticker,
+        name: h.name,
+        currency: h.currency,
+        price: intel.price,
+        projected7dPct: 0,
+        held: true,
+        action: rating.action,
+        urgency: rating.action === "SELL" ? ("high" as const) : rating.action === "TRIM" ? ("medium" as const) : ("low" as const),
+        detail: `${rating.action === "HOLD" ? "Hold" : rating.action} ${h.ticker} — ${intel.regime}, MACD ${intel.macdSignal}, RSI ${intel.rsi}. No 7-day projection is published.`,
+      };
+    }
     const aligned = alignedProjection(intel);
     const rating = rateAsset(intel);
     const bare = rateAsset({ signal: intel.signal, macdSignal: intel.macdSignal, regime: intel.regime });
@@ -844,8 +970,9 @@ function buildDirectRecommendations(
           if (liveBook && live == null) return [];
           // Directory seed is not an actionable price unless a live print replaced it.
           if (priceMatchesUniverseSeed(i.ticker, i.price) && live == null) return [];
+          if (intelIsHeld(i) || i.forwardOmitted) return [];
           if (live != null && Math.abs(live - i.price) > 1e-6) {
-            return [labelIntel(analyzeSecurity(i.ticker, live, i.name, i.market))];
+            return [labelIntel({ ...i, price: live })];
           }
           return [labelIntel(i)];
         })
@@ -857,6 +984,7 @@ function buildDirectRecommendations(
             // quote the synthetic basePrice when Yahoo/the feed has no print.
             if (liveBook && live == null) return [];
             const intel = labelIntel(analyzeSecurity(e.ticker, live, e.name, e.market));
+            if (intelIsHeld(intel) || intel.forwardOmitted) return [];
             if (priceMatchesUniverseSeed(e.ticker, intel.price) && live == null) return [];
             return [intel];
           });
@@ -968,17 +1096,20 @@ function buildPathwayPlan(
       analyzeSecurity(h.ticker, h.price > 0 ? h.price : undefined, h.name, h.market),
     value: (h.shares || 0) * (h.price || 0),
   }));
-  const totalValue = enriched.reduce((s, e) => s + e.value, 0);
+  const readable = enriched.filter((entry) => !intelIsHeld(entry.intel) && !entry.intel.forwardOmitted);
+  const totalValue = readable.reduce((s, e) => s + e.value, 0);
   const alpha =
-    totalValue > 0
-      ? round(
-          enriched.reduce((s, e) => s + (e.value / totalValue) * alignedProjection(e.intel).pct, 0),
-          2
-        )
-      : round(
-          enriched.reduce((s, e) => s + alignedProjection(e.intel).pct, 0) / Math.max(enriched.length, 1),
-          2
-        );
+    bot === "crypto" || readable.length === 0
+      ? 0
+      : totalValue > 0
+        ? round(
+            readable.reduce((s, e) => s + (e.value / totalValue) * alignedProjection(e.intel).pct, 0),
+            2
+          )
+        : round(
+            readable.reduce((s, e) => s + alignedProjection(e.intel).pct, 0) / Math.max(readable.length, 1),
+            2
+          );
 
   const sells = recs.filter((r) => r.held && (r.action === "SELL" || r.action === "TRIM"));
   const strongs = recs.filter((r) => r.action === "ACCUMULATE");
@@ -991,7 +1122,10 @@ function buildPathwayPlan(
   // manageable risk → balanced; otherwise balanced as the sensible default.
   let recommendedName: string;
   let recommendationNote: string;
-  if (guard && guard.mode !== "full") {
+  if (bot === "crypto") {
+    recommendedName = "Balanced Growth";
+    recommendationNote = "Crypto projections are paused. This report does not publish a 7-day outlook.";
+  } else if (guard && guard.mode !== "full") {
     recommendedName = guard.mode === "defensive" || sells.length > 0 ? "Capital Preservation" : "Balanced Growth";
     recommendationNote = guard.headline;
   } else if (holdings.length === 0 && buys.length > 0) {
@@ -1036,7 +1170,9 @@ function buildPathwayPlan(
       probability: 58,
       summary: "Hold the core, act on the strongest signals and keep diversification intact.",
       steps: [
-        balancedGrowthStep(round(alpha, 2), topBuy?.ticker ?? null, bot),
+        bot === "crypto"
+          ? "No 7-day projection is published. This pathway does not name a target."
+          : balancedGrowthStep(round(alpha, 2), topBuy?.ticker ?? null, bot),
         sells[0]
           ? `Reduce ${sells[0].ticker} on the flagged weakness and redeploy the proceeds.`
           : "Maintain current weights — no urgent exits are required this week.",
@@ -1292,7 +1428,7 @@ function assembleReport(
     bot,
     title: bot === "crypto" ? "Koins · Crypto Market Intelligence Monitor" : "Stox · Stock Market Intelligence Monitor",
     marketLabel,
-    generatedLabel: isDemo ? "Sample report · illustrative data" : "Live report",
+    generatedLabel: isDemo ? ILLUSTRATIVE_DEMO_LABEL : "Live report",
     isDemo,
     engine: isDemo ? ZENITH_STATE_LABEL : memberBotLabel(bot),
     executiveSummary,
@@ -1487,7 +1623,6 @@ export function buildLiveReport(
   options: BuildLiveReportOptions = {}
 ): ApexReport {
   const {
-    seedSalt = "live",
     fxToNZD = BASELINE_FX_TO_NZD,
     marketOverrides,
     universeIntel,
@@ -1513,7 +1648,7 @@ export function buildLiveReport(
       }
       const intel = intelByTicker.get(h.ticker.toUpperCase());
       if (intel) return tickerFromIntel(intel, bot);
-      return synthesizeTicker(h.ticker, h.name || h.ticker, Math.max(0.01, h.price || 1), bot, seedSalt);
+      return unavailableAnalysis(h.ticker, h.name || h.ticker, h.price);
     });
 
   const analyzable = toAnalyzable(bot, holdings);

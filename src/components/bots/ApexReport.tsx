@@ -82,13 +82,13 @@ function TickerCard({ t, scrub }: { t: TickerAnalysis; scrub: boolean }) {
         </div>
         <div className="text-right">
           <div className="font-mono text-sm">{formatUnitPrice(t.price, currencyForTicker(t.ticker))}</div>
-          <div className={`text-xs ${t.changeWithheld ? "text-muted-foreground" : pctTone(t.changePct)}`}>
-            {t.changeWithheld ? "data under review" : `${formatPercent(t.changePct)} today`}
+          <div className={`text-xs ${t.changeWithheld || t.analysisUnavailable ? "text-muted-foreground" : pctTone(t.changePct)}`}>
+            {t.analysisUnavailable ? "Not enough daily history" : t.changeWithheld ? "data under review" : `${formatPercent(t.changePct)} today`}
           </div>
         </div>
       </div>
 
-      {/* 12-month continuation graph */}
+      {t.analysisUnavailable || t.momentum.length < 2 ? null : (
       <div className="mt-3">
         <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
           <span className="min-w-0">{t.momentumLabel ?? "12-month continuation / momentum"}</span>
@@ -100,8 +100,13 @@ function TickerCard({ t, scrub }: { t: TickerAnalysis; scrub: boolean }) {
           <MomentumChart series={t.momentum} positive={t.momentum12moPct >= 0} />
         </div>
       </div>
+      )}
 
-      {/* 7-day short-term predictions */}
+      {t.analysisUnavailable ? (
+        <p className="mt-3 text-sm text-muted-foreground">{t.note}</p>
+      ) : null}
+
+      {t.shortTerm.length > 0 ? (
       <div className="mt-3">
         <div className="text-[11px] text-muted-foreground mb-1">7-day illustrative scenario</div>
         <div className="grid grid-cols-7 gap-1">
@@ -116,8 +121,9 @@ function TickerCard({ t, scrub }: { t: TickerAnalysis; scrub: boolean }) {
           ))}
         </div>
       </div>
+      ) : null}
 
-      {/* 3 forward pathways */}
+      {t.pathways.length > 0 ? (
       <div className="mt-3 grid gap-1.5 sm:grid-cols-3">
         {t.pathways.map((p) => (
           <div key={p.name} className="rounded-md border border-border/50 bg-background/40 p-2">
@@ -130,8 +136,11 @@ function TickerCard({ t, scrub }: { t: TickerAnalysis; scrub: boolean }) {
           </div>
         ))}
       </div>
+      ) : null}
 
+      {t.analysisUnavailable ? null : (
       <p className="mt-3 text-xs leading-relaxed text-muted-foreground/90">{shownCopy(t.note, scrub)}</p>
+      )}
     </div>
   );
 }
@@ -213,13 +222,17 @@ function MarketMoversSection({ report }: { report: ApexReport }) {
 
 /** Top-10 highest-conviction 7-day forward projections. */
 function ProjectionLeadersSection({ report }: { report: ApexReport }) {
-  if (!report.projectionLeaders?.length) return null;
+  if (!report.projectionLeaders?.length && !report.koinsUnavailableNote) return null;
   return (
     <div className="rounded-xl border border-border/60 bg-card/40 p-4">
       <div className="mb-2 text-sm font-semibold">Next 7 days · Top-10 projected movers</div>
-      <p className="mb-2 text-xs text-muted-foreground">{PROJECTION_RANK_NOTE}</p>
+      {report.koinsUnavailableNote ? (
+        <p className="mb-2 text-xs text-muted-foreground">{report.koinsUnavailableNote}</p>
+      ) : (
+        <p className="mb-2 text-xs text-muted-foreground">{PROJECTION_RANK_NOTE}</p>
+      )}
       <div className="space-y-1">
-        {report.projectionLeaders.map((r, i) => (
+        {(report.projectionLeaders ?? []).map((r, i) => (
           <div key={r.ticker} className="text-sm text-muted-foreground">
             <span className="font-medium text-foreground">{projectionLeaderLine(i + 1, r)}</span>
           </div>
@@ -340,14 +353,16 @@ function PathwayPlanSection({ report }: { report: ApexReport }) {
     >
       <div className="flex items-center justify-between text-[10px] uppercase tracking-wide text-muted-foreground">
         <span>
-          {p.risk} · {p.probability}%
+          {report.bot === "crypto" ? p.risk : `${p.risk} · ${p.probability}%`}
         </span>
         {p.recommended && <span className="font-bold text-primary">★ Illustrative</span>}
       </div>
       <div className="mt-0.5 text-sm font-semibold">{p.name}</div>
+      {report.bot === "crypto" ? null : (
       <div className={`text-base font-bold ${pctTone(p.targetPct)}`}>
         {formatPercent(p.targetPct)} <span className="text-[10px] font-normal text-muted-foreground">7-day target</span>
       </div>
+      )}
       <p className="mt-1 text-[11px] leading-snug text-muted-foreground">{p.summary}</p>
       <ol className="mt-2 list-decimal space-y-1 pl-4 text-[11px] leading-snug text-foreground/90">
         {p.steps.map((s, i) => (
@@ -438,12 +453,16 @@ function BriefingSection({ report }: { report: ApexReport }) {
         <Badge variant="outline" className={biasTone}>
           {b.overall.bias} bias
         </Badge>
-        <Badge variant="outline" className={convTone(b.overall.level)}>
-          {b.overall.level} conviction
-        </Badge>
+        {report.bot === "crypto" ? null : (
+          <Badge variant="outline" className={convTone(b.overall.level)}>
+            {b.overall.level} conviction
+          </Badge>
+        )}
+        {report.bot === "crypto" ? null : (
         <Badge variant="outline" className="border-border/60 text-muted-foreground">
           Net {b.overall.score}/100
         </Badge>
+        )}
         <Badge variant="outline" className={sentTone}>
           Sentiment {b.sentiment.label} {b.sentiment.score}/100
         </Badge>
@@ -543,7 +562,7 @@ function BriefingSection({ report }: { report: ApexReport }) {
 export function ApexReportView({ report: source, scrubCopy = false }: { report: ApexReport; scrubCopy?: boolean }) {
   // Stored View, including recommendation rows, always re-applies the cash guard.
   const report = labelMemberReport(sanitizeGuardedReport(source));
-  const underReview = report.bot === "stock" ? memberUnderReviewLines(report) : [];
+  const underReview = memberUnderReviewLines(report);
   return (
     <div className="min-w-0 max-w-full space-y-5 overflow-x-hidden">
       {/* Header */}
@@ -563,6 +582,12 @@ export function ApexReportView({ report: source, scrubCopy = false }: { report: 
           {report.generatedLabel}
         </Badge>
       </div>
+
+      {report.isDemo ? (
+        <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-800">
+          Illustrative demo — not real market data.
+        </p>
+      ) : null}
 
       {underReview.length ? (
         <section className="rounded-xl border border-border/60 bg-card/40 p-4" aria-label="Under review">

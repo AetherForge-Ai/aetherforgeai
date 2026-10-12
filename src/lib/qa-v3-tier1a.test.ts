@@ -242,7 +242,7 @@ describe("U3 U7 V1 P1 snapshot", () => {
       now
     );
     expect(uniform.projectionLeaders).toEqual([]);
-    expect(uniform.koinsUnavailableNote).toBe(koinsUnavailableLine(fresh));
+    expect(uniform.koinsUnavailableNote).toMatch(/does not publish a 7-day figure/);
   });
 
   it("runs one Confirm for one idempotency key", async () => {

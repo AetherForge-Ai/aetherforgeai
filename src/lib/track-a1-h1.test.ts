@@ -89,11 +89,11 @@ describe("one record per ticker", () => {
     const rec = report.directRecommendations.find((row) => row.ticker === "ADA");
     const card = report.tickers.find((row) => row.ticker === "ADA");
     expect(rec?.action).toBe("HOLD");
-    expect(rec?.detail).toContain("does not issue a buy.");
-    expect(rec?.detail).not.toMatch(/does not issue a\.$/);
+    expect(rec?.detail).toContain("No 7-day projection is published");
+    expect(rec?.detail).not.toMatch(/[+-]\d+\.\d{2}%/);
     expect(card?.signal).toBe("Hold");
-    expect(card?.note).toContain("HOLD");
-    expect(card?.note).toContain("does not issue a buy.");
+    expect(card?.note).toContain("No 7-day projection is published");
+    expect(card?.shortTerm).toEqual([]);
 
     const briefing = buildIntelligenceBriefing({
       bot: "crypto",

@@ -21,7 +21,7 @@ import type {
   PathwayPlan,
 } from "@/lib/apex";
 import { LEGAL_ENTITY_NAME } from "@/lib/company";
-import type { SecurityIntel } from "@/lib/market-intel";
+import { intelIsHeld, NOT_ENOUGH_DAILY_HISTORY, type SecurityIntel } from "@/lib/market-intel";
 import type { ActionableIntelligence, PortfolioMetrics } from "@/lib/analytics";
 import { currencyForTicker, formatMoney, formatUnitPrice, type CurrencyCode } from "@/lib/currency";
 import type { IntelligenceBriefing, BriefingOutlookRow } from "@/lib/briefing";
@@ -152,11 +152,11 @@ function tickerBlock(t: TickerAnalysis): string {
       </td>
       <td style="vertical-align:top;text-align:right">
         <div style="font-family:monospace;font-size:14px;color:${INK}">${t.priceUnavailable ? "Unavailable" : quotedPrice(t.price, t.ticker)}</div>
-        ${t.priceUnavailable ? "" : `<div style="font-size:11px;color:${t.changeWithheld ? MUTE : pctColor(t.changePct)}">${t.changeWithheld ? "data under review" : `${pct(t.changePct)} today`}</div>`}
+        ${t.priceUnavailable ? "" : `<div style="font-size:11px;color:${t.analysisUnavailable || t.changeWithheld ? MUTE : pctColor(t.changePct)}">${t.analysisUnavailable ? "Not enough daily history" : t.changeWithheld ? "data under review" : `${pct(t.changePct)} today`}</div>`}
       </td>
     </tr></table>
     ${
-      t.priceUnavailable
+      t.priceUnavailable || t.analysisUnavailable || !t.shortTerm.length
         ? ""
         : `<div style="display:flex;justify-content:space-between;font-size:11px;color:${MUTE};margin-top:10px">
       <span>${esc(t.momentumLabel ?? "12-month continuation / momentum")}</span>
@@ -244,24 +244,45 @@ function metricsStrip(m: PortfolioMetrics): string {
     </tr></table>`;
 }
 
-function technicalsTable(techs: SecurityIntel[]): string {
+const CRYPTO_PROJECTION_HELD = "— Crypto projections are paused";
+
+function td(inner: string, extra = ""): string {
+  return `<td style="padding:7px;border:1px solid ${LINE}${extra}">${inner}</td>`;
+}
+
+function technicalsTable(techs: SecurityIntel[], bot?: string): string {
   if (!techs.length) return "";
+  const koins = bot === "crypto";
   const rows = techs
     .map((t) => {
+      const paused = koins || !!t.forwardOmitted || t.assetClass === "crypto" || t.market === "CRYPTO";
+      const name = td(esc(t.ticker), ";font-weight:600");
+      if (intelIsHeld(t)) {
+        const blanks = [td("—"), td("—"), td("—"), td("—"), td("—")].join("");
+        const reason = paused
+          ? td(esc(`— ${NOT_ENOUGH_DAILY_HISTORY}. ${CRYPTO_PROJECTION_HELD}`))
+          : `${td("—")}${td(esc(`— ${NOT_ENOUGH_DAILY_HISTORY}`))}`;
+        return `<tr>${name}${blanks}${reason}</tr>`;
+      }
+      const macdColor = t.macdSignal === "Bullish" ? GREEN : t.macdSignal === "Bearish" ? RED : MUTE;
+      const rsiColor = t.rsi >= 70 ? RED : t.rsi <= 30 ? GREEN : INK;
+      const indicators = [
+        td(quotedPrice(t.price, t.ticker, t.currency), ";font-family:monospace"),
+        td(t.rsi.toFixed(2), `;color:${rsiColor}`),
+        td(esc(t.macdSignal), `;color:${macdColor}`),
+        td(`${t.bbPosition.toFixed(2)}%`),
+        td(pct(t.vsSma20), `;color:${pctColor(t.vsSma20)}`),
+      ].join("");
+      if (paused) return `<tr>${name}${indicators}${td(esc(CRYPTO_PROJECTION_HELD))}</tr>`;
       const sc = SIG_COLOR[t.signal];
-      return `<tr>
-        <td style="padding:7px;border:1px solid ${LINE};font-weight:600">${esc(t.ticker)}</td>
-        <td style="padding:7px;border:1px solid ${LINE};font-family:monospace">${quotedPrice(t.price, t.ticker, t.currency)}</td>
-        <td style="padding:7px;border:1px solid ${LINE};color:${t.rsi >= 70 ? RED : t.rsi <= 30 ? GREEN : INK}">${t.rsi.toFixed(0)}</td>
-        <td style="padding:7px;border:1px solid ${LINE};color:${t.macdSignal === "Bullish" ? GREEN : t.macdSignal === "Bearish" ? RED : MUTE}">${esc(t.macdSignal)}</td>
-        <td style="padding:7px;border:1px solid ${LINE}">${t.bbPosition.toFixed(0)}%</td>
-        <td style="padding:7px;border:1px solid ${LINE};color:${pctColor(t.vsSma20)}">${pct(t.vsSma20)}</td>
-        <td style="padding:7px;border:1px solid ${LINE};color:${pctColor(t.projected7dPct)};font-weight:600">${pct(t.projected7dPct)} <span style="color:${MUTE};font-weight:400">(${t.confidence}%)</span></td>
-        <td style="padding:7px;border:1px solid ${LINE}"><span style="color:${sc};font-weight:600">${esc(t.signal)}</span></td>
-      </tr>`;
+      return `<tr>${name}${indicators}${td(`${pct(t.projected7dPct)} <span style="color:${MUTE};font-weight:400">(${Math.round(t.confidence)}%)</span>`, `;color:${pctColor(t.projected7dPct)};font-weight:600`)}${td(`<span style="color:${sc};font-weight:600">${esc(t.signal)}</span>`)}</tr>`;
     })
     .join("");
-  return `<h2 style="font-size:16px;color:${INK};margin:26px 0 8px">Technical indicators &amp; 7-day projection</h2>
+  const heading = koins ? "Technical indicators" : "Technical indicators &amp; 7-day projection";
+  const tail = koins
+    ? `<th style="padding:7px;text-align:left">Outlook</th>`
+    : `<th style="padding:7px;text-align:left">7d proj (conf)</th><th style="padding:7px;text-align:left">Signal</th>`;
+  return `<h2 style="font-size:16px;color:${INK};margin:26px 0 8px">${heading}</h2>
     <table width="100%" style="border-collapse:collapse;font-size:11px">
       <tr style="background:${NAVY};color:#fff">
         <th style="padding:7px;text-align:left">Ticker</th>
@@ -270,8 +291,7 @@ function technicalsTable(techs: SecurityIntel[]): string {
         <th style="padding:7px;text-align:left">MACD</th>
         <th style="padding:7px;text-align:left">BB%</th>
         <th style="padding:7px;text-align:left">vs SMA20</th>
-        <th style="padding:7px;text-align:left">7d proj (conf)</th>
-        <th style="padding:7px;text-align:left">Signal</th>
+        ${tail}
       </tr>
       ${rows}
     </table>`;
@@ -407,15 +427,15 @@ function directRecommendationsBlock(recs: DirectRecommendation[]): string {
 }
 
 /** Three forward pathways with steps + the single recommended route. */
-function pathwayPlanBlock(plan: PathwayPlan): string {
+function pathwayPlanBlock(plan: PathwayPlan, bot?: string): string {
   if (!plan.pathways.length) return "";
   const cols = plan.pathways
     .map((p) => {
       const rec = p.recommended;
       return `<td style="padding:12px;border:2px solid ${rec ? BLUE : LINE};border-radius:8px;vertical-align:top;width:33%;background:${rec ? BLUE + "0a" : "#fff"}">
-        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:${MUTE}">${esc(p.risk)} · ${p.probability}% odds</div>
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:${MUTE}">${esc(p.risk)}${bot === "crypto" ? "" : ` · ${p.probability}% odds`}</div>
         <div style="font-weight:700;font-size:14px;color:${INK}">${esc(p.name)}${rec ? ` <span style="color:${BLUE};font-size:10px;font-weight:700">★ ILLUSTRATIVE</span>` : ""}</div>
-        <div style="font-size:16px;font-weight:700;color:${pctColor(p.targetPct)}">${pct(p.targetPct)} <span style="font-size:10px;color:${MUTE};font-weight:400">7-day target</span></div>
+        ${bot === "crypto" ? "" : `<div style="font-size:16px;font-weight:700;color:${pctColor(p.targetPct)}">${pct(p.targetPct)} <span style="font-size:10px;color:${MUTE};font-weight:400">7-day target</span></div>`}
         <div style="font-size:11px;color:${MUTE};margin:4px 0 6px;line-height:1.4">${esc(p.summary)}</div>
         <ol style="padding-left:16px;margin:0;font-size:11px;color:${INK};line-height:1.5">
           ${p.steps.map((s) => `<li style="margin:3px 0">${esc(s)}</li>`).join("")}
@@ -493,8 +513,8 @@ function briefingBlock(b: IntelligenceBriefing): string {
       <!-- Overall conviction -->
       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">
         <span style="display:inline-block;padding:4px 11px;border-radius:999px;background:${biasColor(b.overall.bias)}1a;color:${biasColor(b.overall.bias)};font-size:12px;font-weight:700">${esc(b.overall.bias)} bias</span>
-        <span style="display:inline-block;padding:4px 11px;border-radius:999px;background:${convColor(b.overall.level)}1a;color:${convColor(b.overall.level)};font-size:12px;font-weight:700">${esc(b.overall.level)} conviction</span>
-        <span style="display:inline-block;padding:4px 11px;border-radius:999px;background:#f1f5f9;color:${INK};font-size:12px;font-weight:700">Net ${b.overall.score}/100</span>
+        ${b.bot === "crypto" ? "" : `<span style="display:inline-block;padding:4px 11px;border-radius:999px;background:${convColor(b.overall.level)}1a;color:${convColor(b.overall.level)};font-size:12px;font-weight:700">${esc(b.overall.level)} conviction</span>
+        <span style="display:inline-block;padding:4px 11px;border-radius:999px;background:#f1f5f9;color:${INK};font-size:12px;font-weight:700">Net ${b.overall.score}/100</span>`}
         <span style="display:inline-block;padding:4px 11px;border-radius:999px;background:${b.sentiment.label === "Bullish" ? GREEN : b.sentiment.label === "Bearish" ? RED : MUTE}1a;color:${b.sentiment.label === "Bullish" ? GREEN : b.sentiment.label === "Bearish" ? RED : MUTE};font-size:12px;font-weight:700">Sentiment ${esc(b.sentiment.label)} ${b.sentiment.score}/100</span>
       </div>
       <div style="font-size:12px;color:${MUTE};margin:-4px 0 14px">${esc(b.overall.reason)}</div>
@@ -557,7 +577,7 @@ export function renderReportHtml(source: ApexReport, opts: RenderReportOptions):
         .join("")
     : `<li style="color:${MUTE}">${esc(report.sessionTapeNote || "Consolidating tape — no standout gainers this session.")}</li>`;
 
-  const underReview = report.bot === "stock" ? memberUnderReviewLines(report) : [];
+  const underReview = memberUnderReviewLines(report);
   const stoxReview = underReview.length
     ? `<h3 style="font-size:14px;margin:18px 0 6px">Under review</h3>${underReview
         .map((line) => `<p style="font-size:14px;line-height:1.5;margin:0 0 12px">${esc(line)}</p>`)
@@ -639,6 +659,7 @@ export function renderReportHtml(source: ApexReport, opts: RenderReportOptions):
 
         <h1 style="font-size:22px;margin:14px 0 2px;color:${INK}">${esc(report.title)}</h1>
         <div style="font-size:13px;color:${MUTE}">${esc(report.marketLabel)}${opts.userName ? ` · Prepared for ${esc(opts.userName)}` : ""}</div>
+        ${report.isDemo ? `<p style="margin:12px 0 0;padding:10px 12px;border:1px solid #f59e0b;background:#fffbeb;color:#92400e;border-radius:8px;font-size:13px;font-weight:600">Illustrative demo — not real market data.</p>` : ""}
 
         ${portfolio}
         ${closedCalls}
@@ -686,11 +707,11 @@ export function renderReportHtml(source: ApexReport, opts: RenderReportOptions):
 
         ${directRecommendationsBlock(report.directRecommendations)}
 
-        ${pathwayPlanBlock(report.pathwayPlan)}
+        ${pathwayPlanBlock(report.pathwayPlan, report.bot)}
 
         ${alertsBlock(opts.alerts || [])}
 
-        ${opts.technicals ? technicalsTable(opts.technicals) : ""}
+        ${opts.technicals ? technicalsTable(opts.technicals, report.bot) : ""}
 
         <h2 style="font-size:16px;color:${INK};margin:26px 0 4px">Per-${report.bot === "crypto" ? "asset" : "ticker"} intelligence (${report.tickers.length})</h2>
         ${tickers || `<p style="color:${MUTE};font-size:13px">Add holdings to your portfolio to populate this section.</p>`}
