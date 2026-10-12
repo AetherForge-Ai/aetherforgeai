@@ -103,6 +103,7 @@ import { DashboardSectionTitle } from "@/components/dashboard/DashboardSectionTi
 import { MarketIntelProvider } from "@/components/dashboard/MarketIntelContext";
 import { WatchlistPanel } from "@/components/dashboard/WatchlistPanel";
 import { GlobalSearch } from "@/components/dashboard/GlobalSearch";
+import { DashboardCalculator } from "@/components/dashboard/DashboardCalculator";
 import { DashboardHomeGrid } from "@/components/dashboard/DashboardHomeGrid";
 import { OnboardingChecklist } from "@/components/dashboard/OnboardingChecklist";
 import { AllocationDriftCard } from "@/components/dashboard/AllocationDriftCard";
@@ -1570,6 +1571,32 @@ export function PortfolioDashboard({
     setRefreshing(false);
   }
 
+  function handleCalculatorTrade(input: {
+    ticker: string;
+    name: string;
+    assetClass: SnapshotClass;
+    action: "buy" | "sell" | "edit" | "delete";
+  }) {
+    const stock = allStocks.find((row) => row.ticker.toUpperCase() === input.ticker.toUpperCase());
+    if (!stock) {
+      toast.error("This row is not on the holdings list.");
+      return;
+    }
+    if (input.action === "buy" || input.action === "sell") recordHolding(stock, input.action);
+    else if (input.action === "edit") openEdit(stock);
+    else setDeleteTarget(stock);
+  }
+
+  function handleCalculatorCash(mode: "deposit" | "withdraw") {
+    openRecordTransaction({
+      mode,
+      userId,
+      holdings: allStocks,
+      cash: cashBalance,
+      cashKnown: cashLoaded,
+    });
+  }
+
   function openAdd() {
     // Gate on the plan's ticker quota before opening the add dialog.
     if (atLimit) {
@@ -1827,6 +1854,17 @@ export function PortfolioDashboard({
             </div>
           </div>
         </div>
+      ) : null}
+
+      {isHome && !preview ? (
+        <DashboardCalculator
+          snapshot={bookSnapshot}
+          loading={!balancesReady}
+          error={snapshotError}
+          userId={userId ?? null}
+          onTrade={handleCalculatorTrade}
+          onCash={handleCalculatorCash}
+        />
       ) : null}
 
       {isHome && (
