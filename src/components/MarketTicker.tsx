@@ -129,16 +129,19 @@ function TickerRow({
       <div className="relative flex-1 overflow-hidden">
         {quotes.length ? (
           <div className={cn("ticker-row flex w-max items-center", animationClass)}>
-            {doubled.map((q, i) => (
+            {doubled.map((q, i) => {
+              const cryptoCell = (q.currency || "").toUpperCase() === "USD" && !q.symbol.includes(".");
+              return (
               <TickerCell
                 key={`${q.symbol}-${i}`}
                 q={q}
                 price={priceFor(q)}
-                source={source}
-                delay={delay}
+                source={cryptoCell ? q.provider || source : source}
+                delay={cryptoCell ? "Delayed or indicative" : delay}
                 failedRefreshes={failedRefreshes}
               />
-            ))}
+              );
+            })}
           </div>
         ) : (
           <span className="px-4 text-[0.72rem] text-muted-foreground">{PUBLIC_PRICE_QUIET}</span>
