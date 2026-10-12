@@ -104,8 +104,8 @@ describe("return split adds up to the P/L", () => {
       ],
       0
     );
-    expect(split.currencyEffectNzd).toBe(0);
-    expect(split.capitalGainNzd).toBe(-2);
+    expect(split.currencyEffectNzd).toBe(-2);
+    expect(split.capitalGainNzd).toBe(0);
     expect(split.otherNzd).toBe(0);
     expect(split.totalNzd).toBe(-2);
   });

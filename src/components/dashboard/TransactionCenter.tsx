@@ -30,7 +30,7 @@ import {
   correctionPriceToken,
   parseCorrectionNote,
 } from "@/lib/holding-correction";
-import { dexSourceLabel, stripDexNotesPrefix } from "@/lib/dex-source";
+import { dexSourceLabel, displayLedgerNote, stripDexNotesPrefix } from "@/lib/dex-source";
 import { stripDividendNotesPrefix } from "@/lib/dividend-ledger";
 import { bumpHoldingsGeneration } from "@/lib/holdings-generation";
 import { useTradeReviewGate } from "@/lib/trade-review-gate";
@@ -198,27 +198,6 @@ function todayISO(): string {
   return aucklandYmd();
 }
 
-/** The live figure from the fill audit, on its own line so a long note cannot hide it. */
-function ledgerLiveLine(notes?: string | null): string | null {
-  const text = String(notes || "");
-  if (/live=n\/a/i.test(text) || /live:\s*n\/a/i.test(text)) return "live: n/a";
-  const match = text.match(/live=([0-9]+(?:\.[0-9]+)?)/);
-  return match ? `live: ${match[1]}` : null;
-}
-
-/** The fill audit the book stored: live price, chain, and the quote time. */
-function visibleAudit(notes?: string | null): string {
-  const text = String(notes || "");
-  const bits = [
-    text.match(/live=n\/a/),
-    text.match(/live:\s*n\/a/),
-    text.match(/live=[0-9.]+/),
-    text.match(/chain=\S+/),
-    text.match(/pxat=\S+/),
-  ].flatMap((match) => (match ? [match[0]] : []));
-  return bits.join(" ");
-}
-
 function rowCash(t: TransactionRow): number {
   return ledgerDisplayedCash({
     type: t.type,
@@ -319,9 +298,9 @@ function CashLineSection({
                   <span className="mt-0.5 block truncate text-xs text-muted-foreground">
                     {distributionLabel(row.asset_type)} · {formatLedgerDateTime(row.executed_at || row.createdAt) || formatDisplayDate(row.executed_at || row.createdAt)}
                   </span>
-                  {stripDexNotesPrefix(stripDividendNotesPrefix(row.notes)) ? (
+                  {displayLedgerNote(row.notes) ? (
                     <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                      {stripDexNotesPrefix(stripDividendNotesPrefix(row.notes))}
+                      {displayLedgerNote(row.notes)}
                     </span>
                   ) : null}
                 </span>
@@ -719,13 +698,8 @@ export function TransactionCenter({
                               {t.asset_name || "—"}
                               {dexSourceLabel(t) ? ` · ${dexSourceLabel(t)}` : ""}
                             </p>
-                            {visibleAudit(t.notes) ? (
-                              <p className="truncate text-[11px] text-muted-foreground">{visibleAudit(t.notes)}</p>
-                            ) : null}
-                            {ledgerLiveLine(t.notes) ? (
-                              <p data-testid="ledger-live" className="text-[11px] text-muted-foreground">
-                                {ledgerLiveLine(t.notes)}
-                              </p>
+                            {displayLedgerNote(t.notes) ? (
+                              <p className="truncate text-[11px] text-muted-foreground">{displayLedgerNote(t.notes)}</p>
                             ) : null}
                           </div>
                         ) : (
@@ -741,7 +715,6 @@ export function TransactionCenter({
                         ) : isTrade ? (
                           <div>
                             <p>{`${formatNumber(t.quantity || 0)} × ${formatUnitPrice(t.price || 0, cur)}`}</p>
-                            {!(Number(t.mark_price) > 0) ? <p className="text-[11px] text-muted-foreground">live: n/a</p> : null}
                           </div>
                         ) : (
                           "—"
@@ -1129,13 +1102,8 @@ function AllTransactionsDialog({
                               {change?.label || t.asset_name || "—"}
                               {dexSourceLabel(t) ? ` · ${dexSourceLabel(t)}` : ""}
                             </p>
-                            {visibleAudit(t.notes) ? (
-                              <p className="max-w-[16rem] truncate text-[11px] text-muted-foreground">{visibleAudit(t.notes)}</p>
-                            ) : null}
-                            {ledgerLiveLine(t.notes) ? (
-                              <p data-testid="ledger-live" className="text-[11px] text-muted-foreground">
-                                {ledgerLiveLine(t.notes)}
-                              </p>
+                            {displayLedgerNote(t.notes) ? (
+                              <p className="max-w-[16rem] truncate text-[11px] text-muted-foreground">{displayLedgerNote(t.notes)}</p>
                             ) : null}
                             {change ? (
                               <p className="max-w-[16rem] text-[11px] leading-snug text-muted-foreground">

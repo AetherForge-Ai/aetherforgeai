@@ -55,15 +55,13 @@ async function load(force = false): Promise<void> {
         store.notice = typeof res.notice === "string" ? res.notice : null;
         console.log(`[useCryptoMarkets] loaded ${res.data.length} coins`);
         // Blockchain labels can land a moment after the price list. One follow-up, not a loop.
-        if (
-          typeof window !== "undefined" &&
-          !chainFollowUp &&
-          res.data.length > 0 &&
-          res.data.every((coin) => !coin.blockchain)
-        ) {
+        const missingChain = res.data.filter((coin) => {
+          const chain = (coin.blockchain || "").trim();
+          return !chain || chain === "—" || chain === "Unavailable" || chain === "Native";
+        }).length;
+        if (typeof window !== "undefined" && !chainFollowUp && res.data.length > 0 && missingChain > res.data.length / 2) {
           chainFollowUp = true;
           window.setTimeout(() => void load(true).catch(() => {}), 2_500);
-          window.setTimeout(() => void load(true).catch(() => {}), 12_000);
         }
       } else if (res.status === 401 || store.coins.length > 0) {
         // Keep the last good table. A failed refresh must not replace it with a parse error.
