@@ -145,6 +145,8 @@ function seedDisplayRows(rows: PublicPriceRow[], market: "Crypto" | "DEX"): Disp
       live: true,
       quoted: true,
       coinId: row.quoteId,
+      blockchain: row.blockchain || "",
+      dex: row.dex || "",
       paperMarket: market,
       priceUnavailable: false,
     }));
@@ -219,8 +221,12 @@ export function MarketsExplorer({
   /** Server-built credit. Defaults to GeckoTerminal. The second name is passed only when its display flag is on. */
   dexCredit?: string;
 }) {
-  const seedCrypto = index?.tabs.find((row) => row.id === "CRYPTO")?.rows ?? [];
-  const seedDex = index?.tabs.find((row) => row.id === "DEX")?.rows ?? [];
+  const seedCryptoTab = index?.tabs.find((row) => row.id === "CRYPTO");
+  const seedDexTab = index?.tabs.find((row) => row.id === "DEX");
+  const seedCrypto = seedCryptoTab?.rows ?? [];
+  const seedDex = seedDexTab?.rows ?? [];
+  const seedCryptoAsOf = seedCryptoTab?.asOf?.startsWith("Prices as at") ? seedCryptoTab.asOf : "";
+  const seedDexAsOf = seedDexTab?.asOf?.startsWith("Prices as at") ? seedDexTab.asOf : "";
   const router = useRouter();
   const [tab, setTab] = useState<Tab>(initialTab ?? "NZX");
   const [data, setData] = useState<MarketPayload | null>(null);
@@ -506,7 +512,7 @@ export function MarketsExplorer({
   const rows = useMemo<DisplayRow[]>(() => {
     let all: DisplayRow[];
     if (isDexTab) {
-      if (!dex.rows.length && seedDex.length) {
+      if ((!dex.rows.length && seedDex.length) || (seedDex.length > dex.rows.length && seedDex.length > 0)) {
         all = seedDisplayRows(seedDex, "DEX");
       } else
       all = dex.rows.slice(0, CRYPTO_TOP_N).map((row) => ({
@@ -531,7 +537,7 @@ export function MarketsExplorer({
         priceUnavailable: row.priceUnavailable || !(row.price != null && row.price > 0),
       }));
     } else if (isCoinTab) {
-      if (!crypto.coins.length && seedCrypto.length) {
+      if ((!crypto.coins.length && seedCrypto.length) || (seedCrypto.length > crypto.coins.length && seedCrypto.length > 0)) {
         all = seedDisplayRows(seedCrypto, "Crypto");
       } else {
       const top = [...crypto.coins]
@@ -863,8 +869,8 @@ export function MarketsExplorer({
         </div>
       </div>
 
-      {isCryptoTab && (isDexTab ? dex.notice : crypto.notice) ? (
-        <p className="px-1 pb-2 text-xs text-muted-foreground">{isDexTab ? dex.notice : crypto.notice}</p>
+      {isCryptoTab && (isDexTab ? dex.notice || seedDexAsOf : crypto.notice || seedCryptoAsOf) ? (
+        <p className="px-1 pb-2 text-xs text-muted-foreground">{isDexTab ? dex.notice || seedDexAsOf : crypto.notice || seedCryptoAsOf}</p>
       ) : null}
 
       {/* Table — scrolls on BOTH axes so wide rows never push the page sideways on mobile */}

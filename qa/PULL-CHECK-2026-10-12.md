@@ -596,3 +596,12 @@ Build `v3-retest9-2026-10-12` on develop `b4d0007`. Public copy says AI. Nothing
 8. Currency effect for a lot with a stored buy rate is (FX at valuation − FX at buy) × foreign value. Other is rounding.
 9. The ledger pages five rows at a time and has Show all.
 10. The Koins page reads snapshot prices. Stox reports and the Stox page show the under-review notice and the MAH.AX reason `rating TRIM: momentum negative`.
+
+Testing Technician retest of the same build, on this branch:
+
+11. Public HTML, the hydrated page, the signed-in list, the ticker and Koins read one snapshot. The largest saved list is kept. Blockchain is filled for the top coins, including USDT, WBTC and STETH on Ethereum, HYPE on Hyperliquid and ZEC on Zcash. RENDER is Render and DYDX is dYdX.
+12. A DEX snapshot older than about 10 minutes refreshes inside the request, bounded, so the delayed line can clear.
+13. Confirm overlaps the movement check, the book read and the cash write with the ledger row. The header cash snaps to the ledger sum and ignores a read that does not yet contain the new row.
+14. A buy audit includes `chain=` and `pxat=`. `live=` uses the snapshot price when the form says the price came from the snapshot. A buy with no snapshot origin still says `live: n/a`.
+15. List routes serve the saved snapshot and do not seed when one exists. The dashboard loads the transaction book beside names and live marks.
+16. The ledger label and the CSV use the same 5000-row query. The page shows a range, or every row.

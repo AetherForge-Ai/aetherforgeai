@@ -427,6 +427,7 @@ export function PortfolioDashboard({
   /** After first /api/stocks hydrate — later overlays may be deferred while Buy/Add is open. */
   const holdingsHydratedRef = useRef(!!preview);
   const cashEpochRef = useRef(0);
+  const expectedTxRef = useRef<string | null>(null);
   /**
    * Latest accepted holdings body while Buy/Add is open. Applied when the
    * dialog closes so the stocks hub does not reconcile under an in-progress
@@ -613,6 +614,7 @@ export function PortfolioDashboard({
         incomeNZD?: number;
         costFxByTicker?: Record<string, number>;
         transactions?: {
+          _id?: string;
           type?: string;
           ticker?: string;
           total?: number;
@@ -653,10 +655,14 @@ export function PortfolioDashboard({
           return;
         }
         if (seenCash !== cashEpochRef.current) return;
+        const requiredId = expectedTxRef.current;
+        const loaded = res.data.transactions || [];
+        if (requiredId && !loaded.some((row) => row._id === requiredId)) return;
+        expectedTxRef.current = null;
         const bal = res.data.cashBalance;
         setCashBalance(bal);
         writeCachedCashNZD(tracked.userId, bal);
-        const rows = (res.data.transactions || []).slice(0, 6).map((r) => ({
+        const rows = loaded.slice(0, 6).map((r) => ({
           type: r.type,
           ticker: r.ticker ?? null,
           total: r.total ?? null,
@@ -879,6 +885,8 @@ export function PortfolioDashboard({
   const handleDataChanged = useCallback(
     (updated?: { cashBalance?: number; lastTransaction?: BookedTrade | null }) => {
       if (updated && typeof updated.cashBalance === "number") applyKnownCash(updated.cashBalance);
+      const bookedId = updated?.lastTransaction?._id ? String(updated.lastTransaction._id) : "";
+      if (bookedId) expectedTxRef.current = bookedId;
       // Cash and the holding quantity land with the success toast. A later
       // /api/stocks read can replace this with live marks; a pre-trade snapshot cannot.
       if (updated?.lastTransaction) {
@@ -1538,7 +1546,7 @@ export function PortfolioDashboard({
             {showCash == null ? (
               <div className="mt-2 h-7 w-28 animate-pulse rounded-md bg-muted/50" aria-hidden />
             ) : (
-              <AnimatedMoney value={showCash} currency="NZD" className="tnum mt-2 font-display text-xl font-bold text-emerald-600" />
+              <AnimatedMoney snap value={showCash} currency="NZD" className="tnum mt-2 font-display text-xl font-bold text-emerald-600" />
             )}
             <p className="mt-1 text-[0.7rem] text-muted-foreground">From Transaction Ledger</p>
           </div>
@@ -1581,7 +1589,7 @@ export function PortfolioDashboard({
             {showCash == null ? (
               <div className="mt-3 h-9 w-36 animate-pulse rounded-md bg-muted/50" aria-hidden />
             ) : (
-              <AnimatedMoney value={showCash} currency="NZD" className="tnum mt-3 font-display text-3xl font-bold text-emerald-600" />
+              <AnimatedMoney snap value={showCash} currency="NZD" className="tnum mt-3 font-display text-3xl font-bold text-emerald-600" />
             )}
             <p className="mt-2 text-sm text-muted-foreground">Available for buys across stocks, crypto and metals.</p>
           </div>
@@ -1936,6 +1944,7 @@ export function PortfolioDashboard({
               <div className="mt-3 h-9 w-40 animate-pulse rounded-md bg-primary/15" aria-hidden />
             ) : (
               <AnimatedMoney
+                snap
                 value={showCash}
                 currency="NZD"
                 className="mt-3 block font-display text-3xl font-bold text-primary"

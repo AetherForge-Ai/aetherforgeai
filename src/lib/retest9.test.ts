@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { presentMarketCoin } from "@/lib/crypto-api-body";
+import { presentListedCoin, SNAPSHOT_REFRESH_MS } from "@/lib/crypto-board";
+import { cashFromLedgerRows } from "@/lib/ledger-cash-lines";
 import { coinsFromCoinGeckoMarkets, coinsFromCoinPaprika } from "@/lib/crypto-keyless-seed";
 import {
   applyStatDonors,
@@ -314,5 +316,44 @@ describe("pull-check:v3-retest9-2026-10-12", () => {
     expect(read("src/lib/report-html.ts")).toContain("stoxReviewCopy");
     expect(read("src/lib/swyftx-display.ts")).toBeTruthy();
     expect(read("src/lib/dexscreener-display.ts")).toBeTruthy();
+  });
+
+  it("serves one snapshot list, fills chains and names, and refreshes a stale DEX board", () => {
+    expect(presentListedCoin({ symbol: "USDT", name: "Tether", id: "tether", blockchain: "" }).blockchain).toBe("Ethereum");
+    expect(presentListedCoin({ symbol: "WBTC", name: "Wrapped Bitcoin", id: "wrapped-bitcoin", blockchain: "—" }).blockchain).toBe("Ethereum");
+    expect(presentListedCoin({ symbol: "STETH", name: "stETH", id: "staked-ether", blockchain: "" }).blockchain).toBe("Ethereum");
+    expect(presentListedCoin({ symbol: "HYPE", name: "Hyperliquid", id: "hyperliquid", blockchain: "" }).blockchain).toBe("Hyperliquid");
+    expect(presentListedCoin({ symbol: "ZEC", name: "Zcash", id: "zcash", blockchain: "" }).blockchain).toBe("Zcash");
+    expect(presentListedCoin({ symbol: "RENDER", name: "RENDER", id: "render-token", blockchain: "" }).name).toBe("Render");
+    expect(presentListedCoin({ symbol: "DYDX", name: "DYDX", id: "dydx-chain", blockchain: "" }).name).toBe("dYdX");
+    expect(SNAPSHOT_REFRESH_MS).toBe(10 * 60 * 1000);
+    const store = read("src/lib/crypto-board-store.ts");
+    expect(store).toContain("revalidateStaleBoards");
+    expect(store).toContain("DEX_REFRESH_BOUND_MS");
+    expect(read("src/app/api/crypto/dex/route.ts")).toContain("revalidate: true");
+    expect(read("src/app/api/crypto/route.ts")).toContain("seed: false");
+    expect(read("src/lib/crypto-source.ts")).toContain("readSharedCryptoBoard({ seed: false })");
+    expect(read("src/lib/public-market-index.ts")).toContain("const COIN_PAGE = MARKET_SNAPSHOT_TARGET");
+    expect(read("src/app/api/tickers/quote/route.ts")).toContain('source = "snapshot"');
+    expect(read("src/components/dashboard/RecordTransactionPanel.tsx")).toContain('payload.quote_origin = "snapshot"');
+  });
+
+  it("sums header cash from the ledger rows and pages the same book the CSV reads", () => {
+    expect(
+      cashFromLedgerRows([
+        { type: "deposit", total: 33307.61, cash_nzd: 33307.61 },
+        { type: "buy", total: -20.24, cash_nzd: -20.24 },
+      ])
+    ).toBe(33287.37);
+    expect(read("src/lib/transactions.ts")).toContain("LEDGER_QUERY_LIMIT = 5000");
+    expect(read("src/lib/transactions.ts")).toContain("ledgerAfterBooking");
+    expect(read("src/lib/transactions.ts")).toContain("cashFromLedgerRows");
+    expect(read("src/app/api/transactions/route.ts")).toContain("ledgerAfterBooking");
+    expect(read("src/app/api/transactions/export/route.ts")).toContain("loadLedger(user, 5000)");
+    expect(read("src/components/dashboard/TransactionCenter.tsx")).toContain("showing all");
+    expect(read("src/components/dashboard/PortfolioDashboard.tsx")).toContain("expectedTxRef");
+    expect(read("src/components/dashboard/AnimatedMoney.tsx")).toContain("snap");
+    expect(read("src/app/api/stocks/route.ts")).toContain("bookPromise");
+    expect(read("src/app/api/stocks/route.ts")).not.toContain("overlayFifoPurchasePrices");
   });
 });

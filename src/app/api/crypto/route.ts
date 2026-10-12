@@ -5,15 +5,13 @@
 import { NextResponse } from "next/server";
 import { marketsBody } from "@/lib/crypto-api-body";
 import { readSharedCryptoBoard } from "@/lib/crypto-board-store";
-import { enrichListedCoins } from "@/lib/crypto-source";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const board = await readSharedCryptoBoard();
-    const coins = await enrichListedCoins(board.coins);
-    return NextResponse.json(marketsBody(coins, board.notice), {
+    const board = await readSharedCryptoBoard({ seed: false });
+    return NextResponse.json(marketsBody(board.coins, board.notice), {
       headers: { "cache-control": "no-store" },
     });
   } catch (err) {

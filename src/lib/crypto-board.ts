@@ -18,6 +18,8 @@ import type { CoinMarket } from "@/lib/crypto-market";
 export const MARKET_SNAPSHOT_TARGET = 400;
 export const SNAPSHOT_COMPLETE_RATIO = 0.95;
 export const SNAPSHOT_STALE_MS = 30 * 60 * 1000;
+/** A stored list older than this is refreshed inside the request, with a bound. */
+export const SNAPSHOT_REFRESH_MS = 10 * 60 * 1000;
 export const KOINS_SNAPSHOT_FRESH_MS = 60 * 60 * 1000;
 export const PLATFORM_DIRECTORY_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -52,6 +54,16 @@ const L1_CHAIN: Record<string, string> = {
   "polygon-ecosystem-token": "Polygon",
   "ethena": "Ethereum",
   "usd-coin": "Ethereum",
+  tether: "Ethereum",
+  "wrapped-bitcoin": "Ethereum",
+  "staked-ether": "Ethereum",
+  "wrapped-steth": "Ethereum",
+  "rocket-pool-eth": "Ethereum",
+  "coinbase-wrapped-staked-eth": "Ethereum",
+  weth: "Ethereum",
+  "wrapped-eeth": "Ethereum",
+  hyperliquid: "Hyperliquid",
+  zcash: "Zcash",
 };
 
 /** Ticker or leftover id when the CoinGecko id is not in the native-chain list. */
@@ -163,6 +175,13 @@ const TICKER_CHAIN: Record<string, string> = {
   strk: "Starknet",
   blur: "Ethereum",
   arkm: "Ethereum",
+  wbtc: "Ethereum",
+  steth: "Ethereum",
+  hype: "Hyperliquid",
+  weth: "Ethereum",
+  weeth: "Ethereum",
+  reth: "Ethereum",
+  cbeth: "Ethereum",
 };
 
 const PLATFORM_LABEL: Record<string, string> = {
@@ -269,6 +288,16 @@ export function snapshotBlockchain(
     : [];
   if (keys.length) return platformLabel(keys[0][0]);
   return L1_CHAIN[id] || TICKER_CHAIN[id] || "";
+}
+
+/** Name and chain for one row of the shared list. A blank chain is filled. A ticker-only name is the published name. */
+export function presentListedCoin<T extends { symbol: string; name: string; id: string; blockchain?: string | null }>(coin: T): T {
+  const name = coinDisplayName(coin.symbol, coin.name);
+  const stored = (coin.blockchain || "").trim();
+  const known = stored && stored !== "—" && stored !== "Unavailable" && stored !== "Native";
+  const blockchain = known ? stored : snapshotBlockchain(coin.id, null, null) || chainForTicker(coin.symbol) || "";
+  if (name === coin.name && blockchain === (coin.blockchain || "")) return coin;
+  return { ...coin, name, blockchain };
 }
 
 /** Chain label for a ticker. Uses the canonical id, then the ticker itself. */

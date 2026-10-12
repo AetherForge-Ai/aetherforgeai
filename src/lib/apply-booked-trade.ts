@@ -6,6 +6,7 @@
  */
 
 export interface BookedTrade {
+  _id?: string | null;
   type?: string | null;
   ticker?: string | null;
   asset_type?: string | null;

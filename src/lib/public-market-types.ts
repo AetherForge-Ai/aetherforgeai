@@ -17,6 +17,10 @@ export interface PublicPriceRow {
   source?: string;
   /** Includes the words "as of" for this row. */
   asOf?: string;
+  /** Native chain or platform for a coin. */
+  blockchain?: string;
+  /** DEX name for a token row. */
+  dex?: string;
 }
 
 export interface PublicPriceTab {

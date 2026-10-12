@@ -617,7 +617,9 @@ export function TransactionCenter({
             <Receipt className="size-4 text-primary" /> {layout === "ledger" ? "Transaction ledger spreadsheet" : "Recent transactions"}
             {ledger && ledger.transactions.length > 0 && (
               <span className="text-xs font-normal text-muted-foreground">
-                · showing latest {Math.min(5, ledger.transactions.length)} of {ledger.transactions.length}
+                · {ledgerShowAll
+                  ? `showing all ${ledger.transactions.length}`
+                  : `showing ${ledgerPage * 5 + 1}–${Math.min(ledger.transactions.length, ledgerPage * 5 + 5)} of ${ledger.transactions.length}`}
               </span>
             )}
           </div>

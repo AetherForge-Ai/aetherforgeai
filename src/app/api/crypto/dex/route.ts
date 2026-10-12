@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 /** The signed-in DEX tab reads the same snapshot as the public page. */
 export async function GET() {
   try {
-    const page = await readSharedDexBoard();
+    const page = await readSharedDexBoard({ revalidate: true });
     return NextResponse.json(dexBody(page.rows, { notice: page.notice }), {
       headers: { "cache-control": dexResponseCacheControl(page.rows.length) },
     });

@@ -260,8 +260,41 @@ describe("Confirm wiring for the review defects", () => {
     const notes = transactionPayload()?.notes || "";
     expect(notes).toContain("live: n/a");
     expect(notes).not.toContain("live=0.000004");
+    expect(notes).toContain("chain=Ethereum");
+    expect(notes).toContain("pxat=");
     expect(auditLivePrice(null)).toBeNull();
     expect(auditLivePrice(0.000009)).toBe(0.000009);
+  });
+
+  it("stamps the snapshot price as live= when the form price came from it", async () => {
+    getFxSnapshot.mockResolvedValue({
+      ratesToNZD: { NZD: 1, USD: 1.78, AUD: 1.12 },
+      live: false,
+      sourced: true,
+      asOf: "2026-10-12T00:00:00.000Z",
+    });
+    priceFromSnapshot.mockResolvedValue(null);
+    await applyTransaction(
+      user,
+      {
+        type: "buy",
+        ticker: "PEPE",
+        asset_type: "crypto",
+        quantity: 1000,
+        price: 0.000004,
+        fx_rate: 1.78,
+        trade_date: "2026-10-12",
+        quote_origin: "snapshot",
+        price_as_at: "2026-10-12T10:52:00.000Z",
+        price_source: "live_quote",
+      },
+      { rejectionChecked: true }
+    );
+    const notes = transactionPayload()?.notes || "";
+    expect(notes).toContain("live=0.000004");
+    expect(notes).toContain("chain=Ethereum");
+    expect(notes).toContain("pxat=2026-10-12T10:52:00.000Z");
+    expect(notes).not.toContain("live: n/a");
   });
 });
 
