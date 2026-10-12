@@ -850,6 +850,7 @@ export function buildPortfolioSnapshot(input: SnapshotInput): PortfolioSnapshot 
     if (type === "sell") {
       if (!(price > 0)) {
         realised.push({
+          id: String(row._id || `${ticker}-${day}-${qty}`),
           ticker,
           assetClass,
           name: String(row.asset_name || ticker),

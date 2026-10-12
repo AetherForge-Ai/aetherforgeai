@@ -1750,8 +1750,7 @@ export function PortfolioDashboard({
               Allocation drift is on a paid plan.{" "}
               <a href="/pricing" className="font-medium text-primary hover:underline">See plans</a>
             </p>
-          ) : (
-          {headerStock != null && headerCrypto != null && headerMetals != null && headerCash != null ? (
+          ) : headerStock != null && headerCrypto != null && headerMetals != null && headerCash != null ? (
           <AllocationDriftCard
             stockNZD={headerStock}
             cryptoNZD={headerCrypto}
@@ -1766,7 +1765,6 @@ export function PortfolioDashboard({
             —
             <span className="mt-1 block text-xs">{stockReason || cryptoReason || metalsReason || cashReason || storedReason}</span>
           </p>
-          )}
           )}
         </div>
       )}
