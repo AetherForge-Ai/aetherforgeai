@@ -11,6 +11,8 @@
  * review" instead of the number.
  */
 
+import { SESSION_BASIS_GAP_PP } from "@/lib/quote-quality";
+
 export const DATA_UNDER_REVIEW = "data under review";
 
 /** Configurable. Large-cap 24-hour moves above this are withheld. */
@@ -221,7 +223,7 @@ export function reviewSessionMove(input: ReviewInput): ReviewedMove {
     ) {
       return keep("possible currency mix-up (AU versus US)", true);
     }
-    if (Math.abs(computed - reported) > 8 && Math.abs(reported) > windowCap(input)) {
+    if (Math.abs(computed - reported) > SESSION_BASIS_GAP_PP) {
       return keep("disagrees with the previous close", true);
     }
   }

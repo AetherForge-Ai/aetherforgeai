@@ -25,6 +25,7 @@ import { publicSourceAllowed } from "@/lib/swyftx-display";
 import { canonicalCryptoId } from "@/lib/crypto-ids";
 import { bullionDisplayName, isBullionHolding } from "@/lib/metal-valuation";
 import { cryptoFreshnessLabel, latestQuoteTime } from "@/lib/market-freshness";
+import { quoteIsStale } from "@/lib/quote-quality";
 
 export interface LiveQuote {
   price: number;
@@ -37,6 +38,8 @@ export interface LiveQuote {
   source?: string;
   /** True when this is the last price that passed the sanity check. */
   stale?: boolean;
+  /** True when the session percent was too large to confirm against a prior close. */
+  changeWithheld?: boolean;
 }
 
 const PROVIDER = (process.env.MARKET_DATA_PROVIDER || "twelvedata").toLowerCase();
@@ -163,7 +166,14 @@ async function fetchYahooEquityQuotes(tickers: string[]): Promise<Record<string,
   const yq = await fetchYahooQuotesBatched(map);
   const out: Record<string, LiveQuote> = {};
   for (const [t, q] of Object.entries(yq)) {
-    out[t] = { price: q.price, changePct: q.changePct, asOf: q.asOf, ...(q.quotedAt ? { quotedAt: q.quotedAt } : {}) };
+    out[t] = {
+      price: q.price,
+      changePct: q.changePct,
+      asOf: q.asOf,
+      ...(q.quotedAt ? { quotedAt: q.quotedAt } : {}),
+      ...(q.changeWithheld ? { changeWithheld: true } : {}),
+      stale: quoteIsStale(q.quotedAt, Date.now(), "stock"),
+    };
   }
   return out;
 }

@@ -17,6 +17,7 @@ import {
   SECURITY_LINE,
 } from "@/lib/public-copy";
 import { AI_PROVIDER_API_SENTENCE, nameAiProvider } from "@/lib/ai-provider-disclosure";
+import { BOT_SCORECARD_SUMMARY } from "@/lib/bot-scorecard";
 import {
   TRUST_PAGE_LOG,
   trustBreachLine,
@@ -77,6 +78,11 @@ export default function TrustPage() {
           <section className="mt-8 space-y-2">
             <h2 className="font-display text-lg font-bold">How fresh the figures are</h2>
             <p className="text-sm leading-relaxed text-muted-foreground">{FRESHNESS_PLAIN}</p>
+          </section>
+
+          <section className="mt-8 space-y-2">
+            <h2 className="font-display text-lg font-bold">What the model check showed</h2>
+            <p className="text-sm leading-relaxed text-muted-foreground">{BOT_SCORECARD_SUMMARY}</p>
           </section>
 
           <section className="mt-8 space-y-2">

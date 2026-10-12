@@ -10,7 +10,10 @@ import { getUpcomingEvents } from "@/lib/econ-calendar";
 import { scoreHeadlines } from "@/lib/news-sentiment";
 import { buildIntelligenceBriefing } from "@/lib/briefing";
 import { sanitizeGuardedReport, readTape } from "@/lib/report-consistency";
-import { fetchQuotesForAssetClass, isLiveConfiguredFor } from "@/lib/market-data";
+import { fetchHistoriesForAssetClass, fetchQuotesForAssetClass, isLiveConfiguredFor } from "@/lib/market-data";
+import { directionalSignalAllowed } from "@/lib/quote-quality";
+import { holdWithoutDirectionalScenario } from "@/lib/tape-gate";
+import { koinsModelV2Enabled } from "@/lib/koins-model-flag";
 import { fetchCryptoMarketIntel } from "@/lib/koins-market";
 import { applyKoinsSweeps } from "@/lib/koins-quality";
 import { koinsCandidatesFromSnapshot, koinsFeedFailureFlag } from "@/lib/crypto-board-store";
@@ -242,9 +245,6 @@ export async function generateReportForUser(
     current_price: h.price,
   }));
 
-  const technicals: SecurityIntel[] = stockObjs.map((s) =>
-    labelIntel(analyzeSecurity(s.ticker, s.current_price || undefined, s.company_name))
-  );
   const metrics = computePortfolioMetrics(stockObjs);
 
   // FX rates so AUD (.AX) / USD holdings convert into the Stox NZD total.
@@ -258,7 +258,10 @@ export async function generateReportForUser(
   // delisted / acquired / renamed name (no live price) is dropped automatically
   // rather than appearing on stale synthetic data.
   let marketOverrides: Record<string, number> = {};
-  let universeQuotes: Record<string, { price: number; changePct?: number }> = {};
+  let universeQuotes: Record<
+    string,
+    { price: number; changePct?: number; stale?: boolean; changeWithheld?: boolean }
+  > = {};
   try {
     const universeTickers = universeFor(bot).map((e) => e.ticker);
     universeQuotes = await fetchQuotesForAssetClass(universeTickers, bot);
@@ -286,13 +289,61 @@ export async function generateReportForUser(
     }
   }
 
+  const useVerifiedTape = bot === "stock" || koinsModelV2Enabled();
+  let histories: Record<string, number[]> = {};
+  if (useVerifiedTape) {
+    try {
+      const historyTickers = [
+        ...new Set([
+          ...stockObjs.map((s) => s.ticker.toUpperCase()),
+          ...universeFor(bot).map((e) => e.ticker),
+        ]),
+      ];
+      histories = await fetchHistoriesForAssetClass(historyTickers, bot === "crypto" ? "crypto" : "stock");
+    } catch (err) {
+      console.error("[report-service] Daily history sweep failed:", err);
+    }
+  }
+
+  if (useVerifiedTape && universeIntel?.length) {
+    universeIntel = universeIntel.map((row) => {
+      const series = histories[row.ticker] ?? histories[row.ticker.toUpperCase()];
+      if (!series || series.filter((price) => price > 0).length < 40) return row;
+      return analyzeSecurity(row.ticker, row.price, row.name, row.market, series);
+    });
+  }
+
+  const gateTape = (row: SecurityIntel): SecurityIntel => {
+    if (!useVerifiedTape) return row;
+    const quote = universeQuotes[row.ticker] ?? universeQuotes[row.ticker.toUpperCase()];
+    const series = histories[row.ticker] ?? histories[row.ticker.toUpperCase()];
+    const verified = Array.isArray(series) && series.filter((price) => price > 0).length >= 40;
+    if (
+      directionalSignalAllowed({
+        stale: !!quote?.stale,
+        changeWithheld: !!quote?.changeWithheld,
+        verifiedHistory: verified,
+      })
+    ) {
+      return row;
+    }
+    return holdWithoutDirectionalScenario(row, verified);
+  };
+
+  const technicals: SecurityIntel[] = stockObjs.map((s) => {
+    const series = histories[s.ticker] ?? histories[s.ticker.toUpperCase()];
+    return labelIntel(
+      gateTape(analyzeSecurity(s.ticker, s.current_price || undefined, s.company_name, undefined, series))
+    );
+  });
+
   let marketTechnicals: SecurityIntel[] = (
     universeIntel?.length
       ? universeIntel
       : Object.keys(marketOverrides).length > 0
-        ? analyzeUniverse(marketOverrides, bot)
+        ? analyzeUniverse(marketOverrides, bot, useVerifiedTape ? histories : undefined)
         : []
-  ).map((row) => labelIntel(row));
+  ).map((row) => labelIntel(gateTape(row)));
   if (bot !== "crypto") {
     marketTechnicals = applyMarketsSessionChange(marketTechnicals, universeQuotes);
   }

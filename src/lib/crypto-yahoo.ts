@@ -10,7 +10,7 @@ import { snapshotBlockchain } from "@/lib/crypto-board";
 import { CANONICAL_CRYPTO_IDS, canonicalCryptoId, normalizeCryptoTicker } from "@/lib/crypto-ids";
 import { coinDisplayName } from "@/lib/crypto-names";
 import { yahooSymbolFor } from "@/lib/crypto-vendors";
-import { coinLogo, sevenDayReturnPct } from "@/lib/crypto-market";
+import { coinLogo, hourReturnFromChart, sevenDayReturnPct } from "@/lib/crypto-market";
 
 const YAHOO_CHART = "https://query1.finance.yahoo.com/v8/finance/chart";
 
@@ -135,10 +135,28 @@ export async function fetchYahooMajorMarkets(): Promise<CoinMarket[]> {
   return out;
 }
 
+function chartSeries(payload: unknown): { t: number; price: number }[] {
+  const root =
+    payload && typeof payload === "object"
+      ? (payload as {
+          chart?: {
+            result?: Array<{ timestamp?: number[]; indicators?: { quote?: Array<{ close?: unknown[] }> } }>;
+          };
+        })
+      : null;
+  const result = root?.chart?.result?.[0];
+  const ts = result?.timestamp || [];
+  const closes = result?.indicators?.quote?.[0]?.close || [];
+  const out: { t: number; price: number }[] = [];
+  for (let i = 0; i < ts.length; i++) {
+    const price = Number(closes[i]);
+    if (ts[i] > 0 && price > 0) out.push({ t: ts[i] * 1000, price });
+  }
+  return out;
+}
+
 function chartCloses(payload: unknown): number[] {
-  const root = payload && typeof payload === "object" ? (payload as { chart?: { result?: Array<{ indicators?: { quote?: Array<{ close?: unknown[] }> } }> } }) : null;
-  const closes = root?.chart?.result?.[0]?.indicators?.quote?.[0]?.close || [];
-  return closes.filter((n): n is number => typeof n === "number" && Number.isFinite(n) && n > 0);
+  return chartSeries(payload).map((point) => point.price);
 }
 
 /** Percent move from the close `barsBack` prints before the last close. */
@@ -160,7 +178,7 @@ export async function fetchYahooCoinDetail(idOrTicker: string): Promise<CoinDeta
     yahooChartRaw(symbol, "1mo", "1d"),
   ]);
   if (!q) throw new Error(`Yahoo has no quote for ${ticker}`);
-  const change1h = trailingCloseChange(chartCloses(hour), 12);
+  const change1h = hourReturnFromChart(chartSeries(hour));
   const monthCloses = chartCloses(month);
   const change30d = trailingCloseChange(monthCloses, Math.max(1, monthCloses.length - 1));
   return {

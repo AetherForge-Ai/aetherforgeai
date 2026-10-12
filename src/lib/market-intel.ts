@@ -16,6 +16,7 @@ import { formatMoney } from "@/lib/currency";
 import { alignProjectedFigures } from "@/lib/projection-figure";
 import { rankByConfidenceWeightedMove } from "@/lib/projection-pause";
 import { officialPublicNews } from "@/lib/news-present";
+import { applyPlatt, applyResidualBand, calibrationApplies, FROZEN_CALIBRATION } from "@/lib/bot-calibration";
 
 export type MarketCode = "NZX" | "ASX" | "US" | "CRYPTO";
 export type AssetClass = "stock" | "crypto";
@@ -1172,7 +1173,12 @@ export function analyzeSecurity(
    * is what makes signals and projections track real momentum and change as the
    * market moves.
    */
-  seriesOverride?: number[]
+  seriesOverride?: number[],
+  /**
+   * The walk-forward check passes calibrate:false so it can score the raw engine
+   * and apply a frozen map itself. Live real-history reads leave this off.
+   */
+  opts?: { calibrate?: boolean }
 ): SecurityIntel {
   // Real-series analyses are never cached (the series changes intraday and the
   // key would churn); deterministic/price-only analyses keep the fast cache.
@@ -1250,16 +1256,33 @@ export function analyzeSecurity(
     projected7dPct: projection.pct,
     assetClass,
   });
-  const outlook = buildOutlook({
+  const dp = last < 5 ? 4 : 2;
+  let outlook = buildOutlook({
     price: last,
     projected7dPct: projection.pct,
     dailyVolPct: vol.daily,
     score,
     regime,
   });
-  const conviction = deriveConviction({ score, confidence: projection.confidence, regime });
+  let confidence = projection.confidence;
+  if (opts?.calibrate !== false && calibrationApplies(assetClass, useReal)) {
+    confidence = applyPlatt(confidence, FROZEN_CALIBRATION.platt);
+    const band = applyResidualBand(projection.pct, outlook.sigma7Pct, FROZEN_CALIBRATION.band);
+    const toPrice = (pct: number) => round(last * (1 + pct / 100), dp);
+    outlook = {
+      ...outlook,
+      base: {
+        ...outlook.base,
+        lowPct: band.lowPct,
+        highPct: band.highPct,
+        lowPrice: toPrice(band.lowPct),
+        highPrice: toPrice(band.highPct),
+        probability: 50,
+      },
+    };
+  }
+  const conviction = deriveConviction({ score, confidence, regime });
 
-  const dp = last < 5 ? 4 : 2;
   const history: SeriesPoint[] = series.slice(-30).map((p, i) => ({
     label: `D-${29 - i}`,
     price: round(p, dp),
@@ -1284,7 +1307,7 @@ export function analyzeSecurity(
     history,
     projection: projPath,
     projected7dPct: projection.pct,
-    confidence: projection.confidence,
+    confidence,
     rsi,
     macd: macd.macd,
     macdSignalLine: macd.signal,

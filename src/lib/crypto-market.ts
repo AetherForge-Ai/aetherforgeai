@@ -445,6 +445,43 @@ export function detailFromMarket(coin: CoinMarket): CoinDetail {
   );
 }
 
+export const ONE_HOUR_MS = 60 * 60 * 1000;
+
+/**
+ * Points whose timestamps sit inside the last hour of the series.
+ * A short hourly chart must not fall back to a longer slice.
+ */
+export function sliceLastHour<T extends { t: number }>(points: T[], windowMs = ONE_HOUR_MS): T[] {
+  if (!points.length) return [];
+  const last = points[points.length - 1]?.t;
+  if (!(last > 0)) return [];
+  const cutoff = last - windowMs;
+  return points.filter((point) => point.t >= cutoff);
+}
+
+/**
+ * 1-hour move from the chart's own timestamps.
+ * Null when the points do not cover about one hour, or when a spot from
+ * another print would jump the last bar.
+ */
+export function hourReturnFromChart(
+  points: Array<{ t: number; price: number }>,
+  spotPrice?: number | null
+): number | null {
+  const hour = sliceLastHour(points);
+  if (hour.length < 2) return null;
+  const span = hour[hour.length - 1].t - hour[0].t;
+  if (span < 20 * 60 * 1000 || span > 75 * 60 * 1000) return null;
+  const series = hour.map((point) => ({ t: point.t, price: point.price }));
+  if (typeof spotPrice === "number" && Number.isFinite(spotPrice) && spotPrice > 0) {
+    const last = series[series.length - 1];
+    if (!(last.price > 0)) return null;
+    if (Math.abs(spotPrice - last.price) / last.price > 0.004) return null;
+    series[series.length - 1] = { ...last, price: spotPrice };
+  }
+  return windowReturnPct(series);
+}
+
 /** Percent move from the first point to the last. Null when the window is too short. */
 export function windowReturnPct(points: Array<{ price: number }>): number | null {
   if (!points || points.length < 2) return null;

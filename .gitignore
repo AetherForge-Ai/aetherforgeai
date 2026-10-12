@@ -46,7 +46,15 @@ frontend.log
 npm-start.log
 CLAUDE.md
 # Root notes only. Do not ignore the public /docs App Router page.
-/docs/
+# The measured Stox/Koins check is tracked. Other files under /docs stay local.
+/docs/*
+!/docs/ai-bots-audit.md
+!/docs/ai-bots-backtest.md
+!/docs/ai-bots-decisions.csv
+!/docs/backtest/
+/docs/backtest/*
+!/docs/backtest/closes.csv
+!/docs/backtest/quote-check.json
 
 # claude files
 .claude

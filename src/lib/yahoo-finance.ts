@@ -17,6 +17,7 @@
 import "server-only";
 import { barsFromYahoo, closeOnOrBefore } from "@/lib/historical-price";
 import { yahooSymbolFor } from "@/lib/crypto-vendors";
+import { preferOfficialSession, reconcileSessionChange, withholdUnconfirmedMove } from "@/lib/quote-quality";
 
 export interface YahooQuote {
   price: number;
@@ -152,13 +153,20 @@ async function fetchOne(yahooSymbol: string): Promise<YahooQuote | null> {
         typeof meta.exchangeTimezoneName === "string" ? meta.exchangeTimezoneName : undefined,
       quotedAt: isoFromYahooTime(meta.regularMarketTime),
     };
-    if (changeIsFlat(quote.changePct)) {
+    if (changeIsFlat(quote.changePct) || Math.abs(quote.changePct) >= 8) {
       const prior = await priorDailyClose(yahooSymbol);
-      const change = prior == null ? null : sessionChangePct(quote.price, prior);
-      if (prior != null && change != null && !changeIsFlat(change)) {
+      const reconciled = reconcileSessionChange(quote.price, quote.changePct, prior);
+      if (prior != null && reconciled.replaced) {
         quote.prevClose = prior;
-        quote.changePct = change;
+        quote.changePct = reconciled.changePct;
         quote.changeAbs = quote.price - prior;
+      } else if (changeIsFlat(quote.changePct) && prior != null) {
+        const change = sessionChangePct(quote.price, prior);
+        if (change != null && !changeIsFlat(change)) {
+          quote.prevClose = prior;
+          quote.changePct = change;
+          quote.changeAbs = quote.price - prior;
+        }
       }
     }
     CACHE.set(yahooSymbol, { quote, at: Date.now() });
@@ -351,6 +359,8 @@ export type YahooBatchedQuote = {
   asOf: "live" | "close";
   /** Vendor quote time when the spark node carried one. */
   quotedAt?: string;
+  /** True when a large percent had no prior close to check it against. */
+  changeWithheld?: boolean;
 };
 
 /**
@@ -359,6 +369,11 @@ export type YahooBatchedQuote = {
  * back to fullday / previous / chart previous close so closed markets never
  * return blank junk.
  */
+function finiteOrNull(v: unknown): number | null {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
 function resolveSparkQuote(node: any): YahooBatchedQuote | null {
   if (!node) return null;
   const raw = Array.isArray(node.close) ? node.close : [];
@@ -368,16 +383,31 @@ function resolveSparkQuote(node: any): YahooBatchedQuote | null {
   const regular = positiveNum(node.regularMarketPrice);
   const prevClose =
     positiveNum(node.chartPreviousClose) ?? positiveNum(node.previousClose);
-  const sessionClose = fullday ?? regular ?? prevClose;
-  const price = intraday ?? sessionClose;
-  if (price === undefined) return null;
-  const basis = prevClose ?? (closes.length >= 2 ? closes[closes.length - 2] : price);
-  const changePct = basis > 0 ? ((price - basis) / basis) * 100 : 0;
-  const asOf: "live" | "close" = intraday !== undefined ? "live" : "close";
+  const barChange =
+    prevClose && intraday ? ((intraday - prevClose) / prevClose) * 100 : null;
+  const picked = preferOfficialSession({
+    barPrice: intraday ?? null,
+    officialPrice: fullday ?? regular ?? null,
+    officialChangePct: finiteOrNull(node.fulldayChangePercent),
+    previousClose: prevClose ?? null,
+    barChangePct: barChange,
+  });
+  if (!picked && !(prevClose && prevClose > 0)) return null;
+  const price = picked?.price ?? prevClose;
+  if (price === undefined || !(price > 0)) return null;
+  const changePct = picked?.changePct ?? 0;
+  const asOf: "live" | "close" = intraday !== undefined && !picked?.replaced ? "live" : "close";
   const times = Array.isArray(node.timestamp) ? node.timestamp : [];
   const lastTs = times.length ? times[times.length - 1] : undefined;
   const quotedAt = isoFromYahooTime(node.regularMarketTime) ?? isoFromYahooTime(lastTs);
-  return { price, changePct: isFinite(changePct) ? changePct : 0, asOf, ...(quotedAt ? { quotedAt } : {}) };
+  const changeWithheld = withholdUnconfirmedMove(changePct, false); // cleared once a daily prior close agrees
+  return {
+    price,
+    changePct: isFinite(changePct) ? changePct : 0,
+    asOf,
+    ...(quotedAt ? { quotedAt } : {}),
+    ...(changeWithheld ? { changeWithheld: true } : {}),
+  };
 }
 
 function parseSparkBySymbol(json: Record<string, any>): Record<string, any> {
@@ -435,7 +465,7 @@ export async function fetchYahooQuotesBatched(
         asOf: "live",
         ...(c.quote.quotedAt ? { quotedAt: c.quote.quotedAt } : {}),
       };
-      if (changeIsFlat(c.quote.changePct)) flat.push([internal, ySym]);
+      if (changeIsFlat(c.quote.changePct) || Math.abs(c.quote.changePct) >= 8) flat.push([internal, ySym]);
     } else {
       stale.push([internal, ySym]);
     }
@@ -495,9 +525,11 @@ export async function fetchYahooQuotesBatched(
     });
   }
 
-  // Pass 3: a flat 1d print gets the prior daily close when Yahoo has one.
+  // Pass 3: a flat print, or a large one, is checked against the prior daily close.
   for (const [internal, ySym] of stale) {
-    if (out[internal] && changeIsFlat(out[internal].changePct)) flat.push([internal, ySym]);
+    const row = out[internal];
+    if (!row) continue;
+    if (changeIsFlat(row.changePct) || Math.abs(row.changePct) >= 8 || row.changeWithheld) flat.push([internal, ySym]);
   }
   const seenFlat = new Set<string>();
   const flatUnique = flat.filter(([internal]) => {
@@ -520,16 +552,22 @@ export async function fetchYahooQuotesBatched(
         const bySymbol = parseSparkBySymbol(json);
         for (const [internal, ySym] of chunk) {
           const existing = out[internal];
-          if (!existing || !changeIsFlat(existing.changePct)) continue;
+          if (!existing) continue;
+          const needsCheck = changeIsFlat(existing.changePct) || Math.abs(existing.changePct) >= 8 || existing.changeWithheld;
+          if (!needsCheck) continue;
           const node = bySymbol[ySym];
           const closes = Array.isArray(node?.close)
             ? node.close.map((v: unknown) => Number(v)).filter((v: number) => Number.isFinite(v) && v > 0)
             : [];
           const prior = closes.length >= 2 ? closes[closes.length - 2] : undefined;
           const basis = prior ?? positiveNum(node?.previousClose);
-          const change = basis ? sessionChangePct(existing.price, basis) : null;
-          if (change == null || changeIsFlat(change)) continue;
-          existing.changePct = change;
+          const reconciled = reconcileSessionChange(existing.price, existing.changePct, basis ?? null);
+          if (basis && reconciled.replaced) existing.changePct = reconciled.changePct;
+          else if (changeIsFlat(existing.changePct)) {
+            const change = basis ? sessionChangePct(existing.price, basis) : null;
+            if (change != null && !changeIsFlat(change)) existing.changePct = change;
+          }
+          existing.changeWithheld = withholdUnconfirmedMove(existing.changePct, !!basis);
         }
       } catch (err) {
         console.error(`[yahoo] daily change pass failed for ${chunk.length}:`, err);

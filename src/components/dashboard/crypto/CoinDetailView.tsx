@@ -47,7 +47,8 @@ import {
   fmtShortDate,
   GENERIC_COIN_ICON,
   CHART_RANGES,
-  windowReturnPct,
+  hourReturnFromChart,
+  sliceLastHour,
   RANGE_TO_DAYS,
   COIN_DETAIL_SOURCE_DOWN,
   COIN_DETAIL_UNAVAILABLE,
@@ -61,9 +62,13 @@ import {
 function sliceRange(chart: CoinChart, range: ChartRange): { t: number; price: number }[] {
   const prices = chart.prices;
   if (range === "1H") {
-    const cutoff = (prices.at(-1)?.t ?? 0) - 60 * 60 * 1000;
-    const win = prices.filter((p) => p.t >= cutoff);
-    return win.length > 1 ? win : prices.slice(-12);
+    const win = sliceLastHour(prices);
+    if (win.length > 1) return win;
+    const tail = prices.slice(-2);
+    if (tail.length === 2 && tail[1].t - tail[0].t <= 75 * 60 * 1000 && tail[1].t - tail[0].t >= 20 * 60 * 1000) {
+      return tail;
+    }
+    return win.length ? win : prices.slice(-1);
   }
   return prices;
 }
@@ -213,16 +218,16 @@ export function CoinDetailView({
     const sliced = sliceRange(chart, range).map((p) => ({ t: p.t, price: p.price }));
     if (detail && detail.price > 0 && sliced.length) {
       const last = sliced[sliced.length - 1];
-      sliced[sliced.length - 1] = { ...last, price: detail.price };
+      const gap = last.price > 0 ? Math.abs(detail.price - last.price) / last.price : 1;
+      if (!(range === "1H" && gap > 0.004)) {
+        sliced[sliced.length - 1] = { ...last, price: detail.price };
+      }
     }
     return sliced;
   }, [chart, range, detail]);
   const hourFromChart = useMemo(() => {
     if (!chart || (range !== "1H" && range !== "24H") || !detail || !(detail.price > 0)) return null;
-    const hour = sliceRange(chart, "1H").map((p) => ({ t: p.t, price: p.price }));
-    if (hour.length < 2) return null;
-    hour[hour.length - 1] = { ...hour[hour.length - 1], price: detail.price };
-    return windowReturnPct(hour);
+    return hourReturnFromChart(chart.prices, detail.price);
   }, [chart, range, detail]);
 
   const change24h = detail?.change24h ?? null;
