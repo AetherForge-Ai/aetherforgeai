@@ -76,6 +76,71 @@ function amountInBase(amount: number, currency: CurrencyCode, base: CurrencyCode
   return rate > 0 ? nzd / rate : nzd;
 }
 
+function ledgerQuantityFor(
+  ticker: string,
+  ledgerQty?: ReadonlyMap<string, number> | Record<string, number> | null
+): number | null {
+  if (!ledgerQty) return null;
+  const key = ticker.trim().toUpperCase();
+  const value = ledgerQty instanceof Map ? ledgerQty.get(key) : ledgerQty[key];
+  const qty = Number(value);
+  return Number.isFinite(qty) && qty > 0 ? qty : null;
+}
+
+/**
+ * The same holding row can be read twice, and an aggregate row can sit beside
+ * the lots that already add up to the ledger. Drop those. Two real lots of 10,
+ * and lots of 5, 3 and 2, stay. Share counts alone are not a reason to merge.
+ */
+export function collapseDuplicateHoldings<T extends { _id?: string; ticker?: string; shares?: number; asset_type?: string | null }>(
+  rows: readonly T[],
+  ledgerQty?: ReadonlyMap<string, number> | Record<string, number> | null
+): T[] {
+  const seen = new Set<string>();
+  const unique: T[] = [];
+  for (const row of rows) {
+    const id = String(row._id || "");
+    if (id) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+    }
+    unique.push(row);
+  }
+  if (!ledgerQty) return unique;
+  const groups = new Map<string, T[]>();
+  for (const row of unique) {
+    const key = `${row.asset_type || "stock"}|${String(row.ticker || "").trim().toUpperCase()}`;
+    const list = groups.get(key) || [];
+    list.push(row);
+    groups.set(key, list);
+  }
+  const out: T[] = [];
+  for (const group of groups.values()) {
+    if (group.length < 2) {
+      if (group[0]) out.push(group[0]);
+      continue;
+    }
+    const booked = ledgerQuantityFor(String(group[0]?.ticker || ""), ledgerQty);
+    if (booked == null) {
+      out.push(...group);
+      continue;
+    }
+    const full = group.filter((row) => Math.abs((Number(row.shares) || 0) - booked) <= 1e-4);
+    const partial = group.filter((row) => Math.abs((Number(row.shares) || 0) - booked) > 1e-4);
+    const partialSum = partial.reduce((sum, row) => sum + (Number(row.shares) || 0), 0);
+    if (full.length && partial.length && Math.abs(partialSum - booked) <= 1e-4) {
+      out.push(...partial);
+      continue;
+    }
+    if (full.length >= 2 && partial.length === 0) {
+      out.push(full[0]);
+      continue;
+    }
+    out.push(...group);
+  }
+  return out;
+}
+
 export function computeSummary(stocks: Stock[], opts: SummaryOptions = {}): PortfolioSummary {
   const baseCurrency = opts.baseCurrency ?? "USD";
   const fx = opts.fxToNZD ?? BASELINE_FX_TO_NZD;

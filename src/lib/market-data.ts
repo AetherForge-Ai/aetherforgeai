@@ -71,6 +71,8 @@ function toProviderSymbol(ticker: string): { symbol: string; country?: string } 
 /* ------------------------------- TTL cache ------------------------------ */
 
 const CACHE = new Map<string, LiveQuote>();
+const liveQuoteInflight = new Map<string, Promise<Record<string, LiveQuote>>>();
+const cryptoQuoteInflight = new Map<string, Promise<Record<string, LiveQuote>>>();
 let cacheStamp = 0;
 const TTL_MS = 60_000; // 1 minute
 
@@ -175,7 +177,18 @@ async function fetchYahooEquityQuotes(tickers: string[]): Promise<Record<string,
  */
 export async function fetchLiveQuotes(tickers: string[]): Promise<Record<string, LiveQuote>> {
   if (!tickers.length) return {};
-  const unique = Array.from(new Set(tickers.map((t) => t.toUpperCase())));
+  const unique = Array.from(new Set(tickers.map((t) => t.toUpperCase()))).sort();
+  const flightKey = unique.join(",");
+  const pending = liveQuoteInflight.get(flightKey);
+  if (pending) return pending;
+  const work = loadLiveQuotes(unique).finally(() => {
+    if (liveQuoteInflight.get(flightKey) === work) liveQuoteInflight.delete(flightKey);
+  });
+  liveQuoteInflight.set(flightKey, work);
+  return work;
+}
+
+async function loadLiveQuotes(unique: string[]): Promise<Record<string, LiveQuote>> {
 
   const key = process.env.MARKET_DATA_API_KEY;
 
@@ -185,7 +198,16 @@ export async function fetchLiveQuotes(tickers: string[]): Promise<Record<string,
     if (key && PROVIDER !== "yahoo" && PROVIDER !== "twelvedata") {
       console.error(`[market-data] Unsupported MARKET_DATA_PROVIDER "${PROVIDER}" — using keyless Yahoo Finance.`);
     }
-    return fetchYahooEquityQuotes(unique);
+    const fresh = readCache();
+    if (fresh && unique.every((t) => fresh[t])) {
+      return Object.fromEntries(unique.map((t) => [t, fresh[t]]));
+    }
+    const yahoo = await fetchYahooEquityQuotes(unique);
+    if (Object.keys(yahoo).length) {
+      Object.entries(yahoo).forEach(([t, q]) => CACHE.set(t, q));
+      cacheStamp = Date.now();
+    }
+    return yahoo;
   }
 
   // Serve from cache when every requested ticker is already fresh.
@@ -327,7 +349,23 @@ let cryptoStamp = 0;
  * session ends. `bypassCache` is for the shared holdings snapshot, which has
  * its own shorter TTL.
  */
-export async function fetchCryptoQuotes(
+export function fetchCryptoQuotes(
+  tickers: string[],
+  opts?: { bypassCache?: boolean; ids?: Record<string, string>; strictCoinGecko?: string[] }
+): Promise<Record<string, LiveQuote>> {
+  if (!tickers.length || !isCryptoLiveConfigured()) return Promise.resolve({});
+  const unique = Array.from(new Set(tickers.map((t) => t.toUpperCase()))).sort();
+  const flightKey = `${opts?.bypassCache ? "b" : "c"}:${unique.join(",")}`;
+  const pending = cryptoQuoteInflight.get(flightKey);
+  if (pending) return pending;
+  const work = loadCryptoQuotes(tickers, opts).finally(() => {
+    if (cryptoQuoteInflight.get(flightKey) === work) cryptoQuoteInflight.delete(flightKey);
+  });
+  cryptoQuoteInflight.set(flightKey, work);
+  return work;
+}
+
+async function loadCryptoQuotes(
   tickers: string[],
   opts?: { bypassCache?: boolean; ids?: Record<string, string>; strictCoinGecko?: string[] }
 ): Promise<Record<string, LiveQuote>> {

@@ -1,8 +1,9 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
-import { parseHoldingsCsv, type HoldingsCsvRow } from "@/lib/holdings-csv";
+import { HOLDINGS_IMPORT_DRAFT_KEY, parseHoldingsCsv, type HoldingsCsvRow } from "@/lib/holdings-csv";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Loader2, Upload } from "lucide-react";
@@ -38,11 +39,23 @@ export function HoldingsCsvImport({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
+  const router = useRouter();
 
   async function onFile(file: File) {
     setBusy(true);
     try {
-      const parsed = parseHoldingsCsv(await file.text());
+      const text = await file.text();
+      if (assetType === "stock") {
+        try {
+          sessionStorage.setItem(HOLDINGS_IMPORT_DRAFT_KEY, text);
+        } catch {
+          toast.error("That file could not be kept for review.");
+          return;
+        }
+        router.push("/import");
+        return;
+      }
+      const parsed = parseHoldingsCsv(text);
       const rows = parsed.rows.filter((row) => row.assetType === assetType);
       const skipped = parsed.rows.length - rows.length;
       if (!rows.length) {

@@ -58,6 +58,12 @@ const L1_CHAIN: Record<string, string> = {
   "wrapped-bitcoin": "Ethereum",
   "staked-ether": "Ethereum",
   "wrapped-steth": "Ethereum",
+  monero: "Monero",
+  "unus-sed-leo": "Ethereum",
+  whitebit: "Ethereum",
+  usds: "Ethereum",
+  "coinbase-wrapped-btc": "Base",
+  rain: "Ethereum",
   "rocket-pool-eth": "Ethereum",
   "coinbase-wrapped-staked-eth": "Ethereum",
   weth: "Ethereum",
@@ -182,6 +188,13 @@ const TICKER_CHAIN: Record<string, string> = {
   weeth: "Ethereum",
   reth: "Ethereum",
   cbeth: "Ethereum",
+  wsteth: "Ethereum",
+  usds: "Ethereum",
+  xmr: "Monero",
+  wbt: "Ethereum",
+  leo: "Ethereum",
+  cbbtc: "Base",
+  rain: "Ethereum",
 };
 
 const PLATFORM_LABEL: Record<string, string> = {

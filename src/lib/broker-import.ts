@@ -12,7 +12,8 @@
 
 import { tickersForCompanyName } from "@/lib/broker-names";
 import { roundMoney } from "@/lib/currency";
-import { parseHoldingsDate, splitCsvLine } from "@/lib/holdings-csv";
+import { parseHoldingsDate, splitCsvLine, splitHoldingsTicker } from "@/lib/holdings-csv";
+import { lookupTicker } from "@/lib/market";
 
 export type ImportBroker = "sharesies" | "hatch" | "ibkr" | "generic";
 export type ImportSide = "buy" | "sell";
@@ -104,7 +105,7 @@ const TICKER_KEYS = [
 const NAME_HEADERS = new Set(["instrument name", "company name", "company", "security name", "name"]);
 const DATE_KEYS = ["date", "trade date", "tradedate", "when", "trade_date"];
 const QTY_KEYS = ["quantity", "qty", "units", "shares"];
-const PRICE_KEYS = ["price", "tradeprice", "trade price", "t. price", "unit price"];
+const PRICE_KEYS = ["price", "tradeprice", "trade price", "t. price", "unit price", "price paid", "pricepaid", "purchase price"];
 const FEE_KEYS = ["fee", "fees", "commission", "ibcommission", "ib commission", "transaction fee"];
 const MARKET_KEYS = ["market code", "market"];
 const CCY_KEYS = ["currency", "currencyprimary", "currency primary", "ccy"];
@@ -247,10 +248,22 @@ function narrowTickers(tickers: string[], currency: ImportCurrency | null): stri
   return picked.length === 1 ? picked : tickers;
 }
 
-/** A code in the file is kept. A company name must match one listing, or the row asks. */
+/** A code in the file is kept. `CODE / NAME` uses the listing when the code is wrong. A company name must match one listing, or the row asks. */
 function resolveTicker(raw: string, currency: ImportCurrency | null): { ticker: string } | { reason: string } {
   const text = raw.trim();
   if (!text) return { reason: "Date, ticker, quantity or price could not be read." };
+  const split = splitHoldingsTicker(text);
+  if (split) {
+    if (lookupTicker(split.code)) return { ticker: split.code };
+    const named = narrowTickers(tickersForCompanyName(split.name), currency);
+    if (named.length === 1) return { ticker: named[0] };
+    if (named.length > 1) {
+      return {
+        reason: `Company name "${split.name}" matches ${named.join(", ")}. Choose one ticker. Nothing was guessed.`,
+      };
+    }
+    return { ticker: split.code };
+  }
   if (isTickerShaped(text)) return { ticker: text.toUpperCase() };
   const matches = tickersForCompanyName(text);
   if (!matches.length) {
@@ -400,8 +413,9 @@ export function planBrokerImport(
 
   const broker = detectBroker(headerCells);
   const columns = mapFromHeaders(headerCells, options?.mapping);
+  const holdingsShape = columns.side < 0 && columns.ticker >= 0 && columns.quantity >= 0 && columns.price >= 0;
   const required = [columns.date, columns.ticker, columns.side, columns.quantity, columns.price];
-  if (required.some((at) => at < 0)) {
+  if (required.some((at) => at < 0) && !holdingsShape) {
     const plan = emptyPlan(null, headerCells);
     plan.broker = broker;
     plan.needsMapping = true;
@@ -424,8 +438,8 @@ export function planBrokerImport(
     const blank = cells.every((cell) => !cell.trim());
     if (blank) return;
 
-    const sideRaw = cells[columns.side] || "";
-    const side = parseSide(sideRaw);
+    const sideRaw = holdingsShape ? "buy" : cells[columns.side] || "";
+    const side = holdingsShape ? "buy" : parseSide(sideRaw);
     if (side === "unsupported") {
       unsupported.push({ line: lineNo, reason: `Unsupported row (${sideRaw.trim() || "blank type"}). Splits are not imported.` });
       return;
@@ -557,7 +571,7 @@ export function planBrokerImport(
     else fresh.push(row);
   }
 
-  const readableButUnmapped = !broker && !options?.mapping && rows.length === 0;
+  const readableButUnmapped = !broker && !options?.mapping && rows.length === 0 && !holdingsShape;
   const fileError = rows.length === 0 && !readableButUnmapped ? "No buy or sell rows could be read. Nothing was written." : null;
   const cash = fileError
     ? { toWrite: [] as ImportTrade[], deposits: [] as ImportPlan["fundingDeposits"], skipped: [] as UnsupportedRow[], fundingNeeded: false }

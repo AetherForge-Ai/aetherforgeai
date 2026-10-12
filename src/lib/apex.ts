@@ -603,6 +603,37 @@ function buildMarketMovers(
         };
       }),
     };
+  }).map((group) => ({ ...group, windows: withholdAcrossWindows(group.windows) }));
+}
+
+/** A name under review on any window leaves every rank list, including 24 hours. */
+export function withholdAcrossWindows<T extends {
+  window: string;
+  movers: { ticker: string }[];
+  underReview: { ticker: string }[];
+  withheldCount: number;
+  reviewNote: string | null;
+}>(windows: T[]): T[] {
+  const blocked = new Set<string>();
+  for (const window of windows) {
+    for (const row of window.underReview) blocked.add(row.ticker.toUpperCase());
+  }
+  if (!blocked.size) return windows;
+  return windows.map((window) => {
+    const extra: { ticker: string }[] = [];
+    const movers = window.movers.filter((row) => {
+      if (!blocked.has(row.ticker.toUpperCase())) return true;
+      extra.push({ ticker: row.ticker });
+      return false;
+    });
+    if (!extra.length) return window;
+    const underReview = [...window.underReview];
+    for (const row of extra) {
+      if (!underReview.some((item) => item.ticker.toUpperCase() === row.ticker.toUpperCase())) underReview.push(row);
+    }
+    underReview.sort((a, b) => a.ticker.localeCompare(b.ticker));
+    const withheldCount = window.withheldCount + extra.length;
+    return { ...window, movers, underReview, withheldCount, reviewNote: printsUnderReviewLine(withheldCount) };
   });
 }
 

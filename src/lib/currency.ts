@@ -342,6 +342,16 @@ export function formatCleanNumber(value: number): string {
  * A value that rounds to zero is 0, never -0.
  * pull-check:batch1-2026-10-11 B1-6
  */
+/** Sum of the cent-rounded parts. round(a + b) can be one cent off round(a) + round(b). */
+export function sumRoundedMoney(parts: readonly number[]): number {
+  const cents = parts.reduce((sum, part) => {
+    const value = Number(part);
+    if (!Number.isFinite(value)) return sum;
+    return sum + Math.round(roundMoney(value) * 100);
+  }, 0);
+  return cents / 100;
+}
+
 export function roundMoney(value: number): number {
   if (!Number.isFinite(value)) return 0;
   const negative = value < 0;

@@ -10,16 +10,19 @@ import "server-only";
 
 import { coinGeckoEndpoint } from "@/lib/coingecko-auth";
 import { parseMegafilterPage } from "@/lib/crypto-dex";
+import { lastCryptoSeedReport, seedFailureReason, type SeedSourceReport } from "@/lib/crypto-keyless-seed";
 
 export const DIAGNOSTIC_ACCEPT = "application/json;version=20230302";
 
 export interface ProbeResult {
-  id: "coingecko" | "geckoterminal" | "kraken" | "coinbase";
+  id: "coingecko" | "geckoterminal" | "kraken" | "coinbase" | "coinpaprika" | "binance";
   status: number | null;
   ms: number;
   bytes: number;
   rows: number;
   error: "429" | "403" | "timeout" | "parse" | null;
+  /** Plain reason. Never a response body or an API key. */
+  reason: string | null;
   /** Which CoinGecko path was called. Never the key. */
   mode?: "keyless" | "demo" | "pro";
 }
@@ -70,6 +73,7 @@ async function probe(
       bytes: text.length,
       rows: parsed ? rows : 0,
       error: probeErrorClass({ status: res.status, timedOut: false, parsed: httpOk ? parsed : true, httpOk }),
+      reason: probeReason(id, res.status, probeErrorClass({ status: res.status, timedOut: false, parsed: httpOk ? parsed : true, httpOk })),
       ...(mode ? { mode } : {}),
     };
   } catch (err) {
@@ -83,12 +87,21 @@ async function probe(
       bytes: 0,
       rows: 0,
       error: timedOut ? "timeout" : null,
+      reason: timedOut ? "timeout" : "request failed",
       ...(mode ? { mode } : {}),
     };
   }
 }
 
-export async function runCryptoDiagnostics(): Promise<{ ok: true; probes: ProbeResult[] }> {
+function probeReason(id: string, status: number | null, error: ProbeResult["error"]): string | null {
+  if (error === "timeout") return "timeout";
+  if (error === "parse") return "parse";
+  const fromStatus = seedFailureReason(id, status);
+  if (fromStatus) return fromStatus;
+  return null;
+}
+
+export async function runCryptoDiagnostics(): Promise<{ ok: true; probes: ProbeResult[]; seed: SeedSourceReport[] }> {
   const cg = coinGeckoEndpoint();
   const probes = await Promise.all([
     probe(
@@ -122,11 +135,27 @@ export async function runCryptoDiagnostics(): Promise<{ ok: true; probes: ProbeR
         return price > 0 ? 1 : 0;
       }
     ),
+    probe(
+      "coinpaprika",
+      "https://api.coinpaprika.com/v1/tickers?quotes=USD",
+      { accept: "application/json" },
+      (body) => (Array.isArray(body) ? body.length : 0)
+    ),
+    probe(
+      "binance",
+      "https://data-api.binance.vision/api/v3/ticker/24hr?symbol=BTCUSDT",
+      { accept: "application/json" },
+      (body) => {
+        const price = body && typeof body === "object" ? Number((body as { lastPrice?: unknown }).lastPrice) : NaN;
+        return price > 0 ? 1 : 0;
+      }
+    ),
   ]);
+  const seed = lastCryptoSeedReport();
   const key = (process.env.COINGECKO_API_KEY || "").trim();
-  if (key && JSON.stringify(probes).includes(key)) {
+  if (key && JSON.stringify({ probes, seed }).includes(key)) {
     console.error("[crypto-diagnostics] result withheld");
-    return { ok: true, probes: [] };
+    return { ok: true, probes: [], seed: [] };
   }
-  return { ok: true, probes };
+  return { ok: true, probes, seed };
 }

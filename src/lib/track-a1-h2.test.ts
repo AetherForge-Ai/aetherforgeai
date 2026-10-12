@@ -80,8 +80,9 @@ describe("implausible moves stay out of rankings and projections", () => {
     const us = stock.marketMovers.find((group) => group.market === "US");
     const day = us?.windows.find((window) => window.window === "Last 24 hours");
     const week = us?.windows.find((window) => window.window === "Last 7 days");
-    expect(day?.withheldCount).toBe(4);
-    expect(day?.reviewNote).toBe("4 prints under review");
+    expect(windowNames("Last 24 hours")).not.toContain("MDLZ");
+    expect(day?.withheldCount).toBe(5);
+    expect(day?.reviewNote).toBe("5 prints under review");
     expect(printsUnderReviewLine(day?.withheldCount ?? 0)).toBe(day?.reviewNote ?? null);
     expect(week?.withheldCount).toBeGreaterThan(0);
     expect(week?.reviewNote).toMatch(/prints under review/);

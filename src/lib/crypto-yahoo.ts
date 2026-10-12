@@ -134,10 +134,34 @@ export async function fetchYahooMajorMarkets(): Promise<CoinMarket[]> {
   return out;
 }
 
+function chartCloses(payload: unknown): number[] {
+  const root = payload && typeof payload === "object" ? (payload as { chart?: { result?: Array<{ indicators?: { quote?: Array<{ close?: unknown[] }> } }> } }) : null;
+  const closes = root?.chart?.result?.[0]?.indicators?.quote?.[0]?.close || [];
+  return closes.filter((n): n is number => typeof n === "number" && Number.isFinite(n) && n > 0);
+}
+
+/** Percent move from the close `barsBack` prints before the last close. */
+export function trailingCloseChange(closes: number[], barsBack: number): number | null {
+  const live = closes.filter((n) => n > 0);
+  if (live.length < 2 || barsBack < 1) return null;
+  const last = live[live.length - 1];
+  const prev = live[Math.max(0, live.length - 1 - barsBack)];
+  if (!(prev > 0) || !(last > 0)) return null;
+  return ((last - prev) / prev) * 100;
+}
+
 export async function fetchYahooCoinDetail(idOrTicker: string): Promise<CoinDetail> {
   const ticker = resolveTicker(idOrTicker);
-  const q = await fetchYahooCryptoQuote(ticker);
+  const symbol = yahooSymbol(ticker);
+  const [q, hour, month] = await Promise.all([
+    fetchYahooCryptoQuote(ticker),
+    yahooChartRaw(symbol, "1d", "5m"),
+    yahooChartRaw(symbol, "1mo", "1d"),
+  ]);
   if (!q) throw new Error(`Yahoo has no quote for ${ticker}`);
+  const change1h = trailingCloseChange(chartCloses(hour), 12);
+  const monthCloses = chartCloses(month);
+  const change30d = trailingCloseChange(monthCloses, Math.max(1, monthCloses.length - 1));
   return {
     id: ticker.toLowerCase(),
     symbol: ticker,
@@ -150,10 +174,10 @@ export async function fetchYahooCoinDetail(idOrTicker: string): Promise<CoinDeta
     volume24h: null,
     high24h: null,
     low24h: null,
-    change1h: null,
+    change1h,
     change24h: q.changePct,
-    change7d: null,
-    change30d: null,
+    change7d: q.change7d,
+    change30d,
     change1y: null,
     circulatingSupply: null,
     totalSupply: null,

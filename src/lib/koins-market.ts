@@ -53,10 +53,13 @@ export function coinToIntel(c: CoinMarket): SecurityIntel {
   const live7d = c.moves ? c.moves.d7 : resolveSevenDayChange(c.change7d, c.sparkline7d);
   const change7d = live7d != null ? round(live7d, 2) : base.change7d;
 
+  // A live 7-day print can blend with the structural read. Anything outside ±12
+  // stays on the structural figure. The old ±45 clamp pinned names such as RSR at +45.00.
+  const blend = 0.5 * base.projected7dPct + 0.4 * change7d + 0.1 * change1d;
   const projected7dPct =
-    live7d == null
+    live7d == null || Math.abs(blend) > 12
       ? round(clamp(base.projected7dPct, -12, 12), 2)
-      : round(clamp(0.5 * base.projected7dPct + 0.4 * change7d + 0.1 * change1d, -45, 45), 2);
+      : round(blend, 2);
 
   return labelIntel(alignProjectedFigures({
     ...base,

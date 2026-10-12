@@ -27,12 +27,15 @@ export async function loadPublicTicker(): Promise<TickerTapeFeed> {
       price: quote.price,
       changePct: quote.changePct,
       quotedAt: quote.quotedAt,
-      source: "coingecko",
-      provider: "CoinGecko",
+      source: quote.source || "yahoo",
+      provider: sourceLabel(quote.source || "yahoo"),
     };
   }
 
-  const cryptoProvider = publicCryptoSourcesLabel();
+  const actualSources = [...new Set(Object.values(cryptoQuotes).map((quote) => quote.source).filter(Boolean))];
+  const cryptoProvider = actualSources.length
+    ? actualSources.map((source) => sourceLabel(source)).filter(Boolean).join(", ")
+    : publicCryptoSourcesLabel();
   const feed = composeTickerTape({
     equityQuotes,
     cryptoQuotes,
