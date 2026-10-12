@@ -123,8 +123,8 @@ Rows that would change: 2
 - URL / steps: the same Stox report, "Next 7 days · Top-10 projected movers", then "Not sized this week"
 - Expected:
   - The projected list shows this note exactly: "Ranked by projected 7-day move only. A rank is not a buy rating; each name's rating is shown."
-  - The MAH.AX row reads like "1. MAH.AX · ASX AU$1.11 +5.56% 65% · Not a buy: the rating is not a buy".
-  - The reason matches the "Not sized" entry ("the rating is not a buy").
+  - The MAH.AX row reads like "1. MAH.AX · ASX AU$1.11 +5.56% 65% · Not a buy: rating TRIM: momentum negative".
+  - The reason matches the "Not sized" entry ("rating TRIM: momentum negative"). Score 40 is labelled Reduce, so the action is TRIM, and the bearish MACD is the momentum clause. The fixed sentence "the rating is not a buy" is not used. "rating data unavailable" is only when the row has no signal, MACD, or regime.
   - Each row has a rating cell "BUY" / "HOLD" / "Not a buy: <reason>".
   - The list still has 10 rows. Order is still projected 7-day move only.
 - Needs Lukas: Publish, when you choose to

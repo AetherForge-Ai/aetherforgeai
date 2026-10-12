@@ -16,10 +16,10 @@ import { applyMarketsSessionChange } from "@/lib/markets-session";
 import type { SecurityIntel } from "@/lib/market-intel";
 import { buildFifPaper } from "@/lib/fif-working-paper";
 import { computeSummary, formatPercent } from "@/lib/portfolio";
-import { printUnderReviewLabel, PROJECTION_RANK_NOTE, projectionLeaderLine } from "@/lib/report-copy";
+import { printUnderReviewLabel, PROJECTION_RANK_NOTE, projectionLeaderLine, projectionRatingLabel } from "@/lib/report-copy";
 import { priorMoverPrints } from "@/lib/report-topup";
 import { reviewSessionMove } from "@/lib/quote-review";
-import { readTape } from "@/lib/report-consistency";
+import { notBuyRatingReason, readTape } from "@/lib/report-consistency";
 import { realisedByTaxYear } from "@/lib/tax-realised";
 import { taxableIncome } from "@/lib/taxable-income";
 import { csvEscape, transactionCsvCells } from "@/lib/transaction-csv";
@@ -206,10 +206,17 @@ describe("H1 projection rating", () => {
     expect(report.projectionLeaders.length).toBeGreaterThan(0);
     expect(report.projectionLeaders.length).toBeLessThanOrEqual(10);
     const leader = report.projectionLeaders.find((row) => row.ticker === "MAH.AX");
-    expect(leader?.ratingLabel).toBe("Not a buy: the rating is not a buy");
+    expect(leader?.ratingLabel).toBe("Not a buy: rating TRIM: momentum negative");
     expect(projectionLeaderLine(1, leader!)).toBe(
-      "1. MAH.AX · ASX AU$1.11 +5.56% 65% · Not a buy: the rating is not a buy"
+      "1. MAH.AX · ASX AU$1.11 +5.56% 65% · Not a buy: rating TRIM: momentum negative"
     );
+    expect(report.notSized?.find((row) => row.ticker === "MAH.AX")?.reason).toBe(
+      "rating TRIM: momentum negative"
+    );
+    expect(projectionRatingLabel("", null)).toBe("Not a buy: rating data unavailable");
+    expect(
+      notBuyRatingReason({ signal: "Buy", macdSignal: "Bearish", regime: "Range-Bound", projected7dPct: 5.56 })
+    ).toBe("rating HOLD: momentum negative");
     expect(readFileSync("src/components/bots/ApexReport.tsx", "utf8")).toContain("PROJECTION_RANK_NOTE");
     expect(readFileSync("src/lib/apex.ts", "utf8")).toContain("getProjectionLeaders(10");
   });

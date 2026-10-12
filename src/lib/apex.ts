@@ -36,6 +36,7 @@ import {
   candidateIsSuitable,
   deploymentGuard,
   isConstructiveCard,
+  notBuyRatingReason,
   rateAsset,
   unsuitableReason,
   type DeploymentGuard,
@@ -814,18 +815,24 @@ function buildDirectRecommendations(
     return candidateIsSuitable({ ...row.intel, projected7dPct: row.pct }, guard);
   });
   const skippedDetails: { ticker: string; reason: string }[] = [];
+  const heldBack: { ticker: string; reason: string }[] = [];
   for (const row of withOutlook) {
     if (underReview.has(row.intel.ticker.toUpperCase())) {
       skippedDetails.push({ ticker: row.intel.ticker, reason: "print under review" });
       continue;
     }
-    if (!looksLikeBuy(row.intel)) continue;
+    if (!looksLikeBuy(row.intel)) {
+      heldBack.push({ ticker: row.intel.ticker, reason: notBuyRatingReason(row.intel) });
+      continue;
+    }
     if (!guard) {
       if (!(row.pct > 0)) {
         skippedDetails.push({
           ticker: row.intel.ticker,
           reason: `7-day projection ${spPct(row.pct)} is not positive`,
         });
+      } else if (!rateAsset(row.intel).positiveMomentum) {
+        skippedDetails.push({ ticker: row.intel.ticker, reason: notBuyRatingReason(row.intel) });
       }
       continue;
     }
@@ -841,6 +848,7 @@ function buildDirectRecommendations(
       });
     }
   }
+  skippedDetails.push(...heldBack);
   if (opts?.ratingReasons) opts.ratingReasons.push(...skippedDetails);
   const shownSkipped = skippedDetails.slice(0, 8);
   if (opts?.skippedNames) opts.skippedNames.push(...shownSkipped.map((row) => `${row.ticker} (${row.reason})`));

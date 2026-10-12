@@ -119,7 +119,9 @@ export function projectionRatingLabel(signal: string, notSizedReason?: string | 
   if (reason) return `Not a buy: ${reason}`;
   if (signal === "Buy" || signal === "Strong Buy" || signal === "Accumulate") return "BUY";
   if (signal === "Hold") return "HOLD";
-  return "Not a buy: the rating is not a buy";
+  if (signal === "Sell") return "Not a buy: rating SELL: signal Sell";
+  if (signal === "Reduce") return "Not a buy: rating TRIM: signal Reduce";
+  return "Not a buy: rating data unavailable";
 }
 
 export function notSizedLine(entries: { ticker: string; reason: string }[]): string {
