@@ -10,20 +10,16 @@ export async function loadPublicTicker(): Promise<TickerTapeFeed> {
   const equitySymbols = [...TICKER_TAPE.nzx, ...TICKER_TAPE.asx].map((row) => row.symbol);
   const cryptoSymbols = TICKER_TAPE.crypto.map((row) => row.symbol);
 
-  let equityQuotes: Awaited<ReturnType<typeof fetchLiveQuotes>> = {};
-  let cryptoQuotes: Awaited<ReturnType<typeof fetchCryptoQuotes>> = {};
-
-  try {
-    cryptoQuotes = await fetchCryptoQuotes(cryptoSymbols);
-  } catch (err) {
-    console.error("[ticker] Crypto live fetch failed:", err);
-  }
-
-  try {
-    equityQuotes = await fetchLiveQuotes(equitySymbols);
-  } catch (err) {
-    console.error("[ticker] Equity live fetch failed:", err);
-  }
+  const [cryptoQuotes, equityQuotes] = await Promise.all([
+    fetchCryptoQuotes(cryptoSymbols).catch((err) => {
+      console.error("[ticker] Crypto live fetch failed:", err);
+      return {} as Awaited<ReturnType<typeof fetchCryptoQuotes>>;
+    }),
+    fetchLiveQuotes(equitySymbols).catch((err) => {
+      console.error("[ticker] Equity live fetch failed:", err);
+      return {} as Awaited<ReturnType<typeof fetchLiveQuotes>>;
+    }),
+  ]);
 
   const cryptoProvider = publicCryptoSourcesLabel();
   const feed = composeTickerTape({
@@ -46,7 +42,7 @@ export async function loadPublicTicker(): Promise<TickerTapeFeed> {
 }
 
 /** Home HTML waits only a short time. The client tape still refreshes after that. */
-export async function loadPublicTickerBounded(ms = 4000): Promise<TickerTapeFeed | null> {
+export async function loadPublicTickerBounded(ms = 1800): Promise<TickerTapeFeed | null> {
   return Promise.race([
     loadPublicTicker(),
     new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),

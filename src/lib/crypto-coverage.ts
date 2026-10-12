@@ -29,8 +29,14 @@ export function cryptoCoveragePhrase(rowCount: number): string {
 export const SUPPLY_NOT_AVAILABLE = "Not available";
 
 /** Why a list stopped short of 400. Null only when 400 coins are in hand. */
-export function listedMarketNotice(count: number, reason: "page2" | "backup" | "short" | null): string | null {
+export function listedMarketNotice(
+  count: number,
+  reason: "page2" | "backup" | "short" | "saved" | null
+): string | null {
   const shown = Math.max(0, Math.round(Number(count) || 0));
+  if (reason === "saved") {
+    return `Showing ${shown} of up to ${MARKET_LIST_TARGET}. Last saved CoinGecko list.`;
+  }
   if (shown >= MARKET_LIST_TARGET || reason == null) return null;
   const lead = `Showing ${shown} of up to ${MARKET_LIST_TARGET}.`;
   if (reason === "backup") {
@@ -40,6 +46,21 @@ export function listedMarketNotice(count: number, reason: "page2" | "backup" | "
     return `${lead} CoinGecko did not return the second page (rate limit or plan cap).`;
   }
   return `${lead} The feeds returned ${shown} coins with a live price.`;
+}
+
+/** Append a vendor or save time. The label is already formatted. */
+export function noticeWithAsOf(notice: string | null, asOfLabel: string | null): string | null {
+  const label = (asOfLabel || "").trim();
+  if (!label || label === "—") return notice;
+  const sentence = `As of ${label}.`;
+  if (!notice) return sentence;
+  if (notice.includes(sentence)) return notice;
+  return `${notice} ${sentence}`;
+}
+
+/** True when at least one row has a positive figure. Empty columns stay hidden. */
+export function columnHasFigure(values: Array<number | null | undefined>): boolean {
+  return values.some((value) => typeof value === "number" && Number.isFinite(value) && value > 0);
 }
 
 /** Button label. "DEX top 400" only when 400 tokens were delivered. */

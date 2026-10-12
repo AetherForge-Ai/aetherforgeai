@@ -11,6 +11,10 @@ interface CloudflareEnv extends Cloudflare.Env {}
 declare namespace NodeJS {
   interface ProcessEnv {
     TOTALUM_API_KEY: string; // we expect this to exist
+    /** Optional. Demo header x-cg-demo-api-key, or Pro when COINGECKO_PRO=on. Never log. */
+    COINGECKO_API_KEY?: string;
+    /** Set to on for the Pro host and x-cg-pro-api-key. */
+    COINGECKO_PRO?: string;
   }
 }
 
