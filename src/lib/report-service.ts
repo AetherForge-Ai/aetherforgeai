@@ -1,6 +1,7 @@
 import "server-only";
 import { totalumSdk } from "@/lib/totalum";
 import { buildLiveReport, type LiveHolding, type BotKind } from "@/lib/apex";
+import { applyMarketsSessionChange } from "@/lib/markets-session";
 import { renderReportHtml, type ReportAlert } from "@/lib/report-html";
 import { analyzeSecurity, analyzeUniverse, getMarketNews, universeFor, type SecurityIntel } from "@/lib/market-intel";
 import { loadMarketNews } from "@/lib/market-news";
@@ -28,6 +29,7 @@ import {
   koinsCoverageSentences,
   openCallFromTicker,
   priorCallsFromPayloads,
+  priorMoverPrints,
   rollClosedCallScore,
   type SevenDayCall,
 } from "@/lib/report-topup";
@@ -82,10 +84,10 @@ async function loadPriorReportCalls(userId: string, bot: BotKind) {
       _limit: 12,
     });
     const rows = ((res as { data?: Array<{ payload?: unknown }> })?.data || []).map((row) => row.payload);
-    return priorCallsFromPayloads(rows);
+    return { ...priorCallsFromPayloads(rows), moverPrints: priorMoverPrints(rows) };
   } catch (err) {
     console.error("[report-service] Prior closed-call load failed (non-fatal):", err);
-    return priorCallsFromPayloads([]);
+    return { ...priorCallsFromPayloads([]), moverPrints: {} as Record<string, { changePct: number; price: number }> };
   }
 }
 
@@ -256,9 +258,10 @@ export async function generateReportForUser(
   // delisted / acquired / renamed name (no live price) is dropped automatically
   // rather than appearing on stale synthetic data.
   let marketOverrides: Record<string, number> = {};
+  let universeQuotes: Record<string, { price: number; changePct?: number }> = {};
   try {
     const universeTickers = universeFor(bot).map((e) => e.ticker);
-    const universeQuotes = await fetchQuotesForAssetClass(universeTickers, bot);
+    universeQuotes = await fetchQuotesForAssetClass(universeTickers, bot);
     marketOverrides = Object.fromEntries(
       Object.entries(universeQuotes).map(([t, q]) => [t, q.price])
     );
@@ -283,13 +286,16 @@ export async function generateReportForUser(
     }
   }
 
-  const marketTechnicals: SecurityIntel[] = (
+  let marketTechnicals: SecurityIntel[] = (
     universeIntel?.length
       ? universeIntel
       : Object.keys(marketOverrides).length > 0
         ? analyzeUniverse(marketOverrides, bot)
         : []
   ).map((row) => labelIntel(row));
+  if (bot !== "crypto") {
+    marketTechnicals = applyMarketsSessionChange(marketTechnicals, universeQuotes);
+  }
   const marketFeedUnavailable = marketTechnicals.length === 0;
   if (marketFeedUnavailable) {
     console.error(`[report-service] ${bot} market feed unavailable — report will say so and will not invent quotes`);
@@ -335,6 +341,7 @@ export async function generateReportForUser(
   const portfolioLoaded = portfolioIsLoaded(readPortfolioBook(allRows, [], cashBalanceNZD), coveragePositions);
 
   const tape = readTape(technicals);
+  const prior = await loadPriorReportCalls(user._id, bot);
   const report = buildLiveReport(bot, holdings, {
     seedSalt: `${user._id}:${bot}:${context}:${Date.now()}`,
     fxToNZD: fx.ratesToNZD,
@@ -345,6 +352,17 @@ export async function generateReportForUser(
     cashBalanceNZD,
     accountBookNZD: portfolioLoaded && accountBookNZD > 0 ? accountBookNZD : undefined,
     marketFeedUnavailable,
+    marketsCrossCheck:
+      bot === "crypto"
+        ? undefined
+        : {
+            changePct: Object.fromEntries(
+              Object.entries(universeQuotes)
+                .filter((entry): entry is [string, { price: number; changePct: number }] => typeof entry[1]?.changePct === "number")
+                .map(([ticker, quote]) => [ticker.toUpperCase(), quote.changePct])
+            ),
+            prior: prior.moverPrints,
+          },
   });
 
   if (bot === "crypto") {
@@ -453,7 +471,6 @@ export async function generateReportForUser(
     const have = new Set(delivered.keyObservations);
     delivered.keyObservations = [...delivered.keyObservations, ...lines.filter((line) => !have.has(line))];
   }
-  const prior = await loadPriorReportCalls(user._id, bot);
   const closedCallScore = rollClosedCallScore(prior.score, prior.calls, bookLog.prices, now.getTime());
   const openCalls = delivered.tickers
     .map((ticker) => openCallFromTicker(ticker, now.getTime()))

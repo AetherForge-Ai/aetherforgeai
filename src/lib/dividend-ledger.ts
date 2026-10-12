@@ -332,7 +332,7 @@ export function dividendCsv(rows: readonly DividendView[], formatDate: (value: s
       .map(csvEscape)
       .join(",")
   );
-  return lines.join("\n");
+  return `${lines.join("\n")}\n`;
 }
 
 export interface MonthIncome {

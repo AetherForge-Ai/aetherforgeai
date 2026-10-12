@@ -7,6 +7,7 @@ import { TaxCompletenessList } from "@/components/tax/TaxCompletenessList";
 import { TaxSectionNav } from "@/components/tax/TaxSectionNav";
 import { canExportCsv } from "@/lib/entitlements";
 import { formatNzd } from "@/lib/currency";
+import { COST_METHOD_LABEL } from "@/lib/lot-day";
 import {
   FIF_ASSUMPTIONS,
   FIF_SOURCES,
@@ -133,6 +134,7 @@ export default async function FifPage({
           <p className="mt-6 text-sm text-muted-foreground">The working paper could not be read.</p>
         ) : (
           <>
+            <p className="mt-6 text-sm text-muted-foreground">{COST_METHOD_LABEL}</p>
             <h2 className="mt-8 font-display text-lg font-semibold">$50,000 cost test</h2>
             <p className="mt-2 text-sm text-muted-foreground">{fifThresholdSentence(paper)}</p>
 

@@ -16,6 +16,8 @@ import "server-only";
  */
 
 import { loadTop400Markets } from "@/lib/crypto-source";
+import { readSharedDexBoard } from "@/lib/crypto-board-store";
+import { dexRowToCoin } from "@/lib/crypto-dex";
 import { analyzeSecurity, type SecurityIntel } from "@/lib/market-intel";
 import { labelIntel } from "@/lib/security-signal";
 import { alignProjectedFigures } from "@/lib/projection-figure";
@@ -46,13 +48,14 @@ export function coinToIntel(c: CoinMarket): SecurityIntel {
 
   const stated24h = c.moves ? c.moves.h24 : isFinite(c.change24h) ? c.change24h : null;
   const change1d = stated24h != null ? round(stated24h, 2) : base.change1d;
-  // A missing 7-day print stays missing. Do not clamp every coin to the same ±12%.
+  // A missing 7-day print stays missing on the realised change. The forward
+  // projection stays inside ±12% so a seeded walk cannot print one shared model move.
   const live7d = c.moves ? c.moves.d7 : resolveSevenDayChange(c.change7d, c.sparkline7d);
   const change7d = live7d != null ? round(live7d, 2) : base.change7d;
 
   const projected7dPct =
     live7d == null
-      ? round(base.projected7dPct, 2)
+      ? round(clamp(base.projected7dPct, -12, 12), 2)
       : round(clamp(0.5 * base.projected7dPct + 0.4 * change7d + 0.1 * change1d, -45, 45), 2);
 
   return labelIntel(alignProjectedFigures({
@@ -93,6 +96,12 @@ async function liveCryptoUniverse(): Promise<CoinMarket[]> {
     top.coins.forEach(take);
   } catch (err) {
     console.error("[koins-market] crypto sweep failed — held names still stay on the report:", err);
+  }
+  try {
+    const dex = await readSharedDexBoard();
+    dex.rows.forEach((row, index) => take(dexRowToCoin(row, 1000 + index)));
+  } catch (err) {
+    console.error("[koins-market] DEX list unavailable — held names still stay on the report:", err);
   }
   return [...bySymbol.values()];
 }

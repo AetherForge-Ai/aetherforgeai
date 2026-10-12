@@ -2,6 +2,8 @@
 
 Superseded for the 12 Oct 2026 check by qa/PULL-CHECK-2026-10-12.md. This file stays so the earlier markers remain.
 
+**Superseded by `qa/PULL-CHECK-2026-10-12.md` (marker `pull-check:v3-tier1b-2026-10-12`).** This file is kept. Its sections are unchanged. Use the 12 Oct file for the v3 retest.
+
 Retest after Lukas Publishes. This one file covers both batches. It does not Publish, send email, or remove a Stox, Koins, or Headmaster list. No credentials are in this file.
 
 Markers:

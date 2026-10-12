@@ -49,6 +49,9 @@ vi.mock("@/lib/crypto-board-store", () => ({
 }));
 
 import { applyTransaction } from "@/lib/transactions";
+import { coinToIntel } from "@/lib/koins-market";
+import { analyzeSecurity } from "@/lib/market-intel";
+import type { CoinMarket } from "@/lib/crypto-market";
 
 const user = {
   _id: "user-review-defects",
@@ -259,6 +262,49 @@ describe("Confirm wiring for the review defects", () => {
     expect(notes).not.toContain("live=0.000004");
     expect(auditLivePrice(null)).toBeNull();
     expect(auditLivePrice(0.000009)).toBe(0.000009);
+  });
+});
+
+describe("Koins universe after the develop merge", () => {
+  it("clamps a missing 7-day projection and reads the shared DEX board", () => {
+    const coin = {
+      id: "zzz",
+      symbol: "ZZZ",
+      name: "Zed",
+      image: "",
+      rank: 1,
+      price: 2,
+      marketCap: 1,
+      fdv: null,
+      volume24h: 1,
+      change1h: null,
+      change24h: 3,
+      change7d: 0,
+      high24h: null,
+      low24h: null,
+      circulatingSupply: null,
+      totalSupply: null,
+      maxSupply: null,
+      ath: null,
+      athDate: null,
+      atl: null,
+      atlDate: null,
+      sparkline7d: [],
+      blockchain: "",
+      priceUnavailable: false,
+      moves: { h24: 3, d7: null, d30: null },
+    } as CoinMarket;
+    const base = analyzeSecurity("ZZZ", 2, "Zed", "CRYPTO");
+    const intel = coinToIntel(coin);
+    const clamped = Math.round(Math.max(-12, Math.min(12, base.projected7dPct)) * 100) / 100;
+    expect(intel.projected7dPct).toBe(clamped);
+    expect(intel.projected7dPct).toBeGreaterThanOrEqual(-12);
+    expect(intel.projected7dPct).toBeLessThanOrEqual(12);
+    const src = readFileSync("src/lib/koins-market.ts", "utf8");
+    expect(src).toContain("readSharedDexBoard");
+    expect(src).toContain("dexRowToCoin");
+    expect(src).toContain("clamp(base.projected7dPct, -12, 12)");
+    expect(src).toContain("held names still stay on the report");
   });
 });
 

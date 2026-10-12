@@ -262,18 +262,19 @@ describe("L6 L9 L10 L11 L12 L13", () => {
     const cells = transactionCsvCells(row);
     expect(cells[0]).toBe("10 Oct 2026");
     expect(cells[1]).toBe("10 Oct 2026, 3:47 pm");
-    expect(cells[16]).toBe("1.87");
-    expect(cells[18]).toBe("1.2440");
-    expect(cells[19]).toBe("daily");
-    expect(cells[13]).toBe("");
-    expect(cells[14]).toBe("");
+    expect(cells[15]).toBe("1.87");
+    expect(cells[17]).toBe("1.2440");
+    expect(cells[18]).toBe("daily");
+    expect(cells[12]).toBe("not stored");
+    expect(cells[13]).toBe("7476.62");
+    expect(cells[20]).toBe("");
     expect(cells[21]).toBe("");
-    expect(cells[22]).toBe("");
-    expect(cells[28]).toBe("");
-    expect(cells[29]).toBe("");
-    expect(cells[30]).toContain("Not a signal fill.");
-    expect(cells[30]).not.toMatch(/\d/);
-    expect(cells).toHaveLength(31);
+    expect(cells[25]).toBe("ASX");
+    expect(cells[27]).toContain("Quote time was not stored.");
+    expect(cells[27]).toContain("Mark is the fill, not a live export price.");
+    expect(cells[27]).not.toContain("time not stored");
+    expect(cells[27]).not.toMatch(/\d/);
+    expect(cells).toHaveLength(28);
   });
 
   it("keeps a date-only row on its civil day and labels columns that do not apply", () => {
@@ -301,28 +302,34 @@ describe("L6 L9 L10 L11 L12 L13", () => {
     expect(cells[1]).toBe("9 Oct 2026");
     expect(cells[1]).not.toMatch(/1:00/);
     expect(cells[7]).toBe("GOLD");
-    expect(cells[12]).toBe("");
-    expect(cells[13]).toBe("");
-    expect(cells[14]).toBe("");
+    expect(cells[12]).toBe("not stored");
+    expect(cells[13]).toBe("7476.62");
+    expect(cells[17]).toBe("1.0000");
+    expect(cells[20]).toBe("0.00");
     expect(cells[21]).toBe("0.00");
-    expect(cells[22]).toBe("0.00");
-    expect(cells[30]).toContain("Quote time was not stored.");
-    expect(cells[30]).toContain("Not a signal fill.");
-    expect(cells[30]).toContain("Not marked at export.");
+    expect(cells[25]).toBe("NZX");
+    expect(cells[27]).toContain("Quote time was not stored.");
+    expect(cells[27]).toContain("Mark is the fill, not a live export price.");
+    expect(cells[27]).toContain("time not stored");
     const cash = transactionCsvCells({ type: "deposit", executed_at: "2026-10-10", currency: "NZD", total: 100 });
     expect(cash[1]).toBe("10 Oct 2026");
     expect(cash[7]).toBe("");
-    expect(cash[30]).toContain("Cash has no asset id.");
+    expect(cash[17]).toBe("1.0000");
+    expect(cash[25]).toBe("Cash");
+    expect(cash[27]).toContain("Cash has no asset id.");
+    expect(cash[27]).toContain("time not stored");
     const unsold = transactionCsvCells({
       type: "sell",
       executed_at: "2026-10-10T02:47:53.208Z",
       ticker: "WOR.AX",
       currency: "AUD",
     });
+    expect(unsold[20]).toBe("");
     expect(unsold[21]).toBe("");
     expect(unsold[22]).toBe("");
-    expect(unsold[30]).toContain("Price and FX split was not stored.");
-    expect(unsold[21]).not.toMatch(/[A-Za-z]/);
+    expect(unsold[25]).toBe("ASX");
+    expect(unsold[27]).toContain("Price and FX split was not stored.");
+    expect(unsold[20]).not.toMatch(/[A-Za-z]/);
   });
 
   it("writes one correction sentence and hides the DEX notes prefix", () => {
@@ -332,9 +339,9 @@ describe("L6 L9 L10 L11 L12 L13", () => {
     expect(csvNotes(row)).toBe("Correction: 9000 at NZ$2.22 → 9000 at NZ$2.21. Cash unchanged.");
     expect(csvNotes(row)).not.toContain("[DEX:");
     const cells = transactionCsvCells(row);
-    expect(cells[27]).toBe("Correction: 9000 at NZ$2.22 → 9000 at NZ$2.21. Cash unchanged.");
-    expect(cells[28]).toBe("DEX");
-    expect(cells[29]).toBe("Ethereum");
+    expect(cells[24]).toBe("Correction: 9000 at NZ$2.22 → 9000 at NZ$2.21. Cash unchanged.");
+    expect(cells[25]).toBe("DEX: Ethereum");
+    expect(cells[26]).toBe("Ethereum");
   });
 
   it("keeps the earlier civil day when a buy is merged", () => {

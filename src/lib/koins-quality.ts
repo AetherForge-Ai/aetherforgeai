@@ -194,7 +194,7 @@ export function applyKoinsSweeps(report: ApexReport, board: KoinsBoardState, now
     group.windows = WINDOWS.map((slot) => {
       const open = !forced && !stale && windowGatePasses(board.candidates, slot.key);
       if (!open) {
-        return { window: slot.window, movers: [], withheldCount: 0, reviewNote: unavailable };
+        return { window: slot.window, movers: [], underReview: [], withheldCount: 0, reviewNote: unavailable };
       }
       const ranked = rankGainers(board.candidates, slot.key);
       const notes = [printsUnderReviewAlways(ranked.withheld)];
@@ -202,6 +202,7 @@ export function applyKoinsSweeps(report: ApexReport, board: KoinsBoardState, now
       return {
         window: slot.window,
         movers: ranked.movers,
+        underReview: [],
         withheldCount: ranked.withheld,
         reviewNote: notes.join(" "),
       };

@@ -22,6 +22,12 @@ export const LARGE_CAP_MONTH_MOVE_CAP_PCT = 60;
 /** Other listed shares. Above this, treat the print as a split or a bad quote. */
 export const EQUITY_SESSION_MOVE_CAP_PCT = 50;
 
+/**
+ * A ranked Stox row more than this many percentage points from the same
+ * ticker on /markets is under review. Configurable with the large-cap guard.
+ */
+export const MARKETS_CROSS_CHECK_PP = 2;
+
 /** Digital assets can move further. Above this, withhold the 24-hour print. */
 export const CRYPTO_SESSION_MOVE_CAP_PCT = 80;
 
@@ -80,6 +86,11 @@ export interface ReviewInput {
   currency?: string | null;
   /** Underlying asset's change, for a wrapped token. Agreement within 5 points keeps the print. */
   underlyingChangePct?: number | null;
+  /** Same ticker's session change on /markets. A gap over 2 points is under review. */
+  marketsChangePct?: number | null;
+  /** Previous run's percent and price. The same percent after the price moved is under review. */
+  priorChangePct?: number | null;
+  priorPrice?: number | null;
 }
 
 export interface ReviewedMove {
@@ -171,6 +182,31 @@ export function reviewSessionMove(input: ReviewInput): ReviewedMove {
 
   if (typeof input.secondSourceChangePct === "number" && Number.isFinite(input.secondSourceChangePct)) {
     if (Math.abs(input.secondSourceChangePct - reported) > 8) return keep("second source disagrees", true);
+  }
+
+  if (typeof input.marketsChangePct === "number" && Number.isFinite(input.marketsChangePct)) {
+    const gap = Math.abs(input.marketsChangePct - reported);
+    if (gap > MARKETS_CROSS_CHECK_PP) {
+      console.warn(
+        `[quote-review] ${input.ticker} ${input.window} rejected: reported ${reported} vs /markets ${input.marketsChangePct}`
+      );
+      return keep("more than 2 percentage points from /markets", true);
+    }
+  }
+
+  if (
+    typeof input.priorChangePct === "number" &&
+    Number.isFinite(input.priorChangePct) &&
+    typeof input.priorPrice === "number" &&
+    input.priorPrice > 0 &&
+    price > 0 &&
+    Math.abs(input.priorChangePct - reported) <= 0.05 &&
+    Math.abs(price - input.priorPrice) / input.priorPrice > 0.001
+  ) {
+    console.warn(
+      `[quote-review] ${input.ticker} ${input.window} rejected: repeated ${reported}% while the price changed (${input.priorPrice} → ${price})`
+    );
+    return keep("same percent repeated while the price changed", true);
   }
 
   const ticker = input.ticker.trim().toUpperCase();

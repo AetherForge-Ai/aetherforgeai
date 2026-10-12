@@ -4,8 +4,10 @@ import { canExportCsv } from "@/lib/entitlements";
 import { loadLedger, type TransactionRow } from "@/lib/transactions";
 import { requestClaimsOtherUser } from "@/lib/account-guard";
 import { accountMismatchResponse } from "@/lib/account-response";
+import { attachFifoRealised } from "@/lib/fifo-cost";
 import { CSV_EXPORT_COLUMNS } from "@/lib/ledger-schema";
 import { csvEscape, transactionCsvCells, type CsvRow } from "@/lib/transaction-csv";
+import type { TaxLedgerRow } from "@/lib/taxable-income";
 import { aucklandDateISO } from "@/lib/fill-integrity";
 
 export const dynamic = "force-dynamic";
@@ -34,9 +36,10 @@ export async function GET(req: Request) {
       );
     }
 
-    const ledger = await loadLedger(user, 1000);
-    const lines = ledger.transactions.map((t) => rowCells(t).join(","));
-    const csv = [HEADERS.join(","), ...lines].join("\n");
+    const ledger = await loadLedger(user, 5000);
+    const rows = attachFifoRealised(ledger.transactions as unknown as TaxLedgerRow[]);
+    const lines = rows.map((t) => rowCells(t as TransactionRow).join(","));
+    const csv = `${[HEADERS.join(","), ...lines].join("\n")}\n`;
     const filename = `transactions-${aucklandDateISO()}.csv`;
     return new NextResponse(csv, {
       status: 200,
