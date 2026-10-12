@@ -5,6 +5,7 @@
 
 import type { Metadata } from "next";
 import {
+  BASELINE_FX_TO_NZD,
   ensureNzdPerAud,
   ensureNzdPerUsd,
   formatFxInput,
@@ -72,6 +73,78 @@ export function reviewedFxAllowed(input: {
   const reference = dated > 0 ? dated : snapshot > 0 && Number.isFinite(snapshot) ? directedFx(input.currency, snapshot) : 0;
   if (!(reference > 0) || withinBand(reviewed, reference)) return { ok: true };
   return { ok: false, message: REVIEWED_FX_REJECTED };
+}
+
+/** Shown when a non-NZD trade has no reviewed rate, no trade-date rate, and no live snapshot. */
+export const FX_RATE_UNAVAILABLE =
+  "Today's exchange rate did not load, and there is no rate for this trade date. Type the NZD rate, or try again.";
+
+export type BookingFxSnapshot = {
+  ratesToNZD?: FxRatesToNZD | null;
+  sourced?: boolean;
+} | null;
+
+function positiveRate(value: number | null | undefined): number | null {
+  const n = Number(value);
+  return n > 0 && Number.isFinite(n) ? n : null;
+}
+
+/** A timeout and the unsourced baseline table are not a live rate. A different table is, even if `sourced` is omitted. */
+export function bookableSnapshotRates(snapshot: BookingFxSnapshot): FxRatesToNZD | null {
+  const rates = snapshot?.ratesToNZD;
+  if (!rates) return null;
+  if (snapshot?.sourced === true) return rates;
+  const baseline =
+    Number(rates.NZD) === BASELINE_FX_TO_NZD.NZD &&
+    Number(rates.AUD) === BASELINE_FX_TO_NZD.AUD &&
+    Number(rates.USD) === BASELINE_FX_TO_NZD.USD;
+  return baseline ? null : rates;
+}
+
+function copyRates(rates: FxRatesToNZD): FxRatesToNZD {
+  return { NZD: 1, AUD: Number(rates.AUD), USD: Number(rates.USD) };
+}
+
+function neutralRates(): FxRatesToNZD {
+  return { NZD: 1, AUD: 1, USD: 1 };
+}
+
+/**
+ * Rates for one booking. The baseline table is never copied in.
+ * A non-NZD trade without a reviewed rate uses the trade-date rate, then the live snapshot.
+ * A reviewed rate is checked against that trade-date rate when it exists.
+ */
+export function bookingFxDecision(input: {
+  currency: CurrencyCode;
+  reviewed: number | null | undefined;
+  snapshot: BookingFxSnapshot;
+  historical: number | null | undefined;
+}): { ok: true; ratesToNZD: FxRatesToNZD } | { ok: false; message: string } {
+  const live = bookableSnapshotRates(input.snapshot);
+  if (input.currency === "NZD") {
+    return { ok: true, ratesToNZD: live ? copyRates(live) : neutralRates() };
+  }
+  const historical = positiveRate(input.historical);
+  const liveRate = live ? positiveRate(live[input.currency]) : null;
+  const check = reviewedFxAllowed({
+    currency: input.currency,
+    reviewed: input.reviewed,
+    snapshot: liveRate ?? 0,
+    historical,
+  });
+  if (check.ok === false) return check;
+  const reviewed = Number(input.reviewed);
+  const hasReviewed = reviewed > 0 && Number.isFinite(reviewed);
+  const chosen = historical ?? liveRate;
+  if (!hasReviewed && chosen == null) return { ok: false, message: FX_RATE_UNAVAILABLE };
+  const rates = live ? copyRates(live) : neutralRates();
+  if (!hasReviewed && chosen != null) rates[input.currency] = chosen;
+  return { ok: true, ratesToNZD: rates };
+}
+
+/** Spot printed as live= in the audit note. A missing snapshot stays null. The fill price is not a substitute. */
+export function auditLivePrice(liveSpot: number | null | undefined): number | null {
+  return liveSpot != null && liveSpot > 0 ? liveSpot : null;
 }
 
 /**

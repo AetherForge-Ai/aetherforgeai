@@ -346,65 +346,20 @@ async function warmSavedList(): Promise<RankedCryptoPage | null> {
   return page;
 }
 
+/**
+ * Signed-in and public Crypto tabs read the same persisted snapshot.
+ * This function does not call CoinGecko. A stale or missing list starts
+ * the background refresh in crypto-board-store. wrangler.jsonc has no cron.
+ *
+ * pull-check:v3-tier1a-2026-10-12
+ */
 export async function loadTop400Markets(): Promise<RankedCryptoPage> {
-  const now = Date.now();
-  if (!listSnap) {
-    const warmed = await warmSavedList();
-    if (warmed?.coins.length) {
-      if (!listInflight) {
-        listInflight = buildTopList().finally(() => {
-          listInflight = null;
-        });
-      }
-      void listInflight.catch((err) => {
-        listBackoffUntil = Date.now() + LIST_BACKOFF_MS;
-        console.error("[crypto-source] background crypto list failed:", err instanceof Error ? err.message.slice(0, 160) : "failed");
-      });
-      return releasePage(warmed);
-    }
-  }
-  if (listSnap && now - listSnap.at < LIST_FRESH_MS) return releasePage(listSnap.page);
-  if (listSnap && listSnap.page.coins.length >= 100 && (now < listBackoffUntil || now - listSnap.at >= LIST_FRESH_MS)) {
-    if (now - listSnap.at >= LIST_FRESH_MS && now >= listBackoffUntil) {
-      if (!listInflight) {
-        listInflight = buildTopList().finally(() => {
-          listInflight = null;
-        });
-      }
-      void listInflight.catch((err) => {
-        listBackoffUntil = Date.now() + LIST_BACKOFF_MS;
-        console.error("[crypto-source] background crypto list failed:", err instanceof Error ? err.message.slice(0, 160) : "failed");
-      });
-    }
-    return releasePage(listSnap.page);
-  }
-  if (!listSnap && now < listBackoffUntil) throw new Error(LIVE_CRYPTO_UNAVAILABLE);
-  if (!listInflight) {
-    listInflight = buildTopList().finally(() => {
-      listInflight = null;
-    });
-  }
-  const pending = listInflight;
-  if (listSnap && listSnap.page.coins.length) {
-    void pending.catch((err) => {
-      listBackoffUntil = Date.now() + LIST_BACKOFF_MS;
-      console.error("[crypto-source] background crypto list failed:", err instanceof Error ? err.message.slice(0, 160) : "failed");
-    });
-    return releasePage(listSnap.page);
-  }
-  try {
-    const raced = await Promise.race([pending, sleep(LIST_COLD_MS).then(() => null)]);
-    if (raced?.coins.length) return releasePage(raced);
-  } catch (err) {
-    listBackoffUntil = Date.now() + LIST_BACKOFF_MS;
-    console.error("[crypto-source] crypto list failed:", err instanceof Error ? err.message.slice(0, 160) : "failed");
-  }
-  if (listSnap && listSnap.page.coins.length) return releasePage(listSnap.page);
-  const peeked = coingecko.peekTop400();
-  if (peeked && liveCoins(peeked).length) return pageFrom(liveCoins(peeked), "short", latestQuotedAt(liveCoins(peeked)));
-  const saved = await readCryptoSnapshot();
-  if (saved?.coins.length) return pageFrom(tagSource(saved.coins, "coingecko"), "saved", saved.at);
-  throw new Error(LIVE_CRYPTO_UNAVAILABLE);
+  const { readSharedCryptoBoard } = await import("@/lib/crypto-board-store");
+  const board = await readSharedCryptoBoard();
+  return {
+    coins: board.coins.slice(0, 400),
+    notice: board.notice,
+  };
 }
 
 function presentDetail(detail: CoinDetail, source: string): CoinDetail {
