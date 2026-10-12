@@ -85,6 +85,15 @@ export function parseHoldingsDate(raw: string): string | null {
     if (m < 1 || m > 12 || d < 1 || d > 31) return null;
     return `${iso[1]}-${iso[2]}-${iso[3]}`;
   }
+  const months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+  const named = /^(\d{1,2})\s+([A-Za-z]{3,9})\s+(\d{4})/.exec(s);
+  if (named) {
+    const d = Number(named[1]);
+    const month = months.indexOf(named[2].slice(0, 3).toLowerCase()) + 1;
+    const y = named[3];
+    if (month < 1 || d < 1 || d > 31) return null;
+    return `${y}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  }
   const dmy = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/.exec(s);
   if (!dmy) return null;
   const d = Number(dmy[1]);

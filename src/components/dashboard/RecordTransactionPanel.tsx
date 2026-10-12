@@ -536,8 +536,7 @@ export function RecordTransactionPanel({
         }
         bumpHoldingsGeneration();
         toast.success("Sale recorded");
-        const ledger = await api.get("/api/transactions");
-        onDone(ledger.data);
+        onDone(res.data);
         onRequestClose();
         return;
       }
@@ -560,8 +559,7 @@ export function RecordTransactionPanel({
         }
         bumpHoldingsGeneration();
         toast.success("Correction recorded");
-        const ledger = await api.get("/api/transactions");
-        onDone(ledger.data);
+        onDone(res.data);
         onRequestClose();
         return;
       }

@@ -5,6 +5,7 @@
  */
 
 import { CANONICAL_CRYPTO_IDS } from "@/lib/crypto-ids";
+import { isTradableCrypto } from "@/lib/import-crypto-universe";
 import { lookupTicker } from "@/lib/market";
 import { findListing } from "@/lib/stock-catalog";
 
@@ -17,6 +18,7 @@ export function knownImportSymbol(raw: string): boolean {
   if (!ticker) return false;
   if (METALS.has(ticker)) return true;
   if (CANONICAL_CRYPTO_IDS[ticker]) return true;
+  if (isTradableCrypto(ticker)) return true;
   if (lookupTicker(ticker)) return true;
   return findListing(ticker) != null;
 }
@@ -24,6 +26,6 @@ export function knownImportSymbol(raw: string): boolean {
 export function assetClassForSymbol(raw: string): ImportAssetClass {
   const ticker = raw.trim().toUpperCase();
   if (METALS.has(ticker)) return "metal";
-  if (CANONICAL_CRYPTO_IDS[ticker]) return "crypto";
+  if (CANONICAL_CRYPTO_IDS[ticker] || isTradableCrypto(ticker)) return "crypto";
   return "stock";
 }

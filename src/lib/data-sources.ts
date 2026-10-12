@@ -71,13 +71,16 @@ export function publicDataSourcesLine(): string {
   );
 }
 
-/** Per-row source. A missing or hidden source does not claim a single vendor. */
+/** Per-row source. A missing or hidden source is named as unavailable. */
 export function publicCoinSourceLine(source?: string | null): string {
-  const id = (source || "").trim().toLowerCase();
-  if (!id || !publicSourceAllowed(id)) {
-    return "Price source: public market data. Quotes can be delayed.";
-  }
-  return `Price source: ${sourceLabel(id)}. Quotes can be delayed.`;
+  const parts = String(source || "")
+    .split(",")
+    .map((part) => part.trim().toLowerCase())
+    .filter((id) => id && publicSourceAllowed(id));
+  if (!parts.length) return "Source unavailable.";
+  const names = parts.map((id) => sourceLabel(id)).filter(Boolean);
+  if (!names.length) return "Source unavailable.";
+  return `Price source: ${names.join(", ")}. Quotes can be delayed.`;
 }
 
 export const PUBLIC_COIN_ABOUT =

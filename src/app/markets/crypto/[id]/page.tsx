@@ -12,6 +12,9 @@ import { peekTop400 } from "@/lib/crypto-coingecko";
 import { readCryptoSnapshot } from "@/lib/crypto-snapshot";
 import { getFxSnapshot } from "@/lib/fx";
 import { pageTitle } from "@/lib/page-title";
+import { presentMarketCoin } from "@/lib/crypto-api-body";
+import { presentListedCoin } from "@/lib/crypto-board";
+import { detailFromMarket } from "@/lib/crypto-market";
 import { cryptoDetailCopy, cryptoDetailJsonLd, vendorByCoingeckoId, type CryptoDetailFacts } from "@/lib/crypto-public-meta";
 
 export const dynamic = "force-dynamic";
@@ -25,7 +28,7 @@ const siteOrigin = process.env.NEXT_PUBLIC_APP_URL || "https://www.aetherforgeai
  *
  * pull-check:retest4-2026-10-11
  */
-const loadCryptoDetailFacts = cache(async (id: string): Promise<{ facts: CryptoDetailFacts; print: ChainPrint | null }> => {
+const loadCryptoDetailFacts = cache(async (id: string): Promise<{ facts: CryptoDetailFacts; print: ChainPrint | null; initialDetail: ReturnType<typeof detailFromMarket> | null }> => {
   const slug = resolvableCoinId(id) || decodeURIComponent(id).trim().toLowerCase();
   const vendor = vendorByCoingeckoId(slug);
   const coinId = resolvableCoinId(id);
@@ -49,6 +52,7 @@ const loadCryptoDetailFacts = cache(async (id: string): Promise<{ facts: CryptoD
   const marketCap = listed && listed.marketCap > 0 ? listed.marketCap : null;
   return {
     print,
+    initialDetail: listed ? detailFromMarket(presentMarketCoin(presentListedCoin(listed))) : null,
     facts: {
       slug,
       name: vendor?.name || listed?.name || null,
@@ -113,6 +117,7 @@ export default async function CryptoDetailPage({
         openFromQuery={sp.buy === "1"}
         market={sp.market === "dex" ? "DEX" : "Crypto"}
         quotedLine={quotedLine || null}
+        initialDetail={loaded.initialDetail}
       />
     </MarketsAppFrame>
   );

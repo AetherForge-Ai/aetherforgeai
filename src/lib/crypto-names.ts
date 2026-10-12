@@ -69,6 +69,31 @@ const COINGECKO_NAMES: Record<string, string> = {
   LDO: "Lido DAO",
   COMP: "Compound",
   DYDX: "dYdX",
+  WETH: "Wrapped Ether",
+  DAI: "Dai",
+  WBTC: "Wrapped Bitcoin",
+  WBNB: "Wrapped BNB",
+  STETH: "Lido Staked Ether",
+  WSTETH: "Wrapped stETH",
+  WEETH: "Wrapped eETH",
+  CBBTC: "Coinbase Wrapped BTC",
+  JITOSOL: "Jito Staked SOL",
+  USDE: "Ethena USDe",
+  SUSDS: "Ethena Staked USDe",
+  USD1: "USD1",
+  XAUT: "Tether Gold",
+  TAO: "Bittensor",
+  CRO: "Cronos",
+  PYUSD: "PayPal USD",
+  RLUSD: "Ripple USD",
+  PAXG: "PAX Gold",
+  MNT: "Mantle",
+  WLFI: "World Liberty Financial",
+  SKY: "Sky",
+  MORPHO: "Morpho",
+  BGB: "Bitget Token",
+  FTM: "Fantom",
+  AGIX: "SingularityNET",
   ENS: "Ethereum Name Service",
   CHZ: "Chiliz",
   ZEC: "Zcash",
@@ -98,12 +123,14 @@ const COINGECKO_NAMES: Record<string, string> = {
  * CoinGecko's own name is the ticker. Do not replace these with a longer label.
  * pull-check:v3-tier1a-2026-10-12
  */
-export const SYMBOL_IS_OFFICIAL_NAME = new Set(["BNB", "XRP", "USDC"]);
+export const SYMBOL_IS_OFFICIAL_NAME = new Set(["BNB", "XRP", "USDC", "OKB"]);
 
 export function coinDisplayName(symbol: string, feedName?: string | null): string {
   const ticker = (symbol || "").trim().toUpperCase();
   const fed = (feedName || "").trim();
   if (SYMBOL_IS_OFFICIAL_NAME.has(ticker) && (!fed || fed.toUpperCase() === ticker)) return ticker;
+  // "Dai" is the published name. An all-caps copy of the ticker is not.
+  if (fed && fed.toUpperCase() === ticker && fed !== ticker) return fed;
   if (fed && fed.toUpperCase() !== ticker) return fed;
   return COINGECKO_NAMES[ticker] || CRYPTO_DISPLAY_NAMES[ticker] || fed || ticker;
 }

@@ -77,6 +77,7 @@ export function ReturnsSplitCard({
   realisedFxNzd,
   split,
   loading = false,
+  scopeLabel = "Whole book",
 }: {
   holdings: HoldingLike[];
   incomeNzd: number;
@@ -91,6 +92,8 @@ export function ReturnsSplitCard({
   /** One snapshot shared by every page. Rounded only inside that call. */
   split?: ReturnSplit | null;
   loading?: boolean;
+  /** Same split on every page. A hub P/L figure is a subset and is labelled separately. */
+  scopeLabel?: string;
 }) {
   const resolved =
     split ??
@@ -120,7 +123,8 @@ export function ReturnsSplitCard({
     >
       <h2 className="font-display text-base font-bold">How the return is split</h2>
       <p className="mt-1 text-xs text-muted-foreground">
-        Three parts of the paper result. They are worked out from the ledger, not a forecast.
+        {scopeLabel}. The same capital, income, currency, and total on the dashboard, stocks, and crypto.
+        A hub P/L card is that asset class only, at today&apos;s exchange rate. These lines are worked out from the ledger, not a forecast.
       </p>
       {loading ? (
         <div className="mt-4 grid gap-3 sm:grid-cols-3">

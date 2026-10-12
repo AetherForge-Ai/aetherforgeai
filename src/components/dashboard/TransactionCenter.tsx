@@ -355,6 +355,7 @@ export function TransactionCenter({
   const [mode, setModeRaw] = useState<TxType>(() => getStickyTxMode());
   const [deepLinkAsset, setDeepLinkAsset] = useState<"stock" | "crypto" | "metal" | null>(null);
   const loadGenRef = useRef(0);
+  const ledgerReadyRef = useRef(false);
   const activeUserIdRef = useRef<string | null>(userId ?? null);
 
   const cashRef = useRef(0);
@@ -440,7 +441,7 @@ export function TransactionCenter({
     const tracked = trackAccountRequest();
     activeUserIdRef.current = tracked.userId;
     const gen = ++loadGenRef.current;
-    setLoading(true);
+    if (!ledgerReadyRef.current) setLoading(true);
     try {
       const res = await api.get<Ledger & { userId?: string }>("/api/transactions", {
         signal: tracked.signal,
@@ -471,6 +472,7 @@ export function TransactionCenter({
           });
           return;
         }
+        ledgerReadyRef.current = true;
         setLedger(res.data);
         setLoading(false);
       } else {

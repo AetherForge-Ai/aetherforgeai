@@ -430,9 +430,13 @@ export function MarketTicker({ className, compact = false, initial = null, initi
         <a href={VENUES.asx} target="_blank" rel="noopener noreferrer" className="hover:text-foreground hover:underline">
           ASX
         </a>
-        <a href={cryptoVenueForLabel(providers.crypto).href} target="_blank" rel="noopener noreferrer" className="hover:text-foreground hover:underline">
-          {cryptoVenueForLabel(providers.crypto).label}
-        </a>
+        {cryptoVenueForLabel(providers.crypto).href ? (
+          <a href={cryptoVenueForLabel(providers.crypto).href} target="_blank" rel="noopener noreferrer" className="hover:text-foreground hover:underline">
+            {cryptoVenueForLabel(providers.crypto).label}
+          </a>
+        ) : (
+          <span>{cryptoVenueForLabel(providers.crypto).label}</span>
+        )}
         <button
           type="button"
           className="rounded border border-emerald-500/30 px-2 py-0.5 font-semibold text-emerald-200 hover:text-white disabled:opacity-50"

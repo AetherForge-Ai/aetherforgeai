@@ -225,8 +225,8 @@ export default function TermsOfService() {
           {" and "}
           <EmailAddress email={PRIVACY_OFFICER_EMAIL} className="text-primary" />
           . You can also use the contact form on the{" "}
-          <a href="/about#contact" className="text-primary hover:underline">
-            About
+          <a href="/contact" className="text-primary hover:underline">
+            Contact
           </a>{" "}
           page.
         </p>

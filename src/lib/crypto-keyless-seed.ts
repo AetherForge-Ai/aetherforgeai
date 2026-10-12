@@ -11,7 +11,7 @@
  */
 
 import { coinGeckoEndpoint, MARKET_USER_AGENT } from "@/lib/coingecko-auth";
-import { platformLabel, snapshotBlockchain } from "@/lib/crypto-board";
+import { chainFromPaprikaCoin, platformLabel, snapshotBlockchain } from "@/lib/crypto-board";
 import {
   dexDetailId,
   dexNetworkLabel,
@@ -21,7 +21,7 @@ import {
 } from "@/lib/crypto-dex";
 import { canonicalCryptoId } from "@/lib/crypto-ids";
 import { coinDisplayName } from "@/lib/crypto-names";
-import type { CoinMarket } from "@/lib/crypto-market";
+import { mergeCoinMarketStats, positiveMarketStat, type CoinMarket } from "@/lib/crypto-market";
 import { sourceLabel } from "@/lib/crypto-price-chain";
 import { CRYPTO_SANITY_RATIO, isStablecoinTicker } from "@/lib/crypto-tape";
 import { publicSourceAllowed } from "@/lib/swyftx-display";
@@ -190,6 +190,7 @@ function blankCoin(partial: Partial<CoinMarket> & Pick<CoinMarket, "id" | "symbo
     price: partial.price,
     marketCap: partial.marketCap ?? 0,
     fdv: partial.fdv ?? null,
+    fdvDerived: partial.fdvDerived === true,
     volume24h: partial.volume24h ?? 0,
     change1h: partial.change1h ?? null,
     change24h: partial.change24h ?? 0,
@@ -307,7 +308,8 @@ function pickVerifiedQuote(quotes: CoinMarket[]): CoinMarket | null {
   }
   if (!best || bestCount < 2) return null;
   const cluster = quotes.filter((quote) => pricesAgree(best.price, quote.price));
-  return [...cluster].sort((a, b) => sourceRank(a.source) - sourceRank(b.source))[0];
+  const ranked = [...cluster].sort((a, b) => sourceRank(a.source) - sourceRank(b.source));
+  return ranked.reduce((row, donor) => (row === donor ? row : mergeCoinMarketStats(row, donor)), ranked[0]);
 }
 
 /** Yahoo fills only when the keyless lists are still short. It does not replace them. */
@@ -393,6 +395,26 @@ export function coinsFromCoinPaprika(body: unknown): CoinMarket[] {
     const change7d = num(usd?.percent_change_7d);
     const change30d = num(usd?.percent_change_30d);
     const platform = typeof row.platform === "string" ? row.platform.trim() : "";
+    const maxSupply = positiveMarketStat(row.max_supply);
+    const totalSupply = positiveMarketStat(row.total_supply);
+    const sentFdv = positiveMarketStat(usd?.fully_diluted_valuation) ?? positiveMarketStat(row.fully_diluted_valuation);
+    const fdvBasis = maxSupply ?? totalSupply;
+    const fdv = sentFdv ?? (fdvBasis != null && price > 0 ? price * fdvBasis : null);
+    const contracts = Array.isArray(row.contracts)
+      ? row.contracts
+          .map((item) => {
+            const rec = asRecord(item);
+            return rec ? { platform: typeof rec.platform === "string" ? rec.platform : "", contract: typeof rec.contract === "string" ? rec.contract : "" } : null;
+          })
+          .filter((item): item is { platform: string; contract: string } => !!item)
+      : [];
+    const chain = chainFromPaprikaCoin({
+      type: typeof row.type === "string" ? row.type : "",
+      symbol,
+      name: typeof row.name === "string" ? row.name : symbol,
+      platform,
+      contracts,
+    });
     coins.push(
       blankCoin({
         id,
@@ -401,21 +423,22 @@ export function coinsFromCoinPaprika(body: unknown): CoinMarket[] {
         rank: num(row.rank) ?? 999999,
         price,
         marketCap: num(usd?.market_cap) ?? 0,
-        fdv: num(usd?.fully_diluted_valuation) ?? num(row.fully_diluted_valuation),
+        fdv,
+        fdvDerived: sentFdv == null && fdv != null,
         volume24h: num(usd?.volume_24h) ?? 0,
         change1h: num(usd?.percent_change_1h),
         change24h: change24h ?? 0,
         change7d: change7d ?? 0,
         high24h: num(usd?.high_24h),
         low24h: num(usd?.low_24h),
-        circulatingSupply: num(row.circulating_supply),
-        totalSupply: num(row.total_supply),
-        maxSupply: num(row.max_supply),
+        circulatingSupply: positiveMarketStat(row.circulating_supply),
+        totalSupply,
+        maxSupply,
         ath: num(usd?.ath_price),
         athDate: typeof usd?.ath_date === "string" ? usd.ath_date : null,
         atl: num(usd?.atl_price),
         atlDate: typeof usd?.atl_date === "string" ? usd.atl_date : null,
-        blockchain: platform ? platformLabel(platform) : snapshotBlockchain(id, null, null),
+        blockchain: chain || (platform ? platformLabel(platform) : snapshotBlockchain(id, null, null)),
         quotedAt: typeof row.last_updated === "string" ? row.last_updated : null,
         source: "coinpaprika",
         moves: { h24: change24h, d7: change7d, d30: change30d },
