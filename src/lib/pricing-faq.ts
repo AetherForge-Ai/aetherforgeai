@@ -1,4 +1,4 @@
-import { EMAIL_SUPPORT_LINE, REFUND_FAQ, TRIAL_FAQ } from "@/lib/public-copy";
+import { ANNUAL_REFUND_RULE, EMAIL_SUPPORT_LINE, MONTHLY_CANCEL_RULE, REFUND_FAQ, TRIAL_FAQ } from "@/lib/public-copy";
 
 /** Visible pricing questions. FAQ schema and help search use this same list. */
 export const PRICING_FAQS: { q: string; a: string }[] = [
@@ -16,7 +16,7 @@ export const PRICING_FAQS: { q: string; a: string }[] = [
   },
   {
     q: "Do you offer refunds?",
-    a: REFUND_FAQ,
+    a: `${REFUND_FAQ} ${ANNUAL_REFUND_RULE} ${MONTHLY_CANCEL_RULE}`,
   },
   {
     q: "What is included with The Headmaster?",
@@ -31,15 +31,11 @@ export const PRICING_FAQS: { q: string; a: string }[] = [
     a: TRIAL_FAQ,
   },
   {
-    q: "Do you have discounts for students or charities?",
-    a: "We do. If you're a student, educator, registered charity or not-for-profit, get in touch with your details and we'll arrange a meaningful discount on any paid tier.",
-  },
-  {
     q: "How does billing work with annual plans?",
     a: "Annual plans are billed once up front: 12 months for the price of 10, a 16.67% saving versus paying monthly. Your plan renews automatically each year, and you can cancel or switch to monthly at any time.",
   },
   {
     q: "What kind of support do I get on each plan?",
-    a: `${EMAIL_SUPPORT_LINE} Pro adds priority support with faster response times, and Ultimate includes a dedicated account manager plus scheduled strategy consultation calls.`,
+    a: `${EMAIL_SUPPORT_LINE} Pro adds priority support with faster response times, and Ultimate includes dedicated email support.`,
   },
 ];

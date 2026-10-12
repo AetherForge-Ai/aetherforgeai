@@ -112,8 +112,8 @@ export function splitHoldingsTicker(raw: string): { code: string; name: string }
 }
 
 /**
- * A combined cell becomes the left code. Directory matching lives in the
- * broker review, which can turn APPL / APPLE INC into AAPL.
+ * A combined cell becomes the left code. The broker review keeps that code.
+ * An unknown code is an error. It is not replaced with a different ticker.
  */
 export function holdingsTickerFromCell(raw: string): string {
   const text = raw.trim();

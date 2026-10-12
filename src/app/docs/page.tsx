@@ -7,7 +7,7 @@ import { breadcrumbJsonLd } from "@/lib/public-schema";
 export const metadata = publicPageMetadata("/docs", {
   title: "Docs — AetherForge AI",
   description:
-    "How AetherForge AI works, the AI disclaimer, pricing questions, and the policies that apply. Not a broker. Not licensed financial advice.",
+    "How AetherForge AI works, the AI disclaimer, pricing questions, and the policies that apply. Not a broker. General information only, not financial advice.",
 });
 
 export default function DocsPage() {

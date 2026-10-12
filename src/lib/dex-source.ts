@@ -103,7 +103,7 @@ function takeStamp(text: string, re: RegExp): { token: string; rest: string } {
 }
 
 /**
- * Keep idem=, live=, chain=, pxat= and the FILLED source= audit sentence.
+ * Keep idem=, batch=, ref=, live=, chain=, pxat= and the FILLED source= audit sentence.
  * Only the user's free text is trimmed, and the whole note stays within 4000 characters.
  */
 export function preserveQuoteStamp(notes: string | null | undefined, chain: string | null, priceAsAt: string | null): string {
@@ -115,6 +115,10 @@ export function preserveQuoteStamp(notes: string | null | undefined, chain: stri
   }
   const idem = takeStamp(raw, /(?:^|\s)(idem=\S+)/);
   raw = idem.rest;
+  const batch = takeStamp(raw, /(?:^|\s)(batch=\S+)/);
+  raw = batch.rest;
+  const ref = takeStamp(raw, /(?:^|\s)(ref=\S+)/);
+  raw = ref.rest;
   const live = takeStamp(raw, /(?:^|\s)(live=n\/a|live=[0-9.]+)/i);
   raw = live.rest;
   const user = stripQuoteStamp(raw).replace(/[ \t]{2,}/g, " ").replace(/\n{3,}/g, "\n\n").trim();
@@ -125,6 +129,8 @@ export function preserveQuoteStamp(notes: string | null | undefined, chain: stri
   if (at) stamps.push(`pxat=${at.replace(/\s+/g, "")}`);
   if (live.token) stamps.push(live.token);
   if (idem.token) stamps.push(idem.token);
+  if (batch.token) stamps.push(batch.token);
+  if (ref.token) stamps.push(ref.token);
   const protectedBlock = [...stamps, audit].filter(Boolean).join(" ").trim();
   if (!protectedBlock) return user.slice(0, TRADE_NOTE_MAX);
   const room = TRADE_NOTE_MAX - protectedBlock.length - 1;

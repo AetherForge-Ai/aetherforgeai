@@ -27,7 +27,7 @@ export const DOC_LINKS: HelpArticle[] = [
   {
     href: "/ai-disclaimer",
     title: "AI disclaimer",
-    body: "General information only. Not licensed financial advice under the Financial Markets Conduct Act 2013.",
+    body: "General information only, not financial advice. FORGE INTELLIGENCE LIMITED is not a licensed financial advice provider.",
   },
   {
     href: "/pricing#faq",
@@ -42,7 +42,7 @@ export const DOC_LINKS: HelpArticle[] = [
   {
     href: "/about",
     title: "About and contact",
-    body: "The company story, and how to email or call FORGE INTELLIGENCE LIMITED.",
+    body: "The company story, and how to email FORGE INTELLIGENCE LIMITED.",
   },
   {
     href: "/privacy-policy",
@@ -53,6 +53,11 @@ export const DOC_LINKS: HelpArticle[] = [
     href: "/terms-of-service",
     title: "Terms",
     body: "The terms that apply to using AetherForge AI.",
+  },
+  {
+    href: "/refunds",
+    title: "Refunds and cancellations",
+    body: "Annual plans, monthly plans, and billing errors.",
   },
 ];
 
