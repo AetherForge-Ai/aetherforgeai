@@ -14,7 +14,7 @@ export function mergeFreshQuantities<T extends QuantitySnapshot>(snapshot: T[], 
   for (const row of fresh) {
     if (row?._id) byId.set(String(row._id), row);
   }
-  return snapshot.map((row) => {
+  const merged = snapshot.map((row) => {
     const next = row?._id ? byId.get(String(row._id)) : undefined;
     if (!next) return row;
     return {
@@ -23,4 +23,12 @@ export function mergeFreshQuantities<T extends QuantitySnapshot>(snapshot: T[], 
       purchase_price: next.purchase_price,
     };
   });
+  const seen = new Set(merged.map((row) => (row?._id ? String(row._id) : "")));
+  for (const row of fresh) {
+    const id = row?._id ? String(row._id) : "";
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    merged.push(row as T);
+  }
+  return merged;
 }

@@ -389,7 +389,7 @@ export function BrokerImportPanel({
                     <td className="px-3 py-2">{row.side}</td>
                     <td className="px-3 py-2">
                       {row.ticker}
-                      {row.assetName && row.assetName.toUpperCase() !== row.ticker ? (
+                      {row.assetName && row.assetName !== row.ticker ? (
                         <span className="block text-xs text-muted-foreground">{row.assetName}</span>
                       ) : null}
                     </td>

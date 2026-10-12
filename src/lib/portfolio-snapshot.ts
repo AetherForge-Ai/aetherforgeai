@@ -248,22 +248,6 @@ const CLASS_LABEL: Record<SnapshotClass, string> = {
   cash: "Cash",
 };
 
-const TYPE_RANK: Record<string, number> = {
-  deposit: 0,
-  opening_balance: 1,
-  buy: 2,
-  dividend: 3,
-  interest: 4,
-  sell: 5,
-  withdraw: 6,
-  tax: 7,
-  fee: 8,
-  convert: 9,
-  fx: 9,
-  transfer: 10,
-  correction: 11,
-};
-
 interface OpenLot {
   qty: number;
   price: number;
@@ -424,17 +408,15 @@ function brokerRefOf(row: SnapshotLedgerRow): string {
   return match?.[1] || "";
 }
 
-function typeRank(type: string): number {
-  return TYPE_RANK[type] ?? 50;
-}
-
+/**
+ * Same lot order as the stocks FIFO book. Civil day, then the type name
+ * (buys before sells). Same day and type keep the order loadLedger returned.
+ */
 function orderedRows(rows: readonly SnapshotLedgerRow[]): SnapshotLedgerRow[] {
   return [...rows].sort((a, b) => {
     const day = buyLotDay(a).localeCompare(buyLotDay(b));
     if (day) return day;
-    const rank = typeRank(String(a.type || "")) - typeRank(String(b.type || ""));
-    if (rank) return rank;
-    return String(a._id || "").localeCompare(String(b._id || ""));
+    return String(a.type || "").localeCompare(String(b.type || ""));
   });
 }
 

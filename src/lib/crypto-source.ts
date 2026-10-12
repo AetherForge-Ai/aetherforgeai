@@ -463,16 +463,67 @@ export async function getCoinDetail(id: string): Promise<CoinDetail> {
   }
   const listed = await listedCoinForDetail(id, code);
   const listedSource = (listed?.source || "").trim().toLowerCase();
+  const pageSource = listed && listed.price > 0 ? listedSource || source : source || listedSource;
   if (!detail) {
     if (!listed || !(listed.price > 0)) throw new Error(`No detail for ${id}`);
-    return presentDetail(detailFromMarket(listed), listedSource);
+    return presentDetail(detailFromMarket(listed), pageSource);
   }
-  const pageSource = listedSource && listedSource !== source ? `${source},${listedSource}` : source || listedSource;
-  return presentDetail(overlayCoinDetail(detail, listed), pageSource);
+  const overlaid = overlayCoinDetail(detail, listed);
+  if (listed && listed.price > 0) overlaid.price = listed.price;
+  return presentDetail(overlaid, pageSource);
+}
+
+async function paprikaChart(id: string, symbol: string, days: string): Promise<CoinChart | null> {
+  const { chartFromPaprikaHistory } = await import("@/lib/crypto-paprika");
+  const hours = days === "1" ? 30 : days === "7" ? 24 * 8 : 24 * 14;
+  const start = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+  let paprikaId = id.includes("-") ? id : "";
+  if (!paprikaId && symbol) {
+    try {
+      const res = await fetch(
+        `https://api.coinpaprika.com/v1/search?q=${encodeURIComponent(symbol)}&c=currencies&modifier=symbol&limit=5`,
+        { headers: { accept: "application/json" }, signal: AbortSignal.timeout(800) }
+      );
+      if (res.ok) {
+        const body = (await res.json()) as { currencies?: Array<{ id?: string; symbol?: string }> };
+        paprikaId = String(body.currencies?.find((row) => String(row.symbol || "").toUpperCase() === symbol)?.id || "");
+      }
+    } catch {
+      paprikaId = "";
+    }
+  }
+  if (!paprikaId) return null;
+  const interval = days === "1" ? "1h" : "1d";
+  try {
+    const res = await fetch(
+      `https://api.coinpaprika.com/v1/tickers/${encodeURIComponent(paprikaId)}/historical?start=${encodeURIComponent(start)}&interval=${interval}`,
+      { headers: { accept: "application/json" }, signal: AbortSignal.timeout(1200) }
+    );
+    if (!res.ok) return null;
+    const chart = chartFromPaprikaHistory(await res.json());
+    return chart.prices.length > 1 ? chart : null;
+  } catch (err) {
+    console.error(`[crypto-source] CoinPaprika chart(${id}) failed:`, err instanceof Error ? err.message.slice(0, 120) : "failed");
+    return null;
+  }
 }
 
 export async function getCoinChart(id: string, days: string): Promise<CoinChart> {
   const code = normalizeCryptoTicker(id);
+  let listedSource = "";
+  try {
+    const { readSharedCryptoBoard } = await import("@/lib/crypto-board-store");
+    const board = await readSharedCryptoBoard({ seed: false });
+    const slug = id.trim().toLowerCase();
+    const listed = board.coins.find((row) => row.id === slug || row.symbol.toUpperCase() === code.toUpperCase());
+    listedSource = (listed?.source || "").toLowerCase();
+    if (listedSource === "coinpaprika") {
+      const chart = await paprikaChart(listed?.paprikaId || id, listed?.symbol || code, days);
+      if (chart && chart.prices.length > 1) return chart;
+    }
+  } catch (err) {
+    console.error(`[crypto-source] chart source lookup failed:`, err instanceof Error ? err.message.slice(0, 120) : "failed");
+  }
   try {
     const chart = await coingecko.fetchCoinChart(toCgId(id), days);
     if (chart.prices.length > 0) return chart;
@@ -480,6 +531,8 @@ export async function getCoinChart(id: string, days: string): Promise<CoinChart>
   } catch (err) {
     console.error(`[crypto-source] CoinGecko chart(${id}) failed:`, err instanceof Error ? err.message.slice(0, 160) : "failed");
   }
+  const paprika = await paprikaChart(id, code, days);
+  if (paprika && paprika.prices.length > 1) return paprika;
   if (swyftxPublicDisplay()) {
     try {
       const chart = await swyftx.fetchCoinChart(code, days);

@@ -152,7 +152,7 @@ export function coinFromSnapshot(value: Record<string, unknown>): CoinMarket {
     athDate: typeof value.athDate === "string" ? value.athDate : null,
     atl: num(value.atl),
     atlDate: typeof value.atlDate === "string" ? value.atlDate : null,
-    sparkline7d: [],
+    sparkline7d: compactSpark(Array.isArray(value.sparkline7d) ? (value.sparkline7d as unknown[]).map((point) => num(point)) : []),
     blockchain: typeof value.blockchain === "string" ? value.blockchain : "",
     quotedAt: typeof value.quotedAt === "string" ? value.quotedAt : null,
     source: typeof value.source === "string" && value.source.trim() ? value.source.trim().toLowerCase() : "coingecko",
@@ -181,6 +181,18 @@ export function snapshotWorthSaving(coins: CoinMarket[]): boolean {
       (coin.source || "coingecko") !== "swyftx"
   );
   return priced.length >= 100;
+}
+
+/** At most 24 points so a 400-row list still fits the existing name field. */
+function compactSpark(values: Array<number | null | undefined> | undefined): number[] {
+  const clean = (values || []).filter((value): value is number => typeof value === "number" && Number.isFinite(value) && value > 0);
+  const rounded = clean.map((value) => roundCompact(value)).filter((value): value is number => value != null && value > 0);
+  if (rounded.length <= 24) return rounded;
+  const out: number[] = [];
+  for (let i = 0; i < 24; i += 1) {
+    out.push(rounded[Math.round((i * (rounded.length - 1)) / 23)]);
+  }
+  return out;
 }
 
 /** Eight significant figures. Small coin prices stay, and the name field stays short. */
@@ -222,6 +234,7 @@ function encodeCrypto(coins: CoinMarket[], at: string): string {
     roundCompact(coin.moves?.d7 ?? null),
     roundCompact(coin.moves?.d30 ?? null),
     coin.image || "",
+    compactSpark(coin.sparkline7d),
   ]);
   return JSON.stringify({ v: 2, at, n: rows.length, coins: rows });
 }
@@ -257,7 +270,7 @@ function coinFromCompact(row: unknown[]): CoinMarket | null {
     athDate: typeof row[21] === "string" ? row[21] : null,
     atl: num(row[17]),
     atlDate: typeof row[22] === "string" ? row[22] : null,
-    sparkline7d: [],
+    sparkline7d: compactSpark(Array.isArray(row[27]) ? (row[27] as unknown[]).map((point) => num(point)) : []),
     blockchain: typeof row[18] === "string" ? row[18] : "",
     quotedAt: typeof row[20] === "string" ? row[20] : null,
     source: typeof row[19] === "string" && row[19].trim() ? row[19].trim().toLowerCase() : "coingecko",
@@ -623,18 +636,63 @@ async function readLocalSnapshot(id: SnapshotId): Promise<string | null> {
   return snapshotHasRows(id, file) ? file : null;
 }
 
+function rememberRaw(id: SnapshotId, raw: string | null) {
+  if (!snapshotHasRows(id, raw)) return;
+  if (id === "crypto") {
+    const parsed = parseCrypto(raw);
+    if (!parsed) return;
+    if (!memoryCrypto || parsed.at >= memoryCrypto.at) memoryCrypto = parsed;
+    return;
+  }
+  const parsed = parseDex(raw);
+  if (!parsed) return;
+  if (!memoryDex || parsed.at >= memoryDex.at) memoryDex = parsed;
+}
+
+/** First copy that already has rows. Does not wait for a slower copy. */
+function firstSnapshotRaw(id: SnapshotId, works: Promise<string | null>[]): Promise<string | null> {
+  return new Promise((resolve) => {
+    let open = works.length;
+    let settled = false;
+    if (!open) {
+      resolve(null);
+      return;
+    }
+    for (const work of works) {
+      work.then(
+        (raw) => {
+          if (!settled && snapshotHasRows(id, raw)) {
+            settled = true;
+            resolve(raw);
+          }
+          open -= 1;
+          if (!settled && open === 0) resolve(null);
+        },
+        () => {
+          open -= 1;
+          if (!settled && open === 0) resolve(null);
+        }
+      );
+    }
+  });
+}
+
 async function defaultRead(id: SnapshotId): Promise<string | null> {
+  const file = readTempFile(id);
+  if (snapshotHasRows(id, file)) return file;
   const db = readWatchlist(id).catch((err) => {
     console.error("[crypto-snapshot] watchlist read failed:", err instanceof Error ? err.message.slice(0, 80) : "failed");
     return null;
   });
-  const fromLocal = await readLocalSnapshot(id);
-  if (fromLocal && snapshotHasRows(id, fromLocal)) {
-    const fromDb = await withTimeout(db, SNAPSHOT_READ_TIMEOUT_MS);
-    return chooseSnapshotRaw(id, fromDb, fromLocal);
-  }
-  const late = await withTimeout(db, SNAPSHOT_DB_TIMEOUT_MS);
-  return chooseSnapshotRaw(id, late, fromLocal);
+  const cache = withTimeout(readWorkersCache(id), SNAPSHOT_READ_TIMEOUT_MS);
+  const first = await firstSnapshotRaw(id, [cache, withTimeout(db, SNAPSHOT_DB_TIMEOUT_MS)]);
+  void Promise.all([cache, db])
+    .then(([cached, fromDb]) => {
+      const chosen = chooseSnapshotRaw(id, fromDb, cached);
+      if (chosen && chosen !== first) rememberRaw(id, chosen);
+    })
+    .catch(() => undefined);
+  return first;
 }
 
 async function defaultWrite(id: SnapshotId, body: string): Promise<boolean> {
@@ -694,17 +752,15 @@ async function writeRaw(id: SnapshotId, body: string): Promise<void> {
 export async function readCryptoSnapshot(timeoutMs = SNAPSHOT_READ_TIMEOUT_MS): Promise<CryptoSnapshot | null> {
   if (memoryCrypto) return memoryCrypto;
   const raw = await readRaw("crypto", timeoutMs);
-  const parsed = parseCrypto(raw);
-  if (parsed) memoryCrypto = parsed;
-  return parsed;
+  rememberRaw("crypto", raw);
+  return memoryCrypto;
 }
 
 export async function readDexSnapshot(timeoutMs = SNAPSHOT_READ_TIMEOUT_MS): Promise<DexSnapshot | null> {
   if (memoryDex) return memoryDex;
   const raw = await readRaw("dex", timeoutMs);
-  const parsed = parseDex(raw);
-  if (parsed) memoryDex = parsed;
-  return parsed;
+  rememberRaw("dex", raw);
+  return memoryDex;
 }
 
 export async function persistCryptoSnapshot(coins: CoinMarket[], at = new Date().toISOString()): Promise<void> {

@@ -250,34 +250,41 @@ export async function archiveClosedPositionAlerts(userId: string, ticker: string
   }
 }
 
-/** Fetch the affected holding for a ticker, tolerating legacy rows w/o asset_type. */
-async function findHolding(userId: string, ticker: string, assetType: TxAssetType) {
+/** Case and a missing asset_type, matched on a holdings list already in hand. */
+function holdingFromList(rows: readonly any[], ticker: string, assetType: TxAssetType) {
   const sym = String(ticker || "").toUpperCase();
+  if (!sym) return null;
+  return (
+    rows.find(
+      (h) =>
+        String(h?.ticker || "").toUpperCase() === sym &&
+        (h?.asset_type || "stock") === assetType
+    ) || null
+  );
+}
+
+/**
+ * Stored holding rows for a write. One query, matched in memory.
+ * The /api/stocks cache is the FIFO book with live prices applied, so a buy
+ * must not average or roll back from those figures.
+ */
+async function loadHoldingsList(userId: string): Promise<any[]> {
   const res = await totalumSdk.crud.query("stock", {
-    _filter: { user: userId, ticker: sym, asset_type: assetType },
-    _limit: 5,
+    _filter: { user: userId },
+    _limit: 500,
   });
-  let holding = ((res?.data as any[]) || [])[0] || null;
-  if (!holding) {
-    // Case / asset_type drift — scan a few rows and match in memory.
-    const legacy = await totalumSdk.crud.query("stock", {
-      _filter: { user: userId },
-      _limit: 500,
-    });
-    holding =
-      ((legacy?.data as any[]) || []).find(
-        (h) =>
-          String(h.ticker || "").toUpperCase() === sym &&
-          (h.asset_type || "stock") === assetType
-      ) || null;
-    if (!holding && assetType === "stock") {
-      holding =
-        ((legacy?.data as any[]) || []).find(
-          (h) => String(h.ticker || "").toUpperCase() === sym && (h.asset_type || "stock") === "stock"
-        ) || null;
-    }
-  }
-  return holding;
+  return (res?.data as any[]) || [];
+}
+
+/** Fetch the affected holding for a ticker, tolerating legacy rows w/o asset_type. */
+async function findHolding(
+  userId: string,
+  ticker: string,
+  assetType: TxAssetType,
+  holdings?: readonly any[] | null
+) {
+  const rows = holdings ?? (await loadHoldingsList(userId));
+  return holdingFromList(rows, ticker, assetType);
 }
 
 async function readUserCash(userId: string, fallback: number): Promise<number> {
@@ -570,7 +577,10 @@ async function applyTransactionUnlocked(
   const cashPromise = readUserCash(user._id, fallbackCash);
   const sharedTicker = normalizeTicker(input.ticker || "");
   const sharedAsset: TxAssetType = input.asset_type || "stock";
-  const holdingPromise = sharedTicker ? findHolding(user._id, sharedTicker, sharedAsset) : Promise.resolve(null);
+  const holdingsListPromise = sharedTicker ? loadHoldingsList(user._id) : Promise.resolve([] as any[]);
+  const holdingPromise = holdingsListPromise.then((rows) =>
+    sharedTicker ? holdingFromList(rows, sharedTicker, sharedAsset) : null
+  );
   const rejectionOpts = { ...opts, cashPromise, holdingPromise };
   // The movement check runs beside the booking reads. rejectionChecked skips a second pass.
   const rejectionPromise = rejectionOpts.rejectionChecked
@@ -631,7 +641,7 @@ async function applyTransactionUnlocked(
       const ticker = normalizeTicker(input.ticker || "");
       if (!ticker) throw new Error("A dividend has to be linked to a holding you already have.");
       const assetType: TxAssetType = input.asset_type || "stock";
-      const existing = await findHolding(user._id, ticker, assetType);
+      const existing = holdingFromList(await holdingsListPromise, ticker, assetType);
       const sharesHeld = Number(existing?.shares) || 0;
       if (!(sharesHeld > 0)) {
         const metalKey = ticker === "GOLD" ? "gold" : ticker === "SILVER" ? "silver" : "";
@@ -724,7 +734,7 @@ async function applyTransactionUnlocked(
     if (rejection) throw new Error(rejection);
     const currency = currencyForTicker(ticker, assetType);
     await rejectOutOfBandFx(currency, input.fx_rate, tradeDay);
-    const existing = await findHolding(user._id, ticker, assetType);
+    const existing = holdingFromList(await holdingsListPromise, ticker, assetType);
     if (input.type === "correction" && !existing) {
       throw new Error(`You don't hold ${ticker} to correct`);
     }

@@ -5,6 +5,7 @@ import { accountMismatchResponse, privateJson } from "@/lib/account-response";
 import { bookCacheEpoch, readBookCache, writeBookCache } from "@/lib/book-cache";
 import { currencyForTicker } from "@/lib/currency";
 import { getFxSnapshot } from "@/lib/fx";
+import { mergeFreshQuantities } from "@/lib/holding-snapshot";
 import { fetchCryptoQuotes, fetchLiveQuotes, isLiveDataConfigured, type LiveQuote } from "@/lib/market-data";
 import { isContaminatedEquityPrint, quoteRouteForHolding } from "@/lib/metal-valuation";
 import { getMetalsSpot } from "@/lib/metals";
@@ -61,10 +62,27 @@ export async function GET(req: Request) {
       getMetalsSpot().catch(() => null),
     ]);
 
-    const stocks = (stockRes?.data as Array<Record<string, unknown>>) || [];
+    type StockRow = Record<string, unknown> & { _id?: string; shares?: number; purchase_price?: number };
+    let stocks = (stockRes?.data as StockRow[]) || [];
     const metals = (metalRes?.data as Array<Record<string, unknown>>) || [];
     if (hasForeignOwner(ledger.transactions, user._id) || hasForeignOwner(stocks, user._id) || hasForeignOwner(metals, user._id)) {
       return accountMismatchResponse(user._id);
+    }
+
+    // A buy that landed during this read is on the fresh stock rows. Merge it
+    // the same way /api/stocks does, then price those rows from this ledger.
+    if (bookCacheEpoch(user._id) !== cacheEpoch) {
+      try {
+        const fresh = await totalumSdk.crud.query("stock", {
+          _filter: { user: user._id },
+          _limit: 500,
+        });
+        const freshRows = (fresh?.data as StockRow[]) || [];
+        if (hasForeignOwner(freshRows, user._id)) return accountMismatchResponse(user._id);
+        stocks = mergeFreshQuantities(stocks, freshRows);
+      } catch (err) {
+        console.error("[api/portfolio/snapshot] Holding re-read failed (serving the first read):", err);
+      }
     }
 
     const equityTickers: string[] = [];

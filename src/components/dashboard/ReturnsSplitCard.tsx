@@ -120,7 +120,7 @@ export function ReturnsSplitCard({
     ...(typeof resolved.feesNzd === "number" && resolved.feesNzd !== 0
       ? [{ label: "Fees", value: resolved.feesNzd, note: resolved.feesNote || "Fees are shown as a reduction." }]
       : []),
-    ...(resolved.otherNzd !== 0 ? [{ label: "Other", value: resolved.otherNzd, note: resolved.otherNote }] : []),
+    { label: "Other", value: resolved.otherNzd, note: resolved.otherNote },
     { label: "Total", value: resolved.totalNzd, note: resolved.totalNote },
   ];
 
@@ -132,8 +132,9 @@ export function ReturnsSplitCard({
     >
       <h2 className="font-display text-base font-bold">How the return is split</h2>
       <p className="mt-1 text-xs text-muted-foreground">
-        {scopeLabel}. The same capital, income, currency, and total on the dashboard, stocks, and crypto.
-        A hub P/L card is that asset class only, at today&apos;s exchange rate. These lines are worked out from the ledger, not a forecast.
+        {scopeLabel}. The same capital, income, currency, other, and total on the dashboard, stocks, and crypto.
+        A hub P/L card is that asset class only, at today&apos;s exchange rate, and it leaves out the currency effect on this card.
+        Other is the rounding residual, including NZ$0.00 when the lines already add up. These lines are worked out from the ledger, not a forecast.
       </p>
       {loading ? (
         <div className="mt-4 grid gap-3 sm:grid-cols-3">

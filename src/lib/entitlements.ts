@@ -445,7 +445,8 @@ export function formatAgeAgo(msAgo: number): string {
   if (totalMin < 1) return "just now";
   if (totalMin < 60) return `${totalMin}m ago`;
   const hours = Math.floor(totalMin / 60);
-  if (hours < 48) return `${hours}h ago`;
+  const mins = totalMin % 60;
+  if (hours < 48) return mins ? `${hours}h ${mins}m ago` : `${hours}h ago`;
   const days = Math.floor(hours / 24);
   return `${days}d ago`;
 }

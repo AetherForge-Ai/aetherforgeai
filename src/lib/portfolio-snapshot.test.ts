@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 import { buildDividendRecord, withDividendNotes } from "@/lib/dividend-ledger";
 import { cashFromLedgerRows } from "@/lib/ledger-cash-lines";
 import { roundMoney } from "@/lib/currency";
+import { fifoRemainingShareQty, fifoRemainingUnitCosts } from "@/lib/tax-realised";
+import type { TaxLedgerRow } from "@/lib/taxable-income";
 import {
   buildPortfolioSnapshot,
   checkInvariants,
@@ -507,6 +509,47 @@ describe("portfolio snapshot calc engine", () => {
     expect(snapshot.kpis.netWorth.value).toBe(roundMoney((header || 0) + (snapshot.kpis.cash.value || 0)));
   });
 
+  it("prices open lots the same way as the stocks FIFO book", () => {
+    const air: TaxLedgerRow[] = [
+      { _id: "b1", type: "buy", ticker: "AIR.NZ", quantity: 10, price: 10, trade_date: "2026-01-01", currency: "NZD", fx_rate: 1, asset_type: "stock" },
+      { _id: "b2", type: "buy", ticker: "AIR.NZ", quantity: 10, price: 20, trade_date: "2026-02-01", currency: "NZD", fx_rate: 1, asset_type: "stock" },
+      { _id: "s1", type: "sell", ticker: "AIR.NZ", quantity: 10, price: 18, trade_date: "2026-03-01", currency: "NZD", fx_rate: 1, asset_type: "stock" },
+    ];
+    // Newest same-day buy is first, which is the order loadLedger hands the stocks route.
+    const sameDay: TaxLedgerRow[] = [
+      { _id: "late", type: "buy", ticker: "ZZ", quantity: 1, price: 30, trade_date: "2026-10-01", currency: "NZD", fx_rate: 1, asset_type: "stock" },
+      { _id: "early", type: "buy", ticker: "ZZ", quantity: 1, price: 10, trade_date: "2026-10-01", currency: "NZD", fx_rate: 1, asset_type: "stock" },
+      { _id: "sell", type: "sell", ticker: "ZZ", quantity: 1, price: 20, trade_date: "2026-10-02", currency: "NZD", fx_rate: 1, asset_type: "stock" },
+    ];
+    for (const rows of [researchBook as TaxLedgerRow[], air, sameDay]) {
+      const costs = fifoRemainingUnitCosts(rows);
+      const quantities = fifoRemainingShareQty(rows);
+      const snapshot = buildPortfolioSnapshot({
+        rows: rows as SnapshotLedgerRow[],
+        marks: [...costs.keys()].map((ticker) => ({ ticker, price: 1, currency: "NZD", source: "Test price" })),
+        fxNow: { NZD: 1, USD: 1.782 },
+        fxSourced: true,
+        asOf: "2026-10-13",
+      });
+      const open = snapshot.groups.flatMap((group) => group.positions).filter((position) => position.quantity > 1e-9);
+      expect(open.map((position) => position.ticker).sort()).toEqual([...quantities.keys()].sort());
+      for (const position of open) {
+        expect(position.quantity).toBeCloseTo(quantities.get(position.ticker) || 0, 6);
+        expect(position.averageCostLocal).toBeCloseTo(costs.get(position.ticker) || 0, 6);
+      }
+    }
+    const sameDaySnap = buildPortfolioSnapshot({
+      rows: sameDay as SnapshotLedgerRow[],
+      marks: [{ ticker: "ZZ", price: 20, currency: "NZD" }],
+      fxNow: { NZD: 1 },
+      fxSourced: true,
+      asOf: "2026-10-13",
+    });
+    const zz = sameDaySnap.groups.flatMap((group) => group.positions).find((position) => position.ticker === "ZZ");
+    expect(zz?.averageCostLocal).toBeCloseTo(10, 6);
+    expect(zz?.quantity).toBeCloseTo(1, 6);
+  });
+
   it("does not mention GST and the dashboard reads this snapshot", () => {
     const source = read("src/lib/portfolio-snapshot.ts");
     const route = read("src/app/api/portfolio/snapshot/route.ts");
@@ -516,6 +559,7 @@ describe("portfolio snapshot calc engine", () => {
     expect(dash).toContain("/api/portfolio/snapshot");
     expect(dash).toContain("rowsFromSnapshot");
     expect(route).toContain("buildPortfolioSnapshot");
+    expect(route).toContain("mergeFreshQuantities");
     expect(route).toContain("fetchLiveQuotes");
     expect(route).toContain("fetchCryptoQuotes");
     expect(route).toContain("raceQuoteFetch");

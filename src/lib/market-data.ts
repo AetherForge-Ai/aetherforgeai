@@ -308,7 +308,12 @@ async function fillMissingCryptoQuoteTimes(
   const missing = Object.keys(quotes).filter((t) => quotes[t]?.price > 0 && !quotes[t]?.quotedAt);
   if (!missing.length) return;
   const idMap = new Map<string, string>();
-  missing.forEach((t) => idMap.set(ids?.[t] || coingeckoId(t), t));
+  missing.forEach((t) => {
+    const id = ids?.[t] || coingeckoId(t);
+    const existing = idMap.get(id);
+    if (existing && existing !== t) return;
+    idMap.set(id, t);
+  });
   const idList = Array.from(idMap.keys()).join(",");
   try {
     const endpoint = coinGeckoEndpoint();
@@ -397,7 +402,12 @@ async function loadCryptoQuotes(
   if (unique.length) {
     // idMap: coingecko id -> internal ticker
     const idMap = new Map<string, string>();
-    unique.forEach((t) => idMap.set(opts?.ids?.[t] || coingeckoId(t), t));
+    unique.forEach((t) => {
+      const id = opts?.ids?.[t] || coingeckoId(t);
+      const existing = idMap.get(id);
+      if (existing && existing !== t) return;
+      idMap.set(id, t);
+    });
     const ids = Array.from(idMap.keys()).join(",");
     try {
       const endpoint = coinGeckoEndpoint();

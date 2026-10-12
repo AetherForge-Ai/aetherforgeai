@@ -40,7 +40,7 @@ const ROWS: CryptoVendor[] = [
   { ticker: "DOGE", name: "Dogecoin", coingecko: "dogecoin", yahoo: "DOGE-USD" },
   { ticker: "LINK", name: "Chainlink", coingecko: "chainlink", yahoo: "LINK-USD" },
   { ticker: "DOT", name: "Polkadot", coingecko: "polkadot", yahoo: "DOT-USD" },
-  { ticker: "MATIC", name: "Polygon (POL)", coingecko: "polygon-ecosystem-token", yahoo: "MATIC-USD" },
+  { ticker: "MATIC", name: "Polygon (POL)", coingecko: "matic-network", yahoo: "MATIC-USD" },
   { ticker: "POL", name: "Polygon", coingecko: "polygon-ecosystem-token", yahoo: "POL-USD" },
   { ticker: "LTC", name: "Litecoin", coingecko: "litecoin", yahoo: "LTC-USD" },
   { ticker: "UNI", name: "Uniswap", coingecko: "uniswap", yahoo: "UNI-USD" },
