@@ -80,7 +80,7 @@ import { CryptoMarketSection } from "@/components/dashboard/crypto/CryptoMarketS
 import { CryptoLiveStatus } from "@/components/dashboard/crypto/CryptoLiveStatus";
 import { applyLiveCryptoPrices } from "@/lib/crypto-live";
 import { applyBookedTradeToHoldings, type BookedTrade } from "@/lib/apply-booked-trade";
-import { holdingsActionAfterDialogClose, holdingsGeneration, holdingsResponseIsStale } from "@/lib/holdings-generation";
+import { beginHoldingsRequest, holdingsActionAfterDialogClose, holdingsGeneration, holdingsRequestIsCurrent, holdingsResponseIsStale } from "@/lib/holdings-generation";
 import { resumeCryptoLivePoll, useLiveCryptoQuotes } from "@/hooks/useLiveCryptoQuotes";
 import { useCryptoMarkets } from "@/hooks/useCryptoMarkets";
 import { HoldingsOwnedTable } from "@/components/dashboard/HoldingsOwnedTable";
@@ -401,7 +401,6 @@ export function PortfolioDashboard({
     setQtyFx(book.qtyFx || {});
     setRealisedFxNzd(book.realisedFxNzd || 0);
     setCashLoaded(true);
-    setLedgerLoaded(true);
     setMetalsLoaded(true);
     setLoading(false);
     holdingsHydratedRef.current = true;
@@ -554,6 +553,7 @@ export function PortfolioDashboard({
 
   const loadStocks = useCallback(async () => {
     const capturedGen = holdingsGeneration();
+    const requestSeq = beginHoldingsRequest();
     // Never re-arm `loading` after the initial hydrate. Flipping it true again
     // collapses balancesReady (KPI zero-flash) and used to remount Transaction
     // Centre Buy/Add mid ticker-search when live price overlay finished on the
@@ -588,7 +588,7 @@ export function PortfolioDashboard({
         }
         // A buy/sell that committed while this request was in flight bumped the
         // generation. The body still has the pre-trade quantity — drop it.
-        if (holdingsResponseIsStale(capturedGen)) {
+        if (holdingsResponseIsStale(capturedGen) || !holdingsRequestIsCurrent(requestSeq)) {
           console.log("[dashboard] Ignoring holdings snapshot captured before a trade");
           setLoading(false);
           return;
@@ -859,12 +859,13 @@ export function PortfolioDashboard({
         return;
       }
       const capturedGen = holdingsGeneration();
+      const requestSeq = beginHoldingsRequest();
       const tracked = trackAccountRequest();
       try {
       const res = await api.post<Stock[]>("/api/stocks/refresh", {}, { signal: tracked.signal });
       tracked.release();
       if (res.aborted || tracked.epoch !== getAccountEpoch()) return;
-      if (holdingsResponseIsStale(capturedGen)) {
+      if (holdingsResponseIsStale(capturedGen) || !holdingsRequestIsCurrent(requestSeq)) {
         console.log("[dashboard] Ignoring soft-refresh captured before a trade");
         return;
       }
@@ -1742,7 +1743,7 @@ export function PortfolioDashboard({
         <StatCard
           label={PL_AT_LATEST_PRICE}
           value={formatMoney(stockOverviewSummary.totalGain, "NZD")}
-          sub={`${formatPercent(stockOverviewSummary.totalGainPct)} · Stocks only, at today's rate`}
+          sub={`${formatPercent(stockOverviewSummary.totalGainPct)} · Stocks only, at today's rate. Excludes the currency effect in the split above.`}
           icon={stockOverviewSummary.totalGain >= 0 ? TrendingUp : TrendingDown}
           tone={stockOverviewSummary.totalGain >= 0 ? "up" : "down"}
           loading={!balancesReady}
@@ -1862,7 +1863,7 @@ export function PortfolioDashboard({
         <StatCard
           label={PL_AT_LATEST_PRICE}
           value={formatMoney(cryptoOverviewSummary.totalGain, cryptoBookCurrency)}
-          sub={`${formatPercent(cryptoOverviewSummary.totalGainPct)} · Crypto only, at today's rate`}
+          sub={`${formatPercent(cryptoOverviewSummary.totalGainPct)} · Crypto only, at today's rate. Excludes the currency effect in the split above.`}
           icon={cryptoOverviewSummary.totalGain >= 0 ? TrendingUp : TrendingDown}
           tone={cryptoOverviewSummary.totalGain >= 0 ? "up" : "down"}
           loading={!balancesReady}

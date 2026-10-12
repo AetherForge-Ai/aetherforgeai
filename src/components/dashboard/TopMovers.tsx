@@ -60,7 +60,10 @@ function CryptoTopMovers() {
     <section className="rounded-3xl border border-border/70 bg-card/50 p-6">
       <MoverHeader w={w} setW={setW} subtitle="Biggest gainers and losers on the live coin list" />
       {crypto.loading && crypto.coins.length === 0 ? (
-        <p className="mt-5 text-sm text-muted-foreground">Loading movers…</p>
+        <div className="mt-5 grid min-h-[220px] gap-6 md:grid-cols-2" aria-busy="true">
+          <p className="text-sm text-muted-foreground">Loading movers…</p>
+          <div className="hidden h-[180px] animate-pulse rounded-xl bg-muted/40 md:block" />
+        </div>
       ) : ranked.gainers.length === 0 && ranked.losers.length === 0 ? (
         <p className="mt-5 text-sm text-muted-foreground">No coin moves in this list.</p>
       ) : (

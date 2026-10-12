@@ -60,6 +60,10 @@ export interface CoinMarket {
   contracts?: string[];
   /** Feed that produced this row. Omitted when the row is not shown. */
   source?: string;
+  /** CoinPaprika id such as btc-bitcoin. Not stored in the snapshot. */
+  paprikaId?: string;
+  /** Why sparkline7d is empty. */
+  sparklineReason?: string;
   /**
    * Window moves from the snapshot. Null means the feed did not send a number.
    * A real flat print is 0. Koins ranks from these fields.
@@ -336,6 +340,10 @@ export function mergeCoinMarketStats(base: CoinMarket, donor: CoinMarket): CoinM
     next.moves = { h24: day, d7: week, d30: month };
   }
   if (week != null) next.change7d = week;
+  if ((!next.sparkline7d || next.sparkline7d.length < 2) && donor.sparkline7d && donor.sparkline7d.length > 1) {
+    next.sparkline7d = donor.sparkline7d;
+  }
+  if (!next.paprikaId && donor.paprikaId) next.paprikaId = donor.paprikaId;
   return next;
 }
 
@@ -387,6 +395,8 @@ export function overlayCoinDetail(detail: CoinDetail, coin: CoinMarket | null | 
     maxSupply: size(detail.maxSupply, coin.maxSupply),
     ath: size(detail.ath, coin.ath),
     athDate: detail.athDate || coin.athDate || null,
+    atl: size(detail.atl, coin.atl),
+    atlDate: detail.atlDate || coin.atlDate || null,
     rank: detail.rank ?? (Number.isFinite(coin.rank) && coin.rank < 999999 ? coin.rank : null),
     image: detail.image || coin.image,
     name: detail.name || coin.name,
@@ -433,6 +443,15 @@ export function detailFromMarket(coin: CoinMarket): CoinDetail {
     },
     coin
   );
+}
+
+/** Percent move from the first point to the last. Null when the window is too short. */
+export function windowReturnPct(points: Array<{ price: number }>): number | null {
+  if (!points || points.length < 2) return null;
+  const first = points[0]?.price;
+  const last = points[points.length - 1]?.price;
+  if (!(first > 0) || last == null || !Number.isFinite(last)) return null;
+  return ((last - first) / first) * 100;
 }
 
 export interface ChartPoint {

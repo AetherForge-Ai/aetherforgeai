@@ -8,6 +8,7 @@ import { PublicCryptoPrices } from "@/components/markets/PublicCryptoPrices";
 import { resolvableCoinId } from "@/lib/crypto-market";
 import { formatPublicCryptoPrice, type ChainPrint } from "@/lib/crypto-price-chain";
 import { loadPublicCryptoPrint } from "@/lib/crypto-price-feed";
+import { publicCoinSourceLine } from "@/lib/data-sources";
 import { peekTop400 } from "@/lib/crypto-coingecko";
 import { readCryptoSnapshot } from "@/lib/crypto-snapshot";
 import { getFxSnapshot } from "@/lib/fx";
@@ -32,13 +33,19 @@ const loadCryptoDetailFacts = cache(async (id: string): Promise<{ facts: CryptoD
   const slug = resolvableCoinId(id) || decodeURIComponent(id).trim().toLowerCase();
   const vendor = vendorByCoingeckoId(slug);
   const coinId = resolvableCoinId(id);
-  const print = coinId ? await loadPublicCryptoPrint(coinId) : null;
   const saved = await readCryptoSnapshot();
   const listed =
-    peekTop400()?.coins.find((coin) => coin.id === slug) ??
-    saved?.coins.find((coin) => coin.id === slug) ??
+    peekTop400()?.coins.find((coin) => coin.id === slug || coin.symbol.toUpperCase() === (vendor?.ticker || "")) ??
+    saved?.coins.find((coin) => coin.id === slug || coin.symbol.toUpperCase() === (vendor?.ticker || "")) ??
     null;
-  const priceUsd = print && print.price > 0 ? print.price : listed && listed.price > 0 ? listed.price : null;
+  const print =
+    listed && listed.price > 0
+      ? null
+      : coinId
+        ? await loadPublicCryptoPrint(coinId)
+        : null;
+  const priceUsd = listed && listed.price > 0 ? listed.price : print && print.price > 0 ? print.price : null;
+  const priceSource = listed && listed.price > 0 ? listed.source || "" : print?.source || "";
   let priceNzd: number | null = null;
   let nzdSourced = false;
   if (priceUsd != null) {
@@ -50,9 +57,30 @@ const loadCryptoDetailFacts = cache(async (id: string): Promise<{ facts: CryptoD
     }
   }
   const marketCap = listed && listed.marketCap > 0 ? listed.marketCap : null;
+  const snapshotPrint: ChainPrint | null =
+    listed && listed.price > 0
+      ? {
+          symbol: listed.symbol,
+          price: listed.price,
+          changePct: listed.change24h,
+          quotedAt: listed.quotedAt || saved?.at || new Date(0).toISOString(),
+          source: priceSource,
+          stale: false,
+          storedAt: Date.parse(listed.quotedAt || saved?.at || "") || 0,
+        }
+      : null;
+  const shown = snapshotPrint || (print && print.price > 0 ? print : null);
+  const listedDetail = listed ? detailFromMarket(presentMarketCoin(presentListedCoin(listed))) : null;
   return {
-    print,
-    initialDetail: listed ? detailFromMarket(presentMarketCoin(presentListedCoin(listed))) : null,
+    print: shown,
+    initialDetail: listedDetail
+      ? {
+          ...listedDetail,
+          price: listed && listed.price > 0 ? listed.price : listedDetail.price,
+          source: priceSource,
+          sourceLine: publicCoinSourceLine(priceSource),
+        }
+      : null,
     facts: {
       slug,
       name: vendor?.name || listed?.name || null,
@@ -60,8 +88,8 @@ const loadCryptoDetailFacts = cache(async (id: string): Promise<{ facts: CryptoD
       priceUsd,
       priceNzd,
       nzdSourced,
-      asOf: print?.quotedAt || listed?.quotedAt || saved?.at || null,
-      source: print?.source || (listed && priceUsd != null ? "coingecko" : null),
+      asOf: shown?.quotedAt || listed?.quotedAt || saved?.at || null,
+      source: priceSource || null,
       marketCapUsd: marketCap,
     },
   };

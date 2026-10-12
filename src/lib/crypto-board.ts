@@ -217,6 +217,38 @@ const TICKER_CHAIN: Record<string, string> = {
   ftm: "Fantom",
   agix: "Ethereum",
   wbnb: "BNB Smart Chain",
+  eurc: "Ethereum",
+  gusd: "Ethereum",
+  busd: "Ethereum",
+  mx: "Ethereum",
+  fdusd: "Ethereum",
+  tusd: "Ethereum",
+  usdp: "Ethereum",
+  frax: "Ethereum",
+  gho: "Ethereum",
+  usdd: "TRON",
+  aero: "Base",
+  pengu: "Solana",
+  trump: "Solana",
+  kas: "Kaspa",
+  kcs: "KCC",
+  eigen: "Ethereum",
+  ena: "Ethereum",
+  ethfi: "Ethereum",
+  pol: "Polygon",
+  matic: "Polygon",
+  jlp: "Solana",
+  pump: "Solana",
+  virtual: "Base",
+  brett: "Base",
+  syrup: "Ethereum",
+  spx: "Ethereum",
+  nexo: "Ethereum",
+  bera: "Berachain",
+  // MOVE and METH are Ethereum tokens. ZK is an Ethereum ERC-20. The feed's
+  // platform names the chain. A blank stays blank and the table shows — with a reason.
+  rseth: "Ethereum",
+  ezeth: "Ethereum",
 };
 
 const PLATFORM_LABEL: Record<string, string> = {
@@ -350,6 +382,19 @@ export function presentListedCoin<T extends { symbol: string; name: string; id: 
   return { ...coin, name, blockchain };
 }
 
+/** Symbol wins over a shared coin id so two tickers cannot take one print. */
+export function pickSnapshotCoin<T extends { id: string; symbol: string }>(
+  coins: T[],
+  input: { symbol?: string | null; coinId?: string | null }
+): T | null {
+  const symbol = (input.symbol || "").trim().toUpperCase();
+  const coinId = (input.coinId || "").trim().toLowerCase();
+  if (symbol) return coins.find((row) => row.symbol.toUpperCase() === symbol) ?? null;
+  if (!coinId) return null;
+  const byId = coins.filter((row) => row.id === coinId);
+  return byId.length === 1 ? byId[0] : null;
+}
+
 /** Chain label for a ticker. Uses the canonical id, then the ticker itself. */
 export function chainForTicker(symbol: string): string {
   const bare = (symbol || "").trim().toUpperCase().split(".")[0];
@@ -398,18 +443,18 @@ export interface PaprikaChainInput {
  */
 export function chainFromPaprikaCoin(row: PaprikaChainInput): string {
   const symbol = (row.symbol || "").trim().toLowerCase();
+  const contractPlatform = (row.contracts || []).map((item) => String(item?.platform || "").trim()).find(Boolean) || "";
+  const platform = contractPlatform || String(row.platform || "").trim();
+  if (platform) {
+    const labelled = platformLabel(platform);
+    if (labelled) return labelled;
+  }
   const known = symbol ? TICKER_CHAIN[symbol] || "" : "";
   const type = (row.type || "").trim().toLowerCase();
   if (type === "coin") {
     if (known) return known;
     const own = platformLabel(String(row.name || "").trim());
     return own && own.toLowerCase() !== symbol ? own : "";
-  }
-  const contractPlatform = (row.contracts || []).map((item) => String(item?.platform || "").trim()).find(Boolean) || "";
-  const platform = contractPlatform || String(row.platform || "").trim();
-  if (platform) {
-    const labelled = platformLabel(platform);
-    if (labelled) return labelled;
   }
   return known;
 }
