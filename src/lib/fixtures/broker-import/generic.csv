@@ -1,0 +1,3 @@
+# Synthetic fixture. Not a customer file.
+When,Code,Direction,Qty,Px,Fee,Ccy,Rate,Amount
+2026-04-01,WBC.AX,buy,20,30.50,9.50,AUD,1.0800,610.00

@@ -1,0 +1,122 @@
+{
+  "label": "Example series. Not a member book.",
+  "asOf": "2025-09-01",
+  "endingNzd": 2500,
+  "source": "Example series",
+  "points": [
+    {
+      "date": "2024-01-01",
+      "valueBeforeNzd": 0,
+      "flowNzd": 100
+    },
+    {
+      "date": "2024-02-01",
+      "valueBeforeNzd": 100,
+      "flowNzd": 100
+    },
+    {
+      "date": "2024-03-01",
+      "valueBeforeNzd": 200,
+      "flowNzd": 100
+    },
+    {
+      "date": "2024-04-01",
+      "valueBeforeNzd": 300,
+      "flowNzd": 100
+    },
+    {
+      "date": "2024-05-01",
+      "valueBeforeNzd": 400,
+      "flowNzd": 100
+    },
+    {
+      "date": "2024-06-01",
+      "valueBeforeNzd": 500,
+      "flowNzd": 100
+    },
+    {
+      "date": "2024-07-01",
+      "valueBeforeNzd": 600,
+      "flowNzd": 100
+    },
+    {
+      "date": "2024-08-01",
+      "valueBeforeNzd": 700,
+      "flowNzd": 100
+    },
+    {
+      "date": "2024-09-01",
+      "valueBeforeNzd": 800,
+      "flowNzd": 100
+    },
+    {
+      "date": "2024-10-01",
+      "valueBeforeNzd": 900,
+      "flowNzd": 100
+    },
+    {
+      "date": "2024-11-01",
+      "valueBeforeNzd": 1000,
+      "flowNzd": 100
+    },
+    {
+      "date": "2024-12-01",
+      "valueBeforeNzd": 1100,
+      "flowNzd": 100
+    },
+    {
+      "date": "2025-01-01",
+      "valueBeforeNzd": 1200,
+      "flowNzd": 100
+    },
+    {
+      "date": "2025-02-01",
+      "valueBeforeNzd": 1300,
+      "flowNzd": 100
+    },
+    {
+      "date": "2025-03-01",
+      "valueBeforeNzd": 1400,
+      "flowNzd": 100
+    },
+    {
+      "date": "2025-04-01",
+      "valueBeforeNzd": 1500,
+      "flowNzd": 100
+    },
+    {
+      "date": "2025-05-01",
+      "valueBeforeNzd": 1600,
+      "flowNzd": 100
+    },
+    {
+      "date": "2025-06-01",
+      "valueBeforeNzd": 1700,
+      "flowNzd": 100
+    },
+    {
+      "date": "2025-07-01",
+      "valueBeforeNzd": 1800,
+      "flowNzd": 100
+    },
+    {
+      "date": "2025-08-01",
+      "valueBeforeNzd": 1900,
+      "flowNzd": 100
+    }
+  ],
+  "benchmark": {
+    "name": "Example index",
+    "source": "Example series, delayed",
+    "prices": [
+      {
+        "date": "2024-01-01",
+        "level": 1000
+      },
+      {
+        "date": "2025-09-01",
+        "level": 1100
+      }
+    ]
+  }
+}

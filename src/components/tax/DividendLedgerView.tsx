@@ -23,11 +23,15 @@ import { writeCachedCashNZD } from "@/lib/client-user-state";
 import { currencyForTicker, formatDisplayDate, formatFxInput, formatNzd, type CurrencyCode } from "@/lib/currency";
 import {
   buildDividendRecord,
+  dividendIncome,
+  expectedDividend,
   summariseDividends,
   type DividendView,
+  type ExpectedDividend,
 } from "@/lib/dividend-ledger";
 import type { PaperHoldingChoice } from "@/lib/paper-holding";
 import { TAX_INDICATIVE_LABEL } from "@/lib/tax-disclaimer";
+import { TAX_PACK_NOTE, type CompletenessItem } from "@/lib/tax-pack";
 
 function moneyCell(value: number | null): string {
   if (value == null) return "—";
@@ -45,6 +49,7 @@ export function DividendLedgerView({
   readError,
   csvAllowed = false,
   taxYear,
+  gaps = [],
 }: {
   signedIn: boolean;
   holdings: PaperHoldingChoice[];
@@ -52,6 +57,7 @@ export function DividendLedgerView({
   readError: boolean;
   csvAllowed?: boolean;
   taxYear: number;
+  gaps?: readonly CompletenessItem[];
 }) {
   const router = useRouter();
   const [listed, setListed] = useState(rows);
@@ -59,6 +65,11 @@ export function DividendLedgerView({
     setListed(rows);
   }, [rows]);
   const totals = useMemo(() => summariseDividends(listed), [listed]);
+  const income = useMemo(() => dividendIncome(listed), [listed]);
+  const [expected, setExpected] = useState<ExpectedDividend[]>([]);
+  const [expectDate, setExpectDate] = useState("");
+  const [expectTicker, setExpectTicker] = useState("");
+  const [expectAmount, setExpectAmount] = useState("");
   const [holdingKeyValue, setHoldingKeyValue] = useState("");
   const [date, setDate] = useState("");
   const [gross, setGross] = useState("");
@@ -329,12 +340,32 @@ export function DividendLedgerView({
                 allowed={csvAllowed}
                 exportName="Dividends CSV"
               />
+              <CsvExportButton
+                href={`/api/tax/pack/pdf?paper=dividends&year=${taxYear}`}
+                allowed={csvAllowed}
+                exportName="Dividends PDF"
+                idleLabel="PDF"
+              />
               <Button type="button" variant="outline" onClick={() => window.print()}>
                 Print
               </Button>
             </div>
           ) : null}
         </div>
+        {signedIn ? <p className="mt-3 text-sm text-muted-foreground">{TAX_PACK_NOTE}</p> : null}
+        {signedIn && !readError ? (
+          gaps.length === 0 ? (
+            <p className="mt-3 text-sm text-muted-foreground">
+              No buys missing an exchange rate and no dividends missing a gross on the rows read for this page.
+            </p>
+          ) : (
+            <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+              {gaps.map((item) => (
+                <li key={`${item.code}:${item.detail}`}>{item.detail}</li>
+              ))}
+            </ul>
+          )
+        ) : null}
         {readError ? (
           <p className="mt-3 text-sm text-muted-foreground">The dividend ledger could not be read.</p>
         ) : listed.length === 0 ? (
@@ -414,13 +445,111 @@ export function DividendLedgerView({
             <p className="mt-3 text-sm text-muted-foreground">
               Combined totals: gross {formatNzd(totals.grossNzd)}, imputation credits {formatNzd(totals.imputationNzd)},
               withholding {formatNzd(totals.withholdingNzd)}, DRP {formatNzd(totals.drpNzd)}, net cash{" "}
-              {formatNzd(totals.netCashNzd)}.
+              {formatNzd(income.cashNzd)}, total return {formatNzd(income.totalReturnNzd)} (net cash plus DRP).
               {totals.legacyCount > 0
                 ? ` Cash, no breakdown: ${formatNzd(totals.legacyCashNzd)} on ${totals.legacyCount} row${totals.legacyCount === 1 ? "" : "s"}. That cash is not added to gross.`
                 : ""}
             </p>
           </>
         )}
+        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          <div>
+            <h3 className="font-display text-base font-semibold">Income by month</h3>
+            {income.months.length === 0 ? (
+              <p className="mt-2 text-sm text-muted-foreground">No dated breakdown yet.</p>
+            ) : (
+              <ul className="mt-2 space-y-1 text-sm">
+                {income.months.map((month) => (
+                  <li key={month.month}>
+                    {month.month}: gross {formatNzd(month.grossNzd)}, net cash {formatNzd(month.netCashNzd)}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div>
+            <h3 className="font-display text-base font-semibold">Income by tax year</h3>
+            {income.years.length === 0 ? (
+              <p className="mt-2 text-sm text-muted-foreground">No dated breakdown yet.</p>
+            ) : (
+              <ul className="mt-2 space-y-1 text-sm">
+                {income.years.map((year) => (
+                  <li key={year.endingYear}>
+                    {year.label}: net cash {formatNzd(year.netCashNzd)}, DRP {formatNzd(year.drpNzd)}, total return{" "}
+                    {formatNzd(year.totalReturnNzd)}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+        <div className="mt-4">
+          <h3 className="font-display text-base font-semibold">DRP lines</h3>
+          {income.drp.length === 0 ? (
+            <p className="mt-2 text-sm text-muted-foreground">No DRP reinvestment on this book.</p>
+          ) : (
+            <ul className="mt-2 space-y-1 text-sm">
+              {income.drp.map((row, index) => (
+                <li key={`${row.id}-drp-${index}`}>
+                  {formatDisplayDate(row.when)} {row.ticker}: DRP {formatNzd(row.parts?.drpNzd || 0)}, cash{" "}
+                  {formatNzd(row.parts?.netCashNzd || 0)}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <p className="mt-3 text-sm text-muted-foreground">
+          Trailing yield on cost and on value is not shown on this page. Cost and market value are not both stored
+          with these rows.
+        </p>
+        <form
+          className="mt-4 space-y-3 rounded-2xl border border-border/70 p-4 print:hidden"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const amount = expectAmount.trim() ? Number(expectAmount) : null;
+            const next = expectedDividend({ date: expectDate, ticker: expectTicker, amountNzd: amount });
+            if (!next) {
+              setMessage("Enter a date and a ticker. An expected dividend is not filled in from a calendar.");
+              return;
+            }
+            setExpected((current) => [...current, next]);
+            setExpectDate("");
+            setExpectTicker("");
+            setExpectAmount("");
+          }}
+        >
+          <h3 className="font-display text-base font-semibold">Expected dividends</h3>
+          <p className="text-sm text-muted-foreground">
+            Only dates you type. This page does not look up an ex-dividend calendar.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="expect-date">Date</Label>
+              <Input id="expect-date" type="date" value={expectDate} onChange={(event) => setExpectDate(event.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="expect-ticker">Ticker</Label>
+              <Input id="expect-ticker" value={expectTicker} onChange={(event) => setExpectTicker(event.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="expect-amount">Amount NZ$ (optional)</Label>
+              <Input id="expect-amount" inputMode="decimal" value={expectAmount} onChange={(event) => setExpectAmount(event.target.value)} />
+            </div>
+          </div>
+          <Button type="submit" variant="outline">
+            Add expected date
+          </Button>
+          {expected.length > 0 ? (
+            <ul className="space-y-1 text-sm">
+              {expected.map((row, index) => (
+                <li key={`${row.date}-${row.ticker}-${index}`}>
+                  {row.date} {row.ticker}
+                  {row.amountNzd == null ? "" : ` ${formatNzd(row.amountNzd)}`}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </form>
         <p className="mt-4 text-sm text-muted-foreground">{TAX_INDICATIVE_LABEL}</p>
       </section>
       {/* pull-check:batch1-2026-10-11 B1-5 — name and amount before a dividend is deleted. */}

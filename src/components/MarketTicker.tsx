@@ -9,6 +9,8 @@ import { formatDisplayDate, formatMoney, formatSignedPercent } from "@/lib/curre
 import { formatTapeItem, fxRateLine, type TapeDisplay } from "@/lib/tape-display";
 import { useFxRates } from "@/hooks/useFxRates";
 import { cryptoFreshnessLabel, exchangeFreshnessLabel, latestQuoteTime, metalUpdatedPhrase } from "@/lib/market-freshness";
+import { priceBadge } from "@/lib/price-confidence";
+import { PriceConfidenceBadge } from "@/components/PriceConfidenceBadge";
 
 /**
  * Market tape. Prices come only from GET /api/ticker (one live pipeline).
@@ -43,12 +45,32 @@ function formatAsOf(iso: string | null | undefined): string {
   return wall === "—" ? "" : wall;
 }
 
-function TickerCell({ q, price }: { q: Quote; price: string }) {
+function TickerCell({
+  q,
+  price,
+  source,
+  delay,
+  failedRefreshes,
+}: {
+  q: Quote;
+  price: string;
+  source: string;
+  delay: string;
+  failedRefreshes: number;
+}) {
   const flat = Number(q.change.toFixed(2)) === 0;
   const up = !flat && q.change > 0;
   const asOf = formatAsOf(q.quotedAt);
+  const badge = priceBadge({
+    source: q.provider || source,
+    delay,
+    quotedAt: q.quotedAt ? new Date(q.quotedAt) : null,
+    refreshOk: failedRefreshes === 0,
+    failedRefreshes,
+  });
   return (
     <span className="inline-flex items-center gap-2 px-4 py-0.5 whitespace-nowrap">
+      <PriceConfidenceBadge badge={badge} />
       <span className="font-display text-[0.78rem] font-semibold tracking-tight text-emerald-300">
         {q.symbol}
       </span>
@@ -74,6 +96,9 @@ function TickerRow({
   live,
   status,
   priceFor,
+  source,
+  delay,
+  failedRefreshes,
 }: {
   quotes: Quote[];
   animationClass: string;
@@ -81,6 +106,9 @@ function TickerRow({
   live: boolean;
   status?: string;
   priceFor: (q: Quote) => string;
+  source: string;
+  delay: string;
+  failedRefreshes: number;
 }) {
   const doubled = [...quotes, ...quotes];
   return (
@@ -101,7 +129,14 @@ function TickerRow({
         {quotes.length ? (
           <div className={cn("ticker-row flex w-max items-center", animationClass)}>
             {doubled.map((q, i) => (
-              <TickerCell key={`${q.symbol}-${i}`} q={q} price={priceFor(q)} />
+              <TickerCell
+                key={`${q.symbol}-${i}`}
+                q={q}
+                price={priceFor(q)}
+                source={source}
+                delay={delay}
+                failedRefreshes={failedRefreshes}
+              />
             ))}
           </div>
         ) : (
@@ -237,6 +272,7 @@ export function MarketTicker({ className, compact = false, initial = null, initi
   });
   const [asOf, setAsOf] = useState<string | null>(initial?.asOf ?? null);
   const [loaded, setLoaded] = useState(hasTape(initial));
+  const [failedRefreshes, setFailedRefreshes] = useState(0);
   const [showNzd, setShowNzd] = useState(false);
   const fx = useFxRates();
   const fxReady = fx.ready && !!fx.asOf;
@@ -255,14 +291,10 @@ export function MarketTicker({ className, compact = false, initial = null, initi
         setLive(res.data.live ?? EMPTY_LIVE);
         setProviders(res.data.providers ?? { equities: null, crypto: null });
         setAsOf(res.data.asOf ?? null);
+        setFailedRefreshes(0);
         console.log("[ticker] Feed loaded:", res.data.live, res.data.providers, res.data.asOf);
       } else if (!res.ok) {
-        setNzx([]);
-        setAsx([]);
-        setCrypto([]);
-        setLive(EMPTY_LIVE);
-        setProviders({ equities: null, crypto: null });
-        setAsOf(null);
+        setFailedRefreshes((count) => count + 1);
         console.error("[ticker] Feed fetch failed:", res.error);
       }
       setLoaded(true);
@@ -289,6 +321,15 @@ export function MarketTicker({ className, compact = false, initial = null, initi
   const statusTitle = [liveTape, providerLabel, asOfLabel ? `as of ${asOfLabel}` : null]
     .filter(Boolean)
     .join(" · ");
+  const equityDelay = "Delayed, not a direct NZX or ASX feed";
+  const equitySource = providers.equities || "Public market data (Yahoo Finance)";
+  const feedBadge = priceBadge({
+    source: equitySource,
+    delay: equityDelay,
+    quotedAt: asOf ? new Date(asOf) : null,
+    refreshOk: failedRefreshes === 0,
+    failedRefreshes,
+  });
 
   if (!loaded) {
     return (
@@ -309,7 +350,13 @@ export function MarketTicker({ className, compact = false, initial = null, initi
           live={false}
           status={nzxStatus}
           priceFor={priceFor}
+          source={equitySource}
+          delay={equityDelay}
+          failedRefreshes={failedRefreshes}
         />
+        {feedBadge.tone !== "green" ? (
+          <p className="bg-zinc-950 px-3 py-1 text-[0.65rem] text-muted-foreground">{feedBadge.why}</p>
+        ) : null}
         <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-zinc-950 px-3 py-1 text-[0.6rem] text-muted-foreground">
           <button
             type="button"
@@ -328,8 +375,28 @@ export function MarketTicker({ className, compact = false, initial = null, initi
 
   return (
     <div className={cn("w-full", className)}>
-      <TickerRow quotes={nzx} animationClass="animate-ticker" label="NZX 50" live={false} status={nzxStatus} priceFor={priceFor} />
-      <TickerRow quotes={asx} animationClass="animate-ticker-reverse" label="ASX 200" live={false} status={asxStatus} priceFor={priceFor} />
+      <TickerRow
+        quotes={nzx}
+        animationClass="animate-ticker"
+        label="NZX 50"
+        live={false}
+        status={nzxStatus}
+        priceFor={priceFor}
+        source={equitySource}
+        delay={equityDelay}
+        failedRefreshes={failedRefreshes}
+      />
+      <TickerRow
+        quotes={asx}
+        animationClass="animate-ticker-reverse"
+        label="ASX 200"
+        live={false}
+        status={asxStatus}
+        priceFor={priceFor}
+        source={equitySource}
+        delay={equityDelay}
+        failedRefreshes={failedRefreshes}
+      />
       <TickerRow
         quotes={crypto}
         animationClass="animate-ticker-slow"
@@ -337,7 +404,13 @@ export function MarketTicker({ className, compact = false, initial = null, initi
         live={false}
         status={cryptoStatus.label}
         priceFor={priceFor}
+        source={providers.crypto || "Public crypto prices"}
+        delay="Delayed or indicative"
+        failedRefreshes={failedRefreshes}
       />
+      {feedBadge.tone !== "green" ? (
+        <p className="border-b border-emerald-500/20 bg-zinc-950 px-3 py-1 text-[0.65rem] text-muted-foreground">{feedBadge.why}</p>
+      ) : null}
       <MetalsSpotBanner initial={initialMetals} />
       <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 border-b border-emerald-500/20 bg-zinc-950 px-3 py-1.5 text-[0.6rem] text-muted-foreground">
         <span className="inline-flex items-center gap-1">

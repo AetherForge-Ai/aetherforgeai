@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { CsvExportButton } from "@/components/tax/CsvExportButton";
 import { PrintButton } from "@/components/tax/PrintButton";
+import { TaxCompletenessList } from "@/components/tax/TaxCompletenessList";
 import { TaxSectionNav } from "@/components/tax/TaxSectionNav";
 import { formatDisplayDate, formatNzd, formatSignedMoney } from "@/lib/currency";
 import { canExportCsv } from "@/lib/entitlements";
@@ -10,7 +11,8 @@ import { publicPageMetadata } from "@/lib/reviewed-book";
 import { getCurrentUser } from "@/lib/session";
 import { loadTaxRows } from "@/lib/tax-book-server";
 import { TAX_INDICATIVE_LABEL } from "@/lib/tax-disclaimer";
-import { taxableIncome, taxYearChoices, type TaxableIncomeReport } from "@/lib/taxable-income";
+import { TAX_PACK_NOTE, taxCompleteness } from "@/lib/tax-pack";
+import { taxableIncome, taxYearChoices, type TaxableIncomeReport, type TaxLedgerRow } from "@/lib/taxable-income";
 import { incomeReconciliationNote, realisedByTaxYear } from "@/lib/tax-realised";
 
 export const dynamic = "force-dynamic";
@@ -142,9 +144,11 @@ export default async function TaxableIncomePage({
   let fifoNote: string | null = null;
   let years: number[] = [current];
   let readError = false;
+  let ledgerRows: TaxLedgerRow[] = [];
   if (user) {
     try {
       const rows = await loadTaxRows(user._id);
+      ledgerRows = rows;
       years = taxYearChoices(rows, today);
       if (!years.includes(endingYear)) years = [endingYear, ...years];
       report = taxableIncome(rows, endingYear);
@@ -198,8 +202,17 @@ export default async function TaxableIncomePage({
               exportName="Income CSV"
             />
           ) : null}
+          {user && report ? (
+            <CsvExportButton
+              href={`/api/tax/pack/pdf?paper=income&year=${endingYear}`}
+              allowed={canExportCsv(user.subscription_plan)}
+              exportName="Income PDF"
+              idleLabel="PDF"
+            />
+          ) : null}
           {user && report ? <PrintButton /> : null}
         </div>
+        {user && report ? <p className="mt-3 text-sm text-muted-foreground">{TAX_PACK_NOTE}</p> : null}
 
         {!user ? (
           <p className="mt-6 text-sm text-muted-foreground">
@@ -213,6 +226,7 @@ export default async function TaxableIncomePage({
         ) : report ? (
           <ReportTables report={report} fifoNote={fifoNote} />
         ) : null}
+        {user && report ? <TaxCompletenessList items={taxCompleteness(ledgerRows)} /> : null}
         <p className="mt-8 text-sm text-muted-foreground">{TAX_INDICATIVE_LABEL}</p>
       </article>
     </AppShell>
