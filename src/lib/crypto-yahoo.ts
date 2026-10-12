@@ -6,7 +6,8 @@
 
 import "server-only";
 import type { CoinMarket, CoinDetail, CoinChart } from "@/lib/crypto-market";
-import { CANONICAL_CRYPTO_IDS, normalizeCryptoTicker } from "@/lib/crypto-ids";
+import { snapshotBlockchain } from "@/lib/crypto-board";
+import { CANONICAL_CRYPTO_IDS, canonicalCryptoId, normalizeCryptoTicker } from "@/lib/crypto-ids";
 import { coinDisplayName } from "@/lib/crypto-names";
 import { yahooSymbolFor } from "@/lib/crypto-vendors";
 import { coinLogo, sevenDayReturnPct } from "@/lib/crypto-market";
@@ -63,7 +64,7 @@ async function yahooChartRaw(symbol: string, range = "1mo", interval = "1d"): Pr
 
 export async function fetchYahooCryptoQuote(
   ticker: string
-): Promise<{ price: number; changePct: number; change7d: number | null; sparkline7d: number[] } | null> {
+): Promise<{ price: number; changePct: number; change7d: number | null; sparkline7d: number[]; quotedAt: string } | null> {
   const j = await yahooChartRaw(yahooSymbol(ticker), "7d", "1d");
   const r = j?.chart?.result?.[0];
   if (!r) return null;
@@ -77,7 +78,12 @@ export async function fetchYahooCryptoQuote(
   // The CoinGecko id the-open-network is the right asset; the window was not.
   const reported = Number(r.meta?.regularMarketChangePercent);
   const changePct = Number.isFinite(reported) ? reported : 0;
-  return { price, changePct, change7d: sevenDayReturnPct(closes), sparkline7d: closes };
+  const unix = Number(r.meta?.regularMarketTime);
+  const quotedAt =
+    unix > 1_000_000_000
+      ? new Date(unix > 1_000_000_000_000 ? unix : unix * 1000).toISOString()
+      : new Date().toISOString();
+  return { price, changePct, change7d: sevenDayReturnPct(closes), sparkline7d: closes, quotedAt };
 }
 
 export async function fetchYahooMajorMarkets(): Promise<CoinMarket[]> {
@@ -91,8 +97,9 @@ export async function fetchYahooMajorMarkets(): Promise<CoinMarket[]> {
       const code = batch[idx];
       const q = await fetchYahooCryptoQuote(code);
       if (!q) continue;
+      const id = canonicalCryptoId(code);
       out.push({
-        id: code.toLowerCase(),
+        id,
         symbol: code,
         name: coinDisplayName(code),
         image: coinLogo(code),
@@ -114,6 +121,10 @@ export async function fetchYahooMajorMarkets(): Promise<CoinMarket[]> {
         athDate: null,
         atl: null,
         atlDate: null,
+        blockchain: snapshotBlockchain(id, null, null) || snapshotBlockchain(code.toLowerCase(), null, null),
+        quotedAt: q.quotedAt,
+        source: "yahoo",
+        priceUnavailable: false,
       });
     }
   }

@@ -23,6 +23,7 @@ import { getMetalsSpot } from "@/lib/metals";
 import {
   bullionMarkForHolding,
   bullionNameContaminated,
+  lastGoodUnitPrice,
   isBullionHolding,
   quoteRouteForHolding,
   resolveHoldingMarkPrice,
@@ -73,7 +74,7 @@ async function persistBullionMarks(holdings: any[]): Promise<void> {
   );
 }
 
-async function overlayLivePrices(holdings: any[]): Promise<void> {
+async function overlayLivePrices(holdings: any[], abandoned?: () => boolean): Promise<void> {
   if (!holdings.length) return;
   // Bullion is priced on its own so an equity quote cannot mark GOLD at the
   // Yahoo Gold.com, Inc. print (~US$44). That lookup runs beside the other quotes.
@@ -100,6 +101,7 @@ async function overlayLivePrices(holdings: any[]): Promise<void> {
     const [, quotes] = await Promise.all([persistBullionMarks(holdings), quoteWork]);
     equityQuotes = quotes[0] as Record<string, { price: number }>;
     cryptoQuotes = quotes[1] as Record<string, { price: number }>;
+    if (abandoned?.()) return;
     if (!equityTickers.length && !cryptoTickers.length) return;
     const equityMap = equityQuotes;
     const cryptoMap = cryptoQuotes;
@@ -113,6 +115,7 @@ async function overlayLivePrices(holdings: any[]): Promise<void> {
       holdings.map(async (s, i) => {
         const ticker = String(s.ticker || "");
         const route = quoteRouteForHolding(s.asset_type, ticker, s.company_name);
+        if (abandoned?.()) return;
         if (route === "bullion") return;
         const key = ticker.toUpperCase();
         const marked = resolveHoldingMarkPrice({
@@ -123,6 +126,7 @@ async function overlayLivePrices(holdings: any[]): Promise<void> {
           equityQuote: route === "equity" ? equityMap[key]?.price : undefined,
           cryptoQuote: route === "crypto" ? cryptoMap[key]?.price : undefined,
         });
+        if (abandoned?.()) return;
         if (marked == null || !(marked > 0)) return;
         const prev = Number(s.current_price) || 0;
         holdings[i] = { ...s, current_price: marked };
@@ -307,7 +311,17 @@ export async function GET(req: Request) {
     // Names first so the bullion price copy includes a corrected company_name.
     // Live prices (and the bullion spot persist) run after, on their own.
     await Promise.all([overlayCompanyNames(stocks), overlayEarliestBuyDates(stocks, user._id)]);
-    await overlayLivePrices(stocks);
+    let abandonLive = false;
+    const liveOverlay = overlayLivePrices(stocks, () => abandonLive);
+    await Promise.race([
+      liveOverlay,
+      new Promise<void>((resolve) =>
+        setTimeout(() => {
+          abandonLive = true;
+          resolve();
+        }, 1200)
+      ),
+    ]);
 
     // Quote fetches outlive a buy that committed while this request was in
     // flight. Re-read quantity so the response cannot paint the pre-trade shares.
@@ -321,6 +335,11 @@ export async function GET(req: Request) {
       console.error("[api/stocks] Quantity re-read failed (serving the overlay snapshot):", err);
     }
     stocks = await overlayFifoPurchasePrices(stocks, user._id);
+    stocks = stocks.map((row) => {
+      const mark = lastGoodUnitPrice(row.current_price, null, row.purchase_price);
+      if (!(mark > 0) || Number(row.current_price) > 0) return row;
+      return { ...row, current_price: mark };
+    });
 
     // Legacy rows without asset_type are treated as stock.
     if (assetType === "stock" || assetType === "crypto") {

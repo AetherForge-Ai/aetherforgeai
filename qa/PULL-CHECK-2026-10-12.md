@@ -6,8 +6,17 @@ This file keeps both note sets after the merge of develop `3d05b6b` (#324).
 - H2, H1, and T1–T5 from #324: marker `pull-check:v3-tier1b-2026-10-12`
 - Keyless crypto and DEX seed: marker `pull-check:v3-crypto-seed-2026-10-12`
 - Research retest 8: marker `pull-check:v3-retest8-2026-10-12`
+- Testing Technician retest: marker `pull-check:v3-retest-tt-2026-10-12`
 
 `qa/PULL-CHECK-2026-10-10.md` stays, with both supersession lines and every earlier section.
+
+## Testing Technician retest
+
+`pull-check:v3-retest-tt-2026-10-12`
+
+Keyless crypto sends `AetherForgeAI/1.0` and returns as soon as one source has 40 coins. CoinCap is skipped unless `COINCAP_API_KEY` is set. `Powered by CoinGecko` is shown only when CoinGecko supplied a row. `/api/crypto` serves the same snapshot as the markets route. Public and signed-in Crypto read that snapshot, including `Prices as at`. DEX rows need a chain and a DEX. Confirm starts the FX lookups with the live spot and does not cold-seed the snapshot. A 7-day equity move above 30% is under review and leaves the rank. A month with 0 gainers says the list is unavailable. Identical large percents and extreme movers are dropped unless a second source agrees. CSV `RealizedPnlNZD` is the FIFO row total. New crypto rows stamp `chain=` and `pxat=` into notes. Holdings use the last good price when the live print is missing. HOLD has no illustrated size. The about title is `About — Built in New Zealand, for New Zealanders — AetherForge AI`.
+
+This note does not Publish, send email, or add GST. Public copy says AI. Stox, Koins, and Headmaster lists stay. Crypto projections stay paused. `SWYFTX_PUBLIC_DISPLAY` and `DEXSCREENER_PUBLIC_DISPLAY` stay off.
 
 ## Keyless crypto seed
 

@@ -13,6 +13,9 @@
 export const COINGECKO_PUBLIC_BASE = "https://api.coingecko.com/api/v3";
 export const COINGECKO_PRO_BASE = "https://pro-api.coingecko.com/api/v3";
 
+/** Honest app identity. An empty User-Agent is refused by Cloudflare (error 1020). */
+export const MARKET_USER_AGENT = "AetherForgeAI/1.0 (+https://www.aetherforgeai.co.nz)";
+
 export type CoinGeckoMode = "keyless" | "demo" | "pro";
 
 export interface CoinGeckoEndpoint {
@@ -28,7 +31,7 @@ function flagOn(value: string | undefined): boolean {
 
 /** Header map for one call. `keyless` drops the key so a rejected key can be retried. */
 export function coinGeckoEndpoint(env: NodeJS.ProcessEnv = process.env, keyless = false): CoinGeckoEndpoint {
-  const headers: Record<string, string> = { accept: "application/json" };
+  const headers: Record<string, string> = { accept: "application/json", "user-agent": MARKET_USER_AGENT };
   const key = (env.COINGECKO_API_KEY || "").trim();
   if (!key || keyless) return { base: COINGECKO_PUBLIC_BASE, headers, mode: "keyless" };
   if (flagOn(env.COINGECKO_PRO)) {
@@ -41,8 +44,8 @@ export function coinGeckoEndpoint(env: NodeJS.ProcessEnv = process.env, keyless 
 
 /** Remove the configured key from a log line. The key itself is not logged. */
 export function redactSecrets(text: string, env: NodeJS.ProcessEnv = process.env): string {
-  const key = (env.COINGECKO_API_KEY || "").trim();
-  const cut = text.slice(0, 180);
-  if (!key) return cut;
-  return cut.split(key).join("[redacted]");
+  const keys = [(env.COINGECKO_API_KEY || "").trim(), (env.COINCAP_API_KEY || "").trim()].filter(Boolean);
+  let cut = text.slice(0, 180);
+  for (const key of keys) cut = cut.split(key).join("[redacted]");
+  return cut;
 }

@@ -229,6 +229,8 @@ export interface RankedCryptoPage {
   coins: CoinMarket[];
   /** Set when CoinGecko stopped short of the requested list. */
   notice: string | null;
+  /** Snapshot time. Present when the page was read from the shared board. */
+  at?: string | null;
 }
 
 async function loadPlatforms(): Promise<Map<string, Record<string, string>> | null> {

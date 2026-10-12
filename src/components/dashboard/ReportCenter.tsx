@@ -133,6 +133,7 @@ export function ReportCenter({
   scope,
   counts,
   tickerLimit,
+  countsReady = true,
   userId = null,
   holdings = [],
   preview = false,
@@ -142,6 +143,8 @@ export function ReportCenter({
   scope: "total" | "perBot";
   counts: { stock: number; crypto: number; total: number };
   tickerLimit?: number | null;
+  /** False while holdings are still loading, so "0 / 51" is not painted first. */
+  countsReady?: boolean;
   /** Active account. History is discarded unless the response echoes this id. */
   userId?: string | null;
   /** Live book already on the dashboard — used to rewrite stale empty-book copy. */
@@ -536,14 +539,16 @@ export function ReportCenter({
         <div
           className="text-right text-xs text-muted-foreground"
           title={
-            tickerLimit
+            !countsReady
+              ? "Holdings are still loading."
+              : tickerLimit
               ? `${counts.total} of ${tickerLimit} tickers monitored${scope === "perBot" ? " on this bot" : ""}. The first number is how many you monitor. The second is your plan cap.`
               : `${counts.total} tickers monitored`
           }
         >
           <div className="font-display text-lg font-bold text-foreground">
-            {counts.total}
-            {tickerLimit ? <span className="text-sm text-muted-foreground"> / {tickerLimit}{scope === "perBot" ? " per bot" : ""}</span> : null}
+            {countsReady ? counts.total : "—"}
+            {countsReady && tickerLimit ? <span className="text-sm text-muted-foreground"> / {tickerLimit}{scope === "perBot" ? " per bot" : ""}</span> : null}
           </div>
           tickers monitored
         </div>
