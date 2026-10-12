@@ -31,10 +31,6 @@ export const PRICING_FAQS: { q: string; a: string }[] = [
     a: TRIAL_FAQ,
   },
   {
-    q: "Do you have discounts for students or charities?",
-    a: "We do. If you're a student, educator, registered charity or not-for-profit, get in touch with your details and we'll arrange a meaningful discount on any paid tier.",
-  },
-  {
     q: "How does billing work with annual plans?",
     a: "Annual plans are billed once up front: 12 months for the price of 10, a 16.67% saving versus paying monthly. Your plan renews automatically each year, and you can cancel or switch to monthly at any time.",
   },

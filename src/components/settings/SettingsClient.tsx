@@ -628,7 +628,7 @@ export function SettingsClient({
             <div className="mt-3 rounded-2xl border border-border/60 bg-background/30 p-4">
               <p className="font-display text-sm font-bold">Ultimate · founder-led</p>
               <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                Team seats, API access and custom reporting are arranged with the founder. This is not a self-serve checkout.
+                This is not a self-serve checkout.
               </p>
               <Button asChild variant="outline" size="sm" className="mt-3">
                 <a href={`mailto:${SALES_EMAIL}?subject=${encodeURIComponent("Founder-led onboarding")}`}>Talk to us</a>
