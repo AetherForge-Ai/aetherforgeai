@@ -37,7 +37,12 @@ export function AllMarkets({
     <section>
       {/* Prominent dashboard card — opens the ALL Markets view */}
       <button
-        onClick={() => setOpen(true)}
+        type="button"
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setOpen(true);
+        }}
         className="group flex w-full items-center gap-4 rounded-3xl border border-primary/30 bg-gradient-to-br from-primary/12 via-card/60 to-card/50 p-6 text-left shadow-glow transition-colors hover:border-primary/50"
       >
         <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-primary/15 text-primary">

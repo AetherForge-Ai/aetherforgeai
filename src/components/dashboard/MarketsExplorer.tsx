@@ -17,6 +17,7 @@ import type { PublicMarketIndex } from "@/lib/public-market-types";
 import { BuyDialog, type BuyTarget } from "@/components/dashboard/BuyDialog";
 import { columnHasFigure, cryptoCoveragePhrase, dexCoverageLine, dexTabLabel } from "@/lib/crypto-coverage";
 import { coingeckoSupplied, countLine, stripLastGoodCell } from "@/lib/crypto-board";
+import { sourceLabel } from "@/lib/crypto-price-chain";
 import { DEX_EMPTY_NOTICE } from "@/lib/crypto-dex";
 import { explorerDetailHref, marketsTabHref, type MarketsTab } from "@/lib/market-detail-routes";
 import type { PublicPriceRow } from "@/lib/public-market-types";
@@ -121,6 +122,10 @@ interface DisplayRow {
   exchange?: StockBoard; // stock rows only — needed to open the stock detail view
   coinId?: string; // crypto rows only — CoinGecko id for /markets/crypto/[id]
   blockchain?: string;
+  chainReason?: string;
+  maxSupply?: number | null;
+  change1h?: number | null;
+  change30d?: number | null;
   dex?: string;
   paperMarket?: "Crypto" | "DEX";
   priceUnavailable?: boolean;
@@ -146,6 +151,10 @@ function seedDisplayRows(rows: PublicPriceRow[], market: "Crypto" | "DEX"): Disp
       quoted: true,
       coinId: row.quoteId,
       blockchain: row.blockchain || "",
+      chainReason: row.blockchain ? undefined : "The feed did not send a platform for this coin.",
+      maxSupply: null,
+      change1h: null,
+      change30d: null,
       dex: row.dex || "",
       paperMarket: market,
       priceUnavailable: false,
@@ -160,6 +169,25 @@ const volFmt = new Intl.NumberFormat("en-NZ", { notation: "compact", maximumFrac
 
 function fmtVolume(v: number | null): string {
   return v && v > 0 ? volFmt.format(v) : "—";
+}
+
+function DashCell({ reason }: { reason: string }) {
+  return (
+    <span title={reason} className="cursor-help">
+      —
+    </span>
+  );
+}
+
+function MoveCell({ value, reason }: { value: number | null | undefined; reason: string }) {
+  if (value == null || !Number.isFinite(value)) return <DashCell reason={reason} />;
+  const up = value >= 0;
+  return (
+    <span className={cn("tnum font-semibold", up ? "text-emerald-600" : "text-rose-600")}>
+      {value > 0 ? "+" : value < 0 ? "−" : ""}
+      {formatMarketChangePercent(Math.abs(value))}%
+    </span>
+  );
 }
 
 /** Compact market-cap / currency figure, e.g. "$1.2T", "$948.6B". */
@@ -561,6 +589,10 @@ export function MarketsExplorer({
         quoted: !c.priceUnavailable && c.price > 0,
         coinId: c.id,
         blockchain: stripLastGoodCell(c.blockchain) && stripLastGoodCell(c.blockchain) !== "Unavailable" && stripLastGoodCell(c.blockchain) !== "Native" ? stripLastGoodCell(c.blockchain) : "",
+        chainReason: c.blockchainReason || (c.source === "coinpaprika" ? "CoinPaprika did not send a platform for this coin." : "The feed did not send a platform for this coin."),
+        maxSupply: c.maxSupply,
+        change1h: c.change1h,
+        change30d: c.moves?.d30 ?? null,
         paperMarket: "Crypto" as const,
         priceUnavailable: !!c.priceUnavailable || !(c.price > 0),
       }));
@@ -659,9 +691,11 @@ export function MarketsExplorer({
   const showChain = isCryptoTab;
   const showDex = isDexTab;
   const showAdd = isCryptoTab;
+  const showCoinStats = isCoinTab && !isDexTab;
   const colSpan =
     2 +
     Number(showChange) +
+    Number(showCoinStats) * 3 +
     1 +
     Number(showHigh) +
     Number(showLow) +
@@ -828,9 +862,12 @@ export function MarketsExplorer({
             </p>
           )}
           {isCoinTab &&
-            coingeckoSupplied(
-              crypto.coins.length ? crypto.coins.map((coin) => coin.source) : seedCrypto.map((row) => row.source)
-            ) && <p className="text-sm text-muted-foreground">Powered by CoinGecko</p>}
+            (() => {
+              const sources = crypto.coins.length ? crypto.coins.map((coin) => coin.source) : seedCrypto.map((row) => row.source);
+              const labels = [...new Set(sources.map((source) => sourceLabel(source || "")).filter(Boolean))];
+              if (!labels.length && coingeckoSupplied(sources)) labels.push("CoinGecko");
+              return labels.length ? <p className="text-sm text-muted-foreground">Powered by {labels.join(", ")}</p> : null;
+            })()}
           {isCryptoTab && (
             <button
               type="button"
@@ -882,6 +919,15 @@ export function MarketsExplorer({
               </th>
               <th className="py-2.5 px-3"><SortHead label="Price" k="price" /></th>
               {showChange && <th className="py-2.5 px-3"><SortHead label="Change" k="changePct" /></th>}
+              {showCoinStats && (
+                <th className="py-2.5 px-3 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">1H</th>
+              )}
+              {showCoinStats && (
+                <th className="hidden py-2.5 px-3 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground md:table-cell">30D</th>
+              )}
+              {showCoinStats && (
+                <th className="hidden py-2.5 px-3 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground lg:table-cell">Max supply</th>
+              )}
               {showHigh && (
               <th className="hidden py-2.5 px-3 lg:table-cell text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 High
@@ -946,8 +992,15 @@ export function MarketsExplorer({
             ) : (
               visibleRows.map((r) => {
                 const up = r.changePct >= 0;
+                const rowHref = isCoinTab ? detailHref(r) : "";
                 return (
-                  <tr key={r.key} className="border-b border-border/30 last:border-0 hover:bg-background/40">
+                  <tr
+                    key={r.key}
+                    className={cn("border-b border-border/30 last:border-0 hover:bg-background/40", rowHref && "cursor-pointer")}
+                    onClick={() => {
+                      if (rowHref) router.push(rowHref);
+                    }}
+                  >
                     <td className="py-2.5 pr-3">
                       <div className="flex items-center gap-2">
                         <Link
@@ -955,6 +1008,7 @@ export function MarketsExplorer({
                           className="font-display font-semibold text-primary underline-offset-4 transition-colors hover:text-primary hover:underline"
                           title={`View ${r.symbol} details`}
                           aria-label={`${r.symbol}, ${r.name}`}
+                          onClick={(event) => event.stopPropagation()}
                         >
                           {r.symbol}
                         </Link>
@@ -1005,6 +1059,25 @@ export function MarketsExplorer({
                       )}
                     </td>
                     )}
+                    {showCoinStats && (
+                      <td className="py-2.5 px-3 text-right">
+                        <MoveCell value={r.change1h} reason="The feed did not send a 1-hour change." />
+                      </td>
+                    )}
+                    {showCoinStats && (
+                      <td className="hidden py-2.5 px-3 text-right md:table-cell">
+                        <MoveCell value={r.change30d} reason="The feed did not send a 30-day change." />
+                      </td>
+                    )}
+                    {showCoinStats && (
+                      <td className="tnum hidden py-2.5 px-3 text-right text-muted-foreground lg:table-cell">
+                        {r.maxSupply != null && r.maxSupply > 0 ? (
+                          volFmt.format(r.maxSupply)
+                        ) : (
+                          <DashCell reason="No maximum supply was sent." />
+                        )}
+                      </td>
+                    )}
                     {showHigh && (
                     <td className="tnum hidden py-2.5 px-3 text-right text-muted-foreground lg:table-cell">
                       {showUnit(r.dayHigh, r)}
@@ -1027,7 +1100,7 @@ export function MarketsExplorer({
                     )}
                     {showChain && (
                       <td className="max-w-[10rem] py-2.5 pl-3 text-right text-xs text-muted-foreground">
-                        {r.blockchain || "—"}
+                        {r.blockchain ? r.blockchain : <DashCell reason={r.chainReason || "The feed did not send a platform for this coin."} />}
                       </td>
                     )}
                     {showDex && (
@@ -1038,7 +1111,16 @@ export function MarketsExplorer({
                     {showAdd && (
                       <td className="py-2.5 pl-3 text-right">
                         {signedIn ? (
-                          <Button size="sm" variant="outline" className="h-8 px-2.5" onClick={() => openPaperAdd(r)}>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            type="button"
+                            className="h-8 px-2.5"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openPaperAdd(r);
+                            }}
+                          >
                             Add to paper book
                           </Button>
                         ) : (
@@ -1050,7 +1132,7 @@ export function MarketsExplorer({
                     )}
                     {allowBuy && !isCryptoTab && (
                       <td className="py-2.5 pl-3 text-right">
-                        <Button size="sm" variant="outline" className="h-8 px-2.5" disabled={!r.quoted || !(r.price != null && r.price > 0)} onClick={() => openBuy(r)}>
+                        <Button size="sm" variant="outline" type="button" className="h-8 px-2.5" disabled={!r.quoted || !(r.price != null && r.price > 0)} onClick={(event) => { event.stopPropagation(); openBuy(r); }}>
                           <ShoppingCart className="size-3.5 sm:mr-1.5" />
                           <span className="hidden sm:inline">Buy</span>
                         </Button>

@@ -356,6 +356,7 @@ export function DashboardHomeGrid({
           }
           icon={Landmark}
           loading={balancesLoading}
+          snap
         />
         <BalanceCard
           title="Value in Crypto NZD"
@@ -368,6 +369,7 @@ export function DashboardHomeGrid({
           }
           icon={Coins}
           loading={balancesLoading}
+          snap
         />
         <BalanceCard
           title="Value in Metals NZD"
@@ -382,6 +384,7 @@ export function DashboardHomeGrid({
           }
           icon={Coins}
           loading={balancesLoading}
+          snap
         />
       </div>
 

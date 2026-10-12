@@ -32,7 +32,7 @@ describe("equity freshness", () => {
 
   it("labels an open session as delayed and includes a vendor clock only when one exists", () => {
     const quoted = new Date("2026-10-07T01:14:00.000Z");
-    expect(equityFreshnessLabel("NZX", NZX_OPEN, quoted).label).toBe("Delayed ~20 min · NZX · quote 2:14 pm NZDT");
+    expect(equityFreshnessLabel("NZX", NZX_OPEN, quoted).label).toBe("Delayed ~20 min · NZX · quote 2:14 pm NZ");
     expect(equityFreshnessLabel("NZX", NZX_OPEN).label).toBe("Delayed ~20 min · NZX");
     expect(equityFreshnessLabel("ASX", ASX_OPEN).label).toBe("Delayed ~20 min · ASX");
     expect(equityFreshnessLabel("ASX", ASX_OPEN, ASX_OPEN).label).toMatch(/^Delayed ~20 min · ASX · quote /);
@@ -60,7 +60,9 @@ describe("crypto and FX freshness", () => {
     const fresh = cryptoFreshnessLabel(new Date(now.getTime() - 60_000), now);
     expect(fresh.live).toBe(true);
     expect(fresh.label).toContain("Live · crypto · updated");
-    expect(fresh.label).toContain("NZDT");
+    expect(fresh.label).toContain(" pm NZ");
+    expect(fresh.label).not.toContain("NZDT");
+    expect(fresh.label).not.toContain("GMT");
     const stale = cryptoFreshnessLabel(new Date(now.getTime() - 6 * 60_000), now);
     expect(stale.live).toBe(false);
     expect(stale.label.startsWith("Updated ")).toBe(true);

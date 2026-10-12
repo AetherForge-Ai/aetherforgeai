@@ -9,6 +9,8 @@
  * pull-check:qa-2026-10-10-medium-m1-m9
  */
 
+import { stripDividendNotesPrefix } from "@/lib/dividend-ledger";
+
 export interface DexSource {
   venue?: string | null;
   market?: string | null;
@@ -135,6 +137,20 @@ export function preserveQuoteStamp(notes: string | null | undefined, chain: stri
   const trimmed = room > 0 ? user.slice(0, room).trimEnd() : "";
   const next = trimmed ? `${protectedBlock} ${trimmed}` : protectedBlock;
   return next.length <= TRADE_NOTE_MAX ? next : next.slice(0, TRADE_NOTE_MAX);
+}
+
+/**
+ * Ledger table text. Stored notes keep live=, chain=, pxat=, and idem=.
+ * The table shows the user's words only.
+ */
+export function displayLedgerNote(notes: string | null | undefined): string {
+  return stripQuoteStamp(stripDexNotesPrefix(stripDividendNotesPrefix(String(notes || ""))))
+    .replace(/\[audit[^\]]*\][^\n]*/gi, " ")
+    .replace(/(^|\s)live=(?:n\/a|[0-9.]+)/gi, "$1")
+    .replace(/(^|\s)idem=\S+/gi, "$1")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 export function stripQuoteStamp(notes: string | null | undefined): string {

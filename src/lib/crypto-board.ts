@@ -20,6 +20,8 @@ export const SNAPSHOT_COMPLETE_RATIO = 0.95;
 export const SNAPSHOT_STALE_MS = 30 * 60 * 1000;
 /** A stored list older than this is refreshed inside the request, with a bound. */
 export const SNAPSHOT_REFRESH_MS = 10 * 60 * 1000;
+/** A DEX request refreshes a snapshot older than about five minutes. The saved `at` is the as-at time. */
+export const DEX_REQUEST_FRESH_MS = 5 * 60 * 1000;
 export const KOINS_SNAPSHOT_FRESH_MS = 60 * 60 * 1000;
 export const PLATFORM_DIRECTORY_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -258,13 +260,17 @@ export function snapshotIsStale(iso: string | null | undefined, now = Date.now()
   return age > maxAge;
 }
 
-/** One label above the table. The delayed sentence is only for a snapshot older than 30 minutes. */
-export function pricesAsAtLabel(iso: string | null | undefined, now = Date.now()): string | null {
+/** One label above the table. The clock is the saved snapshot time. */
+export function pricesAsAtLabel(
+  iso: string | null | undefined,
+  now = Date.now(),
+  staleMs = SNAPSHOT_STALE_MS
+): string | null {
   if (!iso) return null;
   const wall = formatDisplayDateTime(iso);
   if (!wall || wall === "—") return null;
   const base = `Prices as at ${wall} (NZ).`;
-  return snapshotIsStale(iso, now) ? `${base} The feed is delayed.` : base;
+  return snapshotIsStale(iso, now, staleMs) ? `${base} The feed is delayed.` : base;
 }
 
 export function koinsUnavailableLine(iso: string | null | undefined): string {

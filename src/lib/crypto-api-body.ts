@@ -27,6 +27,14 @@ export function presentMarketCoin<T extends object>(coin: T): T {
     if (!chain || chain === "—" || chain === "Unavailable" || chain === "Native") {
       const filled = chainForTicker(symbol);
       if (filled) next.blockchain = filled;
+      else {
+        const source = typeof next.source === "string" ? next.source.toLowerCase() : "";
+        next.blockchain = "";
+        next.blockchainReason =
+          source === "coinpaprika"
+            ? "CoinPaprika did not send a platform for this coin."
+            : "The feed did not send a platform for this coin.";
+      }
     }
   }
   return next as T;
