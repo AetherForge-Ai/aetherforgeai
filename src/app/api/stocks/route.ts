@@ -292,10 +292,13 @@ export async function GET(req: Request) {
 
     // Names, live marks, and the transaction book start together. FIFO and the
     // earliest buy date are applied from that book. The read does not write dates.
-    const bookPromise = totalumSdk.crud.query("transaction", {
-      _filter: { user: user._id },
-      _limit: 5000,
-    });
+    const needsBuyDates = stocks.some((row) => !lotCivilDay(row?.purchase_date));
+    const bookPromise = needsBuyDates
+      ? totalumSdk.crud.query("transaction", {
+          _filter: { user: user._id },
+          _limit: 5000,
+        })
+      : Promise.resolve({ data: [] as TaxLedgerRow[] });
     let abandonLive = false;
     const liveOverlay = overlayLivePrices(stocks, () => abandonLive);
     const [, bookRes] = await Promise.all([

@@ -9,6 +9,11 @@ export const metadata = publicPageMetadata("/changelog", {
 export const CHANGELOG_ENTRIES = [
   {
     href: "/dashboard",
+    title: "13 Oct 2026 — Retest 13",
+    body: "The stocks and crypto P/L cards say they are that asset class only and leave out the currency effect. The return split always shows Other. A coin page uses one feed for the price, the 1-hour figure and the chart, and it names that feed. The ticker does not call a crypto price an NZX or ASX feed. MATIC and POL no longer share one CoinGecko id. CoinPaprika fills high, low, supply, all-time low and a sparkline when that feed sends them, and the 1-hour chart uses its history. A saved DEX or crypto list is shown immediately and refreshed when it is older than its interval. The ledger shows a loading state until the rows arrive. Deposits and withdrawals are not imported. A report age includes the minutes.",
+  },
+  {
+    href: "/dashboard",
     title: "13 Oct 2026 — Retest 12",
     body: "The return split is one whole-book figure on the dashboard, stocks, and crypto, and it waits for the ledger. A hub P/L card is labelled as that asset class only. The 1-hour move on a coin page uses the same list field as the table. Each coin names the feed that supplied it, or says the source is unavailable. Crypto last-updated uses the snapshot time. Contact is its own page. Cookies lists the cookies the site sets. A missing CoinPaprika figure is an em dash with the reason, and fully diluted value is derived from price times supply when the feed sends supply. Chain names fill from the known list. DEX prices keep the last good snapshot and refresh in the background. Confirm shows the toast after the save, keeps the cards on screen, and updates cash and holdings from one response. An AetherForge export imports as AetherForge. Coin names use the published name, including Wrapped Ether and dYdX.",
   },

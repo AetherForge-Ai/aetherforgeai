@@ -251,13 +251,20 @@ export async function archiveClosedPositionAlerts(userId: string, ticker: string
 }
 
 /** Fetch the affected holding for a ticker, tolerating legacy rows w/o asset_type. */
-async function findHolding(userId: string, ticker: string, assetType: TxAssetType) {
+async function findHolding(
+  userId: string,
+  ticker: string,
+  assetType: TxAssetType,
+  opts?: { scan?: boolean }
+) {
   const sym = String(ticker || "").toUpperCase();
   const res = await totalumSdk.crud.query("stock", {
     _filter: { user: userId, ticker: sym, asset_type: assetType },
     _limit: 5,
   });
   let holding = ((res?.data as any[]) || [])[0] || null;
+  // A new buy misses this filter. Scanning every holding re-fetches the book.
+  if (!holding && opts?.scan === false) return null;
   if (!holding) {
     // Case / asset_type drift — scan a few rows and match in memory.
     const legacy = await totalumSdk.crud.query("stock", {
@@ -570,7 +577,9 @@ async function applyTransactionUnlocked(
   const cashPromise = readUserCash(user._id, fallbackCash);
   const sharedTicker = normalizeTicker(input.ticker || "");
   const sharedAsset: TxAssetType = input.asset_type || "stock";
-  const holdingPromise = sharedTicker ? findHolding(user._id, sharedTicker, sharedAsset) : Promise.resolve(null);
+  const holdingPromise = sharedTicker
+    ? findHolding(user._id, sharedTicker, sharedAsset, { scan: input.type !== "buy" })
+    : Promise.resolve(null);
   const rejectionOpts = { ...opts, cashPromise, holdingPromise };
   // The movement check runs beside the booking reads. rejectionChecked skips a second pass.
   const rejectionPromise = rejectionOpts.rejectionChecked

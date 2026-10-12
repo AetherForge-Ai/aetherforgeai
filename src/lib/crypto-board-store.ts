@@ -37,6 +37,7 @@ import {
   displayCoinName,
   finiteMove,
   presentListedCoin,
+  pickSnapshotCoin,
   pricesAsAtLabel,
   snapshotBlockchain,
   snapshotIsStale,
@@ -367,6 +368,19 @@ async function runCryptoSeed(): Promise<{ cryptoReplaced: boolean; cryptoRows: n
     coins = backupWithYahoo(coins, yahoo);
   }
   if (!coins.length) return { cryptoReplaced: false, cryptoRows: 0 };
+  try {
+    const previous = await readCryptoSnapshot();
+    if (previous?.coins.length) {
+      const { applyStatDonors } = await import("@/lib/crypto-market");
+      coins = applyStatDonors(coins, previous.coins);
+    }
+    if (process.env.VITEST !== "true") {
+      const { enrichPaprikaGaps } = await import("@/lib/crypto-paprika");
+      coins = await enrichPaprikaGaps(coins, { budgetMs: 6_000 });
+    }
+  } catch (err) {
+    console.error("[crypto-board] paprika gap fill failed:", err instanceof Error ? err.message.slice(0, 80) : "failed");
+  }
   await persistCryptoSnapshot(coins, at);
   const saved = await readCryptoSnapshot();
   const replaced = saved?.at === at;
@@ -452,11 +466,27 @@ export async function refreshMarketSnapshots(): Promise<RefreshResult> {
   return result;
 }
 
+/**
+ * A detached promise dies with the isolate. `after` keeps the refresh alive
+ * until it writes the snapshot. Outside a request it runs immediately.
+ */
+function scheduleDetached(start: () => Promise<unknown>): void {
+  const job = start().catch((err) => {
+    console.error("[crypto-board] background refresh failed:", err instanceof Error ? err.message.slice(0, 120) : "failed");
+  });
+  try {
+    const { after } = require("next/server") as { after?: (task: () => Promise<unknown>) => void };
+    if (typeof after === "function") after(() => job);
+  } catch {
+    /* tests and scripts have no request scope; the job is already running */
+  }
+}
+
 function kickRefresh(): void {
   if (Date.now() < nextReaderAttemptAt) return;
   nextReaderAttemptAt = Date.now() + 60_000;
-  void refreshCryptoSeed().catch(() => undefined);
-  void refreshDexSeed().catch(() => undefined);
+  scheduleDetached(() => refreshCryptoSeed());
+  scheduleDetached(() => refreshDexSeed());
 }
 
 export function refreshMarketSnapshotsNow(): Promise<RefreshResult> {
@@ -539,7 +569,7 @@ export async function readSharedCryptoBoard(opts?: { seed?: boolean }): Promise<
   const visible = gateCoins(stored);
   // Never seed when a snapshot exists, including when the caller passes seed: false.
   if (stored.length) {
-    if (visible.length && (!saved?.at || snapshotIsStale(saved.at))) kickRefresh();
+    if (visible.length && boardNeedsRefresh(saved?.at, SNAPSHOT_REFRESH_MS)) kickRefresh();
     return presentCrypto(visible, saved?.at ?? null);
   }
   void opts;
@@ -579,9 +609,12 @@ export async function readSharedDexBoard(opts?: { seed?: boolean; revalidate?: b
     if (opts?.revalidate && (boardNeedsRefresh(saved?.at, DEX_REQUEST_FRESH_MS) || thin) && Date.now() >= nextDexUpgradeAt) {
       nextDexUpgradeAt = Date.now() + 60_000;
       // The last good list is the response. The refresh must not hold this call.
-      void refreshDexSeed().catch((err) => {
-        noteDexRefreshFailure(err instanceof Error ? err.message.slice(0, 160) : "DEX refresh failed");
-      });
+      scheduleDetached(() =>
+        refreshDexSeed().catch((err) => {
+          noteDexRefreshFailure(err instanceof Error ? err.message.slice(0, 160) : "DEX refresh failed");
+          return { dexReplaced: false, dexRows: 0 };
+        })
+      );
     }
     return presentDex(visible, saved?.at ?? null, saved?.sources ?? []);
   }
@@ -609,7 +642,7 @@ export async function priceFromSnapshot(input: {
   const address = (input.address || "").trim().toLowerCase();
   // The confirm path reads the stored rows. It does not cold-seed a 7s list.
   const [crypto, dex] = await Promise.all([readCryptoSnapshot(), readDexSnapshot()]);
-  const coin = (crypto?.coins ?? []).find((row) => (coinId && row.id === coinId) || (symbol && row.symbol.toUpperCase() === symbol));
+  const coin = pickSnapshotCoin(crypto?.coins ?? [], { symbol, coinId });
   if (coin && coin.price > 0) {
     return { price: coin.price, quotedAt: crypto?.at ?? null, source: "snapshot", stale: snapshotIsStale(crypto?.at) };
   }
@@ -624,8 +657,6 @@ export async function priceFromSnapshot(input: {
   }
   return null;
 }
-
-const CONFIRM_QUOTE_FRESH_MS = 60_000;
 
 async function paprikaQuote(symbol: string): Promise<SnapshotPrice | null> {
   const searchRes = await fetch(
@@ -660,14 +691,13 @@ export async function confirmCryptoQuote(input: {
   address?: string | null;
 }): Promise<SnapshotPrice | null> {
   const stored = await priceFromSnapshot(input);
-  const age = stored?.quotedAt ? Date.now() - Date.parse(stored.quotedAt) : Number.POSITIVE_INFINITY;
-  if (stored && stored.price > 0 && age >= 0 && age < CONFIRM_QUOTE_FRESH_MS) return stored;
+  if (stored && stored.price > 0) return stored;
   const symbol = (input.symbol || "").trim().toUpperCase();
   if (!symbol) return stored;
   try {
     const fresh = await Promise.race([
       paprikaQuote(symbol),
-      sleep(900).then(() => null as SnapshotPrice | null),
+      sleep(400).then(() => null as SnapshotPrice | null),
     ]);
     if (fresh && fresh.price > 0) return fresh;
   } catch (err) {

@@ -217,6 +217,39 @@ const TICKER_CHAIN: Record<string, string> = {
   ftm: "Fantom",
   agix: "Ethereum",
   wbnb: "BNB Smart Chain",
+  eurc: "Ethereum",
+  gusd: "Ethereum",
+  busd: "Ethereum",
+  mx: "Ethereum",
+  fdusd: "Ethereum",
+  tusd: "Ethereum",
+  usdp: "Ethereum",
+  frax: "Ethereum",
+  gho: "Ethereum",
+  usdd: "TRON",
+  aero: "Base",
+  pengu: "Solana",
+  trump: "Solana",
+  kas: "Kaspa",
+  kcs: "KCC",
+  eigen: "Ethereum",
+  ena: "Ethereum",
+  ethfi: "Ethereum",
+  pol: "Polygon",
+  matic: "Polygon",
+  jlp: "Solana",
+  pump: "Solana",
+  virtual: "Base",
+  brett: "Base",
+  syrup: "Ethereum",
+  spx: "Ethereum",
+  nexo: "Ethereum",
+  bera: "Berachain",
+  move: "Movement",
+  zk: "zkSync",
+  meth: "Mantle",
+  rseth: "Ethereum",
+  ezeth: "Ethereum",
 };
 
 const PLATFORM_LABEL: Record<string, string> = {
@@ -348,6 +381,19 @@ export function presentListedCoin<T extends { symbol: string; name: string; id: 
   const blockchain = known ? stored : snapshotBlockchain(coin.id, null, null) || chainForTicker(coin.symbol) || "";
   if (name === coin.name && blockchain === (coin.blockchain || "")) return coin;
   return { ...coin, name, blockchain };
+}
+
+/** Symbol wins over a shared coin id so two tickers cannot take one print. */
+export function pickSnapshotCoin<T extends { id: string; symbol: string }>(
+  coins: T[],
+  input: { symbol?: string | null; coinId?: string | null }
+): T | null {
+  const symbol = (input.symbol || "").trim().toUpperCase();
+  const coinId = (input.coinId || "").trim().toLowerCase();
+  if (symbol) return coins.find((row) => row.symbol.toUpperCase() === symbol) ?? null;
+  if (!coinId) return null;
+  const byId = coins.filter((row) => row.id === coinId);
+  return byId.length === 1 ? byId[0] : null;
 }
 
 /** Chain label for a ticker. Uses the canonical id, then the ticker itself. */

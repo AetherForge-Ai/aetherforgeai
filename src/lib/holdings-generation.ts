@@ -9,6 +9,7 @@
  */
 
 let generation = 0;
+let requestSeq = 0;
 
 export function holdingsGeneration(): number {
   return generation;
@@ -16,7 +17,18 @@ export function holdingsGeneration(): number {
 
 export function bumpHoldingsGeneration(): number {
   generation += 1;
+  requestSeq += 1;
   return generation;
+}
+
+/** One id per holdings read. A later read invalidates an earlier response. */
+export function beginHoldingsRequest(): number {
+  requestSeq += 1;
+  return requestSeq;
+}
+
+export function holdingsRequestIsCurrent(seq: number): boolean {
+  return seq === requestSeq;
 }
 
 export function holdingsResponseIsStale(captured: number): boolean {
@@ -42,4 +54,5 @@ export function holdingsActionAfterDialogClose(input: {
 
 export function __resetHoldingsGenerationForTests(): void {
   generation = 0;
+  requestSeq = 0;
 }
