@@ -257,6 +257,71 @@ describe("B2-1 broker import", () => {
     expect(importWrites(empty)).toBe(false);
   });
 
+  it("does not put a second full stop on a skipped-row warning", () => {
+    const plan = planBrokerImport(fixture("sharesies.csv"));
+    expect(plan.totalsMessage).not.toMatch(/\.\./);
+  });
+
+  it("maps a Sharesies company name only when one listing matches", () => {
+    const plan = planBrokerImport(fixture("sharesies-name.csv"), { fundBuys: true });
+    expect(plan.broker).toBe("sharesies");
+    expect(plan.error).toBeNull();
+    expect(plan.toWrite.map((row) => row.ticker)).toEqual(["AIR.NZ", "FPH.NZ", "FPH.AX", "AAPL"]);
+    expect(plan.toWrite[1].currency).toBe("NZD");
+    expect(plan.toWrite[2].currency).toBe("AUD");
+
+    const ambiguous = [
+      "Date,Type,Instrument name,Quantity,Price,Value",
+      "15/01/2026,Buy,Fisher & Paykel Healthcare,1,30.00,30.00",
+    ].join("\n");
+    const asked = planBrokerImport(ambiguous, { openingCashNzd: 1000 });
+    expect(asked.toWrite).toHaveLength(0);
+    expect(asked.unsupported[0].reason).toMatch(/FPH\.NZ/);
+    expect(asked.unsupported[0].reason).toMatch(/FPH\.AX/);
+    expect(asked.unsupported[0].reason).toMatch(/Nothing was guessed/);
+  });
+
+  it("uses a reviewed trade-date rate when the file has none", () => {
+    const text = fixture("sharesies-no-fx.csv");
+    const waiting = planBrokerImport(text, { openingCashNzd: 1000 });
+    expect(waiting.fxNeeds).toEqual([{ currency: "USD", date: "2026-01-20" }]);
+    expect(waiting.toWrite.map((row) => row.ticker)).toEqual(["AIR.NZ"]);
+    expect(waiting.unsupported.map((row) => row.reason).join(" ")).toMatch(/No rate was guessed/);
+
+    const reviewed = planBrokerImport(text, {
+      openingCashNzd: 1000,
+      reviewedRates: { "USD|2026-01-20": 1.65 },
+    });
+    expect(reviewed.error).toBeNull();
+    expect(reviewed.toWrite.map((row) => `${row.ticker}:${row.fxSource}`)).toEqual(["buy:AIR.NZ:nzd", "buy:AAPL:reviewed-trade-date"].map((row) => row.replace("buy:", "")));
+    const apple = reviewed.toWrite.find((row) => row.ticker === "AAPL");
+    expect(apple?.fx).toBe(1.65);
+    expect(apple?.fxLabel).toBe("Reviewed rate for the trade date");
+
+    const missing = planBrokerImport(text, {
+      openingCashNzd: 1000,
+      reviewedRates: { "USD|2026-01-20": null },
+    });
+    expect(missing.toWrite.map((row) => row.ticker)).toEqual(["AIR.NZ"]);
+    expect(missing.unsupported.map((row) => row.reason).join(" ")).toMatch(/no reviewed rate for this trade date/);
+  });
+
+  it("opens the column map for a readable CSV that is not a broker file", () => {
+    const plan = planBrokerImport(fixture("readable-generic.csv"));
+    expect(plan.unreadable).toBe(false);
+    expect(plan.needsMapping).toBe(true);
+    expect(plan.toWrite).toHaveLength(0);
+    expect(plan.error).toMatch(/Choose the date/);
+
+    const mapped = planBrokerImport(fixture("readable-generic.csv"), {
+      openingCashNzd: 10000,
+      mapping: { date: "Booked", ticker: "Instrument", side: "What", quantity: "Units", price: "Unit" },
+    });
+    expect(mapped.needsMapping).toBe(false);
+    expect(mapped.toWrite).toHaveLength(0);
+    expect(mapped.fxNeeds[0]).toEqual({ currency: "AUD", date: "2026-04-02" });
+  });
+
   it("keeps an unrecognised file only with consent", () => {
     const text = fixture("malformed.txt");
     expect(supportHold(text, false).kept).toBe(false);

@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
+import { JsonLd } from "@/components/public/JsonLd";
 import { SiteHeader } from "@/components/SiteHeader";
+import { holdingBookValuation, type MarkedHolding } from "@/lib/book-valuation";
+import { currencyForTicker, roundMoney } from "@/lib/currency";
+import { getFxSnapshot } from "@/lib/fx";
 import { aucklandCivilToday } from "@/lib/nz-tax-year";
 import {
   cashBookPoints,
@@ -9,9 +13,11 @@ import {
   type PerformanceFigure,
   type PerformanceReport,
 } from "@/lib/performance-math";
+import { breadcrumbJsonLd } from "@/lib/public-schema";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { getCurrentUser } from "@/lib/session";
-import { loadOpenHoldings, loadTaxRows } from "@/lib/tax-book-server";
+import { loadHoldingMarks, loadOpenHoldings, loadTaxRows } from "@/lib/tax-book-server";
+import { fetchYahooCloseOn } from "@/lib/yahoo-finance";
 
 export const dynamic = "force-dynamic";
 
@@ -63,17 +69,73 @@ function ReportBlock({ report }: { report: PerformanceReport }) {
   );
 }
 
+async function indexPrices(dates: string[]): Promise<{ date: string; level: number }[]> {
+  const prices: { date: string; level: number }[] = [];
+  for (const date of dates) {
+    try {
+      const level = await fetchYahooCloseOn("^NZ50", date);
+      if (level != null && level > 0) prices.push({ date, level });
+    } catch {
+      // A missing public price stays missing. No level is invented.
+    }
+  }
+  return prices;
+}
+
 export default async function ReturnsPage() {
   const user = await getCurrentUser();
   let report: PerformanceReport | null = null;
   let note = "Sign in to see the deposits and withdrawals on your paper book.";
   if (user) {
     try {
-      const [rows, holdings] = await Promise.all([loadTaxRows(user._id), loadOpenHoldings(user._id)]);
+      const [rows, open, marks] = await Promise.all([
+        loadTaxRows(user._id),
+        loadOpenHoldings(user._id),
+        loadHoldingMarks(user._id),
+      ]);
       const flows = externalFlowsFromLedger(rows);
-      if (holdings.length > 0) {
-        note =
-          "Return is not shown. This book has holdings, and no market valuation with a source was attached. Cost is not used as a market value.";
+      const today = aucklandCivilToday();
+      if (open.length > 0) {
+        const byTicker = new Map(marks.map((row) => [row.ticker, row]));
+        const holdings: MarkedHolding[] = open.map((row) => {
+          const stored = byTicker.get(row.ticker);
+          if (stored) return stored;
+          return {
+            ticker: row.ticker,
+            shares: row.shares,
+            currentPrice: null,
+            currency: currencyForTicker(row.ticker, row.assetType),
+            updatedAt: null,
+          };
+        });
+        const fx = await getFxSnapshot();
+        const valuation = holdingBookValuation(holdings, fx.ratesToNZD, today);
+        if (valuation.ok === false) {
+          note = `Return is not shown. ${valuation.reason}`;
+        } else if (!flows.length) {
+          note = "This book has no deposit or withdrawal to measure. The stored marks are not turned into a return without one.";
+        } else {
+          const cash = typeof user.cash_balance === "number" ? user.cash_balance : 0;
+          const dates = [...new Set([...flows.map((flow) => flow.date), valuation.asOf])];
+          const prices = await indexPrices(dates);
+          report = performanceReport({
+            points: flows.map((flow) => ({
+              date: flow.date,
+              valueBeforeNzd: 0,
+              flowNzd: flow.amountNzd,
+              valueKnown: false,
+            })),
+            endingNzd: roundMoney(valuation.holdingsNzd + cash),
+            asOf: valuation.asOf,
+            source: valuation.source,
+            benchmark: {
+              name: "NZX 50",
+              source: "A delayed public price for ^NZ50. This is not a direct NZX feed.",
+              prices,
+            },
+          });
+          note = "The ending value is the stored marks plus paper cash. Buys and sells are not treated as new money.";
+        }
       } else if (!flows.length) {
         note = "This book has no deposit or withdrawal to measure.";
       } else {
@@ -86,7 +148,7 @@ export default async function ReturnsPage() {
           report = performanceReport({
             points: book.points,
             endingNzd: book.endingNzd,
-            asOf: aucklandCivilToday(),
+            asOf: today,
             source: "Paper cash balance",
           });
           note = "This book has no holdings. The valuation is the paper cash balance.";
@@ -99,6 +161,12 @@ export default async function ReturnsPage() {
 
   const shell = (
     <main className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
+      <JsonLd
+        data={breadcrumbJsonLd([
+          { name: "Home", path: "/" },
+          { name: "Return", path: "/returns" },
+        ])}
+      />
       <h1 className="font-display text-3xl font-bold">Return</h1>
       <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
         Money-weighted return (XIRR) uses deposits, withdrawals, and a valuation. Time-weighted return

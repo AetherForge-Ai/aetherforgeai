@@ -11,9 +11,6 @@ const PUBLIC_DOCUMENT_ROUTES = [
   "/features",
   "/how",
   "/performance",
-  // Money-weighted and time-weighted return. A figure needs a valuation.
-  // pull-check:batch2-2026-10-11
-  "/returns",
   "/dashboard",
   "/markets",
   "/tax",
@@ -63,6 +60,9 @@ const MEMBER_DOCUMENT_ROUTES = [
   "/totalum",
   "/billing",
   "/import",
+  // Same gate as import. The explainer stays on /help.
+  // pull-check:batch2-fixes-2026-10-12
+  "/returns",
 ];
 
 function normalise(pathname: string): string {
