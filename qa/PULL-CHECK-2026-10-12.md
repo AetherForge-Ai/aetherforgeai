@@ -642,3 +642,5 @@ Same branch. Build stays `v3-retest10-2026-10-13`. No new database columns. No p
 pull-check:v3-dash1-2026-10-13
 
 pull-check:v3-retest11-2026-10-13
+
+pull-check:v3-retest12-2026-10-13
