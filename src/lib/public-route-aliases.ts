@@ -6,6 +6,7 @@ export const PUBLIC_ROUTE_ALIASES = [
   { source: "/stock-markets", destination: "/markets" },
   { source: "/live-results", destination: "/performance" },
   { source: "/about-us", destination: "/about" },
+  { source: "/dividends", destination: "/tax/dividends" },
 ] as const;
 
 export function publicAliasRedirect(pathname: string): string | null {

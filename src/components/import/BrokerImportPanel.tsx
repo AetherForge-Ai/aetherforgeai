@@ -11,6 +11,7 @@ type Preview = {
   error: string | null;
   headers: string[];
   needsMapping: boolean;
+  unreadable?: boolean;
   unsupported: ImportPlan["unsupported"];
   duplicateCount: number;
   toWrite: ImportTrade[];
@@ -133,6 +134,24 @@ export function BrokerImportPanel() {
           />
           {fileName ? <p className="text-xs text-muted-foreground">{fileName}</p> : null}
         </div>
+        <label className="flex items-start gap-2 text-sm" htmlFor="import-fund">
+          <input
+            id="import-fund"
+            type="checkbox"
+            className="mt-1"
+            checked={fundBuys}
+            onChange={(event) => {
+              const next = event.target.checked;
+              setFundBuys(next);
+              setAcknowledgeSkipped(false);
+              if (text.trim()) void run(false, { fundBuys: next, acknowledgeSkipped: false });
+            }}
+          />
+          <span>
+            Add paper deposits to fund buys
+            <span className="mt-1 block text-muted-foreground">{FUNDING_DISCLOSURE}</span>
+          </span>
+        </label>
         <Button type="submit" disabled={busy || !text.trim()}>
           {busy ? "Reading…" : "Review file"}
         </Button>
@@ -172,28 +191,8 @@ export function BrokerImportPanel() {
             {preview.toWrite.length} to save. {preview.duplicateCount} already on the book.{" "}
             {preview.unsupported.length} left out.
           </p>
+          {preview.error ? <p className="text-sm text-muted-foreground">{preview.error}</p> : null}
           {preview.totalsMessage ? <p className="text-sm text-muted-foreground">{preview.totalsMessage}</p> : null}
-          {preview.fundingNeeded || preview.fundingDeposits.length > 0 ? (
-            <label className="flex items-start gap-2 text-sm" htmlFor="import-fund">
-              <input
-                id="import-fund"
-                type="checkbox"
-                className="mt-1"
-                checked={fundBuys}
-                onChange={(event) => {
-                  const next = event.target.checked;
-                  setFundBuys(next);
-                  setAcknowledgeSkipped(false);
-                  void run(false, { fundBuys: next, acknowledgeSkipped: false });
-                }}
-              />
-              <span>
-                {fundBuys && preview.fundingDeposits[0]
-                  ? preview.fundingDeposits[0].note
-                  : `This starts unticked. A buy that would make paper cash negative is left out until you tick this. ${FUNDING_DISCLOSURE}`}
-              </span>
-            </label>
-          ) : null}
           <div className="overflow-x-auto rounded-2xl border border-border/70">
             <table className="w-full text-sm">
               <thead>
@@ -211,7 +210,12 @@ export function BrokerImportPanel() {
                   <tr key={`${row.line}-${row.ticker}`} className="border-b border-border/40 last:border-0">
                     <td className="px-3 py-2">{row.date}</td>
                     <td className="px-3 py-2">{row.side}</td>
-                    <td className="px-3 py-2">{row.ticker}</td>
+                    <td className="px-3 py-2">
+                      {row.ticker}
+                      {row.fxSource === "reviewed-trade-date" ? (
+                        <span className="block text-xs text-muted-foreground">Reviewed rate for the trade date</span>
+                      ) : null}
+                    </td>
                     <td className="tnum px-3 py-2 text-right">{row.quantity}</td>
                     <td className="tnum px-3 py-2 text-right">{row.price.toFixed(2)}</td>
                     <td className="tnum px-3 py-2 text-right">
@@ -253,7 +257,7 @@ export function BrokerImportPanel() {
         </section>
       ) : null}
 
-      {preview?.error && preview.toWrite.length === 0 && !preview.needsMapping ? (
+      {preview?.unreadable && preview.toWrite.length === 0 && !preview.needsMapping ? (
         <form
           className="mt-6 space-y-3 rounded-2xl border border-border/70 p-4"
           onSubmit={(event) => {

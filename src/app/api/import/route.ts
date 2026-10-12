@@ -14,6 +14,7 @@ import {
 } from "@/lib/broker-import";
 import { supportHold } from "@/lib/broker-import-hold";
 import { lotCivilDay } from "@/lib/executed-at";
+import { historicalNzdPerUnit } from "@/lib/fx";
 import { getTradeSessionUser } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
 import { applyTransaction } from "@/lib/transactions";
@@ -28,6 +29,7 @@ function publicPlan(plan: ImportPlan) {
     error: plan.error,
     headers: plan.headers,
     needsMapping: plan.needsMapping,
+    unreadable: plan.unreadable,
     unsupported: plan.unsupported,
     duplicateCount: plan.duplicates.length,
     duplicates: plan.duplicates.map((row) => ({ line: row.line, date: row.date, ticker: row.ticker, side: row.side })),
@@ -81,6 +83,26 @@ async function existingKeys(userId: string): Promise<string[]> {
   return keys;
 }
 
+async function planWithReviewedFx(
+  text: string,
+  options: {
+    mapping?: ColumnMap;
+    existingKeys?: Iterable<string>;
+    openingCashNzd?: number;
+    fundBuys?: boolean;
+  }
+) {
+  const draft = planBrokerImport(text, options);
+  if (!draft.fxNeeds.length) return draft;
+  const reviewedRates: Record<string, number | null> = {};
+  for (const need of draft.fxNeeds) {
+    const key = `${need.currency}|${need.date}`;
+    if (key in reviewedRates) continue;
+    reviewedRates[key] = await historicalNzdPerUnit(need.currency, need.date);
+  }
+  return planBrokerImport(text, { ...options, reviewedRates });
+}
+
 /** POST /api/import — preview writes nothing. Commit writes only a clean plan. */
 export async function POST(req: Request) {
   try {
@@ -113,7 +135,7 @@ export async function POST(req: Request) {
     const acknowledgeSkipped = body.acknowledgeSkipped === true;
     const fundBuys = body.fundBuys === true;
     const openingCashNzd = typeof user.cash_balance === "number" ? user.cash_balance : 0;
-    const preview = planBrokerImport(text, { mapping, openingCashNzd, fundBuys });
+    const preview = await planWithReviewedFx(text, { mapping, openingCashNzd, fundBuys });
     if (body.confirm !== true || !importWrites(preview, acknowledgeSkipped)) {
       const blocked = body.confirm === true && !importWrites(preview, acknowledgeSkipped);
       return NextResponse.json({
@@ -123,7 +145,7 @@ export async function POST(req: Request) {
       });
     }
 
-    const committed = planBrokerImport(text, {
+    const committed = await planWithReviewedFx(text, {
       mapping,
       openingCashNzd,
       fundBuys,
@@ -163,12 +185,16 @@ export async function POST(req: Request) {
           price: row.price,
           fees: row.fee,
           fx_rate: row.fx,
-          fx_source: "broker-file",
+          fx_source: row.fxSource === "reviewed-trade-date" ? "reviewed-trade-date" : "broker-file",
+          fill_currency: row.currency,
           executed_at: row.date,
           trade_date: row.date,
           price_source: "broker_import",
           broker: committed.broker || "file",
-          notes: `Imported from a ${committed.broker || "broker"} file.`,
+          notes:
+            row.fxSource === "reviewed-trade-date"
+              ? `Imported from a ${committed.broker || "broker"} file. Exchange rate: reviewed rate for the trade date.`
+              : `Imported from a ${committed.broker || "broker"} file.`,
         });
         written.push(row);
       }
