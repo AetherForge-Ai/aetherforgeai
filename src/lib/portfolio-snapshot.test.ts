@@ -518,6 +518,15 @@ describe("portfolio snapshot calc engine", () => {
     expect(route).toContain("buildPortfolioSnapshot");
     expect(route).toContain("fetchLiveQuotes");
     expect(route).toContain("fetchCryptoQuotes");
+    expect(route).toContain("raceQuoteFetch");
+    expect(route).toContain("SNAPSHOT_QUOTE_WAIT_MS");
+    expect(route).toContain("bookCacheEpoch");
+    expect(route).toContain("readBookCache");
+    expect(route).toContain("writeBookCache");
+    expect(route).toContain('get("fresh")');
+    expect(route).toContain("STORED_HOLDING_PRICE");
+    expect(route).toContain("priceFromQuoteOrStored");
+    expect(read("src/lib/snapshot-quotes.ts")).toContain('STORED_HOLDING_PRICE = "Stored holding price"');
     expect(route).toContain("Silver spot feed");
     expect(route).toContain("Gold spot feed");
     expect(route).not.toContain("spotPx");

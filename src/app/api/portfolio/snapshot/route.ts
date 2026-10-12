@@ -2,18 +2,26 @@ import { NextResponse } from "next/server";
 
 import { hasForeignOwner, requestClaimsOtherUser } from "@/lib/account-guard";
 import { accountMismatchResponse, privateJson } from "@/lib/account-response";
+import { bookCacheEpoch, readBookCache, writeBookCache } from "@/lib/book-cache";
 import { currencyForTicker } from "@/lib/currency";
 import { getFxSnapshot } from "@/lib/fx";
-import { fetchCryptoQuotes, fetchLiveQuotes, isLiveDataConfigured } from "@/lib/market-data";
+import { fetchCryptoQuotes, fetchLiveQuotes, isLiveDataConfigured, type LiveQuote } from "@/lib/market-data";
 import { isContaminatedEquityPrint, quoteRouteForHolding } from "@/lib/metal-valuation";
 import { getMetalsSpot } from "@/lib/metals";
 import {
   buildPortfolioSnapshot,
+  type PortfolioSnapshot,
   type SnapshotExtraPosition,
   type SnapshotLedgerRow,
   type SnapshotMark,
 } from "@/lib/portfolio-snapshot";
 import { getStableSessionUser } from "@/lib/session";
+import {
+  priceFromQuoteOrStored,
+  raceQuoteFetch,
+  SNAPSHOT_QUOTE_WAIT_MS,
+  STORED_HOLDING_PRICE,
+} from "@/lib/snapshot-quotes";
 import { totalumSdk } from "@/lib/totalum";
 import { loadLedger } from "@/lib/transactions";
 
@@ -34,6 +42,16 @@ export async function GET(req: Request) {
 
     const claimed = req.headers.get("x-af-user-id");
     if (claimed && claimed !== user._id) return accountMismatchResponse(user._id);
+
+    // Trades bump bookCacheEpoch and drop this key, so the next read is fresh.
+    // ?fresh=1 skips the read (explicit refresh and the post-trade reload).
+    const cacheKey = `${user._id}:portfolio-snapshot`;
+    const cacheEpoch = bookCacheEpoch(user._id);
+    const fresh = new URL(req.url).searchParams.get("fresh") === "1";
+    if (!fresh) {
+      const cached = readBookCache<PortfolioSnapshot>(cacheKey);
+      if (cached) return privateJson({ ok: true, userId: user._id, data: cached });
+    }
 
     const [ledger, stockRes, metalRes, fx, spot] = await Promise.all([
       loadLedger(user),
@@ -56,10 +74,22 @@ export async function GET(req: Request) {
       if (route === "crypto") cryptoTickers.push(String(row.ticker || ""));
       else if (route === "equity") equityTickers.push(String(row.ticker || ""));
     }
-    const [equityQuotes, cryptoQuotes] = await Promise.all([
-      isLiveDataConfigured() && equityTickers.length ? fetchLiveQuotes(equityTickers) : Promise.resolve({}),
-      cryptoTickers.length ? fetchCryptoQuotes(cryptoTickers) : Promise.resolve({}),
+    const emptyQuotes: Record<string, LiveQuote> = {};
+    const [equityRace, cryptoRace] = await Promise.all([
+      isLiveDataConfigured() && equityTickers.length
+        ? raceQuoteFetch(fetchLiveQuotes(equityTickers), emptyQuotes, SNAPSHOT_QUOTE_WAIT_MS)
+        : Promise.resolve({ value: emptyQuotes, timedOut: false }),
+      cryptoTickers.length
+        ? raceQuoteFetch(fetchCryptoQuotes(cryptoTickers), emptyQuotes, SNAPSHOT_QUOTE_WAIT_MS)
+        : Promise.resolve({ value: emptyQuotes, timedOut: false }),
     ]);
+    if (equityRace.timedOut || cryptoRace.timedOut) {
+      console.warn(
+        "[api/portfolio/snapshot] A quote feed exceeded 1.2s — stored prices are used for the marks that did not arrive."
+      );
+    }
+    const equityQuotes = equityRace.value;
+    const cryptoQuotes = cryptoRace.value;
 
     const marks: SnapshotMark[] = stocks.map((row) => {
       const ticker = String(row.ticker || "");
@@ -73,7 +103,7 @@ export async function GET(req: Request) {
       const spotSource = silver ? "Silver spot feed" : "Gold spot feed";
       let price: number | null = null;
       let reason: string | null = null;
-      let source = "Stored holding price";
+      let source = STORED_HOLDING_PRICE;
       let asOf = row.updatedAt ? String(row.updatedAt) : null;
       if (route === "bullion") {
         const liveOz = spot?.live ? (silver ? spot.silver.nzdPerOz : spot.gold.nzdPerOz) : 0;
@@ -84,27 +114,29 @@ export async function GET(req: Request) {
           reason = "Spot feed did not return a price for this metal.";
         }
       } else if (route === "crypto") {
-        const live = Number(cryptoQuotes[key]?.price);
-        if (live > 0) {
-          price = live;
-          source = "Crypto quote";
-          asOf = cryptoQuotes[key]?.quotedAt || asOf;
-        } else if (stored > 0) {
-          price = stored;
-        } else {
-          reason = "No live crypto quote or stored price is available for this holding.";
-        }
+        const chosen = priceFromQuoteOrStored({
+          livePrice: cryptoQuotes[key]?.price,
+          stored,
+          liveSource: "Crypto quote",
+          missingReason: "No live crypto quote or stored price is available for this holding.",
+        });
+        price = chosen.price;
+        reason = chosen.reason;
+        source = chosen.source;
+        if (chosen.usedLive) asOf = cryptoQuotes[key]?.quotedAt || asOf;
       } else {
-        const live = Number(equityQuotes[key]?.price);
-        if (live > 0) {
-          price = live;
-          source = "Equity quote";
-          asOf = equityQuotes[key]?.quotedAt || asOf;
-        } else if (stored > 0 && !isContaminatedEquityPrint(stored, purchase)) {
-          price = stored;
-        } else {
-          reason = "No live quote or stored price is available for this holding.";
-        }
+        const chosen = priceFromQuoteOrStored({
+          livePrice: equityQuotes[key]?.price,
+          stored,
+          purchase,
+          contaminated: isContaminatedEquityPrint,
+          liveSource: "Equity quote",
+          missingReason: "No live quote or stored price is available for this holding.",
+        });
+        price = chosen.price;
+        reason = chosen.reason;
+        source = chosen.source;
+        if (chosen.usedLive) asOf = equityQuotes[key]?.quotedAt || asOf;
       }
       return {
         ticker,
@@ -153,6 +185,10 @@ export async function GET(req: Request) {
       asOf: new Date().toISOString(),
       priceSource: "Live quotes and the holdings overlay",
     });
+
+    if (!writeBookCache(cacheKey, snapshot, cacheEpoch)) {
+      console.log("[api/portfolio/snapshot] Dropped cache write — a trade landed while this read was in flight");
+    }
 
     return privateJson({ ok: true, userId: user._id, data: snapshot });
   } catch (err) {
