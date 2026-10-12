@@ -29,6 +29,7 @@ import {
   cleanDexRow,
   countLine,
   dedupeDexByNetworkAddress,
+  dexRowComplete,
   displayCoinName,
   finiteMove,
   pricesAsAtLabel,
@@ -431,7 +432,9 @@ function presentCrypto(coins: CoinMarket[], at: string | null): SharedCryptoBoar
 }
 
 function presentDex(rows: DexTokenRow[], at: string | null, sources: string[]): SharedDexBoard {
-  const unique = dedupeDexByNetworkAddress(rows).map((row) => cleanDexRow(row)).filter((row): row is DexTokenRow => !!row);
+  const unique = dedupeDexByNetworkAddress(rows)
+    .map((row) => cleanDexRow(row))
+    .filter((row): row is DexTokenRow => !!row && dexRowComplete(row));
   const notice = unique.length ? withFeedSource(pricesAsAtLabel(at), sources) : null;
   return {
     rows: unique,
@@ -442,25 +445,27 @@ function presentDex(rows: DexTokenRow[], at: string | null, sources: string[]): 
   };
 }
 
-export async function readSharedCryptoBoard(): Promise<SharedCryptoBoard> {
+export async function readSharedCryptoBoard(opts?: { seed?: boolean }): Promise<SharedCryptoBoard> {
   const saved = await readCryptoSnapshot();
   const visible = gateCoins(saved?.coins ?? []);
   if (visible.length) {
     if (!saved?.at || snapshotIsStale(saved.at)) kickRefresh();
     return presentCrypto(visible, saved?.at ?? null);
   }
+  if (opts?.seed === false) return presentCrypto([], saved?.at ?? null);
   await refreshCryptoSeed();
   const again = await readCryptoSnapshot();
   return presentCrypto(gateCoins(again?.coins ?? []), again?.at ?? null);
 }
 
-export async function readSharedDexBoard(): Promise<SharedDexBoard> {
+export async function readSharedDexBoard(opts?: { seed?: boolean }): Promise<SharedDexBoard> {
   const saved = await readDexSnapshot();
   const visible = (saved?.rows ?? []).filter((row) => row.price != null && row.price > 0);
   if (visible.length) {
     if (!saved?.at || snapshotIsStale(saved.at)) kickRefresh();
     return presentDex(visible, saved?.at ?? null, saved?.sources ?? ["geckoterminal"]);
   }
+  if (opts?.seed === false) return presentDex([], saved?.at ?? null, saved?.sources ?? []);
   await refreshDexSeed();
   const again = await readDexSnapshot();
   return presentDex(again?.rows ?? [], again?.at ?? null, again?.sources ?? []);
@@ -482,7 +487,10 @@ export async function priceFromSnapshot(input: {
   const symbol = (input.symbol || "").trim().toUpperCase();
   const coinId = (input.coinId || "").trim().toLowerCase();
   const address = (input.address || "").trim().toLowerCase();
-  const [crypto, dex] = await Promise.all([readSharedCryptoBoard(), readSharedDexBoard()]);
+  const [crypto, dex] = await Promise.all([
+    readSharedCryptoBoard({ seed: false }),
+    readSharedDexBoard({ seed: false }),
+  ]);
   const coin = crypto.coins.find((row) => (coinId && row.id === coinId) || (symbol && row.symbol.toUpperCase() === symbol));
   if (coin && coin.price > 0) {
     return { price: coin.price, quotedAt: crypto.at, source: "snapshot", stale: crypto.delayed };

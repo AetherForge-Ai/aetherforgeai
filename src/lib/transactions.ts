@@ -34,6 +34,7 @@ import {
   type ExecutionStatus,
   type OrderSizing,
 } from "@/lib/fill-integrity";
+import { chainForTicker } from "@/lib/crypto-board";
 import { canonicalCryptoId } from "@/lib/crypto-ids";
 import { venueForTicker, fifoApplySell, type FifoLot } from "@/lib/ledger-schema";
 import { fifoRemainingCostFx, fifoStoredForSell } from "@/lib/tax-realised";
@@ -43,7 +44,7 @@ import { feedEntryForTicker } from "@/lib/feed-mapping";
 import { withUserTradeLock } from "@/lib/trade-lock";
 import { applyPaperCashMove } from "@/lib/paper-cash";
 import { planHoldingCorrection } from "@/lib/holding-correction";
-import { cleanChain, dexSectorTag, parseDexSector, withDexNotes } from "@/lib/dex-source";
+import { cleanChain, dexSectorTag, parseDexSector, withDexNotes, withQuoteStamp } from "@/lib/dex-source";
 import { buildDividendRecord, paymentDateFx, withDividendNotes, type DividendParts } from "@/lib/dividend-ledger";
 import { buildMovementPreview } from "@/lib/movement-preview";
 import { assessMovement, earlierCivilDay, exceedsAvailableCash, movementCivilDay } from "@/lib/transaction-rules";
@@ -152,6 +153,18 @@ function dexStamp(
   if (!isDex) return { isDex: false, chain: null, sector: null };
   const chain = cleanChain(input.chain) || cleanChain(holding?.chain) || tagged?.chain || null;
   return { isDex: true, chain, sector: dexSectorTag(chain) };
+}
+
+function stampedTradeNotes(
+  body: string,
+  ticker: string,
+  assetType: string,
+  dexChain: string | null,
+  isDex: boolean,
+  priceAsAt: string
+): string {
+  const chain = assetType === "crypto" ? dexChain || chainForTicker(ticker) || null : null;
+  return withDexNotes(withQuoteStamp(body, chain, priceAsAt), dexChain, isDex);
 }
 
 function round(n: number, decimals = 2): number {
@@ -767,8 +780,19 @@ async function applyTransactionUnlocked(
     return { transaction: rec?.data, cashBalance: currentCash, realizedNZD: 0, holdingId: null };
   }
 
+  const statedCurrency = input.fill_currency;
+  const currency: CurrencyCode =
+    statedCurrency === "NZD" || statedCurrency === "AUD" || statedCurrency === "USD"
+      ? statedCurrency
+      : currencyForTicker(ticker, assetType);
+  const fxLivePromise = firstWithin(getFxSnapshot(), 450);
+  const historicalPromise =
+    currency === "NZD"
+      ? Promise.resolve({ value: 1 as number | null, timedOut: false })
+      : firstWithin(historicalNzdPerUnit(currency, tradeDay), 1200);
+
   // Resolve live spot for fill sanity (same currency as fill).
-  // Crypto uses the shared snapshot. Revaluation of the holding happens after this write returns.
+  // Crypto uses the shared snapshot and does not cold-seed it. Revaluation happens after this write returns.
   let liveSpot: number | null = null;
   const spotStarted = Date.now();
   try {
@@ -792,12 +816,6 @@ async function applyTransactionUnlocked(
 
   // The reviewed price is the fill. A newer live spot is only the sanity check.
   price = priceForBooking(price, liveSpot);
-
-  const statedCurrency = input.fill_currency;
-  const currency: CurrencyCode =
-    statedCurrency === "NZD" || statedCurrency === "AUD" || statedCurrency === "USD"
-      ? statedCurrency
-      : currencyForTicker(ticker, assetType);
 
   const sanity = checkFillSanity({
     ticker,
@@ -833,12 +851,7 @@ async function applyTransactionUnlocked(
 
   const fxStarted = Date.now();
   const fxHistoryStarted = Date.now();
-  const [fxLive, historicalFx] = await Promise.all([
-    firstWithin(getFxSnapshot(), 450),
-    currency === "NZD"
-      ? Promise.resolve({ value: 1 as number | null, timedOut: false })
-      : firstWithin(historicalNzdPerUnit(currency, tradeDay), 1200),
-  ]);
+  const [fxLive, historicalFx] = await Promise.all([fxLivePromise, historicalPromise]);
   stepMs("fx-snapshot", fxStarted, fxLive.timedOut ? "bounded" : "ready");
   stepMs("historical-fx", fxHistoryStarted, currency === "NZD" ? "nzd" : historicalFx.timedOut ? "bounded" : "fetched");
   const fxDecision = bookingFxDecision({
@@ -976,6 +989,7 @@ async function applyTransactionUnlocked(
       notes,
       `FILLED buy qty=${quantity} fill=${formatCleanNumber(price)} ${currency} live=${auditLive == null ? "n/a" : formatCleanNumber(auditLive)} source=${input.price_source || "user_fill"}. ${ADVISORY_NOTE}`
     );
+    const priceAsAt = input.price_as_at || new Date().toISOString();
     logLedgerAudit({
       action: "fill_buy",
       ticker,
@@ -998,7 +1012,7 @@ async function applyTransactionUnlocked(
       signal_price: input.signal_price ?? null,
       mark_price: liveSpot,
       price_source: input.price_source || "user_fill",
-      price_as_at: input.price_as_at || new Date().toISOString(),
+      price_as_at: priceAsAt,
       trade_datetime: resolved.hasClock ? aucklandDateTimeISO(resolved.instant) : String(resolved.stored),
       execution_status: "filled",
       order_sizing: input.order_sizing || "units",
@@ -1018,7 +1032,14 @@ async function applyTransactionUnlocked(
       fees: round(fees),
       total: round(-costNZD),
       currency,
-      notes: withDexNotes(auditNotes, stamp.chain, stamp.isDex),
+      notes: stampedTradeNotes(
+        auditNotes,
+        ticker,
+        assetType,
+        stamp.chain,
+        stamp.isDex,
+        priceAsAt
+      ),
       executed_at: executedStored,
       user: user._id,
       ...(holdingId ? { stock: holdingId } : {}),
@@ -1151,6 +1172,7 @@ async function applyTransactionUnlocked(
 
   await totalumSdk.crud.editRecordById("user", user._id, { cash_balance: newCash });
 
+  const priceAsAt = input.price_as_at || new Date().toISOString();
   const rec = await totalumSdk.crud.createRecord("transaction", {
     type: "sell",
     ticker,
@@ -1170,18 +1192,22 @@ async function applyTransactionUnlocked(
     fill_currency: currency,
     execution_status: "filled",
     price_source: input.price_source || "user_fill",
+    price_as_at: priceAsAt,
     trade_datetime: resolved.hasClock ? aucklandDateTimeISO(resolved.instant) : String(resolved.stored),
     mark_price: liveSpot,
     fx_rate: sellFx,
     cash_nzd: round(proceedsNZD),
     currency,
-    notes: withDexNotes(
+    notes: stampedTradeNotes(
       appendAuditNote(
         notes,
         `FILLED sell qty=${quantity} fill=${formatCleanNumber(price)} ${currency} live=${auditLive == null ? "n/a" : formatCleanNumber(auditLive)} source=${input.price_source || "user_fill"}. ${ADVISORY_NOTE}`
       ),
+      ticker,
+      assetType,
       stamp.chain,
-      stamp.isDex
+      stamp.isDex,
+      priceAsAt
     ),
     executed_at: executedStored,
     user: user._id,

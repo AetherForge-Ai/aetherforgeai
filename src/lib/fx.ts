@@ -75,9 +75,13 @@ async function fetchLiveRatesToNZD(): Promise<{ rates: FxRatesToNZD; asOf: strin
   };
 }
 
+const HISTORICAL_TTL_MS = 6 * 60 * 60 * 1000;
+const historicalCache = new Map<string, { rate: number; at: number }>();
+
 /**
  * NZD per 1 unit of currency on a past trade date (Frankfurter).
  * Null when the day is missing or the feed has no print. Today's snapshot is separate.
+ * A positive print is cached for six hours. A timeout is not cached and is not a booking rate.
  */
 export async function historicalNzdPerUnit(
   currency: CurrencyCode,
@@ -85,6 +89,9 @@ export async function historicalNzdPerUnit(
 ): Promise<number | null> {
   if (currency === "NZD") return 1;
   if (!day || !/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
+  const key = `${currency}|${day}`;
+  const hit = historicalCache.get(key);
+  if (hit && Date.now() - hit.at < HISTORICAL_TTL_MS) return hit.rate;
   try {
     const res = await fetch(`https://api.frankfurter.app/${day}?from=${currency}&to=NZD`, {
       signal: AbortSignal.timeout(8000),
@@ -92,7 +99,9 @@ export async function historicalNzdPerUnit(
     if (!res.ok) return null;
     const json = (await res.json()) as { rates?: { NZD?: number } };
     const rate = Number(json?.rates?.NZD);
-    return rate > 0 && Number.isFinite(rate) ? rate : null;
+    if (!(rate > 0) || !Number.isFinite(rate)) return null;
+    historicalCache.set(key, { rate, at: Date.now() });
+    return rate;
   } catch (err) {
     console.error("[fx] Historical rate lookup failed:", err);
     return null;

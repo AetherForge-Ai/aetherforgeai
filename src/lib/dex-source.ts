@@ -73,6 +73,40 @@ export function stripDexNotesPrefix(notes?: string | null): string {
   return parsed ? parsed.note : notes || "";
 }
 
+/** Machine stamp in the existing notes field. Spaces in the chain become underscores. */
+export function withQuoteStamp(notes: string | null | undefined, chain: string | null, priceAsAt: string | null): string {
+  const body = stripQuoteStamp(notes);
+  const parts: string[] = [];
+  const cleaned = (chain || "").trim();
+  if (cleaned) parts.push(`chain=${cleaned.replace(/\s+/g, "_")}`);
+  const at = (priceAsAt || "").trim();
+  if (at) parts.push(`pxat=${at.replace(/\s+/g, "")}`);
+  const stamp = parts.join(" ");
+  if (!stamp) return body;
+  return body ? `${stamp}\n${body}` : stamp;
+}
+
+export function stripQuoteStamp(notes: string | null | undefined): string {
+  return String(notes || "")
+    .replace(/(^|\s)chain=\S+/g, "$1")
+    .replace(/(^|\s)pxat=\S+/g, "$1")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+export function chainFromNotes(notes: string | null | undefined): string | null {
+  const match = String(notes || "").match(/(?:^|\s)chain=(\S+)/);
+  if (!match) return null;
+  const label = match[1].replace(/_/g, " ").trim();
+  return label || null;
+}
+
+export function priceAsAtFromNotes(notes: string | null | undefined): string | null {
+  const match = String(notes || "").match(/(?:^|\s)pxat=(\S+)/);
+  return match?.[1] || null;
+}
+
 export function withDexNotes(notes: string | null | undefined, chain: string | null, isDex: boolean): string {
   const body = stripDexNotesPrefix(notes);
   if (!isDex) return body;

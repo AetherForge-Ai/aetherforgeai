@@ -16,7 +16,7 @@ import {
 import type { PublicMarketIndex } from "@/lib/public-market-types";
 import { BuyDialog, type BuyTarget } from "@/components/dashboard/BuyDialog";
 import { columnHasFigure, cryptoCoveragePhrase, dexCoverageLine, dexTabLabel } from "@/lib/crypto-coverage";
-import { countLine, stripLastGoodCell } from "@/lib/crypto-board";
+import { coingeckoSupplied, countLine, stripLastGoodCell } from "@/lib/crypto-board";
 import { DEX_EMPTY_NOTICE } from "@/lib/crypto-dex";
 import { explorerDetailHref, marketsTabHref, type MarketsTab } from "@/lib/market-detail-routes";
 import type { PublicPriceRow } from "@/lib/public-market-types";
@@ -823,7 +823,10 @@ export function MarketsExplorer({
               {fxReady ? ` · 1 USD = NZ$${formatFxInput(fx.rates.USD)}` : " · NZ$ prices appear when today's exchange rate loads."}
             </p>
           )}
-          {isCoinTab && <p className="text-sm text-muted-foreground">Powered by CoinGecko</p>}
+          {isCoinTab &&
+            coingeckoSupplied(
+              crypto.coins.length ? crypto.coins.map((coin) => coin.source) : seedCrypto.map((row) => row.source)
+            ) && <p className="text-sm text-muted-foreground">Powered by CoinGecko</p>}
           {isCryptoTab && (
             <button
               type="button"

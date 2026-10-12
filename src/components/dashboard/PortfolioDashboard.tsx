@@ -26,6 +26,7 @@ import {
   isBullionHolding,
   inferMetalKey,
   isListedStockHolding,
+  lastGoodUnitPrice,
   markBookAtBullionSpot,
   type MetalSpotPerOz,
 } from "@/lib/metal-valuation";
@@ -729,10 +730,10 @@ export function PortfolioDashboard({
       }
       const { metals, spot } = res.data;
       const list = metals || [];
-      const total = list.reduce(
-        (sum, m) => sum + m.ounces * (spot[m.metal]?.nzdPerOz ?? 0),
-        0
-      );
+      const total = list.reduce((sum, m) => {
+        const mark = lastGoodUnitPrice(spot[m.metal]?.nzdPerOz, null, m.purchase_price_per_oz);
+        return sum + m.ounces * mark;
+      }, 0);
       setMetalsValueNZD(total);
       setPreciousMetalHoldings(list);
       setMetalSpot(spot);
@@ -999,7 +1000,9 @@ export function PortfolioDashboard({
     if (!preciousMetalHoldings.length) return [];
     return preciousMetalHoldings.map((m) => {
       const ticker = m.metal === "gold" ? "GOLD" : "SILVER";
-      const spot = metalSpot?.[m.metal]?.nzdPerOz ?? m.purchase_price_per_oz;
+      const live =
+        (metalSpot?.[m.metal]?.nzdPerOz ?? 0) > 0 ? metalSpot?.[m.metal]?.nzdPerOz : publicSpot?.[m.metal]?.nzdPerOz;
+      const spot = lastGoodUnitPrice(live, null, m.purchase_price_per_oz);
       return {
         _id: `pm-${m._id}`, // prefix so it never collides with a real stock _id
         ticker,
@@ -1011,7 +1014,7 @@ export function PortfolioDashboard({
         metalSourceId: m._id, // original precious_metal record id
       };
     });
-  }, [preciousMetalHoldings, metalSpot]);
+  }, [preciousMetalHoldings, metalSpot, publicSpot]);
 
   // Combined list for Transaction Center (main holdings + precious metals).
   // Prefer the precious_metal source when both systems somehow have the same metal
@@ -1517,6 +1520,7 @@ export function PortfolioDashboard({
           plan={subscription.plan}
           scope={scope}
           counts={holdingCounts}
+          countsReady={preview || !loading}
           tickerLimit={tickerLimit}
           userId={userId}
           holdings={allStocks}
@@ -2401,6 +2405,7 @@ export function PortfolioDashboard({
           plan={subscription.plan}
           scope={scope}
           counts={holdingCounts}
+          countsReady={preview || !loading}
           tickerLimit={tickerLimit}
           userId={userId}
           holdings={allStocks}

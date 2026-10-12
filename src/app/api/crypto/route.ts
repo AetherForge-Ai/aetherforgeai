@@ -1,15 +1,23 @@
 /**
  * GET /api/crypto
- * There is no collection document here. Return JSON so a stray call is not Next's HTML 404.
+ * Serves the same persisted snapshot as /api/crypto/markets.
  */
 import { NextResponse } from "next/server";
-import { LIVE_CRYPTO_UNAVAILABLE } from "@/lib/crypto-market";
+import { marketsBody } from "@/lib/crypto-api-body";
+import { readSharedCryptoBoard } from "@/lib/crypto-board-store";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  return NextResponse.json(
-    { ok: false, error: LIVE_CRYPTO_UNAVAILABLE },
-    { headers: { "cache-control": "no-store" } }
-  );
+  try {
+    const board = await readSharedCryptoBoard();
+    return NextResponse.json(marketsBody(board.coins, board.notice), {
+      headers: { "cache-control": "no-store" },
+    });
+  } catch (err) {
+    console.error("[api/crypto] error:", err instanceof Error ? err.message.slice(0, 160) : "failed");
+    return NextResponse.json(marketsBody(null, null), {
+      headers: { "cache-control": "no-store" },
+    });
+  }
 }

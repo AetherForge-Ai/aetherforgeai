@@ -11,7 +11,8 @@ import {
   roundUnitPrice,
   type CurrencyCode,
 } from "@/lib/currency";
-import { dexFromLedger, stripDexNotesPrefix } from "@/lib/dex-source";
+import { chainForTicker } from "@/lib/crypto-board";
+import { chainFromNotes, dexFromLedger, priceAsAtFromNotes, stripDexNotesPrefix, stripQuoteStamp } from "@/lib/dex-source";
 import { stripDividendNotesPrefix } from "@/lib/dividend-ledger";
 import { formatLedgerDateTime } from "@/lib/executed-at";
 import { collapseCorrectionNote, ensureCorrectionCurrency } from "@/lib/holding-correction";
@@ -99,7 +100,7 @@ export function csvNotes(row: CsvRow): string {
   const raw = row.notes == null ? "" : String(row.notes);
   const currency = String(row.fill_currency || row.currency || "NZD").toUpperCase() as CurrencyCode;
   let notes = cleanNoteFigures(
-    normaliseAuditDates(collapseCorrectionNote(stripDexNotesPrefix(stripDividendNotesPrefix(raw))))
+    normaliseAuditDates(collapseCorrectionNote(stripQuoteStamp(stripDexNotesPrefix(stripDividendNotesPrefix(raw)))))
   ).trim();
   if (notes.startsWith("Correction:")) notes = ensureCorrectionCurrency(notes, currency);
   if (notes) return notes;
@@ -114,14 +115,6 @@ function csvText(value: unknown): string {
 function blank(value: unknown): boolean {
   return value == null || value === "";
 }
-
-const CHAIN_BY_TICKER: Record<string, string> = {
-  BTC: "Bitcoin",
-  ETH: "Ethereum",
-  UNI: "Ethereum",
-  PEPE: "Ethereum",
-  SOL: "Solana",
-};
 
 function csvVenue(row: CsvRow, dexVenue: string | null, dexChain: string | null): string {
   const type = String(row.type || "");
@@ -138,10 +131,26 @@ function csvVenue(row: CsvRow, dexVenue: string | null, dexChain: string | null)
 
 function csvChain(row: CsvRow, dexChain: string | null): string {
   if (dexChain) return dexChain;
+  const fromNotes = chainFromNotes(row.notes == null ? null : String(row.notes));
+  if (fromNotes) return fromNotes;
   const asset = String(row.asset_type || "").toLowerCase();
   if (asset !== "crypto") return "";
   const bare = csvText(row.ticker).trim().toUpperCase().split(".")[0];
-  return CHAIN_BY_TICKER[bare] || "not stored";
+  return chainForTicker(bare) || "not stored";
+}
+
+/** Same per-row FIFO total the app sums. A one-cent split gap is put on the FX side. */
+export function fifoCsvFigures(
+  priceN: number,
+  fxN: number,
+  storedTotal: number | null
+): { price: string; fx: string; total: string } {
+  const price = roundMoney(priceN);
+  const total =
+    storedTotal != null && Number.isFinite(storedTotal) ? roundMoney(storedTotal) : roundMoney(price + roundMoney(fxN));
+  let fx = roundMoney(fxN);
+  if (roundMoney(price + fx) !== total) fx = roundMoney(total - price);
+  return { price: csvMoney(price), fx: csvMoney(fx), total: csvMoney(total) };
 }
 
 export function transactionCsvCells(row: CsvRow): string[] {
@@ -161,7 +170,7 @@ export function transactionCsvCells(row: CsvRow): string[] {
   const priceSource = csvText(row.price_source || "user_fill");
   const cashOnly = row.type === "deposit" || row.type === "withdraw" || row.type === "tax";
   const assetId = csvText(row.asset_id).trim();
-  const quoteTime = formatLedgerDateTime(csvText(row.price_as_at));
+  const quoteTime = formatLedgerDateTime(csvText(row.price_as_at) || priceAsAtFromNotes(row.notes == null ? null : String(row.notes)) || "");
   const priceAsAt = quoteTime || "not stored";
   const clock = ledgerDisplayWhen(row);
   const isSell = row.type === "sell";
@@ -171,6 +180,7 @@ export function transactionCsvCells(row: CsvRow): string[] {
   const priceN = num(row.realized_price_pnl_nzd);
   const fxN = num(row.realized_fx_pnl_nzd);
   const haveSplit = priceN != null && fxN != null;
+  const fifo = haveSplit ? fifoCsvFigures(priceN, fxN, num(row.realized_pnl_nzd)) : null;
   const fxRate = currency === "NZD" ? formatSavedFx(row.fx_rate) || "1.0000" : formatSavedFx(row.fx_rate);
   const dataNote = [
     !assetId && cashOnly ? "Cash has no asset id." : "",
@@ -203,9 +213,9 @@ export function transactionCsvCells(row: CsvRow): string[] {
     fxRate,
     csvFxSource(row),
     csvMoney(row.cash_nzd ?? row.total),
-    haveSplit ? csvMoney(priceN) : isSell ? "" : csvMoney(0),
-    haveSplit ? csvMoney(fxN) : isSell ? "" : csvMoney(0),
-    haveSplit ? csvMoney(roundMoney(priceN + fxN)) : isSell ? "" : csvMoney(row.realized_pnl_nzd ?? row.realized_pnl ?? 0),
+    fifo ? fifo.price : isSell ? "" : csvMoney(0),
+    fifo ? fifo.fx : isSell ? "" : csvMoney(0),
+    fifo ? fifo.total : isSell ? "" : csvMoney(row.realized_pnl_nzd ?? row.realized_pnl ?? 0),
     csvText(row.order_sizing || "units"),
     csvNotes(row),
     csvVenue(row, dex.venue, dex.chain),

@@ -23,6 +23,12 @@ export const LARGE_CAP_MONTH_MOVE_CAP_PCT = 60;
 export const EQUITY_SESSION_MOVE_CAP_PCT = 50;
 
 /**
+ * Other listed shares over a week. Above this the print is under review and
+ * leaves the 7-day rank. Large-cap week moves keep LARGE_CAP_WEEK_MOVE_CAP_PCT.
+ */
+export const EQUITY_WEEK_MOVE_CAP_PCT = 30;
+
+/**
  * A ranked Stox row more than this many percentage points from the same
  * ticker on /markets is under review. Configurable with the large-cap guard.
  */
@@ -125,7 +131,7 @@ function windowCap(input: ReviewInput): number {
     return LARGE_CAP_SESSION_MOVE_CAP_PCT;
   }
   if (input.window === "1d") return EQUITY_SESSION_MOVE_CAP_PCT;
-  if (input.window === "7d") return 80;
+  if (input.window === "7d") return EQUITY_WEEK_MOVE_CAP_PCT;
   return 150;
 }
 

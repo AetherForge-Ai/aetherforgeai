@@ -1,5 +1,6 @@
 import "server-only";
 
+import { pricesAsAtLabel } from "@/lib/crypto-board";
 import { choosePublicPriceTab, formatPublicCryptoPrice, sourceLabel } from "@/lib/crypto-price-chain";
 import { publicSourceAllowed } from "@/lib/swyftx-display";
 import { loadPublicCryptoPrint, noteListedPrices, recallPublicTab, rememberPublicTab } from "@/lib/crypto-price-feed";
@@ -98,7 +99,7 @@ async function loadCryptoTab(): Promise<PublicPriceTab> {
   try {
     const page = await loadTop400Markets();
     const coins = page.coins.filter((coin) => coin.price > 0).slice(0, COIN_PAGE);
-    const quotedAt = latestIso(coins.map((coin) => coin.quotedAt)) || new Date().toISOString();
+    const quotedAt = page.at || latestIso(coins.map((coin) => coin.quotedAt)) || new Date().toISOString();
     noteListedPrices(
       coins.map((coin) => ({
         symbol: coin.symbol,
@@ -124,7 +125,7 @@ async function loadCryptoTab(): Promise<PublicPriceTab> {
     const tab = {
       id: "CRYPTO",
       title: "Crypto",
-      asOf: asOfLabel(latestIso(coins.map((coin) => coin.quotedAt))),
+      asOf: pricesAsAtLabel(page.at || quotedAt) || asOfLabel(page.at || quotedAt),
       rows,
     };
     if (rows.length) rememberPublicTab(tab);
@@ -143,7 +144,7 @@ async function loadDexTab(): Promise<PublicPriceTab> {
     const { readSharedDexBoard } = await import("@/lib/crypto-board-store");
     const page = await readSharedDexBoard();
     const priced = page.rows
-      .filter((row) => typeof row.price === "number" && row.price > 0 && row.detailId)
+      .filter((row) => typeof row.price === "number" && row.price > 0 && row.detailId && row.network && row.dex)
       .slice(0, COIN_PAGE);
     const quotedAt = page.at || new Date().toISOString();
     noteListedPrices(
@@ -169,7 +170,7 @@ async function loadDexTab(): Promise<PublicPriceTab> {
     const tab = {
       id: "DEX",
       title: "DEX",
-      asOf: "as of not stated by the vendor",
+      asOf: pricesAsAtLabel(page.at) || asOfLabel(page.at),
       rows,
     };
     if (rows.length) rememberPublicTab(tab);
