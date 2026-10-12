@@ -82,6 +82,7 @@ describe("private document cache policy", () => {
     expect(isAccountScopedClientUrl("/api/session")).toBe(true);
     expect(isAccountScopedClientUrl("/api/stocks?x=1")).toBe(true);
     expect(isAccountScopedClientUrl("/api/transactions")).toBe(true);
+    expect(isAccountScopedClientUrl("/api/portfolio/snapshot")).toBe(true);
     expect(isAccountScopedClientUrl("/api/ticker")).toBe(false);
     expect(isAccountScopedClientUrl("https://aetherforgeai.co.nz/api/alerts")).toBe(true);
   });

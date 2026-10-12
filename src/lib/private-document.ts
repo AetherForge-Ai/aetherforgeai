@@ -162,6 +162,9 @@ export function isSharedCacheReplay(
 export function isAccountScopedClientUrl(url: string): boolean {
   const path = normalizePathname(clientPathname(url));
   if (path === "/api/session") return true;
+  // The snapshot route checks the account claim itself. The client still
+  // refuses a shared-cache replay of that URL.
+  if (path === "/api/portfolio/snapshot") return true;
   return isProtectedAccountApi(path);
 }
 

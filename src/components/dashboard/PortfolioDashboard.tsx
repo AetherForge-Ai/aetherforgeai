@@ -7,12 +7,15 @@ import {
   computeSummary,
   formatPercent,
   formatNumber,
+  type HoldingMetrics,
   type Stock,
 } from "@/lib/portfolio";
 import {
   formatDisplayDate,
   formatSignedMoney,
   formatMoney,
+  formatNzd,
+  roundMoney,
   sumRoundedMoney,
   formatUnitPrice,
   currencyForTicker,
@@ -41,6 +44,16 @@ import {
 import { TransactionCenter } from "@/components/dashboard/TransactionCenter";
 import { openRecordTransaction } from "@/lib/open-transaction";
 import { computeHoldingSplit, ReturnsSplitCard } from "@/components/dashboard/ReturnsSplitCard";
+import {
+  clearPortfolioSnapshotCache,
+  readPortfolioSnapshotCache,
+  snapshotAsReturnSplit,
+  writePortfolioSnapshotCache,
+  type PortfolioSnapshot,
+  type SnapshotClass,
+  type SnapshotFigure,
+  type SnapshotPosition,
+} from "@/lib/portfolio-snapshot";
 import { isTransactionDialogOpen } from "@/lib/transaction-sticky";
 import {
   acceptAccountPayload,
@@ -90,6 +103,9 @@ import { DashboardSectionTitle } from "@/components/dashboard/DashboardSectionTi
 import { MarketIntelProvider } from "@/components/dashboard/MarketIntelContext";
 import { WatchlistPanel } from "@/components/dashboard/WatchlistPanel";
 import { GlobalSearch } from "@/components/dashboard/GlobalSearch";
+import { DashboardCalculator } from "@/components/dashboard/DashboardCalculator";
+import { resolveHoldingAction } from "@/lib/holding-action";
+import { duplicateHomeFiguresVisible } from "@/lib/home-totals";
 import { DashboardHomeGrid } from "@/components/dashboard/DashboardHomeGrid";
 import { OnboardingChecklist } from "@/components/dashboard/OnboardingChecklist";
 import { AllocationDriftCard } from "@/components/dashboard/AllocationDriftCard";
@@ -218,6 +234,7 @@ function StatCard({
   icon: Icon,
   tone = "neutral",
   loading = false,
+  title,
 }: {
   label: string;
   value: string;
@@ -226,6 +243,7 @@ function StatCard({
   tone?: "neutral" | "up" | "down";
   /** Never flash NZ$0 / empty KPIs while cash+holdings+marks hydrate. */
   loading?: boolean;
+  title?: string | null;
 }) {
   return (
     <div className="rounded-2xl border border-border/70 bg-card/50 p-5">
@@ -254,8 +272,10 @@ function StatCard({
           className={cn(
             "tnum mt-3 font-display text-2xl font-bold",
             tone === "up" && "text-emerald-600",
-            tone === "down" && "text-rose-600"
+            tone === "down" && "text-rose-600",
+            value === "—" && "text-muted-foreground"
           )}
+          title={title || undefined}
         >
           {value}
         </p>
@@ -263,6 +283,82 @@ function StatCard({
       {sub && !loading && <p className="mt-1 text-xs text-muted-foreground">{sub}</p>}
     </div>
   );
+}
+
+function BookMoney({
+  value,
+  reason,
+  loading,
+  className,
+  skeletonClassName,
+  snap = false,
+}: {
+  value: number | null;
+  reason?: string | null;
+  loading: boolean;
+  className?: string;
+  skeletonClassName: string;
+  snap?: boolean;
+}) {
+  if (loading) return <div className={skeletonClassName} aria-hidden />;
+  if (value == null || !Number.isFinite(value)) {
+    return (
+      <p className={cn("text-muted-foreground", className)} title={reason || "This figure was not stored."}>
+        —
+      </p>
+    );
+  }
+  return <AnimatedMoney snap={snap} value={value} currency="NZD" className={className} />;
+}
+
+function snapshotGroup(snapshot: PortfolioSnapshot | null, id: SnapshotClass): SnapshotFigure | null {
+  return snapshot?.groups.find((group) => group.id === id)?.marketValue ?? null;
+}
+
+function openSnapshotPositions(snapshot: PortfolioSnapshot | null, id: SnapshotClass): SnapshotPosition[] {
+  return (snapshot?.groups.find((group) => group.id === id)?.positions || []).filter(
+    (position) => !position.closed && position.quantity > 1e-9
+  );
+}
+
+/** Table rows priced from the snapshot, so the NZ$ column adds up to that group card. */
+function rowsFromSnapshot(
+  positions: SnapshotPosition[],
+  stocks: Stock[],
+  assetType: "stock" | "crypto" | "metal"
+): HoldingMetrics[] {
+  return positions.map((position) => {
+    const stock = stocks.find(
+      (row) =>
+        row.ticker.toUpperCase() === position.ticker.toUpperCase() &&
+        (row.asset_type || "stock") === assetType
+    );
+    const price = position.marketPriceLocal;
+    const paid = position.averageCostLocal;
+    const nativeValue = price != null ? position.quantity * price : Number.NaN;
+    const nativeCost = paid != null ? position.quantity * paid : Number.NaN;
+    const nativeGain = price != null && paid != null ? nativeValue - nativeCost : Number.NaN;
+    return {
+      _id: stock?._id || position.ticker,
+      ticker: position.ticker,
+      asset_type: assetType,
+      company_name: position.name,
+      sector: stock?.sector,
+      shares: position.quantity,
+      purchase_price: paid ?? Number.NaN,
+      current_price: price ?? Number.NaN,
+      purchase_date: position.lots[0]?.acquired || stock?.purchase_date || null,
+      venue: stock?.venue,
+      chain: stock?.chain,
+      currency: (position.currency || "NZD") as CurrencyCode,
+      costBasis: nativeCost,
+      marketValue: nativeValue,
+      gain: nativeGain,
+      gainPct: nativeCost > 0 && Number.isFinite(nativeGain) ? (nativeGain / nativeCost) * 100 : Number.NaN,
+      baseValue: position.marketValue.value ?? Number.NaN,
+      weight: position.weight.value != null ? position.weight.value * 100 : Number.NaN,
+    };
+  });
 }
 
 function MiniMetric({
@@ -466,6 +562,13 @@ export function PortfolioDashboard({
   });
   const [ledgerLoaded, setLedgerLoaded] = useState(!!preview);
   const [metalsLoaded, setMetalsLoaded] = useState(!!preview);
+  const [bookSnapshot, setBookSnapshot] = useState<PortfolioSnapshot | null>(() =>
+    preview ? null : readPortfolioSnapshotCache(userId)
+  );
+  const [snapshotReady, setSnapshotReady] = useState(
+    () => preview || readPortfolioSnapshotCache(userId) != null
+  );
+  const [snapshotError, setSnapshotError] = useState<string | null>(null);
   // Cash (NZD) + precious-metals value (NZD) power the "Totals owned" strip.
   // Scoped by userId — never rehydrate another account's balance from sessionStorage.
   const [cashBalance, setCashBalance] = useState(() => {
@@ -489,8 +592,8 @@ export function PortfolioDashboard({
   const [costFx, setCostFx] = useState<Record<string, number>>({});
   const [qtyFx, setQtyFx] = useState<Record<string, number>>({});
   const [realisedFxNzd, setRealisedFxNzd] = useState(0);
-  const headerPaint = useRef<{ holdings: number; net: number; stock: number; crypto: number; metals: number; cash: number } | null>(null);
-  const liveHeaderRef = useRef<{ holdings: number | null; net: number | null; stock: number; crypto: number; metals: number; cash: number | null } | null>(null);
+  const headerPaint = useRef<{ holdings: number | null; net: number | null; stock: number | null; crypto: number | null; metals: number | null; cash: number | null } | null>(null);
+  const liveHeaderRef = useRef<{ holdings: number | null; net: number | null; stock: number | null; crypto: number | null; metals: number | null; cash: number | null } | null>(null);
   const [headerFrozen, setHeaderFrozen] = useState(false);
   const [metalsValueNZD, setMetalsValueNZD] = useState(preview ? PREVIEW_METALS_NZD : 0);
   // Raw precious_metal holdings (from /api/metals) so we can surface them in the
@@ -801,6 +904,55 @@ export function PortfolioDashboard({
     loadPublicSpot();
   }, [preview, loadPublicSpot, ledgerSignal]);
 
+  const loadPortfolioSnapshot = useCallback(
+    async (opts?: { force?: boolean }) => {
+      if (preview) return;
+      const tracked = trackAccountRequest();
+      try {
+        const path = opts?.force ? "/api/portfolio/snapshot?fresh=1" : "/api/portfolio/snapshot";
+        const res = await api.get<PortfolioSnapshot>(path, { signal: tracked.signal });
+        if (res.aborted || tracked.epoch !== getAccountEpoch()) return;
+        const echoed = responseUserId(res);
+        if (res.status === 409 || res.error === "account-mismatch") return;
+        const snapshot = res.data;
+        if (
+          !res.ok ||
+          !snapshot?.asOf ||
+          !snapshot.kpis ||
+          !acceptAccountPayload({
+            epoch: tracked.epoch,
+            requestUserId: tracked.userId,
+            responseUserId: echoed,
+          })
+        ) {
+          setSnapshotError("The portfolio snapshot did not load.");
+          setSnapshotReady(true);
+          return;
+        }
+        writePortfolioSnapshotCache(tracked.userId, snapshot);
+        setBookSnapshot(snapshot);
+        setSnapshotError(null);
+        setSnapshotReady(true);
+      } catch (err) {
+        console.error("[dashboard] Portfolio snapshot failed", err);
+        setSnapshotError("The portfolio snapshot did not load.");
+        setSnapshotReady(true);
+      } finally {
+        tracked.release();
+      }
+    },
+    [preview, userId]
+  );
+
+  useEffect(() => {
+    if (preview) return;
+    const cached = readPortfolioSnapshotCache(userId);
+    setBookSnapshot(cached);
+    setSnapshotReady(cached != null);
+    setSnapshotError(null);
+    void loadPortfolioSnapshot();
+  }, [preview, userId, loadPortfolioSnapshot]);
+
   useEffect(() => {
     if (preview) return; // guest preview uses seeded demo data — no network calls
     loadStocks();
@@ -894,6 +1046,7 @@ export function PortfolioDashboard({
         deferredHoldingsRef.current = null;
         setAllStocks(res.data);
         holdingsHydratedRef.current = true;
+        void loadPortfolioSnapshot({ force: true });
         console.log("[dashboard] Live re-price tick applied");
       } else if (res.status !== 401 && !res.aborted) {
         console.error("[dashboard] Soft-refresh failed:", res.error);
@@ -906,7 +1059,7 @@ export function PortfolioDashboard({
       });
     }, 60_000);
     return () => clearInterval(id);
-  }, [preview]);
+  }, [preview, loadPortfolioSnapshot]);
 
   // Called whenever holdings or cash change (transactions, edits, deletes).
   const applyKnownCash = useCallback(
@@ -953,9 +1106,12 @@ export function PortfolioDashboard({
         holdingsHydratedRef.current = true;
         setLoading(false);
       }
-      void Promise.all([loadStocks(), loadCash(), loadMetals()]).finally(() => setHeaderFrozen(false));
+      clearPortfolioSnapshotCache(userId);
+      void Promise.all([loadStocks(), loadCash(), loadMetals(), loadPortfolioSnapshot({ force: true })]).finally(() =>
+        setHeaderFrozen(false)
+      );
     },
-    [applyKnownCash, loadStocks, loadCash, loadMetals]
+    [applyKnownCash, loadStocks, loadCash, loadMetals, loadPortfolioSnapshot, userId]
   );
 
   useEffect(() => {
@@ -1024,6 +1180,10 @@ export function PortfolioDashboard({
     () => (view === "crypto" ? applyLiveCryptoPrices(cryptoOnly, cryptoLive.quotes) : cryptoOnly),
     [view, cryptoOnly, cryptoLive.quotes]
   );
+  useEffect(() => {
+    if (preview || !cryptoLive.updatedAt) return;
+    void loadPortfolioSnapshot({ force: true });
+  }, [preview, cryptoLive.updatedAt, loadPortfolioSnapshot]);
   const stockOverviewSummary = useMemo(
     () => computeSummary(stockOnly, { baseCurrency: "NZD", fxToNZD }),
     [stockOnly, fxToNZD]
@@ -1094,6 +1254,15 @@ export function PortfolioDashboard({
     () => computeSummary(tableStocks, { baseCurrency, fxToNZD }),
     [tableStocks, baseCurrency, fxToNZD]
   );
+  const snapshotShareRows = useMemo(
+    () => (preview || !bookSnapshot ? null : rowsFromSnapshot(openSnapshotPositions(bookSnapshot, "shares"), allStocks, "stock")),
+    [preview, bookSnapshot, allStocks]
+  );
+  const snapshotCryptoRows = useMemo(
+    () => (preview || !bookSnapshot ? null : rowsFromSnapshot(openSnapshotPositions(bookSnapshot, "crypto"), allStocks, "crypto")),
+    [preview, bookSnapshot, allStocks]
+  );
+  const tableHoldings = snapshotShareRows ?? tableSummary.holdings;
 
   // Sortable holdings table — default to largest positions (weight) first.
   const [holdingSort, setHoldingSort] = useState<{ key: HoldingSortKey; dir: "asc" | "desc" }>({
@@ -1110,7 +1279,7 @@ export function PortfolioDashboard({
   const sortedHoldings = useMemo(() => {
     const { key, dir } = holdingSort;
     const mult = dir === "asc" ? 1 : -1;
-    const val = (h: (typeof tableSummary.holdings)[number]): number | string => {
+    const val = (h: HoldingMetrics): number | string => {
       switch (key) {
         case "ticker":
           return h.ticker.toLowerCase();
@@ -1133,13 +1302,13 @@ export function PortfolioDashboard({
           return h.weight;
       }
     };
-    return [...tableSummary.holdings].sort((a, b) => {
+    return [...tableHoldings].sort((a, b) => {
       const av = val(a);
       const bv = val(b);
       if (typeof av === "string" && typeof bv === "string") return av.localeCompare(bv) * mult;
       return ((av as number) - (bv as number)) * mult;
     });
-  }, [tableSummary.holdings, holdingSort]);
+  }, [tableHoldings, holdingSort]);
 
   // Sortable table header cell for the Current Holdings table.
   const HoldingHead = ({
@@ -1212,18 +1381,26 @@ export function PortfolioDashboard({
   // One shared portfolio-ready gate: KPI totals AND stock/crypto/metals position
   // cards only paint real data together (or all skeletons). Never show a non-zero
   // net-worth snapshot alongside empty position cards from an incomplete load.
-  const balancesReady = preview || (cashLoaded && metalsLoaded && !loading);
-  const showCash = balancesReady ? cashBalance : null;
-  const showHoldings = balancesReady ? holdingsValueNZD : null;
-  const showMetalsTotal = balancesReady ? metalsValueNZD + metalStockTotalNZD : null;
-  const showNetWorth = balancesReady ? netWorthNZD : null;
+  // Signed-in totals come from one portfolio snapshot. A missing price stays blank.
+  const balancesReady = preview || (cashLoaded && metalsLoaded && !loading && snapshotReady);
+  const usingSnapshot = !preview && balancesReady;
+  const shareFigure = snapshotGroup(bookSnapshot, "shares");
+  const cryptoFigure = snapshotGroup(bookSnapshot, "crypto");
+  const metalsFigure = snapshotGroup(bookSnapshot, "metals");
+  const storedReason = "This figure was not stored.";
+  const showCash = !balancesReady ? null : usingSnapshot ? (bookSnapshot?.kpis.cash.value ?? null) : cashBalance;
+  const showHoldings = !balancesReady ? null : usingSnapshot ? (bookSnapshot?.kpis.holdingsValue.value ?? null) : holdingsValueNZD;
+  const showMetalsTotal = !balancesReady ? null : usingSnapshot ? (metalsFigure?.value ?? null) : metalsValueNZD + metalStockTotalNZD;
+  const showNetWorth = !balancesReady ? null : usingSnapshot ? (bookSnapshot?.kpis.netWorth.value ?? null) : netWorthNZD;
+  const showStock = !balancesReady ? null : usingSnapshot ? (shareFigure?.value ?? null) : stockTotalNZD;
+  const showCrypto = !balancesReady ? null : usingSnapshot ? (cryptoFigure?.value ?? null) : cryptoTotalNZD;
   if (!headerFrozen) {
     liveHeaderRef.current = {
       holdings: showHoldings,
       net: showNetWorth,
-      stock: stockTotalNZD,
-      crypto: cryptoTotalNZD,
-      metals: metalsValueNZD + metalStockTotalNZD,
+      stock: showStock,
+      crypto: showCrypto,
+      metals: showMetalsTotal,
       cash: showCash,
     };
   }
@@ -1244,10 +1421,19 @@ export function PortfolioDashboard({
       at: new Date().toISOString(),
     });
   }, [preview, userId, balancesReady, ledgerLoaded, allStocks, cashBalance, metalsValueNZD, incomeNzd, costFx, qtyFx, realisedFxNzd]);
-  const headerStock = paintedHeader ? paintedHeader.stock : stockTotalNZD;
-  const headerCrypto = paintedHeader ? paintedHeader.crypto : cryptoTotalNZD;
-  const headerMetals = paintedHeader ? paintedHeader.metals : metalsValueNZD + metalStockTotalNZD;
-  const returnSplit = useMemo(
+  const headerStock = paintedHeader ? paintedHeader.stock : showStock;
+  const headerCrypto = paintedHeader ? paintedHeader.crypto : showCrypto;
+  const headerMetals = paintedHeader ? paintedHeader.metals : showMetalsTotal;
+  const cashReason =
+    usingSnapshot && headerCash == null ? bookSnapshot?.kpis.cash.reason || snapshotError || storedReason : null;
+  const stockReason = usingSnapshot && headerStock == null ? shareFigure?.reason || snapshotError || storedReason : null;
+  const cryptoReason = usingSnapshot && headerCrypto == null ? cryptoFigure?.reason || snapshotError || storedReason : null;
+  const metalsReason = usingSnapshot && headerMetals == null ? metalsFigure?.reason || snapshotError || storedReason : null;
+  const holdingsReason =
+    usingSnapshot && headerHoldings == null ? bookSnapshot?.kpis.holdingsValue.reason || snapshotError || storedReason : null;
+  const netReason =
+    usingSnapshot && headerNet == null ? bookSnapshot?.kpis.netWorth.reason || snapshotError || storedReason : null;
+  const localSplit = useMemo(
     () =>
       computeHoldingSplit({
         holdings: [...stockHoldings, ...cryptoHoldings, ...metalStocks],
@@ -1259,6 +1445,100 @@ export function PortfolioDashboard({
       }),
     [stockHoldings, cryptoHoldings, metalStocks, incomeNzd, fxToNZD, costFx, qtyFx, realisedFxNzd]
   );
+  const snapshotSplit = !preview && bookSnapshot ? snapshotAsReturnSplit(bookSnapshot) : null;
+  const returnSplit = snapshotSplit ?? localSplit;
+  const splitBlank =
+    !preview && balancesReady && !snapshotSplit
+      ? bookSnapshot?.kpis.totalReturn.reason || snapshotError || "The portfolio snapshot did not load."
+      : null;
+  const reconciledLabel = !preview ? bookSnapshot?.reconciliation.label ?? null : null;
+  const ownedText = (figure: SnapshotFigure | null, fallback: number) => {
+    if (!balancesReady) return { text: "", title: null as string | null };
+    if (usingSnapshot) {
+      if (!figure || figure.value == null) {
+        return { text: "—", title: figure?.reason || snapshotError || storedReason };
+      }
+      return { text: figure.display, title: null as string | null };
+    }
+    return { text: formatMoney(fallback, "NZD"), title: null as string | null };
+  };
+  const stockOwned = ownedText(shareFigure, stockTotalNZD);
+  const cryptoOwned = ownedText(cryptoFigure, cryptoTotalNZD);
+  const metalsOwned = ownedText(metalsFigure, metalsValueNZD + metalStockTotalNZD);
+  const stockWorth = ownedText(shareFigure, stockOverviewSummary.totalValue);
+  const snapshotShareOpen = openSnapshotPositions(bookSnapshot, "shares");
+  const snapshotCryptoOpen = openSnapshotPositions(bookSnapshot, "crypto");
+  const summedFigure = (positions: SnapshotPosition[], pick: (position: SnapshotPosition) => SnapshotFigure) => {
+    if (positions.some((position) => pick(position).value == null)) {
+      return {
+        text: "—",
+        title: positions.map((position) => pick(position)).find((figure) => figure.value == null)?.reason || storedReason,
+        value: null as number | null,
+      };
+    }
+    const value = roundMoney(positions.reduce((total, position) => total + (pick(position).value || 0), 0));
+    return { text: formatNzd(value), title: null as string | null, value };
+  };
+  const stockPnl = usingSnapshot
+    ? summedFigure(snapshotShareOpen, (position) => position.unrealised)
+    : { text: formatMoney(stockOverviewSummary.totalGain, "NZD"), title: null as string | null, value: stockOverviewSummary.totalGain };
+  const stockCost = usingSnapshot
+    ? summedFigure(snapshotShareOpen, (position) => position.costBase)
+    : { text: formatMoney(stockOverviewSummary.totalCost, "NZD"), title: null as string | null, value: stockOverviewSummary.totalCost };
+  const stockCostText = stockCost.text;
+  const stockGainPct =
+    stockPnl.value != null && stockCost.value
+      ? (stockPnl.value / stockCost.value) * 100
+      : usingSnapshot
+        ? null
+        : stockOverviewSummary.totalGainPct;
+  const cryptoNative = snapshotCryptoOpen.some((position) => position.marketPriceLocal == null)
+    ? null
+    : snapshotCryptoOpen.reduce((total, position) => total + position.quantity * (position.marketPriceLocal || 0), 0);
+  const cryptoWorth =
+    usingSnapshot && cryptoBookCurrency === "NZD"
+      ? ownedText(cryptoFigure, cryptoOverviewSummary.totalValue)
+      : usingSnapshot
+        ? {
+            text: cryptoNative == null ? "—" : formatMoney(cryptoNative, cryptoBookCurrency),
+            title: cryptoNative == null ? cryptoFigure?.reason || storedReason : null,
+          }
+        : { text: formatMoney(cryptoOverviewSummary.totalValue, cryptoBookCurrency), title: null as string | null };
+  const cryptoNativeGain = snapshotCryptoOpen.some((position) => position.marketPriceLocal == null || position.averageCostLocal == null)
+    ? null
+    : snapshotCryptoOpen.reduce(
+        (total, position) => total + position.quantity * ((position.marketPriceLocal || 0) - (position.averageCostLocal || 0)),
+        0
+      );
+  const cryptoPnl = usingSnapshot
+    ? cryptoBookCurrency === "NZD"
+      ? summedFigure(snapshotCryptoOpen, (position) => position.unrealised)
+      : {
+          text: cryptoNativeGain == null ? "—" : formatMoney(cryptoNativeGain, cryptoBookCurrency),
+          title: cryptoNativeGain == null ? cryptoFigure?.reason || storedReason : null,
+          value: cryptoNativeGain,
+        }
+    : { text: formatMoney(cryptoOverviewSummary.totalGain, cryptoBookCurrency), title: null as string | null, value: cryptoOverviewSummary.totalGain };
+  const cryptoCostNzd = summedFigure(snapshotCryptoOpen, (position) => position.costBase);
+  const cryptoNativeCost = snapshotCryptoOpen.some((position) => position.averageCostLocal == null)
+    ? null
+    : snapshotCryptoOpen.reduce((total, position) => total + position.quantity * (position.averageCostLocal || 0), 0);
+  const cryptoCostText = usingSnapshot
+    ? cryptoBookCurrency === "NZD"
+      ? cryptoCostNzd.text
+      : cryptoNativeCost == null
+        ? "—"
+        : formatMoney(cryptoNativeCost, cryptoBookCurrency)
+    : formatMoney(cryptoOverviewSummary.totalCost, cryptoBookCurrency);
+  const cryptoGainPct = !usingSnapshot
+    ? cryptoOverviewSummary.totalGainPct
+    : cryptoBookCurrency === "NZD"
+      ? cryptoPnl.value != null && cryptoCostNzd.value
+        ? (cryptoPnl.value / cryptoCostNzd.value) * 100
+        : null
+      : cryptoNativeGain != null && cryptoNativeCost
+        ? (cryptoNativeGain / cryptoNativeCost) * 100
+        : null;
   const kpiPending = !balancesReady;
 
   async function handleRefreshPrices() {
@@ -1283,12 +1563,68 @@ export function PortfolioDashboard({
     if (res.ok && res.data) {
       // The refresh endpoint returns all holdings; the active bot's are derived.
       setAllStocks(res.data);
+      clearPortfolioSnapshotCache(userId);
+      void loadPortfolioSnapshot({ force: true });
       toast.success("Prices updated");
     } else {
       console.error("[dashboard] Refresh failed:", res.error);
       toast.error("Could not refresh prices.");
     }
     setRefreshing(false);
+  }
+
+  function handleCalculatorTrade(input: {
+    ticker: string;
+    name: string;
+    assetClass: SnapshotClass;
+    action: "buy" | "sell" | "edit" | "delete";
+    target: { via: "stock"; stockId: string } | { via: "metal-store"; metalId: string };
+  }) {
+    if (input.target.via === "metal-store") {
+      if (input.action !== "buy" && input.action !== "sell") return;
+      const metalId = input.target.metalId;
+      const metal = preciousMetalHoldings.find((row) => row._id === metalId);
+      if (!metal) {
+        toast.error("This row is not on the holdings list.");
+        return;
+      }
+      const live = metalSpot?.[metal.metal]?.nzdPerOz || publicSpot?.[metal.metal]?.nzdPerOz;
+      openRecordTransaction({
+        mode: input.action,
+        userId,
+        holdings: transactionHoldings,
+        cash: cashBalance,
+        cashKnown: cashLoaded,
+        preferredAssetType: "metal",
+        seed: {
+          ticker: metal.metal === "silver" ? "SILVER" : "GOLD",
+          name: metal.metal === "silver" ? "Silver bullion" : "Gold bullion",
+          assetType: "metal",
+          price: live && live > 0 ? live : metal.purchase_price_per_oz,
+          ...(input.action === "sell" ? { metalSourceId: metal._id } : {}),
+        },
+      });
+      return;
+    }
+    const stockId = input.target.stockId;
+    const stock = allStocks.find((row) => row._id === stockId);
+    if (!stock) {
+      toast.error("This row is not on the holdings list.");
+      return;
+    }
+    if (input.action === "buy" || input.action === "sell") recordHolding(stock, input.action);
+    else if (input.action === "edit") openEdit(stock);
+    else setDeleteTarget(stock);
+  }
+
+  function handleCalculatorCash(mode: "deposit" | "withdraw") {
+    openRecordTransaction({
+      mode,
+      userId,
+      holdings: allStocks,
+      cash: cashBalance,
+      cashKnown: cashLoaded,
+    });
   }
 
   function openAdd() {
@@ -1385,6 +1721,12 @@ export function PortfolioDashboard({
   const gainTone = summary.totalGain >= 0 ? "up" : "down";
 
   const isHome = view === "home";
+  const legacyHomeTotals = duplicateHomeFiguresVisible({
+    isHome,
+    preview,
+    balancesReady,
+    snapshotPresent: bookSnapshot != null,
+  });
   const isBots = view === "bots";
   const isCash = view === "cash";
   const isStocks = view === "stocks";
@@ -1494,32 +1836,30 @@ export function PortfolioDashboard({
               <p className="text-[0.68rem] font-semibold uppercase tracking-wide text-foreground">
                 Holdings value
               </p>
-              {headerHoldings == null ? (
-                <div className="mt-1 ml-auto h-7 w-24 animate-pulse rounded-md bg-muted/50" aria-hidden />
-              ) : (
-                <AnimatedMoney
-                  snap
-                  value={headerHoldings}
-                  currency="NZD"
-                  className="tnum font-display text-xl font-bold text-emerald-600 sm:text-2xl"
-                />
-              )}
+              <BookMoney
+                snap
+                value={headerHoldings}
+                reason={holdingsReason}
+                loading={!balancesReady}
+                skeletonClassName="mt-1 ml-auto h-7 w-24 animate-pulse rounded-md bg-muted/50"
+                className="tnum font-display text-xl font-bold text-emerald-600 sm:text-2xl"
+              />
             </div>
+            {legacyHomeTotals ? (
             <div className="text-right">
               <p className="text-[0.68rem] font-semibold uppercase tracking-wide text-foreground">
                 Total net worth
               </p>
-              {headerNet == null ? (
-                <div className="mt-1 ml-auto h-7 w-28 animate-pulse rounded-md bg-muted/50" aria-hidden />
-              ) : (
-                <AnimatedMoney
-                  snap
-                  value={headerNet}
-                  currency="NZD"
-                  className="tnum font-display text-xl font-bold text-emerald-600 sm:text-2xl"
-                />
-              )}
+              <BookMoney
+                snap
+                value={headerNet}
+                reason={netReason}
+                loading={!balancesReady}
+                skeletonClassName="mt-1 ml-auto h-7 w-28 animate-pulse rounded-md bg-muted/50"
+                className="tnum font-display text-xl font-bold text-emerald-600 sm:text-2xl"
+              />
             </div>
+            ) : null}
           </div>
         </div>
         )}
@@ -1554,10 +1894,30 @@ export function PortfolioDashboard({
         </div>
       ) : null}
 
+      {isHome && !preview ? (
+        <DashboardCalculator
+          snapshot={bookSnapshot}
+          loading={!balancesReady}
+          error={snapshotError}
+          userId={userId ?? null}
+          onTrade={handleCalculatorTrade}
+          onCash={handleCalculatorCash}
+          actionFor={(row) =>
+            resolveHoldingAction({
+              ticker: row.ticker,
+              assetClass: row.assetClass,
+              holdingId: row.holdingId,
+              stocks: allStocks,
+              metalStore: preciousMetalHoldings,
+            })
+          }
+        />
+      ) : null}
+
       {isHome && (
       <>
       <DashboardHomeGrid
-        cashBalance={headerCash ?? cashBalance}
+        cashBalance={headerCash}
         stockTotalNZD={headerStock}
         cryptoTotalNZD={headerCrypto}
         metalsTotalNZD={headerMetals}
@@ -1569,7 +1929,14 @@ export function PortfolioDashboard({
         ledgerLoading={!preview && !ledgerLoaded}
         metalsSpotLive={metalsSpotLive}
         metalsQuotedAt={publicSpot?.quotedAt ?? null}
+        cashReason={cashReason}
+        stockReason={stockReason}
+        cryptoReason={cryptoReason}
+        metalsReason={metalsReason}
+        cashNote={bookSnapshot?.cashWarning}
+        hideValueCards={!legacyHomeTotals}
       />
+      {legacyHomeTotals ? (
       <ReturnsSplitCard
         holdings={[...stockHoldings, ...cryptoHoldings, ...metalStocks]}
         incomeNzd={incomeNzd}
@@ -1577,7 +1944,10 @@ export function PortfolioDashboard({
         split={returnSplit}
         loading={!balancesReady || !ledgerLoaded}
         scopeLabel="Whole book"
+        reconciledLabel={reconciledLabel}
+        blankReason={splitBlank}
       />
+      ) : null}
       </>
       )}
 
@@ -1593,13 +1963,21 @@ export function PortfolioDashboard({
               Allocation drift is on a paid plan.{" "}
               <a href="/pricing" className="font-medium text-primary hover:underline">See plans</a>
             </p>
-          ) : (
+          ) : headerStock != null && headerCrypto != null && headerMetals != null && headerCash != null ? (
           <AllocationDriftCard
-            stockNZD={stockTotalNZD}
-            cryptoNZD={cryptoTotalNZD}
-            metalsNZD={metalsValueNZD + metalStockTotalNZD}
-            cashNZD={cashBalance}
+            stockNZD={headerStock}
+            cryptoNZD={headerCrypto}
+            metalsNZD={headerMetals}
+            cashNZD={headerCash}
           />
+          ) : (
+          <p
+            className="rounded-2xl border border-border/70 bg-card/40 p-4 text-sm text-muted-foreground"
+            title={stockReason || cryptoReason || metalsReason || cashReason || storedReason}
+          >
+            —
+            <span className="mt-1 block text-xs">{stockReason || cryptoReason || metalsReason || cashReason || storedReason}</span>
+          </p>
           )}
         </div>
       )}
@@ -1632,38 +2010,50 @@ export function PortfolioDashboard({
         <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-2xl border border-primary/40 bg-gradient-to-br from-primary/15 via-card/70 to-card/50 p-4">
             <p className="font-grift-black text-sm uppercase tracking-wide text-amber-400">Cash Bal</p>
-            {headerCash == null ? (
-              <div className="mt-2 h-7 w-28 animate-pulse rounded-md bg-muted/50" aria-hidden />
-            ) : (
-              <AnimatedMoney snap value={headerCash} currency="NZD" className="tnum mt-2 font-display text-xl font-bold text-emerald-600" />
-            )}
+            <BookMoney
+              snap
+              value={headerCash}
+              reason={cashReason}
+              loading={!balancesReady}
+              skeletonClassName="mt-2 h-7 w-28 animate-pulse rounded-md bg-muted/50"
+              className="tnum mt-2 font-display text-xl font-bold text-emerald-600"
+            />
             <p className="mt-1 text-[0.7rem] text-muted-foreground">From Transaction Ledger</p>
+            {bookSnapshot?.cashWarning ? (
+              <p className="mt-1 text-[0.7rem] text-muted-foreground">{bookSnapshot.cashWarning}</p>
+            ) : null}
           </div>
           <div className="rounded-2xl border border-border/70 bg-card/70 p-4">
             <p className="font-grift-black text-sm uppercase tracking-wide text-amber-400">Value in Stocks NZD</p>
-            {!balancesReady ? (
-              <div className="mt-2 h-7 w-28 animate-pulse rounded-md bg-muted/50" aria-hidden />
-            ) : (
-              <AnimatedMoney value={stockTotalNZD} currency="NZD" className="tnum mt-2 font-display text-xl font-bold text-emerald-600" />
-            )}
+            <BookMoney
+              value={headerStock}
+              reason={stockReason}
+              loading={!balancesReady}
+              skeletonClassName="mt-2 h-7 w-28 animate-pulse rounded-md bg-muted/50"
+              className="tnum mt-2 font-display text-xl font-bold text-emerald-600"
+            />
             <p className="mt-1 text-[0.7rem] text-muted-foreground">Live holdings from stock buys</p>
           </div>
           <div className="rounded-2xl border border-border/70 bg-card/70 p-4">
             <p className="font-grift-black text-sm uppercase tracking-wide text-amber-400">Value in Crypto NZD</p>
-            {!balancesReady ? (
-              <div className="mt-2 h-7 w-28 animate-pulse rounded-md bg-muted/50" aria-hidden />
-            ) : (
-              <AnimatedMoney value={cryptoTotalNZD} currency="NZD" className="tnum mt-2 font-display text-xl font-bold text-emerald-600" />
-            )}
+            <BookMoney
+              value={headerCrypto}
+              reason={cryptoReason}
+              loading={!balancesReady}
+              skeletonClassName="mt-2 h-7 w-28 animate-pulse rounded-md bg-muted/50"
+              className="tnum mt-2 font-display text-xl font-bold text-emerald-600"
+            />
             <p className="mt-1 text-[0.7rem] text-muted-foreground">Live holdings from crypto buys</p>
           </div>
           <div className="rounded-2xl border border-border/70 bg-card/70 p-4">
             <p className="font-grift-black text-sm uppercase tracking-wide text-amber-400">Value in Metals NZD</p>
-            {showMetalsTotal == null ? (
-              <div className="mt-2 h-7 w-28 animate-pulse rounded-md bg-muted/50" aria-hidden />
-            ) : (
-              <AnimatedMoney value={showMetalsTotal} currency="NZD" className="tnum mt-2 font-display text-xl font-bold text-emerald-600" />
-            )}
+            <BookMoney
+              value={headerMetals}
+              reason={metalsReason}
+              loading={!balancesReady}
+              skeletonClassName="mt-2 h-7 w-28 animate-pulse rounded-md bg-muted/50"
+              className="tnum mt-2 font-display text-xl font-bold text-emerald-600"
+            />
             <p className="mt-1 text-[0.7rem] text-muted-foreground">
               {metalsSpotLive ? "Spot" : "Est."} holdings from metals trades
             </p>
@@ -1675,20 +2065,29 @@ export function PortfolioDashboard({
         <div className="mt-8 grid gap-4 sm:grid-cols-2">
           <div className="rounded-2xl border border-primary/40 bg-gradient-to-br from-primary/15 via-card/70 to-card/50 p-6">
             <p className="font-grift-black text-sm uppercase tracking-wide text-amber-400">Cash Bal</p>
-            {headerCash == null ? (
-              <div className="mt-3 h-9 w-36 animate-pulse rounded-md bg-muted/50" aria-hidden />
-            ) : (
-              <AnimatedMoney snap value={headerCash} currency="NZD" className="tnum mt-3 font-display text-3xl font-bold text-emerald-600" />
-            )}
+            <BookMoney
+              snap
+              value={headerCash}
+              reason={cashReason}
+              loading={!balancesReady}
+              skeletonClassName="mt-3 h-9 w-36 animate-pulse rounded-md bg-muted/50"
+              className="tnum mt-3 font-display text-3xl font-bold text-emerald-600"
+            />
             <p className="mt-2 text-sm text-muted-foreground">Available for buys across stocks, crypto and metals.</p>
+            {bookSnapshot?.cashWarning ? (
+              <p className="mt-1 text-sm text-muted-foreground">{bookSnapshot.cashWarning}</p>
+            ) : null}
           </div>
           <div className="rounded-2xl border border-border/70 bg-card/70 p-6">
             <p className="font-grift-black text-sm uppercase tracking-wide text-amber-400">Net worth</p>
-            {showNetWorth == null ? (
-              <div className="mt-3 h-9 w-36 animate-pulse rounded-md bg-muted/50" aria-hidden />
-            ) : (
-              <AnimatedMoney value={showNetWorth} currency="NZD" className="tnum mt-3 font-display text-3xl font-bold text-emerald-600" />
-            )}
+            <BookMoney
+              snap
+              value={headerNet}
+              reason={netReason}
+              loading={!balancesReady}
+              skeletonClassName="mt-3 h-9 w-36 animate-pulse rounded-md bg-muted/50"
+              className="tnum mt-3 font-display text-3xl font-bold text-emerald-600"
+            />
             <p className="mt-2 text-sm text-muted-foreground">Cash plus live holdings value.</p>
           </div>
         </div>
@@ -1722,6 +2121,7 @@ export function PortfolioDashboard({
         title="Stock Portfolio Overview"
         description="Your KPIs — total worth and P/L at the latest available price."
       >
+        {/* Stocks hub return split and holdings table stay until PR5. */}
         <ReturnsSplitCard
           holdings={[...stockHoldings, ...cryptoHoldings, ...metalStocks]}
           incomeNzd={incomeNzd}
@@ -1729,23 +2129,27 @@ export function PortfolioDashboard({
           split={returnSplit}
           loading={!balancesReady || !ledgerLoaded}
           scopeLabel="Whole book"
+          reconciledLabel={reconciledLabel}
+          blankReason={splitBlank}
         />
 
       {/* KPI cards — stocks */}
       <div className="mt-2 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Total worth · NZD"
-          value={formatMoney(stockOverviewSummary.totalValue, "NZD")}
-          sub={`Cost basis ${formatMoney(stockOverviewSummary.totalCost, "NZD")}`}
+          value={stockWorth.text}
+          title={stockWorth.title}
+          sub={stockWorth.title || `Cost basis ${stockCostText}`}
           icon={Wallet}
           loading={!balancesReady}
         />
         <StatCard
           label={PL_AT_LATEST_PRICE}
-          value={formatMoney(stockOverviewSummary.totalGain, "NZD")}
-          sub={`${formatPercent(stockOverviewSummary.totalGainPct)} · Stocks only, at today's rate. Excludes the currency effect in the split above.`}
-          icon={stockOverviewSummary.totalGain >= 0 ? TrendingUp : TrendingDown}
-          tone={stockOverviewSummary.totalGain >= 0 ? "up" : "down"}
+          value={stockPnl.text}
+          title={stockPnl.title}
+          sub={stockPnl.title || `${stockGainPct == null ? "—" : formatPercent(stockGainPct)} · Stocks only, at today's rate. Excludes the currency effect in the split above.`}
+          icon={stockPnl.value != null && stockPnl.value < 0 ? TrendingDown : TrendingUp}
+          tone={stockPnl.value != null && stockPnl.value < 0 ? "down" : "up"}
           loading={!balancesReady}
         />
         {freePlan ? null : (
@@ -1797,11 +2201,12 @@ export function PortfolioDashboard({
         </div>
       )}
 
+      {/* Stocks hub return split and holdings table stay until PR5. */}
       <HoldingsOwnedTable
         title="Stocks you own"
         emptyLabel="No stocks in this portfolio yet"
         emptyHint="Buy shares in the Transaction Centre below — they'll show here under Stock Portfolio Overview."
-        holdings={stockOverviewSummary.holdings}
+        holdings={snapshotShareRows ?? stockOverviewSummary.holdings}
         baseCurrency="NZD"
         loading={!balancesReady}
         headerExtra={preview ? null : <HoldingsCsvImport assetType="stock" onImported={handleDataChanged} />}
@@ -1824,6 +2229,7 @@ export function PortfolioDashboard({
         title="Crypto Currency Overview"
         description="Crypto KPIs — total worth and P/L at the latest available price."
       >
+        {/* Crypto hub return split and holdings table stay until PR5. */}
         <ReturnsSplitCard
           holdings={[...stockHoldings, ...cryptoHoldings, ...metalStocks]}
           incomeNzd={incomeNzd}
@@ -1831,6 +2237,8 @@ export function PortfolioDashboard({
           split={returnSplit}
           loading={!balancesReady || !ledgerLoaded}
           scopeLabel="Whole book"
+          reconciledLabel={reconciledLabel}
+          blankReason={splitBlank}
         />
         <div className="mb-4 flex flex-wrap items-center justify-center gap-3">
           <CryptoLiveStatus updatedAt={cryptoLive.updatedAt ?? (Number.isFinite(cryptoBoardAt) ? cryptoBoardAt : null)} />
@@ -1855,17 +2263,19 @@ export function PortfolioDashboard({
       <div className="mt-2 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label={cryptoBookCurrency === "NZD" ? "Total worth · NZD" : "Total worth · USD"}
-          value={formatMoney(cryptoOverviewSummary.totalValue, cryptoBookCurrency)}
-          sub={`Cost basis ${formatMoney(cryptoOverviewSummary.totalCost, cryptoBookCurrency)}`}
+          value={cryptoWorth.text}
+          title={cryptoWorth.title}
+          sub={cryptoWorth.title || `Cost basis ${cryptoCostText}`}
           icon={Wallet}
           loading={!balancesReady}
         />
         <StatCard
           label={PL_AT_LATEST_PRICE}
-          value={formatMoney(cryptoOverviewSummary.totalGain, cryptoBookCurrency)}
-          sub={`${formatPercent(cryptoOverviewSummary.totalGainPct)} · Crypto only, at today's rate. Excludes the currency effect in the split above.`}
-          icon={cryptoOverviewSummary.totalGain >= 0 ? TrendingUp : TrendingDown}
-          tone={cryptoOverviewSummary.totalGain >= 0 ? "up" : "down"}
+          value={cryptoPnl.text}
+          title={cryptoPnl.title}
+          sub={cryptoPnl.title || `${cryptoGainPct == null ? "—" : formatPercent(cryptoGainPct)} · Crypto only, at today's rate. Excludes the currency effect in the split above.`}
+          icon={cryptoPnl.value != null && cryptoPnl.value < 0 ? TrendingDown : TrendingUp}
+          tone={cryptoPnl.value != null && cryptoPnl.value < 0 ? "down" : "up"}
           loading={!balancesReady}
         />
         {freePlan ? null : (
@@ -1921,11 +2331,12 @@ export function PortfolioDashboard({
         </div>
       )}
 
+      {/* Crypto hub return split and holdings table stay until PR5. */}
       <HoldingsOwnedTable
         title="Crypto you own"
         emptyLabel="No crypto in this portfolio yet"
         emptyHint="Buy coins in the Transaction Centre — they'll show here so you can see where the money is."
-        holdings={cryptoOverviewSummary.holdings}
+        holdings={snapshotCryptoRows ?? cryptoOverviewSummary.holdings}
         baseCurrency={cryptoBookCurrency}
         loading={!balancesReady}
         headerExtra={preview ? null : <HoldingsCsvImport assetType="crypto" onImported={handleDataChanged} />}
@@ -1989,16 +2400,14 @@ export function PortfolioDashboard({
           <div className="flex items-end gap-6">
             <div className="text-right">
               <p className="text-[0.68rem] uppercase tracking-wide text-muted-foreground">Holdings value · NZD</p>
-              {showHoldings == null ? (
-                <div className="mt-1 ml-auto h-6 w-24 animate-pulse rounded-md bg-muted/50" aria-hidden />
-              ) : (
-                <AnimatedMoney
-                  snap
-                  value={headerHoldings ?? 0}
-                  currency="NZD"
-                  className="font-display text-lg font-bold text-foreground"
-                />
-              )}
+              <BookMoney
+                snap
+                value={headerHoldings}
+                reason={holdingsReason}
+                loading={!balancesReady}
+                skeletonClassName="mt-1 ml-auto h-6 w-24 animate-pulse rounded-md bg-muted/50"
+                className="font-display text-lg font-bold text-foreground"
+              />
             </div>
             <div className="text-right">
               <p className="flex items-center justify-end gap-1.5 text-[0.68rem] uppercase tracking-wide text-muted-foreground">
@@ -2008,16 +2417,14 @@ export function PortfolioDashboard({
                 </span>
                 Total net worth · NZD
               </p>
-              {showNetWorth == null ? (
-                <div className="mt-1 ml-auto h-8 w-32 animate-pulse rounded-md bg-muted/50" aria-hidden />
-              ) : (
-                <AnimatedMoney
-                  snap
-                  value={headerNet ?? 0}
-                  currency="NZD"
-                  className="font-display text-2xl font-bold text-primary"
-                />
-              )}
+              <BookMoney
+                snap
+                value={headerNet}
+                reason={netReason}
+                loading={!balancesReady}
+                skeletonClassName="mt-1 ml-auto h-8 w-32 animate-pulse rounded-md bg-muted/50"
+                className="font-display text-2xl font-bold text-primary"
+              />
             </div>
           </div>
         </div>
@@ -2031,49 +2438,57 @@ export function PortfolioDashboard({
                 <Wallet className="size-4" />
               </span>
             </div>
-            {headerCash == null ? (
-              <div className="mt-3 h-9 w-40 animate-pulse rounded-md bg-primary/15" aria-hidden />
-            ) : (
-              <AnimatedMoney
-                snap
-                value={headerCash}
-                currency="NZD"
-                className="mt-3 block font-display text-3xl font-bold text-primary"
-              />
-            )}
+            <BookMoney
+              snap
+              value={headerCash}
+              reason={cashReason}
+              loading={!balancesReady}
+              skeletonClassName="mt-3 h-9 w-40 animate-pulse rounded-md bg-primary/15"
+              className="mt-3 block font-display text-3xl font-bold text-primary"
+            />
             <p className="mt-1 text-xs text-muted-foreground">
               Cash available · falls on every buy, rises on every sell
             </p>
+            {bookSnapshot?.cashWarning ? (
+              <p className="mt-1 text-xs text-muted-foreground">{bookSnapshot.cashWarning}</p>
+            ) : null}
             <div className="mt-3 flex items-center justify-between border-t border-primary/20 pt-2 text-xs">
               <span className="text-muted-foreground">Holdings value</span>
-              {showHoldings == null ? (
-                <div className="h-4 w-16 animate-pulse rounded bg-muted/50" aria-hidden />
-              ) : (
-                <AnimatedMoney snap value={headerHoldings ?? 0} currency="NZD" className="font-semibold text-foreground" />
-              )}
+              <BookMoney
+                snap
+                value={headerHoldings}
+                reason={holdingsReason}
+                loading={!balancesReady}
+                skeletonClassName="h-4 w-16 animate-pulse rounded bg-muted/50"
+                className="font-semibold text-foreground"
+              />
             </div>
           </div>
           <StatCard
             label="Value in Stocks · NZD"
-            value={formatMoney(stockTotalNZD, "NZD")}
-            sub={`${stockHoldings.length} position${stockHoldings.length === 1 ? "" : "s"}`}
+            value={stockOwned.text}
+            title={stockOwned.title}
+            sub={stockOwned.title || `${stockHoldings.length} position${stockHoldings.length === 1 ? "" : "s"}`}
             icon={LineChart}
             loading={!balancesReady}
           />
           <StatCard
             label="Value in Crypto · NZD"
-            value={formatMoney(cryptoTotalNZD, "NZD")}
-            sub={`${cryptoHoldings.length} coin${cryptoHoldings.length === 1 ? "" : "s"}`}
+            value={cryptoOwned.text}
+            title={cryptoOwned.title}
+            sub={cryptoOwned.title || `${cryptoHoldings.length} coin${cryptoHoldings.length === 1 ? "" : "s"}`}
             icon={Bitcoin}
             loading={!balancesReady}
           />
           <StatCard
             label="Value in Metals · NZD"
-            value={formatMoney(metalsValueNZD + metalStockTotalNZD, "NZD")}
+            value={metalsOwned.text}
+            title={metalsOwned.title}
             sub={
-              metalStocks.length > 0
+              metalsOwned.title ||
+              (metalStocks.length > 0
                 ? `${metalStocks.length} bullion position${metalStocks.length === 1 ? "" : "s"} + spot`
-                : "Gold & silver at spot"
+                : "Gold & silver at spot")
             }
             icon={Coins}
             loading={!balancesReady}
@@ -2133,9 +2548,9 @@ export function PortfolioDashboard({
           <span className="text-xs text-muted-foreground">
             {!balancesReady
               ? "…"
-              : tableSummary.holdingsCount === 0
+              : tableHoldings.length === 0
                 ? "No open positions"
-                : `${tableSummary.holdingsCount} position${tableSummary.holdingsCount === 1 ? "" : "s"}`}
+                : `${tableHoldings.length} position${tableHoldings.length === 1 ? "" : "s"}`}
           </span>
         </div>
 
@@ -2145,7 +2560,7 @@ export function PortfolioDashboard({
               <div key={i} className="h-12 animate-pulse rounded-lg bg-muted/40" />
             ))}
           </div>
-        ) : tableSummary.holdings.length === 0 ? (
+        ) : tableHoldings.length === 0 ? (
           <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
             <span className="grid size-14 place-items-center rounded-2xl bg-primary/10 text-primary">
               <Wallet className="size-7" />
@@ -2176,7 +2591,9 @@ export function PortfolioDashboard({
               </thead>
               <tbody>
                 {sortedHoldings.map((h) => {
-                  const up = h.gain >= 0;
+                  const priced = Number.isFinite(h.current_price);
+                  const gained = Number.isFinite(h.gain);
+                  const up = gained && h.gain >= 0;
                   const exchange = exchangeForTicker(h.ticker, h.asset_type);
                   return (
                     <tr
@@ -2234,16 +2651,16 @@ export function PortfolioDashboard({
                       </td>
                       {/* Price paid / share */}
                       <td className="tnum px-3 py-3.5 text-right text-muted-foreground">
-                        {formatUnitPrice(h.purchase_price, h.currency)}
+                        {Number.isFinite(h.purchase_price) ? formatUnitPrice(h.purchase_price, h.currency) : "—"}
                       </td>
                       {/* Current price / share */}
-                      <td className="tnum px-3 py-3.5 text-right">
-                        {formatUnitPrice(h.current_price, h.currency)}
+                      <td className="tnum px-3 py-3.5 text-right" title={priced ? undefined : "No price is stored for this holding."}>
+                        {priced ? formatUnitPrice(h.current_price, h.currency) : "—"}
                       </td>
                       {/* Current total market value */}
-                      <td className="tnum px-3 py-3.5 text-right font-medium">
-                        {formatMoney(h.marketValue, h.currency)}
-                        {h.currency !== baseCurrency && (
+                      <td className="tnum px-3 py-3.5 text-right font-medium" title={Number.isFinite(h.baseValue) ? undefined : "No price is stored for this holding."}>
+                        {Number.isFinite(h.marketValue) ? formatMoney(h.marketValue, h.currency) : "—"}
+                        {h.currency !== baseCurrency && Number.isFinite(h.baseValue) && (
                           <span className="block text-[0.68rem] font-normal text-muted-foreground">
                             ≈ {formatMoney(h.baseValue, baseCurrency)}
                           </span>
@@ -2252,24 +2669,24 @@ export function PortfolioDashboard({
                       {/* % of Portfolio — this holding's share of total portfolio value */}
                       <td className="px-3 py-3.5 text-right">
                         <div className="flex flex-col items-end gap-1">
-                          <span className="tnum font-medium">{h.weight.toFixed(1)}%</span>
+                          <span className="tnum font-medium">{Number.isFinite(h.weight) ? `${h.weight.toFixed(1)}%` : "—"}</span>
                           <span className="h-1 w-10 overflow-hidden rounded-full bg-muted/50">
                             <span
                               className="block h-full rounded-full bg-primary/70"
-                              style={{ width: `${Math.min(100, Math.max(2, h.weight))}%` }}
+                              style={{ width: `${Number.isFinite(h.weight) ? Math.min(100, Math.max(2, h.weight)) : 0}%` }}
                             />
                           </span>
                         </div>
                       </td>
                       {/* Gain / Loss */}
                       <td className="px-3 py-3.5 text-right">
-                        <span className={cn("tnum font-medium", up ? "text-emerald-600" : "text-rose-600")}>
-                          {formatSignedMoney(h.gain, h.currency)}
+                        <span className={cn("tnum font-medium", !gained ? "text-muted-foreground" : up ? "text-emerald-600" : "text-rose-600")} title={gained ? undefined : "No price is stored for this holding."}>
+                          {gained ? formatSignedMoney(h.gain, h.currency) : "—"}
                         </span>
                         <span
-                          className={cn("tnum ml-1 block text-xs", up ? "text-emerald-600/80" : "text-rose-600/80")}
+                          className={cn("tnum ml-1 block text-xs", !gained ? "text-muted-foreground" : up ? "text-emerald-600/80" : "text-rose-600/80")}
                         >
-                          {formatPercent(h.gainPct)}
+                          {Number.isFinite(h.gainPct) ? formatPercent(h.gainPct) : "—"}
                         </span>
                       </td>
                       {/* Actions */}

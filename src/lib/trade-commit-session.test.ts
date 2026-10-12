@@ -152,6 +152,7 @@ describe("confirmed trade session", () => {
     expect(isPortfolioSessionRead("/api/stocks?asset_type=crypto")).toBe(true);
     expect(isPortfolioSessionRead("/api/transactions")).toBe(true);
     expect(isPortfolioSessionRead("/api/metals")).toBe(true);
+    expect(isPortfolioSessionRead("/api/portfolio/snapshot")).toBe(true);
     expect(isPortfolioSessionRead("/api/metals/spot")).toBe(false);
     expect(isPortfolioSessionRead("/api/stocks/refresh", "POST")).toBe(false);
     expect(isPortfolioSessionRead("/api/transactions", "POST")).toBe(false);

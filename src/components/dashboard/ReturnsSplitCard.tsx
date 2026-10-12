@@ -78,6 +78,8 @@ export function ReturnsSplitCard({
   split,
   loading = false,
   scopeLabel = "Whole book",
+  reconciledLabel,
+  blankReason,
 }: {
   holdings: HoldingLike[];
   incomeNzd: number;
@@ -94,6 +96,10 @@ export function ReturnsSplitCard({
   loading?: boolean;
   /** Same split on every page. A hub P/L figure is a subset and is labelled separately. */
   scopeLabel?: string;
+  /** From the portfolio snapshot. Blank on the guest preview. */
+  reconciledLabel?: string | null;
+  /** Shown instead of numbers when the snapshot cannot price the book. */
+  blankReason?: string | null;
 }) {
   const resolved =
     split ??
@@ -111,6 +117,9 @@ export function ReturnsSplitCard({
     { label: "Capital gain", value: resolved.capitalGainNzd, note: resolved.capitalNote },
     { label: "Income", value: resolved.incomeNzd, note: resolved.incomeNote },
     { label: "Currency effect", value: resolved.currencyEffectNzd, note: resolved.currencyNote },
+    ...(typeof resolved.feesNzd === "number" && resolved.feesNzd !== 0
+      ? [{ label: "Fees", value: resolved.feesNzd, note: resolved.feesNote || "Fees are shown as a reduction." }]
+      : []),
     { label: "Other", value: resolved.otherNzd, note: resolved.otherNote },
     { label: "Total", value: resolved.totalNzd, note: resolved.totalNote },
   ];
@@ -133,6 +142,13 @@ export function ReturnsSplitCard({
             <div key={key} className="h-24 animate-pulse rounded-xl bg-muted/40" />
           ))}
         </div>
+      ) : blankReason ? (
+        <div className="mt-4">
+          <p className="font-display text-lg font-bold text-muted-foreground" title={blankReason}>
+            —
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">{blankReason}</p>
+        </div>
       ) : (
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
           {figures.map((figure) => (
@@ -146,6 +162,11 @@ export function ReturnsSplitCard({
           ))}
         </div>
       )}
+      {reconciledLabel ? (
+        <p className="mt-3 text-xs text-muted-foreground" data-testid="portfolio-reconciled">
+          {reconciledLabel}
+        </p>
+      ) : null}
     </section>
   );
 }

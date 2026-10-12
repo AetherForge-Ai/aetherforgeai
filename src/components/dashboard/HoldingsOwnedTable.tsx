@@ -237,7 +237,9 @@ export function HoldingsOwnedTable({
             </thead>
             <tbody>
               {sorted.map((h) => {
-                const up = h.gain >= 0;
+                const priced = Number.isFinite(h.current_price);
+                const gained = Number.isFinite(h.gain);
+                const up = gained && h.gain >= 0;
                 const stored = dexFromHolding(h);
                 const exchange = exchangeForTicker(h.ticker, h.asset_type, stored.venue, stored.chain);
                 return (
@@ -279,26 +281,26 @@ export function HoldingsOwnedTable({
                       {formatNumber(h.shares)}
                     </td>
                     <td className="tnum overflow-hidden break-all px-2 py-2 text-right text-muted-foreground">
-                      {formatUnitPrice(h.purchase_price, h.currency)}
+                      {Number.isFinite(h.purchase_price) ? formatUnitPrice(h.purchase_price, h.currency) : "—"}
                     </td>
-                    <td className="tnum overflow-hidden break-all px-2 py-2 text-right">
-                      {formatUnitPrice(h.current_price, h.currency)}
+                    <td className="tnum overflow-hidden break-all px-2 py-2 text-right" title={priced ? undefined : "No price is stored for this holding."}>
+                      {priced ? formatUnitPrice(h.current_price, h.currency) : "—"}
                     </td>
-                    <td className="tnum overflow-hidden px-2 py-2 text-right font-medium">
-                      {formatMoney(h.marketValue, h.currency)}
+                    <td className="tnum overflow-hidden px-2 py-2 text-right font-medium" title={Number.isFinite(h.baseValue) ? undefined : "No price is stored for this holding."}>
+                      {Number.isFinite(h.marketValue) ? formatMoney(h.marketValue, h.currency) : "—"}
                       <span className="block text-[0.65rem] font-normal text-muted-foreground">
-                        {h.weight.toFixed(1)}%
-                        {h.currency !== baseCurrency ? ` · ${formatMoney(h.baseValue, baseCurrency)}` : ""}
+                        {Number.isFinite(h.weight) ? `${h.weight.toFixed(1)}%` : "—"}
+                        {h.currency !== baseCurrency && Number.isFinite(h.baseValue) ? ` · ${formatMoney(h.baseValue, baseCurrency)}` : ""}
                       </span>
                     </td>
                     <td className="overflow-hidden px-2 py-2 text-right">
-                      <span className={cn("tnum font-medium", up ? "text-emerald-600" : "text-rose-600")}>
-                        {formatSignedMoney(h.gain, h.currency)}
+                      <span className={cn("tnum font-medium", !gained ? "text-muted-foreground" : up ? "text-emerald-600" : "text-rose-600")} title={gained ? undefined : "No price is stored for this holding."}>
+                        {gained ? formatSignedMoney(h.gain, h.currency) : "—"}
                       </span>
                       <span
-                        className={cn("tnum ml-1 block text-xs", up ? "text-emerald-600/80" : "text-rose-600/80")}
+                        className={cn("tnum ml-1 block text-xs", !gained ? "text-muted-foreground" : up ? "text-emerald-600/80" : "text-rose-600/80")}
                       >
-                        {formatPercent(h.gainPct)}
+                        {Number.isFinite(h.gainPct) ? formatPercent(h.gainPct) : "—"}
                       </span>
                     </td>
                     <td className="sticky right-0 bg-card px-1 py-2">

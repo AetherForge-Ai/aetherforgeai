@@ -28,10 +28,10 @@ type LedgerRow = {
 };
 
 type Props = {
-  cashBalance: number;
-  stockTotalNZD: number;
-  cryptoTotalNZD: number;
-  metalsTotalNZD: number;
+  cashBalance: number | null;
+  stockTotalNZD: number | null;
+  cryptoTotalNZD: number | null;
+  metalsTotalNZD: number | null;
   stockPositions: number;
   cryptoPositions: number;
   metalsPositions: number;
@@ -44,8 +44,27 @@ type Props = {
   metalsSpotLive?: boolean;
   /** gold-api updatedAt. The home sentence uses the same clock as the tape. */
   metalsQuotedAt?: string | null;
+  /** Hover text when a snapshot figure is blank. */
+  cashReason?: string | null;
+  stockReason?: string | null;
+  cryptoReason?: string | null;
+  metalsReason?: string | null;
+  cashNote?: string | null;
+  /** Hide the cash/stocks/crypto/metals value cards. Position counts stay on the overview cards. */
+  hideValueCards?: boolean;
   className?: string;
 };
+
+function shownMoney(loading: boolean, value: number | null): string {
+  if (loading) return "…";
+  if (value == null || !Number.isFinite(value)) return "—";
+  return formatMoney(value, "NZD");
+}
+
+function positionCount(loading: boolean, count: number, one: string, many: string): string {
+  if (loading) return "…";
+  return `${count} ${count === 1 ? one : many}`;
+}
 
 function BalanceCard({
   title,
@@ -56,15 +75,17 @@ function BalanceCard({
   highlight,
   loading,
   snap = false,
+  blankReason,
 }: {
   title: string;
   href: string;
-  value: number;
+  value: number | null;
   sub?: string;
   icon: ComponentType<{ className?: string }>;
   highlight?: boolean;
   loading?: boolean;
   snap?: boolean;
+  blankReason?: string | null;
 }) {
   return (
     <Link
@@ -88,6 +109,13 @@ function BalanceCard({
           aria-hidden
           aria-label="Loading balance"
         />
+      ) : value == null || !Number.isFinite(value) ? (
+        <p
+          className="tnum mt-3 font-display text-xl font-bold text-muted-foreground sm:text-2xl"
+          title={blankReason || "This figure was not stored."}
+        >
+          —
+        </p>
       ) : (
         <AnimatedMoney
           value={value}
@@ -115,6 +143,7 @@ function OverviewCard({
   poster,
   metricLabel,
   metricValue,
+  metricTitle,
   hint,
   sceneSrc,
 }: {
@@ -124,6 +153,7 @@ function OverviewCard({
   poster: string;
   metricLabel: string;
   metricValue: string;
+  metricTitle?: string | null;
   hint: string;
   sceneSrc?: string;
 }) {
@@ -138,7 +168,10 @@ function OverviewCard({
       <p className="relative z-10 mt-2 text-[0.7rem] uppercase tracking-wider text-muted-foreground">
         {metricLabel}
       </p>
-      <p className="relative z-10 tnum font-display text-lg font-bold text-emerald-600">
+      <p
+        className="relative z-10 tnum font-display text-lg font-bold text-emerald-600"
+        title={metricTitle || undefined}
+      >
         {metricValue}
       </p>
       <p className="relative z-10 mt-1 text-xs text-muted-foreground">{hint}</p>
@@ -187,11 +220,13 @@ function LedgerCard({
   rows,
   cashBalance,
   loading,
+  blankReason,
 }: {
   href: string;
   rows: LedgerRow[];
-  cashBalance: number;
+  cashBalance: number | null;
   loading?: boolean;
+  blankReason?: string | null;
 }) {
   const latest = rows.slice(0, 4);
   return (
@@ -210,6 +245,10 @@ function LedgerCard({
       </p>
       {loading ? (
         <div className="mt-1 h-7 w-28 animate-pulse rounded-md bg-muted/50" aria-hidden />
+      ) : cashBalance == null || !Number.isFinite(cashBalance) ? (
+        <p className="tnum font-display text-lg font-bold text-muted-foreground" title={blankReason || "This figure was not stored."}>
+          —
+        </p>
       ) : (
         <p className="tnum font-display text-lg font-bold text-emerald-600">
           {formatMoney(cashBalance, "NZD")}
@@ -328,27 +367,36 @@ export function DashboardHomeGrid({
   ledgerLoading = false,
   metalsSpotLive = false,
   metalsQuotedAt = null,
+  cashReason = null,
+  stockReason = null,
+  cryptoReason = null,
+  metalsReason = null,
+  cashNote = null,
+  hideValueCards = false,
   className,
 }: Props) {
   const { byExchange, loading: marketsLoading } = useSharedMarketSnapshots();
 
   return (
     <div className={cn("mt-6 space-y-4", className)}>
+      {hideValueCards ? null : (
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <BalanceCard
           title="Cash Bal"
           href="/dashboard/cash"
           value={cashBalance}
-          sub="Available for buys · NZD"
+          sub={cashNote || "Available for buys · NZD"}
           icon={Wallet}
           highlight
           loading={balancesLoading}
           snap
+          blankReason={cashReason}
         />
         <BalanceCard
           title="Value in Stocks NZD"
           href="/dashboard/stocks"
           value={stockTotalNZD}
+          blankReason={stockReason}
           sub={
             balancesLoading
               ? "Loading positions…"
@@ -362,6 +410,7 @@ export function DashboardHomeGrid({
           title="Value in Crypto NZD"
           href="/dashboard/crypto"
           value={cryptoTotalNZD}
+          blankReason={cryptoReason}
           sub={
             balancesLoading
               ? "Loading positions…"
@@ -375,6 +424,7 @@ export function DashboardHomeGrid({
           title="Value in Metals NZD"
           href="/dashboard/metals"
           value={metalsTotalNZD}
+          blankReason={metalsReason}
           sub={
             balancesLoading
               ? "Loading positions…"
@@ -387,7 +437,9 @@ export function DashboardHomeGrid({
           snap
         />
       </div>
+      )}
 
+      {hideValueCards ? null : (
       <p className="text-center text-[0.7rem] text-muted-foreground sm:text-left">
         Cash Bal and the value boxes update from the same Transaction Ledger as{" "}
         <Link href="/dashboard/transactions" className="font-semibold text-primary underline-offset-2 hover:underline">
@@ -395,6 +447,7 @@ export function DashboardHomeGrid({
         </Link>
         {" "}— every buy, sell, deposit and withdraw.
       </p>
+      )}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <OverviewCard
@@ -402,8 +455,9 @@ export function DashboardHomeGrid({
           href="/dashboard/stocks"
           bot="stox"
           poster="/brand/bot-stox.png"
-          metricLabel="Market value · NZD"
-          metricValue={balancesLoading ? "…" : formatMoney(stockTotalNZD, "NZD")}
+          metricLabel={hideValueCards ? "Positions" : "Market value · NZD"}
+          metricValue={hideValueCards ? positionCount(balancesLoading, stockPositions, "position", "positions") : shownMoney(balancesLoading, stockTotalNZD)}
+          metricTitle={hideValueCards || stockTotalNZD != null ? null : stockReason}
           hint="Stox watches NZX · ASX · US equities for you"
         />
         <OverviewCard
@@ -411,8 +465,9 @@ export function DashboardHomeGrid({
           href="/dashboard/crypto"
           bot="koins"
           poster="/brand/bot-koins.png"
-          metricLabel="Market value · NZD"
-          metricValue={balancesLoading ? "…" : formatMoney(cryptoTotalNZD, "NZD")}
+          metricLabel={hideValueCards ? "Positions" : "Market value · NZD"}
+          metricValue={hideValueCards ? positionCount(balancesLoading, cryptoPositions, "coin", "coins") : shownMoney(balancesLoading, cryptoTotalNZD)}
+          metricTitle={hideValueCards || cryptoTotalNZD != null ? null : cryptoReason}
           hint={
             CRYPTO_PROJECTIONS_PAUSED
               ? CRYPTO_PROJECTIONS_PAUSE_MESSAGE
@@ -424,8 +479,9 @@ export function DashboardHomeGrid({
           href="/dashboard/metals"
           bot="smitty"
           poster="/brand/precious-metals-smitty.png"
-          metricLabel="Metals value · NZD"
-          metricValue={balancesLoading ? "…" : formatMoney(metalsTotalNZD, "NZD")}
+          metricLabel={hideValueCards ? "Positions" : "Metals value · NZD"}
+          metricValue={hideValueCards ? positionCount(balancesLoading, metalsPositions, "metal holding", "metal holdings") : shownMoney(balancesLoading, metalsTotalNZD)}
+          metricTitle={hideValueCards || metalsTotalNZD != null ? null : metalsReason}
           hint={metalsHomeHint(metalsSpotLive, metalsQuotedAt)}
         />
         <LedgerCard
@@ -433,6 +489,7 @@ export function DashboardHomeGrid({
           rows={recentLedger}
           cashBalance={cashBalance}
           loading={ledgerLoading}
+          blankReason={cashReason}
         />
       </div>
 
