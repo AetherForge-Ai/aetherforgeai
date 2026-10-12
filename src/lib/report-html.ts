@@ -21,7 +21,7 @@ import type {
   PathwayPlan,
 } from "@/lib/apex";
 import { LEGAL_ENTITY_NAME } from "@/lib/company";
-import type { SecurityIntel } from "@/lib/market-intel";
+import { intelIsHeld, NOT_ENOUGH_DAILY_HISTORY, type SecurityIntel } from "@/lib/market-intel";
 import type { ActionableIntelligence, PortfolioMetrics } from "@/lib/analytics";
 import { currencyForTicker, formatMoney, formatUnitPrice, type CurrencyCode } from "@/lib/currency";
 import type { IntelligenceBriefing, BriefingOutlookRow } from "@/lib/briefing";
@@ -244,24 +244,45 @@ function metricsStrip(m: PortfolioMetrics): string {
     </tr></table>`;
 }
 
-function technicalsTable(techs: SecurityIntel[]): string {
+const CRYPTO_PROJECTION_HELD = "— Crypto projections are paused";
+
+function td(inner: string, extra = ""): string {
+  return `<td style="padding:7px;border:1px solid ${LINE}${extra}">${inner}</td>`;
+}
+
+function technicalsTable(techs: SecurityIntel[], bot?: string): string {
   if (!techs.length) return "";
+  const koins = bot === "crypto";
   const rows = techs
     .map((t) => {
+      const paused = koins || !!t.forwardOmitted || t.assetClass === "crypto" || t.market === "CRYPTO";
+      const name = td(esc(t.ticker), ";font-weight:600");
+      if (intelIsHeld(t)) {
+        const blanks = [td("—"), td("—"), td("—"), td("—"), td("—")].join("");
+        const reason = paused
+          ? td(esc(`— ${NOT_ENOUGH_DAILY_HISTORY}. ${CRYPTO_PROJECTION_HELD}`))
+          : `${td("—")}${td(esc(`— ${NOT_ENOUGH_DAILY_HISTORY}`))}`;
+        return `<tr>${name}${blanks}${reason}</tr>`;
+      }
+      const macdColor = t.macdSignal === "Bullish" ? GREEN : t.macdSignal === "Bearish" ? RED : MUTE;
+      const rsiColor = t.rsi >= 70 ? RED : t.rsi <= 30 ? GREEN : INK;
+      const indicators = [
+        td(quotedPrice(t.price, t.ticker, t.currency), ";font-family:monospace"),
+        td(t.rsi.toFixed(2), `;color:${rsiColor}`),
+        td(esc(t.macdSignal), `;color:${macdColor}`),
+        td(`${t.bbPosition.toFixed(2)}%`),
+        td(pct(t.vsSma20), `;color:${pctColor(t.vsSma20)}`),
+      ].join("");
+      if (paused) return `<tr>${name}${indicators}${td(esc(CRYPTO_PROJECTION_HELD))}</tr>`;
       const sc = SIG_COLOR[t.signal];
-      return `<tr>
-        <td style="padding:7px;border:1px solid ${LINE};font-weight:600">${esc(t.ticker)}</td>
-        <td style="padding:7px;border:1px solid ${LINE};font-family:monospace">${quotedPrice(t.price, t.ticker, t.currency)}</td>
-        <td style="padding:7px;border:1px solid ${LINE};color:${t.rsi >= 70 ? RED : t.rsi <= 30 ? GREEN : INK}">${t.rsi.toFixed(0)}</td>
-        <td style="padding:7px;border:1px solid ${LINE};color:${t.macdSignal === "Bullish" ? GREEN : t.macdSignal === "Bearish" ? RED : MUTE}">${esc(t.macdSignal)}</td>
-        <td style="padding:7px;border:1px solid ${LINE}">${t.bbPosition.toFixed(0)}%</td>
-        <td style="padding:7px;border:1px solid ${LINE};color:${pctColor(t.vsSma20)}">${pct(t.vsSma20)}</td>
-        <td style="padding:7px;border:1px solid ${LINE};color:${pctColor(t.projected7dPct)};font-weight:600">${pct(t.projected7dPct)} <span style="color:${MUTE};font-weight:400">(${t.confidence}%)</span></td>
-        <td style="padding:7px;border:1px solid ${LINE}"><span style="color:${sc};font-weight:600">${esc(t.signal)}</span></td>
-      </tr>`;
+      return `<tr>${name}${indicators}${td(`${pct(t.projected7dPct)} <span style="color:${MUTE};font-weight:400">(${Math.round(t.confidence)}%)</span>`, `;color:${pctColor(t.projected7dPct)};font-weight:600`)}${td(`<span style="color:${sc};font-weight:600">${esc(t.signal)}</span>`)}</tr>`;
     })
     .join("");
-  return `<h2 style="font-size:16px;color:${INK};margin:26px 0 8px">Technical indicators &amp; 7-day projection</h2>
+  const heading = koins ? "Technical indicators" : "Technical indicators &amp; 7-day projection";
+  const tail = koins
+    ? `<th style="padding:7px;text-align:left">Outlook</th>`
+    : `<th style="padding:7px;text-align:left">7d proj (conf)</th><th style="padding:7px;text-align:left">Signal</th>`;
+  return `<h2 style="font-size:16px;color:${INK};margin:26px 0 8px">${heading}</h2>
     <table width="100%" style="border-collapse:collapse;font-size:11px">
       <tr style="background:${NAVY};color:#fff">
         <th style="padding:7px;text-align:left">Ticker</th>
@@ -270,8 +291,7 @@ function technicalsTable(techs: SecurityIntel[]): string {
         <th style="padding:7px;text-align:left">MACD</th>
         <th style="padding:7px;text-align:left">BB%</th>
         <th style="padding:7px;text-align:left">vs SMA20</th>
-        <th style="padding:7px;text-align:left">7d proj (conf)</th>
-        <th style="padding:7px;text-align:left">Signal</th>
+        ${tail}
       </tr>
       ${rows}
     </table>`;
@@ -691,7 +711,7 @@ export function renderReportHtml(source: ApexReport, opts: RenderReportOptions):
 
         ${alertsBlock(opts.alerts || [])}
 
-        ${opts.technicals ? technicalsTable(opts.technicals) : ""}
+        ${opts.technicals ? technicalsTable(opts.technicals, report.bot) : ""}
 
         <h2 style="font-size:16px;color:${INK};margin:26px 0 4px">Per-${report.bot === "crypto" ? "asset" : "ticker"} intelligence (${report.tickers.length})</h2>
         ${tickers || `<p style="color:${MUTE};font-size:13px">Add holdings to your portfolio to populate this section.</p>`}

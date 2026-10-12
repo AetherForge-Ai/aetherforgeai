@@ -170,10 +170,16 @@ export function buildIntelligenceBriefing(args: BuildBriefingArgs): Intelligence
         (overbought.length ? `overbought (RSI≥70): ${overbought.join(", ")}. ` : "no overbought extremes. ") +
         (oversold.length ? `Oversold (RSI≤30): ${oversold.join(", ")}.` : "")
     );
-    const avgVol = Math.round((technicals.reduce((s, t) => s + t.realizedVolPct, 0) / n) * 10) / 10;
-    observations.push(
-      `Volatility: average annualised realised vol ${avgVol}% — 7-day 1σ swings average ±${Math.round((technicals.reduce((s, t) => s + t.outlook.sigma7Pct, 0) / n) * 10) / 10}%.`
-    );
+    const volRows = technicals.filter((row) => row.history.length >= 30);
+    if (volRows.length) {
+      const avgVol = (volRows.reduce((sum, row) => sum + row.realizedVolPct, 0) / volRows.length).toFixed(2);
+      const skipSigma = bot === "crypto" || args.technicals.some((row) => row.forwardOmitted);
+      observations.push(
+        skipSigma
+          ? `Volatility: average annualised realised vol ${avgVol}%.`
+          : `Volatility: average annualised realised vol ${avgVol}% — 7-day 1σ swings average ±${(volRows.reduce((sum, row) => sum + row.outlook.sigma7Pct, 0) / volRows.length).toFixed(2)}%.`
+      );
+    }
   }
   if (sentiment.headlines.length) {
     observations.push(

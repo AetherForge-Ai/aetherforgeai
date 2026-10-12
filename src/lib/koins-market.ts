@@ -34,14 +34,14 @@ function positiveSeries(series: number[] | null | undefined): number[] {
 /**
  * Convert one live coin into a `SecurityIntel` row.
  *
- * RSI, MACD and regime come only from a real daily series or the stored
- * sparkline. Real 24h and 7d changes stay. Koins does not publish a 7-day
- * projection, odds, conviction or a bull/base/bear outlook.
+ * RSI, MACD and regime come only from real daily closes (at least 40 points,
+ * such as a CoinGecko market_chart daily series). The hourly sparkline is not
+ * a daily series. Real 24h and 7d changes stay. Koins does not publish a
+ * 7-day projection, odds, conviction or a bull/base/bear outlook.
  */
 export function coinToIntel(c: CoinMarket, dailyCloses?: number[] | null): SecurityIntel {
   const daily = positiveSeries(dailyCloses);
-  const spark = positiveSeries(c.sparkline7d);
-  const series = daily.length >= 40 ? daily : spark.length >= 40 ? spark : undefined;
+  const series = daily.length >= 40 ? daily : undefined;
   const base = analyzeSecurity(c.symbol, c.price > 0 ? c.price : undefined, c.name, "CRYPTO", series);
 
   const stated24h = c.moves ? c.moves.h24 : isFinite(c.change24h) ? c.change24h : null;

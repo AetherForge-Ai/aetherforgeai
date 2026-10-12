@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 import { buildDemoReport, buildLiveReport, ILLUSTRATIVE_DEMO_LABEL } from "@/lib/apex";
+import { buildIntelligenceBriefing } from "@/lib/briefing";
 import { coinToIntel } from "@/lib/koins-market";
 import {
   ANALYSIS_UNAVAILABLE,
@@ -147,10 +148,25 @@ describe("Koins publishes no forward outlook", () => {
     expect(report.projectionLeaders).toEqual([]);
   });
 
-  it("computes RSI from a stored sparkline and still omits the outlook", () => {
+  it("holds technicals when the only series is an hourly sparkline", () => {
     const spark = closes(1);
     const row = coinToIntel(
       coin({ sparkline7d: spark, change24h: 4.2, change7d: -1.1, moves: { h24: 4.2, d7: -1.1, d30: null } })
+    );
+    expect(spark.length).toBeGreaterThanOrEqual(40);
+    expect(row.analysisHold).toBe(NOT_ENOUGH_DAILY_HISTORY);
+    expect(row.rsi).toBe(0);
+    expect(row.forwardOmitted).toBe(true);
+    expect(row.change1d).toBe(4.2);
+    expect(row.change7d).toBe(-1.1);
+    expect(row.publishedChanges).toEqual(["1d", "7d"]);
+  });
+
+  it("computes RSI from daily closes and still omits the outlook", () => {
+    const daily = closes(1);
+    const row = coinToIntel(
+      coin({ sparkline7d: closes(3), change24h: 4.2, change7d: -1.1, moves: { h24: 4.2, d7: -1.1, d30: null } }),
+      daily
     );
     expect(row.analysisHold).toBeNull();
     expect(row.rsi).not.toBe(0);
@@ -158,6 +174,7 @@ describe("Koins publishes no forward outlook", () => {
     expect(row.projected7dPct).toBe(0);
     expect(row.change1d).toBe(4.2);
     expect(row.change7d).toBe(-1.1);
+    expect(coinToIntel(coin(), daily.slice(0, 39)).analysisHold).toBe(NOT_ENOUGH_DAILY_HISTORY);
     const report = buildLiveReport("crypto", [{ ticker: "ZZZ", name: "Zed", price: 2 }], {
       universeIntel: [row],
       holdingIntel: [row],
@@ -167,6 +184,87 @@ describe("Koins publishes no forward outlook", () => {
     expect(report.tickers[0]?.pathways).toEqual([]);
     expect(report.tickers[0]?.note).toContain("No 7-day projection is published.");
     expect(report.tickers[0]?.note).not.toMatch(/\bodds\b|\bbull\b|\bbear\b|conviction/i);
+  });
+});
+
+describe("report HTML technicals", () => {
+  function table(html: string): string {
+    const start = html.indexOf("Technical indicators");
+    const end = html.indexOf("Per-");
+    return html.slice(start, end === -1 ? undefined : end);
+  }
+
+  it("does not print a zero projection or RSI for a held Stox row or a paused Koins row", () => {
+    const held = analyzeSecurity("GXH.NZ", 1.23, "Green Cross", "NZX");
+    const stock = buildLiveReport("stock", [{ ticker: "GXH.NZ", name: "Green Cross", price: 1.23 }], {
+      holdingIntel: [held],
+    });
+    const stockTable = table(renderReportHtml(stock, { generatedAtLabel: "12 Oct 2026", technicals: [held] }));
+    expect(stockTable).toContain(NOT_ENOUGH_DAILY_HISTORY);
+    expect(stockTable).not.toContain("+0.00% (0%)");
+    expect(stockTable).not.toContain("0.00% (0%)");
+    expect(stockTable).not.toContain("RSI 0");
+    expect(stockTable).not.toMatch(/>0</);
+
+    const paused = coinToIntel(coin(), closes(2));
+    const heldCoin = coinToIntel(coin());
+    const koins = buildLiveReport("crypto", [{ ticker: "ZZZ", name: "Zed", price: 2 }], {
+      universeIntel: [paused, heldCoin],
+      holdingIntel: [paused],
+    });
+    const koinsTable = table(renderReportHtml(koins, { generatedAtLabel: "12 Oct 2026", technicals: [paused, heldCoin] }));
+    expect(koinsTable.startsWith("Technical indicators")).toBe(true);
+    expect(koinsTable).not.toContain("7-day projection");
+    expect(koinsTable).toContain("— Crypto projections are paused");
+    expect(koinsTable).toContain(NOT_ENOUGH_DAILY_HISTORY);
+    expect(koinsTable).not.toContain("+0.00% (0%)");
+    expect(koinsTable).not.toContain("0.00% (0%)");
+    expect(koinsTable).not.toContain("RSI 0");
+    expect(koinsTable).not.toMatch(/\(\d+%\)/);
+    expect(koinsTable).not.toMatch(/>Buy<|>Sell<|>Hold<|>Reduce<|>Strong Buy</);
+  });
+});
+
+describe("briefing volatility", () => {
+  const sentiment = { label: "Neutral" as const, score: 50, bullish: 0, bearish: 0, neutral: 0, method: "keyword" as const, headlines: [] };
+
+  it("skips the 7-day swing sentence for crypto and averages only a real daily series", () => {
+    const daily = analyzeSecurity("BHP.AX", 40, "BHP", "ASX", closes(20));
+    const held = analyzeSecurity("GXH.NZ", 1.2, "Green Cross", "NZX");
+    const stock = buildIntelligenceBriefing({
+      bot: "stock",
+      marketLabel: "Equities",
+      technicals: [daily, held],
+      events: [],
+      sentiment,
+    });
+    const stockText = stock.keyObservations.join(" ");
+    expect(stockText).toContain(`realised vol ${daily.realizedVolPct.toFixed(2)}%`);
+    expect(stockText).toContain("7-day 1σ swings");
+    expect(stockText).not.toContain("realised vol 0.00%");
+
+    const paused = { ...daily, forwardOmitted: true as const };
+    const mixed = buildIntelligenceBriefing({
+      bot: "stock",
+      marketLabel: "Equities",
+      technicals: [paused],
+      events: [],
+      sentiment,
+    });
+    expect(mixed.keyObservations.join(" ")).not.toContain("1σ");
+    expect(mixed.keyObservations.join(" ")).toContain(`realised vol ${daily.realizedVolPct.toFixed(2)}%`);
+
+    const coinRow = coinToIntel(coin({ sparkline7d: closes(1) }), closes(4));
+    const crypto = buildIntelligenceBriefing({
+      bot: "crypto",
+      marketLabel: "Crypto",
+      technicals: [coinRow, coinToIntel(coin())],
+      events: [],
+      sentiment,
+    });
+    const cryptoText = crypto.keyObservations.join(" ");
+    expect(cryptoText).not.toContain("1σ");
+    expect(cryptoText).toContain(`realised vol ${coinRow.realizedVolPct.toFixed(2)}%`);
   });
 });
 
