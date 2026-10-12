@@ -1,4 +1,5 @@
-/* Shell cache for the installable site. Push is not subscribed here. */
+/** Installable shell. Push is not subscribed here. Served as JavaScript from /sw.js. */
+export const PWA_WORKER_SCRIPT = `/* Shell cache for the installable site. Push is not subscribed here. */
 const CACHE = "aetherforge-shell-v1";
 const SHELL = ["/offline", "/site.webmanifest", "/brand/aetherforge-icon-192.png", "/brand/aetherforge-icon-512.png"];
 
@@ -26,3 +27,4 @@ self.addEventListener("fetch", (event) => {
     })
   );
 });
+`;

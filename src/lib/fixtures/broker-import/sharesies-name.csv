@@ -1,0 +1,6 @@
+# Synthetic fixture. Not a customer file. Company names stand in for a name column.
+Date,Type,Instrument name,Quantity,Price,Value,Currency,Exchange rate
+15/01/2026,Buy,Air New Zealand,100,0.65,65.00,NZD,1
+20/01/2026,Buy,Fisher & Paykel Healthcare,10,36.00,360.00,NZD,1
+21/01/2026,Buy,Fisher & Paykel Healthcare,1,30.00,30.00,AUD,1.08
+22/01/2026,Buy,Apple Inc,1,180.00,180.00,USD,1.67

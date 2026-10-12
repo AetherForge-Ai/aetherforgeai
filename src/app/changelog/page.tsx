@@ -8,6 +8,16 @@ export const metadata = publicPageMetadata("/changelog", {
 
 export const CHANGELOG_ENTRIES = [
   {
+    href: "/import",
+    title: "12 Oct 2026 — Batch 2 retest fixes",
+    body: "Sharesies company names map only when one listing matches. A foreign trade with no rate in the file uses the reviewed rate for that trade date. A readable CSV opens the column map. Return uses a stored mark, with its source and as-of, when the holding has one. /dividends opens the dividend ledger. The tax overview labels net cash and gross, and it is not an accountant sign-off. A CSV export of your transactions is on Starter and above. Report holdings counts follow the book. The return split adds up to the P/L figure.",
+  },
+  {
+    href: "/import",
+    title: "11 Oct 2026 — Batch 2",
+    body: "Develop 18375819. Broker import, money-weighted and time-weighted return, dividends, the tax pack, trust, price badges, alerts, the installable shell, bot guides, schema, and the help feed.",
+    },
+  {
     href: "/markets",
     title: "12 Oct 2026 — One crypto snapshot for markets, Koins, and Confirm",
     body: "Signed-in and public Crypto and DEX lists read the same saved snapshot. Names and chains come from that list. Koins ranks only when the snapshot is fresh and the moves are real. Confirm writes the reviewed price and returns. Revaluation follows. Crypto projections stay paused.",

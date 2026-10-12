@@ -19,6 +19,15 @@ export interface BookPoint {
   valueBeforeNzd: number;
   /** Money added to the book. A withdrawal is negative. */
   flowNzd: number;
+  /** False when the value before this cash flow was not stored. Time-weighted return stays blank. */
+  valueKnown?: boolean;
+}
+
+const EARLIER_VALUE_REASON =
+  "Time-weighted return needs the book value before each deposit. Those earlier values were not stored.";
+
+function missingEarlierValue(points: BookPoint[]): boolean {
+  return points.some((point) => point.valueKnown === false);
 }
 
 export interface IndexPoint {
@@ -268,9 +277,14 @@ export function performanceReport(input: PerformanceInput): PerformanceReport {
 
   const flows = spreadsheetFlows(input.points, input.endingNzd, asOf);
   const xirr = solveXirr(flows);
-  const twr = timeWeightedReturn(input.points, input.endingNzd, asOf);
+  const earlierMissing = missingEarlierValue(input.points);
+  const twr = earlierMissing ? null : timeWeightedReturn(input.points, input.endingNzd, asOf);
   const xirrReason = xirr == null ? "The money-weighted return did not settle." : null;
-  const twrReason = twr == null ? "The time-weighted return needs a starting value above zero." : null;
+  const twrReason = earlierMissing
+    ? EARLIER_VALUE_REASON
+    : twr == null
+      ? "The time-weighted return needs a starting value above zero."
+      : null;
   const bench = input.benchmark ? benchmarkXirr(input) : null;
   const benchReason =
     input.benchmark && bench == null ? "The benchmark needs a public price on each deposit date and on the as-of date." : null;
@@ -287,10 +301,20 @@ export function performanceReport(input: PerformanceInput): PerformanceReport {
     }
     const periodFlows = spreadsheetFlows(slice.points, slice.endingNzd, asOf);
     const periodXirr = solveXirr(periodFlows);
-    const periodTwr = timeWeightedReturn(slice.points, slice.endingNzd, asOf);
+    const periodEarlier = missingEarlierValue(slice.points);
+    const periodTwr = periodEarlier ? null : timeWeightedReturn(slice.points, slice.endingNzd, asOf);
     periods[period] = {
       xirr: figure(periodXirr, periodXirr == null ? "The money-weighted return did not settle." : null, asOf, source),
-      twr: figure(periodTwr, periodTwr == null ? "The time-weighted return needs a starting value above zero." : null, asOf, source),
+      twr: figure(
+        periodTwr,
+        periodEarlier
+          ? EARLIER_VALUE_REASON
+          : periodTwr == null
+            ? "The time-weighted return needs a starting value above zero."
+            : null,
+        asOf,
+        source
+      ),
     };
   }
 

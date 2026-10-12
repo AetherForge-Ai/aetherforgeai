@@ -2,11 +2,14 @@
  * Broker transaction import.
  * Sharesies, Hatch, and IBKR activity files, plus a generic column map.
  * Splits and other corporate actions are listed and not written.
- * A foreign row with no exchange rate is not given a guessed rate.
+ * A foreign row with no exchange rate uses a reviewed rate for that trade date when one is supplied.
+ * No rate is guessed. A company name is used only when it matches one listing.
  *
  * pull-check:batch2-2026-10-11 B2-1
+ * pull-check:batch2-fixes-2026-10-12
  */
 
+import { tickersForCompanyName } from "@/lib/broker-names";
 import { roundMoney } from "@/lib/currency";
 import { parseHoldingsDate, splitCsvLine } from "@/lib/holdings-csv";
 
@@ -37,10 +40,19 @@ export interface ImportTrade {
   currency: ImportCurrency;
   /** NZD per 1 unit of the trade currency. NZD trades are 1. */
   fx: number;
+  /** Where the NZD rate came from. */
+  fxSource: "file" | "reviewed-trade-date" | "nzd";
+  /** Shown on the review. A reviewed trade-date rate is labelled as such. */
+  fxLabel: string;
   /** Quantity times price, in the trade currency, to the cent. */
   nativeValue: number;
   /** Native value plus fee, converted to NZ$. */
   costNzd: number;
+}
+
+export interface FxNeed {
+  currency: "USD" | "AUD";
+  date: string;
 }
 
 export interface UnsupportedRow {
@@ -54,6 +66,10 @@ export interface ImportPlan {
   headers: string[];
   /** True when the file has a header row but no broker shape and no complete map. */
   needsMapping: boolean;
+  /** True when the file is empty or not a CSV. A readable CSV is not unreadable. */
+  unreadable: boolean;
+  /** Foreign rows that had no rate in the file. The route looks these up and plans again. */
+  fxNeeds: FxNeed[];
   rows: ImportTrade[];
   unsupported: UnsupportedRow[];
   duplicates: ImportTrade[];
@@ -71,7 +87,20 @@ export interface ImportPlan {
 }
 
 const SIDE_KEYS = ["side", "type", "action", "buy/sell", "buy sell"];
-const TICKER_KEYS = ["ticker", "symbol", "code", "instrument code", "instrument", "instrumentcode"];
+const TICKER_KEYS = [
+  "ticker",
+  "symbol",
+  "code",
+  "instrument code",
+  "instrument",
+  "instrumentcode",
+  "instrument name",
+  "company name",
+  "company",
+  "security name",
+  "name",
+];
+const NAME_HEADERS = new Set(["instrument name", "company name", "company", "security name", "name"]);
 const DATE_KEYS = ["date", "trade date", "tradedate", "when", "trade_date"];
 const QTY_KEYS = ["quantity", "qty", "units", "shares"];
 const PRICE_KEYS = ["price", "tradeprice", "trade price", "t. price", "unit price"];
@@ -79,6 +108,17 @@ const FEE_KEYS = ["fee", "fees", "commission", "ibcommission", "ib commission"];
 const CCY_KEYS = ["currency", "currencyprimary", "currency primary", "ccy"];
 const FX_KEYS = ["fx", "fx rate", "fxrate", "fxratetobase", "exchange rate"];
 const VALUE_KEYS = ["value", "amount", "proceeds"];
+const KNOWN_HEADERS = new Set([
+  ...SIDE_KEYS,
+  ...TICKER_KEYS,
+  ...DATE_KEYS,
+  ...QTY_KEYS,
+  ...PRICE_KEYS,
+  ...FEE_KEYS,
+  ...CCY_KEYS,
+  ...FX_KEYS,
+  ...VALUE_KEYS,
+]);
 
 function normHeader(value: string): string {
   return value.trim().toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
@@ -112,10 +152,46 @@ function indexOf(headers: string[], keys: string[]): number {
 }
 
 function detectBroker(headers: string[]): ImportBroker | null {
-  if (headers.includes("instrument code")) return "sharesies";
+  if (headers.includes("instrument code") || headers.includes("instrument name")) return "sharesies";
   if (headers.includes("clientaccountid") || headers.includes("buy/sell")) return "ibkr";
   if (headers.includes("trade date") && headers.includes("action") && headers.includes("symbol")) return "hatch";
+  if ((headers.includes("company") || headers.includes("company name")) && headers.includes("type")) return "sharesies";
   return null;
+}
+
+const TICKER_SHAPED = /^[A-Z0-9][A-Z0-9.-]{0,14}$/;
+
+function isTickerShaped(value: string): boolean {
+  const text = value.trim();
+  if (!text || /\s/.test(text)) return false;
+  return TICKER_SHAPED.test(text.toUpperCase());
+}
+
+function narrowTickers(tickers: string[], currency: ImportCurrency | null): string[] {
+  if (!currency || tickers.length < 2) return tickers;
+  const picked =
+    currency === "NZD"
+      ? tickers.filter((ticker) => ticker.endsWith(".NZ"))
+      : currency === "AUD"
+        ? tickers.filter((ticker) => ticker.endsWith(".AX"))
+        : tickers.filter((ticker) => !ticker.includes("."));
+  return picked.length === 1 ? picked : tickers;
+}
+
+/** A code in the file is kept. A company name must match one listing, or the row asks. */
+function resolveTicker(raw: string, currency: ImportCurrency | null): { ticker: string } | { reason: string } {
+  const text = raw.trim();
+  if (!text) return { reason: "Date, ticker, quantity or price could not be read." };
+  if (isTickerShaped(text)) return { ticker: text.toUpperCase() };
+  const matches = tickersForCompanyName(text);
+  if (!matches.length) {
+    return { reason: `Company name "${text}" is not on the stock list. Nothing was guessed.` };
+  }
+  const narrowed = narrowTickers(matches, currency);
+  if (narrowed.length === 1) return { ticker: narrowed[0] };
+  return {
+    reason: `Company name "${text}" matches ${narrowed.join(", ")}. Choose one ticker. Nothing was guessed.`,
+  };
 }
 
 function mapFromHeaders(headers: string[], explicit?: ColumnMap): Record<keyof ColumnMap, number> {
@@ -140,12 +216,14 @@ function mapFromHeaders(headers: string[], explicit?: ColumnMap): Record<keyof C
   };
 }
 
-function emptyPlan(error: string | null, headers: string[] = []): ImportPlan {
+function emptyPlan(error: string | null, headers: string[] = [], unreadable = false): ImportPlan {
   return {
     broker: null,
     error,
     headers,
     needsMapping: false,
+    unreadable,
+    fxNeeds: [],
     rows: [],
     unsupported: [],
     duplicates: [],
@@ -156,6 +234,27 @@ function emptyPlan(error: string | null, headers: string[] = []): ImportPlan {
     importedTotals: {},
     totalsMessage: "",
   };
+}
+
+function headerScore(cells: string[]): number {
+  return cells.filter((header) => KNOWN_HEADERS.has(header)).length;
+}
+
+/** First line in the opening rows that looks like column names. A preamble is skipped. */
+function locateHeader(lines: string[]): number {
+  const limit = Math.min(lines.length, 40);
+  let fallback = -1;
+  for (let i = 0; i < limit; i++) {
+    const cells = splitCsvLine(lines[i]).map(normHeader).filter(Boolean);
+    if (cells.length < 2) continue;
+    if (fallback < 0) fallback = i;
+    if (headerScore(cells) >= 3) return i;
+  }
+  return fallback;
+}
+
+function fxNeedKey(currency: string, date: string): string {
+  return `${currency}|${date}`;
 }
 
 /** Shown with every paper deposit. Cash goes up. XIRR treats the deposit as money added. */
@@ -218,19 +317,24 @@ export function planBrokerImport(
     openingCashNzd?: number;
     /** True records a paper deposit so a buy does not make cash negative. Off unless exactly true. */
     fundBuys?: boolean;
+    /** Reviewed NZD per 1 unit for `${currency}|YYYY-MM-DD`. Null means the lookup had no rate. */
+    reviewedRates?: Record<string, number | null>;
   }
 ): ImportPlan {
   const lines = linesOf(text || "");
-  if (!lines.length) return emptyPlan("The file is empty. Nothing was written.");
+  if (!lines.length) return emptyPlan("The file is empty. Nothing was written.", [], true);
 
-  const headerCells = splitCsvLine(lines[0]).map(normHeader);
-  if (headerCells.length < 2) return emptyPlan("This file is not a CSV of trades. Nothing was written.");
+  const headerAt = locateHeader(lines);
+  if (headerAt < 0) return emptyPlan("This file is not a CSV of trades. Nothing was written.", [], true);
+
+  const headerCells = splitCsvLine(lines[headerAt]).map(normHeader);
 
   const broker = detectBroker(headerCells);
   const columns = mapFromHeaders(headerCells, options?.mapping);
   const required = [columns.date, columns.ticker, columns.side, columns.quantity, columns.price];
   if (required.some((at) => at < 0)) {
     const plan = emptyPlan(null, headerCells);
+    plan.broker = broker;
     plan.needsMapping = true;
     plan.error = "Choose the date, ticker, side, quantity and price columns. Nothing was written.";
     return plan;
@@ -240,9 +344,12 @@ export function planBrokerImport(
   const rows: ImportTrade[] = [];
   const unsupported: UnsupportedRow[] = [];
   const sourceTotals: Record<string, number> = {};
+  const fxNeeds: FxNeed[] = [];
+  const seenNeeds = new Set<string>();
+  const nameAt = indexOf(headerCells, [...NAME_HEADERS]);
 
-  lines.slice(1).forEach((line, index) => {
-    const lineNo = index + 2;
+  lines.slice(headerAt + 1).forEach((line, index) => {
+    const lineNo = headerAt + index + 2;
     const cells = splitCsvLine(line);
     const blank = cells.every((cell) => !cell.trim());
     if (blank) return;
@@ -259,13 +366,29 @@ export function planBrokerImport(
     }
 
     const date = parseImportDate(cells[columns.date] || "");
-    const ticker = (cells[columns.ticker] || "").trim().toUpperCase();
     const quantityRaw = parseNumber(cells[columns.quantity] || "");
     const price = parseNumber(cells[columns.price] || "");
-    if (!date || !ticker || quantityRaw == null || price == null) {
+    const currencyCell = columns.currency >= 0 ? cells[columns.currency] || "" : "";
+    const currencyHint = ["NZD", "AUD", "USD"].includes(currencyCell.trim().toUpperCase())
+      ? (currencyCell.trim().toUpperCase() as ImportCurrency)
+      : null;
+    let tickerRaw = cells[columns.ticker] || "";
+    const tickerHeader = headerCells[columns.ticker] || "";
+    let named = NAME_HEADERS.has(tickerHeader);
+    if (!tickerRaw.trim() && nameAt >= 0 && nameAt !== columns.ticker) {
+      tickerRaw = cells[nameAt] || "";
+      named = true;
+    }
+    if (!date || quantityRaw == null || price == null || !tickerRaw.trim()) {
       unsupported.push({ line: lineNo, reason: "Date, ticker, quantity or price could not be read." });
       return;
     }
+    const resolved = named || !isTickerShaped(tickerRaw) ? resolveTicker(tickerRaw, currencyHint) : { ticker: tickerRaw.trim().toUpperCase() };
+    if ("reason" in resolved) {
+      unsupported.push({ line: lineNo, reason: resolved.reason });
+      return;
+    }
+    const ticker = resolved.ticker;
     const quantity = Math.abs(quantityRaw);
     if (!(quantity > 0) || !(price > 0)) {
       unsupported.push({ line: lineNo, reason: "Quantity and price must be greater than zero." });
@@ -279,9 +402,40 @@ export function planBrokerImport(
     }
     let fx = currency === "NZD" ? 1 : parseNumber(columns.fx >= 0 ? cells[columns.fx] || "" : "");
     if (fx != null && currency === "USD" && fx > 0 && fx < 1) fx = 1 / fx;
+    let fxSource: ImportTrade["fxSource"] = currency === "NZD" ? "nzd" : "file";
+    let fxLabel = currency === "NZD" ? "NZD" : "Rate from the file";
     if (!(fx != null && fx > 0)) {
-      unsupported.push({ line: lineNo, reason: "A foreign trade needs the NZD exchange rate from the file. No rate was guessed." });
-      return;
+      if (currency === "USD" || currency === "AUD") {
+        const key = fxNeedKey(currency, date);
+        const table = options?.reviewedRates;
+        if (table && Object.prototype.hasOwnProperty.call(table, key)) {
+          const reviewed = table[key];
+          if (reviewed != null && reviewed > 0) {
+            fx = reviewed;
+            fxSource = "reviewed-trade-date";
+            fxLabel = "Reviewed rate for the trade date";
+          } else {
+            unsupported.push({
+              line: lineNo,
+              reason: "No exchange rate in the file, and no reviewed rate for this trade date. No rate was guessed.",
+            });
+            return;
+          }
+        } else {
+          if (!seenNeeds.has(key)) {
+            seenNeeds.add(key);
+            fxNeeds.push({ currency, date });
+          }
+          unsupported.push({
+            line: lineNo,
+            reason: "A foreign trade needs the NZD exchange rate from the file. No rate was guessed.",
+          });
+          return;
+        }
+      } else {
+        unsupported.push({ line: lineNo, reason: "A foreign trade needs the NZD exchange rate from the file. No rate was guessed." });
+        return;
+      }
     }
 
     const feeRaw = columns.fee >= 0 ? parseNumber(cells[columns.fee] || "") : 0;
@@ -307,13 +461,18 @@ export function planBrokerImport(
       fee,
       currency,
       fx: currency === "NZD" ? 1 : fx,
+      fxSource,
+      fxLabel,
       nativeValue,
       costNzd: roundMoney((nativeValue + fee) * (currency === "NZD" ? 1 : fx)),
     });
   });
 
   if (!rows.length && !unsupported.length) {
-    return { ...emptyPlan("No trade rows were found. Nothing was written.", headerCells), broker };
+    const plan = emptyPlan("No trade rows were found. Nothing was written.", headerCells);
+    plan.broker = broker;
+    if (!broker && !options?.mapping) plan.needsMapping = true;
+    return plan;
   }
 
   const stored = storedCounts;
@@ -328,7 +487,8 @@ export function planBrokerImport(
     else fresh.push(row);
   }
 
-  const fileError = rows.length === 0 ? "No buy or sell rows could be read. Nothing was written." : null;
+  const readableButUnmapped = !broker && !options?.mapping && rows.length === 0;
+  const fileError = rows.length === 0 && !readableButUnmapped ? "No buy or sell rows could be read. Nothing was written." : null;
   const cash = fileError
     ? { toWrite: [] as ImportTrade[], deposits: [] as ImportPlan["fundingDeposits"], skipped: [] as UnsupportedRow[], fundingNeeded: false }
     : applyCash(fresh, options?.openingCashNzd ?? 0, options?.fundBuys === true);
@@ -338,9 +498,13 @@ export function planBrokerImport(
 
   const plan: ImportPlan = {
     broker: broker || "generic",
-    error: fileError,
+    error: readableButUnmapped
+      ? "Choose the date, ticker, side, quantity and price columns. Nothing was written."
+      : fileError,
     headers: headerCells,
-    needsMapping: false,
+    needsMapping: readableButUnmapped,
+    unreadable: false,
+    fxNeeds,
     rows,
     unsupported: skipped,
     duplicates,
@@ -484,8 +648,9 @@ function describeTotals(plan: ImportPlan): string {
   }
   if (plan.unsupported.length > 0) {
     const listed = plan.unsupported.map((row) => `line ${row.line}: ${row.reason}`).join("; ");
+    const sentence = /[.!?]$/.test(listed.trim()) ? listed.trim() : `${listed.trim()}.`;
     parts.push(
-      `${plan.unsupported.length} skipped ${plan.unsupported.length === 1 ? "row is" : "rows are"} not in the imported total. ${listed}.`
+      `${plan.unsupported.length} skipped ${plan.unsupported.length === 1 ? "row is" : "rows are"} not in the imported total. ${sentence}`
     );
   }
   return parts.join(" ");

@@ -1508,4 +1508,24 @@ Review fixes on the same branch. `origin/develop` at that pass was `47f44d9`. Lo
 
 Paper deposits now default off. `fundBuys` must be exactly true, in the planner and on the import route. The deposit checkbox starts unticked. A buy that would make paper cash negative is skipped, listed, and still needs that acknowledgement. Develop `9d95051` (local fonts) is merged, and the fonts section stays beside retest4 and Batch 2. After the default-off change and the fonts merge: `npm test` 133 files, 618 tests passed. `npm run check-types-errors` passed. `npm run build` passed (Next.js 15.3.9). Nothing was published. No email was sent.
 
+## pull-check:batch2-fixes-2026-10-12
+
+Retest of Batch 2 (`18375819`). Crypto, DEX, and markets files were not edited. The service worker is served from `src/app/sw.js/route.ts` with `Content-Type: application/javascript` so the browser does not log "The script does not have a MIME type."
+
+### Verify
+
+- `npx vitest run src/lib/broker-import.test.ts src/lib/returns-split.test.ts src/lib/batch2-fixes.test.ts src/lib/pwa-shell.test.ts src/lib/route-gate.test.ts src/lib/public-route-aliases.test.ts src/lib/record-transaction.test.ts src/lib/ledger-fx-rate.test.ts src/lib/report-freshness.test.ts src/lib/report-consistency.test.ts src/lib/trust-facts.test.ts src/lib/help-rss.test.ts`
+- `npm run check-types-errors`
+- `npm run build`
+- Open `/import` signed in. The checkbox reads "Add paper deposits to fund buys" and starts unticked. A Sharesies file with a company name in the name column resolves only an exact stock-list match. A readable CSV that is not Sharesies, Hatch, or IBKR shows "Match the columns", not "Unrecognised file".
+- Open `/returns` signed out. The site sends you to login. The return explainer remains on `/help`. Signed in, a holding with a stored mark shows XIRR with that source and as-of. Time-weighted return says the value before each deposit was not stored. A holding with no positive stored mark is named, and cost is not used.
+- Open `/dividends`. It opens `/tax/dividends`, which already lists income by month.
+- Open `/tax` signed in. The overview says "This pack is not an accountant sign-off." Dividends are labelled net cash. Gross is shown only when every dividend row has that breakdown.
+- Open `/trust`. The CSV sentence says a CSV export of your transactions is included on Starter and above. The same gate is on the transactions page.
+- Open `/trust`, `/help`, and `/returns`. Each page has a breadcrumb list in the page source.
+- A Stox, Koins, or Headmaster report for a book that holds positions does not say the book is empty, does not say "0 of 0", and does not name Grok or an AI model.
+- On the dashboard, "How the return is split" shows a total equal to the P/L figure. A gap between one-step capital gain and that P/L is the Other line.
+
+On `cursor/batch2-retest-fixes-c03b` from `18375819`: `npm test` 135 files, 630 tests passed. `npm run check-types-errors` passed. `npm run build` passed (Next.js 15.3.9). `GET /sw.js` returns `content-type: application/javascript; charset=utf-8`. Signed-out `GET /returns` redirects to `/login?redirect=%2Freturns`. `GET /dividends` redirects to `/tax/dividends`. `/trust` and `/help` include a BreadcrumbList. Nothing was published. No email was sent.
+
 

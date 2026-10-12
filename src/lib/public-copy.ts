@@ -74,7 +74,7 @@ export const ANALYTICS_NOTICE =
   "Analytics stays off until you accept. Decline keeps it off. You can change this later from Cookie settings.";
 
 export const LEDGER_EXPORT_LINE =
-  "Published plans include the paper ledger and a CSV export of your transactions. Yearly billing also includes a downloadable Excel investor toolkit template. That file is a blank template. It is not filled with your holdings, and it is not a copy of the figures in the ledger.";
+  "A CSV export of your transactions is included on Starter and above. Yearly billing also includes a downloadable Excel investor toolkit template. That file is a blank template. It is not filled with your holdings, and it is not a copy of the figures in the ledger.";
 
 /**
  * What a completion request can include. Each sentence is true of the server

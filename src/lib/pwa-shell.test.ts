@@ -18,11 +18,14 @@ describe("installable shell", () => {
     expect(sizes).toContain("192x192");
     expect(sizes).toContain("512x512");
 
-    const sw = read("public/sw.js");
+    const sw = read("src/lib/pwa-worker.ts");
     expect(sw).toContain("install");
     expect(sw).toContain("fetch");
     expect(sw).toContain("/offline");
     expect(sw).not.toMatch(/VAPID|pushManager/);
+    const route = read("src/app/sw.js/route.ts");
+    expect(route).toContain("application/javascript");
+    expect(route).toContain("PWA_WORKER_SCRIPT");
 
     const offline = read("src/app/offline/page.tsx");
     expect(offline).toContain("Last updated");
