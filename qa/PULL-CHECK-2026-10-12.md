@@ -117,8 +117,8 @@ Rows that would change: 2
 
 ## H1 — fixed
 
-- Status: fixed
-- Commit: `1cf96b28aa600e350017d16d4bf6d6365eb0d91e`
+- Status: fixed. The projected-list reason is the rating action and the failing input. MAH.AX (score 40, labelled Reduce, bearish MACD) is "rating TRIM: momentum negative" on the row and on Not sized. A buy signal held only by a bearish MACD is "rating HOLD: momentum negative". "rating data unavailable" is only when signal, MACD, and regime are all missing.
+- Commit: `821b4e43ce249e2025910f2250791860591ec7b8` (reason text). List and note: `1cf96b28aa600e350017d16d4bf6d6365eb0d91e`.
 - Files: `src/lib/report-copy.ts`, `src/lib/apex.ts`, `src/components/bots/ApexReport.tsx`, `src/lib/report-html.ts`, `src/lib/qa-tier1b.test.ts`
 - URL / steps: the same Stox report, "Next 7 days · Top-10 projected movers", then "Not sized this week"
 - Expected:
