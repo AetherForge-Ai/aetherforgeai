@@ -13,6 +13,7 @@ import {
   resolveHoldingMarkPrice,
 } from "@/lib/metal-valuation";
 import { mergeFreshQuantities } from "@/lib/holding-snapshot";
+import { overlayFifoPurchasePrices } from "@/lib/fifo-cost-server";
 
 /**
  * POST /api/stocks/refresh
@@ -129,6 +130,7 @@ export async function POST(req: Request) {
     } catch (err) {
       console.error("[api/stocks/refresh] Quantity re-read failed:", err);
     }
+    data = await overlayFifoPurchasePrices(data, user._id);
 
     console.log(
       `[api/stocks/refresh] Updated ${updates.length} prices for user ${user._id} (source: ${usedLive ? "live" : "simulated"})`

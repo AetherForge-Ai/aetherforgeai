@@ -1,0 +1,10 @@
+FIFO recompute dry-run
+Cost method: FIFO (first in, first out).
+NOT APPLIED. This script does not write. Lukas must confirm the cost method before any recompute.
+
+Sample book (not production):
+- ETH 2026-09-01 stored -NZ$10.59 FIFO -NZ$10.59
+- WOR.AX 2026-10-10 stored NZ$0.00 FIFO -NZ$0.04
+- WOR.AX 2026-10-11 stored NZ$0.00 FIFO -NZ$0.04
+Combined FIFO -NZ$10.67
+Rows that would change: 2

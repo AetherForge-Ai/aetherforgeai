@@ -15,6 +15,8 @@ import { dexFromLedger, stripDexNotesPrefix } from "@/lib/dex-source";
 import { stripDividendNotesPrefix } from "@/lib/dividend-ledger";
 import { formatLedgerDateTime } from "@/lib/executed-at";
 import { collapseCorrectionNote, ensureCorrectionCurrency } from "@/lib/holding-correction";
+import { buyLotDay, ledgerDisplayWhen, movementHasClock } from "@/lib/lot-day";
+import { listingExchangeLabel } from "@/lib/market-intel";
 
 export type CsvRow = Record<string, unknown> & {
   type?: string;
@@ -113,6 +115,35 @@ function blank(value: unknown): boolean {
   return value == null || value === "";
 }
 
+const CHAIN_BY_TICKER: Record<string, string> = {
+  BTC: "Bitcoin",
+  ETH: "Ethereum",
+  UNI: "Ethereum",
+  PEPE: "Ethereum",
+  SOL: "Solana",
+};
+
+function csvVenue(row: CsvRow, dexVenue: string | null, dexChain: string | null): string {
+  const type = String(row.type || "");
+  if (type === "deposit" || type === "withdraw" || type === "tax") return "Cash";
+  if (dexVenue === "DEX") return dexChain ? `DEX: ${dexChain}` : "DEX";
+  const asset = String(row.asset_type || "").toLowerCase();
+  if (asset === "crypto") return "CoinGecko";
+  if (asset === "metal") return "NZX";
+  const listed = listingExchangeLabel(csvText(row.ticker), asset || null);
+  if (listed === "NZX" || listed === "ASX" || listed === "NYSE" || listed === "NASDAQ") return listed;
+  if (listed === "US") return "NASDAQ";
+  return listed || "NZX";
+}
+
+function csvChain(row: CsvRow, dexChain: string | null): string {
+  if (dexChain) return dexChain;
+  const asset = String(row.asset_type || "").toLowerCase();
+  if (asset !== "crypto") return "";
+  const bare = csvText(row.ticker).trim().toUpperCase().split(".")[0];
+  return CHAIN_BY_TICKER[bare] || "not stored";
+}
+
 export function transactionCsvCells(row: CsvRow): string[] {
   const when = csvText(row.executed_at || row.createdAt);
   const dex = dexFromLedger({
@@ -120,7 +151,7 @@ export function transactionCsvCells(row: CsvRow): string[] {
     chain: typeof row.chain === "string" ? row.chain : null,
     notes: row.notes == null ? null : String(row.notes),
   });
-  const currency = csvText(row.fill_currency || row.currency || "NZD");
+  const currency = csvText(row.fill_currency || row.currency || "NZD").toUpperCase();
   const notional =
     !blank(row.native_notional)
       ? csvMoney(row.native_notional)
@@ -131,24 +162,28 @@ export function transactionCsvCells(row: CsvRow): string[] {
   const cashOnly = row.type === "deposit" || row.type === "withdraw" || row.type === "tax";
   const assetId = csvText(row.asset_id).trim();
   const quoteTime = formatLedgerDateTime(csvText(row.price_as_at));
-  const clock = formatLedgerDateTime(when);
+  const priceAsAt = quoteTime || "not stored";
+  const clock = ledgerDisplayWhen(row);
   const isSell = row.type === "sell";
-  const signalBlank = blank(row.signal_price);
-  const markBlank = blank(row.mark_price);
-  const priceSplitBlank = blank(row.realized_price_pnl_nzd);
-  const fxSplitBlank = blank(row.realized_fx_pnl_nzd);
+  const markStored = !blank(row.mark_price);
+  const fill = row.fill_price ?? row.price;
+  const markCell = markStored ? csvUnitPrice(row.mark_price) : !blank(fill) ? csvUnitPrice(fill) : "not stored";
+  const priceN = num(row.realized_price_pnl_nzd);
+  const fxN = num(row.realized_fx_pnl_nzd);
+  const haveSplit = priceN != null && fxN != null;
+  const fxRate = currency === "NZD" ? formatSavedFx(row.fx_rate) || "1.0000" : formatSavedFx(row.fx_rate);
   const dataNote = [
     !assetId && cashOnly ? "Cash has no asset id." : "",
     !assetId && !cashOnly && !csvText(row.ticker) ? "No canonical id stored." : "",
     quoteTime ? "" : "Quote time was not stored.",
-    signalBlank ? (priceSource === "bot_signal" ? "Signal price was not stored." : "Not a signal fill.") : "",
-    markBlank ? "Not marked at export." : "",
-    isSell && (priceSplitBlank || fxSplitBlank) ? "Price and FX split was not stored." : "",
+    markStored ? "" : !blank(fill) ? "Mark is the fill, not a live export price." : "Not marked at export.",
+    isSell && !haveSplit ? "Price and FX split was not stored." : "",
+    clock && !movementHasClock(clock) ? "time not stored" : "",
   ]
     .filter(Boolean)
     .join(" ");
   return [
-    formatDisplayDate(when) === "—" ? "" : formatDisplayDate(when),
+    formatDisplayDate(buyLotDay(row) || when) === "—" ? "" : formatDisplayDate(buyLotDay(row) || when),
     clock,
     csvText(row.execution_status || "filled"),
     csvText(row.type),
@@ -160,24 +195,21 @@ export function transactionCsvCells(row: CsvRow): string[] {
     csvUnitPrice(row.fill_price ?? row.price),
     currency,
     priceSource,
-    quoteTime,
-    signalBlank ? "" : csvUnitPrice(row.signal_price),
-    markBlank ? "" : csvUnitPrice(row.mark_price),
+    priceAsAt,
+    markCell,
     csvMoney(row.fees_native ?? row.fees ?? 0),
     csvFeesNzd(row),
     notional,
-    formatSavedFx(row.fx_rate),
+    fxRate,
     csvFxSource(row),
     csvMoney(row.cash_nzd ?? row.total),
-    priceSplitBlank ? (isSell ? "" : csvMoney(0)) : csvMoney(row.realized_price_pnl_nzd),
-    fxSplitBlank ? (isSell ? "" : csvMoney(0)) : csvMoney(row.realized_fx_pnl_nzd),
-    blank(row.realized_pnl_nzd) && blank(row.realized_pnl) ? csvMoney(0) : csvMoney(row.realized_pnl_nzd ?? row.realized_pnl),
+    haveSplit ? csvMoney(priceN) : isSell ? "" : csvMoney(0),
+    haveSplit ? csvMoney(fxN) : isSell ? "" : csvMoney(0),
+    haveSplit ? csvMoney(roundMoney(priceN + fxN)) : isSell ? "" : csvMoney(row.realized_pnl_nzd ?? row.realized_pnl ?? 0),
     csvText(row.order_sizing || "units"),
-    blank(row.notional_native) ? "" : csvMoney(row.notional_native),
-    csvText(row.broker),
     csvNotes(row),
-    dex.venue || "",
-    dex.chain || "",
+    csvVenue(row, dex.venue, dex.chain),
+    csvChain(row, dex.chain),
     dataNote,
   ];
 }

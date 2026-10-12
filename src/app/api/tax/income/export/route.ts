@@ -6,6 +6,8 @@ import { accountMismatchResponse } from "@/lib/account-response";
 import { aucklandCivilToday, isNzTaxYearEnding, nzTaxYearEnding } from "@/lib/nz-tax-year";
 import { getStableSessionUser } from "@/lib/session";
 import { loadTaxRows } from "@/lib/tax-book-server";
+import { aucklandDateISO } from "@/lib/fill-integrity";
+import { datedTaxCsvName } from "@/lib/lot-day";
 import { taxableIncome, taxableIncomeCsv } from "@/lib/taxable-income";
 
 export const dynamic = "force-dynamic";
@@ -38,7 +40,7 @@ export async function GET(req: Request) {
       status: 200,
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": `attachment; filename="taxable-income-${endingYear}.csv"`,
+        "Content-Disposition": `attachment; filename="${datedTaxCsvName("taxable-income", endingYear, aucklandDateISO())}"`,
         "Cache-Control": "no-store",
       },
     });

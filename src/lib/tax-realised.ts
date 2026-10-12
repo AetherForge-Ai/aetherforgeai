@@ -7,8 +7,8 @@
  * pull-check:tax-fixups-2026-10-11
  */
 
-import { formatSignedMoney, roundMoney } from "@/lib/currency";
-import { lotCivilDay } from "@/lib/executed-at";
+import { roundMoney } from "@/lib/currency";
+import { buyLotDay } from "@/lib/lot-day";
 import { fifoApplySell, type FifoLot } from "@/lib/ledger-schema";
 import { inNzTaxYear, nzTaxYearEnding, nzTaxYearLabel } from "@/lib/nz-tax-year";
 import { TAX_INDICATIVE_LABEL } from "@/lib/tax-disclaimer";
@@ -25,7 +25,7 @@ export const REALISED_ASSUMPTIONS = [
   "Corrections are not replayed.",
   "A blank disposal is not counted as zero. Totals add only the disposals that have a figure.",
   "This paper reads up to 5,000 ledger rows.",
-  "A new sell stores this FIFO figure: price gain plus FX gain, minus the sell fee. The income summary shows that stored figure. When an older sell differs, the income page names both numbers.",
+  "Income, the tax page, the ledger, the holdings gain and this paper use this FIFO figure. A stored amount on an older sell is not a second total.",
 ] as const;
 
 export interface RealisedLot {
@@ -124,7 +124,7 @@ export function realisedByTaxYear(rows: readonly TaxLedgerRow[], endingYear: num
   const books = new Map<string, OpenLot[]>();
   const events = rows
     .filter((row) => row.type === "buy" || row.type === "sell" || row.type === "opening_balance")
-    .map((row) => ({ row, day: lotCivilDay(row.executed_at || row.createdAt, "") }))
+    .map((row) => ({ row, day: buyLotDay(row) }))
     .filter((event) => event.day)
     .sort((a, b) => a.day.localeCompare(b.day) || String(a.row.type).localeCompare(String(b.row.type)));
 
@@ -159,11 +159,7 @@ export function realisedByTaxYear(rows: readonly TaxLedgerRow[], endingYear: num
       }));
       const fifoNzd = incomplete ? null : roundMoney(closed.realized_pnl_nzd - (fee || 0));
       const stored = storedRealised(row);
-      const diffNote =
-        fifoNzd != null && stored != null && Math.abs(fifoNzd - stored) >= 0.005
-          ? `Ledger stored NZ$${stored.toFixed(2)} on this sell. This FIFO line is NZ$${fifoNzd.toFixed(2)}. The income summary keeps the stored amount.`
-          : null;
-      if (diffNote) storedDiffCount += 1;
+      const diffNote = null;
       const line: RealisedLine = {
         when: event.day,
         ticker,
@@ -222,7 +218,7 @@ export function fifoStoredForSell(
   prior: readonly TaxLedgerRow[],
   sell: TaxLedgerRow
 ): { pricePnlNzd: number; fxPnlNzd: number; realisedNzd: number } | null {
-  const day = lotCivilDay(sell.executed_at || sell.createdAt, "");
+  const day = buyLotDay(sell);
   const ending = nzTaxYearEnding(day);
   if (!day || ending == null) return null;
   const ticker = String(sell.ticker || "").trim().toUpperCase();
@@ -233,12 +229,52 @@ export function fifoStoredForSell(
   return { pricePnlNzd: line.pricePnlNzd, fxPnlNzd: line.fxPnlNzd, realisedNzd: line.realisedNzd };
 }
 
-/** One income total. A difference from the FIFO paper is explained, not shown as a second headline. */
-export function incomeReconciliationNote(storedNzd: number, fifoNzd: number): string | null {
-  const stored = roundMoney(storedNzd);
-  const fifo = roundMoney(fifoNzd);
-  if (Math.abs(stored - fifo) < 0.005) return null;
-  return `This page shows one realised total, the amount stored on each sell: ${formatSignedMoney(stored)}. The realised page's FIFO total for the same sells is ${formatSignedMoney(fifo)}. New sells store the FIFO figure. An older sell can still differ.`;
+/** One income total. The income page uses the FIFO figure, so there is no second headline. */
+export function incomeReconciliationNote(_storedNzd: number, _fifoNzd: number): string | null {
+  return null;
+}
+
+/** Native unit cost of whatever FIFO lots are still open. */
+export function fifoRemainingUnitCosts(rows: readonly TaxLedgerRow[]): Map<string, number> {
+  const books = new Map<string, OpenLot[]>();
+  const events = rows
+    .filter((row) => row.type === "buy" || row.type === "sell" || row.type === "opening_balance")
+    .map((row) => ({ row, day: buyLotDay(row) }))
+    .filter((event) => event.day)
+    .sort((a, b) => a.day.localeCompare(b.day) || String(a.row.type).localeCompare(String(b.row.type)));
+  for (const event of events) {
+    const row = event.row;
+    const ticker = String(row.ticker || "").trim().toUpperCase();
+    if (!ticker) continue;
+    const lots = books.get(ticker) || [];
+    books.set(ticker, lots);
+    const qty = movementQty(row);
+    const price = movementPrice(row);
+    if (!(qty > 0) || !(price > 0)) continue;
+    if (row.type === "sell") {
+      const fx = fxOf(row);
+      const closed = fifoApplySell(lots, qty, price, fx ?? 0);
+      books.set(ticker, closed.remainingLots as OpenLot[]);
+      continue;
+    }
+    const fx = fxOf(row);
+    lots.push({
+      qty,
+      fillPrice: price,
+      fillCurrency: String(row.currency || "NZD").toUpperCase(),
+      fxRate: fx ?? 0,
+      tradeDatetime: event.day,
+      missingRate: fx == null,
+    });
+  }
+  const costs = new Map<string, number>();
+  for (const [ticker, lots] of books) {
+    const qty = lots.reduce((sum, lot) => sum + lot.qty, 0);
+    if (!(qty > 1e-9)) continue;
+    const native = lots.reduce((sum, lot) => sum + lot.qty * lot.fillPrice, 0);
+    costs.set(ticker, native / qty);
+  }
+  return costs;
 }
 
 export const REALISED_CSV_COLUMNS = [
@@ -285,5 +321,5 @@ export function realisedCsv(report: RealisedReport, formatDate: (value: string) 
   push([report.label, "", "", "other-total", "", "", "", "", cellMoney(report.otherTotalNzd), TAX_INDICATIVE_LABEL]);
   push([report.label, "", "", "crypto-total", "", "", "", "", cellMoney(report.cryptoTotalNzd), TAX_INDICATIVE_LABEL]);
   push([report.label, "", "", "combined", "", "", "", "", cellMoney(report.combinedNzd), TAX_INDICATIVE_LABEL]);
-  return lines.join("\n");
+  return `${lines.join("\n")}\n`;
 }

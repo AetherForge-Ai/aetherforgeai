@@ -28,6 +28,7 @@ import {
   resolveHoldingMarkPrice,
 } from "@/lib/metal-valuation";
 import { mergeFreshQuantities } from "@/lib/holding-snapshot";
+import { overlayFifoPurchasePrices } from "@/lib/fifo-cost-server";
 import { bookCacheEpoch, invalidateBookCache, readBookCache, writeBookCache } from "@/lib/book-cache";
 import { dateOnlyInstant, lotCivilDay } from "@/lib/executed-at";
 import { earlierCivilDay } from "@/lib/transaction-rules";
@@ -319,6 +320,7 @@ export async function GET(req: Request) {
     } catch (err) {
       console.error("[api/stocks] Quantity re-read failed (serving the overlay snapshot):", err);
     }
+    stocks = await overlayFifoPurchasePrices(stocks, user._id);
 
     // Legacy rows without asset_type are treated as stock.
     if (assetType === "stock" || assetType === "crypto") {

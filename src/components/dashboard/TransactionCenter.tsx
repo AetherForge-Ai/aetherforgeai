@@ -16,6 +16,7 @@ import { api } from "@/lib/api";
 import { ADVISORY_NOTE } from "@/lib/fill-integrity-client";
 import { formatDisplayDate, formatMoney, formatSavedFx, formatSignedMoney, formatUnitPrice, currencyForTicker, type CurrencyCode } from "@/lib/currency";
 import { formatLedgerDateTime } from "@/lib/executed-at";
+import { COST_METHOD_LABEL, ledgerDisplayWhen } from "@/lib/lot-day";
 import { aucklandDateISO } from "@/lib/fill-integrity";
 import { distributionLabel } from "@/lib/income-label";
 import { aucklandYmd } from "@/lib/entitlements";
@@ -574,6 +575,7 @@ export function TransactionCenter({
         </Button>
       </div>
 
+      <p className="px-6 pt-4 text-xs text-muted-foreground">{COST_METHOD_LABEL}</p>
       {/* Cash + realized KPIs */}
       <div className="grid gap-4 p-6 sm:grid-cols-3">
         <CashCard
@@ -727,7 +729,7 @@ export function TransactionCenter({
                         )}
                       </td>
                       <td className="tnum px-4 py-2.5 text-right text-xs text-muted-foreground">
-                        {formatLedgerDateTime(t.executed_at || t.createdAt) || formatDisplayDate(t.executed_at || t.createdAt)}
+                        {ledgerDisplayWhen(t) || formatDisplayDate(t.executed_at || t.createdAt)}
                       </td>
                     </tr>
                   );
@@ -738,7 +740,7 @@ export function TransactionCenter({
         )}
         <p className="mt-3 px-1 text-[11px] text-muted-foreground">
           Every transaction is recorded with fees and automatically adjusts your cash balance. Sells book realised
-          P&amp;L against your average cost. A dividend adds cash. A tax line reduces cash. Neither changes a holding quantity.
+          P&amp;L with FIFO (first in, first out). A dividend adds cash. A tax line reduces cash. Neither changes a holding quantity.
         </p>
         {layout === "ledger" && (
           <div className="mt-6 grid gap-4 lg:grid-cols-2">
@@ -1084,7 +1086,7 @@ function AllTransactionsDialog({
                         )}
                       </td>
                       <td className="tnum py-3 pl-3 text-right text-xs text-muted-foreground">
-                        {formatLedgerDateTime(t.executed_at || t.createdAt) || formatDisplayDate(t.executed_at || t.createdAt)}
+                        {ledgerDisplayWhen(t) || formatDisplayDate(t.executed_at || t.createdAt)}
                       </td>
                     </tr>
                   );
