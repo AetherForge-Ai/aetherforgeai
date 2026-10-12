@@ -85,7 +85,7 @@ export function DisclaimerNotice({
         <strong className="font-semibold text-foreground/80">Not financial advice.</strong>{" "}
         AetherForge AI ({LEGAL_ENTITY_NAME}) provides general market information and AI-generated
         analysis for informational purposes only. We are not financial advisers and this is not
-        licensed financial advice under the Financial Markets Conduct Act 2013 (NZ). We do not trade
+        financial advice. We do not trade
         for you or hold your assets. It does not consider your personal circumstances and is not a
         recommendation to buy or sell any financial product. Investing carries risk, including loss of
         capital; past performance does not

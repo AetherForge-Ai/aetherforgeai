@@ -25,13 +25,14 @@ function renderedCopy(source: string): string {
 }
 
 describe("P1 public copy", () => {
-  it("re-issues the legal pages on the same date as TERMS_VERSION", () => {
+  it("shows 13 Oct 2026 on the legal pages and leaves the consent stamp unchanged", () => {
     expect(TERMS_VERSION).toBe("2026-10-07");
-    expect(LEGAL_UPDATED).toBe("7 Oct 2026");
+    expect(LEGAL_UPDATED).toBe("13 Oct 2026");
     for (const file of [
       "src/app/terms-of-service/page.tsx",
       "src/app/privacy-policy/page.tsx",
       "src/app/ai-disclaimer/page.tsx",
+      "src/app/refunds/page.tsx",
     ]) {
       expect(read(file)).toContain("LEGAL_UPDATED");
     }

@@ -40,6 +40,11 @@ export const TRUST_PAGE_LOG = [
     date: "11 Oct 2026",
     change: "The AI provider is named on this page. No retention period is set by our code.",
   },
+  {
+    date: "13 Oct 2026",
+    change:
+      "The provider row uses the 30-day API wording. Google Analytics is described as running only after analytics cookies are accepted.",
+  },
 ] as const;
 
 export function trustTransportLine(): string {

@@ -67,6 +67,13 @@ export default async function BillingSettingsPage() {
             <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{snapshot.ladder}</p>
             <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{snapshot.prices}</p>
             <p className="mt-4 text-sm leading-relaxed text-muted-foreground">{snapshot.apexNote}</p>
+            <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
+              Annual and monthly cancellation rules are on the{" "}
+              <Link href="/refunds" className="font-medium text-primary hover:underline">
+                Refunds & Cancellations
+              </Link>{" "}
+              page.
+            </p>
             <div className="mt-6 flex flex-wrap gap-3">
               <Button asChild>
                 <Link href={snapshot.upgradeHref}>Compare plans</Link>

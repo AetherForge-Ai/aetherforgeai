@@ -55,13 +55,13 @@ describe("U4 analytics consent", () => {
     expect(read("src/components/CookieSettingsLink.tsx")).toContain("Cookie settings");
   });
 
-  it("describes the choice on the privacy cookies and analytics sections only", () => {
+  it("describes the analytics choice on the privacy policy and the trust page", () => {
     const privacy = read("src/app/privacy-policy/page.tsx");
     expect(privacy).toContain("only after you accept analytics cookies");
     expect(privacy).toContain("The Google Analytics tag is not loaded until you choose Accept");
     expect(privacy).toContain("Cookie settings");
     const trust = read("src/app/trust/page.tsx");
-    expect(trust).not.toContain("only after you accept analytics cookies");
+    expect(trust).toContain("only after you accept analytics cookies");
     expect(SECURITY_HEADERS["Content-Security-Policy"]).toBe(
       "frame-ancestors 'self' https://web.totalum.app https://totalum-frontend-test.web.app"
     );

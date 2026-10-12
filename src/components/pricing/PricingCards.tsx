@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/lib/auth-client";
 import { api } from "@/lib/api";
@@ -326,6 +327,10 @@ export function PricingCards({
         All prices in NZD. Annual billing is 12 months for the price of 10 (save ~{ANNUAL_SAVINGS_PCT}%).{" "}
         {TRIAL_CARD_LINE}{" "}
         Ultimate is Talk to us.{" "}
+        <Link href="/refunds" className="font-medium text-primary hover:underline">
+          Refunds & Cancellations
+        </Link>
+        .{" "}
         {ready && asOf
           ? `Every US$ figure on this page uses 1 NZD = US$${usdPerNzd(fx).toFixed(4)}, ${formatDailyRate(asOf)}.`
           : "A US dollar equivalent appears once the daily rate has been taken."}
