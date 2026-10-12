@@ -18,7 +18,7 @@ export async function generateMetadata({
   if (tab === "CRYPTO") {
     return publicPageMetadata("/markets?tab=crypto", {
       title: "Crypto markets · AetherForge AI",
-      description: "Coins by market cap from CoinGecko, with the native chain or platform. The page states the count it returned. Paper research, not a broker.",
+      description: "Coins by market cap from the price feed that answered, with the chain or platform when that feed sent one. The page states the count it returned. Paper research, not a broker.",
     });
   }
   if (tab === "DEX") {

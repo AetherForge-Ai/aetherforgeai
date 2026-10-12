@@ -350,6 +350,52 @@ export function fifoRemainingQtyFx(rows: readonly TaxLedgerRow[]): Map<string, n
   return openFxMaps(rows).qty;
 }
 
+/**
+ * Realised FX in full precision: Σ quantity closed × buy fill × (sell FX − buy FX).
+ * Lines are not rounded before the sum. A lot or a sell with no stored rate is skipped.
+ */
+export function sumRealisedFxNzd(rows: readonly TaxLedgerRow[]): number {
+  let total = 0;
+  const books = new Map<string, OpenLot[]>();
+  const events = rows
+    .filter((row) => row.type === "buy" || row.type === "sell" || row.type === "opening_balance")
+    .map((row) => ({ row, day: buyLotDay(row) }))
+    .filter((event) => event.day)
+    .sort((a, b) => a.day.localeCompare(b.day) || String(a.row.type).localeCompare(String(b.row.type)));
+  for (const event of events) {
+    const row = event.row;
+    const ticker = String(row.ticker || "").trim().toUpperCase();
+    if (!ticker) continue;
+    const lots = books.get(ticker) || [];
+    books.set(ticker, lots);
+    const qty = movementQty(row);
+    const price = movementPrice(row);
+    if (!(qty > 0) || !(price > 0)) continue;
+    if (row.type === "sell") {
+      const fx = fxOf(row);
+      const closed = fifoApplySell(lots, qty, price, fx ?? 0);
+      books.set(ticker, closed.remainingLots as OpenLot[]);
+      if (fx == null) continue;
+      for (const pair of closed.closedPairs) {
+        const buy = pair.buy as OpenLot;
+        if (buy.missingRate || !(buy.fxRate > 0)) continue;
+        total += pair.qty * buy.fillPrice * (pair.sellFx - buy.fxRate);
+      }
+      continue;
+    }
+    const fx = fxOf(row);
+    lots.push({
+      qty,
+      fillPrice: price,
+      fillCurrency: String(row.currency || "NZD").toUpperCase(),
+      fxRate: fx ?? 0,
+      tradeDatetime: event.day,
+      missingRate: fx == null,
+    });
+  }
+  return total;
+}
+
 export const REALISED_CSV_COLUMNS = [
   "Tax year",
   "Date",

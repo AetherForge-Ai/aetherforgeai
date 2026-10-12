@@ -43,6 +43,8 @@ export interface CoinMarket {
   sparkline7d: number[];
   /** Chain from CoinGecko platforms. "Native" or "Unavailable" when that is the honest label. */
   blockchain?: string;
+  /** Why blockchain is blank. Shown with the em dash. Not a guessed chain. */
+  blockchainReason?: string;
   /** True when this row has no live print. Do not treat price 0 as a quote. */
   priceUnavailable?: boolean;
   /** Vendor quote time from the market list, when the feed sent one. */
@@ -307,6 +309,18 @@ export function mergeCoinMarketStats(base: CoinMarket, donor: CoinMarket): CoinM
   if (positiveMarketStat(next.maxSupply) == null && positiveMarketStat(donor.maxSupply) != null) next.maxSupply = donor.maxSupply;
   if (positiveMarketStat(next.ath) == null && positiveMarketStat(donor.ath) != null) next.ath = donor.ath;
   if (!next.athDate && donor.athDate) next.athDate = donor.athDate;
+  if (positiveMarketStat(next.atl) == null && positiveMarketStat(donor.atl) != null) next.atl = donor.atl;
+  if (!next.atlDate && donor.atlDate) next.atlDate = donor.atlDate;
+  const baseName = (next.name || "").trim();
+  const donorName = (donor.name || "").trim();
+  if (baseName.toUpperCase() === next.symbol.toUpperCase() && donorName && donorName !== baseName) {
+    next.name = donorName;
+  }
+  const chain = (next.blockchain || "").trim();
+  const donorChain = (donor.blockchain || "").trim();
+  if ((!chain || chain === "—" || chain === "Unavailable" || chain === "Native") && donorChain && donorChain !== "—" && donorChain !== "Unavailable" && donorChain !== "Native") {
+    next.blockchain = donorChain;
+  }
   next.change1h = preferChange(next.change1h, donor.change1h, false);
   const day = preferChange(next.moves?.h24 ?? next.change24h, donor.moves?.h24 ?? donor.change24h, false);
   const week = preferChange(next.moves?.d7 ?? next.change7d, donor.moves?.d7 ?? donor.change7d, yahoo);

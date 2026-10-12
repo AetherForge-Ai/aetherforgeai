@@ -72,6 +72,21 @@ export function chainPricesAgree(a: number, b: number, ratio = CRYPTO_SANITY_RAT
   return span <= ratio;
 }
 
+/** Footer and ticker credit for the feed that actually supplied the tape. */
+export function cryptoVenueForLabel(label: string | null | undefined): { label: string; href: string } {
+  const first = String(label || "").split(",")[0].trim();
+  const key = first.toLowerCase();
+  if (key.includes("coinpaprika")) return { label: "CoinPaprika", href: "https://coinpaprika.com/" };
+  if (key.includes("coingecko")) return { label: "CoinGecko", href: "https://www.coingecko.com/" };
+  if (key.includes("coincap")) return { label: "CoinCap", href: "https://coincap.io/" };
+  if (key.includes("binance")) return { label: "Binance", href: "https://www.binance.com/" };
+  if (key.includes("kraken")) return { label: "Kraken", href: "https://www.kraken.com/" };
+  if (key.includes("coinbase")) return { label: "Coinbase", href: "https://www.coinbase.com/" };
+  if (key.includes("yahoo")) return { label: "Yahoo Finance", href: "https://finance.yahoo.com/" };
+  if (key.includes("geckoterminal")) return { label: "GeckoTerminal", href: "https://www.geckoterminal.com/" };
+  return { label: first || "CoinGecko", href: "https://www.coingecko.com/" };
+}
+
 export function sourceLabel(source: string): string {
   switch (source) {
     case "coingecko":

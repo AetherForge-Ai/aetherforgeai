@@ -139,7 +139,7 @@ afterEach(() => {
 describe("pull-check:v3-retest10-2026-10-13", () => {
   it("is marked on the public copy and the build version", () => {
     expect(read("src/lib/public-copy.ts")).toContain("pull-check:v3-retest10-2026-10-13");
-    expect(read("public/build-version.txt").trim()).toBe("v3-dash1-2026-10-13");
+    expect(read("public/build-version.txt").trim()).toBe("v3-retest11-2026-10-13");
     expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-retest10-2026-10-13");
     expect(read("src/lib/crypto-board-store.ts")).toContain("Never seed when a snapshot exists");
     expect(read("src/lib/crypto-source.ts")).toContain("readSharedCryptoBoard({ seed: false })");
@@ -318,7 +318,8 @@ describe("pull-check:v3-retest10-2026-10-13", () => {
       50
     );
     expect(split.currencyEffectNzd).toBe(50);
-    expect(split.currencyNote).toContain("Currency effect counts open lots only; realised FX is in Realised.");
-    expect(read("src/components/dashboard/TransactionCenter.tsx")).toContain('data-testid="ledger-live"');
+    expect(split.currencyNote).toContain("buy price");
+    expect(split.currencyNote).not.toContain("open lots only");
+    expect(read("src/components/dashboard/TransactionCenter.tsx")).not.toContain('data-testid="ledger-live"');
   });
 });

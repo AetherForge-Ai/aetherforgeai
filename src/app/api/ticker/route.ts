@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { PUBLIC_EQUITY_SOURCE, publicCryptoSourcesLabel } from "@/lib/data-sources";
+import { cryptoVenueForLabel } from "@/lib/crypto-price-chain";
 import { loadPublicTicker } from "@/lib/public-ticker";
 
 export const dynamic = "force-dynamic";
@@ -25,10 +26,10 @@ export async function GET() {
         ...feed,
         sources: {
           equities: PUBLIC_EQUITY_SOURCE,
-          crypto: publicCryptoSourcesLabel(),
+          crypto: feed.providers.crypto || publicCryptoSourcesLabel(),
           nzx: "https://www.nzx.com/markets/NZSX",
           asx: "https://www.asx.com.au/markets/company/TLX",
-          cryptoVenue: "https://www.coingecko.com/",
+          cryptoVenue: cryptoVenueForLabel(feed.providers.crypto).href,
         },
       },
     },

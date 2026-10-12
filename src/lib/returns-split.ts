@@ -1,13 +1,13 @@
 /**
  * Portfolio return split: price move, dividends, and the exchange-rate move.
  *
- * When a lot stored the buy rate, currency effect is
- * (FX at valuation − quantity-weighted FX at buy) × foreign value.
- * Foreign value is quantity times the latest price in the foreign currency.
- * The quantity-weighted buy rate is sum(q_i × fx_i) / Q.
- * Capital gain is the foreign value at that rate, minus cost at the
- * cost-weighted buy rate. Those two lines, plus income, are the economic
- * P/L. Other is only rounding.
+ * When a lot stored the buy rate:
+ *   unrealised FX = quantity × buy price × (rate now − cost-weighted buy rate)
+ *   capital       = quantity × (mark − buy price) × rate now
+ * Those two lines sum to mark × quantity × rate now − cost × quantity × buy rate.
+ * Realised FX (quantity closed × buy price × (sell rate − buy rate)) and
+ * foreign cash (balance × (rate now − booked rate)) are added to the currency
+ * line. The four output lines are rounded once.
  *
  * When the buy rate was not stored, the lines still add up to the P/L that
  * converts cost and value at today's rate. Other is that rounding gap.
@@ -43,6 +43,20 @@ export interface ReturnPosition {
   purchaseDate?: string | null;
 }
 
+/** Foreign cash booked at one rate and valued at another. NZD balances are skipped. */
+export interface ForeignCashBalance {
+  amount: number;
+  currency: CurrencyCode;
+  fxBook: number;
+  fxNow: number;
+}
+
+export interface ReturnSplitExtras {
+  /** Unrounded sum of quantity × buy fill × (sell FX − buy FX) on closed lots. */
+  realisedFxNzd?: number | null;
+  foreignCash?: ForeignCashBalance[] | null;
+}
+
 export interface ReturnSplit {
   capitalGainNzd: number;
   incomeNzd: number;
@@ -69,7 +83,8 @@ function rates(fx: number, currency: CurrencyCode): FxRatesToNZD {
 export function splitReturns(
   positions: ReturnPosition[],
   incomeNzd: number,
-  reportedPnlNzd?: number | null
+  reportedPnlNzd?: number | null,
+  extras?: ReturnSplitExtras | null
 ): ReturnSplit {
   let capital = 0;
   let currencyEffect = 0;
@@ -97,14 +112,29 @@ export function splitReturns(
     const hasBuyFx = p.currency !== "NZD" && fxQty > 0 && fxCost > 0 && !fresh;
     if (hasBuyFx) {
       pricedFx = true;
-      const foreignValue = mark * qty;
-      capital += foreignValue * fxQty - cost * qty * fxCost;
-      currencyEffect += foreignValue * (fxNow - fxQty);
-      pricedEconomic += foreignValue * fxNow - cost * qty * fxCost;
+      capital += (mark - cost) * qty * fxNow;
+      currencyEffect += cost * qty * (fxNow - fxCost);
+      pricedEconomic += mark * qty * fxNow - cost * qty * fxCost;
     } else if (!fresh) {
       capital += nativeToNzd((mark - cost) * qty, p.currency, table);
       unpricedBook += valueNzd - costNzd;
     }
+  }
+  let fxAddon = 0;
+  const realised = Number(extras?.realisedFxNzd);
+  if (Number.isFinite(realised)) fxAddon += realised;
+  for (const cash of extras?.foreignCash || []) {
+    if (!cash || cash.currency === "NZD") continue;
+    const amount = Number(cash.amount) || 0;
+    const now = Number(cash.fxNow);
+    const book = Number(cash.fxBook);
+    if (amount === 0 || !(now > 0) || !(book > 0)) continue;
+    fxAddon += amount * (now - book);
+  }
+  if (fxAddon !== 0) {
+    pricedFx = true;
+    currencyEffect += fxAddon;
+    pricedEconomic += fxAddon;
   }
   const income = round2(Number(incomeNzd) || 0);
   const capitalGainNzd = round2(capital);
@@ -121,12 +151,12 @@ export function splitReturns(
     otherNzd,
     totalNzd,
     capitalNote: pricedFx
-      ? "Capital gain is the latest foreign value at the quantity-weighted buy rate, minus the cost at the cost-weighted buy rate. It is not a forecast."
+      ? "Capital gain is the price change since you bought, turned into NZ dollars at today's exchange rate. It is not a forecast."
       : "Capital gain is the change in price since you bought, turned into NZ dollars in one step at today's exchange rate. It is not a forecast.",
     incomeNote: "Income is the dividends recorded in the ledger. It is cash received, and it does not change how many units you hold.",
     currencyNote: pricedFx
-      ? "Currency effect is (the exchange rate at valuation minus the quantity-weighted exchange rate at buy) times the foreign value of each lot. Foreign value is the quantity times the latest price in the foreign currency. The quantity-weighted rate is the sum of each open lot's quantity times its buy rate, divided by the quantity still held. Cost stays at the cost-weighted buy rate. Currency effect counts open lots only; realised FX is in Realised."
-      : "Currency effect is the NZ dollar change caused only by the exchange rate since the buy. It is zero when the holding is in NZ dollars, or when that buy did not store an exchange rate. Currency effect counts open lots only; realised FX is in Realised.",
+      ? "Currency effect is the quantity times the buy price times (the exchange rate now minus the cost-weighted exchange rate at buy), for each open lot. Realised currency effect adds the quantity closed times the buy price times (the sell rate minus the buy rate). Foreign cash adds the balance times (the rate now minus the rate the cash was booked at)."
+      : "Currency effect is the NZ dollar change caused only by the exchange rate since the buy. It is zero when the holding is in NZ dollars, or when that buy did not store an exchange rate.",
     otherNote: pricedFx
       ? "Other is rounding so these lines add up to the economic P/L. Economic P/L is the foreign value at the valuation exchange rate minus the cost at the buy's exchange rate. It stays small."
       : "Other is what is left so these lines add up to the P/L at the latest price. That P/L turns each holding's cost and its market value into NZ dollars separately, at today's rate rounded to 4 decimal places. Capital gain turns the price change into NZ dollars in one step. The holding does not store the buy's exchange rate, so this gap is not a currency move.",
