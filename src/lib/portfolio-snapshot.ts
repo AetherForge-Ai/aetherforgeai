@@ -1535,6 +1535,25 @@ export function buildPortfolioSnapshot(input: SnapshotInput): PortfolioSnapshot 
   }
 
   for (const group of groups) {
+    if (group.id === "cash" || group.marketValue.value == null) continue;
+    const open = group.positions.filter((position) => position.quantity > 1e-9);
+    if (!open.length || open.some((position) => position.marketValue.value == null)) continue;
+    const balanced = distribute(
+      open.map((position) => position.marketValue.value as number),
+      group.marketValue.value
+    );
+    open.forEach((position, index) => {
+      const value = balanced[index];
+      if (value === position.marketValue.value) return;
+      position.marketValue = {
+        ...position.marketValue,
+        value,
+        display: formatNzd(value),
+      };
+    });
+  }
+
+  for (const group of groups) {
     for (const position of group.positions) {
       const inc = position.income.value || 0;
       const fx = (position.unrealisedFx.value || 0) + (position.realisedFx.value || 0);

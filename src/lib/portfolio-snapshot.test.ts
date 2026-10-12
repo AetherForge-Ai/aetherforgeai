@@ -432,11 +432,97 @@ describe("portfolio snapshot calc engine", () => {
     expect(snapshot.kpis.today.display).toBe("—");
   });
 
+  it("keeps the header, the group cards, and the positions on the same live marks", () => {
+    const snapshot = buildPortfolioSnapshot({
+      rows: [
+        row({
+          _id: "dep",
+          type: "deposit",
+          trade_date: "2026-01-02",
+          cash_nzd: 20000,
+          total: 20000,
+          ticker: "",
+        }),
+        row({
+          _id: "aapl",
+          type: "buy",
+          ticker: "AAPL",
+          trade_date: "2026-01-02",
+          quantity: 2,
+          price: 100.125,
+          currency: "USD",
+          fx_rate: 1.6,
+          cash_nzd: -320.4,
+          total: -320.4,
+        }),
+        row({
+          _id: "btc",
+          type: "buy",
+          ticker: "BTC",
+          asset_type: "crypto",
+          trade_date: "2026-02-02",
+          quantity: 0.15,
+          price: 50123.45,
+          currency: "USD",
+          fx_rate: 1.62,
+          cash_nzd: -12179.99835,
+          total: -12179.99835,
+        }),
+        row({
+          _id: "gold",
+          type: "buy",
+          ticker: "GOLD",
+          asset_type: "metal",
+          trade_date: "2026-03-02",
+          quantity: 0.25,
+          price: 4123.33,
+          cash_nzd: -1030.8325,
+          total: -1030.8325,
+        }),
+      ],
+      marks: [
+        { ticker: "AAPL", price: 180.337, currency: "USD", source: "Equity quote", asOf: "2026-10-13" },
+        { ticker: "BTC", price: 64012.5, currency: "USD", assetType: "crypto", source: "Crypto quote", asOf: "2026-10-13" },
+        { ticker: "GOLD", price: 7601.27, currency: "NZD", assetType: "metal", source: "Gold spot feed", asOf: "2026-10-13" },
+      ],
+      fxNow: { USD: 1.7513, NZD: 1 },
+      fxSourced: true,
+      fxSource: "Test rate",
+      asOf: "2026-10-13",
+    });
+    const header = snapshot.kpis.holdingsValue.value;
+    const cards = snapshot.groups.filter((group) => group.id !== "cash");
+    const cardSum = roundMoney(cards.reduce((total, group) => total + (group.marketValue.value || 0), 0));
+    const positionSum = roundMoney(
+      cards
+        .flatMap((group) => group.positions)
+        .filter((position) => position.quantity > 1e-9)
+        .reduce((total, position) => total + (position.marketValue.value || 0), 0)
+    );
+    expect(header).not.toBeNull();
+    expect(cardSum).toBe(header);
+    expect(positionSum).toBe(header);
+    expect(snapshot.groups.find((group) => group.id === "shares")?.positions[0]?.marketPriceLocal).toBe(180.337);
+    expect(snapshot.groups.find((group) => group.id === "crypto")?.positions[0]?.marketPriceLocal).toBe(64012.5);
+    expect(snapshot.kpis.netWorth.value).toBe(roundMoney((header || 0) + (snapshot.kpis.cash.value || 0)));
+  });
+
   it("does not mention GST and the dashboard reads this snapshot", () => {
     const source = read("src/lib/portfolio-snapshot.ts");
+    const route = read("src/app/api/portfolio/snapshot/route.ts");
+    const dash = read("src/components/dashboard/PortfolioDashboard.tsx");
     expect(source.toLowerCase()).not.toContain("gst");
     expect(source).not.toMatch(/gpt|claude|gemini|openai/i);
-    expect(read("src/components/dashboard/PortfolioDashboard.tsx")).toContain("/api/portfolio/snapshot");
-    expect(read("src/app/api/portfolio/snapshot/route.ts")).toContain("buildPortfolioSnapshot");
+    expect(dash).toContain("/api/portfolio/snapshot");
+    expect(dash).toContain("rowsFromSnapshot");
+    expect(route).toContain("buildPortfolioSnapshot");
+    expect(route).toContain("fetchLiveQuotes");
+    expect(route).toContain("fetchCryptoQuotes");
+    expect(route).toContain("Silver spot feed");
+    expect(route).toContain("Gold spot feed");
+    expect(route).not.toContain("spotPx");
+    expect(read("src/lib/session-owner.ts")).not.toContain("/api/portfolio/snapshot");
+    expect(route).toContain("requestClaimsOtherUser");
+    expect(route).toContain("x-af-user-id");
   });
 });
