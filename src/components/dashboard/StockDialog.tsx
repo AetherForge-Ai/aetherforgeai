@@ -541,7 +541,7 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
             <p className="-mt-1 flex items-start gap-1.5 text-xs leading-relaxed text-amber-500">
               <Info className="mt-0.5 size-3.5 shrink-0" />
               <span>
-                We couldn&apos;t fetch a live price right now (the market may be closed or the ticker is
+                live: n/a. We couldn&apos;t fetch a live price right now (the market may be closed or the ticker is
                 unrecognised). Enter the amount you paid manually.
               </span>
             </p>

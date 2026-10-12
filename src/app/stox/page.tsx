@@ -1,4 +1,5 @@
 import { BotGuide } from "@/components/public/BotGuide";
+import { StoxReviewNotice } from "@/components/public/StoxReviewNotice";
 import { BOT_GUIDES } from "@/lib/bot-guides";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 
@@ -17,6 +18,7 @@ export default function StoxPage() {
         { src: "/brand/bot-stox.png", alt: "Illustration of the Stox character" },
         { src: "/brand/bot-stox-fullbody.png", alt: "Full-length illustration of the Stox character" },
       ]}
+      extra={<StoxReviewNotice />}
     />
   );
 }

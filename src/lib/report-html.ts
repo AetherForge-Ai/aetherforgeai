@@ -29,7 +29,7 @@ import { sanitizeGuardedReport } from "@/lib/report-consistency";
 import { labelMemberReport, stripReportModelLanguage } from "@/lib/report-language";
 import { fullBookSentence, type SharedBookLog } from "@/lib/book-log";
 import { moverSweepCaption } from "@/lib/mover-sweep";
-import { printUnderReviewLabel, PROJECTION_RANK_NOTE, projectionLeaderLine } from "@/lib/report-copy";
+import { printUnderReviewLabel, PROJECTION_RANK_NOTE, projectionLeaderLine, stoxReviewCopy } from "@/lib/report-copy";
 import type { ClosedCallScore } from "@/lib/report-topup";
 
 export interface ReportAlert {
@@ -298,13 +298,13 @@ function marketMoversBlock(groups: MarketMoversGroup[], bot?: string): string {
             ),
             ...(w.underReview ?? []).map(
               (row) => `<tr>
-                <td colspan="2" style="padding:4px 6px;border-bottom:1px solid ${LINE};font-size:11px;color:${MUTE}">${esc(printUnderReviewLabel(row.ticker))}</td>
+                <td colspan="2" style="padding:4px 6px;border-bottom:1px solid ${LINE};font-size:14px;color:${INK}">${esc(printUnderReviewLabel(row.ticker))}</td>
               </tr>`
             ),
           ].join("");
           return `<td style="vertical-align:top;width:33%;padding:0 6px">
             <div style="font-size:11px;font-weight:700;color:${BLUE};margin:0 0 4px">${esc(w.window)}</div>
-            ${w.reviewNote ? `<div style="font-size:10px;color:${MUTE};margin:0 0 4px">${esc(w.reviewNote)}</div>` : ""}
+            ${w.reviewNote ? `<div style="font-size:14px;color:${INK};margin:0 0 4px">${esc(w.reviewNote)}</div>` : ""}
             <table width="100%" style="border-collapse:collapse">${rows || (w.reviewNote ? "" : `<tr><td style="font-size:11px;color:${MUTE}">—</td></tr>`)}</table>
           </td>`;
         })
@@ -556,6 +556,11 @@ export function renderReportHtml(source: ApexReport, opts: RenderReportOptions):
         .join("")
     : `<li style="color:${MUTE}">${esc(report.sessionTapeNote || "Consolidating tape — no standout gainers this session.")}</li>`;
 
+  const stoxReview =
+    report.bot === "stock"
+      ? `<h3 style="font-size:14px;margin:18px 0 6px">Under review</h3><p style="font-size:14px;line-height:1.5;margin:0 0 12px">${esc(stoxReviewCopy())}</p>`
+      : "";
+
   const notSized = report.notSized?.length
     ? `<h3 style="font-size:14px;margin:18px 0 6px">Not sized this week</h3><ul style="padding-left:18px;margin:0;font-size:12px">${report.notSized
         .map((row) => `<li style="margin:4px 0"><strong>${esc(row.ticker)}</strong> — ${esc(row.reason)}</li>`)
@@ -660,6 +665,7 @@ export function renderReportHtml(source: ApexReport, opts: RenderReportOptions):
           </td>
         </tr></table>
 
+        ${stoxReview}
         ${notSized}
 
         ${report.briefing ? briefingBlock(report.briefing) : ""}

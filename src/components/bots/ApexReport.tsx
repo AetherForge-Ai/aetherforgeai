@@ -14,7 +14,7 @@ import { currencyForTicker, formatMoney, formatUnitPrice } from "@/lib/currency"
 import { sanitizeGuardedReport } from "@/lib/report-consistency";
 import { labelMemberReport } from "@/lib/report-language";
 import { moverSweepCaption } from "@/lib/mover-sweep";
-import { printUnderReviewLabel, PROJECTION_RANK_NOTE, projectionLeaderLine } from "@/lib/report-copy";
+import { printUnderReviewLabel, PROJECTION_RANK_NOTE, projectionLeaderLine, stoxReviewCopy } from "@/lib/report-copy";
 import type {
   ApexReport,
   TickerAnalysis,
@@ -186,7 +186,7 @@ function MarketMoversSection({ report }: { report: ApexReport }) {
                 <div key={w.window} className="rounded-lg border border-border/50 bg-background/40 p-2">
                   <div className="mb-1 text-[11px] font-medium text-muted-foreground">{w.window}</div>
                   {w.reviewNote ? (
-                    <p className="mb-1 text-[10px] text-muted-foreground">{w.reviewNote}</p>
+                    <p className="mb-1 text-sm text-muted-foreground">{w.reviewNote}</p>
                   ) : null}
                   <ul className="space-y-0.5">
                     {w.movers.map((m, i) => (
@@ -199,7 +199,7 @@ function MarketMoversSection({ report }: { report: ApexReport }) {
                       </li>
                     ))}
                     {(w.underReview ?? []).map((row) => (
-                      <li key={row.ticker} className="text-[11px] text-muted-foreground">
+                      <li key={row.ticker} className="text-sm text-muted-foreground">
                         {printUnderReviewLabel(row.ticker)}
                       </li>
                     ))}
@@ -567,6 +567,13 @@ export function ApexReportView({ report: source, scrubCopy = false }: { report: 
           {report.generatedLabel}
         </Badge>
       </div>
+
+      {report.bot === "stock" ? (
+        <section className="rounded-xl border border-border/60 bg-card/40 p-4" aria-label="Under review">
+          <h2 className="text-sm font-semibold">Under review</h2>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{stoxReviewCopy()}</p>
+        </section>
+      ) : null}
 
       {/* Portfolio snapshot (live only) */}
       {report.portfolio && (

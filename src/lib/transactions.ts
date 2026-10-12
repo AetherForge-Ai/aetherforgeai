@@ -813,6 +813,7 @@ async function applyTransactionUnlocked(
   }
   stepMs("live-spot", spotStarted, `asset=${assetType}`);
   const auditLive = auditLivePrice(liveSpot);
+  const liveAuditText = auditLive == null ? "live: n/a" : `live=${formatCleanNumber(auditLive)}`;
 
   // The reviewed price is the fill. A newer live spot is only the sanity check.
   price = priceForBooking(price, liveSpot);
@@ -987,14 +988,15 @@ async function applyTransactionUnlocked(
     const fxRate = nzdPerUnit(currency, input.fx_rate ?? rates[currency] ?? 1);
     const auditNotes = appendAuditNote(
       notes,
-      `FILLED buy qty=${quantity} fill=${formatCleanNumber(price)} ${currency} live=${auditLive == null ? "n/a" : formatCleanNumber(auditLive)} source=${input.price_source || "user_fill"}. ${ADVISORY_NOTE}`
+      `FILLED buy qty=${quantity} fill=${formatCleanNumber(price)} ${currency} ${liveAuditText} source=${input.price_source || "user_fill"}. ${ADVISORY_NOTE}`
     );
     const priceAsAt = input.price_as_at || new Date().toISOString();
     logLedgerAudit({
       action: "fill_buy",
       ticker,
       userId: user._id,
-      quote: liveSpot ? { source: assetType === "crypto" ? "crypto" : "equity", price: liveSpot, as_at: new Date().toISOString() } : undefined,
+      quote: auditLive != null ? { source: assetType === "crypto" ? "crypto" : "equity", price: auditLive, as_at: new Date().toISOString() } : undefined,
+      meta: { liveLabel: liveAuditText },
       after: { quantity, fill_price: price, cash_nzd: -costNZD, fx_rate: fxRate },
     });
     const rec = await totalumSdk.crud.createRecord("transaction", {
@@ -1173,6 +1175,14 @@ async function applyTransactionUnlocked(
   await totalumSdk.crud.editRecordById("user", user._id, { cash_balance: newCash });
 
   const priceAsAt = input.price_as_at || new Date().toISOString();
+  logLedgerAudit({
+    action: "fill_sell",
+    ticker,
+    userId: user._id,
+    quote: auditLive != null ? { source: assetType === "crypto" ? "crypto" : "equity", price: auditLive, as_at: new Date().toISOString() } : undefined,
+    meta: { liveLabel: liveAuditText },
+    after: { quantity, fill_price: price },
+  });
   const rec = await totalumSdk.crud.createRecord("transaction", {
     type: "sell",
     ticker,
@@ -1201,7 +1211,7 @@ async function applyTransactionUnlocked(
     notes: stampedTradeNotes(
       appendAuditNote(
         notes,
-        `FILLED sell qty=${quantity} fill=${formatCleanNumber(price)} ${currency} live=${auditLive == null ? "n/a" : formatCleanNumber(auditLive)} source=${input.price_source || "user_fill"}. ${ADVISORY_NOTE}`
+        `FILLED sell qty=${quantity} fill=${formatCleanNumber(price)} ${currency} ${liveAuditText} source=${input.price_source || "user_fill"}. ${ADVISORY_NOTE}`
       ),
       ticker,
       assetType,

@@ -97,6 +97,16 @@ export function printUnderReviewLabel(ticker: string): string {
   return `${ticker} — print under review`;
 }
 
+/**
+ * Example Stox wording. It is not a live recommendation.
+ * A report and the public Stox page both show the under-review notice and the MAH.AX reason.
+ */
+export function stoxReviewCopy(): string {
+  const notice = printsUnderReviewLine(1);
+  const label = printUnderReviewLabel("MAH.AX");
+  return `Example. Not a recommendation. ${notice}. ${label}. MAH.AX reason: rating TRIM: momentum negative.`;
+}
+
 /** One projected row, in the order the list already has. */
 export function projectionLeaderLine(
   index: number,

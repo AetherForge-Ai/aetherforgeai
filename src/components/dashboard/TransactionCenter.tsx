@@ -125,6 +125,7 @@ interface TransactionRow {
   fx_rate?: number | null;
   cash_nzd?: number;
   fees_nzd?: number;
+  mark_price?: number | null;
   notes?: string;
   executed_at?: string;
   createdAt?: string;
@@ -349,6 +350,8 @@ export function TransactionCenter({
   const [loading, setLoading] = useState(!preview);
   const [open, setOpenRaw] = useState(() => getStickyTxOpen());
   const [allOpen, setAllOpen] = useState(false);
+  const [ledgerPage, setLedgerPage] = useState(0);
+  const [ledgerShowAll, setLedgerShowAll] = useState(false);
   const [mode, setModeRaw] = useState<TxType>(() => getStickyTxMode());
   const [deepLinkAsset, setDeepLinkAsset] = useState<"stock" | "crypto" | "metal" | null>(null);
   const loadGenRef = useRef(0);
@@ -661,7 +664,10 @@ export function TransactionCenter({
                 </tr>
               </thead>
               <tbody>
-                {ledger.transactions.slice(0, 5).map((t) => {
+                {(ledgerShowAll
+                  ? ledger.transactions
+                  : ledger.transactions.slice(ledgerPage * 5, ledgerPage * 5 + 5)
+                ).map((t) => {
                   const meta = TYPE_META[t.type];
                   const Icon = meta.icon;
                   const cur = (t.currency as CurrencyCode) || NZD;
@@ -701,7 +707,10 @@ export function TransactionCenter({
                             <p className="text-[11px] leading-snug text-muted-foreground">{CORRECTION_CASH_TOOLTIP}</p>
                           </div>
                         ) : isTrade ? (
-                          `${formatNumber(t.quantity || 0)} × ${formatUnitPrice(t.price || 0, cur)}`
+                          <div>
+                            <p>{`${formatNumber(t.quantity || 0)} × ${formatUnitPrice(t.price || 0, cur)}`}</p>
+                            {!(Number(t.mark_price) > 0) ? <p className="text-[11px] text-muted-foreground">live: n/a</p> : null}
+                          </div>
                         ) : (
                           "—"
                         )}
@@ -737,6 +746,46 @@ export function TransactionCenter({
               </tbody>
             </table>
           </div>
+          {ledger.transactions.length > 5 ? (
+            <div data-testid="ledger-pager" className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+              <p>
+                {ledgerShowAll
+                  ? `1–${ledger.transactions.length} of ${ledger.transactions.length}`
+                  : `${ledgerPage * 5 + 1}–${Math.min(ledger.transactions.length, ledgerPage * 5 + 5)} of ${ledger.transactions.length}`}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {ledgerShowAll ? null : (
+                  <>
+                    <Button type="button" size="sm" variant="outline" className="h-8" disabled={ledgerPage <= 0} onClick={() => setLedgerPage((page) => Math.max(0, page - 1))}>
+                      Previous
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-8"
+                      disabled={(ledgerPage + 1) * 5 >= ledger.transactions.length}
+                      onClick={() => setLedgerPage((page) => page + 1)}
+                    >
+                      Next
+                    </Button>
+                  </>
+                )}
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8"
+                  onClick={() => {
+                    setLedgerShowAll((on) => !on);
+                    setLedgerPage(0);
+                  }}
+                >
+                  {ledgerShowAll ? "Show pages" : "Show all"}
+                </Button>
+              </div>
+            </div>
+          ) : null}
         )}
         <p className="mt-3 px-1 text-[11px] text-muted-foreground">
           Every transaction is recorded with fees and automatically adjusts your cash balance. Sells book realised

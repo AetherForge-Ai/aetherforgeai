@@ -11,6 +11,9 @@ import { dexscreenerPublicDisplay } from "@/lib/dexscreener-display";
 import { swyftxPublicDisplay } from "@/lib/swyftx-display";
 
 /** pull-check:track-b-p0-2026-10-11 */
+/** pull-check:v3-retest9-2026-10-12 */
+
+/** The freephone is not published. It is out of credit. */
 
 /** General and customer mail. Privacy requests use PRIVACY_OFFICER_EMAIL. */
 export const CUSTOMER_EMAIL = "admin@aetherforgeai.co.nz";
@@ -20,10 +23,6 @@ export const PRIVACY_OFFICER_EMAIL = "lukas@aetherforgeai.co.nz";
 
 /** Both public contact addresses. Footer, About, Terms, Privacy and Trust show both. */
 export const PUBLIC_CONTACT_EMAILS = [CUSTOMER_EMAIL, PRIVACY_OFFICER_EMAIL] as const;
-
-/** The number already printed on the footer. */
-export const PUBLIC_PHONE_DISPLAY = "0800 238 437";
-export const PUBLIC_PHONE_TEL = "0800238437";
 
 /**
  * One paper-book sentence for Trust, How it works, Privacy, Terms and the home page.

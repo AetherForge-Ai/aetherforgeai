@@ -46,6 +46,7 @@ import {
 } from "@/lib/crypto-dex";
 import { GECKOTERMINAL_ACCEPT } from "@/lib/crypto-coingecko";
 import { fetchYahooMajorMarkets } from "@/lib/crypto-yahoo";
+import { snapshotTapeChange } from "@/lib/ticker-feed";
 import {
   backupWithYahoo,
   loadKeylessCryptoMarkets,
@@ -167,8 +168,8 @@ function mapMarkets(body: unknown, directory: Map<string, CoinDirectoryEntry> | 
       circulatingSupply: finiteMove(row.circulating_supply),
       totalSupply: finiteMove(row.total_supply),
       maxSupply: finiteMove(row.max_supply),
-      ath: null,
-      athDate: null,
+      ath: finiteMove(row.ath),
+      athDate: typeof row.ath_date === "string" ? row.ath_date : null,
       atl: null,
       atlDate: null,
       sparkline7d: [],
@@ -516,12 +517,12 @@ export async function snapshotQuotesForSymbols(
     const symbol = raw.trim().toUpperCase();
     const coin = board.coins.find((row) => row.symbol.toUpperCase() === symbol);
     if (!coin || !(coin.price > 0)) continue;
-    const change = coin.moves?.h24;
+    const change = snapshotTapeChange(coin);
     out[symbol] = {
       price: coin.price,
       changePct: change == null ? undefined : change,
       source: "coingecko",
-      quotedAt: coin.quotedAt || board.at,
+      quotedAt: coin.quotedAt || board.at || null,
     };
   }
   return out;

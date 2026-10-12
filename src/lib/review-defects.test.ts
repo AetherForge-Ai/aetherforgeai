@@ -258,7 +258,7 @@ describe("Confirm wiring for the review defects", () => {
       { rejectionChecked: true }
     );
     const notes = transactionPayload()?.notes || "";
-    expect(notes).toContain("live=n/a");
+    expect(notes).toContain("live: n/a");
     expect(notes).not.toContain("live=0.000004");
     expect(auditLivePrice(null)).toBeNull();
     expect(auditLivePrice(0.000009)).toBe(0.000009);

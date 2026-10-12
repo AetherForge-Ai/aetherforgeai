@@ -7,6 +7,7 @@
  *
  * pull-check:batch2-2026-10-11 B2-1
  * pull-check:batch2-fixes-2026-10-12
+ * pull-check:v3-retest9-2026-10-12
  */
 
 import { tickersForCompanyName } from "@/lib/broker-names";
@@ -86,7 +87,7 @@ export interface ImportPlan {
   totalsMessage: string;
 }
 
-const SIDE_KEYS = ["side", "type", "action", "buy/sell", "buy sell"];
+const SIDE_KEYS = ["side", "type", "action", "buy/sell", "buy sell", "transaction type"];
 const TICKER_KEYS = [
   "ticker",
   "symbol",
@@ -104,7 +105,8 @@ const NAME_HEADERS = new Set(["instrument name", "company name", "company", "sec
 const DATE_KEYS = ["date", "trade date", "tradedate", "when", "trade_date"];
 const QTY_KEYS = ["quantity", "qty", "units", "shares"];
 const PRICE_KEYS = ["price", "tradeprice", "trade price", "t. price", "unit price"];
-const FEE_KEYS = ["fee", "fees", "commission", "ibcommission", "ib commission"];
+const FEE_KEYS = ["fee", "fees", "commission", "ibcommission", "ib commission", "transaction fee"];
+const MARKET_KEYS = ["market code", "market"];
 const CCY_KEYS = ["currency", "currencyprimary", "currency primary", "ccy"];
 const FX_KEYS = ["fx", "fx rate", "fxrate", "fxratetobase", "exchange rate"];
 const VALUE_KEYS = ["value", "amount", "proceeds"];
@@ -118,10 +120,21 @@ const KNOWN_HEADERS = new Set([
   ...CCY_KEYS,
   ...FX_KEYS,
   ...VALUE_KEYS,
+  ...MARKET_KEYS,
+  "order id",
 ]);
 
-function normHeader(value: string): string {
-  return value.trim().toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+/** BOM, quotes, non-breaking spaces, case and repeated spaces all become one comparable header. */
+export function normHeader(value: string): string {
+  return value
+    .replace(/\uFEFF/g, "")
+    .replace(/[\u201C\u201D\u2018\u2019]/g, "")
+    .replace(/["']/g, "")
+    .replace(/\u00A0/g, " ")
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
 }
 
 function parseImportDate(raw: string): string | null {
@@ -151,12 +164,68 @@ function indexOf(headers: string[], keys: string[]): number {
   return headers.findIndex((header) => keys.includes(header));
 }
 
+function hasHeader(headers: string[], name: string): boolean {
+  return headers.includes(name);
+}
+
+function hasOrderId(headers: string[]): boolean {
+  return headers.some((header) => header === "order id" || header.endsWith(" order id"));
+}
+
 function detectBroker(headers: string[]): ImportBroker | null {
-  if (headers.includes("instrument code") || headers.includes("instrument name")) return "sharesies";
-  if (headers.includes("clientaccountid") || headers.includes("buy/sell")) return "ibkr";
-  if (headers.includes("trade date") && headers.includes("action") && headers.includes("symbol")) return "hatch";
-  if ((headers.includes("company") || headers.includes("company name")) && headers.includes("type")) return "sharesies";
+  if (hasHeader(headers, "instrument code") || hasHeader(headers, "instrument name")) return "sharesies";
+  if (hasOrderId(headers) && (hasHeader(headers, "trade date") || hasHeader(headers, "transaction type") || hasHeader(headers, "market code"))) {
+    return "sharesies";
+  }
+  if (hasHeader(headers, "transaction type") && hasHeader(headers, "market code") && (hasHeader(headers, "trade date") || hasHeader(headers, "date"))) {
+    return "sharesies";
+  }
+  if (hasHeader(headers, "clientaccountid") || hasHeader(headers, "buy/sell")) return "ibkr";
+  if (hasHeader(headers, "trade date") && hasHeader(headers, "action") && hasHeader(headers, "symbol")) return "hatch";
+  if ((hasHeader(headers, "company") || hasHeader(headers, "company name")) && hasHeader(headers, "type")) return "sharesies";
   return null;
+}
+
+/** NZX and ASX market codes become a suffix. A code that already has one is left alone. */
+export function withMarketSuffix(ticker: string, marketRaw: string): string {
+  const code = ticker.trim().toUpperCase();
+  if (!code || /\.(NZ|AX)$/.test(code)) return code;
+  const market = marketRaw.trim().toUpperCase().replace(/\s+/g, "");
+  if (market === "NZX" || market === "NZ" || market === "NZSX") return `${code}.NZ`;
+  if (market === "ASX" || market === "AX" || market === "AU") return `${code}.AX`;
+  return code;
+}
+
+/** Prefill the column map from headers the file already has. */
+export function suggestedColumnMap(headers: string[]): Record<string, string> {
+  const normalised = headers.map((header) => ({ raw: header, key: normHeader(header) }));
+  const pick = (keys: string[]) => normalised.find((header) => keys.includes(header.key))?.raw || "";
+  return {
+    date: pick(DATE_KEYS),
+    ticker: pick(TICKER_KEYS),
+    side: pick(SIDE_KEYS),
+    quantity: pick(QTY_KEYS),
+    price: pick(PRICE_KEYS),
+    fee: pick(FEE_KEYS),
+    currency: pick(CCY_KEYS),
+    fx: pick(FX_KEYS),
+    value: pick(VALUE_KEYS),
+  };
+}
+
+/**
+ * The import response puts needsMapping on the plan and, for a map-only preview, on the root.
+ * The column screen renders when either one is set.
+ */
+export function readImportPreview(body: {
+  needsMapping?: boolean;
+  data?: { needsMapping?: boolean; headers?: string[] } | null;
+} | null | undefined): { needsMapping: true; headers: string[] } | null {
+  if (!body) return null;
+  const flagged = body.needsMapping === true || body.data?.needsMapping === true;
+  if (!flagged) return null;
+  const headers = Array.isArray(body.data?.headers) ? body.data.headers.filter((header) => typeof header === "string") : [];
+  return { needsMapping: true, headers };
 }
 
 const TICKER_SHAPED = /^[A-Z0-9][A-Z0-9.-]{0,14}$/;
@@ -334,7 +403,7 @@ export function planBrokerImport(
   const required = [columns.date, columns.ticker, columns.side, columns.quantity, columns.price];
   if (required.some((at) => at < 0)) {
     const plan = emptyPlan(null, headerCells);
-    plan.broker = broker;
+    plan.broker = broker || "generic";
     plan.needsMapping = true;
     plan.error = "Choose the date, ticker, side, quantity and price columns. Nothing was written.";
     return plan;
@@ -347,6 +416,7 @@ export function planBrokerImport(
   const fxNeeds: FxNeed[] = [];
   const seenNeeds = new Set<string>();
   const nameAt = indexOf(headerCells, [...NAME_HEADERS]);
+  const marketAt = indexOf(headerCells, MARKET_KEYS);
 
   lines.slice(headerAt + 1).forEach((line, index) => {
     const lineNo = headerAt + index + 2;
@@ -388,7 +458,7 @@ export function planBrokerImport(
       unsupported.push({ line: lineNo, reason: resolved.reason });
       return;
     }
-    const ticker = resolved.ticker;
+    const ticker = marketAt >= 0 ? withMarketSuffix(resolved.ticker, cells[marketAt] || "") : resolved.ticker;
     const quantity = Math.abs(quantityRaw);
     if (!(quantity > 0) || !(price > 0)) {
       unsupported.push({ line: lineNo, reason: "Quantity and price must be greater than zero." });
