@@ -141,8 +141,8 @@ export default function PerformancePage() {
               indicator of future results. Markets can fall as well as rise.
             </p>
             <p className="mt-3 text-center text-xs leading-relaxed text-muted-foreground/70">
-              © {new Date().getFullYear()} {LEGAL_ENTITY_NAME}. For informational purposes only. Not
-              licensed financial advice under the Financial Markets Conduct Act 2013.
+              © {new Date().getFullYear()} {LEGAL_ENTITY_NAME}. General information only, not financial
+              advice. {LEGAL_ENTITY_NAME} is not a licensed financial advice provider.
             </p>
           </div>
         </section>

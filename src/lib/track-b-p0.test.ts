@@ -153,12 +153,18 @@ describe("Track B P0", () => {
     expect(blob).toContain("retained-cash target");
     expect(blob).toContain("stress-test impacts in NZ$ and percent");
     expect(blob).toContain("does not include a card number");
-    expect(trust).toContain("SuperGrok");
-    expect(privacy).toContain("SuperGrok");
+    expect(trust).toContain("AI_PROVIDER_API_SENTENCE");
+    expect(privacy).toContain("AI_PROVIDER_API_SENTENCE");
+    expect(trust).toContain("nameAiProvider");
+    expect(privacy).toContain("nameAiProvider");
     expect(privacy).toContain('heading="4. Artificial intelligence & automated processing"');
     expect(read("src/lib/public-copy.ts")).not.toContain("SuperGrok");
-    const namedOnlyOnThosePages = [trust, privacy].join("\n").replaceAll("SuperGrok", "");
-    expect(namedOnlyOnThosePages).not.toMatch(/\b(Grok|xAI|ZENITH|ULTRA|grok-4|enhanceWithGrok)\b/);
+    expect(read("src/lib/public-copy.ts")).not.toMatch(/\b(Grok|xAI|grok-4)\b/);
+    expect(read("src/lib/ai-provider-disclosure.ts")).toContain("xAI (Grok)");
+    expect(read("src/lib/ai-provider-disclosure.ts")).toContain("up to 30 days");
+    expect(read("src/lib/ai-provider-disclosure.ts")).not.toMatch(/grok-\d/);
+    const namedOnlyOnThosePages = [trust, privacy].join("\n");
+    expect(namedOnlyOnThosePages).not.toMatch(/\b(SuperGrok|Grok|xAI|ZENITH|ULTRA|grok-4|enhanceWithGrok)\b/);
     const rest = [
       read("src/lib/public-copy.ts"),
       read("src/components/chat/ChatAssistant.tsx"),

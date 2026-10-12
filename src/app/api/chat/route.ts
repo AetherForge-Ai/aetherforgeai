@@ -5,6 +5,7 @@ import { assistantQueryLimit, aucklandMonthKey } from "@/lib/entitlements";
 import { totalumSdk } from "@/lib/totalum";
 import { buildPortfolioContext, ANALYST_SYSTEM_PROMPT } from "@/lib/ai-context";
 import { createGrokChatCompletion, type GrokMessage } from "@/lib/grok";
+import { assistantCompletionMessages } from "@/lib/ai-request-payload";
 import type { Stock } from "@/lib/portfolio";
 
 const postSchema = z.object({
@@ -120,15 +121,13 @@ export async function POST(req: Request) {
       })) as GrokMessage[];
 
     const bookLine = stocks.length
-      ? `Here is their portfolio context — use it to answer questions:\n\n${context}`
-      : "Your book is empty. Add your holdings or cash and I can explain them.";
-    const messages: GrokMessage[] = [
-      {
-        role: "system",
-        content: `${ANALYST_SYSTEM_PROMPT}\n\nThe user's name is ${user.name}. ${bookLine}`,
-      },
-      ...history,
-    ];
+      ? `Here is the portfolio context — use it to answer questions:\n\n${context}`
+      : "The book is empty. Add holdings or cash and the notes can explain them.";
+    const messages: GrokMessage[] = assistantCompletionMessages({
+      systemPrompt: ANALYST_SYSTEM_PROMPT,
+      bookLine,
+      history,
+    });
 
     console.log(`[api/chat] Generating Grok reply for user ${user._id}`);
     const reply = await createGrokChatCompletion({

@@ -4,9 +4,12 @@ import { CUSTOMER_EMAIL, PRIVACY_OFFICER_EMAIL } from "@/lib/public-copy";
 import { LEGAL_ENTITY_NAME } from "@/lib/company";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { publicDataSourcesLine } from "@/lib/data-sources";
+import { AI_PROVIDER_API_SENTENCE } from "@/lib/ai-provider-disclosure";
 import {
+  ANNUAL_REFUND_RULE,
   LEDGER_EXPORT_LINE,
   LEGAL_UPDATED,
+  MONTHLY_CANCEL_RULE,
   PAPER_BOOK_STATEMENT,
   REFUND_FAQ,
   TRIAL_CARD_LINE,
@@ -47,6 +50,7 @@ export default function TermsOfService() {
           {PAPER_BOOK_STATEMENT} AetherForge is not a broker and does not execute trades, transfer cash,
           or hold assets for you.
         </p>
+        <p>{AI_PROVIDER_API_SENTENCE}</p>
         <p>
           <strong className="text-foreground/90">
             The Service provides general information only and does not constitute financial,
@@ -86,13 +90,21 @@ export default function TermsOfService() {
         <p>{TRIAL_CARD_LINE}</p>
         <ul className="list-disc space-y-1.5 pl-5">
           <li>Subscriptions renew automatically at the end of each billing period unless cancelled.</li>
-          <li>You may cancel at any time; cancellation takes effect at the end of the current paid period.</li>
+          <li>{MONTHLY_CANCEL_RULE}</li>
+          <li>{ANNUAL_REFUND_RULE}</li>
           <li>
             We may change plan features or pricing on reasonable notice; changes will not affect the
             period you have already paid for.
           </li>
         </ul>
         <p>{REFUND_FAQ}</p>
+        <p>
+          The full cancellation rules are on the{" "}
+          <a href="/refunds" className="text-primary hover:underline">
+            Refunds & Cancellations
+          </a>{" "}
+          page.
+        </p>
         <p>Nothing in these terms limits your rights under the Consumer Guarantees Act 1993.</p>
       </LegalSection>
 

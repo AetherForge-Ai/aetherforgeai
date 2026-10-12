@@ -13,6 +13,7 @@ const CACHEABLE_MARKETING_PATHS = new Set([
   "/how-to-maximize-results",
   "/privacy-policy",
   "/terms-of-service",
+  "/refunds",
   "/ai-disclaimer",
   "/trust",
   "/docs",

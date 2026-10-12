@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { AI_PROVIDER_API_SENTENCE, AI_PROVIDER_NAME } from "@/lib/ai-provider-disclosure";
 import { AI_REQUEST_LINES, LEDGER_EXPORT_LINE, PROCESSORS, SECURITY_LINE } from "@/lib/public-copy";
 import { SECURITY_HEADERS } from "@/lib/security-headers";
 import {
@@ -66,17 +67,22 @@ describe("trust page facts", () => {
     expect(TRUST_PAGE_LOG[0].date).toBe("10 Oct 2026");
   });
 
-  it("names SuperGrok on the page and does not claim a credential that is not held", () => {
+  it("names xAI (Grok) on the page and does not claim a credential that is not held", () => {
     const facts = read("src/lib/trust-facts.ts");
     const page = read("src/app/trust/page.tsx");
-    const blob = `${facts}\n${page}`;
+    const blob = `${facts}\n${page}\n${AI_PROVIDER_API_SENTENCE}`;
     const taxWord = ["G", "ST"].join("");
     expect(blob).not.toContain(taxWord);
     expect(facts).not.toMatch(/\b(SuperGrok|Grok|xAI|Claude|Gemini|GPT-\d|ZENITH|ULTRA)\b/);
-    expect(page).toContain("The third-party AI service in those sentences is SuperGrok.");
-    expect(page).toContain("No retention period is set by our code.");
-    expect(page.replaceAll("SuperGrok", "")).not.toMatch(/\b(Grok|xAI|Claude|Gemini|GPT-\d|ZENITH|ULTRA)\b/);
+    expect(page).toContain("AI_PROVIDER_API_SENTENCE");
+    expect(page).toContain("nameAiProvider");
+    expect(page).toContain("only after you accept analytics cookies");
+    expect(AI_PROVIDER_API_SENTENCE).toContain(`${AI_PROVIDER_NAME}, used through its API`);
+    expect(AI_PROVIDER_API_SENTENCE).toContain("up to 30 days");
+    expect(AI_PROVIDER_API_SENTENCE).not.toMatch(/grok-\d|zero data retention/i);
+    const stripped = `${page}\n${AI_PROVIDER_API_SENTENCE}`.replaceAll(AI_PROVIDER_NAME, "").replaceAll("xAI's", "");
+    expect(stripped).not.toMatch(/\b(SuperGrok|Grok|xAI|Claude|Gemini|GPT-\d|ZENITH|ULTRA|grok-\d)\b/);
     expect(blob).not.toMatch(/2FA|two-factor|TOTP|SOC 2|penetration test|encryption at rest/i);
-    expect(blob).not.toMatch(/\breal-time\b|\bofficial\b|\blicensed\b/i);
+    expect(`${facts}\n${page}`).not.toMatch(/\breal-time\b|\bofficial\b|\blicensed\b/i);
   });
 });

@@ -13,6 +13,7 @@ import {
 import { isTotalumEntitled } from "@/app/api/totalum/route";
 import { loadTotalumSynthesis, loadReportFindings } from "@/lib/totalum-service";
 import { scopeHeadmasterIdeas } from "@/lib/headmaster-trust";
+import { portfolioCoachCompletionMessages } from "@/lib/ai-request-payload";
 
 export const dynamic = "force-dynamic";
 
@@ -102,7 +103,7 @@ function buildAttachedReportsBlock(
 
 /**
  * POST /api/portfolio-coach
- * Authenticated Portfolio Execution Coach chat.
+ * Authenticated Portfolio Notes Assistant chat. Route id stays portfolio-coach.
  * Accepts optional Headmaster plan text + attached Stox/Koins report context.
  * Prefetches Headmaster synthesis when the member is entitled.
  */
@@ -146,7 +147,6 @@ export async function POST(req: Request) {
     }
 
     const contextParts = [
-      `Member name: ${user.name}.`,
       liveHeadmaster,
       clientPlan
         ? `Additional Headmaster plan / strategy text from the client:\n${clientPlan}`
@@ -162,17 +162,15 @@ export async function POST(req: Request) {
       });
     }
 
-    const messages: GrokMessage[] = [
-      {
-        role: "system",
-        content: `${PORTFOLIO_COACH_SYSTEM_PROMPT}\n\nLive session context:\n${contextParts.join("\n\n")}`,
-      },
-      ...history.map((m) => ({
+    const messages: GrokMessage[] = portfolioCoachCompletionMessages({
+      systemPrompt: PORTFOLIO_COACH_SYSTEM_PROMPT,
+      context: contextParts.join("\n\n"),
+      history: history.map((m) => ({
         role: m.role as "user" | "assistant",
         content: m.content,
       })),
-      { role: "user", content: userMessage },
-    ];
+      userMessage,
+    });
 
     try {
       const reply = await createGrokChatCompletion({
