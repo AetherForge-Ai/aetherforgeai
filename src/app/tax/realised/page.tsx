@@ -12,6 +12,7 @@ import { getCurrentUser } from "@/lib/session";
 import { loadTaxRows } from "@/lib/tax-book-server";
 import { TAX_INDICATIVE_LABEL } from "@/lib/tax-disclaimer";
 import { salesSummary, TAX_PACK_NOTE, taxCompleteness } from "@/lib/tax-pack";
+import { COST_METHOD_LABEL } from "@/lib/lot-day";
 import { realisedByTaxYear, REALISED_ASSUMPTIONS, type RealisedLine, type RealisedReport } from "@/lib/tax-realised";
 import { taxYearChoices, type TaxLedgerRow } from "@/lib/taxable-income";
 
@@ -110,9 +111,6 @@ function ReportBody({ report }: { report: RealisedReport }) {
         {report.blankCount > 0
           ? ` ${report.blankCount} disposal${report.blankCount === 1 ? "" : "s"} ${report.blankCount === 1 ? "is" : "are"} blank because a rate or a lot was missing.`
           : ""}
-        {report.storedDiffCount > 0
-          ? ` ${report.storedDiffCount} row${report.storedDiffCount === 1 ? "" : "s"} differ from the amount stored on the sell. The income summary keeps those stored amounts, including a stored NZ$0.00.`
-          : ""}
       </p>
     </>
   );
@@ -163,8 +161,8 @@ export default async function RealisedPage({
         <TaxSectionNav current="/tax/realised" />
         <p className="mt-4 text-sm leading-relaxed text-muted-foreground">{TAX_INDICATIVE_LABEL}</p>
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-          FIFO working for {nzTaxYearLabel(endingYear)}. The taxable-income page still shows the realised amount stored
-          on each sell. This page rebuilds the gain from the lots.
+          {COST_METHOD_LABEL} Working for {nzTaxYearLabel(endingYear)}. The income summary, the tax page and the ledger
+          use this same figure.
         </p>
         <div className="mt-6 flex flex-wrap items-center gap-2 print:hidden">
           {years.map((year) => (

@@ -12,6 +12,7 @@ import { getCurrentUser } from "@/lib/session";
 import { loadTaxRows } from "@/lib/tax-book-server";
 import { TAX_INDICATIVE_LABEL } from "@/lib/tax-disclaimer";
 import { TAX_PACK_NOTE, taxCompleteness } from "@/lib/tax-pack";
+import { COST_METHOD_LABEL } from "@/lib/lot-day";
 import { taxableIncome, taxYearChoices, type TaxableIncomeReport, type TaxLedgerRow } from "@/lib/taxable-income";
 import { incomeReconciliationNote, realisedByTaxYear } from "@/lib/tax-realised";
 
@@ -75,8 +76,7 @@ function ReportTables({ report, fifoNote }: { report: TaxableIncomeReport; fifoN
 
       <h2 className="mt-8 font-display text-lg font-semibold">Realised gains</h2>
       <p className="mt-2 text-sm text-muted-foreground">
-        This is the realised amount stored on each sell in this tax year. A sell with no stored amount is left blank
-        and is not counted as zero.
+        {COST_METHOD_LABEL} A sell with no open lot is left blank and is not counted as zero.
       </p>
       {report.realised.length === 0 ? (
         <p className="mt-2 text-sm text-muted-foreground">No sells in this tax year.</p>
@@ -167,13 +167,14 @@ export default async function TaxableIncomePage({
         <p className="mt-4 text-sm leading-relaxed text-muted-foreground">{TAX_INDICATIVE_LABEL}</p>
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
           Summary for the income year {nzTaxYearLabel(endingYear)}. The year runs from 1 April to 31 March. Dividends
-          show gross, NZ imputation credits and withholding in NZ$. Realised gains are included where a sell stored one.
+          show gross, NZ imputation credits and withholding in NZ$. Realised gains use FIFO (first in, first out).
         </p>
+        <p className="mt-3 text-sm text-muted-foreground">{COST_METHOD_LABEL}</p>
         <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
           <li>This paper reads up to 5,000 ledger rows.</li>
           <li>A dividend saved without a breakdown is shown as cash only and is not added to gross.</li>
           <li>
-            Realised amounts are the figures stored on the sell. The FIFO paper is the{" "}
+            Realised amounts match the{" "}
             <Link href="/tax/realised" className="text-primary underline-offset-4 hover:underline">
               realised profit and loss
             </Link>{" "}

@@ -29,6 +29,7 @@ import { sanitizeGuardedReport } from "@/lib/report-consistency";
 import { labelMemberReport, stripReportModelLanguage } from "@/lib/report-language";
 import { fullBookSentence, type SharedBookLog } from "@/lib/book-log";
 import { moverSweepCaption } from "@/lib/mover-sweep";
+import { printUnderReviewLabel, PROJECTION_RANK_NOTE, projectionLeaderLine } from "@/lib/report-copy";
 import type { ClosedCallScore } from "@/lib/report-topup";
 
 export interface ReportAlert {
@@ -285,17 +286,22 @@ function marketMoversBlock(groups: MarketMoversGroup[], bot?: string): string {
     .map((g) => {
       const cols = g.windows
         .map((w) => {
-          const rows = w.movers
-            .map(
+          const rows = [
+            ...w.movers.map(
               (m, i) => `<tr>
                 <td style="padding:4px 6px;border-bottom:1px solid ${LINE};font-size:11px">
                   <span style="color:${MUTE};font-size:10px">${i + 1}.</span>
                   <strong style="color:${INK}">${esc(m.ticker)}</strong>
                 </td>
-                <td style="padding:4px 6px;border-bottom:1px solid ${LINE};text-align:right;font-size:11px;color:${m.withheld ? MUTE : pctColor(m.changePct)};font-weight:600">${m.withheld ? "data under review" : pct(m.changePct)}</td>
+                <td style="padding:4px 6px;border-bottom:1px solid ${LINE};text-align:right;font-size:11px;color:${pctColor(m.changePct)};font-weight:600">${pct(m.changePct)}</td>
               </tr>`
-            )
-            .join("");
+            ),
+            ...(w.underReview ?? []).map(
+              (row) => `<tr>
+                <td colspan="2" style="padding:4px 6px;border-bottom:1px solid ${LINE};font-size:11px;color:${MUTE}">${esc(printUnderReviewLabel(row.ticker))}</td>
+              </tr>`
+            ),
+          ].join("");
           return `<td style="vertical-align:top;width:33%;padding:0 6px">
             <div style="font-size:11px;font-weight:700;color:${BLUE};margin:0 0 4px">${esc(w.window)}</div>
             ${w.reviewNote ? `<div style="font-size:10px;color:${MUTE};margin:0 0 4px">${esc(w.reviewNote)}</div>` : ""}
@@ -320,15 +326,12 @@ function projectionLeadersBlock(rows: ProjectionRow[]): string {
   const body = rows
     .map(
       (r, i) => `<tr>
-        <td style="padding:6px 7px;border:1px solid ${LINE};font-size:11px"><span style="color:${MUTE}">${i + 1}.</span> <strong>${esc(r.ticker)}</strong> <span style="color:${MUTE}">· ${esc(r.name)}</span></td>
-        <td style="padding:6px 7px;border:1px solid ${LINE};font-size:11px;text-align:center">${esc(r.market)}</td>
-        <td style="padding:6px 7px;border:1px solid ${LINE};font-family:monospace;font-size:11px;text-align:right">${moneyC(r.price, r.currency)}</td>
-        <td style="padding:6px 7px;border:1px solid ${LINE};font-size:12px;text-align:right;color:${pctColor(r.projected7dPct)};font-weight:700">${pct(r.projected7dPct)}</td>
-        <td style="padding:6px 7px;border:1px solid ${LINE};font-size:11px;text-align:right;color:${MUTE}">${r.confidence}%</td>
+        <td colspan="5" style="padding:6px 7px;border:1px solid ${LINE};font-size:12px;color:${INK}">${esc(projectionLeaderLine(i + 1, r))}</td>
       </tr>`
     )
     .join("");
   return `<h2 style="font-size:16px;color:${INK};margin:26px 0 8px">Next 7 days · Top-10 projected movers</h2>
+    <p style="font-size:12px;color:${MUTE};margin:0 0 8px">${esc(PROJECTION_RANK_NOTE)}</p>
     <table width="100%" style="border-collapse:collapse">
       <tr style="background:${NAVY};color:#fff;font-size:11px">
         <th style="padding:6px 7px;text-align:left">Security</th>

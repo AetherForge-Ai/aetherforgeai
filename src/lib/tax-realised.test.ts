@@ -31,9 +31,7 @@ describe("realised profit and loss", () => {
     expect(booked?.realisedNzd).toBe(25);
     expect(booked?.pricePnlNzd).toBe(25);
     expect(booked?.fxPnlNzd).toBe(0);
-    expect(incomeReconciliationNote(-10.59, -10.67)).toContain("FIFO");
-    expect(incomeReconciliationNote(-10.59, -10.67)).toContain("-NZ$10.59");
-    expect(incomeReconciliationNote(-10.59, -10.67)).toContain("-NZ$10.67");
+    expect(incomeReconciliationNote(-10.59, -10.67)).toBeNull();
     expect(incomeReconciliationNote(25, 25)).toBeNull();
   });
 
@@ -158,10 +156,10 @@ describe("realised profit and loss", () => {
     expect(line.proceedsNzd).toBe(7.13);
     expect(line.realisedNzd).toBe(-10.69);
     expect(line.storedRealisedNzd).toBe(0);
-    expect(line.diffNote).toContain("NZ$0.00");
-    expect(line.diffNote).toContain("NZ$-10.69");
+    expect(line.diffNote).toBeNull();
     expect(report.combinedNzd).toBe(-10.69);
-    expect(report.storedDiffCount).toBe(1);
+    expect(report.storedDiffCount).toBe(0);
+    expect(JSON.stringify(report)).not.toContain("rows differ");
   });
 
   it("points the tax page at the working papers", () => {

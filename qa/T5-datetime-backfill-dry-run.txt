@@ -1,0 +1,6 @@
+DateTime_NZ backfill dry-run
+NOT APPLIED. This script does not write. Lukas must approve the backfill before it runs.
+
+- WOR.AX shown "11 Oct 2026" proposed 11 Oct 2026, 8:27 am (would copy createdAt into DateTime_NZ)
+- UNI shown "11 Oct 2026" proposed 11 Oct 2026, 8:33 am (would copy createdAt into DateTime_NZ)
+- WOR.AX shown "11 Oct 2026" no write (time not stored)

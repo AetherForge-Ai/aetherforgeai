@@ -2002,7 +2002,10 @@ export function PortfolioDashboard({
       >
       <div className="rounded-3xl border border-border/70 bg-card/50">
         <div className="flex items-center justify-between border-b border-border/60 px-6 py-4">
-          <h2 className="font-display text-lg font-bold">Your holdings</h2>
+          <div>
+            <h2 className="font-display text-lg font-bold">Your holdings</h2>
+            <p className="text-xs text-muted-foreground">Cost method: FIFO (first in, first out).</p>
+          </div>
           <span className="text-xs text-muted-foreground">
             {!balancesReady
               ? "…"

@@ -9,7 +9,7 @@
 
 import { formatNzd, roundFxRate, roundMoney } from "@/lib/currency";
 import { dividendViewFromRow } from "@/lib/dividend-ledger";
-import { lotCivilDay } from "@/lib/executed-at";
+import { buyLotDay } from "@/lib/lot-day";
 import { inNzTaxYear, nzTaxYearLabel } from "@/lib/nz-tax-year";
 import type { TaxLedgerRow } from "@/lib/taxable-income";
 
@@ -106,8 +106,8 @@ export function fifClass(ticker: string, assetType: string | null | undefined): 
   return "attributable";
 }
 
-function civil(value: string | null | undefined): string {
-  return lotCivilDay(value || "", "");
+function civil(row: { trade_date?: string | null; trade_datetime?: string | null; executed_at?: string | null; createdAt?: string | null }): string {
+  return buyLotDay(row);
 }
 
 function yearStart(endingYear: number): string {
@@ -122,14 +122,9 @@ function fxOf(row: TaxLedgerRow): number | null {
   return null;
 }
 
-function nzdCost(qty: number, price: number, fx: number, bookedCash?: number | null): number {
-  const formula = roundMoney(qty * price * roundFxRate(fx));
-  if (typeof bookedCash === "number" && Number.isFinite(bookedCash)) {
-    const spent = roundMoney(Math.abs(bookedCash));
-    // Same cent as the ledger formula. A one-cent neighbour (11,743.35 vs 11,743.36) stays on the formula.
-    if (spent > 0 && spent === formula) return spent;
-  }
-  return formula;
+/** Unrounded lot cost. A booked cash figure never replaces it, including a one-cent neighbour. */
+function nzdCost(qty: number, price: number, fx: number, _bookedCash?: number | null): number {
+  return qty * price * roundFxRate(fx);
 }
 
 interface Lot {
@@ -176,10 +171,10 @@ function removeQty(working: Working, qty: number, fx: number | null, price: numb
       continue;
     }
     const take = Math.min(lot.qty, left);
-    const removedCost = lot.qty > 0 ? roundMoney((take / lot.qty) * lot.costNzd) : 0;
+    const removedCost = lot.qty > 0 ? (take / lot.qty) * lot.costNzd : 0;
     const remainQty = lot.qty - take;
     if (remainQty > 1e-9) {
-      next.push({ qty: remainQty, costNzd: roundMoney(lot.costNzd - removedCost) });
+      next.push({ qty: remainQty, costNzd: lot.costNzd - removedCost });
     }
     left -= take;
   }
@@ -187,7 +182,7 @@ function removeQty(working: Working, qty: number, fx: number | null, price: numb
   if (left > 1e-6) working.unknown = true;
   if (inYear) {
     if (fx == null) working.cvBlocked = true;
-    else working.gainsNzd = roundMoney(working.gainsNzd + nzdCost(qty, price, fx));
+    else working.gainsNzd = roundMoney(working.gainsNzd + roundMoney(nzdCost(qty, price, fx)));
   }
 }
 
@@ -244,6 +239,7 @@ function positionFrom(
   const openingNzd = market?.openingNzd ?? null;
   const closingNzd = market?.closingNzd ?? null;
   const costNzd = working.unknown ? null : working.yearEndCost;
+  const costsInYearNzd = roundMoney(working.costsInYearNzd);
   return {
     ticker,
     className,
@@ -257,11 +253,11 @@ function positionFrom(
             openingNzd,
             closingNzd,
             gainsNzd: working.gainsNzd,
-            costsNzd: working.costsInYearNzd,
+            costsNzd: costsInYearNzd,
           })
         : null,
     gainsNzd: working.gainsNzd,
-    costsInYearNzd: working.costsInYearNzd,
+    costsInYearNzd,
     omittedDividendCash: working.omittedDividendCash,
   };
 }
@@ -275,7 +271,7 @@ export function buildFifPaper(input: {
   const books = new Map<string, { className: FifClass; assetType: string; working: Working }>();
   const events = input.rows
     .filter((row) => row.type === "buy" || row.type === "sell" || row.type === "opening_balance")
-    .map((row) => ({ row, day: civil(row.executed_at || row.createdAt) }))
+    .map((row) => ({ row, day: civil(row) }))
     .filter((event) => event.day)
     .sort((a, b) => a.day.localeCompare(b.day) || String(a.row.type).localeCompare(String(b.row.type)));
 
@@ -287,9 +283,9 @@ export function buildFifPaper(input: {
     for (const book of books.values()) {
       if (book.className !== "attributable" && book.className !== "australian") continue;
       if (book.working.unknown) return null;
-      total = roundMoney(total + holdingCost(book.working.lots));
+      for (const lot of book.working.lots) total += lot.costNzd;
     }
-    return total;
+    return roundMoney(total);
   }
 
   function notePeak() {
@@ -329,7 +325,7 @@ export function buildFifPaper(input: {
       else {
         const cost = nzdCost(qty, price, fx, row.cash_nzd);
         addLot(book.working, qty, cost);
-        if (inYear) book.working.costsInYearNzd = roundMoney(book.working.costsInYearNzd + cost);
+        if (inYear) book.working.costsInYearNzd += cost;
       }
     }
     if (inYear || event.day >= start) notePeak();

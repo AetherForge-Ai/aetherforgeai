@@ -67,8 +67,10 @@ describe("taxable income", () => {
     audDividend("2026-10-10"),
     nzDividend("2026-03-31"),
     { type: "dividend", ticker: "AIR.NZ", asset_type: "stock", executed_at: "2026-05-20", cash_nzd: 25, notes: "" },
-    { type: "sell", ticker: "AAPL", asset_type: "stock", executed_at: "2027-01-15", realized_pnl: 40.5 },
-    { type: "sell", ticker: "MSFT", asset_type: "stock", executed_at: "2027-04-01", realized_pnl: 9 },
+    { type: "buy", ticker: "AAPL", asset_type: "stock", executed_at: "2026-06-01", quantity: 10, price: 2, currency: "NZD", fx_rate: 1 },
+    { type: "sell", ticker: "AAPL", asset_type: "stock", executed_at: "2027-01-15", quantity: 10, price: 6.05, currency: "NZD", fx_rate: 1, fees_nzd: 0, realized_pnl: 0 },
+    { type: "buy", ticker: "MSFT", asset_type: "stock", executed_at: "2027-04-01", quantity: 1, price: 1, currency: "NZD", fx_rate: 1 },
+    { type: "sell", ticker: "MSFT", asset_type: "stock", executed_at: "2027-04-01", quantity: 1, price: 10, currency: "NZD", fx_rate: 1, fees_nzd: 0, realized_pnl: 0 },
     { type: "sell", ticker: "ETH", asset_type: "crypto", executed_at: "2026-09-01" },
   ];
 

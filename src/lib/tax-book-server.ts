@@ -3,6 +3,8 @@ import "server-only";
 import { bookCacheEpoch, readBookCache, writeBookCache } from "@/lib/book-cache";
 import type { DividendSourceRow } from "@/lib/dividend-ledger";
 import type { TaxLedgerRow } from "@/lib/taxable-income";
+import { aucklandCivilToday, nzTaxYearEnding } from "@/lib/nz-tax-year";
+import { realisedByTaxYear } from "@/lib/tax-realised";
 import { taxBookSummary } from "@/lib/tax-book";
 import type { PaperHoldingChoice } from "@/lib/paper-holding";
 import { totalumSdk } from "@/lib/totalum";
@@ -128,15 +130,15 @@ export async function loadStockNoteRows(userId: string): Promise<StockNoteRow[]>
  */
 export async function loadTaxBookFigures(userId: string): Promise<{ dividendsNzd: number; realisedPnlNzd: number }> {
   return cachedRead(`${userId}:tax-figures`, async () => {
-    const [sells, dividends] = await Promise.all([
-      totalumSdk.crud.query("transaction", { _filter: { user: userId, type: "sell" }, _limit: 5000 }),
+    const [book, dividends] = await Promise.all([
+      totalumSdk.crud.query("transaction", { _filter: { user: userId }, _limit: 5000 }),
       totalumSdk.crud.query("transaction", { _filter: { user: userId, type: "dividend" }, _limit: 5000 }),
     ]);
-    const rows = [
-      ...((sells?.data as unknown as Parameters<typeof taxBookSummary>[0]) || []),
-      ...((dividends?.data as unknown as Parameters<typeof taxBookSummary>[0]) || []),
-    ];
-    return taxBookSummary(rows);
+    const dividendRows = (dividends?.data as unknown as Parameters<typeof taxBookSummary>[0]) || [];
+    const ending = nzTaxYearEnding(aucklandCivilToday());
+    const ledger = (book?.data as unknown as TaxLedgerRow[]) || [];
+    const realised = ending == null ? 0 : realisedByTaxYear(ledger, ending).combinedNzd;
+    return { dividendsNzd: taxBookSummary(dividendRows).dividendsNzd, realisedPnlNzd: realised };
   });
 }
 

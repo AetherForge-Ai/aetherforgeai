@@ -251,9 +251,14 @@ describe("FIF working paper", () => {
       buy({ ticker: "DDD", executed_at: "2025-06-04", quantity: 1, price: 10.005, currency: "NZD", fx_rate: 1 }),
       buy({ ticker: "EEE", executed_at: "2025-06-05", quantity: 1, price: 10.005, currency: "NZD", fx_rate: 1 }),
     ]);
-    const sum = roundMoney(five.attributing.reduce((total, row) => total + (row.costNzd || 0), 0));
-    expect(five.peakCostNzd).toBe(sum);
-    expect(sum).toBe(50.05);
+    expect(five.attributing.map((row) => row.costNzd)).toEqual([10.01, 10.01, 10.01, 10.01, 10.01]);
+    expect(five.peakCostNzd).toBe(50.03);
+    const worLots = paperFor([
+      buy({ ticker: "WOR.AX", executed_at: "2025-06-01", quantity: 1, price: 7046.174, currency: "NZD", fx_rate: 1 }),
+      buy({ ticker: "WOR.AX", executed_at: "2025-06-02", quantity: 1, price: 4697.181, currency: "NZD", fx_rate: 1 }),
+    ]);
+    expect(worLots.australian[0].costNzd).toBe(11743.36);
+    expect(`${worLots.australian[0].ticker}: cost NZ$11,743.36.`).toBe("WOR.AX: cost NZ$11,743.36.");
   });
 
   it("does not call an empty book under the threshold", () => {

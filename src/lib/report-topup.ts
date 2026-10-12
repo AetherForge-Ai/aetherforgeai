@@ -288,6 +288,42 @@ function isSevenDayCall(value: unknown): value is SevenDayCall {
   return typeof row.id === "string" && typeof row.ticker === "string" && typeof row.issuedAtMs === "number";
 }
 
+/** Previous run's ranked 24-hour print, newest payload first. */
+export function priorMoverPrints(payloads: unknown[]): Record<string, { changePct: number; price: number }> {
+  for (const raw of payloads) {
+    let parsed: unknown = raw;
+    if (typeof raw === "string") {
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        continue;
+      }
+    }
+    if (!parsed || typeof parsed !== "object") continue;
+    const groups = (parsed as { marketMovers?: unknown }).marketMovers;
+    if (!Array.isArray(groups)) continue;
+    const out: Record<string, { changePct: number; price: number }> = {};
+    for (const group of groups) {
+      if (!group || typeof group !== "object") continue;
+      const windows = (group as { windows?: unknown }).windows;
+      if (!Array.isArray(windows)) continue;
+      const day = windows.find(
+        (window) => window && typeof window === "object" && (window as { window?: string }).window === "Last 24 hours"
+      ) as { movers?: unknown } | undefined;
+      if (!Array.isArray(day?.movers)) continue;
+      for (const mover of day.movers) {
+        if (!mover || typeof mover !== "object") continue;
+        const row = mover as { ticker?: string; changePct?: number; price?: number; withheld?: boolean };
+        if (row.withheld || typeof row.ticker !== "string") continue;
+        if (typeof row.changePct !== "number" || typeof row.price !== "number") continue;
+        out[row.ticker.trim().toUpperCase()] = { changePct: row.changePct, price: row.price };
+      }
+    }
+    if (Object.keys(out).length) return out;
+  }
+  return {};
+}
+
 /** Read earlier saved reports so a later price can close a 7-day range. */
 export function priorCallsFromPayloads(payloads: unknown[]): { score: ClosedCallScore | null; calls: SevenDayCall[] } {
   let score: ClosedCallScore | null = null;

@@ -16,6 +16,7 @@ import "server-only";
 import { totalumSdk } from "@/lib/totalum";
 import type { AppUser } from "@/lib/session";
 import { currencyForTicker, nzdAtBookRate, ensureNzdPerUsd, ensureNzdPerAud, formatCleanNumber, formatQuantity, normaliseUnitPrice, roundFxRate, roundUnitPrice, type CurrencyCode } from "@/lib/currency";
+import { fifoTotals } from "@/lib/fifo-cost";
 import { dexPriceForSymbol, ledgerFxRate, priceForBooking, ratesForBooking, reviewedFxAllowed } from "@/lib/reviewed-book";
 import { alertsToArchive, positionIsClosed } from "@/lib/alert-lifecycle";
 import { getFxSnapshot, historicalNzdPerUnit } from "@/lib/fx";
@@ -1311,6 +1312,8 @@ export interface TransactionRow {
   notes?: string;
   executed_at?: string;
   createdAt?: string;
+  trade_date?: string;
+  trade_datetime?: string;
 }
 
 export interface TransactionLedger {
@@ -1344,7 +1347,7 @@ async function loadLedgerFresh(user: AppUser, limit: number): Promise<Transactio
     }),
     readUserCash(user._id, fallbackCash),
     totalumSdk.crud.query("transaction", {
-      _filter: { user: user._id, type: "sell" },
+      _filter: { user: user._id },
       _limit: 5000,
     }),
     totalumSdk.crud.query("transaction", {
@@ -1362,21 +1365,12 @@ async function loadLedgerFresh(user: AppUser, limit: number): Promise<Transactio
       const tb = new Date(b.executed_at || b.createdAt || 0).getTime();
       return (Number.isFinite(tb) ? tb : 0) - (Number.isFinite(ta) ? ta : 0);
     });
-  const sells = (sellsRes?.data as unknown as TransactionRow[]) || [];
-
-  const yearStart = new Date(new Date().getFullYear(), 0, 1).getTime();
-  let realizedTotal = 0;
-  let realizedYtd = 0;
-  let realizedYtdCount = 0;
-  for (const r of sells) {
-    if (typeof r.realized_pnl !== "number") continue;
-    realizedTotal += r.realized_pnl;
-    const t = new Date((r as any).executed_at || r.createdAt || 0).getTime();
-    if (t >= yearStart) {
-      realizedYtd += r.realized_pnl;
-      realizedYtdCount += 1;
-    }
-  }
+  const bookRows = (sellsRes?.data as unknown as TransactionRow[]) || [];
+  const calendarYear = Number(aucklandDateISO().slice(0, 4));
+  const fifo = fifoTotals(bookRows, calendarYear);
+  const realizedTotal = fifo.all;
+  const realizedYtd = fifo.ytd;
+  const realizedYtdCount = fifo.ytdCount;
 
   const dividends = (dividendRes?.data as unknown as TransactionRow[]) || [];
   let incomeTotal = 0;

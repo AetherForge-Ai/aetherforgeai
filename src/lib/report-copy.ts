@@ -2,6 +2,9 @@
  * Report sentences that have to match the lists they sit beside (H1, L1, L2).
  */
 
+import { formatMoney, type CurrencyCode } from "@/lib/currency";
+import { formatPercent } from "@/lib/portfolio";
+
 export function indefiniteArticle(n: number): "a" | "an" {
   const abs = Math.abs(Math.trunc(n));
   if (abs === 8 || abs === 11 || abs === 18) return "an";
@@ -83,6 +86,40 @@ export function balancedGrowthStep(targetPct: number, topBuy: string | null, bot
   return bot === "crypto"
     ? "Add one new sector (e.g. DeFi or Layer-2) to lift diversification."
     : "Add one new sector to lift diversification.";
+}
+
+/** Shown once above the projected-mover list. The rank order is unchanged. */
+export const PROJECTION_RANK_NOTE =
+  "Ranked by projected 7-day move only. A rank is not a buy rating; each name's rating is shown.";
+
+/** Under-review mover. No rank and no percent. */
+export function printUnderReviewLabel(ticker: string): string {
+  return `${ticker} — print under review`;
+}
+
+/** One projected row, in the order the list already has. */
+export function projectionLeaderLine(
+  index: number,
+  row: {
+    ticker: string;
+    market: string;
+    price: number;
+    currency: string;
+    projected7dPct: number;
+    confidence: number;
+    ratingLabel: string;
+  }
+): string {
+  return `${index}. ${row.ticker} · ${row.market} ${formatMoney(row.price, row.currency as CurrencyCode)} ${formatPercent(row.projected7dPct)} ${row.confidence}% · ${row.ratingLabel}`;
+}
+
+/** "BUY", "HOLD", or "Not a buy: <reason>". A not-sized reason wins over the card word. */
+export function projectionRatingLabel(signal: string, notSizedReason?: string | null): string {
+  const reason = String(notSizedReason || "").trim();
+  if (reason) return `Not a buy: ${reason}`;
+  if (signal === "Buy" || signal === "Strong Buy" || signal === "Accumulate") return "BUY";
+  if (signal === "Hold") return "HOLD";
+  return "Not a buy: the rating is not a buy";
 }
 
 export function notSizedLine(entries: { ticker: string; reason: string }[]): string {
