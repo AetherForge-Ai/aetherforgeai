@@ -4,6 +4,7 @@
 
 import { formatMoney, type CurrencyCode } from "@/lib/currency";
 import { formatPercent } from "@/lib/portfolio";
+import { DATA_UNDER_REVIEW, projectionSitsOnClamp } from "@/lib/quote-review";
 
 export function indefiniteArticle(n: number): "a" | "an" {
   const abs = Math.abs(Math.trunc(n));
@@ -44,8 +45,7 @@ export function printsUnderReviewLine(count: number): string | null {
 export function sessionGainerSentence(validGainers: NamedMove[], withheldCount: number): string {
   const leader = validGainers[0];
   if (leader && leader.changePct > 0) {
-    const pct = Math.round(leader.changePct * 100) / 100;
-    return `${leader.ticker} leads the session (+${pct}%) and tops the gainer board.`;
+    return `${leader.ticker} leads the session (${formatPercent(leader.changePct)}) and tops the gainer board.`;
   }
   if (withheldCount > 0) {
     return "Standout 24-hour prints are under review, so this report does not name a session leader.";
@@ -73,15 +73,11 @@ export function aggressiveMomentumStep(
 /** A pathway whose 7-day target is not positive does not tell the reader to open a position. */
 export function balancedGrowthStep(targetPct: number, topBuy: string | null, bot: "stock" | "crypto"): string {
   if (!(targetPct > 0)) {
-    const pct = Math.abs(targetPct) < 0.005 ? 0 : Math.round(targetPct * 100) / 100;
-    const signed = pct === 0 ? "0.00%" : `${pct}%`;
-    return `This pathway's 7-day target is ${signed}, so it does not initiate a position.`;
+    return `This pathway's 7-day target is ${formatPercent(targetPct)}, so it does not initiate a position.`;
   }
   if (topBuy) {
-    const pct = Math.round(targetPct * 100) / 100;
-    const signed = `${pct > 0 ? "+" : ""}${pct}%`;
     const noun = bot === "crypto" ? "digital asset" : "name";
-    return `Initiate a starter position in ${topBuy} — a leading ${noun} on this week's sweep. The pathway target is ${signed}.`;
+    return `Initiate a starter position in ${topBuy} — a leading ${noun} on this week's sweep. The pathway target is ${formatPercent(targetPct)}.`;
   }
   return bot === "crypto"
     ? "Add one new sector (e.g. DeFi or Layer-2) to lift diversification."
@@ -154,7 +150,11 @@ export function projectionLeaderLine(
     ratingLabel: string;
   }
 ): string {
-  return `${index}. ${row.ticker} · ${row.market} ${formatMoney(row.price, row.currency as CurrencyCode)} ${formatPercent(row.projected7dPct)} ${row.confidence}% · ${row.ratingLabel}`;
+  const move =
+    row.market === "CRYPTO" && projectionSitsOnClamp(row.projected7dPct)
+      ? DATA_UNDER_REVIEW
+      : formatPercent(row.projected7dPct);
+  return `${index}. ${row.ticker} · ${row.market} ${formatMoney(row.price, row.currency as CurrencyCode)} ${move} ${row.confidence}% · ${row.ratingLabel}`;
 }
 
 /** "BUY", "HOLD", or "Not a buy: <reason>". A not-sized reason wins over the card word. */

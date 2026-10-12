@@ -3,9 +3,12 @@
  *
  * A large-cap 24-hour print above 20%, a 7-day print above 35%, or a 30-day
  * print above 60% is withheld, as is a split-like jump, a cents/dollars mix-up,
- * a stale quote, or two different figures for one ticker. When the 24-hour
- * print is withheld, the 7-day and 30-day prints for that ticker are withheld
- * too. The report shows "data under review" instead of the number.
+ * a stale quote, or two different figures for one ticker. A non-large-cap week
+ * print is withheld only when it sits outside a volatility-scaled band, or a
+ * second source disagrees by more than a sane gap. A print that matches the
+ * /markets quote is kept. When the 24-hour print is withheld, the 7-day and
+ * 30-day prints for that ticker are withheld too. The report shows "data under
+ * review" instead of the number.
  */
 
 export const DATA_UNDER_REVIEW = "data under review";
@@ -23,16 +26,26 @@ export const LARGE_CAP_MONTH_MOVE_CAP_PCT = 60;
 export const EQUITY_SESSION_MOVE_CAP_PCT = 50;
 
 /**
- * Other listed shares over a week. Above this the print is under review and
- * leaves every rank list. Large-cap week moves keep LARGE_CAP_WEEK_MOVE_CAP_PCT.
+ * Standard deviations in the week band. A print outside this, given the name's
+ * own daily volatility, is an outlier. A flat 15% week cap flagged ordinary ASX
+ * prints, including names that matched /markets.
  */
-export const EQUITY_WEEK_MOVE_CAP_PCT = 15;
+export const VOLATILITY_BAND_SIGMA = 4;
+
+/** Daily volatility used when the series did not supply one. */
+const DEFAULT_EQUITY_DAILY_VOL_PCT = 2.5;
 
 /**
  * A ranked Stox row more than this many percentage points from the same
- * ticker on /markets is under review. Configurable with the large-cap guard.
+ * ticker on /markets is under review. A print that matches /markets is kept.
  */
 export const MARKETS_CROSS_CHECK_PP = 2;
+
+/** Second source gap, in percentage points, that is wide enough to withhold. */
+export const SECOND_SOURCE_GAP_PP = 8;
+
+/** Koins forward projection is clamped to this. The clamp is not a forecast. */
+export const CRYPTO_PROJECTION_CLAMP_PCT = 12;
 
 /** Digital assets can move further. Above this, withhold the 24-hour print. */
 export const CRYPTO_SESSION_MOVE_CAP_PCT = 80;
@@ -97,6 +110,8 @@ export interface ReviewInput {
   /** Previous run's percent and price. The same percent after the price moved is under review. */
   priorChangePct?: number | null;
   priorPrice?: number | null;
+  /** Realised 1-day volatility, in percent. Scales the week band. */
+  dailyVolPct?: number | null;
 }
 
 export interface ReviewedMove {
@@ -131,8 +146,30 @@ function windowCap(input: ReviewInput): number {
     return LARGE_CAP_SESSION_MOVE_CAP_PCT;
   }
   if (input.window === "1d") return EQUITY_SESSION_MOVE_CAP_PCT;
-  if (input.window === "7d") return EQUITY_WEEK_MOVE_CAP_PCT;
+  if (input.window === "7d") return volatilityScaledBandPct(input.dailyVolPct);
   return 150;
+}
+
+/** Four-sigma week band. Quiet names get a tighter band; volatile names a wider one. */
+export function volatilityScaledBandPct(dailyVolPct?: number | null): number {
+  const daily =
+    typeof dailyVolPct === "number" && Number.isFinite(dailyVolPct) && dailyVolPct > 0
+      ? dailyVolPct
+      : DEFAULT_EQUITY_DAILY_VOL_PCT;
+  return VOLATILITY_BAND_SIGMA * daily * Math.sqrt(7);
+}
+
+/** True when the reported print and the /markets quote are the same figure at 2dp. */
+export function printMatchesMarketsQuote(reported: number, markets: number | null | undefined): boolean {
+  if (typeof markets !== "number" || !Number.isFinite(markets) || !Number.isFinite(reported)) return false;
+  const reportedDp = Math.round(reported * 100) / 100;
+  const marketsDp = Math.round(markets * 100) / 100;
+  return Math.abs(reportedDp - marketsDp) < 0.005;
+}
+
+/** True when a crypto projection is sitting on the ±12 clamp rather than a model read. */
+export function projectionSitsOnClamp(pct: number): boolean {
+  return Number.isFinite(pct) && Math.abs(Math.abs(pct) - CRYPTO_PROJECTION_CLAMP_PCT) < 0.005;
 }
 
 function formatMove(pct: number): string {
@@ -143,6 +180,14 @@ function formatMove(pct: number): string {
 /** One print, checked against the previous close, a second source, and the cap. */
 export function reviewSessionMove(input: ReviewInput): ReviewedMove {
   const reported = Number.isFinite(input.reportedChangePct) ? input.reportedChangePct : 0;
+  if (printMatchesMarketsQuote(reported, input.marketsChangePct)) {
+    return {
+      changePct: Math.round(reported * 100) / 100,
+      withheld: false,
+      reason: null,
+      display: formatMove(reported),
+    };
+  }
   const keep = (reason: string | null, withheld = false): ReviewedMove => ({
     changePct: withheld ? 0 : Math.round(reported * 100) / 100,
     withheld,
@@ -187,7 +232,7 @@ export function reviewSessionMove(input: ReviewInput): ReviewedMove {
   }
 
   if (typeof input.secondSourceChangePct === "number" && Number.isFinite(input.secondSourceChangePct)) {
-    if (Math.abs(input.secondSourceChangePct - reported) > 8) return keep("second source disagrees", true);
+    if (Math.abs(input.secondSourceChangePct - reported) > SECOND_SOURCE_GAP_PP) return keep("second source disagrees", true);
   }
 
   if (typeof input.marketsChangePct === "number" && Number.isFinite(input.marketsChangePct)) {

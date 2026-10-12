@@ -129,7 +129,7 @@ function tickerBlock(t: TickerAnalysis): string {
       (d) => `<td style="text-align:center;padding:4px 2px;border:1px solid ${LINE};font-size:10px">
         <div style="color:${MUTE}">D${esc(d.day.replace("Day ", ""))}</div>
         <div style="color:${pctColor(d.movePct)};font-weight:600">${d.direction === "up" ? "▲" : d.direction === "down" ? "▼" : "—"}</div>
-        <div style="color:${pctColor(d.movePct)}">${d.movePct > 0 ? "+" : ""}${d.movePct}%</div>
+        <div style="color:${pctColor(d.movePct)}">${pct(d.movePct)}</div>
       </td>`
     )
     .join("");
@@ -137,7 +137,7 @@ function tickerBlock(t: TickerAnalysis): string {
     .map(
       (p) => `<td style="padding:8px;border:1px solid ${LINE};vertical-align:top;width:33%">
         <div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:${MUTE}">${esc(p.name)} · ${p.probability}%</div>
-        <div style="font-size:15px;font-weight:700;color:${pctColor(p.targetPct)}">${p.targetPct > 0 ? "+" : ""}${p.targetPct}%</div>
+        <div style="font-size:15px;font-weight:700;color:${pctColor(p.targetPct)}">${pct(p.targetPct)}</div>
         <div style="font-size:10px;color:${MUTE};line-height:1.35;margin-top:2px">${esc(p.narrative)}</div>
       </td>`
     )
@@ -440,7 +440,8 @@ function biasColor(bias: string): string {
   return bias === "Constructive" ? GREEN : bias === "Defensive" ? RED : MUTE;
 }
 function sgn(x: number): string {
-  return `${x >= 0 ? "+" : ""}${x}%`;
+  const text = (Number.isFinite(x) ? x : 0).toFixed(2);
+  return `${Number(text) > 0 ? "+" : ""}${text}%`;
 }
 
 function outlookRow(r: BriefingOutlookRow): string {
@@ -551,7 +552,7 @@ export function renderReportHtml(source: ApexReport, opts: RenderReportOptions):
     ? report.topGainers
         .map(
           (g) =>
-            `<li style="margin:4px 0"><strong>${esc(g.ticker)}</strong> · ${esc(g.name)} <span style="color:${g.withheld ? MUTE : GREEN};float:right">${g.withheld ? "data under review" : `+${g.changePct}%`}</span></li>`
+            `<li style="margin:4px 0"><strong>${esc(g.ticker)}</strong> · ${esc(g.name)} <span style="color:${g.withheld ? MUTE : GREEN};float:right">${g.withheld ? "data under review" : pct(g.changePct)}</span></li>`
         )
         .join("")
     : `<li style="color:${MUTE}">${esc(report.sessionTapeNote || "Consolidating tape — no standout gainers this session.")}</li>`;
