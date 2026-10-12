@@ -12,6 +12,7 @@
  * and POST rejects them.
  *
  * pull-check:crypto-live-2026-10-11
+ * pull-check:v3-crypto-seed-2026-10-12
  */
 
 import "server-only";
@@ -19,8 +20,10 @@ import "server-only";
 import { readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { dexSnapshotComplete } from "@/lib/crypto-board";
 import type { DexTokenRow } from "@/lib/crypto-dex";
 import type { CoinMarket } from "@/lib/crypto-market";
+import { publicSourceAllowed } from "@/lib/swyftx-display";
 import { totalumSdk } from "@/lib/totalum";
 
 export const CRYPTO_SNAPSHOT_TICKER = "AF-CGS";
@@ -65,6 +68,7 @@ export interface CryptoSnapshot {
 export interface DexSnapshot {
   at: string;
   rows: DexTokenRow[];
+  sources: string[];
 }
 
 interface CacheGlobal {
@@ -145,7 +149,7 @@ export function coinFromSnapshot(value: Record<string, unknown>): CoinMarket {
     sparkline7d: [],
     blockchain: typeof value.blockchain === "string" ? value.blockchain : "",
     quotedAt: typeof value.quotedAt === "string" ? value.quotedAt : null,
-    source: "coingecko",
+    source: typeof value.source === "string" && value.source.trim() ? value.source.trim().toLowerCase() : "coingecko",
     priceUnavailable: false,
   };
 }
@@ -156,7 +160,11 @@ function dexLooksSaved(value: unknown): value is DexTokenRow {
   return typeof row.symbol === "string" && row.symbol.length > 0 && typeof row.price === "number" && row.price > 0;
 }
 
-/** A Yahoo major list has no market cap. It is not stored as the last good list. */
+/**
+ * True when this list may replace a longer stored snapshot.
+ * A Yahoo major list has no market cap, so it does not replace a stored list.
+ * An empty store can still keep that shorter verified seed.
+ */
 export function snapshotWorthSaving(coins: CoinMarket[]): boolean {
   if (!coins.length || coins.length < 100) return false;
   const priced = coins.filter(
@@ -169,23 +177,35 @@ export function snapshotWorthSaving(coins: CoinMarket[]): boolean {
   return priced.length >= 100;
 }
 
+function compactRow(row: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(row)) {
+    if (item == null || item === "") continue;
+    out[key] = item;
+  }
+  return out;
+}
+
 function encodeCrypto(coins: CoinMarket[], at: string): string {
-  const rows = coins.slice(0, 400).map((coin) => ({
-    id: coin.id,
-    symbol: coin.symbol,
-    name: coin.name,
-    image: coin.image || "",
-    rank: coin.rank,
-    price: coin.price,
-    marketCap: coin.marketCap,
-    volume24h: coin.volume24h,
-    change1h: coin.change1h,
-    change24h: coin.change24h,
-    change7d: coin.change7d,
-    moves: coin.moves ?? null,
-    quotedAt: coin.quotedAt || null,
-    blockchain: coin.blockchain || "",
-  }));
+  const rows = coins.slice(0, 400).map((coin) =>
+    compactRow({
+      id: coin.id,
+      symbol: coin.symbol,
+      name: coin.name,
+      image: coin.image || "",
+      rank: coin.rank,
+      price: coin.price,
+      marketCap: coin.marketCap,
+      volume24h: coin.volume24h,
+      change1h: coin.change1h,
+      change24h: coin.change24h,
+      change7d: coin.change7d,
+      moves: coin.moves ?? null,
+      quotedAt: coin.quotedAt || null,
+      blockchain: coin.blockchain || "",
+      source: (coin.source || "coingecko").toLowerCase(),
+    })
+  );
   return JSON.stringify({ v: 1, at, coins: rows });
 }
 
@@ -195,17 +215,18 @@ function parseCrypto(raw: string | null | undefined): CryptoSnapshot | null {
     const parsed = JSON.parse(raw) as { at?: unknown; coins?: unknown };
     const at = typeof parsed.at === "string" ? parsed.at : "";
     const coins = Array.isArray(parsed.coins) ? parsed.coins.filter(coinLooksSaved).map((row) => coinFromSnapshot(row)) : [];
-    if (!at || coins.length < 100) return null;
+    if (!at || !coins.length) return null;
     return { at, coins };
   } catch {
     return null;
   }
 }
 
-function encodeDex(rows: DexTokenRow[], at: string): string {
+function encodeDex(rows: DexTokenRow[], at: string, sources: string[] = []): string {
   return JSON.stringify({
     v: 1,
     at,
+    sources,
     rows: rows.slice(0, 400).map((row) => ({
       id: row.id,
       symbol: row.symbol,
@@ -225,11 +246,14 @@ function encodeDex(rows: DexTokenRow[], at: string): string {
 function parseDex(raw: string | null | undefined): DexSnapshot | null {
   if (!raw) return null;
   try {
-    const parsed = JSON.parse(raw) as { at?: unknown; rows?: unknown };
+    const parsed = JSON.parse(raw) as { at?: unknown; rows?: unknown; sources?: unknown };
     const at = typeof parsed.at === "string" ? parsed.at : "";
     const rows = Array.isArray(parsed.rows) ? parsed.rows.filter(dexLooksSaved) : [];
+    const sources = Array.isArray(parsed.sources)
+      ? parsed.sources.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+      : [];
     if (!at || !rows.length) return null;
-    return { at, rows };
+    return { at, rows, sources: sources.length ? sources : ["geckoterminal"] };
   } catch {
     return null;
   }
@@ -393,8 +417,12 @@ export async function readDexSnapshot(timeoutMs = SNAPSHOT_READ_TIMEOUT_MS): Pro
 }
 
 export async function persistCryptoSnapshot(coins: CoinMarket[], at = new Date().toISOString()): Promise<void> {
-  const tagged = coins.map((coin) => ({ ...coin, source: coin.source || "coingecko" }));
-  if (!snapshotWorthSaving(tagged)) return;
+  const tagged = coins
+    .map((coin) => ({ ...coin, source: (coin.source || "coingecko").toLowerCase() }))
+    .filter((coin) => coin.price > 0 && publicSourceAllowed(coin.source));
+  if (!tagged.length) return;
+  const existing = memoryCrypto ?? (await readCryptoSnapshot());
+  if (existing && existing.coins.length > tagged.length && !snapshotWorthSaving(tagged)) return;
   const body = encodeCrypto(tagged, at);
   const parsed = parseCrypto(body);
   if (!parsed) return;
@@ -402,10 +430,16 @@ export async function persistCryptoSnapshot(coins: CoinMarket[], at = new Date()
   await writeRaw("crypto", body);
 }
 
-export async function persistDexSnapshot(rows: DexTokenRow[], at = new Date().toISOString()): Promise<void> {
+export async function persistDexSnapshot(
+  rows: DexTokenRow[],
+  at = new Date().toISOString(),
+  sources: string[] = []
+): Promise<void> {
   const live = rows.filter(dexLooksSaved).slice(0, 400);
   if (!live.length) return;
-  const body = encodeDex(live, at);
+  const existing = memoryDex ?? (await readDexSnapshot());
+  if (existing && existing.rows.length > live.length && !dexSnapshotComplete(live)) return;
+  const body = encodeDex(live, at, sources.length ? sources : existing?.sources || ["geckoterminal"]);
   const parsed = parseDex(body);
   if (!parsed) return;
   memoryDex = parsed;

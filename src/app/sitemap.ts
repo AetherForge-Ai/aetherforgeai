@@ -5,9 +5,9 @@ const siteUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.aetherforgeai.co
 
 /**
  * Public sitemap. /blog stays off until there are posts.
- * /projections stays off while crypto projections are paused. The page still
- * answers for NZX and ASX tabs. /performance is a dated sample, so it is not
- * listed as daily.
+ * /returns is auth-only, so it is not listed. /projections stays off while
+ * crypto projections are paused. The page still answers for NZX and ASX tabs.
+ * /performance is a dated sample, so it is not listed as daily.
  */
 const ENTRIES: Array<{
   path: string;
@@ -18,7 +18,6 @@ const ENTRIES: Array<{
   { path: "", changeFrequency: "weekly", priority: 1, lastModified: "2026-10-10" },
   { path: "/about", changeFrequency: "monthly", priority: 0.6, lastModified: "2026-10-10" },
   { path: "/performance", changeFrequency: "yearly", priority: 0.4, lastModified: "2026-07-08" },
-  { path: "/returns", changeFrequency: "monthly", priority: 0.5, lastModified: "2026-10-11" },
   { path: "/how-it-works", changeFrequency: "monthly", priority: 0.7, lastModified: "2026-10-10" },
   { path: "/pricing", changeFrequency: "monthly", priority: 0.8, lastModified: "2026-10-10" },
   { path: "/markets", changeFrequency: "weekly", priority: 0.8, lastModified: "2026-10-10" },
