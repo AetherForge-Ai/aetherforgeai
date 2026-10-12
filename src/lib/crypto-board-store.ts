@@ -1,17 +1,19 @@
 /**
  * Shared crypto and DEX snapshot.
  *
- * Page reads return the persisted list and do not wait on CoinGecko or
- * GeckoTerminal. wrangler.jsonc has no cron trigger, so a stale read starts
- * one background refresh and POST /api/cron/crypto-snapshot runs the same
- * job when CRON_SECRET matches. A short isolate can freeze that background
- * work when the page response ends. The protected route is the run that
- * is allowed to finish.
+ * Page reads return the persisted list. wrangler.jsonc has no cron trigger.
+ * When the snapshot is missing, the page request seeds it from keyless
+ * sources and waits for that seed. A stored list is served with its
+ * timestamp. A stale list starts one background refresh. A short isolate
+ * can still freeze that background work. POST /api/cron/crypto-snapshot
+ * runs the same job when CRON_SECRET matches.
  *
- * A new list replaces the stored one only when it is complete: at least 95%
- * of 400 rows, each with a name and a price (and a chain or DEX name).
+ * A shorter seed does not replace a longer stored list. A crypto list with
+ * at least 100 market-cap rows may replace it. A shorter DEX list replaces
+ * a longer one only when the new list is complete.
  *
  * pull-check:v3-tier1a-2026-10-12
+ * pull-check:v3-crypto-seed-2026-10-12
  */
 
 import "server-only";
@@ -26,9 +28,7 @@ import {
   SNAPSHOT_STALE_MS,
   cleanDexRow,
   countLine,
-  cryptoSnapshotComplete,
   dedupeDexByNetworkAddress,
-  dexSnapshotComplete,
   displayCoinName,
   finiteMove,
   pricesAsAtLabel,
@@ -44,9 +44,18 @@ import {
   type DexTokenRow,
 } from "@/lib/crypto-dex";
 import { GECKOTERMINAL_ACCEPT } from "@/lib/crypto-coingecko";
+import { fetchYahooMajorMarkets } from "@/lib/crypto-yahoo";
+import {
+  backupWithYahoo,
+  loadKeylessCryptoMarkets,
+  loadKeylessDexMarkets,
+  withFeedSource,
+  YAHOO_BACKUP_FLOOR,
+} from "@/lib/crypto-keyless-seed";
 import { coinDisplayName } from "@/lib/crypto-names";
 import type { CoinMarket } from "@/lib/crypto-market";
-import { persistCryptoSnapshot, persistDexSnapshot, readCryptoSnapshot, readDexSnapshot, snapshotWorthSaving } from "@/lib/crypto-snapshot";
+import { persistCryptoSnapshot, persistDexSnapshot, readCryptoSnapshot, readDexSnapshot } from "@/lib/crypto-snapshot";
+import { publicSourceAllowed } from "@/lib/swyftx-display";
 
 const DIRECTORY_FILE = path.join(tmpdir(), "aetherforge-coin-directory.json");
 const DIRECTORY_URL = "https://www.aetherforgeai.co.nz/__af/coin-directory";
@@ -77,7 +86,6 @@ interface CacheGlobal {
 }
 
 let directoryMemory: { at: number; entries: Map<string, CoinDirectoryEntry> } | null = null;
-let refreshInflight: Promise<RefreshResult> | null = null;
 let nextReaderAttemptAt = 0;
 
 export interface RefreshResult {
@@ -321,83 +329,98 @@ async function collectDexRows(): Promise<DexTokenRow[]> {
   return rows.map((row) => cleanDexRow(row) as DexTokenRow);
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function runCryptoSeed(): Promise<{ cryptoReplaced: boolean; cryptoRows: number }> {
+  const at = new Date().toISOString();
+  let coins = await loadKeylessCryptoMarkets();
+  if (coins.length < YAHOO_BACKUP_FLOOR) {
+    let yahoo: CoinMarket[] = [];
+    try {
+      yahoo = await Promise.race([
+        fetchYahooMajorMarkets(),
+        sleep(6_000).then(() => [] as CoinMarket[]),
+      ]);
+    } catch (err) {
+      console.error("[crypto-board] yahoo backup failed:", err instanceof Error ? err.message.slice(0, 80) : "failed");
+    }
+    coins = backupWithYahoo(coins, yahoo);
+  }
+  if (!coins.length) return { cryptoReplaced: false, cryptoRows: 0 };
+  await persistCryptoSnapshot(coins, at);
+  const saved = await readCryptoSnapshot();
+  const replaced = saved?.at === at;
+  if (!replaced) console.log(`[crypto-board] crypto seed ${coins.length} kept the previous list`);
+  return { cryptoReplaced: replaced, cryptoRows: coins.length };
+}
+
+async function runDexSeed(): Promise<{ dexReplaced: boolean; dexRows: number }> {
+  const at = new Date().toISOString();
+  const loaded = await loadKeylessDexMarkets();
+  if (!loaded.rows.length) return { dexReplaced: false, dexRows: 0 };
+  await persistDexSnapshot(loaded.rows, at, loaded.sources);
+  const saved = await readDexSnapshot();
+  const replaced = saved?.at === at;
+  if (!replaced) console.log(`[crypto-board] DEX seed ${loaded.rows.length} kept the previous list`);
+  return { dexReplaced: replaced, dexRows: loaded.rows.length };
+}
+
+let cryptoSeedInflight: Promise<{ cryptoReplaced: boolean; cryptoRows: number }> | null = null;
+let dexSeedInflight: Promise<{ dexReplaced: boolean; dexRows: number }> | null = null;
+
+function refreshCryptoSeed(): Promise<{ cryptoReplaced: boolean; cryptoRows: number }> {
+  if (!cryptoSeedInflight) {
+    cryptoSeedInflight = runCryptoSeed().finally(() => {
+      cryptoSeedInflight = null;
+    });
+  }
+  return cryptoSeedInflight;
+}
+
+function refreshDexSeed(): Promise<{ dexReplaced: boolean; dexRows: number }> {
+  if (!dexSeedInflight) {
+    dexSeedInflight = runDexSeed().finally(() => {
+      dexSeedInflight = null;
+    });
+  }
+  return dexSeedInflight;
+}
+
 export async function refreshMarketSnapshots(): Promise<RefreshResult> {
   const started = Date.now();
+  const [crypto, dex] = await Promise.all([refreshCryptoSeed(), refreshDexSeed()]);
   const result: RefreshResult = {
-    cryptoReplaced: false,
-    dexReplaced: false,
-    cryptoRows: 0,
-    dexRows: 0,
-    keptPrevious: true,
+    cryptoReplaced: crypto.cryptoReplaced,
+    dexReplaced: dex.dexReplaced,
+    cryptoRows: crypto.cryptoRows,
+    dexRows: dex.dexRows,
+    keptPrevious: !crypto.cryptoReplaced && !dex.dexReplaced,
   };
-  const at = new Date().toISOString();
-  try {
-    const directory = await loadDirectory();
-    const [first, second] = await Promise.all([
-      cgJson(`/coins/markets?${MARKETS_QUERY}&page=1`).catch((err) => {
-        console.error("[crypto-board] markets page 1 failed:", err instanceof Error ? err.message.slice(0, 80) : "failed");
-        return null;
-      }),
-      cgJson(`/coins/markets?${MARKETS_QUERY}&page=2`).catch((err) => {
-        console.error("[crypto-board] markets page 2 failed:", err instanceof Error ? err.message.slice(0, 80) : "failed");
-        return null;
-      }),
-    ]);
-    const coins = mapMarkets([...(Array.isArray(first) ? first : []), ...(Array.isArray(second) ? second : [])], directory);
-    result.cryptoRows = coins.length;
-    if (cryptoSnapshotComplete(coins) && snapshotWorthSaving(coins)) {
-      await persistCryptoSnapshot(coins, at);
-      result.cryptoReplaced = true;
-      result.keptPrevious = false;
-    } else {
-      console.log(`[crypto-board] crypto list ${coins.length} is short of a complete snapshot; previous list kept`);
-    }
-  } catch (err) {
-    console.error("[crypto-board] crypto refresh failed:", err instanceof Error ? err.message.slice(0, 80) : "failed");
-  }
-  try {
-    const rows = await collectDexRows();
-    result.dexRows = rows.length;
-    if (dexSnapshotComplete(rows)) {
-      await persistDexSnapshot(rows, at);
-      result.dexReplaced = true;
-      result.keptPrevious = result.keptPrevious && false;
-    } else {
-      console.log(`[crypto-board] DEX list ${rows.length} is short of a complete snapshot; previous list kept`);
-    }
-  } catch (err) {
-    console.error("[crypto-board] DEX refresh failed:", err instanceof Error ? err.message.slice(0, 80) : "failed");
-  }
   logStep("refresh", started, `crypto=${result.cryptoReplaced} dex=${result.dexReplaced}`);
   return result;
 }
 
-function kickRefresh(force: boolean): void {
-  if (refreshInflight) return;
-  if (!force && Date.now() < nextReaderAttemptAt) return;
+function kickRefresh(): void {
+  if (Date.now() < nextReaderAttemptAt) return;
   nextReaderAttemptAt = Date.now() + 60_000;
-  refreshInflight = refreshMarketSnapshots()
-    .then((result) => {
-      if (result.cryptoReplaced || result.dexReplaced) nextReaderAttemptAt = Date.now() + 10 * 60 * 1000;
-      return result;
-    })
-    .finally(() => {
-      refreshInflight = null;
-    });
-  void refreshInflight.catch(() => undefined);
+  void refreshCryptoSeed().catch(() => undefined);
+  void refreshDexSeed().catch(() => undefined);
 }
 
 export function refreshMarketSnapshotsNow(): Promise<RefreshResult> {
-  if (refreshInflight) return refreshInflight;
   nextReaderAttemptAt = Date.now() + 60_000;
-  refreshInflight = refreshMarketSnapshots().finally(() => {
-    refreshInflight = null;
-  });
-  return refreshInflight;
+  return refreshMarketSnapshots();
+}
+
+function gateCoins(coins: CoinMarket[]): CoinMarket[] {
+  return coins.filter((coin) => coin.price > 0 && publicSourceAllowed(coin.source));
 }
 
 function presentCrypto(coins: CoinMarket[], at: string | null): SharedCryptoBoard {
-  const notice = pricesAsAtLabel(at);
+  const sources = coins.map((coin) => coin.source || "coingecko");
+  const notice = coins.length ? withFeedSource(pricesAsAtLabel(at), sources) : null;
   return {
     coins,
     at,
@@ -407,9 +430,9 @@ function presentCrypto(coins: CoinMarket[], at: string | null): SharedCryptoBoar
   };
 }
 
-function presentDex(rows: DexTokenRow[], at: string | null): SharedDexBoard {
+function presentDex(rows: DexTokenRow[], at: string | null, sources: string[]): SharedDexBoard {
   const unique = dedupeDexByNetworkAddress(rows).map((row) => cleanDexRow(row)).filter((row): row is DexTokenRow => !!row);
-  const notice = pricesAsAtLabel(at);
+  const notice = unique.length ? withFeedSource(pricesAsAtLabel(at), sources) : null;
   return {
     rows: unique,
     at,
@@ -421,15 +444,26 @@ function presentDex(rows: DexTokenRow[], at: string | null): SharedDexBoard {
 
 export async function readSharedCryptoBoard(): Promise<SharedCryptoBoard> {
   const saved = await readCryptoSnapshot();
-  if (!saved?.coins.length || snapshotIsStale(saved.at)) kickRefresh(false);
-  if (!saved?.coins.length) kickRefresh(false);
-  return presentCrypto(saved?.coins ?? [], saved?.at ?? null);
+  const visible = gateCoins(saved?.coins ?? []);
+  if (visible.length) {
+    if (!saved?.at || snapshotIsStale(saved.at)) kickRefresh();
+    return presentCrypto(visible, saved?.at ?? null);
+  }
+  await refreshCryptoSeed();
+  const again = await readCryptoSnapshot();
+  return presentCrypto(gateCoins(again?.coins ?? []), again?.at ?? null);
 }
 
 export async function readSharedDexBoard(): Promise<SharedDexBoard> {
   const saved = await readDexSnapshot();
-  if (!saved?.rows.length || snapshotIsStale(saved.at)) kickRefresh(false);
-  return presentDex(saved?.rows ?? [], saved?.at ?? null);
+  const visible = (saved?.rows ?? []).filter((row) => row.price != null && row.price > 0);
+  if (visible.length) {
+    if (!saved?.at || snapshotIsStale(saved.at)) kickRefresh();
+    return presentDex(visible, saved?.at ?? null, saved?.sources ?? ["geckoterminal"]);
+  }
+  await refreshDexSeed();
+  const again = await readDexSnapshot();
+  return presentDex(again?.rows ?? [], again?.at ?? null, again?.sources ?? []);
 }
 
 export interface SnapshotPrice {

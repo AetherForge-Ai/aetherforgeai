@@ -4,9 +4,10 @@
  *
  * Spot order: CoinGecko, Swyftx, Kraken, Coinbase, Yahoo Finance.
  * Public callers omit Swyftx unless SWYFTX_PUBLIC_DISPLAY is on.
- * DEX adds GeckoTerminal first.
- * Binance, CoinPaprika, and CoinCap are not called: their display terms were not
- * confirmed for this page. A guessed Yahoo symbol is not used.
+ * DEX quotes add GeckoTerminal first.
+ * The empty-snapshot list seed also asks CoinPaprika, CoinCap, and Binance
+ * public tickers. Those three are not on this single-symbol chain.
+ * A guessed Yahoo symbol is not used.
  *
  * A print more than CRYPTO_SANITY_RATIO away from the last good price, or from
  * another source in the same read, is dropped. It is not averaged and not shown.
@@ -83,8 +84,16 @@ export function sourceLabel(source: string): string {
       return "Coinbase";
     case "yahoo":
       return "Yahoo Finance";
+    case "coinpaprika":
+      return "CoinPaprika";
+    case "coincap":
+      return "CoinCap";
+    case "binance":
+      return "Binance";
     case "geckoterminal":
       return "GeckoTerminal";
+    case "dexpaprika":
+      return "DexPaprika";
     case "dexscreener":
       return dexscreenerPublicDisplay() ? "DexScreener" : "public market data";
     case "google":

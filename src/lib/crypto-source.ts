@@ -348,10 +348,11 @@ async function warmSavedList(): Promise<RankedCryptoPage | null> {
 
 /**
  * Signed-in and public Crypto tabs read the same persisted snapshot.
- * This function does not call CoinGecko. A stale or missing list starts
- * the background refresh in crypto-board-store. wrangler.jsonc has no cron.
+ * An empty snapshot is seeded from keyless sources before this returns.
+ * A stored list is served with its timestamp. wrangler.jsonc has no cron.
  *
  * pull-check:v3-tier1a-2026-10-12
+ * pull-check:v3-crypto-seed-2026-10-12
  */
 export async function loadTop400Markets(): Promise<RankedCryptoPage> {
   const { readSharedCryptoBoard } = await import("@/lib/crypto-board-store");
