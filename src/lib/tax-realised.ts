@@ -234,8 +234,7 @@ export function incomeReconciliationNote(_storedNzd: number, _fifoNzd: number): 
   return null;
 }
 
-/** Native unit cost of whatever FIFO lots are still open. */
-export function fifoRemainingUnitCosts(rows: readonly TaxLedgerRow[]): Map<string, number> {
+function openBooks(rows: readonly TaxLedgerRow[]): Map<string, OpenLot[]> {
   const books = new Map<string, OpenLot[]>();
   const events = rows
     .filter((row) => row.type === "buy" || row.type === "sell" || row.type === "opening_balance")
@@ -267,14 +266,41 @@ export function fifoRemainingUnitCosts(rows: readonly TaxLedgerRow[]): Map<strin
       missingRate: fx == null,
     });
   }
+  return books;
+}
+
+/** Native unit cost of whatever FIFO lots are still open. */
+export function fifoRemainingUnitCosts(rows: readonly TaxLedgerRow[]): Map<string, number> {
   const costs = new Map<string, number>();
-  for (const [ticker, lots] of books) {
+  for (const [ticker, lots] of openBooks(rows)) {
     const qty = lots.reduce((sum, lot) => sum + lot.qty, 0);
     if (!(qty > 1e-9)) continue;
     const native = lots.reduce((sum, lot) => sum + lot.qty * lot.fillPrice, 0);
     costs.set(ticker, native / qty);
   }
   return costs;
+}
+
+/**
+ * Cost-weighted NZD rate on the lots still open.
+ * A ticker is omitted when any open lot has no stored rate, so the currency
+ * line is not filled from a guess.
+ */
+export function fifoRemainingCostFx(rows: readonly TaxLedgerRow[]): Map<string, number> {
+  const rates = new Map<string, number>();
+  for (const [ticker, lots] of openBooks(rows)) {
+    const open = lots.filter((lot) => lot.qty > 1e-12);
+    if (!open.length || open.some((lot) => lot.missingRate || !(lot.fxRate > 0))) continue;
+    let native = 0;
+    let weighted = 0;
+    for (const lot of open) {
+      const cost = lot.qty * lot.fillPrice;
+      native += cost;
+      weighted += cost * lot.fxRate;
+    }
+    if (native > 1e-9) rates.set(ticker, weighted / native);
+  }
+  return rates;
 }
 
 export const REALISED_CSV_COLUMNS = [

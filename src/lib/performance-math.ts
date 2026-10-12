@@ -9,7 +9,7 @@
  * pull-check:batch2-2026-10-11 B2-2
  */
 
-import { roundMoney } from "@/lib/currency";
+import { formatDisplayDate, roundMoney } from "@/lib/currency";
 
 export type PerformancePeriod = "1M" | "3M" | "YTD" | "1Y" | "since";
 
@@ -42,6 +42,11 @@ export interface PerformanceFigure {
   reason: string | null;
   asOf: string;
   source: string;
+  /**
+   * False when `value` is the unannualised return over a span under 90 days.
+   * Annualised XIRR is withheld for that short span.
+   */
+  annualised?: boolean;
 }
 
 export interface PerformanceReport {
@@ -176,6 +181,47 @@ function figure(value: number | null, reason: string | null, asOf: string, sourc
   return { value, reason, asOf, source };
 }
 
+/** Annualised XIRR over a shorter span turns a small gain into a huge percent. */
+export const XIRR_ANNUALISE_AFTER_DAYS = 90;
+
+const SHORT_XIRR_REASON =
+  "Annualised XIRR is not shown for a period under 90 days. This is the return over the period.";
+
+function spanDays(points: BookPoint[], asOf: string): number {
+  const first = [...points]
+    .map((point) => point.date)
+    .filter((date) => Number.isFinite(utcDay(date)))
+    .sort()[0];
+  if (!first || !Number.isFinite(utcDay(asOf))) return Number.POSITIVE_INFINITY;
+  return (utcDay(asOf) - utcDay(first)) / 86400000;
+}
+
+function holdingPeriodReturn(annualised: number, days: number): number {
+  if (!(days > 0)) return 0;
+  const period = (1 + annualised) ** (days / 365) - 1;
+  return Number.isFinite(period) ? period : annualised;
+}
+
+function presentXirr(annualised: number | null, days: number, asOf: string, source: string): PerformanceFigure {
+  if (annualised == null) return figure(null, "The money-weighted return did not settle.", asOf, source);
+  if (Number.isFinite(days) && days < XIRR_ANNUALISE_AFTER_DAYS) {
+    return {
+      value: holdingPeriodReturn(annualised, days),
+      reason: SHORT_XIRR_REASON,
+      asOf,
+      source,
+      annualised: false,
+    };
+  }
+  return { value: annualised, reason: null, asOf, source, annualised: true };
+}
+
+/** One source line. A source that already ends with a full stop does not gain a second one. */
+export function performanceSourceLine(row: PerformanceFigure): string {
+  const source = row.source.trim().replace(/\.+$/, "");
+  return `As of ${formatDisplayDate(row.asOf)}. Source: ${source}.`;
+}
+
 function spreadsheetFlows(points: BookPoint[], endingNzd: number, asOf: string): SolverFlow[] {
   const flows: SolverFlow[] = points
     .filter((point) => point.flowNzd !== 0)
@@ -279,11 +325,10 @@ export function performanceReport(input: PerformanceInput): PerformanceReport {
   const xirr = solveXirr(flows);
   const earlierMissing = missingEarlierValue(input.points);
   const twr = earlierMissing ? null : timeWeightedReturn(input.points, input.endingNzd, asOf);
-  const xirrReason = xirr == null ? "The money-weighted return did not settle." : null;
   const twrReason = earlierMissing
     ? EARLIER_VALUE_REASON
     : twr == null
-      ? "The time-weighted return needs a starting value above zero."
+      ? "Time-weighted return is not shown. It needs a starting value above zero."
       : null;
   const bench = input.benchmark ? benchmarkXirr(input) : null;
   const benchReason =
@@ -304,13 +349,13 @@ export function performanceReport(input: PerformanceInput): PerformanceReport {
     const periodEarlier = missingEarlierValue(slice.points);
     const periodTwr = periodEarlier ? null : timeWeightedReturn(slice.points, slice.endingNzd, asOf);
     periods[period] = {
-      xirr: figure(periodXirr, periodXirr == null ? "The money-weighted return did not settle." : null, asOf, source),
+      xirr: presentXirr(periodXirr, spanDays(slice.points, asOf), asOf, source),
       twr: figure(
         periodTwr,
         periodEarlier
           ? EARLIER_VALUE_REASON
           : periodTwr == null
-            ? "The time-weighted return needs a starting value above zero."
+            ? "Time-weighted return is not shown. It needs a starting value above zero."
             : null,
         asOf,
         source
@@ -321,7 +366,7 @@ export function performanceReport(input: PerformanceInput): PerformanceReport {
   return {
     asOf,
     source,
-    xirr: figure(xirr, xirrReason, asOf, source),
+    xirr: presentXirr(xirr, spanDays(input.points, asOf), asOf, source),
     twr: figure(twr, twrReason, asOf, source),
     benchmark: input.benchmark ? figure(bench, benchReason, asOf, input.benchmark.source) : null,
     periods,

@@ -12,6 +12,8 @@ import {
   type ImportPlan,
   type ImportTrade,
 } from "@/lib/broker-import";
+import { backdatedRealisedNote } from "@/lib/fifo-cost";
+import type { TaxLedgerRow } from "@/lib/taxable-income";
 import { supportHold } from "@/lib/broker-import-hold";
 import { lotCivilDay } from "@/lib/executed-at";
 import { historicalNzdPerUnit } from "@/lib/fx";
@@ -64,13 +66,20 @@ function mappingOf(value: unknown): ColumnMap | undefined {
   };
 }
 
-async function existingKeys(userId: string): Promise<string[]> {
+async function bookRows(userId: string): Promise<TaxLedgerRow[]> {
   const res = await totalumSdk.crud.query("transaction", {
     _filter: { user: userId },
     _limit: 5000,
   });
+  return ((res?.data as unknown as TaxLedgerRow[]) || []).map((row) => ({
+    ...row,
+    executed_at: row.executed_at || row.createdAt || "",
+  }));
+}
+
+function keysFrom(rows: readonly TaxLedgerRow[]): string[] {
   const keys: string[] = [];
-  for (const row of (res?.data as Array<Record<string, unknown>>) || []) {
+  for (const row of rows) {
     const type = String(row.type || "").toLowerCase();
     if (type !== "buy" && type !== "sell") continue;
     const date = lotCivilDay(String(row.trade_date || row.executed_at || ""), "");
@@ -81,6 +90,14 @@ async function existingKeys(userId: string): Promise<string[]> {
     keys.push(importDuplicateKey({ date, ticker, side: type, quantity, price }));
   }
   return keys;
+}
+
+function planPayload(plan: ImportPlan, rows: readonly TaxLedgerRow[], extra?: Record<string, unknown>) {
+  return {
+    ...publicPlan(plan),
+    fifoNote: backdatedRealisedNote(rows, plan.toWrite),
+    ...extra,
+  };
 }
 
 async function planWithReviewedFx(
@@ -135,28 +152,35 @@ export async function POST(req: Request) {
     const acknowledgeSkipped = body.acknowledgeSkipped === true;
     const fundBuys = body.fundBuys === true;
     const openingCashNzd = typeof user.cash_balance === "number" ? user.cash_balance : 0;
-    const preview = await planWithReviewedFx(text, { mapping, openingCashNzd, fundBuys });
+    const stored = await bookRows(user._id);
+    const preview = await planWithReviewedFx(text, {
+      mapping,
+      openingCashNzd,
+      fundBuys,
+      existingKeys: keysFrom(stored),
+    });
     if (body.confirm !== true || !importWrites(preview, acknowledgeSkipped)) {
       const blocked = body.confirm === true && !importWrites(preview, acknowledgeSkipped);
       return NextResponse.json({
         ok: blocked ? false : preview.error == null,
         error: blocked ? validateImportForWrite(preview, acknowledgeSkipped) || preview.error : preview.error,
-        data: publicPlan(preview),
+        data: planPayload(preview, stored),
       });
     }
 
+    const fresh = await bookRows(user._id);
     const committed = await planWithReviewedFx(text, {
       mapping,
       openingCashNzd,
       fundBuys,
-      existingKeys: await existingKeys(user._id),
+      existingKeys: keysFrom(fresh),
     });
     const invalid = validateImportForWrite(committed, acknowledgeSkipped);
     if (invalid || !importWrites(committed, acknowledgeSkipped)) {
       return NextResponse.json({
         ok: false,
         error: invalid || committed.error || "Nothing was written.",
-        data: { ...publicPlan(committed), written: 0 },
+        data: planPayload(committed, fresh, { written: 0 }),
       });
     }
 
@@ -209,12 +233,11 @@ export async function POST(req: Request) {
             writtenTrades: written,
             writtenDeposits,
           }),
-          data: {
-            ...publicPlan(committed),
+          data: planPayload(committed, fresh, {
             written: written.length,
             writtenTrades: written.map((row) => ({ date: row.date, side: row.side, ticker: row.ticker })),
             writtenDeposits,
-          },
+          }),
         },
         { status: 400 }
       );
@@ -222,7 +245,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       ok: true,
-      data: { ...publicPlan(committed), written: written.length },
+      data: planPayload(committed, fresh, { written: written.length }),
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "The import was not saved.";
