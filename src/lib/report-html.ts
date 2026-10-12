@@ -299,7 +299,7 @@ function marketMoversBlock(groups: MarketMoversGroup[], bot?: string): string {
           return `<td style="vertical-align:top;width:33%;padding:0 6px">
             <div style="font-size:11px;font-weight:700;color:${BLUE};margin:0 0 4px">${esc(w.window)}</div>
             ${w.reviewNote ? `<div style="font-size:10px;color:${MUTE};margin:0 0 4px">${esc(w.reviewNote)}</div>` : ""}
-            <table width="100%" style="border-collapse:collapse">${rows || `<tr><td style="font-size:11px;color:${MUTE}">—</td></tr>`}</table>
+            <table width="100%" style="border-collapse:collapse">${rows || (w.reviewNote ? "" : `<tr><td style="font-size:11px;color:${MUTE}">—</td></tr>`)}</table>
           </td>`;
         })
         .join("");
@@ -315,8 +315,12 @@ function marketMoversBlock(groups: MarketMoversGroup[], bot?: string): string {
 }
 
 /** The top-10 highest-conviction 7-day forward projections. */
-function projectionLeadersBlock(rows: ProjectionRow[]): string {
-  if (!rows.length) return "";
+function projectionLeadersBlock(rows: ProjectionRow[], unavailableNote?: string | null): string {
+  if (!rows.length && !unavailableNote) return "";
+  if (!rows.length) {
+    return `<h2 style="font-size:16px;color:${INK};margin:26px 0 4px">Next 7 days · Top-10 projected movers</h2>
+      <p style="font-size:12px;color:${MUTE};margin:0 0 8px">${esc(unavailableNote || "")}</p>`;
+  }
   const body = rows
     .map(
       (r, i) => `<tr>
@@ -659,7 +663,7 @@ export function renderReportHtml(source: ApexReport, opts: RenderReportOptions):
 
         ${marketMoversBlock(report.marketMovers, report.bot)}
 
-        ${projectionLeadersBlock(report.projectionLeaders)}
+        ${projectionLeadersBlock(report.projectionLeaders, report.koinsUnavailableNote)}
 
         ${
           report.regionalNews && report.regionalNews.length

@@ -16,8 +16,6 @@ import "server-only";
  */
 
 import { loadTop400Markets } from "@/lib/crypto-source";
-import { fetchDexTop400 } from "@/lib/crypto-coingecko";
-import { dexRowToCoin } from "@/lib/crypto-dex";
 import { analyzeSecurity, type SecurityIntel } from "@/lib/market-intel";
 import { labelIntel } from "@/lib/security-signal";
 import { alignProjectedFigures } from "@/lib/projection-figure";
@@ -46,18 +44,15 @@ function clamp(v: number, lo: number, hi: number): number {
 export function coinToIntel(c: CoinMarket): SecurityIntel {
   const base = analyzeSecurity(c.symbol, c.price > 0 ? c.price : undefined, c.name, "CRYPTO");
 
-  const change1d = isFinite(c.change24h) ? round(c.change24h, 2) : base.change1d;
-  // A literal 0 with no sparkline is a missing window, not a flat week. Do not
-  // overwrite the engine's 7-day change with that placeholder.
-  const live7d = resolveSevenDayChange(c.change7d, c.sparkline7d);
+  const stated24h = c.moves ? c.moves.h24 : isFinite(c.change24h) ? c.change24h : null;
+  const change1d = stated24h != null ? round(stated24h, 2) : base.change1d;
+  // A missing 7-day print stays missing. Do not clamp every coin to the same ±12%.
+  const live7d = c.moves ? c.moves.d7 : resolveSevenDayChange(c.change7d, c.sparkline7d);
   const change7d = live7d != null ? round(live7d, 2) : base.change7d;
 
-  // Forward 7-day projection: continuation of REAL momentum when we have it.
-  // Without a live 7-day print, keep the structural read inside a tight band so
-  // a seeded walk cannot print a +27% "model" move.
   const projected7dPct =
     live7d == null
-      ? round(clamp(base.projected7dPct, -12, 12), 2)
+      ? round(base.projected7dPct, 2)
       : round(clamp(0.5 * base.projected7dPct + 0.4 * change7d + 0.1 * change1d, -45, 45), 2);
 
   return labelIntel(alignProjectedFigures({
@@ -98,12 +93,6 @@ async function liveCryptoUniverse(): Promise<CoinMarket[]> {
     top.coins.forEach(take);
   } catch (err) {
     console.error("[koins-market] crypto sweep failed — held names still stay on the report:", err);
-  }
-  try {
-    const dex = await fetchDexTop400();
-    dex.rows.forEach((row, index) => take(dexRowToCoin(row, 1000 + index)));
-  } catch (err) {
-    console.error("[koins-market] DEX list unavailable — held names still stay on the report:", err);
   }
   return [...bySymbol.values()];
 }

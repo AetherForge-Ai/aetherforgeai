@@ -11,6 +11,8 @@ import { buildIntelligenceBriefing } from "@/lib/briefing";
 import { sanitizeGuardedReport, readTape } from "@/lib/report-consistency";
 import { fetchQuotesForAssetClass, isLiveConfiguredFor } from "@/lib/market-data";
 import { fetchCryptoMarketIntel } from "@/lib/koins-market";
+import { applyKoinsSweeps } from "@/lib/koins-quality";
+import { koinsCandidatesFromSnapshot, koinsFeedFailureFlag } from "@/lib/crypto-board-store";
 import { getFxSnapshot } from "@/lib/fx";
 import type { Stock } from "@/lib/portfolio";
 import { formatAucklandDateTime } from "@/lib/entitlements";
@@ -344,6 +346,23 @@ export async function generateReportForUser(
     accountBookNZD: portfolioLoaded && accountBookNZD > 0 ? accountBookNZD : undefined,
     marketFeedUnavailable,
   });
+
+  if (bot === "crypto") {
+    try {
+      const board = await koinsCandidatesFromSnapshot();
+      applyKoinsSweeps(report, {
+        at: board.at,
+        forceFailure: koinsFeedFailureFlag(),
+        candidates: board.candidates,
+        projections: report.projectionLeaders,
+      });
+    } catch (err) {
+      console.error(
+        "[report-service] Koins snapshot gate failed:",
+        err instanceof Error ? err.message.slice(0, 120) : "failed"
+      );
+    }
+  }
 
   // ---- Intelligence briefing + probabilistic 7-day outlook -------------
   // Scheduled macro catalysts for the next 7 days (deterministic, no key).

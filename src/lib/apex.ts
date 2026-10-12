@@ -200,6 +200,11 @@ export interface ApexReport {
   // Advanced multi-timeframe sweep sections (present on every report).
   marketMovers: MarketMoversGroup[];
   projectionLeaders: ProjectionRow[];
+  /**
+   * Koins list note. Set when a sweep or the projected list is not ranked.
+   * The section stays on the page. Stox leaves this unset.
+   */
+  koinsUnavailableNote?: string | null;
   regionalNews: RegionalNewsGroup[];
   directRecommendations: DirectRecommendation[];
   pathwayPlan: PathwayPlan;
