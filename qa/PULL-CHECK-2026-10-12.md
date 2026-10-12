@@ -8,6 +8,7 @@ Repo: https://github.com/AetherForge-Ai/aetherforgeai
 Branch: `cursor/qa-tier1b-h2-t1-68ab`
 Base: `develop` at `add1d4e7f3315871a1916df83c70a4ac283fcf81` (Keep a last-good crypto and DEX list when the live feeds are blocked. #318)
 Implementation commit: `1cf96b28aa600e350017d16d4bf6d6365eb0d91e`
+Pull-check commit: `13d4e6b5f6ac49198806e918b3853382c9b88f41`
 
 ## Written confirmation
 
