@@ -362,7 +362,7 @@ describe("server-side movement rejection", () => {
   it("wires the same rejection into POST /api/transactions and Holding Edit", () => {
     const read = (rel: string) => readFileSync(path.join(process.cwd(), rel), "utf8");
     const post = read("src/app/api/transactions/route.ts");
-    expect(post).toContain("applyTransaction(user, input)");
+    expect(post).toContain("applyTransaction(user, input, { priorLedger })");
     expect(post).not.toContain("rejectionChecked: true");
     expect(post).toContain("A correction can only be recorded from Holding Edit on a holding you own.");
     const edit = read("src/app/api/stocks/[id]/route.ts");

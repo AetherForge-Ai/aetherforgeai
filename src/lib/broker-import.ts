@@ -12,11 +12,12 @@
  */
 
 import { tickersForCompanyName } from "@/lib/broker-names";
+import { coinDisplayName } from "@/lib/crypto-names";
 import { roundMoney } from "@/lib/currency";
 import { parseHoldingsDate, splitCsvLine, splitHoldingsTicker } from "@/lib/holdings-csv";
 import { knownImportSymbol } from "@/lib/import-symbols";
 
-export type ImportBroker = "sharesies" | "hatch" | "kernel" | "stake" | "ibkr" | "binance" | "easycrypto" | "generic";
+export type ImportBroker = "sharesies" | "hatch" | "kernel" | "stake" | "ibkr" | "binance" | "easycrypto" | "aetherforge" | "generic";
 export type BrokerConfidence = "high" | "medium" | "low";
 
 export interface BrokerDetection {
@@ -65,6 +66,10 @@ export interface ImportTrade {
   cashEffectNzd: number;
   /** Broker order id when the file has one. Empty when it does not. */
   brokerRef: string;
+  /** Full name when the file or the coin list has one. */
+  assetName?: string;
+  /** ISO instant when the file kept a clock. The date column stays the civil day. */
+  executedAt?: string;
 }
 
 export interface FxNeed {
@@ -123,13 +128,13 @@ const TICKER_KEYS = [
   "security name",
   "name",
 ];
-const NAME_HEADERS = new Set(["instrument name", "company name", "company", "security name", "name"]);
+const NAME_HEADERS = new Set(["instrument name", "company name", "company", "security name", "name", "asset name", "assetname"]);
 const DATE_KEYS = ["date", "trade date", "tradedate", "when", "trade_date"];
 const QTY_KEYS = ["quantity", "qty", "units", "shares"];
-const PRICE_KEYS = ["price", "tradeprice", "trade price", "t. price", "unit price", "price paid", "pricepaid", "purchase price"];
-const FEE_KEYS = ["fee", "fees", "commission", "ibcommission", "ib commission", "transaction fee"];
+const PRICE_KEYS = ["price", "fill price", "fillprice", "tradeprice", "trade price", "t. price", "unit price", "price paid", "pricepaid", "purchase price"];
+const FEE_KEYS = ["fee", "fees", "fees native", "feesnative", "commission", "ibcommission", "ib commission", "transaction fee"];
 const MARKET_KEYS = ["market code", "market"];
-const CCY_KEYS = ["currency", "currencyprimary", "currency primary", "ccy"];
+const CCY_KEYS = ["currency", "fill currency", "fillcurrency", "currencyprimary", "currency primary", "ccy"];
 const FX_KEYS = ["fx", "fx rate", "fxrate", "fxratetobase", "exchange rate"];
 const VALUE_KEYS = ["value", "amount", "proceeds"];
 const REF_KEYS = ["order id", "orderid", "reference", "trade id", "broker ref"];
@@ -141,6 +146,7 @@ const BROKER_LABEL: Record<ImportBroker, string> = {
   ibkr: "IBKR",
   binance: "Binance",
   easycrypto: "Easy Crypto",
+  aetherforge: "AetherForge",
   generic: "Generic",
 };
 
@@ -184,6 +190,46 @@ function parseImportDate(raw: string): string | null {
   return parseHoldingsDate(`${compact[1]}-${compact[2]}-${compact[3]}`);
 }
 
+const IMPORT_MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+
+function aucklandWallToIso(year: number, month: number, day: number, hour: number, minute: number): string {
+  const utc = new Date(Date.UTC(year, month - 1, day, hour, minute));
+  const parts = new Intl.DateTimeFormat("en-NZ", {
+    timeZone: "Pacific/Auckland",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(utc);
+  const read = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((part) => part.type === type)?.value);
+  const shown = Date.UTC(read("year"), read("month") - 1, read("day"), read("hour"), read("minute"));
+  return new Date(utc.getTime() - (shown - utc.getTime())).toISOString();
+}
+
+/** Clock from an export cell such as "13 Oct 2026, 6:50 am", or an ISO instant. */
+export function parseImportClock(raw: string): string | null {
+  const text = raw.trim();
+  if (!text) return null;
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(text)) {
+    const date = new Date(text);
+    return Number.isNaN(date.getTime()) ? null : date.toISOString();
+  }
+  const named = /^(\d{1,2})\s+([A-Za-z]{3,9})\s+(\d{4}),\s*(\d{1,2}):(\d{2})\s*([ap]m)/i.exec(text);
+  if (!named) return null;
+  const month = IMPORT_MONTHS.indexOf(named[2].slice(0, 3).toLowerCase()) + 1;
+  const day = Number(named[1]);
+  const year = Number(named[3]);
+  let hour = Number(named[4]);
+  const minute = Number(named[5]);
+  const pm = named[6].toLowerCase().startsWith("p");
+  if (month < 1 || day < 1 || day > 31 || hour < 1 || hour > 12 || minute < 0 || minute > 59) return null;
+  if (hour === 12) hour = pm ? 12 : 0;
+  else if (pm) hour += 12;
+  return aucklandWallToIso(year, month, day, hour, minute);
+}
+
 function parseNumber(raw: string): number | null {
   const cleaned = raw.trim().replace(/[$,\s]/g, "").replace(/NZ\$|US\$|AU\$/gi, "");
   if (!cleaned || cleaned === "-" || cleaned === "—") return null;
@@ -213,6 +259,13 @@ function hasOrderId(headers: string[]): boolean {
 
 /** Header shape only. A Sharesies file is Sharesies, with a confidence level. */
 export function detectBroker(headers: string[]): BrokerDetection {
+  if (
+    (hasHeader(headers, "datetime nz") || hasHeader(headers, "datetimenz")) &&
+    (hasHeader(headers, "fill price") || hasHeader(headers, "fillprice")) &&
+    (hasHeader(headers, "execution status") || hasHeader(headers, "executionstatus"))
+  ) {
+    return detectionOf("aetherforge", "high", 0.99);
+  }
   if (hasHeader(headers, "instrument code") || hasHeader(headers, "instrument name")) {
     return detectionOf("sharesies", "high", 0.96);
   }
@@ -552,7 +605,7 @@ export function planBrokerImport(
 
     const date = parseImportDate(cells[columns.date] || "");
     const quantityRaw = parseNumber(cells[columns.quantity] || "");
-    const price = parseNumber(cells[columns.price] || "");
+    let price = parseNumber(cells[columns.price] || "");
     const currencyCell = columns.currency >= 0 ? cells[columns.currency] || "" : "";
     const currencyHint = ["NZD", "AUD", "USD"].includes(currencyCell.trim().toUpperCase())
       ? (currencyCell.trim().toUpperCase() as ImportCurrency)
@@ -564,7 +617,7 @@ export function planBrokerImport(
       tickerRaw = cells[nameAt] || "";
       named = true;
     }
-    if (!date || quantityRaw == null || price == null || !tickerRaw.trim()) {
+    if (!date || quantityRaw == null || !tickerRaw.trim()) {
       unsupported.push({ line: lineNo, reason: "Date, ticker, quantity or price could not be read." });
       return;
     }
@@ -577,8 +630,27 @@ export function planBrokerImport(
     const fix = (options?.tickerFixes?.[String(lineNo)] || "").trim().toUpperCase();
     const ticker = fix || printed;
     const quantity = Math.abs(quantityRaw);
-    if (!(quantity > 0) || !(price > 0)) {
-      unsupported.push({ line: lineNo, reason: "Quantity and price must be greater than zero." });
+    if (!(price != null && price > 0)) {
+      unsupported.push({
+        line: lineNo,
+        ticker,
+        date,
+        side,
+        quantity,
+        reason: "Price required — the file has no price for this row.",
+      });
+      return;
+    }
+    if (!(quantity > 0)) {
+      unsupported.push({
+        line: lineNo,
+        ticker,
+        date,
+        side,
+        quantity,
+        price,
+        reason: "Quantity and price must be greater than zero.",
+      });
       return;
     }
 
@@ -654,6 +726,10 @@ export function planBrokerImport(
     }
 
     const brokerRef = refAt >= 0 ? (cells[refAt] || "").trim().replace(/\s+/g, "") : "";
+    const clockAt = indexOf(headerCells, ["datetime nz", "datetimenz"]);
+    const executedAt = clockAt >= 0 ? parseImportClock(cells[clockAt] || "") : null;
+    const nameCell = nameAt >= 0 ? (cells[nameAt] || "").trim() : "";
+    const assetName = coinDisplayName(ticker, nameCell || ticker);
     const cashEffectNzd =
       side === "sell" ? roundMoney(Math.max(0, nativeValue - fee) * usedFx) : roundMoney(-costNzd);
     rows.push({
@@ -672,6 +748,8 @@ export function planBrokerImport(
       costNzd,
       cashEffectNzd,
       brokerRef,
+      assetName,
+      ...(executedAt ? { executedAt } : {}),
     });
   });
 

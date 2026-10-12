@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 import { FUNDING_DISCLOSURE, readImportPreview, suggestedColumnMap, type ImportPlan, type ImportTrade } from "@/lib/broker-import";
 import { readSavedColumnMap, writeSavedColumnMap } from "@/lib/import-commit";
 import { HOLDINGS_IMPORT_DRAFT_KEY } from "@/lib/holdings-csv";
-import { formatDisplayDate, formatFxInput, formatNzd } from "@/lib/currency";
+import { formatDisplayDate, formatDisplayDateTime, formatFxInput, formatNzd, formatUnitPrice } from "@/lib/currency";
 
 const IMPORT_WAIT_MS = 30_000;
 const IMPORT_TIMEOUT =
@@ -266,7 +266,7 @@ export function BrokerImportPanel({
       {embedded ? null : <p className="text-xs font-semibold uppercase tracking-wide text-primary">Paper book</p>}
       {embedded ? null : <h1 className="mt-2 font-display text-3xl font-bold">Import trades</h1>}
       <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-        Upload a Sharesies, Hatch, Kernel, Stake, IBKR, Binance, or Easy Crypto file, or map the columns
+        Upload a Sharesies, Hatch, Kernel, Stake, IBKR, Binance, Easy Crypto, or AetherForge export, or map the columns
         yourself. Review the rows
         before anything is saved. A split, a dividend, or a row this page cannot read is listed and left
         out until you acknowledge it. A duplicate in this file, or a fill already on the book, is skipped.
@@ -385,11 +385,16 @@ export function BrokerImportPanel({
               <tbody>
                 {preview.toWrite.map((row) => (
                   <tr key={`${row.line}-${row.ticker}`} className="border-b border-border/40 last:border-0">
-                    <td className="px-3 py-2">{formatDisplayDate(row.date)}</td>
+                    <td className="px-3 py-2">{row.executedAt ? formatDisplayDateTime(row.executedAt) : formatDisplayDate(row.date)}</td>
                     <td className="px-3 py-2">{row.side}</td>
-                    <td className="px-3 py-2">{row.ticker}</td>
+                    <td className="px-3 py-2">
+                      {row.ticker}
+                      {row.assetName && row.assetName.toUpperCase() !== row.ticker ? (
+                        <span className="block text-xs text-muted-foreground">{row.assetName}</span>
+                      ) : null}
+                    </td>
                     <td className="tnum px-3 py-2 text-right">{row.quantity}</td>
-                    <td className="tnum px-3 py-2 text-right">{row.price.toFixed(2)}</td>
+                    <td className="tnum px-3 py-2 text-right">{formatUnitPrice(row.price, row.currency)}</td>
                     <td className="tnum px-3 py-2 text-right">
                       {formatFxInput(row.fx)}
                       <span className="block text-xs text-muted-foreground">{row.fxLabel}</span>
@@ -409,7 +414,7 @@ export function BrokerImportPanel({
                       <td className="px-3 py-2">{row.side || "—"}</td>
                       <td className="px-3 py-2">{row.ticker}</td>
                       <td className="tnum px-3 py-2 text-right">{row.quantity ?? "—"}</td>
-                      <td className="tnum px-3 py-2 text-right">{row.price != null ? row.price.toFixed(2) : "—"}</td>
+                      <td className="tnum px-3 py-2 text-right">{row.price != null && row.price > 0 ? formatUnitPrice(row.price, "USD") : "—"}</td>
                       <td className="px-3 py-2 text-right text-muted-foreground">—</td>
                       <td className="px-3 py-2 text-right text-muted-foreground">—</td>
                       <td className="px-3 py-2 text-right text-muted-foreground">—</td>
@@ -422,7 +427,7 @@ export function BrokerImportPanel({
                     <td className="px-3 py-2">{row.side}</td>
                     <td className="px-3 py-2">{row.ticker}</td>
                     <td className="tnum px-3 py-2 text-right">{row.quantity}</td>
-                    <td className="tnum px-3 py-2 text-right">{row.price.toFixed(2)}</td>
+                    <td className="tnum px-3 py-2 text-right">{formatUnitPrice(row.price, row.currency)}</td>
                     <td className="tnum px-3 py-2 text-right">
                       {formatFxInput(row.fx)}
                       <span className="block text-xs text-muted-foreground">{row.fxLabel}</span>

@@ -126,8 +126,8 @@ export default function AiDisclaimer() {
           If you have any questions about this disclaimer, email{" "}
           <EmailAddress email="admin@aetherforgeai.co.nz" className="text-primary" />{" "}
           or use the contact form on the{" "}
-          <a href="/about#contact" className="text-primary hover:underline">
-            About
+          <a href="/contact" className="text-primary hover:underline">
+            Contact
           </a>{" "}
           page. By continuing to use
           AetherForge AI you acknowledge that you have read and understood this disclaimer.

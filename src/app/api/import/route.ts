@@ -216,7 +216,7 @@ export async function POST(req: Request) {
     const fundBuys = body.fundBuys === true;
     const openingCashNzd = typeof user.cash_balance === "number" ? user.cash_balance : 0;
     if (body.confirm !== true) {
-      const draft = planBrokerImport(text, { mapping, openingCashNzd, fundBuys, tickerFixes });
+      const draft = await planWithReviewedFx(text, { mapping, openingCashNzd, fundBuys, tickerFixes });
       if (draft.needsMapping) {
         return NextResponse.json({
           ok: true,
@@ -295,13 +295,14 @@ export async function POST(req: Request) {
           type: row.side,
           ticker: row.ticker,
           asset_type: assetClassForSymbol(row.ticker),
+          asset_name: row.assetName,
           quantity: row.quantity,
           price: row.price,
           fees: row.fee,
           fx_rate: row.fx,
           fx_source: row.fxSource === "reviewed-trade-date" ? "reviewed-trade-date" : "broker-file",
           fill_currency: row.currency,
-          executed_at: row.date,
+          executed_at: row.executedAt || row.date,
           trade_date: row.date,
           price_source: "broker_import",
           broker: committed.broker || "file",

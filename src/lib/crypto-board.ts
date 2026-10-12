@@ -197,6 +197,26 @@ const TICKER_CHAIN: Record<string, string> = {
   leo: "Ethereum",
   cbbtc: "Base",
   rain: "Ethereum",
+  susds: "Ethereum",
+  usde: "Ethereum",
+  dai: "Ethereum",
+  usd1: "Ethereum",
+  xaut: "Ethereum",
+  tao: "Bittensor",
+  cro: "Cronos",
+  pyusd: "Ethereum",
+  okb: "Ethereum",
+  rlusd: "XRP Ledger",
+  paxg: "Ethereum",
+  mnt: "Mantle",
+  wlfi: "Ethereum",
+  sky: "Ethereum",
+  morpho: "Ethereum",
+  jitosol: "Solana",
+  bgb: "Ethereum",
+  ftm: "Fantom",
+  agix: "Ethereum",
+  wbnb: "BNB Smart Chain",
 };
 
 const PLATFORM_LABEL: Record<string, string> = {
@@ -220,6 +240,17 @@ const PLATFORM_LABEL: Record<string, string> = {
   aptos: "Aptos",
   ton: "TON",
   "near-protocol": "NEAR Protocol",
+  "eth-ethereum": "Ethereum",
+  "zksync-zksync": "zkSync",
+  zksync: "zkSync",
+  cronos: "Cronos",
+  "crypto-com-chain": "Cronos",
+  mantle: "Mantle",
+  fantom: "Fantom",
+  bittensor: "Bittensor",
+  "xrp-ledger": "XRP Ledger",
+  ripple: "XRP Ledger",
+  binancecoin: "BNB Smart Chain",
 };
 
 export interface CoinDirectoryEntry {
@@ -349,8 +380,38 @@ export function nameIsPublishable(symbol: string, name: string): boolean {
   const ticker = (symbol || "").trim().toUpperCase();
   const label = (name || "").trim();
   if (!ticker || !label) return false;
-  if (label.toUpperCase() === ticker) return SYMBOL_IS_OFFICIAL_NAME.has(ticker);
+  if (label.toUpperCase() === ticker && label === ticker) return SYMBOL_IS_OFFICIAL_NAME.has(ticker);
   return true;
+}
+
+export interface PaprikaChainInput {
+  type?: string | null;
+  symbol?: string | null;
+  name?: string | null;
+  platform?: string | null;
+  contracts?: Array<{ platform?: string | null; contract?: string | null }> | null;
+}
+
+/**
+ * CoinPaprika coin document. type "coin" is that asset's own chain.
+ * A token uses its contract platform. A blank result is not a guessed chain.
+ */
+export function chainFromPaprikaCoin(row: PaprikaChainInput): string {
+  const symbol = (row.symbol || "").trim().toLowerCase();
+  const known = symbol ? TICKER_CHAIN[symbol] || "" : "";
+  const type = (row.type || "").trim().toLowerCase();
+  if (type === "coin") {
+    if (known) return known;
+    const own = platformLabel(String(row.name || "").trim());
+    return own && own.toLowerCase() !== symbol ? own : "";
+  }
+  const contractPlatform = (row.contracts || []).map((item) => String(item?.platform || "").trim()).find(Boolean) || "";
+  const platform = contractPlatform || String(row.platform || "").trim();
+  if (platform) {
+    const labelled = platformLabel(platform);
+    if (labelled) return labelled;
+  }
+  return known;
 }
 
 export function cryptoRowComplete(coin: Pick<CoinMarket, "symbol" | "name" | "price" | "blockchain">): boolean {

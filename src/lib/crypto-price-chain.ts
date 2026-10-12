@@ -74,7 +74,11 @@ export function chainPricesAgree(a: number, b: number, ratio = CRYPTO_SANITY_RAT
 
 /** Footer and ticker credit for the feed that actually supplied the tape. */
 export function cryptoVenueForLabel(label: string | null | undefined): { label: string; href: string } {
-  const first = String(label || "").split(",")[0].trim();
+  const text = String(label || "").trim();
+  if (!text) return { label: "Source unavailable", href: "" };
+  const parts = text.split(",").map((part) => part.trim()).filter(Boolean);
+  if (parts.length !== 1) return { label: parts.join(", "), href: "" };
+  const first = parts[0];
   const key = first.toLowerCase();
   if (key.includes("coinpaprika")) return { label: "CoinPaprika", href: "https://coinpaprika.com/" };
   if (key.includes("coingecko")) return { label: "CoinGecko", href: "https://www.coingecko.com/" };
@@ -84,7 +88,8 @@ export function cryptoVenueForLabel(label: string | null | undefined): { label: 
   if (key.includes("coinbase")) return { label: "Coinbase", href: "https://www.coinbase.com/" };
   if (key.includes("yahoo")) return { label: "Yahoo Finance", href: "https://finance.yahoo.com/" };
   if (key.includes("geckoterminal")) return { label: "GeckoTerminal", href: "https://www.geckoterminal.com/" };
-  return { label: first || "CoinGecko", href: "https://www.coingecko.com/" };
+  if (key.includes("dexpaprika")) return { label: "DexPaprika", href: "https://dexpaprika.com/" };
+  return { label: first, href: "" };
 }
 
 export function sourceLabel(source: string): string {

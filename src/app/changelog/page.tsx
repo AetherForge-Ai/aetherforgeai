@@ -9,6 +9,11 @@ export const metadata = publicPageMetadata("/changelog", {
 export const CHANGELOG_ENTRIES = [
   {
     href: "/dashboard",
+    title: "13 Oct 2026 — Retest 12",
+    body: "The return split is one whole-book figure on the dashboard, stocks, and crypto, and it waits for the ledger. A hub P/L card is labelled as that asset class only. The 1-hour move on a coin page uses the same list field as the table. Each coin names the feed that supplied it, or says the source is unavailable. Crypto last-updated uses the snapshot time. Contact is its own page. Cookies lists the cookies the site sets. A missing CoinPaprika figure is an em dash with the reason, and fully diluted value is derived from price times supply when the feed sends supply. Chain names fill from the known list. DEX prices keep the last good snapshot and refresh in the background. Confirm shows the toast after the save, keeps the cards on screen, and updates cash and holdings from one response. An AetherForge export imports as AetherForge. Coin names use the published name, including Wrapped Ether and dYdX.",
+  },
+  {
+    href: "/dashboard",
     title: "13 Oct 2026 — Retest 11",
     body: "The currency effect uses the buy price of each open lot, plus the exchange-rate result already realised on sells, plus foreign cash. Ledger tables hide live=, chain=, and pxat= stamps. The CSV export keeps chain= and pxat=. The crypto table shows maximum supply, the 1-hour move, and the 30-day move, and a row opens the coin page. A missing figure is an em dash with the reason the feed left it out. A short coin list says how many prices arrived. Top movers on the crypto desk rank the live coin list. Search Markets opens the coin search. The home ticker clock is the same on the server and in the browser. The ticker names the feed that supplied the prices. The return split is one figure on the dashboard, stocks, and crypto. DEX prices refresh when they are older than about five minutes, and the as-at time is the saved snapshot. Confirm reads cash and the holding once. Header totals stay on the last figure until the book reload finishes, then show that result. Coin names use the feed name, and DYDX is shown as dYdX.",
   },

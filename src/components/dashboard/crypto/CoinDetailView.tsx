@@ -87,6 +87,7 @@ export function CoinDetailView({
   unavailable = false,
   variant = "page",
   quotedLine = null,
+  initialDetail = null,
 }: {
   coinId: string | null;
   /** False while a dialog is closed so it does not fetch in the background. */
@@ -103,13 +104,15 @@ export function CoinDetailView({
   variant?: "page" | "dialog";
   /** Labelled price from the server snapshot. Kept on screen when the detail request fails. */
   quotedLine?: string | null;
+  /** Server snapshot so 1h, 7d and supply are in the first HTML. */
+  initialDetail?: CoinDetail | null;
 }) {
   const signedIn = signedInProp ?? variant === "dialog";
   const slug = resolvableCoinId(coinId);
   const blocked = unavailable || !slug;
   const gradientId = useId().replace(/:/g, "");
 
-  const [detail, setDetail] = useState<CoinDetail | null>(null);
+  const [detail, setDetail] = useState<CoinDetail | null>(initialDetail);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -122,8 +125,8 @@ export function CoinDetailView({
   const [buyOpen, setBuyOpen] = useState(false);
   const [buyTarget, setBuyTarget] = useState<BuyTarget | null>(null);
 
-  const loadDetail = useCallback(async (id: string) => {
-    setLoading(true);
+  const loadDetail = useCallback(async (id: string, keep: boolean) => {
+    if (!keep) setLoading(true);
     setError(null);
     console.log(`[coin-detail] loading ${id}`);
     try {
@@ -132,20 +135,23 @@ export function CoinDetailView({
       });
       if (res.ok && res.data && typeof res.data.price === "number" && res.data.price > 0) {
         setDetail(res.data);
-      } else {
+      } else if (!keep) {
         setError(quotedLine ? null : clientFacingError(`/api/crypto/coin/${id}`, res.error || COIN_DETAIL_SOURCE_DOWN));
         setDetail(null);
       }
     } catch {
-      setError(quotedLine ? null : COIN_DETAIL_SOURCE_DOWN);
-      setDetail(null);
+      if (!keep) {
+        setError(quotedLine ? null : COIN_DETAIL_SOURCE_DOWN);
+        setDetail(null);
+      }
     }
     setLoading(false);
   }, [quotedLine]);
 
   useEffect(() => {
     if (!active) return;
-    setDetail(null);
+    const keep = initialDetail != null && initialDetail.id === slug;
+    if (!keep) setDetail(null);
     setChart(null);
     setChartCache({});
     setRange("7D");
@@ -155,11 +161,11 @@ export function CoinDetailView({
       setError(COIN_DETAIL_UNAVAILABLE);
       return;
     }
-    void loadDetail(slug).catch(() => {
-      setError(COIN_DETAIL_SOURCE_DOWN);
+    void loadDetail(slug, keep).catch(() => {
+      if (!keep) setError(COIN_DETAIL_SOURCE_DOWN);
       setLoading(false);
     });
-  }, [active, blocked, slug, loadDetail]);
+  }, [active, blocked, slug, loadDetail, initialDetail]);
 
   useEffect(() => {
     if (!active || blocked || !slug) return;
@@ -368,7 +374,7 @@ export function CoinDetailView({
     <div className="flex h-56 flex-col items-center justify-center gap-3 text-center text-sm text-muted-foreground">
       {shownError}
       {!blocked && slug && (
-        <Button variant="outline" size="sm" onClick={() => loadDetail(slug)}>
+        <Button variant="outline" size="sm" onClick={() => loadDetail(slug, detail != null)}>
           Try again
         </Button>
       )}

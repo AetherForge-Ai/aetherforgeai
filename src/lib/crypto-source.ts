@@ -462,11 +462,13 @@ export async function getCoinDetail(id: string): Promise<CoinDetail> {
     }
   }
   const listed = await listedCoinForDetail(id, code);
+  const listedSource = (listed?.source || "").trim().toLowerCase();
   if (!detail) {
     if (!listed || !(listed.price > 0)) throw new Error(`No detail for ${id}`);
-    return presentDetail(detailFromMarket(listed), listed.source || "snapshot");
+    return presentDetail(detailFromMarket(listed), listedSource);
   }
-  return presentDetail(overlayCoinDetail(detail, listed), source);
+  const pageSource = listedSource && listedSource !== source ? `${source},${listedSource}` : source || listedSource;
+  return presentDetail(overlayCoinDetail(detail, listed), pageSource);
 }
 
 export async function getCoinChart(id: string, days: string): Promise<CoinChart> {

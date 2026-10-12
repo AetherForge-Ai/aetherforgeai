@@ -123,6 +123,8 @@ interface DisplayRow {
   coinId?: string; // crypto rows only — CoinGecko id for /markets/crypto/[id]
   blockchain?: string;
   chainReason?: string;
+  highReason?: string;
+  lowReason?: string;
   maxSupply?: number | null;
   change1h?: number | null;
   change30d?: number | null;
@@ -582,6 +584,8 @@ export function MarketsExplorer({
         changePct: c.change24h ?? 0,
         changeAbs: (c.price * (c.change24h ?? 0)) / 100,
         dayHigh: c.high24h,
+        highReason: c.highReason,
+        lowReason: c.lowReason,
         dayLow: c.low24h,
         volume: c.volume24h > 0 ? c.volume24h : null,
         marketCap: c.marketCap > 0 ? c.marketCap : null,
@@ -657,8 +661,8 @@ export function MarketsExplorer({
     if (!(r.price != null && r.price > 0)) return PRICE_NOT_IN_RESPONSE;
     return formatMarketPrice(r.price, r.currency);
   };
-  const showUnit = (value: number | null, r: DisplayRow) => {
-    if (!value || !(value > 0)) return "—";
+  const showUnit = (value: number | null, r: DisplayRow, reason?: string) => {
+    if (!value || !(value > 0)) return <DashCell reason={reason || "The feed did not send this figure."} />;
     if (r.coinId && showNzd) return formatUnitPrice(usdToNzd(value, fx.rates.USD), "NZD");
     return r.coinId || isCryptoTab ? formatUnitPrice(value, "USD") : formatMarketPrice(value, r.currency);
   };
@@ -971,7 +975,7 @@ export function MarketsExplorer({
               [...Array(12)].map((_, i) => (
                 <tr key={i} className="border-b border-border/30">
                   <td colSpan={colSpan} className="py-2">
-                    <div className="h-8 animate-pulse rounded-lg bg-muted/40" />
+                    <div className="h-11 min-h-11 animate-pulse rounded-lg bg-muted/40" />
                   </td>
                 </tr>
               ))
@@ -1080,12 +1084,12 @@ export function MarketsExplorer({
                     )}
                     {showHigh && (
                     <td className="tnum hidden py-2.5 px-3 text-right text-muted-foreground lg:table-cell">
-                      {showUnit(r.dayHigh, r)}
+                      {showUnit(r.dayHigh, r, r.highReason)}
                     </td>
                     )}
                     {showLow && (
                     <td className="tnum hidden py-2.5 px-3 text-right text-muted-foreground lg:table-cell">
-                      {showUnit(r.dayLow, r)}
+                      {showUnit(r.dayLow, r, r.lowReason)}
                     </td>
                     )}
                     {showVolume && (
