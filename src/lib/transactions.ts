@@ -22,7 +22,7 @@ import { alertsToArchive, positionIsClosed } from "@/lib/alert-lifecycle";
 import { getFxSnapshot, historicalNzdPerUnit } from "@/lib/fx";
 import { normalizeTicker, lookupTicker, referencePrice } from "@/lib/market";
 import { fetchLivePrice, isLiveDataConfigured } from "@/lib/market-data";
-import { priceFromSnapshot } from "@/lib/crypto-board-store";
+import { confirmCryptoQuote, priceFromSnapshot } from "@/lib/crypto-board-store";
 import { confirmMapKey, confirmOnce, withIdempotencyNote } from "@/lib/confirm-once";
 import { getMetalsSpot } from "@/lib/metals";
 import {
@@ -497,7 +497,7 @@ async function detailedDividendParts(
 export async function applyTransaction(
   user: AppUser,
   input: TransactionInput,
-  opts?: { fromHoldingEdit?: boolean; rejectionChecked?: boolean }
+  opts?: { fromHoldingEdit?: boolean; rejectionChecked?: boolean; priorLedger?: Promise<TransactionLedger> }
 ): Promise<TransactionResult> {
   const mapKey = confirmMapKey(user._id, input.idempotency_key);
   return confirmOnce(mapKey, () =>
@@ -562,7 +562,7 @@ function scheduleSnapshotRevalue(holdingId: string | null | undefined, ticker: s
 async function applyTransactionUnlocked(
   user: AppUser,
   input: TransactionInput,
-  opts?: { fromHoldingEdit?: boolean; rejectionChecked?: boolean }
+  opts?: { fromHoldingEdit?: boolean; rejectionChecked?: boolean; priorLedger?: Promise<TransactionLedger> }
 ): Promise<TransactionResult> {
   const checkStarted = Date.now();
   // Cash and the holding are read once and shared with the movement check.
@@ -858,19 +858,23 @@ async function applyTransactionUnlocked(
       : Promise.resolve(null);
   const historyPromise =
     input.type === "sell"
-      ? totalumSdk.crud.query("transaction", {
-          _filter: { user: user._id },
-          _limit: 5000,
-        })
+      ? opts?.priorLedger
+        ? opts.priorLedger.then((book) => ({ data: book.transactions }))
+        : totalumSdk.crud.query("transaction", {
+            _filter: { user: user._id },
+            _limit: 5000,
+          })
       : Promise.resolve(null);
 
   // Cash, the holding, FX, and the snapshot price share one wait.
   // Crypto uses the shared snapshot and does not cold-seed it.
+  const confirmQuote: { at: string | null } = { at: null };
   const spotStarted = Date.now();
   const spotPromise = (async (): Promise<number | null> => {
     try {
       if (assetType === "crypto") {
-        const snap = await priceFromSnapshot({ symbol: ticker, coinId: input.coingecko_id });
+        const snap = await confirmCryptoQuote({ symbol: ticker, coinId: input.coingecko_id });
+        if (snap?.quotedAt) confirmQuote.at = snap.quotedAt;
         return snap && snap.price > 0 ? snap.price : null;
       }
       if (assetType === "metal") {
@@ -1050,7 +1054,7 @@ async function applyTransactionUnlocked(
     try {
     const feed = feedEntryForTicker(ticker);
     const fxRate = nzdPerUnit(currency, input.fx_rate ?? rates[currency] ?? 1);
-    const priceAsAt = input.price_as_at || new Date().toISOString();
+    const priceAsAt = confirmQuote.at || input.price_as_at || new Date().toISOString();
     const buyChain = assetType === "crypto" ? stamp.chain || cleanChain(input.chain) || chainForTicker(ticker) || null : stamp.chain || cleanChain(input.chain) || null;
     const quoteBits = [
       buyChain ? `chain=${buyChain.replace(/\s+/g, "_")}` : "",
@@ -1275,7 +1279,7 @@ async function applyTransactionUnlocked(
     console.log(`[transactions] SELL ${quantity} ${ticker} → ${expectedRemaining} remaining`);
   }
 
-  const priceAsAt = input.price_as_at || new Date().toISOString();
+  const priceAsAt = confirmQuote.at || input.price_as_at || new Date().toISOString();
   const sellChain = assetType === "crypto" ? stamp.chain || cleanChain(input.chain) || chainForTicker(ticker) || null : stamp.chain || cleanChain(input.chain) || null;
   const sellQuoteBits = [
     sellChain ? `chain=${sellChain.replace(/\s+/g, "_")}` : "",

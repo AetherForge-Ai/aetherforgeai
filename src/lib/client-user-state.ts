@@ -15,6 +15,18 @@ import {
 
 const LEGACY_CASH_KEY = "af.cashBalanceNZD";
 const CASH_KEY_PREFIX = "af.cashBalanceNZD.";
+const BOOK_KEY_PREFIX = "af.bookSnapshot.v1.";
+
+export interface CachedBookSnapshot {
+  stocks: unknown[];
+  cash: number;
+  metals: number;
+  incomeNzd: number;
+  costFx: Record<string, number>;
+  qtyFx: Record<string, number>;
+  realisedFxNzd: number;
+  at: string;
+}
 
 /** Module-level last bound user — detects SPA login switches without full reload. */
 let boundUserId: string | null | undefined = undefined;
@@ -43,6 +55,28 @@ export function readCachedCashNZD(userId: string | null | undefined): number | n
     return Number.isFinite(n) && n >= 0 ? n : null;
   } catch {
     return null;
+  }
+}
+
+export function readCachedBook(userId: string | null | undefined): CachedBookSnapshot | null {
+  if (!userId || typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(BOOK_KEY_PREFIX + userId);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as CachedBookSnapshot;
+    if (!parsed || !Array.isArray(parsed.stocks) || typeof parsed.cash !== "number") return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function writeCachedBook(userId: string | null | undefined, snapshot: CachedBookSnapshot): void {
+  if (!userId || typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(BOOK_KEY_PREFIX + userId, JSON.stringify(snapshot));
+  } catch {
+    /* ignore */
   }
 }
 

@@ -57,7 +57,9 @@ import {
 } from "@/lib/transaction-dialog-store";
 import {
   bindClientUser,
+  readCachedBook,
   readCachedCashNZD,
+  writeCachedBook,
   writeCachedCashNZD,
 } from "@/lib/client-user-state";
 import { AnalysisPanel } from "@/components/dashboard/AnalysisPanel";
@@ -80,6 +82,7 @@ import { applyLiveCryptoPrices } from "@/lib/crypto-live";
 import { applyBookedTradeToHoldings, type BookedTrade } from "@/lib/apply-booked-trade";
 import { holdingsActionAfterDialogClose, holdingsGeneration, holdingsResponseIsStale } from "@/lib/holdings-generation";
 import { resumeCryptoLivePoll, useLiveCryptoQuotes } from "@/hooks/useLiveCryptoQuotes";
+import { useCryptoMarkets } from "@/hooks/useCryptoMarkets";
 import { HoldingsOwnedTable } from "@/components/dashboard/HoldingsOwnedTable";
 import { HoldingsCsvImport } from "@/components/dashboard/HoldingsCsvImport";
 import { ActionableIntelligence } from "@/components/dashboard/ActionableIntelligence";
@@ -388,6 +391,20 @@ export function PortfolioDashboard({
     }
     setRecentLedger([]);
     if (!preview) setLedgerLoaded(false);
+    const book = readCachedBook(userId);
+    if (!book) return;
+    setAllStocks(book.stocks as Stock[]);
+    setCashBalance(book.cash);
+    setMetalsValueNZD(book.metals);
+    setIncomeNzd(book.incomeNzd || 0);
+    setCostFx(book.costFx || {});
+    setQtyFx(book.qtyFx || {});
+    setRealisedFxNzd(book.realisedFxNzd || 0);
+    setCashLoaded(true);
+    setLedgerLoaded(true);
+    setMetalsLoaded(true);
+    setLoading(false);
+    holdingsHydratedRef.current = true;
   }, [preview, userId]);
 
   // Keep the active bot in step with the hub page so crypto alerts/holdings
@@ -473,8 +490,8 @@ export function PortfolioDashboard({
   const [costFx, setCostFx] = useState<Record<string, number>>({});
   const [qtyFx, setQtyFx] = useState<Record<string, number>>({});
   const [realisedFxNzd, setRealisedFxNzd] = useState(0);
-  const headerPaint = useRef<{ holdings: number; net: number; stock: number; crypto: number; metals: number } | null>(null);
-  const liveHeaderRef = useRef<{ holdings: number | null; net: number | null; stock: number; crypto: number; metals: number } | null>(null);
+  const headerPaint = useRef<{ holdings: number; net: number; stock: number; crypto: number; metals: number; cash: number } | null>(null);
+  const liveHeaderRef = useRef<{ holdings: number | null; net: number | null; stock: number; crypto: number; metals: number; cash: number | null } | null>(null);
   const [headerFrozen, setHeaderFrozen] = useState(false);
   const [metalsValueNZD, setMetalsValueNZD] = useState(preview ? PREVIEW_METALS_NZD : 0);
   // Raw precious_metal holdings (from /api/metals) so we can surface them in the
@@ -908,19 +925,24 @@ export function PortfolioDashboard({
       }
       const bookedId = updated?.lastTransaction?._id ? String(updated.lastTransaction._id) : "";
       if (bookedId) expectedTxRef.current = bookedId;
+      const hasSnapshot = typeof updated?.cashBalance === "number" || !!updated?.lastTransaction;
       const painted = liveHeaderRef.current;
-      if (painted && painted.holdings != null && painted.net != null) {
+      if (!hasSnapshot && painted && painted.holdings != null && painted.net != null && painted.cash != null) {
         headerPaint.current = {
           holdings: painted.holdings,
           net: painted.net,
           stock: painted.stock,
           crypto: painted.crypto,
           metals: painted.metals,
+          cash: painted.cash,
         };
         setHeaderFrozen(true);
+      } else if (hasSnapshot) {
+        headerPaint.current = null;
+        setHeaderFrozen(false);
       }
-      // Cash and the holding quantity land with the success toast. A later
-      // /api/stocks read can replace this with live marks; a pre-trade snapshot cannot.
+      // Cash and the holding quantity land together from this response.
+      // A later /api/stocks read can replace marks. It must not paint one side first.
       if (updated?.lastTransaction) {
         const pending = deferredHoldingsRef.current;
         if (pending && pending.generation !== holdingsGeneration()) {
@@ -995,6 +1017,8 @@ export function PortfolioDashboard({
   // 24/7 spot poll for this hub only. Buy/Add pauses it inside the hook so a
   // price tick cannot re-render the open modal shut.
   const cryptoLive = useLiveCryptoQuotes(cryptoLiveSymbols, view === "crypto" && !preview);
+  const cryptoBoard = useCryptoMarkets(view === "crypto" && !preview);
+  const cryptoBoardAt = cryptoBoard.asOf ? Date.parse(cryptoBoard.asOf) : Number.NaN;
   const cryptoMarked = useMemo(
     () => (view === "crypto" ? applyLiveCryptoPrices(cryptoOnly, cryptoLive.quotes) : cryptoOnly),
     [view, cryptoOnly, cryptoLive.quotes]
@@ -1199,11 +1223,26 @@ export function PortfolioDashboard({
       stock: stockTotalNZD,
       crypto: cryptoTotalNZD,
       metals: metalsValueNZD + metalStockTotalNZD,
+      cash: showCash,
     };
   }
   const paintedHeader = headerFrozen ? headerPaint.current : null;
   const headerHoldings = paintedHeader ? paintedHeader.holdings : showHoldings;
   const headerNet = paintedHeader ? paintedHeader.net : showNetWorth;
+  const headerCash = paintedHeader ? paintedHeader.cash : showCash;
+  useEffect(() => {
+    if (preview || !userId || !balancesReady || !ledgerLoaded) return;
+    writeCachedBook(userId, {
+      stocks: allStocks,
+      cash: cashBalance,
+      metals: metalsValueNZD,
+      incomeNzd,
+      costFx,
+      qtyFx,
+      realisedFxNzd,
+      at: new Date().toISOString(),
+    });
+  }, [preview, userId, balancesReady, ledgerLoaded, allStocks, cashBalance, metalsValueNZD, incomeNzd, costFx, qtyFx, realisedFxNzd]);
   const headerStock = paintedHeader ? paintedHeader.stock : stockTotalNZD;
   const headerCrypto = paintedHeader ? paintedHeader.crypto : cryptoTotalNZD;
   const headerMetals = paintedHeader ? paintedHeader.metals : metalsValueNZD + metalStockTotalNZD;
@@ -1517,7 +1556,7 @@ export function PortfolioDashboard({
       {isHome && (
       <>
       <DashboardHomeGrid
-        cashBalance={cashBalance}
+        cashBalance={headerCash ?? cashBalance}
         stockTotalNZD={headerStock}
         cryptoTotalNZD={headerCrypto}
         metalsTotalNZD={headerMetals}
@@ -1535,7 +1574,8 @@ export function PortfolioDashboard({
         incomeNzd={incomeNzd}
         rates={fxToNZD}
         split={returnSplit}
-        loading={!balancesReady}
+        loading={!balancesReady || !ledgerLoaded}
+        scopeLabel="Whole book"
       />
       </>
       )}
@@ -1591,10 +1631,10 @@ export function PortfolioDashboard({
         <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-2xl border border-primary/40 bg-gradient-to-br from-primary/15 via-card/70 to-card/50 p-4">
             <p className="font-grift-black text-sm uppercase tracking-wide text-amber-400">Cash Bal</p>
-            {showCash == null ? (
+            {headerCash == null ? (
               <div className="mt-2 h-7 w-28 animate-pulse rounded-md bg-muted/50" aria-hidden />
             ) : (
-              <AnimatedMoney snap value={showCash} currency="NZD" className="tnum mt-2 font-display text-xl font-bold text-emerald-600" />
+              <AnimatedMoney snap value={headerCash} currency="NZD" className="tnum mt-2 font-display text-xl font-bold text-emerald-600" />
             )}
             <p className="mt-1 text-[0.7rem] text-muted-foreground">From Transaction Ledger</p>
           </div>
@@ -1634,10 +1674,10 @@ export function PortfolioDashboard({
         <div className="mt-8 grid gap-4 sm:grid-cols-2">
           <div className="rounded-2xl border border-primary/40 bg-gradient-to-br from-primary/15 via-card/70 to-card/50 p-6">
             <p className="font-grift-black text-sm uppercase tracking-wide text-amber-400">Cash Bal</p>
-            {showCash == null ? (
+            {headerCash == null ? (
               <div className="mt-3 h-9 w-36 animate-pulse rounded-md bg-muted/50" aria-hidden />
             ) : (
-              <AnimatedMoney snap value={showCash} currency="NZD" className="tnum mt-3 font-display text-3xl font-bold text-emerald-600" />
+              <AnimatedMoney snap value={headerCash} currency="NZD" className="tnum mt-3 font-display text-3xl font-bold text-emerald-600" />
             )}
             <p className="mt-2 text-sm text-muted-foreground">Available for buys across stocks, crypto and metals.</p>
           </div>
@@ -1686,7 +1726,8 @@ export function PortfolioDashboard({
           incomeNzd={incomeNzd}
           rates={fxToNZD}
           split={returnSplit}
-          loading={!balancesReady}
+          loading={!balancesReady || !ledgerLoaded}
+          scopeLabel="Whole book"
         />
 
       {/* KPI cards — stocks */}
@@ -1701,7 +1742,7 @@ export function PortfolioDashboard({
         <StatCard
           label={PL_AT_LATEST_PRICE}
           value={formatMoney(stockOverviewSummary.totalGain, "NZD")}
-          sub={formatPercent(stockOverviewSummary.totalGainPct)}
+          sub={`${formatPercent(stockOverviewSummary.totalGainPct)} · Stocks only, at today's rate`}
           icon={stockOverviewSummary.totalGain >= 0 ? TrendingUp : TrendingDown}
           tone={stockOverviewSummary.totalGain >= 0 ? "up" : "down"}
           loading={!balancesReady}
@@ -1787,10 +1828,11 @@ export function PortfolioDashboard({
           incomeNzd={incomeNzd}
           rates={fxToNZD}
           split={returnSplit}
-          loading={!balancesReady}
+          loading={!balancesReady || !ledgerLoaded}
+          scopeLabel="Whole book"
         />
         <div className="mb-4 flex flex-wrap items-center justify-center gap-3">
-          <CryptoLiveStatus updatedAt={cryptoLive.updatedAt} />
+          <CryptoLiveStatus updatedAt={cryptoLive.updatedAt ?? (Number.isFinite(cryptoBoardAt) ? cryptoBoardAt : null)} />
           <div className="inline-flex rounded-lg border border-border/60 p-0.5 text-xs font-semibold" role="group" aria-label="Crypto totals currency">
             {(["NZD", "USD"] as const).map((code) => (
               <button
@@ -1820,7 +1862,7 @@ export function PortfolioDashboard({
         <StatCard
           label={PL_AT_LATEST_PRICE}
           value={formatMoney(cryptoOverviewSummary.totalGain, cryptoBookCurrency)}
-          sub={formatPercent(cryptoOverviewSummary.totalGainPct)}
+          sub={`${formatPercent(cryptoOverviewSummary.totalGainPct)} · Crypto only, at today's rate`}
           icon={cryptoOverviewSummary.totalGain >= 0 ? TrendingUp : TrendingDown}
           tone={cryptoOverviewSummary.totalGain >= 0 ? "up" : "down"}
           loading={!balancesReady}
@@ -1988,12 +2030,12 @@ export function PortfolioDashboard({
                 <Wallet className="size-4" />
               </span>
             </div>
-            {showCash == null ? (
+            {headerCash == null ? (
               <div className="mt-3 h-9 w-40 animate-pulse rounded-md bg-primary/15" aria-hidden />
             ) : (
               <AnimatedMoney
                 snap
-                value={showCash}
+                value={headerCash}
                 currency="NZD"
                 className="mt-3 block font-display text-3xl font-bold text-primary"
               />

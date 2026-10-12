@@ -69,7 +69,7 @@ export function HoldingsCsvImport({
         variant="outline"
         size="sm"
         disabled={busy}
-        onClick={() => inputRef.current?.click()}
+        onClick={() => setOpen(true)}
       >
         {busy ? <Loader2 className="mr-1.5 size-3.5 animate-spin" /> : <Upload className="mr-1.5 size-3.5" />}
         Import CSV
@@ -78,8 +78,16 @@ export function HoldingsCsvImport({
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>Import CSV</DialogTitle>
-            <DialogDescription>Review the file before anything is saved.</DialogDescription>
+            <DialogDescription>
+              Supported files: Sharesies, Hatch, Kernel, Stake, IBKR, Binance, Easy Crypto, and an AetherForge
+              export. Dates can be 13 Oct 2026, an ISO date, or day/month/year. Review every row before anything
+              is saved.
+            </DialogDescription>
           </DialogHeader>
+          <Button type="button" variant="outline" disabled={busy} onClick={() => inputRef.current?.click()}>
+            {busy ? <Loader2 className="mr-1.5 size-3.5 animate-spin" /> : <Upload className="mr-1.5 size-3.5" />}
+            Choose file
+          </Button>
           {open && text ? (
             <BrokerImportPanel embedded initialText={text} initialFileName={fileName} onImported={onImported} />
           ) : null}

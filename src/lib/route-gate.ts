@@ -7,6 +7,7 @@ const PUBLIC_DOCUMENT_ROUTES = [
   "/",
   "/about",
   "/contact",
+  "/cookies",
   "/faq",
   "/features",
   "/how",

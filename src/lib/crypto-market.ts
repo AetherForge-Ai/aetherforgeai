@@ -26,6 +26,13 @@ export interface CoinMarket {
   price: number; // USD
   marketCap: number;
   fdv: number | null; // fully diluted valuation
+  /** True when fdv is price × max or total supply, because the feed did not send fdv. */
+  fdvDerived?: boolean;
+  fdvReason?: string;
+  circulatingReason?: string;
+  highReason?: string;
+  lowReason?: string;
+  atlReason?: string;
   volume24h: number;
   change1h: number | null; // %
   change24h: number; // %
@@ -371,7 +378,7 @@ export function overlayCoinDetail(detail: CoinDetail, coin: CoinMarket | null | 
     volume24h: size(detail.volume24h, coin.volume24h),
     high24h: size(detail.high24h, coin.high24h),
     low24h: size(detail.low24h, coin.low24h),
-    change1h: change(detail.change1h, coin.change1h),
+    change1h: finiteChange(coin.change1h) ?? finiteChange(detail.change1h),
     change24h: change(detail.change24h, coin.moves?.h24 ?? coin.change24h),
     change7d: change(detail.change7d, coin.moves?.d7 ?? coin.change7d),
     change30d: change(detail.change30d, coin.moves?.d30),

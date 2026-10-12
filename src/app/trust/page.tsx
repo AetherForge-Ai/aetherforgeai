@@ -151,7 +151,7 @@ export default function TrustPage() {
               {" or "}
               <EmailAddress email={PRIVACY_OFFICER_EMAIL} className="font-semibold text-primary" />{" "}
               or use the{" "}
-              <Link href="/about#contact" className="font-semibold text-primary underline-offset-2 hover:underline">
+              <Link href="/contact" className="font-semibold text-primary underline-offset-2 hover:underline">
                 contact form
               </Link>{" "}
               and put &quot;Security report&quot; in the message.

@@ -214,8 +214,8 @@ export default function PrivacyPolicy() {
           {" or the Privacy Officer at "}
           <EmailAddress email={PRIVACY_OFFICER_EMAIL} className="text-primary" />
           . You can also use the contact form on the{" "}
-          <a href="/about#contact" className="text-primary hover:underline">
-            About
+          <a href="/contact" className="text-primary hover:underline">
+            Contact
           </a>{" "}
           page and mark it for the Privacy Officer. We take privacy complaints seriously and will work with
           you to resolve them.

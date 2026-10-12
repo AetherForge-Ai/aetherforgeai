@@ -10,6 +10,7 @@ import "server-only";
 
 import { coinGeckoEndpoint } from "@/lib/coingecko-auth";
 import { parseMegafilterPage } from "@/lib/crypto-dex";
+import { lastDexRefreshFailure } from "@/lib/crypto-board-store";
 import { lastCryptoSeedReport, seedFailureReason, type SeedSourceReport } from "@/lib/crypto-keyless-seed";
 
 export const DIAGNOSTIC_ACCEPT = "application/json;version=20230302";
@@ -101,7 +102,12 @@ function probeReason(id: string, status: number | null, error: ProbeResult["erro
   return null;
 }
 
-export async function runCryptoDiagnostics(): Promise<{ ok: true; probes: ProbeResult[]; seed: SeedSourceReport[] }> {
+export async function runCryptoDiagnostics(): Promise<{
+  ok: true;
+  probes: ProbeResult[];
+  seed: SeedSourceReport[];
+  dexRefreshFailure: { at: string; reason: string } | null;
+}> {
   const cg = coinGeckoEndpoint();
   const probes = await Promise.all([
     probe(
@@ -152,10 +158,11 @@ export async function runCryptoDiagnostics(): Promise<{ ok: true; probes: ProbeR
     ),
   ]);
   const seed = lastCryptoSeedReport();
+  const dexRefreshFailure = lastDexRefreshFailure();
   const key = (process.env.COINGECKO_API_KEY || "").trim();
-  if (key && JSON.stringify({ probes, seed }).includes(key)) {
+  if (key && JSON.stringify({ probes, seed, dexRefreshFailure }).includes(key)) {
     console.error("[crypto-diagnostics] result withheld");
-    return { ok: true, probes: [], seed: [] };
+    return { ok: true, probes: [], seed: [], dexRefreshFailure: null };
   }
-  return { ok: true, probes, seed };
+  return { ok: true, probes, seed, dexRefreshFailure };
 }

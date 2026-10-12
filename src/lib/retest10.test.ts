@@ -24,7 +24,7 @@ import {
   type SnapshotDurable,
   type SnapshotId,
 } from "@/lib/crypto-snapshot";
-import { readSharedCryptoBoard, readSharedDexBoard, resetSnapshotUpgradeBackoff, snapshotQuotesForSymbols, upgradeStoredCryptoBoard } from "@/lib/crypto-board-store";
+import { dexRefreshSettled, readSharedCryptoBoard, readSharedDexBoard, resetSnapshotUpgradeBackoff, snapshotQuotesForSymbols, upgradeStoredCryptoBoard } from "@/lib/crypto-board-store";
 import { trailingCloseChange } from "@/lib/crypto-yahoo";
 import { holdingsTickerFromCell, parseHoldingsCsv } from "@/lib/holdings-csv";
 import { splitReturns } from "@/lib/returns-split";
@@ -139,7 +139,7 @@ afterEach(() => {
 describe("pull-check:v3-retest10-2026-10-13", () => {
   it("is marked on the public copy and the build version", () => {
     expect(read("src/lib/public-copy.ts")).toContain("pull-check:v3-retest10-2026-10-13");
-    expect(read("public/build-version.txt").trim()).toBe("v3-retest11-2026-10-13");
+    expect(read("public/build-version.txt").trim()).toBe("v3-retest12-2026-10-13");
     expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-retest10-2026-10-13");
     expect(read("src/lib/crypto-board-store.ts")).toContain("Never seed when a snapshot exists");
     expect(read("src/lib/crypto-source.ts")).toContain("readSharedCryptoBoard({ seed: false })");
@@ -256,7 +256,10 @@ describe("pull-check:v3-retest10-2026-10-13", () => {
       included.push({ id: "uniswap", type: "dex", attributes: { name: "Uniswap", symbol: "", coingecko_coin_id: "" } } as (typeof included)[number]);
       return jsonResponse({ data, included });
     });
-    const board = await readSharedDexBoard({ revalidate: true });
+    const immediate = await readSharedDexBoard({ revalidate: true });
+    expect(immediate.rows.map((row) => row.symbol)).toEqual(["PEPE"]);
+    await dexRefreshSettled();
+    const board = await readSharedDexBoard();
     expect(board.rows.length).toBeGreaterThanOrEqual(16);
     expect(board.rows.every((row) => !!row.detailId)).toBe(true);
     expect(board.notice).toContain("GeckoTerminal");

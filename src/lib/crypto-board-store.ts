@@ -55,6 +55,7 @@ import { snapshotTapeChange } from "@/lib/ticker-feed";
 import {
   backupWithYahoo,
   loadKeylessCryptoMarkets,
+  lastCryptoSeedReport,
   loadKeylessDexMarkets,
   withFeedSource,
   YAHOO_BACKUP_FLOOR,
@@ -373,10 +374,31 @@ async function runCryptoSeed(): Promise<{ cryptoReplaced: boolean; cryptoRows: n
   return { cryptoReplaced: replaced, cryptoRows: coins.length };
 }
 
+let dexRefreshFailure: { at: string; reason: string } | null = null;
+
+/** Last DEX refresh that saved nothing. Shown on the admin diagnostics page. */
+export function lastDexRefreshFailure(): { at: string; reason: string } | null {
+  return dexRefreshFailure ? { ...dexRefreshFailure } : null;
+}
+
+function noteDexRefreshFailure(reason: string): void {
+  const text = reason.trim() || "DEX refresh returned no rows. The previous snapshot was kept.";
+  dexRefreshFailure = { at: new Date().toISOString(), reason: text };
+  console.error(`[crypto-board] DEX refresh failed: ${text}`);
+}
+
 async function runDexSeed(): Promise<{ dexReplaced: boolean; dexRows: number }> {
   const at = new Date().toISOString();
   const loaded = await loadKeylessDexMarkets();
-  if (!loaded.rows.length) return { dexReplaced: false, dexRows: 0 };
+  if (!loaded.rows.length) {
+    const reasons = lastCryptoSeedReport()
+      .filter((row) => row.source === "geckoterminal" || row.source === "dexpaprika")
+      .map((row) => row.reason || (row.rows ? "" : `${row.source} returned no rows`))
+      .filter(Boolean);
+    noteDexRefreshFailure(reasons.join("; ") || "DEX refresh returned no rows. The previous snapshot was kept.");
+    return { dexReplaced: false, dexRows: 0 };
+  }
+  dexRefreshFailure = null;
   await persistDexSnapshot(loaded.rows, at, loaded.sources);
   const saved = await readDexSnapshot();
   const replaced = saved?.at === at;
@@ -386,6 +408,7 @@ async function runDexSeed(): Promise<{ dexReplaced: boolean; dexRows: number }> 
 
 let cryptoSeedInflight: Promise<{ cryptoReplaced: boolean; cryptoRows: number }> | null = null;
 let dexSeedInflight: Promise<{ dexReplaced: boolean; dexRows: number }> | null = null;
+let dexSeedTail: Promise<unknown> = Promise.resolve();
 
 function refreshCryptoSeed(): Promise<{ cryptoReplaced: boolean; cryptoRows: number }> {
   if (!cryptoSeedInflight) {
@@ -398,11 +421,21 @@ function refreshCryptoSeed(): Promise<{ cryptoReplaced: boolean; cryptoRows: num
 
 function refreshDexSeed(): Promise<{ dexReplaced: boolean; dexRows: number }> {
   if (!dexSeedInflight) {
-    dexSeedInflight = runDexSeed().finally(() => {
+    const job = runDexSeed().finally(() => {
       dexSeedInflight = null;
     });
+    dexSeedInflight = job;
+    dexSeedTail = job;
   }
   return dexSeedInflight;
+}
+
+/** The reader returns the last good list. This waits for the refresh it started. */
+export function dexRefreshSettled(): Promise<void> {
+  return dexSeedTail.then(
+    () => undefined,
+    () => undefined
+  );
 }
 
 export async function refreshMarketSnapshots(): Promise<RefreshResult> {
@@ -545,15 +578,15 @@ export async function readSharedDexBoard(opts?: { seed?: boolean; revalidate?: b
     const thin = dexSnapshotThin(visible, saved?.sources ?? []);
     if (opts?.revalidate && (boardNeedsRefresh(saved?.at, DEX_REQUEST_FRESH_MS) || thin) && Date.now() >= nextDexUpgradeAt) {
       nextDexUpgradeAt = Date.now() + 60_000;
-      await revalidateStaleBoards();
-      const again = await readDexSnapshot();
-      const next = (again?.rows ?? []).filter((row) => row.price != null && row.price > 0);
-      if (next.length) return presentDex(next, again?.at ?? null, again?.sources ?? []);
+      // The last good list is the response. The refresh must not hold this call.
+      void refreshDexSeed().catch((err) => {
+        noteDexRefreshFailure(err instanceof Error ? err.message.slice(0, 160) : "DEX refresh failed");
+      });
     }
     return presentDex(visible, saved?.at ?? null, saved?.sources ?? []);
   }
   if (opts?.seed === false) return presentDex([], saved?.at ?? null, saved?.sources ?? []);
-  await refreshDexSeed();
+  await Promise.race([refreshDexSeed().catch(() => undefined), sleep(DEX_REFRESH_BOUND_MS)]);
   const again = await readDexSnapshot();
   return presentDex(again?.rows ?? [], again?.at ?? null, again?.sources ?? []);
 }
@@ -592,6 +625,57 @@ export async function priceFromSnapshot(input: {
   return null;
 }
 
+const CONFIRM_QUOTE_FRESH_MS = 60_000;
+
+async function paprikaQuote(symbol: string): Promise<SnapshotPrice | null> {
+  const searchRes = await fetch(
+    `https://api.coinpaprika.com/v1/search?q=${encodeURIComponent(symbol)}&c=currencies&modifier=symbol&limit=5`,
+    { headers: { accept: "application/json" }, signal: AbortSignal.timeout(800) }
+  );
+  if (!searchRes.ok) return null;
+  const searchBody = (await searchRes.json()) as { currencies?: Array<{ id?: string; symbol?: string }> };
+  const match = (searchBody.currencies || []).find((row) => String(row.symbol || "").toUpperCase() === symbol);
+  const id = String(match?.id || "").trim();
+  if (!id) return null;
+  const tickerRes = await fetch(`https://api.coinpaprika.com/v1/tickers/${encodeURIComponent(id)}?quotes=USD`, {
+    headers: { accept: "application/json" },
+    signal: AbortSignal.timeout(800),
+  });
+  if (!tickerRes.ok) return null;
+  const ticker = (await tickerRes.json()) as { last_updated?: string; quotes?: { USD?: { price?: unknown } } };
+  const price = Number(ticker.quotes?.USD?.price);
+  if (!(price > 0)) return null;
+  return {
+    price,
+    quotedAt: typeof ticker.last_updated === "string" ? ticker.last_updated : new Date().toISOString(),
+    source: "recent",
+    stale: false,
+  };
+}
+
+/** Confirm refreshes a quote older than a minute. The fill stays the reviewed price. */
+export async function confirmCryptoQuote(input: {
+  symbol?: string | null;
+  coinId?: string | null;
+  address?: string | null;
+}): Promise<SnapshotPrice | null> {
+  const stored = await priceFromSnapshot(input);
+  const age = stored?.quotedAt ? Date.now() - Date.parse(stored.quotedAt) : Number.POSITIVE_INFINITY;
+  if (stored && stored.price > 0 && age >= 0 && age < CONFIRM_QUOTE_FRESH_MS) return stored;
+  const symbol = (input.symbol || "").trim().toUpperCase();
+  if (!symbol) return stored;
+  try {
+    const fresh = await Promise.race([
+      paprikaQuote(symbol),
+      sleep(900).then(() => null as SnapshotPrice | null),
+    ]);
+    if (fresh && fresh.price > 0) return fresh;
+  } catch (err) {
+    console.error("[crypto-board] confirm quote refresh failed:", err instanceof Error ? err.message.slice(0, 80) : "failed");
+  }
+  return stored;
+}
+
 export async function snapshotQuotesForSymbols(
   symbols: string[]
 ): Promise<Record<string, { price: number; changePct?: number; source: string; quotedAt: string | null }>> {
@@ -605,7 +689,7 @@ export async function snapshotQuotesForSymbols(
     out[symbol] = {
       price: coin.price,
       changePct: change == null ? undefined : change,
-      source: (coin.source || "yahoo").toLowerCase(),
+      source: (coin.source || "").toLowerCase(),
       quotedAt: coin.quotedAt || board.at || null,
     };
   }
