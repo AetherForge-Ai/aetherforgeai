@@ -202,6 +202,7 @@ function todayISO(): string {
 function visibleAudit(notes?: string | null): string {
   const text = String(notes || "");
   const bits = [
+    text.match(/live=n\/a/),
     text.match(/live:\s*n\/a/),
     text.match(/live=[0-9.]+/),
     text.match(/chain=\S+/),

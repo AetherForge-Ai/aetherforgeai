@@ -2,10 +2,12 @@
  * Portfolio return split: price move, dividends, and the exchange-rate move.
  *
  * When a lot stored the buy rate, currency effect is
- * (FX at valuation − FX at buy) × foreign value.
+ * (FX at valuation − quantity-weighted FX at buy) × foreign value.
  * Foreign value is quantity times the latest price in the foreign currency.
- * Capital gain keeps the price move at the buy rate. Those two lines, plus
- * income, are the economic P/L. Other is only rounding.
+ * The quantity-weighted buy rate is sum(q_i × fx_i) / Q.
+ * Capital gain is the foreign value at that rate, minus cost at the
+ * cost-weighted buy rate. Those two lines, plus income, are the economic
+ * P/L. Other is only rounding.
  *
  * When the buy rate was not stored, the lines still add up to the P/L that
  * converts cost and value at today's rate. Other is that rounding gap.
@@ -26,8 +28,16 @@ export interface ReturnPosition {
   costPrice: number;
   markPrice: number;
   currency: CurrencyCode;
-  /** NZD per 1 unit of currency on the buy. Missing means the currency line stays at zero. */
+  /**
+   * Quantity-weighted NZD per 1 unit of currency on the open lots.
+   * The currency line uses this rate. Missing means that line stays at zero.
+   */
   fxAtCost?: number | null;
+  /**
+   * Cost-weighted NZD rate on the same lots. Cost stays on this rate.
+   * When omitted, the quantity-weighted rate is used for cost as well.
+   */
+  costBasisFx?: number | null;
   fxNow: number;
   /** Used only so a same-day fill is treated the same way as the P/L card. */
   purchaseDate?: string | null;
@@ -82,14 +92,15 @@ export function splitReturns(
     const valueNzd = fresh ? costNzd : roundMoney(nzdAtBookRate(markNative, p.currency, table));
     costSum += costNzd;
     valueSum += valueNzd;
-    const fxThen = p.currency === "NZD" ? 1 : Number(p.fxAtCost);
-    const hasBuyFx = p.currency !== "NZD" && fxThen > 0 && !fresh;
+    const fxQty = p.currency === "NZD" ? 1 : Number(p.fxAtCost);
+    const fxCost = p.currency === "NZD" ? 1 : Number(p.costBasisFx ?? p.fxAtCost);
+    const hasBuyFx = p.currency !== "NZD" && fxQty > 0 && fxCost > 0 && !fresh;
     if (hasBuyFx) {
       pricedFx = true;
       const foreignValue = mark * qty;
-      capital += (mark - cost) * qty * fxThen;
-      currencyEffect += foreignValue * (fxNow - fxThen);
-      pricedEconomic += foreignValue * fxNow - cost * qty * fxThen;
+      capital += foreignValue * fxQty - cost * qty * fxCost;
+      currencyEffect += foreignValue * (fxNow - fxQty);
+      pricedEconomic += foreignValue * fxNow - cost * qty * fxCost;
     } else if (!fresh) {
       capital += nativeToNzd((mark - cost) * qty, p.currency, table);
       unpricedBook += valueNzd - costNzd;
@@ -110,11 +121,11 @@ export function splitReturns(
     otherNzd,
     totalNzd,
     capitalNote: pricedFx
-      ? "Capital gain is the change in price since you bought, turned into NZ dollars at the exchange rate stored on the buy. It is not a forecast."
+      ? "Capital gain is the latest foreign value at the quantity-weighted buy rate, minus the cost at the cost-weighted buy rate. It is not a forecast."
       : "Capital gain is the change in price since you bought, turned into NZ dollars in one step at today's exchange rate. It is not a forecast.",
     incomeNote: "Income is the dividends recorded in the ledger. It is cash received, and it does not change how many units you hold.",
     currencyNote: pricedFx
-      ? "Currency effect is (the exchange rate at valuation minus the exchange rate at buy) times the foreign value of each lot. Foreign value is the quantity times the latest price in the foreign currency. The price move stays in capital gain, at the buy rate."
+      ? "Currency effect is (the exchange rate at valuation minus the quantity-weighted exchange rate at buy) times the foreign value of each lot. Foreign value is the quantity times the latest price in the foreign currency. The quantity-weighted rate is the sum of each open lot's quantity times its buy rate, divided by the quantity still held. Cost stays at the cost-weighted buy rate."
       : "Currency effect is the NZ dollar change caused only by the exchange rate since the buy. It is zero when the holding is in NZ dollars, or when that buy did not store an exchange rate.",
     otherNote: pricedFx
       ? "Other is rounding so these lines add up to the economic P/L. Economic P/L is the foreign value at the valuation exchange rate minus the cost at the buy's exchange rate. It stays small."

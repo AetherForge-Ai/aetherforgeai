@@ -98,13 +98,47 @@ export function printUnderReviewLabel(ticker: string): string {
 }
 
 /**
- * Example Stox wording. It is not a live recommendation.
- * A report and the public Stox page both show the under-review notice and the MAH.AX reason.
+ * Example Stox wording for the public Stox page only. It is not a live recommendation.
+ * A member report lists that member's own under-review names and does not use this sentence.
  */
 export function stoxReviewCopy(): string {
   const notice = printsUnderReviewLine(1);
   const label = printUnderReviewLabel("MAH.AX");
   return `Example. Not a recommendation. ${notice}. ${label}. MAH.AX reason: rating TRIM: momentum negative.`;
+}
+
+/** Names this member's report actually withheld. The public example is not included. */
+export function memberUnderReviewLines(report: {
+  tickers?: { ticker?: string | null; changeWithheld?: boolean }[];
+  marketMovers?: { windows: { underReview?: { ticker: string }[] }[] }[];
+  notSized?: { ticker: string; reason: string }[];
+}): string[] {
+  const reasons = new Map<string, string>();
+  for (const row of report.notSized ?? []) {
+    const ticker = row.ticker.trim().toUpperCase();
+    const reason = row.reason.trim();
+    if (!ticker || !/under review/i.test(reason)) continue;
+    if (reason.toLowerCase() !== "print under review") reasons.set(ticker, reason);
+  }
+  const names = new Set<string>(reasons.keys());
+  for (const group of report.marketMovers ?? []) {
+    for (const window of group.windows) {
+      for (const row of window.underReview ?? []) {
+        const ticker = row.ticker.trim().toUpperCase();
+        if (ticker) names.add(ticker);
+      }
+    }
+  }
+  for (const row of report.tickers ?? []) {
+    if (!row.changeWithheld) continue;
+    const ticker = String(row.ticker || "").trim().toUpperCase();
+    if (ticker) names.add(ticker);
+  }
+  return [...names].sort().map((ticker) => {
+    const reason = reasons.get(ticker);
+    const label = printUnderReviewLabel(ticker);
+    return reason ? `${label}. ${ticker} reason: ${reason}` : label;
+  });
 }
 
 /** One projected row, in the order the list already has. */

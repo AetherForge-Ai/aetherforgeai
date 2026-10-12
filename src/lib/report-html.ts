@@ -29,7 +29,7 @@ import { sanitizeGuardedReport } from "@/lib/report-consistency";
 import { labelMemberReport, stripReportModelLanguage } from "@/lib/report-language";
 import { fullBookSentence, type SharedBookLog } from "@/lib/book-log";
 import { moverSweepCaption } from "@/lib/mover-sweep";
-import { printUnderReviewLabel, PROJECTION_RANK_NOTE, projectionLeaderLine, stoxReviewCopy } from "@/lib/report-copy";
+import { memberUnderReviewLines, printUnderReviewLabel, PROJECTION_RANK_NOTE, projectionLeaderLine } from "@/lib/report-copy";
 import type { ClosedCallScore } from "@/lib/report-topup";
 
 export interface ReportAlert {
@@ -556,10 +556,12 @@ export function renderReportHtml(source: ApexReport, opts: RenderReportOptions):
         .join("")
     : `<li style="color:${MUTE}">${esc(report.sessionTapeNote || "Consolidating tape — no standout gainers this session.")}</li>`;
 
-  const stoxReview =
-    report.bot === "stock"
-      ? `<h3 style="font-size:14px;margin:18px 0 6px">Under review</h3><p style="font-size:14px;line-height:1.5;margin:0 0 12px">${esc(stoxReviewCopy())}</p>`
-      : "";
+  const underReview = report.bot === "stock" ? memberUnderReviewLines(report) : [];
+  const stoxReview = underReview.length
+    ? `<h3 style="font-size:14px;margin:18px 0 6px">Under review</h3>${underReview
+        .map((line) => `<p style="font-size:14px;line-height:1.5;margin:0 0 12px">${esc(line)}</p>`)
+        .join("")}`
+    : "";
 
   const notSized = report.notSized?.length
     ? `<h3 style="font-size:14px;margin:18px 0 6px">Not sized this week</h3><ul style="padding-left:18px;margin:0;font-size:12px">${report.notSized

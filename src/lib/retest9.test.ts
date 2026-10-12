@@ -13,7 +13,7 @@ import {
 import { planBrokerImport, readImportPreview, withMarketSuffix } from "@/lib/broker-import";
 import { splitReturns } from "@/lib/returns-split";
 import { composeTickerTape, snapshotTapeChange } from "@/lib/ticker-feed";
-import { stoxReviewCopy } from "@/lib/report-copy";
+import { memberUnderReviewLines, stoxReviewCopy } from "@/lib/report-copy";
 
 function read(rel: string) {
   return readFileSync(rel, "utf8");
@@ -299,9 +299,11 @@ describe("pull-check:v3-retest9-2026-10-12", () => {
     expect(split.currencyNote).toMatch(/foreign value/);
   });
 
-  it("shows live: n/a, ledger paging, Koins snapshot prices and the Stox notice", () => {
-    expect(read("src/lib/transactions.ts")).toContain("live: n/a");
+  it("shows live=n/a, ledger paging, Koins snapshot prices and the Stox notice", () => {
+    expect(read("src/lib/transactions.ts")).toContain("live=n/a");
+    expect(read("src/lib/transactions.ts")).not.toContain('quote_origin === "snapshot" && price > 0');
     expect(read("src/components/dashboard/StockDialog.tsx")).toContain("live: n/a");
+    expect(read("src/components/dashboard/TransactionCenter.tsx")).toContain("live=n\\/a");
     expect(read("src/components/dashboard/TransactionCenter.tsx")).toContain("live: n/a");
     expect(read("src/components/dashboard/TransactionCenter.tsx")).toContain('data-testid="ledger-pager"');
     expect(read("src/components/dashboard/TransactionCenter.tsx")).toContain("Show all");
@@ -312,8 +314,18 @@ describe("pull-check:v3-retest9-2026-10-12", () => {
     expect(copy).toContain("MAH.AX");
     expect(copy).toContain("rating TRIM: momentum negative");
     expect(read("src/app/stox/page.tsx")).toContain("StoxReviewNotice");
-    expect(read("src/components/bots/ApexReport.tsx")).toContain("stoxReviewCopy");
-    expect(read("src/lib/report-html.ts")).toContain("stoxReviewCopy");
+    expect(read("src/components/public/StoxReviewNotice.tsx")).toContain("stoxReviewCopy");
+    expect(read("src/components/bots/ApexReport.tsx")).not.toContain("stoxReviewCopy");
+    expect(read("src/lib/report-html.ts")).not.toContain("stoxReviewCopy");
+    expect(read("src/components/bots/ApexReport.tsx")).toContain("memberUnderReviewLines");
+    expect(read("src/lib/report-html.ts")).toContain("memberUnderReviewLines");
+    const own = memberUnderReviewLines({
+      marketMovers: [{ windows: [{ underReview: [{ ticker: "FPH.AX" }] }] }],
+      tickers: [{ ticker: "WBC.AX", changeWithheld: true }],
+    });
+    expect(own).toEqual(["FPH.AX — print under review", "WBC.AX — print under review"]);
+    expect(own.join(" ")).not.toContain("MAH.AX");
+    expect(memberUnderReviewLines({ marketMovers: [], tickers: [] })).toEqual([]);
     expect(read("src/lib/swyftx-display.ts")).toBeTruthy();
     expect(read("src/lib/dexscreener-display.ts")).toBeTruthy();
   });
@@ -333,6 +345,8 @@ describe("pull-check:v3-retest9-2026-10-12", () => {
     expect(read("src/app/api/crypto/dex/route.ts")).toContain("revalidate: true");
     expect(read("src/app/api/crypto/route.ts")).toContain("seed: false");
     expect(read("src/lib/crypto-source.ts")).toContain("readSharedCryptoBoard({ seed: false })");
+    expect(store).toContain("EMPTY_CRYPTO_SEED_MS = 7_000");
+    expect(store).toContain("Never seed when a snapshot exists");
     expect(read("src/lib/public-market-index.ts")).toContain("const COIN_PAGE = MARKET_SNAPSHOT_TARGET");
     expect(read("src/app/api/tickers/quote/route.ts")).toContain('source = "snapshot"');
     expect(read("src/components/dashboard/RecordTransactionPanel.tsx")).toContain('payload.quote_origin = "snapshot"');

@@ -23,6 +23,7 @@ export function ReturnsSplitCard({
   rates,
   reportedPnlNzd,
   costFx,
+  qtyFx,
   loading = false,
 }: {
   holdings: HoldingLike[];
@@ -32,6 +33,8 @@ export function ReturnsSplitCard({
   reportedPnlNzd?: number | null;
   /** Cost-weighted NZD rate stored on the remaining buy lots, by ticker. */
   costFx?: Record<string, number>;
+  /** Quantity-weighted NZD rate on the same lots. The currency line uses this. */
+  qtyFx?: Record<string, number>;
   loading?: boolean;
 }) {
   const split = splitReturns(
@@ -44,12 +47,16 @@ export function ReturnsSplitCard({
         );
       const ticker = (holding.ticker || "").trim().toUpperCase();
       const stored = ticker && costFx ? costFx[ticker] : undefined;
+      const qtyRate = ticker && qtyFx ? qtyFx[ticker] : undefined;
+      const costRate = stored != null && stored > 0 ? stored : undefined;
+      const qtyWeighted = qtyRate != null && qtyRate > 0 ? qtyRate : costRate;
       return {
         quantity: holding.shares,
         costPrice: holding.purchase_price,
         markPrice: holding.current_price,
         currency,
-        fxAtCost: stored != null && stored > 0 ? stored : undefined,
+        fxAtCost: qtyWeighted,
+        costBasisFx: costRate,
         fxNow: currency === "NZD" ? 1 : rates[currency] || 1,
         purchaseDate: holding.purchase_date,
       };

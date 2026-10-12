@@ -37,7 +37,7 @@ import {
 import { chainForTicker } from "@/lib/crypto-board";
 import { canonicalCryptoId } from "@/lib/crypto-ids";
 import { venueForTicker, fifoApplySell, type FifoLot } from "@/lib/ledger-schema";
-import { fifoRemainingCostFx, fifoStoredForSell } from "@/lib/tax-realised";
+import { fifoRemainingCostFx, fifoRemainingQtyFx, fifoStoredForSell } from "@/lib/tax-realised";
 import type { TaxLedgerRow } from "@/lib/taxable-income";
 import { logLedgerAudit, appendAuditNote } from "@/lib/ledger-audit";
 import { feedEntryForTicker } from "@/lib/feed-mapping";
@@ -859,13 +859,13 @@ async function applyTransactionUnlocked(
   ]);
   if (rejection) throw new Error(rejection);
   stepMs("confirm-reads", spotStarted, `asset=${assetType}`);
-  let liveSpot = snapped;
-  if (!(liveSpot != null && liveSpot > 0) && input.quote_origin === "snapshot" && price > 0) liveSpot = price;
-  // The snapshot price is the sanity check for every crypto fill. It is written
-  // as live= only when this form filled that price from the snapshot.
-  const auditSpot = assetType === "crypto" && input.quote_origin !== "snapshot" ? null : liveSpot;
+  // live= is a server price only: the snapshot for crypto, or the equity or
+  // metal quote fetched above. quote_origin is client-controlled, so the fill
+  // is never written as live=.
+  const liveSpot = snapped != null && snapped > 0 ? snapped : null;
+  const auditSpot = liveSpot;
   const auditLive = auditLivePrice(auditSpot);
-  const liveAuditText = auditLive == null ? "live: n/a" : `live=${formatCleanNumber(auditLive)}`;
+  const liveAuditText = auditLive == null ? "live=n/a" : `live=${formatCleanNumber(auditLive)}`;
 
   // The reviewed price is the fill. A newer live spot is only the sanity check.
   price = priceForBooking(price, liveSpot);
@@ -1046,8 +1046,7 @@ async function applyTransactionUnlocked(
       meta: { liveLabel: liveAuditText },
       after: { quantity, fill_price: price, cash_nzd: -costNZD, fx_rate: fxRate },
     });
-    const [rec] = await Promise.all([
-      totalumSdk.crud.createRecord("transaction", {
+    const rec = await totalumSdk.crud.createRecord("transaction", {
       type: "buy",
       ticker,
       asset_name: input.asset_name || holding?.company_name || lookupTicker(ticker)?.name || ticker,
@@ -1093,10 +1092,9 @@ async function applyTransactionUnlocked(
       executed_at: executedStored,
       user: user._id,
       ...(holdingId ? { stock: holdingId } : {}),
-    }),
-      totalumSdk.crud.editRecordById("user", user._id, { cash_balance: newCash }),
-    ]);
+    });
     ledgerId = (rec?.data as { _id?: string } | undefined)?._id;
+    await totalumSdk.crud.editRecordById("user", user._id, { cash_balance: newCash });
     if (holdingId) {
       let actual = await readHoldingShares(holdingId);
       if (!qtyMatches(actual, expectedShares)) {
@@ -1231,8 +1229,7 @@ async function applyTransactionUnlocked(
     meta: { liveLabel: liveAuditText },
     after: { quantity, fill_price: price },
   });
-  const [rec] = await Promise.all([
-    totalumSdk.crud.createRecord("transaction", {
+  const rec = await totalumSdk.crud.createRecord("transaction", {
     type: "sell",
     ticker,
     asset_name: input.asset_name || holding.company_name || ticker,
@@ -1271,10 +1268,9 @@ async function applyTransactionUnlocked(
     executed_at: executedStored,
     user: user._id,
     ...(holdingId ? { stock: holdingId } : {}),
-  }),
-    totalumSdk.crud.editRecordById("user", user._id, { cash_balance: newCash }),
-  ]);
+  });
   ledgerId = (rec?.data as { _id?: string } | undefined)?._id;
+  await totalumSdk.crud.editRecordById("user", user._id, { cash_balance: newCash });
   if (!closed) {
     let actual = await readHoldingShares(holding._id);
     if (!qtyMatches(actual, expectedRemaining)) {
@@ -1474,6 +1470,8 @@ export interface TransactionLedger {
   incomeNZD?: number;
   /** Cost-weighted NZD rate still open on each ticker. Read from stored buy rates. */
   costFxByTicker?: Record<string, number>;
+  /** Quantity-weighted NZD rate still open on each ticker. The currency line uses this. */
+  qtyFxByTicker?: Record<string, number>;
 }
 
 /** One query serves the ledger page and the CSV. Paging happens in the UI. */
@@ -1497,7 +1495,9 @@ export function ledgerAfterBooking(
   const fifo = fifoTotals(book, calendarYear);
   const withFifo = applyFifoToLedgerRows(transactions, book);
   const costFxByTicker: Record<string, number> = {};
+  const qtyFxByTicker: Record<string, number> = {};
   for (const [ticker, rate] of fifoRemainingCostFx(book)) costFxByTicker[ticker] = rate;
+  for (const [ticker, rate] of fifoRemainingQtyFx(book)) qtyFxByTicker[ticker] = rate;
   let incomeTotal = 0;
   for (const row of transactions) {
     if (row.type !== "dividend") continue;
@@ -1517,6 +1517,7 @@ export function ledgerAfterBooking(
     realizedYtdCount: fifo.ytdCount,
     incomeNZD: round(incomeTotal),
     costFxByTicker,
+    qtyFxByTicker,
   };
 }
 
@@ -1555,7 +1556,9 @@ async function loadLedgerFresh(user: AppUser, limit: number): Promise<Transactio
   const fifo = fifoTotals(book, calendarYear);
   const withFifo = applyFifoToLedgerRows(rows, book);
   const costFxByTicker: Record<string, number> = {};
+  const qtyFxByTicker: Record<string, number> = {};
   for (const [ticker, rate] of fifoRemainingCostFx(book)) costFxByTicker[ticker] = rate;
+  for (const [ticker, rate] of fifoRemainingQtyFx(book)) qtyFxByTicker[ticker] = rate;
   const summed = bookRows.length ? cashFromLedgerRows(bookRows) : storedCash;
   const cashBalance = Math.abs(summed - storedCash) < 0.02 ? summed : storedCash;
   let incomeTotal = 0;
@@ -1573,5 +1576,6 @@ async function loadLedgerFresh(user: AppUser, limit: number): Promise<Transactio
     realizedYtdCount: fifo.ytdCount,
     incomeNZD: round(incomeTotal),
     costFxByTicker,
+    qtyFxByTicker,
   };
 }

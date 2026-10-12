@@ -2,9 +2,9 @@
  * Shared crypto and DEX snapshot.
  *
  * Page reads return the persisted list. wrangler.jsonc has no cron trigger.
- * When the snapshot is missing, the page request seeds it from keyless
- * sources and waits for that seed. A stored list is served with its
- * timestamp. A stale list starts one background refresh. A short isolate
+ * A stored list is served as saved and is never seeded on the read.
+ * A completely empty crypto snapshot may seed once, and that wait is at most
+ * 7 seconds. A stale list starts one background refresh. A short isolate
  * can still freeze that background work. POST /api/cron/crypto-snapshot
  * runs the same job when CRON_SECRET matches.
  *
@@ -449,15 +449,20 @@ function presentDex(rows: DexTokenRow[], at: string | null, sources: string[]): 
   };
 }
 
+/** Cold start only. A stored crypto list never waits on this. */
+const EMPTY_CRYPTO_SEED_MS = 7_000;
+
 export async function readSharedCryptoBoard(opts?: { seed?: boolean }): Promise<SharedCryptoBoard> {
   const saved = await readCryptoSnapshot();
-  const visible = gateCoins(saved?.coins ?? []);
-  if (visible.length) {
-    if (!saved?.at || snapshotIsStale(saved.at)) kickRefresh();
+  const stored = saved?.coins ?? [];
+  const visible = gateCoins(stored);
+  // Never seed when a snapshot exists, including when the caller passes seed: false.
+  if (stored.length) {
+    if (visible.length && (!saved?.at || snapshotIsStale(saved.at))) kickRefresh();
     return presentCrypto(visible, saved?.at ?? null);
   }
-  if (opts?.seed === false) return presentCrypto([], saved?.at ?? null);
-  await refreshCryptoSeed();
+  void opts;
+  await Promise.race([refreshCryptoSeed().catch(() => undefined), sleep(EMPTY_CRYPTO_SEED_MS)]);
   const again = await readCryptoSnapshot();
   return presentCrypto(gateCoins(again?.coins ?? []), again?.at ?? null);
 }

@@ -1,6 +1,6 @@
 import { stoxReviewCopy } from "@/lib/report-copy";
 
-/** Public Stox page. The same sentences are rendered inside a Stox report. */
+/** Public Stox example page. Member reports do not use this sentence. */
 export function StoxReviewNotice() {
   return (
     <section className="mt-10" aria-label="Under review">

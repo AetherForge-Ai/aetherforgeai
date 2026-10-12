@@ -303,6 +303,27 @@ export function fifoRemainingCostFx(rows: readonly TaxLedgerRow[]): Map<string, 
   return rates;
 }
 
+/**
+ * Quantity-weighted NZD rate on the lots still open: sum(q_i × fx_i) / Q.
+ * The currency line uses this. Cost stays on fifoRemainingCostFx.
+ * A ticker is omitted when any open lot has no stored rate.
+ */
+export function fifoRemainingQtyFx(rows: readonly TaxLedgerRow[]): Map<string, number> {
+  const rates = new Map<string, number>();
+  for (const [ticker, lots] of openBooks(rows)) {
+    const open = lots.filter((lot) => lot.qty > 1e-12);
+    if (!open.length || open.some((lot) => lot.missingRate || !(lot.fxRate > 0))) continue;
+    let qty = 0;
+    let weighted = 0;
+    for (const lot of open) {
+      qty += lot.qty;
+      weighted += lot.qty * lot.fxRate;
+    }
+    if (qty > 1e-9) rates.set(ticker, weighted / qty);
+  }
+  return rates;
+}
+
 export const REALISED_CSV_COLUMNS = [
   "Tax year",
   "Date",

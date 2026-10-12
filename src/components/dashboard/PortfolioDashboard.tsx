@@ -471,6 +471,7 @@ export function PortfolioDashboard({
   >([]);
   const [incomeNzd, setIncomeNzd] = useState(0);
   const [costFx, setCostFx] = useState<Record<string, number>>({});
+  const [qtyFx, setQtyFx] = useState<Record<string, number>>({});
   const { rates: fxRates } = useFxRates();
   const [metalsValueNZD, setMetalsValueNZD] = useState(preview ? PREVIEW_METALS_NZD : 0);
   // Raw precious_metal holdings (from /api/metals) so we can surface them in the
@@ -614,6 +615,7 @@ export function PortfolioDashboard({
         userId?: string;
         incomeNZD?: number;
         costFxByTicker?: Record<string, number>;
+        qtyFxByTicker?: Record<string, number>;
         transactions?: {
           _id?: string;
           type?: string;
@@ -686,6 +688,7 @@ export function PortfolioDashboard({
         setRecentLedger(rows);
         setIncomeNzd(typeof res.data.incomeNZD === "number" ? res.data.incomeNZD : 0);
         setCostFx(res.data.costFxByTicker || {});
+        setQtyFx(res.data.qtyFxByTicker || {});
         setCashLoaded(true);
         setLedgerLoaded(true);
       } else {
@@ -1500,6 +1503,7 @@ export function PortfolioDashboard({
         rates={fxRates}
         reportedPnlNzd={homeSplitPnlNzd}
         costFx={costFx}
+        qtyFx={qtyFx}
         loading={!balancesReady}
       />
       </>
@@ -1652,6 +1656,7 @@ export function PortfolioDashboard({
           rates={fxRates}
           reportedPnlNzd={stockOverviewSummary.totalGain}
           costFx={costFx}
+        qtyFx={qtyFx}
           loading={!balancesReady}
         />
 
@@ -1754,6 +1759,7 @@ export function PortfolioDashboard({
           rates={fxRates}
           reportedPnlNzd={cryptoNzdGain}
           costFx={costFx}
+        qtyFx={qtyFx}
           loading={!balancesReady}
         />
         <div className="mb-4 flex flex-wrap items-center justify-center gap-3">

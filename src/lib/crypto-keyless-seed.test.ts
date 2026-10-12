@@ -247,6 +247,36 @@ describe("pull-check:v3-crypto-seed-2026-10-12", () => {
     expect(board.at).toBeTruthy();
   });
 
+  it("seeds a completely empty crypto snapshot even when the caller passes seed false", async () => {
+    installSnapshotDurable(memoryDurable());
+    installSeedFetch(async (url) => {
+      const href = String(url);
+      if (href.includes("coinpaprika.com")) {
+        return jsonResponse(
+          Array.from({ length: 12 }, (_, index) => ({
+            id: `e${index}-coin-${index}`,
+            symbol: `E${index}`,
+            name: `Empty ${index}`,
+            rank: index + 1,
+            last_updated: "2026-10-12T03:05:00Z",
+            quotes: { USD: { price: index + 2, market_cap: 5_000 - index, volume_24h: 10, percent_change_24h: 1 } },
+          }))
+        );
+      }
+      return jsonResponse([]);
+    });
+    const board = await readSharedCryptoBoard({ seed: false });
+    expect(board.coins.length).toBeGreaterThanOrEqual(12);
+    expect(board.at).toBeTruthy();
+    clearSnapshotMemory();
+    installSeedFetch(async () => {
+      throw new Error("seed should not run when a snapshot exists");
+    });
+    const stored = await readSharedCryptoBoard({ seed: false });
+    expect(stored.coins.length).toBeGreaterThanOrEqual(12);
+    expect(stored.at).toBe(board.at);
+  });
+
   it("serves a stored list and its delayed label without waiting on a new seed", async () => {
     installSnapshotDurable(memoryDurable());
     const at = "2026-10-11T01:00:00.000Z";
