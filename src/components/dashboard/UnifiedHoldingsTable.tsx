@@ -21,6 +21,7 @@ import {
   type OpenFilter,
   type TableCellModel,
 } from "@/lib/holdings-table";
+import type { HoldingAction } from "@/lib/holding-action";
 import { MISSING_MARK, pageLedger } from "@/lib/portfolio-snapshot";
 import { cn } from "@/lib/utils";
 
@@ -54,6 +55,7 @@ export function UnifiedHoldingsTable({
   onCustomColumns,
   onTrade,
   onCash,
+  actionFor,
 }: {
   model: HoldingsTableModel | null;
   loading: boolean;
@@ -66,6 +68,7 @@ export function UnifiedHoldingsTable({
   onCustomColumns: (columns: ColumnId[]) => void;
   onTrade: (row: HoldingsRowModel, action: "buy" | "sell" | "edit" | "delete") => void;
   onCash: (mode: "deposit" | "withdraw") => void;
+  actionFor: (row: HoldingsRowModel) => HoldingAction;
 }) {
   const columns = model?.columns || COLUMN_SETS.summary;
   const [openId, setOpenId] = useState<string | null>(null);
@@ -292,7 +295,12 @@ export function UnifiedHoldingsTable({
                                   {column === "asset" ? (
                                     <AssetCell row={row} expanded={expanded} onToggle={() => setOpenId(expanded ? null : row.id)} />
                                   ) : column === "actions" ? (
-                                    <RowActions row={row} onTrade={onTrade} onCash={onCash} />
+                                    <RowActions
+                                      row={row}
+                                      resolved={row.kind === "position" ? actionFor(row) : null}
+                                      onTrade={onTrade}
+                                      onCash={onCash}
+                                    />
                                   ) : (
                                     <CellView cell={row.cells[column]} label={`${row.ticker} ${COLUMN_LABEL[column]}`} signed={SIGNED.has(column)} />
                                   )}
@@ -421,10 +429,12 @@ function CellView({ cell, label, signed }: { cell: TableCellModel | undefined; l
 
 function RowActions({
   row,
+  resolved,
   onTrade,
   onCash,
 }: {
   row: HoldingsRowModel;
+  resolved: HoldingAction | null;
   onTrade: (row: HoldingsRowModel, action: "buy" | "sell" | "edit" | "delete") => void;
   onCash: (mode: "deposit" | "withdraw") => void;
 }) {
@@ -443,7 +453,17 @@ function RowActions({
       </span>
     );
   }
+  if (!resolved || resolved.ok === false) {
+    const reason = resolved && resolved.ok === false ? resolved.reason : "This row is not on the holdings list.";
+    return (
+      <span className="block max-w-[16rem] text-xs text-muted-foreground" title={reason}>
+        {MISSING_MARK}
+        <span className="mt-1 block">{reason}</span>
+      </span>
+    );
+  }
   const nothingOpen = row.closed || (row.position?.quantity || 0) <= 1e-9;
+  const metalStore = resolved.via === "metal-store";
   return (
     <span className="flex flex-wrap gap-1">
       <Button type="button" size="sm" variant="outline" onClick={() => onTrade(row, "buy")}>
@@ -452,12 +472,16 @@ function RowActions({
       <Button type="button" size="sm" variant="outline" disabled={nothingOpen} title={nothingOpen ? "Nothing open to sell." : undefined} onClick={() => onTrade(row, "sell")}>
         Sell
       </Button>
-      <Button type="button" size="sm" variant="outline" onClick={() => onTrade(row, "edit")}>
-        Edit
-      </Button>
-      <Button type="button" size="sm" variant="outline" onClick={() => onTrade(row, "delete")}>
-        Delete
-      </Button>
+      {metalStore ? null : (
+        <>
+          <Button type="button" size="sm" variant="outline" onClick={() => onTrade(row, "edit")}>
+            Edit
+          </Button>
+          <Button type="button" size="sm" variant="outline" onClick={() => onTrade(row, "delete")}>
+            Delete
+          </Button>
+        </>
+      )}
     </span>
   );
 }

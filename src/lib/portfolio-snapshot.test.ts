@@ -550,6 +550,92 @@ describe("portfolio snapshot calc engine", () => {
     expect(zz?.quantity).toBeCloseTo(1, 6);
   });
 
+  it("keeps a holding id only when one id is known for the ticker", () => {
+    const buy = row({
+      _id: "one-buy",
+      type: "buy",
+      ticker: "AAA",
+      trade_date: "2026-10-01",
+      quantity: 1,
+      price: 10,
+      cash_nzd: -10,
+      total: -10,
+    });
+    const one = buildPortfolioSnapshot({
+      rows: [buy],
+      marks: [{ ticker: "AAA", price: 12, currency: "NZD", holdingId: "stock-aaa" }],
+      fxNow: { NZD: 1 },
+      fxSourced: true,
+      asOf: "2026-10-13",
+    });
+    expect(one.groups.find((group) => group.id === "shares")?.positions[0]?.holdingId).toBe("stock-aaa");
+
+    const two = buildPortfolioSnapshot({
+      rows: [buy],
+      marks: [
+        { ticker: "AAA", price: 12, currency: "NZD", holdingId: "stock-aaa" },
+        { ticker: "AAA", price: 13, currency: "NZD", holdingId: "stock-aaa-2" },
+      ],
+      fxNow: { NZD: 1 },
+      fxSourced: true,
+      asOf: "2026-10-13",
+    });
+    expect(two.groups.find((group) => group.id === "shares")?.positions[0]?.holdingId).toBeNull();
+
+    const metal = buildPortfolioSnapshot({
+      rows: [],
+      extras: [
+        {
+          id: "pm-gold",
+          ticker: "GOLD",
+          assetClass: "metals",
+          quantity: 1,
+          costPrice: 100,
+          currency: "NZD",
+          fxAtCost: 1,
+          markPrice: 110,
+        },
+      ],
+      fxNow: { NZD: 1 },
+      fxSourced: true,
+      asOf: "2026-10-13",
+    });
+    expect(metal.groups.find((group) => group.id === "metals")?.positions[0]?.holdingId).toBe("pm-gold");
+
+    const clash = buildPortfolioSnapshot({
+      rows: [
+        row({
+          _id: "gold-buy",
+          type: "buy",
+          ticker: "GOLD",
+          asset_type: "metal",
+          trade_date: "2026-10-01",
+          quantity: 1,
+          price: 100,
+          cash_nzd: -100,
+          total: -100,
+        }),
+      ],
+      marks: [{ ticker: "GOLD", price: 110, currency: "NZD", assetType: "metal", holdingId: "stock-gold" }],
+      extras: [
+        {
+          id: "pm-gold",
+          ticker: "GOLD",
+          assetClass: "metals",
+          quantity: 1,
+          costPrice: 100,
+          currency: "NZD",
+          fxAtCost: 1,
+          markPrice: 110,
+        },
+      ],
+      fxNow: { NZD: 1 },
+      fxSourced: true,
+      asOf: "2026-10-13",
+    });
+    expect(clash.groups.flatMap((group) => group.positions).find((position) => position.ticker === "GOLD")?.holdingId).toBeNull();
+  });
+
   it("does not mention GST and the dashboard reads this snapshot", () => {
     const source = read("src/lib/portfolio-snapshot.ts");
     const route = read("src/app/api/portfolio/snapshot/route.ts");
@@ -570,6 +656,7 @@ describe("portfolio snapshot calc engine", () => {
     expect(route).toContain('get("fresh")');
     expect(route).toContain("STORED_HOLDING_PRICE");
     expect(route).toContain("priceFromQuoteOrStored");
+    expect(route).toContain("holdingId: row._id");
     expect(read("src/lib/snapshot-quotes.ts")).toContain('STORED_HOLDING_PRICE = "Stored holding price"');
     expect(route).toContain("Silver spot feed");
     expect(route).toContain("Gold spot feed");

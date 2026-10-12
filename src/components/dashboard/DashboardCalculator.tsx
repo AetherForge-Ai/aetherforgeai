@@ -26,6 +26,7 @@ import {
   type ColumnSetId,
   type HoldingsQuery,
 } from "@/lib/holdings-table";
+import type { HoldingAction } from "@/lib/holding-action";
 import type { PortfolioSnapshot, SnapshotClass } from "@/lib/portfolio-snapshot";
 
 /**
@@ -39,13 +40,21 @@ export function DashboardCalculator({
   userId,
   onTrade,
   onCash,
+  actionFor,
 }: {
   snapshot: PortfolioSnapshot | null;
   loading: boolean;
   error: string | null;
   userId: string | null;
-  onTrade: (input: { ticker: string; name: string; assetClass: SnapshotClass; action: "buy" | "sell" | "edit" | "delete" }) => void;
+  onTrade: (input: {
+    ticker: string;
+    name: string;
+    assetClass: SnapshotClass;
+    action: "buy" | "sell" | "edit" | "delete";
+    target: { via: "stock"; stockId: string } | { via: "metal-store"; metalId: string };
+  }) => void;
   onCash: (mode: "deposit" | "withdraw") => void;
+  actionFor: (input: { ticker: string; assetClass: SnapshotClass; holdingId: string | null }) => HoldingAction;
 }) {
   const [hydrated, setHydrated] = useState(false);
   const [query, setQuery] = useState<HoldingsQuery>(DEFAULT_HOLDINGS_QUERY);
@@ -191,10 +200,19 @@ export function DashboardCalculator({
         onQuery={setQuery}
         onColumnSet={chooseColumnSet}
         onCustomColumns={setCustomColumns}
-        onTrade={(row, action) =>
-          onTrade({ ticker: row.ticker, name: row.name, assetClass: row.assetClass, action })
-        }
+        onTrade={(row, action) => {
+          const resolved = actionFor(row);
+          if (!resolved.ok) return;
+          onTrade({
+            ticker: row.ticker,
+            name: row.name,
+            assetClass: row.assetClass,
+            action,
+            target: resolved.via === "stock" ? { via: "stock", stockId: resolved.stockId } : { via: "metal-store", metalId: resolved.metalId },
+          });
+        }}
         onCash={onCash}
+        actionFor={actionFor}
       />
     </div>
   );

@@ -187,6 +187,8 @@ export interface HoldingsRowModel {
   cash: SnapshotCashLine | null;
   ledger: SnapshotLedgerLine[];
   dividends: SnapshotLedgerLine[];
+  /** Snapshot position id when one holding is known. Cash has none. */
+  holdingId: string | null;
 }
 
 export interface HoldingsGroupModel {
@@ -518,6 +520,7 @@ function positionRow(snapshot: PortfolioSnapshot, position: SnapshotPosition, pe
     cash: null,
     ledger,
     dividends: ledger.filter((line) => line.type === "dividend" || line.type === "interest"),
+    holdingId: position.holdingId ?? null,
   };
   row.cells = cellsForPosition(snapshot, position, period);
   return row;
@@ -542,6 +545,7 @@ function cashRow(snapshot: PortfolioSnapshot, line: SnapshotCashLine): HoldingsR
     cash: line,
     ledger: [],
     dividends: [],
+    holdingId: null,
   };
   row.cells = cellsForCash(snapshot, line, marketValue);
   return row;

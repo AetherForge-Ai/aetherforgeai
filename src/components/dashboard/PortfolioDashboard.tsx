@@ -104,6 +104,8 @@ import { MarketIntelProvider } from "@/components/dashboard/MarketIntelContext";
 import { WatchlistPanel } from "@/components/dashboard/WatchlistPanel";
 import { GlobalSearch } from "@/components/dashboard/GlobalSearch";
 import { DashboardCalculator } from "@/components/dashboard/DashboardCalculator";
+import { resolveHoldingAction } from "@/lib/holding-action";
+import { duplicateHomeFiguresVisible } from "@/lib/home-totals";
 import { DashboardHomeGrid } from "@/components/dashboard/DashboardHomeGrid";
 import { OnboardingChecklist } from "@/components/dashboard/OnboardingChecklist";
 import { AllocationDriftCard } from "@/components/dashboard/AllocationDriftCard";
@@ -1576,8 +1578,36 @@ export function PortfolioDashboard({
     name: string;
     assetClass: SnapshotClass;
     action: "buy" | "sell" | "edit" | "delete";
+    target: { via: "stock"; stockId: string } | { via: "metal-store"; metalId: string };
   }) {
-    const stock = allStocks.find((row) => row.ticker.toUpperCase() === input.ticker.toUpperCase());
+    if (input.target.via === "metal-store") {
+      if (input.action !== "buy" && input.action !== "sell") return;
+      const metalId = input.target.metalId;
+      const metal = preciousMetalHoldings.find((row) => row._id === metalId);
+      if (!metal) {
+        toast.error("This row is not on the holdings list.");
+        return;
+      }
+      const live = metalSpot?.[metal.metal]?.nzdPerOz || publicSpot?.[metal.metal]?.nzdPerOz;
+      openRecordTransaction({
+        mode: input.action,
+        userId,
+        holdings: transactionHoldings,
+        cash: cashBalance,
+        cashKnown: cashLoaded,
+        preferredAssetType: "metal",
+        seed: {
+          ticker: metal.metal === "silver" ? "SILVER" : "GOLD",
+          name: metal.metal === "silver" ? "Silver bullion" : "Gold bullion",
+          assetType: "metal",
+          price: live && live > 0 ? live : metal.purchase_price_per_oz,
+          ...(input.action === "sell" ? { metalSourceId: metal._id } : {}),
+        },
+      });
+      return;
+    }
+    const stockId = input.target.stockId;
+    const stock = allStocks.find((row) => row._id === stockId);
     if (!stock) {
       toast.error("This row is not on the holdings list.");
       return;
@@ -1691,6 +1721,12 @@ export function PortfolioDashboard({
   const gainTone = summary.totalGain >= 0 ? "up" : "down";
 
   const isHome = view === "home";
+  const legacyHomeTotals = duplicateHomeFiguresVisible({
+    isHome,
+    preview,
+    balancesReady,
+    snapshotPresent: bookSnapshot != null,
+  });
   const isBots = view === "bots";
   const isCash = view === "cash";
   const isStocks = view === "stocks";
@@ -1809,6 +1845,7 @@ export function PortfolioDashboard({
                 className="tnum font-display text-xl font-bold text-emerald-600 sm:text-2xl"
               />
             </div>
+            {legacyHomeTotals ? (
             <div className="text-right">
               <p className="text-[0.68rem] font-semibold uppercase tracking-wide text-foreground">
                 Total net worth
@@ -1822,6 +1859,7 @@ export function PortfolioDashboard({
                 className="tnum font-display text-xl font-bold text-emerald-600 sm:text-2xl"
               />
             </div>
+            ) : null}
           </div>
         </div>
         )}
@@ -1864,6 +1902,15 @@ export function PortfolioDashboard({
           userId={userId ?? null}
           onTrade={handleCalculatorTrade}
           onCash={handleCalculatorCash}
+          actionFor={(row) =>
+            resolveHoldingAction({
+              ticker: row.ticker,
+              assetClass: row.assetClass,
+              holdingId: row.holdingId,
+              stocks: allStocks,
+              metalStore: preciousMetalHoldings,
+            })
+          }
         />
       ) : null}
 
@@ -1887,7 +1934,9 @@ export function PortfolioDashboard({
         cryptoReason={cryptoReason}
         metalsReason={metalsReason}
         cashNote={bookSnapshot?.cashWarning}
+        hideValueCards={!legacyHomeTotals}
       />
+      {legacyHomeTotals ? (
       <ReturnsSplitCard
         holdings={[...stockHoldings, ...cryptoHoldings, ...metalStocks]}
         incomeNzd={incomeNzd}
@@ -1898,6 +1947,7 @@ export function PortfolioDashboard({
         reconciledLabel={reconciledLabel}
         blankReason={splitBlank}
       />
+      ) : null}
       </>
       )}
 
@@ -2071,6 +2121,7 @@ export function PortfolioDashboard({
         title="Stock Portfolio Overview"
         description="Your KPIs — total worth and P/L at the latest available price."
       >
+        {/* Stocks hub return split and holdings table stay until PR5. */}
         <ReturnsSplitCard
           holdings={[...stockHoldings, ...cryptoHoldings, ...metalStocks]}
           incomeNzd={incomeNzd}
@@ -2150,6 +2201,7 @@ export function PortfolioDashboard({
         </div>
       )}
 
+      {/* Stocks hub return split and holdings table stay until PR5. */}
       <HoldingsOwnedTable
         title="Stocks you own"
         emptyLabel="No stocks in this portfolio yet"
@@ -2177,6 +2229,7 @@ export function PortfolioDashboard({
         title="Crypto Currency Overview"
         description="Crypto KPIs — total worth and P/L at the latest available price."
       >
+        {/* Crypto hub return split and holdings table stay until PR5. */}
         <ReturnsSplitCard
           holdings={[...stockHoldings, ...cryptoHoldings, ...metalStocks]}
           incomeNzd={incomeNzd}
@@ -2278,6 +2331,7 @@ export function PortfolioDashboard({
         </div>
       )}
 
+      {/* Crypto hub return split and holdings table stay until PR5. */}
       <HoldingsOwnedTable
         title="Crypto you own"
         emptyLabel="No crypto in this portfolio yet"

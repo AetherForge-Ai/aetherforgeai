@@ -281,6 +281,13 @@ describe("PR3 leaves the existing dashboard rules in place", () => {
     const maths = read("src/components/dashboard/ShowTheMaths.tsx");
     expect(dash).toContain("isHome && !preview");
     expect(dash).toContain("<DashboardCalculator");
+    expect(dash).toContain("duplicateHomeFiguresVisible");
+    expect(dash).toContain("hideValueCards={!legacyHomeTotals}");
+    expect(dash).toContain("resolveHoldingAction");
+    expect(dash).toContain("input.target.stockId");
+    expect(dash).toContain("metalSourceId: metal._id");
+    expect(dash).toContain("stay until PR5");
+    expect(dash).not.toMatch(/allStocks\.find\(\(row\) => row\.ticker/);
     expect(dash).toContain("ledgerLoading={!preview && !ledgerLoaded}");
     expect(dash).toContain("PL_AT_LATEST_PRICE");
     expect(dash).toContain("/api/portfolio/snapshot");
