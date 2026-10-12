@@ -177,6 +177,7 @@ const PROTECTED_ACCOUNT_PREFIXES = [
  */
 export function isProtectedAccountApi(pathname: string): boolean {
   if (pathname === "/api/session/logout") return false;
+  if (pathname === "/api/portfolio/snapshot") return true;
   if (
     pathname === "/api/metals" ||
     (pathname.startsWith("/api/metals/") && !pathname.startsWith("/api/metals/spot"))
