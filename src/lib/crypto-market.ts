@@ -10,7 +10,7 @@
  * the whole surface.
  */
 
-import { adaptiveFractionDigits } from "@/lib/currency";
+import { adaptiveFractionDigits, formatDisplayDate } from "@/lib/currency";
 import { listedMarketNotice } from "@/lib/crypto-coverage";
 import { coinDisplayName } from "@/lib/crypto-names";
 
@@ -233,6 +233,8 @@ export interface CoinDetail {
   change7d: number | null;
   change30d: number | null;
   change1y: number | null;
+  /** Snapshot clock for this price. One timestamp for the page. */
+  quotedAt?: string | null;
   circulatingSupply: number | null;
   totalSupply: number | null;
   maxSupply: number | null;
@@ -401,6 +403,7 @@ export function overlayCoinDetail(detail: CoinDetail, coin: CoinMarket | null | 
     image: detail.image || coin.image,
     name: detail.name || coin.name,
     symbol: detail.symbol || coin.symbol,
+    quotedAt: coin.quotedAt || detail.quotedAt || null,
   };
 }
 
@@ -556,6 +559,17 @@ export function fmtCompactNum(n: number | null | undefined): string {
 }
 
 /** Signed, coloured-elsewhere percentage → "+3.21%", "-0.90%". */
+export const PRICE_STALE_MS = 24 * 60 * 60 * 1000;
+
+/** A price older than 24 hours is not shown as a live print. */
+export function stalePriceReason(quotedAt: string | null | undefined, now = Date.now()): string | null {
+  const at = Date.parse(quotedAt || "");
+  if (!Number.isFinite(at)) return null;
+  if (now - at <= PRICE_STALE_MS) return null;
+  const wall = formatDisplayDate(quotedAt);
+  return `This price is from ${wall}, more than 24 hours ago.`;
+}
+
 export function fmtPct(n: number | null | undefined, decimals = 2): string {
   if (n == null || !isFinite(n)) return "—";
   const sign = n > 0 ? "+" : "";

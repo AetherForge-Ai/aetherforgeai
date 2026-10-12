@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
+import { mergeConfirmIntoLedger } from "@/lib/confirm-ledger";
 import { ADVISORY_NOTE } from "@/lib/fill-integrity-client";
 import { formatDisplayDate, formatMoney, formatSavedFx, formatSignedMoney, formatUnitPrice, currencyForTicker, type CurrencyCode } from "@/lib/currency";
 import { formatLedgerDateTime } from "@/lib/executed-at";
@@ -549,7 +550,8 @@ export function TransactionCenter({
   setTxDialogHandlers({
     onDone: (updated) => {
       if (updated && typeof updated === "object" && "cashBalance" in updated) {
-        setLedger(updated as Ledger);
+        const incoming = updated as Ledger & { lastTransaction?: TransactionRow | null; ledgerPartial?: boolean };
+        setLedger((current) => mergeConfirmIntoLedger(current, incoming));
       }
       onChanged(updated && typeof updated === "object" && "cashBalance" in updated ? (updated as Ledger) : undefined);
     },

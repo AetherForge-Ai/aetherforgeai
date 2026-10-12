@@ -30,6 +30,7 @@ import {
   formatAbsoluteChange,
   formatMarketChangePercent,
   resolvableCoinId,
+  stalePriceReason,
 } from "@/lib/crypto-market";
 import { coinDisplayName } from "@/lib/crypto-names";
 import { formatDisplayClock, formatFxInput, formatUnitPrice, usdToNzd } from "@/lib/currency";
@@ -131,6 +132,7 @@ interface DisplayRow {
   dex?: string;
   paperMarket?: "Crypto" | "DEX";
   priceUnavailable?: boolean;
+  quotedAt?: string | null;
 }
 
 function seedDisplayRows(rows: PublicPriceRow[], market: "Crypto" | "DEX"): DisplayRow[] {
@@ -593,7 +595,8 @@ export function MarketsExplorer({
         quoted: !c.priceUnavailable && c.price > 0,
         coinId: c.id,
         blockchain: stripLastGoodCell(c.blockchain) && stripLastGoodCell(c.blockchain) !== "Unavailable" && stripLastGoodCell(c.blockchain) !== "Native" ? stripLastGoodCell(c.blockchain) : "",
-        chainReason: c.blockchainReason || (c.source === "coinpaprika" ? "CoinPaprika did not send a platform for this coin." : "The feed did not send a platform for this coin."),
+        chainReason: c.blockchainReason || "The feed did not send a platform for this coin.",
+        quotedAt: c.quotedAt || null,
         maxSupply: c.maxSupply,
         change1h: c.change1h,
         change30d: c.moves?.d30 ?? null,
@@ -652,6 +655,8 @@ export function MarketsExplorer({
   // Live-price formatter — crypto needs micro-price precision, stocks are currency-aware.
   const showNzd = isCryptoTab && cryptoInNzd && fxReady;
   const showPrice = (r: DisplayRow) => {
+    const stale = stalePriceReason(r.quotedAt);
+    if (stale) return stale;
     if (r.coinId || isCryptoTab) {
       if (r.priceUnavailable || !(r.price != null && r.price > 0)) return "—";
       if (showNzd) return formatUnitPrice(usdToNzd(r.price, fx.rates.USD), "NZD");
