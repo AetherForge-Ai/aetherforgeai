@@ -89,29 +89,46 @@ export function withQuoteStamp(notes: string | null | undefined, chain: string |
   return `${body.slice(0, room).trimEnd()}\n${stamp}`.slice(0, 4000);
 }
 
+/** Stored trade notes stay inside the original notes limit. */
+const TRADE_NOTE_MAX = 4000;
+
+function takeStamp(text: string, re: RegExp): { token: string; rest: string } {
+  const match = text.match(re);
+  if (!match || match.index == null) return { token: "", rest: text };
+  const token = (match[1] || match[0]).trim();
+  const rest = `${text.slice(0, match.index)} ${text.slice(match.index + match[0].length)}`;
+  return { token, rest };
+}
+
 /**
- * Put chain= and pxat= at the front of a 500-character note, with live= beside them.
- * A notes column that keeps the prefix then still has the stamps. The old writer
- * put them at the end of the FILLED sentence, after live=, so a short column
- * kept live= and dropped chain= and pxat=.
+ * Keep idem=, live=, chain=, pxat= and the FILLED source= audit sentence.
+ * Only the user's free text is trimmed, and the whole note stays within 4000 characters.
  */
 export function preserveQuoteStamp(notes: string | null | undefined, chain: string | null, priceAsAt: string | null): string {
-  const body = stripQuoteStamp(notes);
-  const parts: string[] = [];
+  let raw = String(notes || "");
+  const auditMatch = raw.match(/\[audit [^\]]*\][^\n]*FILLED[^\n]*source=\S+[^\n]*/i);
+  const audit = auditMatch?.[0].trim() || "";
+  if (auditMatch && auditMatch.index != null) {
+    raw = `${raw.slice(0, auditMatch.index)} ${raw.slice(auditMatch.index + auditMatch[0].length)}`;
+  }
+  const idem = takeStamp(raw, /(?:^|\s)(idem=\S+)/);
+  raw = idem.rest;
+  const live = takeStamp(raw, /(?:^|\s)(live=n\/a|live=[0-9.]+)/i);
+  raw = live.rest;
+  const user = stripQuoteStamp(raw).replace(/[ \t]{2,}/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+  const stamps: string[] = [];
   const cleaned = (chain || "").trim();
-  if (cleaned) parts.push(`chain=${cleaned.replace(/\s+/g, "_")}`);
+  if (cleaned) stamps.push(`chain=${cleaned.replace(/\s+/g, "_")}`);
   const at = (priceAsAt || "").trim();
-  if (at) parts.push(`pxat=${at.replace(/\s+/g, "")}`);
-  const live = body.match(/live=n\/a|live=[0-9.]+/i);
-  if (live) parts.push(live[0]);
-  const stamp = parts.join(" ");
-  if (!stamp) return body.slice(0, 500);
-  const rest = live
-    ? `${body.slice(0, live.index)}${body.slice((live.index ?? 0) + live[0].length)}`.replace(/[ \t]{2,}/g, " ").trim()
-    : body;
-  const room = 500 - stamp.length - 1;
-  const tail = room > 0 ? rest.slice(0, room).trim() : "";
-  return tail ? `${stamp} ${tail}` : stamp.slice(0, 500);
+  if (at) stamps.push(`pxat=${at.replace(/\s+/g, "")}`);
+  if (live.token) stamps.push(live.token);
+  if (idem.token) stamps.push(idem.token);
+  const protectedBlock = [...stamps, audit].filter(Boolean).join(" ").trim();
+  if (!protectedBlock) return user.slice(0, TRADE_NOTE_MAX);
+  const room = TRADE_NOTE_MAX - protectedBlock.length - 1;
+  const trimmed = room > 0 ? user.slice(0, room).trimEnd() : "";
+  const next = trimmed ? `${protectedBlock} ${trimmed}` : protectedBlock;
+  return next.length <= TRADE_NOTE_MAX ? next : next.slice(0, TRADE_NOTE_MAX);
 }
 
 export function stripQuoteStamp(notes: string | null | undefined): string {

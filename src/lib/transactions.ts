@@ -1030,7 +1030,7 @@ async function applyTransactionUnlocked(
       meta: { liveLabel: liveAuditText },
       after: { quantity, fill_price: price, cash_nzd: -costNZD, fx_rate: fxRate },
     });
-    const recPromise = totalumSdk.crud.createRecord("transaction", {
+    const rec = await totalumSdk.crud.createRecord("transaction", {
       type: "buy",
       ticker,
       asset_name: input.asset_name || holding?.company_name || lookupTicker(ticker)?.name || ticker,
@@ -1077,13 +1077,13 @@ async function applyTransactionUnlocked(
       user: user._id,
       ...(holdingId ? { stock: holdingId } : {}),
     });
-    const cashWrite = totalumSdk.crud.editRecordById("user", user._id, { cash_balance: newCash });
+    ledgerId = (rec?.data as { _id?: string } | undefined)?._id;
+    if (!ledgerId) throw new Error("Buy was not saved");
     const shareRead = holdingId ? readHoldingShares(holdingId) : Promise.resolve(null);
-    const tracked = recPromise.then((row) => {
-      ledgerId = (row?.data as { _id?: string } | undefined)?._id;
-      return row;
-    });
-    const [rec, , actualFirst] = await Promise.all([tracked, cashWrite, shareRead]);
+    const [, actualFirst] = await Promise.all([
+      totalumSdk.crud.editRecordById("user", user._id, { cash_balance: newCash }),
+      shareRead,
+    ]);
     if (holdingId) {
       let actual = actualFirst;
       if (!qtyMatches(actual, expectedShares)) {
@@ -1218,7 +1218,7 @@ async function applyTransactionUnlocked(
     meta: { liveLabel: liveAuditText },
     after: { quantity, fill_price: price },
   });
-  const recPromise = totalumSdk.crud.createRecord("transaction", {
+  const rec = await totalumSdk.crud.createRecord("transaction", {
     type: "sell",
     ticker,
     asset_name: input.asset_name || holding.company_name || ticker,
@@ -1258,13 +1258,13 @@ async function applyTransactionUnlocked(
     user: user._id,
     ...(holdingId ? { stock: holdingId } : {}),
   });
-  const cashWrite = totalumSdk.crud.editRecordById("user", user._id, { cash_balance: newCash });
+  ledgerId = (rec?.data as { _id?: string } | undefined)?._id;
+  if (!ledgerId) throw new Error("Sell was not saved");
   const shareRead = closed ? Promise.resolve(expectedRemaining) : readHoldingShares(holding._id);
-  const tracked = recPromise.then((row) => {
-    ledgerId = (row?.data as { _id?: string } | undefined)?._id;
-    return row;
-  });
-  const [rec, , actualFirst] = await Promise.all([tracked, cashWrite, shareRead]);
+  const [, actualFirst] = await Promise.all([
+    totalumSdk.crud.editRecordById("user", user._id, { cash_balance: newCash }),
+    shareRead,
+  ]);
   if (!closed) {
     let actual = actualFirst;
     if (!qtyMatches(actual, expectedRemaining)) {

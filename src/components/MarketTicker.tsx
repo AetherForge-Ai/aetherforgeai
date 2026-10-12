@@ -284,7 +284,10 @@ export function MarketTicker({ className, compact = false, initial = null, initi
     const controller = new AbortController();
     let active = true;
     const loadFeed = async () => {
-      const res = await api.get<TickerFeed>("/api/ticker", { signal: controller.signal });
+      const timeout = AbortSignal.timeout(8000);
+      const anySignal = (AbortSignal as unknown as { any?: (signals: AbortSignal[]) => AbortSignal }).any;
+      const signal = anySignal ? anySignal([controller.signal, timeout]) : timeout;
+      const res = await api.get<TickerFeed>("/api/ticker", { signal });
       if (!active || res.aborted) return;
       if (res.ok && res.data?.rows) {
         setNzx(res.data.rows.nzx ?? []);

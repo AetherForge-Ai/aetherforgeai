@@ -481,8 +481,9 @@ export async function upgradeStoredCryptoBoard(boundMs = YAHOO_UPGRADE_BOUND_MS)
   const saved = await readCryptoSnapshot();
   if (!saved?.coins.length) return;
   const yahooOnly = snapshotIsYahooOnly(saved.coins);
+  const short = saved.coins.length < 300;
   const stale = !saved.at || snapshotIsStale(saved.at);
-  if (!yahooOnly && !stale) return;
+  if (!yahooOnly && !short && !stale) return;
   nextYahooUpgradeAt = Date.now() + 60_000;
   await Promise.race([refreshCryptoSeed().catch(() => undefined), sleep(boundMs)]);
 }

@@ -627,13 +627,13 @@ Build `v3-retest10-2026-10-13`. Live retest 10 ran on `v3-retest9-2026-10-12` (d
 
 Same branch. Build stays `v3-retest10-2026-10-13`. No new database columns. No production writes.
 
-1. The durable copy is the hidden watchlist row. A read waits for that row when the colo cache and the temp file are empty, and it returns whichever copy has rows. A list that is longer than the name field is gzipped into that same field. An empty colo does not replace a stored list.
+1. The durable copy is the hidden watchlist row. A read waits 2.5 seconds for that row when the colo cache and the temp file are empty, and it returns whichever copy has rows. Equal timestamps keep the copy with more rows. The list is compact arrays, split across AF-CGS-1..N and AF-DXS-1..N when one name field is not enough, and the row count is stamped. A truncated prefix is not stored.
 2. Signed-in markets and the public page both read that stored list first. Blockchain is filled for WSTETH, USDS, XMR, WBT, LEO, CBBTC and RAIN. The notice, including `Source:`, is the same line the public page and the signed-in table use.
 3. DEX no longer labels a DexPaprika list as GeckoTerminal. The public DEX source is the snapshot's own source.
 4. Public crypto and DEX `asOf` text is the snapshot notice, so `Source:` is in the server render.
-5. A confirm reads the snapshot without the 7-second seed. The ledger insert, the cash write and the share re-read share one wait. A second live-price fetch after that read is not made.
-6. Header holdings and net worth snap together. Net worth is the sum of the rounded cash and the rounded holdings from that same render. An aggregate holding row, or two copies of one lot, is counted once. Two lots with different share counts stay.
-7. `chain=` and `pxat=` lead the note, with `live=` beside them, inside 500 characters. A column that keeps the start of the note used to keep `live=` and cut the stamps off the end.
+5. A confirm reads the snapshot without the 7-second seed. The independent reads still share one wait. The ledger row is inserted before cash is updated, and a failed cash write deletes that row. A second live-price fetch after that read is not made. A Yahoo-only or short stored list (under 300) waits up to 8 seconds for a richer seed. A longer list refreshes in the background. The ticker fetch times out at 8 seconds, and an abort is not logged as a feed failure.
+6. Header holdings and net worth snap together. Net worth is the sum of the rounded cash and the rounded holdings from that same render. The same holding id is counted once. When the ledger quantity is known, an aggregate row beside lots that already sum to that quantity is dropped, and a position read twice at that quantity is counted once. Lots of 10 and 10, and lots of 5, 3 and 2, stay.
+7. `idem=`, `live=`, `chain=`, `pxat=` and the `FILLED … source=` audit sentence are kept. Only the user's free text is trimmed, inside 4000 characters.
 8. The ledger values one FIFO walk and one open-lot walk per book array. Equity quotes share one in-flight fetch and the one-minute quote cache, including the Yahoo path.
 9. A name under review on any window leaves the 24-hour, 7-day and month lists. A non-large-cap 7-day move above 15% is under review. Large-cap week moves stay on the 35% guard, so JPM at 31.01% stays ranked.
 10. `Top gainers identified` is taken from that filtered 24-hour list. The forward projection no longer clamps to ±45.

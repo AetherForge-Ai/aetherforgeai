@@ -30,6 +30,8 @@ import {
 } from "@/lib/metal-valuation";
 import { mergeFreshQuantities } from "@/lib/holding-snapshot";
 import { applyFifoPurchasePrices } from "@/lib/fifo-cost";
+import { collapseDuplicateHoldings } from "@/lib/portfolio";
+import { fifoRemainingShareQty } from "@/lib/tax-realised";
 import type { TaxLedgerRow } from "@/lib/taxable-income";
 import { bookCacheEpoch, invalidateBookCache, readBookCache, writeBookCache } from "@/lib/book-cache";
 import { dateOnlyInstant, lotCivilDay } from "@/lib/executed-at";
@@ -324,6 +326,7 @@ export async function GET(req: Request) {
       console.error("[api/stocks] Quantity re-read failed (serving the overlay snapshot):", err);
     }
     stocks = applyFifoPurchasePrices(stocks, book);
+    stocks = collapseDuplicateHoldings(stocks, fifoRemainingShareQty(book));
     stocks = stocks.map((row) => {
       const mark = lastGoodUnitPrice(row.current_price, null, row.purchase_price);
       if (!(mark > 0) || Number(row.current_price) > 0) return row;

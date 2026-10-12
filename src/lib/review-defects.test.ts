@@ -337,7 +337,13 @@ describe("Confirm wiring for the review defects", () => {
       sourced: true,
       asOf: "2026-10-12T00:00:00.000Z",
     });
+    const order: string[] = [];
+    createRecord.mockImplementation(async (collection: string) => {
+      order.push(`create:${collection}`);
+      return { data: { _id: `${collection}-1` } };
+    });
     editRecordById.mockImplementation(async (collection: string) => {
+      order.push(`edit:${collection}`);
       if (collection === "user") throw new Error("cash write failed");
       return { data: {} };
     });
@@ -355,6 +361,8 @@ describe("Confirm wiring for the review defects", () => {
         { rejectionChecked: true }
       )
     ).rejects.toThrow("cash write failed");
+    expect(order.indexOf("create:transaction")).toBeGreaterThanOrEqual(0);
+    expect(order.indexOf("create:transaction")).toBeLessThan(order.indexOf("edit:user"));
     expect(deleteRecordById).toHaveBeenCalledWith("transaction", "transaction-1");
   });
 });

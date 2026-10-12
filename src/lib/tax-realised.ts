@@ -310,6 +310,16 @@ export function openFxMaps(rows: readonly TaxLedgerRow[]): { cost: Map<string, n
   return maps;
 }
 
+/** Open share quantity per ticker. Used to drop an aggregate row that repeats the lots. */
+export function fifoRemainingShareQty(rows: readonly TaxLedgerRow[]): Map<string, number> {
+  const qty = new Map<string, number>();
+  for (const [ticker, lots] of openBooks(rows)) {
+    const open = lots.reduce((sum, lot) => sum + lot.qty, 0);
+    if (open > 1e-9) qty.set(ticker, open);
+  }
+  return qty;
+}
+
 /** Native unit cost of whatever FIFO lots are still open. */
 export function fifoRemainingUnitCosts(rows: readonly TaxLedgerRow[]): Map<string, number> {
   const costs = new Map<string, number>();

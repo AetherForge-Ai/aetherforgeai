@@ -209,7 +209,7 @@ describe("pull-check:v3-retest10-2026-10-13", () => {
     const quotes = await snapshotQuotesForSymbols(["BTC"]);
     expect(quotes.BTC.source).toBe("yahoo");
     expect(read("src/lib/public-ticker.ts")).not.toContain('provider: "CoinGecko"');
-    expect(read("src/components/MarketTicker.tsx")).not.toContain("AbortSignal.timeout(8000)");
+    expect(read("src/components/MarketTicker.tsx")).toContain("AbortSignal.timeout(8000)");
     expect(read("src/components/MarketTicker.tsx")).toContain("res.aborted");
   });
 

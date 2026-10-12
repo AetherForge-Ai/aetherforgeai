@@ -7,7 +7,21 @@ vi.mock("server-only", () => ({}));
 import { withholdAcrossWindows } from "@/lib/apex";
 import { chainForTicker } from "@/lib/crypto-board";
 import { presentMarketCoin } from "@/lib/crypto-api-body";
-import { chooseSnapshotRaw, packWatchlistBody, WATCHLIST_SNAPSHOT_MAX } from "@/lib/crypto-snapshot";
+import {
+  chooseSnapshotRaw,
+  clearSnapshotMemory,
+  installSnapshotDurable,
+  joinWatchlistPayload,
+  packWatchlistBody,
+  persistCryptoSnapshot,
+  readCryptoSnapshot,
+  resetCryptoSnapshotsForTests,
+  snapshotRowCount,
+  splitWatchlistPayload,
+  WATCHLIST_SNAPSHOT_MAX,
+  type SnapshotDurable,
+  type SnapshotId,
+} from "@/lib/crypto-snapshot";
 import { sumRoundedMoney } from "@/lib/currency";
 import { preserveQuoteStamp } from "@/lib/dex-source";
 import { applyKoinsSweeps, type KoinsCandidate } from "@/lib/koins-quality";
@@ -42,6 +56,17 @@ describe("Testing Technician r3", () => {
     expect(chooseSnapshotRaw("crypto", db, local)).toBe(db);
     expect(chooseSnapshotRaw("crypto", local, db)).toBe(db);
     expect(chooseSnapshotRaw("crypto", "", local)).toBe(local);
+    const at = "2026-10-13T00:00:00.000Z";
+    const short = snap(at, "BTC");
+    const full = JSON.stringify({
+      at,
+      n: 3,
+      coins: ["BTC", "ETH", "SOL"].map((symbol) => ({ id: symbol.toLowerCase(), symbol, name: symbol, price: 2 })),
+    });
+    expect(snapshotRowCount("crypto", short)).toBe(1);
+    expect(snapshotRowCount("crypto", full)).toBe(3);
+    expect(chooseSnapshotRaw("crypto", short, full)).toBe(full);
+    expect(chooseSnapshotRaw("crypto", full, short)).toBe(full);
   });
 
   it("gzips a list that does not fit the watchlist name raw", () => {
@@ -150,32 +175,56 @@ describe("Testing Technician r3", () => {
     expect(Math.abs(intel.projected7dPct)).toBeLessThanOrEqual(12);
   });
 
-  it("sums rounded cents and keeps chain and pxat at the front of a short note", () => {
+  it("sums rounded cents and keeps stamps when the user note is 600 characters", () => {
     expect(sumRoundedMoney([10.004, 10.004])).toBe(20);
     expect(sumRoundedMoney([10.005, 10.005])).toBe(20.02);
-    const note = preserveQuoteStamp(`${"n".repeat(470)} live=20.01 chain=Later pxat=later`, "Ethereum", "2026-10-12T10:52:00.000Z");
-    expect(note.startsWith("chain=Ethereum pxat=2026-10-12T10:52:00.000Z live=20.01")).toBe(true);
-    expect(note.length).toBeLessThanOrEqual(500);
+    const user = "u".repeat(600);
+    const audit = "[audit 12 Oct 2026, 3:00 pm] FILLED buy qty=1 fill=2 NZD live=20.01 source=user_fill.";
+    const note = preserveQuoteStamp(`${user} idem=trade-key-600 ${audit}`, "Ethereum", "2026-10-12T10:52:00.000Z");
+    expect(note.length).toBeLessThanOrEqual(4000);
+    expect(note).toContain("idem=trade-key-600");
     expect(note).toContain("live=20.01");
+    expect(note).toContain("chain=Ethereum");
+    expect(note).toContain("pxat=2026-10-12T10:52:00.000Z");
+    expect(note).toContain("FILLED buy qty=1");
+    expect(note).toContain("source=user_fill");
+    expect(note).toContain(user);
   });
 
-  it("collapses a duplicated lot and an aggregate row, and keeps two real lots", () => {
-    const copies = collapseDuplicateHoldings([
-      { _id: "a", ticker: "BTC", asset_type: "crypto", shares: 2 },
-      { _id: "b", ticker: "BTC", asset_type: "crypto", shares: 2 },
+  it("keeps separate lots of 10+10 and 5+3+2, and drops a repeated row or an aggregate", () => {
+    const ten = collapseDuplicateHoldings([
+      { _id: "a", ticker: "BTC", asset_type: "crypto", shares: 10 },
+      { _id: "b", ticker: "BTC", asset_type: "crypto", shares: 10 },
     ]);
-    expect(copies).toHaveLength(1);
-    const aggregate = collapseDuplicateHoldings([
-      { _id: "sum", ticker: "AAPL", asset_type: "stock", shares: 10 },
-      { _id: "lot1", ticker: "AAPL", asset_type: "stock", shares: 6 },
-      { _id: "lot2", ticker: "AAPL", asset_type: "stock", shares: 4 },
-    ]);
-    expect(aggregate.map((row) => row._id)).toEqual(["sum"]);
-    const lots = collapseDuplicateHoldings([
-      { _id: "p", ticker: "ETH", asset_type: "crypto", shares: 1 },
+    expect(ten.map((row) => row.shares)).toEqual([10, 10]);
+    const mixed = collapseDuplicateHoldings([
+      { _id: "p", ticker: "ETH", asset_type: "crypto", shares: 5 },
       { _id: "q", ticker: "ETH", asset_type: "crypto", shares: 3 },
+      { _id: "r", ticker: "ETH", asset_type: "crypto", shares: 2 },
     ]);
-    expect(lots).toHaveLength(2);
+    expect(mixed.map((row) => row.shares)).toEqual([5, 3, 2]);
+    const sameId = collapseDuplicateHoldings([
+      { _id: "a", ticker: "BTC", asset_type: "crypto", shares: 10 },
+      { _id: "a", ticker: "BTC", asset_type: "crypto", shares: 10 },
+    ]);
+    expect(sameId).toHaveLength(1);
+    const copied = collapseDuplicateHoldings(
+      [
+        { _id: "a", ticker: "BTC", asset_type: "crypto", shares: 10 },
+        { _id: "b", ticker: "BTC", asset_type: "crypto", shares: 10 },
+      ],
+      { BTC: 10 }
+    );
+    expect(copied).toHaveLength(1);
+    const aggregate = collapseDuplicateHoldings(
+      [
+        { _id: "sum", ticker: "AAPL", asset_type: "stock", shares: 10 },
+        { _id: "lot1", ticker: "AAPL", asset_type: "stock", shares: 6 },
+        { _id: "lot2", ticker: "AAPL", asset_type: "stock", shares: 4 },
+      ],
+      { AAPL: 10 }
+    );
+    expect(aggregate.map((row) => row._id)).toEqual(["lot1", "lot2"]);
   });
 
   it("reads the stored notice for the public source line and does not seed a confirm price", () => {
@@ -189,6 +238,78 @@ describe("Testing Technician r3", () => {
     expect(confirm).not.toContain("refreshCryptoSeed");
     const book = readFileSync("src/lib/transactions.ts", "utf8");
     expect(book).toContain("preserveQuoteStamp");
-    expect(book).toContain("Promise.all([tracked, cashWrite, shareRead])");
+    expect(book).not.toContain("Promise.all([tracked, cashWrite, shareRead])");
+    const markets = readFileSync("src/lib/crypto-source.ts", "utf8");
+    const loadTop = markets.slice(markets.indexOf("export async function loadTop400Markets"));
+    expect(loadTop).toContain("storedListNeedsUpgrade");
+    expect(markets).toContain("coins.length < 300");
+    expect(markets).toContain("8_000");
+    const snapSrc = readFileSync("src/lib/crypto-snapshot.ts", "utf8");
+    const readRaw = snapSrc.slice(snapSrc.indexOf("async function readRaw"), snapSrc.indexOf("async function writeRaw"));
+    expect(readRaw).toContain("durableOverride");
+    expect(readRaw).not.toContain("return withTimeout(read, timeoutMs)");
+    const dbRead = snapSrc.slice(snapSrc.indexOf("async function defaultRead"), snapSrc.indexOf("async function defaultWrite"));
+    expect(dbRead).toContain("SNAPSHOT_DB_TIMEOUT_MS");
+    expect(dbRead.indexOf("fromLocal")).toBeLessThan(dbRead.indexOf("SNAPSHOT_DB_TIMEOUT_MS"));
+  });
+
+  it("stores all 400 coins in compact chunks and stamps the row count", async () => {
+    const store = new Map<SnapshotId, string>();
+    const durable: SnapshotDurable = {
+      async read(id) {
+        return store.get(id) ?? null;
+      },
+      async write(id, body) {
+        store.set(id, body);
+        return true;
+      },
+    };
+    installSnapshotDurable(durable);
+    const coins = Array.from({ length: 400 }, (_, index) => ({
+      id: `coin-${index}`,
+      symbol: `C${index}`,
+      name: `Coin ${index} display name`,
+      image: "",
+      rank: index + 1,
+      price: Number((0.000123456 * (index + 1)).toFixed(12)),
+      marketCap: 1_000_000_000 - index,
+      fdv: null,
+      volume24h: 12345.678,
+      change1h: null,
+      change24h: 1.23456,
+      change7d: -2.2,
+      high24h: null,
+      low24h: null,
+      circulatingSupply: null,
+      totalSupply: null,
+      maxSupply: null,
+      ath: null,
+      athDate: null,
+      atl: null,
+      atlDate: null,
+      sparkline7d: [],
+      blockchain: "Ethereum",
+      priceUnavailable: false,
+      source: "coingecko",
+      quotedAt: "2026-10-13T00:00:00.000Z",
+    }));
+    await persistCryptoSnapshot(coins, "2026-10-13T00:00:00.000Z");
+    const stored = store.get("crypto") || "";
+    expect(stored).toContain('"n":400');
+    expect(stored).not.toContain('"marketCap"');
+    clearSnapshotMemory();
+    const again = await readCryptoSnapshot(50);
+    expect(again?.coins).toHaveLength(400);
+    expect(again?.coins[0].blockchain).toBe("Ethereum");
+    const split = splitWatchlistPayload(stored, 2_000);
+    expect(split?.chunks.length).toBeGreaterThan(1);
+    const joined = split ? joinWatchlistPayload(split.header, split.chunks) : null;
+    expect(snapshotRowCount("crypto", joined)).toBe(400);
+    for (const part of [split?.header, ...(split?.chunks || [])]) {
+      expect((part || "").length).toBeLessThanOrEqual(2_000);
+    }
+    const fitted = splitWatchlistPayload(stored);
+    expect(snapshotRowCount("crypto", fitted ? joinWatchlistPayload(fitted.header, fitted.chunks) : null)).toBe(400);
+    resetCryptoSnapshotsForTests();
   });
 });
