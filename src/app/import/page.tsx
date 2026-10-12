@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata = publicPageMetadata("/import", {
   title: "Import trades · AetherForge AI",
-  description: "Review a Sharesies, Hatch, IBKR, or mapped CSV before it is saved to the paper book.",
+  description: "Review a broker CSV before it is saved to the paper book.",
 });
 
 export default async function ImportPage() {
