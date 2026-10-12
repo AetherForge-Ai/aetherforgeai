@@ -554,8 +554,6 @@ export function planBrokerImport(
     reviewedRates?: Record<string, number | null>;
     /** Line number to a ticker the member typed. A blank fix is ignored. Nothing is substituted on its own. */
     tickerFixes?: Record<string, string>;
-    /** Live quotes used only when the file has no price. Never 0. */
-    quotePrices?: Record<string, number>;
   }
 ): ImportPlan {
   const lines = linesOf(text || "");
@@ -633,17 +631,25 @@ export function planBrokerImport(
     const ticker = fix || printed;
     const quantity = Math.abs(quantityRaw);
     if (!(price != null && price > 0)) {
-      const quoted = Number(options?.quotePrices?.[ticker]);
-      if (quoted > 0) price = quoted;
-    }
-    if (!(quantity > 0) || !(price != null && price > 0)) {
       unsupported.push({
         line: lineNo,
         ticker,
         date,
         side,
         quantity,
-        reason: price === 0 ? "No price in the file and no live quote. Nothing was saved as 0." : "Quantity and price must be greater than zero.",
+        reason: "Price required — the file has no price for this row.",
+      });
+      return;
+    }
+    if (!(quantity > 0)) {
+      unsupported.push({
+        line: lineNo,
+        ticker,
+        date,
+        side,
+        quantity,
+        price,
+        reason: "Quantity and price must be greater than zero.",
       });
       return;
     }

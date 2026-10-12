@@ -26,9 +26,8 @@ export default function ContactPage() {
           Customer email: <EmailAddress email={CUSTOMER_EMAIL} className="text-primary" />
         </p>
         <p>
-          <EmailAddress email={PRIVACY_OFFICER_EMAIL} className="text-primary" />
+          Privacy Officer: <EmailAddress email={PRIVACY_OFFICER_EMAIL} className="text-primary" />
         </p>
-        <p>Privacy Officer: {PRIVACY_OFFICER_EMAIL}</p>
       </LegalSection>
     </LegalShell>
   );

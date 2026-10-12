@@ -231,10 +231,11 @@ describe("retest 12 and technician r5", () => {
     expect(parseImportClock("13 Oct 2026, 6:50 am")).toMatch(/^2026-10-12T17:50:00/);
     const csv = [
       headers.join(","),
-      "13 Oct 2026,\"13 Oct 2026, 6:50 am\",filled,Buy,PEPE,PEPE,crypto,pepe,1000,,USD,file,,0.00001,0,0,0,1.67,file,-0.02,0,0,0,units,,Crypto,Ethereum,",
+      "13 Oct 2026,\"13 Oct 2026, 6:50 am\",filled,Buy,PEPE,PEPE,crypto,pepe,1000,0.00001234,USD,file,,0.00001,0,0,0,1.67,file,-0.02,0,0,0,units,,Crypto,Ethereum,",
       "13 Oct 2026,\"13 Oct 2026, 7:05 am\",filled,Buy,UNI,UNI,crypto,uniswap,2,8.5,USD,file,,8.5,0,0,17,1.67,file,-28.39,0,0,0,units,,Crypto,Ethereum,",
+      "12 Oct 2026,\"12 Oct 2026, 6:50 am\",filled,Buy,PEPE,PEPE,crypto,pepe,500,,USD,file,,0.00001,0,0,0,1.67,file,0,0,0,0,units,,Crypto,Ethereum,",
     ].join("\n");
-    const plan = planBrokerImport(csv, { fundBuys: true, quotePrices: { PEPE: 0.00001234 } });
+    const plan = planBrokerImport(csv, { fundBuys: true });
     expect(plan.broker).toBe("aetherforge");
     expect(plan.needsMapping).toBe(false);
     expect(plan.toWrite.map((row) => row.ticker)).toEqual(["PEPE", "UNI"]);
@@ -242,7 +243,11 @@ describe("retest 12 and technician r5", () => {
     expect(plan.toWrite[0].executedAt).toMatch(/T17:50:00/);
     expect(plan.toWrite[1].assetName).toBe("Uniswap");
     expect(plan.toWrite[1].price).toBe(8.5);
+    expect(plan.unsupported.map((row) => row.reason)).toContain("Price required — the file has no price for this row.");
+    expect(plan.toWrite.some((row) => row.price === 0)).toBe(false);
     expect(knownImportSymbol("PEPE")).toBe(true);
+    expect(read("src/app/api/import/route.ts")).not.toContain("snapshotQuotePrices");
+    expect(read("src/lib/broker-import.ts")).not.toContain("quotePrices");
   });
 
   it("builds the server coin detail from the snapshot moves", () => {

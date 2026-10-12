@@ -14,8 +14,6 @@ import {
   type ImportTrade,
 } from "@/lib/broker-import";
 import { commitImportInOrder, newImportBatchId, notesHaveBatch, stampImportNote, undoImportInOrder } from "@/lib/import-commit";
-import { readCryptoSnapshot } from "@/lib/crypto-snapshot";
-import { noteTradableCrypto } from "@/lib/import-crypto-universe";
 import { assetClassForSymbol } from "@/lib/import-symbols";
 import { planOrApplyLedgerReversal } from "@/lib/ledger-reversal-apply";
 import { backdatedRealisedNote } from "@/lib/fifo-cost";
@@ -129,24 +127,6 @@ function planPayload(plan: ImportPlan, rows: readonly TaxLedgerRow[], extra?: Re
   };
 }
 
-async function snapshotQuotePrices(): Promise<Record<string, number>> {
-  try {
-    const saved = await readCryptoSnapshot();
-    const quotes: Record<string, number> = {};
-    const symbols: string[] = [];
-    for (const coin of saved?.coins || []) {
-      const symbol = String(coin.symbol || "").trim().toUpperCase();
-      if (!symbol) continue;
-      symbols.push(symbol);
-      if (coin.price > 0) quotes[symbol] = coin.price;
-    }
-    noteTradableCrypto(symbols);
-    return quotes;
-  } catch {
-    return {};
-  }
-}
-
 async function planWithReviewedFx(
   text: string,
   options: {
@@ -157,8 +137,7 @@ async function planWithReviewedFx(
     tickerFixes?: Record<string, string>;
   }
 ) {
-  const quotePrices = await snapshotQuotePrices();
-  const draft = planBrokerImport(text, { ...options, quotePrices });
+  const draft = planBrokerImport(text, options);
   if (!draft.fxNeeds.length) return draft;
   const reviewedRates: Record<string, number | null> = {};
   for (const need of draft.fxNeeds) {
@@ -166,7 +145,7 @@ async function planWithReviewedFx(
     if (key in reviewedRates) continue;
     reviewedRates[key] = await historicalNzdPerUnit(need.currency, need.date);
   }
-  return planBrokerImport(text, { ...options, reviewedRates, quotePrices });
+  return planBrokerImport(text, { ...options, reviewedRates });
 }
 
 /** POST /api/import — preview writes nothing. Commit writes only a clean plan. */
