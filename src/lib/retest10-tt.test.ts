@@ -93,10 +93,10 @@ describe("Testing Technician r3", () => {
     expect(presentMarketCoin({ symbol: "WSTETH", name: "Wrapped stETH", blockchain: "" }).blockchain).toBe("Ethereum");
   });
 
-  it("withholds a non-large-cap week move above 15 percent on every rank list", () => {
-    expect(reviewSessionMove({ ticker: "CNU.NZ", assetClass: "stock", price: 2, reportedChangePct: 20.6, window: "7d" }).withheld).toBe(true);
-    expect(reviewSessionMove({ ticker: "TRA.NZ", assetClass: "stock", price: 2, reportedChangePct: 19.3, window: "7d" }).withheld).toBe(true);
-    expect(reviewSessionMove({ ticker: "PAYX", assetClass: "stock", price: 20, reportedChangePct: 23.1, window: "7d" }).withheld).toBe(true);
+  it("keeps an ordinary week move and withholds a print outside the volatility band on every rank list", () => {
+    expect(reviewSessionMove({ ticker: "CNU.NZ", assetClass: "stock", price: 2, reportedChangePct: 20.6, window: "7d" }).withheld).toBe(false);
+    expect(reviewSessionMove({ ticker: "TRA.NZ", assetClass: "stock", price: 2, reportedChangePct: 19.3, window: "7d" }).withheld).toBe(false);
+    expect(reviewSessionMove({ ticker: "PAYX", assetClass: "stock", price: 20, reportedChangePct: 23.1, window: "7d" }).withheld).toBe(false);
     expect(reviewSessionMove({ ticker: "JPM", assetClass: "stock", price: 210, reportedChangePct: 31.01, window: "7d" }).withheld).toBe(false);
     const book = createQuoteBook();
     book.review({ ticker: "GXH.NZ", assetClass: "stock", price: 1.2, reportedChangePct: 1, window: "1d" });

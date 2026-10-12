@@ -111,7 +111,7 @@ function TickerCard({ t, scrub }: { t: TickerAnalysis; scrub: boolean }) {
               <div className={`text-[10px] font-mono ${pctTone(d.movePct)}`}>
                 {d.direction === "up" ? "▲" : d.direction === "down" ? "▼" : "—"}
               </div>
-              <div className={`text-[9px] font-mono ${pctTone(d.movePct)}`}>{d.movePct > 0 ? "+" : ""}{d.movePct}%</div>
+              <div className={`text-[9px] font-mono ${pctTone(d.movePct)}`}>{formatPercent(d.movePct)}</div>
             </div>
           ))}
         </div>
@@ -125,10 +125,7 @@ function TickerCard({ t, scrub }: { t: TickerAnalysis; scrub: boolean }) {
               <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{p.name}</span>
               <span className="text-[10px] text-muted-foreground">{p.probability}%</span>
             </div>
-            <div className={`text-sm font-semibold ${pctTone(p.targetPct)}`}>
-              {p.targetPct > 0 ? "+" : ""}
-              {p.targetPct}%
-            </div>
+            <div className={`text-sm font-semibold ${pctTone(p.targetPct)}`}>{formatPercent(p.targetPct)}</div>
             <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground line-clamp-3">{shownCopy(p.narrative, scrub)}</p>
           </div>
         ))}
@@ -391,9 +388,7 @@ function OutlookRow({ r }: { r: BriefingOutlookRow }) {
   const Cell = ({ label, lo, hi, prob, tone }: { label: string; lo: number; hi: number; prob: number; tone: string }) => (
     <td className="border-t border-border/50 px-1 py-1.5 text-center align-top">
       <div className={`break-words text-[10px] font-semibold leading-tight [overflow-wrap:anywhere] sm:text-[11px] ${tone}`}>
-        {lo >= 0 ? "+" : ""}
-        {lo}% … {hi >= 0 ? "+" : ""}
-        {hi}%
+        {formatPercent(lo)} … {formatPercent(hi)}
       </div>
       <div className="text-[9px] text-muted-foreground">
         {label} · {prob}%
@@ -653,7 +648,7 @@ export function ApexReportView({ report: source, scrubCopy = false }: { report: 
                     <span className="font-medium text-foreground">{g.ticker}</span> · {g.name}
                   </span>
                   <span className={g.withheld ? "text-muted-foreground" : "text-emerald-600 font-mono"}>
-                    {g.withheld ? "data under review" : `+${g.changePct}%`}
+                    {g.withheld ? "data under review" : formatPercent(g.changePct)}
                   </span>
                 </li>
               ))}
