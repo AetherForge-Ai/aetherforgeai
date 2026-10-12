@@ -22,6 +22,7 @@ export function ReturnsSplitCard({
   incomeNzd,
   rates,
   reportedPnlNzd,
+  costFx,
   loading = false,
 }: {
   holdings: HoldingLike[];
@@ -29,6 +30,8 @@ export function ReturnsSplitCard({
   rates: FxRatesToNZD;
   /** P/L at the latest price, in NZ dollars. The lines add up to this figure. */
   reportedPnlNzd?: number | null;
+  /** Cost-weighted NZD rate stored on the remaining buy lots, by ticker. */
+  costFx?: Record<string, number>;
   loading?: boolean;
 }) {
   const split = splitReturns(
@@ -39,11 +42,14 @@ export function ReturnsSplitCard({
           holding.ticker || "",
           holding.asset_type === "crypto" ? "crypto" : holding.asset_type === "metal" ? "metal" : "stock"
         );
+      const ticker = (holding.ticker || "").trim().toUpperCase();
+      const stored = ticker && costFx ? costFx[ticker] : undefined;
       return {
         quantity: holding.shares,
         costPrice: holding.purchase_price,
         markPrice: holding.current_price,
         currency,
+        fxAtCost: stored != null && stored > 0 ? stored : undefined,
         fxNow: currency === "NZD" ? 1 : rates[currency] || 1,
         purchaseDate: holding.purchase_date,
       };

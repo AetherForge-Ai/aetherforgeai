@@ -162,7 +162,9 @@ export async function loadStockNoteRows(userId: string): Promise<StockNoteRow[]>
  * Dividends and stored realised totals for /tax.
  * Skips the full 1,000-row ledger read. Cached per account until the next trade.
  */
-export async function loadTaxBookFigures(userId: string): Promise<{ dividendsNzd: number; realisedPnlNzd: number }> {
+export async function loadTaxBookFigures(
+  userId: string
+): Promise<{ dividendsNzd: number; dividendsGrossNzd: number | null; realisedPnlNzd: number }> {
   return cachedRead(`${userId}:tax-figures`, async () => {
     const [book, dividends] = await Promise.all([
       totalumSdk.crud.query("transaction", { _filter: { user: userId }, _limit: 5000 }),
@@ -172,7 +174,12 @@ export async function loadTaxBookFigures(userId: string): Promise<{ dividendsNzd
     const ending = nzTaxYearEnding(aucklandCivilToday());
     const ledger = (book?.data as unknown as TaxLedgerRow[]) || [];
     const realised = ending == null ? 0 : realisedByTaxYear(ledger, ending).combinedNzd;
-    return { dividendsNzd: taxBookSummary(dividendRows).dividendsNzd, realisedPnlNzd: realised };
+    const summary = taxBookSummary(dividendRows);
+    return {
+      dividendsNzd: summary.dividendsNzd,
+      dividendsGrossNzd: summary.dividendsGrossNzd,
+      realisedPnlNzd: realised,
+    };
   });
 }
 

@@ -4,9 +4,8 @@
  *
  * That P/L converts each holding's cost and its market value into NZ dollars
  * separately, at today's rate rounded to 4 decimal places. Capital gain
- * converts the price change in one step. The difference is Other.
- * A holding does not store the exchange rate from the buy, so that gap is
- * not labelled as a currency move.
+ * converts the price change in one step. The currency line uses the
+ * exchange rate stored on the remaining buy lots. The difference is Other.
  */
 
 import {
@@ -104,8 +103,9 @@ export function splitReturns(
     currencyNote: pricedFx
       ? "Currency effect is the NZ dollar change caused only by the exchange rate moving since the buy. The price move stays in capital gain."
       : "Currency effect is the NZ dollar change caused only by the exchange rate since the buy. It is zero when the holding is in NZ dollars, or when that buy did not store an exchange rate.",
-    otherNote:
-      "Other is what is left so these lines add up to the P/L at the latest price. That P/L turns each holding's cost and its market value into NZ dollars separately, at today's rate rounded to 4 decimal places. Capital gain turns the price change into NZ dollars in one step. The holding does not store the buy's exchange rate, so this gap is not a currency move.",
+    otherNote: pricedFx
+      ? "Other is what is left so these lines add up to the P/L at the latest price. The currency line uses the exchange rate stored on the buy."
+      : "Other is what is left so these lines add up to the P/L at the latest price. That P/L turns each holding's cost and its market value into NZ dollars separately, at today's rate rounded to 4 decimal places. Capital gain turns the price change into NZ dollars in one step. The holding does not store the buy's exchange rate, so this gap is not a currency move.",
     totalNote: "The total equals the P/L at the latest price.",
   };
 }

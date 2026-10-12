@@ -2,7 +2,7 @@
  * Paper-book totals for the tax page. These are ledger sums, not a tax return.
  */
 
-import { roundMoney } from "@/lib/currency";
+import { formatNzd, roundMoney } from "@/lib/currency";
 import { parseDividendNotes } from "@/lib/dividend-ledger";
 
 export type TaxBookRow = {
@@ -43,4 +43,10 @@ export function taxBookSummary(rows: readonly TaxBookRow[]): {
     dividendsGrossNzd: dividendRows > 0 && grossRows === dividendRows ? roundMoney(gross) : null,
     realisedPnlNzd: roundMoney(realised),
   };
+}
+
+/** Sentence for /tax. A stored gross of 0 is still shown. A missing breakdown is named. */
+export function taxGrossDividendSentence(grossNzd: number | null | undefined): string {
+  if (grossNzd == null) return "Gross dividend is not on these rows, so it is not shown beside the net cash.";
+  return `Gross dividend, before withholding: ${formatNzd(grossNzd)}.`;
 }

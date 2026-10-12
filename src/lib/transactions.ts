@@ -16,7 +16,7 @@ import "server-only";
 import { totalumSdk } from "@/lib/totalum";
 import type { AppUser } from "@/lib/session";
 import { currencyForTicker, nzdAtBookRate, ensureNzdPerUsd, ensureNzdPerAud, formatCleanNumber, formatQuantity, normaliseUnitPrice, roundFxRate, roundUnitPrice, type CurrencyCode } from "@/lib/currency";
-import { fifoTotals } from "@/lib/fifo-cost";
+import { applyFifoToLedgerRows, fifoTotals } from "@/lib/fifo-cost";
 import { auditLivePrice, bookingFxDecision, ledgerFxRate, priceForBooking, ratesForBooking, reviewedFxAllowed } from "@/lib/reviewed-book";
 import { alertsToArchive, positionIsClosed } from "@/lib/alert-lifecycle";
 import { getFxSnapshot, historicalNzdPerUnit } from "@/lib/fx";
@@ -36,7 +36,7 @@ import {
 } from "@/lib/fill-integrity";
 import { canonicalCryptoId } from "@/lib/crypto-ids";
 import { venueForTicker, fifoApplySell, type FifoLot } from "@/lib/ledger-schema";
-import { fifoStoredForSell } from "@/lib/tax-realised";
+import { fifoRemainingCostFx, fifoStoredForSell } from "@/lib/tax-realised";
 import type { TaxLedgerRow } from "@/lib/taxable-income";
 import { logLedgerAudit, appendAuditNote } from "@/lib/ledger-audit";
 import { feedEntryForTicker } from "@/lib/feed-mapping";
@@ -1386,6 +1386,8 @@ export interface TransactionLedger {
   realizedYtdCount: number;
   /** Dividends recorded in the ledger, in NZD. */
   incomeNZD?: number;
+  /** Cost-weighted NZD rate still open on each ticker. Read from stored buy rates. */
+  costFxByTicker?: Record<string, number>;
 }
 
 /** Load a user's ledger plus cash + realized-P&L rollups (all NZD). */
@@ -1428,8 +1430,12 @@ async function loadLedgerFresh(user: AppUser, limit: number): Promise<Transactio
       return (Number.isFinite(tb) ? tb : 0) - (Number.isFinite(ta) ? ta : 0);
     });
   const bookRows = (sellsRes?.data as unknown as TransactionRow[]) || [];
+  const book = bookRows as unknown as TaxLedgerRow[];
   const calendarYear = Number(aucklandDateISO().slice(0, 4));
-  const fifo = fifoTotals(bookRows, calendarYear);
+  const fifo = fifoTotals(book, calendarYear);
+  const withFifo = applyFifoToLedgerRows(rows, book);
+  const costFxByTicker: Record<string, number> = {};
+  for (const [ticker, rate] of fifoRemainingCostFx(book)) costFxByTicker[ticker] = rate;
   const realizedTotal = fifo.all;
   const realizedYtd = fifo.ytd;
   const realizedYtdCount = fifo.ytdCount;
@@ -1442,11 +1448,12 @@ async function loadLedgerFresh(user: AppUser, limit: number): Promise<Transactio
   }
 
   return {
-    transactions: rows,
+    transactions: withFifo,
     cashBalance,
     realizedYtd: round(realizedYtd),
     realizedTotal: round(realizedTotal),
     realizedYtdCount,
     incomeNZD: round(incomeTotal),
+    costFxByTicker,
   };
 }

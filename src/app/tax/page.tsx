@@ -23,7 +23,7 @@ export default async function TaxPage() {
       }
     : { name: "Guest", email: "Sign in to activate your account" };
 
-  let book: { dividendsNzd: number; realisedPnlNzd: number } | null = null;
+  let book: { dividendsNzd: number; dividendsGrossNzd: number | null; realisedPnlNzd: number } | null = null;
   if (user) {
     try {
       book = await loadTaxBookFigures(user._id);
