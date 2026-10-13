@@ -40,7 +40,11 @@ describe("dashboard critique", () => {
       `equities ${planningAssumptionPct("equities")}%, crypto ${planningAssumptionPct("crypto")}%, metals ${planningAssumptionPct("metals")}% a year`
     );
     expect(text).not.toMatch(/\b[A-Z]{1,5}\.(NZ|AX|L)\b/);
-    expect(listedReportBody({ payload: { illustratedPath: { illustrated7dPct: 1.25, netWorthNZD: 250000, issuedAtMs: Date.parse("2026-10-13T00:00:00.000Z") } } })).toBe(text);
+    const listed = listedReportBody({ payload: { illustratedPath: { illustrated7dPct: 1.25, netWorthNZD: 250000, issuedAtMs: Date.parse("2026-10-13T00:00:00.000Z") } } });
+    expect(listed).toContain(text);
+    expect(listed).toContain("Holdings");
+    expect(listed).toContain("— Holding lines were not stored with this report.");
+    expect(listed).not.toMatch(/\b[A-Z]{1,5}\.(NZ|AX|L)\b/);
     const pdf = plainReportPdf("Headmaster intelligence report", [text || ""]);
     expect(pdf.startsWith("%PDF")).toBe(true);
     const pdfText = [...pdf.matchAll(/\((?:\\.|[^\\)])*\) Tj/g)]

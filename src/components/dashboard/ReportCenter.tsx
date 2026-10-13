@@ -103,7 +103,7 @@ interface FreeQuota {
   monthKey: string;
 }
 
-interface ReportsResponse {
+export interface ReportsResponse {
   reports: PastReport[];
   // Paid: independent per-bot allowances. Free: shared monthly pool, echoed on both bots.
   quota: { stock: BotQuota; crypto: BotQuota };
@@ -157,6 +157,7 @@ export function ReportCenter({
   holdings = [],
   preview = false,
   onDesk,
+  seed = null,
 }: {
   botAccess: BotAccess;
   plan?: string | null;
@@ -175,6 +176,8 @@ export function ReportCenter({
   preview?: boolean;
   /** Header and row actions call this run. They do not click the button in the page. */
   onDesk?: (desk: ReportDeskSnapshot) => void;
+  /** Reports payload fetched in parallel with the book, so the desk is not stuck on first paint. */
+  seed?: ReportsResponse | null;
 }) {
   const [running, setRunning] = React.useState<BotKind | null>(null);
   const [compileSeconds, setCompileSeconds] = React.useState(0);
@@ -187,6 +190,7 @@ export function ReportCenter({
   const [reportsMinimized, setReportsMinimized] = React.useState(true);
   const [history, setHistory] = React.useState<PastReport[]>([]);
   const [historyLoaded, setHistoryLoaded] = React.useState(preview);
+  const [historyError, setHistoryError] = React.useState("");
   const [headmasterPending, setHeadmasterPending] = React.useState(false);
   // Independent per-bot last-report timestamps → independent countdowns.
   const [lastReportAt, setLastReportAt] = React.useState<{ stock: string | null; crypto: string | null }>({
@@ -209,15 +213,16 @@ export function ReportCenter({
     if (typeof window === "undefined") return;
     const scrollToAnchor = () => {
       if (window.location.hash !== "#report-center") return;
-      sectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      const el = sectionRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const fullyVisible = rect.top >= 0 && rect.bottom <= window.innerHeight;
+      if (!fullyVisible) el.scrollIntoView({ block: "nearest" });
     };
     scrollToAnchor();
     window.addEventListener("hashchange", scrollToAnchor);
-    // Dashboard may hydrate after first paint
-    const t = window.setTimeout(scrollToAnchor, 350);
     return () => {
       window.removeEventListener("hashchange", scrollToAnchor);
-      window.clearTimeout(t);
     };
   }, []);
 
@@ -303,6 +308,7 @@ export function ReportCenter({
       });
     }
     if (data.quota) setServerQuota(data.quota);
+    setHistoryError("");
     setQuotaReady(true);
     setHistoryLoaded(true);
   }, []);
@@ -354,12 +360,14 @@ export function ReportCenter({
         applyHistory(res.data);
       } else if (res.status !== 401) {
         console.error("[ReportCenter] Failed to load report history:", res.error);
+        setHistoryError("Reports did not load.");
         setHistoryLoaded(true);
       } else {
         setHistoryLoaded(true);
       }
     } catch {
-      /* history is optional; never reject the effect */
+      setHistoryError("Reports did not load.");
+      setHistoryLoaded(true);
     } finally {
       tracked.release();
     }
@@ -369,6 +377,7 @@ export function ReportCenter({
     // Drop the previous account's narratives immediately. The fetch is aborted
     // on switch and only applied when the response echoes this user.
     if (!preview) setHistoryLoaded(false);
+    setHistoryError("");
     setQuotaReady(false);
     setHistory([]);
     setLastReportAt({ stock: null, crypto: null });
@@ -378,6 +387,20 @@ export function ReportCenter({
     pendingHistoryRef.current = null;
     void loadHistory().catch(() => {});
   }, [loadHistory, userId]);
+
+  React.useEffect(() => {
+    if (!seed || preview) return;
+    applyHistory(seed);
+  }, [seed, preview, applyHistory]);
+
+  React.useEffect(() => {
+    if (preview || historyLoaded) return;
+    const id = window.setTimeout(() => {
+      setHistoryError("Reports did not load.");
+      setHistoryLoaded(true);
+    }, 8_000);
+    return () => window.clearTimeout(id);
+  }, [preview, historyLoaded]);
 
   React.useEffect(() => {
     return subscribeTxDialog(() => {
@@ -402,11 +425,11 @@ export function ReportCenter({
   // Tick every second while a wait is under three minutes, otherwise once a minute.
   const countdownSoon = (["stock", "crypto"] as BotKind[]).some((kind) => {
     const wait = quotaFor(kind).waitMs;
-    return wait > 0 && wait < 180_000;
+    return wait > 0 && wait < 60_000;
   });
   React.useEffect(() => {
     if (!anyLocked) return;
-    const id = setInterval(() => setNow(Date.now()), countdownSoon ? 1_000 : 60_000);
+    const id = setInterval(() => setNow(Date.now()), countdownSoon ? 5_000 : 30_000);
     return () => clearInterval(id);
   }, [anyLocked, countdownSoon]);
 
@@ -634,6 +657,13 @@ export function ReportCenter({
     onDesk?.(desk);
   }, [onDesk, desk]);
 
+  function retryHistory() {
+    setHistoryError("");
+    setHistoryLoaded(false);
+    setQuotaReady(false);
+    void loadHistory();
+  }
+
   return (
     <section
       id="report-center"
@@ -707,7 +737,9 @@ export function ReportCenter({
                   <span key={k} className="inline-flex items-center gap-1">
                     <span className="font-medium text-foreground">{label}:</span>
                     {!preview && !historyLoaded ? (
-                      <span>{reportRunStatus(false, "")}</span>
+                      <span className="inline-block h-3 w-24 animate-pulse rounded bg-muted motion-reduce:animate-none" />
+                    ) : historyError && !quotaReady ? (
+                      <span>Reports did not load.</span>
                     ) : q.allowed ? (
                       <span className="text-emerald-600">
                         {reportRunStatus(
@@ -807,6 +839,12 @@ export function ReportCenter({
                       </Link>
                     </Button>
                   )
+                ) : historyError && !quotaReady ? (
+                  <Button variant="outline" className="h-auto min-h-11 w-full whitespace-normal" onClick={retryHistory}>
+                    Reports did not load. Try again
+                  </Button>
+                ) : !historyLoaded ? (
+                  <div className="h-11 animate-pulse rounded-lg bg-muted/60 motion-reduce:animate-none" />
                 ) : !quotaReady || runControl.disabled ? (
                   <Button variant="outline" className="h-auto min-h-11 w-full whitespace-normal" disabled title={runControl.title}>
                     <Clock className="mr-1 size-4" /> {runControl.title}
@@ -904,9 +942,14 @@ export function ReportCenter({
           <div className="overflow-hidden">
             <div className="border-t border-border/60 px-4 pb-4 pt-2">
         {!preview && !historyLoaded ? (
-          <p className="rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground">
-            Loading…
-          </p>
+          <div className="h-16 animate-pulse rounded-xl bg-muted/40 motion-reduce:animate-none" aria-hidden />
+        ) : historyError && visibleHistory.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground">
+            <p>Reports did not load.</p>
+            <Button type="button" size="sm" variant="outline" className="mt-3" onClick={retryHistory}>
+              Try again
+            </Button>
+          </div>
         ) : visibleHistory.length === 0 ? (
           <p className="rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground">
             No reports yet — add your holdings or cash in the Transaction Centre above, then run Stox, Koins or The Headmaster.

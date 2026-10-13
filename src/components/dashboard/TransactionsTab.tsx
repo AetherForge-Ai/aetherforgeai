@@ -160,7 +160,7 @@ export function TransactionsTab({
           ) : null}
         </div>
       ) : null}
-      <div className="overflow-x-auto rounded-2xl border border-border/70 bg-card/50">
+      <div className="overflow-x-auto rounded-2xl border border-border/70 bg-card/50 md:overflow-x-clip">
         {error && !snapshot ? null : loading || !snapshot ? (
           <div className="space-y-3 p-6">
             {[0, 1, 2].map((row) => (
@@ -168,7 +168,7 @@ export function TransactionsTab({
             ))}
           </div>
         ) : (
-          <table className="w-full table-fixed border-collapse text-sm">
+          <table className="w-full min-w-[36rem] border-collapse text-sm md:min-w-0 md:table-fixed">
             <caption className="sr-only">Ledger from the portfolio snapshot</caption>
             <thead>
               <tr className="border-b border-border/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
@@ -180,7 +180,7 @@ export function TransactionsTab({
                 <th scope="col" className="px-3 py-3 text-right font-medium">Cash impact</th>
                 <th scope="col" className="px-3 py-3 text-right font-medium">Realised</th>
                 <th scope="col" className="w-[7.5rem] whitespace-nowrap px-3 py-3 text-right font-medium">Date</th>
-                <th scope="col" className="px-3 py-3 text-right font-medium">Actions</th>
+                <th scope="col" className="w-[5.75rem] px-2 py-3 text-right font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -206,8 +206,8 @@ export function TransactionsTab({
                     <td className="tnum px-3 py-3 text-right">{formatNzd(line.cashNzd)}</td>
                     <td className="tnum px-3 py-3 text-right">{line.realisedNzd == null ? MISSING_MARK : formatNzd(line.realisedNzd)}</td>
                     <td className="whitespace-nowrap px-3 py-3 text-right">{line.whenLabel}</td>
-                    <td className="px-3 py-3 text-right">
-                      <span className="inline-flex justify-end gap-1">
+                    <td className="px-2 py-3 text-right">
+                      <span className="flex flex-col items-stretch gap-1">
                         <Button type="button" size="sm" variant="outline" onClick={() => onEdit(line)}>
                           Edit
                         </Button>

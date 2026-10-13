@@ -44,9 +44,22 @@ const HoldingChartDialog = dynamic(
   () => import("@/components/dashboard/HoldingChartDialog").then((mod) => mod.HoldingChartDialog),
   { ssr: false }
 );
+function ReportCenterFallback() {
+  return (
+    <div className="space-y-3" aria-busy="true" aria-label="Loading reports">
+      <div className="h-16 animate-pulse rounded-2xl bg-muted/50 motion-reduce:animate-none" />
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="h-32 animate-pulse rounded-2xl bg-muted/40 motion-reduce:animate-none" />
+        <div className="h-32 animate-pulse rounded-2xl bg-muted/40 motion-reduce:animate-none" />
+        <div className="h-32 animate-pulse rounded-2xl bg-muted/40 motion-reduce:animate-none" />
+      </div>
+    </div>
+  );
+}
+
 const ReportCenter = dynamic(
   () => import("@/components/dashboard/ReportCenter").then((mod) => mod.ReportCenter),
-  { ssr: false, loading: () => <p className="text-sm text-muted-foreground">Loading reports…</p> },
+  { ssr: false, loading: () => <ReportCenterFallback /> },
 );
 const DashboardInsights = dynamic(
   () => import("@/components/dashboard/DashboardInsights").then((mod) => mod.DashboardInsights),
@@ -128,6 +141,8 @@ import { PaidPlanPrompt } from "@/components/dashboard/PaidPlanPrompt";
 import { SnapshotAllocation } from "@/components/dashboard/SnapshotAllocation";
 import { holdingDeleteEffect } from "@/lib/dashboard-tabs";
 import { QUOTA_NOT_LOADED, unloadedReportControl, type ReportDeskSnapshot } from "@/lib/report-quota-display";
+import { isStoxOrKoinsRun } from "@/lib/report-body";
+import type { ReportsResponse } from "@/components/dashboard/ReportCenter";
 import { resolveHoldingAction } from "@/lib/holding-action";
 import type { HoldingsRowModel } from "@/lib/holdings-table";
 import { duplicateHomeFiguresVisible } from "@/lib/home-totals";
@@ -680,6 +695,51 @@ export function PortfolioDashboard({
   const [watchSeed, setWatchSeed] = useState<{ ticker: string; nonce: number; asset: "stock" | "crypto" } | null>(null);
   const [watchClass, setWatchClass] = useState<"stock" | "crypto">("stock");
   const [reportDesk, setReportDesk] = useState<ReportDeskSnapshot | null>(null);
+  const [deskSeed, setDeskSeed] = useState<ReportsResponse | null>(null);
+  const [onboardingProbe, setOnboardingProbe] = useState<{ alerts: boolean | null; report: boolean | null; error: boolean }>({
+    alerts: null,
+    report: null,
+    error: false,
+  });
+  const [probeNonce, setProbeNonce] = useState(0);
+  const [probeUser, setProbeUser] = useState(userId);
+  if (userId !== probeUser) {
+    setProbeUser(userId);
+    setDeskSeed(null);
+    setOnboardingProbe({ alerts: null, report: null, error: false });
+  }
+  useEffect(() => {
+    if (preview || !userId) return;
+    let cancel = false;
+    const tracked = trackAccountRequest();
+    const timer = window.setTimeout(() => {
+      if (cancel) return;
+      setOnboardingProbe((prev) => (prev.alerts == null || prev.report == null ? { ...prev, error: true } : prev));
+    }, 8_000);
+    void (async () => {
+      const [reports, alerts] = await Promise.all([
+        api.get<ReportsResponse>("/api/reports", { signal: tracked.signal }),
+        api.get<unknown[]>("/api/alerts", { signal: tracked.signal }),
+      ]);
+      if (cancel || reports.aborted) return;
+      const reportRows = reports.ok && Array.isArray(reports.data?.reports) ? reports.data.reports : null;
+      const alertRows = alerts.ok && Array.isArray(alerts.data) ? alerts.data : null;
+      if (reports.ok && reports.data) setDeskSeed(reports.data);
+      if (!cancel) {
+        setOnboardingProbe({
+          alerts: alertRows ? alertRows.length > 0 : null,
+          report: reportRows ? reportRows.some((row) => isStoxOrKoinsRun(row)) : null,
+          error: !reports.ok || !alerts.ok,
+        });
+      }
+    })();
+    return () => {
+      cancel = true;
+      window.clearTimeout(timer);
+      tracked.release();
+    };
+  }, [preview, userId, probeNonce]);
+
   const onReportDesk = useCallback((next: ReportDeskSnapshot) => {
     setReportDesk((prev) => {
       if (
@@ -1010,12 +1070,16 @@ export function PortfolioDashboard({
   }, [preview, loadPublicSpot, ledgerSignal]);
 
   const loadPortfolioSnapshot = useCallback(
-    async (opts?: { force?: boolean }) => {
+    async (opts?: { force?: boolean; stored?: boolean }) => {
       if (preview) return;
       const capturedGen = holdingsGeneration();
       const tracked = trackAccountRequest();
       try {
-        const path = opts?.force ? "/api/portfolio/snapshot?fresh=1" : "/api/portfolio/snapshot";
+        const params = new URLSearchParams();
+        if (opts?.force) params.set("fresh", "1");
+        if (opts?.stored) params.set("marks", "stored");
+        const qs = params.toString();
+        const path = `/api/portfolio/snapshot${qs ? `?${qs}` : ""}`;
         const res = await api.get<PortfolioSnapshot>(path, { signal: tracked.signal });
         if (res.aborted || tracked.epoch !== getAccountEpoch()) return;
         const echoed = responseUserId(res);
@@ -1069,15 +1133,25 @@ export function PortfolioDashboard({
     setBookSnapshot(cached);
     setSnapshotReady(cached != null);
     setSnapshotError(null);
-    void loadPortfolioSnapshot();
+    const tab = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("tab") : null;
+    if (tab === "transactions" && !cached) {
+      void (async () => {
+        await loadPortfolioSnapshot({ stored: true });
+        await loadPortfolioSnapshot({ force: true });
+      })();
+    } else {
+      void loadPortfolioSnapshot();
+    }
   }, [preview, userId, loadPortfolioSnapshot]);
 
   useEffect(() => {
     if (preview) return; // guest preview uses seeded demo data — no network calls
+    const tab = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("tab") : null;
+    if (tab === "transactions" && !snapshotReady) return;
     loadStocks();
     loadCash();
     loadMetals();
-  }, [preview, loadStocks, loadCash, loadMetals]);
+  }, [preview, loadStocks, loadCash, loadMetals, snapshotReady]);
 
   // Apply a holdings body that arrived while Buy/Add was open. Identity is
   // re-checked so a 1T→TT switch cannot flush the previous account's rows.
@@ -1298,6 +1372,7 @@ export function PortfolioDashboard({
   const cryptoLiveSymbols = useMemo(() => cryptoOnly.map((s) => s.ticker), [cryptoOnly]);
   // 24/7 spot poll for this hub only. Buy/Add pauses it inside the hook so a
   // price tick cannot re-render the open modal shut.
+  const cryptoSnapshotAt = useRef(0);
   const cryptoLive = useLiveCryptoQuotes(cryptoLiveSymbols, view === "crypto" && !preview);
   const cryptoBoard = useCryptoMarkets(view === "crypto" && !preview);
   const cryptoBoardAt = cryptoBoard.asOf ? Date.parse(cryptoBoard.asOf) : Number.NaN;
@@ -1307,6 +1382,9 @@ export function PortfolioDashboard({
   );
   useEffect(() => {
     if (preview || !cryptoLive.updatedAt) return;
+    const now = Date.now();
+    if (now - cryptoSnapshotAt.current < 60_000) return;
+    cryptoSnapshotAt.current = now;
     void loadPortfolioSnapshot({ force: true });
   }, [preview, cryptoLive.updatedAt, loadPortfolioSnapshot]);
   const stockOverviewSummary = useMemo(
@@ -2257,6 +2335,7 @@ export function PortfolioDashboard({
               onHoldingsChanged={handleDataChanged}
               preview={preview}
               onDesk={onReportDesk}
+              seed={deskSeed}
             />
           }
           actionFor={(row) =>
@@ -2320,6 +2399,11 @@ export function PortfolioDashboard({
             hasHoldings={false}
             hasBuy={(bookSnapshot?.ledger ?? []).some((line) => line.type === "buy")}
             plan={subscription.plan}
+            deferProbe
+            hasAlerts={onboardingProbe.alerts ?? undefined}
+            hasReport={onboardingProbe.report ?? undefined}
+            probeError={onboardingProbe.error}
+            onProbeRetry={() => setProbeNonce((n) => n + 1)}
           />
         </div>
       ) : null}
@@ -2331,6 +2415,11 @@ export function PortfolioDashboard({
             hasHoldings={allStocks.length > 0 || preciousMetalHoldings.length > 0}
             hasBuy={(bookSnapshot?.ledger ?? []).some((line) => line.type === "buy")}
             plan={subscription.plan}
+            deferProbe
+            hasAlerts={onboardingProbe.alerts ?? undefined}
+            hasReport={onboardingProbe.report ?? undefined}
+            probeError={onboardingProbe.error}
+            onProbeRetry={() => setProbeNonce((n) => n + 1)}
           />
           {freePlan ? (
             <p className="rounded-2xl border border-border/70 bg-card/40 p-4 text-sm text-muted-foreground">
@@ -2375,6 +2464,7 @@ export function PortfolioDashboard({
           holdings={allStocks}
           onHoldingsChanged={handleDataChanged}
           preview={preview}
+          seed={deskSeed}
         />
       </DashboardGate>
       </div>
@@ -3303,6 +3393,7 @@ export function PortfolioDashboard({
           holdings={allStocks}
           onHoldingsChanged={handleDataChanged}
           preview={preview}
+          seed={deskSeed}
         />
       </DashboardGate>
       </div>
