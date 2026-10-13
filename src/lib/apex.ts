@@ -706,8 +706,9 @@ function buildMarketMovers(
 const MOVER_LIST_LIMIT = 10;
 
 /**
- * A name under review on any window leaves every rank list, then each list
- * is filled back to 10 from the next valid name.
+ * A name under review on any window leaves every rank list, including a row
+ * that matched the markets print. Each list is filled back to 10 from the
+ * next name that is not under review.
  */
 export function withholdAcrossWindows<T extends {
   window: string;
@@ -721,12 +722,7 @@ export function withholdAcrossWindows<T extends {
     for (const row of window.underReview) blocked.add(row.ticker.toUpperCase());
   }
   return windows.map((window) => {
-    const reviewedHere = new Set(window.underReview.map((row) => row.ticker.toUpperCase()));
-    const keep = (row: { ticker: string; marketsMatched?: boolean }) => {
-      const ticker = row.ticker.toUpperCase();
-      if (reviewedHere.has(ticker)) return false;
-      return !!row.marketsMatched || !blocked.has(ticker);
-    };
+    const keep = (row: { ticker: string }) => !blocked.has(row.ticker.toUpperCase());
     if (!blocked.size) return { ...window, movers: window.movers.slice(0, MOVER_LIST_LIMIT) };
     const head = window.movers.slice(0, MOVER_LIST_LIMIT);
     const extra: { ticker: string }[] = [];

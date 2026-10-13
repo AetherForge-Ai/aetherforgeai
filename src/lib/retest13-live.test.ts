@@ -134,8 +134,8 @@ describe("retest 13 confirm and holdings", () => {
     const shareRead = order.indexOf("get:stock");
     const holdingStart = order.indexOf("edit-start:stock");
     expect(ledgerDone).toBeGreaterThan(-1);
-    expect(order.indexOf("create-start:transaction")).toBeLessThan(cashStart);
-    expect(shareRead).toBeGreaterThan(-1);
+    expect(cashStart).toBeGreaterThan(ledgerDone);
+    expect(shareRead).toBeGreaterThan(ledgerDone);
     expect(holdingStart).toBeGreaterThan(-1);
     expect(holdingStart).toBeLessThan(ledgerDone);
     expect(elapsed).toBeLessThan(1000);

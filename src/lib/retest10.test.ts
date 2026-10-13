@@ -256,12 +256,23 @@ describe("pull-check:v3-retest10-2026-10-13", () => {
       included.push({ id: "uniswap", type: "dex", attributes: { name: "Uniswap", symbol: "", coingecko_coin_id: "" } } as (typeof included)[number]);
       return jsonResponse({ data, included });
     });
+    resetSnapshotUpgradeBackoff();
+    const started = Date.now();
     const board = await readSharedDexBoard({ revalidate: true });
+    expect(Date.now() - started).toBeLessThan(2_500);
+    if (board.rows.length) {
+      expect(board.rows.length).toBeGreaterThanOrEqual(16);
+      expect(board.rows.every((row) => !!row.detailId)).toBe(true);
+      expect(board.notice).toContain("GeckoTerminal");
+      expect(board.notice?.startsWith("Prices paused")).toBe(false);
+    } else {
+      expect(board.notice).toMatch(/^Prices paused since /);
+    }
     await dexRefreshSettled();
-    expect(board.rows.length).toBeGreaterThanOrEqual(16);
-    expect(board.rows.every((row) => !!row.detailId)).toBe(true);
-    expect(board.notice).toContain("GeckoTerminal");
-    expect(board.notice?.startsWith("Prices paused")).toBe(false);
+    const settled = await readDexSnapshot();
+    expect(settled?.rows.length).toBeGreaterThanOrEqual(16);
+    expect(settled?.rows.every((row) => !!row.detailId)).toBe(true);
+    expect((settled?.sources || []).join(" ").toLowerCase()).toContain("geckoterminal");
   });
 
   it("hides DEX rows and says prices are paused when a stale refresh returns nothing", async () => {

@@ -5,6 +5,7 @@ import { choosePublicPriceTab, formatPublicCryptoPrice, sourceLabel } from "@/li
 import { publicSourceAllowed } from "@/lib/swyftx-display";
 import { loadPublicCryptoPrint, noteListedPrices, recallPublicTab, rememberPublicTab } from "@/lib/crypto-price-feed";
 import { loadTop400Markets } from "@/lib/crypto-source";
+import { fmtCompactNum } from "@/lib/crypto-market";
 import { formatDisplayDateTime, formatSignedPercent, formatUnitPrice } from "@/lib/currency";
 import { PUBLIC_SEED_ROWS, type PublicMarketIndex, type PublicPriceRow, type PublicPriceTab } from "@/lib/public-market-types";
 import { boardCoverage, pageListings } from "@/lib/stock-catalog";
@@ -16,8 +17,8 @@ const COIN_PAGE = MARKET_SNAPSHOT_TARGET;
 /** Cold /markets waits this long, then says the price is not in the response. */
 const EQUITY_BUDGET_MS = 3000;
 const ALT_BUDGET_MS = 3000;
-/** A stale DEX seed fits inside the request. A fresh snapshot returns immediately. */
-const DEX_BUDGET_MS = 9_000;
+/** Page cap for the DEX tab. Just above the 1.5s refresh wait so a pause banner can return. */
+const DEX_BUDGET_MS = 1_800;
 const INDEX_TTL_MS = 5 * 60 * 1000;
 /** After a refresh that keeps the previous snapshot, wait before trying again. */
 const REFRESH_BACKOFF_MS = 60 * 1000;
@@ -127,7 +128,7 @@ async function loadCryptoTab(): Promise<PublicPriceTab> {
       blockchain: coin.blockchain || "",
       change1h: coin.change1h == null ? "—" : formatSignedPercent(coin.change1h),
       change7d: Number.isFinite(coin.change7d) ? formatSignedPercent(coin.change7d) : "—",
-      supply: coin.circulatingSupply != null && coin.circulatingSupply > 0 ? String(coin.circulatingSupply) : "—",
+      supply: fmtCompactNum(coin.circulatingSupply),
     }));
     const tab = {
       id: "CRYPTO",

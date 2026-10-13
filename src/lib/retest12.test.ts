@@ -179,7 +179,7 @@ describe("retest 12 and technician r5", () => {
     const store = read("src/lib/crypto-board-store.ts");
     expect(store).toContain("DEX_REFRESH_BOUND_MS");
     expect(store).toContain("scheduleDetached");
-    expect(store).toContain("A detached refresh dies with the isolate, so a stale read waits for this one.");
+    expect(store).toContain("A visitor waits at most 1.5s. after() keeps the refresh alive for the cron or the next request.");
     expect(store).toContain("lastDexRefreshFailure");
     expect(read("src/lib/crypto-diagnostics.ts")).toContain("dexRefreshFailure");
   });

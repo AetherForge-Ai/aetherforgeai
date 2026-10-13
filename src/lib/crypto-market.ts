@@ -535,9 +535,10 @@ export function formatMarketChangePercent(value: number): string {
   const abs = Math.abs(value);
   if (abs === 0) return "0.00";
   let text = abs.toFixed(2);
+  // |x| < 0.005 rounds to 0.00 at 2dp. Two significant figures, with no 4dp cap, so this never prints 0.0000.
   if (Number(text) === 0) {
-    const digits = Math.min(4, Math.max(2, -Math.floor(Math.log10(abs)) + 1));
-    text = abs.toFixed(digits);
+    const decimals = Math.max(2, -Math.floor(Math.log10(abs)) + 1);
+    text = abs.toFixed(decimals);
   }
   return text;
 }
