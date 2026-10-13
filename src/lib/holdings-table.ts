@@ -246,7 +246,7 @@ export function readHoldingsQuery(params: URLSearchParams): Pick<
   HoldingsQuery,
   "q" | "assetClass" | "market" | "currency" | "gain" | "open" | "groupBy" | "sortKey" | "sortDir"
 > & { columnSet: ColumnSetId; customColumns: ColumnId[] } {
-  const assetClass = params.get("hclass");
+  const assetClass = params.get("hclass") || params.get("view");
   const gain = params.get("hgain");
   const open = params.get("hopen");
   const groupBy = params.get("hgroup");

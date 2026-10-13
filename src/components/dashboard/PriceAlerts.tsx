@@ -128,6 +128,8 @@ export function PriceAlerts({
   holdingsReady = true,
   preview = false,
   canCreate = true,
+  seedTicker = null,
+  seedNonce = 0,
 }: {
   stocks: Stock[];
   /** Hub context — stock desk, crypto desk, or metals. */
@@ -140,6 +142,9 @@ export function PriceAlerts({
   preview?: boolean;
   /** Free plan hides the create button. Existing alerts stay visible. */
   canCreate?: boolean;
+  /** Opens the create form for this ticker. */
+  seedTicker?: string | null;
+  seedNonce?: number;
 }) {
   const isCrypto = assetType === "crypto";
   const isMetal = assetType === "metal";
@@ -225,6 +230,20 @@ export function PriceAlerts({
       setQuote(null);
     }
   }, [assetType]);
+
+  React.useEffect(() => {
+    if (!seedTicker || !canCreate || preview) return;
+    setEditingId(null);
+    setSelectedName("");
+    setQuote(null);
+    setForm((current) => ({
+      ...(isCrypto
+        ? { ...EMPTY_FORM, trimTriggerDipPct: "3", takeProfitMinPct: "8", takeProfitMaxPct: "12", instructions: CRYPTO_INSTRUCTIONS }
+        : { ...EMPTY_FORM }),
+      ticker: seedTicker,
+    }));
+    setOpen(true);
+  }, [seedNonce, seedTicker, canCreate, preview, isCrypto]);
 
   function openAdd() {
     setEditingId(null);
