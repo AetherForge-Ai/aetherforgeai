@@ -98,23 +98,7 @@ export const COLUMN_LABEL: Record<ColumnId, string> = {
   supply: "Supply",
 };
 
-const SUMMARY_COLUMNS: ColumnId[] = [
-  "asset",
-  "qty",
-  "avgCost",
-  "price",
-  "marketValue",
-  "costBase",
-  "unrealised",
-  "realised",
-  "income",
-  "currency",
-  "fees",
-  "totalReturn",
-  "weight",
-  "day",
-  "actions",
-];
+const SUMMARY_COLUMNS: ColumnId[] = ["asset", "qty", "price", "marketValue", "totalReturn", "weight", "actions"];
 
 export const COLUMN_SETS: Record<Exclude<ColumnSetId, "custom">, ColumnId[]> = {
   summary: SUMMARY_COLUMNS,
@@ -124,7 +108,24 @@ export const COLUMN_SETS: Record<Exclude<ColumnSetId, "custom">, ColumnId[]> = {
   crypto: ["asset", "mktCap", "vol24h", "change1h", "change24h", "change7d", "supply", "actions"],
 };
 
-export const CUSTOM_COLUMN_CHOICES: ColumnId[] = SUMMARY_COLUMNS.filter((id) => id !== "asset" && id !== "actions");
+/** Columns a member can add. Asset stays pinned and is not in this list. */
+export const CUSTOM_COLUMN_CHOICES: ColumnId[] = [
+  "qty",
+  "price",
+  "marketValue",
+  "totalReturn",
+  "weight",
+  "avgCost",
+  "costBase",
+  "unrealised",
+  "realised",
+  "income",
+  "currency",
+  "fees",
+  "day",
+];
+
+export const CASH_COLUMN_REASON = "This column does not apply to cash.";
 
 const COLUMN_SET_IDS = new Set<string>(["summary", "performance", "income", "tax", "crypto", "custom"]);
 const GROUP_IDS = new Set<string>(["class", "market", "currency", "broker", "sector", "none"]);
@@ -526,6 +527,32 @@ function positionRow(snapshot: PortfolioSnapshot, position: SnapshotPosition, pe
   return row;
 }
 
+const CASH_MOVEMENT = new Set([
+  "deposit",
+  "withdraw",
+  "withdrawal",
+  "opening_balance",
+  "buy",
+  "sell",
+  "dividend",
+  "interest",
+  "fee",
+  "tax",
+]);
+
+/** Deposits, withdrawals, and trade settlements that moved this cash balance. */
+export function ledgerForCash(snapshot: PortfolioSnapshot, currency: string): PortfolioSnapshot["ledger"] {
+  const code = currency.toUpperCase();
+  return snapshot.ledger.filter((line) => {
+    const type = line.type.toLowerCase();
+    if (!CASH_MOVEMENT.has(type)) return false;
+    if (type === "opening_balance" && line.ticker) return false;
+    const lineCode = (line.currency || "NZD").toUpperCase();
+    if (lineCode === code) return true;
+    return code === "NZD" && line.cashNzd !== 0;
+  });
+}
+
 function cashRow(snapshot: PortfolioSnapshot, line: SnapshotCashLine): HoldingsRowModel {
   const marketValue = cashValueFigure(line, snapshot.asOfLabel);
   const row: HoldingsRowModel = {
@@ -535,7 +562,7 @@ function cashRow(snapshot: PortfolioSnapshot, line: SnapshotCashLine): HoldingsR
     name: "Cash",
     assetClass: "cash",
     classLabel: "Cash",
-    exchange: "Cash",
+    exchange: line.currency,
     currency: line.currency,
     closed: false,
     negativeCash: line.negative,
@@ -543,7 +570,7 @@ function cashRow(snapshot: PortfolioSnapshot, line: SnapshotCashLine): HoldingsR
     cells: {},
     position: null,
     cash: line,
-    ledger: [],
+    ledger: ledgerForCash(snapshot, line.currency),
     dividends: [],
     holdingId: null,
   };
@@ -639,7 +666,7 @@ function cellsForPosition(snapshot: PortfolioSnapshot, position: SnapshotPositio
 
 function cellsForCash(snapshot: PortfolioSnapshot, line: SnapshotCashLine, marketValue: SnapshotFigure): HoldingsRowModel["cells"] {
   const asOf = snapshot.asOfLabel;
-  const blank = (formula: string) => blankSnapshotFigure(formula, "This column does not apply to cash.", "Ledger", asOf);
+  const blank = (formula: string) => blankSnapshotFigure(formula, CASH_COLUMN_REASON, "Ledger", asOf);
   const na = (formula: string) => figureCell(blank(formula));
   const fxGain =
     line.fxGainNzd == null
@@ -667,12 +694,12 @@ function cellsForCash(snapshot: PortfolioSnapshot, line: SnapshotCashLine, marke
     price: textCell(line.fxDisplay, "The exchange rate is NZ$ per 1 unit of this currency.", [`${line.currency} ${line.fxDisplay}`], snapshot),
     marketValue: figureCell(marketValue),
     costBase: na("Cash has no cost base."),
-    unrealised: { figures: [blank("Cash has no unrealised price change."), blank("Unrealised percent does not apply to cash.")], text: null, badge: null },
+    unrealised: na("Cash has no unrealised price change."),
     realised: na("Cash has no realised sale."),
     income: na("Income on cash is recorded as interest on the ledger, not on this currency row."),
     currency: figureCell(fxGain),
     fees: na("Fees sit on the trades, not on the cash row."),
-    totalReturn: { figures: [blank("Total return is not a cash balance."), blank("Total return percent does not apply to cash.")], text: null, badge: null },
+    totalReturn: na("Total return is not a cash balance."),
     weight: na("Weight is not stored on a cash row."),
     day: na("Day change is not stored on a cash row."),
     week: na("One-week change is not stored on a cash row."),

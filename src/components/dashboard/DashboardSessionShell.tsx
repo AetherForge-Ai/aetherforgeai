@@ -66,7 +66,7 @@ export function DashboardSessionShell({
     <PortfolioDashboard
       view={view}
       userId={session.id}
-      userName={session.greetingName}
+      userName={session.name && !session.name.includes("@") ? session.name : session.greetingName}
       subscription={session.subscription}
       metalsEntitled={session.metalsEntitled}
     />

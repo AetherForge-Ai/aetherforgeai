@@ -24,12 +24,16 @@ const PAGE_SIZES = [25, 50, 100] as const;
 export function TransactionsTab({
   snapshot,
   loading,
+  error = null,
+  onRetry,
   onRecord,
   onEdit,
   onDeleteDividend,
 }: {
   snapshot: PortfolioSnapshot | null;
   loading: boolean;
+  error?: string | null;
+  onRetry?: () => void;
   onRecord: () => void;
   onEdit: (line: SnapshotLedgerLine) => void;
   onDeleteDividend: (line: SnapshotLedgerLine) => Promise<void> | void;
@@ -66,7 +70,7 @@ export function TransactionsTab({
         <div>
           <h2 className="text-base font-semibold">Transactions</h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            One ledger. Cost method is FIFO. Prices show the source on the holdings table. A dash has its reason.
+            One ledger. Cost method is FIFO.
           </p>
         </div>
         <Button type="button" onClick={onRecord}>
@@ -145,15 +149,26 @@ export function TransactionsTab({
           </select>
         </label>
       </div>
+      {error && !snapshot ? (
+        <div className="rounded-2xl border border-dashed border-border/70 bg-card/40 p-5">
+          <p className="text-sm font-medium">The ledger did not load.</p>
+          <p className="mt-1 text-sm text-muted-foreground">{error}</p>
+          {onRetry ? (
+            <Button type="button" className="mt-3" onClick={onRetry}>
+              Try again
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
       <div className="overflow-x-auto rounded-2xl border border-border/70 bg-card/50">
-        {loading || !snapshot ? (
+        {error && !snapshot ? null : loading || !snapshot ? (
           <div className="space-y-3 p-6">
             {[0, 1, 2].map((row) => (
               <div key={row} className="h-10 animate-pulse rounded-lg bg-muted/40 motion-reduce:animate-none" />
             ))}
           </div>
         ) : (
-          <table className="w-full min-w-[48rem] border-collapse text-sm">
+          <table className="w-full table-fixed border-collapse text-sm">
             <caption className="sr-only">Ledger from the portfolio snapshot</caption>
             <thead>
               <tr className="border-b border-border/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
@@ -164,7 +179,7 @@ export function TransactionsTab({
                 <th scope="col" className="px-3 py-3 text-right font-medium">FX</th>
                 <th scope="col" className="px-3 py-3 text-right font-medium">Cash impact</th>
                 <th scope="col" className="px-3 py-3 text-right font-medium">Realised</th>
-                <th scope="col" className="px-3 py-3 text-right font-medium">Date</th>
+                <th scope="col" className="w-[7.5rem] whitespace-nowrap px-3 py-3 text-right font-medium">Date</th>
                 <th scope="col" className="px-3 py-3 text-right font-medium">Actions</th>
               </tr>
             </thead>
@@ -190,7 +205,7 @@ export function TransactionsTab({
                     <td className="tnum px-3 py-3 text-right">{line.fxDisplay}</td>
                     <td className="tnum px-3 py-3 text-right">{formatNzd(line.cashNzd)}</td>
                     <td className="tnum px-3 py-3 text-right">{line.realisedNzd == null ? MISSING_MARK : formatNzd(line.realisedNzd)}</td>
-                    <td className="px-3 py-3 text-right">{line.whenLabel}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-right">{line.whenLabel}</td>
                     <td className="px-3 py-3 text-right">
                       <span className="inline-flex justify-end gap-1">
                         <Button type="button" size="sm" variant="outline" onClick={() => onEdit(line)}>

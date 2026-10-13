@@ -3,6 +3,7 @@
 import { Fragment, useState, type ReactNode } from "react";
 
 import { FigureReadout } from "@/components/dashboard/ShowTheMaths";
+import { useRestoreScroll } from "@/components/dashboard/use-restore-scroll";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { formatNzd } from "@/lib/currency";
@@ -20,6 +21,8 @@ export function HoldingDetailDrawer({
 }) {
   const [page, setPage] = useState(1);
   const open = row != null;
+  const cash = row?.kind === "cash";
+  useRestoreScroll(open);
   const paged = row ? pageLedger(row.ledger, { page, pageSize: 10 }) : null;
   const position = row?.position;
 
@@ -31,11 +34,12 @@ export function HoldingDetailDrawer({
             <SheetHeader className="p-0">
               <SheetTitle>{row.name}</SheetTitle>
               <SheetDescription>
-                {row.ticker} · {row.exchange} · {row.classLabel}
+                {cash ? `${row.ticker} · Cash balance` : `${row.ticker} · ${row.exchange} · ${row.classLabel}`}
               </SheetDescription>
             </SheetHeader>
             <div className="flex flex-wrap gap-2">{actions}</div>
 
+            {cash ? null : (
             <section>
               <h3 className="text-sm font-semibold">Open lots</h3>
               {position && position.lots.length ? (
@@ -76,9 +80,10 @@ export function HoldingDetailDrawer({
                 </p>
               )}
             </section>
+            )}
 
             <section>
-              <h3 className="text-sm font-semibold">Transactions</h3>
+              <h3 className="text-sm font-semibold">{cash ? "Cash movements" : "Transactions"}</h3>
               {paged && paged.rows.length ? (
                 <>
                   <table className="mt-2 w-full text-xs">
@@ -116,10 +121,13 @@ export function HoldingDetailDrawer({
                   </p>
                 </>
               ) : (
-                <p className="mt-2 text-xs text-muted-foreground">No transactions are stored on this row.</p>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {cash ? "No deposits, withdrawals, or trade settlements are stored for this balance." : "No transactions are stored on this row."}
+                </p>
               )}
             </section>
 
+            {cash ? null : (
             <section>
               <h3 className="text-sm font-semibold">Income</h3>
               {position ? (
@@ -150,7 +158,9 @@ export function HoldingDetailDrawer({
                 </ul>
               ) : null}
             </section>
+            )}
 
+            {cash ? null : (
             <section className="space-y-3 text-xs">
               <div>
                 <h3 className="text-sm font-semibold">Price history</h3>
@@ -188,6 +198,7 @@ export function HoldingDetailDrawer({
                 {MISSING_MARK} No price alert is stored on this snapshot.
               </p>
             </section>
+            )}
           </div>
         ) : (
           <Fragment />

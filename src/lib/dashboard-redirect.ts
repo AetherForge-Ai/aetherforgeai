@@ -15,5 +15,6 @@ export function dashboardRedirectHref(
   if (set.view) params.set("view", set.view);
   if (set.tab) params.set("tab", set.tab);
   const query = params.toString();
-  return query ? `/dashboard?${query}` : "/dashboard";
+  const path = query ? `/dashboard?${query}` : "/dashboard";
+  return `${path}#dashboard-tabs`;
 }
