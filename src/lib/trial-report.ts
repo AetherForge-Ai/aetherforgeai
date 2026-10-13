@@ -570,7 +570,7 @@ async function enhanceWithGrok(report: TrialReport): Promise<boolean> {
     const lines = report.tickers
       .map(
         (t) =>
-          `${t.symbol} (${t.name}): ${t.price} · 24h ${t.change24h}% · 7d ${t.change7d}% · 30d ${t.change30d}% · 12mo ${t.momentum12moPct}% · RSI ${t.rsi ?? "n/a"} · MACD ${t.macdSignal ?? "n/a"} · signal ${t.signal} · 7d model ${t.predictions[0]?.expectedMovePct}% · 30d model ${t.predictions[1]?.expectedMovePct}%${t.holding ? ` · holds ${t.holding.shares} @ ${t.holding.avgPrice} (P&L ${t.holding.pnlPct}%)` : ""}`
+          `${t.symbol} (${t.name}): ${t.price} · 24h ${t.change24h}% · 7d ${t.change7d}% · 30d ${t.change30d}% · 12mo ${t.momentum12moPct}% · RSI ${t.rsi ?? "n/a"} · MACD ${t.macdSignal ?? "n/a"} · signal ${t.signal} · 7d model ${t.predictions[0]?.expectedMovePct}% · 30d model ${t.predictions[1]?.expectedMovePct}%`
       )
       .join("\n");
     const moversLine =
@@ -587,7 +587,7 @@ async function enhanceWithGrok(report: TrialReport): Promise<boolean> {
         {
           role: "system",
           content:
-            "You are AetherForge's AI, a market-intelligence analyst producing an executive briefing. Never name a model vendor, a model product, or a version. Write a clear 6-9 sentence summary of the analysed universe and the user's selected holdings. Reference the real numbers (performance windows, RSI/MACD, 12-month momentum, and the illustrative scenario ranges). Cover overall market posture and the single most important observation per holding. You may NAME tickers and describe an illustrative informational scenario, including why the data is notable. Do NOT tell the reader to BUY, do NOT instruct them to deploy cash, and do NOT present a scenario as personalised advice or a guarantee. Use **bold** for ticker symbols. End with a one-line italic (_..._) disclaimer that this is informational only, not financial advice, and that the reader executes elsewhere.",
+            "You are AetherForge's AI, a market-intelligence analyst producing an executive briefing. Never name a model vendor, a model product, or a version. Write one line per driver: Driver — evidence — read. Evidence must repeat a figure from the input and must not invent one. The read must not contain a number. Cover the posture of the analysed universe and the single most important observation per holding. You may NAME tickers. Do NOT tell the reader to BUY, do NOT instruct them to deploy cash, and do NOT present a scenario as personalised advice or a guarantee. Do not include a holding size, an account name, or an email address. Use **bold** for ticker symbols. End with a one-line italic (_..._) disclaimer that this is informational only, not financial advice, and that the reader executes elsewhere.",
         },
         {
           role: "user",

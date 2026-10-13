@@ -130,3 +130,13 @@ Not shipped:
 - Koins behaviour on the live site. `KOINS_MODEL_V2` must be `on` before crypto uses the daily-history map. It is off. `CRYPTO_PROJECTIONS_PAUSED` stays `true`.
 
 The public summary is on the Trust page and in `src/lib/bot-scorecard.ts`.
+
+## Round 2
+
+The second check is `src/lib/bot-edge.ts`. It uses the same decisions and the same costs. Features at a decision use only closes up to that date. The middle window has to beat the current rule by more than 0.05 percentage points a week without a drawdown more than 5 points worse. A rule is kept only when the later window beats both the current rule and buy-and-hold, and the drawdown is not more than 5 points worse.
+
+What was tested: cross-sectional momentum and reversal, an index gate (NZX 50, ASX 200, S&P 500), an NZD and AUD gate, EWMA and GARCH position sizing, a two-state hidden Markov regime on the S&P 500 for shares and on BTC for coins, a ridge model, a 20-stump ensemble, and meta-labelling. Coin context also included Bitcoin transaction counts from a public chart. BTC dominance was not available without a paid key, so it was not used. The free funding history that this environment could read starts in June 2026, inside the later window, so it was not used.
+
+Nothing was kept. On shares, the stump ensemble was the middle-window winner and was still ahead of the old rule on the later window: about +0.23% a week versus −0.02%. Buy-and-hold on those same weeks was about +0.42%. The direction hit on the weeks it was long was 53.0%, against 52.7% for assuming every week finishes up. The drawdown widened from about −10% to about −19%. That is not an edge. On coins, relative strength led the middle window and then failed to beat the current rule on the later window. The 50% band was already within about a point of half, and the quantile variants were not closer on both windows.
+
+The narrative layer now asks for one driver line at a time (driver, evidence, read) and withholds a reply that contains a price or a percent that was not in the supplied text. Holding size is not sent in that prompt. This was not scored as a return model. `KOINS_MODEL_V2` stays off.

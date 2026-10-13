@@ -77,7 +77,20 @@ describe("Track B P0", () => {
         // scanned word. Site copy and code stay in the scan.
         listed = execFileSync(
           "git",
-          ["grep", "-i", "-l", "-F", "-e", word, "--", ".", ":(exclude)src/data/listings"],
+          [
+            "grep",
+            "-i",
+            "-l",
+            "-F",
+            "-e",
+            word,
+            "--",
+            ".",
+            ":(exclude)src/data/listings",
+            // Measured prices and decision hashes contain digit strings. They are not an address.
+            ":(exclude)docs/backtest",
+            ":(exclude)docs/ai-bots-decisions.csv",
+          ],
           { encoding: "utf8" }
         );
       } catch (error) {

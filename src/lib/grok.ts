@@ -9,6 +9,7 @@ import "server-only";
  *   XAI_MODEL    — optional, defaults to "grok-4.6"
  */
 
+import { groundNarrative, STRUCTURED_DRIVER_INSTRUCTION } from "@/lib/grounded-briefing";
 import {
   ZENITH_MODEL_DEFAULT,
   ZENITH_SYSTEM_DIRECTIVE,
@@ -57,7 +58,7 @@ export async function createZenithCompletion({
   temperature?: number;
 }): Promise<string> {
   const zenithMessages: GrokMessage[] = [
-    { role: "system", content: ZENITH_SYSTEM_DIRECTIVE },
+    { role: "system", content: `${ZENITH_SYSTEM_DIRECTIVE}\n${STRUCTURED_DRIVER_INSTRUCTION}` },
     ...messages,
   ];
   return createGrokChatCompletion({
@@ -118,6 +119,10 @@ export async function createGrokChatCompletion({
     console.error("[grok] Empty completion payload:", JSON.stringify(json).slice(0, 500));
     throw new Error("AI returned an empty response.");
   }
-
-  return content;
+  const supplied = messages.map((message) => message.content).join("\n");
+  const grounded = groundNarrative(content, supplied);
+  if (grounded.withheld) {
+    console.log("[ai] reply withheld because it included a figure that was not supplied");
+  }
+  return grounded.text;
 }

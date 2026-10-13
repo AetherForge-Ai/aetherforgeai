@@ -51,10 +51,12 @@ CLAUDE.md
 !/docs/ai-bots-audit.md
 !/docs/ai-bots-backtest.md
 !/docs/ai-bots-decisions.csv
+!/docs/ai-bots-edge.md
 !/docs/backtest/
 /docs/backtest/*
 !/docs/backtest/closes.csv
 !/docs/backtest/quote-check.json
+!/docs/backtest/context.csv
 
 # claude files
 .claude
