@@ -28,10 +28,10 @@ describe("audit 14 Oct batches A–D", () => {
     expect(route).not.toContain("createProductsInStripe");
   });
 
-  it("C2 caps and limits the public guide and the contact form", () => {
+  it("C2 caps and limits the public guide and the contact form", async () => {
     resetRateLimits();
-    for (let i = 0; i < 10; i += 1) expect(takeRateLimit("guide-test", 10, 60_000, 1_000).allowed).toBe(true);
-    expect(takeRateLimit("guide-test", 10, 60_000, 1_000).allowed).toBe(false);
+    for (let i = 0; i < 10; i += 1) expect((await takeRateLimit("guide-test", 10, 60_000, 1_000)).allowed).toBe(true);
+    expect((await takeRateLimit("guide-test", 10, 60_000, 1_000)).allowed).toBe(false);
     expect(honeypotFilled("http://spam.example")).toBe(true);
     expect(honeypotFilled("  ")).toBe(false);
     expect(honeypotFilled(undefined)).toBe(false);
@@ -135,8 +135,8 @@ describe("audit 14 Oct batches A–D", () => {
     expect(read("src/components/dashboard/StockAssetPage.tsx")).toContain("next/dynamic");
     expect(read("src/components/legal/DisclaimerNotice.tsx")).toContain("ONE_LINE_DISCLAIMER");
     expect(read("src/app/register/page.tsx")).toContain('aria-label="I am 18 or over');
-    expect(read("src/lib/private-document.ts")).toContain('"/help"');
-    expect(read("src/lib/private-document.ts")).toContain('"/stox"');
+    expect(read("src/lib/private-document.ts")).toContain("TODO(M2)");
+    expect(read("src/lib/private-document.ts")).toContain("bypasses on the auth cookie");
     expect(read("src/app/returns/page.tsx")).toContain("Money-weighted return");
   });
 });

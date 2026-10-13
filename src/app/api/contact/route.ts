@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
-  clientIp,
   CONTACT_LIMIT,
   honeypotFilled,
   PUBLIC_INPUT_CAP,
+  RATE_LIMIT_ADDRESS_REQUIRED,
   RATE_WINDOW_MS,
+  rateLimitIdentity,
   takeRateLimit,
 } from "@/lib/ip-rate-limit";
 import { totalumSdk } from "@/lib/totalum";
@@ -37,7 +38,15 @@ export async function POST(req: Request) {
     }
 
     const { name, email, message, website } = parsed.data;
-    const limit = takeRateLimit(`contact:${clientIp(req)}`, CONTACT_LIMIT, RATE_WINDOW_MS);
+    const identity = rateLimitIdentity(req);
+    if (!identity.ok) {
+      return NextResponse.json({ ok: false, error: RATE_LIMIT_ADDRESS_REQUIRED }, { status: 400 });
+    }
+    const limit = await takeRateLimit(
+      `contact:${encodeURIComponent(identity.ip)}`,
+      CONTACT_LIMIT,
+      RATE_WINDOW_MS
+    );
     if (!limit.allowed) {
       return NextResponse.json({ ok: false, error: CONTACT_LIMIT_MESSAGE }, { status: 429 });
     }

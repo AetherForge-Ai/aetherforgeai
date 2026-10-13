@@ -1,9 +1,9 @@
-import Link from "next/link";
-import { headers } from "next/headers";
 import { AppShell } from "@/components/AppShell";
 import { ProjectionsExplorer } from "@/components/dashboard/ProjectionsExplorer";
+import { ProjectionsSignIn } from "@/components/projections/ProjectionsSignIn";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { PROJECTIONS_MEMBER_LINE } from "@/lib/public-copy";
+import { getStableSessionUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -17,27 +17,18 @@ export const metadata = {
 
 /**
  * /projections — share projections for a signed-in member.
- * The guest document is the same x-af-doc check the dashboard uses.
- * It shows a sign-in prompt and does not render the ranked table.
+ * A null session, including a forged session cookie, renders the sign-in
+ * prompt. The ranked table is a client fetch of the 401-gated API and is
+ * not passed as server props.
  * Crypto projections stay paused inside the member view.
  */
 export default async function ProjectionsPage() {
-  const headerList = await headers();
-  const guestDocument = headerList.get("x-af-doc") !== "member";
+  const user = await getStableSessionUser();
 
-  if (guestDocument) {
+  if (!user) {
     return (
       <AppShell>
-        <section className="mx-auto flex min-h-[50vh] w-full max-w-lg flex-col items-center justify-center px-4 py-16 text-center">
-          <h1 className="font-display text-2xl font-bold tracking-tight">Projections</h1>
-          <p className="mt-4 text-sm leading-relaxed text-muted-foreground">{PROJECTIONS_MEMBER_LINE}</p>
-          <Link
-            href="/login?redirect=/projections"
-            className="mt-8 inline-flex h-11 items-center justify-center rounded-md bg-primary px-6 text-sm font-semibold text-primary-foreground"
-          >
-            Sign in
-          </Link>
-        </section>
+        <ProjectionsSignIn />
       </AppShell>
     );
   }

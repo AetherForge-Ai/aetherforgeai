@@ -6,10 +6,11 @@ import {
   type GrokMessage,
 } from "@/lib/grok";
 import {
-  clientIp,
   PERSONAL_GUIDE_LIMIT,
   PUBLIC_INPUT_CAP,
+  RATE_LIMIT_ADDRESS_REQUIRED,
   RATE_WINDOW_MS,
+  rateLimitIdentity,
   takeRateLimit,
 } from "@/lib/ip-rate-limit";
 import {
@@ -49,7 +50,15 @@ export async function POST(req: Request) {
 
     const userMessage = parsed.data.message.trim();
     const history = parsed.data.history ?? [];
-    const limit = takeRateLimit(`personal-guide:${clientIp(req)}`, PERSONAL_GUIDE_LIMIT, RATE_WINDOW_MS);
+    const identity = rateLimitIdentity(req);
+    if (!identity.ok) {
+      return NextResponse.json({ ok: false, error: RATE_LIMIT_ADDRESS_REQUIRED }, { status: 400 });
+    }
+    const limit = await takeRateLimit(
+      `personal-guide:${encodeURIComponent(identity.ip)}`,
+      PERSONAL_GUIDE_LIMIT,
+      RATE_WINDOW_MS
+    );
     if (!limit.allowed) {
       return NextResponse.json({
         ok: true,
