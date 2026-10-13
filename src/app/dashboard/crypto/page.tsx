@@ -1,4 +1,4 @@
-import { renderDashboardView } from "@/lib/dashboard-page";
+import { DashboardRedirect } from "@/components/dashboard/DashboardRedirect";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 
 export const dynamic = "force-dynamic";
@@ -9,5 +9,5 @@ export const metadata = publicPageMetadata("/dashboard/crypto", {
 });
 
 export default function Page() {
-  return renderDashboardView("crypto");
+  return <DashboardRedirect href="/dashboard?view=crypto" />;
 }

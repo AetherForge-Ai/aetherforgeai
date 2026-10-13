@@ -55,6 +55,7 @@ import { getTxDialogSnapshot, subscribeTxDialog } from "@/lib/transaction-dialog
 import { Loader2, Lock, Play, FileDown, Mail, FileText, Sparkles, Clock, Zap, ArrowRight, ChevronDown, Eye } from "lucide-react";
 import { stripReportMarkdown } from "@/lib/report-copy";
 import { reportRunStatus } from "@/lib/dashboard-surface";
+import { stoxReviewCopy } from "@/lib/report-copy";
 
 type BotAccess = "stock" | "crypto" | "both" | "none";
 
@@ -717,6 +718,8 @@ export function ReportCenter({
                   <Button
                     className="w-full"
                     aria-busy={busy}
+                    data-report-run={b.kind}
+                    title={botLocked ? formatReportCooldownLine({ lastReportAt: botQuota.lastReportAt, waitMs: botQuota.waitMs, cadenceUnit: botQuota.cadence.unit, perLabel: botQuota.cadence.perLabel, now }) : `Run ${b.name} report`}
                     onClick={() => void runReport(b.kind).catch(() => {})}
                     disabled={busy || running !== null}
                   >
@@ -726,7 +729,7 @@ export function ReportCenter({
                       </>
                     ) : (
                       <>
-                        <Play className="mr-1 size-4" /> Run full {b.name} report
+                        <Play className="mr-1 size-4" /> Run {b.name} report
                       </>
                     )}
                   </Button>
@@ -742,6 +745,10 @@ export function ReportCenter({
           );
         })}
       </div>
+
+      <p className="mt-4 text-xs leading-relaxed text-muted-foreground" data-stox-review>
+        {stoxReviewCopy()}
+      </p>
 
       {/* The Headmaster · Portfolio Planning and Strategies — unifies Stox + Koins + metals */}
       <Link

@@ -29,10 +29,14 @@ export function WatchlistPanel({
   bot,
   reloadSignal = 0,
   preview = false,
+  seedTicker = null,
+  seedNonce = 0,
 }: {
   bot: AssetClass;
   reloadSignal?: number;
   preview?: boolean;
+  seedTicker?: string | null;
+  seedNonce?: number;
 }) {
   const { universe } = useMarketIntel();
   const [items, setItems] = React.useState<WatchItem[]>([]);
@@ -58,6 +62,22 @@ export function WatchlistPanel({
   React.useEffect(() => {
     load();
   }, [load, reloadSignal]);
+
+  const postedWatch = React.useRef(0);
+  React.useEffect(() => {
+    const ticker = seedTicker?.trim().toUpperCase() || "";
+    if (!ticker || preview || !seedNonce || postedWatch.current === seedNonce) return;
+    postedWatch.current = seedNonce;
+    void (async () => {
+      const res = await api.post<WatchItem>("/api/watchlist", { ticker, asset_type: bot });
+      if (res.ok) {
+        toast.success(`${ticker} added to watchlist`);
+        void load();
+      } else {
+        toast.error(typeof res.error === "string" ? res.error : "Could not add to watchlist.");
+      }
+    })();
+  }, [seedNonce, seedTicker, bot, preview, load]);
 
   async function addTicker(e: React.FormEvent) {
     e.preventDefault();

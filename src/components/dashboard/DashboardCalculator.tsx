@@ -1,9 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
+import { HoldingDetailDrawer } from "@/components/dashboard/HoldingDetailDrawer";
+import { IncomeTaxPanel } from "@/components/dashboard/IncomeTaxPanel";
 import { KpiHeader } from "@/components/dashboard/KpiHeader";
+import { TransactionsTab } from "@/components/dashboard/TransactionsTab";
 import { UnifiedHoldingsTable } from "@/components/dashboard/UnifiedHoldingsTable";
+import { Button } from "@/components/ui/button";
+import { DASHBOARD_TABS, DASHBOARD_TAB_LABEL, readDashboardTab, writeDashboardTab, type DashboardTab } from "@/lib/dashboard-tabs";
 import {
   annualisedAvailability,
   kpiView,
@@ -25,9 +30,10 @@ import {
   type ColumnId,
   type ColumnSetId,
   type HoldingsQuery,
+  type HoldingsRowModel,
 } from "@/lib/holdings-table";
 import type { HoldingAction } from "@/lib/holding-action";
-import type { PortfolioSnapshot, SnapshotClass } from "@/lib/portfolio-snapshot";
+import type { PortfolioSnapshot, SnapshotClass, SnapshotLedgerLine } from "@/lib/portfolio-snapshot";
 
 /**
  * KPI header and unified holdings table.
@@ -40,7 +46,17 @@ export function DashboardCalculator({
   userId,
   onTrade,
   onCash,
+  onRecord,
+  onEditLedger,
+  onDeleteDividend,
+  onReport,
+  onAlert,
+  onWatch,
   actionFor,
+  actions,
+  rail,
+  insights,
+  cryptoEmpty,
 }: {
   snapshot: PortfolioSnapshot | null;
   loading: boolean;
@@ -50,11 +66,21 @@ export function DashboardCalculator({
     ticker: string;
     name: string;
     assetClass: SnapshotClass;
-    action: "buy" | "sell" | "edit" | "delete";
+    action: "buy" | "sell" | "edit" | "delete" | "dividend";
     target: { via: "stock"; stockId: string } | { via: "metal-store"; metalId: string };
   }) => void;
   onCash: (mode: "deposit" | "withdraw") => void;
+  onRecord: () => void;
+  onEditLedger: (line: SnapshotLedgerLine) => void;
+  onDeleteDividend: (line: SnapshotLedgerLine) => Promise<void> | void;
+  onReport: (row: HoldingsRowModel, kind: "stox" | "koins") => void;
+  onAlert: (row: HoldingsRowModel) => void;
+  onWatch: (row: HoldingsRowModel) => void;
   actionFor: (input: { ticker: string; assetClass: SnapshotClass; holdingId: string | null }) => HoldingAction;
+  actions?: ReactNode;
+  rail?: ReactNode;
+  insights?: ReactNode;
+  cryptoEmpty?: ReactNode;
 }) {
   const [hydrated, setHydrated] = useState(false);
   const [query, setQuery] = useState<HoldingsQuery>(DEFAULT_HOLDINGS_QUERY);
@@ -65,6 +91,8 @@ export function DashboardCalculator({
   const [customTo, setCustomTo] = useState("");
   const [percentMode, setPercentMode] = useState<PercentMode>("simple");
   const [benchmarkId, setBenchmarkId] = useState<BenchmarkId>("nzx50");
+  const [tab, setTab] = useState<DashboardTab>("holdings");
+  const [detail, setDetail] = useState<HoldingsRowModel | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -76,6 +104,7 @@ export function DashboardCalculator({
     setCustomTo(header.to);
     setPercentMode(header.percentMode);
     setBenchmarkId(header.benchmarkId);
+    setTab(readDashboardTab(params));
     setQuery({
       q: storedQuery.q,
       assetClass: storedQuery.assetClass,
@@ -101,6 +130,7 @@ export function DashboardCalculator({
     if (!hydrated) return;
     const params = new URLSearchParams(window.location.search);
     writeHeaderState(params, { period, from: customFrom, to: customTo, percentMode, benchmarkId });
+    writeDashboardTab(params, tab);
     writeHoldingsQuery(params, query, columnSet, customColumns);
     const next = params.toString();
     const current = window.location.search.replace(/^\?/, "");
@@ -109,7 +139,7 @@ export function DashboardCalculator({
       window.history.replaceState(null, "", next ? `${window.location.pathname}?${next}${hash}` : `${window.location.pathname}${hash}`);
     }
     writeStoredColumns(userId, columnSet, customColumns);
-  }, [hydrated, query, columnSet, customColumns, period, customFrom, customTo, percentMode, benchmarkId, userId]);
+  }, [hydrated, query, columnSet, customColumns, period, customFrom, customTo, percentMode, benchmarkId, userId, tab]);
 
   useEffect(() => {
     function onPop() {
@@ -121,6 +151,7 @@ export function DashboardCalculator({
       setCustomTo(header.to);
       setPercentMode(header.percentMode);
       setBenchmarkId(header.benchmarkId);
+      setTab(readDashboardTab(params));
       setQuery({
         q: storedQuery.q,
         assetClass: storedQuery.assetClass,
@@ -166,9 +197,24 @@ export function DashboardCalculator({
   }
 
   const pending = !snapshot && (loading || !error);
+  const detailAction = detail && detail.kind === "position" ? actionFor(detail) : null;
+
+  function tradeFrom(row: HoldingsRowModel, action: "buy" | "sell" | "edit" | "delete" | "dividend") {
+    const resolved = actionFor(row);
+    if (!resolved.ok) return;
+    onTrade({
+      ticker: row.ticker,
+      name: row.name,
+      assetClass: row.assetClass,
+      action,
+      target: resolved.via === "stock" ? { via: "stock", stockId: resolved.stockId } : { via: "metal-store", metalId: resolved.metalId },
+    });
+  }
+
   return (
-    <div data-calculator="portfolio">
+    <div data-calculator="portfolio" data-section="dashboard-workspace">
       {error && !snapshot ? <p className="mt-4 text-sm text-muted-foreground">{error}</p> : null}
+      {actions}
       <KpiHeader
         view={pending ? null : view}
         loading={pending}
@@ -190,31 +236,135 @@ export function DashboardCalculator({
         cashLines={snapshot?.cashLines || []}
         cashWarning={snapshot?.cashWarning || null}
       />
-      <UnifiedHoldingsTable
-        model={pending ? null : table}
-        loading={pending}
-        asOfLabel={snapshot?.asOfLabel || null}
-        query={query}
-        columnSet={columnSet}
-        customColumns={customColumns}
-        onQuery={setQuery}
-        onColumnSet={chooseColumnSet}
-        onCustomColumns={setCustomColumns}
-        onTrade={(row, action) => {
-          const resolved = actionFor(row);
-          if (!resolved.ok) return;
-          onTrade({
-            ticker: row.ticker,
-            name: row.name,
-            assetClass: row.assetClass,
-            action,
-            target: resolved.via === "stock" ? { via: "stock", stockId: resolved.stockId } : { via: "metal-store", metalId: resolved.metalId },
-          });
+      <div className="mt-4 flex flex-wrap gap-1 border-b border-border/70" role="tablist" aria-label="Dashboard">
+        {DASHBOARD_TABS.map((id) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={tab === id}
+            className={
+              tab === id
+                ? "border-b-2 border-primary px-3 py-2 text-sm font-semibold text-foreground"
+                : "px-3 py-2 text-sm font-medium text-muted-foreground"
+            }
+            onClick={() => setTab(id)}
+          >
+            {DASHBOARD_TAB_LABEL[id]}
+          </button>
+        ))}
+      </div>
+      <div className="mt-4 grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
+        <div>
+          {tab === "holdings" ? (
+            <UnifiedHoldingsTable
+              model={pending ? null : table}
+              loading={pending}
+              asOfLabel={snapshot?.asOfLabel || null}
+              query={query}
+              columnSet={columnSet}
+              customColumns={customColumns}
+              onQuery={setQuery}
+              onColumnSet={chooseColumnSet}
+              onCustomColumns={setCustomColumns}
+              onTrade={tradeFrom}
+              onCash={onCash}
+              onInspect={setDetail}
+              onReport={onReport}
+              onAlert={onAlert}
+              onWatch={onWatch}
+              actionFor={actionFor}
+              cryptoEmpty={cryptoEmpty}
+            />
+          ) : null}
+          {tab === "transactions" ? (
+            <TransactionsTab
+              snapshot={pending ? null : snapshot}
+              loading={pending}
+              onRecord={onRecord}
+              onEdit={onEditLedger}
+              onDeleteDividend={onDeleteDividend}
+            />
+          ) : null}
+          {tab === "income" ? <IncomeTaxPanel snapshot={pending ? null : snapshot} loading={pending} /> : null}
+          {tab === "insights" ? insights : null}
+        </div>
+        {rail ? <aside className="space-y-4">{rail}</aside> : null}
+      </div>
+      <HoldingDetailDrawer
+        row={detail}
+        onOpenChange={(open) => {
+          if (!open) setDetail(null);
         }}
-        onCash={onCash}
-        actionFor={actionFor}
+        actions={
+          detail ? (
+            <DetailActions
+              row={detail}
+              resolved={detailAction}
+              onTrade={tradeFrom}
+              onCash={onCash}
+              onReport={onReport}
+              onAlert={onAlert}
+              onWatch={onWatch}
+            />
+          ) : null
+        }
       />
     </div>
+  );
+}
+
+function DetailActions({
+  row,
+  resolved,
+  onTrade,
+  onCash,
+  onReport,
+  onAlert,
+  onWatch,
+}: {
+  row: HoldingsRowModel;
+  resolved: HoldingAction | null;
+  onTrade: (row: HoldingsRowModel, action: "buy" | "sell" | "edit" | "delete" | "dividend") => void;
+  onCash: (mode: "deposit" | "withdraw") => void;
+  onReport: (row: HoldingsRowModel, kind: "stox" | "koins") => void;
+  onAlert: (row: HoldingsRowModel) => void;
+  onWatch: (row: HoldingsRowModel) => void;
+}) {
+  if (row.kind === "cash") {
+    return (
+      <>
+        <Button type="button" size="sm" variant="outline" onClick={() => onCash("deposit")}>Deposit</Button>
+        <Button type="button" size="sm" variant="outline" onClick={() => onCash("withdraw")}>Withdraw</Button>
+        <Button type="button" size="sm" variant="outline" disabled title="FX convert is not on this table yet.">Convert</Button>
+      </>
+    );
+  }
+  if (!resolved || resolved.ok === false) {
+    const reason = resolved && resolved.ok === false ? resolved.reason : "This row is not on the holdings list.";
+    return <p className="text-xs text-muted-foreground">{reason}</p>;
+  }
+  const metal = row.assetClass === "metals";
+  const reportKind = row.assetClass === "crypto" ? "koins" : row.assetClass === "shares" ? "stox" : null;
+  return (
+    <>
+      <Button type="button" size="sm" variant="outline" onClick={() => onTrade(row, "buy")}>Buy</Button>
+      <Button type="button" size="sm" variant="outline" onClick={() => onTrade(row, "sell")}>Sell</Button>
+      {metal ? null : <Button type="button" size="sm" variant="outline" onClick={() => onTrade(row, "dividend")}>Dividend</Button>}
+      <Button type="button" size="sm" variant="outline" onClick={() => onTrade(row, "edit")}>Edit</Button>
+      <Button type="button" size="sm" variant="outline" onClick={() => onTrade(row, "delete")}>Delete</Button>
+      {reportKind ? (
+        <Button type="button" size="sm" variant="outline" onClick={() => onReport(row, reportKind)}>
+          {reportKind === "stox" ? "Run Stox report" : "Run Koins report"}
+        </Button>
+      ) : null}
+      {metal ? null : (
+        <>
+          <Button type="button" size="sm" variant="outline" onClick={() => onAlert(row)}>Set alert</Button>
+          <Button type="button" size="sm" variant="outline" onClick={() => onWatch(row)}>Add to watchlist</Button>
+        </>
+      )}
+    </>
   );
 }
 
