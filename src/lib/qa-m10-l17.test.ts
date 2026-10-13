@@ -231,10 +231,12 @@ describe("M14 headers", () => {
 });
 
 describe("L6 L9 L10 L11 L12 L13", () => {
-  it("counts visible onboarding steps and ticks a cash deposit", () => {
-    const progress = onboardingProgress({ hasHoldings: false, hasCash: true });
-    expect(`${progress.completed}/${progress.total}`).toBe("1/4");
-    expect(progress.steps.find((step) => step.id === "buy")?.done).toBe(true);
+  it("counts visible onboarding steps and does not tick a cash deposit as a buy", () => {
+    const progress = onboardingProgress({ hasHoldings: false, hasCash: true, hasBuy: false });
+    expect(`${progress.completed}/${progress.total}`).toBe("0/4");
+    expect(progress.steps.find((step) => step.id === "buy")?.done).toBe(false);
+    const bought = onboardingProgress({ hasHoldings: true, hasBuy: true });
+    expect(bought.steps.find((step) => step.id === "buy")?.done).toBe(true);
   });
 
   it("writes CSV money at 2dp, FX at 4dp, and full unit prices", () => {

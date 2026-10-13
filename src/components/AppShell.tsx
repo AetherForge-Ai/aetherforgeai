@@ -39,12 +39,12 @@ export function AppShell({
         {/* Live market ticker banner across the top of the app (dark chrome) */}
         <MarketTicker compact />
 
-        <main className="mx-auto w-full max-w-7xl flex-1 px-2 py-4 sm:px-4 sm:py-5 lg:px-6">
+        <div className="mx-auto w-full max-w-7xl flex-1 px-2 py-4 sm:px-4 sm:py-5 lg:px-6">
           {/* Light content sheet — the "main viewing part" stays exactly as-is */}
           <div className="content-light min-h-[72vh] rounded-2xl bg-background px-4 py-5 text-foreground shadow-[0_10px_44px_-16px_rgba(0,0,0,0.55)] ring-1 ring-black/5 sm:px-6 sm:py-6">
             {children}
           </div>
-        </main>
+        </div>
 
         {/* Persistent NZ financial disclaimer across every authenticated page */}
         <DisclaimerNotice variant="bar" />

@@ -7,6 +7,7 @@ import {
 } from "@/lib/market-intel";
 import { fetchYahooQuotes, fetchYahooQuotesBatched, yahooEquitySymbol, type YahooQuote } from "@/lib/yahoo-finance";
 import { equityApiLive, exchangeFreshnessLabel, parseQuoteTime } from "@/lib/market-freshness";
+import { snapshotCloseKey } from "@/lib/market-close-cache";
 
 export const dynamic = "force-dynamic";
 
@@ -17,10 +18,9 @@ export const dynamic = "force-dynamic";
  *
  * pull-check:retest4-2026-10-11
  */
-const SNAPSHOT_MEM_TTL_MS = 45_000;
-const SNAPSHOT_CACHE_CONTROL = "public, s-maxage=60, stale-while-revalidate=300";
-let snapshotMem: { at: number; body: unknown } | null = null;
-let snapshotInflight: Promise<unknown> | null = null;
+const SNAPSHOT_CACHE_CONTROL = "private, max-age=3600";
+let snapshotMem: { key: string; body: unknown } | null = null;
+let snapshotInflight: { key: string; promise: Promise<unknown> } | null = null;
 
 /** Cap constituents per exchange so the home tiles stay snappy (Yahoo batch). */
 const MAX_CONSTITUENTS = 48;
@@ -157,7 +157,7 @@ async function buildSnapshotBody(): Promise<unknown> {
           currency: meta.currency,
           index: {
             name: INDEX_NAME[exchange],
-            price: indexQuoted ? iq!.price : null,
+            price: indexQuoted ? Number(iq!.price.toFixed(2)) : null,
             changePct: indexQuoted ? Number(iq!.changePct.toFixed(2)) : null,
             changeAbs: indexQuoted ? Number(iq!.changeAbs.toFixed(2)) : null,
             live: indexLive,
@@ -193,39 +193,35 @@ async function buildSnapshotBody(): Promise<unknown> {
     };
 }
 
-function startSnapshot(): Promise<unknown> {
-  if (!snapshotInflight) {
-    snapshotInflight = buildSnapshotBody()
+function startSnapshot(key: string): Promise<unknown> {
+  if (!snapshotInflight || snapshotInflight.key !== key) {
+    const promise = buildSnapshotBody()
       .then((body) => {
-        snapshotMem = { at: Date.now(), body };
+        snapshotMem = { key, body };
         return body;
       })
       .finally(() => {
-        snapshotInflight = null;
+        if (snapshotInflight?.promise === promise) snapshotInflight = null;
       });
+    snapshotInflight = { key, promise };
   }
-  return snapshotInflight;
+  return snapshotInflight.promise;
 }
 
 /**
  * GET /api/market-snapshot
  *
  * Headline index, breadth, and top movers for NZX, ASX, Dow Jones, and NASDAQ.
- * Quotes come from Yahoo Finance. A cached snapshot is served while a newer one is built.
+ * Quotes come from Yahoo Finance. The first close of an Auckland day is reused
+ * until the next civil day, so a reload does not print a different figure.
  */
 export async function GET() {
   try {
-    const now = Date.now();
-    if (snapshotMem && now - snapshotMem.at < SNAPSHOT_MEM_TTL_MS) {
+    const key = snapshotCloseKey();
+    if (snapshotMem?.key === key) {
       return snapshotResponse(snapshotMem.body, "HIT");
     }
-    if (snapshotMem) {
-      void startSnapshot().catch((err) => {
-        console.error("[api/market-snapshot] background refresh failed:", err);
-      });
-      return snapshotResponse(snapshotMem.body, "STALE");
-    }
-    const body = await startSnapshot();
+    const body = await startSnapshot(key);
     return snapshotResponse(body, "MISS");
   } catch (err: any) {
     console.error("[api/market-snapshot] GET error:", err);

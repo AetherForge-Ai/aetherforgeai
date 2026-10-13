@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
 import { dexSearchHits, searchAssets, type AssetHit, type AssetMarket } from "@/lib/asset-search";
 import { cleanChain, dexFromHolding, isDexSource } from "@/lib/dex-source";
+import { useRestoreScroll } from "@/components/dashboard/use-restore-scroll";
 import { PAPER_FEE_SUMMARY, suggestedFee } from "@/lib/fee-rule";
 import { buildMovementPreview, movementNzdTotal, type MovementPreview, type RecordKind } from "@/lib/movement-preview";
 import { transactionProblems } from "@/lib/transaction-rules";
@@ -144,6 +144,7 @@ export function RecordTransactionPanel({
   const opened = useRef(false);
   const reviewKey = useRef("");
   const { beginReviewGuard, armReview, disarmReview, claimCommit, releaseCommit, confirmReady } = useTradeReviewGate();
+  useRestoreScroll(open);
 
   useEffect(() => {
     if (!open) {
@@ -340,7 +341,7 @@ export function RecordTransactionPanel({
     let cancel = false;
     const fetchingClose = date !== today;
     if (kind === "correction" && fetchingClose && !fxDirty) setFxRate("");
-    setHint(date === today ? "Fetching today's price…" : `Fetching the close for ${formatDisplayDate(date)}…`);
+    setHint(date === today ? "Fetching the last close…" : `Fetching the close for ${formatDisplayDate(date)}…`);
     void (async () => {
       if (date === today) {
         const id = asset.id ? `&id=${encodeURIComponent(asset.id)}` : "";
@@ -357,14 +358,15 @@ export function RecordTransactionPanel({
         if (cancel || priceDirty) return;
         if (res.ok && res.data?.price && res.data.price > 0) {
           setPrice(formatPriceInput(res.data.price));
-          setHint(res.data.label || "Today's price is filled in. You can type over it.");
+          const closeOn = res.data.quotedAt ? formatDisplayDate(res.data.quotedAt) : "";
+          const closeLabel = res.data.label || (closeOn && closeOn !== "—" ? `Last close ${closeOn}` : "Last close");
+          setHint(closeOn === formatDisplayDate(new Date()) ? "Today's price is filled in. You can type over it." : `${closeLabel}. You can type over it.`);
+          setPriceAsAt(res.data.quotedAt || "");
           if (res.data.source === "snapshot") {
             setQuoteOrigin("snapshot");
-            setPriceAsAt(res.data.quotedAt || "");
             setQuoteChain(res.data.chain || "");
           } else {
             setQuoteOrigin("");
-            setPriceAsAt("");
             setQuoteChain("");
           }
         } else if (asset.price && asset.price > 0) {
@@ -439,7 +441,7 @@ export function RecordTransactionPanel({
   async function review() {
     if (!beginReviewGuard() || saving || checkingCash) return;
     if ((kind === "buy" || kind === "sell") && showQty && !(Number(price) > 0)) {
-      setProblems(["Wait for today's price, or type the price you want to record."]);
+      setProblems(["Enter a price to review this trade."]);
       return;
     }
     if ((kind === "buy" || kind === "sell") && currency !== "NZD" && !(Number(fxRate) > 0)) {
@@ -865,7 +867,9 @@ export function RecordTransactionPanel({
             )}
             {showQty ? (
               <div className="space-y-1.5">
-                <Label htmlFor="record-price">Price</Label>
+                <Label htmlFor="record-price">
+                  {priceAsAt && formatDisplayDate(priceAsAt) !== "—" ? `Last close ${formatDisplayDate(priceAsAt)}` : "Price"}
+                </Label>
                 <Input
                   id="record-price"
                   aria-invalid={(kind === "buy" || kind === "sell") && price.trim() !== "" && !(Number(price) > 0)}
@@ -881,15 +885,6 @@ export function RecordTransactionPanel({
                     setProblems([]);
                   }}
                 />
-                {(kind === "buy" || kind === "sell") && !(Number(price) > 0) ? (
-                  <p className="text-sm text-rose-700" role="alert">
-                    {!price.trim()
-                      ? "Enter a price to review this trade."
-                      : Number.isFinite(Number(price))
-                        ? "Price must be greater than zero."
-                        : "Price must be a number."}
-                  </p>
-                ) : null}
               </div>
             ) : null}
             <div className="space-y-1.5">
@@ -944,7 +939,12 @@ export function RecordTransactionPanel({
                   setFeeDirty(true);
                 }}
               />
-              <p className="text-[0.7rem] text-muted-foreground">Shown even at zero. Type over it with your broker's fee.</p>
+              <p className="text-[0.7rem] text-muted-foreground">
+                Defaults to NZ$0.00. Type your broker's fee.{" "}
+                <button type="button" className="underline decoration-dotted underline-offset-2" title={PAPER_FEE_SUMMARY}>
+                  Fee details
+                </button>
+              </p>
             </div>
           </div>
           {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
@@ -958,15 +958,10 @@ export function RecordTransactionPanel({
             <Label htmlFor="record-notes">Notes</Label>
             <Input id="record-notes" value={notes} placeholder="Optional note for the ledger" onChange={(e) => setNotes(e.target.value)} />
           </div>
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            {PAPER_FEE_SUMMARY}{" "}
-            <Link href="/trust" className="font-semibold text-primary underline-offset-2 hover:underline">
-              How the books work
-            </Link>
-          </p>
-          {!(bookKnown || cashKnown) ||
-          ((kind === "buy" || kind === "sell") && currency !== "NZD" && !(Number(fxRate) > 0)) ? (
+          {!(bookKnown || cashKnown) ? (
             <p className="text-sm text-muted-foreground">Loading cash…</p>
+          ) : (kind === "buy" || kind === "sell") && currency !== "NZD" && !(Number(fxRate) > 0) ? (
+            <p className="text-sm text-muted-foreground">Loading the exchange rate…</p>
           ) : livePreview && !movementBlocked ? (
             <p className="text-sm">
               Cash change{" "}
@@ -1023,7 +1018,7 @@ export function RecordTransactionPanel({
             type="button"
             className="font-semibold"
             onClick={() => void review()}
-            disabled={checkingCash || ((kind === "buy" || kind === "sell") && showQty && !(Number(price) > 0))}
+            disabled={checkingCash}
           >
             {checkingCash ? (
               <>

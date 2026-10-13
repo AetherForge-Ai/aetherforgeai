@@ -64,20 +64,25 @@ export function KpiHeader({
   cashWarning: string | null;
 }) {
   const weights = view ? returnSplitWeights(view.segments) : null;
+  const todayMissing = !view || (view.today.display === MISSING_MARK && view.todayPct.display === MISSING_MARK);
+  const benchmarkMissing = !view || view.benchmark.display === MISSING_MARK;
+  const historyReady = !!view && view.chartReason !== CHART_BLANK_REASON;
   return (
     <section className="mt-6" aria-busy={loading || undefined} data-section="kpi-header">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <KpiCard label="Net worth" loading={loading}>
           {view ? <FigureReadout figure={view.netWorth} label="Net worth" showReason className="items-start" /> : null}
         </KpiCard>
+        {todayMissing ? null : (
         <KpiCard label="Today" loading={loading}>
           {view ? (
             <span className="flex flex-col items-start gap-1">
               <FigureReadout figure={view.today} label="Today" signed showReason className="items-start" />
-              <FigureReadout figure={view.todayPct} label="Today percent" signed showReason className="items-start" />
+              <FigureReadout figure={view.todayPct} label="Today percent" signed className="items-start" />
             </span>
           ) : null}
         </KpiCard>
+        )}
         <KpiCard label="Total return" loading={loading}>
           {view ? (
             <span className="flex w-full flex-col items-start gap-2">
@@ -100,11 +105,17 @@ export function KpiHeader({
         <KpiCard label="Net contributions" loading={loading}>
           {view ? <FigureReadout figure={view.contributions} label="Net contributions" signed showReason className="items-start" /> : null}
         </KpiCard>
+        {benchmarkMissing ? null : (
         <KpiCard label={`vs ${view?.benchmarkName || "NZX 50"}`} loading={loading}>
           {view ? <FigureReadout figure={view.benchmark} label={`Versus ${view.benchmarkName}`} showReason className="items-start" /> : null}
         </KpiCard>
+        )}
       </div>
+      {view && (todayMissing || benchmarkMissing) ? (
+        <p className="mt-2 text-xs text-muted-foreground">Day change and the NZX 50 comparison appear after a previous close is stored.</p>
+      ) : null}
 
+      {historyReady ? (
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <div className="inline-flex flex-wrap gap-1" role="group" aria-label="Period">
           {PERIODS.map((item) => (
@@ -191,8 +202,11 @@ export function KpiHeader({
         {view?.filteredNote ? <span className="text-xs font-medium text-foreground">{view.filteredNote}</span> : null}
         {view?.periodNote ? <span className="text-xs text-muted-foreground">{view.periodNote}</span> : null}
       </div>
+      ) : (
+        <p className="mt-3 text-xs text-muted-foreground">Period and benchmark controls appear when a value history is stored.</p>
+      )}
 
-      <Collapsible className="mt-3">
+      <Collapsible defaultOpen className="mt-3">
         <CollapsibleTrigger className="inline-flex items-center gap-1 text-sm font-semibold text-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none">
           <ChevronRight className="size-4" aria-hidden />
           Chart

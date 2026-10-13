@@ -5,7 +5,7 @@ import { getMetalsSpot } from "@/lib/metals";
 import { CANONICAL_CRYPTO_IDS } from "@/lib/crypto-ids";
 import { lookupCryptoId } from "@/lib/crypto-id-registry";
 import { dexQuoteRows } from "@/lib/crypto-coingecko";
-import { normaliseUnitPrice } from "@/lib/currency";
+import { formatDisplayDate, normaliseUnitPrice } from "@/lib/currency";
 import { dexPriceForSymbol } from "@/lib/reviewed-book";
 import { listedCryptoIsStrict, pickListedCryptoPrice } from "@/lib/crypto-quote";
 import { sourceLabel } from "@/lib/crypto-price-chain";
@@ -156,6 +156,8 @@ export async function GET(req: Request) {
     }
 
     const q = await fetchYahooQuote(symbol);
+    const quotedAt = q?.quotedAt ?? null;
+    const closeLabel = quotedAt ? `Last close ${formatDisplayDate(quotedAt)}` : null;
     console.log(`[api/tickers/quote] ${symbol} → ${q ? `$${q.price} ${q.currency}` : "no quote"}`);
     return NextResponse.json({
       ok: true,
@@ -164,6 +166,8 @@ export async function GET(req: Request) {
         price: q?.price ?? null,
         currency: q?.currency ?? null,
         changePct: q?.changePct ?? null,
+        quotedAt,
+        label: closeLabel,
       },
     });
   } catch (err: any) {
