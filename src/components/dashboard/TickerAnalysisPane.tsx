@@ -75,6 +75,7 @@ export function TickerAnalysisPane({
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [hidden, setHidden] = useState(false);
+  const [emptyReason, setEmptyReason] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const autoAskedFor = useRef<string | null>(null);
 
@@ -90,12 +91,18 @@ export function TickerAnalysisPane({
       });
       if (res.ok && res.data?.reply) {
         setHidden(false);
+        setEmptyReason(null);
         setTurns((t) => [...t, { role: "assistant", content: res.data!.reply }]);
       } else if (res.status !== 401) {
         console.error("[ticker-analysis] Failed:", res.error);
-        if (!question) setHidden(true);
+        if (!question) {
+          setHidden(false);
+          const reason = typeof res.error === "string" && res.error.trim() ? res.error.trim() : "No projection was returned for this name.";
+          setEmptyReason(reason);
+        }
       } else if (!question) {
-        setHidden(true);
+        setHidden(false);
+        setEmptyReason("Sign in to read the share projection.");
       }
       setLoading(false);
     },
@@ -110,6 +117,7 @@ export function TickerAnalysisPane({
     setTurns([]);
     setInput("");
     setHidden(false);
+    setEmptyReason(null);
     void ask();
   }, [symbol, signedIn, isPending, ask]);
 
@@ -127,7 +135,7 @@ export function TickerAnalysisPane({
   }
 
   if (isPending || !signedIn) return null;
-  if (hidden && turns.length === 0 && !loading) return null;
+  if (hidden && turns.length === 0 && !loading && !emptyReason) return null;
 
   return (
     <div className="flex h-full min-h-0 flex-col rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/8 to-card/40">
@@ -158,6 +166,9 @@ export function TickerAnalysisPane({
             </div>
           )
         )}
+        {!loading && turns.length === 0 && emptyReason ? (
+          <p className="text-sm text-muted-foreground">— {emptyReason}</p>
+        ) : null}
         {loading && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Loader2 className="size-3.5 animate-spin" /> {botName} is analysing {symbol}…

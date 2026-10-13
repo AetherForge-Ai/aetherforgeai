@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useSession } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { useMemberDashboardPrompt } from "@/components/dashboard/MemberDashboardPrompt";
@@ -15,8 +16,10 @@ export function HomeHeroCtas() {
   const { data: session, isPending } = useSession();
   const memberDashboard = useMemberDashboardPrompt();
   const loggedIn = !!session?.user;
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
-  if (isPending) {
+  if (!mounted || isPending) {
     return (
       <div className="mt-8 flex flex-wrap items-center gap-3">
         <CtaSkeleton className="w-32" />
@@ -61,8 +64,10 @@ export function HomeBottomCta() {
   const { data: session, isPending } = useSession();
   const memberDashboard = useMemberDashboardPrompt();
   const loggedIn = !!session?.user;
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
-  if (isPending) {
+  if (!mounted || isPending) {
     return <CtaSkeleton className="mx-auto mt-8 w-40" />;
   }
 

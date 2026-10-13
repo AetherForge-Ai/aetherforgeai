@@ -6,7 +6,7 @@
 import { modelByKey } from "@/lib/totalum-engine";
 import type { TickerAnalysis } from "@/lib/apex";
 import type { SharedBookLog } from "@/lib/book-log";
-import { modelViewSentence } from "@/lib/headmaster-trust";
+import { bookCashReserve, modelViewSentence } from "@/lib/headmaster-trust";
 
 export { modelViewSentence };
 
@@ -163,16 +163,26 @@ export function illustratedSizeNZD(input: {
 }): number {
   const cash = Math.max(0, input.cashNZD);
   const book = Math.max(0, input.bookNZD);
-  const reserve = Math.round((book * 10) / 100);
-  const deployable = Math.max(0, cash - reserve);
+  const reserve = bookCashReserve(book).retainedNZD;
+  const deployable = Math.max(0, Math.round((cash - reserve) * 100) / 100);
   const sleeveCap = (book * Math.max(0, input.sleeveWeightPct)) / 100;
-  const room = Math.min(deployable, sleeveCap);
+  const room = Math.min(deployable, sleeveCap, reserve);
   const names = Math.max(1, input.names);
   const baseline = 20;
   const vol = input.realizedVolPct;
   const scale = vol == null || !(vol > baseline) ? 1 : baseline / vol;
   const sized = (room / names) * scale;
-  return Math.round(sized * 100) / 100;
+  return Math.round(Math.min(sized, reserve) * 100) / 100;
+}
+
+function nzdText(value: number): string {
+  return value.toLocaleString("en-NZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+/** HOLD and Watch are not a new buy, so the report does not illustrate a size. */
+export function omitsIllustratedSize(signal: string | null | undefined): boolean {
+  const text = String(signal || "").trim().toLowerCase();
+  return text === "hold" || text === "watch" || text === "neutral";
 }
 
 /** Reports do not invent a brokerage figure. The default is zero. */
@@ -190,7 +200,8 @@ export function paperFeeSentence(feeNZD: number): string {
 export function tickerCallSentence(
   ticker: TickerAnalysis,
   sizeNZD: number,
-  feeNZD: number
+  feeNZD: number,
+  reserveNZD?: number | null
 ): string {
   const call = ticker.call;
   const horizon = call?.horizon ?? "7-day";
@@ -201,14 +212,19 @@ export function tickerCallSentence(
     call && call.killPrice > 0
       ? `A level that kills the idea is ${call.killPrice}.`
       : "A level that kills the idea is not available from this print.";
-  if (String(ticker.signal || "").toLowerCase() === "hold") {
+  if (omitsIllustratedSize(ticker.signal)) {
     return `${ticker.ticker}: horizon ${horizon}, range ${range}, ${odds}. ${kill} No new size: HOLD. ${paperFeeSentence(feeNZD)}`;
   }
   const volNote =
     call?.realizedVolPct != null && call.realizedVolPct > 20
       ? " Illustrated size is smaller because recent volatility was high."
       : "";
-  const size = `Illustrated size NZ$${sizeNZD.toLocaleString("en-NZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}, inside the cash reserve and the Headmaster sleeve weight.${volNote}`;
+  const capped = reserveNZD != null && Number.isFinite(reserveNZD) ? Math.min(sizeNZD, reserveNZD) : sizeNZD;
+  const reserveNote =
+    reserveNZD != null && Number.isFinite(reserveNZD)
+      ? `capped at the cash reserve of NZ$${nzdText(reserveNZD)}`
+      : "capped at the cash reserve";
+  const size = `Illustrated size NZ$${nzdText(capped)}, ${reserveNote} and the Headmaster sleeve weight.${volNote}`;
   return `${ticker.ticker}: horizon ${horizon}, range ${range}, ${odds}. ${kill} ${size} ${paperFeeSentence(feeNZD)}`;
 }
 
@@ -219,6 +235,7 @@ export function annotateTickerCalls(
 ): TickerAnalysis[] {
   const names = tickers.filter((t) => !t.priceUnavailable).length || tickers.length || 1;
   const weight = sleeveWeightPct(bot);
+  const reserve = book ? bookCashReserve(book.netWorthNZD).retainedNZD : null;
   return tickers.map((ticker) => {
     if (ticker.priceUnavailable) {
       const extra = `${ticker.ticker} stays on the report. Live price unavailable.`;
@@ -234,7 +251,7 @@ export function annotateTickerCalls(
         })
       : 0;
     const fee = paperFeeNZD(size, ticker.ticker, bot);
-    const line = tickerCallSentence(ticker, size, fee);
+    const line = tickerCallSentence(ticker, size, fee, reserve);
     if (ticker.note.includes("Paper fee NZ$")) return ticker;
     return { ...ticker, note: `${ticker.note} ${line}` };
   });

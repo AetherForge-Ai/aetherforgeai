@@ -346,15 +346,10 @@ export function MarketTicker({ className, compact = false, initial = null, initi
     );
   }
 
-  const delayBadge = (
-    <p className="bg-zinc-950 px-3 py-1 text-[0.65rem] font-semibold text-zinc-300">Delayed (Yahoo)</p>
-  );
-
   if (compact) {
     const blend = [...nzx.slice(0, 6), ...asx.slice(0, 5), ...crypto.slice(0, 5)];
     return (
       <div className={cn("w-full border-y border-border/50", className)} title={statusTitle}>
-        {delayBadge}
         <TickerRow
           quotes={blend}
           animationClass="animate-ticker"
@@ -387,7 +382,6 @@ export function MarketTicker({ className, compact = false, initial = null, initi
 
   return (
     <div className={cn("w-full", className)}>
-      {delayBadge}
       <TickerRow
         quotes={nzx}
         animationClass="animate-ticker"

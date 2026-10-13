@@ -424,14 +424,20 @@ export async function POST(req: Request) {
     // Never fatal — falls back on any error.
     let current_price = referencePrice(ticker, purchase_price);
     try {
-      if (assetType === "crypto") {
-        const quotes = await fetchCryptoQuotes([ticker]);
-        const live = normaliseUnitPrice(quotes[ticker.toUpperCase()]?.price);
-        if (live) current_price = live;
-      } else if (isLiveDataConfigured()) {
+      const liveQuote = async () => {
+        if (assetType === "crypto") {
+          const quotes = await fetchCryptoQuotes([ticker]);
+          return normaliseUnitPrice(quotes[ticker.toUpperCase()]?.price);
+        }
+        if (!isLiveDataConfigured()) return null;
         const livePrice = await fetchLivePrice(ticker);
-        if (livePrice && livePrice > 0) current_price = livePrice;
-      }
+        return livePrice && livePrice > 0 ? livePrice : null;
+      };
+      const live = await Promise.race([
+        liveQuote(),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 700)),
+      ]);
+      if (live) current_price = live;
     } catch (err) {
       console.error(`[api/stocks] Live price lookup failed for ${ticker} (non-fatal):`, err);
     }

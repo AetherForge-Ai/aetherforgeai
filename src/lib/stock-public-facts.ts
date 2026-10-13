@@ -40,16 +40,43 @@ export function sparklinePoints(closes: number[], width = 280, height = 72): str
     .join(" ");
 }
 
+const NAME_STOP = new Set([
+  "THE",
+  "AND",
+  "FOR",
+  "NEW",
+  "LTD",
+  "LIMITED",
+  "GROUP",
+  "HOLDINGS",
+  "HOLDING",
+  "INC",
+  "CORP",
+  "CORPORATION",
+  "COMPANY",
+  "PLC",
+  "CO",
+  "OF",
+]);
+
+/** Whole-word ticker, or a distinctive word from the company name. A short ticker is not a substring of another word. */
 export function headlinesForSymbol(
   items: ReadonlyArray<{ headline: string; summary?: string }>,
-  symbol: string
+  symbol: string,
+  companyName?: string
 ): string[] {
   const key = symbol.replace(/\.(NZ|AX|L)$/i, "").trim().toUpperCase();
   if (key.length < 2) return [];
+  const ticker = new RegExp(`(?:^|[^A-Z0-9])${key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:[^A-Z0-9]|$)`);
+  const words = (companyName || "")
+    .toUpperCase()
+    .split(/[^A-Z0-9]+/)
+    .filter((word) => word.length >= 4 && !NAME_STOP.has(word));
   const hits: string[] = [];
   for (const item of items) {
-    const blob = `${item.headline} ${item.summary || ""}`.toUpperCase();
-    if (!blob.includes(key)) continue;
+    const blob = item.headline.toUpperCase();
+    const named = words.some((word) => blob.includes(word));
+    if (!ticker.test(blob) && !named) continue;
     hits.push(item.headline);
     if (hits.length === 3) break;
   }

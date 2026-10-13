@@ -13,6 +13,16 @@ import { listingSentence, usPageShouldNoindex } from "@/lib/stock-markets";
 
 export const dynamic = "force-dynamic";
 
+/** The document price. A slow quote must not hold the company name or the facts. */
+async function StockQuoteLine({ ticker }: { ticker: string }) {
+  const quoteLine = await loadStockQuoteLine(ticker, 800);
+  return (
+    <p className="text-sm text-muted-foreground" data-ticker-quote>
+      {quoteLine ?? `${ticker} Price not in this response.`}
+    </p>
+  );
+}
+
 function listingFor(ticker: string) {
   const catalog = findListing(ticker);
   const universe = MARKET_UNIVERSE.find((row) => row.ticker.toUpperCase() === ticker.toUpperCase());
@@ -73,28 +83,30 @@ export default async function StockDetailPage({
   const symbol = ticker ? ticker.replace(/\.(NZ|AX|L)$/i, "") : "";
   const allowBuy = !!user && sp.buy === "1";
   const listing = ticker ? listingFor(ticker) : { entry: undefined, exchangeLabel: "" };
-  const quoteLine = ticker ? await loadStockQuoteLine(ticker) : null;
   const addHref = ticker ? `/markets/stock/${encodeURIComponent(ticker)}?buy=1` : "/register";
 
   return (
     <MarketsAppFrame user={user}>
-      <section className="mx-auto w-full max-w-6xl space-y-2 px-4 pt-6 sm:px-6 lg:px-8" data-stock-listing>
+      <section className="mx-auto w-full max-w-6xl space-y-3 px-4 pt-6 sm:px-6 lg:px-8" data-stock-listing>
+        <h1 className="font-display text-2xl font-bold text-foreground">{listing.entry?.name || ticker || "Stock"}</h1>
         {listing.entry ? (
-          <>
-            <p className="font-display text-2xl font-bold">{listing.entry.name}</p>
-            <p className="text-sm text-muted-foreground">
-              {listingSentence(listing.entry.name, listing.entry.sector, listing.exchangeLabel)}{" "}
-              {symbol} · {listing.exchangeLabel}.
-            </p>
-          </>
-        ) : (
-          <h1 className="font-display text-2xl font-bold">{ticker || "Stock"}</h1>
+          <p className="text-sm text-muted-foreground">
+            {listingSentence(listing.entry.name, listing.entry.sector, listing.exchangeLabel)}{" "}
+            {symbol} · {listing.exchangeLabel}.
+          </p>
+        ) : null}
+        {ticker ? <StockQuoteLine ticker={ticker} /> : (
+          <p className="text-sm text-muted-foreground" data-ticker-quote>
+            Price not in this response.
+          </p>
         )}
-        <p className="text-sm text-muted-foreground" data-ticker-quote>
-          {quoteLine ?? (ticker ? `${ticker} Price not in this response.` : "Price not in this response.")}
-        </p>
         {ticker ? (
-          <StockPublicFacts ticker={ticker} symbol={symbol} sector={listing.entry?.sector || ""} />
+          <StockPublicFacts
+            ticker={ticker}
+            symbol={symbol}
+            sector={listing.entry?.sector || ""}
+            companyName={listing.entry?.name || ""}
+          />
         ) : null}
         {user ? (
           <Link href={addHref} className="inline-block text-sm font-semibold text-primary underline-offset-2 hover:underline">

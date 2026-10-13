@@ -225,8 +225,14 @@ export function CoinDetailView({
 
   const chartData = useMemo(() => {
     if (!chart) return [];
-    return sliceRange(chart, range).map((p) => ({ t: p.t, price: p.price }));
-  }, [chart, range]);
+    const points = sliceRange(chart, range).map((p) => ({ t: p.t, price: p.price }));
+    const quoteAt = detail?.quotedAt ? Date.parse(detail.quotedAt) : NaN;
+    const last = points[points.length - 1];
+    if (last && detail && detail.price > 0 && Number.isFinite(quoteAt) && quoteAt > last.t + 60_000) {
+      points.push({ t: quoteAt, price: detail.price });
+    }
+    return points;
+  }, [chart, range, detail]);
   const windowMove = useMemo(() => windowReturnPct(chartData), [chartData]);
   const rangeLabel = range === "1H" ? "1h" : range === "24H" ? "24h" : range === "7D" ? "7d" : range === "30D" ? "30d" : range === "90D" ? "90d" : "1y";
   const fallbackMove =
@@ -318,7 +324,7 @@ export function CoinDetailView({
       </div>
     </div>
   ) : (
-    <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="flex items-center gap-3">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -363,7 +369,7 @@ export function CoinDetailView({
           )}
         </div>
       </div>
-      <div className="text-right">
+      <div className="shrink-0 text-right">
         <p className="tnum font-display text-2xl font-bold">{stalePriceReason(detail.quotedAt) || fmtPrice(detail.price)}</p>
         {detail.quotedAt ? (
           <p className="text-[0.65rem] text-muted-foreground">{formatDisplayDateTime(detail.quotedAt)}</p>
@@ -383,7 +389,7 @@ export function CoinDetailView({
         {canAdd && (
           <div className="mt-2">
             {signedIn ? (
-              <Button size="sm" variant="outline" onClick={openBuy} className="gap-1.5 font-semibold">
+              <Button size="sm" variant="outline" onClick={openBuy} className="h-auto whitespace-nowrap px-3 font-semibold">
                 <ShoppingCart className="size-3.5" /> Add to paper book
               </Button>
             ) : (

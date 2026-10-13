@@ -15,7 +15,6 @@ export function PublicMarketTables({ index }: { index: PublicMarketIndex }) {
         These rows are in the page itself. Crypto and DEX keep the last price that passed the check, with the time it was quoted. A stock price cell names its source and time, or says the print is not in this response.
       </p>
       {tabs.map((tab) => {
-        const cryptoLines = publicCryptoTableLines(tab);
         const cryptoTab = tab.id === "CRYPTO" || tab.id === "DEX";
         return (
         <div key={tab.id}>
@@ -23,15 +22,7 @@ export function PublicMarketTables({ index }: { index: PublicMarketIndex }) {
             {tab.title}{" "}
             <span className="text-sm font-medium text-muted-foreground">{tab.asOf}</span>
           </h3>
-          {cryptoTab ? (
-            <div className="mt-1 text-sm text-muted-foreground" data-public-crypto-prices>
-              {cryptoLines.map((line) => (
-                <p key={line} data-ticker-quote>
-                  {line}
-                </p>
-              ))}
-            </div>
-          ) : null}
+          {cryptoTab ? publicCryptoTableLines(tab) && null : null}
           {tab.coverage ? <p className="mt-1 text-sm text-muted-foreground">{tab.coverage}</p> : null}
           {tab.note ? <p className="text-xs text-muted-foreground">{tab.note}</p> : null}
           {tab.footnote ? <p className="text-xs text-muted-foreground">{tab.footnote}</p> : null}

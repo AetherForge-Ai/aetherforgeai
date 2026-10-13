@@ -215,20 +215,19 @@ export function StockDetailView({
           )}
         </DialogTitle>
       ) : (
-        <h1 className="flex flex-wrap items-center gap-2 font-display text-xl font-semibold">
-          <span className="text-primary">{symbol || "Stock"}</span>
-          {exLabel && (
+        <p className="flex flex-wrap items-center gap-2 font-display text-xl font-semibold">
+          <span className="text-primary">{name || symbol || "Stock"}</span>
+          {symbol ? <span className="text-sm font-semibold text-muted-foreground">{symbol}</span> : null}
+          {exLabel ? (
             <span className="rounded-md bg-primary/12 px-2 py-0.5 text-[0.62rem] font-bold uppercase tracking-wide text-primary">
               {exLabel}
             </span>
-          )}
-        </h1>
+          ) : null}
+        </p>
       )}
       {variant === "dialog" ? (
         <DialogDescription className="truncate">{name}</DialogDescription>
-      ) : (
-        <p className="truncate text-sm text-muted-foreground">{name}</p>
-      )}
+      ) : null}
     </>
   );
 

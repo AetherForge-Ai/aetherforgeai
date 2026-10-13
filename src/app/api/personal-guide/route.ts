@@ -7,9 +7,10 @@ import {
 } from "@/lib/grok";
 import {
   PERSONAL_GUIDE_LIMIT,
+  PERSONAL_GUIDE_WINDOW_MS,
   PUBLIC_INPUT_CAP,
   RATE_LIMIT_ADDRESS_REQUIRED,
-  RATE_WINDOW_MS,
+  rateLimitHeaders,
   rateLimitIdentity,
   takeRateLimit,
 } from "@/lib/ip-rate-limit";
@@ -57,21 +58,28 @@ export async function POST(req: Request) {
     const limit = await takeRateLimit(
       `personal-guide:${encodeURIComponent(identity.ip)}`,
       PERSONAL_GUIDE_LIMIT,
-      RATE_WINDOW_MS
+      PERSONAL_GUIDE_WINDOW_MS
     );
     if (!limit.allowed) {
-      return NextResponse.json({
-        ok: true,
-        data: { reply: personalGuideFallbackReply(userMessage), fallback: true, limited: true },
-      });
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "That is enough messages for now. Try again in a minute.",
+          limited: true,
+        },
+        { status: 429, headers: rateLimitHeaders(limit, true) }
+      );
     }
 
     if (!isGrokConfigured()) {
       console.warn("[api/personal-guide] XAI_API_KEY missing — using fallback replies");
-      return NextResponse.json({
-        ok: true,
-        data: { reply: personalGuideFallbackReply(userMessage), fallback: true },
-      });
+      return NextResponse.json(
+        {
+          ok: true,
+          data: { reply: personalGuideFallbackReply(userMessage), fallback: true },
+        },
+        { headers: rateLimitHeaders(limit) }
+      );
     }
 
     const messages: GrokMessage[] = [
@@ -89,7 +97,7 @@ export async function POST(req: Request) {
       temperature: 0.65,
     });
 
-    return NextResponse.json({ ok: true, data: { reply } });
+    return NextResponse.json({ ok: true, data: { reply } }, { headers: rateLimitHeaders(limit) });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Failed to reply";
     console.error("[api/personal-guide] POST error:", err);

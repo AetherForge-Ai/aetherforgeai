@@ -41,6 +41,7 @@ import {
   pricesAsAtLabel,
   pricesPausedSince,
   snapshotBlockchain,
+  snapshotAgeMs,
   snapshotIsStale,
   type CoinDirectoryEntry,
   type WindowMoves,
@@ -48,6 +49,7 @@ import {
 import {
   DEX_NETWORKS,
   dexCallWaitMs,
+  dexDetailId,
   parseMegafilterPage,
   type DexTokenRow,
 } from "@/lib/crypto-dex";
@@ -552,7 +554,11 @@ function presentCrypto(coins: CoinMarket[], at: string | null): SharedCryptoBoar
   const sources = listed.map((coin) => coin.source || "coingecko");
   const short =
     coins.length > 0 && coins.length < MARKET_SNAPSHOT_TARGET ? listedMarketNotice(coins.length, "short") : null;
-  const asOf = [pricesAsAtLabel(at, Date.now(), SNAPSHOT_REFRESH_MS), short].filter(Boolean).join(" ");
+  const age = snapshotAgeMs(at);
+  const minutes = age != null && age > SNAPSHOT_REFRESH_MS ? Math.max(1, Math.round(age / 60_000)) : null;
+  const clock = pricesAsAtLabel(at, Date.now(), SNAPSHOT_REFRESH_MS);
+  const aged = clock && minutes != null ? `${clock} This list is ${minutes} minutes old.` : clock;
+  const asOf = [aged, short].filter(Boolean).join(" ");
   const notice = coins.length ? withFeedSource(asOf || null, sources) : null;
   return {
     coins: listed,
@@ -565,7 +571,12 @@ function presentCrypto(coins: CoinMarket[], at: string | null): SharedCryptoBoar
 
 function presentDex(rows: DexTokenRow[], at: string | null, sources: string[]): SharedDexBoard {
   const unique = dedupeDexByNetworkAddress(rows)
-    .map((row) => cleanDexRow(row))
+    .map((row) => {
+      const cleaned = cleanDexRow(row);
+      if (!cleaned) return null;
+      const detailId = dexDetailId(cleaned.symbol, cleaned.detailId) || resolvableCoinId(cleaned.detailId);
+      return detailId ? { ...cleaned, detailId } : cleaned;
+    })
     .filter((row): row is DexTokenRow => !!row && dexRowComplete(row) && !!resolvableCoinId(row.detailId));
   if (at && snapshotIsStale(at, Date.now(), SNAPSHOT_STALE_MS)) {
     return {
