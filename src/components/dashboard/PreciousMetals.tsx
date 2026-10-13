@@ -19,6 +19,7 @@ import { bumpHoldingsGeneration } from "@/lib/holdings-generation";
 import { useTradeReviewGate } from "@/lib/trade-review-gate";
 import { TradeReview } from "@/components/dashboard/TradeReview";
 import { heldMetalRows, visibleBullionLots, type MetalSpotPerOz } from "@/lib/metal-valuation";
+import { METAL_SPOT_DOWN, shownMetalSpot } from "@/lib/metal-spot-display";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -105,7 +106,7 @@ export function PreciousMetals({
   /** False while the parent stock book is still loading. */
   ledgerReady?: boolean;
   /** NZD troy-oz spot already loaded by the dashboard, if any. */
-  spot?: MetalSpotPerOz | null;
+  spot?: (MetalSpotPerOz & { live?: boolean }) | null;
 }) {
   const [metals, setMetals] = useState<MetalHolding[]>([]);
   const [spot, setSpot] = useState<MetalsSpot | null>(null);
@@ -212,9 +213,10 @@ export function PreciousMetals({
   }, [entitled, load]);
 
   const effectiveSpot = spot ?? parentSpot;
+  const spotLive = effectiveSpot?.live === true;
   const spotFor = useCallback(
-    (m: MetalKey): number => (effectiveSpot ? Number(effectiveSpot[m]?.nzdPerOz) || 0 : 0),
-    [effectiveSpot]
+    (m: MetalKey): number => (spotLive ? Number(effectiveSpot?.[m]?.nzdPerOz) || 0 : 0),
+    [effectiveSpot, spotLive]
   );
 
   const ledgerRows = useMemo(
@@ -335,8 +337,8 @@ export function PreciousMetals({
   async function openSellReview(h: MetalHolding) {
     if (!beginReviewGuard() || adding || sellingId) return;
     const spotPerOz = spotFor(h.metal);
-    const px = spotPerOz > 0 ? spotPerOz : h.purchase_price_per_oz;
-    if (!(px > 0)) return toast.error("Spot price is unavailable — try again in a moment.");
+    const px = spotPerOz > 0 ? spotPerOz : 0;
+    if (!(px > 0)) return toast.error(METAL_SPOT_DOWN);
     submittingRef.current = true;
     const cash = await readCashNzd();
     if (cash === null) {
@@ -408,16 +410,22 @@ export function PreciousMetals({
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
           <div className="rounded-2xl border border-[var(--gold)]/40 bg-[var(--gold)]/10 p-4">
             <p className="text-sm font-semibold text-[var(--gold)]">Gold</p>
-            <p className="mt-2 font-display text-2xl font-bold">
-              {gold ? formatMoney(gold.nzdPerOz, "NZD") : loading ? "Loading…" : "—"}
+            <p className="mt-2 font-display text-2xl font-bold" title={shownMetalSpot(spotLive, gold?.nzdPerOz).reason || undefined}>
+              {loading && !gold ? "Loading…" : shownMetalSpot(spotLive, gold?.nzdPerOz).text}
               <span className="ml-1 text-sm font-medium text-muted-foreground">/oz</span>
+              {shownMetalSpot(spotLive, gold?.nzdPerOz).reason ? (
+                <span className="mt-1 block text-xs font-normal text-muted-foreground">{shownMetalSpot(spotLive, gold?.nzdPerOz).reason}</span>
+              ) : null}
             </p>
           </div>
           <div className="rounded-2xl border border-slate-400/40 bg-slate-400/10 p-4">
             <p className="text-sm font-semibold text-slate-300">Silver</p>
-            <p className="mt-2 font-display text-2xl font-bold">
-              {silver ? formatMoney(silver.nzdPerOz, "NZD") : loading ? "Loading…" : "—"}
+            <p className="mt-2 font-display text-2xl font-bold" title={shownMetalSpot(spotLive, silver?.nzdPerOz).reason || undefined}>
+              {loading && !silver ? "Loading…" : shownMetalSpot(spotLive, silver?.nzdPerOz).text}
               <span className="ml-1 text-sm font-medium text-muted-foreground">/oz</span>
+              {shownMetalSpot(spotLive, silver?.nzdPerOz).reason ? (
+                <span className="mt-1 block text-xs font-normal text-muted-foreground">{shownMetalSpot(spotLive, silver?.nzdPerOz).reason}</span>
+              ) : null}
             </p>
           </div>
         </div>
@@ -429,7 +437,12 @@ export function PreciousMetals({
               openRecordTransaction({
                 mode: "buy",
                 preferredAssetType: "metal",
-                seed: { ticker: "GOLD", name: "Gold", assetType: "metal", price: gold?.nzdPerOz },
+                seed: {
+                  ticker: "GOLD",
+                  name: "Gold",
+                  assetType: "metal",
+                  ...(spotLive && gold?.nzdPerOz ? { price: gold.nzdPerOz } : {}),
+                },
               })
             }
           >
@@ -443,7 +456,12 @@ export function PreciousMetals({
               openRecordTransaction({
                 mode: "buy",
                 preferredAssetType: "metal",
-                seed: { ticker: "SILVER", name: "Silver", assetType: "metal", price: silver?.nzdPerOz },
+                seed: {
+                  ticker: "SILVER",
+                  name: "Silver",
+                  assetType: "metal",
+                  ...(spotLive && silver?.nzdPerOz ? { price: silver.nzdPerOz } : {}),
+                },
               })
             }
           >
@@ -469,8 +487,14 @@ export function PreciousMetals({
                     <td className="tnum px-3 py-3 text-right">
                       Held: {row.ounces.toLocaleString("en-NZ", { maximumFractionDigits: 4 })} oz
                     </td>
-                    <td className="tnum px-3 py-3 text-right">{formatMoney(row.pricePerOz, "NZD")}</td>
-                    <td className="tnum py-3 pl-3 text-right font-medium">{formatNzd(row.valueNzd)}</td>
+                    <td className="tnum px-3 py-3 text-right" title={spotLive ? undefined : METAL_SPOT_DOWN}>
+                      {spotLive ? formatMoney(row.pricePerOz, "NZD") : "—"}
+                      {spotLive ? null : <span className="mt-0.5 block text-xs font-normal text-muted-foreground">{METAL_SPOT_DOWN}</span>}
+                    </td>
+                    <td className="tnum py-3 pl-3 text-right font-medium" title={spotLive ? undefined : METAL_SPOT_DOWN}>
+                      {spotLive ? formatNzd(row.valueNzd) : "—"}
+                      {spotLive ? null : <span className="sr-only"> {METAL_SPOT_DOWN}</span>}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -532,17 +556,19 @@ export function PreciousMetals({
                           "rounded-full px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wide",
                           spot?.live ? "bg-emerald-500/15 text-emerald-600" : "bg-muted text-muted-foreground",
                         )}
-                        title={spot?.live ? "Spot price" : "Estimated price"}
+                        title={spotLive ? "Spot price" : METAL_SPOT_DOWN}
                       >
-                        {spot?.live ? "Spot" : "Est."}
+                        {spotLive ? "Spot" : "—"}
                       </span>
                     </div>
-                    <p className="tnum mt-3 font-display text-2xl font-bold">
-                      {s ? `${formatMoney(s.nzdPerOz, "NZD")}` : "—"}
+                    <p className="tnum mt-3 font-display text-2xl font-bold" title={shownMetalSpot(spotLive, s?.nzdPerOz).reason || undefined}>
+                      {shownMetalSpot(spotLive, s?.nzdPerOz).text}
                       <span className="ml-1 text-sm font-medium text-muted-foreground">/oz</span>
                     </p>
                     <p className="tnum mt-0.5 text-xs text-muted-foreground">
-                      {s ? `${formatMoney(s.usdPerOz, "USD")}/oz global spot` : "Loading spot…"}
+                      {shownMetalSpot(spotLive, s?.nzdPerOz).live && s
+                        ? `${formatMoney(s.usdPerOz, "USD")}/oz global spot`
+                        : shownMetalSpot(spotLive, s?.nzdPerOz).reason || "Loading spot…"}
                     </p>
                   </div>
                   {/* Messy gold pile spilling toward the open center */}
@@ -591,19 +617,21 @@ export function PreciousMetals({
                           "rounded-full px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wide",
                           spot?.live ? "bg-emerald-500/15 text-emerald-600" : "bg-muted text-muted-foreground",
                         )}
-                        title={spot?.live ? "Spot price" : "Estimated price"}
+                        title={spotLive ? "Spot price" : METAL_SPOT_DOWN}
                       >
-                        {spot?.live ? "Spot" : "Est."}
+                        {spotLive ? "Spot" : "—"}
                       </span>
                       <span className="font-display text-base font-bold">{meta.label} spot</span>
                       <Icon className={cn("size-5", meta.color)} />
                     </div>
-                    <p className="tnum mt-3 font-display text-2xl font-bold">
-                      {s ? `${formatMoney(s.nzdPerOz, "NZD")}` : "—"}
+                    <p className="tnum mt-3 font-display text-2xl font-bold" title={shownMetalSpot(spotLive, s?.nzdPerOz).reason || undefined}>
+                      {shownMetalSpot(spotLive, s?.nzdPerOz).text}
                       <span className="ml-1 text-sm font-medium text-muted-foreground">/oz</span>
                     </p>
                     <p className="tnum mt-0.5 text-xs text-muted-foreground">
-                      {s ? `${formatMoney(s.usdPerOz, "USD")}/oz global spot` : "Loading spot…"}
+                      {shownMetalSpot(spotLive, s?.nzdPerOz).live && s
+                        ? `${formatMoney(s.usdPerOz, "USD")}/oz global spot`
+                        : shownMetalSpot(spotLive, s?.nzdPerOz).reason || "Loading spot…"}
                     </p>
                   </div>
                 </div>
@@ -663,12 +691,25 @@ export function PreciousMetals({
         </p>
         {heldMetalRows(ledgerRows).length > 0 ? (
           <ul className="mt-4 space-y-1 text-sm">
-            {heldMetalRows(ledgerRows).map((row) => (
-              <li key={row.metal}>
-                Held: {row.ounces.toLocaleString("en-NZ", { maximumFractionDigits: 4 })} oz {METAL_META[row.metal].label} at{" "}
-                {formatMoney(row.pricePerOz, "NZD")} per oz ({formatNzd(row.valueNzd)})
-              </li>
-            ))}
+            {heldMetalRows(ledgerRows).map((row) => {
+              const spotShown = shownMetalSpot(spotLive, spotFor(row.metal));
+              return (
+                <li key={row.metal}>
+                  Held: {row.ounces.toLocaleString("en-NZ", { maximumFractionDigits: 4 })} oz {METAL_META[row.metal].label}
+                  {spotShown.live ? (
+                    <>
+                      {" "}
+                      at {spotShown.text} per oz ({formatNzd(row.valueNzd)})
+                    </>
+                  ) : (
+                    <>
+                      {" "}
+                      · — <span className="text-muted-foreground">{spotShown.reason}</span>
+                    </>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         ) : null}
 
@@ -686,7 +727,7 @@ export function PreciousMetals({
             </span>
             <p className="mt-3 font-medium">No metals tracked yet</p>
             <p className="mt-1 max-w-xs text-sm text-muted-foreground">
-              Add how many ounces of gold or silver you own and what you paid — we'll mark it at Spot, or Est. when the price is not live.
+              Add how many ounces of gold or silver you own and what you paid. Value uses spot when the feed returns a price.
             </p>
           </div>
         ) : (
@@ -708,8 +749,9 @@ export function PreciousMetals({
                   const meta = METAL_META[lot.metal];
                   const Icon = meta.icon;
                   const spotPerOz = spotFor(lot.metal);
+                  const spotShown = shownMetalSpot(spotLive, spotPerOz);
                   const paid = lot.purchasePerOz;
-                  const mark = spotPerOz || paid;
+                  const mark = spotShown.live ? spotPerOz : 0;
                   const fresh = freshQuotedFill(paid, mark, lot.purchaseDate);
                   const cost = roundMoney(lot.ounces * paid);
                   const value = fresh ? cost : roundMoney(lot.marketValueNZD);
@@ -733,15 +775,30 @@ export function PreciousMetals({
                       <td className="tnum px-3 py-3.5 text-right text-muted-foreground">
                         {formatMoney(lot.purchasePerOz, "NZD")}
                       </td>
-                      <td className="tnum px-3 py-3.5 text-right">{formatMoney(spotPerOz || lot.purchasePerOz, "NZD")}</td>
-                      <td className="tnum px-3 py-3.5 text-right font-medium">{formatNzd(value)}</td>
-                      <td className="px-3 py-3.5 text-right">
-                        <span className={cn("tnum font-medium", up ? "text-emerald-600" : gain < 0 ? "text-rose-600" : "text-muted-foreground")}>
-                          {formatSignedMoney(gain)}
-                        </span>
-                        <span className={cn("tnum block text-xs", up ? "text-emerald-600/80" : gain < 0 ? "text-rose-600/80" : "text-muted-foreground")}>
-                          {formatSignedPercent(gainPct)}
-                        </span>
+                      <td className="tnum px-3 py-3.5 text-right" title={spotShown.reason || undefined}>
+                        {spotShown.text}
+                        {spotShown.reason ? <span className="sr-only"> {spotShown.reason}</span> : null}
+                      </td>
+                      <td className="tnum px-3 py-3.5 text-right font-medium" title={spotShown.live ? undefined : METAL_SPOT_DOWN}>
+                        {spotShown.live ? formatNzd(value) : "—"}
+                        {spotShown.live ? null : <span className="sr-only"> {METAL_SPOT_DOWN}</span>}
+                      </td>
+                      <td className="px-3 py-3.5 text-right" title={spotShown.live ? undefined : METAL_SPOT_DOWN}>
+                        {spotShown.live ? (
+                          <>
+                            <span className={cn("tnum font-medium", up ? "text-emerald-600" : gain < 0 ? "text-rose-600" : "text-muted-foreground")}>
+                              {formatSignedMoney(gain)}
+                            </span>
+                            <span className={cn("tnum block text-xs", up ? "text-emerald-600/80" : gain < 0 ? "text-rose-600/80" : "text-muted-foreground")}>
+                              {formatSignedPercent(gainPct)}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            —
+                            <span className="mt-0.5 block text-xs font-normal text-muted-foreground">{METAL_SPOT_DOWN}</span>
+                          </>
+                        )}
                       </td>
                       <td className="py-3.5 pl-3 text-right">
                         <Button
@@ -755,7 +812,7 @@ export function PreciousMetals({
                                 ticker: lot.metal === "silver" ? "SILVER" : "GOLD",
                                 name: meta.label,
                                 assetType: "metal",
-                                price: spotPerOz || lot.purchasePerOz,
+                                ...(spotPerOz > 0 ? { price: spotPerOz } : {}),
                               },
                             })
                           }
@@ -770,12 +827,12 @@ export function PreciousMetals({
                   const meta = METAL_META[h.metal];
                   const Icon = meta.icon;
                   const spotPerOz = spotFor(h.metal);
+                  const spotShown = shownMetalSpot(spotLive, spotPerOz);
                   const paid = h.purchase_price_per_oz;
-                  const mark = spotPerOz || paid;
                   const cost = roundMoney(h.ounces * paid);
-                  const value = roundMoney(h.ounces * mark);
-                  const gain = roundMoney(value - cost);
-                  const gainPct = cost > 0 ? (gain / cost) * 100 : 0;
+                  const value = spotShown.live ? roundMoney(h.ounces * spotPerOz) : 0;
+                  const gain = spotShown.live ? roundMoney(value - cost) : 0;
+                  const gainPct = cost > 0 && spotShown.live ? (gain / cost) * 100 : 0;
                   const up = gain > 0;
                   const reviewing = deskReview?.side === "sell" && deskReview.id === h._id;
                   return (
@@ -795,15 +852,34 @@ export function PreciousMetals({
                       <td className="tnum px-3 py-3.5 text-right text-muted-foreground">
                         {formatMoney(h.purchase_price_per_oz, "NZD")}
                       </td>
-                      <td className="tnum px-3 py-3.5 text-right">{formatMoney(spotPerOz, "NZD")}</td>
-                      <td className="tnum px-3 py-3.5 text-right font-medium">{formatNzd(value)}</td>
-                      <td className="px-3 py-3.5 text-right">
-                        <span className={cn("tnum font-medium", up ? "text-emerald-600" : gain < 0 ? "text-rose-600" : "text-muted-foreground")}>
-                          {formatSignedMoney(gain)}
-                        </span>
-                        <span className={cn("tnum block text-xs", up ? "text-emerald-600/80" : gain < 0 ? "text-rose-600/80" : "text-muted-foreground")}>
-                          {formatSignedPercent(gainPct)}
-                        </span>
+                      <td className="tnum px-3 py-3.5 text-right" title={spotShown.reason || undefined}>
+                        {spotShown.text}
+                        {spotShown.reason ? (
+                          <span className="mt-0.5 block text-xs font-normal text-muted-foreground">{spotShown.reason}</span>
+                        ) : null}
+                      </td>
+                      <td className="tnum px-3 py-3.5 text-right font-medium" title={spotShown.live ? undefined : METAL_SPOT_DOWN}>
+                        {spotShown.live ? formatNzd(value) : "—"}
+                        {spotShown.live ? null : (
+                          <span className="mt-0.5 block text-xs font-normal text-muted-foreground">{METAL_SPOT_DOWN}</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-3.5 text-right" title={spotShown.live ? undefined : METAL_SPOT_DOWN}>
+                        {spotShown.live ? (
+                          <>
+                            <span className={cn("tnum font-medium", up ? "text-emerald-600" : gain < 0 ? "text-rose-600" : "text-muted-foreground")}>
+                              {formatSignedMoney(gain)}
+                            </span>
+                            <span className={cn("tnum block text-xs", up ? "text-emerald-600/80" : gain < 0 ? "text-rose-600/80" : "text-muted-foreground")}>
+                              {formatSignedPercent(gainPct)}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            —
+                            <span className="mt-0.5 block text-xs font-normal text-muted-foreground">{METAL_SPOT_DOWN}</span>
+                          </>
+                        )}
                       </td>
                       <td className="py-3.5 pl-3 text-right">
                         {confirmId === h._id && deskReview?.side === "sell" && deskReview.id === h._id ? (
@@ -847,7 +923,7 @@ export function PreciousMetals({
                                   ticker: h.metal === "silver" ? "SILVER" : "GOLD",
                                   name: meta.label,
                                   assetType: "metal",
-                                  price: spotPerOz || h.purchase_price_per_oz,
+                                  ...(spotPerOz > 0 ? { price: spotPerOz } : {}),
                                   metalSourceId: h._id,
                                 },
                               })
@@ -879,18 +955,26 @@ export function PreciousMetals({
                         <BadgeCheck className="size-4 text-[var(--gold)]" /> Metals total
                       </span>
                     </td>
-                    <td className="tnum px-3 py-3.5 text-right font-display text-base font-bold">
-                      {formatMoney(totals.value, "NZD")}
+                    <td className="tnum px-3 py-3.5 text-right font-display text-base font-bold" title={spotLive ? undefined : METAL_SPOT_DOWN}>
+                      {spotLive ? formatMoney(totals.value, "NZD") : "—"}
+                      {spotLive ? null : <span className="sr-only"> {METAL_SPOT_DOWN}</span>}
                     </td>
-                    <td className="px-3 py-3.5 text-right">
-                      <span className={cn("tnum font-bold", totals.gain >= 0 ? "text-emerald-600" : "text-rose-600")}>
-                        {totals.gain >= 0 ? (
-                          <TrendingUp className="mr-1 inline size-3.5" />
-                        ) : (
-                          <TrendingDown className="mr-1 inline size-3.5" />
-                        )}
-                        {totals.gain >= 0 ? "+" : ""}{formatMoney(totals.gain, "NZD")}
-                      </span>
+                    <td className="px-3 py-3.5 text-right" title={spotLive ? undefined : METAL_SPOT_DOWN}>
+                      {spotLive ? (
+                        <span className={cn("tnum font-bold", totals.gain >= 0 ? "text-emerald-600" : "text-rose-600")}>
+                          {totals.gain >= 0 ? (
+                            <TrendingUp className="mr-1 inline size-3.5" />
+                          ) : (
+                            <TrendingDown className="mr-1 inline size-3.5" />
+                          )}
+                          {totals.gain >= 0 ? "+" : ""}{formatMoney(totals.gain, "NZD")}
+                        </span>
+                      ) : (
+                        <span>
+                          —
+                          <span className="mt-0.5 block text-xs font-normal text-muted-foreground">{METAL_SPOT_DOWN}</span>
+                        </span>
+                      )}
                     </td>
                     <td />
                   </tr>

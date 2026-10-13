@@ -52,6 +52,7 @@ import {
   type PortfolioSnapshot,
   type SnapshotClass,
   type SnapshotFigure,
+  type SnapshotLedgerLine,
   type SnapshotPosition,
 } from "@/lib/portfolio-snapshot";
 import { isTransactionDialogOpen } from "@/lib/transaction-sticky";
@@ -112,7 +113,13 @@ import { MarketIntelProvider } from "@/components/dashboard/MarketIntelContext";
 import { WatchlistPanel } from "@/components/dashboard/WatchlistPanel";
 import { GlobalSearch } from "@/components/dashboard/GlobalSearch";
 import { DashboardCalculator } from "@/components/dashboard/DashboardCalculator";
+import { DashboardInsights } from "@/components/dashboard/DashboardInsights";
+import { PaidPlanPrompt } from "@/components/dashboard/PaidPlanPrompt";
+import { SnapshotAllocation } from "@/components/dashboard/SnapshotAllocation";
+import { holdingDeleteEffect } from "@/lib/dashboard-tabs";
+import { QUOTA_NOT_LOADED, unloadedReportControl, type ReportDeskSnapshot } from "@/lib/report-quota-display";
 import { resolveHoldingAction } from "@/lib/holding-action";
+import type { HoldingsRowModel } from "@/lib/holdings-table";
 import { duplicateHomeFiguresVisible } from "@/lib/home-totals";
 import { DashboardHomeGrid } from "@/components/dashboard/DashboardHomeGrid";
 import { OnboardingChecklist } from "@/components/dashboard/OnboardingChecklist";
@@ -659,6 +666,29 @@ export function PortfolioDashboard({
     (MetalSpotPerOz & { live?: boolean; quotedAt?: string | null }) | null
   >(null);
   const [deleteTarget, setDeleteTarget] = useState<Stock | null>(null);
+  const [alertSeed, setAlertSeed] = useState<{ ticker: string; nonce: number; asset: "stock" | "crypto" } | null>(null);
+  const [watchSeed, setWatchSeed] = useState<{ ticker: string; nonce: number; asset: "stock" | "crypto" } | null>(null);
+  const [watchClass, setWatchClass] = useState<"stock" | "crypto">("stock");
+  const [reportDesk, setReportDesk] = useState<ReportDeskSnapshot | null>(null);
+  const onReportDesk = useCallback((next: ReportDeskSnapshot) => {
+    setReportDesk((prev) => {
+      if (
+        prev &&
+        prev.loaded === next.loaded &&
+        prev.text === next.text &&
+        prev.reason === next.reason &&
+        prev.stox.disabled === next.stox.disabled &&
+        prev.stox.title === next.stox.title &&
+        prev.stox.label === next.stox.label &&
+        prev.koins.disabled === next.koins.disabled &&
+        prev.koins.title === next.koins.title &&
+        prev.koins.label === next.koins.label
+      ) {
+        return prev;
+      }
+      return next;
+    });
+  }, []);
   const [deleting, setDeleting] = useState(false);
   // Holding "last 7 days" chart popup — opened by clicking a ticker in the table.
   const [chartTarget, setChartTarget] = useState<HoldingChartTarget | null>(null);
@@ -1655,18 +1685,23 @@ export function PortfolioDashboard({
     ticker: string;
     name: string;
     assetClass: SnapshotClass;
-    action: "buy" | "sell" | "edit" | "delete";
+    action: "buy" | "sell" | "edit" | "delete" | "dividend";
     target: { via: "stock"; stockId: string } | { via: "metal-store"; metalId: string };
   }) {
     if (input.target.via === "metal-store") {
-      if (input.action !== "buy" && input.action !== "sell") return;
       const metalId = input.target.metalId;
       const metal = preciousMetalHoldings.find((row) => row._id === metalId);
       if (!metal) {
         toast.error("This row is not on the holdings list.");
         return;
       }
-      const live = metalSpot?.[metal.metal]?.nzdPerOz || publicSpot?.[metal.metal]?.nzdPerOz;
+      const live = metalsSpotLive
+        ? metalSpot?.[metal.metal]?.nzdPerOz || publicSpot?.[metal.metal]?.nzdPerOz
+        : 0;
+      if (input.action !== "buy" && input.action !== "sell") {
+        toast.error("This metal desk row uses Buy and Sell. Edit and delete are on a ledger holding.");
+        return;
+      }
       openRecordTransaction({
         mode: input.action,
         userId,
@@ -1678,7 +1713,7 @@ export function PortfolioDashboard({
           ticker: metal.metal === "silver" ? "SILVER" : "GOLD",
           name: metal.metal === "silver" ? "Silver bullion" : "Gold bullion",
           assetType: "metal",
-          price: live && live > 0 ? live : metal.purchase_price_per_oz,
+          ...(live && live > 0 ? { price: live } : {}),
           ...(input.action === "sell" ? { metalSourceId: metal._id } : {}),
         },
       });
@@ -1691,8 +1726,91 @@ export function PortfolioDashboard({
       return;
     }
     if (input.action === "buy" || input.action === "sell") recordHolding(stock, input.action);
-    else if (input.action === "edit") openEdit(stock);
+    else if (input.action === "dividend") {
+      openRecordTransaction({
+        mode: "dividend",
+        userId,
+        holdings: allStocks,
+        cash: cashBalance,
+        cashKnown: cashLoaded,
+        seed: {
+          ticker: stock.ticker,
+          name: stock.company_name || stock.ticker,
+          assetType: stock.asset_type === "crypto" ? "crypto" : stock.asset_type === "metal" ? "metal" : "stock",
+        },
+      });
+    } else if (input.action === "edit") openEdit(stock);
     else setDeleteTarget(stock);
+  }
+
+  function handleReport(_row: HoldingsRowModel, kind: "stox" | "koins") {
+    document.getElementById("report-center")?.scrollIntoView({ behavior: "smooth" });
+    const control = kind === "koins" ? reportDesk?.koins : reportDesk?.stox;
+    if (!reportDesk?.loaded || !control) {
+      toast.error(QUOTA_NOT_LOADED);
+      return;
+    }
+    if (control.disabled) {
+      toast.error(control.title);
+      return;
+    }
+    reportDesk.run(kind === "koins" ? "crypto" : "stock");
+  }
+
+  function handleAlert(row: HoldingsRowModel) {
+    const asset = row.assetClass === "crypto" ? "crypto" : "stock";
+    setAlertSeed({ ticker: row.ticker, nonce: Date.now(), asset });
+    document.getElementById("dashboard-alerts")?.scrollIntoView({ behavior: "smooth" });
+  }
+
+  function handleWatch(row: HoldingsRowModel) {
+    const asset = row.assetClass === "crypto" ? "crypto" : "stock";
+    setWatchClass(asset);
+    setWatchSeed({ ticker: row.ticker, nonce: Date.now(), asset });
+    document.getElementById("dashboard-watchlist")?.scrollIntoView({ behavior: "smooth" });
+  }
+
+  async function handleDeleteDividend(line: SnapshotLedgerLine) {
+    const res = await api.delete(`/api/transactions?id=${encodeURIComponent(line.id)}`);
+    if (res.ok) {
+      toast.success("Dividend removed");
+      handleDataChanged();
+      return;
+    }
+    toast.error(typeof res.error === "string" ? res.error : "That dividend was not removed.");
+  }
+
+  function handleEditLedger(line: SnapshotLedgerLine) {
+    const ticker = line.ticker.trim().toUpperCase();
+    const matches = ticker ? allStocks.filter((row) => row.ticker.toUpperCase() === ticker) : [];
+    if (matches.length !== 1) {
+      toast.error(
+        matches.length > 1
+          ? "More than one holding uses this ticker. Open the holding and use Edit there."
+          : "This ledger line has no holding to edit."
+      );
+      return;
+    }
+    openEdit(matches[0]);
+  }
+
+  async function exportLedger() {
+    const res = await fetch("/api/transactions/export", { credentials: "include" });
+    if (res.status === 402 || res.status === 403) {
+      toast.error("CSV export is included on Starter and above.");
+      return;
+    }
+    if (!res.ok) {
+      toast.error("Could not export transactions.");
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "transactions.csv";
+    anchor.click();
+    URL.revokeObjectURL(url);
   }
 
   function handleCalculatorCash(mode: "deposit" | "withdraw") {
@@ -1806,6 +1924,7 @@ export function PortfolioDashboard({
     balancesReady,
     snapshotPresent: bookSnapshot != null,
   });
+  const workspaceOn = isHome && !preview && !(balancesReady && !bookSnapshot);
   const isBots = view === "bots";
   const isCash = view === "cash";
   const isStocks = view === "stocks";
@@ -1855,11 +1974,11 @@ export function PortfolioDashboard({
                 ? "Price Alerts"
                 : isMarket
                 ? marketTitle
-                : "Welcome to your Dashboard";
+                : "Dashboard";
 
   return (
     <MarketIntelProvider bot={bot}>
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8" aria-busy={kpiPending || undefined}>
+    <div className="mx-auto w-full min-w-0 max-w-6xl overflow-x-clip px-4 py-8 sm:px-6 lg:px-8" aria-busy={kpiPending || undefined}>
       {/* Header — matches dashboard home mock */}
       <div className="flex flex-wrap items-start justify-between gap-3 sm:gap-4">
         <div className="min-w-0">
@@ -1894,8 +2013,8 @@ export function PortfolioDashboard({
             </Link>
           </Button>
         ) : (
-        <div className="flex flex-col items-stretch gap-3 sm:items-end">
-          <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="flex w-full min-w-0 flex-col items-stretch gap-3 sm:w-auto sm:items-end">
+          <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-2">
             <GlobalSearch onPick={handleSearchPick} />
             <Button
               variant="outline"
@@ -1981,6 +2100,134 @@ export function PortfolioDashboard({
           userId={userId ?? null}
           onTrade={handleCalculatorTrade}
           onCash={handleCalculatorCash}
+          onRecord={openAdd}
+          onEditLedger={handleEditLedger}
+          onDeleteDividend={handleDeleteDividend}
+          onReport={handleReport}
+          onAlert={handleAlert}
+          onWatch={handleWatch}
+          reportRuns={{
+            stox: reportDesk?.stox ?? unloadedReportControl("Stox"),
+            koins: reportDesk?.koins ?? unloadedReportControl("Koins"),
+          }}
+          actions={
+            <div className="mt-4 flex w-full min-w-0 max-w-full flex-wrap items-center gap-2" data-header-actions>
+              <Button type="button" className="h-auto min-h-11 max-w-full whitespace-normal" onClick={openAdd}>+ Add trade</Button>
+              <HoldingsCsvImport assetType="stock" onImported={handleDataChanged} />
+              <Button type="button" variant="outline" className="h-auto min-h-11 max-w-full whitespace-normal" onClick={() => handleCalculatorCash("deposit")}>Deposit/Withdraw</Button>
+              <Button type="button" variant="outline" className="h-auto min-h-11 max-w-full whitespace-normal" onClick={() => void exportLedger()} disabled={freePlan} title={freePlan ? "CSV export is included on Starter and above." : undefined}>
+                Export
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-auto min-h-11 max-w-full whitespace-normal"
+                disabled={(reportDesk?.stox ?? unloadedReportControl("Stox")).disabled}
+                title={(reportDesk?.stox ?? unloadedReportControl("Stox")).title}
+                onClick={() => handleReport({ ticker: "", name: "Portfolio", assetClass: "shares", kind: "position" } as HoldingsRowModel, "stox")}
+              >
+                {(reportDesk?.stox ?? unloadedReportControl("Stox")).label}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-auto min-h-11 max-w-full whitespace-normal"
+                disabled={(reportDesk?.koins ?? unloadedReportControl("Koins")).disabled}
+                title={(reportDesk?.koins ?? unloadedReportControl("Koins")).title}
+                onClick={() => handleReport({ ticker: "", name: "Portfolio", assetClass: "crypto", kind: "position" } as HoldingsRowModel, "koins")}
+              >
+                {(reportDesk?.koins ?? unloadedReportControl("Koins")).label}
+              </Button>
+              <span className="max-w-full text-xs text-muted-foreground" data-report-quota title={reportDesk?.reason || QUOTA_NOT_LOADED}>
+                {reportDesk?.loaded ? reportDesk.text : "—"}
+                {reportDesk?.loaded && !reportDesk.reason ? null : (
+                  <span className="mt-0.5 block">{reportDesk?.reason || QUOTA_NOT_LOADED}</span>
+                )}
+              </span>
+            </div>
+          }
+          cryptoEmpty={
+            <span className="inline-flex flex-wrap items-center gap-2">
+              <Button type="button" size="sm" variant="outline" onClick={openAdd}>+ Add holding</Button>
+              <HoldingsCsvImport assetType="crypto" onImported={handleDataChanged} />
+            </span>
+          }
+          insights={
+            <DashboardInsights
+              stocks={allStocks}
+              holdingsCount={summary.holdingsCount}
+              freePlan={freePlan}
+              onBought={handleDataChanged}
+            />
+          }
+          rail={
+            <>
+              {freePlan ? (
+                <PaidPlanPrompt detail="Allocation drift is on a paid plan." />
+              ) : (
+                <SnapshotAllocation snapshot={bookSnapshot} />
+              )}
+              <section id="dashboard-alerts" className="space-y-3 rounded-2xl border border-border/70 bg-card/50 p-4">
+                <h2 className="text-sm font-semibold">Alerts</h2>
+                <PriceAlerts
+                  stocks={stockOnly}
+                  assetType="stock"
+                  holdingsReady={!loading}
+                  preview={preview}
+                  canCreate={!freePlan}
+                  seedTicker={alertSeed?.asset === "stock" ? alertSeed.ticker : null}
+                  seedNonce={alertSeed?.asset === "stock" ? alertSeed.nonce : 0}
+                />
+                <PriceAlerts
+                  stocks={cryptoMarked}
+                  assetType="crypto"
+                  holdingsReady={!loading}
+                  preview={preview}
+                  canCreate={!freePlan}
+                  seedTicker={alertSeed?.asset === "crypto" ? alertSeed.ticker : null}
+                  seedNonce={alertSeed?.asset === "crypto" ? alertSeed.nonce : 0}
+                />
+              </section>
+              <section id="dashboard-watchlist" className="space-y-3">
+                <div className="inline-flex gap-1" role="group" aria-label="Watchlist class">
+                  {(["stock", "crypto"] as const).map((id) => (
+                    <button
+                      key={id}
+                      type="button"
+                      aria-pressed={watchClass === id}
+                      onClick={() => setWatchClass(id)}
+                      className={cn(
+                        "rounded-md border px-2.5 py-1 text-xs font-semibold",
+                        watchClass === id ? "border-primary bg-primary text-primary-foreground" : "border-border/70 text-muted-foreground"
+                      )}
+                    >
+                      {id === "stock" ? "Shares" : "Crypto"}
+                    </button>
+                  ))}
+                </div>
+                <WatchlistPanel
+                  bot={watchClass}
+                  reloadSignal={watchlistSignal + (watchSeed?.nonce || 0)}
+                  preview={preview}
+                  seedTicker={watchSeed && watchSeed.asset === watchClass ? watchSeed.ticker : null}
+                  seedNonce={watchSeed && watchSeed.asset === watchClass ? watchSeed.nonce : 0}
+                />
+              </section>
+              <ReportCenter
+                botAccess={subscription.botAccess}
+                plan={subscription.plan}
+                scope={scope}
+                counts={holdingCounts}
+                countsReady={preview || !loading}
+                tickerLimit={tickerLimit}
+                userId={userId}
+                holdings={allStocks}
+                onHoldingsChanged={handleDataChanged}
+                preview={preview}
+                onDesk={onReportDesk}
+              />
+            </>
+          }
           actionFor={(row) =>
             resolveHoldingAction({
               ticker: row.ticker,
@@ -1993,7 +2240,7 @@ export function PortfolioDashboard({
         />
       ) : null}
 
-      {isHome && (
+      {isHome && !workspaceOn && (
       <>
       <DashboardHomeGrid
         cashBalance={headerCash}
@@ -2035,7 +2282,17 @@ export function PortfolioDashboard({
       </>
       )}
 
-      {isHome && !preview && balancesReady && (
+      {workspaceOn && balancesReady && allStocks.length === 0 && preciousMetalHoldings.length === 0 ? (
+        <div className="mt-4">
+          <OnboardingChecklist
+            hasCash={cashBalance > 0}
+            hasHoldings={false}
+            plan={subscription.plan}
+          />
+        </div>
+      ) : null}
+
+      {isHome && !preview && balancesReady && !workspaceOn && (
         <div className="mt-6 grid gap-4 lg:grid-cols-2">
           <OnboardingChecklist
             hasCash={cashBalance > 0}
@@ -2067,7 +2324,7 @@ export function PortfolioDashboard({
       )}
 
       {/* Report Center under home window tiles / bots desk (not on stocks/crypto hubs) */}
-      {(isHome || isBots) && (
+      {((isHome && !workspaceOn) || isBots) && (
       <div id="dash-report-centre" className="mt-8 scroll-mt-24">
       <DashboardGate
         preview={preview}
@@ -2617,7 +2874,7 @@ export function PortfolioDashboard({
       </div>
 
       {/* ───────────────────────── 5 · Holdings table (gated for guests) ───────────────────────── */}
-      <div className={cn("mt-8", !(isHome || isStocks) && "hidden")}>
+      <div className={cn("mt-8", !isStocks && "hidden")}>
       <DashboardGate
         preview={preview}
         title="Your Holdings"
@@ -3034,10 +3291,17 @@ export function PortfolioDashboard({
             <AlertDialogTitle>Remove {deleteTarget?.ticker}?</AlertDialogTitle>
             <AlertDialogDescription>
               {deleteTarget
-                ? `This removes ${formatNumber(deleteTarget.shares)} of ${deleteTarget.ticker} (${formatMoney(
-                    deleteTarget.shares * (deleteTarget.current_price || deleteTarget.purchase_price || 0),
-                    currencyForTicker(deleteTarget.ticker)
-                  )} at the price on screen). Cancel keeps the holding.`
+                ? (() => {
+                    const position = bookSnapshot?.groups
+                      .flatMap((group) => group.positions)
+                      .find((row) => row.holdingId === deleteTarget._id || row.ticker.toUpperCase() === deleteTarget.ticker.toUpperCase());
+                    const effect = holdingDeleteEffect({
+                      cash: bookSnapshot?.kpis.cash.value ?? null,
+                      unrealised: position?.unrealised.value ?? null,
+                      realised: position?.realised.value ?? null,
+                    });
+                    return `This removes ${formatNumber(deleteTarget.shares)} of ${deleteTarget.ticker}. Cash before ${effect.cashBefore}. Cash after ${effect.cashAfter}. ${effect.cashReason} Unrealised now ${effect.unrealisedNow}. After remove ${effect.unrealisedAfter}. ${effect.realisedNote} Cancel keeps the holding.`;
+                  })()
                 : "Cancel keeps the holding."}
             </AlertDialogDescription>
           </AlertDialogHeader>
