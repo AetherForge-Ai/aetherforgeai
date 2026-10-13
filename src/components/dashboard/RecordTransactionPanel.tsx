@@ -8,7 +8,7 @@ import { api } from "@/lib/api";
 import { dexSearchHits, searchAssets, type AssetHit, type AssetMarket } from "@/lib/asset-search";
 import { cleanChain, dexFromHolding, isDexSource } from "@/lib/dex-source";
 import { useRestoreScroll } from "@/components/dashboard/use-restore-scroll";
-import { shownTradePriceLabel } from "@/lib/trade-price-label";
+import { shownTradePriceLabel, tradePriceHint, type TradePriceSession } from "@/lib/trade-price-label";
 import { PAPER_FEE_SUMMARY, suggestedFee } from "@/lib/fee-rule";
 import { buildMovementPreview, movementNzdTotal, type MovementPreview, type RecordKind } from "@/lib/movement-preview";
 import { transactionProblems } from "@/lib/transaction-rules";
@@ -126,6 +126,7 @@ export function RecordTransactionPanel({
   const [priceDirty, setPriceDirty] = useState(false);
   const [quoteOrigin, setQuoteOrigin] = useState<"" | "snapshot">("");
   const [priceAsAt, setPriceAsAt] = useState("");
+  const [priceSession, setPriceSession] = useState<TradePriceSession>("");
   const [quoteChain, setQuoteChain] = useState("");
   const [fxDirty, setFxDirty] = useState(false);
   const [notes, setNotes] = useState("");
@@ -160,6 +161,7 @@ export function RecordTransactionPanel({
     setPreview(null);
     setProblems([]);
     setHint("");
+    setPriceSession("");
     setSaveError("");
     setQuery("");
     setNotes("");
@@ -342,7 +344,7 @@ export function RecordTransactionPanel({
     let cancel = false;
     const fetchingClose = date !== today;
     if (kind === "correction" && fetchingClose && !fxDirty) setFxRate("");
-    setHint(date === today ? "Fetching the last close…" : `Fetching the close for ${formatDisplayDate(date)}…`);
+    setHint(date === today ? "Fetching the price…" : `Fetching the close for ${formatDisplayDate(date)}…`);
     void (async () => {
       if (date === today) {
         const id = asset.id ? `&id=${encodeURIComponent(asset.id)}` : "";
@@ -352,6 +354,7 @@ export function RecordTransactionPanel({
           label?: string | null;
           source?: string | null;
           quotedAt?: string | null;
+          session?: "open" | "closed" | null;
           chain?: string | null;
         }>(
           `/api/tickers/quote?symbol=${encodeURIComponent(sym)}&type=${type}${id}${market}`
@@ -359,10 +362,14 @@ export function RecordTransactionPanel({
         if (cancel || priceDirty) return;
         if (res.ok && res.data?.price && res.data.price > 0) {
           setPrice(formatPriceInput(res.data.price));
-          const closeOn = res.data.quotedAt ? formatDisplayDate(res.data.quotedAt) : "";
-          const closeLabel = res.data.label || (closeOn && closeOn !== "—" ? `Last close ${closeOn}` : "Last close");
-          setHint(closeOn === formatDisplayDate(new Date()) ? "Today's price is filled in. You can type over it." : `${closeLabel}. You can type over it.`);
+          const session: TradePriceSession = res.data.session === "open" || res.data.session === "closed" ? res.data.session : "";
+          setPriceSession(session);
           setPriceAsAt(res.data.quotedAt || "");
+          setHint(
+            session
+              ? tradePriceHint({ priceDirty: false, session, quotedAt: res.data.quotedAt || "" })
+              : res.data.label || ""
+          );
           if (res.data.source === "snapshot") {
             setQuoteOrigin("snapshot");
             setQuoteChain(res.data.chain || "");
@@ -407,6 +414,8 @@ export function RecordTransactionPanel({
     setPriceDirty(false);
     setQuoteOrigin("");
     setPriceAsAt("");
+    setPriceSession("");
+    setHint("");
     setQuoteChain("");
     setFxDirty(false);
     const cur = currencyForTicker(hit.symbol, hit.assetType);
@@ -718,6 +727,7 @@ export function RecordTransactionPanel({
                       setCurrency("NZD");
                       setPriceDirty(false);
                       setPriceAsAt("");
+                      setPriceSession("");
                       setQuoteOrigin("");
                       setQuoteChain("");
                       setHint("");
@@ -759,6 +769,8 @@ export function RecordTransactionPanel({
                         setAsset(null);
                         setPriceDirty(false);
                         setPriceAsAt("");
+                        setPriceSession("");
+                        setHint("");
                         setQuoteOrigin("");
                         setQuoteChain("");
                       }}
@@ -840,6 +852,8 @@ export function RecordTransactionPanel({
                     setDate(e.target.value);
                     setPriceDirty(false);
                     setPriceAsAt("");
+                    setPriceSession("");
+                    setHint("");
                     setQuoteOrigin("");
                     setQuoteChain("");
                     setFxDirty(false);
@@ -876,6 +890,8 @@ export function RecordTransactionPanel({
                     setPriceDirty(true);
                     setQuoteOrigin("");
                     setPriceAsAt("");
+                    setPriceSession("");
+                    setHint("");
                     setQuoteChain("");
                     setProblems([]);
                   }}
@@ -884,7 +900,7 @@ export function RecordTransactionPanel({
             )}
             {showQty ? (
               <div className="space-y-1.5">
-                <Label htmlFor="record-price">{shownTradePriceLabel(priceAsAt, priceDirty)}</Label>
+                <Label htmlFor="record-price">{shownTradePriceLabel(priceAsAt, priceDirty, priceSession)}</Label>
                 <Input
                   id="record-price"
                   aria-invalid={(kind === "buy" || kind === "sell") && price.trim() !== "" && !(Number(price) > 0)}
@@ -896,6 +912,8 @@ export function RecordTransactionPanel({
                     setPriceDirty(true);
                     setQuoteOrigin("");
                     setPriceAsAt("");
+                    setPriceSession("");
+                    setHint("");
                     setQuoteChain("");
                     setProblems([]);
                   }}
