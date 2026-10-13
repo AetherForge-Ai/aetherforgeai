@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { fetchYahooQuote } from "@/lib/yahoo-finance";
+import { fetchLiveQuotes } from "@/lib/market-data";
+import { equitySessionOpen } from "@/lib/market-freshness";
+import type { Exchange } from "@/lib/market-intel";
 import { fetchCryptoQuotes } from "@/lib/market-data";
 import { getMetalsSpot } from "@/lib/metals";
 import { CANONICAL_CRYPTO_IDS } from "@/lib/crypto-ids";
@@ -15,6 +18,14 @@ import { formatDisplayDateTime } from "@/lib/currency";
 import { chainForTicker } from "@/lib/crypto-board";
 
 export const dynamic = "force-dynamic";
+
+/** Same venue clock the public tape uses for this symbol. */
+function equityExchange(symbol: string): Exchange {
+  const ticker = symbol.toUpperCase();
+  if (ticker.endsWith(".NZ") || ticker.endsWith(".NZX")) return "NZX";
+  if (ticker.endsWith(".AX") || ticker.endsWith(".ASX")) return "ASX";
+  return "NASDAQ";
+}
 
 /**
  * GET /api/tickers/quote?symbol=CBA.AX&type=stock|crypto|metal — quote for a chosen symbol.
@@ -155,19 +166,32 @@ export async function GET(req: Request) {
       });
     }
 
-    const q = await fetchYahooQuote(symbol);
-    const quotedAt = q?.quotedAt ?? null;
-    const closeLabel = quotedAt ? `Last close ${formatDisplayDate(quotedAt)}` : null;
-    console.log(`[api/tickers/quote] ${symbol} → ${q ? `$${q.price} ${q.currency}` : "no quote"}`);
+    const exchange = equityExchange(symbol);
+    const open = equitySessionOpen(exchange, new Date());
+    const live = await fetchLiveQuotes([symbol]).catch(() => ({} as Awaited<ReturnType<typeof fetchLiveQuotes>>));
+    const tape = live[symbol];
+    const chart = tape && tape.price > 0 ? null : await fetchYahooQuote(symbol);
+    const price = tape && tape.price > 0 ? tape.price : chart?.price ?? null;
+    const quotedAt = tape?.quotedAt ?? chart?.quotedAt ?? null;
+    const session = open ? "open" : "closed";
+    const label = open
+      ? quotedAt
+        ? `Latest price ${formatDisplayDateTime(quotedAt)}`
+        : "Latest price"
+      : quotedAt
+        ? `Last close ${formatDisplayDate(quotedAt)}`
+        : "Last close";
+    console.log(`[api/tickers/quote] ${symbol} → ${price ? `$${price}` : "no quote"} ${session}`);
     return NextResponse.json({
       ok: true,
       data: {
         symbol,
-        price: q?.price ?? null,
-        currency: q?.currency ?? null,
-        changePct: q?.changePct ?? null,
+        price,
+        currency: chart?.currency ?? (symbol.endsWith(".AX") ? "AUD" : symbol.endsWith(".NZ") ? "NZD" : "USD"),
+        changePct: tape?.changePct ?? chart?.changePct ?? null,
         quotedAt,
-        label: closeLabel,
+        session,
+        label,
       },
     });
   } catch (err: any) {

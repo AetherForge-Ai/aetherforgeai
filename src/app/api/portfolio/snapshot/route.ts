@@ -46,9 +46,11 @@ export async function GET(req: Request) {
 
     // Trades bump bookCacheEpoch and drop this key, so the next read is fresh.
     // ?fresh=1 skips the read (explicit refresh and the post-trade reload).
-    const cacheKey = `${user._id}:portfolio-snapshot`;
+    const url = new URL(req.url);
+    const storedMarks = url.searchParams.get("marks") === "stored";
+    const cacheKey = `${user._id}:portfolio-snapshot${storedMarks ? ":stored" : ""}`;
     const cacheEpoch = bookCacheEpoch(user._id);
-    const fresh = new URL(req.url).searchParams.get("fresh") === "1";
+    const fresh = url.searchParams.get("fresh") === "1";
     if (!fresh) {
       const cached = readBookCache<PortfolioSnapshot>(cacheKey);
       if (cached) return privateJson({ ok: true, userId: user._id, data: cached });
@@ -59,7 +61,7 @@ export async function GET(req: Request) {
       totalumSdk.crud.query("stock", { _filter: { user: user._id }, _limit: 500 }),
       totalumSdk.crud.query("precious_metal", { _filter: { user: user._id }, _limit: 200 }),
       getFxSnapshot(),
-      getMetalsSpot().catch(() => null),
+      storedMarks ? Promise.resolve(null) : getMetalsSpot().catch(() => null),
     ]);
 
     type StockRow = Record<string, unknown> & { _id?: string; shares?: number; purchase_price?: number };
@@ -96,7 +98,12 @@ export async function GET(req: Request) {
       else if (route === "equity") equityTickers.push(String(row.ticker || ""));
     }
     const emptyQuotes: Record<string, LiveQuote> = {};
-    const [equityRace, cryptoRace] = await Promise.all([
+    const [equityRace, cryptoRace] = storedMarks
+      ? [
+          { value: emptyQuotes, timedOut: false },
+          { value: emptyQuotes, timedOut: false },
+        ]
+      : await Promise.all([
       isLiveDataConfigured() && equityTickers.length
         ? raceQuoteFetch(fetchLiveQuotes(equityTickers), emptyQuotes, SNAPSHOT_QUOTE_WAIT_MS)
         : Promise.resolve({ value: emptyQuotes, timedOut: false }),

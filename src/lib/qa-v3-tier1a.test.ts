@@ -102,9 +102,9 @@ describe("U3 U7 V1 P1 snapshot", () => {
     expect(read("src/app/api/tickers/quote/route.ts")).toContain(
       "Live price was unavailable. A recent print is filled in ("
     );
-    expect(read("src/components/dashboard/RecordTransactionPanel.tsx")).toContain(
-      "Today's price is filled in. You can type over it."
-    );
+    expect(read("src/components/dashboard/RecordTransactionPanel.tsx")).toContain("tradePriceHint");
+    expect(read("src/app/api/tickers/quote/route.ts")).toContain("fetchLiveQuotes");
+    expect(read("src/app/api/tickers/quote/route.ts")).toContain("equitySessionOpen");
     expect(read("src/components/dashboard/RecordTransactionPanel.tsx")).toContain("idempotency_key");
     expect(read("src/components/dashboard/RecordTransactionPanel.tsx")).toContain("disabled={saving || !confirmReady}");
     expect(read("src/lib/transactions.ts")).toContain("rejectionChecked");
