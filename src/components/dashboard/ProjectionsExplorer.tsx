@@ -14,7 +14,7 @@ import {
   withoutCryptoProjections,
 } from "@/lib/projection-pause";
 import { modelRangeLine } from "@/lib/public-intel";
-import { ENGINE_PARAGRAPH, HISTORY_LENGTH_LINE } from "@/lib/public-copy";
+import { ENGINE_PARAGRAPH, HISTORY_LENGTH_LINE, PROJECTIONS_MEMBER_LINE } from "@/lib/public-copy";
 import { scoreBandSentence } from "@/lib/score-band";
 import { Button } from "@/components/ui/button";
 import {
@@ -304,9 +304,9 @@ export function ProjectionsExplorer() {
             Weekly Market <span className="text-gradient">Projections</span>
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-            The table opens on NZX and ASX. Each equity tab lists the names that came back, up to 50,
-            and the number on the tab is that count. Every tab uses the same order: projected 7-day
-            percent times model confidence. {CRYPTO_PROJECTIONS_PAUSE_MESSAGE}
+            {PROJECTIONS_MEMBER_LINE} The table opens on NZX and ASX. Each equity tab lists the names
+            that came back, up to 50, and the number on the tab is that count. Every tab uses the same
+            order: projected 7-day percent times model confidence. {CRYPTO_PROJECTIONS_PAUSE_MESSAGE}
           </p>
         </div>
         <div className="flex items-center gap-2">

@@ -1,42 +1,49 @@
-import { getCurrentUser } from "@/lib/session";
-import { publicPageMetadata } from "@/lib/reviewed-book";
+import Link from "next/link";
+import { headers } from "next/headers";
 import { AppShell } from "@/components/AppShell";
 import { ProjectionsExplorer } from "@/components/dashboard/ProjectionsExplorer";
+import { publicPageMetadata } from "@/lib/reviewed-book";
+import { PROJECTIONS_MEMBER_LINE } from "@/lib/public-copy";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = publicPageMetadata("/projections", {
-  title: "Projections — AetherForge AI",
-  description: "Weekly projections across NZX and ASX. Each equity tab lists the names that came back, up to 50. Crypto projections are paused. General information, not personal advice.",
-});
+export const metadata = {
+  ...publicPageMetadata("/projections", {
+    title: "Projections — AetherForge AI",
+    description: PROJECTIONS_MEMBER_LINE,
+  }),
+  robots: { index: false, follow: false },
+};
 
 /**
- * /projections — weekly projections. Each equity tab lists the names that came
- * back, up to 50, with rank, price, projected 7-day move, confidence and the
- * reasoning behind every call. Crypto projections stay paused. Guests and
- * members can read the page.
+ * /projections — share projections for a signed-in member.
+ * The guest document is the same x-af-doc check the dashboard uses.
+ * It shows a sign-in prompt and does not render the ranked table.
+ * Crypto projections stay paused inside the member view.
  */
 export default async function ProjectionsPage() {
-  const user = await getCurrentUser();
+  const headerList = await headers();
+  const guestDocument = headerList.get("x-af-doc") !== "member";
 
-  if (!user) {
+  if (guestDocument) {
     return (
-      <AppShell guest user={{ name: "Guest", email: "Sign in to activate your account" }}>
-        <ProjectionsExplorer />
+      <AppShell>
+        <section className="mx-auto flex min-h-[50vh] w-full max-w-lg flex-col items-center justify-center px-4 py-16 text-center">
+          <h1 className="font-display text-2xl font-bold tracking-tight">Projections</h1>
+          <p className="mt-4 text-sm leading-relaxed text-muted-foreground">{PROJECTIONS_MEMBER_LINE}</p>
+          <Link
+            href="/login?redirect=/projections"
+            className="mt-8 inline-flex h-11 items-center justify-center rounded-md bg-primary px-6 text-sm font-semibold text-primary-foreground"
+          >
+            Sign in
+          </Link>
+        </section>
       </AppShell>
     );
   }
 
   return (
-    <AppShell
-      user={{
-        name: user.name,
-        email: user.email,
-        image: user.image,
-        subscription_status: user.subscription_status,
-        subscription_plan: user.subscription_plan,
-      }}
-    >
+    <AppShell>
       <ProjectionsExplorer />
     </AppShell>
   );

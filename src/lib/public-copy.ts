@@ -57,10 +57,11 @@ export const HISTORY_LENGTH_LINE = "30-day history (projections), ~6 months (sto
 export const LEGAL_UPDATED = "13 Oct 2026";
 
 /**
- * TODO(D1): Help, pricing and the privacy policy still describe weekly projections.
- * Leave that wording until Lukas decides. Do not rewrite it in this change.
+ * D1: share projections are a member page. The figures stay off the public
+ * document. Crypto projections stay paused.
  */
-export const PROJECTIONS_COPY_PENDING_D1 = true;
+export const PROJECTIONS_MEMBER_LINE =
+  "Share projections are for signed-in members. They are general information, not advice. Crypto projections stay paused.";
 
 /**
  * TODO(D6): Ultimate stays listed at NZ$199 a month and NZ$1,990 a year, with Talk to us.

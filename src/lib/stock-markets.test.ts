@@ -241,7 +241,7 @@ describe("stock sitemap and the pull-check marker", () => {
     const stockPaths = [...paths].filter((href) => href.startsWith("/markets/stock/"));
     expect(stockPaths.length).toBeGreaterThan(300);
     expect(stockPaths.length).toBeLessThan(800);
-    expect(paths.has("/projections")).toBe(true);
+    expect(paths.has("/projections")).toBe(false);
     const source = readFileSync(path.join(process.cwd(), "src/lib/stock-markets.ts"), "utf8");
     const qa = readFileSync(path.join(process.cwd(), "qa/PULL-CHECK-2026-10-10.md"), "utf8");
     expect(source).toContain("pull-check:stock-markets-full-2026-10-11");

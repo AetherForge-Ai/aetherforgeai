@@ -6,7 +6,7 @@ const siteUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.aetherforgeai.co
 /**
  * Public sitemap. /blog stays off and noindex until there are posts.
  * /returns is the signed-in return calculator, so it is not listed.
- * Crypto projections stay paused. The projections page is still listed for the equity tabs.
+ * /projections is a signed-in member page, so it stays off this list and noindex.
  * /performance is a dated sample, so it is not listed as daily.
  */
 const ENTRIES: Array<{
@@ -38,7 +38,6 @@ const ENTRIES: Array<{
   { path: "/smitty", changeFrequency: "monthly", priority: 0.5, lastModified: "2026-10-10" },
   { path: "/buy-the-bots", changeFrequency: "monthly", priority: 0.4, lastModified: "2026-10-10" },
   { path: "/headmaster", changeFrequency: "monthly", priority: 0.6, lastModified: "2026-10-13" },
-  { path: "/projections", changeFrequency: "weekly", priority: 0.6, lastModified: "2026-10-13" },
   { path: "/chat", changeFrequency: "monthly", priority: 0.5, lastModified: "2026-10-13" },
   { path: "/cookies", changeFrequency: "yearly", priority: 0.3, lastModified: "2026-10-13" },
   { path: "/how-to-maximize-results", changeFrequency: "monthly", priority: 0.5, lastModified: "2026-10-13" },

@@ -11,7 +11,7 @@ describe("H9 sitemap and robots", () => {
   it("lists lastmod, lists the public guides, and leaves /blog off the sitemap", () => {
     const rows = sitemap();
     const byPath = new Map(rows.map((row) => [new URL(row.url).pathname, row]));
-    expect(byPath.has("/projections")).toBe(true);
+    expect(byPath.has("/projections")).toBe(false);
     expect(byPath.has("/headmaster")).toBe(true);
     expect(byPath.has("/chat")).toBe(true);
     expect(byPath.has("/cookies")).toBe(true);

@@ -7,7 +7,7 @@ import { publicAsOfPhrase, publicCryptoTableLines } from "@/lib/crypto-price-cha
 import { honeypotFilled, resetRateLimits, takeRateLimit } from "@/lib/ip-rate-limit";
 import { tapeUpdatedPhrase } from "@/lib/market-freshness";
 import { aetherforgePriceIds } from "@/lib/plans";
-import { PROJECTIONS_COPY_PENDING_D1, ULTIMATE_PRICE_PENDING_D6 } from "@/lib/public-copy";
+import { PROJECTIONS_MEMBER_LINE, ULTIMATE_PRICE_PENDING_D6 } from "@/lib/public-copy";
 import { priceUpdatedPhrase } from "@/components/PriceConfidenceBadge";
 import { fiftyTwoWeekLine, headlinesForSymbol, NEWS_MISSING, sectorLine, sparklinePoints } from "@/lib/stock-public-facts";
 import sitemap from "@/app/sitemap";
@@ -96,7 +96,10 @@ describe("audit 14 Oct batches A–D", () => {
   });
 
   it("H8 and H9 leave D1 and D6 and show the two-month saving", () => {
-    expect(PROJECTIONS_COPY_PENDING_D1).toBe(true);
+    expect(PROJECTIONS_MEMBER_LINE).toContain("signed-in members");
+    expect(PROJECTIONS_MEMBER_LINE).toContain("not advice");
+    expect(PROJECTIONS_MEMBER_LINE).toContain("Crypto projections stay paused");
+    expect(read("src/lib/public-copy.ts")).not.toContain("PROJECTIONS_COPY_PENDING_D1");
     expect(ULTIMATE_PRICE_PENDING_D6).toBe(true);
     expect(read("src/lib/plans.ts")).toContain("monthlyPrice: 199");
     expect(read("src/lib/plans.ts")).toContain("yearlyPrice: 1990");
