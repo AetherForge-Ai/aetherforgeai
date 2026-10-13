@@ -165,10 +165,10 @@ export function PortfolioCoach() {
               className={cn(
                 // Below sm the chip sits under in-flow cards (z-30 vs z-40) so it
                 // cannot cover pricing-card copy. sm+ keeps it above the page.
-                "pg-chat-in af-assistant-chip fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] right-3 z-30 flex items-center rounded-full border border-amber-400/45",
+                "pg-chat-in af-assistant-chip fixed bottom-24 left-3 z-30 flex items-center rounded-full border border-amber-400/45",
                 "bg-[#06261a]/95 p-1.5 text-left shadow-[0_0_0_1px_rgba(245,158,11,0.28),0_16px_40px_rgba(0,0,0,0.5)]",
                 "backdrop-blur-md transition hover:border-amber-300/60 hover:bg-[#0a3d2a]",
-                "sm:bottom-4 sm:right-5 sm:z-[70] sm:gap-2.5 sm:px-3 sm:py-2.5"
+                "max-sm:data-[dialog=open]:hidden sm:bottom-4 sm:left-auto sm:right-5 sm:z-[70] sm:gap-2.5 sm:px-3 sm:py-2.5"
               )}
               aria-label="Open Assistant Guide"
               title="Assistant Guide"

@@ -1,42 +1,71 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 
-import { FigureReadout } from "@/components/dashboard/ShowTheMaths";
-import { formatNzd } from "@/lib/currency";
-import { MISSING_MARK, type PortfolioSnapshot } from "@/lib/portfolio-snapshot";
+import { incomeTaxSummary, taxYearsOnBook, type TaxFigure } from "@/lib/income-tax-summary";
+import { aucklandCivilToday, nzTaxYearEnding } from "@/lib/nz-tax-year";
+import type { PortfolioSnapshot } from "@/lib/portfolio-snapshot";
 
 export function IncomeTaxPanel({ snapshot, loading }: { snapshot: PortfolioSnapshot | null; loading: boolean }) {
-  const dividends = (snapshot?.ledger || []).filter((line) => line.type === "dividend");
-  const taxLines = (snapshot?.ledger || []).filter((line) => line.type === "tax");
+  const years = useMemo(() => (snapshot ? taxYearsOnBook(snapshot) : []), [snapshot]);
+  const current = nzTaxYearEnding(aucklandCivilToday()) ?? years[0] ?? new Date().getFullYear();
+  const [year, setYear] = useState<number>(current);
+  const selected = years.includes(year) ? year : years[0] ?? current;
+  const summary = snapshot ? incomeTaxSummary(snapshot, selected) : null;
+
   return (
     <section className="space-y-4" data-section="income-tax" aria-busy={loading || undefined}>
-      <div>
-        <h2 className="text-base font-semibold">Income and tax</h2>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Income on the total return is the net figure. Tax papers are the same book.
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold">Income and tax</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Figures come from the ledger for the selected New Zealand tax year.
+          </p>
+        </div>
+        <label className="text-xs text-muted-foreground">
+          Tax year
+          <select
+            aria-label="Tax year"
+            value={selected}
+            disabled={loading || !snapshot}
+            onChange={(event) => setYear(Number(event.target.value))}
+            className="mt-1 block rounded-md border border-border/70 bg-background px-2 py-1.5 text-sm text-foreground"
+          >
+            {(years.length ? years : [selected]).map((ending) => (
+              <option key={ending} value={ending}>
+                Year ending 31 Mar {ending}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
-      {loading || !snapshot ? (
+      {loading || !snapshot || !summary ? (
         <div className="h-24 animate-pulse rounded-2xl bg-muted/40 motion-reduce:animate-none" />
+      ) : summary.empty ? (
+        <div className="rounded-2xl border border-dashed border-border/70 bg-card/40 p-5">
+          <p className="text-sm font-medium">Nothing recorded for {summary.label}.</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Dividends and realised gains will show here when the ledger has them. FIF stays blank until an opening value is stored.
+          </p>
+        </div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-3">
-          <FigureCard label="Gross">
-            <FigureReadout figure={snapshot.kpis.incomeGross} label="Gross income" showReason className="items-start" />
-          </FigureCard>
-          <FigureCard label="Withholding">
-            <FigureReadout figure={snapshot.kpis.incomeWithholding} label="Withholding" showReason className="items-start" />
-          </FigureCard>
-          <FigureCard label="Net">
-            <FigureReadout figure={snapshot.kpis.income} label="Net income" showReason className="items-start" />
-          </FigureCard>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <FigureCard label="Dividend cash" figure={summary.dividends} />
+          <FigureCard label="Realised" figure={summary.realised} />
         </div>
       )}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <LedgerList title="Dividends and income" empty="No dividends or income recorded." rows={dividends} />
-        <LedgerList title="Tax" empty="No tax lines recorded." rows={taxLines} />
-      </div>
+      {summary ? (
+        <div className="rounded-2xl border border-border/70 bg-card/50 p-4">
+          <h3 className="text-sm font-semibold">FIF</h3>
+          <p className="mt-1 text-xs text-muted-foreground">{summary.label}</p>
+          <p className="mt-2 text-lg font-bold" title={summary.fif.reason || undefined}>
+            {summary.fif.display}
+            {summary.fif.reason ? <span className="sr-only"> {summary.fif.reason}</span> : null}
+          </p>
+          {summary.fif.reason ? <p className="mt-1 text-xs text-muted-foreground">{summary.fif.reason}</p> : null}
+        </div>
+      ) : null}
       <p className="text-sm">
         <Link href="/tax" className="font-semibold text-primary hover:underline">
           Tax papers
@@ -46,41 +75,15 @@ export function IncomeTaxPanel({ snapshot, loading }: { snapshot: PortfolioSnaps
   );
 }
 
-function FigureCard({ label, children }: { label: string; children: ReactNode }) {
+function FigureCard({ label, figure }: { label: string; figure: TaxFigure }) {
   return (
     <div className="rounded-2xl border border-border/70 bg-card/50 p-4">
       <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <div className="mt-1">{children}</div>
-    </div>
-  );
-}
-
-function LedgerList({
-  title,
-  empty,
-  rows,
-}: {
-  title: string;
-  empty: string;
-  rows: PortfolioSnapshot["ledger"];
-}) {
-  return (
-    <div className="rounded-2xl border border-border/70 bg-card/50 p-4">
-      <h3 className="text-sm font-semibold">{title}</h3>
-      {rows.length === 0 ? (
-        <p className="mt-3 text-sm text-muted-foreground">{empty}</p>
-      ) : (
-        <ul className="mt-3 space-y-2 text-sm">
-          {rows.map((line) => (
-            <li key={line.id} className="flex items-baseline justify-between gap-3">
-              <span>
-                {line.ticker || "Cash"} · {line.whenLabel}
-              </span>
-              <span className="tnum">{Number.isFinite(line.cashNzd) ? formatNzd(line.cashNzd) : MISSING_MARK}</span>
-            </li>
-          ))}
-        </ul>
-      )}
+      <p className="mt-1 text-lg font-bold" title={figure.reason || undefined}>
+        {figure.display}
+        {figure.reason ? <span className="sr-only"> {figure.reason}</span> : null}
+      </p>
+      {figure.reason ? <p className="mt-1 text-xs text-muted-foreground">{figure.reason}</p> : null}
     </div>
   );
 }

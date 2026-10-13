@@ -8,10 +8,9 @@ import { cn } from "@/lib/utils";
 import { formatDisplayDate, formatMoney, formatSignedPercent } from "@/lib/currency";
 import { formatTapeItem, fxRateLine, type TapeDisplay } from "@/lib/tape-display";
 import { useFxRates } from "@/hooks/useFxRates";
-import { cryptoFreshnessLabel, exchangeFreshnessLabel, latestQuoteTime, metalUpdatedPhrase, tapeUpdatedPhrase, type TapeVenue } from "@/lib/market-freshness";
+import { cryptoFreshnessLabel, exchangeFreshnessLabel, latestQuoteTime, metalUpdatedPhrase } from "@/lib/market-freshness";
 import { cryptoVenueForLabel } from "@/lib/crypto-price-chain";
 import { priceBadge } from "@/lib/price-confidence";
-import { PriceConfidenceBadge } from "@/components/PriceConfidenceBadge";
 
 /**
  * Market tape. Prices come only from GET /api/ticker (one live pipeline).
@@ -45,12 +44,6 @@ function formatAsOf(iso: string | null | undefined): string {
   return wall === "—" ? "" : wall;
 }
 
-function tapeVenue(symbol: string): TapeVenue {
-  if (symbol.endsWith(".NZ")) return "NZX";
-  if (symbol.endsWith(".AX")) return "ASX";
-  return "CRYPTO";
-}
-
 function TickerCell({
   q,
   price,
@@ -68,19 +61,11 @@ function TickerCell({
   const flat = hasChange && Number(q.change.toFixed(2)) === 0;
   const up = hasChange && !flat && q.change > 0;
   const asOf = formatAsOf(q.quotedAt);
-  const badge = {
-    ...priceBadge({
-      source: q.provider || source,
-      delay,
-      quotedAt: q.quotedAt ? new Date(q.quotedAt) : null,
-      refreshOk: failedRefreshes === 0,
-      failedRefreshes,
-    }),
-    updated: tapeUpdatedPhrase(q.quotedAt, tapeVenue(q.symbol)),
-  };
+  void source;
+  void delay;
+  void failedRefreshes;
   return (
     <span className="inline-flex items-center gap-2 px-4 py-0.5 whitespace-nowrap">
-      <PriceConfidenceBadge badge={badge} />
       <span className="font-display text-[0.78rem] font-semibold tracking-tight text-emerald-300">
         {q.symbol}
       </span>
@@ -361,10 +346,15 @@ export function MarketTicker({ className, compact = false, initial = null, initi
     );
   }
 
+  const delayBadge = (
+    <p className="bg-zinc-950 px-3 py-1 text-[0.65rem] font-semibold text-zinc-300">Delayed (Yahoo)</p>
+  );
+
   if (compact) {
     const blend = [...nzx.slice(0, 6), ...asx.slice(0, 5), ...crypto.slice(0, 5)];
     return (
       <div className={cn("w-full border-y border-border/50", className)} title={statusTitle}>
+        {delayBadge}
         <TickerRow
           quotes={blend}
           animationClass="animate-ticker"
@@ -397,6 +387,7 @@ export function MarketTicker({ className, compact = false, initial = null, initi
 
   return (
     <div className={cn("w-full", className)}>
+      {delayBadge}
       <TickerRow
         quotes={nzx}
         animationClass="animate-ticker"

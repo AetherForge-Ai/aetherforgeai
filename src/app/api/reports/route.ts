@@ -26,6 +26,7 @@ import { reportPayloadWasEmailed } from "@/lib/report-email";
 import { loadTotalumSynthesis } from "@/lib/totalum-service";
 import { requestClaimsOtherUser } from "@/lib/account-guard";
 import { accountMismatchResponse, privateJson } from "@/lib/account-response";
+import { listedReportBody } from "@/lib/report-body";
 
 const schema = z.object({ bot: z.enum(["stock", "crypto"]) });
 
@@ -422,7 +423,7 @@ export async function GET(req: Request) {
       ok: true,
       userId: user._id,
       data: {
-        reports,
+        reports: reports.filter((report) => listedReportBody(report) != null),
         bookLoaded: book.bookLoaded,
         // Per report-system allowance (Stox + Koins tracked independently) — paid/legacy weekly.
         quota: { stock: stockQuota, crypto: cryptoQuota },

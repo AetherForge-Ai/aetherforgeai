@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { api } from "@/lib/api";
 import {
   collapseDuplicateHoldings,
@@ -37,12 +38,19 @@ import {
 import { hubAllocationLabel } from "@/lib/hub-labels";
 import { dexFromHolding, holdingTitle } from "@/lib/dex-source";
 import { portfolioLoadFailure } from "@/lib/trade-commit-session";
-import dynamic from "next/dynamic";
 import type { HoldingChartTarget } from "@/components/dashboard/HoldingChartDialog";
 
 const HoldingChartDialog = dynamic(
   () => import("@/components/dashboard/HoldingChartDialog").then((mod) => mod.HoldingChartDialog),
   { ssr: false }
+);
+const ReportCenter = dynamic(
+  () => import("@/components/dashboard/ReportCenter").then((mod) => mod.ReportCenter),
+  { ssr: false, loading: () => <p className="text-sm text-muted-foreground">Loading reports…</p> },
+);
+const DashboardInsights = dynamic(
+  () => import("@/components/dashboard/DashboardInsights").then((mod) => mod.DashboardInsights),
+  { ssr: false },
 );
 import { TransactionCenter } from "@/components/dashboard/TransactionCenter";
 import { openRecordTransaction } from "@/lib/open-transaction";
@@ -81,7 +89,6 @@ import {
   writeCachedCashNZD,
 } from "@/lib/client-user-state";
 import { AnalysisPanel } from "@/components/dashboard/AnalysisPanel";
-import { ReportCenter } from "@/components/dashboard/ReportCenter";
 import { PriceAlerts } from "@/components/dashboard/PriceAlerts";
 import { PreciousMetals } from "@/components/dashboard/PreciousMetals";
 import { planLabel } from "@/lib/plans";
@@ -117,7 +124,6 @@ import { MarketIntelProvider } from "@/components/dashboard/MarketIntelContext";
 import { WatchlistPanel } from "@/components/dashboard/WatchlistPanel";
 import { GlobalSearch } from "@/components/dashboard/GlobalSearch";
 import { DashboardCalculator } from "@/components/dashboard/DashboardCalculator";
-import { DashboardInsights } from "@/components/dashboard/DashboardInsights";
 import { PaidPlanPrompt } from "@/components/dashboard/PaidPlanPrompt";
 import { SnapshotAllocation } from "@/components/dashboard/SnapshotAllocation";
 import { holdingDeleteEffect } from "@/lib/dashboard-tabs";
@@ -992,7 +998,15 @@ export function PortfolioDashboard({
 
   useEffect(() => {
     if (preview) return;
-    loadPublicSpot();
+    const run = () => {
+      void loadPublicSpot();
+    };
+    const idle = window.requestIdleCallback?.(run);
+    const timer = typeof idle === "number" ? null : window.setTimeout(run, 400);
+    return () => {
+      if (typeof idle === "number") window.cancelIdleCallback?.(idle);
+      if (timer != null) window.clearTimeout(timer);
+    };
   }, [preview, loadPublicSpot, ledgerSignal]);
 
   const loadPortfolioSnapshot = useCallback(
@@ -1690,6 +1704,14 @@ export function PortfolioDashboard({
     setRefreshing(false);
   }
 
+  function tradeCashInput(): { cash: number; cashKnown: boolean } {
+    const fromBook = bookSnapshot?.kpis.cash.value;
+    return {
+      cash: typeof fromBook === "number" ? fromBook : cashBalance,
+      cashKnown: cashLoaded || typeof fromBook === "number",
+    };
+  }
+
   function handleCalculatorTrade(input: {
     ticker: string;
     name: string;
@@ -1715,8 +1737,7 @@ export function PortfolioDashboard({
         mode: input.action,
         userId,
         holdings: transactionHoldings,
-        cash: cashBalance,
-        cashKnown: cashLoaded,
+        ...tradeCashInput(),
         preferredAssetType: "metal",
         seed: {
           ticker: metal.metal === "silver" ? "SILVER" : "GOLD",
@@ -1740,8 +1761,7 @@ export function PortfolioDashboard({
         mode: "dividend",
         userId,
         holdings: allStocks,
-        cash: cashBalance,
-        cashKnown: cashLoaded,
+        ...tradeCashInput(),
         seed: {
           ticker: stock.ticker,
           name: stock.company_name || stock.ticker,
@@ -1827,8 +1847,7 @@ export function PortfolioDashboard({
       mode,
       userId,
       holdings: allStocks,
-      cash: cashBalance,
-      cashKnown: cashLoaded,
+      ...tradeCashInput(),
     });
   }
 
@@ -1848,8 +1867,7 @@ export function PortfolioDashboard({
       mode: "buy",
       userId,
       holdings: allStocks,
-      cash: cashBalance,
-      cashKnown: cashLoaded,
+      ...tradeCashInput(),
       preferredAssetType: isCrypto ? "crypto" : isMetals ? "metal" : isStocks ? "stock" : null,
     });
   }
@@ -1860,8 +1878,7 @@ export function PortfolioDashboard({
       mode: "correction",
       userId,
       holdings: allStocks,
-      cash: cashBalance,
-      cashKnown: cashLoaded,
+      ...tradeCashInput(),
       seed: {
         ticker: stock.ticker,
         name: stock.company_name || stock.ticker,
@@ -1894,8 +1911,7 @@ export function PortfolioDashboard({
       mode,
       userId,
       holdings: allStocks,
-      cash: cashBalance,
-      cashKnown: cashLoaded,
+      ...tradeCashInput(),
       seed: {
         ticker: holding.ticker,
         name: holding.company_name || holding.ticker,
@@ -1958,7 +1974,7 @@ export function PortfolioDashboard({
             : null;
   const marketTitle =
     view === "nzsx"
-      ? "NZSX"
+      ? "NZX 50"
       : view === "asx"
         ? "ASX"
         : view === "nasdaq"
@@ -1989,7 +2005,7 @@ export function PortfolioDashboard({
     <MarketIntelProvider bot={bot}>
     <div className="mx-auto w-full min-w-0 max-w-6xl overflow-x-clip px-4 py-8 sm:px-6 lg:px-8" aria-busy={kpiPending || undefined}>
       {/* Header — matches dashboard home mock */}
-      <div className="flex flex-wrap items-start justify-between gap-3 sm:gap-4">
+      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-4">
         <div className="min-w-0">
           <p className="text-sm text-muted-foreground">
             {preview
@@ -2006,9 +2022,11 @@ export function PortfolioDashboard({
               <ArrowLeft className="size-4" /> Back to Dashboard
             </Link>
           ) : null}
+          {isHome ? null : (
           <h1 className="mt-2 font-grift-black text-2xl uppercase tracking-wide text-amber-400 sm:text-3xl lg:text-4xl">
             {pageTitle}
           </h1>
+          )}
           {isHome && !preview ? (
             <Link href="/tax" className="mt-2 inline-flex text-sm font-semibold text-primary hover:underline">
               Tax papers
@@ -2041,20 +2059,6 @@ export function PortfolioDashboard({
           <div className="flex flex-wrap items-end justify-end gap-6">
             <div className="text-right">
               <p className="text-[0.68rem] font-semibold uppercase tracking-wide text-foreground">
-                Holdings value
-              </p>
-              <BookMoney
-                snap
-                value={headerHoldings}
-                reason={holdingsReason}
-                loading={!balancesReady}
-                skeletonClassName="mt-1 ml-auto h-7 w-24 animate-pulse rounded-md bg-muted/50"
-                className="tnum font-display text-xl font-bold text-emerald-600 sm:text-2xl"
-              />
-            </div>
-            {legacyHomeTotals ? (
-            <div className="text-right">
-              <p className="text-[0.68rem] font-semibold uppercase tracking-wide text-foreground">
                 Total net worth
               </p>
               <BookMoney
@@ -2066,7 +2070,6 @@ export function PortfolioDashboard({
                 className="tnum font-display text-xl font-bold text-emerald-600 sm:text-2xl"
               />
             </div>
-            ) : null}
           </div>
         </div>
         )}
@@ -2119,8 +2122,28 @@ export function PortfolioDashboard({
             stox: reportDesk?.stox ?? unloadedReportControl("Stox"),
             koins: reportDesk?.koins ?? unloadedReportControl("Koins"),
           }}
+          onRetry={() => {
+            void loadPortfolioSnapshot({ force: true });
+          }}
+          emptyActions={
+            <Button type="button" size="sm" onClick={openAdd}>+ Add trade</Button>
+          }
           actions={
             <div className="mt-4 flex w-full min-w-0 max-w-full flex-wrap items-center gap-2" data-header-actions>
+              <details className="w-full md:hidden">
+                <summary className="inline-flex min-h-11 cursor-pointer list-none items-center rounded-md bg-primary px-3 text-sm font-semibold text-primary-foreground">
+                  + Add
+                </summary>
+                <div className="mt-2 flex flex-col items-stretch gap-2">
+                  <Button type="button" className="h-auto min-h-11 whitespace-normal" onClick={openAdd}>+ Add trade</Button>
+                  <HoldingsCsvImport assetType="stock" onImported={handleDataChanged} />
+                  <Button type="button" variant="outline" className="h-auto min-h-11 whitespace-normal" onClick={() => handleCalculatorCash("deposit")}>Deposit/Withdraw</Button>
+                  <Button type="button" variant="outline" className="h-auto min-h-11 whitespace-normal" onClick={() => void exportLedger()} disabled={freePlan} title={freePlan ? "CSV export is included on Starter and above." : undefined}>Export</Button>
+                  <Button type="button" variant="outline" className="h-auto min-h-11 whitespace-normal" disabled={(reportDesk?.stox ?? unloadedReportControl("Stox")).disabled} title={(reportDesk?.stox ?? unloadedReportControl("Stox")).title} onClick={() => handleReport({ ticker: "", name: "Portfolio", assetClass: "shares", kind: "position" } as HoldingsRowModel, "stox")}>{(reportDesk?.stox ?? unloadedReportControl("Stox")).label}</Button>
+                  <Button type="button" variant="outline" className="h-auto min-h-11 whitespace-normal" disabled={(reportDesk?.koins ?? unloadedReportControl("Koins")).disabled} title={(reportDesk?.koins ?? unloadedReportControl("Koins")).title} onClick={() => handleReport({ ticker: "", name: "Portfolio", assetClass: "crypto", kind: "position" } as HoldingsRowModel, "koins")}>{(reportDesk?.koins ?? unloadedReportControl("Koins")).label}</Button>
+                </div>
+              </details>
+              <div className="hidden w-full min-w-0 flex-wrap items-center gap-2 md:flex">
               <Button type="button" className="h-auto min-h-11 max-w-full whitespace-normal" onClick={openAdd}>+ Add trade</Button>
               <HoldingsCsvImport assetType="stock" onImported={handleDataChanged} />
               <Button type="button" variant="outline" className="h-auto min-h-11 max-w-full whitespace-normal" onClick={() => handleCalculatorCash("deposit")}>Deposit/Withdraw</Button>
@@ -2147,12 +2170,7 @@ export function PortfolioDashboard({
               >
                 {(reportDesk?.koins ?? unloadedReportControl("Koins")).label}
               </Button>
-              <span className="max-w-full text-xs text-muted-foreground" data-report-quota title={reportDesk?.reason || QUOTA_NOT_LOADED}>
-                {reportDesk?.loaded ? reportDesk.text : "—"}
-                {reportDesk?.loaded && !reportDesk.reason ? null : (
-                  <span className="mt-0.5 block">{reportDesk?.reason || QUOTA_NOT_LOADED}</span>
-                )}
-              </span>
+              </div>
             </div>
           }
           cryptoEmpty={
@@ -2179,6 +2197,7 @@ export function PortfolioDashboard({
               <section id="dashboard-alerts" className="space-y-3 rounded-2xl border border-border/70 bg-card/50 p-4">
                 <h2 className="text-sm font-semibold">Alerts</h2>
                 <PriceAlerts
+                  embedded
                   stocks={stockOnly}
                   assetType="stock"
                   holdingsReady={!loading}
@@ -2188,6 +2207,7 @@ export function PortfolioDashboard({
                   seedNonce={alertSeed?.asset === "stock" ? alertSeed.nonce : 0}
                 />
                 <PriceAlerts
+                  embedded
                   stocks={cryptoMarked}
                   assetType="crypto"
                   holdingsReady={!loading}
@@ -2222,20 +2242,22 @@ export function PortfolioDashboard({
                   seedNonce={watchSeed && watchSeed.asset === watchClass ? watchSeed.nonce : 0}
                 />
               </section>
-              <ReportCenter
-                botAccess={subscription.botAccess}
-                plan={subscription.plan}
-                scope={scope}
-                counts={holdingCounts}
-                countsReady={preview || !loading}
-                tickerLimit={tickerLimit}
-                userId={userId}
-                holdings={allStocks}
-                onHoldingsChanged={handleDataChanged}
-                preview={preview}
-                onDesk={onReportDesk}
-              />
             </>
+          }
+          reports={
+            <ReportCenter
+              botAccess={subscription.botAccess}
+              plan={subscription.plan}
+              scope={scope}
+              counts={holdingCounts}
+              countsReady={preview || !loading}
+              tickerLimit={tickerLimit}
+              userId={userId}
+              holdings={allStocks}
+              onHoldingsChanged={handleDataChanged}
+              preview={preview}
+              onDesk={onReportDesk}
+            />
           }
           actionFor={(row) =>
             resolveHoldingAction({
@@ -2296,6 +2318,7 @@ export function PortfolioDashboard({
           <OnboardingChecklist
             hasCash={cashBalance > 0}
             hasHoldings={false}
+            hasBuy={(bookSnapshot?.ledger ?? []).some((line) => line.type === "buy")}
             plan={subscription.plan}
           />
         </div>
@@ -2306,6 +2329,7 @@ export function PortfolioDashboard({
           <OnboardingChecklist
             hasCash={cashBalance > 0}
             hasHoldings={allStocks.length > 0 || preciousMetalHoldings.length > 0}
+            hasBuy={(bookSnapshot?.ledger ?? []).some((line) => line.type === "buy")}
             plan={subscription.plan}
           />
           {freePlan ? (

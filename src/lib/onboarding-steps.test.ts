@@ -3,7 +3,7 @@ import { onboardingProgress } from "@/lib/onboarding-steps";
 
 describe("onboardingProgress", () => {
   it("counts every visible step, so a first buy is 1/4", () => {
-    const progress = onboardingProgress({ hasHoldings: true, hasAlerts: false, hasReport: false });
+    const progress = onboardingProgress({ hasHoldings: true, hasBuy: true, hasAlerts: false, hasReport: false });
     expect(progress.total).toBe(4);
     expect(progress.completed).toBe(1);
     expect(progress.finished).toBe(false);
@@ -11,17 +11,18 @@ describe("onboardingProgress", () => {
     expect(progress.steps.find((step) => step.id === "headmaster")?.done).toBe(false);
   });
 
-  it("ticks the first buy when cash is on the book and no holding is held", () => {
-    const progress = onboardingProgress({ hasHoldings: false, hasCash: true, hasAlerts: false, hasReport: false });
-    expect(progress.steps.find((step) => step.id === "buy")?.done).toBe(true);
-    expect(`${progress.completed}/${progress.total}`).toBe("1/4");
+  it("does not tick the first buy for a cash deposit", () => {
+    const progress = onboardingProgress({ hasHoldings: false, hasCash: true, hasBuy: false, hasAlerts: false, hasReport: false });
+    expect(progress.steps.find((step) => step.id === "buy")?.done).toBe(false);
+    expect(`${progress.completed}/${progress.total}`).toBe("0/4");
     expect(progress.finished).toBe(false);
   });
 
   it("stays visible for a cash book that has not finished alerts and reports", () => {
-    const progress = onboardingProgress({ hasHoldings: true });
+    const progress = onboardingProgress({ hasHoldings: false, hasCash: true, hasBuy: false });
     expect(progress.finished).toBe(false);
-    expect(`${progress.completed}/${progress.total}`).toBe("1/4");
+    expect(progress.steps.find((step) => step.id === "buy")?.done).toBe(false);
+    expect(`${progress.completed}/${progress.total}`).toBe("0/4");
   });
 
   it("starts at 0/4 before the first buy or cash", () => {
@@ -32,7 +33,7 @@ describe("onboardingProgress", () => {
   });
 
   it("finishes when buys, alerts, and a report are done, even if Headmaster is still open", () => {
-    const progress = onboardingProgress({ hasHoldings: true, hasAlerts: true, hasReport: true });
+    const progress = onboardingProgress({ hasHoldings: true, hasBuy: true, hasAlerts: true, hasReport: true });
     expect(progress.completed).toBe(3);
     expect(progress.total).toBe(4);
     expect(progress.finished).toBe(true);

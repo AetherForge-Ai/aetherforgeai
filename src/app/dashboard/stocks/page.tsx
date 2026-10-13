@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation";
+import { permanentRedirect } from "next/navigation";
 
 import { dashboardRedirectHref } from "@/lib/dashboard-redirect";
 import { publicPageMetadata } from "@/lib/reviewed-book";
@@ -15,5 +15,5 @@ export default async function Page({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  redirect(dashboardRedirectHref(await searchParams, { view: "shares" }));
+  permanentRedirect(dashboardRedirectHref(await searchParams, { view: "shares" }));
 }

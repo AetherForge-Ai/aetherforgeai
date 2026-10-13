@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, type ReactNode } from "react";
+import { Fragment, useState, type ReactNode } from "react";
 import { ChevronRight, MoreHorizontal } from "lucide-react";
 
 import { FigureReadout } from "@/components/dashboard/ShowTheMaths";
@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  CASH_COLUMN_REASON,
   COLUMN_LABEL,
   COLUMN_SETS,
   CUSTOM_COLUMN_CHOICES,
@@ -68,6 +69,7 @@ export function UnifiedHoldingsTable({
   reportRuns,
   actionFor,
   cryptoEmpty,
+  emptyActions,
 }: {
   model: HoldingsTableModel | null;
   loading: boolean;
@@ -87,8 +89,20 @@ export function UnifiedHoldingsTable({
   reportRuns: { stox: ReportRunControl; koins: ReportRunControl };
   actionFor: (row: HoldingsRowModel) => HoldingAction;
   cryptoEmpty?: ReactNode;
+  emptyActions?: ReactNode;
 }) {
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [columnsOpen, setColumnsOpen] = useState(false);
   const columns = model?.columns || COLUMN_SETS.summary;
+  let positionCount = 0;
+  if (model) {
+    for (const group of model.groups) {
+      for (const row of group.rows) {
+        if (row.kind === "position") positionCount += 1;
+      }
+    }
+  }
+  const emptyBook = !!model && positionCount === 0;
 
   function patch(partial: Partial<HoldingsQuery>) {
     onQuery({ ...query, ...partial });
@@ -125,6 +139,14 @@ export function UnifiedHoldingsTable({
             </button>
           ))}
         </div>
+        <Button type="button" variant="outline" size="sm" disabled={loading} aria-expanded={filtersOpen} onClick={() => setFiltersOpen((open) => !open)}>
+          Filters
+        </Button>
+        <Button type="button" variant="outline" size="sm" disabled={loading} aria-expanded={columnsOpen} onClick={() => setColumnsOpen((open) => !open)}>
+          Columns
+        </Button>
+        {filtersOpen ? (
+        <>
         <Field label="Market">
           <select aria-label="Market" value={query.market} disabled={loading} onChange={(event) => patch({ market: event.target.value })} className={selectClass}>
             <option value="">All</option>
@@ -187,38 +209,26 @@ export function UnifiedHoldingsTable({
             <option value="none">None</option>
           </select>
         </Field>
-        <Field label="Columns">
-          <select
-            aria-label="Columns"
-            value={columnSet}
-            disabled={loading}
-            onChange={(event) => onColumnSet(event.target.value as ColumnSetId)}
-            className={selectClass}
-          >
-            <option value="summary">Summary</option>
-            <option value="performance">Performance</option>
-            <option value="income">Income</option>
-            <option value="tax">Tax</option>
-            <option value="crypto">Crypto</option>
-            <option value="custom">Custom</option>
-          </select>
-        </Field>
+        </>
+        ) : null}
         {model ? (
           <span className="text-xs font-semibold text-foreground" data-reconciliation={model.reconciliationLabel}>
             {model.reconciliationLabel}
           </span>
         ) : null}
       </div>
-      {columnSet === "custom" ? (
+      {columnsOpen ? (
         <fieldset className="mt-2 flex flex-wrap gap-2 text-xs">
-          <legend className="sr-only">Custom columns</legend>
+          <legend className="text-xs font-semibold text-foreground">Columns. Asset stays pinned.</legend>
           {CUSTOM_COLUMN_CHOICES.map((id) => (
             <label key={id} className="inline-flex items-center gap-1">
               <input
                 type="checkbox"
-                checked={customColumns.includes(id)}
+                checked={columnSet === "custom" ? customColumns.includes(id) : columns.includes(id)}
                 onChange={() => {
-                  const next = customColumns.includes(id) ? customColumns.filter((column) => column !== id) : [...customColumns, id];
+                  const current = columnSet === "custom" ? customColumns : columns.filter((column) => column !== "asset" && column !== "actions");
+                  const next = current.includes(id) ? current.filter((column) => column !== id) : [...current, id];
+                  onColumnSet("custom");
                   onCustomColumns(next);
                 }}
               />
@@ -227,13 +237,45 @@ export function UnifiedHoldingsTable({
           ))}
         </fieldset>
       ) : null}
-      <p className="mt-2 text-xs text-muted-foreground">
-        {asOfLabel ? `Snapshot ${asOfLabel}. ` : ""}
-        Prices show the source on the badge. A dash has its reason on the info button. A dash is not a zero.
-        {" "}No previous close was stored for these holdings, so day change is —.
-      </p>
+      {asOfLabel ? <p className="mt-2 text-xs text-muted-foreground">Snapshot {asOfLabel}. A dash has its reason on the info button.</p> : null}
+      {emptyBook ? (
+        <div className="mt-3 rounded-3xl border border-dashed border-border/70 bg-card/40 p-5" data-empty-book>
+          <p className="text-sm font-medium">No holdings yet</p>
+          <p className="mt-1 text-sm text-muted-foreground">Shares, crypto, and metals show here after a buy. Cash stays on its own row.</p>
+          {emptyActions ? <div className="mt-3 flex flex-wrap gap-2">{emptyActions}</div> : null}
+        </div>
+      ) : null}
 
-      <div className="mt-3 overflow-x-auto rounded-3xl border border-border/70 bg-card/50">
+      <div className="mt-3 space-y-3 md:hidden">
+        {loading || !model ? (
+          <div className="h-24 animate-pulse rounded-2xl bg-muted/40" />
+        ) : (
+          model.groups.map((group) => {
+            const rows = emptyBook ? group.rows.filter((row) => row.kind === "cash") : group.rows;
+            if (!rows.length) return null;
+            return (
+              <section key={group.id} className="space-y-2">
+                <h3 className="text-sm font-semibold">{group.label}</h3>
+                {rows.map((row) => (
+                  <article key={row.id} className="rounded-2xl border border-border/70 bg-card/50 p-3">
+                    <AssetCell row={row} onOpen={() => onInspect(row)} />
+                    <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                      {columns.filter((column) => column !== "asset" && column !== "actions").map((column) => (
+                        <div key={column}>
+                          <dt className="text-xs text-muted-foreground">{COLUMN_LABEL[column]}</dt>
+                          <dd><CellView cell={row.cells[column]} label={`${row.ticker} ${COLUMN_LABEL[column]}`} signed={SIGNED.has(column)} /></dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </article>
+                ))}
+              </section>
+            );
+          })
+        )}
+      </div>
+
+      <div className="mt-3 hidden overflow-x-auto rounded-3xl border border-border/70 bg-card/50 md:block">
         {loading || !model ? (
           <div className="space-y-3 p-6">
             {[0, 1, 2, 3].map((row) => (
@@ -253,7 +295,7 @@ export function UnifiedHoldingsTable({
                       key={column}
                       scope="col"
                       aria-sort={sortable ? (active ? (query.sortDir === "asc" ? "ascending" : "descending") : "none") : undefined}
-                      className={cn("px-3 py-3 font-medium", column === "asset" ? "text-left" : "text-right")}
+                      className={cn("px-3 py-3 font-medium", column === "asset" ? "sticky left-0 z-10 bg-card text-left" : "text-right")}
                     >
                       {sortable ? (
                         <button
@@ -284,7 +326,10 @@ export function UnifiedHoldingsTable({
                   </td>
                 </tr>
               ) : (
-                model.groups.map((group) => (
+                model.groups.map((group) => {
+                  const rows = emptyBook ? group.rows.filter((row) => row.kind === "cash") : group.rows;
+                  if (emptyBook && rows.length === 0) return null;
+                  return (
                   <Fragment key={group.id}>
                     <tr className="border-t border-border/60 bg-muted/20">
                       <th scope="rowgroup" colSpan={columns.length} className="px-3 py-2 text-left font-semibold">
@@ -294,20 +339,18 @@ export function UnifiedHoldingsTable({
                         </span>
                       </th>
                     </tr>
-                    {group.rows.length === 0 ? (
+                    {rows.length === 0 ? (
                       <tr>
                         <td colSpan={columns.length} className="px-4 py-4 text-muted-foreground">
-                          <span className="inline-flex flex-wrap items-center gap-2">
-                            <span>{group.emptyLabel}</span>
-                            {group.id === "crypto" ? cryptoEmpty : null}
-                          </span>
+                          <span>{group.emptyLabel}</span>
+                          {group.id === "crypto" && cryptoEmpty ? <span className="mt-2 block">{cryptoEmpty}</span> : null}
                         </td>
                       </tr>
                     ) : (
-                      group.rows.map((row) => (
+                      rows.map((row) => (
                           <tr key={row.id} className="border-t border-border/40 align-top">
                             {columns.map((column) => (
-                              <td key={column} className={cn("px-3 py-3", column === "asset" || column === "actions" ? "text-left" : "text-right")}>
+                              <td key={column} className={cn("px-3 py-3", column === "asset" ? "sticky left-0 z-10 bg-card text-left" : column === "actions" ? "text-left" : "text-right whitespace-nowrap")}>
                                 {column === "asset" ? (
                                   <AssetCell row={row} onOpen={() => onInspect(row)} />
                                 ) : column === "actions" ? (
@@ -330,7 +373,8 @@ export function UnifiedHoldingsTable({
                         ))
                     )}
                   </Fragment>
-                ))
+                  );
+                })
               )}
             </tbody>
             {model.groups.length ? (
@@ -386,8 +430,14 @@ function AssetCell({ row, onOpen }: { row: HoldingsRowModel; onOpen: () => void 
         <span className="block font-medium">{row.name}</span>
         <span className="mt-1 flex flex-wrap items-center gap-1">
           <span className="text-xs text-muted-foreground">{row.ticker}</span>
-          <Badge variant="outline">{row.exchange}</Badge>
-          <Badge variant="secondary">{row.classLabel}</Badge>
+          {row.kind === "cash" ? (
+            <Badge variant="secondary">Cash</Badge>
+          ) : (
+            <>
+              <Badge variant="outline">{row.exchange}</Badge>
+              <Badge variant="secondary">{row.classLabel}</Badge>
+            </>
+          )}
           {row.closed ? <Badge variant="outline">Closed</Badge> : null}
           {row.negativeCash ? <Badge variant="outline">Below zero</Badge> : null}
         </span>
@@ -415,7 +465,7 @@ function CellView({ cell, label, signed }: { cell: TableCellModel | undefined; l
               figure={figure}
               label={cell.figures.length > 1 ? `${label} ${index === 0 ? "amount" : "percent"}` : label}
               signed={signed && index === 0}
-              showReason={figure.display === MISSING_MARK && figure.reason !== "No previous close was stored for this holding."}
+              showReason={figure.display === MISSING_MARK && figure.reason !== "No previous close was stored for this holding." && figure.reason !== CASH_COLUMN_REASON}
             />
           </Fragment>
         ))}
