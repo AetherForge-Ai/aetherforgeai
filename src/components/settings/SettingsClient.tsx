@@ -15,6 +15,7 @@ import Link from "next/link";
 import { PLANS, SALES_EMAIL, planByKey, planLabel, type Plan } from "@/lib/plans";
 import { limitScope, resolveTickerLimit } from "@/lib/entitlements";
 import { formatDisplayDate, formatUsdWithRate, type FxRatesToNZD } from "@/lib/currency";
+import { resolveDisplayName } from "@/lib/user-display";
 import { useFxRates } from "@/hooks/useFxRates";
 import { COUNTRIES } from "@/lib/countries";
 import { SettingsSectionNav } from "@/components/settings/SettingsSectionNav";
@@ -45,8 +46,10 @@ interface SettingsUser {
   stripeConfigured: boolean;
 }
 
-function fmtDate(iso?: string | null): string {
-  return formatDisplayDate(iso);
+function fmtDate(iso?: string | null, missing = "This date was not stored."): string {
+  const wall = formatDisplayDate(iso);
+  if (!iso || wall === "—") return `— ${missing}`;
+  return wall;
 }
 
 function botAccessLabel(access?: string | null): string {
@@ -105,9 +108,11 @@ export function SettingsClient({
   user: SettingsUser;
   initialFx?: { rates: FxRatesToNZD; asOf: string } | null;
 }) {
+  const greetingName = resolveDisplayName(user) || user.name || "";
+  const greetingWords = greetingName.trim().split(/\s+/).filter(Boolean);
   const split = (user.name || "").trim().split(/\s+/);
-  const inferredFirst = user.first_name || split[0] || "";
-  const inferredLast = user.last_name || (split.length > 1 ? split.slice(1).join(" ") : "");
+  const inferredFirst = greetingWords[0] || user.first_name || split[0] || "";
+  const inferredLast = greetingWords.slice(1).join(" ") || user.last_name || (split.length > 1 ? split.slice(1).join(" ") : "");
 
   const [firstName, setFirstName] = useState(inferredFirst);
   const [lastName, setLastName] = useState(inferredLast);
@@ -320,8 +325,8 @@ export function SettingsClient({
             </span>
           </button>
           <div className="min-w-0 flex-1 text-sm">
-            <p className="font-medium">{user.email}</p>
-            <p className="text-muted-foreground">Signed in</p>
+            <p className="font-medium">{greetingName || user.email}</p>
+            <p className="text-muted-foreground">{greetingName ? user.email : "Signed in"}</p>
             <button
               type="button"
               className="mt-2 text-xs font-semibold text-primary hover:underline"
@@ -465,11 +470,11 @@ export function SettingsClient({
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
             <div className="rounded-xl border border-border/60 bg-background/30 px-4 py-3">
               <p className="text-xs text-muted-foreground">Purchased</p>
-              <p className="mt-0.5 text-sm font-medium">{fmtDate(user.subscription_started_at)}</p>
+              <p className="mt-0.5 text-sm font-medium">{fmtDate(user.subscription_started_at, "Purchase date was not stored.")}</p>
             </div>
             <div className="rounded-xl border border-border/60 bg-background/30 px-4 py-3">
               <p className="text-xs text-muted-foreground">Expires</p>
-              <p className="mt-0.5 text-sm font-medium">{fmtDate(user.subscription_expires_at)}</p>
+              <p className="mt-0.5 text-sm font-medium">{fmtDate(user.subscription_expires_at, "Expiry date was not stored.")}</p>
             </div>
             <div className="rounded-xl border border-border/60 bg-background/30 px-4 py-3">
               <p className="text-xs text-muted-foreground">Ticker limit</p>
@@ -501,6 +506,8 @@ export function SettingsClient({
               )}
               Manage billing
             </Button>
+          ) : user.subscription_plan === "dual_yearly" ? (
+            <p className="text-sm text-muted-foreground">This account is on Apex Dual.</p>
           ) : (
             <Button asChild className="font-semibold shadow-glow">
               <Link href="/pricing#pro">

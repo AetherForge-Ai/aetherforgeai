@@ -61,7 +61,8 @@ describe("retest 13 and technician r6", () => {
     expect(pickSnapshotCoin(coins, { coinId: "polygon-ecosystem-token" })?.symbol).toBe("POL");
     const ticker = read("src/components/MarketTicker.tsx");
     expect(ticker).toContain('cryptoCell ? "Delayed or indicative" : delay');
-    expect(read("src/app/changelog/page.tsx")).toContain("13 Oct 2026 — Retest 13");
+    expect(read("src/lib/changelog-entries.ts")).toContain("13 Oct 2026 — Portfolio cards, coin pages and the ledger");
+    expect(read("src/lib/changelog-entries.ts")).not.toContain("Retest 13");
   });
 
   it("keeps CoinPaprika high, low, supply, atl and sparkline, and explains a blank", () => {

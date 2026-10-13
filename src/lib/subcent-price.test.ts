@@ -124,6 +124,11 @@ describe("U1 sub-cent unit prices", () => {
     expect(Number(abs.slice(1))).toBeGreaterThan(0);
     expect(formatMarketChangePercent(0.012)).not.toBe("0.0000");
     expect(formatMarketChangePercent(1.25)).toBe("1.25");
+    expect(formatMarketChangePercent(0.0000992433)).toBe("0.000099");
+    expect(formatMarketChangePercent(-0.0000992433)).toBe("0.000099");
+    expect(formatMarketChangePercent(0.0042)).toBe("0.0042");
+    expect(formatMarketChangePercent(0.00000099)).toBe("0.00000099");
+    expect(formatMarketChangePercent(0.0000992433)).not.toBe("0.0000");
   });
 
   it("writes a sub-cent correction note without rounding the price to 0.00", () => {

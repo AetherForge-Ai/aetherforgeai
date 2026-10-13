@@ -101,10 +101,10 @@ function movementQty(row: TaxLedgerRow): number {
 }
 
 function movementPrice(row: TaxLedgerRow): number {
-  const price = Number(row.price);
-  if (price > 0) return price;
   const fill = Number(row.fill_price);
   if (fill > 0) return fill;
+  const price = Number(row.price);
+  if (price > 0) return price;
   const match = String(row.notes || "").match(/\bfill=([0-9]*\.?[0-9]+)/i);
   const parsed = match ? Number(match[1]) : 0;
   return parsed > 0 ? parsed : 0;

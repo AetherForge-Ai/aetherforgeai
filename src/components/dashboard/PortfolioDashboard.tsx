@@ -46,6 +46,7 @@ import { openRecordTransaction } from "@/lib/open-transaction";
 import { computeHoldingSplit, ReturnsSplitCard } from "@/components/dashboard/ReturnsSplitCard";
 import {
   clearPortfolioSnapshotCache,
+  paintConfirmedSnapshot,
   readPortfolioSnapshotCache,
   snapshotAsReturnSplit,
   writePortfolioSnapshotCache,
@@ -1205,6 +1206,11 @@ export function PortfolioDashboard({
           deferredHoldingsRef.current = null;
         }
         setAllStocks((rows) => applyBookedTradeToHoldings(rows, updated.lastTransaction));
+        if (typeof updated.cashBalance === "number") {
+          const cashNow = updated.cashBalance;
+          const trade = updated.lastTransaction;
+          setBookSnapshot((current) => (current ? paintConfirmedSnapshot(current, trade, cashNow) : current));
+        }
         holdingsHydratedRef.current = true;
         setLoading(false);
       }
@@ -2497,9 +2503,11 @@ export function PortfolioDashboard({
         <>
         <StatCard
           label="7-Day alpha potential"
-          value={`${stockOverviewMetrics.alphaPotentialPct >= 0 ? "+" : ""}${stockOverviewMetrics.alphaPotentialPct.toFixed(2)}%`}
+          value={stockOverviewMetrics.alphaKnown ? `${stockOverviewMetrics.alphaPotentialPct >= 0 ? "+" : ""}${stockOverviewMetrics.alphaPotentialPct.toFixed(2)}%` : "Not enough history"}
           sub={
-            stockOverviewSummary.holdingsCount
+            !stockOverviewMetrics.alphaKnown
+              ? "Not enough history"
+              : stockOverviewSummary.holdingsCount
               ? `${formatMoney(stockOverviewMetrics.alphaPotentialValue, "NZD")} projected move`
               : "Add holdings to project"
           }
@@ -2535,10 +2543,10 @@ export function PortfolioDashboard({
 
       {!freePlan && stockOverviewSummary.holdingsCount > 0 && (
         <div className="mt-4 grid grid-cols-2 gap-4 rounded-2xl border border-border/70 bg-card/40 p-4 sm:grid-cols-4">
-          <MiniMetric icon={Activity} label="Ann. volatility" value={`${stockOverviewMetrics.volatility.toFixed(1)}%`} />
-          <MiniMetric icon={Gauge} label="Sharpe ratio" value={stockOverviewMetrics.sharpe.toFixed(2)} />
+          <MiniMetric icon={Activity} label="Ann. volatility" value={stockOverviewMetrics.enoughHistory ? `${stockOverviewMetrics.volatility.toFixed(1)}%` : "Not enough history"} />
+          <MiniMetric icon={Gauge} label="Sharpe ratio" value={stockOverviewMetrics.enoughHistory ? stockOverviewMetrics.sharpe.toFixed(2) : "Not enough history"} />
           <MiniMetric icon={PieChart} label="Diversification" value={`${stockOverviewMetrics.diversification}%`} />
-          <MiniMetric icon={Trophy} label="Win rate" value={`${stockOverviewMetrics.winRate}%`} />
+          <MiniMetric icon={Trophy} label="Win rate" value={stockOverviewMetrics.enoughHistory ? `${stockOverviewMetrics.winRate}%` : "Not enough history"} />
         </div>
       )}
 
@@ -2623,9 +2631,8 @@ export function PortfolioDashboard({
         <>
         <StatCard
           label="7-Day alpha potential"
-          value={`${cryptoOverviewMetrics.alphaPotentialPct >= 0 ? "+" : ""}${cryptoOverviewMetrics.alphaPotentialPct.toFixed(2)}%`}
-          sub={
-            cryptoOverviewSummary.holdingsCount
+          value={CRYPTO_PROJECTIONS_PAUSED || !cryptoOverviewMetrics.alphaKnown ? "Not enough history" : `${cryptoOverviewMetrics.alphaPotentialPct >= 0 ? "+" : ""}${cryptoOverviewMetrics.alphaPotentialPct.toFixed(2)}%`}
+          sub={CRYPTO_PROJECTIONS_PAUSED ? CRYPTO_PROJECTIONS_PAUSE_MESSAGE : !cryptoOverviewMetrics.alphaKnown ? "Not enough history" : cryptoOverviewSummary.holdingsCount
               ? `${formatMoney(
                   cryptoBookCurrency === "NZD"
                     ? usdToNzd(cryptoOverviewMetrics.alphaPotentialValue, fxToNZD.USD)
@@ -2665,10 +2672,10 @@ export function PortfolioDashboard({
 
       {!freePlan && cryptoOverviewSummary.holdingsCount > 0 && (
         <div className="mt-4 grid grid-cols-2 gap-4 rounded-2xl border border-border/70 bg-card/40 p-4 sm:grid-cols-4">
-          <MiniMetric icon={Activity} label="Ann. volatility" value={`${cryptoOverviewMetrics.volatility.toFixed(1)}%`} />
-          <MiniMetric icon={Gauge} label="Sharpe ratio" value={cryptoOverviewMetrics.sharpe.toFixed(2)} />
+          <MiniMetric icon={Activity} label="Ann. volatility" value={cryptoOverviewMetrics.enoughHistory ? `${cryptoOverviewMetrics.volatility.toFixed(1)}%` : "Not enough history"} />
+          <MiniMetric icon={Gauge} label="Sharpe ratio" value={cryptoOverviewMetrics.enoughHistory ? cryptoOverviewMetrics.sharpe.toFixed(2) : "Not enough history"} />
           <MiniMetric icon={PieChart} label="Diversification" value={`${cryptoOverviewMetrics.diversification}%`} />
-          <MiniMetric icon={Trophy} label="Win rate" value={`${cryptoOverviewMetrics.winRate}%`} />
+          <MiniMetric icon={Trophy} label="Win rate" value={cryptoOverviewMetrics.enoughHistory ? `${cryptoOverviewMetrics.winRate}%` : "Not enough history"} />
         </div>
       )}
 

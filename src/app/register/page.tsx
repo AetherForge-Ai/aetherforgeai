@@ -324,12 +324,13 @@ export default function RegisterPage() {
             <label htmlFor="age-confirmed" className="flex items-start gap-3 text-left text-sm leading-relaxed text-muted-foreground">
               <Checkbox
                 id="age-confirmed"
+                aria-labelledby="age-confirmed-label"
                 checked={ageConfirmed}
                 onCheckedChange={(checked) => setAgeConfirmed(checked === true)}
                 className="mt-0.5"
                 aria-required="true"
               />
-              <span>
+              <span id="age-confirmed-label">
                 I am 18 or over. By signing up I agree to the{" "}
                 <Link href="/terms-of-service" className="font-semibold text-primary underline-offset-2 hover:underline">
                   Terms

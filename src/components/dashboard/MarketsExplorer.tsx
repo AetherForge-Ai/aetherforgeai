@@ -838,6 +838,7 @@ export function MarketsExplorer({
         <div className="relative w-full max-w-xs">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
+            aria-label={isCryptoTab ? "Search ticker or name" : "Search ticker or company"}
             placeholder={isCryptoTab ? "Search ticker or name…" : "Search ticker or company…"}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -954,7 +955,7 @@ export function MarketsExplorer({
               <th className="hidden py-2.5 px-3 xl:table-cell"><SortHead label="Mkt Cap" k="marketCap" /></th>
               )}
               {showChain && (
-                <th className="py-2.5 pl-3 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                <th className="whitespace-normal py-2.5 pl-3 text-right text-xs font-medium normal-case tracking-normal text-muted-foreground">
                   {isDexTab ? "Chain" : "Blockchain"}
                 </th>
               )}
@@ -1108,7 +1109,7 @@ export function MarketsExplorer({
                     </td>
                     )}
                     {showChain && (
-                      <td className="max-w-[10rem] py-2.5 pl-3 text-right text-xs text-muted-foreground">
+                      <td className="whitespace-normal py-2.5 pl-3 text-right text-xs text-muted-foreground">
                         {r.blockchain ? r.blockchain : <DashCell reason={r.chainReason || "The feed did not send a platform for this coin."} />}
                       </td>
                     )}
