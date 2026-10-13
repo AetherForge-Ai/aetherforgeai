@@ -1,6 +1,11 @@
 "use client";
 
-import { StockDetailView, type DetailTarget } from "@/components/dashboard/StockDetailView";
+import dynamic from "next/dynamic";
+import type { DetailTarget } from "@/components/dashboard/StockDetailView";
+
+const StockDetailView = dynamic(() => import("@/components/dashboard/StockDetailView").then((mod) => mod.StockDetailView), {
+  ssr: false,
+});
 
 export type { DetailTarget };
 

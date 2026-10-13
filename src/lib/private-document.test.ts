@@ -23,6 +23,14 @@ describe("private document cache policy", () => {
     expect(isCacheableMarketingPath("/dashboard")).toBe(false);
     expect(isCacheableMarketingPath("/markets")).toBe(false);
     expect(isCacheableMarketingPath("/login")).toBe(false);
+    expect(isCacheableMarketingPath("/help")).toBe(false);
+    expect(isCacheableMarketingPath("/changelog")).toBe(false);
+    expect(isCacheableMarketingPath("/cookies")).toBe(false);
+    expect(isCacheableMarketingPath("/contact")).toBe(false);
+    expect(isCacheableMarketingPath("/stox")).toBe(false);
+    expect(isCacheableMarketingPath("/koins")).toBe(false);
+    expect(isCacheableMarketingPath("/smitty")).toBe(false);
+    expect(isCacheableMarketingPath("/status")).toBe(false);
     expect(isPrivateAppPath("/dashboard")).toBe(true);
     expect(isPrivateAppPath("/dashboard/stocks")).toBe(true);
     expect(isPrivateAppPath("/notifications")).toBe(true);

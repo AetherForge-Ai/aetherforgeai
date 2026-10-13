@@ -1,64 +1,76 @@
 /**
- * List Stripe Products and Prices API Route
- *
- * This endpoint fetches all active products and their prices from Stripe.
- * If no products exist, it automatically creates the products defined in
- * PRODUCTS_AVAILABLE (src/lib/stripe.ts).
- *
- * Usage:
  * GET /api/stripe/products
  *
- * Returns:
- * - List of products with their prices
+ * Returns AetherForge plan prices only. The allow-list is the plan config
+ * (current and retired price ids). Other products on the same Stripe account
+ * are never listed, and nothing is created or deleted in Stripe.
  */
 
 import { NextResponse } from "next/server";
-import { stripe, createProductsInStripe } from "@/lib/stripe";
+import type Stripe from "stripe";
+import { aetherforgePriceIds } from "@/lib/plans";
+import { stripe } from "@/lib/stripe";
 
 function serializeError(err: unknown) {
-  const e = err as any;
+  const e = err as { message?: string; code?: string; name?: string };
   return {
     message: e?.message ?? "Unknown error",
     code: e?.code ?? null,
     name: e?.name ?? null,
-    status: e?.response?.status ?? null,
-    responseData: e?.response?.data ?? null,
   };
 }
 
-export async function GET(req: Request) {
+type ListedPrice = {
+  id: string;
+  amount: number | null;
+  currency: string;
+  interval: string | null;
+  intervalCount: number | null;
+  nickname: string | null;
+};
+
+type ListedProduct = {
+  id: string;
+  name: string;
+  description: string | null;
+  images: string[];
+  metadata: Stripe.Metadata;
+  prices: ListedPrice[];
+};
+
+function isLiveProduct(product: Stripe.Price["product"] | null | undefined): product is Stripe.Product {
+  if (!product || typeof product === "string") return false;
+  return product.deleted !== true;
+}
+
+export async function GET() {
   try {
-    // Fetch all active products
-    let products = await stripe.products.list({
-      active: true,
-      expand: ["data.default_price"],
-    });
+    const ids = aetherforgePriceIds();
+    const retrieved = await Promise.all(
+      ids.map(async (id) => {
+        try {
+          return await stripe.prices.retrieve(id, { expand: ["product"] });
+        } catch (err) {
+          console.warn("[api/stripe/products] price not returned", id, err instanceof Error ? err.message : "failed");
+          return null;
+        }
+      })
+    );
 
-    // If no products exist, create them automatically
-    if (products.data.length === 0) {
-      console.log("No products found in Stripe. Creating products from PRODUCTS_AVAILABLE...");
-      await createProductsInStripe();
-
-      // Fetch products again after creation
-      products = await stripe.products.list({
-        active: true,
-        expand: ["data.default_price"],
-      });
-    }
-
-    // Fetch all active prices
-    const prices = await stripe.prices.list({
-      active: true,
-    });
-
-    // Group prices by product
-    const pricesByProduct: Record<string, any[]> = {};
-    prices.data.forEach((price) => {
-      const productId = typeof price.product === "string" ? price.product : price.product.id;
-      if (!pricesByProduct[productId]) {
-        pricesByProduct[productId] = [];
-      }
-      pricesByProduct[productId].push({
+    const byProduct = new Map<string, ListedProduct>();
+    for (const price of retrieved) {
+      if (!price || !ids.includes(price.id)) continue;
+      const product = price.product;
+      if (!isLiveProduct(product)) continue;
+      const row = byProduct.get(product.id) ?? {
+        id: product.id,
+        name: product.name,
+        description: product.description,
+        images: product.images,
+        metadata: product.metadata,
+        prices: [],
+      };
+      row.prices.push({
         id: price.id,
         amount: price.unit_amount,
         currency: price.currency,
@@ -66,27 +78,15 @@ export async function GET(req: Request) {
         intervalCount: price.recurring?.interval_count || null,
         nickname: price.nickname,
       });
-    });
-
-    // Format response
-    const formattedProducts = products.data.map((product) => ({
-      id: product.id,
-      name: product.name,
-      description: product.description,
-      images: product.images,
-      metadata: product.metadata,
-      prices: pricesByProduct[product.id] || [],
-    }));
+      byProduct.set(product.id, row);
+    }
 
     return NextResponse.json({
       ok: true,
-      data: formattedProducts,
+      data: [...byProduct.values()],
     });
   } catch (err) {
     console.error("[API ERROR] /api/stripe/products", err);
-    return NextResponse.json(
-      { ok: false, error: serializeError(err) },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: false, error: serializeError(err) }, { status: 500 });
   }
 }

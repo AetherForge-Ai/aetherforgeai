@@ -199,7 +199,7 @@ describe("pull-check:retest4-2026-10-11", () => {
     expect(publicDataSourcesLine().toLowerCase()).not.toContain("dexscreener");
     expect(publicDataSourcesLine()).toContain("GeckoTerminal");
     expect(publicDataSourcesLine()).not.toMatch(/fallback|unavailable|official|licensed|real-time/i);
-    expect(PUBLIC_SEED_ROWS).toBe(12);
+    expect(PUBLIC_SEED_ROWS).toBe(25);
   });
 
   it("writes a unique coin title and a valid WebPage document", () => {

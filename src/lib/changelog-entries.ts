@@ -28,7 +28,7 @@ export const CHANGELOG_ENTRIES = [
   {
     href: "/import",
     title: "11 Oct 2026 — Batch 2",
-    body: "Develop 18375819. Broker import, money-weighted and time-weighted return, dividends, the tax pack, trust, price badges, alerts, the installable shell, bot guides, schema, and the help feed.",
+    body: "Broker import, money-weighted and time-weighted return, dividends, the tax pack, trust, price labels, alerts, the installable shell, bot guides, and the help feed.",
     },
   {
     href: "/markets",
@@ -38,17 +38,17 @@ export const CHANGELOG_ENTRIES = [
   {
     href: "/markets",
     title: "11 Oct 2026 — Crypto list snapshots and diagnostics",
-    body: "A saved CoinGecko list and a saved DEX list stay available when the live feed does not answer. An optional CoinGecko key can be set on the host. The admin diagnostics page reports status codes only.",
+    body: "A saved CoinGecko list and a saved DEX list stay available when the live feed does not answer. An optional CoinGecko key can be set on the host.",
   },
   {
     href: "/markets",
     title: "11 Oct 2026 — DEX lists, coin titles and the crypto fill",
-    body: "Develop 47f44d9. DEX lists, the crypto fill, coin titles, and the DexScreener display gate.",
+    body: "DEX lists, the crypto fill, and coin titles. The extra token-list name stays off the public pages.",
   },
   {
     href: "/tax",
     title: "11 Oct 2026 — Tax fixups and the Tax link",
-    body: "Develop 9dedb71. Auckland dates, realised lots, dividends, the CSV gate, metals loading, the home disclaimer, and a Tax link in the footer and navigation.",
+    body: "Auckland dates, realised lots, dividends, the CSV gate, metals loading, the home disclaimer, and a Tax link in the footer and navigation.",
   },
   {
     href: "/market-news",
@@ -58,52 +58,52 @@ export const CHANGELOG_ENTRIES = [
   {
     href: "/markets",
     title: "11 Oct 2026 — Ledger dates, corrections, CSV and plan copy",
-    body: "Develop 87dfce1. Ledger dates, holding corrections, the CSV export, and plan copy.",
+    body: "Ledger dates, holding corrections, the CSV export, and plan copy.",
   },
   {
     href: "/markets",
     title: "11 Oct 2026 — Crypto counts, report consistency and plan limits",
-    body: "Develop caa5472. Crypto list counts, report consistency, and plan limits.",
+    body: "Crypto list counts, report consistency, and plan limits.",
   },
   {
     href: "/tax",
     title: "10 Oct 2026 — Dates, money, CSV, headers, tax summary and onboarding",
-    body: "Develop eb6a0d9. Display dates, money format, CSV columns, security headers, the tax summary, and onboarding.",
+    body: "Display dates, money format, CSV columns, the tax summary, and onboarding.",
   },
   {
     href: "/markets",
     title: "10 Oct 2026 — Corrections, DEX source, titles and copy",
-    body: "Develop 5f27fe0. Correction rows, the DEX source, page titles, and public copy.",
+    body: "Correction rows, the DEX source, page titles, and public copy.",
   },
   {
     href: "/dashboard",
     title: "10 Oct 2026 — Report logic, quote review, sleeves and loading",
-    body: "Develop 494c41d. Report logic, quote review, Headmaster sleeves, and loading states.",
+    body: "Report logic, quote review, Headmaster sleeves, and loading states.",
   },
   {
     href: "/pricing",
     title: "10 Oct 2026 — Plan, billing, notifications, 404s, tape and sitemap",
-    body: "Develop c72caf8. Plan and billing, notification choices, the 404 gate, tape labels, the sitemap, and navigation.",
+    body: "Plan and billing, notification choices, the 404 page, tape labels, the sitemap, and navigation.",
   },
   {
     href: "/markets",
     title: "10 Oct 2026 — Crypto markets and paper-book wording",
-    body: "Develop e0ecbc9. The crypto markets list and one paper-book sentence.",
+    body: "The crypto markets list and one paper-book sentence.",
   },
   {
     href: "/privacy-policy",
     title: "10 Oct 2026 — Sub-cent prices, correction dates and analytics consent",
-    body: "Develop 2b7e8e8. Sub-cent prices, Auckland correction dates, and analytics consent.",
+    body: "Sub-cent prices, Auckland correction dates, and analytics consent.",
   },
   {
     href: "/pricing",
     title: "10 Oct 2026 — Public copy and markets polish",
-    body: "Develop fa2643e. Public copy and markets polish.",
+    body: "Public copy and markets polish.",
   },
   {
     href: "/market-news",
     title: "10 Oct 2026 — News wording and off-topic cards",
-    body: "Develop e9afcf5. News entities are decoded, off-topic cards are dropped, and signal labels stay off the public pages.",
+    body: "News names are decoded, off-topic cards are dropped, and trade-signal labels stay off the public pages.",
   },
   {
     href: "/market-news",

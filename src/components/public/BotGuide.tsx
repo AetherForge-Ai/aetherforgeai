@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { SiteHeader } from "@/components/SiteHeader";
 import { DisclaimerNotice } from "@/components/legal/DisclaimerNotice";
+import { BOT_PAGE_DISCLAIMER } from "@/lib/bot-guides";
 
 export function ExampleBook() {
   return (
@@ -75,6 +76,7 @@ export function BotGuide({
             ))}
           </div>
           {extra}
+          <p className="mt-8 text-sm leading-relaxed text-muted-foreground">{BOT_PAGE_DISCLAIMER}</p>
           <ExampleBook />
           <p className="mt-8 text-sm">
             <Link href="/how-it-works" className="font-semibold text-primary underline-offset-2 hover:underline">

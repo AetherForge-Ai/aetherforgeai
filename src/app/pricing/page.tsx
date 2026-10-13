@@ -11,7 +11,7 @@ import { APEX_DUAL_PUBLIC_NOTE, PUBLISHED_PLAN_PRICES } from "@/lib/plan-usage";
 import { PRICING_TIERS } from "@/lib/plans";
 import { getFxSnapshot } from "@/lib/fx";
 import type { FxRatesToNZD } from "@/lib/currency";
-import { SECURITY_LINE } from "@/lib/public-copy";
+import { PROJECTIONS_MEMBER_LINE, SECURITY_LINE } from "@/lib/public-copy";
 import { pageTitle } from "@/lib/page-title";
 import { Button } from "@/components/ui/button";
 import {
@@ -115,6 +115,7 @@ export default async function PricingPage() {
             <span className="text-primary">•</span> No hidden fees
           </p>
           <p className="mt-3 text-sm text-muted-foreground">All prices in NZD.</p>
+          <p className="mx-auto mt-3 max-w-2xl text-sm text-muted-foreground">{PROJECTIONS_MEMBER_LINE}</p>
         </section>
 
         {/* 2 + 3 · Billing toggle + pricing cards */}

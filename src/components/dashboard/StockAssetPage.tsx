@@ -1,8 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { ArrowLeft, LineChart } from "lucide-react";
-import { StockDetailView } from "@/components/dashboard/StockDetailView";
+
+const StockDetailView = dynamic(() => import("@/components/dashboard/StockDetailView").then((mod) => mod.StockDetailView), {
+  ssr: false,
+  loading: () => <p className="p-6 text-sm text-muted-foreground">Loading the chart…</p>,
+});
 import { stockBackHref } from "@/lib/market-detail-routes";
 import type { Exchange } from "@/lib/market-intel";
 import type { StockBoard } from "@/lib/stock-markets";

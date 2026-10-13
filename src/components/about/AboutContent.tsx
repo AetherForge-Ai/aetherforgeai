@@ -159,6 +159,7 @@ function ContactForm() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
+  const [website, setWebsite] = useState("");
   const [status, setStatus] = useState<"idle" | "sending" | "success" | "error">("idle");
   const [error, setError] = useState("");
 
@@ -178,6 +179,7 @@ function ContactForm() {
       name: name.trim(),
       email: email.trim(),
       message: message.trim(),
+      website,
     });
 
     if (res.ok) {
@@ -186,6 +188,7 @@ function ContactForm() {
       setName("");
       setEmail("");
       setMessage("");
+      setWebsite("");
     } else {
       const msg =
         typeof res.error === "string" ? res.error : "Something went wrong. Please try again.";
@@ -261,6 +264,18 @@ function ContactForm() {
           <label htmlFor="cf-message" className="mb-1.5 block text-sm font-semibold text-[#334155]">
             Message
           </label>
+          <div className="absolute -left-[9999px] h-px w-px overflow-hidden" aria-hidden="true">
+            <label htmlFor="cf-website">Website</label>
+            <input
+              id="cf-website"
+              name="website"
+              type="text"
+              tabIndex={-1}
+              autoComplete="off"
+              value={website}
+              onChange={(e) => setWebsite(e.target.value)}
+            />
+          </div>
           <textarea
             id="cf-message"
             value={message}
@@ -355,8 +370,6 @@ export function AboutContent() {
             <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-1.5 text-xs font-semibold tracking-wide text-white backdrop-blur">
               <span className="size-1.5 rounded-full bg-[#059669] shadow-[0_0_10px_2px_rgba(5,150,105,0.7)]" />
               Registered in New Zealand
-              <span className="text-white/40">•</span>
-              <span style={{ color: "#D9B27C" }}>Freshly Launched 2026</span>
             </span>
           </Reveal>
 

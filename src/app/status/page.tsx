@@ -30,7 +30,7 @@ export default async function StatusPage() {
         {
           href: "/changelog",
           title: "Changelog",
-          body: "Product changes are listed on the changelog, from the develop history.",
+          body: "Product changes are listed on the changelog as dated notes.",
         },
       ]}
     />

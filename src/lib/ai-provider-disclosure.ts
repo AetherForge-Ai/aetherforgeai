@@ -9,7 +9,7 @@ export const AI_PROVIDER_NAME = "xAI (Grok)";
 
 /** 30-day API wording. Zero Data Retention is not stated. */
 export const AI_PROVIDER_API_SENTENCE =
-  "The third-party AI service in those sentences is xAI (Grok), used through its API. xAI's API terms state that API requests and responses are kept for up to 30 days for abuse monitoring, then deleted, and are not used to train its models.";
+  "Plain-English notes are written by a third-party AI service, xAI (Grok), through its API. xAI's API terms state that API requests and responses are kept for up to 30 days for abuse monitoring, then deleted, and are not used to train its models.";
 
 export function nameAiProvider<T extends { name: string; role: string }>(
   rows: readonly T[],

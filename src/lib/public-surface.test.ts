@@ -155,6 +155,7 @@ describe("public surface routes", () => {
     expect(sitemap).toContain('"/how-it-works"');
     expect(sitemap).not.toContain('"/projections"');
     expect(read("src/app/projections/page.tsx")).toContain("index: false");
+    expect(read("src/app/projections/page.tsx")).toContain("Crypto projections stay paused");
     expect(sitemap).not.toContain('"/login"');
     expect(sitemap).not.toContain('"/register"');
   });
