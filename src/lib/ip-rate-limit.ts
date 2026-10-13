@@ -29,7 +29,9 @@ export function rateLimitIdentity(
 ): { ok: true; ip: string } | { ok: false } {
   const cf = req.headers.get("cf-connecting-ip")?.trim() || "";
   if (cf) return { ok: true, ip: cf };
-  if (nodeEnv === "production") return { ok: false };
+  // No CF-Connecting-IP (Totalum preview, a server-to-server call, or a direct
+  // origin hit). These share one bucket so the form and guide never break.
+  void nodeEnv;
   return { ok: true, ip: NO_CF_IP };
 }
 

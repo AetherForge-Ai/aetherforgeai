@@ -59,7 +59,7 @@ describe("public post rate limit", () => {
     const shared = `personal-guide:${NO_CF_IP}`;
     expect((await takeRateLimit(shared, 1, RATE_WINDOW_MS, 5_000)).allowed).toBe(true);
     expect((await takeRateLimit(shared, 1, RATE_WINDOW_MS, 5_000)).allowed).toBe(false);
-    expect(rateLimitIdentity(spoofed, "production")).toEqual({ ok: false });
+    expect(rateLimitIdentity(spoofed, "production")).toEqual({ ok: true, ip: NO_CF_IP });
   });
 
   it("keeps the count in the shared cache after the isolate map is cleared", async () => {
