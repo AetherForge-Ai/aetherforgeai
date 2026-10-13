@@ -62,6 +62,9 @@ export function OnboardingChecklist({
   alwaysShow = false,
   className,
   plan = null,
+  deferProbe = false,
+  probeError = false,
+  onProbeRetry,
 }: {
   hasCash: boolean;
   hasHoldings: boolean;
@@ -73,6 +76,10 @@ export function OnboardingChecklist({
   alwaysShow?: boolean;
   className?: string;
   plan?: string | null;
+  /** The dashboard already asked for alerts and reports. Do not fetch them again. */
+  deferProbe?: boolean;
+  probeError?: boolean;
+  onProbeRetry?: () => void;
 }) {
   const [alertsDone, setAlertsDone] = useState<boolean | null>(
     hasAlerts === undefined ? null : !!hasAlerts
@@ -80,6 +87,8 @@ export function OnboardingChecklist({
   const [reportDone, setReportDone] = useState<boolean | null>(
     hasReport === undefined ? null : !!hasReport
   );
+  const [probeFailed, setProbeFailed] = useState(false);
+  const [probeNonce, setProbeNonce] = useState(0);
 
   useEffect(() => {
     if (hasAlerts !== undefined) setAlertsDone(!!hasAlerts);
@@ -90,26 +99,39 @@ export function OnboardingChecklist({
   }, [hasReport]);
 
   useEffect(() => {
+    if (deferProbe) return;
     if (hasAlerts !== undefined && hasReport !== undefined) return;
     let cancelled = false;
+    const timer = window.setTimeout(() => {
+      if (!cancelled) setProbeFailed(true);
+    }, 8_000);
     (async () => {
+      let alertsOk = hasAlerts !== undefined;
+      let reportsOk = hasReport !== undefined;
       if (hasAlerts === undefined) {
         const res = await api.get<unknown[]>("/api/alerts");
-        if (!cancelled) setAlertsDone(!!(res.ok && Array.isArray(res.data) && res.data.length > 0));
+        alertsOk = !!(res.ok && Array.isArray(res.data));
+        if (!cancelled && alertsOk) setAlertsDone(res.data!.length > 0);
       }
       if (hasReport === undefined) {
         const res = await api.get<{ reports?: { bot?: string; executiveSummary?: string; textBody?: string; payload?: unknown }[] }>("/api/reports");
         const reports = res.data?.reports;
+        reportsOk = !!(res.ok && Array.isArray(reports));
         const ran = Array.isArray(reports) && reports.some((row) => isStoxOrKoinsRun(row));
-        if (!cancelled) setReportDone(!!(res.ok && ran));
+        if (!cancelled && reportsOk) setReportDone(ran);
       }
+      window.clearTimeout(timer);
+      if (!cancelled && (!alertsOk || !reportsOk)) setProbeFailed(true);
+      if (!cancelled && alertsOk && reportsOk) setProbeFailed(false);
     })();
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
-  }, [hasAlerts, hasReport]);
+  }, [hasAlerts, hasReport, deferProbe, probeNonce]);
 
-  const probing = alertsDone === null || reportDone === null;
+  const failed = probeError || probeFailed;
+  const probing = !failed && (alertsDone === null || reportDone === null);
   const progress = onboardingProgress({
     hasHoldings,
     hasCash,
@@ -119,7 +141,7 @@ export function OnboardingChecklist({
     plan,
   });
 
-  if (probing) {
+  if (failed) {
     return (
       <div
         id="onboarding"
@@ -129,7 +151,38 @@ export function OnboardingChecklist({
         )}
       >
         <h3 className="font-display text-lg font-bold">Get started · NZ paper book</h3>
-        <p className="mt-1 text-xs text-muted-foreground">Checking your paper book…</p>
+        <p className="mt-1 text-xs text-muted-foreground">Alerts and reports could not be checked.</p>
+        <button
+          type="button"
+          className="mt-3 rounded-lg border border-border/70 px-3 py-1.5 text-xs font-semibold"
+          onClick={() => {
+            setProbeFailed(false);
+            setProbeNonce((n) => n + 1);
+            onProbeRetry?.();
+          }}
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
+
+  if (probing) {
+    return (
+      <div
+        id="onboarding"
+        aria-busy="true"
+        className={cn(
+          "scroll-mt-24 rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/10 via-card/60 to-transparent p-5",
+          className
+        )}
+      >
+        <h3 className="font-display text-lg font-bold">Get started · NZ paper book</h3>
+        <div className="mt-3 space-y-2" aria-hidden>
+          <div className="h-12 animate-pulse rounded-xl bg-muted/50 motion-reduce:animate-none" />
+          <div className="h-12 animate-pulse rounded-xl bg-muted/40 motion-reduce:animate-none" />
+          <div className="h-12 animate-pulse rounded-xl bg-muted/40 motion-reduce:animate-none" />
+        </div>
       </div>
     );
   }

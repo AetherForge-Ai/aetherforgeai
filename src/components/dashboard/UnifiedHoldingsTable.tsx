@@ -237,7 +237,7 @@ export function UnifiedHoldingsTable({
           ))}
         </fieldset>
       ) : null}
-      {asOfLabel ? <p className="mt-2 text-xs text-muted-foreground">Snapshot {asOfLabel}. A dash has its reason on the info button.</p> : null}
+      {asOfLabel ? <p className="mt-2 text-xs text-muted-foreground">Snapshot {asOfLabel}.</p> : null}
       {emptyBook ? (
         <div className="mt-3 rounded-3xl border border-dashed border-border/70 bg-card/40 p-5" data-empty-book>
           <p className="text-sm font-medium">No holdings yet</p>
@@ -275,7 +275,7 @@ export function UnifiedHoldingsTable({
         )}
       </div>
 
-      <div className="mt-3 hidden overflow-x-auto rounded-3xl border border-border/70 bg-card/50 md:block">
+      <div className="mt-3 hidden overflow-x-clip rounded-3xl border border-border/70 bg-card/50 md:block">
         {loading || !model ? (
           <div className="space-y-3 p-6">
             {[0, 1, 2, 3].map((row) => (
@@ -283,8 +283,13 @@ export function UnifiedHoldingsTable({
             ))}
           </div>
         ) : (
-          <table className="w-full border-collapse text-sm">
+          <table className="w-full table-fixed border-collapse text-xs">
             <caption className="sr-only">Holdings from the portfolio snapshot{asOfLabel ? `, ${asOfLabel}` : ""}</caption>
+            <colgroup>
+              {columns.map((column) => (
+                <col key={column} style={{ width: column === "asset" ? "22%" : column === "actions" ? "14%" : column === "qty" || column === "weight" ? "10%" : "15%" }} />
+              ))}
+            </colgroup>
             <thead>
               <tr className="border-b border-border/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
                 {columns.map((column) => {
@@ -295,7 +300,11 @@ export function UnifiedHoldingsTable({
                       key={column}
                       scope="col"
                       aria-sort={sortable ? (active ? (query.sortDir === "asc" ? "ascending" : "descending") : "none") : undefined}
-                      className={cn("px-3 py-3 font-medium", column === "asset" ? "sticky left-0 z-10 bg-card text-left" : "text-right")}
+                      className={cn(
+                        "px-2 py-3 font-medium",
+                        column === "asset" ? "w-[24%] text-left" : "text-right",
+                        column === "actions" && "w-[8.75rem]"
+                      )}
                     >
                       {sortable ? (
                         <button
@@ -350,7 +359,7 @@ export function UnifiedHoldingsTable({
                       rows.map((row) => (
                           <tr key={row.id} className="border-t border-border/40 align-top">
                             {columns.map((column) => (
-                              <td key={column} className={cn("px-3 py-3", column === "asset" ? "sticky left-0 z-10 bg-card text-left" : column === "actions" ? "text-left" : "text-right whitespace-nowrap")}>
+                              <td key={column} className={cn("px-1.5 py-3 align-top", column === "asset" ? "text-left" : column === "actions" ? "text-left" : "text-right")}>
                                 {column === "asset" ? (
                                   <AssetCell row={row} onOpen={() => onInspect(row)} />
                                 ) : column === "actions" ? (
@@ -456,7 +465,7 @@ function CellView({ cell, label, signed }: { cell: TableCellModel | undefined; l
     );
   }
   return (
-    <span className="inline-flex flex-col items-end gap-1">
+    <span className="flex w-full min-w-0 flex-col items-end gap-1">
       <span className="inline-flex flex-wrap items-center justify-end gap-1">
         {cell.figures.map((figure, index) => (
           <Fragment key={`${label}-${index}`}>
@@ -517,7 +526,7 @@ function RowActions({
   if (!resolved || resolved.ok === false) {
     const reason = resolved && resolved.ok === false ? resolved.reason : "This row is not on the holdings list.";
     return (
-      <span className="block max-w-[16rem] text-xs text-muted-foreground" title={reason}>
+      <span className="block max-w-full text-xs text-muted-foreground" title={reason}>
         {MISSING_MARK}
         <span className="mt-1 block">{reason}</span>
       </span>
@@ -534,19 +543,6 @@ function RowActions({
       <Button type="button" size="sm" variant="outline" disabled={nothingOpen} title={nothingOpen ? "Nothing open to sell." : undefined} onClick={() => onTrade(row, "sell")}>
         Sell
       </Button>
-      {reportKind ? (
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="h-auto min-h-11 max-w-full whitespace-normal"
-          disabled={reportRuns[reportKind].disabled}
-          title={reportRuns[reportKind].title}
-          onClick={() => onReport(row, reportKind)}
-        >
-          {reportRuns[reportKind].label}
-        </Button>
-      ) : null}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button type="button" size="sm" variant="outline" aria-label={`More actions for ${row.name}`}>
@@ -554,6 +550,15 @@ function RowActions({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          {reportKind ? (
+            <DropdownMenuItem
+              disabled={reportRuns[reportKind].disabled}
+              title={reportRuns[reportKind].title}
+              onSelect={() => onReport(row, reportKind)}
+            >
+              {reportRuns[reportKind].label}
+            </DropdownMenuItem>
+          ) : null}
           {metal ? null : (
             <DropdownMenuItem onSelect={() => onTrade(row, "dividend")}>Dividend</DropdownMenuItem>
           )}
