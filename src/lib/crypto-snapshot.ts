@@ -23,7 +23,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { gzipSync, gunzipSync } from "node:zlib";
-import { dexSnapshotComplete } from "@/lib/crypto-board";
+import { DEX_REQUEST_FRESH_MS, dexSnapshotComplete, snapshotIsStale } from "@/lib/crypto-board";
 import type { DexTokenRow } from "@/lib/crypto-dex";
 import { resolvableCoinId, type CoinMarket } from "@/lib/crypto-market";
 import { publicSourceAllowed } from "@/lib/swyftx-display";
@@ -793,7 +793,11 @@ export async function persistDexSnapshot(
   if (!live.length) return;
   const existing = memoryDex ?? (await readDexSnapshot());
   const existingLive = existing ? existing.rows.filter((row) => !!resolvableCoinId(row.detailId)) : [];
-  if (existing && existingLive.length > live.length && !dexSnapshotComplete(live)) return;
+  const existingStale = !existing?.at || snapshotIsStale(existing.at, Date.now(), DEX_REQUEST_FRESH_MS);
+  // A fresh seed of at least 15 rows may replace a longer stale list so the clock moves.
+  if (existing && existingLive.length > live.length && !dexSnapshotComplete(live)) {
+    if (!(existingStale && live.length >= 15)) return;
+  }
   const body = encodeDex(live, at, sources.length ? sources : existing?.sources || []);
   const parsed = parseDex(body);
   if (!parsed) return;

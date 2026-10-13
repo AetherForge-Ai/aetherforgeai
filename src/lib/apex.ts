@@ -706,9 +706,8 @@ function buildMarketMovers(
 const MOVER_LIST_LIMIT = 10;
 
 /**
- * A name under review on any window leaves the other rank lists, then each list
- * is filled back to 10 from the next valid name. A row that matches /markets
- * stays on its own list.
+ * A name under review on any window leaves every rank list, then each list
+ * is filled back to 10 from the next valid name.
  */
 export function withholdAcrossWindows<T extends {
   window: string;
@@ -722,8 +721,12 @@ export function withholdAcrossWindows<T extends {
     for (const row of window.underReview) blocked.add(row.ticker.toUpperCase());
   }
   return windows.map((window) => {
-    const keep = (row: { ticker: string; marketsMatched?: boolean }) =>
-      !!row.marketsMatched || !blocked.has(row.ticker.toUpperCase());
+    const reviewedHere = new Set(window.underReview.map((row) => row.ticker.toUpperCase()));
+    const keep = (row: { ticker: string; marketsMatched?: boolean }) => {
+      const ticker = row.ticker.toUpperCase();
+      if (reviewedHere.has(ticker)) return false;
+      return !!row.marketsMatched || !blocked.has(ticker);
+    };
     if (!blocked.size) return { ...window, movers: window.movers.slice(0, MOVER_LIST_LIMIT) };
     const head = window.movers.slice(0, MOVER_LIST_LIMIT);
     const extra: { ticker: string }[] = [];
@@ -1187,14 +1190,18 @@ function buildPathwayPlan(
       probability: 34,
       summary: "Concentrate into the highest-conviction momentum names — higher variance.",
       steps: [
-        aggressiveMomentumStep(
-          topTwoBuys,
-          projectedLeaders.length
-            ? projectedLeaders
-            : buys.map((row) => ({ ticker: row.ticker, projected7dPct: row.projected7dPct }))
-        ),
+        bot === "crypto"
+          ? "Crypto projections are paused, so this pathway does not name a Strong-Buy or a higher projected return."
+          : aggressiveMomentumStep(
+              topTwoBuys,
+              projectedLeaders.length
+                ? projectedLeaders
+                : buys.map((row) => ({ ticker: row.ticker, projected7dPct: row.projected7dPct }))
+            ),
         "Use tight stops (~5–7%) to cap downside on the concentrated book.",
-        "Accept elevated volatility in exchange for the higher projected return.",
+        bot === "crypto"
+          ? "Crypto projections are paused, so this pathway does not quote a higher projected return."
+          : "Accept elevated volatility in exchange for the higher projected return.",
       ],
       recommended: false,
     },

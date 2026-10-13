@@ -66,7 +66,7 @@ export function KpiHeader({
   const weights = view ? returnSplitWeights(view.segments) : null;
   return (
     <section className="mt-6" aria-busy={loading || undefined} data-section="kpi-header">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <KpiCard label="Net worth" loading={loading}>
           {view ? <FigureReadout figure={view.netWorth} label="Net worth" showReason className="items-start" /> : null}
         </KpiCard>

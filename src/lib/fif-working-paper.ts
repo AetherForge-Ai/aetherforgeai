@@ -7,7 +7,7 @@
  * pull-check:track-b-2-2026-10-11
  */
 
-import { formatNzd, roundFxRate, roundMoney } from "@/lib/currency";
+import { fifoLotCostNzd, formatNzd, roundMoney } from "@/lib/currency";
 import { dividendViewFromRow } from "@/lib/dividend-ledger";
 import { buyLotDay } from "@/lib/lot-day";
 import { inNzTaxYear, nzTaxYearLabel } from "@/lib/nz-tax-year";
@@ -122,9 +122,9 @@ function fxOf(row: TaxLedgerRow): number | null {
   return null;
 }
 
-/** Unrounded lot cost. A booked cash figure never replaces it, including a one-cent neighbour. */
+/** Same FIFO lot as the dashboard. A booked cash figure never replaces it, including a one-cent neighbour. */
 function nzdCost(qty: number, price: number, fx: number, _bookedCash?: number | null): number {
-  return qty * price * roundFxRate(fx);
+  return fifoLotCostNzd(qty, price, fx);
 }
 
 interface Lot {

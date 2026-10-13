@@ -80,7 +80,7 @@ export default async function StockDetailPage({
       <section className="mx-auto w-full max-w-6xl space-y-2 px-4 pt-6 sm:px-6 lg:px-8" data-stock-listing>
         {listing.entry ? (
           <>
-            <h1 className="font-display text-2xl font-bold">{listing.entry.name}</h1>
+            <p className="font-display text-2xl font-bold">{listing.entry.name}</p>
             <p className="text-sm text-muted-foreground">
               {listingSentence(listing.entry.name, listing.entry.sector, listing.exchangeLabel)}{" "}
               {symbol} · {listing.exchangeLabel}.

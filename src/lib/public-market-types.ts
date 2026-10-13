@@ -19,6 +19,10 @@ export interface PublicPriceRow {
   asOf?: string;
   /** Native chain or platform for a coin. */
   blockchain?: string;
+  /** Server-rendered moves. An em dash means the feed did not send that figure. */
+  change1h?: string;
+  change7d?: string;
+  supply?: string;
   /** DEX name for a token row. */
   dex?: string;
 }

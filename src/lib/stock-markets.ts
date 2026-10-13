@@ -136,13 +136,13 @@ export function unpricedFootnote(count: number): string | null {
 
 export function boardNote(board: StockBoard): string {
   if (board === "NZX") {
-    return "60 names kept in this repo. 178 is the NZSX instrument count on the NZX markets page on 10 Oct 2026 (172 were share-category). That page is not copied here. Not a direct NZX feed.";
+    return "60 NZX names are listed here. 178 is the NZSX instrument count on the NZX markets page on 10 Oct 2026 (172 were share-category). That page is not copied here. Not a direct NZX feed.";
   }
   if (board === "ASX") {
-    return "Names kept in this repo that were also in the ASX company file dated 11 Oct 2026 06:14 AEDT (1,923 codes). That file is not copied here. Not a direct ASX feed.";
+    return "These ASX names were also in the ASX company file dated 11 Oct 2026 06:14 AEDT (1,923 codes). That file is not copied here. Not a direct ASX feed.";
   }
   if (board === "DOW") {
-    return "The 30 Dow Jones Industrial Average names kept in this repo.";
+    return "The 30 Dow Jones Industrial Average names listed here.";
   }
   if (board === "NASDAQ") {
     return `SEC company file tagged Nasdaq, retrieved 10 Oct 2026. ${FUND_TYPE_NOTE}. Not a direct exchange feed.`;

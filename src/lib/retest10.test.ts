@@ -256,13 +256,23 @@ describe("pull-check:v3-retest10-2026-10-13", () => {
       included.push({ id: "uniswap", type: "dex", attributes: { name: "Uniswap", symbol: "", coingecko_coin_id: "" } } as (typeof included)[number]);
       return jsonResponse({ data, included });
     });
-    const immediate = await readSharedDexBoard({ revalidate: true });
-    expect(immediate.rows.map((row) => row.symbol)).toEqual(["PEPE"]);
+    const board = await readSharedDexBoard({ revalidate: true });
     await dexRefreshSettled();
-    const board = await readSharedDexBoard();
     expect(board.rows.length).toBeGreaterThanOrEqual(16);
     expect(board.rows.every((row) => !!row.detailId)).toBe(true);
     expect(board.notice).toContain("GeckoTerminal");
+    expect(board.notice?.startsWith("Prices paused")).toBe(false);
+  });
+
+  it("hides DEX rows and says prices are paused when a stale refresh returns nothing", async () => {
+    installSnapshotDurable(memoryDurable());
+    await persistDexSnapshot([dexRow("PEPE", "pepe")], "2026-10-12T13:56:00.000Z", ["dexpaprika"]);
+    clearSnapshotMemory();
+    installSeedFetch(async () => jsonResponse({ data: [] }));
+    const board = await readSharedDexBoard({ revalidate: true });
+    expect(board.rows).toEqual([]);
+    expect(board.notice).toMatch(/^Prices paused since /);
+    expect(board.notice).toContain("(NZ).");
   });
 
   it("sends the stocks CSV through review and does not rewrite a ticker code", () => {

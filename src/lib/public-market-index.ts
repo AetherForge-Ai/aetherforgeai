@@ -16,6 +16,8 @@ const COIN_PAGE = MARKET_SNAPSHOT_TARGET;
 /** Cold /markets waits this long, then says the price is not in the response. */
 const EQUITY_BUDGET_MS = 3000;
 const ALT_BUDGET_MS = 3000;
+/** A stale DEX seed fits inside the request. A fresh snapshot returns immediately. */
+const DEX_BUDGET_MS = 9_000;
 const INDEX_TTL_MS = 5 * 60 * 1000;
 /** After a refresh that keeps the previous snapshot, wait before trying again. */
 const REFRESH_BACKOFF_MS = 60 * 1000;
@@ -123,6 +125,9 @@ async function loadCryptoTab(): Promise<PublicPriceTab> {
       source: shownSource(coin.source, "coingecko"),
       asOf: asOfLabel(coin.quotedAt || quotedAt),
       blockchain: coin.blockchain || "",
+      change1h: coin.change1h == null ? "—" : formatSignedPercent(coin.change1h),
+      change7d: Number.isFinite(coin.change7d) ? formatSignedPercent(coin.change7d) : "—",
+      supply: coin.circulatingSupply != null && coin.circulatingSupply > 0 ? String(coin.circulatingSupply) : "—",
     }));
     const tab = {
       id: "CRYPTO",
@@ -144,7 +149,7 @@ async function loadCryptoTab(): Promise<PublicPriceTab> {
 async function loadDexTab(): Promise<PublicPriceTab> {
   try {
     const { readSharedDexBoard } = await import("@/lib/crypto-board-store");
-    const page = await readSharedDexBoard();
+    const page = await readSharedDexBoard({ revalidate: true });
     const named = page.sources.find((source) => {
       const label = sourceLabel((source || "").toLowerCase());
       return !!label && !!page.notice && page.notice.includes(label);
@@ -232,7 +237,7 @@ async function buildIndex(): Promise<PublicMarketIndex> {
         rows: [] as PublicPriceRow[],
       }))
       .then((tab) => choosePublicPriceTab(tab, recallPublicTab("CRYPTO"))),
-    within(loadDexTab(), { id: "DEX", title: "DEX", asOf: "as of not stated by the vendor", rows: [] }, ALT_BUDGET_MS)
+    within(loadDexTab(), { id: "DEX", title: "DEX", asOf: "as of not stated by the vendor", rows: [] }, DEX_BUDGET_MS)
       .catch(() => ({
         id: "DEX",
         title: "DEX",

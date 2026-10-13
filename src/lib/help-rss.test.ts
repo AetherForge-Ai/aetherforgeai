@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { CHANGELOG_ENTRIES } from "@/app/changelog/page";
+import { CHANGELOG_ENTRIES } from "@/lib/changelog-entries";
 import { GET } from "@/app/rss.xml/route";
 import { searchHelp } from "@/lib/help-index";
 import { documentAccess } from "@/lib/route-gate";

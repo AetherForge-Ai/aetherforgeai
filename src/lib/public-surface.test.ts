@@ -102,6 +102,7 @@ describe("public copy does not name a model", () => {
       "src/lib/weekly-email-copy.ts",
       "src/lib/report-copy.ts",
       "src/app/changelog/page.tsx",
+      "src/lib/changelog-entries.ts",
       "src/app/help/page.tsx",
       "src/app/returns/page.tsx",
       "src/app/stox/page.tsx",
