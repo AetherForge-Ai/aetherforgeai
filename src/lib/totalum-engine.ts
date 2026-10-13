@@ -240,6 +240,11 @@ const CMA: Record<AssetClassKey, { ret: number; vol: number }> = {
   cash: { ret: 0.04, vol: 0.01 },
 };
 
+/** Annual planning return, in percent, taken from the capital-market assumptions above. */
+export function planningAssumptionPct(assetClass: "equities" | "crypto" | "metals"): number {
+  return Math.round(CMA[assetClass].ret * 100);
+}
+
 export const MODEL_PORTFOLIOS: ModelPortfolio[] = [
   {
     key: "aggressive_growth",

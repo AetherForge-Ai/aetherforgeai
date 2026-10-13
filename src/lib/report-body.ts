@@ -4,10 +4,12 @@
  * A placeholder title is not a report.
  */
 
-import { illustratedPathFromPayloads, type IllustratedPathRecord } from "@/lib/book-log";
+import { type IllustratedPathRecord } from "@/lib/book-log";
 import { formatDisplayDate, formatNzd } from "@/lib/currency";
+import { planningAssumptionPct } from "@/lib/totalum-engine";
 
 const PLACEHOLDER = "headmaster illustrated path";
+const CRYPTO_PAUSE = "Crypto projections are paused; the crypto sleeve uses the planning assumption only.";
 
 export function reportBodyIsEmpty(text: string | null | undefined): boolean {
   const trimmed = String(text || "").replace(/\s+/g, " ").trim();
@@ -15,8 +17,15 @@ export function reportBodyIsEmpty(text: string | null | undefined): boolean {
   return trimmed.toLowerCase() === PLACEHOLDER;
 }
 
+function isIllustratedPathSentence(text: string): boolean {
+  return text.replace(/\s+/g, " ").trim().toLowerCase().startsWith("illustrated 7-day path");
+}
+
 /** Real sentences from a stored path. Null when the path has no numbers. */
-export function illustratedPathReportText(path: IllustratedPathRecord): string | null {
+export function illustratedPathReportText(
+  path: IllustratedPathRecord,
+  options?: { holdsCrypto?: boolean }
+): string | null {
   if (!Number.isFinite(path.illustrated7dPct)) return null;
   if (!(Number(path.netWorthNZD) > 0)) return null;
   if (!Number.isFinite(path.issuedAtMs)) return null;
@@ -24,7 +33,37 @@ export function illustratedPathReportText(path: IllustratedPathRecord): string |
   if (when === "—") return null;
   const pct = Math.round(path.illustrated7dPct * 100) / 100;
   const sign = pct > 0 ? "+" : "";
-  return `Illustrated 7-day path ${sign}${pct.toFixed(2)}%. Net worth on ${when}: ${formatNzd(path.netWorthNZD)}.`;
+  const equities = planningAssumptionPct("equities");
+  const crypto = planningAssumptionPct("crypto");
+  const metals = planningAssumptionPct("metals");
+  const sentence = `Illustrated 7-day path ${sign}${pct.toFixed(2)}% from fixed long-run planning assumptions (equities ${equities}%, crypto ${crypto}%, metals ${metals}% a year), not a forecast. Issued ${when}. Net worth then ${formatNzd(path.netWorthNZD)}.`;
+  return options?.holdsCrypto ? `${sentence} ${CRYPTO_PAUSE}` : sentence;
+}
+
+function pathFromPayload(payload: unknown): { path: IllustratedPathRecord; holdsCrypto: boolean } | null {
+  let parsed: unknown = payload;
+  if (typeof payload === "string") {
+    try {
+      parsed = JSON.parse(payload);
+    } catch {
+      return null;
+    }
+  }
+  if (!parsed || typeof parsed !== "object") return null;
+  const path = (parsed as { illustratedPath?: unknown }).illustratedPath;
+  if (!path || typeof path !== "object") return null;
+  const row = path as IllustratedPathRecord & { holdsCrypto?: unknown; cryptoNZD?: unknown };
+  if (!Number.isFinite(row.illustrated7dPct)) return null;
+  if (!(Number(row.netWorthNZD) > 0)) return null;
+  if (!Number.isFinite(row.issuedAtMs)) return null;
+  return {
+    path: {
+      illustrated7dPct: Number(row.illustrated7dPct),
+      netWorthNZD: Number(row.netWorthNZD),
+      issuedAtMs: Number(row.issuedAtMs),
+    },
+    holdsCrypto: row.holdsCrypto === true || Number(row.cryptoNZD) > 0,
+  };
 }
 
 export function listedReportBody(input: {
@@ -32,11 +71,12 @@ export function listedReportBody(input: {
   textBody?: string | null;
   payload?: unknown;
 }): string | null {
-  for (const candidate of [input.textBody, input.executiveSummary]) {
-    if (candidate && !reportBodyIsEmpty(candidate)) return String(candidate).trim();
+  const stored = [input.textBody, input.executiveSummary].find((candidate) => candidate && !reportBodyIsEmpty(candidate));
+  const fromPayload = pathFromPayload(input.payload);
+  if (fromPayload && (!stored || isIllustratedPathSentence(String(stored)))) {
+    return illustratedPathReportText(fromPayload.path, { holdsCrypto: fromPayload.holdsCrypto });
   }
-  const path = illustratedPathFromPayloads([input.payload]);
-  return path ? illustratedPathReportText(path) : null;
+  return stored ? String(stored).trim() : null;
 }
 
 /** Onboarding ticks a Stox or Koins run only. A Headmaster path row is not a run. */
@@ -54,11 +94,37 @@ function pdfEscape(text: string): string {
   return text.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
 }
 
+function wrapPdfLine(line: string): string[] {
+  const clean = line.replace(/[^\x20-\x7E]/g, " ").replace(/\s+/g, " ").trim();
+  if (!clean) return [];
+  const width = 96;
+  if (clean.length <= width) return [clean];
+  const rows: string[] = [];
+  let current = "";
+  for (const word of clean.split(" ")) {
+    const piece = word.length > width ? word.slice(0, width) : word;
+    const next = current ? `${current} ${piece}` : piece;
+    if (current && next.length > width) {
+      rows.push(current);
+      current = piece;
+    } else {
+      current = next;
+    }
+  }
+  if (current) rows.push(current);
+  return rows;
+}
+
 /** One-page PDF of the report text already on screen. No extra figures. */
 export function plainReportPdf(title: string, lines: readonly string[]): string {
-  const rows = [title, ...lines].map((line) => line.replace(/[^\x20-\x7E]/g, " ").slice(0, 110)).slice(0, 40);
+  const rows: string[] = [];
+  for (const line of [title, ...lines]) {
+    rows.push(...wrapPdfLine(line));
+    if (rows.length >= 40) break;
+  }
+  const fitted = rows.slice(0, 40);
   const commands = ["BT", "/F1 11 Tf", "48 760 Td"];
-  rows.forEach((line, index) => {
+  fitted.forEach((line, index) => {
     if (index > 0) commands.push("0 -16 Td");
     commands.push(`(${pdfEscape(line)}) Tj`);
   });

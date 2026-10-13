@@ -38,6 +38,8 @@ export interface YahooQuote {
   exchangeTimezone?: string; // IANA timezone of the listing exchange, when available
   /** Vendor quote time (regularMarketTime). Absent when Yahoo did not send one. */
   quotedAt?: string;
+  /** Yahoo chart meta marketState, such as REGULAR or CLOSED. */
+  marketState?: string;
 }
 
 /**
@@ -151,6 +153,7 @@ async function fetchOne(yahooSymbol: string): Promise<YahooQuote | null> {
       exchangeTimezone:
         typeof meta.exchangeTimezoneName === "string" ? meta.exchangeTimezoneName : undefined,
       quotedAt: isoFromYahooTime(meta.regularMarketTime),
+      marketState: typeof meta.marketState === "string" ? meta.marketState : undefined,
     };
     if (changeIsFlat(quote.changePct)) {
       const prior = await priorDailyClose(yahooSymbol);

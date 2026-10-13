@@ -7,7 +7,7 @@ import {
 } from "@/lib/market-intel";
 import { fetchYahooQuotes, fetchYahooQuotesBatched, yahooEquitySymbol, type YahooQuote } from "@/lib/yahoo-finance";
 import { equityApiLive, exchangeFreshnessLabel, parseQuoteTime } from "@/lib/market-freshness";
-import { snapshotCloseKey } from "@/lib/market-close-cache";
+import { commitExchangeBlock, reusableExchangeBlock, type FrozenExchangeBlock } from "@/lib/market-close-cache";
 
 export const dynamic = "force-dynamic";
 
@@ -18,9 +18,9 @@ export const dynamic = "force-dynamic";
  *
  * pull-check:retest4-2026-10-11
  */
-const SNAPSHOT_CACHE_CONTROL = "private, max-age=3600";
-let snapshotMem: { key: string; body: unknown } | null = null;
-let snapshotInflight: { key: string; promise: Promise<unknown> } | null = null;
+const SNAPSHOT_CACHE_CONTROL = "private, max-age=60";
+const exchangeMem = new Map<Exchange, FrozenExchangeBlock<ExchangeSnapshot>>();
+let snapshotInflight: Promise<unknown> | null = null;
 
 /** Cap constituents per exchange so the home tiles stay snappy (Yahoo batch). */
 const MAX_CONSTITUENTS = 48;
@@ -89,7 +89,12 @@ function snapshotResponse(body: unknown, cache: "HIT" | "STALE" | "MISS") {
   });
 }
 
-async function buildSnapshotBody(): Promise<unknown> {
+interface BuiltExchange {
+  snapshot: ExchangeSnapshot;
+  quote: { quotedAt?: string; marketState?: string };
+}
+
+async function buildSnapshotBody(): Promise<BuiltExchange[]> {
     const indexMap: Record<string, string> = {};
     const constituentMap: Record<string, string> = {};
     const entriesByExchange = new Map<Exchange, ReturnType<typeof entriesForExchange>>();
@@ -111,7 +116,7 @@ async function buildSnapshotBody(): Promise<unknown> {
       }),
     ]);
 
-    const snapshots = EXCHANGES.map((exchange): ExchangeSnapshot => {
+    const snapshots = EXCHANGES.map((exchange): BuiltExchange => {
         const meta = EXCHANGE_META[exchange];
         const entries = entriesByExchange.get(exchange) || [];
 
@@ -150,7 +155,7 @@ async function buildSnapshotBody(): Promise<unknown> {
         const indexLive = equityApiLive(exchange, indexQuoted);
         const indexFresh = exchangeFreshnessLabel(exchange, new Date(), parseQuoteTime(iq?.quotedAt));
 
-        return {
+        const snapshot: ExchangeSnapshot = {
           exchange,
           label: meta.label,
           sub: meta.sub,
@@ -177,51 +182,89 @@ async function buildSnapshotBody(): Promise<unknown> {
           topLosers,
           liveCount,
         };
+        return {
+          snapshot,
+          quote: {
+            quotedAt: iq?.quotedAt,
+            marketState: iq?.marketState,
+          },
+        };
     });
 
     console.log(
       `[api/market-snapshot] built ${snapshots.length} exchange snapshots ` +
-        snapshots.map((s) => `${s.exchange}:${s.liveCount}`).join(" ")
+        snapshots.map((s) => `${s.snapshot.exchange}:${s.snapshot.liveCount}`).join(" ")
     );
 
-    return {
-      ok: true,
-      data: {
-        asOf: new Date().toISOString(),
-        exchanges: snapshots,
-      },
-    };
+    return snapshots;
 }
 
-function startSnapshot(key: string): Promise<unknown> {
-  if (!snapshotInflight || snapshotInflight.key !== key) {
-    const promise = buildSnapshotBody()
-      .then((body) => {
-        snapshotMem = { key, body };
-        return body;
-      })
+function publish(exchanges: ExchangeSnapshot[]) {
+  return {
+    ok: true,
+    data: {
+      asOf: new Date().toISOString(),
+      exchanges,
+    },
+  };
+}
+
+function moverCount(block: ExchangeSnapshot): number {
+  return block.topGainers.length + block.topLosers.length;
+}
+
+function assemble(built: BuiltExchange[], now: Date): ExchangeSnapshot[] {
+  return built.map((fresh) => {
+    const exchange = fresh.snapshot.exchange;
+    const committed = commitExchangeBlock(exchangeMem.get(exchange) ?? null, {
+      exchange,
+      now,
+      indexPrice: fresh.snapshot.index.price,
+      moverCount: moverCount(fresh.snapshot),
+      quote: fresh.quote,
+      block: fresh.snapshot,
+    });
+    if (committed) {
+      exchangeMem.set(exchange, committed);
+      return committed.block;
+    }
+    exchangeMem.delete(exchange);
+    return fresh.snapshot;
+  });
+}
+
+function startSnapshot(): Promise<unknown> {
+  if (!snapshotInflight) {
+    snapshotInflight = buildSnapshotBody()
+      .then((built) => publish(assemble(built, new Date())))
       .finally(() => {
-        if (snapshotInflight?.promise === promise) snapshotInflight = null;
+        snapshotInflight = null;
       });
-    snapshotInflight = { key, promise };
   }
-  return snapshotInflight.promise;
+  return snapshotInflight;
 }
 
 /**
  * GET /api/market-snapshot
  *
  * Headline index, breadth, and top movers for NZX, ASX, Dow Jones, and NASDAQ.
- * Quotes come from Yahoo Finance. The first close of an Auckland day is reused
- * until the next civil day, so a reload does not print a different figure.
+ * A closed exchange reuses the figures from its last completed session.
+ * An open exchange keeps a 45 second memory for that block only.
  */
 export async function GET() {
   try {
-    const key = snapshotCloseKey();
-    if (snapshotMem?.key === key) {
-      return snapshotResponse(snapshotMem.body, "HIT");
+    const now = new Date();
+    const ready = new Map<Exchange, ExchangeSnapshot>();
+    const missing: Exchange[] = [];
+    for (const exchange of EXCHANGES) {
+      const hit = reusableExchangeBlock(exchangeMem.get(exchange), now);
+      if (hit) ready.set(exchange, hit);
+      else missing.push(exchange);
     }
-    const body = await startSnapshot(key);
+    if (missing.length === 0) {
+      return snapshotResponse(publish(EXCHANGES.map((exchange) => ready.get(exchange)!)), "HIT");
+    }
+    const body = await startSnapshot();
     return snapshotResponse(body, "MISS");
   } catch (err: any) {
     console.error("[api/market-snapshot] GET error:", err);

@@ -3,9 +3,9 @@ import { describe, expect, it } from "vitest";
 
 import { COLUMN_SETS, buildHoldingsTable, DEFAULT_HOLDINGS_QUERY, ledgerForCash } from "@/lib/holdings-table";
 import { incomeTaxSummary } from "@/lib/income-tax-summary";
-import { snapshotCloseKey } from "@/lib/market-close-cache";
 import { buildPortfolioSnapshot, type SnapshotLedgerRow } from "@/lib/portfolio-snapshot";
 import { isStoxOrKoinsRun, illustratedPathReportText, listedReportBody, plainReportPdf, reportBodyIsEmpty } from "@/lib/report-body";
+import { planningAssumptionPct } from "@/lib/totalum-engine";
 
 function read(path: string): string {
   return readFileSync(path, "utf8");
@@ -33,10 +33,22 @@ describe("dashboard critique", () => {
       issuedAtMs: Date.parse("2026-10-13T00:00:00.000Z"),
     });
     expect(text).toContain("Illustrated 7-day path +1.25%");
+    expect(text).toContain("not a forecast");
     expect(text).toContain("13 Oct 2026");
-    expect(text).toContain("NZ$250,000.00");
+    expect(text).toContain("Net worth then NZ$250,000.00");
+    expect(text).toContain(
+      `equities ${planningAssumptionPct("equities")}%, crypto ${planningAssumptionPct("crypto")}%, metals ${planningAssumptionPct("metals")}% a year`
+    );
+    expect(text).not.toMatch(/\b[A-Z]{1,5}\.(NZ|AX|L)\b/);
     expect(listedReportBody({ payload: { illustratedPath: { illustrated7dPct: 1.25, netWorthNZD: 250000, issuedAtMs: Date.parse("2026-10-13T00:00:00.000Z") } } })).toBe(text);
-    expect(plainReportPdf("Headmaster intelligence report", [text || ""]).startsWith("%PDF")).toBe(true);
+    const pdf = plainReportPdf("Headmaster intelligence report", [text || ""]);
+    expect(pdf.startsWith("%PDF")).toBe(true);
+    const pdfText = [...pdf.matchAll(/\((?:\\.|[^\\)])*\) Tj/g)]
+      .map((match) => match[0].slice(1, match[0].lastIndexOf(")")).replace(/\\([()\\])/g, "$1"))
+      .join(" ");
+    expect(pdfText).toContain("not a forecast");
+    expect(pdfText).toContain("Issued 13 Oct 2026");
+    expect(pdfText).not.toMatch(/\b[A-Z]{1,5}\.(NZ|AX|L)\b/);
     expect(isStoxOrKoinsRun({ bot: "headmaster", executiveSummary: text, textBody: text })).toBe(false);
     expect(isStoxOrKoinsRun({ bot: "stock", executiveSummary: "Stox wrote this book.", textBody: "Stox wrote this book." })).toBe(true);
     const saver = read("src/lib/totalum-service.ts");
@@ -85,15 +97,34 @@ describe("dashboard critique", () => {
     expect(panel).toContain("summary.fif.reason");
   });
 
-  it("reuses one close key for an Auckland day", () => {
-    const morning = snapshotCloseKey(new Date("2026-10-13T01:00:00+13:00"));
-    const evening = snapshotCloseKey(new Date("2026-10-13T20:00:00+13:00"));
-    expect(morning).toBe("2026-10-13");
-    expect(evening).toBe(morning);
+  it("labels an older saved path from the payload and keeps a real Stox body", () => {
+    const issuedAtMs = Date.parse("2026-10-13T00:00:00.000Z");
+    const old = "Illustrated 7-day path +1.25%. Net worth on 13 Oct 2026: NZ$250,000.00.";
+    const saved = listedReportBody({
+      executiveSummary: old,
+      textBody: old,
+      payload: { illustratedPath: { illustrated7dPct: 1.25, netWorthNZD: 250000, issuedAtMs, holdsCrypto: true } },
+    });
+    expect(saved).toContain("not a forecast");
+    expect(saved).toContain("Crypto projections are paused; the crypto sleeve uses the planning assumption only.");
+    expect(saved).not.toMatch(/\b[A-Z]{1,5}\.(NZ|AX|L)\b/);
+    expect(saved).not.toMatch(/\b(BTC|ETH|SOL|XRP)\b/);
+    expect(saved).not.toContain("AIR.NZ");
+    const stox = listedReportBody({
+      textBody: "Stox wrote this book.",
+      payload: { illustratedPath: { illustrated7dPct: 1.25, netWorthNZD: 250000, issuedAtMs } },
+    });
+    expect(stox).toBe("Stox wrote this book.");
+  });
+
+  it("freezes a market snapshot per exchange session, not the Auckland day", () => {
     const route = read("src/app/api/market-snapshot/route.ts");
-    expect(route).toContain("snapshotCloseKey");
     expect(route).toContain("pull-check:retest4-2026-10-11");
-    expect(route).not.toContain("45_000");
+    expect(route).toContain('private, max-age=60');
+    expect(route).toContain("commitExchangeBlock");
+    expect(route).not.toContain("snapshotCloseKey");
+    expect(route).not.toContain("max-age=3600");
+    expect(read("src/lib/market-close-cache.ts")).toContain("45_000");
   });
 
   it("lands redirects on the tab bar and leaves API calls out of the offline worker", () => {

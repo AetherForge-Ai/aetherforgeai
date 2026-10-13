@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import { dexSearchHits, searchAssets, type AssetHit, type AssetMarket } from "@/lib/asset-search";
 import { cleanChain, dexFromHolding, isDexSource } from "@/lib/dex-source";
 import { useRestoreScroll } from "@/components/dashboard/use-restore-scroll";
+import { shownTradePriceLabel } from "@/lib/trade-price-label";
 import { PAPER_FEE_SUMMARY, suggestedFee } from "@/lib/fee-rule";
 import { buildMovementPreview, movementNzdTotal, type MovementPreview, type RecordKind } from "@/lib/movement-preview";
 import { transactionProblems } from "@/lib/transaction-rules";
@@ -716,6 +717,9 @@ export function RecordTransactionPanel({
                       setQuantity("");
                       setCurrency("NZD");
                       setPriceDirty(false);
+                      setPriceAsAt("");
+                      setQuoteOrigin("");
+                      setQuoteChain("");
                       setHint("");
                     }
                   }}
@@ -748,7 +752,17 @@ export function RecordTransactionPanel({
                     <span className="shrink-0 text-[0.65rem] font-semibold text-muted-foreground">{asset.chain}</span>
                   ) : null}
                   {kind === "correction" ? null : (
-                    <button type="button" className="text-xs font-semibold text-primary" onClick={() => setAsset(null)}>
+                    <button
+                      type="button"
+                      className="text-xs font-semibold text-primary"
+                      onClick={() => {
+                        setAsset(null);
+                        setPriceDirty(false);
+                        setPriceAsAt("");
+                        setQuoteOrigin("");
+                        setQuoteChain("");
+                      }}
+                    >
                       Change
                     </button>
                   )}
@@ -825,6 +839,9 @@ export function RecordTransactionPanel({
                   onChange={(e) => {
                     setDate(e.target.value);
                     setPriceDirty(false);
+                    setPriceAsAt("");
+                    setQuoteOrigin("");
+                    setQuoteChain("");
                     setFxDirty(false);
                   }}
                   className="absolute inset-0 cursor-pointer opacity-0"
@@ -867,9 +884,7 @@ export function RecordTransactionPanel({
             )}
             {showQty ? (
               <div className="space-y-1.5">
-                <Label htmlFor="record-price">
-                  {priceAsAt && formatDisplayDate(priceAsAt) !== "—" ? `Last close ${formatDisplayDate(priceAsAt)}` : "Price"}
-                </Label>
+                <Label htmlFor="record-price">{shownTradePriceLabel(priceAsAt, priceDirty)}</Label>
                 <Input
                   id="record-price"
                   aria-invalid={(kind === "buy" || kind === "sell") && price.trim() !== "" && !(Number(price) > 0)}
