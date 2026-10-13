@@ -87,6 +87,9 @@ export async function GET(req: Request) {
 
     const equityTickers: string[] = [];
     const cryptoTickers: string[] = [];
+    // Every equity and crypto holding is quoted inside the 1.2s race below.
+    // The stored price is the labelled fallback when that race misses.
+    // fetchLiveQuotes and fetchCryptoQuotes already keep a 60s memory cache per ticker.
     for (const row of stocks) {
       const route = quoteRouteForHolding(String(row.asset_type || "stock"), String(row.ticker || ""), row.company_name ? String(row.company_name) : null);
       if (route === "crypto") cryptoTickers.push(String(row.ticker || ""));

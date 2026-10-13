@@ -868,6 +868,7 @@ export function RecordTransactionPanel({
                 <Label htmlFor="record-price">Price</Label>
                 <Input
                   id="record-price"
+                  aria-invalid={(kind === "buy" || kind === "sell") && price.trim() !== "" && !(Number(price) > 0)}
                   inputMode="decimal"
                   value={price}
                   placeholder="Price per unit"
@@ -880,6 +881,15 @@ export function RecordTransactionPanel({
                     setProblems([]);
                   }}
                 />
+                {(kind === "buy" || kind === "sell") && !(Number(price) > 0) ? (
+                  <p className="text-sm text-rose-700" role="alert">
+                    {!price.trim()
+                      ? "Enter a price to review this trade."
+                      : Number.isFinite(Number(price))
+                        ? "Price must be greater than zero."
+                        : "Price must be a number."}
+                  </p>
+                ) : null}
               </div>
             ) : null}
             <div className="space-y-1.5">

@@ -41,6 +41,7 @@ import {
 import {
   fmtPrice,
   stalePriceReason,
+  quoteStaleLabel,
   fmtCompactUsd,
   fmtCompactNum,
   fmtPct,
@@ -238,7 +239,7 @@ export function CoinDetailView({
           : range === "30D"
             ? detail?.change30d
             : null;
-  const badgeMove = windowMove ?? fallbackMove ?? null;
+  const badgeMove = range === "7D" ? (detail?.change7d ?? null) : (windowMove ?? fallbackMove ?? null);
   const up = (badgeMove ?? 0) >= 0;
   const stroke = up ? "#34d399" : "#fb7185";
 
@@ -367,6 +368,9 @@ export function CoinDetailView({
         {detail.quotedAt ? (
           <p className="text-[0.65rem] text-muted-foreground">{formatDisplayDateTime(detail.quotedAt)}</p>
         ) : null}
+        {quoteStaleLabel(detail.quotedAt) ? (
+          <p className="text-[0.65rem] text-muted-foreground">{quoteStaleLabel(detail.quotedAt)}</p>
+        ) : null}
         <p
           className={cn(
             "tnum mt-0.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold",
@@ -428,7 +432,7 @@ export function CoinDetailView({
         ))}
       </div>
 
-      <div className="h-64 w-full">
+      <div className="h-64 w-full min-w-0">
         {chartLoading && chartData.length === 0 ? (
           <div className="flex h-full items-center justify-center text-muted-foreground">
             {quotedLine ? (
@@ -547,7 +551,7 @@ export function CoinDetailView({
       </div>
 
       {detail && (
-        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4" data-coin-snapshot>
           {[
             { label: "1h", v: detail.change1h },
             { label: "24h", v: detail.change24h },
@@ -615,7 +619,7 @@ export function CoinDetailView({
 
   return (
     <>
-      <div className={cn("flex flex-col", variant === "dialog" && "min-h-0 flex-1")}>
+      <div className={cn("flex w-full min-w-0 flex-col", variant === "dialog" && "min-h-0 flex-1")}>
         {variant === "dialog" ? (
           <DialogHeader className="border-b border-border/60 px-5 py-4 text-left sm:px-6">{title}</DialogHeader>
         ) : (

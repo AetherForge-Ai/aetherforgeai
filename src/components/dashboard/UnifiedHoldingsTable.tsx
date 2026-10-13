@@ -230,6 +230,7 @@ export function UnifiedHoldingsTable({
       <p className="mt-2 text-xs text-muted-foreground">
         {asOfLabel ? `Snapshot ${asOfLabel}. ` : ""}
         Prices show the source on the badge. A dash has its reason on the info button. A dash is not a zero.
+        {" "}No previous close was stored for these holdings, so day change is —.
       </p>
 
       <div className="mt-3 overflow-x-auto rounded-3xl border border-border/70 bg-card/50">
@@ -240,7 +241,7 @@ export function UnifiedHoldingsTable({
             ))}
           </div>
         ) : (
-          <table className="w-full min-w-[64rem] border-collapse text-sm">
+          <table className="w-full border-collapse text-sm">
             <caption className="sr-only">Holdings from the portfolio snapshot{asOfLabel ? `, ${asOfLabel}` : ""}</caption>
             <thead>
               <tr className="border-b border-border/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
@@ -414,7 +415,7 @@ function CellView({ cell, label, signed }: { cell: TableCellModel | undefined; l
               figure={figure}
               label={cell.figures.length > 1 ? `${label} ${index === 0 ? "amount" : "percent"}` : label}
               signed={signed && index === 0}
-              showReason={figure.display === MISSING_MARK}
+              showReason={figure.display === MISSING_MARK && figure.reason !== "No previous close was stored for this holding."}
             />
           </Fragment>
         ))}

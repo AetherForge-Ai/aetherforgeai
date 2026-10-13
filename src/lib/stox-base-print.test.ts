@@ -216,11 +216,12 @@ describe("Stox base print", () => {
 
     const usDay = windowOf(report.marketMovers, "US", "Last 24 hours");
     const usMonth = windowOf(report.marketMovers, "US", "Last month");
-    expect(usDay?.movers.find((row) => row.ticker === "MDLZ")?.changePct).toBe(2.28);
-    expect(usDay?.underReview.map((row) => row.ticker) ?? []).not.toContain("MDLZ");
+    expect(usDay?.movers.map((row) => row.ticker)).not.toContain("MDLZ");
+    expect(usDay?.underReview.map((row) => row.ticker)).toContain("MDLZ");
     expect(usWeek?.underReview.map((row) => row.ticker)).toContain("MDLZ");
     expect(usMonth?.underReview.map((row) => row.ticker)).toContain("MDLZ");
     expect(usWeek?.movers.map((row) => row.ticker)).not.toContain("MDLZ");
+    expect(usMonth?.movers.map((row) => row.ticker)).not.toContain("MDLZ");
   });
 
   it("reads MAH's projection from MAH's series and ZIP's session from ZIP's series", () => {

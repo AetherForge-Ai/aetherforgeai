@@ -84,7 +84,7 @@ function TickerCell({
       >
         <span aria-hidden="true">{!hasChange || flat ? "·" : up ? "▲" : "▼"}</span>
         {q.change == null ? "—" : formatSignedPercent(q.change)}
-        {asOf ? <span className="font-medium normal-case"> as of {asOf}</span> : null}
+        {asOf ? <span className="ml-1 font-medium normal-case">as of {asOf}</span> : null}
       </span>
     </span>
   );

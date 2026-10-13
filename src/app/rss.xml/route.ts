@@ -1,4 +1,4 @@
-import { CHANGELOG_ENTRIES } from "@/app/changelog/page";
+import { CHANGELOG_ENTRIES } from "@/lib/changelog-entries";
 
 export const dynamic = "force-dynamic";
 

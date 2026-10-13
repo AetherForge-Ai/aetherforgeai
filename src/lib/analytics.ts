@@ -38,6 +38,10 @@ export interface PortfolioMetrics {
   diversification: number; // 0-100
   winRate: number; // % of holdings currently in profit
   avgConviction: number; // 0-100 avg signal score
+  /** False when the return series is shorter than five days. Those figures stay blank. */
+  enoughHistory: boolean;
+  /** False when no projected move was stored. Alpha stays blank. */
+  alphaKnown: boolean;
 }
 
 export interface HoldingIntel {
@@ -156,6 +160,8 @@ export function computePortfolioMetrics(stocks: Stock[], known?: SecurityIntel[]
     diversification: 0,
     winRate: 0,
     avgConviction: 0,
+    enoughHistory: false,
+    alphaKnown: false,
   };
   if (!holdings.length) return empty;
 
@@ -218,6 +224,8 @@ export function computePortfolioMetrics(stocks: Stock[], known?: SecurityIntel[]
     diversification,
     winRate,
     avgConviction,
+    enoughHistory: portReturns.length >= 5,
+    alphaKnown: projected.length > 0,
   };
 }
 

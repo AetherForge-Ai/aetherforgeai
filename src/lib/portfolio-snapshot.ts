@@ -8,6 +8,7 @@
 import { importRowHash } from "@/lib/broker-import";
 import {
   currencyForTicker,
+  fifoLotCostNzd,
   formatDisplayDate,
   formatFxInput,
   formatNzd,
@@ -402,10 +403,10 @@ function movementQty(row: SnapshotLedgerRow): number {
 }
 
 function movementPrice(row: SnapshotLedgerRow): number {
-  const price = num(row.price);
-  if (price != null && price > 0) return price;
   const fill = num(row.fill_price);
   if (fill != null && fill > 0) return fill;
+  const price = num(row.price);
+  if (price != null && price > 0) return price;
   const match = String(row.notes || "").match(/\bfill=([0-9]*\.?[0-9]+)/i);
   const parsed = match ? Number(match[1]) : 0;
   return parsed > 0 ? parsed : 0;
@@ -1069,7 +1070,7 @@ export function buildPortfolioSnapshot(input: SnapshotInput): PortfolioSnapshot 
     const lotViews: SnapshotLot[] = open.map((lot) => {
       const fee = lot.qty * lot.feePerUnit;
       openFee += fee;
-      const cost = lot.fx == null ? null : lot.qty * lot.price * lot.fx + fee;
+      const cost = lot.fx == null ? null : fifoLotCostNzd(lot.qty, lot.price, lot.fx);
       if (cost == null) costMissing = "A lot has no stored exchange rate, so cost base is blank.";
       else costExact += cost;
       if (lot.fx != null && now != null && priceNow != null) {
@@ -1125,10 +1126,10 @@ export function buildPortfolioSnapshot(input: SnapshotInput): PortfolioSnapshot 
       qty <= 0
         ? figureFrom(0, "A closed position has no remaining cost.", [], "0", source, asOfLabel)
         : costMissing
-          ? emptyFigure("Cost base is each open lot's quantity × price × the buy rate, plus the buy fee still open.", costMissing, source, asOfLabel)
+          ? emptyFigure("Cost base is each open lot's quantity × fill × the buy rate.", costMissing, source, asOfLabel)
           : figureFrom(
               costExact,
-              "Cost base is each open lot's quantity times its price times the exchange rate on the buy, plus the buy fee still open.",
+              "Cost base is each open lot's quantity times its fill times the exchange rate on the buy.",
               lotViews.map((lot) => `${lot.acquiredLabel}: ${lot.quantity} × ${lot.priceLocal} × ${lot.fxDisplay}`),
               formatNzd(costExact),
               "Ledger",
@@ -1667,4 +1668,221 @@ export function buildPortfolioSnapshot(input: SnapshotInput): PortfolioSnapshot 
     return filterSnapshot(built, input.filter);
   }
   return built;
+}
+
+export interface ConfirmedFill {
+  type?: string | null;
+  ticker?: string | null;
+  asset_type?: string | null;
+  asset_name?: string | null;
+  quantity?: number | null;
+  price?: number | null;
+  fill_price?: number | null;
+  fx_rate?: number | null;
+  currency?: string | null;
+}
+
+function classOfTrade(assetType: string | null | undefined): Exclude<SnapshotClass, "cash"> {
+  const kind = String(assetType || "").toLowerCase();
+  if (kind === "crypto") return "crypto";
+  if (kind === "metal" || kind === "metals") return "metals";
+  return "shares";
+}
+
+function groupLabel(id: Exclude<SnapshotClass, "cash">): string {
+  if (id === "crypto") return "Crypto";
+  if (id === "metals") return "Metals";
+  return "Shares";
+}
+
+function repaintFigure(figure: SnapshotFigure, value: number | null, reason: string | null): SnapshotFigure {
+  if (value == null) return { ...figure, value: null, display: MISSING_MARK, reason };
+  const rounded = roundMoney(value);
+  return { ...figure, value: rounded, display: formatNzd(rounded), reason: null };
+}
+
+/**
+ * Cash, quantity and net worth from the confirm response, in one snapshot.
+ * Cost base uses the same fill × quantity × rate as the FIFO paper.
+ */
+export function paintConfirmedSnapshot(
+  snapshot: PortfolioSnapshot,
+  trade: ConfirmedFill,
+  cashBalance: number
+): PortfolioSnapshot {
+  const next = structuredClone(snapshot);
+  const type = String(trade.type || "").toLowerCase();
+  const ticker = String(trade.ticker || "").trim().toUpperCase();
+  const qty = Number(trade.quantity);
+  const fill = Number(trade.fill_price) > 0 ? Number(trade.fill_price) : Number(trade.price);
+  const currency = String(trade.currency || "").toUpperCase();
+  const fx = currency ? tradeFx(currency, trade.fx_rate) : null;
+  const tradable = (type === "buy" || type === "sell") && !!ticker && qty > 0;
+
+  if (tradable) {
+    const assetClass = classOfTrade(trade.asset_type);
+    let group = next.groups.find((item) => item.id === assetClass);
+    if (!group) {
+      group = {
+        id: assetClass,
+        label: groupLabel(assetClass),
+        marketValue: emptyFigure("Market value is the sum of open positions.", "No positions yet.", next.source, next.asOfLabel),
+        positions: [],
+      };
+      next.groups.push(group);
+    }
+    let position = group.positions.find((item) => item.ticker.toUpperCase() === ticker && !item.closed);
+    if (!position && type === "buy") {
+      const blank = emptyFigure("Filled from the confirmed trade.", "Not stored yet.", "Ledger", next.asOfLabel);
+      position = {
+        ticker,
+        name: trade.asset_name || ticker,
+        assetClass,
+        quantity: 0,
+        closed: false,
+        averageCostLocal: null,
+        marketPriceLocal: null,
+        currency: currency || "NZD",
+        fxNow: fx,
+        fxNowDisplay: fxDisplay(fx),
+        marketValue: blank,
+        costBase: blank,
+        unrealised: blank,
+        unrealisedPrice: blank,
+        unrealisedFx: blank,
+        realised: blank,
+        realisedPrice: blank,
+        realisedFx: blank,
+        income: blank,
+        incomeGross: blank,
+        incomeWithholding: blank,
+        currencyEffect: blank,
+        fees: blank,
+        totalReturn: blank,
+        weight: blank,
+        lots: [],
+        priceSource: null,
+        priceAsOf: null,
+        holdingId: null,
+      };
+      group.positions.push(position);
+    }
+    if (position) {
+      const oldQty = position.quantity;
+      const unit =
+        oldQty > 1e-9 && position.marketValue.value != null
+          ? position.marketValue.value / oldQty
+          : fill > 0 && (fx != null || currency === "NZD")
+            ? fill * (fx ?? 1)
+            : null;
+      if (type === "buy" && fill > 0) {
+        const lotFx = fx ?? (currency === "NZD" || !currency ? 1 : null);
+        position.lots.push({
+          acquired: next.asOf.slice(0, 10),
+          acquiredLabel: next.asOfLabel,
+          quantity: qty,
+          priceLocal: fill,
+          fx: lotFx,
+          fxDisplay: fxDisplay(lotFx),
+          costNzd: lotFx != null ? fifoLotCostNzd(qty, fill, lotFx) : null,
+          feeNzd: 0,
+        });
+        position.quantity = oldQty + qty;
+      } else if (type === "sell") {
+        let left = qty;
+        const kept: SnapshotLot[] = [];
+        for (const lot of position.lots) {
+          if (left <= 1e-9) {
+            kept.push(lot);
+            continue;
+          }
+          if (lot.quantity <= left + 1e-9) {
+            left -= lot.quantity;
+            continue;
+          }
+          const remain = lot.quantity - left;
+          const ratio = lot.quantity > 0 ? remain / lot.quantity : 0;
+          kept.push({
+            ...lot,
+            quantity: remain,
+            costNzd: lot.costNzd == null ? null : lot.costNzd * ratio,
+            feeNzd: lot.feeNzd * ratio,
+          });
+          left = 0;
+        }
+        position.lots = kept;
+        position.quantity = Math.max(0, oldQty - qty);
+        if (position.lots.length === 0 && position.quantity > 1e-9 && position.costBase.value != null && oldQty > 0) {
+          position.costBase = repaintFigure(position.costBase, position.costBase.value * (position.quantity / oldQty), null);
+        }
+      }
+      position.closed = position.quantity <= 1e-9;
+      const openLots = position.lots.filter((lot) => lot.quantity > 1e-9);
+      if (openLots.length) {
+        const lotQty = openLots.reduce((sum, lot) => sum + lot.quantity, 0);
+        const native = openLots.reduce((sum, lot) => sum + lot.quantity * lot.priceLocal, 0);
+        position.averageCostLocal = lotQty > 0 ? native / lotQty : null;
+        const missing = openLots.some((lot) => lot.costNzd == null);
+        position.costBase = missing
+          ? emptyFigure(
+              "Cost base is each open lot's quantity × fill × the buy rate.",
+              "The confirmed fill did not include an exchange rate.",
+              "Ledger",
+              next.asOfLabel
+            )
+          : figureFrom(
+              openLots.reduce((sum, lot) => sum + (lot.costNzd || 0), 0),
+              "Cost base is each open lot's quantity times its fill times the exchange rate on the buy.",
+              openLots.map((lot) => `${lot.quantity} × ${lot.priceLocal} × ${lot.fxDisplay}`),
+              "",
+              "Ledger",
+              next.asOfLabel
+            );
+      }
+      const mv = position.quantity > 1e-9 ? (unit == null ? null : unit * position.quantity) : 0;
+      position.marketValue = repaintFigure(
+        position.marketValue,
+        mv,
+        mv == null ? "No price is stored for this holding." : null
+      );
+      if (position.marketValue.value != null && position.costBase.value != null) {
+        position.unrealised = repaintFigure(position.unrealised, position.marketValue.value - position.costBase.value, null);
+      }
+    }
+  }
+
+  let holdings = 0;
+  let holdingsMissing: string | null = null;
+  for (const group of next.groups) {
+    let groupValue = 0;
+    let groupMissing: string | null = null;
+    for (const position of group.positions) {
+      if (position.closed) continue;
+      if (position.marketValue.value == null) groupMissing = position.marketValue.reason || "A holding has no price.";
+      else groupValue += position.marketValue.value;
+    }
+    group.marketValue = repaintFigure(group.marketValue, groupMissing ? null : groupValue, groupMissing);
+    if (groupMissing) holdingsMissing = groupMissing;
+    else holdings += groupValue;
+  }
+  next.kpis.holdingsValue = repaintFigure(next.kpis.holdingsValue, holdingsMissing ? null : holdings, holdingsMissing);
+  next.kpis.cash = repaintFigure(next.kpis.cash, cashBalance, null);
+  const net = holdingsMissing ? null : holdings + cashBalance;
+  next.kpis.netWorth = repaintFigure(next.kpis.netWorth, net, holdingsMissing);
+  next.grand = repaintFigure(next.grand, net, holdingsMissing);
+  if (net != null && net !== 0) {
+    for (const group of next.groups) {
+      for (const position of group.positions) {
+        const mv = position.marketValue.value;
+        position.weight = repaintFigure(position.weight, mv == null ? null : mv / net, mv == null ? position.marketValue.reason : null);
+        if (position.weight.value != null) {
+          position.weight = {
+            ...position.weight,
+            display: `${(position.weight.value * 100).toFixed(2)}%`,
+          };
+        }
+      }
+    }
+  }
+  return next;
 }

@@ -5,6 +5,7 @@ import { choosePublicPriceTab, formatPublicCryptoPrice, sourceLabel } from "@/li
 import { publicSourceAllowed } from "@/lib/swyftx-display";
 import { loadPublicCryptoPrint, noteListedPrices, recallPublicTab, rememberPublicTab } from "@/lib/crypto-price-feed";
 import { loadTop400Markets } from "@/lib/crypto-source";
+import { fmtCompactNum } from "@/lib/crypto-market";
 import { formatDisplayDateTime, formatSignedPercent, formatUnitPrice } from "@/lib/currency";
 import { PUBLIC_SEED_ROWS, type PublicMarketIndex, type PublicPriceRow, type PublicPriceTab } from "@/lib/public-market-types";
 import { boardCoverage, pageListings } from "@/lib/stock-catalog";
@@ -16,6 +17,8 @@ const COIN_PAGE = MARKET_SNAPSHOT_TARGET;
 /** Cold /markets waits this long, then says the price is not in the response. */
 const EQUITY_BUDGET_MS = 3000;
 const ALT_BUDGET_MS = 3000;
+/** Page cap for the DEX tab. Just above the 1.5s refresh wait so a pause banner can return. */
+const DEX_BUDGET_MS = 1_800;
 const INDEX_TTL_MS = 5 * 60 * 1000;
 /** After a refresh that keeps the previous snapshot, wait before trying again. */
 const REFRESH_BACKOFF_MS = 60 * 1000;
@@ -123,6 +126,9 @@ async function loadCryptoTab(): Promise<PublicPriceTab> {
       source: shownSource(coin.source, "coingecko"),
       asOf: asOfLabel(coin.quotedAt || quotedAt),
       blockchain: coin.blockchain || "",
+      change1h: coin.change1h == null ? "—" : formatSignedPercent(coin.change1h),
+      change7d: Number.isFinite(coin.change7d) ? formatSignedPercent(coin.change7d) : "—",
+      supply: fmtCompactNum(coin.circulatingSupply),
     }));
     const tab = {
       id: "CRYPTO",
@@ -144,7 +150,7 @@ async function loadCryptoTab(): Promise<PublicPriceTab> {
 async function loadDexTab(): Promise<PublicPriceTab> {
   try {
     const { readSharedDexBoard } = await import("@/lib/crypto-board-store");
-    const page = await readSharedDexBoard();
+    const page = await readSharedDexBoard({ revalidate: true });
     const named = page.sources.find((source) => {
       const label = sourceLabel((source || "").toLowerCase());
       return !!label && !!page.notice && page.notice.includes(label);
@@ -232,7 +238,7 @@ async function buildIndex(): Promise<PublicMarketIndex> {
         rows: [] as PublicPriceRow[],
       }))
       .then((tab) => choosePublicPriceTab(tab, recallPublicTab("CRYPTO"))),
-    within(loadDexTab(), { id: "DEX", title: "DEX", asOf: "as of not stated by the vendor", rows: [] }, ALT_BUDGET_MS)
+    within(loadDexTab(), { id: "DEX", title: "DEX", asOf: "as of not stated by the vendor", rows: [] }, DEX_BUDGET_MS)
       .catch(() => ({
         id: "DEX",
         title: "DEX",

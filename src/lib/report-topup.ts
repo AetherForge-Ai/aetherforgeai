@@ -194,13 +194,14 @@ export function tickerCallSentence(
 ): string {
   const call = ticker.call;
   const horizon = call?.horizon ?? "7-day";
-  const range = call?.range ?? "range unavailable";
+  const statedRange = (call?.range || "").trim();
+  const range = !statedRange || /range unavailable/i.test(statedRange) ? "unavailable" : statedRange;
   const odds = call ? `${call.oddsPct}% stated odds` : "stated odds unavailable";
   const kill =
     call && call.killPrice > 0
       ? `A level that kills the idea is ${call.killPrice}.`
       : "A level that kills the idea is not available from this print.";
-  if (ticker.signal === "Hold") {
+  if (String(ticker.signal || "").toLowerCase() === "hold") {
     return `${ticker.ticker}: horizon ${horizon}, range ${range}, ${odds}. ${kill} No new size: HOLD. ${paperFeeSentence(feeNZD)}`;
   }
   const volNote =

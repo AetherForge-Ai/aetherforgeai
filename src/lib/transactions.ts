@@ -1111,8 +1111,9 @@ async function applyTransactionUnlocked(
       after: { quantity, fill_price: price, cash_nzd: -costNZD, fx_rate: fxRate },
     });
     const ledgerStarted = Date.now();
-    const [ledgerResult, holdingResult] = await Promise.allSettled([
-      totalumSdk.crud.createRecord("transaction", {
+    // Ledger row and holding write finish before cash. The share read is a
+    // separate get after the holding write, and it may run beside the cash write.
+    const ledgerWrite = totalumSdk.crud.createRecord("transaction", {
       type: "buy",
       ticker,
       asset_name: input.asset_name || holding?.company_name || lookupTicker(ticker)?.name || ticker,
@@ -1158,9 +1159,8 @@ async function applyTransactionUnlocked(
       executed_at: executedStored,
       user: user._id,
       ...(holdingId ? { stock: holdingId } : {}),
-    }),
-      holdingWrite,
-    ]);
+    });
+    const [ledgerResult, holdingResult] = await Promise.allSettled([ledgerWrite, holdingWrite]);
     confirmSteps.ledger = Date.now() - ledgerStarted;
     const rec = ledgerResult.status === "fulfilled" ? ledgerResult.value : undefined;
     ledgerId = (rec?.data as { _id?: string } | undefined)?._id;
@@ -1171,6 +1171,11 @@ async function applyTransactionUnlocked(
         new Error("Buy was not saved");
       throw reason instanceof Error ? reason : new Error("Buy was not saved");
     }
+    const cashWrite = input.deferCash
+      ? Promise.resolve(null)
+      : totalumSdk.crud.editRecordById("user", user._id, { cash_balance: newCash });
+    const shareRead = holdingId ? readHoldingShares(holdingId) : Promise.resolve(null);
+    const [cashResult, shareResult] = await Promise.allSettled([cashWrite, shareRead]);
     const restoreHolding = async () => {
       if (holdingId && createdNew) {
         await totalumSdk.crud.deleteRecordById("stock", holdingId).catch(() => undefined);
@@ -1180,19 +1185,23 @@ async function applyTransactionUnlocked(
           .catch(() => undefined);
       }
     };
-    if (input.deferCash) {
-      if (holdingId) {
-        let actual = await readHoldingShares(holdingId);
-        if (!qtyMatches(actual, expectedShares)) {
-          await totalumSdk.crud.editRecordById("stock", holdingId, { shares: expectedShares });
-          actual = await readHoldingShares(holdingId);
-        }
-        if (!qtyMatches(actual, expectedShares)) {
-          throw new Error(
-            `Buy of ${ticker} was not saved — the holding quantity did not match the ledger, so nothing was committed.`
-          );
-        }
+    if (!input.deferCash && cashResult.status === "rejected") {
+      const reason = cashResult.reason instanceof Error ? cashResult.reason : new Error("Cash was not saved");
+      throw reason;
+    }
+    if (holdingId) {
+      let actual = shareResult.status === "fulfilled" ? shareResult.value : null;
+      if (!qtyMatches(actual, expectedShares)) {
+        await totalumSdk.crud.editRecordById("stock", holdingId, { shares: expectedShares });
+        actual = await readHoldingShares(holdingId);
       }
+      if (!qtyMatches(actual, expectedShares)) {
+        throw new Error(
+          `Buy of ${ticker} was not saved — the holding quantity did not match the ledger, so nothing was committed.`
+        );
+      }
+    }
+    if (input.deferCash) {
       return {
         transaction: rec?.data,
         cashBalance: currentCash,
@@ -1204,25 +1213,7 @@ async function applyTransactionUnlocked(
         restoreHolding,
       };
     }
-    const cashStarted = Date.now();
-    const shareRead = holdingId ? readHoldingShares(holdingId) : Promise.resolve(null);
-    const [, actualFirst] = await Promise.all([
-      totalumSdk.crud.editRecordById("user", user._id, { cash_balance: newCash }),
-      shareRead,
-    ]);
-    if (holdingId) {
-      let actual = actualFirst;
-      if (!qtyMatches(actual, expectedShares)) {
-        await totalumSdk.crud.editRecordById("stock", holdingId, { shares: expectedShares });
-        actual = await readHoldingShares(holdingId);
-      }
-      if (!qtyMatches(actual, expectedShares)) {
-        throw new Error(
-          `Buy of ${ticker} was not saved — the holding quantity did not match the ledger, so nothing was committed.`
-        );
-      }
-    }
-    confirmSteps.cash = Date.now() - cashStarted;
+    confirmSteps.cash = Date.now() - ledgerStarted;
     return { transaction: rec.data, cashBalance: newCash, realizedNZD: 0, holdingId };
     } catch (err) {
       console.error(`[transactions] Rolling back buy of ${ticker}:`, err);
@@ -1348,8 +1339,9 @@ async function applyTransactionUnlocked(
     after: { quantity, fill_price: price },
   });
   const ledgerStarted = Date.now();
-  const [ledgerResult, holdingResult] = await Promise.allSettled([
-    totalumSdk.crud.createRecord("transaction", {
+  // Ledger row and holding write finish before cash. The share read is a
+  // separate get after the holding write, and it may run beside the cash write.
+  const ledgerWrite = totalumSdk.crud.createRecord("transaction", {
     type: "sell",
     ticker,
     asset_name: input.asset_name || holding.company_name || ticker,
@@ -1388,9 +1380,8 @@ async function applyTransactionUnlocked(
     executed_at: executedStored,
     user: user._id,
     ...(holdingId ? { stock: holdingId } : {}),
-  }),
-    holdingWrite,
-  ]);
+  });
+  const [ledgerResult, holdingResult] = await Promise.allSettled([ledgerWrite, holdingWrite]);
   confirmSteps.ledger = Date.now() - ledgerStarted;
   const rec = ledgerResult.status === "fulfilled" ? ledgerResult.value : undefined;
   ledgerId = (rec?.data as { _id?: string } | undefined)?._id;
@@ -1401,6 +1392,11 @@ async function applyTransactionUnlocked(
       new Error("Sell was not saved");
     throw reason instanceof Error ? reason : new Error("Sell was not saved");
   }
+  const cashWrite = input.deferCash
+    ? Promise.resolve(null)
+    : totalumSdk.crud.editRecordById("user", user._id, { cash_balance: newCash });
+  const shareRead = closed ? Promise.resolve(expectedRemaining) : readHoldingShares(holding._id);
+  const [cashResult, shareResult] = await Promise.allSettled([cashWrite, shareRead]);
   const restoreHolding = async () => {
     if (closed) {
       await totalumSdk.crud
@@ -1421,19 +1417,23 @@ async function applyTransactionUnlocked(
         .catch(() => undefined);
     }
   };
-  if (input.deferCash) {
-    if (!closed) {
-      let actual = await readHoldingShares(holding._id);
-      if (!qtyMatches(actual, expectedRemaining)) {
-        await totalumSdk.crud.editRecordById("stock", holding._id, { shares: expectedRemaining });
-        actual = await readHoldingShares(holding._id);
-      }
-      if (!qtyMatches(actual, expectedRemaining)) {
-        throw new Error(
-          `Sell of ${ticker} was not saved — the holding quantity did not match the ledger, so nothing was committed.`
-        );
-      }
+  if (!input.deferCash && cashResult.status === "rejected") {
+    const reason = cashResult.reason instanceof Error ? cashResult.reason : new Error("Cash was not saved");
+    throw reason;
+  }
+  if (!closed) {
+    let actual = shareResult.status === "fulfilled" ? shareResult.value : null;
+    if (!qtyMatches(actual, expectedRemaining)) {
+      await totalumSdk.crud.editRecordById("stock", holding._id, { shares: expectedRemaining });
+      actual = await readHoldingShares(holding._id);
     }
+    if (!qtyMatches(actual, expectedRemaining)) {
+      throw new Error(
+        `Sell of ${ticker} was not saved — the holding quantity did not match the ledger, so nothing was committed.`
+      );
+    }
+  }
+  if (input.deferCash) {
     return {
       transaction: rec?.data,
       cashBalance: currentCash,
@@ -1445,25 +1445,7 @@ async function applyTransactionUnlocked(
       restoreHolding,
     };
   }
-  const cashStarted = Date.now();
-  const shareRead = closed ? Promise.resolve(expectedRemaining) : readHoldingShares(holding._id);
-  const [, actualFirst] = await Promise.all([
-    totalumSdk.crud.editRecordById("user", user._id, { cash_balance: newCash }),
-    shareRead,
-  ]);
-  if (!closed) {
-    let actual = actualFirst;
-    if (!qtyMatches(actual, expectedRemaining)) {
-      await totalumSdk.crud.editRecordById("stock", holding._id, { shares: expectedRemaining });
-      actual = await readHoldingShares(holding._id);
-    }
-    if (!qtyMatches(actual, expectedRemaining)) {
-      throw new Error(
-        `Sell of ${ticker} was not saved — the holding quantity did not match the ledger, so nothing was committed.`
-      );
-    }
-  }
-  confirmSteps.cash = Date.now() - cashStarted;
+  confirmSteps.cash = Date.now() - ledgerStarted;
   return { transaction: rec.data, cashBalance: newCash, realizedNZD: realizedBooked, holdingId };
   } catch (err) {
     console.error(`[transactions] Rolling back sell of ${ticker}:`, err);

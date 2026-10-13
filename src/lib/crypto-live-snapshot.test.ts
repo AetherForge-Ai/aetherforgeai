@@ -107,7 +107,7 @@ describe("pull-check:crypto-live-2026-10-11", () => {
     expect(read("src/lib/crypto-diagnostics.ts")).toContain("pull-check:crypto-live-2026-10-11");
     expect(read("src/app/api/admin/crypto-diagnostics/route.ts")).toContain("pull-check:crypto-live-2026-10-11");
     expect(read("src/app/api/admin/crypto-diagnostics/route.ts")).toContain("PRIVACY_OFFICER_EMAIL");
-    expect(read("src/app/changelog/page.tsx")).toContain("47f44d9");
+    expect(read("src/lib/changelog-entries.ts")).toContain("47f44d9");
   });
 
   it("uses a demo header, a pro host, or keyless, and does not put the key in the URL", () => {

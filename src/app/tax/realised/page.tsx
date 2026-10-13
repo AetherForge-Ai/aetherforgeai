@@ -183,6 +183,7 @@ export default async function RealisedPage({
               href={`/api/tax/realised/export?year=${endingYear}`}
               allowed={canExportCsv(user.subscription_plan)}
               exportName="Realised CSV"
+              idleLabel="Realised CSV"
             />
           ) : null}
           {user && report ? (
@@ -190,6 +191,7 @@ export default async function RealisedPage({
               href={`/api/tax/crypto/export?year=${endingYear}`}
               allowed={canExportCsv(user.subscription_plan)}
               exportName="Crypto disposals CSV"
+              idleLabel="Crypto disposals CSV"
             />
           ) : null}
           {user && report ? (

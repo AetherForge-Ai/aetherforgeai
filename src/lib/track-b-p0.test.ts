@@ -102,7 +102,7 @@ describe("Track B P0", () => {
   });
 
   it("lists 10 Oct 2026 and 11 Oct 2026 changelog lines from develop, and no 9 Oct line", () => {
-    const page = read("src/app/changelog/page.tsx");
+    const page = read("src/lib/changelog-entries.ts");
     expect(page).toContain("11 Oct 2026");
     expect(page).toContain("87dfce1");
     expect(page).toContain("caa5472");

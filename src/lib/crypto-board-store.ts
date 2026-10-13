@@ -39,6 +39,7 @@ import {
   presentListedCoin,
   pickSnapshotCoin,
   pricesAsAtLabel,
+  pricesPausedSince,
   snapshotBlockchain,
   snapshotIsStale,
   type CoinDirectoryEntry,
@@ -566,6 +567,16 @@ function presentDex(rows: DexTokenRow[], at: string | null, sources: string[]): 
   const unique = dedupeDexByNetworkAddress(rows)
     .map((row) => cleanDexRow(row))
     .filter((row): row is DexTokenRow => !!row && dexRowComplete(row) && !!resolvableCoinId(row.detailId));
+  if (at && snapshotIsStale(at, Date.now(), SNAPSHOT_STALE_MS)) {
+    return {
+      rows: [],
+      at,
+      notice: pricesPausedSince(at),
+      sources,
+      delayed: true,
+      countLine: countLine("DEX tokens", 0),
+    };
+  }
   const notice = unique.length ? withFeedSource(pricesAsAtLabel(at, Date.now(), DEX_REQUEST_FRESH_MS), sources) : null;
   return {
     rows: unique,
@@ -629,8 +640,8 @@ export async function readSharedCryptoBoard(opts?: { seed?: boolean }): Promise<
   return presentCrypto(gateCoins(again?.coins ?? []), again?.at ?? null);
 }
 
-/** How long a stale DEX refresh may occupy the request. The seed budget fits inside this. */
-const DEX_REFRESH_BOUND_MS = 8_000;
+/** How long a visitor waits for a DEX refresh. after() keeps the rest of the run alive. */
+const DEX_REFRESH_BOUND_MS = 1_500;
 
 function boardNeedsRefresh(at: string | null | undefined, maxAge = SNAPSHOT_REFRESH_MS): boolean {
   return !at || snapshotIsStale(at, Date.now(), maxAge);
@@ -657,20 +668,26 @@ export async function readSharedDexBoard(opts?: { seed?: boolean; revalidate?: b
   const visible = (saved?.rows ?? []).filter((row) => row.price != null && row.price > 0);
   if (visible.length) {
     const thin = dexSnapshotThin(visible, saved?.sources ?? []);
-    if (opts?.revalidate && (boardNeedsRefresh(saved?.at, DEX_REQUEST_FRESH_MS) || thin) && Date.now() >= nextDexUpgradeAt) {
+    const stale = boardNeedsRefresh(saved?.at, DEX_REQUEST_FRESH_MS);
+    if (opts?.revalidate && (stale || thin) && Date.now() >= nextDexUpgradeAt) {
       nextDexUpgradeAt = Date.now() + 60_000;
-      // The last good list is the response. The refresh must not hold this call.
-      scheduleDetached(() =>
-        refreshDexSeed().catch((err) => {
-          noteDexRefreshFailure(err instanceof Error ? err.message.slice(0, 160) : "DEX refresh failed");
-          return { dexReplaced: false, dexRows: 0 };
-        })
+      // A visitor waits at most 1.5s. after() keeps the refresh alive for the cron or the next request.
+      await scheduleDetached(
+        () =>
+          refreshDexSeed().catch((err) => {
+            noteDexRefreshFailure(err instanceof Error ? err.message.slice(0, 160) : "DEX refresh failed");
+            return { dexReplaced: false, dexRows: 0 };
+          }),
+        DEX_REFRESH_BOUND_MS
       );
+      const again = await readDexSnapshot();
+      const next = (again?.rows ?? []).filter((row) => row.price != null && row.price > 0);
+      return presentDex(next.length ? next : visible, again?.at ?? saved?.at ?? null, again?.sources ?? saved?.sources ?? []);
     }
     return presentDex(visible, saved?.at ?? null, saved?.sources ?? []);
   }
   if (opts?.seed === false) return presentDex([], saved?.at ?? null, saved?.sources ?? []);
-  await Promise.race([refreshDexSeed().catch(() => undefined), sleep(DEX_REFRESH_BOUND_MS)]);
+  await scheduleDetached(() => refreshDexSeed().catch(() => undefined), DEX_REFRESH_BOUND_MS);
   const again = await readDexSnapshot();
   return presentDex(again?.rows ?? [], again?.at ?? null, again?.sources ?? []);
 }

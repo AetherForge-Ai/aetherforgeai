@@ -233,9 +233,12 @@ export function ReportCenter({
   const quotaFor = (kind: BotKind) => {
     const server = serverQuota?.[kind];
     if (server?.cadenceUnit === "month") {
+      const nextAt = Date.parse(server.nextAllowedAt || "");
+      const liveWait = Number.isFinite(nextAt) ? Math.max(0, nextAt - now) : server.waitMs;
+      const capped = server.reportsLimit != null && server.reportsUsed != null && server.reportsUsed >= server.reportsLimit;
       return {
-        allowed: server.allowed,
-        waitMs: server.waitMs,
+        allowed: capped ? false : server.allowed || liveWait <= 0,
+        waitMs: liveWait,
         nextAllowedAt: server.nextAllowedAt,
         lastReportAt: server.lastReportAt,
         cadence: {
@@ -384,12 +387,16 @@ export function ReportCenter({
     });
   }, [applyHistory]);
 
-  // Tick the countdown once a minute (only while at least one report is locked).
+  // Tick every second while a wait is under three minutes, otherwise once a minute.
+  const countdownSoon = (["stock", "crypto"] as BotKind[]).some((kind) => {
+    const wait = quotaFor(kind).waitMs;
+    return wait > 0 && wait < 180_000;
+  });
   React.useEffect(() => {
     if (!anyLocked) return;
-    const id = setInterval(() => setNow(Date.now()), 60_000);
+    const id = setInterval(() => setNow(Date.now()), countdownSoon ? 1_000 : 60_000);
     return () => clearInterval(id);
-  }, [anyLocked]);
+  }, [anyLocked, countdownSoon]);
 
   const runLock = React.useRef(false);
   const headmasterCopy = headmasterDeskCopy(plan);
