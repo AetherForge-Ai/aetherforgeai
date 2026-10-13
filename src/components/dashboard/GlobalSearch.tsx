@@ -51,7 +51,8 @@ export function GlobalSearch({
       <Button
         variant="outline"
         onClick={() => setOpen(true)}
-        className="gap-2 text-muted-foreground"
+        className="h-11 min-h-11 gap-2 text-muted-foreground"
+        aria-label="Search markets"
       >
         <Search className="size-4" />
         <span className="hidden sm:inline">Search markets</span>
