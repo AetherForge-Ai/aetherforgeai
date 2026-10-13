@@ -6,15 +6,16 @@ import { CheckCircle2, Circle, Crown, Bell, LineChart, ShoppingCart } from "luci
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { onboardingProgress, type OnboardingStepId } from "@/lib/onboarding-steps";
+import { isStoxOrKoinsRun } from "@/lib/report-body";
 import { Wallet } from "lucide-react";
 
 /**
  * Lightweight onboarding for new NZ$10k (or any) paper books — Headmaster →
  * first buys → alerts → Stox/Koins. Advisory only; never executes trades.
  *
- * The fraction matches the steps on the card. A cash deposit ticks the first
- * buy. The card stays up until the required steps are done, unless
- * `alwaysShow` (the /onboarding page).
+ * The fraction matches the steps on the card. A buy tick needs a buy on the
+ * ledger. A Stox or Koins run ticks the report step. The card stays up until
+ * the required steps are done, unless `alwaysShow` (the /onboarding page).
  */
 const COPY: Record<
   OnboardingStepId,
@@ -34,7 +35,7 @@ const COPY: Record<
   },
   buy: {
     title: "Record your first buys",
-    body: "Add your holdings or cash.",
+    body: "A buy on the ledger ticks this. A deposit is cash, not a buy.",
     href: "/dashboard/transactions",
     icon: ShoppingCart,
   },
@@ -55,6 +56,7 @@ const COPY: Record<
 export function OnboardingChecklist({
   hasCash,
   hasHoldings,
+  hasBuy = false,
   hasAlerts,
   hasReport,
   alwaysShow = false,
@@ -63,6 +65,8 @@ export function OnboardingChecklist({
 }: {
   hasCash: boolean;
   hasHoldings: boolean;
+  /** True only when the ledger has a buy. */
+  hasBuy?: boolean;
   hasAlerts?: boolean;
   hasReport?: boolean;
   /** Dedicated /onboarding route — keep the list even after the book is finished. */
@@ -94,9 +98,10 @@ export function OnboardingChecklist({
         if (!cancelled) setAlertsDone(!!(res.ok && Array.isArray(res.data) && res.data.length > 0));
       }
       if (hasReport === undefined) {
-        const res = await api.get<{ reports?: unknown[] }>("/api/reports");
+        const res = await api.get<{ reports?: { bot?: string; executiveSummary?: string; textBody?: string; payload?: unknown }[] }>("/api/reports");
         const reports = res.data?.reports;
-        if (!cancelled) setReportDone(!!(res.ok && Array.isArray(reports) && reports.length > 0));
+        const ran = Array.isArray(reports) && reports.some((row) => isStoxOrKoinsRun(row));
+        if (!cancelled) setReportDone(!!(res.ok && ran));
       }
     })();
     return () => {
@@ -108,6 +113,7 @@ export function OnboardingChecklist({
   const progress = onboardingProgress({
     hasHoldings,
     hasCash,
+    hasBuy,
     hasAlerts: !!alertsDone,
     hasReport: !!reportDone,
     plan,
@@ -129,8 +135,6 @@ export function OnboardingChecklist({
   }
 
   if (!alwaysShow && progress.finished) return null;
-
-  const buyBody = "Add your holdings or cash.";
 
   return (
     <div
@@ -182,9 +186,7 @@ export function OnboardingChecklist({
                       </span>
                     )}
                   </p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {step.id === "buy" ? buyBody : copy.body}
-                  </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{copy.body}</p>
                 </div>
               </Link>
             </li>

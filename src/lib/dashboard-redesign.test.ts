@@ -70,7 +70,8 @@ describe("dashboard PR4 and PR5", () => {
     expect(center).toContain("Choose {b.name} free");
     expect(center).toContain("The Headmaster");
     expect(center).toContain("Your reports");
-    expect(center).toContain("stoxReviewCopy");
+    expect(center).not.toContain("stoxReviewCopy");
+    expect(center).not.toContain("MAH.AX");
     expect(center).toContain("left this month");
     expect(dash).not.toContain("querySelector");
     expect(dash).toContain("reportDesk.run");
@@ -80,7 +81,7 @@ describe("dashboard PR4 and PR5", () => {
     expect(read("src/components/dashboard/GlobalSearch.tsx")).toContain('aria-label="Search markets"');
     for (const path of ["src/app/dashboard/stocks/page.tsx", "src/app/dashboard/crypto/page.tsx", "src/app/dashboard/transactions/page.tsx"]) {
       const page = read(path);
-      expect(page).toContain("redirect(");
+      expect(page).toContain("permanentRedirect(");
       expect(page).toContain("dashboardRedirectHref");
       expect(page).toContain("publicPageMetadata(");
       expect(page).not.toContain("notFound(");
@@ -112,6 +113,8 @@ describe("dashboard PR4 and PR5", () => {
     expect(ledger.searchParams.get("tab")).toBe("transactions");
     expect(ledger.searchParams.get("hq")).toBe("AIR");
     expect(ledger.searchParams.get("hsort")).toBe("value");
+    expect(ledger.hash).toBe("#dashboard-tabs");
+    expect(stocks.hash).toBe("#dashboard-tabs");
     for (const path of ["/dashboard/stocks", "/dashboard/crypto", "/dashboard/transactions", stocks.pathname, crypto.pathname, ledger.pathname]) {
       expect(documentAccess(path)).toBe("public");
     }

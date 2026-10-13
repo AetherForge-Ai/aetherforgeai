@@ -508,7 +508,7 @@ export function DashboardHomeGrid({
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Link href="/dashboard/markets/nzsx" className="block transition-opacity hover:opacity-95">
-          <IndexMarketCard title="NZSX" exchange="NZX" snapshot={byExchange("NZX")} snapshotLoading={marketsLoading} />
+          <IndexMarketCard title="NZX 50" exchange="NZX" snapshot={byExchange("NZX")} snapshotLoading={marketsLoading} />
         </Link>
         <Link href="/dashboard/markets/asx" className="block transition-opacity hover:opacity-95">
           <IndexMarketCard title="ASX" exchange="ASX" snapshot={byExchange("ASX")} snapshotLoading={marketsLoading} />

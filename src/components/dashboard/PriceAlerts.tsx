@@ -130,6 +130,7 @@ export function PriceAlerts({
   canCreate = true,
   seedTicker = null,
   seedNonce = 0,
+  embedded = false,
 }: {
   stocks: Stock[];
   /** Hub context — stock desk, crypto desk, or metals. */
@@ -145,6 +146,8 @@ export function PriceAlerts({
   /** Opens the create form for this ticker. */
   seedTicker?: string | null;
   seedNonce?: number;
+  /** Sit inside a parent card instead of drawing a second one. */
+  embedded?: boolean;
 }) {
   const isCrypto = assetType === "crypto";
   const isMetal = assetType === "metal";
@@ -368,20 +371,25 @@ export function PriceAlerts({
     }
   }
 
+  const Heading = embedded ? "h3" : "h2";
   return (
-    <section className="rounded-3xl border border-border/70 bg-card/50 p-6">
+    <section className={embedded ? "space-y-3 border-t border-border/50 pt-3 first:border-t-0 first:pt-0" : "rounded-3xl border border-border/70 bg-card/50 p-6"}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
+          {embedded ? null : (
           <span className="grid size-9 place-items-center rounded-lg bg-primary/12 text-primary">
             <BellRing className="size-4" />
           </span>
+          )}
           <div>
-            <h2 className="font-display text-lg font-bold">
+            <Heading className={embedded ? "text-sm font-semibold" : "font-display text-lg font-bold"}>
               {isMetal ? "Metals price alerts" : isCrypto ? "Crypto price alerts" : "Share-price alerts"}
-            </h2>
+            </Heading>
+            {embedded ? null : (
             <p className="text-sm text-muted-foreground">
               Set trim, full-exit and take-profit rules. A scenario shows what a full exit would look like.
             </p>
+            )}
           </div>
         </div>
         {canCreate ? (

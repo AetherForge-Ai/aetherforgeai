@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { HoldingDetailDrawer } from "@/components/dashboard/HoldingDetailDrawer";
 import { IncomeTaxPanel } from "@/components/dashboard/IncomeTaxPanel";
@@ -58,7 +58,10 @@ export function DashboardCalculator({
   actions,
   rail,
   insights,
+  reports,
   cryptoEmpty,
+  emptyActions,
+  onRetry,
 }: {
   snapshot: PortfolioSnapshot | null;
   loading: boolean;
@@ -83,7 +86,10 @@ export function DashboardCalculator({
   actions?: ReactNode;
   rail?: ReactNode;
   insights?: ReactNode;
+  reports?: ReactNode;
   cryptoEmpty?: ReactNode;
+  emptyActions?: ReactNode;
+  onRetry?: () => void;
 }) {
   const [hydrated, setHydrated] = useState(false);
   const [query, setQuery] = useState<HoldingsQuery>(DEFAULT_HOLDINGS_QUERY);
@@ -96,6 +102,7 @@ export function DashboardCalculator({
   const [benchmarkId, setBenchmarkId] = useState<BenchmarkId>("nzx50");
   const [tab, setTab] = useState<DashboardTab>("holdings");
   const [detail, setDetail] = useState<HoldingsRowModel | null>(null);
+  const tabsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -127,7 +134,16 @@ export function DashboardCalculator({
       if (storedQuery.customColumns.length) setCustomColumns(storedQuery.customColumns);
     }
     setHydrated(true);
+    performance.mark("dashboard-tabs-interactive");
   }, [userId]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    const params = new URLSearchParams(window.location.search);
+    const landed = window.location.hash === "#dashboard-tabs" || params.has("tab") || params.has("view");
+    if (!landed) return;
+    tabsRef.current?.scrollIntoView({ block: "start" });
+  }, [hydrated]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -214,10 +230,14 @@ export function DashboardCalculator({
     });
   }
 
+  const showRail = tab === "holdings" && !!rail;
+
   return (
     <div data-calculator="portfolio" data-section="dashboard-workspace">
-      {error && !snapshot ? <p className="mt-4 text-sm text-muted-foreground">{error}</p> : null}
-      {actions}
+      {error && !snapshot && tab !== "transactions" ? <p className="mt-4 text-sm text-muted-foreground">{error}</p> : null}
+      <div className="flex flex-col">
+        {actions ? <div className="order-2 md:order-1">{actions}</div> : null}
+        <div className="order-1 md:order-2">
       <KpiHeader
         view={pending ? null : view}
         loading={pending}
@@ -239,7 +259,16 @@ export function DashboardCalculator({
         cashLines={snapshot?.cashLines || []}
         cashWarning={snapshot?.cashWarning || null}
       />
-      <div className="mt-4 flex flex-wrap gap-1 border-b border-border/70" role="tablist" aria-label="Dashboard">
+        </div>
+      </div>
+      <div
+        id="dashboard-tabs"
+        ref={tabsRef}
+        data-tti="dashboard-tabs"
+        className="mt-4 flex scroll-mt-24 flex-nowrap gap-1 overflow-x-auto border-b border-border/70"
+        role="tablist"
+        aria-label="Dashboard"
+      >
         {DASHBOARD_TABS.map((id) => (
           <button
             key={id}
@@ -248,8 +277,8 @@ export function DashboardCalculator({
             aria-selected={tab === id}
             className={
               tab === id
-                ? "border-b-2 border-primary px-3 py-2 text-sm font-semibold text-foreground"
-                : "px-3 py-2 text-sm font-medium text-muted-foreground"
+                ? "shrink-0 whitespace-nowrap border-b-2 border-primary px-3 py-2 text-sm font-semibold text-foreground"
+                : "shrink-0 whitespace-nowrap px-3 py-2 text-sm font-medium text-muted-foreground"
             }
             onClick={() => setTab(id)}
           >
@@ -257,7 +286,7 @@ export function DashboardCalculator({
           </button>
         ))}
       </div>
-      <div className="mt-4 grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
+      <div className={showRail ? "mt-4 grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]" : "mt-4 min-w-0"}>
         <div className="min-w-0">
           {tab === "holdings" ? (
             <UnifiedHoldingsTable
@@ -279,12 +308,15 @@ export function DashboardCalculator({
               reportRuns={reportRuns}
               actionFor={actionFor}
               cryptoEmpty={cryptoEmpty}
+              emptyActions={emptyActions}
             />
           ) : null}
           {tab === "transactions" ? (
             <TransactionsTab
               snapshot={pending ? null : snapshot}
               loading={pending}
+              error={error}
+              onRetry={onRetry}
               onRecord={onRecord}
               onEdit={onEditLedger}
               onDeleteDividend={onDeleteDividend}
@@ -292,8 +324,9 @@ export function DashboardCalculator({
           ) : null}
           {tab === "income" ? <IncomeTaxPanel snapshot={pending ? null : snapshot} loading={pending} /> : null}
           {tab === "insights" ? insights : null}
+          {reports ? <div className="mt-6 min-w-0">{reports}</div> : null}
         </div>
-        {rail ? <aside className="space-y-4">{rail}</aside> : null}
+        {showRail ? <aside className="space-y-4">{rail}</aside> : null}
       </div>
       <HoldingDetailDrawer
         row={detail}

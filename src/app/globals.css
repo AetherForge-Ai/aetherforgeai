@@ -241,9 +241,14 @@
        working. No-op on desktop where content already fits — computer view is
        unchanged. */
     overflow-x: clip;
+    scrollbar-gutter: stable;
     /* Kill iOS horizontal rubber-band / scroll-chaining past the page edge */
     overscroll-behavior-x: none;
     max-width: 100%;
+  }
+  body[data-scroll-locked] .af-assistant-chip {
+    visibility: hidden;
+    pointer-events: none;
   }
   /* Offset in-page anchor targets so the sticky header never covers them */
   [id] {

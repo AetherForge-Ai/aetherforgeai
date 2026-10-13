@@ -15,7 +15,7 @@ import type { Stock } from "@/lib/portfolio";
 import { Compass, LineChart, Radar } from "lucide-react";
 
 const INDEXES = [
-  ["NZSX", "NZX", "/dashboard/markets/nzsx"],
+  ["NZX 50", "NZX", "/dashboard/markets/nzsx"],
   ["ASX", "ASX", "/dashboard/markets/asx"],
   ["NASDAQ", "NASDAQ", "/dashboard/markets/nasdaq"],
   ["Dow Jones", "DOW", "/dashboard/markets/dow"],
@@ -37,7 +37,7 @@ export function DashboardInsights({
     <div className="space-y-4" data-section="insights">
       <div>
         <h2 className="text-base font-semibold">Insights</h2>
-        <p className="mt-1 text-xs text-muted-foreground">Signals, markets, and research. Each panel is here once.</p>
+        <p className="mt-1 text-xs text-muted-foreground">Signals, markets, and research.</p>
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {INDEXES.map(([title, exchange, href]) => (

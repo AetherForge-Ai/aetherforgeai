@@ -201,15 +201,21 @@ export async function loadHeadmasterIllustratedPath(userId: string): Promise<Ill
 /** Persist this report's illustrated path so a later week can measure the miss. */
 export async function saveHeadmasterIllustratedPath(
   userId: string,
-  path: IllustratedPathRecord
+  path: IllustratedPathRecord,
+  options?: { holdsCrypto?: boolean }
 ): Promise<void> {
+  const { illustratedPathReportText } = await import("@/lib/report-body");
+  const holdsCrypto = options?.holdsCrypto === true;
+  const body = illustratedPathReportText(path, { holdsCrypto });
+  if (!body) return;
+  const illustratedPath = holdsCrypto ? { ...path, holdsCrypto: true } : path;
   await totalumSdk.crud.createRecord("report", {
     title: "Headmaster intelligence report",
     user: userId,
     bot: "headmaster",
     market_label: "Headmaster",
-    executive_summary: "Headmaster illustrated path",
-    payload: JSON.stringify({ illustratedPath: path }),
+    executive_summary: body,
+    payload: JSON.stringify({ illustratedPath, executiveSummary: body, textBody: body }),
     emailed: "no",
     ai_enhanced: "no",
     generated_at: new Date(path.issuedAtMs).toISOString(),

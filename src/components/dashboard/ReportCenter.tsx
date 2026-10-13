@@ -31,6 +31,7 @@ import {
   formatAucklandDateTime,
   formatDuration,
   formatReportCooldownLine,
+  formatWaitShort,
   headmasterDeskCopy,
   isFreeReportPlan,
   reportCadence,
@@ -55,7 +56,7 @@ import { getTxDialogSnapshot, subscribeTxDialog } from "@/lib/transaction-dialog
 import { Loader2, Lock, Play, FileDown, Mail, FileText, Sparkles, Clock, Zap, ArrowRight, ChevronDown, Eye } from "lucide-react";
 import { stripReportMarkdown } from "@/lib/report-copy";
 import { reportRunStatus } from "@/lib/dashboard-surface";
-import { stoxReviewCopy } from "@/lib/report-copy";
+import { listedReportBody, plainReportPdf } from "@/lib/report-body";
 import {
   headerQuotaCopy,
   monthlyBucketKey,
@@ -107,6 +108,17 @@ interface ReportsResponse {
   // Paid: independent per-bot allowances. Free: shared monthly pool, echoed on both bots.
   quota: { stock: BotQuota; crypto: BotQuota };
   free?: FreeQuota | null;
+}
+
+function downloadPlainPdf(title: string, body: string) {
+  const pdf = plainReportPdf(title, body.split(/\n+/));
+  const blob = new Blob([pdf], { type: "application/pdf" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `${title.replace(/[^\w.-]+/g, "-").slice(0, 60) || "report"}.pdf`;
+  anchor.click();
+  URL.revokeObjectURL(url);
 }
 
 const DEFS: { kind: BotKind; name: string; subtitle: string; mascot: string; accent: string; market: string }[] = [
@@ -583,6 +595,22 @@ export function ReportCenter({
     ? Math.max(0, serverQuota.stock.reportsLimit - serverQuota.stock.reportsUsed)
     : null);
   const sharedLimit = freeQuota?.limit ?? serverQuota?.stock?.reportsLimit ?? null;
+  const stoxQuota = quotaFor("stock");
+  const nextStox =
+    !preview && !historyLoaded
+      ? "Next Stox run"
+      : stoxQuota.allowed
+        ? "Next Stox run available now"
+        : `Next Stox run in ${formatWaitShort(stoxQuota.waitMs)}`;
+  const tickerLine = `${nextStox} · ${countsReady ? counts.total : "—"} of ${tickerLimit ?? "—"} tickers`;
+  const visibleHistory = history.flatMap((report) => {
+    const body = listedReportBody({
+      executiveSummary: report.executiveSummary,
+      textBody: report.textBody,
+      payload: report.payload,
+    });
+    return body ? [{ ...report, listedBody: body }] : [];
+  });
   const quotaLine = headerQuotaCopy({
     loaded: quotaReady,
     remaining: sharedRemaining,
@@ -624,22 +652,7 @@ export function ReportCenter({
             Run the full AI report for Stox, Koins or The Headmaster.
             A copy is emailed only when delivery succeeds, and only for a book that has positions.
           </p>
-        </div>
-        <div
-          className="text-right text-xs text-muted-foreground"
-          title={
-            !countsReady
-              ? "Holdings are still loading."
-              : tickerLimit
-              ? `${counts.total} of ${tickerLimit} tickers monitored${scope === "perBot" ? " on this bot" : ""}. The first number is how many you monitor. The second is your plan cap.`
-              : `${counts.total} tickers monitored`
-          }
-        >
-          <div className="font-display text-lg font-bold text-foreground">
-            {countsReady ? counts.total : "—"}
-            {countsReady && tickerLimit ? <span className="text-sm text-muted-foreground"> / {tickerLimit}{scope === "perBot" ? " per bot" : ""}</span> : null}
-          </div>
-          tickers monitored
+          <p className="mt-1 text-sm text-muted-foreground">{tickerLine}</p>
         </div>
       </div>
 
@@ -725,9 +738,6 @@ export function ReportCenter({
                   </span>
                 );
               })}
-              <span className="text-muted-foreground/70">
-                {cadence.unit === "month" ? "· one shared monthly allowance" : "· tracked independently"}
-              </span>
             </p>
           </div>
         </div>
@@ -741,7 +751,7 @@ export function ReportCenter({
       </div>
 
       {/* Run buttons */}
-      <div className="mt-4 grid gap-4 md:grid-cols-2">
+      <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {DEFS.map((b) => {
           const unlocked = canRun(b.kind);
           const busy = running === b.kind;
@@ -779,7 +789,7 @@ export function ReportCenter({
               <div className="mt-4">
                 {!unlocked ? (
                   freePlan ? (
-                    <Button className="w-full" onClick={() => void chooseFreeBot(b.kind)} disabled={running !== null}>
+                    <Button className="h-auto min-h-11 w-full whitespace-normal" onClick={() => void chooseFreeBot(b.kind)} disabled={running !== null}>
                       {busy ? (
                         <>
                           <Loader2 className="mr-1 size-4 animate-spin" /> Choosing…
@@ -791,19 +801,19 @@ export function ReportCenter({
                       )}
                     </Button>
                   ) : (
-                    <Button asChild variant="outline" className="w-full">
+                    <Button asChild variant="outline" className="h-auto min-h-11 w-full whitespace-normal">
                       <Link href="/pricing#pro">
                         <Lock className="mr-1 size-4" /> Unlock with Pro
                       </Link>
                     </Button>
                   )
                 ) : !quotaReady || runControl.disabled ? (
-                  <Button variant="outline" className="w-full" disabled title={runControl.title}>
+                  <Button variant="outline" className="h-auto min-h-11 w-full whitespace-normal" disabled title={runControl.title}>
                     <Clock className="mr-1 size-4" /> {runControl.title}
                   </Button>
                 ) : (
                   <Button
-                    className="w-full"
+                    className="h-auto min-h-11 w-full whitespace-normal"
                     aria-busy={busy}
                     data-report-run={b.kind}
                     title={runControl.title}
@@ -831,49 +841,36 @@ export function ReportCenter({
             </div>
           );
         })}
-      </div>
-
-      <p className="mt-4 text-xs leading-relaxed text-muted-foreground" data-stox-review>
-        {stoxReviewCopy()}
-      </p>
-
-      {/* The Headmaster · Portfolio Planning and Strategies — unifies Stox + Koins + metals */}
-      <Link
-        href="/headmaster"
-        aria-busy={headmasterPending}
-        onClick={() => setHeadmasterPending(true)}
-        className="group relative mt-4 flex flex-col gap-4 overflow-hidden rounded-2xl border border-primary/30 bg-gradient-to-br from-violet-500/12 via-primary/10 to-transparent p-5 transition-all hover:border-primary/50 hover:shadow-glow sm:flex-row sm:items-center sm:justify-between"
-      >
-        <div className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-primary/15 blur-3xl" />
-        <div className="relative flex items-start gap-4">
-          <img
-            src={BOT_HEADMASTER_AVATAR}
-            alt="The Headmaster avatar"
-            className="size-11 shrink-0 rounded-xl object-cover ring-1 ring-primary/25"
-          />
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="font-semibold">The Headmaster · Portfolio Planning and Strategies</h3>
-              <span className="rounded-md bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
-                {headmasterCopy.badge}
-              </span>
+        <Link
+          href="/headmaster"
+          aria-busy={headmasterPending}
+          onClick={() => setHeadmasterPending(true)}
+          className="group relative flex flex-col justify-between gap-4 overflow-hidden rounded-2xl border border-primary/30 bg-gradient-to-br from-violet-500/12 via-primary/10 to-transparent p-5 transition-all hover:border-primary/50"
+        >
+          <div className="relative flex items-start gap-4">
+            <img
+              src={BOT_HEADMASTER_AVATAR}
+              alt="The Headmaster avatar"
+              className="size-11 shrink-0 rounded-xl object-cover ring-1 ring-primary/25"
+            />
+            <div>
+              <h3 className="font-semibold">The Headmaster</h3>
+              <p className="mt-1 text-sm text-muted-foreground">{headmasterCopy.summary}</p>
             </div>
-            <p className="mt-1 max-w-xl text-sm text-muted-foreground">{headmasterCopy.summary}</p>
-            <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted-foreground">{headmasterCopy.detail}</p>
           </div>
-        </div>
-        <span className="relative inline-flex items-center gap-1.5 self-start rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground sm:self-auto">
-          {headmasterPending ? (
-            <>
-              <Loader2 className="size-4 animate-spin" /> Opening The Headmaster…
-            </>
-          ) : (
-            <>
-              Open The Headmaster <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
-            </>
-          )}
-        </span>
-      </Link>
+          <span className="inline-flex min-h-11 items-center gap-1.5 self-start rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground">
+            {headmasterPending ? (
+              <>
+                <Loader2 className="size-4 animate-spin" /> Opening The Headmaster…
+              </>
+            ) : (
+              <>
+                Open The Headmaster <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+              </>
+            )}
+          </span>
+        </Link>
+      </div>
 
       {/* Report history - minimizable so it does not dominate the page */}
       <div className="mt-6 overflow-hidden rounded-xl border border-border/60">
@@ -886,7 +883,7 @@ export function ReportCenter({
           <FileText className="size-4 shrink-0 text-primary" />
           <span>Your reports</span>
           <span className="rounded-full border border-border/60 bg-card/50 px-2 py-0.5 text-[0.65rem] font-semibold text-muted-foreground">
-            {preview || historyLoaded ? history.length : "…"}
+            {preview || historyLoaded ? visibleHistory.length : "…"}
           </span>
           <span className="ml-auto text-xs font-medium text-muted-foreground">
             {reportsMinimized ? "Expand" : "Minimize"}
@@ -910,13 +907,13 @@ export function ReportCenter({
           <p className="rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground">
             Loading…
           </p>
-        ) : history.length === 0 ? (
+        ) : visibleHistory.length === 0 ? (
           <p className="rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground">
             No reports yet — add your holdings or cash in the Transaction Centre above, then run Stox, Koins or The Headmaster.
           </p>
         ) : (
           <ul className="divide-y divide-border/50 overflow-hidden rounded-xl border border-border/60">
-            {history.map((r) => (
+            {visibleHistory.map((r) => (
               <li key={r._id} className="flex flex-wrap items-center justify-between gap-3 bg-card/40 px-4 py-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
@@ -943,11 +940,9 @@ export function ReportCenter({
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground">{fmtDate(r.generatedAt)}</p>
-                  {(r.executiveSummary || r.textBody) && (
-                    <p className="mt-1 line-clamp-2 max-w-xl text-xs leading-relaxed text-foreground/80">
-                      {shownSummary(r.bot === "crypto" ? "crypto" : "stock", r.executiveSummary || r.textBody || "")}
-                    </p>
-                  )}
+                  <p className="mt-1 line-clamp-2 max-w-xl text-xs leading-relaxed text-foreground/80">
+                    {r.listedBody}
+                  </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Button
@@ -958,7 +953,8 @@ export function ReportCenter({
                       const kind: BotKind = r.bot === "crypto" ? "crypto" : "stock";
                       setLastPdfUrl(r.pdfUrl);
                       setLastAiEnhanced(!!r.aiEnhanced);
-                      if (r.payload && typeof r.payload === "object" && "executiveSummary" in r.payload) {
+                      const apex = r.payload && typeof r.payload === "object" && Array.isArray((r.payload as { tickers?: unknown }).tickers);
+                      if (apex) {
                         setTextOnly(null);
                         const viewed = reconcileStoredReport(r.payload, bookFor(kind));
                         const notCurrent = reportReadsAsNotCurrent(
@@ -968,16 +964,14 @@ export function ReportCenter({
                         // View path: stored JSON is sanitized before ApexReport renders it again.
                         setReport(viewed);
                         setOpen(true);
-                      } else if (r.executiveSummary || r.textBody) {
+                      } else {
                         setReport(null);
                         setReportEmailed(false);
                         setTextOnly({
                           title: r.title,
-                          body: shownSummary(kind, r.executiveSummary || r.textBody || ""),
+                          body: r.listedBody,
                         });
                         setOpen(true);
-                      } else {
-                        toast.message("No searchable text body on this report yet — try the PDF.");
                       }
                     }}
                   >
@@ -989,7 +983,16 @@ export function ReportCenter({
                         <FileDown className="mr-1 size-4" /> PDF
                       </a>
                     </Button>
-                  ) : null}
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-auto min-h-11 whitespace-normal"
+                      onClick={() => downloadPlainPdf(r.title, r.listedBody)}
+                    >
+                      <FileDown className="mr-1 size-4" /> PDF
+                    </Button>
+                  )}
                 </div>
               </li>
             ))}
@@ -1015,17 +1018,21 @@ export function ReportCenter({
                   )}
                 </div>
                 <DialogDescription className="break-words">
-                  Searchable report text below — PDF download is optional.
+                  The report text is below.
                   {reportEmailModalNote(reportEmailed)}
                 </DialogDescription>
               </div>
-              {lastPdfUrl && (
+              {lastPdfUrl ? (
                 <Button asChild size="sm" variant="outline">
                   <a href={lastPdfUrl} target="_blank" rel="noopener noreferrer">
                     <FileDown className="mr-1 size-4" /> Download PDF
                   </a>
                 </Button>
-              )}
+              ) : textOnly ? (
+                <Button size="sm" variant="outline" onClick={() => downloadPlainPdf(textOnly.title, textOnly.body)}>
+                  <FileDown className="mr-1 size-4" /> Download PDF
+                </Button>
+              ) : null}
             </div>
           </DialogHeader>
           {report?.isDemo ? (
