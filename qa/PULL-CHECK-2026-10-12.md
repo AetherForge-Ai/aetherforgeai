@@ -662,3 +662,5 @@ Audit 14 batches A-D + D1 (#366): marker `pull-check:v3-audit14-2026-10-14`
 Audit 14b — Market Assistant removed from profile menu (#368): marker `pull-check:v3-audit14b-2026-10-14`
 
 Dashboard phase 3 — critique fixes (#370): marker `pull-check:v3-dash-phase3-2026-10-14`
+
+Dashboard phase 4 — retest fixes: marker `pull-check:v3-dash-phase4-2026-10-14`
