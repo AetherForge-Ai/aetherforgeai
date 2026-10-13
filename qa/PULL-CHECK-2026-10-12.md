@@ -658,3 +658,5 @@ Dashboard phase 2 (PR4+PR5, #361): marker `pull-check:v3-dash-phase2-2026-10-13`
 Retest 16 / QA r8 (#364): marker `pull-check:v3-retest16-2026-10-13`
 
 Audit 14 batches A-D + D1 (#366): marker `pull-check:v3-audit14-2026-10-14`
+
+Audit 14b — Market Assistant removed from profile menu (#368): marker `pull-check:v3-audit14b-2026-10-14`

@@ -30,7 +30,6 @@ import {
   Newspaper,
   Trophy,
   Scale,
-  MessageSquare,
   Settings,
   Compass,
   Loader2,
@@ -292,9 +291,6 @@ function AccountMenu({
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link href="/dashboard"><LayoutDashboard className="size-4" /> Dashboard</Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href="/chat"><MessageSquare className="size-4" /> Market Assistant</Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <HeadmasterMenuLink plan={user.subscription_plan} />

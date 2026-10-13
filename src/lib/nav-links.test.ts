@@ -14,4 +14,21 @@ describe("H11 nav", () => {
     expect(more).toContain('{ href: "/trust", label: "Trust"');
     expect(nav).toContain('{ href: "/markets", label: "Markets"');
   });
+
+  it("omits Market Assistant from the signed-in profile menu", () => {
+    const nav = readFileSync(path.join(process.cwd(), "src/components/TopNav.tsx"), "utf8");
+    const account = nav.slice(nav.indexOf("function AccountMenu"), nav.indexOf("function MobileDrawer"));
+    const mobile = nav.slice(nav.indexOf("function MobileDrawer"), nav.indexOf("export function TopNav"));
+    expect(account).toContain("function AccountMenu");
+    expect(mobile).toContain("function MobileDrawer");
+    expect(account).not.toMatch(/Market Assistant/i);
+    expect(account).not.toContain('href="/chat"');
+    expect(mobile).not.toMatch(/Market Assistant/i);
+    expect(mobile).not.toContain('href="/chat"');
+    expect(nav).not.toMatch(/Market Assistant/i);
+    expect(nav).not.toContain('href="/chat"');
+    expect(account).toContain("<HeadmasterMenuLink");
+    expect(account).toContain("Account &amp; Settings");
+    expect(mobile).toContain("Account &amp; Settings");
+  });
 });
