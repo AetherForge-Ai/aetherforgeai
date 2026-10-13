@@ -10,6 +10,7 @@ import { CRYPTO_PROJECTION_HAND_CHECK } from "@/lib/crypto-vendors";
 import { assembleEquityProjections, rankByConfidenceWeightedMove } from "@/lib/projection-pause";
 import { toPublicMarketRecord } from "@/lib/public-intel";
 import { quotedEquitySessionOpen } from "@/lib/market-freshness";
+import { getStableSessionUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -27,9 +28,16 @@ export const dynamic = "force-dynamic";
  * and returns the TOP 50, each still carrying its own `market`.
  *
  * Kept server-side so the market-data key never reaches the client.
+ * The session read is the same one GET /api/session uses for the dashboard.
+ * A signed-out request stops here, before any ranking.
  */
 export async function GET(req: Request) {
   try {
+    const user = await getStableSessionUser();
+    if (!user) {
+      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    }
+
     const url = new URL(req.url);
     const exchange = (url.searchParams.get("exchange") || "NZXASX").toUpperCase();
     const page = Math.max(1, Number(url.searchParams.get("page")) || 1);

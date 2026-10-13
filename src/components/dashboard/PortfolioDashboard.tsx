@@ -37,10 +37,13 @@ import {
 import { hubAllocationLabel } from "@/lib/hub-labels";
 import { dexFromHolding, holdingTitle } from "@/lib/dex-source";
 import { portfolioLoadFailure } from "@/lib/trade-commit-session";
-import {
-  HoldingChartDialog,
-  type HoldingChartTarget,
-} from "@/components/dashboard/HoldingChartDialog";
+import dynamic from "next/dynamic";
+import type { HoldingChartTarget } from "@/components/dashboard/HoldingChartDialog";
+
+const HoldingChartDialog = dynamic(
+  () => import("@/components/dashboard/HoldingChartDialog").then((mod) => mod.HoldingChartDialog),
+  { ssr: false }
+);
 import { TransactionCenter } from "@/components/dashboard/TransactionCenter";
 import { openRecordTransaction } from "@/lib/open-transaction";
 import { computeHoldingSplit, ReturnsSplitCard } from "@/components/dashboard/ReturnsSplitCard";

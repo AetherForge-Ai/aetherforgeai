@@ -1,4 +1,5 @@
 import { PRICING_FAQS } from "@/lib/pricing-faq";
+import { PROJECTIONS_MEMBER_LINE } from "@/lib/public-copy";
 
 /**
  * Searchable help entries. Docs links and the pricing questions.
@@ -36,8 +37,8 @@ export const DOC_LINKS: HelpArticle[] = [
   },
   {
     href: "/projections",
-    title: "Projections methodology",
-    body: "Weekly top projections. That page includes a Methodology note on how the 7-day outlook is built. It is not personalised advice.",
+    title: "Projections",
+    body: PROJECTIONS_MEMBER_LINE,
   },
   {
     href: "/about",

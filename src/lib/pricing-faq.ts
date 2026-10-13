@@ -4,7 +4,7 @@ import { ANNUAL_REFUND_RULE, EMAIL_SUPPORT_LINE, MONTHLY_CANCEL_RULE, REFUND_FAQ
 export const PRICING_FAQS: { q: string; a: string }[] = [
   {
     q: "Can I switch between monthly and annual billing?",
-    a: "Yes. You can move from monthly to annual (or back) at any time from Plan & billing in Settings (/settings/billing). When you switch to annual you immediately lock in the 16.67% saving, and any unused time on your current period is prorated toward the new plan automatically via Stripe.",
+    a: "Yes. You can move from monthly to annual (or back) at any time from Plan & billing in Settings (/settings/billing). When you switch to annual you save 2 months (≈17%), and any unused time on your current period is prorated toward the new plan automatically via Stripe.",
   },
   {
     q: "What happens when I hit my report or holding limits?",
@@ -32,7 +32,7 @@ export const PRICING_FAQS: { q: string; a: string }[] = [
   },
   {
     q: "How does billing work with annual plans?",
-    a: "Annual plans are billed once up front: 12 months for the price of 10, a 16.67% saving versus paying monthly. Your plan renews automatically each year, and you can cancel or switch to monthly at any time.",
+    a: "Annual plans are billed once up front: 12 months for the price of 10. Save 2 months (≈17%) versus paying monthly. Your plan renews automatically each year, and you can cancel or switch to monthly at any time.",
   },
   {
     q: "What kind of support do I get on each plan?",

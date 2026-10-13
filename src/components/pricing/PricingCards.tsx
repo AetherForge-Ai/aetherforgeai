@@ -13,7 +13,6 @@ import {
   planByKey,
   buildPaymentLinkUrl,
   SALES_EMAIL,
-  ANNUAL_SAVINGS_PCT,
   type PricingTier,
   type PlanKey,
 } from "@/lib/plans";
@@ -165,7 +164,7 @@ export function PricingCards({
                 annual ? "bg-primary-foreground/20 text-primary-foreground" : "bg-emerald-500/15 text-emerald-600"
               )}
             >
-              Save ~{ANNUAL_SAVINGS_PCT}%
+              Save 2 months (≈17%)
             </span>
           </button>
         </div>
@@ -267,13 +266,13 @@ export function PricingCards({
                     <p className="mt-1.5 text-xs text-muted-foreground">
                       {annual ? (
                         <>
-                          12 months for the price of 10 · Save ~{ANNUAL_SAVINGS_PCT}% ·{" "}
+                          12 months for the price of 10 · Save 2 months (≈17%) ·{" "}
                           <span className="font-medium text-foreground/80">
                             ~NZ${monthlyEquivalent(price ?? 0)}/mo
                           </span>
                         </>
                       ) : (
-                        <>or NZ${money(tier.yearlyPrice ?? 0)}/yr · 12 months for the price of 10 · Save ~{ANNUAL_SAVINGS_PCT}%</>
+                        <>or NZ${money(tier.yearlyPrice ?? 0)}/yr · 12 months for the price of 10 · Save 2 months (≈17%)</>
                       )}
                     </p>
                   </>
@@ -324,7 +323,7 @@ export function PricingCards({
       </div>
 
       <p className="mt-8 text-center text-xs text-muted-foreground">
-        All prices in NZD. Annual billing is 12 months for the price of 10 (save ~{ANNUAL_SAVINGS_PCT}%).{" "}
+        All prices in NZD. Annual billing is 12 months for the price of 10. Save 2 months (≈17%).{" "}
         {TRIAL_CARD_LINE}{" "}
         Ultimate is Talk to us.{" "}
         <Link href="/refunds" className="font-medium text-primary hover:underline">

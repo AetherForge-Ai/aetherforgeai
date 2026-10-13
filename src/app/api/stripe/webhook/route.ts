@@ -230,23 +230,19 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
 }
 
 async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent) {
-  console.log("Payment intent succeeded:", paymentIntent.id);
-  // TODO: Store payment in your database using TotalumSDK
+  console.log("[webhook] payment_intent.succeeded (log only):", paymentIntent.id);
 }
 
 async function handlePaymentIntentFailed(paymentIntent: Stripe.PaymentIntent) {
-  console.log("Payment intent failed:", paymentIntent.id);
-  // TODO: Store failed payment in your database using TotalumSDK
+  console.log("[webhook] payment_intent.payment_failed (log only):", paymentIntent.id);
 }
 
 async function handleInvoicePaid(invoice: Stripe.Invoice) {
-  console.log("Invoice paid:", invoice.id);
-  // TODO: Update invoice status in your database
+  console.log("[webhook] invoice.paid (log only):", invoice.id);
 }
 
 async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
-  console.log("Invoice payment failed:", invoice.id);
-  // TODO: Handle failed invoice payment
+  console.log("[webhook] invoice.payment_failed (log only):", invoice.id);
 }
 
 export async function POST(req: Request) {

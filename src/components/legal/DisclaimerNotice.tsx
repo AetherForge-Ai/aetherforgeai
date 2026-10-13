@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { LEGAL_ENTITY_NAME } from "@/lib/company";
+import { ONE_LINE_DISCLAIMER } from "@/lib/public-copy";
 import { AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -43,6 +44,7 @@ export function DisclaimerNotice({
               <strong className="font-semibold text-foreground/90">
                 Important — this is not financial advice.
               </strong>{" "}
+              {ONE_LINE_DISCLAIMER}{" "}
               AetherForge AI ({LEGAL_ENTITY_NAME}) provides general market information and
               AI-generated analysis for informational and educational purposes only. We are{" "}
               <strong className="text-foreground/90">not financial advisers</strong> and are{" "}
@@ -83,6 +85,7 @@ export function DisclaimerNotice({
     >
       <p className="mx-auto max-w-4xl text-sm leading-relaxed text-foreground">
         <strong className="font-semibold text-foreground/80">Not financial advice.</strong>{" "}
+        {ONE_LINE_DISCLAIMER}{" "}
         AetherForge AI ({LEGAL_ENTITY_NAME}) provides general market information and AI-generated
         analysis for informational purposes only. We are not financial advisers and this is not
         financial advice. We do not trade

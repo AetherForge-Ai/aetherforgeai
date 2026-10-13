@@ -5,6 +5,11 @@ import { isProtectedAccountApi } from "@/lib/session-owner";
  * Safe for a shared CDN cache. Anything that can paint a member — including
  * /markets and /dashboard — stays private, no-store.
  */
+/**
+ * TODO(M2): a Cloudflare cache rule that bypasses on the auth cookie is pending Lukas.
+ * Do not mark help, changelog, cookies, contact, stox, koins, smitty, or status
+ * cacheable here. Member-mode layout HTML could be shared through the cache.
+ */
 const CACHEABLE_MARKETING_PATHS = new Set([
   "/",
   "/about",

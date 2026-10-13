@@ -1,10 +1,15 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import {
   Dialog,
   DialogContent,
 } from "@/components/ui/dialog";
-import { CoinDetailView } from "@/components/dashboard/crypto/CoinDetailView";
+
+const CoinDetailView = dynamic(
+  () => import("@/components/dashboard/crypto/CoinDetailView").then((mod) => mod.CoinDetailView),
+  { ssr: false }
+);
 
 export function CoinDetailModal({
   coinId,

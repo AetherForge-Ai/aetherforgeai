@@ -14,7 +14,8 @@ import {
   withoutCryptoProjections,
 } from "@/lib/projection-pause";
 import { modelRangeLine } from "@/lib/public-intel";
-import { ENGINE_PARAGRAPH, HISTORY_LENGTH_LINE } from "@/lib/public-copy";
+import { ProjectionsSignIn } from "@/components/projections/ProjectionsSignIn";
+import { ENGINE_PARAGRAPH, HISTORY_LENGTH_LINE, PROJECTIONS_MEMBER_LINE } from "@/lib/public-copy";
 import { scoreBandSentence } from "@/lib/score-band";
 import { Button } from "@/components/ui/button";
 import {
@@ -245,6 +246,7 @@ export function ProjectionsExplorer() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [needsSignIn, setNeedsSignIn] = useState(false);
   const [active, setActive] = useState<TabKey>("NZXASX");
   const pageSize = 25;
 
@@ -265,6 +267,12 @@ export function ProjectionsExplorer() {
         `/api/projections?exchange=${tab}&page=${pageNum}&limit=${pageSize}`,
         { signal: AbortSignal.timeout(25_000) },
       );
+      if (res.status === 401) {
+        setRows([]);
+        setTotal(0);
+        setNeedsSignIn(true);
+        return;
+      }
       if (!res.ok || !res.data) throw new Error(res.error?.toString() || "The projection engine failed to return rows.");
       const ranked = withoutCryptoProjections(res.data.rows || res.data.combined || []);
       if (ranked.length === 0) throw new Error("The projection engine failed to return rows.");
@@ -291,6 +299,10 @@ export function ProjectionsExplorer() {
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const showMarket = active === "ALL";
 
+  if (needsSignIn) {
+    return <ProjectionsSignIn />;
+  }
+
   return (
     <div className="space-y-6 py-6">
       {/* Header */}
@@ -304,9 +316,9 @@ export function ProjectionsExplorer() {
             Weekly Market <span className="text-gradient">Projections</span>
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-            The table opens on NZX and ASX. Each equity tab lists the names that came back, up to 50,
-            and the number on the tab is that count. Every tab uses the same order: projected 7-day
-            percent times model confidence. {CRYPTO_PROJECTIONS_PAUSE_MESSAGE}
+            {PROJECTIONS_MEMBER_LINE} The table opens on NZX and ASX. Each equity tab lists the names
+            that came back, up to 50, and the number on the tab is that count. Every tab uses the same
+            order: projected 7-day percent times model confidence. {CRYPTO_PROJECTIONS_PAUSE_MESSAGE}
           </p>
         </div>
         <div className="flex items-center gap-2">
