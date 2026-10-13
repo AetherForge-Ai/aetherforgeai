@@ -113,6 +113,8 @@ export interface SnapshotLedgerLine {
   quantity: number | null;
   price: number | null;
   feesNzd: number | null;
+  /** Local currency of the fill. NZD, USD, or AUD when the row stored one. */
+  currency: string;
   fx: number | null;
   fxDisplay: string;
   cashNzd: number;
@@ -1617,6 +1619,7 @@ export function buildPortfolioSnapshot(input: SnapshotInput): PortfolioSnapshot 
         quantity: movementQty(row) || null,
         price: movementPrice(row) || null,
         feesNzd: feeNzd(row, fx),
+        currency,
         fx,
         fxDisplay: fxDisplay(fx),
         cashNzd: signedCash(row),

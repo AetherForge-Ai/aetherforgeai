@@ -27,6 +27,7 @@ import {
   type TableCellModel,
 } from "@/lib/holdings-table";
 import type { HoldingAction } from "@/lib/holding-action";
+import type { ReportRunControl } from "@/lib/report-quota-display";
 import { MISSING_MARK } from "@/lib/portfolio-snapshot";
 import { cn } from "@/lib/utils";
 
@@ -64,6 +65,7 @@ export function UnifiedHoldingsTable({
   onReport,
   onAlert,
   onWatch,
+  reportRuns,
   actionFor,
   cryptoEmpty,
 }: {
@@ -82,6 +84,7 @@ export function UnifiedHoldingsTable({
   onReport: (row: HoldingsRowModel, kind: "stox" | "koins") => void;
   onAlert: (row: HoldingsRowModel) => void;
   onWatch: (row: HoldingsRowModel) => void;
+  reportRuns: { stox: ReportRunControl; koins: ReportRunControl };
   actionFor: (row: HoldingsRowModel) => HoldingAction;
   cryptoEmpty?: ReactNode;
 }) {
@@ -315,6 +318,7 @@ export function UnifiedHoldingsTable({
                                     onReport={onReport}
                                     onAlert={onAlert}
                                     onWatch={onWatch}
+                                    reportRuns={reportRuns}
                                   />
                                 ) : (
                                   <CellView cell={row.cells[column]} label={`${row.ticker} ${COLUMN_LABEL[column]}`} signed={SIGNED.has(column)} />
@@ -433,6 +437,7 @@ function RowActions({
   onReport,
   onAlert,
   onWatch,
+  reportRuns,
 }: {
   row: HoldingsRowModel;
   resolved: HoldingAction | null;
@@ -441,6 +446,7 @@ function RowActions({
   onReport: (row: HoldingsRowModel, kind: "stox" | "koins") => void;
   onAlert: (row: HoldingsRowModel) => void;
   onWatch: (row: HoldingsRowModel) => void;
+  reportRuns: { stox: ReportRunControl; koins: ReportRunControl };
 }) {
   if (row.kind === "cash") {
     return (
@@ -478,8 +484,16 @@ function RowActions({
         Sell
       </Button>
       {reportKind ? (
-        <Button type="button" size="sm" variant="outline" onClick={() => onReport(row, reportKind)}>
-          {reportKind === "stox" ? "Run Stox report" : "Run Koins report"}
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-auto min-h-11 max-w-full whitespace-normal"
+          disabled={reportRuns[reportKind].disabled}
+          title={reportRuns[reportKind].title}
+          onClick={() => onReport(row, reportKind)}
+        >
+          {reportRuns[reportKind].label}
         </Button>
       ) : null}
       <DropdownMenu>

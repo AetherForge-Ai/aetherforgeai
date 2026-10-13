@@ -117,6 +117,7 @@ import { DashboardInsights } from "@/components/dashboard/DashboardInsights";
 import { PaidPlanPrompt } from "@/components/dashboard/PaidPlanPrompt";
 import { SnapshotAllocation } from "@/components/dashboard/SnapshotAllocation";
 import { holdingDeleteEffect } from "@/lib/dashboard-tabs";
+import { QUOTA_NOT_LOADED, unloadedReportControl, type ReportDeskSnapshot } from "@/lib/report-quota-display";
 import { resolveHoldingAction } from "@/lib/holding-action";
 import type { HoldingsRowModel } from "@/lib/holdings-table";
 import { duplicateHomeFiguresVisible } from "@/lib/home-totals";
@@ -668,6 +669,26 @@ export function PortfolioDashboard({
   const [alertSeed, setAlertSeed] = useState<{ ticker: string; nonce: number; asset: "stock" | "crypto" } | null>(null);
   const [watchSeed, setWatchSeed] = useState<{ ticker: string; nonce: number; asset: "stock" | "crypto" } | null>(null);
   const [watchClass, setWatchClass] = useState<"stock" | "crypto">("stock");
+  const [reportDesk, setReportDesk] = useState<ReportDeskSnapshot | null>(null);
+  const onReportDesk = useCallback((next: ReportDeskSnapshot) => {
+    setReportDesk((prev) => {
+      if (
+        prev &&
+        prev.loaded === next.loaded &&
+        prev.text === next.text &&
+        prev.reason === next.reason &&
+        prev.stox.disabled === next.stox.disabled &&
+        prev.stox.title === next.stox.title &&
+        prev.stox.label === next.stox.label &&
+        prev.koins.disabled === next.koins.disabled &&
+        prev.koins.title === next.koins.title &&
+        prev.koins.label === next.koins.label
+      ) {
+        return prev;
+      }
+      return next;
+    });
+  }, []);
   const [deleting, setDeleting] = useState(false);
   // Holding "last 7 days" chart popup — opened by clicking a ticker in the table.
   const [chartTarget, setChartTarget] = useState<HoldingChartTarget | null>(null);
@@ -1722,19 +1743,18 @@ export function PortfolioDashboard({
     else setDeleteTarget(stock);
   }
 
-  function handleReport(row: HoldingsRowModel, kind: "stox" | "koins") {
+  function handleReport(_row: HoldingsRowModel, kind: "stox" | "koins") {
     document.getElementById("report-center")?.scrollIntoView({ behavior: "smooth" });
-    const button = document.querySelector<HTMLButtonElement>(`[data-report-run="${kind === "stox" ? "stock" : "crypto"}"]`);
-    if (!button) {
-      toast.error("Report Center has not loaded.");
+    const control = kind === "koins" ? reportDesk?.koins : reportDesk?.stox;
+    if (!reportDesk?.loaded || !control) {
+      toast.error(QUOTA_NOT_LOADED);
       return;
     }
-    if (button.disabled) {
-      toast.error(button.title || "No reports left this month.");
+    if (control.disabled) {
+      toast.error(control.title);
       return;
     }
-    button.click();
-    if (row.ticker) toast.message(`${kind === "stox" ? "Run Stox report" : "Run Koins report"} · ${row.ticker}`);
+    reportDesk.run(kind === "koins" ? "crypto" : "stock");
   }
 
   function handleAlert(row: HoldingsRowModel) {
@@ -1958,7 +1978,7 @@ export function PortfolioDashboard({
 
   return (
     <MarketIntelProvider bot={bot}>
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8" aria-busy={kpiPending || undefined}>
+    <div className="mx-auto w-full min-w-0 max-w-6xl overflow-x-clip px-4 py-8 sm:px-6 lg:px-8" aria-busy={kpiPending || undefined}>
       {/* Header — matches dashboard home mock */}
       <div className="flex flex-wrap items-start justify-between gap-3 sm:gap-4">
         <div className="min-w-0">
@@ -1993,8 +2013,8 @@ export function PortfolioDashboard({
             </Link>
           </Button>
         ) : (
-        <div className="flex flex-col items-stretch gap-3 sm:items-end">
-          <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="flex w-full min-w-0 flex-col items-stretch gap-3 sm:w-auto sm:items-end">
+          <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-2">
             <GlobalSearch onPick={handleSearchPick} />
             <Button
               variant="outline"
@@ -2086,22 +2106,43 @@ export function PortfolioDashboard({
           onReport={handleReport}
           onAlert={handleAlert}
           onWatch={handleWatch}
+          reportRuns={{
+            stox: reportDesk?.stox ?? unloadedReportControl("Stox"),
+            koins: reportDesk?.koins ?? unloadedReportControl("Koins"),
+          }}
           actions={
-            <div className="mt-4 flex flex-wrap items-center gap-2">
-              <Button type="button" onClick={openAdd}>+ Add trade</Button>
+            <div className="mt-4 flex w-full min-w-0 max-w-full flex-wrap items-center gap-2" data-header-actions>
+              <Button type="button" className="h-auto min-h-11 max-w-full whitespace-normal" onClick={openAdd}>+ Add trade</Button>
               <HoldingsCsvImport assetType="stock" onImported={handleDataChanged} />
-              <Button type="button" variant="outline" onClick={() => handleCalculatorCash("deposit")}>Deposit/Withdraw</Button>
-              <Button type="button" variant="outline" onClick={() => void exportLedger()} disabled={freePlan} title={freePlan ? "CSV export is included on Starter and above." : undefined}>
+              <Button type="button" variant="outline" className="h-auto min-h-11 max-w-full whitespace-normal" onClick={() => handleCalculatorCash("deposit")}>Deposit/Withdraw</Button>
+              <Button type="button" variant="outline" className="h-auto min-h-11 max-w-full whitespace-normal" onClick={() => void exportLedger()} disabled={freePlan} title={freePlan ? "CSV export is included on Starter and above." : undefined}>
                 Export
               </Button>
-              <Button type="button" variant="outline" onClick={() => handleReport({ ticker: "", name: "Portfolio", assetClass: "shares", kind: "position" } as HoldingsRowModel, "stox")}>
-                Run Stox report
+              <Button
+                type="button"
+                variant="outline"
+                className="h-auto min-h-11 max-w-full whitespace-normal"
+                disabled={(reportDesk?.stox ?? unloadedReportControl("Stox")).disabled}
+                title={(reportDesk?.stox ?? unloadedReportControl("Stox")).title}
+                onClick={() => handleReport({ ticker: "", name: "Portfolio", assetClass: "shares", kind: "position" } as HoldingsRowModel, "stox")}
+              >
+                {(reportDesk?.stox ?? unloadedReportControl("Stox")).label}
               </Button>
-              <Button type="button" variant="outline" onClick={() => handleReport({ ticker: "", name: "Portfolio", assetClass: "crypto", kind: "position" } as HoldingsRowModel, "koins")}>
-                Run Koins report
+              <Button
+                type="button"
+                variant="outline"
+                className="h-auto min-h-11 max-w-full whitespace-normal"
+                disabled={(reportDesk?.koins ?? unloadedReportControl("Koins")).disabled}
+                title={(reportDesk?.koins ?? unloadedReportControl("Koins")).title}
+                onClick={() => handleReport({ ticker: "", name: "Portfolio", assetClass: "crypto", kind: "position" } as HoldingsRowModel, "koins")}
+              >
+                {(reportDesk?.koins ?? unloadedReportControl("Koins")).label}
               </Button>
-              <span className="text-xs text-muted-foreground" data-report-quota>
-                Quota is on Report Center
+              <span className="max-w-full text-xs text-muted-foreground" data-report-quota title={reportDesk?.reason || QUOTA_NOT_LOADED}>
+                {reportDesk?.loaded ? reportDesk.text : "—"}
+                {reportDesk?.loaded && !reportDesk.reason ? null : (
+                  <span className="mt-0.5 block">{reportDesk?.reason || QUOTA_NOT_LOADED}</span>
+                )}
               </span>
             </div>
           }
@@ -2183,6 +2224,7 @@ export function PortfolioDashboard({
                 holdings={allStocks}
                 onHoldingsChanged={handleDataChanged}
                 preview={preview}
+                onDesk={onReportDesk}
               />
             </>
           }

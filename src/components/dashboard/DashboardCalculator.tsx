@@ -33,6 +33,7 @@ import {
   type HoldingsRowModel,
 } from "@/lib/holdings-table";
 import type { HoldingAction } from "@/lib/holding-action";
+import type { ReportRunControl } from "@/lib/report-quota-display";
 import type { PortfolioSnapshot, SnapshotClass, SnapshotLedgerLine } from "@/lib/portfolio-snapshot";
 
 /**
@@ -52,6 +53,7 @@ export function DashboardCalculator({
   onReport,
   onAlert,
   onWatch,
+  reportRuns,
   actionFor,
   actions,
   rail,
@@ -76,6 +78,7 @@ export function DashboardCalculator({
   onReport: (row: HoldingsRowModel, kind: "stox" | "koins") => void;
   onAlert: (row: HoldingsRowModel) => void;
   onWatch: (row: HoldingsRowModel) => void;
+  reportRuns: { stox: ReportRunControl; koins: ReportRunControl };
   actionFor: (input: { ticker: string; assetClass: SnapshotClass; holdingId: string | null }) => HoldingAction;
   actions?: ReactNode;
   rail?: ReactNode;
@@ -254,8 +257,8 @@ export function DashboardCalculator({
           </button>
         ))}
       </div>
-      <div className="mt-4 grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
-        <div>
+      <div className="mt-4 grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="min-w-0">
           {tab === "holdings" ? (
             <UnifiedHoldingsTable
               model={pending ? null : table}
@@ -273,6 +276,7 @@ export function DashboardCalculator({
               onReport={onReport}
               onAlert={onAlert}
               onWatch={onWatch}
+              reportRuns={reportRuns}
               actionFor={actionFor}
               cryptoEmpty={cryptoEmpty}
             />
@@ -306,6 +310,7 @@ export function DashboardCalculator({
               onReport={onReport}
               onAlert={onAlert}
               onWatch={onWatch}
+              reportRuns={reportRuns}
             />
           ) : null
         }
@@ -322,6 +327,7 @@ function DetailActions({
   onReport,
   onAlert,
   onWatch,
+  reportRuns,
 }: {
   row: HoldingsRowModel;
   resolved: HoldingAction | null;
@@ -330,6 +336,7 @@ function DetailActions({
   onReport: (row: HoldingsRowModel, kind: "stox" | "koins") => void;
   onAlert: (row: HoldingsRowModel) => void;
   onWatch: (row: HoldingsRowModel) => void;
+  reportRuns: { stox: ReportRunControl; koins: ReportRunControl };
 }) {
   if (row.kind === "cash") {
     return (
@@ -348,14 +355,22 @@ function DetailActions({
   const reportKind = row.assetClass === "crypto" ? "koins" : row.assetClass === "shares" ? "stox" : null;
   return (
     <>
-      <Button type="button" size="sm" variant="outline" onClick={() => onTrade(row, "buy")}>Buy</Button>
-      <Button type="button" size="sm" variant="outline" onClick={() => onTrade(row, "sell")}>Sell</Button>
-      {metal ? null : <Button type="button" size="sm" variant="outline" onClick={() => onTrade(row, "dividend")}>Dividend</Button>}
-      <Button type="button" size="sm" variant="outline" onClick={() => onTrade(row, "edit")}>Edit</Button>
+      <Button type="button" size="sm" variant="outline" className="h-11 min-h-11 px-4" onClick={() => onTrade(row, "buy")}>Buy</Button>
+      <Button type="button" size="sm" variant="outline" className="h-11 min-h-11 px-4" onClick={() => onTrade(row, "sell")}>Sell</Button>
+      {metal ? null : <Button type="button" size="sm" variant="outline" className="h-11 min-h-11 px-4" onClick={() => onTrade(row, "dividend")}>Dividend</Button>}
+      <Button type="button" size="sm" variant="outline" className="h-11 min-h-11 px-4" onClick={() => onTrade(row, "edit")}>Edit</Button>
       <Button type="button" size="sm" variant="outline" onClick={() => onTrade(row, "delete")}>Delete</Button>
       {reportKind ? (
-        <Button type="button" size="sm" variant="outline" onClick={() => onReport(row, reportKind)}>
-          {reportKind === "stox" ? "Run Stox report" : "Run Koins report"}
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-11 min-h-11 max-w-full whitespace-normal px-4"
+          disabled={reportRuns[reportKind].disabled}
+          title={reportRuns[reportKind].title}
+          onClick={() => onReport(row, reportKind)}
+        >
+          {reportRuns[reportKind].label}
         </Button>
       ) : null}
       {metal ? null : (

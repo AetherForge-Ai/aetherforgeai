@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { dividendDeleteEffect } from "@/lib/dashboard-tabs";
 import { formatNzd } from "@/lib/currency";
+import { formatLedgerQtyPrice } from "@/lib/ledger-line-format";
 import { MISSING_MARK, pageLedger, type PortfolioSnapshot, type SnapshotLedgerLine } from "@/lib/portfolio-snapshot";
 
 const PAGE_SIZES = [25, 50, 100] as const;
@@ -175,12 +176,15 @@ export function TransactionsTab({
                   </td>
                 </tr>
               ) : (
-                paged.rows.map((line) => (
+                paged.rows.map((line) => {
+                  const qtyPrice = formatLedgerQtyPrice(line);
+                  return (
                   <tr key={line.id} className="border-t border-border/40">
                     <td className="px-3 py-3 capitalize">{line.type}</td>
                     <td className="px-3 py-3">{line.ticker || "Cash"}</td>
-                    <td className="tnum px-3 py-3 text-right">
-                      {line.quantity == null ? MISSING_MARK : line.quantity} × {line.price == null ? MISSING_MARK : line.price}
+                    <td className="tnum px-3 py-3 text-right" title={qtyPrice.reason || undefined}>
+                      {qtyPrice.text}
+                      {qtyPrice.reason ? <span className="sr-only"> {qtyPrice.reason}</span> : null}
                     </td>
                     <td className="tnum px-3 py-3 text-right">{line.feesNzd == null ? MISSING_MARK : formatNzd(line.feesNzd)}</td>
                     <td className="tnum px-3 py-3 text-right">{line.fxDisplay}</td>
@@ -204,7 +208,8 @@ export function TransactionsTab({
                       </span>
                     </td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>

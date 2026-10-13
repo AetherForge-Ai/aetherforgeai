@@ -56,6 +56,12 @@ import { Loader2, Lock, Play, FileDown, Mail, FileText, Sparkles, Clock, Zap, Ar
 import { stripReportMarkdown } from "@/lib/report-copy";
 import { reportRunStatus } from "@/lib/dashboard-surface";
 import { stoxReviewCopy } from "@/lib/report-copy";
+import {
+  headerQuotaCopy,
+  monthlyBucketKey,
+  reportRunControl,
+  type ReportDeskSnapshot,
+} from "@/lib/report-quota-display";
 
 type BotAccess = "stock" | "crypto" | "both" | "none";
 
@@ -138,6 +144,7 @@ export function ReportCenter({
   userId = null,
   holdings = [],
   preview = false,
+  onDesk,
 }: {
   botAccess: BotAccess;
   plan?: string | null;
@@ -154,6 +161,8 @@ export function ReportCenter({
   onHoldingsChanged?: () => void;
   /** Guest preview — read-only, no network calls. */
   preview?: boolean;
+  /** Header and row actions call this run. They do not click the button in the page. */
+  onDesk?: (desk: ReportDeskSnapshot) => void;
 }) {
   const [running, setRunning] = React.useState<BotKind | null>(null);
   const [compileSeconds, setCompileSeconds] = React.useState(0);
@@ -178,6 +187,7 @@ export function ReportCenter({
   const [serverCadence, setServerCadence] = React.useState<ReportCadence | null>(null);
   const [serverQuota, setServerQuota] = React.useState<ReportsResponse["quota"] | null>(null);
   const [freeQuota, setFreeQuota] = React.useState<FreeQuota | null>(null);
+  const [quotaReady, setQuotaReady] = React.useState(false);
   const [access, setAccess] = React.useState(botAccess);
   React.useEffect(() => setAccess(botAccess), [botAccess]);
   const sectionRef = React.useRef<HTMLElement | null>(null);
@@ -278,6 +288,7 @@ export function ReportCenter({
       });
     }
     if (data.quota) setServerQuota(data.quota);
+    setQuotaReady(true);
     setHistoryLoaded(true);
   }, []);
 
@@ -343,6 +354,7 @@ export function ReportCenter({
     // Drop the previous account's narratives immediately. The fetch is aborted
     // on switch and only applied when the response echoes this user.
     if (!preview) setHistoryLoaded(false);
+    setQuotaReady(false);
     setHistory([]);
     setLastReportAt({ stock: null, crypto: null });
     setServerCadence(null);
@@ -518,6 +530,75 @@ export function ReportCenter({
     void loadHistory().catch(() => {});
   }
 
+  const runReportRef = React.useRef(runReport);
+  runReportRef.current = runReport;
+  const runDesk = React.useCallback((kind: BotKind) => {
+    void runReportRef.current(kind);
+  }, []);
+
+  function controlFor(kind: BotKind, name: "Stox" | "Koins") {
+    if (!canRun(kind)) {
+      return reportRunControl({
+        loaded: true,
+        name,
+        allowed: false,
+        remaining: null,
+        limit: null,
+        cooldown: null,
+        blockedReason: "Your plan does not include this monitor.",
+      });
+    }
+    const quota = quotaFor(kind);
+    const monthlyLimit = "reportsLimit" in quota && typeof quota.reportsLimit === "number" ? quota.reportsLimit : null;
+    const monthlyUsed = "reportsUsed" in quota && typeof quota.reportsUsed === "number" ? quota.reportsUsed : null;
+    const limit = freeQuota?.limit ?? monthlyLimit;
+    const remaining =
+      freeQuota != null ? freeQuota.remaining : monthlyLimit != null && monthlyUsed != null ? Math.max(0, monthlyLimit - monthlyUsed) : null;
+    return reportRunControl({
+      loaded: quotaReady,
+      name,
+      allowed: quotaReady ? quota.allowed : null,
+      remaining,
+      limit,
+      cooldown: formatReportCooldownLine({
+        lastReportAt: quota.lastReportAt,
+        waitMs: quota.waitMs,
+        cadenceUnit: quota.cadence.unit,
+        perLabel: quota.cadence.perLabel,
+        now,
+      }),
+    });
+  }
+
+  const stoxControl = controlFor("stock", "Stox");
+  const koinsControl = controlFor("crypto", "Koins");
+  const sharedRemaining = freeQuota?.remaining ?? (serverQuota?.stock?.reportsLimit != null && serverQuota.stock.reportsUsed != null
+    ? Math.max(0, serverQuota.stock.reportsLimit - serverQuota.stock.reportsUsed)
+    : null);
+  const sharedLimit = freeQuota?.limit ?? serverQuota?.stock?.reportsLimit ?? null;
+  const quotaLine = headerQuotaCopy({
+    loaded: quotaReady,
+    remaining: sharedRemaining,
+    limit: sharedLimit,
+    monthKey: freeQuota?.monthKey ?? (cadence.unit === "month" ? monthlyBucketKey(now) : null),
+    nextAllowedAt: quotaFor("stock").nextAllowedAt ?? quotaFor("crypto").nextAllowedAt,
+    monthly: cadence.unit === "month" || freeQuota != null || sharedLimit != null,
+  });
+  const desk = React.useMemo<ReportDeskSnapshot>(
+    () => ({
+      loaded: quotaReady,
+      text: quotaLine.text,
+      reason: quotaLine.reason,
+      run: runDesk,
+      stox: stoxControl,
+      koins: koinsControl,
+    }),
+    [quotaReady, quotaLine.text, quotaLine.reason, runDesk, stoxControl, koinsControl]
+  );
+  React.useEffect(() => {
+    onDesk?.(desk);
+  }, [onDesk, desk]);
+
   return (
     <section
       id="report-center"
@@ -657,8 +738,7 @@ export function ReportCenter({
         {DEFS.map((b) => {
           const unlocked = canRun(b.kind);
           const busy = running === b.kind;
-          const botQuota = quotaFor(b.kind);
-          const botLocked = !botQuota.allowed;
+          const runControl = b.kind === "crypto" ? koinsControl : stoxControl;
           return (
             <div
               key={b.kind}
@@ -710,17 +790,17 @@ export function ReportCenter({
                       </Link>
                     </Button>
                   )
-                ) : botLocked ? (
-                  <Button variant="outline" className="w-full" disabled>
-                    <Clock className="mr-1 size-4" /> {formatReportCooldownLine({ lastReportAt: botQuota.lastReportAt, waitMs: botQuota.waitMs, cadenceUnit: botQuota.cadence.unit, perLabel: botQuota.cadence.perLabel, now })}
+                ) : !quotaReady || runControl.disabled ? (
+                  <Button variant="outline" className="w-full" disabled title={runControl.title}>
+                    <Clock className="mr-1 size-4" /> {runControl.title}
                   </Button>
                 ) : (
                   <Button
                     className="w-full"
                     aria-busy={busy}
                     data-report-run={b.kind}
-                    title={botLocked ? formatReportCooldownLine({ lastReportAt: botQuota.lastReportAt, waitMs: botQuota.waitMs, cadenceUnit: botQuota.cadence.unit, perLabel: botQuota.cadence.perLabel, now }) : `Run ${b.name} report`}
-                    onClick={() => void runReport(b.kind).catch(() => {})}
+                    title={runControl.title}
+                    onClick={() => runDesk(b.kind)}
                     disabled={busy || running !== null}
                   >
                     {busy ? (
@@ -729,7 +809,7 @@ export function ReportCenter({
                       </>
                     ) : (
                       <>
-                        <Play className="mr-1 size-4" /> Run {b.name} report
+                        <Play className="mr-1 size-4" /> {runControl.label}
                       </>
                     )}
                   </Button>
