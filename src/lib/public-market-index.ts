@@ -14,6 +14,8 @@ import { PRICE_NOT_IN_RESPONSE, unpricedFootnote, type StockBoard } from "@/lib/
 
 /** Crypto and DEX pages embed the shared snapshot, the same list the signed-in tab reads. */
 const COIN_PAGE = MARKET_SNAPSHOT_TARGET;
+/** Rows embedded in the document. The client list still loads the full snapshot. */
+const DOCUMENT_ROWS = PUBLIC_SEED_ROWS;
 /** Cold /markets waits this long, then says the price is not in the response. */
 const EQUITY_BUDGET_MS = 3000;
 const ALT_BUDGET_MS = 3000;
@@ -114,7 +116,7 @@ async function loadCryptoTab(): Promise<PublicPriceTab> {
         source: coin.source || "coingecko",
       }))
     );
-    const rows = coins.map((coin) => ({
+    const rows = coins.slice(0, DOCUMENT_ROWS).map((coin) => ({
       symbol: coin.symbol,
       name: coin.name,
       price: formatUnitPrice(coin.price, "USD"),
@@ -169,7 +171,7 @@ async function loadDexTab(): Promise<PublicPriceTab> {
         source: feed || "public market data",
       }))
     );
-    const rows = priced.map((row) => ({
+    const rows = priced.slice(0, DOCUMENT_ROWS).map((row) => ({
       symbol: row.symbol,
       name: row.name,
       price: formatUnitPrice(row.price as number, "USD"),

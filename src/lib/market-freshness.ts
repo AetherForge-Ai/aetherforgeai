@@ -10,7 +10,7 @@
  * TODO(owner): metals vendor is unconfirmed. Do not label metals "Live".
  */
 
-import { formatDisplayDate } from "@/lib/currency";
+import { formatDisplayDate, formatDisplayDateTime } from "@/lib/currency";
 import { isExchangeRegularSession, type Exchange } from "@/lib/market-intel";
 
 export const PL_AT_LATEST_PRICE = "P/L at latest available price";
@@ -96,6 +96,25 @@ export function equitySessionDate(venue: EquityVenue, now = new Date()): string 
 
 export function formatSessionDate(iso: string): string {
   return formatDisplayDate(iso);
+}
+
+export type TapeVenue = "NZX" | "ASX" | "CRYPTO";
+
+/** Home tape stamp. A shut equity session is the previous close, not a raw timestamp. */
+export function tapeUpdatedPhrase(
+  quotedAt: string | null | undefined,
+  venue: TapeVenue,
+  now = new Date()
+): string {
+  if (!quotedAt) return "last updated unavailable";
+  if (venue === "NZX" || venue === "ASX") {
+    if (!equitySessionOpen(venue, now)) {
+      const date = formatDisplayDate(quotedAt);
+      return date === "—" ? "Close unavailable" : `Close ${date}`;
+    }
+  }
+  const wall = formatDisplayDateTime(quotedAt);
+  return wall === "—" ? "last updated unavailable" : `last updated ${wall}`;
 }
 
 const ZONE_SUFFIX: Record<string, string> = {

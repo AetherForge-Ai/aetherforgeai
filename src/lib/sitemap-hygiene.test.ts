@@ -8,10 +8,14 @@ function read(rel: string) {
 }
 
 describe("H9 sitemap and robots", () => {
-  it("lists lastmod, leaves /projections and /blog off the sitemap", () => {
+  it("lists lastmod, lists the public guides, and leaves /blog off the sitemap", () => {
     const rows = sitemap();
     const byPath = new Map(rows.map((row) => [new URL(row.url).pathname, row]));
     expect(byPath.has("/projections")).toBe(false);
+    expect(byPath.has("/headmaster")).toBe(true);
+    expect(byPath.has("/chat")).toBe(true);
+    expect(byPath.has("/cookies")).toBe(true);
+    expect(byPath.has("/how-to-maximize-results")).toBe(true);
     expect(byPath.has("/blog")).toBe(false);
     expect(byPath.get("/performance")?.changeFrequency).toBe("yearly");
     expect(byPath.get("/performance")?.lastModified).toBe("2026-07-08");

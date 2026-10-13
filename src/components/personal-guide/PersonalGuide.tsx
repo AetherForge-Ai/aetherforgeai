@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import { useSession } from "@/lib/auth-client";
-import { PourAnimation } from "./PourAnimation";
+
+const PourAnimation = dynamic(() => import("./PourAnimation").then((mod) => mod.PourAnimation), { ssr: false });
 import { PersonalGuideChat } from "./PersonalGuideChat";
 import "./personal-guide.css";
 

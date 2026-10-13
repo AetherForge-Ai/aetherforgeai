@@ -1,19 +1,24 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { BOT_GUIDES, guideWordCount } from "@/lib/bot-guides";
+import { BOT_GUIDES, BOT_PAGE_DISCLAIMER } from "@/lib/bot-guides";
 
 function read(rel: string) {
   return readFileSync(path.join(process.cwd(), rel), "utf8");
 }
 
 describe("bot guides", () => {
-  it("gives each bot page 600 words, two alts, and an example book", () => {
-    for (const text of Object.values(BOT_GUIDES)) {
-      expect(guideWordCount(text)).toBeGreaterThanOrEqual(600);
-    }
+  it("gives each bot page its own list, one shared disclaimer, two alts, and an example book", () => {
+    expect(BOT_GUIDES.stox).toContain("NZX");
+    expect(BOT_GUIDES.stox).toContain("ASX");
+    expect(BOT_GUIDES.koins).toContain("Crypto projections stay paused");
+    expect(BOT_GUIDES.headmaster).toContain("planning bot");
+    expect(BOT_GUIDES.smitty).toContain("gold and silver");
+    expect(BOT_PAGE_DISCLAIMER).toContain("not a direct NZX or ASX feed");
     const taxWord = ["G", "ST"].join("");
-    const blob = Object.values(BOT_GUIDES).join("\n") + read("src/components/public/BotGuide.tsx");
+    const blob = Object.values(BOT_GUIDES).join("\n") + BOT_PAGE_DISCLAIMER + read("src/components/public/BotGuide.tsx");
+    expect(blob).not.toContain("does not name the model");
+    expect(read("src/components/public/BotGuide.tsx")).toContain("BOT_PAGE_DISCLAIMER");
     expect(blob).not.toContain(taxWord);
     expect(blob).not.toMatch(/\b(SuperGrok|Grok|xAI|Claude|Gemini|GPT-\d|ZENITH|ULTRA)\b/);
     expect(blob).not.toMatch(/\breal-time\b|\bofficial\b/i);

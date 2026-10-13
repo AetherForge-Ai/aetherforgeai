@@ -1,4 +1,16 @@
+import { formatDisplayDateTime } from "@/lib/currency";
 import type { PriceBadge } from "@/lib/price-confidence";
+
+/** Auckland wall clock. A stamp that is already a sentence is left as written. */
+export function priceUpdatedPhrase(updated: string): string {
+  if (!updated || updated === "unavailable") return "last updated unavailable";
+  if (updated.startsWith("Close ") || updated.startsWith("last updated ")) return updated;
+  if (/^\d{4}-\d{2}-\d{2}/.test(updated)) {
+    const wall = formatDisplayDateTime(updated);
+    return wall === "—" ? "last updated unavailable" : `last updated ${wall}`;
+  }
+  return `last updated ${updated}`;
+}
 
 const DOT = {
   green: "bg-emerald-400",
@@ -8,7 +20,7 @@ const DOT = {
 
 /** Source, delay and last update. The why sentence shows when the print is not current. */
 export function PriceConfidenceBadge({ badge }: { badge: PriceBadge }) {
-  const detail = [badge.source, badge.delay, badge.updated === "unavailable" ? "last updated unavailable" : `last updated ${badge.updated}`]
+  const detail = [badge.source, badge.delay, priceUpdatedPhrase(badge.updated)]
     .filter(Boolean)
     .join(". ");
   return (

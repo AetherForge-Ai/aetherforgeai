@@ -618,6 +618,19 @@ export function planIncludesToolkit(plan?: string | null): boolean {
   return found?.interval === "year";
 }
 
+/**
+ * Stripe price ids that belong to an AetherForge plan, including retired
+ * prices that existing subscribers still use. Other products on the same
+ * Stripe account are not in this list.
+ */
+export function aetherforgePriceIds(): string[] {
+  const ids = new Set<string>();
+  for (const plan of [...PLANS, ...LEGACY_SUBSCRIPTION_PLANS]) {
+    if (plan.priceId) ids.add(plan.priceId);
+  }
+  return [...ids];
+}
+
 /** Human label for a plan key (falls back gracefully for legacy values). */
 export function planLabel(key?: string | null): string {
   if (key === "free") return FREE_PLAN.name;
