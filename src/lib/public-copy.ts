@@ -16,7 +16,6 @@ import { swyftxPublicDisplay } from "@/lib/swyftx-display";
 /** pull-check:v3-retest10-2026-10-13 */
 
 /** The freephone is not published. It is out of credit. */
-/** TODO: restore phone when 0800 live */
 
 /** General and customer mail. Privacy requests use PRIVACY_OFFICER_EMAIL. */
 export const CUSTOMER_EMAIL = "admin@aetherforgeai.co.nz";
@@ -56,6 +55,18 @@ export const HISTORY_LENGTH_LINE = "30-day history (projections), ~6 months (sto
  * The signup consent stamp stays on TERMS_VERSION until that consent flow is re-issued.
  */
 export const LEGAL_UPDATED = "13 Oct 2026";
+
+/**
+ * TODO(D1): Help, pricing and the privacy policy still describe weekly projections.
+ * Leave that wording until Lukas decides. Do not rewrite it in this change.
+ */
+export const PROJECTIONS_COPY_PENDING_D1 = true;
+
+/**
+ * TODO(D6): Ultimate stays listed at NZ$199 a month and NZ$1,990 a year, with Talk to us.
+ * Do not switch the card to "From" or hide the price until Lukas decides.
+ */
+export const ULTIMATE_PRICE_PENDING_D6 = true;
 
 /** One line for the site footer and the AI Disclaimer. */
 export const ONE_LINE_DISCLAIMER = `General information only, not financial advice. ${LEGAL_ENTITY_NAME} is not a licensed financial advice provider.`;

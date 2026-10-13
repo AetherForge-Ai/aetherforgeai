@@ -6,6 +6,13 @@ import {
   type GrokMessage,
 } from "@/lib/grok";
 import {
+  clientIp,
+  PERSONAL_GUIDE_LIMIT,
+  PUBLIC_INPUT_CAP,
+  RATE_WINDOW_MS,
+  takeRateLimit,
+} from "@/lib/ip-rate-limit";
+import {
   PERSONAL_GUIDE_SYSTEM_PROMPT,
   personalGuideFallbackReply,
 } from "@/lib/personal-guide-knowledge";
@@ -13,12 +20,12 @@ import {
 export const dynamic = "force-dynamic";
 
 const postSchema = z.object({
-  message: z.string().min(1, "Message is required").max(1500),
+  message: z.string().min(1, "Message is required").max(PUBLIC_INPUT_CAP),
   history: z
     .array(
       z.object({
         role: z.enum(["user", "assistant"]),
-        content: z.string().max(4000),
+        content: z.string().max(PUBLIC_INPUT_CAP),
       })
     )
     .max(10)
@@ -42,6 +49,13 @@ export async function POST(req: Request) {
 
     const userMessage = parsed.data.message.trim();
     const history = parsed.data.history ?? [];
+    const limit = takeRateLimit(`personal-guide:${clientIp(req)}`, PERSONAL_GUIDE_LIMIT, RATE_WINDOW_MS);
+    if (!limit.allowed) {
+      return NextResponse.json({
+        ok: true,
+        data: { reply: personalGuideFallbackReply(userMessage), fallback: true, limited: true },
+      });
+    }
 
     if (!isGrokConfigured()) {
       console.warn("[api/personal-guide] XAI_API_KEY missing — using fallback replies");

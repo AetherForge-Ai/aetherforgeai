@@ -56,7 +56,7 @@ export function NewsFeed({
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={n.imageUrl}
-                  alt=""
+                  alt={n.headline ? `Illustration for ${n.headline}` : "Market news image"}
                   className="h-28 w-full object-cover"
                   loading="lazy"
                 />
@@ -136,7 +136,7 @@ export function NewsFeed({
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={active.imageUrl}
-                    alt=""
+                    alt={active.headline ? `Illustration for ${active.headline}` : "Market news image"}
                     className="max-h-72 w-full object-cover"
                   />
                 </div>

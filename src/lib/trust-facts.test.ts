@@ -77,7 +77,8 @@ describe("trust page facts", () => {
     expect(page).toContain("AI_PROVIDER_API_SENTENCE");
     expect(page).toContain("nameAiProvider");
     expect(page).toContain("only after you accept analytics cookies");
-    expect(AI_PROVIDER_API_SENTENCE).toContain(`${AI_PROVIDER_NAME}, used through its API`);
+    expect(AI_PROVIDER_API_SENTENCE).toContain(`${AI_PROVIDER_NAME}, through its API`);
+    expect(AI_PROVIDER_API_SENTENCE).not.toContain("in those sentences");
     expect(AI_PROVIDER_API_SENTENCE).toContain("up to 30 days");
     expect(AI_PROVIDER_API_SENTENCE).not.toMatch(/grok-\d|zero data retention/i);
     const stripped = `${page}\n${AI_PROVIDER_API_SENTENCE}`.replaceAll(AI_PROVIDER_NAME, "").replaceAll("xAI's", "");

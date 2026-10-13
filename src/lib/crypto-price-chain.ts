@@ -149,22 +149,30 @@ export function rowHasVisiblePrice(row: Pick<PublicPriceRow, "price" | "usd">): 
   return true;
 }
 
+/**
+ * A tab clock that already says "Prices as at" or "as of" is used as written.
+ * Prefixing it again produced "as of Prices as at".
+ */
+export function publicAsOfPhrase(asOf: string): string {
+  const text = asOf.replace(/\s+/g, " ").trim();
+  if (!text) return "as of not stated by the vendor";
+  if (/^prices as at\b/i.test(text) || /\bas of\b/i.test(text)) return text;
+  return `as of ${text}`;
+}
+
 /** One labelled line per row that still has a positive price. */
 export function publicCryptoTableLines(tab: Pick<PublicPriceTab, "id" | "asOf" | "rows">): string[] {
   if (tab.id !== "CRYPTO" && tab.id !== "DEX") return [];
   const rows = tab.rows.filter((row) => rowHasVisiblePrice(row));
   if (!rows.length) return ["No earlier price is stored."];
-  const asOf = tab.asOf.includes("as of") ? tab.asOf : `as of ${tab.asOf}`;
+  const asOf = publicAsOfPhrase(tab.asOf);
   return rows.map((row) => `${row.symbol} ${row.price} ${asOf}`);
 }
 
 export function withLastGoodPrices(tab: PublicPriceTab): PublicPriceTab {
   const rows = tab.rows.filter((row) => rowHasVisiblePrice(row));
-  const asOf = tab.asOf.includes("last good price")
-    ? tab.asOf.includes("as of")
-      ? tab.asOf
-      : `as of ${tab.asOf}`
-    : `${tab.asOf.includes("as of") ? tab.asOf : `as of ${tab.asOf}`} · last good price`;
+  const base = publicAsOfPhrase(tab.asOf);
+  const asOf = /last good price/i.test(base) ? base : `${base} · last good price`;
   return { ...tab, rows, asOf };
 }
 

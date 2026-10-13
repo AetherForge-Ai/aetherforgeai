@@ -246,7 +246,7 @@ export default async function LandingPage() {
                     >
                       <img
                         src={step.sitter.img}
-                        alt=""
+                        alt={`${step.sitter.name} illustration for ${step.title}`}
                         className={`${step.sitter.imgClass} max-w-none object-contain object-bottom drop-shadow-[0_16px_24px_rgba(0,0,0,0.6)]`}
                       />
                     </div>

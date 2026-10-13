@@ -101,15 +101,15 @@ describe("Track B P0", () => {
     expect(status).not.toContain("All systems normal");
   });
 
-  it("lists 10 Oct 2026 and 11 Oct 2026 changelog lines from develop, and no 9 Oct line", () => {
+  it("lists 10 Oct 2026 and 11 Oct 2026 changelog notes, and no 9 Oct line", () => {
     const page = read("src/lib/changelog-entries.ts");
     expect(page).toContain("11 Oct 2026");
-    expect(page).toContain("87dfce1");
-    expect(page).toContain("caa5472");
     expect(page).toContain("10 Oct 2026");
-    expect(page).toContain("e9afcf5");
+    expect(page).toContain("Crypto list snapshots and diagnostics");
     expect(page).not.toContain("9 Oct 2026");
     expect(page).not.toMatch(/GST/i);
+    expect(page.toLowerCase()).not.toContain("develop");
+    expect(page).not.toMatch(/\b[0-9a-f]{7,40}\b/);
   });
 
   it("puts ticker paths and /status on the sitemap", () => {

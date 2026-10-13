@@ -1,11 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import { MessageSquareText } from "lucide-react";
 import { useLiveSessionUser } from "@/lib/use-live-session";
 import { PortfolioCoachChat } from "./PortfolioCoachChat";
-import { RiseAnimation } from "./RiseAnimation";
+
+const RiseAnimation = dynamic(() => import("./RiseAnimation").then((mod) => mod.RiseAnimation), { ssr: false });
 import "@/components/personal-guide/personal-guide.css";
 import { BOT_HEADMASTER_AVATAR } from "@/assets/files";
 import { cn } from "@/lib/utils";

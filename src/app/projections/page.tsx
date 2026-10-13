@@ -5,15 +5,10 @@ import { ProjectionsExplorer } from "@/components/dashboard/ProjectionsExplorer"
 
 export const dynamic = "force-dynamic";
 
-export const metadata = {
-  ...publicPageMetadata("/projections", {
-    title: "Projections — AetherForge AI",
-    description: "Weekly projections across NZX and ASX. Each equity tab lists the names that came back, up to 50. Crypto projections are paused. General information, not personal advice.",
-  }),
-  // Equity tabs stay on this URL for signed-in readers. Crypto projections are
-  // paused, so the page is not a sitemap or index target.
-  robots: { index: false, follow: false },
-};
+export const metadata = publicPageMetadata("/projections", {
+  title: "Projections — AetherForge AI",
+  description: "Weekly projections across NZX and ASX. Each equity tab lists the names that came back, up to 50. Crypto projections are paused. General information, not personal advice.",
+});
 
 /**
  * /projections — weekly projections. Each equity tab lists the names that came

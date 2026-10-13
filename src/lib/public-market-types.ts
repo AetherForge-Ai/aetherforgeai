@@ -1,6 +1,6 @@
 export const MARKET_INDEX_PAGE = 50;
-/** Rows embedded in the /markets document. The browser loads the rest. */
-export const PUBLIC_SEED_ROWS = 12;
+/** First rows written into the /markets document. The browser loads the rest. */
+export const PUBLIC_SEED_ROWS = 25;
 
 export interface PublicPriceRow {
   symbol: string;

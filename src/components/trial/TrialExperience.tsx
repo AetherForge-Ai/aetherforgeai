@@ -17,7 +17,11 @@ import {
   Sparkles,
   ArrowRight,
 } from "lucide-react";
-import { TrialReportView } from "@/components/trial/TrialReportView";
+import dynamic from "next/dynamic";
+
+const TrialReportView = dynamic(() => import("@/components/trial/TrialReportView").then((mod) => mod.TrialReportView), {
+  ssr: false,
+});
 import type { BotKind, TrialReport } from "@/lib/trial-types";
 
 type AssetClass = BotKind;

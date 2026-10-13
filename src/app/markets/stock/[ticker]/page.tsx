@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/session";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { MarketsAppFrame } from "@/components/dashboard/MarketsAppFrame";
 import { StockAssetPage } from "@/components/dashboard/StockAssetPage";
+import { StockPublicFacts } from "@/components/markets/StockPublicFacts";
 import { exchangeFromTicker, exchangeLabel, normalizeStockTicker, parseStockBoard } from "@/lib/market-detail-routes";
 import { MARKET_UNIVERSE } from "@/lib/market-intel";
 import { loadStockQuoteLine } from "@/lib/public-market-index";
@@ -92,6 +93,9 @@ export default async function StockDetailPage({
         <p className="text-sm text-muted-foreground" data-ticker-quote>
           {quoteLine ?? (ticker ? `${ticker} Price not in this response.` : "Price not in this response.")}
         </p>
+        {ticker ? (
+          <StockPublicFacts ticker={ticker} symbol={symbol} sector={listing.entry?.sector || ""} />
+        ) : null}
         {user ? (
           <Link href={addHref} className="inline-block text-sm font-semibold text-primary underline-offset-2 hover:underline">
             Add to your paper book

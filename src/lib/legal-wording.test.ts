@@ -108,7 +108,7 @@ describe("public legal wording", () => {
     expect(read("src/components/legal/DisclaimerNotice.tsx")).toContain("Important — this is not financial advice.");
     expect(read("src/lib/help-index.ts")).toContain("how to email FORGE INTELLIGENCE LIMITED.");
     expect(read("src/lib/help-index.ts")).not.toContain("or call");
-    expect(read("src/lib/public-copy.ts")).toContain("TODO: restore phone when 0800 live");
+    expect(read("src/lib/public-copy.ts")).not.toContain("TODO: restore phone when 0800 live");
   });
 
   it("keeps the published prices and the annual refund rule", () => {

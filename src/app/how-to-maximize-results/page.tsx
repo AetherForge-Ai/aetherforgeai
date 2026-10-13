@@ -50,7 +50,7 @@ const SECTIONS = [
       "Update your portfolio regularly — especially after buys, sells, or dividends.",
       "Use the downloadable Excel Transaction Tracker to keep perfect records, then mirror the data in your dashboard.",
     ],
-    tip: "Users who maintain accurate, up-to-date portfolios consistently report clearer signals and more confident decision-making.",
+    tip: "Keep the book current after a buy, a sell, or a dividend. The notes can only describe what you recorded.",
   },
   {
     n: "02",
@@ -61,12 +61,12 @@ const SECTIONS = [
     tag: "Your Daily Intelligence Briefing",
     lead: "Stox (Equities) and Koins (Crypto) are your two specialist analysts — put them to work every day.",
     points: [
-      "Run a full Apex report on your portfolio at least once per day — ideally before NZ market open.",
+      "Open a Stox or Koins note on your book at least once a day, ideally before the New Zealand market opens.",
       "Read the multi-timeframe analysis: short, medium and long-term.",
       "Read top gainers, momentum and the 7-day pathways as information. They are not a recommendation to buy, sell, or hold.",
       "Cross-reference Stox and Koins whenever you hold both stocks and crypto.",
     ],
-    tip: "Treat the reports like a professional briefing. Don’t just hunt for “Buy” signals — understand the why behind every observation.",
+    tip: "Read the note as a briefing. Look at the reason for each observation. The note is not an instruction to buy or sell.",
   },
   {
     n: "03",
@@ -107,7 +107,7 @@ const SECTIONS = [
     ring: "border-teal-500/25",
     title: "Follow a Disciplined Process",
     tag: "The Real Edge",
-    lead: "The users who achieve the best results follow a repeatable process:",
+    lead: "A repeatable process is a useful way to read the book:",
     points: [
       "Morning Ritual — check overnight moves + run Stox / Koins reports.",
       "Review The Headmaster — look at overall portfolio health and strategy alignment.",
@@ -303,8 +303,7 @@ export default function MaximizeResultsPage() {
               Recommended weekly routine
             </h2>
             <p className="mt-3 text-muted-foreground">
-              Users who follow a structured routine consistently report higher confidence and better decision
-              quality.
+              A weekly routine is a way to read the book. It is not a claim about results.
             </p>
           </div>
 

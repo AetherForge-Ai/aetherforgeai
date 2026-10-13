@@ -153,8 +153,9 @@ describe("public surface routes", () => {
     expect(sitemap).toContain('"/market-news"');
     expect(sitemap).toContain('"/tax"');
     expect(sitemap).toContain('"/how-it-works"');
-    expect(sitemap).not.toContain('"/projections"');
-    expect(read("src/app/projections/page.tsx")).toContain("index: false");
+    expect(sitemap).toContain('"/projections"');
+    expect(read("src/app/projections/page.tsx")).not.toContain("index: false");
+    expect(read("src/app/projections/page.tsx")).toContain("Crypto projections are paused");
     expect(sitemap).not.toContain('"/login"');
     expect(sitemap).not.toContain('"/register"');
   });

@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { formatDisplayDate, formatMoney, formatSignedPercent } from "@/lib/currency";
 import { formatTapeItem, fxRateLine, type TapeDisplay } from "@/lib/tape-display";
 import { useFxRates } from "@/hooks/useFxRates";
-import { cryptoFreshnessLabel, exchangeFreshnessLabel, latestQuoteTime, metalUpdatedPhrase } from "@/lib/market-freshness";
+import { cryptoFreshnessLabel, exchangeFreshnessLabel, latestQuoteTime, metalUpdatedPhrase, tapeUpdatedPhrase, type TapeVenue } from "@/lib/market-freshness";
 import { cryptoVenueForLabel } from "@/lib/crypto-price-chain";
 import { priceBadge } from "@/lib/price-confidence";
 import { PriceConfidenceBadge } from "@/components/PriceConfidenceBadge";
@@ -45,6 +45,12 @@ function formatAsOf(iso: string | null | undefined): string {
   return wall === "—" ? "" : wall;
 }
 
+function tapeVenue(symbol: string): TapeVenue {
+  if (symbol.endsWith(".NZ")) return "NZX";
+  if (symbol.endsWith(".AX")) return "ASX";
+  return "CRYPTO";
+}
+
 function TickerCell({
   q,
   price,
@@ -62,13 +68,16 @@ function TickerCell({
   const flat = hasChange && Number(q.change.toFixed(2)) === 0;
   const up = hasChange && !flat && q.change > 0;
   const asOf = formatAsOf(q.quotedAt);
-  const badge = priceBadge({
-    source: q.provider || source,
-    delay,
-    quotedAt: q.quotedAt ? new Date(q.quotedAt) : null,
-    refreshOk: failedRefreshes === 0,
-    failedRefreshes,
-  });
+  const badge = {
+    ...priceBadge({
+      source: q.provider || source,
+      delay,
+      quotedAt: q.quotedAt ? new Date(q.quotedAt) : null,
+      refreshOk: failedRefreshes === 0,
+      failedRefreshes,
+    }),
+    updated: tapeUpdatedPhrase(q.quotedAt, tapeVenue(q.symbol)),
+  };
   return (
     <span className="inline-flex items-center gap-2 px-4 py-0.5 whitespace-nowrap">
       <PriceConfidenceBadge badge={badge} />
@@ -342,8 +351,12 @@ export function MarketTicker({ className, compact = false, initial = null, initi
 
   if (!loaded) {
     return (
-      <div className={cn("w-full border-y border-emerald-500/20 bg-zinc-950", className)}>
-        <p className="px-4 py-1.5 text-[0.72rem] text-muted-foreground">A price shows here after the feed returns a figure.</p>
+      <div
+        className={cn("w-full border-y border-emerald-500/20 bg-zinc-950", className)}
+        aria-busy="true"
+        aria-label="Market prices"
+      >
+        <div className="h-8 animate-pulse bg-zinc-900" />
       </div>
     );
   }

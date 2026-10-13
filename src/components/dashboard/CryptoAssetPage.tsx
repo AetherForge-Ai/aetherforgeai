@@ -4,7 +4,12 @@ import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { ArrowLeft, Bitcoin } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { CoinDetailView } from "@/components/dashboard/crypto/CoinDetailView";
+import dynamic from "next/dynamic";
+
+const CoinDetailView = dynamic(
+  () => import("@/components/dashboard/crypto/CoinDetailView").then((mod) => mod.CoinDetailView),
+  { ssr: false, loading: () => <p className="p-6 text-sm text-muted-foreground">Loading the chart…</p> }
+);
 import type { CoinDetail } from "@/lib/crypto-market";
 import { marketsTabHref, unavailableTokenLabel } from "@/lib/market-detail-routes";
 import { openRecordTransaction } from "@/lib/open-transaction";

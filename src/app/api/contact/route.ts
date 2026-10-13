@@ -1,5 +1,13 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import {
+  clientIp,
+  CONTACT_LIMIT,
+  honeypotFilled,
+  PUBLIC_INPUT_CAP,
+  RATE_WINDOW_MS,
+  takeRateLimit,
+} from "@/lib/ip-rate-limit";
 import { totalumSdk } from "@/lib/totalum";
 
 /**
@@ -11,8 +19,12 @@ import { totalumSdk } from "@/lib/totalum";
 const contactSchema = z.object({
   name: z.string().trim().min(1, "Please tell us your name").max(120),
   email: z.string().trim().email("Please enter a valid email address").max(160),
-  message: z.string().trim().min(1, "Please write a short message").max(5000),
+  message: z.string().trim().min(1, "Please write a short message").max(PUBLIC_INPUT_CAP),
+  website: z.string().max(200).optional(),
 });
+
+const CONTACT_LIMIT_MESSAGE =
+  "That is enough messages from this network for now. Email admin@aetherforgeai.co.nz if it is urgent.";
 
 export async function POST(req: Request) {
   try {
@@ -24,7 +36,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: firstError }, { status: 400 });
     }
 
-    const { name, email, message } = parsed.data;
+    const { name, email, message, website } = parsed.data;
+    const limit = takeRateLimit(`contact:${clientIp(req)}`, CONTACT_LIMIT, RATE_WINDOW_MS);
+    if (!limit.allowed) {
+      return NextResponse.json({ ok: false, error: CONTACT_LIMIT_MESSAGE }, { status: 429 });
+    }
+    if (honeypotFilled(website)) {
+      console.log("[api/contact] Honeypot filled. Message was not stored.");
+      return NextResponse.json({ ok: true, data: { accepted: true } });
+    }
 
     const record = {
       name,
