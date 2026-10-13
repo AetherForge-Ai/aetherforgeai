@@ -10,6 +10,7 @@ import "server-only";
  * Strategist chat endpoint share exactly the same portfolio picture.
  */
 
+import { formatDisplayDate } from "@/lib/currency";
 import { totalumSdk } from "@/lib/totalum";
 import { getMetalsSpot } from "@/lib/metals";
 import { getFxSnapshot } from "@/lib/fx";
@@ -198,15 +199,65 @@ export async function loadHeadmasterIllustratedPath(userId: string): Promise<Ill
   }
 }
 
+async function recentHeadmasterTrades(userId: string): Promise<{
+  trades: { whenLabel: string; type: string; ticker: string; amountNZD: number | null }[] | null;
+  tradesReason?: string;
+}> {
+  try {
+    const res = await totalumSdk.crud.query("transaction", {
+      _filter: { user: userId },
+      _sort: { createdAt: "desc" },
+      _limit: 5,
+    });
+    const rows = (res?.data as Array<Record<string, unknown>> | undefined) || [];
+    return {
+      trades: rows.map((row) => {
+        const when = formatDisplayDate(String(row.trade_date || row.executed_at || row.createdAt || ""));
+        const cash = Number(row.cash_nzd);
+        const total = Number(row.total);
+        const amount = Number.isFinite(cash) ? cash : Number.isFinite(total) ? total : null;
+        return {
+          whenLabel: when === "—" ? "Date not stored" : when,
+          type: String(row.type || "trade"),
+          ticker: String(row.ticker || ""),
+          amountNZD: amount,
+        };
+      }),
+    };
+  } catch (err) {
+    console.error("[totalum] Recent trades were not read for the Headmaster report:", err);
+    return { trades: null, tradesReason: "The ledger could not be read for this report." };
+  }
+}
+
 /** Persist this report's illustrated path so a later week can measure the miss. */
 export async function saveHeadmasterIllustratedPath(
   userId: string,
   path: IllustratedPathRecord,
-  options?: { holdsCrypto?: boolean }
+  options?: {
+    holdsCrypto?: boolean;
+    synthesis?: {
+      positions: { label: string; assetClass: string; valueNZD: number }[];
+      classAllocation: { label: string; weight: number; valueNZD: number }[];
+      cashBalanceNZD: number;
+      concentrationRisks: { note: string }[];
+    };
+  }
 ): Promise<void> {
-  const { illustratedPathReportText } = await import("@/lib/report-body");
+  const { headmasterReportText, bookBriefFromSynthesis } = await import("@/lib/report-body");
   const holdsCrypto = options?.holdsCrypto === true;
-  const body = illustratedPathReportText(path, { holdsCrypto });
+  const ledger = options?.synthesis ? await recentHeadmasterTrades(userId) : { trades: null as null };
+  const brief = options?.synthesis
+    ? { ...bookBriefFromSynthesis(options.synthesis, ledger.trades, holdsCrypto), tradesReason: ledger.tradesReason }
+    : {
+        holdsCrypto,
+        holdings: null,
+        allocation: null,
+        cashNZD: null,
+        trades: null,
+        risks: null,
+      };
+  const body = headmasterReportText({ path, brief });
   if (!body) return;
   const illustratedPath = holdsCrypto ? { ...path, holdsCrypto: true } : path;
   await totalumSdk.crud.createRecord("report", {
@@ -215,7 +266,7 @@ export async function saveHeadmasterIllustratedPath(
     bot: "headmaster",
     market_label: "Headmaster",
     executive_summary: body,
-    payload: JSON.stringify({ illustratedPath, executiveSummary: body, textBody: body }),
+    payload: JSON.stringify({ illustratedPath, bookBrief: brief, executiveSummary: body, textBody: body }),
     emailed: "no",
     ai_enhanced: "no",
     generated_at: new Date(path.issuedAtMs).toISOString(),

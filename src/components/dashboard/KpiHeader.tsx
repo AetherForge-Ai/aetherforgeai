@@ -63,13 +63,14 @@ export function KpiHeader({
   cashLines: SnapshotCashLine[];
   cashWarning: string | null;
 }) {
+  const [chartOpen, setChartOpen] = useState(true);
   const weights = view ? returnSplitWeights(view.segments) : null;
   const todayMissing = !view || (view.today.display === MISSING_MARK && view.todayPct.display === MISSING_MARK);
   const benchmarkMissing = !view || view.benchmark.display === MISSING_MARK;
   const historyReady = !!view && view.chartReason !== CHART_BLANK_REASON;
   return (
     <section className="mt-6" aria-busy={loading || undefined} data-section="kpi-header">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid min-w-0 grid-cols-2 gap-2 md:gap-3 xl:grid-cols-3">
         <KpiCard label="Net worth" loading={loading}>
           {view ? <FigureReadout figure={view.netWorth} label="Net worth" showReason className="items-start" /> : null}
         </KpiCard>
@@ -90,7 +91,9 @@ export function KpiHeader({
                 <FigureReadout figure={view.totalReturn} label="Total return" signed showReason className="items-start" />
                 <FigureReadout figure={view.percent} label={view.percentLabel} showReason className="items-start" />
               </span>
-              <SplitBar view={view} weights={weights} />
+              <span className="hidden w-full md:block">
+                <SplitBar view={view} weights={weights} />
+              </span>
             </span>
           ) : null}
         </KpiCard>
@@ -206,9 +209,9 @@ export function KpiHeader({
         <p className="mt-3 text-xs text-muted-foreground">Period and benchmark controls appear when a value history is stored.</p>
       )}
 
-      <Collapsible defaultOpen className="mt-3">
+      <Collapsible open={chartOpen} onOpenChange={setChartOpen} className="mt-3" data-chart-open={chartOpen ? "true" : "false"}>
         <CollapsibleTrigger className="inline-flex items-center gap-1 text-sm font-semibold text-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none">
-          <ChevronRight className="size-4" aria-hidden />
+          <ChevronRight className={cn("size-4 transition-transform", chartOpen && "rotate-90")} aria-hidden />
           Chart
         </CollapsibleTrigger>
         <CollapsibleContent className="mt-2 rounded-2xl border border-border/70 bg-card/50 p-4 text-sm text-muted-foreground">
@@ -234,12 +237,12 @@ function KpiCard({
   className?: string;
 }) {
   return (
-    <div className={cn("min-h-[8.75rem] rounded-2xl border border-border/70 bg-card/50 p-4", className)}>
-      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+    <div className={cn("min-w-0 rounded-2xl border border-border/70 bg-card/50 p-3 md:min-h-[8.75rem] md:p-4", className)}>
+      <p className="text-[0.65rem] font-medium uppercase tracking-wide text-muted-foreground md:text-xs">{label}</p>
       {loading ? (
-        <div className="mt-3 h-7 w-24 animate-pulse rounded-md bg-muted/50 motion-reduce:animate-none" />
+        <div className="mt-2 h-6 w-20 animate-pulse rounded-md bg-muted/50 motion-reduce:animate-none md:mt-3 md:h-7 md:w-24" />
       ) : (
-        <div className="mt-2 text-lg font-bold text-foreground">{children}</div>
+        <div className="mt-1 text-base font-bold text-foreground md:mt-2 md:text-lg">{children}</div>
       )}
     </div>
   );

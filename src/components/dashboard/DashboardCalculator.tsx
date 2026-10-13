@@ -140,9 +140,16 @@ export function DashboardCalculator({
   useEffect(() => {
     if (!hydrated) return;
     const params = new URLSearchParams(window.location.search);
-    const landed = window.location.hash === "#dashboard-tabs" || params.has("tab") || params.has("view");
+    const landed = window.location.hash === "#dashboard-tabs" || params.has("tab");
     if (!landed) return;
-    tabsRef.current?.scrollIntoView({ block: "start" });
+    const frame = window.requestAnimationFrame(() => {
+      const el = tabsRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const fullyVisible = rect.top >= 0 && rect.bottom <= window.innerHeight;
+      if (!fullyVisible) el.scrollIntoView({ block: "nearest" });
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [hydrated]);
 
   useEffect(() => {
@@ -236,8 +243,33 @@ export function DashboardCalculator({
     <div data-calculator="portfolio" data-section="dashboard-workspace">
       {error && !snapshot && tab !== "transactions" ? <p className="mt-4 text-sm text-muted-foreground">{error}</p> : null}
       <div className="flex flex-col">
-        {actions ? <div className="order-2 md:order-1">{actions}</div> : null}
-        <div className="order-1 md:order-2">
+        <div
+          id="dashboard-tabs"
+          ref={tabsRef}
+          data-tti="dashboard-tabs"
+          className="order-1 mt-4 flex scroll-mt-24 flex-nowrap gap-1 overflow-x-auto border-b border-border/70 md:order-3"
+          role="tablist"
+          aria-label="Dashboard"
+        >
+          {DASHBOARD_TABS.map((id) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={tab === id}
+              className={
+                tab === id
+                  ? "shrink-0 whitespace-nowrap border-b-2 border-primary px-3 py-2 text-sm font-semibold text-foreground"
+                  : "shrink-0 whitespace-nowrap px-3 py-2 text-sm font-medium text-muted-foreground"
+              }
+              onClick={() => setTab(id)}
+            >
+              {DASHBOARD_TAB_LABEL[id]}
+            </button>
+          ))}
+        </div>
+        {actions ? <div className="order-3 md:order-1">{actions}</div> : null}
+        <div className="order-2 md:order-2">
       <KpiHeader
         view={pending ? null : view}
         loading={pending}
@@ -260,31 +292,6 @@ export function DashboardCalculator({
         cashWarning={snapshot?.cashWarning || null}
       />
         </div>
-      </div>
-      <div
-        id="dashboard-tabs"
-        ref={tabsRef}
-        data-tti="dashboard-tabs"
-        className="mt-4 flex scroll-mt-24 flex-nowrap gap-1 overflow-x-auto border-b border-border/70"
-        role="tablist"
-        aria-label="Dashboard"
-      >
-        {DASHBOARD_TABS.map((id) => (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            aria-selected={tab === id}
-            className={
-              tab === id
-                ? "shrink-0 whitespace-nowrap border-b-2 border-primary px-3 py-2 text-sm font-semibold text-foreground"
-                : "shrink-0 whitespace-nowrap px-3 py-2 text-sm font-medium text-muted-foreground"
-            }
-            onClick={() => setTab(id)}
-          >
-            {DASHBOARD_TAB_LABEL[id]}
-          </button>
-        ))}
       </div>
       <div className={showRail ? "mt-4 grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]" : "mt-4 min-w-0"}>
         <div className="min-w-0">

@@ -63,6 +63,7 @@ export async function GET(req: Request) {
       try {
         await saveHeadmasterIllustratedPath(user._id, pathDecision.save, {
           holdsCrypto: book.cryptoNZD > 0,
+          synthesis,
         });
       } catch (saveErr) {
         console.error("[api/totalum/report] Failed to persist the illustrated path (non-fatal):", saveErr);
