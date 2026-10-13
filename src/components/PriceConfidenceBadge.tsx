@@ -15,7 +15,7 @@ export function PriceConfidenceBadge({ badge }: { badge: PriceBadge }) {
     <span className="inline-flex items-center gap-1" title={badge.why || detail}>
       <span className={`inline-block h-1.5 w-1.5 rounded-full ${DOT[badge.tone]}`} aria-hidden="true" />
       <span className="sr-only">
-        {badge.tone}. {detail}
+        {badge.tone === "green" ? "Current" : badge.tone === "amber" ? "Delayed" : "Unavailable"}. {detail}
         {badge.why ? ` ${badge.why}` : ""}
       </span>
     </span>

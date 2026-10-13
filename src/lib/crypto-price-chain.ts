@@ -173,6 +173,9 @@ export function withLastGoodPrices(tab: PublicPriceTab): PublicPriceTab {
  * with a last-good label. Never invent a zero row.
  */
 export function choosePublicPriceTab(fresh: PublicPriceTab, last: PublicPriceTab | null): PublicPriceTab {
+  if (fresh.asOf.trim().toLowerCase().startsWith("prices paused")) {
+    return { ...fresh, rows: [] };
+  }
   const live = fresh.rows.filter((row) => rowHasVisiblePrice(row));
   if (live.length) return { ...fresh, rows: live };
   if (last && last.rows.some((row) => rowHasVisiblePrice(row))) return withLastGoodPrices(last);

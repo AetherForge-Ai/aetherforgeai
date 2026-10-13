@@ -7,13 +7,14 @@ import type { PublicMarketIndex } from "@/lib/public-market-types";
  * JavaScript still contains the rows.
  */
 export function PublicMarketTables({ index }: { index: PublicMarketIndex }) {
+  const tabs = index.tabs.filter((tab) => tab.id === "CRYPTO" || tab.id === "DEX");
   return (
     <section className="mt-8 space-y-6" aria-label="Listed prices">
-      <h2 className="font-display text-lg font-bold">First page of each list</h2>
+      <h2 className="font-display text-lg font-bold">First page of the crypto lists</h2>
       <p className="text-sm text-muted-foreground">
         These rows are in the page itself. Crypto and DEX keep the last price that passed the check, with the time it was quoted. A stock price cell names its source and time, or says the print is not in this response.
       </p>
-      {index.tabs.map((tab) => {
+      {tabs.map((tab) => {
         const cryptoLines = publicCryptoTableLines(tab);
         const cryptoTab = tab.id === "CRYPTO" || tab.id === "DEX";
         return (
@@ -46,6 +47,9 @@ export function PublicMarketTables({ index }: { index: PublicMarketIndex }) {
                   <th className="py-2 pr-3">Name</th>
                   <th className="py-2 pr-3">Price</th>
                   <th className="py-2 pr-3">Change</th>
+                  {cryptoTab ? <th className="py-2 pr-3">1h</th> : null}
+                  {cryptoTab ? <th className="py-2 pr-3">7d</th> : null}
+                  {cryptoTab ? <th className="py-2 pr-3">Supply</th> : null}
                   {cryptoTab ? <th className="py-2 pr-3">{tab.id === "DEX" ? "Chain" : "Blockchain"}</th> : null}
                   {tab.id === "DEX" ? <th className="py-2 pr-3">DEX</th> : null}
                   <th className="py-2">Source</th>
@@ -62,6 +66,9 @@ export function PublicMarketTables({ index }: { index: PublicMarketIndex }) {
                     <td className="py-1.5 pr-3">{row.name}</td>
                     <td className="py-1.5 pr-3 tnum">{row.price || "Not in this response"}</td>
                     <td className="py-1.5 pr-3 tnum">{row.change || "change not stated"}</td>
+                    {cryptoTab ? <td className="py-1.5 pr-3 tnum" title={row.change1h === "—" ? "The feed did not send a 1-hour change." : undefined}>{row.change1h || "—"}</td> : null}
+                    {cryptoTab ? <td className="py-1.5 pr-3 tnum" title={row.change7d === "—" ? "The feed did not send a 7-day change." : undefined}>{row.change7d || "—"}</td> : null}
+                    {cryptoTab ? <td className="py-1.5 pr-3 tnum" title={row.supply === "—" ? "The feed did not send circulating supply." : undefined}>{row.supply || "—"}</td> : null}
                     {cryptoTab ? <td className="py-1.5 pr-3">{row.blockchain || "—"}</td> : null}
                     {tab.id === "DEX" ? <td className="py-1.5 pr-3">{row.dex || "—"}</td> : null}
                     <td className="py-1.5 text-muted-foreground">

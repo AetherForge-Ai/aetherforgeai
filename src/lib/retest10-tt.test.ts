@@ -112,6 +112,34 @@ describe("Testing Technician r3", () => {
     expect(ranked[0].underReview.map((row) => row.ticker)).toContain("GXH.NZ");
   });
 
+  it("drops RLC from the 7-day list when it is under review on 30 days, and refills to 10", () => {
+    const ranked = withholdAcrossWindows([
+      {
+        window: "Last 7 days",
+        movers: [
+          { ticker: "RLC", marketsMatched: true },
+          ...Array.from({ length: 12 }, (_, index) => ({ ticker: `C${index}` })),
+        ],
+        underReview: [],
+        withheldCount: 0,
+        reviewNote: null,
+      },
+      {
+        window: "Last 30 days",
+        movers: [{ ticker: "ADA" }, { ticker: "RLC", marketsMatched: true }],
+        underReview: [{ ticker: "RLC" }],
+        withheldCount: 1,
+        reviewNote: "1 print under review",
+      },
+    ]);
+    expect(ranked[0].movers.map((row) => row.ticker)).not.toContain("RLC");
+    expect(ranked[0].movers).toHaveLength(10);
+    expect(ranked[0].movers[0]?.ticker).toBe("C0");
+    expect(ranked[0].underReview.map((row) => row.ticker)).toContain("RLC");
+    expect(ranked[1].movers.map((row) => row.ticker)).toEqual(["ADA"]);
+    expect(ranked[1].underReview.map((row) => row.ticker)).toContain("RLC");
+  });
+
   it("names top gainers from the filtered list and does not pin a projection at 45", () => {
     const rows = [
       candidate("RSR", 58.76),
@@ -229,6 +257,7 @@ describe("Testing Technician r3", () => {
 
   it("reads the stored notice for the public source line and does not seed a confirm price", () => {
     const page = readFileSync("src/lib/public-market-index.ts", "utf8");
+    expect(page).toContain("fmtCompactNum(coin.circulatingSupply)");
     expect(page).toContain("page.notice");
     expect(page).toContain("page.sources[0]");
     expect(page).not.toContain('source: "geckoterminal"');

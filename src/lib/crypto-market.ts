@@ -10,7 +10,7 @@
  * the whole surface.
  */
 
-import { adaptiveFractionDigits, formatDisplayDate } from "@/lib/currency";
+import { adaptiveFractionDigits, formatDisplayDate, formatDisplayDateTime } from "@/lib/currency";
 import { listedMarketNotice } from "@/lib/crypto-coverage";
 import { coinDisplayName } from "@/lib/crypto-names";
 
@@ -535,8 +535,10 @@ export function formatMarketChangePercent(value: number): string {
   const abs = Math.abs(value);
   if (abs === 0) return "0.00";
   let text = abs.toFixed(2);
+  // |x| < 0.005 rounds to 0.00 at 2dp. Two significant figures, with no 4dp cap, so this never prints 0.0000.
   if (Number(text) === 0) {
-    text = abs.toFixed(Math.min(8, Math.max(4, adaptiveFractionDigits(abs)))).replace(/(\.\d*?[1-9])0+$/, "$1");
+    const decimals = Math.max(2, -Math.floor(Math.log10(abs)) + 1);
+    text = abs.toFixed(decimals);
   }
   return text;
 }
@@ -562,6 +564,18 @@ export function fmtCompactNum(n: number | null | undefined): string {
 export const PRICE_STALE_MS = 24 * 60 * 60 * 1000;
 
 /** A price older than 24 hours is not shown as a live print. */
+export const PRICE_LABEL_STALE_MS = 15 * 60 * 1000;
+
+/** A label when the quote is older than 15 minutes. The price itself stays on the page. */
+export function quoteStaleLabel(quotedAt: string | null | undefined, now = Date.now()): string | null {
+  const at = Date.parse(quotedAt || "");
+  if (!Number.isFinite(at)) return null;
+  if (now - at <= PRICE_LABEL_STALE_MS) return null;
+  const wall = formatDisplayDateTime(quotedAt);
+  if (!wall || wall === "—") return "This price is more than 15 minutes old.";
+  return `Price as at ${wall} (NZ) is more than 15 minutes old.`;
+}
+
 export function stalePriceReason(quotedAt: string | null | undefined, now = Date.now()): string | null {
   const at = Date.parse(quotedAt || "");
   if (!Number.isFinite(at)) return null;

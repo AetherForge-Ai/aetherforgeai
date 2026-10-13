@@ -346,6 +346,13 @@ export function pricesAsAtLabel(
   return snapshotIsStale(iso, now, staleMs) ? `${base} The feed is delayed.` : base;
 }
 
+/** Shown instead of table rows when the saved DEX list is older than 30 minutes. */
+export function pricesPausedSince(iso: string | null | undefined): string {
+  const wall = iso ? formatDisplayDateTime(iso) : "";
+  if (!wall || wall === "—") return "Prices paused. No snapshot time is stored.";
+  return `Prices paused since ${wall} (NZ).`;
+}
+
 export function koinsUnavailableLine(iso: string | null | undefined): string {
   const wall = iso ? formatDisplayDateTime(iso) : "";
   const when = wall && wall !== "—" ? wall : "not stored";

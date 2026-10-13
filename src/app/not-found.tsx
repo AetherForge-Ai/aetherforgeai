@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { SiteHeader } from "@/components/SiteHeader";
 import { Button } from "@/components/ui/button";
 import { pageTitle } from "@/lib/page-title";
 
@@ -16,9 +17,11 @@ export const metadata: Metadata = {
 
 export default function NotFound() {
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
+    <div className="chrome-dark min-h-screen bg-background">
+      <SiteHeader />
+      <div className="content-light mx-auto my-8 flex max-w-lg items-center justify-center rounded-2xl px-4 py-16">
       <div className="text-center">
-        <h1 className="text-6xl font-bold text-gray-900 dark:text-gray-100">404</h1>
+        <h1 className="font-display text-6xl font-bold">404</h1>
         <h2 className="mt-2 text-3xl font-semibold text-gray-800 dark:text-gray-200">
           Page not found
         </h2>
@@ -32,6 +35,7 @@ export default function NotFound() {
             </Button>
           </Link>
         </div>
+      </div>
       </div>
     </div>
   );

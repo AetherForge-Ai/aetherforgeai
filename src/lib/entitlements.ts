@@ -454,8 +454,9 @@ export function formatAgeAgo(msAgo: number): string {
 /** Compact remaining wait, e.g. "4h", "35m", "2h 10m". */
 export function formatWaitShort(ms: number): string {
   if (ms <= 0) return "now";
+  if (ms < 60_000) return `${Math.max(1, Math.ceil(ms / 1000))}s`;
   const totalMin = Math.floor(ms / 60000);
-  if (totalMin < 60) return `${Math.max(1, totalMin)}m`;
+  if (totalMin < 60) return `${totalMin}m`;
   const hours = Math.floor(totalMin / 60);
   const mins = totalMin % 60;
   if (hours < 48) return mins ? `${hours}h ${mins}m` : `${hours}h`;

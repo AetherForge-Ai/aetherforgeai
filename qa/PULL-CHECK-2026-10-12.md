@@ -654,3 +654,5 @@ Retest 14 / TT r7 (#356): marker `pull-check:v3-retest14-2026-10-13`
 Retest 15 / synthetic-data removal (#357): marker `pull-check:v3-retest15-2026-10-13`
 
 Dashboard phase 2 (PR4+PR5, #361): marker `pull-check:v3-dash-phase2-2026-10-13`
+
+Retest 16 / QA r8 (#364): marker `pull-check:v3-retest16-2026-10-13`

@@ -446,21 +446,21 @@ export function buildSynthesis(input: SynthesisInput): TotalumSynthesis {
   );
   const investedPositions = positions.filter((p) => p.assetClass !== "cash");
   const uninvestedBook = investedPositions.length === 0 && totalValueNZD > 0;
-  const concentrationLabel = uninvestedBook
-    ? "Not yet invested"
-    : hhi >= 4000
-      ? "Highly Concentrated"
-      : hhi >= 2000
-        ? "Concentrated"
-        : hhi >= 1200
-          ? "Moderate"
-          : "Well Diversified";
 
   // Diversification score: reward multiple classes + low HHI.
   const classCount = classAllocation.length;
   const hhiScore = clamp(100 - (hhi - 1000) / 60, 0, 100);
   const classScore = clamp((classCount / 4) * 100, 0, 100);
   const diversificationScore = round(clamp(0.65 * hhiScore + 0.35 * classScore, 0, 100), 0);
+  const concentrationLabel = uninvestedBook
+    ? "Not yet invested"
+    : diversificationScore >= 75
+      ? "Well Diversified"
+      : diversificationScore >= 50
+        ? "Moderate"
+        : diversificationScore >= 25
+          ? "Concentrated"
+          : "Highly Concentrated";
 
   // Concentration risks — single names >25% and asset classes >70%.
   // An all-cash book is not invested, so it gets one note instead of two 100% lines.

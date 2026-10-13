@@ -75,9 +75,13 @@ export default async function BillingSettingsPage() {
               page.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
+              {snapshot.planName === "Apex Dual" ? (
+                <p className="text-sm text-muted-foreground">This account is on Apex Dual.</p>
+              ) : (
               <Button asChild>
                 <Link href={snapshot.upgradeHref}>Compare plans</Link>
               </Button>
+              )}
               {portal ? <BillingPortalButton /> : null}
             </div>
           </section>
