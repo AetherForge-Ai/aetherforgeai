@@ -312,8 +312,8 @@ describe("pull-check:v3-retest9-2026-10-12", () => {
     expect(read("src/components/public/KoinsSnapshotPrices.tsx")).toContain("readSharedCryptoBoard");
     const copy = stoxReviewCopy();
     expect(copy).toContain("under review");
-    expect(copy).toContain("MAH.AX");
-    expect(copy).toContain("rating TRIM: momentum negative");
+    expect(copy).toContain("EXAMPLE.NZ");
+    expect(copy).not.toMatch(/\bTRIM\b/);
     expect(read("src/app/stox/page.tsx")).toContain("StoxReviewNotice");
     expect(read("src/components/public/StoxReviewNotice.tsx")).toContain("stoxReviewCopy");
     expect(read("src/components/bots/ApexReport.tsx")).not.toContain("stoxReviewCopy");
