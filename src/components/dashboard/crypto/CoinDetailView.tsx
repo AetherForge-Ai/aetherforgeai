@@ -58,6 +58,7 @@ import {
   type CoinDetail,
   type CoinChart,
   plausibleVolume24h,
+  dailyAxisTicks,
 } from "@/lib/crypto-market";
 
 /** Slice a chart series to the visible window for the sub-day ranges. */
@@ -477,6 +478,11 @@ export function CoinDetailView({
                   return wall.replace(/ \d{4}$/, "");
                 }}
                 minTickGap={48}
+                ticks={
+                  range === "1H" || range === "24H"
+                    ? undefined
+                    : dailyAxisTicks(chartData[0]?.t ?? NaN, chartData[chartData.length - 1]?.t ?? NaN)
+                }
               />
               <YAxis
                 domain={["auto", "auto"]}

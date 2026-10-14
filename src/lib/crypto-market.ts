@@ -512,7 +512,7 @@ export function fmtPrice(n: number | null | undefined): string {
   const abs = Math.abs(n);
   const maximumFractionDigits = abs >= 1 ? 2 : adaptiveFractionDigits(abs);
   const minimumFractionDigits = abs >= 1 ? 2 : Math.min(2, maximumFractionDigits);
-  return new Intl.NumberFormat("en-US", {
+  return new Intl.NumberFormat("en-NZ", {
     style: "currency",
     currency: "USD",
     minimumFractionDigits,
@@ -805,4 +805,19 @@ export function selectCoins(
   });
 
   return sorted;
+}
+
+/**
+ * X-axis ticks for multi-day charts: one tick per whole day (stepped so at most `maxTicks`),
+ * so the axis never prints the same date twice ("9 Oct 9 Oct 10 Oct").
+ */
+export function dailyAxisTicks(minT: number, maxT: number, maxTicks = 6): number[] {
+  if (!Number.isFinite(minT) || !Number.isFinite(maxT) || maxT <= minT) return [];
+  const DAY = 86_400_000;
+  const days = Math.max(1, Math.ceil((maxT - minT) / DAY));
+  const step = Math.max(1, Math.ceil(days / maxTicks)) * DAY;
+  const first = Math.ceil(minT / DAY) * DAY;
+  const ticks: number[] = [];
+  for (let t = first; t <= maxT; t += step) ticks.push(t);
+  return ticks;
 }
