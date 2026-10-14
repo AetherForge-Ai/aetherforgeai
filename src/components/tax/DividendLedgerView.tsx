@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -25,6 +26,8 @@ import {
   buildDividendRecord,
   dividendIncome,
   expectedDividend,
+  findDuplicateDividend,
+  mergeDividendRows,
   summariseDividends,
   type DividendView,
   type ExpectedDividend,
@@ -62,8 +65,9 @@ export function DividendLedgerView({
   const router = useRouter();
   const [listed, setListed] = useState(rows);
   useEffect(() => {
-    setListed(rows);
+    setListed((current) => mergeDividendRows(rows, current));
   }, [rows]);
+  const [confirmDuplicate, setConfirmDuplicate] = useState(false);
   const totals = useMemo(() => summariseDividends(listed), [listed]);
   const income = useMemo(() => dividendIncome(listed), [listed]);
   const [expected, setExpected] = useState<ExpectedDividend[]>([]);
@@ -123,6 +127,20 @@ export function DividendLedgerView({
       setMessage(preview && preview.ok === false ? preview.message : "Choose a holding and enter the gross dividend.");
       return;
     }
+    const duplicate = findDuplicateDividend(listed, {
+      ticker: selected.ticker,
+      when: date,
+      grossNative: preview.parts.grossNative,
+      cashNzd: preview.parts.netCashNzd,
+    });
+    if (duplicate && !confirmDuplicate) {
+      setConfirmDuplicate(true);
+      const warning = `A ${selected.ticker} dividend for this date and amount is already recorded. Select "Record dividend" again to record a second one.`;
+      setMessage(warning);
+      toast.warning(warning);
+      return;
+    }
+    setConfirmDuplicate(false);
     setSaving(true);
     setMessage("");
     try {
@@ -167,6 +185,7 @@ export function DividendLedgerView({
         ...current,
       ]);
       setMessage("Dividend recorded.");
+      toast.success(`Dividend recorded: ${selected.ticker} ${formatNzd(preview.parts.netCashNzd)}`);
       router.refresh();
     } finally {
       setSaving(false);
