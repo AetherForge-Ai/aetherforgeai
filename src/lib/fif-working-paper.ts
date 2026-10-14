@@ -26,7 +26,7 @@ export const FIF_SOURCES = [
   },
   {
     href: "https://www.taxtechnical.ird.govt.nz/new-legislation/act-articles/taxation-international-investment-and-remedial-matters-act-2012/applying-the-fif-rules/exemption-for-natural-persons-with-less-than-50-000-of-fif-interests",
-    label: "Inland Revenue Tax Technical — exemption under $50,000 (section CQ 5)",
+    label: "Inland Revenue Tax Technical — exemption under NZ$50,000 (section CQ 5)",
   },
   {
     href: "https://www.taxtechnical.ird.govt.nz/technical-decision-summaries/2026/tds-26-01",
@@ -44,10 +44,10 @@ export const FIF_ASSUMPTIONS = [
   "A ticker ending in .AX is included in the NZ$50,000 cost total. Australian-exempt companies can be left out by the member when they are on the ASX list Inland Revenue names, are Australian resident and not treated as resident elsewhere under a treaty, maintain a franking account, and the stock is not stapled. This book cannot check those conditions.",
   "Crypto and metals are left out. This paper does not treat them as shares in a foreign company.",
   "Other share tickers are treated as attributing interests for this paper.",
-  "Cost is quantity times price times the exchange rate stored on the buy, in NZ$. A foreign buy with no stored rate is not given a guessed rate, and the $50,000 test is then not calculated.",
+  "Cost is quantity times price times the exchange rate stored on the buy, in NZ$. A foreign buy with no stored rate is not given a guessed rate, and the NZ$50,000 test is then not calculated.",
   "NZ$ figures round half-up to the cent. 0.4 × 599.89 is NZ$239.96. A booked cash figure one cent away does not replace that result.",
-  "The $50,000 test uses the highest total cost of attributing lots open at any point in the income year, including lots still open on 1 April. It is cost, not market value.",
-  "Exactly NZ$50,000.00 is reported as at the limit. The public exemptions page says the de minimis exemption is for attributing interests that cost less than NZ$50,000. The Tax Technical article on section CQ 5 says FIF income arises when the total cost at any time in the income year is more than $50,000. This paper does not choose which sentence applies at exactly NZ$50,000.00.",
+  "The NZ$50,000 test uses the highest total cost of attributing lots open at any point in the income year, including lots still open on 1 April. It is cost, not market value.",
+  "Exactly NZ$50,000.00 is reported as at the limit. The public exemptions page says the de minimis exemption is for attributing interests that cost less than NZ$50,000. The Tax Technical article on section CQ 5 says FIF income arises when the total cost at any time in the income year is more than NZ$50,000. This paper does not choose which sentence applies at exactly NZ$50,000.00.",
   "Fair dividend rate shown here is 5% of the opening market value you entered. TDS 26/01 describes the formula as (0.05 × opening value) + quick sale adjustment. This paper does not calculate a quick sale adjustment.",
   "Comparative value is (closing market value + gains) − (opening market value + costs), the formula TDS 23/13 quotes from section EX 51. Gains are dividend gross in NZ$ plus sale proceeds in NZ$ during the year. Costs are the NZ$ cost of shares bought during the year. Fees are not added. A dividend without a stored gross is not included.",
   "Opening and closing market values are figures you enter for the position. A live price is not used as the 1 April or 31 March value.",
@@ -218,7 +218,7 @@ export function fifThresholdSentence(paper: Pick<FifPaper, "peakCostNzd" | "thre
     return "No attributing overseas shares on this book.";
   }
   if (paper.threshold === "unknown" || paper.peakCostNzd == null) {
-    return "The $50,000 cost test is not calculated because a foreign attributing buy has no stored exchange rate.";
+    return "The NZ$50,000 cost test is not calculated because a foreign attributing buy has no stored exchange rate.";
   }
   const cost = formatNzd(paper.peakCostNzd);
   if (paper.threshold === "under") {

@@ -481,7 +481,8 @@ export function formatReportCooldownLine(opts: {
   const last = opts.lastReportAt ? new Date(opts.lastReportAt).getTime() : NaN;
   if (!opts.lastReportAt || Number.isNaN(last)) return "Ready to run";
   const ago = formatAgeAgo(now - last);
-  const windowLabel = opts.perLabel ? ` · ${opts.perLabel}` : "";
+  // "per month" on its own read as an unfinished line; a monthly allowance is shown by the quota line instead.
+  const windowLabel = !opts.perLabel || opts.perLabel === "per month" ? "" : ` · one report ${opts.perLabel}`;
   if (opts.waitMs <= 0) return `Generated ${ago} · ready to refresh${windowLabel}`;
   return `Generated ${ago} · next refresh in ${formatWaitShort(opts.waitMs)}${windowLabel}`;
 }

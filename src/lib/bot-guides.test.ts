@@ -23,7 +23,7 @@ describe("bot guides", () => {
     expect(blob).not.toMatch(/\b(SuperGrok|Grok|xAI|Claude|Gemini|GPT-\d|ZENITH|ULTRA)\b/);
     expect(blob).not.toMatch(/\breal-time\b|\bofficial\b/i);
     expect(blob).toContain("Example. Not a member book.");
-    expect(blob).toContain("EXAMPLE.NZ");
+    expect(read("src/lib/bot-guides.ts")).toContain("EXAMPLE.NZ");
 
     for (const rel of ["src/app/stox/page.tsx", "src/app/koins/page.tsx", "src/app/smitty/page.tsx", "src/app/headmaster/page.tsx"]) {
       const page = read(rel);

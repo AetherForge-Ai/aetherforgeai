@@ -33,6 +33,9 @@ const GROUPS: Group[] = [
       { label: "Multi-timeframe charts & top gainers", cells: ["Basic", true, true, true] },
       { label: "Data export (CSV)", cells: [false, true, true, true] },
       { label: "CSV import of holdings", cells: [true, true, true, true] },
+      { label: "Price alerts and watchlist markers", cells: [false, true, true, true] },
+      { label: "Allocation drift", cells: [false, true, true, true] },
+      { label: "Informational signals beyond basic P/L", cells: [false, true, true, true] },
     ],
   },
   {
@@ -46,7 +49,7 @@ const GROUPS: Group[] = [
   {
     title: "AI Reports & Analysis",
     rows: [
-      { label: "AI Research Reports per month", cells: ["3", "15", "Unlimited", "Unlimited"] },
+      { label: "AI Research Reports per month", cells: ["3", "15", "Unlimited (1 per bot every 4 h)", "Unlimited (1 per bot every 4 h)"] },
       { label: "Strategy generation & simulation", cells: [false, "Basic", true, true] },
       { label: "Risk & stress testing", cells: [false, false, true, true] },
       { label: "Illustrative pathway scenarios", cells: ["Limited", true, true, true] },
@@ -113,8 +116,8 @@ export function FeatureComparison() {
                 >
                   {c}
                   {c === "Pro" && (
-                    <span className="ml-1.5 rounded-full bg-primary/15 px-2 py-0.5 text-[0.58rem] font-bold uppercase text-primary">
-                      Recommended
+                    <span className="mx-auto mt-1 block w-fit rounded-full bg-primary/15 px-2 py-0.5 text-[0.58rem] font-bold uppercase text-primary">
+                      <span className="sr-only"> </span>Recommended
                     </span>
                   )}
                 </th>

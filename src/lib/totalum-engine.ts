@@ -404,7 +404,7 @@ export function buildSynthesis(input: SynthesisInput): TotalumSynthesis {
   if (cashBalanceNZD > 0) {
     positions.push({
       key: "cash_nzd",
-      label: "Cash (NZD)",
+      label: "Cash (NZ$)",
       sublabel: "Transaction ledger",
       assetClass: "cash",
       valueNZD: cashBalanceNZD,
@@ -473,7 +473,7 @@ export function buildSynthesis(input: SynthesisInput): TotalumSynthesis {
   if (uninvestedBook) {
     const cash = positions.find((p) => p.assetClass === "cash");
     concentrationRisks.push({
-      label: cash?.label ?? "Cash (NZD)",
+      label: cash?.label ?? "Cash (NZ$)",
       weight: cash?.weight ?? 100,
       note: "Not yet invested. Cash is the whole book, so this is not a concentration score.",
       severity: "medium",

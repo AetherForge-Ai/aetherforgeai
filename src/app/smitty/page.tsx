@@ -13,6 +13,7 @@ export default function SmittyPage() {
       title="Smitty"
       lede="Smitty tracks gold and silver spot prices and holdings. Smitty is not a fourth AI bot and does not run a report."
       body={BOT_GUIDES.smitty}
+      kind="smitty"
       images={[
         { src: "/brand/bot-smitty.png", alt: "Illustration of the Smitty character" },
         { src: "/brand/bot-smitty-fullbody.png", alt: "Full-length illustration of the Smitty character" },

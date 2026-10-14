@@ -1158,7 +1158,7 @@ function buildPathwayPlan(
         bot === "crypto"
           ? "Rotate proceeds into large-cap majors (BTC/ETH) and hold a stablecoin buffer."
           : "Rotate proceeds into utilities / healthcare names with RSI in the 40–60 band.",
-        "Use the shared cash reserve on this report: the dollar amount and the 10% cap, the same cash rule as the Headmaster skeleton.",
+        "Use the shared cash reserve on this report: the dollar amount and the 10% cap, the same cash rule used across your reports.",
       ],
       recommended: recommendedName === "Capital Preservation",
     },

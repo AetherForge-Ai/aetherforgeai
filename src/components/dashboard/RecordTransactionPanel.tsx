@@ -448,6 +448,13 @@ export function RecordTransactionPanel({
     });
   }
 
+  // Clear a stale "Enter a price" problem once a price arrives (typed or auto-filled).
+  useEffect(() => {
+    if (Number(price) > 0) {
+      setProblems((prev) => (prev.includes("Enter a price to review this trade.") ? prev.filter((p) => p !== "Enter a price to review this trade.") : prev));
+    }
+  }, [price]);
+
   async function review() {
     if (!beginReviewGuard() || saving || checkingCash) return;
     if ((kind === "buy" || kind === "sell") && showQty && !(Number(price) > 0)) {
@@ -679,7 +686,7 @@ export function RecordTransactionPanel({
             <ReviewRow label="Asset" value={preview.assetName && preview.assetName !== preview.asset ? `${preview.asset} · ${preview.assetName}` : preview.asset} />
           ) : null}
           <ReviewRow label="Date" value={formatDisplayDate(preview.date)} />
-          {showQty ? <ReviewRow label="Quantity" value={formatQuantity(preview.quantity)} /> : null}
+          {showQty ? <ReviewRow label={asset?.assetType === "metal" ? "Ounces" : "Quantity"} value={formatQuantity(preview.quantity)} /> : null}
           <ReviewRow
             label={showQty ? "Price" : "Amount"}
             value={formatMoneyWithNzd(preview.priceNative, preview.currency, preview.priceNzd)}

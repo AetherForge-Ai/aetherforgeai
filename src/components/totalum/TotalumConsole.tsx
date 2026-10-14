@@ -134,11 +134,11 @@ function LockedUpsell() {
         <div className="mt-8 flex flex-col items-start gap-3 sm:flex-row sm:items-center">
           <Button asChild size="lg" className="font-semibold">
             <Link href="/pricing">
-              <Lock className="mr-1.5 size-4" /> Unlock The Headmaster with Pro
+              <Lock className="mr-1.5 size-4" /> See plans with The Headmaster
             </Link>
           </Button>
           <p className="text-xs text-muted-foreground">
-            Included free with any active paid AetherForge membership.
+            Starter includes a basic Headmaster. Pro and Ultimate include the full Headmaster.
           </p>
         </div>
       </div>

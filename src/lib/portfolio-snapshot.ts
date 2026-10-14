@@ -1894,3 +1894,29 @@ export function paintConfirmedSnapshot(
   }
   return next;
 }
+
+/**
+ * A return as a percent of the cost base, e.g. total return ÷ cost base.
+ * Blank (with a reason) when either figure is missing or the cost base is not positive.
+ */
+export function returnPercentFigure(
+  numerator: SnapshotFigure,
+  costBase: SnapshotFigure,
+  formula: string,
+  source: string,
+  asOf: string
+): SnapshotFigure {
+  const n = numerator.value;
+  const d = costBase.value;
+  if (n == null || d == null || !(d > 0)) {
+    const reason = d != null && !(d > 0) ? "The cost base is zero, so a percent cannot be worked out." : "A figure needed for this percent is missing.";
+    return percentFigure(null, reason, blankMaths(formula, reason, source, asOf));
+  }
+  return percentFigure(n / d, null, {
+    formula,
+    inputs: [numerator.display, costBase.display],
+    arithmetic: `${numerator.display} ÷ ${costBase.display}`,
+    source,
+    asOf,
+  });
+}

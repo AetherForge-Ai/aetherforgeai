@@ -46,6 +46,9 @@ export interface StockBoardRow {
   quotedAt: string | null;
   asOf: string;
   quoted: boolean;
+  /** Session range from the same quote, or null when the vendor did not send it. */
+  dayHigh: number | null;
+  dayLow: number | null;
 }
 
 export interface StockBoardPage {
@@ -104,9 +107,9 @@ function venue(board: StockBoard): EquityVenue {
 }
 
 function rowAsOf(iso: string | null): string {
-  if (!iso) return "as of not stated by the vendor";
+  if (!iso) return "time not given by the data provider";
   const wall = formatDisplayDateTime(iso);
-  return wall === "—" ? "as of not stated by the vendor" : `as of ${wall}`;
+  return wall === "—" ? "time not given by the data provider" : `as of ${wall}`;
 }
 
 function currencyFor(ticker: string, board?: StockBoard | null): "NZD" | "AUD" | "USD" {
@@ -128,6 +131,8 @@ async function fetchYahoo(tickers: string[]): Promise<Record<string, EquityPrint
       changePct: quote.changePct,
       quotedAt: quote.quotedAt ?? null,
       source: "Yahoo Finance",
+      dayHigh: quote.dayHigh ?? null,
+      dayLow: quote.dayLow ?? null,
     };
   }
   return out;
@@ -317,6 +322,8 @@ function toRow(
     quotedAt: quoted ? print!.quotedAt : null,
     asOf: rowAsOf(quoted ? print!.quotedAt : null),
     quoted,
+    dayHigh: quoted && print!.dayHigh && print!.dayHigh > 0 ? print!.dayHigh : null,
+    dayLow: quoted && print!.dayLow && print!.dayLow > 0 ? print!.dayLow : null,
   };
 }
 

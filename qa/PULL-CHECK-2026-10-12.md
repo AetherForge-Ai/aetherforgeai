@@ -666,3 +666,5 @@ Dashboard phase 3 — critique fixes (#370): marker `pull-check:v3-dash-phase3-2
 Dashboard phase 4 — retest fixes: marker `pull-check:v3-dash-phase4-2026-10-14`
 
 r11 — site-wide retest fixes (#374): marker `pull-check:v3-r11-2026-10-14`
+
+TT fresh audit 2026-10-14 fixes (U1–U5, H1–H11, M1–M16, LOW): marker `pull-check:v3-tt-fresh-2026-10-15`

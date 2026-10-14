@@ -171,7 +171,7 @@ export function PricingCards({
 
         {/* Single-bot selector — applies to Starter checkout only */}
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span className="hidden sm:inline">Free and Starter use:</span>
+          <span className="hidden sm:inline">Free and Starter include one bot. Choose yours:</span>
           <div className="inline-flex items-center rounded-full border border-border/60 bg-card/50 p-0.5">
             <button
               onClick={() => setBot("stock")}

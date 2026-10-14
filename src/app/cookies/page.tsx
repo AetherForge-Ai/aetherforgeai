@@ -42,9 +42,11 @@ export default function CookiesPage() {
           that tag, so those cookies are not set by this site.
         </p>
         <p>
+          For how we use the data these cookies collect, see our{" "}
           <Link href="/privacy-policy" className="text-primary hover:underline">
             Privacy Policy
           </Link>
+          .
         </p>
       </LegalSection>
     </LegalShell>

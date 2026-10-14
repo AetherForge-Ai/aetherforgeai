@@ -23,6 +23,9 @@ export const CUSTOMER_EMAIL = "admin@aetherforgeai.co.nz";
 /** Privacy Officer, privacy requests, and the Lukas contact. */
 export const PRIVACY_OFFICER_EMAIL = "lukas@aetherforgeai.co.nz";
 
+/** The one address shown on /contact, next to the form (Lukas, 15 Oct 2026). No postal address is published. */
+export const CONTACT_PAGE_EMAIL = PRIVACY_OFFICER_EMAIL;
+
 /** Both public contact addresses. Footer, About, Terms, Privacy and Trust show both. */
 export const PUBLIC_CONTACT_EMAILS = [CUSTOMER_EMAIL, PRIVACY_OFFICER_EMAIL] as const;
 
@@ -114,7 +117,7 @@ export const AI_REQUEST_LINES = [
   "The Headmaster chat can send your question, and recent messages in that chat. It can send the total value, the total cost, the profit or loss, the cash balance, the cash weight, the retained-cash target, the illustrated cash reallocation, and the working that produces that reallocation. It can send each asset class with its weight, its value in NZ$ and its position count, the top eight positions with name, asset class, weight, value and profit or loss, concentration-risk notes, stress-test impacts in NZ$ and percent, and the bull, base and bear scenario pathways. When the book is invested it can send the diversification score and HHI. It can send a calculated yearly return and volatility for the mix. It can send the latest Stox and Koins findings, and the Headmaster ideas block. Names outside the book are included only when you ask for a watchlist.",
   "A ticker note can send the ticker, the question you typed, and the quote used for that note. If you leave the question blank, the request still includes a short default question.",
   "A weekly projections email, when that email is enabled, can send the market-wide indicative 7-day projections already on the projections page: the ticker, the name, the market, the indicative percent, and the as-of label. It does not send a person's holdings, values, cash, profit or loss, or allocation. It does not send the email address. It does not use a report allowance. One note is written for the week and reused for each recipient.",
-  "The request does not include a card number. The code that sends the request does not set a retention period.",
+  "The request does not include a card number. We do not set a retention period on these requests. The AI provider's own terms apply.",
 ] as const;
 
 /**
@@ -202,7 +205,11 @@ export const AI_SENT_CATEGORIES = {
 } as const satisfies Record<string, readonly string[]>;
 
 function marketProcessors(): { name: string; role: string }[] {
-  const rows: { name: string; role: string }[] = [{ name: "CoinGecko", role: "crypto prices" }];
+  const rows: { name: string; role: string }[] = [
+    { name: "CoinGecko", role: "crypto prices" },
+    { name: "CoinCap", role: "crypto prices" },
+    { name: "Binance", role: "public crypto price tickers" },
+  ];
   if (swyftxPublicDisplay()) {
     rows.push({ name: "Swyftx", role: "crypto prices when that feed is shown" });
   }
@@ -210,7 +217,8 @@ function marketProcessors(): { name: string; role: string }[] {
     { name: "Kraken", role: "crypto prices" },
     { name: "Coinbase", role: "crypto prices" },
     { name: "Yahoo Finance", role: "prices for NZX-listed, ASX-listed and US shares, and mapped crypto quotes" },
-    { name: "GeckoTerminal", role: "DEX token prices" }
+    { name: "GeckoTerminal", role: "DEX token prices" },
+    { name: "DexPaprika", role: "DEX token prices" }
   );
   if (dexscreenerPublicDisplay()) {
     rows.push({ name: "DexScreener", role: "DEX token prices when that feed is shown" });

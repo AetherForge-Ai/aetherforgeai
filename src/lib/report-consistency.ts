@@ -199,7 +199,7 @@ export function rewriteLegacyCashIllustration(text: string, figures?: LiveCashFi
   const replacement =
     figures && figures.cashNZD > 0
       ? liveCashRuleSentence(figures.cashNZD, figures.bookNZD)
-      : "Use the live cash balance and the shared cash-reserve cap — the same cash rule as the Headmaster skeleton.";
+      : "Use the live cash balance and the shared cash-reserve cap — the same cash rule used across your reports.";
   const collapsed: string[] = [];
   for (const sentence of splitSentences(text)) {
     const next = LEGACY_CASH_ILLUSTRATION.test(sentence) ? replacement : sentence;

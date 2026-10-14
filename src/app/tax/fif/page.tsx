@@ -112,6 +112,7 @@ export default async function FifPage({
                 exportName="FIF CSV"
               />
               <CsvExportButton
+              primary={false}
                 href={`/api/tax/pack/pdf?paper=fif&year=${endingYear}`}
                 allowed={canExportCsv(user.subscription_plan)}
                 exportName="FIF PDF"
@@ -135,7 +136,7 @@ export default async function FifPage({
         ) : (
           <>
             <p className="mt-6 text-sm text-muted-foreground">{COST_METHOD_LABEL}</p>
-            <h2 className="mt-8 font-display text-lg font-semibold">$50,000 cost test</h2>
+            <h2 className="mt-8 font-display text-lg font-semibold">NZ$50,000 cost test</h2>
             <p className="mt-2 text-sm text-muted-foreground">{fifThresholdSentence(paper)}</p>
 
             <h2 className="mt-8 font-display text-lg font-semibold">Attributing interests</h2>

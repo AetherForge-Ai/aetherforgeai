@@ -237,7 +237,7 @@ function Row({ coin, top, onClick }: { coin: CoinMarket; top: number; onClick: (
       <span className="tnum text-xs text-muted-foreground">{coin.rank}</span>
       <span className="flex min-w-0 items-center gap-2 text-left">
         <img
-          src={coin.image}
+          src={coin.image || GENERIC_COIN_ICON}
           alt=""
           className="size-6 shrink-0 rounded-full"
           loading="lazy"

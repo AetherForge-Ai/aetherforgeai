@@ -1,5 +1,6 @@
 import { CRYPTO_VENDORS } from "@/lib/crypto-vendors";
 import { catalogTickerPaths } from "@/lib/stock-catalog";
+import { isJunkCoin } from "@/lib/coin-junk";
 
 /**
  * Ticker pages that render a name from the stock catalog or a mapped crypto id.
@@ -8,7 +9,7 @@ import { catalogTickerPaths } from "@/lib/stock-catalog";
 export function publicTickerPaths(): string[] {
   const paths = new Set<string>(catalogTickerPaths());
   for (const vendor of Object.values(CRYPTO_VENDORS)) {
-    if (!vendor.coingecko) continue;
+    if (!vendor.coingecko || isJunkCoin(vendor.coingecko)) continue;
     paths.add(`/markets/crypto/${encodeURIComponent(vendor.coingecko)}`);
   }
   return [...paths];

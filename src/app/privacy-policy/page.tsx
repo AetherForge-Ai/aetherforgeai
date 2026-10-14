@@ -142,7 +142,7 @@ export default function PrivacyPolicy() {
           {listedProcessors()
             .map((processor) => processor.name)
             .join(", ")}
-          . DEX prices in that list come from GeckoTerminal. {AI_PROVIDER_NAME} is in the USA.
+          . DEX prices in that list come from GeckoTerminal and DexPaprika. {AI_PROVIDER_NAME} is in the USA.
           Google Analytics runs only after you accept analytics cookies. Where we disclose
           personal information overseas, we take reasonable steps to ensure it is protected by
           comparable safeguards to those under the Privacy Act 2020, or we rely on an exception

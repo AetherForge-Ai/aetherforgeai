@@ -57,6 +57,8 @@ import {
   type ChartRange,
   type CoinDetail,
   type CoinChart,
+  plausibleVolume24h,
+  dailyAxisTicks,
 } from "@/lib/crypto-market";
 
 /** Slice a chart series to the visible window for the sub-day ranges. */
@@ -91,6 +93,7 @@ export function CoinDetailView({
   variant = "page",
   quotedLine = null,
   initialDetail = null,
+  serverHeading = false,
 }: {
   coinId: string | null;
   /** False while a dialog is closed so it does not fetch in the background. */
@@ -109,6 +112,8 @@ export function CoinDetailView({
   quotedLine?: string | null;
   /** Server snapshot so 1h, 7d and supply are in the first HTML. */
   initialDetail?: CoinDetail | null;
+  /** The server page already printed the h1, so this card uses a plain heading. */
+  serverHeading?: boolean;
 }) {
   const signedIn = signedInProp ?? variant === "dialog";
   const slug = resolvableCoinId(coinId);
@@ -116,6 +121,7 @@ export function CoinDetailView({
   const gradientId = useId().replace(/:/g, "");
 
   const [detail, setDetail] = useState<CoinDetail | null>(initialDetail);
+  const HeadingTag = serverHeading ? "h2" : "h1";
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -299,23 +305,23 @@ export function CoinDetailView({
           {quotedLine}
         </DialogTitle>
       ) : (
-        <h1 className="font-display text-xl font-semibold" data-ticker-quote>
+        <HeadingTag className="font-display text-xl font-semibold" data-ticker-quote>
           {quotedLine}
-        </h1>
+        </HeadingTag>
       )}
     </div>
   ) : !detail && shownError && !loading ? (
     variant === "dialog" ? (
       <DialogTitle className="font-display text-xl">Crypto</DialogTitle>
     ) : (
-      <h1 className="font-display text-xl font-semibold">Crypto</h1>
+      <HeadingTag className="font-display text-xl font-semibold">Crypto</HeadingTag>
     )
   ) : loading || !detail ? (
     <div className="flex items-center gap-3">
       {variant === "dialog" ? (
         <DialogTitle className="sr-only">Loading coin</DialogTitle>
       ) : (
-        <h1 className="sr-only">Crypto</h1>
+        <HeadingTag className="sr-only">Crypto</HeadingTag>
       )}
       <Skeleton className="size-9 rounded-full" />
       <div className="space-y-1.5">
@@ -328,7 +334,7 @@ export function CoinDetailView({
       <div className="flex items-center gap-3">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={detail.image}
+          src={detail.image || GENERIC_COIN_ICON}
           alt=""
           className="size-9 rounded-full"
           onError={(e) => {
@@ -350,7 +356,7 @@ export function CoinDetailView({
               ) : null}
             </DialogTitle>
           ) : (
-            <h1 className="flex items-center gap-2 font-display text-xl font-semibold">
+            <HeadingTag className="flex items-center gap-2 font-display text-xl font-semibold">
               {detail.name}
               <span className="text-sm font-semibold text-muted-foreground">({detail.symbol})</span>
               {detail.rank ? (
@@ -358,14 +364,14 @@ export function CoinDetailView({
                   Rank #{detail.rank}
                 </span>
               ) : null}
-            </h1>
+            </HeadingTag>
           )}
           {variant === "dialog" ? (
             <DialogDescription className="sr-only">
-              Live market data and price chart for {detail.name}
+              {stalePriceReason(detail.quotedAt) ? "Delayed market data" : "Market data"} and price chart for {detail.name}
             </DialogDescription>
           ) : (
-            <p className="sr-only">Live market data and price chart for {detail.name}</p>
+            <p className="sr-only">{stalePriceReason(detail.quotedAt) ? "Delayed market data" : "Market data"} and price chart for {detail.name}</p>
           )}
         </div>
       </div>
@@ -472,6 +478,11 @@ export function CoinDetailView({
                   return wall.replace(/ \d{4}$/, "");
                 }}
                 minTickGap={48}
+                ticks={
+                  range === "1H" || range === "24H"
+                    ? undefined
+                    : dailyAxisTicks(chartData[0]?.t ?? NaN, chartData[chartData.length - 1]?.t ?? NaN)
+                }
               />
               <YAxis
                 domain={["auto", "auto"]}
@@ -511,7 +522,7 @@ export function CoinDetailView({
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {(detail.marketCap ?? 0) > 0 ? <Metric label="Market Cap" value={fmtCompactUsd(detail.marketCap)} /> : null}
             {(detail.fdv ?? 0) > 0 ? <Metric label="Fully Diluted Val" value={fmtCompactUsd(detail.fdv)} /> : null}
-            {(detail.volume24h ?? 0) > 0 ? <Metric label="24h Volume" value={fmtCompactUsd(detail.volume24h)} /> : null}
+            {plausibleVolume24h(detail.volume24h, detail.marketCap) != null ? <Metric label="24h Volume" value={fmtCompactUsd(detail.volume24h)} /> : null}
             {(detail.circulatingSupply ?? 0) > 0 ? (
               <Metric
                 label="Circulating"

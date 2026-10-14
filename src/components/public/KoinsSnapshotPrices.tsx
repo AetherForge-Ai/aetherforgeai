@@ -52,11 +52,11 @@ export async function KoinsSnapshotPrices() {
               <tr key={coin.symbol} className="border-b border-border/40">
                 <td className="py-2">
                   <span className="font-semibold">{coin.symbol}</span>
-                  <span className="ml-2 text-muted-foreground">{coin.name}</span>
+                  {" "}<span className="ml-1 text-muted-foreground">{coin.name}</span>
                 </td>
                 <td className="py-2 text-right">{formatMoney(coin.price, "USD")}</td>
                 <td className="py-2 text-right">
-                  {coin.change24h == null || !Number.isFinite(coin.change24h) ? "—" : `${coin.change24h.toFixed(2)}%`}
+                  {coin.change24h == null || !Number.isFinite(coin.change24h) ? "—" : `${coin.change24h > 0 ? "+" : ""}${coin.change24h.toFixed(2)}%`}
                 </td>
               </tr>
             ))}

@@ -77,6 +77,42 @@ const EX_LABEL: Record<Exchange, string> = {
 
 const volFmt = new Intl.NumberFormat("en-NZ", { notation: "compact", maximumFractionDigits: 1 });
 
+/**
+ * Key statistics with a value. A figure the feed did not send is left out rather than shown as "—";
+ * a 52-week print far from the current price is treated as a bad print and left out too.
+ */
+export function statRows(
+  q: {
+    price?: number | null;
+    open?: number | null;
+    prevClose?: number | null;
+    dayHigh?: number | null;
+    dayLow?: number | null;
+    fiftyTwoWeekHigh?: number | null;
+    fiftyTwoWeekLow?: number | null;
+    volume?: number | null;
+    marketCap?: number | null;
+  },
+  currency: string
+): { label: string; value: string }[] {
+  const price = q.price && q.price > 0 ? q.price : null;
+  const ok = (v: number | null | undefined): v is number => typeof v === "number" && Number.isFinite(v) && v > 0;
+  const sane = (v: number | null | undefined) => ok(v) && (price == null || (v >= price * 0.2 && v <= price * 5));
+  const money = (v: number) => formatMarketPrice(v, currency as "NZD" | "AUD" | "USD");
+  const rows: { label: string; value: string }[] = [];
+  if (ok(q.open)) rows.push({ label: "Open", value: money(q.open) });
+  if (ok(q.prevClose)) rows.push({ label: "Prev close", value: money(q.prevClose) });
+  if (ok(q.dayHigh)) rows.push({ label: "Day high", value: money(q.dayHigh) });
+  if (ok(q.dayLow)) rows.push({ label: "Day low", value: money(q.dayLow) });
+  if (sane(q.fiftyTwoWeekHigh) && sane(q.fiftyTwoWeekLow)) {
+    rows.push({ label: "52-wk high", value: money(q.fiftyTwoWeekHigh as number) });
+    rows.push({ label: "52-wk low", value: money(q.fiftyTwoWeekLow as number) });
+  }
+  if (ok(q.volume)) rows.push({ label: "Volume", value: volFmt.format(q.volume) });
+  if (ok(q.marketCap)) rows.push({ label: "Market cap", value: fmtCap(q.marketCap, currency) });
+  return rows;
+}
+
 function fmtCap(v: number | null, currency: string): string {
   if (!v || v <= 0) return "—";
   const sym = currency === "USD" ? "$" : currency === "AUD" ? "A$" : "NZ$";
@@ -165,7 +201,7 @@ export function StockDetailView({
 
   useEffect(() => {
     if (variant !== "page" || !active) return;
-    const label = data?.name || target?.name || target?.symbol;
+    const label = target?.name || data?.name || target?.symbol;
     const symbol = target?.symbol || data?.symbol;
     if (!label || !symbol) return;
     const prev = document.title;
@@ -176,7 +212,8 @@ export function StockDetailView({
   }, [variant, active, data, target]);
 
   const currency = data?.currency ?? target?.currency ?? "USD";
-  const name = data?.name ?? target?.name ?? target?.symbol ?? "";
+  // The listing name wins so the page shows one company name (the h1 uses the listing too).
+  const name = target?.name || data?.name || target?.symbol || "";
   const symbol = target?.symbol ?? data?.symbol ?? "";
   const exLabel = target?.exchange ? EX_LABEL[target.exchange] : data?.exchangeLabel ?? "";
   const shownError = unavailable || (active && !target) ? STOCK_DETAIL_UNAVAILABLE : error;
@@ -312,14 +349,9 @@ export function StockDetailView({
       <div className="mt-4">
         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Key statistics</p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          <Stat label="Open" value={q.open ? formatMarketPrice(q.open, currency) : "—"} />
-          <Stat label="Prev close" value={formatMarketPrice(q.prevClose, currency)} />
-          <Stat label="Day high" value={q.dayHigh ? formatMarketPrice(q.dayHigh, currency) : "—"} />
-          <Stat label="Day low" value={q.dayLow ? formatMarketPrice(q.dayLow, currency) : "—"} />
-          <Stat label="52-wk high" value={q.fiftyTwoWeekHigh ? formatMarketPrice(q.fiftyTwoWeekHigh, currency) : "—"} />
-          <Stat label="52-wk low" value={q.fiftyTwoWeekLow ? formatMarketPrice(q.fiftyTwoWeekLow, currency) : "—"} />
-          <Stat label="Volume" value={q.volume ? volFmt.format(q.volume) : "—"} />
-          <Stat label="Market cap" value={fmtCap(q.marketCap, currency)} />
+          {statRows(q, currency).map((row) => (
+            <Stat key={row.label} label={row.label} value={row.value} />
+          ))}
           <Stat label="Currency" value={currency} />
         </div>
       </div>

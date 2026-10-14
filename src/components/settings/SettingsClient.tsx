@@ -1,5 +1,7 @@
 "use client";
 
+import { isFreeReportPlan } from "@/lib/entitlements";
+import { freePlanLine } from "@/lib/free-bot-choice";
 import { useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
@@ -139,6 +141,7 @@ export function SettingsClient({
   const [savingPassword, setSavingPassword] = useState(false);
 
   const isActive = user.subscription_status === "active";
+  const onFreePlan = isFreeReportPlan(user.subscription_plan);
   const currentPlan = planByKey(user.subscription_plan);
   // Rank plans by price so we can label each option as an upgrade or a change.
   const currentPrice = currentPlan?.price ?? 0;
@@ -448,9 +451,11 @@ export function SettingsClient({
               {isActive ? <Crown className="size-5" /> : <Sparkles className="size-5" />}
             </span>
             <div>
-              <p className="font-semibold">{isActive ? planLabel(user.subscription_plan) : "Free account"}</p>
+              <p className="font-semibold">{isActive && !onFreePlan ? planLabel(user.subscription_plan) : "Free plan"}</p>
               <p className="text-sm text-muted-foreground">
-                {isActive ? `${botAccessLabel(user.bot_access)} · active` : "You're on the free plan."}
+                {isActive && !onFreePlan
+                  ? `${botAccessLabel(user.bot_access)} · active`
+                  : freePlanLine(user.bot_access)}
               </p>
             </div>
           </div>
@@ -462,11 +467,11 @@ export function SettingsClient({
                 : "bg-muted text-muted-foreground"
             )}
           >
-            {isActive ? "Active" : (user.subscription_status || "none").toUpperCase()}
+            {isActive && !onFreePlan ? "Active" : "Free"}
           </span>
         </div>
 
-        {isActive && (
+        {isActive && !onFreePlan && (
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
             <div className="rounded-xl border border-border/60 bg-background/30 px-4 py-3">
               <p className="text-xs text-muted-foreground">Purchased</p>
