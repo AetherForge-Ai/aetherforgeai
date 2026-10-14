@@ -154,7 +154,8 @@ describe("crypto price chain", () => {
     const index = readFileSync("src/lib/public-market-index.ts", "utf8");
     expect(page).toContain("PublicCryptoPrices");
     expect(page).not.toContain("Price not in this response");
-    expect(tables).toContain("publicCryptoTableLines");
+    // r11: the raw price lines above the table are gone, and so is the dead call.
+    expect(tables).not.toContain("publicCryptoTableLines");
     expect(tables).toContain("No earlier price is stored.");
     expect(index).toContain("choosePublicPriceTab");
   });

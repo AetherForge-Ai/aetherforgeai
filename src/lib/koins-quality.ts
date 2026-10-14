@@ -5,7 +5,7 @@
  * pull-check:v3-tier1a-2026-10-12
  */
 
-import type { ApexReport, MoverRow, ProjectionRow } from "@/lib/apex";
+import { withholdAcrossWindows, type ApexReport, type MoverRow, type ProjectionRow } from "@/lib/apex";
 import { sessionGainerSentence } from "@/lib/report-copy";
 import { reviewSessionMove } from "@/lib/quote-review";
 import { KOINS_PROJECTIONS_OMITTED } from "@/lib/projection-pause";
@@ -252,7 +252,7 @@ export function applyKoinsSweeps(report: ApexReport, board: KoinsBoardState, now
       if (!open) {
         return { window: slot.window, movers: [], underReview: [], withheldCount: 0, reviewNote: unavailable };
       }
-      const ranked = rankGainers(board.candidates, slot.key);
+      const ranked = rankGainers(board.candidates, slot.key, 40);
       if (ranked.gained === 0) {
         return {
           window: slot.window,
@@ -272,6 +272,7 @@ export function applyKoinsSweeps(report: ApexReport, board: KoinsBoardState, now
         reviewNote: notes.join(" "),
       };
     });
+    group.windows = withholdAcrossWindows(group.windows);
   }
   report.projectionLeaders = [];
   report.koinsUnavailableNote = forced || stale ? unavailable : KOINS_PROJECTIONS_OMITTED;

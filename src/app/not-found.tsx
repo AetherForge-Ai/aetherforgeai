@@ -19,13 +19,13 @@ export default function NotFound() {
   return (
     <div className="chrome-dark min-h-screen bg-background">
       <SiteHeader />
-      <div className="content-light mx-auto my-8 flex max-w-lg items-center justify-center rounded-2xl px-4 py-16">
+      <div className="content-light mx-auto my-8 flex max-w-lg items-center justify-center rounded-2xl bg-background px-4 py-16 text-foreground">
       <div className="text-center">
-        <h1 className="font-display text-6xl font-bold">404</h1>
-        <h2 className="mt-2 text-3xl font-semibold text-gray-800 dark:text-gray-200">
+        <h1 className="font-display text-6xl font-bold text-foreground">404</h1>
+        <h2 className="mt-2 text-3xl font-semibold text-foreground">
           Page not found
         </h2>
-        <p className="mt-4 text-gray-600 dark:text-gray-400 max-w-md mx-auto">
+        <p className="mx-auto mt-4 max-w-md text-muted-foreground">
           Sorry, we couldn't find the page you're looking for. Please check the URL or navigate back to the homepage.
         </p>
         <div className="mt-8">

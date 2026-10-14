@@ -22,7 +22,7 @@ const LINKS = [
 export function SiteFooter() {
   const year = new Date().getFullYear();
   return (
-    <footer className="border-t border-border/60 bg-background pb-24" aria-label="Footer">
+    <footer className="chrome-dark border-t border-border/60 bg-background pb-24 text-foreground" aria-label="Footer">
       <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-8 sm:px-6 lg:px-8">
         <nav className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground" aria-label="Legal">
           {LINKS.map((item) => (

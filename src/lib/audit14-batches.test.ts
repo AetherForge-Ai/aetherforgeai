@@ -116,7 +116,9 @@ describe("audit 14 Oct batches A–D", () => {
     expect(sparklinePoints([1])).toBeNull();
     expect(sparklinePoints([1, 2])).toContain(",");
     expect(headlinesForSymbol([{ headline: "Fletcher Building rises", summary: "" }], "FBU.NZ")).toEqual([]);
-    expect(headlinesForSymbol([{ headline: "FBU updates guidance", summary: "" }], "FBU")).toEqual(["FBU updates guidance"]);
+    // r11: a ticker counts only in ticker form (FBU.NZ, NZX:FBU, (FBU)).
+    expect(headlinesForSymbol([{ headline: "FBU updates guidance", summary: "" }], "FBU")).toEqual([]);
+    expect(headlinesForSymbol([{ headline: "FBU.NZ updates guidance", summary: "" }], "FBU")).toEqual(["FBU.NZ updates guidance"]);
     expect(NEWS_MISSING.startsWith("—")).toBe(true);
     expect(read("src/app/markets/stock/[ticker]/page.tsx")).toContain("StockPublicFacts");
     expect(read("src/lib/public-market-types.ts")).toContain("PUBLIC_SEED_ROWS = 25");

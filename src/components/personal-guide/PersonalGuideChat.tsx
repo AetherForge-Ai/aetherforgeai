@@ -107,9 +107,10 @@ export function PersonalGuideChat({
           {
             role: "assistant",
             content:
+              json.error ||
               "Sorry — I hiccuped there. Try again, or [start free](" +
-              PERSONAL_GUIDE_SIGNUP_URL +
-              ") while I catch my breath.",
+                PERSONAL_GUIDE_SIGNUP_URL +
+                ") while I catch my breath.",
           },
         ]);
       }

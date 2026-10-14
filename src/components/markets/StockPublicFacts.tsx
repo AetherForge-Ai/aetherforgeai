@@ -2,7 +2,7 @@ import { fiftyTwoWeekLine, headlinesForSymbol, NEWS_MISSING, sectorLine, sparkli
 import { loadMarketNews } from "@/lib/market-news";
 import { fetchYahooHistories, fetchYahooQuote, yahooEquitySymbol } from "@/lib/yahoo-finance";
 
-const WAIT_MS = 1200;
+const WAIT_MS = 800;
 
 async function within<T>(work: Promise<T>, fallback: T): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -27,10 +27,12 @@ export async function StockPublicFacts({
   ticker,
   symbol,
   sector,
+  companyName = "",
 }: {
   ticker: string;
   symbol: string;
   sector: string;
+  companyName?: string;
 }) {
   const ySymbol = yahooEquitySymbol(ticker);
   const [quote, history, news] = await Promise.all([
@@ -41,10 +43,10 @@ export async function StockPublicFacts({
   const closes = history[ticker] ?? [];
   const points = sparklinePoints(closes);
   const range = fiftyTwoWeekLine(quote?.fiftyTwoWeekLow, quote?.fiftyTwoWeekHigh, quote?.currency);
-  const headlines = headlinesForSymbol(news, symbol || ticker);
+  const headlines = headlinesForSymbol(news, symbol || ticker, companyName);
 
   return (
-    <section className="mx-auto w-full max-w-6xl space-y-3 px-4 sm:px-6 lg:px-8" aria-label="Listing facts">
+    <section className="space-y-3 rounded-2xl border border-border/70 bg-card p-4 text-foreground shadow-sm" aria-label="Listing facts">
       <p className="text-sm text-muted-foreground">
         <span className="font-semibold text-foreground">Sector: </span>
         {sectorLine(sector)}

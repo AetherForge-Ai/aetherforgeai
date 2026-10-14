@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
   CONTACT_LIMIT,
+  CONTACT_WINDOW_MS,
   honeypotFilled,
   PUBLIC_INPUT_CAP,
   RATE_LIMIT_ADDRESS_REQUIRED,
-  RATE_WINDOW_MS,
+  rateLimitHeaders,
   rateLimitIdentity,
   takeRateLimit,
 } from "@/lib/ip-rate-limit";
@@ -30,14 +31,6 @@ const CONTACT_LIMIT_MESSAGE =
 export async function POST(req: Request) {
   try {
     const body = (await req.json().catch(() => ({}))) as unknown;
-    const parsed = contactSchema.safeParse(body);
-    if (!parsed.success) {
-      const firstError = parsed.error.issues[0]?.message || "Invalid submission";
-      console.warn("[api/contact] Validation failed:", firstError);
-      return NextResponse.json({ ok: false, error: firstError }, { status: 400 });
-    }
-
-    const { name, email, message, website } = parsed.data;
     const identity = rateLimitIdentity(req);
     if (!identity.ok) {
       return NextResponse.json({ ok: false, error: RATE_LIMIT_ADDRESS_REQUIRED }, { status: 400 });
@@ -45,14 +38,28 @@ export async function POST(req: Request) {
     const limit = await takeRateLimit(
       `contact:${encodeURIComponent(identity.ip)}`,
       CONTACT_LIMIT,
-      RATE_WINDOW_MS
+      CONTACT_WINDOW_MS
     );
     if (!limit.allowed) {
-      return NextResponse.json({ ok: false, error: CONTACT_LIMIT_MESSAGE }, { status: 429 });
+      return NextResponse.json(
+        { ok: false, error: CONTACT_LIMIT_MESSAGE },
+        { status: 429, headers: rateLimitHeaders(limit, true) }
+      );
     }
+    const parsed = contactSchema.safeParse(body);
+    if (!parsed.success) {
+      const firstError = parsed.error.issues[0]?.message || "Invalid submission";
+      console.warn("[api/contact] Validation failed:", firstError);
+      return NextResponse.json(
+        { ok: false, error: firstError },
+        { status: 400, headers: rateLimitHeaders(limit) }
+      );
+    }
+
+    const { name, email, message, website } = parsed.data;
     if (honeypotFilled(website)) {
       console.log("[api/contact] Honeypot filled. Message was not stored.");
-      return NextResponse.json({ ok: true, data: { accepted: true } });
+      return NextResponse.json({ ok: true, data: { accepted: true } }, { headers: rateLimitHeaders(limit) });
     }
 
     const record = {
@@ -66,7 +73,7 @@ export async function POST(req: Request) {
     const result = await totalumSdk.crud.createRecord("contact_message", record);
     console.log(`[api/contact] Stored contact message from ${email} (${name}).`);
 
-    return NextResponse.json({ ok: true, data: result?.data ?? record });
+    return NextResponse.json({ ok: true, data: result?.data ?? record }, { headers: rateLimitHeaders(limit) });
   } catch (err: any) {
     console.error("[api/contact] POST error:", err);
     return NextResponse.json(

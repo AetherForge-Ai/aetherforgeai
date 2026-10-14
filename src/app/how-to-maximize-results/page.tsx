@@ -262,8 +262,8 @@ export default function MaximizeResultsPage() {
               </p>
             </div>
             <Button asChild size="lg" className="shrink-0 font-semibold shadow-glow">
-              <a href="/api/downloads/toolkit">
-                Download template <ArrowRight className="ml-1 size-4" />
+              <a href="/pricing">
+                Yearly plans <ArrowRight className="ml-1 size-4" />
               </a>
             </Button>
           </div>

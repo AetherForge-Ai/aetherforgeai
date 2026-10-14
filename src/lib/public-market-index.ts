@@ -5,7 +5,7 @@ import { choosePublicPriceTab, formatPublicCryptoPrice, sourceLabel } from "@/li
 import { publicSourceAllowed } from "@/lib/swyftx-display";
 import { loadPublicCryptoPrint, noteListedPrices, recallPublicTab, rememberPublicTab } from "@/lib/crypto-price-feed";
 import { loadTop400Markets } from "@/lib/crypto-source";
-import { fmtCompactNum } from "@/lib/crypto-market";
+import { fmtCompactNum, resolveSevenDayChange } from "@/lib/crypto-market";
 import { formatDisplayDateTime, formatSignedPercent, formatUnitPrice } from "@/lib/currency";
 import { PUBLIC_SEED_ROWS, type PublicMarketIndex, type PublicPriceRow, type PublicPriceTab } from "@/lib/public-market-types";
 import { boardCoverage, pageListings } from "@/lib/stock-catalog";
@@ -104,7 +104,18 @@ async function loadEquityTab(board: StockBoard): Promise<PublicPriceTab> {
 async function loadCryptoTab(): Promise<PublicPriceTab> {
   try {
     const page = await loadTop400Markets();
-    const coins = page.coins.filter((coin) => coin.price > 0).slice(0, COIN_PAGE);
+    let coins = page.coins.filter((coin) => coin.price > 0).slice(0, COIN_PAGE);
+    const head = coins.slice(0, DOCUMENT_ROWS);
+    if (head.some((coin) => coin.change1h == null || coin.circulatingSupply == null || resolveSevenDayChange(coin.change7d, coin.sparkline7d) == null)) {
+      try {
+        const { enrichListedCoins } = await import("@/lib/crypto-source");
+        const filled = await within(enrichListedCoins(head), head, 800);
+        const byId = new Map(filled.map((coin) => [coin.id, coin]));
+        coins = coins.map((coin, index) => (index < filled.length ? byId.get(coin.id) ?? coin : coin));
+      } catch {
+        // The saved row stays. A missing figure is an em dash.
+      }
+    }
     const quotedAt = page.at || latestIso(coins.map((coin) => coin.quotedAt)) || new Date().toISOString();
     noteListedPrices(
       coins.map((coin) => ({
@@ -129,7 +140,10 @@ async function loadCryptoTab(): Promise<PublicPriceTab> {
       asOf: asOfLabel(coin.quotedAt || quotedAt),
       blockchain: coin.blockchain || "",
       change1h: coin.change1h == null ? "—" : formatSignedPercent(coin.change1h),
-      change7d: Number.isFinite(coin.change7d) ? formatSignedPercent(coin.change7d) : "—",
+      change7d: (() => {
+        const week = resolveSevenDayChange(coin.change7d, coin.sparkline7d);
+        return week == null ? "—" : formatSignedPercent(week);
+      })(),
       supply: fmtCompactNum(coin.circulatingSupply),
     }));
     const tab = {
@@ -322,12 +336,12 @@ export async function loadPublicMarketIndex(): Promise<PublicMarketIndex> {
 const quoteMemo = new Map<string, { at: number; value: Promise<string | null> }>();
 
 /** One equity ticker page. The saved print is used when both providers fail. */
-export async function loadStockQuoteLine(ticker: string): Promise<string | null> {
+export async function loadStockQuoteLine(ticker: string, waitMs = EQUITY_BUDGET_MS): Promise<string | null> {
   const key = ticker.trim().toUpperCase();
   const now = Date.now();
   const hit = quoteMemo.get(key);
   if (hit && now - hit.at < 5_000) return hit.value;
-  const value = within(loadSavedQuoteLine(key), null, EQUITY_BUDGET_MS);
+  const value = within(loadSavedQuoteLine(key), null, waitMs);
   quoteMemo.set(key, { at: now, value });
   return value;
 }

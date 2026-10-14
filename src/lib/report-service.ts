@@ -487,7 +487,7 @@ export async function generateReportForUser(
     sleeveLabel: "Sleeve",
     prices,
   });
-  delivered.tickers = annotateTickerCalls(delivered.tickers, bookLog, bot);
+  delivered.tickers = annotateTickerCalls(delivered.tickers, bookLog, bot, delivered.directRecommendations ?? []);
   if (bot === "crypto") {
     const lines = koinsCoverageSentences(
       holdings.map((holding) => ({
