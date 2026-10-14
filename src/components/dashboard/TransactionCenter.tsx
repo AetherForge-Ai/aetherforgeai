@@ -106,8 +106,8 @@ type AssetType = "stock" | "crypto" | "metal";
 const BUY_ASSETS: { key: string; label: string; assetType: AssetType; ticker?: string; name?: string }[] = [
   { key: "stock", label: "Stox · Stocks", assetType: "stock" },
   { key: "crypto", label: "Koins · Crypto", assetType: "crypto" },
-  { key: "gold", label: "Gold", assetType: "metal", ticker: "GOLD", name: "Gold bullion" },
-  { key: "silver", label: "Silver", assetType: "metal", ticker: "SILVER", name: "Silver bullion" },
+  { key: "gold", label: "Gold bullion", assetType: "metal", ticker: "GOLD", name: "Gold bullion" },
+  { key: "silver", label: "Silver bullion", assetType: "metal", ticker: "SILVER", name: "Silver bullion" },
 ];
 
 interface TransactionRow {

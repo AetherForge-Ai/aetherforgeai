@@ -1,4 +1,5 @@
 "use client";
+import { RAIL_ASIDE_CLASS, RAIL_GRID_CLASS } from "@/lib/dashboard-rail";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
@@ -293,7 +294,7 @@ export function DashboardCalculator({
       />
         </div>
       </div>
-      <div className={showRail ? "mt-4 grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]" : "mt-4 min-w-0"}>
+      <div className={showRail ? RAIL_GRID_CLASS : "mt-4 min-w-0"}>
         <div className="min-w-0">
           {tab === "holdings" ? (
             <UnifiedHoldingsTable
@@ -333,7 +334,17 @@ export function DashboardCalculator({
           {tab === "insights" ? insights : null}
           {reports ? <div className="mt-6 min-w-0">{reports}</div> : null}
         </div>
-        {showRail ? <aside className="space-y-4">{rail}</aside> : null}
+        {showRail ? (
+          // D6/D7: sticky on xl with its own scroll, clear of the 4rem header and the Guide chip.
+          // D7 (1024–1279): a two-column card grid under the summary, above the holdings.
+          <aside
+            aria-label="Dashboard tools"
+            data-dashboard-rail
+            className={RAIL_ASIDE_CLASS}
+          >
+            {rail}
+          </aside>
+        ) : null}
       </div>
       <HoldingDetailDrawer
         row={detail}

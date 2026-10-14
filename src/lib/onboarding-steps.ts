@@ -21,6 +21,9 @@ export type OnboardingProgress = {
   /** Steps on the card that are ticked, including optional ones. */
   completed: number;
   total: number;
+  /** Required steps only, for the header count (optional steps never block it). */
+  requiredDone: number;
+  requiredTotal: number;
   finished: boolean;
 };
 
@@ -53,6 +56,8 @@ export function onboardingProgress(input: {
     steps,
     completed: steps.filter((step) => step.done).length,
     total: steps.length,
+    requiredDone,
+    requiredTotal: required.length,
     finished: required.length > 0 && requiredDone === required.length,
   };
 }

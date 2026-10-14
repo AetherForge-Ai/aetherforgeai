@@ -66,6 +66,11 @@ function key(hit: AssetHit): string {
   return `${hit.market}:${hit.symbol.toUpperCase()}:${(hit.id || "").toLowerCase()}`;
 }
 
+/** Wrapped, bridged or pegged copies of another asset (WBTC, "Circle Wrapped Bitcoin"). */
+export function isWrappedName(name: string): boolean {
+  return /\b(wrapped|bridged|staked|pegged)\b/i.test(name);
+}
+
 /** Rank matches: exact symbol, then symbol prefix, then name. Pinned names stay available offline. */
 export function searchAssets(query: string, pools: AssetSearchPools = {}): AssetHit[] {
   const q = query.trim().toLowerCase();
@@ -97,7 +102,11 @@ export function searchAssets(query: string, pools: AssetSearchPools = {}): Asset
       const venue =
         hit.market === "DEX" ? 0 : hit.market === "NZX" ? 1 : hit.market === "ASX" ? 2 : hit.market === "Crypto" ? 3 : 4;
       const leveraged = isLeveragedListing(hit.symbol, hit.name) ? 30 : 0;
-      return exact * 10 + venue + leveraged;
+      // A name typed in full ("bitcoin") puts that asset first; wrapped and bridged copies come after it.
+      const name = hit.name.trim().toLowerCase();
+      if (name === q && !isWrappedName(name)) return -10 + venue;
+      const wrapped = isWrappedName(name) ? 25 : 0;
+      return exact * 10 + venue + leveraged + wrapped;
     };
     const diff = rank(a) - rank(b);
     if (diff !== 0) return diff;

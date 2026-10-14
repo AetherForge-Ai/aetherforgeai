@@ -15,7 +15,8 @@ import { useMarketIntel } from "@/components/dashboard/MarketIntelContext";
 import { pctClass, fmtPct } from "@/components/dashboard/intel-ui";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { Star, Plus, X, Loader2 } from "lucide-react";
+import { Plus, X, Loader2 } from "lucide-react";
+import { RailCard } from "@/components/dashboard/rail/RailCard";
 
 interface WatchItem {
   _id: string;
@@ -31,12 +32,17 @@ export function WatchlistPanel({
   preview = false,
   seedTicker = null,
   seedNonce = 0,
+  headerAction,
+  cardId = "dashboard-watchlist",
 }: {
   bot: AssetClass;
   reloadSignal?: number;
   preview?: boolean;
   seedTicker?: string | null;
   seedNonce?: number;
+  /** Control shown in the card header (the Shares / Crypto switch). */
+  headerAction?: React.ReactNode;
+  cardId?: string;
 }) {
   const { universe } = useMarketIntel();
   const [items, setItems] = React.useState<WatchItem[]>([]);
@@ -108,31 +114,27 @@ export function WatchlistPanel({
     }
   }
 
+  const inputId = `watchlist-add-${bot}`;
   return (
-    <section className="rounded-3xl border border-border/70 bg-card/50 p-6">
-      <div className="flex items-center gap-3">
-        <span
-          className="grid size-9 place-items-center rounded-lg"
-          style={{ backgroundColor: "color-mix(in oklab, var(--gold) 15%, transparent)", color: "var(--gold)" }}
-        >
-          <Star className="size-4" />
-        </span>
-        <div>
-          <h2 className="font-display text-lg font-bold">Watchlist</h2>
-          <p className="text-xs text-muted-foreground">
-            Track {bot === "crypto" ? "coins" : "tickers"} you don&apos;t own yet
-          </p>
-        </div>
-      </div>
-
-      <form onSubmit={addTicker} className="mt-4 flex gap-2">
+    <RailCard
+      id={cardId}
+      title="Watchlist"
+      description={`Track ${bot === "crypto" ? "coins" : "tickers"} you don't own yet`}
+      action={headerAction}
+    >
+      <form onSubmit={addTicker} className="flex gap-2">
+        <label htmlFor={inputId} className="sr-only">
+          {bot === "crypto" ? "Add a coin to the watchlist" : "Add a ticker to the watchlist"}
+        </label>
         <Input
-          placeholder={bot === "crypto" ? "Add a coin (e.g. SOL)" : "Add a ticker (e.g. TSLA)"}
+          id={inputId}
+          placeholder={bot === "crypto" ? "Add coin (e.g. SOL)" : "Add ticker (e.g. TSLA)"}
           value={ticker}
           onChange={(e) => setTicker(e.target.value.toUpperCase())}
-          className="uppercase"
+          className="min-w-0 uppercase placeholder:normal-case"
+          autoComplete="off"
         />
-        <Button type="submit" disabled={adding} className="shrink-0 font-semibold">
+        <Button type="submit" disabled={adding} className="shrink-0 bg-[#047857] font-semibold text-white hover:bg-[#065f46]" aria-label="Add to watchlist">
           {adding ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
         </Button>
       </form>
@@ -146,35 +148,29 @@ export function WatchlistPanel({
           </div>
         ) : items.length === 0 ? (
           <p className="rounded-xl border border-dashed border-border/60 p-4 text-center text-sm text-muted-foreground">
-            Nothing tracked yet — add a symbol above to keep an eye on it.
+            Nothing tracked yet. Add a symbol above to keep an eye on it.
           </p>
         ) : (
           <ul className="divide-y divide-border/40">
             {items.map((item) => {
               const intel = intelByTicker.get(item.ticker.toUpperCase());
+              const priced = intel && Number.isFinite(intel.price) && intel.price > 0;
               return (
-                <li key={item._id} className="flex items-center gap-3 py-2.5">
+                <li key={item._id} className="flex items-center gap-3 py-2">
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-display text-sm font-semibold">
-                        {item.ticker.replace(/\.(NZ|AX)$/, "")}
-                      </span>
-                    </div>
-                    <p className="truncate text-[0.68rem] text-muted-foreground">{item.name}</p>
+                    <span className="text-sm font-semibold">{item.ticker.replace(/\.(NZ|AX)$/, "")}</span>
+                    <p className="truncate text-xs text-muted-foreground">{item.name}</p>
                   </div>
-                  {intel ? (
-                    <div className="text-right">
-                      <p className="tnum text-sm font-medium">{formatMarketPrice(intel.price, intel.currency)}</p>
-                      <p className={cn("tnum text-[0.72rem] font-semibold", pctClass(intel.change1d))}>
-                        {fmtPct(intel.change1d)}
-                      </p>
-                    </div>
-                  ) : (
-                    <span className="text-[0.68rem] text-muted-foreground">Tracking</span>
-                  )}
+                  <div className="text-right">
+                    <p className="tnum text-sm font-medium">{priced ? formatMarketPrice(intel!.price, intel!.currency) : "—"}</p>
+                    <p className={cn("tnum text-xs font-semibold", priced ? pctClass(intel!.change1d) : "text-muted-foreground")}>
+                      {priced && Number.isFinite(intel!.change1d) ? `${fmtPct(intel!.change1d)} today` : "No price yet"}
+                    </p>
+                  </div>
                   <button
+                    type="button"
                     onClick={() => removeItem(item)}
-                    className="grid size-7 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/15 hover:text-destructive"
+                    className="grid size-8 shrink-0 place-items-center rounded-lg text-muted-foreground outline-none transition-colors hover:bg-destructive/15 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring"
                     aria-label={`Remove ${item.ticker}`}
                   >
                     <X className="size-4" />
@@ -185,6 +181,6 @@ export function WatchlistPanel({
           </ul>
         )}
       </div>
-    </section>
+    </RailCard>
   );
 }

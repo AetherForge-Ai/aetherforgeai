@@ -47,7 +47,7 @@ function holdingsCap(plan?: string | null, tickerLimit?: number | null): { cap: 
   const limit = resolveTickerLimit({ subscription_plan: plan, ticker_limit: tickerLimit });
   const scope = limitScope(plan);
   const cap = limit >= 100000 ? "unlimited" : scope === "perBot" ? `${limit} per bot` : String(limit);
-  const shared = "This account uses the same holdings cap as the dashboard and profile.";
+  const shared = "Your holdings cap is the same everywhere: dashboard, profile and billing.";
   if (key === "dual_yearly" || key === "apex_dual") {
     return {
       cap,

@@ -1,4 +1,5 @@
 "use client";
+import { holdingsColumnWidth } from "@/lib/holdings-columns";
 
 import { Fragment, useState, type ReactNode } from "react";
 import { ChevronRight, MoreHorizontal } from "lucide-react";
@@ -287,7 +288,7 @@ export function UnifiedHoldingsTable({
             <caption className="sr-only">Holdings from the portfolio snapshot{asOfLabel ? `, ${asOfLabel}` : ""}</caption>
             <colgroup>
               {columns.map((column) => (
-                <col key={column} style={{ width: column === "asset" ? "22%" : column === "actions" ? "14%" : column === "qty" || column === "weight" ? "10%" : "15%" }} />
+                <col key={column} style={{ width: `${holdingsColumnWidth(column, columns)}%` }} />
               ))}
             </colgroup>
             <thead>
@@ -575,3 +576,4 @@ function RowActions({
     </span>
   );
 }
+

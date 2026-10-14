@@ -71,7 +71,7 @@ export function NewsFeed({
                     IMPACT_STYLES[n.impact],
                   )}
                 >
-                  AetherForge tag · {n.impact}
+                  Keyword tone · {n.impact}
                 </span>
                 <span className="text-[0.66rem] tabular-nums text-muted-foreground">{n.time}</span>
               </div>
@@ -118,7 +118,7 @@ export function NewsFeed({
                       IMPACT_STYLES[active.impact],
                     )}
                   >
-                    AetherForge tag · {active.impact}
+                    Keyword tone · {active.impact}
                   </span>
                   <span className="text-xs text-muted-foreground">
                     {active.source} · {active.marketLabel || active.market} · {active.time}
