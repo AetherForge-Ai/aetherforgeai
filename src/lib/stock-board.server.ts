@@ -107,9 +107,9 @@ function venue(board: StockBoard): EquityVenue {
 }
 
 function rowAsOf(iso: string | null): string {
-  if (!iso) return "as of not stated by the vendor";
+  if (!iso) return "time not given by the data provider";
   const wall = formatDisplayDateTime(iso);
-  return wall === "—" ? "as of not stated by the vendor" : `as of ${wall}`;
+  return wall === "—" ? "time not given by the data provider" : `as of ${wall}`;
 }
 
 function currencyFor(ticker: string, board?: StockBoard | null): "NZD" | "AUD" | "USD" {

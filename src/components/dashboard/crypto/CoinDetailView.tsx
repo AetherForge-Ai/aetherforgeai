@@ -92,6 +92,7 @@ export function CoinDetailView({
   variant = "page",
   quotedLine = null,
   initialDetail = null,
+  serverHeading = false,
 }: {
   coinId: string | null;
   /** False while a dialog is closed so it does not fetch in the background. */
@@ -110,6 +111,8 @@ export function CoinDetailView({
   quotedLine?: string | null;
   /** Server snapshot so 1h, 7d and supply are in the first HTML. */
   initialDetail?: CoinDetail | null;
+  /** The server page already printed the h1, so this card uses a plain heading. */
+  serverHeading?: boolean;
 }) {
   const signedIn = signedInProp ?? variant === "dialog";
   const slug = resolvableCoinId(coinId);
@@ -117,6 +120,7 @@ export function CoinDetailView({
   const gradientId = useId().replace(/:/g, "");
 
   const [detail, setDetail] = useState<CoinDetail | null>(initialDetail);
+  const HeadingTag = serverHeading ? "h2" : "h1";
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -329,7 +333,7 @@ export function CoinDetailView({
       <div className="flex items-center gap-3">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={detail.image}
+          src={detail.image || GENERIC_COIN_ICON}
           alt=""
           className="size-9 rounded-full"
           onError={(e) => {
@@ -351,7 +355,7 @@ export function CoinDetailView({
               ) : null}
             </DialogTitle>
           ) : (
-            <h1 className="flex items-center gap-2 font-display text-xl font-semibold">
+            <HeadingTag className="flex items-center gap-2 font-display text-xl font-semibold">
               {detail.name}
               <span className="text-sm font-semibold text-muted-foreground">({detail.symbol})</span>
               {detail.rank ? (
@@ -359,7 +363,7 @@ export function CoinDetailView({
                   Rank #{detail.rank}
                 </span>
               ) : null}
-            </h1>
+            </HeadingTag>
           )}
           {variant === "dialog" ? (
             <DialogDescription className="sr-only">

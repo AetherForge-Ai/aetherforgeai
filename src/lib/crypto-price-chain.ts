@@ -133,7 +133,7 @@ export function formatPublicCryptoPrice(print: ChainPrint): string {
   const price = formatUnitPrice(print.price, "USD");
   if (!price || price === "—" || price === "US$0.00" || price === "$0.00") return "";
   const wall = formatDisplayDateTime(print.quotedAt);
-  const asOf = wall === "—" ? "as of not stated by the vendor" : `as of ${wall}`;
+  const asOf = wall === "—" ? "time not given by the data provider" : `as of ${wall}`;
   const stale = print.stale ? " · last good price" : "";
   return `${print.symbol} ${price} ${asOf} · ${sourceLabel(print.source)}${stale}`;
 }
@@ -155,7 +155,7 @@ export function rowHasVisiblePrice(row: Pick<PublicPriceRow, "price" | "usd">): 
  */
 export function publicAsOfPhrase(asOf: string): string {
   const text = asOf.replace(/\s+/g, " ").trim();
-  if (!text) return "as of not stated by the vendor";
+  if (!text) return "time not given by the data provider";
   if (/^prices as at\b/i.test(text) || /\bas of\b/i.test(text)) return text;
   return `as of ${text}`;
 }
@@ -190,7 +190,7 @@ export function choosePublicPriceTab(fresh: PublicPriceTab, last: PublicPriceTab
   return {
     ...fresh,
     rows: [],
-    asOf: fresh.asOf.includes("as of") ? fresh.asOf : "as of not stated by the vendor",
+    asOf: fresh.asOf.includes("as of") || fresh.asOf.includes("time not given") ? fresh.asOf : "time not given by the data provider",
   };
 }
 

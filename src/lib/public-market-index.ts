@@ -1,5 +1,6 @@
 import "server-only";
 
+import { isJunkCoin } from "@/lib/coin-junk";
 import { MARKET_SNAPSHOT_TARGET, pricesAsAtLabel } from "@/lib/crypto-board";
 import { choosePublicPriceTab, formatPublicCryptoPrice, sourceLabel } from "@/lib/crypto-price-chain";
 import { publicSourceAllowed } from "@/lib/swyftx-display";
@@ -42,9 +43,9 @@ function shownSource(source: string | undefined, fallback: string): string {
 }
 
 function asOfLabel(iso: string | null): string {
-  if (!iso) return "as of not stated by the vendor";
+  if (!iso) return "time not given by the data provider";
   const wall = formatDisplayDateTime(iso);
-  return wall === "—" ? "as of not stated by the vendor" : `as of ${wall}`;
+  return wall === "—" ? "time not given by the data provider" : `as of ${wall}`;
 }
 
 function latestIso(values: Array<string | null | undefined>): string | null {
@@ -127,7 +128,7 @@ async function loadCryptoTab(): Promise<PublicPriceTab> {
         source: coin.source || "coingecko",
       }))
     );
-    const rows = coins.slice(0, DOCUMENT_ROWS).map((coin) => ({
+    const rows = coins.filter((coin) => !isJunkCoin(coin.id, coin.name, coin.symbol)).slice(0, DOCUMENT_ROWS).map((coin) => ({
       symbol: coin.symbol,
       name: coin.name,
       price: formatUnitPrice(coin.price, "USD"),
@@ -157,7 +158,7 @@ async function loadCryptoTab(): Promise<PublicPriceTab> {
   } catch (err) {
     console.error("[public-market] crypto tab failed:", err instanceof Error ? err.message.slice(0, 160) : "failed");
     return choosePublicPriceTab(
-      { id: "CRYPTO", title: "Crypto", asOf: "as of not stated by the vendor", rows: [] },
+      { id: "CRYPTO", title: "Crypto", asOf: "time not given by the data provider", rows: [] },
       recallPublicTab("CRYPTO")
     );
   }
@@ -174,6 +175,7 @@ async function loadDexTab(): Promise<PublicPriceTab> {
     const feed = (named || page.sources[0] || "").toLowerCase();
     const priced = page.rows
       .filter((row) => typeof row.price === "number" && row.price > 0 && row.detailId && row.network && row.dex)
+      .filter((row) => !isJunkCoin(row.detailId, row.name, row.symbol))
       .slice(0, COIN_PAGE);
     const quotedAt = page.at || new Date().toISOString();
     noteListedPrices(
@@ -209,7 +211,7 @@ async function loadDexTab(): Promise<PublicPriceTab> {
   } catch (err) {
     console.error("[public-market] DEX tab failed:", err instanceof Error ? err.message.slice(0, 160) : "failed");
     return choosePublicPriceTab(
-      { id: "DEX", title: "DEX", asOf: "as of not stated by the vendor", rows: [] },
+      { id: "DEX", title: "DEX", asOf: "time not given by the data provider", rows: [] },
       recallPublicTab("DEX")
     );
   }
@@ -221,7 +223,7 @@ function equityFallback(id: StockBoard): PublicPriceTab {
   return {
     id,
     title: BOARD_TITLE[id],
-    asOf: "as of not stated by the vendor",
+    asOf: "time not given by the data provider",
     coverage: coverage.line,
     note: coverage.note,
     footnote: unpricedFootnote(Math.min(PUBLIC_SEED_ROWS, page.rows.length)) ?? undefined,
@@ -246,19 +248,19 @@ async function buildIndex(): Promise<PublicMarketIndex> {
     within(loadEquityTab("DOW"), equityFallback("DOW"), EQUITY_BUDGET_MS),
     within(loadEquityTab("NASDAQ"), equityFallback("NASDAQ"), EQUITY_BUDGET_MS),
     within(loadEquityTab("NYSE"), equityFallback("NYSE"), EQUITY_BUDGET_MS),
-    within(loadCryptoTab(), { id: "CRYPTO", title: "Crypto", asOf: "as of not stated by the vendor", rows: [] }, ALT_BUDGET_MS)
+    within(loadCryptoTab(), { id: "CRYPTO", title: "Crypto", asOf: "time not given by the data provider", rows: [] }, ALT_BUDGET_MS)
       .catch(() => ({
         id: "CRYPTO",
         title: "Crypto",
-        asOf: "as of not stated by the vendor",
+        asOf: "time not given by the data provider",
         rows: [] as PublicPriceRow[],
       }))
       .then((tab) => choosePublicPriceTab(tab, recallPublicTab("CRYPTO"))),
-    within(loadDexTab(), { id: "DEX", title: "DEX", asOf: "as of not stated by the vendor", rows: [] }, DEX_BUDGET_MS)
+    within(loadDexTab(), { id: "DEX", title: "DEX", asOf: "time not given by the data provider", rows: [] }, DEX_BUDGET_MS)
       .catch(() => ({
         id: "DEX",
         title: "DEX",
-        asOf: "as of not stated by the vendor",
+        asOf: "time not given by the data provider",
         rows: [] as PublicPriceRow[],
       }))
       .then((tab) => choosePublicPriceTab(tab, recallPublicTab("DEX"))),
@@ -278,13 +280,13 @@ let nextRefreshAt = 0;
 function emptyIndex(): PublicMarketIndex {
   return {
     tabs: [
-      { id: "NZX", title: "NZX", asOf: "as of not stated by the vendor", rows: [] },
-      { id: "ASX", title: "ASX", asOf: "as of not stated by the vendor", rows: [] },
-      { id: "DOW", title: "Dow Jones", asOf: "as of not stated by the vendor", rows: [] },
-      { id: "NASDAQ", title: "NASDAQ", asOf: "as of not stated by the vendor", rows: [] },
-      { id: "NYSE", title: "NYSE", asOf: "as of not stated by the vendor", rows: [] },
-      { id: "CRYPTO", title: "Crypto", asOf: "as of not stated by the vendor", rows: [] },
-      { id: "DEX", title: "DEX", asOf: "as of not stated by the vendor", rows: [] },
+      { id: "NZX", title: "NZX", asOf: "time not given by the data provider", rows: [] },
+      { id: "ASX", title: "ASX", asOf: "time not given by the data provider", rows: [] },
+      { id: "DOW", title: "Dow Jones", asOf: "time not given by the data provider", rows: [] },
+      { id: "NASDAQ", title: "NASDAQ", asOf: "time not given by the data provider", rows: [] },
+      { id: "NYSE", title: "NYSE", asOf: "time not given by the data provider", rows: [] },
+      { id: "CRYPTO", title: "Crypto", asOf: "time not given by the data provider", rows: [] },
+      { id: "DEX", title: "DEX", asOf: "time not given by the data provider", rows: [] },
     ],
     priceRowCount: 0,
   };

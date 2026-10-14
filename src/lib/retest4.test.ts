@@ -248,7 +248,7 @@ describe("pull-check:retest4-2026-10-11", () => {
       marketCapUsd: 0,
     });
     expect(usdOnly.title).toBe("Bitcoin (BTC) price in USD");
-    expect(usdOnly.description).toContain("as of not stated by the vendor");
+    expect(usdOnly.description).toContain("time not given by the data provider");
     expect(usdOnly.description).not.toContain("in NZD");
     expect(usdOnly.description).not.toContain("Market cap");
 

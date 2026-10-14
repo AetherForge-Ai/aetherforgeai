@@ -42,7 +42,7 @@ export async function StockPublicFacts({
   ]);
   const closes = history[ticker] ?? [];
   const points = sparklinePoints(closes);
-  const range = fiftyTwoWeekLine(quote?.fiftyTwoWeekLow, quote?.fiftyTwoWeekHigh, quote?.currency);
+  const range = fiftyTwoWeekLine(quote?.fiftyTwoWeekLow, quote?.fiftyTwoWeekHigh, quote?.currency, quote?.price);
   const headlines = headlinesForSymbol(news, symbol || ticker, companyName);
 
   return (
