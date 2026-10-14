@@ -78,9 +78,9 @@ export function NewsFeed({
 
               <h3 className="text-sm font-semibold leading-snug text-foreground">{n.headline}</h3>
 
-              <p className="line-clamp-3 text-xs leading-relaxed text-muted-foreground">
-                {n.summary}
-              </p>
+              {n.summary ? (
+                <p className="line-clamp-3 text-xs leading-relaxed text-muted-foreground">{n.summary}</p>
+              ) : null}
 
               <p className="text-xs leading-relaxed text-muted-foreground">
                 {n.source} · {n.marketLabel || n.market}
@@ -93,9 +93,10 @@ export function NewsFeed({
                     title="Relevance is an AetherForge tag from 0 to 100. It is not a recommendation."
                   >
                     {n.relevance}
+                    <span className="text-xs font-semibold text-muted-foreground">/100</span>
                   </span>
                   <span className="mt-1 text-[0.55rem] uppercase tracking-wider text-muted-foreground">
-                    AetherForge tag
+                    Relevance (AetherForge tag)
                   </span>
                 </div>
                 <span className="text-[0.66rem] font-semibold text-primary">Read article →</span>

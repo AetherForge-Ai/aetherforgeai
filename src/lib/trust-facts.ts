@@ -14,7 +14,7 @@ export const TRUST_HSTS = "max-age=31536000; includeSubDomains";
 
 export const TRUST_STORAGE_NAME = "Totalum on Google Cloud";
 
-export const TRUST_RETENTION_PHRASE = "does not set a retention period";
+export const TRUST_RETENTION_PHRASE = "do not set a retention period";
 
 /** Phrases copied from the privacy policy. The test checks each one is still there. */
 export const TRUST_PRIVACY_PHRASES = [
@@ -34,7 +34,7 @@ export const TRUST_PAGE_LOG = [
   {
     date: "10 Oct 2026",
     change:
-      "Transport header, storage name, AI retention, deletion, export and breach contact, each taken from the code or the privacy policy.",
+      "Transport header, storage name, AI retention, deletion, export and breach contact, each matching the privacy policy.",
   },
   {
     date: "11 Oct 2026",

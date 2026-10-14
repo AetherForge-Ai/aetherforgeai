@@ -35,8 +35,8 @@ describe("trust page facts", () => {
     expect(trustStorageLine()).toBe("Totalum on Google Cloud handles account storage.");
     expect(trustStorageLine()).not.toMatch(/region|sydney|australia-|us-central|europe-/i);
 
-    expect(AI_REQUEST_LINES.join(" ")).toContain("does not set a retention period");
-    expect(trustAiRetentionLine()).toContain("does not set a retention period");
+    expect(AI_REQUEST_LINES.join(" ")).toContain("do not set a retention period");
+    expect(trustAiRetentionLine()).toContain("do not set a retention period");
     expect(trustExportLine()).toBe(LEDGER_EXPORT_LINE);
 
     const privacy = read("src/app/privacy-policy/page.tsx").replace(/\s+/g, " ");

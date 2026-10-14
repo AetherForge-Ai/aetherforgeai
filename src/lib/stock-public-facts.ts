@@ -7,12 +7,18 @@ export const SECTOR_MISSING = "— The listing does not name a sector.";
 
 const MONEY = new Set(["NZD", "AUD", "USD"]);
 
+export const RANGE_IMPLAUSIBLE = "— The 52-week range from the data provider does not match the current price, so it is not shown.";
+
 export function fiftyTwoWeekLine(
   low: number | null | undefined,
   high: number | null | undefined,
-  currency: string | null | undefined
+  currency: string | null | undefined,
+  price?: number | null
 ): string {
   if (!(typeof low === "number" && low > 0 && typeof high === "number" && high > 0)) return RANGE_MISSING;
+  if (high < low) return RANGE_MISSING;
+  // A bad vendor print (e.g. MPG.NZ low NZ$0.038 with the price at NZ$0.87) is not shown.
+  if (typeof price === "number" && price > 0 && (low < price * 0.2 || high > price * 5)) return RANGE_IMPLAUSIBLE;
   const code = (currency || "").toUpperCase();
   if (!MONEY.has(code)) return RANGE_MISSING;
   return `${formatUnitPrice(low, code as "NZD" | "AUD" | "USD")} – ${formatUnitPrice(high, code as "NZD" | "AUD" | "USD")}`;

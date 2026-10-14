@@ -55,7 +55,7 @@ export function cryptoDetailCopy(facts: CryptoDetailFacts): { title: string; des
   const parts = [label];
   if (usd != null) {
     const wall = facts.asOf ? formatDisplayDateTime(facts.asOf) : "—";
-    const asOf = !facts.asOf || wall === "—" ? "as of not stated by the vendor" : `as of ${wall}`;
+    const asOf = !facts.asOf || wall === "—" ? "time not given by the data provider" : `as of ${wall}`;
     const source = (facts.source || "").trim();
     const priced = `${formatUnitPrice(usd, "USD")} ${asOf}`;
     parts.push(source ? `${priced} · ${sourceLabel(source)}` : priced);

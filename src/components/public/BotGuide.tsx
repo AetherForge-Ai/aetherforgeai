@@ -3,15 +3,15 @@ import Image from "next/image";
 import Link from "next/link";
 import { SiteHeader } from "@/components/SiteHeader";
 import { DisclaimerNotice } from "@/components/legal/DisclaimerNotice";
-import { BOT_PAGE_DISCLAIMER } from "@/lib/bot-guides";
+import { BOT_EXAMPLES, BOT_GUIDE_PARAGRAPHS, BOT_PAGE_DISCLAIMER, type BotGuideKind } from "@/lib/bot-guides";
 
-export function ExampleBook() {
+export function ExampleBook({ kind = "headmaster" }: { kind?: BotGuideKind }) {
+  const example = BOT_EXAMPLES[kind];
   return (
     <section className="mt-10" aria-label="Example book">
       <h2 className="font-display text-2xl font-bold">Example book</h2>
       <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-        Example. Not a member book. These rows are synthetic. This page does not look up a price, so no market value
-        and no profit are shown.
+        Example. Not a member book. These rows are synthetic, so no market value and no profit are shown.
       </p>
       <table className="mt-4 w-full text-sm">
         <thead>
@@ -22,23 +22,17 @@ export function ExampleBook() {
           </tr>
         </thead>
         <tbody>
-          <tr className="border-b border-border/40">
-            <td className="py-2">EXAMPLE.NZ</td>
-            <td className="py-2">10</td>
-            <td className="py-2">Example only</td>
-          </tr>
-          <tr>
-            <td className="py-2">EXAMPLE-COIN</td>
-            <td className="py-2">1</td>
-            <td className="py-2">Example only</td>
-          </tr>
+          {example.rows.map((row) => (
+            <tr key={row.name} className="border-b border-border/40 last:border-0">
+              <td className="py-2">{row.name}</td>
+              <td className="py-2">{row.quantity}</td>
+              <td className="py-2">{row.note}</td>
+            </tr>
+          ))}
         </tbody>
       </table>
       <h3 className="mt-6 font-display text-lg font-semibold">Example report</h3>
-      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-        Example report. This is not a member result. The note says a paper row named EXAMPLE.NZ is on the book. It does
-        not say whether to buy or sell. No profit figure is included.
-      </p>
+      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{example.report}</p>
     </section>
   );
 }
@@ -49,13 +43,16 @@ export function BotGuide({
   body,
   images,
   extra,
+  kind,
 }: {
   title: string;
   lede: string;
   body: string;
   images: { src: string; alt: string }[];
   extra?: ReactNode;
+  kind?: BotGuideKind;
 }) {
+  const paragraphs: readonly string[] = kind ? BOT_GUIDE_PARAGRAPHS[kind] : body.split(/(?<=\.)\s+/);
   return (
     <div className="relative min-h-screen bg-grid">
       <div className="pointer-events-none absolute inset-0 bg-aurora" />
@@ -67,17 +64,17 @@ export function BotGuide({
           <p className="mt-4 text-lg leading-relaxed text-muted-foreground">{lede}</p>
           <div className="mt-8 grid gap-4 sm:grid-cols-2">
             {images.map((image) => (
-              <Image key={image.src} src={image.src} alt={image.alt} width={512} height={512} className="h-auto w-full rounded-2xl border border-border/70" />
+              <Image key={image.src} src={image.src} alt={image.alt} width={512} height={512} className="h-auto w-full rounded-2xl bg-background object-contain [mask-image:radial-gradient(circle_at_center,black_62%,transparent_72%)]" />
             ))}
           </div>
           <div className="mt-8 space-y-4 text-sm leading-relaxed text-muted-foreground">
-            {body.split(/(?<=\.)\s+/).map((sentence) => (
-              <p key={sentence.slice(0, 48)}>{sentence}</p>
+            {paragraphs.map((paragraph) => (
+              <p key={paragraph.slice(0, 48)}>{paragraph}</p>
             ))}
           </div>
           {extra}
           <p className="mt-8 text-sm leading-relaxed text-muted-foreground">{BOT_PAGE_DISCLAIMER}</p>
-          <ExampleBook />
+          <ExampleBook kind={kind} />
           <p className="mt-8 text-sm">
             <Link href="/how-it-works" className="font-semibold text-primary underline-offset-2 hover:underline">
               How it works

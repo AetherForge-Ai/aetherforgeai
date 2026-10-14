@@ -8,8 +8,8 @@ import { Fragment, ReactNode } from "react";
 
 function renderInline(text: string, keyBase: string): ReactNode[] {
   const nodes: ReactNode[] = [];
-  // Split on [links](url), **bold**, and `code`
-  const regex = /(\[[^\]]+\]\([^)]+\)|\*\*[^*]+\*\*|`[^`]+`)/g;
+  // Split on [links](url), **bold**, _italic_ and `code`
+  const regex = /(\[[^\]]+\]\([^)]+\)|\*\*[^*]+\*\*|`[^`]+`|(?<![\w])_[^_\n]+_(?![\w]))/g;
   const parts = text.split(regex);
   parts.forEach((part, i) => {
     if (!part) return;
@@ -43,6 +43,8 @@ function renderInline(text: string, keyBase: string): ReactNode[] {
           {part.slice(2, -2)}
         </strong>
       );
+    } else if (part.length > 2 && part.startsWith("_") && part.endsWith("_")) {
+      nodes.push(<em key={`${keyBase}-i-${i}`}>{part.slice(1, -1)}</em>);
     } else if (part.startsWith("`") && part.endsWith("`")) {
       nodes.push(
         <code

@@ -246,7 +246,8 @@ describe("unified holdings table reads the snapshot", () => {
     expect(priced?.cells.marketValue?.figures[0]?.display).toBe("—");
     expect(priced?.cells.marketValue?.figures[0]?.reason).toBeTruthy();
     expect(priced?.cells.day?.figures[0]?.display).toBe("—");
-    expect(priced?.cells.unrealised?.figures[1]?.reason).toMatch(/not on this snapshot/);
+    expect(priced?.cells.unrealised?.figures[1]?.display).toBe("—");
+    expect(priced?.cells.unrealised?.figures[1]?.reason).toMatch(/figure needed for this percent is missing/);
   });
 
   it("groups a missing broker without inventing one", () => {

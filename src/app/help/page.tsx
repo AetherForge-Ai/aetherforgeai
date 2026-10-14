@@ -27,7 +27,7 @@ export default function HelpPage() {
           <h1 className="font-display text-4xl font-bold">Help</h1>
           <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
             Search the docs and the pricing questions. For an account question, email{" "}
-            <EmailAddress email="admin@aetherforgeai.co.nz" /> (admin at aetherforgeai.co.nz).
+            <EmailAddress email="admin@aetherforgeai.co.nz" />.
           </p>
           <div className="mt-8">
             <HelpSearch articles={helpArticles()} />

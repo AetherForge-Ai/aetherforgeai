@@ -65,7 +65,7 @@ describe("crypto and FX freshness", () => {
     expect(fresh.label).not.toContain("GMT");
     const stale = cryptoFreshnessLabel(new Date(now.getTime() - 6 * 60_000), now);
     expect(stale.live).toBe(false);
-    expect(stale.label.startsWith("Updated ")).toBe(true);
+    expect(stale.label.startsWith("Delayed · updated ")).toBe(true);
     expect(stale.label).not.toContain("Live");
     expect(cryptoFreshnessLabel(null, now)).toEqual({ label: "Last updated: unavailable", live: false });
   });

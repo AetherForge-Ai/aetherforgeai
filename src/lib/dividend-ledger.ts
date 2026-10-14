@@ -486,3 +486,32 @@ export function dividendIncome(
     yieldOnValue: ratio(options?.valueNzd),
   };
 }
+
+/** Same holding, same payment day and same gross (or cash) amount: probably a double entry. */
+export function findDuplicateDividend(
+  listed: readonly DividendView[],
+  candidate: { ticker: string; when: string; grossNative?: number | null; cashNzd?: number | null }
+): DividendView | null {
+  const day = String(candidate.when || "").slice(0, 10);
+  const ticker = candidate.ticker.trim().toUpperCase();
+  const close = (a: number | null | undefined, b: number | null | undefined) =>
+    typeof a === "number" && typeof b === "number" && Math.abs(a - b) < 0.005;
+  return (
+    listed.find(
+      (row) =>
+        row.ticker.trim().toUpperCase() === ticker &&
+        String(row.when || "").slice(0, 10) === day &&
+        (close(row.parts?.grossNative, candidate.grossNative) || close(row.cashNzd, candidate.cashNzd))
+    ) || null
+  );
+}
+
+/**
+ * Server rows win, but a row saved in this session stays visible until the server list includes it,
+ * so a refresh that returns a cached list does not hide a dividend that was just recorded.
+ */
+export function mergeDividendRows(server: readonly DividendView[], local: readonly DividendView[]): DividendView[] {
+  const ids = new Set(server.map((row) => row.id).filter(Boolean));
+  const pending = local.filter((row) => row.id && !ids.has(row.id));
+  return [...pending, ...server];
+}

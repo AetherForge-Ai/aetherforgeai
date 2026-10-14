@@ -4,7 +4,7 @@ import { ANNUAL_REFUND_RULE, EMAIL_SUPPORT_LINE, MONTHLY_CANCEL_RULE, REFUND_FAQ
 export const PRICING_FAQS: { q: string; a: string }[] = [
   {
     q: "Can I switch between monthly and annual billing?",
-    a: "Yes. You can move from monthly to annual (or back) at any time from Plan & billing in Settings (/settings/billing). When you switch to annual you save 2 months (≈17%), and any unused time on your current period is prorated toward the new plan automatically via Stripe.",
+    a: "Yes. You can move from monthly to annual billing from Plan & billing in Settings (/settings/billing). Annual billing is 12 months for the price of 10 (save 2 months, about 17%). Moving from annual to monthly takes effect at your next renewal. Refunds follow the Refunds & Cancellations policy: an annual charge can be refunded in full only if you cancel within 14 days of it; after that there is no refund, and you keep access until the end of the paid year.",
   },
   {
     q: "What happens when I hit my report or holding limits?",
@@ -12,7 +12,7 @@ export const PRICING_FAQS: { q: string; a: string }[] = [
   },
   {
     q: "Can I upgrade or downgrade later?",
-    a: "Absolutely. Upgrade at any time and you're charged only the prorated difference for the rest of your billing period. Downgrades take effect at the end of your current period so you never lose time you've paid for.",
+    a: "Absolutely. Upgrade at any time and you're charged only the prorated difference for the rest of your billing period. Downgrades take effect at the end of your current period. No refund is given for the rest of a period except as set out in the Refunds & Cancellations policy.",
   },
   {
     q: "Do you offer refunds?",
@@ -32,7 +32,7 @@ export const PRICING_FAQS: { q: string; a: string }[] = [
   },
   {
     q: "How does billing work with annual plans?",
-    a: "Annual plans are billed once up front: 12 months for the price of 10. Save 2 months (≈17%) versus paying monthly. Your plan renews automatically each year, and you can cancel or switch to monthly at any time.",
+    a: "Annual plans are billed once up front: 12 months for the price of 10. Save 2 months (≈17%) versus paying monthly. Your plan renews automatically each year. You can cancel at any time so it does not renew; a full refund applies only within 14 days of the annual charge or renewal, as set out in the Refunds & Cancellations policy.",
   },
   {
     q: "What kind of support do I get on each plan?",

@@ -1,5 +1,5 @@
 /**
- * A mailto link plus a readable "name at host" line.
+ * A mailto link, shown once. A readable "name at host" line is added only when scripts are off.
  * Cloudflare can rewrite an address that contains @. The plain words stay readable without JavaScript.
  */
 export function EmailAddress({
@@ -17,8 +17,9 @@ export function EmailAddress({
     <span className={className}>
       <a href={`mailto:${email}`} className="underline-offset-2 hover:underline">
         {email}
-      </a>{" "}
-      <span>({spoken})</span>
+      </a>
+      {/* Readable fallback only when scripts are off (Cloudflare may rewrite the address). */}
+      <noscript> ({spoken})</noscript>
     </span>
   );
 }

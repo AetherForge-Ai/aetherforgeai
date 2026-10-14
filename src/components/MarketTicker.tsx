@@ -105,6 +105,8 @@ function TickerRow({
   delay: string;
   failedRefreshes: number;
 }) {
+  // A chip with no price (e.g. "BTC" alone) is left out rather than shown as a bare symbol.
+  quotes = quotes.filter((q) => Number.isFinite(q.price) && q.price > 0);
   return (
     <div className="relative flex items-center overflow-hidden border-b border-emerald-500/20 bg-zinc-950">
       <span className="z-10 inline-flex shrink-0 items-center gap-1.5 border-r border-emerald-500/20 bg-zinc-950 px-3 py-1.5 font-display text-[0.62rem] font-bold uppercase tracking-[0.18em] text-emerald-300 backdrop-blur">

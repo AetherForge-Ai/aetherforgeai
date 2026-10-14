@@ -13,6 +13,7 @@ import { peekTop400 } from "@/lib/crypto-coingecko";
 import { readCryptoSnapshot } from "@/lib/crypto-snapshot";
 import { getFxSnapshot } from "@/lib/fx";
 import { pageTitle } from "@/lib/page-title";
+import { isJunkCoin } from "@/lib/coin-junk";
 import { presentMarketCoin } from "@/lib/crypto-api-body";
 import { presentListedCoin } from "@/lib/crypto-board";
 import { detailFromMarket } from "@/lib/crypto-market";
@@ -97,6 +98,9 @@ const loadCryptoDetailFacts = cache(async (id: string): Promise<{ facts: CryptoD
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
+  if (isJunkCoin(decodeURIComponent(id))) {
+    return { title: pageTitle("Token not listed"), robots: { index: false, follow: false } };
+  }
   const copy = cryptoDetailCopy((await loadCryptoDetailFacts(id)).facts);
   return publicPageMetadata(`/markets/crypto/${id}`, copy);
 }
@@ -114,6 +118,21 @@ export default async function CryptoDetailPage({
   const { id } = await params;
   const sp = await searchParams;
   const user = await getCurrentUser();
+  if (isJunkCoin(decodeURIComponent(id))) {
+    return (
+      <MarketsAppFrame user={user}>
+        <section className="mx-auto w-full max-w-3xl px-4 py-16 text-center sm:px-6">
+          <h1 className="font-display text-2xl font-bold text-foreground">This token is not listed</h1>
+          <p className="mt-3 text-sm text-muted-foreground">
+            AetherForge AI does not list this token. See the crypto list on the Markets page for the coins we cover.
+          </p>
+          <a href="/markets" className="mt-6 inline-block text-sm font-semibold text-primary underline-offset-2 hover:underline">
+            Go to Markets
+          </a>
+        </section>
+      </MarketsAppFrame>
+    );
+  }
   const coinId = resolvableCoinId(id);
   const loaded = await loadCryptoDetailFacts(id);
   const copy = cryptoDetailCopy(loaded.facts);
@@ -128,14 +147,18 @@ export default async function CryptoDetailPage({
   return (
     <MarketsAppFrame user={user}>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} />
-      {loaded.initialDetail ? null : (
-        <div className="mx-auto w-full max-w-6xl px-4 pt-6 sm:px-6 lg:px-8">
+      {/* The coin view loads client-side only, so the page h1 is always printed here. */}
+      <div className="mx-auto w-full max-w-6xl px-4 pt-6 sm:px-6 lg:px-8">
+        <h1 className="font-display text-2xl font-bold text-foreground">
+          {loaded.facts.name || (loaded.facts.symbol ? loaded.facts.symbol.toUpperCase() : decodeURIComponent(id))}
+        </h1>
+        {loaded.initialDetail ? null : (
           <PublicCryptoPrices
             prints={print && print.price > 0 ? [print] : []}
-            empty={`${decodeURIComponent(id)} No earlier price is stored for this coin.`}
+            empty="No earlier price is stored for this coin."
           />
-        </div>
-      )}
+        )}
+      </div>
       <CryptoAssetPage
         coinId={coinId}
         unavailable={!coinId}

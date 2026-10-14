@@ -37,7 +37,7 @@ describe("Stox/Koins refresh cadence", () => {
       cadenceUnit: quota.cadence.unit,
       perLabel: quota.cadence.perLabel,
       now: NOW,
-    })).toBe("Generated 15h ago · ready to refresh · every 4 hours");
+    })).toBe("Generated 15h ago · ready to refresh · one report every 4 hours");
   });
 
   it("keeps a short cooldown so a report from 2h ago is not immediately re-run", () => {

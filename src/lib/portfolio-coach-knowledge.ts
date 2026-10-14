@@ -244,6 +244,18 @@ export function portfolioCoachFallbackReply(userMessage: string): string {
     );
   }
 
+  if (/\b(overview|portfolio|book)\b/.test(q) && /\b(look|looking|should|right|ok|okay|health|doing|overview)\b/.test(q)) {
+    return (
+      `To review your book on the **Dashboard → Overview** tab:\n\n` +
+      `1. Check **net worth**: it should equal cash plus the value of your holdings.\n` +
+      `2. Check each holding's quantity and price paid against your broker records.\n` +
+      `3. Look at the **asset mix** (shares, crypto, metals, cash) to see how the book is split.\n` +
+      `4. Open **Transactions** if a figure looks wrong, and correct the trade there.\n\n` +
+      `I can explain what each figure means, but I can't tell you whether the mix is right for you.\n\n` +
+      `_Educational / execution help — not personalised financial advice._`
+    );
+  }
+
   if (/cash|deposit|withdraw/.test(q)) {
     return (
       `Cash on AetherForge is your **NZD ledger balance** for tracking buys, sells and net worth.\n\n` +

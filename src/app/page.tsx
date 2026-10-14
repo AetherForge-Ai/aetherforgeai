@@ -268,7 +268,7 @@ export default async function LandingPage() {
             <section className="mx-auto max-w-7xl px-4 pb-20 sm:px-6 lg:px-8">
               <div className="rounded-3xl border border-primary/30 bg-primary/10 px-6 py-12 text-center sm:px-10">
                 <h2 className="font-grift-black text-3xl tracking-tight text-amber-400 sm:text-4xl">
-                  Ready to take care of your Portfolio?
+                  Ready to take care of your portfolio?
                 </h2>
 
                 <HomeBottomCta />
