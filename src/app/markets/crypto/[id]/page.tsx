@@ -147,17 +147,18 @@ export default async function CryptoDetailPage({
   return (
     <MarketsAppFrame user={user}>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} />
-      {loaded.initialDetail ? null : (
-        <div className="mx-auto w-full max-w-6xl px-4 pt-6 sm:px-6 lg:px-8">
-          <h1 className="font-display text-2xl font-bold text-foreground">
-            {loaded.facts.name || (loaded.facts.symbol ? loaded.facts.symbol.toUpperCase() : decodeURIComponent(id))}
-          </h1>
+      {/* The coin view loads client-side only, so the page h1 is always printed here. */}
+      <div className="mx-auto w-full max-w-6xl px-4 pt-6 sm:px-6 lg:px-8">
+        <h1 className="font-display text-2xl font-bold text-foreground">
+          {loaded.facts.name || (loaded.facts.symbol ? loaded.facts.symbol.toUpperCase() : decodeURIComponent(id))}
+        </h1>
+        {loaded.initialDetail ? null : (
           <PublicCryptoPrices
             prints={print && print.price > 0 ? [print] : []}
             empty="No earlier price is stored for this coin."
           />
-        </div>
-      )}
+        )}
+      </div>
       <CryptoAssetPage
         coinId={coinId}
         unavailable={!coinId}

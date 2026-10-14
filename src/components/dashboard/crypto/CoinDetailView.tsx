@@ -305,23 +305,23 @@ export function CoinDetailView({
           {quotedLine}
         </DialogTitle>
       ) : (
-        <h1 className="font-display text-xl font-semibold" data-ticker-quote>
+        <HeadingTag className="font-display text-xl font-semibold" data-ticker-quote>
           {quotedLine}
-        </h1>
+        </HeadingTag>
       )}
     </div>
   ) : !detail && shownError && !loading ? (
     variant === "dialog" ? (
       <DialogTitle className="font-display text-xl">Crypto</DialogTitle>
     ) : (
-      <h1 className="font-display text-xl font-semibold">Crypto</h1>
+      <HeadingTag className="font-display text-xl font-semibold">Crypto</HeadingTag>
     )
   ) : loading || !detail ? (
     <div className="flex items-center gap-3">
       {variant === "dialog" ? (
         <DialogTitle className="sr-only">Loading coin</DialogTitle>
       ) : (
-        <h1 className="sr-only">Crypto</h1>
+        <HeadingTag className="sr-only">Crypto</HeadingTag>
       )}
       <Skeleton className="size-9 rounded-full" />
       <div className="space-y-1.5">

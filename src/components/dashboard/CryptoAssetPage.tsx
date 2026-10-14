@@ -129,7 +129,7 @@ export function CryptoAssetPage({
           variant="page"
           quotedLine={quotedLine}
           initialDetail={initialDetail}
-          serverHeading={!initialDetail}
+          serverHeading
         />
       </div>
     </div>

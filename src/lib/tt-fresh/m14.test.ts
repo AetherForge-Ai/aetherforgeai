@@ -21,3 +21,11 @@ describe("TT fresh M14 — freshness, US$ and axis", () => {
     expect(readFileSync("src/components/MarketTicker.tsx", "utf8")).toContain("quotes = quotes.filter((q) => Number.isFinite(q.price) && q.price > 0);");
   });
 });
+describe("TT fresh H6 — coin page h1", () => {
+  it("the server always prints the coin h1, the client view uses h2", () => {
+    const page = readFileSync("src/app/markets/crypto/[id]/page.tsx", "utf8");
+    expect(page).toContain("the page h1 is always printed here");
+    expect(readFileSync("src/components/dashboard/CryptoAssetPage.tsx", "utf8")).toContain("serverHeading\n");
+    expect(readFileSync("src/components/dashboard/crypto/CoinDetailView.tsx", "utf8")).not.toMatch(/<h1 /);
+  });
+});
