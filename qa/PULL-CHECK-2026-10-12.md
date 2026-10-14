@@ -669,3 +669,4 @@ r11 — site-wide retest fixes (#374): marker `pull-check:v3-r11-2026-10-14`
 
 TT fresh audit 2026-10-14 fixes (U1–U5, H1–H11, M1–M16, LOW): marker `pull-check:v3-tt-fresh-2026-10-15`
 TT fresh2 follow-up (review, leftovers, dashboard right column D1–D10): marker `pull-check:v3-tt-fresh2-2026-10-15`
+TT fresh3 signed-out /dashboard copy: marker `pull-check:v3-tt-fresh3-2026-10-15`
