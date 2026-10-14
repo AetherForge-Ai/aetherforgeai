@@ -120,7 +120,13 @@ describe("dashboard right column D1–D10", () => {
 });
 describe("fresh2 version pin", () => {
   it("build version and marker", () => {
-    expect(r("public/build-version.txt").trim()).toBe("v3-tt-fresh2-2026-10-15");
+    expect(r("public/build-version.txt").trim()).toBe("v3-tt-fresh3-2026-10-15");
     expect(r("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-tt-fresh2-2026-10-15");
+  });
+});
+describe("fresh3 marker", () => {
+  it("pull-check marker present", () => {
+    expect(r("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-tt-fresh3-2026-10-15");
+    expect(r("src/components/dashboard/GuestDashboardGate.tsx")).toContain("{MEMBER_DASHBOARD_HEADING}</h1>");
   });
 });

@@ -15,8 +15,11 @@ import { useLiveSessionUser } from "@/lib/use-live-session";
 /** Where the free signup starts. Pricing hosts the free-plan button, which registers the chosen bot. */
 export const MEMBER_SIGNUP_HREF = "/pricing";
 
-export const MEMBER_DASHBOARD_COPY =
-  "Dashboard is part of the service available to signed up members — You can sign up right now for free by clicking the link";
+export const MEMBER_SIGNIN_HREF = "/login";
+
+export const MEMBER_DASHBOARD_HEADING = "Your dashboard is for members";
+
+export const MEMBER_DASHBOARD_COPY = "Sign up free to track your shares, crypto and metals in one place.";
 
 export function MemberDashboardDialog({
   open,
@@ -29,12 +32,17 @@ export function MemberDashboardDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Dashboard</DialogTitle>
+          <DialogTitle>{MEMBER_DASHBOARD_HEADING}</DialogTitle>
         </DialogHeader>
         <p className="text-sm leading-relaxed text-foreground sm:text-base">{MEMBER_DASHBOARD_COPY}</p>
-        <Button asChild className="font-semibold">
-          <Link href={MEMBER_SIGNUP_HREF}>Sign up free</Link>
-        </Button>
+        <div className="flex flex-wrap gap-3">
+          <Button asChild className="font-semibold">
+            <Link href={MEMBER_SIGNUP_HREF}>Sign up free</Link>
+          </Button>
+          <Button asChild variant="outline" className="font-semibold">
+            <Link href={MEMBER_SIGNIN_HREF}>Sign in</Link>
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );

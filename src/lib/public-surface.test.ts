@@ -166,9 +166,10 @@ describe("public surface routes", () => {
     expect(about).not.toContain("Try the AI");
     expect(about).not.toContain("Toggle menu");
     const prompt = read("src/components/dashboard/MemberDashboardPrompt.tsx");
-    expect(prompt).toContain(
-      "Dashboard is part of the service available to signed up members — You can sign up right now for free by clicking the link",
-    );
+    expect(prompt).toContain('"Your dashboard is for members"');
+    expect(prompt).toContain('"Sign up free to track your shares, crypto and metals in one place."');
+    expect(prompt).not.toContain("available to signed up members");
+    expect(prompt).toContain('MEMBER_SIGNIN_HREF = "/login"');
     expect(prompt).toContain('"/pricing"');
     expect(read("src/components/TopNav.tsx")).toContain("onDashboardClick");
     expect(read("src/components/home/HomeSessionCtas.tsx")).toContain("onDashboardClick");
