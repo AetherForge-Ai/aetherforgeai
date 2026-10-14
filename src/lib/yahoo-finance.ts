@@ -354,6 +354,9 @@ export type YahooBatchedQuote = {
   asOf: "live" | "close";
   /** Vendor quote time when the spark node carried one. */
   quotedAt?: string;
+  /** Session high/low from the chart meta, when Yahoo sent them. */
+  dayHigh?: number;
+  dayLow?: number;
 };
 
 /**
@@ -380,7 +383,10 @@ export function resolveSparkQuote(node: any): YahooBatchedQuote | null {
   const times = Array.isArray(node.timestamp) ? node.timestamp : [];
   const lastTs = times.length ? times[times.length - 1] : undefined;
   const quotedAt = isoFromYahooTime(node.regularMarketTime) ?? isoFromYahooTime(lastTs);
-  return { price, changePct: isFinite(changePct) ? changePct : 0, asOf, ...(quotedAt ? { quotedAt } : {}) };
+  const dayHigh = positiveNum(node.dayHigh);
+  const dayLow = positiveNum(node.dayLow);
+  const range = dayHigh !== undefined && dayLow !== undefined && dayHigh >= dayLow ? { dayHigh, dayLow } : {};
+  return { price, changePct: isFinite(changePct) ? changePct : 0, asOf, ...(quotedAt ? { quotedAt } : {}), ...range };
 }
 
 function parseSparkBySymbol(json: Record<string, any>): Record<string, any> {
@@ -396,6 +402,8 @@ function parseSparkBySymbol(json: Record<string, any>): Record<string, any> {
           fulldayPrice: resp?.meta?.regularMarketPrice ?? resp?.meta?.chartPreviousClose,
           regularMarketPrice: resp?.meta?.regularMarketPrice,
           regularMarketTime: resp?.meta?.regularMarketTime,
+          dayHigh: resp?.meta?.regularMarketDayHigh,
+          dayLow: resp?.meta?.regularMarketDayLow,
           timestamp: resp?.timestamp,
         };
       }
@@ -437,6 +445,9 @@ export async function fetchYahooQuotesBatched(
         changePct: c.quote.changePct,
         asOf: "live",
         ...(c.quote.quotedAt ? { quotedAt: c.quote.quotedAt } : {}),
+        ...(c.quote.dayHigh && c.quote.dayLow && c.quote.dayHigh >= c.quote.dayLow
+          ? { dayHigh: c.quote.dayHigh, dayLow: c.quote.dayLow }
+          : {}),
       };
       if (changeIsFlat(c.quote.changePct)) flat.push([internal, ySym]);
     } else {

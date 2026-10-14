@@ -43,7 +43,7 @@ export async function POST(req: Request) {
     // Legacy free accounts that already have both bots keep them. A new choice
     // is Stox or Koins, matching the Pricing card.
     const decision = decideFreeBotChoice(user, chosen);
-    if (!decision.ok) {
+    if (decision.ok === false) {
       return NextResponse.json({ ok: false, error: decision.error }, { status: decision.status });
     }
     const botAccess = decision.botAccess;

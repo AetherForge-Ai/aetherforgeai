@@ -46,6 +46,9 @@ export interface StockBoardRow {
   quotedAt: string | null;
   asOf: string;
   quoted: boolean;
+  /** Session range from the same quote, or null when the vendor did not send it. */
+  dayHigh: number | null;
+  dayLow: number | null;
 }
 
 export interface StockBoardPage {
@@ -128,6 +131,8 @@ async function fetchYahoo(tickers: string[]): Promise<Record<string, EquityPrint
       changePct: quote.changePct,
       quotedAt: quote.quotedAt ?? null,
       source: "Yahoo Finance",
+      dayHigh: quote.dayHigh ?? null,
+      dayLow: quote.dayLow ?? null,
     };
   }
   return out;
@@ -317,6 +322,8 @@ function toRow(
     quotedAt: quoted ? print!.quotedAt : null,
     asOf: rowAsOf(quoted ? print!.quotedAt : null),
     quoted,
+    dayHigh: quoted && print!.dayHigh && print!.dayHigh > 0 ? print!.dayHigh : null,
+    dayLow: quoted && print!.dayLow && print!.dayLow > 0 ? print!.dayLow : null,
   };
 }
 
