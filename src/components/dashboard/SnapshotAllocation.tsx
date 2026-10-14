@@ -1,4 +1,5 @@
 "use client";
+import { RAIL_CARD_CLASS } from "@/components/dashboard/rail/RailCard";
 
 import { allocationShares } from "@/lib/snapshot-allocation";
 import type { PortfolioSnapshot } from "@/lib/portfolio-snapshot";
@@ -6,8 +7,8 @@ import type { PortfolioSnapshot } from "@/lib/portfolio-snapshot";
 export function SnapshotAllocation({ snapshot }: { snapshot: PortfolioSnapshot | null }) {
   if (!snapshot) {
     return (
-      <section className="rounded-2xl border border-border/70 bg-card/50 p-4" data-section="allocation">
-        <h2 className="text-sm font-semibold">Allocation</h2>
+      <section className={RAIL_CARD_CLASS} data-section="allocation" aria-label="Allocation">
+        <h2 className="text-base font-semibold leading-6">Allocation</h2>
         <p className="mt-2 text-sm text-muted-foreground" title="Allocation waits for the snapshot.">
           —
           <span className="mt-1 block text-xs">Allocation waits for the snapshot.</span>
@@ -17,8 +18,8 @@ export function SnapshotAllocation({ snapshot }: { snapshot: PortfolioSnapshot |
   }
   const shares = allocationShares(snapshot);
   return (
-    <section className="rounded-2xl border border-border/70 bg-card/50 p-4" data-section="allocation">
-      <h2 className="text-sm font-semibold">Allocation</h2>
+    <section className={RAIL_CARD_CLASS} data-section="allocation" aria-label="Allocation">
+      <h2 className="text-base font-semibold leading-6">Allocation</h2>
       <p className="mt-1 text-xs text-muted-foreground">By asset class, from this snapshot.</p>
       <ul className="mt-3 space-y-3">
         {shares.map((row) => (

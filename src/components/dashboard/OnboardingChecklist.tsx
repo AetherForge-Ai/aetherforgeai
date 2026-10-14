@@ -205,7 +205,7 @@ export function OnboardingChecklist({
           </p>
         </div>
         <span className="rounded-full border border-border/60 bg-background/50 px-2.5 py-1 text-[0.65rem] font-semibold text-muted-foreground">
-          {progress.completed}/{progress.total} done
+          {progress.requiredDone} of {progress.requiredTotal} required steps done
         </span>
       </div>
       <ul className="mt-4 space-y-2.5">

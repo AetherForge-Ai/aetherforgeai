@@ -17,8 +17,8 @@ describe("TT fresh LOW", () => {
   it("cash label uses NZ$", () => expect(r("src/lib/totalum-engine.ts")).not.toContain('"Cash (NZD)"'));
 });
 describe("TT fresh version pin", () => {
-  it("build version and pull-check marker", () => {
-    expect(r("public/build-version.txt").trim()).toBe("v3-tt-fresh-2026-10-15");
+  it("build version and pull-check marker (fresh2 keeps the fresh marker)", () => {
+    expect(r("public/build-version.txt").trim()).toBe("v3-tt-fresh2-2026-10-15");
     expect(r("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-tt-fresh-2026-10-15");
   });
 });

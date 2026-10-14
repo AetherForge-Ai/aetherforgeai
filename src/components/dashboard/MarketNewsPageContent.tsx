@@ -55,7 +55,7 @@ export function MarketNewsPageContent({
         <div className="min-w-0 flex-1">
           <h1 className="font-display text-2xl font-bold">Market News</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            Each card is dated by its publish or collection date. A future event is marked Scheduled. The source name is the site the link opens. A headline without a date, or whose link is only a homepage, is not shown. The words are the publisher&apos;s. Bullish, Bearish, Neutral and relevance are an AetherForge tag. They are not a recommendation.
+            Each card is dated by its publish or collection date. A future event is marked Scheduled. The source name is the site the link opens. A headline without a date, or whose link is only a homepage, is not shown. The words are the publisher&apos;s. Bullish, Bearish and Neutral come from keywords in the headline (the summary only when the headline has none), so the same story always gets the same tone. Relevance is an AetherForge score. Neither is a recommendation.
           </p>
         </div>
       </div>

@@ -1148,7 +1148,7 @@ function seedFrom(seed: TxSeed | null | undefined, preferred?: "stock" | "crypto
       chain: cleanChain(seed.chain) || undefined,
     };
   }
-  if (preferred === "metal") return { symbol: "GOLD", name: "Gold", market: "Gold", assetType: "metal" };
+  if (preferred === "metal") return { symbol: "GOLD", name: "Gold bullion", market: "Gold", assetType: "metal" };
   return null;
 }
 
@@ -1175,7 +1175,7 @@ function fromMetal(row: Record<string, unknown>): BookHolding {
   return {
     id: String(row._id || ticker),
     ticker,
-    name: metal === "silver" ? "Silver" : "Gold",
+    name: metal === "silver" ? "Silver bullion" : "Gold bullion",
     assetType: "metal",
     quantity: Number(row.ounces) || 0,
     price: Number(row.purchase_price_per_oz) || 0,

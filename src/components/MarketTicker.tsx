@@ -123,10 +123,19 @@ function TickerRow({
       </span>
       <div className="relative flex-1 overflow-hidden">
         {quotes.length ? (
-          <div className={cn("ticker-row flex w-max items-center", animationClass)}>
+          <>
+          {/* Screen readers get one plain list; both moving copies are hidden from them. */}
+          <ul className="sr-only" aria-label={label}>
+            {quotes.map((q, i) => (
+              <li key={`sr-${q.symbol}-${i}`}>
+                {q.symbol} {priceFor(q)} {q.change == null ? "" : formatSignedPercent(q.change)}
+              </li>
+            ))}
+          </ul>
+          <div className={cn("ticker-row flex w-max items-center", animationClass)} aria-hidden="true">
             {/* Two equal copies, each with a lead gap the width of the edge fade, so the first item is never under it and the -50% loop stays seamless. */}
             {[0, 1].map((copy) => (
-              <div key={copy} className="flex shrink-0 items-center pl-10" data-ticker-copy={copy} aria-hidden={copy === 1 ? true : undefined}>
+              <div key={copy} className="flex shrink-0 items-center pl-10" data-ticker-copy={copy} aria-hidden="true">
                 {quotes.map((q, i) => {
                   const cryptoCell = (q.currency || "").toUpperCase() === "USD" && !q.symbol.includes(".");
                   return (
@@ -143,6 +152,7 @@ function TickerRow({
               </div>
             ))}
           </div>
+          </>
         ) : (
           <span className="px-4 text-[0.72rem] text-muted-foreground">{PUBLIC_PRICE_QUIET}</span>
         )}

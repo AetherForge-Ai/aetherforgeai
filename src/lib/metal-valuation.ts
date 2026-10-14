@@ -8,7 +8,7 @@
  * metals out of allocation and net worth.
  */
 
-import { sumRoundedMoney } from "@/lib/currency";
+import { roundMoney, sumRoundedMoney } from "@/lib/currency";
 
 export type MetalKey = "gold" | "silver";
 
@@ -309,7 +309,8 @@ export function markToMarketBullionNZD(ounces: number, nzdPerTroyOz: number): nu
   const oz = Number(ounces);
   const px = Number(nzdPerTroyOz);
   if (!(oz > 0) || !(px > 0) || !Number.isFinite(oz) || !Number.isFinite(px)) return 0;
-  return oz * px;
+  // Same half-up cent rounding as the ledger, so 0.5 × 7,391.47 is NZ$3,695.74 on both.
+  return roundMoney(oz * px);
 }
 
 export interface ResolveMarkInput {

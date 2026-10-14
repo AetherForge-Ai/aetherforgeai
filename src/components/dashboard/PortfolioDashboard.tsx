@@ -135,9 +135,10 @@ import { ActionableIntelligence } from "@/components/dashboard/ActionableIntelli
 import { DashboardSectionTitle } from "@/components/dashboard/DashboardSectionTitle";
 import { MarketIntelProvider } from "@/components/dashboard/MarketIntelContext";
 import { WatchlistPanel } from "@/components/dashboard/WatchlistPanel";
+import { DashboardRail } from "@/components/dashboard/rail/DashboardRail";
 import { GlobalSearch } from "@/components/dashboard/GlobalSearch";
 import { DashboardCalculator } from "@/components/dashboard/DashboardCalculator";
-import { PaidPlanPrompt } from "@/components/dashboard/PaidPlanPrompt";
+import { FREE_REPORTS_PER_MONTH } from "@/lib/entitlements";
 import { SnapshotAllocation } from "@/components/dashboard/SnapshotAllocation";
 import { holdingDeleteEffect } from "@/lib/dashboard-tabs";
 import { QUOTA_NOT_LOADED, unloadedReportControl, type ReportDeskSnapshot } from "@/lib/report-quota-display";
@@ -697,6 +698,11 @@ export function PortfolioDashboard({
   const [alertSeed, setAlertSeed] = useState<{ ticker: string; nonce: number; asset: "stock" | "crypto" } | null>(null);
   const [watchSeed, setWatchSeed] = useState<{ ticker: string; nonce: number; asset: "stock" | "crypto" } | null>(null);
   const [watchClass, setWatchClass] = useState<"stock" | "crypto">("stock");
+  const [alertClass, setAlertClass] = useState<"stock" | "crypto">("stock");
+  const [railQuota, setRailQuota] = useState<{ used: number; limit: number } | null>(null);
+  useEffect(() => {
+    if (alertSeed) setAlertClass(alertSeed.asset);
+  }, [alertSeed]);
   const [reportDesk, setReportDesk] = useState<ReportDeskSnapshot | null>(null);
   const [deskSeed, setDeskSeed] = useState<ReportsResponse | null>(null);
   const [onboardingProbe, setOnboardingProbe] = useState<{ alerts: boolean | null; report: boolean | null; error: boolean }>({
@@ -2275,64 +2281,28 @@ export function PortfolioDashboard({
             />
           }
           rail={
-            <>
-              {freePlan ? (
-                <PaidPlanPrompt detail="Allocation drift is on a paid plan." />
-              ) : (
-                <SnapshotAllocation snapshot={bookSnapshot} />
-              )}
-              <section id="dashboard-alerts" className="space-y-3 rounded-2xl border border-border/70 bg-card/50 p-4">
-                <h2 className="text-sm font-semibold">Alerts</h2>
-                <PriceAlerts
-                  embedded
-                  stocks={stockOnly}
-                  assetType="stock"
-                  holdingsReady={!loading}
-                  preview={preview}
-                  canCreate={!freePlan}
-                  seedTicker={alertSeed?.asset === "stock" ? alertSeed.ticker : null}
-                  seedNonce={alertSeed?.asset === "stock" ? alertSeed.nonce : 0}
-                />
-                <PriceAlerts
-                  embedded
-                  stocks={cryptoMarked}
-                  assetType="crypto"
-                  holdingsReady={!loading}
-                  preview={preview}
-                  canCreate={!freePlan}
-                  seedTicker={alertSeed?.asset === "crypto" ? alertSeed.ticker : null}
-                  seedNonce={alertSeed?.asset === "crypto" ? alertSeed.nonce : 0}
-                />
-              </section>
-              <section id="dashboard-watchlist" className="space-y-3">
-                <div className="inline-flex gap-1" role="group" aria-label="Watchlist class">
-                  {(["stock", "crypto"] as const).map((id) => (
-                    <button
-                      key={id}
-                      type="button"
-                      aria-pressed={watchClass === id}
-                      onClick={() => setWatchClass(id)}
-                      className={cn(
-                        "rounded-md border px-2.5 py-1 text-xs font-semibold",
-                        watchClass === id ? "border-primary bg-primary text-primary-foreground" : "border-border/70 text-muted-foreground"
-                      )}
-                    >
-                      {id === "stock" ? "Shares" : "Crypto"}
-                    </button>
-                  ))}
-                </div>
-                <WatchlistPanel
-                  bot={watchClass}
-                  reloadSignal={watchlistSignal + (watchSeed?.nonce || 0)}
-                  preview={preview}
-                  seedTicker={watchSeed && watchSeed.asset === watchClass ? watchSeed.ticker : null}
-                  seedNonce={watchSeed && watchSeed.asset === watchClass ? watchSeed.nonce : 0}
-                />
-              </section>
-            </>
+            <DashboardRail
+              freePlan={freePlan}
+              loading={loading}
+              preview={preview}
+              bookSnapshot={bookSnapshot}
+              stockOnly={stockOnly}
+              cryptoMarked={cryptoMarked}
+              alertClass={alertClass}
+              onAlertClass={setAlertClass}
+              alertSeed={alertSeed}
+              watchClass={watchClass}
+              onWatchClass={setWatchClass}
+              watchReload={watchlistSignal + (watchSeed?.nonce || 0)}
+              watchSeed={watchSeed}
+              holdingsCount={summary.holdingsCount}
+              tickerLimit={tickerLimit}
+              reportQuota={railQuota}
+            />
           }
           reports={
             <ReportCenter
+              onFreeQuota={setRailQuota}
               botAccess={subscription.botAccess}
               plan={subscription.plan}
               scope={scope}
@@ -3369,7 +3339,7 @@ export function PortfolioDashboard({
         description="Track tickers you follow — add names to your watchlist so you never lose sight of them."
       >
       <div>
-        <WatchlistPanel bot={bot} reloadSignal={watchlistSignal} preview={preview} />
+        <WatchlistPanel bot={bot} reloadSignal={watchlistSignal} preview={preview} cardId="watchlist-panel" />
       </div>
       </DashboardGate>
       </div>

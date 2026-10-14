@@ -158,7 +158,10 @@ export function ReportCenter({
   preview = false,
   onDesk,
   seed = null,
+  onFreeQuota,
 }: {
+  /** Reports the Free monthly quota to the dashboard plan-usage card (no extra fetch). */
+  onFreeQuota?: (quota: { used: number; limit: number } | null) => void;
   botAccess: BotAccess;
   plan?: string | null;
   scope: "total" | "perBot";
@@ -203,6 +206,11 @@ export function ReportCenter({
   const [serverCadence, setServerCadence] = React.useState<ReportCadence | null>(null);
   const [serverQuota, setServerQuota] = React.useState<ReportsResponse["quota"] | null>(null);
   const [freeQuota, setFreeQuota] = React.useState<FreeQuota | null>(null);
+  const freeQuotaRef = React.useRef(onFreeQuota);
+  freeQuotaRef.current = onFreeQuota;
+  React.useEffect(() => {
+    freeQuotaRef.current?.(freeQuota ? { used: freeQuota.used, limit: freeQuota.limit } : null);
+  }, [freeQuota]);
   const [quotaReady, setQuotaReady] = React.useState(false);
   const [access, setAccess] = React.useState(botAccess);
   React.useEffect(() => setAccess(botAccess), [botAccess]);

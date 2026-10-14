@@ -289,7 +289,7 @@ export function StockDetailView({
           <p className={cn("tnum mt-1 flex items-center gap-1 text-sm font-semibold", up ? "text-emerald-600" : "text-rose-600")}>
             {up ? <ArrowUp className="size-4" /> : <ArrowDown className="size-4" />}
             {q.changeAbs >= 0 ? "+" : "−"}
-            {Math.abs(q.changeAbs).toFixed(q.price < 5 ? 4 : 2)} ({Math.abs(q.changePct).toFixed(2)}%)
+            {Math.abs(q.changeAbs).toFixed(q.price < 5 ? 4 : 2)} ({q.changePct > 0 ? "+" : q.changePct < 0 ? "−" : ""}{Math.abs(q.changePct).toFixed(2)}%)
             <span className="text-muted-foreground">today</span>
           </p>
         </div>
@@ -302,6 +302,8 @@ export function StockDetailView({
 
       <div className="mt-4 h-56 w-full">
         {chartData.length > 1 ? (
+          <div className="h-full w-full" role="img" aria-label="About six months of daily closes">
+          <div className="h-full w-full" aria-hidden="true">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chartData} margin={{ top: 8, right: 6, left: 0, bottom: 0 }}>
               <defs>
@@ -314,9 +316,9 @@ export function StockDetailView({
               <XAxis dataKey="i" hide />
               <YAxis
                 domain={["dataMin", "dataMax"]}
-                width={52}
+                width={64}
                 tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
-                tickFormatter={(v) => Number(v).toFixed(v < 5 ? 2 : 0)}
+                tickFormatter={(v) => formatMarketPrice(Number(v), currency)}
               />
               <Tooltip
                 contentStyle={{
@@ -331,6 +333,8 @@ export function StockDetailView({
               <Area type="monotone" dataKey="close" stroke={stroke} strokeWidth={2} fill={`url(#${gradientId})`} />
             </AreaChart>
           </ResponsiveContainer>
+          </div>
+          </div>
         ) : (
           <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-border/60 text-xs text-muted-foreground">
             <BarChart3 className="mr-2 size-4" /> Price history is not shown for this range
