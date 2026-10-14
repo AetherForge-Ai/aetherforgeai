@@ -1085,7 +1085,7 @@ export function ReportCenter({
           ) : textOnly ? (
             <article className="min-w-0 max-w-full space-y-3 break-words text-sm leading-relaxed">
               <h3 className="font-display text-lg font-bold text-foreground">{textOnly.title}</h3>
-              <p className="whitespace-pre-wrap text-foreground/90">{textOnly.body}</p>
+              <p className="whitespace-pre-wrap text-foreground/90">{stripReportMarkdown(textOnly.body)}</p>
             </article>
           ) : null}
         </DialogContent>
