@@ -15,6 +15,7 @@ import {
   type SnapshotFigure,
   type SnapshotLedgerLine,
   type SnapshotPosition,
+  returnPercentFigure,
 } from "@/lib/portfolio-snapshot";
 import { blankSnapshotFigure } from "@/lib/snapshot-figure";
 import { PERIOD_START_REASON, type PeriodId } from "@/lib/dashboard-kpi";
@@ -512,7 +513,7 @@ function positionRow(snapshot: PortfolioSnapshot, position: SnapshotPosition, pe
     name: position.name || position.ticker,
     assetClass: position.assetClass,
     classLabel: CLASS_PILL[position.assetClass],
-    exchange: exchangeOf(position),
+    exchange: distinctChip(exchangeOf(position), CLASS_PILL[position.assetClass]),
     currency: position.currency,
     closed: position.closed || position.quantity <= 1e-9,
     negativeCash: false,
@@ -618,7 +619,7 @@ function cellsForPosition(snapshot: PortfolioSnapshot, position: SnapshotPositio
     unrealised: {
       figures: [
         position.unrealised,
-        notOnRow("Unrealised percent is unrealised divided by cost base.", "Unrealised percent is not on this snapshot."),
+        returnPercentFigure(position.unrealised, position.costBase, "Unrealised percent is unrealised divided by cost base.", snapshot.source, asOf),
       ],
       text: null,
       badge: null,
@@ -630,7 +631,7 @@ function cellsForPosition(snapshot: PortfolioSnapshot, position: SnapshotPositio
     totalReturn: {
       figures: [
         position.totalReturn,
-        notOnRow("Total return percent is total return divided by net contributions.", "Total return percent is not on this row."),
+        returnPercentFigure(position.totalReturn, position.costBase, "Total return percent is total return divided by the cost base.", snapshot.source, asOf),
       ],
       text: null,
       badge: null,
@@ -806,6 +807,11 @@ function localPriceCell(
     text: display,
     badge: null,
   };
+}
+
+/** A second chip that repeats the class pill ("Crypto Crypto", "Metals Metals") is dropped. */
+export function distinctChip(chip: string, classLabel: string): string {
+  return chip.trim().toLowerCase() === String(classLabel || "").trim().toLowerCase() ? "" : chip;
 }
 
 function exchangeOf(position: SnapshotPosition): string {

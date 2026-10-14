@@ -105,7 +105,7 @@ describe("audit 14 Oct batches A–D", () => {
     expect(read("src/lib/plans.ts")).toContain("yearlyPrice: 1990");
     expect(read("src/components/pricing/PricingCards.tsx")).toContain("Save 2 months (≈17%)");
     expect(read("src/components/pricing/PricingCards.tsx")).not.toContain("Save ~");
-    expect(read("src/app/help/page.tsx")).toContain("admin at aetherforgeai.co.nz");
+    expect(read("src/app/help/page.tsx")).toContain("admin@aetherforgeai.co.nz");
   });
 
   it("H10 M1 M4 and M13 enrich stock pages, cap the markets document, and label images", () => {

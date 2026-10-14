@@ -46,7 +46,7 @@ describe("portfolio load", () => {
     ).toBe(true);
     expect(
       portfolioIsLoaded(readPortfolioBook([], [], 0), [
-        { label: "Cash (NZD)", assetClass: "cash", valueNZD: 80 },
+        { label: "Cash (NZ$)", assetClass: "cash", valueNZD: 80 },
       ])
     ).toBe(true);
   });

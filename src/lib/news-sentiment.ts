@@ -36,7 +36,7 @@ export interface SentimentSummary {
 }
 
 const BULLISH_WORDS =
-  /surge|soar|rally|jump|gain|record|inflow|approv|adopt|bull|breakout|upgrade|partnership|integrat|all-time high|\bath\b|beat|tops|dovish|stimulus|recover|strong|expand|lift|firm|optimis/i;
+  /surge|soar|rally|jump|gain|record|inflow|approv|adopt|bull|breakout|upgrade|partnership|integrat|all-time high|\bath\b|beat|tops|dovish|stimulus|recover|strong|expand|lift|firm|optimis|outpace|best (day|week|month|year)|\brise[sn]?\b|climb|higher/i;
 const BEARISH_WORDS =
   /crash|plunge|drop|fall|slump|hack|exploit|lawsuit|\bban\b|selloff|outflow|liquidat|bear|downgrade|fraud|warn|miss|cut|hawkish|recession|slow|weak|pressure|concern|default|probe/i;
 

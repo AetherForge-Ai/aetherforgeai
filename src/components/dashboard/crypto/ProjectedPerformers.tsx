@@ -170,7 +170,7 @@ export function ProjectedPerformers({
                   <span className="tnum text-xs font-semibold text-emerald-600">{i + 1}</span>
                   <span className="flex min-w-0 items-center gap-2 text-left">
                     <img
-                      src={c.image}
+                      src={c.image || GENERIC_COIN_ICON}
                       alt=""
                       className="size-6 shrink-0 rounded-full"
                       loading="lazy"
@@ -225,7 +225,7 @@ function PerformerCard({
     >
       <span className="tnum w-4 shrink-0 text-center text-xs font-bold text-muted-foreground">{rank}</span>
       <img
-        src={coin.image}
+        src={coin.image || GENERIC_COIN_ICON}
         alt=""
         className="size-8 shrink-0 rounded-full"
         loading="lazy"

@@ -4,7 +4,7 @@ import { publicPageMetadata } from "@/lib/reviewed-book";
 
 export const metadata = publicPageMetadata("/changelog", {
   title: "Changelog — AetherForge AI",
-  description: "Recent product changes on AetherForge AI, taken from the published commit history.",
+  description: "Recent product changes on AetherForge AI, newest first.",
 });
 
 export default function ChangelogPage() {

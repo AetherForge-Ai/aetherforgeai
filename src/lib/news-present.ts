@@ -238,10 +238,39 @@ function isNzMacro(item: NewsItem): boolean {
   return rnz && /\b(ocr|official cash rate|cpi|inflation|gdp|unemployment|monetary policy|interest rate|reserve bank)\b/i.test(blob);
 }
 
+/** Drop a lone quote mark left at either end of a headline (e.g. "…winter choice'"). */
+export function tidyHeadline(text: string): string {
+  let t = String(text || "").trim();
+  const quotes = /["'‘’“”]/;
+  const count = (ch: RegExp) => (t.match(new RegExp(ch.source, "g")) || []).length;
+  if (count(quotes) % 2 === 1) {
+    if (quotes.test(t.slice(-1))) t = t.slice(0, -1).trim();
+    else if (quotes.test(t.charAt(0))) t = t.slice(1).trim();
+  }
+  return t;
+}
+
+/** True when the summary only repeats the headline, so the card shows the headline once. */
+export function summaryRepeatsHeadline(headline: string, summary: string): boolean {
+  const norm = (v: string) => String(v || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const h = norm(headline);
+  const s = norm(summary);
+  return !s || s === h || (h.length > 20 && s.startsWith(h) && s.length - h.length < 8);
+}
+
+const NZX_SIGNAL = /\bnzx\b|\.nz\b|sharemarket|share market|listed|shares? (rose|fell)|dividend|earnings|profit/i;
+
 function withDisplayTags(item: NewsItem): NewsItem {
   const next: NewsItem = { ...item };
+  next.headline = tidyHeadline(item.headline);
+  if (summaryRepeatsHeadline(next.headline, item.summary || "")) next.summary = "";
   if (CRYPTO_HOST.test(item.url)) next.market = "CRYPTO";
   if (isNzMacro(next)) next.marketLabel = "NZ macro";
+  else {
+    const rnz = item.source === "RNZ" || /rnz\.co\.nz/i.test(item.url);
+    // A general RNZ story is New Zealand news, not an NZX market item.
+    if (rnz && !NZX_SIGNAL.test(`${item.headline} ${item.summary}`)) next.marketLabel = "NZ news";
+  }
   return next;
 }
 

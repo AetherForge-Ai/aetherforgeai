@@ -118,7 +118,7 @@ const PILLARS = [
   {
     icon: MapPin,
     title: "NZX, ASX, US markets, crypto and metals",
-    desc: "Not a generic global screener. AetherForge AI is tuned from the ground up for New Zealand and Australian markets — the ones that matter to you.",
+    desc: "Built for New Zealand investors. Covers NZX and ASX listings, major US stocks, crypto and precious metals, with prices shown in NZ$ where a rate is available.",
   },
   {
     icon: HandCoins,

@@ -79,6 +79,8 @@ export interface EquityPrint {
   changePct: number;
   quotedAt: string | null;
   source: "Yahoo Finance" | "Twelve Data";
+  dayHigh?: number | null;
+  dayLow?: number | null;
 }
 
 export interface SavedPrint {
@@ -86,6 +88,8 @@ export interface SavedPrint {
   changePct: number;
   quotedAt: string | null;
   source: QuoteSource;
+  dayHigh?: number | null;
+  dayLow?: number | null;
 }
 
 export interface BreakerState {

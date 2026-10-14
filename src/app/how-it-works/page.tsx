@@ -108,8 +108,8 @@ const STEPS = [
 const REPORT_CONTENTS = [
   { icon: BarChart3, label: "Market breakdown", desc: "NZX, ASX and US tables when the price feed has rows, with the context around every ticker you keep." },
   { icon: TrendingUp, label: "What has performed well", desc: "Your top movers surfaced and ranked across 24h, 7-day and 30-day windows." },
-  { icon: LineChart, label: "Performance graphs", desc: "30-day history (projections), ~6 months (stock charts)." },
-  { icon: GaugeCircle, label: "7-day illustrative outlook", desc: "Probabilistic scenario ranges with confidence scores, momentum and continuation graphs. Not a guarantee." },
+  { icon: LineChart, label: "Performance graphs", desc: "Stock charts show about six months of daily closes, and projection charts show 30 days of history." },
+  { icon: GaugeCircle, label: "7-day illustrative outlook (shares)", desc: "Rules-based scenario ranges for shares, calculated from recent price history. Crypto projections are paused. Not a forecast or a guarantee." },
   { icon: ListChecks, label: "Plain-English notes", desc: "What the figures show, in sentences. Informational only — not personal financial advice." },
   { icon: Route, label: "Three scenarios", desc: "Three scenarios: a cautious, a middle and a high-volatility case, so you can see the range of outcomes." },
 ];
@@ -130,7 +130,7 @@ const BOTS = [
     subtitle: "Crypto Market Intelligence",
     accent: "from-amber-500/20 via-orange-500/10 to-transparent",
     ring: "border-amber-500/30",
-    desc: "Tracks up to 400 coins, depending on what the data feed returns, and the wider digital-asset market — synthesising flows, news and sentiment into illustrative 7-day scenarios and forward pathways. Crypto projections on the projections page stay paused.",
+    desc: "Tracks up to 400 coins, depending on what the data feed returns. A rules-based engine works out the figures from delayed or indicative prices, and AI writes the plain-English note. Crypto projections stay paused.",
     tags: ["BTC", "ETH", "Up to 400 coins"],
   },
 ];

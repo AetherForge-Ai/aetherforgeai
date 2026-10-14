@@ -53,7 +53,7 @@ describe("pull-check:v3-retest9-2026-10-12", () => {
   it("records the marker and the build", () => {
     expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-retest9-2026-10-12");
     expect(read("src/lib/public-copy.ts")).toContain("pull-check:v3-retest9-2026-10-12");
-    expect(read("public/build-version.txt").trim()).toBe("v3-r11-2026-10-14");
+    expect(read("public/build-version.txt").trim()).toBe("v3-tt-fresh-2026-10-15");
     expect(read("src/lib/changelog-entries.ts")).toContain("12 Oct 2026 — Shared prices, coin pages and cash");
     expect(read("src/lib/changelog-entries.ts")).not.toMatch(/GPT|Claude|Gemini|OpenAI|Anthropic/);
   });
@@ -312,8 +312,8 @@ describe("pull-check:v3-retest9-2026-10-12", () => {
     expect(read("src/components/public/KoinsSnapshotPrices.tsx")).toContain("readSharedCryptoBoard");
     const copy = stoxReviewCopy();
     expect(copy).toContain("under review");
-    expect(copy).toContain("MAH.AX");
-    expect(copy).toContain("rating TRIM: momentum negative");
+    expect(copy).toContain("EXAMPLE.NZ");
+    expect(copy).not.toMatch(/\bTRIM\b/);
     expect(read("src/app/stox/page.tsx")).toContain("StoxReviewNotice");
     expect(read("src/components/public/StoxReviewNotice.tsx")).toContain("stoxReviewCopy");
     expect(read("src/components/bots/ApexReport.tsx")).not.toContain("stoxReviewCopy");

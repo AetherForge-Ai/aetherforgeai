@@ -208,6 +208,14 @@ function fmtAbs(v: number, price: number): string {
   return formatAbsoluteChange(v, price);
 }
 
+/** Stock boards: signed amount to 2 decimals next to the percent (e.g. +0.12, −1.05). */
+function formatStockChangeAmount(v: number): string {
+  if (!Number.isFinite(v)) return "—";
+  const r = Math.round(Math.abs(v) * 100) / 100;
+  if (r === 0) return "0.00";
+  return `${v > 0 ? "+" : "−"}${r.toFixed(2)}`;
+}
+
 function fmtTime(iso: string): string {
   const clock = formatDisplayClock(iso);
   return clock === "—" ? "" : clock;
@@ -853,7 +861,7 @@ export function MarketsExplorer({
               : hasData || remoteHits.length
               ? isCryptoTab
                 ? countLine(isDexTab ? "DEX tokens" : "coins", rows.length)
-                : `${data?.coverage || `${total} names in the ${tab} list`}${liveCount > 0 && liveCount !== total ? ` · ${liveCount} quoted on this page` : ""}${remoteLoading ? " · searching…" : ""}${remoteHits.length && query.trim() ? ` · +${remoteHits.length} market match${remoteHits.length === 1 ? "" : "es"}` : ""}`
+                : `${data?.coverage || `${total} names in the ${tab} list`}${liveCount > 0 && liveCount !== total ? ` · prices available for ${liveCount} of the ${total} on this page` : ""}${remoteLoading ? " · searching…" : ""}${remoteHits.length && query.trim() ? ` · +${remoteHits.length} market match${remoteHits.length === 1 ? "" : "es"}` : ""}`
               : stockLoading
               ? "Loading the list…"
               : loadingRows
@@ -1037,11 +1045,6 @@ export function MarketsExplorer({
                     </td>
                     <td className="hidden max-w-[16rem] truncate py-2.5 pr-3 text-muted-foreground sm:table-cell" aria-hidden="true">
                       {r.name}
-                      {!isCryptoTab && !r.coinId && (
-                        <span className="block text-[0.62rem]">
-                          {r.quoted ? `${r.source || "Last good"} · ${r.rowAsOf || ""}` : PRICE_NOT_IN_RESPONSE}
-                        </span>
-                      )}
                     </td>
                     <td className="tnum py-2.5 px-3 text-right font-medium">
                       {showPrice(r)}
@@ -1061,7 +1064,9 @@ export function MarketsExplorer({
                             {formatMarketChangePercent(r.changePct)}%
                           </span>
                           <span className={cn("tnum block text-[0.62rem]", up ? "text-emerald-600/70" : "text-rose-600/70")}>
-                            {fmtAbs(r.changeAbs ?? 0, r.price)}
+                            {isCryptoTab || r.coinId
+                              ? fmtAbs(r.changeAbs ?? 0, r.price)
+                              : formatStockChangeAmount(r.changeAbs ?? 0)}
                           </span>
                         </>
                       ) : (

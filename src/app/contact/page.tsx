@@ -1,8 +1,9 @@
 import { EmailAddress } from "@/components/EmailAddress";
+import { ContactForm } from "@/components/contact/ContactForm";
 import { LegalSection, LegalShell } from "@/components/legal/LegalShell";
 import { COMPANY_NUMBER, LEGAL_ENTITY_NAME, NZBN } from "@/lib/company";
 import { publicPageMetadata } from "@/lib/reviewed-book";
-import { CUSTOMER_EMAIL, PRIVACY_OFFICER_EMAIL } from "@/lib/public-copy";
+import { CONTACT_PAGE_EMAIL } from "@/lib/public-copy";
 
 export const metadata = publicPageMetadata("/contact", {
   title: "Contact — AetherForge AI",
@@ -14,20 +15,19 @@ export default function ContactPage() {
     <LegalShell
       title="Contact"
       subtitle={`${LEGAL_ENTITY_NAME} is a New Zealand limited company.`}
-      updated="13 Oct 2026"
+      updated="15 Oct 2026"
     >
+      <LegalSection heading="Send us a message">
+        <p>
+          Use the form below, or email <EmailAddress email={CONTACT_PAGE_EMAIL} className="text-primary" />. We reply by
+          email. For a privacy request, mark your message for the Privacy Officer.
+        </p>
+        <ContactForm />
+      </LegalSection>
       <LegalSection heading="Company">
         <p>{LEGAL_ENTITY_NAME}</p>
         <p>New Zealand company number {COMPANY_NUMBER}</p>
         <p>NZBN {NZBN}</p>
-      </LegalSection>
-      <LegalSection heading="Email">
-        <p>
-          Customer email: <EmailAddress email={CUSTOMER_EMAIL} className="text-primary" />
-        </p>
-        <p>
-          Privacy Officer: <EmailAddress email={PRIVACY_OFFICER_EMAIL} className="text-primary" />
-        </p>
       </LegalSection>
     </LegalShell>
   );

@@ -221,7 +221,8 @@ export function cryptoFreshnessLabel(
   if (age >= 0 && age <= CRYPTO_QUOTE_FRESH_MS) {
     return { label: `Live · crypto · updated ${clock}`, live: true };
   }
-  return { label: `Updated ${clock}`, live: false };
+  // Older than the fresh window: say so, so a 2-hour-old crypto print is not read as current.
+  return { label: `Delayed · updated ${clock}`, live: false };
 }
 
 /** FX is a daily rate. The API live flag stays false. */

@@ -195,7 +195,7 @@ describe("Track B P0", () => {
       }
     }
     expect(lines).toContain("does not include a card number");
-    expect(lines).toContain("does not set a retention period");
+    expect(lines).toContain("do not set a retention period");
     expect(lines).not.toMatch(/\b(Grok|xAI|ZENITH|ULTRA|grok-4|enhanceWithGrok)\b/);
   });
 

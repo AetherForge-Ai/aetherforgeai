@@ -164,7 +164,7 @@ describe("crypto price chain", () => {
     const fresh = {
       id: "CRYPTO",
       title: "Crypto",
-      asOf: "as of not stated by the vendor",
+      asOf: "time not given by the data provider",
       rows: [],
     };
     const last = {

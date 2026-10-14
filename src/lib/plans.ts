@@ -189,7 +189,7 @@ const PRO_FEATURES = [
   "Stox and Koins",
   "Smitty spot prices",
   "Full Headmaster",
-  "Unlimited AI research reports",
+  "Unlimited AI research reports (one per bot every 4 hours)",
   "500 Market Assistant queries per month",
   "CSV export",
   "CSV import of holdings",
@@ -206,7 +206,7 @@ const PRO_FEATURES = [
  * Ultimate differs from Pro in code by an uncapped holdings stamp
  * (tickerLimit 100000) and no Market Assistant quota (assistantQueryLimit returns null).
  */
-export const ULTIMATE_TAGLINE = "Unlimited holdings and unlimited Market Assistant queries.";
+export const ULTIMATE_TAGLINE = "Everything in Pro, with no holdings cap and no Market Assistant limit";
 
 const ULTIMATE_FEATURES = [
   "Unlimited holdings",

@@ -154,7 +154,7 @@ describe("FIF working paper", () => {
     expect(missing.threshold).toBe("unknown");
     expect(missing.attributing[0].costNzd).toBeNull();
     expect(fifThresholdSentence(missing)).toBe(
-      "The $50,000 cost test is not calculated because a foreign attributing buy has no stored exchange rate."
+      "The NZ$50,000 cost test is not calculated because a foreign attributing buy has no stored exchange rate."
     );
 
     const blank = paperFor(

@@ -107,7 +107,7 @@ describe("pull-check:crypto-live-2026-10-11", () => {
     expect(read("src/lib/crypto-diagnostics.ts")).toContain("pull-check:crypto-live-2026-10-11");
     expect(read("src/app/api/admin/crypto-diagnostics/route.ts")).toContain("pull-check:crypto-live-2026-10-11");
     expect(read("src/app/api/admin/crypto-diagnostics/route.ts")).toContain("PRIVACY_OFFICER_EMAIL");
-    expect(read("src/lib/changelog-entries.ts")).toContain("A saved CoinGecko list and a saved DEX list stay available");
+    expect(read("src/lib/changelog-entries.ts")).toContain("A saved crypto list and a saved DEX list stay available");
   });
 
   it("uses a demo header, a pro host, or keyless, and does not put the key in the URL", () => {

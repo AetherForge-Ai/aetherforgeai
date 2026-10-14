@@ -99,8 +99,9 @@ export function printUnderReviewLabel(ticker: string): string {
  */
 export function stoxReviewCopy(): string {
   const notice = printsUnderReviewLine(1);
-  const label = printUnderReviewLabel("MAH.AX");
-  return `Example. Not a recommendation. ${notice}. ${label}. MAH.AX reason: rating TRIM: momentum negative.`;
+  const label = printUnderReviewLabel("EXAMPLE.NZ");
+  // Public pages never carry a trade-signal label (BUY/HOLD/TRIM/SELL) or a real ticker.
+  return `Example. Not a recommendation. ${notice}. ${label}. The note gives the reason the price was set aside, for example a price that moved too far from the previous close to be checked.`;
 }
 
 /** Names this member's report actually withheld. The public example is not included. */
