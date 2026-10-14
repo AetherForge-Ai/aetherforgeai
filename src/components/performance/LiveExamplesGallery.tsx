@@ -160,7 +160,7 @@ export function LiveExamplesGallery() {
             </span>
           </div>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            {PROOFS.length} unedited snapshots from the 7–8 Jul 2026 session, grouped in one dated folder.
+            {PROOFS.length} unedited snapshots dated 7–8 Jul 2026, grouped in one dated folder.
           </p>
         </div>
         <span className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-card/50 px-3 py-1.5 text-xs font-semibold text-muted-foreground">

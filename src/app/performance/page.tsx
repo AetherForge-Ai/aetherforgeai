@@ -93,8 +93,8 @@ export default function PerformancePage() {
               One paper book, {PERFORMANCE_SAMPLE.label}: {PERFORMANCE_SAMPLE.opening} to a day's high of {PERFORMANCE_SAMPLE.high} ({PERFORMANCE_SAMPLE.pct})
             </p>
             <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
-              Seven timestamped snapshots from a single session. The marks moved by {PERFORMANCE_SAMPLE.move}
-              on that day. That is one example. It is not a forecast, not a promise, and not money
+              Seven timestamped snapshots of one paper book, dated 7–8 Jul 2026. The marks moved by{" "}
+              {PERFORMANCE_SAMPLE.move} across those snapshots. That is one example. It is not a forecast, not a promise, and not money
               placed with a broker.{" "}
               <Link href="/ai-disclaimer" className="font-medium text-primary hover:underline">
                 AI disclaimer
