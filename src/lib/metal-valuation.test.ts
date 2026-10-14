@@ -33,8 +33,8 @@ describe("bullion mark-to-market", () => {
     const right = markToMarketBullionNZD(OUNCES, SPOT_NZD_PER_OZ);
     const cost = markToMarketBullionNZD(OUNCES, PURCHASE_NZD_PER_OZ);
 
-    expect(wrong).toBeCloseTo(2.90225, 4);
-    expect(cost).toBeCloseTo(496.61625, 2);
+    expect(wrong).toBe(2.9); // rounded half-up to the cent, same as the ledger (TT LOW gold 1c)
+    expect(cost).toBe(496.62);
     expect(right).toBeGreaterThan(450);
     expect(right).toBeCloseTo(470.44465, 2);
 

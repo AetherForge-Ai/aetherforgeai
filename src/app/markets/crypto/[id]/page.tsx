@@ -14,6 +14,7 @@ import { readCryptoSnapshot } from "@/lib/crypto-snapshot";
 import { getFxSnapshot } from "@/lib/fx";
 import { pageTitle } from "@/lib/page-title";
 import { isJunkCoin } from "@/lib/coin-junk";
+import { withTimeout } from "@/lib/with-timeout";
 import { presentMarketCoin } from "@/lib/crypto-api-body";
 import { presentListedCoin } from "@/lib/crypto-board";
 import { detailFromMarket } from "@/lib/crypto-market";
@@ -34,7 +35,7 @@ const loadCryptoDetailFacts = cache(async (id: string): Promise<{ facts: CryptoD
   const slug = resolvableCoinId(id) || decodeURIComponent(id).trim().toLowerCase();
   const vendor = vendorByCoingeckoId(slug);
   const coinId = resolvableCoinId(id);
-  const saved = await readCryptoSnapshot();
+  const saved = await withTimeout(() => readCryptoSnapshot(), 1500, null);
   const listed =
     peekTop400()?.coins.find((coin) => coin.id === slug || coin.symbol.toUpperCase() === (vendor?.ticker || "")) ??
     saved?.coins.find((coin) => coin.id === slug || coin.symbol.toUpperCase() === (vendor?.ticker || "")) ??
@@ -43,16 +44,16 @@ const loadCryptoDetailFacts = cache(async (id: string): Promise<{ facts: CryptoD
     listed && listed.price > 0
       ? null
       : coinId
-        ? await loadPublicCryptoPrint(coinId)
+        ? await withTimeout(() => loadPublicCryptoPrint(coinId), 2500, null)
         : null;
   const priceUsd = listed && listed.price > 0 ? listed.price : print && print.price > 0 ? print.price : null;
   const priceSource = listed && listed.price > 0 ? listed.source || "" : print?.source || "";
   let priceNzd: number | null = null;
   let nzdSourced = false;
   if (priceUsd != null) {
-    const fx = await getFxSnapshot();
-    const perUsd = fx.ratesToNZD.USD;
-    if (fx.sourced && perUsd > 0) {
+    const fx = await withTimeout(() => getFxSnapshot(), 1500, null);
+    const perUsd = fx?.ratesToNZD.USD ?? 0;
+    if (fx?.sourced && perUsd > 0) {
       nzdSourced = true;
       priceNzd = priceUsd * perUsd;
     }
@@ -152,7 +153,9 @@ export default async function CryptoDetailPage({
         <h1 className="font-display text-2xl font-bold text-foreground">
           {loaded.facts.name || (loaded.facts.symbol ? loaded.facts.symbol.toUpperCase() : decodeURIComponent(id))}
         </h1>
-        {loaded.initialDetail ? null : (
+        {loaded.initialDetail ? (
+          quotedLine ? <p className="tnum mt-1 text-sm text-muted-foreground" data-server-price>{quotedLine}</p> : null
+        ) : (
           <PublicCryptoPrices
             prints={print && print.price > 0 ? [print] : []}
             empty="No earlier price is stored for this coin."

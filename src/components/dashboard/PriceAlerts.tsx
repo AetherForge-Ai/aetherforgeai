@@ -131,6 +131,7 @@ export function PriceAlerts({
   seedTicker = null,
   seedNonce = 0,
   embedded = false,
+  bare = false,
 }: {
   stocks: Stock[];
   /** Hub context — stock desk, crypto desk, or metals. */
@@ -148,6 +149,8 @@ export function PriceAlerts({
   seedNonce?: number;
   /** Sit inside a parent card instead of drawing a second one. */
   embedded?: boolean;
+  /** Inside a dashboard RailCard: no own chrome or visible heading, one column. */
+  bare?: boolean;
 }) {
   const isCrypto = assetType === "crypto";
   const isMetal = assetType === "metal";
@@ -373,19 +376,19 @@ export function PriceAlerts({
 
   const Heading = embedded ? "h3" : "h2";
   return (
-    <section className={embedded ? "space-y-3 border-t border-border/50 pt-3 first:border-t-0 first:pt-0" : "rounded-3xl border border-border/70 bg-card/50 p-6"}>
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <section className={bare ? "space-y-3" : embedded ? "space-y-3 border-t border-border/50 pt-3 first:border-t-0 first:pt-0" : "rounded-3xl border border-border/70 bg-card/50 p-6"}>
+      <div className={bare ? "flex items-center justify-end gap-3" : "flex flex-wrap items-center justify-between gap-3"}>
         <div className="flex items-center gap-3">
-          {embedded ? null : (
+          {embedded || bare ? null : (
           <span className="grid size-9 place-items-center rounded-lg bg-primary/12 text-primary">
             <BellRing className="size-4" />
           </span>
           )}
           <div>
-            <Heading className={embedded ? "text-sm font-semibold" : "font-display text-lg font-bold"}>
+            <Heading className={bare ? "sr-only" : embedded ? "text-sm font-semibold" : "font-display text-lg font-bold"}>
               {isMetal ? "Metals price alerts" : isCrypto ? "Crypto price alerts" : "Share-price alerts"}
             </Heading>
-            {embedded ? null : (
+            {embedded || bare ? null : (
             <p className="text-sm text-muted-foreground">
               Set trim, full-exit and take-profit rules. A scenario shows what a full exit would look like.
             </p>
@@ -393,7 +396,7 @@ export function PriceAlerts({
           </div>
         </div>
         {canCreate ? (
-        <Button onClick={openAdd} className="font-semibold">
+        <Button onClick={openAdd} className={bare ? "bg-[#047857] font-semibold text-white hover:bg-[#065f46]" : "font-semibold"}>
           <Plus className="mr-1 size-4" /> New alert
         </Button>
         ) : (
@@ -401,7 +404,7 @@ export function PriceAlerts({
         )}
       </div>
 
-      <div className="mt-5">
+      <div className={bare ? "mt-3" : "mt-5"}>
         {loading ? (
           <div className="space-y-3">
             {[...Array(2)].map((_, i) => (
@@ -410,10 +413,12 @@ export function PriceAlerts({
           </div>
         ) : alerts.length === 0 ? (
           <p className="rounded-xl border border-dashed border-border/60 p-5 text-sm text-muted-foreground">
-            No alerts yet. Create one and the list marks it when a price hits your rules.
+            {canCreate
+              ? `No ${isCrypto ? "crypto" : isMetal ? "metals" : "share"} alerts yet. Use New alert and the list marks it when a price hits your rules.`
+              : "Price alerts are on a paid plan."}
           </p>
         ) : (
-          <ul className="grid gap-3 md:grid-cols-2">
+          <ul className={bare ? "grid gap-3" : "grid gap-3 md:grid-cols-2"}>
             {alerts.map((a) => {
               const sym = a.ticker.toUpperCase();
               const holding =

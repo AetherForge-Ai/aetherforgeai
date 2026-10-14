@@ -59,8 +59,11 @@ export default async function BillingSettingsPage() {
                 <dd className="mt-1 text-sm font-semibold">{snapshot.reports}</dd>
               </div>
               <div className="rounded-2xl border border-border/60 px-4 py-3 sm:col-span-2">
-                <dt className="text-xs text-muted-foreground">Market Assistant this month</dt>
+                <dt className="text-xs text-muted-foreground">Market Assistant questions this month</dt>
                 <dd className="mt-1 text-sm font-semibold">{snapshot.assistant}</dd>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Counts questions asked on the Market Assistant page. The Assistant Guide on the dashboard is not counted.
+                </p>
               </div>
             </dl>
             <p className="mt-4 text-sm leading-relaxed text-muted-foreground">{snapshot.scopeNote}</p>

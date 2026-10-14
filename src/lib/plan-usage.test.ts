@@ -103,7 +103,7 @@ describe("H5 plan and billing", () => {
       tickerLimit: 51,
     });
     expect(stamped.holdings).toBe("4 / 51 per bot");
-    expect(stamped.scopeNote).toMatch(/same holdings cap as the dashboard and profile/);
+    expect(stamped.scopeNote).toMatch(/holdings cap is the same everywhere/);
     expect(dual.reports).toBe("— / unlimited");
     expect(dual.assistant).toBe("1 / unlimited");
     expect(dual.apexNote).toBe(APEX_DUAL_PUBLIC_NOTE);
@@ -129,7 +129,7 @@ describe("H5 plan and billing", () => {
     expect(billing).toContain("Current plan");
     expect(billing).toContain("Holdings");
     expect(billing).toContain("Reports this month");
-    expect(billing).toContain("Market Assistant this month");
+    expect(billing).toContain("Market Assistant questions this month");
     expect(billing).toContain('redirect("/login?redirect=/settings/billing")');
     expect(billing).not.toMatch(/GST/i);
     expect(billing).not.toContain("stripe.checkout");

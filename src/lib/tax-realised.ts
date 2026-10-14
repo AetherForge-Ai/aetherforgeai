@@ -88,6 +88,16 @@ function feeNzd(row: TaxLedgerRow, fx: number | null): number | null {
   return roundMoney(fees * fx);
 }
 
+/** The one fee-inclusive lot rule: the buy fee in NZ$ spread per unit onto the lot cost. */
+export function buyLotFee(
+  row: TaxLedgerRow,
+  fx: number | null,
+  qty: number
+): { feePerUnitNzd: number; missingFee: boolean } {
+  const buyFee = feeNzd(row, fx);
+  return { feePerUnitNzd: buyFee != null && buyFee > 0 && qty > 0 ? buyFee / qty : 0, missingFee: buyFee == null };
+}
+
 function isCrypto(row: TaxLedgerRow): boolean {
   return String(row.asset_type || "").toLowerCase() === "crypto";
 }
@@ -202,11 +212,7 @@ function walkDisposals(rows: readonly TaxLedgerRow[]): RealisedLine[] {
       fxRate: fx ?? 0,
       tradeDatetime: event.day,
       missingRate: fx == null,
-      feePerUnitNzd: (() => {
-        const buyFee = feeNzd(row, fx);
-        return buyFee != null && buyFee > 0 ? buyFee / qty : 0;
-      })(),
-      missingFee: feeNzd(row, fx) == null,
+      ...buyLotFee(row, fx, qty),
     });
   }
 
@@ -289,11 +295,7 @@ function openBooks(rows: readonly TaxLedgerRow[]): Map<string, OpenLot[]> {
       fxRate: fx ?? 0,
       tradeDatetime: event.day,
       missingRate: fx == null,
-      feePerUnitNzd: (() => {
-        const buyFee = feeNzd(row, fx);
-        return buyFee != null && buyFee > 0 ? buyFee / qty : 0;
-      })(),
-      missingFee: feeNzd(row, fx) == null,
+      ...buyLotFee(row, fx, qty),
     });
   }
   return books;
@@ -410,11 +412,7 @@ export function sumRealisedFxNzd(rows: readonly TaxLedgerRow[]): number {
       fxRate: fx ?? 0,
       tradeDatetime: event.day,
       missingRate: fx == null,
-      feePerUnitNzd: (() => {
-        const buyFee = feeNzd(row, fx);
-        return buyFee != null && buyFee > 0 ? buyFee / qty : 0;
-      })(),
-      missingFee: feeNzd(row, fx) == null,
+      ...buyLotFee(row, fx, qty),
     });
   }
   return total;
