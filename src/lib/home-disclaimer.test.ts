@@ -10,7 +10,7 @@ describe("home disclaimer", () => {
   it("keeps the wording and places it after the closing call to action", () => {
     const page = read("src/app/page.tsx");
     const title = page.indexOf("Market intelligence for the book you hold");
-    const cta = page.indexOf("Ready to take care of your Portfolio?");
+    const cta = page.indexOf("Ready to take care of your portfolio?");
     const disclaimer = page.indexOf("Not financial advice.");
     expect(title).toBeGreaterThan(-1);
     expect(cta).toBeGreaterThan(title);
