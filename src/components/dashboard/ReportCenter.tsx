@@ -820,7 +820,7 @@ export function ReportCenter({
               </div>
               <div className="mt-4">
                 {!unlocked ? (
-                  freePlan ? (
+                  freePlan && access !== "stock" && access !== "crypto" && access !== "both" ? (
                     <Button className="h-auto min-h-11 w-full whitespace-normal" onClick={() => void chooseFreeBot(b.kind)} disabled={running !== null}>
                       {busy ? (
                         <>

@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/session";
 import { isFreeReportPlan } from "@/lib/entitlements";
 import { totalumSdk } from "@/lib/totalum";
 import { FREE_PLAN } from "@/lib/plans";
+import { decideFreeBotChoice } from "@/lib/free-bot-choice";
 
 /**
  * POST /api/free-trial/activate
@@ -41,8 +42,11 @@ export async function POST(req: Request) {
     const expires = new Date(now.getTime() + FREE_PLAN.durationDays * 86400_000);
     // Legacy free accounts that already have both bots keep them. A new choice
     // is Stox or Koins, matching the Pricing card.
-    const current = user.bot_access ?? "none";
-    const botAccess = current === "both" ? "both" : chosen;
+    const decision = decideFreeBotChoice(user, chosen);
+    if (!decision.ok) {
+      return NextResponse.json({ ok: false, error: decision.error }, { status: decision.status });
+    }
+    const botAccess = decision.botAccess;
 
     const patch = {
       subscription_status: "active",
