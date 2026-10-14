@@ -51,7 +51,7 @@ export default async function MarketsPage({
 
   if (!user) {
     return (
-      <AppShell guest user={{ name: "Guest", email: "Sign in to activate your account" }}>
+      <AppShell tone="dark" guest user={{ name: "Guest", email: "Sign in to activate your account" }}>
         <MarketsPageContent preview initialTab={tab} index={index} dexCredit={dexPoweredByLine()} />
       </AppShell>
     );
@@ -59,6 +59,7 @@ export default async function MarketsPage({
 
   return (
     <AppShell
+      tone="dark"
       user={{
         name: user.name,
         email: user.email,

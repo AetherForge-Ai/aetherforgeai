@@ -1695,6 +1695,9 @@ function groupLabel(id: Exclude<SnapshotClass, "cash">): string {
   return "Shares";
 }
 
+/** Shown on Realised between a confirmed sell and the server snapshot that books it. */
+export const REALISED_PENDING_REASON = "Realised is updating from the ledger after this sell.";
+
 function repaintFigure(figure: SnapshotFigure, value: number | null, reason: string | null): SnapshotFigure {
   if (value == null) return { ...figure, value: null, display: MISSING_MARK, reason };
   const rounded = roundMoney(value);
@@ -1711,6 +1714,7 @@ export function paintConfirmedSnapshot(
   cashBalance: number
 ): PortfolioSnapshot {
   const next = structuredClone(snapshot);
+  let realisedPending = false;
   const type = String(trade.type || "").toLowerCase();
   const ticker = String(trade.ticker || "").trim().toUpperCase();
   const qty = Number(trade.quantity);
@@ -1812,6 +1816,9 @@ export function paintConfirmedSnapshot(
         }
         position.lots = kept;
         position.quantity = Math.max(0, oldQty - qty);
+        // FIFO realised is booked by the ledger, not guessed here. Show a dash until the server snapshot lands.
+        position.realised = repaintFigure(position.realised, null, REALISED_PENDING_REASON);
+        realisedPending = true;
         if (position.lots.length === 0 && position.quantity > 1e-9 && position.costBase.value != null && oldQty > 0) {
           position.costBase = repaintFigure(position.costBase, position.costBase.value * (position.quantity / oldQty), null);
         }
@@ -1867,6 +1874,7 @@ export function paintConfirmedSnapshot(
   }
   next.kpis.holdingsValue = repaintFigure(next.kpis.holdingsValue, holdingsMissing ? null : holdings, holdingsMissing);
   next.kpis.cash = repaintFigure(next.kpis.cash, cashBalance, null);
+  if (realisedPending) next.kpis.realised = repaintFigure(next.kpis.realised, null, REALISED_PENDING_REASON);
   const net = holdingsMissing ? null : holdings + cashBalance;
   next.kpis.netWorth = repaintFigure(next.kpis.netWorth, net, holdingsMissing);
   next.grand = repaintFigure(next.grand, net, holdingsMissing);

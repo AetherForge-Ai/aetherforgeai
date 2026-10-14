@@ -194,7 +194,8 @@ describe("U3 U7 V1 P1 snapshot", () => {
     expect(day.movers.some((row) => row.ticker === "BBB")).toBe(false);
     expect(day.reviewNote).toContain("1 print under review");
     const week = ranked.marketMovers[0].windows[1];
-    expect(week.reviewNote).toContain("1 print under review");
+    expect(week.reviewNote).toContain("2 prints under review");
+    expect(week.movers.some((row) => row.ticker === "BBB")).toBe(false);
     expect(week.movers.every((row) => row.changePct > 0)).toBe(true);
 
     const stale = applyKoinsSweeps(report(), { at: fresh, candidates: rows, projections: [] }, Date.parse(fresh) + 61 * 60 * 1000);

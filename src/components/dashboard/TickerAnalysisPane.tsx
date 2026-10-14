@@ -59,6 +59,15 @@ function FormattedReply({ text }: { text: string }) {
   );
 }
 
+/** Plain reason for an empty projection. Never the raw API error text. */
+export function projectionEmptyReason(status: number | null | undefined): string {
+  if (status === 401) return "No projection: sign in to read the share projection.";
+  if (status === 400) return "No projection: this symbol is not one the analysis accepts.";
+  if (status === 429) return "No projection: too many requests just now. Try again in a minute.";
+  if (status === 404 || status === 422) return "No projection: there is not enough price history for this name.";
+  return "No projection: the analysis service did not answer. Try again shortly.";
+}
+
 export function TickerAnalysisPane({
   symbol,
   name,
@@ -75,6 +84,7 @@ export function TickerAnalysisPane({
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [hidden, setHidden] = useState(false);
+  const [emptyReason, setEmptyReason] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const autoAskedFor = useRef<string | null>(null);
 
@@ -90,12 +100,17 @@ export function TickerAnalysisPane({
       });
       if (res.ok && res.data?.reply) {
         setHidden(false);
+        setEmptyReason(null);
         setTurns((t) => [...t, { role: "assistant", content: res.data!.reply }]);
       } else if (res.status !== 401) {
         console.error("[ticker-analysis] Failed:", res.error);
-        if (!question) setHidden(true);
+        if (!question) {
+          setHidden(false);
+          setEmptyReason(projectionEmptyReason(res.status));
+        }
       } else if (!question) {
-        setHidden(true);
+        setHidden(false);
+        setEmptyReason(projectionEmptyReason(401));
       }
       setLoading(false);
     },
@@ -110,6 +125,7 @@ export function TickerAnalysisPane({
     setTurns([]);
     setInput("");
     setHidden(false);
+    setEmptyReason(null);
     void ask();
   }, [symbol, signedIn, isPending, ask]);
 
@@ -127,7 +143,7 @@ export function TickerAnalysisPane({
   }
 
   if (isPending || !signedIn) return null;
-  if (hidden && turns.length === 0 && !loading) return null;
+  if (hidden && turns.length === 0 && !loading && !emptyReason) return null;
 
   return (
     <div className="flex h-full min-h-0 flex-col rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/8 to-card/40">
@@ -158,6 +174,9 @@ export function TickerAnalysisPane({
             </div>
           )
         )}
+        {!loading && turns.length === 0 && emptyReason ? (
+          <p className="text-sm text-muted-foreground">— {emptyReason}</p>
+        ) : null}
         {loading && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Loader2 className="size-3.5 animate-spin" /> {botName} is analysing {symbol}…

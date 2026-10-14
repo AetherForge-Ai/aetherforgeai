@@ -31,7 +31,7 @@ export async function POST(req: Request) {
     const body = (await req.json().catch(() => ({}))) as unknown;
     const parsed = postSchema.safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json({ ok: false, error: parsed.error.flatten() }, { status: 400 });
+      return NextResponse.json({ ok: false, error: "That symbol is not accepted." }, { status: 400 });
     }
     const { symbol, name } = parsed.data;
     const question =
@@ -64,12 +64,15 @@ export async function POST(req: Request) {
 
     console.log(`[api/ticker-analysis] Grok analysis for ${symbol} (user ${user._id})`);
     const reply = await createGrokChatCompletion({ messages, maxTokens: 700, temperature: 0.6 });
+    if (typeof reply !== "string" || !reply.trim()) {
+      return NextResponse.json({ ok: false, error: "No projection was returned for this name." }, { status: 502 });
+    }
 
     return NextResponse.json({ ok: true, data: { reply } });
   } catch (err: any) {
     console.error("[api/ticker-analysis] POST error:", err);
     return NextResponse.json(
-      { ok: false, error: err?.message || "Failed to analyse ticker" },
+      { ok: false, error: "The analysis service did not answer." },
       { status: 500 }
     );
   }

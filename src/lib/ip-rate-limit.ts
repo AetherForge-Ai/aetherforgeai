@@ -5,8 +5,12 @@
  * The address is CF-Connecting-IP only. X-Forwarded-For is not read.
  */
 
-export const PERSONAL_GUIDE_LIMIT = 10;
+/** Six messages a minute. A seventh inside that minute is refused. */
+export const PERSONAL_GUIDE_LIMIT = 6;
+export const PERSONAL_GUIDE_WINDOW_MS = 60 * 1000;
+/** Five contact messages a minute. A sixth inside that minute is refused. */
 export const CONTACT_LIMIT = 5;
+export const CONTACT_WINDOW_MS = 60 * 1000;
 export const RATE_WINDOW_MS = 60 * 60 * 1000;
 export const PUBLIC_INPUT_CAP = 2000;
 export const NO_CF_IP = "no-cf-ip";
@@ -79,18 +83,41 @@ export async function takeRateLimit(
   limit: number,
   windowMs = RATE_WINDOW_MS,
   now = Date.now()
-): Promise<{ allowed: boolean; remaining: number }> {
+): Promise<{ allowed: boolean; remaining: number; limit: number; resetSec: number }> {
   const storageKey = rateLimitStorageKey(key, windowMs, now);
-  const shared = await readShared(storageKey);
-  const count = Math.max(buckets.get(storageKey) ?? 0, shared ?? 0);
-  if (count >= limit) {
-    buckets.set(storageKey, count);
-    return { allowed: false, remaining: 0 };
+  const resetSec = Math.max(1, Math.ceil((windowMs - (now % windowMs)) / 1000));
+  // Reserve a slot before any await so a burst in this isolate cannot all read zero.
+  const count = (buckets.get(storageKey) ?? 0) + 1;
+  buckets.set(storageKey, count);
+  if (count > limit) {
+    return { allowed: false, remaining: 0, limit, resetSec };
   }
-  const next = count + 1;
-  buckets.set(storageKey, next);
-  await writeShared(storageKey, next);
-  return { allowed: true, remaining: Math.max(0, limit - next) };
+  const shared = await readShared(storageKey);
+  if (shared != null && shared >= limit) {
+    buckets.set(storageKey, Math.max(count, shared));
+    return { allowed: false, remaining: 0, limit, resetSec };
+  }
+  const merged = Math.max(count, (shared ?? 0) + 1);
+  buckets.set(storageKey, merged);
+  await writeShared(storageKey, merged);
+  if (merged > limit) {
+    return { allowed: false, remaining: 0, limit, resetSec };
+  }
+  return { allowed: true, remaining: Math.max(0, limit - merged), limit, resetSec };
+}
+
+/** IETF RateLimit fields. Retry-After is set only when the caller is refusing the request. */
+export function rateLimitHeaders(
+  result: { limit: number; remaining: number; resetSec: number },
+  retry = false
+): Record<string, string> {
+  const headers: Record<string, string> = {
+    "RateLimit-Limit": String(result.limit),
+    "RateLimit-Remaining": String(result.remaining),
+    "RateLimit-Reset": String(result.resetSec),
+  };
+  if (retry) headers["Retry-After"] = String(result.resetSec);
+  return headers;
 }
 
 /** A filled honeypot is a bot. Empty and missing values are people. */

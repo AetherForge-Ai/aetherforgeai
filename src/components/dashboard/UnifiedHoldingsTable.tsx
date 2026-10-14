@@ -443,7 +443,7 @@ function AssetCell({ row, onOpen }: { row: HoldingsRowModel; onOpen: () => void 
             <Badge variant="secondary">Cash</Badge>
           ) : (
             <>
-              <Badge variant="outline">{row.exchange}</Badge>
+              {row.exchange && row.exchange !== row.classLabel ? <Badge variant="outline">{row.exchange}</Badge> : null}
               <Badge variant="secondary">{row.classLabel}</Badge>
             </>
           )}

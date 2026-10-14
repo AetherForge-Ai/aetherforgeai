@@ -13,7 +13,7 @@ type FrameUser = {
 export function MarketsAppFrame({ user, children }: { user: FrameUser; children: ReactNode }) {
   if (!user) {
     return (
-      <AppShell guest user={{ name: "Guest", email: "Sign in to activate your account" }}>
+      <AppShell tone="dark" guest user={{ name: "Guest", email: "Sign in to activate your account" }}>
         {children}
       </AppShell>
     );
@@ -21,6 +21,7 @@ export function MarketsAppFrame({ user, children }: { user: FrameUser; children:
 
   return (
     <AppShell
+      tone="dark"
       user={{
         name: user.name,
         email: user.email,
