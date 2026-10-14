@@ -16,6 +16,7 @@ export default function KoinsPage() {
       title="Koins"
       lede="Koins is the crypto bot. It writes plain-English notes about the coins on your paper book. Crypto projections stay paused. Koins does not place a trade."
       body={BOT_GUIDES.koins}
+      kind="koins"
       images={[
         { src: "/brand/bot-koins.png", alt: "Illustration of the Koins character" },
         { src: "/brand/bot-koins-fullbody.png", alt: "Full-length illustration of the Koins character" },

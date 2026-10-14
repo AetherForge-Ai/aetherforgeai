@@ -25,6 +25,7 @@ export default async function HeadmasterPage() {
         title="The Headmaster"
         lede="The Headmaster is the planning bot for the paper book. Signed-out visitors see this explanation and an example book. The member console stays behind sign-in."
         body={BOT_GUIDES.headmaster}
+        kind="headmaster"
         images={[
           { src: "/brand/bot-headmaster-fullbody.png", alt: "Illustration of the Headmaster character" },
           { src: "/brand/aetherforge-mark.png", alt: "AetherForge mark" },
