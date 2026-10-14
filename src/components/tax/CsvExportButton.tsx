@@ -14,6 +14,7 @@ export function CsvExportButton({
   allowed,
   exportName,
   idleLabel = "CSV",
+  primary = true,
 }: {
   href: string;
   allowed: boolean;
@@ -21,6 +22,8 @@ export function CsvExportButton({
   exportName?: string;
   /** Button text when the download is allowed. */
   idleLabel?: string;
+  /** Only the first export on a page shows the upgrade prompt when locked; the others render nothing. */
+  primary?: boolean;
 }) {
   const [locked, setLocked] = useState(!allowed);
   const [busy, setBusy] = useState(false);
@@ -59,6 +62,7 @@ export function CsvExportButton({
   }
 
   if (locked) {
+    if (!primary && !note) return null;
     return (
       <span className="inline-flex flex-wrap items-center gap-2">
         <button

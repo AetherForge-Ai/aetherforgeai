@@ -360,6 +360,7 @@ export function DividendLedgerView({
                 exportName="Dividends CSV"
               />
               <CsvExportButton
+              primary={false}
                 href={`/api/tax/pack/pdf?paper=dividends&year=${taxYear}`}
                 allowed={csvAllowed}
                 exportName="Dividends PDF"

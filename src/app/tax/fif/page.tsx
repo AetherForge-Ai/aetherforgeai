@@ -112,6 +112,7 @@ export default async function FifPage({
                 exportName="FIF CSV"
               />
               <CsvExportButton
+              primary={false}
                 href={`/api/tax/pack/pdf?paper=fif&year=${endingYear}`}
                 allowed={canExportCsv(user.subscription_plan)}
                 exportName="FIF PDF"

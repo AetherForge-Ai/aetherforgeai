@@ -188,6 +188,7 @@ export default async function RealisedPage({
           ) : null}
           {user && report ? (
             <CsvExportButton
+              primary={false}
               href={`/api/tax/crypto/export?year=${endingYear}`}
               allowed={canExportCsv(user.subscription_plan)}
               exportName="Crypto disposals CSV"
@@ -196,6 +197,7 @@ export default async function RealisedPage({
           ) : null}
           {user && report ? (
             <CsvExportButton
+              primary={false}
               href={`/api/tax/pack/pdf?paper=realised&year=${endingYear}`}
               allowed={canExportCsv(user.subscription_plan)}
               exportName="Realised PDF"
