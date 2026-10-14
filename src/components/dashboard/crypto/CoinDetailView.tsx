@@ -57,6 +57,7 @@ import {
   type ChartRange,
   type CoinDetail,
   type CoinChart,
+  plausibleVolume24h,
 } from "@/lib/crypto-market";
 
 /** Slice a chart series to the visible window for the sub-day ranges. */
@@ -362,10 +363,10 @@ export function CoinDetailView({
           )}
           {variant === "dialog" ? (
             <DialogDescription className="sr-only">
-              Live market data and price chart for {detail.name}
+              {stalePriceReason(detail.quotedAt) ? "Delayed market data" : "Market data"} and price chart for {detail.name}
             </DialogDescription>
           ) : (
-            <p className="sr-only">Live market data and price chart for {detail.name}</p>
+            <p className="sr-only">{stalePriceReason(detail.quotedAt) ? "Delayed market data" : "Market data"} and price chart for {detail.name}</p>
           )}
         </div>
       </div>
@@ -511,7 +512,7 @@ export function CoinDetailView({
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {(detail.marketCap ?? 0) > 0 ? <Metric label="Market Cap" value={fmtCompactUsd(detail.marketCap)} /> : null}
             {(detail.fdv ?? 0) > 0 ? <Metric label="Fully Diluted Val" value={fmtCompactUsd(detail.fdv)} /> : null}
-            {(detail.volume24h ?? 0) > 0 ? <Metric label="24h Volume" value={fmtCompactUsd(detail.volume24h)} /> : null}
+            {plausibleVolume24h(detail.volume24h, detail.marketCap) != null ? <Metric label="24h Volume" value={fmtCompactUsd(detail.volume24h)} /> : null}
             {(detail.circulatingSupply ?? 0) > 0 ? (
               <Metric
                 label="Circulating"

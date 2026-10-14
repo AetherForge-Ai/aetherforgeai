@@ -14,7 +14,6 @@ import {
   BellRing,
   ListChecks,
   AlertTriangle,
-  CalendarClock,
   ShieldAlert,
   TrendingUp,
   Bitcoin,
@@ -22,14 +21,13 @@ import {
   Target,
   CheckCircle2,
   XCircle,
-  Gauge,
   Trophy,
 } from "lucide-react";
 
 export const metadata: Metadata = publicPageMetadata("/how-to-maximize-results", {
-  title: "How to Maximize Results with AetherForge AI",
+  title: "Getting the most from AetherForge AI",
   description:
-    "The complete framework for extracting maximum clarity, consistency and edge from Stox, Koins and The Headmaster — build an accurate portfolio and follow a disciplined weekly routine.",
+    "How to use Stox, Koins and The Headmaster within your plan: keep an accurate book and read the notes as information.",
 });
 
 /* ---------------------------------------------------------------- data */
@@ -40,15 +38,15 @@ const SECTIONS = [
     icon: Wallet,
     accent: "from-emerald-500/15",
     ring: "border-emerald-500/25",
-    title: "Build a Complete & Accurate Portfolio",
+    title: "Keep a complete and accurate book",
     tag: "Foundation",
-    lead: "The quality of your results starts with the quality of the data you feed the system.",
+    lead: "The notes can only describe what you have recorded in your book.",
     points: [
-      "Add every holding you own — stocks, crypto, and physical gold/silver.",
-      "Use exact ticker symbols (e.g. AIR.NZ, NVDA, BTC).",
-      "Enter accurate share/unit counts and cost basis (purchase price).",
-      "Update your portfolio regularly — especially after buys, sells, or dividends.",
-      "Use the downloadable Excel Transaction Tracker to keep perfect records, then mirror the data in your dashboard.",
+      "Add the holdings you want covered: shares, crypto and physical gold or silver.",
+      "Use exact ticker symbols (for example AIR.NZ, NVDA or BTC).",
+      "Enter accurate quantities and the price you paid.",
+      "Update the book after a buy, a sell or a dividend.",
+      "Yearly plans include a blank Excel investor toolkit template if you want to keep your own records as well.",
     ],
     tip: "Keep the book current after a buy, a sell, or a dividend. The notes can only describe what you recorded.",
   },
@@ -57,14 +55,14 @@ const SECTIONS = [
     icon: Newspaper,
     accent: "from-sky-500/15",
     ring: "border-sky-500/25",
-    title: "Use Stox & Koins Daily",
-    tag: "Your Daily Intelligence Briefing",
-    lead: "Stox (Equities) and Koins (Crypto) are your two specialist analysts — put them to work every day.",
+    title: "Read your bot's notes when you need them",
+    tag: "Stox or Koins",
+    lead: "Free and Starter include one bot: Stox (shares) or Koins (crypto). Pro and Ultimate include both.",
     points: [
-      "Open a Stox or Koins note on your book at least once a day, ideally before the New Zealand market opens.",
-      "Read the multi-timeframe analysis: short, medium and long-term.",
+      "Your plan sets how many reports you can create each month (Free 3, Starter 15). Spread them across the month.",
+      "Each report covers short, medium and long-term views of the holdings in your book.",
       "Read top gainers, momentum and the 7-day pathways as information. They are not a recommendation to buy, sell, or hold.",
-      "Cross-reference Stox and Koins whenever you hold both stocks and crypto.",
+      "If your plan includes both bots, you can read the Stox and Koins notes side by side.",
     ],
     tip: "Read the note as a briefing. Look at the reason for each observation. The note is not an instruction to buy or sell.",
   },
@@ -73,29 +71,27 @@ const SECTIONS = [
     icon: Compass,
     accent: "from-violet-500/15",
     ring: "border-violet-500/25",
-    title: "Activate The Headmaster for Portfolio-Level Strategy",
-    tag: "Portfolio Planning and Strategies",
-    lead: "The Headmaster runs your Portfolio Planning and Strategies. Use it to see the big picture across every asset class.",
+    title: "Use The Headmaster for the whole book",
+    tag: "Portfolio overview",
+    lead: "The Headmaster report looks across every asset class in your book.",
     points: [
-      "Generate a Total Portfolio Intelligence Report at least once per week.",
-      "Use the Strategy Builder — tell The Headmaster your goals (e.g. “Aggressive growth with 30% crypto” or “Balanced income + growth”).",
-      "Run Scenario Simulations (bull / base / bear) before making large allocation changes.",
+      "Create a Headmaster report when you want a full overview of holdings, allocation and cash.",
       "Read the allocation notes as general information. They are not personalised advice and they do not tell you to rebalance.",
+      "Check which plans include The Headmaster on the pricing page.",
     ],
-    tip: "The Headmaster shines when your portfolio mixes assets (stocks + crypto + metals). It sees connections individual bots might miss.",
+    tip: "The Headmaster is most useful when your book mixes asset classes, such as shares, crypto and metals.",
   },
   {
     n: "04",
     icon: BellRing,
     accent: "from-amber-500/15",
     ring: "border-amber-500/25",
-    title: "Set Smart Price Alerts",
-    tag: "Never Miss Key Levels",
+    title: "Note the price levels you care about",
+    tag: "Price markers",
     lead: "A price marker records a level you chose. Reaching that level is information, not an instruction to buy, sell, or trim.",
     points: [
       "You can note a level that appeared in a Stox or Koins explanation.",
-      "You can note levels above and below the price paid. The marker is information.",
-      "Read the marker next to the Headmaster notes. Neither one is an instruction to trade.",
+      "You can note levels above and below the price paid.",
       "Review the levels you noted when the market has moved.",
     ],
     tip: null,
@@ -105,39 +101,33 @@ const SECTIONS = [
     icon: ListChecks,
     accent: "from-teal-500/15",
     ring: "border-teal-500/25",
-    title: "Follow a Disciplined Process",
-    tag: "The Real Edge",
-    lead: "A repeatable process is a useful way to read the book:",
+    title: "Keep a regular routine",
+    tag: "Routine",
+    lead: "A repeatable routine is one way to read the book:",
     points: [
-      "Morning Ritual — check overnight moves + run Stox / Koins reports.",
-      "Review The Headmaster — look at overall portfolio health and strategy alignment.",
+      "Record new trades and dividends as they happen.",
+      "Read your bot's latest report when you have one available.",
       "Check the markers you noted. They are information, not an instruction to trade.",
-      "Document Everything — use the Excel tracker religiously.",
-      "Weekly Review — generate a full Headmaster report and assess performance vs plan.",
-      "Risk First — never risk more than you are comfortable losing on any single idea.",
+      "Only risk money you are comfortable losing on any single idea.",
     ],
     tip: null,
-    golden: "AetherForge AI gives you clarity. Discipline turns clarity into results.",
+    golden: "AetherForge AI provides information. Your decisions, and their results, are your own.",
   },
 ];
 
 const MISTAKES = [
-  "Loading incomplete portfolios — missing holdings distort the analysis.",
-  "Ignoring risk management and position sizing.",
+  "Leaving holdings out of the book, so the notes describe an incomplete picture.",
+  "Ignoring position size and risk.",
   "Treating an informational note as an instruction to trade.",
-  "Not updating cost basis after averaging in or out.",
-  "Trading emotionally instead of following the data.",
-  "Skipping the Excel transaction log.",
-  "Over-leveraging or ignoring The Headmaster’s risk warnings.",
+  "Not updating the price paid after buying or selling more.",
+  "Trading on emotion.",
 ];
 
 const ROUTINE: { day: string; action: string; tools: string; time: string; icon: any }[] = [
-  { day: "Monday", action: "Full portfolio review + Headmaster report", tools: "The Headmaster", time: "20–30 min", icon: Compass },
-  { day: "Daily", action: "Morning Stox + Koins briefing", tools: "Stox + Koins", time: "10 min", icon: TrendingUp },
-  { day: "Daily", action: "Read the price markers you noted", tools: "Markers", time: "5 min", icon: BellRing },
-  { day: "Wednesday", action: "Mid-week re-check + adjust alerts", tools: "All bots", time: "15 min", icon: Gauge },
-  { day: "Friday", action: "Weekly performance review", tools: "Headmaster + Excel", time: "25 min", icon: FileSpreadsheet },
-  { day: "Sunday", action: "Plan the week ahead", tools: "The Headmaster", time: "15 min", icon: CalendarClock },
+  { day: "After a trade", action: "Record the buy, sell or dividend in your book", tools: "Dashboard", time: "2 min", icon: Wallet },
+  { day: "Weekly", action: "Read the price markers you noted", tools: "Markers", time: "5 min", icon: BellRing },
+  { day: "Fortnightly", action: "Read a Stox or Koins report (within your plan's monthly allowance)", tools: "Your bot", time: "10 min", icon: TrendingUp },
+  { day: "Monthly", action: "Read a Headmaster report, if your plan includes it", tools: "The Headmaster", time: "20 min", icon: Compass },
 ];
 
 /* ---------------------------------------------------------------- page */
@@ -152,7 +142,7 @@ export default function MaximizeResultsPage() {
         {/* Hero */}
         <section className="mx-auto max-w-5xl px-4 pt-16 pb-10 text-center sm:px-6 lg:px-8">
           <p className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-primary">
-            <Sparkles className="size-3.5" /> Maximum Results Framework
+            <Sparkles className="size-3.5" /> Using the research desk
           </p>
           <h1 className="mt-6 font-display text-4xl font-bold tracking-tight sm:text-5xl">
             Get the Most Out of <span className="text-gradient">AetherForge AI</span>
@@ -236,7 +226,7 @@ export default function MaximizeResultsPage() {
                     <div className="mt-5 flex items-start gap-3 rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/15 to-transparent p-5">
                       <Trophy className="mt-0.5 size-6 shrink-0 text-amber-500" />
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-wider text-amber-500">Golden Rule</p>
+                        <p className="text-xs font-semibold uppercase tracking-wider text-amber-500">Remember</p>
                         <p className="mt-1 font-display text-lg font-semibold">{s.golden}</p>
                       </div>
                     </div>
@@ -254,7 +244,7 @@ export default function MaximizeResultsPage() {
               <FileSpreadsheet className="size-8 text-primary" />
             </div>
             <div className="flex-1">
-              <h2 className="font-display text-2xl font-bold tracking-tight">Excel Transaction Tracker</h2>
+              <h2 className="font-display text-2xl font-bold tracking-tight">Excel investor toolkit template</h2>
               <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
                 Yearly plans include a downloadable Excel investor toolkit template for buys, sells,
                 dividends, and cost-basis notes. The workbook is a blank template. It is not filled from
@@ -278,7 +268,7 @@ export default function MaximizeResultsPage() {
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-rose-500">Stay on the path</p>
               <h2 className="font-display text-2xl font-bold tracking-tight sm:text-3xl">
-                Common mistakes that reduce results
+                Common pitfalls
               </h2>
             </div>
           </div>
@@ -298,9 +288,9 @@ export default function MaximizeResultsPage() {
         {/* Weekly routine */}
         <section className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
           <div className="mx-auto mb-8 max-w-2xl text-center">
-            <p className="text-xs font-semibold uppercase tracking-wider text-primary">Maximum Results Framework</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-primary">Routine</p>
             <h2 className="mt-3 font-display text-2xl font-bold tracking-tight sm:text-3xl">
-              Recommended weekly routine
+              An example routine
             </h2>
             <p className="mt-3 text-muted-foreground">
               A weekly routine is a way to read the book. It is not a claim about results.
@@ -348,13 +338,11 @@ export default function MaximizeResultsPage() {
               <Target className="mx-auto size-10 text-primary" />
               <h2 className="mt-4 font-display text-3xl font-bold tracking-tight sm:text-4xl">The final word</h2>
               <p className="mx-auto mt-4 max-w-2xl text-muted-foreground">
-                AetherForge AI was built to give serious traders and investors the same quality of market
-                intelligence that was previously available only to institutions. The platform is powerful — your
-                process makes it profitable.
+                AetherForge AI provides information about the book you record. It does not tell you what to buy or
+                sell, and it does not promise any result.
               </p>
               <p className="mx-auto mt-4 max-w-2xl font-display text-lg font-semibold">
-                Stay disciplined. Stay data-driven. Use every tool — Stox, Koins, The Headmaster, alerts and the Excel
-                tracker — together as one integrated system.
+                Use the tools your plan includes, keep your book up to date, and make your own decisions.
               </p>
               <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
                 <DashboardEntryButton size="lg" className="h-12 px-8 text-base font-semibold shadow-glow">
@@ -404,7 +392,10 @@ export default function MaximizeResultsPage() {
               licensed financial advice under the Financial Markets Conduct Act 2013. Trading and investing carry
               a high risk of loss. Past performance is not indicative of future results. Always do your own
               research and consult a licensed financial adviser before making any investment decisions.{" "}
-              {LEGAL_ENTITY_NAME} accepts no liability for any losses incurred.
+              To the extent permitted by law, {LEGAL_ENTITY_NAME} is not liable for losses arising from your reliance
+              on this information, as set out in sections 9 and 11 of our{" "}
+              <Link href="/terms-of-service" className="underline">Terms of Service</Link>. Nothing on this page
+              limits your rights under the Consumer Guarantees Act 1993 or the Fair Trading Act 1986.
             </p>
           </div>
         </section>

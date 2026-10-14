@@ -373,6 +373,21 @@ export function applyStatDonors(base: CoinMarket[], donors: CoinMarket[]): CoinM
   });
 }
 
+/**
+ * A 24h volume that cannot be true for the coin's size is dropped (shown as —, not a wrong figure).
+ * Large caps (≥ US$10B) rarely trade more than ~25% of their cap in a day; anything above 30% is
+ * treated as a unit or vendor error (e.g. BTC at US$981.73B). Any coin above 5× its cap is dropped too.
+ */
+export function plausibleVolume24h(volume: number | null | undefined, marketCap: number | null | undefined): number | null {
+  const v = positiveMarketStat(volume);
+  if (v == null) return null;
+  const cap = positiveMarketStat(marketCap);
+  if (cap == null) return v;
+  if (cap >= 1e10 && v > cap * 0.3) return null;
+  if (v > cap * 5) return null;
+  return v;
+}
+
 /** Use snapshot moves and size fields when the detail call left them blank. */
 export function overlayCoinDetail(detail: CoinDetail, coin: CoinMarket | null | undefined): CoinDetail {
   if (!coin) return detail;
@@ -385,7 +400,10 @@ export function overlayCoinDetail(detail: CoinDetail, coin: CoinMarket | null | 
     price: detail.price > 0 ? detail.price : coin.price,
     marketCap: size(detail.marketCap, coin.marketCap),
     fdv: size(detail.fdv, coin.fdv),
-    volume24h: size(detail.volume24h, coin.volume24h),
+    volume24h: (() => {
+      const cap = size(detail.marketCap, coin.marketCap);
+      return plausibleVolume24h(detail.volume24h, cap) ?? plausibleVolume24h(coin.volume24h, cap);
+    })(),
     high24h: size(detail.high24h, coin.high24h),
     low24h: size(detail.low24h, coin.low24h),
     change1h: finiteChange(coin.change1h) ?? finiteChange(detail.change1h),
