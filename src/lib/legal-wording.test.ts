@@ -120,7 +120,7 @@ describe("public legal wording", () => {
     expect(plans).toContain("yearlyPrice: 160");
     expect(plans).toContain("yearlyPrice: 490");
     expect(plans).toContain("yearlyPrice: 1990");
-    expect(plans).toContain("Unlimited holdings and unlimited Market Assistant queries.");
+    expect(plans).toContain("Everything in Pro, with no holdings cap and no Market Assistant limit");
     expect(plans).not.toContain("API access");
     expect(plans).not.toContain("Up to 5 seats");
     expect(plans).not.toContain("Priority processing");
