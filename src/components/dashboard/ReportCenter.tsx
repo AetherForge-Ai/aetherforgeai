@@ -471,7 +471,11 @@ export function ReportCenter({
   async function runReport(kind: BotKind) {
     if (runLock.current) return;
     if (!canRun(kind)) {
-      toast.error("Your plan does not include this monitor.");
+      toast.error(
+        freePlan && access !== "stock" && access !== "crypto" && access !== "both"
+          ? "Choose Stox or Koins as your free bot first."
+          : "Your plan does not include this monitor."
+      );
       return;
     }
     const kindQuota = quotaFor(kind);
@@ -579,6 +583,7 @@ export function ReportCenter({
   }, []);
 
   function controlFor(kind: BotKind, name: "Stox" | "Koins") {
+    const noFreeBotYet = freePlan && access !== "stock" && access !== "crypto" && access !== "both";
     if (!canRun(kind)) {
       return reportRunControl({
         loaded: true,
@@ -587,7 +592,9 @@ export function ReportCenter({
         remaining: null,
         limit: null,
         cooldown: null,
-        blockedReason: "Your plan does not include this monitor.",
+        blockedReason: noFreeBotYet
+          ? `Choose ${name} as your free bot first.`
+          : "Your plan does not include this monitor.",
       });
     }
     const quota = quotaFor(kind);
@@ -680,7 +687,7 @@ export function ReportCenter({
           </div>
           <p className="text-sm text-muted-foreground">
             Run the full AI report for Stox, Koins or The Headmaster.
-            A copy is emailed only when delivery succeeds, and only for a book that has positions.
+            When the book has positions we also try to email a copy. If no email arrives, the report is still saved here.
           </p>
           <p className="mt-1 text-sm text-muted-foreground">{tickerLine}</p>
         </div>
@@ -869,7 +876,7 @@ export function ReportCenter({
                     )}
                   </Button>
                 )}
-                {busy ? (
+                {busy && unlocked ? (
                   <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
                     Building the live book, 7-day outlook, and PDF. This usually finishes within 90 seconds.
                     This button stays locked so a second click will not start another run.
