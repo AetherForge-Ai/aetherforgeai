@@ -6,7 +6,7 @@ import { keywordSentiment } from "@/lib/news-sentiment";
 import { searchAssets, isWrappedName } from "@/lib/asset-search";
 import { markToMarketBullionNZD } from "@/lib/metal-valuation";
 import { onboardingProgress } from "@/lib/onboarding-steps";
-import { holdingsColumnWidth } from "@/components/dashboard/UnifiedHoldingsTable";
+import { holdingsColumnWidth } from "@/lib/holdings-columns";
 import { buyLotFee } from "@/lib/tax-realised";
 import { railCardsFor, usageLine, usagePercent, RAIL_ASIDE_CLASS, RAIL_GRID_CLASS } from "@/lib/dashboard-rail";
 
@@ -30,7 +30,7 @@ describe("fresh2 — review + leftovers", () => {
     const cols = ["asset", "qty", "price", "value", "pnl", "weight", "ret", "actions"];
     const sum = cols.reduce((s, c) => s + holdingsColumnWidth(c, cols), 0);
     expect(Math.abs(sum - 100)).toBeLessThan(0.5);
-    expect(r("src/components/dashboard/UnifiedHoldingsTable.tsx")).not.toContain("overflow-x-clip");
+    expect(r("src/components/dashboard/UnifiedHoldingsTable.tsx")).toContain("holdingsColumnWidth(column, columns)");
   });
   it("M11: deterministic headline-first tone (UNH is bullish)", () => {
     const a = keywordSentiment("UNH Stock Outpaces S&P 500, Eyes Best Year", "pressure and concern remain");
