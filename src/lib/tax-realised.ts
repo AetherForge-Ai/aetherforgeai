@@ -19,7 +19,7 @@ export const REALISED_ASSUMPTIONS = [
   "Price gain is the closed quantity times (sell price minus buy price), times the NZD rate stored on the sell.",
   "FX gain is the closed quantity times the buy price times (sell rate minus buy rate).",
   "Fees are included. The buy fee in NZ$ is added to the cost of the lot it belongs to (spread per unit), and the sell fee in NZ$ is subtracted from that disposal.",
-  "A foreign fill with no stored rate is left blank. The baseline FX table is not used. A USD rate below 1 is flipped, because that quote is NZD per USD the other way. An AUD rate below 1 is kept.",
+  "A foreign fill with no stored rate is left blank. No exchange rate is guessed for it. A USD rate entered the other way round (below 1) is read as NZD per USD and converted.",
   "A sell for more units than the open lots is left blank.",
   "Crypto is any row whose asset type is crypto. Other disposals, including metals, are in the other section.",
   "Corrections are not replayed.",
