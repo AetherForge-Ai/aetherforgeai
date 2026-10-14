@@ -381,8 +381,22 @@ function storedListNeedsUpgrade(coins: { source?: string | null }[]): boolean {
 }
 
 export async function loadTop400Markets(): Promise<RankedCryptoPage> {
-  const { readSharedCryptoBoard, upgradeStoredCryptoBoard } = await import("@/lib/crypto-board-store");
+  const { readSharedCryptoBoard, upgradeStoredCryptoBoard, refreshMarketSnapshotsNow } = await import("@/lib/crypto-board-store");
   const board = await readSharedCryptoBoard({ seed: false });
+  if (board.coins.length && board.delayed) {
+    await Promise.race([
+      refreshMarketSnapshotsNow().catch(() => undefined),
+      new Promise<void>((resolve) => setTimeout(resolve, 1_500)),
+    ]);
+    const fresh = await readSharedCryptoBoard({ seed: false });
+    if (fresh.coins.length) {
+      return {
+        coins: fresh.coins.slice(0, 400),
+        notice: fresh.notice,
+        at: fresh.at,
+      };
+    }
+  }
   if (board.coins.length) {
     if (storedListNeedsUpgrade(board.coins)) {
       void upgradeStoredCryptoBoard(AWAIT_LIST_UPGRADE_MS).catch(() => undefined);

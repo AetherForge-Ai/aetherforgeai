@@ -5,6 +5,7 @@
  */
 
 import { formatNzd, formatUnitPrice, roundMoney, type CurrencyCode } from "@/lib/currency";
+import { chainForTicker } from "@/lib/crypto-board";
 import { listingExchangeLabel } from "@/lib/market-intel";
 import {
   MISSING_MARK,
@@ -808,7 +809,10 @@ function localPriceCell(
 }
 
 function exchangeOf(position: SnapshotPosition): string {
-  if (position.assetClass === "crypto") return "Crypto";
+  if (position.assetClass === "crypto") {
+    const chain = chainForTicker(position.ticker);
+    return chain && chain.toLowerCase() !== "crypto" ? chain : "";
+  }
   if (position.assetClass === "metals") return "Metals";
   return listingExchangeLabel(position.ticker, "stock");
 }

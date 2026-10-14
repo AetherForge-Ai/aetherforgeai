@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { getCurrentUser } from "@/lib/session";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { MarketsAppFrame } from "@/components/dashboard/MarketsAppFrame";
@@ -12,6 +13,40 @@ import { findListing, isSitemapStock } from "@/lib/stock-catalog";
 import { listingSentence, usPageShouldNoindex } from "@/lib/stock-markets";
 
 export const dynamic = "force-dynamic";
+
+/** The document price. A slow quote must not hold the company name or the facts. */
+async function StockQuoteLine({ ticker }: { ticker: string }) {
+  const quoteLine = await loadStockQuoteLine(ticker, 800);
+  return (
+    <p className="text-sm text-muted-foreground" data-ticker-quote>
+      {quoteLine ?? `${ticker} Price not in this response.`}
+    </p>
+  );
+}
+
+function QuoteLineSkeleton() {
+  return (
+    <p className="h-5 w-56 animate-pulse rounded bg-muted/60 text-sm text-muted-foreground" data-ticker-quote-loading aria-busy="true">
+      <span className="sr-only">Loading the price…</span>
+    </p>
+  );
+}
+
+function FactsSkeleton() {
+  return (
+    <section
+      className="space-y-3 rounded-2xl border border-border/70 bg-card p-4 shadow-sm"
+      aria-label="Listing facts"
+      aria-busy="true"
+      data-stock-facts-loading
+    >
+      <div className="h-4 w-40 animate-pulse rounded bg-muted/60" />
+      <div className="h-4 w-56 animate-pulse rounded bg-muted/60" />
+      <div className="h-20 w-full max-w-md animate-pulse rounded bg-muted/60" />
+      <span className="sr-only">Loading listing facts…</span>
+    </section>
+  );
+}
 
 function listingFor(ticker: string) {
   const catalog = findListing(ticker);
@@ -73,39 +108,53 @@ export default async function StockDetailPage({
   const symbol = ticker ? ticker.replace(/\.(NZ|AX|L)$/i, "") : "";
   const allowBuy = !!user && sp.buy === "1";
   const listing = ticker ? listingFor(ticker) : { entry: undefined, exchangeLabel: "" };
-  const quoteLine = ticker ? await loadStockQuoteLine(ticker) : null;
   const addHref = ticker ? `/markets/stock/${encodeURIComponent(ticker)}?buy=1` : "/register";
 
   return (
     <MarketsAppFrame user={user}>
-      <section className="mx-auto w-full max-w-6xl space-y-2 px-4 pt-6 sm:px-6 lg:px-8" data-stock-listing>
-        {listing.entry ? (
-          <>
-            <p className="font-display text-2xl font-bold">{listing.entry.name}</p>
+      {user ? (
+        /* Signed in: the card below carries the visible header. The h1 stays in the HTML for structure. */
+        <section className="mx-auto w-full max-w-6xl px-4 pt-6 sm:px-6 lg:px-8" data-stock-listing>
+          <h1 className="sr-only">{listing.entry?.name || ticker || "Stock"}</h1>
+          {!allowBuy && ticker ? (
+            <Link href={addHref} className="inline-block text-sm font-semibold text-primary underline-offset-2 hover:underline">
+              Add to your paper book
+            </Link>
+          ) : null}
+        </section>
+      ) : (
+        <section className="mx-auto w-full max-w-6xl space-y-3 px-4 pt-6 sm:px-6 lg:px-8" data-stock-listing>
+          <h1 className="font-display text-2xl font-bold text-foreground">{listing.entry?.name || ticker || "Stock"}</h1>
+          {listing.entry ? (
             <p className="text-sm text-muted-foreground">
               {listingSentence(listing.entry.name, listing.entry.sector, listing.exchangeLabel)}{" "}
               {symbol} · {listing.exchangeLabel}.
             </p>
-          </>
-        ) : (
-          <h1 className="font-display text-2xl font-bold">{ticker || "Stock"}</h1>
-        )}
-        <p className="text-sm text-muted-foreground" data-ticker-quote>
-          {quoteLine ?? (ticker ? `${ticker} Price not in this response.` : "Price not in this response.")}
-        </p>
-        {ticker ? (
-          <StockPublicFacts ticker={ticker} symbol={symbol} sector={listing.entry?.sector || ""} />
-        ) : null}
-        {user ? (
-          <Link href={addHref} className="inline-block text-sm font-semibold text-primary underline-offset-2 hover:underline">
-            Add to your paper book
-          </Link>
-        ) : (
+          ) : null}
+          {ticker ? (
+            <Suspense fallback={<QuoteLineSkeleton />}>
+              <StockQuoteLine ticker={ticker} />
+            </Suspense>
+          ) : (
+            <p className="text-sm text-muted-foreground" data-ticker-quote>
+              Price not in this response.
+            </p>
+          )}
+          {ticker ? (
+            <Suspense fallback={<FactsSkeleton />}>
+              <StockPublicFacts
+                ticker={ticker}
+                symbol={symbol}
+                sector={listing.entry?.sector || ""}
+                companyName={listing.entry?.name || ""}
+              />
+            </Suspense>
+          ) : null}
           <Link href="/register" className="inline-block text-sm font-semibold text-primary underline-offset-2 hover:underline">
             Create a free account
           </Link>
-        )}
-      </section>
+        </section>
+      )}
       <StockAssetPage
         ticker={ticker ?? ""}
         symbol={symbol}

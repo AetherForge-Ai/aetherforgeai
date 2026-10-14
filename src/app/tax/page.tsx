@@ -33,7 +33,7 @@ export default async function TaxPage() {
   }
 
   return (
-    <AppShell user={shellUser} guest={!user}>
+    <AppShell tone="dark" user={shellUser} guest={!user}>
       <TaxPageContent book={book} />
     </AppShell>
   );

@@ -513,7 +513,7 @@ export function formatAbsoluteChange(change: number, price: number): string {
   const reference = Math.abs(price);
   const dp =
     reference < 0.01 || abs < 0.0001
-      ? Math.min(12, Math.max(4, adaptiveFractionDigits(abs)))
+      ? Math.min(8, Math.max(4, 4 - Math.floor(Math.log10(abs)) - 1))
       : reference < 5
         ? 4
         : 2;
