@@ -74,6 +74,13 @@ export interface UseDexMarkets {
   refresh: () => void;
 }
 
+/** True while the DEX list has no rows and either a request is in flight or none has answered yet. */
+export function dexListLoading(input: { active: boolean; loading: boolean; fetchedAt: number; error: string | null; rows: number }): boolean {
+  if (input.rows > 0) return false;
+  if (input.loading) return true;
+  return input.active && input.fetchedAt === 0 && !input.error;
+}
+
 export function useDexMarkets(active = true): UseDexMarkets {
   const [, forceRender] = useState(0);
 
@@ -96,7 +103,8 @@ export function useDexMarkets(active = true): UseDexMarkets {
 
   return {
     rows: store.rows,
-    loading: store.loading && store.rows.length === 0,
+    // Before the first answer the list is loading, not empty: show the skeleton, not the empty notice.
+    loading: dexListLoading({ active, loading: store.loading, fetchedAt: store.fetchedAt, error: store.error, rows: store.rows.length }),
     error: store.error,
     notice: store.notice,
     refresh,

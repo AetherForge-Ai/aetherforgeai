@@ -166,23 +166,45 @@ export function illustratedSizeNZD(input: {
   const reserve = bookCashReserve(book).retainedNZD;
   const deployable = Math.max(0, Math.round((cash - reserve) * 100) / 100);
   const sleeveCap = (book * Math.max(0, input.sleeveWeightPct)) / 100;
-  const room = Math.min(deployable, sleeveCap, reserve);
+  const room = Math.min(deployable, sleeveCap);
   const names = Math.max(1, input.names);
   const baseline = 20;
   const vol = input.realizedVolPct;
   const scale = vol == null || !(vol > baseline) ? 1 : baseline / vol;
   const sized = (room / names) * scale;
-  return Math.round(Math.min(sized, reserve) * 100) / 100;
+  return Math.round(Math.min(sized, deployable) * 100) / 100;
 }
 
 function nzdText(value: number): string {
   return value.toLocaleString("en-NZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-/** HOLD and Watch are not a new buy, so the report does not illustrate a size. */
-export function omitsIllustratedSize(signal: string | null | undefined): boolean {
+export type ReportAction = "SELL" | "TRIM" | "HOLD" | "BUY" | "ACCUMULATE";
+
+/** Card signal to report action, only for callers that have no report action. */
+export function actionFromCardSignal(signal: string | null | undefined): ReportAction {
   const text = String(signal || "").trim().toLowerCase();
-  return text === "hold" || text === "watch" || text === "neutral";
+  if (text === "sell") return "SELL";
+  if (text === "reduce") return "TRIM";
+  if (text === "strong buy" || text === "accumulate") return "ACCUMULATE";
+  if (text === "buy") return "BUY";
+  return "HOLD";
+}
+
+/** Only BUY and ACCUMULATE get an illustrated size. */
+export function actionGetsSize(action: ReportAction | null | undefined): boolean {
+  return action === "BUY" || action === "ACCUMULATE";
+}
+
+/** @deprecated card signals are not the report action; kept for older callers. */
+export function omitsIllustratedSize(signal: string | null | undefined): boolean {
+  return !actionGetsSize(actionFromCardSignal(signal));
+}
+
+function noSizeSentence(action: ReportAction | null | undefined): string {
+  if (action === "TRIM") return "No new size: TRIM (reduce).";
+  if (action === "SELL") return "No new size: SELL.";
+  return "No new size: HOLD.";
 }
 
 /** Reports do not invent a brokerage figure. The default is zero. */
@@ -201,7 +223,8 @@ export function tickerCallSentence(
   ticker: TickerAnalysis,
   sizeNZD: number,
   feeNZD: number,
-  reserveNZD?: number | null
+  reserveNZD?: number | null,
+  action?: ReportAction | null
 ): string {
   const call = ticker.call;
   const horizon = call?.horizon ?? "7-day";
@@ -212,46 +235,57 @@ export function tickerCallSentence(
     call && call.killPrice > 0
       ? `A level that kills the idea is ${call.killPrice}.`
       : "A level that kills the idea is not available from this print.";
-  if (omitsIllustratedSize(ticker.signal)) {
-    return `${ticker.ticker}: horizon ${horizon}, range ${range}, ${odds}. ${kill} No new size: HOLD. ${paperFeeSentence(feeNZD)}`;
+  const resolved: ReportAction = action ?? actionFromCardSignal(ticker.signal);
+  if (!actionGetsSize(resolved)) {
+    return `${ticker.ticker}: horizon ${horizon}, range ${range}, ${odds}. ${kill} ${noSizeSentence(resolved)} ${paperFeeSentence(feeNZD)}`;
   }
   const volNote =
     call?.realizedVolPct != null && call.realizedVolPct > 20
       ? " Illustrated size is smaller because recent volatility was high."
       : "";
-  const capped = reserveNZD != null && Number.isFinite(reserveNZD) ? Math.min(sizeNZD, reserveNZD) : sizeNZD;
   const reserveNote =
     reserveNZD != null && Number.isFinite(reserveNZD)
-      ? `capped at the cash reserve of NZ$${nzdText(reserveNZD)}`
-      : "capped at the cash reserve";
-  const size = `Illustrated size NZ$${nzdText(capped)}, ${reserveNote} and the Headmaster sleeve weight.${volNote}`;
+      ? `from cash above the NZ$${nzdText(reserveNZD)} reserve`
+      : "from cash above the reserve";
+  const size = `Illustrated size NZ$${nzdText(Math.max(0, sizeNZD))}, ${reserveNote}, within the Headmaster sleeve weight.${volNote}`;
   return `${ticker.ticker}: horizon ${horizon}, range ${range}, ${odds}. ${kill} ${size} ${paperFeeSentence(feeNZD)}`;
 }
 
+/**
+ * Adds the call line to each ticker note. The label comes from the report action
+ * (directRecommendations), not ticker.signal. When an actions map is passed and a
+ * ticker has no action in it, the ticker gets no size.
+ */
 export function annotateTickerCalls(
   tickers: TickerAnalysis[],
   book: Pick<SharedBookLog, "cashNZD" | "netWorthNZD"> | null,
-  bot: "stock" | "crypto"
+  bot: "stock" | "crypto",
+  actions?: ReadonlyArray<{ ticker: string; action: ReportAction }> | null
 ): TickerAnalysis[] {
   const names = tickers.filter((t) => !t.priceUnavailable).length || tickers.length || 1;
   const weight = sleeveWeightPct(bot);
   const reserve = book ? bookCashReserve(book.netWorthNZD).retainedNZD : null;
+  const actionMap = actions ? new Map(actions.map((row) => [row.ticker.toUpperCase(), row.action])) : null;
   return tickers.map((ticker) => {
     if (ticker.priceUnavailable) {
       const extra = `${ticker.ticker} stays on the report. Live price unavailable.`;
       return { ...ticker, note: ticker.note.includes("Live price unavailable") ? ticker.note : `${ticker.note} ${extra}` };
     }
-    const size = book
-      ? illustratedSizeNZD({
-          cashNZD: book.cashNZD,
-          bookNZD: book.netWorthNZD,
-          sleeveWeightPct: weight,
-          realizedVolPct: ticker.call?.realizedVolPct ?? null,
-          names,
-        })
-      : 0;
+    const action: ReportAction = actionMap
+      ? actionMap.get(ticker.ticker.toUpperCase()) ?? "HOLD"
+      : actionFromCardSignal(ticker.signal);
+    const size =
+      book && actionGetsSize(action)
+        ? illustratedSizeNZD({
+            cashNZD: book.cashNZD,
+            bookNZD: book.netWorthNZD,
+            sleeveWeightPct: weight,
+            realizedVolPct: ticker.call?.realizedVolPct ?? null,
+            names,
+          })
+        : 0;
     const fee = paperFeeNZD(size, ticker.ticker, bot);
-    const line = tickerCallSentence(ticker, size, fee, reserve);
+    const line = tickerCallSentence(ticker, size, fee, reserve, action);
     if (ticker.note.includes("Paper fee NZ$")) return ticker;
     return { ...ticker, note: `${ticker.note} ${line}` };
   });

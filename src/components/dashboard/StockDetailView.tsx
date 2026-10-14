@@ -343,7 +343,7 @@ export function StockDetailView({
           <div className="min-h-0 border-t border-border/60 p-4 lg:border-l lg:border-t-0">
             <div className="h-[380px] lg:h-full lg:min-h-[420px]">
               {active && target && !unavailable && (
-                <TickerAnalysisPane symbol={symbol} name={name} botName="Stox" />
+                <TickerAnalysisPane symbol={target.ticker || symbol} name={name} botName="Stox" />
               )}
             </div>
           </div>

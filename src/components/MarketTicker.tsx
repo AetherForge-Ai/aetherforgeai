@@ -105,7 +105,6 @@ function TickerRow({
   delay: string;
   failedRefreshes: number;
 }) {
-  const doubled = [...quotes, ...quotes];
   return (
     <div className="relative flex items-center overflow-hidden border-b border-emerald-500/20 bg-zinc-950">
       <span className="z-10 inline-flex shrink-0 items-center gap-1.5 border-r border-emerald-500/20 bg-zinc-950 px-3 py-1.5 font-display text-[0.62rem] font-bold uppercase tracking-[0.18em] text-emerald-300 backdrop-blur">
@@ -123,19 +122,24 @@ function TickerRow({
       <div className="relative flex-1 overflow-hidden">
         {quotes.length ? (
           <div className={cn("ticker-row flex w-max items-center", animationClass)}>
-            {doubled.map((q, i) => {
-              const cryptoCell = (q.currency || "").toUpperCase() === "USD" && !q.symbol.includes(".");
-              return (
-              <TickerCell
-                key={`${q.symbol}-${i}`}
-                q={q}
-                price={priceFor(q)}
-                source={cryptoCell ? q.provider || source : source}
-                delay={cryptoCell ? "Delayed or indicative" : delay}
-                failedRefreshes={failedRefreshes}
-              />
-              );
-            })}
+            {/* Two equal copies, each with a lead gap the width of the edge fade, so the first item is never under it and the -50% loop stays seamless. */}
+            {[0, 1].map((copy) => (
+              <div key={copy} className="flex shrink-0 items-center pl-10" data-ticker-copy={copy} aria-hidden={copy === 1 ? true : undefined}>
+                {quotes.map((q, i) => {
+                  const cryptoCell = (q.currency || "").toUpperCase() === "USD" && !q.symbol.includes(".");
+                  return (
+                    <TickerCell
+                      key={`${q.symbol}-${copy}-${i}`}
+                      q={q}
+                      price={priceFor(q)}
+                      source={cryptoCell ? q.provider || source : source}
+                      delay={cryptoCell ? "Delayed or indicative" : delay}
+                      failedRefreshes={failedRefreshes}
+                    />
+                  );
+                })}
+              </div>
+            ))}
           </div>
         ) : (
           <span className="px-4 text-[0.72rem] text-muted-foreground">{PUBLIC_PRICE_QUIET}</span>

@@ -514,6 +514,9 @@ function DashboardGate({
   return <>{children}</>;
 }
 
+/** Delay before the second snapshot read after a sell, so realised matches the ledger CSV without a reload. */
+const SELL_SNAPSHOT_REREAD_MS = 1500;
+
 export function PortfolioDashboard({
   userName,
   userId = null,
@@ -1306,9 +1309,15 @@ export function PortfolioDashboard({
         setLoading(false);
       }
       clearPortfolioSnapshotCache(userId);
-      void Promise.all([loadStocks({ fresh: true }), loadCash(), loadMetals(), loadPortfolioSnapshot({ force: true })]).finally(() =>
-        setHeaderFrozen(false)
-      );
+      const soldNow = String(updated?.lastTransaction?.type || "").toLowerCase() === "sell";
+      void Promise.all([loadStocks({ fresh: true }), loadCash(), loadMetals(), loadPortfolioSnapshot({ force: true })])
+        .then(async () => {
+          // The ledger can take a moment to show the new sell. A second read books FIFO realised to match the CSV.
+          if (!soldNow) return;
+          await new Promise((resolve) => setTimeout(resolve, SELL_SNAPSHOT_REREAD_MS));
+          await loadPortfolioSnapshot({ force: true });
+        })
+        .finally(() => setHeaderFrozen(false));
     },
     [applyKnownCash, loadStocks, loadCash, loadMetals, loadPortfolioSnapshot, setBookedGuard, userId]
   );

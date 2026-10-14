@@ -59,6 +59,15 @@ function FormattedReply({ text }: { text: string }) {
   );
 }
 
+/** Plain reason for an empty projection. Never the raw API error text. */
+export function projectionEmptyReason(status: number | null | undefined): string {
+  if (status === 401) return "No projection: sign in to read the share projection.";
+  if (status === 400) return "No projection: this symbol is not one the analysis accepts.";
+  if (status === 429) return "No projection: too many requests just now. Try again in a minute.";
+  if (status === 404 || status === 422) return "No projection: there is not enough price history for this name.";
+  return "No projection: the analysis service did not answer. Try again shortly.";
+}
+
 export function TickerAnalysisPane({
   symbol,
   name,
@@ -97,12 +106,11 @@ export function TickerAnalysisPane({
         console.error("[ticker-analysis] Failed:", res.error);
         if (!question) {
           setHidden(false);
-          const reason = typeof res.error === "string" && res.error.trim() ? res.error.trim() : "No projection was returned for this name.";
-          setEmptyReason(reason);
+          setEmptyReason(projectionEmptyReason(res.status));
         }
       } else if (!question) {
         setHidden(false);
-        setEmptyReason("Sign in to read the share projection.");
+        setEmptyReason(projectionEmptyReason(401));
       }
       setLoading(false);
     },

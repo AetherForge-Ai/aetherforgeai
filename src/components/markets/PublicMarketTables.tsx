@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { publicCryptoTableLines } from "@/lib/crypto-price-chain";
 import type { PublicMarketIndex } from "@/lib/public-market-types";
 
 /**
@@ -22,7 +21,6 @@ export function PublicMarketTables({ index }: { index: PublicMarketIndex }) {
             {tab.title}{" "}
             <span className="text-sm font-medium text-muted-foreground">{tab.asOf}</span>
           </h3>
-          {cryptoTab ? publicCryptoTableLines(tab) && null : null}
           {tab.coverage ? <p className="mt-1 text-sm text-muted-foreground">{tab.coverage}</p> : null}
           {tab.note ? <p className="text-xs text-muted-foreground">{tab.note}</p> : null}
           {tab.footnote ? <p className="text-xs text-muted-foreground">{tab.footnote}</p> : null}
