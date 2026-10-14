@@ -139,7 +139,7 @@ function toNewsItem(raw: RawStory, assetClass: AssetClass): NewsItem | null {
   const source = decodeHtmlEntities(raw.source);
   const blob = `${headline} ${summary}`;
   const market = raw.marketHint ?? inferMarket(blob, assetClass === "crypto" ? "CRYPTO" : "Global");
-  const { sentiment } = keywordSentiment(blob);
+  const { sentiment } = keywordSentiment(headline, summary === headline ? "" : summary);
   const url = raw.url;
   const publishedOn = raw.publishedAt.toISOString();
   return {

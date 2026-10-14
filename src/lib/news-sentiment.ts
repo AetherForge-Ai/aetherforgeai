@@ -41,13 +41,23 @@ const BEARISH_WORDS =
   /crash|plunge|drop|fall|slump|hack|exploit|lawsuit|\bban\b|selloff|outflow|liquidat|bear|downgrade|fraud|warn|miss|cut|hawkish|recession|slow|weak|pressure|concern|default|probe/i;
 
 /** Deterministic keyword classifier — the always-available fallback. */
-export function keywordSentiment(headline: string): { sentiment: Sentiment; score: number } {
-  const bull = BULLISH_WORDS.test(headline);
-  const bear = BEARISH_WORDS.test(headline);
-  if (bull && !bear) return { sentiment: "Bullish", score: 45 };
-  if (bear && !bull) return { sentiment: "Bearish", score: -45 };
+export function keywordSentiment(headline: string, summary = ""): { sentiment: Sentiment; score: number } {
+  const one = (text: string) => {
+    const bull = BULLISH_WORDS.test(text);
+    const bear = BEARISH_WORDS.test(text);
+    if (bull && !bear) return 1;
+    if (bear && !bull) return -1;
+    return 0;
+  };
+  // The headline decides; the summary only breaks a neutral headline. Same input, same tag.
+  const vote = one(headline) || (summary ? one(summary) : 0);
+  if (vote > 0) return { sentiment: "Bullish", score: 45 };
+  if (vote < 0) return { sentiment: "Bearish", score: -45 };
   return { sentiment: "Neutral", score: 0 };
 }
+
+/** Label shown beside a news tag so readers know how it was set. */
+export const NEWS_SENTIMENT_LABEL = "Tone from headline keywords";
 
 function summarise(scored: ScoredHeadline[], method: "ai" | "keyword"): SentimentSummary {
   const bullish = scored.filter((s) => s.sentiment === "Bullish").length;
