@@ -886,7 +886,7 @@ export function MarketsExplorer({
           {isCoinTab && (
             <p className="flex items-center gap-1 text-[0.62rem] text-muted-foreground/80">
               <Bitcoin className="size-3" /> {cryptoCoveragePhrase(cryptoListed)} · {showNzd ? "NZ$" : "USD"}
-              {fxReady ? ` · 1 USD = NZ$${formatFxInput(fx.rates.USD)}` : " · NZ$ prices appear when today's exchange rate loads."}
+              {fxReady ? ` · 1 USD = NZ$${formatFxInput(fx.rates.USD)}` : " · Loading today's NZ$ exchange rate…"}
             </p>
           )}
           {isCoinTab &&

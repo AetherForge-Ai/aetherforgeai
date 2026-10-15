@@ -384,7 +384,7 @@ export function MarketTicker({ className, compact = false, initial = null, initi
           >
             {display === "NZD" ? "Showing NZ$" : "Show NZ$"}
           </button>
-          <span>{fxReady ? fxRateLine(fx.rates) : "NZ$ prices appear when today's exchange rate loads."}</span>
+          <span>{fxReady ? fxRateLine(fx.rates) : "Loading today's NZ$ exchange rate…"}</span>
         </div>
       </div>
     );
@@ -460,7 +460,7 @@ export function MarketTicker({ className, compact = false, initial = null, initi
         >
           {display === "NZD" ? "Showing NZ$" : "Show NZ$"}
         </button>
-        <span>{fxReady ? fxRateLine(fx.rates) : "NZ$ prices appear when today's exchange rate loads."}</span>
+        <span>{fxReady ? fxRateLine(fx.rates) : "Loading today's NZ$ exchange rate…"}</span>
       </div>
     </div>
   );
