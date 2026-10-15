@@ -235,7 +235,18 @@ export function cryptoFreshnessLabel(
     return { label: `Live · crypto · updated ${clock}`, live: true };
   }
   // Older than the fresh window: say so, so a 2-hour-old crypto print is not read as current.
-  return { label: `Delayed · updated ${clock}`, live: false };
+  // H-1: say how old it is, so a lagging snapshot is never read as current.
+  return { label: `Delayed · updated ${clock} (${quoteAgeWords(age)})`, live: false };
+}
+
+/** "12 min ago", "1 h 38 min ago", "2 days ago". Negative ages read "just now". */
+export function quoteAgeWords(ageMs: number): string {
+  if (!(ageMs > 60_000)) return "just now";
+  const mins = Math.floor(ageMs / 60_000);
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 48) return mins % 60 ? `${hours} h ${mins % 60} min ago` : `${hours} h ago`;
+  return `${Math.floor(hours / 24)} days ago`;
 }
 
 /** FX is a daily rate. The API live flag stays false. */
