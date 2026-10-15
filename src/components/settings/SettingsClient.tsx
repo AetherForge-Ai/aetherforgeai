@@ -463,7 +463,7 @@ export function SettingsClient({
             className={cn(
               "rounded-full px-3 py-1 text-xs font-semibold",
               isActive
-                ? "bg-emerald-500/15 text-emerald-600"
+                ? "bg-emerald-500/15 text-emerald-700"
                 : "bg-muted text-muted-foreground"
             )}
           >
@@ -590,7 +590,7 @@ export function SettingsClient({
                         className={cn(
                           "shrink-0 rounded-full px-2 py-0.5 text-[0.62rem] font-semibold uppercase",
                           isUpgrade
-                            ? "bg-emerald-500/15 text-emerald-600"
+                            ? "bg-emerald-500/15 text-emerald-700"
                             : "bg-muted text-muted-foreground"
                         )}
                       >
@@ -610,7 +610,7 @@ export function SettingsClient({
 
                     <ul className="mt-2 space-y-1">
                       <li className="flex items-center gap-1.5 text-[0.72rem] text-muted-foreground">
-                        <Check className="size-3 text-emerald-600" />
+                        <Check className="size-3 text-emerald-700" />
                         {plan.tickerLimit} tickers · {plan.botAccess === "both" ? "both bots" : "one bot"}
                       </li>
                     </ul>

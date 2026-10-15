@@ -49,7 +49,7 @@ function Indicator({
       <p
         className={cn(
           "tnum mt-1 font-display text-base font-bold",
-          tone === "up" && "text-emerald-600",
+          tone === "up" && "text-emerald-700",
           tone === "down" && "text-rose-600"
         )}
       >

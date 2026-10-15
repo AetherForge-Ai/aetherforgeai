@@ -101,7 +101,7 @@ describe("audit 14 Oct batches A–D", () => {
     expect(PROJECTIONS_MEMBER_LINE).toContain("not advice");
     expect(PROJECTIONS_MEMBER_LINE).toContain("Crypto projections stay paused");
     expect(read("src/lib/public-copy.ts")).not.toContain("PROJECTIONS_COPY_PENDING_D1");
-    expect(ULTIMATE_PRICE_PENDING_D6).toBe(true);
+    expect(ULTIMATE_PRICE_PENDING_D6).toBe(false);
     expect(read("src/lib/plans.ts")).toContain("monthlyPrice: 199");
     expect(read("src/lib/plans.ts")).toContain("yearlyPrice: 1990");
     expect(read("src/components/pricing/PricingCards.tsx")).toContain("Save 2 months (≈17%)");

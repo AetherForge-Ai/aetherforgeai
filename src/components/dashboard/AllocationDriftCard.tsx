@@ -133,7 +133,7 @@ export function AllocationDriftCard({
                 <span
                   className={cn(
                     "ml-2 font-semibold",
-                    Math.abs(r.drift) < 2 ? "text-emerald-600" : r.drift > 0 ? "text-amber-600" : "text-sky-600"
+                    Math.abs(r.drift) < 2 ? "text-emerald-700" : r.drift > 0 ? "text-amber-600" : "text-sky-600"
                   )}
                 >
                   {formatDriftPp(r.drift)}

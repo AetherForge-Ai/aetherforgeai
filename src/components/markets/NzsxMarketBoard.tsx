@@ -37,7 +37,7 @@ function MoverList({
                 <span className="font-semibold">{row.symbol}</span>
                 <span className="ml-2 text-muted-foreground">{row.name}</span>
               </span>
-              <span className={cn("tnum font-semibold", tone === "up" ? "text-emerald-600" : "text-rose-600")}>
+              <span className={cn("tnum font-semibold", tone === "up" ? "text-emerald-700" : "text-rose-600")}>
                 {signed(row.changePct)}
               </span>
             </li>
@@ -102,7 +102,7 @@ export function NzsxMarketBoard() {
               <>
                 <p className="tnum mt-2 font-display text-3xl font-bold">{levelFmt.format(view.level)}</p>
                 {view.changePct != null ? (
-                  <p className={cn("mt-1 text-sm font-semibold", view.changePct >= 0 ? "text-emerald-600" : "text-rose-600")}>
+                  <p className={cn("mt-1 text-sm font-semibold", view.changePct >= 0 ? "text-emerald-700" : "text-rose-600")}>
                     {signed(view.changePct)}
                   </p>
                 ) : null}

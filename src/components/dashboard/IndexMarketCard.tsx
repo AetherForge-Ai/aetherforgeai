@@ -122,13 +122,13 @@ export function IndexMarketCard({
               <span className="ml-1.5 font-medium normal-case tracking-normal text-muted-foreground">{idx.freshness}</span>
             ) : null}
           </p>
-          <p className="tnum mt-1 font-display text-2xl font-bold text-emerald-600">
+          <p className="tnum mt-1 font-display text-2xl font-bold text-emerald-700">
             {idxFmt.format(idx.price)}
           </p>
           <p
             className={cn(
               "mt-0.5 flex items-center gap-1 text-sm font-semibold",
-              up ? "text-emerald-600" : "text-rose-600"
+              up ? "text-emerald-700" : "text-rose-600"
             )}
           >
             {up ? <ArrowUp className="size-3.5" /> : <ArrowDown className="size-3.5" />}
@@ -156,7 +156,7 @@ export function IndexMarketCard({
             {gainer ? (
               <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-2 py-1.5">
                 <p className="font-bold text-primary">{gainer.symbol}</p>
-                <p className="text-emerald-600">
+                <p className="text-emerald-700">
                   +{gainer.changePct.toFixed(2)}%
                 </p>
               </div>

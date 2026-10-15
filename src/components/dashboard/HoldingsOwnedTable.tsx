@@ -294,11 +294,11 @@ export function HoldingsOwnedTable({
                       </span>
                     </td>
                     <td className="overflow-hidden px-2 py-2 text-right">
-                      <span className={cn("tnum font-medium", !gained ? "text-muted-foreground" : up ? "text-emerald-600" : "text-rose-600")} title={gained ? undefined : "No price is stored for this holding."}>
+                      <span className={cn("tnum font-medium", !gained ? "text-muted-foreground" : up ? "text-emerald-700" : "text-rose-600")} title={gained ? undefined : "No price is stored for this holding."}>
                         {gained ? formatSignedMoney(h.gain, h.currency) : "—"}
                       </span>
                       <span
-                        className={cn("tnum ml-1 block text-xs", !gained ? "text-muted-foreground" : up ? "text-emerald-600/80" : "text-rose-600/80")}
+                        className={cn("tnum ml-1 block text-xs", !gained ? "text-muted-foreground" : up ? "text-emerald-700/80" : "text-rose-600/80")}
                       >
                         {Number.isFinite(h.gainPct) ? formatPercent(h.gainPct) : "—"}
                       </span>

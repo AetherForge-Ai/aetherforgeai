@@ -35,6 +35,9 @@ export const PUBLIC_CONTACT_EMAILS = [CUSTOMER_EMAIL, PRIVACY_OFFICER_EMAIL] as 
  * One paper-book sentence for Trust, How it works, Privacy, Terms and the home page.
  * Do not shorten it into "you execute elsewhere".
  */
+/** BL-5 default: one positioning line for every bot and Headmaster page. */
+export const POSITIONING_LINE = "AetherForge is a portfolio tracker with a paper-trading book.";
+
 export const PAPER_BOOK_STATEMENT =
   "AetherForge is a paper book: you record what you hold or would trade (cash, buys, sells, corrections, dividends) in NZ$. Real trades happen at your broker. We never move money.";
 
@@ -68,10 +71,11 @@ export const LEGAL_UPDATED = "16 Oct 2026";
 export const PROJECTIONS_MEMBER_LINE = PROJECTIONS_DESCRIPTION;
 
 /**
- * TODO(D6): Ultimate stays listed at NZ$199 a month and NZ$1,990 a year, with Talk to us.
- * Do not switch the card to "From" or hide the price until Lukas decides.
+ * BL-6 default (approved 16 Oct 2026): the Ultimate card reads
+ * "From NZ$199/mo — Talk to us". Set true to show the fixed monthly/annual price again.
+ * Seats, client portfolios and the API stay behind ULTIMATE_FEATURES (off).
  */
-export const ULTIMATE_PRICE_PENDING_D6 = true;
+export const ULTIMATE_PRICE_PENDING_D6 = false;
 
 /** One line for the site footer and the AI Disclaimer. */
 export const ONE_LINE_DISCLAIMER = SHORT_DISCLAIMER;
@@ -118,7 +122,7 @@ export const AI_REQUEST_LINES = [
   "The Headmaster chat can send your question, and recent messages in that chat. It can send the total value, the total cost, the profit or loss, the cash balance, the cash weight, the retained-cash target, the illustrated cash reallocation, and the working that produces that reallocation. It can send each asset class with its weight, its value in NZ$ and its position count, the top eight positions with name, asset class, weight, value and profit or loss, concentration-risk notes, stress-test impacts in NZ$ and percent, and the bull, base and bear scenario pathways. When the book is invested it can send the diversification score and HHI. It can send a calculated yearly return and volatility for the mix. It can send the latest Stox and Koins findings, and the Headmaster ideas block. Names outside the book are included only when you ask for a watchlist.",
   "A ticker note can send the ticker, the question you typed, and the quote used for that note. If you leave the question blank, the request still includes a short default question.",
   "A weekly projections email, when that email is enabled, can send the market-wide indicative 7-day projections already on the projections page: the ticker, the name, the market, the indicative percent, and the as-of label. It does not send a person's holdings, values, cash, profit or loss, or allocation. It does not send the email address. It does not use a report allowance. One note is written for the week and reused for each recipient.",
-  "The request does not include a card number. We do not log the text of these requests. A saved chat or report stays in your account until you delete it or close the account, and is then securely deleted or de-identified. The AI provider keeps a request under its own API terms.",
+  "The request does not include a card number. Our code does not write the text of these requests to its logs. Messages in the assistant chat are saved to your account so the conversation can continue, and they stay until you clear the chat. The Portfolio Notes Assistant, the Headmaster chat, the ticker note and the site guide do not save your messages. Stored Stox and Koins reports stay in your account. To have reports or your account deleted, email us and we delete them. The AI provider keeps a request under its own API terms.",
 ] as const;
 
 /**

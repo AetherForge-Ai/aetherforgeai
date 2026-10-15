@@ -123,7 +123,7 @@ function BalanceCard({
           value={value}
           currency="NZD"
           snap={snap}
-          className="tnum mt-3 font-display text-xl font-bold text-emerald-600 sm:text-2xl"
+          className="tnum mt-3 font-display text-xl font-bold text-emerald-700 sm:text-2xl"
         />
       )}
       {sub && !loading ? (
@@ -171,7 +171,7 @@ function OverviewCard({
         {metricLabel}
       </p>
       <p
-        className="relative z-10 tnum font-display text-lg font-bold text-emerald-600"
+        className="relative z-10 tnum font-display text-lg font-bold text-emerald-700"
         title={metricTitle || undefined}
       >
         {metricValue}
@@ -254,7 +254,7 @@ function LedgerCard({
           —
         </p>
       ) : (
-        <p className="tnum font-display text-lg font-bold text-emerald-600">
+        <p className="tnum font-display text-lg font-bold text-emerald-700">
           {formatMoney(cashBalance, "NZD")}
         </p>
       )}

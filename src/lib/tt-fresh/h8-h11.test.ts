@@ -24,8 +24,9 @@ describe("TT fresh H8 — /contact form", () => {
 });
 
 describe("TT fresh M13 — email printed once", () => {
-  it("EmailAddress keeps the spoken form for no-JS only", () => {
-    expect(read("src/components/EmailAddress.tsx")).toContain("<noscript>");
+  it("EmailAddress prints the address once as text", () => {
+    // M-2: the address is plain text (split @ span) with a mailto set after hydration; no noscript copy needed.
+    expect(read("src/components/EmailAddress.tsx")).toContain("<span>@</span>");
     expect(read("src/app/help/page.tsx")).not.toContain("(admin at aetherforgeai.co.nz)");
   });
 });
