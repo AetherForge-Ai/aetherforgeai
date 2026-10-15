@@ -57,3 +57,15 @@ describe("M-7 contrast tokens", () => {
     expect(css).toMatch(/\.chrome-dark \.text-emerald-700 \{\s*color: #34d399;/);
   });
 });
+
+describe("M-2 docs and status", () => {
+  it("at least 6 guides, each with real steps and a unique slug", async () => {
+    const { DOCS_GUIDES, STATUS_INCIDENTS } = await import("@/lib/docs-guides");
+    expect(DOCS_GUIDES.length).toBeGreaterThanOrEqual(6);
+    expect(new Set(DOCS_GUIDES.map((g) => g.slug)).size).toBe(DOCS_GUIDES.length);
+    for (const g of DOCS_GUIDES) expect(g.steps.length).toBeGreaterThanOrEqual(3);
+    // Incident history is real data only: nothing is invented.
+    expect(STATUS_INCIDENTS).toEqual([]);
+    expect(read("src/app/status/page.tsx")).toContain("Last OK");
+  });
+});
