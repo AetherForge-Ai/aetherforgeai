@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser, isStripeConfigured, hasActiveSubscription } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
-import type { BotKind } from "@/lib/apex";
+import type { BotKind } from "@/lib/bot-report";
 import {
   EmptyBookReportError,
   generateReportForUser,

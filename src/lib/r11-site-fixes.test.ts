@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { TickerAnalysis } from "@/lib/apex";
+import type { TickerAnalysis } from "@/lib/bot-report";
 import { annotateTickerCalls, illustratedSizeNZD, tickerCallSentence } from "@/lib/report-topup";
 import { bookCashReserve } from "@/lib/headmaster-trust";
 import { distinctiveCompanyName, headlinesForSymbol } from "@/lib/stock-public-facts";

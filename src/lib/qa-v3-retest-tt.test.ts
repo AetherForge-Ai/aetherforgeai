@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
 
-import type { ApexReport } from "@/lib/apex";
+import type { ApexReport } from "@/lib/bot-report";
 import { chainForTicker, coingeckoSupplied, dexRowComplete, snapshotBlockchain } from "@/lib/crypto-board";
 import { MARKET_USER_AGENT, coinGeckoEndpoint } from "@/lib/coingecko-auth";
 import {

@@ -15,6 +15,7 @@
  */
 
 import { shareQuotePrint } from "@/lib/quote-store";
+import { canonicalTickerName } from "@/lib/market-intel";
 import "server-only";
 import { barsFromYahoo, closeOnOrBefore } from "@/lib/historical-price";
 import { yahooSymbolFor } from "@/lib/crypto-vendors";
@@ -141,7 +142,7 @@ async function fetchOne(yahooSymbol: string): Promise<YahooQuote | null> {
       changeAbs: isFinite(price - prevClose) ? price - prevClose : 0,
       prevClose: prevClose > 0 ? prevClose : price,
       currency: typeof meta.currency === "string" ? meta.currency : "USD",
-      name: cleanInstrumentName(meta.longName) ?? cleanInstrumentName(meta.shortName),
+      name: canonicalTickerName(yahooSymbol, cleanInstrumentName(meta.longName) ?? cleanInstrumentName(meta.shortName)),
       volume: isFinite(vol) && vol > 0 ? vol : undefined,
       averageVolume: num(meta.averageDailyVolume10Day) ?? num(meta.averageDailyVolume3Month),
       dayHigh: num(meta.regularMarketDayHigh),
@@ -224,7 +225,8 @@ export async function fetchYahooNames(map: Record<string, string>): Promise<Reco
   const quotes = await fetchYahooQuotes(map);
   const out: Record<string, string> = {};
   for (const [internal, q] of Object.entries(quotes)) {
-    if (q.name) out[internal] = q.name;
+    const name = canonicalTickerName(internal, q.name);
+    if (name) out[internal] = name;
   }
   console.log(`[yahoo] Resolved names for ${Object.keys(out).length}/${Object.keys(map).length} tickers`);
   return out;

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { buildLiveReport } from "@/lib/apex";
+import { buildLiveReport } from "@/lib/bot-report";
 import { CSV_EXPORT_COLUMNS } from "@/lib/ledger-schema";
 import {
   attachFifoRealised,

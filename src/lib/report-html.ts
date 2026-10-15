@@ -19,7 +19,7 @@ import type {
   RegionalNewsGroup,
   DirectRecommendation,
   PathwayPlan,
-} from "@/lib/apex";
+} from "@/lib/bot-report";
 import { LEGAL_ENTITY_NAME } from "@/lib/company";
 import { intelIsHeld, NOT_ENOUGH_DAILY_HISTORY, type SecurityIntel } from "@/lib/market-intel";
 import type { ActionableIntelligence, PortfolioMetrics } from "@/lib/analytics";

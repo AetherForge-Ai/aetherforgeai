@@ -21,7 +21,7 @@ import type {
   MomentumPoint,
   DirectRecommendation,
   PortfolioPathway,
-} from "@/lib/apex";
+} from "@/lib/bot-report";
 import type { BriefingOutlookRow } from "@/lib/briefing";
 
 function pctTone(v: number): string {

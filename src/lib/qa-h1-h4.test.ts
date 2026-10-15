@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildLiveReport } from "@/lib/apex";
+import { buildLiveReport } from "@/lib/bot-report";
 import { buildSynthesis, buildStrategy } from "@/lib/totalum-engine";
 import type { SecurityIntel } from "@/lib/market-intel";
 import { candidateIsSuitable, deploymentGuard, unsuitableReason } from "@/lib/report-consistency";

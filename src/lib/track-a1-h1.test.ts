@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { buildLiveReport } from "@/lib/apex";
+import { buildLiveReport } from "@/lib/bot-report";
 import { buildIntelligenceBriefing } from "@/lib/briefing";
 import type { SecurityIntel } from "@/lib/market-intel";
 import { balancedGrowthStep } from "@/lib/report-copy";

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { totalumSdk } from "@/lib/totalum";
 import { generateReportForUser } from "@/lib/report-service";
-import type { BotKind } from "@/lib/apex";
+import type { BotKind } from "@/lib/bot-report";
 
 /**
  * GET|POST /api/cron/reports
