@@ -42,6 +42,17 @@ export function stockContentParagraphs(i: StockContentInput): string[] {
     out.push(
       `Over roughly the last month (${Math.min(21, c.length - 1)} sessions) the close changed by ${pct((last / m1 - 1) * 100)}. The average close across the whole window was ${fmt(avg, i.currency)}, and the latest close is ${pct((last / avg - 1) * 100)} against that average. The price closed higher than the session before on ${up} of ${rets.length} sessions.`
     );
+    const last5 = c.slice(-5);
+    out.push(
+      `The last ${last5.length} closes, oldest first, were ${last5.map((v) => fmt(v, i.currency)).join(", ")}. Over those sessions the close changed by ${pct((last5[last5.length - 1] / last5[0] - 1) * 100)}.`
+    );
+    if (c.length >= 50) {
+      const avg20 = c.slice(-20).reduce((a, b) => a + b, 0) / 20;
+      const avg50 = c.slice(-50).reduce((a, b) => a + b, 0) / 50;
+      out.push(
+        `The average of the last 20 closes was ${fmt(avg20, i.currency)} and the average of the last 50 closes was ${fmt(avg50, i.currency)}. The shorter average is ${avg20 >= avg50 ? "above" : "below"} the longer one by ${Math.abs((avg20 / avg50 - 1) * 100).toFixed(1)}%. Comparing two averages like this is a common way to describe the recent direction of a price; it is a description of the past, not a signal.`
+      );
+    }
     out.push(
       `The typical day-to-day move in the close was about ${(sd * 100).toFixed(2)}% (one standard deviation of daily changes). A larger figure means the price has moved around more from one session to the next; it describes the past window only and says nothing certain about what happens next.`
     );
