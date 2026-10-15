@@ -371,7 +371,7 @@ export function MarketTicker({ className, compact = false, initial = null, initi
           failedRefreshes={failedRefreshes}
           emptyText={emptyText}
         />
-        {feedBadge.tone !== "green" ? (
+        {loaded && feedBadge.tone !== "green" ? (
           <p className="bg-zinc-950 px-3 py-1 text-[0.65rem] text-muted-foreground">{feedBadge.why}</p>
         ) : null}
         <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-zinc-950 px-3 py-1 text-[0.6rem] text-muted-foreground">
@@ -428,7 +428,7 @@ export function MarketTicker({ className, compact = false, initial = null, initi
         failedRefreshes={failedRefreshes}
         emptyText={emptyText}
       />
-      {feedBadge.tone !== "green" ? (
+      {loaded && feedBadge.tone !== "green" ? (
         <p className="border-b border-emerald-500/20 bg-zinc-950 px-3 py-1 text-[0.65rem] text-muted-foreground">{feedBadge.why}</p>
       ) : null}
       <MetalsSpotBanner initial={initialMetals} />
