@@ -39,7 +39,7 @@ describe("M-5 names and Apex", () => {
     expect(canonicalTickerName("mpg.nz", "Metro Performance Glass Limited")).toBe("Metro Performance Glass");
     expect(canonicalTickerName("ZZZ.NZ", "Feed Name")).toBe("Feed Name");
     const { execSync } = await import("node:child_process");
-    expect(execSync("grep -rl 'Metroglass' src || true", { encoding: "utf8" }).trim()).toBe("");
+    expect(execSync("grep -rl 'Metroglass' src --exclude=b4-ui.test.ts || true", { encoding: "utf8" }).trim()).toBe("");
   });
   it("Apex is only a legacy-plan label in rendered copy; engine lives in bot-report", () => {
     expect(read("src/lib/apex.ts")).toContain('export * from "@/lib/bot-report"');
