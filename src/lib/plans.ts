@@ -631,6 +631,40 @@ export function aetherforgePriceIds(): string[] {
   return [...ids];
 }
 
+/**
+ * CR-1: the only price ids the public products endpoint may list. These are the
+ * live Starter and Pro checkout prices (NZ$16/160 and NZ$49/490). Ultimate is
+ * "Talk to us" (BL-6) and has no public price. Apex and the retired NZ$29/69
+ * prices are never listed; existing subscribers keep them through the webhook
+ * allow-list in aetherforgePriceIds().
+ */
+export function publicCheckoutPriceIds(): string[] {
+  const ids = new Set<string>();
+  for (const plan of PLANS) {
+    if (!plan.priceId || plan.archived) continue;
+    if (!isSelfServeCheckoutPlan(plan)) continue;
+    ids.add(plan.priceId);
+  }
+  return [...ids];
+}
+
+/**
+ * BL-3: retired Stripe ids for Lukas to archive in the Stripe dashboard.
+ * Code never archives anything. Subscribers already on these prices keep billing
+ * until they change plan; archiving a price only stops new checkouts.
+ */
+export function retiredStripeCatalog(): { key: string; name: string; price: number; interval: string; priceId: string; paymentLink: string }[] {
+  const apex = PLANS.filter((p) => p.name.startsWith("Apex"));
+  return [...apex, ...LEGACY_SUBSCRIPTION_PLANS].map((p) => ({
+    key: p.key,
+    name: p.name,
+    price: p.price,
+    interval: p.interval,
+    priceId: p.priceId,
+    paymentLink: p.paymentLink,
+  }));
+}
+
 /** Human label for a plan key (falls back gracefully for legacy values). */
 export function planLabel(key?: string | null): string {
   if (key === "free") return FREE_PLAN.name;

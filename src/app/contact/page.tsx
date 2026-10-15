@@ -13,6 +13,7 @@ export const metadata = publicPageMetadata("/contact", {
 export default function ContactPage() {
   return (
     <LegalShell
+      page="contact"
       title="Contact"
       subtitle={`${LEGAL_ENTITY_NAME} is a New Zealand limited company.`}
       updated="15 Oct 2026"

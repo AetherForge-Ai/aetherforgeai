@@ -21,6 +21,7 @@ export const metadata = publicPageMetadata("/refunds", {
 export default function RefundsPage() {
   return (
     <LegalShell
+      page="refunds"
       title="Refunds & Cancellations"
       subtitle={`These rules apply to paid plans on AetherForge AI, the trading name of ${LEGAL_ENTITY_NAME}.`}
       updated={LEGAL_UPDATED}

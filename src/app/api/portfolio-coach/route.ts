@@ -10,7 +10,7 @@ import {
   PORTFOLIO_COACH_SYSTEM_PROMPT,
   portfolioCoachFallbackReply,
 } from "@/lib/portfolio-coach-knowledge";
-import { isTotalumEntitled } from "@/app/api/totalum/route";
+import { isTotalumEntitled } from "@/lib/headmaster-access";
 import { loadTotalumSynthesis, loadReportFindings } from "@/lib/totalum-service";
 import { scopeHeadmasterIdeas } from "@/lib/headmaster-trust";
 import { portfolioCoachCompletionMessages } from "@/lib/ai-request-payload";

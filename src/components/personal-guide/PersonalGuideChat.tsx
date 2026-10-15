@@ -50,6 +50,20 @@ const ENTRY_CARDS: EntryCard[] = [
 
 const WELCOME = "Pick a topic, or ask a short question.";
 
+/** Random per-tab id so the server can limit one chat session as well as one address. No PII. */
+function guideSessionId(): string {
+  try {
+    const key = "af-guide-session";
+    const existing = window.sessionStorage.getItem(key);
+    if (existing) return existing;
+    const id = crypto.randomUUID();
+    window.sessionStorage.setItem(key, id);
+    return id;
+  } catch {
+    return "";
+  }
+}
+
 export function PersonalGuideChat({
   onDismiss,
   showSeatedCharacter = true,
@@ -85,6 +99,7 @@ export function PersonalGuideChat({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: content,
+          sessionId: guideSessionId(),
           history: messages.slice(-8).map((m) => ({
             role: m.role,
             content: m.content.slice(0, 2000),
@@ -166,6 +181,9 @@ export function PersonalGuideChat({
 
       <div
         ref={scrollRef}
+        role="log"
+        aria-live="polite"
+        aria-label="Help Assistant messages"
         className="flex-1 space-y-2 overflow-y-auto rounded-b-2xl px-3 py-2.5"
       >
         {messages.map((m, i) => (

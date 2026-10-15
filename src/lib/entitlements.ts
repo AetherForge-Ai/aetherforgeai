@@ -41,7 +41,9 @@ export function limitScope(plan?: string | null): LimitScope {
 export function resolveTickerLimit(user: EntitlementInput): number {
   const stamped = typeof user.ticker_limit === "number" && user.ticker_limit > 0 ? user.ticker_limit : 0;
   if (isFreeReportPlan(user.subscription_plan)) {
-    return Math.max(stamped, FREE_PLAN.tickerLimit);
+    // CR-6: Free (and a cancelled paid plan) is exactly 10. A stale paid stamp
+    // left on the record after a cancel does not keep the old cap.
+    return FREE_PLAN.tickerLimit;
   }
   if (stamped > 0) return stamped;
   const plan = planByKey(user.subscription_plan);

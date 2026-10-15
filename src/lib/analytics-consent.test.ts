@@ -62,9 +62,9 @@ describe("U4 analytics consent", () => {
     expect(privacy).toContain("Cookie settings");
     const trust = read("src/app/trust/page.tsx");
     expect(trust).toContain("only after you accept analytics cookies");
-    expect(SECURITY_HEADERS["Content-Security-Policy"]).toBe(
-      "frame-ancestors 'self' https://web.totalum.app https://totalum-frontend-test.web.app"
-    );
-    expect(SECURITY_HEADERS["Content-Security-Policy"]).not.toContain("script-src");
+    // CR-5 / BL-4: enforced script policy, Totalum test origin off by default.
+    expect(SECURITY_HEADERS["Content-Security-Policy"]).toContain("frame-ancestors 'self' https://web.totalum.app");
+    expect(SECURITY_HEADERS["Content-Security-Policy"]).not.toContain("totalum-frontend-test");
+    expect(SECURITY_HEADERS["Content-Security-Policy"]).toContain("https://www.googletagmanager.com");
   });
 });

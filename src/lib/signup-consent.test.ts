@@ -109,9 +109,9 @@ describe("preview framing", () => {
   });
 
   it("allows the Totalum editor and leaves localhost out", () => {
-    expect(SECURITY_HEADERS["Content-Security-Policy"]).toBe(
-      "frame-ancestors 'self' https://web.totalum.app https://totalum-frontend-test.web.app"
-    );
+    // CR-5 / BL-4: enforced script policy, Totalum test origin off by default.
+    expect(SECURITY_HEADERS["Content-Security-Policy"]).toContain("frame-ancestors 'self' https://web.totalum.app");
+    expect(SECURITY_HEADERS["Content-Security-Policy"]).not.toContain("totalum-frontend-test");
     expect(SECURITY_HEADERS["Content-Security-Policy"]).not.toMatch(/localhost/);
   });
 });

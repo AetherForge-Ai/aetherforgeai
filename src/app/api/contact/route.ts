@@ -11,6 +11,9 @@ import {
   takeRateLimit,
 } from "@/lib/ip-rate-limit";
 import { totalumSdk } from "@/lib/totalum";
+import { ensureDurableRateLimit } from "@/lib/durable-counter.server";
+
+ensureDurableRateLimit();
 
 /**
  * Public contact endpoint for the About / "Let's Connect" page.

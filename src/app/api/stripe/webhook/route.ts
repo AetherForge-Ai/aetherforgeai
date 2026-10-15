@@ -20,6 +20,12 @@ import Stripe from "stripe";
 import { totalumSdk } from "@/lib/totalum";
 import { planByPriceId, planByKey, parsePaymentLinkRef } from "@/lib/plans";
 import { PUBLIC_CATALOG } from "@/lib/public-catalog";
+import {
+  alreadyProcessed,
+  entitlementPatch,
+  markProcessed,
+  mayAcceptUnsignedEvent,
+} from "@/lib/stripe-entitlement";
 
 type SubscriptionPatch = {
   subscription_status?: string;
@@ -34,14 +40,6 @@ type SubscriptionPatch = {
 function unixToIso(unix?: number | null): string | undefined {
   if (!unix || !isFinite(unix)) return undefined;
   return new Date(unix * 1000).toISOString();
-}
-
-/** Map a Stripe subscription status to our app status. */
-function mapStatus(status: Stripe.Subscription.Status): "active" | "past_due" | "canceled" | "none" {
-  if (status === "active" || status === "trialing") return "active";
-  if (status === "past_due" || status === "unpaid") return "past_due";
-  if (status === "canceled" || status === "incomplete_expired") return "canceled";
-  return "none";
 }
 
 /** Resolve our internal user _id from a Stripe customer id. */
@@ -79,29 +77,42 @@ function planFromSubscription(subscription: Stripe.Subscription) {
     const fromPrice = planByKey(price.metadata.plan);
     if (fromPrice) return fromPrice;
   }
-  return planByKey(subscription.metadata?.plan as string);
+  // No price match: no plan. Metadata alone never grants a plan.
+  return undefined;
+}
+
+/**
+ * Re-read the subscription from Stripe so the newest state always wins. A replayed
+ * or out-of-order event then writes the same patch again (CR-6 idempotency).
+ */
+async function liveSubscription(subscription: Stripe.Subscription): Promise<Stripe.Subscription> {
+  try {
+    return await stripe.subscriptions.retrieve(subscription.id);
+  } catch (err) {
+    console.warn("[webhook] live subscription read failed; using event copy", subscription.id, err instanceof Error ? err.message : "error");
+    return subscription;
+  }
 }
 
 async function syncSubscription(
-  subscription: Stripe.Subscription,
+  eventSubscription: Stripe.Subscription,
   overrides?: { userId?: string | null; botAccess?: "stock" | "crypto" | null }
 ) {
+  const subscription = await liveSubscription(eventSubscription);
   const customerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer?.id;
   // Resolution order: explicit override (Payment Link client_reference_id) →
-  // subscription metadata (dynamic Checkout Session) → customer lookup.
+  // subscription metadata (stamped server-side) → customer lookup.
   const userId =
     overrides?.userId ||
     (subscription.metadata?.userId as string) ||
-    (await findUserIdByCustomer(customerId));
+    (await findUserIdByCustomer(customerId ?? null));
   if (!userId) {
     console.warn("[webhook] No user found for subscription", subscription.id);
     return;
   }
 
-  // Resolve the app plan from the purchased price id (authoritative — works for
-  // Payment Links too), falling back to the plan key in metadata.
+  // The plan comes from the purchased price id (webhook data only).
   const planDef = planFromSubscription(subscription);
-  const active = mapStatus(subscription.status) === "active";
 
   // Prefer real Stripe billing-period bounds; fall back to plan durationDays.
   const sub = subscription as unknown as { current_period_start?: number; current_period_end?: number };
@@ -114,29 +125,15 @@ async function syncSubscription(
     unixToIso(endUnix) ??
     (planDef ? new Date(Date.now() + planDef.durationDays * 86400_000).toISOString() : undefined);
 
-  // Bot access: "both"-plans always unlock both bots. For single-bot plans,
-  // prefer the explicit override (Payment Link bot hint) → subscription
-  // metadata → default to stock.
-  const botAccess =
-    planDef?.botAccess === "both"
-      ? "both"
-      : overrides?.botAccess || (subscription.metadata?.bot_access as string) || "stock";
-  const tickerLimit = Number(subscription.metadata?.ticker_limit) || planDef?.tickerLimit;
-
-  const patch: SubscriptionPatch = {
-    subscription_status: mapStatus(subscription.status),
-    subscription_plan: active ? planDef?.key ?? "none" : "none",
-    ...(customerId ? { stripe_customer_id: customerId } : {}),
-  };
-
-  if (active) {
-    patch.subscription_started_at = startedAt;
-    if (expiresAt) patch.subscription_expires_at = expiresAt;
-    patch.bot_access = botAccess;
-    if (tickerLimit) patch.ticker_limit = tickerLimit;
-  } else {
-    patch.bot_access = "none";
-  }
+  const patch = entitlementPatch({
+    stripeStatus: subscription.status,
+    plan: planDef,
+    botChoice: overrides?.botAccess || (subscription.metadata?.bot_access as string) || null,
+    metadataTickerLimit: (subscription.metadata?.ticker_limit as string) || null,
+    startedAt,
+    expiresAt,
+    customerId: customerId ?? null,
+  });
 
   await updateUserSubscription(userId, patch);
 }
@@ -187,22 +184,10 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     }
   }
 
-  // Fallback: at least mark active if we have a user
-  if (userId) {
-    const planDef = planByKey(session.metadata?.plan as string);
-    await updateUserSubscription(userId, {
-      subscription_status: "active",
-      subscription_plan: planDef?.key ?? "monthly",
-      subscription_started_at: new Date().toISOString(),
-      ...(planDef
-        ? {
-            subscription_expires_at: new Date(Date.now() + planDef.durationDays * 86400_000).toISOString(),
-            ticker_limit: Number(session.metadata?.ticker_limit) || planDef.tickerLimit,
-            bot_access: (session.metadata?.bot_access as string) || (planDef.botAccess === "both" ? "both" : "stock"),
-          }
-        : {}),
-      ...(customerId ? { stripe_customer_id: customerId } : {}),
-    });
+  // No subscription could be read. Nothing is granted from session data alone;
+  // customer.subscription.created/updated will sync the plan from Stripe.
+  if (userId && customerId) {
+    await updateUserSubscription(userId, { stripe_customer_id: customerId });
   }
 }
 
@@ -221,11 +206,8 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
   const customerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer?.id;
   const userId = (subscription.metadata?.userId as string) || (await findUserIdByCustomer(customerId ?? null));
   if (userId) {
-    await updateUserSubscription(userId, {
-      subscription_status: "canceled",
-      subscription_plan: "none",
-      bot_access: "none",
-    });
+    // Back to Free limits at period end (Stripe sends deleted when the period ends).
+    await updateUserSubscription(userId, entitlementPatch({ stripeStatus: "canceled", plan: undefined }));
   }
 }
 
@@ -242,7 +224,10 @@ async function handleInvoicePaid(invoice: Stripe.Invoice) {
 }
 
 async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
-  console.log("[webhook] invoice.payment_failed (log only):", invoice.id);
+  // Dunning: Stripe retries the card and (in test mode) sends its own notice.
+  // The app keeps the plan through past_due (see stripe-entitlement.ts) and has a
+  // paymentFailedMail template in renewal-reminder.ts. The app sends no email here.
+  console.log("[webhook] invoice.payment_failed (plan kept through grace):", invoice.id);
 }
 
 export async function POST(req: Request) {
@@ -290,10 +275,17 @@ export async function POST(req: Request) {
         );
       }
       event = verified;
-    } else {
-      // For development without webhook secret
-      console.warn("⚠️  Webhook signature verification skipped (no STRIPE_WEBHOOK_SECRET)");
+    } else if (mayAcceptUnsignedEvent()) {
+      // Local development only. Production refuses an unsigned event.
+      console.warn("Webhook signature verification skipped (no STRIPE_WEBHOOK_SECRET, not production)");
       event = JSON.parse(body) as Stripe.Event;
+    } else {
+      console.error("[webhook] No signing secret configured in production; event refused");
+      return NextResponse.json({ error: "Webhook signing secret is not configured" }, { status: 500 });
+    }
+
+    if (event.id && alreadyProcessed(event.id)) {
+      return NextResponse.json({ received: true, duplicate: true });
     }
 
     // Handle the event
@@ -334,11 +326,12 @@ export async function POST(req: Request) {
         console.log(`Unhandled event type: ${event.type}`);
     }
 
+    if (event.id) markProcessed(event.id);
     return NextResponse.json({ received: true });
   } catch (err: any) {
     console.error("[WEBHOOK ERROR]", err);
     return NextResponse.json(
-      { error: err.message || "Webhook handler failed" },
+      { error: "Webhook handler failed" },
       { status: 500 }
     );
   }
