@@ -68,10 +68,12 @@ export const LEGAL_UPDATED = "16 Oct 2026";
 export const PROJECTIONS_MEMBER_LINE = PROJECTIONS_DESCRIPTION;
 
 /**
- * TODO(D6): Ultimate stays listed at NZ$199 a month and NZ$1,990 a year, with Talk to us.
- * Do not switch the card to "From" or hide the price until Lukas decides.
+ * BL-6 default (approved 16 Oct 2026): the Ultimate card reads
+ * "From NZ$199/mo — Talk to us". Set true to show the fixed monthly/annual price again.
+ * Seats, client portfolios and the API stay behind ULTIMATE_FEATURES (off).
  */
-export const ULTIMATE_PRICE_PENDING_D6 = true;
+export const ULTIMATE_PRICE_PENDING_D6 = false;
+export const ULTIMATE_FEATURES = process.env.ULTIMATE_FEATURES === "1";
 
 /** One line for the site footer and the AI Disclaimer. */
 export const ONE_LINE_DISCLAIMER = SHORT_DISCLAIMER;

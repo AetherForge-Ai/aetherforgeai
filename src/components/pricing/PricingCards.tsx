@@ -1,5 +1,6 @@
 "use client";
 
+import { ULTIMATE_PRICE_PENDING_D6 } from "@/lib/public-copy";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -240,7 +241,14 @@ export function PricingCards({
 
               {/* Price */}
               <div className="mt-5">
-                {isFree ? (
+                {tier.id === "ultimate" && !ULTIMATE_PRICE_PENDING_D6 ? (
+                  <div className="flex flex-col gap-1" data-ultimate-from>
+                    <span className="font-display text-2xl font-extrabold leading-tight">
+                      From NZ${money(tier.monthlyPrice ?? 199)}/mo
+                    </span>
+                    <span className="text-sm text-muted-foreground">Talk to us</span>
+                  </div>
+                ) : isFree ? (
                   <div className="flex items-end gap-1">
                     <span className="text-lg font-semibold text-muted-foreground">NZ$</span>
                     <span className="font-display text-4xl font-extrabold leading-none">0</span>
