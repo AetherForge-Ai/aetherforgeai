@@ -28,6 +28,10 @@ export interface GrokCompletionOptions {
   maxTokens?: number;
   temperature?: number;
   model?: string;
+  /** Abort the request (used for the 10 s public guide timeout). */
+  signal?: AbortSignal;
+  /** Token counts from the vendor response, for spend logging. */
+  onUsage?: (usage: { promptTokens: number | null; completionTokens: number | null }) => void;
 }
 
 export function isGrokConfigured(): boolean {
@@ -78,6 +82,8 @@ export async function createGrokChatCompletion({
   maxTokens = 800,
   temperature = 0.7,
   model,
+  signal,
+  onUsage,
 }: GrokCompletionOptions): Promise<string> {
   const apiKey = process.env.XAI_API_KEY;
   if (!apiKey) {
@@ -101,6 +107,7 @@ export async function createGrokChatCompletion({
       temperature,
       stream: false,
     }),
+    signal,
   });
 
   if (!res.ok) {
@@ -111,7 +118,14 @@ export async function createGrokChatCompletion({
 
   const json = (await res.json()) as {
     choices?: { message?: { content?: string } }[];
+    usage?: { prompt_tokens?: number; completion_tokens?: number };
   };
+  if (onUsage) {
+    onUsage({
+      promptTokens: typeof json?.usage?.prompt_tokens === "number" ? json.usage.prompt_tokens : null,
+      completionTokens: typeof json?.usage?.completion_tokens === "number" ? json.usage.completion_tokens : null,
+    });
+  }
 
   const content = json?.choices?.[0]?.message?.content?.trim();
   if (!content) {

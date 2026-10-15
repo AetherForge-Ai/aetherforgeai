@@ -14,7 +14,15 @@ import {
   type MarketCode,
 } from "@/lib/market-intel";
 import { formatPercent } from "@/lib/portfolio";
-import { CRYPTO_PROJECTIONS_PAUSED, isCryptoProjectionRow, rankByConfidenceWeightedMove } from "@/lib/projection-pause";
+import { CRYPTO_PROJECTIONS_PAUSED, isCryptoProjectionRow } from "@/lib/projection-pause";
+import {
+  formatIllustrativeRange,
+  ILLUSTRATIVE_LABEL,
+  illustrativeRange,
+  PROJECTIONS_FMC_DISCLAIMER,
+  sortProjectionsNeutral,
+} from "@/lib/projections-mode";
+import { LEGAL_ENTITY_NAME, NZBN } from "@/lib/company";
 import { modelRangeLine } from "@/lib/public-intel";
 import { CUSTOMER_EMAIL, ENGINE_PARAGRAPH } from "@/lib/public-copy";
 import {
@@ -109,7 +117,8 @@ export function composeWeeklyProjections(input: {
         name: intel.name,
         marketLabel: exchange === "DOW" ? "Dow Jones" : exchange,
         priceLabel: formatMarketPrice(intel.price, intel.currency),
-        moveLabel: formatPercent(intel.projected7dPct),
+        // CR-3: a range, not a point move.
+        moveLabel: formatIllustrativeRange(illustrativeRange(intel.outlook)),
         confidenceLabel: `${Math.round(intel.confidence)}%`,
         asOfLabel: freshness.label,
         rangeLabel: range,
@@ -120,7 +129,8 @@ export function composeWeeklyProjections(input: {
       continue;
     }
   }
-  const ranked = rankByConfidenceWeightedMove(built).slice(0, WEEKLY_EMAIL_LIST_CAP);
+  // CR-3: A–Z, no confidence ranking.
+  const ranked = sortProjectionsNeutral(built).slice(0, WEEKLY_EMAIL_LIST_CAP);
   if (!ranked.length) return null;
   return {
     asOfLabel: formatDisplayDate(input.now),
@@ -149,7 +159,7 @@ export function weeklyEmailPrompt(board: WeeklyEmailBoard): string {
   ];
   for (const row of board.projections) {
     lines.push(
-      `${row.ticker} | ${row.name} | ${row.marketLabel} | last ${row.priceLabel} | indicative 7-day ${row.moveLabel} | model confidence ${row.confidenceLabel} | ${row.asOfLabel}${row.rangeLabel ? ` | ${row.rangeLabel}` : ""}`,
+      `${row.ticker} | ${row.name} | ${row.marketLabel} | last ${row.priceLabel} | illustrative 7-day range ${row.moveLabel} | ${row.asOfLabel}${row.rangeLabel ? ` | ${row.rangeLabel}` : ""}`,
     );
     if (lines.join("\n").length > INPUT_CHAR_CAP) {
       lines.pop();
@@ -177,11 +187,11 @@ function paragraphs(lines: string[]): string {
 }
 
 function projectionTable(board: WeeklyEmailBoard): string {
-  const head = "<tr><th>Name</th><th>Indicative 7-day</th><th>As of</th></tr>";
+  const head = `<tr><th>Name</th><th>7-day range (${escapeHtml(ILLUSTRATIVE_LABEL.toLowerCase())})</th><th>As of</th></tr>`;
   const body = board.projections
     .map((row) => {
       const name = `${row.ticker} ${row.name}`;
-      const detail = `${row.marketLabel}. Last ${row.priceLabel}. Model confidence ${row.confidenceLabel}.`;
+      const detail = `${row.marketLabel}. Last ${row.priceLabel}.`;
       const extra = row.rangeLabel ? `<br>${escapeHtml(row.rangeLabel)}` : "";
       return `<tr><td>${escapeHtml(name)}<br>${escapeHtml(detail)}${extra}</td><td>${escapeHtml(row.moveLabel)}</td><td>${escapeHtml(row.asOfLabel)}</td></tr>`;
     })
@@ -196,7 +206,7 @@ export function renderWeeklyEmail(input: WeeklyEmailRenderInput): OutboundMail {
     ? `AI-written note: ${ai}`
     : "No AI-written note was added to this message. Nothing was invented to replace it.";
   const intro =
-    "These are the indicative 7-day projections for the week ahead. They are the same kind of figure the projections page ranks. This email does not include the holdings, cash, or profit or loss on your account.";
+    "These are illustrative 7-day ranges for the week ahead, listed A–Z, the same as the members' projections page. They are scenarios, not forecasts. This email does not include the holdings, cash, or profit or loss on your account.";
   const textLines = [
     `AetherForge AI weekly projections — ${board.asOfLabel}`,
     "",
@@ -209,16 +219,18 @@ export function renderWeeklyEmail(input: WeeklyEmailRenderInput): OutboundMail {
     "The week ahead",
     ...board.projections.flatMap((row) => [
       `${row.ticker} ${row.name} (${row.marketLabel})`,
-      `Last ${row.priceLabel}. Indicative 7-day ${row.moveLabel}. Model confidence ${row.confidenceLabel}. ${row.asOfLabel}.`,
+      `Last ${row.priceLabel}. Illustrative 7-day range ${row.moveLabel}. ${row.asOfLabel}.`,
       row.rangeLabel || "",
     ]),
     "",
     aiLine,
     "",
     "This is general information. It is not financial advice and it is not an instruction.",
+    PROJECTIONS_FMC_DISCLAIMER,
     ENGINE_PARAGRAPH,
-    "Turn off this weekly email",
+    "Turn off this weekly email (one click)",
     input.unsubscribeUrl,
+    `Sent by ${LEGAL_ENTITY_NAME} (NZBN ${NZBN}), AetherForge AI, ${CUSTOMER_EMAIL}. You get this because you turned on the weekly projections email.`,
   ].filter((line) => line !== "");
 
   const html = `<style>
@@ -239,9 +251,11 @@ export function renderWeeklyEmail(input: WeeklyEmailRenderInput): OutboundMail {
   <h2>AI-written note</h2>
   ${paragraphs([aiLine])}
   <p>This is general information. It is not financial advice and it is not an instruction.</p>
+  <p>${escapeHtml(PROJECTIONS_FMC_DISCLAIMER)}</p>
   <p>${escapeHtml(ENGINE_PARAGRAPH)}</p>
-  <p><a href="${escapeHtml(input.unsubscribeUrl)}">Turn off this weekly email</a></p>
+  <p><a href="${escapeHtml(input.unsubscribeUrl)}">Turn off this weekly email (one click)</a></p>
   <p>${escapeHtml(input.unsubscribeUrl)}</p>
+  <p>Sent by ${escapeHtml(LEGAL_ENTITY_NAME)} (NZBN ${escapeHtml(NZBN)}), AetherForge AI, ${escapeHtml(CUSTOMER_EMAIL)}. You get this because you turned on the weekly projections email.</p>
 </div>`;
 
   return prepareOutboundMail({

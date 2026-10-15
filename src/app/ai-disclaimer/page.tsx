@@ -1,4 +1,5 @@
 import { LegalShell, LegalSection } from "@/components/legal/LegalShell";
+import { FmcStatement } from "@/components/legal/DisclaimerNotice";
 import { EmailAddress } from "@/components/EmailAddress";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { AI_PROVIDER_API_SENTENCE } from "@/lib/ai-provider-disclosure";
@@ -15,6 +16,7 @@ const UPDATED = LEGAL_UPDATED;
 export default function AiDisclaimer() {
   return (
     <LegalShell
+      page="ai-disclaimer"
       title="AI Disclaimer"
       subtitle="Please read this disclaimer carefully. It explains the nature and limitations of the AI-generated market intelligence provided by AetherForge AI and how it relates to New Zealand financial-markets law. This disclaimer forms part of our Terms."
       updated={UPDATED}
@@ -26,9 +28,7 @@ export default function AiDisclaimer() {
           account your particular financial situation, objectives, risk tolerance or needs.
         </p>
         <p>
-          AetherForge AI is not a licensed financial advice provider under the Financial Markets Conduct
-          Act 2013 (New Zealand) and does not hold a financial advice provider licence issued by the
-          Financial Markets Authority (FMA). Nothing on this Service should be interpreted as a
+          <FmcStatement /> Nothing on this Service should be interpreted as a
           recommendation, opinion or guidance intended to influence you in making a decision about a
           financial product, as those terms are used in New Zealand law.
         </p>

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
 import { loadTotalumSynthesis, loadReportFindings } from "@/lib/totalum-service";
-import { isFullHeadmaster } from "../route";
+import { isFullHeadmaster } from "@/lib/headmaster-access";
 import { createGrokChatCompletion, isGrokConfigured, type GrokMessage } from "@/lib/grok";
 import { buildStrategy, type TotalumSynthesis } from "@/lib/totalum-engine";
 import type { ReportFindings } from "@/lib/totalum-service";

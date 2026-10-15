@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
 import { loadTotalumSynthesis, loadReportFindings, loadHeadmasterIllustratedPath, saveHeadmasterIllustratedPath } from "@/lib/totalum-service";
-import { isFullHeadmaster } from "../route";
+import { isFullHeadmaster } from "@/lib/headmaster-access";
 import { renderTotalumReport } from "@/lib/totalum-report-html";
 import { buildStrategy, type GoalKey } from "@/lib/totalum-engine";
 import { HEADMASTER_BOT_LABEL } from "@/lib/report-language";

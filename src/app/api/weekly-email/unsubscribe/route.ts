@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { handleWeeklyEmailUnsubscribe, weeklyEmailUnsubscribeSecret } from "@/lib/weekly-email";
 import { optOutWeeklyEmail } from "@/lib/weekly-email-live";
+import { PUBLIC_POST_LIMIT, PUBLIC_POST_WINDOW_MS, rateLimitHeaders, rateLimitIdentity, takeRateLimit } from "@/lib/ip-rate-limit";
+import { ensureDurableRateLimit } from "@/lib/durable-counter.server";
+
+ensureDurableRateLimit();
 
 /**
  * GET /api/weekly-email/unsubscribe?token=...
@@ -42,6 +46,18 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const identity = rateLimitIdentity(req);
+  const limit = await takeRateLimit(
+    `weekly-unsubscribe:${encodeURIComponent(identity.ok ? identity.ip : "unknown")}`,
+    PUBLIC_POST_LIMIT,
+    PUBLIC_POST_WINDOW_MS
+  );
+  if (!limit.allowed) {
+    return new NextResponse("Too many requests. Try again in a minute.", {
+      status: 429,
+      headers: { "Content-Type": "text/plain; charset=utf-8", ...rateLimitHeaders(limit, true) },
+    });
+  }
   let formToken: string | null = null;
   try {
     const form = await req.formData();

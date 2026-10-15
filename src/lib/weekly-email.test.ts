@@ -394,7 +394,7 @@ describe("weekly email", () => {
     expect(board.asOfLabel).toBe("12 Oct 2026");
     expect(board.projections[0].priceLabel).toBe("NZ$12.20");
     expect(board.projections[0].asOfLabel).toContain("9 Oct 2026");
-    expect(board.projections[0].moveLabel).toMatch(/^[+-]\d+\.\d{2}%$/);
+    expect(board.projections[0].moveLabel).toMatch(/^[+−]?\d+\.\d% to [+−]?\d+\.\d%$/);
     const mail = renderWeeklyEmail({
       to: "sample.member@example.test",
       board,
@@ -408,7 +408,7 @@ describe("weekly email", () => {
     expect(mail.text && mail.text.length > 0).toBe(true);
     expect(body).toContain("Sample Listings Ltd");
     expect(body).toContain("NZ$12.20");
-    expect(body).toContain("Indicative 7-day");
+    expect(body).toContain("7-day range"); // CR-3: a range, not a point move
     expect(body).toContain("12 Oct 2026");
     expect(body).toContain("9 Oct 2026");
     expect(body).toContain("Crypto projections are paused, so none are included.");

@@ -18,6 +18,24 @@ import {
   PERSONAL_GUIDE_SYSTEM_PROMPT,
   personalGuideFallbackReply,
 } from "@/lib/personal-guide-knowledge";
+import { ensureDurableRateLimit } from "@/lib/durable-counter.server";
+import {
+  aiSpendLogLine,
+  anonAiDailyBudget,
+  crossesSpendAlert,
+  GENERAL_INFORMATION_REPLY,
+  GUIDE_BUSY_MESSAGE,
+  GUIDE_INJECTION_RULES,
+  GUIDE_SESSION_LIMIT,
+  GUIDE_SESSION_WINDOW_MS,
+  GUIDE_TIMEOUT_MS,
+  isPersonalisedAdviceRequest,
+  nzDayKey,
+  sanitizeGuideReply,
+  withGuideDisclaimer,
+} from "@/lib/guide-safety";
+
+ensureDurableRateLimit();
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +50,7 @@ const postSchema = z.object({
     )
     .max(10)
     .optional(),
+  sessionId: z.string().max(64).regex(/^[A-Za-z0-9-]*$/).optional(),
 });
 
 /**
@@ -71,19 +90,51 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!isGrokConfigured()) {
-      console.warn("[api/personal-guide] XAI_API_KEY missing — using fallback replies");
-      return NextResponse.json(
-        {
-          ok: true,
-          data: { reply: personalGuideFallbackReply(userMessage), fallback: true },
-        },
+    const sessionId = parsed.data.sessionId?.trim();
+    if (sessionId) {
+      const sessionLimit = await takeRateLimit(
+        `personal-guide-session:${sessionId}`,
+        GUIDE_SESSION_LIMIT,
+        GUIDE_SESSION_WINDOW_MS
+      );
+      if (!sessionLimit.allowed) {
+        return NextResponse.json(
+          { ok: false, error: "That is enough messages for this chat. Try again later.", limited: true },
+          { status: 429, headers: rateLimitHeaders(sessionLimit, true) }
+        );
+      }
+    }
+
+    const canned = (reply: string, extra: Record<string, unknown> = {}) =>
+      NextResponse.json(
+        { ok: true, data: { reply: withGuideDisclaimer(reply), fallback: true, ...extra } },
         { headers: rateLimitHeaders(limit) }
       );
+
+    // A request for a personal pick never reaches the model.
+    if (isPersonalisedAdviceRequest(userMessage)) {
+      return canned(GENERAL_INFORMATION_REPLY, { refused: "personalised_advice" });
+    }
+
+    if (!isGrokConfigured()) {
+      console.warn("[api/personal-guide] AI key missing — using fallback replies");
+      return canned(personalGuideFallbackReply(userMessage));
+    }
+
+    // Global daily budget for anonymous AI calls (NZ day). Over budget → canned reply.
+    const budget = anonAiDailyBudget();
+    const day = await takeRateLimit(`ai-anon-budget:${nzDayKey()}`, budget, 24 * 60 * 60 * 1000);
+    const dayCount = budget - day.remaining;
+    if (!day.allowed) {
+      console.warn(aiSpendLogLine({ route: "personal-guide", estimated: true, dayCount: budget + 1, budget }));
+      return canned(personalGuideFallbackReply(userMessage), { budget: "exhausted" });
+    }
+    if (crossesSpendAlert(dayCount, budget)) {
+      console.error(`[ai-spend-alert] anonymous guide reached ${dayCount} of ${budget} calls today`);
     }
 
     const messages: GrokMessage[] = [
-      { role: "system", content: PERSONAL_GUIDE_SYSTEM_PROMPT },
+      { role: "system", content: `${PERSONAL_GUIDE_SYSTEM_PROMPT}\n\n${GUIDE_INJECTION_RULES}` },
       ...history.map((m) => ({
         role: m.role as "user" | "assistant",
         content: m.content,
@@ -91,16 +142,44 @@ export async function POST(req: Request) {
       { role: "user", content: userMessage },
     ];
 
-    const reply = await createGrokChatCompletion({
-      messages,
-      maxTokens: 280,
-      temperature: 0.65,
-    });
+    let usage: { promptTokens: number | null; completionTokens: number | null } | null = null;
+    let reply: string;
+    try {
+      reply = await createGrokChatCompletion({
+        messages,
+        maxTokens: 280,
+        temperature: 0.65,
+        signal: AbortSignal.timeout(GUIDE_TIMEOUT_MS),
+        onUsage: (u) => {
+          usage = u;
+        },
+      });
+    } catch (err) {
+      const timedOut = err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError");
+      console.warn("[api/personal-guide] AI call failed", timedOut ? "timeout" : "error");
+      return NextResponse.json(
+        { ok: false, error: GUIDE_BUSY_MESSAGE, busy: true },
+        { status: 503, headers: { ...rateLimitHeaders(limit), "Retry-After": "10" } }
+      );
+    }
+    const used = usage as { promptTokens: number | null; completionTokens: number | null } | null;
+    console.info(
+      aiSpendLogLine({
+        route: "personal-guide",
+        promptTokens: used?.promptTokens ?? null,
+        completionTokens: used?.completionTokens ?? null,
+        estimated: !used,
+        dayCount,
+        budget,
+      })
+    );
 
-    return NextResponse.json({ ok: true, data: { reply } }, { headers: rateLimitHeaders(limit) });
+    return NextResponse.json(
+      { ok: true, data: { reply: sanitizeGuideReply(reply) } },
+      { headers: rateLimitHeaders(limit) }
+    );
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Failed to reply";
     console.error("[api/personal-guide] POST error:", err);
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    return NextResponse.json({ ok: false, error: GUIDE_BUSY_MESSAGE }, { status: 500 });
   }
 }

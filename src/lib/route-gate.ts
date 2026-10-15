@@ -30,6 +30,7 @@ const PUBLIC_DOCUMENT_ROUTES = [
   "/terms-of-service",
   "/refunds",
   "/ai-disclaimer",
+  "/legal",
   "/trust",
   "/free-trial",
   "/chat",

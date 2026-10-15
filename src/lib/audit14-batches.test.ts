@@ -6,7 +6,7 @@ import { CHANGELOG_ENTRIES } from "@/lib/changelog-entries";
 import { publicAsOfPhrase, publicCryptoTableLines } from "@/lib/crypto-price-chain";
 import { honeypotFilled, resetRateLimits, takeRateLimit } from "@/lib/ip-rate-limit";
 import { tapeUpdatedPhrase } from "@/lib/market-freshness";
-import { aetherforgePriceIds } from "@/lib/plans";
+import { aetherforgePriceIds, publicCheckoutPriceIds } from "@/lib/plans";
 import { PROJECTIONS_MEMBER_LINE, ULTIMATE_PRICE_PENDING_D6 } from "@/lib/public-copy";
 import { priceUpdatedPhrase } from "@/components/PriceConfidenceBadge";
 import { fiftyTwoWeekLine, headlinesForSymbol, NEWS_MISSING, sectorLine, sparklinePoints } from "@/lib/stock-public-facts";
@@ -23,7 +23,8 @@ describe("audit 14 Oct batches A–D", () => {
     expect(ids).toContain("price_1TsjfJ9sOmzarzYkM1QYb3tU");
     expect(ids.every((id) => id.startsWith("price_"))).toBe(true);
     const route = read("src/app/api/stripe/products/route.ts");
-    expect(route).toContain("aetherforgePriceIds");
+    expect(route).toContain("publicCheckoutPriceIds");
+    expect(publicCheckoutPriceIds().every((id) => ids.includes(id))).toBe(true);
     expect(route).not.toContain("products.list");
     expect(route).not.toContain("createProductsInStripe");
   });

@@ -8,13 +8,19 @@ import {
   formatMarketPrice,
   type SecurityIntel,
 } from "@/lib/market-intel";
-import { pctClass, fmtPct, ExchangeChip, publicMarketNote } from "@/components/dashboard/intel-ui";
+import { fmtPct, ExchangeChip, publicMarketNote } from "@/components/dashboard/intel-ui";
+import {
+  formatIllustrativeRange,
+  ILLUSTRATIVE_LABEL,
+  PROJECTIONS_FMC_DISCLAIMER,
+  PROJECTIONS_PAUSED_MESSAGE,
+} from "@/lib/projections-mode";
 import {
   CRYPTO_PROJECTIONS_PAUSE_MESSAGE,
   withoutCryptoProjections,
 } from "@/lib/projection-pause";
-import { modelRangeLine } from "@/lib/public-intel";
 import { ProjectionsSignIn } from "@/components/projections/ProjectionsSignIn";
+import { FmcStatement } from "@/components/legal/DisclaimerNotice";
 import { ENGINE_PARAGRAPH, HISTORY_LENGTH_LINE, PROJECTIONS_MEMBER_LINE } from "@/lib/public-copy";
 import { scoreBandSentence } from "@/lib/score-band";
 import { Button } from "@/components/ui/button";
@@ -37,13 +43,21 @@ import {
   ChevronRight,
 } from "lucide-react";
 
+/** CR-3: member rows carry a range, not a point move or a confidence. */
+type ProjectionRowData = Omit<SecurityIntel, "projected7dPct" | "confidence"> & {
+  rangeLowPct?: number | null;
+  rangeHighPct?: number | null;
+};
+
 interface ProjectionsPayload {
+  mode?: "reworded" | "paused";
+  pausedMessage?: string;
   live: boolean;
   cryptoPaused?: boolean;
   cryptoPauseMessage?: string;
-  combined: SecurityIntel[];
-  stockUniverse: SecurityIntel[];
-  cryptoUniverse: SecurityIntel[];
+  combined: ProjectionRowData[];
+  stockUniverse: ProjectionRowData[];
+  cryptoUniverse: ProjectionRowData[];
   scanned: { stocks: number; crypto: number };
 }
 
@@ -57,7 +71,7 @@ interface TabDef {
 
 const TABS: TabDef[] = [
   { key: "NZXASX", label: "NZX + ASX", sub: "Default" },
-  { key: "ALL", label: "All Markets", sub: "Up to 50" },
+  { key: "ALL", label: "All Markets", sub: "A–Z" },
   { key: "NZX", label: "NZX", sub: "New Zealand" },
   { key: "ASX", label: "ASX", sub: "Australia" },
   { key: "DOW", label: "Dow Jones", sub: "US blue-chip" },
@@ -66,24 +80,15 @@ const TABS: TabDef[] = [
 ];
 
 /** Readable market label for a security (NZX · ASX · Dow Jones · NASDAQ · Crypto). */
-function marketLabelFor(s: SecurityIntel): string {
+function marketLabelFor(s: ProjectionRowData): string {
   if (s.market === "CRYPTO") return "Crypto";
   return EXCHANGE_META[resolveExchange(s.ticker, s.market)].label;
 }
 
-/** Confidence meter — a compact 0–100 agreement bar. */
-function Confidence({ value }: { value: number }) {
-  const v = Math.max(0, Math.min(100, Math.round(value)));
-  const tone =
-    v >= 70 ? "bg-emerald-400" : v >= 45 ? "bg-amber-400" : "bg-rose-400";
-  return (
-    <div className="flex items-center gap-2" title={`${v}% model confidence`}>
-      <div className="h-1.5 w-14 overflow-hidden rounded-full bg-muted/50">
-        <div className={cn("h-full rounded-full", tone)} style={{ width: `${v}%` }} />
-      </div>
-      <span className="tnum text-xs text-muted-foreground">{v}%</span>
-    </div>
-  );
+function rangeOf(s: ProjectionRowData) {
+  return typeof s.rangeLowPct === "number" && typeof s.rangeHighPct === "number"
+    ? { lowPct: s.rangeLowPct, highPct: s.rangeHighPct }
+    : null;
 }
 
 function MethodologyModal() {
@@ -117,23 +122,21 @@ function MethodologyModal() {
             <p>
               {ENGINE_PARAGRAPH} The engine blends trend (SMA 20/50), momentum (RSI, MACD),
               mean-reversion (Bollinger position), realised volatility (ATR) and support/resistance
-              structure into a 7-day range. The <span className="font-medium text-foreground">Projected</span>{" "}
-              figure is the central point of that calculated range.
+              structure into a 7-day range. The page shows that range only, as an illustrative
+              scenario. It is not a forecast and there is no single target figure.
             </p>
           </div>
           <div>
-            <p className="font-semibold text-foreground">Ranking &amp; confidence</p>
+            <p className="font-semibold text-foreground">Order</p>
             <p>
-              Every tab uses the same order: the projected 7-day percent times model confidence.
-              The page opens on NZX and ASX. Crypto projections are paused. A score of 0–33 is weak,
-              34–66 is moderate, and 67 or above is the top band.
+              Every tab lists shares A–Z by ticker. Nothing is ranked by expected move or model
+              confidence. The page opens on NZX and ASX. Crypto projections are paused.
             </p>
           </div>
           <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-xs text-amber-200/90">
             <p className="font-semibold text-amber-200">Not financial advice</p>
             <p className="mt-1">
-              {ENGINE_PARAGRAPH} This is general information under the Financial Markets Conduct Act
-              2013, not personalised financial advice.
+              {PROJECTIONS_FMC_DISCLAIMER}
             </p>
           </div>
         </div>
@@ -142,25 +145,14 @@ function MethodologyModal() {
   );
 }
 
-function ProjectionRow({ rank, s, showMarket = false }: { rank: number; s: SecurityIntel; showMarket?: boolean }) {
+function ProjectionRow({ s, showMarket = false }: { s: ProjectionRowData; showMarket?: boolean }) {
   const [open, setOpen] = useState(false);
-  const colSpan = showMarket ? 8 : 7;
+  const colSpan = showMarket ? 6 : 5;
+  const range = rangeOf(s);
   return (
     <>
       <tr className="group border-b border-border/40 transition-colors hover:bg-card/50">
-        <td className="py-3 pl-3 pr-2 text-center">
-          <span
-            className={cn(
-              "tnum inline-grid size-7 place-items-center rounded-lg text-xs font-bold",
-              rank <= 3
-                ? "bg-primary/15 text-primary ring-1 ring-primary/25"
-                : "bg-muted/40 text-muted-foreground"
-            )}
-          >
-            {rank}
-          </span>
-        </td>
-        <td className="px-2 py-3">
+        <td className="py-3 pl-3 pr-2">
           <div className="flex items-center gap-2">
             <ExchangeChip ticker={s.ticker} market={s.market} />
             <span className="font-display text-sm font-bold tracking-tight">{s.ticker}</span>
@@ -180,12 +172,10 @@ function ProjectionRow({ rank, s, showMarket = false }: { rank: number; s: Secur
           <span className="tnum text-sm font-medium">{formatMarketPrice(s.price, s.currency)}</span>
         </td>
         <td className="px-2 py-3 text-right">
-          <span className={cn("tnum text-sm font-bold", pctClass(s.projected7dPct))}>
-            {fmtPct(s.projected7dPct)}
+          <span className="tnum whitespace-nowrap text-sm font-semibold text-foreground">
+            {formatIllustrativeRange(range)}
           </span>
-        </td>
-        <td className="hidden px-2 py-3 md:table-cell">
-          <Confidence value={s.confidence} />
+          <span className="block text-[10px] text-muted-foreground">{ILLUSTRATIVE_LABEL}</span>
         </td>
         <td className="px-2 py-3 pr-3 text-right">
           <button
@@ -208,16 +198,15 @@ function ProjectionRow({ rank, s, showMarket = false }: { rank: number; s: Secur
                 </p>
                 <p className="text-sm leading-relaxed text-muted-foreground">{publicMarketNote(s.reasoning)}</p>
                 <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{scoreBandSentence(s.score)}</p>
-                {modelRangeLine(s.outlook) ? (
-                  <p className="mt-2 text-xs leading-relaxed text-muted-foreground/80">{modelRangeLine(s.outlook)}</p>
-                ) : null}
+                <p className="mt-2 text-xs leading-relaxed text-muted-foreground/80">
+                  7-day range {formatIllustrativeRange(range)}. {PROJECTIONS_FMC_DISCLAIMER}
+                </p>
               </div>
               <div className="grid grid-cols-3 gap-2 sm:w-64">
                 {[
                   { k: "RSI", v: s.rsi.toFixed(0) },
                   { k: "MACD", v: s.macdSignal },
                   { k: "vs SMA20", v: fmtPct(s.vsSma20) },
-                  { k: "+7d", v: fmtPct(s.projected7dPct) },
                   { k: "30d", v: fmtPct(s.change30d) },
                   { k: "Score", v: s.score.toFixed(0) },
                 ].map((m) => (
@@ -239,7 +228,8 @@ function ProjectionRow({ rank, s, showMarket = false }: { rank: number; s: Secur
 }
 
 export function ProjectionsExplorer() {
-  const [rows, setRows] = useState<SecurityIntel[]>([]);
+  const [rows, setRows] = useState<ProjectionRowData[]>([]);
+  const [pausedMessage, setPausedMessage] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [pauseMessage, setPauseMessage] = useState(CRYPTO_PROJECTIONS_PAUSE_MESSAGE);
@@ -263,7 +253,7 @@ export function ProjectionsExplorer() {
     setError(null);
     console.log(`[projections] Fetching ${tab} page ${pageNum}…`);
     try {
-      const res = await api.get<ProjectionsPayload & { rows?: SecurityIntel[]; total?: number; page?: number }>(
+      const res = await api.get<ProjectionsPayload & { rows?: ProjectionRowData[]; total?: number; page?: number }>(
         `/api/projections?exchange=${tab}&page=${pageNum}&limit=${pageSize}`,
         { signal: AbortSignal.timeout(25_000) },
       );
@@ -274,7 +264,12 @@ export function ProjectionsExplorer() {
         return;
       }
       if (!res.ok || !res.data) throw new Error(res.error?.toString() || "The projection engine failed to return rows.");
-      const ranked = withoutCryptoProjections(res.data.rows || res.data.combined || []);
+      if (res.data.mode === "paused") {
+        setPausedMessage(res.data.pausedMessage || PROJECTIONS_PAUSED_MESSAGE);
+        setRows([]);
+        setTotal(0);
+        return;
+      }      const ranked = withoutCryptoProjections(res.data.rows || res.data.combined || []);
       if (ranked.length === 0) throw new Error("The projection engine failed to return rows.");
       setRows(ranked);
       setTotal(typeof res.data.total === "number" ? res.data.total : ranked.length);
@@ -316,9 +311,14 @@ export function ProjectionsExplorer() {
             Weekly Market <span className="text-gradient">Projections</span>
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-            {PROJECTIONS_MEMBER_LINE} The table opens on NZX and ASX. Each equity tab lists the names
-            that came back, up to 50, and the number on the tab is that count. Every tab uses the same
-            order: projected 7-day percent times model confidence. {CRYPTO_PROJECTIONS_PAUSE_MESSAGE}
+            {PROJECTIONS_MEMBER_LINE} The table opens on NZX and ASX. Each tab lists the shares that
+            came back, A–Z, with an illustrative 7-day range. The number on the tab is that count.
+          </p>
+          <p
+            role="note"
+            className="mt-3 max-w-2xl rounded-xl border border-amber-500/30 bg-amber-500/[0.06] px-3 py-2 text-xs leading-relaxed text-foreground"
+          >
+            <strong className="font-semibold">{ILLUSTRATIVE_LABEL}.</strong> {PROJECTIONS_FMC_DISCLAIMER} <FmcStatement />
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -374,7 +374,14 @@ export function ProjectionsExplorer() {
       </div>
 
       {/* Body */}
-      {loading ? (
+      {pausedMessage ? (
+        <div className="grid place-items-center rounded-2xl border border-border/60 bg-card/40 px-6 py-16 text-center">
+          <div className="max-w-md space-y-2">
+            <h2 className="font-display text-lg font-semibold">Share projections are paused</h2>
+            <p className="text-sm leading-relaxed text-muted-foreground">{pausedMessage}</p>
+          </div>
+        </div>
+      ) : loading ? (
         <div className="grid place-items-center rounded-2xl border border-border/60 bg-card/40 py-24">
           <div className="flex flex-col items-center gap-3 text-muted-foreground">
             <Loader2 className="size-7 animate-spin text-primary" />
@@ -404,22 +411,23 @@ export function ProjectionsExplorer() {
       ) : (
         <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/40">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] border-collapse">
+            <table className="w-full min-w-[560px] border-collapse">
+              <caption className="caption-bottom px-3 py-2 text-left text-[11px] leading-relaxed text-muted-foreground">
+                {PROJECTIONS_FMC_DISCLAIMER}
+              </caption>
               <thead>
                 <tr className="border-b border-border/60 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-                  <th className="py-2.5 pl-3 pr-2 text-center font-semibold">Rank</th>
-                  <th className="px-2 py-2.5 font-semibold">Ticker</th>
-                  {showMarket && <th className="px-2 py-2.5 font-semibold">Market</th>}
-                  <th className="hidden px-2 py-2.5 font-semibold sm:table-cell">Name</th>
-                  <th className="px-2 py-2.5 text-right font-semibold">Price</th>
-                  <th className="px-2 py-2.5 text-right font-semibold">Projected 7d</th>
-                  <th className="hidden px-2 py-2.5 font-semibold md:table-cell">Confidence</th>
-                  <th className="px-2 py-2.5 pr-3 text-right font-semibold">Detail</th>
+                  <th scope="col" className="py-2.5 pl-3 pr-2 font-semibold">Ticker (A–Z)</th>
+                  {showMarket && <th scope="col" className="px-2 py-2.5 font-semibold">Market</th>}
+                  <th scope="col" className="hidden px-2 py-2.5 font-semibold sm:table-cell">Name</th>
+                  <th scope="col" className="px-2 py-2.5 text-right font-semibold">Price</th>
+                  <th scope="col" className="px-2 py-2.5 text-right font-semibold">7-day range (illustrative)</th>
+                  <th scope="col" className="px-2 py-2.5 pr-3 text-right font-semibold">Detail</th>
                 </tr>
               </thead>
               <tbody>
-                {activeList.map((s, i) => (
-                  <ProjectionRow key={`${s.market}-${s.ticker}`} rank={i + 1} s={s} showMarket={showMarket} />
+                {activeList.map((s) => (
+                  <ProjectionRow key={`${s.market}-${s.ticker}`} s={s} showMarket={showMarket} />
                 ))}
               </tbody>
             </table>
@@ -452,8 +460,7 @@ export function ProjectionsExplorer() {
 
       {/* Footnote */}
       <p className="text-center text-xs text-muted-foreground/80">
-        {ENGINE_PARAGRAPH} This is general information, not personalised financial advice under the
-        Financial Markets Conduct Act 2013. A failed load says so. Markets are uncertain.
+        {ENGINE_PARAGRAPH} A failed load says so. {CRYPTO_PROJECTIONS_PAUSE_MESSAGE}
       </p>
     </div>
   );

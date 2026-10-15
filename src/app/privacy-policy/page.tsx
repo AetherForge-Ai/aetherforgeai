@@ -22,6 +22,7 @@ function listedProcessors() {
 export default function PrivacyPolicy() {
   return (
     <LegalShell
+      page="privacy"
       title="Privacy Policy"
       subtitle={`This policy explains how AetherForge AI collects, uses, discloses and protects your personal information in accordance with the Privacy Act 2020 (New Zealand) and its thirteen Information Privacy Principles (IPPs). AetherForge AI is the trading name of ${LEGAL_ENTITY_NAME}, a New Zealand limited company.`}
       updated={UPDATED}

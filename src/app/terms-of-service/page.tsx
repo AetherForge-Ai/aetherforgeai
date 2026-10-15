@@ -26,6 +26,7 @@ const UPDATED = LEGAL_UPDATED;
 export default function TermsOfService() {
   return (
     <LegalShell
+      page="terms"
       title="Terms"
       subtitle={`These Terms govern your access to and use of AetherForge AI, the trading name of ${LEGAL_ENTITY_NAME}, a New Zealand limited company. These terms are governed by New Zealand law, including the Consumer Guarantees Act 1993, the Fair Trading Act 1986 and the Contract and Commercial Law Act 2017.`}
       updated={UPDATED}
