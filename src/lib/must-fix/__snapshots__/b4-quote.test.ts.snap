@@ -1,0 +1,9 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`H-1 freshness snapshots > Saturday: Close with Friday's date 1`] = `"Close · NZX · 16 Oct 2026"`;
+
+exports[`H-1 freshness snapshots > weekday before open and US weekend 1`] = `"Close · NZX · 13 Oct 2026"`;
+
+exports[`H-1 freshness snapshots > weekday before open and US weekend 2`] = `"Last close · 16 Oct 2026 (New York)"`;
+
+exports[`H-1 freshness snapshots > weekday open: delayed, never Live 1`] = `"Delayed ~20 min · NZX"`;

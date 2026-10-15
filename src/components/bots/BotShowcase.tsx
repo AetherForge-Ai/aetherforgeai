@@ -22,7 +22,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { ApexReportView } from "@/components/bots/ApexReport";
-import { buildDemoReport, type BotKind } from "@/lib/apex";
+import { buildDemoReport, type BotKind } from "@/lib/bot-report";
 import { SMITTY_ROLE_LINE } from "@/lib/public-copy";
 import { BOT_STOX_AVATAR, BOT_KOINS_AVATAR, BOT_HEADMASTER_AVATAR } from "../../../assets/files";
 
@@ -53,7 +53,7 @@ const BOTS: BotDef[] = [
     subtitle: "Crypto Market Intelligence Monitor",
     mascot: BOT_KOINS_AVATAR,
     blurb:
-      "Tracks BTC, ETH and the broader digital-asset market in Apex Mode — synthesising funding, flows and sentiment into clear 7-day projections and three forward pathways.",
+      "Tracks BTC, ETH and the broader digital-asset market, synthesising funding, flows and sentiment into clear 7-day projections and three forward pathways.",
     accent: "from-amber-500/20 via-orange-500/10 to-transparent",
     tags: ["BTC", "ETH", "Digital assets"],
   },

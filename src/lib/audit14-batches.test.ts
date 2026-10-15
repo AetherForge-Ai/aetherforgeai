@@ -69,7 +69,7 @@ describe("audit 14 Oct batches A–D", () => {
     expect(tapeUpdatedPhrase("2026-10-13T04:00:00.000Z", "NZX", shut)).toBe("Close 13 Oct 2026");
     expect(priceUpdatedPhrase("2026-10-13T04:00:00.000Z")).toBe("last updated 13 Oct 2026, 5:00 pm");
     expect(read("src/components/MarketTicker.tsx")).not.toContain("A price shows here after the feed returns a figure.");
-    expect(read("src/components/MarketTicker.tsx")).toContain('aria-busy="true"');
+    expect(read("src/components/MarketTicker.tsx")).toContain('aria-busy={!loaded || undefined}');
   });
 
   it("H3 does not prefix Prices as at with as of", () => {

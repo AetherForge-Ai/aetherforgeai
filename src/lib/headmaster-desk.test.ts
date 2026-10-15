@@ -4,7 +4,7 @@ import { headmasterDeskCopy } from "@/lib/entitlements";
 describe("Headmaster desk copy", () => {
   it("names Apex Dual without inventing a separate Pro SKU", () => {
     const dual = headmasterDeskCopy("dual_yearly");
-    expect(dual.badge).toBe("Apex Dual");
+    expect(dual.badge).toBe("Legacy plan (Apex Dual)");
     expect(dual.summary).toMatch(/Apex Dual/);
     expect(dual.detail).toMatch(/same desk/);
     expect(dual.detail).toMatch(/Strategy tab/);

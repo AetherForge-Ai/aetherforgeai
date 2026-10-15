@@ -526,8 +526,8 @@ export function headmasterDeskCopy(plan?: string | null): HeadmasterDeskCopy {
   const key = normalizePlanKey(plan);
   if (key === "dual_yearly") {
     return {
-      badge: "Apex Dual",
-      summary: "Included with Apex Dual",
+      badge: "Legacy plan (Apex Dual)",
+      summary: "Included with the legacy Apex Dual plan",
       detail:
         "Apex Dual includes this planning desk: unified allocation, scenarios, stress tests, the strategy builder, and the Chief Strategist. The Total Portfolio Intelligence report is on the Strategy tab — it is not a separate Stox or Koins run. The Pro plan's “Full Headmaster planning & strategies” line is this same desk.",
     };

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
-import { buildDemoReport, buildLiveReport, ILLUSTRATIVE_DEMO_LABEL } from "@/lib/apex";
+import { buildDemoReport, buildLiveReport, ILLUSTRATIVE_DEMO_LABEL } from "@/lib/bot-report";
 import { buildIntelligenceBriefing } from "@/lib/briefing";
 import { coinToIntel } from "@/lib/koins-market";
 import {
@@ -14,7 +14,7 @@ import {
 } from "@/lib/market-intel";
 import { modelViewSentence } from "@/lib/headmaster-trust";
 import { summariseReport } from "@/lib/totalum-service";
-import type { ApexReport } from "@/lib/apex";
+import type { ApexReport } from "@/lib/bot-report";
 import type { CoinMarket } from "@/lib/crypto-market";
 import { renderReportHtml } from "@/lib/report-html";
 

@@ -87,8 +87,8 @@ describe("Batch 3 copy and flags", () => {
   it("BL-5 one positioning line on bot pages", () => {
     expect(BOT_PAGE_DISCLAIMER.startsWith(POSITIONING_LINE)).toBe(true);
   });
-  it("BL-7 / BL-9 flags default off", () => {
-    expect(LEDGER_ROW_EDIT).toBe(false);
+  it("BL-7 row edit on by default (B4), BL-9 off", () => {
+    expect(LEDGER_ROW_EDIT).toBe(true);
     expect(KOINS_MODEL_V2).toBe(false);
   });
   it("L-1 404 H1", () => {

@@ -9,7 +9,7 @@
        url("/fonts/grift/grift-regular.ttf") format("truetype");
   font-weight: 400;
   font-style: normal;
-  font-display: swap;
+  font-display: optional;
 }
 @font-face {
   font-family: "Grift";
@@ -17,7 +17,7 @@
        url("/fonts/grift/grift-black.ttf") format("truetype");
   font-weight: 900;
   font-style: normal;
-  font-display: swap;
+  font-display: optional;
 }
 
 @custom-variant dark (&:is(.dark *));
@@ -86,14 +86,14 @@
   --popover-foreground: #0f172a;
 
   /* Emerald — reserved for primary CTAs & positive performance. */
-  --primary: #059669; /* emerald-600 */
+  --primary: #047857; /* emerald-700: 5.5:1 with white (M-7, one green) */
   --primary-foreground: #ffffff;
 
   --secondary: #f1f5f9; /* slate-100 */
   --secondary-foreground: #0f172a;
 
   --muted: #f1f5f9; /* slate-100 */
-  --muted-foreground: #64748b; /* slate-500 */
+  --muted-foreground: #475569; /* slate-600: 4.5:1+ on muted fills (M-7) */
 
   --accent: #ecfdf5; /* emerald-50 — gentle hover tint */
   --accent-foreground: #065f46; /* emerald-800 */
@@ -115,7 +115,7 @@
 
   --sidebar: #ffffff;
   --sidebar-foreground: #0f172a;
-  --sidebar-primary: #059669;
+  --sidebar-primary: #047857;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #f1f5f9;
   --sidebar-accent-foreground: #0f172a;
@@ -197,12 +197,12 @@
   --card-foreground: #0f172a;
   --popover: #ffffff;
   --popover-foreground: #0f172a;
-  --primary: #059669;
+  --primary: #047857;
   --primary-foreground: #ffffff;
   --secondary: #f1f5f9;
   --secondary-foreground: #0f172a;
   --muted: #f1f5f9;
-  --muted-foreground: #64748b;
+  --muted-foreground: #475569;
   --accent: #ecfdf5;
   --accent-foreground: #065f46;
   --destructive: #dc2626;
@@ -213,7 +213,7 @@
   --gold: #d97706;
   --sidebar: #ffffff;
   --sidebar-foreground: #0f172a;
-  --sidebar-primary: #059669;
+  --sidebar-primary: #047857;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #f1f5f9;
   --sidebar-accent-foreground: #0f172a;
@@ -460,3 +460,26 @@ button {
 *::-webkit-scrollbar { width: 8px; height: 8px; }
 *::-webkit-scrollbar-thumb { background: rgba(15, 23, 42, 0.18); border-radius: 999px; }
 *::-webkit-scrollbar-track { background: transparent; }
+/* M-6: the dashboard right column is sticky only when it fits the window. */
+@media (min-width: 1280px) and (min-height: 720px) {
+  .rail-aside-fit {
+    position: sticky;
+    top: 6rem;
+    max-height: calc(100vh - 7rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
+/* M-6: room under dashboard content so the floating Guide button never covers it. */
+[data-section="dashboard-workspace"] {
+  padding-bottom: 5.5rem;
+}
+/* M-7: dark strips (ticker, metals bar) and dark chrome keep AA contrast. */
+.bg-zinc-950 .text-muted-foreground,
+.bg-zinc-950.text-muted-foreground {
+  color: #94a3b8;
+}
+.bg-zinc-950 .text-emerald-700,
+.chrome-dark .text-emerald-700 {
+  color: #34d399;
+}

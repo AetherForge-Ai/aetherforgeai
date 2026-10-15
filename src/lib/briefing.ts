@@ -21,7 +21,7 @@
 import type { SecurityIntel, ProbabilisticOutlook, ConvictionLevel } from "@/lib/market-intel";
 import type { EconEvent } from "@/lib/econ-calendar";
 import type { SentimentSummary } from "@/lib/news-sentiment";
-import type { BotKind } from "@/lib/apex";
+import type { BotKind } from "@/lib/bot-report";
 import { alignedProjection, rateAsset, readTape } from "@/lib/report-consistency";
 
 export interface BriefingOutlookRow {

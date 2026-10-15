@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-import { buildLiveReport, type MarketMoversGroup } from "@/lib/apex";
+import { buildLiveReport, type MarketMoversGroup } from "@/lib/bot-report";
 import { applyKoinsSweeps, rankGainers, type KoinsCandidate } from "@/lib/koins-quality";
 import { analyzeSecurity } from "@/lib/market-intel";
 import { formatPercent } from "@/lib/portfolio";

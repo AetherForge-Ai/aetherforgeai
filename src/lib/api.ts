@@ -170,6 +170,14 @@ export const api = {
     });
   },
 
+  patch<T>(url: string, body: unknown): Promise<ApiResponse<T>> {
+    return request<T>(url, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  },
+
   delete<T>(url: string, body?: unknown): Promise<ApiResponse<T>> {
     return request<T>(url, {
       method: "DELETE",

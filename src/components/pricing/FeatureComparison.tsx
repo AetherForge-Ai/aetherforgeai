@@ -103,7 +103,7 @@ export function FeatureComparison() {
         <table className="w-full min-w-[720px] border-collapse text-sm">
           <thead>
             <tr className="border-b border-border/70">
-              <th className="sticky left-0 z-10 bg-card/80 px-5 py-4 text-left font-display text-sm font-bold backdrop-blur">
+              <th scope="col" className="sticky left-0 z-10 bg-card/80 px-5 py-4 text-left font-display text-sm font-bold backdrop-blur">
                 Features
               </th>
               {COLS.map((c) => (

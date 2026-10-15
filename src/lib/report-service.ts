@@ -1,6 +1,6 @@
 import "server-only";
 import { totalumSdk } from "@/lib/totalum";
-import { buildLiveReport, type LiveHolding, type BotKind } from "@/lib/apex";
+import { buildLiveReport, type LiveHolding, type BotKind } from "@/lib/bot-report";
 import { applyMarketsSessionChange } from "@/lib/markets-session";
 import { renderReportHtml, type ReportAlert } from "@/lib/report-html";
 import { analyzeSecurity, staleDataHold, analyzeUniverse, getMarketNews, universeFor, type SecurityIntel } from "@/lib/market-intel";

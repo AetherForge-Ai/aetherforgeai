@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildDemoReport, buildLiveReport } from "@/lib/apex";
+import { buildDemoReport, buildLiveReport } from "@/lib/bot-report";
 import { claimsEmptyBook } from "@/lib/report-book";
 import { labelMemberReport, stripReportModelLanguage } from "@/lib/report-language";
 import {

@@ -14,7 +14,7 @@
  * optional reference date so it stays testable and resume-safe.
  */
 
-import type { BotKind } from "@/lib/apex";
+import type { BotKind } from "@/lib/bot-report";
 import { publishedUsCpiIso, usCpiDateLabel } from "@/lib/us-cpi-schedule";
 
 export type EconRegion = "NZ" | "AU" | "US" | "Global";

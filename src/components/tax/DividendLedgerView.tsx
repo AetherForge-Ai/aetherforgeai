@@ -413,15 +413,15 @@ export function DividendLedgerView({
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                    <th className="px-3 py-2 font-medium">Date</th>
-                    <th className="px-3 py-2 font-medium">Holding</th>
-                    <th className="px-3 py-2 text-right font-medium">Gross</th>
-                    <th className="px-3 py-2 text-right font-medium">Imputation credits</th>
-                    <th className="px-3 py-2 text-right font-medium">Withholding</th>
-                    <th className="px-3 py-2 text-right font-medium">DRP</th>
-                    <th className="px-3 py-2 text-right font-medium">FX</th>
-                    <th className="px-3 py-2 text-right font-medium">Net cash</th>
-                    <th className="px-3 py-2 text-right font-medium print:hidden"> </th>
+                    <th scope="col" className="px-3 py-2 font-medium">Date</th>
+                    <th scope="col" className="px-3 py-2 font-medium">Holding</th>
+                    <th scope="col" className="px-3 py-2 text-right font-medium">Gross</th>
+                    <th scope="col" className="px-3 py-2 text-right font-medium">Imputation credits</th>
+                    <th scope="col" className="px-3 py-2 text-right font-medium">Withholding</th>
+                    <th scope="col" className="px-3 py-2 text-right font-medium">DRP</th>
+                    <th scope="col" className="px-3 py-2 text-right font-medium">FX</th>
+                    <th scope="col" className="px-3 py-2 text-right font-medium">Net cash</th>
+                    <th scope="col" className="px-3 py-2 text-right font-medium print:hidden"> </th>
                   </tr>
                 </thead>
                 <tbody>

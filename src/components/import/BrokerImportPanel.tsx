@@ -378,15 +378,15 @@ export function BrokerImportPanel({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                  <th className="px-3 py-2 font-medium">Date</th>
-                  <th className="px-3 py-2 font-medium">Side</th>
-                  <th className="px-3 py-2 font-medium">Ticker</th>
-                  <th className="px-3 py-2 text-right font-medium">Quantity</th>
-                  <th className="px-3 py-2 text-right font-medium">Price</th>
-                  <th className="px-3 py-2 text-right font-medium">Exchange rate</th>
-                  <th className="px-3 py-2 text-right font-medium">Value</th>
-                  <th className="px-3 py-2 text-right font-medium">Cash effect</th>
-                  <th className="px-3 py-2 font-medium">Warning</th>
+                  <th scope="col" className="px-3 py-2 font-medium">Date</th>
+                  <th scope="col" className="px-3 py-2 font-medium">Side</th>
+                  <th scope="col" className="px-3 py-2 font-medium">Ticker</th>
+                  <th scope="col" className="px-3 py-2 text-right font-medium">Quantity</th>
+                  <th scope="col" className="px-3 py-2 text-right font-medium">Price</th>
+                  <th scope="col" className="px-3 py-2 text-right font-medium">Exchange rate</th>
+                  <th scope="col" className="px-3 py-2 text-right font-medium">Value</th>
+                  <th scope="col" className="px-3 py-2 text-right font-medium">Cash effect</th>
+                  <th scope="col" className="px-3 py-2 font-medium">Warning</th>
                 </tr>
               </thead>
               <tbody>

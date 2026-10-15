@@ -42,9 +42,9 @@ export async function KoinsSnapshotPrices() {
         <table className="mt-4 w-full text-sm">
           <thead>
             <tr className="border-b border-border/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
-              <th className="py-2 font-medium">Coin</th>
-              <th className="py-2 text-right font-medium">Price</th>
-              <th className="py-2 text-right font-medium">24h</th>
+              <th scope="col" className="py-2 font-medium">Coin</th>
+              <th scope="col" className="py-2 text-right font-medium">Price</th>
+              <th scope="col" className="py-2 text-right font-medium">24h</th>
             </tr>
           </thead>
           <tbody>

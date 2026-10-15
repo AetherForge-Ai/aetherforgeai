@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
 
-import type { ApexReport } from "@/lib/apex";
+import type { ApexReport } from "@/lib/bot-report";
 import { chainForTicker, coingeckoSupplied, dexRowComplete, snapshotBlockchain } from "@/lib/crypto-board";
 import { MARKET_USER_AGENT, coinGeckoEndpoint } from "@/lib/coingecko-auth";
 import {
@@ -41,7 +41,7 @@ afterEach(() => {
 describe("pull-check:v3-retest-tt-2026-10-12", () => {
   it("marks the retest build", () => {
     expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-retest-tt-2026-10-12");
-    expect(read("public/build-version.txt").trim()).toBe("v3-must-fix-b3-2026-10-16");
+    expect(read("public/build-version.txt").trim()).toBe("v3-must-fix-b4-2026-10-16");
     expect(read("src/app/api/crypto/route.ts")).toContain("readSharedCryptoBoard");
     expect(pageTitle("About — Built in New Zealand, for New Zealanders")).toBe(
       "About — Built in New Zealand, for New Zealanders — AetherForge AI"

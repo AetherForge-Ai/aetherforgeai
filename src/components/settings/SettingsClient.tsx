@@ -512,7 +512,7 @@ export function SettingsClient({
               Manage billing
             </Button>
           ) : user.subscription_plan === "dual_yearly" ? (
-            <p className="text-sm text-muted-foreground">This account is on Apex Dual.</p>
+            <p className="text-sm text-muted-foreground">This account is on the legacy Apex Dual plan.</p>
           ) : (
             <Button asChild className="font-semibold shadow-glow">
               <Link href="/pricing#pro">

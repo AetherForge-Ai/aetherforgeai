@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { api } from "@/lib/api";
+import type { TradeEditFields } from "@/lib/ledger-row-edit";
 import {
   collapseDuplicateHoldings,
   computeSummary,
@@ -1894,12 +1895,24 @@ export function PortfolioDashboard({
 
   async function handleDeleteDividend(line: SnapshotLedgerLine) {
     const res = await api.delete(`/api/transactions?id=${encodeURIComponent(line.id)}`);
+    const label = line.type === "dividend" ? "Dividend" : line.type === "buy" ? "Buy" : "Sell";
     if (res.ok) {
-      toast.success("Dividend removed");
+      toast.success(`${label} removed`);
       handleDataChanged();
       return;
     }
-    toast.error(typeof res.error === "string" ? res.error : "That dividend was not removed.");
+    toast.error(typeof res.error === "string" ? res.error : `That ${label.toLowerCase()} was not removed.`);
+  }
+
+  async function handleEditTrade(line: SnapshotLedgerLine, fields: TradeEditFields): Promise<boolean> {
+    const res = await api.patch(`/api/transactions`, { id: line.id, ...fields, confirm: true });
+    if (res.ok) {
+      toast.success("Trade updated");
+      handleDataChanged();
+      return true;
+    }
+    toast.error(typeof res.error === "string" ? res.error : "That trade was not changed.");
+    return false;
   }
 
   function handleEditLedger(line: SnapshotLedgerLine) {
@@ -2208,6 +2221,7 @@ export function PortfolioDashboard({
           onRecord={openAdd}
           onEditLedger={handleEditLedger}
           onDeleteDividend={handleDeleteDividend}
+          onEditTrade={handleEditTrade}
           onReport={handleReport}
           onAlert={handleAlert}
           onWatch={handleWatch}
@@ -2219,7 +2233,7 @@ export function PortfolioDashboard({
             void loadPortfolioSnapshot({ force: true });
           }}
           emptyActions={
-            <Button type="button" size="sm" onClick={openAdd}>+ Add trade</Button>
+            <Button type="button" size="sm" onClick={openAdd}>Add your first holding</Button>
           }
           actions={
             <div className="mt-4 flex w-full min-w-0 max-w-full flex-wrap items-center gap-2" data-header-actions>
@@ -3022,15 +3036,15 @@ export function PortfolioDashboard({
             <table className="w-full min-w-[56rem] text-xs">
               <thead>
                 <tr className="border-b border-border/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                  <th className="px-3 py-2"><HoldingHead label="Ticker" k="ticker" align="left" /></th>
-                  <th className="px-2 py-2"><HoldingHead label="Company" k="company" align="left" /></th>
-                  <th className="px-2 py-2"><HoldingHead label="Qty" k="shares" /></th>
-                  <th className="px-2 py-2"><HoldingHead label="Paid" k="purchase_price" /></th>
-                  <th className="px-2 py-2"><HoldingHead label="Now" k="current_price" /></th>
-                  <th className="px-2 py-2"><HoldingHead label="Value" k="marketValue" /></th>
-                  <th className="px-2 py-2"><HoldingHead label="%" k="weight" /></th>
-                  <th className="px-2 py-2"><HoldingHead label="Gain" k="gain" /></th>
-                  <th className="sticky right-0 w-36 bg-card px-2 py-2 text-right font-medium">Actions</th>
+                  <th scope="col" className="px-3 py-2"><HoldingHead label="Ticker" k="ticker" align="left" /></th>
+                  <th scope="col" className="px-2 py-2"><HoldingHead label="Company" k="company" align="left" /></th>
+                  <th scope="col" className="px-2 py-2"><HoldingHead label="Qty" k="shares" /></th>
+                  <th scope="col" className="px-2 py-2"><HoldingHead label="Paid" k="purchase_price" /></th>
+                  <th scope="col" className="px-2 py-2"><HoldingHead label="Now" k="current_price" /></th>
+                  <th scope="col" className="px-2 py-2"><HoldingHead label="Value" k="marketValue" /></th>
+                  <th scope="col" className="px-2 py-2"><HoldingHead label="%" k="weight" /></th>
+                  <th scope="col" className="px-2 py-2"><HoldingHead label="Gain" k="gain" /></th>
+                  <th scope="col" className="sticky right-0 w-36 bg-card px-2 py-2 text-right font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody>

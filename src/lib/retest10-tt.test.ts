@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-import { withholdAcrossWindows } from "@/lib/apex";
+import { withholdAcrossWindows } from "@/lib/bot-report";
 import { chainForTicker } from "@/lib/crypto-board";
 import { presentMarketCoin } from "@/lib/crypto-api-body";
 import {
@@ -29,7 +29,7 @@ import { coinToIntel } from "@/lib/koins-market";
 import type { CoinMarket } from "@/lib/crypto-market";
 import { collapseDuplicateHoldings } from "@/lib/portfolio";
 import { createQuoteBook, reviewSessionMove } from "@/lib/quote-review";
-import type { ApexReport } from "@/lib/apex";
+import type { ApexReport } from "@/lib/bot-report";
 
 function snap(at: string, symbol = "BTC"): string {
   return JSON.stringify({
