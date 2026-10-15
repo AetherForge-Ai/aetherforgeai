@@ -35,6 +35,9 @@ export const PUBLIC_CONTACT_EMAILS = [CUSTOMER_EMAIL, PRIVACY_OFFICER_EMAIL] as 
  * One paper-book sentence for Trust, How it works, Privacy, Terms and the home page.
  * Do not shorten it into "you execute elsewhere".
  */
+/** BL-5 default: one positioning line for every bot and Headmaster page. */
+export const POSITIONING_LINE = "AetherForge is a portfolio tracker with a paper-trading book.";
+
 export const PAPER_BOOK_STATEMENT =
   "AetherForge is a paper book: you record what you hold or would trade (cash, buys, sells, corrections, dividends) in NZ$. Real trades happen at your broker. We never move money.";
 
@@ -73,7 +76,6 @@ export const PROJECTIONS_MEMBER_LINE = PROJECTIONS_DESCRIPTION;
  * Seats, client portfolios and the API stay behind ULTIMATE_FEATURES (off).
  */
 export const ULTIMATE_PRICE_PENDING_D6 = false;
-export const ULTIMATE_FEATURES = process.env.ULTIMATE_FEATURES === "1";
 
 /** One line for the site footer and the AI Disclaimer. */
 export const ONE_LINE_DISCLAIMER = SHORT_DISCLAIMER;
