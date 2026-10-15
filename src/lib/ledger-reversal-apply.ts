@@ -134,6 +134,7 @@ export async function planOrApplyLedgerReversal(transactionId: string, apply: bo
   const preview = {
     dryRun: !apply,
     transactionId: plan.transactionId,
+    blockedReason: plan.blockedReason ?? null,
     userId,
     ticker: plan.ticker,
     assetType: plan.assetType,
@@ -150,6 +151,7 @@ export async function planOrApplyLedgerReversal(transactionId: string, apply: bo
   };
 
   if (!apply) return preview;
+  if (plan.blockedReason) throw new Error(plan.blockedReason);
 
   if (stock && plan.holdingAction === "delete") {
     await totalumSdk.crud.deleteRecordById("stock", stock._id);

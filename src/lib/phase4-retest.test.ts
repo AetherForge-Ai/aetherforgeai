@@ -70,7 +70,7 @@ describe("phase 4 retest", () => {
     const tx = read("src/components/dashboard/TransactionsTab.tsx");
     expect(tx).toContain("flex-col");
     expect(tx).toContain("overflow-x-clip");
-    expect(tx).toContain("Only a dividend can be removed from this list.");
+    expect(tx).toContain("This row cannot be removed from this list.");
     const calc = read("src/components/dashboard/DashboardCalculator.tsx");
     expect(calc).toContain('block: "nearest"');
     expect(calc).not.toContain('scrollIntoView({ block: "start" })');

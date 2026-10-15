@@ -41,13 +41,13 @@ function DisposalTable({ rows }: { rows: RealisedLine[] }) {
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-border/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
-            <th className="px-3 py-2 font-medium">Date</th>
-            <th className="px-3 py-2 font-medium">Holding</th>
-            <th className="px-3 py-2 text-right font-medium">Quantity</th>
-            <th className="px-3 py-2 text-right font-medium">Price gain</th>
-            <th className="px-3 py-2 text-right font-medium">FX gain</th>
-            <th className="px-3 py-2 text-right font-medium">Fees (deducted)</th>
-            <th className="px-3 py-2 text-right font-medium">Realised</th>
+            <th scope="col" className="px-3 py-2 font-medium">Date</th>
+            <th scope="col" className="px-3 py-2 font-medium">Holding</th>
+            <th scope="col" className="px-3 py-2 text-right font-medium">Quantity</th>
+            <th scope="col" className="px-3 py-2 text-right font-medium">Price gain</th>
+            <th scope="col" className="px-3 py-2 text-right font-medium">FX gain</th>
+            <th scope="col" className="px-3 py-2 text-right font-medium">Fees (deducted)</th>
+            <th scope="col" className="px-3 py-2 text-right font-medium">Realised</th>
           </tr>
         </thead>
         <tbody>

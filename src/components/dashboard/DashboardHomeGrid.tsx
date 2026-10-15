@@ -487,7 +487,7 @@ export function DashboardHomeGrid({
           title="Precious Metals Overview"
           href="/dashboard/metals"
           bot="smitty"
-          poster="/brand/precious-metals-smitty.png"
+          poster="/brand/precious-metals-smitty.webp"
           metricLabel={hideValueCards ? "Positions" : "Metals value · NZD"}
           metricValue={hideValueCards ? positionCount(balancesLoading, metalsPositions, "metal holding", "metal holdings") : shownMoney(balancesLoading, metalsTotalNZD)}
           metricTitle={hideValueCards || metalsTotalNZD != null ? null : metalsReason}

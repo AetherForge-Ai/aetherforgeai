@@ -242,7 +242,7 @@ export function UnifiedHoldingsTable({
       {emptyBook ? (
         <div className="mt-3 rounded-3xl border border-dashed border-border/70 bg-card/40 p-5" data-empty-book>
           <p className="text-sm font-medium">No holdings yet</p>
-          <p className="mt-1 text-sm text-muted-foreground">Shares, crypto, and metals show here after a buy. Cash stays on its own row.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Shares, crypto and metals show here after your first buy. Cash stays on its own row.</p>
           {emptyActions ? <div className="mt-3 flex flex-wrap gap-2">{emptyActions}</div> : null}
         </div>
       ) : null}
@@ -319,6 +319,10 @@ export function UnifiedHoldingsTable({
                           }
                         >
                           {COLUMN_LABEL[column]}
+                          {active ? (
+                            <span aria-hidden="true">{query.sortDir === "asc" ? "▲" : "▼"}</span>
+                          ) : null}
+                          {active ? <span className="sr-only">, sorted {query.sortDir === "asc" ? "ascending" : "descending"}</span> : null}
                         </button>
                       ) : (
                         COLUMN_LABEL[column]
@@ -360,7 +364,7 @@ export function UnifiedHoldingsTable({
                       rows.map((row) => (
                           <tr key={row.id} className="border-t border-border/40 align-top">
                             {columns.map((column) => (
-                              <td key={column} className={cn("px-1.5 py-3 align-top", column === "asset" ? "text-left" : column === "actions" ? "text-left" : "text-right")}>
+                              <td key={column} className={cn("px-1.5 py-3 align-top", column === "asset" ? "text-left" : column === "actions" ? "text-left" : "whitespace-nowrap text-right")}>
                                 {column === "asset" ? (
                                   <AssetCell row={row} onOpen={() => onInspect(row)} />
                                 ) : column === "actions" ? (

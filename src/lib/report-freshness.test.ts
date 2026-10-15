@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildLiveReport } from "@/lib/apex";
+import { buildLiveReport } from "@/lib/bot-report";
 import {
   FREE_REPORTS_PER_MONTH,
   PAID_REPORT_REFRESH_MS,

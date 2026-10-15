@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import type { ApexReport, ProjectionRow } from "@/lib/apex";
+import type { ApexReport, ProjectionRow } from "@/lib/bot-report";
 import {
   countLine,
   cryptoRowComplete,

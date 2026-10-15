@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildLiveReport } from "@/lib/apex";
+import { buildLiveReport } from "@/lib/bot-report";
 import { buildIntelligenceBriefing } from "@/lib/briefing";
 import { analyzeSecurity, analyzeUniverse, type SecurityIntel } from "@/lib/market-intel";
 import { applyLockedActionPrices, applyPaperQuotes } from "@/lib/paper-quote-lock";

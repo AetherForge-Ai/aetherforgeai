@@ -211,28 +211,28 @@ export function HoldingsOwnedTable({
           <table className="w-full min-w-[52rem] text-xs">
             <thead>
               <tr className="border-b border-border/50 text-left uppercase tracking-wide text-muted-foreground">
-                <th className="w-[22%] px-3 py-2">
+                <th scope="col" className="w-[22%] px-3 py-2">
                   <HoldingHead label="Ticker" k="ticker" align="left" />
                 </th>
-                <th className="w-[18%] px-2 py-2">
+                <th scope="col" className="w-[18%] px-2 py-2">
                   <HoldingHead label={nameLabel} k="company" align="left" />
                 </th>
-                <th className="px-2 py-2">
+                <th scope="col" className="px-2 py-2">
                   <HoldingHead label="Qty" k="shares" />
                 </th>
-                <th className="px-3 py-3">
+                <th scope="col" className="px-3 py-3">
                   <HoldingHead label="Price paid" k="purchase_price" />
                 </th>
-                <th className="px-3 py-3">
+                <th scope="col" className="px-3 py-3">
                   <HoldingHead label="Current price" k="current_price" />
                 </th>
-                <th className="px-2 py-2">
+                <th scope="col" className="px-2 py-2">
                   <HoldingHead label="Value" k="marketValue" />
                 </th>
-                <th className="px-2 py-2">
+                <th scope="col" className="px-2 py-2">
                   <HoldingHead label="Gain" k="gain" />
                 </th>
-                <th className="sticky right-0 w-40 bg-card px-2 py-2 text-right font-medium">Actions</th>
+                <th scope="col" className="sticky right-0 w-40 bg-card px-2 py-2 text-right font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>

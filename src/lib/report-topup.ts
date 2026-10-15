@@ -4,7 +4,7 @@
  */
 
 import { modelByKey } from "@/lib/totalum-engine";
-import type { TickerAnalysis } from "@/lib/apex";
+import type { TickerAnalysis } from "@/lib/bot-report";
 import type { SharedBookLog } from "@/lib/book-log";
 import { bookCashReserve, modelViewSentence } from "@/lib/headmaster-trust";
 

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { buildLiveReport } from "@/lib/apex";
+import { buildLiveReport } from "@/lib/bot-report";
 import { CSV_EXPORT_COLUMNS } from "@/lib/ledger-schema";
 import {
   attachFifoRealised,
@@ -218,7 +218,7 @@ describe("H1 projection rating", () => {
       notBuyRatingReason({ signal: "Buy", macdSignal: "Bearish", regime: "Range-Bound", projected7dPct: 5.56 })
     ).toBe("rating HOLD: momentum negative");
     expect(readFileSync("src/components/bots/ApexReport.tsx", "utf8")).toContain("PROJECTION_RANK_NOTE");
-    expect(readFileSync("src/lib/apex.ts", "utf8")).toContain("getProjectionLeaders(10");
+    expect(readFileSync("src/lib/bot-report.ts", "utf8")).toContain("getProjectionLeaders(10");
   });
 });
 

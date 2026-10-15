@@ -236,7 +236,7 @@ export const MARKET_UNIVERSE: UniverseEntry[] = [
   { ticker: "CVT.NZ", name: "Comvita", sector: "Consumer Staples", market: "NZX", basePrice: 2.35 },
   { ticker: "MHJ.NZ", name: "Michael Hill International", sector: "Consumer Discretionary", market: "NZX", basePrice: 0.62 },
   { ticker: "CDI.NZ", name: "CDL Investments NZ", sector: "Real Estate", market: "NZX", basePrice: 0.82 },
-  { ticker: "MPG.NZ", name: "Metroglass Holdings", sector: "Materials", market: "NZX", basePrice: 0.28 },
+  { ticker: "MPG.NZ", name: "Metro Performance Glass", sector: "Materials", market: "NZX", basePrice: 0.28 },
   // ASX (AUD)
   { ticker: "BHP.AX", name: "BHP Group", sector: "Materials", market: "ASX", basePrice: 40.12 },
   { ticker: "CBA.AX", name: "Commonwealth Bank", sector: "Financials", market: "ASX", basePrice: 158.7 },
@@ -1555,4 +1555,13 @@ export function getMarketNews(_assetClass: AssetClass = "stock"): NewsItem[] {
 export function formatMarketPrice(price: number, currency: "NZD" | "AUD" | "USD"): string {
   if (!Number.isFinite(price)) return "—";
   return formatMoney(price, currency);
+}
+
+/**
+ * M-5: one company name per ticker, from the universe list. Feed names
+ * (Yahoo longName etc.) are used only for tickers the list does not carry.
+ */
+export function canonicalTickerName(ticker: string, feedName?: string | null): string | undefined {
+  const hit = UNIVERSE_MAP[String(ticker || "").trim().toUpperCase()];
+  return hit?.name || feedName || undefined;
 }

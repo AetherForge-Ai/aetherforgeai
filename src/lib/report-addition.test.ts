@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from "vitest";
-import { buildLiveReport } from "@/lib/apex";
+import { buildLiveReport } from "@/lib/bot-report";
 import { renderReportHtml } from "@/lib/report-html";
 import {
   buildSharedBookLog,

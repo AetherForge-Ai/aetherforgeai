@@ -94,6 +94,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const sessionMode = headerList.get("x-af-doc") === "member" ? "member" : "guest";
   return (
     <html lang="en-NZ">
+      <head>
+        {/* M-1/H-4: the hero heading font arrives with the HTML, so it does not swap in late (CLS). */}
+        <link rel="preload" href="/fonts/grift/grift-black.otf" as="font" type="font/otf" crossOrigin="anonymous" />
+      </head>
       <body
         className={`${sora.variable} ${manrope.variable} ${jetbrainsMono.variable} font-sans antialiased`}
       >

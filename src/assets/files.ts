@@ -81,10 +81,10 @@ export type Bot3DId = keyof typeof BOT_3D_GLB;
 
 /** PNG posters / reduced-motion fallbacks for 3D avatars. */
 export const BOT_3D_POSTER = {
-  stox: "/brand/bot-stox-fullbody.png",
-  koins: "/brand/bot-koins-fullbody.png",
-  headmaster: "/brand/bot-headmaster-fullbody.png",
-  smitty: "/brand/bot-smitty-fullbody.png",
+  stox: "/brand/bot-stox-fullbody.webp",
+  koins: "/brand/bot-koins-fullbody.webp",
+  headmaster: "/brand/bot-headmaster-fullbody.webp",
+  smitty: "/brand/bot-smitty-fullbody.webp",
 } as const;
 
 // ── Live Results & Performance Proof page ──
