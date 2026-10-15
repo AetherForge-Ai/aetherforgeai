@@ -20,19 +20,19 @@ const BOTS = [
   {
     name: "Stox",
     role: "Stock markets",
-    img: "/brand/bot-stox-fullbody.png",
+    img: "/brand/bot-stox-fullbody.webp",
     blurb: "Stox reads stock markets and writes reports about the holdings on your book.",
   },
   {
     name: "Koins",
     role: "Crypto markets",
-    img: "/brand/bot-koins-fullbody.png",
+    img: "/brand/bot-koins-fullbody.webp",
     blurb: "Koins reads crypto markets and writes notes about the coins on your book.",
   },
   {
     name: "The Headmaster",
     role: "Goals & strategy",
-    img: "/brand/bot-headmaster-fullbody.png",
+    img: "/brand/bot-headmaster-fullbody.webp",
     blurb: "The Headmaster sets out a goal plan you can read across the book. It is information, not personalised advice.",
   },
 ] as const;
@@ -43,7 +43,7 @@ const STEPS = [
     body: "Open a free account and look through the product before you choose a paid plan.",
     sitter: {
       name: "Stox",
-      img: "/brand/bot-stox-fullbody.png",
+      img: "/brand/bot-stox-fullbody.webp",
       wrap: "left-0 -rotate-6",
       imgClass: "h-36 w-auto",
     },
@@ -53,7 +53,7 @@ const STEPS = [
     body: "Add the stocks, crypto, or metals you want on the paper book. A CSV of ticker, units, and price paid can be imported as well.",
     sitter: {
       name: "Smitty",
-      img: "/brand/bot-smitty-holdings.png",
+      img: "/brand/bot-smitty-holdings.webp",
       wrap: "left-2",
       imgClass: "h-44 w-auto origin-bottom-left",
       place: "bottom" as const,
@@ -64,7 +64,7 @@ const STEPS = [
     body: "Open The Headmaster and record the goals you want to read the book against. The plan is information. It is not personalised advice.",
     sitter: {
       name: "The Headmaster",
-      img: "/brand/bot-headmaster-fullbody.png",
+      img: "/brand/bot-headmaster-fullbody.webp",
       wrap: "left-1/2 -translate-x-1/2 -rotate-2",
       imgClass: "h-40 w-auto",
     },
@@ -74,7 +74,7 @@ const STEPS = [
     body: "When prices are available, Stox and Koins write illustrative scenarios from those prices. You compare them with the goals you set. You still decide, and any trade is placed at your own broker.",
     sitter: {
       name: "Koins",
-      img: "/brand/bot-koins-fullbody.png",
+      img: "/brand/bot-koins-fullbody.webp",
       wrap: "right-0 rotate-7",
       imgClass: "h-36 w-auto",
     },
@@ -119,7 +119,10 @@ export default async function LandingPage() {
                 <div className="relative">
                   <div className="absolute -inset-4 rounded-3xl bg-gradient-to-br from-primary/20 via-transparent to-amber-400/10 blur-2xl" />
                   <img
-                    src="/brand/home-hero-portfolio.png"
+                    src="/brand/home-hero-portfolio.webp"
+                    width={637}
+                    height={399}
+                    fetchPriority="high"
                     alt="Example screen of a paper portfolio overview"
                     className="relative w-full h-auto rounded-3xl border border-border/70 bg-card shadow-xl"
                   />
@@ -159,6 +162,8 @@ export default async function LandingPage() {
                   >
                     <img
                       src={bot.img}
+                      loading="lazy"
+                      decoding="async"
                       alt={`${bot.name} avatar`}
                       className="mx-auto h-28 w-auto object-contain drop-shadow-[0_10px_18px_rgba(0,0,0,0.45)]"
                     />
@@ -194,7 +199,11 @@ export default async function LandingPage() {
                 {/* Large forge image + Au/Ag cards centred under it */}
                 <div className="flex flex-col">
                   <img
-                    src="/brand/precious-metals-smitty.png"
+                    src="/brand/precious-metals-smitty.webp"
+                    width={1200}
+                    height={675}
+                    loading="lazy"
+                    decoding="async"
                     alt="Smitty with gold and silver at the forge"
                     className="w-full h-auto rounded-3xl border border-border/70 shadow-xl"
                   />
@@ -212,7 +221,9 @@ export default async function LandingPage() {
                     </p>
                   </div>
                   <img
-                    src="/brand/bot-smitty-fullbody.png"
+                    src="/brand/bot-smitty-fullbody.webp"
+                    loading="lazy"
+                    decoding="async"
                     alt="Smitty leaning on a stack of gold bars"
                     className="order-1 mx-auto h-56 w-auto shrink-0 drop-shadow-[0_18px_28px_rgba(0,0,0,0.55)] sm:order-2 sm:mx-0 sm:h-64"
                   />
@@ -246,6 +257,8 @@ export default async function LandingPage() {
                     >
                       <img
                         src={step.sitter.img}
+                        loading="lazy"
+                        decoding="async"
                         alt={`${step.sitter.name} illustration for ${step.title}`}
                         className={`${step.sitter.imgClass} max-w-none object-contain object-bottom drop-shadow-[0_16px_24px_rgba(0,0,0,0.6)]`}
                       />
