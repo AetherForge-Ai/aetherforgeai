@@ -264,6 +264,7 @@ export function resolveEquityPrint(
         changePct: nextOk.changePct,
         quotedAt: nextOk.quotedAt,
         source: nextOk.source,
+        ...(nextOk.dayHigh && nextOk.dayLow ? { dayHigh: nextOk.dayHigh, dayLow: nextOk.dayLow } : {}),
       },
       pending: null,
     };
@@ -276,6 +277,7 @@ export function resolveEquityPrint(
         changePct: nextOk.changePct,
         quotedAt: nextOk.quotedAt,
         source: nextOk.source,
+        ...(nextOk.dayHigh && nextOk.dayLow ? { dayHigh: nextOk.dayHigh, dayLow: nextOk.dayLow } : {}),
       },
       pending: null,
     };
@@ -287,6 +289,7 @@ export function resolveEquityPrint(
         changePct: nextOk.changePct,
         quotedAt: nextOk.quotedAt,
         source: nextOk.source,
+        ...(nextOk.dayHigh && nextOk.dayLow ? { dayHigh: nextOk.dayHigh, dayLow: nextOk.dayLow } : {}),
       },
       pending: null,
     };

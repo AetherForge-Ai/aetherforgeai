@@ -199,3 +199,16 @@ describe("H-13 sitemap default", () => {
     expect(publicTickerPaths()).not.toContain("/markets/crypto/matic-network");
   });
 });
+
+describe("H-2 provider merge keeps High/Low", async () => {
+  const { mergeProviderPrints } = await import("@/lib/stock-markets");
+  it("a fresh Yahoo print carries dayHigh/dayLow through the merge", () => {
+    const out = mergeProviderPrints(
+      ["AIR.NZ"],
+      { yahoo: { "AIR.NZ": { price: 0.385, changePct: 0, quotedAt: "2026-10-15T04:00:00Z", source: "Yahoo Finance", dayHigh: 0.39, dayLow: 0.38 } }, twelve: null },
+      {},
+      {}
+    );
+    expect(out.rows["AIR.NZ"]).toMatchObject({ dayHigh: 0.39, dayLow: 0.38 });
+  });
+});
