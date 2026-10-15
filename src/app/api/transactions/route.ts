@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { LEDGER_ROW_EDIT } from "@/lib/feature-flags";
-import { editedTradeRow } from "@/lib/ledger-row-edit";
+import { editedTradeRow, originalTradeInput } from "@/lib/ledger-row-edit";
 import { firstOversell, OVERSELL_BLOCK, type ReversalTxn } from "@/lib/ledger-reversal";
 import { getStableSessionUser, getTradeSessionUser } from "@/lib/session";
 import { applyTransaction, ledgerAfterBooking, loadLedger } from "@/lib/transactions";
@@ -261,30 +261,35 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ ok: false, error: OVERSELL_BLOCK }, { status: 409 });
     }
 
+    const original = originalTradeInput(row);
+    const input = { ...original, ...edited.row };
+    if (type === "buy") {
+      // Book the edited buy first. The original row is untouched until that
+      // succeeds, so a failure leaves the ledger exactly as it was.
+      const result = await applyTransaction(user, input as never, {});
+      const newId = String((result.transaction as { _id?: string } | undefined)?._id || "");
+      try {
+        const reversed = await planOrApplyLedgerReversal(id, true);
+        ledgerAudit("edit", user._id, { ...row, ...edited.row, replaced: id, _id: newId }, reversed);
+      } catch (err) {
+        if (newId) await planOrApplyLedgerReversal(newId, true).catch((e) => console.error("[api/transactions] PATCH undo failed", e));
+        throw err;
+      }
+      invalidateBookCache(user._id);
+      return NextResponse.json({ ok: true, data: { transaction: result.transaction, cashBalance: result.cashBalance } });
+    }
+    // A sell is reversed first so the edited sell is checked against the
+    // holding without the old sell. If booking fails, the original is booked
+    // again with every field it had (same time, price, fees, FX, notes).
     const reversed = await planOrApplyLedgerReversal(id, true);
-    const input = {
-      type: type as "buy" | "sell",
-      ticker: String(row.ticker || ""),
-      asset_type: (String(row.asset_type || "stock") as "stock" | "crypto" | "metal"),
-      asset_name: row.asset_name ? String(row.asset_name) : undefined,
-      currency: row.currency ? String(row.currency) : undefined,
-      fx_rate: Number(row.fx_rate) > 0 ? Number(row.fx_rate) : undefined,
-      notes: row.notes ? String(row.notes) : undefined,
-      execution_status: "filled" as const,
-      price_source: "user_fill" as const,
-      confirm: true,
-      ...edited.row,
-    };
     try {
       const result = await applyTransaction(user, input as never, {});
-      ledgerAudit("edit", user._id, { ...row, ...edited.row }, reversed);
+      ledgerAudit("edit", user._id, { ...row, ...edited.row, replaced: id }, reversed);
       invalidateBookCache(user._id);
       return NextResponse.json({ ok: true, data: { transaction: result.transaction, cashBalance: result.cashBalance } });
     } catch (err) {
-      // Put the original row back so the book is never left without it.
-      await applyTransaction(user, { ...input, quantity: Number(row.quantity), price: Number(row.price), fees: Number(row.fees) || 0, executed_at: row.executed_at ? String(row.executed_at) : undefined } as never, {}).catch((e) =>
-        console.error("[api/transactions] PATCH restore failed", e)
-      );
+      await applyTransaction(user, original as never, {}).catch((e) => console.error("[api/transactions] PATCH restore failed", e));
+      invalidateBookCache(user._id);
       throw err;
     }
   } catch (err: unknown) {
@@ -292,3 +297,4 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ ok: false, error: err instanceof Error ? err.message : "That row was not changed." }, { status: 400 });
   }
 }
+

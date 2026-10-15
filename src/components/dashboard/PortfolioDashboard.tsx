@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { api } from "@/lib/api";
+import type { TradeEditFields } from "@/lib/ledger-row-edit";
 import {
   collapseDuplicateHoldings,
   computeSummary,
@@ -1894,12 +1895,24 @@ export function PortfolioDashboard({
 
   async function handleDeleteDividend(line: SnapshotLedgerLine) {
     const res = await api.delete(`/api/transactions?id=${encodeURIComponent(line.id)}`);
+    const label = line.type === "dividend" ? "Dividend" : line.type === "buy" ? "Buy" : "Sell";
     if (res.ok) {
-      toast.success("Dividend removed");
+      toast.success(`${label} removed`);
       handleDataChanged();
       return;
     }
-    toast.error(typeof res.error === "string" ? res.error : "That dividend was not removed.");
+    toast.error(typeof res.error === "string" ? res.error : `That ${label.toLowerCase()} was not removed.`);
+  }
+
+  async function handleEditTrade(line: SnapshotLedgerLine, fields: TradeEditFields): Promise<boolean> {
+    const res = await api.patch(`/api/transactions`, { id: line.id, ...fields, confirm: true });
+    if (res.ok) {
+      toast.success("Trade updated");
+      handleDataChanged();
+      return true;
+    }
+    toast.error(typeof res.error === "string" ? res.error : "That trade was not changed.");
+    return false;
   }
 
   function handleEditLedger(line: SnapshotLedgerLine) {
@@ -2208,6 +2221,7 @@ export function PortfolioDashboard({
           onRecord={openAdd}
           onEditLedger={handleEditLedger}
           onDeleteDividend={handleDeleteDividend}
+          onEditTrade={handleEditTrade}
           onReport={handleReport}
           onAlert={handleAlert}
           onWatch={handleWatch}

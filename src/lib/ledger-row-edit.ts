@@ -30,3 +30,41 @@ export function editedTradeRow(
   }
   return { row: { quantity, price, fees, ...(executed_at ? { executed_at } : {}) } };
 }
+
+/** Every booking field of the stored row, so a restore is the same trade. */
+export function originalTradeInput(row: Record<string, unknown>) {
+  const str = (k: string) => (row[k] != null && row[k] !== "" ? String(row[k]) : undefined);
+  const num = (k: string) => (Number(row[k]) > 0 ? Number(row[k]) : undefined);
+  return {
+    type: String(row.type) as "buy" | "sell",
+    ticker: String(row.ticker || ""),
+    asset_type: String(row.asset_type || "stock") as "stock" | "crypto" | "metal",
+    asset_name: str("asset_name"),
+    quantity: Number(row.quantity) || 0,
+    price: Number(row.price) || 0,
+    fees: Number(row.fees) || 0,
+    executed_at: str("executed_at"),
+    currency: str("currency"),
+    fx_rate: num("fx_rate"),
+    notes: str("notes"),
+    exchange: str("exchange"),
+    execution_status: "filled" as const,
+    price_source: (str("price_source") || "user_fill") as never,
+    confirm: true,
+  };
+}
+
+export type TradeEditFields = { quantity?: number; price?: number; fees?: number; executed_at?: string };
+
+export function isTradeLine(line: { type: string }): boolean {
+  return line.type === "buy" || line.type === "sell";
+}
+
+/** Confirmation text for removing one buy or sell. */
+export function tradeDeleteCopy(line: { type: string; ticker: string; quantity: number | null; cashNzd: number }): string {
+  const qty = line.quantity == null ? "" : `${line.quantity} `;
+  const cash = Math.abs(line.cashNzd).toFixed(2);
+  const cashLine =
+    line.type === "buy" ? `NZ$${cash} goes back to cash.` : `NZ$${cash} comes out of cash.`;
+  return `This removes the ${line.type} of ${qty}${line.ticker}. ${cashLine} The holding and FIFO gains are worked out again. If a later sell needs these units, the removal is refused. Cancel changes nothing.`;
+}

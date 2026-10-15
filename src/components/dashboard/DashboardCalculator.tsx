@@ -51,6 +51,7 @@ export function DashboardCalculator({
   onRecord,
   onEditLedger,
   onDeleteDividend,
+  onEditTrade,
   onReport,
   onAlert,
   onWatch,
@@ -79,6 +80,7 @@ export function DashboardCalculator({
   onRecord: () => void;
   onEditLedger: (line: SnapshotLedgerLine) => void;
   onDeleteDividend: (line: SnapshotLedgerLine) => Promise<void> | void;
+  onEditTrade?: (line: SnapshotLedgerLine, fields: import("@/lib/ledger-row-edit").TradeEditFields) => Promise<boolean>;
   onReport: (row: HoldingsRowModel, kind: "stox" | "koins") => void;
   onAlert: (row: HoldingsRowModel) => void;
   onWatch: (row: HoldingsRowModel) => void;
@@ -328,6 +330,7 @@ export function DashboardCalculator({
               onRecord={onRecord}
               onEdit={onEditLedger}
               onDeleteDividend={onDeleteDividend}
+              onEditTrade={onEditTrade}
             />
           ) : null}
           {tab === "income" ? <IncomeTaxPanel snapshot={pending ? null : snapshot} loading={pending} /> : null}
