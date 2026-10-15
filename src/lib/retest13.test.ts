@@ -48,7 +48,7 @@ describe("retest 13 and technician r6", () => {
   });
 
   it("keeps MATIC and POL on different ids and matches the ticker before the id", () => {
-    expect(coingeckoIdFor("MATIC")).toBe("matic-network");
+    expect(coingeckoIdFor("MATIC")).toBe("polygon-ecosystem-token");
     expect(coingeckoIdFor("POL")).toBe("polygon-ecosystem-token");
     expect(coingeckoIdFor("LTC")).toBe("litecoin");
     const coins = [

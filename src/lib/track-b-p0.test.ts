@@ -113,6 +113,7 @@ describe("Track B P0", () => {
   });
 
   it("puts ticker paths and /status on the sitemap", () => {
+    process.env.STOCK_PAGE_INDEXING = "1";
     const rows = sitemap();
     const paths = new Set(rows.map((row) => new URL(row.url).pathname));
     expect(paths.has("/status")).toBe(true);
@@ -121,6 +122,7 @@ describe("Track B P0", () => {
     expect(tickers.some((href) => href.startsWith("/markets/stock/"))).toBe(true);
     expect(tickers.some((href) => href.startsWith("/markets/crypto/"))).toBe(true);
     expect(paths.has(tickers[0])).toBe(true);
+    delete process.env.STOCK_PAGE_INDEXING;
   });
 
   it("prints a change figure on each ticker cell", () => {
@@ -195,7 +197,7 @@ describe("Track B P0", () => {
       }
     }
     expect(lines).toContain("does not include a card number");
-    expect(lines).toContain("do not set a retention period");
+    expect(lines).toContain("We do not log the text of these requests");
     expect(lines).not.toMatch(/\b(Grok|xAI|ZENITH|ULTRA|grok-4|enhanceWithGrok)\b/);
   });
 

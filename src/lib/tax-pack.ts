@@ -1,3 +1,4 @@
+import { csvEscape } from "@/lib/csv-cell";
 /**
  * Indicative tax pack exports.
  * PDF and CSV totals use the same cent figures as the working paper.
@@ -51,10 +52,6 @@ export interface CompletenessItem {
   detail: string;
 }
 
-function csvEscape(value: unknown): string {
-  const text = value == null ? "" : String(value);
-  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-}
 
 function money(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return "";

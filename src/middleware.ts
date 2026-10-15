@@ -9,7 +9,7 @@ import {
   PUBLIC_MARKETING_CACHE_HEADERS,
   shouldClearAnonymousAuthCookies,
 } from "@/lib/private-document";
-import { publicAliasRedirect } from "@/lib/public-route-aliases";
+import { permanentRedirect, publicAliasRedirect } from "@/lib/public-route-aliases";
 import { documentAccess } from "@/lib/route-gate";
 import {
   anonymousAccountApi,
@@ -162,6 +162,11 @@ export async function middleware(request: NextRequest) {
   if (request.method === "OPTIONS") {
     const response = new NextResponse(null, { status: 204 });
     return finish(response, request, signedIn);
+  }
+
+  const moved = permanentRedirect(pathname);
+  if (moved) {
+    return finish(NextResponse.redirect(new URL(moved, request.url), 301), request, signedIn);
   }
 
   const alias = publicAliasRedirect(pathname) ?? portfolioAliasRedirect(pathname);

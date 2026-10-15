@@ -62,13 +62,35 @@ export function overCapUpgradeHref(plan?: string | null): string {
 }
 
 /** How many of the user's holdings count toward the limit for a given bot. */
+type HoldingRow = { asset_type?: string | null; ticker?: string | null; shares?: number | string | null };
+
+/**
+ * H-7: distinct OPEN holdings. A row sold to zero does not count, and two rows
+ * for the same ticker in the same sleeve count once. The plan-usage display and
+ * the add-holding gate both use this, so they always agree.
+ */
+export function openDistinctHoldings<T extends HoldingRow>(holdings: T[]): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const h of holdings) {
+    if (h.shares != null && !(Number(h.shares) > 0)) continue;
+    const ticker = String(h.ticker ?? "").trim().toUpperCase();
+    const key = ticker ? `${h.asset_type || "stock"}:${ticker}` : `row:${out.length}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(h);
+  }
+  return out;
+}
+
 export function usedTickerCount(
-  holdings: { asset_type?: string | null }[],
+  holdings: HoldingRow[],
   assetType: AssetType,
   scope: LimitScope
 ): number {
-  if (scope === "total") return holdings.length;
-  return holdings.filter((h) => (h.asset_type || "stock") === assetType).length;
+  const open = openDistinctHoldings(holdings);
+  if (scope === "total") return open.length;
+  return open.filter((h) => (h.asset_type || "stock") === assetType).length;
 }
 
 /**
@@ -77,7 +99,7 @@ export function usedTickerCount(
  */
 export function checkTickerQuota(
   user: EntitlementInput,
-  holdings: { asset_type?: string | null }[],
+  holdings: HoldingRow[],
   assetType: AssetType
 ): { allowed: boolean; used: number; limit: number; scope: LimitScope; message: string; upgradeHref: string } {
   const scope = limitScope(user.subscription_plan);

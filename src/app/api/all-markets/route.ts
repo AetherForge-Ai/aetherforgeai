@@ -40,6 +40,7 @@ export async function GET(req: Request) {
         live: false,
         liveCount: quotedCount,
         total: page.shown,
+        listed: page.listed,
         matchTotal: page.total,
         page: page.page,
         pageCount: page.pageCount,

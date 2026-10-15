@@ -1,3 +1,4 @@
+import { csvEscape } from "@/lib/csv-cell";
 /**
  * Taxable-income summary for one 1 April–31 March year.
  * Dividend pieces come from the notes prefix. A row without that prefix
@@ -191,10 +192,6 @@ export const TAXABLE_INCOME_CSV_COLUMNS = [
   "Label",
 ] as const;
 
-function csvEscape(value: unknown): string {
-  const s = value == null ? "" : String(value);
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
 
 function cellMoney(value: number | null): string {
   if (value == null) return "";

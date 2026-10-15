@@ -1,3 +1,4 @@
+import { IMPORT_MAX_BYTES, IMPORT_TOO_LARGE, importTextTooLarge } from "@/lib/import-limits";
 import { NextResponse } from "next/server";
 import { requestClaimsOtherUser } from "@/lib/account-guard";
 import { accountMismatchResponse } from "@/lib/account-response";
@@ -28,7 +29,6 @@ import { applyTransaction } from "@/lib/transactions";
 
 export const dynamic = "force-dynamic";
 
-const MAX_CHARS = 1_000_000;
 
 function publicPlan(plan: ImportPlan) {
   return {
@@ -157,6 +157,11 @@ export async function POST(req: Request) {
       return accountMismatchResponse(user._id);
     }
 
+    // H-10: refuse anything over 5 MB before reading it.
+    const declared = Number(req.headers.get("content-length") || 0);
+    if (declared > IMPORT_MAX_BYTES + 64 * 1024) {
+      return NextResponse.json({ ok: false, error: IMPORT_TOO_LARGE }, { status: 413 });
+    }
     const body = (await req.json().catch(() => ({}))) as {
       text?: unknown;
       confirm?: unknown;
@@ -169,8 +174,8 @@ export async function POST(req: Request) {
       tickerFixes?: unknown;
     };
     const text = typeof body.text === "string" ? body.text : "";
-    if (text.length > MAX_CHARS) {
-      return NextResponse.json({ ok: false, error: "That file is too large. Nothing was written." }, { status: 400 });
+    if (importTextTooLarge(text)) {
+      return NextResponse.json({ ok: false, error: IMPORT_TOO_LARGE }, { status: 413 });
     }
 
     if (body.action === "hold") {

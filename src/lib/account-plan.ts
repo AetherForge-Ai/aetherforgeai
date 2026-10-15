@@ -1,6 +1,6 @@
 import "server-only";
 import { totalumSdk } from "@/lib/totalum";
-import { aucklandMonthKey, countReportsInAucklandMonth } from "@/lib/entitlements";
+import { aucklandMonthKey, countReportsInAucklandMonth, openDistinctHoldings } from "@/lib/entitlements";
 import { describeAccountPlan, type PlanSnapshot } from "@/lib/plan-usage";
 import type { AppUser } from "@/lib/session";
 
@@ -10,7 +10,7 @@ async function countHoldings(userId: string): Promise<number | null> {
       _filter: { user: userId },
       _limit: 500,
     });
-    return ((res?.data as unknown[]) || []).length;
+    return openDistinctHoldings((res?.data as { ticker?: string; asset_type?: string; shares?: number }[]) || []).length;
   } catch (err) {
     console.error("[account-plan] Holdings count failed:", err);
     return null;

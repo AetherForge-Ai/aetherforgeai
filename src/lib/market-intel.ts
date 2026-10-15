@@ -128,6 +128,47 @@ export const NOT_ENOUGH_DAILY_HISTORY = "Not enough daily history";
 /** Card copy when a live holding has no series to analyse. */
 export const ANALYSIS_UNAVAILABLE = "Analysis unavailable — not enough market history";
 
+/** H-12: shown instead of a score when the last print is too old to rate. */
+export const DATA_TOO_OLD_HOLD = "Hold: data too old";
+export const STALE_TRADING_DAYS = 3;
+
+/** Weekdays strictly after `from` up to and including `to` (UTC calendar days). */
+export function tradingDaysBetween(from: Date, to: Date): number {
+  if (!(to > from)) return 0;
+  let days = 0;
+  const d = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate()));
+  const end = Date.UTC(to.getUTCFullYear(), to.getUTCMonth(), to.getUTCDate());
+  while (d.getTime() < end) {
+    d.setUTCDate(d.getUTCDate() + 1);
+    const wd = d.getUTCDay();
+    if (wd !== 0 && wd !== 6) days++;
+  }
+  return days;
+}
+
+/**
+ * H-12 data-quality gate. A ticker whose last print is more than 3 trading
+ * days old is held: no score, no rating, the Hold text instead.
+ * An unknown print time is not treated as stale (the history gate covers it).
+ */
+export function staleDataHold<T extends { score: number; analysisHold?: string | null; reasoning?: string; convictionReason?: string }>(
+  row: T,
+  lastPrintAt: string | Date | null | undefined,
+  now = new Date()
+): T {
+  if (!lastPrintAt || row.analysisHold) return row;
+  const at = lastPrintAt instanceof Date ? lastPrintAt : new Date(lastPrintAt);
+  if (Number.isNaN(at.getTime())) return row;
+  if (tradingDaysBetween(at, now) <= STALE_TRADING_DAYS) return row;
+  return {
+    ...row,
+    score: 0,
+    analysisHold: DATA_TOO_OLD_HOLD,
+    reasoning: DATA_TOO_OLD_HOLD,
+    convictionReason: DATA_TOO_OLD_HOLD,
+  };
+}
+
 export function intelIsHeld(row: { analysisHold?: string | null } | null | undefined): boolean {
   return typeof row?.analysisHold === "string" && row.analysisHold.length > 0;
 }
@@ -655,8 +696,8 @@ export function isExchangeRegularSession(ex: Exchange, now = new Date()): boolea
 export function priceSessionLabel(ex: Exchange, now = new Date()): string {
   const name = ex === "NZX" || ex === "ASX" ? ex : "US";
   if (!isExchangeRegularSession(ex, now)) return "At close";
-  // TODO(owner): confirm the US share-price delay. The brief states "~20 min" for NZX only.
-  return ex === "NZX" ? "Delayed ~20 min · NZX" : `Delayed · ${name}`;
+  // Same words as QUOTE_DELAY_WORDS in market-freshness (not imported: cycle).
+  return ex === "NZX" || ex === "ASX" ? `Delayed ~20 min · ${name}` : `Delayed · ${name}`;
 }
 
 /**

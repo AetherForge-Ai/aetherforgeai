@@ -4,7 +4,7 @@ import { CsvExportButton } from "@/components/tax/CsvExportButton";
 import { PrintButton } from "@/components/tax/PrintButton";
 import { TaxCompletenessList } from "@/components/tax/TaxCompletenessList";
 import { TaxSectionNav } from "@/components/tax/TaxSectionNav";
-import { formatDisplayDate, formatNzd, formatSignedMoney } from "@/lib/currency";
+import { formatDisplayDate, formatFeeDeducted, formatNzd, formatSignedMoney } from "@/lib/currency";
 import { canExportCsv } from "@/lib/entitlements";
 import { aucklandCivilToday, isNzTaxYearEnding, nzTaxYearEnding, nzTaxYearLabel } from "@/lib/nz-tax-year";
 import { publicPageMetadata } from "@/lib/reviewed-book";
@@ -46,7 +46,7 @@ function DisposalTable({ rows }: { rows: RealisedLine[] }) {
             <th className="px-3 py-2 text-right font-medium">Quantity</th>
             <th className="px-3 py-2 text-right font-medium">Price gain</th>
             <th className="px-3 py-2 text-right font-medium">FX gain</th>
-            <th className="px-3 py-2 text-right font-medium">Sell fee</th>
+            <th className="px-3 py-2 text-right font-medium">Fees (deducted)</th>
             <th className="px-3 py-2 text-right font-medium">Realised</th>
           </tr>
         </thead>
@@ -71,7 +71,7 @@ function DisposalTable({ rows }: { rows: RealisedLine[] }) {
               <td className="tnum px-3 py-2 text-right">{row.quantity}</td>
               <td className="tnum px-3 py-2 text-right">{moneyOrBlank(row.pricePnlNzd)}</td>
               <td className="tnum px-3 py-2 text-right">{moneyOrBlank(row.fxPnlNzd)}</td>
-              <td className="tnum px-3 py-2 text-right">{moneyOrBlank(row.feeNzd)}</td>
+              <td className="tnum px-3 py-2 text-right">{formatFeeDeducted(row.feeNzd)}</td>
               <td className="tnum px-3 py-2 text-right">{moneyOrBlank(row.realisedNzd)}</td>
             </tr>
           ))}
