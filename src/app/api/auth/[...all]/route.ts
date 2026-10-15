@@ -2,6 +2,10 @@ import { auth } from "@/lib/auth";
 import { toNextJsHandler } from "better-auth/next-js";
 import { NextResponse } from "next/server";
 import { validateSignupConsent } from "@/lib/signup-consent";
+import { authRateLimitRule, takeRateLimit, rateLimitHeaders, rateLimitIdentity } from "@/lib/ip-rate-limit";
+import { ensureDurableRateLimit } from "@/lib/durable-counter.server";
+
+ensureDurableRateLimit();
 
 const handler = toNextJsHandler(auth);
 
@@ -15,6 +19,19 @@ export const GET = handler.GET;
  */
 export async function POST(req: Request) {
   const pathname = new URL(req.url).pathname;
+  // CR-5: sign-in, sign-up and password-reset POSTs are limited per address.
+  const rule = authRateLimitRule(pathname);
+  if (rule) {
+    const identity = rateLimitIdentity(req);
+    const ip = identity.ok ? identity.ip : "unknown";
+    const result = await takeRateLimit(`auth:${rule.name}:${encodeURIComponent(ip)}`, rule.limit, rule.windowMs);
+    if (!result.allowed) {
+      return NextResponse.json(
+        { code: "TOO_MANY_REQUESTS", message: rule.message },
+        { status: 429, headers: rateLimitHeaders(result, true) }
+      );
+    }
+  }
   const signingUp = /\/sign-up\/email\/?$/.test(pathname);
   if (signingUp) {
     const body = await req.clone().json().catch(() => null);

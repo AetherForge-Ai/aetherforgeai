@@ -27,7 +27,7 @@ function renderedCopy(source: string): string {
 describe("P1 public copy", () => {
   it("shows 13 Oct 2026 on the legal pages and leaves the consent stamp unchanged", () => {
     expect(TERMS_VERSION).toBe("2026-10-07");
-    expect(LEGAL_UPDATED).toBe("13 Oct 2026");
+    expect(LEGAL_UPDATED).toBe("16 Oct 2026"); // CR-4 re-stamp
     for (const file of [
       "src/app/terms-of-service/page.tsx",
       "src/app/privacy-policy/page.tsx",

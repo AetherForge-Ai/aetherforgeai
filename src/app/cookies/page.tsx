@@ -13,6 +13,7 @@ export const metadata = publicPageMetadata("/cookies", {
 export default function CookiesPage() {
   return (
     <LegalShell
+      page="cookies"
       title="Cookies"
       subtitle="This page lists the cookies and the browser storage the site sets. It does not change how the analytics choice works."
       updated="13 Oct 2026"

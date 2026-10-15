@@ -1,25 +1,23 @@
 import Link from "next/link";
-import { LEGAL_ENTITY_NAME } from "@/lib/company";
-import { ONE_LINE_DISCLAIMER } from "@/lib/public-copy";
 import { AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  FMC_STATEMENT,
+  LONG_DISCLAIMER_HREF,
+  LONG_DISCLAIMER_PARAGRAPHS,
+} from "@/lib/disclaimer";
+import { ONE_LINE_DISCLAIMER as SHORT_DISCLAIMER } from "@/lib/public-copy";
 
 /**
- * Canonical, single-source financial disclaimer used sitewide so the wording
- * stays consistent and legally coherent everywhere it appears.
- *
- * New Zealand context: AetherForge AI ({LEGAL_ENTITY_NAME}) is NOT a licensed
- * financial advice provider under the Financial Markets Conduct Act 2013 and does
- * not give a "financial advice service" as defined in that Act. Everything the
- * platform outputs is general information only — never a personalised
- * recommendation to acquire or dispose of a financial product. This component
- * keeps that statement front-of-mind on every surface that shows market data or
- * AI-generated analysis.
- *
- * Variants:
- *   • "bar"  — compact one/two-line strip for persistent page footers.
- *   • "full" — prominent bordered callout for pages that lead with figures.
+ * CR-4: the one disclaimer component. The footer bar shows the short version and
+ * links to the long version; the full callout shows the long version. The
+ * Financial Markets Conduct sentence comes only from FMC_STATEMENT
+ * ("not a licensed financial advice provider"). ONE_LINE_DISCLAIMER is the short version.
  */
+export function FmcStatement({ className }: { className?: string }) {
+  return <span className={className}>{FMC_STATEMENT}</span>;
+}
+
 export function DisclaimerNotice({
   variant = "bar",
   className,
@@ -39,31 +37,19 @@ export function DisclaimerNotice({
       >
         <div className="flex items-start gap-3">
           <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-500" aria-hidden />
-          <div className="space-y-2 text-sm leading-relaxed text-foreground">
+          <div className="space-y-2 break-words text-sm leading-relaxed text-foreground">
             <p>
               <strong className="font-semibold text-foreground/90">
                 Important — this is not financial advice.
               </strong>{" "}
-              {ONE_LINE_DISCLAIMER}{" "}
-              AetherForge AI ({LEGAL_ENTITY_NAME}) provides general market information and
-              AI-generated analysis for informational and educational purposes only. We are{" "}
-              <strong className="text-foreground/90">not financial advisers</strong> and are{" "}
-              <strong className="text-foreground/90">
-                not a licensed financial advice provider
-              </strong>{" "}
-              under the Financial Markets Conduct Act 2013 (New Zealand). We do not trade for you,
-              place orders, or take custody of your assets — you buy and sell on your own broker or
-              exchange. Nothing here takes into account your personal financial situation, goals or
-              needs, and nothing here is a recommendation, opinion or offer to buy, sell or hold any
-              share, digital asset or other financial product.
+              {SHORT_DISCLAIMER} <FmcStatement />
             </p>
+            {LONG_DISCLAIMER_PARAGRAPHS.map((paragraph) => (
+              <p key={paragraph.slice(0, 24)}>{paragraph}</p>
+            ))}
             <p>
-              Investing involves risk, including the loss of some or all of your capital; digital
-              assets are especially volatile. Past performance is not a reliable indicator of future
-              results, and AI output can be inaccurate. Always do your own research and seek advice
-              from a licensed financial adviser before making any financial decision.{" "}
-              <Link href="/ai-disclaimer" className="font-medium text-primary hover:underline">
-                Read our full AI Disclaimer
+              <Link href="/ai-disclaimer" className="font-medium text-primary underline-offset-2 hover:underline">
+                Read the full AI Disclaimer
               </Link>
               .
             </p>
@@ -73,7 +59,7 @@ export function DisclaimerNotice({
     );
   }
 
-  // Compact strip — for footers across the app.
+  // Short version for page footers. The long version is one click away.
   return (
     <div
       className={cn(
@@ -83,22 +69,14 @@ export function DisclaimerNotice({
       role="note"
       aria-label="Financial disclaimer"
     >
-      <p className="mx-auto max-w-4xl text-sm leading-relaxed text-foreground">
+      <p className="mx-auto max-w-4xl break-words text-sm leading-relaxed text-foreground">
         <strong className="font-semibold text-foreground/80">Not financial advice.</strong>{" "}
-        {ONE_LINE_DISCLAIMER}{" "}
-        AetherForge AI ({LEGAL_ENTITY_NAME}) provides general market information and AI-generated
-        analysis for informational purposes only. We are not financial advisers and this is not
-        financial advice. We do not trade
-        for you or hold your assets. It does not consider your personal circumstances and is not a
-        recommendation to buy or sell any financial product. Investing carries risk, including loss of
-        capital; past performance does not
-        guarantee future results. Always do your own research and consult a licensed financial
-        adviser.{" "}
+        {SHORT_DISCLAIMER}{" "}
         <Link href="/trust" className="font-medium text-primary hover:underline">
           How the books work
         </Link>
         {" · "}
-        <Link href="/ai-disclaimer" className="font-medium text-primary hover:underline">
+        <Link href={LONG_DISCLAIMER_HREF} className="font-medium text-primary hover:underline">
           Full disclaimer
         </Link>
         .

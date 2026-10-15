@@ -1,14 +1,15 @@
 /**
  * GET /api/stripe/products
  *
- * Returns AetherForge plan prices only. The allow-list is the plan config
- * (current and retired price ids). Other products on the same Stripe account
- * are never listed, and nothing is created or deleted in Stripe.
+ * Returns the live public Starter and Pro prices only (CR-1): at most four
+ * price ids from publicCheckoutPriceIds(). Apex, retired NZ$29/69 prices and
+ * Ultimate are never listed. Other products on the same Stripe account are
+ * never listed, and nothing is created or deleted in Stripe.
  */
 
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
-import { aetherforgePriceIds } from "@/lib/plans";
+import { publicCheckoutPriceIds } from "@/lib/plans";
 import { stripe } from "@/lib/stripe";
 
 function serializeError(err: unknown) {
@@ -45,7 +46,7 @@ function isLiveProduct(product: Stripe.Price["product"] | null | undefined): pro
 
 export async function GET() {
   try {
-    const ids = aetherforgePriceIds();
+    const ids = publicCheckoutPriceIds();
     const retrieved = await Promise.all(
       ids.map(async (id) => {
         try {
@@ -67,7 +68,7 @@ export async function GET() {
         name: product.name,
         description: product.description,
         images: product.images,
-        metadata: product.metadata,
+        metadata: {},
         prices: [],
       };
       row.prices.push({
@@ -81,10 +82,10 @@ export async function GET() {
       byProduct.set(product.id, row);
     }
 
-    return NextResponse.json({
-      ok: true,
-      data: [...byProduct.values()],
-    });
+    return NextResponse.json(
+      { ok: true, data: [...byProduct.values()] },
+      { headers: { "Cache-Control": "public, max-age=300" } }
+    );
   } catch (err) {
     console.error("[API ERROR] /api/stripe/products", err);
     return NextResponse.json({ ok: false, error: serializeError(err) }, { status: 500 });

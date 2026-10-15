@@ -9,10 +9,10 @@ describe("TT fresh H3 — Free plan gets one bot", () => {
     expect(decideFreeBotChoice(free("none"), "stock")).toEqual({ ok: true, botAccess: "stock" });
     expect(decideFreeBotChoice({ bot_access: null }, "crypto")).toEqual({ ok: true, botAccess: "crypto" });
   });
-  it("switching to the second bot is refused with 409", () => {
+  it("switching to the second bot is refused with 403 (CR-6)", () => {
     const d = decideFreeBotChoice(free("stock"), "crypto");
     expect(d.ok).toBe(false);
-    if (!d.ok) expect(d.status).toBe(409);
+    if (!d.ok) expect(d.status).toBe(403);
   });
   it("re-choosing the same bot and legacy both stay allowed", () => {
     expect(decideFreeBotChoice(free("stock"), "stock").ok).toBe(true);

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FmcStatement } from "@/components/legal/DisclaimerNotice";
 import type { Metadata } from "next";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { LEGAL_ENTITY_NAME } from "@/lib/company";
@@ -388,8 +389,8 @@ export default function MaximizeResultsPage() {
               </h3>
             </div>
             <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
-              AetherForge AI provides general market information and AI-generated analysis only. It is not
-              licensed financial advice under the Financial Markets Conduct Act 2013. Trading and investing carry
+              AetherForge AI provides general market information and AI-generated analysis only.{" "}
+              <FmcStatement /> Trading and investing carry
               a high risk of loss. Past performance is not indicative of future results. Always do your own
               research and consult a licensed financial adviser before making any investment decisions.{" "}
               To the extent permitted by law, {LEGAL_ENTITY_NAME} is not liable for losses arising from your reliance

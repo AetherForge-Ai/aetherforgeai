@@ -10,6 +10,7 @@
  * Purely educational. Nothing here is financial advice.
  */
 
+import { FmcStatement } from "@/components/legal/DisclaimerNotice";
 import { useState } from "react";
 import {
   Dialog,
@@ -160,8 +161,8 @@ export function CryptoInfoModal({
             </section>
 
             <p className="text-xs leading-relaxed text-muted-foreground/80">
-              Digital assets are volatile and can lose value. This information is general and educational only,
-              and is not financial advice under the Financial Markets Conduct Act 2013.
+              Digital assets are volatile and can lose value. This information is general and educational only.{" "}
+              <FmcStatement />
             </p>
           </div>
         </DialogContent>
