@@ -14,6 +14,7 @@
  * result so a Yahoo outage can never break pricing.
  */
 
+import { shareQuotePrint } from "@/lib/quote-store";
 import "server-only";
 import { barsFromYahoo, closeOnOrBefore } from "@/lib/historical-price";
 import { yahooSymbolFor } from "@/lib/crypto-vendors";
@@ -164,6 +165,10 @@ async function fetchOne(yahooSymbol: string): Promise<YahooQuote | null> {
         quote.changeAbs = quote.price - prior;
       }
     }
+    const shared = shareQuotePrint(yahooSymbol, { price: quote.price, changePct: quote.changePct, quotedAt: quote.quotedAt });
+    quote.price = shared.price;
+    quote.changePct = shared.changePct;
+    quote.changeAbs = shared.price - quote.prevClose;
     CACHE.set(yahooSymbol, { quote, at: Date.now() });
     return quote;
   } catch (err) {
@@ -574,6 +579,15 @@ export async function fetchYahooQuotesBatched(
         console.error(`[yahoo] daily change pass failed for ${chunk.length}:`, err);
       }
     });
+  }
+
+  // H-1: every view reads the same print for the TTL.
+  for (const [internal, ySym] of entries) {
+    const q = out[internal];
+    if (!q) continue;
+    const shared = shareQuotePrint(ySym, { price: q.price, changePct: q.changePct, quotedAt: q.quotedAt });
+    q.price = shared.price;
+    q.changePct = shared.changePct;
   }
 
   console.log(`[yahoo] Batched live quotes resolved for ${Object.keys(out).length}/${entries.length} tickers`);
