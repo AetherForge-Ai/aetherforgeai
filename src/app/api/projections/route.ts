@@ -7,7 +7,14 @@ import {
 } from "@/lib/market-data";
 import { loadCryptoBoardLive } from "@/lib/crypto-tape";
 import { CRYPTO_PROJECTION_HAND_CHECK } from "@/lib/crypto-vendors";
-import { assembleEquityProjections, rankByConfidenceWeightedMove } from "@/lib/projection-pause";
+import { assembleEquityProjections } from "@/lib/projection-pause";
+import {
+  illustrativeRange,
+  PROJECTION_ROW_DROPPED_KEYS,
+  projectionsEquitiesMode,
+  PROJECTIONS_PAUSED_MESSAGE,
+  sortProjectionsNeutral,
+} from "@/lib/projections-mode";
 import { toPublicMarketRecord } from "@/lib/public-intel";
 import { quotedEquitySessionOpen } from "@/lib/market-freshness";
 import { getStableSessionUser } from "@/lib/session";
@@ -24,8 +31,8 @@ export const dynamic = "force-dynamic";
  * Crypto uses the same price and history service as /api/market?bot=crypto.
  * Those rows stay off this board until the 10-coin hand-check is done
  * (BTC, ETH, SOL, BNB, XRP, ARB, TON, JUP, UNI, APT).
- * It then ranks equities by projected 7-day % increase (highest → lowest)
- * and returns the TOP 50, each still carrying its own `market`.
+ * CR-3: rows are listed A–Z with an illustrative 7-day range. There is no
+ * point percent, no model-confidence field and no ranking.
  *
  * Kept server-side so the market-data key never reaches the client.
  * The session read is the same one GET /api/session uses for the dashboard.
@@ -36,6 +43,28 @@ export async function GET(req: Request) {
     const user = await getStableSessionUser();
     if (!user) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    }
+
+    const mode = projectionsEquitiesMode();
+    if (mode === "paused") {
+      return NextResponse.json({
+        ok: true,
+        data: {
+          mode,
+          pausedMessage: PROJECTIONS_PAUSED_MESSAGE,
+          live: false,
+          cryptoPaused: true,
+          exchange: "NONE",
+          page: 1,
+          limit: 0,
+          total: 0,
+          rows: [],
+          combined: [],
+          stockUniverse: [],
+          cryptoUniverse: [],
+          scanned: { stocks: 0, crypto: 0 },
+        },
+      });
     }
 
     const url = new URL(req.url);
@@ -82,28 +111,30 @@ export async function GET(req: Request) {
     const ranked = assembleEquityProjections(stockUniverse);
     const onExchange = (row: { ticker: string; market: string }) =>
       resolveExchange(row.ticker, row.market as MarketCode);
-    const pool =
+    // CR-3: no confidence ranking and no "top 50 movers" cut. Every quoted name on
+    // the chosen board, A–Z.
+    const pool = sortProjectionsNeutral(
       exchange === "ALL"
-        ? ranked.combined
+        ? ranked.stockUniverse
         : exchange === "NZXASX"
-          ? rankByConfidenceWeightedMove(
-              ranked.stockUniverse.filter((row) => {
-                const board = onExchange(row);
-                return board === "NZX" || board === "ASX";
-              }),
-            ).slice(0, 50)
+          ? ranked.stockUniverse.filter((row) => {
+              const board = onExchange(row);
+              return board === "NZX" || board === "ASX";
+            })
           : exchange === "NZX" || exchange === "ASX" || exchange === "DOW" || exchange === "NASDAQ"
-            ? rankByConfidenceWeightedMove(
-                ranked.stockUniverse.filter((row) => onExchange(row) === exchange),
-              ).slice(0, 50)
-            : ranked.combined;
+            ? ranked.stockUniverse.filter((row) => onExchange(row) === exchange)
+            : ranked.stockUniverse,
+    );
     const start = (page - 1) * limit;
     const pageRows = pool.slice(start, start + limit);
     const publish = (rows: typeof pageRows) =>
       rows.map((row) => {
         const pub = toPublicMarketRecord(row as unknown as Record<string, unknown>);
-        delete pub.history;
-        delete pub.projection;
+        const range = illustrativeRange((row as { outlook?: unknown }).outlook);
+        for (const key of PROJECTION_ROW_DROPPED_KEYS) delete pub[key];
+        delete pub.outlook;
+        pub.rangeLowPct = range?.lowPct ?? null;
+        pub.rangeHighPct = range?.highPct ?? null;
         return pub;
       });
 
@@ -115,6 +146,7 @@ export async function GET(req: Request) {
     return NextResponse.json({
       ok: true,
       data: {
+        mode,
         live: stockLive,
         cryptoPaused: ranked.cryptoPaused,
         cryptoPauseMessage: ranked.cryptoPauseMessage,

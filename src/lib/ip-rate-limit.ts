@@ -1,7 +1,10 @@
 /**
- * Public post limit. No new database column.
- * The count is stored in the Cloudflare Cache API so a second Worker isolate
- * sees it. The in-memory Map is the backstop when that cache is missing.
+ * Public post limit (CR-2 / CR-5).
+ * Storage order: a durable counter store (Totalum table `rate_limit_counter`,
+ * registered by durable-counter.server.ts) shared by every isolate and region;
+ * then the Cloudflare Cache API (per colo); then this isolate's memory Map as the
+ * last backstop. A durable store error never lets a request through unlimited:
+ * the cache and memory counts still apply.
  * The address is CF-Connecting-IP only. X-Forwarded-For is not read.
  */
 
@@ -23,9 +26,35 @@ type RateCache = {
 
 const buckets = new Map<string, number>();
 
+/** A counter shared by every isolate. increment returns the new count for the key. */
+export interface DurableCounterStore {
+  increment(storageKey: string, windowMs: number, now: number): Promise<number>;
+}
+
+let durableStore: DurableCounterStore | null = null;
+
+export function setDurableCounterStore(store: DurableCounterStore | null): void {
+  durableStore = store;
+}
+
+export function hasDurableCounterStore(): boolean {
+  return durableStore != null;
+}
+
 export function resetRateLimits(): void {
   buckets.clear();
 }
+
+/** Sign-in area limits (CR-5). Failed or not, every POST counts. */
+export const AUTH_SIGN_IN_LIMIT = 10;
+export const AUTH_SIGN_IN_WINDOW_MS = 5 * 60 * 1000;
+export const AUTH_SIGN_UP_LIMIT = 10;
+export const AUTH_SIGN_UP_WINDOW_MS = 60 * 60 * 1000;
+export const AUTH_RESET_LIMIT = 5;
+export const AUTH_RESET_WINDOW_MS = 15 * 60 * 1000;
+/** Other public POST bodies (free trial, waitlist, client error beacons). */
+export const PUBLIC_POST_LIMIT = 30;
+export const PUBLIC_POST_WINDOW_MS = 60 * 1000;
 
 export function rateLimitIdentity(
   req: Request,
@@ -92,6 +121,17 @@ export async function takeRateLimit(
   if (count > limit) {
     return { allowed: false, remaining: 0, limit, resetSec };
   }
+  if (durableStore) {
+    try {
+      const durable = await durableStore.increment(storageKey, windowMs, now);
+      const merged = Math.max(count, durable);
+      buckets.set(storageKey, merged);
+      if (merged > limit) return { allowed: false, remaining: 0, limit, resetSec };
+      return { allowed: true, remaining: Math.max(0, limit - merged), limit, resetSec };
+    } catch {
+      // Fall through to the colo cache and the memory count.
+    }
+  }
   const shared = await readShared(storageKey);
   if (shared != null && shared >= limit) {
     buckets.set(storageKey, Math.max(count, shared));
@@ -123,4 +163,35 @@ export function rateLimitHeaders(
 /** A filled honeypot is a bot. Empty and missing values are people. */
 export function honeypotFilled(value: unknown): boolean {
   return typeof value === "string" && value.trim().length > 0;
+}
+
+export type AuthRateLimitRule = { name: string; limit: number; windowMs: number; message: string };
+
+/** Which sign-in area POST this is, and its limit. Null for every other auth call (session, sign-out). */
+export function authRateLimitRule(pathname: string): AuthRateLimitRule | null {
+  if (/\/sign-in\/(email|username)\/?$/.test(pathname)) {
+    return {
+      name: "sign-in",
+      limit: AUTH_SIGN_IN_LIMIT,
+      windowMs: AUTH_SIGN_IN_WINDOW_MS,
+      message: "Too many sign-in attempts. Wait a few minutes, then try again.",
+    };
+  }
+  if (/\/sign-up\/email\/?$/.test(pathname)) {
+    return {
+      name: "sign-up",
+      limit: AUTH_SIGN_UP_LIMIT,
+      windowMs: AUTH_SIGN_UP_WINDOW_MS,
+      message: "Too many sign-up attempts from this network. Try again later.",
+    };
+  }
+  if (/\/(forget-password|request-password-reset|reset-password)\/?$/.test(pathname)) {
+    return {
+      name: "password-reset",
+      limit: AUTH_RESET_LIMIT,
+      windowMs: AUTH_RESET_WINDOW_MS,
+      message: "Too many password reset requests. Wait 15 minutes, then try again.",
+    };
+  }
+  return null;
 }

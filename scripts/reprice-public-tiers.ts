@@ -124,6 +124,13 @@ function writeCheckout(created: Record<string, { priceId: string; paymentLink: s
 }
 
 async function main() {
+  // CR-1 (16 Oct 2026): retired. The Oct 2026 Starter/Pro prices and links are
+  // already written into src/lib/plans.ts. Running this again would create a
+  // second set of prices. It only runs with an explicit opt-in.
+  if (process.env.REPRICE_PUBLIC_TIERS_CONFIRM !== "create-new-prices") {
+    console.log("reprice-public-tiers is retired: the live price ids are already in src/lib/plans.ts. Nothing was changed.");
+    return;
+  }
   const key = process.env.STRIPE_SECRET_KEY || loadEnv().STRIPE_SECRET_KEY || "";
   if (!key) {
     console.error("STRIPE_SECRET_KEY missing. No Stripe prices or payment links were created.");

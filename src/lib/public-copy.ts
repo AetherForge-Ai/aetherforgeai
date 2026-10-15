@@ -10,6 +10,8 @@
 import { LEGAL_ENTITY_NAME } from "@/lib/company";
 import { dexscreenerPublicDisplay } from "@/lib/dexscreener-display";
 import { swyftxPublicDisplay } from "@/lib/swyftx-display";
+import { PROJECTIONS_DESCRIPTION } from "@/lib/projections-mode";
+import { SHORT_DISCLAIMER } from "@/lib/disclaimer";
 
 /** pull-check:track-b-p0-2026-10-11 */
 /** pull-check:v3-retest9-2026-10-12 */
@@ -57,14 +59,13 @@ export const HISTORY_LENGTH_LINE = "30-day history (projections), ~6 months (sto
  * Shown on Terms, Privacy, the AI Disclaimer, and Refunds.
  * The signup consent stamp stays on TERMS_VERSION until that consent flow is re-issued.
  */
-export const LEGAL_UPDATED = "13 Oct 2026";
+export const LEGAL_UPDATED = "16 Oct 2026";
 
 /**
  * D1: share projections are a member page. The figures stay off the public
  * document. Crypto projections stay paused.
  */
-export const PROJECTIONS_MEMBER_LINE =
-  "Share projections are for signed-in members. They are general information, not advice. Crypto projections stay paused.";
+export const PROJECTIONS_MEMBER_LINE = PROJECTIONS_DESCRIPTION;
 
 /**
  * TODO(D6): Ultimate stays listed at NZ$199 a month and NZ$1,990 a year, with Talk to us.
@@ -73,7 +74,7 @@ export const PROJECTIONS_MEMBER_LINE =
 export const ULTIMATE_PRICE_PENDING_D6 = true;
 
 /** One line for the site footer and the AI Disclaimer. */
-export const ONE_LINE_DISCLAIMER = `General information only, not financial advice. ${LEGAL_ENTITY_NAME} is not a licensed financial advice provider.`;
+export const ONE_LINE_DISCLAIMER = SHORT_DISCLAIMER;
 
 /** Annual refund rule approved 13 Oct 2026. Monthly plans use MONTHLY_CANCEL_RULE. */
 export const ANNUAL_REFUND_RULE =

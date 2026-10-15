@@ -6,7 +6,7 @@ export type FreeBotChoice = "stock" | "crypto";
 
 export type FreeBotDecision =
   | { ok: true; botAccess: "stock" | "crypto" | "both" }
-  | { ok: false; status: 409; error: string };
+  | { ok: false; status: 403; error: string };
 
 export function decideFreeBotChoice(
   user: { subscription_status?: string | null; subscription_plan?: string | null; bot_access?: string | null },
@@ -19,7 +19,7 @@ export function decideFreeBotChoice(
     const have = current === "crypto" ? "Koins" : "Stox";
     return {
       ok: false,
-      status: 409,
+      status: 403,
       error: `The Free plan includes one bot. ${have} is your free bot. Upgrade to Pro to use both Stox and Koins.`,
     };
   }

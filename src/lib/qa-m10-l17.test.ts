@@ -211,14 +211,14 @@ describe("M11 money", () => {
 });
 
 describe("M14 headers", () => {
-  it("sets a one-year HSTS without preload, a report-only script policy, and no X-Frame-Options", () => {
+  it("sets a one-year HSTS without preload, an enforced script policy (CR-5), and no X-Frame-Options", () => {
     const headers = SECURITY_HEADERS as Record<string, string>;
     expect(headers["Strict-Transport-Security"]).toBe("max-age=31536000; includeSubDomains");
     expect(headers["Strict-Transport-Security"]).not.toMatch(/preload/i);
-    expect(headers["Content-Security-Policy"]).toBe(
-      "frame-ancestors 'self' https://web.totalum.app https://totalum-frontend-test.web.app"
-    );
-    expect(headers["Content-Security-Policy"]).not.toContain("script-src");
+    expect(headers["Content-Security-Policy"]).toContain("script-src 'self'");
+    expect(headers["Content-Security-Policy"]).toContain("object-src 'none'");
+    expect(headers["Content-Security-Policy"]).toContain("base-uri 'self'");
+    expect(headers["Content-Security-Policy"]).not.toContain("totalum-frontend-test");
     expect(headers["Content-Security-Policy-Report-Only"]).toContain("script-src 'self' https://www.googletagmanager.com");
     expect(headers["Content-Security-Policy-Report-Only"]).not.toContain("unsafe-inline");
     expect(headers["Permissions-Policy"]).toContain("camera=()");

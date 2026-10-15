@@ -1,34 +1,15 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getCurrentUser, isStripeConfigured, type AppUser } from "@/lib/session";
+import { getCurrentUser } from "@/lib/session";
 import { loadReportFindings, loadTotalumSynthesis, type ReportFindings } from "@/lib/totalum-service";
 import { buildStrategy, sleeveNotesForSynthesis, type GoalKey } from "@/lib/totalum-engine";
 import type { SleevePickSource } from "@/lib/sleeve-fill";
-import { headmasterDepth, type HeadmasterDepth } from "@/lib/entitlements";
+import type { HeadmasterDepth } from "@/lib/entitlements";
+import { headmasterAccess, isTotalumEntitled } from "@/lib/headmaster-access";
 import type { TotalumSynthesis } from "@/lib/totalum-engine";
 
 export const dynamic = "force-dynamic";
 
-/**
- * Headmaster depth for this member.
- * Demo mode (no Stripe key) stays open so local testing is not locked out.
- * In production, Free has no plan, Starter is basic, and Pro and above are full.
- */
-export function headmasterAccess(user: AppUser | null): HeadmasterDepth {
-  if (!user) return "none";
-  if (!isStripeConfigured()) return "full";
-  return headmasterDepth(user.subscription_plan);
-}
-
-/** Basic or full desk. Free is refused when Stripe is configured. */
-export function isTotalumEntitled(user: AppUser | null): boolean {
-  return headmasterAccess(user) !== "none";
-}
-
-/** Stress tests, the intelligence report, and the strategist. */
-export function isFullHeadmaster(user: AppUser | null): boolean {
-  return headmasterAccess(user) === "full";
-}
 
 function presentSynthesis(synthesis: TotalumSynthesis, depth: HeadmasterDepth): TotalumSynthesis {
   if (depth === "full") return synthesis;

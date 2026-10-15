@@ -10,6 +10,7 @@ import { aucklandClock } from "@/lib/product-note";
 import { emailIsVerified } from "@/lib/weekly-email";
 import { absoluteAuthUrl, escapeHtml } from "@/lib/transactional-mail";
 import { ANNUAL_REFUND_RULE, CUSTOMER_EMAIL, ONE_LINE_DISCLAIMER } from "@/lib/public-copy";
+import { LEGAL_ENTITY_NAME, NZBN } from "@/lib/company";
 
 export const RENEWAL_REMINDER_DAYS = 7;
 
@@ -118,6 +119,58 @@ export function renewalReminderMail(input: {
     `<p><a href="${escapeHtml(billing)}">Plan and billing</a></p>`,
     `<p>${escapeHtml(ONE_LINE_DISCLAIMER)}</p>`,
     `<p>${escapeHtml(CUSTOMER_EMAIL)}</p>`,
+  ].join("");
+  return { to: input.to.trim(), subject, html, text };
+}
+
+/**
+ * CR-6: trial-ending reminder template (3 days before a 14-day trial converts).
+ * Template only. Nothing in this repo sends it during QA.
+ */
+export const TRIAL_REMINDER_DAYS = 3;
+
+export function trialEndingReminderMail(input: {
+  to: string;
+  plan?: string | null;
+  trialEndsAt: string;
+}): RenewalReminderMail {
+  const endsOn = formatAucklandDate(input.trialEndsAt) ?? "the trial end date on your account";
+  const planName = planLabel(input.plan);
+  const billing = absoluteAuthUrl("/settings/billing");
+  const subject = `Your ${planName} trial ends on ${endsOn}`;
+  const lines = [
+    `Your 14-day ${planName} trial ends on ${endsOn}. After that, the card you added is charged unless you cancel.`,
+    "You can cancel any time before then in Plan and billing. Cancelling keeps your account on the Free plan.",
+  ];
+  const text = ["Hello,", "", ...lines, "", `Plan and billing: ${billing}`, "", ONE_LINE_DISCLAIMER, "", `${LEGAL_ENTITY_NAME} · NZBN ${NZBN} · ${CUSTOMER_EMAIL}`].join("\n");
+  const html = [
+    "<p>Hello,</p>",
+    ...lines.map((line) => `<p>${escapeHtml(line)}</p>`),
+    `<p><a href="${escapeHtml(billing)}">Plan and billing</a></p>`,
+    `<p>${escapeHtml(ONE_LINE_DISCLAIMER)}</p>`,
+    `<p>${escapeHtml(LEGAL_ENTITY_NAME)} · NZBN ${escapeHtml(NZBN)} · ${escapeHtml(CUSTOMER_EMAIL)}</p>`,
+  ].join("");
+  return { to: input.to.trim(), subject, html, text };
+}
+
+/**
+ * CR-6: failed-payment (dunning) template for invoice.payment_failed. Template only.
+ * The plan is kept while Stripe retries the card (past_due grace).
+ */
+export function paymentFailedMail(input: { to: string; plan?: string | null }): RenewalReminderMail {
+  const planName = planLabel(input.plan);
+  const billing = absoluteAuthUrl("/settings/billing");
+  const subject = "We couldn't take your AetherForge payment";
+  const lines = [
+    `The latest payment for your ${planName} plan didn't go through.`,
+    "Your plan stays on while the card is retried. Update the card in Plan and billing to keep it running.",
+  ];
+  const text = ["Hello,", "", ...lines, "", `Plan and billing: ${billing}`, "", `${LEGAL_ENTITY_NAME} · NZBN ${NZBN} · ${CUSTOMER_EMAIL}`].join("\n");
+  const html = [
+    "<p>Hello,</p>",
+    ...lines.map((line) => `<p>${escapeHtml(line)}</p>`),
+    `<p><a href="${escapeHtml(billing)}">Plan and billing</a></p>`,
+    `<p>${escapeHtml(LEGAL_ENTITY_NAME)} · NZBN ${escapeHtml(NZBN)} · ${escapeHtml(CUSTOMER_EMAIL)}</p>`,
   ].join("");
   return { to: input.to.trim(), subject, html, text };
 }
