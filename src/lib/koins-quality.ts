@@ -5,7 +5,7 @@
  * pull-check:v3-tier1a-2026-10-12
  */
 
-import { withholdAcrossWindows, type ApexReport, type MoverRow, type ProjectionRow } from "@/lib/apex";
+import { withholdAcrossWindows, type ApexReport, type MoverRow, type ProjectionRow } from "@/lib/bot-report";
 import { sessionGainerSentence } from "@/lib/report-copy";
 import { reviewSessionMove } from "@/lib/quote-review";
 import { KOINS_PROJECTIONS_OMITTED } from "@/lib/projection-pause";

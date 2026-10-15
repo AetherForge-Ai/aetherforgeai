@@ -106,9 +106,9 @@ export function DexMarketDialog({
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-background text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
-                  <th className="py-2 pr-3 font-medium">Token</th>
-                  <th className="py-2 pr-3 font-medium">Network</th>
-                  <th className="py-2 text-right font-medium">Price</th>
+                  <th scope="col" className="py-2 pr-3 font-medium">Token</th>
+                  <th scope="col" className="py-2 pr-3 font-medium">Network</th>
+                  <th scope="col" className="py-2 text-right font-medium">Price</th>
                 </tr>
               </thead>
               <tbody>

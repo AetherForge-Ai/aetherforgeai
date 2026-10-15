@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ApexReportView } from "@/components/bots/ApexReport";
-import type { ApexReport, BotKind } from "@/lib/apex";
+import type { ApexReport, BotKind } from "@/lib/bot-report";
 import { BOT_STOX_AVATAR, BOT_KOINS_AVATAR, BOT_HEADMASTER_AVATAR } from "../../../assets/files";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";

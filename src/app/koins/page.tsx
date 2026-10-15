@@ -19,7 +19,7 @@ export default function KoinsPage() {
       kind="koins"
       images={[
         { src: "/brand/bot-koins.png", alt: "Illustration of the Koins character" },
-        { src: "/brand/bot-koins-fullbody.png", alt: "Full-length illustration of the Koins character" },
+        { src: "/brand/bot-koins-fullbody.webp", alt: "Full-length illustration of the Koins character" },
       ]}
       extra={<KoinsSnapshotPrices />}
     />

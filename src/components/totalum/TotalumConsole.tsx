@@ -235,11 +235,11 @@ function SynthesisTab({ s }: { s: TotalumSynthesis }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border/60 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-                <th className="px-2 py-2">Position</th>
-                <th className="px-2 py-2">Class</th>
-                <th className="px-2 py-2 text-right">Weight</th>
-                <th className="px-2 py-2 text-right">Value</th>
-                <th className="px-2 py-2 text-right">P/L</th>
+                <th scope="col" className="px-2 py-2">Position</th>
+                <th scope="col" className="px-2 py-2">Class</th>
+                <th scope="col" className="px-2 py-2 text-right">Weight</th>
+                <th scope="col" className="px-2 py-2 text-right">Value</th>
+                <th scope="col" className="px-2 py-2 text-right">P/L</th>
               </tr>
             </thead>
             <tbody>
@@ -553,12 +553,12 @@ function StrategyTab({ initialSynthesis }: { initialSynthesis: TotalumSynthesis 
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border/60 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-                    <th className="px-2 py-2">Asset class</th>
-                    <th className="px-2 py-2 text-right">Current</th>
-                    <th className="px-2 py-2 text-right">Target</th>
-                    <th className="px-2 py-2 text-right">Drift</th>
-                    <th className="px-2 py-2 text-center">Scenario</th>
-                    <th className="px-2 py-2 text-right">Amount</th>
+                    <th scope="col" className="px-2 py-2">Asset class</th>
+                    <th scope="col" className="px-2 py-2 text-right">Current</th>
+                    <th scope="col" className="px-2 py-2 text-right">Target</th>
+                    <th scope="col" className="px-2 py-2 text-right">Drift</th>
+                    <th scope="col" className="px-2 py-2 text-center">Scenario</th>
+                    <th scope="col" className="px-2 py-2 text-right">Amount</th>
                   </tr>
                 </thead>
                 <tbody>

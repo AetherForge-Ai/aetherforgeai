@@ -15,7 +15,7 @@ import { totalumSdk } from "@/lib/totalum";
 import { getMetalsSpot } from "@/lib/metals";
 import { getFxSnapshot } from "@/lib/fx";
 import type { Stock } from "@/lib/portfolio";
-import type { ApexReport, BotKind } from "@/lib/apex";
+import type { ApexReport, BotKind } from "@/lib/bot-report";
 import {
   buildSynthesis,
   type MetalHolding,

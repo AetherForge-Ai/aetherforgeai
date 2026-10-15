@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser, isStripeConfigured, hasActiveSubscription } from "@/lib/session";
-import { type BotKind } from "@/lib/apex";
+import { type BotKind } from "@/lib/bot-report";
 import { generateReportForUser } from "@/lib/report-service";
 
 const schema = z.object({ bot: z.enum(["stock", "crypto"]) });

@@ -16,6 +16,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { dividendDeleteEffect } from "@/lib/dashboard-tabs";
 import { formatNzd } from "@/lib/currency";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { isTradeLine, tradeDeleteCopy, type TradeEditFields } from "@/lib/ledger-row-edit";
 import { formatLedgerQtyPrice } from "@/lib/ledger-line-format";
 import { MISSING_MARK, pageLedger, type PortfolioSnapshot, type SnapshotLedgerLine } from "@/lib/portfolio-snapshot";
 
@@ -29,6 +32,7 @@ export function TransactionsTab({
   onRecord,
   onEdit,
   onDeleteDividend,
+  onEditTrade,
 }: {
   snapshot: PortfolioSnapshot | null;
   loading: boolean;
@@ -36,7 +40,10 @@ export function TransactionsTab({
   onRetry?: () => void;
   onRecord: () => void;
   onEdit: (line: SnapshotLedgerLine) => void;
+  /** Removes one dividend, buy or sell (the server refuses an oversell). */
   onDeleteDividend: (line: SnapshotLedgerLine) => Promise<void> | void;
+  /** BL-7: edit one buy or sell. Resolves true when saved. */
+  onEditTrade?: (line: SnapshotLedgerLine, fields: TradeEditFields) => Promise<boolean>;
 }) {
   const [q, setQ] = useState("");
   const [type, setType] = useState("all");
@@ -45,6 +52,8 @@ export function TransactionsTab({
   const [showAll, setShowAll] = useState(false);
   const [pending, setPending] = useState<SnapshotLedgerLine | null>(null);
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState<SnapshotLedgerLine | null>(null);
+  const [draft, setDraft] = useState({ quantity: "", price: "", fees: "" });
 
   const types = useMemo(() => {
     const set = new Set<string>();
@@ -208,15 +217,26 @@ export function TransactionsTab({
                     <td className="whitespace-nowrap px-3 py-3 text-right">{line.whenLabel}</td>
                     <td className="px-2 py-3 text-right">
                       <span className="flex flex-col items-stretch gap-1">
-                        <Button type="button" size="sm" variant="outline" onClick={() => onEdit(line)}>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          aria-label={`Edit ${line.type} ${line.ticker}`}
+                          onClick={() => {
+                            if (onEditTrade && isTradeLine(line)) {
+                              setDraft({ quantity: String(line.quantity ?? ""), price: String(line.price ?? ""), fees: "" });
+                              setEditing(line);
+                            } else onEdit(line);
+                          }}
+                        >
                           Edit
                         </Button>
-                        {line.type === "dividend" ? (
-                          <Button type="button" size="sm" variant="outline" onClick={() => setPending(line)}>
+                        {line.type === "dividend" || (onEditTrade && isTradeLine(line)) ? (
+                          <Button type="button" size="sm" variant="outline" aria-label={`Delete ${line.type} ${line.ticker}`} onClick={() => setPending(line)}>
                             Delete
                           </Button>
                         ) : (
-                          <Button type="button" size="sm" variant="outline" disabled title="Only a dividend can be removed from this list.">
+                          <Button type="button" size="sm" variant="outline" disabled title="This row cannot be removed from this list.">
                             Delete
                           </Button>
                         )}
@@ -256,11 +276,17 @@ export function TransactionsTab({
       <AlertDialog open={pending != null} onOpenChange={(open) => !open && !busy && setPending(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove this dividend?</AlertDialogTitle>
+            <AlertDialogTitle>{pending && isTradeLine(pending) ? `Remove this ${pending.type}?` : "Remove this dividend?"}</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm text-muted-foreground">
-                <p>Cash before {effect?.cashBefore}. Cash impact {effect?.lineImpact}. Cash after {effect?.cashAfter}.</p>
-                <p>{effect?.reason}</p>
+                {pending && isTradeLine(pending) ? (
+                  <p>{tradeDeleteCopy(pending)}</p>
+                ) : (
+                  <>
+                    <p>Cash before {effect?.cashBefore}. Cash impact {effect?.lineImpact}. Cash after {effect?.cashAfter}.</p>
+                    <p>{effect?.reason}</p>
+                  </>
+                )}
                 <p>Cancel changes nothing.</p>
               </div>
             </AlertDialogDescription>
@@ -279,7 +305,55 @@ export function TransactionsTab({
                 });
               }}
             >
-              {busy ? "Removing…" : "Remove dividend"}
+              {busy ? "Removing…" : pending && isTradeLine(pending) ? `Remove ${pending.type}` : "Remove dividend"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={editing != null} onOpenChange={(open) => !open && !busy && setEditing(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{editing ? `Edit this ${editing.type} of ${editing.ticker}?` : "Edit trade"}</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cash, the holding and FIFO gains are worked out again from the edited row. A change that leaves a later sell
+              with more units than you hold is refused. Leave fees blank to keep them. Cancel changes nothing.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {(["quantity", "price", "fees"] as const).map((field) => (
+              <div key={field} className="space-y-1">
+                <Label htmlFor={`trade-edit-${field}`} className="capitalize">{field}</Label>
+                <Input
+                  id={`trade-edit-${field}`}
+                  inputMode="decimal"
+                  value={draft[field]}
+                  onChange={(event) => setDraft((d) => ({ ...d, [field]: event.target.value }))}
+                />
+              </div>
+            ))}
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={busy || !editing}
+              onClick={(event) => {
+                event.preventDefault();
+                if (!editing || !onEditTrade) return;
+                setBusy(true);
+                const fields: TradeEditFields = {
+                  quantity: draft.quantity === "" ? undefined : Number(draft.quantity),
+                  price: draft.price === "" ? undefined : Number(draft.price),
+                  fees: draft.fees === "" ? undefined : Number(draft.fees),
+                };
+                void onEditTrade(editing, fields)
+                  .then((saved) => {
+                    if (saved) setEditing(null);
+                  })
+                  .finally(() => setBusy(false));
+              }}
+            >
+              {busy ? "Saving…" : "Save change"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

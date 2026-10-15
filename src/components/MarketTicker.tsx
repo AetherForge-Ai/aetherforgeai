@@ -94,6 +94,7 @@ function TickerRow({
   source,
   delay,
   failedRefreshes,
+  emptyText,
 }: {
   quotes: Quote[];
   animationClass: string;
@@ -104,6 +105,7 @@ function TickerRow({
   source: string;
   delay: string;
   failedRefreshes: number;
+  emptyText?: string;
 }) {
   // A chip with no price (e.g. "BTC" alone) is left out rather than shown as a bare symbol.
   quotes = quotes.filter((q) => Number.isFinite(q.price) && q.price > 0);
@@ -154,7 +156,7 @@ function TickerRow({
           </div>
           </>
         ) : (
-          <span className="px-4 text-[0.72rem] text-muted-foreground">{PUBLIC_PRICE_QUIET}</span>
+          <span className="px-4 text-[0.72rem] text-muted-foreground">{emptyText ?? PUBLIC_PRICE_QUIET}</span>
         )}
         <div className="pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-zinc-950 to-transparent" />
         <div className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-zinc-950 to-transparent" />
@@ -350,22 +352,13 @@ export function MarketTicker({ className, compact = false, initial = null, initi
     failedRefreshes,
   });
 
-  if (!loaded) {
-    return (
-      <div
-        className={cn("w-full border-y border-emerald-500/20 bg-zinc-950", className)}
-        aria-busy="true"
-        aria-label="Market prices"
-      >
-        <div className="h-8 animate-pulse bg-zinc-900" />
-      </div>
-    );
-  }
-
+  // H-4/M-1: no short placeholder. The same rows render while loading so the
+  // page below does not move when prices arrive (CLS).
+  const emptyText = loaded ? undefined : "Loading prices…";
   if (compact) {
     const blend = [...nzx.slice(0, 6), ...asx.slice(0, 5), ...crypto.slice(0, 5)];
     return (
-      <div className={cn("w-full border-y border-border/50", className)} title={statusTitle}>
+      <div className={cn("w-full border-y border-border/50", className)} title={statusTitle} data-market-ticker="compact" aria-busy={!loaded || undefined}>
         <TickerRow
           quotes={blend}
           animationClass="animate-ticker"
@@ -376,8 +369,9 @@ export function MarketTicker({ className, compact = false, initial = null, initi
           source={equitySource}
           delay={equityDelay}
           failedRefreshes={failedRefreshes}
+          emptyText={emptyText}
         />
-        {feedBadge.tone !== "green" ? (
+        {loaded && feedBadge.tone !== "green" ? (
           <p className="bg-zinc-950 px-3 py-1 text-[0.65rem] text-muted-foreground">{feedBadge.why}</p>
         ) : null}
         <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-zinc-950 px-3 py-1 text-[0.6rem] text-muted-foreground">
@@ -390,14 +384,14 @@ export function MarketTicker({ className, compact = false, initial = null, initi
           >
             {display === "NZD" ? "Showing NZ$" : "Show NZ$"}
           </button>
-          <span>{fxReady ? fxRateLine(fx.rates) : "NZ$ prices appear when today's exchange rate loads."}</span>
+          <span>{fxReady ? fxRateLine(fx.rates) : "Loading today's NZ$ exchange rate…"}</span>
         </div>
       </div>
     );
   }
 
   return (
-    <div className={cn("w-full", className)}>
+    <div className={cn("w-full", className)} data-market-ticker="full" aria-busy={!loaded || undefined}>
       <TickerRow
         quotes={nzx}
         animationClass="animate-ticker"
@@ -408,6 +402,7 @@ export function MarketTicker({ className, compact = false, initial = null, initi
         source={equitySource}
         delay={equityDelay}
         failedRefreshes={failedRefreshes}
+        emptyText={emptyText}
       />
       <TickerRow
         quotes={asx}
@@ -419,6 +414,7 @@ export function MarketTicker({ className, compact = false, initial = null, initi
         source={equitySource}
         delay={equityDelay}
         failedRefreshes={failedRefreshes}
+        emptyText={emptyText}
       />
       <TickerRow
         quotes={crypto}
@@ -430,8 +426,9 @@ export function MarketTicker({ className, compact = false, initial = null, initi
         source={providers.crypto || "Public crypto prices"}
         delay="Delayed or indicative"
         failedRefreshes={failedRefreshes}
+        emptyText={emptyText}
       />
-      {feedBadge.tone !== "green" ? (
+      {loaded && feedBadge.tone !== "green" ? (
         <p className="border-b border-emerald-500/20 bg-zinc-950 px-3 py-1 text-[0.65rem] text-muted-foreground">{feedBadge.why}</p>
       ) : null}
       <MetalsSpotBanner initial={initialMetals} />
@@ -463,7 +460,7 @@ export function MarketTicker({ className, compact = false, initial = null, initi
         >
           {display === "NZD" ? "Showing NZ$" : "Show NZ$"}
         </button>
-        <span>{fxReady ? fxRateLine(fx.rates) : "NZ$ prices appear when today's exchange rate loads."}</span>
+        <span>{fxReady ? fxRateLine(fx.rates) : "Loading today's NZ$ exchange rate…"}</span>
       </div>
     </div>
   );

@@ -1,6 +1,8 @@
 import { PublicGuide } from "@/components/public/PublicGuide";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { loadStatusFeeds } from "@/lib/status-feeds.server";
+import { NO_INCIDENTS_LINE, STATUS_INCIDENTS } from "@/lib/docs-guides";
+import { formatDisplayDateTime } from "@/lib/currency";
 
 export const dynamic = "force-dynamic";
 
@@ -16,11 +18,21 @@ export default async function StatusPage() {
       kicker="AetherForge AI · Status"
       title="Status"
       lede="The times below are the latest provider timestamps this page could read. This page does not report uptime."
-      notes={feeds.map((feed) => ({
-        title: feed.label,
-        body: feed.tone === "amber" ? "unavailable" : feed.text,
-        tone: feed.tone,
-      }))}
+      notes={[
+        ...feeds.map((feed) => ({
+          title: feed.label,
+          body: feed.tone === "amber" ? "unavailable" : `Last OK ${feed.text} (NZ time)`,
+          tone: feed.tone,
+        })),
+        STATUS_INCIDENTS.length
+          ? {
+              title: "Incident history",
+              body: STATUS_INCIDENTS.map(
+                (i) => `${formatDisplayDateTime(i.startedAt)} to ${i.resolvedAt ? formatDisplayDateTime(i.resolvedAt) : "ongoing"}: ${i.title}. ${i.detail}`
+              ).join(" "),
+            }
+          : { title: "Incident history", body: NO_INCIDENTS_LINE },
+      ]}
       links={[
         {
           href: "/trust",

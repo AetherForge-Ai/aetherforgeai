@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import { LEDGER_ROW_EDIT } from "@/lib/feature-flags";
+import { editedTradeRow, originalTradeInput } from "@/lib/ledger-row-edit";
+import { firstOversell, OVERSELL_BLOCK, type ReversalTxn } from "@/lib/ledger-reversal";
 import { getStableSessionUser, getTradeSessionUser } from "@/lib/session";
 import { applyTransaction, ledgerAfterBooking, loadLedger } from "@/lib/transactions";
 import { tradeSchema } from "@/lib/trade-schema";
@@ -181,13 +184,21 @@ export async function DELETE(req: Request) {
     if (String(owner || "") !== String(user._id)) {
       return NextResponse.json({ ok: false, error: "That dividend was not found." }, { status: 404 });
     }
-    if (String(row.type || "") !== "dividend") {
+    const type = String(row.type || "");
+    const trade = type === "buy" || type === "sell";
+    if (type !== "dividend" && !(trade && LEDGER_ROW_EDIT)) {
       return NextResponse.json(
         { ok: false, error: "Only a dividend can be removed from this page." },
         { status: 400 }
       );
     }
+    // BL-7: dry run first, so an oversell is refused before anything is written.
+    const dry = await planOrApplyLedgerReversal(id, false);
+    if ((dry as { blockedReason?: string | null }).blockedReason) {
+      return NextResponse.json({ ok: false, error: (dry as { blockedReason: string }).blockedReason }, { status: 409 });
+    }
     const result = await planOrApplyLedgerReversal(id, true);
+    ledgerAudit("delete", user._id, row, result);
     invalidateBookCache(user._id);
     return NextResponse.json({ ok: true, data: result });
   } catch (err: unknown) {
@@ -196,3 +207,94 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ ok: false, error: message }, { status: 400 });
   }
 }
+
+/** BL-7 audit trail: one structured line per row change, kept in the platform log. */
+function ledgerAudit(action: "delete" | "edit", userId: string, row: unknown, result: unknown) {
+  const r = row as { _id?: string; type?: string; ticker?: string; quantity?: number; price?: number; executed_at?: string };
+  const out = result as { cash?: { before?: number; after?: number }; holding?: { action?: string } } | undefined;
+  console.info(
+    "[ledger-audit]",
+    JSON.stringify({
+      at: new Date().toISOString(),
+      action,
+      user: userId,
+      row: { id: r?._id, type: r?.type, ticker: r?.ticker, quantity: r?.quantity, price: r?.price, executed_at: r?.executed_at },
+      cash: out?.cash,
+      holding: out?.holding?.action,
+    })
+  );
+}
+
+/**
+ * PATCH /api/transactions — BL-7 single-row edit of a buy or sell (LEDGER_ROW_EDIT).
+ * Body: { id, quantity?, price?, fees?, executed_at?, confirm: true }.
+ * The old row is reversed (cash, holding, FIFO) and the edited row is booked
+ * through the normal trade path, so every total is recomputed the same way.
+ * A change that would oversell a later sell is refused before any write.
+ */
+export async function PATCH(req: Request) {
+  try {
+    if (!LEDGER_ROW_EDIT) return NextResponse.json({ ok: false, error: "Row edit is not enabled." }, { status: 404 });
+    const user = await getTradeSessionUser();
+    if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    if (user.identityConflict || requestClaimsOtherUser(req, user._id)) return accountMismatchResponse(user._id);
+    const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+    const id = typeof body.id === "string" ? body.id.trim() : "";
+    if (!id) return NextResponse.json({ ok: false, error: "A row id is required." }, { status: 400 });
+    if (body.confirm !== true) return NextResponse.json({ ok: false, error: TRADE_CONFIRM_REQUIRED }, { status: 400 });
+    const loaded = await totalumSdk.crud.getRecordById("transaction", id);
+    const row = (loaded as { data?: Record<string, unknown> & { _id?: string; user?: string | { _id?: string } } })?.data;
+    const owner = row && (typeof row.user === "object" && row.user ? row.user._id : row.user);
+    if (!row?._id || String(owner || "") !== String(user._id)) {
+      return NextResponse.json({ ok: false, error: "That row was not found." }, { status: 404 });
+    }
+    const type = String(row.type || "");
+    if (type !== "buy" && type !== "sell") {
+      return NextResponse.json({ ok: false, error: "Only a buy or a sell can be edited here." }, { status: 400 });
+    }
+    const edited = editedTradeRow(row as never, body);
+    if ("error" in edited) return NextResponse.json({ ok: false, error: edited.error }, { status: 400 });
+
+    const all = await totalumSdk.crud.query("transaction", { _filter: { user: user._id }, _limit: 5000 });
+    const rows = ((all?.data as unknown as ReversalTxn[]) || []).map((r) => (r._id === id ? { ...r, ...edited.row } : r));
+    if (firstOversell(rows, String(row.ticker || ""), String(row.asset_type || "stock").toLowerCase())) {
+      return NextResponse.json({ ok: false, error: OVERSELL_BLOCK }, { status: 409 });
+    }
+
+    const original = originalTradeInput(row);
+    const input = { ...original, ...edited.row };
+    if (type === "buy") {
+      // Book the edited buy first. The original row is untouched until that
+      // succeeds, so a failure leaves the ledger exactly as it was.
+      const result = await applyTransaction(user, input as never, {});
+      const newId = String((result.transaction as { _id?: string } | undefined)?._id || "");
+      try {
+        const reversed = await planOrApplyLedgerReversal(id, true);
+        ledgerAudit("edit", user._id, { ...row, ...edited.row, replaced: id, _id: newId }, reversed);
+      } catch (err) {
+        if (newId) await planOrApplyLedgerReversal(newId, true).catch((e) => console.error("[api/transactions] PATCH undo failed", e));
+        throw err;
+      }
+      invalidateBookCache(user._id);
+      return NextResponse.json({ ok: true, data: { transaction: result.transaction, cashBalance: result.cashBalance } });
+    }
+    // A sell is reversed first so the edited sell is checked against the
+    // holding without the old sell. If booking fails, the original is booked
+    // again with every field it had (same time, price, fees, FX, notes).
+    const reversed = await planOrApplyLedgerReversal(id, true);
+    try {
+      const result = await applyTransaction(user, input as never, {});
+      ledgerAudit("edit", user._id, { ...row, ...edited.row, replaced: id }, reversed);
+      invalidateBookCache(user._id);
+      return NextResponse.json({ ok: true, data: { transaction: result.transaction, cashBalance: result.cashBalance } });
+    } catch (err) {
+      await applyTransaction(user, original as never, {}).catch((e) => console.error("[api/transactions] PATCH restore failed", e));
+      invalidateBookCache(user._id);
+      throw err;
+    }
+  } catch (err: unknown) {
+    console.error("[api/transactions] PATCH error:", err);
+    return NextResponse.json({ ok: false, error: err instanceof Error ? err.message : "That row was not changed." }, { status: 400 });
+  }
+}
+

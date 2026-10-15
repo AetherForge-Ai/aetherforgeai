@@ -25,6 +25,10 @@ export function usagePercent(used: number | null | undefined, limit: number | nu
 
 /** Main grid: two columns from xl (1280px); right column 22rem (352px). */
 export const RAIL_GRID_CLASS = "mt-4 grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]";
-/** D6/D7: sticky on xl with its own scroll; below xl a card grid above the holdings. */
+/**
+ * D6/D7 + M-6: below xl a card grid above the holdings. From xl the column is
+ * sticky only when the window is at least 720px tall (`.rail-aside-fit` in
+ * globals.css); shorter windows scroll it with the page so no card is clipped.
+ */
 export const RAIL_ASIDE_CLASS =
-  "grid min-w-0 content-start gap-4 sm:grid-cols-2 lg:order-first xl:order-none xl:sticky xl:top-24 xl:-m-1 xl:max-h-[calc(100vh-11rem)] xl:grid-cols-1 xl:overflow-y-auto xl:overscroll-contain xl:p-1";
+  "rail-aside-fit grid min-w-0 content-start gap-4 sm:grid-cols-2 lg:order-first xl:order-none xl:-m-1 xl:grid-cols-1 xl:p-1";

@@ -1,6 +1,7 @@
 import { PublicGuide } from "@/components/public/PublicGuide";
 import { JsonLd } from "@/components/public/JsonLd";
 import { DOC_LINKS } from "@/lib/help-index";
+import { DOCS_GUIDES } from "@/lib/docs-guides";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { breadcrumbJsonLd } from "@/lib/public-schema";
 
@@ -23,7 +24,7 @@ export default function DocsPage() {
         kicker="AetherForge AI · Docs"
         title="Docs"
         lede="Start with how the product works, what the AI is allowed to say, and the policies that apply. AetherForge does not hold your assets and does not place trades."
-        links={DOC_LINKS}
+        links={[...DOCS_GUIDES.map((g) => ({ href: `/docs/${g.slug}`, title: `Guide: ${g.title}`, body: g.summary })), ...DOC_LINKS]}
       />
     </>
   );

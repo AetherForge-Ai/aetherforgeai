@@ -79,7 +79,7 @@ export default async function BillingSettingsPage() {
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
               {snapshot.planName === "Apex Dual" ? (
-                <p className="text-sm text-muted-foreground">This account is on Apex Dual.</p>
+                <p className="text-sm text-muted-foreground">This account is on the legacy Apex Dual plan.</p>
               ) : (
               <Button asChild>
                 <Link href={snapshot.upgradeHref}>Compare plans</Link>

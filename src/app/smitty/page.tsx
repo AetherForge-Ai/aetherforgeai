@@ -16,7 +16,7 @@ export default function SmittyPage() {
       kind="smitty"
       images={[
         { src: "/brand/bot-smitty.png", alt: "Illustration of the Smitty character" },
-        { src: "/brand/bot-smitty-fullbody.png", alt: "Full-length illustration of the Smitty character" },
+        { src: "/brand/bot-smitty-fullbody.webp", alt: "Full-length illustration of the Smitty character" },
       ]}
     />
   );

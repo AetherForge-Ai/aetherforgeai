@@ -97,10 +97,13 @@ describe("dashboard right column D1–D10", () => {
     expect(w).toContain("focus-visible:ring-2");
   });
   it("D6/D7/D8: sticky internal scroll on xl, grid under summary below xl, clear of header and Guide", () => {
-    expect(RAIL_ASIDE_CLASS).toContain("xl:sticky xl:top-24");
-    expect(RAIL_ASIDE_CLASS).toContain("xl:overflow-y-auto");
+    // M-6 kept D6/D7: sticky with internal scroll on xl, now only when the window fits.
+    expect(RAIL_ASIDE_CLASS).toContain("rail-aside-fit");
     expect(RAIL_ASIDE_CLASS).toContain("lg:order-first");
-    expect(RAIL_ASIDE_CLASS).toContain("xl:max-h-[calc(100vh-11rem)]");
+    const css = require("node:fs").readFileSync(require("node:path").join(process.cwd(), "src/app/globals.css"), "utf8");
+    expect(css).toMatch(/@media \(min-width: 1280px\) and \(min-height: 720px\)\s*\{\s*\.rail-aside-fit \{\s*position: sticky;/);
+    expect(css).toContain("max-height: calc(100vh - 7rem);");
+    expect(css).toContain("overflow-y: auto;");
     expect(RAIL_GRID_CLASS).toContain("xl:grid-cols-[minmax(0,1fr)_22rem]");
   });
   it("D-usage: plan usage lines", () => {
@@ -120,7 +123,7 @@ describe("dashboard right column D1–D10", () => {
 });
 describe("fresh2 version pin", () => {
   it("build version and marker", () => {
-    expect(r("public/build-version.txt").trim()).toBe("v3-must-fix-b3-2026-10-16");
+    expect(r("public/build-version.txt").trim()).toBe("v3-must-fix-b4-2026-10-16");
     expect(r("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-tt-fresh2-2026-10-15");
   });
 });

@@ -16,9 +16,9 @@ export function ExampleBook({ kind = "headmaster" }: { kind?: BotGuideKind }) {
       <table className="mt-4 w-full text-sm">
         <thead>
           <tr className="border-b border-border/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
-            <th className="py-2 font-medium">Name</th>
-            <th className="py-2 font-medium">Quantity</th>
-            <th className="py-2 font-medium">Note</th>
+            <th scope="col" className="py-2 font-medium">Name</th>
+            <th scope="col" className="py-2 font-medium">Quantity</th>
+            <th scope="col" className="py-2 font-medium">Note</th>
           </tr>
         </thead>
         <tbody>
