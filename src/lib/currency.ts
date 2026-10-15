@@ -597,3 +597,14 @@ export function formatSignedPercent(value: number, decimals = 2): string {
   const sign = rounded > 0 ? "+" : "";
   return `${sign}${rounded.toFixed(decimals)}%`;
 }
+
+/**
+ * H-8: a fee is money taken off the proceeds, so it reads with a minus sign
+ * ("−NZ$5.00") whatever sign the ledger stores it with. Display only.
+ */
+export function formatFeeDeducted(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return "—";
+  const rounded = Math.abs(roundMoney(value));
+  if (rounded === 0) return formatMoney(0, "NZD", { decimals: 2 });
+  return `−${formatMoney(rounded, "NZD", { decimals: 2 })}`;
+}

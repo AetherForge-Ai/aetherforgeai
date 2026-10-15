@@ -57,8 +57,9 @@ export async function commitImportInOrder(steps: readonly ImportWriteStep[], io:
 export function newImportBatchId(): string {
   const bytes = new Uint8Array(8);
   const cryptoObj = globalThis.crypto;
-  if (cryptoObj?.getRandomValues) cryptoObj.getRandomValues(bytes);
-  else for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+  // H-10: Web Crypto only. Node 18+, browsers and Workers all provide it.
+  if (!cryptoObj?.getRandomValues) throw new Error("Secure random is not available.");
+  cryptoObj.getRandomValues(bytes);
   const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
   return `imp${hex}`;
 }

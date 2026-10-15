@@ -1,3 +1,4 @@
+import { csvEscape } from "@/lib/csv-cell";
 /**
  * Realised profit and loss for one 1 April–31 March year.
  * Lots close oldest first. Crypto disposals are listed on their own.
@@ -431,10 +432,6 @@ export const REALISED_CSV_COLUMNS = [
   "Label",
 ] as const;
 
-function csvEscape(value: unknown): string {
-  const text = value == null ? "" : String(value);
-  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-}
 
 function cellMoney(value: number | null): string {
   if (value == null) return "";

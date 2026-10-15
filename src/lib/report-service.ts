@@ -3,7 +3,7 @@ import { totalumSdk } from "@/lib/totalum";
 import { buildLiveReport, type LiveHolding, type BotKind } from "@/lib/apex";
 import { applyMarketsSessionChange } from "@/lib/markets-session";
 import { renderReportHtml, type ReportAlert } from "@/lib/report-html";
-import { analyzeSecurity, analyzeUniverse, getMarketNews, universeFor, type SecurityIntel } from "@/lib/market-intel";
+import { analyzeSecurity, staleDataHold, analyzeUniverse, getMarketNews, universeFor, type SecurityIntel } from "@/lib/market-intel";
 import { loadMarketNews } from "@/lib/market-news";
 import { computePortfolioMetrics, buildActionableIntelligence } from "@/lib/analytics";
 import { getUpcomingEvents } from "@/lib/econ-calendar";
@@ -257,7 +257,7 @@ export async function generateReportForUser(
   // delisted / acquired / renamed name (no live price) is dropped automatically
   // rather than appearing on stale synthetic data.
   let marketOverrides: Record<string, number> = {};
-  let universeQuotes: Record<string, { price: number; changePct?: number }> = {};
+  let universeQuotes: Record<string, { price: number; changePct?: number; quotedAt?: string }> = {};
   let equityHistories: Record<string, number[]> = {};
   try {
     const universeTickers = universeFor(bot).map((e) => e.ticker);
@@ -287,7 +287,11 @@ export async function generateReportForUser(
   if (bot !== "crypto") {
     technicals = stockObjs.map((s) => {
       const series = equityHistories[s.ticker] ?? equityHistories[s.ticker.toUpperCase()];
-      return labelIntel(analyzeSecurity(s.ticker, s.current_price || undefined, s.company_name, undefined, series));
+      const printAt = (universeQuotes[s.ticker] ?? universeQuotes[s.ticker.toUpperCase()])?.quotedAt;
+      // H-12: a last print more than 3 trading days old holds the row.
+      return labelIntel(
+        staleDataHold(analyzeSecurity(s.ticker, s.current_price || undefined, s.company_name, undefined, series), printAt)
+      );
     });
   }
 

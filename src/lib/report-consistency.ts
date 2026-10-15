@@ -1,3 +1,4 @@
+import { cleanReportProse } from "@/lib/report-prose";
 /**
  * One rating per asset for Stox and Koins reports.
  *
@@ -725,7 +726,11 @@ function mapReportProse<T extends GuardedReportFields>(report: T, clean: (value:
 }
 
 export function sanitizeGuardedReport<T extends GuardedReportFields>(report: T, figures?: LiveCashFigures): T {
-  const priced = mapReportProse(report, (value) => rewriteLegacyCashIllustration(value, figures));
+  // H-6: plain text, no Headmaster upsell in Stox/Koins prose, neutral words.
+  const allowHeadmaster = (report as { bot?: string }).bot === "headmaster";
+  const priced = mapReportProse(report, (value) =>
+    cleanReportProse(rewriteLegacyCashIllustration(value, figures), { allowHeadmaster })
+  );
   const blob = reportProse(priced);
   const tape = stricterTape(tapeFromOverall(priced.briefing?.overall), textImpliesGuardedTape(blob));
   const named = urgesNamedCashDeploy(blob);

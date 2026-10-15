@@ -102,8 +102,11 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   if (isJunkCoin(decodeURIComponent(id))) {
     return { title: pageTitle("Token not listed"), robots: { index: false, follow: false } };
   }
-  const copy = cryptoDetailCopy((await loadCryptoDetailFacts(id)).facts);
-  return publicPageMetadata(`/markets/crypto/${id}`, copy);
+  const loaded = await loadCryptoDetailFacts(id);
+  const copy = cryptoDetailCopy(loaded.facts);
+  const meta = publicPageMetadata(`/markets/crypto/${id}`, copy);
+  // H-3: a coin page with no price is not indexed.
+  return loaded.facts.priceUsd == null ? { ...meta, robots: { index: false, follow: true } } : meta;
 }
 
 /**

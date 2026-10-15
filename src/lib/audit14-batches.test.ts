@@ -140,6 +140,6 @@ describe("audit 14 Oct batches A–D", () => {
     expect(read("src/app/register/page.tsx")).toContain('aria-label="I am 18 or over');
     expect(read("src/lib/private-document.ts")).toContain("TODO(M2)");
     expect(read("src/lib/private-document.ts")).toContain("bypasses on the auth cookie");
-    expect(read("src/app/returns/page.tsx")).toContain("Money-weighted return");
+    expect(read("src/app/my-returns/page.tsx")).toContain("Money-weighted return");
   });
 });

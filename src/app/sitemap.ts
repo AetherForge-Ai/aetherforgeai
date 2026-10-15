@@ -5,7 +5,7 @@ const siteUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.aetherforgeai.co
 
 /**
  * Public sitemap. /blog stays off and noindex until there are posts.
- * /returns is the signed-in return calculator, so it is not listed.
+ * /my-returns is the signed-in return calculator, so it is not listed.
  * /projections is a signed-in member page, so it stays off this list and noindex.
  * /performance is a dated sample, so it is not listed as daily.
  */
@@ -27,6 +27,7 @@ const ENTRIES: Array<{
   { path: "/refunds", changeFrequency: "monthly", priority: 0.4, lastModified: "2026-10-13" },
   { path: "/ai-disclaimer", changeFrequency: "monthly", priority: 0.4, lastModified: "2026-10-13" },
   { path: "/trust", changeFrequency: "monthly", priority: 0.6, lastModified: "2026-10-13" },
+  { path: "/methodology", changeFrequency: "monthly", priority: 0.5, lastModified: "2026-10-16" },
   { path: "/docs", changeFrequency: "monthly", priority: 0.6, lastModified: "2026-10-10" },
   { path: "/help", changeFrequency: "monthly", priority: 0.5, lastModified: "2026-10-10" },
   { path: "/tax", changeFrequency: "monthly", priority: 0.5, lastModified: "2026-10-10" },

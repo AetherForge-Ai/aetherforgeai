@@ -124,7 +124,7 @@ describe("dashboard PR4 and PR5", () => {
     expect(nextAucklandMonthLabel("2026-10")).toBe("1 Nov 2026");
     const waiting = headerQuotaCopy({ loaded: false, remaining: null, limit: null, monthKey: null, nextAllowedAt: null, monthly: true });
     expect(waiting.text).toBe("—");
-    expect(waiting.reason).toMatch(/not loaded/i);
+    expect(waiting.reason).toMatch(/report allowance/i);
     const live = headerQuotaCopy({
       loaded: true,
       remaining: 4,

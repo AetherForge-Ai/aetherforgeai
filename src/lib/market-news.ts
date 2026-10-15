@@ -131,6 +131,23 @@ function relevanceFor(text: string, assetClass: AssetClass, market: MarketCode |
   return Math.max(40, Math.min(98, score));
 }
 
+const FINANCE_TERMS =
+  /\b(market|markets|share|shares|stock|stocks|nzx|asx|wall street|nasdaq|dow|s&p|index|earnings|profit|revenue|dividend|guidance|rbnz|ocr|reserve bank|interest rate|rates?|inflation|cpi|gdp|economy|economic|bond|yield|currency|dollar|kiwi|fx|commodit|oil|gold|bitcoin|crypto|ethereum|investor|fund|kiwisaver|ipo|merger|acquisition|takeover|trade|tariff|budget|treasury|bank|company|firm|price|prices|sales|exports?|imports?)\b/i;
+const POLITICS_ONLY =
+  /\b(election|poll|polls|campaign|parliament|minister|mp|caucus|labour party|national party|greens|act party|nz first|te pāti māori|te pati maori|protest|coalition|senate|congress|republican|democrat|white house|trump|biden|harris|prime minister|premier)\b/i;
+
+/**
+ * H-13: keep finance stories. A story that reads as politics and carries no
+ * finance term (rates, markets, companies, trade, budget) is dropped.
+ */
+const MARKET_TERMS =
+  /\b(nzx|asx|nasdaq|wall street|s&p|sharemarket|stock market|shares|earnings|dividend|rbnz|ocr|reserve bank|interest rates?|inflation|cpi|gdp|bond yields?|kiwisaver|ipo|takeover|tariffs?)\b/i;
+
+export function isFinanceRelevant(text: string): boolean {
+  if (POLITICS_ONLY.test(text)) return MARKET_TERMS.test(text);
+  return FINANCE_TERMS.test(text);
+}
+
 function toNewsItem(raw: RawStory, assetClass: AssetClass): NewsItem | null {
   if (!raw.url.startsWith("http") || !hasArticlePath(raw.url)) return null;
   if (Number.isNaN(raw.publishedAt.getTime())) return null;
@@ -138,6 +155,7 @@ function toNewsItem(raw: RawStory, assetClass: AssetClass): NewsItem | null {
   const summary = decodeHtmlEntities(raw.summary || raw.headline);
   const source = decodeHtmlEntities(raw.source);
   const blob = `${headline} ${summary}`;
+  if (assetClass !== "crypto" && !isFinanceRelevant(blob)) return null;
   const market = raw.marketHint ?? inferMarket(blob, assetClass === "crypto" ? "CRYPTO" : "Global");
   const { sentiment } = keywordSentiment(headline, summary === headline ? "" : summary);
   const url = raw.url;
