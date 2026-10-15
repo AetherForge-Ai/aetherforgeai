@@ -230,7 +230,10 @@ describe("stock quote chain", () => {
 
 describe("stock sitemap and the pull-check marker", () => {
   it("lists named ticker pages and stays under the sitemap limit", () => {
+    // H-13: stock pages join the sitemap only when indexing is switched on.
+    process.env.STOCK_PAGE_INDEXING = "1";
     const rows = sitemap();
+    delete process.env.STOCK_PAGE_INDEXING;
     expect(rows.length).toBeLessThan(50_000);
     const paths = new Set(rows.map((row) => new URL(row.url).pathname));
     expect(paths.has("/markets/stock/FBU.NZ")).toBe(true);

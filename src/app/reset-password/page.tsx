@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader } from "@/components/ui/card";
 import Link from "next/link";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { BrandLogo } from "@/components/BrandLogo";
@@ -76,7 +76,7 @@ function ResetPasswordForm() {
               <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-green-500/10 text-green-500">
                 <CheckCircle2 className="size-7" />
               </div>
-              <CardTitle className="text-2xl font-bold tracking-tight">Password updated</CardTitle>
+              <h1 data-slot="card-title" className="text-2xl font-bold tracking-tight leading-none">Password updated</h1>
               <CardDescription className="text-base">
                 Your password has been reset. Redirecting you to sign in...
               </CardDescription>
@@ -93,7 +93,7 @@ function ResetPasswordForm() {
               <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-destructive/10 text-destructive">
                 <AlertTriangle className="size-7" />
               </div>
-              <CardTitle className="text-2xl font-bold tracking-tight">Invalid or expired link</CardTitle>
+              <h1 data-slot="card-title" className="text-2xl font-bold tracking-tight leading-none">Invalid or expired link</h1>
               <CardDescription className="text-base">
                 This password reset link is no longer valid. Reset links expire after 1 hour — please request a new one.
               </CardDescription>
@@ -107,7 +107,7 @@ function ResetPasswordForm() {
         ) : (
           <>
             <CardHeader className="space-y-2 text-center pb-6">
-              <CardTitle className="text-3xl font-bold tracking-tight">Set a new password</CardTitle>
+              <h1 data-slot="card-title" className="text-3xl font-bold tracking-tight leading-none">Set a new password</h1>
               <CardDescription className="text-base">
                 Choose a strong password you haven&apos;t used before.
               </CardDescription>
@@ -175,7 +175,7 @@ export default function ResetPasswordPage() {
       <div className="min-h-screen flex items-center justify-center px-4 bg-gradient-to-br from-background to-muted/20">
         <Card className="w-full max-w-md shadow-xl border-2">
           <CardHeader className="space-y-2 text-center pb-6">
-            <CardTitle className="text-3xl font-bold tracking-tight">Set a new password</CardTitle>
+            <h1 data-slot="card-title" className="text-3xl font-bold tracking-tight leading-none">Set a new password</h1>
             <CardDescription className="text-base">Loading...</CardDescription>
           </CardHeader>
         </Card>

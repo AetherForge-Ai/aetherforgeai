@@ -6,6 +6,7 @@ import { PAPER_FEE_SUMMARY } from "@/lib/fee-rule";
 import { breadcrumbJsonLd } from "@/lib/public-schema";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { publicDataSourcesLine } from "@/lib/data-sources";
+import { QUOTE_DELAY_TABLE } from "@/lib/market-freshness";
 import {
   AI_REQUEST_LINES,
   CUSTOMER_EMAIL,
@@ -18,6 +19,7 @@ import {
 } from "@/lib/public-copy";
 import { AI_PROVIDER_API_SENTENCE, nameAiProvider } from "@/lib/ai-provider-disclosure";
 import {
+  TRUST_HOSTING_LINE,
   TRUST_PAGE_LOG,
   trustBreachLine,
   trustDeletionLine,
@@ -77,6 +79,13 @@ export default function TrustPage() {
           <section className="mt-8 space-y-2">
             <h2 className="font-display text-lg font-bold">How fresh the figures are</h2>
             <p className="text-sm leading-relaxed text-muted-foreground">{FRESHNESS_PLAIN}</p>
+            <ul className="list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-muted-foreground">
+              {QUOTE_DELAY_TABLE.map((row) => (
+                <li key={row.market}>
+                  <span className="font-semibold text-foreground">{row.market}</span> — {row.source}, {row.delay}.
+                </li>
+              ))}
+            </ul>
           </section>
 
           <section className="mt-8 space-y-2">
@@ -104,6 +113,7 @@ export default function TrustPage() {
           <section className="mt-8 space-y-2">
             <h2 className="font-display text-lg font-bold">Where the book is stored</h2>
             <p className="text-sm leading-relaxed text-muted-foreground">{trustStorageLine()}</p>
+            <p className="text-sm leading-relaxed text-muted-foreground">{TRUST_HOSTING_LINE}</p>
           </section>
 
           <section className="mt-8 space-y-2">

@@ -452,12 +452,22 @@ function MobileDrawer({
  * (marketing + app) via SiteHeader and AppShell, so the primary menu never
  * changes shape or relocates to a sidebar when entering the portfolio.
  */
+export const AUTH_PAGE_PATHS = ["/login", "/register", "/forgot-password", "/reset-password", "/verify-email"] as const;
+
+export function isAuthPagePath(pathname: string | null | undefined): boolean {
+  if (!pathname) return false;
+  return AUTH_PAGE_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
+
 export function TopNav() {
   const { user } = useLiveSessionUser();
   const memberDashboard = useMemberDashboardPrompt();
-  const pending = user === undefined;
-  const loggedIn = !!user;
   const pathname = usePathname();
+  // H-14: auth pages always render the logged-out header, even if a stale
+  // session cookie is still around, so no avatar or Dashboard button shows.
+  const authPage = isAuthPagePath(pathname);
+  const pending = !authPage && user === undefined;
+  const loggedIn = !authPage && !!user;
 
   return (
     <>

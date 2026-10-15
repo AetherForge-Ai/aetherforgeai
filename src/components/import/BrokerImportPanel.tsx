@@ -1,5 +1,6 @@
 "use client";
 
+import { importFileProblem } from "@/lib/import-limits";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -95,6 +96,12 @@ export function BrokerImportPanel({
   }, [text]);
 
   async function readFile(file: File) {
+    const problem = importFileProblem(file);
+    if (problem) {
+      setImportError(problem);
+      setFileKey((k) => k + 1);
+      return;
+    }
     const body = await file.text();
     setText(body);
     setFileName(file.name);

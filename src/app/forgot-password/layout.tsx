@@ -1,3 +1,4 @@
+import { SiteHeader } from "@/components/SiteHeader";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 
 export const metadata = publicPageMetadata("/forgot-password", {
@@ -6,5 +7,10 @@ export const metadata = publicPageMetadata("/forgot-password", {
 });
 
 export default function ForgotPasswordLayout({ children }: { children: React.ReactNode }) {
-  return children;
+  return (
+    <div className="min-h-screen bg-background">
+      <SiteHeader />
+      {children}
+    </div>
+  );
 }

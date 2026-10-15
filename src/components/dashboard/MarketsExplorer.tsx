@@ -1,5 +1,6 @@
 "use client";
 
+import { boardPageCountLine } from "@/lib/stock-markets";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -83,6 +84,7 @@ export interface MarketPayload {
   page?: number;
   pageCount?: number;
   coverage?: string;
+  listed?: number;
   note?: string;
   unpricedCount?: number;
   footnote?: string | null;
@@ -689,6 +691,13 @@ export function MarketsExplorer({
   const total = isCryptoTab ? cryptoListed : data?.total ?? 0;
   const liveCount = isCryptoTab ? cryptoListed : data?.liveCount ?? 0;
   const asOf = isCryptoTab ? "" : data?.asOf ?? "";
+  const stockCountLine = boardPageCountLine({
+    pageRows: rows.length,
+    priced: liveCount,
+    covered: data?.matchTotal ?? total,
+    listed: data?.listed,
+    page: data?.page,
+  });
   const hasData = isDexTab ? dex.rows.length > 0 || seededDex : isCoinTab ? crypto.coins.length > 0 || seededCrypto : !!data;
   const cryptoPageCount = Math.max(1, Math.ceil(rows.length / CRYPTO_PAGE_SIZE));
   const cryptoPageSafe = Math.min(cryptoPage, cryptoPageCount - 1);
@@ -861,7 +870,7 @@ export function MarketsExplorer({
               : hasData || remoteHits.length
               ? isCryptoTab
                 ? countLine(isDexTab ? "DEX tokens" : "coins", rows.length)
-                : `${data?.coverage || `${total} names in the ${tab} list`}${liveCount > 0 && liveCount !== total ? ` · prices available for ${liveCount} of the ${total} on this page` : ""}${remoteLoading ? " · searching…" : ""}${remoteHits.length && query.trim() ? ` · +${remoteHits.length} market match${remoteHits.length === 1 ? "" : "es"}` : ""}`
+                : `${stockCountLine}${remoteLoading ? " · searching…" : ""}${remoteHits.length && query.trim() ? ` · +${remoteHits.length} market match${remoteHits.length === 1 ? "" : "es"}` : ""}`
               : stockLoading
               ? "Loading the list…"
               : loadingRows
@@ -1165,8 +1174,7 @@ export function MarketsExplorer({
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/60 px-1 pt-3">
           <p className="text-xs text-muted-foreground">
             Page {data?.page || stockPage} of {data?.pageCount || 1}
-            {data?.coverage ? ` · ${data.coverage}` : ""}
-            {` · ${rows.length} names on this page`}
+            {` · ${stockCountLine}`}
           </p>
           <div className="flex items-center gap-2">
             <Button

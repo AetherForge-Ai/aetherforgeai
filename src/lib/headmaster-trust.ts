@@ -96,7 +96,7 @@ export function sharedReserveSentence(cashNZD: number, bookNZD?: number): string
   const retained = bookCashReserve(book).retainedNZD;
   const deployable = Math.max(0, Math.round((cash - retained) * 100) / 100);
   const money = (value: number) => formatNzd(value);
-  return `Cash on book ${money(cash)}. Cash reserve ${money(retained)}, capped at ${money(retained)} (10% of the live book of ${money(book)}). Illustrate at most ${money(deployable)} from that cash — the same cash rule as the Headmaster skeleton.`;
+  return `Cash on book ${money(cash)}. Cash reserve ${money(retained)}, capped at ${money(retained)} (10% of the live book of ${money(book)}). Illustrate at most ${money(deployable)} from that cash. Every report uses this cash rule.`;
 }
 
 export function bookCashReserve(bookNZD: number): {

@@ -671,3 +671,4 @@ TT fresh audit 2026-10-14 fixes (U1–U5, H1–H11, M1–M16, LOW): marker `pull
 TT fresh2 follow-up (review, leftovers, dashboard right column D1–D10): marker `pull-check:v3-tt-fresh2-2026-10-15`
 TT fresh3 signed-out /dashboard copy: marker `pull-check:v3-tt-fresh3-2026-10-15`
 Merged must-fix batch 1 (CR-1 to CR-6): marker `pull-check:v3-must-fix-b1-2026-10-16`
+Must-fix batch 2 (High H-1..H-15): marker `pull-check:v3-must-fix-b2-2026-10-16`

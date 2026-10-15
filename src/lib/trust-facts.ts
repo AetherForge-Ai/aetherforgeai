@@ -14,7 +14,7 @@ export const TRUST_HSTS = "max-age=31536000; includeSubDomains";
 
 export const TRUST_STORAGE_NAME = "Totalum on Google Cloud";
 
-export const TRUST_RETENTION_PHRASE = "do not set a retention period";
+export const TRUST_RETENTION_PHRASE = "We do not log the text of these requests";
 
 /** Phrases copied from the privacy policy. The test checks each one is still there. */
 export const TRUST_PRIVACY_PHRASES = [
@@ -38,14 +38,23 @@ export const TRUST_PAGE_LOG = [
   },
   {
     date: "11 Oct 2026",
-    change: "The AI provider is named on this page. No retention period is set by our code.",
+    change: "The AI provider is named on this page.",
   },
   {
     date: "13 Oct 2026",
     change:
       "The provider row uses the 30-day API wording. Google Analytics is described as running only after analytics cookies are accepted.",
   },
+  {
+    date: "16 Oct 2026",
+    change:
+      "Added the data sources and delay table, where the site runs, and a retention statement for AI requests.",
+  },
 ] as const;
+
+/** H-15: where the site runs. Cloudflare serves pages; Totalum (Google Cloud) stores the book. */
+export const TRUST_HOSTING_LINE =
+  "Pages and APIs run on Cloudflare's global network. The paper book and account data are stored by Totalum on Google Cloud. Traffic is encrypted in transit (HTTPS with HSTS).";
 
 export function trustTransportLine(): string {
   const hsts = SECURITY_HEADERS["Strict-Transport-Security"];

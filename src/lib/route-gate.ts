@@ -32,6 +32,7 @@ const PUBLIC_DOCUMENT_ROUTES = [
   "/ai-disclaimer",
   "/legal",
   "/trust",
+  "/methodology",
   "/free-trial",
   "/chat",
   "/own-the-bots",
@@ -65,7 +66,7 @@ const MEMBER_DOCUMENT_ROUTES = [
   "/import",
   // Same gate as import. The explainer stays on /help.
   // pull-check:batch2-fixes-2026-10-12
-  "/returns",
+  "/my-returns",
 ];
 
 function normalise(pathname: string): string {

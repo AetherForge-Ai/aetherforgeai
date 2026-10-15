@@ -1,7 +1,7 @@
 import { formatDisplayDate } from "@/lib/currency";
 import { aucklandMonthKey } from "@/lib/entitlements";
 
-export const QUOTA_NOT_LOADED = "Quota has not loaded.";
+export const QUOTA_NOT_LOADED = "Checking your report allowance…";
 
 export interface ReportRunControl {
   disabled: boolean;
