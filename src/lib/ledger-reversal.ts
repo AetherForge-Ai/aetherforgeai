@@ -44,6 +44,8 @@ export interface LedgerReversalPlan {
   holdingAfter: TickerPosition | null;
   /** delete when the replay is flat; create when a sell had removed the row. */
   holdingAction: "update" | "delete" | "create" | "unchanged";
+  /** Set when applying would break the ledger (BL-7 oversell guard). */
+  blockedReason?: string | null;
 }
 
 function round6(n: number): number {
@@ -110,6 +112,30 @@ export function replayTickerPosition(rows: ReversalTxn[], ticker: string, assetT
   return { shares: round6(shares), averageCost: round6(avg) };
 }
 
+/**
+ * BL-7 oversell guard. Replays filled buys and sells for one instrument,
+ * oldest first, WITHOUT clamping. Returns the id of the first sell that
+ * would take the position below zero, or null when every sell is covered.
+ */
+export function firstOversell(rows: ReversalTxn[], ticker: string, assetType: string): string | null {
+  const key = ticker.trim().toUpperCase();
+  const ordered = rows
+    .filter((row) => isFilledTrade(row) && sameInstrument(row, key, assetType))
+    .slice()
+    .sort((a, b) => new Date(a.executed_at || a.createdAt || 0).getTime() - new Date(b.executed_at || b.createdAt || 0).getTime());
+  let shares = 0;
+  for (const row of ordered) {
+    const qty = Number(row.quantity) || 0;
+    if (!(qty > 0)) continue;
+    shares += String(row.type).toLowerCase() === "buy" ? qty : -qty;
+    if (shares < -1e-6) return row._id;
+  }
+  return null;
+}
+
+export const OVERSELL_BLOCK =
+  "This change would leave a later sell with more units than you hold. Change or remove that sell first.";
+
 export function planLedgerReversal(
   userId: string,
   target: ReversalTxn,
@@ -170,5 +196,6 @@ export function planLedgerReversal(
     holdingBefore,
     holdingAfter,
     holdingAction,
+    blockedReason: ticker && firstOversell(remaining, ticker, assetType) ? OVERSELL_BLOCK : null,
   };
 }
