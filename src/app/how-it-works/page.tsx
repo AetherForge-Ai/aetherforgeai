@@ -248,7 +248,7 @@ const BUY_GUIDES = [
   {
     icon: Building2,
     title: "How to acquire and exit shares",
-    color: "text-emerald-600",
+    color: "text-emerald-700",
     steps: [
       "Open an account with a broker like Sharesies, Tiger Trade or Interactive Brokers and verify your identity.",
       "Deposit funds from your bank, then search for a company by its ticker (e.g. FPH.NZ, AAPL).",
@@ -580,7 +580,7 @@ export default function HowItWorksPage() {
 
           {/* Stocks */}
           <div className="mb-3 flex items-center gap-2">
-            <Building2 className="size-5 text-emerald-600" />
+            <Building2 className="size-5 text-emerald-700" />
             <h3 className="font-display text-xl font-bold">Shares & ETFs</h3>
           </div>
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
@@ -661,7 +661,7 @@ export default function HowItWorksPage() {
             <div className="rounded-3xl border border-border/70 bg-card/40 p-8">
               <div className="flex items-center gap-3">
                 <div className="flex size-12 items-center justify-center rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/20 to-transparent">
-                  <History className="size-6 text-emerald-600" />
+                  <History className="size-6 text-emerald-700" />
                 </div>
                 <div>
                   <h3 className="font-display text-xl font-bold">History of stock trading</h3>

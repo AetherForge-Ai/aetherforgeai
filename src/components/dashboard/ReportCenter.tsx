@@ -720,7 +720,7 @@ export function ReportCenter({
                 ? "bg-muted text-muted-foreground"
                 : anyLocked
                   ? "bg-[var(--gold)]/20 text-[var(--gold)]"
-                  : "bg-emerald-500/20 text-emerald-600"
+                  : "bg-emerald-500/20 text-emerald-700"
             )}
           >
             {!preview && !historyLoaded ? <Loader2 className="size-5 animate-spin" /> : anyLocked ? <Clock className="size-5" /> : <Zap className="size-5" />}
@@ -756,7 +756,7 @@ export function ReportCenter({
                     ) : historyError && !quotaReady ? (
                       <span>Reports did not load.</span>
                     ) : q.allowed ? (
-                      <span className="text-emerald-600">
+                      <span className="text-emerald-700">
                         {reportRunStatus(
                           true,
                           formatReportCooldownLine({
@@ -982,7 +982,7 @@ export function ReportCenter({
                       </Badge>
                     )}
                     {reportPayloadWasEmailed(r.payload) && !reportReadsAsNotCurrent(r.executiveSummary || r.textBody || "") && (
-                      <Badge variant="outline" className="border-emerald-500/30 text-emerald-600">
+                      <Badge variant="outline" className="border-emerald-500/30 text-emerald-700">
                         <Mail className="mr-1 size-3" /> Emailed
                       </Badge>
                     )}

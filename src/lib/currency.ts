@@ -586,7 +586,7 @@ export function formatUsdWithRate(
   const amount = formatMoney(nzd * rate, "USD", { decimals: opts.decimals ?? 2 });
   const taken = formatDailyRate(asOfIso);
   const suffix = opts.suffix ?? "";
-  return `≈ ${amount}${suffix} · 1 NZD = US$${rate.toFixed(4)}${taken ? ` · ${taken}` : ""}`;
+  return `≈ ${amount}${suffix} approx., you're charged in NZD · 1 NZD = US$${rate.toFixed(4)}${taken ? ` · ${taken}` : ""}`;
 }
 
 /** Short signed percent, e.g. "+2.4%". A figure that rounds to zero has no minus. */

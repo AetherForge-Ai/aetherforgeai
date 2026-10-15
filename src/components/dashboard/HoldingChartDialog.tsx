@@ -174,7 +174,7 @@ export function HoldingChartDialog({
                     className={cn(
                       "rounded-xl px-3 py-2 text-right ring-1",
                       up
-                        ? "bg-emerald-500/10 text-emerald-600 ring-emerald-500/25"
+                        ? "bg-emerald-500/10 text-emerald-700 ring-emerald-500/25"
                         : "bg-rose-500/10 text-rose-600 ring-rose-500/25"
                     )}
                   >
@@ -249,7 +249,7 @@ export function HoldingChartDialog({
                   <p
                     className={cn(
                       "tnum mt-0.5 text-sm font-semibold",
-                      sevenDayChange ? (up ? "text-emerald-600" : "text-rose-600") : ""
+                      sevenDayChange ? (up ? "text-emerald-700" : "text-rose-600") : ""
                     )}
                   >
                     {sevenDayChange
@@ -265,7 +265,7 @@ export function HoldingChartDialog({
                   <p
                     className={cn(
                       "tnum mt-0.5 text-sm font-semibold",
-                      posUp ? "text-emerald-600" : "text-rose-600"
+                      posUp ? "text-emerald-700" : "text-rose-600"
                     )}
                   >
                     {posUp ? "+" : "−"}

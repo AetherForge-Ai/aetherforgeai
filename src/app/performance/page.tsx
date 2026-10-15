@@ -71,7 +71,7 @@ export default function PerformancePage() {
               sample of one paper book.
             </p>
             <p>
-              {PERFORMANCE_SAMPLE.definition} That is one example from that session. It is not a claim that AetherForge beats
+              {PERFORMANCE_SAMPLE.definition} That is one example from those two days. It is not a claim that AetherForge beats
               every platform, and it is not a promise that results will be positive again.
             </p>
             <p>

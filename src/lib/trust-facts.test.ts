@@ -35,8 +35,8 @@ describe("trust page facts", () => {
     expect(trustStorageLine()).toBe("Totalum on Google Cloud handles account storage.");
     expect(trustStorageLine()).not.toMatch(/region|sydney|australia-|us-central|europe-/i);
 
-    expect(AI_REQUEST_LINES.join(" ")).toContain("We do not log the text of these requests");
-    expect(trustAiRetentionLine()).toContain("We do not log the text of these requests");
+    expect(AI_REQUEST_LINES.join(" ")).toContain("Our code does not write the text of these requests to its logs");
+    expect(trustAiRetentionLine()).toContain("Our code does not write the text of these requests to its logs");
     expect(trustExportLine()).toBe(LEDGER_EXPORT_LINE);
 
     const privacy = read("src/app/privacy-policy/page.tsx").replace(/\s+/g, " ");

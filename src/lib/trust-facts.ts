@@ -14,7 +14,7 @@ export const TRUST_HSTS = "max-age=31536000; includeSubDomains";
 
 export const TRUST_STORAGE_NAME = "Totalum on Google Cloud";
 
-export const TRUST_RETENTION_PHRASE = "We do not log the text of these requests";
+export const TRUST_RETENTION_PHRASE = "Our code does not write the text of these requests to its logs";
 
 /** Phrases copied from the privacy policy. The test checks each one is still there. */
 export const TRUST_PRIVACY_PHRASES = [

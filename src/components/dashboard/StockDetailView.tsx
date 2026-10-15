@@ -286,7 +286,7 @@ export function StockDetailView({
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="tnum font-display text-3xl font-bold">{formatMarketPrice(q.price, currency)}</p>
-          <p className={cn("tnum mt-1 flex items-center gap-1 text-sm font-semibold", up ? "text-emerald-600" : "text-rose-600")}>
+          <p className={cn("tnum mt-1 flex items-center gap-1 text-sm font-semibold", up ? "text-emerald-700" : "text-rose-600")}>
             {up ? <ArrowUp className="size-4" /> : <ArrowDown className="size-4" />}
             {q.changeAbs >= 0 ? "+" : "−"}
             {Math.abs(q.changeAbs).toFixed(q.price < 5 ? 4 : 2)} ({q.changePct > 0 ? "+" : q.changePct < 0 ? "−" : ""}{Math.abs(q.changePct).toFixed(2)}%)

@@ -129,7 +129,7 @@ function MoverColumn({
       <div
         className={cn(
           "mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide",
-          tone === "up" ? "text-emerald-600" : "text-rose-600"
+          tone === "up" ? "text-emerald-700" : "text-rose-600"
         )}
       >
         {tone === "up" ? <TrendingUp className="size-3.5" /> : <TrendingDown className="size-3.5" />} {title}
@@ -166,7 +166,7 @@ function EquityTopMovers() {
 
       <div className="mt-5 grid gap-6 md:grid-cols-2">
         <div>
-          <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-emerald-600">
+          <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-emerald-700">
             <TrendingUp className="size-3.5" /> Gainers
           </div>
           <div className="divide-y divide-border/40">

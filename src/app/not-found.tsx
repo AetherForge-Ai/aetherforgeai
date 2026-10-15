@@ -21,10 +21,8 @@ export default function NotFound() {
       <SiteHeader />
       <div className="mx-auto my-8 flex max-w-lg items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-4 py-16 text-white" data-not-found>
       <div className="text-center">
-        <h1 className="font-display text-6xl font-bold text-white">404</h1>
-        <h2 className="mt-2 text-3xl font-semibold text-white">
-          Page not found
-        </h2>
+        <p className="font-display text-6xl font-bold text-white" aria-hidden="true">404</p>
+        <h1 className="mt-2 text-3xl font-semibold text-white">Page not found</h1>
         <p className="mx-auto mt-4 max-w-md text-slate-300">
           Sorry, we couldn't find the page you're looking for. Please check the URL or navigate back to the homepage.
         </p>
