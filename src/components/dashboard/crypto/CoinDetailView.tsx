@@ -386,7 +386,7 @@ export function CoinDetailView({
         <p
           className={cn(
             "tnum mt-0.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold",
-            up ? "bg-emerald-500/12 text-emerald-600" : "bg-rose-500/12 text-rose-600"
+            up ? "bg-emerald-500/12 text-emerald-700" : "bg-rose-500/12 text-rose-600"
           )}
         >
           {up ? <ArrowUp className="size-3.5" /> : <ArrowDown className="size-3.5" />}

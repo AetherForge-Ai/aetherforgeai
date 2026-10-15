@@ -61,7 +61,7 @@ const EXCHANGE_BADGE: Record<string, string> = {
   ASX: "border-amber-500/30 text-amber-500",
   NZX: "border-sky-500/30 text-sky-500",
   NASDAQ: "border-violet-500/30 text-violet-500",
-  NYSE: "border-emerald-500/30 text-emerald-500",
+  NYSE: "border-emerald-500/30 text-emerald-700",
 };
 
 export function TickerSearch({

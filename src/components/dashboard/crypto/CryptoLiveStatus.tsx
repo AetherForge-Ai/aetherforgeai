@@ -10,7 +10,7 @@ export function CryptoLiveStatus({ updatedAt }: { updatedAt: number | null }) {
       className="inline-flex flex-wrap items-center gap-2 text-xs text-muted-foreground"
       data-testid="crypto-live-status"
     >
-      <span title="Pacific/Auckland" className={freshness.live ? "font-semibold text-emerald-600" : undefined}>
+      <span title="Pacific/Auckland" className={freshness.live ? "font-semibold text-emerald-700" : undefined}>
         {freshness.label}
       </span>
     </div>

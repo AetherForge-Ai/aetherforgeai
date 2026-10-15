@@ -189,7 +189,7 @@ function MoveCell({ value, reason }: { value: number | null | undefined; reason:
   if (value == null || !Number.isFinite(value)) return <DashCell reason={reason} />;
   const up = value >= 0;
   return (
-    <span className={cn("tnum font-semibold", up ? "text-emerald-600" : "text-rose-600")}>
+    <span className={cn("tnum font-semibold", up ? "text-emerald-700" : "text-rose-600")}>
       {value > 0 ? "+" : value < 0 ? "−" : ""}
       {formatMarketChangePercent(Math.abs(value))}%
     </span>
@@ -864,7 +864,7 @@ export function MarketsExplorer({
         </div>
         <div className="flex flex-col items-end gap-0.5">
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Radio className={cn("size-3.5", liveCount > 0 ? "text-emerald-600" : "text-muted-foreground")} />
+            <Radio className={cn("size-3.5", liveCount > 0 ? "text-emerald-700" : "text-muted-foreground")} />
             {(isDexTab ? dex.error : isCoinTab ? crypto.error : loadError)
               ? (isDexTab ? dex.error : isCoinTab ? crypto.error : loadError)
               : hasData || remoteHits.length
@@ -1065,14 +1065,14 @@ export function MarketsExplorer({
                           <span
                             className={cn(
                               "tnum inline-flex items-center justify-end gap-0.5 font-semibold",
-                              up ? "text-emerald-600" : "text-rose-600"
+                              up ? "text-emerald-700" : "text-rose-600"
                             )}
                           >
                             {up ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />}
                             {r.changePct > 0 ? "+" : r.changePct < 0 ? "−" : ""}
                             {formatMarketChangePercent(r.changePct)}%
                           </span>
-                          <span className={cn("tnum block text-[0.62rem]", up ? "text-emerald-600/70" : "text-rose-600/70")}>
+                          <span className={cn("tnum block text-[0.62rem]", up ? "text-emerald-700/70" : "text-rose-600/70")}>
                             {isCryptoTab || r.coinId
                               ? fmtAbs(r.changeAbs ?? 0, r.price)
                               : formatStockChangeAmount(r.changeAbs ?? 0)}
