@@ -673,3 +673,4 @@ TT fresh3 signed-out /dashboard copy: marker `pull-check:v3-tt-fresh3-2026-10-15
 Merged must-fix batch 1 (CR-1 to CR-6): marker `pull-check:v3-must-fix-b1-2026-10-16`
 Must-fix batch 2 (High H-1..H-15): marker `pull-check:v3-must-fix-b2-2026-10-16`
 Must-fix batch 3 (Medium, Low, BL, B2 partials): marker `pull-check:v3-must-fix-b3-2026-10-16`
+Batch 4 must-fix: BL-7 M-8 M-6 M-7 H-1 M-5 M-2 H-4/M-1/M-10 CR-5 M-11: marker `pull-check:v3-must-fix-b4-2026-10-16`
