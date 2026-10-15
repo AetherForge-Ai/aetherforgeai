@@ -104,7 +104,7 @@ describe("public copy does not name a model", () => {
       "src/app/changelog/page.tsx",
       "src/lib/changelog-entries.ts",
       "src/app/help/page.tsx",
-      "src/app/returns/page.tsx",
+      "src/app/my-returns/page.tsx",
       "src/app/stox/page.tsx",
       "src/app/koins/page.tsx",
       "src/app/smitty/page.tsx",
@@ -142,7 +142,7 @@ describe("public surface routes", () => {
     expect(docLinks).toContain('href: "/how-it-works"');
     expect(docLinks).toContain('href: "/ai-disclaimer"');
     expect(docLinks).toContain('href: "/pricing#faq"');
-    expect(docLinks).toContain('href: "/returns"');
+    expect(docLinks).toContain('href: "/my-returns"');
     expect(docLinks).not.toContain('href: "/blog"');
     expect(docs).not.toContain('href: "/blog"');
     expect(read("src/app/blog/page.tsx")).toContain("/market-news");

@@ -5,7 +5,7 @@ import { forgetPassword } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, } from "@/components/ui/card";
 import Link from "next/link";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { BrandLogo } from "@/components/BrandLogo";
@@ -60,7 +60,7 @@ export default function ForgotPasswordPage() {
               <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-primary/10 text-primary">
                 <MailCheck className="size-7" />
               </div>
-              <CardTitle className="text-2xl font-bold tracking-tight">Check your email</CardTitle>
+              <h1 data-slot="card-title" className="text-2xl font-bold tracking-tight leading-none">Check your email</h1>
               <CardDescription className="text-base">
                 If an account exists for <span className="font-semibold text-foreground">{email}</span>, we&apos;ve
                 sent a password reset link. It expires in 1 hour.
@@ -89,7 +89,7 @@ export default function ForgotPasswordPage() {
         ) : (
           <>
             <CardHeader className="space-y-2 text-center pb-6">
-              <CardTitle className="text-3xl font-bold tracking-tight">Forgot password?</CardTitle>
+              <h1 data-slot="card-title" className="text-3xl font-bold tracking-tight leading-none">Reset your password</h1>
               <CardDescription className="text-base">
                 Enter your email and we&apos;ll send you a secure link to reset it.
               </CardDescription>

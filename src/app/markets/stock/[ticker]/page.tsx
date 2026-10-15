@@ -60,6 +60,10 @@ function listingFor(ticker: string) {
   return { entry, exchangeLabel: board ? exchangeLabel(board) : "", board };
 }
 
+function stockPageIndexingEnabled(): boolean {
+  return process.env.STOCK_PAGE_INDEXING === "1";
+}
+
 export async function generateMetadata({
   params,
 }: {
@@ -70,10 +74,13 @@ export async function generateMetadata({
   const { entry, exchangeLabel, board } = listingFor(symbolKey);
   const symbol = symbolKey.replace(/\.(NZ|AX|L)$/i, "");
   if (!entry) {
-    return publicPageMetadata(`/markets/stock/${ticker}`, {
-      title: `${symbolKey} · Stock · AetherForge AI`,
-      description: `${symbolKey} on AetherForge markets. Paper research, not a broker.`,
-    });
+    return {
+      ...publicPageMetadata(`/markets/stock/${ticker}`, {
+        title: `${symbolKey} · Stock · AetherForge AI`,
+        description: `${symbolKey} on AetherForge markets. Paper research, not a broker.`,
+      }),
+      robots: { index: false, follow: true },
+    };
   }
   const inSitemap = isSitemapStock(entry.ticker);
   const needsQuoteCheck = (board === "NASDAQ" || board === "NYSE") && !inSitemap;
@@ -82,7 +89,10 @@ export async function generateMetadata({
     title: `${entry.name} (${symbol}) · ${exchangeLabel} · AetherForge AI`,
     description: `${listingSentence(entry.name, entry.sector, exchangeLabel)} Symbol ${symbol}. The price is shown when this response has one. Paper research, not a broker.`,
   });
-  if (usPageShouldNoindex({ board, inSitemap, hasQuote })) {
+  // H-13: a stock page is a price card plus a listing line, well under 300
+  // words of unique text, so it is not indexed until the long-form summary
+  // ships. STOCK_PAGE_INDEXING=1 turns indexing back on for sitemap names.
+  if (!stockPageIndexingEnabled() || usPageShouldNoindex({ board, inSitemap, hasQuote })) {
     return { ...meta, robots: { index: false, follow: true } };
   }
   return meta;

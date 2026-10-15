@@ -155,13 +155,26 @@ export function parseQuoteTime(value: string | number | Date | null | undefined)
 }
 
 /**
- * Open-session delay words.
- * The 7 Oct 2026 brief states "~20 min" for NZX. Yahoo Help's delay table, recorded in
- * docs/data-licensing-options-2026-10-11.md, also lists ASX as 20 min.
- * TODO(owner): confirm the US share-price delay. Do not print a minute figure until it is known.
+ * Open-session delay words (H-1). One table, used by every view and by /trust.
+ * Yahoo's delay table (docs/data-licensing-options-2026-10-11.md) lists NZX and
+ * ASX at 20 min. US prints carry the plain word "Delayed": we do not print a
+ * minute figure the vendor has not stated for that feed.
  */
+export const QUOTE_DELAY_WORDS: Record<EquityVenue, string> = {
+  NZX: "Delayed ~20 min",
+  ASX: "Delayed ~20 min",
+  US: "Delayed",
+};
+
+export const QUOTE_DELAY_TABLE: ReadonlyArray<{ market: string; source: string; delay: string }> = [
+  { market: "NZX shares", source: "Yahoo Finance", delay: "about 20 minutes while the market is open; last close otherwise" },
+  { market: "ASX shares", source: "Yahoo Finance", delay: "about 20 minutes while the market is open; last close otherwise" },
+  { market: "US shares", source: "Yahoo Finance", delay: "delayed while the market is open (the vendor does not state a fixed figure); last close otherwise" },
+  { market: "Crypto", source: "CoinGecko", delay: "a few minutes; a quote older than 5 minutes is labelled with its age" },
+];
+
 function openDelayWords(venue: EquityVenue): string {
-  return venue === "NZX" || venue === "ASX" ? "Delayed ~20 min" : "Delayed";
+  return QUOTE_DELAY_WORDS[venue];
 }
 
 /**

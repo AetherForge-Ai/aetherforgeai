@@ -135,7 +135,7 @@ export function DividendLedgerView({
     });
     if (duplicate && !confirmDuplicate) {
       setConfirmDuplicate(true);
-      const warning = `A ${selected.ticker} dividend for this date and amount is already recorded. Select "Record dividend" again to record a second one.`;
+      const warning = `A ${selected.ticker} dividend for this date and amount is already recorded. Save anyway, or cancel.`;
       setMessage(warning);
       toast.warning(warning);
       return;
@@ -334,7 +334,24 @@ export function DividendLedgerView({
             <p className="text-sm text-rose-700">{preview.message}</p>
           ) : null}
           {message ? <p className="text-sm text-muted-foreground">{message}</p> : null}
-          {holdings.length > 0 ? (
+          {holdings.length > 0 && confirmDuplicate ? (
+            <div role="alert" className="flex flex-wrap items-center gap-2" data-testid="duplicate-dividend-warning">
+              <Button type="submit" disabled={saving}>
+                {saving ? "Saving…" : "Save anyway"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={saving}
+                onClick={() => {
+                  setConfirmDuplicate(false);
+                  setMessage("");
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          ) : holdings.length > 0 ? (
             <Button type="submit" disabled={saving}>
               {saving ? "Saving…" : "Record dividend"}
             </Button>

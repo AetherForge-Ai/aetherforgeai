@@ -478,7 +478,7 @@ describe("stored reports cannot keep a full-cash deploy", () => {
     expect(stoxBlob).not.toMatch(/\.52%/);
     expect(stoxBlob).not.toMatch(/ACCUMULATE/i);
     expect(stox.directRecommendations?.some((rec) => rec.ticker === "FPH.NZ")).toBe(true);
-    expect(stox.directRecommendations?.find((rec) => rec.ticker === "WOR.AX")?.detail).toMatch(/Buy \*\*WOR\.AX\*\*/);
+    expect(stox.directRecommendations?.find((rec) => rec.ticker === "WOR.AX")?.detail).toMatch(/Buy WOR\.AX/);
     expect(stox.executiveSummary).toMatch(/Do not deploy the full cash balance/);
 
     const koins = sanitizeGuardedReport({

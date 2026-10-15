@@ -225,7 +225,5 @@ export function transactionCsvCells(row: CsvRow): string[] {
   ];
 }
 
-export function csvEscape(value: unknown): string {
-  const s = value == null ? "" : String(value);
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
+export { csvEscape } from "@/lib/csv-cell";
+import { csvEscape } from "@/lib/csv-cell";

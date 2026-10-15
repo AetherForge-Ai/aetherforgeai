@@ -21,7 +21,7 @@ export const DOC_LINKS: HelpArticle[] = [
     body: "You buy through your own broker. You enter what you hold. Stox and Koins analyse it. You keep custody of every asset.",
   },
   {
-    href: "/returns",
+    href: "/my-returns",
     title: "Return",
     body: "Money-weighted return, time-weighted return, and a benchmark bought on your deposit dates. A figure is shown only with a valuation, an as-of date, and a source.",
   },

@@ -1,3 +1,4 @@
+import { csvEscape } from "@/lib/csv-cell";
 /**
  * Dividend breakdown stored in the existing transaction.notes field.
  * Totalum has no columns for imputation credits, withholding, or DRP.
@@ -282,10 +283,6 @@ export const DIVIDEND_CSV_COLUMNS = [
   "Label",
 ] as const;
 
-function csvEscape(value: unknown): string {
-  const s = value == null ? "" : String(value);
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
 
 /** Blank when the figure was not stored. A stored zero stays 0.00. */
 function csvMoneyCell(value: number | null): string {

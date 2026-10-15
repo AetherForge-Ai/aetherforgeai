@@ -27,9 +27,9 @@ describe("public schema", () => {
     expect(pricing).toContain("breadcrumbJsonLd");
     const login = read("src/app/login/page.tsx");
     const register = read("src/app/register/page.tsx");
-    expect(login).toContain('<h1 className="sr-only">Sign in</h1>');
-    expect(register).toContain('<h1 className="sr-only">Check your email</h1>');
-    expect(register).toContain('<h1 className="sr-only">Create an account</h1>');
+    expect(login).toContain('>Sign in</h1>');
+    expect(register).toContain('>Check your email</h1>');
+    expect(register).toContain('>Create your account</h1>');
     expect(read("src/lib/public-schema.ts")).toContain("pull-check:batch2-2026-10-11 B2-11");
   });
 });

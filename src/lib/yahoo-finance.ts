@@ -228,6 +228,12 @@ export async function fetchYahooNames(map: Record<string, string>): Promise<Reco
 /* ============================ Real price history ======================== */
 
 const SPARK_BASE = "https://query1.finance.yahoo.com/v8/finance/spark";
+/**
+ * v7 spark wraps each symbol in spark.result[].response[0].meta, which carries
+ * regularMarketDayHigh/Low. The v8 flat map drops them, so the quote path asks
+ * v7 first and falls back to v8 when v7 fails (H-2: NZX High/Low).
+ */
+const SPARK_QUOTE_BASE = "https://query1.finance.yahoo.com/v7/finance/spark";
 const HIST_TTL_MS = 10 * 60_000; // 10 minutes — real daily closes only change once a day
 // Symbols per batched spark request. Yahoo's spark endpoint rejects large symbol
 // lists with HTTP 400 (empirically it 400s at ~25 symbols), so we keep the batch
@@ -465,8 +471,9 @@ export async function fetchYahooQuotesBatched(
     try {
       // 1d/5m → live intraday prints when the session has bars.
       // 5d/1d → last official daily closes when markets are shut / bars empty.
-      const url = `${SPARK_BASE}?symbols=${encodeURIComponent(symbols)}&range=${range}&interval=${interval}`;
-      const res = await yahooGet(url);
+      const qs = `?symbols=${encodeURIComponent(symbols)}&range=${range}&interval=${interval}`;
+      let res = await yahooGet(`${SPARK_QUOTE_BASE}${qs}`).catch(() => null);
+      if (!res || !res.ok) res = await yahooGet(`${SPARK_BASE}${qs}`);
       if (!res.ok) {
         console.error(`[yahoo] live-batch HTTP ${res.status} for ${chunk.length} symbols (${range}/${interval})`);
         return;
@@ -520,6 +527,9 @@ export async function fetchYahooQuotesBatched(
         changePct: quote.changePct,
         asOf: "close",
         ...(quote.quotedAt ? { quotedAt: quote.quotedAt } : {}),
+        ...(quote.dayHigh && quote.dayLow && quote.dayHigh >= quote.dayLow
+          ? { dayHigh: quote.dayHigh, dayLow: quote.dayLow }
+          : {}),
       };
     });
   }

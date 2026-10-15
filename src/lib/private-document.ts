@@ -21,6 +21,7 @@ const CACHEABLE_MARKETING_PATHS = new Set([
   "/refunds",
   "/ai-disclaimer",
   "/trust",
+  "/methodology",
   "/docs",
   "/blog",
   "/performance",

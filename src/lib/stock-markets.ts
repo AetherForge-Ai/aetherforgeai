@@ -412,3 +412,29 @@ export async function quoteWithProviders(input: {
     twelveBreaker,
   };
 }
+
+/**
+ * H-2: the one count sentence for a stock board page. The header and the
+ * pager footer both use it, so the numbers always match the rows on screen.
+ */
+export function boardPageCountLine(input: {
+  pageRows: number;
+  priced: number;
+  covered: number;
+  listed?: number;
+  page?: number;
+  pageSize?: number;
+}): string {
+  const { pageRows, priced, covered } = input;
+  const page = Math.max(1, input.page ?? 1);
+  const size = input.pageSize ?? STOCK_PAGE_SIZE;
+  if (pageRows <= 0) return `0 of ${covered} names on this page`;
+  const start = (page - 1) * size + 1;
+  const end = start + pageRows - 1;
+  const span = pageRows === covered ? `${covered} names` : `Names ${start}–${end} of ${covered}`;
+  const listed =
+    input.listed && input.listed > covered ? ` (${input.listed} listed)` : "";
+  const prices =
+    priced >= pageRows ? "" : ` · ${priced} of ${pageRows} on this page have a price`;
+  return `${span}${listed}${prices}`;
+}

@@ -22,7 +22,7 @@ import { fetchYahooCloseOn } from "@/lib/yahoo-finance";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = publicPageMetadata("/returns", {
+export const metadata = publicPageMetadata("/my-returns", {
   title: "Return · AetherForge AI",
   description:
     "Money-weighted and time-weighted return for a paper book, with a benchmark only when a delayed public price series is attached.",
@@ -172,7 +172,7 @@ export default async function ReturnsPage() {
       <JsonLd
         data={breadcrumbJsonLd([
           { name: "Home", path: "/" },
-          { name: "Return", path: "/returns" },
+          { name: "Return", path: "/my-returns" },
         ])}
       />
       <h1 className="font-display text-3xl font-bold">Return</h1>
