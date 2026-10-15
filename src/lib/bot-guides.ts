@@ -3,10 +3,11 @@
  * pull-check:batch2-2026-10-11 B2-10
  */
 
-import { BOT_COUNT_LINE, FREE_REPORTS_LINE, PAPER_BOOK_STATEMENT, SMITTY_ROLE_LINE } from "@/lib/public-copy";
+import { BOT_COUNT_LINE, FREE_REPORTS_LINE, PAPER_BOOK_STATEMENT, POSITIONING_LINE, SMITTY_ROLE_LINE } from "@/lib/public-copy";
 
 /** One short note, rendered once by BotGuide. Not repeated inside each bot's own copy. */
 export const BOT_PAGE_DISCLAIMER = [
+  POSITIONING_LINE,
   PAPER_BOOK_STATEMENT,
   "A report is general information, not advice, and it is not a recommendation to buy or sell.",
   "Share prices are delayed public market data. They are not a direct NZX or ASX feed.",

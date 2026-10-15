@@ -167,7 +167,7 @@ export function ActionableIntelligence({
         </div>
       ) : stocks.length > 0 ? (
         <div className="flex items-start gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/8 px-5 py-4">
-          <Shield className="mt-0.5 size-5 shrink-0 text-emerald-600" />
+          <Shield className="mt-0.5 size-5 shrink-0 text-emerald-700" />
           <div>
             <p className="font-display font-bold text-emerald-200">No urgent exits</p>
             <p className="text-sm text-emerald-200/80">

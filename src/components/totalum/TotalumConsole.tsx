@@ -79,7 +79,7 @@ function pct(v: number): string {
   return `${v > 0 ? "+" : ""}${v.toFixed(2)}%`;
 }
 function gainClass(v: number): string {
-  return v >= 0 ? "text-emerald-500" : "text-rose-500";
+  return v >= 0 ? "text-emerald-700" : "text-rose-500";
 }
 
 const GOALS: { key: GoalKey; name: string; risk: string }[] = [
@@ -362,7 +362,7 @@ function ScenariosTab({ s }: { s: TotalumSynthesis }) {
 function severityColor(sev: string): string {
   if (sev === "high") return "bg-rose-500/15 text-rose-500 ring-rose-500/30";
   if (sev === "medium") return "bg-amber-500/15 text-amber-500 ring-amber-500/30";
-  return "bg-emerald-500/12 text-emerald-500 ring-emerald-500/25";
+  return "bg-emerald-500/12 text-emerald-700 ring-emerald-500/25";
 }
 
 function StressTab({ s }: { s: TotalumSynthesis }) {
@@ -479,7 +479,7 @@ function StrategyTab({ initialSynthesis }: { initialSynthesis: TotalumSynthesis 
         <>
           <Card className="border-emerald-500/30 bg-emerald-500/10 p-4">
             <div className="flex flex-wrap items-start gap-3">
-              <span className="grid size-9 place-items-center rounded-xl bg-emerald-500/20 text-emerald-600">
+              <span className="grid size-9 place-items-center rounded-xl bg-emerald-500/20 text-emerald-700">
                 <Compass className="size-5" />
               </span>
               <div className="min-w-0 flex-1 space-y-1">
@@ -572,7 +572,7 @@ function StrategyTab({ initialSynthesis }: { initialSynthesis: TotalumSynthesis 
                       </td>
                       <td className="px-2 py-2 text-right tabular-nums">{m.currentWeight.toFixed(1)}%</td>
                       <td className="px-2 py-2 text-right tabular-nums">{m.targetWeight}%</td>
-                      <td className={`px-2 py-2 text-right tabular-nums ${m.driftPct > 0 ? "text-rose-500" : m.driftPct < 0 ? "text-emerald-500" : "text-muted-foreground"}`}>
+                      <td className={`px-2 py-2 text-right tabular-nums ${m.driftPct > 0 ? "text-rose-500" : m.driftPct < 0 ? "text-emerald-700" : "text-muted-foreground"}`}>
                         {formatDriftPp(m.driftPct)}
                       </td>
                       <td className="px-2 py-2 text-center">
@@ -593,7 +593,7 @@ function StrategyTab({ initialSynthesis }: { initialSynthesis: TotalumSynthesis 
 
           <div className="grid gap-4 lg:grid-cols-2">
             <Card className="p-5">
-              <h3 className="mb-2 text-sm font-semibold text-emerald-500">Illustrative entry notes</h3>
+              <h3 className="mb-2 text-sm font-semibold text-emerald-700">Illustrative entry notes</h3>
               <ul className="space-y-2 text-sm text-muted-foreground">
                 {strategy.entryRules.map((r, i) => (
                   <li key={i} className="flex gap-2">

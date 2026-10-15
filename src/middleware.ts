@@ -91,7 +91,7 @@ function applyPublicMarketingCache(response: NextResponse) {
 
 const STATIC_FILE = /\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|map|txt|xml|woff2?)$/i;
 
-function applyCachePolicy(response: NextResponse, pathname: string) {
+function applyCachePolicy(response: NextResponse, pathname: string, signedIn = false) {
   if (pathname.startsWith("/_next/") || STATIC_FILE.test(pathname)) return response;
   if (pathname.startsWith("/api/")) {
     // Public market reads keep the cache policy their route sets.
@@ -106,7 +106,8 @@ function applyCachePolicy(response: NextResponse, pathname: string) {
     }
     return response;
   }
-  if (isCacheableMarketingPath(pathname)) return applyPublicMarketingCache(response);
+  // M-1: edge-cache marketing pages for visitors only; a session cookie bypasses.
+  if (!signedIn && isCacheableMarketingPath(pathname)) return applyPublicMarketingCache(response);
   return applyPrivateNoStore(response);
 }
 
@@ -144,7 +145,7 @@ function finish(response: NextResponse, request: NextRequest, signedIn: boolean)
   const { pathname } = request.nextUrl;
   addCorsHeaders(response, request);
   // HSTS, CSP, nosniff and Referrer-Policy are set once in next.config.ts headers().
-  applyCachePolicy(response, pathname);
+  applyCachePolicy(response, pathname, signedIn);
   stripLeakedAuthCookies(response, pathname, request.method, signedIn);
   // After the strip, so the clearing Set-Cookie is what the browser stores.
   // On OpenNext these middleware cookies override a session cookie the

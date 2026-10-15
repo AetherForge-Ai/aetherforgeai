@@ -85,7 +85,7 @@ export function FigureReadout({
   return (
     <span className={cn("inline-flex max-w-full flex-col items-end gap-0.5", className)}>
       <span className="inline-flex items-center justify-end gap-1">
-        {up ? <ArrowUp className="size-3 text-emerald-600" aria-hidden /> : null}
+        {up ? <ArrowUp className="size-3 text-emerald-700" aria-hidden /> : null}
         {down ? <ArrowDown className="size-3 text-rose-600" aria-hidden /> : null}
         <span className="tnum" title={missing ? figure.reason || undefined : undefined}>
           {text}

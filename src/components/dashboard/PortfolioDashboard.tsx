@@ -295,7 +295,7 @@ function StatCard({
         <span
           className={cn(
             "grid size-8 place-items-center rounded-lg",
-            tone === "up" && "bg-emerald-500/15 text-emerald-600",
+            tone === "up" && "bg-emerald-500/15 text-emerald-700",
             tone === "down" && "bg-rose-500/15 text-rose-600",
             tone === "neutral" && "bg-primary/12 text-primary"
           )}
@@ -312,7 +312,7 @@ function StatCard({
         <p
           className={cn(
             "tnum mt-3 font-display text-2xl font-bold",
-            tone === "up" && "text-emerald-600",
+            tone === "up" && "text-emerald-700",
             tone === "down" && "text-rose-600",
             value === "—" && "text-muted-foreground"
           )}
@@ -2160,7 +2160,7 @@ export function PortfolioDashboard({
                 reason={netReason}
                 loading={!balancesReady}
                 skeletonClassName="mt-1 ml-auto h-7 w-28 animate-pulse rounded-md bg-muted/50"
-                className="tnum font-display text-xl font-bold text-emerald-600 sm:text-2xl"
+                className="tnum font-display text-xl font-bold text-emerald-700 sm:text-2xl"
               />
             </div>
           </div>
@@ -2459,7 +2459,7 @@ export function PortfolioDashboard({
               reason={cashReason}
               loading={!balancesReady}
               skeletonClassName="mt-2 h-7 w-28 animate-pulse rounded-md bg-muted/50"
-              className="tnum mt-2 font-display text-xl font-bold text-emerald-600"
+              className="tnum mt-2 font-display text-xl font-bold text-emerald-700"
             />
             <p className="mt-1 text-[0.7rem] text-muted-foreground">From Transaction Ledger</p>
             {bookSnapshot?.cashWarning ? (
@@ -2473,7 +2473,7 @@ export function PortfolioDashboard({
               reason={stockReason}
               loading={!balancesReady}
               skeletonClassName="mt-2 h-7 w-28 animate-pulse rounded-md bg-muted/50"
-              className="tnum mt-2 font-display text-xl font-bold text-emerald-600"
+              className="tnum mt-2 font-display text-xl font-bold text-emerald-700"
             />
             <p className="mt-1 text-[0.7rem] text-muted-foreground">Live holdings from stock buys</p>
           </div>
@@ -2484,7 +2484,7 @@ export function PortfolioDashboard({
               reason={cryptoReason}
               loading={!balancesReady}
               skeletonClassName="mt-2 h-7 w-28 animate-pulse rounded-md bg-muted/50"
-              className="tnum mt-2 font-display text-xl font-bold text-emerald-600"
+              className="tnum mt-2 font-display text-xl font-bold text-emerald-700"
             />
             <p className="mt-1 text-[0.7rem] text-muted-foreground">Live holdings from crypto buys</p>
           </div>
@@ -2495,7 +2495,7 @@ export function PortfolioDashboard({
               reason={metalsReason}
               loading={!balancesReady}
               skeletonClassName="mt-2 h-7 w-28 animate-pulse rounded-md bg-muted/50"
-              className="tnum mt-2 font-display text-xl font-bold text-emerald-600"
+              className="tnum mt-2 font-display text-xl font-bold text-emerald-700"
             />
             <p className="mt-1 text-[0.7rem] text-muted-foreground">
               {metalsSpotLive ? "Spot" : "Est."} holdings from metals trades
@@ -2514,7 +2514,7 @@ export function PortfolioDashboard({
               reason={cashReason}
               loading={!balancesReady}
               skeletonClassName="mt-3 h-9 w-36 animate-pulse rounded-md bg-muted/50"
-              className="tnum mt-3 font-display text-3xl font-bold text-emerald-600"
+              className="tnum mt-3 font-display text-3xl font-bold text-emerald-700"
             />
             <p className="mt-2 text-sm text-muted-foreground">Available for buys across stocks, crypto and metals.</p>
             {bookSnapshot?.cashWarning ? (
@@ -2529,7 +2529,7 @@ export function PortfolioDashboard({
               reason={netReason}
               loading={!balancesReady}
               skeletonClassName="mt-3 h-9 w-36 animate-pulse rounded-md bg-muted/50"
-              className="tnum mt-3 font-display text-3xl font-bold text-emerald-600"
+              className="tnum mt-3 font-display text-3xl font-bold text-emerald-700"
             />
             <p className="mt-2 text-sm text-muted-foreground">Cash plus live holdings value.</p>
           </div>
@@ -3124,11 +3124,11 @@ export function PortfolioDashboard({
                       </td>
                       {/* Gain / Loss */}
                       <td className="px-3 py-3.5 text-right">
-                        <span className={cn("tnum font-medium", !gained ? "text-muted-foreground" : up ? "text-emerald-600" : "text-rose-600")} title={gained ? undefined : "No price is stored for this holding."}>
+                        <span className={cn("tnum font-medium", !gained ? "text-muted-foreground" : up ? "text-emerald-700" : "text-rose-600")} title={gained ? undefined : "No price is stored for this holding."}>
                           {gained ? formatSignedMoney(h.gain, h.currency) : "—"}
                         </span>
                         <span
-                          className={cn("tnum ml-1 block text-xs", !gained ? "text-muted-foreground" : up ? "text-emerald-600/80" : "text-rose-600/80")}
+                          className={cn("tnum ml-1 block text-xs", !gained ? "text-muted-foreground" : up ? "text-emerald-700/80" : "text-rose-600/80")}
                         >
                           {Number.isFinite(h.gainPct) ? formatPercent(h.gainPct) : "—"}
                         </span>

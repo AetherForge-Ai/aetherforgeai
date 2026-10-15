@@ -234,7 +234,7 @@ function MetalsSpotBanner({ initial = null }: { initial?: MetalsSpotFeed | null 
         <span
           className={cn(
             "rounded-full px-2 py-0.5 text-[0.58rem] font-bold uppercase tracking-wide",
-            spot?.live ? "bg-emerald-500/15 text-emerald-600" : "bg-muted text-muted-foreground"
+            spot?.live ? "bg-emerald-500/15 text-emerald-700" : "bg-muted text-muted-foreground"
           )}
           title={spot?.live ? "Spot price" : "Estimated price"}
         >

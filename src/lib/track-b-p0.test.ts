@@ -197,7 +197,7 @@ describe("Track B P0", () => {
       }
     }
     expect(lines).toContain("does not include a card number");
-    expect(lines).toContain("We do not log the text of these requests");
+    expect(lines).toContain("Our code does not write the text of these requests to its logs");
     expect(lines).not.toMatch(/\b(Grok|xAI|ZENITH|ULTRA|grok-4|enhanceWithGrok)\b/);
   });
 
