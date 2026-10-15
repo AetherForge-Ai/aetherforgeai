@@ -2233,7 +2233,7 @@ export function PortfolioDashboard({
             void loadPortfolioSnapshot({ force: true });
           }}
           emptyActions={
-            <Button type="button" size="sm" onClick={openAdd}>+ Add trade</Button>
+            <Button type="button" size="sm" onClick={openAdd}>Add your first holding</Button>
           }
           actions={
             <div className="mt-4 flex w-full min-w-0 max-w-full flex-wrap items-center gap-2" data-header-actions>

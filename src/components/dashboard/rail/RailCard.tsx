@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 export const RAIL_ACCENT_CLASS = "bg-[#047857] text-white";
 
 export const RAIL_CARD_CLASS =
-  "relative scroll-mt-24 rounded-2xl border border-border/70 bg-card p-5 text-card-foreground max-sm:z-40";
+  "shadow-soft relative scroll-mt-24 rounded-2xl border border-border/70 bg-card p-5 text-card-foreground max-sm:z-40";
 
 export function RailCard({
   id,

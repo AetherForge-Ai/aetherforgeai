@@ -7,6 +7,7 @@ import { HoldingDetailDrawer } from "@/components/dashboard/HoldingDetailDrawer"
 import { IncomeTaxPanel } from "@/components/dashboard/IncomeTaxPanel";
 import { KpiHeader } from "@/components/dashboard/KpiHeader";
 import { TransactionsTab } from "@/components/dashboard/TransactionsTab";
+import { TabEmptyState, isEmptyBook } from "@/components/dashboard/TabEmptyState";
 import { UnifiedHoldingsTable } from "@/components/dashboard/UnifiedHoldingsTable";
 import { Button } from "@/components/ui/button";
 import { DASHBOARD_TABS, DASHBOARD_TAB_LABEL, readDashboardTab, writeDashboardTab, type DashboardTab } from "@/lib/dashboard-tabs";
@@ -321,7 +322,10 @@ export function DashboardCalculator({
               emptyActions={emptyActions}
             />
           ) : null}
-          {tab === "transactions" ? (
+          {tab !== "holdings" && !pending && isEmptyBook(snapshot) ? (
+            <TabEmptyState tab={tab} action={emptyActions} />
+          ) : null}
+          {tab === "transactions" && !(!pending && isEmptyBook(snapshot)) ? (
             <TransactionsTab
               snapshot={pending ? null : snapshot}
               loading={pending}
@@ -333,8 +337,8 @@ export function DashboardCalculator({
               onEditTrade={onEditTrade}
             />
           ) : null}
-          {tab === "income" ? <IncomeTaxPanel snapshot={pending ? null : snapshot} loading={pending} /> : null}
-          {tab === "insights" ? insights : null}
+          {tab === "income" && !(!pending && isEmptyBook(snapshot)) ? <IncomeTaxPanel snapshot={pending ? null : snapshot} loading={pending} /> : null}
+          {tab === "insights" && !(!pending && isEmptyBook(snapshot)) ? insights : null}
           {reports ? <div className="mt-6 min-w-0">{reports}</div> : null}
         </div>
         {showRail ? (
