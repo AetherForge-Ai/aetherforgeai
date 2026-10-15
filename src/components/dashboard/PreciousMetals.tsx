@@ -474,10 +474,10 @@ export function PreciousMetals({
               <caption className="sr-only">Bullion holdings</caption>
               <thead>
                 <tr className="border-b border-border/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                  <th className="py-2 pr-3 font-medium">Metal</th>
-                  <th className="px-3 py-2 text-right font-medium">Quantity</th>
-                  <th className="px-3 py-2 text-right font-medium">Price per oz</th>
-                  <th className="py-2 pl-3 text-right font-medium">NZD value</th>
+                  <th scope="col" className="py-2 pr-3 font-medium">Metal</th>
+                  <th scope="col" className="px-3 py-2 text-right font-medium">Quantity</th>
+                  <th scope="col" className="px-3 py-2 text-right font-medium">Price per oz</th>
+                  <th scope="col" className="py-2 pl-3 text-right font-medium">NZD value</th>
                 </tr>
               </thead>
               <tbody>
@@ -735,13 +735,13 @@ export function PreciousMetals({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                  <th className="py-3 pr-3 font-medium">Metal</th>
-                  <th className="px-3 py-3 text-right font-medium">Ounces</th>
-                  <th className="px-3 py-3 text-right font-medium">Cost / oz</th>
-                  <th className="px-3 py-3 text-right font-medium">Spot / oz</th>
-                  <th className="px-3 py-3 text-right font-medium">Value today</th>
-                  <th className="px-3 py-3 text-right font-medium">Gain/Loss</th>
-                  <th className="py-3 pl-3 text-right font-medium">Actions</th>
+                  <th scope="col" className="py-3 pr-3 font-medium">Metal</th>
+                  <th scope="col" className="px-3 py-3 text-right font-medium">Ounces</th>
+                  <th scope="col" className="px-3 py-3 text-right font-medium">Cost / oz</th>
+                  <th scope="col" className="px-3 py-3 text-right font-medium">Spot / oz</th>
+                  <th scope="col" className="px-3 py-3 text-right font-medium">Value today</th>
+                  <th scope="col" className="px-3 py-3 text-right font-medium">Gain/Loss</th>
+                  <th scope="col" className="py-3 pl-3 text-right font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody>

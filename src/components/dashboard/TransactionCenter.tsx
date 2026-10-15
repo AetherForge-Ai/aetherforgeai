@@ -660,14 +660,14 @@ export function TransactionCenter({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border/50 bg-background/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                  <th className="px-4 py-2.5 font-medium">Type</th>
-                  <th className="px-4 py-2.5 font-medium">Asset</th>
-                  <th className="px-4 py-2.5 text-right font-medium">Qty × Price</th>
-                  <th className="px-4 py-2.5 text-right font-medium">Fees</th>
-                  <th className="px-4 py-2.5 text-right font-medium">FX</th>
-                  <th className="px-4 py-2.5 text-right font-medium">Cash impact</th>
-                  <th className="px-4 py-2.5 text-right font-medium">Realised</th>
-                  <th className="px-4 py-2.5 text-right font-medium">Date</th>
+                  <th scope="col" className="px-4 py-2.5 font-medium">Type</th>
+                  <th scope="col" className="px-4 py-2.5 font-medium">Asset</th>
+                  <th scope="col" className="px-4 py-2.5 text-right font-medium">Qty × Price</th>
+                  <th scope="col" className="px-4 py-2.5 text-right font-medium">Fees</th>
+                  <th scope="col" className="px-4 py-2.5 text-right font-medium">FX</th>
+                  <th scope="col" className="px-4 py-2.5 text-right font-medium">Cash impact</th>
+                  <th scope="col" className="px-4 py-2.5 text-right font-medium">Realised</th>
+                  <th scope="col" className="px-4 py-2.5 text-right font-medium">Date</th>
                 </tr>
               </thead>
               <tbody>
@@ -1059,15 +1059,15 @@ function AllTransactionsDialog({
           <table className="w-full text-sm">
             <thead className="sticky top-0 z-10 bg-card">
               <tr className="border-b border-border/60">
-                <th className="py-2.5 pr-3 text-left"><SortHead label="Type" k="type" align="left" /></th>
-                <th className="py-2.5 pr-3 text-left"><SortHead label="Asset" k="ticker" align="left" /></th>
-                <th className="py-2.5 px-3"><SortHead label="Qty" k="quantity" /></th>
-                <th className="py-2.5 px-3"><SortHead label="Price" k="price" /></th>
-                <th className="py-2.5 px-3 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">Fee</th>
-                <th className="py-2.5 px-3 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">FX</th>
-                <th className="py-2.5 px-3"><SortHead label="Cash impact" k="total" /></th>
-                <th className="hidden py-2.5 px-3 md:table-cell"><SortHead label="Realised" k="realized" /></th>
-                <th className="py-2.5 pl-3"><SortHead label="Date" k="date" /></th>
+                <th scope="col" className="py-2.5 pr-3 text-left"><SortHead label="Type" k="type" align="left" /></th>
+                <th scope="col" className="py-2.5 pr-3 text-left"><SortHead label="Asset" k="ticker" align="left" /></th>
+                <th scope="col" className="py-2.5 px-3"><SortHead label="Qty" k="quantity" /></th>
+                <th scope="col" className="py-2.5 px-3"><SortHead label="Price" k="price" /></th>
+                <th scope="col" className="py-2.5 px-3 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">Fee</th>
+                <th scope="col" className="py-2.5 px-3 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">FX</th>
+                <th scope="col" className="py-2.5 px-3"><SortHead label="Cash impact" k="total" /></th>
+                <th scope="col" className="hidden py-2.5 px-3 md:table-cell"><SortHead label="Realised" k="realized" /></th>
+                <th scope="col" className="py-2.5 pl-3"><SortHead label="Date" k="date" /></th>
               </tr>
             </thead>
             <tbody>

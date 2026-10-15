@@ -190,6 +190,7 @@ function MoveCell({ value, reason }: { value: number | null | undefined; reason:
   const up = value >= 0;
   return (
     <span className={cn("tnum font-semibold", up ? "text-emerald-700" : "text-rose-600")}>
+      <span aria-hidden="true">{value > 0 ? "▲ " : value < 0 ? "▼ " : ""}</span>
       {value > 0 ? "+" : value < 0 ? "−" : ""}
       {formatMarketChangePercent(Math.abs(value))}%
     </span>
@@ -844,7 +845,7 @@ export function MarketsExplorer({
           {dex.rows.length >= 400 ? dexTabLabel(dex.rows.length) : "DEX"}
         </button>
         <div className="ml-auto flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={refresh} disabled={loadingRows}>
+          <Button variant="outline" size="sm" onClick={refresh} disabled={loadingRows} aria-label="Refresh prices">
             {loadingRows ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
           </Button>
         </div>
@@ -940,54 +941,54 @@ export function MarketsExplorer({
         <table className="w-full text-sm">
           <thead className="sticky top-0 z-10 bg-card">
             <tr className="border-b border-border/60">
-              <th className="py-2.5 pr-3 text-left"><SortHead label="Ticker" k="symbol" align="left" /></th>
-              <th className="hidden py-2.5 pr-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground sm:table-cell">
+              <th scope="col" className="py-2.5 pr-3 text-left"><SortHead label="Ticker" k="symbol" align="left" /></th>
+              <th scope="col" className="hidden py-2.5 pr-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground sm:table-cell">
                 {isCryptoTab ? "Name" : "Company"}
               </th>
-              <th className="py-2.5 px-3"><SortHead label="Price" k="price" /></th>
-              {showChange && <th className="py-2.5 px-3"><SortHead label="Change" k="changePct" /></th>}
+              <th scope="col" className="py-2.5 px-3"><SortHead label="Price" k="price" /></th>
+              {showChange && <th scope="col" className="py-2.5 px-3"><SortHead label="Change" k="changePct" /></th>}
               {showCoinStats && (
-                <th className="py-2.5 px-3 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">1H</th>
+                <th scope="col" className="py-2.5 px-3 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">1H</th>
               )}
               {showCoinStats && (
-                <th className="hidden py-2.5 px-3 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground md:table-cell">30D</th>
+                <th scope="col" className="hidden py-2.5 px-3 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground md:table-cell">30D</th>
               )}
               {showCoinStats && (
-                <th className="hidden py-2.5 px-3 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground lg:table-cell">Max supply</th>
+                <th scope="col" className="hidden py-2.5 px-3 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground lg:table-cell">Max supply</th>
               )}
               {showHigh && (
-              <th className="hidden py-2.5 px-3 lg:table-cell text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <th scope="col" className="hidden py-2.5 px-3 lg:table-cell text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 High
               </th>
               )}
               {showLow && (
-              <th className="hidden py-2.5 px-3 lg:table-cell text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <th scope="col" className="hidden py-2.5 px-3 lg:table-cell text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Low
               </th>
               )}
               {showVolume && (
-              <th className="hidden py-2.5 px-3 md:table-cell"><SortHead label="Volume" k="volume" /></th>
+              <th scope="col" className="hidden py-2.5 px-3 md:table-cell"><SortHead label="Volume" k="volume" /></th>
               )}
               {showCap && (
-              <th className="hidden py-2.5 px-3 xl:table-cell"><SortHead label="Mkt Cap" k="marketCap" /></th>
+              <th scope="col" className="hidden py-2.5 px-3 xl:table-cell"><SortHead label="Mkt Cap" k="marketCap" /></th>
               )}
               {showChain && (
-                <th className="whitespace-normal py-2.5 pl-3 text-right text-xs font-medium normal-case tracking-normal text-muted-foreground">
+                <th scope="col" className="whitespace-normal py-2.5 pl-3 text-right text-xs font-medium normal-case tracking-normal text-muted-foreground">
                   {isDexTab ? "Chain" : "Blockchain"}
                 </th>
               )}
               {showDex && (
-                <th className="py-2.5 pl-3 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                <th scope="col" className="py-2.5 pl-3 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   DEX
                 </th>
               )}
               {showAdd && (
-                <th className="py-2.5 pl-3 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                <th scope="col" className="py-2.5 pl-3 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Paper book
                 </th>
               )}
               {allowBuy && !isCryptoTab && (
-                <th className="py-2.5 pl-3 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                <th scope="col" className="py-2.5 pl-3 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Buy
                 </th>
               )}
@@ -1068,11 +1069,11 @@ export function MarketsExplorer({
                               up ? "text-emerald-700" : "text-rose-600"
                             )}
                           >
-                            {up ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />}
+                            <span aria-hidden="true">{r.changePct > 0 ? "▲" : r.changePct < 0 ? "▼" : ""}</span>
                             {r.changePct > 0 ? "+" : r.changePct < 0 ? "−" : ""}
                             {formatMarketChangePercent(r.changePct)}%
                           </span>
-                          <span className={cn("tnum block text-[0.62rem]", up ? "text-emerald-700/70" : "text-rose-600/70")}>
+                          <span className={cn("tnum block text-[0.62rem]", up ? "text-emerald-700" : "text-rose-600")}>
                             {isCryptoTab || r.coinId
                               ? fmtAbs(r.changeAbs ?? 0, r.price)
                               : formatStockChangeAmount(r.changeAbs ?? 0)}

@@ -3036,15 +3036,15 @@ export function PortfolioDashboard({
             <table className="w-full min-w-[56rem] text-xs">
               <thead>
                 <tr className="border-b border-border/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                  <th className="px-3 py-2"><HoldingHead label="Ticker" k="ticker" align="left" /></th>
-                  <th className="px-2 py-2"><HoldingHead label="Company" k="company" align="left" /></th>
-                  <th className="px-2 py-2"><HoldingHead label="Qty" k="shares" /></th>
-                  <th className="px-2 py-2"><HoldingHead label="Paid" k="purchase_price" /></th>
-                  <th className="px-2 py-2"><HoldingHead label="Now" k="current_price" /></th>
-                  <th className="px-2 py-2"><HoldingHead label="Value" k="marketValue" /></th>
-                  <th className="px-2 py-2"><HoldingHead label="%" k="weight" /></th>
-                  <th className="px-2 py-2"><HoldingHead label="Gain" k="gain" /></th>
-                  <th className="sticky right-0 w-36 bg-card px-2 py-2 text-right font-medium">Actions</th>
+                  <th scope="col" className="px-3 py-2"><HoldingHead label="Ticker" k="ticker" align="left" /></th>
+                  <th scope="col" className="px-2 py-2"><HoldingHead label="Company" k="company" align="left" /></th>
+                  <th scope="col" className="px-2 py-2"><HoldingHead label="Qty" k="shares" /></th>
+                  <th scope="col" className="px-2 py-2"><HoldingHead label="Paid" k="purchase_price" /></th>
+                  <th scope="col" className="px-2 py-2"><HoldingHead label="Now" k="current_price" /></th>
+                  <th scope="col" className="px-2 py-2"><HoldingHead label="Value" k="marketValue" /></th>
+                  <th scope="col" className="px-2 py-2"><HoldingHead label="%" k="weight" /></th>
+                  <th scope="col" className="px-2 py-2"><HoldingHead label="Gain" k="gain" /></th>
+                  <th scope="col" className="sticky right-0 w-36 bg-card px-2 py-2 text-right font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody>

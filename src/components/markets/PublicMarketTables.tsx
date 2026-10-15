@@ -32,16 +32,16 @@ export function PublicMarketTables({ index }: { index: PublicMarketIndex }) {
             <table className="mt-2 w-full text-sm">
               <thead>
                 <tr className="border-b border-border/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                  <th className="py-2 pr-3">Ticker</th>
-                  <th className="py-2 pr-3">Name</th>
-                  <th className="py-2 pr-3">Price</th>
-                  <th className="py-2 pr-3">Change</th>
-                  {cryptoTab ? <th className="py-2 pr-3">1h</th> : null}
-                  {cryptoTab ? <th className="py-2 pr-3">7d</th> : null}
-                  {cryptoTab ? <th className="py-2 pr-3">Supply</th> : null}
-                  {cryptoTab ? <th className="py-2 pr-3">{tab.id === "DEX" ? "Chain" : "Blockchain"}</th> : null}
-                  {tab.id === "DEX" ? <th className="py-2 pr-3">DEX</th> : null}
-                  <th className="py-2">Source</th>
+                  <th scope="col" className="py-2 pr-3">Ticker</th>
+                  <th scope="col" className="py-2 pr-3">Name</th>
+                  <th scope="col" className="py-2 pr-3">Price</th>
+                  <th scope="col" className="py-2 pr-3">Change</th>
+                  {cryptoTab ? <th scope="col" className="py-2 pr-3">1h</th> : null}
+                  {cryptoTab ? <th scope="col" className="py-2 pr-3">7d</th> : null}
+                  {cryptoTab ? <th scope="col" className="py-2 pr-3">Supply</th> : null}
+                  {cryptoTab ? <th scope="col" className="py-2 pr-3">{tab.id === "DEX" ? "Chain" : "Blockchain"}</th> : null}
+                  {tab.id === "DEX" ? <th scope="col" className="py-2 pr-3">DEX</th> : null}
+                  <th scope="col" className="py-2">Source</th>
                 </tr>
               </thead>
               <tbody>

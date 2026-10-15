@@ -208,14 +208,14 @@ export function MarketWidePerformers({ onBought }: { onBought?: () => void }) {
                 <table className="w-full border-collapse text-sm">
                   <thead className="sticky top-0 z-10 bg-card/95 backdrop-blur">
                     <tr className="border-b border-border/60 text-left text-[0.62rem] uppercase tracking-wide text-muted-foreground">
-                      <th className="w-10 px-3 py-2 text-center">#</th>
-                      <th className="px-3 py-2">Ticker</th>
-                      <th className="hidden px-3 py-2 sm:table-cell">Company</th>
-                      <th className="px-3 py-2 text-right">Price</th>
-                      <th className="hidden px-3 py-2 text-right md:table-cell">Change</th>
-                      <th className="px-3 py-2 text-right">Projected</th>
-                      <th className="px-3 py-2 text-right">Confidence</th>
-                      <th className="hidden px-3 py-2 lg:table-cell">Key reasons</th>
+                      <th scope="col" className="w-10 px-3 py-2 text-center">#</th>
+                      <th scope="col" className="px-3 py-2">Ticker</th>
+                      <th scope="col" className="hidden px-3 py-2 sm:table-cell">Company</th>
+                      <th scope="col" className="px-3 py-2 text-right">Price</th>
+                      <th scope="col" className="hidden px-3 py-2 text-right md:table-cell">Change</th>
+                      <th scope="col" className="px-3 py-2 text-right">Projected</th>
+                      <th scope="col" className="px-3 py-2 text-right">Confidence</th>
+                      <th scope="col" className="hidden px-3 py-2 lg:table-cell">Key reasons</th>
                     </tr>
                   </thead>
                   <tbody>
