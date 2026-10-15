@@ -11,6 +11,8 @@ import { MARKET_UNIVERSE } from "@/lib/market-intel";
 import { loadStockQuoteLine } from "@/lib/public-market-index";
 import { findListing, isSitemapStock } from "@/lib/stock-catalog";
 import { listingSentence, usPageShouldNoindex } from "@/lib/stock-markets";
+import { fetchYahooHistories } from "@/lib/yahoo-finance";
+import { stockContentParagraphs, stockPageIndexable } from "@/lib/stock-page-content";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +23,28 @@ async function StockQuoteLine({ ticker }: { ticker: string }) {
     <p className="text-sm text-muted-foreground" data-ticker-quote>
       {quoteLine ?? `${ticker} Price not in this response.`}
     </p>
+  );
+}
+
+function currencyFor(ticker: string): string {
+  return ticker.endsWith(".NZ") ? "NZD" : ticker.endsWith(".AX") ? "AUD" : "USD";
+}
+
+async function loadAboutParagraphs(ticker: string, name: string, symbol: string, sector: string, exchangeLabel: string) {
+  const histories = await fetchYahooHistories({ [ticker]: ticker }, "3mo").catch(() => ({} as Record<string, number[]>));
+  return stockContentParagraphs({ name, symbol, sector, exchangeLabel, currency: currencyFor(ticker), closes: histories[ticker] ?? [] });
+}
+
+/** H-13: server-rendered text from real closes only. */
+async function StockAbout(props: { ticker: string; name: string; symbol: string; sector: string; exchangeLabel: string }) {
+  const paragraphs = await loadAboutParagraphs(props.ticker, props.name, props.symbol, props.sector, props.exchangeLabel);
+  return (
+    <section className="space-y-3 text-sm leading-relaxed text-muted-foreground" aria-label={`About ${props.name}`} data-stock-about>
+      <h2 className="font-display text-lg font-bold text-foreground">About {props.name} on the {props.exchangeLabel}</h2>
+      {paragraphs.map((text, i) => (
+        <p key={i}>{text}</p>
+      ))}
+    </section>
   );
 }
 
@@ -92,7 +116,10 @@ export async function generateMetadata({
   // H-13: a stock page is a price card plus a listing line, well under 300
   // words of unique text, so it is not indexed until the long-form summary
   // ships. STOCK_PAGE_INDEXING=1 turns indexing back on for sitemap names.
-  if (!stockPageIndexingEnabled() || usPageShouldNoindex({ board, inSitemap, hasQuote })) {
+  const thin =
+    !stockPageIndexingEnabled() ||
+    !stockPageIndexable(await loadAboutParagraphs(entry.ticker, entry.name, symbol, entry.sector || "", exchangeLabel));
+  if (thin || usPageShouldNoindex({ board, inSitemap, hasQuote })) {
     return { ...meta, robots: { index: false, follow: true } };
   }
   return meta;
@@ -157,6 +184,17 @@ export default async function StockDetailPage({
                 symbol={symbol}
                 sector={listing.entry?.sector || ""}
                 companyName={listing.entry?.name || ""}
+              />
+            </Suspense>
+          ) : null}
+          {ticker && listing.entry ? (
+            <Suspense fallback={null}>
+              <StockAbout
+                ticker={ticker}
+                name={listing.entry.name}
+                symbol={symbol}
+                sector={listing.entry.sector || ""}
+                exchangeLabel={listing.exchangeLabel}
               />
             </Suspense>
           ) : null}
