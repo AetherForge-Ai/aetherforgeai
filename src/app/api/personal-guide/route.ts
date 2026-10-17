@@ -14,6 +14,8 @@ import {
   RATE_LIMIT_ADDRESS_REQUIRED,
   rateLimitHeaders,
   rateLimitIdentity,
+  ipBucket48,
+  PERSONAL_GUIDE_LIMIT_48,
   takeRateLimit,
 } from "@/lib/ip-rate-limit";
 import {
@@ -84,6 +86,17 @@ export async function POST(req: Request) {
       Date.now(),
       { edge: "GUIDE_RATE_LIMITER" }
     );
+    // Goal b11 CR-2: a wider /48 bucket catches rotation across /64s.
+    const raw48 = ipBucket48(req.headers.get("cf-connecting-ip") || "");
+    const wide = raw48
+      ? await takeRateLimit(`personal-guide48:${encodeURIComponent(raw48)}`, PERSONAL_GUIDE_LIMIT_48, PERSONAL_GUIDE_WINDOW_MS)
+      : null;
+    if (wide && !wide.allowed) {
+      return NextResponse.json(
+        { ok: false, error: "That is enough messages for now. Try again in a minute.", limited: true },
+        { status: 429, headers: rateLimitHeaders(wide, true) }
+      );
+    }
     if (!limit.allowed) {
       return NextResponse.json(
         {

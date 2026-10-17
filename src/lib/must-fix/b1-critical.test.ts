@@ -402,13 +402,13 @@ describe("CR-6 webhook and entitlements", () => {
     expect(trial.text).toContain("FORGE INTELLIGENCE LIMITED");
     expect(trial.text).toContain("NZBN");
     expect(paymentFailedMail({ to: "a@b.co", plan: "pro_monthly" }).html).toContain("stays on");
-    expect(read("src/app/api/stripe/checkout/route.ts")).toContain("trial_period_days = 14");
+    expect(read("src/lib/stripe-checkout.ts")).toContain("trial_period_days = 14");
   });
 });
 
 describe("batch 1 pins", () => {
   it("build string and pull-check marker", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-goal-b10-2026-10-18");
+    expect(read("public/build-version.txt").trim()).toBe("v3-goal-b11-2026-10-18");
     expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-must-fix-b1-2026-10-16");
   });
 });

@@ -695,7 +695,8 @@ export function fmtShortDate(iso: string | null | undefined): string {
   if (!iso) return "—";
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" });
+  // Goal b11 G-17: house date style, e.g. "6 Oct 2025".
+  return d.toLocaleDateString("en-NZ", { day: "numeric", month: "short", year: "numeric", timeZone: "Pacific/Auckland" });
 }
 
 /* ------------------------- Projected Performers -------------------------- */

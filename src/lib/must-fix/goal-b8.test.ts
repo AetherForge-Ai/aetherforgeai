@@ -162,9 +162,10 @@ describe("CR-6 / CR-1 Stripe", () => {
     expect(ids.length).toBeLessThanOrEqual(6);
     expect(publicPriceSlot("starter_monthly")?.unitAmount).toBe(1600);
     expect(planByKey("starter_monthly")?.price).toBe(16);
-    const checkout = read("src/app/api/stripe/checkout/route.ts");
-    expect(checkout).toContain("session.livemode === false");
-    expect(checkout).toContain("[stripe-test]");
+    // b11 CR-1: the echo moved to the shared checkout path (test mode by default).
+    const checkout = read("src/lib/stripe-checkout.ts");
+    expect(checkout).toContain("testMode: true");
+    expect(checkout).toContain("unitAmount");
   });
 });
 
