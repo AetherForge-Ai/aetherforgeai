@@ -1893,15 +1893,20 @@ export function PortfolioDashboard({
     document.getElementById("dashboard-watchlist")?.scrollIntoView({ behavior: "smooth" });
   }
 
-  async function handleDeleteDividend(line: SnapshotLedgerLine) {
-    const res = await api.delete(`/api/transactions?id=${encodeURIComponent(line.id)}`);
+  async function handleDeleteDividend(line: SnapshotLedgerLine): Promise<boolean> {
+    const res = await api.delete<{ cash?: { after?: number }; alreadyRemoved?: boolean }>(
+      `/api/transactions?id=${encodeURIComponent(line.id)}`
+    );
     const label = line.type === "dividend" ? "Dividend" : line.type === "buy" ? "Buy" : "Sell";
     if (res.ok) {
-      toast.success(`${label} removed`);
-      handleDataChanged();
-      return;
+      // b7 H-5: an id that is already gone is a success (idempotent), not "not found".
+      toast.success(res.data?.alreadyRemoved ? `${label} was already removed` : `${label} removed`);
+      const after = res.data?.cash?.after;
+      handleDataChanged(typeof after === "number" ? { cashBalance: after } : undefined);
+      return true;
     }
     toast.error(typeof res.error === "string" ? res.error : `That ${label.toLowerCase()} was not removed.`);
+    return false;
   }
 
   async function handleEditTrade(line: SnapshotLedgerLine, fields: TradeEditFields): Promise<boolean> {

@@ -80,7 +80,9 @@ export async function POST(req: Request) {
     const limit = await takeRateLimit(
       `personal-guide:${encodeURIComponent(identity.ip)}`,
       PERSONAL_GUIDE_LIMIT,
-      PERSONAL_GUIDE_WINDOW_MS
+      PERSONAL_GUIDE_WINDOW_MS,
+      Date.now(),
+      { edge: "GUIDE_RATE_LIMITER" }
     );
     if (!limit.allowed) {
       return NextResponse.json(
