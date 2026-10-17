@@ -558,7 +558,8 @@ export function DividendLedgerView({
           )}
         </div>
         <p className="mt-3 text-sm" data-dividend-yield>
-          Trailing 12-month yield on cost:{" "}
+          Trailing 12-month yield on cost{" "}
+          <span title="Cost includes brokerage fees paid on each buy, the same basis used for cost everywhere in AetherForge.">(cost incl. brokerage fees)</span>:{" "}
           <strong>{income.yieldOnCost == null ? "—" : `${(income.yieldOnCost * 100).toFixed(2)}%`}</strong> · on value:{" "}
           <strong>{income.yieldOnValue == null ? "—" : `${(income.yieldOnValue * 100).toFixed(2)}%`}</strong>
           {asOf ? <span className="text-muted-foreground"> · as of {formatDisplayDate(asOf)}, from the stored cost and last stored price</span> : null}

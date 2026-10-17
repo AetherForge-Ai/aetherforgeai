@@ -338,9 +338,11 @@ export function performanceReport(input: PerformanceInput): PerformanceReport {
   for (const period of PERIODS) {
     const slice = sliceForPeriod(input, period);
     if (!slice || slice.endingNzd == null) {
+      // Goal b15 G-02: a book younger than the period says when it started, not just "—".
+      const reason = periodGapReason(input, period);
       periods[period] = {
-        xirr: figure(null, "No valuation at the start of this period.", asOf, source),
-        twr: figure(null, "No valuation at the start of this period.", asOf, source),
+        xirr: figure(null, reason, asOf, source),
+        twr: figure(null, reason, asOf, source),
       };
       continue;
     }
@@ -413,4 +415,12 @@ export function cashBookPoints(
   }
   if (roundMoney(running) !== roundMoney(cashNzd)) return null;
   return { points, endingNzd: roundMoney(cashNzd) };
+}
+
+/** Goal b15 G-02: why a period figure is blank. */
+export function periodGapReason(input: PerformanceInput, period: PerformancePeriod): string {
+  const first = [...input.points].map((point) => point.date).sort()[0];
+  const start = period === "since" ? null : periodStart(input.asOf, period);
+  if (first && start && first > start) return `Book started ${formatDisplayDate(first)}, after the start of this period.`;
+  return "No valuation at the start of this period.";
 }
