@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
   createGrokChatCompletion,
+  GrokError,
+  guideModel,
   isGrokConfigured,
   type GrokMessage,
 } from "@/lib/grok";
@@ -148,6 +150,7 @@ export async function POST(req: Request) {
     try {
       reply = await createGrokChatCompletion({
         messages,
+        model: guideModel(),
         // b5 CR-2: 280 was too small for the reasoning model — its thinking used the
         // whole allowance and the API returned no reply text, so every call failed.
         maxTokens: GUIDE_MAX_TOKENS,
@@ -159,7 +162,9 @@ export async function POST(req: Request) {
       });
     } catch (err) {
       const timedOut = err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError");
-      console.warn("[api/personal-guide] AI call failed", timedOut ? "timeout" : "error");
+      const code = timedOut ? "timeout" : err instanceof GrokError ? err.code : "error";
+      // Key-free: only the model id and a short reason code.
+      console.warn(`[api/personal-guide] AI call failed model=${guideModel()} reason=${code}`);
       if (timedOut) {
         return NextResponse.json(
           { ok: false, error: GUIDE_BUSY_MESSAGE, busy: true },
@@ -168,7 +173,7 @@ export async function POST(req: Request) {
       }
       // b5 CR-2: a vendor error or an empty reply is not "busy". Answer from the
       // built-in guide so the visitor still gets help (and the limiter still counts).
-      return canned(personalGuideFallbackReply(userMessage), { reason: "ai_unavailable" });
+      return canned(personalGuideFallbackReply(userMessage), { reason: "ai_unavailable", code });
     }
     const used = usage as { promptTokens: number | null; completionTokens: number | null } | null;
     console.info(

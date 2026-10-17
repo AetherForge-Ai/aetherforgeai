@@ -168,7 +168,10 @@ export function PortfolioCoach() {
                 "pg-chat-in af-assistant-chip fixed bottom-24 left-3 z-30 flex items-center rounded-full border border-amber-400/45",
                 "bg-[#06261a]/95 p-1.5 text-left shadow-[0_0_0_1px_rgba(245,158,11,0.28),0_16px_40px_rgba(0,0,0,0.5)]",
                 "backdrop-blur-md transition hover:border-amber-300/60 hover:bg-[#0a3d2a]",
-                "max-sm:data-[dialog=open]:hidden sm:bottom-4 sm:left-auto sm:right-5 sm:z-[70] sm:gap-2.5 sm:px-3 sm:py-2.5"
+                // b6 M-6: below 2xl the chip is a slim edge tab in the page gutter so it never
+                // covers the rail cards (1280×640) or the holdings header (1034 px).
+                "max-sm:data-[dialog=open]:hidden sm:bottom-4 sm:left-auto sm:right-0 sm:z-[70] sm:rounded-r-none sm:border-r-0 sm:p-1",
+                "2xl:right-5 2xl:gap-2.5 2xl:rounded-full 2xl:border-r 2xl:px-3 2xl:py-2.5"
               )}
               aria-label="Open Assistant Guide"
               title="Assistant Guide"
@@ -177,13 +180,13 @@ export function PortfolioCoach() {
                 <img
                   src={BOT_HEADMASTER_AVATAR}
                   alt=""
-                  className="size-10 rounded-full border border-amber-400/40 object-cover"
+                  className="size-10 rounded-full border border-amber-400/40 object-cover sm:size-8 2xl:size-10"
                 />
                 <span className="absolute -bottom-0.5 -right-0.5 grid size-4 place-items-center rounded-full bg-amber-400 text-amber-950 shadow">
                   <MessageSquareText className="size-2.5" />
                 </span>
               </span>
-              <span className="hidden pr-1 sm:block">
+              <span className="hidden pr-1 2xl:block">
                 <span className="block font-display text-xs font-bold tracking-wide text-amber-300">
                   Assistant Guide
                 </span>

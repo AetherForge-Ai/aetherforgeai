@@ -16,7 +16,6 @@ export default function StoxPage() {
       body={BOT_GUIDES.stox}
       kind="stox"
       images={[
-        { src: "/brand/bot-stox.png", alt: "Illustration of the Stox character" },
         { src: "/brand/bot-stox-fullbody.webp", alt: "Full-length illustration of the Stox character" },
       ]}
       extra={<StoxReviewNotice />}

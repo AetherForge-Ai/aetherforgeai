@@ -56,6 +56,39 @@ export function WatchlistPanel({
     return map;
   }, [universe]);
 
+  // b6 H-1: when the intel list has no print for a watched symbol, ask the same
+  // quote route the ticker tape and /markets use (Yahoo close or live print).
+  const [quotes, setQuotes] = React.useState<Record<string, { price: number; changePct: number | null; currency: string }>>({});
+  const asked = React.useRef(new Set<string>());
+  React.useEffect(() => {
+    if (preview) return;
+    const missing = items
+      .map((item) => item.ticker.toUpperCase())
+      .filter((t) => {
+        const intel = intelByTicker.get(t);
+        return !(intel && Number.isFinite(intel.price) && intel.price > 0) && !quotes[t] && !asked.current.has(t);
+      });
+    if (!missing.length) return;
+    missing.forEach((t) => asked.current.add(t));
+    let cancelled = false;
+    void Promise.all(
+      missing.slice(0, 12).map(async (t) => {
+        const res = await api.get<{ price: number | null; changePct?: number | null; currency?: string }>(
+          `/api/tickers/quote?symbol=${encodeURIComponent(t)}&type=${bot === "crypto" ? "crypto" : "stock"}`
+        );
+        if (!res.ok || !res.data?.price || !(res.data.price > 0)) return null;
+        return [t, { price: res.data.price, changePct: res.data.changePct ?? null, currency: res.data.currency || "NZD" }] as const;
+      })
+    ).then((pairs) => {
+      if (cancelled) return;
+      const found = pairs.filter((p): p is NonNullable<typeof p> => p != null);
+      if (found.length) setQuotes((prev) => ({ ...prev, ...Object.fromEntries(found) }));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [items, intelByTicker, bot, preview, quotes]);
+
   const load = React.useCallback(async () => {
     if (preview) return; // guest preview: no live watchlist fetch
     setLoading(true);
@@ -153,8 +186,16 @@ export function WatchlistPanel({
         ) : (
           <ul className="divide-y divide-border/40">
             {items.map((item) => {
-              const intel = intelByTicker.get(item.ticker.toUpperCase());
-              const priced = intel && Number.isFinite(intel.price) && intel.price > 0;
+              const key = item.ticker.toUpperCase();
+              const fromIntel = intelByTicker.get(key);
+              const quote = quotes[key];
+              const intel =
+                fromIntel && Number.isFinite(fromIntel.price) && fromIntel.price > 0
+                  ? { price: fromIntel.price, currency: fromIntel.currency, change1d: fromIntel.change1d }
+                  : quote
+                    ? { price: quote.price, currency: quote.currency as SecurityIntel["currency"], change1d: quote.changePct ?? NaN }
+                    : null;
+              const priced = intel != null;
               return (
                 <li key={item._id} className="flex items-center gap-3 py-2">
                   <div className="min-w-0 flex-1">
@@ -164,7 +205,7 @@ export function WatchlistPanel({
                   <div className="text-right">
                     <p className="tnum text-sm font-medium">{priced ? formatMarketPrice(intel!.price, intel!.currency) : "—"}</p>
                     <p className={cn("tnum text-xs font-semibold", priced ? pctClass(intel!.change1d) : "text-muted-foreground")}>
-                      {priced && Number.isFinite(intel!.change1d) ? `${fmtPct(intel!.change1d)} today` : "No price yet"}
+                      {priced && Number.isFinite(intel!.change1d) ? `${fmtPct(intel!.change1d)} today` : priced ? "Change not stated" : "No price yet"}
                     </p>
                   </div>
                   <button

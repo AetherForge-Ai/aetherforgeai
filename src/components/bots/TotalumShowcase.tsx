@@ -10,9 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { BOT_HEADMASTER_AVATAR } from "../../../assets/files";
 import {
-  Compass,
   Layers,
-  TrendingUp,
   ShieldAlert,
   Bot,
   FileBarChart,
@@ -21,9 +19,7 @@ import {
 } from "lucide-react";
 
 const PILLARS = [
-  { icon: Layers, title: "Portfolio Synthesis", body: "Analyses your full book — stocks, crypto & metals — and engineers the optimal allocation." },
-  { icon: Compass, title: "Strategy Builder", body: "Describe a goal; The Headmaster designs the allocation, entry/exit rules and risk parameters." },
-  { icon: TrendingUp, title: "Scenario Simulator", body: "Projects bull, base and bear pathways over 7d, 30d, 90d and 12 months." },
+  { icon: Layers, title: "Portfolio Synthesis", body: "Analyses your full book — stocks, crypto & metals — and shows how it is spread across them." },
   { icon: ShieldAlert, title: "Risk & Stress Testing", body: "Quantifies concentration, correlation and drawdown shocks — with hedges." },
   { icon: FileBarChart, title: "Intelligence Reports", body: "A Total Portfolio Intelligence Report on demand, ready to print or share." },
   { icon: Bot, title: "Chief Strategist AI", body: "“How should I rebalance if BTC drops 20%?” — answered from your live book." },
@@ -55,8 +51,8 @@ export function TotalumShowcase() {
           <p className="mt-4 max-w-2xl text-muted-foreground">
             The ultimate AI agent that orchestrates <strong>Stox</strong> and <strong>Koins</strong> into a unified
             wealth-building system. While Stox masters equities and Koins commands crypto, The Headmaster sees your{" "}
-            <em>entire</em> book — stocks, digital assets and precious metals — and engineers the allocation, strategy
-            and risk controls to grow and protect it as one.
+            <em>entire</em> book — stocks, digital assets and precious metals — and writes one plain-English note on
+            how it is spread. Paper research, not advice.
           </p>
 
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

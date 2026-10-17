@@ -1,3 +1,4 @@
+import { cleanReportProse, cleanStoredReport } from "@/lib/report-prose";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser, isStripeConfigured, hasActiveSubscription } from "@/lib/session";
@@ -341,11 +342,17 @@ export async function GET(req: Request) {
           bookNZD,
         });
       }
+      // b6 H-6: old stored reports are cleaned at view time (markdown, Headmaster lines).
+      const proseOpts = { allowHeadmaster: String(r.bot) === "headmaster" };
+      if (payload && typeof payload === "object") payload = cleanStoredReport(payload, proseOpts);
       const fromPayload =
         payload && typeof payload === "object" && "executiveSummary" in payload
           ? String((payload as { executiveSummary?: string }).executiveSummary || "")
           : "";
-      const executiveSummary = reconcileNarrativeWithLiveBook(r.executive_summary || fromPayload, liveBook, reportBot);
+      const executiveSummary = cleanReportProse(
+        reconcileNarrativeWithLiveBook(r.executive_summary || fromPayload, liveBook, reportBot),
+        proseOpts
+      );
       // Searchable inline text for history view (prefer full payload summary + headline fields).
       const textBody = [
         executiveSummary,

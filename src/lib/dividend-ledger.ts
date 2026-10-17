@@ -485,20 +485,42 @@ export function dividendIncome(
 }
 
 /** Same holding, same payment day and same gross (or cash) amount: probably a double entry. */
+/**
+ * b6 H-5: the payment day in NZ time. A stored row can be a full UTC timestamp
+ * ("2026-10-13T11:00:00Z" is 14 Oct in Auckland), so slicing the string missed
+ * the match and a duplicate saved with no warning.
+ */
+export function dividendDayKey(when: string | null | undefined): string {
+  const raw = String(when || "").trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const at = new Date(raw);
+  if (!Number.isFinite(at.getTime())) return raw.slice(0, 10);
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Pacific/Auckland",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(at);
+}
+
 export function findDuplicateDividend(
   listed: readonly DividendView[],
   candidate: { ticker: string; when: string; grossNative?: number | null; cashNzd?: number | null }
 ): DividendView | null {
-  const day = String(candidate.when || "").slice(0, 10);
-  const ticker = candidate.ticker.trim().toUpperCase();
+  const day = dividendDayKey(candidate.when);
+  const bare = (t: string) => t.trim().toUpperCase().replace(/\.(NZ|NZX|AX|ASX)$/, "");
+  const ticker = bare(candidate.ticker);
   const close = (a: number | null | undefined, b: number | null | undefined) =>
-    typeof a === "number" && typeof b === "number" && Math.abs(a - b) < 0.005;
+    typeof a === "number" && typeof b === "number" && Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) < 0.005;
   return (
     listed.find(
       (row) =>
-        row.ticker.trim().toUpperCase() === ticker &&
-        String(row.when || "").slice(0, 10) === day &&
-        (close(row.parts?.grossNative, candidate.grossNative) || close(row.cashNzd, candidate.cashNzd))
+        bare(row.ticker) === ticker &&
+        dividendDayKey(row.when) === day &&
+        (close(row.parts?.grossNative, candidate.grossNative) ||
+          close(row.cashNzd, candidate.cashNzd) ||
+          close(row.cashNzd, candidate.grossNative) ||
+          close(row.parts?.netCashNzd, candidate.cashNzd))
     ) || null
   );
 }
