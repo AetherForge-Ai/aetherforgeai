@@ -6,21 +6,19 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const store = new Map<string, number>();
+// b6: the durable counter is append-only (one row per hit), so the mock keeps rows.
+const store = { rows: [] as { bucket_key: string; count: number }[], clear() { this.rows = []; } };
 vi.mock("@/lib/totalum", () => ({
   totalumSdk: {
     crud: {
-      // Durable counter backed by one shared Map: every "isolate" sees it.
+      // Durable counter backed by one shared list: every "isolate" sees it.
       query: vi.fn(async (_table: string, q: { _filter: { bucket_key: string } }) => {
         const key = q._filter.bucket_key;
-        return { data: store.has(key) ? [{ _id: key, count: store.get(key) }] : [] };
+        return { data: store.rows.filter((r) => r.bucket_key === key).map((r, i) => ({ _id: `${key}-${i}`, ...r })) };
       }),
-      editRecordById: vi.fn(async (_t: string, id: string, patch: { count: number }) => {
-        store.set(id, patch.count);
-        return { data: {} };
-      }),
+      editRecordById: vi.fn(async () => ({ data: {} })),
       createRecord: vi.fn(async (_t: string, rec: { bucket_key: string; count: number }) => {
-        store.set(rec.bucket_key, rec.count);
+        store.rows.push({ bucket_key: rec.bucket_key, count: rec.count });
         return { data: {} };
       }),
     },
@@ -30,6 +28,8 @@ vi.mock("@/lib/totalum", () => ({
 vi.mock("@/lib/grok", () => ({
   isGrokConfigured: () => !!process.env.XAI_API_KEY,
   createGrokChatCompletion: vi.fn(async () => "Sure. You should buy AIR.NZ. https://x.example"),
+  GrokError: class GrokError extends Error {},
+  guideModel: () => "test-guide-model",
 }));
 
 import {
@@ -408,7 +408,7 @@ describe("CR-6 webhook and entitlements", () => {
 
 describe("batch 1 pins", () => {
   it("build string and pull-check marker", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-must-fix-b5-2026-10-17");
+    expect(read("public/build-version.txt").trim()).toBe("v3-must-fix-b6-2026-10-17");
     expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-must-fix-b1-2026-10-16");
   });
 });

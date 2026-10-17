@@ -49,3 +49,25 @@ export function cleanReportProse(text: string, opts: { allowHeadmaster?: boolean
   const plain = neutralImperatives(stripMarkdown(text));
   return opts.allowHeadmaster ? plain : dropHeadmasterUpsell(plain);
 }
+
+/** Keys whose values are identifiers or links, never prose. */
+const NON_PROSE_KEYS = new Set(["_id", "id", "url", "href", "pdfUrl", "ticker", "symbol", "coinId", "bot", "trigger", "currency", "generatedAt", "createdAt", "asOf", "quotedAt"]);
+
+/**
+ * b6 H-6: stored reports from before the H-6 fix still hold raw markdown and
+ * the "Headmaster skeleton" line. Clean every prose string at view time so old
+ * reports read the same as new ones. Nothing is written back.
+ */
+export function cleanStoredReport<T>(value: T, opts: { allowHeadmaster?: boolean } = {}, depth = 0): T {
+  if (depth > 8) return value;
+  if (typeof value === "string") return cleanReportProse(value, opts) as T;
+  if (Array.isArray(value)) return value.map((item) => cleanStoredReport(item, opts, depth + 1)) as T;
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [key, inner] of Object.entries(value as Record<string, unknown>)) {
+      out[key] = NON_PROSE_KEYS.has(key) ? inner : cleanStoredReport(inner, opts, depth + 1);
+    }
+    return out as T;
+  }
+  return value;
+}

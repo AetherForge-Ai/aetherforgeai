@@ -359,15 +359,16 @@ export function MarketsExplorer({
           sector: "Not stated",
           exchange: ex,
           currency: ex === "NZX" ? "NZD" : ex === "ASX" ? "AUD" : "USD",
-          price: null,
-          changePct: null,
-          changeAbs: null,
+          // b6 H-2: keep the numeric print, high and low from the server seed.
+          price: quoted && typeof row.value === "number" && row.value > 0 ? row.value : null,
+          changePct: quoted && typeof row.changePct === "number" ? row.changePct : null,
+          changeAbs: quoted && typeof row.changeAbs === "number" ? row.changeAbs : null,
           priceLabel: row.price || PRICE_NOT_IN_RESPONSE,
           changeLabel: row.change || CHANGE_NOT_STATED,
           source: row.source || null,
           asOf: row.asOf,
-          dayHigh: null,
-          dayLow: null,
+          dayHigh: quoted && typeof row.dayHigh === "number" && row.dayHigh > 0 ? row.dayHigh : null,
+          dayLow: quoted && typeof row.dayLow === "number" && row.dayLow > 0 ? row.dayLow : null,
           volume: null,
           marketCap: null,
           live: false,
@@ -1040,16 +1041,12 @@ export function MarketsExplorer({
                         >
                           {r.symbol}
                         </Link>
-                        {!r.quoted && !r.coinId && (
-                          <span className="rounded bg-muted/60 px-1 py-0.5 text-[0.55rem] font-semibold uppercase text-muted-foreground">
-                            no print
-                          </span>
-                        )}
                       </div>
                       <span className="text-[0.66rem] text-muted-foreground sm:hidden" aria-hidden="true">{r.name}</span>
-                      {!isCryptoTab && !r.coinId && (
+                      {/* b6 H-2: no stray "no print" label; the price cell already says when a print is missing. */}
+                      {!isCryptoTab && !r.coinId && r.quoted && (
                         <span className="block text-[0.62rem] text-muted-foreground">
-                          {r.quoted ? `${r.source || "Last good"} · ${r.rowAsOf || ""}` : PRICE_NOT_IN_RESPONSE}
+                          {`${r.source || "Last good"}${r.rowAsOf ? ` · ${r.rowAsOf}` : ""}`}
                         </span>
                       )}
                     </td>

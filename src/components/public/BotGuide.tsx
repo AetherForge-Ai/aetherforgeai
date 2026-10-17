@@ -63,15 +63,10 @@ export function BotGuide({
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">AetherForge AI</p>
           <h1 className="mt-3 font-display text-4xl font-bold">{title}</h1>
           <p className="mt-4 text-lg leading-relaxed text-muted-foreground">{lede}</p>
-          <div className="mt-8 grid gap-4 sm:grid-cols-2">
+          {/* b6 M-3: transparent cut-outs only. No mask, opacity or blend mode, so faces and hands render solid. */}
+          <div className={cn("mt-8 grid gap-4", images.length > 1 ? "sm:grid-cols-2" : "mx-auto max-w-sm")}>
             {images.map((image) => (
-              <Image key={image.src} src={image.src} alt={image.alt} width={512} height={512} className={cn(
-                "h-auto w-full rounded-2xl object-contain",
-                // Transparent WebP cut-outs need no mask (M-3); only the square artwork is softened.
-                image.src.endsWith(".webp")
-                  ? ""
-                  : "bg-background [mask-image:radial-gradient(circle_at_center,black_62%,transparent_72%)]"
-              )} />
+              <Image key={image.src} src={image.src} alt={image.alt} width={512} height={512} className="h-auto w-full object-contain" />
             ))}
           </div>
           <div className="mt-8 space-y-4 text-sm leading-relaxed text-muted-foreground">

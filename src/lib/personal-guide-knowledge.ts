@@ -49,7 +49,7 @@ Foundation: build a complete, accurate portfolio (every holding; exact tickers e
 
 Daily: run Stox / Koins Apex-style reports (ideally before NZ open); read multi-timeframe analysis; focus on momentum, 7-day pathways, and the WHY behind observations — not just “Buy” labels.
 
-Weekly: Headmaster Total Portfolio Intelligence; Strategy Builder with clear goals; scenario sims before big allocation changes.
+Weekly: Headmaster Total Portfolio Intelligence note on how the whole book is spread.
 
 Also: smart price alerts; disciplined process; avoid incomplete portfolios, emotional trading, chasing every signal, ignoring risk/position sizing, skipping the transaction log.
 

@@ -28,7 +28,6 @@ export default async function HeadmasterPage() {
         kind="headmaster"
         images={[
           { src: "/brand/bot-headmaster-fullbody.webp", alt: "Illustration of the Headmaster character" },
-          { src: "/brand/aetherforge-mark.png", alt: "AetherForge mark" },
         ]}
       />
     );

@@ -99,8 +99,6 @@ const GOALS: { key: GoalKey; name: string; risk: string }[] = [
 function LockedUpsell() {
   const features = [
     { icon: Layers, title: "Portfolio Synthesis", body: "One unified NZD view across Stox, Koins & precious metals." },
-    { icon: Compass, title: "Strategy Builder", body: "Goal-based model portfolios with rebalancing scenarios to target." },
-    { icon: TrendingUp, title: "Scenario Simulator", body: "Bull / base / bear pathways over 7d, 30d, 90d and 12 months." },
     { icon: ShieldAlert, title: "Risk & Stress Testing", body: "Crypto winters, corrections and risk-off flights, quantified." },
     { icon: Bot, title: "Chief Strategist AI", body: "“How should I rebalance if BTC drops 20%?” — answered." },
     { icon: Download, title: "Intelligence Reports", body: "On-demand Total Portfolio Intelligence Report, ready to print." },
@@ -117,8 +115,8 @@ function LockedUpsell() {
         </h1>
         <p className="mt-4 max-w-2xl text-muted-foreground">
           The ultimate AI agent that orchestrates <strong>Stox</strong> and <strong>Koins</strong> into a unified
-          wealth-building system. The Headmaster sees your entire book — stocks, crypto and precious metals — and engineers
-          the allocation, strategy and risk controls to grow and protect it. Cost method: FIFO (first in, first out).
+          wealth-building system. The Headmaster sees your entire book — stocks, crypto and precious metals — and writes one
+          plain-English note on how it is spread. Paper research, not advice. Cost method: FIFO (first in, first out).
         </p>
 
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
