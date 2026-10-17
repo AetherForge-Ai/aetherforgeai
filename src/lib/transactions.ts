@@ -126,6 +126,7 @@ export interface TransactionInput {
   dividend_withholding?: number;
   /** DRP reinvestment in the holding currency. Does not change the share count. */
   dividend_drp?: number;
+  dividend_drp_shares?: number;
   /** DEX when the member picked a DEX token. Coin-list fills omit this. */
   venue?: string;
   /** Readable chain for a DEX token, such as Ethereum. */
@@ -500,6 +501,7 @@ async function detailedDividendParts(
     drpNative: Number(input.dividend_drp) || 0,
     currency,
     fx,
+    drpShares: Number(input.dividend_drp_shares) || null,
   });
   if (built.ok === false) throw new Error(built.message);
   return { parts: built.parts, fxSource };

@@ -44,7 +44,7 @@ function FigureLine({ label, figure }: { label: string; figure: PerformanceFigur
   );
 }
 
-function ReportBlock({ report }: { report: PerformanceReport }) {
+function ReportBlock({ report, extra = [] }: { report: PerformanceReport; extra?: { label: string; figure: PerformanceFigure }[] }) {
   const rows: { label: string; figure: PerformanceFigure }[] = [
     {
       label:
@@ -55,7 +55,8 @@ function ReportBlock({ report }: { report: PerformanceReport }) {
     },
     { label: "Time-weighted return, since start", figure: report.twr },
   ];
-  if (report.benchmark) rows.push({ label: "Benchmark, bought on deposit dates", figure: report.benchmark });
+  if (report.benchmark) rows.push({ label: "NZX 50 benchmark, bought on deposit dates", figure: report.benchmark });
+  rows.push(...extra);
   return (
     <div className="mt-4 space-y-3">
       {rows.map((row) => (
@@ -77,6 +78,24 @@ function ReportBlock({ report }: { report: PerformanceReport }) {
   );
 }
 
+/**
+ * Goal b8 G-02: S&P 500 in NZ$ terms. Each level is the delayed public ^GSPC
+ * close divided by the delayed public NZDUSD=X close on the same date. A date
+ * with either price missing is left out; nothing is invented.
+ */
+async function sp500NzdPrices(dates: string[]): Promise<{ date: string; level: number }[]> {
+  const prices: { date: string; level: number }[] = [];
+  for (const date of dates) {
+    try {
+      const [usd, nzdusd] = await Promise.all([fetchYahooCloseOn("^GSPC", date), fetchYahooCloseOn("NZDUSD=X", date)]);
+      if (usd != null && usd > 0 && nzdusd != null && nzdusd > 0) prices.push({ date, level: usd / nzdusd });
+    } catch {
+      // Missing stays missing.
+    }
+  }
+  return prices;
+}
+
 async function indexPrices(dates: string[]): Promise<{ date: string; level: number }[]> {
   const prices: { date: string; level: number }[] = [];
   for (const date of dates) {
@@ -93,6 +112,7 @@ async function indexPrices(dates: string[]): Promise<{ date: string; level: numb
 export default async function ReturnsPage() {
   const user = await getCurrentUser();
   let report: PerformanceReport | null = null;
+  let extra: { label: string; figure: PerformanceFigure }[] = [];
   let note = "Sign in to see the deposits and withdrawals on your paper book.";
   if (user) {
     try {
@@ -125,7 +145,20 @@ export default async function ReturnsPage() {
         } else {
           const cash = typeof user.cash_balance === "number" ? user.cash_balance : 0;
           const dates = [...new Set([...flows.map((flow) => flow.date), valuation.asOf])];
-          const prices = await indexPrices(dates);
+          const [prices, spPrices] = await Promise.all([indexPrices(dates), sp500NzdPrices(dates)]);
+          const spInput = {
+            points: flows.map((flow) => ({ date: flow.date, valueBeforeNzd: 0, flowNzd: flow.amountNzd, valueKnown: false })),
+            endingNzd: roundMoney(valuation.holdingsNzd + cash),
+            asOf: valuation.asOf,
+            source: valuation.source,
+            benchmark: {
+              name: "S&P 500 (NZ$)",
+              source: "Delayed public prices for ^GSPC and NZDUSD=X, converted to NZ$. Not a direct exchange feed.",
+              prices: spPrices,
+            },
+          };
+          const sp = performanceReport(spInput).benchmark;
+          if (sp) extra = [{ label: "S&P 500 benchmark (NZ$), bought on deposit dates", figure: sp }];
           report = performanceReport({
             points: flows.map((flow) => ({
               date: flow.date,
@@ -145,7 +178,7 @@ export default async function ReturnsPage() {
           note = "The ending value is the stored marks plus paper cash. Buys and sells are not treated as new money.";
         }
       } else if (!flows.length) {
-        note = "This book has no deposit or withdrawal to measure.";
+        note = "Add a holding to see performance.";
       } else {
         const cash = typeof user.cash_balance === "number" ? user.cash_balance : 0;
         const book = cashBookPoints(flows, cash);
@@ -189,7 +222,7 @@ export default async function ReturnsPage() {
         the same working once that holding has its own valuation.
       </p>
       <p className="mt-6 text-sm leading-relaxed text-muted-foreground">{note}</p>
-      {report ? <ReportBlock report={report} /> : null}
+      {report ? <ReportBlock report={report} extra={extra} /> : null}
       {!user ? (
         <p className="mt-4 text-sm">
           <Link href="/login?redirect=%2Freturns" className="font-semibold text-primary underline-offset-4 hover:underline">

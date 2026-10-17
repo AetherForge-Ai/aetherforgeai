@@ -19,6 +19,8 @@ import { lotCivilDay } from "@/lib/executed-at";
 import { nzTaxYearEnding, nzTaxYearLabel } from "@/lib/nz-tax-year";
 import { TAX_INDICATIVE_LABEL } from "@/lib/tax-disclaimer";
 
+import { drpLotRow } from "@/lib/tax-scenarios";
+import type { TaxLedgerRow } from "@/lib/taxable-income";
 export type { CurrencyCode };
 
 export interface DividendParts {
@@ -38,6 +40,8 @@ export interface DividendParts {
   drpNative: number;
   /** Gross minus withholding minus DRP, in NZ$. Imputation is not subtracted. */
   netCashNzd: number;
+  /** Goal b8 G-01: shares allotted by the DRP. Absent on older rows. */
+  drpShares?: number;
 }
 
 export interface DividendSourceRow {
@@ -93,6 +97,7 @@ export function buildDividendRecord(input: {
   drpNative: number;
   currency: CurrencyCode;
   fx: number;
+  drpShares?: number | null;
 }): { ok: true; parts: DividendParts } | { ok: false; message: string } {
   const currency = input.currency;
   const fx = paymentDateFx(currency, input.fx);
@@ -126,6 +131,7 @@ export function buildDividendRecord(input: {
       withholdingNative,
       drpNative,
       netCashNzd,
+      ...(Number(input.drpShares) > 0 && drpNative > 0 ? { drpShares: Number(input.drpShares) } : {}),
     },
   };
 }
@@ -142,7 +148,9 @@ export function dividendNotesPrefix(parts: DividendParts): string {
   return (
     `[DIV:g=${money(parts.grossNzd)};i=${money(parts.imputationNzd)};w=${money(parts.withholdingNzd)};` +
     `d=${money(parts.drpNzd)};fx=${fxText(parts.fx)};ccy=${parts.currency};` +
-    `ng=${money(parts.grossNative)};nw=${money(parts.withholdingNative)};nd=${money(parts.drpNative)}]`
+    `ng=${money(parts.grossNative)};nw=${money(parts.withholdingNative)};nd=${money(parts.drpNative)}` +
+    (parts.drpShares && parts.drpShares > 0 ? `;sh=${parts.drpShares}` : "") +
+    "]"
   );
 }
 
@@ -195,7 +203,35 @@ export function parseDividendNotes(notes?: string | null): DividendParts | null 
     withholdingNative: roundMoney(withholdingNative),
     drpNative: roundMoney(drpNative),
     netCashNzd: netCashNzd < 0 ? 0 : netCashNzd,
+    ...((read("sh") ?? 0) > 0 ? { drpShares: read("sh") as number } : {}),
   };
+}
+
+/**
+ * Goal b8 G-01 / H-9: each DRP with shares allotted becomes a FIFO buy lot at
+ * the DRP amount (native currency, payment-date FX). Rows without a share count
+ * add no lot (nothing is guessed).
+ */
+export function drpLotsFromRows(rows: readonly DividendSourceRow[]): TaxLedgerRow[] {
+  const lots: TaxLedgerRow[] = [];
+  for (const row of rows) {
+    if (row.type !== "dividend") continue;
+    const parts = parseDividendNotes(row.notes);
+    if (!parts?.drpShares || !(parts.drpShares > 0)) continue;
+    lots.push(
+      drpLotRow({
+        id: `drp-${row._id || ""}`,
+        ticker: String(row.ticker || "").trim().toUpperCase(),
+        when: String(row.executed_at || row.createdAt || ""),
+        shares: parts.drpShares,
+        costNative: parts.drpNative,
+        fx: parts.fx,
+        currency: parts.currency,
+        assetType: String(row.asset_type || "stock"),
+      })
+    );
+  }
+  return lots;
 }
 
 export function stripDividendNotesPrefix(notes?: string | null): string {

@@ -92,6 +92,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // present a session cookie cannot paint identity anywhere in the tree.
   const headerList = await headers();
   const sessionMode = headerList.get("x-af-doc") === "member" ? "member" : "guest";
+  // CR-5: per-request CSP nonce from middleware, for our own inline scripts.
+  const nonce = headerList.get("x-nonce") ?? undefined;
   return (
     <html lang="en-NZ">
       <head>
@@ -116,10 +118,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         />
         <DocumentSessionProvider mode={sessionMode}>
           {/* Consent Mode v2 starts denied. This script does not load gtag.js. */}
-          <Script id="gtag-consent-default" strategy="beforeInteractive">
+          <Script id="gtag-consent-default" strategy="beforeInteractive" nonce={nonce}>
             {CONSENT_DEFAULT_DENIED_SNIPPET}
           </Script>
-          <GoogleTag />
+          <GoogleTag nonce={nonce} />
           <GlobalErrorCatcher />
           <ScriptExecutor />
           <DevToolsHandler />

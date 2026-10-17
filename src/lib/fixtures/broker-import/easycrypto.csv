@@ -1,0 +1,4 @@
+# Synthetic fixture. Not a customer file. Header layout modelled on the broker's export; no real data.
+Date,Type,Symbol,Quantity,Price,Fee,Currency,Easy Crypto Order ID
+2026-01-08,Buy,SOL,10,200.00,20.00,NZD,EC-77
+2026-03-15,Sell,SOL,4,220.00,8.80,NZD,EC-78

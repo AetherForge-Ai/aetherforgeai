@@ -29,7 +29,12 @@ export async function POST(req: Request) {
     const body = (await req.clone().json().catch(() => null)) as { email?: unknown; username?: unknown } | null;
     const who = String(body?.email ?? body?.username ?? "").trim().toLowerCase().slice(0, 254);
     const key = `auth:${rule.name}:${encodeURIComponent(ip)}:${encodeURIComponent(who)}`;
-    const result = await takeRateLimit(key, rule.limit, rule.windowMs, Date.now(), { edge: "AUTH_RATE_LIMITER" });
+    const now = Date.now();
+    // Goal b8 CR-5: a per-address cap too, so 20 tries from one IP across many
+    // emails are still refused inside 5 minutes.
+    const ipResult = await takeRateLimit(`auth:${rule.name}:ip:${encodeURIComponent(ip)}`, rule.ipLimit, rule.windowMs, now);
+    const pairResult = await takeRateLimit(key, rule.limit, rule.windowMs, now, { edge: "AUTH_RATE_LIMITER" });
+    const result = !ipResult.allowed ? ipResult : pairResult;
     if (!result.allowed) {
       return NextResponse.json(
         { code: "TOO_MANY_REQUESTS", message: rule.message },

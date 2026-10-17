@@ -80,6 +80,29 @@ export function stampImportNote(notes: string, batchId: string, brokerRef: strin
   return next;
 }
 
+/**
+ * Goal b8 H-10: SHA-256 of the file text (line endings and a BOM normalised),
+ * first 16 hex characters. Stamped as file=<hash> on every imported row so a
+ * second upload of the same file is refused before anything is written.
+ */
+export async function importFileHash(text: string): Promise<string> {
+  const normalised = String(text || "").replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n").trim();
+  const digest = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(normalised));
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("").slice(0, 16);
+}
+
+export function stampFileHash(notes: string, fileHash: string): string {
+  const token = `file=${fileHash}`;
+  const next = String(notes || "").trim();
+  return !fileHash || next.includes(token) ? next : `${next} ${token}`.trim();
+}
+
+export function notesHaveFile(notes: string | null | undefined, fileHash: string): boolean {
+  return Boolean(fileHash) && new RegExp(`(?:^|\\s)file=${fileHash}(?:\\s|$)`).test(String(notes || ""));
+}
+
+export const IMPORT_DUPLICATE_FILE = "This file was already imported. Nothing was written. Undo that import first if you want to import it again.";
+
 export function notesHaveBatch(notes: string | null | undefined, batchId: string): boolean {
   const id = batchId.trim();
   if (!id) return false;

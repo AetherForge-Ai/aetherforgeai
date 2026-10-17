@@ -175,11 +175,13 @@ export const auth = betterAuth({
   // wrapper in api/auth/[...all] applies the shared edge + app counters first.
   rateLimit: {
     enabled: true,
-    window: 60,
+    window: 300,
     max: 100,
     customRules: {
       "/sign-in/email": { window: 300, max: 10 },
       "/sign-in/username": { window: 300, max: 10 },
+      "/forget-password": { window: 300, max: 5 },
+      "/sign-up/email": { window: 300, max: 5 },
     },
   },
 

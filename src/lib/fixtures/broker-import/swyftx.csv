@@ -1,0 +1,5 @@
+# Synthetic fixture. Not a customer file. Header layout modelled on the broker's export; no real data.
+Date,Event,Asset,Quantity,Price,Fee,Currency,Transaction ID
+2026-01-05,Buy,BTC,0.01,100000.00,6.00,NZD,SX-1
+2026-01-12,Buy,ETH,0.5,5000.00,10.00,NZD,SX-2
+2026-02-20,Sell,BTC,0.005,110000.00,5.50,NZD,SX-3

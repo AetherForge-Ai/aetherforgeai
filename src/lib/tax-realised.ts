@@ -90,6 +90,11 @@ function feeNzd(row: TaxLedgerRow, fx: number | null): number | null {
 }
 
 /** The one fee-inclusive lot rule: the buy fee in NZ$ spread per unit onto the lot cost. */
+/** Goal b8 H-9: a DRP allotment buy may carry zero cost (scenario 4). */
+function isZeroCostDrp(row: TaxLedgerRow, price: number): boolean {
+  return row.type === "buy" && price === 0 && /\bDRP\b/.test(String((row as { notes?: string | null }).notes || ""));
+}
+
 export function buyLotFee(
   row: TaxLedgerRow,
   fx: number | null,
@@ -204,7 +209,7 @@ function walkDisposals(rows: readonly TaxLedgerRow[]): RealisedLine[] {
       lines.push(line);
       continue;
     }
-    if (!(price > 0)) continue;
+    if (!(price > 0) && !isZeroCostDrp(row, price)) continue;
     const fx = fxOf(row);
     lots.push({
       qty,
@@ -281,7 +286,7 @@ function openBooks(rows: readonly TaxLedgerRow[]): Map<string, OpenLot[]> {
     books.set(ticker, lots);
     const qty = movementQty(row);
     const price = movementPrice(row);
-    if (!(qty > 0) || !(price > 0)) continue;
+    if (!(qty > 0) || (!(price > 0) && !isZeroCostDrp(row, price))) continue;
     if (row.type === "sell") {
       const fx = fxOf(row);
       const closed = fifoApplySell(lots, qty, price, fx ?? 0);
@@ -392,7 +397,7 @@ export function sumRealisedFxNzd(rows: readonly TaxLedgerRow[]): number {
     books.set(ticker, lots);
     const qty = movementQty(row);
     const price = movementPrice(row);
-    if (!(qty > 0) || !(price > 0)) continue;
+    if (!(qty > 0) || (!(price > 0) && !isZeroCostDrp(row, price))) continue;
     if (row.type === "sell") {
       const fx = fxOf(row);
       const closed = fifoApplySell(lots, qty, price, fx ?? 0);

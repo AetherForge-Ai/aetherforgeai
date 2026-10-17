@@ -1,5 +1,6 @@
 import { DUPLICATE_DIVIDEND_CODE, findDuplicateDividendTx } from "@/lib/dividend-ledger";
 import { NextResponse } from "next/server";
+import { checkTickerQuota } from "@/lib/entitlements";
 import { LEDGER_ROW_EDIT } from "@/lib/feature-flags";
 import { editedTradeRow, originalTradeInput } from "@/lib/ledger-row-edit";
 import { firstOversell, OVERSELL_BLOCK, type ReversalTxn } from "@/lib/ledger-reversal";
@@ -107,6 +108,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Amount is required" }, { status: 400 });
     }
 
+    // Goal b8 CR-6: the plan's holding cap is enforced here too, so a buy of a
+    // new ticker through this API cannot add an 11th Free holding (403).
+    if ((input.type === "buy" || input.type === "opening_balance") && input.ticker && input.asset_type !== "metal") {
+      const capped = await holdingCapRefusal(user, input.ticker, input.asset_type === "crypto" ? "crypto" : "stock");
+      if (capped) return capped;
+    }
+
     // The book read overlaps the write. If it is still in flight when the
     // holding, ledger and cash writes finish, the response does not wait for
     // the 5000-row query. The client merges the new row into the ledger it has.
@@ -188,6 +196,24 @@ export async function POST(req: Request) {
       { status: 400 }
     );
   }
+}
+
+async function holdingCapRefusal(
+  user: Parameters<typeof checkTickerQuota>[0] & { _id: string },
+  ticker: string,
+  assetType: "stock" | "crypto"
+): Promise<NextResponse | null> {
+  const existing = await totalumSdk.crud.query("stock", { _filter: { user: user._id }, _limit: 1000 });
+  const held = ((existing?.data as unknown as Array<{ ticker?: string; asset_type?: string; shares?: number }>) || []);
+  const sym = ticker.trim().toUpperCase();
+  const sleeve = held.find((h) => String(h.ticker || "").toUpperCase() === sym && (h.asset_type || "stock") === assetType);
+  if (sleeve) return null;
+  const quota = checkTickerQuota(user, held as never, assetType);
+  if (quota.allowed) return null;
+  return NextResponse.json(
+    { ok: false, error: quota.message, data: { code: "ticker_limit", used: quota.used, limit: quota.limit, scope: quota.scope, upgradeHref: quota.upgradeHref } },
+    { status: 403 }
+  );
 }
 
 /**
