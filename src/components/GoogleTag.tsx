@@ -13,7 +13,7 @@ import {
  * Google Analytics loads only after Accept. The first render never includes gtag.js.
  * Consent Mode v2 default denied is the inline script in the root layout.
  */
-export function GoogleTag() {
+export function GoogleTag({ nonce }: { nonce?: string } = {}) {
   const tagId = googleMeasurementId();
   const [allowed, setAllowed] = useState(false);
 
@@ -42,8 +42,8 @@ export function GoogleTag() {
 
   return (
     <>
-      <Script id="gtag-src" src={`https://www.googletagmanager.com/gtag/js?id=${tagId}`} strategy="afterInteractive" />
-      <Script id="gtag-init" strategy="afterInteractive">
+      <Script id="gtag-src" src={`https://www.googletagmanager.com/gtag/js?id=${tagId}`} strategy="afterInteractive" nonce={nonce} />
+      <Script id="gtag-init" strategy="afterInteractive" nonce={nonce}>
         {`
           gtag('consent', 'update', { analytics_storage: 'granted' });
           gtag('js', new Date());

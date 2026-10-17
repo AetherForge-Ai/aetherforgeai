@@ -1,0 +1,5 @@
+# Synthetic fixture. Not a customer file. Header layout modelled on the broker's export; no real data.
+Date,Code,Exchange,Transaction,Units,Price,Brokerage,Currency,Confirmation Number
+2026-02-03,MFT,NZX,Buy,10,70.00,30.00,NZD,JD-501
+2026-02-10,SPK,NZX,Buy,200,5.00,30.00,NZD,JD-502
+2026-05-05,SPK,NZX,Sell,100,5.50,30.00,NZD,JD-503

@@ -149,8 +149,14 @@ function pdfEscape(text: string): string {
 }
 
 /** One-page PDF. The indicative label is always the first line. */
-export function taxPaperPdf(input: { title: string; taxYear: string; lines: readonly string[] }): string {
-  const rows = [TAX_INDICATIVE_LABEL, TAX_PACK_NOTE, input.title, input.taxYear, ...input.lines].slice(0, 42);
+/** Goal b8 H-9: the NZ income year spelled out, e.g. "Tax year 1 Apr 2025 to 31 Mar 2026". */
+export function taxYearSpan(endingYear: number): string {
+  return `Tax year 1 Apr ${endingYear - 1} to 31 Mar ${endingYear}`;
+}
+
+export function taxPaperPdf(input: { title: string; taxYear: string; lines: readonly string[]; endingYear?: number }): string {
+  const span = input.endingYear ? [taxYearSpan(input.endingYear)] : [];
+  const rows = [TAX_INDICATIVE_LABEL, TAX_PACK_NOTE, input.title, input.taxYear, ...span, ...input.lines].slice(0, 42);
   const commands = ["BT", "/F1 11 Tf", "48 760 Td"];
   rows.forEach((line, index) => {
     const clean = line.replace(/[^\x20-\x7E]/g, " ").slice(0, 110);
@@ -182,10 +188,32 @@ export function taxPaperPdf(input: { title: string; taxYear: string; lines: read
   return body;
 }
 
-export function fifPaperLines(paper: FifPaper): string[] {
+/** Distinct stored NZD-per-unit FX rates per ticker, from the ledger rows. */
+export function fxRatesByTicker(rows: readonly { ticker?: string | null; fx_rate?: number | null; type?: string | null }[]): Map<string, number[]> {
+  const out = new Map<string, number[]>();
+  for (const row of rows) {
+    const ticker = String(row.ticker || "").toUpperCase();
+    const fx = Number(row.fx_rate);
+    if (!ticker || !(fx > 0)) continue;
+    const list = out.get(ticker) ?? [];
+    if (!list.some((v) => Math.abs(v - fx) < 1e-9)) list.push(fx);
+    out.set(ticker, list);
+  }
+  return out;
+}
+
+export function fifPaperLines(paper: FifPaper, rows: readonly { ticker?: string | null; fx_rate?: number | null }[] = []): string[] {
+  const fx = fxRatesByTicker(rows);
+  // Goal b8 H-9: opening and closing values and the FX rate for every holding.
+  const holdings = paper.attributing.map((row) => {
+    const rates = fx.get(row.ticker.toUpperCase());
+    const rateText = rates?.length ? rates.map((r) => r.toFixed(4)).join(" / ") : "none stored";
+    return `${row.ticker}: opening NZD ${money(row.openingNzd) || "not entered"}, closing NZD ${money(row.closingNzd) || "not entered"}, FDR NZD ${money(row.fdrNzd) || "-"}, CV NZD ${money(row.cvNzd) || "-"}, FX NZD per unit ${rateText}`;
+  });
   return [
     `Peak cost NZD ${money(paper.peakCostNzd) || "not calculated"}`,
     fifThresholdSentence(paper),
+    ...holdings,
     ...paper.assumptions,
   ];
 }

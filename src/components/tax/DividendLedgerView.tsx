@@ -80,6 +80,7 @@ export function DividendLedgerView({
   const [imputation, setImputation] = useState("");
   const [withholding, setWithholding] = useState("");
   const [drp, setDrp] = useState("");
+  const [drpShares, setDrpShares] = useState("");
   const [fx, setFx] = useState("");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
@@ -155,6 +156,7 @@ export function DividendLedgerView({
         dividend_imputation_nzd: preview.parts.imputationNzd,
         dividend_withholding: preview.parts.withholdingNative,
         dividend_drp: preview.parts.drpNative,
+        ...(Number(drpShares) > 0 ? { dividend_drp_shares: Number(drpShares) } : {}),
         fx_rate: preview.parts.fx,
         fx_source: currency === "NZD" ? "nzd" : "payment-date",
       });
@@ -166,6 +168,7 @@ export function DividendLedgerView({
       setImputation("");
       setWithholding("");
       setDrp("");
+      setDrpShares("");
       setNote("");
       const saved = res.data as { cashBalance?: number; lastTransaction?: { _id?: string } } | undefined;
       if (saved && typeof saved.cashBalance === "number") {
@@ -292,6 +295,10 @@ export function DividendLedgerView({
               <div className="space-y-1.5">
                 <Label htmlFor="dividend-drp">DRP reinvestment ({currency})</Label>
                 <Input id="dividend-drp" inputMode="decimal" value={drp} onChange={(event) => setDrp(event.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="dividend-drp-shares">DRP shares received</Label>
+                <Input id="dividend-drp-shares" inputMode="decimal" value={drpShares} onChange={(event) => setDrpShares(event.target.value)} />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="dividend-fx">Payment-date rate</Label>

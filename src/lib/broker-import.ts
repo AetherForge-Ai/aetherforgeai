@@ -17,7 +17,20 @@ import { roundMoney } from "@/lib/currency";
 import { parseHoldingsDate, splitCsvLine, splitHoldingsTicker } from "@/lib/holdings-csv";
 import { knownImportSymbol } from "@/lib/import-symbols";
 
-export type ImportBroker = "sharesies" | "hatch" | "kernel" | "stake" | "ibkr" | "binance" | "easycrypto" | "aetherforge" | "generic";
+export type ImportBroker =
+  | "sharesies"
+  | "hatch"
+  | "kernel"
+  | "stake"
+  | "ibkr"
+  | "asb"
+  | "jarden"
+  | "commsec"
+  | "swyftx"
+  | "binance"
+  | "easycrypto"
+  | "aetherforge"
+  | "generic";
 export type BrokerConfidence = "high" | "medium" | "low";
 
 export interface BrokerDetection {
@@ -114,7 +127,7 @@ export interface ImportPlan {
   totalsMessage: string;
 }
 
-const SIDE_KEYS = ["side", "type", "action", "buy/sell", "buy sell", "transaction type"];
+const SIDE_KEYS = ["side", "type", "action", "buy/sell", "buy sell", "transaction type", "transaction", "event", "order type"];
 const TICKER_KEYS = [
   "ticker",
   "symbol",
@@ -126,24 +139,31 @@ const TICKER_KEYS = [
   "company name",
   "company",
   "security name",
+  "security code",
+  "security",
+  "asset",
   "name",
 ];
 const NAME_HEADERS = new Set(["instrument name", "company name", "company", "security name", "name", "asset name", "assetname"]);
 const DATE_KEYS = ["date", "trade date", "tradedate", "when", "trade_date"];
-const QTY_KEYS = ["quantity", "qty", "units", "shares"];
-const PRICE_KEYS = ["price", "fill price", "fillprice", "tradeprice", "trade price", "t. price", "unit price", "price paid", "pricepaid", "purchase price"];
-const FEE_KEYS = ["fee", "fees", "fees native", "feesnative", "commission", "ibcommission", "ib commission", "transaction fee"];
-const MARKET_KEYS = ["market code", "market"];
+const QTY_KEYS = ["quantity", "qty", "units", "shares", "volume"];
+const PRICE_KEYS = ["price", "fill price", "fillprice", "tradeprice", "trade price", "t. price", "unit price", "price paid", "pricepaid", "purchase price", "average price", "avg price"];
+const FEE_KEYS = ["fee", "fees", "fees native", "feesnative", "commission", "ibcommission", "ib commission", "transaction fee", "brokerage"];
+const MARKET_KEYS = ["market code", "market", "exchange"];
 const CCY_KEYS = ["currency", "fill currency", "fillcurrency", "currencyprimary", "currency primary", "ccy"];
 const FX_KEYS = ["fx", "fx rate", "fxrate", "fxratetobase", "exchange rate"];
-const VALUE_KEYS = ["value", "amount", "proceeds"];
-const REF_KEYS = ["order id", "orderid", "reference", "trade id", "broker ref"];
+const VALUE_KEYS = ["value", "amount", "proceeds", "consideration", "gross value"];
+const REF_KEYS = ["order id", "orderid", "reference", "trade id", "broker ref", "contract note", "confirmation number", "transaction id"];
 const BROKER_LABEL: Record<ImportBroker, string> = {
   sharesies: "Sharesies",
   hatch: "Hatch",
   kernel: "Kernel",
   stake: "Stake",
   ibkr: "IBKR",
+  asb: "ASB Securities",
+  jarden: "Jarden Direct",
+  commsec: "CommSec",
+  swyftx: "Swyftx",
   binance: "Binance",
   easycrypto: "Easy Crypto",
   aetherforge: "AetherForge",
@@ -277,6 +297,20 @@ export function detectBroker(headers: string[]): BrokerDetection {
   }
   if ((hasHeader(headers, "company") || hasHeader(headers, "company name")) && hasHeader(headers, "type")) {
     return detectionOf("sharesies", "medium", 0.74);
+  }
+  // Goal b8 H-10: NZ and AU brokers by header signature, ahead of the generic Buy/Sell match.
+  if (hasHeader(headers, "contract note") && hasHeader(headers, "security code")) return detectionOf("asb", "high", 0.93);
+  if (hasHeader(headers, "confirmation number") && hasHeader(headers, "brokerage") && hasHeader(headers, "exchange")) {
+    return detectionOf("jarden", "high", 0.92);
+  }
+  if (hasHeader(headers, "settlement date") && hasHeader(headers, "average price") && hasHeader(headers, "security")) {
+    return detectionOf("commsec", "high", 0.92);
+  }
+  if (
+    headers.some((header) => header.includes("swyftx")) ||
+    (hasHeader(headers, "event") && hasHeader(headers, "asset") && hasHeader(headers, "transaction id"))
+  ) {
+    return detectionOf("swyftx", "high", 0.93);
   }
   if (hasHeader(headers, "clientaccountid") || hasHeader(headers, "buy/sell")) return detectionOf("ibkr", "high", 0.95);
   if (hasHeader(headers, "trade date") && hasHeader(headers, "action") && hasHeader(headers, "symbol")) {
@@ -640,6 +674,12 @@ export function planBrokerImport(
     const fix = (options?.tickerFixes?.[String(lineNo)] || "").trim().toUpperCase();
     const ticker = fix || printed;
     const quantity = Math.abs(quantityRaw);
+    // Goal b8 H-10: a negative quantity on a buy is an error, not a silent flip.
+    // (IBKR prints sells as negative quantities; those stay valid.)
+    if (quantityRaw < 0 && side === "buy") {
+      unsupported.push({ line: lineNo, ticker, date, side, quantity: quantityRaw, reason: "Negative quantity on a buy. Fix the row or leave it out." });
+      return;
+    }
     if (!(price != null && price > 0)) {
       unsupported.push({
         line: lineNo,

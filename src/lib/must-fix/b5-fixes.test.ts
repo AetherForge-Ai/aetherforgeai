@@ -135,11 +135,11 @@ describe("CR-4 one shared disclaimer", () => {
 });
 
 describe("CR-5 headers", () => {
-  it("no stale report-only CSP; enforced CSP documented as unsafe-inline by decision", () => {
+  it("no stale report-only CSP; enforced CSP is nonce-based (goal b8)", () => {
     const h = SECURITY_HEADERS as Record<string, string>;
     expect(h["Content-Security-Policy-Report-Only"]).toBeUndefined();
     expect(h["Content-Security-Policy"]).toContain("object-src 'none'");
-    expect(read("src/lib/security-headers.ts")).toContain("Nonces were tried");
+    expect(h["Content-Security-Policy"]).not.toContain("'unsafe-inline'");
   });
 });
 
@@ -196,7 +196,7 @@ describe("H-13 market-news relevance", () => {
 
 describe("batch 5 pins", () => {
   it("build string and pull-check marker", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-must-fix-b7-2026-10-17");
+    expect(read("public/build-version.txt").trim()).toBe("v3-goal-b8-2026-10-17");
     expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-must-fix-b5-2026-10-17");
   });
 });

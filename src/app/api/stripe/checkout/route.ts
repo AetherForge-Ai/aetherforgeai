@@ -130,6 +130,16 @@ export async function POST(req: Request) {
       allow_promotion_codes: true,
     });
 
+    // Goal b8 CR-1/CR-6: in Stripe test mode only, echo the price used so TT can
+    // match it on the Stripe test page (Starter monthly must be NZ$16.00).
+    if (session.livemode === false) {
+      const unitAmount = slot?.unitAmount ?? null;
+      console.log(`[stripe-test] checkout plan=${planDef.key} price=${priceId} unit_amount=${unitAmount ?? "-"} currency=nzd`);
+      return NextResponse.json({
+        ok: true,
+        data: { url: session.url, sessionId: session.id, testMode: { plan: planDef.key, priceId, unitAmount, currency: "nzd" } },
+      });
+    }
     return NextResponse.json({ ok: true, data: { url: session.url, sessionId: session.id } });
   } catch (err) {
     console.error("[api/stripe/checkout] error:", err);

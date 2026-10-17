@@ -2,12 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SiteHeader } from "@/components/SiteHeader";
 import { JsonLd } from "@/components/public/JsonLd";
-import { DOCS_GUIDES, docsGuide } from "@/lib/docs-guides";
+import { docsGuide } from "@/lib/docs-guides";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 
-export function generateStaticParams() {
-  return DOCS_GUIDES.map((g) => ({ slug: g.slug }));
-}
+// CR-5: render per request so the CSP nonce is stamped on every script.
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;

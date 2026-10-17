@@ -1,0 +1,5 @@
+# Synthetic fixture. Not a customer file. Header layout modelled on the broker's export; no real data.
+Trade Date,Security Code,Exchange,Buy/Sell,Quantity,Price,Brokerage,Currency,Contract Note
+2026-03-02,FPH,NZX,Buy,10,30.00,15.00,NZD,CN1001
+2026-03-09,AIR,NZX,Buy,100,0.70,15.00,NZD,CN1002
+2026-04-01,FPH,NZX,Sell,5,32.00,15.00,NZD,CN1003
