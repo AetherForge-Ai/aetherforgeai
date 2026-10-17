@@ -400,7 +400,7 @@ export function PriceAlerts({
           <Plus className="mr-1 size-4" /> New alert
         </Button>
         ) : (
-          <a href="/pricing" className="text-sm font-medium text-primary hover:underline">Alerts are on a paid plan</a>
+          <a href="/pricing" className="text-sm font-medium text-primary hover:underline">Price alerts: Starter and above</a>
         )}
       </div>
 
@@ -415,7 +415,7 @@ export function PriceAlerts({
           <p className="rounded-xl border border-dashed border-border/60 p-5 text-sm text-muted-foreground">
             {canCreate
               ? `No ${isCrypto ? "crypto" : isMetal ? "metals" : "share"} alerts yet. Use New alert and the list marks it when a price hits your rules.`
-              : "Price alerts are on a paid plan."}
+              : "Price alerts: Starter and above."}
           </p>
         ) : (
           <ul className={bare ? "grid gap-3" : "grid gap-3 md:grid-cols-2"}>
