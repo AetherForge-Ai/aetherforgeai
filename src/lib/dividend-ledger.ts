@@ -375,6 +375,8 @@ export interface MonthIncome {
   withholdingNzd: number;
   drpNzd: number;
   netCashNzd: number;
+  /** Goal b12 G-01: rows counted in net with no gross breakdown. */
+  breakdownMissing?: number;
 }
 
 export interface YearIncome {
@@ -387,6 +389,7 @@ export interface YearIncome {
   netCashNzd: number;
   /** Net cash plus DRP. Imputation credits are not included. */
   totalReturnNzd: number;
+  breakdownMissing?: number;
 }
 
 export interface ExpectedDividend {
@@ -459,7 +462,14 @@ export function dividendIncome(
     const drpNzd = parts?.drpNzd || 0;
     totalReturnNzd = roundMoney(totalReturnNzd + net + drpNzd);
     if (parts && parts.drpNzd > 0) drp.push(row);
-    if (!day || !parts) continue;
+    if (!day) continue;
+    // Goal b12 G-01: a row with net cash and no gross breakdown still counts in
+    // the month and tax-year net, so page total = month sum = tax-year sum.
+    // Its gross shows "—" upstream and the row is flagged "breakdown missing".
+    const gross = parts ? parts.grossNzd : 0;
+    const imputation = parts ? parts.imputationNzd : 0;
+    const withholding = parts ? parts.withholdingNzd : 0;
+    const missing = parts ? 0 : 1;
 
     const monthKey = day.slice(0, 7);
     const month = months.get(monthKey) || {
@@ -469,12 +479,14 @@ export function dividendIncome(
       withholdingNzd: 0,
       drpNzd: 0,
       netCashNzd: 0,
+      breakdownMissing: 0,
     };
-    month.grossNzd = roundMoney(month.grossNzd + parts.grossNzd);
-    month.imputationNzd = roundMoney(month.imputationNzd + parts.imputationNzd);
-    month.withholdingNzd = roundMoney(month.withholdingNzd + parts.withholdingNzd);
-    month.drpNzd = roundMoney(month.drpNzd + parts.drpNzd);
-    month.netCashNzd = roundMoney(month.netCashNzd + parts.netCashNzd);
+    month.grossNzd = roundMoney(month.grossNzd + gross);
+    month.imputationNzd = roundMoney(month.imputationNzd + imputation);
+    month.withholdingNzd = roundMoney(month.withholdingNzd + withholding);
+    month.drpNzd = roundMoney(month.drpNzd + drpNzd);
+    month.netCashNzd = roundMoney(month.netCashNzd + net);
+    month.breakdownMissing = (month.breakdownMissing || 0) + missing;
     months.set(monthKey, month);
 
     const ending = nzTaxYearEnding(day);
@@ -488,18 +500,21 @@ export function dividendIncome(
         drpNzd: 0,
         netCashNzd: 0,
         totalReturnNzd: 0,
+        breakdownMissing: 0,
       };
-      year.grossNzd = roundMoney(year.grossNzd + parts.grossNzd);
-      year.imputationNzd = roundMoney(year.imputationNzd + parts.imputationNzd);
-      year.withholdingNzd = roundMoney(year.withholdingNzd + parts.withholdingNzd);
-      year.drpNzd = roundMoney(year.drpNzd + parts.drpNzd);
-      year.netCashNzd = roundMoney(year.netCashNzd + parts.netCashNzd);
+      year.grossNzd = roundMoney(year.grossNzd + gross);
+      year.imputationNzd = roundMoney(year.imputationNzd + imputation);
+      year.withholdingNzd = roundMoney(year.withholdingNzd + withholding);
+      year.drpNzd = roundMoney(year.drpNzd + drpNzd);
+      year.netCashNzd = roundMoney(year.netCashNzd + net);
       year.totalReturnNzd = roundMoney(year.netCashNzd + year.drpNzd);
+      year.breakdownMissing = (year.breakdownMissing || 0) + missing;
       years.set(ending, year);
     }
 
+    // Trailing 12 months income: gross where stored, else the net cash received.
     if (asOf && windowStart && day > windowStart && day <= asOf) {
-      trailingGrossNzd = roundMoney(trailingGrossNzd + parts.grossNzd);
+      trailingGrossNzd = roundMoney(trailingGrossNzd + (parts ? parts.grossNzd : net));
     }
   }
 
@@ -610,4 +625,33 @@ export function findDuplicateDividendTx<T extends DividendTxLike>(
       return stored.some((s) => wanted.some((w) => Math.abs(s - w) < 0.005));
     }) || null
   );
+}
+
+
+/**
+ * Goal b12 G-01: cost and value bases for trailing yield. Only NZ-listed
+ * (.NZ, priced in NZ$) holdings are used, because stored cost on overseas rows
+ * has no FX-converted NZ$ figure. When any dividend comes from a non-NZ$
+ * holding the book yield is not shown ("—") rather than mixed currencies.
+ */
+export function yieldBasesNzd(
+  holdings: readonly { ticker: string; shares: number; purchasePrice?: number | null; currentPrice?: number | null }[],
+  dividendTickers: readonly string[]
+): { costNzd: number | null; valueNzd: number | null; reason: string | null } {
+  const nz = (t: string) => /\.NZ$/i.test(t.trim());
+  if (dividendTickers.some((t) => !nz(t))) {
+    return { costNzd: null, valueNzd: null, reason: "Some dividends are from overseas holdings, and their NZ$ cost is not stored, so the book yield is not shown." };
+  }
+  const rows = holdings.filter((h) => nz(h.ticker) && h.shares > 0);
+  if (!rows.length) return { costNzd: null, valueNzd: null, reason: "No NZ-listed holdings with cost and price are stored." };
+  let cost = 0;
+  let value = 0;
+  for (const h of rows) {
+    if (!(Number(h.purchasePrice) > 0) || !(Number(h.currentPrice) > 0)) {
+      return { costNzd: null, valueNzd: null, reason: `${h.ticker} has no stored cost or price, so the yield is not shown.` };
+    }
+    cost += h.shares * Number(h.purchasePrice);
+    value += h.shares * Number(h.currentPrice);
+  }
+  return { costNzd: roundMoney(cost), valueNzd: roundMoney(value), reason: null };
 }

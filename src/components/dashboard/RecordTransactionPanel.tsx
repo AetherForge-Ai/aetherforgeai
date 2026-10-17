@@ -656,7 +656,34 @@ export function RecordTransactionPanel({
         }
       }
       const postedAt = Date.now();
+      // Goal b12 G-10: paint cash, the holding and the ledger row now from the
+      // reviewed figures. The saved row replaces it; a refusal rolls it back.
+      const optimistic = (kind === "buy" || kind === "sell" || kind === "deposit") && Number.isFinite(preview.cashAfterNzd);
+      const cashBeforeOptimistic = preview.cashAfterNzd - preview.cashChangeNzd;
+      if (optimistic) {
+        const row = {
+          _id: `optimistic-${postedAt}`,
+          _optimistic: true,
+          type: kind,
+          ticker: typeof payload.ticker === "string" ? payload.ticker : undefined,
+          asset_type: payload.asset_type,
+          asset_name: payload.asset_name,
+          quantity: payload.quantity,
+          price: payload.price,
+          fx_rate: payload.fx_rate,
+          fees: payload.fees,
+          amount: payload.amount,
+          executed_at: payload.executed_at,
+        };
+        onDone({ cashBalance: preview.cashAfterNzd, lastTransaction: row, transactions: [row], ledgerPartial: true, optimistic: true });
+        onRequestClose();
+      }
       const res = await api.post("/api/transactions", payload);
+      if (optimistic && !res.ok) {
+        onDone({ cashBalance: cashBeforeOptimistic, lastTransaction: null, transactions: [], ledgerPartial: true, optimisticRollback: true });
+        toast.error(typeof res.error === "string" ? `Not saved: ${res.error}` : "Not saved. Your book is unchanged.");
+        return;
+      }
       const dupRefused =
         !res.ok &&
         kind === "dividend" &&
@@ -678,7 +705,7 @@ export function RecordTransactionPanel({
       toast.success("Transaction recorded");
       console.log(`[confirm] toast=${Date.now() - postedAt} follow-ups=after-toast`);
       onDone(res.data);
-      onRequestClose();
+      if (!optimistic) onRequestClose();
     } finally {
       setSaving(false);
       releaseCommit();

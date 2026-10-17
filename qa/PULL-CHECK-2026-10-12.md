@@ -681,3 +681,4 @@ Must-fix batch 7 (TT b6 retest: CR-2 CR-5 H-5 H-13 M-3 M-6): marker `pull-check:
 - Goal loop batch b9 (GOAL-LOCK G-07 G-08 G-09, b8 gaps H-9 split entry + DRP holding count): marker `pull-check:v3-goal-b9-2026-10-18`
 - Goal loop batch b10 (GOAL-LOCK G-04 G-05 G-06 G-10 G-12 G-13 G-16): marker `pull-check:v3-goal-b10-2026-10-18`
 - Goal loop batch b11 (CR-1 checkout auth + test mode, CR-2/CR-5 IPv6 /64 + per-email, CR-6 dryRun, H-13 allow-list, G-10 G-11 G-14 G-15 G-17, local signed-in harness): marker `pull-check:v3-goal-b11-2026-10-18`
+- Goal loop batch b12 (M-1 measure, M-2 docs screenshots, M-6 holdings fit, G-01 aggregates + yield, G-02 Performance panel, Starter cap wording, H-5 date fallback, avatar label): marker `pull-check:v3-goal-b12-2026-10-18`

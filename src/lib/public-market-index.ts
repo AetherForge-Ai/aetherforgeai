@@ -1,6 +1,6 @@
 import "server-only";
 
-import { isJunkCoin } from "@/lib/coin-junk";
+import { coinDepthComplete, isDuplicateOrTokenisedCoin, isJunkCoin } from "@/lib/coin-junk";
 import { MARKET_SNAPSHOT_TARGET, pricesAsAtLabel } from "@/lib/crypto-board";
 import { choosePublicPriceTab, formatPublicCryptoPrice, sourceLabel } from "@/lib/crypto-price-chain";
 import { publicSourceAllowed } from "@/lib/swyftx-display";
@@ -137,7 +137,12 @@ async function loadCryptoTab(): Promise<PublicPriceTab> {
         source: coin.source || "coingecko",
       }))
     );
-    const rows = coins.filter((coin) => !isJunkCoin(coin.id, coin.name, coin.symbol)).slice(0, DOCUMENT_ROWS).map((coin) => ({
+    const rows = coins
+      .filter((coin) => !isJunkCoin(coin.id, coin.name, coin.symbol))
+      // Goal b12 G-17: no tokenised stocks or wrapped/bridged/staked duplicates, and
+      // only coins whose page can show cap, volume, supply and 1h change.
+      .filter((coin) => !isDuplicateOrTokenisedCoin(coin.id) && coinDepthComplete(coin))
+      .slice(0, DOCUMENT_ROWS).map((coin) => ({
       symbol: coin.symbol,
       name: coin.name,
       price: formatUnitPrice(coin.price, "USD"),
@@ -185,6 +190,7 @@ async function loadDexTab(): Promise<PublicPriceTab> {
     const priced = page.rows
       .filter((row) => typeof row.price === "number" && row.price > 0 && row.detailId && row.network && row.dex)
       .filter((row) => !isJunkCoin(row.detailId, row.name, row.symbol))
+      .filter((row) => !isDuplicateOrTokenisedCoin(row.detailId))
       .slice(0, COIN_PAGE);
     const quotedAt = page.at || new Date().toISOString();
     noteListedPrices(

@@ -115,7 +115,7 @@ describe("CR-2 / CR-5 IPv6 /64 buckets", () => {
 
   it("sign-in has a per-email bucket that ignores the address", () => {
     const route = readFileSync("src/app/api/auth/[...all]/route.ts", "utf8");
-    expect(route).toContain("auth:sign-in:email:");
+    expect(route).toContain("login:email:");
     expect(route).not.toMatch(/auth:sign-in:email:\$\{encodeURIComponent\(ip\)/);
   });
 });

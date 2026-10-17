@@ -25,6 +25,7 @@ import { currencyForTicker, formatDisplayDate, formatFxInput, formatNzd, type Cu
 import {
   buildDividendRecord,
   dividendIncome,
+  yieldBasesNzd,
   expectedDividend,
   findDuplicateDividend,
   mergeDividendRows,
@@ -53,6 +54,8 @@ export function DividendLedgerView({
   csvAllowed = false,
   taxYear,
   gaps = [],
+  yieldHoldings,
+  asOf,
 }: {
   signedIn: boolean;
   holdings: PaperHoldingChoice[];
@@ -61,6 +64,8 @@ export function DividendLedgerView({
   csvAllowed?: boolean;
   taxYear: number;
   gaps?: readonly CompletenessItem[];
+  yieldHoldings?: readonly { ticker: string; shares: number; purchasePrice: number | null; currentPrice: number | null }[];
+  asOf?: string;
 }) {
   const router = useRouter();
   const [listed, setListed] = useState(rows);
@@ -69,7 +74,15 @@ export function DividendLedgerView({
   }, [rows]);
   const [confirmDuplicate, setConfirmDuplicate] = useState(false);
   const totals = useMemo(() => summariseDividends(listed), [listed]);
-  const income = useMemo(() => dividendIncome(listed), [listed]);
+  // Goal b12 G-01: trailing 12-month yield on cost and on value, NZ$ holdings only.
+  const yieldBases = useMemo(
+    () => yieldBasesNzd(yieldHoldings || [], listed.map((r) => r.ticker)),
+    [yieldHoldings, listed]
+  );
+  const income = useMemo(
+    () => dividendIncome(listed, { asOf, costNzd: yieldBases.costNzd, valueNzd: yieldBases.valueNzd }),
+    [listed, asOf, yieldBases]
+  );
   const [expected, setExpected] = useState<ExpectedDividend[]>([]);
   const [expectDate, setExpectDate] = useState("");
   const [expectTicker, setExpectTicker] = useState("");
@@ -505,7 +518,8 @@ export function DividendLedgerView({
               <ul className="mt-2 space-y-1 text-sm">
                 {income.months.map((month) => (
                   <li key={month.month}>
-                    {month.month}: gross {formatNzd(month.grossNzd)}, net cash {formatNzd(month.netCashNzd)}
+                    {month.month}: gross {month.breakdownMissing ? "—" : formatNzd(month.grossNzd)}, net cash {formatNzd(month.netCashNzd)}
+                    {month.breakdownMissing ? <span className="text-muted-foreground"> · breakdown missing on {month.breakdownMissing} row{month.breakdownMissing === 1 ? "" : "s"}</span> : null}
                   </li>
                 ))}
               </ul>
@@ -521,6 +535,7 @@ export function DividendLedgerView({
                   <li key={year.endingYear}>
                     {year.label}: net cash {formatNzd(year.netCashNzd)}, DRP {formatNzd(year.drpNzd)}, total return{" "}
                     {formatNzd(year.totalReturnNzd)}
+                    {year.breakdownMissing ? <span className="text-muted-foreground"> · breakdown missing on {year.breakdownMissing} row{year.breakdownMissing === 1 ? "" : "s"}</span> : null}
                   </li>
                 ))}
               </ul>
@@ -542,9 +557,12 @@ export function DividendLedgerView({
             </ul>
           )}
         </div>
-        <p className="mt-3 text-sm text-muted-foreground">
-          Trailing yield on cost and on value is not shown on this page. Cost and market value are not both stored
-          with these rows.
+        <p className="mt-3 text-sm" data-dividend-yield>
+          Trailing 12-month yield on cost:{" "}
+          <strong>{income.yieldOnCost == null ? "—" : `${(income.yieldOnCost * 100).toFixed(2)}%`}</strong> · on value:{" "}
+          <strong>{income.yieldOnValue == null ? "—" : `${(income.yieldOnValue * 100).toFixed(2)}%`}</strong>
+          {asOf ? <span className="text-muted-foreground"> · as of {formatDisplayDate(asOf)}, from the stored cost and last stored price</span> : null}
+          {yieldBases.reason ? <span className="block text-muted-foreground">{yieldBases.reason}</span> : null}
         </p>
         <form
           className="mt-4 space-y-3 rounded-2xl border border-border/70 p-4 print:hidden"

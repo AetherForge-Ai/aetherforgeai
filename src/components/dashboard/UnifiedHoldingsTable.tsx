@@ -305,9 +305,9 @@ export function UnifiedHoldingsTable({
                       scope="col"
                       aria-sort={sortable ? (active ? (query.sortDir === "asc" ? "ascending" : "descending") : "none") : undefined}
                       className={cn(
-                        "px-2 py-3 font-medium",
+                        "px-1.5 py-3 font-medium",
                         column === "asset" ? "w-[24%] text-left" : "text-right",
-                        column === "actions" && "w-[8.75rem]"
+                        column === "actions" && "w-[8rem]"
                       )}
                     >
                       {sortable ? (
@@ -367,7 +367,7 @@ export function UnifiedHoldingsTable({
                       rows.map((row) => (
                           <tr key={row.id} className="border-t border-border/40 align-top">
                             {columns.map((column) => (
-                              <td key={column} className={cn("py-3 align-top", column === "asset" ? "px-1.5 text-left" : column === "actions" ? "px-1.5 text-left" : cn("whitespace-nowrap text-right", "px-2.5 tabular-nums"))}>
+                              <td key={column} className={cn("py-3 align-top", column === "asset" ? "px-1.5 text-left" : column === "actions" ? "px-1.5 text-left" : cn("whitespace-nowrap text-right", "px-1 tabular-nums"))}>
                                 {column === "asset" ? (
                                   <AssetCell row={row} onOpen={() => onInspect(row)} />
                                 ) : column === "actions" ? (
@@ -474,10 +474,10 @@ function CellView({ cell, label, signed }: { cell: TableCellModel | undefined; l
   }
   return (
     <span className="flex w-full min-w-0 flex-col items-end gap-1">
-      <span className="inline-flex flex-nowrap items-center justify-end gap-1 whitespace-nowrap tabular-nums">
+      {/* Goal b12 M-6: amount and percent stack in one cell so the table fits its column. */}
+      <span className={cn("flex items-end justify-end gap-x-1 whitespace-nowrap tabular-nums", cell.figures.length > 1 ? "flex-col gap-y-0.5" : "flex-row flex-nowrap items-center")}>
         {cell.figures.map((figure, index) => (
           <Fragment key={`${label}-${index}`}>
-            {index > 0 ? <span aria-hidden>/</span> : null}
             <FigureReadout
               figure={figure}
               label={cell.figures.length > 1 ? `${label} ${index === 0 ? "amount" : "percent"}` : label}

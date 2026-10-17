@@ -89,8 +89,12 @@ export async function POST(req: Request) {
     // Goal b11 CR-2: a wider /48 bucket catches rotation across /64s.
     const raw48 = ipBucket48(req.headers.get("cf-connecting-ip") || "");
     const wide = raw48
-      ? await takeRateLimit(`personal-guide48:${encodeURIComponent(raw48)}`, PERSONAL_GUIDE_LIMIT_48, PERSONAL_GUIDE_WINDOW_MS)
+      ? await takeRateLimit(`personal-guide48:${encodeURIComponent(raw48)}`, PERSONAL_GUIDE_LIMIT_48, PERSONAL_GUIDE_WINDOW_MS, Date.now(), { edge: "GUIDE48_RATE_LIMITER" })
       : null;
+    if ((wide && !wide.allowed) || !limit.allowed) {
+      // Goal b12 CR-2: log only the hashed bucket, never the address.
+      console.info("[rate-limit] personal-guide refused", { key: limit.keyHash, key48: wide?.keyHash ?? null, store: (wide && !wide.allowed ? wide : limit).store });
+    }
     if (wide && !wide.allowed) {
       return NextResponse.json(
         { ok: false, error: "That is enough messages for now. Try again in a minute.", limited: true },
