@@ -1,0 +1,12 @@
+# Computed independently in Python from src/data/benchmark-history.json (last close on or before each date). asOf 2026-10-18.
+id,period,start,value
+nzx50,1M,2026-09-18,0.0010619296
+nzx50,3M,2026-07-18,0.0043118934
+nzx50,YTD,2026-01-01,0.0151537965
+nzx50,1Y,2025-10-18,0.0349546738
+nzx50,since,2025-10-13,0.0300937992
+sp500nzd,1M,2026-09-18,0.0202083580
+sp500nzd,3M,2026-07-18,0.0673417896
+sp500nzd,YTD,2026-01-01,0.1527793758
+sp500nzd,1Y,2025-10-18,0.1709912866
+sp500nzd,since,2025-10-13,0.1725784271
