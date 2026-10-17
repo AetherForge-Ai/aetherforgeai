@@ -27,7 +27,7 @@ describe("help and changelog RSS", () => {
     expect(response.headers.get("content-type")).toContain("application/rss+xml");
     const xml = await response.text();
     expect(xml.startsWith("<?xml version=\"1.0\" encoding=\"UTF-8\"?>")).toBe(true);
-    expect(xml).toContain("<rss version=\"2.0\">");
+    expect(xml).toContain("<rss version=\"2.0\" xmlns:atom=\"http://www.w3.org/2005/Atom\">");
     expect(xml).toContain("</rss>");
     expect(xml.match(/<item>/g)).toHaveLength(CHANGELOG_ENTRIES.length);
     expect(xml).toContain("11 Oct 2026");

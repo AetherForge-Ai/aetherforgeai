@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { PUBLIC_EQUITY_SOURCE, publicCryptoSourcesLabel } from "@/lib/data-sources";
 import { cryptoVenueForLabel } from "@/lib/crypto-price-chain";
 import { loadPublicTicker } from "@/lib/public-ticker";
+import { feedOffFromCookieHeader } from "@/lib/test-hooks";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -12,7 +13,14 @@ export const revalidate = 0;
  * A symbol with no quote is omitted. Demo snapshots are not served and are
  * not labelled LIVE.
  */
-export async function GET() {
+export async function GET(req: Request) {
+  // Goal b10 G-05 test hook: this browser asked for the feed to be off.
+  if (feedOffFromCookieHeader(req.headers.get("cookie"))) {
+    return NextResponse.json(
+      { ok: false, error: "Feed switched off in test mode" },
+      { status: 503, headers: { "Cache-Control": "no-store", "CDN-Cache-Control": "no-store" } }
+    );
+  }
   const feed = await loadPublicTicker();
 
   console.log(

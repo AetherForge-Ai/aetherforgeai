@@ -21,15 +21,18 @@ export function GET() {
       <title>${xml(entry.title)}</title>
       <link>${xml(`${siteUrl}${entry.href}`)}</link>
       <description>${xml(entry.body)}</description>
+      <guid isPermaLink="false">${xml(`${entry.href}#${entry.title}`)}</guid>
       <pubDate>${pubDate(entry.title)}</pubDate>
     </item>`
   ).join("\n");
   const body = `<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0">
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
     <title>AetherForge AI changelog</title>
     <link>${xml(siteUrl)}/changelog</link>
+    <atom:link href="${xml(siteUrl)}/rss.xml" rel="self" type="application/rss+xml" />
     <description>Recent product changes on AetherForge AI.</description>
+    <language>en-nz</language>
 ${items}
   </channel>
 </rss>`;
