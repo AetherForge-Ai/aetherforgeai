@@ -1,0 +1,22 @@
+const { open, sleep } = require("./cdp.cjs");
+(async () => {
+  const b = await open(9341);
+  await b.send("Page.enable");
+  await b.send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 1100, deviceScaleFactor: 1, mobile: false });
+  await b.send("Page.navigate", { url: "http://localhost:3917/login" }); await sleep(2500);
+  console.log("login", await b.ev(`fetch("/api/auth/sign-in/email",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email:"fixture-h9-tax@example.test",password:"Harness-Pass-123!"})}).then(r=>r.status)`));
+  await b.ev(`localStorage.removeItem("aetherforge-brief-opt-out")`);
+  await b.send("Page.navigate", { url: "http://localhost:3917/dashboard/brief" }); await sleep(9000);
+  console.log("brief", await b.ev(`JSON.stringify([...document.querySelectorAll("[data-brief] li")].map(e=>e.textContent))`));
+  await b.shot(__dirname + "/shots-b17-brief.png");
+  await b.ev(`document.querySelector("[data-brief-optout]").click()`); await sleep(800);
+  console.log("after opt-out", await b.ev(`JSON.stringify({off:!!document.querySelector("[data-brief-off]"),brief:!!document.querySelector("[data-brief]")})`));
+  await b.ev(`localStorage.setItem("aetherforge-alert-rules-v1", JSON.stringify([{id:"a",kind:"price_level",ticker:"FPH.NZ",threshold:1,direction:"above",active:true},{id:"b",kind:"ex_dividend",ticker:"SPK.NZ",threshold:7,active:true}]))`);
+  await b.send("Page.navigate", { url: "http://localhost:3917/dashboard/alerts/v1" }); await sleep(9000);
+  console.log("fired", await b.ev(`JSON.stringify([...document.querySelectorAll("[data-alert-fired]")].map(e=>e.textContent))`));
+  console.log("notes", await b.ev(`JSON.stringify([...document.querySelectorAll("section[aria-label=Triggered] p")].map(e=>e.textContent))`));
+  await b.shot(__dirname + "/shots-b17-alerts.png");
+  await b.ev(`document.querySelector("[data-alert-unsubscribe]").click()`); await sleep(3000);
+  console.log("after unsubscribe", await b.ev(`document.querySelectorAll("[data-alert-fired]").length`));
+  b.close(); process.exit(0);
+})();
