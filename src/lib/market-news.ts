@@ -145,7 +145,36 @@ const MARKET_TERMS =
 
 export function isFinanceRelevant(text: string): boolean {
   if (POLITICS_ONLY.test(text)) return MARKET_TERMS.test(text);
+  if (CRIME_OR_COURT.test(text)) return MARKET_TERMS.test(text);
   return FINANCE_TERMS.test(text);
+}
+
+/**
+ * b5 H-13: local crime and court reports ("sentenced over $320,000 kickbacks")
+ * arrive on business feeds. Dropped unless they are about markets (e.g. an
+ * insider-trading case that names the NZX).
+ */
+const CRIME_OR_COURT =
+  /\b(sentenced|sentencing|jailed|prison|convicted|guilty|pleaded|police|arrested|fraud trial|kickbacks?|stabbing|assault|murder|manslaughter|home detention)\b/i;
+
+/**
+ * b5 H-13: opinion and speculation pieces from the US headline feed
+ * ("Will Starlink Mobile matter for Apple?", "What Are Starbucks Stock Bulls Not
+ * Worried About?"). The page is NZ/AU-first; overseas stories stay only when they
+ * are market-wide news, never a single-company think piece.
+ */
+const SPECULATIVE_HEADLINE =
+  /\?\s*$|\b(should you|is it time|could .* (soar|double|crash)|will .* matter|bulls|bears|millionaire|retire (early|rich)|top \d+|\d+ (stocks?|shares) to|buy now|before it'?s too late|no-brainer|motley fool)\b/i;
+const OVERSEAS_MARKET_WIDE =
+  /\b(wall street|s&p ?500|nasdaq|dow jones|federal reserve|fed|fomc|treasury yields?|bond yields?|inflation|cpi|gdp|jobs report|payrolls|tariffs?|oil prices?|gold prices?|recession|central bank|interest rates?)\b/i;
+
+export function isNewsRelevant(input: { headline: string; summary?: string; market: MarketCode | "Global" }): boolean {
+  const blob = `${input.headline} ${input.summary ?? ""}`;
+  if (!isFinanceRelevant(blob)) return false;
+  if (input.market === "NZX" || input.market === "ASX") return true;
+  // Overseas: no question/listicle headlines, and the story must be market-wide.
+  if (SPECULATIVE_HEADLINE.test(input.headline.trim())) return false;
+  return OVERSEAS_MARKET_WIDE.test(input.headline) || OVERSEAS_MARKET_WIDE.test(input.summary ?? "");
 }
 
 function toNewsItem(raw: RawStory, assetClass: AssetClass): NewsItem | null {
@@ -155,8 +184,8 @@ function toNewsItem(raw: RawStory, assetClass: AssetClass): NewsItem | null {
   const summary = decodeHtmlEntities(raw.summary || raw.headline);
   const source = decodeHtmlEntities(raw.source);
   const blob = `${headline} ${summary}`;
-  if (assetClass !== "crypto" && !isFinanceRelevant(blob)) return null;
   const market = raw.marketHint ?? inferMarket(blob, assetClass === "crypto" ? "CRYPTO" : "Global");
+  if (assetClass !== "crypto" && !isNewsRelevant({ headline, summary, market })) return null;
   const { sentiment } = keywordSentiment(headline, summary === headline ? "" : summary);
   const url = raw.url;
   const publishedOn = raw.publishedAt.toISOString();

@@ -117,7 +117,7 @@ export async function createGrokChatCompletion({
   }
 
   const json = (await res.json()) as {
-    choices?: { message?: { content?: string } }[];
+    choices?: { message?: { content?: string }; finish_reason?: string }[];
     usage?: { prompt_tokens?: number; completion_tokens?: number };
   };
   if (onUsage) {
@@ -129,7 +129,11 @@ export async function createGrokChatCompletion({
 
   const content = json?.choices?.[0]?.message?.content?.trim();
   if (!content) {
-    console.error("[grok] Empty completion payload:", JSON.stringify(json).slice(0, 500));
+    const finish = json?.choices?.[0]?.finish_reason;
+    console.error(
+      `[grok] Empty completion payload (finish_reason=${finish ?? "none"}, max_tokens=${maxTokens}):`,
+      JSON.stringify(json).slice(0, 500)
+    );
     throw new Error("AI returned an empty response.");
   }
 

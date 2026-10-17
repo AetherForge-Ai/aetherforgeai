@@ -4,12 +4,21 @@
  * The Content-Security-Policy is enforced. It has script-src, object-src 'none',
  * base-uri 'self' and frame-ancestors.
  *
- * script-src keeps 'unsafe-inline'. Next.js writes inline bootstrap scripts and
- * the consent-gated gtag init without a nonce. A nonce policy needs every page
- * rendered per request (no static or edge-cached pages, see M-1), so it is a
- * separate change. Script origins are still limited to this site, Google Tag
- * Manager / Analytics, and Cloudflare's own beacon. The stricter nonce-free
- * policy stays as Report-Only so violations keep being reported.
+ * script-src keeps 'unsafe-inline' (b5 decision, 17 Oct 2026). Nonces were tried
+ * and are not compatible with how this site is served:
+ *   1. A nonce must be new on every response. Next.js only stamps it on its
+ *      inline bootstrap/RSC scripts when the page renders per request, so every
+ *      static and ISR page (/about, /pricing, /legal, docs, 47 sitemap pages)
+ *      would have to become force-dynamic.
+ *   2. Those pages are sent with s-maxage so Cloudflare can cache them (M-1).
+ *      A cached page replays one nonce to every visitor, which voids the nonce,
+ *      or mismatches the header and blocks every script on the page.
+ *   3. Hashes are not an option either: the inline RSC payload scripts
+ *      (self.__next_f.push) differ per page and per deploy.
+ * Script origins are still limited to this site, Google Tag Manager / Analytics
+ * and Cloudflare's beacon, with object-src 'none' and base-uri 'self'.
+ * The old Content-Security-Policy-Report-Only header was removed in b5: it had
+ * no report-uri, so it reported nothing and only confused header checks.
  *
  * BL-4: totalum-frontend-test.web.app is off by default. Set
  * CSP_ALLOW_TOTALUM_TEST = true (or env CSP_ALLOW_TOTALUM_TEST=true at build)
@@ -52,8 +61,6 @@ export function enforcedCsp(allowTotalumTest = CSP_ALLOW_TOTALUM_TEST): string {
 export const SECURITY_HEADERS = {
   "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
   "Content-Security-Policy": enforcedCsp(),
-  "Content-Security-Policy-Report-Only":
-    "script-src 'self' https://www.googletagmanager.com; object-src 'none'; base-uri 'self'",
   "Cross-Origin-Opener-Policy": "same-origin-allow-popups",
   "Cross-Origin-Resource-Policy": "same-origin",
   "Permissions-Policy": "camera=(), microphone=(), geolocation=(), usb=()",

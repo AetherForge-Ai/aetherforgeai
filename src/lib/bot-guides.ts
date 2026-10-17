@@ -3,19 +3,25 @@
  * pull-check:batch2-2026-10-11 B2-10
  */
 
-import { BOT_COUNT_LINE, FREE_REPORTS_LINE, PAPER_BOOK_STATEMENT, POSITIONING_LINE, SMITTY_ROLE_LINE } from "@/lib/public-copy";
+import { POSITIONING_LINE, SMITTY_ROLE_LINE } from "@/lib/public-copy";
 
-/** One short note, rendered once by BotGuide. Not repeated inside each bot's own copy. */
-export const BOT_PAGE_DISCLAIMER = [
-  POSITIONING_LINE,
-  PAPER_BOOK_STATEMENT,
-  "A report is general information, not advice, and it is not a recommendation to buy or sell.",
-  "Share prices are delayed public market data. They are not a direct NZX or ASX feed.",
-  "Crypto prices are delayed or indicative. Crypto projections stay paused.",
-  "A missing price, date or exchange rate is left blank.",
-  BOT_COUNT_LINE,
-  FREE_REPORTS_LINE,
-].join(" ");
+/**
+ * b5 M-3: the shared positioning paragraph lives once, on /how-it-works (PAPER_BOOK_STATEMENT).
+ * Each bot page shows only the one-line positioning (BL-5) plus its own note below,
+ * so no two bot pages carry the same boilerplate paragraph.
+ */
+export const BOT_PAGE_POSITIONING = POSITIONING_LINE;
+
+/** Distinct per-bot notes: what each bot's data is, and what it never does. */
+export const BOT_PAGE_NOTES: Record<"stox" | "koins" | "smitty" | "headmaster", string> = {
+  stox: "Stox works from delayed share prices (about 20 minutes on the NZX while the market is open), not a direct NZX or ASX feed. If a share has no recent print, Stox says the data is too old rather than giving a score. Each Stox note is general information about the shares you entered, not a recommendation.",
+  koins: "Koins works from delayed or indicative coin prices and shows the as-of time it used. A coin whose price is under review is flagged, and crypto projections stay paused. A Koins note describes the coins you entered; it is not a forecast or a signal to trade.",
+  smitty: "Smitty is a price view, not an AI bot: it shows gold and silver spot prices beside the ounces you typed, converted to NZ$ when the day's exchange rate is available. A missing rate is left blank rather than guessed.",
+  headmaster: "The Headmaster only reads what is already on your book. Goal ranges and stress figures are illustrations from those numbers, labelled as such, and never a forecast or personal advice.",
+};
+
+/** @deprecated kept for older imports; equals the one-line positioning, not the old paragraph. */
+export const BOT_PAGE_DISCLAIMER = BOT_PAGE_POSITIONING;
 
 const STOX_PARAS = [
   "Stox is the share-market bot. It reads the shares you enter on the paper book and writes a plain-English note about those names.",

@@ -1,3 +1,4 @@
+import { DisclaimerNotice } from "@/components/legal/DisclaimerNotice";
 /**
  * General information drawn from the Inland Revenue pages linked below.
  * Sentences that are not on those pages are left out.
@@ -150,6 +151,7 @@ export function TaxPageContent({ book = null }: { book?: TaxBookFigures | null }
           ))}
         </ul>
       </section>
+      <DisclaimerNotice variant="full" className="mt-8" />
     </article>
   );
 }

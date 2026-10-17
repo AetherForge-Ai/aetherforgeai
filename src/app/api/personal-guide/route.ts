@@ -26,6 +26,7 @@ import {
   GENERAL_INFORMATION_REPLY,
   GUIDE_BUSY_MESSAGE,
   GUIDE_INJECTION_RULES,
+  GUIDE_MAX_TOKENS,
   GUIDE_SESSION_LIMIT,
   GUIDE_SESSION_WINDOW_MS,
   GUIDE_TIMEOUT_MS,
@@ -147,7 +148,9 @@ export async function POST(req: Request) {
     try {
       reply = await createGrokChatCompletion({
         messages,
-        maxTokens: 280,
+        // b5 CR-2: 280 was too small for the reasoning model — its thinking used the
+        // whole allowance and the API returned no reply text, so every call failed.
+        maxTokens: GUIDE_MAX_TOKENS,
         temperature: 0.65,
         signal: AbortSignal.timeout(GUIDE_TIMEOUT_MS),
         onUsage: (u) => {
@@ -157,10 +160,15 @@ export async function POST(req: Request) {
     } catch (err) {
       const timedOut = err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError");
       console.warn("[api/personal-guide] AI call failed", timedOut ? "timeout" : "error");
-      return NextResponse.json(
-        { ok: false, error: GUIDE_BUSY_MESSAGE, busy: true },
-        { status: 503, headers: { ...rateLimitHeaders(limit), "Retry-After": "10" } }
-      );
+      if (timedOut) {
+        return NextResponse.json(
+          { ok: false, error: GUIDE_BUSY_MESSAGE, busy: true },
+          { status: 503, headers: { ...rateLimitHeaders(limit), "Retry-After": "10" } }
+        );
+      }
+      // b5 CR-2: a vendor error or an empty reply is not "busy". Answer from the
+      // built-in guide so the visitor still gets help (and the limiter still counts).
+      return canned(personalGuideFallbackReply(userMessage), { reason: "ai_unavailable" });
     }
     const used = usage as { promptTokens: number | null; completionTokens: number | null } | null;
     console.info(

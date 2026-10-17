@@ -2,6 +2,7 @@ import Link from "next/link";
 import { EmailAddress } from "@/components/EmailAddress";
 import { JsonLd } from "@/components/public/JsonLd";
 import { SiteHeader } from "@/components/SiteHeader";
+import { DisclaimerNotice } from "@/components/legal/DisclaimerNotice";
 import { PAPER_FEE_SUMMARY } from "@/lib/fee-rule";
 import { breadcrumbJsonLd } from "@/lib/public-schema";
 import { publicPageMetadata } from "@/lib/reviewed-book";
@@ -181,14 +182,7 @@ export default function TrustPage() {
 
           <section className="mt-8 space-y-2">
             <h2 className="font-display text-lg font-bold">Not financial advice</h2>
-            <p className="text-sm leading-relaxed text-muted-foreground">
-              The figures, bots and notes are general information. They are not a recommendation to buy or sell, and they
-              do not consider your circumstances. Read the{" "}
-              <Link href="/ai-disclaimer" className="font-semibold text-primary underline-offset-2 hover:underline">
-                AI disclaimer
-              </Link>{" "}
-              before you act.
-            </p>
+            <DisclaimerNotice variant="full" />
           </section>
         </main>
       </div>
