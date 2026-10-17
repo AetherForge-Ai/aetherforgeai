@@ -7,6 +7,7 @@
  */
 import { externalFlowsFromLedger, performanceReport, type BookPoint, type LedgerCashRow, type PerformanceReport } from "@/lib/performance-math";
 
+/** Fallback text when the stored benchmark history cannot be read. */
 export const BENCHMARKS = [
   { name: "NZX 50", reason: "NZX 50 history in NZ$ is not stored yet, so the comparison is not shown." },
   { name: "S&P 500 (in NZ$)", reason: "S&P 500 history converted to NZ$ is not stored yet, so the comparison is not shown." },
@@ -34,6 +35,8 @@ export interface BookPerformance {
   report: PerformanceReport | null;
   message: string | null;
   flows: number;
+  /** Goal b16 G-02: first external cash flow date, for "since start" benchmark returns. */
+  startDate?: string | null;
 }
 
 export function bookPerformance(input: {
@@ -59,7 +62,7 @@ export function bookPerformance(input: {
   });
   const report = performanceReport({ points, endingNzd: input.netWorthNzd, asOf: input.asOf, source: input.source });
   const message = flows.length === 1 ? "One deposit so far. XIRR and TWR are the same measure until a second cash flow." : null;
-  return { report, message, flows: flows.length };
+  return { report, message, flows: flows.length, startDate: flows[0]?.date ?? null };
 }
 
 export function pct(value: number | null): string {
