@@ -471,7 +471,7 @@ function CellView({ cell, label, signed }: { cell: TableCellModel | undefined; l
   }
   return (
     <span className="flex w-full min-w-0 flex-col items-end gap-1">
-      <span className="inline-flex flex-wrap items-center justify-end gap-1">
+      <span className="inline-flex flex-nowrap items-center justify-end gap-1 whitespace-nowrap tabular-nums">
         {cell.figures.map((figure, index) => (
           <Fragment key={`${label}-${index}`}>
             {index > 0 ? <span aria-hidden>/</span> : null}

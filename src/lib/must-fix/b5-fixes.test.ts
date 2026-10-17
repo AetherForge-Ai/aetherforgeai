@@ -10,6 +10,12 @@ const grokMock = vi.hoisted(() => ({ impl: async (): Promise<string> => "The pap
 vi.mock("@/lib/grok", () => ({
   isGrokConfigured: () => !!process.env.XAI_API_KEY,
   createGrokChatCompletion: vi.fn(async () => grokMock.impl()),
+  GrokError: class GrokError extends Error {
+    constructor(message: string, readonly code: string) {
+      super(message);
+    }
+  },
+  guideModel: () => "test-guide-model",
 }));
 vi.mock("@/lib/totalum", () => ({
   totalumSdk: {
@@ -190,7 +196,7 @@ describe("H-13 market-news relevance", () => {
 
 describe("batch 5 pins", () => {
   it("build string and pull-check marker", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-must-fix-b5-2026-10-17");
+    expect(read("public/build-version.txt").trim()).toBe("v3-must-fix-b6-2026-10-17");
     expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-must-fix-b5-2026-10-17");
   });
 });

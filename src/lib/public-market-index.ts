@@ -90,6 +90,15 @@ async function loadEquityTab(board: StockBoard): Promise<PublicPriceTab> {
     href: `/markets/stock/${encodeURIComponent(row.ticker)}`,
     source: row.source || "",
     asOf: row.asOf,
+    ...(row.quoted && row.price != null && row.price > 0
+      ? {
+          value: row.price,
+          changePct: row.changePct ?? undefined,
+          changeAbs: row.changeAbs ?? undefined,
+          dayHigh: row.dayHigh ?? null,
+          dayLow: row.dayLow ?? null,
+        }
+      : {}),
   }));
   return {
     id: board,

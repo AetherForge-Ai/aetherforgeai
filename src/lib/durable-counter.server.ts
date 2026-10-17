@@ -27,7 +27,7 @@ function withDeadline<T>(work: Promise<T>, ms: number): Promise<T> {
   });
 }
 
-type Row = { _id: string; count?: number | null };
+type Row = { _id: string; count?: number | null; bucket_key?: string | null };
 
 export const totalumCounterStore: DurableCounterStore = {
   async increment(storageKey, windowMs, now) {
@@ -42,24 +42,31 @@ export const totalumCounterStore: DurableCounterStore = {
   },
 };
 
+/**
+ * b6 CR-2: append-only counting. The old read-modify-write on one row lost
+ * updates under a burst (eight isolates all read N and all wrote N + 1), so the
+ * count never passed the limit. Each hit now inserts its own row and the count
+ * is the number of rows for the bucket, which cannot lose a concurrent hit.
+ */
+export const DURABLE_COUNT_SCAN = 200;
+
 async function incrementRow(storageKey: string, windowMs: number, now: number): Promise<number> {
-  const res = await totalumSdk.crud.query(TABLE, {
-    _filter: { bucket_key: storageKey },
-    _limit: 1,
-  } as never);
-  const row = ((res?.data as Row[] | undefined) || [])[0];
-  if (row?._id) {
-    const next = (Number(row.count) || 0) + 1;
-    await totalumSdk.crud.editRecordById(TABLE, row._id, { count: next });
-    return next;
-  }
   const windowEnd = (Math.floor(now / windowMs) + 1) * windowMs;
   await totalumSdk.crud.createRecord(TABLE, {
     bucket_key: storageKey,
     count: 1,
     expires_at: new Date(windowEnd).toISOString(),
   });
-  return 1;
+  const res = await totalumSdk.crud.query(TABLE, {
+    _filter: { bucket_key: storageKey },
+    _limit: DURABLE_COUNT_SCAN,
+  } as never);
+  // Count only this bucket's rows, in case the store ignores the filter.
+  const rows = ((res?.data as Row[] | undefined) || []).filter(
+    (r) => r.bucket_key == null || r.bucket_key === storageKey
+  ).length;
+  // Our own insert is always one of them, even if the read lags.
+  return Math.max(1, rows);
 }
 
 setDurableCounterStore(totalumCounterStore);
