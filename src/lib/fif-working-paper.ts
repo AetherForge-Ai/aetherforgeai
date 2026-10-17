@@ -460,3 +460,28 @@ export function withFifMarketNotes(
   const body = stripFifMarketNotes(notes);
   return [tags.join(""), body].filter(Boolean).join(" ");
 }
+
+/**
+ * Goal b10 G-12: totals are the sum of the rounded per-holding cents, so the
+ * printed total always equals the rows above it, on the page and in the CSV.
+ * A total is null (shown as "—") when any row in that column is missing.
+ */
+export interface FifTotals {
+  costNzd: number | null;
+  fdrNzd: number | null;
+  cvNzd: number | null;
+}
+
+export function fifTotals(positions: readonly Pick<FifPosition, "costNzd" | "fdrNzd" | "cvNzd">[]): FifTotals {
+  const sum = (pick: (p: Pick<FifPosition, "costNzd" | "fdrNzd" | "cvNzd">) => number | null): number | null => {
+    if (!positions.length) return null;
+    let cents = 0;
+    for (const p of positions) {
+      const v = pick(p);
+      if (v == null || !Number.isFinite(v)) return null;
+      cents += Math.round(roundMoney(v) * 100);
+    }
+    return cents / 100;
+  };
+  return { costNzd: sum((p) => p.costNzd), fdrNzd: sum((p) => p.fdrNzd), cvNzd: sum((p) => p.cvNzd) };
+}

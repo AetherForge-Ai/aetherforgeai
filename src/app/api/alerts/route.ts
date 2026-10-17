@@ -9,6 +9,7 @@ import { evaluateCryptoAlert } from "@/lib/crypto-live";
 import { alertTickerKey, alertVisibleInBook, inferAlertAssetType, type DeskHolding } from "@/lib/alert-desk";
 import { CRYPTO_DIRECTORY } from "@/lib/crypto-directory";
 import { getMetalsSpot } from "@/lib/metals";
+import { isWatchRow } from "@/lib/watch-alerts";
 
 const createSchema = z.object({
   stockId: z.string().optional(),
@@ -45,8 +46,9 @@ export async function GET() {
       _sort: { createdAt: "desc" },
       _limit: 200,
     });
+    // Goal b10 G-04: Alerts v1 watches share the table but have their own desk.
     const storedRows = ((res?.data as any[]) || []).filter(
-      (a) => String(a?.status || "active").toLowerCase() !== "archived"
+      (a) => String(a?.status || "active").toLowerCase() !== "archived" && !isWatchRow(a?.instructions)
     );
 
     // Classify tickers via stored asset_type + the user's holdings so crypto

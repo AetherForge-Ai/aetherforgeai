@@ -47,6 +47,9 @@ const PUBLIC_DOCUMENT_ROUTES = [
   "/smitty",
   "/headmaster",
   "/buy-the-bots",
+  // Goal b10 G-06 read-only example book; G-04/G-05 test-mode switches.
+  "/demo",
+  "/test-hooks",
   "/stripe/demo",
   "/stripe/success",
   "/stripe/cancel",

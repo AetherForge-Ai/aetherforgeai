@@ -11,7 +11,7 @@ import { csvEscape } from "@/lib/csv-cell";
 import { roundMoney } from "@/lib/currency";
 import { parseDividendNotes, type DividendTotals } from "@/lib/dividend-ledger";
 import type { FifPaper } from "@/lib/fif-working-paper";
-import { fifThresholdSentence } from "@/lib/fif-working-paper";
+import { fifThresholdSentence, fifTotals } from "@/lib/fif-working-paper";
 import { TAX_INDICATIVE_LABEL } from "@/lib/tax-disclaimer";
 import type { RealisedReport } from "@/lib/tax-realised";
 import type { TaxableIncomeReport } from "@/lib/taxable-income";
@@ -116,6 +116,11 @@ export function fifCsv(paper: FifPaper): string {
         .map(csvEscape)
         .join(",")
     );
+  }
+  // Goal b10 G-12: the total row is the sum of the rounded rows above.
+  const totals = fifTotals(paper.attributing);
+  if (paper.attributing.length) {
+    lines.push(["Total", "attributable", money(totals.costNzd), "", "", money(totals.fdrNzd), money(totals.cvNzd), TAX_INDICATIVE_LABEL].map(csvEscape).join(","));
   }
   lines.push(
     ["", "peak-cost", money(paper.peakCostNzd), "", "", "", "", TAX_INDICATIVE_LABEL].map(csvEscape).join(",")
