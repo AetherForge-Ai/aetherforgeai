@@ -114,15 +114,14 @@ export function DashboardRail({
                   ? [{ label: "Reports this month", used: reportQuota?.used ?? null, limit: reportQuota?.limit ?? FREE_REPORTS_PER_MONTH }]
                   : []),
               ].map((row) => (
-                <div key={row.label}>
-                  <div className="flex items-baseline justify-between gap-3">
-                    <dt className="text-muted-foreground">{row.label}</dt>
-                    <dd className="tnum font-semibold">{usageMeterLabel(row.used, row.limit)}</dd>
-                  </div>
+                // Goal b11 G-14: dt/dd sit directly in the row div so the list is valid.
+                <div key={row.label} className="grid grid-cols-[1fr_auto] items-baseline gap-x-3">
+                  <dt className="text-muted-foreground">{row.label}</dt>
+                  <dd className="tnum font-semibold">{usageMeterLabel(row.used, row.limit)}</dd>
                   {row.limit != null ? (
-                    <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden="true">
+                    <dd className="col-span-2 mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden="true">
                       <div className="h-full rounded-full bg-primary" style={{ width: `${usagePercent(row.used, row.limit)}%` }} />
-                    </div>
+                    </dd>
                   ) : null}
                 </div>
               ))}

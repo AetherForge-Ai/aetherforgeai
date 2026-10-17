@@ -311,11 +311,11 @@ export function SettingsClient({
             onClick={() => fileRef.current?.click()}
             disabled={uploadingAvatar}
             className="group relative rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
-            aria-label="Upload profile photo"
+            aria-label={`Upload profile photo (${initials(displayName || "U")})`}
           >
             <Avatar className="size-20 ring-2 ring-border/70 transition group-hover:ring-primary/50">
               {image ? <AvatarImage src={image} alt={displayName} /> : null}
-              <AvatarFallback className="bg-primary/15 text-lg font-semibold text-primary">
+              <AvatarFallback aria-hidden="true" className="bg-primary/15 text-lg font-semibold text-emerald-800">
                 {initials(displayName || "U")}
               </AvatarFallback>
             </Avatar>

@@ -1,11 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { stripe, getRequestBaseUrl, redactStripeMessage } from "@/lib/stripe";
+import { getRequestBaseUrl, redactStripeMessage } from "@/lib/stripe";
+import { createPlanCheckout } from "@/lib/stripe-checkout";
 import { getCurrentUser } from "@/lib/session";
-import { totalumSdk } from "@/lib/totalum";
 import { isSelfServeCheckoutPlan, planByPriceId, planByKey } from "@/lib/plans";
-import { ensurePublicPrice } from "@/lib/ensure-public-price";
-import { publicPriceSlot } from "@/lib/public-catalog";
 
 const schema = z
   .object({
@@ -80,67 +78,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Unknown plan / price id" }, { status: 400 });
     }
 
-    const slot = publicPriceSlot(planDef.key);
-    const priceId = slot ? await ensurePublicPrice(slot.key) : planDef.priceId;
-
-    // For single-bot plans a bot choice is required; dual plans unlock both.
-    const botAccess = planDef.botAccess === "both" ? "both" : bot === "crypto" ? "crypto" : "stock";
-    const meta = {
-      userId: user._id,
-      plan: planDef.key,
-      ticker_limit: String(planDef.tickerLimit),
-      bot_access: botAccess,
-    };
-
-    // Ensure a Stripe customer for this user
-    let customerId = user.stripe_customer_id || undefined;
-    if (!customerId) {
-      const customer = await stripe.customers.create({
-        email: user.email,
-        name: user.name,
-        metadata: { userId: user._id },
-      });
-      customerId = customer.id;
-      await totalumSdk.crud.editRecordById("user", user._id, { stripe_customer_id: customerId });
-      console.log(`[api/stripe/checkout] Created Stripe customer ${customerId} for user ${user._id}`);
-    }
-
-    // Starter and Pro use the catalog Price (immutable) and a 14-day trial.
-    // A card is collected now. The trial does not convert without that card.
-    // Ultimate is rejected above. Free activation never reaches this route.
-    // Legacy Apex keeps its existing price and does not gain a trial.
-    const subscriptionData: Record<string, unknown> = {
-      metadata: meta,
-      description: `${planDef.name} — AetherForge AI paper portfolio and research reports (NZD). Not a broker.`,
-    };
-    if (selfServe) subscriptionData.trial_period_days = 14;
-
-    const baseUrl = getRequestBaseUrl(req);
-    const session = await stripe.checkout.sessions.create({
-      mode: "subscription",
-      customer: customerId,
-      line_items: [{ price: priceId, quantity: 1 }],
-      client_reference_id: user._id,
-      metadata: meta,
-      subscription_data: subscriptionData as any,
-      payment_method_collection: "always",
-      locale: "en",
-      success_url: `${baseUrl}/stripe/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${baseUrl}/pricing`,
-      allow_promotion_codes: true,
-    });
-
-    // Goal b8 CR-1/CR-6: in Stripe test mode only, echo the price used so TT can
-    // match it on the Stripe test page (Starter monthly must be NZ$16.00).
-    if (session.livemode === false) {
-      const unitAmount = slot?.unitAmount ?? null;
-      console.log(`[stripe-test] checkout plan=${planDef.key} price=${priceId} unit_amount=${unitAmount ?? "-"} currency=nzd`);
-      return NextResponse.json({
-        ok: true,
-        data: { url: session.url, sessionId: session.id, testMode: { plan: planDef.key, priceId, unitAmount, currency: "nzd" } },
-      });
-    }
-    return NextResponse.json({ ok: true, data: { url: session.url, sessionId: session.id } });
+    // Goal b11 CR-1: test mode unless STRIPE_CHECKOUT_MODE=live (see stripe-mode.ts).
+    const result = await createPlanCheckout({ user, plan: planDef, bot, baseUrl: getRequestBaseUrl(req) });
+    if ("error" in result) return NextResponse.json({ ok: false, error: result.error }, { status: result.status });
+    return NextResponse.json({ ok: true, data: result.data });
   } catch (err) {
     console.error("[api/stripe/checkout] error:", err);
     return NextResponse.json({ ok: false, error: serializeError(err) }, { status: 500 });

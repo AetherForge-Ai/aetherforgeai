@@ -483,3 +483,26 @@ button {
 .chrome-dark .text-emerald-700 {
   color: #34d399;
 }
+/* Goal b11 G-14 (axe): the light content sheet sits inside dark chrome, so
+   restore AA colours there. Dark strips inside the sheet keep their override. */
+.content-light .text-emerald-700 {
+  color: #047857;
+}
+.content-light .text-amber-400 {
+  color: #b45309;
+}
+.content-light .text-amber-600\/90,
+.content-light .text-amber-600 {
+  color: #b45309;
+}
+.content-light .bg-zinc-950 .text-emerald-700 {
+  color: #34d399;
+}
+.content-light .bg-zinc-950 .text-amber-400 {
+  color: #fbbf24;
+}
+/* Goal b11 G-14 (axe link-in-text-block): links inside running text are underlined. */
+main p > a.text-primary {
+  text-decoration-line: underline;
+  text-underline-offset: 4px;
+}

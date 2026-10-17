@@ -2,7 +2,7 @@ import { auth } from "@/lib/auth";
 import { toNextJsHandler } from "better-auth/next-js";
 import { NextResponse } from "next/server";
 import { validateSignupConsent } from "@/lib/signup-consent";
-import { authRateLimitRule, takeRateLimit, rateLimitHeaders, rateLimitIdentity } from "@/lib/ip-rate-limit";
+import { authRateLimitRule, takeRateLimit, rateLimitHeaders, rateLimitIdentity, AUTH_EMAIL_LIMIT, AUTH_EMAIL_WINDOW_MS } from "@/lib/ip-rate-limit";
 import { ensureDurableRateLimit } from "@/lib/durable-counter.server";
 
 ensureDurableRateLimit();
@@ -34,7 +34,13 @@ export async function POST(req: Request) {
     // emails are still refused inside 5 minutes.
     const ipResult = await takeRateLimit(`auth:${rule.name}:ip:${encodeURIComponent(ip)}`, rule.ipLimit, rule.windowMs, now);
     const pairResult = await takeRateLimit(key, rule.limit, rule.windowMs, now, { edge: "AUTH_RATE_LIMITER" });
-    const result = !ipResult.allowed ? ipResult : pairResult;
+    // Goal b11 CR-5: per-email bucket that ignores the address, so rotating
+    // IPv6 addresses cannot keep guessing one account. Generic message only.
+    const emailResult =
+      rule.name === "sign-in" && who
+        ? await takeRateLimit(`auth:sign-in:email:${encodeURIComponent(who)}`, AUTH_EMAIL_LIMIT, AUTH_EMAIL_WINDOW_MS, now)
+        : null;
+    const result = !ipResult.allowed ? ipResult : emailResult && !emailResult.allowed ? emailResult : pairResult;
     if (!result.allowed) {
       return NextResponse.json(
         { code: "TOO_MANY_REQUESTS", message: rule.message },
