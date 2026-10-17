@@ -19,6 +19,7 @@ const ENTRIES: Array<{
   { path: "/about", changeFrequency: "monthly", priority: 0.6, lastModified: "2026-10-10" },
   { path: "/performance", changeFrequency: "yearly", priority: 0.4, lastModified: "2026-07-08" },
   { path: "/how-it-works", changeFrequency: "monthly", priority: 0.7, lastModified: "2026-10-10" },
+  { path: "/demo", changeFrequency: "monthly", priority: 0.5, lastModified: "2026-10-18" },
   { path: "/pricing", changeFrequency: "monthly", priority: 0.8, lastModified: "2026-10-10" },
   { path: "/markets", changeFrequency: "weekly", priority: 0.8, lastModified: "2026-10-10" },
   { path: "/market-news", changeFrequency: "weekly", priority: 0.7, lastModified: "2026-10-10" },

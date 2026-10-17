@@ -45,6 +45,7 @@ export function BotGuide({
   images,
   extra,
   kind,
+  screenshots,
 }: {
   title: string;
   lede: string;
@@ -52,6 +53,8 @@ export function BotGuide({
   images: { src: string; alt: string }[];
   extra?: ReactNode;
   kind?: BotGuideKind;
+  /** Goal b10 G-06: product screenshots (synthetic example data only). */
+  screenshots?: { src: string; alt: string; caption: string; width: number; height: number }[];
 }) {
   const paragraphs: readonly string[] = kind ? BOT_GUIDE_PARAGRAPHS[kind] : body.split(/(?<=\.)\s+/);
   return (
@@ -83,7 +86,25 @@ export function BotGuide({
             </Link>
             .
           </p>
+          {screenshots?.length ? (
+            <section className="mt-10" aria-label="Screenshots">
+              <h2 className="font-display text-2xl font-bold">Screenshots</h2>
+              <div className="mt-4 grid gap-6">
+                {screenshots.map((shot) => (
+                  <figure key={shot.src}>
+                    <Image src={shot.src} alt={shot.alt} width={shot.width} height={shot.height} className="h-auto w-full rounded-lg border border-border/60" />
+                    <figcaption className="mt-2 text-xs text-muted-foreground">{shot.caption}</figcaption>
+                  </figure>
+                ))}
+              </div>
+            </section>
+          ) : null}
           <ExampleBook kind={kind} />
+          <p className="mt-4 text-sm">
+            <Link href="/demo" className="font-semibold text-primary underline-offset-2 hover:underline">
+              Open the read-only example book
+            </Link>
+          </p>
           <p className="mt-8 text-sm">
             <Link href="/how-it-works" className="font-semibold text-primary underline-offset-2 hover:underline">
               How it works

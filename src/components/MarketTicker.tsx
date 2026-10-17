@@ -44,6 +44,10 @@ function formatAsOf(iso: string | null | undefined): string {
   return wall === "—" ? "" : wall;
 }
 
+/** Goal b10 G-05: weekend and holiday closes stay green while the feed answers. */
+const TAPE_FRESH_MS = 4 * 24 * 60 * 60 * 1000;
+const TAPE_AMBER_MS = 7 * 24 * 60 * 60 * 1000;
+
 function TickerCell({
   q,
   price,
@@ -61,14 +65,33 @@ function TickerCell({
   const flat = hasChange && Number(q.change.toFixed(2)) === 0;
   const up = hasChange && !flat && q.change > 0;
   const asOf = formatAsOf(q.quotedAt);
-  void source;
-  void delay;
-  void failedRefreshes;
+  // Goal b10 G-05: per-price badge. Amber after one missed refresh, red after two.
+  const badge = priceBadge({
+    source,
+    delay,
+    quotedAt: q.quotedAt ? new Date(q.quotedAt) : null,
+    refreshOk: failedRefreshes === 0,
+    failedRefreshes,
+    // A last close over a weekend or holiday is still the latest print; the
+    // tape already says Close. Tone follows missed refreshes first.
+    freshMs: TAPE_FRESH_MS,
+    amberMs: TAPE_AMBER_MS,
+  });
   return (
     <span className="inline-flex items-center gap-2 px-4 py-0.5 whitespace-nowrap">
       <span className="font-display text-[0.78rem] font-semibold tracking-tight text-emerald-300">
         {q.symbol}
       </span>
+      <span
+        data-price-tone={badge.tone}
+        role="img"
+        aria-label={`Price ${badge.tone}: ${badge.source}. ${badge.delay}.${badge.why ? ` ${badge.why}` : ""}${asOf ? ` As of ${asOf}.` : ""}`}
+        title={`${badge.source} · ${badge.delay}${asOf ? ` · as of ${asOf}` : ""}${badge.why ? ` · ${badge.why}` : ""}`}
+        className={cn(
+          "inline-block h-1.5 w-1.5 rounded-full",
+          badge.tone === "green" ? "bg-emerald-400" : badge.tone === "amber" ? "bg-amber-400" : "bg-rose-500"
+        )}
+      />
       <span className="tnum text-[0.78rem] text-zinc-100">{price}</span>
       <span
         className={cn(
