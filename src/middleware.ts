@@ -11,6 +11,7 @@ import {
 } from "@/lib/private-document";
 import { permanentRedirect, publicAliasRedirect } from "@/lib/public-route-aliases";
 import { documentAccess } from "@/lib/route-gate";
+import { makeCspNonce, nonceCsp } from "@/lib/security-headers";
 import {
   anonymousAccountApi,
   AUTH_COOKIE_NAMES,
@@ -141,9 +142,11 @@ function stripLeakedAuthCookies(
   return response;
 }
 
-function finish(response: NextResponse, request: NextRequest, signedIn: boolean) {
+function finish(response: NextResponse, request: NextRequest, signedIn: boolean, nonce?: string) {
   const { pathname } = request.nextUrl;
   addCorsHeaders(response, request);
+  // CR-5 (goal b8): the enforced CSP carries this request's nonce; no 'unsafe-inline'.
+  response.headers.set("Content-Security-Policy", nonceCsp(nonce ?? request.headers.get("x-nonce") ?? makeCspNonce()));
   // HSTS, CSP, nosniff and Referrer-Policy are set once in next.config.ts headers().
   applyCachePolicy(response, pathname, signedIn);
   stripLeakedAuthCookies(response, pathname, request.method, signedIn);
@@ -198,8 +201,13 @@ export async function middleware(request: NextRequest) {
   // renders a skeleton until GET /api/session confirms the same browser.
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-af-doc", signedIn ? "member" : "guest");
+  // Next.js reads the nonce from the request CSP header and stamps its own scripts.
+  const nonce = makeCspNonce();
+  const csp = nonceCsp(nonce);
+  requestHeaders.set("x-nonce", nonce);
+  requestHeaders.set("content-security-policy", csp);
   const response = NextResponse.next({ request: { headers: requestHeaders } });
-  finish(response, request, signedIn);
+  finish(response, request, signedIn, nonce);
 
   // Allow all API routes and static files. /__missing is the internal 404 rewrite.
   if (

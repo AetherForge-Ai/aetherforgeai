@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 import { PORTFOLIO_ROUTE_ALIASES } from "./src/lib/portfolio-route-aliases";
 import { PUBLIC_ROUTE_ALIASES } from "./src/lib/public-route-aliases";
-import { CROSS_ORIGIN_ASSET_SOURCES, SECURITY_HEADERS } from "./src/lib/security-headers";
+import { CROSS_ORIGIN_ASSET_SOURCES, STATIC_SECURITY_HEADERS } from "./src/lib/security-headers";
 
 type DynamicSegmentAsset = { source: () => string | Buffer };
 type DynamicSegmentChunk = { id?: string | number };
@@ -67,7 +67,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/:path*",
-        headers: Object.entries(SECURITY_HEADERS).map(([key, value]) => ({ key, value })),
+        headers: Object.entries(STATIC_SECURITY_HEADERS).map(([key, value]) => ({ key, value })),
       },
       ...CROSS_ORIGIN_ASSET_SOURCES.map((source) => ({
         source,

@@ -1,0 +1,4 @@
+# Computed independently (Python scipy brentq on ACT/365 XIRR; TWR chained at each external flow). Not produced by the app code.
+metric,value
+xirr,0.3099376035
+twr,0.2536389552

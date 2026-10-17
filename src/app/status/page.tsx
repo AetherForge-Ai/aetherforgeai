@@ -3,6 +3,7 @@ import { publicPageMetadata } from "@/lib/reviewed-book";
 import { loadStatusFeeds } from "@/lib/status-feeds.server";
 import { NO_INCIDENTS_LINE, STATUS_INCIDENTS } from "@/lib/docs-guides";
 import { formatDisplayDateTime } from "@/lib/currency";
+import { aiProviderHealth, aiProviderStatusLine } from "@/lib/ai-provider-health";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,8 @@ export const metadata = publicPageMetadata("/status", {
 });
 
 export default async function StatusPage() {
-  const feeds = await loadStatusFeeds();
+  const [feeds, ai] = await Promise.all([loadStatusFeeds(), aiProviderHealth()]);
+  const aiLine = aiProviderStatusLine(ai);
   return (
     <PublicGuide
       kicker="AetherForge AI · Status"
@@ -24,6 +26,7 @@ export default async function StatusPage() {
           body: feed.tone === "amber" ? "unavailable" : `Last OK ${feed.text} (NZ time)`,
           tone: feed.tone,
         })),
+        { title: "AI guide provider", body: aiLine.body, tone: aiLine.tone },
         STATUS_INCIDENTS.length
           ? {
               title: "Incident history",

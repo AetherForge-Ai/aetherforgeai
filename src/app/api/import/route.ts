@@ -14,7 +14,18 @@ import {
   type ImportPlan,
   type ImportTrade,
 } from "@/lib/broker-import";
-import { commitImportInOrder, newImportBatchId, notesHaveBatch, stampImportNote, undoImportInOrder } from "@/lib/import-commit";
+import {
+  commitImportInOrder,
+  IMPORT_DUPLICATE_FILE,
+  importFileHash,
+  newImportBatchId,
+  notesHaveBatch,
+  notesHaveFile,
+  stampFileHash,
+  stampImportNote,
+  undoImportInOrder,
+} from "@/lib/import-commit";
+import { checkTickerQuota } from "@/lib/entitlements";
 import { assetClassForSymbol } from "@/lib/import-symbols";
 import { planOrApplyLedgerReversal } from "@/lib/ledger-reversal-apply";
 import { backdatedRealisedNote } from "@/lib/fifo-cost";
@@ -148,6 +159,29 @@ async function planWithReviewedFx(
   return planBrokerImport(text, { ...options, reviewedRates });
 }
 
+async function importCapRefusal(
+  user: Parameters<typeof checkTickerQuota>[0] & { _id: string },
+  rows: readonly ImportTrade[]
+): Promise<NextResponse | null> {
+  const res = await totalumSdk.crud.query("stock", { _filter: { user: user._id }, _limit: 1000 });
+  const held = [...(((res?.data as unknown) as Array<{ ticker?: string; asset_type?: string; shares?: number }>) || [])];
+  for (const row of rows) {
+    if (row.side !== "buy") continue;
+    const assetType = assetClassForSymbol(row.ticker) === "crypto" ? "crypto" : "stock";
+    const sym = row.ticker.toUpperCase();
+    if (held.some((h) => String(h.ticker || "").toUpperCase() === sym && (h.asset_type || "stock") === assetType)) continue;
+    const quota = checkTickerQuota(user, held as never, assetType);
+    if (!quota.allowed) {
+      return NextResponse.json(
+        { ok: false, error: `${quota.message} Nothing was written.`, data: { code: "ticker_limit", used: quota.used, limit: quota.limit, written: 0 } },
+        { status: 403 }
+      );
+    }
+    held.push({ ticker: sym, asset_type: assetType, shares: row.quantity });
+  }
+  return null;
+}
+
 /** POST /api/import — preview writes nothing. Commit writes only a clean plan. */
 export async function POST(req: Request) {
   try {
@@ -249,6 +283,11 @@ export async function POST(req: Request) {
     }
 
     const fresh = await bookRows(user._id);
+    // Goal b8 H-10: the same file twice is refused as a whole (SHA-256 of the text).
+    const fileHash = await importFileHash(text);
+    if (fresh.some((row) => notesHaveFile(row.notes, fileHash))) {
+      return NextResponse.json({ ok: false, error: IMPORT_DUPLICATE_FILE, code: "duplicate_file", data: { written: 0 } }, { status: 409 });
+    }
     const committed = await planWithReviewedFx(text, {
       mapping,
       openingCashNzd,
@@ -265,6 +304,10 @@ export async function POST(req: Request) {
       });
     }
 
+    // Goal b8 CR-6: an import cannot take a member past the plan's holding cap.
+    const capRefusal = await importCapRefusal(user, committed.toWrite);
+    if (capRefusal) return capRefusal;
+
     const written: ImportTrade[] = [];
     const writtenDeposits: { date: string; amountNzd: number }[] = [];
     const batchId = newImportBatchId();
@@ -277,7 +320,7 @@ export async function POST(req: Request) {
             amount: step.amountNzd,
             executed_at: step.date,
             trade_date: step.date,
-            notes: stampImportNote(step.note || "", batchId, ""),
+            notes: stampFileHash(stampImportNote(step.note || "", batchId, ""), fileHash),
             deferCash: true,
           });
           if (!result.ledgerId || result.pendingCash == null || result.previousCash == null) {
@@ -311,7 +354,7 @@ export async function POST(req: Request) {
           trade_date: row.date,
           price_source: "broker_import",
           broker: committed.broker || "file",
-          notes: stampImportNote(note, batchId, row.brokerRef),
+          notes: stampFileHash(stampImportNote(note, batchId, row.brokerRef), fileHash),
           deferCash: true,
         });
         if (!result.ledgerId || result.pendingCash == null || result.previousCash == null) {

@@ -1,3 +1,4 @@
+import { drpLotsFromRows } from "@/lib/dividend-ledger";
 import "server-only";
 
 import { bookCacheEpoch, readBookCache, writeBookCache } from "@/lib/book-cache";
@@ -193,8 +194,10 @@ async function loadTaxRowsFresh(userId: string): Promise<TaxLedgerRow[]> {
     _limit: 5000,
   });
   const rows = (res?.data as unknown as TaxLedgerRow[]) || [];
-  return rows.map((row) => ({
+  const mapped = rows.map((row) => ({
     ...row,
     executed_at: row.executed_at || row.createdAt || "",
   }));
+  // Goal b8 G-01/H-9: DRP allotments with a share count join the FIFO lots.
+  return [...mapped, ...drpLotsFromRows(mapped as never)];
 }
