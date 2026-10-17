@@ -22,6 +22,7 @@ import { coinDisplayName } from "@/lib/crypto-names";
 import { rememberCryptoIds } from "@/lib/crypto-id-registry";
 import { coinGeckoEndpoint, redactSecrets } from "@/lib/coingecko-auth";
 import { coinGeckoRetryDelayMs, coinGeckoStatusRetries, readMarketPage } from "@/lib/crypto-fetch-policy";
+import { cryptoFeedKilled, recordCryptoAttempt } from "@/lib/crypto-attempts";
 import { persistCryptoSnapshot, persistDexSnapshot, readDexSnapshot } from "@/lib/crypto-snapshot";
 import { dexscreenerPublicDisplay } from "@/lib/dexscreener-display";
 import {
@@ -294,6 +295,7 @@ function note429(err: unknown) {
 async function refreshTop400(): Promise<RankedCryptoPage> {
   if (top400Inflight && Date.now() - top400StartedAt > 30_000) top400Inflight = null;
   if (top400Inflight) return top400Inflight;
+  if (cryptoFeedKilled()) return Promise.reject(new Error("Crypto feed switched off (CRYPTO_FEED_OFF)."));
   top400StartedAt = Date.now();
   top400Inflight = (async () => {
     const first = readMarketPage(await cgFetchRetry(`/coins/markets?${TOP400_QUERY}&page=1`)) as CgMarketRow[] | null;
@@ -316,10 +318,12 @@ async function refreshTop400(): Promise<RankedCryptoPage> {
     const tagged = page.coins.map((coin) => ({ ...coin, source: coin.source || "coingecko" }));
     await persistCryptoSnapshot(tagged, new Date().toISOString());
     const labelled = page.coins.filter((coin) => coin.blockchain).length;
+    recordCryptoAttempt(true);
     console.log(`[crypto-coingecko] fetchTop400 → ${page.coins.length} coins, blockchain ${labelled}/${page.coins.length}`);
     return page;
   })()
     .catch((err) => {
+      recordCryptoAttempt(false, err);
       console.error("[crypto-coingecko] top 400 refresh failed:", note429(err));
       throw err;
     })

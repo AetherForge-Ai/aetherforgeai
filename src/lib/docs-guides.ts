@@ -12,6 +12,9 @@ const SHOT_ALT: Record<string, string> = {
   "record-a-trade": "Example: the Record a transaction review screen for a buy, showing quantity, price, fee and cash before and after.",
   "import-a-csv": "Example: the Import CSV panel where a broker file is chosen and previewed before anything is saved.",
   "run-a-report": "Example: the dashboard action row with the Run Stox report and Run Koins report buttons.",
+  "edit-or-delete-a-row": "Example: the Transactions ledger with an Edit and a Delete control on each row.",
+  "income-and-tax-view": "Example: the Dividend ledger page under Tax, listing each dividend with gross, tax withheld and net.",
+  "read-price-freshness": "Example: the holdings table showing each price with its as-of time and the folded quantity × price line.",
   "export-your-ledger": "Example: the dashboard Export control used to download the ledger as CSV.",
 };
 
