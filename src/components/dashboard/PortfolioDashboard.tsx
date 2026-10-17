@@ -703,6 +703,24 @@ export function PortfolioDashboard({
   const [watchClass, setWatchClass] = useState<"stock" | "crypto">("stock");
   const [alertClass, setAlertClass] = useState<"stock" | "crypto">("stock");
   const [railQuota, setRailQuota] = useState<{ used: number; limit: number } | null>(null);
+  // Goal b12 H-4: the allowance comes from a one-count endpoint at mount, so the
+  // figure paints in about one round trip; the full report list can follow later.
+  useEffect(() => {
+    if (preview) return;
+    let live = true;
+    void fetch("/api/reports/quota", { credentials: "include", cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { used?: number | null; limit?: number | null } | null) => {
+        if (!live || !d || typeof d.used !== "number" || typeof d.limit !== "number") return;
+        const used = d.used;
+        const limit = d.limit;
+        setRailQuota((current) => current ?? { used, limit });
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [preview]);
   useEffect(() => {
     if (alertSeed) setAlertClass(alertSeed.asset);
   }, [alertSeed]);
@@ -1276,8 +1294,42 @@ export function PortfolioDashboard({
     },
     [userId]
   );
+  // Goal b12 G-10: optimistic paint on Confirm. The pre-trade rows are kept so the
+  // server's answer (or a failure) replaces the guess instead of stacking on it.
+  const allStocksRef = useRef<Stock[]>(allStocks);
+  allStocksRef.current = allStocks;
+  const optimisticBaseRef = useRef<{ stocks: Stock[]; cash: number } | null>(null);
   const handleDataChanged = useCallback(
-    (updated?: { cashBalance?: number; lastTransaction?: BookedTrade | null }) => {
+    (updated?: {
+      cashBalance?: number;
+      lastTransaction?: BookedTrade | null;
+      optimistic?: boolean;
+      optimisticRollback?: boolean;
+    }) => {
+      if (updated?.optimistic) {
+        if (!optimisticBaseRef.current) {
+          optimisticBaseRef.current = { stocks: allStocksRef.current, cash: mutationCashRef.current ?? cashBalance };
+        }
+        if (typeof updated.cashBalance === "number") applyKnownCash(updated.cashBalance);
+        if (updated.lastTransaction) setAllStocks((rows) => applyBookedTradeToHoldings(rows, updated.lastTransaction));
+        return;
+      }
+      if (updated?.optimisticRollback) {
+        const base = optimisticBaseRef.current;
+        optimisticBaseRef.current = null;
+        if (base) {
+          setAllStocks(base.stocks);
+          applyKnownCash(base.cash);
+        }
+        updated = undefined;
+      } else if (optimisticBaseRef.current && updated?.lastTransaction) {
+        // Real answer: rebuild from the pre-trade rows so the trade counts once.
+        const base = optimisticBaseRef.current.stocks;
+        optimisticBaseRef.current = null;
+        setAllStocks(base);
+      } else {
+        optimisticBaseRef.current = null;
+      }
       if (updated && typeof updated.cashBalance === "number") {
         mutationCashRef.current = updated.cashBalance;
         applyKnownCash(updated.cashBalance);
@@ -1328,7 +1380,7 @@ export function PortfolioDashboard({
         })
         .finally(() => setHeaderFrozen(false));
     },
-    [applyKnownCash, loadStocks, loadCash, loadMetals, loadPortfolioSnapshot, setBookedGuard, userId]
+    [applyKnownCash, cashBalance, loadStocks, loadCash, loadMetals, loadPortfolioSnapshot, setBookedGuard, userId]
   );
 
   useEffect(() => {

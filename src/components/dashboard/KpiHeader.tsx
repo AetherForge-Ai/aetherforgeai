@@ -206,7 +206,11 @@ export function KpiHeader({
         {view?.periodNote ? <span className="text-xs text-muted-foreground">{view.periodNote}</span> : null}
       </div>
       ) : (
-        <p className="mt-3 text-xs text-muted-foreground">Period and benchmark controls appear when a value history is stored.</p>
+        <p className="mt-3 text-xs text-muted-foreground">
+          Period and benchmark controls appear when a value history is stored.{" "}
+          {/* Goal b12 G-02 */}
+          <a href="/dashboard/performance" className="font-semibold text-primary underline underline-offset-4">See XIRR and TWR on Performance</a>
+        </p>
       )}
 
       <Collapsible open={chartOpen} onOpenChange={setChartOpen} className="mt-3" data-chart-open={chartOpen ? "true" : "false"}>

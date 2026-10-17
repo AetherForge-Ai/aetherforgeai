@@ -54,7 +54,7 @@ import {
 import { isTransactionDialogOpen } from "@/lib/transaction-sticky";
 import { getTxDialogSnapshot, subscribeTxDialog } from "@/lib/transaction-dialog-store";
 import { Loader2, Lock, Play, FileDown, Mail, FileText, Sparkles, Clock, Zap, ArrowRight, ChevronDown, Eye } from "lucide-react";
-import { stripReportMarkdown } from "@/lib/report-copy";
+import { neutraliseRatingWording, neutraliseReportStrings, stripReportMarkdown } from "@/lib/report-copy";
 import { reportRunStatus } from "@/lib/dashboard-surface";
 import { listedReportBody, plainReportPdf } from "@/lib/report-body";
 import {
@@ -647,7 +647,7 @@ export function ReportCenter({
       textBody: report.textBody,
       payload: report.payload,
     });
-    return body ? [{ ...report, listedBody: body }] : [];
+    return body ? [{ ...report, title: neutraliseRatingWording(String(report.title ?? "")), listedBody: neutraliseRatingWording(body) }] : [];
   });
   const quotaLine = headerQuotaCopy({
     loaded: quotaReady,
@@ -1025,7 +1025,7 @@ export function ReportCenter({
                         );
                         setReportEmailed(reportPayloadWasEmailed(r.payload) && !notCurrent);
                         // View path: stored JSON is sanitized before ApexReport renders it again.
-                        setReport(viewed);
+                        setReport(neutraliseReportStrings(viewed));
                         setOpen(true);
                       } else {
                         setReport(null);

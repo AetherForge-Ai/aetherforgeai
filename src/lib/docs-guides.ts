@@ -2,7 +2,23 @@
  * M-2: step-by-step guides for /docs. Each step describes a control that
  * exists in the product today (checked against the code on 16 Oct 2026).
  * No sample figures, results or screenshots of invented data.
+ * Goal b12 M-2: each guide has one real UI screenshot, captured from a local
+ * build with a synthetic example book (no personal data), labelled "Example".
  */
+export const DOCS_SHOT_WIDTH = 1280;
+export const DOCS_SHOT_HEIGHT = 800;
+
+const SHOT_ALT: Record<string, string> = {
+  "record-a-trade": "Example: the Record a transaction review screen for a buy, showing quantity, price, fee and cash before and after.",
+  "import-a-csv": "Example: the Import CSV panel where a broker file is chosen and previewed before anything is saved.",
+  "run-a-report": "Example: the dashboard action row with the Run Stox report and Run Koins report buttons.",
+  "export-your-ledger": "Example: the dashboard Export control used to download the ledger as CSV.",
+};
+
+export function docsShot(slug: string): { src: string; alt: string; width: number; height: number } | null {
+  const alt = SHOT_ALT[slug];
+  return alt ? { src: `/docs/${slug}.png`, alt, width: DOCS_SHOT_WIDTH, height: DOCS_SHOT_HEIGHT } : null;
+}
 export interface DocsGuide {
   slug: string;
   title: string;

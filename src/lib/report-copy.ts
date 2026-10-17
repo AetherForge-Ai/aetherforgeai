@@ -173,3 +173,52 @@ export function notSizedLine(entries: { ticker: string; reason: string }[]): str
   if (!entries.length) return "";
   return `Not sized this week: ${entries.map((entry) => `${entry.ticker} (${entry.reason})`).join(", ")}.`;
 }
+
+/**
+ * Goal b12 H-12: saved reports generated before the 15 Oct 2026 wording change
+ * still carry BUY / ACCUMULATE / SELL labels. They are re-labelled at view time
+ * (stored data is untouched) as neutral model indicators, never advice.
+ */
+const NEUTRAL_LABELS: Record<string, string> = {
+  "STRONG BUY": "Strong positive signal",
+  BUY: "Positive signal",
+  ACCUMULATE: "Positive signal",
+  HOLD: "Neutral signal",
+  TRIM: "Weakening signal",
+  SELL: "Negative signal",
+  "STRONG SELL": "Strong negative signal",
+};
+
+export function neutralRatingLabel(action: string | null | undefined): string {
+  const key = String(action ?? "").trim().toUpperCase();
+  return NEUTRAL_LABELS[key] ?? (key ? "Model indicator" : "—");
+}
+
+export function neutraliseRatingWording(text: string): string {
+  return text
+    .replace(/\bBuy or Accumulate rating\b/gi, "positive model signal")
+    .replace(/\bStrong buy\b/gi, "strong positive signal")
+    .replace(/\bStrong sell\b/gi, "strong negative signal")
+    .replace(/\b(BUY|ACCUMULATE)\s*\/\s*(BUY|ACCUMULATE)\b/g, "positive-signal")
+    .replace(/\b(ACCUMULATE|BUY)\b(?=\s+[A-Z0-9.\-]{1,12}\b)/g, "Positive signal:")
+    .replace(/\bACCUMULATE\b/g, "positive signal")
+    .replace(/\bBUY\b/g, "positive signal")
+    .replace(/\bSELL\b/g, "negative signal")
+    .replace(/\b(?:Accumulate|Buy) rating\b/g, "positive model signal")
+    .replace(/\bSell rating\b/g, "negative model signal");
+}
+
+/** Deep copy with every display string neutralised. Enum keys (action) keep their value for styling. */
+export function neutraliseReportStrings<T>(value: T, key = ""): T {
+  if (typeof value === "string") return (key === "action" ? value : neutraliseRatingWording(value)) as T;
+  if (Array.isArray(value)) return value.map((v) => neutraliseReportStrings(v, key)) as T;
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) out[k] = neutraliseReportStrings(v, k);
+    return out as T;
+  }
+  return value;
+}
+
+export const OLD_WORDING_BANNER =
+  "Generated before 15 Oct 2026 under older wording. Ratings shown are historical model labels, not recommendations. General information, not financial advice.";

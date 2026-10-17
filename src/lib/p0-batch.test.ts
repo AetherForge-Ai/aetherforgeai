@@ -79,15 +79,15 @@ describe("P0 pricing and free cap", () => {
     expect(resolveTickerLimit({ subscription_plan: "pro_monthly", ticker_limit: 75 })).toBe(75);
   });
 
-  it("points an over-cap Free member at Pro, not Ultimate checkout", () => {
+  it("points an over-cap Free member at Starter (b12), not Ultimate checkout", () => {
     const quota = checkTickerQuota(
       { subscription_plan: "free", ticker_limit: 10 },
       Array.from({ length: 10 }, () => ({ asset_type: "stock" })),
       "stock"
     );
     expect(quota.allowed).toBe(false);
-    expect(quota.upgradeHref).toBe("/pricing#pro");
-    expect(quota.message).toMatch(/Pro/);
+    expect(quota.upgradeHref).toBe("/pricing#starter");
+    expect(quota.message).toMatch(/Upgrade to Starter/);
     expect(quota.message).not.toMatch(/Ultimate/);
   });
 });

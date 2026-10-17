@@ -91,7 +91,7 @@ export function ipBucket48(raw: string): string | null {
 }
 
 /** /48 limit for the anonymous guide: 30 a minute across every /64 inside it. */
-export const PERSONAL_GUIDE_LIMIT_48 = 30;
+export const PERSONAL_GUIDE_LIMIT_48 = 12;
 /** Per-email failed sign-in cap that ignores the address (CR-5). */
 export const AUTH_EMAIL_LIMIT = 10;
 export const AUTH_EMAIL_WINDOW_MS = 15 * 60 * 1000;
@@ -200,6 +200,17 @@ export async function takeRateLimit(
     return { allowed: false, remaining: 0, limit, resetSec, store, keyHash: keyHash(key) };
   }
   return { allowed: true, remaining: Math.max(0, limit - merged), limit, resetSec, store, keyHash: keyHash(key) };
+}
+
+/** Goal b12 CR-5: the sign-in email as one canonical form (trim, NFKC, lower case). */
+export function normaliseLoginEmail(raw: unknown): string {
+  return String(raw ?? "").normalize("NFKC").trim().toLowerCase().slice(0, 254);
+}
+
+/** SHA-256 hex, so a limiter key or log line never carries an address or email. */
+export async function sha256Hex(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 /** Short non-reversible tag of the limiter key, so QA can see one IP maps to one bucket. */
