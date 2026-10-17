@@ -678,3 +678,4 @@ Must-fix batch 5 (TT b4 retest: CR-2 CR-4 CR-5 M-1 M-3 M-4 M-5 M-11 H-13): marke
 Must-fix batch 6 (TT b5 retest: CR-2 CR-5 H-1 H-2 H-4 H-5 H-6 H-7 H-11 H-13 M-3 M-6): marker `pull-check:v3-must-fix-b6-2026-10-17`
 Must-fix batch 7 (TT b6 retest: CR-2 CR-5 H-5 H-13 M-3 M-6): marker `pull-check:v3-must-fix-b7-2026-10-17`
 - Goal loop batch b8 (GOAL-LOCK CR-2 CR-5 H-5 CR-6 CR-1 H-13 H-10 H-9 M-6 M-3 G-01 G-02): marker `pull-check:v3-goal-b8-2026-10-17`
+- Goal loop batch b9 (GOAL-LOCK G-07 G-08 G-09, b8 gaps H-9 split entry + DRP holding count): marker `pull-check:v3-goal-b9-2026-10-18`

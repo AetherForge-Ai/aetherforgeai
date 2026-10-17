@@ -32,3 +32,14 @@ export const RAIL_GRID_CLASS = "mt-4 grid min-w-0 items-start gap-6 xl:grid-cols
  */
 export const RAIL_ASIDE_CLASS =
   "rail-aside-fit grid min-w-0 content-start gap-4 sm:grid-cols-2 lg:order-first xl:order-none xl:-m-1 xl:grid-cols-1 xl:p-1";
+
+/**
+ * b9 G-07: the caps meter reads "12 of 25 used". K-14 (caps decision) is parked;
+ * the safe default keeps the current caps (10 / 25 / 75 / unlimited) that the
+ * pricing grid and enforcement already share.
+ */
+export function usageMeterLabel(used: number | null | undefined, limit: number | null | undefined): string {
+  const line = usageLine(used, limit);
+  if (limit == null || !Number.isFinite(limit)) return line;
+  return `${line} used`;
+}
