@@ -23,6 +23,7 @@ export interface ReversalTxn {
   createdAt?: string | null;
   execution_status?: string | null;
   currency?: string | null;
+  notes?: string | null;
 }
 
 export interface TickerPosition {
@@ -68,7 +69,14 @@ function isFilledTrade(row: ReversalTxn): boolean {
   const status = String(row.execution_status || "filled").toLowerCase();
   if (status === "idea" || status === "paper") return false;
   const type = String(row.type || "").toLowerCase();
-  return type === "buy" || type === "sell";
+  return type === "buy" || type === "sell" || (type === "dividend" && drpSharesFromNotes(row.notes) > 0);
+}
+
+/** Goal b9: DRP shares stamped on a dividend row (`sh=` in the [DIV:…] tag). */
+export function drpSharesFromNotes(notes: string | null | undefined): number {
+  const m = /\[DIV:[^\]]*\bsh=([0-9.]+)/.exec(String(notes || ""));
+  const n = m ? Number(m[1]) : 0;
+  return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
 function sameInstrument(row: ReversalTxn, ticker: string, assetType: string): boolean {
@@ -92,6 +100,14 @@ export function replayTickerPosition(rows: ReversalTxn[], ticker: string, assetT
   let shares = 0;
   let avg = 0;
   for (const row of ordered) {
+    if (String(row.type).toLowerCase() === "dividend") {
+      // DRP allotment: shares join the holding at zero cost (NZ$ cost unchanged).
+      const drp = drpSharesFromNotes(row.notes);
+      const next = shares + drp;
+      avg = next > 0 ? (shares * avg) / next : 0;
+      shares = next;
+      continue;
+    }
     const qty = Number(row.quantity) || 0;
     const price = Number(row.price) || 0;
     const fees = Math.max(0, Number(row.fees) || 0);
@@ -125,6 +141,10 @@ export function firstOversell(rows: ReversalTxn[], ticker: string, assetType: st
     .sort((a, b) => new Date(a.executed_at || a.createdAt || 0).getTime() - new Date(b.executed_at || b.createdAt || 0).getTime());
   let shares = 0;
   for (const row of ordered) {
+    if (String(row.type).toLowerCase() === "dividend") {
+      shares += drpSharesFromNotes(row.notes);
+      continue;
+    }
     const qty = Number(row.quantity) || 0;
     if (!(qty > 0)) continue;
     shares += String(row.type).toLowerCase() === "buy" ? qty : -qty;

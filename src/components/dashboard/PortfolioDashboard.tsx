@@ -106,6 +106,7 @@ import { AnalysisPanel } from "@/components/dashboard/AnalysisPanel";
 import { PriceAlerts } from "@/components/dashboard/PriceAlerts";
 import { PreciousMetals } from "@/components/dashboard/PreciousMetals";
 import { planLabel } from "@/lib/plans";
+import { CSV_LOCK_LABEL, csvLockAccessibleName } from "@/lib/csv-lock-label";
 import { checkTickerQuota, isFreeReportPlan, limitScope, resolveTickerLimit } from "@/lib/entitlements";
 import { PL_AT_LATEST_PRICE } from "@/lib/market-freshness";
 import { CRYPTO_PROJECTIONS_PAUSED, CRYPTO_PROJECTIONS_PAUSE_MESSAGE } from "@/lib/projection-pause";
@@ -2250,7 +2251,8 @@ export function PortfolioDashboard({
                   <Button type="button" className="h-auto min-h-11 whitespace-normal" onClick={openAdd}>+ Add trade</Button>
                   <HoldingsCsvImport assetType="stock" onImported={handleDataChanged} />
                   <Button type="button" variant="outline" className="h-auto min-h-11 whitespace-normal" onClick={() => handleCalculatorCash("deposit")}>Deposit/Withdraw</Button>
-                  <Button type="button" variant="outline" className="h-auto min-h-11 whitespace-normal" onClick={() => void exportLedger()} disabled={freePlan} title={freePlan ? "CSV export is included on Starter and above." : undefined}>Export</Button>
+                  <a href="/dashboard/split" className="inline-flex min-h-11 items-center justify-center rounded-md border px-4 text-sm font-medium">Record split</a>
+                  <Button type="button" variant="outline" className="h-auto min-h-11 whitespace-normal" onClick={() => void exportLedger()} disabled={freePlan} aria-label={freePlan ? csvLockAccessibleName("Transactions CSV") : undefined} title={freePlan ? CSV_LOCK_LABEL : undefined}>{freePlan ? CSV_LOCK_LABEL : "Export"}</Button>
                   <Button type="button" variant="outline" className="h-auto min-h-11 whitespace-normal" disabled={(reportDesk?.stox ?? unloadedReportControl("Stox")).disabled} title={(reportDesk?.stox ?? unloadedReportControl("Stox")).title} onClick={() => handleReport({ ticker: "", name: "Portfolio", assetClass: "shares", kind: "position" } as HoldingsRowModel, "stox")}>{(reportDesk?.stox ?? unloadedReportControl("Stox")).label}</Button>
                   <Button type="button" variant="outline" className="h-auto min-h-11 whitespace-normal" disabled={(reportDesk?.koins ?? unloadedReportControl("Koins")).disabled} title={(reportDesk?.koins ?? unloadedReportControl("Koins")).title} onClick={() => handleReport({ ticker: "", name: "Portfolio", assetClass: "crypto", kind: "position" } as HoldingsRowModel, "koins")}>{(reportDesk?.koins ?? unloadedReportControl("Koins")).label}</Button>
                 </div>
@@ -2259,8 +2261,9 @@ export function PortfolioDashboard({
               <Button type="button" className="h-auto min-h-11 max-w-full whitespace-normal" onClick={openAdd}>+ Add trade</Button>
               <HoldingsCsvImport assetType="stock" onImported={handleDataChanged} />
               <Button type="button" variant="outline" className="h-auto min-h-11 max-w-full whitespace-normal" onClick={() => handleCalculatorCash("deposit")}>Deposit/Withdraw</Button>
-              <Button type="button" variant="outline" className="h-auto min-h-11 max-w-full whitespace-normal" onClick={() => void exportLedger()} disabled={freePlan} title={freePlan ? "CSV export is included on Starter and above." : undefined}>
-                Export
+              <a href="/dashboard/split" className="inline-flex min-h-11 items-center justify-center rounded-md border px-4 text-sm font-medium">Record split</a>
+              <Button type="button" variant="outline" className="h-auto min-h-11 max-w-full whitespace-normal" onClick={() => void exportLedger()} disabled={freePlan} aria-label={freePlan ? csvLockAccessibleName("Transactions CSV") : undefined} title={freePlan ? CSV_LOCK_LABEL : undefined}>
+                {freePlan ? CSV_LOCK_LABEL : "Export"}
               </Button>
               <Button
                 type="button"

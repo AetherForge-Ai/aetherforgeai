@@ -1,4 +1,5 @@
 import { drpLotsFromRows } from "@/lib/dividend-ledger";
+import { applyLedgerSplits } from "@/lib/stock-split";
 import "server-only";
 
 import { bookCacheEpoch, readBookCache, writeBookCache } from "@/lib/book-cache";
@@ -199,5 +200,6 @@ async function loadTaxRowsFresh(userId: string): Promise<TaxLedgerRow[]> {
     executed_at: row.executed_at || row.createdAt || "",
   }));
   // Goal b8 G-01/H-9: DRP allotments with a share count join the FIFO lots.
-  return [...mapped, ...drpLotsFromRows(mapped as never)];
+  // Goal b9 H-9: recorded splits restate earlier lots (quantity × r, price ÷ r).
+  return applyLedgerSplits([...mapped, ...drpLotsFromRows(mapped as never)]);
 }
