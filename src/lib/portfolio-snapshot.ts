@@ -1920,3 +1920,50 @@ export function returnPercentFigure(
     asOf,
   });
 }
+
+/**
+ * Goal b14 G-10: put a confirmed (or optimistic) trade into the snapshot ledger
+ * so the Transactions list shows the row in the same update that moves cash.
+ * An existing line with the same id is replaced; a pending optimistic line is
+ * dropped when the saved one arrives.
+ */
+export function withLedgerLine(
+  snapshot: PortfolioSnapshot,
+  trade: {
+    _id?: string | null;
+    type?: string | null;
+    ticker?: string | null;
+    quantity?: number | null;
+    price?: number | null;
+    fees?: number | null;
+    fx_rate?: number | null;
+    currency?: string | null;
+    executed_at?: string | null;
+    trade_date?: string | null;
+    total?: number | null;
+    amount?: number | null;
+  },
+  cashNzd: number | null
+): PortfolioSnapshot {
+  const id = String(trade._id || "");
+  if (!id) return snapshot;
+  const day = String(trade.trade_date || trade.executed_at || new Date().toISOString()).slice(0, 10);
+  const fx = Number(trade.fx_rate) > 0 ? Number(trade.fx_rate) : 1;
+  const line: SnapshotLedgerLine = {
+    id,
+    type: String(trade.type || ""),
+    ticker: String(trade.ticker || "").toUpperCase(),
+    quantity: Number(trade.quantity) || null,
+    price: Number(trade.price) || null,
+    feesNzd: trade.fees == null ? null : Math.round(Number(trade.fees) * fx * 100) / 100,
+    currency: String(trade.currency || "NZD").toUpperCase(),
+    fx,
+    fxDisplay: fx.toFixed(4),
+    cashNzd: cashNzd ?? Number(trade.total ?? 0),
+    realisedNzd: null,
+    when: day,
+    whenLabel: formatDisplayDate(day),
+  };
+  const kept = snapshot.ledger.filter((row) => row.id !== id && !row.id.startsWith("optimistic-"));
+  return { ...snapshot, ledger: [line, ...kept] };
+}

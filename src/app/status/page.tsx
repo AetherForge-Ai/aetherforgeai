@@ -23,7 +23,7 @@ export default async function StatusPage() {
       notes={[
         ...feeds.map((feed) => ({
           title: feed.label,
-          body: feed.tone === "amber" ? "unavailable" : `Last OK ${feed.text} (NZ time)`,
+          body: feed.text.startsWith("—") ? feed.text : feed.label === "Crypto list last attempt" ? `Last attempt ${feed.text} (NZ time)` : feed.text === "unavailable" || feed.text.startsWith("—") ? feed.text : `Last OK ${feed.text} (NZ time)`,
           tone: feed.tone,
         })),
         { title: "AI guide provider", body: aiLine.body, tone: aiLine.tone },

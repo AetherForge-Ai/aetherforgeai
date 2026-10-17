@@ -338,7 +338,7 @@ function portfolioStrip(report: TrialReport): string {
   return `<table width="100%" style="border-collapse:collapse;margin:14px 0">
     <tr>
       ${bigCell("Portfolio value", price(p.value))}
-      ${bigCell("Cost basis", price(p.cost))}
+      ${bigCell("Cost incl. brokerage fees", price(p.cost))}
       ${bigCell("Unrealised P&amp;L", `${p.pnl >= 0 ? "+" : ""}${price(p.pnl)}`, pctColor(p.pnl))}
       ${bigCell("Return", pct(p.pnlPct), pctColor(p.pnlPct))}
     </tr>
