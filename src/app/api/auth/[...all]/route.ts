@@ -24,7 +24,12 @@ export async function POST(req: Request) {
   if (rule) {
     const identity = rateLimitIdentity(req);
     const ip = identity.ok ? identity.ip : "unknown";
-    const result = await takeRateLimit(`auth:${rule.name}:${encodeURIComponent(ip)}`, rule.limit, rule.windowMs);
+    // b7 CR-5: keyed by address AND email, so one attacker cannot hammer one
+    // account and one shared NAT does not lock out everyone else's account.
+    const body = (await req.clone().json().catch(() => null)) as { email?: unknown; username?: unknown } | null;
+    const who = String(body?.email ?? body?.username ?? "").trim().toLowerCase().slice(0, 254);
+    const key = `auth:${rule.name}:${encodeURIComponent(ip)}:${encodeURIComponent(who)}`;
+    const result = await takeRateLimit(key, rule.limit, rule.windowMs, Date.now(), { edge: "AUTH_RATE_LIMITER" });
     if (!result.allowed) {
       return NextResponse.json(
         { code: "TOO_MANY_REQUESTS", message: rule.message },

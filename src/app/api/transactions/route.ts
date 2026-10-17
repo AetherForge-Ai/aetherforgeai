@@ -1,3 +1,4 @@
+import { DUPLICATE_DIVIDEND_CODE, findDuplicateDividendTx } from "@/lib/dividend-ledger";
 import { NextResponse } from "next/server";
 import { LEDGER_ROW_EDIT } from "@/lib/feature-flags";
 import { editedTradeRow, originalTradeInput } from "@/lib/ledger-row-edit";
@@ -110,6 +111,32 @@ export async function POST(req: Request) {
     // holding, ledger and cash writes finish, the response does not wait for
     // the 5000-row query. The client merges the new row into the ledger it has.
     const priorLedger = loadLedger(user).catch(() => undefined);
+    // b7 H-5: a second dividend for the same holding, NZ day and amount needs an
+    // explicit "save anyway" from the member.
+    if (input.type === "dividend" && input.allow_duplicate !== true && input.ticker) {
+      // Only a dividend waits for the book; buys and sells never block on it.
+      const ticker = input.ticker;
+      const dupCheck = priorLedger.then((book) =>
+        book
+          ? findDuplicateDividendTx(book.transactions, {
+              ticker,
+              when: String(input.trade_date || input.executed_at || ""),
+              amounts: [input.amount, input.dividend_gross],
+            })
+          : null
+      );
+      const dup = await dupCheck;
+      if (dup) {
+        return NextResponse.json(
+          {
+            ok: false,
+            code: DUPLICATE_DIVIDEND_CODE,
+            error: `A ${input.ticker.toUpperCase()} dividend for this date and amount is already recorded. Save anyway, or cancel.`,
+          },
+          { status: 409 }
+        );
+      }
+    }
     let priorReady: Awaited<ReturnType<typeof loadLedger>> | null = null;
     void priorLedger.then((book) => {
       if (book) priorReady = book;
@@ -177,9 +204,14 @@ export async function DELETE(req: Request) {
     }
     const id = new URL(req.url).searchParams.get("id")?.trim() || "";
     if (!id) return NextResponse.json({ ok: false, error: "A dividend id is required." }, { status: 400 });
-    const loaded = await totalumSdk.crud.getRecordById("transaction", id);
-    const row = (loaded as { data?: { _id?: string; type?: string; user?: string | { _id?: string } } })?.data;
-    if (!row?._id) return NextResponse.json({ ok: false, error: "That dividend was not found." }, { status: 404 });
+    // b7 H-5: deletes are idempotent by id. A row that is already gone (a retry,
+    // a double click, a stale screen) answers 200 so the client drops it.
+    const loaded = await totalumSdk.crud.getRecordById("transaction", id).catch(() => null);
+    const row = (loaded as { data?: { _id?: string; type?: string; user?: string | { _id?: string } } } | null)?.data;
+    if (!row?._id) {
+      invalidateBookCache(user._id);
+      return NextResponse.json({ ok: true, data: { alreadyRemoved: true } });
+    }
     const owner = typeof row.user === "object" && row.user ? row.user._id : row.user;
     if (String(owner || "") !== String(user._id)) {
       return NextResponse.json({ ok: false, error: "That dividend was not found." }, { status: 404 });

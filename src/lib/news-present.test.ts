@@ -28,16 +28,15 @@ describe("public market news", () => {
   it("labels the CPI card with the site the link opens", () => {
     expect(sourceForUrl(cpi.url, cpi.source)).toBe("U.S. Bureau of Labor Statistics");
     expect(sourceForUrl("https://www.fool.com/investing/example", "Yahoo Finance")).toBe("fool.com");
-    const [first, second] = prepareNewsFeed([cpi, staleOcr]);
+    const feed = prepareNewsFeed([cpi, staleOcr]);
+    const [first] = feed;
     expect(first.headline).toMatch(/2\.75%/);
     expect(first.source).toBe("Reserve Bank of New Zealand");
     expect(first.url).toContain("rbnz.govt.nz");
     expect(first.time).toMatch(/2 Sept? 2026/);
-    expect(second.source).toBe("U.S. Bureau of Labor Statistics");
-    expect(second.url).toBe("https://www.bls.gov/cpi/");
-    expect(second.headline).not.toMatch(/cooler than expected/);
-    expect(second.time).toMatch(/\d{4}/);
-    expect(`${first.summary} ${second.summary}`).not.toMatch(/3\.25/);
+    // b7 H-13: the US BLS CPI card is no longer on the NZ/AU news list.
+    expect(feed.some((item) => item.url === "https://www.bls.gov/cpi/")).toBe(false);
+    expect(feed.map((item) => item.summary).join(" ")).not.toMatch(/3\.25/);
   });
 
   it("drops an undated homepage item and keeps the dated official cards", () => {
@@ -59,7 +58,7 @@ describe("public market news", () => {
       expect(item.publishedOn).toMatch(/^\d{4}-\d{2}-\d{2}/);
     }
     expect(feed[0]?.headline).toMatch(/2\.75%/);
-    expect(feed.some((item) => item.url === "https://www.bls.gov/cpi/")).toBe(true);
+    expect(feed.some((item) => item.url === "https://www.bls.gov/cpi/")).toBe(false);
   });
 
   it("keeps a dated article and names the site the link opens", () => {
@@ -275,9 +274,8 @@ describe("public market news", () => {
     expect(feed.find((item) => item.url.includes("the-official-cash-rate"))?.marketLabel).toBe("NZ macro");
     const crypto = feed.find((item) => item.url.includes("beincrypto.com"));
     expect(crypto?.market).toBe("CRYPTO");
-    const cpi = feed.find((item) => item.url === "https://www.bls.gov/cpi/");
-    expect(cpi?.time).toContain("Scheduled: 14 Oct");
-    expect(cpi?.publishedOn && cpi.publishedOn <= "2026-10-07").toBe(true);
+    // b7 H-13: the US CPI calendar card is dropped from the news list.
+    expect(feed.find((item) => item.url === "https://www.bls.gov/cpi/")).toBeUndefined();
     for (const item of feed) {
       expect(item.publishedOn && item.publishedOn <= "2026-10-07").toBe(true);
     }
@@ -630,8 +628,8 @@ describe("public market news", () => {
     const info = viSpy();
     const feed = prepareNewsFeed(cards, new Date("2026-10-08T00:00:00Z"), ["WOR.AX"]);
     info.mockRestore();
-    // The public feed always adds the Reserve Bank and US CPI cards.
-    expect(feed).toHaveLength(33);
+    // The public feed always adds the Reserve Bank card (b7: no US CPI card).
+    expect(feed).toHaveLength(32);
     expect(feed.map((item) => item.headline).join("\n")).not.toMatch(/&#|&amp;|froyo/i);
     expect(feed.some((item) => item.headline.startsWith("WOR.AX"))).toBe(true);
     expect(mentionsHoldingTicker("WOR.AX updates its project timetable", "", ["WOR.AX"])).toBe(true);
