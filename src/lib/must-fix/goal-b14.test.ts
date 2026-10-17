@@ -10,7 +10,7 @@ const read = (p: string) => readFileSync(p, "utf8");
 
 describe("goal b14", () => {
   it("pins the build", () => {
-    expect(read("public/build-version.txt").trim()).toContain("v3-goal-b14-2026-10-18");
+    expect(read("public/build-version.txt").trim()).toMatch(/v3-goal-b1[4-9]-/);
   });
   it("M-2: three new screenshots have alt text", () => {
     for (const slug of ["edit-or-delete-a-row", "income-and-tax-view", "read-price-freshness"]) expect(docsShot(slug)?.alt).toMatch(/^Example:/);

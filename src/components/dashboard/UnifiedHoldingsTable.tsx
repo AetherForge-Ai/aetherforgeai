@@ -451,7 +451,7 @@ function AssetCell({ row, onOpen, folded = false }: { row: HoldingsRowModel; onO
         {(row.ticker || "?").slice(0, 1)}
       </span>
       <span className="min-w-0">
-        <span className="block max-w-[9rem] truncate font-medium" title={row.name}>{row.name}</span>
+        <span className="block max-w-[9rem] truncate font-medium min-[1440px]:max-w-[11rem] min-[1440px]:whitespace-normal min-[1440px]:break-words" title={row.name} data-full-name>{row.name}</span>
         <span className="mt-1 flex flex-wrap items-center gap-1">
           <span className="text-xs text-muted-foreground">{row.ticker}</span>
           {row.kind === "cash" ? (
@@ -536,14 +536,13 @@ function RowActions({
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button type="button" size="sm" variant="outline" aria-label="Actions for cash">
+          <Button type="button" size="sm" variant="outline" className="text-foreground opacity-100" aria-label="Actions for Cash" data-cash-actions>
             <MoreHorizontal className="size-4" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem onSelect={() => onCash("deposit")}>Deposit</DropdownMenuItem>
           <DropdownMenuItem onSelect={() => onCash("withdraw")}>Withdraw</DropdownMenuItem>
-          <DropdownMenuItem disabled title="FX convert is not on this table yet.">Convert</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     );
