@@ -33,6 +33,11 @@ import { dexRowToCoin, type DexTokenRow } from "@/lib/crypto-dex";
 import type { TxSeed } from "@/lib/transaction-dialog-store";
 import { bumpHoldingsGeneration } from "@/lib/holdings-generation";
 import { useTradeReviewGate } from "@/lib/trade-review-gate";
+import { DUPLICATE_DIVIDEND_CODE, findDuplicateDividendTx, type DividendTxLike } from "@/lib/dividend-ledger";
+
+function duplicateDividendMessage(ticker: string): string {
+  return `A ${ticker.toUpperCase()} dividend for this date and amount is already recorded. Save anyway, or cancel.`;
+}
 import { markDialogSearchGuard, noteDialogSearchQuery } from "@/lib/dialog-guards";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -138,6 +143,9 @@ export function RecordTransactionPanel({
   const [checkingCash, setCheckingCash] = useState(false);
   const [cashNote, setCashNote] = useState("");
   const [saveError, setSaveError] = useState("");
+  // b7 H-5: duplicate dividend warning shown at Review; Confirm needs an explicit tick.
+  const [dupWarning, setDupWarning] = useState("");
+  const [dupAck, setDupAck] = useState(false);
   const [book, setBook] = useState<BookHolding[]>(holdings);
   const [bookCash, setBookCash] = useState(cash);
   const [bookKnown, setBookKnown] = useState(cashKnown);
@@ -163,6 +171,8 @@ export function RecordTransactionPanel({
     setHint("");
     setPriceSession("");
     setSaveError("");
+    setDupWarning("");
+    setDupAck(false);
     setQuery("");
     setNotes("");
     setFeeDirty(false);
@@ -505,6 +515,18 @@ export function RecordTransactionPanel({
     if (messages.length) return;
     setCashNote(known ? "" : "Cash is still loading. Confirm checks the balance before anything is written.");
     setPreview(next);
+    setDupAck(false);
+    setDupWarning("");
+    if (kind === "dividend" && asset) {
+      const tx = await api.get<{ transactions?: DividendTxLike[] }>("/api/transactions");
+      const rows = tx.ok && Array.isArray(tx.data?.transactions) ? tx.data!.transactions! : [];
+      const dup = findDuplicateDividendTx(rows, {
+        ticker: asset.symbol,
+        when: next.date,
+        amounts: [next.priceNative, next.priceNzd],
+      });
+      if (dup) setDupWarning(duplicateDividendMessage(asset.symbol));
+    }
     if (!reviewKey.current) {
       const random = globalThis.crypto?.randomUUID?.() || `${Date.now()}`;
       reviewKey.current = random.slice(0, 80);
@@ -519,7 +541,12 @@ export function RecordTransactionPanel({
   }
 
   async function confirm() {
-    if (step !== "review" || !preview || saving || !confirmReady || !claimCommit()) return;
+    if (step !== "review" || !preview || saving || !confirmReady) return;
+    if (dupWarning && !dupAck) {
+      setSaveError("Tick “Save anyway” to record a second dividend for this date and amount, or cancel.");
+      return;
+    }
+    if (!claimCommit()) return;
     setSaving(true);
     setSaveError("");
     try {
@@ -612,6 +639,7 @@ export function RecordTransactionPanel({
         }
       } else {
         payload.amount = preview.priceNative;
+        if (kind === "dividend" && dupAck) payload.allow_duplicate = true;
         if (kind === "dividend" && asset) {
           payload.ticker = asset.symbol.toUpperCase();
           payload.asset_type = asset.assetType;
@@ -629,6 +657,19 @@ export function RecordTransactionPanel({
       }
       const postedAt = Date.now();
       const res = await api.post("/api/transactions", payload);
+      const dupRefused =
+        !res.ok &&
+        kind === "dividend" &&
+        res.status === 409 &&
+        ((res as { code?: string }).code === DUPLICATE_DIVIDEND_CODE ||
+          (typeof res.error === "string" && res.error.includes("already recorded")));
+      if (dupRefused) {
+        // The server found the duplicate (the Review check may have missed a row added elsewhere).
+        setDupWarning(typeof res.error === "string" ? res.error : duplicateDividendMessage(asset?.symbol || ""));
+        setDupAck(false);
+        failSave("This dividend looks like one already recorded. Tick “Save anyway” to keep both.");
+        return;
+      }
       if (!res.ok) {
         failSave(typeof res.error === "string" ? res.error : "Could not record that transaction.");
         return;
@@ -701,6 +742,16 @@ export function RecordTransactionPanel({
           ) : null}
           <ReviewRow label="Cash change" value={cashNote ? "Still loading" : formatSignedMoney(preview.cashChangeNzd)} />
           <ReviewRow label="Cash after" value={cashNote ? "Still loading" : formatNzd(preview.cashAfterNzd)} />
+          {dupWarning ? (
+            <div role="alert" className="space-y-2 rounded-lg border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm text-amber-900">
+              <p className="font-semibold">Possible duplicate</p>
+              <p>{dupWarning}</p>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={dupAck} onChange={(e) => { setDupAck(e.target.checked); setSaveError(""); }} />
+                Save anyway
+              </label>
+            </div>
+          ) : null}
           {saveError ? (
             <p role="alert" className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-700">
               {saveError}

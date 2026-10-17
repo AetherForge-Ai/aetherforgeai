@@ -41,7 +41,7 @@ export function TransactionsTab({
   onRecord: () => void;
   onEdit: (line: SnapshotLedgerLine) => void;
   /** Removes one dividend, buy or sell (the server refuses an oversell). */
-  onDeleteDividend: (line: SnapshotLedgerLine) => Promise<void> | void;
+  onDeleteDividend: (line: SnapshotLedgerLine) => Promise<boolean | void> | boolean | void;
   /** BL-7: edit one buy or sell. Resolves true when saved. */
   onEditTrade?: (line: SnapshotLedgerLine, fields: TradeEditFields) => Promise<boolean>;
 }) {
@@ -52,6 +52,9 @@ export function TransactionsTab({
   const [showAll, setShowAll] = useState(false);
   const [pending, setPending] = useState<SnapshotLedgerLine | null>(null);
   const [busy, setBusy] = useState(false);
+  // b7 H-5: rows removed in this session leave the list at once, before the
+  // refreshed snapshot arrives, so a stale row can't be deleted twice.
+  const [removedIds, setRemovedIds] = useState<ReadonlySet<string>>(() => new Set());
   const [editing, setEditing] = useState<SnapshotLedgerLine | null>(null);
   const [draft, setDraft] = useState({ quantity: "", price: "", fees: "" });
 
@@ -64,11 +67,12 @@ export function TransactionsTab({
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase();
     return (snapshot?.ledger || []).filter((line) => {
+      if (removedIds.has(line.id)) return false;
       if (type !== "all" && line.type !== type) return false;
       if (!query) return true;
       return `${line.ticker} ${line.type}`.toLowerCase().includes(query);
     });
-  }, [snapshot, q, type]);
+  }, [snapshot, q, type, removedIds]);
 
   const paged = pageLedger(filtered, { page, pageSize, showAll });
   const effect = pending ? dividendDeleteEffect(snapshot?.kpis.cash.value ?? null, pending.cashNzd) : null;
@@ -297,9 +301,12 @@ export function TransactionsTab({
               disabled={busy || !pending}
               onClick={(event) => {
                 event.preventDefault();
-                if (!pending) return;
+                if (!pending || busy) return;
+                const target = pending;
                 setBusy(true);
-                void Promise.resolve(onDeleteDividend(pending)).finally(() => {
+                void Promise.resolve(onDeleteDividend(target)).then((ok) => {
+                  if (ok !== false) setRemovedIds((prev) => new Set(prev).add(target.id));
+                }).finally(() => {
                   setBusy(false);
                   setPending(null);
                 });

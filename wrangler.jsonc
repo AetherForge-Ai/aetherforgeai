@@ -18,5 +18,11 @@
       "head_sampling_rate": 1
     }
   },
-  "upload_source_maps": true
+  "upload_source_maps": true,
+  // b7 CR-2 / CR-5: edge rate limits shared by every isolate (period must be 10 or 60 s).
+  // The 5-minute sign-in window is kept by the app counter; this stops bursts.
+  "ratelimits": [
+    { "name": "GUIDE_RATE_LIMITER", "namespace_id": "4601", "simple": { "limit": 6, "period": 60 } },
+    { "name": "AUTH_RATE_LIMITER", "namespace_id": "4602", "simple": { "limit": 10, "period": 60 } }
+  ]
 }

@@ -165,6 +165,8 @@ const CRIME_OR_COURT =
  */
 const SPECULATIVE_HEADLINE =
   /\?\s*$|\b(should you|is it time|could .* (soar|double|crash)|will .* matter|bulls|bears|millionaire|retire (early|rich)|top \d+|\d+ (stocks?|shares) to|buy now|before it'?s too late|no-brainer|motley fool)\b/i;
+const OVERSEAS_NOT_RELEVANT =
+  /\b(BLS|Bureau of Labor Statistics|scheduled|schedule|release date|calendar|think about|differently|pay attention|forecast and chart)\b/i;
 const OVERSEAS_MARKET_WIDE =
   /\b(wall street|s&p ?500|nasdaq|dow jones|federal reserve|fed|fomc|treasury yields?|bond yields?|inflation|cpi|gdp|jobs report|payrolls|tariffs?|oil prices?|gold prices?|recession|central bank|interest rates?)\b/i;
 
@@ -215,10 +217,19 @@ export function isNewsRelevant(input: { headline: string; summary?: string; mark
   // b6 H-13: an NZ/AU feed hint is not enough. Syndicated US single-stock pieces
   // ("Palantir", "Amgen") came in through NZ/AU feeds; without an NZ/AU anchor
   // the story is judged as overseas news.
-  if ((input.market === "NZX" || input.market === "ASX") && hasNzAuAnchor(blob)) return true;
+  // b7: US agency calendars never count, whatever feed they came through.
+  if (/\b(BLS|Bureau of Labor Statistics)\b/.test(input.headline)) return false;
+  // b7: names and tickers must be in the headline (an ASX ticker such as "CPI"
+  // in a summary is not an anchor); NZ/AU words may be in either.
+  const anchored = hasNzAuAnchor(input.headline) || NZ_AU_TERMS.test(input.summary ?? "");
+  if ((input.market === "NZX" || input.market === "ASX") && anchored) return true;
   // Overseas: no question/listicle headlines, and the story must be market-wide.
   if (SPECULATIVE_HEADLINE.test(input.headline.trim())) return false;
-  return OVERSEAS_MARKET_WIDE.test(input.headline) || OVERSEAS_MARKET_WIDE.test(input.summary ?? "");
+  // b7 H-13: US agency calendars and single-company pieces are not NZ/AU news.
+  if (OVERSEAS_NOT_RELEVANT.test(input.headline)) return false;
+  // The headline itself must be market-wide; a summary that mentions "Nasdaq"
+  // no longer lets a single-stock story ("Palantir") through.
+  return OVERSEAS_MARKET_WIDE.test(input.headline);
 }
 
 function toNewsItem(raw: RawStory, assetClass: AssetClass): NewsItem | null {

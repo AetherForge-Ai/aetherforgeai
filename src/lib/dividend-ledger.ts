@@ -534,3 +534,44 @@ export function mergeDividendRows(server: readonly DividendView[], local: readon
   const pending = local.filter((row) => row.id && !ids.has(row.id));
   return [...pending, ...server];
 }
+
+/** A raw ledger row as /api/transactions returns it. */
+export interface DividendTxLike {
+  _id?: string;
+  type?: string | null;
+  ticker?: string | null;
+  total?: number | null;
+  price?: number | null;
+  amount?: number | null;
+  executed_at?: string | null;
+  trade_date?: string | null;
+}
+
+export const DUPLICATE_DIVIDEND_CODE = "duplicate_dividend";
+
+/**
+ * b7 H-5: the same check on raw ledger rows, used by the Record panel at Review
+ * and by POST /api/transactions at Confirm. Same holding (bare ticker), same NZ
+ * payment day, and an amount within half a cent of the stored total or price.
+ */
+export function findDuplicateDividendTx<T extends DividendTxLike>(
+  rows: readonly T[],
+  candidate: { ticker: string; when: string; amounts: ReadonlyArray<number | null | undefined> }
+): T | null {
+  const bare = (t: string) => t.trim().toUpperCase().replace(/\.(NZ|NZX|AX|ASX)$/, "");
+  const ticker = bare(candidate.ticker || "");
+  const day = dividendDayKey(candidate.when);
+  if (!ticker || !day) return null;
+  const wanted = candidate.amounts.filter((a): a is number => typeof a === "number" && Number.isFinite(a) && a > 0);
+  return (
+    rows.find((row) => {
+      if (String(row.type || "").toLowerCase() !== "dividend") return false;
+      if (bare(String(row.ticker || "")) !== ticker) return false;
+      if (dividendDayKey(row.trade_date || row.executed_at || "") !== day) return false;
+      const stored = [row.total, row.price, row.amount]
+        .map((v) => Math.abs(Number(v)))
+        .filter((v) => Number.isFinite(v) && v > 0);
+      return stored.some((s) => wanted.some((w) => Math.abs(s - w) < 0.005));
+    }) || null
+  );
+}

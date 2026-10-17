@@ -276,7 +276,9 @@ export function UnifiedHoldingsTable({
         )}
       </div>
 
-      <div className="mt-3 hidden overflow-x-clip rounded-3xl border border-border/70 bg-card/50 md:block">
+      {/* b7 M-6: auto layout so no figure can draw over its neighbour; a narrow
+          window scrolls the table sideways instead of overlapping columns. */}
+      <div className="mt-3 hidden overflow-x-auto rounded-3xl border border-border/70 bg-card/50 md:block">
         {loading || !model ? (
           <div className="space-y-3 p-6">
             {[0, 1, 2, 3].map((row) => (
@@ -284,10 +286,11 @@ export function UnifiedHoldingsTable({
             ))}
           </div>
         ) : (
-          <table className="w-full table-fixed border-collapse text-xs">
+          <table className="w-full table-auto border-collapse text-xs">
             <caption className="sr-only">Holdings from the portfolio snapshot{asOfLabel ? `, ${asOfLabel}` : ""}</caption>
             <colgroup>
               {columns.map((column) => (
+                // Preferred share only; auto layout never shrinks a column below its content.
                 <col key={column} style={{ width: `${holdingsColumnWidth(column, columns)}%` }} />
               ))}
             </colgroup>
@@ -364,7 +367,7 @@ export function UnifiedHoldingsTable({
                       rows.map((row) => (
                           <tr key={row.id} className="border-t border-border/40 align-top">
                             {columns.map((column) => (
-                              <td key={column} className={cn("px-1.5 py-3 align-top", column === "asset" ? "text-left" : column === "actions" ? "text-left" : "whitespace-nowrap text-right")}>
+                              <td key={column} className={cn("py-3 align-top", column === "asset" ? "px-1.5 text-left" : column === "actions" ? "px-1.5 text-left" : cn("whitespace-nowrap text-right", "px-2.5 tabular-nums"))}>
                                 {column === "asset" ? (
                                   <AssetCell row={row} onOpen={() => onInspect(row)} />
                                 ) : column === "actions" ? (

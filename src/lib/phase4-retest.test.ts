@@ -58,8 +58,9 @@ describe("phase 4 retest", () => {
   it("fits the holdings table, opens the chart, and unclips delete", () => {
     const holdings = read("src/components/dashboard/UnifiedHoldingsTable.tsx");
     expect(holdings).not.toContain("A dash has its reason on the info button.");
-    expect(holdings).toContain("overflow-x-clip");
-    expect(holdings).toContain("table-fixed");
+    // b7 M-6: fixed layout let nowrap figures overlap; auto layout + sideways scroll replaces it.
+    expect(holdings).toContain("overflow-x-auto");
+    expect(holdings).toContain("table-auto");
     const kpi = read("src/components/dashboard/KpiHeader.tsx");
     expect(kpi).toContain("useState(true)");
     expect(kpi).toContain("data-chart-open");

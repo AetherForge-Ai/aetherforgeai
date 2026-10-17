@@ -359,7 +359,8 @@ function isCpiPointer(item: NewsItem): boolean {
 
 /** Dated official cards. These are the only headlines the desk will show without a publisher timestamp. */
 export function officialPublicNews(): NewsItem[] {
-  return [OFFICIAL_OCR_NEWS, BLS_CPI_NEWS];
+  // b7 H-13: NZ/AU first. The US BLS CPI calendar entry is no longer pinned here.
+  return [OFFICIAL_OCR_NEWS];
 }
 
 /** A link with a real path. A bare homepage is not an article. */
@@ -407,9 +408,10 @@ export function prepareNewsFeed(
       continue;
     }
     if (isCpiPointer(item)) {
-      if (hasCpi) continue;
+      // b7 H-13: the US BLS CPI calendar is not NZ/AU news. It stays on the
+      // economic calendar, not the news list.
       hasCpi = true;
-      prepared.push(BLS_CPI_NEWS);
+      noteDroppedNews("us-cpi-calendar", item.headline);
       continue;
     }
     if (!item.publishedOn || !hasArticlePath(item.url)) {
@@ -440,9 +442,6 @@ export function prepareNewsFeed(
   }
 
   if (!hasOcr) prepared.unshift(OFFICIAL_OCR_NEWS);
-  if (!hasCpi) {
-    const at = prepared.findIndex((item) => item.headline === OFFICIAL_OCR_NEWS.headline);
-    prepared.splice(at + 1, 0, BLS_CPI_NEWS);
-  }
+  void hasCpi;
   return prepared.map((item) => presentNewsTiming(item, now));
 }

@@ -166,8 +166,22 @@ export const auth = betterAuth({
         },
       },
       useSecureCookies: isHttps,
+      // b7 CR-5: the real client address behind Cloudflare.
+      ipAddress: { ipAddressHeaders: ["cf-connecting-ip"] },
     };
   })(),
+
+  // b7 CR-5: Better Auth's own limiter as a second layer (per isolate). The route
+  // wrapper in api/auth/[...all] applies the shared edge + app counters first.
+  rateLimit: {
+    enabled: true,
+    window: 60,
+    max: 100,
+    customRules: {
+      "/sign-in/email": { window: 300, max: 10 },
+      "/sign-in/username": { window: 300, max: 10 },
+    },
+  },
 
   // Plugins
   plugins: [
