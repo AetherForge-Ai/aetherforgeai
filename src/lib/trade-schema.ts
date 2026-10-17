@@ -44,6 +44,8 @@ export const tradeSchema = z.object({
   dividend_drp: z.number().min(0).optional(),
   /** Required for buy and sell. Cash lines ignore it. */
   confirm: z.boolean().optional(),
+  /** b7 H-5: the member saw the duplicate-dividend warning and chose to save anyway. */
+  allow_duplicate: z.boolean().optional(),
   /** DEX fills only. Stored in stock.sector and a notes prefix, not a venue column. */
   venue: z.literal("DEX").optional(),
   /** Readable chain, such as Ethereum. Stored inside the sector tag and the notes prefix. */

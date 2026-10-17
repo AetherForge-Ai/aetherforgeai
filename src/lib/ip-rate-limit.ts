@@ -8,6 +8,8 @@
  * The address is CF-Connecting-IP only. X-Forwarded-For is not read.
  */
 
+import { edgeRateLimit, type EdgeLimiterName } from "@/lib/edge-rate-limit";
+
 /** Six messages a minute. A seventh inside that minute is refused. */
 export const PERSONAL_GUIDE_LIMIT = 6;
 export const PERSONAL_GUIDE_WINDOW_MS = 60 * 1000;
@@ -108,7 +110,7 @@ async function writeShared(storageKey: string, count: number): Promise<void> {
 }
 
 /** Which counter decided the result: shared across regions, per colo, or this isolate only. */
-export type RateLimitStore = "durable" | "cache" | "memory";
+export type RateLimitStore = "edge" | "durable" | "cache" | "memory";
 export type RateLimitResult = {
   allowed: boolean;
   remaining: number;
@@ -121,15 +123,22 @@ export async function takeRateLimit(
   key: string,
   limit: number,
   windowMs = RATE_WINDOW_MS,
-  now = Date.now()
+  now = Date.now(),
+  opts: { edge?: EdgeLimiterName } = {}
 ): Promise<RateLimitResult> {
   const storageKey = rateLimitStorageKey(key, windowMs, now);
   const resetSec = Math.max(1, Math.ceil((windowMs - (now % windowMs)) / 1000));
-  // Reserve a slot before any await so a burst in this isolate cannot all read zero.
+  // Hard floor (b7): this isolate refuses after `limit` whatever any store says.
+  // The slot is reserved before any await so a burst here cannot all read zero.
   const count = (buckets.get(storageKey) ?? 0) + 1;
   buckets.set(storageKey, count);
   if (count > limit) {
     return { allowed: false, remaining: 0, limit, resetSec, store: "memory" };
+  }
+  // b7: the Workers rate-limit binding is shared by every isolate at the edge.
+  if (opts.edge) {
+    const edge = await edgeRateLimit(opts.edge, key);
+    if (edge === false) return { allowed: false, remaining: 0, limit, resetSec, store: "edge" };
   }
   if (durableStore) {
     try {

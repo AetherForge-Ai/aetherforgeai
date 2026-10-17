@@ -65,8 +65,12 @@ async function incrementRow(storageKey: string, windowMs: number, now: number): 
   const rows = ((res?.data as Row[] | undefined) || []).filter(
     (r) => r.bucket_key == null || r.bucket_key === storageKey
   ).length;
-  // Our own insert is always one of them, even if the read lags.
-  return Math.max(1, rows);
+  // b7: our own insert must be visible. Zero rows means the read is not working
+  // (missing bucket_key column, a filter the table ignores, or a lagging read),
+  // so the count would always be 1 and never refuse. Report it as a store
+  // failure instead of a silent allow; the edge and memory limits still apply.
+  if (rows < 1) throw new Error("durable counter read returned no rows; check rate_limit_counter columns");
+  return rows;
 }
 
 setDurableCounterStore(totalumCounterStore);

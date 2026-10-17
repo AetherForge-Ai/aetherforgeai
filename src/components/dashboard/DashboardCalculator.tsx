@@ -80,7 +80,7 @@ export function DashboardCalculator({
   onCash: (mode: "deposit" | "withdraw") => void;
   onRecord: () => void;
   onEditLedger: (line: SnapshotLedgerLine) => void;
-  onDeleteDividend: (line: SnapshotLedgerLine) => Promise<void> | void;
+  onDeleteDividend: (line: SnapshotLedgerLine) => Promise<boolean | void> | boolean | void;
   onEditTrade?: (line: SnapshotLedgerLine, fields: import("@/lib/ledger-row-edit").TradeEditFields) => Promise<boolean>;
   onReport: (row: HoldingsRowModel, kind: "stox" | "koins") => void;
   onAlert: (row: HoldingsRowModel) => void;
