@@ -95,6 +95,11 @@ export function UnifiedHoldingsTable({
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [columnsOpen, setColumnsOpen] = useState(false);
   const columns = model?.columns || COLUMN_SETS.summary;
+  // Goal b13 M-6: the desktop table sits in a ~710 px card beside the right rail at
+  // every desktop width. Qty and Price fold into the Asset cell ("40 × NZ$40.61"),
+  // so Market value, Total return, Weight and Actions always fit without sideways scroll.
+  const folded = columns.includes("qty") || columns.includes("price");
+  const tableColumns = columns.filter((column) => column !== "qty" && column !== "price");
   let positionCount = 0;
   if (model) {
     for (const group of model.groups) {
@@ -289,14 +294,14 @@ export function UnifiedHoldingsTable({
           <table className="w-full table-auto border-collapse text-xs">
             <caption className="sr-only">Holdings from the portfolio snapshot{asOfLabel ? `, ${asOfLabel}` : ""}</caption>
             <colgroup>
-              {columns.map((column) => (
+              {tableColumns.map((column) => (
                 // Preferred share only; auto layout never shrinks a column below its content.
-                <col key={column} style={{ width: `${holdingsColumnWidth(column, columns)}%` }} />
+                <col key={column} style={{ width: `${holdingsColumnWidth(column, tableColumns)}%` }} />
               ))}
             </colgroup>
             <thead>
               <tr className="border-b border-border/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                {columns.map((column) => {
+                {tableColumns.map((column) => {
                   const active = query.sortKey === column;
                   const sortable = isSortableColumn(column);
                   return (
@@ -307,7 +312,7 @@ export function UnifiedHoldingsTable({
                       className={cn(
                         "px-1.5 py-3 font-medium",
                         column === "asset" ? "w-[24%] text-left" : "text-right",
-                        column === "actions" && "w-[8rem]"
+                        column === "actions" && "w-[3rem]"
                       )}
                     >
                       {sortable ? (
@@ -338,7 +343,7 @@ export function UnifiedHoldingsTable({
             <tbody>
               {model.groups.length === 0 ? (
                 <tr>
-                  <td colSpan={columns.length} className="px-4 py-10 text-center text-muted-foreground">
+                  <td colSpan={tableColumns.length} className="px-4 py-10 text-center text-muted-foreground">
                     No holdings match these filters.
                   </td>
                 </tr>
@@ -349,7 +354,7 @@ export function UnifiedHoldingsTable({
                   return (
                   <Fragment key={group.id}>
                     <tr className="border-t border-border/60 bg-muted/20">
-                      <th scope="rowgroup" colSpan={columns.length} className="px-3 py-2 text-left font-semibold">
+                      <th scope="rowgroup" colSpan={tableColumns.length} className="px-3 py-2 text-left font-semibold">
                         <span className="inline-flex flex-wrap items-center gap-3">
                           <span>{group.label}</span>
                           <FigureReadout figure={group.subtotal} label={`${group.label} subtotal`} />
@@ -358,7 +363,7 @@ export function UnifiedHoldingsTable({
                     </tr>
                     {rows.length === 0 ? (
                       <tr>
-                        <td colSpan={columns.length} className="px-4 py-4 text-muted-foreground">
+                        <td colSpan={tableColumns.length} className="px-4 py-4 text-muted-foreground">
                           <span>{group.emptyLabel}</span>
                           {group.id === "crypto" && cryptoEmpty ? <span className="mt-2 block">{cryptoEmpty}</span> : null}
                         </td>
@@ -366,10 +371,10 @@ export function UnifiedHoldingsTable({
                     ) : (
                       rows.map((row) => (
                           <tr key={row.id} className="border-t border-border/40 align-top">
-                            {columns.map((column) => (
+                            {tableColumns.map((column) => (
                               <td key={column} className={cn("py-3 align-top", column === "asset" ? "px-1.5 text-left" : column === "actions" ? "px-1.5 text-left" : cn("whitespace-nowrap text-right", "px-1 tabular-nums"))}>
                                 {column === "asset" ? (
-                                  <AssetCell row={row} onOpen={() => onInspect(row)} />
+                                  <AssetCell row={row} onOpen={() => onInspect(row)} folded={folded} />
                                 ) : column === "actions" ? (
                                   <RowActions
                                     row={row}
@@ -400,7 +405,7 @@ export function UnifiedHoldingsTable({
                   <th scope="row" className="px-3 py-3 text-left">
                     {model.grandLabel}
                   </th>
-                  <td colSpan={Math.max(columns.length - 1, 1)} className="px-3 py-3 text-right">
+                  <td colSpan={Math.max(tableColumns.length - 1, 1)} className="px-3 py-3 text-right">
                     <FigureReadout figure={model.grand} label={model.grandLabel} showReason />
                     {model.matchesFullBook ? (
                       <span className="mt-1 block text-xs font-normal text-muted-foreground">Same net worth as the header.</span>
@@ -429,7 +434,9 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-function AssetCell({ row, onOpen }: { row: HoldingsRowModel; onOpen: () => void }) {
+function AssetCell({ row, onOpen, folded = false }: { row: HoldingsRowModel; onOpen: () => void; folded?: boolean }) {
+  const qty = row.cells.qty?.figures[0]?.display;
+  const price = row.cells.price?.figures[0]?.display;
   return (
     <span className="flex items-start gap-2">
       <button
@@ -440,11 +447,11 @@ function AssetCell({ row, onOpen }: { row: HoldingsRowModel; onOpen: () => void 
       >
         <ChevronRight className="size-4" aria-hidden />
       </button>
-      <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary/12 text-xs font-semibold text-primary" aria-hidden>
+      <span className="hidden" aria-hidden>
         {(row.ticker || "?").slice(0, 1)}
       </span>
       <span className="min-w-0">
-        <span className="block font-medium">{row.name}</span>
+        <span className="block max-w-[9rem] truncate font-medium" title={row.name}>{row.name}</span>
         <span className="mt-1 flex flex-wrap items-center gap-1">
           <span className="text-xs text-muted-foreground">{row.ticker}</span>
           {row.kind === "cash" ? (
@@ -458,6 +465,12 @@ function AssetCell({ row, onOpen }: { row: HoldingsRowModel; onOpen: () => void 
           {row.closed ? <Badge variant="outline">Closed</Badge> : null}
           {row.negativeCash ? <Badge variant="outline">Below zero</Badge> : null}
         </span>
+        {folded && row.kind !== "cash" && (qty || price) ? (
+          <span className="mt-1 block whitespace-nowrap text-xs tabular-nums text-muted-foreground" data-folded-qty-price>
+            <span className="sr-only">Quantity and price: </span>
+            {qty || MISSING_MARK} × {price || MISSING_MARK}
+          </span>
+        ) : null}
       </span>
     </span>
   );
@@ -475,13 +488,16 @@ function CellView({ cell, label, signed }: { cell: TableCellModel | undefined; l
   return (
     <span className="flex w-full min-w-0 flex-col items-end gap-1">
       {/* Goal b12 M-6: amount and percent stack in one cell so the table fits its column. */}
-      <span className={cn("flex items-end justify-end gap-x-1 whitespace-nowrap tabular-nums", cell.figures.length > 1 ? "flex-col gap-y-0.5" : "flex-row flex-nowrap items-center")}>
+      {/* Goal b13 M-6: amount · percent on one line (nowrap); the Actions column is one ⋯ menu. */}
+      <span className="flex flex-row flex-nowrap items-center justify-end gap-x-1 whitespace-nowrap tabular-nums">
         {cell.figures.map((figure, index) => (
           <Fragment key={`${label}-${index}`}>
+            {index > 0 ? <span aria-hidden="true" className="text-muted-foreground">·</span> : null}
             <FigureReadout
               figure={figure}
               label={cell.figures.length > 1 ? `${label} ${index === 0 ? "amount" : "percent"}` : label}
               signed={signed && index === 0}
+              compact={index > 0}
               showReason={figure.display === MISSING_MARK && figure.reason !== "No previous close was stored for this holding." && figure.reason !== CASH_COLUMN_REASON}
             />
           </Fragment>
@@ -518,17 +534,18 @@ function RowActions({
 }) {
   if (row.kind === "cash") {
     return (
-      <span className="flex flex-wrap gap-1">
-        <Button type="button" size="sm" variant="outline" onClick={() => onCash("deposit")}>
-          Deposit
-        </Button>
-        <Button type="button" size="sm" variant="outline" onClick={() => onCash("withdraw")}>
-          Withdraw
-        </Button>
-        <Button type="button" size="sm" variant="outline" disabled title="FX convert is not on this table yet.">
-          Convert
-        </Button>
-      </span>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button type="button" size="sm" variant="outline" aria-label="Actions for cash">
+            <MoreHorizontal className="size-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onSelect={() => onCash("deposit")}>Deposit</DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => onCash("withdraw")}>Withdraw</DropdownMenuItem>
+          <DropdownMenuItem disabled title="FX convert is not on this table yet.">Convert</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     );
   }
   if (!resolved || resolved.ok === false) {
@@ -544,20 +561,18 @@ function RowActions({
   const metal = row.assetClass === "metals";
   const reportKind = row.assetClass === "crypto" ? "koins" : row.assetClass === "shares" ? "stox" : null;
   return (
-    <span className="flex flex-wrap gap-1">
-      <Button type="button" size="sm" variant="outline" onClick={() => onTrade(row, "buy")}>
-        Buy
-      </Button>
-      <Button type="button" size="sm" variant="outline" disabled={nothingOpen} title={nothingOpen ? "Nothing open to sell." : undefined} onClick={() => onTrade(row, "sell")}>
-        Sell
-      </Button>
+    <span className="flex justify-end">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button type="button" size="sm" variant="outline" aria-label={`More actions for ${row.name}`}>
+          <Button type="button" size="sm" variant="outline" aria-label={`Actions for ${row.ticker || row.name}`} data-row-actions>
             <MoreHorizontal className="size-4" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          <DropdownMenuItem onSelect={() => onTrade(row, "buy")}>Buy</DropdownMenuItem>
+          <DropdownMenuItem disabled={nothingOpen} title={nothingOpen ? "Nothing open to sell." : undefined} onSelect={() => onTrade(row, "sell")}>
+            Sell
+          </DropdownMenuItem>
           {reportKind ? (
             <DropdownMenuItem
               disabled={reportRuns[reportKind].disabled}

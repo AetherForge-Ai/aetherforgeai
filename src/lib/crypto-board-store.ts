@@ -452,19 +452,34 @@ let cryptoSeedInflight: Promise<{ cryptoReplaced: boolean; cryptoRows: number }>
 let dexSeedInflight: Promise<{ dexReplaced: boolean; dexRows: number }> | null = null;
 let dexSeedTail: Promise<unknown> = Promise.resolve();
 
+/**
+ * Goal b13 G-17: on Workers, a promise started inside an earlier request can be
+ * cancelled with that request and never settle. The in-flight guard then stayed
+ * set for the life of the isolate and the crypto list stopped refreshing (471
+ * min old on live). A guard older than SEED_INFLIGHT_MAX_MS is dropped.
+ */
+export const SEED_INFLIGHT_MAX_MS = 30_000;
+let cryptoSeedStartedAt = 0;
+let dexSeedStartedAt = 0;
+
 function refreshCryptoSeed(): Promise<{ cryptoReplaced: boolean; cryptoRows: number }> {
+  if (cryptoSeedInflight && Date.now() - cryptoSeedStartedAt > SEED_INFLIGHT_MAX_MS) cryptoSeedInflight = null;
   if (!cryptoSeedInflight) {
-    cryptoSeedInflight = runCryptoSeed().finally(() => {
-      cryptoSeedInflight = null;
+    cryptoSeedStartedAt = Date.now();
+    const job = runCryptoSeed().finally(() => {
+      if (cryptoSeedInflight === job) cryptoSeedInflight = null;
     });
+    cryptoSeedInflight = job;
   }
   return cryptoSeedInflight;
 }
 
 function refreshDexSeed(): Promise<{ dexReplaced: boolean; dexRows: number }> {
+  if (dexSeedInflight && Date.now() - dexSeedStartedAt > SEED_INFLIGHT_MAX_MS) dexSeedInflight = null;
   if (!dexSeedInflight) {
-    const job = runDexSeed().finally(() => {
-      dexSeedInflight = null;
+    dexSeedStartedAt = Date.now();
+    const job: Promise<{ dexReplaced: boolean; dexRows: number }> = runDexSeed().finally(() => {
+      if (dexSeedInflight === job) dexSeedInflight = null;
     });
     dexSeedInflight = job;
     dexSeedTail = job;
@@ -549,6 +564,9 @@ function gateCoins(coins: CoinMarket[]): CoinMarket[] {
   return coins.filter((coin) => coin.price > 0 && publicSourceAllowed(coin.source));
 }
 
+/** Goal b13 G-17: crypto older than this is shown as stale and refreshed in the request. */
+export const CRYPTO_HARD_STALE_MS = 30 * 60 * 1000;
+
 function presentCrypto(coins: CoinMarket[], at: string | null): SharedCryptoBoard {
   const listed = coins.map((coin) => presentListedCoin(coin));
   const sources = listed.map((coin) => coin.source || "coingecko");
@@ -557,7 +575,11 @@ function presentCrypto(coins: CoinMarket[], at: string | null): SharedCryptoBoar
   const age = snapshotAgeMs(at);
   const minutes = age != null && age > SNAPSHOT_REFRESH_MS ? Math.max(1, Math.round(age / 60_000)) : null;
   const clock = pricesAsAtLabel(at, Date.now(), SNAPSHOT_REFRESH_MS);
-  const aged = clock && minutes != null ? `${clock} This list is ${minutes} minutes old.` : clock;
+  const hardStale = age != null && age > CRYPTO_HARD_STALE_MS;
+  const aged =
+    clock && minutes != null
+      ? `${clock} This list is ${minutes} minutes old.${hardStale ? " Stale: crypto trades around the clock and this list has not refreshed." : ""}`
+      : clock;
   const asOf = [aged, short].filter(Boolean).join(" ");
   const notice = coins.length ? withFeedSource(asOf || null, sources) : null;
   return {
@@ -633,12 +655,22 @@ function dexSnapshotThin(rows: DexTokenRow[], sources: string[]): boolean {
   return names.length > 0 && !names.includes("geckoterminal");
 }
 
-export async function readSharedCryptoBoard(opts?: { seed?: boolean }): Promise<SharedCryptoBoard> {
+export async function readSharedCryptoBoard(opts?: { seed?: boolean; revalidate?: boolean }): Promise<SharedCryptoBoard> {
   const saved = await readCryptoSnapshot();
   const stored = saved?.coins ?? [];
   const visible = gateCoins(stored);
   // Never seed when a snapshot exists, including when the caller passes seed: false.
   if (stored.length) {
+    // Goal b13 G-17: a list over 30 minutes old is refreshed inside this request
+    // (bounded), as the DEX board is. A detached refresh alone left it 471 min old.
+    if (opts?.revalidate && visible.length && boardNeedsRefresh(saved?.at, CRYPTO_HARD_STALE_MS)) {
+      await Promise.race([refreshCryptoSeed().catch(() => undefined), sleep(DEX_REFRESH_BOUND_MS)]);
+      const fresher = await readCryptoSnapshot();
+      if (fresher?.coins?.length && (fresher.at ?? "") > (saved?.at ?? "")) {
+        return presentCrypto(gateCoins(fresher.coins), fresher.at ?? null);
+      }
+      return presentCrypto(visible, saved?.at ?? null);
+    }
     if (visible.length && boardNeedsRefresh(saved?.at, SNAPSHOT_REFRESH_MS)) {
       if (afterHookAvailable()) kickRefresh();
       else await scheduleDetached(() => refreshCryptoSeed(), 400);

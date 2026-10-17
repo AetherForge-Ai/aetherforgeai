@@ -12,6 +12,24 @@ export const BENCHMARKS = [
   { name: "S&P 500 (in NZ$)", reason: "S&P 500 history converted to NZ$ is not stored yet, so the comparison is not shown." },
 ] as const;
 
+/**
+ * Goal b13 G-02: the dashboard snapshot ledger uses { cashNzd, when } while the
+ * maths reads { cash_nzd, trade_date }. b12 passed snapshot lines straight in,
+ * so a NZ$10,000 deposit was never seen. Both shapes are accepted here, and an
+ * opening cash balance (opening_balance with no ticker) counts as a deposit,
+ * the same as the dashboard's Net contributions.
+ */
+export function toLedgerCashRows(rows: readonly Record<string, unknown>[]): LedgerCashRow[] {
+  return rows.map((row) => {
+    let type = String(row.type || "").toLowerCase();
+    const ticker = String(row.ticker || "").trim();
+    if (type === "opening_balance" && !ticker) type = "deposit";
+    const when = (row.trade_date ?? row.executed_at ?? row.when ?? "") as string;
+    const cash = row.cash_nzd ?? row.cashNzd ?? row.total;
+    return { ...(row as object), type, trade_date: String(when), cash_nzd: cash as number } as LedgerCashRow;
+  });
+}
+
 export interface BookPerformance {
   report: PerformanceReport | null;
   message: string | null;
@@ -25,7 +43,7 @@ export function bookPerformance(input: {
   source: string;
   valueHistory?: ReadonlyMap<string, number>;
 }): BookPerformance {
-  const flows = externalFlowsFromLedger([...input.ledger]);
+  const flows = externalFlowsFromLedger(toLedgerCashRows(input.ledger as unknown as Record<string, unknown>[]));
   if (!flows.length) {
     return { report: null, message: "Add a deposit to measure performance. Returns are measured from money you put in.", flows: 0 };
   }
