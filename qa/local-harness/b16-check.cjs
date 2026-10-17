@@ -1,0 +1,20 @@
+const { open, sleep } = require("./cdp.cjs");
+(async () => {
+  const b = await open(9341);
+  await b.send("Page.enable");
+  await b.send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 1100, deviceScaleFactor: 1, mobile: false });
+  await b.send("Page.navigate", { url: "http://localhost:3917/login" }); await sleep(2500);
+  await b.ev(`fetch("/api/auth/sign-out",{method:"POST",headers:{"content-type":"application/json"},body:"{}"})`);
+  console.log("login", await b.ev(`fetch("/api/auth/sign-in/email",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email:"fixture-h9-tax@example.test",password:"Harness-Pass-123!"})}).then(r=>r.status)`));
+  await b.send("Page.navigate", { url: "http://localhost:3917/dashboard/performance" }); await sleep(9000);
+  console.log("bench cells", await b.ev(`JSON.stringify([...document.querySelectorAll("[data-bench]")].map(e=>e.getAttribute("data-bench")+"="+e.textContent))`));
+  console.log("bench sources", await b.ev(`JSON.stringify([...document.querySelectorAll("[data-bench-source]")].map(e=>e.textContent))`));
+  await b.shot(__dirname + "/shots-b15/../shots-b16-performance.png");
+  console.log("sw", await b.ev(`navigator.serviceWorker.getRegistration().then(r=>r?(r.active||r.installing||r.waiting)?.scriptURL||"registered":"none")`));
+  await sleep(2000);
+  console.log("caches before", await b.ev(`caches.keys().then(k=>JSON.stringify(k))`));
+  console.log("cache entries", await b.ev(`caches.keys().then(ks=>Promise.all(ks.map(k=>caches.open(k).then(c=>c.keys()).then(r=>r.map(x=>new URL(x.url).pathname))))).then(a=>JSON.stringify(a.flat()))`));
+  await b.send("Page.navigate", { url: "http://localhost:3917/logout" }); await sleep(6000);
+  console.log("caches after sign-out", await b.ev(`caches.keys().then(k=>JSON.stringify(k))`));
+  b.close(); process.exit(0);
+})();

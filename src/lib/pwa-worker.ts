@@ -9,14 +9,25 @@ self.addEventListener("install", (event) => {
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(self.clients.claim());
+  // Goal b16 M-10: drop any older cache so nothing but the current shell stays.
+  event.waitUntil(
+    caches.keys().then((keys) => Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key)))).then(() => self.clients.claim())
+  );
+});
+
+// Goal b16 M-10: sign-out sends "aetherforge-clear"; every cache is removed.
+self.addEventListener("message", (event) => {
+  if (event.data === "aetherforge-clear") {
+    event.waitUntil(caches.keys().then((keys) => Promise.all(keys.map((key) => caches.delete(key)))));
+  }
 });
 
 self.addEventListener("fetch", (event) => {
   const request = event.request;
   if (request.method !== "GET") return;
   const url = new URL(request.url);
-  if (url.origin === self.location.origin && url.pathname.startsWith("/api/")) return;
+  // Network only. Responses are never written to the cache, so no portfolio data is stored.
+  if (url.origin !== self.location.origin || url.pathname.startsWith("/api/")) return;
   event.respondWith(
     fetch(request).catch(async () => {
       const cached = await caches.match(request);
