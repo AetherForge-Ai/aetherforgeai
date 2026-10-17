@@ -528,7 +528,10 @@ export function PortfolioDashboard({
   metalsEntitled,
   preview = false,
   view = "home",
+  initialQuota = null,
 }: {
+  /** Goal b13 H-4: report allowance read on the server. */
+  initialQuota?: { used: number; limit: number } | null;
   userName: string;
   /** Authenticated user id — scopes cash cache + sticky Buy/Add; null in guest preview. */
   userId?: string | null;
@@ -702,7 +705,7 @@ export function PortfolioDashboard({
   const [watchSeed, setWatchSeed] = useState<{ ticker: string; nonce: number; asset: "stock" | "crypto" } | null>(null);
   const [watchClass, setWatchClass] = useState<"stock" | "crypto">("stock");
   const [alertClass, setAlertClass] = useState<"stock" | "crypto">("stock");
-  const [railQuota, setRailQuota] = useState<{ used: number; limit: number } | null>(null);
+  const [railQuota, setRailQuota] = useState<{ used: number; limit: number } | null>(initialQuota);
   // Goal b12 H-4: the allowance comes from a one-count endpoint at mount, so the
   // figure paints in about one round trip; the full report list can follow later.
   useEffect(() => {
@@ -1298,7 +1301,9 @@ export function PortfolioDashboard({
   // server's answer (or a failure) replaces the guess instead of stacking on it.
   const allStocksRef = useRef<Stock[]>(allStocks);
   allStocksRef.current = allStocks;
-  const optimisticBaseRef = useRef<{ stocks: Stock[]; cash: number } | null>(null);
+  const optimisticBaseRef = useRef<{ stocks: Stock[]; cash: number; snapshot: PortfolioSnapshot | null } | null>(null);
+  const bookSnapshotRef = useRef<PortfolioSnapshot | null>(bookSnapshot);
+  bookSnapshotRef.current = bookSnapshot;
   const handleDataChanged = useCallback(
     (updated?: {
       cashBalance?: number;
@@ -1308,10 +1313,17 @@ export function PortfolioDashboard({
     }) => {
       if (updated?.optimistic) {
         if (!optimisticBaseRef.current) {
-          optimisticBaseRef.current = { stocks: allStocksRef.current, cash: mutationCashRef.current ?? cashBalance };
+          optimisticBaseRef.current = { stocks: allStocksRef.current, cash: mutationCashRef.current ?? cashBalance, snapshot: bookSnapshotRef.current };
         }
         if (typeof updated.cashBalance === "number") applyKnownCash(updated.cashBalance);
-        if (updated.lastTransaction) setAllStocks((rows) => applyBookedTradeToHoldings(rows, updated.lastTransaction));
+        const guess = updated.lastTransaction;
+        if (guess) {
+          setAllStocks((rows) => applyBookedTradeToHoldings(rows, guess));
+          if (typeof updated.cashBalance === "number") {
+            const cashGuess = updated.cashBalance;
+            setBookSnapshot((current) => (current ? paintConfirmedSnapshot(current, guess, cashGuess) : current));
+          }
+        }
         return;
       }
       if (updated?.optimisticRollback) {
@@ -1320,13 +1332,15 @@ export function PortfolioDashboard({
         if (base) {
           setAllStocks(base.stocks);
           applyKnownCash(base.cash);
+          setBookSnapshot(base.snapshot);
         }
         updated = undefined;
       } else if (optimisticBaseRef.current && updated?.lastTransaction) {
         // Real answer: rebuild from the pre-trade rows so the trade counts once.
-        const base = optimisticBaseRef.current.stocks;
+        const base = optimisticBaseRef.current;
         optimisticBaseRef.current = null;
-        setAllStocks(base);
+        setAllStocks(base.stocks);
+        setBookSnapshot(base.snapshot);
       } else {
         optimisticBaseRef.current = null;
       }
@@ -1948,10 +1962,20 @@ export function PortfolioDashboard({
   }
 
   async function handleDeleteDividend(line: SnapshotLedgerLine): Promise<boolean> {
+    // Goal b13 G-10: remove the row and move cash on click; the list is never
+    // cleared while the server confirms, and a refusal puts both back.
+    const previousSnapshot = bookSnapshot;
+    const previousCash = cashBalance;
+    setBookSnapshot((current) => (current ? { ...current, ledger: current.ledger.filter((row) => row.id !== line.id) } : current));
+    if (Number.isFinite(line.cashNzd)) applyKnownCash(Math.round((cashBalance - line.cashNzd) * 100) / 100);
     const res = await api.delete<{ cash?: { after?: number }; alreadyRemoved?: boolean }>(
       `/api/transactions?id=${encodeURIComponent(line.id)}`
     );
     const label = line.type === "dividend" ? "Dividend" : line.type === "buy" ? "Buy" : "Sell";
+    if (!res.ok) {
+      setBookSnapshot(previousSnapshot);
+      applyKnownCash(previousCash);
+    }
     if (res.ok) {
       // b7 H-5: an id that is already gone is a success (idempotent), not "not found".
       toast.success(res.data?.alreadyRemoved ? `${label} was already removed` : `${label} removed`);

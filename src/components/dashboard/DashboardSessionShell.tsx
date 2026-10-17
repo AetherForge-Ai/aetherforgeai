@@ -23,9 +23,12 @@ import type { DashboardSessionUser } from "@/lib/dashboard-session";
 export function DashboardSessionShell({
   view,
   guestDocument,
+  initialQuota = null,
 }: {
   view: DashboardView;
   guestDocument: boolean;
+  /** Goal b13 H-4: server-read report allowance, so Plan usage paints with the dashboard. */
+  initialQuota?: { used: number; limit: number } | null;
 }) {
   const [phase, setPhase] = useState<"pending" | "guest" | "ready">(
     guestDocument ? "guest" : "pending",
@@ -65,6 +68,7 @@ export function DashboardSessionShell({
   return (
     <PortfolioDashboard
       view={view}
+      initialQuota={initialQuota}
       userId={session.id}
       userName={session.name && !session.name.includes("@") ? session.name : session.greetingName}
       subscription={session.subscription}

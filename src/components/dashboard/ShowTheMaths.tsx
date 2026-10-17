@@ -71,12 +71,15 @@ export function FigureReadout({
   signed = false,
   showReason = false,
   className,
+  compact = false,
 }: {
   figure: SnapshotFigure;
   label: string;
   signed?: boolean;
   showReason?: boolean;
   className?: string;
+  /** Goal b13 M-6: the second figure in a table cell (e.g. return %) without arrow or maths button. */
+  compact?: boolean;
 }) {
   const missing = figure.display === MISSING_MARK;
   const up = !missing && figure.value != null && figure.value > 0;
@@ -86,15 +89,17 @@ export function FigureReadout({
     <span className={cn("inline-flex flex-col items-end gap-0.5", className)}>
       {/* b6 M-6: one line, tabular digits, and room between a price and its info icon. */}
       <span className="inline-flex flex-nowrap items-center justify-end gap-1.5 whitespace-nowrap">
-        {up ? <ArrowUp className="size-3 text-emerald-700" aria-hidden /> : null}
-        {down ? <ArrowDown className="size-3 text-rose-600" aria-hidden /> : null}
-        <span className="tnum whitespace-nowrap tabular-nums" title={missing ? figure.reason || undefined : undefined}>
+        {up && !compact ? <ArrowUp className="size-3 text-emerald-700" aria-hidden /> : null}
+        {down && !compact ? <ArrowDown className="size-3 text-rose-600" aria-hidden /> : null}
+        <span className={cn("tnum whitespace-nowrap tabular-nums", compact && up && "text-emerald-700", compact && down && "text-rose-600")} title={missing ? figure.reason || undefined : undefined}>
           {text}
           {missing && figure.reason ? <span className="sr-only"> {figure.reason}</span> : null}
         </span>
-        <span className="ml-0.5 inline-flex shrink-0">
-          <ShowTheMaths figure={figure} label={label} />
-        </span>
+        {compact ? null : (
+          <span className="ml-0.5 inline-flex shrink-0">
+            <ShowTheMaths figure={figure} label={label} />
+          </span>
+        )}
       </span>
       {showReason && missing && figure.reason ? (
         <span className="max-w-[14rem] text-right text-[0.65rem] leading-snug font-normal text-muted-foreground">{figure.reason}</span>
