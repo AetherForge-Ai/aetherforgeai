@@ -26,7 +26,10 @@ export function mergeConfirmIntoLedger<T extends ConfirmLedgerBody>(current: T |
   const partial = incoming.ledgerPartial === true || (incomingRows.length <= 1 && !!incoming.lastTransaction);
   if (!partial) return incoming;
   const tx = incoming.lastTransaction;
-  const rows = current?.transactions ? [...current.transactions] : [];
+  // Goal b12 G-10: an optimistic row is replaced by the saved one (or dropped on rollback).
+  const rows = (current?.transactions ? [...current.transactions] : []).filter(
+    (row) => !(row as { _optimistic?: boolean })._optimistic || (incoming as { optimistic?: boolean }).optimistic
+  );
   if (tx && tx._id && !rows.some((row) => row._id === tx._id)) rows.unshift(tx);
   if (!current) {
     return { ...incoming, transactions: rows.length ? rows : incomingRows, ledgerPartial: false };

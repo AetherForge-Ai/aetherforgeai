@@ -14,7 +14,7 @@ import { currencyForTicker, formatMoney, formatUnitPrice } from "@/lib/currency"
 import { sanitizeGuardedReport } from "@/lib/report-consistency";
 import { labelMemberReport } from "@/lib/report-language";
 import { moverSweepCaption } from "@/lib/mover-sweep";
-import { memberUnderReviewLines, printUnderReviewLabel, PROJECTION_RANK_NOTE, projectionLeaderLine } from "@/lib/report-copy";
+import { memberUnderReviewLines, neutralRatingLabel, printUnderReviewLabel, PROJECTION_RANK_NOTE, projectionLeaderLine } from "@/lib/report-copy";
 import type {
   ApexReport,
   TickerAnalysis,
@@ -295,7 +295,7 @@ function DirectRecommendationsSection({ report }: { report: ApexReport }) {
     <li className="rounded-lg border border-border/50 bg-background/40 p-2.5 text-sm">
       <div className="flex items-center gap-2">
         <Badge variant="outline" className={actionTone(r.action)}>
-          {r.action}
+          {neutralRatingLabel(r.action)}
         </Badge>
         <span className="font-semibold">{r.ticker}</span>
         <span className="text-xs text-muted-foreground">· {formatMoney(r.price, r.currency)}</span>

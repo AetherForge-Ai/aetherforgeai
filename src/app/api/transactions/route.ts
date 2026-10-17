@@ -135,7 +135,8 @@ export async function POST(req: Request) {
         book
           ? findDuplicateDividendTx(book.transactions, {
               ticker,
-              when: String(input.trade_date || input.executed_at || ""),
+              // Goal b12 H-5: a body with no date is booked today, so compare against today.
+              when: String(input.trade_date || input.executed_at || new Date().toISOString()),
               amounts: [input.amount, input.dividend_gross],
             })
           : null

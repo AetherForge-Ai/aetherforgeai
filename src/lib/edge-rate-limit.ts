@@ -6,7 +6,7 @@
  * Returns true (allowed), false (refused) or null (binding not available:
  * local dev, tests, or a deploy without the binding) so callers fall back.
  */
-export type EdgeLimiterName = "GUIDE_RATE_LIMITER" | "AUTH_RATE_LIMITER";
+export type EdgeLimiterName = "GUIDE_RATE_LIMITER" | "GUIDE48_RATE_LIMITER" | "AUTH_RATE_LIMITER" | "AUTH_EMAIL_RATE_LIMITER";
 
 type Limiter = { limit(opts: { key: string }): Promise<{ success: boolean }> };
 

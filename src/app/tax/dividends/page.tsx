@@ -6,7 +6,7 @@ import { canExportCsv } from "@/lib/entitlements";
 import { aucklandCivilToday, nzTaxYearEnding } from "@/lib/nz-tax-year";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { getCurrentUser } from "@/lib/session";
-import { loadDividendRows, loadOpenHoldings } from "@/lib/tax-book-server";
+import { loadDividendRows, loadOpenHoldings, loadYieldHoldings } from "@/lib/tax-book-server";
 
 export const dynamic = "force-dynamic";
 
@@ -33,14 +33,17 @@ export default async function DividendLedgerPage() {
 
   let rows: ReturnType<typeof dividendViewFromRow>[] = [];
   let holdings: Awaited<ReturnType<typeof loadOpenHoldings>> = [];
+  let yieldHoldings: Awaited<ReturnType<typeof loadYieldHoldings>> = [];
   let readError = false;
   let gaps: ReturnType<typeof taxCompleteness> = [];
   if (user) {
     try {
-      const [dividendRows, openHoldings] = await Promise.all([
+      const [dividendRows, openHoldings, priced] = await Promise.all([
         loadDividendRows(user._id),
         loadOpenHoldings(user._id),
+        loadYieldHoldings(user._id).catch(() => []),
       ]);
+      yieldHoldings = priced;
       rows = dividendRows.map(dividendViewFromRow);
       gaps = taxCompleteness(dividendRows);
       holdings = openHoldings;
@@ -59,6 +62,8 @@ export default async function DividendLedgerPage() {
         csvAllowed={!!user && canExportCsv(user.subscription_plan)}
         taxYear={nzTaxYearEnding(aucklandCivilToday()) ?? new Date().getFullYear()}
         gaps={gaps}
+        yieldHoldings={yieldHoldings}
+        asOf={aucklandCivilToday()}
       />
     </AppShell>
   );

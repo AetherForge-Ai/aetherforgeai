@@ -56,6 +56,19 @@ function assetTypeOf(value: string | undefined): "stock" | "crypto" | "metal" {
 }
 
 /** Open holdings on this book. Empty when none are stored. No sample names. */
+/** Goal b12 G-01: open holdings with stored purchase and current price, for trailing yield. */
+export async function loadYieldHoldings(userId: string): Promise<{ ticker: string; shares: number; purchasePrice: number | null; currentPrice: number | null }[]> {
+  const res = await totalumSdk.crud.query("stock", { _filter: { user: userId }, _limit: 500 });
+  return ((res?.data as unknown as (StockRow & { purchase_price?: number | null })[]) || [])
+    .map((row) => ({
+      ticker: String(row.ticker || "").trim().toUpperCase(),
+      shares: Number(row.shares) || 0,
+      purchasePrice: Number(row.purchase_price) > 0 ? Number(row.purchase_price) : null,
+      currentPrice: Number(row.current_price) > 0 ? Number(row.current_price) : null,
+    }))
+    .filter((row) => row.ticker && row.shares > 0);
+}
+
 export async function loadOpenHoldings(userId: string): Promise<PaperHoldingChoice[]> {
   return cachedRead(`${userId}:open-holdings`, () => loadOpenHoldingsFresh(userId));
 }
