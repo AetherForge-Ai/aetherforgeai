@@ -16,3 +16,29 @@ export function isJunkCoin(...labels: (string | null | undefined)[]): boolean {
   }
   return false;
 }
+
+/**
+ * Goal b12 G-17: universe hygiene for the /markets crypto list. Tokenised
+ * stocks and bridged, wrapped or liquid-staked duplicates of a listed coin are
+ * left out, so every linked coin page is a primary asset with its own figures.
+ */
+export function isDuplicateOrTokenisedCoin(id: string | null | undefined): boolean {
+  const slug = String(id || "").toLowerCase();
+  if (!slug) return false;
+  if (/-tokenized-stock$/.test(slug)) return true;
+  if (/(^|-)bridged(-|$)/.test(slug)) return true;
+  if (/(^|-)wrapped(-|$)/.test(slug)) return true;
+  if (/(^|-)staked(-|$)/.test(slug)) return true;
+  return ["weth", "wbtc", "steth", "wsteth", "cbbtc", "cbeth", "reth"].includes(slug);
+}
+
+/** A listed coin page needs cap, 24h volume, circulating supply and 1h change from the source. */
+export function coinDepthComplete(coin: {
+  marketCap?: number | null;
+  volume24h?: number | null;
+  circulatingSupply?: number | null;
+  change1h?: number | null;
+}): boolean {
+  const pos = (v: number | null | undefined) => typeof v === "number" && Number.isFinite(v) && v > 0;
+  return pos(coin.marketCap) && pos(coin.volume24h) && pos(coin.circulatingSupply) && typeof coin.change1h === "number";
+}

@@ -58,7 +58,13 @@ export function overCapUpgradeHref(plan?: string | null): string {
   if (atProOrAbove) {
     return `mailto:${SALES_EMAIL}?subject=${encodeURIComponent("Founder-led onboarding")}`;
   }
-  return "/pricing#pro";
+  // Goal b12: Free goes up to Starter first; Starter goes to Pro.
+  return key.startsWith("starter_") ? "/pricing#pro" : "/pricing#starter";
+}
+
+/** Goal b12: the next plan up, named in the cap message. */
+export function nextPlanName(plan?: string | null): "Starter" | "Pro" {
+  return normalizePlanKey(plan).startsWith("starter_") ? "Pro" : "Starter";
 }
 
 /** How many of the user's holdings count toward the limit for a given bot. */
@@ -112,7 +118,7 @@ export function checkTickerQuota(
     ? ""
     : href.startsWith("mailto:")
       ? `You've reached your plan's limit of ${limit} monitored ${noun}. Remove a holding to add another, or talk to us about a founder-led setup.`
-      : `You've reached your plan's limit of ${limit} monitored ${noun}. Upgrade to Pro for a higher cap, or remove a holding to add another.`;
+      : `You've reached your plan's limit of ${limit} monitored ${noun}. Upgrade to ${nextPlanName(user.subscription_plan)} for a higher cap, or remove a holding to add another.`;
   return { allowed, used, limit, scope, message, upgradeHref: href };
 }
 

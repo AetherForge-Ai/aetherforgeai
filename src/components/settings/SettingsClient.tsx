@@ -311,11 +311,10 @@ export function SettingsClient({
             onClick={() => fileRef.current?.click()}
             disabled={uploadingAvatar}
             className="group relative rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
-            aria-label={`Upload profile photo (${initials(displayName || "U")})`}
           >
             <Avatar className="size-20 ring-2 ring-border/70 transition group-hover:ring-primary/50">
               {image ? <AvatarImage src={image} alt={displayName} /> : null}
-              <AvatarFallback aria-hidden="true" className="bg-primary/15 text-lg font-semibold text-emerald-800">
+              <AvatarFallback className="bg-primary/15 text-lg font-semibold text-emerald-800">
                 {initials(displayName || "U")}
               </AvatarFallback>
             </Avatar>
@@ -323,9 +322,11 @@ export function SettingsClient({
               {uploadingAvatar ? (
                 <Loader2 className="size-5 animate-spin" />
               ) : (
-                <Camera className="size-5" />
+                <Camera className="size-5" aria-hidden="true" />
               )}
             </span>
+            {/* Goal b12 G-14: the accessible name is the visible initials plus this text, no aria-label mismatch. */}
+            <span className="sr-only">Upload profile photo</span>
           </button>
           <div className="min-w-0 flex-1 text-sm">
             <p className="font-medium">{greetingName || user.email}</p>

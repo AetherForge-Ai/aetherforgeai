@@ -254,11 +254,12 @@ function AccountMenu({
           type="button"
           aria-expanded={open}
           aria-haspopup="menu"
+          aria-label={`Account menu for ${user.name || "your account"}`}
           className="flex items-center gap-2 rounded-full border border-border/70 bg-card/60 py-1 pl-1 pr-2 transition-colors hover:border-primary/50"
         >
           <Avatar className="size-8">
-            {user.image ? <AvatarImage src={user.image} alt={user.name} /> : null}
-            <AvatarFallback className="bg-primary/15 text-xs font-semibold text-primary">
+            {user.image ? <AvatarImage src={user.image} alt="" /> : null}
+            <AvatarFallback aria-hidden="true" className="bg-primary/15 text-xs font-semibold text-primary">
               {initials(user.name)}
             </AvatarFallback>
           </Avatar>

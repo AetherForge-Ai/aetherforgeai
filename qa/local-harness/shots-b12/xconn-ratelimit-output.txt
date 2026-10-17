@@ -1,0 +1,54 @@
+== CR-2 /64: 10 POSTs /api/personal-guide, new TCP connection each (connection: close), alternating two app instances = two isolates sharing one counter store; 10 different addresses in 2a09:bac1:57a0:18::/64 ==
+ 1 port=3918 ip=2a09:bac1:57a0:18::2875:1        200 x-ratelimit-key=34fedcb1 remaining=5 store=durable retry-after=
+ 2 port=3917 ip=2a09:bac1:57a0:18::4a38:2        200 x-ratelimit-key=34fedcb1 remaining=4 store=durable retry-after=
+ 3 port=3918 ip=2a09:bac1:57a0:18::45dd:3        200 x-ratelimit-key=34fedcb1 remaining=3 store=durable retry-after=
+ 4 port=3917 ip=2a09:bac1:57a0:18::56cf:4        200 x-ratelimit-key=34fedcb1 remaining=2 store=durable retry-after=
+ 5 port=3918 ip=2a09:bac1:57a0:18::30c8:5        200 x-ratelimit-key=34fedcb1 remaining=1 store=durable retry-after=
+ 6 port=3917 ip=2a09:bac1:57a0:18::7f6e:6        200 x-ratelimit-key=34fedcb1 remaining=0 store=durable retry-after=
+ 7 port=3918 ip=2a09:bac1:57a0:18::515:7         429 x-ratelimit-key=34fedcb1 remaining=0 store=edge retry-after=59
+ 8 port=3917 ip=2a09:bac1:57a0:18::22a1:8        429 x-ratelimit-key=34fedcb1 remaining=0 store=memory retry-after=59
+ 9 port=3918 ip=2a09:bac1:57a0:18::3ec0:9        429 x-ratelimit-key=34fedcb1 remaining=0 store=memory retry-after=59
+10 port=3917 ip=2a09:bac1:57a0:18::7690:a        429 x-ratelimit-key=34fedcb1 remaining=0 store=memory retry-after=59
+
+== CR-2 /48: 14 POSTs, each from a different /64 inside 2a09:bac5:4ec3::/48 ==
+ 1 port=3918 ip=2a09:bac5:4ec3:1025::50b:65  200 x-ratelimit-key=a9bef3aa remaining=5 retry-after=
+ 2 port=3917 ip=2a09:bac5:4ec3:104a::50b:65  200 x-ratelimit-key=ef6857fc remaining=5 retry-after=
+ 3 port=3918 ip=2a09:bac5:4ec3:106f::50b:65  200 x-ratelimit-key=2035a06d remaining=5 retry-after=
+ 4 port=3917 ip=2a09:bac5:4ec3:1094::50b:65  200 x-ratelimit-key=f9ada70a remaining=5 retry-after=
+ 5 port=3918 ip=2a09:bac5:4ec3:10b9::50b:65  200 x-ratelimit-key=2d61d0e6 remaining=5 retry-after=
+ 6 port=3917 ip=2a09:bac5:4ec3:10de::50b:65  200 x-ratelimit-key=4b751f38 remaining=5 retry-after=
+ 7 port=3918 ip=2a09:bac5:4ec3:1103::50b:65  200 x-ratelimit-key=567600db remaining=5 retry-after=
+ 8 port=3917 ip=2a09:bac5:4ec3:1128::50b:65  200 x-ratelimit-key=f5f5321a remaining=5 retry-after=
+ 9 port=3918 ip=2a09:bac5:4ec3:114d::50b:65  200 x-ratelimit-key=a3042dc8 remaining=5 retry-after=
+10 port=3917 ip=2a09:bac5:4ec3:1172::50b:65  200 x-ratelimit-key=0e24fffb remaining=5 retry-after=
+11 port=3918 ip=2a09:bac5:4ec3:1197::50b:65  200 x-ratelimit-key=baafdeec remaining=5 retry-after=
+12 port=3917 ip=2a09:bac5:4ec3:11bc::50b:65  200 x-ratelimit-key=bbe69b89 remaining=5 retry-after=
+13 port=3918 ip=2a09:bac5:4ec3:11e1::50b:65  429 x-ratelimit-key=59145709 remaining=0 retry-after=58
+14 port=3917 ip=2a09:bac5:4ec3:1206::50b:65  429 x-ratelimit-key=59145709 remaining=0 retry-after=58
+
+== CR-5: 12 failed sign-ins for one fake email (case varies), new connection each, 12 different /64s, alternating instances ==
+ 1 port=3918 email=tt-ratelimit-test3@example.invalid   401 retry-after=
+ 2 port=3917 email=TT-RateLimit-Test3@Example.Invalid   401 retry-after=
+ 3 port=3918 email=tt-ratelimit-test3@example.invalid   401 retry-after=
+ 4 port=3917 email=TT-RateLimit-Test3@Example.Invalid   401 retry-after=
+ 5 port=3918 email=tt-ratelimit-test3@example.invalid   401 retry-after=
+ 6 port=3917 email=TT-RateLimit-Test3@Example.Invalid   429 retry-after=416
+ 7 port=3918 email=tt-ratelimit-test3@example.invalid   429 retry-after=416
+ 8 port=3917 email=TT-RateLimit-Test3@Example.Invalid   429 retry-after=416
+ 9 port=3918 email=tt-ratelimit-test3@example.invalid   429 retry-after=416
+10 port=3917 email=TT-RateLimit-Test3@Example.Invalid   429 retry-after=416
+11 port=3918 email=tt-ratelimit-test3@example.invalid   429 retry-after=416
+12 port=3917 email=TT-RateLimit-Test3@Example.Invalid   429 retry-after=416
+== CR-5: 12 failed sign-ins for one fake email (case varies), new connection each, 12 different /64s, alternating instances ==
+ 1 port=3918 email=tt-ratelimit-test4@example.invalid   401 retry-after=
+ 2 port=3917 email=TT-RateLimit-Test4@Example.Invalid   401 retry-after=
+ 3 port=3918 email=tt-ratelimit-test4@example.invalid   401 retry-after=
+ 4 port=3917 email=TT-RateLimit-Test4@Example.Invalid   401 retry-after=
+ 5 port=3918 email=tt-ratelimit-test4@example.invalid   401 retry-after=
+ 6 port=3917 email=TT-RateLimit-Test4@Example.Invalid   401 retry-after=
+ 7 port=3918 email=tt-ratelimit-test4@example.invalid   401 retry-after=
+ 8 port=3917 email=TT-RateLimit-Test4@Example.Invalid   401 retry-after=
+ 9 port=3918 email=tt-ratelimit-test4@example.invalid   401 retry-after=
+10 port=3917 email=TT-RateLimit-Test4@Example.Invalid   401 retry-after=
+11 port=3918 email=tt-ratelimit-test4@example.invalid   429 retry-after=403
+12 port=3917 email=TT-RateLimit-Test4@Example.Invalid   429 retry-after=403
