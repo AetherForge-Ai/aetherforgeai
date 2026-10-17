@@ -13,6 +13,7 @@ import { api } from "@/lib/api";
 import { formatDisplayClock, formatDisplayDate, formatDisplayDateTime } from "@/lib/currency";
 import { clientFacingError } from "@/lib/api-json";
 import { publicCoinDescription, publicCoinSourceLine } from "@/lib/data-sources";
+import { coinMetricsSourceLine, depthMissingReason } from "@/lib/coin-depth";
 import { paperAddSignupHref } from "@/lib/paper-add-link";
 import { cn } from "@/lib/utils";
 import { TickerAnalysisPane } from "@/components/dashboard/TickerAnalysisPane";
@@ -512,6 +513,12 @@ export function CoinDetailView({
 
       <div className="mt-5">
         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Key metrics</p>
+        {detail && !loading ? (
+          // Goal b11 G-17: every depth figure carries its source and time.
+          <p className="-mt-1 mb-2 text-[0.7rem] text-muted-foreground" data-coin-metrics-source>
+            {coinMetricsSourceLine(detail.source, detail.quotedAt)}
+          </p>
+        ) : null}
         {loading || !detail ? (
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {Array.from({ length: 8 }).map((_, i) => (
@@ -520,16 +527,26 @@ export function CoinDetailView({
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {(detail.marketCap ?? 0) > 0 ? <Metric label="Market Cap" value={fmtCompactUsd(detail.marketCap)} /> : null}
+            {(detail.marketCap ?? 0) > 0 ? (
+              <Metric label="Market Cap" value={fmtCompactUsd(detail.marketCap)} />
+            ) : (
+              <Metric label="Market Cap" value="—" sub={depthMissingReason(detail.source)} />
+            )}
             {(detail.fdv ?? 0) > 0 ? <Metric label="Fully Diluted Val" value={fmtCompactUsd(detail.fdv)} /> : null}
-            {plausibleVolume24h(detail.volume24h, detail.marketCap) != null ? <Metric label="24h Volume" value={fmtCompactUsd(detail.volume24h)} /> : null}
+            {plausibleVolume24h(detail.volume24h, detail.marketCap) != null ? (
+              <Metric label="24h Volume" value={fmtCompactUsd(detail.volume24h)} />
+            ) : (
+              <Metric label="24h Volume" value="—" sub={depthMissingReason(detail.source)} />
+            )}
             {(detail.circulatingSupply ?? 0) > 0 ? (
               <Metric
                 label="Circulating"
                 value={fmtCompactNum(detail.circulatingSupply)}
                 sub={supplyPct != null ? `${supplyPct.toFixed(0)}% of max` : detail.symbol}
               />
-            ) : null}
+            ) : (
+              <Metric label="Circulating" value="—" sub={depthMissingReason(detail.source)} />
+            )}
             {(detail.totalSupply ?? 0) > 0 ? (
               <Metric label="Total Supply" value={fmtCompactNum(detail.totalSupply)} />
             ) : null}

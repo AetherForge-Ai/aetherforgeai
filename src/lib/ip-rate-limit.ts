@@ -58,12 +58,50 @@ export const AUTH_RESET_WINDOW_MS = 15 * 60 * 1000;
 export const PUBLIC_POST_LIMIT = 30;
 export const PUBLIC_POST_WINDOW_MS = 60 * 1000;
 
+/** Expand an IPv6 address to 8 hextets, or null when it is not IPv6. */
+export function expandIpv6(raw: string): string[] | null {
+  let ip = raw.trim().toLowerCase().replace(/^\[|\]$/g, "").split("%")[0];
+  if (!ip.includes(":")) return null;
+  // IPv4-mapped (::ffff:1.2.3.4) is treated as IPv4 by the caller.
+  if (/^::ffff:\d+\.\d+\.\d+\.\d+$/.test(ip)) return null;
+  const halves = ip.split("::");
+  if (halves.length > 2) return null;
+  const head = halves[0] ? halves[0].split(":") : [];
+  const tail = halves.length === 2 && halves[1] ? halves[1].split(":") : [];
+  const fill = halves.length === 2 ? 8 - head.length - tail.length : 0;
+  const all = [...head, ...Array(Math.max(0, fill)).fill("0"), ...tail];
+  if (all.length !== 8 || all.some((h) => !/^[0-9a-f]{1,4}$/.test(h))) return null;
+  return all.map((h) => h.replace(/^0+(?=.)/, ""));
+}
+
+/**
+ * Goal b11 CR-2/CR-5: the limiter key for an address. IPv4 is the full address;
+ * IPv6 is its /64 prefix, so rotating addresses inside one /64 share a bucket.
+ */
+export function ipBucket(raw: string): string {
+  const v6 = expandIpv6(raw);
+  if (!v6) return raw.trim().replace(/^::ffff:/i, "");
+  return `${v6.slice(0, 4).join(":")}::/64`;
+}
+
+/** Wider IPv6 bucket (/48) to catch rotation across /64s. IPv4 returns null. */
+export function ipBucket48(raw: string): string | null {
+  const v6 = expandIpv6(raw);
+  return v6 ? `${v6.slice(0, 3).join(":")}::/48` : null;
+}
+
+/** /48 limit for the anonymous guide: 30 a minute across every /64 inside it. */
+export const PERSONAL_GUIDE_LIMIT_48 = 30;
+/** Per-email failed sign-in cap that ignores the address (CR-5). */
+export const AUTH_EMAIL_LIMIT = 10;
+export const AUTH_EMAIL_WINDOW_MS = 15 * 60 * 1000;
+
 export function rateLimitIdentity(
   req: Request,
   nodeEnv = process.env.NODE_ENV
 ): { ok: true; ip: string } | { ok: false } {
   const cf = req.headers.get("cf-connecting-ip")?.trim() || "";
-  if (cf) return { ok: true, ip: cf };
+  if (cf) return { ok: true, ip: ipBucket(cf) };
   // No CF-Connecting-IP (Totalum preview, a server-to-server call, or a direct
   // origin hit). These share one bucket so the form and guide never break.
   void nodeEnv;

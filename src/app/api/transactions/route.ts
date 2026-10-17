@@ -115,6 +115,13 @@ export async function POST(req: Request) {
       if (capped) return capped;
     }
 
+    // Goal b11 CR-6 test hook: ?dryRun=1 runs every check above (auth, input,
+    // plan holding cap → 403) and stops before any write. TT can POST an 11th
+    // Free holding and see 403 without changing the book.
+    if (new URL(req.url).searchParams.get("dryRun") === "1") {
+      return NextResponse.json({ ok: true, dryRun: true, data: { wouldWrite: true, type: input.type, ticker: input.ticker ?? null } });
+    }
+
     // The book read overlaps the write. If it is still in flight when the
     // holding, ledger and cash writes finish, the response does not wait for
     // the 5000-row query. The client merges the new row into the ledger it has.

@@ -7,6 +7,12 @@
 import { PRICING_TIERS } from "@/lib/plans";
 import { PRICING_FAQS } from "@/lib/pricing-faq";
 
+const SITE_URL = (process.env.NEXT_PUBLIC_APP_URL || "https://www.aetherforgeai.co.nz").replace(/\/$/, "");
+
+export function absoluteUrl(path: string): string {
+  return /^https?:\/\//.test(path) ? path : `${SITE_URL}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
 export function breadcrumbJsonLd(items: readonly { name: string; path: string }[]) {
   return {
     "@context": "https://schema.org",
@@ -15,7 +21,8 @@ export function breadcrumbJsonLd(items: readonly { name: string; path: string }[
       "@type": "ListItem",
       position: index + 1,
       name: item.name,
-      item: item.path,
+      // Goal b11 G-15: Rich Results needs an absolute URL for each crumb.
+      item: absoluteUrl(item.path),
     })),
   };
 }

@@ -171,7 +171,11 @@ const OVERSEAS_MARKET_WIDE =
   /\b(wall street|s&p ?500|nasdaq|dow jones|federal reserve|fed|fomc|treasury yields?|bond yields?|inflation|cpi|gdp|jobs report|payrolls|tariffs?|oil prices?|gold prices?|recession|central bank|interest rates?)\b/i;
 
 const NZ_AU_TERMS =
-  /\b(nzx|asx|nzsx|rbnz|rba|ocr|new zealand|kiwi|kiwis|aotearoa|auckland|wellington|christchurch|australia|australian|aussie|sydney|melbourne|brisbane|perth|nz\$|a\$|nzd|aud|fonterra|kiwisaver|superannuation)\b/i;
+  /\b(nzx|asx|nzsx|rbnz|rba|ocr|new zealand|kiwi|kiwis|aotearoa|auckland|wellington|christchurch|australia|australian|aussie|sydney|melbourne|brisbane|perth|nz\$|a\$|nzd|aud|fonterra|kiwisaver|superannuation|rba|stats nz|statistics new zealand|abs|ird|inland revenue|fma|asic|nz)\b/i;
+
+/** Goal b11 H-13: NZ/AU finance sources whose stories count as local. */
+const NZ_AU_SOURCES =
+  /\b(nz herald|nzherald|stuff|rnz|radio new zealand|interest\.co\.nz|businessdesk|newsroom|the post|nbr|afr|australian financial review|smh|sydney morning herald|the age|abc news|abc\.net\.au|the australian|market index|marketindex|stockhead|motley fool australia|nzx|asx|rbnz|rba)\b/i;
 const NAME_STOP = new Set(["the", "air", "new", "first", "general", "national", "global", "united", "smart", "market", "energy", "group", "capital", "property", "health"]);
 let nzAuNames: RegExp | null = null;
 let nzAuTickers: RegExp | null = null;
@@ -211,8 +215,13 @@ export function hasNzAuAnchor(text: string): boolean {
   return NZ_AU_TERMS.test(text) || nzAuNamePattern().test(text) || nzAuTickerPattern().test(text);
 }
 
-export function isNewsRelevant(input: { headline: string; summary?: string; market: MarketCode | "Global" }): boolean {
+export function isNewsRelevant(input: { headline: string; summary?: string; market: MarketCode | "Global"; source?: string }): boolean {
   const blob = `${input.headline} ${input.summary ?? ""}`;
+  // Goal b11 H-13: a headline naming an NZX/ASX company or ticker is company
+  // news (output, contracts, leadership) unless it is politics or crime.
+  if ((nzAuTickerPattern().test(input.headline) || nzAuNamePattern().test(input.headline)) && !POLITICS_ONLY.test(blob) && !CRIME_OR_COURT.test(blob)) {
+    return true;
+  }
   if (!isFinanceRelevant(blob)) return false;
   // b6 H-13: an NZ/AU feed hint is not enough. Syndicated US single-stock pieces
   // ("Palantir", "Amgen") came in through NZ/AU feeds; without an NZ/AU anchor
@@ -222,14 +231,16 @@ export function isNewsRelevant(input: { headline: string; summary?: string; mark
   // b7: names and tickers must be in the headline (an ASX ticker such as "CPI"
   // in a summary is not an anchor); NZ/AU words may be in either.
   const anchored = hasNzAuAnchor(input.headline) || NZ_AU_TERMS.test(input.summary ?? "");
-  if ((input.market === "NZX" || input.market === "ASX") && anchored) return true;
-  // Overseas: no question/listicle headlines, and the story must be market-wide.
-  if (SPECULATIVE_HEADLINE.test(input.headline.trim())) return false;
-  // b7 H-13: US agency calendars and single-company pieces are not NZ/AU news.
-  if (OVERSEAS_NOT_RELEVANT.test(input.headline)) return false;
-  // The headline itself must be market-wide; a summary that mentions "Nasdaq"
-  // no longer lets a single-stock story ("Palantir") through.
-  return OVERSEAS_MARKET_WIDE.test(input.headline);
+  // Goal b11 H-13: allow-list. A story stays only when it is anchored to NZ/AU
+  // (venue, macro body, listed company or ticker, or NZ/AU words) or comes from
+  // an NZ/AU finance source and is not a speculative piece. US/EU-only stories
+  // (Fed, BLS, Wall Street, S&P-only names) are dropped unless they name NZ/AU.
+  if (anchored) return true;
+  if (input.source && NZ_AU_SOURCES.test(input.source) && !SPECULATIVE_HEADLINE.test(input.headline.trim()) && !OVERSEAS_MARKET_WIDE.test(input.headline)) {
+    return true;
+  }
+  void OVERSEAS_NOT_RELEVANT;
+  return false;
 }
 
 function toNewsItem(raw: RawStory, assetClass: AssetClass): NewsItem | null {
@@ -240,7 +251,7 @@ function toNewsItem(raw: RawStory, assetClass: AssetClass): NewsItem | null {
   const source = decodeHtmlEntities(raw.source);
   const blob = `${headline} ${summary}`;
   const market = raw.marketHint ?? inferMarket(blob, assetClass === "crypto" ? "CRYPTO" : "Global");
-  if (assetClass !== "crypto" && !isNewsRelevant({ headline, summary, market })) return null;
+  if (assetClass !== "crypto" && !isNewsRelevant({ headline, summary, market, source })) return null;
   const { sentiment } = keywordSentiment(headline, summary === headline ? "" : summary);
   const url = raw.url;
   const publishedOn = raw.publishedAt.toISOString();

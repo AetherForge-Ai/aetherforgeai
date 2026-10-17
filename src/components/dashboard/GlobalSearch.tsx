@@ -53,12 +53,12 @@ export function GlobalSearch({
         onClick={() => setOpen(true)}
         className="h-11 min-h-11 gap-2 text-muted-foreground"
         aria-label="Search markets"
+        aria-keyshortcuts="Meta+K"
       >
         <Search className="size-4" />
         <span className="hidden sm:inline">Search markets</span>
-        <kbd className="ml-1 hidden rounded border border-border/60 bg-muted/60 px-1.5 py-0.5 text-[0.6rem] font-semibold sm:inline">
-          ⌘K
-        </kbd>
+        {/* Goal b11 G-14: shortcut drawn by CSS so the accessible name matches the visible label. */}
+        <kbd aria-hidden="true" className="ml-1 hidden rounded border border-border/60 bg-muted/60 px-1.5 py-0.5 text-[0.6rem] font-semibold sm:inline before:content-['⌘K']" />
       </Button>
 
       <CommandDialog open={open} onOpenChange={setOpen}>

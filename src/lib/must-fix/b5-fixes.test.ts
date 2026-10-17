@@ -189,14 +189,14 @@ describe("H-13 market-news relevance", () => {
     expect(isNewsRelevant({ headline: "Fisher & Paykel lifts earnings guidance", market: "NZX" })).toBe(true);
     expect(isNewsRelevant({ headline: "RBNZ holds the OCR as inflation eases", market: "NZX" })).toBe(true);
     expect(isNewsRelevant({ headline: "BHP shares rise as iron ore prices climb", market: "ASX" })).toBe(true);
-    expect(isNewsRelevant({ headline: "Wall Street closes higher after Fed signals rate cut", market: "US" })).toBe(true);
+    expect(isNewsRelevant({ headline: "Wall Street closes higher after Fed signals rate cut", market: "US" })).toBe(false); // b11 H-13 allow-list: US-only market-wide news is dropped
     expect(isNewsRelevant({ headline: "Insider trading case: NZX-listed firm director convicted", market: "NZX" })).toBe(true);
   });
 });
 
 describe("batch 5 pins", () => {
   it("build string and pull-check marker", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-goal-b10-2026-10-18");
+    expect(read("public/build-version.txt").trim()).toBe("v3-goal-b11-2026-10-18");
     expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-must-fix-b5-2026-10-17");
   });
 });
