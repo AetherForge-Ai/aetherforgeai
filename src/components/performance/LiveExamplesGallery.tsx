@@ -55,7 +55,7 @@ const PROOFS: Proof[] = [
     points: [
       "Cash, stocks (NZ$55,567.00), crypto (NZ$19,700.00) and metals (NZ$14,808.00) summed to NZ$100,429.00 on this paper book.",
       "That figure is the opening mark used for the 1.98% mark-to-market change.",
-      "It is a paper mark from the two-day sample (7 and 8 July), not a forecast.",
+      "It is a paper mark from the two-day sample (7 and 8 Jul), not a forecast.",
     ],
   },
   {

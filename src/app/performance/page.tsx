@@ -43,7 +43,7 @@ const SAMPLE_NOTES = [
   {
     icon: Globe2,
     title: "Two-day high",
-    body: "NZ$102,421.30 is the highest mark across 7 and 8 July. NZ$101,931.77 is an earlier reading, not the high.",
+    body: "NZ$102,421.30 is the highest mark across 7 and 8 Jul. NZ$101,931.77 is an earlier reading, not the high.",
   },
 ];
 
