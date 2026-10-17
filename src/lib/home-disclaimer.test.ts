@@ -11,13 +11,14 @@ describe("home disclaimer", () => {
     const page = read("src/app/page.tsx");
     const title = page.indexOf("Market intelligence for the book you hold");
     const cta = page.indexOf("Ready to take care of your portfolio?");
-    const disclaimer = page.indexOf("Not financial advice.");
+    // b5 CR-4: the home page renders the one shared disclaimer component after the CTA.
+    const disclaimer = page.indexOf('<DisclaimerNotice variant="full"');
     expect(title).toBeGreaterThan(-1);
     expect(cta).toBeGreaterThan(title);
     expect(disclaimer).toBeGreaterThan(cta);
-    expect(page.slice(title, cta)).not.toContain("Not financial advice.");
-    expect(page).toContain("is not a licensed financial");
-    expect(page).toContain("we don&apos;t place trades or take custody.");
-    expect(page).toContain('href="/ai-disclaimer"');
+    expect(page.slice(title, cta)).not.toContain("DisclaimerNotice");
+    const component = read("src/components/legal/DisclaimerNotice.tsx");
+    expect(component).toContain("FmcStatement");
+    expect(component).toContain('href="/ai-disclaimer"');
   });
 });

@@ -78,7 +78,8 @@ describe("signup help replies stay short", () => {
     expect(PERSONAL_GUIDE_SYSTEM_PROMPT).not.toMatch(MODEL_NAME);
     expect(PERSONAL_GUIDE_SYSTEM_PROMPT).not.toContain("Prefer bullets");
     expect(PERSONAL_GUIDE_SYSTEM_PROMPT).toContain("no Smitty report");
-    expect(read("src/app/api/personal-guide/route.ts")).toContain("maxTokens: 280");
+    // b5: the cap must leave room for model reasoning; brevity comes from the prompt (40–70 words).
+    expect(read("src/app/api/personal-guide/route.ts")).toContain("maxTokens: GUIDE_MAX_TOKENS");
   });
 
   it("opens the help panel with short topics instead of stacked card copy", () => {

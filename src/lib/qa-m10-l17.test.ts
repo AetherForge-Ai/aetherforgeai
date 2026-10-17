@@ -219,8 +219,8 @@ describe("M14 headers", () => {
     expect(headers["Content-Security-Policy"]).toContain("object-src 'none'");
     expect(headers["Content-Security-Policy"]).toContain("base-uri 'self'");
     expect(headers["Content-Security-Policy"]).not.toContain("totalum-frontend-test");
-    expect(headers["Content-Security-Policy-Report-Only"]).toContain("script-src 'self' https://www.googletagmanager.com");
-    expect(headers["Content-Security-Policy-Report-Only"]).not.toContain("unsafe-inline");
+    // b5: the stale report-only policy (no report-uri) is gone.
+    expect(headers["Content-Security-Policy-Report-Only"]).toBeUndefined();
     expect(headers["Permissions-Policy"]).toContain("camera=()");
     expect(headers["X-Frame-Options"]).toBeUndefined();
     const securityTxt = readFileSync("public/.well-known/security.txt", "utf8");

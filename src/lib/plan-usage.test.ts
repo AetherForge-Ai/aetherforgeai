@@ -20,12 +20,12 @@ describe("H5 plan and billing", () => {
     expect(PUBLISHED_PLAN_PRICES).toContain(formatNzd(0));
     expect(PUBLISHED_PLAN_PRICES).toContain(formatNzd(16));
     expect(PUBLISHED_PLAN_PRICES).toContain(formatNzd(49));
-    expect(PUBLISHED_PLAN_PRICES).toContain(formatNzd(199));
+    expect(PUBLISHED_PLAN_PRICES).toContain("Ultimate from NZ$199 a month");
     expect(PUBLISHED_PLAN_PRICES).toContain(formatNzd(160));
     expect(PUBLISHED_PLAN_PRICES).toContain(formatNzd(490));
-    expect(PUBLISHED_PLAN_PRICES).toContain(formatNzd(1990));
+    expect(PUBLISHED_PLAN_PRICES).not.toContain(formatNzd(1990));
     expect(PUBLISHED_PLAN_PRICES).toBe(
-      "Free NZ$0.00, Starter NZ$16.00 a month or NZ$160.00 a year, Pro NZ$49.00 a month or NZ$490.00 a year, Ultimate NZ$199.00 a month or NZ$1,990.00 a year.",
+      "Free NZ$0.00, Starter NZ$16.00 a month or NZ$160.00 a year, Pro NZ$49.00 a month or NZ$490.00 a year, Ultimate from NZ$199 a month (talk to us).",
     );
     expect(PUBLISHED_PLAN_PRICES).not.toMatch(/GST/i);
     expect(APEX_DUAL_PUBLIC_NOTE).toContain("Apex Dual");

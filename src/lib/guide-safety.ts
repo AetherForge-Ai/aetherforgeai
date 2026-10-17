@@ -11,6 +11,13 @@ export const GUIDE_REPLY_DISCLAIMER = "General information, not financial advice
 export const GUIDE_BUSY_MESSAGE = "The guide is busy, try again.";
 export const GUIDE_TIMEOUT_MS = 10_000;
 
+/**
+ * Output allowance for one guide reply. The model reasons before it answers and
+ * that reasoning counts against this cap, so it must leave room for the reply.
+ * The system prompt keeps replies short; this only stops an empty answer.
+ */
+export const GUIDE_MAX_TOKENS = 1000;
+
 /** Anonymous AI calls allowed per NZ day across the whole site. Env override: ANON_AI_DAILY_BUDGET. */
 export const ANON_AI_DAILY_BUDGET_DEFAULT = 1500;
 /** Log an alert line once the day passes this share of the budget. */
