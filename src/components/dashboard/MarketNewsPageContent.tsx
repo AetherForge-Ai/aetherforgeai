@@ -32,11 +32,11 @@ export function MarketNewsPageContent({
         if (!active) return;
         const rows = Array.isArray(body?.news) ? body.news : [];
         if (rows.length) setNews(rows);
-        setNote(rows.length || initialNews.length ? null : "Headlines are not shown right now.");
+        setNote(rows.length || initialNews.length ? null : "No NZ/AU market news in the last 24 h.");
       })
       .catch(() => {
         if (!active) return;
-        setNote("Headlines are not shown right now.");
+        setNote("No NZ/AU market news in the last 24 h.");
       })
       .finally(() => {
         if (active) setPending(false);

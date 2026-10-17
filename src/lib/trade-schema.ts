@@ -42,6 +42,8 @@ export const tradeSchema = z.object({
   dividend_withholding: z.number().min(0).optional(),
   /** DRP reinvestment in the holding currency. */
   dividend_drp: z.number().min(0).optional(),
+  /** Goal b8 G-01: shares allotted by the DRP (added to FIFO lots at the DRP amount). */
+  dividend_drp_shares: z.number().min(0).optional(),
   /** Required for buy and sell. Cash lines ignore it. */
   confirm: z.boolean().optional(),
   /** b7 H-5: the member saw the duplicate-dividend warning and chose to save anyway. */

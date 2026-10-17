@@ -117,6 +117,7 @@ export type RateLimitResult = {
   limit: number;
   resetSec: number;
   store?: RateLimitStore;
+  keyHash?: string;
 };
 
 export async function takeRateLimit(
@@ -133,43 +134,49 @@ export async function takeRateLimit(
   const count = (buckets.get(storageKey) ?? 0) + 1;
   buckets.set(storageKey, count);
   if (count > limit) {
-    return { allowed: false, remaining: 0, limit, resetSec, store: "memory" };
+    return { allowed: false, remaining: 0, limit, resetSec, store: "memory", keyHash: keyHash(key) };
   }
   // b7: the Workers rate-limit binding is shared by every isolate at the edge.
   if (opts.edge) {
     const edge = await edgeRateLimit(opts.edge, key);
-    if (edge === false) return { allowed: false, remaining: 0, limit, resetSec, store: "edge" };
+    if (edge === false) return { allowed: false, remaining: 0, limit, resetSec, store: "edge", keyHash: keyHash(key) };
   }
+  // Goal b8: every available store is consulted and the highest count wins. In
+  // b6/b7 a durable answer that undercounted (a read that never saw the other
+  // isolates' rows) returned early and the colo cache was never checked.
+  let durable: number | null = null;
   if (durableStore) {
     try {
-      const durable = await durableStore.increment(storageKey, windowMs, now);
-      const merged = Math.max(count, durable);
-      buckets.set(storageKey, merged);
-      if (merged > limit) return { allowed: false, remaining: 0, limit, resetSec, store: "durable" };
-      return { allowed: true, remaining: Math.max(0, limit - merged), limit, resetSec, store: "durable" };
+      durable = await durableStore.increment(storageKey, windowMs, now);
     } catch {
-      // Fall through to the colo cache and the memory count.
+      durable = null;
     }
   }
   const cacheAvailable = sharedCache() != null;
-  const store: RateLimitStore = cacheAvailable ? "cache" : "memory";
   const shared = await readShared(storageKey);
-  if (shared != null && shared >= limit) {
-    buckets.set(storageKey, Math.max(count, shared));
-    return { allowed: false, remaining: 0, limit, resetSec, store };
-  }
-  const merged = Math.max(count, (shared ?? 0) + 1);
+  const merged = Math.max(count, durable ?? 0, (shared ?? 0) + 1);
   buckets.set(storageKey, merged);
   await writeShared(storageKey, merged);
+  const store: RateLimitStore = durable != null ? "durable" : cacheAvailable ? "cache" : "memory";
   if (merged > limit) {
-    return { allowed: false, remaining: 0, limit, resetSec, store };
+    return { allowed: false, remaining: 0, limit, resetSec, store, keyHash: keyHash(key) };
   }
-  return { allowed: true, remaining: Math.max(0, limit - merged), limit, resetSec, store };
+  return { allowed: true, remaining: Math.max(0, limit - merged), limit, resetSec, store, keyHash: keyHash(key) };
+}
+
+/** Short non-reversible tag of the limiter key, so QA can see one IP maps to one bucket. */
+export function keyHash(key: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < key.length; i++) {
+    h ^= key.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(16).padStart(8, "0");
 }
 
 /** IETF RateLimit fields. Retry-After is set only when the caller is refusing the request. */
 export function rateLimitHeaders(
-  result: { limit: number; remaining: number; resetSec: number; store?: RateLimitStore },
+  result: { limit: number; remaining: number; resetSec: number; store?: RateLimitStore; keyHash?: string },
   retry = false
 ): Record<string, string> {
   const headers: Record<string, string> = {
@@ -179,6 +186,10 @@ export function rateLimitHeaders(
   };
   // Diagnostic only (no secrets): shows QA whether the shared counter answered.
   if (result.store) headers["X-RateLimit-Store"] = result.store;
+  // Goal b8 CR-2: TT can watch the count decrement and see the (hashed) bucket.
+  headers["X-RateLimit-Remaining"] = String(result.remaining);
+  headers["X-RateLimit-Limit"] = String(result.limit);
+  if (result.keyHash) headers["X-RateLimit-Key"] = result.keyHash;
   if (retry) headers["Retry-After"] = String(result.resetSec);
   return headers;
 }
@@ -188,7 +199,9 @@ export function honeypotFilled(value: unknown): boolean {
   return typeof value === "string" && value.trim().length > 0;
 }
 
-export type AuthRateLimitRule = { name: string; limit: number; windowMs: number; message: string };
+/** Per-address cap across every email (CR-5: 20 failed logins from one IP in 5 min must see 429). */
+export const AUTH_IP_SIGN_IN_LIMIT = 15;
+export type AuthRateLimitRule = { name: string; limit: number; ipLimit: number; windowMs: number; message: string };
 
 /** Which sign-in area POST this is, and its limit. Null for every other auth call (session, sign-out). */
 export function authRateLimitRule(pathname: string): AuthRateLimitRule | null {
@@ -196,6 +209,7 @@ export function authRateLimitRule(pathname: string): AuthRateLimitRule | null {
     return {
       name: "sign-in",
       limit: AUTH_SIGN_IN_LIMIT,
+      ipLimit: AUTH_IP_SIGN_IN_LIMIT,
       windowMs: AUTH_SIGN_IN_WINDOW_MS,
       message: "Too many sign-in attempts. Wait a few minutes, then try again.",
     };
@@ -204,6 +218,7 @@ export function authRateLimitRule(pathname: string): AuthRateLimitRule | null {
     return {
       name: "sign-up",
       limit: AUTH_SIGN_UP_LIMIT,
+      ipLimit: AUTH_SIGN_UP_LIMIT,
       windowMs: AUTH_SIGN_UP_WINDOW_MS,
       message: "Too many sign-up attempts from this network. Try again later.",
     };
@@ -212,6 +227,7 @@ export function authRateLimitRule(pathname: string): AuthRateLimitRule | null {
     return {
       name: "password-reset",
       limit: AUTH_RESET_LIMIT,
+      ipLimit: AUTH_RESET_LIMIT * 2,
       windowMs: AUTH_RESET_WINDOW_MS,
       message: "Too many password reset requests. Wait 15 minutes, then try again.",
     };

@@ -1,0 +1,5 @@
+# Synthetic fixture. Not a customer file. Header layout modelled on the broker's export; no real data.
+Trade Date,Settlement Date,Reference,Security,Buy/Sell,Units,Average Price,Brokerage,Currency,FX Rate
+2026-03-03,2026-03-05,C-9001,CBA.AX,Buy,10,120.00,10.00,AUD,1.10
+2026-03-10,2026-03-12,C-9002,BHP.AX,Buy,20,45.00,10.00,AUD,1.10
+2026-06-01,2026-06-03,C-9003,CBA.AX,Sell,5,130.00,10.00,AUD,1.10

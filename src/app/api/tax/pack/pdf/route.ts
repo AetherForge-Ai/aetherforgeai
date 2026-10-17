@@ -53,7 +53,7 @@ export async function GET(req: Request) {
       const built = buildFifPaper({ rows, markets: marketsFromNotes(stocks, endingYear), endingYear });
       title = "FIF working paper";
       yearLabel = built.label;
-      lines = fifPaperLines(built);
+      lines = fifPaperLines(built, rows as never);
     } else if (paper === "realised") {
       const report = realisedByTaxYear(await loadTaxRows(user._id), endingYear);
       title = "Realised profit and loss";
@@ -72,7 +72,7 @@ export async function GET(req: Request) {
       lines = dividendPaperLines(summariseDividends(rows));
     }
 
-    const pdf = taxPaperPdf({ title, taxYear: yearLabel, lines });
+    const pdf = taxPaperPdf({ title, taxYear: yearLabel, lines, endingYear });
     return new NextResponse(pdf, {
       status: 200,
       headers: {
