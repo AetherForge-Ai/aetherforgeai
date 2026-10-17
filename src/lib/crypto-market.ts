@@ -564,12 +564,13 @@ export function formatMarketChangePercent(value: number): string {
 /** Compact USD notation for market caps / volumes → $1.23B, $45.6M, $12.3K. */
 export function fmtCompactUsd(n: number | null | undefined): string {
   if (n == null || !isFinite(n) || n === 0) return "—";
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
+  // M-5: USD amounts carry "US$" so they are never read as NZ$ (e.g. "US$1.64T").
+  const sign = n < 0 ? "-" : "";
+  const body = new Intl.NumberFormat("en-US", {
     notation: "compact",
     maximumFractionDigits: 2,
-  }).format(n);
+  }).format(Math.abs(n));
+  return `${sign}US$${body}`;
 }
 
 /** Compact plain number (supply counts) → 19.8M, 1.2B. */
