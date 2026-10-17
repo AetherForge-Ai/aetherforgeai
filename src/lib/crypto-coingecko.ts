@@ -265,6 +265,8 @@ const TOP400_QUERY =
 let top400Entry: { at: number; value: RankedCryptoPage } | null = null;
 let top400Partial: { at: number; value: RankedCryptoPage } | null = null;
 let top400Inflight: Promise<RankedCryptoPage> | null = null;
+/** Goal b13 G-17: a guard from a cancelled request is dropped after 30 s (see crypto-board-store). */
+let top400StartedAt = 0;
 let top400BackoffUntil = 0;
 
 function assembleTop400(
@@ -290,7 +292,9 @@ function note429(err: unknown) {
  * The public markets endpoint allows 250 rows per page, so two pages cover 400.
  */
 async function refreshTop400(): Promise<RankedCryptoPage> {
+  if (top400Inflight && Date.now() - top400StartedAt > 30_000) top400Inflight = null;
   if (top400Inflight) return top400Inflight;
+  top400StartedAt = Date.now();
   top400Inflight = (async () => {
     const first = readMarketPage(await cgFetchRetry(`/coins/markets?${TOP400_QUERY}&page=1`)) as CgMarketRow[] | null;
     if (!first?.length) throw new Error("Live crypto prices are unavailable.");

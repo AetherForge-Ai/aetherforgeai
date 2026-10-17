@@ -191,6 +191,8 @@ async function loadDexTab(): Promise<PublicPriceTab> {
       .filter((row) => typeof row.price === "number" && row.price > 0 && row.detailId && row.network && row.dex)
       .filter((row) => !isJunkCoin(row.detailId, row.name, row.symbol))
       .filter((row) => !isDuplicateOrTokenisedCoin(row.detailId))
+      // Goal b13 G-17: one row per token and chain (the list is already ordered by liquidity).
+      .filter((row, index, all) => all.findIndex((other) => other.symbol?.toUpperCase() === row.symbol?.toUpperCase() && other.network === row.network) === index)
       .slice(0, COIN_PAGE);
     const quotedAt = page.at || new Date().toISOString();
     noteListedPrices(
@@ -206,11 +208,13 @@ async function loadDexTab(): Promise<PublicPriceTab> {
       symbol: row.symbol,
       name: row.name,
       price: formatUnitPrice(row.price as number, "USD"),
-      change: "change not stated",
-      href: `/markets/crypto/${encodeURIComponent(row.detailId as string)}`,
+      // Goal b13 G-17: the DEX feed sends no 24h change; the column shows "—" (title explains) instead of text.
+      change: "—",
+      // Goal b13 G-17: DEX pool tokens have no cap/volume/supply from the source, so no coin page link.
+      href: "",
       usd: row.price as number,
       quoteId: row.detailId as string,
-      source: shownSource(feed, ""),
+      source: shownSource(feed, "") || "Public DEX data",
       asOf: asOfLabel(quotedAt),
       blockchain: row.network || "",
       dex: row.dex || "",

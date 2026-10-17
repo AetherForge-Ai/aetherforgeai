@@ -30,7 +30,7 @@ describe("fresh2 — review + leftovers", () => {
     const cols = ["asset", "qty", "price", "value", "pnl", "weight", "ret", "actions"];
     const sum = cols.reduce((s, c) => s + holdingsColumnWidth(c, cols), 0);
     expect(Math.abs(sum - 100)).toBeLessThan(0.5);
-    expect(r("src/components/dashboard/UnifiedHoldingsTable.tsx")).toContain("holdingsColumnWidth(column, columns)");
+    expect(r("src/components/dashboard/UnifiedHoldingsTable.tsx")).toContain("holdingsColumnWidth(column, tableColumns)");
   });
   it("M11: deterministic headline-first tone (UNH is bullish)", () => {
     const a = keywordSentiment("UNH Stock Outpaces S&P 500, Eyes Best Year", "pressure and concern remain");
@@ -123,7 +123,7 @@ describe("dashboard right column D1–D10", () => {
 });
 describe("fresh2 version pin", () => {
   it("build version and marker", () => {
-    expect(r("public/build-version.txt").trim()).toBe("v3-goal-b12-2026-10-18");
+    expect(r("public/build-version.txt").trim()).toBe("v3-goal-b13-2026-10-18");
     expect(r("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-tt-fresh2-2026-10-15");
   });
 });

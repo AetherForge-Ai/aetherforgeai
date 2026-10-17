@@ -19,7 +19,7 @@ export function PublicMarketTables({ index }: { index: PublicMarketIndex }) {
         <div key={tab.id}>
           <h3 className="font-display text-base font-semibold">
             {tab.title}{" "}
-            <span className="text-sm font-medium text-muted-foreground">{tab.asOf}</span>
+            <span data-stale={/Stale:/.test(tab.asOf || "") ? "1" : undefined} className={`text-sm font-medium ${/Stale:/.test(tab.asOf || "") ? "text-amber-700" : "text-muted-foreground"}`}>{tab.asOf}</span>
           </h3>
           {tab.coverage ? <p className="mt-1 text-sm text-muted-foreground">{tab.coverage}</p> : null}
           {tab.note ? <p className="text-xs text-muted-foreground">{tab.note}</p> : null}
@@ -46,15 +46,19 @@ export function PublicMarketTables({ index }: { index: PublicMarketIndex }) {
               </thead>
               <tbody>
                 {tab.rows.map((row) => (
-                  <tr key={`${tab.id}-${row.href}`} data-price-row className="border-b border-border/40">
+                  <tr key={`${tab.id}-${row.href || `${row.symbol}-${row.blockchain || ""}`}`} data-price-row className="border-b border-border/40">
                     <td className="py-1.5 pr-3">
-                      <Link href={row.href} className="font-semibold text-primary hover:underline">
-                        {row.symbol}
-                      </Link>
+                      {row.href ? (
+                        <Link href={row.href} className="font-semibold text-primary hover:underline">
+                          {row.symbol}
+                        </Link>
+                      ) : (
+                        <span className="font-semibold" title="No coin page: the source does not report cap, volume and supply for this pool token.">{row.symbol}</span>
+                      )}
                     </td>
                     <td className="py-1.5 pr-3">{row.name}</td>
                     <td className="py-1.5 pr-3 tnum">{row.price || "Not in this response"}</td>
-                    <td className="py-1.5 pr-3 tnum">{row.change || "change not stated"}</td>
+                    <td className="py-1.5 pr-3 tnum">{row.change || "—"}</td>
                     {cryptoTab ? <td className="py-1.5 pr-3 tnum" title={row.change1h === "—" ? "The feed did not send a 1-hour change." : undefined}>{row.change1h || "—"}</td> : null}
                     {cryptoTab ? <td className="py-1.5 pr-3 tnum" title={row.change7d === "—" ? "The feed did not send a 7-day change." : undefined}>{row.change7d || "—"}</td> : null}
                     {cryptoTab ? <td className="py-1.5 pr-3 tnum" title={row.supply === "—" ? "The feed did not send circulating supply." : undefined}>{row.supply || "—"}</td> : null}
