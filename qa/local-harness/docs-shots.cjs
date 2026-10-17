@@ -20,12 +20,12 @@ const scrollTo = (re) => `(()=>{const e=[...document.querySelectorAll("h1,h2,h3,
       await b.ev(`[...document.querySelectorAll('[role=dialog] button')].find(e=>e.textContent.trim().startsWith("FPH.NZ"))?.click()`); await sleep(2500);
       await b.ev(setv("record-qty", "5")); await sleep(600); await b.ev(click("Review")); await sleep(2500);
     },
-    "edit-or-delete-a-row": async () => { await dash("?tab=transactions"); await b.ev(`document.querySelector("#dashboard-tabs")?.scrollIntoView({block:"start"})`); await b.ev(`[...document.querySelectorAll("#dashboard-tabs button,#dashboard-tabs [role=tab],#dashboard-tabs a")].find(e=>e.textContent.trim()==="Transactions")?.click()`); await sleep(3500); await b.ev(`document.querySelector("#dashboard-tabs")?.scrollIntoView({block:"start"});scrollBy(0,-80)`); await sleep(800); },
+    "edit-or-delete-a-row": async () => { await b.send("Page.navigate", { url: "http://localhost:3917/dashboard/transactions" }); await sleep(9000); await b.ev(click("Decline")); await b.ev(`window.scrollTo(0, document.body.scrollHeight)`); await sleep(2000); await b.ev(`(()=>{const t=[...document.querySelectorAll("table")].find(t=>/Ledger from the portfolio snapshot/.test(t.innerText));if(t)window.scrollTo(0,t.getBoundingClientRect().top+scrollY-110);return !!t})()`); await sleep(1200); },
     "import-a-csv": async () => { await dash(); await b.ev(click("Import CSV")); await sleep(2500); },
-    "read-price-freshness": async () => { await dash("?view=shares"); await b.ev(`(()=>{const t=[...document.querySelectorAll("table")].find(t=>t.offsetParent&&/Price/i.test(t.innerText));if(t){t.scrollIntoView({block:"start"});scrollBy(0,-60)}})()`); await sleep(800); },
+    "read-price-freshness": async () => { await dash("?view=shares"); await b.ev(`window.scrollTo(0, document.body.scrollHeight)`); await sleep(2000); await b.ev(`(()=>{const t=[...document.querySelectorAll("table")].find(t=>/Holdings from the portfolio snapshot/.test(t.innerText));if(t)window.scrollTo(0,t.getBoundingClientRect().top+scrollY-110);return !!t})()`); await sleep(1200); },
     "run-a-report": async () => { await dash(); await b.ev(scrollTo("/Run Stox report/")); await sleep(800); },
     "export-your-ledger": async () => { await dash(); await b.ev(click("Export")); await sleep(1500); },
-    "income-and-tax-view": async () => { await dash(); await b.ev(`[...document.querySelectorAll("#dashboard-tabs button,#dashboard-tabs [role=tab],#dashboard-tabs a")].find(e=>e.textContent.trim()==="Income & Tax")?.click()`); await sleep(3500); await b.ev(`document.querySelector("#dashboard-tabs")?.scrollIntoView({block:"start"});scrollBy(0,-80)`); await sleep(800); },
+    "income-and-tax-view": async () => { await b.send("Page.navigate", { url: "http://localhost:3917/tax/dividends" }); await sleep(8000); await b.ev(click("Decline")); await sleep(500); },
   };
   for (const [slug, run] of Object.entries(shots)) {
     if (process.env.ONLY && process.env.ONLY !== slug) continue;

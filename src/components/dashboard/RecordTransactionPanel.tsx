@@ -658,7 +658,7 @@ export function RecordTransactionPanel({
       const postedAt = Date.now();
       // Goal b12 G-10: paint cash, the holding and the ledger row now from the
       // reviewed figures. The saved row replaces it; a refusal rolls it back.
-      const optimistic = (kind === "buy" || kind === "sell" || kind === "deposit") && Number.isFinite(preview.cashAfterNzd);
+      const optimistic = (kind === "buy" || kind === "sell" || kind === "deposit" || (kind === "dividend" && dupAck)) && Number.isFinite(preview.cashAfterNzd);
       const cashBeforeOptimistic = preview.cashAfterNzd - preview.cashChangeNzd;
       if (optimistic) {
         const row = {

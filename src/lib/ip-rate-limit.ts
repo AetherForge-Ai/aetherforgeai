@@ -156,6 +156,8 @@ export type RateLimitResult = {
   resetSec: number;
   store?: RateLimitStore;
   keyHash?: string;
+  /** Goal b13 CR-2: which shared backends this server can reach, for QA on live. */
+  backends?: string;
 };
 
 export async function takeRateLimit(
@@ -175,9 +177,11 @@ export async function takeRateLimit(
     return { allowed: false, remaining: 0, limit, resetSec, store: "memory", keyHash: keyHash(key) };
   }
   // b7: the Workers rate-limit binding is shared by every isolate at the edge.
+  let edgeState = "not-used";
   if (opts.edge) {
     const edge = await edgeRateLimit(opts.edge, key);
-    if (edge === false) return { allowed: false, remaining: 0, limit, resetSec, store: "edge", keyHash: keyHash(key) };
+    edgeState = edge === null ? "absent" : "present";
+    if (edge === false) return { allowed: false, remaining: 0, limit, resetSec, store: "edge", keyHash: keyHash(key), backends: `edge-binding=present` };
   }
   // Goal b8: every available store is consulted and the highest count wins. In
   // b6/b7 a durable answer that undercounted (a read that never saw the other
@@ -196,10 +200,11 @@ export async function takeRateLimit(
   buckets.set(storageKey, merged);
   await writeShared(storageKey, merged);
   const store: RateLimitStore = durable != null ? "durable" : cacheAvailable ? "cache" : "memory";
+  const backends = `edge-binding=${edgeState}; table=${durableStore ? (durable != null ? "ok" : "error") : "unregistered"}; cache-api=${cacheAvailable ? "yes" : "no"}; durable-object=absent`;
   if (merged > limit) {
-    return { allowed: false, remaining: 0, limit, resetSec, store, keyHash: keyHash(key) };
+    return { allowed: false, remaining: 0, limit, resetSec, store, keyHash: keyHash(key), backends };
   }
-  return { allowed: true, remaining: Math.max(0, limit - merged), limit, resetSec, store, keyHash: keyHash(key) };
+  return { allowed: true, remaining: Math.max(0, limit - merged), limit, resetSec, store, keyHash: keyHash(key), backends };
 }
 
 /** Goal b12 CR-5: the sign-in email as one canonical form (trim, NFKC, lower case). */
@@ -225,7 +230,7 @@ export function keyHash(key: string): string {
 
 /** IETF RateLimit fields. Retry-After is set only when the caller is refusing the request. */
 export function rateLimitHeaders(
-  result: { limit: number; remaining: number; resetSec: number; store?: RateLimitStore; keyHash?: string },
+  result: { limit: number; remaining: number; resetSec: number; store?: RateLimitStore; keyHash?: string; backends?: string },
   retry = false
 ): Record<string, string> {
   const headers: Record<string, string> = {
@@ -239,6 +244,7 @@ export function rateLimitHeaders(
   headers["X-RateLimit-Remaining"] = String(result.remaining);
   headers["X-RateLimit-Limit"] = String(result.limit);
   if (result.keyHash) headers["X-RateLimit-Key"] = result.keyHash;
+  if (result.backends) headers["X-RateLimit-Backends"] = result.backends;
   if (retry) headers["Retry-After"] = String(result.resetSec);
   return headers;
 }

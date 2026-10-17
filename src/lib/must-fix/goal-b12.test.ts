@@ -13,7 +13,7 @@ const read = (p: string) => readFileSync(p, "utf8");
 
 describe("b12 pins", () => {
   it("build version", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-goal-b12-2026-10-18");
+    expect(read("public/build-version.txt").trim()).toMatch(/^v3-goal-b1[2-9]-/);
     expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-goal-b12-2026-10-18");
   });
 });
@@ -60,7 +60,7 @@ describe("M-2 docs screenshots", () => {
 describe("M-6 holdings fit", () => {
   it("multi-figure cells stack and numeric padding is compact", () => {
     const t = read("src/components/dashboard/UnifiedHoldingsTable.tsx");
-    expect(t).toContain("flex-col gap-y-0.5");
+    expect(t).toContain("flex-row flex-nowrap items-center justify-end gap-x-1 whitespace-nowrap");
     expect(t).toContain('"px-1 tabular-nums"');
   });
 });

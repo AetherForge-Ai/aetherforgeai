@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { AppShell } from "@/components/AppShell";
+import { serverReportQuota } from "@/lib/dashboard-quota.server";
 import { DashboardSessionShell } from "@/components/dashboard/DashboardSessionShell";
 import type { DashboardView } from "@/components/dashboard/PortfolioDashboard";
 
@@ -13,9 +14,10 @@ import type { DashboardView } from "@/components/dashboard/PortfolioDashboard";
 export async function renderDashboardView(view: DashboardView) {
   const headerList = await headers();
   const guestDocument = headerList.get("x-af-doc") !== "member";
+  const initialQuota = guestDocument ? null : await serverReportQuota();
   return (
     <AppShell>
-      <DashboardSessionShell view={view} guestDocument={guestDocument} />
+      <DashboardSessionShell view={view} guestDocument={guestDocument} initialQuota={initialQuota} />
     </AppShell>
   );
 }

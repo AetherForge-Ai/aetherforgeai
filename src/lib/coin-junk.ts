@@ -25,7 +25,7 @@ export function isJunkCoin(...labels: (string | null | undefined)[]): boolean {
 export function isDuplicateOrTokenisedCoin(id: string | null | undefined): boolean {
   const slug = String(id || "").toLowerCase();
   if (!slug) return false;
-  if (/-tokenized-stock$/.test(slug)) return true;
+  if (/tokeni[sz]ed-stocks?$|(^|-)xstock(s)?($|-)|-tokeni[sz]ed-(equity|share)s?$/.test(slug)) return true;
   if (/(^|-)bridged(-|$)/.test(slug)) return true;
   if (/(^|-)wrapped(-|$)/.test(slug)) return true;
   if (/(^|-)staked(-|$)/.test(slug)) return true;
