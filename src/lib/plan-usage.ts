@@ -19,8 +19,12 @@ import { planLabel } from "@/lib/plans";
 export const PUBLISHED_PLAN_LADDER =
   "Free, Starter, Pro and Ultimate. Holdings 10 / 25 / 75 / unlimited. Reports 3 / 15 / unlimited. Market Assistant 20 / 100 / 500, and unlimited on Ultimate.";
 
-/** Published prices. Monthly NZ$0 / 16 / 49 / 199. Yearly NZ$160 / 490 / 1,990. */
-export const PUBLISHED_PLAN_PRICES = `Free ${formatNzd(0)}, Starter ${formatNzd(16)} a month or ${formatNzd(160)} a year, Pro ${formatNzd(49)} a month or ${formatNzd(490)} a year, Ultimate ${formatNzd(199)} a month or ${formatNzd(1990)} a year.`;
+/**
+ * Published prices. Monthly NZ$0 / 16 / 49; yearly NZ$160 / 490.
+ * b5 M-11 (BL-6): Ultimate is "From NZ$199/mo — Talk to us" with no fixed yearly price.
+ */
+export const ULTIMATE_FROM_LINE = "From NZ$199/mo — Talk to us";
+export const PUBLISHED_PLAN_PRICES = `Free ${formatNzd(0)}, Starter ${formatNzd(16)} a month or ${formatNzd(160)} a year, Pro ${formatNzd(49)} a month or ${formatNzd(490)} a year, Ultimate from NZ$199 a month (talk to us).`;
 
 /**
  * Apex Dual is a legacy yearly membership. It is not a card on /pricing.
