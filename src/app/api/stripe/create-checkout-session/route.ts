@@ -1,104 +1,41 @@
 /**
- * Create Stripe Checkout Session API Route
- *
- * This endpoint creates a Stripe Checkout Session for both:
- * - One-time payments (with optional payment method saving)
- * - Subscription payments
- *
- * Usage:
  * POST /api/stripe/create-checkout-session
- * Body: {
- *   priceId: string,
- *   mode: "payment" | "subscription",
- *   savePaymentMethod?: boolean,
- *   customerEmail?: string
- * }
+ * Goal b11 CR-1: signed-in only (401 otherwise). Same server path as
+ * /api/stripe/checkout: plan from the catalog, customer from the session user,
+ * Stripe test mode unless STRIPE_CHECKOUT_MODE=live. In test mode the reply
+ * echoes { testMode: true, priceId, unitAmount } (Starter monthly = 1600 NZD).
+ * Body: { priceId?: string, plan?: PlanKey, bot?: "stock" | "crypto" }.
+ * customerEmail / metadata / mode from the body are ignored.
  */
-
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { stripe, getRequestBaseUrl } from "@/lib/stripe";
-
-function serializeError(err: unknown) {
-  const e = err as any;
-  return {
-    message: e?.message ?? "Unknown error",
-    code: e?.code ?? null,
-    name: e?.name ?? null,
-    status: e?.response?.status ?? null,
-    responseData: e?.response?.data ?? null,
-  };
-}
+import { getCurrentUser } from "@/lib/session";
+import { getRequestBaseUrl, redactStripeMessage } from "@/lib/stripe";
+import { isSelfServeCheckoutPlan, planByKey, planByPriceId, type PlanKey } from "@/lib/plans";
+import { createPlanCheckout } from "@/lib/stripe-checkout";
 
 const schema = z.object({
-  priceId: z.string().min(1, "Price ID is required"),
-  mode: z.enum(["payment", "subscription"]),
-  savePaymentMethod: z.boolean().optional().default(false),
-  customerEmail: z.string().email().optional(),
-  metadata: z.record(z.string(), z.string()).optional(),
+  priceId: z.string().optional(),
+  plan: z.string().optional(),
+  bot: z.enum(["stock", "crypto"]).optional(),
 });
 
 export async function POST(req: Request) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ ok: false, error: "Sign in to start checkout." }, { status: 401 });
   try {
-    const body = (await req.json().catch(() => ({}))) as unknown;
-    const parsed = schema.safeParse(body);
-
-    if (!parsed.success) {
-      return NextResponse.json(
-        { ok: false, error: parsed.error.flatten() },
-        { status: 400 }
-      );
+    const parsed = schema.safeParse(await req.json().catch(() => ({})));
+    if (!parsed.success) return NextResponse.json({ ok: false, error: "Invalid request" }, { status: 400 });
+    const plan = (parsed.data.plan ? planByKey(parsed.data.plan as PlanKey) : undefined) || planByPriceId(parsed.data.priceId?.trim() || "");
+    if (!plan || plan.archived || !isSelfServeCheckoutPlan(plan) || plan.key.startsWith("ultimate_")) {
+      return NextResponse.json({ ok: false, error: "This plan is not available for self-serve checkout." }, { status: 400 });
     }
-
-    const { priceId, mode, savePaymentMethod, customerEmail, metadata } = parsed.data;
-
-    const baseUrl = getRequestBaseUrl(req);
-
-    // Build checkout session parameters
-    const sessionParams: any = {
-      mode,
-      line_items: [
-        {
-          price: priceId,
-          quantity: 1,
-        },
-      ],
-      success_url: `${baseUrl}/stripe/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${baseUrl}/stripe/cancel`,
-      metadata: metadata || {},
-    };
-
-    // Add customer email if provided
-    if (customerEmail) {
-      sessionParams.customer_email = customerEmail;
-    }
-
-    // For payment mode with savePaymentMethod option
-    if (mode === "payment") {
-      if (savePaymentMethod) {
-        sessionParams.payment_intent_data = {
-          setup_future_usage: "off_session",
-        };
-      }
-    }
-
-    // For subscription mode, always save payment method
-    if (mode === "subscription") {
-      sessionParams.payment_method_collection = "always";
-    }
-
-    // Create checkout session
-    const session = await stripe.checkout.sessions.create(sessionParams);
-
-    return NextResponse.json({
-      ok: true,
-      data: { sessionId: session.id, url: session.url },
-    });
+    const result = await createPlanCheckout({ user, plan, bot: parsed.data.bot, baseUrl: getRequestBaseUrl(req) });
+    if ("error" in result) return NextResponse.json({ ok: false, error: result.error }, { status: result.status });
+    return NextResponse.json({ ok: true, data: result.data });
   } catch (err) {
-    console.error("[API ERROR] /api/stripe/create-checkout-session", err);
-    return NextResponse.json(
-      { ok: false, error: serializeError(err) },
-      { status: 500 }
-    );
+    const e = err as { message?: string };
+    console.error("[api/stripe/create-checkout-session] error:", redactStripeMessage(e?.message || "unknown"));
+    return NextResponse.json({ ok: false, error: "Checkout could not be started." }, { status: 500 });
   }
 }

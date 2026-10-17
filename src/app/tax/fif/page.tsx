@@ -133,7 +133,7 @@ export default async function FifPage({
 
         {!user ? (
           <p className="mt-6 text-sm text-muted-foreground">
-            <a className="text-primary underline-offset-4 hover:underline" href="/login?redirect=%2Ftax%2Ffif">
+            <a className="text-primary underline underline-offset-4" href="/login?redirect=%2Ftax%2Ffif">
               Sign in
             </a>{" "}
             to build this paper from your book.
