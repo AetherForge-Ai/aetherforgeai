@@ -50,9 +50,25 @@ export default function MethodologyPage() {
         ))}
         <section className="mt-8 space-y-2">
           <h2 className="font-display text-lg font-bold">Backtests and accuracy</h2>
+          <p className="text-sm leading-relaxed text-muted-foreground" data-backtest-method>
+            Backtest method (published 18 Oct 2026). Period: 1 Jan 2019 to 30 Sep 2026, scored at each month end with only
+            the data that existed on that date. Universe: every NZX and ASX share and every coin in the stored top list on
+            each date, including ones later delisted, so the result is not cherry-picked. Rules: the same Stox and Koins
+            scoring rules described above, with the Hold gate applied whenever a price was stale. Measures: hit rate (share
+            of positive signals followed by a higher price one month later), average one-month change by signal band, and
+            the largest peak-to-trough drawdown of an equal-weight basket of positive signals.
+          </p>
+          <p className="text-sm leading-relaxed text-muted-foreground" data-backtest-bad-periods>
+            Bad periods reported on their own: the COVID crash (Feb to Mar 2020), the 2022 rate-rise sell-off (Jan to Oct
+            2022), and the crypto collapse after FTX (Nov 2022).
+          </p>
+          <p className="text-sm leading-relaxed text-muted-foreground" data-backtest-results>
+            Results: — not shown yet. The run over the stored price history has not finished, and we do not publish
+            figures until they are computed. When they are, the hit rate, drawdowns and bad-period results appear here
+            with their data source and as-of date.
+          </p>
           <p className="text-sm leading-relaxed text-muted-foreground">
-            We have not published a backtest yet, so we make no claim about how often a score has been right. When we
-            publish one it will cover good and bad periods, and it will be dated on this page.
+            Past results do not predict future results. General information, not financial advice.
           </p>
         </section>
         <section className="mt-8 space-y-2">
