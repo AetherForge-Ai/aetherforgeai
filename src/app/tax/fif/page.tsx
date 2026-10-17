@@ -7,12 +7,14 @@ import { TaxCompletenessList } from "@/components/tax/TaxCompletenessList";
 import { TaxSectionNav } from "@/components/tax/TaxSectionNav";
 import { canExportCsv } from "@/lib/entitlements";
 import { formatNzd } from "@/lib/currency";
+
 import { COST_METHOD_LABEL } from "@/lib/lot-day";
 import {
   FIF_ASSUMPTIONS,
   FIF_SOURCES,
   buildFifPaper,
   fifThresholdSentence,
+  fifTotals,
   marketsFromNotes,
 } from "@/lib/fif-working-paper";
 import { aucklandCivilToday, isNzTaxYearEnding, nzTaxYearEnding, nzTaxYearLabel } from "@/lib/nz-tax-year";
@@ -22,6 +24,11 @@ import { loadStockNoteRows, loadTaxRows } from "@/lib/tax-book-server";
 import { TAX_INDICATIVE_LABEL } from "@/lib/tax-disclaimer";
 import { TAX_PACK_NOTE, taxCompleteness } from "@/lib/tax-pack";
 import { taxYearChoices, type TaxLedgerRow } from "@/lib/taxable-income";
+
+
+function fifTotalText(v: number | null): string {
+  return v == null ? "— (a row above is missing a figure)" : formatNzd(v);
+}
 
 export const dynamic = "force-dynamic";
 
@@ -156,6 +163,12 @@ export default async function FifPage({
                 />
               ))
             )}
+            {paper.attributing.length > 0 ? (
+              <p className="mt-3 text-sm font-semibold" data-fif-total>
+                Total (sum of the rounded rows): cost {fifTotalText(fifTotals(paper.attributing).costNzd)} · FDR{" "}
+                {fifTotalText(fifTotals(paper.attributing).fdrNzd)} · comparative value {fifTotalText(fifTotals(paper.attributing).cvNzd)}
+              </p>
+            ) : null}
 
             <h2 className="mt-8 font-display text-lg font-semibold">Australian listings</h2>
             <p className="mt-2 text-sm text-muted-foreground">

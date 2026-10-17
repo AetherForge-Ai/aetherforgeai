@@ -104,6 +104,7 @@ import {
 } from "@/lib/client-user-state";
 import { AnalysisPanel } from "@/components/dashboard/AnalysisPanel";
 import { PriceAlerts } from "@/components/dashboard/PriceAlerts";
+import WatchAlerts from "@/components/dashboard/WatchAlerts";
 import { PreciousMetals } from "@/components/dashboard/PreciousMetals";
 import { planLabel } from "@/lib/plans";
 import { CSV_LOCK_LABEL, csvLockAccessibleName } from "@/lib/csv-lock-label";
@@ -3227,6 +3228,7 @@ export function PortfolioDashboard({
       {/* /alerts and /notifications land here. Price alerts are the in-app notifications. */}
       {isAlerts && (
         <div id="dash-alerts" className="mt-8 space-y-6">
+          {!preview ? <WatchAlerts canCreate={!freePlan} /> : null}
           <p className="max-w-2xl text-sm text-muted-foreground">
             Share, crypto, and metals price alerts are the notifications for this paper book. A triggered
             alert shows in the matching list.
