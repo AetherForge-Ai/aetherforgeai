@@ -18,6 +18,45 @@ import {
 const XAI_ENDPOINT = "https://api.x.ai/v1/chat/completions";
 const DEFAULT_MODEL = ZENITH_MODEL_DEFAULT;
 
+/** An AI failure with a short, key-free reason code for logs and QA (b6 CR-2). */
+export class GrokError extends Error {
+  constructor(message: string, readonly code: string) {
+    super(message);
+    this.name = "GrokError";
+  }
+}
+
+/** Strip anything that looks like a key or bearer token before logging. */
+export function redactSecrets(text: string): string {
+  return text
+    .replace(/xai-[A-Za-z0-9_-]+/g, "xai-[redacted]")
+    .replace(/Bearer\s+[A-Za-z0-9._-]+/gi, "Bearer [redacted]");
+}
+
+/** Reply text from a string or an array of content parts. */
+export function completionText(content: unknown): string {
+  if (typeof content === "string") return content.trim();
+  if (Array.isArray(content)) {
+    return content
+      .map((part) =>
+        typeof part === "string" ? part : part && typeof part === "object" && typeof (part as { text?: unknown }).text === "string" ? (part as { text: string }).text : ""
+      )
+      .join("")
+      .trim();
+  }
+  return "";
+}
+
+/**
+ * b6 CR-2: the public guide uses a fast non-reasoning model. The reasoning
+ * default spent its token allowance thinking and returned no text inside the
+ * 10 s budget, so every guide call fell back. XAI_GUIDE_MODEL overrides.
+ */
+export const GUIDE_MODEL_DEFAULT = "grok-4.20-0309-non-reasoning";
+export function guideModel(): string {
+  return process.env.XAI_GUIDE_MODEL?.trim() || GUIDE_MODEL_DEFAULT;
+}
+
 export interface GrokMessage {
   role: "system" | "user" | "assistant";
   content: string;
@@ -112,14 +151,20 @@ export async function createGrokChatCompletion({
 
   if (!res.ok) {
     const errText = await res.text().catch(() => "");
-    console.error(`[grok] API error ${res.status}: ${errText}`);
-    throw new Error("AI request failed. Try again in a moment.");
+    console.error(`[grok] API error ${res.status} (model=${resolvedModel}): ${redactSecrets(errText).slice(0, 300)}`);
+    throw new GrokError("AI request failed. Try again in a moment.", `http_${res.status}`);
   }
 
-  const json = (await res.json()) as {
-    choices?: { message?: { content?: string }; finish_reason?: string }[];
+  let json: {
+    choices?: { message?: { content?: unknown }; finish_reason?: string }[];
     usage?: { prompt_tokens?: number; completion_tokens?: number };
   };
+  try {
+    json = (await res.json()) as typeof json;
+  } catch {
+    console.error(`[grok] Unparseable response (model=${resolvedModel})`);
+    throw new GrokError("AI returned an unreadable response.", "parse");
+  }
   if (onUsage) {
     onUsage({
       promptTokens: typeof json?.usage?.prompt_tokens === "number" ? json.usage.prompt_tokens : null,
@@ -127,14 +172,14 @@ export async function createGrokChatCompletion({
     });
   }
 
-  const content = json?.choices?.[0]?.message?.content?.trim();
+  const content = completionText(json?.choices?.[0]?.message?.content);
   if (!content) {
     const finish = json?.choices?.[0]?.finish_reason;
     console.error(
       `[grok] Empty completion payload (finish_reason=${finish ?? "none"}, max_tokens=${maxTokens}):`,
-      JSON.stringify(json).slice(0, 500)
+      redactSecrets(JSON.stringify(json)).slice(0, 500)
     );
-    throw new Error("AI returned an empty response.");
+    throw new GrokError("AI returned an empty response.", "empty");
   }
 
   return content;

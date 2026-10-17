@@ -83,15 +83,18 @@ export function FigureReadout({
   const down = !missing && figure.value != null && figure.value < 0;
   const text = !missing && signed && up && !figure.display.startsWith("+") ? `+${figure.display}` : figure.display;
   return (
-    <span className={cn("inline-flex max-w-full flex-col items-end gap-0.5", className)}>
-      <span className="inline-flex items-center justify-end gap-1">
+    <span className={cn("inline-flex flex-col items-end gap-0.5", className)}>
+      {/* b6 M-6: one line, tabular digits, and room between a price and its info icon. */}
+      <span className="inline-flex flex-nowrap items-center justify-end gap-1.5 whitespace-nowrap">
         {up ? <ArrowUp className="size-3 text-emerald-700" aria-hidden /> : null}
         {down ? <ArrowDown className="size-3 text-rose-600" aria-hidden /> : null}
-        <span className="tnum" title={missing ? figure.reason || undefined : undefined}>
+        <span className="tnum whitespace-nowrap tabular-nums" title={missing ? figure.reason || undefined : undefined}>
           {text}
           {missing && figure.reason ? <span className="sr-only"> {figure.reason}</span> : null}
         </span>
-        <ShowTheMaths figure={figure} label={label} />
+        <span className="ml-0.5 inline-flex shrink-0">
+          <ShowTheMaths figure={figure} label={label} />
+        </span>
       </span>
       {showReason && missing && figure.reason ? (
         <span className="max-w-[14rem] text-right text-[0.65rem] leading-snug font-normal text-muted-foreground">{figure.reason}</span>

@@ -727,7 +727,12 @@ export function ReportCenter({
           </span>
           <div>
             <p className="text-sm font-semibold">
-              {cadence.unit === "month" ? (
+              {cadence.unit === "month" && !freeQuota && !preview ? (
+                // b6 H-4: a loading line, never the default allowance, until the real count arrives.
+                <span className="text-muted-foreground" aria-live="polite">
+                  {historyError ? "Your report count did not load. Refresh to try again." : "Checking your AI reports this month…"}
+                </span>
+              ) : cadence.unit === "month" ? (
                 <>
                   Free plan:{" "}
                   <span className="text-foreground">

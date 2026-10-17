@@ -11,6 +11,11 @@ export interface PublicPriceRow {
   /** Numeric USD price when this row is a crypto or DEX print. */
   usd?: number;
   changePct?: number;
+  /** b6 H-2: numeric stock print so the seeded table keeps price, high and low. */
+  value?: number;
+  changeAbs?: number;
+  dayHigh?: number | null;
+  dayLow?: number | null;
   /** Coin slug for /markets/crypto/[id]. */
   quoteId?: string;
   /** Vendor or saved-print label. Empty when this row has no price. */

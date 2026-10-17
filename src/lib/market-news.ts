@@ -18,7 +18,7 @@
 
 import "server-only";
 
-import { type AssetClass, type MarketCode, type NewsItem } from "@/lib/market-intel";
+import { MARKET_UNIVERSE, type AssetClass, type MarketCode, type NewsItem } from "@/lib/market-intel";
 import { decodeHtmlEntities, hasArticlePath, isOffTopicStory, prepareNewsFeed } from "@/lib/news-present";
 import { keywordSentiment } from "@/lib/news-sentiment";
 
@@ -168,10 +168,54 @@ const SPECULATIVE_HEADLINE =
 const OVERSEAS_MARKET_WIDE =
   /\b(wall street|s&p ?500|nasdaq|dow jones|federal reserve|fed|fomc|treasury yields?|bond yields?|inflation|cpi|gdp|jobs report|payrolls|tariffs?|oil prices?|gold prices?|recession|central bank|interest rates?)\b/i;
 
+const NZ_AU_TERMS =
+  /\b(nzx|asx|nzsx|rbnz|rba|ocr|new zealand|kiwi|kiwis|aotearoa|auckland|wellington|christchurch|australia|australian|aussie|sydney|melbourne|brisbane|perth|nz\$|a\$|nzd|aud|fonterra|kiwisaver|superannuation)\b/i;
+const NAME_STOP = new Set(["the", "air", "new", "first", "general", "national", "global", "united", "smart", "market", "energy", "group", "capital", "property", "health"]);
+let nzAuNames: RegExp | null = null;
+let nzAuTickers: RegExp | null = null;
+/** NZ/AU tickers as written in headlines ("BHP", "FPH"). Case-sensitive so "air" does not match. */
+function nzAuTickerPattern(): RegExp {
+  if (nzAuTickers) return nzAuTickers;
+  const codes = new Set<string>();
+  for (const entry of MARKET_UNIVERSE) {
+    if (entry.market !== "NZX" && entry.market !== "ASX") continue;
+    const code = entry.ticker.replace(/\.(NZ|AX)$/i, "").toUpperCase();
+    if (/^[A-Z0-9]{3,5}$/.test(code)) codes.add(code);
+  }
+  nzAuTickers = codes.size ? new RegExp(`\\b(${[...codes].join("|")})\\b`) : /$^/;
+  return nzAuTickers;
+}
+function nzAuNamePattern(): RegExp {
+  if (nzAuNames) return nzAuNames;
+  const words = new Set<string>();
+  for (const entry of MARKET_UNIVERSE) {
+    if (entry.market !== "NZX" && entry.market !== "ASX") continue;
+    const clean = entry.name
+      .replace(/\(.*?\)/g, "")
+      .replace(/\b(limited|ltd|group|holdings|corporation|corp|inc|plc|nz|australia|trust|fund)\b\.?/gi, "")
+      .trim();
+    const parts = clean.split(/\s+/).filter(Boolean);
+    if (!parts.length) continue;
+    const first = parts[0].toLowerCase();
+    const phrase = first.length >= 5 && !NAME_STOP.has(first) ? parts[0] : parts.slice(0, 2).join(" ");
+    if (phrase.length >= 4) words.add(phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  }
+  nzAuNames = words.size ? new RegExp(`\\b(${[...words].join("|")})\\b`, "i") : /$^/;
+  return nzAuNames;
+}
+
+/** True when the story names New Zealand or Australia, an NZ/AU venue, or an NZ/AU listed company. */
+export function hasNzAuAnchor(text: string): boolean {
+  return NZ_AU_TERMS.test(text) || nzAuNamePattern().test(text) || nzAuTickerPattern().test(text);
+}
+
 export function isNewsRelevant(input: { headline: string; summary?: string; market: MarketCode | "Global" }): boolean {
   const blob = `${input.headline} ${input.summary ?? ""}`;
   if (!isFinanceRelevant(blob)) return false;
-  if (input.market === "NZX" || input.market === "ASX") return true;
+  // b6 H-13: an NZ/AU feed hint is not enough. Syndicated US single-stock pieces
+  // ("Palantir", "Amgen") came in through NZ/AU feeds; without an NZ/AU anchor
+  // the story is judged as overseas news.
+  if ((input.market === "NZX" || input.market === "ASX") && hasNzAuAnchor(blob)) return true;
   // Overseas: no question/listicle headlines, and the story must be market-wide.
   if (SPECULATIVE_HEADLINE.test(input.headline.trim())) return false;
   return OVERSEAS_MARKET_WIDE.test(input.headline) || OVERSEAS_MARKET_WIDE.test(input.summary ?? "");

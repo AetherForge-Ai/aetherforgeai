@@ -8,7 +8,7 @@ function read(rel: string) {
 }
 
 describe("bot guides", () => {
-  it("gives each bot page its own list, one shared disclaimer, two alts, and an example book", () => {
+  it("gives each bot page its own list, one shared disclaimer, one or more alts, and an example book", () => {
     expect(BOT_GUIDES.stox).toContain("NZX");
     expect(BOT_GUIDES.stox).toContain("ASX");
     expect(BOT_GUIDES.koins).toContain("Crypto projections stay paused");
@@ -29,7 +29,8 @@ describe("bot guides", () => {
     for (const rel of ["src/app/stox/page.tsx", "src/app/koins/page.tsx", "src/app/smitty/page.tsx", "src/app/headmaster/page.tsx"]) {
       const page = read(rel);
       expect(page).toContain("BotGuide");
-      expect(page.match(/alt:/g)?.length).toBeGreaterThanOrEqual(2);
+      // b6 M-3: one transparent cut-out per page (the masked square art is gone).
+      expect(page.match(/alt:/g)?.length).toBeGreaterThanOrEqual(1);
     }
     expect(read("src/lib/bot-guides.ts")).toContain("pull-check:batch2-2026-10-11 B2-10");
   });

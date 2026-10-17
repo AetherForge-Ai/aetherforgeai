@@ -2309,7 +2309,8 @@ export function PortfolioDashboard({
               onWatchClass={setWatchClass}
               watchReload={watchlistSignal + (watchSeed?.nonce || 0)}
               watchSeed={watchSeed}
-              holdingsCount={summary.holdingsCount}
+              // b6 H-7: plan usage counts every open holding in the book (shares, crypto and metals), not the active tab.
+              holdingsCount={holdingCounts.total}
               tickerLimit={tickerLimit}
               reportQuota={railQuota}
             />
