@@ -583,6 +583,27 @@ function scheduleSnapshotRevalue(holdingId: string | null | undefined, ticker: s
     });
 }
 
+/** Goal b9: holding after a DRP allotment. Pure, exported for tests. */
+export function holdingAfterDrp(shares: number, averageCost: number, drpShares: number): { shares: number; averageCost: number } {
+  const next = round((Number(shares) || 0) + Math.max(0, Number(drpShares) || 0), 6);
+  if (!(next > 0)) return { shares: 0, averageCost: 0 };
+  return { shares: next, averageCost: round(((Number(shares) || 0) * (Number(averageCost) || 0)) / next, 6) };
+}
+
+async function addDrpSharesToHolding(
+  input: TransactionInput,
+  parts: DividendParts | null,
+  holdingsListPromise: Promise<any[]>
+): Promise<string | null> {
+  if (input.type !== "dividend" || !parts?.drpShares || !(parts.drpShares > 0)) return null;
+  const ticker = normalizeTicker(input.ticker || "");
+  const existing = holdingFromList(await holdingsListPromise, ticker, input.asset_type || "stock");
+  if (!existing?._id || !(Number(existing.shares) > 0)) return null;
+  const after = holdingAfterDrp(Number(existing.shares), Number(existing.purchase_price) || 0, parts.drpShares);
+  await totalumSdk.crud.editRecordById("stock", existing._id, { shares: after.shares, purchase_price: after.averageCost });
+  return existing._id;
+}
+
 async function applyTransactionUnlocked(
   user: AppUser,
   input: TransactionInput,
@@ -733,13 +754,16 @@ async function applyTransactionUnlocked(
         pendingCash: newCash,
         previousCash: currentCash,
         realizedNZD: 0,
-        holdingId: null,
+        holdingId: await addDrpSharesToHolding(input, dividendParts, holdingsListPromise),
         ledgerId,
       };
     }
     await totalumSdk.crud.editRecordById("user", user._id, { cash_balance: newCash });
     const rec = await totalumSdk.crud.createRecord("transaction", cashRecord);
-    return { transaction: rec?.data, cashBalance: newCash, realizedNZD: 0, holdingId: null };
+    // Goal b9: DRP shares join the holding count (NZ$ cost unchanged, so the
+    // average falls). The ledger reversal replays the same `sh=` tag.
+    const drpHoldingId = await addDrpSharesToHolding(input, dividendParts, holdingsListPromise);
+    return { transaction: rec?.data, cashBalance: newCash, realizedNZD: 0, holdingId: drpHoldingId };
   }
 
   // ---------- Trades (buy / sell) ----------

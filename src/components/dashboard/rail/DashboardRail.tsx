@@ -6,7 +6,7 @@ import { WatchlistPanel } from "@/components/dashboard/WatchlistPanel";
 import { SnapshotAllocation } from "@/components/dashboard/SnapshotAllocation";
 import { RailCard, RailTabs } from "@/components/dashboard/rail/RailCard";
 import { FREE_REPORTS_PER_MONTH } from "@/lib/entitlements";
-import { railCardsFor, usageLine, usagePercent, UNLOCK_FEATURES } from "@/lib/dashboard-rail";
+import { railCardsFor, usageMeterLabel, usagePercent, UNLOCK_FEATURES } from "@/lib/dashboard-rail";
 
 type Asset = "stock" | "crypto";
 type Seed = { ticker: string; nonce: number; asset: Asset } | null;
@@ -117,7 +117,7 @@ export function DashboardRail({
                 <div key={row.label}>
                   <div className="flex items-baseline justify-between gap-3">
                     <dt className="text-muted-foreground">{row.label}</dt>
-                    <dd className="tnum font-semibold">{usageLine(row.used, row.limit)}</dd>
+                    <dd className="tnum font-semibold">{usageMeterLabel(row.used, row.limit)}</dd>
                   </div>
                   {row.limit != null ? (
                     <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden="true">
@@ -133,7 +133,7 @@ export function DashboardRail({
         <RailCard
           key={card}
           id="dashboard-unlock"
-          title="Unlock on paid plans"
+          title="Unlock with Starter and above"
           action={null}
         >
           <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
