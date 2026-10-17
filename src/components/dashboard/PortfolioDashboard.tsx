@@ -72,6 +72,7 @@ import { computeHoldingSplit, ReturnsSplitCard } from "@/components/dashboard/Re
 import {
   clearPortfolioSnapshotCache,
   paintConfirmedSnapshot,
+  withLedgerLine,
   readPortfolioSnapshotCache,
   snapshotAsReturnSplit,
   writePortfolioSnapshotCache,
@@ -1163,7 +1164,8 @@ export function PortfolioDashboard({
   useEffect(() => {
     if (preview) return;
     const cached = readPortfolioSnapshotCache(userId);
-    setBookSnapshot(cached);
+    // Goal b14 G-10: never replace a book on screen with "nothing cached".
+    setBookSnapshot((current) => cached ?? current);
     setSnapshotReady(cached != null);
     setSnapshotError(null);
     const tab = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("tab") : null;
@@ -1321,7 +1323,7 @@ export function PortfolioDashboard({
           setAllStocks((rows) => applyBookedTradeToHoldings(rows, guess));
           if (typeof updated.cashBalance === "number") {
             const cashGuess = updated.cashBalance;
-            setBookSnapshot((current) => (current ? paintConfirmedSnapshot(current, guess, cashGuess) : current));
+            setBookSnapshot((current) => (current ? withLedgerLine(paintConfirmedSnapshot(current, guess, cashGuess), guess as never, signedTradeCash(guess)) : current));
           }
         }
         return;
@@ -1378,12 +1380,18 @@ export function PortfolioDashboard({
         if (typeof updated.cashBalance === "number") {
           const cashNow = updated.cashBalance;
           const trade = updated.lastTransaction;
-          setBookSnapshot((current) => (current ? paintConfirmedSnapshot(current, trade, cashNow) : current));
+          setBookSnapshot((current) => {
+            if (!current) return current;
+            const painted = withLedgerLine(paintConfirmedSnapshot(current, trade, cashNow), trade as never, signedTradeCash(trade));
+            writePortfolioSnapshotCache(userId, painted);
+            return painted;
+          });
         }
         holdingsHydratedRef.current = true;
         setLoading(false);
       }
-      clearPortfolioSnapshotCache(userId);
+      // Goal b14 G-10: the cache is overwritten by the painted book above and by the
+      // fresh read below; clearing it made a remount show an empty list for ~2 s.
       const soldNow = String(updated?.lastTransaction?.type || "").toLowerCase() === "sell";
       void Promise.all([loadStocks({ fresh: true }), loadCash(), loadMetals(), loadPortfolioSnapshot({ force: true })])
         .then(async () => {
@@ -1966,7 +1974,12 @@ export function PortfolioDashboard({
     // cleared while the server confirms, and a refusal puts both back.
     const previousSnapshot = bookSnapshot;
     const previousCash = cashBalance;
-    setBookSnapshot((current) => (current ? { ...current, ledger: current.ledger.filter((row) => row.id !== line.id) } : current));
+    setBookSnapshot((current) => {
+      if (!current) return current;
+      const next = { ...current, ledger: current.ledger.filter((row) => row.id !== line.id) };
+      writePortfolioSnapshotCache(userId, next);
+      return next;
+    });
     if (Number.isFinite(line.cashNzd)) applyKnownCash(Math.round((cashBalance - line.cashNzd) * 100) / 100);
     const res = await api.delete<{ cash?: { after?: number }; alreadyRemoved?: boolean }>(
       `/api/transactions?id=${encodeURIComponent(line.id)}`
@@ -3535,4 +3548,18 @@ export function PortfolioDashboard({
     </div>
     </MarketIntelProvider>
   );
+}
+
+/** Goal b14 G-10: signed NZ$ cash effect of a booked trade for the optimistic ledger line. */
+function signedTradeCash(trade: { type?: string | null; total?: number | null; quantity?: number | null; price?: number | null; fees?: number | null; fx_rate?: number | null; amount?: number | null }): number | null {
+  if (typeof trade.total === "number" && Number.isFinite(trade.total)) return trade.total;
+  const type = String(trade.type || "").toLowerCase();
+  const fx = Number(trade.fx_rate) > 0 ? Number(trade.fx_rate) : 1;
+  const qty = Number(trade.quantity) || 0;
+  const price = Number(trade.price) || 0;
+  const fees = Number(trade.fees) || 0;
+  if (type === "buy") return -Math.round((qty * price + fees) * fx * 100) / 100;
+  if (type === "sell") return Math.round((qty * price - fees) * fx * 100) / 100;
+  if (type === "deposit" || type === "dividend") return Math.round((Number(trade.amount) || qty * price) * fx * 100) / 100;
+  return null;
 }

@@ -211,7 +211,9 @@ export function neutraliseRatingWording(text: string): string {
     .replace(/\bBUY\b/g, "positive signal")
     .replace(/\bSELL\b/g, "negative signal")
     .replace(/\b(?:Accumulate|Buy) rating\b/g, "positive model signal")
-    .replace(/\bSell rating\b/g, "negative model signal");
+    .replace(/\bSell rating\b/g, "negative model signal")
+    // Goal b14 H-12: a relabel at the start of a sentence starts with a capital.
+    .replace(/(^|[.!?]\s+)(positive|negative|strong|neutral|weakening|the model's|new positions)/g, (_m, lead: string, word: string) => lead + word.charAt(0).toUpperCase() + word.slice(1));
 }
 
 /** Deep copy with every display string neutralised. Enum keys (action) keep their value for styling. */

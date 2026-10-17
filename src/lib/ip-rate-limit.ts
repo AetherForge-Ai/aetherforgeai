@@ -174,14 +174,14 @@ export async function takeRateLimit(
   const count = (buckets.get(storageKey) ?? 0) + 1;
   buckets.set(storageKey, count);
   if (count > limit) {
-    return { allowed: false, remaining: 0, limit, resetSec, store: "memory", keyHash: keyHash(key) };
+    return { allowed: false, remaining: 0, limit, resetSec, store: "memory", keyHash: keyHash(key), backends: `${lastBackends}; decided-by=memory` };
   }
   // b7: the Workers rate-limit binding is shared by every isolate at the edge.
   let edgeState = "not-used";
   if (opts.edge) {
     const edge = await edgeRateLimit(opts.edge, key);
     edgeState = edge === null ? "absent" : "present";
-    if (edge === false) return { allowed: false, remaining: 0, limit, resetSec, store: "edge", keyHash: keyHash(key), backends: `edge-binding=present` };
+    if (edge === false) return { allowed: false, remaining: 0, limit, resetSec, store: "edge", keyHash: keyHash(key), backends: `edge-binding=present; ${lastBackends.replace(/^edge-binding=[^;]*; ?/, "")}; decided-by=edge` };
   }
   // Goal b8: every available store is consulted and the highest count wins. In
   // b6/b7 a durable answer that undercounted (a read that never saw the other
@@ -190,8 +190,9 @@ export async function takeRateLimit(
   if (durableStore) {
     try {
       durable = await durableStore.increment(storageKey, windowMs, now);
-    } catch {
+    } catch (err) {
       durable = null;
+      lastTableState = classifyTableError(err);
     }
   }
   const cacheAvailable = sharedCache() != null;
@@ -200,9 +201,10 @@ export async function takeRateLimit(
   buckets.set(storageKey, merged);
   await writeShared(storageKey, merged);
   const store: RateLimitStore = durable != null ? "durable" : cacheAvailable ? "cache" : "memory";
-  const backends = `edge-binding=${edgeState}; table=${durableStore ? (durable != null ? "ok" : "error") : "unregistered"}; cache-api=${cacheAvailable ? "yes" : "no"}; durable-object=absent`;
+  const backends = `edge-binding=${edgeState}; table=${durableStore ? (durable != null ? "ok" : lastTableState) : "unregistered"}; cache-api=${cacheAvailable ? "yes" : "no"}; durable-object=absent`;
+  lastBackends = backends;
   if (merged > limit) {
-    return { allowed: false, remaining: 0, limit, resetSec, store, keyHash: keyHash(key), backends };
+    return { allowed: false, remaining: 0, limit, resetSec, store, keyHash: keyHash(key), backends: `${backends}; decided-by=${store}` };
   }
   return { allowed: true, remaining: Math.max(0, limit - merged), limit, resetSec, store, keyHash: keyHash(key), backends };
 }
@@ -288,4 +290,24 @@ export function authRateLimitRule(pathname: string): AuthRateLimitRule | null {
     };
   }
   return null;
+}
+
+/** Goal b14 CR-2: last backends line, so a 429 from the isolate floor still says what was reachable. */
+let lastBackends = "edge-binding=unknown; table=unknown; cache-api=unknown; durable-object=absent";
+let lastTableState = "error:unknown";
+
+/**
+ * Goal b14 CR-2: a safe code for why the rate_limit_counter table failed. Only a
+ * fixed code leaves this function; never the raw message, keys or row data.
+ */
+export function classifyTableError(err: unknown): string {
+  const msg = (err instanceof Error ? err.message : String(err ?? "")).toLowerCase();
+  const status = Number((err as { status?: number; response?: { status?: number } } | null)?.status ?? (err as { response?: { status?: number } } | null)?.response?.status ?? 0);
+  if (msg.includes("durable counter off")) return lastTableState;
+  if (status === 401 || status === 403 || /unauthori|forbidden|permission|api key|apikey/.test(msg)) return "error:permission";
+  if (status === 404 || /not found|does not exist|unknown (table|type)|no such table|table .*missing/.test(msg)) return "missing";
+  if (/no rows|column|field|schema|validation|invalid property|unknown property/.test(msg)) return "error:columns";
+  if (/timeout|deadline|timed out/.test(msg)) return "error:timeout";
+  if (status) return `error:http-${status}`;
+  return "error:other";
 }

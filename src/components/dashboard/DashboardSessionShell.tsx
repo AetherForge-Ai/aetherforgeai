@@ -63,7 +63,13 @@ export function DashboardSessionShell({
 
   if (guestDocument || phase === "guest" || !session || phase !== "ready") {
     if (guestDocument || phase === "guest") return <GuestDashboardGate />;
-    return <DashboardSessionSkeleton />;
+    // Goal b14 H-4: the server-read allowance is in the first HTML, before any client fetch.
+    return (
+      <>
+        {initialQuota ? <ServerQuotaStrip quota={initialQuota} /> : null}
+        <DashboardSessionSkeleton />
+      </>
+    );
   }
   return (
     <PortfolioDashboard
@@ -74,5 +80,16 @@ export function DashboardSessionShell({
       subscription={session.subscription}
       metalsEntitled={session.metalsEntitled}
     />
+  );
+}
+
+/** Goal b14 H-4: Plan usage and the reports-left banner painted from the server read. */
+function ServerQuotaStrip({ quota }: { quota: { used: number; limit: number } }) {
+  const left = Math.max(0, quota.limit - quota.used);
+  return (
+    <div data-server-quota className="mx-auto mt-4 flex max-w-7xl flex-wrap gap-x-4 gap-y-1 px-4 text-sm text-foreground">
+      <span data-plan-usage>Plan usage: {quota.used} of {quota.limit} AI reports used this month</span>
+      <span data-reports-left-banner>{left} of {quota.limit} AI reports left</span>
+    </div>
   );
 }
