@@ -23,6 +23,7 @@ function Figure({ label, f }: { label: string; f: PerformanceFigure }) {
 export function PerformancePanel() {
   const [state, setState] = useState<{ perf: BookPerformance; asOf: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [bench, setBench] = useState<BenchRow[] | null>(null);
   useEffect(() => {
     fetch("/api/portfolio/snapshot", { cache: "no-store" })
       .then((r) => r.json())
@@ -30,6 +31,11 @@ export function PerformancePanel() {
         if (!j?.ok || !j.data) throw new Error("Portfolio snapshot unavailable");
         const asOfIso = String(j.data.asOf || new Date().toISOString());
         const asOf = new Intl.DateTimeFormat("en-CA", { timeZone: "Pacific/Auckland" }).format(new Date(asOfIso));
+        const perf = bookPerformance({ ledger: j.data.ledger || [], netWorthNzd: j.data.kpis?.netWorth?.value ?? null, asOf, source: j.data.source || "Portfolio snapshot" });
+        fetch(`/api/benchmarks?asOf=${asOf}&start=${perf.startDate ?? ""}`)
+          .then((r) => r.json())
+          .then((b: { benchmarks?: BenchRow[] }) => setBench(b.benchmarks ?? []))
+          .catch(() => setBench([]));
         setState({
           asOf: asOfIso,
           perf: bookPerformance({ ledger: j.data.ledger || [], netWorthNzd: j.data.kpis?.netWorth?.value ?? null, asOf, source: j.data.source || "Portfolio snapshot" }),
@@ -62,7 +68,7 @@ export function PerformancePanel() {
             <h2 id="perf-periods" className="font-display text-lg font-semibold">Periods</h2>
             <table className="mt-2 w-full text-sm">
               <thead>
-                <tr className="text-left text-xs uppercase text-muted-foreground"><th className="py-2">Period</th><th className="text-right">XIRR</th><th className="text-right">TWR</th><th className="pl-4">Note</th></tr>
+                <tr className="text-left text-xs uppercase text-muted-foreground"><th className="py-2">Period</th><th className="text-right">XIRR</th><th className="text-right">TWR</th><th className="text-right">NZX 50</th><th className="text-right">S&amp;P 500 (NZ$)</th><th className="pl-4">Note</th></tr>
               </thead>
               <tbody>
                 {(Object.keys(PERIOD_LABEL) as PerformancePeriod[]).map((p) => {
@@ -72,6 +78,14 @@ export function PerformancePanel() {
                       <th scope="row" className="py-2 text-left font-medium">{PERIOD_LABEL[p]}</th>
                       <td className="tnum text-right">{pct(row.xirr.value)}</td>
                       <td className="tnum text-right">{pct(row.twr.value)}</td>
+                      {(["nzx50", "sp500nzd"] as const).map((id) => {
+                        const b = bench?.find((x) => x.id === id)?.periods[p];
+                        return (
+                          <td key={id} className="tnum text-right" data-bench={id} title={b?.reason ?? undefined}>
+                            {b ? pct(b.value) : "—"}
+                          </td>
+                        );
+                      })}
                       <td className="pl-4 text-xs text-muted-foreground">{row.xirr.reason || row.twr.reason || ""}</td>
                     </tr>
                   );
@@ -82,9 +96,15 @@ export function PerformancePanel() {
           <section aria-labelledby="perf-bench">
             <h2 id="perf-bench" className="font-display text-lg font-semibold">Benchmarks</h2>
             <ul className="mt-2 space-y-1 text-sm">
-              {BENCHMARKS.map((b) => (
-                <li key={b.name}><strong>{b.name}:</strong> — <span className="text-muted-foreground">{b.reason}</span></li>
-              ))}
+              {bench && bench.length
+                ? bench.map((b) => (
+                    <li key={b.id} data-bench-source>
+                      <strong>{b.name}:</strong> {b.id === "nzx50" ? "S&P/NZX 50 Gross index (dividends included)" : "price return (dividends not included)"}, as of {formatDisplayDate(b.asOf)} close · {b.source}
+                    </li>
+                  ))
+                : BENCHMARKS.map((b) => (
+                    <li key={b.name}><strong>{b.name}:</strong> — <span className="text-muted-foreground">{bench ? "The stored index history could not be read." : "Loading the stored index history."}</span></li>
+                  ))}
             </ul>
             <p className="mt-2 text-xs text-muted-foreground">Dates shown as {formatDisplayDate(state.asOf)}. Delayed public data, not a direct NZX/ASX feed.</p>
           </section>
@@ -93,3 +113,11 @@ export function PerformancePanel() {
     </main>
   );
 }
+
+type BenchRow = {
+  id: "nzx50" | "sp500nzd";
+  name: string;
+  asOf: string;
+  source: string;
+  periods: Record<PerformancePeriod, { value: number | null; reason: string | null }>;
+};

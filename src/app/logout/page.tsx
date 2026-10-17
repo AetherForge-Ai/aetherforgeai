@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { clearOfflineCaches } from "@/components/PwaRegister";
 import { clearClientUserState } from "@/lib/client-user-state";
 import { invalidateLiveSessionProbe } from "@/lib/auth-refresh";
 import { classifySessionProbe, logoutFinish, type SessionProbe } from "@/lib/logout-finish";
@@ -67,6 +68,7 @@ export default function LogoutPage() {
     (async () => {
       try {
         clearClientUserState();
+        void clearOfflineCaches();
         invalidateLiveSessionProbe();
         // pull-check:batch1-2026-10-11 R12 — a hung probe must not leave this spinner up.
         let posted = await postLogout();

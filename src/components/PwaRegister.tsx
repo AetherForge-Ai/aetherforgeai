@@ -17,3 +17,16 @@ export function PwaRegister() {
 }
 
 export { SHELL_UPDATED_KEY };
+
+/** Goal b16 M-10: called on sign-out. Removes every Cache Storage entry this site holds. */
+export async function clearOfflineCaches(): Promise<void> {
+  try {
+    navigator.serviceWorker?.controller?.postMessage("aetherforge-clear");
+    if (typeof caches !== "undefined") {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((key) => caches.delete(key)));
+    }
+  } catch {
+    /* nothing cached */
+  }
+}

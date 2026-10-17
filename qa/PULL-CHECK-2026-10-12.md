@@ -685,3 +685,4 @@ Must-fix batch 7 (TT b6 retest: CR-2 CR-5 H-5 H-13 M-3 M-6): marker `pull-check:
 - pull-check:v3-goal-b13-2026-10-18 — b13: CR-2 backends header, G-10 optimistic delete/snapshot, M-6 actions menu, H-4 server quota, H-12 HOLD/directives, G-02 snapshot deposit, G-17 DEX gate/dedupe/stale crypto.
 - Goal b14 (G-10 ledger line + cache, H-4 server quota strip, crypto attempt log, M-2, CR-2 table codes, G-01, H-12): marker `pull-check:v3-goal-b14-2026-10-18`
 - Goal b15 (G-02 "Book started" periods, G-01 fee basis on yield, H-12 backtest method on /methodology, M-6 cash actions + full name ≥1440): marker `pull-check:v3-goal-b15-2026-10-18`
+- Goal b16 (M-10 shell-only service worker + installable manifest, G-02 stored NZX 50 / S&P 500 NZ$ history and period benchmarks, G-01 31 Mar/1 Apr test, fixture seeding script): marker `pull-check:v3-goal-b16-2026-10-18`
