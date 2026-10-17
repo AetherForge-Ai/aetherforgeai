@@ -1,6 +1,7 @@
 "use client";
 
 import { ULTIMATE_PRICE_PENDING_D6 } from "@/lib/public-copy";
+import { ULTIMATE_FROM_LINE } from "@/lib/plan-usage";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -243,10 +244,8 @@ export function PricingCards({
               <div className="mt-5">
                 {tier.id === "ultimate" && !ULTIMATE_PRICE_PENDING_D6 ? (
                   <div className="flex flex-col gap-1" data-ultimate-from>
-                    <span className="font-display text-2xl font-extrabold leading-tight">
-                      From NZ${money(tier.monthlyPrice ?? 199)}/mo
-                    </span>
-                    <span className="text-sm text-muted-foreground">Talk to us</span>
+                    {/* One text node so the page reads exactly "From NZ$199/mo — Talk to us" (BL-6). */}
+                    <span className="font-display text-xl font-extrabold leading-tight">{ULTIMATE_FROM_LINE}</span>
                   </div>
                 ) : isFree ? (
                   <div className="flex items-end gap-1">

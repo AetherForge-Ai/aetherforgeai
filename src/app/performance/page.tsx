@@ -42,8 +42,8 @@ const SAMPLE_NOTES = [
   },
   {
     icon: Globe2,
-    title: "One day's high",
-    body: "NZ$102,421.30 is the highest mark that day. NZ$101,931.77 is an earlier reading, not the high.",
+    title: "Two-day high",
+    body: "NZ$102,421.30 is the highest mark across 7 and 8 Jul. NZ$101,931.77 is an earlier reading, not the high.",
   },
 ];
 
@@ -90,7 +90,7 @@ export default function PerformancePage() {
           <div className="mx-auto mt-12 flex max-w-3xl flex-col items-center gap-3 rounded-3xl border border-primary/20 bg-gradient-to-br from-primary/10 via-card/40 to-card/40 p-8 text-center">
             <LineChart className="size-8 text-primary" />
             <p className="font-display text-xl font-bold sm:text-2xl">
-              One paper book, {PERFORMANCE_SAMPLE.label}: {PERFORMANCE_SAMPLE.opening} to a day's high of {PERFORMANCE_SAMPLE.high} ({PERFORMANCE_SAMPLE.pct})
+              One paper book, {PERFORMANCE_SAMPLE.label}: {PERFORMANCE_SAMPLE.opening} to a two-day high of {PERFORMANCE_SAMPLE.high} ({PERFORMANCE_SAMPLE.pct})
             </p>
             <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
               Seven timestamped snapshots of one paper book, dated 7–8 Jul 2026. The marks moved by{" "}
@@ -128,7 +128,7 @@ export default function PerformancePage() {
           </div>
           <p className="mx-auto mt-10 max-w-3xl text-center text-base leading-relaxed text-muted-foreground">
             These figures were captured while markets were open. They show how the paper book was
-            marked that day. They are not a guarantee, not a comparison that AetherForge beats other
+            marked on those two days. They are not a guarantee, not a comparison that AetherForge beats other
             products, and not evidence of money placed with a broker.
           </p>
         </section>

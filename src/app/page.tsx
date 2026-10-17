@@ -1,10 +1,10 @@
 import Link from "next/link";
-import { LEGAL_ENTITY_NAME } from "@/lib/company";
 import { BOT_COUNT_LINE, PAPER_BOOK_STATEMENT, SMITTY_ROLE_LINE } from "@/lib/public-copy";
 import { loadPublicTickerBounded } from "@/lib/public-ticker";
 import { getMetalsSpot } from "@/lib/metals";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { SiteHeader } from "@/components/SiteHeader";
+import { DisclaimerNotice } from "@/components/legal/DisclaimerNotice";
 import { MarketTicker } from "@/components/MarketTicker";
 import { HomeBottomCta, HomeHeroCtas } from "@/components/home/HomeSessionCtas";
 import { LazyPersonalGuide as PersonalGuide } from "@/components/personal-guide/LazyPersonalGuide";
@@ -289,14 +289,7 @@ export default async function LandingPage() {
             </section>
 
             <section className="mx-auto max-w-3xl px-4 pb-16 sm:px-6 lg:px-8" aria-label="Disclaimer">
-              <p className="text-sm leading-relaxed text-muted-foreground">
-                Not financial advice. {LEGAL_ENTITY_NAME} is not a licensed financial
-                advice provider, and we don&apos;t place trades or take custody.{" "}
-                <Link href="/ai-disclaimer" className="font-medium text-primary hover:underline">
-                  AI disclaimer
-                </Link>
-                .
-              </p>
+              <DisclaimerNotice variant="full" />
             </section>
           </div>
         </div>

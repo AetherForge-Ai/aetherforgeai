@@ -1,9 +1,10 @@
 import type { ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 import { SiteHeader } from "@/components/SiteHeader";
 import { DisclaimerNotice } from "@/components/legal/DisclaimerNotice";
-import { BOT_EXAMPLES, BOT_GUIDE_PARAGRAPHS, BOT_PAGE_DISCLAIMER, type BotGuideKind } from "@/lib/bot-guides";
+import { BOT_EXAMPLES, BOT_GUIDE_PARAGRAPHS, BOT_PAGE_NOTES, BOT_PAGE_POSITIONING, type BotGuideKind } from "@/lib/bot-guides";
 
 export function ExampleBook({ kind = "headmaster" }: { kind?: BotGuideKind }) {
   const example = BOT_EXAMPLES[kind];
@@ -64,7 +65,13 @@ export function BotGuide({
           <p className="mt-4 text-lg leading-relaxed text-muted-foreground">{lede}</p>
           <div className="mt-8 grid gap-4 sm:grid-cols-2">
             {images.map((image) => (
-              <Image key={image.src} src={image.src} alt={image.alt} width={512} height={512} className="h-auto w-full rounded-2xl bg-background object-contain [mask-image:radial-gradient(circle_at_center,black_62%,transparent_72%)]" />
+              <Image key={image.src} src={image.src} alt={image.alt} width={512} height={512} className={cn(
+                "h-auto w-full rounded-2xl object-contain",
+                // Transparent WebP cut-outs need no mask (M-3); only the square artwork is softened.
+                image.src.endsWith(".webp")
+                  ? ""
+                  : "bg-background [mask-image:radial-gradient(circle_at_center,black_62%,transparent_72%)]"
+              )} />
             ))}
           </div>
           <div className="mt-8 space-y-4 text-sm leading-relaxed text-muted-foreground">
@@ -73,7 +80,14 @@ export function BotGuide({
             ))}
           </div>
           {extra}
-          <p className="mt-8 text-sm leading-relaxed text-muted-foreground">{BOT_PAGE_DISCLAIMER}</p>
+          <p className="mt-8 text-sm leading-relaxed text-muted-foreground">
+            {kind ? `${BOT_PAGE_NOTES[kind]} ` : null}
+            {BOT_PAGE_POSITIONING}{" "}
+            <Link href="/how-it-works" className="font-medium text-primary underline-offset-2 hover:underline">
+              How the paper book works
+            </Link>
+            .
+          </p>
           <ExampleBook kind={kind} />
           <p className="mt-8 text-sm">
             <Link href="/how-it-works" className="font-semibold text-primary underline-offset-2 hover:underline">

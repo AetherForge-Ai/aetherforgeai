@@ -34,7 +34,7 @@ type Proof = {
 };
 
 // One paper book, 7–8 Jul 2026. 1.98% is only the day's mark from
-// NZ$100,429.00 to NZ$102,421.30. The day's high is that last figure.
+// NZ$100,429.00 to NZ$102,421.30. The two-day high is that last figure.
 const PROOFS: Proof[] = [
   {
     src: PROOF_TRANSACTIONS_IMG,
@@ -54,8 +54,8 @@ const PROOFS: Proof[] = [
     badge: "7–8 Jul 2026",
     points: [
       "Cash, stocks (NZ$55,567.00), crypto (NZ$19,700.00) and metals (NZ$14,808.00) summed to NZ$100,429.00 on this paper book.",
-      "That figure is the start of the day used for the 1.98% mark-to-market change.",
-      "It is one session's paper mark, not a forecast.",
+      "That figure is the opening mark used for the 1.98% mark-to-market change.",
+      "It is a paper mark from the two-day sample (7 and 8 Jul), not a forecast.",
     ],
   },
   {
@@ -64,7 +64,7 @@ const PROOFS: Proof[] = [
     title: "About 30 minutes later — NZ$101,240.00",
     badge: "7–8 Jul 2026 · +30 min",
     points: [
-      "The same paper book was marked at NZ$101,240.00. This snapshot is not the day's high and it is not the 1.98% figure.",
+      "The same paper book was marked at NZ$101,240.00. This snapshot is not the two-day high and it is not the 1.98% figure.",
       "The screen shows one Sharpe reading of 0.15, with volatility 42.9% and a health score of 60/100.",
       "Those are labels on that screenshot. They are not a second return and not a claim about other platforms.",
     ],
@@ -76,40 +76,40 @@ const PROOFS: Proof[] = [
     badge: `7–8 Jul 2026 · ${PERFORMANCE_SAMPLE.afternoonTime}`,
     points: [
       "A later mark on the same paper book: NZ$101,645.00.",
-      "Still the same day, still short of the day's high.",
+      "Still within the two-day sample, and still short of its high.",
       "An intermediate mark only. It is not the 1.98% figure. 1.98% is only the change from NZ$100,429.00 to NZ$102,421.30.",
     ],
   },
   {
     src: PROOF_CLOSE_IMG,
-    alt: "Paper portfolio net worth NZ$101,931.77 on 8 Jul 2026 at 3:47 pm, before the day's high",
+    alt: "Paper portfolio net worth NZ$101,931.77 on 8 Jul 2026 at 3:47 pm, before the two-day high",
     title: "3:47 pm — NZ$101,931.77",
     badge: `8 Jul 2026 · ${PERFORMANCE_SAMPLE.laterTime}`,
     points: [
       "Net worth was marked at NZ$101,931.77, with unrealised profit of NZ$1,836.51 shown on the stock book.",
-      "This is an earlier reading. It is not the highest mark of the day.",
-      "The day's high comes on the next screenshot.",
+      "This is an earlier reading. It is not the highest mark of the two days.",
+      "The high of the two days comes on the next screenshot.",
     ],
   },
   {
     src: PROOF_OVERVIEW_IMG,
-    alt: "Paper portfolio day's high of NZ$102,421.30 on 7–8 Jul 2026",
-    title: "Day's high — NZ$102,421.30",
-    badge: "7–8 Jul 2026 · late session",
+    alt: "Paper portfolio two-day high of NZ$102,421.30 on 8 Jul 2026",
+    title: "Two-day high — NZ$102,421.30",
+    badge: "8 Jul 2026 · late afternoon",
     points: [
-      "The highest mark that day was NZ$102,421.30. The stock book on this screen was NZ$57,331.02.",
+      "The highest mark across the two days was NZ$102,421.30. The stock book on this screen was NZ$57,331.02.",
       PERFORMANCE_SAMPLE.definition,
-      "It is one paper day. It is not a forecast and not a claim that AetherForge beats every platform.",
+      "It is a two-day paper sample. It is not a forecast and not a claim that AetherForge beats every platform.",
     ],
   },
   {
     src: PROOF_HOLDINGS_IMG,
-    alt: "Paper portfolio holdings table from 7–8 Jul 2026 at the day's high of NZ$102,421.30",
-    title: "Holdings at the day's high",
-    badge: "7–8 Jul 2026 · late session",
+    alt: "Paper portfolio holdings table from 7–8 Jul 2026 at the two-day high of NZ$102,421.30",
+    title: "Holdings at the two-day high",
+    badge: "8 Jul 2026 · late afternoon",
     points: [
       "The holdings table is the same paper book at the NZ$102,421.30 high.",
-      "Each line shows ticker, units, cost and the mark used that session.",
+      "Each line shows ticker, units, cost and the mark used at that time.",
       "Nothing here was sent to a broker.",
     ],
   },
