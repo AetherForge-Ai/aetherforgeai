@@ -683,3 +683,4 @@ Must-fix batch 7 (TT b6 retest: CR-2 CR-5 H-5 H-13 M-3 M-6): marker `pull-check:
 - Goal loop batch b11 (CR-1 checkout auth + test mode, CR-2/CR-5 IPv6 /64 + per-email, CR-6 dryRun, H-13 allow-list, G-10 G-11 G-14 G-15 G-17, local signed-in harness): marker `pull-check:v3-goal-b11-2026-10-18`
 - Goal loop batch b12 (M-1 measure, M-2 docs screenshots, M-6 holdings fit, G-01 aggregates + yield, G-02 Performance panel, Starter cap wording, H-5 date fallback, avatar label): marker `pull-check:v3-goal-b12-2026-10-18`
 - pull-check:v3-goal-b13-2026-10-18 — b13: CR-2 backends header, G-10 optimistic delete/snapshot, M-6 actions menu, H-4 server quota, H-12 HOLD/directives, G-02 snapshot deposit, G-17 DEX gate/dedupe/stale crypto.
+- Goal b14 (G-10 ledger line + cache, H-4 server quota strip, crypto attempt log, M-2, CR-2 table codes, G-01, H-12): marker `pull-check:v3-goal-b14-2026-10-18`

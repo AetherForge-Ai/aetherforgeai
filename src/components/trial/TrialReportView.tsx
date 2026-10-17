@@ -292,7 +292,7 @@ export function TrialReportView({
         {report.portfolio && (
           <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Stat label="Portfolio value" value={fmtPrice(report.portfolio.value)} />
-            <Stat label="Cost basis" value={fmtPrice(report.portfolio.cost)} />
+            <Stat label="Cost incl. brokerage fees" value={fmtPrice(report.portfolio.cost)} />
             <Stat label="Unrealised P&L" value={`${report.portfolio.pnl >= 0 ? "+" : ""}${fmtPrice(report.portfolio.pnl)}`} tone={report.portfolio.pnl} />
             <Stat label="Return" value={fmtPct(report.portfolio.pnlPct)} tone={report.portfolio.pnlPct} />
           </div>
