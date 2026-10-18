@@ -14,10 +14,12 @@ const DevToolsHandler = dynamic(() => import("@/components/DevToolsHandler").the
  * dev-only. Production pages do not download them, and they do not wrap fetch.
  */
 export function DevOnlyTools() {
-  if (process.env.NODE_ENV === "production") return null;
+  // b28 review: ScriptExecutor already does nothing in production, so it is skipped there.
+  // DevToolsHandler has no production guard and may serve the Totalum editor, so it stays
+  // mounted (lazily, off the first bundle) exactly as before.
   return (
     <>
-      <ScriptExecutor />
+      {process.env.NODE_ENV === "production" ? null : <ScriptExecutor />}
       <DevToolsHandler />
     </>
   );

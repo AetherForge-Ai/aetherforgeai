@@ -30,14 +30,16 @@ const sora = localFont({
   src: "./fonts/sora-latin.woff2",
   variable: "--font-display",
   weight: "500 800",
-  display: "optional",
+  // b28 review: swap, not optional. With preload off, "optional" left headings on the fallback
+  // face for a whole first visit. next/font's metric-matched fallback keeps the swap shift small.
+  display: "swap",
   preload: false,
 });
 const manrope = localFont({
   src: "./fonts/manrope-latin.woff2",
   variable: "--font-body",
   weight: "400 700",
-  display: "optional",
+  display: "swap",
 });
 const jetbrainsMono = localFont({
   src: "./fonts/jetbrains-mono-latin.woff2",
@@ -100,6 +102,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const nonce = headerList.get("x-nonce") ?? undefined;
   return (
     <html lang="en-NZ">
+      <head>
+        {/* b28 review: the hero heading face is still preloaded (now the 23 KB woff2), so it lands with the HTML. */}
+        <link rel="preload" href="/fonts/grift/grift-black.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
+      </head>
       <body
         className={`${sora.variable} ${manrope.variable} ${jetbrainsMono.variable} font-sans antialiased`}
       >

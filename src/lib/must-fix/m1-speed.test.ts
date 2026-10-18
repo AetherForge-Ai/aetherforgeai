@@ -11,17 +11,17 @@ describe("M-1 page speed", () => {
   it("preloads only the body face and does not block paint on a late font", () => {
     const layout = read("src/app/layout.tsx");
     expect(layout).toMatch(/manrope-latin\.woff2/);
-    expect(layout).toMatch(/display:\s*"optional"/);
+    expect(layout).toMatch(/display:\s*"swap"/); // b28 review: fonts must render on a first visit
     expect(layout).not.toMatch(/grift-black\.otf/);
     const sora = layout.slice(layout.indexOf("sora-latin.woff2"), layout.indexOf("manrope-latin.woff2"));
     expect(sora).toMatch(/preload:\s*false/);
   });
 
-  it("serves Grift as woff2 with font-display optional", () => {
+  it("serves Grift as woff2 with font-display swap", () => {
     const css = read("src/app/globals.css");
     expect(css).toMatch(/grift-black\.woff2/);
     expect(css).toMatch(/grift-regular\.woff2/);
-    expect(css).toMatch(/font-display:\s*optional/);
+    expect(css).toMatch(/font-display:\s*swap/);
   });
 
   it("does not put the home guide or the signed-in coach in the first guest bundle", () => {

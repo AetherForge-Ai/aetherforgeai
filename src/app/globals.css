@@ -10,7 +10,7 @@
        url("/fonts/grift/grift-regular.ttf") format("truetype");
   font-weight: 400;
   font-style: normal;
-  font-display: optional;
+  font-display: swap;
 }
 @font-face {
   font-family: "Grift";
@@ -19,7 +19,7 @@
        url("/fonts/grift/grift-black.ttf") format("truetype");
   font-weight: 900;
   font-style: normal;
-  font-display: optional;
+  font-display: swap;
 }
 
 @custom-variant dark (&:is(.dark *));
