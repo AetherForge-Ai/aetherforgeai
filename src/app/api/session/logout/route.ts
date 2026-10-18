@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
-import { forgetCachedSessionToken } from "@/lib/session";
-import { markSessionTokenRevoked } from "@/lib/session-revocation";
+import { forgetCachedSessionToken, revokeTokenEverywhere } from "@/lib/session";
 import { cookieValue, verifySignedSessionToken } from "@/lib/session-token";
 import { applyExpiredAuthCookies, expireAuthCookies } from "@/lib/session-cookies";
 
@@ -21,9 +20,12 @@ export async function POST() {
     const raw = cookieValue(headerList.get("cookie"), ctx.authCookies.sessionToken.name);
     if (raw) {
       const token = await verifySignedSessionToken(raw, ctx.secret);
-      forgetCachedSessionToken(token);
-      // b41 P1: every isolate rejects this token from now on, even from its session cache.
-      await markSessionTokenRevoked(token);
+      if (token) {
+        forgetCachedSessionToken(token);
+        // b41/b42 P1: marker for every isolate, then the Totalum session row is deleted, before the
+        // response (which expires every auth cookie, af_ls included) is sent.
+        await revokeTokenEverywhere(ctx, token);
+      }
     }
   } catch {
     // best effort

@@ -1,4 +1,4 @@
-// pull-check:v3-goal-b41-2026-10-19
+// b41 goal test (version guard moved to goal-b42)
 import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -43,7 +43,7 @@ describe("b41 P1: Sign out cannot be cancelled by a fast navigation", () => {
     const at = session.indexOf("await isSessionTokenRevoked(token)");
     expect(at).toBeGreaterThan(0);
     expect(at).toBeLessThan(session.indexOf("sessionCache.get(key)"));
-    expect(read("src/app/api/session/logout/route.ts")).toMatch(/await markSessionTokenRevoked\(token\)/);
+    expect(read("src/app/api/session/logout/route.ts")).toMatch(/await revokeTokenEverywhere\(ctx, token\)/);
     expect(AUTH_COOKIE_NAMES).toContain("af_ls");
   });
 

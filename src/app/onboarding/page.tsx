@@ -17,7 +17,7 @@ export const metadata = {
 
 /** Deep link for the paper-book checklist. Signed-out visits go to login. */
 export default async function OnboardingPage() {
-  const user = await getCurrentUser();
+  const user = await getCurrentUser({ fresh: true });
   if (!user) redirect("/login?redirect=/onboarding");
 
   return (

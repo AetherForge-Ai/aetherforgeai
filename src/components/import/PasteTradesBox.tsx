@@ -20,8 +20,13 @@ type Rates = Readonly<Record<string, number>>;
 function heldTickersFromBook(userId: string | null | undefined): Set<string> | null {
   const book = readCachedBook(userId);
   if (!book) return null;
+  return heldTickersFromRows(book.stocks as Array<Record<string, unknown>>);
+}
+
+/** b42 P3: tickers with a positive quantity, from the cached book or GET /api/stocks rows. */
+export function heldTickersFromRows(rows: ReadonlyArray<Record<string, unknown>>): Set<string> {
   const out = new Set<string>();
-  for (const s of book.stocks as Array<Record<string, unknown>>) {
+  for (const s of rows) {
     const t = String(s?.ticker ?? s?.symbol ?? "").toUpperCase();
     const qty = Number(s?.shares ?? s?.quantity ?? 1);
     if (t && qty > 0) out.add(t);
@@ -139,7 +144,25 @@ export function PasteTradesBox({
   const [rows, setRows] = useState<PastedRow[]>([]);
   const [rowDates, setRowDates] = useState<Record<number, string>>({});
   const [rates, setRates] = useState<Rates | null>(null);
-  const held = useMemo(() => (heldProp !== undefined ? heldProp : heldTickersFromBook(user?.id)), [heldProp, user?.id]);
+  const bookHeld = useMemo(() => (heldProp !== undefined ? heldProp : heldTickersFromBook(user?.id)), [heldProp, user?.id]);
+  // b42 P3: no cached book on this device: fetch the holdings, so a sell you don't hold is flagged here.
+  const [fetchedHeld, setFetchedHeld] = useState<Set<string> | null>(null);
+  const held = bookHeld ?? fetchedHeld;
+  const needHoldings = bookHeld == null && fetchedHeld == null && Boolean(user?.id) && rows.some((r) => r.type === "Sell");
+  useEffect(() => {
+    if (!needHoldings) return;
+    let live = true;
+    api
+      .get<Array<Record<string, unknown>>>("/api/stocks")
+      .then((res) => {
+        if (!live || !res.ok || !Array.isArray(res.data)) return;
+        setFetchedHeld(heldTickersFromRows(res.data));
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [needHoldings]);
   const missing = rows.filter((r, i) => !r.date && !rowDates[i]).length;
 
   useEffect(() => {
@@ -218,7 +241,7 @@ export function PasteTradesBox({
             idPrefix={idPrefix}
           />
           {rows.some((r) => r.type === "Sell") && held == null ? (
-            <p className="mt-1 text-xs text-muted-foreground">Holdings are checked on the next step; a sell of a ticker you do not hold is flagged there.</p>
+            <p className="mt-1 text-xs text-muted-foreground">Checking your holdings… a sell of a ticker you do not hold is flagged here and on the next step.</p>
           ) : null}
           <button
             type="button"
