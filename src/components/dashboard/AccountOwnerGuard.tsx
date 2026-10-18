@@ -4,7 +4,7 @@ import { ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Lock } from "lucide-react";
-import { alignTradeSession, confirmPageSession } from "@/lib/auth-refresh";
+import { alignTradeSession, confirmPageSessionStrict as confirmPageSession } from "@/lib/auth-refresh";
 import { bindActiveAccount } from "@/lib/account-identity";
 import { accountPaintDecision, type AccountPaint } from "@/lib/session-owner";
 import { GuestDashboardGate } from "@/components/dashboard/GuestDashboardGate";
@@ -48,8 +48,8 @@ function SessionSlowNotice({ onRetry }: { onRetry: () => void }) {
   return (
     <div className="flex min-h-[40vh] items-center justify-center px-4 py-16" role="alert">
       <div className="w-full max-w-md rounded-3xl border border-border/70 bg-card/80 px-6 py-8 text-center">
-        <p className="text-base font-semibold">Checking this browser session took longer than 5 seconds.</p>
-        <p className="mt-2 text-sm text-muted-foreground">Your paper book is safe. Try again, or refresh the page.</p>
+        <p className="text-base font-semibold">We could not confirm this browser session just now.</p>
+        <p className="mt-2 text-sm text-muted-foreground">You are still signed in and your paper book is safe. Try again in a moment.</p>
         <div className="mt-6 flex justify-center">
           <Button type="button" onClick={onRetry}>Try again</Button>
         </div>
@@ -165,6 +165,9 @@ export function AccountOwnerGuard({
         console.warn("[session] browser session check exceeded 5 s");
         setPhase("slow");
       }
+    }, () => {
+      // b27 H-4: the store could not confirm the session; retry, never sign out.
+      if (!cancelled) setPhase("slow");
     });
     return () => {
       cancelled = true;
@@ -220,6 +223,8 @@ export function DashboardSessionRecovery({ children }: { children: ReactNode }) 
         console.warn("[session] browser session recovery exceeded 5 s");
         setPhase("slow");
       }
+    }, () => {
+      if (!cancelled) setPhase("slow");
     });
     return () => {
       cancelled = true;

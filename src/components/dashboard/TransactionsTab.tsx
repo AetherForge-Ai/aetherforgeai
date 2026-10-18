@@ -241,7 +241,7 @@ export function TransactionsTab({
                         >
                           Edit
                         </Button>
-                        {line.type === "dividend" || line.type === "deposit" || line.type === "withdrawal" || (onEditTrade && isTradeLine(line)) ? (
+                        {line.type === "dividend" || line.type === "deposit" || line.type === "withdraw" || line.type === "withdrawal" || (onEditTrade && isTradeLine(line)) ? (
                           <Button type="button" size="sm" variant="outline" aria-label={`Delete ${line.type} ${line.ticker}`} onClick={() => setPending(line)}>
                             Delete
                           </Button>
@@ -286,7 +286,7 @@ export function TransactionsTab({
       <AlertDialog open={pending != null} onOpenChange={(open) => !open && !busy && setPending(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{pending && isTradeLine(pending) ? `Remove this ${pending.type}?` : "Remove this dividend?"}</AlertDialogTitle>
+            <AlertDialogTitle>{pending ? `Remove this ${pending.type}?` : "Remove this row?"}</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm text-muted-foreground">
                 {pending && isTradeLine(pending) ? (

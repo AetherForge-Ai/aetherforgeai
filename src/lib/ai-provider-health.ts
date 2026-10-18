@@ -1,5 +1,5 @@
 import { formatDisplayDateTime } from "@/lib/currency";
-import { XAI_CHAT_ENDPOINT, guideModel, lastGuideFailure } from "@/lib/grok";
+import { XAI_CHAT_ENDPOINT, guideModel, lastGuideFailure, xaiErrorSummary } from "@/lib/grok";
 
 /**
  * Goal b8 CR-2 / K-10: a key-free health check of the AI guide provider for /status.
@@ -14,7 +14,7 @@ export const AI_HEALTH_TTL_MS = 5 * 60 * 1000;
 
 export type AiProviderHealth =
   | { state: "ok"; checkedAt: string; model?: string }
-  | { state: "unavailable"; code: string; checkedAt: string; model?: string; endpoint?: string }
+  | { state: "unavailable"; code: string; checkedAt: string; model?: string; endpoint?: string; providerCode?: string }
   | { state: "not_configured"; checkedAt: string };
 
 let cached: { at: number; value: AiProviderHealth } | null = null;
@@ -42,10 +42,12 @@ export async function aiProviderHealth(
         body: JSON.stringify({ model, messages: [{ role: "user", content: "ping" }], max_tokens: 1, stream: false }),
         signal: AbortSignal.timeout(6000),
       });
+      // b27 CR-2: read the provider's error code from the body (never the key) for /status.
+      const errBody = res.ok ? null : xaiErrorSummary(res.status, await res.text().catch(() => ""));
       value = res.ok
         ? { state: "ok", checkedAt, model }
-        : { state: "unavailable", code: `http_${res.status}`, checkedAt, model, endpoint: XAI_CHAT_ENDPOINT };
-      if (!res.ok) console.warn(`[ai-health] guide probe failed model=${model} endpoint=${XAI_CHAT_ENDPOINT} code=http_${res.status}`);
+        : { state: "unavailable", code: `http_${res.status}`, checkedAt, model, endpoint: XAI_CHAT_ENDPOINT, providerCode: errBody?.code || undefined };
+      if (errBody) console.warn(`[ai-health] guide probe failed model=${model} endpoint=${XAI_CHAT_ENDPOINT} status=${errBody.status} error.code=${errBody.code || "-"} error.message=${errBody.message || "-"}`);
     } catch (err) {
       const timedOut = err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError");
       value = { state: "unavailable", code: timedOut ? "timeout" : "network", checkedAt };
@@ -63,5 +65,6 @@ export function aiProviderStatusLine(h: AiProviderHealth): { body: string; tone?
   if (h.state === "ok") return { body: `OK${h.model ? ` (model ${h.model})` : ""}, checked ${when}.${lastFail}`, ...(fail ? { tone: "amber" as const } : {}) };
   if (h.state === "not_configured") return { body: `Not configured, checked ${when}. The guide answers from built-in help.`, tone: "amber" };
   const where = h.model ? ` from model ${h.model} at ${h.endpoint ?? XAI_CHAT_ENDPOINT}` : "";
-  return { body: `Unavailable (${h.code})${where}, checked ${when}. The guide answers from built-in help until this is fixed.${lastFail}`, tone: "amber" };
+  const provider = (h as { providerCode?: string }).providerCode ? `; provider error code ${(h as { providerCode?: string }).providerCode}` : "";
+  return { body: `Unavailable (${h.code})${where}${provider}, checked ${when}. The guide answers from built-in help until this is fixed.${lastFail}`, tone: "amber" };
 }

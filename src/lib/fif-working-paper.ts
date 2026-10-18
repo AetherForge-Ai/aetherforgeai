@@ -14,6 +14,14 @@ import { inNzTaxYear, nzTaxYearLabel } from "@/lib/nz-tax-year";
 import type { TaxLedgerRow } from "@/lib/taxable-income";
 
 export const FIF_COST_THRESHOLD_NZD = 50000;
+/**
+ * b27 H-9: the de minimis threshold is config (FIF_THRESHOLD_NZD), defaulting to NZ$50,000,
+ * so a law change does not need a code change. Bad or non-positive values fall back to the default.
+ */
+export function fifThresholdNzd(env: Record<string, string | undefined> = process.env): number {
+  const n = Number(env.FIF_THRESHOLD_NZD);
+  return Number.isFinite(n) && n > 0 ? n : FIF_COST_THRESHOLD_NZD;
+}
 
 export const FIF_SOURCES = [
   {
@@ -203,8 +211,9 @@ export function comparativeValue(input: {
 
 export function fifThreshold(peakCostNzd: number | null): FifThreshold {
   if (peakCostNzd == null) return "unknown";
-  if (peakCostNzd < FIF_COST_THRESHOLD_NZD) return "under";
-  if (peakCostNzd === FIF_COST_THRESHOLD_NZD) return "at-limit";
+  const threshold = fifThresholdNzd();
+  if (peakCostNzd < threshold) return "under";
+  if (peakCostNzd === threshold) return "at-limit";
   return "over";
 }
 

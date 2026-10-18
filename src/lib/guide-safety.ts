@@ -38,6 +38,21 @@ export function isPersonalisedAdviceRequest(message: string): boolean {
   return ADVICE_REQUEST.test(message || "");
 }
 
+/**
+ * b27 CR-2: share-pick questions for the signed-in Assistant, decided before any model call.
+ * Covers the general advice pattern plus NZX/ASX-specific asks such as "best NZX shares right now",
+ * "which NZ stocks will go up", "top 5 NZX picks" or "give me a share tip".
+ */
+const SHARE_PICK =
+  /\b(best|top|good|hot|cheap|undervalued)\b[^.?!]{0,30}\b(nzx|asx|nz|new zealand|kiwi|aussie|australian)?\s*(share|shares|stock|stocks|pick|picks|company|companies)\b|\b(nzx|asx)\b[^.?!]{0,40}\b(pick|picks|tip|tips|buy|sell|go up|rise|moon|winner|winners|recommend)\b|\b(share|stock)\s+(tip|tips|pick|picks)\b|\brecommend\b[^.?!]{0,40}\b(share|shares|stock|stocks|nzx|asx)\b|\bwhich\b[^.?!]{0,40}\b(share|shares|stock|stocks)\b[^.?!]{0,40}\b(go up|rise|outperform|double)\b/i;
+export function isSharePickRequest(message: string): boolean {
+  const m = message || "";
+  return isPersonalisedAdviceRequest(m) || SHARE_PICK.test(m);
+}
+export const ASSISTANT_SHARE_PICK_REPLY =
+  "I can't pick NZX or other shares for you, or say what to buy, sell or hold. That would be personalised financial advice, and AetherForge gives general information only. " +
+  "I can explain what is on your book, how a figure was worked out, or what a term means. For advice about your own situation, talk to a licensed financial adviser.";
+
 export const GENERAL_INFORMATION_REPLY =
   "I can't tell you what to buy or sell. That would be personalised financial advice, and AetherForge gives general information only. " +
   "What I can do is explain how the site works: you can track shares, crypto and metals in a portfolio tracker with a paper-trading book, " +

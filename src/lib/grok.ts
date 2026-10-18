@@ -27,6 +27,29 @@ export class GrokError extends Error {
   }
 }
 
+/**
+ * b27 CR-2: the provider's error body as a short, key-free summary (status, error code, message).
+ * xAI answers {"code": "...", "error": "..."} or {"error": {"code","message"}}.
+ */
+export function xaiErrorSummary(status: number, body: string): { status: number; code: string; message: string } {
+  let code = "";
+  let message = "";
+  try {
+    const j = JSON.parse(body) as { code?: unknown; error?: unknown; message?: unknown };
+    const e = j.error;
+    if (e && typeof e === "object") {
+      code = String((e as { code?: unknown; type?: unknown }).code ?? (e as { type?: unknown }).type ?? "");
+      message = String((e as { message?: unknown }).message ?? "");
+    } else {
+      code = String(j.code ?? "");
+      message = String(e ?? j.message ?? "");
+    }
+  } catch {
+    message = body;
+  }
+  return { status, code: redactSecrets(code).slice(0, 60), message: redactSecrets(message).replace(/\s+/g, " ").slice(0, 200) };
+}
+
 /** Strip anything that looks like a key or bearer token before logging. */
 export function redactSecrets(text: string): string {
   return text
@@ -62,10 +85,15 @@ export function guideModel(): string {
 }
 
 /** b25 CR-2: the last guide failure (model, endpoint, code; never the key), shown on /status. */
-let guideFailure: { at: string; model: string; endpoint: string; code: string } | null = null;
+let guideFailure: { at: string; model: string; endpoint: string; code: string; providerCode?: string } | null = null;
+/** b27 CR-2: the last provider error body seen by any AI call on this server (key-free). */
+let lastProviderError: { status: number; code: string; message: string } | null = null;
+export function lastXaiError() {
+  return lastProviderError;
+}
 export function noteGuideFailure(model: string, code: string): void {
-  guideFailure = { at: new Date().toISOString(), model, endpoint: XAI_CHAT_ENDPOINT, code };
-  console.warn(`[grok] guide failure model=${model} endpoint=${XAI_CHAT_ENDPOINT} code=${code}`);
+  guideFailure = { at: new Date().toISOString(), model, endpoint: XAI_CHAT_ENDPOINT, code, providerCode: lastProviderError?.code || undefined };
+  console.warn(`[grok] guide failure model=${model} endpoint=${XAI_CHAT_ENDPOINT} code=${code}${lastProviderError ? ` provider_status=${lastProviderError.status} provider_code=${lastProviderError.code || "-"} provider_message=${lastProviderError.message}` : ""}`);
 }
 export function lastGuideFailure() {
   return guideFailure;
@@ -165,7 +193,8 @@ export async function createGrokChatCompletion({
 
   if (!res.ok) {
     const errText = await res.text().catch(() => "");
-    console.error(`[grok] API error ${res.status} (model=${resolvedModel}): ${redactSecrets(errText).slice(0, 300)}`);
+    lastProviderError = xaiErrorSummary(res.status, errText);
+    console.error(`[grok] API error status=${res.status} model=${resolvedModel} endpoint=${XAI_CHAT_ENDPOINT} error.code=${lastProviderError.code || "-"} error.message=${lastProviderError.message || "-"}`);
     throw new GrokError("AI request failed. Try again in a moment.", `http_${res.status}`);
   }
 

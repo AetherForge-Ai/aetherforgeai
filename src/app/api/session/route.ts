@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { PRIVATE_NO_STORE_HEADERS } from "@/lib/account-guard";
-import { getStableSessionUser, hasPaidSubscription, isStripeConfigured } from "@/lib/session";
+import { getSessionState, hasPaidSubscription, isStripeConfigured } from "@/lib/session";
 import { resolveDisplayName, resolveGreetingName } from "@/lib/user-display";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +19,11 @@ function botAccess(value: unknown): "stock" | "crypto" | "both" | "none" {
  * The body is private and must not be stored by a shared CDN.
  */
 export async function GET() {
-  const user = await getStableSessionUser();
+  const { user, unavailable } = await getSessionState();
+  if (unavailable) {
+    // b27 H-4: a slow or failed store read is not a sign-out. The browser retries.
+    return NextResponse.json({ user: null, unavailable: true }, { status: 503, headers: { ...PRIVATE_NO_STORE_HEADERS, "Retry-After": "1" } });
+  }
   if (!user) {
     return NextResponse.json({ user: null }, { headers: PRIVATE_NO_STORE_HEADERS });
   }
