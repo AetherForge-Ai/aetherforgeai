@@ -106,11 +106,12 @@ interface RawStory {
   marketHint?: MarketCode | "Global";
 }
 
-function inferMarket(text: string, fallback: MarketCode | "Global" = "Global"): MarketCode | "Global" {
+export function inferMarket(text: string, fallback: MarketCode | "Global" = "Global"): MarketCode | "Global" {
   const t = text.toLowerCase();
   if (/\b(bitcoin|ethereum|crypto|blockchain|defi|stablecoin|btc|eth|solana)\b/.test(t)) return "CRYPTO";
-  if (/\b(nzx|rbnz|new zealand|auckland|wellington|fonterra|kiwibank|ocr)\b/.test(t)) return "NZX";
-  if (/\b(asx|rba|australia|sydney|melbourne|bhp|cba|woodside|iron.?ore)\b/.test(t)) return "ASX";
+  if (/\b(nzx|rbnz|new zealand|auckland|wellington|fonterra|kiwibank|ocr|kiwisaver|stats nz)\b/.test(t)) return "NZX";
+  // Goal b20 H-13: ASX-listed companies (e.g. PLS Group, formerly Pilbara Minerals) count as ASX, not Global.
+  if (/\b(asx|rba|australia|australian|sydney|melbourne|perth|bhp|cba|woodside|iron.?ore|pls group|pilbara|wesfarmers|fortescue|rio tinto|westpac|commonwealth bank)\b/.test(t)) return "ASX";
   if (/\b(nasdaq|dow|s&p|wall street|federal reserve|fomc|nyse|nvidia|apple|treasury)\b/.test(t))
     return "US";
   return fallback;
@@ -250,7 +251,11 @@ function toNewsItem(raw: RawStory, assetClass: AssetClass): NewsItem | null {
   const summary = decodeHtmlEntities(raw.summary || raw.headline);
   const source = decodeHtmlEntities(raw.source);
   const blob = `${headline} ${summary}`;
-  const market = raw.marketHint ?? inferMarket(blob, assetClass === "crypto" ? "CRYPTO" : "Global");
+  // Goal b20 H-13: a feed-level "Global" hint is only a fallback; the story's own words decide first.
+  const market =
+    raw.marketHint && raw.marketHint !== "Global"
+      ? raw.marketHint
+      : inferMarket(blob, raw.marketHint ?? (assetClass === "crypto" ? "CRYPTO" : "Global"));
   if (assetClass !== "crypto" && !isNewsRelevant({ headline, summary, market, source })) return null;
   const { sentiment } = keywordSentiment(headline, summary === headline ? "" : summary);
   const url = raw.url;

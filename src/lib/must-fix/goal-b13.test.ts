@@ -11,7 +11,7 @@ const read = (p: string) => readFileSync(p, "utf8");
 
 describe("b13 pins", () => {
   it("build version", () => {
-    expect(read("public/build-version.txt").trim()).toMatch(/^v3-goal-b1[3-9]-/);
+    expect(read("public/build-version.txt").trim()).toMatch(/^v3-goal-b(1[3-9]|[2-9][0-9])-/);
   });
 });
 

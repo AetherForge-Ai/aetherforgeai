@@ -224,8 +224,9 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  // Login redirect only for real member routes. Anything else is a 404.
-  if (access === "member") {
+  if (access === "test-hooks") {
+    if (signedIn && process.env.GOAL_TEST_HOOKS === "1") return response;
+  } else if (access === "member") {
     if (!signedIn) {
       const loginUrl = new URL("/login", request.url);
       loginUrl.searchParams.set("redirect", pathname);

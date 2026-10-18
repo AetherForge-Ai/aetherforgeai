@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { publicTickerPaths } from "@/lib/sitemap-tickers";
+import { COMPARISONS, GUIDES } from "@/data/learn-content";
 
 const siteUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.aetherforgeai.co.nz";
 
@@ -58,5 +59,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
     changeFrequency: "weekly" as const,
     priority: 0.5,
   }));
-  return [...pages, ...tickers];
+  // Goal b20 G-23: learn hub, guides and comparison pages.
+  const learn = ["/learn", ...GUIDES.map((g) => `/learn/${g.slug}`), ...COMPARISONS.map((c) => `/compare/${c.slug}`)].map((path) => ({
+    url: `${siteUrl}${path}`,
+    lastModified: "2026-10-18",
+    changeFrequency: "monthly" as const,
+    priority: 0.5,
+  }));
+  return [...pages, ...learn, ...tickers];
 }
