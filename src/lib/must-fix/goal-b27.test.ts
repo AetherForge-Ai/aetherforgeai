@@ -1,3 +1,4 @@
+// pull-check:v3-goal-b27-2026-10-19
 import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 import { readFileSync } from "node:fs";
@@ -70,5 +71,12 @@ describe("b27 H-9 FIF threshold config", () => {
     expect(fifThresholdNzd({})).toBe(50000);
     expect(fifThresholdNzd({ FIF_THRESHOLD_NZD: "75000" })).toBe(75000);
     expect(fifThresholdNzd({ FIF_THRESHOLD_NZD: "-1" })).toBe(50000);
+  });
+});
+
+describe("b27 version bump", () => {
+  it("pins the build everywhere", () => {
+    expect(read("public/build-version.txt").trim()).toBe("v3-goal-b27-2026-10-19");
+    expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-goal-b27-2026-10-19");
   });
 });
