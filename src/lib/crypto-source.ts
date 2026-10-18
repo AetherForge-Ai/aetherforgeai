@@ -10,6 +10,8 @@
  * Fallback paths remap via canonicalCryptoId.
  */
 
+import { keepAlive } from "@/lib/keep-alive.server";
+import { flushCryptoAttempt, recordCryptoAttempt } from "@/lib/crypto-attempts";
 import "server-only";
 import * as swyftx from "@/lib/crypto-swyftx";
 import * as coingecko from "@/lib/crypto-coingecko";
@@ -395,16 +397,24 @@ export async function loadTop400Markets(): Promise<RankedCryptoPage> {
   if (board.coins.length && (board.delayed || cryptoListOlderThan(board.at, CRYPTO_REQUEST_REFRESH_MS))) {
     if (!cryptoRequestRefresh) {
       cryptoRequestRefresh = refreshMarketSnapshotsNow()
+        // b24 G-05: the crypto-list attempt is recorded inside the seed as soon as the list is saved.
         .then(() => undefined)
-        .catch(() => undefined)
+        .catch((err) => {
+          recordCryptoAttempt(false, err);
+        })
         .finally(() => {
           cryptoRequestRefresh = null;
         });
+      // b24 G-05: /api/crypto/markets is the list's real data path. Keep the refresh alive
+      // past the response (Workers cancel detached promises) and log which way it ran.
+      const how = await keepAlive(cryptoRequestRefresh.then(() => flushCryptoAttempt(2_000)));
+      console.log(`[crypto-list] refresh started (age>${Math.round(CRYPTO_REQUEST_REFRESH_MS / 60000)}m, ${how})`);
     }
     await Promise.race([
       cryptoRequestRefresh,
       new Promise<void>((resolve) => setTimeout(resolve, 1_500)),
     ]);
+    await flushCryptoAttempt();
     const fresh = await readSharedCryptoBoard({ seed: false });
     if (fresh.coins.length) {
       return {

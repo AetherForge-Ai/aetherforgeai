@@ -6,7 +6,7 @@ const { open, sleep } = require("./cdp.cjs");
   await b.send("Emulation.setDeviceMetricsOverride", { width: 1400, height: 1000, deviceScaleFactor: 1, mobile: false });
   await b.send("Network.setCookie", { name: "af_cookie_consent", value: "declined", url: "http://localhost:3917/" });
   await b.send("Page.navigate", { url: "http://localhost:3917/login" }); await sleep(3000);
-  await b.ev(`fetch("/api/auth/sign-in/email",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email:${JSON.stringify(process.env.LOGIN_EMAIL)},password:"Harness-Pass-123!"})}).then(r=>r.status)`);
+  await b.ev(`fetch("/api/auth/sign-in/email",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email:${JSON.stringify(process.env.LOGIN_EMAIL)},password:${JSON.stringify(process.env.FIXTURE_PASSWORD||"")}})}).then(r=>r.status)`);
   await b.send("Page.navigate", { url: "http://localhost:3917/dashboard/transactions" }); await sleep(9000);
   const probe = `(()=>{const t=[...document.querySelectorAll("table")].find(t=>/Ledger from the portfolio snapshot/.test(t.innerText));const n=t?t.querySelectorAll("tbody tr").length:-1;const c=[...document.querySelectorAll("*")].find(e=>e.children.length<4&&/^CASH/i.test(e.textContent.trim())&&/NZ\\$/.test(e.textContent));return JSON.stringify({n,cash:c?c.textContent.replace(/\\s+/g," ").slice(0,30):null})})()`;
   console.log("before", await b.ev(probe));

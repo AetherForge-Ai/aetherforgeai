@@ -4,7 +4,7 @@ const OUT = __dirname + "/shots-b15";
   const b = await open(9341);
   await b.send("Page.enable");
   await b.send("Page.navigate", { url: "http://localhost:3917/login" }); await sleep(3000);
-  console.log("login", await b.ev(`fetch("/api/auth/sign-in/email",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email:"m6-b15@example.test",password:"Harness-Pass-123!"})}).then(r=>r.status)`));
+  console.log("login", await b.ev(`fetch("/api/auth/sign-in/email",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email:"m6-b15@example.test",password:${JSON.stringify(process.env.FIXTURE_PASSWORD||"")}})}).then(r=>r.status)`));
   for (const w of [1032, 1280, 1440, 1920, 360]) {
     await b.send("Emulation.setDeviceMetricsOverride", { width: w, height: 1100, deviceScaleFactor: 1, mobile: w < 768 });
     await b.send("Page.navigate", { url: "http://localhost:3917/dashboard" }); await sleep(9000);

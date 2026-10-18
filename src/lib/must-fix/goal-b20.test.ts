@@ -17,7 +17,7 @@ describe("Goal b20", () => {
     const on = { GOAL_TEST_HOOKS: "1" };
     expect(testHooksAllowedFor({ _id: "u1", email: "a@example.invalid" }, {})).toBe(false);
     expect(testHooksAllowedFor({ _id: "u1", email: "a@example.invalid" }, { GOAL_TEST_HOOKS: "0" })).toBe(false);
-    expect(testHooksAllowedFor({ _id: "u1", email: "a@example.invalid" }, on)).toBe(true);
+    expect(testHooksAllowedFor({ _id: "u1", email: "a@example.invalid" }, on)).toBe(false); // b24: no domain allow-list
     expect(testHooksAllowedFor({ _id: "u1", email: "member@gmail.com" }, on)).toBe(false);
     expect(testHooksAllowedFor({ _id: "u1", email: "a@evil-example.invalid.com" }, on)).toBe(false);
     expect(testHooksAllowedFor({ _id: "u9", email: "member@gmail.com" }, { ...on, GOAL_TEST_HOOK_USER_IDS: "u8,u9" })).toBe(true);

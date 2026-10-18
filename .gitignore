@@ -67,3 +67,4 @@ screenshots/
 /tmp/playwright-screenshots/
 /tmp/playwright-dev-server.log
 /*.png
+qa/local-harness/.fixtures-local.md

@@ -171,16 +171,36 @@ describe("pull-check:v3-crypto-seed-2026-10-12", () => {
     expect(still?.at).toBe(at);
   });
 
-  it("does not replace a 400-coin verified list with a shorter verified page", async () => {
+  it("does not replace a fresh 400-coin verified list with a shorter verified page", async () => {
     installSnapshotDurable(memoryDurable());
     const at = "2026-10-12T03:00:00.000Z";
     await persistCryptoSnapshot(many(400), at);
     clearSnapshotMemory();
-    await persistCryptoSnapshot(many(250), "2026-10-12T04:00:00.000Z");
+    await persistCryptoSnapshot(many(250), "2026-10-12T03:10:00.000Z");
     clearSnapshotMemory();
     const still = await readCryptoSnapshot(50);
     expect(still?.coins).toHaveLength(400);
     expect(still?.at).toBe(at);
+  });
+
+  it("b24 G-05: a shorter verified page replaces a list that is already amber (15+ min old)", async () => {
+    installSnapshotDurable(memoryDurable());
+    await persistCryptoSnapshot(many(400), "2026-10-12T03:00:00.000Z");
+    clearSnapshotMemory();
+    await persistCryptoSnapshot(many(250), "2026-10-12T03:16:00.000Z");
+    clearSnapshotMemory();
+    const now = await readCryptoSnapshot(50);
+    expect(now?.coins).toHaveLength(250);
+    expect(now?.at).toBe("2026-10-12T03:16:00.000Z");
+  });
+
+  it("b24 G-05: a verified list a few coins shorter (393 vs 394) replaces a fresh one", async () => {
+    installSnapshotDurable(memoryDurable());
+    await persistCryptoSnapshot(many(394), "2026-10-12T03:00:00.000Z");
+    clearSnapshotMemory();
+    await persistCryptoSnapshot(many(393), "2026-10-12T03:06:00.000Z");
+    clearSnapshotMemory();
+    expect((await readCryptoSnapshot(50))?.at).toBe("2026-10-12T03:06:00.000Z");
   });
 
   it("seeds from CoinPaprika when CoinGecko is blocked and does not call gated hosts", async () => {
