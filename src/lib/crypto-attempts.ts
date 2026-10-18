@@ -35,7 +35,8 @@ export function recordCryptoAttempt(ok: boolean, err?: unknown, now = Date.now()
   lastAttempt = { at, ok, code: ok ? "ok" : attemptCode(err) };
   if (ok) lastSuccess = at;
   console.log(`[crypto-attempt] ${lastAttempt.at} ${lastAttempt.ok ? "ok" : "failed"} ${lastAttempt.code}`);
-  pendingPersist = persistSharedAttempt({ last: lastAttempt, lastSuccess });
+  const value = { last: lastAttempt, lastSuccess };
+  pendingPersist = Promise.all([persistSharedAttempt(value), persistDurableAttempt(value)]).then(() => undefined);
   return lastAttempt;
 }
 
@@ -88,8 +89,54 @@ async function persistSharedAttempt(value: SharedAttempt): Promise<void> {
   }
 }
 
-export async function readSharedCryptoAttempt(): Promise<SharedAttempt & { scope: "shared-colo" | "this-server" }> {
+/**
+ * b28 G-05: the Cache API copy is per data centre and best effort, so /status saw an attempt on
+ * 2 of 19 loads. The durable copy lives in one ownerless hidden watchlist row (AF-CAT), the same
+ * store as the crypto snapshot, registered by crypto-snapshot.ts to avoid an import cycle.
+ */
+type DurableAttemptStore = { read(): Promise<string | null>; write(body: string): Promise<unknown> };
+let durable: DurableAttemptStore | null = null;
+export function registerDurableAttemptStore(store: DurableAttemptStore | null): void {
+  durable = store;
+}
+async function persistDurableAttempt(value: SharedAttempt): Promise<void> {
+  if (!durable) return;
+  try {
+    // Never replace a newer stored attempt with an older one.
+    const prior = await readDurable(800);
+    if (prior?.last && value.last && prior.last.at > value.last.at) return;
+    await durable.write(JSON.stringify({ last: value.last, lastSuccess: value.lastSuccess ?? prior?.lastSuccess ?? null }));
+  } catch (err) {
+    console.log(`[crypto-attempt] durable store: write failed ${err instanceof Error ? err.message.slice(0, 60) : "error"}`);
+  }
+}
+async function readDurable(maxMs: number): Promise<SharedAttempt | null> {
+  if (!durable) return null;
+  const raw = await Promise.race([durable.read().catch(() => null), new Promise<null>((r) => setTimeout(() => r(null), maxMs))]);
+  if (!raw) return null;
+  try {
+    const v = JSON.parse(raw) as SharedAttempt;
+    return v && typeof v === "object" && (v.last == null || typeof v.last.at === "string") ? v : null;
+  } catch {
+    return null;
+  }
+}
+function newest(...items: (SharedAttempt | null | undefined)[]): SharedAttempt | null {
+  let best: SharedAttempt | null = null;
+  for (const it of items) {
+    if (!it?.last) continue;
+    if (!best?.last || it.last.at > best.last.at) best = it;
+  }
+  return best;
+}
+
+export async function readSharedCryptoAttempt(): Promise<SharedAttempt & { scope: "shared" | "shared-colo" | "this-server" }> {
   const local = readCryptoAttempt();
+  const stored = await readDurable(1500);
+  if (stored?.last) {
+    const best = newest(stored, local) ?? stored;
+    return { ...best, scope: "shared" };
+  }
   const cache = edgeCache();
   if (cache) {
     try {

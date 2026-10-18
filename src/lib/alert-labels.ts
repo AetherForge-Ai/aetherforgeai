@@ -60,17 +60,19 @@ export function formatSellStopChip(alert: AlertChipInput): string {
 }
 
 /** Sentence built from the saved percents. It describes the levels on file. */
-export function formatAlertRuleLine(alert: AlertChipInput): string {
+export function formatAlertRuleLine(alert: AlertChipInput, opts: { held?: boolean } = {}): string {
+  // b28 L-4: a ticker that is not held has no price paid; the level is against the market price.
+  const ref = opts.held === false ? "the market price" : "the price paid";
   const size = num(alert.trimPct);
   const dip = num(alert.trimTriggerDipPct);
   const band = formatTakeProfitBand(alert.takeProfitMinPct, alert.takeProfitMaxPct);
   const parts: string[] = [];
   if (size != null && dip != null) {
     parts.push(
-      `A trim marker of ${pctText(size)}% is noted if the price is ${pctText(Math.abs(dip))}% under the price paid`
+      `A trim marker of ${pctText(size)}% is noted if the price is ${pctText(Math.abs(dip))}% under ${ref}`
     );
   } else if (size != null) parts.push(`A trim marker of ${pctText(size)}% is noted`);
-  else if (dip != null) parts.push(`A level ${pctText(Math.abs(dip))}% under the price paid is noted`);
+  else if (dip != null) parts.push(`A level ${pctText(Math.abs(dip))}% under ${ref} is noted`);
   if (band) parts.push(`a band of ${band} is noted`);
   return parts.length ? `${parts.join(", ")}. This is information, not an instruction to trade.` : "";
 }

@@ -63,6 +63,11 @@ function preserveDynamicSegmentTraces(
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // M-1: gzip responses this Node server generates (HTML and /_next/static).
+  // This is already Next's default; it is set here so a later config cannot
+  // turn it off by omission. It does not apply to a host that serves
+  // /_next/static itself. See the PR for the Totalum and Cloudflare steps.
+  compress: true,
   async headers() {
     return [
       {

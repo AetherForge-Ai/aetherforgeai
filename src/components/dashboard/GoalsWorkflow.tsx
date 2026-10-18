@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { goalProgress, monthlyNeeded, validateGoal } from "@/lib/goal-math";
+import { formatGoalDate, goalMissingField, normalizeGoalRow } from "@/lib/goal-record";
 import { Button } from "@/components/ui/button";
 
 type GoalRow = {
@@ -35,7 +36,7 @@ export default function GoalsWorkflow() {
       const res = await fetch("/api/goals", { credentials: "include", cache: "no-store", signal: AbortSignal.timeout(5000) });
       const body = (await res.json()) as { ok?: boolean; data?: GoalRow[]; error?: string };
       if (!body.ok) throw new Error(body.error || "Goals did not load.");
-      setGoals(body.data || []);
+      setGoals((body.data || []).map((r) => normalizeGoalRow(r as unknown as Record<string, unknown>)));
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : "Goals did not load.");
     } finally {
@@ -84,7 +85,7 @@ export default function GoalsWorkflow() {
         setError(body.error || "The goal was not saved.");
         return;
       }
-      const saved: GoalRow = { ...(body.data as GoalRow), ...payload, _id: body.data?._id || draft.id || "" , start_nzd: body.startSaved === false ? null : input.bookNzd };
+      const saved: GoalRow = normalizeGoalRow({ ...(body.data as GoalRow), ...payload, _id: body.data?._id || draft.id || "", start_nzd: input.bookNzd } as unknown as Record<string, unknown>);
       setGoals((prev) => [saved, ...prev.filter((g) => g._id !== saved._id)]);
       setAnnounce(`${saved.label} saved. ${goalProgress({ ...input }).summary}${body.startSaved === false ? " The starting amount could not be stored yet." : ""}`);
       setDraft(EMPTY);
@@ -159,15 +160,19 @@ export default function GoalsWorkflow() {
       {loaded && !loadError && goals.length === 0 ? <p className="text-sm text-muted-foreground">No goals yet.</p> : null}
       <ul className="grid gap-3">
         {goals.map((g) => {
-          const start = Number(g.start_nzd) || 0;
-          const gi = { targetNzd: Number(g.target_nzd), targetDate: g.target_date, monthlyNzd: Number(g.monthly_nzd) || 0, bookNzd: start, annualReturnPct: Number(g.annual_return_pct) || 0 };
-          const problem = validateGoal(gi);
-          const p = problem && problem.startsWith("Choose a date") ? null : goalProgress(gi);
+          const rec = normalizeGoalRow(g as unknown as Record<string, unknown>);
+          const missing = goalMissingField(rec);
+          const gi = { targetNzd: rec.target_nzd, targetDate: rec.target_date, monthlyNzd: rec.monthly_nzd, bookNzd: rec.start_nzd ?? 0, annualReturnPct: rec.annual_return_pct };
+          const problem = missing ? null : validateGoal(gi);
+          const pastDate = !!problem && problem.startsWith("Choose a date");
+          const raw = missing || pastDate ? null : goalProgress(gi);
+          // b28 H-11: never print NaN; a goal that cannot be projected says which field is missing.
+          const p = raw && Number.isFinite(raw.projected) && Number.isFinite(raw.range.low) && Number.isFinite(raw.range.high) ? raw : null;
           return (
             <li key={g._id} className="rounded-xl border p-4 text-sm" data-goal-row>
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <h3 className="font-semibold">{g.label || "Goal"}</h3>
-                <span>{nzd(gi.targetNzd)} by {g.target_date}</span>
+                <span>{nzd(gi.targetNzd)} by {formatGoalDate(rec.target_date)}</span>
               </div>
               {p ? (
                 <>
@@ -176,22 +181,23 @@ export default function GoalsWorkflow() {
                   </div>
                   <p className="mt-2" aria-live="polite">
                     {p.progressPct}% there. Projected {nzd(p.projected)} ({p.status}); range {nzd(p.range.low)} to {nzd(p.range.high)}. {p.range.label}.
-                    {g.start_nzd == null ? " Starting amount not stored; shown from NZ$0." : ""}
                   </p>
                   {(() => {
                     const need = monthlyNeeded(gi);
                     return Number.isFinite(need) ? (
                       <p className="mt-1 text-muted-foreground" data-monthly-needed>
-                        Monthly amount needed to reach it by {g.target_date}: {nzd(need)} at {gi.annualReturnPct}% a year (illustrative, not a forecast or advice).
+                        Monthly amount needed to reach it by {formatGoalDate(rec.target_date)}: {nzd(need)} at {gi.annualReturnPct}% a year (illustrative, not a forecast or advice).
                       </p>
                     ) : null;
                   })()}
                 </>
-              ) : (
+              ) : pastDate ? (
                 <p className="mt-2 text-amber-700" role="status">This goal&apos;s date has passed. Edit the date to keep tracking it.</p>
+              ) : (
+                <p className="mt-2 text-amber-700" role="status" data-goal-cant-project>Can&apos;t project: {missing || "a figure"} missing. Use Edit to add it.</p>
               )}
               <div className="mt-3 flex gap-2">
-                <Button type="button" size="sm" variant="outline" onClick={() => setDraft({ id: g._id, label: g.label || "", target: String(g.target_nzd), date: g.target_date, monthly: String(g.monthly_nzd ?? ""), start: g.start_nzd == null ? "" : String(g.start_nzd), ret: String(g.annual_return_pct ?? "") })}>Edit</Button>
+                <Button type="button" size="sm" variant="outline" onClick={() => setDraft({ id: rec._id, label: rec.label, target: Number.isFinite(rec.target_nzd) ? String(rec.target_nzd) : "", date: rec.target_date, monthly: String(rec.monthly_nzd), start: rec.start_nzd == null ? "" : String(rec.start_nzd), ret: String(rec.annual_return_pct) })}>Edit</Button>
                 <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void remove(g)}>Delete</Button>
               </div>
             </li>

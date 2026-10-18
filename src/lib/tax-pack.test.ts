@@ -82,7 +82,7 @@ describe("tax pack", () => {
     const peak = csv.split("\n").find((line) => line.startsWith(",peak-cost,"));
     expect(peak).toBe(',peak-cost,,,,,,"Indicative, not tax advice."');
     expect(csv).toContain(
-      "The NZ$50,000 cost test is not calculated because a foreign attributing buy has no stored exchange rate."
+      "The NZ$50,000.00 cost test is not calculated because a foreign attributing buy has no stored exchange rate."
     );
     const pdf = taxPaperPdf({
       title: "FIF working paper",

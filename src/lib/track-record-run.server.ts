@@ -3,7 +3,11 @@ import { extractCalls, verifyCall, weeklyScorecard, type TrackCall } from "@/lib
 import { aucklandYmd } from "@/lib/entitlements";
 import { laterPricesFor, TRACK_STORE_ENABLED } from "@/lib/track-record-prices.server";
 
-/** Goal b22 G-20: one scorecard run, shared by the cron route and the test-account view. Read-only on reports. */
+/**
+ * Goal b22 G-20: build one scorecard from saved reports. The cron calls this
+ * and stores the result. The test page does not: it only reads the store.
+ * Read-only on reports.
+ */
 export async function runTrackRecord() {
   const since = new Date(Date.now() - 14 * 86400_000).toISOString();
   const res = await totalumSdk.crud.query("report", { _limit: 500 });
@@ -23,7 +27,6 @@ export async function runTrackRecord() {
     card,
   };
 }
-
 /** b26 G-20: the test view never waits more than 10 s and reuses a recent run. */
 export const TRACK_RECORD_TIMEOUT_MS = 10_000;
 export const TRACK_RECORD_CACHE_MS = 10 * 60_000;

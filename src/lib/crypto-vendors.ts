@@ -55,8 +55,44 @@ const ROWS: CryptoVendor[] = [
 
 export const CRYPTO_VENDORS: Record<string, CryptoVendor> = Object.fromEntries(ROWS.map((row) => [row.ticker, row]));
 
+/**
+ * Tickers that ARE the asset. The USD/USDT suffix strip must not eat them:
+ * normalizeCryptoTicker("USDT") used to return "" and the tether page lost its id.
+ */
+const STABLECOIN_SYMBOLS = new Set([
+  "USDT",
+  "USDC",
+  "DAI",
+  "FDUSD",
+  "TUSD",
+  "USDE",
+  "PYUSD",
+  "USDP",
+  "GUSD",
+  "FRAX",
+  "LUSD",
+  "USDD",
+  "BUSD",
+  "USD1",
+  "USDS",
+  "CRVUSD",
+]);
+
+export function isStablecoinSymbol(symbol: string | null | undefined): boolean {
+  const raw = (symbol || "").toUpperCase().replace(/\s+/g, "").trim();
+  if (!raw) return false;
+  if (STABLECOIN_SYMBOLS.has(raw)) return true;
+  const stripped = raw.replace(/-?USD[T]?$/, "").trim();
+  return !!stripped && STABLECOIN_SYMBOLS.has(stripped);
+}
+
 export function normalizeCryptoTicker(ticker: string): string {
-  return (ticker || "").toUpperCase().replace(/-?USD[T]?$/, "").trim();
+  const raw = (ticker || "").toUpperCase().replace(/\s+/g, "").trim();
+  if (!raw) return "";
+  if (STABLECOIN_SYMBOLS.has(raw)) return raw;
+  const stripped = raw.replace(/-?USD[T]?$/, "").trim();
+  if (stripped && STABLECOIN_SYMBOLS.has(stripped)) return stripped;
+  return stripped;
 }
 
 export function vendorFor(ticker: string): CryptoVendor | null {

@@ -10,25 +10,30 @@ import localFont from "next/font/local";
 import "./globals.css";
 import { headers } from "next/headers";
 import { DocumentSessionProvider } from "@/components/DocumentSession";
-import { ScriptExecutor } from "@/components/ScriptExecutor";
-import { DevToolsHandler } from "@/components/DevToolsHandler";
+import { DevOnlyTools } from "@/components/DevOnlyTools";
 import { GlobalErrorCatcher } from "@/components/GlobalErrorCatcher";
 import { GoogleTag } from "@/components/GoogleTag";
 import { CONSENT_DEFAULT_DENIED_SNIPPET } from "@/lib/analytics-consent";
 import { AnalyticsNotice } from "@/components/AnalyticsNotice";
 import { SiteFooter } from "@/components/SiteFooter";
 import { LazyToaster as Toaster } from "@/components/ui/LazyToaster";
-import { PortfolioCoach } from "@/components/portfolio-coach";
+import { MemberCoachSlot } from "@/components/MemberCoachSlot";
 import { LazyTransactionDialogHost } from "@/components/dashboard/LazyTransactionDialogHost";
 import { PwaRegister } from "@/components/PwaRegister";
 import { LEGAL_ENTITY_NAME, NZBN } from "@/lib/company";
 
 // pull-check:fonts-local-2026-10-11
+// M-1: only the body face is preloaded. Display and mono are used later and
+// must not compete with the hero paragraph. `optional` paints the fallback
+// immediately, so a slow font file cannot push LCP out.
 const sora = localFont({
   src: "./fonts/sora-latin.woff2",
   variable: "--font-display",
   weight: "500 800",
+  // b28 review: swap, not optional. With preload off, "optional" left headings on the fallback
+  // face for a whole first visit. next/font's metric-matched fallback keeps the swap shift small.
   display: "swap",
+  preload: false,
 });
 const manrope = localFont({
   src: "./fonts/manrope-latin.woff2",
@@ -41,6 +46,7 @@ const jetbrainsMono = localFont({
   variable: "--font-mono-custom",
   weight: "400 600",
   display: "swap",
+  preload: false,
 });
 
 // Canonical public site URL. Uses the configured app URL when present, otherwise
@@ -97,8 +103,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en-NZ">
       <head>
-        {/* M-1/H-4: the hero heading font arrives with the HTML, so it does not swap in late (CLS). */}
-        <link rel="preload" href="/fonts/grift/grift-black.otf" as="font" type="font/otf" crossOrigin="anonymous" />
+        {/* b28 review: the hero heading face is still preloaded (now the 23 KB woff2), so it lands with the HTML. */}
+        <link rel="preload" href="/fonts/grift/grift-black.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
       </head>
       <body
         className={`${sora.variable} ${manrope.variable} ${jetbrainsMono.variable} font-sans antialiased`}
@@ -123,8 +129,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           </Script>
           <GoogleTag nonce={nonce} />
           <GlobalErrorCatcher />
-          <ScriptExecutor />
-          <DevToolsHandler />
+          <DevOnlyTools />
           <div className="flex min-h-screen min-w-0 flex-col overflow-x-clip">
             <a
               href="#main"
@@ -137,7 +142,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <SiteFooter />
           </div>
           <AnalyticsNotice />
-          <PortfolioCoach />
+          <MemberCoachSlot />
           {/* Single Buy/Add host for every dashboard subpage. Lives outside
               PortfolioDashboard so the stocks hub's live-price hydrate cannot
               remount the dialog mid ticker-search. */}

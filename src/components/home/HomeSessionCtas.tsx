@@ -2,10 +2,9 @@
 
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { useEffect, useState } from "react";
-import { useSession } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { useMemberDashboardPrompt } from "@/components/dashboard/MemberDashboardPrompt";
+import { useLiveSessionUser } from "@/lib/use-live-session";
 
 function CtaSkeleton({ className }: { className?: string }) {
   return <div className={`h-12 animate-pulse rounded-md bg-muted/50 ${className ?? "w-36"}`} />;
@@ -13,13 +12,12 @@ function CtaSkeleton({ className }: { className?: string }) {
 
 /** Hero actions. Logged-in visitors do not see "Start free". */
 export function HomeHeroCtas() {
-  const { data: session, isPending } = useSession();
+  const { user } = useLiveSessionUser();
   const memberDashboard = useMemberDashboardPrompt();
-  const loggedIn = !!session?.user;
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const loggedIn = !!user;
+  const pending = user === undefined;
 
-  if (!mounted || isPending) {
+  if (pending) {
     return (
       <div className="mt-8 flex flex-wrap items-center gap-3">
         <CtaSkeleton className="w-32" />
@@ -61,13 +59,12 @@ export function HomeHeroCtas() {
 
 /** Bottom "Ready to take care of your Portfolio?" action. */
 export function HomeBottomCta() {
-  const { data: session, isPending } = useSession();
+  const { user } = useLiveSessionUser();
   const memberDashboard = useMemberDashboardPrompt();
-  const loggedIn = !!session?.user;
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const loggedIn = !!user;
+  const pending = user === undefined;
 
-  if (!mounted || isPending) {
+  if (pending) {
     return <CtaSkeleton className="mx-auto mt-8 w-40" />;
   }
 

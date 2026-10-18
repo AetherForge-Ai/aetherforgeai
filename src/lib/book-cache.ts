@@ -7,7 +7,12 @@
  * pull-check:batch1-2026-10-11 B1-3
  */
 
-const BOOK_CACHE_MS = 12_000;
+/**
+ * b28 G-10: 0 = no cross-request reuse. The cache lives in one isolate, and a write on another
+ * isolate cannot clear it, so a reload could be served the pre-write book for up to 12 s (a
+ * deleted deposit came back, a saved sell was missing). Callers may still pass a TTL explicitly.
+ */
+export const BOOK_CACHE_MS = 0;
 const store = new Map<string, { at: number; value: unknown }>();
 const epochs = new Map<string, number>();
 
@@ -16,6 +21,7 @@ export function bookCacheEpoch(userId: string): number {
 }
 
 export function readBookCache<T>(key: string, ttlMs = BOOK_CACHE_MS): T | null {
+  if (!(ttlMs > 0)) return null;
   const hit = store.get(key);
   if (!hit) return null;
   if (Date.now() - hit.at > ttlMs) {
