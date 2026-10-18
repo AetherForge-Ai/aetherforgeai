@@ -99,7 +99,8 @@ export function FeatureComparison() {
         </p>
       </div>
 
-      <div className="overflow-x-auto rounded-3xl border border-border/70 bg-card/40">
+      {/* b33 G-14: a scrollable region must be keyboard-focusable (axe scrollable-region-focusable). */}
+      <div className="overflow-x-auto rounded-3xl border border-border/70 bg-card/40" tabIndex={0} role="region" aria-label="Plan feature comparison (scrolls sideways)">
         <table className="w-full min-w-[720px] border-collapse text-sm">
           <thead>
             <tr className="border-b border-border/70">

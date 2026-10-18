@@ -64,6 +64,28 @@ export function TransactionDialog({
     if (target && target.isConnected) window.setTimeout(() => target.focus(), 0);
   }, [open]);
 
+  // b33 G-14 (GOAL-LOCK #49): TT saw the 11th Tab, after the Date segments, land on the page
+  // behind. The keydown trap cannot see focus moves the browser makes itself (native date
+  // segments), so a focusin guard pulls any focus that leaves the panel back inside, except into
+  // the panel's own popovers (search results render in a portal).
+  useEffect(() => {
+    if (!open || typeof document === "undefined") return;
+    const onFocusIn = (event: FocusEvent) => {
+      const panel = document.querySelector<HTMLElement>('[data-testid="record-transaction-dialog"]');
+      const target = event.target as HTMLElement | null;
+      if (!panel || !target || panel.contains(target)) return;
+      if (target.closest("[data-radix-popper-content-wrapper], [role='listbox'], [data-sonner-toaster]")) return;
+      const items = Array.from(
+        panel.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((el) => el.offsetParent !== null);
+      (items[0] ?? panel).focus();
+    };
+    document.addEventListener("focusin", onFocusIn);
+    return () => document.removeEventListener("focusin", onFocusIn);
+  }, [open]);
+
   /** b31 G-10: keep Tab and Shift+Tab inside the panel (the dialog is non-modal for search popovers). */
   function trapTab(event: ReactKeyboardEvent<HTMLDivElement>) {
     if (event.key !== "Tab") return;
