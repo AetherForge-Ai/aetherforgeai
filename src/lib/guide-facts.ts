@@ -21,7 +21,7 @@ const JOINT_ASK_RE = /joint|partner|spouse|couple|double|100,?000|100k|together|
 
 /** b38 CR-2 (P1): Chief's exact core wording; extra facts follow it. */
 export const FIF_CORE_RULE =
-  "The NZ$50,000 threshold applies per person, based on total cost at any time in the year; joint holdings are split between the owners, so 2 equal owners can together hold up to NZ$100,000 in cost; it's not a doubled threshold for the portfolio.";
+  "The NZ$50,000 threshold applies per person, based on total cost at any time in the year; joint holdings are split between the owners, so 2 equal owners can together hold up to NZ$100,000 in cost with no other FIF holdings; it's not a doubled threshold for the portfolio.";
 export const FIF_STATIC_ANSWER =
   `${FIF_CORE_RULE} Cost means purchase price including fees, at any time in the income year (1 April to 31 March). New Zealand shares and most ASX-listed shares (Australian-resident, on the approved list) are excluded and add nothing to that cost. Trusts and companies don't get the NZ$50,000 exemption. Indicative, not tax advice`;
 

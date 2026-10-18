@@ -6,7 +6,7 @@ import { mergeIndexTabs } from "@/lib/ticker-serve";
 import { QUOTE_DELAY_TABLE } from "@/lib/market-freshness";
 import { journalDeletedMap, journalPendingWrite, listPendingWrites, pendingDeleteIds, replayPendingWrites } from "@/lib/write-journal";
 
-// pull-check:v3-goal-b39-2026-10-19
+// pull-check:v3-goal-b40-2026-10-19
 const read = (p: string) => readFileSync(p, "utf8");
 function mem() {
   const m = new Map<string, string>();
@@ -15,7 +15,7 @@ function mem() {
 
 describe("b38 build", () => {
   it("pins the build", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-goal-b39-2026-10-19");
+    expect(read("public/build-version.txt").trim()).toBe("v3-goal-b40-2026-10-19");
   });
 });
 
@@ -41,7 +41,7 @@ describe("b38 G-10: pending deletes", () => {
 
 describe("b38 CR-2 (P1): exact joint FIF wording", () => {
   const exact =
-    "The NZ$50,000 threshold applies per person, based on total cost at any time in the year; joint holdings are split between the owners, so 2 equal owners can together hold up to NZ$100,000 in cost; it's not a doubled threshold for the portfolio.";
+    "The NZ$50,000 threshold applies per person, based on total cost at any time in the year; joint holdings are split between the owners, so 2 equal owners can together hold up to NZ$100,000 in cost with no other FIF holdings; it's not a doubled threshold for the portfolio.";
   it("the core rule is word for word", () => {
     expect(FIF_CORE_RULE).toBe(exact);
     expect(FIF_STATIC_ANSWER.startsWith(exact)).toBe(true);

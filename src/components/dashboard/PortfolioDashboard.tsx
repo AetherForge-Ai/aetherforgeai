@@ -12,8 +12,7 @@ import {
   readJournal,
   replayPendingWrites,
   withWriteTimeout,
-  WRITE_TIMEOUT_MS,
-} from "@/lib/write-journal";
+  WRITE_TIMEOUT_MS, cancelWriteKey, isOptimisticId } from "@/lib/write-journal";
 import { reconcileLedger } from "@/lib/ledger-reconcile";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
@@ -2060,6 +2059,17 @@ export function PortfolioDashboard({
   }
 
   async function handleDeleteDividend(line: SnapshotLedgerLine): Promise<boolean> {
+    // b40 G-10 (TT b39 P1): never send DELETE for an optimistic id. The UI disables Delete until the
+    // server id returns; if one slips through, the write's key is cancelled in this tab and the row is
+    // removed when the POST answers (RecordTransactionPanel deletes it on arrival).
+    if (isOptimisticId(line.id)) {
+      if (line.idem) {
+        cancelWriteKey(line.idem);
+        clearPendingWrite(line.idem);
+      }
+      toast.message("Still saving. It will be removed as soon as the server confirms it.");
+      return false;
+    }
     // b29 G-10: optimistic delete. Exactly this row leaves and its cash impact is reversed at once;
     // the rest of the ledger stays rendered. The server's cash figure then replaces the estimate.
     // A refusal puts the row and cash back with a visible error.
@@ -2085,6 +2095,14 @@ export function PortfolioDashboard({
       WRITE_TIMEOUT_MS
     );
     if (res.ok || isDefiniteRefusal(res.status)) clearPendingWrite(deleteKey);
+    // b40: the server now answers 404 for an id it doesn't have (was 200). For a real id the row is
+    // already gone, so it counts as removed.
+    if (!res.ok && res.status === 404) {
+      noteWrite(userId, { deletedId: line.id });
+      toast.success("Already removed");
+      handleDataChanged();
+      return true;
+    }
     if (!res.ok && !isDefiniteRefusal(res.status)) {
       // No answer yet: the row stays hidden and the delete is retried on the next load.
       toast.error("The server hasn't confirmed this removal yet. It will be retried; the row stays hidden until then.");

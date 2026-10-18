@@ -391,7 +391,9 @@ export function BrokerImportPanel({
             }}
           />
           {fileName ? <p className="text-xs text-muted-foreground">{fileName}</p> : null}
-          <details className="mt-3 rounded-md border p-3" data-paste-import>
+          {/* b40 G-24: embedded in the dashboard dialog, the dialog's own visible PasteTradesBox is used. */}
+          {embedded ? null : (
+          <details open className="mt-3 rounded-md border p-3" data-paste-import>
             <summary className="cursor-pointer text-sm font-semibold">Or paste email or contract-note text</summary>
             <textarea
               aria-label="Pasted trade text"
@@ -435,6 +437,7 @@ export function BrokerImportPanel({
                 : "AI reading is off: only pasted text is read, in the app, by fixed rules. PDFs and screenshots are not read."}
             </p>
           </details>
+          )}
         </div>
         <label className="flex items-start gap-2 text-sm" htmlFor="import-fund">
           <input

@@ -3,7 +3,7 @@ import { PUBLIC_EQUITY_SOURCE, publicCryptoSourcesLabel } from "@/lib/data-sourc
 import { cryptoVenueForLabel } from "@/lib/crypto-price-chain";
 import { readCryptoSnapshot, snapshotHeaders } from "@/lib/crypto-snapshot";
 import { loadPublicTicker } from "@/lib/public-ticker";
-import { COLD_START_READ_MS, edgeSnapshotGet, edgeSnapshotPut, pickServedSnapshot, TICKER_ROUTE_DEADLINE_MS } from "@/lib/ticker-serve";
+import { COLD_START_READ_MS, edgeSnapshotGet, edgeSnapshotPut, pickServedSnapshot, TICKER_ROUTE_DEADLINE_MS, withDeadline } from "@/lib/ticker-serve";
 import { snapshotFloorCookie, snapshotFloorFrom } from "@/lib/snapshot-floor";
 import { readFeedForce } from "@/lib/feed-freshness-hook";
 import { feedOffFromCookieHeader } from "@/lib/test-hooks";
@@ -31,22 +31,69 @@ export async function GET(req: Request) {
       { status: 503, headers: { "Cache-Control": "no-store", "CDN-Cache-Control": "no-store" } }
     );
   }
-  // b37 REG-1: the whole build is bounded. A hang serves this isolate's last good answer (stale),
-  // never a 30 s wait; only a cold isolate with no copy anywhere answers 503.
+  // b37 REG-1: the whole build is bounded. b40 REG-1/H-1 (a): a fallback snapshot read (edge copy,
+  // then the durable one) starts alongside the build, so when the 4 s deadline is hit an isolate with
+  // no lastGoodResponse still serves a snapshot as a 200 with its true time and the stale mark.
+  // A 503 only when no snapshot exists anywhere.
   const floor = snapshotFloorFrom(req);
+  const fallbackSnap = fallbackSnapshot();
   const built = await Promise.race([
     buildTicker(floor, cookie, hooksAllowed).catch(() => null),
     new Promise<null>((r) => setTimeout(() => r(null), TICKER_ROUTE_DEADLINE_MS)),
   ]);
-  if (!built) {
-    if (lastGoodResponse) {
-      return NextResponse.json(lastGoodResponse.body, {
-        headers: { ...lastGoodResponse.headers, "x-af-snapshot-stale": "1", "Set-Cookie": snapshotFloorCookie(Math.max(lastGoodResponse.version, floor)) },
-      });
-    }
-    return noCopyResponse();
+  if (built) return built;
+  if (lastGoodResponse && lastGoodResponse.version >= floor) {
+    return NextResponse.json(lastGoodResponse.body, {
+      headers: { ...lastGoodResponse.headers, "x-af-snapshot-stale": "1", "Set-Cookie": snapshotFloorCookie(Math.max(lastGoodResponse.version, floor)) },
+    });
   }
-  return built;
+  const snap = pickServedSnapshot(await withDeadline(fallbackSnap, 400, null), lastGoodSnap);
+  if (snap) {
+    const fromSnap = await withDeadline(snapshotOnlyResponse(snap, floor).catch(() => null), 600, null);
+    if (fromSnap) return fromSnap;
+  }
+  if (lastGoodResponse) {
+    return NextResponse.json(lastGoodResponse.body, {
+      headers: { ...lastGoodResponse.headers, "x-af-snapshot-stale": "1", "Set-Cookie": snapshotFloorCookie(Math.max(lastGoodResponse.version, floor)) },
+    });
+  }
+  return noCopyResponse();
+}
+
+/** b40 REG-1: edge copy first (fast), then the durable snapshot; never throws, bounded. */
+async function fallbackSnapshot(): Promise<CryptoSnap | null> {
+  const edge = await edgeSnapshotGet<CryptoSnap>().catch(() => null);
+  if (edge) return edge;
+  return withDeadline(readCryptoSnapshot(COLD_START_READ_MS).catch(() => null), COLD_START_READ_MS + 200, null);
+}
+
+/** b40 REG-1: a 200 built only from a snapshot (no live equity fetch), always marked stale. */
+async function snapshotOnlyResponse(snap: CryptoSnap, floor: number) {
+  const feed = await loadPublicTicker({ snapshot: snap, skipEquityFetch: true });
+  if (!feed.rows.crypto.length) return null;
+  const body = {
+    ok: true,
+    data: {
+      ...feed,
+      sources: {
+        equities: PUBLIC_EQUITY_SOURCE,
+        crypto: feed.providers.crypto || publicCryptoSourcesLabel(),
+        nzx: "https://www.nzx.com/markets/NZSX",
+        asx: "https://www.asx.com.au/markets/company/TLX",
+        cryptoVenue: cryptoVenueForLabel(feed.providers.crypto).href,
+      },
+      stale: true,
+    },
+  };
+  return NextResponse.json(body, {
+    headers: {
+      "Cache-Control": "no-store, no-cache, must-revalidate",
+      "CDN-Cache-Control": "no-store",
+      ...snapshotHeaders(snap),
+      "x-af-snapshot-stale": "1",
+      "Set-Cookie": snapshotFloorCookie(Math.max(snap.version, floor)),
+    },
+  });
 }
 
 type CryptoSnap = NonNullable<Awaited<ReturnType<typeof readCryptoSnapshot>>>;
@@ -93,7 +140,10 @@ async function buildTicker(floor: number, cookie: string | null, hooksAllowed: b
   const testFeedForce = readFeedForce(cookie, hooksAllowed);
   // Never a 200 with an empty crypto list: no copy anywhere is a 503 the tape retries.
   if (!feed.rows.crypto.length && !snap) return noCopyResponse();
-  const stale = !!snap && (coldStart || !feed.rows.crypto.length || !feed.live.crypto);
+  // b40 H-1 (c): a body older than the client's floor (no newer copy found above) is always marked
+  // stale; a cookie client is never served below its floor unmarked.
+  const belowFloor = !!snap && floor > 0 && snap.version < floor;
+  const stale = !!snap && (coldStart || belowFloor || !feed.rows.crypto.length || !feed.live.crypto);
 
   console.log(
     `[api/ticker] Served rows — crypto ${feed.live.crypto ? "live" : "quiet"} (${feed.rows.crypto.length}), equities ${feed.live.equities ? "live" : "quiet"} (${feed.rows.nzx.length + feed.rows.asx.length})`

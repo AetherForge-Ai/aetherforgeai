@@ -372,7 +372,11 @@ export function MarketTicker({ className, compact = false, initial = null, initi
         const warming = !res.ok && res.status === 503;
         setPricesWarming(warming);
         setFailedRefreshes((count) => count + 1);
-        console.error("[ticker] Feed fetch failed:", res.ok ? "no rows" : res.error);
+        // b40: an aborted or timed-out poll (navigation, the tab sleeping, a slow edge) is routine and retried;
+        // log it quietly instead of as a console error. The visible state already says "Retrying shortly".
+        const reason = res.ok ? "no rows" : String(res.error ?? "");
+        if (/abort|timeout|timed out|network/i.test(reason) || res.status === 503) console.info("[ticker] Feed poll retrying:", reason || res.status);
+        else console.warn("[ticker] Feed fetch failed:", reason);
         retry = setTimeout(loadFeed, warming ? 5_000 : 15_000);
       }
       setLoaded(true);
@@ -446,10 +450,10 @@ export function MarketTicker({ className, compact = false, initial = null, initi
           }}
           emptyText={emptyText}
         />
-        {loaded && feedBadge.tone !== "green" ? (
-          <p className="bg-zinc-950 px-3 py-1 text-[0.65rem] text-muted-foreground">{feedBadge.why}</p>
-        ) : null}
-        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-zinc-950 px-3 py-1 text-[0.6rem] text-muted-foreground">
+        {/* b40 CLS (/tax 0.14): the footer reserves two lines on narrow screens and carries the feed note
+            inline, so text arriving after load ("Prices last updated …", the feed note) can't push the page down. */}
+        <div className="flex min-h-[2.75rem] flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-zinc-950 px-3 py-1 text-[0.6rem] text-muted-foreground sm:min-h-[1.75rem]">
+          {loaded && feedBadge.tone !== "green" ? <span className="text-[0.6rem]">{feedBadge.why}</span> : null}
           <button
             type="button"
             className="rounded border border-emerald-500/30 px-2 py-0.5 font-semibold text-emerald-200 disabled:opacity-50"

@@ -244,7 +244,7 @@ export async function replayPendingWrites(
   // cancelled, never re-sent. The server also tombstones deleted keys (410), which clears it too.
   const cancelled = new Set(listPendingWrites(userId, s).flatMap((w) => (w.method === "DELETE" && w.idem ? [w.idem] : [])));
   for (const w of listPendingWrites(userId, s)) {
-    if (w.method !== "DELETE" && cancelled.has(w.key)) {
+    if (w.method !== "DELETE" && (cancelled.has(w.key) || isCancelledWriteKey(w.key, s))) {
       clearPendingWrite(w.key, s);
       out.expired += 1;
       continue;
@@ -303,4 +303,41 @@ export async function replayPendingWrites(
     }
   }
   return out;
+}
+
+/* b40 G-10 (TT b39 P1 delete-during-pending): an optimistic row has no server id. A delete on it never
+   sends DELETE (the server would find nothing); it cancels the write's key in this tab instead, and when
+   the POST answers with the saved id, the row is deleted on arrival. */
+export const OPTIMISTIC_ID_PREFIX = "optimistic-";
+export function isOptimisticId(id: string | null | undefined): boolean {
+  return String(id || "").startsWith(OPTIMISTIC_ID_PREFIX);
+}
+const CANCELLED_KEY = "af:cancelled-writes";
+export function cancelWriteKey(writeKey: string, s: StorageLike | null = store()): void {
+  if (!writeKey || !s) return;
+  try {
+    const list = JSON.parse(s.getItem(CANCELLED_KEY) || "[]") as string[];
+    if (!list.includes(writeKey)) list.push(writeKey);
+    s.setItem(CANCELLED_KEY, JSON.stringify(list.slice(-50)));
+  } catch {
+    /* blocked storage */
+  }
+}
+export function isCancelledWriteKey(writeKey: string, s: StorageLike | null = store()): boolean {
+  if (!writeKey || !s) return false;
+  try {
+    return (JSON.parse(s.getItem(CANCELLED_KEY) || "[]") as string[]).includes(writeKey);
+  } catch {
+    return false;
+  }
+}
+export function clearCancelledWriteKey(writeKey: string, s: StorageLike | null = store()): void {
+  if (!s) return;
+  try {
+    const list = (JSON.parse(s.getItem(CANCELLED_KEY) || "[]") as string[]).filter((k) => k !== writeKey);
+    if (list.length) s.setItem(CANCELLED_KEY, JSON.stringify(list));
+    else s.removeItem(CANCELLED_KEY);
+  } catch {
+    /* blocked storage */
+  }
 }

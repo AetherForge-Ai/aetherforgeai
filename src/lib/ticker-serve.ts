@@ -1,5 +1,5 @@
 /** b37 REG-1: hard deadline for GET /api/ticker (TT saw a 30 s no-response under parallel load). */
-export const TICKER_ROUTE_DEADLINE_MS = 4_000;
+export const TICKER_ROUTE_DEADLINE_MS = 3_000; // b40: leaves 1 s for the snapshot fallback inside the 5 s bar
 /** b38: a cold isolate waits this long for the durable snapshot (inside the route deadline). */
 export const COLD_START_READ_MS = 2_500;
 /** b37 REG-1: hard deadline for the /markets server render's data reads. */

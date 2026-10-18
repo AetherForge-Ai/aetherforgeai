@@ -25,6 +25,43 @@ function withLastOk(row: StatusFeedRow, timedOut: boolean): StatusFeedRow {
   return timedOut && row.text !== "unavailable" && !row.text.startsWith("—") ? { ...row, text: `${row.text} · check timed out` } : row;
 }
 
+/* b40 M-2: a cold isolate has no lastOk memory and the bundled equity seed carries no times, so
+   /status said "no saved quote time yet" (equities) or "unavailable" (crypto) on a few loads. The last OK
+   time per feed is also kept in the colo's Cache API, and the crypto row falls back to the edge
+   snapshot copy that /api/ticker keeps. */
+const EDGE_TIME_URL = (key: string) => `https://af-internal.invalid/status-last-ok/${key}`;
+function edgeCache(): Cache | null {
+  try {
+    return (globalThis as unknown as { caches?: { default?: Cache } }).caches?.default ?? null;
+  } catch {
+    return null;
+  }
+}
+async function edgeTimeGet(key: string): Promise<string | null> {
+  const cache = edgeCache();
+  if (!cache) return null;
+  try {
+    const hit = await cache.match(EDGE_TIME_URL(key));
+    const text = hit ? (await hit.text()).trim() : "";
+    return text && Number.isFinite(Date.parse(text)) ? text : null;
+  } catch {
+    return null;
+  }
+}
+const edgePutAt: Record<string, string> = {};
+function edgeTimePut(key: string, at: string | null) {
+  const cache = edgeCache();
+  if (!cache || !at || (edgePutAt[key] && edgePutAt[key] >= at)) return;
+  edgePutAt[key] = at;
+  void cache.put(EDGE_TIME_URL(key), new Response(at, { headers: { "Cache-Control": "max-age=604800" } })).catch(() => undefined);
+}
+/** Memory first, then the colo copy; the result is remembered in this isolate. */
+async function lastOkFor(key: string): Promise<string | null> {
+  if (lastOk[key]) return lastOk[key];
+  const edge = await within(edgeTimeGet(key), 300);
+  return edge ? remember(key, edge) : null;
+}
+
 async function within<T>(work: Promise<T>, ms = STATUS_PROBE_TIMEOUT_MS): Promise<T | null> {
   return Promise.race([
     work.then((value) => value).catch(() => null),
@@ -40,7 +77,7 @@ async function within<T>(work: Promise<T>, ms = STATUS_PROBE_TIMEOUT_MS): Promis
 async function equityRow(row: StatusFeedRow, now: number): Promise<StatusFeedRow> {
   if (!/^unavailable/.test(row.text)) return row;
   const { latestSavedEquityAt } = await import("@/lib/stock-board.server");
-  const at = latestSavedEquityAt();
+  const at = latestSavedEquityAt() ?? (await lastOkFor("equity"));
   return at
     ? { ...row, tone: "amber", text: savedSnapshotLabel(at, now) }
     : { ...row, tone: "amber", text: EQUITY_NO_TIME_TEXT };
@@ -58,20 +95,29 @@ export async function loadStatusFeeds(now = Date.now()): Promise<StatusFeedRow[]
   const tapeTimedOut = !tape;
   const fxTimedOut = !fx;
   const metalsTimedOut = !metals;
-  const equityAt = tapeTimedOut
-    ? lastOk.equity ?? null
+  const equityFresh = tapeTimedOut
+    ? null
     : remember("equity", latestIso([
         ...(tape?.rows.nzx ?? []).map((row) => row.quotedAt),
         ...(tape?.rows.asx ?? []).map((row) => row.quotedAt),
       ]));
+  edgeTimePut("equity", equityFresh);
+  const equityAt = equityFresh ?? (await lastOkFor("equity"));
   // b37 M-2: crypto "Last OK" comes from the shared snapshot, the same source as the page's
   // x-af-snapshot-at stamp, so the two times can't disagree. The tape is used only when there's no snapshot.
   const { readCryptoSnapshot } = await import("@/lib/crypto-snapshot");
   const snap = await within(readCryptoSnapshot());
   let cryptoAt = remember("crypto", snap?.at ?? null);
   if (!cryptoAt) {
-    cryptoAt = tapeTimedOut ? lastOk.crypto ?? null : remember("crypto", latestIso((tape?.rows.crypto ?? []).map((row) => row.quotedAt)));
+    cryptoAt = tapeTimedOut ? null : remember("crypto", latestIso((tape?.rows.crypto ?? []).map((row) => row.quotedAt)));
   }
+  if (!cryptoAt) {
+    // b40 M-2: the edge snapshot copy, then the colo's last OK time; never "unavailable" while one exists.
+    const { edgeSnapshotGet } = await import("@/lib/ticker-serve");
+    const edge = await within(edgeSnapshotGet<{ version: number; at: string }>(300), 400);
+    cryptoAt = edge?.at ? remember("crypto", edge.at) : await lastOkFor("crypto");
+  }
+  edgeTimePut("crypto", cryptoAt);
   const fxAt = fxTimedOut ? lastOk.fx ?? null : remember("fx", fx?.sourced ? fx.asOf : null);
   const metalsAt = metalsTimedOut ? lastOk.metals ?? null : remember("metals", metals?.live ? metals.quotedAt : null);
   const killed = cryptoFeedKilled();

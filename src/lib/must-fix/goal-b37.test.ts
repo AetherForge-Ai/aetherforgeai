@@ -1,4 +1,4 @@
-// pull-check:v3-goal-b39-2026-10-19
+// pull-check:v3-goal-b40-2026-10-19
 import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 
@@ -35,7 +35,7 @@ describe("b37 item 2 (CR-2): joint FIF answer", () => {
       expect(r!).toContain("including fees");
       expect(r!).toContain("New Zealand shares and most ASX-listed shares");
       expect(r!).toContain("The NZ$50,000 threshold applies per person") /* b38 CR-2 exact wording */;
-      expect(r!).toContain("joint holdings are split between the owners, so 2 equal owners can together hold up to NZ$100,000 in cost; it's not a doubled threshold for the portfolio.");
+      expect(r!).toContain("joint holdings are split between the owners, so 2 equal owners can together hold up to NZ$100,000 in cost with no other FIF holdings; it's not a doubled threshold for the portfolio.");
       expect(r!).toContain("Trusts and companies don't get the NZ$50,000 exemption");
       expect(r!).not.toMatch(/doubles to|\bYes\b|indicative only|quickly/i);
     }

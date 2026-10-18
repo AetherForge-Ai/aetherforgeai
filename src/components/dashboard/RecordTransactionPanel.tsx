@@ -1,6 +1,6 @@
 "use client";
 
-import { noteWrite, WRITE_TIMEOUT_CODE, WRITE_TIMEOUT_MESSAGE, WRITE_TIMEOUT_MS, clearPendingWrite, isDefiniteRefusal, journalPendingWrite, newWriteKey, withWriteTimeout } from "@/lib/write-journal";
+import { noteWrite, WRITE_TIMEOUT_CODE, WRITE_TIMEOUT_MESSAGE, WRITE_TIMEOUT_MS, clearCancelledWriteKey, clearPendingWrite, isCancelledWriteKey, isDefiniteRefusal, journalPendingWrite, newWriteKey, withWriteTimeout } from "@/lib/write-journal";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -127,6 +127,7 @@ export function RecordTransactionPanel({
   onQueryChange,
   onDone,
   onRequestClose,
+  onSavingChange,
 }: {
   open: boolean;
   initialMode: RecordKind;
@@ -138,6 +139,8 @@ export function RecordTransactionPanel({
   onQueryChange?: (query: string) => void;
   onDone: (ledger: unknown) => void;
   onRequestClose: () => void;
+  /** b40 G-10: tells the dialog a confirmed write is in flight, so X and Escape can't close it. */
+  onSavingChange?: (saving: boolean) => void;
 }) {
   const today = useMemo(() => todayISO(), [open]);
   const { rates, live: fxLive } = useFxRates();
@@ -168,6 +171,9 @@ export function RecordTransactionPanel({
   const [hint, setHint] = useState("");
   const [saving, setSaving] = useState(false);
   // b39 G-10: warn before leaving while a confirmed write is in flight (TT reloaded 0.4-4.3 s after Confirm).
+  useEffect(() => {
+    onSavingChange?.(saving);
+  }, [saving, onSavingChange]);
   useEffect(() => {
     if (!saving) return;
     const warn = (e: BeforeUnloadEvent) => {
@@ -735,6 +741,8 @@ export function RecordTransactionPanel({
         const row = {
           _id: `optimistic-${postedAt}`,
           _optimistic: true,
+          // b40 G-10: the key rides on the optimistic row, so a delete before the server answers can cancel it.
+          notes: `idem=${String(payload.idempotency_key)}`,
           type: kind,
           ticker: typeof payload.ticker === "string" ? payload.ticker : undefined,
           asset_type: payload.asset_type,
@@ -793,6 +801,21 @@ export function RecordTransactionPanel({
       }
       if (showQty) bumpHoldingsGeneration();
       clearPendingWrite(String(payload.idempotency_key));
+      // b40 G-10 (TT b39 P1): the member deleted the row while it was saving. Delete it on arrival.
+      if (isCancelledWriteKey(String(payload.idempotency_key))) {
+        const key = String(payload.idempotency_key);
+        const del = await api.delete(`/api/transactions?id=${encodeURIComponent(savedId)}&idem=${encodeURIComponent(key)}`);
+        if (del.ok || del.status === 404) {
+          clearCancelledWriteKey(key);
+          reviewKey.current = "";
+          noteWrite(getActiveAccountUserId(), { deletedId: savedId });
+          toast.success("Saved, then removed as you asked");
+          onDone({ cashBalance: undefined, lastTransaction: null, transactions: [], ledgerPartial: true, optimisticRollback: true, removedAfterSave: savedId });
+          onRequestClose();
+          return;
+        }
+        toast.error("It was saved, but the removal you asked for didn't go through. Delete it again from the list.");
+      }
       reviewKey.current = "";
       noteWrite(getActiveAccountUserId(), { createdId: savedId, cashAfter: (res.data as { cashBalance?: number } | undefined)?.cashBalance ?? null });
       toast.success("Transaction recorded");

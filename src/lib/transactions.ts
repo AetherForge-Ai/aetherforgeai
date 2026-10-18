@@ -1762,7 +1762,17 @@ async function loadLedgerFresh(user: AppUser, limit: number): Promise<Transactio
       _filter: { user: user._id },
       _limit: cap,
     }),
-    sessionCash(user) ?? readUserCash(user._id, fallbackCash),
+    // b40 G-10 (TT: stale cash on the GET right after a save): the session's cached cash predates a
+    // write this browser just made, so it is skipped and the user record is re-read.
+    (async () => {
+      const cached = sessionCash(user);
+      if (cached == null) return readUserCash(user._id, fallbackCash);
+      const wroteAt = await import("@/lib/book-cache.server")
+        .then((m) => m.requestWriteNotBefore())
+        .catch(() => 0);
+      const readAt = (user as { cash_read_at?: number }).cash_read_at ?? 0;
+      return wroteAt > 0 && readAt <= wroteAt ? readUserCash(user._id, fallbackCash) : cached;
+    })(),
   ]);
   const bookRows = ((bookRes?.data as unknown as TransactionRow[]) || []).map((r) => ({
     ...r,
