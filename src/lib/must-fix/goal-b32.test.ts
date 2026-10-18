@@ -1,3 +1,4 @@
+// pull-check:v3-goal-b32-2026-10-19
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -211,5 +212,13 @@ describe("b32 CR-2 P1: refusals and fixed facts answer before any network or mod
     expect(refusal).toBeLessThan(quota);
     expect(src.indexOf("coachStaticFactReply(userMessage)")).toBeLessThan(quota);
     expect(src).toMatch(/COACH_TOTAL_DEADLINE_MS = 9_000/);
+  });
+});
+
+describe("b32 CR-2: FIF de minimis line follows the IRD test", () => {
+  it("total cost of FIF interests more than NZ$50,000 at any time, not a sum over the year", () => {
+    const g = read("src/lib/guide-facts.ts");
+    expect(g).toMatch(/total cost of your FIF interests is more than NZ\$50,000 at any time in the income year/);
+    expect(g).not.toMatch(/add up the cost of attributing overseas shares held at any time/);
   });
 });

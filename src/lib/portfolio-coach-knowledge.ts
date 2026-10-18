@@ -330,7 +330,7 @@ export function coachStaticFactReply(userMessage: string): string | null {
   }
   if (/de minimis|fif (threshold|exemption|limit)|(threshold|limit).*\bfif\b|50,?000|\b50k\b/.test(q)) {
     parts.push(
-      "FIF de minimis: if the total cost of your offshore shares stayed at or under NZ$50,000 all income year (NZ$100,000 for a joint holding), the FIF rules usually do not apply and dividends are taxed instead. This is indicative, not tax advice; check with IRD or a tax adviser."
+      "FIF de minimis: if the total cost of your FIF interests is not more than NZ$50,000 at any time in the income year (NZ$100,000 for a joint holding), the FIF rules usually do not apply and dividends are taxed instead. This is indicative, not tax advice; check with IRD or a tax adviser."
     );
   }
   // b32 CR-2: broker questions get plain example facts on the static path: no ranking, no
