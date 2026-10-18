@@ -222,3 +222,48 @@ describe("b32 CR-2: FIF de minimis line follows the IRD test", () => {
     expect(g).not.toMatch(/add up the cost of attributing overseas shares held at any time/);
   });
 });
+
+describe("b32 addendum: CR-2 FIF facts and BS-01 error mapping", () => {
+  it("FIF static reply: cost incl. fees, any time, NZ/ASX excluded, NZ$100k only 2 equal owners, indicative", () => {
+    const r = coachStaticFactReply("What is the FIF de minimis threshold?") || "";
+    expect(r).toMatch(/including fees/);
+    expect(r).toMatch(/at any time in the income year/);
+    expect(r).toMatch(/New Zealand shares and most ASX-listed shares/);
+    expect(r).toMatch(/NZ\$100,000 figure applies only to two equal joint owners with no other FIF holdings/);
+    expect(r).toMatch(/Indicative, not tax advice/);
+  });
+  it("IBKR: User-Agent sent; XML ErrorCode on a non-200 is parsed; bare 403 is not a token error", () => {
+    const src = read("src/lib/broker-sync/ibkr-sync.server.ts");
+    expect(src).toMatch(/"User-Agent": IBKR_USER_AGENT/);
+    expect(src).toMatch(/!res\.ok && \/<ErrorCode>/);
+    expect(src).toMatch(/this is not a token error/);
+    expect(read("src/lib/broker-sync/ibkr-flex.ts")).toMatch(/"1015":/);
+  });
+});
+
+import { fdrIncome, comparativeValue, fifTotals } from "@/lib/fif-working-paper";
+describe("b32 G-12 golden: 5-holding FIF fixture sums to the printed total (per line, then sum)", () => {
+  // Opening values chosen so 5% lands on half-cents and sub-cents.
+  const holdings = [
+    { costNzd: 12_345.67, opening: 10_000.1, closing: 11_234.57, gains: 0, costs: 0 },
+    { costNzd: 9_876.54, opening: 9_999.99, closing: 9_500.05, gains: 120.33, costs: 0 },
+    { costNzd: 15_000.01, opening: 14_321.09, closing: 15_678.91, gains: 0, costs: 2_000 },
+    { costNzd: 7_777.77, opening: 7_000.03, closing: 6_543.21, gains: 55.55, costs: 0 },
+    { costNzd: 5_555.55, opening: 5_432.11, closing: 5_999.99, gains: 0, costs: 0 },
+  ];
+  const lines = holdings.map((h) => ({
+    costNzd: h.costNzd,
+    fdrNzd: fdrIncome(h.opening),
+    cvNzd: comparativeValue({ openingNzd: h.opening, closingNzd: h.closing, gainsNzd: h.gains, costsNzd: h.costs }),
+  }));
+  it("per-line FDR values are rounded to the cent", () => {
+    expect(lines.map((l) => l.fdrNzd)).toEqual([500.01, 500, 716.05, 350, 271.61]);
+  });
+  it("printed totals equal the sum of the printed lines, to the cent", () => {
+    const t = fifTotals(lines);
+    expect(t.fdrNzd).toBe(2337.67);
+    expect(t.costNzd).toBe(50_555.54);
+    const cvSum = lines.reduce((c, l) => c + Math.round((l.cvNzd as number) * 100), 0) / 100;
+    expect(t.cvNzd).toBe(cvSum);
+  });
+});
