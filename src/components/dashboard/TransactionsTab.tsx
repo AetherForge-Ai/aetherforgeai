@@ -15,6 +15,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { dividendDeleteEffect } from "@/lib/dashboard-tabs";
+import { isOptimisticId } from "@/lib/write-journal";
 import { formatNzd } from "@/lib/currency";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -251,7 +252,16 @@ export function TransactionsTab({
                           Edit
                         </Button>
                         {line.type === "dividend" || line.type === "deposit" || line.type === "withdraw" || line.type === "withdrawal" || (onEditTrade && isTradeLine(line)) ? (
-                          <Button type="button" size="sm" variant="outline" aria-label={`Delete ${line.type} ${line.ticker}`} onClick={() => setPending(line)}>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            aria-label={`Delete ${line.type} ${line.ticker}`}
+                            // b40 G-10 (TT b39 P1): a row still saving has no server id yet; Delete waits for it.
+                            disabled={isOptimisticId(line.id)}
+                            title={isOptimisticId(line.id) ? "Still saving. Delete is available once the server confirms this row." : undefined}
+                            onClick={() => setPending(line)}
+                          >
                             Delete
                           </Button>
                         ) : (

@@ -180,7 +180,8 @@ describe("b35 H-1 unit rules", () => {
     expect(route).toMatch(/status: 503/);
     expect(route).toMatch(/loadPublicTicker\(\{ snapshot: snap \}\)/);
     // b38 ruling 2: one per-request read plus the bounded cold-start durable read (only when this isolate has no copy).
-    expect(route.match(/readCryptoSnapshot\(/g)).toHaveLength(2);
+    // b40: plus the deadline fallback read (edge first, then durable) used only when the build times out.
+    expect(route.match(/readCryptoSnapshot\(/g)).toHaveLength(3);
     const markets = readFileSync("src/app/api/crypto/markets/route.ts", "utf8");
     expect(markets).toMatch(/x-af-snapshot-stale/);
     expect(markets).toMatch(/status: 503/);

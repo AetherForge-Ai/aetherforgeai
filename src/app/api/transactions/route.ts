@@ -329,6 +329,9 @@ export async function DELETE(req: Request) {
     }
     const id = new URL(req.url).searchParams.get("id")?.trim() || "";
     if (!id) return NextResponse.json({ ok: false, error: "A dividend id is required." }, { status: 400 });
+    if (id.startsWith("optimistic-")) {
+      return NextResponse.json({ ok: false, code: "not_found", error: "That row is still saving; nothing was removed." }, { status: 404 });
+    }
     // b7 H-5: deletes are idempotent by id. A row that is already gone (a retry,
     // a double click, a stale screen) answers 200 so the client drops it.
     // Goal b20 G-10: only a real "not found" counts as already removed. A read that
@@ -348,7 +351,9 @@ export async function DELETE(req: Request) {
       const goneKey = new URL(req.url).searchParams.get("idem")?.trim() || "";
       if (goneKey) await markIdemTombstone(user._id, goneKey);
       invalidateBookCache(user._id);
-      return NextResponse.json({ ok: true, data: { alreadyRemoved: true } }, { headers: writeMarkHeaders() });
+      // b40 G-10 (TT b39 P1): an unknown id (e.g. "optimistic-…", or a row already removed) is a 404, not a
+      // 200 that pretends something was deleted. The client treats 404 on a real id as already removed.
+      return NextResponse.json({ ok: false, code: "not_found", error: "That row was not found.", data: { alreadyRemoved: true } }, { status: 404, headers: writeMarkHeaders() });
     }
     const owner = typeof row.user === "object" && row.user ? row.user._id : row.user;
     if (String(owner || "") !== String(user._id)) {

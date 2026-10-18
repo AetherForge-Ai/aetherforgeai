@@ -90,3 +90,39 @@ describe("b40 G-24: visible Paste trades box on /import and the dashboard Import
     expect(read("src/components/import/PasteTradesBox.tsx")).toMatch(/Date missing/);
   });
 });
+
+describe("b40 G-10 (TT b39 P1): delete during pending", () => {
+  it("never sends DELETE for an optimistic id; Delete is disabled until the server id returns", async () => {
+    const { isOptimisticId, cancelWriteKey, isCancelledWriteKey, clearCancelledWriteKey } = await import("@/lib/write-journal");
+    expect(isOptimisticId("optimistic-123")).toBe(true);
+    expect(isOptimisticId("65f0a1b2c3")).toBe(false);
+    const m = new Map<string, string>();
+    const s = { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v), removeItem: (k: string) => void m.delete(k) };
+    cancelWriteKey("w-1", s);
+    expect(isCancelledWriteKey("w-1", s)).toBe(true);
+    clearCancelledWriteKey("w-1", s);
+    expect(isCancelledWriteKey("w-1", s)).toBe(false);
+    expect(read("src/components/dashboard/TransactionsTab.tsx")).toMatch(/disabled=\{isOptimisticId\(line\.id\)\}/);
+    const d = read("src/components/dashboard/PortfolioDashboard.tsx");
+    expect(d.indexOf("if (isOptimisticId(line.id))")).toBeLessThan(d.indexOf("api.delete<{ cash?: { after?: number }"));
+  });
+  it("a POST whose key was cancelled in this tab is deleted on arrival", () => {
+    const p = read("src/components/dashboard/RecordTransactionPanel.tsx");
+    expect(p).toMatch(/notes: `idem=\$\{String\(payload\.idempotency_key\)\}`/);
+    expect(p).toMatch(/if \(isCancelledWriteKey\(String\(payload\.idempotency_key\)\)\)/);
+  });
+  it("the server answers 404 for an unknown or optimistic id", () => {
+    const r = read("src/app/api/transactions/route.ts");
+    expect(r).toMatch(/id\.startsWith\("optimistic-"\)/);
+    expect(r).toMatch(/code: "not_found", error: "That row was not found\.", data: \{ alreadyRemoved: true \} \}, \{ status: 404/);
+  });
+});
+
+describe("b40 (TT b39 P1): sign-out leak", () => {
+  it("signed-in-only pages redirect in middleware when there is no session cookie, no-store", () => {
+    const m = read("src/middleware.ts");
+    expect(m).toMatch(/const SIGNED_IN_ONLY = \["\/settings"/);
+    expect(m).toMatch(/!signedIn && request\.method === "GET" && isSignedInOnlyPage\(pathname\)/);
+    expect(m).toMatch(/"private, no-store, max-age=0"/);
+  });
+});

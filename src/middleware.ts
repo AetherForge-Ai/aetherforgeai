@@ -159,6 +159,12 @@ function finish(response: NextResponse, request: NextRequest, signedIn: boolean,
   return response;
 }
 
+/** b40: pages with no signed-out view. /dashboard keeps its own signed-out gate and is not listed. */
+const SIGNED_IN_ONLY = ["/settings", "/account", "/profile", "/onboarding", "/import"];
+function isSignedInOnlyPage(pathname: string): boolean {
+  return SIGNED_IN_ONLY.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const signedIn = requestHasSessionToken((name) => request.cookies.get(name)?.value);
@@ -178,6 +184,16 @@ export async function middleware(request: NextRequest) {
   if (alias) {
     const redirectResponse = NextResponse.redirect(new URL(alias, request.url));
     return finish(redirectResponse, request, signedIn);
+  }
+
+  // b40 (TT b39 P1 sign-out leak): a signed-in-only page requested with no session cookie is redirected
+  // here, before any render, so a stale or cached signed-in document can't be shown after sign-out.
+  if (!signedIn && request.method === "GET" && isSignedInOnlyPage(pathname)) {
+    const login = new URL("/login", request.url);
+    login.searchParams.set("redirect", pathname);
+    const res = NextResponse.redirect(login, 307);
+    res.headers.set("Cache-Control", "private, no-store, max-age=0");
+    return finish(res, request, false);
   }
 
   if (!signedIn) {
