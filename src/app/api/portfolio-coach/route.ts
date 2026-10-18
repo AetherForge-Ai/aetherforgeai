@@ -1,3 +1,4 @@
+import { withAssistantDisclaimer } from "@/lib/guide-safety";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
@@ -136,7 +137,8 @@ export async function POST(req: Request) {
         { status: 429 }
       );
     }
-    const answer = async (reply: string, extra: Record<string, unknown> = {}) => {
+    const answer = async (raw: string, extra: Record<string, unknown> = {}) => {
+      const reply = withAssistantDisclaimer(raw);
       let after: AssistantQuota = quota;
       try {
         after = await recordAssistantExchange(user, quota, userMessage, reply);

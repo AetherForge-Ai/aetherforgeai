@@ -90,6 +90,9 @@ function matchesRoute(pathname: string, routes: string[]): boolean {
  */
 export function documentAccess(pathname: string): "public" | "member" | "missing" | "test-hooks" {
   const path = normalise(pathname);
+  // H-12: the old licence success page is not a document. /own-the-bots itself
+  // stays on the public list, but a child path must not inherit that prefix.
+  if (path === "/own-the-bots/success") return "missing";
   if (matchesRoute(path, ["/test-hooks"])) return "test-hooks";
   if (matchesRoute(path, PUBLIC_DOCUMENT_ROUTES)) return "public";
   if (matchesRoute(path, MEMBER_DOCUMENT_ROUTES)) return "member";

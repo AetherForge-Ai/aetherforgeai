@@ -1,3 +1,4 @@
+import "@/lib/book-version.server";
 import { testHooksAllowedFor } from "@/lib/test-hooks";
 import { DUPLICATE_DIVIDEND_CODE, findDuplicateDividendTx } from "@/lib/dividend-ledger";
 import { NextResponse } from "next/server";

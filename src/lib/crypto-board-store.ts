@@ -81,6 +81,8 @@ export interface SharedCryptoBoard {
   notice: string | null;
   delayed: boolean;
   countLine: string;
+  /** b30 H-1: stored snapshot version (x-af-snapshot-version). */
+  version?: number;
 }
 
 export interface SharedDexBoard {
@@ -577,7 +579,7 @@ function gateCoins(coins: CoinMarket[]): CoinMarket[] {
 /** Goal b13 G-17: crypto older than this is shown as stale and refreshed in the request. */
 export const CRYPTO_HARD_STALE_MS = 30 * 60 * 1000;
 
-function presentCrypto(coins: CoinMarket[], at: string | null): SharedCryptoBoard {
+function presentCrypto(coins: CoinMarket[], at: string | null, version = 0): SharedCryptoBoard {
   const listed = coins.map((coin) => presentListedCoin(coin));
   const sources = listed.map((coin) => coin.source || "coingecko");
   const short =
@@ -598,6 +600,7 @@ function presentCrypto(coins: CoinMarket[], at: string | null): SharedCryptoBoar
     notice,
     delayed: snapshotIsStale(at, Date.now(), SNAPSHOT_REFRESH_MS),
     countLine: countLine("coins", coins.length),
+    version,
   };
 }
 
@@ -681,20 +684,20 @@ export async function readSharedCryptoBoard(opts?: { seed?: boolean; revalidate?
       await flushCryptoAttempt();
       const fresher = await readCryptoSnapshot();
       if (fresher?.coins?.length && (fresher.at ?? "") > (saved?.at ?? "")) {
-        return presentCrypto(gateCoins(fresher.coins), fresher.at ?? null);
+        return presentCrypto(gateCoins(fresher.coins), fresher.at ?? null, fresher.version);
       }
-      return presentCrypto(visible, saved?.at ?? null);
+      return presentCrypto(visible, saved?.at ?? null, saved?.version ?? 0);
     }
     if (visible.length && boardNeedsRefresh(saved?.at, SNAPSHOT_REFRESH_MS)) {
       if (afterHookAvailable()) kickRefresh();
       else await scheduleDetached(() => refreshCryptoSeed(), 400);
     }
-    return presentCrypto(visible, saved?.at ?? null);
+    return presentCrypto(visible, saved?.at ?? null, saved?.version ?? 0);
   }
   void opts;
   await Promise.race([refreshCryptoSeed().catch(() => undefined), sleep(EMPTY_CRYPTO_SEED_MS)]);
   const again = await readCryptoSnapshot();
-  return presentCrypto(gateCoins(again?.coins ?? []), again?.at ?? null);
+  return presentCrypto(gateCoins(again?.coins ?? []), again?.at ?? null, again?.version ?? 0);
 }
 
 /** How long a visitor waits for a DEX refresh. after() keeps the rest of the run alive. */

@@ -22,7 +22,7 @@ import { corporateActionsCsv, positionsCsv, tradesCsv } from "@/lib/tax-pack-zip
 
 describe("b29 version bump", () => {
   it("marker and pull-check line ship with the runtime", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-goal-b29-2026-10-19");
+    expect(read("public/build-version.txt").trim()).toMatch(/^v3-goal-b(29|[3-9]\d)-/);
     expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-goal-b29-2026-10-19");
   });
 });
@@ -169,7 +169,7 @@ describe("b29 H-1 one snapshot, time only moves forward", () => {
   });
   it("memory is rechecked against the durable row; an older list or a fallback provider does not replace a fresh primary", () => {
     const src = read("src/lib/crypto-snapshot.ts");
-    expect(src).toContain("MEMORY_RECHECK_MS = 30_000");
+    expect(src).toMatch(/MEMORY_RECHECK_MS = (30_000|SNAPSHOT_LOCAL_TTL_MS)/); // b30: 3 s local copy
     expect(src).toContain("a newer list is already saved");
     expect(primarySnapshotSource([{ source: "coingecko" }, { source: "coingecko" }, { source: "coinpaprika" }])).toBe("coingecko");
     expect(read("src/app/api/crypto/markets/route.ts")).toContain('"x-af-snapshot-at"');

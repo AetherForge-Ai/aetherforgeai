@@ -132,10 +132,14 @@ describe("H-12 data gate, methodology, orphan pages", () => {
   it("counts trading days", () => {
     expect(tradingDaysBetween(new Date("2026-10-09T03:00:00Z"), new Date("2026-10-12T03:00:00Z"))).toBe(1);
   });
-  it("holds a ticker whose last print is more than 3 trading days old", () => {
+  it("holds a ticker whose last print is older than the NZX limit", () => {
     const row = { score: 70, analysisHold: null as string | null };
-    expect(staleDataHold(row, "2026-10-08T03:00:00Z", new Date("2026-10-16T03:00:00Z")).analysisHold).toBe(DATA_TOO_OLD_HOLD);
-    expect(staleDataHold(row, "2026-10-14T03:00:00Z", new Date("2026-10-16T03:00:00Z")).analysisHold).toBeNull();
+    const now = new Date("2026-10-16T03:00:00Z");
+    const held = staleDataHold(row, "2026-10-08T03:00:00Z", now);
+    expect(held.analysisHold?.startsWith(DATA_TOO_OLD_HOLD)).toBe(true);
+    expect(held.analysisHold).toMatch(/trading days old/);
+    expect(held.score).toBe(0);
+    expect(staleDataHold(row, "2026-10-15T03:00:00Z", now).analysisHold).toBeNull();
     expect(staleDataHold(row, undefined).score).toBe(70);
   });
   it("own-the-bots/success is gone and methodology exists", () => {

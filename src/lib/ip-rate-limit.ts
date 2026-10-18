@@ -48,6 +48,7 @@ export function hasDurableCounterStore(): boolean {
 
 export function resetRateLimits(): void {
   buckets.clear();
+  denyMemory.clear();
   slidingLog.clear();
 }
 
@@ -396,4 +397,60 @@ export async function takeSlidingRateLimit(
   }
   const resetSec = Math.max(1, Math.ceil(((hits[0] ?? now + windowMs) - now) / 1000));
   return { allowed: true, remaining: Math.max(0, limit - count), limit, resetSec, store, keyHash: keyHash(key), backends };
+}
+
+
+/**
+ * b30: atomic per-email login counter. The durable store increments FIRST and the
+ * decision is made on the value it returns, so concurrent attempts in different
+ * isolates each get a distinct ordinal and exactly `limit` are allowed. The Cache
+ * API and this isolate's memory are used only to DENY (a key already refused stays
+ * refused without a store round trip); they can never allow past the store.
+ * With no durable store the per-isolate memory count decides (the old floor).
+ */
+const denyMemory = new Map<string, number>();
+
+export async function takeAtomicLimit(
+  key: string,
+  limit: number,
+  windowMs: number,
+  now = Date.now(),
+  opts: { store?: DurableCounterStore | null; useCache?: boolean } = {}
+): Promise<RateLimitResult> {
+  const storageKey = `${rateLimitStorageKey(key, windowMs, now)}:atomic`;
+  const resetSec = Math.max(1, Math.ceil((windowMs - (now % windowMs)) / 1000));
+  const denied = (store: RateLimitStore, why: string): RateLimitResult => ({
+    allowed: false, remaining: 0, limit, resetSec, store, keyHash: keyHash(key), backends: `counter=atomic; decided-by=${why}`,
+  });
+  const store = opts.store === undefined ? durableStore : opts.store;
+  if ((denyMemory.get(storageKey) ?? 0) > now) return denied("memory", "deny-memory");
+  const useCache = opts.useCache !== false;
+  if (useCache && (await readShared(`deny:${storageKey}`)) != null) return denied("cache", "deny-cache");
+  let value: number;
+  let decidedBy: RateLimitStore;
+  if (store) {
+    try {
+      value = await store.increment(storageKey, windowMs, now);
+      decidedBy = "durable";
+    } catch (err) {
+      lastTableState = classifyTableError(err);
+      value = (buckets.get(storageKey) ?? 0) + 1;
+      buckets.set(storageKey, value);
+      decidedBy = "memory";
+    }
+  } else {
+    value = (buckets.get(storageKey) ?? 0) + 1;
+    buckets.set(storageKey, value);
+    decidedBy = "memory";
+  }
+  if (value > limit) {
+    denyMemory.set(storageKey, now + resetSec * 1000);
+    if (useCache) await writeShared(`deny:${storageKey}`, 1);
+    return denied(decidedBy, decidedBy);
+  }
+  return { allowed: true, remaining: Math.max(0, limit - value), limit, resetSec, store: decidedBy, keyHash: keyHash(key), backends: `counter=atomic; decided-by=${decidedBy}` };
+}
+
+export function resetAtomicLimits(): void {
+  denyMemory.clear();
 }

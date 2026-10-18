@@ -22,7 +22,7 @@ const pct = (n: number) => `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(1)}%`;
 export function stockContentParagraphs(i: StockContentInput): string[] {
   const out: string[] = [];
   out.push(
-    `${i.name} trades on the ${i.exchangeLabel} under the symbol ${i.symbol}${i.sector ? ` and is listed in the ${i.sector} sector` : ""}. Prices on this page are in ${i.currency}. They come from a market data vendor and are delayed while the market is open; outside trading hours they show the last official close. AetherForge is a paper book: recording a trade here does not buy or sell anything.`
+    `${i.name} trades on the ${i.exchangeLabel} under the symbol ${i.symbol}${i.sector ? ` and is listed in the ${i.sector} sector` : ""}. Prices on this page are in ${i.currency}. They come from a market data vendor and are delayed while the market is open; outside trading hours they show the last session close. AetherForge is a paper book: recording a trade here does not buy or sell anything.`
   );
   const c = i.closes.filter((v) => Number.isFinite(v) && v > 0);
   if (c.length >= 20) {

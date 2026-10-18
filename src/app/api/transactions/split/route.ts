@@ -1,3 +1,4 @@
+import "@/lib/book-version.server";
 import { NextResponse } from "next/server";
 import { getTradeSessionUser } from "@/lib/session";
 import { applyTransaction } from "@/lib/transactions";

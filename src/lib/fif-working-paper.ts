@@ -66,7 +66,7 @@ export const FIF_SOURCES = [
 export const FIF_ASSUMPTIONS = [
   "This paper is indicative. It does not decide whether the FIF rules apply to you.",
   "A ticker ending in .NZ is treated as a New Zealand share and is left out.",
-  "A ticker ending in .AX is included in the FIF threshold cost total. Australian-exempt companies can be left out by the member when they are on the ASX list Inland Revenue names, are Australian resident and not treated as resident elsewhere under a treaty, maintain a franking account, and the stock is not stapled. This book cannot check those conditions.",
+  "An ASX share this book treats as meeting Inland Revenue's Australian listed share exemption (Australian resident, franking account, not stapled) is shown as excluded and does not count toward the FIF cost; its dividends are shown as overseas dividend income. Confirm each with Inland Revenue's Australian listed share exemption tool. Any other .AX share is counted.",
   "Crypto and metals are left out. This paper does not treat them as shares in a foreign company.",
   "Other share tickers are treated as attributing interests for this paper.",
   "Cost is quantity times price times the exchange rate stored on the buy, in NZ$. A foreign buy with no stored rate is not given a guessed rate, and the FIF threshold test is then not calculated.",
@@ -104,6 +104,8 @@ export interface FifPosition {
   gainsNzd: number;
   costsInYearNzd: number;
   omittedDividendCash: boolean;
+  /** b30 H-9: gross dividends on an exempt ASX share (overseas dividend income, not FIF). */
+  exemptDividendsNzd?: number;
 }
 
 export interface FifPaper {
@@ -122,13 +124,26 @@ export interface FifPaper {
   sources: readonly { href: string; label: string }[];
 }
 
+/**
+ * b30 H-9: ASX companies treated as on Inland Revenue's Australian listed share exemption
+ * (Australian resident, franking account, not stapled). Indicative: IRD publishes this as an
+ * online check tool, not a list, so the member should confirm each with that tool. A .AX
+ * share not listed here is counted as an attributing interest.
+ */
+export const ASX_FIF_EXEMPT = new Set(["BHP", "CBA", "CSL", "NAB", "WBC", "ANZ", "WES", "WOW", "TLS", "MQG", "FMG"]);
+
+export function asxExempt(ticker: string): boolean {
+  const base = ticker.trim().toUpperCase().replace(/\.(AX|ASX)$/, "");
+  return ASX_FIF_EXEMPT.has(base);
+}
+
 export function fifClass(ticker: string, assetType: string | null | undefined): FifClass {
   const kind = String(assetType || "").toLowerCase();
   if (kind === "crypto" || kind === "metal" || kind === "cash") return "not-a-share";
   const symbol = ticker.trim().toUpperCase();
   if (symbol === "GOLD" || symbol === "SILVER") return "not-a-share";
   if (symbol.endsWith(".NZ") || symbol.endsWith(".NZX")) return "new-zealand";
-  if (symbol.endsWith(".AX") || symbol.endsWith(".ASX")) return "australian";
+  if (symbol.endsWith(".AX") || symbol.endsWith(".ASX")) return asxExempt(symbol) ? "australian" : "attributable";
   if (!symbol) return "not-a-share";
   return "attributable";
 }
@@ -167,6 +182,7 @@ interface Working {
   costsInYearNzd: number;
   cvBlocked: boolean;
   omittedDividendCash: boolean;
+  exemptDividendsNzd?: number;
 }
 
 function emptyWorking(): Working {
@@ -287,6 +303,7 @@ function positionFrom(
     gainsNzd: working.gainsNzd,
     costsInYearNzd,
     omittedDividendCash: working.omittedDividendCash,
+    ...(className === "australian" ? { exemptDividendsNzd: working.exemptDividendsNzd ?? 0 } : {}),
   };
 }
 
@@ -313,7 +330,8 @@ export function buildFifPaper(input: {
   function attributingCost(): number | null {
     let total = 0;
     for (const book of books.values()) {
-      if (book.className !== "attributable" && book.className !== "australian") continue;
+      // b30 H-9: exempt ASX shares are not FIF interests and never count toward the peak cost.
+      if (book.className !== "attributable") continue;
       if (book.working.unknown) return null;
       for (const lot of book.working.lots) total += lot.costNzd;
     }
@@ -372,8 +390,14 @@ export function buildFifPaper(input: {
     if (row.type !== "dividend" || !inNzTaxYear(row.executed_at || row.createdAt, input.endingYear)) continue;
     const ticker = String(row.ticker || "").trim().toUpperCase();
     const book = books.get(ticker);
-    if (!book || book.className !== "attributable") continue;
+    if (!book) continue;
     const view = dividendViewFromRow(row);
+    if (book.className === "australian") {
+      // b30 H-9: dividends on an exempt ASX share are ordinary (exempt-from-FIF) overseas income.
+      if (view.parts) book.working.exemptDividendsNzd = roundMoney((book.working.exemptDividendsNzd ?? 0) + view.parts.grossNzd);
+      continue;
+    }
+    if (book.className !== "attributable") continue;
     if (!view.parts) book.working.omittedDividendCash = true;
     else book.working.gainsNzd = roundMoney(book.working.gainsNzd + view.parts.grossNzd);
   }

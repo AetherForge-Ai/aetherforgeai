@@ -311,9 +311,10 @@ describe("T4 fif cost", () => {
         { type: "buy", ticker: "WOR.AX", asset_type: "stock", executed_at: "2025-06-02", quantity: 1, price: 4697.181, currency: "NZD", fx_rate: 1 },
       ],
     });
-    const cost = paper.australian[0].costNzd;
+    // b30 H-9: WOR.AX is not on the exemption set, so it is counted as attributing.
+    const cost = paper.attributing[0].costNzd;
     expect(cost).toBe(11743.36);
-    expect(`${paper.australian[0].ticker}: cost ${formatNzd(cost ?? 0)}.`).toBe("WOR.AX: cost NZ$11,743.36.");
+    expect(`${paper.attributing[0].ticker}: cost ${formatNzd(cost ?? 0)}.`).toBe("WOR.AX: cost NZ$11,743.36.");
   });
 });
 

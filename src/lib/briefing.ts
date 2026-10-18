@@ -58,7 +58,7 @@ export interface IntelligenceBriefing {
 }
 
 const DISCLAIMER =
-  "This is evidence-based market intelligence, not financial advice. All forward figures are probabilistic ranges derived from recent volatility and prevailing regime — outcomes are uncertain and actual moves may fall outside every range shown. Not a recommendation or an offer to buy or sell. Always do your own research.";
+  "This is evidence-based market intelligence, not financial advice. All forward figures are probabilistic ranges derived from recent volatility and prevailing regime — outcomes are uncertain and actual moves may fall outside every range shown. Not a recommendation or an offer to deal. Always do your own research.";
 
 function sp(x: number): string {
   return `${x >= 0 ? "+" : ""}${x}%`;

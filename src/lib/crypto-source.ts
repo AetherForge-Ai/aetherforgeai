@@ -425,6 +425,7 @@ export async function loadTop400Markets(): Promise<RankedCryptoPage> {
         coins: fresh.coins.slice(0, 400),
         notice: fresh.notice,
         at: fresh.at,
+        version: fresh.version,
       };
     }
   }
@@ -436,6 +437,7 @@ export async function loadTop400Markets(): Promise<RankedCryptoPage> {
       coins: board.coins.slice(0, 400),
       notice: board.notice,
       at: board.at,
+      version: board.version,
     };
   }
   await upgradeStoredCryptoBoard(AWAIT_LIST_UPGRADE_MS);
@@ -444,6 +446,7 @@ export async function loadTop400Markets(): Promise<RankedCryptoPage> {
     coins: again.coins.slice(0, 400),
     notice: again.notice,
     at: again.at,
+    version: again.version,
   };
 }
 

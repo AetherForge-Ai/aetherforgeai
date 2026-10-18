@@ -18,7 +18,7 @@ import "server-only";
 import { loadTop400Markets } from "@/lib/crypto-source";
 import { readSharedDexBoard } from "@/lib/crypto-board-store";
 import { dexRowToCoin } from "@/lib/crypto-dex";
-import { analyzeSecurity, NOT_ENOUGH_DAILY_HISTORY, type SecurityIntel } from "@/lib/market-intel";
+import { analyzeSecurity, NOT_ENOUGH_DAILY_HISTORY, staleDataHold, type SecurityIntel } from "@/lib/market-intel";
 import { labelIntel } from "@/lib/security-signal";
 import { resolveSevenDayChange, type CoinMarket } from "@/lib/crypto-market";
 
@@ -60,7 +60,7 @@ export function coinToIntel(c: CoinMarket, dailyCloses?: number[] | null): Secur
   if (daily.length >= 40 && !base.analysisHold) published.push("30d");
 
   const technicalHold = base.analysisHold ? NOT_ENOUGH_DAILY_HISTORY : null;
-  return labelIntel({
+  const built: SecurityIntel = {
     ...base,
     ticker: c.symbol,
     name: c.name,
@@ -88,7 +88,8 @@ export function coinToIntel(c: CoinMarket, dailyCloses?: number[] | null): Secur
     publishedChanges: published,
     analysisHold: technicalHold,
     forwardOmitted: true,
-  });
+  };
+  return labelIntel(staleDataHold(built, c.quotedAt, new Date(), "crypto"));
 }
 
 let cache: { at: number; value: SecurityIntel[] } | null = null;

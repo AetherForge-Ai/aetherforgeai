@@ -191,7 +191,7 @@ function formatBookSnapshot(s: BookSnapshot): string {
   }
   bits.push(
     "",
-    "_Snapshot from your live book. Educational / execution help — not personalised financial advice._"
+    "_Snapshot from your live book. General information, not financial advice._"
   );
   return bits.join("\n");
 }

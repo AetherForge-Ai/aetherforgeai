@@ -66,6 +66,7 @@ describe("M-2 docs and status", () => {
     for (const g of DOCS_GUIDES) expect(g.steps.length).toBeGreaterThanOrEqual(3);
     // Incident history is real data only: nothing is invented.
     expect(STATUS_INCIDENTS).toEqual([]);
-    expect(read("src/app/status/page.tsx")).toContain("Last OK");
+    expect(read("src/app/status/page.tsx")).toContain("statusFeedBody");
+    expect(read("src/lib/status-feeds.ts")).toContain("Last OK");
   });
 });

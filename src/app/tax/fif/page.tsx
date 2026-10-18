@@ -187,21 +187,20 @@ export default async function FifPage({
               </p>
             ) : null}
 
-            <h2 className="mt-8 font-display text-lg font-semibold">Australian listings</h2>
+            <h2 className="mt-8 font-display text-lg font-semibold">Excluded: exempt ASX shares</h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              Australian listings are included in the highest cost above. Inland Revenue says an exemption can apply when the
-              company is on the ASX list Inland Revenue names, is Australian resident and not treated as resident in another country
-              under a treaty, maintains a franking account, and the stock is not stapled. This book cannot check those
-              conditions. If you leave an exempt company out, remove that cost from the total. Australian franking credits cannot be claimed in New
-              Zealand. Fair dividend rate and comparative value are not calculated for this group.
+              These ASX shares are treated as meeting Inland Revenue&apos;s Australian listed share exemption (Australian resident,
+              franking account, not stapled), so they are not FIF interests and are not in the highest cost above. Their dividends are
+              overseas dividend income. Confirm each with Inland Revenue&apos;s Australian listed share exemption tool. Any other ASX share
+              is counted with the attributing interests. Australian franking credits cannot be claimed in New Zealand. Indicative only.
             </p>
             {paper.australian.length === 0 ? (
-              <p className="mt-2 text-sm text-muted-foreground">No Australian listings on this book.</p>
+              <p className="mt-2 text-sm text-muted-foreground">No exempt ASX shares on this book.</p>
             ) : (
               <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
                 {paper.australian.map((position) => (
                   <li key={position.ticker}>
-                    {position.ticker}: cost {position.costNzd == null ? "Not recorded" : formatNzd(position.costNzd)}.
+                    {position.ticker}: excluded. Cost {position.costNzd == null ? "Not recorded" : formatNzd(position.costNzd)}; dividends (exempt from FIF, overseas income) {formatNzd(position.exemptDividendsNzd ?? 0)}.
                   </li>
                 ))}
               </ul>
