@@ -28,7 +28,9 @@ describe("public data-source copy", () => {
     expect(copy).not.toMatch(/licensed|GoGold/i);
     expect(copy).toMatch(/Yahoo Finance/);
     expect(copy).toMatch(/not a direct NZX or ASX feed/);
-    expect(copy).not.toMatch(/Twelve Data|official|licensed|real-time/i);
+    // b35 H-15: MARKET_DATA_API_KEY is set in production, so Twelve Data is named (when configured).
+    expect(copy).toMatch(/When configured, Twelve Data is also used as a share-quote source/);
+    expect(copy).not.toMatch(/official|licensed|real-time/i);
     expect(copy).not.toMatch(/swyftx/i);
     expect(copy).toMatch(/gold-api\.com/);
     expect(PUBLIC_COIN_ABOUT).toMatch(/delayed|indicative/i);

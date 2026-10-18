@@ -82,6 +82,8 @@ export function publicDataSourcesLine(): string {
   return (
     "Prices for NZX- and ASX-listed shares, and for US shares, come from public market data (Yahoo Finance). " +
     "They are not a direct NZX or ASX feed. " +
+    // b35 H-15 (GOAL-LOCK #14): MARKET_DATA_API_KEY is set in production, so Twelve Data is named.
+    "When configured, Twelve Data is also used as a share-quote source. " +
     "When a newer print is not in the response, the page shows the last saved print and its time. " +
     `Crypto prices come from ${englishList(cryptoSourceNames())}. ` +
     `DEX token prices come from ${englishList(dexSourceNames())}. ` +
