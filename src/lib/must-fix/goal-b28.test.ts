@@ -15,7 +15,7 @@ describe("b28 G-20 stored scorecard", () => {
   it("cron still needs the secret and stores the card; the page only reads it", () => {
     const cron = read("src/app/api/cron/track-record/route.ts");
     expect(cron).toContain('status: 401');
-    expect(cron).toContain("persistTrackRun(run)");
+    expect(cron).toMatch(/persistTrackRun\(run[,)]/);
     const page = read("src/app/test-hooks/track-record/page.tsx");
     expect(page).toContain("loadTrackRecordView");
     expect(page).not.toMatch(/runTrackRecord\(/);

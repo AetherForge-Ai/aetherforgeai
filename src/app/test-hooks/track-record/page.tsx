@@ -2,6 +2,9 @@ import { notFound } from "next/navigation";
 import { currentUserMayUseTestHooks } from "@/lib/test-hooks.server";
 import { loadTrackRecordView } from "@/lib/track-record-store.server";
 import { runTrackRecordBounded } from "@/lib/track-record-run.server";
+import { readTrackRunLog } from "@/lib/track-record-store.server";
+import { builtByLabel } from "@/lib/track-record-store";
+import { lastCronRuns } from "@/lib/cron-runs.server";
 import { seedTrackRecordStore, storedCardIsStale, TRACK_LIVE_WAIT_MS } from "@/lib/track-record-seed.server";
 import { snapshotFromRun, viewFromStoredJson, type TrackRecordView } from "@/lib/track-record-store";
 import { CALL_HASH_FIELDS } from "@/lib/track-record";
@@ -45,6 +48,11 @@ export default async function Page() {
       </main>
     );
   }
+  // b36 G-20 (GOAL-LOCK #55): who stored this card, and the last 3 scheduled runs. GitHub Actions
+  // (server-side, only when a read token is configured) else the track-record rows' own timestamps.
+  const [runLog, ghRuns] = await Promise.all([readTrackRunLog().catch(() => []), lastCronRuns().catch(() => null)]);
+  const builtBy = source === "live" ? "built live" : builtByLabel(runLog, view.scorecardHash);
+  const scheduled = runLog.filter((e) => e.builtBy === "schedule").slice(0, 3);
   const sum = view.hits + view.misses + view.pending + view.unscored;
   const history =
     view.calls === 0
@@ -65,7 +73,7 @@ export default async function Page() {
         data-unscored={view.unscored}
         data-reports={view.reportsRead}
       >
-        Week {view.week} · {source === "stored" ? "stored" : "built live"} {formatDisplayDateTime(view.storedAt)} (NZ time) · reports read {view.reportsRead} · calls {view.calls} · hits {view.hits} · misses {view.misses} · pending {view.pending} · unscored {view.unscored} · later prices fetched {view.laterFetched}, reused {view.laterReused}
+        Week {view.week} · <span data-track-built-by={builtBy}>{builtBy}</span> {formatDisplayDateTime(view.storedAt)} (NZ time) · reports read {view.reportsRead} · calls {view.calls} · hits {view.hits} · misses {view.misses} · pending {view.pending} · unscored {view.unscored} · later prices fetched {view.laterFetched}, reused {view.laterReused}
       </p>
       <p className="text-sm">
         Scorecard hash <code data-scorecard-hash={view.scorecardHash}>{view.scorecardHash}</code>. Call hashes checked when this card was stored:{" "}
@@ -75,6 +83,30 @@ export default async function Page() {
         Recomputed now: {view.hashMatches ? "matches" : "does not match"}. Hits + misses + pending + unscored = {sum} of {view.calls} calls ({view.totalsAddUp ? "every call counted, misses included" : "count mismatch"}).
       </p>
       {history ? <p className="text-sm" data-track-history>{history}</p> : null}
+      <section className="text-sm" data-track-runs data-track-runs-source={ghRuns ? "github-actions" : "track-record-rows"}>
+        <h2 className="font-semibold">Last scheduled runs ({ghRuns ? "GitHub Actions cron.yml" : "from the stored track-record rows"})</h2>
+        {ghRuns ? (
+          <ul>
+            {ghRuns.map((r) => (
+              <li key={r.at} data-track-run>
+                {formatDisplayDateTime(r.at)} (NZ time) · {r.event} · {r.conclusion}
+                {r.durationS != null ? ` · ${r.durationS} s` : ""}
+              </li>
+            ))}
+          </ul>
+        ) : scheduled.length ? (
+          <ul>
+            {scheduled.map((r) => (
+              <li key={r.at} data-track-run>
+                {formatDisplayDateTime(r.at)} (NZ time) · built by schedule
+                {r.durationMs != null ? ` · ${(r.durationMs / 1000).toFixed(1)} s` : ""} · calls {r.calls} · hash <code>{r.scorecardHash.slice(0, 12)}</code>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p>No scheduled run has stored a card since this log started (b36). The next cron.yml run adds one.</p>
+        )}
+      </section>
       <details className="text-sm" data-hash-howto>
         <summary>How to verify the hash</summary>
         <p>Algorithm: SHA-256, lowercase hex. Input: the scorecard body as canonical JSON (object keys sorted A–Z at every level, no spaces), with fields <code>week</code>, <code>calls</code>, <code>hits</code>, <code>misses</code>, <code>pending</code>, <code>unscored</code>. Each entry in <code>calls</code> has <code>hash</code>, <code>ticker</code>, <code>signal</code>, <code>result</code> (hit, miss, pending or unscored). Each call hash is SHA-256 of canonical JSON of <code>{CALL_HASH_FIELDS.join(", ")}</code>. This page recomputes the scorecard hash from the stored body and shows whether it matches. The full body stays in the store. This test view shows totals only.</p>

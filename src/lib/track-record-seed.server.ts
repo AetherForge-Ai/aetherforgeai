@@ -20,7 +20,7 @@ export function seedTrackRecordStore(): "started" | "already-running" {
   const job = runTrackRecordBounded(Date.now(), undefined, SEED_BUILD_MS)
     .then(async (out) => {
       if ("error" in out) throw new Error(out.error);
-      const stored = await persistTrackRun(out.run);
+      const stored = await persistTrackRun(out.run, undefined, undefined, { builtBy: "seed" });
       console.info("[track-record] seed", JSON.stringify({ stored: stored.ok, calls: out.run.calls.length }));
     })
     .catch((err) => console.warn("[track-record] seed failed:", err instanceof Error ? err.message.slice(0, 120) : "error"))

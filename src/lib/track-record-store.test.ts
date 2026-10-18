@@ -203,7 +203,7 @@ describe("G-20 stored scorecard", () => {
     expect(page).toContain("misses included");
     expect(page).toContain("No scorecard is stored yet");
     const cron = read("src/app/api/cron/track-record/route.ts");
-    expect(cron).toContain("persistTrackRun(run)");
+    expect(cron).toMatch(/persistTrackRun\(run[,)]/);
     expect(cron).toContain("scorecardHash: run.card.scorecardHash");
     expect(cron).not.toMatch(/data: run\.card[,\s]/);
     expect(cron).not.toMatch(/searchParams\.get\("key"\)/);

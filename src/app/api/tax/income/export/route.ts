@@ -1,3 +1,4 @@
+import { CSV_LOCK_LABEL } from "@/lib/csv-lock-label";
 import { NextResponse } from "next/server";
 import { formatDisplayDate } from "@/lib/currency";
 import { canExportCsv } from "@/lib/entitlements";
@@ -22,7 +23,7 @@ export async function GET(req: Request) {
     }
     if (!canExportCsv(user.subscription_plan)) {
       return NextResponse.json(
-        { ok: false, error: "CSV export is included on Starter and above.", data: { code: "not_entitled" } },
+        { ok: false, error: `${CSV_LOCK_LABEL}.`, data: { code: "not_entitled" } },
         { status: 403 }
       );
     }

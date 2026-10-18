@@ -11,6 +11,10 @@ import {
   type StoredTrackRun,
   type TrackRecordView,
   type TrackRunSnapshot,
+  TRACK_RUN_LOG_TICKER,
+  appendRunLog,
+  parseRunLog,
+  type TrackRunLogEntry,
 } from "@/lib/track-record-store";
 
 /**
@@ -168,7 +172,8 @@ async function writePacked(rows: ScorecardRows, json: string): Promise<void> {
 export async function persistTrackRun(
   run: TrackRunSnapshot,
   rows: ScorecardRows = liveScorecardRows,
-  storedAt = new Date().toISOString()
+  storedAt = new Date().toISOString(),
+  meta: { builtBy?: "schedule" | "seed"; durationMs?: number | null } = {}
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     const snap: StoredTrackRun = snapshotFromRun(run, storedAt);
@@ -177,6 +182,16 @@ export async function persistTrackRun(
     }
     const json = JSON.stringify(snap);
     await writePacked(rows, json);
+    // b36 G-20: record who stored this card (the cron or the seed), for "built by schedule".
+    if (meta.builtBy) {
+      try {
+        const log = parseRunLog(await rows.read(TRACK_RUN_LOG_TICKER));
+        const next = appendRunLog(log, { at: storedAt, builtBy: meta.builtBy, durationMs: meta.durationMs ?? null, calls: snap.card.calls.length, scorecardHash: snap.card.scorecardHash });
+        await rows.write(TRACK_RUN_LOG_TICKER, JSON.stringify(next));
+      } catch {
+        /* the card is stored; the log is best effort */
+      }
+    }
     if (rows === liveScorecardRows) {
       memoryRaw = json;
       try {
@@ -215,5 +230,14 @@ export async function loadTrackRecordView(rows: ScorecardRows = liveScorecardRow
       if (fallback) return readyOrError(fallback);
     }
     return { kind: "error", error: "The stored scorecard could not be read in time." };
+  }
+}
+
+/** b36 G-20: the stored run log (newest first). */
+export async function readTrackRunLog(rows: ScorecardRows = liveScorecardRows, timeoutMs = TRACK_RECORD_READ_MS): Promise<TrackRunLogEntry[]> {
+  try {
+    return parseRunLog(await withTimeout(rows.read(TRACK_RUN_LOG_TICKER), timeoutMs));
+  } catch {
+    return [];
   }
 }

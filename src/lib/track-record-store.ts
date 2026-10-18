@@ -8,6 +8,8 @@ import { verifyScorecard, type CallResult, type ScorecardBody, type ScorecardCal
 
 /** Hidden watchlist ticker. Not a holding. GET hides it and POST rejects it. */
 export const TRACK_SCORECARD_TICKER = "AF-TRS";
+/** b36 G-20: last stored runs (time, built by, duration, calls, hash). Hidden like AF-TRS. */
+export const TRACK_RUN_LOG_TICKER = "AF-TRL";
 
 /** Watchlist `name` holds at most this many characters (same slot as the crypto snapshot). */
 export const SCORECARD_NAME_MAX = 24_000;
@@ -18,7 +20,7 @@ const RESULTS = new Set<CallResult>(["hit", "miss", "pending", "unscored"]);
 
 export function isTrackScorecardTicker(ticker: string | null | undefined): boolean {
   const key = (ticker || "").trim().toUpperCase();
-  return key === TRACK_SCORECARD_TICKER || /^AF-TRS-\d+$/.test(key);
+  return key === TRACK_SCORECARD_TICKER || key === TRACK_RUN_LOG_TICKER || /^AF-TRS-\d+$/.test(key);
 }
 
 export function trackScorecardChunkTicker(index: number): string {
@@ -163,4 +165,40 @@ export async function viewFromStoredJson(raw: string): Promise<TrackRecordView |
     hashMatches,
     totalsAddUp: card.hits + card.misses + card.pending + card.unscored === calls,
   };
+}
+
+/** b36 G-20 (GOAL-LOCK #55): one stored run, totals and hash only. */
+export interface TrackRunLogEntry {
+  at: string;
+  builtBy: "schedule" | "seed";
+  durationMs: number | null;
+  calls: number;
+  scorecardHash: string;
+}
+
+/** Newest first; keeps the last 3 scheduled runs plus the newest seed run. */
+export function appendRunLog(log: readonly TrackRunLogEntry[], entry: TrackRunLogEntry): TrackRunLogEntry[] {
+  const all = [entry, ...log].sort((a, b) => (a.at < b.at ? 1 : -1));
+  const schedule = all.filter((e) => e.builtBy === "schedule").slice(0, 3);
+  const seed = all.find((e) => e.builtBy === "seed");
+  return [...schedule, ...(seed ? [seed] : [])].sort((a, b) => (a.at < b.at ? 1 : -1));
+}
+
+export function parseRunLog(raw: string | null | undefined): TrackRunLogEntry[] {
+  try {
+    const v = raw ? (JSON.parse(raw) as unknown) : [];
+    return Array.isArray(v)
+      ? v.filter((e): e is TrackRunLogEntry => !!e && typeof e.at === "string" && (e.builtBy === "schedule" || e.builtBy === "seed") && typeof e.scorecardHash === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Plain label for the stored card: "built by schedule" only when a scheduled run stored this exact card. */
+export function builtByLabel(log: readonly TrackRunLogEntry[], scorecardHash: string): "built by schedule" | "stored by the seed" | "stored" {
+  const match = log.find((e) => e.scorecardHash === scorecardHash);
+  if (match?.builtBy === "schedule") return "built by schedule";
+  if (match?.builtBy === "seed") return "stored by the seed";
+  return "stored";
 }
