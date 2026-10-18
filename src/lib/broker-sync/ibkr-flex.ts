@@ -36,7 +36,7 @@ export type FlexAnswer =
 export const FLEX_ERRORS: Record<string, string> = {
   "1003": "IBKR says the statement is not available yet. Try again later.",
   "1012": "Your IBKR Flex token has expired. Make a new token in IBKR and connect again.",
-  "1013": "IBKR refused the call because of the token's IP restriction.",
+  "1013": "IBKR refused the call because your Flex token is restricted to other IP addresses. In IBKR, remove the IP restriction on the token (or allow our server), then connect again.",
   "1014": "IBKR says the Query ID is not valid. Check the Flex Query ID.",
   "1015": "IBKR says the token is not valid. Check the Flex token.",
   "1018": "IBKR is limiting requests for this token. Try again in a minute.",

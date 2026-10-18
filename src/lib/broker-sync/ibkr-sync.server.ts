@@ -35,6 +35,19 @@ async function flexGet(url: string): Promise<string> {
   return res.text();
 }
 
+/**
+ * Connect-time check: one SendRequest. A token IBKR rejects (expired, IP-restricted, invalid)
+ * is refused before anything is saved. The reference it returns is not used.
+ */
+export async function verifyFlexCredentials(token: string, queryId: string): Promise<{ ok: true } | { ok: false; message: string }> {
+  try {
+    const answer = parseFlexResponse(await flexGet(sendRequestUrl(token, queryId)));
+    return answer.ok === false ? { ok: false, message: answer.message } : { ok: true };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : "IBKR could not be reached. Nothing was saved." };
+  }
+}
+
 /** Fetch the statement for a token + query. The token is used only in the request URL and never logged. */
 export async function fetchFlexStatement(token: string, queryId: string, wait = (ms: number) => new Promise((r) => setTimeout(r, ms))): Promise<string> {
   const first = parseFlexResponse(await flexGet(sendRequestUrl(token, queryId)));

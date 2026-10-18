@@ -4,6 +4,7 @@ import { takeRateLimit } from "@/lib/ip-rate-limit";
 import { BROKER_KEY_MISSING, brokerKeyConfigured, encryptToken } from "@/lib/broker-sync/token-crypto.server";
 import { deleteConnection, findConnection, publicConnection, saveConnection } from "@/lib/broker-sync/connection-store.server";
 import { validFlexToken, validQueryId } from "@/lib/broker-sync/ibkr-flex";
+import { verifyFlexCredentials } from "@/lib/broker-sync/ibkr-sync.server";
 
 export const dynamic = "force-dynamic";
 const PRIVATE = { "Cache-Control": "private, no-store" };
@@ -32,6 +33,8 @@ export async function POST(req: Request) {
   const queryId = String(body.queryId ?? "").trim();
   if (!validFlexToken(token)) return NextResponse.json({ ok: false, error: "That does not look like an IBKR Flex token (digits only)." }, { status: 400, headers: PRIVATE });
   if (!validQueryId(queryId)) return NextResponse.json({ ok: false, error: "That does not look like a Flex Query ID (digits only)." }, { status: 400, headers: PRIVATE });
+  const check = await verifyFlexCredentials(token, queryId);
+  if (check.ok === false) return NextResponse.json({ ok: false, error: `${check.message} Nothing was saved.` }, { status: 400, headers: PRIVATE });
   try {
     await saveConnection(user._id, "ibkr", await encryptToken(token, user._id), queryId);
     const conn = await findConnection(user._id, "ibkr");
