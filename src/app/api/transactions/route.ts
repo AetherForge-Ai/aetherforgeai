@@ -11,7 +11,8 @@ import { applyTransaction, ledgerAfterBooking, loadLedger } from "@/lib/transact
 import { tradeSchema } from "@/lib/trade-schema";
 import { hasForeignOwner, requestClaimsOtherUser } from "@/lib/account-guard";
 import { accountMismatchResponse, privateJson } from "@/lib/account-response";
-import { findIdempotentRow, writeMarkHeaders } from "@/lib/write-integrity";
+import { writeMarkHeaders } from "@/lib/write-integrity";
+import { guardedIdemWrite, idemKeyFromNotes, idemNotesRegex, isIdemTombstoned, markIdemTombstone, pickIdemWinner, type IdemRow } from "@/lib/idem-guard";
 import { TRADE_CONFIRM_REQUIRED } from "@/lib/trade-confirm";
 import { previewActivityEmail } from "@/lib/activity-email";
 import { readActivityEmailPrefs } from "@/lib/activity-email-server";
@@ -152,6 +153,31 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, dryRun: true, data: { wouldWrite: true, type: input.type, ticker: input.ticker ?? null } });
     }
 
+    // b39 G-10 (P1): the idempotency key is resolved before anything else (including the dividend
+    // duplicate check, which used to refuse a replay as a "duplicate"). A fresh, uncached lookup;
+    // concurrent repeats are serialised per key and collapsed after insert (lib/idem-guard).
+    const idemKey = String(input.idempotency_key || "").trim().slice(0, 80);
+    let idemSeenEmpty = false;
+    if (idemKey) {
+      const tomb = await isIdemTombstoned(user._id, idemKey);
+      if (tomb) {
+        console.info("[write]", JSON.stringify({ action: input.type, outcome: "idem-tombstoned", status: 410 }));
+        return NextResponse.json({ ok: false, code: "idem_deleted", error: "This entry was removed, so it was not recorded again." }, { status: 410 });
+      }
+      const seen = await findIdemRowsFresh(user._id, idemKey).catch(() => null);
+      idemSeenEmpty = Array.isArray(seen) && seen.length === 0;
+      if (seen && seen.length) {
+        const { winner, losers } = pickIdemWinner(seen);
+        for (const l of losers) await reverseDuplicate(l);
+        if (losers.length) invalidateBookCache(user._id);
+        const book = await loadLedger(user).catch(() => null);
+        console.info("[write]", JSON.stringify({ action: input.type, outcome: "replayed", id: winner?._id ?? null, collapsed: losers.length, status: 200 }));
+        return NextResponse.json(
+          { ok: true, data: { ...(book || { transactions: [], cashBalance: undefined, ledgerPartial: true }), lastTransaction: winner, realizedNZD: 0, holding: null, replayed: true } },
+          { headers: writeMarkHeaders() }
+        );
+      }
+    }
     // The book read overlaps the write. If it is still in flight when the
     // holding, ledger and cash writes finish, the response does not wait for
     // the 5000-row query. The client merges the new row into the ledger it has.
@@ -183,24 +209,39 @@ export async function POST(req: Request) {
         );
       }
     }
-    // b37 G-10: idempotent replay across isolates. The client sends one key per Confirm and keeps
-    // it on a retry (401 → refresh → retry, a reload replaying its pending-write journal, or a second
-    // click). If a row stamped with that key (notes "idem=<key>") is already in the book, answer with
-    // that row and write nothing.
-    const idemKey = String(input.idempotency_key || "").trim().slice(0, 80);
-    if (idemKey) {
-      const book = await priorLedger;
-      const prior = book ? findIdempotentRow(book.transactions as Array<{ notes?: string }>, idemKey) : null;
-      if (prior && book) {
-        console.info("[write]", JSON.stringify({ action: input.type, outcome: "replayed", id: (prior as { _id?: string })._id ?? null, status: 200 }));
-        return NextResponse.json({ ok: true, data: { ...book, lastTransaction: prior, realizedNZD: 0, holding: null, replayed: true } }, { headers: writeMarkHeaders() });
-      }
-    }
     let priorReady: Awaited<ReturnType<typeof loadLedger>> | null = null;
     void priorLedger.then((book) => {
       if (book) priorReady = book;
     }).catch(() => undefined);
-    const result = await applyTransaction(user, input, { priorLedger });
+    let result: Awaited<ReturnType<typeof applyTransaction>>;
+    if (idemKey) {
+      let applied: Awaited<ReturnType<typeof applyTransaction>> | null = null;
+      const outcome = await guardedIdemWrite<IdemRow>(`${user._id}:${idemKey}`, {
+        tombstoned: () => isIdemTombstoned(user._id, idemKey),
+        find: () => findIdemRowsFresh(user._id, idemKey),
+        insert: async () => {
+          applied = await applyTransaction(user, input, { priorLedger });
+          return { row: (applied as { transaction?: IdemRow }).transaction };
+        },
+        reverse: reverseDuplicate,
+        knownEmpty: idemSeenEmpty,
+      });
+      if (outcome.kind === "tombstoned") {
+        return NextResponse.json({ ok: false, code: "idem_deleted", error: "This entry was removed, so it was not recorded again." }, { status: 410 });
+      }
+      if (outcome.kind !== "inserted" || outcome.collapsed > 0) {
+        invalidateBookCache(user._id);
+        const book = await loadLedger(user).catch(() => null);
+        console.info("[write]", JSON.stringify({ action: input.type, outcome: `idem-${outcome.kind}`, id: outcome.row._id ?? null, collapsed: outcome.collapsed, status: 200 }));
+        return NextResponse.json(
+          { ok: true, data: { ...(book || { transactions: [], cashBalance: undefined, ledgerPartial: true }), lastTransaction: outcome.row, realizedNZD: 0, holding: null, replayed: true } },
+          { headers: writeMarkHeaders() }
+        );
+      }
+      result = applied as unknown as Awaited<ReturnType<typeof applyTransaction>>;
+    } else {
+      result = await applyTransaction(user, input, { priorLedger });
+    }
     const ledger = priorReady
       ? ledgerAfterBooking(priorReady, result)
       : {
@@ -304,6 +345,8 @@ export async function DELETE(req: Request) {
     }
     const row = (loaded as { data?: { _id?: string; type?: string; user?: string | { _id?: string } } } | null)?.data;
     if (!row?._id) {
+      const goneKey = new URL(req.url).searchParams.get("idem")?.trim() || "";
+      if (goneKey) await markIdemTombstone(user._id, goneKey);
       invalidateBookCache(user._id);
       return NextResponse.json({ ok: true, data: { alreadyRemoved: true } }, { headers: writeMarkHeaders() });
     }
@@ -336,6 +379,9 @@ export async function DELETE(req: Request) {
       console.error("[write] delete-unconfirmed", JSON.stringify({ id }));
       return NextResponse.json({ ok: false, error: "The server did not confirm the removal. Reload and try again." }, { status: 500 });
     }
+    // b39 G-10: tombstone the row's idempotency key so a late journal replay can't recreate it.
+    const deletedKey = idemKeyFromNotes((row as { notes?: string }).notes) || new URL(req.url).searchParams.get("idem")?.trim() || "";
+    if (deletedKey) await markIdemTombstone(user._id, deletedKey);
     console.info("[write]", JSON.stringify({ action: "delete", id, status: 200, cashAfter: (result as { cash?: { after?: number } })?.cash?.after ?? null }));
     ledgerAudit("delete", user._id, row, result);
     invalidateBookCache(user._id);
@@ -437,3 +483,23 @@ export async function PATCH(req: Request) {
   }
 }
 
+
+/** b39 G-10: fresh (uncached) rows of this user stamped with the key. Throws on a failed read. */
+async function findIdemRowsFresh(userId: string, key: string): Promise<IdemRow[]> {
+  const res = await totalumSdk.crud.query("transaction", {
+    _filter: { user: userId, notes: { regex: idemNotesRegex(key) } },
+    _limit: 10,
+  } as never);
+  return ((res?.data as unknown as IdemRow[]) || []).filter((r) => r && r._id);
+}
+
+/** b39 G-10: reverse a duplicate row of the same key (cash included); "already gone" is fine. */
+async function reverseDuplicate(row: IdemRow): Promise<void> {
+  if (!row._id) return;
+  try {
+    await planOrApplyLedgerReversal(row._id, true, row as never);
+    console.warn("[write] idem-duplicate-reversed", JSON.stringify({ id: row._id }));
+  } catch (err) {
+    console.error("[write] idem-duplicate-reverse-failed", JSON.stringify({ id: row._id, error: err instanceof Error ? err.message : String(err) }));
+  }
+}

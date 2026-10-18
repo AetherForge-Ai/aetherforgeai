@@ -1,3 +1,4 @@
+import { idemKeyFromNotes } from "@/lib/idem-guard";
 /**
  * One NZD portfolio snapshot for every dashboard total.
  * FIFO lots, cash replay, income net, and the return split are computed here.
@@ -122,6 +123,8 @@ export interface SnapshotLedgerLine {
   realisedNzd: number | null;
   when: string;
   whenLabel: string;
+  /** b39 G-10: the write's idempotency key (notes "idem=…"), so a delete can cancel its replay. */
+  idem?: string;
 }
 
 export interface SnapshotFilter {
@@ -1650,6 +1653,7 @@ export function buildPortfolioSnapshot(input: SnapshotInput): PortfolioSnapshot 
             : null,
         when: day,
         whenLabel: day ? formatDisplayDate(day) : MISSING_MARK,
+        ...(idemKeyFromNotes((row as { notes?: string | null }).notes) ? { idem: idemKeyFromNotes((row as { notes?: string | null }).notes) as string } : {}),
         sort: day,
       };
     })

@@ -6,7 +6,7 @@ import { mergeIndexTabs } from "@/lib/ticker-serve";
 import { QUOTE_DELAY_TABLE } from "@/lib/market-freshness";
 import { journalDeletedMap, journalPendingWrite, listPendingWrites, pendingDeleteIds, replayPendingWrites } from "@/lib/write-journal";
 
-// pull-check:v3-goal-b38-2026-10-19
+// pull-check:v3-goal-b39-2026-10-19
 const read = (p: string) => readFileSync(p, "utf8");
 function mem() {
   const m = new Map<string, string>();
@@ -15,7 +15,7 @@ function mem() {
 
 describe("b38 build", () => {
   it("pins the build", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-goal-b38-2026-10-19");
+    expect(read("public/build-version.txt").trim()).toBe("v3-goal-b39-2026-10-19");
   });
 });
 
@@ -35,7 +35,7 @@ describe("b38 G-10: pending deletes", () => {
   it("the dashboard journals deletes and replays them", () => {
     const dash = read("src/components/dashboard/PortfolioDashboard.tsx");
     expect(dash).toMatch(/method: "DELETE", payload: \{\}, deleteId: line\.id/);
-    expect(dash).toMatch(/api\.delete\(`\/api\/transactions\?id=\$\{encodeURIComponent\(id\)\}`\)/);
+    expect(dash).toMatch(/api\.delete\(`\/api\/transactions\?id=\$\{encodeURIComponent\(id\)\}/); // b39 adds &idem=
   });
 });
 
