@@ -18,6 +18,7 @@ import { flushCryptoAttempt } from "@/lib/crypto-attempts";
  * pull-check:v3-retest10-2026-10-13
  */
 
+import { keepAlive } from "@/lib/keep-alive.server";
 import "server-only";
 
 import { readFileSync, writeFileSync } from "node:fs";
@@ -638,7 +639,7 @@ function presentDex(rows: DexTokenRow[], at: string | null, sources: string[]): 
 const EMPTY_CRYPTO_SEED_MS = 7_000;
 
 /** A Yahoo-only or stale list may wait this long for a richer seed inside the request. */
-const YAHOO_UPGRADE_BOUND_MS = 8_000;
+const YAHOO_UPGRADE_BOUND_MS = 1_200; // b31 REG-1: was 8 s; the refresh continues via waitUntil
 
 function snapshotIsYahooOnly(coins: CoinMarket[]): boolean {
   return coins.length > 0 && coins.every((coin) => (coin.source || "") === "yahoo");
@@ -658,7 +659,9 @@ export async function upgradeStoredCryptoBoard(boundMs = YAHOO_UPGRADE_BOUND_MS)
   const stale = !saved.at || snapshotIsStale(saved.at);
   if (!yahooOnly && !short && !stale) return;
   nextYahooUpgradeAt = Date.now() + 60_000;
-  await Promise.race([refreshCryptoSeed().catch(() => undefined), sleep(boundMs)]);
+  const work = refreshCryptoSeed().catch(() => undefined);
+  void keepAlive(work);
+  await Promise.race([work, sleep(Math.min(boundMs, YAHOO_UPGRADE_BOUND_MS))]);
 }
 
 function dexSnapshotThin(rows: DexTokenRow[], sources: string[]): boolean {
@@ -680,8 +683,10 @@ export async function readSharedCryptoBoard(opts?: { seed?: boolean; revalidate?
     // inside the request (bounded) and waits for the attempt to be recorded. The
     // detached kick alone left the list 12–16 minutes old on b19.
     if (opts?.revalidate && visible.length && boardNeedsRefresh(saved?.at, SNAPSHOT_REFRESH_MS)) {
-      await Promise.race([refreshCryptoSeed().catch(() => undefined), sleep(DEX_REFRESH_BOUND_MS)]);
-      await flushCryptoAttempt();
+      // b31 REG-1: bounded wait; the refresh and its attempt record finish via waitUntil.
+      const work = refreshCryptoSeed().catch(() => undefined);
+      void keepAlive(work);
+      await Promise.race([work, sleep(REQUEST_REFRESH_BOUND_MS)]);
       const fresher = await readCryptoSnapshot();
       if (fresher?.coins?.length && (fresher.at ?? "") > (saved?.at ?? "")) {
         return presentCrypto(gateCoins(fresher.coins), fresher.at ?? null, fresher.version);
@@ -695,13 +700,17 @@ export async function readSharedCryptoBoard(opts?: { seed?: boolean; revalidate?
     return presentCrypto(visible, saved?.at ?? null, saved?.version ?? 0);
   }
   void opts;
-  await Promise.race([refreshCryptoSeed().catch(() => undefined), sleep(EMPTY_CRYPTO_SEED_MS)]);
+  const seedWork = refreshCryptoSeed().catch(() => undefined);
+  void keepAlive(seedWork);
+  await Promise.race([seedWork, sleep(Math.min(EMPTY_CRYPTO_SEED_MS, REQUEST_REFRESH_BOUND_MS))]);
   const again = await readCryptoSnapshot();
   return presentCrypto(gateCoins(again?.coins ?? []), again?.at ?? null, again?.version ?? 0);
 }
 
 /** How long a visitor waits for a DEX refresh. after() keeps the rest of the run alive. */
-const DEX_REFRESH_BOUND_MS = 1_500;
+const DEX_REFRESH_BOUND_MS = 1_200;
+/** b31 REG-1: the most any page or API request waits for an in-request refresh. */
+const REQUEST_REFRESH_BOUND_MS = 1_200;
 
 function boardNeedsRefresh(at: string | null | undefined, maxAge = SNAPSHOT_REFRESH_MS): boolean {
   return !at || snapshotIsStale(at, Date.now(), maxAge);
@@ -720,7 +729,9 @@ async function revalidateStaleBoards(): Promise<void> {
   const dexThin = dexSnapshotThin(dex?.rows ?? [], dex?.sources ?? []);
   if (!dex?.rows.length || boardNeedsRefresh(dex?.at, DEX_REQUEST_FRESH_MS) || dexThin) jobs.push(refreshDexSeed());
   if (!jobs.length) return;
-  await Promise.race([Promise.all(jobs), sleep(DEX_REFRESH_BOUND_MS)]);
+  const all = Promise.all(jobs);
+  void keepAlive(all);
+  await Promise.race([all, sleep(REQUEST_REFRESH_BOUND_MS)]);
 }
 
 export async function readSharedDexBoard(opts?: { seed?: boolean; revalidate?: boolean }): Promise<SharedDexBoard> {

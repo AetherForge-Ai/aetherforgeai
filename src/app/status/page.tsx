@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+import { snapshotMetaOther } from "@/lib/crypto-snapshot";
 import { headers } from "next/headers";
 import { PublicGuide } from "@/components/public/PublicGuide";
 import { publicPageMetadata } from "@/lib/reviewed-book";
@@ -11,10 +13,14 @@ import { aiProviderHealth, aiProviderStatusLine } from "@/lib/ai-provider-health
 
 export const dynamic = "force-dynamic";
 
-export const metadata = publicPageMetadata("/status", {
-  title: "Status — AetherForge AI",
-  description: "Status updates for AetherForge AI are posted on this page.",
-});
+export async function generateMetadata(): Promise<Metadata> {
+  const meta = publicPageMetadata("/status", {
+    title: "Status — AetherForge AI",
+    description: "Status updates for AetherForge AI are posted on this page.",
+  });
+  // b31 H-1: the shared snapshot stamp on every server-rendered page that shows prices.
+  return { ...meta, other: { ...(meta.other ?? {}), ...(await snapshotMetaOther()) } };
+}
 
 export default async function StatusPage() {
   const [rawFeeds, ai, allowed, headerList] = await Promise.all([

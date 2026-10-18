@@ -182,6 +182,8 @@ You are the **Portfolio Notes Assistant** for AetherForge AI — a professional 
 
 **Language:** Clear English only. Short sentences. Plain words. Define jargon briefly when needed.
 
+**No product claims:** never say AetherForge, an import, a broker or a data feed is fast, quick, instant, accurate, precise or reliable. Never compare brokers on speed or accuracy.
+
 **Mission (in order):**
 1. Take The Headmaster's recommendations / plan / strategy (when provided in context) and any attached Stox or Koins report material.
 2. Guide the member step-by-step to execute that plan via dashboard changes: cash, buys/adds, sells/removes, alerts, watchlist, transactions.
@@ -306,4 +308,30 @@ export function portfolioCoachFallbackReply(userMessage: string): string {
     `Tell me the next plan item you want to align, or ask how a dashboard action works.\n\n` +
     `_General information, not financial advice._`
   );
+}
+
+
+/**
+ * b31 CR-2: plan, paper-book and FIF de minimis questions are answered from static facts at
+ * once (no context load, no model call), so they never time out. Prices match plans.ts.
+ */
+export function coachStaticFactReply(userMessage: string): string | null {
+  const q = userMessage.toLowerCase();
+  const parts: string[] = [];
+  if (/\b(price|pricing|cost|costs|how much|plans?|subscription|starter|pro plan|ultimate|free plan)\b/.test(q)) {
+    parts.push(
+      "Free is NZ$0. Starter is NZ$16 per month or NZ$160 per year. Pro is NZ$49 per month or NZ$490 per year. Ultimate is from NZ$199 per month — talk to us. All prices in NZD. See /pricing for what each plan includes."
+    );
+  }
+  if (/paper (book|portfolio|trad)|does it (place|execute)|execute (trades|orders)|real trades?|actual(ly)? (buy|trade)/.test(q)) {
+    parts.push(
+      "Yes, AetherForge is a paper book. Trades you record are kept on your dashboard; they are never executed or sent to a broker."
+    );
+  }
+  if (/de minimis|fif (threshold|exemption|limit)|(threshold|limit).*\bfif\b|50,?000|\b50k\b/.test(q)) {
+    parts.push(
+      "FIF de minimis: if the total cost of your offshore shares stayed at or under NZ$50,000 all income year (NZ$100,000 for a joint holding), the FIF rules usually do not apply and dividends are taxed instead. This is indicative, not tax advice; check with IRD or a tax adviser."
+    );
+  }
+  return parts.length ? parts.join("\n\n") : null;
 }

@@ -328,25 +328,36 @@ export function MarketTicker({ className, compact = false, initial = null, initi
   useEffect(() => {
     const controller = new AbortController();
     let active = true;
+    let retry: ReturnType<typeof setTimeout> | null = null;
     const loadFeed = async () => {
-      const timeout = AbortSignal.timeout(8000);
+      if (retry) {
+        clearTimeout(retry);
+        retry = null;
+      }
+      // b31 G-05/REG-1: a stalled feed gives up after 4 s; the last-good rows stay (amber
+      // after one missed refresh) and the next tick, or a quick retry, recovers.
+      const timeout = AbortSignal.timeout(4_000);
       const anySignal = (AbortSignal as unknown as { any?: (signals: AbortSignal[]) => AbortSignal }).any;
       const signal = anySignal ? anySignal([controller.signal, timeout]) : timeout;
       const res = await api.get<TickerFeed>("/api/ticker", { signal });
-      if (!active || res.aborted) return;
-      if (res.ok && res.data?.rows) {
-        setNzx(res.data.rows.nzx ?? []);
-        setAsx(res.data.rows.asx ?? []);
-        setCrypto(res.data.rows.crypto ?? []);
-        setLive(res.data.live ?? EMPTY_LIVE);
-        setProviders(res.data.providers ?? { equities: null, crypto: null });
-        setAsOf(res.data.asOf ?? null);
-        setFeedForce(res.data.testFeedForce ?? null);
+      // Unmount only. A res.aborted from the 4 s timeout counts as a missed refresh (amber, retry).
+      if (!active || controller.signal.aborted) return;
+      const rows = res.ok ? res.data?.rows : null;
+      const hasRows = !!rows && (rows.nzx?.length || 0) + (rows.asx?.length || 0) + (rows.crypto?.length || 0) > 0;
+      if (res.ok && rows && hasRows) {
+        // An empty part keeps its last-good rows rather than blanking.
+        if (rows.nzx?.length) setNzx(rows.nzx);
+        if (rows.asx?.length) setAsx(rows.asx);
+        if (rows.crypto?.length) setCrypto(rows.crypto);
+        setLive(res.data!.live ?? EMPTY_LIVE);
+        setProviders(res.data!.providers ?? { equities: null, crypto: null });
+        setAsOf(res.data!.asOf ?? null);
+        setFeedForce(res.data!.testFeedForce ?? null);
         setFailedRefreshes(0);
-        console.log("[ticker] Feed loaded:", res.data.live, res.data.providers, res.data.asOf);
-      } else if (!res.ok) {
+      } else {
         setFailedRefreshes((count) => count + 1);
-        console.error("[ticker] Feed fetch failed:", res.error);
+        console.error("[ticker] Feed fetch failed:", res.ok ? "no rows" : res.error);
+        retry = setTimeout(loadFeed, 15_000);
       }
       setLoaded(true);
     };
@@ -355,6 +366,7 @@ export function MarketTicker({ className, compact = false, initial = null, initi
     return () => {
       active = false;
       clearInterval(id);
+      if (retry) clearTimeout(retry);
       controller.abort();
     };
   }, []);
@@ -387,7 +399,8 @@ export function MarketTicker({ className, compact = false, initial = null, initi
 
   // H-4/M-1: no short placeholder. The same rows render while loading so the
   // page below does not move when prices arrive (CLS).
-  const emptyText = loaded ? undefined : "Loading prices…";
+  const anyRows = nzx.length + asx.length + crypto.length > 0;
+  const emptyText = loaded ? (anyRows ? undefined : "Prices are delayed. Retrying shortly.") : "Loading prices…";
   if (compact) {
     const blend = [...nzx.slice(0, 6), ...asx.slice(0, 5), ...crypto.slice(0, 5)];
     return (

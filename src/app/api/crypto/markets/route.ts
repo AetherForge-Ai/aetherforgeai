@@ -10,15 +10,15 @@ import { loadTop400Markets } from "@/lib/crypto-source";
 
 export const dynamic = "force-dynamic";
 
-/** Fresh for 30s, then stale-while-revalidate so a tab reload does not wait on CoinGecko. */
-const CACHE_CONTROL = "public, max-age=30, stale-while-revalidate=300";
+/** b31 REG-1/H-1: short private TTL; the CDN never serves an older snapshot version. */
+const CACHE_CONTROL = "private, max-age=5";
 
 export async function GET() {
   try {
     const page = await loadTop400Markets();
     return NextResponse.json(marketsBody(page.coins, page.notice, page.at), {
       // b29 H-1: snapshot version, so a test can compare reads and catch time running backwards.
-      headers: { "cache-control": CACHE_CONTROL, "x-af-snapshot-at": page.at || "", "x-af-snapshot-version": String(page.version ?? 0) },
+      headers: { "cache-control": CACHE_CONTROL, "CDN-Cache-Control": "no-store", "x-af-snapshot-at": page.at || "", "x-af-snapshot-version": String(page.version ?? 0) },
     });
   } catch (err: unknown) {
     console.error("[api/crypto/markets] error:", err);

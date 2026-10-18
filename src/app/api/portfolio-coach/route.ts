@@ -16,6 +16,8 @@ import { loadTotalumSynthesis, loadReportFindings } from "@/lib/totalum-service"
 import { scopeHeadmasterIdeas } from "@/lib/headmaster-trust";
 import { portfolioCoachCompletionMessages } from "@/lib/ai-request-payload";
 import { ASSISTANT_SHARE_PICK_REPLY, isSharePickRequest, withGuideDisclaimer } from "@/lib/guide-safety";
+import { keepAlive } from "@/lib/keep-alive.server";
+import { coachStaticFactReply } from "@/lib/portfolio-coach-knowledge";
 import { readAssistantQuota, recordAssistantExchange, type AssistantQuota } from "@/lib/assistant-quota.server";
 
 export const dynamic = "force-dynamic";
@@ -110,6 +112,15 @@ function buildAttachedReportsBlock(
  * Accepts optional Headmaster plan text + attached Stox/Koins report context.
  * Prefetches Headmaster synthesis when the member is entitled.
  */
+/** b31 CR-2: context and quota reads wait at most this long. */
+const COACH_READ_TIMEOUT_MS = 1_500;
+/** b31 CR-2: the model gets this long, so a factual answer returns within 10 s. */
+const COACH_MODEL_TIMEOUT_MS = 7_000;
+
+function boundedRead<T>(work: Promise<T>, ms: number): Promise<T | null> {
+  return Promise.race([work.catch(() => null), new Promise<null>((resolve) => setTimeout(() => resolve(null), ms))]);
+}
+
 export async function POST(req: Request) {
   try {
     const user = await getCurrentUser();
@@ -130,20 +141,28 @@ export async function POST(req: Request) {
     const history = parsed.data.history ?? [];
 
     // b28 L-4: the panel shares the Market Assistant quota with /api/chat.
-    const quota = await readAssistantQuota(user);
+    // b31 CR-2: every slow read is bounded; a timed-out quota read does not block the answer.
+    const quota =
+      (await boundedRead(readAssistantQuota(user), COACH_READ_TIMEOUT_MS)) ??
+      ({ used: 0, limit: null, remaining: null } as AssistantQuota);
     if (quota.limit != null && quota.used >= quota.limit) {
       return NextResponse.json(
         { ok: false, error: `You've used this month's ${quota.limit} Market Assistant queries.`, ...quota },
         { status: 429 }
       );
     }
-    const answer = async (raw: string, extra: Record<string, unknown> = {}) => {
+    const answer = async (raw: string, extra: Record<string, unknown> = {}, count = true) => {
       const reply = withAssistantDisclaimer(raw);
-      let after: AssistantQuota = quota;
-      try {
-        after = await recordAssistantExchange(user, quota, userMessage, reply);
-      } catch (err) {
-        console.warn("[api/portfolio-coach] quota record failed:", err instanceof Error ? err.message : "error");
+      // b31 CR-2: the exchange is stored in the background; a timed-out model call is not counted.
+      const after: AssistantQuota = count
+        ? { used: quota.used + 1, limit: quota.limit, remaining: quota.limit == null ? null : Math.max(0, quota.limit - quota.used - 1) }
+        : quota;
+      if (count) {
+        void keepAlive(
+          recordAssistantExchange(user, quota, userMessage, reply).catch((err) => {
+            console.warn("[api/portfolio-coach] quota record failed:", err instanceof Error ? err.message : "error");
+          })
+        );
       }
       return NextResponse.json({ ok: true, data: { reply, ...extra, used: after.used, limit: after.limit, remaining: after.remaining } });
     };
@@ -155,6 +174,8 @@ export async function POST(req: Request) {
       console.info(`[api/portfolio-coach] share-pick refusal for user ${user._id}`);
       return answer(withGuideDisclaimer(ASSISTANT_SHARE_PICK_REPLY), { refused: "personalised_advice", fallback: true });
     }
+    const staticFact = coachStaticFactReply(userMessage);
+    if (staticFact) return answer(staticFact, { facts: "static" });
     const clientPlan = parsed.data.headmasterPlan?.trim() || "";
     const attached = parsed.data.attachedReports ?? [];
 
@@ -162,10 +183,10 @@ export async function POST(req: Request) {
     if (isTotalumEntitled(user)) {
       try {
         const [synthesis, findings] = await Promise.all([
-          loadTotalumSynthesis(user._id),
-          loadReportFindings(user._id),
+          boundedRead(loadTotalumSynthesis(user._id), COACH_READ_TIMEOUT_MS),
+          boundedRead(loadReportFindings(user._id), COACH_READ_TIMEOUT_MS),
         ]);
-        liveHeadmaster = buildHeadmasterContextBlock(synthesis, findings);
+        liveHeadmaster = synthesis || findings ? buildHeadmasterContextBlock(synthesis as never, (findings ?? []) as never) : "";
       } catch (err) {
         console.warn("[api/portfolio-coach] Headmaster prefetch failed:", err);
       }
@@ -202,13 +223,15 @@ export async function POST(req: Request) {
     try {
       const reply = await createGrokChatCompletion({
         messages,
-        maxTokens: 750,
+        maxTokens: 600,
         temperature: 0.45,
+        signal: AbortSignal.timeout(COACH_MODEL_TIMEOUT_MS),
       });
       return answer(reply);
     } catch (aiErr) {
-      console.error("[api/portfolio-coach] Grok call failed, using fallback:", aiErr);
-      return answer(portfolioCoachFallbackReply(userMessage), { fallback: true });
+      const timedOut = aiErr instanceof Error && (aiErr.name === "TimeoutError" || aiErr.name === "AbortError");
+      console.error("[api/portfolio-coach] model call failed, using fallback:", timedOut ? "timeout" : aiErr);
+      return answer(portfolioCoachFallbackReply(userMessage), { fallback: true, ...(timedOut ? { timedOut: true } : {}) }, !timedOut);
     }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Failed to reply";

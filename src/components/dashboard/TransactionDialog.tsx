@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import {
   Dialog,
   DialogContent,
@@ -51,6 +51,40 @@ export function TransactionDialog({
 }) {
   const searchQueryRef = useRef("");
   const closeReasonRef = useRef<DialogCloseReason>("unknown");
+  // b31 G-10: remember the control that opened the panel, and return focus to it on close.
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (open) {
+      const active = typeof document !== "undefined" ? (document.activeElement as HTMLElement | null) : null;
+      if (active && active !== document.body) returnFocusRef.current = active;
+      return;
+    }
+    const target = returnFocusRef.current;
+    returnFocusRef.current = null;
+    if (target && target.isConnected) window.setTimeout(() => target.focus(), 0);
+  }, [open]);
+
+  /** b31 G-10: keep Tab and Shift+Tab inside the panel (the dialog is non-modal for search popovers). */
+  function trapTab(event: ReactKeyboardEvent<HTMLDivElement>) {
+    if (event.key !== "Tab") return;
+    const root = event.currentTarget;
+    const items = Array.from(
+      root.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )
+    ).filter((el) => el.offsetParent !== null || el === document.activeElement);
+    if (!items.length) return;
+    const first = items[0];
+    const last = items[items.length - 1];
+    const active = document.activeElement as HTMLElement | null;
+    if (event.shiftKey && (active === first || !root.contains(active))) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && (active === last || !root.contains(active))) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
 
   function requestExplicitClose() {
     closeReasonRef.current = "explicit";
@@ -71,6 +105,7 @@ export function TransactionDialog({
       <DialogContent
         className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg"
         data-testid="record-transaction-dialog"
+        onKeyDown={trapTab}
         onInteractOutside={(e) => {
           closeReasonRef.current = "interact-outside";
           e.preventDefault();

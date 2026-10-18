@@ -62,6 +62,9 @@ function preserveDynamicSegmentTraces(
 }
 
 const nextConfig: NextConfig = {
+  // b31 H-1/REG-1: metadata (including the x-af-snapshot-* meta tags) is rendered in <head>
+  // for every client, not streamed after the body, so a slow stream never drops it.
+  htmlLimitedBots: /.*/,
   poweredByHeader: false,
   // M-1: gzip responses this Node server generates (HTML and /_next/static).
   // This is already Next's default; it is set here so a later config cannot

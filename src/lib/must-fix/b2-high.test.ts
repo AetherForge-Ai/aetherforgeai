@@ -58,7 +58,7 @@ describe("H-5 dividends", () => {
     expect(src).toContain("Cancel");
   });
   it("delete is confirmed in a dialog", () => {
-    expect(read("src/components/dashboard/TransactionsTab.tsx")).toContain("Remove dividend");
+    expect(read("src/components/dashboard/TransactionsTab.tsx")).toContain("Remove ${pending.type === \"withdraw\" ? \"withdrawal\" : pending.type}");
   });
 });
 

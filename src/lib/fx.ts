@@ -43,6 +43,8 @@ async function fetchLiveRatesToNZD(): Promise<{ rates: FxRatesToNZD; asOf: strin
   const res = await fetch("https://open.er-api.com/v6/latest/NZD", {
     // Revalidate hourly at the platform layer too.
     next: { revalidate: 3600 },
+    // b31 REG-1: never hang a render on the FX provider; the caller falls back.
+    signal: AbortSignal.timeout(1_500),
   } as RequestInit);
 
   if (!res.ok) throw new Error(`FX endpoint HTTP ${res.status}`);

@@ -21,7 +21,7 @@ describe("fresh2 — review + leftovers", () => {
     const slow = new Promise<number>((res) => setTimeout(() => res(1), 200));
     expect(await withTimeout(slow, 20, null)).toBeNull();
     expect(await withTimeout(Promise.reject(new Error("x")), 20, "fb")).toBe("fb");
-    expect(r("src/app/markets/crypto/[id]/page.tsx")).toContain("withTimeout(() => loadPublicCryptoPrint(coinId), 2500, null)");
+    expect(r("src/app/markets/crypto/[id]/page.tsx")).toContain("withTimeout(() => loadPublicCryptoPrint(coinId), 1_000, null)");
   });
   it("M5: billing explains the assistant counter", () => {
     expect(r("src/app/settings/billing/page.tsx")).toContain("The Assistant Guide on the dashboard is not counted.");

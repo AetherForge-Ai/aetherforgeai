@@ -938,9 +938,11 @@ export function MarketsExplorer({
       ) : null}
 
       {/* Table — scrolls on BOTH axes so wide rows never push the page sideways on mobile */}
-      <div className="min-h-0 flex-1 overflow-auto px-1 pb-2">
+      {/* b31 (axe, mobile /markets): the board always carries the dark tokens and a dark
+          surface, so header and cell text stay at least 4.5:1 (#94a3b8 on #0f172a is 6.9:1). */}
+      <div className="chrome-dark min-h-0 flex-1 overflow-auto rounded-xl bg-background px-1 pb-2 text-foreground" data-markets-board>
         <table className="w-full text-sm">
-          <thead className="sticky top-0 z-10 bg-card">
+          <thead className="sticky top-0 z-10 bg-background">
             <tr className="border-b border-border/60">
               <th scope="col" className="py-2.5 pr-3 text-left"><SortHead label="Ticker" k="symbol" align="left" /></th>
               <th scope="col" className="hidden py-2.5 pr-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground sm:table-cell">
