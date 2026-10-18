@@ -236,7 +236,7 @@ export function checkFillSanity(input: FillSanityInput): FillSanityResult {
         storedValue,
         suggestedQty: round(Math.abs(storedValue) / live, 6),
         suggestedPrice: live,
-        message: `${ticker}: fill ${fill} is >${SANITY_RATIO_SOFT * 100}% from live ${live} (ratio ${round(ratio, 4)}). Stored value ${round(storedValue, 2)} vs live ${round(liveValue, 2)}. Confirm to override, or correct fill/qty. ${ADVISORY_NOTE}`,
+        message: `${ticker}: fill ${fill} is >${SANITY_RATIO_SOFT * 100}% from live ${live} (ratio ${round(ratio, 4)}). Stored value ${round(storedValue, 2)} vs live ${round(liveValue, 2)}. Correct the fill price or quantity. ${ADVISORY_NOTE}`,
       };
     }
   }

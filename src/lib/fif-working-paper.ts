@@ -23,6 +23,16 @@ export function fifThresholdNzd(env: Record<string, string | undefined> = proces
   return Number.isFinite(n) && n > 0 ? n : FIF_COST_THRESHOLD_NZD;
 }
 
+/**
+ * b28 H-9: the threshold as printed. NZ$50,000 by default; any other value (such as NZ$100,000
+ * for a jointly held book) is shown only with the label "jointly held" so it is never mistaken
+ * for the individual limit.
+ */
+export function fifThresholdText(nzd = fifThresholdNzd()): string {
+  const money = `NZ$${nzd.toLocaleString("en-NZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return nzd === FIF_COST_THRESHOLD_NZD ? money : `${money} (jointly held)`;
+}
+
 export const FIF_SOURCES = [
   {
     href: "https://www.ird.govt.nz/foreign-investment-funds",
@@ -49,13 +59,13 @@ export const FIF_SOURCES = [
 export const FIF_ASSUMPTIONS = [
   "This paper is indicative. It does not decide whether the FIF rules apply to you.",
   "A ticker ending in .NZ is treated as a New Zealand share and is left out.",
-  "A ticker ending in .AX is included in the NZ$50,000 cost total. Australian-exempt companies can be left out by the member when they are on the ASX list Inland Revenue names, are Australian resident and not treated as resident elsewhere under a treaty, maintain a franking account, and the stock is not stapled. This book cannot check those conditions.",
+  "A ticker ending in .AX is included in the FIF threshold cost total. Australian-exempt companies can be left out by the member when they are on the ASX list Inland Revenue names, are Australian resident and not treated as resident elsewhere under a treaty, maintain a franking account, and the stock is not stapled. This book cannot check those conditions.",
   "Crypto and metals are left out. This paper does not treat them as shares in a foreign company.",
   "Other share tickers are treated as attributing interests for this paper.",
-  "Cost is quantity times price times the exchange rate stored on the buy, in NZ$. A foreign buy with no stored rate is not given a guessed rate, and the NZ$50,000 test is then not calculated.",
+  "Cost is quantity times price times the exchange rate stored on the buy, in NZ$. A foreign buy with no stored rate is not given a guessed rate, and the FIF threshold test is then not calculated.",
   "Amounts are rounded to the nearest cent, with half a cent rounded up. A cash figure in your ledger that differs by a cent does not change the result.",
-  "The NZ$50,000 test uses the highest total cost of attributing lots open at any point in the income year, including lots still open on 1 April. It is cost, not market value.",
-  "Exactly NZ$50,000.00 is reported as at the limit. The public exemptions page says the de minimis exemption is for attributing interests that cost less than NZ$50,000. The Tax Technical article on section CQ 5 says FIF income arises when the total cost at any time in the income year is more than NZ$50,000. Inland Revenue's two sources word this edge case differently, so if your cost is exactly NZ$50,000.00, check with your tax adviser before relying on the exemption.",
+  "The FIF threshold test uses the highest total cost of attributing lots open at any point in the income year, including lots still open on 1 April. It is cost, not market value.",
+  "A cost exactly at the threshold is reported as at the limit. The public exemptions page says the de minimis exemption is for attributing interests that cost less than NZ$50,000. The Tax Technical article on section CQ 5 says FIF income arises when the total cost at any time in the income year is more than NZ$50,000. Inland Revenue's two sources word this edge case differently, so if your cost is exactly NZ$50,000.00, check with your tax adviser before relying on the exemption.",
   "Fair dividend rate shown here is 5% of the opening market value you entered. TDS 26/01 describes the formula as (0.05 × opening value) + quick sale adjustment. This paper does not calculate a quick sale adjustment.",
   "Comparative value is (closing market value + gains) − (opening market value + costs), the formula TDS 23/13 quotes from section EX 51. Gains are dividend gross in NZ$ plus sale proceeds in NZ$ during the year. Costs are the NZ$ cost of shares bought during the year. Fees are not added. A dividend without a stored gross is not included.",
   "Opening and closing market values are figures you enter for the position. A live price is not used as the 1 April or 31 March value.",
@@ -98,6 +108,8 @@ export interface FifPaper {
   notShares: string[];
   /** Highest attributing cost during the year. Null when a rate was missing. */
   peakCostNzd: number | null;
+  peakCostDay?: string | null;
+  thresholdNzd?: number;
   threshold: FifThreshold;
   assumptions: readonly string[];
   sources: readonly { href: string; label: string }[];
@@ -218,7 +230,7 @@ export function fifThreshold(peakCostNzd: number | null): FifThreshold {
 }
 
 /** Sentence shown on the working paper. An empty attributing book is not called "under". */
-export function fifThresholdSentence(paper: Pick<FifPaper, "peakCostNzd" | "threshold" | "attributing">): string {
+export function fifThresholdSentence(paper: Pick<FifPaper, "peakCostNzd" | "threshold" | "attributing"> & Partial<Pick<FifPaper, "peakCostDay" | "thresholdNzd">>): string {
   if (
     paper.attributing.length === 0 &&
     !(paper.peakCostNzd != null && paper.peakCostNzd > 0) &&
@@ -227,16 +239,17 @@ export function fifThresholdSentence(paper: Pick<FifPaper, "peakCostNzd" | "thre
     return "No attributing overseas shares on this book.";
   }
   if (paper.threshold === "unknown" || paper.peakCostNzd == null) {
-    return "The NZ$50,000 cost test is not calculated because a foreign attributing buy has no stored exchange rate.";
+    return `The ${fifThresholdText()} cost test is not calculated because a foreign attributing buy has no stored exchange rate.`;
   }
-  const cost = formatNzd(paper.peakCostNzd);
+  const limit = fifThresholdText(paper.thresholdNzd ?? fifThresholdNzd());
+  const cost = `${formatNzd(paper.peakCostNzd)}${paper.peakCostDay ? ` (peak FIFO cost, reached ${paper.peakCostDay})` : ""}`;
   if (paper.threshold === "under") {
-    return `Highest attributing cost in this income year is ${cost}. That is under NZ$50,000.00.`;
+    return `Highest attributing cost in this income year is ${cost}. That is under ${limit}, so the de minimis exemption can apply.`;
   }
   if (paper.threshold === "at-limit") {
-    return `Highest attributing cost in this income year is ${cost}. That is exactly NZ$50,000.00.`;
+    return `Highest attributing cost in this income year is ${cost}. That is exactly ${limit}.`;
   }
-  return `Highest attributing cost in this income year is ${cost}. That is over NZ$50,000.00.`;
+  return `Highest attributing cost in this income year is ${cost}. That is over ${limit}.`;
 }
 
 function positionFrom(
@@ -285,7 +298,9 @@ export function buildFifPaper(input: {
     .sort((a, b) => a.day.localeCompare(b.day) || String(a.row.type).localeCompare(String(b.row.type)));
 
   let peak: number | null = 0;
+  let peakDay: string | null = null;
   let seenOpening = false;
+  let currentDay = start;
 
   function attributingCost(): number | null {
     let total = 0;
@@ -304,10 +319,14 @@ export function buildFifPaper(input: {
       peak = null;
       return;
     }
-    if (cost > peak) peak = cost;
+    if (cost > peak) {
+      peak = cost;
+      peakDay = currentDay;
+    }
   }
 
   for (const event of events) {
+    currentDay = event.day < start ? start : event.day;
     if (!seenOpening && event.day >= start) {
       seenOpening = true;
       notePeak();
@@ -383,6 +402,9 @@ export function buildFifPaper(input: {
     newZealand,
     notShares: [...notShares].sort(),
     peakCostNzd: peak,
+    // b28 H-9: the day the peak FIFO cost was reached (YYYY-MM-DD), printed with the cost.
+    peakCostDay: peak != null && peak > 0 ? peakDay : null,
+    thresholdNzd: fifThresholdNzd(),
     threshold: fifThreshold(peak),
     assumptions: FIF_ASSUMPTIONS,
     sources: FIF_SOURCES,

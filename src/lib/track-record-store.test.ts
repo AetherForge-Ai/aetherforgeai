@@ -194,7 +194,8 @@ describe("G-20 stored scorecard", () => {
     const page = read("src/app/test-hooks/track-record/page.tsx");
     expect(page).toMatch(/currentUserMayUseTestHooks\(\)\)\) notFound\(\)/);
     expect(page).toContain("loadTrackRecordView");
-    expect(page).not.toContain("runTrackRecord");
+    // b28 review: the only build on the page is the bounded fallback when nothing is stored.
+    expect(page).not.toMatch(/runTrackRecord\(/);
     expect(page).not.toMatch(/c\.ticker|c\.signal|calls\.map|reportId/);
     expect(page).toContain("data-scorecard-hash");
     expect(page).toContain("data-hash-check");

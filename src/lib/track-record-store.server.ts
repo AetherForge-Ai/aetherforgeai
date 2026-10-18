@@ -63,8 +63,10 @@ async function writeCache(body: string): Promise<void> {
 
 async function findRow(ticker: string): Promise<{ id: string; name: string } | null> {
   const res = await totalumSdk.crud.query("watchlist", { _filter: { ticker }, _limit: 5 });
-  const rows = ((res as { data?: { _id?: string; ticker?: string; name?: string }[] })?.data || []);
-  const row = rows.find((item) => String(item.ticker || "").toUpperCase() === ticker.toUpperCase());
+  const rows = ((res as { data?: { _id?: string; ticker?: string; name?: string; user?: unknown }[] })?.data || []);
+  // Review fix: only the ownerless system row counts. A member row with this ticker (blocked by
+  // POST, but defence in depth) is never read as, or overwritten by, the scorecard.
+  const row = rows.find((item) => !item.user && String(item.ticker || "").toUpperCase() === ticker.toUpperCase());
   if (!row?._id) return null;
   return { id: String(row._id), name: typeof row.name === "string" ? row.name : "" };
 }

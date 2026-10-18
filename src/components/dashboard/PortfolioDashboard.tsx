@@ -1,5 +1,6 @@
 "use client";
 
+import { reconcileLedger } from "@/lib/ledger-reconcile";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { api } from "@/lib/api";
@@ -1107,6 +1108,8 @@ export function PortfolioDashboard({
   const bookSnapshotRef = useRef<PortfolioSnapshot | null>(bookSnapshot);
   bookSnapshotRef.current = bookSnapshot;
   const lastMutationAtRef = useRef(0);
+  // b28 G-10: rows deleted in this tab (id → time), so a lagging read cannot bring them back.
+  const deletedLedgerRef = useRef<Map<string, number>>(new Map());
   const loadPortfolioSnapshot = useCallback(
     async (opts?: { force?: boolean; stored?: boolean }) => {
       if (preview) return;
@@ -1165,8 +1168,19 @@ export function PortfolioDashboard({
           setSnapshotReady(true);
           return;
         }
-        writePortfolioSnapshotCache(tracked.userId, snapshot);
-        setBookSnapshot(snapshot);
+        // b28 G-10: read-after-write. A lagging read neither brings back a row deleted here
+        // nor drops a row this tab just wrote; outside the window the server is used as is.
+        const reconciled = onScreen
+          ? {
+              ...snapshot,
+              ledger: reconcileLedger(snapshot.ledger || [], onScreen.ledger, deletedLedgerRef.current, lastMutationAtRef.current),
+            }
+          : snapshot;
+        if (reconciled.ledger.length !== (snapshot.ledger || []).length) {
+          console.log(`[dashboard] reconciled a lagging ledger read: server ${snapshot.ledger?.length ?? 0} rows, shown ${reconciled.ledger.length}`);
+        }
+        writePortfolioSnapshotCache(tracked.userId, reconciled);
+        setBookSnapshot(reconciled);
         setSnapshotError(null);
         setSnapshotReady(true);
       } catch (err) {
@@ -2000,6 +2014,8 @@ export function PortfolioDashboard({
       const after = res.data?.cash?.after;
       setBookSnapshot((current) => {
         if (!current) return current;
+        deletedLedgerRef.current.set(line.id, Date.now());
+        lastMutationAtRef.current = Date.now();
         const trimmed = { ...current, ledger: current.ledger.filter((row) => row.id !== line.id) };
         const next =
           typeof after === "number"

@@ -80,7 +80,7 @@ describe("FIF working paper", () => {
     expect(paper.peakCostNzd).toBe(1600);
     expect(paper.threshold).toBe("under");
     expect(fifThresholdSentence(paper)).toBe(
-      "Highest attributing cost in this income year is NZ$1,600.00. That is under NZ$50,000.00."
+      "Highest attributing cost in this income year is NZ$1,600.00 (peak FIFO cost, reached 2026-04-01). That is under NZ$50,000.00, so the de minimis exemption can apply."
     );
   });
 
@@ -108,7 +108,7 @@ describe("FIF working paper", () => {
     expect(at.peakCostNzd).toBe(50000);
     expect(fifThreshold(50000)).toBe("at-limit");
     expect(fifThresholdSentence(at)).toBe(
-      "Highest attributing cost in this income year is NZ$50,000.00. That is exactly NZ$50,000.00."
+      "Highest attributing cost in this income year is NZ$50,000.00 (peak FIFO cost, reached 2026-05-01). That is exactly NZ$50,000.00."
     );
 
     const over = paperFor([
@@ -154,7 +154,7 @@ describe("FIF working paper", () => {
     expect(missing.threshold).toBe("unknown");
     expect(missing.attributing[0].costNzd).toBeNull();
     expect(fifThresholdSentence(missing)).toBe(
-      "The NZ$50,000 cost test is not calculated because a foreign attributing buy has no stored exchange rate."
+      "The NZ$50,000.00 cost test is not calculated because a foreign attributing buy has no stored exchange rate."
     );
 
     const blank = paperFor(

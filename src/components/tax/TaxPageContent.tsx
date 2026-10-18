@@ -8,6 +8,7 @@ import { DisclaimerNotice } from "@/components/legal/DisclaimerNotice";
 import Link from "next/link";
 import { TaxSectionNav } from "@/components/tax/TaxSectionNav";
 import { formatNzd, formatSignedMoney } from "@/lib/currency";
+import { fifThresholdText } from "@/lib/fif-working-paper";
 import { taxGrossDividendSentence } from "@/lib/tax-book";
 import { COST_METHOD_LABEL } from "@/lib/lot-day";
 import { TAX_INDICATIVE_LABEL } from "@/lib/tax-disclaimer";
@@ -160,7 +161,7 @@ export function TaxPageContent({ book = null, xero = "guest" }: { book?: TaxBook
         <p className="text-sm leading-relaxed text-muted-foreground">
           Some overseas shares held by a New Zealand tax resident can fall under the foreign investment
           fund rules. Inland Revenue explains when those rules can apply and how the income is
-          calculated. The working paper on this site includes Australian-listed shares in the NZ$50,000
+          calculated. The working paper on this site includes Australian-listed shares in the {fifThresholdText()}
           cost total. A holding that meets the Australian exemption can be left out by the member.
         </p>
       </section>

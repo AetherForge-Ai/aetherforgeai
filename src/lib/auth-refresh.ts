@@ -132,6 +132,11 @@ export function confirmPageSessionStrict(): Promise<LiveSessionUser | null> {
  * Paper-book gate. Same uncached read as the nav, including subscription
  * fields. Null until this browser's cookie resolves to a user.
  */
+/** b28 H-4: like confirmDashboardSession, but a store outage rejects with SessionUnavailableError instead of reading as signed out. */
+export function confirmDashboardSessionStrict(): Promise<DashboardSessionUser | null> {
+  return readSessionEnvelope().then(parseDashboardSessionUser);
+}
+
 export function confirmDashboardSession(): Promise<DashboardSessionUser | null> {
   return readSessionEnvelope().then(parseDashboardSessionUser, () => null);
 }

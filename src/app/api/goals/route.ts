@@ -11,17 +11,13 @@ import { isFreeReportPlan } from "@/lib/entitlements";
 const paidOnly = () => NextResponse.json({ ok: false, error: "Goals are included on Starter and above.", data: { code: "not_entitled" } }, { status: 403 });
 
 /** The live `goal` table may not have a start_nzd column yet (K-01). Retry without it. */
-async function writeWithStart<T>(fields: Record<string, unknown>, write: (f: Record<string, unknown>) => Promise<T>): Promise<{ res: T; startSaved: boolean }> {
-  try {
-    return { res: await write(fields), startSaved: fields.start_nzd !== undefined };
-  } catch (err) {
-    if (fields.start_nzd === undefined) throw err;
-    console.warn("[api/goals] write with start_nzd failed; retrying without it:", err instanceof Error ? err.message.slice(0, 120) : "error");
-    const { start_nzd: _drop, ...rest } = fields;
-    void _drop;
-    return { res: await write(rest), startSaved: false };
-  }
+/** Existing columns only; `label` carries the JSON copy of every input. */
+function goalColumns(f: GoalFields) {
+  return { label: encodeGoalLabel(f), target_nzd: f.target_nzd, target_date: f.target_date, monthly_nzd: f.monthly_nzd, annual_return_pct: f.annual_return_pct };
 }
+
+
+import { encodeGoalLabel, normalizeGoalRow, type GoalFields } from "@/lib/goal-record";
 
 export const dynamic = "force-dynamic";
 
@@ -65,7 +61,7 @@ export async function GET() {
   try {
     const res = await totalumSdk.crud.query("goal", { _filter: { user: user._id }, _limit: 50 });
     const rows = ((res?.data as unknown as Array<Record<string, unknown>>) || []).filter((r) => ownerOf(r) === String(user._id));
-    return NextResponse.json({ ok: true, data: rows });
+    return NextResponse.json({ ok: true, data: rows.map(normalizeGoalRow) });
   } catch (err) {
     return tableFailure("goal", err);
   }
@@ -81,8 +77,11 @@ export async function POST(req: Request) {
   const problem = dateProblem(parsed.data.target_date);
   if (problem) return NextResponse.json({ ok: false, error: problem }, { status: 400 });
   try {
-    const { res: created, startSaved } = await writeWithStart({ ...parsed.data, label: parsed.data.label || "Goal", user: user._id }, (f) => totalumSdk.crud.createRecord("goal", f));
-    return NextResponse.json({ ok: true, data: (created as { data?: unknown })?.data ?? null, startSaved });
+    // b28 H-11: inputs kept as JSON in the existing label column; columns kept for older readers.
+    const f: GoalFields = { label: parsed.data.label || "Goal", target_nzd: parsed.data.target_nzd, target_date: parsed.data.target_date, monthly_nzd: parsed.data.monthly_nzd, annual_return_pct: parsed.data.annual_return_pct, start_nzd: parsed.data.start_nzd ?? 0 };
+    const created = await totalumSdk.crud.createRecord("goal", { ...goalColumns(f), user: user._id });
+    const row = ((created as { data?: Record<string, unknown> })?.data ?? {}) as Record<string, unknown>;
+    return NextResponse.json({ ok: true, data: { ...f, _id: String(row._id ?? "") }, startSaved: true });
   } catch (err) {
     return tableFailure("goal", err);
   }
@@ -99,9 +98,19 @@ export async function PATCH(req: Request) {
   const problem = dateProblem(fields.target_date);
   if (problem) return NextResponse.json({ ok: false, error: problem }, { status: 400 });
   try {
-    if (!(await ownGoal(String(user._id), id))) return NextResponse.json({ ok: false, error: "That goal was not found." }, { status: 404 });
-    const { res: updated, startSaved } = await writeWithStart(fields, (f) => totalumSdk.crud.editRecordById("goal", id, f));
-    return NextResponse.json({ ok: true, data: (updated as { data?: unknown })?.data ?? null, startSaved });
+    const own = await ownGoal(String(user._id), id);
+    if (!own) return NextResponse.json({ ok: false, error: "That goal was not found." }, { status: 404 });
+    const prev = normalizeGoalRow(own as Record<string, unknown>);
+    const f: GoalFields = {
+      label: fields.label ?? prev.label,
+      target_nzd: fields.target_nzd ?? prev.target_nzd,
+      target_date: fields.target_date ?? prev.target_date,
+      monthly_nzd: fields.monthly_nzd ?? prev.monthly_nzd,
+      annual_return_pct: fields.annual_return_pct ?? prev.annual_return_pct,
+      start_nzd: fields.start_nzd ?? prev.start_nzd ?? 0,
+    };
+    await totalumSdk.crud.editRecordById("goal", id, goalColumns(f));
+    return NextResponse.json({ ok: true, data: { ...f, _id: id }, startSaved: true });
   } catch (err) {
     return tableFailure("goal", err);
   }

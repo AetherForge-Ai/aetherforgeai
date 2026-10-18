@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { currentUserMayUseTestHooks } from "@/lib/test-hooks.server";
 import { loadTrackRecordView } from "@/lib/track-record-store.server";
+import { runTrackRecordBounded } from "@/lib/track-record-run.server";
+import { snapshotFromRun, viewFromStoredJson, type TrackRecordView } from "@/lib/track-record-store";
 import { CALL_HASH_FIELDS } from "@/lib/track-record";
 import { formatDisplayDateTime } from "@/lib/currency";
 
@@ -14,25 +16,32 @@ export const metadata = { title: "Track record scorecard (test) · AetherForge A
 export default async function Page() {
   if (!(await currentUserMayUseTestHooks())) notFound();
   const out = await loadTrackRecordView();
-  if (out.kind === "missing") {
+  // Review fix (b28): until the cron has stored a card, or when the stored card cannot be read,
+  // fall back to the b27 bounded live build (10 s cap, 10 min cache) so the page never shows less
+  // than it did before this change.
+  let view: TrackRecordView | null = out.kind === "ready" ? out.view : null;
+  let source: "stored" | "live" = "stored";
+  let liveError = "";
+  if (!view) {
+    const live = await runTrackRecordBounded();
+    if ("error" in live) liveError = live.error;
+    else {
+      view = await viewFromStoredJson(JSON.stringify(snapshotFromRun(live.run, new Date(live.cachedAt ?? Date.now()).toISOString())));
+      source = "live";
+    }
+  }
+  if (!view) {
     return (
       <main className="mx-auto max-w-3xl space-y-4 p-6" data-track-record>
         <h1 className="text-xl font-semibold">Track record scorecard (test view, not published)</h1>
-        <p data-track-missing>
-          No scorecard is stored yet. The weekly cron collects the calls and stores the scorecard with its hash. This page only reads that stored result. No hits, misses or other counts are shown until that collection has run.
-        </p>
+        {out.kind === "missing" ? (
+          <p data-track-missing>No scorecard is stored yet, and a live build did not finish: {liveError || "unknown error"}. Reload in a minute.</p>
+        ) : (
+          <p data-track-error role="alert">{out.kind === "error" ? out.error : ""} A live build did not finish: {liveError || "unknown error"}.</p>
+        )}
       </main>
     );
   }
-  if (out.kind === "error") {
-    return (
-      <main className="mx-auto max-w-3xl space-y-4 p-6" data-track-record>
-        <h1 className="text-xl font-semibold">Track record scorecard (test view, not published)</h1>
-        <p data-track-error role="alert">{out.error}</p>
-      </main>
-    );
-  }
-  const view = out.view;
   const sum = view.hits + view.misses + view.pending + view.unscored;
   const history =
     view.calls === 0
@@ -41,7 +50,7 @@ export default async function Page() {
         ? "Not enough later prices are stored yet to score a hit or a miss. The counts above are the calls collected so far. Pending calls stay pending. Misses stay in the total."
         : "";
   return (
-    <main className="mx-auto max-w-3xl space-y-4 p-6" data-track-record data-track-source="stored">
+    <main className="mx-auto max-w-3xl space-y-4 p-6" data-track-record data-track-source={source}>
       <h1 className="text-xl font-semibold">Track record scorecard (test view, not published)</h1>
       <p
         className="text-sm"
@@ -53,7 +62,7 @@ export default async function Page() {
         data-unscored={view.unscored}
         data-reports={view.reportsRead}
       >
-        Week {view.week} · stored {formatDisplayDateTime(view.storedAt)} (NZ time) · reports read {view.reportsRead} · calls {view.calls} · hits {view.hits} · misses {view.misses} · pending {view.pending} · unscored {view.unscored} · later prices fetched {view.laterFetched}, reused {view.laterReused}
+        Week {view.week} · {source === "stored" ? "stored" : "built live"} {formatDisplayDateTime(view.storedAt)} (NZ time) · reports read {view.reportsRead} · calls {view.calls} · hits {view.hits} · misses {view.misses} · pending {view.pending} · unscored {view.unscored} · later prices fetched {view.laterFetched}, reused {view.laterReused}
       </p>
       <p className="text-sm">
         Scorecard hash <code data-scorecard-hash={view.scorecardHash}>{view.scorecardHash}</code>. Call hashes checked when this card was stored:{" "}

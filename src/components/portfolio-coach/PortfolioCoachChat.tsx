@@ -23,7 +23,7 @@ import { BOT_HEADMASTER_AVATAR } from "@/assets/files";
 import { bullionNzdPerOz, isBullionHolding } from "@/lib/metal-valuation";
 import { aucklandDateISO } from "@/lib/fill-integrity";
 import { coachRequestsTotalum } from "@/lib/entitlements";
-import { AssistantQueryCounter } from "@/components/chat/AssistantQueryCounter";
+import { ASSISTANT_QUOTA_EVENT, AssistantQueryCounter } from "@/components/chat/AssistantQueryCounter";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -551,9 +551,13 @@ export function PortfolioCoachChat({
           if (signal.aborted) return { ok: false, error: "aborted" };
           const json = (await res.json()) as {
             ok?: boolean;
-            data?: { reply?: string };
+            data?: { reply?: string; used?: number; limit?: number | null };
             error?: string;
           };
+          // b28 L-4: the server returns the count after this question; update the counter in place.
+          if (json.ok && typeof json.data?.used === "number" && typeof json.data?.limit === "number") {
+            window.dispatchEvent(new CustomEvent(ASSISTANT_QUOTA_EVENT, { detail: { used: json.data.used, limit: json.data.limit } }));
+          }
           if (json.ok && json.data?.reply) return { ok: true, text: json.data.reply };
           return {
             ok: false,

@@ -44,7 +44,7 @@ function withinSessionBudget<T>(work: Promise<T>): Promise<T | typeof TIMED_OUT>
   ]).finally(() => timer && clearTimeout(timer));
 }
 
-function SessionSlowNotice({ onRetry }: { onRetry: () => void }) {
+export function SessionSlowNotice({ onRetry }: { onRetry: () => void }) {
   return (
     <div className="flex min-h-[40vh] items-center justify-center px-4 py-16" role="alert">
       <div className="w-full max-w-md rounded-3xl border border-border/70 bg-card/80 px-6 py-8 text-center">

@@ -15,6 +15,8 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/lib/test-hooks.server", () => ({
   currentUserMayUseTestHooks: async () => gate.allow,
 }));
+const live: { out: unknown } = { out: { error: "took too long" } };
+vi.mock("@/lib/track-record-run.server", () => ({ runTrackRecordBounded: async () => live.out }));
 vi.mock("@/lib/track-record-store.server", () => ({
   loadTrackRecordView: async () => {
     if (gate.body.kind === "ready") return { kind: "ready", view: gate.body.view };
@@ -74,10 +76,25 @@ describe("track record page markup", () => {
     gate.allow = true;
     gate.body = { kind: "missing", error: "", view: null };
     const html = renderToStaticMarkup(await Page());
+    live.out = { error: "took too long" };
     expect(html).toContain("No scorecard is stored yet");
     expect(html).not.toContain("data-hits");
     expect(html).not.toContain("data-scorecard-hash");
     expect(html).not.toContain("SECRET.NZ");
+  });
+
+  it("falls back to the live bounded build when nothing is stored (totals only)", async () => {
+    gate.allow = true;
+    gate.body = { kind: "missing", error: "", view: null };
+    const { weeklyScorecard } = await import("@/lib/track-record");
+    const card = await weeklyScorecard("2026-W42", [{ hash: "h1", ticker: "SECRET.NZ", signal: "buy", direction: "up", priceAtCall: 1 } as never], { h1: 0.5 });
+    live.out = { run: { reportsRead: 1, laterPrices: { fetched: 1, reused: 0 }, verified: [{ ok: true }], card }, cachedAt: null };
+    const html = renderToStaticMarkup(await Page());
+    expect(html).toContain('data-track-source="live"');
+    expect(html).toContain('data-misses="1"');
+    expect(html).toContain('data-hash-matches="yes"');
+    expect(html).not.toContain("SECRET.NZ");
+    live.out = { error: "took too long" };
   });
 
   it("signed out throws notFound before any scorecard markup", async () => {
