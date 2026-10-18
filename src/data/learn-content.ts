@@ -114,6 +114,30 @@ const IRD_KS_RATE_CHANGE: Source = {
 };
 const IRD_KS_CHANGES_2026: Source = { title: "Inland Revenue: KiwiSaver changes", url: "https://www.ird.govt.nz/kiwisaver-changes", published: "2026-03-19" };
 
+const IRD_RWT_PAGE: Source = { title: "Inland Revenue: Using the right resident withholding tax (RWT) rate", url: "https://www.ird.govt.nz/rwt-rate" };
+const IRD_OVERSEAS_REPORT: Source = {
+  title: "Inland Revenue: Reporting your overseas income",
+  url: "https://www.ird.govt.nz/income-tax/income-tax-for-individuals/types-of-individual-income/overseas-income/reporting-your-overseas-income",
+};
+const IRD_DTA_RESIDENTS: Source = {
+  title: "Inland Revenue: New Zealand tax residents and DTAs",
+  url: "https://www.ird.govt.nz/international-tax/double-tax-agreements/new-zealand-tax-residents",
+};
+const IRD_WORLDWIDE: Source = {
+  title: "Inland Revenue: Tax for New Zealand tax residents",
+  url: "https://www.ird.govt.nz/international-tax/individuals/tax-for-new-zealand-tax-residents",
+};
+const IS2410_FS2: Source = {
+  title: "Inland Revenue: IS 24/10 FS 2 Share investments (dividends and taxable share sales) fact sheet",
+  url: "https://www.taxtechnical.ird.govt.nz/-/media/project/ir/tt/pdfs/fact-sheets/2024/is-24-10-fs-2.pdf",
+};
+const FMA_HOW_TO_INVEST: Source = { title: "Financial Markets Authority: Deciding how to invest", url: "https://www.fma.govt.nz/consumer/investing/deciding-how-to-invest/" };
+const FMA_VFM: Source = {
+  title: "Financial Markets Authority: Managed fund fees and value for money (guidance)",
+  url: "https://www.fma.govt.nz/assets/Guidance/Managed-fund-fees-and-value-for-money-guidance.pdf",
+};
+const FMA_KS_2025: Source = { title: "Financial Markets Authority: KiwiSaver Annual Report 2025", url: "https://www.fma.govt.nz/assets/Reports/KiwiSaver-Annual-Report-2025.pdf" };
+
 export const GUIDES: readonly Guide[] = [
   {
     slug: "fif-50000-threshold",
@@ -326,6 +350,84 @@ export const GUIDES: readonly Guide[] = [
       { text: "A temporary rate reduction lets you keep contributing 3% for between 3 and 12 months, and you can apply more than once.", source: IRD_KS_CHANGES_2026 },
       { text: "From 1 April 2026, 16- and 17-year-olds qualify for employer contributions of 3.5% if they meet the other requirements.", source: IRD_KS_CHANGES_2026 },
       { text: "From 1 April 2028 the default rate rises again, to 4%, for both employee and employer.", source: IRD_KS_CHANGES_2026 },
+    ],
+  },
+  {
+    slug: "rwt-on-interest",
+    title: "RWT on interest: choosing your rate",
+    description: "Resident withholding tax rates on NZ interest, the default when you do not choose, and the 45% non-declaration rate.",
+    intro: "Banks and fund managers deduct resident withholding tax before they pay interest to NZ tax residents.",
+    facts: [
+      { text: "If you have given your IRD number, you can choose 10.5%, 17.5%, 30%, 33% or 39%; it should match your income tax rate.", source: IRD_RWT_PAGE },
+      { text: "If you do not choose a rate, interest is taxed at 33%.", source: IRD_RWT_PAGE },
+      { text: "If you have not given your IRD number, tax is deducted at 45%.", source: IRD_RWT_PAGE },
+      { text: "If the rate you choose does not match your income tax rate you may get an end-of-year tax bill.", source: IRD_RWT_PAGE },
+    ],
+  },
+  {
+    slug: "overseas-income-ir1261",
+    title: "Reporting overseas income (IR1261)",
+    description: "What NZ tax residents must report about overseas income on the Overseas income summary (IR1261).",
+    intro: "Overseas dividends and other foreign income are reported with your IR3 return.",
+    facts: [
+      { text: "From the 2023 tax year you must file an Overseas income summary (IR1261).", source: IRD_OVERSEAS_REPORT },
+      { text: "It asks for the type of income, the amount of each type, the jurisdiction it was earned in, and the foreign tax credit claimed.", source: IRD_OVERSEAS_REPORT },
+      { text: "If a FIF exemption applies, foreign dividends go in overseas income; if none applies, you include the FIF income instead.", source: IRD_OVERSEAS_REPORT },
+    ],
+  },
+  {
+    slug: "foreign-tax-credits",
+    title: "Foreign tax credits on overseas dividends",
+    description: "How NZ tax residents claim a credit for tax withheld overseas, and the limits Inland Revenue applies.",
+    intro: "Tax withheld overseas on a dividend can usually be credited so the same income is not taxed twice.",
+    facts: [
+      { text: "The credit is limited to the lowest of the tax paid overseas, the NZ tax on the same income, and the amount allowed by the double tax agreement.", source: IRD_DTA_RESIDENTS },
+      { text: "You need proof of the tax paid to the other country.", source: IRD_DTA_RESIDENTS },
+      { text: "Where a DTA applies, the credit is limited to the foreign withholding tax payable under that DTA.", source: IS2410_FS2 },
+    ],
+  },
+  {
+    slug: "foreign-dividends-200-threshold",
+    title: "Foreign dividends and the $200 threshold",
+    description: "When foreign dividends must go in an IR3 return, and how they are converted to NZ dollars.",
+    intro: "Small amounts of income with no tax withheld have a filing threshold.",
+    facts: [
+      { text: "Foreign dividends only need to be included if all your income that is not reportable income totals $200 or more for the year.", source: IS2410_FS2 },
+      { text: "The $200 threshold covers all non-reportable amounts together, such as foreign dividends and taxable share sales.", source: IS2410_FS2 },
+      { text: "The dividend is included at its New Zealand dollar amount, calculated when it is paid to you.", source: IS2410_FS2 },
+    ],
+  },
+  {
+    slug: "worldwide-income",
+    title: "NZ tax residents and worldwide income",
+    description: "Why NZ tax residents generally pay tax on overseas income, even if it stays overseas or was taxed there.",
+    intro: "Tax residence, not where the money sits, decides what is taxed in New Zealand.",
+    facts: [
+      { text: "NZ tax residents generally pay tax on their worldwide income.", source: IRD_WORLDWIDE },
+      { text: "Overseas income is taxable even if you do not bring it into New Zealand, and even if the other country has deducted tax.", source: IRD_WORLDWIDE },
+    ],
+  },
+  {
+    slug: "investment-fees",
+    title: "How fees reduce your investment return",
+    description: "The Financial Markets Authority's guidance on investment fees and comparing returns after fees.",
+    intro: "Every investment has costs, even when you invest directly.",
+    facts: [
+      { text: "Any fees you pay reduce the return you make; small percentage differences can hide the dollar impact.", source: FMA_HOW_TO_INVEST },
+      { text: "Only pay higher fees if you are confident of persistently higher returns after fees.", source: FMA_HOW_TO_INVEST },
+      { text: "The FMA found no systematic relationship between fees charged and returns received.", source: FMA_VFM },
+      { text: "Active funds typically do not outperform their market index after fees over their minimum suggested timeframe or longer.", source: FMA_VFM },
+    ],
+  },
+  {
+    slug: "kiwisaver-fees",
+    title: "KiwiSaver fees: what the FMA reports",
+    description: "KiwiSaver fee totals and the rule that fees must not be unreasonable, from FMA reports and guidance.",
+    intro: "KiwiSaver fees come out of your balance, so the FMA tracks them every year.",
+    facts: [
+      { text: "In the year to 31 March 2025, total fees deducted from all KiwiSaver schemes reached $868.5 million, up 10% on the year before.", source: FMA_KS_2025 },
+      { text: "Fees as a percentage of funds under management stayed stable at 0.7% in 2025.", source: FMA_KS_2025 },
+      { text: "A KiwiSaver manager must not charge a fee that is unreasonable, and this is an ongoing obligation.", source: FMA_VFM },
     ],
   },
 ];

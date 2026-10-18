@@ -25,6 +25,9 @@ function load<T>(key: string, fallback: T): T {
   }
 }
 
+const MIGRATED_KEY = "aetherforge.wealth.migrated.v1";
+type ServerView = { items: { id: string; kind: string; label: string; valueNzd: number }[]; history: { day: string; netWorthNzd: number }[]; goalNzd: number | null };
+
 /** Goal b19 G-21: whole-wealth NZD book with a net-worth chart and goal gap. */
 export function WholeWealthPanel() {
   const [book, setBook] = useState<{ value: number | null; reason: string | null } | null>(null);
@@ -33,10 +36,49 @@ export function WholeWealthPanel() {
   const [kind, setKind] = useState<WealthKind>("kiwisaver");
   const [label, setLabel] = useState("");
   const [value, setValue] = useState("");
+  // b22: "server" once /api/wealth answered; "local" when the tables are missing or the read failed.
+  const [mode, setMode] = useState<"loading" | "server" | "local">("loading");
 
   useEffect(() => {
-    setState(load(WEALTH_KEY, { items: [], goalNzd: null }));
-    setHistory(load(WEALTH_HISTORY_KEY, []));
+    const localState = load<WealthState>(WEALTH_KEY, { items: [], goalNzd: null });
+    const localHistory = load<{ day: string; netWorthNzd: number }[]>(WEALTH_HISTORY_KEY, []);
+    setState(localState);
+    setHistory(localHistory);
+    void api.get<ServerView>("/api/wealth", { signal: new AbortController().signal }).then(async (res) => {
+      if (!res.ok || !res.data) {
+        setMode("local");
+        return;
+      }
+      let view = res.data;
+      const serverEmpty = !view.items.length && !view.history.length;
+      const hasLocal = localState.items.length > 0 || localHistory.length > 0 || localState.goalNzd != null;
+      let alreadyMigrated = false;
+      try { alreadyMigrated = window.localStorage.getItem(MIGRATED_KEY) === "1"; } catch { /* ignore */ }
+      if (serverEmpty && hasLocal && !alreadyMigrated) {
+        const m = await api.post<{ migrated: boolean }>("/api/wealth", {
+          action: "migrate",
+          items: localState.items.map((i) => ({ kind: i.kind, label: i.label, value_nzd: i.valueNzd })),
+          history: localHistory.map((h) => ({ day: h.day, net_worth_nzd: h.netWorthNzd })),
+          goal_nzd: localState.goalNzd,
+        });
+        if (!m.ok) {
+          setMode("local");
+          return;
+        }
+        try { window.localStorage.setItem(MIGRATED_KEY, "1"); } catch { /* ignore */ }
+        const again = await api.get<ServerView>("/api/wealth", { signal: new AbortController().signal });
+        if (!again.ok || !again.data) {
+          setMode("local");
+          return;
+        }
+        view = again.data;
+      }
+      const next: WealthState = { items: view.items.map((i) => ({ ...i, kind: i.kind as WealthKind })), goalNzd: view.goalNzd };
+      setState(next);
+      setHistory(view.history);
+      try { window.localStorage.setItem(WEALTH_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+      setMode("server");
+    });
     void api.get<PortfolioSnapshot>("/api/portfolio/snapshot").then((res) => {
       const nw = res.ok ? res.data?.kpis.netWorth : null;
       setBook(nw ? { value: nw.value, reason: nw.reason } : { value: null, reason: "The paper book did not load." });
@@ -56,7 +98,8 @@ export function WholeWealthPanel() {
       }
       return next;
     });
-  }, [totals.netWorthNzd]);
+    if (mode === "server") void api.post("/api/wealth", { action: "history", day: aucklandYmd(), net_worth_nzd: totals.netWorthNzd });
+  }, [totals.netWorthNzd, mode]);
 
   function save(next: WealthState) {
     setState(next);
@@ -66,10 +109,22 @@ export function WholeWealthPanel() {
       /* ignore */
     }
   }
-  function add() {
+  function setGoal(goalNzd: number | null) {
+    save({ ...state, goalNzd });
+    if (mode === "server") void api.post("/api/wealth", { action: "goal", goal_nzd: goalNzd });
+  }
+  function remove(id: string) {
+    save({ ...state, items: state.items.filter((x) => x.id !== id) });
+    if (mode === "server") void api.post("/api/wealth", { action: "remove", id });
+  }
+  async function add() {
     const v = Number(value.replace(/[$,\s]/g, ""));
     if (!Number.isFinite(v) || v < 0) return;
     const item: WealthItem = { id: `${Date.now()}`, kind, label: label.trim() || KIND_LABEL[kind], valueNzd: Math.round(v * 100) / 100 };
+    if (mode === "server") {
+      const res = await api.post<{ id: string }>("/api/wealth", { action: "add", kind, label: item.label, value_nzd: item.valueNzd });
+      if (res.ok && res.data?.id) item.id = res.data.id;
+    }
     save({ ...state, items: [...state.items, item] });
     setLabel("");
     setValue("");
@@ -81,7 +136,7 @@ export function WholeWealthPanel() {
       <div>
         <h1 className="font-display text-2xl font-bold tracking-tight">Whole wealth</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Your paper book plus KiwiSaver, other assets and debts, in NZ$. Items you add here are saved in this browser only.
+          Your paper book plus KiwiSaver, other assets and debts, in NZ$. {mode === "local" ? "Items you add here are saved in this browser only (the account copy is not available yet)." : "Items you add here are saved to your account."}
         </p>
       </div>
       <table className="w-full text-sm">
@@ -98,7 +153,7 @@ export function WholeWealthPanel() {
               <td className="py-2">{it.label} <span className="text-xs text-muted-foreground">· {KIND_LABEL[it.kind]}</span></td>
               <td className="tnum py-2 text-right">{it.kind === "debt" ? `−${formatNzd(it.valueNzd)}` : formatNzd(it.valueNzd)}</td>
               <td className="py-2 text-right">
-                <button type="button" className="text-xs text-primary hover:underline" onClick={() => save({ ...state, items: state.items.filter((x) => x.id !== it.id) })}>Remove</button>
+                <button type="button" className="text-xs text-primary hover:underline" onClick={() => remove(it.id)}>Remove</button>
               </td>
             </tr>
           ))}
@@ -115,12 +170,12 @@ export function WholeWealthPanel() {
         </select>
         <input aria-label="Label" placeholder="Label (optional)" className="h-9 rounded-md border bg-background px-2 text-sm" value={label} onChange={(e) => setLabel(e.target.value)} />
         <input aria-label="Value in NZ$" placeholder="NZ$" inputMode="decimal" className="h-9 w-32 rounded-md border bg-background px-2 text-sm" value={value} onChange={(e) => setValue(e.target.value)} />
-        <button type="button" onClick={add} className="h-9 rounded-md border px-3 text-sm font-semibold">Add</button>
+        <button type="button" onClick={() => void add()} className="h-9 rounded-md border px-3 text-sm font-semibold">Add</button>
       </div>
       <div>
         <label className="text-sm font-medium" htmlFor="wealth-goal">Net-worth goal (NZ$)</label>
         <input id="wealth-goal" inputMode="decimal" className="ml-2 h-9 w-36 rounded-md border bg-background px-2 text-sm"
-          value={state.goalNzd ?? ""} onChange={(e) => { const v = Number(e.target.value.replace(/[$,\s]/g, "")); save({ ...state, goalNzd: e.target.value.trim() && Number.isFinite(v) ? v : null }); }} />
+          value={state.goalNzd ?? ""} onChange={(e) => { const v = Number(e.target.value.replace(/[$,\s]/g, "")); setGoal(e.target.value.trim() && Number.isFinite(v) ? v : null); }} />
         <p className="mt-1 text-sm" data-goal-gap>
           {totals.goalGapNzd == null ? "Goal gap: — (set a goal and load the paper book)" : totals.goalGapNzd > 0 ? `Goal gap: ${formatNzd(totals.goalGapNzd)} to go` : `Goal reached, ${formatNzd(-totals.goalGapNzd)} above it`}
         </p>

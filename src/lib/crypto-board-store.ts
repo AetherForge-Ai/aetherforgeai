@@ -1,3 +1,4 @@
+import { flushCryptoAttempt } from "@/lib/crypto-attempts";
 /**
  * Shared crypto and DEX snapshot.
  *
@@ -663,8 +664,12 @@ export async function readSharedCryptoBoard(opts?: { seed?: boolean; revalidate?
   if (stored.length) {
     // Goal b13 G-17: a list over 30 minutes old is refreshed inside this request
     // (bounded), as the DEX board is. A detached refresh alone left it 471 min old.
-    if (opts?.revalidate && visible.length && boardNeedsRefresh(saved?.at, CRYPTO_HARD_STALE_MS)) {
+    // Goal b22 G-05: past the 10-minute list threshold a revalidating read refreshes
+    // inside the request (bounded) and waits for the attempt to be recorded. The
+    // detached kick alone left the list 12–16 minutes old on b19.
+    if (opts?.revalidate && visible.length && boardNeedsRefresh(saved?.at, SNAPSHOT_REFRESH_MS)) {
       await Promise.race([refreshCryptoSeed().catch(() => undefined), sleep(DEX_REFRESH_BOUND_MS)]);
+      await flushCryptoAttempt();
       const fresher = await readCryptoSnapshot();
       if (fresher?.coins?.length && (fresher.at ?? "") > (saved?.at ?? "")) {
         return presentCrypto(gateCoins(fresher.coins), fresher.at ?? null);

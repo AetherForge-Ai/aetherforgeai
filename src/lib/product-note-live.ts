@@ -1,4 +1,5 @@
 import "server-only";
+import { isTestEmailAddress } from "@/lib/email-test-domains";
 
 import { totalumSdk } from "@/lib/totalum";
 import { sendTransactionalEmail } from "@/lib/send-transactional-mail";
@@ -290,6 +291,10 @@ export async function loadRegisteredRecipients(): Promise<{ email: string }[]> {
  * message and is not posted either.
  */
 export async function deliverProductNote(message: OutboundProductNote): Promise<void> {
+  if ([message.to].flat().some(isTestEmailAddress)) {
+    console.info("[product-note] skipped a test address (@example.test / @example.invalid)");
+    return;
+  }
   if (!productNoteSendingEnabled()) {
     throw new Error("Product note sender is off.");
   }
