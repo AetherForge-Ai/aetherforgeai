@@ -832,9 +832,14 @@ async function readSharedCrypto(): Promise<string | null> {
 
 /** One bounded shared-copy check per SHARED_CHECK_REUSE_MS, adopted only if newer. */
 function checkShared(timeoutMs: number): Promise<void> {
+  // Reuse only a check still in flight: a finished check may predate another server's commit.
   const now = Date.now();
   if (sharedCheck && now - sharedCheck.at < SHARED_CHECK_REUSE_MS) return sharedCheck.work;
-  const work = withTimeout(readSharedCrypto(), timeoutMs).then((raw) => rememberRaw("crypto", raw));
+  const work = withTimeout(readSharedCrypto(), timeoutMs)
+    .then((raw) => rememberRaw("crypto", raw))
+    .finally(() => {
+      if (sharedCheck?.work === work) sharedCheck = null;
+    });
   sharedCheck = { at: now, work };
   return work;
 }

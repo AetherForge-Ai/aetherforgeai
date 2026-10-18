@@ -192,3 +192,53 @@ describe("b35 H-1 unit rules", () => {
     expect(snapshotFloorCookie(9)).toMatch(/^af_snap_v=9; Path=\/; Max-Age=900; SameSite=Lax; Secure$/);
   });
 });
+
+describe("b35 H-15: Twelve Data named; key presence only", () => {
+  it("/trust source line names Twelve Data as used when configured", async () => {
+    const { publicDataSourcesLine } = await import("@/lib/data-sources");
+    expect(publicDataSourcesLine()).toMatch(/When configured, Twelve Data is also used as a share-quote source\./);
+  });
+  it("the key hook reports presence only, allow-listed, never the value", () => {
+    const s = readFileSync("src/app/api/test-hooks/market-data-key/route.ts", "utf8");
+    expect(s).toMatch(/testHooksAllowedFor\(user\)/);
+    expect(s).toMatch(/marketDataKeyPresent: present/);
+    expect(s).not.toMatch(/MARKET_DATA_API_KEY\s*[,}]|\.length|slice\(/);
+  });
+  it("CryptoCompare news still runs without a key", () => {
+    expect(readFileSync("src/lib/market-news.ts", "utf8")).toMatch(/\(key \? `&api_key=/);
+  });
+});
+
+describe("b35 Sections 3–5", () => {
+  it("G-24: dateless pasted rows take the chosen date; dated rows keep theirs", async () => {
+    const { parsePastedTrades } = await import("@/lib/paste-import");
+    const { withDate, nzToday } = await import("@/lib/paste-date");
+    const { rows } = parsePastedTrades("Bought 25 FPH.NZ at NZ$28.50");
+    expect(rows).toHaveLength(1);
+    expect(rows[0].date).toBeNull();
+    expect(withDate(rows, "2026-10-19")[0].date).toBe("2026-10-19");
+    expect(withDate([{ ...rows[0], date: "2026-10-01" }], "2026-10-19")[0].date).toBe("2026-10-01");
+    expect(nzToday(new Date("2026-10-18T12:00:00Z"))).toBe("2026-10-19");
+    const panel = readFileSync("src/components/import/BrokerImportPanel.tsx", "utf8");
+    expect(panel).toMatch(/Date missing/);
+    expect(panel).toMatch(/data-paste-date-missing/);
+  });
+  it("M-3: a bot page body does not repeat the lede's opening sentence", async () => {
+    vi.doMock("next/image", () => ({ default: () => null }));
+    const { dropRepeatedLede } = await import("@/components/public/BotGuide");
+    const { BOT_GUIDE_PARAGRAPHS } = await import("@/lib/bot-guides");
+    const out = dropRepeatedLede("Stox is the share-market bot. It writes notes.", BOT_GUIDE_PARAGRAPHS.stox);
+    expect(out[0]).not.toMatch(/^Stox is the share-market bot\./);
+    expect(out[0]).toMatch(/^It reads the shares you enter/);
+    const hm = dropRepeatedLede("The Headmaster is the planning bot for the paper book. More.", BOT_GUIDE_PARAGRAPHS.headmaster);
+    expect(hm[0]).not.toMatch(/^The Headmaster is the planning bot\./);
+    expect(dropRepeatedLede("Something else.", ["Keep me."])).toEqual(["Keep me."]);
+  });
+  it("CR-6: the plan-limits hook is allow-listed, read-only and names no tickers", () => {
+    const s = readFileSync("src/app/api/test-hooks/plan-limits/route.ts", "utf8");
+    expect(s).toMatch(/testHooksAllowedFor\(user\)/);
+    expect(s).toMatch(/checkTickerQuota\(user, held as never, kind\)/);
+    expect(s).not.toMatch(/crud\.(create|update|delete)/);
+    expect(s).not.toMatch(/ticker:\s*h\./);
+  });
+});
