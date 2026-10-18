@@ -87,6 +87,13 @@ export function keepCovered(rows: readonly ImportRow[], held: Record<string, num
   return { toWrite, errors };
 }
 
+/** Leading comment (# …) or empty rows, at most 5, are not the header. */
+export function stripPreamble(grid: string[][]): string[][] {
+  let i = 0;
+  while (i < grid.length && i < 5 && (grid[i].every((c) => !c.trim()) || /^#/.test((grid[i][0] || "").trim()))) i += 1;
+  return i ? grid.slice(i) : grid;
+}
+
 /**
  * Preview only. Nothing is written.
  * A file over 5 MB is refused before the CSV is read.
@@ -96,7 +103,9 @@ export async function previewImport(text: string, options: PlanOptions = {}): Pr
   if (textTooLarge(text || "")) {
     return blank({ error: IMPORT_TOO_LARGE, unreadable: true });
   }
-  const grid = parseCsv(text || "");
+  // b33 H-10 (GOAL-LOCK #7): a leading "# note" or blank row hid the header row, so known
+  // layouts fell to "Match the columns". Skip that preamble (up to 5 rows) before detecting.
+  const grid = stripPreamble(parseCsv(text || ""));
   if (grid.length < 2) {
     return blank({ error: "This file is not a CSV of trades. Nothing was written.", unreadable: true, headers: grid[0] || [] });
   }
