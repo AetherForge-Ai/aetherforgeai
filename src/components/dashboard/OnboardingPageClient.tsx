@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { OnboardingChecklist } from "@/components/dashboard/OnboardingChecklist";
+import { Onboarding30Days } from "@/components/dashboard/Onboarding30Days";
 
 /**
  * /onboarding — same checklist as the dashboard, always visible so a deep
@@ -41,7 +42,12 @@ export function OnboardingPageClient() {
       </p>
       <div className="mt-6">
         {ready ? (
-          <OnboardingChecklist hasCash={hasCash} hasHoldings={hasHoldings} alwaysShow plan={plan} />
+          <>
+            <OnboardingChecklist hasCash={hasCash} hasHoldings={hasHoldings} alwaysShow plan={plan} />
+            <div className="mt-10">
+              <Onboarding30Days hasCash={hasCash} hasHoldings={hasHoldings} />
+            </div>
+          </>
         ) : (
           <p className="text-sm text-muted-foreground">Loading your checklist…</p>
         )}
