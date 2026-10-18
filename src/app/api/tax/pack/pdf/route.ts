@@ -7,13 +7,13 @@ import { buildFifPaper, marketsFromNotes } from "@/lib/fif-working-paper";
 import { aucklandCivilToday, inNzTaxYear, isNzTaxYearEnding, nzTaxYearEnding, nzTaxYearLabel } from "@/lib/nz-tax-year";
 import { getStableSessionUser } from "@/lib/session";
 import { loadDividendRows, loadStockNoteRows, loadTaxRows } from "@/lib/tax-book-server";
-import { dividendPaperLines, fifPaperLines, incomePaperLines, realisedPaperLines, taxPaperPdf } from "@/lib/tax-pack";
+import { dividendPaperLines, fifPaperLines, fxRateLines, incomePaperLines, realisedPaperLines, taxPaperPdf } from "@/lib/tax-pack";
 import { realisedByTaxYear } from "@/lib/tax-realised";
 import { taxableIncome } from "@/lib/taxable-income";
 
 export const dynamic = "force-dynamic";
 
-const PAPERS = ["fif", "realised", "income", "dividends"] as const;
+const PAPERS = ["fif", "realised", "income", "dividends", "all"] as const;
 type PaperName = (typeof PAPERS)[number];
 
 function isPaper(value: string | null): value is PaperName {
@@ -48,12 +48,29 @@ export async function GET(req: Request) {
     let title = "Working paper";
     let yearLabel = nzTaxYearLabel(endingYear);
     let lines: string[] = [];
-    if (paper === "fif") {
+    if (paper === "all") {
+      // b26 H-9: one tax pack for the tax year — every working paper plus the FX rates used.
+      const [rows, stocks, divRows] = await Promise.all([loadTaxRows(user._id), loadStockNoteRows(user._id), loadDividendRows(user._id)]);
+      const fif = buildFifPaper({ rows, markets: marketsFromNotes(stocks, endingYear), endingYear });
+      const realised = realisedByTaxYear(rows, endingYear);
+      const income = taxableIncome(rows, endingYear);
+      const divs = divRows.map(dividendViewFromRow).filter((row) => inNzTaxYear(row.when, endingYear));
+      const yearRows = (rows as unknown as { executed_at?: string | null }[]).filter((r) => r.executed_at && inNzTaxYear(String(r.executed_at), endingYear));
+      title = "NZ tax pack";
+      yearLabel = fif.label;
+      lines = [
+        "", "1. FIF working paper", ...fifPaperLines(fif, rows as never),
+        "", "2. Realised profit and loss", ...realisedPaperLines(realised),
+        "", "3. Income summary", ...incomePaperLines(income),
+        "", "4. Dividend ledger", ...dividendPaperLines(summariseDividends(divs)),
+        "", "5. FX rates", ...fxRateLines(yearRows as never),
+      ];
+    } else if (paper === "fif") {
       const [rows, stocks] = await Promise.all([loadTaxRows(user._id), loadStockNoteRows(user._id)]);
       const built = buildFifPaper({ rows, markets: marketsFromNotes(stocks, endingYear), endingYear });
       title = "FIF working paper";
       yearLabel = built.label;
-      lines = fifPaperLines(built, rows as never);
+      lines = [...fifPaperLines(built, rows as never), ...fxRateLines(rows as never)];
     } else if (paper === "realised") {
       const report = realisedByTaxYear(await loadTaxRows(user._id), endingYear);
       title = "Realised profit and loss";
@@ -77,7 +94,7 @@ export async function GET(req: Request) {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${paper}-${endingYear}.pdf"`,
+        "Content-Disposition": `attachment; filename="${paper === "all" ? "tax-pack" : paper}-${endingYear}.pdf"`,
         "Cache-Control": "no-store",
       },
     });

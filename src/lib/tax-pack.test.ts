@@ -91,7 +91,9 @@ describe("tax pack", () => {
     });
     expect(pdf).toContain("Indicative, not tax advice.");
     expect(pdf).toContain("Peak cost NZD not calculated");
-    expect(pdf).toContain("no stored exchange rate");
+    // b26 H-9: long lines now wrap, so read the joined page text rather than one Tj string.
+    const pageText = [...pdf.matchAll(/\((.*?)\) Tj/g)].map((m) => m[1].trim()).join(" ");
+    expect(pageText).toContain("no stored exchange rate");
   });
 
   it("lists a buy missing an exchange rate and a dividend missing gross", () => {

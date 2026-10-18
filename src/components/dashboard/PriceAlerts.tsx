@@ -193,16 +193,19 @@ export function PriceAlerts({
     [stocks]
   );
 
-  const load = React.useCallback(async () => {
-    if (preview) return; // guest preview: no live alerts fetch
+  const load = React.useCallback(async (): Promise<PriceAlert[] | null> => {
+    if (preview) return null; // guest preview: no live alerts fetch
     const seq = ++loadSeq.current;
     const res = await api.get<PriceAlert[]>("/api/alerts");
-    if (seq !== loadSeq.current) return;
+    if (seq !== loadSeq.current) return null;
     if (res.ok && res.data) {
       const book = holdingsReady ? stocksRef.current : null;
       setAlerts(alertsForDesk(res.data, assetType, book));
+      setLoading(false);
+      return res.data;
     } else if (res.status !== 401) console.error("[PriceAlerts] load failed:", res.error);
     if (seq === loadSeq.current) setLoading(false);
+    return null;
   }, [preview, assetType, holdingsReady, bookKey]);
 
   React.useEffect(() => {
@@ -347,7 +350,16 @@ export function PriceAlerts({
     if (res.ok) {
       toast.success(editingId ? "Alert updated" : "Alert created");
       setOpen(false);
-      load();
+      // b26 L-4: show the new alert without a page reload. The store can lag a moment after
+      // the write, so re-read until the saved id appears (up to ~5 s).
+      const savedId = (res.data as { _id?: string } | undefined)?._id;
+      void (async () => {
+        for (const wait of [0, 800, 1600, 2600]) {
+          if (wait) await new Promise((r) => setTimeout(r, wait));
+          const rows = await load();
+          if (!savedId || rows?.some((a) => a._id === savedId)) return;
+        }
+      })();
     } else {
       console.error("[PriceAlerts] save failed:", res.error);
       toast.error(typeof res.error === "string" ? res.error : "Could not save the alert.");
@@ -484,10 +496,13 @@ export function PriceAlerts({
                     <span className="text-muted-foreground">Hard-sell level</span>
                     <span className="tnum font-medium">{money(a.hardSellPrice, a.ticker, isCrypto, holding?.ticker)}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Level vs price paid</span>
-                    <span className="tnum font-medium">{formatSellStopChip(a)}</span>
-                  </div>
+                  {holding && Number(holding.shares) > 0 ? (
+                    // b26 L-4: only a held ticker has a price paid to compare against.
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Level vs price paid</span>
+                      <span className="tnum font-medium">{formatSellStopChip(a)}</span>
+                    </div>
+                  ) : null}
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Trim marker</span>
                     <span className="tnum font-medium">{formatTrimChip(a)}</span>

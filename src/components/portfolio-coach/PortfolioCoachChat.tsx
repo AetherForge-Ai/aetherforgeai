@@ -23,6 +23,7 @@ import { BOT_HEADMASTER_AVATAR } from "@/assets/files";
 import { bullionNzdPerOz, isBullionHolding } from "@/lib/metal-valuation";
 import { aucklandDateISO } from "@/lib/fill-integrity";
 import { coachRequestsTotalum } from "@/lib/entitlements";
+import { AssistantQueryCounter } from "@/components/chat/AssistantQueryCounter";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -646,6 +647,7 @@ export function PortfolioCoachChat({
             <p className="truncate text-[11px] text-emerald-100/70">
               Keeps your portfolio on track
             </p>
+            <AssistantQueryCounter className="block truncate text-[11px] text-amber-200/80" />
           </div>
         </div>
 
