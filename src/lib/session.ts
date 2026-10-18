@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { totalumSdk } from "@/lib/totalum";
 import { userRecordConflicts } from "@/lib/account-guard";
 import { normalizePlanKey } from "@/lib/entitlements";
+import { bookNotBeforeFromCookie } from "@/lib/book-write-mark";
 import { cookieValue, sessionExpiresInFuture, verifySignedSessionToken } from "@/lib/session-token";
 
 export type BotAccessValue = "stock" | "crypto" | "both" | "none";
@@ -52,6 +53,65 @@ type TokenSession = {
 
 const inflightSessions = new Map<string, Promise<TokenSession | null>>();
 
+/**
+ * b29 H-4 root cause: every request made two Totalum reads (session row + user record) with no
+ * reuse between requests. A /dashboard view fires ~10 API calls, each re-reading both, so under
+ * TT's soak the store started timing out (4 s deadline). Timeouts became 503 "could not confirm"
+ * on the page and null on the nav (header "Log in"), and Try again re-asked the same overloaded
+ * store. Fix: a short per-isolate cache of the verified session row and user record, and when
+ * the store is slow, the last good answer for the SAME signed token (still unexpired) instead of
+ * "unavailable". A signed token is only valid with the server secret, so this never names
+ * another browser's user.
+ */
+export const SESSION_CACHE_FRESH_MS = 60_000;
+/** Serve the last good row for this token when the store fails, up to this age. */
+export const SESSION_CACHE_STALE_MS = 30 * 60_000;
+export const USER_RECORD_FRESH_MS = 20_000;
+const SESSION_CACHE_MAX = 500;
+const sessionCache = new Map<string, { at: number; row: TokenSession }>();
+const recordCache = new Map<string, { at: number; record: any }>();
+
+function rememberBounded<V>(map: Map<string, V>, key: string, value: V) {
+  map.delete(key);
+  map.set(key, value);
+  if (map.size > SESSION_CACHE_MAX) {
+    const first = map.keys().next().value;
+    if (first !== undefined) map.delete(first);
+  }
+}
+
+/** Sign-out on this isolate: drop the cached row for the token so it is never served again. */
+export function forgetCachedSessionToken(token: string | null | undefined): void {
+  if (!token) return;
+  sessionCache.delete(`token:${token}`);
+}
+
+export type SessionDecision = {
+  route?: string;
+  cookie: boolean;
+  signature: boolean;
+  source: "cache" | "store" | "stale-cache" | "none";
+  storeMs: number | null;
+  outcome: "user" | "signed-out" | "unavailable";
+};
+/** b29 H-4: last decisions on this isolate, so a production trace can be read from a test hook. */
+const decisionLog: Array<SessionDecision & { at: string }> = [];
+export function recordSessionDecision(d: SessionDecision): void {
+  decisionLog.push({ ...d, at: new Date().toISOString() });
+  if (decisionLog.length > 400) decisionLog.splice(0, decisionLog.length - 400);
+  if (d.outcome !== "user" || d.source === "stale-cache") console.info("[session-decision]", JSON.stringify(d));
+}
+export function recentSessionDecisions() {
+  return decisionLog.slice();
+}
+
+export function __resetSessionCacheForTests(): void {
+  sessionCache.clear();
+  recordCache.clear();
+  inflightSessions.clear();
+  decisionLog.length = 0;
+}
+
 /** b27 H-4: a session store read that failed or timed out. Not the same as signed out. */
 export class SessionStoreUnavailable extends Error {
   constructor(readonly reason: string) {
@@ -79,13 +139,26 @@ function sessionDeadline<T>(work: Promise<T>, what: string): Promise<T> {
 async function readTokenSession(cookieHeader: string | null): Promise<TokenSession | null> {
   const ctx = await auth.$context;
   const raw = cookieValue(cookieHeader, ctx.authCookies.sessionToken.name);
-  if (!raw) return null;
+  if (!raw) {
+    recordSessionDecision({ cookie: false, signature: false, source: "none", storeMs: null, outcome: "signed-out" });
+    return null;
+  }
   const token = await verifySignedSessionToken(raw, ctx.secret);
-  if (!token) return null;
+  if (!token) {
+    recordSessionDecision({ cookie: true, signature: false, source: "none", storeMs: null, outcome: "signed-out" });
+    return null;
+  }
   const key = `token:${token}`;
+  const cached = sessionCache.get(key);
+  const now = Date.now();
+  if (cached && now - cached.at < SESSION_CACHE_FRESH_MS && sessionExpiresInFuture(cached.row.session.expiresAt)) {
+    recordSessionDecision({ cookie: true, signature: true, source: "cache", storeMs: 0, outcome: "user" });
+    return cached.row;
+  }
   const existing = inflightSessions.get(key);
   if (existing) return existing;
-  const job = sessionDeadline(
+  const started = Date.now();
+  const storeRead = sessionDeadline(
     Promise.resolve(ctx.internalAdapter.findSession(token)).catch((err: unknown) => {
       throw err instanceof SessionStoreUnavailable ? err : new SessionStoreUnavailable(`session read error: ${err instanceof Error ? err.message.slice(0, 80) : "error"}`);
     }),
@@ -93,10 +166,26 @@ async function readTokenSession(cookieHeader: string | null): Promise<TokenSessi
   )
     .then((found) => {
       const row = found as TokenSession | null;
-      if (!row?.user?.id || !row.session) return null;
-      if (!sessionExpiresInFuture(row.session.expiresAt)) return null;
+      const storeMs = Date.now() - started;
+      if (!row?.user?.id || !row.session || !sessionExpiresInFuture(row.session.expiresAt)) {
+        sessionCache.delete(key);
+        recordSessionDecision({ cookie: true, signature: true, source: "store", storeMs, outcome: "signed-out" });
+        return null;
+      }
+      rememberBounded(sessionCache, key, { at: Date.now(), row });
+      recordSessionDecision({ cookie: true, signature: true, source: "store", storeMs, outcome: "user" });
       return row;
-    })
+    }, (err: unknown) => {
+      const storeMs = Date.now() - started;
+      const last = sessionCache.get(key);
+      if (last && Date.now() - last.at < SESSION_CACHE_STALE_MS && sessionExpiresInFuture(last.row.session.expiresAt)) {
+        recordSessionDecision({ cookie: true, signature: true, source: "stale-cache", storeMs, outcome: "user" });
+        return last.row;
+      }
+      recordSessionDecision({ cookie: true, signature: true, source: "store", storeMs, outcome: "unavailable" });
+      throw err;
+    });
+  const job = storeRead
     .finally(() => {
       if (inflightSessions.get(key) === job) inflightSessions.delete(key);
     });
@@ -149,12 +238,29 @@ async function loadCurrentUser(): Promise<AppUser | null> {
 
     const userId = session.user.id;
     let record: any = null;
-    try {
-      const res = await sessionDeadline(totalumSdk.crud.getRecordById("user", userId), "user record");
-      record = (res as any)?.data ?? null;
-    } catch (err) {
-      if (err instanceof SessionStoreUnavailable) throw err;
-      console.error("[session] Failed to load full user record:", err);
+    let recordReadAt: number | undefined;
+    // A browser that just wrote (af_bw stamp) never gets a record read before its write: cash moved.
+    const writtenNotBefore = bookNotBeforeFromCookie(headerList.get("cookie"));
+    const cachedRecord = recordCache.get(userId);
+    if (cachedRecord && Date.now() - cachedRecord.at < USER_RECORD_FRESH_MS && cachedRecord.at >= writtenNotBefore) {
+      record = cachedRecord.record;
+      recordReadAt = cachedRecord.at;
+    } else {
+      try {
+        const res = await sessionDeadline(totalumSdk.crud.getRecordById("user", userId), "user record");
+        record = (res as any)?.data ?? null;
+        recordReadAt = Date.now();
+        if (record) rememberBounded(recordCache, userId, { at: recordReadAt, record });
+      } catch (err) {
+        // b29 H-4: a slow user-record read with a known record is not an outage.
+        if (cachedRecord && Date.now() - cachedRecord.at < SESSION_CACHE_STALE_MS) {
+          record = cachedRecord.record;
+          recordReadAt = cachedRecord.at;
+        } else {
+          if (err instanceof SessionStoreUnavailable) throw err;
+          console.error("[session] Failed to load full user record:", err);
+        }
+      }
     }
 
     // Session id is the source of truth. A record whose own id disagrees
@@ -185,7 +291,8 @@ async function loadCurrentUser(): Promise<AppUser | null> {
       trial_used_at: record?.trial_used_at ?? null,
       cash_balance: typeof record?.cash_balance === "number" ? record.cash_balance : 0,
       // b26 G-10: when the cash came from a live read, writes in this request reuse it.
-      cash_read_at: record && typeof record.cash_balance === "number" ? Date.now() : undefined,
+      // b29: the time of the read that produced it (a cached record is older, so writes re-read).
+      cash_read_at: record && typeof record.cash_balance === "number" ? recordReadAt : undefined,
       first_name: record?.first_name ?? (session.user as any).first_name ?? null,
       last_name: record?.last_name ?? (session.user as any).last_name ?? null,
       country: record?.country ?? (session.user as any).country ?? null,
@@ -201,6 +308,11 @@ async function loadCurrentUser(): Promise<AppUser | null> {
  * Portfolio loads and confirmed trades use this so a just-issued login cookie
  * cannot 401 the book or clear the session.
  */
+/** b29: a write that changed this user's record (cash, plan) must not be answered from the record cache. */
+export function forgetCachedUserRecord(userId: string | null | undefined): void {
+  if (userId) recordCache.delete(userId);
+}
+
 export function getStableSessionUser() {
   return getCurrentUser({ refreshSession: false, disableCookieCache: true });
 }

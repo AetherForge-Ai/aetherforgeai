@@ -66,6 +66,9 @@ const MARKET_LINKS: NavLink[] = [
 const MORE_LINKS: NavLink[] = [
   { href: "/performance", label: "Example results", icon: Trophy },
   { href: "/tax", label: "Tax", icon: Scale },
+  // b29 G-29: the Xero CSV from the desktop "More" menu and the mobile menu. It opens the /tax
+  // Xero section: paid plans download there, Free sees the lock label.
+  { href: "/tax#xero", label: "Xero CSV", icon: FileUp },
   { href: "/pricing", label: "Pricing", icon: Tag },
   { href: "/how-it-works", label: "How it works", icon: BookOpen },
   { href: "/projections", label: "Projections", icon: Sparkles },

@@ -60,14 +60,20 @@ export function TaxPageContent({ book = null, xero = "guest" }: { book?: TaxBook
       <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{TAX_INDICATIVE_LABEL}</p>
       {/* b26 H-9: one download for the whole tax year. */}
       <section className="mt-4 rounded-md border p-3 text-sm" data-tax-pack>
-        <h2 className="font-semibold">Tax pack (one PDF)</h2>
+        <h2 className="font-semibold">Tax pack (PDF, or ZIP with the CSVs)</h2>
         <p className="mt-1 text-muted-foreground">
           FIF working paper, realised profit and loss, income summary, dividend ledger and the FX rates used (with source and date), for the tax year 1 April to 31 March. {TAX_INDICATIVE_LABEL}
         </p>
         {xero === "paid" ? (
-          <a href="/api/tax/pack/pdf?paper=all" className="mt-2 inline-flex min-h-11 items-center rounded-md border px-4 font-medium" data-tax-pack-download>
-            Download tax pack
-          </a>
+          <span className="mt-2 flex flex-wrap gap-2">
+            <a href="/api/tax/pack/pdf?paper=all" className="inline-flex min-h-11 items-center rounded-md border px-4 font-medium" data-tax-pack-download>
+              Download tax pack (PDF)
+            </a>
+            {/* b29 H-9: PDF + realised, dividends, FIF, income, positions, trades and corporate-action CSVs. */}
+            <a href="/api/tax/pack/zip" className="inline-flex min-h-11 items-center rounded-md border px-4 font-medium" data-tax-pack-zip>
+              Download tax pack (ZIP with CSVs)
+            </a>
+          </span>
         ) : xero === "free" ? (
           <span aria-disabled="true" className="mt-2 inline-flex min-h-11 items-center rounded-md border px-4 font-medium text-muted-foreground">Tax pack: Starter and above</span>
         ) : (
@@ -75,7 +81,7 @@ export function TaxPageContent({ book = null, xero = "guest" }: { book?: TaxBook
         )}
       </section>
       {/* Goal b20 G-29: the Xero export where accountants look; Free sees the lock. */}
-      <section className="mt-4 rounded-md border p-3 text-sm" data-tax-xero>
+      <section id="xero" className="mt-4 scroll-mt-24 rounded-md border p-3 text-sm" data-tax-xero>
         <h2 className="font-semibold">Xero CSV (for your accountant)</h2>
         <p className="mt-1 text-muted-foreground">
           A Xero bank-statement import file of NZD cash movements. Columns: Date, Amount, Payee, Description, Reference.

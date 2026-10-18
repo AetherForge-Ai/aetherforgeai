@@ -26,10 +26,27 @@ import { readCryptoSnapshot } from "@/lib/crypto-snapshot";
 import { fetchYahooCoinDetail } from "@/lib/crypto-yahoo";
 import { withTimeout } from "@/lib/with-timeout";
 
-/** CoinPaprika ids we have checked. Anything else is looked up, not guessed. */
-const PAPRIKA_ID_BY_SLUG: Record<string, string> = {
-  tether: "usdt-tether",
+/**
+ * b29 G-17: cross-provider id map. /markets links slugs from both CoinGecko and CoinPaprika lists,
+ * and the six empty pages (bitcoin-cash, near-protocol, rain-protocol, stellar, tron, zcash) were
+ * slugs the depth lookup could not resolve: CoinGecko knows NEAR as "near" (not "near-protocol")
+ * and has no "rain-protocol" id, and the CoinPaprika search fallback called /v1/search without the
+ * trailing slash (301, empty). Each id below was checked against the provider (19 Oct 2026):
+ * CoinPaprika /v1/tickers/<id> 200; CoinGecko /coins/markets?ids=<id> returns the coin.
+ */
+export const CROSS_PROVIDER_IDS: Record<string, { gecko: string | null; paprika: string; symbol: string }> = {
+  tether: { gecko: "tether", paprika: "usdt-tether", symbol: "USDT" },
+  "bitcoin-cash": { gecko: "bitcoin-cash", paprika: "bch-bitcoin-cash", symbol: "BCH" },
+  "near-protocol": { gecko: "near", paprika: "near-near-protocol", symbol: "NEAR" },
+  near: { gecko: "near", paprika: "near-near-protocol", symbol: "NEAR" },
+  "rain-protocol": { gecko: null, paprika: "rain-rain-protocol", symbol: "RAIN" },
+  stellar: { gecko: "stellar", paprika: "xlm-stellar", symbol: "XLM" },
+  tron: { gecko: "tron", paprika: "trx-tron", symbol: "TRX" },
+  zcash: { gecko: "zcash", paprika: "zec-zcash", symbol: "ZEC" },
 };
+const PAPRIKA_ID_BY_SLUG: Record<string, string> = Object.fromEntries(
+  Object.entries(CROSS_PROVIDER_IDS).map(([slug, ids]) => [slug, ids.paprika])
+);
 
 const YAHOO_TICKER_BY_SLUG: Record<string, string> = {
   tether: "USDT",
@@ -39,8 +56,10 @@ const YAHOO_TICKER_BY_SLUG: Record<string, string> = {
 
 function findListed(coins: CoinMarket[] | undefined, slug: string): CoinMarket | null {
   if (!coins?.length) return null;
-  const symbol = (tickerForCoingeckoId(slug) || "").toUpperCase();
-  return coins.find((coin) => coin.id === slug || (symbol && coin.symbol.toUpperCase() === symbol)) ?? null;
+  const mapped = CROSS_PROVIDER_IDS[slug];
+  const symbol = (mapped?.symbol || tickerForCoingeckoId(slug) || "").toUpperCase();
+  const ids = new Set([slug, mapped?.gecko, mapped?.paprika].filter(Boolean) as string[]);
+  return coins.find((coin) => ids.has(coin.id)) ?? coins.find((coin) => !!symbol && coin.symbol.toUpperCase() === symbol) ?? null;
 }
 
 async function readListed(slug: string): Promise<CoinMarket | null> {
@@ -62,8 +81,11 @@ async function fetchJson(url: string, headers: Record<string, string>, ms: numbe
 }
 
 async function loadGeckoMarket(slug: string, ms: number): Promise<CoinDetail | null> {
+  const mapped = CROSS_PROVIDER_IDS[slug];
+  if (mapped && mapped.gecko === null) return null;
+  const geckoId = mapped?.gecko || slug;
   const path =
-    `/coins/markets?vs_currency=usd&ids=${encodeURIComponent(slug)}` +
+    `/coins/markets?vs_currency=usd&ids=${encodeURIComponent(geckoId)}` +
     "&order=market_cap_desc&per_page=1&page=1&sparkline=false&price_change_percentage=1h,24h,7d,30d";
   const first = coinGeckoEndpoint();
   let body = await fetchJson(`${first.base}${path}`, first.headers, ms);
@@ -86,7 +108,7 @@ async function loadPaprikaTicker(paprikaId: string, slug: string, ms: number): P
 async function searchPaprikaId(slug: string, ms: number): Promise<string> {
   const symbol = (tickerForCoingeckoId(slug) || "").toUpperCase();
   const body = await fetchJson(
-    `https://api.coinpaprika.com/v1/search?q=${encodeURIComponent(slug)}&c=currencies&limit=8`,
+    `https://api.coinpaprika.com/v1/search/?q=${encodeURIComponent(slug)}&c=currencies&limit=8`,
     { accept: "application/json" },
     ms
   );

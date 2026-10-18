@@ -309,12 +309,17 @@ export function TransactionsTab({
                 event.preventDefault();
                 if (!pending || busy) return;
                 const target = pending;
-                setBusy(true);
+                // b29 G-10: optimistic. The row leaves and the dialog closes at once (the open modal
+                // hid the whole ledger from TT's row count for 3–4 s); a refusal brings it back.
+                setRemovedIds((prev) => new Set(prev).add(target.id));
+                setPending(null);
                 void Promise.resolve(onDeleteDividend(target)).then((ok) => {
-                  if (ok !== false) setRemovedIds((prev) => new Set(prev).add(target.id));
-                }).finally(() => {
-                  setBusy(false);
-                  setPending(null);
+                  if (ok === false)
+                    setRemovedIds((prev) => {
+                      const next = new Set(prev);
+                      next.delete(target.id);
+                      return next;
+                    });
                 });
               }}
             >

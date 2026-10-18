@@ -33,7 +33,8 @@ import { applyFifoPurchasePrices } from "@/lib/fifo-cost";
 import { collapseDuplicateHoldings } from "@/lib/portfolio";
 import { fifoRemainingShareQty } from "@/lib/tax-realised";
 import type { TaxLedgerRow } from "@/lib/taxable-income";
-import { bookCacheEpoch, invalidateBookCache, readBookCache, writeBookCache } from "@/lib/book-cache";
+import { bookCacheEpoch, invalidateBookCache, writeBookCache } from "@/lib/book-cache";
+import { readBookCacheForRequest } from "@/lib/book-cache.server";
 import { loadLedger } from "@/lib/transactions";
 import { dateOnlyInstant, lotCivilDay } from "@/lib/executed-at";
 import { earlierCivilDay } from "@/lib/transaction-rules";
@@ -273,7 +274,8 @@ export async function GET(req: Request) {
     const fresh = url.searchParams.get("fresh") === "1";
     const cacheKey = `${user._id}:stocks:${assetType || "all"}`;
     const cacheEpoch = bookCacheEpoch(user._id);
-    const cached = fresh ? null : readBookCache<any[]>(cacheKey);
+    const readStartedAt = Date.now();
+    const cached = fresh ? null : await readBookCacheForRequest<any[]>(cacheKey);
     if (cached) {
       return privateJson({ ok: true, userId: user._id, data: cached });
     }
@@ -346,7 +348,7 @@ export async function GET(req: Request) {
       `[api/stocks] GET returned ${stocks.length} holdings for user ${user._id} (filter: ${assetType || "all"})`
     );
 
-    if (!writeBookCache(cacheKey, stocks, cacheEpoch)) {
+    if (!writeBookCache(cacheKey, stocks, cacheEpoch, readStartedAt)) {
       console.log("[api/stocks] Dropped cache write — a trade landed while this read was in flight");
     }
     return privateJson({ ok: true, userId: user._id, data: stocks });

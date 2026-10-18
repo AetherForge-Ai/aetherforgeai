@@ -1,4 +1,4 @@
-// pull-check:v3-goal-b28-2026-10-19
+// pull-check:v3-goal-b29-2026-10-19
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 
@@ -10,7 +10,7 @@ import { sessionCash } from "@/lib/transactions";
 const read = (p: string) => readFileSync(p, "utf8");
 
 describe("goal b26", () => {
-  it("pins the build", () => expect(read("public/build-version.txt").trim()).toBe("v3-goal-b28-2026-10-19"));
+  it("pins the build", () => expect(read("public/build-version.txt").trim()).toBe("v3-goal-b29-2026-10-19"));
 
   it("G-10: buy returns the holding; the session's fresh cash replaces a second user read", () => {
     expect(read("src/app/api/transactions/route.ts")).toContain("holding: result.holding ?? null");
@@ -46,7 +46,9 @@ describe("goal b26", () => {
   it("H-13 / H-15: RBNZ is NZ macro; /trust lists news sources and delays", () => {
     expect(read("src/lib/news-present.ts")).toContain('marketLabel: "NZ macro"');
     const trust = read("src/app/trust/page.tsx");
-    for (const s of ["RNZ", "RBNZ", "BusinessDesk", "Yahoo Finance", "BBC Business", "Twelve Data"]) expect(trust).toContain(s);
+    // b29: the list moved to news-sources.ts, shared with /api/news.
+    const sources = trust + readFileSync("src/lib/news-sources.ts", "utf8");
+    for (const s of ["RNZ", "RBNZ", "BusinessDesk", "Yahoo Finance", "BBC Business", "Twelve Data"]) expect(sources).toContain(s);
   });
 
   it("deposit rows can be removed, never below zero cash; seed starts from a known book", () => {

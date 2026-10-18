@@ -4,7 +4,7 @@ import { ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Lock } from "lucide-react";
-import { alignTradeSession, confirmPageSessionStrict as confirmPageSession } from "@/lib/auth-refresh";
+import { alignTradeSession, confirmPageSessionStrict as confirmPageSession, invalidateLiveSessionProbe } from "@/lib/auth-refresh";
 import { bindActiveAccount } from "@/lib/account-identity";
 import { accountPaintDecision, type AccountPaint } from "@/lib/session-owner";
 import { GuestDashboardGate } from "@/components/dashboard/GuestDashboardGate";
@@ -44,14 +44,22 @@ function withinSessionBudget<T>(work: Promise<T>): Promise<T | typeof TIMED_OUT>
   ]).finally(() => timer && clearTimeout(timer));
 }
 
+/**
+ * b29 H-4: the session service did not answer. b28 copy claimed the browser was still signed in while
+ * the header said Log in; TT rightly called that a hidden failure. Now: say what happened, offer
+ * Try again (a fresh read, which the server answers from its last good session for this token),
+ * and a real way out (sign in again) — never a claim we could not verify.
+ */
 export function SessionSlowNotice({ onRetry }: { onRetry: () => void }) {
+  const redirect = typeof window !== "undefined" ? window.location.pathname + window.location.search : "/dashboard";
   return (
-    <div className="flex min-h-[40vh] items-center justify-center px-4 py-16" role="alert">
+    <div className="flex min-h-[40vh] items-center justify-center px-4 py-16" role="alert" data-session-slow>
       <div className="w-full max-w-md rounded-3xl border border-border/70 bg-card/80 px-6 py-8 text-center">
-        <p className="text-base font-semibold">We could not confirm this browser session just now.</p>
-        <p className="mt-2 text-sm text-muted-foreground">You are still signed in and your paper book is safe. Try again in a moment.</p>
-        <div className="mt-6 flex justify-center">
-          <Button type="button" onClick={onRetry}>Try again</Button>
+        <p className="text-base font-semibold">We could not reach the sign-in service just now.</p>
+        <p className="mt-2 text-sm text-muted-foreground">Your paper book is safe. Try again, or sign in again if this keeps happening.</p>
+        <div className="mt-6 flex flex-wrap justify-center gap-3">
+          <Button type="button" onClick={() => { invalidateLiveSessionProbe(); onRetry(); }}>Try again</Button>
+          <a className="inline-flex items-center rounded-md border border-border px-4 py-2 text-sm font-medium" href={`/login?redirect=${encodeURIComponent(redirect)}`}>Sign in again</a>
         </div>
       </div>
     </div>

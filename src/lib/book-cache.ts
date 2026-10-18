@@ -8,11 +8,11 @@
  */
 
 /**
- * b28 G-10: 0 = no cross-request reuse. The cache lives in one isolate, and a write on another
- * isolate cannot clear it, so a reload could be served the pre-write book for up to 12 s (a
- * deleted deposit came back, a saved sell was missing). Callers may still pass a TTL explicitly.
+ * b29 H-4/G-10: 15 s per-user reuse again (b28's 0 made /dashboard ~6 s). A write on another
+ * isolate is covered by the `af_bw` write stamp (see book-write-mark.ts): a browser that wrote
+ * never gets an entry whose read started before its write. `at` is the read START time.
  */
-export const BOOK_CACHE_MS = 0;
+export const BOOK_CACHE_MS = 15_000;
 const store = new Map<string, { at: number; value: unknown }>();
 const epochs = new Map<string, number>();
 
@@ -20,10 +20,11 @@ export function bookCacheEpoch(userId: string): number {
   return epochs.get(userId) ?? 0;
 }
 
-export function readBookCache<T>(key: string, ttlMs = BOOK_CACHE_MS): T | null {
+export function readBookCache<T>(key: string, ttlMs = BOOK_CACHE_MS, notBefore = 0): T | null {
   if (!(ttlMs > 0)) return null;
   const hit = store.get(key);
   if (!hit) return null;
+  if (notBefore > 0 && hit.at < notBefore) return null;
   if (Date.now() - hit.at > ttlMs) {
     store.delete(key);
     return null;
@@ -32,10 +33,10 @@ export function readBookCache<T>(key: string, ttlMs = BOOK_CACHE_MS): T | null {
 }
 
 /** Returns false when a trade invalidated this account while the read was in flight. */
-export function writeBookCache(key: string, value: unknown, epoch?: number): boolean {
+export function writeBookCache(key: string, value: unknown, epoch?: number, readStartedAt?: number): boolean {
   const userId = key.split(":")[0] || "";
   if (epoch != null && epoch !== bookCacheEpoch(userId)) return false;
-  store.set(key, { at: Date.now(), value });
+  store.set(key, { at: readStartedAt ?? Date.now(), value });
   return true;
 }
 

@@ -1,3 +1,5 @@
+import { readFifThreshold } from "@/lib/fif-setting.server";
+import { FifThresholdSetting } from "@/components/tax/FifThresholdSetting";
 import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { CsvExportButton } from "@/components/tax/CsvExportButton";
@@ -13,7 +15,9 @@ import {
   FIF_ASSUMPTIONS,
   FIF_SOURCES,
   buildFifPaper,
+  FIF_COST_THRESHOLD_NZD,
   fifThresholdSentence,
+  fifThresholdText,
   fifTotals,
   marketsFromNotes,
 } from "@/lib/fif-working-paper";
@@ -67,9 +71,11 @@ export default async function FifPage({
   let saveable = new Set<string>();
   let readError = false;
   let ledgerRows: TaxLedgerRow[] = [];
+  let thresholdNzd = FIF_COST_THRESHOLD_NZD;
   if (user) {
     try {
-      const [rows, stocks] = await Promise.all([loadTaxRows(user._id), loadStockNoteRows(user._id)]);
+      const [rows, stocks, savedThreshold] = await Promise.all([loadTaxRows(user._id), loadStockNoteRows(user._id), readFifThreshold(user._id)]);
+      thresholdNzd = savedThreshold;
       ledgerRows = rows;
       years = taxYearChoices(rows, today);
       if (!years.includes(endingYear)) years = [endingYear, ...years];
@@ -77,6 +83,7 @@ export default async function FifPage({
         rows,
         markets: marketsFromNotes(stocks, endingYear),
         endingYear,
+        thresholdNzd,
       });
       saveable = new Set(stocks.map((stock) => stock.ticker));
     } catch {
@@ -143,8 +150,18 @@ export default async function FifPage({
         ) : (
           <>
             <p className="mt-6 text-sm text-muted-foreground">{COST_METHOD_LABEL}</p>
-            <h2 className="mt-8 font-display text-lg font-semibold">NZ$50,000 cost test</h2>
-            <p className="mt-2 text-sm text-muted-foreground">{fifThresholdSentence(paper)}</p>
+            {/* b29 H-9: the threshold is the portfolio's saved setting; the heading prints the value used. */}
+            <h2 className="mt-8 font-display text-lg font-semibold" data-fif-threshold-heading>
+              FIF threshold cost test: {fifThresholdText(paper.thresholdNzd ?? FIF_COST_THRESHOLD_NZD)}
+            </h2>
+            <FifThresholdSetting initialNzd={paper.thresholdNzd ?? FIF_COST_THRESHOLD_NZD} />
+            <p className="mt-2 text-sm text-muted-foreground" data-fif-threshold-sentence>{fifThresholdSentence(paper)}</p>
+            {paper.peakCostNzd != null && paper.peakCostNzd > 0 ? (
+              <p className="mt-1 text-sm" data-fif-peak data-fif-peak-day={paper.peakCostDay ?? ""}>
+                Peak FIFO cost of attributing interests: {formatNzd(paper.peakCostNzd)}
+                {paper.peakCostDay ? `, reached ${paper.peakCostDay}` : ""}.
+              </p>
+            ) : null}
 
             <h2 className="mt-8 font-display text-lg font-semibold">Attributing interests</h2>
             {paper.attributing.length === 0 ? (
