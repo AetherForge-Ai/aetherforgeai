@@ -1,4 +1,3 @@
-import { hasNzAuAnchor, isNewsRelevant } from "@/lib/market-news";
 import { isListedNewsSource } from "@/lib/news-sources";
 
 /**
@@ -10,8 +9,9 @@ export function filterServableNews<T extends { headline: string; summary?: strin
     if (!isListedNewsSource(item.source)) return false;
     if (item.market === "NZX" || item.market === "ASX") return true;
     if (item.source === "Reserve Bank of New Zealand") return true;
-    // Global / US / crypto items need an NZ/AU anchor of their own (a source hint is not enough).
-    if (!hasNzAuAnchor(`${item.headline} ${item.summary ?? ""}`)) return false;
-    return isNewsRelevant({ headline: item.headline, summary: item.summary, market: item.market as any, source: item.source });
+    // b33 H-13 (GOAL-LOCK #6): TT saw "Yahoo Finance · Global" cards on /market-news. A Global /
+    // US / crypto item that merely mentions NZ or Australia still carried the Global label, which
+    // the 7-day NZ/AU-only sample counts as a failure. Only NZX/ASX-tagged items (and RBNZ) are served.
+    return false;
   });
 }

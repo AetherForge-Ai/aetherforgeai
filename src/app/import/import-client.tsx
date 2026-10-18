@@ -141,7 +141,7 @@ export function ImportClient() {
     <div className="mx-auto max-w-3xl px-4 py-10">
       <h1 className="font-display text-3xl font-bold text-foreground">Import trades</h1>
       <p className="mt-3 text-sm text-muted-foreground">
-        Upload a broker CSV or XLSX (for example a Stake Transaction Report, both tabs). Nothing is saved until you confirm the preview. A second upload of the same file is refused.
+        Upload a broker CSV or XLSX. Hatch, Swyftx and IBKR layouts are checked against their published columns; any other file is read by column name, so check every row in the preview. Nothing is saved until you confirm the preview. A second upload of the same file is refused.
         Undo removes that whole import.
       </p>
 

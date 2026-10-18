@@ -236,7 +236,7 @@ describe("b32 addendum: CR-2 FIF facts and BS-01 error mapping", () => {
     const src = read("src/lib/broker-sync/ibkr-sync.server.ts");
     expect(src).toMatch(/"User-Agent": IBKR_USER_AGENT/);
     expect(src).toMatch(/!res\.ok && \/<ErrorCode>/);
-    expect(src).toMatch(/this is not a token error/);
+    expect(src).toMatch(/Check your Flex token and Query ID in Client Portal/);
     expect(read("src/lib/broker-sync/ibkr-flex.ts")).toMatch(/"1015":/);
   });
 });
