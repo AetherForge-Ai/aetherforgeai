@@ -1,3 +1,4 @@
+import { hasSignOutMarker } from "@/lib/sign-out-marker";
 import { BOOK_WRITE_COOKIE, isBookWriteRequest } from "@/lib/book-write-mark";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
@@ -154,7 +155,11 @@ function finish(response: NextResponse, request: NextRequest, signedIn: boolean,
   // After the strip, so the clearing Set-Cookie is what the browser stores.
   // On OpenNext these middleware cookies override a session cookie the
   // handler attaches later in the same response.
-  clearAnonymousAuthCookies(response, pathname, request.method, signedIn);
+  // b42 P1: clearing keys off a real missing token, not the sign-out marker. A late reply to a
+  // marked request must not expire the session a fresh sign-in just set (the logout reply already
+  // expired the old cookies). Session Set-Cookies are still stripped above for marked requests.
+  const hasToken = requestHasSessionToken((name) => request.cookies.get(name)?.value);
+  clearAnonymousAuthCookies(response, pathname, request.method, signedIn || hasToken);
   if (isCookieFreePath(pathname)) response.headers.delete("set-cookie");
   return response;
 }
@@ -167,7 +172,10 @@ function isSignedInOnlyPage(pathname: string): boolean {
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const signedIn = requestHasSessionToken((name) => request.cookies.get(name)?.value);
+  // b42 P1: a request made after the Sign out click carries af_so and is signed out, even when it
+  // overtakes the logout POST. A successful sign-in clears the marker.
+  const signedIn =
+    requestHasSessionToken((name) => request.cookies.get(name)?.value) && !hasSignOutMarker((name) => request.cookies.get(name)?.value);
 
   // Handle CORS preflight requests
   if (request.method === "OPTIONS") {

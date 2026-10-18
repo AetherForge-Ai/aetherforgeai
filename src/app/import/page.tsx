@@ -11,7 +11,7 @@ export const metadata = publicPageMetadata("/import", {
 });
 
 export default async function ImportPage() {
-  const user = await getCurrentUser();
+  const user = await getCurrentUser({ fresh: true });
   const shellUser = user
     ? {
         name: user.name,

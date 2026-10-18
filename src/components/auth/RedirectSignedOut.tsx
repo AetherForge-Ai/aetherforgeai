@@ -39,6 +39,11 @@ export function RedirectSignedOut({
         /* keep the server render; a blip is not a logout */
       }
     };
+    // b42 P1: Sign out was clicked in this browser (af_so): leave at once, no session probe needed.
+    if (/(?:^|;\s*)af_so=[^;]+/.test(document.cookie)) {
+      leave();
+      return;
+    }
     void check();
     // b39 P3: after sign-out, Back (bfcache restore) or returning to the tab shows the old page
     // without a new render. Re-check then, so /settings leaves for /login promptly.

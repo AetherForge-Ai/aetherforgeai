@@ -11,7 +11,7 @@ export const metadata = publicPageMetadata("/account", {
 
 /** /account is settings. Signed-out visits go to login, not the app shell. */
 export default async function AccountPage() {
-  const user = await getCurrentUser();
+  const user = await getCurrentUser({ fresh: true });
   if (!user) redirect("/login?redirect=/settings");
   redirect("/settings");
 }

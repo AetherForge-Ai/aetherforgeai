@@ -2,6 +2,7 @@
 
 import { clearOfflineCaches } from "@/components/PwaRegister";
 import { clearClientUserState } from "@/lib/client-user-state";
+import { markSigningOut } from "@/lib/sign-out-marker";
 
 /** b41 P1: the sign-out POST waits at most this long before the beacon fallback. */
 export const SIGN_OUT_POST_MS = 4_000;
@@ -14,6 +15,8 @@ export const SIGN_OUT_POST_MS = 4_000;
  * offline caches are cleared, then a hard navigation drops the router cache.
  */
 export async function signOutNow(opts: { navigate?: (url: string) => void } = {}): Promise<boolean> {
+  // b42 P1: first, synchronously: every request after this click is signed out (middleware + server).
+  markSigningOut();
   let ok = false;
   const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
   const timer = setTimeout(() => controller?.abort(), SIGN_OUT_POST_MS);

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { clearOfflineCaches } from "@/components/PwaRegister";
 import { clearClientUserState } from "@/lib/client-user-state";
+import { markSigningOut } from "@/lib/sign-out-marker";
 import { invalidateLiveSessionProbe } from "@/lib/auth-refresh";
 import { classifySessionProbe, logoutFinish, type SessionProbe } from "@/lib/logout-finish";
 import { Button } from "@/components/ui/button";
@@ -38,6 +39,8 @@ async function probeSession(): Promise<SessionProbe> {
 }
 
 async function postLogout(): Promise<boolean> {
+  // b42 P1: the marker goes on before the request, so a reload that overtakes it is signed out.
+  markSigningOut();
   try {
     const res = await fetch("/api/session/logout", {
       method: "POST",
