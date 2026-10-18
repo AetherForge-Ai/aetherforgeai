@@ -69,6 +69,7 @@ import {
 import { marketFeedUnavailableLine } from "./report-scope";
 import { CRYPTO_DIRECTORY } from "./crypto-directory";
 import { labelIntel } from "./security-signal";
+import { isStaleHoldText } from "./bot-hold-gate";
 
 export type BotKind = "stock" | "crypto";
 
@@ -447,6 +448,22 @@ function heldCryptoAnalysis(intel: SecurityIntel): TickerAnalysis {
 }
 
 function tickerFromIntel(intel: SecurityIntel, bot: BotKind): TickerAnalysis {
+  if (isStaleHoldText(intel.analysisHold)) {
+    return {
+      ticker: intel.ticker,
+      name: intel.name,
+      price: intel.price,
+      changePct: 0,
+      changeWithheld: true,
+      signal: "Hold",
+      sentiment: 0,
+      momentum: intel.price > 0 ? [{ label: "Now", value: intel.price }] : [],
+      momentum12moPct: 0,
+      shortTerm: [],
+      pathways: [],
+      note: intel.analysisHold,
+    };
+  }
   const cryptoCard = intel.forwardOmitted || bot === "crypto";
   if (intelIsHeld(intel) && cryptoCard) return heldCryptoAnalysis(intel);
   if (intelIsHeld(intel)) return unavailableAnalysis(intel.ticker, intel.name, intel.price);
@@ -888,6 +905,20 @@ function buildDirectRecommendations(
       intelByTicker.get(h.ticker.toUpperCase()) ??
         analyzeSecurity(h.ticker, h.price > 0 ? h.price : undefined, h.name, h.market)
     );
+    if (isStaleHoldText(intel.analysisHold)) {
+      return {
+        ticker: h.ticker,
+        name: h.name,
+        currency: h.currency,
+        price: intel.price > 0 ? intel.price : h.price,
+        projected7dPct: 0,
+        held: true,
+        action: "HOLD" as const,
+        urgency: "low" as const,
+        detail: intel.analysisHold,
+        analysisHold: intel.analysisHold,
+      };
+    }
     if (intelIsHeld(intel)) {
       const publishedTape =
         intel.forwardOmitted || bot === "crypto"

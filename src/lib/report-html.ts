@@ -30,6 +30,7 @@ import { labelMemberReport, stripReportModelLanguage } from "@/lib/report-langua
 import { fullBookSentence, type SharedBookLog } from "@/lib/book-log";
 import { moverSweepCaption } from "@/lib/mover-sweep";
 import { memberUnderReviewLines, printUnderReviewLabel, PROJECTION_RANK_NOTE, projectionLeaderLine } from "@/lib/report-copy";
+import { botFacingWord, isStaleHoldText, scrubBotReportCopy } from "@/lib/bot-hold-gate";
 import type { ClosedCallScore } from "@/lib/report-topup";
 
 export interface ReportAlert {
@@ -119,7 +120,7 @@ function signalBadge(signal: TickerAnalysis["signal"]): string {
   };
   const c = map[signal];
   return `<span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;color:${c};background:${c}1a;border:1px solid ${c}33">${esc(
-    signal
+    botFacingWord(signal)
   )}</span>`;
 }
 
@@ -206,14 +207,14 @@ function alertsBlock(alerts: ReportAlert[]): string {
     .join("");
 
   return `<h2 style="font-size:16px;color:${INK};margin:26px 0 8px">Price levels you noted</h2>
-    <p style="font-size:12px;color:${MUTE};margin:0 0 8px">These levels are information. They are not an instruction to buy, sell, or trim.</p>
+    <p style="font-size:12px;color:${MUTE};margin:0 0 8px">These levels are information. They are not an instruction to trade or to trim.</p>
     <table width="100%" style="border-collapse:collapse;font-size:12px">
       <tr style="background:${NAVY};color:#fff">
         <th style="padding:8px;text-align:left">Ticker</th>
         <th style="padding:8px;text-align:left">Now</th>
         <th style="padding:8px;text-align:left">Trim marker</th>
         <th style="padding:8px;text-align:left">Noted band</th>
-        <th style="padding:8px;text-align:left">Hard-sell level</th>
+        <th style="padding:8px;text-align:left">Floor level</th>
       </tr>
       ${rows}
     </table>`;
@@ -259,6 +260,10 @@ function technicalsTable(techs: SecurityIntel[], bot?: string): string {
       const name = td(esc(t.ticker), ";font-weight:600");
       if (intelIsHeld(t)) {
         const blanks = [td("—"), td("—"), td("—"), td("—"), td("—")].join("");
+        if (isStaleHoldText(t.analysisHold)) {
+          const reason = paused ? td(esc(t.analysisHold)) : `${td("—")}${td(esc(t.analysisHold))}`;
+          return `<tr>${name}${blanks}${reason}</tr>`;
+        }
         const reason = paused
           ? td(esc(`— ${NOT_ENOUGH_DAILY_HISTORY}. ${CRYPTO_PROJECTION_HELD}`))
           : `${td("—")}${td(esc(`— ${NOT_ENOUGH_DAILY_HISTORY}`))}`;
@@ -275,7 +280,7 @@ function technicalsTable(techs: SecurityIntel[], bot?: string): string {
       ].join("");
       if (paused) return `<tr>${name}${indicators}${td(esc(CRYPTO_PROJECTION_HELD))}</tr>`;
       const sc = SIG_COLOR[t.signal];
-      return `<tr>${name}${indicators}${td(`${pct(t.projected7dPct)} <span style="color:${MUTE};font-weight:400">(${Math.round(t.confidence)}%)</span>`, `;color:${pctColor(t.projected7dPct)};font-weight:600`)}${td(`<span style="color:${sc};font-weight:600">${esc(t.signal)}</span>`)}</tr>`;
+      return `<tr>${name}${indicators}${td(`${pct(t.projected7dPct)} <span style="color:${MUTE};font-weight:400">(${Math.round(t.confidence)}%)</span>`, `;color:${pctColor(t.projected7dPct)};font-weight:600`)}${td(`<span style="color:${sc};font-weight:600">${esc(botFacingWord(t.signal))}</span>`)}</tr>`;
     })
     .join("");
   const heading = koins ? "Technical indicators" : "Technical indicators &amp; 7-day projection";
@@ -405,7 +410,7 @@ function directRecommendationsBlock(recs: DirectRecommendation[]): string {
   const row = (r: DirectRecommendation) => {
     const c = ACTION_COLOR[r.action];
     return `<li style="margin:8px 0;font-size:12px;line-height:1.5">
-      <span style="display:inline-block;min-width:78px;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;color:${c};background:${c}1a;border:1px solid ${c}44;text-align:center">${esc(r.action)}</span>
+      <span style="display:inline-block;min-width:78px;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;color:${c};background:${c}1a;border:1px solid ${c}44;text-align:center">${esc(botFacingWord(r.action))}</span>
       <strong style="color:${INK}">&nbsp;${esc(r.ticker)}</strong>
       <span style="color:${MUTE}">· ${moneyC(r.price, r.currency)}</span>
       <div style="color:${INK};margin-top:2px">${esc(r.detail)}</div>
@@ -566,7 +571,7 @@ export interface RenderReportOptions {
 }
 
 export function renderReportHtml(source: ApexReport, opts: RenderReportOptions): string {
-  const report = labelMemberReport(sanitizeGuardedReport(source));
+  const report = scrubBotReportCopy(labelMemberReport(sanitizeGuardedReport(source)));
   const engineLabel = stripReportModelLanguage(opts.engine || report.engine || report.bot);
   const gainers = report.topGainers.length
     ? report.topGainers
@@ -718,7 +723,7 @@ export function renderReportHtml(source: ApexReport, opts: RenderReportOptions):
 
         <p style="font-size:11px;color:${MUTE};line-height:1.6;border-top:1px solid ${LINE};padding-top:14px;margin-top:22px">
           AetherForge AI delivers informational market intelligence only. Nothing here is personalised financial advice,
-          a recommendation, or an offer to buy or sell any security or digital asset. AetherForge is a paper book. Real trades happen at your broker. We never move money.
+          a recommendation, or an offer to deal in any security or digital asset. AetherForge is a paper book. Real trades happen at your broker. We never move money.
           See aetherforgeai.co.nz/ai-disclaimer.
         </p>
       </div>
