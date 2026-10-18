@@ -73,6 +73,7 @@ import {
   clearPortfolioSnapshotCache,
   paintConfirmedSnapshot,
   withLedgerLine,
+  withCashDelta,
   readPortfolioSnapshotCache,
   snapshotAsReturnSplit,
   writePortfolioSnapshotCache,
@@ -1103,6 +1104,9 @@ export function PortfolioDashboard({
     };
   }, [preview, loadPublicSpot, ledgerSignal]);
 
+  const bookSnapshotRef = useRef<PortfolioSnapshot | null>(bookSnapshot);
+  bookSnapshotRef.current = bookSnapshot;
+  const lastMutationAtRef = useRef(0);
   const loadPortfolioSnapshot = useCallback(
     async (opts?: { force?: boolean; stored?: boolean }) => {
       if (preview) return;
@@ -1143,6 +1147,20 @@ export function PortfolioDashboard({
         setBookedGuard(decision.guard);
         if (!decision.apply) {
           console.log("[dashboard] Snapshot omitted the coin just booked — keeping the on-screen book");
+          setSnapshotReady(true);
+          return;
+        }
+        // Goal b18 G-10: a refetch right after a change must not blank the ledger.
+        // An empty ledger that arrives within 15 s of a change, while rows are on
+        // screen, is a stale read; the on-screen book stays until a full one lands.
+        const onScreen = bookSnapshotRef.current;
+        if (
+          Date.now() - lastMutationAtRef.current < 15_000 &&
+          onScreen &&
+          onScreen.ledger.length > 1 &&
+          (snapshot.ledger?.length ?? 0) === 0
+        ) {
+          console.log("[dashboard] Ignored an empty ledger read just after a change");
           setSnapshotReady(true);
           return;
         }
@@ -1304,8 +1322,6 @@ export function PortfolioDashboard({
   const allStocksRef = useRef<Stock[]>(allStocks);
   allStocksRef.current = allStocks;
   const optimisticBaseRef = useRef<{ stocks: Stock[]; cash: number; snapshot: PortfolioSnapshot | null } | null>(null);
-  const bookSnapshotRef = useRef<PortfolioSnapshot | null>(bookSnapshot);
-  bookSnapshotRef.current = bookSnapshot;
   const handleDataChanged = useCallback(
     (updated?: {
       cashBalance?: number;
@@ -1974,9 +1990,11 @@ export function PortfolioDashboard({
     // cleared while the server confirms, and a refusal puts both back.
     const previousSnapshot = bookSnapshot;
     const previousCash = cashBalance;
+    lastMutationAtRef.current = Date.now();
     setBookSnapshot((current) => {
       if (!current) return current;
-      const next = { ...current, ledger: current.ledger.filter((row) => row.id !== line.id) };
+      const trimmed = { ...current, ledger: current.ledger.filter((row) => row.id !== line.id) };
+      const next = Number.isFinite(line.cashNzd) ? withCashDelta(trimmed, -line.cashNzd) : trimmed;
       writePortfolioSnapshotCache(userId, next);
       return next;
     });
@@ -2128,9 +2146,29 @@ export function PortfolioDashboard({
   async function confirmDelete() {
     if (!deleteTarget) return;
     setDeleting(true);
-    console.log("[dashboard] Deleting stock", deleteTarget._id);
-    const res = await api.delete(`/api/stocks/${deleteTarget._id}`);
+    // Goal b18 G-10: the row leaves the table on click; a refusal puts it back.
+    lastMutationAtRef.current = Date.now();
+    const target = deleteTarget;
+    const previousStocks = allStocks;
+    const previousSnapshot = bookSnapshot;
+    setAllStocks((rows) => rows.filter((row) => row._id !== target._id));
+    setBookSnapshot((current) =>
+      current
+        ? {
+            ...current,
+            groups: current.groups.map((group) => ({
+              ...group,
+              positions: group.positions.filter((p) => !(p.holdingId === target._id || (p.holdingId == null && p.ticker.toUpperCase() === String(target.ticker).toUpperCase()))),
+            })),
+          }
+        : current
+    );
+    const res = await api.delete(`/api/stocks/${target._id}`);
     setDeleting(false);
+    if (!res.ok) {
+      setAllStocks(previousStocks);
+      setBookSnapshot(previousSnapshot);
+    }
     if (res.ok) {
       toast.success(`${deleteTarget.ticker} removed`);
       setDeleteTarget(null);

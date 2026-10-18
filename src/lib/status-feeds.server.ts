@@ -3,7 +3,7 @@ import "server-only";
 import { getFxSnapshot } from "@/lib/fx";
 import { getMetalsSpot } from "@/lib/metals";
 import { loadPublicTickerBounded } from "@/lib/public-ticker";
-import { cryptoAgeBand, cryptoFeedKilled, readCryptoAttempt } from "@/lib/crypto-attempts";
+import { cryptoAgeBand, cryptoFeedKilled, readSharedCryptoAttempt } from "@/lib/crypto-attempts";
 import { formatDisplayDateTime } from "@/lib/currency";
 import { latestIso, presentStatusFeed, type StatusFeedRow } from "@/lib/status-feeds";
 
@@ -29,7 +29,7 @@ export async function loadStatusFeeds(now = Date.now()): Promise<StatusFeedRow[]
   return [
     presentStatusFeed("Equity quotes", equityAt, now),
     cryptoQuotesRow(cryptoAt, now),
-    cryptoAttemptRow(),
+    await cryptoAttemptRow(),
     presentStatusFeed("Exchange rates", fx?.sourced ? fx.asOf : null, now),
     presentStatusFeed("Metals spot", metals?.live ? metals.quotedAt : null, now),
   ];
@@ -46,9 +46,9 @@ function cryptoQuotesRow(at: string | null, now: number): StatusFeedRow {
 }
 
 /** Goal b14: the last CoinGecko attempt this server made, so a silent fallback shows. */
-function cryptoAttemptRow(): StatusFeedRow {
-  const { last } = readCryptoAttempt();
-  if (!last) return { label: "Crypto list last attempt", tone: "amber", text: "— no attempt recorded on this server yet" };
+async function cryptoAttemptRow(): Promise<StatusFeedRow> {
+  const { last, scope } = await readSharedCryptoAttempt();
+  if (!last) return { label: "Crypto list last attempt", tone: "amber", text: scope === "shared-colo" ? "— no attempt recorded in this data centre yet" : "— no attempt recorded on this server yet" };
   return {
     label: "Crypto list last attempt",
     tone: last.ok ? "ok" : "amber",

@@ -687,3 +687,4 @@ Must-fix batch 7 (TT b6 retest: CR-2 CR-5 H-5 H-13 M-3 M-6): marker `pull-check:
 - Goal b15 (G-02 "Book started" periods, G-01 fee basis on yield, H-12 backtest method on /methodology, M-6 cash actions + full name ≥1440): marker `pull-check:v3-goal-b15-2026-10-18`
 - Goal b16 (M-10 shell-only service worker + installable manifest, G-02 stored NZX 50 / S&P 500 NZ$ history and period benchmarks, G-01 31 Mar/1 Apr test, fixture seeding script): marker `pull-check:v3-goal-b16-2026-10-18`
 - Goal b17 (G-03 in-app Monday Briefing behind IN_APP_BRIEFS, G-04 in-app Alerts v1 behind IN_APP_ALERTS_V1; K-05/K-12 parked): marker `pull-check:v3-goal-b17-2026-10-18`
+- Goal b18 (G-10 optimistic deletes/no list clear, CR-2 schema probe, crypto shared attempt + 5-min single flight, G-02 asOf alignment, M-1 lazy dialog/coach, H-4 500-row example route, CR-6 dry-run button): marker `pull-check:v3-goal-b18-2026-10-18`
