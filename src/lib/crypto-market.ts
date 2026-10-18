@@ -13,6 +13,7 @@
 import { adaptiveFractionDigits, formatDisplayDate, formatDisplayDateTime } from "@/lib/currency";
 import { listedMarketNotice } from "@/lib/crypto-coverage";
 import { coinDisplayName } from "@/lib/crypto-names";
+import { isStablecoinSymbol } from "@/lib/crypto-vendors";
 
 /* -------------------------------- Types --------------------------------- */
 
@@ -255,6 +256,8 @@ export interface CoinDetail {
   source?: string;
   /** Visitor line for the price source. Computed on the server. */
   sourceLine?: string;
+  /** When this page last checked the feeds. Missing figures use this clock. */
+  checkedAt?: string | null;
 }
 
 /** Size fields. Zero means the feed did not send a figure. A real change of 0% is not in this list. */
@@ -378,13 +381,19 @@ export function applyStatDonors(base: CoinMarket[], donors: CoinMarket[]): CoinM
  * Large caps (≥ US$10B) rarely trade more than ~25% of their cap in a day; anything above 30% is
  * treated as a unit or vendor error (e.g. BTC at US$981.73B). Any coin above 5× its cap is dropped too.
  */
-export function plausibleVolume24h(volume: number | null | undefined, marketCap: number | null | undefined): number | null {
+export function plausibleVolume24h(
+  volume: number | null | undefined,
+  marketCap: number | null | undefined,
+  symbol?: string | null
+): number | null {
   const v = positiveMarketStat(volume);
   if (v == null) return null;
   const cap = positiveMarketStat(marketCap);
   if (cap == null) return v;
-  if (cap >= 1e10 && v > cap * 0.3) return null;
+  // A unit error (BTC volume printed as hundreds of billions). Stablecoins
+  // such as tether really do trade more than 30% of their cap in a day.
   if (v > cap * 5) return null;
+  if (!isStablecoinSymbol(symbol) && cap >= 1e10 && v > cap * 0.3) return null;
   return v;
 }
 
@@ -402,7 +411,8 @@ export function overlayCoinDetail(detail: CoinDetail, coin: CoinMarket | null | 
     fdv: size(detail.fdv, coin.fdv),
     volume24h: (() => {
       const cap = size(detail.marketCap, coin.marketCap);
-      return plausibleVolume24h(detail.volume24h, cap) ?? plausibleVolume24h(coin.volume24h, cap);
+      const symbol = detail.symbol || coin.symbol;
+      return plausibleVolume24h(detail.volume24h, cap, symbol) ?? plausibleVolume24h(coin.volume24h, cap, symbol);
     })(),
     high24h: size(detail.high24h, coin.high24h),
     low24h: size(detail.low24h, coin.low24h),

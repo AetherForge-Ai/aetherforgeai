@@ -14,6 +14,7 @@ import { formatDisplayClock, formatDisplayDate, formatDisplayDateTime } from "@/
 import { clientFacingError } from "@/lib/api-json";
 import { publicCoinDescription, publicCoinSourceLine } from "@/lib/data-sources";
 import { coinMetricsSourceLine, depthMissingReason } from "@/lib/coin-depth";
+import { mergeCoinDepth } from "@/lib/crypto-depth-record";
 import { paperAddSignupHref } from "@/lib/paper-add-link";
 import { cn } from "@/lib/utils";
 import { TickerAnalysisPane } from "@/components/dashboard/TickerAnalysisPane";
@@ -95,6 +96,7 @@ export function CoinDetailView({
   quotedLine = null,
   initialDetail = null,
   serverHeading = false,
+  suppressDepth = false,
 }: {
   coinId: string | null;
   /** False while a dialog is closed so it does not fetch in the background. */
@@ -115,6 +117,8 @@ export function CoinDetailView({
   initialDetail?: CoinDetail | null;
   /** The server page already printed the h1, so this card uses a plain heading. */
   serverHeading?: boolean;
+  /** The coin page already printed market cap, volume, supply and 1h/30d. */
+  suppressDepth?: boolean;
 }) {
   const signedIn = signedInProp ?? variant === "dialog";
   const slug = resolvableCoinId(coinId);
@@ -144,20 +148,7 @@ export function CoinDetailView({
         signal: AbortSignal.timeout(8_000),
       });
       if (res.ok && res.data && typeof res.data.price === "number" && res.data.price > 0) {
-        setDetail((prev) => {
-          if (keep && prev && prev.price > 0) {
-            return {
-              ...res.data!,
-              price: prev.price,
-              change24h: prev.change24h,
-              change1h: prev.change1h ?? res.data!.change1h,
-              change7d: prev.change7d ?? res.data!.change7d,
-              circulatingSupply: prev.circulatingSupply ?? res.data!.circulatingSupply,
-              quotedAt: prev.quotedAt || res.data!.quotedAt,
-            };
-          }
-          return res.data!;
-        });
+        setDetail((prev) => mergeCoinDepth(res.data, keep ? prev : null) ?? res.data!);
       } else if (!keep) {
         setError(quotedLine ? null : clientFacingError(`/api/crypto/coin/${id}`, res.error || COIN_DETAIL_SOURCE_DOWN));
         setDetail(null);
@@ -511,7 +502,7 @@ export function CoinDetailView({
         )}
       </div>
 
-      <div className="mt-5">
+      {suppressDepth ? null : <div className="mt-5">
         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Key metrics</p>
         {detail && !loading ? (
           // Goal b11 G-17: every depth figure carries its source and time.
@@ -533,7 +524,7 @@ export function CoinDetailView({
               <Metric label="Market Cap" value="—" sub={depthMissingReason(detail.source)} />
             )}
             {(detail.fdv ?? 0) > 0 ? <Metric label="Fully Diluted Val" value={fmtCompactUsd(detail.fdv)} /> : null}
-            {plausibleVolume24h(detail.volume24h, detail.marketCap) != null ? (
+            {plausibleVolume24h(detail.volume24h, detail.marketCap, detail.symbol) != null ? (
               <Metric label="24h Volume" value={fmtCompactUsd(detail.volume24h)} />
             ) : (
               <Metric label="24h Volume" value="—" sub={depthMissingReason(detail.source)} />
@@ -582,9 +573,9 @@ export function CoinDetailView({
             ) : null}
           </div>
         )}
-      </div>
+      </div>}
 
-      {detail && (
+      {detail && !suppressDepth && (
         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4" data-coin-snapshot>
           {[
             { label: "1h", v: detail.change1h },
