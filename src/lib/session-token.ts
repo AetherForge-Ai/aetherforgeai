@@ -88,3 +88,21 @@ export async function signSessionToken(token: string, secret: string): Promise<s
   const signature = btoa(String.fromCharCode(...new Uint8Array(sig)));
   return `${token}.${signature}`;
 }
+
+/** b27 H-4: true when this Set-Cookie line clears the named cookie (empty value, Max-Age=0 or a past Expires). */
+export function setCookieClears(line: string, name: string): boolean {
+  const [pair, ...attrs] = line.split(";");
+  const eq = pair.indexOf("=");
+  if (eq < 0 || pair.slice(0, eq).trim() !== name) return false;
+  const value = pair.slice(eq + 1).trim();
+  const lower = attrs.map((a) => a.trim().toLowerCase());
+  if (lower.some((a) => a === "max-age=0" || /^max-age=-/.test(a))) return true;
+  const exp = lower.find((a) => a.startsWith("expires="));
+  if (exp && new Date(exp.slice(8)).getTime() <= Date.now()) return true;
+  return value === "" || value === '""';
+}
+
+/** b27 H-4: drop the Set-Cookie lines that would clear any of `names`. */
+export function withoutClears(lines: readonly string[], names: readonly string[]): string[] {
+  return lines.filter((line) => !names.some((n) => setCookieClears(line, n)));
+}

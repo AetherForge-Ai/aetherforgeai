@@ -1157,7 +1157,8 @@ export function PortfolioDashboard({
         if (
           Date.now() - lastMutationAtRef.current < 15_000 &&
           onScreen &&
-          onScreen.ledger.length > 1 &&
+          // b27 G-10: any non-empty book on screen (was > 1, so a 2-row book still blanked).
+          onScreen.ledger.length >= 1 &&
           (snapshot.ledger?.length ?? 0) === 0
         ) {
           console.log("[dashboard] Ignored an empty ledger read just after a change");
@@ -1994,7 +1995,7 @@ export function PortfolioDashboard({
       `/api/transactions?id=${encodeURIComponent(line.id)}`
     );
     console.log(`[write] delete ${line.type} ${line.ticker} id=${line.id} status=${res.status ?? "?"} ok=${res.ok}`);
-    const label = line.type === "dividend" ? "Dividend" : line.type === "buy" ? "Buy" : "Sell";
+    const label = line.type ? line.type.charAt(0).toUpperCase() + line.type.slice(1) : "Row";
     if (res.ok) {
       const after = res.data?.cash?.after;
       setBookSnapshot((current) => {

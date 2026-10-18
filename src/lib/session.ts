@@ -52,6 +52,24 @@ type TokenSession = {
 
 const inflightSessions = new Map<string, Promise<TokenSession | null>>();
 
+/** b27 H-4: a session store read that failed or timed out. Not the same as signed out. */
+export class SessionStoreUnavailable extends Error {
+  constructor(readonly reason: string) {
+    super(`session store unavailable: ${reason}`);
+  }
+}
+/** b27 H-4: no session read may hold a page for 25 s; 4 s then "unavailable, retry". */
+export const SESSION_LOOKUP_TIMEOUT_MS = 4000;
+function sessionDeadline<T>(work: Promise<T>, what: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    work,
+    new Promise<T>((_, reject) => {
+      timer = setTimeout(() => reject(new SessionStoreUnavailable(`${what} timeout ${SESSION_LOOKUP_TIMEOUT_MS} ms`)), SESSION_LOOKUP_TIMEOUT_MS);
+    }),
+  ]).finally(() => timer && clearTimeout(timer));
+}
+
 /**
  * Token-only session lookup. Does not call better-auth get-session.
  * That endpoint writes Set-Cookie: it deletes the token when the row looks
@@ -67,8 +85,12 @@ async function readTokenSession(cookieHeader: string | null): Promise<TokenSessi
   const key = `token:${token}`;
   const existing = inflightSessions.get(key);
   if (existing) return existing;
-  const job = ctx.internalAdapter
-    .findSession(token)
+  const job = sessionDeadline(
+    Promise.resolve(ctx.internalAdapter.findSession(token)).catch((err: unknown) => {
+      throw err instanceof SessionStoreUnavailable ? err : new SessionStoreUnavailable(`session read error: ${err instanceof Error ? err.message.slice(0, 80) : "error"}`);
+    }),
+    "session read"
+  )
     .then((found) => {
       const row = found as TokenSession | null;
       if (!row?.user?.id || !row.session) return null;
@@ -98,6 +120,29 @@ export async function getCurrentUser(_opts?: {
   disableCookieCache?: boolean;
 }): Promise<AppUser | null> {
   try {
+    return await loadCurrentUser();
+  } catch (err) {
+    console.error("[session] getCurrentUser error:", err instanceof SessionStoreUnavailable ? err.reason : err);
+    return null;
+  }
+}
+
+/**
+ * b27 H-4: the session state with "unavailable" kept apart from "signed out". /api/session
+ * answers 503 for unavailable so the browser retries instead of showing the members gate.
+ */
+export async function getSessionState(): Promise<{ user: AppUser | null; unavailable: string | null }> {
+  try {
+    return { user: await loadCurrentUser(), unavailable: null };
+  } catch (err) {
+    const reason = err instanceof SessionStoreUnavailable ? err.reason : "unexpected error";
+    console.warn("[session] lookup unavailable (not treated as signed out):", reason);
+    return { user: null, unavailable: reason };
+  }
+}
+
+async function loadCurrentUser(): Promise<AppUser | null> {
+  {
     const headerList = await headers();
     const session = await readTokenSession(headerList.get("cookie"));
     if (!session?.user?.id) return null;
@@ -105,9 +150,10 @@ export async function getCurrentUser(_opts?: {
     const userId = session.user.id;
     let record: any = null;
     try {
-      const res = await totalumSdk.crud.getRecordById("user", userId);
+      const res = await sessionDeadline(totalumSdk.crud.getRecordById("user", userId), "user record");
       record = (res as any)?.data ?? null;
     } catch (err) {
+      if (err instanceof SessionStoreUnavailable) throw err;
       console.error("[session] Failed to load full user record:", err);
     }
 
@@ -147,9 +193,6 @@ export async function getCurrentUser(_opts?: {
       secondary_email: record?.secondary_email ?? (session.user as any).secondary_email ?? null,
       identityConflict,
     };
-  } catch (err) {
-    console.error("[session] getCurrentUser error:", err);
-    return null;
   }
 }
 
