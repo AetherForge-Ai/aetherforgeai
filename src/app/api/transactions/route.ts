@@ -219,7 +219,7 @@ export async function POST(req: Request) {
     console.info("[write]", JSON.stringify({ action: input.type, ticker: input.ticker ?? null, id: (result.transaction as { _id?: string } | undefined)?._id ?? null, cash: ledger.cashBalance, status: 200 }));
     return NextResponse.json({
       ok: true,
-      data: { ...ledger, lastTransaction: result.transaction, realizedNZD: result.realizedNZD },
+      data: { ...ledger, lastTransaction: result.transaction, realizedNZD: result.realizedNZD, holding: result.holding ?? null },
     });
   } catch (err: any) {
     console.error("[api/transactions] POST error:", err);
@@ -287,9 +287,11 @@ export async function DELETE(req: Request) {
     }
     const type = String(row.type || "");
     const trade = type === "buy" || type === "sell";
-    if (type !== "dividend" && !(trade && LEDGER_ROW_EDIT)) {
+    // b26: a cash deposit or withdrawal can be removed too; cash is recomputed by the reversal.
+    const cashLine = type === "deposit" || type === "withdrawal";
+    if (type !== "dividend" && !cashLine && !(trade && LEDGER_ROW_EDIT)) {
       return NextResponse.json(
-        { ok: false, error: "Only a dividend can be removed from this page." },
+        { ok: false, error: "Only a dividend, deposit or withdrawal can be removed from this page." },
         { status: 400 }
       );
     }

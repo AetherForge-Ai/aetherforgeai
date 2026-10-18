@@ -15,7 +15,7 @@ import { toast } from "sonner";
 import { Loader2, User, CreditCard, Crown, ExternalLink, Sparkles, ShieldCheck, Mail, KeyRound, ArrowUpCircle, Check, Zap, CalendarClock, Camera } from "lucide-react";
 import Link from "next/link";
 import { PLANS, SALES_EMAIL, planByKey, planLabel, type Plan } from "@/lib/plans";
-import { limitScope, resolveTickerLimit } from "@/lib/entitlements";
+import { isProPlan, limitScope, resolveTickerLimit } from "@/lib/entitlements";
 import { formatDisplayDate, formatUsdWithRate, type FxRatesToNZD } from "@/lib/currency";
 import { resolveDisplayName } from "@/lib/user-display";
 import { useFxRates } from "@/hooks/useFxRates";
@@ -514,6 +514,12 @@ export function SettingsClient({
             </Button>
           ) : user.subscription_plan === "dual_yearly" ? (
             <p className="text-sm text-muted-foreground">This account is on the legacy Apex Dual plan.</p>
+          ) : isProPlan(user.subscription_plan) ? (
+            // b26 L-4: Pro members never see an upgrade to the plan they already have.
+            <p className="text-sm text-muted-foreground" data-plan-next-step>
+              You are on AetherForge Pro. Need no holdings cap or seats?{" "}
+              <Link href="/pricing#ultimate" className="font-medium text-primary hover:underline">See Ultimate</Link>.
+            </p>
           ) : (
             <Button asChild className="font-semibold shadow-glow">
               <Link href="/pricing#pro">

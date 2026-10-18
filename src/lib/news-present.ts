@@ -22,6 +22,8 @@ export const OFFICIAL_OCR_NEWS: NewsItem = {
   headline: "RBNZ Official Cash Rate is 2.75%",
   source: "Reserve Bank of New Zealand",
   market: "NZX",
+  // b26 H-13: a central-bank rate is NZ macro, not an exchange item.
+  marketLabel: "NZ macro",
   impact: "Neutral",
   relevance: 98,
   time: "2 Sep 2026",

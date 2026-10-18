@@ -404,9 +404,10 @@ export function ReportCenter({
   React.useEffect(() => {
     if (preview || historyLoaded) return;
     const id = window.setTimeout(() => {
+      // b26 H-4: never spin past 5 s; offer a retry instead.
       setHistoryError("Reports did not load.");
       setHistoryLoaded(true);
-    }, 8_000);
+    }, 5_000);
     return () => window.clearTimeout(id);
   }, [preview, historyLoaded]);
 
@@ -581,7 +582,10 @@ export function ReportCenter({
     if (res.data.free) setFreeQuota(res.data.free);
     setNow(Date.now());
     toast.success(reportSavedToast(res.data.emailed === true));
+    // b26 L-4: update the list and the counter in place. The store can lag the write, so
+    // read again shortly after instead of waiting for a page reload.
     void loadHistory().catch(() => {});
+    for (const wait of [1500, 4000]) window.setTimeout(() => void loadHistory().catch(() => {}), wait);
   }
 
   const runReportRef = React.useRef(runReport);
@@ -730,7 +734,14 @@ export function ReportCenter({
               {cadence.unit === "month" && !freeQuota && !preview ? (
                 // b6 H-4: a loading line, never the default allowance, until the real count arrives.
                 <span className="text-muted-foreground" aria-live="polite">
-                  {historyError ? "Your report count did not load. Refresh to try again." : "Checking your AI reports this month…"}
+                  {historyError || historyLoaded ? (
+                    <>
+                      Your report count did not load.{" "}
+                      <button type="button" className="underline" onClick={() => { setHistoryError(""); setHistoryLoaded(false); void loadHistory().catch(() => {}); }}>
+                        Try again
+                      </button>
+                    </>
+                  ) : "Checking your AI reports this month…"}
                 </span>
               ) : cadence.unit === "month" ? (
                 <>

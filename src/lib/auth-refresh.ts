@@ -68,21 +68,29 @@ export function invalidateLiveSessionProbe(): void {
   liveSessionEpoch += 1;
 }
 
-async function fetchSessionEnvelope(epochAtStart: number): Promise<SessionEnvelope> {
+/** b26 H-4: a stalled session request used to hold /dashboard for minutes. */
+export const SESSION_FETCH_TIMEOUT_MS = 4000;
+function sessionSignal(): AbortSignal | undefined {
+  return typeof AbortSignal !== "undefined" && "timeout" in AbortSignal ? AbortSignal.timeout(SESSION_FETCH_TIMEOUT_MS) : undefined;
+}
+
+async function fetchSessionEnvelope(epochAtStart: number, depth = 0): Promise<SessionEnvelope> {
   if (typeof window === "undefined") return null;
   try {
     const res = await fetch(LIVE_SESSION_PATH, {
       method: "GET",
       credentials: "include",
       cache: "no-store",
+      signal: sessionSignal(),
     });
-    if (epochAtStart !== liveSessionEpoch) return fetchSessionEnvelope(liveSessionEpoch);
+    // b26 H-4: re-read at most twice when the session changed mid-flight (was unbounded).
+    if (epochAtStart !== liveSessionEpoch && depth < 2) return fetchSessionEnvelope(liveSessionEpoch, depth + 1);
     if (!res.ok) return null;
     // A colo can still be holding another member's /api/session body.
     // Do not treat that replay as this browser's paper book.
     if (isSharedCacheReplay(res.headers)) return null;
     const data = (await res.json().catch(() => null)) as SessionEnvelope;
-    if (epochAtStart !== liveSessionEpoch) return fetchSessionEnvelope(liveSessionEpoch);
+    if (epochAtStart !== liveSessionEpoch && depth < 2) return fetchSessionEnvelope(liveSessionEpoch, depth + 1);
     return data;
   } catch {
     return null;
@@ -155,6 +163,7 @@ export const refreshSessionSingleFlight = createSingleFlight(async (): Promise<b
       method: "GET",
       credentials: "include",
       cache: "no-store",
+      signal: sessionSignal(),
     });
     if (!res.ok) return false;
     const data = (await res.json().catch(() => null)) as { user?: unknown; session?: unknown } | null;

@@ -31,10 +31,16 @@ async function freeAssistantUsedThisMonth(userId: string, now = Date.now()): Pro
 }
 
 // GET /api/chat — load the user's chat history
-export async function GET() {
+export async function GET(req?: Request) {
   try {
     const user = await getCurrentUser();
     if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    // b26 L-4: a light quota read for the counter (used / plan limit), no history.
+    if (req && new URL(req.url).searchParams.get("quota") === "1") {
+      const lim = assistantQueryLimit(user.subscription_plan);
+      const usedNow = await freeAssistantUsedThisMonth(user._id);
+      return NextResponse.json({ ok: true, data: { used: usedNow, limit: lim, remaining: lim == null ? null : Math.max(0, lim - usedNow) } });
+    }
 
     const result = await totalumSdk.crud.query("chat_message", {
       _filter: { user: user._id },
@@ -55,6 +61,7 @@ export async function GET() {
       data: {
         messages,
         remaining: queryLimit == null ? null : Math.max(0, queryLimit - used),
+        used,
         limit: queryLimit,
         emptyBook,
       },
@@ -150,6 +157,7 @@ export async function POST(req: Request) {
         reply,
         message: saved?.data ?? { role: "assistant", content: reply },
         remaining: queryLimit == null || usedAfter == null ? null : Math.max(0, queryLimit - usedAfter),
+        used: usedAfter,
         limit: queryLimit,
       },
     });
