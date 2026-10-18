@@ -3,7 +3,13 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useDocumentSessionMode } from "@/components/DocumentSession";
-import { confirmSessionUser, type LiveSessionUser } from "@/lib/auth-refresh";
+import { confirmPageSessionStrict, type LiveSessionUser } from "@/lib/auth-refresh";
+
+/** b29 H-4: last user this tab confirmed. A session-service outage keeps it instead of flipping the header to "Log in". */
+let lastConfirmedUser: LiveSessionUser | null = null;
+export function __resetLiveSessionForTests() {
+  lastConfirmedUser = null;
+}
 
 /**
  * Confirmed session owner for this browser.
@@ -29,9 +35,16 @@ export function useLiveSessionUser(): { user: LiveSessionUser | null | undefined
     }
     let cancelled = false;
     setUser(undefined);
-    confirmSessionUser(null).then((next) => {
-      if (!cancelled) setUser(next);
-    });
+    confirmPageSessionStrict().then(
+      (next) => {
+        lastConfirmedUser = next;
+        if (!cancelled) setUser(next);
+      },
+      () => {
+        // Unknown is not signed out: keep the last confirmed user (or stay neutral).
+        if (!cancelled) setUser(lastConfirmedUser ?? undefined);
+      },
+    );
     return () => {
       cancelled = true;
     };

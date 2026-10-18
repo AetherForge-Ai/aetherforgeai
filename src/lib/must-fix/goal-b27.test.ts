@@ -1,4 +1,4 @@
-// pull-check:v3-goal-b28-2026-10-19
+// pull-check:v3-goal-b29-2026-10-19
 import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 import { readFileSync } from "node:fs";
@@ -54,7 +54,7 @@ describe("b27 H-11", () => {
     const base = { targetNzd: 10000, targetDate: "2025-01-01", monthlyNzd: 100, bookNzd: 0, annualReturnPct: 5 };
     expect(validateGoal(base, now)).toBe("Choose a date in the future.");
     expect(validateGoal({ ...base, targetDate: "2028-01-01", monthlyNzd: NaN }, now)).toMatch(/as a number/);
-    expect(validateGoal({ ...base, targetDate: "2028-01-01", monthlyNzd: -1 }, now)).toMatch(/negative/);
+    expect(validateGoal({ ...base, targetDate: "2028-01-01", monthlyNzd: -1 }, now)).toMatch(/above NZ\$0/); // b29: <= 0 is one inline error
   });
   it("monthly needed reaches the target", () => {
     const g = { targetNzd: 50000, targetDate: "2031-10-01", bookNzd: 5000, annualReturnPct: 5 };
@@ -76,7 +76,7 @@ describe("b27 H-9 FIF threshold config", () => {
 
 describe("b27 version bump", () => {
   it("pins the build everywhere", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-goal-b28-2026-10-19");
-    expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-goal-b28-2026-10-19");
+    expect(read("public/build-version.txt").trim()).toBe("v3-goal-b29-2026-10-19");
+    expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-goal-b29-2026-10-19");
   });
 });

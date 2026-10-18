@@ -76,3 +76,12 @@ export function formatAlertRuleLine(alert: AlertChipInput, opts: { held?: boolea
   if (band) parts.push(`a band of ${band} is noted`);
   return parts.length ? `${parts.join(", ")}. This is information, not an instruction to trade.` : "";
 }
+
+/** b29 L-4: true when `text` is a rule line this module generates for these levels (held or not held). */
+export function isGeneratedRuleLine(text: string, alert: AlertChipInput): boolean {
+  const t = text.trim();
+  if (!t) return false;
+  if (t === formatAlertRuleLine(alert, { held: true }) || t === formatAlertRuleLine(alert, { held: false })) return true;
+  // Any generated shape, even if the levels were edited later.
+  return /^(A trim marker of [\d.]+% is noted|A level [\d.]+% under the (price paid|market price) is noted)[^]*This is information, not an instruction to trade\.$/.test(t);
+}

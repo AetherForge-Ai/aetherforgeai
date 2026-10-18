@@ -17,7 +17,8 @@ export async function GET() {
   try {
     const page = await loadTop400Markets();
     return NextResponse.json(marketsBody(page.coins, page.notice, page.at), {
-      headers: { "cache-control": CACHE_CONTROL },
+      // b29 H-1: snapshot version, so a test can compare reads and catch time running backwards.
+      headers: { "cache-control": CACHE_CONTROL, "x-af-snapshot-at": page.at || "" },
     });
   } catch (err: unknown) {
     console.error("[api/crypto/markets] error:", err);

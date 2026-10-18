@@ -97,11 +97,13 @@ export function installSnapshotDurable(store: SnapshotDurable | null) {
 
 /** Drops the in-process copy. The durable store is left in place. */
 export function clearSnapshotMemory() {
+  memoryCryptoCheckedAt = 0;
   memoryCrypto = null;
   memoryDex = null;
 }
 
 export function resetCryptoSnapshotsForTests() {
+  memoryCryptoCheckedAt = 0;
   memoryCrypto = null;
   memoryDex = null;
   durableOverride = null;
@@ -753,11 +755,59 @@ async function writeRaw(id: SnapshotId, body: string): Promise<void> {
   await defaultWrite(id, body);
 }
 
+/**
+ * b29 H-1: an isolate used to keep its first in-memory list forever, so two servers could show
+ * "Prices as at 1:30" and "1:17" and a reader saw time run backwards. Now memory is rechecked
+ * against the durable row every MEMORY_RECHECK_MS (stale-while-revalidate) and only ever moves
+ * forward (rememberRaw keeps the newer `at`).
+ */
+export const MEMORY_RECHECK_MS = 30_000;
+let memoryCryptoCheckedAt = 0;
+let durableRefresh: Promise<void> | null = null;
+
+function refreshCryptoFromDurable(): Promise<void> {
+  durableRefresh ??= (async () => {
+    try {
+      const raw = durableOverride
+        ? await withTimeout(durableOverride.read("crypto"), SNAPSHOT_DB_TIMEOUT_MS)
+        : await withTimeout(readWatchlist("crypto"), SNAPSHOT_DB_TIMEOUT_MS);
+      rememberRaw("crypto", raw);
+    } catch {
+      /* keep memory */
+    }
+  })().finally(() => {
+    durableRefresh = null;
+  });
+  return durableRefresh;
+}
+
 export async function readCryptoSnapshot(timeoutMs = SNAPSHOT_READ_TIMEOUT_MS): Promise<CryptoSnapshot | null> {
-  if (memoryCrypto) return memoryCrypto;
+  const now = Date.now();
+  if (memoryCrypto) {
+    if (now - memoryCryptoCheckedAt >= MEMORY_RECHECK_MS) {
+      memoryCryptoCheckedAt = now;
+      void refreshCryptoFromDurable();
+    }
+    return memoryCrypto;
+  }
+  memoryCryptoCheckedAt = now;
   const raw = await readRaw("crypto", timeoutMs);
   rememberRaw("crypto", raw);
+  if (!durableOverride) void refreshCryptoFromDurable();
   return memoryCrypto;
+}
+
+/** Most common per-row source in a list (the list's primary provider). */
+export function primarySnapshotSource(coins: Array<{ source?: string | null }>): string | null {
+  const counts = new Map<string, number>();
+  for (const c of coins) {
+    const k = (c.source || "").toLowerCase();
+    if (k) counts.set(k, (counts.get(k) ?? 0) + 1);
+  }
+  let best: string | null = null;
+  let n = 0;
+  for (const [k, v] of counts) if (v > n) [best, n] = [k, v];
+  return best;
 }
 
 export async function readDexSnapshot(timeoutMs = SNAPSHOT_READ_TIMEOUT_MS): Promise<DexSnapshot | null> {
@@ -800,11 +850,25 @@ export async function persistCryptoSnapshot(coins: CoinMarket[], at = new Date()
       recordCryptoAttempt(false, new Error("unavailable: shorter list kept the previous one"));
       return;
     }
+    // b29 H-1: compare-and-set on as-of. An older list never replaces a newer one.
+    if (Number.isFinite(existingAge) && existingAge < 0) {
+      recordCryptoAttempt(false, new Error("unavailable: a newer list is already saved"));
+      return;
+    }
+    // b29 H-1: a fallback provider's list does not silently replace the primary one while the
+    // primary is still fresh (CoinPaprika's 393 rows swapped in and prices disagreed).
+    const existingPrimary = primarySnapshotSource(existing.coins);
+    const incomingPrimary = primarySnapshotSource(tagged);
+    if (existingVerified && !existingAmber && existingPrimary && incomingPrimary && existingPrimary !== incomingPrimary && existingPrimary === "coingecko") {
+      recordCryptoAttempt(false, new Error(`unavailable: ${incomingPrimary} list kept the fresher ${existingPrimary} list`));
+      return;
+    }
   }
   const body = encodeCrypto(tagged, at);
   const parsed = parseCrypto(body);
   if (!parsed) return;
   memoryCrypto = parsed;
+  memoryCryptoCheckedAt = Date.now();
   await writeRaw("crypto", body);
   // b24 G-05: one write point, so every path that refreshes the list fills /status.
   recordCryptoAttempt(true);
@@ -833,7 +897,7 @@ export async function persistDexSnapshot(
 
 export function hiddenSnapshotTicker(ticker: string | null | undefined): boolean {
   const key = (ticker || "").trim().toUpperCase();
-  return key === CRYPTO_SNAPSHOT_TICKER || key === DEX_SNAPSHOT_TICKER || key === CRYPTO_ATTEMPT_TICKER || /^AF-CGS-\d+$/.test(key) || /^AF-DXS-\d+$/.test(key);
+  return key === "AF-FIFT" || key === CRYPTO_SNAPSHOT_TICKER || key === DEX_SNAPSHOT_TICKER || key === CRYPTO_ATTEMPT_TICKER || /^AF-CGS-\d+$/.test(key) || /^AF-DXS-\d+$/.test(key);
 }
 
 // b28 G-05: the refresh-attempt record shares this durable store (see crypto-attempts.ts).

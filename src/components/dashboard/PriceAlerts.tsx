@@ -15,7 +15,7 @@ import { formatPercent, type Stock } from "@/lib/portfolio";
 import { evaluateCryptoAlert } from "@/lib/crypto-live";
 import { formatMoney, formatPriceInput, currencyForTicker, type CurrencyCode } from "@/lib/currency";
 import { alertTickerKey, alertsForDesk } from "@/lib/alert-desk";
-import { formatAlertRuleLine, formatSellStopChip, formatTrimChip } from "@/lib/alert-labels";
+import { formatAlertRuleLine, formatSellStopChip, formatTrimChip, isGeneratedRuleLine } from "@/lib/alert-labels";
 import { useLiveCryptoQuotes } from "@/hooks/useLiveCryptoQuotes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -515,7 +515,9 @@ export function PriceAlerts({
                 {(() => {
                   const ruleLine = formatAlertRuleLine(a, { held: !!holding && Number(holding.shares) > 0 });
                   const custom = (a.instructions || "").trim();
-                  const showCustom = !!custom && !isBoilerplateInstructions(custom) && custom !== ruleLine;
+                  // b29 L-4: a saved instruction that is just a generated rule line (either reference
+                  // price) is not shown again next to the live one — the trim note appears once.
+                  const showCustom = !!custom && !isBoilerplateInstructions(custom) && !isGeneratedRuleLine(custom, a);
                   if (!ruleLine && !showCustom) return null;
                   return (
                     <p className="mt-3 rounded-lg bg-muted/40 p-2.5 text-xs leading-relaxed text-muted-foreground">

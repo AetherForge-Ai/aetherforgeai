@@ -1,3 +1,4 @@
+import { BOOK_WRITE_COOKIE, isBookWriteRequest } from "@/lib/book-write-mark";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { PRIVATE_NO_STORE_HEADERS } from "@/lib/account-guard";
@@ -208,6 +209,10 @@ export async function middleware(request: NextRequest) {
   requestHeaders.set("content-security-policy", csp);
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   finish(response, request, signedIn, nonce);
+  // b29 H-4/G-10: stamp book writes so other isolates' cached books are skipped for this browser.
+  if (signedIn && isBookWriteRequest(pathname, request.method)) {
+    response.cookies.set(BOOK_WRITE_COOKIE, String(Date.now()), { path: "/", sameSite: "lax", secure: true, httpOnly: true, maxAge: 60 * 60 });
+  }
 
   // Allow all API routes and static files. /__missing is the internal 404 rewrite.
   if (

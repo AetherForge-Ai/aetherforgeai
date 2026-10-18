@@ -142,6 +142,7 @@ import { DashboardSectionTitle } from "@/components/dashboard/DashboardSectionTi
 import { MarketIntelProvider } from "@/components/dashboard/MarketIntelContext";
 import { WatchlistPanel } from "@/components/dashboard/WatchlistPanel";
 import { DashboardRail } from "@/components/dashboard/rail/DashboardRail";
+import { AlertCounter } from "@/components/dashboard/alerts/AlertCounter";
 import { GlobalSearch } from "@/components/dashboard/GlobalSearch";
 import { DashboardCalculator } from "@/components/dashboard/DashboardCalculator";
 import { FREE_REPORTS_PER_MONTH } from "@/lib/entitlements";
@@ -2001,10 +2002,18 @@ export function PortfolioDashboard({
   }
 
   async function handleDeleteDividend(line: SnapshotLedgerLine): Promise<boolean> {
-    // Goal b20 G-10: authoritative delete. The row stays (marked "Removing…" by the
-    // ledger view) until the server confirms; then it leaves and cash is painted from
-    // the server's figure. A refusal leaves the row where it was with the reason.
+    // b29 G-10: optimistic delete. Exactly this row leaves and its cash impact is reversed at once;
+    // the rest of the ledger stays rendered. The server's cash figure then replaces the estimate.
+    // A refusal puts the row and cash back with a visible error.
     lastMutationAtRef.current = Date.now();
+    deletedLedgerRef.current.set(line.id, Date.now());
+    const before = bookSnapshotRef.current;
+    const optimisticDelta = Number.isFinite(line.cashNzd) ? -line.cashNzd : 0;
+    setBookSnapshot((current) => {
+      if (!current) return current;
+      const trimmed = { ...current, ledger: current.ledger.filter((row) => row.id !== line.id) };
+      return optimisticDelta ? withCashDelta(trimmed, optimisticDelta) : trimmed;
+    });
     const res = await api.delete<{ cash?: { after?: number }; alreadyRemoved?: boolean }>(
       `/api/transactions?id=${encodeURIComponent(line.id)}`
     );
@@ -2014,15 +2023,10 @@ export function PortfolioDashboard({
       const after = res.data?.cash?.after;
       setBookSnapshot((current) => {
         if (!current) return current;
-        deletedLedgerRef.current.set(line.id, Date.now());
         lastMutationAtRef.current = Date.now();
-        const trimmed = { ...current, ledger: current.ledger.filter((row) => row.id !== line.id) };
+        const shownCash = current.kpis?.cash?.value;
         const next =
-          typeof after === "number"
-            ? withCashDelta(trimmed, after - cashBalance)
-            : Number.isFinite(line.cashNzd)
-              ? withCashDelta(trimmed, -line.cashNzd)
-              : trimmed;
+          typeof after === "number" && typeof shownCash === "number" ? withCashDelta(current, after - shownCash) : current;
         writePortfolioSnapshotCache(userId, next);
         return next;
       });
@@ -2031,6 +2035,8 @@ export function PortfolioDashboard({
       handleDataChanged(typeof after === "number" ? { cashBalance: after } : undefined);
       return true;
     }
+    deletedLedgerRef.current.delete(line.id);
+    if (before) setBookSnapshot(before);
     toast.error(`Not removed: ${typeof res.error === "string" ? res.error : `the server refused this ${label.toLowerCase()}.`}`);
     return false;
   }
@@ -3382,6 +3388,7 @@ export function PortfolioDashboard({
       {/* /alerts and /notifications land here. Price alerts are the in-app notifications. */}
       {isAlerts && (
         <div id="dash-alerts" className="mt-8 space-y-6">
+          <AlertCounter enabled={!freePlan && !preview} />
           {!preview ? <WatchAlerts canCreate={!freePlan} /> : null}
           <p className="max-w-2xl text-sm text-muted-foreground">
             Share, crypto, and metals price alerts are the notifications for this paper book. A triggered

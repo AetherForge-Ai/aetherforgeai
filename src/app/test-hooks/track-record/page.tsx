@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { currentUserMayUseTestHooks } from "@/lib/test-hooks.server";
 import { loadTrackRecordView } from "@/lib/track-record-store.server";
 import { runTrackRecordBounded } from "@/lib/track-record-run.server";
+import { seedTrackRecordStore, storedCardIsStale, TRACK_LIVE_WAIT_MS } from "@/lib/track-record-seed.server";
 import { snapshotFromRun, viewFromStoredJson, type TrackRecordView } from "@/lib/track-record-store";
 import { CALL_HASH_FIELDS } from "@/lib/track-record";
 import { formatDisplayDateTime } from "@/lib/currency";
@@ -22,8 +23,10 @@ export default async function Page() {
   let view: TrackRecordView | null = out.kind === "ready" ? out.view : null;
   let source: "stored" | "live" = "stored";
   let liveError = "";
+  // b29 G-20: stored card first. Missing or older than a day → seed the store in the background.
+  if (!view || storedCardIsStale(view.storedAt)) seedTrackRecordStore();
   if (!view) {
-    const live = await runTrackRecordBounded();
+    const live = await runTrackRecordBounded(Date.now(), undefined, TRACK_LIVE_WAIT_MS);
     if ("error" in live) liveError = live.error;
     else {
       view = await viewFromStoredJson(JSON.stringify(snapshotFromRun(live.run, new Date(live.cachedAt ?? Date.now()).toISOString())));

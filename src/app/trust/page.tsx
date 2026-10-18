@@ -1,3 +1,4 @@
+import { NEWS_FEEDS, listedNewsPublishers } from "@/lib/news-sources";
 import Link from "next/link";
 import { EmailAddress } from "@/components/EmailAddress";
 import { JsonLd } from "@/components/public/JsonLd";
@@ -31,14 +32,7 @@ import {
 } from "@/lib/trust-facts";
 
 /** b26 H-15: every news source the feed reads (src/lib/market-news.ts, src/lib/news-present.ts) and its delay. */
-const NEWS_SOURCE_TABLE = [
-  { source: "RNZ (Radio New Zealand)", what: "business RSS headlines", delay: "shown up to 15 minutes after RNZ publishes" },
-  { source: "BusinessDesk", what: "NZ business RSS headlines", delay: "shown up to 15 minutes after BusinessDesk publishes" },
-  { source: "Reserve Bank of New Zealand (RBNZ)", what: "the OCR (cash rate) card", delay: "copied from the RBNZ page by hand after each decision, so it can lag the announcement by days" },
-  { source: "Yahoo Finance", what: "ASX and US headline feeds and searches", delay: "shown up to 15 minutes after Yahoo publishes" },
-  { source: "BBC Business", what: "global business RSS headlines (filtered to NZ/AU-relevant items)", delay: "shown up to 15 minutes after BBC publishes" },
-  { source: "Twelve Data", what: "US company press releases", delay: "shown up to 15 minutes after Twelve Data lists them" },
-] as const;
+const NEWS_SOURCE_TABLE = NEWS_FEEDS;
 
 /** Shown on this page. Other public pages keep the unnamed third-party row. */
 function disclosedProcessors() {
@@ -108,6 +102,10 @@ export default function TrustPage() {
                 </li>
               ))}
             </ul>
+            <p className="text-sm leading-relaxed text-muted-foreground" data-news-publishers>
+              Publishers whose articles can appear through those feeds (same delay as the feed that carried them):{" "}
+              {listedNewsPublishers().join(", ")}. A headline from any other publisher is not shown.
+            </p>
           </section>
 
           <section className="mt-8 space-y-2">

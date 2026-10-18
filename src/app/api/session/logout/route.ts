@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
+import { forgetCachedSessionToken } from "@/lib/session";
+import { cookieValue, verifySignedSessionToken } from "@/lib/session-token";
 import { applyExpiredAuthCookies, expireAuthCookies } from "@/lib/session-cookies";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +14,14 @@ export const dynamic = "force-dynamic";
  */
 export async function POST() {
   const headerList = await headers();
+  // b29 H-4: this isolate must not keep serving the signed-out token from its session cache.
+  try {
+    const ctx = await auth.$context;
+    const raw = cookieValue(headerList.get("cookie"), ctx.authCookies.sessionToken.name);
+    if (raw) forgetCachedSessionToken(await verifySignedSessionToken(raw, ctx.secret));
+  } catch {
+    // best effort
+  }
   let upstream: Response | null = null;
   try {
     const result = await auth.api.signOut({

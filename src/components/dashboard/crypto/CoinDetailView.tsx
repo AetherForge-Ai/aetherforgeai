@@ -64,6 +64,12 @@ import {
 } from "@/lib/crypto-market";
 
 /** Slice a chart series to the visible window for the sub-day ranges. */
+/** b29 H-1: price, time and source stay those of the server snapshot row the header used. */
+export function keepSnapshotQuote<T extends { price: number; quotedAt?: unknown; source?: unknown }>(next: T, snapshot: T | null): T {
+  if (!snapshot || !(snapshot.price > 0)) return next;
+  return { ...next, price: snapshot.price, quotedAt: snapshot.quotedAt, source: snapshot.source } as T;
+}
+
 function sliceRange(chart: CoinChart, range: ChartRange): { t: number; price: number }[] {
   const prices = chart.prices;
   if (range === "1H") {
@@ -148,7 +154,12 @@ export function CoinDetailView({
         signal: AbortSignal.timeout(8_000),
       });
       if (res.ok && res.data && typeof res.data.price === "number" && res.data.price > 0) {
-        setDetail((prev) => mergeCoinDepth(res.data, keep ? prev : null) ?? res.data!);
+        // b29 H-1: the page header printed the server snapshot price. Keep that price, its time and
+        // source on the large figure too (one snapshot per render); the client fetch only fills depth.
+        setDetail((prev) => {
+          const merged = mergeCoinDepth(res.data, keep ? prev : null) ?? res.data!;
+          return keep ? keepSnapshotQuote(merged, prev) : merged;
+        });
       } else if (!keep) {
         setError(quotedLine ? null : clientFacingError(`/api/crypto/coin/${id}`, res.error || COIN_DETAIL_SOURCE_DOWN));
         setDetail(null);

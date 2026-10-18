@@ -63,7 +63,7 @@ export default function MethodologyPage() {
             2022), and the crypto collapse after FTX (Nov 2022).
           </p>
           <p className="text-sm leading-relaxed text-muted-foreground" data-backtest-results>
-            Results: — not shown yet. The run over the stored price history has not finished, and we do not publish
+            Results not published yet. The run over the stored price history has not finished, and we do not publish
             figures until they are computed. When they are, the hit rate, drawdowns and bad-period results appear here
             with their data source and as-of date.
           </p>

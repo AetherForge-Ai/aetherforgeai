@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { goalProgress, monthlyNeeded, validateGoal } from "@/lib/goal-math";
+import { goalProgress, monthlyNeeded, rangeRatesText, validateGoal } from "@/lib/goal-math";
 import { formatGoalDate, goalMissingField, normalizeGoalRow } from "@/lib/goal-record";
 import { Button } from "@/components/ui/button";
 
@@ -137,13 +137,18 @@ export default function GoalsWorkflow() {
         {field("target", "Target (NZ$)", { inputMode: "decimal", required: true })}
         {field("date", "Target date", { type: "date", required: true })}
         {field("start", "Starting amount (NZ$)", { inputMode: "decimal" })}
-        {field("monthly", "Monthly amount (NZ$)", { inputMode: "decimal" })}
+        <div className="grid gap-1">
+          {field("monthly", "Monthly amount (NZ$)", { inputMode: "decimal", "aria-describedby": "goal-monthly-error" } as React.InputHTMLAttributes<HTMLInputElement>)}
+          {draft.monthly.trim() !== "" && !(num(draft.monthly) > 0) ? (
+            <p id="goal-monthly-error" className="text-sm text-rose-600" role="alert" data-goal-monthly-error>Enter a monthly amount above NZ$0.</p>
+          ) : null}
+        </div>
         {field("ret", "Assumed yearly return (%)", { inputMode: "decimal" })}
         {error ? <p className="text-sm text-rose-600 sm:col-span-2" role="alert" data-goal-error>{error}</p> : null}
         <div aria-live="polite" className="text-sm sm:col-span-2" data-goal-preview>
           {preview ? (
             <>
-              Projected {nzd(preview.projected)} by {draft.date} ({preview.months} months, {preview.status}). Range {nzd(preview.range.low)} to {nzd(preview.range.high)} at ±3% a year. {preview.range.label}.
+              Projected {nzd(preview.projected)} by {draft.date} ({preview.months} months, {preview.status}). Range {nzd(preview.range.low)} to {nzd(preview.range.high)} (<span data-goal-rates>{rangeRatesText(preview)}</span>). {preview.range.label}.
             </>
           ) : null}
         </div>
@@ -180,7 +185,7 @@ export default function GoalsWorkflow() {
                     <div className="h-2 rounded bg-primary" style={{ width: `${p.progressPct}%` }} />
                   </div>
                   <p className="mt-2" aria-live="polite">
-                    {p.progressPct}% there. Projected {nzd(p.projected)} ({p.status}); range {nzd(p.range.low)} to {nzd(p.range.high)}. {p.range.label}.
+                    {p.progressPct}% there. Projected {nzd(p.projected)} ({p.status}); range {nzd(p.range.low)} to {nzd(p.range.high)} (<span data-goal-rates>{rangeRatesText(p)}</span>). {p.range.label}.
                   </p>
                   {(() => {
                     const need = monthlyNeeded(gi);

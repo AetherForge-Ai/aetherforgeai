@@ -2,7 +2,8 @@ import { drpLotsFromRows } from "@/lib/dividend-ledger";
 import { applyLedgerSplits } from "@/lib/stock-split";
 import "server-only";
 
-import { bookCacheEpoch, readBookCache, writeBookCache } from "@/lib/book-cache";
+import { bookCacheEpoch, writeBookCache } from "@/lib/book-cache";
+import { readBookCacheForRequest } from "@/lib/book-cache.server";
 import type { MarkedHolding } from "@/lib/book-valuation";
 import { currencyForTicker } from "@/lib/currency";
 import type { DividendSourceRow } from "@/lib/dividend-ledger";
@@ -14,11 +15,12 @@ import type { PaperHoldingChoice } from "@/lib/paper-holding";
 import { totalumSdk } from "@/lib/totalum";
 
 async function cachedRead<T>(key: string, load: () => Promise<T>): Promise<T> {
-  const hit = readBookCache<T>(key);
+  const hit = await readBookCacheForRequest<T>(key);
   if (hit) return hit;
   const epoch = bookCacheEpoch(key.split(":")[0] || "");
+  const startedAt = Date.now();
   const value = await load();
-  writeBookCache(key, value, epoch);
+  writeBookCache(key, value, epoch, startedAt);
   return value;
 }
 

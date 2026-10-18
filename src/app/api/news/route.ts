@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { loadMarketNews } from "@/lib/market-news";
+import { filterServableNews } from "@/lib/news-serve";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -9,7 +10,7 @@ export const revalidate = 0;
  * which also returns the full quote universe.
  */
 export async function GET() {
-  const news = await loadMarketNews("stock");
+  const news = filterServableNews(await loadMarketNews("stock"));
   const headlines = news.map((item) => ({
     headline: item.headline,
     source: item.source,
