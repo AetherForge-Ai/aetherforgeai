@@ -8,10 +8,10 @@ import "server-only";
  *   1. Resolves the FULL data scope for the chosen bot
  *        · Crypto  → LIVE top-100 cryptocurrencies (CoinGecko), real 24h/7d/30d
  *          movers boards, real 12-month price history per selected coin, and real
- *          worldwide crypto news (CryptoCompare).
+ *          worldwide crypto news (CryptoCompare, CoinDesk, Cointelegraph, Yahoo Finance).
  *        · Stock   → the entire NZX + ASX universe swept through the technical
- *          engine (live Twelve Data quotes overlaid), with real 12-month monthly
- *          history per selected ticker.
+ *          engine (Yahoo Finance quotes overlaid). A paid 12-month stock chart
+ *          is not fetched.
  *   2. Builds per-ticker deep analysis + fact-based forward predictions grounded
  *      in the real numbers, integrating the user's own holdings (shares/avg price).
  *   3. Asks for an executive summary and key findings (non-fatal).

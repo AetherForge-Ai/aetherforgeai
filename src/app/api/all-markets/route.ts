@@ -7,8 +7,8 @@ export const dynamic = "force-dynamic";
 /**
  * GET /api/all-markets?exchange=NZX|ASX|DOW|NASDAQ|NYSE&page=1&q=
  *
- * One page of a stock board. Prices come from Yahoo Finance, then Twelve Data
- * when a key is set, then the last saved print. A missing price is the sentence
+ * One page of a stock board. Prices come from Yahoo Finance, then the last
+ * saved print. A missing price is the sentence
  * "Not in this response". Directory seed prices are not used.
  *
  * pull-check:stock-markets-full-2026-10-11

@@ -48,7 +48,8 @@ describe("goal b26", () => {
     const trust = read("src/app/trust/page.tsx");
     // b29: the list moved to news-sources.ts, shared with /api/news.
     const sources = trust + readFileSync("src/lib/news-sources.ts", "utf8");
-    for (const s of ["RNZ", "RBNZ", "BusinessDesk", "Yahoo Finance", "BBC Business", "Twelve Data"]) expect(sources).toContain(s);
+    for (const s of ["RNZ", "RBNZ", "BusinessDesk", "Yahoo Finance", "BBC Business", "CoinDesk", "Cointelegraph", "CryptoCompare"]) expect(sources).toContain(s);
+    expect(sources).not.toContain("Twelve Data");
   });
 
   it("deposit rows can be removed, never below zero cash; seed starts from a known book", () => {

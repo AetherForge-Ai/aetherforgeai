@@ -6,12 +6,13 @@ import { coinGeckoEndpoint } from "@/lib/coingecko-auth";
  * Market-universe data layer for the one-time Free-Trial "Zenith Mode" engine.
  *
  * This is the WIDE-SCOPE provider that powers the Ultra Advanced trial report:
- *  - Crypto: the LIVE top-100 cryptocurrencies from CoinGecko (no API key) with
- *    real 24h / 7d / 30d performance, real 12-month price history per coin, and
- *    real worldwide crypto news from CryptoCompare.
+ *  - Crypto: the top-100 cryptocurrencies from CoinGecko (no API key) with
+ *    24h / 7d / 30d performance, 12-month price history per coin, and crypto
+ *    news from the same feeds as the market-news page (CryptoCompare, CoinDesk,
+ *    Cointelegraph, and Yahoo Finance).
  *  - Stocks: the full NZX + ASX universe swept through the deterministic
- *    market-intel engine, overlaid with LIVE Twelve Data quotes + real 12-month
- *    monthly price history for the user's selected tickers when a key is present.
+ *    market-intel engine, overlaid with Yahoo Finance quotes. A paid 12-month
+ *    chart feed is not called.
  *
  * SERVER-ONLY. Every network call is wrapped so a provider outage degrades
  * gracefully (falls back to the deterministic engine) and never throws up into
@@ -163,56 +164,13 @@ export async function fetchCryptoChart12mo(coinId: string): Promise<MonthPoint[]
 
 /* ------------------------------ Crypto news ----------------------------- */
 
-const BULLISH_WORDS = /\b(surge|soar|rally|jump|gain|record|inflow|approv|adopt|bull|breakout|upgrade|partnership|integrat|all-time high|ath)\b/i;
-const BEARISH_WORDS = /\b(crash|plunge|drop|fall|slump|hack|exploit|lawsuit|ban|selloff|sell-off|outflow|liquidat|bear|downgrade|fraud|warns?)\b/i;
-
-function classifyImpact(text: string): NewsHeadline["impact"] {
-  if (BEARISH_WORDS.test(text)) return "Bearish";
-  if (BULLISH_WORDS.test(text)) return "Bullish";
-  return "Neutral";
-}
-
 /**
- * Real worldwide crypto news. Prefers CryptoCompare when
- * CRYPTOCOMPARE_API_KEY is set; otherwise uses CoinDesk + CoinTelegraph RSS
- * (same sources as loadMarketNews) so trial reports stay live without a key.
+ * Crypto news from the same feeds as loadMarketNews: CryptoCompare (no key),
+ * CoinDesk, Cointelegraph, and the Yahoo Finance Bitcoin and Ethereum headlines.
  */
 export async function fetchCryptoNews(limit = 12): Promise<NewsHeadline[]> {
-  return cached(`cc-news-${limit}`, TTL_MS * 2, async () => {
+  return cached(`crypto-news-${limit}`, TTL_MS * 2, async () => {
     try {
-      const key = process.env.CRYPTOCOMPARE_API_KEY || process.env.CRYPTO_COMPARE_API_KEY;
-      if (key) {
-        const url =
-          "https://min-api.cryptocompare.com/data/v2/news/?lang=EN&sortOrder=latest" +
-          `&api_key=${encodeURIComponent(key)}`;
-        const res = await fetch(url, { headers: { Accept: "application/json" } });
-        if (res.ok) {
-          const json = (await res.json()) as { Data?: any[] };
-          const rows = Array.isArray(json.Data) ? json.Data : [];
-          if (rows.length) {
-            const items = rows.slice(0, limit).map((n) => {
-              const title = String(n.title || "");
-              const body = String(n.body || "");
-              return {
-                title,
-                source: String(n.source_info?.name || n.source || "Crypto Wire"),
-                url: String(n.url || n.guid || ""),
-                publishedAt: n.published_on
-                  ? new Date(Number(n.published_on) * 1000).toISOString()
-                  : new Date().toISOString(),
-                snippet: body.slice(0, 180),
-                impact: classifyImpact(`${title} ${body}`),
-              } as NewsHeadline;
-            });
-            console.log(`[market-universe] Fetched ${items.length} live crypto news items (CryptoCompare)`);
-            return items;
-          }
-        } else {
-          console.error(`[market-universe] CryptoCompare news HTTP ${res.status}`);
-        }
-      }
-
-      // Keyless RSS fallback — CoinDesk + CoinTelegraph.
       const { loadMarketNews } = await import("@/lib/market-news");
       const live = await loadMarketNews("crypto");
       const items = live.slice(0, limit).map(
@@ -269,8 +227,8 @@ export const NZX_ASX_UNIVERSE = MARKET_UNIVERSE.filter(
 );
 
 /**
- * Sweep the entire NZX + ASX + US (Dow/Nasdaq) universe. Live Twelve Data
- * quotes are overlaid where available; every name is then run through the
+ * Sweep the entire NZX + ASX + US (Dow/Nasdaq) universe. Yahoo Finance quotes
+ * are overlaid where available; every name is then run through the
  * deterministic technical engine so the report always has a full-market
  * movers board + signals across all four exchanges.
  */
@@ -327,44 +285,13 @@ export async function fetchStockUniverse(): Promise<{ intel: SecurityIntel[]; bo
   return { intel, boards };
 }
 
-/** Real 12-month monthly history for a single stock ticker via Twelve Data. */
+/**
+ * 12-month stock charts are not fetched. The paid chart call was only made
+ * when a key was set, and this repo does not set that key.
+ */
 export async function fetchStockChart12mo(ticker: string): Promise<MonthPoint[]> {
-  const key = process.env.MARKET_DATA_API_KEY;
-  if (!key) return [];
-  return cached(`td-chart-${ticker}`, TTL_MS * 4, async () => {
-    try {
-      const t = ticker.toUpperCase();
-      const sym = t.replace(/\.(NZ|AX)$/, "");
-      const country = t.endsWith(".NZ") ? "New Zealand" : t.endsWith(".AX") ? "Australia" : "";
-      const params = new URLSearchParams({
-        symbol: sym,
-        interval: "1month",
-        outputsize: "13",
-        apikey: key,
-        dp: "4",
-        order: "ASC",
-      });
-      if (country) params.set("country", country);
-      const res = await fetch(`https://api.twelvedata.com/time_series?${params.toString()}`, {
-        headers: { Accept: "application/json" },
-      });
-      if (!res.ok) {
-        console.error(`[market-universe] Twelve Data time_series HTTP ${res.status} for ${ticker}`);
-        return [];
-      }
-      const json = (await res.json()) as { values?: { datetime: string; close: string }[]; status?: string };
-      if (!json.values?.length) return [];
-      const series: [number, number][] = json.values
-        .map((v) => [new Date(v.datetime).getTime(), Number(v.close)] as [number, number])
-        .filter(([, p]) => isFinite(p) && p > 0);
-      const points = toTwelveMonthPoints(series);
-      console.log(`[market-universe] 12mo stock chart for ${ticker}: ${points.length} points`);
-      return points;
-    } catch (err) {
-      console.error(`[market-universe] fetchStockChart12mo(${ticker}) failed:`, err);
-      return [];
-    }
-  });
+  void ticker;
+  return [];
 }
 
 export { currencyForMarket };

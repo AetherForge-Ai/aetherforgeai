@@ -450,7 +450,7 @@ export const MARKET_UNIVERSE: UniverseEntry[] = [
   // ===================== US (USD) — Dow Jones 30 + Nasdaq-100 =====================
   // Comprehensive coverage of the two headline US indices so the ZENITH sweep
   // "considers all stocks" for top-movers across DOW JONES + NASDAQ. basePrice is
-  // a plausible fallback only — live Yahoo/Twelve Data quotes overlay these.
+  // a plausible fallback only — Yahoo Finance quotes overlay these.
   // — Mega-cap tech / Nasdaq leaders —
   { ticker: "AAPL", name: "Apple Inc.", sector: "Technology", market: "US", basePrice: 229.87 },
   { ticker: "MSFT", name: "Microsoft Corporation", sector: "Technology", market: "US", basePrice: 441.58 },

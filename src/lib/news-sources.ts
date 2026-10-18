@@ -35,7 +35,7 @@ export const HOST_PUBLISHER: Array<[string, string]> = [
   ["proactiveinvestors.com.au", "Proactive Investors"],
   ["beincrypto.com", "BeInCrypto"],
   ["decrypt.co", "Decrypt"],
-  ["twelvedata.com", "Twelve Data"],
+  ["cryptocompare.com", "CryptoCompare"],
   ["bbc.com", "BBC"],
   ["bbc.co.uk", "BBC"],
 ];
@@ -45,9 +45,11 @@ export const NEWS_FEEDS = [
   { source: "RNZ (Radio New Zealand)", what: "business RSS headlines", delay: "shown up to 15 minutes after RNZ publishes" },
   { source: "BusinessDesk", what: "NZ business RSS headlines", delay: "shown up to 15 minutes after BusinessDesk publishes" },
   { source: "Reserve Bank of New Zealand (RBNZ)", what: "the OCR (cash rate) card", delay: "copied from the RBNZ page by hand after each decision, so it can lag the announcement by days" },
-  { source: "Yahoo Finance", what: "ASX and US headline feeds and searches, which can include articles by the third-party publishers listed below", delay: "shown up to 15 minutes after Yahoo publishes" },
+  { source: "Yahoo Finance", what: "ASX and US headline feeds, a Bitcoin and Ethereum headline feed, and ASX, NASDAQ and S&P 500 searches, which can include articles by the third-party publishers listed below", delay: "shown up to 15 minutes after Yahoo publishes" },
   { source: "BBC Business", what: "global business RSS headlines (filtered to NZ/AU-relevant items)", delay: "shown up to 15 minutes after BBC publishes" },
-  { source: "Twelve Data", what: "US company press releases", delay: "shown up to 15 minutes after Twelve Data lists them" },
+  { source: "CoinDesk", what: "crypto RSS headlines", delay: "shown up to 15 minutes after CoinDesk publishes" },
+  { source: "Cointelegraph", what: "crypto RSS headlines", delay: "shown up to 15 minutes after Cointelegraph publishes" },
+  { source: "CryptoCompare", what: "crypto news headlines", delay: "shown up to 15 minutes after CryptoCompare lists them" },
 ] as const;
 
 /** Publisher names a card can carry (deduplicated, as printed on /trust). */

@@ -326,7 +326,7 @@ export interface ResolveMarkInput {
   assetType?: string | null;
   storedPrice?: number | null;
   purchasePrice?: number | null;
-  /** Equity-feed price (Yahoo / Twelve Data). Ignored for bullion. */
+  /** Equity-feed price (Yahoo Finance). Ignored for bullion. */
   equityQuote?: number | null;
   cryptoQuote?: number | null;
   /** NZD per troy ounce for this holding's metal. */

@@ -14,8 +14,7 @@
  * The other directory counts (Nasdaq 5,622 and other-listed NYSE 2,900) are in
  * docs/stock-market-sources-2026-10-11.md. They are not the visitor "of M" figure.
  * The Nasdaq and ASX website terms do not allow this repo to copy those directories.
- * The SEC file is a US government work. Prices stay on the existing Yahoo call, then
- * Twelve Data only when MARKET_DATA_API_KEY is set.
+ * The SEC file is a US government work. Prices stay on the Yahoo Finance call.
  */
 
 export type StockBoard = "NZX" | "ASX" | "DOW" | "NASDAQ" | "NYSE";

@@ -50,6 +50,11 @@ export const TRUST_PAGE_LOG = [
     change:
       "Added the data sources and delay table, where the site runs, and a retention statement for AI requests.",
   },
+  {
+    date: "18 Oct 2026",
+    change:
+      "CoinPaprika is named with the other crypto price sources. The news list adds CoinDesk, Cointelegraph, CryptoCompare, and the Yahoo Finance Bitcoin and Ethereum headlines.",
+  },
 ] as const;
 
 /** H-15: where the site runs. Cloudflare serves pages; Totalum (Google Cloud) stores the book. */

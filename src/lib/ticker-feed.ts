@@ -1,6 +1,6 @@
 /**
  * One public tape. Rows are the symbol list only — prices come from the live
- * quote pipeline (Yahoo Finance / Twelve Data for equities, CoinGecko for
+ * quote pipeline (Yahoo Finance for equities, CoinGecko for
  * crypto). There is no second snapshot to mix in, and an empty quote map
  * stays empty instead of falling back to a demo book.
  */
@@ -92,18 +92,8 @@ export interface TickerTapeFeed {
 
 export const CRYPTO_TAPE_PROVIDER = "CoinGecko";
 
-/** Equities use Twelve Data only when that key is the configured provider. Otherwise Yahoo Finance. */
-export function equityTapeProvider(env?: {
-  MARKET_DATA_API_KEY?: string;
-  MARKET_DATA_PROVIDER?: string;
-}): string {
-  const source = env ?? {
-    MARKET_DATA_API_KEY: process.env.MARKET_DATA_API_KEY,
-    MARKET_DATA_PROVIDER: process.env.MARKET_DATA_PROVIDER,
-  };
-  const key = source.MARKET_DATA_API_KEY?.trim();
-  const provider = (source.MARKET_DATA_PROVIDER || "twelvedata").toLowerCase();
-  if (key && provider === "twelvedata") return "Twelve Data";
+/** Equities on the public tape come from Yahoo Finance. */
+export function equityTapeProvider(): string {
   return "Yahoo Finance";
 }
 

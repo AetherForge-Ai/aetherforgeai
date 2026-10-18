@@ -16,8 +16,8 @@ export const dynamic = "force-dynamic";
 /**
  * GET /api/market?bot=stock|crypto
  * Returns the full analysed universe (technical intel per security) plus the
- * curated news feed for the requested bot. Stocks are anchored to Twelve Data
- * live prices (when a key is configured); crypto uses the CoinGecko tape.
+ * curated news feed for the requested bot. Stocks use Yahoo Finance quotes;
+ * crypto uses the CoinGecko tape.
  * A failed crypto load publishes no rows. Directory seed prices are equities-only.
  * Kept server-side so the market-data API key never reaches the client.
  */

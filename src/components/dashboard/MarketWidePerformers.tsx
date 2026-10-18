@@ -41,7 +41,7 @@ import {
  * short "key reasons" AI summary.
  *
  * DATA SOURCE (live — keyless, server-side):
- *   • GET /api/market?bot=stock → Twelve Data / Yahoo Finance quotes + daily
+ *   • GET /api/market?bot=stock → Yahoo Finance quotes + daily
  *     closes, analysed into SecurityIntel[]. Each row always carries a usable
  *     last/live price (session close when the exchange is shut). Ranking lives
  *     in src/lib/market-intel.ts (getTopPerformers).

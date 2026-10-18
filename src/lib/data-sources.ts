@@ -5,10 +5,8 @@
  * Terms, Privacy and coin pages name the same sources.
  *
  * The names match the calls in the code:
- * shares — Yahoo Finance (query1.finance.yahoo.com). A Twelve Data call exists in
- * fetchLiveQuotes only when MARKET_DATA_API_KEY is set. wrangler.jsonc sets no
- * vars, so that key is not part of the production config in this repo. Public
- * copy does not name Twelve Data.
+ * shares — Yahoo Finance (query1.finance.yahoo.com). No other equity quote host
+ * is called. wrangler.jsonc sets no vars.
  * crypto — CoinGecko, CoinPaprika, CoinCap, Binance public tickers, then Kraken,
  *   Coinbase, and Yahoo Finance for mapped symbols.
  *   Swyftx is named only when SWYFTX_PUBLIC_DISPLAY is on.

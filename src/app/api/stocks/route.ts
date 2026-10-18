@@ -42,7 +42,7 @@ import { TRADE_CONFIRM_REQUIRED } from "@/lib/trade-confirm";
 
 /**
  * Overlay genuine LIVE prices onto a user's holdings and persist any that moved.
- * Equities use Twelve Data → Yahoo fallback; crypto uses CoinGecko → Yahoo. This
+ * Equities use Yahoo Finance; crypto uses CoinGecko, then Yahoo. This
  * is what keeps the portfolio valuation accurate the instant the dashboard loads
  * — instead of valuing positions at whatever `current_price` was last stored
  * (e.g. a seeded SOL at $198.40). Fully non-fatal: on any failure the stored
@@ -422,7 +422,7 @@ export async function POST(req: Request) {
     }
 
     // Prefer a live quote when available; else use the curated reference price.
-    // Crypto uses CoinGecko (no key); stocks use Twelve Data (needs a key).
+    // Crypto uses CoinGecko (no key); stocks use Yahoo Finance.
     // Never fatal — falls back on any error.
     let current_price = referencePrice(ticker, purchase_price);
     try {

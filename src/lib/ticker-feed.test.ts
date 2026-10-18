@@ -129,14 +129,8 @@ describe("single live ticker tape", () => {
     for (const stale of SET_B) expect(shown).not.toContain(stale);
   });
 
-  it("names Twelve Data only when that provider key is configured", () => {
-    expect(equityTapeProvider({})).toBe("Yahoo Finance");
-    expect(equityTapeProvider({ MARKET_DATA_PROVIDER: "yahoo", MARKET_DATA_API_KEY: "k" })).toBe(
-      "Yahoo Finance"
-    );
-    expect(equityTapeProvider({ MARKET_DATA_PROVIDER: "twelvedata", MARKET_DATA_API_KEY: "k" })).toBe(
-      "Twelve Data"
-    );
+  it("names Yahoo Finance for equities", () => {
+    expect(equityTapeProvider()).toBe("Yahoo Finance");
   });
 
   it("keeps the Set B demo prices out of the live tape sources", () => {

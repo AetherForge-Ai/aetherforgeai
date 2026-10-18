@@ -20,8 +20,6 @@ import {
 } from "@/lib/stock-markets";
 import { fetchYahooQuotesBatched } from "@/lib/yahoo-finance";
 
-const TWELVE_FETCH_MS = 1_500;
-
 const META: Record<StockBoard, { label: string; sub: string; currency: "NZD" | "AUD" | "USD" }> = {
   NZX: { label: "NZX", sub: "New Zealand Exchange", currency: "NZD" },
   ASX: { label: "ASX", sub: "Australian Securities Exchange", currency: "AUD" },
@@ -138,73 +136,6 @@ async function fetchYahoo(tickers: string[]): Promise<Record<string, EquityPrint
   return out;
 }
 
-function twelveSymbol(ticker: string): { symbol: string; country?: string } {
-  const t = ticker.toUpperCase();
-  if (t.endsWith(".NZ")) return { symbol: t.replace(/\.NZ$/, ""), country: "New Zealand" };
-  if (t.endsWith(".AX")) return { symbol: t.replace(/\.AX$/, ""), country: "Australia" };
-  return { symbol: t };
-}
-
-function twelveTime(value: unknown): string | null {
-  const n = typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) : NaN;
-  if (!Number.isFinite(n) || n <= 0) return null;
-  const date = new Date(n > 1e12 ? n : n * 1000);
-  return Number.isNaN(date.getTime()) ? null : date.toISOString();
-}
-
-async function fetchTwelve(tickers: string[]): Promise<Record<string, EquityPrint>> {
-  const key = process.env.MARKET_DATA_API_KEY;
-  if (!key || !tickers.length) return {};
-  const groups = new Map<string, { country?: string; tickers: string[] }>();
-  for (const ticker of tickers) {
-    const mapped = twelveSymbol(ticker);
-    const id = mapped.country || "US";
-    const group = groups.get(id) || { country: mapped.country, tickers: [] };
-    group.tickers.push(ticker);
-    groups.set(id, group);
-  }
-  const out: Record<string, EquityPrint> = {};
-  await Promise.all(
-    [...groups.values()].map(async (group) => {
-      const symbolMap = new Map<string, string>();
-      for (const ticker of group.tickers) symbolMap.set(twelveSymbol(ticker).symbol, ticker);
-      const params = new URLSearchParams({
-        symbol: [...symbolMap.keys()].join(","),
-        apikey: key,
-        dp: "4",
-      });
-      if (group.country) params.set("country", group.country);
-      const res = await fetch(`https://api.twelvedata.com/quote?${params.toString()}`, {
-        headers: { Accept: "application/json" },
-        signal: AbortSignal.timeout(TWELVE_FETCH_MS),
-      });
-      if (!res.ok) throw new Error(`Twelve Data HTTP ${res.status}`);
-      const json = (await res.json()) as Record<string, Record<string, unknown>> | Record<string, unknown>;
-      const entries: [string, Record<string, unknown>][] =
-        json && (typeof (json as { symbol?: unknown }).symbol === "string" || "close" in json || "code" in json)
-          ? [[String((json as { symbol?: unknown }).symbol || ""), json as Record<string, unknown>]]
-          : Object.entries(json as Record<string, Record<string, unknown>>);
-      for (const [sym, quote] of entries) {
-        if (!quote || quote.code || quote.status === "error") continue;
-        const ticker = symbolMap.get(sym) || symbolMap.get(sym.toUpperCase());
-        if (!ticker) continue;
-        const close = Number(quote.close ?? quote.price);
-        const prev = Number(quote.previous_close);
-        const price = Number.isFinite(close) && close > 0 ? close : Number.isFinite(prev) && prev > 0 ? prev : NaN;
-        const changePct = Number(quote.percent_change ?? 0);
-        if (!(price > 0) || !Number.isFinite(changePct)) continue;
-        out[ticker] = {
-          price,
-          changePct,
-          quotedAt: twelveTime(quote.timestamp),
-          source: "Twelve Data",
-        };
-      }
-    })
-  );
-  return out;
-}
-
 function snapshotFresh(tickers: string[], now: number): boolean {
   return tickers.every((ticker) => {
     const saved = memory.get(ticker);
@@ -240,7 +171,6 @@ async function refreshTickersOnce(tickers: string[], now: number): Promise<Recor
     const hold = pending.get(ticker);
     if (hold) held[ticker] = hold;
   }
-  const twelve = process.env.MARKET_DATA_API_KEY ? fetchTwelve : null;
   const result = await quoteWithProviders({
     tickers,
     now,
@@ -249,7 +179,7 @@ async function refreshTickersOnce(tickers: string[], now: number): Promise<Recor
     saved,
     pending: held,
     yahoo: fetchYahoo,
-    twelve,
+    twelve: null,
   });
   yahooBreaker = result.yahooBreaker;
   twelveBreaker = result.twelveBreaker;

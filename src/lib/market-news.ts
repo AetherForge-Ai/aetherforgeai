@@ -6,11 +6,9 @@
  * caches results for a few hours so we don't hammer providers (Cloudflare-
  * friendly alongside force-dynamic on /api/market).
  *
- * Sources (prefer existing / free over new paid APIs):
+ * Sources:
  *  - Stocks: Yahoo Finance RSS + search, RNZ Business, BusinessDesk, BBC Business
- *  - Crypto: CoinDesk RSS, CoinTelegraph RSS, Yahoo BTC-USD RSS
- *  - Optional: CryptoCompare when CRYPTOCOMPARE_API_KEY is set
- *  - Optional: Twelve Data /press_releases when MARKET_DATA_API_KEY is set
+ *  - Crypto: CryptoCompare news (no key), CoinDesk RSS, Cointelegraph RSS, Yahoo BTC-USD and ETH-USD RSS
  *
  * Stories without a publisher date, or without an article path, are dropped.
  * The public fallback is the dated official cards only — not an invented wire.
@@ -411,47 +409,8 @@ async function fetchYahooSearchNews(query: string, count = 8): Promise<RawStory[
   }
 }
 
-async function fetchTwelvePressReleases(limit = 6): Promise<RawStory[]> {
-  const key = process.env.MARKET_DATA_API_KEY;
-  if (!key) return [];
-  // A few liquid names spanning US / ASX / NZX focus.
-  const symbols = ["AAPL", "MSFT", "NVDA", "BHP", "CBA"];
-  const out: RawStory[] = [];
-  await Promise.all(
-    symbols.slice(0, 3).map(async (symbol) => {
-      try {
-        const url = `https://api.twelvedata.com/press_releases?symbol=${encodeURIComponent(symbol)}&apikey=${encodeURIComponent(key)}&outputsize=2`;
-        const res = await fetch(url, { headers: { Accept: "application/json" }, cache: "no-store" });
-        if (!res.ok) return;
-        const json = (await res.json()) as {
-          press_releases?: { title?: string; body?: string; datetime?: string }[];
-        };
-        for (const pr of json.press_releases || []) {
-          const title = String(pr.title || "").trim();
-          if (title.length < 12) continue;
-          const body = stripHtml(String(pr.body || "")).slice(0, 420);
-          out.push({
-            headline: title,
-            summary: body || title,
-            source: "Company Wire",
-            url: `https://www.twelvedata.com/`,
-            publishedAt: pr.datetime ? new Date(pr.datetime) : new Date(NaN),
-            marketHint: inferMarket(`${title} ${symbol}`),
-          });
-        }
-      } catch (err) {
-        console.error(`[market-news] Twelve Data press_releases(${symbol}) failed:`, err);
-      }
-    })
-  );
-  return out.slice(0, limit);
-}
-
 async function fetchCryptoCompareNews(limit = 12): Promise<RawStory[]> {
-  const key = process.env.CRYPTOCOMPARE_API_KEY || process.env.CRYPTO_COMPARE_API_KEY;
-  const url =
-    "https://min-api.cryptocompare.com/data/v2/news/?lang=EN&sortOrder=latest" +
-    (key ? `&api_key=${encodeURIComponent(key)}` : "");
+  const url = "https://min-api.cryptocompare.com/data/v2/news/?lang=EN&sortOrder=latest";
   try {
     const res = await fetch(url, { headers: { Accept: "application/json", "User-Agent": UA }, cache: "no-store" });
     if (!res.ok) {
@@ -493,7 +452,7 @@ function dedupeStories(stories: RawStory[]): RawStory[] {
 }
 
 async function loadStockStories(): Promise<RawStory[]> {
-  const [rnz, bd, bbc, yahooAsxRss, yahooUsRss, yAsx, yNas, ySp, press] = await Promise.all([
+  const [rnz, bd, bbc, yahooAsxRss, yahooUsRss, yAsx, yNas, ySp] = await Promise.all([
     fetchRssStories("https://www.rnz.co.nz/rss/business.xml", "RNZ", "NZX"),
     fetchRssStories("https://www.businessdesk.co.nz/feed", "BusinessDesk", "NZX"),
     fetchRssStories("https://feeds.bbci.co.uk/news/business/rss.xml", "BBC Business", "Global"),
@@ -510,13 +469,12 @@ async function loadStockStories(): Promise<RawStory[]> {
     fetchYahooSearchNews("ASX 200", 6),
     fetchYahooSearchNews("NASDAQ", 6),
     fetchYahooSearchNews("S&P 500", 4),
-    fetchTwelvePressReleases(6),
   ]);
 
   // Prefer NZ/ASX/US market-moving items; keep some global macro.
   const nz = [...rnz, ...bd].slice(0, 10);
   const asx = [...yahooAsxRss, ...yAsx].slice(0, 10);
-  const us = [...yahooUsRss, ...yNas, ...ySp, ...press].slice(0, 12);
+  const us = [...yahooUsRss, ...yNas, ...ySp].slice(0, 12);
   const global = bbc.slice(0, 6);
 
   return dedupeStories([...nz, ...asx, ...us, ...global]).sort(
@@ -528,7 +486,7 @@ async function loadCryptoStories(): Promise<RawStory[]> {
   const [cc, coindesk, ct, yahooBtc] = await Promise.all([
     fetchCryptoCompareNews(12),
     fetchRssStories("https://www.coindesk.com/arc/outboundfeeds/rss/", "CoinDesk", "CRYPTO"),
-    fetchRssStories("https://cointelegraph.com/rss", "CoinTelegraph", "CRYPTO"),
+    fetchRssStories("https://cointelegraph.com/rss", "Cointelegraph", "CRYPTO"),
     fetchRssStories("https://finance.yahoo.com/rss/headline?s=BTC-USD,ETH-USD", "Yahoo Finance", "CRYPTO"),
   ]);
   return dedupeStories([...cc, ...coindesk, ...ct, ...yahooBtc]).sort(

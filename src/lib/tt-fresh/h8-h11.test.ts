@@ -32,9 +32,9 @@ describe("TT fresh M13 — email printed once", () => {
 });
 
 describe("TT fresh H9 — processors", () => {
-  it("names CoinCap, Binance and DexPaprika", () => {
+  it("names CoinGecko, CoinPaprika, CoinCap, Binance and DexPaprika", () => {
     const names = PROCESSORS().map((p) => p.name);
-    for (const n of ["CoinCap", "Binance", "DexPaprika"]) expect(names).toContain(n);
+    for (const n of ["CoinGecko", "CoinPaprika", "CoinCap", "Binance", "DexPaprika"]) expect(names).toContain(n);
   });
 });
 
