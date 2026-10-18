@@ -10,6 +10,8 @@ export type BotAccessValue = "stock" | "crypto" | "both" | "none";
 
 export interface AppUser {
   _id: string;
+  /** b26 G-10: ms timestamp of the live user read that produced cash_balance. */
+  cash_read_at?: number;
   id: string;
   email: string;
   name: string;
@@ -136,6 +138,8 @@ export async function getCurrentUser(_opts?: {
       trial_used: record?.trial_used ?? "no",
       trial_used_at: record?.trial_used_at ?? null,
       cash_balance: typeof record?.cash_balance === "number" ? record.cash_balance : 0,
+      // b26 G-10: when the cash came from a live read, writes in this request reuse it.
+      cash_read_at: record && typeof record.cash_balance === "number" ? Date.now() : undefined,
       first_name: record?.first_name ?? (session.user as any).first_name ?? null,
       last_name: record?.last_name ?? (session.user as any).last_name ?? null,
       country: record?.country ?? (session.user as any).country ?? null,

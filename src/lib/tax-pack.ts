@@ -159,24 +159,71 @@ export function taxYearSpan(endingYear: number): string {
   return `Tax year 1 Apr ${endingYear - 1} to 31 Mar ${endingYear}`;
 }
 
+/**
+ * b26 H-9: lines wrap at word boundaries inside the page margins (they were cut at the
+ * right edge) and long packs run over several pages instead of stopping at 42 lines.
+ * Helvetica 11 pt averages about 5.5 pt per character; 516 pt of usable width gives a
+ * safe 88-character line.
+ */
+export const PDF_WRAP_CHARS = 88;
+const PDF_LINES_PER_PAGE = 44;
+
+export function wrapPdfLine(line: string, width = PDF_WRAP_CHARS): string[] {
+  const clean = line
+    .replace(/[×]/g, "x")
+    .replace(/[−–—]/g, "-")
+    .replace(/[‘’]/g, "'")
+    .replace(/[“”]/g, '"')
+    .replace(/[^\x20-\x7E]/g, " ")
+    .replace(/\s+$/, "");
+  if (clean.length <= width) return [clean];
+  const out: string[] = [];
+  let current = "";
+  for (const word of clean.split(/ +/)) {
+    if (word.length > width) {
+      if (current) out.push(current);
+      for (let i = 0; i < word.length; i += width) out.push(word.slice(i, i + width));
+      current = "";
+      continue;
+    }
+    if (!current) current = word;
+    else if (current.length + 1 + word.length <= width) current += ` ${word}`;
+    else {
+      out.push(current);
+      current = `  ${word}`;
+    }
+  }
+  if (current) out.push(current);
+  return out;
+}
+
 export function taxPaperPdf(input: { title: string; taxYear: string; lines: readonly string[]; endingYear?: number }): string {
   const span = input.endingYear ? [taxYearSpan(input.endingYear)] : [];
-  const rows = [TAX_INDICATIVE_LABEL, TAX_PACK_NOTE, input.title, input.taxYear, ...span, ...input.lines].slice(0, 42);
-  const commands = ["BT", "/F1 11 Tf", "48 760 Td"];
-  rows.forEach((line, index) => {
-    const clean = line.replace(/[^\x20-\x7E]/g, " ").slice(0, 110);
-    if (index > 0) commands.push("0 -16 Td");
-    commands.push(`(${pdfEscape(clean)}) Tj`);
+  const rows = [TAX_INDICATIVE_LABEL, TAX_PACK_NOTE, input.title, input.taxYear, ...span, ...input.lines].flatMap((l) => wrapPdfLine(l));
+  const pages: string[][] = [];
+  for (let i = 0; i < rows.length; i += PDF_LINES_PER_PAGE) pages.push(rows.slice(i, i + PDF_LINES_PER_PAGE));
+  if (!pages.length) pages.push([]);
+  const streams = pages.map((pageRows, p) => {
+    const commands = ["BT", "/F1 11 Tf", "48 760 Td"];
+    pageRows.forEach((line, index) => {
+      if (index > 0) commands.push("0 -16 Td");
+      commands.push(`(${pdfEscape(line)}) Tj`);
+    });
+    commands.push("ET");
+    if (pages.length > 1) commands.push("BT", "/F1 9 Tf", "48 30 Td", `(${pdfEscape(`Page ${p + 1} of ${pages.length}`)}) Tj`, "ET");
+    return commands.join("\n");
   });
-  commands.push("ET");
-  const stream = commands.join("\n");
+  // Objects: 1 catalog, 2 pages, 3 font, then a page + content pair per page.
+  const kids = pages.map((_, i) => `${4 + i * 2} 0 R`).join(" ");
   const objects = [
     "<< /Type /Catalog /Pages 2 0 R >>",
-    "<< /Type /Pages /Count 1 /Kids [3 0 R] >>",
-    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
-    `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
+    `<< /Type /Pages /Count ${pages.length} /Kids [${kids}] >>`,
     "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
   ];
+  streams.forEach((stream, i) => {
+    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents ${5 + i * 2} 0 R /Resources << /Font << /F1 3 0 R >> >> >>`);
+    objects.push(`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
+  });
   let body = "%PDF-1.4\n";
   const offsets: number[] = [0];
   objects.forEach((object, index) => {
@@ -191,6 +238,26 @@ export function taxPaperPdf(input: { title: string; taxYear: string; lines: read
   }
   body += `trailer << /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefAt}\n%%EOF`;
   return body;
+}
+
+/** b26 H-9: every FX rate used on a foreign row, with its source and trade date. */
+export function fxRateLines(
+  rows: readonly { ticker?: string | null; fx_rate?: number | null; fx_source?: string | null; currency?: string | null; executed_at?: string | null; type?: string | null }[]
+): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const row of rows) {
+    const fx = Number(row.fx_rate);
+    const cur = String(row.currency || "").toUpperCase();
+    if (!(fx > 0) || !cur || cur === "NZD") continue;
+    const day = String(row.executed_at || "").slice(0, 10) || "date not stored";
+    const source = String(row.fx_source || "").trim() || "rate saved with the trade (source not recorded)";
+    const line = `${String(row.ticker || "").toUpperCase()} ${row.type || ""} ${day}: ${fx.toFixed(4)} NZD per ${cur}, source ${source}`;
+    if (seen.has(line)) continue;
+    seen.add(line);
+    out.push(line);
+  }
+  return out.length ? ["FX rates used", ...out] : ["FX rates used: none (no foreign-currency rows in this book)"];
 }
 
 /** Distinct stored NZD-per-unit FX rates per ticker, from the ledger rows. */
@@ -213,8 +280,12 @@ export function fifPaperLines(paper: FifPaper, rows: readonly { ticker?: string 
   const holdings = paper.attributing.map((row) => {
     const rates = fx.get(row.ticker.toUpperCase());
     const rateText = rates?.length ? rates.map((r) => r.toFixed(4)).join(" / ") : "none stored";
-    return `${row.ticker}: opening NZD ${money(row.openingNzd) || "not entered"}, closing NZD ${money(row.closingNzd) || "not entered"}, FDR NZD ${money(row.fdrNzd) || "-"}, CV NZD ${money(row.cvNzd) || "-"}, FX NZD per unit ${rateText}`;
-  });
+    // b26 H-9: two short lines so nothing is cut at the right margin.
+    return [
+      `${row.ticker}: opening NZD ${money(row.openingNzd) || "not entered"}, closing NZD ${money(row.closingNzd) || "not entered"}, FDR NZD ${money(row.fdrNzd) || "-"}, CV NZD ${money(row.cvNzd) || "-"}`,
+      `  ${row.ticker} FX NZD per unit ${rateText}`,
+    ];
+  }).flat();
   return [
     `Peak cost NZD ${money(paper.peakCostNzd) || "not calculated"}`,
     fifThresholdSentence(paper),
