@@ -330,7 +330,7 @@ export function coachStaticFactReply(userMessage: string): string | null {
   }
   if (/de minimis|fif (threshold|exemption|limit)|(threshold|limit).*\bfif\b|50,?000|\b50k\b/.test(q)) {
     parts.push(
-      "FIF de minimis: if the total cost of your FIF interests is not more than NZ$50,000 at any time in the income year (NZ$100,000 for a joint holding), the FIF rules usually do not apply and dividends are taxed instead. This is indicative, not tax advice; check with IRD or a tax adviser."
+      "FIF de minimis: the FIF rules usually do not apply if the total cost of your FIF interests (purchase price including fees) is not more than NZ$50,000 at any time in the income year. New Zealand shares and most ASX-listed shares (Australian-resident, on the approved list) are excluded and add nothing to that cost. The NZ$100,000 figure applies only to two equal joint owners with no other FIF holdings; otherwise each owner counts their share of the joint cost plus their own FIF holdings against their own NZ$50,000. Indicative, not tax advice; check IR461 or a tax adviser."
     );
   }
   // b32 CR-2: broker questions get plain example facts on the static path: no ranking, no

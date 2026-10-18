@@ -31,8 +31,12 @@ const POLL_TRIES = 5;
 
 async function flexGet(url: string): Promise<string> {
   const res = await fetch(url, { headers: { "User-Agent": IBKR_USER_AGENT, accept: "application/xml,text/xml,text/csv" }, cache: "no-store", signal: AbortSignal.timeout(20_000) });
-  if (!res.ok) throw new Error(`IBKR answered HTTP ${res.status}. Try again later.`);
-  return res.text();
+  const body = await res.text();
+  // b32 BS-01: IBKR reports token problems as XML ErrorCode (1012 expired, 1015 invalid), even on a
+  // non-200. Hand that to the parser; a bare HTTP 403 with no ErrorCode is not a token error.
+  if (!res.ok && /<ErrorCode>\s*\d+\s*<\/ErrorCode>/.test(body)) return body;
+  if (!res.ok) throw new Error(`IBKR answered HTTP ${res.status}${res.status === 403 ? " (refused the request; this is not a token error)" : ""}. Try again later.`);
+  return body;
 }
 
 /**
