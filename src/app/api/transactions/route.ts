@@ -1,3 +1,4 @@
+import { testHooksAllowedFor } from "@/lib/test-hooks";
 import { DUPLICATE_DIVIDEND_CODE, findDuplicateDividendTx } from "@/lib/dividend-ledger";
 import { NextResponse } from "next/server";
 import { checkTickerQuota } from "@/lib/entitlements";
@@ -119,6 +120,26 @@ export async function POST(req: Request) {
     // plan holding cap → 403) and stops before any write. TT can POST an 11th
     // Free holding and see 403 without changing the book.
     if (new URL(req.url).searchParams.get("dryRun") === "1") {
+      // Goal b20 SECURITY + CR-6: ?assumeHoldings=N (pretend the book already holds N
+      // tickers) is a test hook, so only an allow-listed test account may use it;
+      // anyone else gets 404. Plain dryRun only validates the caller's own book and
+      // never writes, so it stays available (the Add trade precheck uses it).
+      const assumeRaw = new URL(req.url).searchParams.get("assumeHoldings");
+      if (assumeRaw != null) {
+        if (!testHooksAllowedFor(user as { _id?: string; email?: string })) {
+          return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
+        }
+        const n = Math.max(0, Math.min(1000, Math.floor(Number(assumeRaw) || 0)));
+        const kind = input.asset_type === "crypto" ? "crypto" : "stock";
+        const fake = Array.from({ length: n }, (_, i) => ({ ticker: `ASSUMED${i}.NZ`, asset_type: kind, shares: 1 }));
+        const quota = checkTickerQuota(user, fake as never, kind);
+        if (!quota.allowed) {
+          return NextResponse.json(
+            { ok: false, dryRun: true, error: quota.message, data: { code: "ticker_limit", used: quota.used, limit: quota.limit, assumed: n } },
+            { status: 403 }
+          );
+        }
+      }
       return NextResponse.json({ ok: true, dryRun: true, data: { wouldWrite: true, type: input.type, ticker: input.ticker ?? null } });
     }
 
@@ -193,6 +214,9 @@ export async function POST(req: Request) {
         console.error("[api/transactions] Trade email preview failed (non-fatal):", mailErr);
       });
 
+    // Goal b20 G-10: one line per write with the saved id and cash, so a "painted then
+    // vanished" report can be matched to what the server actually stored.
+    console.info("[write]", JSON.stringify({ action: input.type, ticker: input.ticker ?? null, id: (result.transaction as { _id?: string } | undefined)?._id ?? null, cash: ledger.cashBalance, status: 200 }));
     return NextResponse.json({
       ok: true,
       data: { ...ledger, lastTransaction: result.transaction, realizedNZD: result.realizedNZD },
@@ -240,7 +264,18 @@ export async function DELETE(req: Request) {
     if (!id) return NextResponse.json({ ok: false, error: "A dividend id is required." }, { status: 400 });
     // b7 H-5: deletes are idempotent by id. A row that is already gone (a retry,
     // a double click, a stale screen) answers 200 so the client drops it.
-    const loaded = await totalumSdk.crud.getRecordById("transaction", id).catch(() => null);
+    // Goal b20 G-10: only a real "not found" counts as already removed. A read that
+    // fails for any other reason (timeout, rate limit) used to answer "removed" while
+    // the row stayed in the book, so it came back after a reload.
+    let readFailed = false;
+    const loaded = await totalumSdk.crud.getRecordById("transaction", id).catch((err: unknown) => {
+      const text = err instanceof Error ? err.message : String(err);
+      if (!/not.?found|404|no record/i.test(text)) readFailed = true;
+      return null;
+    });
+    if (readFailed) {
+      return NextResponse.json({ ok: false, error: "The book could not be read just now. Nothing was removed; try again." }, { status: 503 });
+    }
     const row = (loaded as { data?: { _id?: string; type?: string; user?: string | { _id?: string } } } | null)?.data;
     if (!row?._id) {
       invalidateBookCache(user._id);
@@ -264,6 +299,13 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ ok: false, error: (dry as { blockedReason: string }).blockedReason }, { status: 409 });
     }
     const result = await planOrApplyLedgerReversal(id, true);
+    // Goal b20 G-10: confirm the row is really gone before answering "removed".
+    const after = await totalumSdk.crud.getRecordById("transaction", id).catch(() => null);
+    if ((after as { data?: { _id?: string } } | null)?.data?._id) {
+      console.error("[write] delete-unconfirmed", JSON.stringify({ id }));
+      return NextResponse.json({ ok: false, error: "The server did not confirm the removal. Reload and try again." }, { status: 500 });
+    }
+    console.info("[write]", JSON.stringify({ action: "delete", id, status: 200, cashAfter: (result as { cash?: { after?: number } })?.cash?.after ?? null }));
     ledgerAudit("delete", user._id, row, result);
     invalidateBookCache(user._id);
     return NextResponse.json({ ok: true, data: result });

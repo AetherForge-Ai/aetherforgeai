@@ -7,7 +7,7 @@ import { dividendIncome, type DividendView } from "@/lib/dividend-ledger";
 const read = (p: string) => readFileSync(p, "utf8");
 
 describe("goal b16", () => {
-  it("pins the build", () => expect(read("public/build-version.txt").trim()).toMatch(/^v3-goal-b1[6-9]-/));
+  it("pins the build", () => expect(read("public/build-version.txt").trim()).toMatch(/^v3-goal-b(1[6-9]|[2-9][0-9])-/));
 
   it("G-02: stored benchmark history has source and as-of", () => {
     const list = storedBenchmarks();

@@ -3,6 +3,7 @@ import { PUBLIC_EQUITY_SOURCE, publicCryptoSourcesLabel } from "@/lib/data-sourc
 import { cryptoVenueForLabel } from "@/lib/crypto-price-chain";
 import { loadPublicTicker } from "@/lib/public-ticker";
 import { feedOffFromCookieHeader } from "@/lib/test-hooks";
+import { currentUserMayUseTestHooks } from "@/lib/test-hooks.server";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -15,7 +16,8 @@ export const revalidate = 0;
  */
 export async function GET(req: Request) {
   // Goal b10 G-05 test hook: this browser asked for the feed to be off.
-  if (feedOffFromCookieHeader(req.headers.get("cookie"))) {
+  // Goal b20 SECURITY: the cookie only counts for an allow-listed test account.
+  if (feedOffFromCookieHeader(req.headers.get("cookie")) && (await currentUserMayUseTestHooks())) {
     return NextResponse.json(
       { ok: false, error: "Feed switched off in test mode" },
       { status: 503, headers: { "Cache-Control": "no-store", "CDN-Cache-Control": "no-store" } }

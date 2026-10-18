@@ -1,6 +1,6 @@
 /**
  * Goal loop batch b10 (GOAL-LOCK G-04 G-05 G-06 G-12 G-13 G-16, G-10 review).
- * pull-check:v3-goal-b19-2026-10-18
+ * pull-check:v3-goal-b20-2026-10-18
  */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
@@ -19,8 +19,8 @@ const words = (s: string) => s.split(/\s+/).filter(Boolean).length;
 
 describe("b10 pins", () => {
   it("build version", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-goal-b19-2026-10-18");
-    expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-goal-b19-2026-10-18");
+    expect(read("public/build-version.txt").trim()).toBe("v3-goal-b20-2026-10-18");
+    expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-goal-b20-2026-10-18");
   });
 });
 
@@ -76,7 +76,7 @@ describe("G-04 alerts v1", () => {
     expect(api).toContain("parseSimulate");
     expect(api).not.toMatch(/sendEmail|resend|nodemailer/i);
     expect(read("src/components/dashboard/WatchAlerts.tsx")).toContain("Unsubscribe");
-    expect(documentAccess("/test-hooks")).toBe("public");
+    expect(documentAccess("/test-hooks")).toBe("test-hooks"); // Goal b20 SECURITY: no longer public
   });
   it("simulate is ignored when hooks are off", () => {
     expect(parseSimulate("AIR.NZ:1", false)).toEqual([]);

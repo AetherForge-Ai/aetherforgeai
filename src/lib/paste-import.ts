@@ -42,7 +42,7 @@ function currencyOf(prefix: string | undefined, suffix: string | undefined): str
 const num = (s: string) => Number(s.replace(/,/g, ""));
 const MONEY = String.raw`(NZ\$|US\$|AU\$|A\$|NZD\s?|USD\s?|AUD\s?|\$)?\s?([\d,]+(?:\.\d+)?)(?:\s?(NZD|USD|AUD))?`;
 const TRADE = new RegExp(
-  String.raw`\b(bought|buy|purchased?|sold|sell)\b[^\d\n]{0,20}([\d,]+(?:\.\d+)?)\s*(?:x\s*)?(?:shares?|units?|of)?\s*(?:of\s+)?([A-Z][A-Z0-9]{0,9}(?:\.[A-Z]{1,3})?)\b[^\n]{0,40}?(?:@|\bat\b|price(?:\s+of)?:?)\s*` + MONEY,
+  String.raw`\b(bought|buy|purchased?|sold|sell)\b[^\d\n]{0,20}([\d,]+(?:\.\d+)?)\s*(?:x\s*)?(?:shares?|units?|of)?\s*(?:of\s+)?([A-Z][A-Z0-9]{0,9}(?:\.[A-Z]{1,3})?)\b[^\n]{0,40}?(?:@|\bat\s+an?\s+average\s+price\s+of\b|\bat\b|(?:average\s+)?price(?:\s+of)?:?|\bfor\b(?=[^\n]{0,30}\b(?:each|per\s+(?:share|unit))\b))\s*` + MONEY,
   "i"
 );
 
@@ -51,15 +51,24 @@ export function parsePastedTrades(text: string): { rows: PastedRow[]; unread: st
   const globalDate = findDate(text);
   const rows: PastedRow[] = [];
   const unread: string[] = [];
+  const FEE = /(?:brokerage|commission|fees?)\s*:?\s*(?:of\s+)?(?:NZ\$|US\$|AU\$|A\$|\$)?\s?([\d,]+(?:\.\d+)?)/i;
+  const REF_ALL = /(?:contract note|confirmation|order|reference|ref)[ \t]*(?:no\.?|number|#|id)?[ \t]*:?[ \t]*([A-Z0-9-]{4,})/gi;
+  // A reference has at least one digit, so words like "filled" or "Contract" are not taken.
+  const REF = { exec: (t: string) => { for (const m of t.matchAll(REF_ALL)) if (/\d/.test(m[1])) return m; return null; } };
   for (const block of blocks) {
     const lines = block.split("\n");
     let hit = false;
+    // Goal b20 G-24: fee and reference come from the trade's own line first. The
+    // block is a fallback only when it holds exactly one trade, so a second trade
+    // never borrows the first trade's fee.
+    const tradeCount = lines.filter((line) => TRADE.test(line)).length;
     for (const line of lines) {
       const m = TRADE.exec(line);
       if (!m) continue;
       hit = true;
-      const fee = /(?:brokerage|commission|fees?)\s*:?\s*(?:NZ\$|US\$|A\$|\$)?\s?([\d,]+(?:\.\d+)?)/i.exec(block);
-      const ref = /(?:contract note|confirmation|order|reference|ref)\s*(?:no\.?|number|#|id)?\s*:?\s*([A-Z0-9-]{4,})/i.exec(block);
+      const after = line.slice((m.index ?? 0) + m[0].length);
+      const fee = FEE.exec(after) ?? FEE.exec(line) ?? (tradeCount === 1 ? FEE.exec(block) : null);
+      const ref = REF.exec(line) ?? (tradeCount === 1 ? REF.exec(block) : null);
       rows.push({
         date: findDate(line) ?? findDate(block) ?? globalDate,
         type: /^(sold|sell)$/i.test(m[1]) ? "Sell" : "Buy",

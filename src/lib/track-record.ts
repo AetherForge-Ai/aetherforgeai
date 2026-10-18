@@ -79,3 +79,16 @@ export async function weeklyScorecard(week: string, calls: readonly TrackCall[],
   const body = { week, calls: scored, hits: count("hit"), misses: count("miss"), pending: count("pending"), unscored: count("unscored") };
   return { ...body, scorecardHash: await sha256Hex(canonical(body)), published: false as const };
 }
+
+/**
+ * Goal b20: the day whose close scores a call — 7 days after it was issued
+ * (Auckland date). Null until that day has fully passed, so a call is never
+ * scored on a price that is still moving.
+ */
+export function laterPriceDay(call: Pick<TrackCall, "issuedAt">, now = Date.now()): string | null {
+  const issued = Date.parse(call.issuedAt);
+  if (!Number.isFinite(issued)) return null;
+  const target = issued + 7 * 86400_000;
+  if (target + 86400_000 > now) return null;
+  return new Date(target).toLocaleDateString("en-CA", { timeZone: "Pacific/Auckland" });
+}

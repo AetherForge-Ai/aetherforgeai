@@ -49,7 +49,9 @@ const PUBLIC_DOCUMENT_ROUTES = [
   "/buy-the-bots",
   // Goal b10 G-06 read-only example book; G-04/G-05 test-mode switches.
   "/demo",
-  "/test-hooks",
+  // Goal b20 G-23: the learn hub and the comparison pages.
+  "/learn",
+  "/compare",
   "/stripe/demo",
   "/stripe/success",
   "/stripe/cancel",
@@ -81,8 +83,14 @@ function matchesRoute(pathname: string, routes: string[]): boolean {
   return routes.some((route) => pathname === route || pathname.startsWith(`${route}/`));
 }
 
-export function documentAccess(pathname: string): "public" | "member" | "missing" {
+/**
+ * Goal b20 SECURITY: /test-hooks is not public. A signed-in request reaches the
+ * page, which answers 404 unless GOAL_TEST_HOOKS=1 and the account is allow-listed;
+ * a signed-out request is a plain 404.
+ */
+export function documentAccess(pathname: string): "public" | "member" | "missing" | "test-hooks" {
   const path = normalise(pathname);
+  if (matchesRoute(path, ["/test-hooks"])) return "test-hooks";
   if (matchesRoute(path, PUBLIC_DOCUMENT_ROUTES)) return "public";
   if (matchesRoute(path, MEMBER_DOCUMENT_ROUTES)) return "member";
   return "missing";
