@@ -1,3 +1,4 @@
+import { canExportCsv } from "@/lib/entitlements";
 import { getCurrentUser } from "@/lib/session";
 import { AppShell } from "@/components/AppShell";
 import { TaxPageContent } from "@/components/tax/TaxPageContent";
@@ -34,7 +35,7 @@ export default async function TaxPage() {
 
   return (
     <AppShell tone="dark" user={shellUser} guest={!user}>
-      <TaxPageContent book={book} />
+      <TaxPageContent book={book} xero={!user ? "guest" : canExportCsv(user.subscription_plan) ? "paid" : "free"} />
     </AppShell>
   );
 }

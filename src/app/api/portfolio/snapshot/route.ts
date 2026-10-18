@@ -203,7 +203,18 @@ export async function GET(req: Request) {
       };
     });
 
+    // Goal b20 G-10: a ticker traded on the ledger with no holding row left was
+    // removed with Remove holding. Keep it off the open book (named in removedNote).
+    const heldTickers = new Set(stocks.map((row) => String(row.ticker || "").toUpperCase()).filter(Boolean));
+    const removedTickers = !Array.isArray(stockRes?.data) ? [] : [
+      ...new Set(
+        (ledger.transactions as SnapshotLedgerRow[])
+          .filter((row) => (row.type === "buy" || row.type === "sell" || row.type === "opening_balance") && row.ticker && row.asset_type !== "metal")
+          .map((row) => String(row.ticker).toUpperCase())
+      ),
+    ].filter((t) => !heldTickers.has(t));
     const snapshot = buildPortfolioSnapshot({
+      removedTickers,
       rows: ledger.transactions as SnapshotLedgerRow[],
       marks,
       extras,

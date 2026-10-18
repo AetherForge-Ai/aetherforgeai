@@ -7,7 +7,7 @@ import { loadMarketNews } from "@/lib/market-news";
 import { mentionsHoldingTicker } from "@/lib/news-present";
 import { composeWatchNotices, type WatchQuote } from "@/lib/holding-alert";
 import { encodeWatch, rowToWatch, watchSpecError, type WatchSpec } from "@/lib/watch-alerts";
-import { parseSimulate, SIMULATED_SOURCE, TEST_HOOKS_ENABLED } from "@/lib/test-hooks";
+import { parseSimulate, SIMULATED_SOURCE, testHooksAllowedFor } from "@/lib/test-hooks";
 import { aucklandDateISO } from "@/lib/fill-integrity";
 
 export const dynamic = "force-dynamic";
@@ -25,9 +25,11 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const res = await totalumSdk.crud.query("price_alert", { _filter: { user: user._id }, _limit: 200 });
   const rows = ((res?.data as unknown as Row[]) || []).filter((r) => String(r.status || "") !== "archived");
-  const simulated = parseSimulate(url.searchParams.get("simulate"));
+  // Goal b20 SECURITY: simulate only for an allow-listed test account.
+  const hooksAllowed = testHooksAllowedFor(user as { _id?: string; email?: string });
+  const simulated = parseSimulate(url.searchParams.get("simulate"), hooksAllowed);
   const simNews = new Set(
-    TEST_HOOKS_ENABLED
+    hooksAllowed
       ? String(url.searchParams.get("simulateNews") || "")
           .split(",")
           .map((t) => t.trim().toUpperCase())

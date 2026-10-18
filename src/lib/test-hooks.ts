@@ -8,7 +8,27 @@
  * - Simulated price (G-04): GET /api/watches?simulate=TICKER:price:changePct
  *   evaluates the signed-in member's own watches against that quote.
  */
-export const TEST_HOOKS_ENABLED = process.env.GOAL_TEST_HOOKS !== "0";
+// Goal b20 SECURITY: hooks are OFF unless GOAL_TEST_HOOKS=1, and even then only
+// for an allow-listed signed-in test account (see testHooksAllowedFor). The
+// constant only says the deployment switch is on; it never grants a hook alone.
+export const TEST_HOOKS_ENABLED = process.env.GOAL_TEST_HOOKS === "1";
+
+/** Allowed test identities: ids in GOAL_TEST_HOOK_USER_IDS, or emails at an allowed domain (default @example.invalid). */
+export function testHooksAllowedFor(
+  user: { _id?: string | null; email?: string | null } | null | undefined,
+  env: Record<string, string | undefined> = process.env
+): boolean {
+  if (env.GOAL_TEST_HOOKS !== "1" || !user) return false;
+  const ids = String(env.GOAL_TEST_HOOK_USER_IDS || "").split(",").map((v) => v.trim()).filter(Boolean);
+  if (user._id && ids.includes(String(user._id))) return true;
+  const domains = String(env.GOAL_TEST_HOOK_EMAIL_DOMAINS || "example.invalid")
+    .split(",")
+    .map((v) => v.trim().toLowerCase().replace(/^@/, ""))
+    .filter(Boolean);
+  const email = String(user.email || "").toLowerCase();
+  const at = email.lastIndexOf("@");
+  return at > 0 && domains.includes(email.slice(at + 1));
+}
 export const FEED_OFF_COOKIE = "af_test_feed_off";
 export const SIMULATED_SOURCE = "Simulated test quote";
 
