@@ -37,9 +37,9 @@ function bounded(ms: number): Promise<QuotaRead> {
 }
 
 /** b26 H-4: up to two bounded attempts (≤ 5 s total), with the reason when both fail. */
-export async function readReportQuota(attemptMs = 2400): Promise<QuotaRead> {
+export async function readReportQuota(attemptMs = 2400, attempts = 2): Promise<QuotaRead> {
   const first = await bounded(attemptMs);
-  if (!("reason" in first) || first.reason === "signed-out") return first;
+  if (attempts < 2 || !("reason" in first) || first.reason === "signed-out") return first;
   return bounded(attemptMs);
 }
 

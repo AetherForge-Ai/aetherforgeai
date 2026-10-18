@@ -1,0 +1,64 @@
+# Scheduled calls to the app's cron routes (GOAL-LOCK G-20 track record; broker sync).
+# GitHub runs scheduled workflows only from the default branch (main), so this
+# activates once the b31 line is mirrored to main. No email routes are called.
+name: cron
+
+on:
+  schedule:
+    - cron: "0 16 * * *"   # broker sync, daily 16:00 UTC (05:00 NZDT / 04:00 NZST)
+    - cron: "15 */6 * * *" # track record, every 6 hours
+  workflow_dispatch:
+    inputs:
+      job:
+        description: "Which route to call"
+        required: true
+        default: "both"
+        type: choice
+        options: [both, broker-sync, track-record]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cron-${{ github.event.schedule || github.event.inputs.job }}
+  cancel-in-progress: false
+
+env:
+  BASE_URL: https://aetherforgeai.co.nz
+
+jobs:
+  broker-sync:
+    if: github.event.schedule == '0 16 * * *' || (github.event_name == 'workflow_dispatch' && github.event.inputs.job != 'track-record')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Call /api/cron/broker-sync
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CRON_SECRET}" ]; then echo "CRON_SECRET is not set in repo secrets."; exit 1; fi
+          curl --fail --silent --show-error --retry 3 --retry-delay 30 --retry-all-errors \
+            --connect-timeout 20 --max-time 1500 -X POST \
+            -H "x-cron-secret: ${CRON_SECRET}" \
+            -o /tmp/out.json -w "HTTP %{http_code}\n" \
+            "${BASE_URL}/api/cron/broker-sync"
+          head -c 500 /tmp/out.json; echo
+
+  track-record:
+    if: github.event.schedule == '15 */6 * * *' || (github.event_name == 'workflow_dispatch' && github.event.inputs.job != 'broker-sync')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Call /api/cron/track-record
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CRON_SECRET}" ]; then echo "CRON_SECRET is not set in repo secrets."; exit 1; fi
+          curl --fail --silent --show-error --retry 3 --retry-delay 20 --retry-all-errors \
+            --connect-timeout 20 --max-time 300 \
+            -H "x-cron-secret: ${CRON_SECRET}" \
+            -o /tmp/out.json -w "HTTP %{http_code}\n" \
+            "${BASE_URL}/api/cron/track-record"
+          head -c 500 /tmp/out.json; echo

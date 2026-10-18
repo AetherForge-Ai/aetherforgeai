@@ -164,7 +164,7 @@ describe("b31 G-10 fixes", () => {
     expect(d).toMatch(/returnFocusRef/);
   });
   it("Confirm holds the dialog at most 1.2 s", () => {
-    expect(read("src/components/dashboard/RecordTransactionPanel.tsx")).toMatch(/CONFIRM_HOLD_MS = 1_200/);
+    expect(read("src/components/dashboard/RecordTransactionPanel.tsx")).toMatch(/CONFIRM_HOLD_MS = 900/);
   });
 });
 
