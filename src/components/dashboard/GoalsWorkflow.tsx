@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { goalProgress, validateGoal } from "@/lib/goal-math";
+import { goalProgress, monthlyNeeded, validateGoal } from "@/lib/goal-math";
 import { Button } from "@/components/ui/button";
 
 type GoalRow = {
@@ -47,7 +47,7 @@ export default function GoalsWorkflow() {
   const input = {
     targetNzd: num(draft.target),
     targetDate: draft.date,
-    monthlyNzd: num(draft.monthly || "0"),
+    monthlyNzd: draft.monthly.trim() === "" ? 0 : num(draft.monthly),
     bookNzd: num(draft.start || "0"),
     annualReturnPct: num(draft.ret || "0"),
   };
@@ -88,6 +88,8 @@ export default function GoalsWorkflow() {
       setGoals((prev) => [saved, ...prev.filter((g) => g._id !== saved._id)]);
       setAnnounce(`${saved.label} saved. ${goalProgress({ ...input }).summary}${body.startSaved === false ? " The starting amount could not be stored yet." : ""}`);
       setDraft(EMPTY);
+      // b27 H-11: re-read from the server so the list shows what a reload will show.
+      window.setTimeout(() => void load(), 1200);
     } catch {
       setError("The goal was not saved. Try again.");
     } finally {
@@ -176,6 +178,14 @@ export default function GoalsWorkflow() {
                     {p.progressPct}% there. Projected {nzd(p.projected)} ({p.status}); range {nzd(p.range.low)} to {nzd(p.range.high)}. {p.range.label}.
                     {g.start_nzd == null ? " Starting amount not stored; shown from NZ$0." : ""}
                   </p>
+                  {(() => {
+                    const need = monthlyNeeded(gi);
+                    return Number.isFinite(need) ? (
+                      <p className="mt-1 text-muted-foreground" data-monthly-needed>
+                        Monthly amount needed to reach it by {g.target_date}: {nzd(need)} at {gi.annualReturnPct}% a year (illustrative, not a forecast or advice).
+                      </p>
+                    ) : null;
+                  })()}
                 </>
               ) : (
                 <p className="mt-2 text-amber-700" role="status">This goal&apos;s date has passed. Edit the date to keep tracking it.</p>

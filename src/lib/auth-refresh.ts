@@ -68,6 +68,14 @@ export function invalidateLiveSessionProbe(): void {
   liveSessionEpoch += 1;
 }
 
+/** b27 H-4: the session could not be confirmed either way. Show a retry, never the members gate. */
+export class SessionUnavailableError extends Error {
+  constructor() {
+    super("session unavailable");
+    this.name = "SessionUnavailableError";
+  }
+}
+
 /** b26 H-4: a stalled session request used to hold /dashboard for minutes. */
 export const SESSION_FETCH_TIMEOUT_MS = 4000;
 function sessionSignal(): AbortSignal | undefined {
@@ -85,6 +93,14 @@ async function fetchSessionEnvelope(epochAtStart: number, depth = 0): Promise<Se
     });
     // b26 H-4: re-read at most twice when the session changed mid-flight (was unbounded).
     if (epochAtStart !== liveSessionEpoch && depth < 2) return fetchSessionEnvelope(liveSessionEpoch, depth + 1);
+    // b27 H-4: 503 means the session store was slow, not that this browser signed out.
+    if (res.status === 503) {
+      if (depth < 1) {
+        await new Promise((resolve) => setTimeout(resolve, 700));
+        return fetchSessionEnvelope(liveSessionEpoch, depth + 1);
+      }
+      throw new SessionUnavailableError();
+    }
     if (!res.ok) return null;
     // A colo can still be holding another member's /api/session body.
     // Do not treat that replay as this browser's paper book.
@@ -92,7 +108,10 @@ async function fetchSessionEnvelope(epochAtStart: number, depth = 0): Promise<Se
     const data = (await res.json().catch(() => null)) as SessionEnvelope;
     if (epochAtStart !== liveSessionEpoch && depth < 2) return fetchSessionEnvelope(liveSessionEpoch, depth + 1);
     return data;
-  } catch {
+  } catch (err) {
+    if (err instanceof SessionUnavailableError) throw err;
+    // b27 H-4: a timed-out or failed request is "unknown", not signed out.
+    if (err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError")) throw new SessionUnavailableError();
     return null;
   }
 }
@@ -101,6 +120,11 @@ const readSessionEnvelope = createSingleFlight(() => fetchSessionEnvelope(liveSe
 
 /** Dashboard and nav: one stable read. A null result is not a reason to rotate. */
 export function confirmPageSession(): Promise<LiveSessionUser | null> {
+  return readSessionEnvelope().then(parseLiveUser, () => null);
+}
+
+/** b27 H-4: same read, but throws SessionUnavailableError instead of answering "signed out". */
+export function confirmPageSessionStrict(): Promise<LiveSessionUser | null> {
   return readSessionEnvelope().then(parseLiveUser);
 }
 
@@ -109,12 +133,12 @@ export function confirmPageSession(): Promise<LiveSessionUser | null> {
  * fields. Null until this browser's cookie resolves to a user.
  */
 export function confirmDashboardSession(): Promise<DashboardSessionUser | null> {
-  return readSessionEnvelope().then(parseDashboardSessionUser);
+  return readSessionEnvelope().then(parseDashboardSessionUser, () => null);
 }
 
 /** Nav identity. The session atom is not consulted — it can name the previous book. */
 export function confirmSessionUser(_atomUserId?: string | null): Promise<LiveSessionUser | null> {
-  return readSessionEnvelope().then(parseLiveUser);
+  return readSessionEnvelope().then(parseLiveUser, () => null);
 }
 
 export type TradeSessionAlign =

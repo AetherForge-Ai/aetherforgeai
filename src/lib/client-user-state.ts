@@ -45,8 +45,32 @@ export function purgeLegacyCashCache(): void {
   }
 }
 
+/**
+ * b27 G-10: after a full page reload the cached book can be older than the server's (a write
+ * from another tab, or a delete whose cache write raced), which showed NZ$51.39 for ~4 s while
+ * the server had NZ$100. On a reload, cached cash and rows are not painted until the first
+ * fresh server value is written; the page shows its skeleton instead.
+ */
+let reloadSuppressed: boolean | null = null;
+export function cacheSuppressedAfterReload(): boolean {
+  if (typeof window === "undefined") return false;
+  if (reloadSuppressed == null) {
+    try {
+      const nav = performance.getEntriesByType?.("navigation")?.[0] as PerformanceNavigationTiming | undefined;
+      reloadSuppressed = nav?.type === "reload";
+    } catch {
+      reloadSuppressed = false;
+    }
+  }
+  return reloadSuppressed;
+}
+function freshWriteSeen(): void {
+  reloadSuppressed = false;
+}
+
 export function readCachedCashNZD(userId: string | null | undefined): number | null {
   if (!userId || typeof window === "undefined") return null;
+  if (cacheSuppressedAfterReload()) return null;
   purgeLegacyCashCache();
   try {
     const raw = sessionStorage.getItem(cashBalanceStorageKey(userId));
@@ -60,6 +84,7 @@ export function readCachedCashNZD(userId: string | null | undefined): number | n
 
 export function readCachedBook(userId: string | null | undefined): CachedBookSnapshot | null {
   if (!userId || typeof window === "undefined") return null;
+  if (cacheSuppressedAfterReload()) return null;
   try {
     const raw = sessionStorage.getItem(BOOK_KEY_PREFIX + userId);
     if (!raw) return null;
@@ -73,6 +98,7 @@ export function readCachedBook(userId: string | null | undefined): CachedBookSna
 
 export function writeCachedBook(userId: string | null | undefined, snapshot: CachedBookSnapshot): void {
   if (!userId || typeof window === "undefined") return;
+  freshWriteSeen();
   try {
     sessionStorage.setItem(BOOK_KEY_PREFIX + userId, JSON.stringify(snapshot));
   } catch {
@@ -83,6 +109,7 @@ export function writeCachedBook(userId: string | null | undefined, snapshot: Cac
 export function writeCachedCashNZD(userId: string | null | undefined, bal: number): void {
   if (!userId || typeof window === "undefined") return;
   if (!Number.isFinite(bal) || bal < 0) return;
+  freshWriteSeen();
   purgeLegacyCashCache();
   try {
     sessionStorage.setItem(cashBalanceStorageKey(userId), String(bal));

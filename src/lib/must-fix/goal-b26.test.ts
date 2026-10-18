@@ -59,7 +59,7 @@ describe("goal b26", () => {
   });
 
   it("deposit rows can be removed, never below zero cash; seed starts from a known book", () => {
-    expect(read("src/app/api/transactions/route.ts")).toContain('type === "deposit" || type === "withdrawal"');
+    expect(read("src/app/api/transactions/route.ts")).toContain(`type === "deposit" || type === "withdraw"`);
     expect(read("src/lib/ledger-reversal-apply.ts")).toContain("cashAfter < -0.009");
     expect(read("qa/fixtures/seed-fixture-accounts.mjs")).toContain("not re-seeding");
   });

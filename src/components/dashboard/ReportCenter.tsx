@@ -731,7 +731,7 @@ export function ReportCenter({
           </span>
           <div>
             <p className="text-sm font-semibold">
-              {cadence.unit === "month" && !freeQuota && !preview ? (
+              {cadence.unit === "month" && (sharedLimit == null || sharedRemaining == null) && !preview ? (
                 // b6 H-4: a loading line, never the default allowance, until the real count arrives.
                 <span className="text-muted-foreground" aria-live="polite">
                   {historyError || historyLoaded ? (
@@ -744,12 +744,14 @@ export function ReportCenter({
                   ) : "Checking your AI reports this month…"}
                 </span>
               ) : cadence.unit === "month" ? (
+                // b27 H-4: Starter's monthly count comes from the same server quota as the Stox/Koins
+                // buttons (it was only read from the Free-plan field, so Starter always saw "did not load").
                 <>
-                  Free plan:{" "}
-                  <span className="text-foreground">
-                    {freeQuota ? `${freeQuota.remaining} of ${freeQuota.limit}` : FREE_REPORTS_PER_MONTH} AI reports
+                  {freePlan ? "Free plan" : "This month"}:{" "}
+                  <span className="text-foreground" data-report-count>
+                    {sharedRemaining != null && sharedLimit != null ? `${sharedRemaining} of ${sharedLimit}` : FREE_REPORTS_PER_MONTH} AI reports
                   </span>{" "}
-                  left this month on your chosen bot (Stox or Koins)
+                  left this month{freePlan ? " on your chosen bot (Stox or Koins)" : ""}
                 </>
               ) : (
                 <>

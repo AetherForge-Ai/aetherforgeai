@@ -288,7 +288,7 @@ export async function DELETE(req: Request) {
     const type = String(row.type || "");
     const trade = type === "buy" || type === "sell";
     // b26: a cash deposit or withdrawal can be removed too; cash is recomputed by the reversal.
-    const cashLine = type === "deposit" || type === "withdrawal";
+    const cashLine = type === "deposit" || type === "withdraw" || type === "withdrawal";
     if (type !== "dividend" && !cashLine && !(trade && LEDGER_ROW_EDIT)) {
       return NextResponse.json(
         { ok: false, error: "Only a dividend, deposit or withdrawal can be removed from this page." },

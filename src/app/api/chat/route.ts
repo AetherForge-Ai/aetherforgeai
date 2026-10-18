@@ -5,6 +5,7 @@ import { assistantQueryLimit, aucklandMonthKey } from "@/lib/entitlements";
 import { totalumSdk } from "@/lib/totalum";
 import { buildPortfolioContext, ANALYST_SYSTEM_PROMPT } from "@/lib/ai-context";
 import { createGrokChatCompletion, type GrokMessage } from "@/lib/grok";
+import { ASSISTANT_SHARE_PICK_REPLY, isSharePickRequest } from "@/lib/guide-safety";
 import { assistantCompletionMessages } from "@/lib/ai-request-payload";
 import type { Stock } from "@/lib/portfolio";
 
@@ -136,12 +137,18 @@ export async function POST(req: Request) {
       history,
     });
 
-    console.log(`[api/chat] Generating Grok reply for user ${user._id}`);
-    const reply = await createGrokChatCompletion({
-      messages,
-      maxTokens: 1000,
-      temperature: 0.7,
-    });
+    // b27 CR-2: share-pick questions get a fixed refusal; no model call, so it holds even when the
+    // provider is down or a prompt tries to talk the model round.
+    const refused = isSharePickRequest(userMessage);
+    if (refused) console.info(`[api/chat] share-pick refusal for user ${user._id}`);
+    else console.log(`[api/chat] Generating Grok reply for user ${user._id}`);
+    const reply = refused
+      ? ASSISTANT_SHARE_PICK_REPLY
+      : await createGrokChatCompletion({
+          messages,
+          maxTokens: 1000,
+          temperature: 0.7,
+        });
 
     // Persist the assistant reply
     const saved = await totalumSdk.crud.createRecord("chat_message", {

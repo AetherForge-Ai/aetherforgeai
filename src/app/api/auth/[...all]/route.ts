@@ -4,12 +4,63 @@ import { NextResponse } from "next/server";
 import { validateSignupConsent } from "@/lib/signup-consent";
 import { authRateLimitRule, normaliseLoginEmail, sha256Hex, takeRateLimit, rateLimitHeaders, rateLimitIdentity, AUTH_EMAIL_LIMIT, AUTH_EMAIL_WINDOW_MS } from "@/lib/ip-rate-limit";
 import { ensureDurableRateLimit } from "@/lib/durable-counter.server";
+import { cookieValue, sessionExpiresInFuture, setCookieClears, verifySignedSessionToken, withoutClears } from "@/lib/session-token";
 
 ensureDurableRateLimit();
 
 const handler = toNextJsHandler(auth);
 
-export const GET = handler.GET;
+/**
+ * b27 H-4 (session drops): better-auth's get-session clears the session cookie whenever its
+ * store read fails or the session touch errors, so a slow Totalum read signed members out.
+ * A clear is passed through only when this request's token is definitely gone (bad signature,
+ * no row, or expired). Every decision is logged with its reason; tokens are never logged.
+ */
+export async function GET(req: Request) {
+  const pathname = new URL(req.url).pathname;
+  if (!/\/get-session\/?$/.test(pathname)) return handler.GET(req);
+  const res = await handler.GET(req);
+  const lines = typeof res.headers.getSetCookie === "function" ? res.headers.getSetCookie() : [];
+  if (!lines.length) return res;
+  const ctx = await auth.$context;
+  const tokenName = ctx.authCookies.sessionToken.name;
+  const dataName = ctx.authCookies.sessionData.name;
+  if (!lines.some((l) => setCookieClears(l, tokenName))) return res;
+  const verdict = await sessionGone(req.headers.get("cookie"), ctx);
+  if (verdict.gone) {
+    console.info("[session] cookie cleared by get-session:", verdict.reason);
+    return res;
+  }
+  console.warn("[session] kept the session cookie; get-session tried to clear it:", verdict.reason);
+  const headers = new Headers(res.headers);
+  headers.delete("set-cookie");
+  for (const l of withoutClears(lines, [tokenName, dataName])) headers.append("set-cookie", l);
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
+}
+
+async function sessionGone(
+  cookieHeader: string | null,
+  ctx: Awaited<typeof auth.$context>
+): Promise<{ gone: boolean; reason: string }> {
+  const raw = cookieValue(cookieHeader, ctx.authCookies.sessionToken.name);
+  if (!raw) return { gone: true, reason: "no session cookie on the request" };
+  const token = await verifySignedSessionToken(raw, ctx.secret);
+  if (!token) return { gone: true, reason: "signature did not verify" };
+  try {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const found = (await Promise.race([
+      Promise.resolve(ctx.internalAdapter.findSession(token)),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error("timeout")), 4000);
+      }),
+    ]).finally(() => timer && clearTimeout(timer))) as { session?: { expiresAt?: unknown } } | null;
+    if (!found?.session) return { gone: true, reason: "no session row for this token" };
+    if (!sessionExpiresInFuture(found.session.expiresAt)) return { gone: true, reason: "session expired" };
+    return { gone: false, reason: "session row is valid" };
+  } catch (err) {
+    return { gone: false, reason: `store read failed (${err instanceof Error ? err.message.slice(0, 60) : "error"})` };
+  }
+}
 
 /**
  * Better Auth returns 400 when sign-out runs without a live session (the
