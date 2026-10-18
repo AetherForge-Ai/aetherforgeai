@@ -27,10 +27,13 @@ type RateCache = {
 };
 
 const buckets = new Map<string, number>();
+const slidingLog = new Map<string, number[]>();
 
 /** A counter shared by every isolate. increment returns the new count for the key. */
 export interface DurableCounterStore {
   increment(storageKey: string, windowMs: number, now: number): Promise<number>;
+  /** b25 CR-2: record one hit and return the expiry (ms) of every hit still inside the window. */
+  slidingHits?(storageKey: string, windowMs: number, now: number): Promise<number[]>;
 }
 
 let durableStore: DurableCounterStore | null = null;
@@ -45,6 +48,7 @@ export function hasDurableCounterStore(): boolean {
 
 export function resetRateLimits(): void {
   buckets.clear();
+  slidingLog.clear();
 }
 
 /** Sign-in area limits (CR-5). Failed or not, every POST counts. */
@@ -333,4 +337,63 @@ export function tableErrorDetail(err: unknown): string {
     .replace(/\s+/g, " ")
     .trim();
   return (cleaned || "empty").slice(0, 80);
+}
+
+
+/**
+ * b25 CR-2: a true sliding window. Every hit is kept with its expiry (hit time + window);
+ * the count is the hits not yet expired, so 7 POSTs in any 60 s span refuse the 7th even
+ * across a clock-minute boundary. Retry-After is the seconds until the oldest of the last
+ * `limit` hits leaves the window. Refused hits count too. With table=ok the durable rows
+ * decide; this isolate's log is the floor when the table is unreachable.
+ */
+export function resetSlidingLimits(): void {
+  slidingLog.clear();
+}
+
+export async function takeSlidingRateLimit(
+  key: string,
+  limit: number,
+  windowMs: number,
+  now = Date.now(),
+  opts: { edge?: EdgeLimiterName } = {}
+): Promise<RateLimitResult> {
+  const storageKey = `rls:${key}`;
+  const local = (slidingLog.get(storageKey) ?? []).filter((exp) => exp > now);
+  local.push(now + windowMs);
+  slidingLog.set(storageKey, local);
+  let durable: number[] | null = null;
+  let tableState = durableStore ? "no-sliding-support" : "unregistered";
+  if (durableStore?.slidingHits) {
+    try {
+      durable = (await durableStore.slidingHits(storageKey, windowMs, now)).filter((exp) => exp > now).sort((a, b) => a - b);
+      tableState = "ok";
+    } catch (err) {
+      durable = null;
+      const code = classifyTableError(err);
+      tableState = code.startsWith("error:") && !code.includes("(") ? `${code}(detail=${tableErrorDetail(err)})` : code;
+      lastTableState = tableState;
+    }
+  }
+  let edgeState = "not-used";
+  if (opts.edge) {
+    const edge = await edgeRateLimit(opts.edge, key);
+    edgeState = edge === null ? "absent" : "present";
+    if (edge === false) {
+      return { allowed: false, remaining: 0, limit, resetSec: Math.ceil(windowMs / 1000), store: "edge", keyHash: keyHash(key), backends: `window=sliding; edge-binding=present; table=${tableState}; decided-by=edge` };
+    }
+  }
+  const hits = durable && durable.length >= local.length ? durable : [...local].sort((a, b) => a - b);
+  const store: RateLimitStore = durable && durable.length >= local.length ? "durable" : "memory";
+  const backends = `window=sliding; edge-binding=${edgeState}; table=${tableState}; durable-object=absent`;
+  lastBackends = backends;
+  const count = hits.length;
+  if (count > limit) {
+    // The oldest of the `limit` hits before this one must expire before a new hit fits.
+    const oldestBlocking = hits[count - 1 - limit];
+    const resetSec = Math.max(1, Math.ceil((oldestBlocking - now) / 1000));
+    return { allowed: false, remaining: 0, limit, resetSec, store, keyHash: keyHash(key), backends: `${backends}; decided-by=${store}` };
+  }
+  const resetSec = Math.max(1, Math.ceil(((hits[0] ?? now + windowMs) - now) / 1000));
+  return { allowed: true, remaining: Math.max(0, limit - count), limit, resetSec, store, keyHash: keyHash(key), backends };
 }

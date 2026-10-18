@@ -4,6 +4,8 @@ import {
   createGrokChatCompletion,
   GrokError,
   guideModel,
+  GUIDE_MODEL_FALLBACK,
+  noteGuideFailure,
   isGrokConfigured,
   type GrokMessage,
 } from "@/lib/grok";
@@ -17,6 +19,7 @@ import {
   ipBucket48,
   PERSONAL_GUIDE_LIMIT_48,
   takeRateLimit,
+  takeSlidingRateLimit,
 } from "@/lib/ip-rate-limit";
 import {
   PERSONAL_GUIDE_SYSTEM_PROMPT,
@@ -79,7 +82,8 @@ export async function POST(req: Request) {
     if (!identity.ok) {
       return NextResponse.json({ ok: false, error: RATE_LIMIT_ADDRESS_REQUIRED }, { status: 400 });
     }
-    const limit = await takeRateLimit(
+    // b25 CR-2: sliding 60 s window on the durable table (keyed per /64 by rateLimitIdentity).
+    const limit = await takeSlidingRateLimit(
       `personal-guide:${encodeURIComponent(identity.ip)}`,
       PERSONAL_GUIDE_LIMIT,
       PERSONAL_GUIDE_WINDOW_MS,
@@ -166,10 +170,10 @@ export async function POST(req: Request) {
 
     let usage: { promptTokens: number | null; completionTokens: number | null } | null = null;
     let reply: string;
-    try {
-      reply = await createGrokChatCompletion({
+    const callGuide = (model: string) =>
+      createGrokChatCompletion({
         messages,
-        model: guideModel(),
+        model,
         // b5 CR-2: 280 was too small for the reasoning model — its thinking used the
         // whole allowance and the API returned no reply text, so every call failed.
         maxTokens: GUIDE_MAX_TOKENS,
@@ -179,11 +183,25 @@ export async function POST(req: Request) {
           usage = u;
         },
       });
+    try {
+      try {
+        reply = await callGuide(guideModel());
+      } catch (first) {
+        // b25 CR-2: a 404 means the model id is wrong or retired. Note it (model + endpoint,
+        // never the key) and try one current model from docs.x.ai before falling back.
+        if (first instanceof GrokError && first.code === "http_404" && guideModel() !== GUIDE_MODEL_FALLBACK) {
+          noteGuideFailure(guideModel(), "http_404");
+          reply = await callGuide(GUIDE_MODEL_FALLBACK);
+        } else {
+          throw first;
+        }
+      }
     } catch (err) {
       const timedOut = err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError");
       const code = timedOut ? "timeout" : err instanceof GrokError ? err.code : "error";
       // Key-free: only the model id and a short reason code.
       console.warn(`[api/personal-guide] AI call failed model=${guideModel()} reason=${code}`);
+      if (!timedOut) noteGuideFailure(guideModel(), code);
       if (timedOut) {
         return NextResponse.json(
           { ok: false, error: GUIDE_BUSY_MESSAGE, busy: true },
