@@ -1,0 +1,3 @@
+Date (NZ),Side,Symbol,Quantity,Price (USD),Notional Value (USD),Brokerage Fees (USD),FX Rate,Price (NZD),Notional Value (NZD),Brokerage Fees (NZD)
+2026-03-02,Buy,MSFT,2,100.00,203.00,3.00,1.6500,165.00,334.95,4.95
+2026-03-03,Sell,MSFT,1,110.00,113.00,3.00,1.6500,181.50,186.45,4.95
