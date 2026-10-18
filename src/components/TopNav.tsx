@@ -1,6 +1,8 @@
 "use client";
 
+import { signOutNow } from "@/lib/sign-out";
 import { useEffect, useState } from "react";
+import type { MouseEvent as ReactMouseEvent } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLiveSessionUser } from "@/lib/use-live-session";
@@ -320,7 +322,7 @@ function AccountMenu({
         )}
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <a href="/logout" className="text-destructive focus:text-destructive"><LogOut className="size-4" /> Sign out</a>
+          <a href="/logout" onClick={onSignOutClick} className="text-destructive focus:text-destructive"><LogOut className="size-4" /> Sign out</a>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -433,7 +435,7 @@ function MobileDrawer({
                 </Link>
               </Button>
               <Button asChild variant="outline" className="w-full justify-start text-destructive">
-                <a href="/logout"><LogOut className="size-4" /> Sign out</a>
+                <a href="/logout" onClick={onSignOutClick}><LogOut className="size-4" /> Sign out</a>
               </Button>
             </>
           ) : (
@@ -457,6 +459,13 @@ function MobileDrawer({
  * (marketing + app) via SiteHeader and AppShell, so the primary menu never
  * changes shape or relocates to a sidebar when entering the portfolio.
  */
+/** b41 P1: Sign out revokes the session from the click itself (awaited) before navigating. */
+function onSignOutClick(event: ReactMouseEvent<HTMLAnchorElement>) {
+  if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
+  event.preventDefault();
+  void signOutNow();
+}
+
 export const AUTH_PAGE_PATHS = ["/login", "/register", "/forgot-password", "/reset-password", "/verify-email"] as const;
 
 export function isAuthPagePath(pathname: string | null | undefined): boolean {

@@ -198,7 +198,7 @@ describe("H-13 market-news relevance", () => {
 
 describe("batch 5 pins", () => {
   it("build string and pull-check marker", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-goal-b40-2026-10-19");
+    expect(read("public/build-version.txt").trim()).toBe("v3-goal-b41-2026-10-19");
     expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-must-fix-b5-2026-10-17");
   });
 });

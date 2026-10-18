@@ -47,7 +47,8 @@ export async function GET(req: Request) {
       headers: { ...lastGoodResponse.headers, "x-af-snapshot-stale": "1", "Set-Cookie": snapshotFloorCookie(Math.max(lastGoodResponse.version, floor)) },
     });
   }
-  const snap = pickServedSnapshot(await withDeadline(fallbackSnap, 400, null), lastGoodSnap);
+  // b41 H-1: the fallback read gets its full bounded time, not 400 ms, before a 503 is ever chosen.
+  const snap = pickServedSnapshot(await withDeadline(fallbackSnap, COLD_START_READ_MS + 200, null), lastGoodSnap);
   if (snap) {
     const fromSnap = await withDeadline(snapshotOnlyResponse(snap, floor).catch(() => null), 600, null);
     if (fromSnap) return fromSnap;
@@ -139,7 +140,9 @@ async function buildTicker(floor: number, cookie: string | null, hooksAllowed: b
   // G-05: named stale/failed mark for this browser. Omitted unless the account is allow-listed.
   const testFeedForce = readFeedForce(cookie, hooksAllowed);
   // Never a 200 with an empty crypto list: no copy anywhere is a 503 the tape retries.
-  if (!feed.rows.crypto.length && !snap) return noCopyResponse();
+  // b41 H-1 (TT: 2 × 503 with a snapshot available): this used to return the 503 as the build's
+  // answer, which skipped the fallback snapshot read already running in GET. Null hands over to it.
+  if (!feed.rows.crypto.length && !snap) return null;
   // b40 H-1 (c): a body older than the client's floor (no newer copy found above) is always marked
   // stale; a cookie client is never served below its floor unmarked.
   const belowFloor = !!snap && floor > 0 && snap.version < floor;

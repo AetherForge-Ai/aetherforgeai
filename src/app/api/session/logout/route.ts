@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { forgetCachedSessionToken } from "@/lib/session";
+import { markSessionTokenRevoked } from "@/lib/session-revocation";
 import { cookieValue, verifySignedSessionToken } from "@/lib/session-token";
 import { applyExpiredAuthCookies, expireAuthCookies } from "@/lib/session-cookies";
 
@@ -18,7 +19,12 @@ export async function POST() {
   try {
     const ctx = await auth.$context;
     const raw = cookieValue(headerList.get("cookie"), ctx.authCookies.sessionToken.name);
-    if (raw) forgetCachedSessionToken(await verifySignedSessionToken(raw, ctx.secret));
+    if (raw) {
+      const token = await verifySignedSessionToken(raw, ctx.secret);
+      forgetCachedSessionToken(token);
+      // b41 P1: every isolate rejects this token from now on, even from its session cache.
+      await markSessionTokenRevoked(token);
+    }
   } catch {
     // best effort
   }

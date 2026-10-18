@@ -1,385 +1,385 @@
 {
- "note": "Goal b20 G-24: 20 synthetic samples (made-up trades, no real people or accounts).",
- "samples": [
-  {
-   "name": "sharesies-email-buy",
-   "text": "Hi Max,\nYou bought 10 AIR.NZ shares at NZ$0.62 on 3 Oct 2026.\nTransaction fee: NZ$0.50\nOrder ID: SH-100231",
-   "expected": [
+  "note": "Goal b20 G-24: 20 synthetic samples (made-up trades, no real people or accounts).",
+  "samples": [
     {
-     "date": "2026-10-03",
-     "type": "Buy",
-     "ticker": "AIR.NZ",
-     "quantity": 10,
-     "price": 0.62,
-     "currency": "NZD",
-     "fees": 0.5,
-     "reference": "SH-100231"
-    }
-   ]
-  },
-  {
-   "name": "hatch-us-buy",
-   "text": "Order filled\nBought 5 AAPL @ US$227.10 on 2026-09-12\nCommission: US$3.00\nReference: HT-55821",
-   "expected": [
-    {
-     "date": "2026-09-12",
-     "type": "Buy",
-     "ticker": "AAPL",
-     "quantity": 5,
-     "price": 227.1,
-     "currency": "USD",
-     "fees": 3.0,
-     "reference": "HT-55821"
-    }
-   ]
-  },
-  {
-   "name": "asb-contract-note-sell",
-   "text": "ASB Securities contract note\nContract note no. CN-778812\nDate: 14/08/2026\nSold 200 FPH.NZ at NZ$34.20\nBrokerage: NZ$30.00",
-   "expected": [
-    {
-     "date": "2026-08-14",
-     "type": "Sell",
-     "ticker": "FPH.NZ",
-     "quantity": 200,
-     "price": 34.2,
-     "currency": "NZD",
-     "fees": 30.0,
-     "reference": "CN-778812"
-    }
-   ]
-  },
-  {
-   "name": "multi-trade-own-fees",
-   "text": "Trades on 2026-10-01\nBought 50 SPK.NZ at NZ$2.40 brokerage NZ$5.00 ref TR-0001\nSold 100 AIR.NZ at NZ$0.65 brokerage NZ$3.00 ref TR-0002",
-   "expected": [
-    {
-     "date": "2026-10-01",
-     "type": "Buy",
-     "ticker": "SPK.NZ",
-     "quantity": 50,
-     "price": 2.4,
-     "currency": "NZD",
-     "fees": 5.0,
-     "reference": "TR-0001"
+      "name": "sharesies-email-buy",
+      "text": "Hi Max,\nYou bought 10 AIR.NZ shares at NZ$0.62 on 3 Oct 2026.\nTransaction fee: NZ$0.50\nOrder ID: SH-100231",
+      "expected": [
+        {
+          "date": "2026-10-03",
+          "type": "Buy",
+          "ticker": "AIR.NZ",
+          "quantity": 10,
+          "price": 0.62,
+          "currency": "NZD",
+          "fees": 0.5,
+          "reference": "SH-100231"
+        }
+      ]
     },
     {
-     "date": "2026-10-01",
-     "type": "Sell",
-     "ticker": "AIR.NZ",
-     "quantity": 100,
-     "price": 0.65,
-     "currency": "NZD",
-     "fees": 3.0,
-     "reference": "TR-0002"
-    }
-   ]
-  },
-  {
-   "name": "for-each-phrasing",
-   "text": "On 2 Oct 2026 you bought 200 CHI.NZ for NZ$1.60 each.\nFee: NZ$2.00",
-   "expected": [
-    {
-     "date": "2026-10-02",
-     "type": "Buy",
-     "ticker": "CHI.NZ",
-     "quantity": 200,
-     "price": 1.6,
-     "currency": "NZD",
-     "fees": 2.0,
-     "reference": null
-    }
-   ]
-  },
-  {
-   "name": "average-price-phrasing",
-   "text": "Your order is complete. You bought 120 MEL.NZ at an average price of NZ$5.85 on 2026-09-30.\nFees: NZ$4.10\nOrder #ORD-99812",
-   "expected": [
-    {
-     "date": "2026-09-30",
-     "type": "Buy",
-     "ticker": "MEL.NZ",
-     "quantity": 120,
-     "price": 5.85,
-     "currency": "NZD",
-     "fees": 4.1,
-     "reference": "ORD-99812"
-    }
-   ]
-  },
-  {
-   "name": "commsec-asx-buy",
-   "text": "CommSec Confirmation\nConfirmation no: 88123341\nBought 300 PLS.AX @ A$2.95 on 21 Sep 2026\nBrokerage: A$19.95",
-   "expected": [
-    {
-     "date": "2026-09-21",
-     "type": "Buy",
-     "ticker": "PLS.AX",
-     "quantity": 300,
-     "price": 2.95,
-     "currency": "AUD",
-     "fees": 19.95,
-     "reference": "88123341"
-    }
-   ]
-  },
-  {
-   "name": "stake-us-sell",
-   "text": "Stake: order executed 2026-08-05\nSold 12 MSFT at US$410.55\nFee: US$0.00",
-   "expected": [
-    {
-     "date": "2026-08-05",
-     "type": "Sell",
-     "ticker": "MSFT",
-     "quantity": 12,
-     "price": 410.55,
-     "currency": "USD",
-     "fees": 0.0,
-     "reference": null
-    }
-   ]
-  },
-  {
-   "name": "jarden-multi-block",
-   "text": "Jarden Direct trade confirmation 2026-07-20\nBought 1,000 KMD.NZ at NZ$0.71 Brokerage NZ$29.90 Reference JD-1\nBought 400 THL.NZ at NZ$1.52 Brokerage NZ$29.90 Reference JD-2\nBought 75 IFT.NZ at NZ$11.40 Brokerage NZ$29.90 Reference JD-3",
-   "expected": [
-    {
-     "date": "2026-07-20",
-     "type": "Buy",
-     "ticker": "KMD.NZ",
-     "quantity": 1000,
-     "price": 0.71,
-     "currency": "NZD",
-     "fees": 29.9,
-     "reference": "JD-1"
+      "name": "hatch-us-buy",
+      "text": "Order filled\nBought 5 AAPL @ US$227.10 on 2026-09-12\nCommission: US$3.00\nReference: HT-55821",
+      "expected": [
+        {
+          "date": "2026-09-12",
+          "type": "Buy",
+          "ticker": "AAPL",
+          "quantity": 5,
+          "price": 227.1,
+          "currency": "USD",
+          "fees": 3.0,
+          "reference": "HT-55821"
+        }
+      ]
     },
     {
-     "date": "2026-07-20",
-     "type": "Buy",
-     "ticker": "THL.NZ",
-     "quantity": 400,
-     "price": 1.52,
-     "currency": "NZD",
-     "fees": 29.9,
-     "reference": "JD-2"
+      "name": "asb-contract-note-sell",
+      "text": "ASB Securities contract note\nContract note no. CN-778812\nDate: 14/08/2026\nSold 200 FPH.NZ at NZ$34.20\nBrokerage: NZ$30.00",
+      "expected": [
+        {
+          "date": "2026-08-14",
+          "type": "Sell",
+          "ticker": "FPH.NZ",
+          "quantity": 200,
+          "price": 34.2,
+          "currency": "NZD",
+          "fees": 30.0,
+          "reference": "CN-778812"
+        }
+      ]
     },
     {
-     "date": "2026-07-20",
-     "type": "Buy",
-     "ticker": "IFT.NZ",
-     "quantity": 75,
-     "price": 11.4,
-     "currency": "NZD",
-     "fees": 29.9,
-     "reference": "JD-3"
-    }
-   ]
-  },
-  {
-   "name": "ibkr-usd-suffix",
-   "text": "IBKR trade report\n2026-06-11 BUY 20 NVDA @ 120.50 USD Commission 1.00 USD Order ID 4451201",
-   "expected": [
-    {
-     "date": "2026-06-11",
-     "type": "Buy",
-     "ticker": "NVDA",
-     "quantity": 20,
-     "price": 120.5,
-     "currency": "USD",
-     "fees": 1.0,
-     "reference": "4451201"
-    }
-   ]
-  },
-  {
-   "name": "sharesies-sell-email",
-   "text": "Kia ora,\nYou sold 30 MFT.NZ shares at NZ$58.10 on 9 Oct 2026.\nTransaction fee: NZ$1.50",
-   "expected": [
-    {
-     "date": "2026-10-09",
-     "type": "Sell",
-     "ticker": "MFT.NZ",
-     "quantity": 30,
-     "price": 58.1,
-     "currency": "NZD",
-     "fees": 1.5,
-     "reference": null
-    }
-   ]
-  },
-  {
-   "name": "bare-dollar-no-guess",
-   "text": "Bought 15 ATM.NZ at $6.20 on 2026-05-02. Fees: $1.00",
-   "expected": [
-    {
-     "date": "2026-05-02",
-     "type": "Buy",
-     "ticker": "ATM.NZ",
-     "quantity": 15,
-     "price": 6.2,
-     "currency": null,
-     "fees": 1.0,
-     "reference": null
-    }
-   ]
-  },
-  {
-   "name": "nz-date-slash",
-   "text": "Contract note CN-55120 12/03/2026\nPurchased 80 CEN.NZ at NZ$9.15\nBrokerage NZ$15.00",
-   "expected": [
-    {
-     "date": "2026-03-12",
-     "type": "Buy",
-     "ticker": "CEN.NZ",
-     "quantity": 80,
-     "price": 9.15,
-     "currency": "NZD",
-     "fees": 15.0,
-     "reference": "CN-55120"
-    }
-   ]
-  },
-  {
-   "name": "two-trades-sentences",
-   "text": "On 2026-04-10 you bought 40 CNU.NZ at NZ$9.80; fee NZ$2.00. You sold 25 SPK.NZ at NZ$2.55; fee NZ$1.00.",
-   "expected": [
-    {
-     "date": "2026-04-10",
-     "type": "Buy",
-     "ticker": "CNU.NZ",
-     "quantity": 40,
-     "price": 9.8,
-     "currency": "NZD",
-     "fees": 2.0,
-     "reference": null
+      "name": "multi-trade-own-fees",
+      "text": "Trades on 2026-10-01\nBought 50 SPK.NZ at NZ$2.40 brokerage NZ$5.00 ref TR-0001\nSold 100 AIR.NZ at NZ$0.65 brokerage NZ$3.00 ref TR-0002",
+      "expected": [
+        {
+          "date": "2026-10-01",
+          "type": "Buy",
+          "ticker": "SPK.NZ",
+          "quantity": 50,
+          "price": 2.4,
+          "currency": "NZD",
+          "fees": 5.0,
+          "reference": "TR-0001"
+        },
+        {
+          "date": "2026-10-01",
+          "type": "Sell",
+          "ticker": "AIR.NZ",
+          "quantity": 100,
+          "price": 0.65,
+          "currency": "NZD",
+          "fees": 3.0,
+          "reference": "TR-0002"
+        }
+      ]
     },
     {
-     "date": "2026-04-10",
-     "type": "Sell",
-     "ticker": "SPK.NZ",
-     "quantity": 25,
-     "price": 2.55,
-     "currency": "NZD",
-     "fees": 1.0,
-     "reference": null
-    }
-   ]
-  },
-  {
-   "name": "asx-sell-aud-suffix",
-   "text": "Sold 500 BHP.AX at 43.10 AUD on 2026-02-18\nCommission 10.00 AUD\nRef CS-20018",
-   "expected": [
-    {
-     "date": "2026-02-18",
-     "type": "Sell",
-     "ticker": "BHP.AX",
-     "quantity": 500,
-     "price": 43.1,
-     "currency": "AUD",
-     "fees": 10.0,
-     "reference": "CS-20018"
-    }
-   ]
-  },
-  {
-   "name": "units-fund",
-   "text": "Bought 250 units of USF.NZ at NZ$1.21 on 2026-01-15. Brokerage: NZ$0.00",
-   "expected": [
-    {
-     "date": "2026-01-15",
-     "type": "Buy",
-     "ticker": "USF.NZ",
-     "quantity": 250,
-     "price": 1.21,
-     "currency": "NZD",
-     "fees": 0.0,
-     "reference": null
-    }
-   ]
-  },
-  {
-   "name": "price-colon-form",
-   "text": "Trade date: 5 Jan 2026\nBuy 60 FBU.NZ price: NZ$3.40\nFees NZ$5.00\nOrder number: FB-6612",
-   "expected": [
-    {
-     "date": "2026-01-05",
-     "type": "Buy",
-     "ticker": "FBU.NZ",
-     "quantity": 60,
-     "price": 3.4,
-     "currency": "NZD",
-     "fees": 5.0,
-     "reference": "FB-6612"
-    }
-   ]
-  },
-  {
-   "name": "per-share-phrasing",
-   "text": "You sold 10 TSLA for US$250.00 per share on 2026-03-03. Commission: US$2.00",
-   "expected": [
-    {
-     "date": "2026-03-03",
-     "type": "Sell",
-     "ticker": "TSLA",
-     "quantity": 10,
-     "price": 250.0,
-     "currency": "USD",
-     "fees": 2.0,
-     "reference": null
-    }
-   ]
-  },
-  {
-   "name": "multi-buy-sell-asx",
-   "text": "Confirmation 2026-09-01\nBought 100 WES.AX @ A$78.20 Brokerage A$11.00 Ref A1001\nSold 50 CBA.AX @ A$162.40 Brokerage A$14.50 Ref A1002",
-   "expected": [
-    {
-     "date": "2026-09-01",
-     "type": "Buy",
-     "ticker": "WES.AX",
-     "quantity": 100,
-     "price": 78.2,
-     "currency": "AUD",
-     "fees": 11.0,
-     "reference": "A1001"
+      "name": "for-each-phrasing",
+      "text": "On 2 Oct 2026 you bought 200 CHI.NZ for NZ$1.60 each.\nFee: NZ$2.00",
+      "expected": [
+        {
+          "date": "2026-10-02",
+          "type": "Buy",
+          "ticker": "CHI.NZ",
+          "quantity": 200,
+          "price": 1.6,
+          "currency": "NZD",
+          "fees": 2.0,
+          "reference": null
+        }
+      ]
     },
     {
-     "date": "2026-09-01",
-     "type": "Sell",
-     "ticker": "CBA.AX",
-     "quantity": 50,
-     "price": 162.4,
-     "currency": "AUD",
-     "fees": 14.5,
-     "reference": "A1002"
-    }
-   ]
-  },
-  {
-   "name": "sell-unheld-own-fee",
-   "text": "Bought 10 SPK.NZ at NZ$2.40 on 2026-10-14 brokerage NZ$5.00\nSold 100 AIR.NZ at NZ$0.40 on 2026-10-14 brokerage NZ$3.00",
-   "expected": [
-    {
-     "date": "2026-10-14",
-     "type": "Buy",
-     "ticker": "SPK.NZ",
-     "quantity": 10,
-     "price": 2.4,
-     "currency": "NZD",
-     "fees": 5.0,
-     "reference": null
+      "name": "average-price-phrasing",
+      "text": "Your order is complete. You bought 120 MEL.NZ at an average price of NZ$5.85 on 2026-09-30.\nFees: NZ$4.10\nOrder #ORD-99812",
+      "expected": [
+        {
+          "date": "2026-09-30",
+          "type": "Buy",
+          "ticker": "MEL.NZ",
+          "quantity": 120,
+          "price": 5.85,
+          "currency": "NZD",
+          "fees": 4.1,
+          "reference": "ORD-99812"
+        }
+      ]
     },
     {
-     "date": "2026-10-14",
-     "type": "Sell",
-     "ticker": "AIR.NZ",
-     "quantity": 100,
-     "price": 0.4,
-     "currency": "NZD",
-     "fees": 3.0,
-     "reference": null
+      "name": "commsec-asx-buy",
+      "text": "CommSec Confirmation\nConfirmation no: 88123341\nBought 300 PLS.AX @ A$2.95 on 21 Sep 2026\nBrokerage: A$19.95",
+      "expected": [
+        {
+          "date": "2026-09-21",
+          "type": "Buy",
+          "ticker": "PLS.AX",
+          "quantity": 300,
+          "price": 2.95,
+          "currency": "AUD",
+          "fees": 19.95,
+          "reference": "88123341"
+        }
+      ]
+    },
+    {
+      "name": "stake-us-sell",
+      "text": "Stake: order executed 2026-08-05\nSold 12 MSFT at US$410.55\nFee: US$0.00",
+      "expected": [
+        {
+          "date": "2026-08-05",
+          "type": "Sell",
+          "ticker": "MSFT",
+          "quantity": 12,
+          "price": 410.55,
+          "currency": "USD",
+          "fees": 0.0,
+          "reference": null
+        }
+      ]
+    },
+    {
+      "name": "jarden-multi-block",
+      "text": "Jarden Direct trade confirmation 2026-07-20\nBought 1,000 KMD.NZ at NZ$0.71 Brokerage NZ$29.90 Reference JD-1\nBought 400 THL.NZ at NZ$1.52 Brokerage NZ$29.90 Reference JD-2\nBought 75 IFT.NZ at NZ$11.40 Brokerage NZ$29.90 Reference JD-3",
+      "expected": [
+        {
+          "date": "2026-07-20",
+          "type": "Buy",
+          "ticker": "KMD.NZ",
+          "quantity": 1000,
+          "price": 0.71,
+          "currency": "NZD",
+          "fees": 29.9,
+          "reference": "JD-1"
+        },
+        {
+          "date": "2026-07-20",
+          "type": "Buy",
+          "ticker": "THL.NZ",
+          "quantity": 400,
+          "price": 1.52,
+          "currency": "NZD",
+          "fees": 29.9,
+          "reference": "JD-2"
+        },
+        {
+          "date": "2026-07-20",
+          "type": "Buy",
+          "ticker": "IFT.NZ",
+          "quantity": 75,
+          "price": 11.4,
+          "currency": "NZD",
+          "fees": 29.9,
+          "reference": "JD-3"
+        }
+      ]
+    },
+    {
+      "name": "ibkr-usd-suffix",
+      "text": "IBKR trade report\n2026-06-11 BUY 20 NVDA @ 120.50 USD Commission 1.00 USD Order ID 4451201",
+      "expected": [
+        {
+          "date": "2026-06-11",
+          "type": "Buy",
+          "ticker": "NVDA",
+          "quantity": 20,
+          "price": 120.5,
+          "currency": "USD",
+          "fees": 1.0,
+          "reference": "4451201"
+        }
+      ]
+    },
+    {
+      "name": "sharesies-sell-email",
+      "text": "Kia ora,\nYou sold 30 MFT.NZ shares at NZ$58.10 on 9 Oct 2026.\nTransaction fee: NZ$1.50",
+      "expected": [
+        {
+          "date": "2026-10-09",
+          "type": "Sell",
+          "ticker": "MFT.NZ",
+          "quantity": 30,
+          "price": 58.1,
+          "currency": "NZD",
+          "fees": 1.5,
+          "reference": null
+        }
+      ]
+    },
+    {
+      "name": "bare-dollar-nzx",
+      "text": "Bought 15 ATM.NZ at $6.20 on 2026-05-02. Fees: $1.00",
+      "expected": [
+        {
+          "date": "2026-05-02",
+          "type": "Buy",
+          "ticker": "ATM.NZ",
+          "quantity": 15,
+          "price": 6.2,
+          "currency": "NZD",
+          "fees": 1.0,
+          "reference": null
+        }
+      ]
+    },
+    {
+      "name": "nz-date-slash",
+      "text": "Contract note CN-55120 12/03/2026\nPurchased 80 CEN.NZ at NZ$9.15\nBrokerage NZ$15.00",
+      "expected": [
+        {
+          "date": "2026-03-12",
+          "type": "Buy",
+          "ticker": "CEN.NZ",
+          "quantity": 80,
+          "price": 9.15,
+          "currency": "NZD",
+          "fees": 15.0,
+          "reference": "CN-55120"
+        }
+      ]
+    },
+    {
+      "name": "two-trades-sentences",
+      "text": "On 2026-04-10 you bought 40 CNU.NZ at NZ$9.80; fee NZ$2.00. You sold 25 SPK.NZ at NZ$2.55; fee NZ$1.00.",
+      "expected": [
+        {
+          "date": "2026-04-10",
+          "type": "Buy",
+          "ticker": "CNU.NZ",
+          "quantity": 40,
+          "price": 9.8,
+          "currency": "NZD",
+          "fees": 2.0,
+          "reference": null
+        },
+        {
+          "date": "2026-04-10",
+          "type": "Sell",
+          "ticker": "SPK.NZ",
+          "quantity": 25,
+          "price": 2.55,
+          "currency": "NZD",
+          "fees": 1.0,
+          "reference": null
+        }
+      ]
+    },
+    {
+      "name": "asx-sell-aud-suffix",
+      "text": "Sold 500 BHP.AX at 43.10 AUD on 2026-02-18\nCommission 10.00 AUD\nRef CS-20018",
+      "expected": [
+        {
+          "date": "2026-02-18",
+          "type": "Sell",
+          "ticker": "BHP.AX",
+          "quantity": 500,
+          "price": 43.1,
+          "currency": "AUD",
+          "fees": 10.0,
+          "reference": "CS-20018"
+        }
+      ]
+    },
+    {
+      "name": "units-fund",
+      "text": "Bought 250 units of USF.NZ at NZ$1.21 on 2026-01-15. Brokerage: NZ$0.00",
+      "expected": [
+        {
+          "date": "2026-01-15",
+          "type": "Buy",
+          "ticker": "USF.NZ",
+          "quantity": 250,
+          "price": 1.21,
+          "currency": "NZD",
+          "fees": 0.0,
+          "reference": null
+        }
+      ]
+    },
+    {
+      "name": "price-colon-form",
+      "text": "Trade date: 5 Jan 2026\nBuy 60 FBU.NZ price: NZ$3.40\nFees NZ$5.00\nOrder number: FB-6612",
+      "expected": [
+        {
+          "date": "2026-01-05",
+          "type": "Buy",
+          "ticker": "FBU.NZ",
+          "quantity": 60,
+          "price": 3.4,
+          "currency": "NZD",
+          "fees": 5.0,
+          "reference": "FB-6612"
+        }
+      ]
+    },
+    {
+      "name": "per-share-phrasing",
+      "text": "You sold 10 TSLA for US$250.00 per share on 2026-03-03. Commission: US$2.00",
+      "expected": [
+        {
+          "date": "2026-03-03",
+          "type": "Sell",
+          "ticker": "TSLA",
+          "quantity": 10,
+          "price": 250.0,
+          "currency": "USD",
+          "fees": 2.0,
+          "reference": null
+        }
+      ]
+    },
+    {
+      "name": "multi-buy-sell-asx",
+      "text": "Confirmation 2026-09-01\nBought 100 WES.AX @ A$78.20 Brokerage A$11.00 Ref A1001\nSold 50 CBA.AX @ A$162.40 Brokerage A$14.50 Ref A1002",
+      "expected": [
+        {
+          "date": "2026-09-01",
+          "type": "Buy",
+          "ticker": "WES.AX",
+          "quantity": 100,
+          "price": 78.2,
+          "currency": "AUD",
+          "fees": 11.0,
+          "reference": "A1001"
+        },
+        {
+          "date": "2026-09-01",
+          "type": "Sell",
+          "ticker": "CBA.AX",
+          "quantity": 50,
+          "price": 162.4,
+          "currency": "AUD",
+          "fees": 14.5,
+          "reference": "A1002"
+        }
+      ]
+    },
+    {
+      "name": "sell-unheld-own-fee",
+      "text": "Bought 10 SPK.NZ at NZ$2.40 on 2026-10-14 brokerage NZ$5.00\nSold 100 AIR.NZ at NZ$0.40 on 2026-10-14 brokerage NZ$3.00",
+      "expected": [
+        {
+          "date": "2026-10-14",
+          "type": "Buy",
+          "ticker": "SPK.NZ",
+          "quantity": 10,
+          "price": 2.4,
+          "currency": "NZD",
+          "fees": 5.0,
+          "reference": null
+        },
+        {
+          "date": "2026-10-14",
+          "type": "Sell",
+          "ticker": "AIR.NZ",
+          "quantity": 100,
+          "price": 0.4,
+          "currency": "NZD",
+          "fees": 3.0,
+          "reference": null
+        }
+      ]
     }
-   ]
-  }
- ]
+  ]
 }

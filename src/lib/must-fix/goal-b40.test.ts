@@ -1,4 +1,4 @@
-// pull-check:v3-goal-b40-2026-10-19
+// b40 goal test (version guard moved to goal-b41)
 import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -84,7 +84,7 @@ describe("b40 G-24: visible Paste trades box on /import and the dashboard Import
     expect(html).toContain("Read trades from text");
   });
   it("is wired into both entry points", () => {
-    expect(read("src/app/import/import-client.tsx")).toMatch(/<PasteTradesBox[\s\S]*send\("preview", csv\)/);
+    expect(read("src/app/import/import-client.tsx")).toMatch(/<PasteTradesBox[\s\S]*send\("preview", csv(, columnMap)?\)/);
     expect(read("src/components/dashboard/HoldingsCsvImport.tsx")).toMatch(/<PasteTradesBox/);
     expect(read("src/components/import/PasteTradesBox.tsx")).toMatch(/data-paste-row-dates/);
     expect(read("src/components/import/PasteTradesBox.tsx")).toMatch(/Date missing/);

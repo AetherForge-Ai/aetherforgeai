@@ -305,7 +305,10 @@ async function buildTopList(): Promise<RankedCryptoPage> {
   const asOf = selected.reason === "saved" ? savedAt : latestQuotedAt(selected.coins);
   const page = pageFrom(selected.coins, selected.reason, asOf);
   listSnap = { at: Date.now(), page };
-  if (snapshotWorthSaving(tagSource(selected.coins, selected.reason === "saved" ? "coingecko" : cgCoins.length ? "coingecko" : ""))) {
+  // b41 H-1: every fresh list goes to the store, which decides: replace, merge the rows that pass the
+  // per-row checks, or refuse with a logged reason. Gating on "verified" here meant a fallback list
+  // never reached the b38 partial-refresh path, so the snapshot froze while a source answered.
+  if (selected.reason !== "saved" && selected.coins.length) {
     await persistCryptoSnapshot(tagSource(selected.coins, "coingecko"), asOf || new Date().toISOString());
   }
   void Promise.all([sxTask, pendingCg.catch(() => null)]).then(() => {

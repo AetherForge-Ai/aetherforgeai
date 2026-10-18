@@ -1,4 +1,5 @@
 import { LAST_GOOD_SESSION_COOKIE, cookieValueOf, verifyLastGoodSession } from "@/lib/last-good-session";
+import { isSessionTokenRevoked } from "@/lib/session-revocation";
 import "server-only";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
@@ -155,6 +156,12 @@ async function readTokenSession(cookieHeader: string | null): Promise<TokenSessi
     return null;
   }
   const key = `token:${token}`;
+  // b41 P1: a signed-out token is rejected even if this isolate's session cache still holds it.
+  if (await isSessionTokenRevoked(token)) {
+    sessionCache.delete(key);
+    recordSessionDecision({ cookie: true, signature: true, source: "none", storeMs: null, outcome: "signed-out" });
+    return null;
+  }
   const cached = sessionCache.get(key);
   const now = Date.now();
   if (cached && now - cached.at < SESSION_CACHE_FRESH_MS && sessionExpiresInFuture(cached.row.session.expiresAt)) {

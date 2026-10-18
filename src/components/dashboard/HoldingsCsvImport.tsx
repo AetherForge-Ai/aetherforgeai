@@ -25,6 +25,8 @@ export function HoldingsCsvImport({
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
+  // b41 G-24: set only for pasted text, so a chosen file still goes through detection/mapping.
+  const [pasteMapping, setPasteMapping] = useState<Record<string, string> | undefined>(undefined);
   const [fileName, setFileName] = useState("");
   const [panelKey, setPanelKey] = useState(0);
   const router = useRouter();
@@ -42,6 +44,7 @@ export function HoldingsCsvImport({
         }
       }
       setText(body);
+      setPasteMapping(undefined);
       setFileName(file.name);
       setOpen(true);
     } catch (err) {
@@ -93,14 +96,15 @@ export function HoldingsCsvImport({
           {/* b40 G-24: a visible paste box; its CSV opens the same review panel as a file. */}
           <PasteTradesBox
             idPrefix={`dash-paste-${assetType}`}
-            onCsv={(csv, name) => {
+            onCsv={(csv, name, columns) => {
               setText(csv);
               setFileName(name);
+              setPasteMapping({ ...columns });
               setPanelKey((k) => k + 1);
             }}
           />
           {open && text ? (
-            <BrokerImportPanel key={panelKey} embedded initialText={text} initialFileName={fileName} onImported={onImported} />
+            <BrokerImportPanel key={panelKey} embedded initialText={text} initialFileName={fileName} initialMapping={pasteMapping} onImported={onImported} />
           ) : null}
           <Button
             type="button"

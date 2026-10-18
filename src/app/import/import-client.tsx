@@ -163,12 +163,15 @@ export function ImportClient() {
       {/* b40 G-24: the paste flow is visible here too; the CSV it builds goes to the same preview. */}
       <PasteTradesBox
         idPrefix="import-paste"
-        onCsv={(csv, name) => {
+        onCsv={(csv, name, columns) => {
+          // b41 G-24: the pasted CSV carries its own column map, so the mapper is skipped.
+          const columnMap = { ...columns };
           setText(csv);
           setFileName(name);
           setSaved(false);
           setPreview(null);
-          void send("preview", csv);
+          setMapping(columnMap);
+          void send("preview", csv, columnMap);
         }}
       />
 
