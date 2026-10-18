@@ -1,0 +1,5 @@
+Order ID,Trade date,Instrument code,Market code,Quantity,Price,Transaction type,Exchange rate,Exchange fee,Transaction fee,Currency,Amount,Transaction method
+SS-1001,15/01/2026,AAPL,NYSE,2,180.00,BUY,1.6500,0.00,1.00,USD,360.00,Trade
+SS-1002,20/01/2026,AAPL,NYSE,1,180.00,SELL,1.6500,0.00,1.00,USD,180.00,Trade
+SS-1003,21/01/2026,AIR,NZX,100,0.80,BUY,1,0.00,0.50,NZD,80.00,Trade
+SS-1004,02/02/2026,FPH,NZX,10,1.20,DIVIDEND,1,0.00,0.00,NZD,12.00,Dividend
