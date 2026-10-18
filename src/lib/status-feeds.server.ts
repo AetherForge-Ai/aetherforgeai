@@ -4,6 +4,8 @@ import { getFxSnapshot } from "@/lib/fx";
 import { getMetalsSpot } from "@/lib/metals";
 import { loadPublicTickerBounded } from "@/lib/public-ticker";
 import { cryptoAgeBand, cryptoFeedKilled, readSharedCryptoAttempt } from "@/lib/crypto-attempts";
+// b28 G-05: registers the durable attempt store this page reads.
+import "@/lib/crypto-snapshot";
 import { formatDisplayDateTime } from "@/lib/currency";
 import { latestIso, presentStatusFeed, type StatusFeedRow } from "@/lib/status-feeds";
 
@@ -48,7 +50,7 @@ function cryptoQuotesRow(at: string | null, now: number): StatusFeedRow {
 /** Goal b14: the last CoinGecko attempt this server made, so a silent fallback shows. */
 async function cryptoAttemptRow(): Promise<StatusFeedRow> {
   const { last, scope } = await readSharedCryptoAttempt();
-  if (!last) return { label: "Crypto list last attempt", tone: "amber", text: scope === "shared-colo" ? "— no attempt recorded in this data centre yet" : "— no attempt recorded on this server yet" };
+  if (!last) return { label: "Crypto list last attempt", tone: "amber", text: "— no refresh attempt recorded yet" };
   return {
     label: "Crypto list last attempt",
     tone: last.ok ? "ok" : "amber",

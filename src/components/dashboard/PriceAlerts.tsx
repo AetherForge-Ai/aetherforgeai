@@ -349,6 +349,8 @@ export function PriceAlerts({
     setSaving(false);
     if (res.ok) {
       toast.success(editingId ? "Alert updated" : "Alert created");
+      // b28 L-4: Plan usage alert counter updates in place.
+      if (!editingId) window.dispatchEvent(new CustomEvent("af:alerts-delta", { detail: { delta: 1 } }));
       setOpen(false);
       // b26 L-4: show the new alert without a page reload. The store can lag a moment after
       // the write, so re-read until the saved id appears (up to ~5 s).
@@ -378,6 +380,7 @@ export function PriceAlerts({
     setDeleteId(null);
     if (res.ok) {
       toast.success("Alert removed");
+      window.dispatchEvent(new CustomEvent("af:alerts-delta", { detail: { delta: -1 } }));
       load();
     } else {
       console.error("[PriceAlerts] delete failed:", res.error);
@@ -510,7 +513,7 @@ export function PriceAlerts({
                 </div>
 
                 {(() => {
-                  const ruleLine = formatAlertRuleLine(a);
+                  const ruleLine = formatAlertRuleLine(a, { held: !!holding && Number(holding.shares) > 0 });
                   const custom = (a.instructions || "").trim();
                   const showCustom = !!custom && !isBoilerplateInstructions(custom) && custom !== ruleLine;
                   if (!ruleLine && !showCustom) return null;

@@ -3,9 +3,10 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
 import { assistantQueryLimit, aucklandMonthKey } from "@/lib/entitlements";
 import { totalumSdk } from "@/lib/totalum";
+import { assistantUsedThisMonth } from "@/lib/assistant-quota.server";
 import { buildPortfolioContext, ANALYST_SYSTEM_PROMPT } from "@/lib/ai-context";
 import { createGrokChatCompletion, type GrokMessage } from "@/lib/grok";
-import { ASSISTANT_SHARE_PICK_REPLY, isSharePickRequest } from "@/lib/guide-safety";
+import { ASSISTANT_SHARE_PICK_REPLY, isSharePickRequest, withGuideDisclaimer } from "@/lib/guide-safety";
 import { assistantCompletionMessages } from "@/lib/ai-request-payload";
 import type { Stock } from "@/lib/portfolio";
 
@@ -14,22 +15,8 @@ const postSchema = z.object({
 });
 
 /** User-role Market Assistant messages already sent in the current Auckland month. */
-async function freeAssistantUsedThisMonth(userId: string, now = Date.now()): Promise<number> {
-  const month = aucklandMonthKey(now);
-  const historyRes = await totalumSdk.crud.query("chat_message", {
-    _filter: { user: userId },
-    _sort: { createdAt: "desc" },
-    _limit: 200,
-  });
-  const rows = (historyRes?.data as unknown as { role?: string; createdAt?: string | Date; created_at?: string | Date }[]) || [];
-  return rows.filter((m) => {
-    if (m.role && m.role !== "user") return false;
-    const created = m.createdAt || m.created_at;
-    if (!created) return false;
-    const t = new Date(created).getTime();
-    return !Number.isNaN(t) && aucklandMonthKey(t) === month;
-  }).length;
-}
+// b28 L-4: one count for every Assistant surface (was capped at 200 rows, so Pro could not reach 500).
+const freeAssistantUsedThisMonth = (userId: string) => assistantUsedThisMonth(userId);
 
 // GET /api/chat — load the user's chat history
 export async function GET(req?: Request) {
@@ -87,9 +74,10 @@ export async function POST(req: Request) {
     const userMessage = parsed.data.message.trim();
 
     const queryLimit = assistantQueryLimit(user.subscription_plan);
+    let used0 = 0;
     if (queryLimit != null) {
-      const used = await freeAssistantUsedThisMonth(user._id);
-      if (used >= queryLimit) {
+      used0 = await freeAssistantUsedThisMonth(user._id);
+      if (used0 >= queryLimit) {
         return NextResponse.json(
           {
             ok: false,
@@ -139,11 +127,12 @@ export async function POST(req: Request) {
 
     // b27 CR-2: share-pick questions get a fixed refusal; no model call, so it holds even when the
     // provider is down or a prompt tries to talk the model round.
+    const usedBefore = queryLimit != null ? used0 : null;
     const refused = isSharePickRequest(userMessage);
     if (refused) console.info(`[api/chat] share-pick refusal for user ${user._id}`);
     else console.log(`[api/chat] Generating Grok reply for user ${user._id}`);
     const reply = refused
-      ? ASSISTANT_SHARE_PICK_REPLY
+      ? withGuideDisclaimer(ASSISTANT_SHARE_PICK_REPLY)
       : await createGrokChatCompletion({
           messages,
           maxTokens: 1000,
@@ -153,11 +142,12 @@ export async function POST(req: Request) {
     // Persist the assistant reply
     const saved = await totalumSdk.crud.createRecord("chat_message", {
       role: "assistant",
-      content: reply,
+      content: refused ? withGuideDisclaimer(reply) : reply,
       user: user._id,
     });
 
-    const usedAfter = queryLimit != null ? (await freeAssistantUsedThisMonth(user._id)) : null;
+    // b28 L-4: used+1 from the pre-question read; a re-read can miss the row just written.
+    const usedAfter = usedBefore != null ? usedBefore + 1 : null;
     return NextResponse.json({
       ok: true,
       data: {

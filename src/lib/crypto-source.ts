@@ -12,6 +12,10 @@
 
 import { keepAlive } from "@/lib/keep-alive.server";
 import { flushCryptoAttempt, recordCryptoAttempt } from "@/lib/crypto-attempts";
+import { ensureCoinDepth } from "@/lib/crypto-depth.server";
+import { mergeCoinDepth, pageDepthComplete } from "@/lib/crypto-depth-record";
+import { tickerForCoingeckoId } from "@/lib/crypto-ids";
+import { withTimeout } from "@/lib/with-timeout";
 import "server-only";
 import * as swyftx from "@/lib/crypto-swyftx";
 import * as coingecko from "@/lib/crypto-coingecko";
@@ -454,18 +458,13 @@ function presentDetail(detail: CoinDetail, source: string): CoinDetail {
 
 async function listedCoinForDetail(id: string, code: string): Promise<CoinMarket | null> {
   try {
-    const { readSharedCryptoBoard, upgradeStoredCryptoBoard } = await import("@/lib/crypto-board-store");
-    let board = await readSharedCryptoBoard({ seed: false });
+    const { readCryptoSnapshot } = await import("@/lib/crypto-snapshot");
+    const saved = await withTimeout(() => readCryptoSnapshot(), 1_200, null);
     const slug = id.trim().toLowerCase();
-    const symbol = code.toUpperCase();
-    let coin = board.coins.find((row) => row.id === slug || row.symbol.toUpperCase() === symbol) ?? null;
-    if (!coin) {
-      await upgradeStoredCryptoBoard();
-      board = await readSharedCryptoBoard({ seed: false });
-      coin = board.coins.find((row) => row.id === slug || row.symbol.toUpperCase() === symbol) ?? null;
-    }
+    const symbol = (tickerForCoingeckoId(slug) || code).toUpperCase();
+    const coin = saved?.coins.find((row) => row.id === slug || row.symbol.toUpperCase() === symbol) ?? null;
     if (!coin) return null;
-    const [enriched] = await enrichListedCoins([coin]);
+    const [enriched] = await withTimeout(() => enrichListedCoins([coin]), 800, [coin]);
     return enriched ?? coin;
   } catch (err) {
     console.error("[crypto-source] snapshot detail failed:", err instanceof Error ? err.message.slice(0, 120) : "failed");
@@ -475,40 +474,48 @@ async function listedCoinForDetail(id: string, code: string): Promise<CoinMarket
 
 export async function getCoinDetail(id: string): Promise<CoinDetail> {
   const code = normalizeCryptoTicker(id);
+  const slug = toCgId(id);
   let detail: CoinDetail | null = null;
   let source = "coingecko";
   try {
-    detail = await coingecko.fetchCoinDetail(toCgId(id));
-    source = "coingecko";
+    // The heavy /coins/{id} document is often rate-limited for tether. Do not
+    // spend the whole request on it — the markets row and CoinPaprika still
+    // carry cap, volume, supply, 1h and 30d.
+    detail = await withTimeout(() => coingecko.fetchCoinDetail(slug), 2_000, null);
+    if (detail) source = "coingecko";
   } catch (err) {
     console.error(`[crypto-source] CoinGecko detail(${id}) failed:`, err instanceof Error ? err.message.slice(0, 160) : "failed");
   }
   if (!detail && swyftxPublicDisplay()) {
     try {
-      detail = await swyftx.fetchCoinDetail(code);
-      source = "swyftx";
+      detail = await withTimeout(() => swyftx.fetchCoinDetail(code), 1_200, null);
+      if (detail) source = "swyftx";
     } catch (err) {
       console.error(`[crypto-source] detail backup(${id}) failed:`, err instanceof Error ? err.message.slice(0, 160) : "failed");
     }
   }
   if (!detail) {
     try {
-      detail = await yahoo.fetchYahooCoinDetail(id);
-      source = "yahoo";
+      detail = await withTimeout(() => yahoo.fetchYahooCoinDetail(slug), 1_200, null);
+      if (detail) source = "yahoo";
     } catch (err) {
       console.error(`[crypto-source] Yahoo detail(${id}) failed:`, err instanceof Error ? err.message.slice(0, 160) : "failed");
     }
   }
-  const listed = await listedCoinForDetail(id, code);
+  const listed = await listedCoinForDetail(slug, code);
   const listedSource = (listed?.source || "").trim().toLowerCase();
   const pageSource = listed && listed.price > 0 ? listedSource || source : source || listedSource;
-  if (!detail) {
-    if (!listed || !(listed.price > 0)) throw new Error(`No detail for ${id}`);
-    return presentDetail(detailFromMarket(listed), pageSource);
-  }
-  const overlaid = overlayCoinDetail(detail, listed);
-  if (listed && listed.price > 0) overlaid.price = listed.price;
-  return presentDetail(overlaid, pageSource);
+  const overlaid = detail ? overlayCoinDetail({ ...detail, source }, listed) : listed ? detailFromMarket(listed) : null;
+  if (overlaid && listed && listed.price > 0 && !(overlaid.price > 0)) overlaid.price = listed.price;
+  const live = overlaid ? { ...overlaid, id: overlaid.id || slug, source: overlaid.source || pageSource } : null;
+  const ensured = await ensureCoinDepth({
+    slug,
+    listed,
+    live,
+    budgetMs: live && pageDepthComplete(live) ? 0 : 2_200,
+  });
+  const merged = mergeCoinDepth(live, ensured) ?? ensured;
+  return presentDetail(merged, merged.source || pageSource || source);
 }
 
 async function paprikaChart(id: string, symbol: string, days: string): Promise<CoinChart | null> {

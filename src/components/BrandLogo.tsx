@@ -37,6 +37,7 @@ export function BrandLogo({
         <img
           src={LOGO_MARK_IMG}
           alt="AetherForge AI"
+          fetchPriority="low"
           className="h-full w-full object-contain drop-shadow-[0_1px_4px_rgba(40,110,220,0.35)]"
           draggable={false}
         />

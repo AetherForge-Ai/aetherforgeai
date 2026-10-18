@@ -14,6 +14,8 @@ import { isTotalumEntitled } from "@/lib/headmaster-access";
 import { loadTotalumSynthesis, loadReportFindings } from "@/lib/totalum-service";
 import { scopeHeadmasterIdeas } from "@/lib/headmaster-trust";
 import { portfolioCoachCompletionMessages } from "@/lib/ai-request-payload";
+import { ASSISTANT_SHARE_PICK_REPLY, isSharePickRequest, withGuideDisclaimer } from "@/lib/guide-safety";
+import { readAssistantQuota, recordAssistantExchange, type AssistantQuota } from "@/lib/assistant-quota.server";
 
 export const dynamic = "force-dynamic";
 
@@ -125,6 +127,32 @@ export async function POST(req: Request) {
 
     const userMessage = parsed.data.message.trim();
     const history = parsed.data.history ?? [];
+
+    // b28 L-4: the panel shares the Market Assistant quota with /api/chat.
+    const quota = await readAssistantQuota(user);
+    if (quota.limit != null && quota.used >= quota.limit) {
+      return NextResponse.json(
+        { ok: false, error: `You've used this month's ${quota.limit} Market Assistant queries.`, ...quota },
+        { status: 429 }
+      );
+    }
+    const answer = async (reply: string, extra: Record<string, unknown> = {}) => {
+      let after: AssistantQuota = quota;
+      try {
+        after = await recordAssistantExchange(user, quota, userMessage, reply);
+      } catch (err) {
+        console.warn("[api/portfolio-coach] quota record failed:", err instanceof Error ? err.message : "error");
+      }
+      return NextResponse.json({ ok: true, data: { reply, ...extra, used: after.used, limit: after.limit, remaining: after.remaining } });
+    };
+
+    // b28 CR-2: this is the route the signed-in Assistant panel calls. Share-pick questions are
+    // refused here, before any context load, model call or built-in fallback (the fallback
+    // answered "Which NZX share should I buy?" with how-to-buy steps while the model 404s).
+    if (isSharePickRequest(userMessage)) {
+      console.info(`[api/portfolio-coach] share-pick refusal for user ${user._id}`);
+      return answer(withGuideDisclaimer(ASSISTANT_SHARE_PICK_REPLY), { refused: "personalised_advice", fallback: true });
+    }
     const clientPlan = parsed.data.headmasterPlan?.trim() || "";
     const attached = parsed.data.attachedReports ?? [];
 
@@ -156,10 +184,7 @@ export async function POST(req: Request) {
 
     if (!isGrokConfigured()) {
       console.warn("[api/portfolio-coach] XAI_API_KEY missing — using fallback replies");
-      return NextResponse.json({
-        ok: true,
-        data: { reply: portfolioCoachFallbackReply(userMessage), fallback: true },
-      });
+      return answer(portfolioCoachFallbackReply(userMessage), { fallback: true });
     }
 
     const messages: GrokMessage[] = portfolioCoachCompletionMessages({
@@ -178,16 +203,10 @@ export async function POST(req: Request) {
         maxTokens: 750,
         temperature: 0.45,
       });
-      return NextResponse.json({ ok: true, data: { reply } });
+      return answer(reply);
     } catch (aiErr) {
       console.error("[api/portfolio-coach] Grok call failed, using fallback:", aiErr);
-      return NextResponse.json({
-        ok: true,
-        data: {
-          reply: portfolioCoachFallbackReply(userMessage),
-          fallback: true,
-        },
-      });
+      return answer(portfolioCoachFallbackReply(userMessage), { fallback: true });
     }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Failed to reply";

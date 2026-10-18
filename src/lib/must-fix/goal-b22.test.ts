@@ -15,7 +15,7 @@ describe("Goal b22", () => {
     const store = read("src/lib/crypto-board-store.ts");
     expect(store).toMatch(/boardNeedsRefresh\(saved\?\.at, SNAPSHOT_REFRESH_MS\)\) \{\n\s+await Promise\.race/);
     expect(store).toMatch(/await flushCryptoAttempt\(\)/);
-    expect(read("src/lib/crypto-attempts.ts")).toMatch(/pendingPersist = persistSharedAttempt/);
+    expect(read("src/lib/crypto-attempts.ts")).toMatch(/pendingPersist = Promise.all\(\[persistSharedAttempt/);
     expect(read("src/app/api/crypto/route.ts")).toMatch(/revalidate: true/);
   });
   it("G-20 and G-28: test-account views are gated", () => {

@@ -7,11 +7,13 @@ import { formatDisplayDateTime } from "@/lib/currency";
 
 export function coinSourceName(source: string | null | undefined): string {
   const s = String(source || "").toLowerCase();
+  if (s.includes("dexpaprika")) return "DexPaprika";
   if (s.includes("gecko")) return "CoinGecko";
   if (s.includes("paprika")) return "CoinPaprika";
   if (s.includes("binance")) return "Binance";
   if (s.includes("coinbase")) return "Coinbase";
   if (s.includes("kraken")) return "Kraken";
+  if (s.includes("yahoo")) return "Yahoo Finance";
   if (s.includes("dex")) return "DEX Screener";
   return source ? String(source) : "the price source";
 }
@@ -21,6 +23,12 @@ export function coinMetricsSourceLine(source: string | null | undefined, quotedA
   return `Source: ${coinSourceName(source)} · as of ${when === "—" ? "time not supplied" : when}`;
 }
 
-export function depthMissingReason(source: string | null | undefined): string {
-  return `Not supplied by ${coinSourceName(source)}`;
+/**
+ * A figure the feeds did not send. The time is when we checked, not a made-up quote.
+ * G-17: never a blank cell.
+ */
+export function depthMissingReason(_source?: string | null, checkedAt?: string | null): string {
+  const when = checkedAt ? formatDisplayDateTime(checkedAt) : "";
+  const time = when && when !== "—" ? when : "time not supplied";
+  return `not available from source · checked ${time}`;
 }

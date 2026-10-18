@@ -1,9 +1,10 @@
 /**
  * Goal b19 G-20 (collect only): the AI track record. Each buy/sell-style call in
  * a saved report becomes a hashed record; a weekly scorecard counts hits,
- * misses (losers included) and pending calls, and is hashed too so a later
- * publication can be verified. Nothing is published: there is no public page,
- * and numbers are shown only once real later prices exist.
+ * misses (losers included) and pending calls, and is hashed too so it can be
+ * verified. The cron stores that scorecard. The test view shows the stored
+ * totals only. A call stays pending until a real later price exists.
+ * Nothing here is published.
  */
 export type CallDirection = "up" | "down" | "neutral";
 export interface TrackCall {
@@ -68,19 +69,51 @@ export async function verifyCall(call: TrackCall): Promise<boolean> {
   return (await sha256Hex(canonical(base))) === hash;
 }
 
+export type CallResult = "hit" | "miss" | "pending" | "unscored";
+
 /** Hit = price moved the called way after 7 days. Neutral calls are listed, not scored. */
-export function scoreCall(call: TrackCall, priceAfter7d: number | null): "hit" | "miss" | "pending" | "unscored" {
+export function scoreCall(call: TrackCall, priceAfter7d: number | null): CallResult {
   if (call.direction === "neutral") return "unscored";
   if (priceAfter7d == null || !(priceAfter7d > 0)) return "pending";
   const up = priceAfter7d > call.priceAtCall;
   return (call.direction === "up") === up ? "hit" : "miss";
 }
 
+export interface ScorecardCall {
+  hash: string;
+  ticker: string;
+  signal: string;
+  result: CallResult;
+}
+
+/** The object that is hashed. `scorecardHash` and `published` are not part of it. */
+export interface ScorecardBody {
+  week: string;
+  calls: readonly ScorecardCall[];
+  hits: number;
+  misses: number;
+  pending: number;
+  unscored: number;
+}
+
 export async function weeklyScorecard(week: string, calls: readonly TrackCall[], laterPrices: Readonly<Record<string, number | null>>) {
-  const scored = calls.map((c) => ({ hash: c.hash, ticker: c.ticker, signal: c.signal, result: scoreCall(c, laterPrices[c.hash] ?? null) }));
-  const count = (r: string) => scored.filter((s) => s.result === r).length;
-  const body = { week, calls: scored, hits: count("hit"), misses: count("miss"), pending: count("pending"), unscored: count("unscored") };
+  const scored: ScorecardCall[] = calls.map((c) => ({ hash: c.hash, ticker: c.ticker, signal: c.signal, result: scoreCall(c, laterPrices[c.hash] ?? null) }));
+  const count = (r: CallResult) => scored.filter((s) => s.result === r).length;
+  const body: ScorecardBody = { week, calls: scored, hits: count("hit"), misses: count("miss"), pending: count("pending"), unscored: count("unscored") };
   return { ...body, scorecardHash: await sha256Hex(canonical(body)), published: false as const };
+}
+
+/** Recompute the scorecard hash from its body. Losers stay in `calls` and in `misses`. */
+export async function verifyScorecard(card: ScorecardBody & { scorecardHash: string }): Promise<boolean> {
+  const body: ScorecardBody = {
+    week: card.week,
+    calls: card.calls.map((c) => ({ hash: c.hash, ticker: c.ticker, signal: c.signal, result: c.result })),
+    hits: card.hits,
+    misses: card.misses,
+    pending: card.pending,
+    unscored: card.unscored,
+  };
+  return (await sha256Hex(canonical(body))) === card.scorecardHash;
 }
 
 /**

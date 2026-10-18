@@ -5,7 +5,7 @@ import { xeroStatementCsv } from "@/lib/xero-csv";
 import { GAMBLING_WORDS, QUIZ_QUESTIONS, THIRTY_DAY_TASKS, pickPlan } from "@/lib/onboarding-30";
 import { addHistoryPoint, wealthTotals } from "@/lib/whole-wealth";
 import { PASTE_IMPORT_AI_ENABLED, parsePastedTrades, pastedRowsToCsv } from "@/lib/paste-import";
-import { extractCalls, scoreCall, verifyCall, weeklyScorecard } from "@/lib/track-record";
+import { extractCalls, scoreCall, verifyCall, verifyScorecard, weeklyScorecard } from "@/lib/track-record";
 import type { SnapshotLedgerLine } from "@/lib/portfolio-snapshot";
 
 const read = (p: string) => readFileSync(p, "utf8");
@@ -122,5 +122,8 @@ describe("goal b19", () => {
     const card = await weeklyScorecard("2026-10-18", calls, { [calls[0].hash]: 27 });
     expect(card).toMatchObject({ hits: 0, misses: 1, pending: 1, unscored: 1, published: false });
     expect(card.scorecardHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(await verifyScorecard(card)).toBe(true);
+    expect(card.calls.some((c) => c.result === "miss")).toBe(true);
+    expect(await verifyScorecard({ ...card, misses: 0 })).toBe(false);
   });
 });

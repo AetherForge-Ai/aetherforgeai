@@ -1,18 +1,16 @@
-// pull-check:v3-goal-b27-2026-10-19
+// pull-check:v3-goal-b28-2026-10-19
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/totalum", () => ({ totalumSdk: { crud: {} } }));
-vi.mock("@/lib/track-record-prices.server", () => ({ laterPricesFor: async () => ({ prices: {}, fetched: 0, reused: 0 }), TRACK_STORE_ENABLED: () => false }));
 import { futureValue, monthsUntil, validateGoal } from "@/lib/goal-math";
-import { resetTrackRecordCache, runTrackRecordBounded } from "@/lib/track-record-run.server";
 import { sessionCash } from "@/lib/transactions";
 
 const read = (p: string) => readFileSync(p, "utf8");
 
 describe("goal b26", () => {
-  it("pins the build", () => expect(read("public/build-version.txt").trim()).toBe("v3-goal-b27-2026-10-19"));
+  it("pins the build", () => expect(read("public/build-version.txt").trim()).toBe("v3-goal-b28-2026-10-19"));
 
   it("G-10: buy returns the holding; the session's fresh cash replaces a second user read", () => {
     expect(read("src/app/api/transactions/route.ts")).toContain("holding: result.holding ?? null");
@@ -34,22 +32,15 @@ describe("goal b26", () => {
     expect(read("src/components/dashboard/ReportCenter.tsx")).toContain("}, 5_000);");
   });
 
-  it("track record: 10 s bound, cached, one build at a time", async () => {
-    resetTrackRecordCache();
-    const slow = () => new Promise<never>(() => undefined);
-    const r = await runTrackRecordBounded(Date.now(), slow as never, 20);
-    expect("error" in r && r.error).toContain("longer than");
-    resetTrackRecordCache();
-    let calls = 0;
-    const fake = async () => { calls++; return { reportsRead: 0, calls: [], verified: [], laterPrices: { fetched: 0, reused: 0, store: "cache-only" }, card: { week: "w", calls: [], hits: 0, misses: 0, pending: 0, unscored: 0, scorecardHash: "h", published: false as const } }; };
-    await runTrackRecordBounded(Date.now(), fake as never);
-    const again = await runTrackRecordBounded(Date.now(), fake as never);
-    expect(calls).toBe(1);
-    expect("run" in again && again.cachedAt).toBeTruthy();
+  it("G-20: the test page reads the stored scorecard and does not build one", () => {
     const page = read("src/app/test-hooks/track-record/page.tsx");
+    expect(page).toContain("loadTrackRecordView");
+    expect(page).not.toMatch(/runTrackRecord\(/); // b28: only the bounded fallback when nothing is stored
     expect(page).toContain("How to verify the hash");
     expect(page).toContain("misses included");
+    expect(page).toContain("collected so far");
     expect(page).not.toMatch(/calls\.map\(/);
+    expect(read("src/app/api/cron/track-record/route.ts")).toContain("persistTrackRun");
   });
 
   it("H-13 / H-15: RBNZ is NZ macro; /trust lists news sources and delays", () => {

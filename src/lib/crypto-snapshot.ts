@@ -23,7 +23,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { gzipSync, gunzipSync } from "node:zlib";
-import { recordCryptoAttempt } from "@/lib/crypto-attempts";
+import { recordCryptoAttempt, registerDurableAttemptStore } from "@/lib/crypto-attempts";
 import { DEX_REQUEST_FRESH_MS, dexSnapshotComplete, snapshotIsStale } from "@/lib/crypto-board";
 import type { DexTokenRow } from "@/lib/crypto-dex";
 import { resolvableCoinId, type CoinMarket } from "@/lib/crypto-market";
@@ -32,6 +32,8 @@ import { totalumSdk } from "@/lib/totalum";
 
 export const CRYPTO_SNAPSHOT_TICKER = "AF-CGS";
 export const DEX_SNAPSHOT_TICKER = "AF-DXS";
+/** b28 G-05: hidden ownerless row holding the last crypto list refresh attempt. */
+export const CRYPTO_ATTEMPT_TICKER = "AF-CAT";
 
 /** A Cache API read that takes longer than this is skipped. The database row is not. */
 export const SNAPSHOT_READ_TIMEOUT_MS = 400;
@@ -409,8 +411,9 @@ async function findWatchlistRow(ticker: string): Promise<{ id: string; name: str
     _filter: { ticker },
     _limit: 5,
   });
-  const rows = ((res as { data?: { _id?: string; ticker?: string; name?: string }[] })?.data || []);
-  const row = rows.find((item) => String(item.ticker || "").toUpperCase() === ticker);
+  const rows = ((res as { data?: { _id?: string; ticker?: string; name?: string; user?: unknown }[] })?.data || []);
+  // b28: only the ownerless system row; never a member's row with the same ticker.
+  const row = rows.find((item) => !item.user && String(item.ticker || "").toUpperCase() === ticker);
   if (!row?._id) return null;
   return { id: String(row._id), name: typeof row.name === "string" ? row.name : "" };
 }
@@ -830,5 +833,11 @@ export async function persistDexSnapshot(
 
 export function hiddenSnapshotTicker(ticker: string | null | undefined): boolean {
   const key = (ticker || "").trim().toUpperCase();
-  return key === CRYPTO_SNAPSHOT_TICKER || key === DEX_SNAPSHOT_TICKER || /^AF-CGS-\d+$/.test(key) || /^AF-DXS-\d+$/.test(key);
+  return key === CRYPTO_SNAPSHOT_TICKER || key === DEX_SNAPSHOT_TICKER || key === CRYPTO_ATTEMPT_TICKER || /^AF-CGS-\d+$/.test(key) || /^AF-DXS-\d+$/.test(key);
 }
+
+// b28 G-05: the refresh-attempt record shares this durable store (see crypto-attempts.ts).
+registerDurableAttemptStore({
+  read: async () => (await findWatchlistRow(CRYPTO_ATTEMPT_TICKER))?.name || null,
+  write: (body: string) => writeNamedWatchlist(CRYPTO_ATTEMPT_TICKER, body),
+});
