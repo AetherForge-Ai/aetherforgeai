@@ -63,6 +63,9 @@ export function applyCashLine(book: LedgerBook, line: CashLine): LedgerBook {
  * Cash shown on a ledger row. A tax line is a reduction even when the stored
  * total was saved without a sign. A dividend stays an increase.
  */
+/** The hidden breakdown prefix written by dividend-ledger (kept local to avoid an import cycle). */
+const DIVIDEND_PREFIX_RE = /^\s*\[DIV:/;
+
 export function displayedCashImpact(type: string, total: number | null | undefined): number {
   const amount = Number(total);
   const magnitude = Number.isFinite(amount) ? Math.abs(amount) : 0;
@@ -89,6 +92,7 @@ export function ledgerDisplayedCash(row: {
   cash_nzd?: number | null;
   fees_nzd?: number | null;
   quantity?: number | null;
+  notes?: string | null;
 }): number {
   const type = String(row.type || "");
   const total = finiteNum(row.total);
@@ -107,6 +111,9 @@ export function ledgerDisplayedCash(row: {
   if (type === "dividend" || type === "deposit") {
     const mag = Math.max(Math.abs(total ?? 0), Math.abs(cash ?? 0));
     if (mag > 0) return mag;
+    // b23 G-01: a dividend with a stored breakdown keeps its net cash, even 0 for a full DRP.
+    // Its quantity holds the gross in the payment currency, which was never paid out as cash.
+    if (type === "dividend" && DIVIDEND_PREFIX_RE.test(String(row.notes || ""))) return 0;
     return qty > 0 ? qty : 0;
   }
   if (type === "correction") return 0;
@@ -129,6 +136,7 @@ export function cashFromLedgerRows(
     cash_nzd?: number | null;
     fees_nzd?: number | null;
     quantity?: number | null;
+    notes?: string | null;
   }>
 ): number {
   const sum = rows.reduce((cash, row) => cash + ledgerDisplayedCash(row), 0);
