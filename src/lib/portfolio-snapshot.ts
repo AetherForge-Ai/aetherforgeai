@@ -449,6 +449,7 @@ function signedCash(row: SnapshotLedgerRow): number {
     cash_nzd: row.cash_nzd,
     fees_nzd: row.fees_nzd,
     quantity: row.quantity,
+    notes: row.notes,
   });
 }
 
@@ -828,8 +829,10 @@ export function buildPortfolioSnapshot(input: SnapshotInput): PortfolioSnapshot 
           legacy: false,
         });
         if (parts.drpNzd > 0) {
-          const drpQty = movementQty(row);
-          const drpPrice = movementPrice(row);
+          // b23 G-01: the lot is the shares the DRP allotted (sh= in the breakdown), priced at the DRP
+          // amount per share. The row quantity holds the gross dividend, not shares.
+          const drpQty = Number(parts.drpShares) > 0 ? Number(parts.drpShares) : 0;
+          const drpPrice = drpQty > 0 ? parts.drpNative / drpQty : 0;
           if (!(drpQty > 0) || !(drpPrice > 0)) {
             feeNotes.push(
               `${ticker || "Dividend"} dividend reinvestment of ${formatNzd(parts.drpNzd)} has no share quantity, so no lot was added.`
@@ -996,6 +999,7 @@ export function buildPortfolioSnapshot(input: SnapshotInput): PortfolioSnapshot 
       cash_nzd: row.cash_nzd,
       fees_nzd: row.fees_nzd,
       quantity: row.quantity,
+      notes: row.notes,
     }))
   );
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { formatDisplayDate, formatNzd } from "@/lib/currency";
 import { aucklandYmd } from "@/lib/entitlements";
@@ -25,6 +25,7 @@ function load<T>(key: string, fallback: T): T {
   }
 }
 
+export const GOAL_SAVE_DEBOUNCE_MS = 600;
 const MIGRATED_KEY = "aetherforge.wealth.migrated.v1";
 type ServerView = { items: { id: string; kind: string; label: string; valueNzd: number }[]; history: { day: string; netWorthNzd: number }[]; goalNzd: number | null };
 
@@ -109,9 +110,17 @@ export function WholeWealthPanel() {
       /* ignore */
     }
   }
+  // b23: the goal field saves to the account 600 ms after the last keystroke, not on every key.
+  const goalTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (goalTimer.current) clearTimeout(goalTimer.current); }, []);
   function setGoal(goalNzd: number | null) {
     save({ ...state, goalNzd });
-    if (mode === "server") void api.post("/api/wealth", { action: "goal", goal_nzd: goalNzd });
+    if (mode !== "server") return;
+    if (goalTimer.current) clearTimeout(goalTimer.current);
+    goalTimer.current = setTimeout(() => {
+      goalTimer.current = null;
+      void api.post("/api/wealth", { action: "goal", goal_nzd: goalNzd });
+    }, GOAL_SAVE_DEBOUNCE_MS);
   }
   function remove(id: string) {
     save({ ...state, items: state.items.filter((x) => x.id !== id) });
