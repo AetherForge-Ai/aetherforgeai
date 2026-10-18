@@ -153,7 +153,7 @@ describe("b29 G-20 stored card first, self-seeding store", () => {
     expect(page.indexOf("loadTrackRecordView()")).toBeLessThan(page.indexOf("seedTrackRecordStore()"));
     expect(page).toContain("TRACK_LIVE_WAIT_MS");
     const seed = read("src/lib/track-record-seed.server.ts");
-    expect(seed).toContain("persistTrackRun(out.run)");
+    expect(seed).toMatch(/persistTrackRun\(out\.run[,)]/);
     expect(seed).toContain("keepAlive(job)");
     const { storedCardIsStale } = await import("@/lib/track-record-seed.server");
     expect(storedCardIsStale(new Date(Date.now() - 3600_000).toISOString())).toBe(false);

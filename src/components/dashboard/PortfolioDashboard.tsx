@@ -2419,7 +2419,7 @@ export function PortfolioDashboard({
                   <Button type="button" variant="outline" className="h-auto min-h-11 whitespace-normal" onClick={() => handleCalculatorCash("deposit")}>Deposit/Withdraw</Button>
                   <a href="/dashboard/split" className="inline-flex min-h-11 items-center justify-center rounded-md border px-4 text-sm font-medium">Record split</a>
                   <Button type="button" variant="outline" className="h-auto min-h-11 whitespace-normal" onClick={() => void exportLedger()} disabled={freePlan} aria-label={freePlan ? csvLockAccessibleName("Transactions CSV") : undefined} title={freePlan ? CSV_LOCK_LABEL : undefined}>{freePlan ? CSV_LOCK_LABEL : "Export"}</Button>
-                  <Button type="button" variant="outline" className="h-auto min-h-11 whitespace-normal" data-xero-export onClick={() => void exportLedger("xero")} disabled={freePlan} aria-label={freePlan ? csvLockAccessibleName("Xero CSV") : undefined} title={freePlan ? CSV_LOCK_LABEL : "Xero bank-statement import: Date, Amount, Payee, Description, Reference (NZD cash movements)"}>{freePlan ? "Xero CSV: Starter and above" : "Xero CSV"}</Button>
+                  <Button type="button" variant="outline" className="h-auto min-h-11 whitespace-normal" data-xero-export onClick={() => void exportLedger("xero")} disabled={freePlan} aria-label={freePlan ? csvLockAccessibleName("Xero CSV") : undefined} title={freePlan ? CSV_LOCK_LABEL : "Xero bank-statement import: Date, Amount, Payee, Description, Reference (NZD cash movements)"}>{freePlan ? "CSV export: Starter and above (Xero CSV)" : "Xero CSV"}</Button>
                   <Button type="button" variant="outline" className="h-auto min-h-11 whitespace-normal" disabled={(reportDesk?.stox ?? unloadedReportControl("Stox")).disabled} title={(reportDesk?.stox ?? unloadedReportControl("Stox")).title} onClick={() => handleReport({ ticker: "", name: "Portfolio", assetClass: "shares", kind: "position" } as HoldingsRowModel, "stox")}>{(reportDesk?.stox ?? unloadedReportControl("Stox")).label}</Button>
                   <Button type="button" variant="outline" className="h-auto min-h-11 whitespace-normal" disabled={(reportDesk?.koins ?? unloadedReportControl("Koins")).disabled} title={(reportDesk?.koins ?? unloadedReportControl("Koins")).title} onClick={() => handleReport({ ticker: "", name: "Portfolio", assetClass: "crypto", kind: "position" } as HoldingsRowModel, "koins")}>{(reportDesk?.koins ?? unloadedReportControl("Koins")).label}</Button>
                 </div>
@@ -2434,7 +2434,7 @@ export function PortfolioDashboard({
               </Button>
               {/* Goal b20 G-29: shown on every plan; Free sees the lock, the same way as Export. */}
               <Button type="button" variant="outline" className="h-auto min-h-11 max-w-full whitespace-normal" data-xero-export onClick={() => void exportLedger("xero")} disabled={freePlan} aria-label={freePlan ? csvLockAccessibleName("Xero CSV") : undefined} title={freePlan ? CSV_LOCK_LABEL : "Xero bank-statement import: Date, Amount, Payee, Description, Reference (NZD cash movements)"}>
-                {freePlan ? "Xero CSV: Starter and above" : "Xero CSV"}
+                {freePlan ? "CSV export: Starter and above (Xero CSV)" : "Xero CSV"}
               </Button>
               <Button
                 type="button"

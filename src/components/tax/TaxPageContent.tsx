@@ -1,3 +1,4 @@
+import { CSV_LOCK_LABEL, csvLockAccessibleName } from "@/lib/csv-lock-label";
 import { DisclaimerNotice } from "@/components/legal/DisclaimerNotice";
 /**
  * General information drawn from the Inland Revenue pages linked below.
@@ -75,7 +76,10 @@ export function TaxPageContent({ book = null, xero = "guest" }: { book?: TaxBook
             </a>
           </span>
         ) : xero === "free" ? (
-          <span aria-disabled="true" className="mt-2 inline-flex min-h-11 items-center rounded-md border px-4 font-medium text-muted-foreground">Tax pack: Starter and above</span>
+          <span aria-disabled="true" className="mt-2 inline-flex min-h-11 items-center rounded-md border px-4 font-medium text-muted-foreground" aria-label={csvLockAccessibleName("Tax pack")} data-csv-locked>
+            {/* b36 G-09 (GOAL-LOCK #44): the exact lock wording on every locked export. */}
+            {CSV_LOCK_LABEL} (tax pack PDF and ZIP)
+          </span>
         ) : (
           <Link href="/login?redirect=/tax" className="mt-2 inline-flex min-h-11 items-center rounded-md border px-4 font-medium">Sign in to download</Link>
         )}
@@ -93,7 +97,7 @@ export function TaxPageContent({ book = null, xero = "guest" }: { book?: TaxBook
           </a>
         ) : xero === "free" ? (
           <span aria-disabled="true" className="mt-2 inline-flex min-h-11 items-center rounded-md border px-4 font-medium text-muted-foreground" data-xero-export aria-label="Xero CSV: CSV export: Starter and above">
-            Xero CSV: Starter and above
+            CSV export: Starter and above (Xero CSV)
           </span>
         ) : (
           <Link href="/login?redirect=/tax" className="mt-2 inline-flex min-h-11 items-center rounded-md border px-4 font-medium">

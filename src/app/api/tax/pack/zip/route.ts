@@ -1,3 +1,4 @@
+import { CSV_LOCK_LABEL } from "@/lib/csv-lock-label";
 import { NextResponse } from "next/server";
 import { requestClaimsOtherUser } from "@/lib/account-guard";
 import { accountMismatchResponse } from "@/lib/account-response";
@@ -21,7 +22,7 @@ export async function GET(req: Request) {
     if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     if (user.identityConflict || requestClaimsOtherUser(req, user._id)) return accountMismatchResponse(user._id);
     if (!canExportCsv(user.subscription_plan)) {
-      return NextResponse.json({ ok: false, error: "CSV export is included on Starter and above.", data: { code: "not_entitled" } }, { status: 403 });
+      return NextResponse.json({ ok: false, error: `${CSV_LOCK_LABEL}.`, data: { code: "not_entitled" } }, { status: 403 });
     }
     const requested = Number(new URL(req.url).searchParams.get("year"));
     const endingYear = isNzTaxYearEnding(requested) ? requested : nzTaxYearEnding(aucklandCivilToday());

@@ -20,6 +20,8 @@ export async function POST(req: Request) {
   if (req.headers.get("x-af-fx-correction") !== expected) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
+  // b36 M-9 (GOAL-LOCK #19): every admin action is audited (route, time; no body values).
+  console.info(`[admin-audit] position-maintenance authorised call at ${new Date().toISOString()}`);
   const body = (await req.json().catch(() => null)) as { userId?: string; apply?: boolean } | null;
   const userId = body?.userId?.trim() || undefined;
   const apply = body?.apply === true;

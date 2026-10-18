@@ -79,7 +79,7 @@ describe("Goal b20", () => {
   });
 
   it("G-29: Xero export shows on /tax and in the mobile menu with a Free lock", () => {
-    expect(read("src/components/tax/TaxPageContent.tsx")).toMatch(/Xero CSV: Starter and above/);
+    expect(read("src/components/tax/TaxPageContent.tsx")).toMatch(/CSV export: Starter and above \(Xero CSV\)/);
     expect(read("src/components/dashboard/PortfolioDashboard.tsx").match(/data-xero-export/g)?.length).toBeGreaterThanOrEqual(2);
   });
 });

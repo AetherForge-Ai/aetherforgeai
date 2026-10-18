@@ -17,7 +17,9 @@ vi.mock("@/lib/test-hooks.server", () => ({
 }));
 const live: { out: unknown } = { out: { error: "took too long" } };
 vi.mock("@/lib/track-record-run.server", () => ({ runTrackRecordBounded: async () => live.out }));
+vi.mock("@/lib/cron-runs.server", () => ({ lastCronRuns: async () => null }));
 vi.mock("@/lib/track-record-store.server", () => ({
+  readTrackRunLog: async () => [],
   loadTrackRecordView: async () => {
     if (gate.body.kind === "ready") return { kind: "ready", view: gate.body.view };
     if (gate.body.kind === "error") return { kind: "error", error: gate.body.error };
