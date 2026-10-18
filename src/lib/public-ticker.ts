@@ -14,15 +14,26 @@ function boundedPart<T>(work: Promise<T | null>): Promise<T | null> {
   return Promise.race([work, new Promise<null>((resolve) => setTimeout(() => resolve(null), TICKER_PART_TIMEOUT_MS))]);
 }
 
-export async function loadPublicTicker(): Promise<TickerTapeFeed> {
+export interface PublicTickerOptions {
+  /**
+   * b35 H-1 (GOAL-LOCK #25): the request's one snapshot read. When given, the crypto rows come from
+   * it, so the rows and the x-af-snapshot headers always name the same list.
+   */
+  snapshot?: { at: string; coins: import("@/lib/crypto-market").CoinMarket[] } | null;
+}
+
+export async function loadPublicTicker(opts: PublicTickerOptions = {}): Promise<TickerTapeFeed> {
   const asOf = new Date().toISOString();
   const equitySymbols = [...TICKER_TAPE.nzx, ...TICKER_TAPE.asx].map((row) => row.symbol);
   const cryptoSymbols = TICKER_TAPE.crypto.map((row) => row.symbol);
 
-  const { snapshotQuotesForSymbols } = await import("@/lib/crypto-board-store");
+  const { snapshotQuotesForSymbols, quotesFromCoins } = await import("@/lib/crypto-board-store");
+  const fromSnapshot = opts.snapshot?.coins.length ? quotesFromCoins(opts.snapshot.coins, opts.snapshot.at, cryptoSymbols) : null;
   // b31 REG-1: each part waits at most TICKER_PART_TIMEOUT_MS; a timeout serves the last-good part.
   const [cryptoFresh, equityFresh] = await Promise.all([
-    boundedPart(
+    fromSnapshot && Object.keys(fromSnapshot).length
+      ? Promise.resolve(fromSnapshot)
+      : boundedPart(
       snapshotQuotesForSymbols(cryptoSymbols).catch((err) => {
         console.error("[ticker] Crypto snapshot read failed:", err instanceof Error ? err.message.slice(0, 120) : "failed");
         return null;

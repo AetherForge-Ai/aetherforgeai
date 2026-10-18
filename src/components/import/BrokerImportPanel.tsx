@@ -3,7 +3,8 @@
 import { importFileProblem } from "@/lib/import-limits";
 import { useEffect, useRef, useState } from "react";
 import { importOversells } from "@/lib/import-oversell";
-import { PASTE_IMPORT_AI_ENABLED, parsePastedTrades, pastedRowsToCsv } from "@/lib/paste-import";
+import { nzToday, withDate } from "@/lib/paste-date";
+import { PASTE_IMPORT_AI_ENABLED, parsePastedTrades, pastedRowsToCsv, type PastedRow } from "@/lib/paste-import";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
@@ -65,6 +66,10 @@ export function BrokerImportPanel({
   const [fileName, setFileName] = useState("");
   const [pasted, setPasted] = useState("");
   const [pasteNote, setPasteNote] = useState("");
+  // b35 G-24 (GOAL-LOCK #59): a pasted line with no date is shown as "date missing" with an
+  // editable date (default today, NZ), never dropped as "No trades found".
+  const [pastedRows, setPastedRows] = useState<PastedRow[]>([]);
+  const [missingDate, setMissingDate] = useState("");
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [preview, setPreview] = useState<Preview | null>(null);
   const [message, setMessage] = useState("");
@@ -153,14 +158,26 @@ export function BrokerImportPanel({
       setPasteNote("No trades found in that text. Paste lines like “Bought 25 FPH.NZ at NZ$28.50 on 13 Oct 2026”.");
       return;
     }
-    setText(pastedRowsToCsv(rows));
+    const dateless = rows.filter((r) => !r.date).length;
+    const fill = missingDate || nzToday();
+    if (dateless && !missingDate) setMissingDate(fill);
+    setPastedRows(rows);
+    setText(pastedRowsToCsv(withDate(rows, fill)));
     setFileName("Pasted text");
     setPreview(null);
     setMessage("");
     setImportError("");
     setConsent(false);
     setAcknowledgeSkipped(false);
-    setPasteNote(`${rows.length} trade${rows.length === 1 ? "" : "s"} read from the text${unread.length ? `; ${unread.length} part${unread.length === 1 ? "" : "s"} could not be read` : ""}. Review them below before anything is saved.`);
+    setPasteNote(`${rows.length} trade${rows.length === 1 ? "" : "s"} read from the text${unread.length ? `; ${unread.length} part${unread.length === 1 ? "" : "s"} could not be read` : ""}. Review them below before anything is saved.${dateless ? ` Date missing on ${dateless} trade${dateless === 1 ? "" : "s"}: set it below.` : ""}`);
+  }
+
+  function changeMissingDate(value: string) {
+    setMissingDate(value);
+    if (pastedRows.some((r) => !r.date)) {
+      setText(pastedRowsToCsv(withDate(pastedRows, value)));
+      setPreview(null);
+    }
   }
 
   async function postImport<T>(body: unknown): Promise<Awaited<ReturnType<typeof api.post<T>>>> {
@@ -363,6 +380,12 @@ export function BrokerImportPanel({
             />
             <button type="button" onClick={readPasted} className="mt-2 h-9 rounded-md border px-3 text-sm font-semibold">Read trades from text</button>
             {pasteNote ? <p className="mt-2 text-sm" role="status">{pasteNote}</p> : null}
+            {pastedRows.some((r) => !r.date) ? (
+              <label className="mt-2 flex items-center gap-2 text-sm" data-paste-date-missing>
+                <span className="font-medium text-rose-700">Date missing</span>
+                <input type="date" className="rounded border px-2 py-1" value={missingDate} onChange={(e) => changeMissingDate(e.target.value)} aria-label="Trade date for pasted lines with no date" />
+              </label>
+            ) : null}
             <p className="mt-2 text-xs text-muted-foreground">
               {PASTE_IMPORT_AI_ENABLED
                 ? "AI reading of PDFs and screenshots is switched on."

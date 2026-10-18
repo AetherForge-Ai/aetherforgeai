@@ -144,8 +144,9 @@ describe("H-1 shared versioned snapshot", () => {
       }
     }
     expect(snapA2!.at).toBe(new Date(t0 + 60_000).toISOString());
-    expect(snapA2!.version).toBe(2);
-    expect(a.snapshotHeaders(snapA2)).toEqual({ "x-af-snapshot-at": snapA2!.at, "x-af-snapshot-version": "2" });
+    // b35 H-1: the version is the as-of in epoch ms (unique per snapshot, rises with as-of).
+    expect(snapA2!.version).toBe(t0 + 60_000);
+    expect(a.snapshotHeaders(snapA2)).toEqual({ "x-af-snapshot-at": snapA2!.at, "x-af-snapshot-version": String(t0 + 60_000) });
   });
 
   it("a fallback provider replaces the primary only after the documented threshold", async () => {

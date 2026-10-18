@@ -74,6 +74,31 @@ export type SnapshotId = "crypto" | "dex";
 export interface SnapshotDurable {
   read(id: SnapshotId): Promise<string | null>;
   write(id: SnapshotId, body: string): Promise<boolean>;
+  /** b35 H-1: the refresh lease row (one refresh write at a time). Optional for older test stores. */
+  readLease?(): Promise<string | null>;
+  writeLease?(body: string): Promise<boolean>;
+}
+
+/** b35 H-1: lease row ticker (hidden from every holdings list). */
+export const CRYPTO_LEASE_TICKER = "AF-CLS";
+/** A refresh lease lives this long; a crashed holder never blocks refreshes for longer. */
+export const CRYPTO_LEASE_MS = 10_000;
+/** After writing the lease, wait this long and read it back; only the holder still named writes. */
+export const CRYPTO_LEASE_SETTLE_MS = 120;
+/** A per-request shared-copy check is reused for this long (one check serves a burst of reads). */
+export const SHARED_CHECK_REUSE_MS = 250;
+/** b35 H-1: the per-request shared-copy check waits at most this long (Workers cache is ~ms). */
+export const SHARED_CHECK_TIMEOUT_MS = 150;
+
+/**
+ * b35 H-1 (GOAL-LOCK #25): the version is the snapshot's own as-of in epoch ms. TT saw one
+ * number name two snapshots (v30 = 07:18:36.751 and 07:18:38.334) and newer lists get lower
+ * numbers: a counter bumped by read-then-write cannot be atomic on this store. A time-derived
+ * version is unique per snapshot and can only rise with as-of, whichever server writes it.
+ */
+export function versionFor(at: string): number {
+  const t = Date.parse(at);
+  return Number.isFinite(t) ? t : 0;
 }
 
 export interface CryptoSnapshot {
@@ -790,8 +815,33 @@ let memoryCryptoCheckedAt = 0;
 let durableRefresh: Promise<void> | null = null;
 
 function newerCrypto(a: CryptoSnapshot, b: CryptoSnapshot): boolean {
-  if (a.version !== b.version && a.version > 0 && b.version > 0) return a.version > b.version;
-  return a.at >= b.at;
+  // b35 H-1: as-of decides (versions follow as-of); a same-as-of tie keeps the higher version.
+  const ta = Date.parse(a.at);
+  const tb = Date.parse(b.at);
+  if (Number.isFinite(ta) && Number.isFinite(tb) && ta !== tb) return ta > tb;
+  return a.version >= b.version;
+}
+
+let sharedCheck: { at: number; work: Promise<void> } | null = null;
+
+/** b35 H-1: the colo-shared copy (Workers cache in production; the store in tests). */
+async function readSharedCrypto(): Promise<string | null> {
+  if (durableOverride) return durableOverride.read("crypto");
+  return readWorkersCache("crypto");
+}
+
+/** One bounded shared-copy check per SHARED_CHECK_REUSE_MS, adopted only if newer. */
+function checkShared(timeoutMs: number): Promise<void> {
+  // Reuse only a check still in flight: a finished check may predate another server's commit.
+  const now = Date.now();
+  if (sharedCheck && now - sharedCheck.at < SHARED_CHECK_REUSE_MS) return sharedCheck.work;
+  const work = withTimeout(readSharedCrypto(), timeoutMs)
+    .then((raw) => rememberRaw("crypto", raw))
+    .finally(() => {
+      if (sharedCheck?.work === work) sharedCheck = null;
+    });
+  sharedCheck = { at: now, work };
+  return work;
 }
 
 async function readDurableCrypto(timeoutMs: number): Promise<string | null> {
@@ -814,9 +864,23 @@ function refreshCryptoFromDurable(timeoutMs = STORE_HARD_TIMEOUT_MS): Promise<vo
   return durableRefresh;
 }
 
-export async function readCryptoSnapshot(timeoutMs = SNAPSHOT_READ_TIMEOUT_MS): Promise<CryptoSnapshot | null> {
+export interface SnapshotReadOptions {
+  /** b35 H-1: the highest version this client has already been served (cookie or header). */
+  floor?: number;
+}
+
+export async function readCryptoSnapshot(timeoutMs = SNAPSHOT_READ_TIMEOUT_MS, opts: SnapshotReadOptions = {}): Promise<CryptoSnapshot | null> {
   const now = Date.now();
   if (memoryCrypto) {
+    // b35 H-1: every request checks the shared copy (bounded, deduplicated), so an isolate
+    // whose memory lags never serves a list older than one another isolate already served.
+    await checkShared(Math.min(timeoutMs, SHARED_CHECK_TIMEOUT_MS));
+    const floor = opts.floor ?? 0;
+    if (floor > 0 && memoryCrypto.version < floor) {
+      // The client has seen a newer list than this isolate knows: read the store (bounded).
+      rememberRaw("crypto", await readDurableCrypto(STORE_HARD_TIMEOUT_MS).catch(() => null));
+      memoryCryptoCheckedAt = Date.now();
+    }
     if (now - memoryCryptoCheckedAt >= SNAPSHOT_LOCAL_TTL_MS) {
       // b31 REG-1: re-read the stored row in the background. A request never waits on the
       // store once this isolate has a last-good copy; memory only moves forward (newerCrypto).
@@ -825,7 +889,8 @@ export async function readCryptoSnapshot(timeoutMs = SNAPSHOT_READ_TIMEOUT_MS): 
     }
     return memoryCrypto;
   }
-  const raw = await readRaw("crypto", timeoutMs);
+  // b35 H-1: a cold isolate waits (bounded, 1.5 s) for the stored copy rather than serving [].
+  const raw = await readRaw("crypto", timeoutMs === SNAPSHOT_READ_TIMEOUT_MS ? STORE_HARD_TIMEOUT_MS : timeoutMs);
   rememberRaw("crypto", raw);
   memoryCryptoCheckedAt = now;
   if (!durableOverride) void keepAlive(refreshCryptoFromDurable(STORE_HARD_TIMEOUT_MS));
@@ -924,13 +989,9 @@ export async function persistCryptoSnapshot(coins: CoinMarket[], at = new Date()
   }
   // b31 REG-1: the versioned compare-and-set write runs in the background (waitUntil). The
   // request that produced the list returns at once; this isolate serves the new list now.
+  // b35 H-1: commit, then serve. This isolate adopts the new list only after the store holds it,
+  // so no client can be served a list another isolate cannot yet see (that was a step-back).
   const expected = existing?.version ?? 0;
-  const local = parseCrypto(encodeCrypto(tagged, at, expected + 1, primarySnapshotSource(tagged)));
-  if (!local) return;
-  if (!memoryCrypto || newerCrypto(local, memoryCrypto)) {
-    memoryCrypto = local;
-    memoryCryptoCheckedAt = Date.now();
-  }
   const work = persistCryptoDurable(tagged, at, expected);
   pendingSnapshotWrite = work;
   await keepAlive(work);
@@ -943,25 +1004,83 @@ export async function flushSnapshotWrites(): Promise<void> {
 }
 
 async function persistCryptoDurable(tagged: CoinMarket[], at: string, expected: number): Promise<void> {
-  // b30 H-1: compare-and-set on the stored row. Re-read it; if another isolate has written a
-  // newer version (or a later as-of) since we looked, ours is dropped and we adopt theirs.
+  void expected;
+  // b35 H-1: one refresh write at a time. Take the lease, then re-read the stored row under it and
+  // write only if ours is newer (a conditional write: as-of strictly later than the stored one).
+  const lease = await acquireCryptoLease();
+  if (!lease) {
+    recordCryptoAttempt(false, new Error("unavailable: refresh lease held by another server"));
+    return;
+  }
+  try {
+    await commitUnderLease(tagged, at);
+  } finally {
+    await releaseCryptoLease(lease);
+  }
+}
+
+async function commitUnderLease(tagged: CoinMarket[], at: string): Promise<void> {
   const stored = parseCrypto(await readDurableCrypto(STORE_HARD_TIMEOUT_MS).catch(() => null));
-  if (stored && (stored.version > expected || stored.at > at)) {
+  if (stored && versionFor(stored.at) >= versionFor(at)) {
     rememberRaw("crypto", encodeCrypto(stored.coins, stored.at, stored.version, stored.source));
     recordCryptoAttempt(false, new Error("unavailable: another server saved a newer list first"));
     return;
   }
-  const version = Math.max(expected, stored?.version ?? 0) + 1;
+  const version = versionFor(at);
   const body = encodeCrypto(tagged, at, version, primarySnapshotSource(tagged));
   const parsed = parseCrypto(body);
   if (!parsed) return;
-  if (!memoryCrypto || newerCrypto(parsed, memoryCrypto) || memoryCrypto.at === parsed.at) {
+  await writeRaw("crypto", body);
+  if (!memoryCrypto || newerCrypto(parsed, memoryCrypto)) {
     memoryCrypto = parsed;
     memoryCryptoCheckedAt = Date.now();
   }
-  await writeRaw("crypto", body);
   // b24 G-05: one write point, so every path that refreshes the list fills /status.
   recordCryptoAttempt(true);
+}
+
+let leaseSeq = 0;
+function leaseHolder(): string {
+  leaseSeq += 1;
+  const rand = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}`;
+  return `${rand}-${leaseSeq}`;
+}
+
+async function readLeaseRaw(): Promise<string | null> {
+  if (durableOverride) return durableOverride.readLease ? durableOverride.readLease() : null;
+  return (await findWatchlistRow(CRYPTO_LEASE_TICKER))?.name || null;
+}
+
+async function writeLeaseRaw(body: string): Promise<boolean> {
+  if (durableOverride) return durableOverride.writeLease ? durableOverride.writeLease(body) : true;
+  return writeNamedWatchlist(CRYPTO_LEASE_TICKER, body);
+}
+
+function parseLease(raw: string | null): { holder: string; until: number } | null {
+  try {
+    const v = raw ? (JSON.parse(raw) as { holder?: unknown; until?: unknown }) : null;
+    return v && typeof v.holder === "string" && typeof v.until === "number" ? { holder: v.holder, until: v.until } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** b35 H-1: take the refresh lease, or null when another server holds a live one. */
+export async function acquireCryptoLease(now = Date.now()): Promise<string | null> {
+  if (durableOverride && !durableOverride.writeLease) return "no-lease-store";
+  const current = parseLease(await withTimeout(readLeaseRaw(), STORE_HARD_TIMEOUT_MS));
+  if (current && current.until > now) return null;
+  const holder = leaseHolder();
+  await withTimeout(writeLeaseRaw(JSON.stringify({ holder, until: now + CRYPTO_LEASE_MS })), STORE_HARD_TIMEOUT_MS);
+  await new Promise((r) => setTimeout(r, CRYPTO_LEASE_SETTLE_MS));
+  const after = parseLease(await withTimeout(readLeaseRaw(), STORE_HARD_TIMEOUT_MS));
+  return after?.holder === holder ? holder : null;
+}
+
+async function releaseCryptoLease(holder: string): Promise<void> {
+  if (holder === "no-lease-store") return;
+  const current = parseLease(await withTimeout(readLeaseRaw(), STORE_HARD_TIMEOUT_MS));
+  if (current?.holder === holder) await withTimeout(writeLeaseRaw(JSON.stringify({ holder, until: 0 })), STORE_HARD_TIMEOUT_MS);
 }
 
 export async function persistDexSnapshot(
@@ -990,7 +1109,7 @@ export async function persistDexSnapshot(
 
 export function hiddenSnapshotTicker(ticker: string | null | undefined): boolean {
   const key = (ticker || "").trim().toUpperCase();
-  return key === "AF-FIFT" || key === "AF-BV" || key === CRYPTO_SNAPSHOT_TICKER || key === DEX_SNAPSHOT_TICKER || key === CRYPTO_ATTEMPT_TICKER || /^AF-CGS-\d+$/.test(key) || /^AF-DXS-\d+$/.test(key);
+  return key === "AF-FIFT" || key === "AF-BV" || key === CRYPTO_SNAPSHOT_TICKER || key === DEX_SNAPSHOT_TICKER || key === CRYPTO_ATTEMPT_TICKER || key === CRYPTO_LEASE_TICKER || /^AF-CGS-\d+$/.test(key) || /^AF-DXS-\d+$/.test(key);
 }
 
 // b28 G-05: the refresh-attempt record shares this durable store (see crypto-attempts.ts).

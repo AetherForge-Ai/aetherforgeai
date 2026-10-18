@@ -77,7 +77,9 @@ describe("b31 REG-1 / H-1: a slow store never blocks a request", () => {
     expect(Date.now() - started).toBeLessThan(STORE_HARD_TIMEOUT_MS + 300);
   });
 
-  it("a write never blocks: persist returns at once and memory serves the new list", async () => {
+  // b35 H-1: commit-then-serve. While the store write hangs, the new list is NOT served (another
+  // isolate could not see it, which was TT's step-back); the request still never blocks.
+  it("a write never blocks: persist returns at once; the new list is served only once committed", async () => {
     const store = hangingStore();
     installSnapshotDurable(store);
     const at = new Date().toISOString();
@@ -87,9 +89,8 @@ describe("b31 REG-1 / H-1: a slow store never blocks a request", () => {
     expect(Date.now() - started).toBeLessThan(STORE_HARD_TIMEOUT_MS + 500);
     const t2 = Date.now();
     const snap = await readCryptoSnapshot();
-    expect(Date.now() - t2).toBeLessThan(50);
-    expect(snap?.at).toBe(at);
-    expect(snap?.coins.length).toBe(150);
+    expect(Date.now() - t2).toBeLessThan(STORE_HARD_TIMEOUT_MS + 300);
+    expect(snap).toBeNull();
   });
 
   it("with a last-good copy in memory, 20 reads in a row never wait on the store", async () => {
@@ -106,7 +107,8 @@ describe("b31 REG-1 / H-1: a slow store never blocks a request", () => {
       const t = Date.now();
       const snap = await readCryptoSnapshot();
       expect(snap?.coins.length).toBe(150);
-      expect(Date.now() - t).toBeLessThan(50);
+      // b35 H-1: one bounded shared-copy check (SHARED_CHECK_TIMEOUT_MS = 150 ms), deduplicated.
+      expect(Date.now() - t).toBeLessThan(250);
     }
   });
 
