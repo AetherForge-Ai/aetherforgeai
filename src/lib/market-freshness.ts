@@ -170,7 +170,9 @@ export const QUOTE_DELAY_TABLE: ReadonlyArray<{ market: string; source: string; 
   { market: "NZX shares", source: "Yahoo Finance", delay: "about 20 minutes while the market is open; last close otherwise" },
   { market: "ASX shares", source: "Yahoo Finance", delay: "about 20 minutes while the market is open; last close otherwise" },
   { market: "US shares", source: "Yahoo Finance", delay: "delayed while the market is open (the vendor does not state a fixed figure); last close otherwise" },
-  { market: "Crypto", source: "CoinGecko; CoinPaprika, CoinCap or Binance when it does not answer", delay: "a few minutes; a quote older than 5 minutes is labelled with its age" },
+  // b38 H-15: every live crypto source is named (TT: Yahoo Finance served most crypto loads, unnamed here).
+  { market: "Crypto", source: "CoinGecko first; CoinPaprika, CoinCap, Binance, Kraken, Coinbase or Yahoo Finance when it does not answer", delay: "a few minutes; a quote older than 5 minutes is labelled with its age" },
+  { market: "DEX tokens", source: "GeckoTerminal; DexPaprika when it does not answer", delay: "a few minutes; a quote older than 5 minutes is labelled with its age" },
 ];
 
 function openDelayWords(venue: EquityVenue): string {

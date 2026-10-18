@@ -109,12 +109,17 @@ export function correctFromJournal(userId: string | null | undefined, snapshot: 
   if (!userId) return snapshot;
   const out = applyJournal(snapshot, readJournal(userId, s, now), now);
   save(userId, out.journal, s);
-  return out.snapshot;
+  // b38 G-10: a delete the server has not answered yet stays hidden across a reload.
+  const pending = new Set(pendingDeleteIds(userId, s));
+  if (!pending.size || !out.snapshot.ledger?.some((row) => pending.has(row.id))) return out.snapshot;
+  return { ...out.snapshot, ledger: out.snapshot.ledger.filter((row) => !pending.has(row.id)) };
 }
 
 /** Ids the journal says were deleted in the window (seeds the in-tab reconcile after a reload). */
 export function journalDeletedMap(userId: string | null | undefined, s: StorageLike | null = store()): Map<string, number> {
-  return new Map(Object.entries(readJournal(userId, s).deleted));
+  const out = new Map(Object.entries(readJournal(userId, s).deleted));
+  for (const w of listPendingWrites(userId, s)) if (w.method === "DELETE" && w.deleteId && !out.has(w.deleteId)) out.set(w.deleteId, w.at);
+  return out;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -127,8 +132,10 @@ export function journalDeletedMap(userId: string | null | undefined, s: StorageL
 export interface PendingWrite {
   key: string;
   userId: string;
-  method: "POST";
+  /** b38 G-10: a DELETE carries the ledger row id in deleteId (payload unused). */
+  method: "POST" | "DELETE";
   payload: Record<string, unknown>;
+  deleteId?: string;
   at: number;
 }
 
@@ -188,6 +195,11 @@ export function listPendingWrites(userId: string | null | undefined, s: StorageL
 }
 
 /** 4xx other than 401/408/429 is the server saying no: the write must not be replayed. */
+/** b38 G-10: ledger row ids with a DELETE journalled but not yet answered. */
+export function pendingDeleteIds(userId: string | null | undefined, s: StorageLike | null = store()): string[] {
+  return listPendingWrites(userId, s).flatMap((w) => (w.method === "DELETE" && w.deleteId ? [w.deleteId] : []));
+}
+
 export function isDefiniteRefusal(status: number | undefined): boolean {
   if (status == null) return false;
   return status >= 400 && status < 500 && status !== 401 && status !== 408 && status !== 429;
@@ -210,13 +222,21 @@ export interface ReplayOutcome {
   expired: number;
 }
 
-type Poster = (payload: Record<string, unknown>) => Promise<{ ok: boolean; status?: number; error?: unknown; data?: unknown }>;
+type ApiResult = { ok: boolean; status?: number; error?: unknown; data?: unknown };
+type Poster = (payload: Record<string, unknown>) => Promise<ApiResult>;
+type Deleter = (id: string) => Promise<ApiResult>;
 
 /**
  * Replay this user's pending writes (same payload, same key). Saved → cleared and noted as created;
  * a definite refusal → cleared and returned so the page can say so; anything else stays for next time.
  */
-export async function replayPendingWrites(userId: string | null | undefined, post: Poster, s: StorageLike | null = store(), now = Date.now()): Promise<ReplayOutcome> {
+export async function replayPendingWrites(
+  userId: string | null | undefined,
+  post: Poster,
+  s: StorageLike | null = store(),
+  now = Date.now(),
+  del?: Deleter
+): Promise<ReplayOutcome> {
   const out: ReplayOutcome = { saved: [], refused: [], kept: 0, expired: 0 };
   for (const w of listPendingWrites(userId, s)) {
     if (now - w.at > PENDING_MAX_AGE_MS) {
@@ -228,7 +248,32 @@ export async function replayPendingWrites(userId: string | null | undefined, pos
       out.kept += 1;
       continue;
     }
-    let res: Awaited<ReturnType<Poster>>;
+    if (w.method === "DELETE") {
+      if (!w.deleteId || !del) {
+        out.kept += 1;
+        continue;
+      }
+      let dres: ApiResult;
+      try {
+        dres = await del(w.deleteId);
+      } catch {
+        out.kept += 1;
+        continue;
+      }
+      // DELETE is idempotent on the server (alreadyRemoved), so a replay is always safe.
+      if (dres.ok || dres.status === 404) {
+        clearPendingWrite(w.key, s);
+        noteWrite(userId, { deletedId: w.deleteId }, s, now);
+        out.saved.push(w.deleteId);
+      } else if (isDefiniteRefusal(dres.status)) {
+        clearPendingWrite(w.key, s);
+        out.refused.push({ key: w.key, error: typeof dres.error === "string" ? dres.error : "refused" });
+      } else {
+        out.kept += 1;
+      }
+      continue;
+    }
+    let res: ApiResult;
     try {
       res = await post({ ...w.payload, idempotency_key: w.key, confirm: true });
     } catch {

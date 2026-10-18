@@ -1,6 +1,19 @@
 "use client";
 
-import { correctFromJournal, journalDeletedMap, listPendingWrites, noteWrite, readJournal, replayPendingWrites } from "@/lib/write-journal";
+import {
+  clearPendingWrite,
+  correctFromJournal,
+  isDefiniteRefusal,
+  journalDeletedMap,
+  journalPendingWrite,
+  listPendingWrites,
+  newWriteKey,
+  noteWrite,
+  readJournal,
+  replayPendingWrites,
+  withWriteTimeout,
+  WRITE_TIMEOUT_MS,
+} from "@/lib/write-journal";
 import { reconcileLedger } from "@/lib/ledger-reconcile";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
@@ -1353,7 +1366,13 @@ export function PortfolioDashboard({
       return;
     }
     const toastId = toast.loading(pendingCount === 1 ? "Finishing 1 entry that wasn't confirmed…" : `Finishing ${pendingCount} entries that weren't confirmed…`);
-    void replayPendingWrites(userId, (payload) => api.post("/api/transactions", payload)).then((out) => {
+    void replayPendingWrites(
+      userId,
+      (payload) => api.post("/api/transactions", payload),
+      undefined,
+      Date.now(),
+      (id) => api.delete(`/api/transactions?id=${encodeURIComponent(id)}`)
+    ).then((out) => {
       if (out.saved.length) toast.success(out.saved.length === 1 ? "1 entry recorded." : `${out.saved.length} entries recorded.`, { id: toastId });
       else if (out.refused.length) toast.error(`Not recorded: ${out.refused[0].error}`, { id: toastId });
       else if (out.kept) toast.error("Some entries still aren't confirmed. They'll be retried; nothing is shown as saved until then.", { id: toastId });
@@ -2053,12 +2072,23 @@ export function PortfolioDashboard({
       const trimmed = { ...current, ledger: current.ledger.filter((row) => row.id !== line.id) };
       return optimisticDelta ? withCashDelta(trimmed, optimisticDelta) : trimmed;
     });
-    const res = await api.delete<{ cash?: { after?: number }; alreadyRemoved?: boolean }>(
-      `/api/transactions?id=${encodeURIComponent(line.id)}`
+    // b38 G-10: journal the delete before sending, so a reload mid-request keeps the row hidden
+    // and the next load re-sends it (DELETE is idempotent on the server).
+    const deleteKey = newWriteKey();
+    if (userId) journalPendingWrite({ key: deleteKey, userId, method: "DELETE", payload: {}, deleteId: line.id, at: Date.now() });
+    const res = await withWriteTimeout(
+      api.delete<{ cash?: { after?: number }; alreadyRemoved?: boolean }>(`/api/transactions?id=${encodeURIComponent(line.id)}`),
+      WRITE_TIMEOUT_MS
     );
+    if (res.ok || isDefiniteRefusal(res.status)) clearPendingWrite(deleteKey);
+    if (!res.ok && !isDefiniteRefusal(res.status)) {
+      // No answer yet: the row stays hidden and the delete is retried on the next load.
+      toast.error("The server hasn't confirmed this removal yet. It will be retried; the row stays hidden until then.");
+      return false;
+    }
     console.log(`[write] delete ${line.type} ${line.ticker} id=${line.id} status=${res.status ?? "?"} ok=${res.ok}`);
     const label = line.type ? line.type.charAt(0).toUpperCase() + line.type.slice(1) : "Row";
-    if (res.ok) {
+    if (res.ok && "data" in res) {
       const after = res.data?.cash?.after;
       setBookSnapshot((current) => {
         if (!current) return current;

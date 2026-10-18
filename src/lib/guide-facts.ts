@@ -19,8 +19,11 @@ export const FIF_INTENT_RE =
 export const FIF_JOINT_NO = "No, a jointly held portfolio does not get a doubled NZ$100,000 threshold.";
 const JOINT_ASK_RE = /joint|partner|spouse|couple|double|100,?000|100k|together|both of us|trust|company/;
 
+/** b38 CR-2 (P1): Chief's exact core wording; extra facts follow it. */
+export const FIF_CORE_RULE =
+  "The NZ$50,000 threshold applies per person, based on total cost at any time in the year; joint holdings are split between the owners, so 2 equal owners can together hold up to NZ$100,000 in cost; it's not a doubled threshold for the portfolio.";
 export const FIF_STATIC_ANSWER =
-  "The FIF de minimis threshold is NZ$50,000 per natural person: each owner's share of the joint cost, plus their separate FIF holdings, counts toward their own NZ$50,000. It is the total cost of those FIF interests (purchase price including fees) at any time in the income year (1 April to 31 March). New Zealand shares and most ASX-listed shares (Australian-resident, on the approved list) are excluded and add nothing to that cost. Only two equal owners with no other FIF holdings could hold up to NZ$100,000 together and each stay within their own NZ$50,000. Trusts and companies don't get the NZ$50,000 exemption. Indicative, not tax advice";
+  `${FIF_CORE_RULE} Cost means purchase price including fees, at any time in the income year (1 April to 31 March). New Zealand shares and most ASX-listed shares (Australian-resident, on the approved list) are excluded and add nothing to that cost. Trusts and companies don't get the NZ$50,000 exemption. Indicative, not tax advice`;
 
 export function fifStaticReply(userMessage: string): string | null {
   const q = String(userMessage || "").toLowerCase();
@@ -64,7 +67,7 @@ export function guideFactsBlock(): string {
     "- Prices are delayed public data, not a direct NZX or ASX feed.",
     "### Overseas shares (FIF) — Indicative, not tax advice",
     `- The FIF de minimis test: if the total cost of your FIF interests is more than NZ$50,000 at any time in the income year (1 April to 31 March), the FIF rules apply. It is the cost of what you hold at that moment, not the sum of everything held at some point in the year.`,
-    `- The limit is ${nz(FIF_THRESHOLD_NZD)} per natural person, based on that person's share of the cost: each owner's share of a joint holding, plus their separate FIF holdings, counts toward their own ${nz(FIF_THRESHOLD_NZD)}. It never doubles for a joint portfolio as a whole. Only two equal owners with no other FIF holdings could hold ${nz(FIF_JOINT_THRESHOLD_NZD_FACT)} together and each stay within their own limit. Trusts and companies don't get the exemption. Never say the limit "doubles" and never answer "yes" to "is my threshold NZ$100,000?".`,
+    `- Use this wording: "${FIF_CORE_RULE}" Trusts and companies don't get the exemption. Never say the limit "doubles" and never answer "yes" to "is my threshold NZ$100,000?". End with "Indicative, not tax advice."`,
     "- End any FIF answer with \"Indicative, not tax advice\"; the member should confirm with IRD or a tax adviser.",
     "### Outside platforms",
     "- Never recommend, rank or link to a broker, exchange or retailer, and give no referral links or user counts.",
