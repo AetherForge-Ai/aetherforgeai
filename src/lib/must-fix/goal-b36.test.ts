@@ -106,3 +106,51 @@ describe("b36 G-07 (GOAL-LOCK #42): pricing caps = enforcement caps", () => {
     }
   });
 });
+
+describe("b36 G-20 (GOAL-LOCK #55): 'built by schedule' from the last 3 cron runs", () => {
+  const e = (at: string, builtBy: "schedule" | "seed", h = at) => ({ at, builtBy, durationMs: 1000, calls: 3, scorecardHash: h });
+  it("the run log keeps the last 3 scheduled runs and the newest seed run, newest first", async () => {
+    const { appendRunLog } = await import("@/lib/track-record-store");
+    let log = [] as ReturnType<typeof appendRunLog>;
+    for (const at of ["2026-10-18T00:00:00Z", "2026-10-18T06:00:00Z", "2026-10-18T12:00:00Z", "2026-10-18T18:00:00Z"]) log = appendRunLog(log, e(at, "schedule"));
+    log = appendRunLog(log, e("2026-10-18T19:00:00Z", "seed"));
+    expect(log.map((x) => `${x.builtBy}@${x.at.slice(11, 13)}`)).toEqual(["seed@19", "schedule@18", "schedule@12", "schedule@06"]);
+  });
+  it("label says 'built by schedule' only when a scheduled run stored that exact card", async () => {
+    const { builtByLabel } = await import("@/lib/track-record-store");
+    const log = [e("2026-10-18T18:00:00Z", "schedule", "abc"), e("2026-10-18T19:00:00Z", "seed", "def")];
+    expect(builtByLabel(log, "abc")).toBe("built by schedule");
+    expect(builtByLabel(log, "def")).toBe("stored by the seed");
+    expect(builtByLabel(log, "zzz")).toBe("stored");
+  });
+  it("the cron stores builtBy schedule with its duration; the seed stores builtBy seed", () => {
+    expect(read("src/app/api/cron/track-record/route.ts")).toMatch(/builtBy: "schedule", durationMs: Date\.now\(\) - started/);
+    expect(read("src/lib/track-record-seed.server.ts")).toMatch(/builtBy: "seed"/);
+  });
+  it("GitHub runs are read server-side only with a token, which is never logged or returned", async () => {
+    const { lastCronRuns } = await import("@/lib/cron-runs.server");
+    expect(await lastCronRuns({})).toBeNull();
+    let auth = "";
+    const fake = (async (_u: string, init?: RequestInit) => {
+      auth = String((init?.headers as Record<string, string>).Authorization);
+      return new Response(JSON.stringify({ workflow_runs: [{ run_started_at: "2026-10-18T16:00:00Z", updated_at: "2026-10-18T16:00:42Z", conclusion: "success", event: "schedule" }] }), { status: 200 });
+    }) as typeof fetch;
+    const runs = await lastCronRuns({ GITHUB_ACTIONS_READ_TOKEN: "t0k" }, fake);
+    expect(auth).toBe("Bearer t0k");
+    expect(runs).toEqual([{ at: "2026-10-18T16:00:00Z", conclusion: "success", durationS: 42, event: "schedule" }]);
+    expect(JSON.stringify(runs)).not.toMatch(/t0k/);
+    const src = read("src/lib/cron-runs.server.ts");
+    expect(src).not.toMatch(/console\.\w+\([^)]*token/);
+    expect(await lastCronRuns({ GITHUB_ACTIONS_READ_TOKEN: "t0k" }, (async () => new Response("no", { status: 401 })) as typeof fetch)).toBeNull();
+  });
+  it("the test view shows who built the card and the last 3 runs, falling back to the rows' timestamps", () => {
+    const page = read("src/app/test-hooks/track-record/page.tsx");
+    expect(page).toMatch(/data-track-built-by/);
+    expect(page).toMatch(/ghRuns \? "github-actions" : "track-record-rows"/);
+    expect(page).not.toMatch(/GITHUB_ACTIONS_READ_TOKEN/);
+  });
+  it("the run-log row is hidden like the scorecard rows", async () => {
+    const { isTrackScorecardTicker, TRACK_RUN_LOG_TICKER } = await import("@/lib/track-record-store");
+    expect(isTrackScorecardTicker(TRACK_RUN_LOG_TICKER)).toBe(true);
+  });
+});

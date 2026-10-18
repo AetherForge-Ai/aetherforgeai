@@ -21,8 +21,10 @@ export async function GET(req: Request) {
   if (req.headers.get("x-cron-secret") !== secret && bearer !== secret) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
+  const started = Date.now();
   const run = await runTrackRecord();
-  const stored = await persistTrackRun(run);
+  // b36 G-20: this card was built by the schedule (cron.yml); the duration is the build time.
+  const stored = await persistTrackRun(run, undefined, undefined, { builtBy: "schedule", durationMs: Date.now() - started });
   // b24 SECURITY: totals and the scorecard hash only; no tickers, signals, report ids or per-call rows.
   const data = {
     week: run.card.week,
