@@ -55,6 +55,18 @@ export async function readBookVersion(userId: string, now = Date.now()): Promise
   return best;
 }
 
+/**
+ * b37 G-10: like readBookVersion, but null when the version can't be read in time and nothing is memoised.
+ * The book cache treats "unknown" as "maybe changed" and reads fresh, never a possibly pre-write copy.
+ */
+export async function readBookVersionKnown(userId: string, now = Date.now()): Promise<BookVersion | null> {
+  const hit = memo.get(userId);
+  if (hit && now - hit.checked < BOOK_VERSION_MEMO_MS) return hit.value;
+  const v = await readBookVersion(userId, now);
+  const fresh = memo.get(userId);
+  return fresh && fresh.checked >= now ? v : hit ? v : null;
+}
+
 export async function bumpBookVersion(userId: string, now = Date.now()): Promise<BookVersion> {
   const row = await findRow(userId);
   const prev = parseBookVersion(row?.name);

@@ -239,7 +239,6 @@ describe("b37 G-10 (P1, investigation guard): a write after a session switch is 
   it("the client shows a clear error for 409 account-mismatch, in the dialog and in the background toast", () => {
     const p = read("src/components/dashboard/RecordTransactionPanel.tsx");
     expect(p).toContain("SESSION_SWITCHED_ERROR");
-    expect(p).toContain('late.error === "account-mismatch"');
     expect(p).toContain('failSave(writeError(res.error, "Could not record that transaction."))');
   });
 });

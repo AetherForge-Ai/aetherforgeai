@@ -123,13 +123,11 @@ describe("b32 G-10 P1: a failed or unacknowledged write is never shown as saved"
   });
   it("the panel: no success toast before acknowledgement, loading toast on the slow path, rollback on failure", () => {
     const src = read("src/components/dashboard/RecordTransactionPanel.tsx");
-    const slow = src.slice(src.indexOf('if (early === "slow")'), src.indexOf("const res = await pending;"));
-    expect(slow).toMatch(/toast\.loading\("Saving…"\)/);
-    expect(slow.indexOf("acknowledgedId(late)")).toBeLessThan(slow.indexOf('toast.success("Transaction recorded"'));
-    expect(slow).toMatch(/optimisticRollback: true[\s\S]*toast\.error/);
+    // b37 G-10 P1: the early close / background slow path is gone; the dialog waits (timeout-bounded) for the row id.
+    expect(src).toMatch(/withWriteTimeout\(api\.post\("\/api\/transactions", payload\), WRITE_TIMEOUT_MS\)/);
+    expect(src).not.toContain('early === "slow"');
     const fast = src.slice(src.indexOf("const res = await pending;"));
     expect(fast.indexOf("if (!savedId) {")).toBeLessThan(fast.indexOf('toast.success("Transaction recorded")'));
-    expect(src).toMatch(/CONFIRM_HOLD_MS = 900/);
   });
   it("the buy path skips the dry-run round trip below the smallest plan cap", () => {
     expect(read("src/components/dashboard/RecordTransactionPanel.tsx")).toMatch(/newSleeve && distinctHeld >= MIN_PLAN_HOLDING_CAP - 1/);

@@ -1,6 +1,6 @@
 "use client";
 
-import { correctFromJournal, journalDeletedMap, noteWrite, readJournal } from "@/lib/write-journal";
+import { correctFromJournal, journalDeletedMap, listPendingWrites, noteWrite, readJournal, replayPendingWrites } from "@/lib/write-journal";
 import { reconcileLedger } from "@/lib/ledger-reconcile";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
@@ -1339,6 +1339,30 @@ export function PortfolioDashboard({
   }, [preview, loadPortfolioSnapshot]);
 
   // Called whenever holdings or cash change (transactions, edits, deletes).
+  // b37 G-10 (P1): replay writes this browser confirmed but never heard back about (a reload or closed
+  // tab dropped the request). Same idempotency key, so the server books each one at most once. Then read
+  // the book fresh (bypassing the snapshot cache) so nothing pre-write is shown.
+  const replayedRef = useRef(false);
+  useEffect(() => {
+    if (preview || !userId || replayedRef.current) return;
+    replayedRef.current = true;
+    const pendingCount = listPendingWrites(userId).length;
+    const recentWrite = Date.now() - readJournal(userId).lastAt < 60_000;
+    if (!pendingCount) {
+      if (recentWrite) void loadPortfolioSnapshot({ force: true });
+      return;
+    }
+    const toastId = toast.loading(pendingCount === 1 ? "Finishing 1 entry that wasn't confirmed…" : `Finishing ${pendingCount} entries that weren't confirmed…`);
+    void replayPendingWrites(userId, (payload) => api.post("/api/transactions", payload)).then((out) => {
+      if (out.saved.length) toast.success(out.saved.length === 1 ? "1 entry recorded." : `${out.saved.length} entries recorded.`, { id: toastId });
+      else if (out.refused.length) toast.error(`Not recorded: ${out.refused[0].error}`, { id: toastId });
+      else if (out.kept) toast.error("Some entries still aren't confirmed. They'll be retried; nothing is shown as saved until then.", { id: toastId });
+      else toast.dismiss(toastId);
+      lastMutationAtRef.current = Date.now();
+      void loadPortfolioSnapshot({ force: true });
+    });
+  }, [preview, userId, loadPortfolioSnapshot]);
+
   const applyKnownCash = useCallback(
     (bal: number) => {
       cashEpochRef.current += 1;
