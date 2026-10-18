@@ -107,6 +107,16 @@ export function PerformancePanel() {
                   ))}
             </ul>
             <p className="mt-2 text-xs text-muted-foreground">Dates shown as {formatDisplayDate(state.asOf)}. Delayed public data, not a direct NZX/ASX feed.</p>
+            {/* Goal b22 G-02: both dates side by side, so a book on today's quotes is not read as a same-day comparison. */}
+            {bench && bench.length > 0 ? (
+              <p className="mt-1 text-xs" data-compare-dates>
+                Book valued {formatDisplayDate(state.asOf)} · benchmarks{" "}
+                {Array.from(new Set(bench.map((b) => b.asOf))).map((d) => formatDisplayDate(d)).join(", ")} close
+                {bench.some((b) => b.asOf.slice(0, 10) !== new Intl.DateTimeFormat("en-CA", { timeZone: "Pacific/Auckland" }).format(new Date(state.asOf)))
+                  ? ". The dates differ, so this is not a same-day comparison."
+                  : ". Same date."}
+              </p>
+            ) : null}
           </section>
         </>
       ) : null}
