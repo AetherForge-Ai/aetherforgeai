@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const board = await readSharedCryptoBoard({ seed: false });
+    const board = await readSharedCryptoBoard({ seed: false, revalidate: true });
     return NextResponse.json(marketsBody(board.coins, board.notice), {
       headers: { "cache-control": "no-store" },
     });
