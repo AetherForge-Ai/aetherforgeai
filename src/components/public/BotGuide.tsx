@@ -56,7 +56,11 @@ export function BotGuide({
   /** Goal b10 G-06: product screenshots (synthetic example data only). */
   screenshots?: { src: string; alt: string; caption: string; width: number; height: number }[];
 }) {
-  const paragraphs: readonly string[] = kind ? BOT_GUIDE_PARAGRAPHS[kind] : body.split(/(?<=\.)\s+/);
+  const allParagraphs: readonly string[] = kind ? BOT_GUIDE_PARAGRAPHS[kind] : body.split(/(?<=\.)\s+/);
+  // b35 M-3 (GOAL-LOCK #10): each bot page repeated its lede as the first body paragraph
+  // ("Stox is the share-market bot. …" twice). Drop the opening sentence of a first paragraph that repeats with the lede's
+  // first sentence.
+  const paragraphs = dropRepeatedLede(lede, allParagraphs);
   return (
     <div className="relative min-h-screen bg-grid">
       <div className="pointer-events-none absolute inset-0 bg-aurora" />
@@ -115,4 +119,15 @@ export function BotGuide({
       </div>
     </div>
   );
+}
+
+/** b35 M-3: the body never repeats the lede's opening sentence. */
+export function dropRepeatedLede(lede: string, paragraphs: readonly string[]): readonly string[] {
+  const first = (t: string) => (t.split(/(?<=\.)\s+/)[0] || "").trim().toLowerCase();
+  const opening = first(lede).replace(/\s+for the paper book\.$/, ".");
+  const a = opening.replace(/\.$/, "");
+  const b = paragraphs.length ? first(paragraphs[0]).replace(/\.$/, "") : "";
+  if (!b || !(a.startsWith(b) || b.startsWith(a))) return paragraphs;
+  const rest = paragraphs[0].split(/(?<=\.)\s+/).slice(1).join(" ").trim();
+  return rest ? [rest, ...paragraphs.slice(1)] : paragraphs.slice(1);
 }
