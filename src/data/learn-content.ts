@@ -1,3 +1,5 @@
+import { formatNzd } from "@/lib/currency";
+
 /**
  * Goal b20 G-23: NZ learn hub and comparison pages. Every fact carries the page
  * it came from and the date it was checked. Where a fact could not be sourced,
@@ -34,6 +36,34 @@ const IR461: Source = {
   title: "Inland Revenue: Guide to foreign investment funds (IR461)",
   url: "https://www.ird.govt.nz/-/media/project/ir/home/documents/forms-and-guides/ir400---ir499/ir461/ir461.pdf",
 };
+
+/**
+ * One switching rule, used on both FIF guides (fair dividend rate vs comparative
+ * value, and the six methods). Do not paraphrase it differently on each page.
+ *
+ * Inland Revenue, Guide to foreign investment funds (IR461):
+ * https://www.ird.govt.nz/-/media/project/ir/home/documents/forms-and-guides/ir400---ir499/ir461/ir461.pdf
+ * "Continued use of the FDR method": an individual or a trustee of an eligible
+ * trust (type B) is generally able to switch freely between the FDR and CV
+ * methods in different income years, but not within an income year. Any other
+ * person is generally required to keep using FDR. Where both methods can be
+ * chosen, the same method is used for all of those investments and a total CV
+ * loss is reduced to zero. The deemed rate of return "can only be used in the
+ * case of a non-ordinary share if the CV method is not practical." The same
+ * guide's general line is that a person uses the same method each year for an
+ * attributing interest unless a change of method is permitted.
+ *
+ * QB 23/10 (14 December 2023), paragraph 10, states the same FDR/CV exception
+ * for natural persons and eligible trustees:
+ * https://www.taxtechnical.ird.govt.nz/questions-we-ve-been-asked/2023/qb-23-10
+ * IS 24/10's fact sheet says an individual may choose a different applicable
+ * method each year. That line is wider than IR461 and section EX 62 of the
+ * Income Tax Act 2007, so these pages follow IR461 and tell the reader to
+ * check the guide before changing method.
+ */
+export const FIF_METHOD_SWITCH_RULE =
+  "An individual, or a trustee of an eligible trust (type B) as described in Inland Revenue's Guide to foreign investment funds (IR461), can generally switch between the fair dividend rate (FDR) and comparative value (CV) methods in different income years, but not within the same income year. Where both methods can be used, the same method must be used for all of those investments that year, and a comparative-value loss on the total of those investments is reduced to zero. Any other person who uses FDR is generally required to keep using it in later years. The deemed rate of return method can be used only for a non-ordinary share when the comparative value method is not practical. Any other change of method is allowed only where Inland Revenue's rules permit the change. Check IR461, or a tax adviser, before changing method.";
+
 const IS2410: Source = {
   title: "Inland Revenue: IS 24/10 Income tax – Share investments",
   url: "https://www.taxtechnical.ird.govt.nz/-/media/project/ir/tt/pdfs/interpretation-statements/2024/is-24-10.pdf",
@@ -154,11 +184,11 @@ export const GUIDES: readonly Guide[] = [
     slug: "fif-fdr-vs-cv",
     title: "FIF: fair dividend rate vs comparative value",
     description: "How the FDR and CV methods work for overseas shares under New Zealand's FIF rules, sourced to Inland Revenue.",
-    intro: "Once the FIF rules apply, most share investors compare two methods each year.",
+    intro: "Once the FIF rules apply, individual investors often compare the fair dividend rate and comparative value methods. Who may switch, including the deemed rate of return limit, is in the note below.",
     facts: [
       { text: "Fair dividend rate (FDR) income is 0.05 multiplied by the opening market value, plus a quick sale adjustment.", source: IR461 },
       { text: "Under the first four FIF methods, dividends and other gains are not usually taxed separately.", source: IR461 },
-      { text: "An investor may choose a different applicable method each year, but must use the same method across all attributing interests for that year.", source: IS2410 },
+      { text: FIF_METHOD_SWITCH_RULE, source: IR461 },
       { text: "Inland Revenue's online calculator covers the main methods: FDR, or CV when you are not FDR eligible.", source: IRD_FIF_CALC },
     ],
   },
@@ -169,7 +199,7 @@ export const GUIDES: readonly Guide[] = [
     intro: "Inland Revenue lists six methods for calculating FIF income. Restrictions apply to which can be chosen.",
     facts: [
       { text: "The methods are fair dividend rate, comparative value, cost method, deemed rate of return, revenue account method and the attributable FIF income method.", source: IR461 },
-      { text: "A person is generally required to use the same method each year for an attributing interest unless a change of method is permitted.", source: IR461 },
+      { text: FIF_METHOD_SWITCH_RULE, source: IR461 },
       { text: "The cost method may be used if you cannot determine a market value for the investment; an independent valuation may be needed.", source: IRD_FIF_CALC },
     ],
   },
@@ -325,7 +355,7 @@ export const GUIDES: readonly Guide[] = [
     description: "Individual income tax brackets from 1 April 2025, as published by Inland Revenue. Investment income is part of total income.",
     intro: "Taxable investment income, such as interest and some overseas income, is added to your other income and taxed at these rates.",
     facts: [
-      { text: "From 1 April 2025: 10.5% on income up to $15,600; 17.5% from $15,601 to $53,500; 30% from $53,501 to $78,100; 33% from $78,101 to $180,000; 39% over $180,000.", source: IRD_TAX_RATES },
+      { text: `From 1 April 2025: 10.5% on income up to ${formatNzd(15600)}; 17.5% from ${formatNzd(15601)} to ${formatNzd(53500)}; 30% from ${formatNzd(53501)} to ${formatNzd(78100)}; 33% from ${formatNzd(78101)} to ${formatNzd(180000)}; 39% over ${formatNzd(180000)}.`, source: IRD_TAX_RATES },
       { text: "Income such as interest from a bank account or investment and overseas income counts towards total income for the year.", source: IRD_TAX_RATES },
     ],
   },
@@ -388,12 +418,12 @@ export const GUIDES: readonly Guide[] = [
   },
   {
     slug: "foreign-dividends-200-threshold",
-    title: "Foreign dividends and the $200 threshold",
+    title: `Foreign dividends and the ${formatNzd(200)} threshold`,
     description: "When foreign dividends must go in an IR3 return, and how they are converted to NZ dollars.",
     intro: "Small amounts of income with no tax withheld have a filing threshold.",
     facts: [
-      { text: "Foreign dividends only need to be included if all your income that is not reportable income totals $200 or more for the year.", source: IS2410_FS2 },
-      { text: "The $200 threshold covers all non-reportable amounts together, such as foreign dividends and taxable share sales.", source: IS2410_FS2 },
+      { text: `Foreign dividends only need to be included if all your income that is not reportable income totals ${formatNzd(200)} or more for the year.`, source: IS2410_FS2 },
+      { text: `The ${formatNzd(200)} threshold covers all non-reportable amounts together, such as foreign dividends and taxable share sales.`, source: IS2410_FS2 },
       { text: "The dividend is included at its New Zealand dollar amount, calculated when it is paid to you.", source: IS2410_FS2 },
     ],
   },
