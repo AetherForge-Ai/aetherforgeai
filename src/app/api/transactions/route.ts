@@ -14,7 +14,7 @@ import { TRADE_CONFIRM_REQUIRED } from "@/lib/trade-confirm";
 import { previewActivityEmail } from "@/lib/activity-email";
 import { readActivityEmailPrefs } from "@/lib/activity-email-server";
 import { invalidateBookCache } from "@/lib/book-cache";
-import { planOrApplyLedgerReversal } from "@/lib/ledger-reversal-apply";
+import { ReversalBlockedError, planOrApplyLedgerReversal } from "@/lib/ledger-reversal-apply";
 import { totalumSdk } from "@/lib/totalum";
 
 export const dynamic = "force-dynamic";
@@ -293,12 +293,15 @@ export async function DELETE(req: Request) {
         { status: 400 }
       );
     }
-    // BL-7: dry run first, so an oversell is refused before anything is written.
-    const dry = await planOrApplyLedgerReversal(id, false);
-    if ((dry as { blockedReason?: string | null }).blockedReason) {
-      return NextResponse.json({ ok: false, error: (dry as { blockedReason: string }).blockedReason }, { status: 409 });
+    // BL-7: an oversell is still refused before anything is written (the apply throws
+    // ReversalBlockedError first). b25 G-10: the separate dry run repeated every read; dropped.
+    let result: Awaited<ReturnType<typeof planOrApplyLedgerReversal>>;
+    try {
+      result = await planOrApplyLedgerReversal(id, true, row as never);
+    } catch (err) {
+      if (err instanceof ReversalBlockedError) return NextResponse.json({ ok: false, error: err.message }, { status: 409 });
+      throw err;
     }
-    const result = await planOrApplyLedgerReversal(id, true);
     // Goal b20 G-10: confirm the row is really gone before answering "removed".
     const after = await totalumSdk.crud.getRecordById("transaction", id).catch(() => null);
     if ((after as { data?: { _id?: string } } | null)?.data?._id) {
