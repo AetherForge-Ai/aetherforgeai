@@ -1,0 +1,4 @@
+Date,Time,Event,Asset,Amount,Currency,Value,Rate,AUD Value Fee,AUD Value,Fee Amount,Fee Asset,GST,ExGST,Deposited To,Withdrawn To,Withdrawal Fee,Reference,Transaction ID,UUID,Type
+2026-01-15,09:30:00,Buy,BTC,0.01,AUD,1000.00,100000.00,0.90,920.00,6.00,AUD,0.78,5.22,,,0,REF1,SX-1001,uuid-1,Market
+2026-02-20,14:00:00,Sell,BTC,0.005,AUD,550.00,110000.00,0.50,500.00,3.30,AUD,0.43,2.87,,,0,REF2,SX-1002,uuid-2,Market
+2026-02-21,10:00:00,Deposit,NZD,100.00,AUD,100.00,1,0,92.00,0,AUD,0,0,Bank,,0,REF3,SX-1003,uuid-3,Deposit
