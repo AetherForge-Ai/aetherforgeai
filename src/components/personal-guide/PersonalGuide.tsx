@@ -19,7 +19,7 @@ type Phase = "idle" | "pour" | "chat" | "dismissed";
  * Sequence: 15s wait → dense gold dust pour from header to bottom →
  * dust builds into the open chat window → Help Assistant seated on title bar.
  */
-export function PersonalGuide() {
+export function PersonalGuide({ armed = false }: { armed?: boolean }) {
   const pathname = usePathname();
   const { data: session, isPending } = useSession();
   const [phase, setPhase] = useState<Phase>("idle");
@@ -78,10 +78,10 @@ export function PersonalGuide() {
         setPhase("pour");
         setShowPour(true);
       }
-    }, DELAY_MS);
+    }, armed ? 0 : DELAY_MS);
 
     return () => window.clearTimeout(timer);
-  }, [pathname, session, isPending]);
+  }, [pathname, session, isPending, armed]);
 
   const onBuilt = useCallback(() => {
     setPhase("chat");
