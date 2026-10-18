@@ -3,6 +3,7 @@ import { publicPageMetadata } from "@/lib/reviewed-book";
 import { AppShell } from "@/components/AppShell";
 import { MarketNewsPageContent } from "@/components/dashboard/MarketNewsPageContent";
 import { loadMarketNews } from "@/lib/market-news";
+import { filterServableNews } from "@/lib/news-serve";
 import { officialPublicNews } from "@/lib/news-present";
 import type { NewsItem } from "@/lib/market-intel";
 
@@ -21,7 +22,7 @@ export default async function MarketNewsPage() {
   const user = await getCurrentUser();
   let initialNews: NewsItem[] = officialPublicNews();
   try {
-    const loaded = await loadMarketNews("stock");
+    const loaded = filterServableNews(await loadMarketNews("stock"));
     if (loaded.length > 2) initialNews = loaded;
   } catch {
     initialNews = officialPublicNews();

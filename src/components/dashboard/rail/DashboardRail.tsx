@@ -6,38 +6,13 @@ import { WatchlistPanel } from "@/components/dashboard/WatchlistPanel";
 import { SnapshotAllocation } from "@/components/dashboard/SnapshotAllocation";
 import { RailCard, RailTabs } from "@/components/dashboard/rail/RailCard";
 import { FREE_REPORTS_PER_MONTH } from "@/lib/entitlements";
-import { useEffect, useState } from "react";
+import { useAlertCount } from "@/components/dashboard/alerts/AlertCounter";
 import { railCardsFor, usageMeterLabel, usagePercent, UNLOCK_FEATURES } from "@/lib/dashboard-rail";
 
 type Asset = "stock" | "crypto";
 type Seed = { ticker: string; nonce: number; asset: Asset } | null;
 
 /** Dashboard right column (TT D1–D10). Uses only data the dashboard already loads. */
-/** b28 L-4: count of the member's price alerts (all desks), kept live by PriceAlerts events. */
-function useAlertCount(enabled: boolean): number | null {
-  const [count, setCount] = useState<number | null>(null);
-  useEffect(() => {
-    if (!enabled) return;
-    let live = true;
-    fetch("/api/alerts", { credentials: "include", cache: "no-store" })
-      .then((r) => r.json() as Promise<{ ok?: boolean; data?: unknown[] }>)
-      .then((b) => {
-        if (live && b?.ok && Array.isArray(b.data)) setCount(b.data.length);
-      })
-      .catch(() => {});
-    const onDelta = (e: Event) => {
-      const d = (e as CustomEvent<{ delta: number }>).detail?.delta ?? 0;
-      setCount((c) => (c == null ? c : Math.max(0, c + d)));
-    };
-    window.addEventListener("af:alerts-delta", onDelta);
-    return () => {
-      live = false;
-      window.removeEventListener("af:alerts-delta", onDelta);
-    };
-  }, [enabled]);
-  return count;
-}
-
 export function DashboardRail({
   freePlan,
   loading,
@@ -144,7 +119,7 @@ export function DashboardRail({
                   : []),
               ].map((row) => (
                 // Goal b11 G-14: dt/dd sit directly in the row div so the list is valid.
-                <div key={row.label} className="grid grid-cols-[1fr_auto] items-baseline gap-x-3">
+                <div key={row.label} className="grid grid-cols-[1fr_auto] items-baseline gap-x-3" {...(row.label === "Price alerts" ? { "data-alert-counter": "plan-usage" } : {})}>
                   <dt className="text-muted-foreground">{row.label}</dt>
                   <dd className="tnum font-semibold">{usageMeterLabel(row.used, row.limit)}</dd>
                   {row.limit != null ? (

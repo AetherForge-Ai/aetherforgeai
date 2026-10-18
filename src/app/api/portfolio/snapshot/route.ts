@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 
 import { hasForeignOwner, requestClaimsOtherUser } from "@/lib/account-guard";
 import { accountMismatchResponse, privateJson } from "@/lib/account-response";
-import { bookCacheEpoch, readBookCache, writeBookCache } from "@/lib/book-cache";
+import { bookCacheEpoch, writeBookCache } from "@/lib/book-cache";
+import { readBookCacheForRequest } from "@/lib/book-cache.server";
 import { currencyForTicker } from "@/lib/currency";
 import { getFxSnapshot } from "@/lib/fx";
 import { mergeFreshQuantities } from "@/lib/holding-snapshot";
@@ -50,9 +51,10 @@ export async function GET(req: Request) {
     const storedMarks = url.searchParams.get("marks") === "stored";
     const cacheKey = `${user._id}:portfolio-snapshot${storedMarks ? ":stored" : ""}`;
     const cacheEpoch = bookCacheEpoch(user._id);
+    const readStartedAt = Date.now();
     const fresh = url.searchParams.get("fresh") === "1";
     if (!fresh) {
-      const cached = readBookCache<PortfolioSnapshot>(cacheKey);
+      const cached = await readBookCacheForRequest<PortfolioSnapshot>(cacheKey);
       if (cached) return privateJson({ ok: true, userId: user._id, data: cached });
     }
 
@@ -226,7 +228,7 @@ export async function GET(req: Request) {
       priceSource: "Live quotes and the holdings overlay",
     });
 
-    if (!writeBookCache(cacheKey, snapshot, cacheEpoch)) {
+    if (!writeBookCache(cacheKey, snapshot, cacheEpoch, readStartedAt)) {
       console.log("[api/portfolio/snapshot] Dropped cache write — a trade landed while this read was in flight");
     }
 

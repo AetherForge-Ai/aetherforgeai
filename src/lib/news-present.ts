@@ -52,36 +52,7 @@ export const BLS_CPI_NEWS: NewsItem = {
   url: "https://www.bls.gov/cpi/",
 };
 
-const HOST_PUBLISHER: Array<[string, string]> = [
-  ["bls.gov", "U.S. Bureau of Labor Statistics"],
-  ["rbnz.govt.nz", "Reserve Bank of New Zealand"],
-  ["bloomberg.com", "Bloomberg"],
-  ["fonterra.com", "Fonterra"],
-  ["fphcare.com", "Fisher & Paykel Healthcare"],
-  ["asx.com.au", "ASX"],
-  ["commbank.com.au", "Commonwealth Bank"],
-  ["woodside.com", "Woodside Energy"],
-  ["nvidia.com", "NVIDIA"],
-  ["morningstar.com", "Morningstar"],
-  ["marketwatch.com", "MarketWatch"],
-  ["aucklandairport.co.nz", "Auckland Airport"],
-  ["coindesk.com", "CoinDesk"],
-  ["theblock.co", "The Block"],
-  ["blockworks.co", "Blockworks"],
-  ["glassnode.com", "Glassnode"],
-  ["reuters.com", "Reuters"],
-  ["kaiko.com", "Kaiko"],
-  ["l2beat.com", "L2Beat"],
-  ["cryptoquant.com", "CryptoQuant"],
-  ["deribit.com", "Deribit"],
-  ["messari.io", "Messari"],
-  ["cointelegraph.com", "Cointelegraph"],
-  ["finance.yahoo.com", "Yahoo Finance"],
-  ["yahoo.com", "Yahoo Finance"],
-  ["rnz.co.nz", "RNZ"],
-  ["bbc.com", "BBC"],
-  ["bbc.co.uk", "BBC"],
-];
+import { HOST_PUBLISHER } from "@/lib/news-sources";
 
 /**
  * Publisher name that matches the host the reader will open.
@@ -93,6 +64,8 @@ export function sourceForUrl(url: string, fallback: string): string {
     for (const [domain, name] of HOST_PUBLISHER) {
       if (host === domain || host.endsWith(`.${domain}`)) return name;
     }
+    // b29 H-15: an unmapped host is returned as-is; the /api/news allow-list then drops it,
+    // because /trust cannot name it.
     return host;
   } catch {
     return fallback;

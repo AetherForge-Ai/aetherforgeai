@@ -177,7 +177,7 @@ const NZ_AU_TERMS =
 /** Goal b11 H-13: NZ/AU finance sources whose stories count as local. */
 const NZ_AU_SOURCES =
   /\b(nz herald|nzherald|stuff|rnz|radio new zealand|interest\.co\.nz|businessdesk|newsroom|the post|nbr|afr|australian financial review|smh|sydney morning herald|the age|abc news|abc\.net\.au|the australian|market index|marketindex|stockhead|motley fool australia|nzx|asx|rbnz|rba)\b/i;
-const NAME_STOP = new Set(["the", "air", "new", "first", "general", "national", "global", "united", "smart", "market", "energy", "group", "capital", "property", "health"]);
+const NAME_STOP = new Set(["the", "air", "new", "first", "general", "national", "global", "united", "smart", "market", "energy", "group", "capital", "property", "health", "michael", "james", "john", "david", "peter"]);
 let nzAuNames: RegExp | null = null;
 let nzAuTickers: RegExp | null = null;
 /** NZ/AU tickers as written in headlines ("BHP", "FPH"). Case-sensitive so "air" does not match. */

@@ -31,13 +31,13 @@ export function validateGoal(g: GoalInput, now = new Date()): string | null {
   if (!Number.isFinite(months)) return "Enter a valid date.";
   if (months <= 0) return "Choose a date in the future.";
   if (!Number.isFinite(g.monthlyNzd)) return "Enter the monthly amount as a number, such as 250.";
-  if (g.monthlyNzd < 0) return "The monthly amount cannot be negative.";
+  // b29 H-11 (research addendum): a contribution of 0 or less gets an inline error.
+  if (g.monthlyNzd <= 0) return "Enter a monthly amount above NZ$0.";
   if (g.monthlyNzd > 1e8) return "The monthly amount is too large.";
   if (!Number.isFinite(g.bookNzd)) return "Enter the starting amount as a number.";
   if (!Number.isFinite(g.annualReturnPct) || g.annualReturnPct < -50 || g.annualReturnPct > 50) return "Enter a yearly return between -50% and 50%.";
   if (g.bookNzd < 0) return "The book value cannot be negative.";
   if (g.bookNzd >= g.targetNzd) return "Your book has already reached this goal.";
-  if (g.monthlyNzd === 0 && g.annualReturnPct <= 0) return "Add a monthly amount, or the goal cannot grow.";
   return null;
 }
 
@@ -65,9 +65,17 @@ export function goalProgress(g: GoalInput, now = new Date()) {
   return {
     months,
     projected,
-    range: { low, high, label: "Illustrative, not a forecast" },
+    // b29 H-11: the rates behind the range are printed next to it (5% → 2% / 5% / 8%).
+    range: { low, high, lowRatePct: g.annualReturnPct - 3, centralRatePct: g.annualReturnPct, highRatePct: g.annualReturnPct + 3, label: "Illustrative, not a forecast" },
     status: projected >= g.targetNzd ? ("on track" as const) : ("behind" as const),
     progressPct: pct,
     summary: `${pct}% of the way to the goal. At this rate the book is illustrated at about NZ$${Math.round(projected).toLocaleString("en-NZ")} by ${g.targetDate}.`,
   };
+}
+
+/** b29 H-11: "NZ$48,365 at 2% / NZ$53,071 at 5% / NZ$58,320 at 8% a year". */
+export function rangeRatesText(p: { projected: number; range: { low: number; high: number; lowRatePct: number; centralRatePct: number; highRatePct: number } }): string {
+  const n = (v: number) => `NZ$${Math.round(v).toLocaleString("en-NZ")}`;
+  const r = (v: number) => `${Number(v.toFixed(2))}%`;
+  return `${n(p.range.low)} at ${r(p.range.lowRatePct)} / ${n(p.projected)} at ${r(p.range.centralRatePct)} / ${n(p.range.high)} at ${r(p.range.highRatePct)} a year`;
 }

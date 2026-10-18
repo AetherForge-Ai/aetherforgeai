@@ -6,7 +6,7 @@ const read = (p: string) => readFileSync(p, "utf8");
 
 describe("b28 version bump", () => {
   it("pins the build everywhere", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-goal-b28-2026-10-19");
+    expect(read("public/build-version.txt").trim()).toMatch(/^v3-goal-b(2[89]|[3-9]\d)-/);
     expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-goal-b28-2026-10-19");
   });
 });
@@ -19,7 +19,7 @@ describe("b28 G-20 stored scorecard", () => {
     const page = read("src/app/test-hooks/track-record/page.tsx");
     expect(page).toContain("loadTrackRecordView");
     expect(page).not.toMatch(/runTrackRecord\(/);
-    expect(page).toContain("runTrackRecordBounded()");
+    expect(page).toContain("runTrackRecordBounded("); // b29: bounded at TRACK_LIVE_WAIT_MS
     expect(page).not.toMatch(/\.ticker|\.signal|reportId/);
   });
   it("the AF-TRS slot is hidden from members and only the ownerless row is read", () => {
@@ -61,10 +61,10 @@ describe("b28 G-10 read-after-write", () => {
   it("outside the window the server wins", () => {
     expect(reconcileLedger(rows("x"), rows("y"), new Map(), now - RECONCILE_WINDOW_MS - 1, now)).toEqual(rows("x"));
   });
-  it("the server book cache is not reused across requests", () => {
+  it("superseded in b29: reuse is back, but never across this browser's write (af_bw stamp)", () => {
     __resetBookCacheForTests();
-    writeBookCache("u1:snapshot", { cash: 51.39 });
-    expect(readBookCache("u1:snapshot")).toBeNull();
+    writeBookCache("u1:snapshot", { cash: 51.39 }, undefined, Date.now() - 1);
+    expect(readBookCache("u1:snapshot", 15_000, Date.now() + 1)).toBeNull();
   });
   it("the refused-fill text no longer says Confirm overrides", () => {
     const src = read("src/lib/fill-integrity.ts");

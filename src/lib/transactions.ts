@@ -50,7 +50,8 @@ import { cashFromLedgerRows } from "@/lib/ledger-cash-lines";
 import { buildMovementPreview } from "@/lib/movement-preview";
 import { assessMovement, earlierCivilDay, exceedsAvailableCash, movementCivilDay } from "@/lib/transaction-rules";
 import { dateOnlyInstant, lotCivilDay, resolveExecutedInstant } from "@/lib/executed-at";
-import { bookCacheEpoch, invalidateBookCache, readBookCache, writeBookCache } from "@/lib/book-cache";
+import { bookCacheEpoch, invalidateBookCache, writeBookCache } from "@/lib/book-cache";
+import { readBookCacheForRequest } from "@/lib/book-cache.server";
 
 export type TxType =
   | "buy"
@@ -1743,11 +1744,12 @@ export function ledgerAfterBooking(
 /** Load a user's ledger plus cash + realized-P&L rollups (all NZD). */
 export async function loadLedger(user: AppUser, limit = LEDGER_QUERY_LIMIT): Promise<TransactionLedger> {
   const key = `${user._id}:ledger:${limit}`;
-  const cached = readBookCache<TransactionLedger>(key);
+  const cached = await readBookCacheForRequest<TransactionLedger>(key);
   if (cached) return cached;
   const epoch = bookCacheEpoch(user._id);
+  const startedAt = Date.now();
   const ledger = await loadLedgerFresh(user, limit);
-  writeBookCache(key, ledger, epoch);
+  writeBookCache(key, ledger, epoch, startedAt);
   return ledger;
 }
 

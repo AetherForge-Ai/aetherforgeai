@@ -3,6 +3,7 @@ import { requestClaimsOtherUser } from "@/lib/account-guard";
 import { accountMismatchResponse } from "@/lib/account-response";
 import { canExportCsv } from "@/lib/entitlements";
 import { buildFifPaper, marketsFromNotes } from "@/lib/fif-working-paper";
+import { readFifThreshold } from "@/lib/fif-setting.server";
 import { aucklandCivilToday, isNzTaxYearEnding, nzTaxYearEnding } from "@/lib/nz-tax-year";
 import { getStableSessionUser } from "@/lib/session";
 import { loadStockNoteRows, loadTaxRows } from "@/lib/tax-book-server";
@@ -30,7 +31,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ ok: false, error: "Tax year was not recognised." }, { status: 400 });
     }
     const [rows, stocks] = await Promise.all([loadTaxRows(user._id), loadStockNoteRows(user._id)]);
-    const csv = fifCsv(buildFifPaper({ rows, markets: marketsFromNotes(stocks, endingYear), endingYear }));
+    const csv = fifCsv(buildFifPaper({ rows, markets: marketsFromNotes(stocks, endingYear), endingYear, thresholdNzd: await readFifThreshold(user._id) }));
     return new NextResponse(csv, {
       status: 200,
       headers: {

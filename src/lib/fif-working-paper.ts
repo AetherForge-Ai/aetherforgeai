@@ -14,6 +14,13 @@ import { inNzTaxYear, nzTaxYearLabel } from "@/lib/nz-tax-year";
 import type { TaxLedgerRow } from "@/lib/taxable-income";
 
 export const FIF_COST_THRESHOLD_NZD = 50000;
+/** b29 H-9: the only other value a member may choose, and only labelled "jointly held". */
+export const FIF_JOINT_THRESHOLD_NZD = 100000;
+/** Saved values other than 50k / 100k fall back to the default. */
+export function normaliseFifThreshold(value: unknown): number {
+  const n = Number(value);
+  return n === FIF_JOINT_THRESHOLD_NZD ? FIF_JOINT_THRESHOLD_NZD : FIF_COST_THRESHOLD_NZD;
+}
 /**
  * b27 H-9: the de minimis threshold is config (FIF_THRESHOLD_NZD), defaulting to NZ$50,000,
  * so a law change does not need a code change. Bad or non-positive values fall back to the default.
@@ -221,9 +228,8 @@ export function comparativeValue(input: {
   return roundMoney(input.closingNzd + input.gainsNzd - (input.openingNzd + input.costsNzd));
 }
 
-export function fifThreshold(peakCostNzd: number | null): FifThreshold {
+export function fifThreshold(peakCostNzd: number | null, threshold = fifThresholdNzd()): FifThreshold {
   if (peakCostNzd == null) return "unknown";
-  const threshold = fifThresholdNzd();
   if (peakCostNzd < threshold) return "under";
   if (peakCostNzd === threshold) return "at-limit";
   return "over";
@@ -239,7 +245,7 @@ export function fifThresholdSentence(paper: Pick<FifPaper, "peakCostNzd" | "thre
     return "No attributing overseas shares on this book.";
   }
   if (paper.threshold === "unknown" || paper.peakCostNzd == null) {
-    return `The ${fifThresholdText()} cost test is not calculated because a foreign attributing buy has no stored exchange rate.`;
+    return `The ${fifThresholdText(paper.thresholdNzd ?? fifThresholdNzd())} cost test is not calculated because a foreign attributing buy has no stored exchange rate.`;
   }
   const limit = fifThresholdText(paper.thresholdNzd ?? fifThresholdNzd());
   const cost = `${formatNzd(paper.peakCostNzd)}${paper.peakCostDay ? ` (peak FIFO cost, reached ${paper.peakCostDay})` : ""}`;
@@ -288,6 +294,8 @@ export function buildFifPaper(input: {
   rows: readonly TaxLedgerRow[];
   markets: readonly FifMarketInput[];
   endingYear: number;
+  /** b29 H-9: the portfolio's saved threshold (default NZ$50,000). */
+  thresholdNzd?: number;
 }): FifPaper {
   const start = yearStart(input.endingYear);
   const books = new Map<string, { className: FifClass; assetType: string; working: Working }>();
@@ -404,8 +412,8 @@ export function buildFifPaper(input: {
     peakCostNzd: peak,
     // b28 H-9: the day the peak FIFO cost was reached (YYYY-MM-DD), printed with the cost.
     peakCostDay: peak != null && peak > 0 ? peakDay : null,
-    thresholdNzd: fifThresholdNzd(),
-    threshold: fifThreshold(peak),
+    thresholdNzd: input.thresholdNzd ?? fifThresholdNzd(),
+    threshold: fifThreshold(peak, input.thresholdNzd ?? fifThresholdNzd()),
     assumptions: FIF_ASSUMPTIONS,
     sources: FIF_SOURCES,
   };
