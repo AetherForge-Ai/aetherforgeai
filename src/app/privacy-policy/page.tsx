@@ -149,6 +149,16 @@ export default function PrivacyPolicy() {
           comparable safeguards to those under the Privacy Act 2020, or we rely on an exception
           permitted by IPP 12 (such as your authorisation).
         </p>
+        <p className="mt-3">
+          <strong>Broker connections.</strong> If you connect a broker (for example Interactive Brokers through
+          its Flex Web Service), we only read reports: trades, dividends and cash movements. We cannot place
+          trades or move money. The access token you paste is encrypted (AES-256-GCM) before it is stored,
+          is used only by our server to fetch your reports, and is never sent back to your browser. You can
+          disconnect at any time on the Import page, which deletes the stored token; deleting your account
+          deletes it too. The token and the imported records are stored with our database and hosting
+          processors outside New Zealand, and we rely on the safeguards and your authorisation described
+          above under IPP 12.
+        </p>
       </LegalSection>
 
       <LegalSection heading="7. Storage & security (IPP 5)">

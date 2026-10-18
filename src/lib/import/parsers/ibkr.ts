@@ -46,6 +46,8 @@ function parseFlex(grid: string[][], rates?: Record<string, number | null>): Bro
   const fxAt = headerIndex(headers, ["fxratetobase", "fx rate to base"]);
   const proceedsAt = headerIndex(headers, ["proceeds"]);
   const descAt = headerIndex(headers, ["description"]);
+  // Broker sync: IBKR's TradeID (or IBExecID) is the duplicate key across files and syncs.
+  const refAt = headerIndex(headers, ["tradeid", "trade id", "ibexecid"]);
 
   grid.slice(1).forEach((row, index) => {
     const line = index + 2;
@@ -84,6 +86,7 @@ function parseFlex(grid: string[][], rates?: Record<string, number | null>): Bro
           fx: cell(row, fxAt),
           assetName: cell(row, descAt),
           value: cell(row, proceedsAt),
+          brokerRef: refAt >= 0 && cell(row, refAt).trim() ? `ibkr-${cell(row, refAt).trim()}` : undefined,
         },
         rates
       )

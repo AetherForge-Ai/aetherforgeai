@@ -5,6 +5,8 @@ import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { formatNzd } from "@/lib/currency";
 import { bytesTooLarge, IMPORT_TOO_LARGE } from "@/lib/import/limits";
+import { isSpreadsheetName, workbookToCsv } from "@/lib/import/xlsx";
+import { IbkrSyncPanel } from "@/components/import/IbkrSyncPanel";
 
 interface RowNote {
   line: number;
@@ -120,7 +122,14 @@ export function ImportClient() {
       setMessage(IMPORT_TOO_LARGE);
       return;
     }
-    const body = await file.text();
+    let body: string;
+    try {
+      body = isSpreadsheetName(file.name) ? await workbookToCsv(await file.arrayBuffer()) : await file.text();
+    } catch {
+      setFileName(file.name);
+      setMessage("That spreadsheet could not be read. Save it as CSV and try again.");
+      return;
+    }
     setText(body);
     setFileName(file.name);
     await send("preview", body);
@@ -132,18 +141,20 @@ export function ImportClient() {
     <div className="mx-auto max-w-3xl px-4 py-10">
       <h1 className="font-display text-3xl font-bold text-foreground">Import trades</h1>
       <p className="mt-3 text-sm text-muted-foreground">
-        Upload a broker CSV. Nothing is saved until you confirm the preview. A second upload of the same file is refused.
+        Upload a broker CSV or XLSX (for example a Stake Transaction Report, both tabs). Nothing is saved until you confirm the preview. A second upload of the same file is refused.
         Undo removes that whole import.
       </p>
 
+      <IbkrSyncPanel />
+
       <label className="mt-6 block text-sm font-medium text-foreground" htmlFor="broker-csv">
-        Broker CSV
+        Broker CSV or XLSX
       </label>
       <input
         id="broker-csv"
         className="mt-2 block w-full text-sm"
         type="file"
-        accept=".csv,text/csv,text/plain"
+        accept=".csv,.xlsx,.xls,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
         onChange={(event) => void onFile(event.target.files?.[0])}
       />
       {fileName ? <p className="mt-2 text-sm text-muted-foreground">{fileName}</p> : null}
