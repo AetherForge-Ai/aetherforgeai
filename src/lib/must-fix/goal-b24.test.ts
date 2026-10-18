@@ -7,7 +7,7 @@ const lock = JSON.parse(readFileSync("package-lock.json", "utf8"));
 const all = { ...pkg.dependencies, ...pkg.devDependencies } as Record<string, string>;
 
 describe("goal b24 hotfix: exact deploy toolchain pins", () => {
-  it("pins the build", () => expect(readFileSync("public/build-version.txt", "utf8").trim()).toBe("v3-goal-b24-2026-10-18"));
+  it("pins the build", () => expect(readFileSync("public/build-version.txt", "utf8").trim()).toMatch(/^v3-goal-b\d+-2026-10-\d\d$/));
   it("next, opennext and wrangler are exact (no ^ or ~) and match the lockfile", () => {
     for (const [name, want] of [["next", "15.5.28"], ["eslint-config-next", "15.5.28"], ["@opennextjs/cloudflare", "1.20.12"], ["wrangler", "4.151.0"]]) {
       expect(all[name]).toBe(want);
@@ -26,7 +26,7 @@ import { COMPARISONS } from "@/data/learn-content";
 
 describe("goal b24 SECURITY", () => {
   it("no fixture password is committed anywhere in tracked files", () => {
-    const hits = execSync("git ls-files -z | xargs -0 grep -l 'Harness-Pass' || true", { encoding: "utf8" }).trim();
+    const hits = execSync("git ls-files -z | xargs -0 grep -l 'Harness-[P]ass' || true", { encoding: "utf8" }).trim();
     expect(hits).toBe("");
     const seed = readFileSync("qa/fixtures/seed-fixture-accounts.mjs", "utf8");
     expect(seed).toContain("randomBytes");

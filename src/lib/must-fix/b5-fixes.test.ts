@@ -16,6 +16,8 @@ vi.mock("@/lib/grok", () => ({
     }
   },
   guideModel: () => "test-guide-model",
+  GUIDE_MODEL_FALLBACK: "test-fallback-model",
+  noteGuideFailure: () => undefined,
 }));
 vi.mock("@/lib/totalum", () => ({
   totalumSdk: {
@@ -196,7 +198,7 @@ describe("H-13 market-news relevance", () => {
 
 describe("batch 5 pins", () => {
   it("build string and pull-check marker", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-goal-b24-2026-10-18");
+    expect(read("public/build-version.txt").trim()).toBe("v3-goal-b25-2026-10-18");
     expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-must-fix-b5-2026-10-17");
   });
 });

@@ -15,7 +15,8 @@ import {
   ZENITH_TUNING,
 } from "@/lib/zenith";
 
-const XAI_ENDPOINT = "https://api.x.ai/v1/chat/completions";
+export const XAI_CHAT_ENDPOINT = "https://api.x.ai/v1/chat/completions";
+const XAI_ENDPOINT = XAI_CHAT_ENDPOINT;
 const DEFAULT_MODEL = ZENITH_MODEL_DEFAULT;
 
 /** An AI failure with a short, key-free reason code for logs and QA (b6 CR-2). */
@@ -53,8 +54,21 @@ export function completionText(content: unknown): string {
  * 10 s budget, so every guide call fell back. XAI_GUIDE_MODEL overrides.
  */
 export const GUIDE_MODEL_DEFAULT = "grok-4.20-0309-non-reasoning";
+/** b25 CR-2: a current model from docs.x.ai (checked 18 Oct 2026), tried once when the configured one 404s. */
+export const GUIDE_MODEL_FALLBACK = "grok-4.3";
+/** XAI_GUIDE_MODEL, then XAI_MODEL, then the fast non-reasoning default. */
 export function guideModel(): string {
-  return process.env.XAI_GUIDE_MODEL?.trim() || GUIDE_MODEL_DEFAULT;
+  return process.env.XAI_GUIDE_MODEL?.trim() || process.env.XAI_MODEL?.trim() || GUIDE_MODEL_DEFAULT;
+}
+
+/** b25 CR-2: the last guide failure (model, endpoint, code; never the key), shown on /status. */
+let guideFailure: { at: string; model: string; endpoint: string; code: string } | null = null;
+export function noteGuideFailure(model: string, code: string): void {
+  guideFailure = { at: new Date().toISOString(), model, endpoint: XAI_CHAT_ENDPOINT, code };
+  console.warn(`[grok] guide failure model=${model} endpoint=${XAI_CHAT_ENDPOINT} code=${code}`);
+}
+export function lastGuideFailure() {
+  return guideFailure;
 }
 
 export interface GrokMessage {

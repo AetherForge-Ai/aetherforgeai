@@ -535,6 +535,9 @@ export async function applyTransaction(
   );
 }
 
+/** b25 G-10: longest a confirm waits for the live sanity-check quote. */
+export const SPOT_CHECK_BUDGET_MS = 800;
+
 function stepMs(step: string, started: number, extra = ""): void {
   console.log(`[transactions] step ${step} ${Date.now() - started}ms${extra ? ` ${extra}` : ""}`);
 }
@@ -951,11 +954,17 @@ async function applyTransactionUnlocked(
       confirmSteps.quote = Date.now() - spotStarted;
     }
   })();
+  // b25 G-10: the live spot is only a sanity check. An unbounded quote fetch held the whole
+  // confirm for 8-27 s in production; past SPOT_CHECK_BUDGET_MS the check is skipped (null).
+  const spotBounded = firstWithin(spotPromise, SPOT_CHECK_BUDGET_MS).then((r) => {
+    if (r.timedOut) console.log(`[transactions] spot check skipped after ${SPOT_CHECK_BUDGET_MS}ms (${ticker})`);
+    return r.value;
+  });
   const [currentCash, holding, recentBuys, snapped, fxLive, historicalFx, rejection, sellHistory] = await Promise.all([
     cashPromise,
     holdingPromise,
     dupPromise,
-    spotPromise,
+    spotBounded,
     fxLivePromise,
     historicalPromise,
     takeRejection(),

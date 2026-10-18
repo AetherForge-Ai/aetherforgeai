@@ -43,6 +43,7 @@ function query(t, opts = {}) {
   return rows;
 }
 
+const calls = [];
 const send = (res, code, body) => { res.writeHead(code, { "content-type": "application/json" }); res.end(JSON.stringify(body)); };
 
 http.createServer(async (req, res) => {
@@ -50,6 +51,13 @@ http.createServer(async (req, res) => {
   const body = raw ? JSON.parse(raw) : {};
   const url = new URL(req.url, "http://x");
   const parts = url.pathname.replace(/^\/+/, "").split("/"); // api v1 crud ...
+  // b25 G-10 profiling: count Totalum calls and emulate network latency (MOCK_LATENCY_MS).
+  if (url.pathname === "/__mock/calls") { const out = calls.splice(0); return send(res, 200, out); }
+  if (!url.pathname.startsWith("/__mock")) {
+    calls.push({ t: Date.now(), m: req.method, p: url.pathname.replace(/^\/api\/v1\//, "").slice(0, 60), q: url.search.slice(0, 80) });
+    const lat = Number(process.env.MOCK_LATENCY_MS || 0);
+    if (lat) await new Promise((r) => setTimeout(r, lat));
+  }
   try {
     if (url.pathname === "/__mock/dump") return send(res, 200, Object.fromEntries([...db].map(([t, m]) => [t, [...m.values()]])));
     if (url.pathname === "/__mock/outbox") return send(res, 200, outbox);

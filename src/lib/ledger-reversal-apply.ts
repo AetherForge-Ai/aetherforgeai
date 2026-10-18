@@ -59,9 +59,20 @@ function netWorth(cash: number, stocks: StockRow[], metals: MetalRow[], rates: F
   return round2(total);
 }
 
-export async function planOrApplyLedgerReversal(transactionId: string, apply: boolean) {
-  const loaded = await totalumSdk.crud.getRecordById("transaction", transactionId);
-  const target = (loaded as { data?: ReversalTxn & { user?: string } })?.data;
+/** b25 G-10: thrown before any write when the reversal would oversell; the route answers 409. */
+export class ReversalBlockedError extends Error {}
+
+export async function planOrApplyLedgerReversal(
+  transactionId: string,
+  apply: boolean,
+  preloaded?: (ReversalTxn & { user?: string | { _id?: string } }) | null
+) {
+  // b25 G-10: the route already read this row; reuse it instead of a second round trip.
+  const loaded = preloaded?._id === transactionId ? { data: preloaded } : await totalumSdk.crud.getRecordById("transaction", transactionId);
+  const rawTarget = (loaded as { data?: ReversalTxn & { user?: string | { _id?: string } } })?.data;
+  const target = rawTarget
+    ? ({ ...rawTarget, user: typeof rawTarget.user === "object" && rawTarget.user ? rawTarget.user._id : rawTarget.user } as ReversalTxn & { user?: string })
+    : undefined;
   if (!target?._id) throw new Error("Ledger entry not found");
   const userId = String(target.user || "");
   if (!userId) throw new Error("Ledger entry has no account");
@@ -151,8 +162,12 @@ export async function planOrApplyLedgerReversal(transactionId: string, apply: bo
   };
 
   if (!apply) return preview;
-  if (plan.blockedReason) throw new Error(plan.blockedReason);
+  if (plan.blockedReason) throw new ReversalBlockedError(plan.blockedReason);
 
+  // b25 G-10: the holding write and the cash write are independent; run them together,
+  // then remove the ledger row last so a failure never leaves a row without its effects.
+  const cashWrite = totalumSdk.crud.editRecordById("user", userId, { cash_balance: cashAfter });
+  cashWrite.catch(() => undefined); // awaited below; this only stops an unhandled rejection
   if (stock && plan.holdingAction === "delete") {
     await totalumSdk.crud.deleteRecordById("stock", stock._id);
   } else if (stock && plan.holdingAfter && plan.holdingAction === "update") {
@@ -190,7 +205,7 @@ export async function planOrApplyLedgerReversal(transactionId: string, apply: bo
     });
   }
 
-  await totalumSdk.crud.editRecordById("user", userId, { cash_balance: cashAfter });
+  await cashWrite;
   await totalumSdk.crud.deleteRecordById("transaction", transactionId);
 
   return { ...preview, dryRun: false, removed: true };
