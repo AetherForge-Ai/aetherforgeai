@@ -469,9 +469,9 @@ export const COMPARISONS: readonly Comparison[] = [
     summary: "Sharesight is an established portfolio tracking and reporting service. Facts below are from its NZ pricing page.",
     rows: [
       { label: "Free plan", them: { text: "Free: 1 portfolio, 10 holdings (including closed).", source: SHARESIGHT_PRICING }, us: usFree },
-      { label: "Paid plans", them: { text: "Starter NZ$12/month and Standard NZ$29/month billed annually; Premium NZ$65.33 billed monthly. Prices include GST.", source: SHARESIGHT_PRICING }, us: { text: "See current plans and prices.", source: US_PRICING } },
+      { label: "Paid plans", them: { text: "Starter NZ$12/month and Standard NZ$29/month billed annually; Premium NZ$65.33 billed monthly.", source: SHARESIGHT_PRICING }, us: { text: "See current plans and prices.", source: US_PRICING } },
       { label: "Tax reports", them: { text: "Paid plans include tax reports, including Foreign Investment Fund (FIF); the Free plan has no tax reports.", source: SHARESIGHT_PRICING }, us: usFif },
-      { label: "Xero", them: { text: "Xero integration on Standard and Premium only.", source: SHARESIGHT_PRICING }, us: { text: "Xero bank-statement CSV export on paid plans (a file, not a live integration).", source: null, missingReason: "Shown in the signed-in dashboard; no public page describes it yet." } },
+      { label: "Xero", them: { text: "Xero integration on Standard and Premium only.", source: SHARESIGHT_PRICING }, us: { text: "Xero bank-statement CSV export on paid plans (a file, not a live integration).", source: US_TAX } },
       { label: "Trading", them: { text: "Not a bank, broker or trading platform.", source: SHARESIGHT_PRICING }, us: usNotBroker },
     ],
   },
@@ -482,7 +482,6 @@ export const COMPARISONS: readonly Comparison[] = [
     summary: "Qubits Finance is a NZ research and portfolio tool in private beta. Facts below are from its own pages.",
     rows: [
       { label: "Access", them: { text: "Accounts are private and approval-gated during the private beta.", source: QUBITS_SOLUTIONS }, us: { text: "Open sign-up with a Free plan.", source: US_PRICING } },
-      { label: "Price", them: { text: "—", source: null, missingReason: "No public price was listed on its pages when checked." }, us: { text: "See current plans and prices.", source: US_PRICING } },
       { label: "Tax papers", them: { text: "Dividend records and an indicative FIF working paper from your transaction history.", source: QUBITS_HOME }, us: usFif },
       { label: "AI assistant", them: { text: "Optional, read-only assistant in limited preview; questions may be processed by OpenAI.", source: QUBITS_TERMS }, us: { text: "Research reports are general information, not personalised advice.", source: US_NOT_BROKER } },
       { label: "Trading", them: { text: "Does not place trades.", source: QUBITS_SOLUTIONS }, us: usNotBroker },

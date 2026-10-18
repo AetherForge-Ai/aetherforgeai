@@ -4,7 +4,7 @@ const { open, sleep } = require("./cdp.cjs");
   await b.send("Page.enable");
   await b.send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 1100, deviceScaleFactor: 1, mobile: false });
   await b.send("Page.navigate", { url: "http://localhost:3917/login" }); await sleep(2500);
-  console.log("login", await b.ev(`fetch("/api/auth/sign-in/email",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email:"fixture-h9-tax@example.test",password:"Harness-Pass-123!"})}).then(r=>r.status)`));
+  console.log("login", await b.ev(`fetch("/api/auth/sign-in/email",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email:"fixture-h9-tax@example.test",password:${JSON.stringify(process.env.FIXTURE_PASSWORD||"")}})}).then(r=>r.status)`));
   await b.ev(`localStorage.removeItem("aetherforge-brief-opt-out")`);
   await b.send("Page.navigate", { url: "http://localhost:3917/dashboard/brief" }); await sleep(9000);
   console.log("brief", await b.ev(`JSON.stringify([...document.querySelectorAll("[data-brief] li")].map(e=>e.textContent))`));

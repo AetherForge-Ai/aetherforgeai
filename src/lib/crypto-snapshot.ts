@@ -23,6 +23,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { gzipSync, gunzipSync } from "node:zlib";
+import { recordCryptoAttempt } from "@/lib/crypto-attempts";
 import { DEX_REQUEST_FRESH_MS, dexSnapshotComplete, snapshotIsStale } from "@/lib/crypto-board";
 import type { DexTokenRow } from "@/lib/crypto-dex";
 import { resolvableCoinId, type CoinMarket } from "@/lib/crypto-market";
@@ -763,25 +764,47 @@ export async function readDexSnapshot(timeoutMs = SNAPSHOT_READ_TIMEOUT_MS): Pro
   return memoryDex;
 }
 
+/** A refreshed list must keep at least this share of the saved list's rows to replace it. */
+export const CRYPTO_REPLACE_MIN_SHARE = 0.9;
+/** After this age a shorter verified list may replace the saved one (matches the amber band). */
+export const CRYPTO_REPLACE_ANY_AFTER_MS = 15 * 60 * 1000;
+
 export async function persistCryptoSnapshot(coins: CoinMarket[], at = new Date().toISOString()): Promise<void> {
   const tagged = coins
     .map((coin) => ({ ...coin, source: (coin.source || "coingecko").toLowerCase() }))
     .filter((coin) => coin.price > 0 && publicSourceAllowed(coin.source));
-  if (!tagged.length) return;
+  if (!tagged.length) {
+    recordCryptoAttempt(false, new Error("unavailable: no priced coins"));
+    return;
+  }
   const existing = memoryCrypto ?? (await readCryptoSnapshot());
   // A shorter list must not replace a longer verified list, even when the
   // shorter list itself has prices and market caps.
   if (existing) {
     const existingVerified = snapshotWorthSaving(existing.coins);
     const incomingVerified = snapshotWorthSaving(tagged);
-    if (!incomingVerified) return;
-    if (existingVerified && existing.coins.length > tagged.length) return;
+    if (!incomingVerified) {
+      recordCryptoAttempt(false, new Error("unavailable: list not verified"));
+      return;
+    }
+    // b24 G-05: a verified refresh that is only a few coins shorter (coins drop out of the top
+    // 400 between calls) must still replace the list, or the clock never moves. Only a list
+    // that lost more than 10% of the rows is refused.
+    // Once the saved list is older than 15 minutes (amber), any verified list of 100+ coins replaces it.
+    const existingAge = Date.parse(at) - Date.parse(existing.at || "");
+    const existingAmber = !Number.isFinite(existingAge) || existingAge > CRYPTO_REPLACE_ANY_AFTER_MS;
+    if (existingVerified && !existingAmber && tagged.length < Math.floor(existing.coins.length * CRYPTO_REPLACE_MIN_SHARE)) {
+      recordCryptoAttempt(false, new Error("unavailable: shorter list kept the previous one"));
+      return;
+    }
   }
   const body = encodeCrypto(tagged, at);
   const parsed = parseCrypto(body);
   if (!parsed) return;
   memoryCrypto = parsed;
   await writeRaw("crypto", body);
+  // b24 G-05: one write point, so every path that refreshes the list fills /status.
+  recordCryptoAttempt(true);
 }
 
 export async function persistDexSnapshot(
