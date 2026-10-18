@@ -111,3 +111,92 @@ describe("b38 H-15 / M-3 / headers", () => {
     expect(h).toMatch(/\/brand\/[^\n]+\.png\n {2}Content-Type: image\/png/);
   });
 });
+
+import { cryptoRowDelayed, mergeStaleCryptoList, CRYPTO_PARTIAL_REFRESH_AFTER_MS } from "@/lib/crypto-snapshot";
+import { datelessCsvRows, withRowDates } from "@/lib/paste-date";
+import { breadcrumbJsonLd, helpFaqJsonLd } from "@/lib/public-schema";
+import { helpArticles } from "@/lib/help-index";
+
+describe("b38 H-1 ruling 1: partial refresh after 10 min, true per-row times", () => {
+  const coin = (symbol: string, price: number, quotedAt: string | null) => ({ id: symbol.toLowerCase(), symbol, price, change24h: 0, quotedAt, source: "coingecko" }) as never;
+  it("refreshes matching coins only; others keep their old time, never the fresh one", () => {
+    const existing = { at: "2026-10-19T08:00:00.000Z", coins: [coin("BTC", 1, null), coin("XYZ", 2, "2026-10-19T07:59:00.000Z")] };
+    const merged = mergeStaleCryptoList(existing, [{ ...(coin("BTC", 9, null) as object), source: "yahoo" } as never], "2026-10-19T08:12:00.000Z")!;
+    const btc = merged.find((c) => c.symbol === "BTC")!;
+    const xyz = merged.find((c) => c.symbol === "XYZ")!;
+    expect(btc.price).toBe(9);
+    expect(btc.quotedAt).toBe("2026-10-19T08:12:00.000Z");
+    expect(xyz.price).toBe(2);
+    expect(xyz.quotedAt).toBe("2026-10-19T07:59:00.000Z");
+    expect(mergeStaleCryptoList(existing, [coin("NOPE", 1, null)], "2026-10-19T08:12:00.000Z")).toBeNull();
+    expect(CRYPTO_PARTIAL_REFRESH_AFTER_MS).toBe(10 * 60 * 1000);
+  });
+  it("rows older than 15 min are marked delayed", () => {
+    const now = Date.parse("2026-10-19T08:30:00.000Z");
+    expect(cryptoRowDelayed("2026-10-19T08:14:00.000Z", now)).toBe(true);
+    expect(cryptoRowDelayed("2026-10-19T08:20:00.000Z", now)).toBe(false);
+    expect(cryptoRowDelayed(null, now)).toBe(true);
+    expect(read("src/lib/public-market-index.ts")).toMatch(/· delayed/);
+  });
+});
+
+describe("b38 rulings 2–4: cold start, step-backs, slow session", () => {
+  it("cold start reads the durable snapshot and marks it stale; 503 only with no snapshot", () => {
+    const r = read("src/app/api/ticker/route.ts");
+    expect(r).toMatch(/readCryptoSnapshot\(COLD_START_READ_MS\)/);
+    expect(r).toMatch(/coldStart \|\|/);
+    expect(r).toMatch(/if \(!feed\.rows\.crypto\.length && !snap\) return noCopyResponse\(\)/);
+    expect(read("src/components/MarketTicker.tsx")).toMatch(/Prices loading… back in a few seconds\./);
+  });
+  it("documents that only no-cookie clients may step back", () => {
+    expect(read("src/app/api/ticker/route.ts")).toMatch(/accepted by design and only for no-cookie clients/);
+  });
+  it("/markets never shows the signed-out view on a slow session", () => {
+    const p = read("src/app/markets/page.tsx");
+    expect(p).toMatch(/if \(user === SESSION_PENDING\) return <MarketsAccountPending \/>/);
+    expect(read("src/components/markets/MarketsAccountPending.tsx")).toMatch(/Loading your account…/);
+    expect(read("src/components/markets/MarketsAccountPending.tsx")).toMatch(/router\.refresh\(\)/);
+  });
+});
+
+describe("b38 G-24: dateless rows get a per-row date", () => {
+  it("a CSV with no date column becomes dateless rows, not a rejected file", () => {
+    const rows = datelessCsvRows("type,symbol,quantity,price\nbuy,FPH.NZ,1,48.00\nsell,FPH.NZ,1,48.50\n")!;
+    expect(rows).toHaveLength(2);
+    expect(rows.every((r) => r.date === null)).toBe(true);
+    expect(datelessCsvRows("date,type,symbol,quantity,price\n2026-10-01,buy,FPH.NZ,1,48")).toBeNull();
+  });
+  it("each row takes its own date, else the shared one", () => {
+    const rows = datelessCsvRows("side,ticker,qty,price\nbuy,AIR.NZ,2,1\nsell,AIR.NZ,1,1.1")!;
+    const dated = withRowDates(rows, { 1: "2026-10-02" }, "2026-10-01");
+    expect(dated.map((r) => r.date)).toEqual(["2026-10-01", "2026-10-02"]);
+  });
+  it("the panel routes dateless files to the per-row prompt", () => {
+    const p = read("src/components/import/BrokerImportPanel.tsx");
+    expect(p).toMatch(/datelessCsvRows\(body\)/);
+    expect(p).toMatch(/data-paste-row-dates/);
+  });
+});
+
+describe("b38 /learn disclaimer", () => {
+  it("every guide page and the index carry it", () => {
+    expect(read("src/app/learn/[slug]/page.tsx")).toMatch(/Indicative, not tax advice\./);
+    expect(read("src/app/learn/page.tsx")).toMatch(/Indicative, not tax advice\./);
+  });
+});
+
+describe("b38 G-15: structured data", () => {
+  it("breadcrumb items carry a name", () => {
+    const b = breadcrumbJsonLd([{ name: "Home", path: "/" }, { name: "Help", path: "/help" }]);
+    for (const el of b.itemListElement) expect((el.item as { name: string }).name).toBe(el.name);
+  });
+  it("/help FAQPage is built from visible questions, with no ratings", () => {
+    const faq = helpFaqJsonLd(helpArticles());
+    expect(faq.mainEntity.length).toBeGreaterThan(0);
+    const titles = helpArticles().map((a) => a.title);
+    for (const q of faq.mainEntity) expect(titles).toContain(q.name);
+    const all = JSON.stringify(faq) + read("src/lib/public-schema.ts");
+    expect(all).not.toMatch(/aggregateRating|"Review"/);
+    expect(read("src/app/help/page.tsx")).toMatch(/helpFaqJsonLd\(articles\)/);
+  });
+});

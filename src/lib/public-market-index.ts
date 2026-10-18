@@ -1,3 +1,4 @@
+import { cryptoRowDelayed } from "@/lib/crypto-snapshot";
 import "server-only";
 
 import { coinDepthComplete, isDuplicateOrTokenisedCoin, isJunkCoin } from "@/lib/coin-junk";
@@ -129,7 +130,9 @@ function cryptoRowsFromCoins(coins: CryptoTabCoin[], quotedAt: string): PublicPr
     changePct: coin.change24h,
     quoteId: coin.id,
     source: shownSource(coin.source, "coingecko"),
-    asOf: asOfLabel(coin.quotedAt || quotedAt),
+    // b38 H-1: each row's own time; over 15 min it is marked delayed.
+    asOf: cryptoRowDelayed(coin.quotedAt || quotedAt) ? `${asOfLabel(coin.quotedAt || quotedAt)} · delayed` : asOfLabel(coin.quotedAt || quotedAt),
+    delayed: cryptoRowDelayed(coin.quotedAt || quotedAt),
     blockchain: coin.blockchain || "",
     change1h: coin.change1h == null ? "—" : formatSignedPercent(coin.change1h),
     change7d: (() => {

@@ -318,6 +318,8 @@ export function MarketTicker({ className, compact = false, initial = null, initi
   });
   const [asOf, setAsOf] = useState<string | null>(initial?.asOf ?? null);
   const [loaded, setLoaded] = useState(hasTape(initial));
+  // b38 (Chief ruling 2): the server has no snapshot at all yet (503): a friendly loading line.
+  const [pricesWarming, setPricesWarming] = useState(false);
   const [failedRefreshes, setFailedRefreshes] = useState(0);
   const [feedForce, setFeedForce] = useState<FeedForce | null>(null);
   const [showNzd, setShowNzd] = useState(false);
@@ -355,10 +357,13 @@ export function MarketTicker({ className, compact = false, initial = null, initi
         setAsOf(res.data!.asOf ?? null);
         setFeedForce(res.data!.testFeedForce ?? null);
         setFailedRefreshes(0);
+        setPricesWarming(false);
       } else {
+        const warming = !res.ok && res.status === 503;
+        setPricesWarming(warming);
         setFailedRefreshes((count) => count + 1);
         console.error("[ticker] Feed fetch failed:", res.ok ? "no rows" : res.error);
-        retry = setTimeout(loadFeed, 15_000);
+        retry = setTimeout(loadFeed, warming ? 5_000 : 15_000);
       }
       setLoaded(true);
     };
@@ -404,7 +409,13 @@ export function MarketTicker({ className, compact = false, initial = null, initi
   // H-4/M-1: no short placeholder. The same rows render while loading so the
   // page below does not move when prices arrive (CLS).
   const anyRows = nzx.length + asx.length + crypto.length > 0;
-  const emptyText = loaded ? (anyRows ? undefined : "Prices are delayed. Retrying shortly.") : "Loading prices…";
+  const emptyText = loaded
+    ? anyRows
+      ? undefined
+      : pricesWarming
+        ? "Prices loading… back in a few seconds."
+        : "Prices are delayed. Retrying shortly."
+    : "Loading prices…";
   if (compact) {
     const blend = [...nzx.slice(0, 6), ...asx.slice(0, 5), ...crypto.slice(0, 5)];
     return (
