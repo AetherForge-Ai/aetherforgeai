@@ -23,7 +23,17 @@ export async function GET(req: Request) {
   return NextResponse.json({
     ok: true,
     reportsRead: run.reportsRead,
-    laterPrices: run.laterPrices,
-    data: run.card,
+    laterPrices: { fetched: run.laterPrices.fetched, reused: run.laterPrices.reused },
+    // b24 SECURITY: totals and the scorecard hash only; no tickers, signals, report ids or per-call rows.
+    data: {
+      week: run.card.week,
+      calls: run.card.calls.length,
+      hits: run.card.hits,
+      misses: run.card.misses,
+      pending: run.card.pending,
+      unscored: run.card.unscored,
+      scorecardHash: run.card.scorecardHash,
+      verified: run.verified.filter((v) => v.ok).length,
+    },
   });
 }

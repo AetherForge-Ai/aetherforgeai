@@ -6,7 +6,7 @@ const OUT = process.env.OUT || __dirname + "/shots-b12";
   await b.send("Page.enable");
   await b.send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
   await b.send("Page.navigate", { url: "http://localhost:3917/login" }); await sleep(3000);
-  await b.ev(`fetch("/api/auth/sign-in/email",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email:${JSON.stringify(process.env.LOGIN_EMAIL)},password:"Harness-Pass-123!"})}).then(r=>r.status)`);
+  await b.ev(`fetch("/api/auth/sign-in/email",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email:${JSON.stringify(process.env.LOGIN_EMAIL)},password:${JSON.stringify(process.env.FIXTURE_PASSWORD||"")}})}).then(r=>r.status)`);
   for (const w of (process.env.WIDTHS || "1034,1280,1440,1920,390").split(",").map(Number)) {
     await b.send("Emulation.setDeviceMetricsOverride", { width: w, height: 1100, deviceScaleFactor: 1, mobile: w < 768 });
     await b.send("Page.navigate", { url: "http://localhost:3917/dashboard?view=shares" }); await sleep(8000);

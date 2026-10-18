@@ -18,7 +18,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const ev = async (e) => (await send("Runtime.evaluate", { expression: e, awaitPromise: true, returnByValue: true })).result.value;
   await send("Network.enable"); await send("Page.enable");
   await send("Network.setCookie", { name: "af_cookie_consent", value: "declined", url: BASE });
-  if (process.env.LOGIN_EMAIL) { await send("Page.navigate",{url:BASE+"/login"}); await sleep(3000); console.log("login:", await ev(`fetch("/api/auth/sign-in/email",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email:${JSON.stringify(process.env.LOGIN_EMAIL)},password:"Harness-Pass-123!"})}).then(r=>r.status)`)); }
+  if (process.env.LOGIN_EMAIL) { await send("Page.navigate",{url:BASE+"/login"}); await sleep(3000); console.log("login:", await ev(`fetch("/api/auth/sign-in/email",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email:${JSON.stringify(process.env.LOGIN_EMAIL)},password:${JSON.stringify(process.env.FIXTURE_PASSWORD||"")}})}).then(r=>r.status)`)); }
   const pages = (process.env.PAGES || "/,/pricing,/markets,/tax,/dashboard,/stox,/how-it-works,/changelog,/help,/demo").split(",");
   for (const path of pages) {
     bad = [];

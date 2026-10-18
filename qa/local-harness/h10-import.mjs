@@ -1,9 +1,10 @@
 // Goal b22 H-10: upload (preview), commit, duplicate, undo, bad rows and the size cap, through /api/import.
 // Local harness only. The password comes from the seed file at run time and is never printed.
 import { readFileSync } from "node:fs";
+import { fixturePassword } from "./fixture-password.mjs";
 const BASE = process.env.BASE || "http://localhost:3917";
 const EMAIL = process.env.FIXTURE_EMAIL || "fixture-h10-import@example.test";
-const PASS = /PASSWORD\s*=\s*[^"]*"([^"]+)"/.exec(readFileSync("qa/fixtures/seed-fixture-accounts.mjs", "utf8"))[1];
+const PASS = fixturePassword(EMAIL);
 const H = { "content-type": "application/json", Origin: BASE };
 const sign = await fetch(`${BASE}/api/auth/sign-in/email`, { method: "POST", headers: H, body: JSON.stringify({ email: EMAIL, password: PASS }) });
 const cookie = sign.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");

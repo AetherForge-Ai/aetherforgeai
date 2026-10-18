@@ -15,7 +15,36 @@
 // Usage: node qa/fixtures/seed-fixture-accounts.mjs  (restart the local app first if sign-up returns 429: the sign-up limiter is per IP)
 const BASE = process.env.BASE_URL || "http://localhost:3917";
 const MOCK = process.env.MOCK_URL || "http://127.0.0.1:4555";
-const PASSWORD = process.env.FIXTURE_PASSWORD || "Harness-Pass-123!";
+// b24 SECURITY: no password is committed. FIXTURE_PASSWORD from the environment wins; otherwise each
+// account gets a random password at run time, kept only in ACCOUNTS_FILE (gitignored, chmod 600).
+// An account already listed there keeps its password so re-runs can still sign in.
+import { randomBytes } from "node:crypto";
+import { chmodSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
+// b24: local passwords live only in qa/local-harness/.fixtures-local.md (gitignored, chmod 600).
+// Any output path outside qa/local-harness/ is refused, so a live fixture file is never touched.
+const HARNESS_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "../local-harness");
+const ACCOUNTS_FILE = resolve(process.env.FIXTURE_ACCOUNTS_FILE || `${HARNESS_DIR}/.fixtures-local.md`);
+if (!ACCOUNTS_FILE.startsWith(HARNESS_DIR + sep)) {
+  console.error("Refusing to write fixture passwords outside qa/local-harness/.");
+  process.exit(2);
+}
+const known = new Map();
+if (existsSync(ACCOUNTS_FILE)) {
+  for (const m of readFileSync(ACCOUNTS_FILE, "utf8").matchAll(/^\| (\S+@\S+) \| (\S+) \|$/gm)) known.set(m[1], m[2]);
+}
+const passwordFor = (email) => {
+  if (process.env.FIXTURE_PASSWORD) return process.env.FIXTURE_PASSWORD;
+  if (!known.has(email)) known.set(email, `Fx-${randomBytes(12).toString("base64url")}-9a`);
+  return known.get(email);
+};
+function saveAccounts() {
+  if (process.env.FIXTURE_PASSWORD) return;
+  const rows = [...known].map(([e, p]) => `| ${e} | ${p} |`).join("\n");
+  writeFileSync(ACCOUNTS_FILE, `# Local fixture accounts (generated; never commit)\n\n| email | password |\n|---|---|\n${rows}\n`, { mode: 0o600 });
+  chmodSync(ACCOUNTS_FILE, 0o600);
+}
 const local = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(BASE);
 if (!local && process.env.FIXTURE_ALLOW_REMOTE !== "1") {
   console.error(`Refusing ${BASE}: fixtures on live are Totalum writes (parked). Set FIXTURE_ALLOW_REMOTE=1 only with approval.`);
@@ -75,14 +104,16 @@ const FIXTURES = [
 
 const json = { "content-type": "application/json", origin: BASE };
 async function signIn(email) {
-  const res = await fetch(`${BASE}/api/auth/sign-in/email`, { method: "POST", headers: json, body: JSON.stringify({ email, password: PASSWORD }) });
+  const res = await fetch(`${BASE}/api/auth/sign-in/email`, { method: "POST", headers: json, body: JSON.stringify({ email, password: passwordFor(email) }) });
   const cookie = (res.headers.getSetCookie?.() || []).map((c) => c.split(";")[0]).join("; ");
   return { status: res.status, cookie };
 }
 
+for (const f of FIXTURES) passwordFor(f.email);
+saveAccounts();
 for (const f of FIXTURES) {
   if (!/@example\.(test|invalid)$/.test(f.email)) throw new Error("fixture emails must be @example.test or @example.invalid");
-  const up = await fetch(`${BASE}/api/auth/sign-up/email`, { method: "POST", headers: json, body: JSON.stringify({ email: f.email, password: PASSWORD, name: f.name, age_confirmed: true }) });
+  const up = await fetch(`${BASE}/api/auth/sign-up/email`, { method: "POST", headers: json, body: JSON.stringify({ email: f.email, password: passwordFor(f.email), name: f.name, age_confirmed: true }) });
   if (local) {
     await fetch(`${MOCK}/__mock/patch`, { method: "POST", body: JSON.stringify({ table: "user", filter: { email: f.email }, set: { email_verified: true, subscription_plan: f.plan, subscription_status: "active" } }) });
   }

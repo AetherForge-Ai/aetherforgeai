@@ -5,7 +5,7 @@ const { open, sleep } = require("./cdp.cjs");
   await b.send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 1100, deviceScaleFactor: 1, mobile: false });
   await b.send("Page.navigate", { url: "http://localhost:3917/login" }); await sleep(2500);
   await b.ev(`fetch("/api/auth/sign-out",{method:"POST",headers:{"content-type":"application/json"},body:"{}"})`);
-  console.log("login", await b.ev(`fetch("/api/auth/sign-in/email",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email:"fixture-h9-tax@example.test",password:"Harness-Pass-123!"})}).then(r=>r.status)`));
+  console.log("login", await b.ev(`fetch("/api/auth/sign-in/email",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email:"fixture-h9-tax@example.test",password:${JSON.stringify(process.env.FIXTURE_PASSWORD||"")}})}).then(r=>r.status)`));
   await b.send("Page.navigate", { url: "http://localhost:3917/dashboard/performance" }); await sleep(9000);
   console.log("bench cells", await b.ev(`JSON.stringify([...document.querySelectorAll("[data-bench]")].map(e=>e.getAttribute("data-bench")+"="+e.textContent))`));
   console.log("bench sources", await b.ev(`JSON.stringify([...document.querySelectorAll("[data-bench-source]")].map(e=>e.textContent))`));
