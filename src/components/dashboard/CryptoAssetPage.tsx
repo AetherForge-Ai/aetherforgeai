@@ -29,6 +29,7 @@ export function CryptoAssetPage({
   name = null,
   quotedLine = null,
   initialDetail = null,
+  suppressDepth = false,
 }: {
   coinId: string | null;
   allowBuy?: boolean;
@@ -42,6 +43,8 @@ export function CryptoAssetPage({
   /** Server-rendered last good price. Shown instead of a loading skeleton. */
   quotedLine?: string | null;
   initialDetail?: CoinDetail | null;
+  /** Coin page already prints market cap, volume, supply and 1h/30d. */
+  suppressDepth?: boolean;
 }) {
   const label = unavailable ? unavailableTokenLabel(symbol, name) : null;
   const dexMarket = unavailable ? "DEX" : market;
@@ -129,6 +132,7 @@ export function CryptoAssetPage({
           variant="page"
           quotedLine={quotedLine}
           initialDetail={initialDetail}
+          suppressDepth={suppressDepth}
           serverHeading
         />
       </div>

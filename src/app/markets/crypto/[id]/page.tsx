@@ -5,20 +5,17 @@ import { publicPageMetadata } from "@/lib/reviewed-book";
 import { MarketsAppFrame } from "@/components/dashboard/MarketsAppFrame";
 import { CryptoAssetPage } from "@/components/dashboard/CryptoAssetPage";
 import { PublicCryptoPrices } from "@/components/markets/PublicCryptoPrices";
-import { resolvableCoinId } from "@/lib/crypto-market";
+import { resolvableCoinId, type CoinDetail } from "@/lib/crypto-market";
 import { formatPublicCryptoPrice, type ChainPrint } from "@/lib/crypto-price-chain";
 import { loadPublicCryptoPrint } from "@/lib/crypto-price-feed";
 import { publicCoinSourceLine } from "@/lib/data-sources";
-import { peekTop400 } from "@/lib/crypto-coingecko";
-import { readCryptoSnapshot } from "@/lib/crypto-snapshot";
 import { getFxSnapshot } from "@/lib/fx";
 import { pageTitle } from "@/lib/page-title";
 import { isJunkCoin } from "@/lib/coin-junk";
 import { withTimeout } from "@/lib/with-timeout";
-import { presentMarketCoin } from "@/lib/crypto-api-body";
-import { presentListedCoin } from "@/lib/crypto-board";
-import { detailFromMarket } from "@/lib/crypto-market";
 import { cryptoDetailCopy, cryptoDetailJsonLd, vendorByCoingeckoId, type CryptoDetailFacts } from "@/lib/crypto-public-meta";
+import { ensureCoinDepth } from "@/lib/crypto-depth.server";
+import { CoinDepthFacts } from "@/components/markets/CoinDepthFacts";
 
 export const dynamic = "force-dynamic";
 
@@ -26,20 +23,17 @@ const siteOrigin = process.env.NEXT_PUBLIC_APP_URL || "https://www.aetherforgeai
 
 /**
  * One read for the document title and the page.
- * NZD is included only when the FX snapshot was sourced. Market cap comes from
- * the CoinGecko list already in memory, and only when that figure is positive.
+ * NZD is included only when the FX snapshot was sourced. Market cap, volume,
+ * supply and 1h/30d come from the depth record when the feed sent them.
  *
  * pull-check:retest4-2026-10-11
  */
-const loadCryptoDetailFacts = cache(async (id: string): Promise<{ facts: CryptoDetailFacts; print: ChainPrint | null; initialDetail: ReturnType<typeof detailFromMarket> | null }> => {
+const loadCryptoDetailFacts = cache(async (id: string): Promise<{ facts: CryptoDetailFacts; print: ChainPrint | null; initialDetail: CoinDetail | null }> => {
   const slug = resolvableCoinId(id) || decodeURIComponent(id).trim().toLowerCase();
   const vendor = vendorByCoingeckoId(slug);
   const coinId = resolvableCoinId(id);
-  const saved = await withTimeout(() => readCryptoSnapshot(), 1500, null);
-  const listed =
-    peekTop400()?.coins.find((coin) => coin.id === slug || coin.symbol.toUpperCase() === (vendor?.ticker || "")) ??
-    saved?.coins.find((coin) => coin.id === slug || coin.symbol.toUpperCase() === (vendor?.ticker || "")) ??
-    null;
+  const depth = await withTimeout(() => ensureCoinDepth({ slug, budgetMs: 2_500 }), 3_500, null);
+  const listed = depth && depth.price > 0 ? depth : null;
   const print =
     listed && listed.price > 0
       ? null
@@ -58,40 +52,39 @@ const loadCryptoDetailFacts = cache(async (id: string): Promise<{ facts: CryptoD
       priceNzd = priceUsd * perUsd;
     }
   }
-  const marketCap = listed && listed.marketCap > 0 ? listed.marketCap : null;
+  const marketCap = listed && listed.marketCap && listed.marketCap > 0 ? listed.marketCap : null;
   const snapshotPrint: ChainPrint | null =
     listed && listed.price > 0
       ? {
           symbol: listed.symbol,
           price: listed.price,
           changePct: listed.change24h,
-          quotedAt: listed.quotedAt || saved?.at || new Date(0).toISOString(),
+          quotedAt: listed.quotedAt || listed.checkedAt || new Date(0).toISOString(),
           source: priceSource,
           stale: false,
-          storedAt: Date.parse(listed.quotedAt || saved?.at || "") || 0,
+          storedAt: Date.parse(listed.quotedAt || listed.checkedAt || "") || 0,
         }
       : null;
   const shown = snapshotPrint || (print && print.price > 0 ? print : null);
-  const listedDetail = listed ? detailFromMarket(presentMarketCoin(presentListedCoin(listed))) : null;
   return {
     print: shown,
-    initialDetail: listedDetail
+    initialDetail: depth
       ? {
-          ...listedDetail,
-          price: listed && listed.price > 0 ? listed.price : listedDetail.price,
-          source: priceSource,
+          ...depth,
+          price: listed && listed.price > 0 ? listed.price : depth.price,
+          source: priceSource || depth.source,
           sourceLine: publicCoinSourceLine(priceSource),
         }
       : null,
     facts: {
       slug,
-      name: vendor?.name || listed?.name || null,
-      symbol: vendor?.ticker || listed?.symbol || print?.symbol || null,
+      name: vendor?.name || depth?.name || null,
+      symbol: vendor?.ticker || depth?.symbol || print?.symbol || null,
       priceUsd,
       priceNzd,
       nzdSourced,
-      asOf: shown?.quotedAt || listed?.quotedAt || saved?.at || null,
-      source: priceSource || null,
+      asOf: shown?.quotedAt || depth?.quotedAt || depth?.checkedAt || null,
+      source: priceSource || depth?.source || null,
       marketCapUsd: marketCap,
     },
   };
@@ -156,14 +149,12 @@ export default async function CryptoDetailPage({
         <h1 className="font-display text-2xl font-bold text-foreground">
           {loaded.facts.name || (loaded.facts.symbol ? loaded.facts.symbol.toUpperCase() : decodeURIComponent(id))}
         </h1>
-        {loaded.initialDetail ? (
-          quotedLine ? <p className="tnum mt-1 text-sm text-muted-foreground" data-server-price>{quotedLine}</p> : null
+        {quotedLine ? (
+          <p className="tnum mt-1 text-sm text-muted-foreground" data-server-price>{quotedLine}</p>
         ) : (
-          <PublicCryptoPrices
-            prints={print && print.price > 0 ? [print] : []}
-            empty="No earlier price is stored for this coin."
-          />
+          <PublicCryptoPrices prints={[]} empty="No earlier price is stored for this coin." />
         )}
+        <CoinDepthFacts detail={loaded.initialDetail} coinId={coinId} />
       </div>
       <CryptoAssetPage
         coinId={coinId}
@@ -174,6 +165,7 @@ export default async function CryptoDetailPage({
         market={sp.market === "dex" ? "DEX" : "Crypto"}
         quotedLine={quotedLine || null}
         initialDetail={loaded.initialDetail}
+        suppressDepth
       />
     </MarketsAppFrame>
   );

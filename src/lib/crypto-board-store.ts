@@ -397,11 +397,13 @@ async function runCryptoSeed(): Promise<{ cryptoReplaced: boolean; cryptoRows: n
   } catch (err) {
     console.error("[crypto-board] platform directory was not applied:", err instanceof Error ? err.message.slice(0, 80) : "failed");
   }
+  let previousCoins: CoinMarket[] = [];
   try {
     const previous = await readCryptoSnapshot();
-    if (previous?.coins.length) {
+    previousCoins = previous?.coins ?? [];
+    if (previousCoins.length) {
       const { applyStatDonors } = await import("@/lib/crypto-market");
-      coins = applyStatDonors(coins, previous.coins);
+      coins = applyStatDonors(coins, previousCoins);
     }
     if (process.env.VITEST !== "true") {
       const { enrichPaprikaGaps } = await import("@/lib/crypto-paprika");
@@ -409,6 +411,11 @@ async function runCryptoSeed(): Promise<{ cryptoReplaced: boolean; cryptoRows: n
     }
   } catch (err) {
     console.error("[crypto-board] paprika gap fill failed:", err instanceof Error ? err.message.slice(0, 80) : "failed");
+  }
+  if (previousCoins.length) {
+    // G-17: a seed that omits tether or a thin coin must not erase the last full record.
+    const { retainDepthCoins } = await import("@/lib/crypto-depth-record");
+    coins = retainDepthCoins(coins, previousCoins);
   }
   await persistCryptoSnapshot(coins, at);
   const saved = await readCryptoSnapshot();

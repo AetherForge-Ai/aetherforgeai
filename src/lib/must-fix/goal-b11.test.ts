@@ -48,7 +48,10 @@ describe("G-17 crypto depth", () => {
   it("source and time line, and a reason when a figure is missing", () => {
     expect(coinMetricsSourceLine("coingecko", "2026-10-17T17:00:00Z")).toBe("Source: CoinGecko · as of 18 Oct 2026, 6:00 am");
     expect(coinMetricsSourceLine("coingecko", null)).toContain("time not supplied");
-    expect(depthMissingReason("coinpaprika")).toBe("Not supplied by CoinPaprika");
+    expect(depthMissingReason("coinpaprika", "2026-10-17T17:00:00Z")).toBe(
+      "not available from source · checked 18 Oct 2026, 6:00 am"
+    );
+    expect(depthMissingReason("coinpaprika")).toContain("not available from source");
     expect(fmtShortDate("2025-10-06T00:00:00Z")).toBe("6 Oct 2025");
     const view = read("src/components/dashboard/crypto/CoinDetailView.tsx");
     for (const label of ["Market Cap", "24h Volume", "Circulating"]) expect(view).toContain(`label="${label}" value="—"`);
