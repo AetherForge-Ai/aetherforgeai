@@ -7,6 +7,7 @@ import {
   ensureNzdPerAud,
   ensureNzdPerUsd,
   formatMoney,
+  formatNzd,
   formatUsdWithRate,
   nativeToNzd,
   usdToNzd,
@@ -71,6 +72,23 @@ describe("public USD caption", () => {
     const line = formatMarketPrice(0.00000812, "USD");
     expect(line).toContain("0.00000812");
     expect(line).not.toMatch(/0\.00$/);
+  });
+});
+
+describe("formatNzd", () => {
+  it("prints NZ$ with exactly two decimal places and no bare dollar sign", () => {
+    expect(formatNzd(0)).toBe("NZ$0.00");
+    expect(formatNzd(200)).toBe("NZ$200.00");
+    expect(formatNzd(15600)).toBe("NZ$15,600.00");
+    expect(formatNzd(15601)).toBe("NZ$15,601.00");
+    expect(formatNzd(1.2)).toBe("NZ$1.20");
+    expect(formatNzd(-7)).toBe("-NZ$7.00");
+    // Half a cent rounds half-up, still to two places.
+    expect(formatNzd(1.005)).toBe("NZ$1.01");
+    for (const sample of [formatNzd(200), formatNzd(15600), formatNzd(-7)]) {
+      expect(sample).toMatch(/^-?NZ\$[\d,]+\.\d{2}$/);
+      expect(sample).not.toMatch(/(?<![A-Za-z])\$/);
+    }
   });
 });
 
